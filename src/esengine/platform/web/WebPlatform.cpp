@@ -1,5 +1,6 @@
 #include "../Platform.hpp"
 #include "../../core/Log.hpp"
+#include "../../renderer/Renderer.hpp"
 
 #ifdef ES_PLATFORM_WEB
     #include <emscripten.h>

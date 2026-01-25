@@ -1,6 +1,8 @@
 #include "Renderer.hpp"
 #include "RenderCommand.hpp"
 #include "../core/Log.hpp"
+#include <array>
+#include <vector>
 
 #ifdef ES_PLATFORM_WEB
     #include <GLES3/gl3.h>
@@ -211,7 +213,7 @@ void Renderer::initQuadData() {
 
     s_data->quadVAO = VertexArray::create();
 
-    auto vbo = VertexBuffer::create(vertices, sizeof(vertices));
+    auto vbo = VertexBuffer::create(vertices);  // Type-safe: size deduced from array
     vbo->setLayout({
         { ShaderDataType::Float2, "a_position" }
     });
@@ -259,8 +261,8 @@ void Renderer::endScene() {
 
 void Renderer::submit(const Shader& shader, const VertexArray& vao, const glm::mat4& transform) {
     shader.bind();
-    const_cast<Shader&>(shader).setUniform("u_projection", s_data->viewProjection);
-    const_cast<Shader&>(shader).setUniform("u_model", transform);
+    shader.setUniform("u_projection", s_data->viewProjection);
+    shader.setUniform("u_model", transform);
 
     RenderCommand::drawIndexed(vao);
 
@@ -310,19 +312,189 @@ void Renderer::resetStats() {
 }
 
 // ========================================
-// BatchRenderer2D Implementation (Stub)
+// BatchRenderer2D Implementation
 // ========================================
 
+namespace {
+
+// Batch vertex structure
+struct BatchVertex {
+    glm::vec3 position;
+    glm::vec4 color;
+    glm::vec2 texCoord;
+    f32 texIndex;
+};
+
+// Batch rendering constants
+constexpr u32 MAX_QUADS = 10000;
+constexpr u32 MAX_VERTICES = MAX_QUADS * 4;
+constexpr u32 MAX_INDICES = MAX_QUADS * 6;
+constexpr u32 MAX_TEXTURE_SLOTS = 8;  // WebGL typically supports 8
+
+// Batch rendering data
+struct BatchData {
+    Unique<VertexArray> vao;
+    Unique<VertexBuffer> vbo;
+    Unique<Shader> shader;
+
+    std::vector<BatchVertex> vertices;
+    u32 indexCount = 0;
+
+    std::array<u32, MAX_TEXTURE_SLOTS> textureSlots;
+    u32 textureSlotIndex = 1;  // 0 = white texture
+
+    u32 whiteTextureId = 0;
+    glm::mat4 projection{1.0f};
+
+    // Statistics
+    u32 drawCallCount = 0;
+    u32 quadCount = 0;
+
+    bool initialized = false;
+};
+
+BatchData* s_batchData = nullptr;
+
+// Quad vertex positions (CCW from bottom-left)
+constexpr glm::vec4 QUAD_POSITIONS[4] = {
+    { -0.5f, -0.5f, 0.0f, 1.0f },
+    {  0.5f, -0.5f, 0.0f, 1.0f },
+    {  0.5f,  0.5f, 0.0f, 1.0f },
+    { -0.5f,  0.5f, 0.0f, 1.0f }
+};
+
+constexpr glm::vec2 QUAD_TEX_COORDS[4] = {
+    { 0.0f, 0.0f },
+    { 1.0f, 0.0f },
+    { 1.0f, 1.0f },
+    { 0.0f, 1.0f }
+};
+
+// Batch shader sources
+const char* BATCH_VERTEX_SHADER = R"(
+    attribute vec3 a_position;
+    attribute vec4 a_color;
+    attribute vec2 a_texCoord;
+    attribute float a_texIndex;
+
+    uniform mat4 u_projection;
+
+    varying vec4 v_color;
+    varying vec2 v_texCoord;
+    varying float v_texIndex;
+
+    void main() {
+        gl_Position = u_projection * vec4(a_position, 1.0);
+        v_color = a_color;
+        v_texCoord = a_texCoord;
+        v_texIndex = a_texIndex;
+    }
+)";
+
+const char* BATCH_FRAGMENT_SHADER = R"(
+    precision mediump float;
+
+    varying vec4 v_color;
+    varying vec2 v_texCoord;
+    varying float v_texIndex;
+
+    uniform sampler2D u_textures[8];
+
+    void main() {
+        int index = int(v_texIndex);
+        vec4 texColor = vec4(1.0);
+
+        // WebGL 1.0 doesn't support dynamic array indexing, use if-else
+        if (index == 0) texColor = texture2D(u_textures[0], v_texCoord);
+        else if (index == 1) texColor = texture2D(u_textures[1], v_texCoord);
+        else if (index == 2) texColor = texture2D(u_textures[2], v_texCoord);
+        else if (index == 3) texColor = texture2D(u_textures[3], v_texCoord);
+        else if (index == 4) texColor = texture2D(u_textures[4], v_texCoord);
+        else if (index == 5) texColor = texture2D(u_textures[5], v_texCoord);
+        else if (index == 6) texColor = texture2D(u_textures[6], v_texCoord);
+        else if (index == 7) texColor = texture2D(u_textures[7], v_texCoord);
+
+        gl_FragColor = texColor * v_color;
+    }
+)";
+
+}  // namespace
+
 void BatchRenderer2D::init() {
-    ES_LOG_INFO("BatchRenderer2D initialized");
+    s_batchData = new BatchData();
+    s_batchData->vertices.reserve(MAX_VERTICES);
+
+#ifdef ES_PLATFORM_WEB
+    // Create VAO
+    s_batchData->vao = VertexArray::create();
+
+    // Create dynamic vertex buffer
+    s_batchData->vbo = VertexBuffer::create(MAX_VERTICES * sizeof(BatchVertex));
+    s_batchData->vbo->setLayout({
+        { ShaderDataType::Float3, "a_position" },
+        { ShaderDataType::Float4, "a_color" },
+        { ShaderDataType::Float2, "a_texCoord" },
+        { ShaderDataType::Float,  "a_texIndex" }
+    });
+
+    s_batchData->vao->addVertexBuffer(Shared<VertexBuffer>(std::move(s_batchData->vbo)));
+
+    // Create index buffer (pre-computed pattern for quads)
+    std::vector<u32> indices(MAX_INDICES);
+    u32 offset = 0;
+    for (u32 i = 0; i < MAX_INDICES; i += 6) {
+        indices[i + 0] = offset + 0;
+        indices[i + 1] = offset + 1;
+        indices[i + 2] = offset + 2;
+        indices[i + 3] = offset + 2;
+        indices[i + 4] = offset + 3;
+        indices[i + 5] = offset + 0;
+        offset += 4;
+    }
+    auto ibo = IndexBuffer::create(indices.data(), MAX_INDICES);
+    s_batchData->vao->setIndexBuffer(Shared<IndexBuffer>(std::move(ibo)));
+
+    // Create batch shader
+    s_batchData->shader = Shader::create(BATCH_VERTEX_SHADER, BATCH_FRAGMENT_SHADER);
+
+    // Create 1x1 white texture for colored quads
+    glGenTextures(1, &s_batchData->whiteTextureId);
+    glBindTexture(GL_TEXTURE_2D, s_batchData->whiteTextureId);
+    u32 whiteData = 0xFFFFFFFF;
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, &whiteData);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+    // Initialize texture slots
+    s_batchData->textureSlots[0] = s_batchData->whiteTextureId;
+    for (u32 i = 1; i < MAX_TEXTURE_SLOTS; ++i) {
+        s_batchData->textureSlots[i] = 0;
+    }
+#endif
+
+    s_batchData->initialized = true;
+    ES_LOG_INFO("BatchRenderer2D initialized (max {} quads per batch)", MAX_QUADS);
 }
 
 void BatchRenderer2D::shutdown() {
+    if (s_batchData) {
+#ifdef ES_PLATFORM_WEB
+        if (s_batchData->whiteTextureId != 0) {
+            glDeleteTextures(1, &s_batchData->whiteTextureId);
+        }
+#endif
+        s_batchData->vao.reset();
+        s_batchData->shader.reset();
+        delete s_batchData;
+        s_batchData = nullptr;
+    }
     ES_LOG_INFO("BatchRenderer2D shutdown");
 }
 
 void BatchRenderer2D::beginBatch() {
-    // TODO: Implement batch rendering
+    s_batchData->vertices.clear();
+    s_batchData->indexCount = 0;
+    s_batchData->textureSlotIndex = 1;
 }
 
 void BatchRenderer2D::endBatch() {
@@ -330,7 +502,39 @@ void BatchRenderer2D::endBatch() {
 }
 
 void BatchRenderer2D::flush() {
-    // TODO: Implement batch flush
+    if (s_batchData->vertices.empty()) return;
+
+#ifdef ES_PLATFORM_WEB
+    // Upload vertex data
+    s_batchData->vao->getVertexBuffers()[0]->setDataRaw(
+        s_batchData->vertices.data(),
+        static_cast<u32>(s_batchData->vertices.size() * sizeof(BatchVertex))
+    );
+
+    // Bind textures
+    for (u32 i = 0; i < s_batchData->textureSlotIndex; ++i) {
+        glActiveTexture(GL_TEXTURE0 + i);
+        glBindTexture(GL_TEXTURE_2D, s_batchData->textureSlots[i]);
+    }
+
+    // Set uniforms and draw
+    s_batchData->shader->bind();
+    s_batchData->shader->setUniform("u_projection", s_batchData->projection);
+
+    // Set texture uniform array
+    i32 samplers[MAX_TEXTURE_SLOTS] = { 0, 1, 2, 3, 4, 5, 6, 7 };
+    glUniform1iv(glGetUniformLocation(s_batchData->shader->getProgramId(), "u_textures"),
+                 MAX_TEXTURE_SLOTS, samplers);
+
+    RenderCommand::drawIndexed(*s_batchData->vao, s_batchData->indexCount);
+
+    s_batchData->drawCallCount++;
+#endif
+
+    // Reset batch
+    s_batchData->vertices.clear();
+    s_batchData->indexCount = 0;
+    s_batchData->textureSlotIndex = 1;
 }
 
 void BatchRenderer2D::drawQuad(const glm::vec2& position, const glm::vec2& size,
@@ -340,38 +544,117 @@ void BatchRenderer2D::drawQuad(const glm::vec2& position, const glm::vec2& size,
 
 void BatchRenderer2D::drawQuad(const glm::vec3& position, const glm::vec2& size,
                                 u32 textureId, const glm::vec4& color) {
-    (void)position; (void)size; (void)textureId; (void)color;
-    // TODO: Implement
+    // Check if batch is full
+    if (s_batchData->vertices.size() >= MAX_VERTICES) {
+        flush();
+    }
+
+    // Find or add texture slot
+    f32 texIndex = 0.0f;
+    if (textureId != 0) {
+        bool found = false;
+        for (u32 i = 0; i < s_batchData->textureSlotIndex; ++i) {
+            if (s_batchData->textureSlots[i] == textureId) {
+                texIndex = static_cast<f32>(i);
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            if (s_batchData->textureSlotIndex >= MAX_TEXTURE_SLOTS) {
+                flush();
+            }
+            s_batchData->textureSlots[s_batchData->textureSlotIndex] = textureId;
+            texIndex = static_cast<f32>(s_batchData->textureSlotIndex);
+            s_batchData->textureSlotIndex++;
+        }
+    }
+
+    // Calculate transform
+    glm::mat4 transform = glm::translate(glm::mat4(1.0f), position);
+    transform = glm::scale(transform, glm::vec3(size, 1.0f));
+
+    // Add 4 vertices for quad
+    for (u32 i = 0; i < 4; ++i) {
+        BatchVertex vertex;
+        vertex.position = glm::vec3(transform * QUAD_POSITIONS[i]);
+        vertex.color = color;
+        vertex.texCoord = QUAD_TEX_COORDS[i];
+        vertex.texIndex = texIndex;
+        s_batchData->vertices.push_back(vertex);
+    }
+
+    s_batchData->indexCount += 6;
+    s_batchData->quadCount++;
 }
 
 void BatchRenderer2D::drawQuad(const glm::vec2& position, const glm::vec2& size,
                                 const glm::vec4& color) {
-    drawQuad(position, size, 0, color);
+    drawQuad(glm::vec3(position, 0.0f), size, 0, color);
 }
 
 void BatchRenderer2D::drawRotatedQuad(const glm::vec2& position, const glm::vec2& size,
                                        f32 rotation, const glm::vec4& color) {
-    (void)position; (void)size; (void)rotation; (void)color;
-    // TODO: Implement
+    drawRotatedQuad(position, size, rotation, 0, color);
 }
 
 void BatchRenderer2D::drawRotatedQuad(const glm::vec2& position, const glm::vec2& size,
                                        f32 rotation, u32 textureId, const glm::vec4& tintColor) {
-    (void)position; (void)size; (void)rotation; (void)textureId; (void)tintColor;
-    // TODO: Implement
+    // Check if batch is full
+    if (s_batchData->vertices.size() >= MAX_VERTICES) {
+        flush();
+    }
+
+    // Find or add texture slot
+    f32 texIndex = 0.0f;
+    if (textureId != 0) {
+        bool found = false;
+        for (u32 i = 0; i < s_batchData->textureSlotIndex; ++i) {
+            if (s_batchData->textureSlots[i] == textureId) {
+                texIndex = static_cast<f32>(i);
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            if (s_batchData->textureSlotIndex >= MAX_TEXTURE_SLOTS) {
+                flush();
+            }
+            s_batchData->textureSlots[s_batchData->textureSlotIndex] = textureId;
+            texIndex = static_cast<f32>(s_batchData->textureSlotIndex);
+            s_batchData->textureSlotIndex++;
+        }
+    }
+
+    // Calculate transform with rotation
+    glm::mat4 transform = glm::translate(glm::mat4(1.0f), glm::vec3(position, 0.0f));
+    transform = glm::rotate(transform, rotation, glm::vec3(0.0f, 0.0f, 1.0f));
+    transform = glm::scale(transform, glm::vec3(size, 1.0f));
+
+    // Add 4 vertices for quad
+    for (u32 i = 0; i < 4; ++i) {
+        BatchVertex vertex;
+        vertex.position = glm::vec3(transform * QUAD_POSITIONS[i]);
+        vertex.color = tintColor;
+        vertex.texCoord = QUAD_TEX_COORDS[i];
+        vertex.texIndex = texIndex;
+        s_batchData->vertices.push_back(vertex);
+    }
+
+    s_batchData->indexCount += 6;
+    s_batchData->quadCount++;
 }
 
 void BatchRenderer2D::setProjection(const glm::mat4& projection) {
-    (void)projection;
-    // TODO: Implement
+    s_batchData->projection = projection;
 }
 
 u32 BatchRenderer2D::getDrawCallCount() {
-    return 0;  // TODO: Implement
+    return s_batchData ? s_batchData->drawCallCount : 0;
 }
 
 u32 BatchRenderer2D::getQuadCount() {
-    return 0;  // TODO: Implement
+    return s_batchData ? s_batchData->quadCount : 0;
 }
 
 }  // namespace esengine

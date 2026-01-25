@@ -153,7 +153,7 @@ bool Shader::compile(const std::string& vertexSrc, const std::string& fragmentSr
 #endif
 }
 
-i32 Shader::getUniformLocation(const std::string& name) {
+i32 Shader::getUniformLocation(const std::string& name) const {
     auto it = uniformCache_.find(name);
     if (it != uniformCache_.end()) {
         return it->second;
@@ -171,7 +171,7 @@ i32 Shader::getUniformLocation(const std::string& name) {
 #endif
 }
 
-void Shader::setUniform(const std::string& name, i32 value) {
+void Shader::setUniform(const std::string& name, i32 value) const {
 #ifdef ES_PLATFORM_WEB
     glUniform1i(getUniformLocation(name), value);
 #else
@@ -180,7 +180,7 @@ void Shader::setUniform(const std::string& name, i32 value) {
 #endif
 }
 
-void Shader::setUniform(const std::string& name, f32 value) {
+void Shader::setUniform(const std::string& name, f32 value) const {
 #ifdef ES_PLATFORM_WEB
     glUniform1f(getUniformLocation(name), value);
 #else
@@ -189,7 +189,7 @@ void Shader::setUniform(const std::string& name, f32 value) {
 #endif
 }
 
-void Shader::setUniform(const std::string& name, const glm::vec2& value) {
+void Shader::setUniform(const std::string& name, const glm::vec2& value) const {
 #ifdef ES_PLATFORM_WEB
     glUniform2f(getUniformLocation(name), value.x, value.y);
 #else
@@ -198,7 +198,7 @@ void Shader::setUniform(const std::string& name, const glm::vec2& value) {
 #endif
 }
 
-void Shader::setUniform(const std::string& name, const glm::vec3& value) {
+void Shader::setUniform(const std::string& name, const glm::vec3& value) const {
 #ifdef ES_PLATFORM_WEB
     glUniform3f(getUniformLocation(name), value.x, value.y, value.z);
 #else
@@ -207,7 +207,7 @@ void Shader::setUniform(const std::string& name, const glm::vec3& value) {
 #endif
 }
 
-void Shader::setUniform(const std::string& name, const glm::vec4& value) {
+void Shader::setUniform(const std::string& name, const glm::vec4& value) const {
 #ifdef ES_PLATFORM_WEB
     glUniform4f(getUniformLocation(name), value.x, value.y, value.z, value.w);
 #else
@@ -216,7 +216,7 @@ void Shader::setUniform(const std::string& name, const glm::vec4& value) {
 #endif
 }
 
-void Shader::setUniform(const std::string& name, const glm::mat3& value) {
+void Shader::setUniform(const std::string& name, const glm::mat3& value) const {
 #ifdef ES_PLATFORM_WEB
     glUniformMatrix3fv(getUniformLocation(name), 1, GL_FALSE, glm::value_ptr(value));
 #else
@@ -225,7 +225,7 @@ void Shader::setUniform(const std::string& name, const glm::mat3& value) {
 #endif
 }
 
-void Shader::setUniform(const std::string& name, const glm::mat4& value) {
+void Shader::setUniform(const std::string& name, const glm::mat4& value) const {
 #ifdef ES_PLATFORM_WEB
     glUniformMatrix4fv(getUniformLocation(name), 1, GL_FALSE, glm::value_ptr(value));
 #else

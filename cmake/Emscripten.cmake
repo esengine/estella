@@ -13,45 +13,46 @@ endif()
 
 # Emscripten-specific compiler flags
 set(ES_EMSCRIPTEN_COMPILE_FLAGS
-    "-s USE_WEBGL2=1"
-    "-s FULL_ES3=1"
+    # Compile flags only
 )
 
 set(ES_EMSCRIPTEN_LINK_FLAGS
-    "-s WASM=1"
-    "-s ALLOW_MEMORY_GROWTH=1"
-    "-s NO_EXIT_RUNTIME=1"
-    "-s ASSERTIONS=1"
+    -sWASM=1
+    -sUSE_WEBGL2=1
+    -sFULL_ES3=1
+    -sALLOW_MEMORY_GROWTH=1
+    -sNO_EXIT_RUNTIME=1
+    -sASSERTIONS=1
 )
 
 # Debug-specific flags
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     list(APPEND ES_EMSCRIPTEN_COMPILE_FLAGS
-        "-g"
-        "-s ASSERTIONS=2"
-        "-s SAFE_HEAP=1"
-        "-s STACK_OVERFLOW_CHECK=2"
+        -g
+        -sASSERTIONS=2
+        -sSAFE_HEAP=1
+        -sSTACK_OVERFLOW_CHECK=2
     )
 endif()
 
 # Release-specific flags
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
     list(APPEND ES_EMSCRIPTEN_COMPILE_FLAGS
-        "-O3"
-        "-s ASSERTIONS=0"
+        -O3
+        -sASSERTIONS=0
     )
     list(APPEND ES_EMSCRIPTEN_LINK_FLAGS
-        "-O3"
-        "--closure 1"
+        -O3
+        --closure=1
     )
 endif()
 
 # WeChat MiniGame specific settings
 if(ES_BUILD_WXGAME)
     list(APPEND ES_EMSCRIPTEN_LINK_FLAGS
-        "-s ENVIRONMENT=web"
-        "-s MODULARIZE=1"
-        "-s EXPORT_NAME='ESEngineModule'"
+        -sENVIRONMENT=web
+        -sMODULARIZE=1
+        "-sEXPORT_NAME='ESEngineModule'"
     )
 endif()
 

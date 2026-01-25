@@ -79,15 +79,15 @@ VertexBuffer& VertexBuffer::operator=(VertexBuffer&& other) noexcept {
     return *this;
 }
 
-Unique<VertexBuffer> VertexBuffer::create(const void* data, u32 size) {
+Unique<VertexBuffer> VertexBuffer::createRaw(const void* data, u32 sizeBytes) {
     auto buffer = makeUnique<VertexBuffer>();
 #ifdef ES_PLATFORM_WEB
     glGenBuffers(1, &buffer->bufferId_);
     glBindBuffer(GL_ARRAY_BUFFER, buffer->bufferId_);
-    glBufferData(GL_ARRAY_BUFFER, size, data, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeBytes, data, GL_STATIC_DRAW);
 #else
     (void)data;
-    (void)size;
+    (void)sizeBytes;
 #endif
     return buffer;
 }
@@ -116,13 +116,13 @@ void VertexBuffer::unbind() const {
 #endif
 }
 
-void VertexBuffer::setData(const void* data, u32 size) {
+void VertexBuffer::setDataRaw(const void* data, u32 sizeBytes) {
 #ifdef ES_PLATFORM_WEB
     glBindBuffer(GL_ARRAY_BUFFER, bufferId_);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, size, data);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeBytes, data);
 #else
     (void)data;
-    (void)size;
+    (void)sizeBytes;
 #endif
 }
 

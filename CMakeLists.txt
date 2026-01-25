@@ -31,6 +31,7 @@ set(ESENGINE_SOURCES
     src/esengine/renderer/Shader.cpp
     src/esengine/renderer/Buffer.cpp
     src/esengine/renderer/Texture.cpp
+    src/esengine/renderer/stb_image_impl.cpp
     src/esengine/platform/input/Input.cpp
 )
 
@@ -74,9 +75,11 @@ target_include_directories(esengine
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb>
         $<INSTALL_INTERFACE:include>
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb
 )
 
 target_link_libraries(esengine PUBLIC glm)
@@ -86,16 +89,16 @@ if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
     target_compile_definitions(esengine PUBLIC ES_PLATFORM_WEB)
 
     set(EMSCRIPTEN_LINK_FLAGS
-        "-s USE_WEBGL2=1"
-        "-s FULL_ES3=1"
-        "-s ALLOW_MEMORY_GROWTH=1"
-        "-s EXPORTED_FUNCTIONS=['_main','_es_init','_es_update','_es_render','_es_on_touch']"
-        "-s EXPORTED_RUNTIME_METHODS=['ccall','cwrap']"
+        -sUSE_WEBGL2=1
+        -sFULL_ES3=1
+        -sALLOW_MEMORY_GROWTH=1
+        "-sEXPORTED_FUNCTIONS=['_main','_es_init','_es_update','_es_render','_es_on_touch']"
+        "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap']"
     )
 
     if(ES_BUILD_WXGAME)
         target_compile_definitions(esengine PUBLIC ES_PLATFORM_WXGAME)
-        list(APPEND EMSCRIPTEN_LINK_FLAGS "-s ENVIRONMENT=web")
+        list(APPEND EMSCRIPTEN_LINK_FLAGS -sENVIRONMENT=web)
     endif()
 
     string(REPLACE ";" " " EMSCRIPTEN_LINK_FLAGS_STR "${EMSCRIPTEN_LINK_FLAGS}")

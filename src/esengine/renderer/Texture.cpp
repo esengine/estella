@@ -1,5 +1,6 @@
 #include "Texture.hpp"
 #include "../core/Log.hpp"
+#include <stb_image.h>
 
 #ifdef ES_PLATFORM_WEB
     #include <GLES3/gl3.h>
@@ -110,7 +111,13 @@ Unique<Texture> Texture::create(const TextureSpecification& spec) {
     return texture;
 }
 
-Unique<Texture> Texture::create(u32 width, u32 height, const void* data, TextureFormat format) {
+Unique<Texture> Texture::create(u32 width, u32 height, const std::vector<u8>& pixels, TextureFormat format) {
+    [[maybe_unused]] u32 expectedSize = width * height * (format == TextureFormat::RGBA8 ? 4 : 3);
+    ES_ASSERT(pixels.size() == expectedSize, "Pixel data size mismatch");
+    return createRaw(width, height, pixels.data(), format);
+}
+
+Unique<Texture> Texture::createRaw(u32 width, u32 height, const void* data, TextureFormat format) {
     TextureSpecification spec;
     spec.width = width;
     spec.height = height;
@@ -122,16 +129,54 @@ Unique<Texture> Texture::create(u32 width, u32 height, const void* data, Texture
     }
 
     if (data) {
-        texture->setData(data, width * height * (format == TextureFormat::RGBA8 ? 4 : 3));
+        texture->setDataRaw(data, width * height * (format == TextureFormat::RGBA8 ? 4 : 3));
     }
 
     return texture;
 }
 
 Unique<Texture> Texture::createFromFile(const std::string& path) {
-    // TODO: Implement image loading (requires stb_image or similar)
-    ES_LOG_ERROR("Texture::createFromFile not implemented: {}", path);
-    return nullptr;
+    // Load image using stb_image
+    stbi_set_flip_vertically_on_load(true);  // OpenGL expects bottom-to-top
+
+    int width, height, channels;
+    unsigned char* data = stbi_load(path.c_str(), &width, &height, &channels, 0);
+
+    if (!data) {
+        ES_LOG_ERROR("Failed to load texture: {} ({})", path, stbi_failure_reason());
+        return nullptr;
+    }
+
+    // Determine format based on channels
+    TextureFormat format = TextureFormat::RGBA8;
+    if (channels == 3) {
+        format = TextureFormat::RGB8;
+    } else if (channels == 4) {
+        format = TextureFormat::RGBA8;
+    } else {
+        ES_LOG_WARN("Unsupported texture format ({} channels), converting to RGBA", channels);
+        stbi_image_free(data);
+
+        // Reload with forced RGBA
+        data = stbi_load(path.c_str(), &width, &height, &channels, 4);
+        if (!data) {
+            ES_LOG_ERROR("Failed to convert texture to RGBA: {}", path);
+            return nullptr;
+        }
+        format = TextureFormat::RGBA8;
+    }
+
+    // Create texture from loaded data
+    auto texture = createRaw(static_cast<u32>(width), static_cast<u32>(height), data, format);
+
+    // Free image data
+    stbi_image_free(data);
+
+    if (texture) {
+        ES_LOG_DEBUG("Loaded texture: {} ({}x{}, {} channels)", path, width, height, channels);
+    }
+
+    return texture;
 }
 
 bool Texture::initialize(const TextureSpecification& spec) {
@@ -189,10 +234,17 @@ void Texture::unbind() const {
 #endif
 }
 
-void Texture::setData(const void* data, u32 size) {
+void Texture::setData(const std::vector<u8>& pixels) {
+    [[maybe_unused]] u32 expectedSize = width_ * height_ * (format_ == TextureFormat::RGBA8 ? 4 : 3);
+    ES_ASSERT(pixels.size() == expectedSize, "Pixel data size mismatch");
+    setDataRaw(pixels.data(), static_cast<u32>(pixels.size()));
+}
+
+void Texture::setDataRaw(const void* data, u32 sizeBytes) {
 #ifdef ES_PLATFORM_WEB
-    u32 bpp = (format_ == TextureFormat::RGBA8) ? 4 : 3;
-    ES_ASSERT(size == width_ * height_ * bpp, "Data size mismatch");
+    [[maybe_unused]] u32 bpp = (format_ == TextureFormat::RGBA8) ? 4 : 3;
+    ES_ASSERT(sizeBytes == width_ * height_ * bpp, "Data size mismatch");
+    (void)sizeBytes;  // Used only for assertion
 
     glBindTexture(GL_TEXTURE_2D, textureId_);
     glTexSubImage2D(
@@ -206,7 +258,7 @@ void Texture::setData(const void* data, u32 size) {
     );
 #else
     (void)data;
-    (void)size;
+    (void)sizeBytes;
 #endif
 }
 
