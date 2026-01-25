@@ -50,6 +50,14 @@ set(ESENGINE_HEADERS
     src/esengine/ecs/Registry.hpp
     src/esengine/ecs/SparseSet.hpp
     src/esengine/ecs/View.hpp
+    src/esengine/ecs/TransformSystem.hpp
+    # ECS Components (split for modularity)
+    src/esengine/ecs/components/Transform.hpp
+    src/esengine/ecs/components/Hierarchy.hpp
+    src/esengine/ecs/components/Sprite.hpp
+    src/esengine/ecs/components/Camera.hpp
+    src/esengine/ecs/components/Velocity.hpp
+    src/esengine/ecs/components/Common.hpp
     src/esengine/math/Math.hpp
     src/esengine/resource/Handle.hpp
     src/esengine/resource/ResourcePool.hpp
@@ -118,12 +126,8 @@ else()
     )
 endif()
 
-# Compiler warnings
-if(MSVC)
-    target_compile_options(esengine PRIVATE /W4)
-else()
-    target_compile_options(esengine PRIVATE -Wall -Wextra -Wpedantic)
-endif()
+# Strict compiler warnings
+esengine_set_strict_warnings(esengine)
 
 # Examples
 if(ES_BUILD_EXAMPLES)

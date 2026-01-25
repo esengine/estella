@@ -2,12 +2,13 @@
  * @file    Math.hpp
  * @brief   Math utilities and GLM configuration for ESEngine
  * @details Provides GLM configuration, math constants, and utility functions
- *          for common game development operations.
+ *          for common game development operations including quaternion/euler
+ *          conversions and matrix decomposition.
  *
  * @author  ESEngine Team
- * @date    2025
+ * @date    2026
  *
- * @copyright Copyright (c) 2025 ESEngine Team
+ * @copyright Copyright (c) 2026 ESEngine Team
  *            Licensed under the MIT License.
  */
 #pragma once
@@ -222,7 +223,7 @@ inline glm::mat4 lookAt(const glm::vec3& eye, const glm::vec3& center, const glm
 // =============================================================================
 
 /**
- * @brief Decomposes a transformation matrix into components
+ * @brief Decomposes a transformation matrix into components (Euler angles)
  * @param matrix The transformation matrix to decompose
  * @param position Output: extracted position
  * @param rotation Output: extracted Euler angles (radians)
@@ -254,6 +255,127 @@ inline void decompose(const glm::mat4& matrix, glm::vec3& position, glm::vec3& r
     rotation.y = std::atan2(-rotMatrix[2][0],
         std::sqrt(rotMatrix[2][1] * rotMatrix[2][1] + rotMatrix[2][2] * rotMatrix[2][2]));
     rotation.z = std::atan2(rotMatrix[1][0], rotMatrix[0][0]);
+}
+
+/**
+ * @brief Decomposes a transformation matrix into components (quaternion)
+ * @param matrix The transformation matrix to decompose
+ * @param position Output: extracted position
+ * @param rotation Output: extracted rotation as quaternion
+ * @param scale Output: extracted scale factors
+ *
+ * @code
+ * glm::vec3 pos, scl;
+ * glm::quat rot;
+ * math::decompose(transform, pos, rot, scl);
+ * @endcode
+ */
+inline void decompose(const glm::mat4& matrix, glm::vec3& position, glm::quat& rotation, glm::vec3& scale) {
+    // Extract position
+    position = glm::vec3(matrix[3]);
+
+    // Extract scale
+    scale.x = glm::length(glm::vec3(matrix[0]));
+    scale.y = glm::length(glm::vec3(matrix[1]));
+    scale.z = glm::length(glm::vec3(matrix[2]));
+
+    // Build rotation matrix without scale
+    glm::mat3 rotMatrix(
+        glm::vec3(matrix[0]) / scale.x,
+        glm::vec3(matrix[1]) / scale.y,
+        glm::vec3(matrix[2]) / scale.z
+    );
+
+    // Convert rotation matrix to quaternion
+    rotation = glm::quat_cast(rotMatrix);
+}
+
+// =============================================================================
+// Quaternion Utilities
+// =============================================================================
+
+/**
+ * @brief Converts Euler angles (radians) to quaternion
+ * @param euler Euler angles in radians (pitch, yaw, roll / X, Y, Z)
+ * @return Quaternion representing the rotation
+ *
+ * @code
+ * glm::quat rot = math::eulerToQuat(glm::vec3(0, glm::radians(45.0f), 0));
+ * @endcode
+ */
+inline glm::quat eulerToQuat(const glm::vec3& euler) {
+    return glm::quat(euler);
+}
+
+/**
+ * @brief Converts quaternion to Euler angles (radians)
+ * @param quat The quaternion to convert
+ * @return Euler angles in radians (pitch, yaw, roll / X, Y, Z)
+ *
+ * @code
+ * glm::vec3 euler = math::quatToEuler(rotation);
+ * @endcode
+ */
+inline glm::vec3 quatToEuler(const glm::quat& quat) {
+    return glm::eulerAngles(quat);
+}
+
+/**
+ * @brief Converts Euler angles (degrees) to quaternion
+ * @param degrees Euler angles in degrees (pitch, yaw, roll / X, Y, Z)
+ * @return Quaternion representing the rotation
+ */
+inline glm::quat eulerDegreesToQuat(const glm::vec3& degrees) {
+    return glm::quat(toRadians(degrees));
+}
+
+/**
+ * @brief Converts quaternion to Euler angles (degrees)
+ * @param quat The quaternion to convert
+ * @return Euler angles in degrees (pitch, yaw, roll / X, Y, Z)
+ */
+inline glm::vec3 quatToEulerDegrees(const glm::quat& quat) {
+    return toDegrees(glm::eulerAngles(quat));
+}
+
+// =============================================================================
+// Transform Matrix Construction
+// =============================================================================
+
+/**
+ * @brief Constructs a transformation matrix from TRS components
+ * @param position Translation
+ * @param rotation Rotation as quaternion
+ * @param scale Scale factors
+ * @return The combined transformation matrix (T * R * S)
+ *
+ * @code
+ * glm::mat4 model = math::compose(position, rotation, scale);
+ * @endcode
+ */
+inline glm::mat4 compose(const glm::vec3& position, const glm::quat& rotation, const glm::vec3& scale) {
+    glm::mat4 result = glm::mat4(1.0f);
+    result = glm::translate(result, position);
+    result *= glm::mat4_cast(rotation);
+    result = glm::scale(result, scale);
+    return result;
+}
+
+/**
+ * @brief Constructs a transformation matrix from TRS components (Euler angles)
+ * @param position Translation
+ * @param rotation Rotation as Euler angles (radians)
+ * @param scale Scale factors
+ * @return The combined transformation matrix (T * R * S)
+ */
+inline glm::mat4 compose(const glm::vec3& position, const glm::vec3& rotation, const glm::vec3& scale) {
+    glm::mat4 result = glm::mat4(1.0f);
+    result = glm::translate(result, position);
+    result = glm::rotate(result, rotation.x, glm::vec3(1.0f, 0.0f, 0.0f));
+    result = glm::rotate(result, rotation.y, glm::vec3(0.0f, 1.0f, 0.0f));
+    result = glm::rotate(result, rotation.z, glm::vec3(0.0f, 0.0f, 1.0f));
+    result = glm::scale(result, scale);
+    return result;
 }
 
 }  // namespace math

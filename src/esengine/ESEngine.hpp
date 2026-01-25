@@ -6,9 +6,9 @@
  *          access to all engine subsystems.
  *
  * @author  ESEngine Team
- * @date    2025
+ * @date    2026
  *
- * @copyright Copyright (c) 2025 ESEngine Team
+ * @copyright Copyright (c) 2026 ESEngine Team
  *            Licensed under the MIT License.
  */
 #pragma once
@@ -26,6 +26,9 @@
 // Math
 #include "math/Math.hpp"
 
+// Resource
+#include "resource/Handle.hpp"
+
 // ECS
 #include "ecs/Entity.hpp"
 #include "ecs/Component.hpp"
@@ -33,6 +36,7 @@
 #include "ecs/SparseSet.hpp"
 #include "ecs/View.hpp"
 #include "ecs/Registry.hpp"
+#include "ecs/TransformSystem.hpp"
 
 // Renderer
 #include "renderer/Buffer.hpp"

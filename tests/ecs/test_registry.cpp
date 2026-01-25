@@ -2,6 +2,7 @@
 // Simple test framework without external dependencies
 
 #include <esengine/ESEngine.hpp>
+#include <esengine/ecs/TransformSystem.hpp>
 #include <iostream>
 #include <cassert>
 
@@ -313,6 +314,161 @@ TEST(sparse_set_remove) {
     ASSERT_EQ(set.size(), 2u);
 }
 
+// =============================================================================
+// Modern Component Tests
+// =============================================================================
+
+TEST(local_transform_default) {
+    esengine::ecs::Registry registry;
+    esengine::Entity entity = registry.create();
+
+    auto& local = registry.emplace<esengine::ecs::LocalTransform>(entity);
+
+    ASSERT_EQ(local.position.x, 0.0f);
+    ASSERT_EQ(local.position.y, 0.0f);
+    ASSERT_EQ(local.position.z, 0.0f);
+    ASSERT_EQ(local.rotation.w, 1.0f);  // Identity quaternion
+    ASSERT_EQ(local.scale.x, 1.0f);
+}
+
+TEST(local_transform_with_position) {
+    esengine::ecs::Registry registry;
+    esengine::Entity entity = registry.create();
+
+    auto& local = registry.emplace<esengine::ecs::LocalTransform>(
+        entity, glm::vec3(10.0f, 20.0f, 30.0f));
+
+    ASSERT_EQ(local.position.x, 10.0f);
+    ASSERT_EQ(local.position.y, 20.0f);
+    ASSERT_EQ(local.position.z, 30.0f);
+}
+
+TEST(local_transform_with_rotation) {
+    esengine::ecs::Registry registry;
+    esengine::Entity entity = registry.create();
+
+    glm::quat rotation = glm::angleAxis(glm::radians(90.0f), glm::vec3(0, 1, 0));
+    auto& local = registry.emplace<esengine::ecs::LocalTransform>(
+        entity, glm::vec3(0.0f), rotation);
+
+    ASSERT_TRUE(esengine::math::approxEqual(local.rotation.y, rotation.y, 0.001f));
+}
+
+TEST(hierarchy_parent_child) {
+    esengine::ecs::Registry registry;
+
+    esengine::Entity parent = registry.create();
+    esengine::Entity child = registry.create();
+
+    registry.emplace<esengine::ecs::LocalTransform>(parent, glm::vec3(10.0f, 0.0f, 0.0f));
+    registry.emplace<esengine::ecs::LocalTransform>(child, glm::vec3(5.0f, 0.0f, 0.0f));
+
+    esengine::ecs::setParent(registry, child, parent);
+
+    ASSERT_TRUE(registry.has<esengine::ecs::Parent>(child));
+    ASSERT_TRUE(registry.has<esengine::ecs::Children>(parent));
+
+    ASSERT_EQ(registry.get<esengine::ecs::Parent>(child).entity, parent);
+    ASSERT_EQ(registry.get<esengine::ecs::Children>(parent).entities.size(), 1u);
+    ASSERT_EQ(registry.get<esengine::ecs::Children>(parent).entities[0], child);
+}
+
+TEST(hierarchy_depth) {
+    esengine::ecs::Registry registry;
+
+    esengine::Entity grandparent = registry.create();
+    esengine::Entity parent = registry.create();
+    esengine::Entity child = registry.create();
+
+    registry.emplace<esengine::ecs::LocalTransform>(grandparent);
+    registry.emplace<esengine::ecs::LocalTransform>(parent);
+    registry.emplace<esengine::ecs::LocalTransform>(child);
+
+    esengine::ecs::setParent(registry, parent, grandparent);
+    esengine::ecs::setParent(registry, child, parent);
+
+    ASSERT_EQ(registry.get<esengine::ecs::HierarchyDepth>(parent).depth, 1u);
+    ASSERT_EQ(registry.get<esengine::ecs::HierarchyDepth>(child).depth, 2u);
+}
+
+TEST(hierarchy_get_root) {
+    esengine::ecs::Registry registry;
+
+    esengine::Entity root = registry.create();
+    esengine::Entity middle = registry.create();
+    esengine::Entity leaf = registry.create();
+
+    registry.emplace<esengine::ecs::LocalTransform>(root);
+    registry.emplace<esengine::ecs::LocalTransform>(middle);
+    registry.emplace<esengine::ecs::LocalTransform>(leaf);
+
+    esengine::ecs::setParent(registry, middle, root);
+    esengine::ecs::setParent(registry, leaf, middle);
+
+    ASSERT_EQ(esengine::ecs::getRoot(registry, leaf), root);
+    ASSERT_EQ(esengine::ecs::getRoot(registry, middle), root);
+    ASSERT_EQ(esengine::ecs::getRoot(registry, root), root);
+}
+
+TEST(hierarchy_is_descendant) {
+    esengine::ecs::Registry registry;
+
+    esengine::Entity root = registry.create();
+    esengine::Entity child = registry.create();
+    esengine::Entity grandchild = registry.create();
+    esengine::Entity unrelated = registry.create();
+
+    registry.emplace<esengine::ecs::LocalTransform>(root);
+    registry.emplace<esengine::ecs::LocalTransform>(child);
+    registry.emplace<esengine::ecs::LocalTransform>(grandchild);
+    registry.emplace<esengine::ecs::LocalTransform>(unrelated);
+
+    esengine::ecs::setParent(registry, child, root);
+    esengine::ecs::setParent(registry, grandchild, child);
+
+    ASSERT_TRUE(esengine::ecs::isDescendantOf(registry, child, root));
+    ASSERT_TRUE(esengine::ecs::isDescendantOf(registry, grandchild, root));
+    ASSERT_TRUE(esengine::ecs::isDescendantOf(registry, grandchild, child));
+    ASSERT_TRUE(!esengine::ecs::isDescendantOf(registry, root, child));
+    ASSERT_TRUE(!esengine::ecs::isDescendantOf(registry, unrelated, root));
+}
+
+TEST(sprite_with_texture_handle) {
+    esengine::ecs::Registry registry;
+    esengine::Entity entity = registry.create();
+
+    esengine::resource::TextureHandle texHandle(42);
+    auto& sprite = registry.emplace<esengine::ecs::Sprite>(entity, texHandle);
+
+    ASSERT_TRUE(sprite.texture.isValid());
+    ASSERT_EQ(sprite.texture.id(), 42u);
+    ASSERT_EQ(sprite.color.r, 1.0f);
+}
+
+TEST(camera_default) {
+    esengine::ecs::Registry registry;
+    esengine::Entity entity = registry.create();
+
+    auto& camera = registry.emplace<esengine::ecs::Camera>(entity);
+
+    ASSERT_EQ(camera.projectionType, esengine::ecs::ProjectionType::Perspective);
+    ASSERT_EQ(camera.fov, 60.0f);
+    ASSERT_EQ(camera.nearPlane, 0.1f);
+    ASSERT_TRUE(!camera.isActive);
+}
+
+TEST(uuid_component) {
+    esengine::ecs::Registry registry;
+    esengine::Entity entity = registry.create();
+
+    auto& uuid = registry.emplace<esengine::ecs::UUID>(entity, 0x12345678ABCDEF00ULL);
+
+    ASSERT_EQ(uuid.value, 0x12345678ABCDEF00ULL);
+
+    esengine::ecs::UUID other(0x12345678ABCDEF00ULL);
+    ASSERT_TRUE(uuid == other);
+}
+
 int main() {
     std::cout << "ESEngine ECS Unit Tests" << std::endl;
     std::cout << "========================" << std::endl;
@@ -332,6 +488,18 @@ int main() {
     RUN_TEST(clear_registry);
     RUN_TEST(sparse_set_basic);
     RUN_TEST(sparse_set_remove);
+
+    // Modern component tests
+    RUN_TEST(local_transform_default);
+    RUN_TEST(local_transform_with_position);
+    RUN_TEST(local_transform_with_rotation);
+    RUN_TEST(hierarchy_parent_child);
+    RUN_TEST(hierarchy_depth);
+    RUN_TEST(hierarchy_get_root);
+    RUN_TEST(hierarchy_is_descendant);
+    RUN_TEST(sprite_with_texture_handle);
+    RUN_TEST(camera_default);
+    RUN_TEST(uuid_component);
 
     std::cout << "========================" << std::endl;
     std::cout << "Results: " << passed << " passed, " << failed << " failed" << std::endl;
