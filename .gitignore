@@ -5,7 +5,11 @@ out/
 
 # IDE
 .vs/
-.vscode/
+.vscode/*
+!.vscode/c_cpp_properties.json
+!.vscode/settings.json
+!.vscode/launch.json
+!.vscode/tasks.json
 *.vcxproj*
 *.sln
 .idea/

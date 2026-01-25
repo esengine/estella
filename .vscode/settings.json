@@ -1,0 +1,12 @@
+{
+    "cmake.configureSettings": {
+        "ES_BUILD_EDITOR": "ON"
+    },
+    "C_Cpp.default.cppStandard": "c++20",
+    "C_Cpp.default.intelliSenseMode": "windows-msvc-x64",
+    "C_Cpp.errorSquiggles": "enabled",
+    "files.associations": {
+        "*.hpp": "cpp",
+        "*.cpp": "cpp"
+    }
+}
