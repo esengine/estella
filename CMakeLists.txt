@@ -10,6 +10,7 @@ option(ES_BUILD_WEB "Build for Web/Emscripten" OFF)
 option(ES_BUILD_WXGAME "Build for WeChat MiniGame" OFF)
 option(ES_BUILD_EXAMPLES "Build examples" ON)
 option(ES_BUILD_TESTS "Build tests" ON)
+option(ES_BUILD_EDITOR "Build editor (native only)" OFF)
 
 # Include custom CMake modules
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
@@ -70,9 +71,12 @@ if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
         src/esengine/platform/web/WebPlatform.cpp
     )
 else()
-    # Native platform (for debugging)
+    # Native platform (GLFW + OpenGL)
     list(APPEND ESENGINE_SOURCES
-        src/esengine/platform/web/WebPlatform.cpp
+        src/esengine/platform/native/NativePlatform.cpp
+    )
+    list(APPEND ESENGINE_HEADERS
+        src/esengine/platform/native/NativePlatform.hpp
     )
 endif()
 
@@ -91,12 +95,21 @@ target_include_directories(esengine
 
 target_link_libraries(esengine PUBLIC glm)
 
-# Emscripten-specific settings (link flags are in cmake/Emscripten.cmake)
+# Platform-specific settings
 if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
+    # Emscripten-specific settings (link flags are in cmake/Emscripten.cmake)
     target_compile_definitions(esengine PUBLIC ES_PLATFORM_WEB)
     if(ES_BUILD_WXGAME)
         target_compile_definitions(esengine PUBLIC ES_PLATFORM_WXGAME)
     endif()
+else()
+    # Native platform - link GLFW, GLAD, and OpenGL
+    find_package(OpenGL REQUIRED)
+    target_compile_definitions(esengine PUBLIC ES_PLATFORM_NATIVE)
+    target_link_libraries(esengine PUBLIC glfw glad OpenGL::GL)
+    target_include_directories(esengine PUBLIC
+        ${CMAKE_SOURCE_DIR}/third_party/glad/include
+    )
 endif()
 
 # Compiler warnings
@@ -115,6 +128,11 @@ endif()
 if(ES_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
+endif()
+
+# Editor (native platform only)
+if(ES_BUILD_EDITOR AND NOT ES_BUILD_WEB AND NOT ES_BUILD_WXGAME)
+    add_subdirectory(src/esengine/editor)
 endif()
 
 # Install rules

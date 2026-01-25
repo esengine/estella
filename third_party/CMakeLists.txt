@@ -1,7 +1,8 @@
 # Third-party libraries for ESEngine
 
-# GLM - OpenGL Mathematics Library
-# GLM is a header-only library
+# =============================================================================
+# GLM - OpenGL Mathematics Library (Header-only)
+# =============================================================================
 add_library(glm INTERFACE)
 target_include_directories(glm INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/glm)
 
@@ -11,3 +12,23 @@ target_compile_definitions(glm INTERFACE
     GLM_FORCE_DEPTH_ZERO_TO_ONE
     GLM_ENABLE_EXPERIMENTAL
 )
+
+# =============================================================================
+# Native Platform Dependencies (GLFW, GLAD)
+# =============================================================================
+if(NOT ES_BUILD_WEB AND NOT ES_BUILD_WXGAME)
+    # GLFW - Window and input library
+    set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+    set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+    set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
+    add_subdirectory(glfw)
+
+    # GLAD - OpenGL function loader
+    add_library(glad STATIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/glad/src/glad.c
+    )
+    target_include_directories(glad PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/glad/include
+    )
+endif()
