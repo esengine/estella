@@ -24,6 +24,7 @@ ESEngine is a minimal, high-performance game engine designed for WebAssembly dep
 |---------|-------------|
 | **ECS Architecture** | Data-oriented Entity-Component-System for cache-friendly game logic |
 | **WebGL Renderer** | OpenGL ES 2.0/3.0 compatible graphics pipeline |
+| **TypeScript SDK** | Full TypeScript SDK with WASM bridge for web development |
 | **Cross-Platform** | Single codebase for Web browsers and WeChat MiniGames |
 | **Lightweight** | Minimal dependencies, optimized for small binary size |
 
@@ -48,7 +49,7 @@ emcmake cmake -B build_web -DES_BUILD_WEB=ON && cmake --build build_web
 emcmake cmake -B build_wxgame -DES_BUILD_WXGAME=ON && cmake --build build_wxgame
 ```
 
-### Quick Example
+### Quick Example (C++)
 
 ```cpp
 #include <esengine/ESEngine.hpp>
@@ -60,11 +61,47 @@ protected:
     void onRender() override { /* Render frame */ }
 };
 
-int main() {
-    MyGame game;
-    return game.run();
-}
+ES_MAIN(MyGame)
 ```
+
+### TypeScript SDK
+
+The TypeScript SDK provides a high-level API for building games with ESEngine in the browser.
+
+```bash
+cd sdk && npm install && npm run build
+```
+
+```typescript
+import { Application, Renderer, Input, KeyCode } from '@esengine/sdk';
+
+class MyGame extends Application {
+  protected onInit(): void {
+    console.log('Game initialized!');
+  }
+
+  protected onUpdate(dt: number): void {
+    if (Input.isKeyDown(KeyCode.Space)) {
+      // Handle input
+    }
+  }
+
+  protected onRender(): void {
+    Renderer.clear();
+    Renderer.drawQuad({ x: 100, y: 100 }, { x: 50, y: 50 }, { r: 1, g: 0, b: 0, a: 1 });
+  }
+}
+
+const game = new MyGame({
+  width: 800,
+  height: 600,
+  canvas: 'canvas',
+  wasmPath: './esengine.js',  // Use C++ WASM backend
+});
+game.run();
+```
+
+See [sdk/examples/hello-game](sdk/examples/hello-game/) for a complete example.
 
 ## Documentation
 
