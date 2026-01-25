@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" fill="none">
+  <defs>
+    <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3182ce;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#63b3ed;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="grad2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2c5282;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#4299e1;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background shapes -->
+  <rect x="50" y="80" width="120" height="120" rx="12" fill="url(#grad1)" opacity="0.9"/>
+  <rect x="140" y="60" width="100" height="100" rx="10" fill="url(#grad2)" opacity="0.7"/>
+  <rect x="230" y="100" width="110" height="110" rx="11" fill="url(#grad1)" opacity="0.8"/>
+
+  <!-- Code symbols -->
+  <text x="80" y="150" font-family="monospace" font-size="40" fill="white" opacity="0.9">&lt;/&gt;</text>
+  <text x="260" y="165" font-family="monospace" font-size="32" fill="white" opacity="0.9">{}</text>
+
+  <!-- Decorative elements -->
+  <circle cx="320" cy="80" r="20" fill="#63b3ed" opacity="0.5"/>
+  <circle cx="80" cy="220" r="15" fill="#4299e1" opacity="0.4"/>
+  <circle cx="350" cy="200" r="25" fill="#3182ce" opacity="0.3"/>
+
+  <!-- Small dots -->
+  <circle cx="180" cy="180" r="4" fill="#90cdf4"/>
+  <circle cx="200" cy="200" r="3" fill="#90cdf4"/>
+  <circle cx="160" cy="210" r="5" fill="#63b3ed"/>
+</svg>

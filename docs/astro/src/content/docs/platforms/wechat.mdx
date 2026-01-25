@@ -1,0 +1,251 @@
+---
+title: WeChat MiniGame
+description: Building and deploying ESEngine games for WeChat MiniGames
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+This guide covers building ESEngine games for the WeChat MiniGame platform.
+
+## Overview
+
+WeChat MiniGames are games that run inside the WeChat app without installation. They use a custom JavaScript runtime with WebGL support.
+
+<Aside>
+  WeChat MiniGames have specific requirements and limitations compared to web browsers. This guide covers the key differences.
+</Aside>
+
+## Build Configuration
+
+```bash
+emcmake cmake -B build_wxgame \
+    -DES_BUILD_WXGAME=ON \
+    -DCMAKE_BUILD_TYPE=Release
+
+cmake --build build_wxgame
+```
+
+### Output Structure
+
+```
+build_wxgame/
+├── game.js           # Entry point
+├── game.wasm         # WebAssembly binary
+├── esengine.js       # Engine glue code
+├── game.json         # MiniGame config
+└── assets/           # Game assets
+```
+
+## Project Setup
+
+### game.json
+
+```json
+{
+  "deviceOrientation": "portrait",
+  "showStatusBar": false,
+  "networkTimeout": {
+    "request": 10000,
+    "connectSocket": 10000,
+    "uploadFile": 10000,
+    "downloadFile": 10000
+  },
+  "subpackages": []
+}
+```
+
+### project.config.json
+
+```json
+{
+  "appid": "your-app-id",
+  "projectname": "MyGame",
+  "compileType": "game",
+  "setting": {
+    "es6": false,
+    "minified": true
+  }
+}
+```
+
+## WeChat-Specific APIs
+
+### User Info
+
+```cpp
+#ifdef ES_PLATFORM_WXGAME
+void getUserInfo() {
+    EM_ASM({
+        wx.getUserInfo({
+            success: function(res) {
+                // res.userInfo contains nickname, avatar, etc.
+                Module._onUserInfo(
+                    allocateUTF8(res.userInfo.nickName),
+                    allocateUTF8(res.userInfo.avatarUrl)
+                );
+            }
+        });
+    });
+}
+
+extern "C" void EMSCRIPTEN_KEEPALIVE onUserInfo(char* name, char* avatar) {
+    std::string nickname(name);
+    std::string avatarUrl(avatar);
+    free(name);
+    free(avatar);
+    // Use the user info...
+}
+#endif
+```
+
+### Share
+
+```cpp
+void shareGame(const std::string& title, const std::string& imageUrl) {
+    EM_ASM({
+        wx.shareAppMessage({
+            title: UTF8ToString($0),
+            imageUrl: UTF8ToString($1)
+        });
+    }, title.c_str(), imageUrl.c_str());
+}
+```
+
+### Leaderboard
+
+```cpp
+void submitScore(int score) {
+    EM_ASM({
+        wx.setUserCloudStorage({
+            KVDataList: [{
+                key: 'score',
+                value: String($0)
+            }]
+        });
+    }, score);
+}
+```
+
+### Ads (Rewarded Video)
+
+```cpp
+void showRewardedAd(std::function<void(bool)> callback) {
+    static std::function<void(bool)> s_callback;
+    s_callback = callback;
+
+    EM_ASM({
+        var ad = wx.createRewardedVideoAd({ adUnitId: 'your-ad-unit-id' });
+        ad.show().then(function() {
+            ad.onClose(function(res) {
+                Module._onAdComplete(res && res.isEnded ? 1 : 0);
+            });
+        }).catch(function() {
+            Module._onAdComplete(0);
+        });
+    });
+}
+
+extern "C" void EMSCRIPTEN_KEEPALIVE onAdComplete(int rewarded) {
+    s_callback(rewarded != 0);
+}
+```
+
+## Platform Differences
+
+| Feature | Web | WeChat |
+|---------|-----|--------|
+| File System | Limited | wx.getFileSystemManager |
+| Storage | localStorage | wx.setStorage |
+| Audio | Web Audio API | wx.createInnerAudioContext |
+| HTTP | fetch/XHR | wx.request |
+| WebSocket | WebSocket API | wx.connectSocket |
+
+## Asset Management
+
+### File Size Limits
+
+- Main package: 4MB max
+- Subpackages: 2MB each, 20MB total
+- Remote assets: No limit
+
+### Using Subpackages
+
+```json
+// game.json
+{
+  "subpackages": [
+    {
+      "name": "level1",
+      "root": "levels/level1/"
+    },
+    {
+      "name": "level2",
+      "root": "levels/level2/"
+    }
+  ]
+}
+```
+
+```cpp
+void loadSubpackage(const std::string& name) {
+    EM_ASM({
+        wx.loadSubpackage({
+            name: UTF8ToString($0),
+            success: function() {
+                Module._onSubpackageLoaded(1);
+            },
+            fail: function() {
+                Module._onSubpackageLoaded(0);
+            }
+        });
+    }, name.c_str());
+}
+```
+
+## Testing & Debugging
+
+<Steps>
+
+1. **Install WeChat DevTools**
+
+   Download from [WeChat MiniProgram docs](https://developers.weixin.qq.com/miniprogram/dev/devtools/download.html)
+
+2. **Open your project**
+
+   Point DevTools to your `build_wxgame` directory
+
+3. **Test on device**
+
+   Use "Preview" to generate QR code, scan with WeChat
+
+4. **Debug**
+
+   Use the built-in debugger, similar to Chrome DevTools
+
+</Steps>
+
+## Submission Checklist
+
+Before submitting to WeChat:
+
+- [ ] Test on real devices (iOS and Android)
+- [ ] Check memory usage (< 1GB recommended)
+- [ ] Verify all assets load correctly
+- [ ] Test offline behavior
+- [ ] Add privacy policy
+- [ ] Prepare screenshots and description
+- [ ] Test ads if using monetization
+
+## Common Issues
+
+| Issue | Solution |
+|-------|----------|
+| "Game too large" | Use subpackages or remote assets |
+| Black screen | Check WebGL context creation |
+| Touch unresponsive | Ensure proper event handling |
+| Memory warning | Reduce texture sizes, unload unused assets |
+| "Invalid domain" | Add domain to whitelist in settings |
+
+<Aside type="caution">
+  WeChat updates frequently. Always test with the latest DevTools and on real devices before submission.
+</Aside>

@@ -1,0 +1,13 @@
+# Build output
+dist/
+api/html/
+api/xml/
+astro/dist/
+astro/.astro/
+astro/public/api/
+
+# Dependencies
+astro/node_modules/
+
+# Logs
+*.log

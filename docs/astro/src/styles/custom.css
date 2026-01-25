@@ -1,0 +1,84 @@
+/* ESEngine Documentation Custom Styles */
+
+:root {
+  /* Brand colors */
+  --sl-color-accent-low: #1a365d;
+  --sl-color-accent: #3182ce;
+  --sl-color-accent-high: #63b3ed;
+
+  /* Typography */
+  --sl-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --sl-font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+:root[data-theme='dark'] {
+  --sl-color-accent-low: #1e3a5f;
+  --sl-color-accent: #4299e1;
+  --sl-color-accent-high: #90cdf4;
+}
+
+/* Code blocks */
+.expressive-code pre {
+  border-radius: 8px;
+}
+
+/* Headings */
+.sl-markdown-content h1,
+.sl-markdown-content h2,
+.sl-markdown-content h3 {
+  font-weight: 600;
+}
+
+/* Links */
+.sl-markdown-content a {
+  text-decoration: underline;
+  text-decoration-color: var(--sl-color-accent);
+  text-underline-offset: 2px;
+}
+
+.sl-markdown-content a:hover {
+  text-decoration-color: var(--sl-color-accent-high);
+}
+
+/* API reference specific */
+.api-badge {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border-radius: 4px;
+  margin-right: 0.5rem;
+}
+
+.api-badge.class {
+  background-color: #3182ce20;
+  color: #3182ce;
+}
+
+.api-badge.function {
+  background-color: #38a16920;
+  color: #38a169;
+}
+
+.api-badge.namespace {
+  background-color: #9f7aea20;
+  color: #9f7aea;
+}
+
+/* Tables */
+.sl-markdown-content table {
+  display: table;
+  width: 100%;
+}
+
+.sl-markdown-content th {
+  background-color: var(--sl-color-gray-6);
+}
+
+/* Hero section enhancements */
+.hero-title {
+  background: linear-gradient(135deg, var(--sl-color-accent) 0%, var(--sl-color-accent-high) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}

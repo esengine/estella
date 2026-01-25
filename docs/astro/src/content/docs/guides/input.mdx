@@ -1,0 +1,249 @@
+---
+title: Input Handling
+description: Keyboard, mouse, and touch input in ESEngine
+---
+
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+ESEngine provides a unified input system that works across desktop browsers and mobile devices.
+
+## Input Model
+
+ESEngine uses two input patterns:
+
+1. **Event callbacks** - For discrete events (key press, touch start)
+2. **Polling** - For continuous checks (is key held down?)
+
+## Keyboard Input
+
+### Event-Based
+
+Override callbacks in your Application:
+
+```cpp
+class MyGame : public Application {
+protected:
+    void onKey(KeyCode key, bool pressed) override {
+        if (key == KeyCode::Space && pressed) {
+            player.jump();
+        }
+
+        if (key == KeyCode::Escape && pressed) {
+            quit();
+        }
+    }
+};
+```
+
+### Polling
+
+Check key state anytime:
+
+```cpp
+void onUpdate(float dt) override {
+    auto& input = getPlatform().getInput();
+
+    if (input.isKeyDown(KeyCode::W)) {
+        player.y -= speed * dt;
+    }
+    if (input.isKeyDown(KeyCode::S)) {
+        player.y += speed * dt;
+    }
+    if (input.isKeyDown(KeyCode::A)) {
+        player.x -= speed * dt;
+    }
+    if (input.isKeyDown(KeyCode::D)) {
+        player.x += speed * dt;
+    }
+}
+```
+
+### Key Codes
+
+```cpp
+// Letters
+KeyCode::A, KeyCode::B, ... KeyCode::Z
+
+// Numbers
+KeyCode::Num0, KeyCode::Num1, ... KeyCode::Num9
+
+// Special
+KeyCode::Space, KeyCode::Enter, KeyCode::Escape
+KeyCode::Shift, KeyCode::Ctrl, KeyCode::Alt
+
+// Arrows
+KeyCode::Left, KeyCode::Right, KeyCode::Up, KeyCode::Down
+
+// Function keys
+KeyCode::F1, KeyCode::F2, ... KeyCode::F12
+```
+
+## Mouse Input
+
+### Event-Based
+
+Mouse events come through the touch callbacks (unified input):
+
+```cpp
+void onTouch(TouchType type, const TouchPoint& point) override {
+    if (type == TouchType::Down) {
+        // Mouse button pressed or touch started
+        handleClick(point.x, point.y);
+    }
+}
+```
+
+### Polling
+
+```cpp
+void onUpdate(float dt) override {
+    auto& input = getPlatform().getInput();
+
+    glm::vec2 mousePos = input.getMousePosition();
+
+    if (input.isMouseButtonDown(MouseButton::Left)) {
+        shoot(mousePos.x, mousePos.y);
+    }
+}
+```
+
+## Touch Input
+
+Touch input is essential for mobile and WeChat MiniGames.
+
+### Touch Events
+
+```cpp
+void onTouch(TouchType type, const TouchPoint& point) override {
+    switch (type) {
+        case TouchType::Down:
+            // Finger touched screen
+            onTouchStart(point);
+            break;
+
+        case TouchType::Move:
+            // Finger moved
+            onTouchMove(point);
+            break;
+
+        case TouchType::Up:
+            // Finger lifted
+            onTouchEnd(point);
+            break;
+
+        case TouchType::Cancel:
+            // Touch interrupted (e.g., phone call)
+            onTouchCancel(point);
+            break;
+    }
+}
+```
+
+### TouchPoint Structure
+
+```cpp
+struct TouchPoint {
+    int id;      // Unique touch identifier (for multi-touch)
+    float x;     // X position in viewport coordinates
+    float y;     // Y position in viewport coordinates
+};
+```
+
+### Multi-Touch
+
+```cpp
+class MyGame : public Application {
+    std::unordered_map<int, glm::vec2> activeTouches;
+
+protected:
+    void onTouch(TouchType type, const TouchPoint& point) override {
+        switch (type) {
+            case TouchType::Down:
+                activeTouches[point.id] = {point.x, point.y};
+                break;
+
+            case TouchType::Move:
+                activeTouches[point.id] = {point.x, point.y};
+                break;
+
+            case TouchType::Up:
+            case TouchType::Cancel:
+                activeTouches.erase(point.id);
+                break;
+        }
+
+        // Pinch zoom detection
+        if (activeTouches.size() == 2) {
+            auto it = activeTouches.begin();
+            glm::vec2 p1 = it->second; ++it;
+            glm::vec2 p2 = it->second;
+            float distance = glm::length(p2 - p1);
+            handlePinch(distance);
+        }
+    }
+};
+```
+
+## Virtual Joystick
+
+Common pattern for mobile games:
+
+```cpp
+class VirtualJoystick {
+public:
+    glm::vec2 center;
+    float radius = 50.0f;
+    bool active = false;
+    glm::vec2 direction = {0, 0};
+
+    void onTouchDown(float x, float y) {
+        center = {x, y};
+        active = true;
+        direction = {0, 0};
+    }
+
+    void onTouchMove(float x, float y) {
+        if (!active) return;
+
+        glm::vec2 delta = {x - center.x, y - center.y};
+        float length = glm::length(delta);
+
+        if (length > 0) {
+            direction = delta / std::max(length, radius);
+        }
+    }
+
+    void onTouchUp() {
+        active = false;
+        direction = {0, 0};
+    }
+};
+
+// Usage
+VirtualJoystick joystick;
+
+void onUpdate(float dt) override {
+    player.x += joystick.direction.x * speed * dt;
+    player.y += joystick.direction.y * speed * dt;
+}
+```
+
+## Input Best Practices
+
+<Tabs>
+  <TabItem label="Do">
+    - Use events for discrete actions (jump, shoot)
+    - Use polling for continuous input (movement)
+    - Handle `TouchType::Cancel` for mobile
+    - Test on real mobile devices
+  </TabItem>
+  <TabItem label="Don't">
+    - Don't assume mouse is always available
+    - Don't ignore touch input for "desktop" games
+    - Don't store raw pointers to touch points
+  </TabItem>
+</Tabs>
+
+<Aside type="tip">
+  The web and WeChat both support both touch and mouse. Design your input handling to support both seamlessly.
+</Aside>

@@ -1,0 +1,73 @@
+---
+title: ESEngine Documentation
+description: A lightweight C++17 game engine for WebAssembly and WeChat MiniGames
+template: splash
+hero:
+  tagline: Build high-performance games for the web with modern C++
+  image:
+    file: ../../assets/hero.svg
+  actions:
+    - text: Get Started
+      link: /microes/getting-started/introduction/
+      icon: right-arrow
+      variant: primary
+    - text: View on GitHub
+      link: https://github.com/esengine/microes
+      icon: external
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## Features
+
+<CardGrid stagger>
+  <Card title="ECS Architecture" icon="puzzle">
+    Data-oriented Entity-Component-System design for cache-friendly, high-performance game logic.
+  </Card>
+  <Card title="WebGL Rendering" icon="laptop">
+    OpenGL ES 2.0/3.0 compatible graphics pipeline optimized for WebAssembly.
+  </Card>
+  <Card title="Cross-Platform" icon="rocket">
+    Single codebase targeting Web browsers and WeChat MiniGames.
+  </Card>
+  <Card title="Lightweight" icon="seti:todo">
+    Minimal dependencies with optimized binary size for fast loading.
+  </Card>
+</CardGrid>
+
+## Quick Example
+
+```cpp
+#include <esengine/ESEngine.hpp>
+
+class MyGame : public esengine::Application {
+protected:
+    void onInit() override {
+        auto player = getRegistry().create();
+        getRegistry().emplace<Position>(player, 0.0f, 0.0f);
+    }
+
+    void onUpdate(float dt) override {
+        for (auto [e, pos] : getRegistry().view<Position>().each()) {
+            pos.x += 100.0f * dt;
+        }
+    }
+};
+
+ES_MAIN(MyGame)
+```
+
+## Next Steps
+
+<CardGrid>
+  <Card title="Installation" icon="setting">
+    Set up your development environment with CMake and Emscripten.
+
+    [Read the guide →](/microes/getting-started/installation/)
+  </Card>
+  <Card title="API Reference" icon="open-book">
+    Explore the complete API documentation generated from source.
+
+    [Browse API →](/microes/api/overview/)
+  </Card>
+</CardGrid>

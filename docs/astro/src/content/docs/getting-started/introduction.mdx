@@ -1,0 +1,75 @@
+---
+title: Introduction
+description: Learn what ESEngine is and why you might want to use it
+---
+
+ESEngine is a lightweight, modern C++17 game engine designed specifically for **WebAssembly** deployment. It provides everything you need to build 2D games that run in web browsers and WeChat MiniGames.
+
+## Why ESEngine?
+
+### Designed for the Web
+
+Unlike traditional game engines ported to WebAssembly, ESEngine was built from the ground up with web constraints in mind:
+
+- **Small binary size** - Optimized for fast initial load times
+- **No filesystem dependencies** - Works with browser storage APIs
+- **Touch-first input** - Mobile and desktop input unified
+
+### Modern C++ Architecture
+
+ESEngine uses modern C++17 features and patterns:
+
+- **Entity-Component-System (ECS)** - Data-oriented design inspired by [EnTT](https://github.com/skypjack/entt)
+- **RAII everywhere** - Automatic resource management
+- **Type-safe APIs** - Compile-time checks catch errors early
+
+### WeChat MiniGame Support
+
+First-class support for WeChat MiniGames platform:
+
+- Optimized touch input handling
+- WeChat-specific APIs (share, ad, payment)
+- Tested on real devices
+
+## When to Use ESEngine
+
+ESEngine is ideal for:
+
+- 2D games targeting web browsers
+- WeChat MiniGames
+- Projects requiring small download sizes
+- Developers comfortable with C++
+
+ESEngine may not be the best choice for:
+
+- 3D games (basic 3D support only)
+- Desktop-only games (use a native engine)
+- Rapid prototyping (consider Unity/Godot)
+
+## Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────┐
+│                   Application                        │
+│  (Your game code - inherits from Application)        │
+├─────────────────────────────────────────────────────┤
+│                      ECS                             │
+│  Registry │ Entity │ Component │ System │ View       │
+├─────────────────────────────────────────────────────┤
+│                   Renderer                           │
+│  Shader │ Texture │ Buffer │ RenderCommand           │
+├─────────────────────────────────────────────────────┤
+│                   Platform                           │
+│  Input │ Window │ FileSystem │ Timer                 │
+├─────────────────────────────────────────────────────┤
+│              Emscripten / WebGL                      │
+└─────────────────────────────────────────────────────┘
+```
+
+## Next Steps
+
+Ready to get started?
+
+1. [Install the prerequisites](/microes/getting-started/installation/)
+2. [Create your first game](/microes/getting-started/quick-start/)
+3. [Learn about ECS](/microes/guides/ecs/)

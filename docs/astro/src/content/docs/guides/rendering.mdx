@@ -1,0 +1,248 @@
+---
+title: Rendering
+description: Drawing sprites, shapes, and text with ESEngine
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+ESEngine provides a WebGL-based rendering system optimized for 2D games. This guide covers the rendering APIs.
+
+## Render Loop
+
+Rendering happens in the `onRender()` callback:
+
+```cpp
+class MyGame : public Application {
+protected:
+    void onRender() override {
+        auto& renderer = getRenderer();
+
+        renderer.clear(Color::Black);
+
+        // Draw your game...
+
+        renderer.present();
+    }
+};
+```
+
+## Coordinate System
+
+ESEngine uses a standard 2D coordinate system:
+
+```
+(0,0) ───────────► X (width)
+  │
+  │
+  │
+  ▼
+  Y (height)
+```
+
+<Aside>
+  Origin is top-left. Y increases downward. This matches most 2D game engines and web conventions.
+</Aside>
+
+## Drawing Primitives
+
+### Rectangles
+
+```cpp
+// Filled rectangle
+renderer.fillRect(x, y, width, height, Color::Red);
+
+// Outlined rectangle
+renderer.drawRect(x, y, width, height, Color::White, lineWidth);
+```
+
+### Lines
+
+```cpp
+renderer.drawLine(x1, y1, x2, y2, Color::Green, lineWidth);
+```
+
+### Circles
+
+```cpp
+renderer.fillCircle(centerX, centerY, radius, Color::Blue);
+renderer.drawCircle(centerX, centerY, radius, Color::White, lineWidth);
+```
+
+## Textures
+
+### Loading
+
+```cpp
+Texture texture;
+
+void onInit() override {
+    texture = Texture::load("assets/player.png");
+    // Or from memory:
+    // texture = Texture::loadFromMemory(data, size);
+}
+```
+
+### Drawing
+
+```cpp
+// Draw at position
+renderer.drawTexture(texture, x, y);
+
+// Draw with size
+renderer.drawTexture(texture, x, y, width, height);
+
+// Draw region (sprite sheet)
+Rect srcRect = {0, 0, 32, 32};  // Source rectangle in texture
+Rect dstRect = {x, y, 64, 64}; // Destination on screen
+renderer.drawTexture(texture, srcRect, dstRect);
+```
+
+### Sprite Sheets
+
+```cpp
+struct SpriteSheet {
+    Texture texture;
+    int tileWidth;
+    int tileHeight;
+    int columns;
+
+    Rect getTileRect(int index) {
+        int col = index % columns;
+        int row = index / columns;
+        return {col * tileWidth, row * tileHeight, tileWidth, tileHeight};
+    }
+};
+
+// Usage
+SpriteSheet sheet = {texture, 32, 32, 8};
+Rect src = sheet.getTileRect(5);  // Get 6th tile
+renderer.drawTexture(sheet.texture, src, dstRect);
+```
+
+## Colors
+
+```cpp
+// Predefined colors
+Color::Black, Color::White, Color::Red, Color::Green, Color::Blue
+
+// Custom colors (RGBA, 0-255)
+Color custom = {128, 64, 255, 255};
+
+// With alpha
+Color semiTransparent = {255, 0, 0, 128};  // 50% red
+```
+
+## Transformations
+
+### Translation, Rotation, Scale
+
+```cpp
+renderer.pushTransform();
+
+renderer.translate(100, 100);
+renderer.rotate(glm::radians(45.0f));  // Rotate 45 degrees
+renderer.scale(2.0f, 2.0f);            // Double size
+
+renderer.drawTexture(texture, 0, 0);   // Draws at transformed position
+
+renderer.popTransform();
+```
+
+### Camera
+
+```cpp
+class Camera {
+public:
+    float x = 0, y = 0;
+    float zoom = 1.0f;
+
+    void apply(Renderer& renderer) {
+        renderer.translate(-x, -y);
+        renderer.scale(zoom, zoom);
+    }
+};
+
+// In onRender:
+renderer.pushTransform();
+camera.apply(renderer);
+
+// Draw world objects...
+
+renderer.popTransform();
+
+// Draw UI (not affected by camera)
+renderer.drawText("Score: 100", 10, 10);
+```
+
+## Render Targets
+
+Render to an off-screen texture:
+
+```cpp
+RenderTarget target;
+
+void onInit() override {
+    target = RenderTarget::create(256, 256);
+}
+
+void onRender() override {
+    // Render to target
+    renderer.setTarget(target);
+    renderer.clear(Color::Transparent);
+    renderer.fillCircle(128, 128, 64, Color::Red);
+
+    // Render to screen
+    renderer.setTarget(nullptr);
+    renderer.clear(Color::Black);
+    renderer.drawTexture(target.getTexture(), 0, 0);
+}
+```
+
+## Blending
+
+```cpp
+// Set blend mode
+renderer.setBlendMode(BlendMode::Alpha);    // Default
+renderer.setBlendMode(BlendMode::Additive); // For glow effects
+renderer.setBlendMode(BlendMode::Multiply); // For shadows
+```
+
+## Batching
+
+ESEngine automatically batches draw calls when possible. For best performance:
+
+1. Draw same texture consecutively
+2. Minimize blend mode changes
+3. Minimize transform changes
+
+```cpp
+// Good: All same texture
+for (auto& enemy : enemies) {
+    renderer.drawTexture(enemyTexture, enemy.x, enemy.y);
+}
+
+// Avoid: Alternating textures
+for (int i = 0; i < 100; i++) {
+    renderer.drawTexture(textureA, ...);  // Breaks batch
+    renderer.drawTexture(textureB, ...);  // Breaks batch
+}
+```
+
+## Shaders
+
+For advanced effects, use custom shaders:
+
+```cpp
+Shader shader = Shader::load("assets/custom.vert", "assets/custom.frag");
+
+void onRender() override {
+    renderer.setShader(shader);
+    shader.setUniform("u_time", getTime());
+    renderer.drawTexture(texture, 0, 0);
+    renderer.setShader(nullptr);  // Reset to default
+}
+```
+
+<Aside type="caution">
+  Custom shaders must be GLSL ES 2.0/3.0 compatible for WebGL.
+</Aside>

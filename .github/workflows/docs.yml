@@ -1,0 +1,70 @@
+name: Deploy Documentation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'src/**/*.hpp'
+      - 'include/**/*.hpp'
+      - '.github/workflows/docs.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Doxygen
+        run: sudo apt-get update && sudo apt-get install -y doxygen graphviz
+
+      - name: Build Doxygen API Docs
+        working-directory: docs
+        run: doxygen Doxyfile
+
+      - name: Install Astro Dependencies
+        working-directory: docs/astro
+        run: npm install
+
+      - name: Build Astro Site
+        working-directory: docs/astro
+        run: npm run build
+
+      - name: Merge Documentation
+        run: |
+          mkdir -p docs/dist/api
+          cp -r docs/astro/dist/* docs/dist/
+          cp -r docs/api/html docs/dist/api/
+          touch docs/dist/.nojekyll
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/dist
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

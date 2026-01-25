@@ -1,0 +1,159 @@
+---
+title: Project Structure
+description: Understanding the ESEngine codebase organization
+---
+
+This guide explains how the ESEngine codebase is organized and where to find specific functionality.
+
+## Directory Layout
+
+```
+esengine/
+├── include/esengine/       # Public API headers
+│   └── ESEngine.hpp        # Main include file
+│
+├── src/esengine/           # Engine implementation
+│   ├── core/               # Core systems
+│   │   ├── Application.hpp # Base application class
+│   │   ├── Engine.hpp      # Engine singleton
+│   │   ├── Log.hpp         # Logging utilities
+│   │   └── Types.hpp       # Common type aliases
+│   │
+│   ├── ecs/                # Entity-Component-System
+│   │   ├── Entity.hpp      # Entity type definition
+│   │   ├── Component.hpp   # Component traits
+│   │   ├── Registry.hpp    # Main ECS container
+│   │   ├── SparseSet.hpp   # Component storage
+│   │   ├── View.hpp        # Query iterators
+│   │   └── System.hpp      # System base class
+│   │
+│   ├── math/               # Mathematics
+│   │   └── Math.hpp        # GLM wrapper and utilities
+│   │
+│   ├── renderer/           # Graphics
+│   │   ├── Renderer.hpp    # High-level render API
+│   │   ├── RenderCommand.hpp
+│   │   ├── Shader.hpp      # Shader program
+│   │   ├── Texture.hpp     # Texture loading
+│   │   └── Buffer.hpp      # Vertex/Index buffers
+│   │
+│   ├── platform/           # Platform abstraction
+│   │   ├── Platform.hpp    # Platform interface
+│   │   └── input/
+│   │       └── Input.hpp   # Input handling
+│   │
+│   └── ESEngine.hpp        # Internal aggregation header
+│
+├── third_party/            # External dependencies
+│   └── glm/                # OpenGL Mathematics
+│
+├── examples/               # Example projects
+├── tests/                  # Unit tests
+├── bindings/               # JS bindings
+└── docs/                   # Documentation
+```
+
+## Module Overview
+
+### Core (`src/esengine/core/`)
+
+Foundation types and the application framework.
+
+| File | Purpose |
+|------|---------|
+| `Application.hpp` | Base class for games, manages lifecycle |
+| `Engine.hpp` | Global engine state and subsystems |
+| `Log.hpp` | Logging macros (`ES_LOG_INFO`, etc.) |
+| `Types.hpp` | Typedefs (`u32`, `f32`, `Unique<T>`) |
+
+### ECS (`src/esengine/ecs/`)
+
+The Entity-Component-System implementation.
+
+| File | Purpose |
+|------|---------|
+| `Entity.hpp` | Entity ID type and utilities |
+| `Registry.hpp` | Central container for entities/components |
+| `SparseSet.hpp` | O(1) component storage |
+| `View.hpp` | Query interface for iteration |
+| `System.hpp` | Base class for game systems |
+
+### Renderer (`src/esengine/renderer/`)
+
+WebGL-based rendering pipeline.
+
+| File | Purpose |
+|------|---------|
+| `Renderer.hpp` | High-level drawing API |
+| `Shader.hpp` | GLSL shader compilation |
+| `Texture.hpp` | Image loading and binding |
+| `Buffer.hpp` | GPU buffer management |
+
+### Platform (`src/esengine/platform/`)
+
+OS and browser abstraction layer.
+
+| File | Purpose |
+|------|---------|
+| `Platform.hpp` | Window, context, timing |
+| `input/Input.hpp` | Keyboard, mouse, touch |
+
+## Include Conventions
+
+### For Game Code
+
+Include only the public header:
+
+```cpp
+#include <esengine/ESEngine.hpp>
+```
+
+This gives you access to all public APIs.
+
+### For Engine Development
+
+Include specific internal headers:
+
+```cpp
+#include "core/Application.hpp"
+#include "ecs/Registry.hpp"
+```
+
+## Namespace Organization
+
+```cpp
+namespace esengine {
+    // Core classes
+    class Application;
+    class Platform;
+
+    namespace ecs {
+        // ECS types
+        class Registry;
+        using Entity = uint32_t;
+    }
+
+    namespace math {
+        // Math utilities (mostly GLM re-exports)
+    }
+}
+```
+
+## Adding New Features
+
+### Adding a Component
+
+1. Define in your game code (components are just structs):
+   ```cpp
+   struct Health {
+       int current;
+       int max;
+   };
+   ```
+
+### Adding an Engine System
+
+1. Create header in appropriate module
+2. Include in `ESEngine.hpp` if public
+3. Add to `CMakeLists.txt` if new files
+4. Document with Doxygen comments

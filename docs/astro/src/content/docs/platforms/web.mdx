@@ -1,0 +1,250 @@
+---
+title: Web (Emscripten)
+description: Building and deploying ESEngine games for web browsers
+---
+
+import { Steps, Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+This guide covers building ESEngine games for deployment in web browsers using Emscripten.
+
+## Build Configuration
+
+### CMake Options
+
+```bash
+emcmake cmake -B build_web \
+    -DES_BUILD_WEB=ON \
+    -DCMAKE_BUILD_TYPE=Release
+
+cmake --build build_web
+```
+
+### Output Files
+
+After building, you'll have:
+
+```
+build_web/
+├── MyGame.html      # Standalone HTML page
+├── MyGame.js        # Emscripten glue code
+├── MyGame.wasm      # WebAssembly binary
+└── MyGame.data      # Asset bundle (if using PRELOAD)
+```
+
+## Embedding in HTML
+
+### Standalone Page
+
+The generated `.html` file works out of the box:
+
+```bash
+npx serve build_web
+# Open http://localhost:3000/MyGame.html
+```
+
+### Custom HTML
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>My Game</title>
+    <style>
+        body { margin: 0; background: #000; }
+        #canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <script>
+        var Module = {
+            canvas: document.getElementById('canvas'),
+            onRuntimeInitialized: function() {
+                console.log('Game loaded!');
+            }
+        };
+    </script>
+    <script src="MyGame.js"></script>
+</body>
+</html>
+```
+
+## Asset Loading
+
+### Preloading (Recommended)
+
+Bundle assets into `.data` file at build time:
+
+```cmake
+# CMakeLists.txt
+target_link_options(MyGame PRIVATE
+    "SHELL:--preload-file ${CMAKE_SOURCE_DIR}/assets@/assets"
+)
+```
+
+Access normally in code:
+
+```cpp
+Texture texture = Texture::load("/assets/player.png");
+```
+
+### Runtime Loading
+
+Load assets via HTTP at runtime:
+
+```cpp
+void onInit() override {
+    // Async load
+    Texture::loadAsync("https://example.com/player.png",
+        [this](Texture tex) {
+            playerTexture = tex;
+        },
+        [](const std::string& error) {
+            ES_LOG_ERROR("Failed to load: {}", error);
+        }
+    );
+}
+```
+
+## Module Configuration
+
+### Memory
+
+```cmake
+target_link_options(MyGame PRIVATE
+    "SHELL:-s INITIAL_MEMORY=64MB"
+    "SHELL:-s ALLOW_MEMORY_GROWTH=1"
+    "SHELL:-s MAXIMUM_MEMORY=256MB"
+)
+```
+
+### WebGL
+
+```cmake
+target_link_options(MyGame PRIVATE
+    "SHELL:-s USE_WEBGL2=1"          # WebGL 2.0
+    "SHELL:-s MIN_WEBGL_VERSION=2"
+    "SHELL:-s MAX_WEBGL_VERSION=2"
+)
+```
+
+### Optimizations
+
+<Tabs>
+  <TabItem label="Release">
+    ```cmake
+    target_link_options(MyGame PRIVATE
+        "SHELL:-O3"
+        "SHELL:-flto"
+        "SHELL:-s ASSERTIONS=0"
+        "SHELL:--closure 1"
+    )
+    ```
+  </TabItem>
+  <TabItem label="Debug">
+    ```cmake
+    target_link_options(MyGame PRIVATE
+        "SHELL:-O0"
+        "SHELL:-g"
+        "SHELL:-s ASSERTIONS=2"
+        "SHELL:-s SAFE_HEAP=1"
+    )
+    ```
+  </TabItem>
+</Tabs>
+
+## Browser APIs
+
+### Local Storage
+
+```cpp
+#include <emscripten.h>
+
+void saveGame(const std::string& data) {
+    EM_ASM({
+        localStorage.setItem('savedata', UTF8ToString($0));
+    }, data.c_str());
+}
+
+std::string loadGame() {
+    char* result = (char*)EM_ASM_PTR({
+        var data = localStorage.getItem('savedata') || '';
+        var len = lengthBytesUTF8(data) + 1;
+        var buf = _malloc(len);
+        stringToUTF8(data, buf, len);
+        return buf;
+    });
+    std::string data(result);
+    free(result);
+    return data;
+}
+```
+
+### Fullscreen
+
+```cpp
+void toggleFullscreen() {
+    EM_ASM({
+        if (!document.fullscreenElement) {
+            Module.canvas.requestFullscreen();
+        } else {
+            document.exitFullscreen();
+        }
+    });
+}
+```
+
+## Deployment
+
+### GitHub Pages
+
+<Steps>
+
+1. Build with correct base path
+   ```bash
+   emcmake cmake -B build_web -DES_BUILD_WEB=ON
+   cmake --build build_web
+   ```
+
+2. Copy to `docs/` or `gh-pages` branch
+   ```bash
+   cp build_web/MyGame.* docs/
+   ```
+
+3. Enable GitHub Pages in repository settings
+
+</Steps>
+
+### itch.io
+
+1. Zip the build output files
+2. Upload to itch.io as HTML5 game
+3. Set viewport size in itch.io dashboard
+
+### Cloudflare Pages / Vercel
+
+Just point to your build output directory. Both platforms serve static files directly.
+
+## Performance Tips
+
+<Aside type="tip">
+  - Use `-O3` and `--closure 1` for production
+  - Compress `.wasm` with gzip/brotli on server
+  - Keep `.data` file small (compress textures)
+  - Use WebGL 2.0 for better performance
+</Aside>
+
+## Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| Blank screen | Check browser console for errors |
+| Memory error | Increase `INITIAL_MEMORY` |
+| Slow loading | Enable compression on server |
+| Touch not working | Ensure canvas has `tabindex="0"` |

@@ -1,0 +1,230 @@
+---
+title: ECS Architecture
+description: Understanding the Entity-Component-System pattern in ESEngine
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+ESEngine uses an Entity-Component-System (ECS) architecture for game object management. This guide explains the concepts and API.
+
+## What is ECS?
+
+ECS separates **identity** (Entity), **data** (Component), and **behavior** (System):
+
+| Concept | Description | Example |
+|---------|-------------|---------|
+| **Entity** | A unique identifier | Player, Enemy, Bullet |
+| **Component** | Plain data struct | Position, Velocity, Health |
+| **System** | Logic operating on components | MovementSystem, RenderSystem |
+
+<Aside type="tip">
+  ECS provides better cache performance than traditional OOP hierarchies because components are stored contiguously in memory.
+</Aside>
+
+## Entities
+
+An entity is just a number (ID). It has no data or behavior on its own.
+
+```cpp
+#include <esengine/ESEngine.hpp>
+using namespace esengine::ecs;
+
+Registry registry;
+
+// Create single entity
+Entity player = registry.create();
+
+// Create multiple entities
+std::vector<Entity> enemies = registry.create(100);
+
+// Check if valid
+if (registry.valid(player)) {
+    // Entity exists
+}
+
+// Destroy entity (removes all components)
+registry.destroy(player);
+```
+
+## Components
+
+Components are plain structs containing only data. No methods, no inheritance.
+
+```cpp
+// Good: Simple data structs
+struct Position {
+    float x, y;
+};
+
+struct Velocity {
+    float vx, vy;
+};
+
+struct Health {
+    int current;
+    int max;
+};
+
+struct Tag {}; // Empty tags are valid
+```
+
+<Aside type="caution">
+  Avoid putting logic in components. Keep them as pure data containers.
+</Aside>
+
+### Adding Components
+
+```cpp
+Entity player = registry.create();
+
+// emplace - construct in-place
+registry.emplace<Position>(player, 100.0f, 200.0f);
+registry.emplace<Health>(player, 100, 100);
+
+// emplaceOrReplace - add or overwrite
+registry.emplaceOrReplace<Position>(player, 0.0f, 0.0f);
+
+// getOrEmplace - get existing or create new
+auto& vel = registry.getOrEmplace<Velocity>(player, 0.0f, 0.0f);
+```
+
+### Accessing Components
+
+```cpp
+// get - must exist (asserts otherwise)
+Position& pos = registry.get<Position>(player);
+
+// tryGet - returns nullptr if missing
+Health* health = registry.tryGet<Health>(player);
+if (health) {
+    health->current -= 10;
+}
+
+// Check existence
+if (registry.has<Position>(player)) { ... }
+if (registry.hasAll<Position, Velocity>(player)) { ... }
+if (registry.hasAny<Enemy, Boss>(player)) { ... }
+```
+
+### Removing Components
+
+```cpp
+registry.remove<Velocity>(player);  // No-op if missing
+```
+
+## Views (Queries)
+
+Views let you iterate over entities that have specific components.
+
+### Single Component View
+
+```cpp
+// Iterate entities with Position
+for (Entity entity : registry.view<Position>()) {
+    Position& pos = registry.get<Position>(entity);
+    pos.x += 1.0f;
+}
+```
+
+### Multi-Component View
+
+```cpp
+// Iterate entities with both Position AND Velocity
+auto view = registry.view<Position, Velocity>();
+
+// Method 1: Structured bindings (recommended)
+for (auto [entity, pos, vel] : view.each()) {
+    pos.x += vel.vx * dt;
+    pos.y += vel.vy * dt;
+}
+
+// Method 2: Manual get
+for (Entity entity : view) {
+    auto& pos = view.get<Position>(entity);
+    auto& vel = view.get<Velocity>(entity);
+    pos.x += vel.vx * dt;
+}
+```
+
+### Using `each()` with Callbacks
+
+```cpp
+registry.each<Position, Velocity>([dt](Entity e, Position& p, Velocity& v) {
+    p.x += v.vx * dt;
+    p.y += v.vy * dt;
+});
+```
+
+## Systems
+
+Systems contain the game logic. They typically query components and update them.
+
+### Basic Pattern
+
+```cpp
+class MovementSystem {
+public:
+    void update(Registry& registry, float dt) {
+        for (auto [e, pos, vel] : registry.view<Position, Velocity>().each()) {
+            pos.x += vel.vx * dt;
+            pos.y += vel.vy * dt;
+        }
+    }
+};
+
+class CollisionSystem {
+public:
+    void update(Registry& registry) {
+        auto view = registry.view<Position, Collider>();
+        // Check collisions between entities...
+    }
+};
+```
+
+### In Your Application
+
+```cpp
+class MyGame : public Application {
+    MovementSystem movementSystem;
+    CollisionSystem collisionSystem;
+
+protected:
+    void onUpdate(float dt) override {
+        movementSystem.update(getRegistry(), dt);
+        collisionSystem.update(getRegistry());
+    }
+};
+```
+
+## Best Practices
+
+### Do
+
+- Keep components small and focused
+- Use empty structs as tags (`struct Player {};`)
+- Prefer composition over complex components
+- Cache views if iterating frequently in the same frame
+
+### Don't
+
+- Put methods in components
+- Store pointers to components (they may relocate)
+- Create deep component hierarchies
+- Use components for things that don't need identity
+
+## Performance Tips
+
+1. **Component Order**: Put frequently accessed components together
+2. **View Caching**: Store views if reusing within a frame
+3. **Sorting**: Use `registry.sort<T>()` for better cache locality
+4. **Batch Creation**: Use `registry.create(count)` for many entities
+
+```cpp
+// Good: Batch create
+auto entities = registry.create(1000);
+for (Entity e : entities) {
+    registry.emplace<Position>(e, 0.0f, 0.0f);
+}
+
+// Avoid: Create one by one in hot path
+```
