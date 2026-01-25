@@ -38,6 +38,7 @@ struct ThemeColors {
     // Background colors
     glm::vec4 background{0.15f, 0.15f, 0.15f, 1.0f};
     glm::vec4 backgroundDark{0.10f, 0.10f, 0.10f, 1.0f};
+    glm::vec4 backgroundMedium{0.17f, 0.17f, 0.17f, 1.0f};
     glm::vec4 backgroundLight{0.20f, 0.20f, 0.20f, 1.0f};
     glm::vec4 surface{0.18f, 0.18f, 0.18f, 1.0f};
     glm::vec4 surfaceHover{0.22f, 0.22f, 0.22f, 1.0f};
@@ -84,6 +85,17 @@ struct ThemeColors {
     // Shadow/overlay
     glm::vec4 shadow{0.0f, 0.0f, 0.0f, 0.5f};
     glm::vec4 overlay{0.0f, 0.0f, 0.0f, 0.6f};
+
+    // Docking colors
+    glm::vec4 dockTabBackground{0.12f, 0.12f, 0.12f, 1.0f};
+    glm::vec4 dockTabHover{0.18f, 0.18f, 0.18f, 1.0f};
+    glm::vec4 dockTabActive{0.20f, 0.20f, 0.20f, 1.0f};
+    glm::vec4 dockTabIndicator{0.26f, 0.59f, 0.98f, 1.0f};
+    glm::vec4 dockSplitter{0.20f, 0.20f, 0.20f, 1.0f};
+    glm::vec4 dockSplitterHover{0.26f, 0.59f, 0.98f, 1.0f};
+    glm::vec4 dockDropPreview{0.26f, 0.59f, 0.98f, 0.30f};
+    glm::vec4 dockZoneButton{0.30f, 0.30f, 0.30f, 0.90f};
+    glm::vec4 dockZoneButtonHover{0.26f, 0.59f, 0.98f, 1.0f};
 };
 
 // =============================================================================
@@ -116,6 +128,19 @@ struct ThemeSpacing {
 
     f32 scrollbarWidth = 12.0f;
     f32 scrollbarMinThumb = 32.0f;
+
+    // Docking spacing
+    f32 dockTabHeight = 24.0f;
+    f32 dockTabMinWidth = 80.0f;
+    f32 dockTabMaxWidth = 200.0f;
+    f32 dockTabPadding = 8.0f;
+    f32 dockTabSpacing = 1.0f;
+    f32 dockTabCloseSize = 14.0f;
+    f32 dockSplitterSize = 4.0f;
+    f32 dockZoneSize = 32.0f;
+    f32 dockZoneGap = 4.0f;
+    f32 dockDropPreviewAlpha = 0.30f;
+    f32 dockEdgeThreshold = 0.30f;
 };
 
 // =============================================================================
@@ -307,6 +332,85 @@ public:
         return style;
     }
 
+    // =========================================================================
+    // Docking Styles
+    // =========================================================================
+
+    /** @brief Gets the style for a dock tab bar background */
+    WidgetStyle getDockTabBarStyle() const {
+        WidgetStyle style;
+        style.backgroundColor = colors.dockTabBackground;
+        style.backgroundColorHover = colors.dockTabBackground;
+        style.backgroundColorPressed = colors.dockTabBackground;
+        style.padding = Insets{0.0f, spacing.dockTabPadding, 0.0f, spacing.dockTabPadding};
+        return style;
+    }
+
+    /** @brief Gets the style for an inactive dock tab */
+    WidgetStyle getDockTabStyle() const {
+        WidgetStyle style;
+        style.backgroundColor = colors.dockTabBackground;
+        style.backgroundColorHover = colors.dockTabHover;
+        style.backgroundColorPressed = colors.dockTabActive;
+        style.textColor = colors.textSecondary;
+        style.textColorDisabled = colors.textDisabled;
+        style.padding = Insets::symmetric(spacing.dockTabPadding, spacing.sm);
+        style.fontSize = typography.fontSizeSmall;
+        return style;
+    }
+
+    /** @brief Gets the style for an active dock tab */
+    WidgetStyle getDockTabActiveStyle() const {
+        WidgetStyle style = getDockTabStyle();
+        style.backgroundColor = colors.dockTabActive;
+        style.backgroundColorHover = colors.dockTabActive;
+        style.textColor = colors.textPrimary;
+        style.borderColor = colors.dockTabIndicator;
+        style.borderWidth = 2.0f;
+        return style;
+    }
+
+    /** @brief Gets the style for the dock splitter */
+    WidgetStyle getDockSplitterStyle() const {
+        WidgetStyle style;
+        style.backgroundColor = colors.dockSplitter;
+        style.backgroundColorHover = colors.dockSplitterHover;
+        style.backgroundColorPressed = colors.dockSplitterHover;
+        return style;
+    }
+
+    /** @brief Gets the style for dock zone indicator buttons */
+    WidgetStyle getDockZoneButtonStyle() const {
+        WidgetStyle style;
+        style.backgroundColor = colors.dockZoneButton;
+        style.backgroundColorHover = colors.dockZoneButtonHover;
+        style.backgroundColorPressed = colors.dockZoneButtonHover;
+        style.textColor = colors.textSecondary;
+        style.borderColor = colors.accent;
+        style.borderWidth = 1.0f;
+        style.cornerRadii = CornerRadii::all(4.0f);
+        return style;
+    }
+
+    /** @brief Gets the style for dock drop preview overlay */
+    WidgetStyle getDockDropPreviewStyle() const {
+        WidgetStyle style;
+        style.backgroundColor = colors.dockDropPreview;
+        style.backgroundColorHover = colors.dockDropPreview;
+        return style;
+    }
+
+    /** @brief Gets the style for dock panel content area */
+    WidgetStyle getDockPanelStyle() const {
+        WidgetStyle style;
+        style.backgroundColor = colors.background;
+        style.backgroundColorHover = colors.background;
+        style.borderColor = colors.border;
+        style.borderWidth = 0.0f;
+        style.padding = Insets::all(spacing.panelPadding);
+        return style;
+    }
+
 private:
     void initDark() {
         // Colors are already initialized to dark theme defaults
@@ -316,6 +420,7 @@ private:
         // Override with light theme colors
         colors.background = {0.95f, 0.95f, 0.95f, 1.0f};
         colors.backgroundDark = {0.90f, 0.90f, 0.90f, 1.0f};
+        colors.backgroundMedium = {0.93f, 0.93f, 0.93f, 1.0f};
         colors.backgroundLight = {1.0f, 1.0f, 1.0f, 1.0f};
         colors.surface = {1.0f, 1.0f, 1.0f, 1.0f};
         colors.surfaceHover = {0.98f, 0.98f, 0.98f, 1.0f};
@@ -346,6 +451,15 @@ private:
 
         colors.shadow = {0.0f, 0.0f, 0.0f, 0.15f};
         colors.overlay = {0.0f, 0.0f, 0.0f, 0.3f};
+
+        // Light theme docking colors
+        colors.dockTabBackground = {0.92f, 0.92f, 0.92f, 1.0f};
+        colors.dockTabHover = {0.88f, 0.88f, 0.88f, 1.0f};
+        colors.dockTabActive = {1.0f, 1.0f, 1.0f, 1.0f};
+        colors.dockSplitter = {0.85f, 0.85f, 0.85f, 1.0f};
+        colors.dockSplitterHover = {0.26f, 0.59f, 0.98f, 1.0f};
+        colors.dockDropPreview = {0.26f, 0.59f, 0.98f, 0.20f};
+        colors.dockZoneButton = {0.95f, 0.95f, 0.95f, 0.95f};
     }
 };
 

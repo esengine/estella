@@ -45,6 +45,13 @@ set(ESENGINE_SOURCES
     src/esengine/ui/widgets/Panel.cpp
     src/esengine/ui/widgets/Label.cpp
     src/esengine/ui/widgets/Button.cpp
+    # Docking System
+    src/esengine/ui/docking/DockNode.cpp
+    src/esengine/ui/docking/DockPanel.cpp
+    src/esengine/ui/docking/DockTabBar.cpp
+    src/esengine/ui/docking/DockZone.cpp
+    src/esengine/ui/docking/DockArea.cpp
+    src/esengine/ui/docking/DockLayoutSerializer.cpp
 )
 
 set(ESENGINE_HEADERS
@@ -100,6 +107,15 @@ set(ESENGINE_HEADERS
     src/esengine/ui/widgets/Panel.hpp
     src/esengine/ui/widgets/Label.hpp
     src/esengine/ui/widgets/Button.hpp
+    # Docking System
+    src/esengine/ui/docking/DockTypes.hpp
+    src/esengine/ui/docking/DockNode.hpp
+    src/esengine/ui/docking/DockPanel.hpp
+    src/esengine/ui/docking/DockTabBar.hpp
+    src/esengine/ui/docking/DockZone.hpp
+    src/esengine/ui/docking/DockArea.hpp
+    src/esengine/ui/docking/DockEvents.hpp
+    src/esengine/ui/docking/DockLayoutSerializer.hpp
 )
 
 # Platform-specific sources
