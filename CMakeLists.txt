@@ -84,25 +84,12 @@ target_include_directories(esengine
 
 target_link_libraries(esengine PUBLIC glm)
 
-# Emscripten-specific settings
+# Emscripten-specific settings (link flags are in cmake/Emscripten.cmake)
 if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
     target_compile_definitions(esengine PUBLIC ES_PLATFORM_WEB)
-
-    set(EMSCRIPTEN_LINK_FLAGS
-        -sUSE_WEBGL2=1
-        -sFULL_ES3=1
-        -sALLOW_MEMORY_GROWTH=1
-        "-sEXPORTED_FUNCTIONS=['_main','_es_init','_es_update','_es_render','_es_on_touch']"
-        "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap']"
-    )
-
     if(ES_BUILD_WXGAME)
         target_compile_definitions(esengine PUBLIC ES_PLATFORM_WXGAME)
-        list(APPEND EMSCRIPTEN_LINK_FLAGS -sENVIRONMENT=web)
     endif()
-
-    string(REPLACE ";" " " EMSCRIPTEN_LINK_FLAGS_STR "${EMSCRIPTEN_LINK_FLAGS}")
-    set_target_properties(esengine PROPERTIES LINK_FLAGS "${EMSCRIPTEN_LINK_FLAGS_STR}")
 endif()
 
 # Compiler warnings

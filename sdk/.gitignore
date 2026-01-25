@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# TypeScript compiled files in src (should not exist)
+src/**/*.js
+src/**/*.js.map
+src/**/*.d.ts
+
+# Example build outputs (keep esengine.js and wasm for demo)
+examples/**/*.js
+!examples/**/rollup.config.js
+examples/**/*.js.map
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

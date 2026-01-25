@@ -1,0 +1,40 @@
+{
+  "name": "@esengine/sdk",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "TypeScript SDK for ESEngine - A lightweight 2D game engine for Web and WeChat MiniGames",
+  "main": "dist/esengine.cjs.js",
+  "module": "dist/esengine.esm.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "rollup -c",
+    "watch": "rollup -c -w",
+    "clean": "rimraf dist",
+    "prepublishOnly": "npm run clean && npm run build"
+  },
+  "keywords": [
+    "game-engine",
+    "ecs",
+    "webgl",
+    "wechat-minigame",
+    "typescript"
+  ],
+  "author": "ESEngine Team",
+  "license": "MIT",
+  "devDependencies": {
+    "@rollup/plugin-typescript": "^11.1.5",
+    "rimraf": "^5.0.5",
+    "rollup": "^4.9.0",
+    "rollup-plugin-dts": "^6.1.0",
+    "tslib": "^2.6.2",
+    "typescript": "^5.3.0"
+  },
+  "peerDependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/esengine/esengine.git"
+  }
+}

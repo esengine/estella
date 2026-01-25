@@ -23,6 +23,9 @@ set(ES_EMSCRIPTEN_LINK_FLAGS
     -sALLOW_MEMORY_GROWTH=1
     -sNO_EXIT_RUNTIME=1
     -sASSERTIONS=1
+    # EMSCRIPTEN_KEEPALIVE functions are auto-exported, only need to add stdlib functions
+    "-sEXPORTED_FUNCTIONS=['_malloc','_free']"
+    "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32']"
 )
 
 # Debug-specific flags
