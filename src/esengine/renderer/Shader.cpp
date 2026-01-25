@@ -1,3 +1,15 @@
+/**
+ * @file    Shader.cpp
+ * @brief   Shader program implementation for OpenGL/WebGL
+ * @details Implements shader compilation, linking, and uniform management.
+ *
+ * @author  ESEngine Team
+ * @date    2025
+ *
+ * @copyright Copyright (c) 2025 ESEngine Team
+ *            Licensed under the MIT License.
+ */
+
 #include "Shader.hpp"
 #include "../core/Log.hpp"
 

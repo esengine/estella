@@ -77,6 +77,7 @@ protected:
 
     void onRender() override {
         auto& registry = getRegistry();
+        auto& renderer = getRenderer();
 
         // Draw colored quads for entities with Transform and Sprite
         auto view = registry.view<Transform, Sprite>();
@@ -84,21 +85,21 @@ protected:
             auto& transform = view.get<Transform>(entity);
             auto& sprite = view.get<Sprite>(entity);
 
-            Renderer::drawQuad(
+            renderer.drawQuad(
                 glm::vec2(transform.position.x, transform.position.y),
                 sprite.size * 50.0f,
                 sprite.color
             );
         }
 
-        // Draw the main triangle (entity with just Transform and Name)
+        // Draw the main triangle
         auto triangleView = registry.view<Transform, Name>();
         for (auto entity : triangleView) {
             auto& transform = triangleView.get<Transform>(entity);
             auto& name = triangleView.get<Name>(entity);
 
             if (name.value == "Triangle") {
-                Renderer::drawQuad(
+                renderer.drawQuad(
                     glm::vec2(transform.position.x, transform.position.y),
                     glm::vec2(100.0f, 100.0f),
                     glm::vec4(1.0f, 0.5f, 0.2f, 1.0f)

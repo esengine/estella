@@ -5,9 +5,9 @@
  *          management, event handling, and access to engine subsystems.
  *
  * @author  ESEngine Team
- * @date    2025
+ * @date    2026
  *
- * @copyright Copyright (c) 2025 ESEngine Team
+ * @copyright Copyright (c) 2026 ESEngine Team
  *            Licensed under the MIT License.
  */
 #pragma once
@@ -21,6 +21,9 @@
 #include "../platform/Platform.hpp"
 #include "../ecs/Registry.hpp"
 #include "../ecs/System.hpp"
+#include "../resource/ResourceManager.hpp"
+#include "../renderer/RenderContext.hpp"
+#include "../renderer/Renderer.hpp"
 
 namespace esengine {
 
@@ -65,6 +68,8 @@ struct ApplicationConfig {
  *          - Platform abstraction and window/context creation
  *          - Main game loop with fixed timestep
  *          - ECS Registry for entity/component management
+ *          - Resource management (shaders, textures, buffers)
+ *          - Rendering context and renderer
  *          - Event dispatching (input, resize, etc.)
  *
  * @code
@@ -75,6 +80,7 @@ struct ApplicationConfig {
  * protected:
  *     void onInit() override {
  *         // Load assets, create entities
+ *         auto tex = getResourceManager().loadTexture("player.png");
  *     }
  *
  *     void onUpdate(f32 deltaTime) override {
@@ -83,6 +89,7 @@ struct ApplicationConfig {
  *
  *     void onRender() override {
  *         // Drawing code
+ *         getRenderer().drawQuad({100, 100}, {50, 50}, {1, 0, 0, 1});
  *     }
  * };
  *
@@ -141,6 +148,24 @@ public:
      */
     ecs::Registry& getRegistry() { return registry_; }
 
+    /**
+     * @brief Gets the resource manager
+     * @return Reference to the ResourceManager for asset loading
+     */
+    resource::ResourceManager& getResourceManager() { return resourceManager_; }
+
+    /**
+     * @brief Gets the render context
+     * @return Reference to the RenderContext
+     */
+    RenderContext& getRenderContext() { return *renderContext_; }
+
+    /**
+     * @brief Gets the renderer
+     * @return Reference to the Renderer for drawing
+     */
+    Renderer& getRenderer() { return *renderer_; }
+
     /** @brief Gets the current viewport width in pixels */
     u32 getWidth() const { return config_.width; }
 
@@ -162,7 +187,7 @@ public:
 
 protected:
     // =========================================================================
-    // Lifecycle Hooks (Override in Derived Class)
+    // Lifecycle Hooks
     // =========================================================================
 
     /**
@@ -191,7 +216,7 @@ protected:
     virtual void onShutdown() {}
 
     // =========================================================================
-    // Event Callbacks (Override in Derived Class)
+    // Event Callbacks
     // =========================================================================
 
     /**
@@ -233,6 +258,12 @@ protected:
     ecs::Registry registry_;
     /** @brief System execution group */
     ecs::SystemGroup systems_;
+    /** @brief Resource manager for assets */
+    resource::ResourceManager resourceManager_;
+    /** @brief Rendering context with shared state */
+    Unique<RenderContext> renderContext_;
+    /** @brief Renderer instance */
+    Unique<Renderer> renderer_;
 
 private:
     void init();

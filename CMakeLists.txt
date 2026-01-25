@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 project(ESEngine VERSION 0.1.0 LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -27,6 +27,8 @@ set(ESENGINE_SOURCES
     src/esengine/core/Application.cpp
     src/esengine/core/Engine.cpp
     src/esengine/core/Log.cpp
+    src/esengine/resource/ResourceManager.cpp
+    src/esengine/renderer/RenderContext.cpp
     src/esengine/renderer/Renderer.cpp
     src/esengine/renderer/Shader.cpp
     src/esengine/renderer/Buffer.cpp
@@ -48,6 +50,11 @@ set(ESENGINE_HEADERS
     src/esengine/ecs/SparseSet.hpp
     src/esengine/ecs/View.hpp
     src/esengine/math/Math.hpp
+    src/esengine/resource/Handle.hpp
+    src/esengine/resource/ResourcePool.hpp
+    src/esengine/resource/ResourceManager.hpp
+    src/esengine/resource/Resource.hpp
+    src/esengine/renderer/RenderContext.hpp
     src/esengine/renderer/Renderer.hpp
     src/esengine/renderer/Shader.hpp
     src/esengine/renderer/Buffer.hpp

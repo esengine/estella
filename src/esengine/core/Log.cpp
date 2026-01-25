@@ -1,3 +1,15 @@
+/**
+ * @file    Log.cpp
+ * @brief   Logging system implementation
+ * @details Provides multi-level logging output to console.
+ *
+ * @author  ESEngine Team
+ * @date    2025
+ *
+ * @copyright Copyright (c) 2025 ESEngine Team
+ *            Licensed under the MIT License.
+ */
+
 #include "Log.hpp"
 
 namespace esengine {

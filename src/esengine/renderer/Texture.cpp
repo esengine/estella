@@ -1,5 +1,19 @@
+/**
+ * @file    Texture.cpp
+ * @brief   Texture implementation for OpenGL/WebGL
+ * @details Implements texture creation, loading (via stb_image), and management.
+ *
+ * @author  ESEngine Team
+ * @date    2026
+ *
+ * @copyright Copyright (c) 2026 ESEngine Team
+ *            Licensed under the MIT License.
+ */
+
 #include "Texture.hpp"
 #include "../core/Log.hpp"
+
+#include <span>
 #include <stb_image.h>
 
 #ifdef ES_PLATFORM_WEB
@@ -111,10 +125,14 @@ Unique<Texture> Texture::create(const TextureSpecification& spec) {
     return texture;
 }
 
-Unique<Texture> Texture::create(u32 width, u32 height, const std::vector<u8>& pixels, TextureFormat format) {
+Unique<Texture> Texture::create(u32 width, u32 height, std::span<const u8> pixels, TextureFormat format) {
     [[maybe_unused]] u32 expectedSize = width * height * (format == TextureFormat::RGBA8 ? 4 : 3);
     ES_ASSERT(pixels.size() == expectedSize, "Pixel data size mismatch");
     return createRaw(width, height, pixels.data(), format);
+}
+
+Unique<Texture> Texture::create(u32 width, u32 height, const std::vector<u8>& pixels, TextureFormat format) {
+    return create(width, height, std::span<const u8>(pixels), format);
 }
 
 Unique<Texture> Texture::createRaw(u32 width, u32 height, const void* data, TextureFormat format) {
@@ -234,10 +252,14 @@ void Texture::unbind() const {
 #endif
 }
 
-void Texture::setData(const std::vector<u8>& pixels) {
+void Texture::setData(std::span<const u8> pixels) {
     [[maybe_unused]] u32 expectedSize = width_ * height_ * (format_ == TextureFormat::RGBA8 ? 4 : 3);
     ES_ASSERT(pixels.size() == expectedSize, "Pixel data size mismatch");
     setDataRaw(pixels.data(), static_cast<u32>(pixels.size()));
+}
+
+void Texture::setData(const std::vector<u8>& pixels) {
+    setData(std::span<const u8>(pixels));
 }
 
 void Texture::setDataRaw(const void* data, u32 sizeBytes) {

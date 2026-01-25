@@ -5,9 +5,9 @@
  *          batched 2D sprite rendering (BatchRenderer2D) for WebGL/OpenGL ES.
  *
  * @author  ESEngine Team
- * @date    2025
+ * @date    2026
  *
- * @copyright Copyright (c) 2025 ESEngine Team
+ * @copyright Copyright (c) 2026 ESEngine Team
  *            Licensed under the MIT License.
  */
 #pragma once
@@ -22,6 +22,13 @@
 #include "Buffer.hpp"
 #include "Shader.hpp"
 #include "Texture.hpp"
+#include "RenderContext.hpp"
+#include "../resource/Handle.hpp"
+
+// Forward declaration
+namespace esengine::resource {
+    class ResourceManager;
+}
 
 namespace esengine {
 
@@ -29,67 +36,58 @@ namespace esengine {
 // Renderer Statistics
 // =============================================================================
 
-/**
- * @brief Statistics for rendering performance analysis
- *
- * @details Tracks draw calls and geometry counts per frame.
- *          Use Renderer::getStats() to retrieve current values.
- */
-struct RendererStats {
-    /** @brief Number of draw calls this frame */
-    u32 drawCalls = 0;
-    /** @brief Number of triangles rendered this frame */
-    u32 triangleCount = 0;
-    /** @brief Number of vertices processed this frame */
-    u32 vertexCount = 0;
-
-    /** @brief Resets all counters to zero */
-    void reset() {
-        drawCalls = 0;
-        triangleCount = 0;
-        vertexCount = 0;
-    }
-};
+using RendererStats = RenderContextStats;
 
 // =============================================================================
 // Renderer Class
 // =============================================================================
 
 /**
- * @brief Static renderer for immediate-mode drawing
+ * @brief Instance-based renderer for 2D drawing
  *
- * @details Provides low-level rendering operations and a simple 2D quad
- *          drawing API. For performance-critical sprite rendering, prefer
- *          BatchRenderer2D.
+ * @details Provides immediate-mode 2D rendering with dependency injection.
+ *          Requires a RenderContext for shared resources and state.
  *
  * @code
- * // Initialization (called by Application)
- * Renderer::init();
+ * RenderContext context;
+ * context.init();
+ *
+ * Renderer renderer(context);
  *
  * // Frame rendering
- * Renderer::beginFrame();
- * Renderer::clear();
- * Renderer::beginScene(camera.getViewProjection());
+ * renderer.beginFrame();
+ * renderer.clear();
+ * renderer.beginScene(camera.getViewProjection());
  *
- * Renderer::drawQuad({100, 100}, {50, 50}, {1, 0, 0, 1}); // Red quad
+ * renderer.drawQuad({100, 100}, {50, 50}, {1, 0, 0, 1}); // Red quad
  *
- * Renderer::endScene();
- * Renderer::endFrame();
+ * renderer.endScene();
+ * renderer.endFrame();
  * @endcode
  */
 class Renderer {
 public:
-    /** @brief Initializes the renderer (call once at startup) */
-    static void init();
+    /**
+     * @brief Constructs a renderer with the given context
+     * @param context Reference to the rendering context
+     */
+    explicit Renderer(RenderContext& context);
 
-    /** @brief Shuts down the renderer and releases resources */
-    static void shutdown();
+    ~Renderer() = default;
+
+    // Non-copyable
+    Renderer(const Renderer&) = delete;
+    Renderer& operator=(const Renderer&) = delete;
+
+    // =========================================================================
+    // Frame Management
+    // =========================================================================
 
     /** @brief Begins a new frame */
-    static void beginFrame();
+    void beginFrame();
 
     /** @brief Ends the current frame */
-    static void endFrame();
+    void endFrame();
 
     // =========================================================================
     // Viewport and Clearing
@@ -102,16 +100,16 @@ public:
      * @param width Viewport width in pixels
      * @param height Viewport height in pixels
      */
-    static void setViewport(i32 x, i32 y, u32 width, u32 height);
+    void setViewport(i32 x, i32 y, u32 width, u32 height);
 
     /**
      * @brief Sets the clear color for subsequent clear() calls
      * @param color RGBA color (0-1 range)
      */
-    static void setClearColor(const glm::vec4& color);
+    void setClearColor(const glm::vec4& color);
 
     /** @brief Clears the color and depth buffers */
-    static void clear();
+    void clear();
 
     // =========================================================================
     // Scene Management
@@ -121,10 +119,10 @@ public:
      * @brief Begins a scene with the given camera transform
      * @param viewProjection Combined view-projection matrix
      */
-    static void beginScene(const glm::mat4& viewProjection);
+    void beginScene(const glm::mat4& viewProjection);
 
     /** @brief Ends the current scene */
-    static void endScene();
+    void endScene();
 
     // =========================================================================
     // Draw Submission
@@ -136,9 +134,9 @@ public:
      * @param vao The vertex array containing geometry
      * @param transform Model transform matrix (defaults to identity)
      */
-    static void submit(const Shader& shader,
-                       const VertexArray& vao,
-                       const glm::mat4& transform = glm::mat4(1.0f));
+    void submit(const Shader& shader,
+                const VertexArray& vao,
+                const glm::mat4& transform = glm::mat4(1.0f));
 
     // =========================================================================
     // 2D Rendering Helpers
@@ -150,8 +148,17 @@ public:
      * @param size Width and height
      * @param color RGBA color
      */
-    static void drawQuad(const glm::vec2& position, const glm::vec2& size,
-                         const glm::vec4& color);
+    void drawQuad(const glm::vec2& position, const glm::vec2& size,
+                  const glm::vec4& color);
+
+    /**
+     * @brief Draws a colored quad at a 3D position
+     * @param position Center position (x, y, z)
+     * @param size Width and height
+     * @param color RGBA color
+     */
+    void drawQuad(const glm::vec3& position, const glm::vec2& size,
+                  const glm::vec4& color);
 
     /**
      * @brief Draws a textured quad at a 2D position
@@ -160,17 +167,8 @@ public:
      * @param texture Texture to apply
      * @param tintColor Optional color tint (defaults to white)
      */
-    static void drawQuad(const glm::vec2& position, const glm::vec2& size,
-                         const Texture& texture, const glm::vec4& tintColor = glm::vec4(1.0f));
-
-    /**
-     * @brief Draws a colored quad at a 3D position
-     * @param position Center position (x, y, z)
-     * @param size Width and height
-     * @param color RGBA color
-     */
-    static void drawQuad(const glm::vec3& position, const glm::vec2& size,
-                         const glm::vec4& color);
+    void drawQuad(const glm::vec2& position, const glm::vec2& size,
+                  const Texture& texture, const glm::vec4& tintColor = glm::vec4(1.0f));
 
     /**
      * @brief Draws a textured quad at a 3D position
@@ -179,8 +177,20 @@ public:
      * @param texture Texture to apply
      * @param tintColor Optional color tint (defaults to white)
      */
-    static void drawQuad(const glm::vec3& position, const glm::vec2& size,
-                         const Texture& texture, const glm::vec4& tintColor = glm::vec4(1.0f));
+    void drawQuad(const glm::vec3& position, const glm::vec2& size,
+                  const Texture& texture, const glm::vec4& tintColor = glm::vec4(1.0f));
+
+    /**
+     * @brief Draws a textured quad using a texture handle
+     * @param position Center position (x, y)
+     * @param size Width and height
+     * @param texture Texture handle
+     * @param rm Resource manager to resolve the handle
+     * @param tintColor Optional color tint (defaults to white)
+     */
+    void drawQuad(const glm::vec2& position, const glm::vec2& size,
+                  resource::TextureHandle texture, resource::ResourceManager& rm,
+                  const glm::vec4& tintColor = glm::vec4(1.0f));
 
     // =========================================================================
     // Statistics
@@ -190,14 +200,23 @@ public:
      * @brief Gets the current frame's rendering statistics
      * @return RendererStats with draw call and geometry counts
      */
-    static RendererStats getStats();
+    RendererStats getStats() const;
 
-    /** @brief Resets statistics counters (call at frame start) */
-    static void resetStats();
+    /** @brief Resets statistics counters */
+    void resetStats();
+
+    // =========================================================================
+    // Context Access
+    // =========================================================================
+
+    /**
+     * @brief Gets the rendering context
+     * @return Reference to the context
+     */
+    RenderContext& getContext() { return context_; }
 
 private:
-    static void initQuadData();
-    static void flushBatch();
+    RenderContext& context_;
 };
 
 // =============================================================================
@@ -209,38 +228,56 @@ private:
  *
  * @details Batches multiple quads into single draw calls for optimal
  *          performance. Supports textured and colored quads with rotation.
+ *          Now uses RenderContext for shared state.
  *
  * @code
- * BatchRenderer2D::init();
- * BatchRenderer2D::setProjection(orthoMatrix);
+ * BatchRenderer2D batch(context);
+ * batch.setProjection(orthoMatrix);
  *
- * BatchRenderer2D::beginBatch();
+ * batch.beginBatch();
  * for (auto& sprite : sprites) {
- *     BatchRenderer2D::drawQuad(sprite.pos, sprite.size, sprite.textureId);
+ *     batch.drawQuad(sprite.pos, sprite.size, sprite.textureId);
  * }
- * BatchRenderer2D::endBatch();
- * BatchRenderer2D::flush();
+ * batch.endBatch();
+ * batch.flush();
  * @endcode
- *
- * @note The batch is automatically flushed when full or when texture
- *       slots are exhausted.
  */
 class BatchRenderer2D {
 public:
-    /** @brief Initializes the batch renderer */
-    static void init();
+    /**
+     * @brief Constructs a batch renderer with the given context
+     * @param context Reference to the rendering context
+     */
+    explicit BatchRenderer2D(RenderContext& context);
 
-    /** @brief Shuts down and releases batch renderer resources */
-    static void shutdown();
+    ~BatchRenderer2D();
+
+    // Non-copyable
+    BatchRenderer2D(const BatchRenderer2D&) = delete;
+    BatchRenderer2D& operator=(const BatchRenderer2D&) = delete;
+
+    // =========================================================================
+    // Lifecycle
+    // =========================================================================
+
+    /** @brief Initializes batch rendering resources */
+    void init();
+
+    /** @brief Shuts down and releases resources */
+    void shutdown();
+
+    // =========================================================================
+    // Batch Operations
+    // =========================================================================
 
     /** @brief Begins a new batch */
-    static void beginBatch();
+    void beginBatch();
 
     /** @brief Ends the current batch (prepares for flush) */
-    static void endBatch();
+    void endBatch();
 
     /** @brief Flushes the batch to the GPU (issues draw call) */
-    static void flush();
+    void flush();
 
     // =========================================================================
     // Textured Quads
@@ -253,8 +290,8 @@ public:
      * @param textureId GPU texture handle
      * @param color Color tint (defaults to white)
      */
-    static void drawQuad(const glm::vec2& position, const glm::vec2& size,
-                         u32 textureId, const glm::vec4& color = glm::vec4(1.0f));
+    void drawQuad(const glm::vec2& position, const glm::vec2& size,
+                  u32 textureId, const glm::vec4& color = glm::vec4(1.0f));
 
     /**
      * @brief Draws a textured quad at a 3D position
@@ -263,8 +300,8 @@ public:
      * @param textureId GPU texture handle
      * @param color Color tint (defaults to white)
      */
-    static void drawQuad(const glm::vec3& position, const glm::vec2& size,
-                         u32 textureId, const glm::vec4& color = glm::vec4(1.0f));
+    void drawQuad(const glm::vec3& position, const glm::vec2& size,
+                  u32 textureId, const glm::vec4& color = glm::vec4(1.0f));
 
     // =========================================================================
     // Colored Quads
@@ -276,8 +313,8 @@ public:
      * @param size Width and height
      * @param color RGBA color
      */
-    static void drawQuad(const glm::vec2& position, const glm::vec2& size,
-                         const glm::vec4& color);
+    void drawQuad(const glm::vec2& position, const glm::vec2& size,
+                  const glm::vec4& color);
 
     // =========================================================================
     // Rotated Quads
@@ -290,8 +327,8 @@ public:
      * @param rotation Rotation angle in radians
      * @param color RGBA color
      */
-    static void drawRotatedQuad(const glm::vec2& position, const glm::vec2& size,
-                                 f32 rotation, const glm::vec4& color);
+    void drawRotatedQuad(const glm::vec2& position, const glm::vec2& size,
+                         f32 rotation, const glm::vec4& color);
 
     /**
      * @brief Draws a rotated textured quad
@@ -301,9 +338,9 @@ public:
      * @param textureId GPU texture handle
      * @param tintColor Color tint (defaults to white)
      */
-    static void drawRotatedQuad(const glm::vec2& position, const glm::vec2& size,
-                                 f32 rotation, u32 textureId,
-                                 const glm::vec4& tintColor = glm::vec4(1.0f));
+    void drawRotatedQuad(const glm::vec2& position, const glm::vec2& size,
+                         f32 rotation, u32 textureId,
+                         const glm::vec4& tintColor = glm::vec4(1.0f));
 
     // =========================================================================
     // Configuration
@@ -313,17 +350,22 @@ public:
      * @brief Sets the projection matrix for 2D rendering
      * @param projection Orthographic projection matrix
      */
-    static void setProjection(const glm::mat4& projection);
+    void setProjection(const glm::mat4& projection);
 
     // =========================================================================
     // Statistics
     // =========================================================================
 
     /** @brief Gets the number of draw calls in the current/last frame */
-    static u32 getDrawCallCount();
+    u32 getDrawCallCount() const;
 
     /** @brief Gets the number of quads rendered in the current/last frame */
-    static u32 getQuadCount();
+    u32 getQuadCount() const;
+
+private:
+    struct BatchData;
+    Unique<BatchData> data_;
+    RenderContext& context_;
 };
 
 }  // namespace esengine

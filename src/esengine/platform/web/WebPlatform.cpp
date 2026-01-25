@@ -1,3 +1,16 @@
+/**
+ * @file    WebPlatform.cpp
+ * @brief   Web/Emscripten platform implementation
+ * @details Implements Platform interface for WebGL context management,
+ *          event handling, and JavaScript interop via C API.
+ *
+ * @author  ESEngine Team
+ * @date    2025
+ *
+ * @copyright Copyright (c) 2025 ESEngine Team
+ *            Licensed under the MIT License.
+ */
+
 #include "../Platform.hpp"
 #include "../../core/Log.hpp"
 #include "../../renderer/Renderer.hpp"

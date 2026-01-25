@@ -6,9 +6,9 @@
  *          error handling.
  *
  * @author  ESEngine Team
- * @date    2025
+ * @date    2026
  *
- * @copyright Copyright (c) 2025 ESEngine Team
+ * @copyright Copyright (c) 2026 ESEngine Team
  *            Licensed under the MIT License.
  */
 #pragma once
@@ -21,6 +21,7 @@
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -106,7 +107,7 @@ constexpr Shared<T> makeShared(Args&&... args) {
 }
 
 // =============================================================================
-// Entity Types (ECS Core)
+// Entity Types
 // =============================================================================
 
 /**
@@ -230,5 +231,15 @@ private:
     E error_;
     bool success_;
 };
+
+// =============================================================================
+// Span Types
+// =============================================================================
+
+template<typename T>
+using Span = std::span<T>;
+
+template<typename T>
+using ConstSpan = std::span<const T>;
 
 }  // namespace esengine

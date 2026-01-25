@@ -1,6 +1,17 @@
+/**
+ * @file    Application.cpp
+ * @brief   Application base class implementation
+ * @details Manages the main game loop, platform integration, and subsystem lifecycle.
+ *
+ * @author  ESEngine Team
+ * @date    2026
+ *
+ * @copyright Copyright (c) 2026 ESEngine Team
+ *            Licensed under the MIT License.
+ */
+
 #include "Application.hpp"
 #include "Log.hpp"
-#include "../renderer/Renderer.hpp"
 #include "../platform/input/Input.hpp"
 
 #ifdef ES_PLATFORM_WEB
@@ -80,15 +91,25 @@ void Application::init() {
     platform_->setResizeCallback([this](u32 width, u32 height) {
         config_.width = width;
         config_.height = height;
-        Renderer::setViewport(0, 0, width, height);
+        if (renderer_) {
+            renderer_->setViewport(0, 0, width, height);
+        }
         onResize(width, height);
     });
 
     // Initialize subsystems
     Input::init();
-    Renderer::init();
-    Renderer::setViewport(0, 0, config_.width, config_.height);
-    Renderer::setClearColor(glm::vec4(0.1f, 0.1f, 0.1f, 1.0f));
+
+    // Initialize resource manager
+    resourceManager_.init();
+
+    // Initialize render context and renderer
+    renderContext_ = makeUnique<RenderContext>();
+    renderContext_->init();
+
+    renderer_ = makeUnique<Renderer>(*renderContext_);
+    renderer_->setViewport(0, 0, config_.width, config_.height);
+    renderer_->setClearColor(glm::vec4(0.1f, 0.1f, 0.1f, 1.0f));
 
     // Initialize systems
     systems_.init(registry_);
@@ -115,20 +136,20 @@ void Application::mainLoop() {
     onUpdate(static_cast<f32>(deltaTime_));
 
     // Render
-    Renderer::beginFrame();
-    Renderer::clear();
+    renderer_->beginFrame();
+    renderer_->clear();
 
     // Set up default 2D projection
     f32 width = static_cast<f32>(config_.width);
     f32 height = static_cast<f32>(config_.height);
     glm::mat4 projection = glm::ortho(0.0f, width, height, 0.0f, -1.0f, 1.0f);
-    Renderer::beginScene(projection);
+    renderer_->beginScene(projection);
 
     // Call user render
     onRender();
 
-    Renderer::endScene();
-    Renderer::endFrame();
+    renderer_->endScene();
+    renderer_->endFrame();
 
     // Swap buffers
     platform_->swapBuffers();
@@ -146,8 +167,14 @@ void Application::shutdown() {
     // Clear registry
     registry_.clear();
 
-    // Shutdown subsystems
-    Renderer::shutdown();
+    // Shutdown renderer and context
+    renderer_.reset();
+    renderContext_.reset();
+
+    // Shutdown resource manager
+    resourceManager_.shutdown();
+
+    // Shutdown input
     Input::shutdown();
 
     // Shutdown platform

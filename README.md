@@ -2,10 +2,10 @@
 
 # ESEngine
 
-**A lightweight C++17 game engine for WebAssembly and WeChat MiniGames**
+**A lightweight C++20 game engine for WebAssembly and WeChat MiniGames**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://isocpp.org/)
+[![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://isocpp.org/)
 [![Platform](https://img.shields.io/badge/Platform-Web%20%7C%20WeChat-green.svg)]()
 
 [Getting Started](#getting-started) • [Documentation](#documentation) • [Examples](examples/) • [Contributing](#contributing)
@@ -33,7 +33,7 @@ ESEngine is a minimal, high-performance game engine designed for WebAssembly dep
 ### Prerequisites
 
 - CMake 3.16+
-- C++17 compiler
+- C++20 compiler
 - [Emscripten SDK](https://emscripten.org/) (for web builds)
 
 ### Build

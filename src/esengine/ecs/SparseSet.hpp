@@ -231,7 +231,7 @@ public:
     void remove(Entity entity) override {
         if (!contains(entity)) return;
 
-        // Swap with last element (swap and pop)
+        // Swap and pop
         const auto last = dense_.back();
         const auto index = sparse_[entity];
 

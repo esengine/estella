@@ -1,3 +1,16 @@
+/**
+ * @file    Buffer.cpp
+ * @brief   GPU buffer implementations for vertex and index data
+ * @details Implements VertexBuffer, IndexBuffer, and VertexArray classes
+ *          for OpenGL/WebGL buffer management.
+ *
+ * @author  ESEngine Team
+ * @date    2025
+ *
+ * @copyright Copyright (c) 2025 ESEngine Team
+ *            Licensed under the MIT License.
+ */
+
 #include "Buffer.hpp"
 #include "../core/Log.hpp"
 

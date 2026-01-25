@@ -1,3 +1,15 @@
+/**
+ * @file    Engine.cpp
+ * @brief   Engine singleton implementation
+ * @details Provides platform detection and GPU capability queries.
+ *
+ * @author  ESEngine Team
+ * @date    2025
+ *
+ * @copyright Copyright (c) 2025 ESEngine Team
+ *            Licensed under the MIT License.
+ */
+
 #include "Engine.hpp"
 #include "Log.hpp"
 

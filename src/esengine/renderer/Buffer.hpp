@@ -5,9 +5,9 @@
  *          objects including VertexBuffer, IndexBuffer, and VertexArray.
  *
  * @author  ESEngine Team
- * @date    2025
+ * @date    2026
  *
- * @copyright Copyright (c) 2025 ESEngine Team
+ * @copyright Copyright (c) 2026 ESEngine Team
  *            Licensed under the MIT License.
  */
 #pragma once
@@ -20,6 +20,7 @@
 #include "../core/Types.hpp"
 
 // Standard library
+#include <span>
 #include <vector>
 
 namespace esengine {
@@ -165,7 +166,7 @@ private:
 };
 
 // =============================================================================
-// Vertex Buffer (VBO)
+// Vertex Buffer
 // =============================================================================
 
 /**
@@ -178,7 +179,7 @@ private:
  * struct Vertex { float x, y, u, v; };
  * std::vector<Vertex> vertices = {...};
  *
- * auto vbo = VertexBuffer::create(vertices);
+ * auto vbo = VertexBuffer::create(std::span(vertices));
  * vbo->setLayout({
  *     {ShaderDataType::Float2, "a_position"},
  *     {ShaderDataType::Float2, "a_texCoord"}
@@ -197,8 +198,19 @@ public:
     VertexBuffer& operator=(VertexBuffer&& other) noexcept;
 
     // =========================================================================
-    // Creation
+    // Type-Safe Creation Methods
     // =========================================================================
+
+    /**
+     * @brief Creates a static buffer from a span
+     * @tparam T Vertex type
+     * @param data Span of vertex data
+     * @return Unique pointer to the buffer
+     */
+    template<typename T>
+    static Unique<VertexBuffer> create(std::span<const T> data) {
+        return createRaw(data.data(), static_cast<u32>(data.size_bytes()));
+    }
 
     /**
      * @brief Creates a static buffer from a vector
@@ -208,7 +220,7 @@ public:
      */
     template<typename T>
     static Unique<VertexBuffer> create(const std::vector<T>& data) {
-        return createRaw(data.data(), static_cast<u32>(data.size() * sizeof(T)));
+        return create(std::span<const T>(data));
     }
 
     /**
@@ -220,7 +232,7 @@ public:
      */
     template<typename T, usize N>
     static Unique<VertexBuffer> create(const T (&data)[N]) {
-        return createRaw(data, static_cast<u32>(N * sizeof(T)));
+        return create(std::span<const T>(data, N));
     }
 
     /**
@@ -231,14 +243,6 @@ public:
      * @details Use setData() to upload data later.
      */
     static Unique<VertexBuffer> create(u32 sizeBytes);
-
-    /**
-     * @brief Creates a buffer from raw data pointer
-     * @param data Pointer to vertex data
-     * @param sizeBytes Size of data in bytes
-     * @return Unique pointer to the buffer
-     */
-    static Unique<VertexBuffer> createRaw(const void* data, u32 sizeBytes);
 
     // =========================================================================
     // Operations
@@ -251,13 +255,23 @@ public:
     void unbind() const;
 
     /**
+     * @brief Updates buffer data from a span
+     * @tparam T Vertex type
+     * @param data New vertex data
+     */
+    template<typename T>
+    void setData(std::span<const T> data) {
+        setDataRaw(data.data(), static_cast<u32>(data.size_bytes()));
+    }
+
+    /**
      * @brief Updates buffer data from a vector
      * @tparam T Vertex type
      * @param data New vertex data
      */
     template<typename T>
     void setData(const std::vector<T>& data) {
-        setDataRaw(data.data(), static_cast<u32>(data.size() * sizeof(T)));
+        setData(std::span<const T>(data));
     }
 
     /**
@@ -268,15 +282,8 @@ public:
      */
     template<typename T, usize N>
     void setData(const T (&data)[N]) {
-        setDataRaw(data, static_cast<u32>(N * sizeof(T)));
+        setData(std::span<const T>(data, N));
     }
-
-    /**
-     * @brief Updates buffer data from raw pointer
-     * @param data Pointer to new data
-     * @param sizeBytes Size of data in bytes
-     */
-    void setDataRaw(const void* data, u32 sizeBytes);
 
     // =========================================================================
     // Layout
@@ -300,13 +307,32 @@ public:
      */
     u32 getId() const { return bufferId_; }
 
+    // =========================================================================
+    // Raw API for internal use only
+    // =========================================================================
+
+    /**
+     * @brief Creates a buffer from raw data pointer for internal use
+     * @param data Pointer to vertex data
+     * @param sizeBytes Size of data in bytes
+     * @return Unique pointer to the buffer
+     */
+    static Unique<VertexBuffer> createRaw(const void* data, u32 sizeBytes);
+
+    /**
+     * @brief Updates buffer data from raw pointer (internal use)
+     * @param data Pointer to new data
+     * @param sizeBytes Size of data in bytes
+     */
+    void setDataRaw(const void* data, u32 sizeBytes);
+
 private:
     u32 bufferId_ = 0;
     VertexLayout layout_;
 };
 
 // =============================================================================
-// Index Buffer (EBO)
+// Index Buffer
 // =============================================================================
 
 /**
@@ -316,8 +342,8 @@ private:
  *          both 16-bit and 32-bit indices.
  *
  * @code
- * u32 indices[] = {0, 1, 2, 2, 3, 0};
- * auto ebo = IndexBuffer::create(indices, 6);
+ * std::vector<u32> indices = {0, 1, 2, 2, 3, 0};
+ * auto ebo = IndexBuffer::create(std::span(indices));
  * @endcode
  */
 class IndexBuffer {
@@ -331,8 +357,48 @@ public:
     IndexBuffer(IndexBuffer&& other) noexcept;
     IndexBuffer& operator=(IndexBuffer&& other) noexcept;
 
+    // =========================================================================
+    // Type-Safe Creation Methods
+    // =========================================================================
+
     /**
-     * @brief Creates an index buffer with 32-bit indices
+     * @brief Creates an index buffer from a span of 32-bit indices
+     * @param indices Span of index data
+     * @return Unique pointer to the buffer
+     */
+    static Unique<IndexBuffer> create(std::span<const u32> indices) {
+        return create(indices.data(), static_cast<u32>(indices.size()));
+    }
+
+    /**
+     * @brief Creates an index buffer from a span of 16-bit indices
+     * @param indices Span of index data
+     * @return Unique pointer to the buffer
+     */
+    static Unique<IndexBuffer> create(std::span<const u16> indices) {
+        return create(indices.data(), static_cast<u32>(indices.size()));
+    }
+
+    /**
+     * @brief Creates an index buffer from a vector of 32-bit indices
+     * @param indices Vector of index data
+     * @return Unique pointer to the buffer
+     */
+    static Unique<IndexBuffer> create(const std::vector<u32>& indices) {
+        return create(std::span<const u32>(indices));
+    }
+
+    /**
+     * @brief Creates an index buffer from a vector of 16-bit indices
+     * @param indices Vector of index data
+     * @return Unique pointer to the buffer
+     */
+    static Unique<IndexBuffer> create(const std::vector<u16>& indices) {
+        return create(std::span<const u16>(indices));
+    }
+
+    /**
+     * @brief Creates an index buffer with 32-bit indices from pointer
      * @param indices Pointer to index data
      * @param count Number of indices
      * @return Unique pointer to the buffer
@@ -340,7 +406,7 @@ public:
     static Unique<IndexBuffer> create(const u32* indices, u32 count);
 
     /**
-     * @brief Creates an index buffer with 16-bit indices
+     * @brief Creates an index buffer with 16-bit indices from pointer
      * @param indices Pointer to index data
      * @param count Number of indices
      * @return Unique pointer to the buffer
@@ -349,6 +415,10 @@ public:
      *          count is under 65536.
      */
     static Unique<IndexBuffer> create(const u16* indices, u32 count);
+
+    // =========================================================================
+    // Operations
+    // =========================================================================
 
     /** @brief Binds the buffer for rendering */
     void bind() const;
@@ -372,7 +442,7 @@ private:
 };
 
 // =============================================================================
-// Vertex Array Object (VAO)
+// Vertex Array Object
 // =============================================================================
 
 /**

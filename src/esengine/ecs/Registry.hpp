@@ -307,7 +307,7 @@ public:
     }
 
     // =========================================================================
-    // View (Query) System
+    // View Query System
     // =========================================================================
 
     /**
@@ -385,7 +385,7 @@ public:
         auto* pool = getPool<T>();
         if (!pool) return;
 
-        // Selection sort (could be optimized)
+        // Selection sort
         auto& entities = const_cast<std::vector<Entity>&>(pool->entities());
         auto& components = pool->components();
 

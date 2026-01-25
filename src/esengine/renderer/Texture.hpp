@@ -5,9 +5,9 @@
  *          including creation, binding, and pixel data management.
  *
  * @author  ESEngine Team
- * @date    2025
+ * @date    2026
  *
- * @copyright Copyright (c) 2025 ESEngine Team
+ * @copyright Copyright (c) 2026 ESEngine Team
  *            Licensed under the MIT License.
  */
 #pragma once
@@ -20,6 +20,7 @@
 #include "../core/Types.hpp"
 
 // Standard library
+#include <span>
 #include <string>
 #include <vector>
 
@@ -115,7 +116,7 @@ struct TextureSpecification {
  *
  * // Create from pixel data
  * std::vector<u8> pixels = {...}; // RGBA data
- * auto texture = Texture::create(64, 64, pixels);
+ * auto texture = Texture::create(64, 64, std::span(pixels));
  *
  * // Bind for rendering
  * texture->bind(0); // Bind to texture unit 0
@@ -147,6 +148,17 @@ public:
     static Unique<Texture> create(const TextureSpecification& spec);
 
     /**
+     * @brief Creates a texture from a span of pixel data
+     * @param width Texture width in pixels
+     * @param height Texture height in pixels
+     * @param pixels Pixel data (size must match width*height*channels)
+     * @param format Pixel format (default RGBA8)
+     * @return Unique pointer to the texture
+     */
+    static Unique<Texture> create(u32 width, u32 height, std::span<const u8> pixels,
+                                   TextureFormat format = TextureFormat::RGBA8);
+
+    /**
      * @brief Creates a texture from pixel vector
      * @param width Texture width in pixels
      * @param height Texture height in pixels
@@ -156,17 +168,6 @@ public:
      */
     static Unique<Texture> create(u32 width, u32 height, const std::vector<u8>& pixels,
                                    TextureFormat format = TextureFormat::RGBA8);
-
-    /**
-     * @brief Creates a texture from raw pixel pointer
-     * @param width Texture width in pixels
-     * @param height Texture height in pixels
-     * @param data Pointer to pixel data
-     * @param format Pixel format (default RGBA8)
-     * @return Unique pointer to the texture
-     */
-    static Unique<Texture> createRaw(u32 width, u32 height, const void* data,
-                                      TextureFormat format = TextureFormat::RGBA8);
 
     /**
      * @brief Creates a texture from an image file
@@ -191,17 +192,16 @@ public:
     void unbind() const;
 
     /**
+     * @brief Updates texture pixel data from span
+     * @param pixels New pixel data
+     */
+    void setData(std::span<const u8> pixels);
+
+    /**
      * @brief Updates texture pixel data from vector
      * @param pixels New pixel data
      */
     void setData(const std::vector<u8>& pixels);
-
-    /**
-     * @brief Updates texture pixel data from raw pointer
-     * @param data Pointer to pixel data
-     * @param sizeBytes Size of data in bytes
-     */
-    void setDataRaw(const void* data, u32 sizeBytes);
 
     // =========================================================================
     // Properties
@@ -227,6 +227,28 @@ public:
     bool operator==(const Texture& other) const {
         return textureId_ == other.textureId_;
     }
+
+    // =========================================================================
+    // Raw API for internal use only
+    // =========================================================================
+
+    /**
+     * @brief Creates a texture from raw pixel pointer (internal use)
+     * @param width Texture width in pixels
+     * @param height Texture height in pixels
+     * @param data Pointer to pixel data
+     * @param format Pixel format (default RGBA8)
+     * @return Unique pointer to the texture
+     */
+    static Unique<Texture> createRaw(u32 width, u32 height, const void* data,
+                                      TextureFormat format = TextureFormat::RGBA8);
+
+    /**
+     * @brief Updates texture pixel data from raw pointer (internal use)
+     * @param data Pointer to pixel data
+     * @param sizeBytes Size of data in bytes
+     */
+    void setDataRaw(const void* data, u32 sizeBytes);
 
 private:
     /**

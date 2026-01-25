@@ -40,6 +40,9 @@ compile_commands.json
 Thumbs.db
 desktop.ini
 
+# Claude Code
+CLAUDE.md
+
 # Third party (if using git submodules, keep this)
 # third_party/
 

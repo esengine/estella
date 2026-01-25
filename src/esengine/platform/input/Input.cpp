@@ -1,3 +1,15 @@
+/**
+ * @file    Input.cpp
+ * @brief   Input system implementation
+ * @details Manages touch, mouse, and keyboard input state tracking.
+ *
+ * @author  ESEngine Team
+ * @date    2025
+ *
+ * @copyright Copyright (c) 2025 ESEngine Team
+ *            Licensed under the MIT License.
+ */
+
 #include "Input.hpp"
 #include "../../core/Log.hpp"
 

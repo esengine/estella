@@ -180,7 +180,7 @@ public:
     static bool isKeyReleased(KeyCode key);
 
     // =========================================================================
-    // Mouse Input (Web Debugging)
+    // Mouse Input for web debugging
     // =========================================================================
 
     /**
@@ -200,7 +200,7 @@ public:
     static bool isMouseButtonDown(u32 button = 0);
 
     // =========================================================================
-    // Platform Interface (Internal)
+    // Platform Interface for internal use
     // =========================================================================
 
     /**
