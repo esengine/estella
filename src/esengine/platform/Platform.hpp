@@ -65,17 +65,29 @@ struct TouchPoint {
  */
 enum class KeyCode : u32 {
     Unknown = 0,
-    Space = 32,    ///< Spacebar
-    Enter = 13,    ///< Enter/Return
-    Escape = 27,   ///< Escape key
-    Left = 37,     ///< Left arrow
-    Up = 38,       ///< Up arrow
-    Right = 39,    ///< Right arrow
-    Down = 40,     ///< Down arrow
-    A = 65,        ///< A key
-    D = 68,        ///< D key
-    S = 83,        ///< S key
-    W = 87         ///< W key
+    Space = 32,          ///< Spacebar
+    Enter = 13,          ///< Enter/Return
+    Escape = 27,         ///< Escape key
+    Left = 37,           ///< Left arrow
+    Up = 38,             ///< Up arrow
+    Right = 39,          ///< Right arrow
+    Down = 40,           ///< Down arrow
+
+    // Letter keys
+    A = 65,              ///< A key
+    D = 68,              ///< D key
+    S = 83,              ///< S key
+    W = 87,              ///< W key
+    Y = 89,              ///< Y key
+    Z = 90,              ///< Z key
+
+    // Modifier keys
+    LeftShift = 16,      ///< Left Shift key
+    RightShift = 161,    ///< Right Shift key
+    LeftControl = 17,    ///< Left Control key
+    RightControl = 162,  ///< Right Control key
+    LeftAlt = 18,        ///< Left Alt key
+    RightAlt = 165       ///< Right Alt key
 };
 
 // =============================================================================

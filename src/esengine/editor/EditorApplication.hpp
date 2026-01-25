@@ -19,6 +19,9 @@
 // Project includes
 #include "../core/Application.hpp"
 #include "../math/Math.hpp"
+#include "../events/Dispatcher.hpp"
+#include "command/CommandHistory.hpp"
+#include "core/Selection.hpp"
 
 namespace esengine {
 namespace editor {
@@ -32,6 +35,9 @@ namespace editor {
  *
  * @details Extends the base Application class to provide editor-specific
  *          functionality including:
+ *          - Event system for inter-component communication
+ *          - Command history with undo/redo support
+ *          - Entity selection management
  *          - Custom UI rendering
  *          - Scene editing
  *          - Asset management
@@ -55,6 +61,28 @@ public:
      * @brief Virtual destructor
      */
     ~EditorApplication() override = default;
+
+    // =========================================================================
+    // Core Systems Access
+    // =========================================================================
+
+    /**
+     * @brief Get the event dispatcher
+     * @return Reference to the event dispatcher
+     */
+    Dispatcher& getDispatcher() { return dispatcher_; }
+
+    /**
+     * @brief Get the command history
+     * @return Reference to the command history
+     */
+    CommandHistory& getCommandHistory() { return commandHistory_; }
+
+    /**
+     * @brief Get the entity selection
+     * @return Reference to the entity selection
+     */
+    EntitySelection& getSelection() { return selection_; }
 
 protected:
     // =========================================================================
@@ -100,6 +128,25 @@ protected:
 
 private:
     // =========================================================================
+    // Private Methods
+    // =========================================================================
+
+    /**
+     * @brief Handle undo action (Ctrl+Z)
+     */
+    void handleUndo();
+
+    /**
+     * @brief Handle redo action (Ctrl+Y / Ctrl+Shift+Z)
+     */
+    void handleRedo();
+
+    /**
+     * @brief Setup event listeners
+     */
+    void setupEventListeners();
+
+    // =========================================================================
     // Constants
     // =========================================================================
 
@@ -107,13 +154,29 @@ private:
     static constexpr f64 FPS_UPDATE_INTERVAL = 1.0;
 
     // =========================================================================
-    // Member Variables
+    // Core Editor Systems
+    // =========================================================================
+
+    Dispatcher dispatcher_;           ///< Central event bus
+    CommandHistory commandHistory_;   ///< Undo/redo history
+    EntitySelection selection_;       ///< Entity selection manager
+
+    // =========================================================================
+    // State
     // =========================================================================
 
     glm::vec4 clearColor_{0.15f, 0.15f, 0.15f, 1.0f};  ///< Editor background color
     f64 frameTime_ = 0.0;                               ///< Accumulated frame time
     u32 frameCount_ = 0;                                ///< Frame counter for FPS
     f32 fps_ = 0.0f;                                    ///< Frames per second
+    bool ctrlPressed_ = false;                          ///< Ctrl key state
+    bool shiftPressed_ = false;                         ///< Shift key state
+
+    // =========================================================================
+    // Event Connections
+    // =========================================================================
+
+    ConnectionHolder eventConnections_;                 ///< Holds event subscriptions
 };
 
 }  // namespace editor

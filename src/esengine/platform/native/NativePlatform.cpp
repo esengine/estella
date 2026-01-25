@@ -362,18 +362,26 @@ void NativePlatform::glfwWindowCloseCallback(GLFWwindow* window) {
 
 KeyCode NativePlatform::convertKeyCode(int glfwKey) {
     switch (glfwKey) {
-        case GLFW_KEY_SPACE:  return KeyCode::Space;
-        case GLFW_KEY_ENTER:  return KeyCode::Enter;
-        case GLFW_KEY_ESCAPE: return KeyCode::Escape;
-        case GLFW_KEY_LEFT:   return KeyCode::Left;
-        case GLFW_KEY_UP:     return KeyCode::Up;
-        case GLFW_KEY_RIGHT:  return KeyCode::Right;
-        case GLFW_KEY_DOWN:   return KeyCode::Down;
-        case GLFW_KEY_A:      return KeyCode::A;
-        case GLFW_KEY_D:      return KeyCode::D;
-        case GLFW_KEY_S:      return KeyCode::S;
-        case GLFW_KEY_W:      return KeyCode::W;
-        default:              return KeyCode::Unknown;
+        case GLFW_KEY_SPACE:       return KeyCode::Space;
+        case GLFW_KEY_ENTER:       return KeyCode::Enter;
+        case GLFW_KEY_ESCAPE:      return KeyCode::Escape;
+        case GLFW_KEY_LEFT:        return KeyCode::Left;
+        case GLFW_KEY_UP:          return KeyCode::Up;
+        case GLFW_KEY_RIGHT:       return KeyCode::Right;
+        case GLFW_KEY_DOWN:        return KeyCode::Down;
+        case GLFW_KEY_A:           return KeyCode::A;
+        case GLFW_KEY_D:           return KeyCode::D;
+        case GLFW_KEY_S:           return KeyCode::S;
+        case GLFW_KEY_W:           return KeyCode::W;
+        case GLFW_KEY_Y:           return KeyCode::Y;
+        case GLFW_KEY_Z:           return KeyCode::Z;
+        case GLFW_KEY_LEFT_SHIFT:  return KeyCode::LeftShift;
+        case GLFW_KEY_RIGHT_SHIFT: return KeyCode::RightShift;
+        case GLFW_KEY_LEFT_CONTROL:  return KeyCode::LeftControl;
+        case GLFW_KEY_RIGHT_CONTROL: return KeyCode::RightControl;
+        case GLFW_KEY_LEFT_ALT:    return KeyCode::LeftAlt;
+        case GLFW_KEY_RIGHT_ALT:   return KeyCode::RightAlt;
+        default:                   return KeyCode::Unknown;
     }
 }
 

@@ -13,6 +13,7 @@
 #include "../core/Log.hpp"
 #include "../renderer/RenderCommand.hpp"
 #include "../math/Math.hpp"
+#include "core/EditorEvents.hpp"
 
 namespace esengine {
 namespace editor {
@@ -27,6 +28,8 @@ EditorApplication::EditorApplication()
         .width = 1280,
         .height = 720
     }) {
+    commandHistory_.setDispatcher(&dispatcher_);
+    selection_.setDispatcher(&dispatcher_);
 }
 
 // =============================================================================
@@ -35,14 +38,14 @@ EditorApplication::EditorApplication()
 
 void EditorApplication::onInit() {
     ES_LOG_INFO("ESEngine Editor started");
-    ES_LOG_INFO("Press ESC to exit");
+    ES_LOG_INFO("Press ESC to exit, Ctrl+Z to undo, Ctrl+Y to redo");
 
-    // Set initial clear color (dark gray)
     RenderCommand::setClearColor(clearColor_);
+
+    setupEventListeners();
 }
 
 void EditorApplication::onUpdate(f32 deltaTime) {
-    // Update FPS counter
     frameTime_ += deltaTime;
     frameCount_++;
 
@@ -52,29 +55,116 @@ void EditorApplication::onUpdate(f32 deltaTime) {
         frameTime_ = 0.0;
         frameCount_ = 0;
     }
+
+    dispatcher_.update();
 }
 
 void EditorApplication::onRender() {
-    // Clear the screen
     RenderCommand::clear();
-
-    // TODO: Render editor UI
-    // For now, just show a blank window with the editor background color
 }
 
 void EditorApplication::onShutdown() {
     ES_LOG_INFO("ESEngine Editor shutting down");
+
+    commandHistory_.clear();
+    selection_.clear();
+    dispatcher_.clear();
 }
 
 void EditorApplication::onKey(KeyCode key, bool pressed) {
-    if (pressed && key == KeyCode::Escape) {
+    if (key == KeyCode::LeftControl || key == KeyCode::RightControl) {
+        ctrlPressed_ = pressed;
+        return;
+    }
+
+    if (key == KeyCode::LeftShift || key == KeyCode::RightShift) {
+        shiftPressed_ = pressed;
+        return;
+    }
+
+    if (!pressed) {
+        return;
+    }
+
+    if (key == KeyCode::Escape) {
         ES_LOG_INFO("ESC pressed - quitting editor");
         quit();
+        return;
+    }
+
+    if (ctrlPressed_) {
+        switch (key) {
+            case KeyCode::Z:
+                if (shiftPressed_) {
+                    handleRedo();
+                } else {
+                    handleUndo();
+                }
+                break;
+
+            case KeyCode::Y:
+                handleRedo();
+                break;
+
+            default:
+                break;
+        }
     }
 }
 
 void EditorApplication::onResize(u32 width, u32 height) {
     ES_LOG_DEBUG("Editor window resized to {}x{}", width, height);
+}
+
+// =============================================================================
+// Private Methods
+// =============================================================================
+
+void EditorApplication::handleUndo() {
+    if (commandHistory_.canUndo()) {
+        ES_LOG_DEBUG("Undo: {}", commandHistory_.getUndoDescription());
+        commandHistory_.undo();
+    } else {
+        ES_LOG_DEBUG("Nothing to undo");
+    }
+}
+
+void EditorApplication::handleRedo() {
+    if (commandHistory_.canRedo()) {
+        ES_LOG_DEBUG("Redo: {}", commandHistory_.getRedoDescription());
+        commandHistory_.redo();
+    } else {
+        ES_LOG_DEBUG("Nothing to redo");
+    }
+}
+
+void EditorApplication::setupEventListeners() {
+    eventConnections_.add(
+        dispatcher_.sink<SelectionChanged>().connect(
+            [](const SelectionChanged& e) {
+                ES_LOG_DEBUG("Selection changed: {} -> {} entities",
+                            e.previousSelection.size(), e.currentSelection.size());
+            }));
+
+    eventConnections_.add(
+        dispatcher_.sink<HistoryChanged>().connect(
+            [](const HistoryChanged& e) {
+                ES_LOG_TRACE("History changed - Undo: {}, Redo: {}",
+                            e.canUndo ? e.undoDescription : "(none)",
+                            e.canRedo ? e.redoDescription : "(none)");
+            }));
+
+    eventConnections_.add(
+        dispatcher_.sink<EntityCreated>().connect(
+            [](const EntityCreated& e) {
+                ES_LOG_DEBUG("Entity created: {} ({})", e.entity, e.name);
+            }));
+
+    eventConnections_.add(
+        dispatcher_.sink<EntityDeleted>().connect(
+            [](const EntityDeleted& e) {
+                ES_LOG_DEBUG("Entity deleted: {}", e.entity);
+            }));
 }
 
 }  // namespace editor

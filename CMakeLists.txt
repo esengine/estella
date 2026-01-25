@@ -63,6 +63,12 @@ set(ESENGINE_HEADERS
     src/esengine/renderer/RenderCommand.hpp
     src/esengine/platform/Platform.hpp
     src/esengine/platform/input/Input.hpp
+    # Event system
+    src/esengine/events/Events.hpp
+    src/esengine/events/Connection.hpp
+    src/esengine/events/Signal.hpp
+    src/esengine/events/Sink.hpp
+    src/esengine/events/Dispatcher.hpp
 )
 
 # Platform-specific sources

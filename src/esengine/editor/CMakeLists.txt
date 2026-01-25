@@ -7,6 +7,17 @@ set(EDITOR_SOURCES
 
 set(EDITOR_HEADERS
     EditorApplication.hpp
+
+    # Core subsystem
+    core/EditorEvents.hpp
+    core/Selection.hpp
+
+    # Command subsystem
+    command/Command.hpp
+    command/CommandHistory.hpp
+    command/MacroCommand.hpp
+    command/PropertyCommand.hpp
+    command/EditorCommands.hpp
 )
 
 # Create editor executable
