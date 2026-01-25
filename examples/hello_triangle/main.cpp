@@ -17,11 +17,16 @@ public:
 // Demo application
 class HelloTriangleApp : public Application {
 public:
-    HelloTriangleApp() : Application({
-        .title = "Hello Triangle",
-        .width = 800,
-        .height = 600
-    }) {}
+    HelloTriangleApp() : Application(createConfig()) {}
+
+private:
+    static ApplicationConfig createConfig() {
+        ApplicationConfig config;
+        config.title = "Hello Triangle";
+        config.width = 800;
+        config.height = 600;
+        return config;
+    }
 
 protected:
     void onInit() override {

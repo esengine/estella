@@ -5,9 +5,6 @@
 #include <iostream>
 #include <cassert>
 
-using namespace esengine;
-using namespace esengine::ecs;
-
 // Simple test macros
 #define TEST(name) void test_##name()
 #define RUN_TEST(name) do { \
@@ -31,26 +28,38 @@ using namespace esengine::ecs;
 static int passed = 0;
 static int failed = 0;
 
-// Test components
+// Test components (local to this file to avoid conflicts)
+namespace test {
+
 struct Position {
-    float x, y;
+    float x = 0.0f;
+    float y = 0.0f;
+    Position() = default;
+    Position(float x_, float y_) : x(x_), y(y_) {}
 };
 
 struct Velocity {
-    float dx, dy;
+    float dx = 0.0f;
+    float dy = 0.0f;
+    Velocity() = default;
+    Velocity(float dx_, float dy_) : dx(dx_), dy(dy_) {}
 };
 
 struct Health {
-    int value;
+    int value = 0;
+    Health() = default;
+    Health(int v) : value(v) {}
 };
+
+}  // namespace test
 
 // Tests
 TEST(entity_creation) {
-    Registry registry;
+    esengine::ecs::Registry registry;
 
-    Entity e1 = registry.create();
-    Entity e2 = registry.create();
-    Entity e3 = registry.create();
+    esengine::Entity e1 = registry.create();
+    esengine::Entity e2 = registry.create();
+    esengine::Entity e3 = registry.create();
 
     ASSERT_TRUE(registry.valid(e1));
     ASSERT_TRUE(registry.valid(e2));
@@ -61,10 +70,10 @@ TEST(entity_creation) {
 }
 
 TEST(entity_destruction) {
-    Registry registry;
+    esengine::ecs::Registry registry;
 
-    Entity e1 = registry.create();
-    Entity e2 = registry.create();
+    esengine::Entity e1 = registry.create();
+    esengine::Entity e2 = registry.create();
 
     registry.destroy(e1);
 
@@ -74,11 +83,11 @@ TEST(entity_destruction) {
 }
 
 TEST(entity_recycling) {
-    Registry registry;
+    esengine::ecs::Registry registry;
 
-    Entity e1 = registry.create();
+    esengine::Entity e1 = registry.create();
     registry.destroy(e1);
-    Entity e2 = registry.create();
+    esengine::Entity e2 = registry.create();
 
     // e2 should reuse e1's ID
     ASSERT_EQ(e1, e2);
@@ -86,85 +95,85 @@ TEST(entity_recycling) {
 }
 
 TEST(component_emplace) {
-    Registry registry;
-    Entity entity = registry.create();
+    esengine::ecs::Registry registry;
+    esengine::Entity entity = registry.create();
 
-    auto& pos = registry.emplace<Position>(entity, 10.0f, 20.0f);
+    auto& pos = registry.emplace<test::Position>(entity, 10.0f, 20.0f);
 
-    ASSERT_TRUE(registry.has<Position>(entity));
+    ASSERT_TRUE(registry.has<test::Position>(entity));
     ASSERT_EQ(pos.x, 10.0f);
     ASSERT_EQ(pos.y, 20.0f);
 }
 
 TEST(component_get) {
-    Registry registry;
-    Entity entity = registry.create();
-    registry.emplace<Position>(entity, 5.0f, 15.0f);
+    esengine::ecs::Registry registry;
+    esengine::Entity entity = registry.create();
+    registry.emplace<test::Position>(entity, 5.0f, 15.0f);
 
-    auto& pos = registry.get<Position>(entity);
+    auto& pos = registry.get<test::Position>(entity);
 
     ASSERT_EQ(pos.x, 5.0f);
     ASSERT_EQ(pos.y, 15.0f);
 
     // Modify through reference
     pos.x = 100.0f;
-    ASSERT_EQ(registry.get<Position>(entity).x, 100.0f);
+    ASSERT_EQ(registry.get<test::Position>(entity).x, 100.0f);
 }
 
 TEST(component_remove) {
-    Registry registry;
-    Entity entity = registry.create();
-    registry.emplace<Position>(entity, 1.0f, 2.0f);
+    esengine::ecs::Registry registry;
+    esengine::Entity entity = registry.create();
+    registry.emplace<test::Position>(entity, 1.0f, 2.0f);
 
-    ASSERT_TRUE(registry.has<Position>(entity));
+    ASSERT_TRUE(registry.has<test::Position>(entity));
 
-    registry.remove<Position>(entity);
+    registry.remove<test::Position>(entity);
 
-    ASSERT_TRUE(!registry.has<Position>(entity));
+    ASSERT_TRUE(!registry.has<test::Position>(entity));
 }
 
 TEST(component_try_get) {
-    Registry registry;
-    Entity entity = registry.create();
+    esengine::ecs::Registry registry;
+    esengine::Entity entity = registry.create();
 
-    ASSERT_TRUE(registry.tryGet<Position>(entity) == nullptr);
+    ASSERT_TRUE(registry.tryGet<test::Position>(entity) == nullptr);
 
-    registry.emplace<Position>(entity, 1.0f, 2.0f);
+    registry.emplace<test::Position>(entity, 1.0f, 2.0f);
 
-    auto* pos = registry.tryGet<Position>(entity);
+    auto* pos = registry.tryGet<test::Position>(entity);
     ASSERT_TRUE(pos != nullptr);
     ASSERT_EQ(pos->x, 1.0f);
 }
 
 TEST(multiple_components) {
-    Registry registry;
-    Entity entity = registry.create();
+    esengine::ecs::Registry registry;
+    esengine::Entity entity = registry.create();
 
-    registry.emplace<Position>(entity, 1.0f, 2.0f);
-    registry.emplace<Velocity>(entity, 3.0f, 4.0f);
-    registry.emplace<Health>(entity, 100);
+    registry.emplace<test::Position>(entity, 1.0f, 2.0f);
+    registry.emplace<test::Velocity>(entity, 3.0f, 4.0f);
+    registry.emplace<test::Health>(entity, 100);
 
-    ASSERT_TRUE(registry.has<Position>(entity));
-    ASSERT_TRUE(registry.has<Velocity>(entity));
-    ASSERT_TRUE(registry.has<Health>(entity));
+    ASSERT_TRUE(registry.has<test::Position>(entity));
+    ASSERT_TRUE(registry.has<test::Velocity>(entity));
+    ASSERT_TRUE(registry.has<test::Health>(entity));
 
-    ASSERT_EQ(registry.get<Position>(entity).x, 1.0f);
-    ASSERT_EQ(registry.get<Velocity>(entity).dx, 3.0f);
-    ASSERT_EQ(registry.get<Health>(entity).value, 100);
+    ASSERT_EQ(registry.get<test::Position>(entity).x, 1.0f);
+    ASSERT_EQ(registry.get<test::Velocity>(entity).dx, 3.0f);
+    ASSERT_EQ(registry.get<test::Health>(entity).value, 100);
 }
 
 TEST(view_single_component) {
-    Registry registry;
+    esengine::ecs::Registry registry;
 
-    Entity e1 = registry.create();
-    Entity e2 = registry.create();
-    Entity e3 = registry.create();
+    esengine::Entity e1 = registry.create();
+    esengine::Entity e2 = registry.create();
+    esengine::Entity e3 = registry.create();
 
-    registry.emplace<Position>(e1, 1.0f, 1.0f);
-    registry.emplace<Position>(e2, 2.0f, 2.0f);
+    registry.emplace<test::Position>(e1, 1.0f, 1.0f);
+    registry.emplace<test::Position>(e2, 2.0f, 2.0f);
     // e3 has no Position
 
-    auto view = registry.view<Position>();
+    auto view = registry.view<test::Position>();
     int count = 0;
     for (auto entity : view) {
         (void)entity;
@@ -175,22 +184,22 @@ TEST(view_single_component) {
 }
 
 TEST(view_multiple_components) {
-    Registry registry;
+    esengine::ecs::Registry registry;
 
-    Entity e1 = registry.create();
-    Entity e2 = registry.create();
-    Entity e3 = registry.create();
+    esengine::Entity e1 = registry.create();
+    esengine::Entity e2 = registry.create();
+    esengine::Entity e3 = registry.create();
 
-    registry.emplace<Position>(e1, 1.0f, 1.0f);
-    registry.emplace<Velocity>(e1, 1.0f, 1.0f);
+    registry.emplace<test::Position>(e1, 1.0f, 1.0f);
+    registry.emplace<test::Velocity>(e1, 1.0f, 1.0f);
 
-    registry.emplace<Position>(e2, 2.0f, 2.0f);
+    registry.emplace<test::Position>(e2, 2.0f, 2.0f);
     // e2 has no Velocity
 
-    registry.emplace<Velocity>(e3, 3.0f, 3.0f);
+    registry.emplace<test::Velocity>(e3, 3.0f, 3.0f);
     // e3 has no Position
 
-    auto view = registry.view<Position, Velocity>();
+    auto view = registry.view<test::Position, test::Velocity>();
     int count = 0;
     for (auto entity : view) {
         (void)entity;
@@ -201,49 +210,49 @@ TEST(view_multiple_components) {
 }
 
 TEST(view_each) {
-    Registry registry;
+    esengine::ecs::Registry registry;
 
-    Entity e1 = registry.create();
-    Entity e2 = registry.create();
+    esengine::Entity e1 = registry.create();
+    esengine::Entity e2 = registry.create();
 
-    registry.emplace<Position>(e1, 10.0f, 20.0f);
-    registry.emplace<Velocity>(e1, 1.0f, 2.0f);
+    registry.emplace<test::Position>(e1, 10.0f, 20.0f);
+    registry.emplace<test::Velocity>(e1, 1.0f, 2.0f);
 
-    registry.emplace<Position>(e2, 30.0f, 40.0f);
-    registry.emplace<Velocity>(e2, 3.0f, 4.0f);
+    registry.emplace<test::Position>(e2, 30.0f, 40.0f);
+    registry.emplace<test::Velocity>(e2, 3.0f, 4.0f);
 
     float totalX = 0.0f;
-    auto view = registry.view<Position, Velocity>();
-    view.each([&totalX](Entity entity, Position& pos, Velocity& vel) {
+    auto view = registry.view<test::Position, test::Velocity>();
+    view.each([&totalX](esengine::Entity entity, test::Position& pos, test::Velocity& vel) {
         (void)entity;
         pos.x += vel.dx;
         totalX += pos.x;
     });
 
-    ASSERT_EQ(registry.get<Position>(e1).x, 11.0f);
-    ASSERT_EQ(registry.get<Position>(e2).x, 33.0f);
+    ASSERT_EQ(registry.get<test::Position>(e1).x, 11.0f);
+    ASSERT_EQ(registry.get<test::Position>(e2).x, 33.0f);
     ASSERT_EQ(totalX, 44.0f);
 }
 
 TEST(has_all_any) {
-    Registry registry;
-    Entity entity = registry.create();
+    esengine::ecs::Registry registry;
+    esengine::Entity entity = registry.create();
 
-    registry.emplace<Position>(entity, 0.0f, 0.0f);
-    registry.emplace<Velocity>(entity, 0.0f, 0.0f);
+    registry.emplace<test::Position>(entity, 0.0f, 0.0f);
+    registry.emplace<test::Velocity>(entity, 0.0f, 0.0f);
 
-    ASSERT_TRUE(registry.hasAll<Position, Velocity>(entity));
-    ASSERT_TRUE(!registry.hasAll<Position, Health>(entity));
-    ASSERT_TRUE(registry.hasAny<Position, Health>(entity));
-    ASSERT_TRUE(!registry.hasAny<Health>(entity));
+    ASSERT_TRUE((registry.hasAll<test::Position, test::Velocity>(entity)));
+    ASSERT_TRUE(!(registry.hasAll<test::Position, test::Health>(entity)));
+    ASSERT_TRUE((registry.hasAny<test::Position, test::Health>(entity)));
+    ASSERT_TRUE(!(registry.hasAny<test::Health>(entity)));
 }
 
 TEST(clear_registry) {
-    Registry registry;
+    esengine::ecs::Registry registry;
 
     for (int i = 0; i < 10; ++i) {
-        Entity e = registry.create();
-        registry.emplace<Position>(e, static_cast<float>(i), 0.0f);
+        esengine::Entity e = registry.create();
+        registry.emplace<test::Position>(e, static_cast<float>(i), 0.0f);
     }
 
     ASSERT_EQ(registry.entityCount(), 10u);
@@ -253,16 +262,16 @@ TEST(clear_registry) {
     ASSERT_EQ(registry.entityCount(), 0u);
 
     // Should be able to create new entities after clear
-    Entity e = registry.create();
+    esengine::Entity e = registry.create();
     ASSERT_TRUE(registry.valid(e));
 }
 
 TEST(sparse_set_basic) {
-    SparseSet<Position> set;
+    esengine::ecs::SparseSet<test::Position> set;
 
-    Entity e1 = 0;
-    Entity e2 = 5;
-    Entity e3 = 100;
+    esengine::Entity e1 = 0;
+    esengine::Entity e2 = 5;
+    esengine::Entity e3 = 100;
 
     set.emplace(e1, 1.0f, 1.0f);
     set.emplace(e2, 2.0f, 2.0f);
@@ -281,11 +290,11 @@ TEST(sparse_set_basic) {
 }
 
 TEST(sparse_set_remove) {
-    SparseSet<Position> set;
+    esengine::ecs::SparseSet<test::Position> set;
 
-    Entity e1 = 0;
-    Entity e2 = 1;
-    Entity e3 = 2;
+    esengine::Entity e1 = 0;
+    esengine::Entity e2 = 1;
+    esengine::Entity e3 = 2;
 
     set.emplace(e1, 1.0f, 1.0f);
     set.emplace(e2, 2.0f, 2.0f);

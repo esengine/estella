@@ -17,6 +17,7 @@ public:
     virtual usize size() const = 0;
     virtual bool empty() const = 0;
     virtual void clear() = 0;
+    virtual const std::vector<Entity>& entities() const = 0;
 };
 
 // SparseSet: O(1) insertion, deletion, lookup with cache-friendly iteration
@@ -115,7 +116,7 @@ public:
     Iterator end() const { return dense_.end(); }
 
     // Access to dense entity array (for views)
-    const std::vector<Entity>& entities() const { return dense_; }
+    const std::vector<Entity>& entities() const override { return dense_; }
 
     // Access to component array (for direct iteration)
     std::vector<T>& components() { return components_; }

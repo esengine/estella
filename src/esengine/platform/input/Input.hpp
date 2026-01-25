@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../../core/Types.hpp"
+#include "../../math/Math.hpp"
 #include "../Platform.hpp"
 #include <array>
 #include <unordered_map>
