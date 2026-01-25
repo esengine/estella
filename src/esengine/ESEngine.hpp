@@ -1,7 +1,21 @@
+/**
+ * @file    ESEngine.hpp
+ * @brief   Main header file for ESEngine - includes all public API
+ * @details ESEngine is a lightweight game engine designed for WebAssembly
+ *          and WeChat MiniGames. This umbrella header provides convenient
+ *          access to all engine subsystems.
+ *
+ * @author  ESEngine Team
+ * @date    2025
+ *
+ * @copyright Copyright (c) 2025 ESEngine Team
+ *            Licensed under the MIT License.
+ */
 #pragma once
 
-// ESEngine - Game Engine for WebAssembly and WeChat MiniGames
-// Main header file - includes all public API
+// =============================================================================
+// Includes
+// =============================================================================
 
 // Core
 #include "core/Types.hpp"
@@ -31,15 +45,41 @@
 #include "platform/Platform.hpp"
 #include "platform/input/Input.hpp"
 
-// Version info
+// =============================================================================
+// Version Information
+// =============================================================================
+
+/** @brief Major version number */
 #define ESENGINE_VERSION_MAJOR 0
+/** @brief Minor version number */
 #define ESENGINE_VERSION_MINOR 1
+/** @brief Patch version number */
 #define ESENGINE_VERSION_PATCH 0
+/** @brief Full version string */
 #define ESENGINE_VERSION_STRING "0.1.0"
 
-// Entry point macro for applications
+// =============================================================================
+// Entry Point Macro
+// =============================================================================
+
+/**
+ * @brief Application entry point macro
+ * @details Defines the appropriate entry point based on the target platform.
+ *          - Web: Uses Emscripten exports for JavaScript interop
+ *          - Native: Standard main() function
+ *
+ * @param AppClass The user's Application-derived class
+ *
+ * @code
+ * class MyGame : public esengine::Application {
+ *     void onInit() override { ... }
+ *     void onUpdate(f32 dt) override { ... }
+ * };
+ * ES_MAIN(MyGame)
+ * @endcode
+ */
 #ifdef ES_PLATFORM_WEB
-    // Web: No main needed, entry is through es_init
+    #include <emscripten.h>
     #define ES_MAIN(AppClass)                                   \
         extern "C" {                                            \
             static AppClass* g_app = nullptr;                   \
@@ -49,7 +89,6 @@
             }                                                   \
         }
 #else
-    // Native: Standard main
     #define ES_MAIN(AppClass)                                   \
         int main(int argc, char** argv) {                       \
             (void)argc; (void)argv;                             \
