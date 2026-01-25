@@ -20,6 +20,7 @@
 #include "../core/Application.hpp"
 #include "../math/Math.hpp"
 #include "../events/Dispatcher.hpp"
+#include "../ui/UIContext.hpp"
 #include "command/CommandHistory.hpp"
 #include "core/Selection.hpp"
 
@@ -84,6 +85,12 @@ public:
      */
     EntitySelection& getSelection() { return selection_; }
 
+    /**
+     * @brief Get the UI context
+     * @return Reference to the UI context
+     */
+    ui::UIContext& getUIContext() { return *uiContext_; }
+
 protected:
     // =========================================================================
     // Application Lifecycle Overrides
@@ -126,6 +133,13 @@ protected:
      */
     void onResize(u32 width, u32 height) override;
 
+    /**
+     * @brief Called on touch/mouse input
+     * @param type Touch event type
+     * @param point Touch position
+     */
+    void onTouch(TouchType type, const TouchPoint& point) override;
+
 private:
     // =========================================================================
     // Private Methods
@@ -160,6 +174,7 @@ private:
     Dispatcher dispatcher_;           ///< Central event bus
     CommandHistory commandHistory_;   ///< Undo/redo history
     EntitySelection selection_;       ///< Entity selection manager
+    Unique<ui::UIContext> uiContext_; ///< UI system context
 
     // =========================================================================
     // State

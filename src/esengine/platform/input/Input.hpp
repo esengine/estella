@@ -200,6 +200,16 @@ public:
     static bool isMouseButtonDown(u32 button = 0);
 
     // =========================================================================
+    // Scroll Input
+    // =========================================================================
+
+    /**
+     * @brief Gets the scroll delta for the current frame
+     * @return Scroll delta (x = horizontal, y = vertical)
+     */
+    static glm::vec2 getScrollDelta();
+
+    // =========================================================================
     // Platform Interface for internal use
     // =========================================================================
 
@@ -219,6 +229,14 @@ public:
      */
     static void onKeyEvent(KeyCode key, bool pressed);
 
+    /**
+     * @brief Called by platform on scroll events
+     * @param deltaX Horizontal scroll delta
+     * @param deltaY Vertical scroll delta
+     * @note Internal use only - called by Platform implementation
+     */
+    static void onScrollEvent(f32 deltaX, f32 deltaY);
+
 private:
     /** @brief Current frame touch states */
     static std::array<TouchState, MAX_TOUCH_POINTS> touchStates_;
@@ -232,6 +250,9 @@ private:
 
     /** @brief Current mouse position */
     static glm::vec2 mousePosition_;
+
+    /** @brief Current frame scroll delta */
+    static glm::vec2 scrollDelta_;
 };
 
 }  // namespace esengine

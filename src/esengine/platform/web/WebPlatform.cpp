@@ -143,6 +143,10 @@ public:
         resizeCallback_ = std::move(callback);
     }
 
+    void setScrollCallback(ScrollCallback callback) override {
+        scrollCallback_ = std::move(callback);
+    }
+
     // Static instance for callbacks
     static WebPlatform* instance_;
 
@@ -268,6 +272,7 @@ private:
     TouchCallback touchCallback_;
     KeyCallback keyCallback_;
     ResizeCallback resizeCallback_;
+    ScrollCallback scrollCallback_;
 };
 
 WebPlatform* WebPlatform::instance_ = nullptr;

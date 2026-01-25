@@ -1,0 +1,321 @@
+/**
+ * @file    UIContext.hpp
+ * @brief   Central UI coordinator
+ * @details Manages the UI widget tree, themes, fonts, input processing,
+ *          and rendering coordination.
+ *
+ * @author  ESEngine Team
+ * @date    2026
+ *
+ * @copyright Copyright (c) 2026 ESEngine Team
+ *            Licensed under the MIT License.
+ */
+#pragma once
+
+// =============================================================================
+// Includes
+// =============================================================================
+
+#include "../core/Types.hpp"
+#include "../platform/Platform.hpp"
+#include "core/Theme.hpp"
+#include "core/Types.hpp"
+
+#include <glm/glm.hpp>
+
+#include <string>
+#include <unordered_map>
+
+namespace esengine {
+
+class RenderContext;
+class Dispatcher;
+
+namespace ui {
+
+class Font;
+class UIBatchRenderer;
+class Widget;
+
+// =============================================================================
+// UIContext Class
+// =============================================================================
+
+/**
+ * @brief Central coordinator for the UI system
+ *
+ * @details Manages the complete UI lifecycle including:
+ *          - Widget tree management
+ *          - Theme and font management
+ *          - Input event processing
+ *          - Rendering coordination
+ *
+ * @code
+ * UIContext ui(renderContext, dispatcher);
+ * ui.init();
+ * ui.loadFont("default", "assets/fonts/Roboto.ttf");
+ *
+ * auto root = makeUnique<Panel>("root");
+ * root->addChild(makeUnique<Button>("btn", "Click Me"));
+ * ui.setRoot(std::move(root));
+ *
+ * // In game loop:
+ * ui.update(deltaTime);
+ * ui.render();
+ * @endcode
+ */
+class UIContext {
+public:
+    UIContext(RenderContext& renderContext, Dispatcher& dispatcher);
+    ~UIContext();
+
+    // Non-copyable
+    UIContext(const UIContext&) = delete;
+    UIContext& operator=(const UIContext&) = delete;
+
+    // =========================================================================
+    // Lifecycle
+    // =========================================================================
+
+    /**
+     * @brief Initializes the UI context
+     */
+    void init();
+
+    /**
+     * @brief Shuts down the UI context
+     */
+    void shutdown();
+
+    /**
+     * @brief Returns true if initialized
+     */
+    bool isInitialized() const;
+
+    // =========================================================================
+    // Root Widget
+    // =========================================================================
+
+    /**
+     * @brief Sets the root widget of the UI tree
+     * @param root The root widget (ownership transferred)
+     */
+    void setRoot(Unique<Widget> root);
+
+    /**
+     * @brief Gets the root widget
+     */
+    Widget* getRoot() { return root_.get(); }
+
+    /**
+     * @brief Gets the root widget (const)
+     */
+    const Widget* getRoot() const { return root_.get(); }
+
+    // =========================================================================
+    // Theme
+    // =========================================================================
+
+    /**
+     * @brief Sets the UI theme
+     * @param theme New theme (ownership transferred)
+     */
+    void setTheme(Unique<Theme> theme);
+
+    /**
+     * @brief Gets the current theme
+     */
+    Theme& getTheme() { return *theme_; }
+
+    /**
+     * @brief Gets the current theme (const)
+     */
+    const Theme& getTheme() const { return *theme_; }
+
+    // =========================================================================
+    // Font Management
+    // =========================================================================
+
+    /**
+     * @brief Loads a font from file
+     * @param name Name to register the font as
+     * @param path Path to the TTF font file
+     * @param baseSize Base size for atlas generation
+     * @return Pointer to the loaded font or nullptr on failure
+     */
+    Font* loadFont(const std::string& name, const std::string& path, f32 baseSize = 32.0f);
+
+    /**
+     * @brief Gets a loaded font by name
+     * @param name Font name
+     * @return Pointer to the font or nullptr if not found
+     */
+    Font* getFont(const std::string& name);
+
+    /**
+     * @brief Gets the default font
+     * @return Pointer to the default font or nullptr
+     */
+    Font* getDefaultFont();
+
+    /**
+     * @brief Sets the default font name
+     */
+    void setDefaultFontName(const std::string& name) { defaultFontName_ = name; }
+
+    // =========================================================================
+    // Update and Render
+    // =========================================================================
+
+    /**
+     * @brief Updates the UI
+     * @param deltaTime Time since last update in seconds
+     */
+    void update(f32 deltaTime);
+
+    /**
+     * @brief Renders the UI
+     */
+    void render();
+
+    /**
+     * @brief Sets the viewport size
+     * @param width Viewport width in pixels
+     * @param height Viewport height in pixels
+     */
+    void setViewport(u32 width, u32 height);
+
+    /**
+     * @brief Gets the viewport size
+     */
+    glm::vec2 getViewportSize() const { return {viewportWidth_, viewportHeight_}; }
+
+    // =========================================================================
+    // Input Processing
+    // =========================================================================
+
+    /**
+     * @brief Processes mouse movement
+     * @param x Mouse X position
+     * @param y Mouse Y position
+     */
+    void processMouseMove(f32 x, f32 y);
+
+    /**
+     * @brief Processes mouse button press
+     * @param button Mouse button
+     * @param x Mouse X position
+     * @param y Mouse Y position
+     */
+    void processMouseDown(MouseButton button, f32 x, f32 y);
+
+    /**
+     * @brief Processes mouse button release
+     * @param button Mouse button
+     * @param x Mouse X position
+     * @param y Mouse Y position
+     */
+    void processMouseUp(MouseButton button, f32 x, f32 y);
+
+    /**
+     * @brief Processes mouse scroll
+     * @param deltaX Horizontal scroll amount
+     * @param deltaY Vertical scroll amount
+     * @param x Mouse X position
+     * @param y Mouse Y position
+     */
+    void processMouseScroll(f32 deltaX, f32 deltaY, f32 x, f32 y);
+
+    /**
+     * @brief Processes key press
+     * @param key Key code
+     * @param ctrl Control modifier
+     * @param shift Shift modifier
+     * @param alt Alt modifier
+     */
+    void processKeyDown(KeyCode key, bool ctrl, bool shift, bool alt);
+
+    /**
+     * @brief Processes key release
+     * @param key Key code
+     * @param ctrl Control modifier
+     * @param shift Shift modifier
+     * @param alt Alt modifier
+     */
+    void processKeyUp(KeyCode key, bool ctrl, bool shift, bool alt);
+
+    /**
+     * @brief Processes text input
+     * @param text Input text
+     */
+    void processTextInput(const std::string& text);
+
+    // =========================================================================
+    // Focus Management
+    // =========================================================================
+
+    /**
+     * @brief Gets the currently focused widget
+     */
+    Widget* getFocusedWidget() { return focusedWidget_; }
+
+    /**
+     * @brief Sets focus to a widget
+     * @param widget Widget to focus (nullptr to clear focus)
+     */
+    void setFocus(Widget* widget);
+
+    /**
+     * @brief Clears focus from all widgets
+     */
+    void clearFocus() { setFocus(nullptr); }
+
+    // =========================================================================
+    // Renderer Access
+    // =========================================================================
+
+    /**
+     * @brief Gets the UI batch renderer
+     */
+    UIBatchRenderer& getRenderer() { return *renderer_; }
+
+    /**
+     * @brief Gets the render context
+     */
+    RenderContext& getRenderContext() { return renderContext_; }
+
+    /**
+     * @brief Gets the event dispatcher
+     */
+    Dispatcher& getDispatcher() { return dispatcher_; }
+
+private:
+    void updateHoveredWidget(f32 x, f32 y);
+    void doLayout();
+
+    RenderContext& renderContext_;
+    Dispatcher& dispatcher_;
+
+    Unique<UIBatchRenderer> renderer_;
+    Unique<Widget> root_;
+    Unique<Theme> theme_;
+
+    std::unordered_map<std::string, Unique<Font>> fonts_;
+    std::string defaultFontName_ = "default";
+
+    u32 viewportWidth_ = 0;
+    u32 viewportHeight_ = 0;
+
+    Widget* focusedWidget_ = nullptr;
+    Widget* hoveredWidget_ = nullptr;
+    Widget* pressedWidget_ = nullptr;
+
+    f32 lastMouseX_ = 0.0f;
+    f32 lastMouseY_ = 0.0f;
+    bool mouseButtonDown_[static_cast<usize>(MouseButton::Count)] = {};
+
+    bool initialized_ = false;
+};
+
+}  // namespace ui
+}  // namespace esengine

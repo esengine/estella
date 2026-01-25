@@ -21,6 +21,7 @@ std::array<TouchState, MAX_TOUCH_POINTS> Input::prevTouchStates_;
 std::unordered_map<u32, bool> Input::keyStates_;
 std::unordered_map<u32, bool> Input::prevKeyStates_;
 glm::vec2 Input::mousePosition_{0.0f};
+glm::vec2 Input::scrollDelta_{0.0f};
 
 void Input::init() {
     for (auto& state : touchStates_) {
@@ -32,6 +33,7 @@ void Input::init() {
     keyStates_.clear();
     prevKeyStates_.clear();
     mousePosition_ = glm::vec2(0.0f);
+    scrollDelta_ = glm::vec2(0.0f);
 
     ES_LOG_INFO("Input system initialized");
 }
@@ -44,6 +46,9 @@ void Input::update() {
     // Store previous frame's state
     prevTouchStates_ = touchStates_;
     prevKeyStates_ = keyStates_;
+
+    // Clear per-frame values
+    scrollDelta_ = glm::vec2(0.0f);
 }
 
 // Touch input
@@ -169,6 +174,15 @@ void Input::onTouchEvent(TouchType type, const TouchPoint& point) {
 
 void Input::onKeyEvent(KeyCode key, bool pressed) {
     keyStates_[static_cast<u32>(key)] = pressed;
+}
+
+void Input::onScrollEvent(f32 deltaX, f32 deltaY) {
+    scrollDelta_.x += deltaX;
+    scrollDelta_.y += deltaY;
+}
+
+glm::vec2 Input::getScrollDelta() {
+    return scrollDelta_;
 }
 
 }  // namespace esengine

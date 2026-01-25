@@ -11,6 +11,7 @@
 
 #include "NativePlatform.hpp"
 #include "../../core/Log.hpp"
+#include "../input/Input.hpp"
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
@@ -252,6 +253,10 @@ void NativePlatform::setResizeCallback(ResizeCallback callback) {
     resizeCallback_ = std::move(callback);
 }
 
+void NativePlatform::setScrollCallback(ScrollCallback callback) {
+    scrollCallback_ = std::move(callback);
+}
+
 // =============================================================================
 // GLFW Callbacks
 // =============================================================================
@@ -317,10 +322,16 @@ void NativePlatform::glfwCursorPosCallback(GLFWwindow* window, double xpos, doub
 }
 
 void NativePlatform::glfwScrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
-    (void)window;
-    (void)xoffset;
-    (void)yoffset;
-    // TODO: Could be used for zoom or scroll in editor
+    auto* platform = static_cast<NativePlatform*>(glfwGetWindowUserPointer(window));
+    if (!platform) return;
+
+    Input::onScrollEvent(static_cast<f32>(xoffset), static_cast<f32>(yoffset));
+
+    if (platform->scrollCallback_) {
+        platform->scrollCallback_(static_cast<f32>(xoffset), static_cast<f32>(yoffset),
+                                   static_cast<f32>(platform->mouseX_),
+                                   static_cast<f32>(platform->mouseY_));
+    }
 }
 
 void NativePlatform::glfwFramebufferSizeCallback(GLFWwindow* window, int width, int height) {

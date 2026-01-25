@@ -36,6 +36,15 @@ set(ESENGINE_SOURCES
     src/esengine/renderer/Texture.cpp
     src/esengine/renderer/stb_image_impl.cpp
     src/esengine/platform/input/Input.cpp
+    # UI System
+    src/esengine/ui/UIContext.cpp
+    src/esengine/ui/rendering/UIBatchRenderer.cpp
+    src/esengine/ui/font/Font.cpp
+    src/esengine/ui/layout/StackLayout.cpp
+    src/esengine/ui/widgets/Widget.cpp
+    src/esengine/ui/widgets/Panel.cpp
+    src/esengine/ui/widgets/Label.cpp
+    src/esengine/ui/widgets/Button.cpp
 )
 
 set(ESENGINE_HEADERS
@@ -77,6 +86,20 @@ set(ESENGINE_HEADERS
     src/esengine/events/Signal.hpp
     src/esengine/events/Sink.hpp
     src/esengine/events/Dispatcher.hpp
+    # UI System
+    src/esengine/ui/UIContext.hpp
+    src/esengine/ui/core/Types.hpp
+    src/esengine/ui/core/Theme.hpp
+    src/esengine/ui/events/UIEvent.hpp
+    src/esengine/ui/layout/SizeValue.hpp
+    src/esengine/ui/layout/Layout.hpp
+    src/esengine/ui/layout/StackLayout.hpp
+    src/esengine/ui/rendering/UIBatchRenderer.hpp
+    src/esengine/ui/font/Font.hpp
+    src/esengine/ui/widgets/Widget.hpp
+    src/esengine/ui/widgets/Panel.hpp
+    src/esengine/ui/widgets/Label.hpp
+    src/esengine/ui/widgets/Button.hpp
 )
 
 # Platform-specific sources

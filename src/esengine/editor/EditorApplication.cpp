@@ -13,6 +13,11 @@
 #include "../core/Log.hpp"
 #include "../renderer/RenderCommand.hpp"
 #include "../math/Math.hpp"
+#include "../platform/input/Input.hpp"
+#include "../ui/widgets/Panel.hpp"
+#include "../ui/widgets/Label.hpp"
+#include "../ui/widgets/Button.hpp"
+#include "../ui/layout/StackLayout.hpp"
 #include "core/EditorEvents.hpp"
 
 namespace esengine {
@@ -42,6 +47,17 @@ void EditorApplication::onInit() {
 
     RenderCommand::setClearColor(clearColor_);
 
+    uiContext_ = makeUnique<ui::UIContext>(getRenderContext(), dispatcher_);
+    uiContext_->init();
+    uiContext_->setViewport(getWidth(), getHeight());
+
+    // Wire up scroll events to UI system
+    getPlatform().setScrollCallback([this](f32 deltaX, f32 deltaY, f32 x, f32 y) {
+        if (uiContext_) {
+            uiContext_->processMouseScroll(deltaX, deltaY, x, y);
+        }
+    });
+
     setupEventListeners();
 }
 
@@ -57,14 +73,27 @@ void EditorApplication::onUpdate(f32 deltaTime) {
     }
 
     dispatcher_.update();
+
+    if (uiContext_) {
+        uiContext_->update(deltaTime);
+    }
 }
 
 void EditorApplication::onRender() {
     RenderCommand::clear();
+
+    if (uiContext_) {
+        uiContext_->render();
+    }
 }
 
 void EditorApplication::onShutdown() {
     ES_LOG_INFO("ESEngine Editor shutting down");
+
+    if (uiContext_) {
+        uiContext_->shutdown();
+        uiContext_.reset();
+    }
 
     commandHistory_.clear();
     selection_.clear();
@@ -80,6 +109,15 @@ void EditorApplication::onKey(KeyCode key, bool pressed) {
     if (key == KeyCode::LeftShift || key == KeyCode::RightShift) {
         shiftPressed_ = pressed;
         return;
+    }
+
+    // Pass key events to UI system
+    if (uiContext_) {
+        if (pressed) {
+            uiContext_->processKeyDown(key, ctrlPressed_, shiftPressed_, false);
+        } else {
+            uiContext_->processKeyUp(key, ctrlPressed_, shiftPressed_, false);
+        }
     }
 
     if (!pressed) {
@@ -114,6 +152,10 @@ void EditorApplication::onKey(KeyCode key, bool pressed) {
 
 void EditorApplication::onResize(u32 width, u32 height) {
     ES_LOG_DEBUG("Editor window resized to {}x{}", width, height);
+
+    if (uiContext_) {
+        uiContext_->setViewport(width, height);
+    }
 }
 
 // =============================================================================
@@ -135,6 +177,27 @@ void EditorApplication::handleRedo() {
         commandHistory_.redo();
     } else {
         ES_LOG_DEBUG("Nothing to redo");
+    }
+}
+
+void EditorApplication::onTouch(TouchType type, const TouchPoint& point) {
+    if (!uiContext_) {
+        return;
+    }
+
+    switch (type) {
+        case TouchType::Begin:
+            uiContext_->processMouseDown(ui::MouseButton::Left, point.x, point.y);
+            break;
+
+        case TouchType::Move:
+            uiContext_->processMouseMove(point.x, point.y);
+            break;
+
+        case TouchType::End:
+        case TouchType::Cancel:
+            uiContext_->processMouseUp(ui::MouseButton::Left, point.x, point.y);
+            break;
     }
 }
 

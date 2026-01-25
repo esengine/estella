@@ -115,6 +115,15 @@ using KeyCallback = std::function<void(KeyCode key, bool pressed)>;
  */
 using ResizeCallback = std::function<void(u32 width, u32 height)>;
 
+/**
+ * @brief Callback type for scroll events
+ * @param deltaX Horizontal scroll delta
+ * @param deltaY Vertical scroll delta
+ * @param x Mouse X position
+ * @param y Mouse Y position
+ */
+using ScrollCallback = std::function<void(f32 deltaX, f32 deltaY, f32 x, f32 y)>;
+
 // =============================================================================
 // Platform Class
 // =============================================================================
@@ -265,6 +274,12 @@ public:
      * @param callback Function to call on resize
      */
     virtual void setResizeCallback(ResizeCallback callback) = 0;
+
+    /**
+     * @brief Sets the scroll event callback
+     * @param callback Function to call on scroll events
+     */
+    virtual void setScrollCallback(ScrollCallback callback) = 0;
 
     // =========================================================================
     // Factory

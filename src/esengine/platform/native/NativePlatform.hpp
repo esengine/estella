@@ -163,6 +163,12 @@ public:
      */
     void setResizeCallback(ResizeCallback callback) override;
 
+    /**
+     * @brief Sets scroll event callback
+     * @param callback Function to call on scroll
+     */
+    void setScrollCallback(ScrollCallback callback) override;
+
 private:
     // =========================================================================
     // GLFW Callbacks
@@ -208,6 +214,7 @@ private:
     TouchCallback touchCallback_;         ///< Touch/mouse event callback
     KeyCallback keyCallback_;             ///< Keyboard event callback
     ResizeCallback resizeCallback_;       ///< Window resize callback
+    ScrollCallback scrollCallback_;       ///< Scroll event callback
 
     static NativePlatform* instance_;     ///< Singleton instance for callbacks
 };
