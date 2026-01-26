@@ -151,6 +151,7 @@ else()
         src/esengine/scripting/ScriptValue.hpp
         src/esengine/scripting/bindings/ECSBindings.hpp
     )
+
 endif()
 
 add_library(esengine STATIC ${ESENGINE_SOURCES} ${ESENGINE_HEADERS})
@@ -165,6 +166,11 @@ target_include_directories(esengine
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb
 )
+
+# Add QuickJS include path only for native platform (PRIVATE to avoid polluting consumers)
+if(NOT ES_BUILD_WEB AND NOT ES_BUILD_WXGAME)
+    target_include_directories(esengine PRIVATE ${QUICKJS_INCLUDE_DIR})
+endif()
 
 target_link_libraries(esengine PUBLIC glm)
 
