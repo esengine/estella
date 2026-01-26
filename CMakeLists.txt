@@ -34,6 +34,7 @@ set(ESENGINE_SOURCES
     src/esengine/renderer/Shader.cpp
     src/esengine/renderer/Buffer.cpp
     src/esengine/renderer/Texture.cpp
+    src/esengine/renderer/Framebuffer.cpp
     src/esengine/renderer/stb_image_impl.cpp
     src/esengine/platform/input/Input.cpp
     # UI System
@@ -89,6 +90,7 @@ set(ESENGINE_HEADERS
     src/esengine/renderer/Shader.hpp
     src/esengine/renderer/Buffer.hpp
     src/esengine/renderer/Texture.hpp
+    src/esengine/renderer/Framebuffer.hpp
     src/esengine/renderer/RenderCommand.hpp
     src/esengine/platform/Platform.hpp
     src/esengine/platform/input/Input.hpp
