@@ -9,6 +9,9 @@ set(EDITOR_SOURCES
     property/editors/FloatEditor.cpp
     property/editors/Vector3Editor.cpp
 
+    # Camera
+    camera/EditorCamera.cpp
+
     # Panels
     panels/HierarchyPanel.cpp
     panels/InspectorPanel.cpp
@@ -32,6 +35,9 @@ set(EDITOR_HEADERS
     property/PropertyEditor.hpp
     property/editors/FloatEditor.hpp
     property/editors/Vector3Editor.hpp
+
+    # Camera
+    camera/EditorCamera.hpp
 
     # Panels
     panels/HierarchyPanel.hpp
