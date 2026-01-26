@@ -180,6 +180,11 @@ struct WidgetStyle {
     glm::vec4 backgroundColorPressed{0.0f, 0.0f, 0.0f, 0.0f};
     glm::vec4 backgroundColorDisabled{0.0f, 0.0f, 0.0f, 0.0f};
 
+    glm::vec4 foregroundColor{1.0f, 1.0f, 1.0f, 1.0f};
+    glm::vec4 foregroundColorHover{1.0f, 1.0f, 1.0f, 1.0f};
+    glm::vec4 foregroundColorPressed{1.0f, 1.0f, 1.0f, 1.0f};
+    glm::vec4 foregroundColorDisabled{0.5f, 0.5f, 0.5f, 1.0f};
+
     glm::vec4 textColor{1.0f, 1.0f, 1.0f, 1.0f};
     glm::vec4 textColorDisabled{0.5f, 0.5f, 0.5f, 1.0f};
 
@@ -204,6 +209,20 @@ struct WidgetStyle {
             return backgroundColorHover;
         }
         return backgroundColor;
+    }
+
+    /** @brief Gets the foreground color based on widget state */
+    glm::vec4 getForegroundColor(const WidgetState& state) const {
+        if (state.disabled) {
+            return foregroundColorDisabled;
+        }
+        if (state.pressed) {
+            return foregroundColorPressed;
+        }
+        if (state.hovered) {
+            return foregroundColorHover;
+        }
+        return foregroundColor;
     }
 
     /** @brief Gets the text color based on widget state */
@@ -292,6 +311,16 @@ public:
         style.textColor = colors.textPrimary;
         style.textColorDisabled = colors.textDisabled;
         style.fontSize = typography.fontSizeNormal;
+        return style;
+    }
+
+    /** @brief Gets the style for a scrollbar widget */
+    WidgetStyle getScrollbarStyle() const {
+        WidgetStyle style;
+        style.backgroundColor = colors.scrollbarTrack;
+        style.backgroundColorHover = colors.scrollbarTrack;
+        style.foregroundColor = colors.scrollbarThumb;
+        style.foregroundColorHover = colors.scrollbarThumbHover;
         return style;
     }
 
