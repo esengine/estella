@@ -49,14 +49,31 @@ if(NOT ES_BUILD_WEB AND NOT ES_BUILD_WXGAME)
     )
 
     add_library(quickjs STATIC ${QUICKJS_SOURCES})
-    # Use SYSTEM PRIVATE to avoid exposing quickjs internal files (like 'version' text file)
-    # SYSTEM tells compiler to treat this as a system include (less strict scanning)
-    # PRIVATE ensures only quickjs library itself can see these headers
-    target_include_directories(quickjs SYSTEM PRIVATE
+
+    # QuickJS internal include (PRIVATE - contains VERSION file and internal headers)
+    target_include_directories(quickjs PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/quickjs
     )
-    # Provide a variable for consumers to add QuickJS include path
-    set(QUICKJS_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/quickjs" PARENT_SCOPE)
+
+    # Create a clean include directory with only public headers
+    # This avoids exposing internal files like VERSION to consumers
+    set(QUICKJS_PUBLIC_INCLUDE_DIR "${CMAKE_BINARY_DIR}/quickjs_headers")
+    file(MAKE_DIRECTORY "${QUICKJS_PUBLIC_INCLUDE_DIR}")
+
+    # Copy only the public header files (exclude VERSION and internal files)
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/quickjs/quickjs.h"
+        "${QUICKJS_PUBLIC_INCLUDE_DIR}/quickjs.h"
+        COPYONLY
+    )
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/quickjs/quickjs-libc.h"
+        "${QUICKJS_PUBLIC_INCLUDE_DIR}/quickjs-libc.h"
+        COPYONLY
+    )
+
+    # Export the clean include directory for consumers
+    set(QUICKJS_INCLUDE_DIR "${QUICKJS_PUBLIC_INCLUDE_DIR}" PARENT_SCOPE)
 
     # QuickJS specific settings
     if(WIN32)
