@@ -15,45 +15,7 @@
 #ifdef ES_PLATFORM_WEB
     #include <GLES3/gl3.h>
 #else
-    #ifdef _WIN32
-        #include <windows.h>
-    #endif
-    #include <GL/gl.h>
-    #ifndef GL_FRAMEBUFFER
-        #define GL_FRAMEBUFFER 0x8D40
-        #define GL_COLOR_ATTACHMENT0 0x8CE0
-        #define GL_DEPTH_ATTACHMENT 0x8D00
-        #define GL_DEPTH_STENCIL_ATTACHMENT 0x821A
-        #define GL_FRAMEBUFFER_COMPLETE 0x8CD5
-        #define GL_TEXTURE_2D 0x0DE1
-        #define GL_DEPTH_COMPONENT 0x1902
-        #define GL_DEPTH_COMPONENT24 0x81A6
-        #define GL_DEPTH24_STENCIL8 0x88F0
-        #define GL_UNSIGNED_INT_24_8 0x84FA
-        #define GL_RGB 0x1907
-        #define GL_RGBA 0x1908
-        #define GL_RGBA8 0x8058
-        #define GL_UNSIGNED_BYTE 0x1401
-        #define GL_NEAREST 0x2600
-        #define GL_CLAMP_TO_EDGE 0x812F
-        #define GL_TEXTURE_MIN_FILTER 0x2801
-        #define GL_TEXTURE_MAG_FILTER 0x2800
-        #define GL_TEXTURE_WRAP_S 0x2802
-        #define GL_TEXTURE_WRAP_T 0x2803
-    #endif
-
-    extern "C" {
-        void glGenFramebuffers(int, unsigned int*);
-        void glDeleteFramebuffers(int, const unsigned int*);
-        void glBindFramebuffer(unsigned int, unsigned int);
-        void glFramebufferTexture2D(unsigned int, unsigned int, unsigned int, unsigned int, int);
-        unsigned int glCheckFramebufferStatus(unsigned int);
-        void glGenTextures(int, unsigned int*);
-        void glDeleteTextures(int, const unsigned int*);
-        void glBindTexture(unsigned int, unsigned int);
-        void glTexImage2D(unsigned int, int, int, int, int, int, unsigned int, unsigned int, const void*);
-        void glTexParameteri(unsigned int, unsigned int, int);
-    }
+    #include <glad/glad.h>
 #endif
 
 namespace esengine {
@@ -153,11 +115,11 @@ bool Framebuffer::initialize() {
     if (spec_.depthStencil) {
         glGenTextures(1, &depthAttachment_);
         glBindTexture(GL_TEXTURE_2D, depthAttachment_);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH24_STENCIL8, spec_.width, spec_.height, 0,
-                     GL_DEPTH_COMPONENT, GL_UNSIGNED_INT_24_8, nullptr);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, spec_.width, spec_.height, 0,
+                     GL_DEPTH_COMPONENT, GL_UNSIGNED_INT, nullptr);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT,
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
                               GL_TEXTURE_2D, depthAttachment_, 0);
     }
 
