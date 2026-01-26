@@ -7,7 +7,7 @@ using namespace esengine::ecs;
 class MovementSystem : public System {
 public:
     void update(Registry& registry, f32 deltaTime) override {
-        registry.each<Transform, Velocity>([deltaTime](Entity entity, Transform& transform, Velocity& velocity) {
+        registry.each<LocalTransform, Velocity>([deltaTime](Entity entity, LocalTransform& transform, Velocity& velocity) {
             (void)entity;
             transform.position += velocity.linear * deltaTime;
         });
@@ -37,13 +37,13 @@ protected:
 
         // Create a triangle entity
         Entity triangle = registry.create();
-        registry.emplace<Transform>(triangle, glm::vec3(400.0f, 300.0f, 0.0f));
+        registry.emplace<LocalTransform>(triangle, glm::vec3(400.0f, 300.0f, 0.0f));
         registry.emplace<Name>(triangle, "Triangle");
 
         // Create moving entities
         for (int i = 0; i < 5; ++i) {
             Entity entity = registry.create();
-            registry.emplace<Transform>(entity, glm::vec3(100.0f + i * 120.0f, 100.0f, 0.0f));
+            registry.emplace<LocalTransform>(entity, glm::vec3(100.0f + i * 120.0f, 100.0f, 0.0f));
             registry.emplace<Velocity>(entity, glm::vec3(50.0f * (i % 2 == 0 ? 1.0f : -1.0f), 0.0f, 0.0f));
             registry.emplace<Sprite>(entity);
         }
@@ -54,7 +54,7 @@ protected:
     void onUpdate(f32 deltaTime) override {
         // Update entities manually (or use SystemGroup)
         auto& registry = getRegistry();
-        registry.each<Transform, Velocity>([deltaTime, this](Transform& transform, Velocity& velocity) {
+        registry.each<LocalTransform, Velocity>([deltaTime, this](LocalTransform& transform, Velocity& velocity) {
             transform.position += velocity.linear * deltaTime;
 
             // Bounce off edges
@@ -64,13 +64,13 @@ protected:
         });
 
         // Check for touch input
-        if (Input::isTouchPressed()) {
-            auto pos = Input::getTouchPosition();
+        if (getInput().isTouchPressed()) {
+            auto pos = getInput().getTouchPosition();
             ES_LOG_DEBUG("Touch at ({}, {})", pos.x, pos.y);
         }
 
         // Check for key input
-        if (Input::isKeyPressed(KeyCode::Escape)) {
+        if (getInput().isKeyPressed(KeyCode::Escape)) {
             quit();
         }
     }
@@ -79,10 +79,10 @@ protected:
         auto& registry = getRegistry();
         auto& renderer = getRenderer();
 
-        // Draw colored quads for entities with Transform and Sprite
-        auto view = registry.view<Transform, Sprite>();
+        // Draw colored quads for entities with LocalTransform and Sprite
+        auto view = registry.view<LocalTransform, Sprite>();
         for (auto entity : view) {
-            auto& transform = view.get<Transform>(entity);
+            auto& transform = view.get<LocalTransform>(entity);
             auto& sprite = view.get<Sprite>(entity);
 
             renderer.drawQuad(
@@ -93,9 +93,9 @@ protected:
         }
 
         // Draw the main triangle
-        auto triangleView = registry.view<Transform, Name>();
+        auto triangleView = registry.view<LocalTransform, Name>();
         for (auto entity : triangleView) {
-            auto& transform = triangleView.get<Transform>(entity);
+            auto& transform = triangleView.get<LocalTransform>(entity);
             auto& name = triangleView.get<Name>(entity);
 
             if (name.value == "Triangle") {
