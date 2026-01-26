@@ -18,6 +18,7 @@
  */
 int main() {
     esengine::Log::init();
+
     ES_LOG_INFO("Starting ESEngine Editor...");
 
     esengine::editor::EditorApplication editor;

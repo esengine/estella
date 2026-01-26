@@ -21,6 +21,7 @@
 #include "../math/Math.hpp"
 #include "../events/Dispatcher.hpp"
 #include "../ui/UIContext.hpp"
+#include "../ui/docking/DockArea.hpp"
 #include "command/CommandHistory.hpp"
 #include "core/Selection.hpp"
 
@@ -91,6 +92,12 @@ public:
      */
     ui::UIContext& getUIContext() { return *uiContext_; }
 
+    /**
+     * @brief Get the ECS registry (from base Application class)
+     * @return Reference to the ECS registry
+     */
+    ecs::Registry& getEditorRegistry() { return Application::getRegistry(); }
+
 protected:
     // =========================================================================
     // Application Lifecycle Overrides
@@ -160,6 +167,16 @@ private:
      */
     void setupEventListeners();
 
+    /**
+     * @brief Setup editor UI layout with docking panels
+     */
+    void setupEditorLayout();
+
+    /**
+     * @brief Create demo entities for testing
+     */
+    void createDemoScene();
+
     // =========================================================================
     // Constants
     // =========================================================================
@@ -175,6 +192,7 @@ private:
     CommandHistory commandHistory_;   ///< Undo/redo history
     EntitySelection selection_;       ///< Entity selection manager
     Unique<ui::UIContext> uiContext_; ///< UI system context
+    ui::DockArea* dockArea_ = nullptr; ///< Main docking area (owned by UIContext)
 
     // =========================================================================
     // State

@@ -148,7 +148,9 @@ void UIContext::update(f32 deltaTime) {
 }
 
 void UIContext::render() {
-    if (!root_ || !renderer_) return;
+    if (!root_ || !renderer_) {
+        return;
+    }
 
     glm::mat4 projection = glm::ortho(0.0f, static_cast<f32>(viewportWidth_),
                                       static_cast<f32>(viewportHeight_), 0.0f, -1.0f, 1.0f);

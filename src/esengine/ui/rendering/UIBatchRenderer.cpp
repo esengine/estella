@@ -400,8 +400,11 @@ void UIBatchRenderer::flushQuadBatch() {
     data_->shader->setUniform("u_projection", data_->projection);
 
     i32 samplers[MAX_TEXTURE_SLOTS] = {0, 1, 2, 3, 4, 5, 6, 7};
-    glUniform1iv(glGetUniformLocation(data_->shader->getProgramId(), "u_textures"),
-                 MAX_TEXTURE_SLOTS, samplers);
+    if (!data_->shader) {
+        return;
+    }
+    GLint loc = glGetUniformLocation(data_->shader->getProgramId(), "u_textures");
+    glUniform1iv(loc, MAX_TEXTURE_SLOTS, samplers);
 
     RenderCommand::drawIndexed(*data_->vao, data_->indexCount);
 

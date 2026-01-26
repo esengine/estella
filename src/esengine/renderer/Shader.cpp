@@ -12,7 +12,15 @@
 
 #include "Shader.hpp"
 #include "../core/Log.hpp"
-#include "OpenGLHeaders.hpp"
+
+#ifdef ES_PLATFORM_WEB
+    #include <GLES3/gl3.h>
+#else
+    #ifdef _WIN32
+        #include <windows.h>
+    #endif
+    #include <glad/glad.h>
+#endif
 
 #include <fstream>
 
@@ -20,9 +28,7 @@ namespace esengine {
 
 Shader::~Shader() {
     if (programId_ != 0) {
-#ifdef ES_PLATFORM_WEB
         glDeleteProgram(programId_);
-#endif
         programId_ = 0;
     }
 }
@@ -35,9 +41,7 @@ Shader::Shader(Shader&& other) noexcept
 Shader& Shader::operator=(Shader&& other) noexcept {
     if (this != &other) {
         if (programId_ != 0) {
-#ifdef ES_PLATFORM_WEB
             glDeleteProgram(programId_);
-#endif
         }
         programId_ = other.programId_;
         uniformCache_ = std::move(other.uniformCache_);
@@ -94,19 +98,14 @@ Unique<Shader> Shader::createFromFile(const std::string& vertexPath, const std::
 }
 
 void Shader::bind() const {
-#ifdef ES_PLATFORM_WEB
     glUseProgram(programId_);
-#endif
 }
 
 void Shader::unbind() const {
-#ifdef ES_PLATFORM_WEB
     glUseProgram(0);
-#endif
 }
 
 bool Shader::compile(const std::string& vertexSrc, const std::string& fragmentSrc) {
-#ifdef ES_PLATFORM_WEB
     // Create vertex shader
     GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
     const char* vertexSrcPtr = vertexSrc.c_str();
@@ -172,12 +171,6 @@ bool Shader::compile(const std::string& vertexSrc, const std::string& fragmentSr
 
     ES_LOG_DEBUG("Shader compiled successfully (program ID: {})", programId_);
     return true;
-#else
-    (void)vertexSrc;
-    (void)fragmentSrc;
-    ES_LOG_WARN("Shader compilation not available in native mode");
-    return false;
-#endif
 }
 
 i32 Shader::getUniformLocation(const std::string& name) const {
@@ -186,79 +179,40 @@ i32 Shader::getUniformLocation(const std::string& name) const {
         return it->second;
     }
 
-#ifdef ES_PLATFORM_WEB
     i32 location = glGetUniformLocation(programId_, name.c_str());
     uniformCache_[name] = location;
     if (location == -1) {
         ES_LOG_WARN("Uniform '{}' not found in shader", name);
     }
     return location;
-#else
-    return -1;
-#endif
 }
 
 void Shader::setUniform(const std::string& name, i32 value) const {
-#ifdef ES_PLATFORM_WEB
     glUniform1i(getUniformLocation(name), value);
-#else
-    (void)name;
-    (void)value;
-#endif
 }
 
 void Shader::setUniform(const std::string& name, f32 value) const {
-#ifdef ES_PLATFORM_WEB
     glUniform1f(getUniformLocation(name), value);
-#else
-    (void)name;
-    (void)value;
-#endif
 }
 
 void Shader::setUniform(const std::string& name, const glm::vec2& value) const {
-#ifdef ES_PLATFORM_WEB
     glUniform2f(getUniformLocation(name), value.x, value.y);
-#else
-    (void)name;
-    (void)value;
-#endif
 }
 
 void Shader::setUniform(const std::string& name, const glm::vec3& value) const {
-#ifdef ES_PLATFORM_WEB
     glUniform3f(getUniformLocation(name), value.x, value.y, value.z);
-#else
-    (void)name;
-    (void)value;
-#endif
 }
 
 void Shader::setUniform(const std::string& name, const glm::vec4& value) const {
-#ifdef ES_PLATFORM_WEB
     glUniform4f(getUniformLocation(name), value.x, value.y, value.z, value.w);
-#else
-    (void)name;
-    (void)value;
-#endif
 }
 
 void Shader::setUniform(const std::string& name, const glm::mat3& value) const {
-#ifdef ES_PLATFORM_WEB
     glUniformMatrix3fv(getUniformLocation(name), 1, GL_FALSE, glm::value_ptr(value));
-#else
-    (void)name;
-    (void)value;
-#endif
 }
 
 void Shader::setUniform(const std::string& name, const glm::mat4& value) const {
-#ifdef ES_PLATFORM_WEB
     glUniformMatrix4fv(getUniformLocation(name), 1, GL_FALSE, glm::value_ptr(value));
-#else
-    (void)name;
-    (void)value;
-#endif
 }
 
 }  // namespace esengine

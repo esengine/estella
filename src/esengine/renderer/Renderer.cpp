@@ -14,7 +14,15 @@
 #include "RenderCommand.hpp"
 #include "../core/Log.hpp"
 #include "../resource/ResourceManager.hpp"
-#include "OpenGLHeaders.hpp"
+
+#ifdef ES_PLATFORM_WEB
+    #include <GLES3/gl3.h>
+#else
+    #ifdef _WIN32
+        #include <windows.h>
+    #endif
+    #include <glad/glad.h>
+#endif
 
 #include <array>
 #include <vector>
@@ -26,8 +34,7 @@ namespace esengine {
 // ========================================
 
 void RenderCommand::init() {
-#ifdef ES_PLATFORM_WEB
-    ES_LOG_INFO("RenderCommand initialized (WebGL)");
+    ES_LOG_INFO("RenderCommand initialized");
 
     // Enable depth testing by default
     glEnable(GL_DEPTH_TEST);
@@ -35,7 +42,6 @@ void RenderCommand::init() {
     // Enable blending
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-#endif
 }
 
 void RenderCommand::shutdown() {
@@ -43,110 +49,73 @@ void RenderCommand::shutdown() {
 }
 
 void RenderCommand::setViewport(i32 x, i32 y, u32 width, u32 height) {
-#ifdef ES_PLATFORM_WEB
-    glViewport(x, y, width, height);
-#else
-    (void)x; (void)y; (void)width; (void)height;
-#endif
+    glViewport(x, y, static_cast<GLsizei>(width), static_cast<GLsizei>(height));
 }
 
 void RenderCommand::setClearColor(const glm::vec4& color) {
-#ifdef ES_PLATFORM_WEB
     glClearColor(color.r, color.g, color.b, color.a);
-#else
-    (void)color;
-#endif
 }
 
 void RenderCommand::clear() {
-#ifdef ES_PLATFORM_WEB
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-#endif
 }
 
 void RenderCommand::drawIndexed(const VertexArray& vao, u32 indexCount) {
-#ifdef ES_PLATFORM_WEB
     vao.bind();
     auto ib = vao.getIndexBuffer();
     u32 count = indexCount ? indexCount : (ib ? ib->getCount() : 0);
     if (count > 0 && ib) {
         GLenum type = ib->is16Bit() ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT;
-        glDrawElements(GL_TRIANGLES, count, type, nullptr);
+        glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(count), type, nullptr);
     }
-#else
-    (void)vao; (void)indexCount;
-#endif
 }
 
 void RenderCommand::drawArrays(u32 vertexCount) {
-#ifdef ES_PLATFORM_WEB
-    glDrawArrays(GL_TRIANGLES, 0, vertexCount);
-#else
-    (void)vertexCount;
-#endif
+    glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(vertexCount));
 }
 
 void RenderCommand::setDepthTest(bool enabled) {
-#ifdef ES_PLATFORM_WEB
     if (enabled) {
         glEnable(GL_DEPTH_TEST);
     } else {
         glDisable(GL_DEPTH_TEST);
     }
-#else
-    (void)enabled;
-#endif
 }
 
 void RenderCommand::setDepthWrite(bool enabled) {
-#ifdef ES_PLATFORM_WEB
     glDepthMask(enabled ? GL_TRUE : GL_FALSE);
-#else
-    (void)enabled;
-#endif
 }
 
 void RenderCommand::setBlending(bool enabled) {
-#ifdef ES_PLATFORM_WEB
     if (enabled) {
         glEnable(GL_BLEND);
     } else {
         glDisable(GL_BLEND);
     }
-#else
-    (void)enabled;
-#endif
 }
 
 void RenderCommand::setBlendFunc() {
-#ifdef ES_PLATFORM_WEB
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-#endif
 }
 
 void RenderCommand::setCulling(bool enabled) {
-#ifdef ES_PLATFORM_WEB
     if (enabled) {
         glEnable(GL_CULL_FACE);
     } else {
         glDisable(GL_CULL_FACE);
     }
-#else
-    (void)enabled;
-#endif
 }
 
 void RenderCommand::setCullFace(bool front) {
-#ifdef ES_PLATFORM_WEB
     glCullFace(front ? GL_FRONT : GL_BACK);
-#else
-    (void)front;
-#endif
 }
 
 void RenderCommand::setWireframe(bool enabled) {
+#ifndef ES_PLATFORM_WEB
+    glPolygonMode(GL_FRONT_AND_BACK, enabled ? GL_LINE : GL_FILL);
+#else
     (void)enabled;
-    // WebGL doesn't support wireframe mode directly
+#endif
 }
 
 // ========================================

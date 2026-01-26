@@ -18,7 +18,14 @@
 #include "../ui/widgets/Label.hpp"
 #include "../ui/widgets/Button.hpp"
 #include "../ui/layout/StackLayout.hpp"
+#include "../ui/docking/DockArea.hpp"
+#include "../ecs/components/Common.hpp"
+#include "../ecs/components/Transform.hpp"
+#include "../ecs/components/Hierarchy.hpp"
 #include "core/EditorEvents.hpp"
+#include "panels/HierarchyPanel.hpp"
+#include "panels/InspectorPanel.hpp"
+#include "panels/SceneViewPanel.hpp"
 
 namespace esengine {
 namespace editor {
@@ -57,6 +64,12 @@ void EditorApplication::onInit() {
             uiContext_->processMouseScroll(deltaX, deltaY, x, y);
         }
     });
+
+    // Create demo scene for testing
+    createDemoScene();
+
+    // Setup editor UI layout
+    setupEditorLayout();
 
     setupEventListeners();
 }
@@ -228,6 +241,100 @@ void EditorApplication::setupEventListeners() {
             [](const EntityDeleted& e) {
                 ES_LOG_DEBUG("Entity deleted: {}", e.entity);
             }));
+}
+
+void EditorApplication::setupEditorLayout() {
+    ES_LOG_INFO("setupEditorLayout: Creating dock area...");
+
+    // Create main dock area
+    auto dockArea = makeUnique<ui::DockArea>(ui::WidgetId("editor.dock_area"));
+    dockArea_ = dockArea.get();
+
+    // Configure dock area
+    dockArea_->setMinPanelSize(glm::vec2(150.0f, 100.0f));
+    dockArea_->setSplitterThickness(4.0f);
+    dockArea_->setTabBarHeight(26.0f);
+
+    ES_LOG_INFO("setupEditorLayout: Creating SceneViewPanel...");
+    // Create Scene View panel (center - add first as the main content)
+    auto sceneViewPanel = makeUnique<SceneViewPanel>(registry_, selection_);
+    ES_LOG_INFO("setupEditorLayout: SceneViewPanel created, setting min size...");
+    sceneViewPanel->setMinSize(glm::vec2(400.0f, 300.0f));
+    ES_LOG_INFO("setupEditorLayout: Adding SceneViewPanel to dock...");
+    dockArea_->addPanel(std::move(sceneViewPanel), ui::DockDropZone::Center);
+
+    ES_LOG_INFO("setupEditorLayout: Creating HierarchyPanel...");
+    // Create Hierarchy panel (left side)
+    auto hierarchyPanel = makeUnique<HierarchyPanel>(registry_, selection_);
+    hierarchyPanel->setMinSize(glm::vec2(200.0f, 200.0f));
+    ES_LOG_INFO("setupEditorLayout: Adding HierarchyPanel to dock...");
+    dockArea_->addPanel(std::move(hierarchyPanel), ui::DockDropZone::Left, nullptr, 0.2f);
+
+    ES_LOG_INFO("setupEditorLayout: Creating InspectorPanel...");
+    // Create Inspector panel (right side)
+    auto inspectorPanel = makeUnique<InspectorPanel>(registry_, selection_, commandHistory_);
+    inspectorPanel->setMinSize(glm::vec2(250.0f, 200.0f));
+    ES_LOG_INFO("setupEditorLayout: Adding InspectorPanel to dock...");
+    dockArea_->addPanel(std::move(inspectorPanel), ui::DockDropZone::Right, nullptr, 0.25f);
+
+    ES_LOG_INFO("setupEditorLayout: Setting root widget...");
+    // Set dock area as the root widget
+    uiContext_->setRoot(std::move(dockArea));
+
+    ES_LOG_INFO("Editor layout initialized with Hierarchy, SceneView, and Inspector panels");
+}
+
+void EditorApplication::createDemoScene() {
+    // Create some demo entities for testing the editor
+
+    // Root entity
+    Entity root = registry_.create();
+    registry_.emplace<ecs::Name>(root, "Scene Root");
+    registry_.emplace<ecs::LocalTransform>(root);
+
+    // Camera entity
+    Entity camera = registry_.create();
+    registry_.emplace<ecs::Name>(camera, "Main Camera");
+    registry_.emplace<ecs::LocalTransform>(camera, glm::vec3(0.0f, 5.0f, 10.0f));
+
+    // Light entity
+    Entity light = registry_.create();
+    registry_.emplace<ecs::Name>(light, "Directional Light");
+    registry_.emplace<ecs::LocalTransform>(light, glm::vec3(0.0f, 10.0f, 0.0f));
+
+    // Parent-child hierarchy: Player with children
+    Entity player = registry_.create();
+    registry_.emplace<ecs::Name>(player, "Player");
+    registry_.emplace<ecs::LocalTransform>(player, glm::vec3(0.0f, 1.0f, 0.0f));
+
+    Entity playerMesh = registry_.create();
+    registry_.emplace<ecs::Name>(playerMesh, "PlayerMesh");
+    registry_.emplace<ecs::LocalTransform>(playerMesh);
+    registry_.emplace<ecs::Parent>(playerMesh, player);
+
+    Entity playerWeapon = registry_.create();
+    registry_.emplace<ecs::Name>(playerWeapon, "Weapon");
+    registry_.emplace<ecs::LocalTransform>(playerWeapon, glm::vec3(0.5f, 0.0f, 0.0f));
+    registry_.emplace<ecs::Parent>(playerWeapon, player);
+
+    // Add children to player
+    auto& playerChildren = registry_.emplace<ecs::Children>(player);
+    playerChildren.entities = {playerMesh, playerWeapon};
+
+    // Some standalone entities
+    Entity ground = registry_.create();
+    registry_.emplace<ecs::Name>(ground, "Ground");
+    registry_.emplace<ecs::LocalTransform>(ground, glm::vec3(0.0f, 0.0f, 0.0f), glm::quat(1.0f, 0.0f, 0.0f, 0.0f), glm::vec3(100.0f, 0.1f, 100.0f));
+
+    Entity obstacle1 = registry_.create();
+    registry_.emplace<ecs::Name>(obstacle1, "Obstacle 1");
+    registry_.emplace<ecs::LocalTransform>(obstacle1, glm::vec3(5.0f, 1.0f, 0.0f));
+
+    Entity obstacle2 = registry_.create();
+    registry_.emplace<ecs::Name>(obstacle2, "Obstacle 2");
+    registry_.emplace<ecs::LocalTransform>(obstacle2, glm::vec3(-5.0f, 1.0f, 3.0f));
+
+    ES_LOG_INFO("Demo scene created with {} entities", registry_.entityCount());
 }
 
 }  // namespace editor

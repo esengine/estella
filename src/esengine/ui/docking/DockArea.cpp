@@ -282,7 +282,9 @@ glm::vec2 DockArea::measure(f32 availableWidth, f32 availableHeight) {
 }
 
 void DockArea::render(UIBatchRenderer& renderer) {
-    if (!rootNode_) return;
+    if (!rootNode_) {
+        return;
+    }
 
     rootNode_->setBounds(getBounds());
     rootNode_->layout(splitterThickness_, tabBarHeight_);
