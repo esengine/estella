@@ -3,6 +3,9 @@
 set(EDITOR_SOURCES
     main.cpp
     EditorApplication.cpp
+
+    # Panels
+    panels/HierarchyPanel.cpp
 )
 
 set(EDITOR_HEADERS
@@ -18,6 +21,9 @@ set(EDITOR_HEADERS
     command/MacroCommand.hpp
     command/PropertyCommand.hpp
     command/EditorCommands.hpp
+
+    # Panels
+    panels/HierarchyPanel.hpp
 )
 
 # Create editor executable
