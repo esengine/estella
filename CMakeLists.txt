@@ -142,12 +142,14 @@ else()
         # Scripting (Native only - Web uses Emscripten bindings)
         src/esengine/scripting/ScriptContext.cpp
         src/esengine/scripting/ScriptValue.cpp
+        src/esengine/scripting/bindings/ECSBindings.cpp
     )
     list(APPEND ESENGINE_HEADERS
         src/esengine/platform/native/NativePlatform.hpp
         # Scripting headers
         src/esengine/scripting/ScriptContext.hpp
         src/esengine/scripting/ScriptValue.hpp
+        src/esengine/scripting/bindings/ECSBindings.hpp
     )
 endif()
 
