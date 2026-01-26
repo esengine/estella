@@ -294,6 +294,15 @@ public:
     const std::vector<Entity>& entities() const override { return dense_; }
 
     /**
+     * @brief Gets the dense entity array (non-const)
+     * @return Reference to entity vector
+     *
+     * @details Allows direct modification of entity order (e.g., for sorting).
+     *          Use with caution - must maintain correspondence with components().
+     */
+    std::vector<Entity>& entities() { return dense_; }
+
+    /**
      * @brief Gets the component array for direct iteration
      * @return Reference to component vector
      *

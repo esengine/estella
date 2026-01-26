@@ -325,8 +325,6 @@ void NativePlatform::glfwScrollCallback(GLFWwindow* window, double xoffset, doub
     auto* platform = static_cast<NativePlatform*>(glfwGetWindowUserPointer(window));
     if (!platform) return;
 
-    Input::onScrollEvent(static_cast<f32>(xoffset), static_cast<f32>(yoffset));
-
     if (platform->scrollCallback_) {
         platform->scrollCallback_(static_cast<f32>(xoffset), static_cast<f32>(yoffset),
                                    static_cast<f32>(platform->mouseX_),

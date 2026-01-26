@@ -386,7 +386,7 @@ public:
         if (!pool) return;
 
         // Selection sort
-        auto& entities = const_cast<std::vector<Entity>&>(pool->entities());
+        auto& entities = pool->entities();
         auto& components = pool->components();
 
         for (usize i = 0; i < entities.size(); ++i) {

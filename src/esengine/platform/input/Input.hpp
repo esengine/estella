@@ -63,30 +63,40 @@ struct TouchState {
 // =============================================================================
 
 /**
- * @brief Static input state manager
+ * @brief Instance-based input state manager
  *
  * @details Provides query methods for touch, keyboard, and mouse input.
  *          State is updated each frame by calling update(). The platform
  *          layer feeds events via onTouchEvent() and onKeyEvent().
  *
  * @code
+ * // Access through Application
+ * Input& input = app.getInput();
+ *
  * // In game loop
- * Input::update();
+ * input.update();
  *
  * // Check touch input
- * if (Input::isTouchPressed()) {
- *     glm::vec2 pos = Input::getTouchPosition();
+ * if (input.isTouchPressed()) {
+ *     glm::vec2 pos = input.getTouchPosition();
  *     // Handle tap at pos
  * }
  *
  * // Check keyboard
- * if (Input::isKeyDown(KeyCode::Space)) {
+ * if (input.isKeyDown(KeyCode::Space)) {
  *     // Jump
  * }
  * @endcode
  */
 class Input {
 public:
+    Input() = default;
+    ~Input() = default;
+
+    // Non-copyable
+    Input(const Input&) = delete;
+    Input& operator=(const Input&) = delete;
+
     // =========================================================================
     // Lifecycle
     // =========================================================================
@@ -95,19 +105,19 @@ public:
      * @brief Initializes the input system
      * @details Clears all input state. Called automatically by Application.
      */
-    static void init();
+    void init();
 
     /**
      * @brief Shuts down the input system
      */
-    static void shutdown();
+    void shutdown();
 
     /**
      * @brief Updates input state for new frame
      * @details Copies current state to previous state for edge detection.
      *          Must be called once per frame before checking input.
      */
-    static void update();
+    void update();
 
     // =========================================================================
     // Touch Input
@@ -118,41 +128,41 @@ public:
      * @param index Touch point index (0 = primary touch)
      * @return True if touch is down
      */
-    static bool isTouchDown(u32 index = 0);
+    bool isTouchDown(u32 index = 0) const;
 
     /**
      * @brief Checks if a touch just started this frame
      * @param index Touch point index
      * @return True if touch began this frame
      */
-    static bool isTouchPressed(u32 index = 0);
+    bool isTouchPressed(u32 index = 0) const;
 
     /**
      * @brief Checks if a touch just ended this frame
      * @param index Touch point index
      * @return True if touch ended this frame
      */
-    static bool isTouchReleased(u32 index = 0);
+    bool isTouchReleased(u32 index = 0) const;
 
     /**
      * @brief Gets the current position of a touch point
      * @param index Touch point index
      * @return Position in screen coordinates
      */
-    static glm::vec2 getTouchPosition(u32 index = 0);
+    glm::vec2 getTouchPosition(u32 index = 0) const;
 
     /**
      * @brief Gets the movement delta since touch began
      * @param index Touch point index
      * @return (current position - start position)
      */
-    static glm::vec2 getTouchDelta(u32 index = 0);
+    glm::vec2 getTouchDelta(u32 index = 0) const;
 
     /**
      * @brief Gets the number of active touch points
      * @return Count of currently active touches
      */
-    static u32 getTouchCount();
+    u32 getTouchCount() const;
 
     // =========================================================================
     // Keyboard Input
@@ -163,21 +173,21 @@ public:
      * @param key The key code
      * @return True if key is down
      */
-    static bool isKeyDown(KeyCode key);
+    bool isKeyDown(KeyCode key) const;
 
     /**
      * @brief Checks if a key was just pressed this frame
      * @param key The key code
      * @return True if key was just pressed
      */
-    static bool isKeyPressed(KeyCode key);
+    bool isKeyPressed(KeyCode key) const;
 
     /**
      * @brief Checks if a key was just released this frame
      * @param key The key code
      * @return True if key was just released
      */
-    static bool isKeyReleased(KeyCode key);
+    bool isKeyReleased(KeyCode key) const;
 
     // =========================================================================
     // Mouse Input for web debugging
@@ -190,14 +200,14 @@ public:
      * @note Primarily for web/desktop debugging. On touch devices,
      *       use getTouchPosition() instead.
      */
-    static glm::vec2 getMousePosition();
+    glm::vec2 getMousePosition() const;
 
     /**
      * @brief Checks if a mouse button is held down
      * @param button Mouse button index (0 = left, 1 = right, 2 = middle)
      * @return True if button is down
      */
-    static bool isMouseButtonDown(u32 button = 0);
+    bool isMouseButtonDown(u32 button = 0) const;
 
     // =========================================================================
     // Scroll Input
@@ -207,7 +217,7 @@ public:
      * @brief Gets the scroll delta for the current frame
      * @return Scroll delta (x = horizontal, y = vertical)
      */
-    static glm::vec2 getScrollDelta();
+    glm::vec2 getScrollDelta() const;
 
     // =========================================================================
     // Platform Interface for internal use
@@ -219,7 +229,7 @@ public:
      * @param point Touch point data
      * @note Internal use only - called by Platform implementation
      */
-    static void onTouchEvent(TouchType type, const TouchPoint& point);
+    void onTouchEvent(TouchType type, const TouchPoint& point);
 
     /**
      * @brief Called by platform on key events
@@ -227,7 +237,7 @@ public:
      * @param pressed True if pressed, false if released
      * @note Internal use only - called by Platform implementation
      */
-    static void onKeyEvent(KeyCode key, bool pressed);
+    void onKeyEvent(KeyCode key, bool pressed);
 
     /**
      * @brief Called by platform on scroll events
@@ -235,24 +245,24 @@ public:
      * @param deltaY Vertical scroll delta
      * @note Internal use only - called by Platform implementation
      */
-    static void onScrollEvent(f32 deltaX, f32 deltaY);
+    void onScrollEvent(f32 deltaX, f32 deltaY);
 
 private:
     /** @brief Current frame touch states */
-    static std::array<TouchState, MAX_TOUCH_POINTS> touchStates_;
+    std::array<TouchState, MAX_TOUCH_POINTS> touchStates_;
     /** @brief Previous frame touch states */
-    static std::array<TouchState, MAX_TOUCH_POINTS> prevTouchStates_;
+    std::array<TouchState, MAX_TOUCH_POINTS> prevTouchStates_;
 
     /** @brief Current frame key states */
-    static std::unordered_map<u32, bool> keyStates_;
+    std::unordered_map<u32, bool> keyStates_;
     /** @brief Previous frame key states */
-    static std::unordered_map<u32, bool> prevKeyStates_;
+    std::unordered_map<u32, bool> prevKeyStates_;
 
     /** @brief Current mouse position */
-    static glm::vec2 mousePosition_;
+    glm::vec2 mousePosition_;
 
     /** @brief Current frame scroll delta */
-    static glm::vec2 scrollDelta_;
+    glm::vec2 scrollDelta_;
 };
 
 }  // namespace esengine

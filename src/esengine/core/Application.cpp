@@ -79,13 +79,18 @@ void Application::init() {
 
     // Set up platform callbacks
     platform_->setTouchCallback([this](TouchType type, const TouchPoint& point) {
-        Input::onTouchEvent(type, point);
+        input_.onTouchEvent(type, point);
         onTouch(type, point);
     });
 
     platform_->setKeyCallback([this](KeyCode key, bool pressed) {
-        Input::onKeyEvent(key, pressed);
+        input_.onKeyEvent(key, pressed);
         onKey(key, pressed);
+    });
+
+    platform_->setScrollCallback([this](f32 deltaX, f32 deltaY, f32 x, f32 y) {
+        input_.onScrollEvent(deltaX, deltaY);
+        (void)x; (void)y;
     });
 
     platform_->setResizeCallback([this](u32 width, u32 height) {
@@ -98,7 +103,7 @@ void Application::init() {
     });
 
     // Initialize subsystems
-    Input::init();
+    input_.init();
 
     // Initialize resource manager
     resourceManager_.init();
@@ -127,7 +132,7 @@ void Application::mainLoop() {
     deltaTime_ = platform_->getDeltaTime();
 
     // Update input state
-    Input::update();
+    input_.update();
 
     // Update systems
     systems_.update(registry_, static_cast<f32>(deltaTime_));
@@ -175,7 +180,7 @@ void Application::shutdown() {
     resourceManager_.shutdown();
 
     // Shutdown input
-    Input::shutdown();
+    input_.shutdown();
 
     // Shutdown platform
     platform_->shutdown();

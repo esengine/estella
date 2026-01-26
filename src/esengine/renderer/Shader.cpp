@@ -13,6 +13,8 @@
 #include "Shader.hpp"
 #include "../core/Log.hpp"
 
+#include <fstream>
+
 #ifdef ES_PLATFORM_WEB
     #include <GLES3/gl3.h>
 #else
@@ -71,11 +73,42 @@ Unique<Shader> Shader::create(const std::string& vertexSrc, const std::string& f
 }
 
 Unique<Shader> Shader::createFromFile(const std::string& vertexPath, const std::string& fragmentPath) {
-    // TODO: Implement file loading
-    ES_LOG_ERROR("Shader::createFromFile not implemented yet");
-    (void)vertexPath;
-    (void)fragmentPath;
-    return nullptr;
+    auto readFile = [](const std::string& filepath) -> std::string {
+        std::ifstream file(filepath, std::ios::in | std::ios::binary);
+        if (!file.is_open()) {
+            ES_LOG_ERROR("Failed to open shader file: {}", filepath);
+            return "";
+        }
+
+        file.seekg(0, std::ios::end);
+        const auto fileSize = file.tellg();
+        if (fileSize <= 0) {
+            ES_LOG_ERROR("Shader file is empty: {}", filepath);
+            return "";
+        }
+
+        std::string content;
+        content.resize(static_cast<usize>(fileSize));
+        file.seekg(0, std::ios::beg);
+        file.read(&content[0], fileSize);
+
+        if (file.fail()) {
+            ES_LOG_ERROR("Failed to read shader file: {}", filepath);
+            return "";
+        }
+
+        return content;
+    };
+
+    std::string vertexSrc = readFile(vertexPath);
+    std::string fragmentSrc = readFile(fragmentPath);
+
+    if (vertexSrc.empty() || fragmentSrc.empty()) {
+        ES_LOG_ERROR("Failed to load shader files: vertex={}, fragment={}", vertexPath, fragmentPath);
+        return nullptr;
+    }
+
+    return create(vertexSrc, fragmentSrc);
 }
 
 void Shader::bind() const {

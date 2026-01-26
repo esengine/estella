@@ -19,6 +19,7 @@
 // Project includes
 #include "Types.hpp"
 #include "../platform/Platform.hpp"
+#include "../platform/input/Input.hpp"
 #include "../ecs/Registry.hpp"
 #include "../ecs/System.hpp"
 #include "../resource/ResourceManager.hpp"
@@ -166,6 +167,12 @@ public:
      */
     Renderer& getRenderer() { return *renderer_; }
 
+    /**
+     * @brief Gets the input system
+     * @return Reference to the Input for querying input state
+     */
+    Input& getInput() { return input_; }
+
     /** @brief Gets the current viewport width in pixels */
     u32 getWidth() const { return config_.width; }
 
@@ -254,6 +261,8 @@ protected:
     ApplicationConfig config_;
     /** @brief Platform abstraction layer */
     Unique<Platform> platform_;
+    /** @brief Input system instance */
+    Input input_;
     /** @brief ECS entity/component registry */
     ecs::Registry registry_;
     /** @brief System execution group */

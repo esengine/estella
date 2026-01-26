@@ -57,7 +57,8 @@ struct SelectableId {
         if constexpr (std::is_integral_v<T>) {
             id.rawId = static_cast<u64>(value);
         } else if constexpr (std::is_pointer_v<T>) {
-            id.rawId = reinterpret_cast<u64>(value);
+            // Use uintptr_t as intermediate type for safer pointer-to-integer conversion
+            id.rawId = static_cast<u64>(reinterpret_cast<uintptr_t>(value));
         } else {
             id.rawId = std::hash<T>{}(value);
         }
