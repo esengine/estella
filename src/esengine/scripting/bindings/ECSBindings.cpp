@@ -41,9 +41,14 @@ static glm::vec3 jsToVec3(JSContext* ctx, JSValue jsObj) {
     JSValue y = JS_GetPropertyStr(ctx, jsObj, "y");
     JSValue z = JS_GetPropertyStr(ctx, jsObj, "z");
 
-    JS_ToFloat64(ctx, reinterpret_cast<double*>(&result.x), x);
-    JS_ToFloat64(ctx, reinterpret_cast<double*>(&result.y), y);
-    JS_ToFloat64(ctx, reinterpret_cast<double*>(&result.z), z);
+    double dx, dy, dz;
+    JS_ToFloat64(ctx, &dx, x);
+    JS_ToFloat64(ctx, &dy, y);
+    JS_ToFloat64(ctx, &dz, z);
+
+    result.x = static_cast<f32>(dx);
+    result.y = static_cast<f32>(dy);
+    result.z = static_cast<f32>(dz);
 
     JS_FreeValue(ctx, x);
     JS_FreeValue(ctx, y);
@@ -74,10 +79,16 @@ static glm::quat jsToQuat(JSContext* ctx, JSValue jsObj) {
     JSValue y = JS_GetPropertyStr(ctx, jsObj, "y");
     JSValue z = JS_GetPropertyStr(ctx, jsObj, "z");
 
-    JS_ToFloat64(ctx, reinterpret_cast<double*>(&result.w), w);
-    JS_ToFloat64(ctx, reinterpret_cast<double*>(&result.x), x);
-    JS_ToFloat64(ctx, reinterpret_cast<double*>(&result.y), y);
-    JS_ToFloat64(ctx, reinterpret_cast<double*>(&result.z), z);
+    double dw, dx, dy, dz;
+    JS_ToFloat64(ctx, &dw, w);
+    JS_ToFloat64(ctx, &dx, x);
+    JS_ToFloat64(ctx, &dy, y);
+    JS_ToFloat64(ctx, &dz, z);
+
+    result.w = static_cast<f32>(dw);
+    result.x = static_cast<f32>(dx);
+    result.y = static_cast<f32>(dy);
+    result.z = static_cast<f32>(dz);
 
     JS_FreeValue(ctx, w);
     JS_FreeValue(ctx, x);
