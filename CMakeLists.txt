@@ -46,6 +46,7 @@ set(ESENGINE_SOURCES
     src/esengine/ui/widgets/Label.cpp
     src/esengine/ui/widgets/Button.cpp
     src/esengine/ui/widgets/ScrollView.cpp
+    src/esengine/ui/widgets/TreeView.cpp
     # Docking System
     src/esengine/ui/docking/DockNode.cpp
     src/esengine/ui/docking/DockPanel.cpp
@@ -109,6 +110,7 @@ set(ESENGINE_HEADERS
     src/esengine/ui/widgets/Label.hpp
     src/esengine/ui/widgets/Button.hpp
     src/esengine/ui/widgets/ScrollView.hpp
+    src/esengine/ui/widgets/TreeView.hpp
     # Docking System
     src/esengine/ui/docking/DockTypes.hpp
     src/esengine/ui/docking/DockNode.hpp
