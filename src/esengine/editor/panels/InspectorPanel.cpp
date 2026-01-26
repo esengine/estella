@@ -64,6 +64,9 @@ void InspectorPanel::refresh() {
 
 void InspectorPanel::render(ui::UIBatchRenderer& renderer) {
     if (scrollView_) {
+        if (scrollView_->getContext() != getContext()) {
+            scrollView_->setContext(getContext());
+        }
         scrollView_->layout(getBounds());
         scrollView_->renderTree(renderer);
     }

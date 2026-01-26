@@ -306,6 +306,9 @@ void DockArea::renderNode(UIBatchRenderer& renderer, DockNode* node) {
 
         DockPanel* activePanel = node->getActivePanel();
         if (activePanel) {
+            if (activePanel->getContext() != getContext()) {
+                activePanel->setContext(getContext());
+            }
             activePanel->render(renderer);
         }
     }
@@ -333,6 +336,10 @@ void DockArea::renderTabBar(UIBatchRenderer& renderer, DockNode* node) {
 
     DockTabBar* tabBar = getOrCreateTabBar(node);
     if (!tabBar) return;
+
+    if (tabBar->getContext() != getContext()) {
+        tabBar->setContext(getContext());
+    }
 
     Rect tabBarBounds{
         node->getBounds().x,

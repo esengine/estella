@@ -12,6 +12,7 @@
 #include "UIContext.hpp"
 #include "../core/Log.hpp"
 #include "../events/Dispatcher.hpp"
+#include "../renderer/RenderCommand.hpp"
 #include "../renderer/RenderContext.hpp"
 #include "font/Font.hpp"
 #include "rendering/UIBatchRenderer.hpp"
@@ -151,6 +152,8 @@ void UIContext::render() {
     if (!root_ || !renderer_) {
         return;
     }
+
+    RenderCommand::setViewport(0, 0, viewportWidth_, viewportHeight_);
 
     glm::mat4 projection = glm::ortho(0.0f, static_cast<f32>(viewportWidth_),
                                       static_cast<f32>(viewportHeight_), 0.0f, -1.0f, 1.0f);

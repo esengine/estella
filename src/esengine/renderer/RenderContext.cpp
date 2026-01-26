@@ -42,12 +42,10 @@ void RenderContext::shutdown() {
         return;
     }
 
-#ifdef ES_PLATFORM_WEB
     if (whiteTextureId_ != 0) {
         glDeleteTextures(1, &whiteTextureId_);
         whiteTextureId_ = 0;
     }
-#endif
 
     quadVAO_.reset();
     colorShader_.reset();
@@ -105,7 +103,6 @@ void RenderContext::initShaders() {
 }
 
 void RenderContext::initWhiteTexture() {
-#ifdef ES_PLATFORM_WEB
     glGenTextures(1, &whiteTextureId_);
     glBindTexture(GL_TEXTURE_2D, whiteTextureId_);
 
@@ -116,7 +113,6 @@ void RenderContext::initWhiteTexture() {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
     ES_LOG_DEBUG("White texture created (ID: {})", whiteTextureId_);
-#endif
 }
 
 }  // namespace esengine

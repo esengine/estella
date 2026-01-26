@@ -322,8 +322,10 @@ void UIBatchRenderer::init() {
     data_->vao->setIndexBuffer(Shared<IndexBuffer>(std::move(ibo)));
 
     data_->shader = Shader::create(UI_VERTEX_SHADER, UI_FRAGMENT_SHADER);
+    ES_LOG_DEBUG("UIBatchRenderer shader ID: {}", data_->shader ? data_->shader->getProgramId() : 0);
 
     data_->textureSlots[0] = context_.getWhiteTextureId();
+    ES_LOG_DEBUG("UIBatchRenderer white texture ID: {}", data_->textureSlots[0]);
     for (u32 i = 1; i < MAX_TEXTURE_SLOTS; ++i) {
         data_->textureSlots[i] = 0;
     }

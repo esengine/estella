@@ -52,7 +52,7 @@ u32 shaderDataTypeComponentCount(ShaderDataType type) {
 // ========================================
 
 VertexBuffer::~VertexBuffer() {
-#ifdef ES_PLATFORM_WEB
+#if defined(ES_PLATFORM_WEB) || defined(ES_PLATFORM_NATIVE)
     if (bufferId_ != 0) {
         glDeleteBuffers(1, &bufferId_);
     }
@@ -66,7 +66,7 @@ VertexBuffer::VertexBuffer(VertexBuffer&& other) noexcept
 
 VertexBuffer& VertexBuffer::operator=(VertexBuffer&& other) noexcept {
     if (this != &other) {
-#ifdef ES_PLATFORM_WEB
+#if defined(ES_PLATFORM_WEB) || defined(ES_PLATFORM_NATIVE)
         if (bufferId_ != 0) {
             glDeleteBuffers(1, &bufferId_);
         }
@@ -80,7 +80,7 @@ VertexBuffer& VertexBuffer::operator=(VertexBuffer&& other) noexcept {
 
 Unique<VertexBuffer> VertexBuffer::createRaw(const void* data, u32 sizeBytes) {
     auto buffer = makeUnique<VertexBuffer>();
-#ifdef ES_PLATFORM_WEB
+#if defined(ES_PLATFORM_WEB) || defined(ES_PLATFORM_NATIVE)
     glGenBuffers(1, &buffer->bufferId_);
     glBindBuffer(GL_ARRAY_BUFFER, buffer->bufferId_);
     glBufferData(GL_ARRAY_BUFFER, sizeBytes, data, GL_STATIC_DRAW);
@@ -93,7 +93,7 @@ Unique<VertexBuffer> VertexBuffer::createRaw(const void* data, u32 sizeBytes) {
 
 Unique<VertexBuffer> VertexBuffer::create(u32 size) {
     auto buffer = makeUnique<VertexBuffer>();
-#ifdef ES_PLATFORM_WEB
+#if defined(ES_PLATFORM_WEB) || defined(ES_PLATFORM_NATIVE)
     glGenBuffers(1, &buffer->bufferId_);
     glBindBuffer(GL_ARRAY_BUFFER, buffer->bufferId_);
     glBufferData(GL_ARRAY_BUFFER, size, nullptr, GL_DYNAMIC_DRAW);
@@ -104,19 +104,19 @@ Unique<VertexBuffer> VertexBuffer::create(u32 size) {
 }
 
 void VertexBuffer::bind() const {
-#ifdef ES_PLATFORM_WEB
+#if defined(ES_PLATFORM_WEB) || defined(ES_PLATFORM_NATIVE)
     glBindBuffer(GL_ARRAY_BUFFER, bufferId_);
 #endif
 }
 
 void VertexBuffer::unbind() const {
-#ifdef ES_PLATFORM_WEB
+#if defined(ES_PLATFORM_WEB) || defined(ES_PLATFORM_NATIVE)
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 #endif
 }
 
 void VertexBuffer::setDataRaw(const void* data, u32 sizeBytes) {
-#ifdef ES_PLATFORM_WEB
+#if defined(ES_PLATFORM_WEB) || defined(ES_PLATFORM_NATIVE)
     glBindBuffer(GL_ARRAY_BUFFER, bufferId_);
     glBufferSubData(GL_ARRAY_BUFFER, 0, sizeBytes, data);
 #else
@@ -130,7 +130,7 @@ void VertexBuffer::setDataRaw(const void* data, u32 sizeBytes) {
 // ========================================
 
 IndexBuffer::~IndexBuffer() {
-#ifdef ES_PLATFORM_WEB
+#if defined(ES_PLATFORM_WEB) || defined(ES_PLATFORM_NATIVE)
     if (bufferId_ != 0) {
         glDeleteBuffers(1, &bufferId_);
     }
@@ -145,7 +145,7 @@ IndexBuffer::IndexBuffer(IndexBuffer&& other) noexcept
 
 IndexBuffer& IndexBuffer::operator=(IndexBuffer&& other) noexcept {
     if (this != &other) {
-#ifdef ES_PLATFORM_WEB
+#if defined(ES_PLATFORM_WEB) || defined(ES_PLATFORM_NATIVE)
         if (bufferId_ != 0) {
             glDeleteBuffers(1, &bufferId_);
         }
@@ -163,7 +163,7 @@ Unique<IndexBuffer> IndexBuffer::create(const u32* indices, u32 count) {
     auto buffer = makeUnique<IndexBuffer>();
     buffer->count_ = count;
     buffer->is16Bit_ = false;
-#ifdef ES_PLATFORM_WEB
+#if defined(ES_PLATFORM_WEB) || defined(ES_PLATFORM_NATIVE)
     glGenBuffers(1, &buffer->bufferId_);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffer->bufferId_);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, count * sizeof(u32), indices, GL_STATIC_DRAW);
@@ -177,7 +177,7 @@ Unique<IndexBuffer> IndexBuffer::create(const u16* indices, u32 count) {
     auto buffer = makeUnique<IndexBuffer>();
     buffer->count_ = count;
     buffer->is16Bit_ = true;
-#ifdef ES_PLATFORM_WEB
+#if defined(ES_PLATFORM_WEB) || defined(ES_PLATFORM_NATIVE)
     glGenBuffers(1, &buffer->bufferId_);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffer->bufferId_);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, count * sizeof(u16), indices, GL_STATIC_DRAW);
@@ -188,13 +188,13 @@ Unique<IndexBuffer> IndexBuffer::create(const u16* indices, u32 count) {
 }
 
 void IndexBuffer::bind() const {
-#ifdef ES_PLATFORM_WEB
+#if defined(ES_PLATFORM_WEB) || defined(ES_PLATFORM_NATIVE)
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, bufferId_);
 #endif
 }
 
 void IndexBuffer::unbind() const {
-#ifdef ES_PLATFORM_WEB
+#if defined(ES_PLATFORM_WEB) || defined(ES_PLATFORM_NATIVE)
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 #endif
 }
@@ -204,13 +204,13 @@ void IndexBuffer::unbind() const {
 // ========================================
 
 VertexArray::VertexArray() {
-#ifdef ES_PLATFORM_WEB
+#if defined(ES_PLATFORM_WEB) || defined(ES_PLATFORM_NATIVE)
     glGenVertexArrays(1, &arrayId_);
 #endif
 }
 
 VertexArray::~VertexArray() {
-#ifdef ES_PLATFORM_WEB
+#if defined(ES_PLATFORM_WEB) || defined(ES_PLATFORM_NATIVE)
     if (arrayId_ != 0) {
         glDeleteVertexArrays(1, &arrayId_);
     }
@@ -228,7 +228,7 @@ VertexArray::VertexArray(VertexArray&& other) noexcept
 
 VertexArray& VertexArray::operator=(VertexArray&& other) noexcept {
     if (this != &other) {
-#ifdef ES_PLATFORM_WEB
+#if defined(ES_PLATFORM_WEB) || defined(ES_PLATFORM_NATIVE)
         if (arrayId_ != 0) {
             glDeleteVertexArrays(1, &arrayId_);
         }
@@ -248,19 +248,19 @@ Unique<VertexArray> VertexArray::create() {
 }
 
 void VertexArray::bind() const {
-#ifdef ES_PLATFORM_WEB
+#if defined(ES_PLATFORM_WEB) || defined(ES_PLATFORM_NATIVE)
     glBindVertexArray(arrayId_);
 #endif
 }
 
 void VertexArray::unbind() const {
-#ifdef ES_PLATFORM_WEB
+#if defined(ES_PLATFORM_WEB) || defined(ES_PLATFORM_NATIVE)
     glBindVertexArray(0);
 #endif
 }
 
 void VertexArray::addVertexBuffer(Shared<VertexBuffer> buffer) {
-#ifdef ES_PLATFORM_WEB
+#if defined(ES_PLATFORM_WEB) || defined(ES_PLATFORM_NATIVE)
     ES_ASSERT(!buffer->getLayout().getAttributes().empty(), "Vertex buffer has no layout");
 
     bind();
@@ -285,7 +285,7 @@ void VertexArray::addVertexBuffer(Shared<VertexBuffer> buffer) {
             glType = GL_INT;
             break;
         case ShaderDataType::Bool:
-            glType = GL_BOOL;
+            glType = GL_UNSIGNED_BYTE;
             break;
         default:
             break;
@@ -306,7 +306,7 @@ void VertexArray::addVertexBuffer(Shared<VertexBuffer> buffer) {
 }
 
 void VertexArray::setIndexBuffer(Shared<IndexBuffer> buffer) {
-#ifdef ES_PLATFORM_WEB
+#if defined(ES_PLATFORM_WEB) || defined(ES_PLATFORM_NATIVE)
     bind();
     buffer->bind();
 #endif
