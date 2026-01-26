@@ -271,6 +271,22 @@ public:
     void clearFocus() { setFocus(nullptr); }
 
     // =========================================================================
+    // Clipboard
+    // =========================================================================
+
+    /**
+     * @brief Sets the clipboard text
+     * @param text Text to copy to clipboard
+     */
+    void setClipboardText(const std::string& text);
+
+    /**
+     * @brief Gets the clipboard text
+     * @return Current clipboard text
+     */
+    std::string getClipboardText() const;
+
+    // =========================================================================
     // Renderer Access
     // =========================================================================
 
@@ -313,6 +329,8 @@ private:
     f32 lastMouseX_ = 0.0f;
     f32 lastMouseY_ = 0.0f;
     bool mouseButtonDown_[static_cast<usize>(MouseButton::Count)] = {};
+
+    std::string clipboardText_;
 
     bool initialized_ = false;
 };

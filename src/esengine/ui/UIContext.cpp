@@ -369,4 +369,22 @@ void UIContext::updateHoveredWidget(f32 x, f32 y) {
     }
 }
 
+// =============================================================================
+// Clipboard
+// =============================================================================
+
+void UIContext::setClipboardText(const std::string& text) {
+    clipboardText_ = text;
+
+    // TODO: Integrate with platform clipboard when available
+    // Platform::setClipboard(text);
+}
+
+std::string UIContext::getClipboardText() const {
+    // TODO: Integrate with platform clipboard when available
+    // return Platform::getClipboard();
+
+    return clipboardText_;
+}
+
 }  // namespace esengine::ui
