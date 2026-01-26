@@ -12,27 +12,9 @@
 
 #include "Shader.hpp"
 #include "../core/Log.hpp"
+#include "OpenGLHeaders.hpp"
 
 #include <fstream>
-
-#ifdef ES_PLATFORM_WEB
-    #include <GLES3/gl3.h>
-#else
-    // For native debugging, we'll use a minimal OpenGL header
-    // In production, you'd include GLAD or similar
-    #ifdef _WIN32
-        #include <windows.h>
-    #endif
-    #include <GL/gl.h>
-    // Define missing GL functions for native build (stub)
-    #ifndef GL_VERTEX_SHADER
-        #define GL_VERTEX_SHADER 0x8B31
-        #define GL_FRAGMENT_SHADER 0x8B30
-        #define GL_COMPILE_STATUS 0x8B81
-        #define GL_LINK_STATUS 0x8B82
-        #define GL_INFO_LOG_LENGTH 0x8B84
-    #endif
-#endif
 
 namespace esengine {
 

@@ -15,6 +15,8 @@
 
 #ifdef ES_PLATFORM_WEB
     #include <GLES3/gl3.h>
+#elif defined(__APPLE__)
+    #include <OpenGL/gl.h>
 #else
     #ifdef _WIN32
         #include <windows.h>

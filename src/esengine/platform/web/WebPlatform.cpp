@@ -14,6 +14,7 @@
 #include "../Platform.hpp"
 #include "../../core/Log.hpp"
 #include "../../renderer/Renderer.hpp"
+#include "../../renderer/RenderContext.hpp"
 #include "../../math/Math.hpp"
 
 #include <cstring>
@@ -294,6 +295,8 @@ Unique<Platform> Platform::create() {
 extern "C" {
 
 static esengine::WebPlatform* g_platform = nullptr;
+static esengine::Unique<esengine::RenderContext> g_renderContext = nullptr;
+static esengine::Unique<esengine::Renderer> g_renderer = nullptr;
 
 EMSCRIPTEN_KEEPALIVE
 void es_init(int width, int height) {
@@ -302,7 +305,10 @@ void es_init(int width, int height) {
         esengine::Platform::create().release()
     );
     g_platform->initialize(width, height);
-    esengine::Renderer::init();
+
+    g_renderContext = esengine::makeUnique<esengine::RenderContext>();
+    g_renderContext->init();
+    g_renderer = esengine::makeUnique<esengine::Renderer>(*g_renderContext);
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -315,15 +321,21 @@ void es_update(float deltaTime) {
 
 EMSCRIPTEN_KEEPALIVE
 void es_render() {
-    esengine::Renderer::beginFrame();
-    esengine::Renderer::clear();
-    // Application rendering would go here
-    esengine::Renderer::endFrame();
+    if (g_renderer) {
+        g_renderer->beginFrame();
+        g_renderer->clear();
+        // Application rendering would go here
+        g_renderer->endFrame();
+    }
 }
 
 EMSCRIPTEN_KEEPALIVE
 void es_shutdown() {
-    esengine::Renderer::shutdown();
+    g_renderer.reset();
+    if (g_renderContext) {
+        g_renderContext->shutdown();
+        g_renderContext.reset();
+    }
     if (g_platform) {
         g_platform->shutdown();
         delete g_platform;
@@ -349,42 +361,50 @@ void es_on_key(int keyCode, int pressed) {
 
 EMSCRIPTEN_KEEPALIVE
 void es_renderer_clear(float r, float g, float b, float a) {
-    esengine::Renderer::setClearColor(glm::vec4(r, g, b, a));
-    esengine::Renderer::clear();
+    if (g_renderer) {
+        g_renderer->setClearColor(glm::vec4(r, g, b, a));
+        g_renderer->clear();
+    }
 }
 
 EMSCRIPTEN_KEEPALIVE
 void es_renderer_begin_scene(float* vpMatrix) {
-    if (vpMatrix) {
+    if (g_renderer && vpMatrix) {
         glm::mat4 vp;
         std::memcpy(&vp[0][0], vpMatrix, 16 * sizeof(float));
-        esengine::Renderer::beginScene(vp);
+        g_renderer->beginScene(vp);
     }
 }
 
 EMSCRIPTEN_KEEPALIVE
 void es_renderer_end_scene() {
-    esengine::Renderer::endScene();
+    if (g_renderer) {
+        g_renderer->endScene();
+    }
 }
 
 EMSCRIPTEN_KEEPALIVE
 void es_renderer_draw_quad(float x, float y, float w, float h, float r, float g, float b, float a) {
-    esengine::Renderer::drawQuad(
-        glm::vec2(x, y),
-        glm::vec2(w, h),
-        glm::vec4(r, g, b, a)
-    );
+    if (g_renderer) {
+        g_renderer->drawQuad(
+            glm::vec2(x, y),
+            glm::vec2(w, h),
+            glm::vec4(r, g, b, a)
+        );
+    }
 }
 
 EMSCRIPTEN_KEEPALIVE
 void es_renderer_draw_quad_textured(float x, float y, float w, float h, unsigned int texId, float r, float g, float b, float a) {
     // TODO: Implement textured quad drawing with texture ID
     (void)texId;
-    esengine::Renderer::drawQuad(
-        glm::vec2(x, y),
-        glm::vec2(w, h),
-        glm::vec4(r, g, b, a)
-    );
+    if (g_renderer) {
+        g_renderer->drawQuad(
+            glm::vec2(x, y),
+            glm::vec2(w, h),
+            glm::vec4(r, g, b, a)
+        );
+    }
 }
 
 }  // extern "C"

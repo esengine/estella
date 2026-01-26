@@ -12,23 +12,7 @@
 #include "RenderContext.hpp"
 #include "RenderCommand.hpp"
 #include "../core/Log.hpp"
-
-#ifdef ES_PLATFORM_WEB
-    #include <GLES3/gl3.h>
-#else
-    #ifdef _WIN32
-        #include <windows.h>
-    #endif
-    #include <GL/gl.h>
-    #ifndef GL_TEXTURE_2D
-        #define GL_TEXTURE_2D 0x0DE1
-        #define GL_TEXTURE_MIN_FILTER 0x2801
-        #define GL_TEXTURE_MAG_FILTER 0x2800
-        #define GL_NEAREST 0x2600
-        #define GL_RGBA 0x1908
-        #define GL_UNSIGNED_BYTE 0x1401
-    #endif
-#endif
+#include "OpenGLHeaders.hpp"
 
 namespace esengine {
 

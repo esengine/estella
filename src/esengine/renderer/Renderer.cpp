@@ -14,31 +14,10 @@
 #include "RenderCommand.hpp"
 #include "../core/Log.hpp"
 #include "../resource/ResourceManager.hpp"
+#include "OpenGLHeaders.hpp"
+
 #include <array>
 #include <vector>
-
-#ifdef ES_PLATFORM_WEB
-    #include <GLES3/gl3.h>
-#else
-    #ifdef _WIN32
-        #include <windows.h>
-    #endif
-    #include <GL/gl.h>
-    #ifndef GL_TRIANGLES
-        #define GL_TRIANGLES 0x0004
-        #define GL_UNSIGNED_INT 0x1405
-        #define GL_UNSIGNED_SHORT 0x1403
-        #define GL_COLOR_BUFFER_BIT 0x00004000
-        #define GL_DEPTH_BUFFER_BIT 0x00000100
-        #define GL_DEPTH_TEST 0x0B71
-        #define GL_BLEND 0x0BE2
-        #define GL_SRC_ALPHA 0x0302
-        #define GL_ONE_MINUS_SRC_ALPHA 0x0303
-        #define GL_CULL_FACE 0x0B44
-        #define GL_BACK 0x0405
-        #define GL_FRONT 0x0404
-    #endif
-#endif
 
 namespace esengine {
 
