@@ -135,6 +135,7 @@ if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
     list(APPEND ESENGINE_SOURCES
         src/esengine/platform/web/WebPlatform.cpp
         src/esengine/platform/web/WebFileSystem.cpp
+        src/esengine/bindings/WebBindings.cpp
     )
 else()
     # Native platform (GLFW + OpenGL)

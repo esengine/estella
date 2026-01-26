@@ -17,12 +17,17 @@ set(ES_EMSCRIPTEN_COMPILE_FLAGS
 )
 
 set(ES_EMSCRIPTEN_LINK_FLAGS
+    --bind                          # Enable embind for C++ bindings
+    --embind-emit-tsd=esengine.d.ts # Auto-generate TypeScript definitions
     -sWASM=1
     -sUSE_WEBGL2=1
     -sFULL_ES3=1
     -sALLOW_MEMORY_GROWTH=1
     -sNO_EXIT_RUNTIME=1
     -sASSERTIONS=1
+    -sEXPORT_ES6=1                  # Export as ES6 module
+    -sMODULARIZE=1                  # Wrap in module factory function
+    "-sEXPORT_NAME='ESEngineModule'" # Module name
     # EMSCRIPTEN_KEEPALIVE functions are auto-exported, only need to add stdlib functions
     "-sEXPORTED_FUNCTIONS=['_malloc','_free']"
     "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32']"
