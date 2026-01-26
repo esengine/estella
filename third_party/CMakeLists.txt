@@ -49,9 +49,9 @@ if(NOT ES_BUILD_WEB AND NOT ES_BUILD_WXGAME)
     )
 
     add_library(quickjs STATIC ${QUICKJS_SOURCES})
-    # Use PRIVATE to avoid exposing quickjs internal files (like 'version' text file)
-    # which could be mistakenly included as headers by the compiler
-    target_include_directories(quickjs PRIVATE
+    # Expose QuickJS headers to consumers (esengine scripting module)
+    # Note: We use PUBLIC here so that #include <quickjs.h> works in esengine
+    target_include_directories(quickjs PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/quickjs
     )
 

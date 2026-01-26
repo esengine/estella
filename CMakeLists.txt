@@ -139,9 +139,13 @@ else()
     # Native platform (GLFW + OpenGL)
     list(APPEND ESENGINE_SOURCES
         src/esengine/platform/native/NativePlatform.cpp
+        # Scripting (Native only - Web uses Emscripten bindings)
+        src/esengine/scripting/ScriptContext.cpp
     )
     list(APPEND ESENGINE_HEADERS
         src/esengine/platform/native/NativePlatform.hpp
+        # Scripting headers
+        src/esengine/scripting/ScriptContext.hpp
     )
 endif()
 
