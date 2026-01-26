@@ -143,6 +143,7 @@ else()
         src/esengine/scripting/ScriptContext.cpp
         src/esengine/scripting/ScriptValue.cpp
         src/esengine/scripting/bindings/ECSBindings.cpp
+        src/esengine/ecs/systems/ScriptSystem.cpp
     )
     list(APPEND ESENGINE_HEADERS
         src/esengine/platform/native/NativePlatform.hpp
@@ -150,6 +151,8 @@ else()
         src/esengine/scripting/ScriptContext.hpp
         src/esengine/scripting/ScriptValue.hpp
         src/esengine/scripting/bindings/ECSBindings.hpp
+        src/esengine/ecs/systems/ScriptSystem.hpp
+        src/esengine/ecs/components/Script.hpp
     )
 
 endif()
