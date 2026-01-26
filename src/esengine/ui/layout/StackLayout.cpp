@@ -12,6 +12,8 @@
 #include "StackLayout.hpp"
 #include "../widgets/Widget.hpp"
 
+#include <algorithm>
+
 namespace esengine::ui {
 
 // =============================================================================

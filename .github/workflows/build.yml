@@ -24,7 +24,8 @@ jobs:
           ninja-build \
           libglfw3-dev \
           libgl1-mesa-dev \
-          xorg-dev
+          xorg-dev \
+          libxkbcommon-dev
 
     - name: Configure CMake
       run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
