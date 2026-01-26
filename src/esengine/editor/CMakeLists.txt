@@ -4,6 +4,11 @@ set(EDITOR_SOURCES
     main.cpp
     EditorApplication.cpp
 
+    # Property editors
+    property/PropertyEditor.cpp
+    property/editors/FloatEditor.cpp
+    property/editors/Vector3Editor.cpp
+
     # Panels
     panels/HierarchyPanel.cpp
 )
@@ -21,6 +26,11 @@ set(EDITOR_HEADERS
     command/MacroCommand.hpp
     command/PropertyCommand.hpp
     command/EditorCommands.hpp
+
+    # Property editors
+    property/PropertyEditor.hpp
+    property/editors/FloatEditor.hpp
+    property/editors/Vector3Editor.hpp
 
     # Panels
     panels/HierarchyPanel.hpp
