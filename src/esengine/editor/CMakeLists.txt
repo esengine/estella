@@ -11,6 +11,7 @@ set(EDITOR_SOURCES
 
     # Panels
     panels/HierarchyPanel.cpp
+    panels/InspectorPanel.cpp
 )
 
 set(EDITOR_HEADERS
@@ -34,6 +35,7 @@ set(EDITOR_HEADERS
 
     # Panels
     panels/HierarchyPanel.hpp
+    panels/InspectorPanel.hpp
 )
 
 # Create editor executable
