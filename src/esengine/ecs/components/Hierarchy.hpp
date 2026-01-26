@@ -16,6 +16,7 @@
 // =============================================================================
 
 #include "../../core/Types.hpp"
+#include "../../core/Reflection.hpp"
 
 #include <vector>
 
@@ -39,8 +40,10 @@ namespace esengine::ecs {
  * registry.get<Children>(parent).entities.push_back(child);
  * @endcode
  */
+ES_COMPONENT()
 struct Parent {
     /** @brief Parent entity ID */
+    ES_PROPERTY()
     Entity entity = INVALID_ENTITY;
 
     Parent() = default;
@@ -57,6 +60,7 @@ struct Parent {
  * @details Stores references to all child entities. Maintained in sync
  *          with Parent components by the hierarchy management system.
  */
+ES_COMPONENT()
 struct Children {
     /** @brief List of child entity IDs */
     std::vector<Entity> entities;

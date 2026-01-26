@@ -135,7 +135,8 @@ if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
     list(APPEND ESENGINE_SOURCES
         src/esengine/platform/web/WebPlatform.cpp
         src/esengine/platform/web/WebFileSystem.cpp
-        src/esengine/bindings/WebBindings.cpp
+        # Generated Web bindings (from tools/generate_bindings.py)
+        ${GENERATED_WEB_BINDINGS}
     )
 else()
     # Native platform (GLFW + OpenGL)
@@ -145,7 +146,8 @@ else()
         # Scripting (Native only - Web uses Emscripten bindings)
         src/esengine/scripting/ScriptContext.cpp
         src/esengine/scripting/ScriptValue.cpp
-        src/esengine/scripting/bindings/ECSBindings.cpp
+        # Generated QuickJS bindings (from tools/generate_bindings.py)
+        ${GENERATED_QUICKJS_BINDINGS}
         src/esengine/ecs/systems/ScriptSystem.cpp
     )
     list(APPEND ESENGINE_HEADERS
@@ -163,9 +165,65 @@ endif()
 # Platform-independent headers
 list(APPEND ESENGINE_HEADERS
     src/esengine/platform/FileSystem.hpp
+    src/esengine/core/Reflection.hpp
 )
 
+# =============================================================================
+# Automatic Binding Generation
+# =============================================================================
+
+# Find Python3 for binding generator
+find_package(Python3 COMPONENTS Interpreter)
+
+if(Python3_FOUND)
+    # Generated binding files
+    set(GENERATED_WEB_BINDINGS "${CMAKE_CURRENT_SOURCE_DIR}/src/esengine/bindings/WebBindings.generated.cpp")
+    set(GENERATED_QUICKJS_BINDINGS "${CMAKE_CURRENT_SOURCE_DIR}/src/esengine/scripting/bindings/ECSBindings.generated.cpp")
+    set(GENERATED_TS_DEFINITIONS "${CMAKE_CURRENT_SOURCE_DIR}/bindings/esengine.d.ts")
+
+    # Component header files to scan
+    file(GLOB_RECURSE COMPONENT_HEADERS
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/esengine/ecs/components/*.hpp"
+    )
+
+    # Custom command to generate bindings
+    add_custom_command(
+        OUTPUT
+            ${GENERATED_WEB_BINDINGS}
+            ${GENERATED_QUICKJS_BINDINGS}
+            ${GENERATED_TS_DEFINITIONS}
+        COMMAND ${Python3_EXECUTABLE}
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_bindings.py"
+            --input "${CMAKE_CURRENT_SOURCE_DIR}/src/esengine/ecs/components"
+            --output "${CMAKE_CURRENT_SOURCE_DIR}/src/esengine/bindings"
+        DEPENDS
+            ${COMPONENT_HEADERS}
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_bindings.py"
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+        COMMENT "Generating bindings from marked components..."
+        VERBATIM
+    )
+
+    # Create custom target for binding generation
+    add_custom_target(generate_bindings
+        DEPENDS
+            ${GENERATED_WEB_BINDINGS}
+            ${GENERATED_QUICKJS_BINDINGS}
+            ${GENERATED_TS_DEFINITIONS}
+    )
+
+    message(STATUS "Automatic binding generation: ENABLED")
+else()
+    message(WARNING "Python3 not found - automatic binding generation DISABLED")
+    message(WARNING "Using pre-existing binding files (may be outdated)")
+endif()
+
 add_library(esengine STATIC ${ESENGINE_SOURCES} ${ESENGINE_HEADERS})
+
+# Add dependency on binding generation if Python is available
+if(Python3_FOUND)
+    add_dependencies(esengine generate_bindings)
+endif()
 
 target_include_directories(esengine
     PUBLIC

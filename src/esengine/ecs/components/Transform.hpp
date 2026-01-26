@@ -17,6 +17,7 @@
 // =============================================================================
 
 #include "../../core/Types.hpp"
+#include "../../core/Reflection.hpp"
 #include "../../math/Math.hpp"
 
 namespace esengine::ecs {
@@ -44,14 +45,18 @@ namespace esengine::ecs {
  * transform.rotation = glm::angleAxis(glm::radians(45.0f), glm::vec3(0, 1, 0));
  * @endcode
  */
+ES_COMPONENT()
 struct LocalTransform {
     /** @brief Position relative to parent */
+    ES_PROPERTY()
     glm::vec3 position{0.0f, 0.0f, 0.0f};
 
     /** @brief Rotation as quaternion (no gimbal lock) */
+    ES_PROPERTY()
     glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};  // Identity quaternion (w, x, y, z)
 
     /** @brief Scale factors */
+    ES_PROPERTY()
     glm::vec3 scale{1.0f, 1.0f, 1.0f};
 
     /** @brief Default constructor (identity transform) */
@@ -95,17 +100,22 @@ struct LocalTransform {
  * @note Do not modify this component directly - it will be overwritten
  *       by TransformSystem. Modify LocalTransform instead.
  */
+ES_COMPONENT()
 struct WorldTransform {
     /** @brief Combined world-space transformation matrix */
+    ES_PROPERTY()
     glm::mat4 matrix{1.0f};
 
     /** @brief World-space position (extracted from matrix for convenience) */
+    ES_PROPERTY()
     glm::vec3 position{0.0f, 0.0f, 0.0f};
 
     /** @brief World-space rotation (extracted from matrix) */
+    ES_PROPERTY()
     glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
 
     /** @brief World-space scale (extracted from matrix) */
+    ES_PROPERTY()
     glm::vec3 scale{1.0f, 1.0f, 1.0f};
 
     WorldTransform() = default;

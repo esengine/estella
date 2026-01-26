@@ -16,6 +16,7 @@
 // =============================================================================
 
 #include "../../core/Types.hpp"
+#include "../../core/Reflection.hpp"
 #include "../../math/Math.hpp"
 
 namespace esengine::ecs {
@@ -32,11 +33,14 @@ namespace esengine::ecs {
  *
  * @note Angular velocity is in radians per second around each axis.
  */
+ES_COMPONENT()
 struct Velocity {
     /** @brief Linear velocity (units per second) */
+    ES_PROPERTY()
     glm::vec3 linear{0.0f};
 
     /** @brief Angular velocity (radians per second) */
+    ES_PROPERTY()
     glm::vec3 angular{0.0f};
 
     /** @brief Default constructor (zero velocity) */

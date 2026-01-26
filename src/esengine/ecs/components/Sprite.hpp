@@ -16,6 +16,7 @@
 // =============================================================================
 
 #include "../../core/Types.hpp"
+#include "../../core/Reflection.hpp"
 #include "../../math/Math.hpp"
 #include "../../resource/Handle.hpp"
 
@@ -40,29 +41,38 @@ namespace esengine::ecs {
  * sprite.layer = 10; // Render on top
  * @endcode
  */
+ES_COMPONENT()
 struct Sprite {
     /** @brief Texture resource handle (type-safe) */
+    ES_PROPERTY()
     resource::TextureHandle texture;
 
     /** @brief Color tint (RGBA, 0-1 range) */
+    ES_PROPERTY()
     glm::vec4 color{1.0f, 1.0f, 1.0f, 1.0f};
 
     /** @brief Sprite size in world units */
+    ES_PROPERTY()
     glm::vec2 size{1.0f, 1.0f};
 
     /** @brief UV coordinate offset for sprite sheets */
+    ES_PROPERTY()
     glm::vec2 uvOffset{0.0f, 0.0f};
 
     /** @brief UV coordinate scale for sprite sheets */
+    ES_PROPERTY()
     glm::vec2 uvScale{1.0f, 1.0f};
 
     /** @brief Sorting layer (higher = rendered on top) */
+    ES_PROPERTY()
     i32 layer{0};
 
     /** @brief Flip sprite horizontally */
+    ES_PROPERTY()
     bool flipX{false};
 
     /** @brief Flip sprite vertically */
+    ES_PROPERTY()
     bool flipY{false};
 
     /** @brief Default constructor (white, no texture) */

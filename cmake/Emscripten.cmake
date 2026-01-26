@@ -18,7 +18,7 @@ set(ES_EMSCRIPTEN_COMPILE_FLAGS
 
 set(ES_EMSCRIPTEN_LINK_FLAGS
     --bind                          # Enable embind for C++ bindings
-    --embind-emit-tsd=esengine.d.ts # Auto-generate TypeScript definitions
+    --emit-tsd esengine.d.ts        # Auto-generate TypeScript definitions
     -sWASM=1
     -sUSE_WEBGL2=1
     -sFULL_ES3=1
