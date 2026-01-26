@@ -167,9 +167,9 @@ target_include_directories(esengine
         ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb
 )
 
-# Add QuickJS include path only for native platform (PRIVATE to avoid polluting consumers)
+# Add QuickJS include path only for native platform (SYSTEM to prevent version file issues)
 if(NOT ES_BUILD_WEB AND NOT ES_BUILD_WXGAME)
-    target_include_directories(esengine PRIVATE ${QUICKJS_INCLUDE_DIR})
+    target_include_directories(esengine SYSTEM PRIVATE ${QUICKJS_INCLUDE_DIR})
 endif()
 
 target_link_libraries(esengine PUBLIC glm)

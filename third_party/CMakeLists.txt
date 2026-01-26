@@ -49,10 +49,10 @@ if(NOT ES_BUILD_WEB AND NOT ES_BUILD_WXGAME)
     )
 
     add_library(quickjs STATIC ${QUICKJS_SOURCES})
-    # Use PRIVATE to avoid exposing quickjs internal files (like 'version' text file)
-    # which could be mistakenly included as headers by the compiler
-    # Consumers should link quickjs and add the include path themselves if needed
-    target_include_directories(quickjs PRIVATE
+    # Use SYSTEM PRIVATE to avoid exposing quickjs internal files (like 'version' text file)
+    # SYSTEM tells compiler to treat this as a system include (less strict scanning)
+    # PRIVATE ensures only quickjs library itself can see these headers
+    target_include_directories(quickjs SYSTEM PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/quickjs
     )
     # Provide a variable for consumers to add QuickJS include path
