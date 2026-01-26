@@ -26,6 +26,16 @@ elseif(UNIX)
     add_compile_definitions(ES_PLATFORM_LINUX)
 endif()
 
+# Native platform detection (for scripting support)
+if(NOT ES_BUILD_WEB AND NOT ES_BUILD_WXGAME)
+    add_compile_definitions(ES_PLATFORM_NATIVE)
+endif()
+
+# Scripting support (Native platform only)
+if(NOT ES_BUILD_WEB AND NOT ES_BUILD_WXGAME)
+    add_compile_definitions(ES_SCRIPTING_ENABLED)
+endif()
+
 # Export compile commands for IDE support
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -97,3 +107,8 @@ message(STATUS "  Web Build: ${ES_BUILD_WEB}")
 message(STATUS "  WxGame Build: ${ES_BUILD_WXGAME}")
 message(STATUS "  Build Examples: ${ES_BUILD_EXAMPLES}")
 message(STATUS "  Build Tests: ${ES_BUILD_TESTS}")
+if(NOT ES_BUILD_WEB AND NOT ES_BUILD_WXGAME)
+    message(STATUS "  Scripting Enabled: YES (QuickJS)")
+else()
+    message(STATUS "  Scripting Enabled: NO (Web platform)")
+endif()

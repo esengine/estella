@@ -31,4 +31,42 @@ if(NOT ES_BUILD_WEB AND NOT ES_BUILD_WXGAME)
     target_include_directories(glad PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/glad/include
     )
+
+    # =============================================================================
+    # QuickJS - JavaScript Engine (Native Platform Only)
+    # =============================================================================
+    # QuickJS uses Unix APIs and requires MinGW on Windows (not MSVC)
+
+    # Check compiler compatibility
+    include(${CMAKE_SOURCE_DIR}/cmake/QuickJSMinGW.cmake)
+
+    set(QUICKJS_SOURCES
+        ${CMAKE_CURRENT_SOURCE_DIR}/quickjs/quickjs.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/quickjs/libregexp.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/quickjs/libunicode.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/quickjs/cutils.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/quickjs/quickjs-libc.c
+    )
+
+    add_library(quickjs STATIC ${QUICKJS_SOURCES})
+    target_include_directories(quickjs PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/quickjs
+    )
+
+    # QuickJS specific settings
+    if(WIN32)
+        # On Windows, QuickJS requires MinGW (GCC), not MSVC
+        # CMake will automatically use MinGW if available
+        target_compile_definitions(quickjs PRIVATE
+            _GNU_SOURCE
+            CONFIG_VERSION="2025-09-13"
+        )
+    else()
+        target_compile_definitions(quickjs PRIVATE
+            _GNU_SOURCE
+            CONFIG_VERSION="2025-09-13"
+        )
+    endif()
+
+    target_compile_definitions(quickjs PUBLIC ES_SCRIPTING_ENABLED)
 endif()

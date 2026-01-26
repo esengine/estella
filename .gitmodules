@@ -4,3 +4,6 @@
 [submodule "third_party/glfw"]
 	path = third_party/glfw
 	url = https://github.com/glfw/glfw.git
+[submodule "third_party/quickjs"]
+	path = third_party/quickjs
+	url = https://github.com/bellard/quickjs.git

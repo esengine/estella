@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(ESEngine VERSION 0.1.0 LANGUAGES CXX)
+project(ESEngine VERSION 0.1.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -168,10 +168,10 @@ if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
         target_compile_definitions(esengine PUBLIC ES_PLATFORM_WXGAME)
     endif()
 else()
-    # Native platform - link GLFW, GLAD, and OpenGL
+    # Native platform - link GLFW, GLAD, OpenGL, and QuickJS
     find_package(OpenGL REQUIRED)
     target_compile_definitions(esengine PUBLIC ES_PLATFORM_NATIVE)
-    target_link_libraries(esengine PUBLIC glfw glad OpenGL::GL)
+    target_link_libraries(esengine PUBLIC glfw glad OpenGL::GL quickjs)
     target_include_directories(esengine PUBLIC
         ${CMAKE_SOURCE_DIR}/third_party/glad/include
     )
