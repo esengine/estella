@@ -19,6 +19,9 @@
 // Project includes
 #include "../core/Types.hpp"
 
+// Standard library
+#include <algorithm>
+
 namespace esengine::ecs {
 
 // Forward declaration

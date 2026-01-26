@@ -11,9 +11,7 @@
 
 #include "ScriptContext.hpp"
 #include "../core/Log.hpp"
-
-#include <fstream>
-#include <sstream>
+#include "../platform/FileSystem.hpp"
 
 namespace esengine {
 
@@ -125,21 +123,11 @@ bool ScriptContext::evalFile(const std::string& path) {
         return false;
     }
 
-    // Read file contents
-    std::ifstream file(path, std::ios::in | std::ios::binary);
-    if (!file.is_open()) {
-        lastError_ = "Failed to open script file: " + path;
-        ES_LOG_ERROR("{}", lastError_);
-        return false;
-    }
-
-    std::stringstream buffer;
-    buffer << file.rdbuf();
-    std::string code = buffer.str();
-
+    // Read file contents using FileSystem
+    std::string code = FileSystem::readTextFile(path);
     if (code.empty()) {
-        lastError_ = "Script file is empty: " + path;
-        ES_LOG_WARN("{}", lastError_);
+        lastError_ = "Failed to read script file or file is empty: " + path;
+        ES_LOG_ERROR("{}", lastError_);
         return false;
     }
 

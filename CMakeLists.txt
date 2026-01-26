@@ -134,11 +134,13 @@ set(ESENGINE_HEADERS
 if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
     list(APPEND ESENGINE_SOURCES
         src/esengine/platform/web/WebPlatform.cpp
+        src/esengine/platform/web/WebFileSystem.cpp
     )
 else()
     # Native platform (GLFW + OpenGL)
     list(APPEND ESENGINE_SOURCES
         src/esengine/platform/native/NativePlatform.cpp
+        src/esengine/platform/native/NativeFileSystem.cpp
         # Scripting (Native only - Web uses Emscripten bindings)
         src/esengine/scripting/ScriptContext.cpp
         src/esengine/scripting/ScriptValue.cpp
@@ -156,6 +158,11 @@ else()
     )
 
 endif()
+
+# Platform-independent headers
+list(APPEND ESENGINE_HEADERS
+    src/esengine/platform/FileSystem.hpp
+)
 
 add_library(esengine STATIC ${ESENGINE_SOURCES} ${ESENGINE_HEADERS})
 

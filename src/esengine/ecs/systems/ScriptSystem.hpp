@@ -15,6 +15,10 @@
 #include "../components/Script.hpp"
 #include "../../scripting/ScriptContext.hpp"
 
+namespace esengine {
+class ScriptValue;  // Forward declaration
+}
+
 namespace esengine::ecs {
 
 /**

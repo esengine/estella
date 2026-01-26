@@ -10,6 +10,7 @@
  */
 
 #include "ScriptSystem.hpp"
+#include "../Registry.hpp"
 #include "../../core/Log.hpp"
 #include "../../scripting/ScriptValue.hpp"
 
