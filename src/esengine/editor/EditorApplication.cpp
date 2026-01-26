@@ -58,6 +58,21 @@ void EditorApplication::onInit() {
     uiContext_->init();
     uiContext_->setViewport(getWidth(), getHeight());
 
+    // Load default font (try Windows system fonts)
+    const char* fontPaths[] = {
+        "C:/Windows/Fonts/segoeui.ttf",
+        "C:/Windows/Fonts/arial.ttf",
+        "C:/Windows/Fonts/tahoma.ttf",
+        nullptr
+    };
+
+    for (const char** path = fontPaths; *path != nullptr; ++path) {
+        if (uiContext_->loadFont("default", *path, 16.0f)) {
+            ES_LOG_INFO("Loaded font: {}", *path);
+            break;
+        }
+    }
+
     // Wire up scroll events to UI system
     getPlatform().setScrollCallback([this](f32 deltaX, f32 deltaY, f32 x, f32 y) {
         if (uiContext_) {
