@@ -48,6 +48,7 @@ set(ESENGINE_SOURCES
     src/esengine/ui/widgets/ScrollView.cpp
     src/esengine/ui/widgets/TreeView.cpp
     src/esengine/ui/widgets/TextField.cpp
+    src/esengine/ui/widgets/Checkbox.cpp
     # Docking System
     src/esengine/ui/docking/DockNode.cpp
     src/esengine/ui/docking/DockPanel.cpp
@@ -113,6 +114,7 @@ set(ESENGINE_HEADERS
     src/esengine/ui/widgets/ScrollView.hpp
     src/esengine/ui/widgets/TreeView.hpp
     src/esengine/ui/widgets/TextField.hpp
+    src/esengine/ui/widgets/Checkbox.hpp
     # Docking System
     src/esengine/ui/docking/DockTypes.hpp
     src/esengine/ui/docking/DockNode.hpp
