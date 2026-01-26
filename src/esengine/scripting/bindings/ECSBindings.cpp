@@ -267,11 +267,7 @@ static JSValue js_Registry_setTransform(JSContext* ctx, JSValue this_val, int ar
     JS_FreeValue(ctx, jsScale);
 
     // Set or add component
-    if (g_registry->has<ecs::LocalTransform>(entity)) {
-        g_registry->replace<ecs::LocalTransform>(entity, transform);
-    } else {
-        g_registry->emplace<ecs::LocalTransform>(entity, transform);
-    }
+    g_registry->emplaceOrReplace<ecs::LocalTransform>(entity, transform);
 
     return JS_UNDEFINED;
 }
@@ -354,11 +350,7 @@ static JSValue js_Registry_setVelocity(JSContext* ctx, JSValue this_val, int arg
     }
     JS_FreeValue(ctx, jsAngular);
 
-    if (g_registry->has<ecs::Velocity>(entity)) {
-        g_registry->replace<ecs::Velocity>(entity, velocity);
-    } else {
-        g_registry->emplace<ecs::Velocity>(entity, velocity);
-    }
+    g_registry->emplaceOrReplace<ecs::Velocity>(entity, velocity);
 
     return JS_UNDEFINED;
 }
