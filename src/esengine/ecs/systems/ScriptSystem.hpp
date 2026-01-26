@@ -14,10 +14,7 @@
 #include "../System.hpp"
 #include "../components/Script.hpp"
 #include "../../scripting/ScriptContext.hpp"
-
-namespace esengine {
-class ScriptValue;  // Forward declaration
-}
+#include "../../scripting/ScriptValue.hpp"
 
 namespace esengine::ecs {
 
