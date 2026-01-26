@@ -12,6 +12,9 @@ set(EDITOR_SOURCES
     # Camera
     camera/EditorCamera.cpp
 
+    # Gizmo
+    gizmo/TransformGizmo.cpp
+
     # Panels
     panels/HierarchyPanel.cpp
     panels/InspectorPanel.cpp
@@ -39,6 +42,9 @@ set(EDITOR_HEADERS
 
     # Camera
     camera/EditorCamera.hpp
+
+    # Gizmo
+    gizmo/TransformGizmo.hpp
 
     # Panels
     panels/HierarchyPanel.hpp
