@@ -11,7 +11,7 @@
 
 #include "Checkbox.hpp"
 #include "../UIContext.hpp"
-#include "../font/Font.hpp"
+#include "../font/SDFFont.hpp"
 #include "../rendering/UIBatchRenderer.hpp"
 #include "../../math/Math.hpp"
 
@@ -80,7 +80,7 @@ glm::vec2 Checkbox::measure(f32 availableWidth, f32 availableHeight) {
         f32 fontSize = getContext()->getTheme().typography.fontSizeNormal;
 
         // Use regular font for measurement
-        Font* font = getContext()->getDefaultFont();
+        SDFFont* font = getContext()->getDefaultFont();
         f32 labelWidth;
         if (font) {
             labelWidth = font->measureText(label_, fontSize).x;

@@ -1,20 +1,13 @@
 #include <esengine/ESEngine.hpp>
+#include <esengine/ui/UIContext.hpp>
+#include <esengine/ui/rendering/UIBatchRenderer.hpp>
+#include <esengine/ui/font/SDFFont.hpp>
+#include <esengine/events/Dispatcher.hpp>
 
 using namespace esengine;
 using namespace esengine::ecs;
 
-// Simple movement system
-class MovementSystem : public System {
-public:
-    void update(Registry& registry, f32 deltaTime) override {
-        registry.each<LocalTransform, Velocity>([deltaTime](Entity entity, LocalTransform& transform, Velocity& velocity) {
-            (void)entity;
-            transform.position += velocity.linear * deltaTime;
-        });
-    }
-};
-
-// Demo application
+// Demo application with SDF font testing
 class HelloTriangleApp : public Application {
 public:
     HelloTriangleApp() : Application(createConfig()) {}
@@ -22,7 +15,7 @@ public:
 private:
     static ApplicationConfig createConfig() {
         ApplicationConfig config;
-        config.title = "Hello Triangle";
+        config.title = "SDF Font Test - 中英文测试";
         config.width = 800;
         config.height = 600;
         return config;
@@ -30,102 +23,143 @@ private:
 
 protected:
     void onInit() override {
-        ES_LOG_INFO("Hello Triangle initialized!");
+        ES_LOG_INFO("SDF Font Test initialized!");
 
-        // Create some entities with the ECS
-        auto& registry = getRegistry();
+        // Create UI context for font rendering
+        uiContext_ = makeUnique<ui::UIContext>(getRenderContext(), dispatcher_);
+        uiContext_->init();
+        uiContext_->setViewport(getWidth(), getHeight());
 
-        // Create a triangle entity
-        Entity triangle = registry.create();
-        registry.emplace<LocalTransform>(triangle, glm::vec3(400.0f, 300.0f, 0.0f));
-        registry.emplace<Name>(triangle, "Triangle");
+        // Load SDF font with CJK support
+        const char* fontPaths[] = {
+#ifdef _WIN32
+            "C:/Windows/Fonts/msyh.ttc",    // Microsoft YaHei (中文)
+            "C:/Windows/Fonts/simhei.ttf",  // SimHei
+            "C:/Windows/Fonts/simsun.ttc",  // SimSun
+            "C:/Windows/Fonts/arial.ttf",   // Arial (English fallback)
+#else
+            "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+#endif
+            nullptr
+        };
 
-        // Create moving entities
-        for (int i = 0; i < 5; ++i) {
-            Entity entity = registry.create();
-            registry.emplace<LocalTransform>(entity, glm::vec3(100.0f + i * 120.0f, 100.0f, 0.0f));
-            registry.emplace<Velocity>(entity, glm::vec3(50.0f * (i % 2 == 0 ? 1.0f : -1.0f), 0.0f, 0.0f));
-            registry.emplace<Sprite>(entity);
+        for (const char** path = fontPaths; *path != nullptr; ++path) {
+            sdfFont_ = ui::SDFFont::create(*path, 48.0f, 8.0f);
+            if (sdfFont_) {
+                ES_LOG_INFO("Loaded SDF font: {}", *path);
+                break;
+            }
         }
 
-        ES_LOG_INFO("Created {} entities", registry.entityCount());
+        if (!sdfFont_) {
+            ES_LOG_ERROR("Failed to load any SDF font!");
+        }
+
+        // Create some entities
+        auto& registry = getRegistry();
+        Entity triangle = registry.create();
+        registry.emplace<LocalTransform>(triangle, glm::vec3(400.0f, 450.0f, 0.0f));
+        registry.emplace<Name>(triangle, "Triangle");
+
+        ES_LOG_INFO("Press ESC to exit");
     }
 
     void onUpdate(f32 deltaTime) override {
-        // Update entities manually (or use SystemGroup)
-        auto& registry = getRegistry();
-        registry.each<LocalTransform, Velocity>([deltaTime, this](LocalTransform& transform, Velocity& velocity) {
-            transform.position += velocity.linear * deltaTime;
-
-            // Bounce off edges
-            if (transform.position.x < 0 || transform.position.x > getWidth()) {
-                velocity.linear.x *= -1.0f;
-            }
-        });
-
-        // Check for touch input
-        if (getInput().isTouchPressed()) {
-            auto pos = getInput().getTouchPosition();
-            ES_LOG_DEBUG("Touch at ({}, {})", pos.x, pos.y);
-        }
-
-        // Check for key input
+        (void)deltaTime;
         if (getInput().isKeyPressed(KeyCode::Escape)) {
             quit();
         }
     }
 
     void onRender() override {
-        auto& registry = getRegistry();
         auto& renderer = getRenderer();
 
-        // Draw colored quads for entities with LocalTransform and Sprite
-        auto view = registry.view<LocalTransform, Sprite>();
-        for (auto entity : view) {
-            auto& transform = view.get<LocalTransform>(entity);
-            auto& sprite = view.get<Sprite>(entity);
+        // Draw a simple quad
+        renderer.drawQuad(
+            glm::vec2(400.0f, 450.0f),
+            glm::vec2(100.0f, 100.0f),
+            glm::vec4(1.0f, 0.5f, 0.2f, 1.0f)
+        );
 
-            renderer.drawQuad(
-                glm::vec2(transform.position.x, transform.position.y),
-                sprite.size * 50.0f,
-                sprite.color
+        // Draw SDF text
+        if (sdfFont_ && uiContext_) {
+            auto& uiRenderer = uiContext_->getRenderer();
+
+            glm::mat4 projection = glm::ortho(
+                0.0f, static_cast<f32>(getWidth()),
+                static_cast<f32>(getHeight()), 0.0f,
+                -1.0f, 1.0f
             );
-        }
 
-        // Draw the main triangle
-        auto triangleView = registry.view<LocalTransform, Name>();
-        for (auto entity : triangleView) {
-            auto& transform = triangleView.get<LocalTransform>(entity);
-            auto& name = triangleView.get<Name>(entity);
+            uiRenderer.begin(projection);
 
-            if (name.value == "Triangle") {
-                renderer.drawQuad(
-                    glm::vec2(transform.position.x, transform.position.y),
-                    glm::vec2(100.0f, 100.0f),
-                    glm::vec4(1.0f, 0.5f, 0.2f, 1.0f)
-                );
-            }
-        }
-    }
+            // English text
+            uiRenderer.drawText(
+                "Hello SDF Font!",
+                {50.0f, 50.0f},
+                *sdfFont_,
+                32.0f,
+                {1.0f, 1.0f, 1.0f, 1.0f}
+            );
 
-    void onTouch(TouchType type, const TouchPoint& point) override {
-        if (type == TouchType::Begin) {
-            // Create new entity at touch position
-            auto& registry = getRegistry();
-            Entity entity = registry.create();
-            registry.emplace<Transform>(entity, glm::vec3(point.x, point.y, 0.0f));
-            registry.emplace<Sprite>(entity);
-            registry.emplace<Velocity>(entity, glm::vec3(
-                (rand() % 200 - 100.0f),
-                (rand() % 200 - 100.0f),
-                0.0f
-            ));
+            // Chinese text
+            uiRenderer.drawText(
+                "你好，世界！中文测试",
+                {50.0f, 100.0f},
+                *sdfFont_,
+                32.0f,
+                {1.0f, 1.0f, 0.0f, 1.0f}
+            );
+
+            // Mixed text
+            uiRenderer.drawText(
+                "ESEngine 引擎 - SDF字体渲染",
+                {50.0f, 150.0f},
+                *sdfFont_,
+                28.0f,
+                {0.5f, 1.0f, 0.5f, 1.0f}
+            );
+
+            // Different sizes to show SDF scaling
+            uiRenderer.drawText(
+                "Small 小字 16px",
+                {50.0f, 200.0f},
+                *sdfFont_,
+                16.0f,
+                {0.8f, 0.8f, 1.0f, 1.0f}
+            );
+
+            uiRenderer.drawText(
+                "Large 大字 48px",
+                {50.0f, 240.0f},
+                *sdfFont_,
+                48.0f,
+                {1.0f, 0.6f, 0.6f, 1.0f}
+            );
+
+            uiRenderer.drawText(
+                "动态加载 Dynamic Loading",
+                {50.0f, 320.0f},
+                *sdfFont_,
+                24.0f,
+                {0.6f, 0.9f, 1.0f, 1.0f}
+            );
+
+            uiRenderer.end();
         }
     }
 
     void onShutdown() override {
-        ES_LOG_INFO("Hello Triangle shutdown");
+        sdfFont_.reset();
+        uiContext_.reset();
+        ES_LOG_INFO("SDF Font Test shutdown");
     }
+
+private:
+    Dispatcher dispatcher_;
+    Unique<ui::UIContext> uiContext_;
+    Unique<ui::SDFFont> sdfFont_;
 };
 
 // Entry point
@@ -136,6 +170,5 @@ int main() {
     return 0;
 }
 #else
-// For web, entry is through the C API
 ES_MAIN(HelloTriangleApp)
 #endif

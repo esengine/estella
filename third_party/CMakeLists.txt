@@ -91,4 +91,14 @@ if(NOT ES_BUILD_WEB AND NOT ES_BUILD_WXGAME)
     endif()
 
     target_compile_definitions(quickjs PUBLIC ES_SCRIPTING_ENABLED)
+
+    # =============================================================================
+    # FreeType - Font rendering library
+    # =============================================================================
+    set(FT_DISABLE_ZLIB ON CACHE BOOL "" FORCE)
+    set(FT_DISABLE_BZIP2 ON CACHE BOOL "" FORCE)
+    set(FT_DISABLE_PNG ON CACHE BOOL "" FORCE)
+    set(FT_DISABLE_HARFBUZZ ON CACHE BOOL "" FORCE)
+    set(FT_DISABLE_BROTLI ON CACHE BOOL "" FORCE)
+    add_subdirectory(freetype)
 endif()

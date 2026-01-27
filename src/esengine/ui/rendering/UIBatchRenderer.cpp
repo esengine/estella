@@ -15,7 +15,7 @@
 #include "../../renderer/RenderCommand.hpp"
 #include "../../renderer/RenderContext.hpp"
 #include "../../renderer/Shader.hpp"
-#include "../font/Font.hpp"
+#include "../font/SDFFont.hpp"
 #include "../layout/SizeValue.hpp"
 
 #include <array>
@@ -133,7 +133,17 @@ static const char* UI_FRAGMENT_SHADER = R"(
         else if (index == 7) texColor = texture2D(u_textures[7], v_texCoord);
 
         vec4 color;
-        if (texColor.g == 0.0 && texColor.b == 0.0 && texColor.a == 1.0) {
+
+        // SDF text rendering: borderThickness < -1.0 indicates SDF mode
+        if (v_borderThickness < -1.0) {
+            float screenPxRange = -v_borderThickness - 1.0;
+            float sd = texColor.r;
+            float edgeWidth = 0.5 / max(screenPxRange, 1.0);
+            float alpha = smoothstep(0.5 - edgeWidth, 0.5 + edgeWidth, sd);
+            color = vec4(v_color.rgb, alpha * v_color.a);
+        }
+        // Bitmap font rendering
+        else if (texColor.g == 0.0 && texColor.b == 0.0 && texColor.a == 1.0) {
             color = vec4(v_color.rgb, texColor.r * v_color.a);
         } else {
             color = texColor * v_color;
@@ -223,7 +233,19 @@ static const char* UI_FRAGMENT_SHADER = R"(
     void main() {
         vec4 texColor = texture(u_textures[v_texIndex], v_texCoord);
         vec4 color;
-        if (texColor.g == 0.0 && texColor.b == 0.0 && texColor.a == 1.0) {
+
+        // SDF text rendering: borderThickness < -1.0 indicates SDF mode
+        // The absolute value encodes the screen pixel range
+        if (v_borderThickness < -1.0) {
+            float screenPxRange = -v_borderThickness - 1.0;
+            float sd = texColor.r;
+            // FreeType SDF: 0.5 = edge, >0.5 = inside, <0.5 = outside
+            float edgeWidth = 0.5 / max(screenPxRange, 1.0);
+            float alpha = smoothstep(0.5 - edgeWidth, 0.5 + edgeWidth, sd);
+            color = vec4(v_color.rgb, alpha * v_color.a);
+        }
+        // Bitmap font rendering (R8 texture)
+        else if (texColor.g == 0.0 && texColor.b == 0.0 && texColor.a == 1.0) {
             color = vec4(v_color.rgb, texColor.r * v_color.a);
         } else {
             color = texColor * v_color;
@@ -517,7 +539,6 @@ void UIBatchRenderer::addQuadVertices(const Rect& rect, const glm::vec4& color,
     f32 texIdx = static_cast<f32>(textureIndex);
     glm::vec2 rectSize = {rect.width, rect.height};
     glm::vec2 halfSize = rectSize * 0.5f;
-    glm::vec2 center = rect.center();
 
     UIVertex vertices[4];
 
@@ -640,16 +661,54 @@ void UIBatchRenderer::drawLine(const glm::vec2& p1, const glm::vec2& p2, const g
 }
 
 // =============================================================================
-// Text Drawing
+// Text Drawing (SDF-based)
 // =============================================================================
 
-void UIBatchRenderer::drawText(const std::string& text, const glm::vec2& position, Font& font,
-                                f32 fontSize, const glm::vec4& color) {
+namespace {
+
+u32 nextCodepoint(const std::string& text, usize& i) {
+    u8 c = static_cast<u8>(text[i]);
+    u32 codepoint = 0;
+
+    if ((c & 0x80) == 0) {
+        codepoint = c;
+        i += 1;
+    } else if ((c & 0xE0) == 0xC0) {
+        codepoint = c & 0x1F;
+        if (i + 1 < text.size()) {
+            codepoint = (codepoint << 6) | (static_cast<u8>(text[i + 1]) & 0x3F);
+        }
+        i += 2;
+    } else if ((c & 0xF0) == 0xE0) {
+        codepoint = c & 0x0F;
+        if (i + 2 < text.size()) {
+            codepoint = (codepoint << 6) | (static_cast<u8>(text[i + 1]) & 0x3F);
+            codepoint = (codepoint << 6) | (static_cast<u8>(text[i + 2]) & 0x3F);
+        }
+        i += 3;
+    } else if ((c & 0xF8) == 0xF0) {
+        codepoint = c & 0x07;
+        if (i + 3 < text.size()) {
+            codepoint = (codepoint << 6) | (static_cast<u8>(text[i + 1]) & 0x3F);
+            codepoint = (codepoint << 6) | (static_cast<u8>(text[i + 2]) & 0x3F);
+            codepoint = (codepoint << 6) | (static_cast<u8>(text[i + 3]) & 0x3F);
+        }
+        i += 4;
+    } else {
+        i += 1;
+    }
+    return codepoint;
+}
+
+}  // namespace
+
+void UIBatchRenderer::drawText(const std::string& text, const glm::vec2& position,
+                                SDFFont& font, f32 fontSize, const glm::vec4& color) {
     if (text.empty()) return;
 
     f32 x = position.x;
     f32 y = position.y;
-    f32 scale = fontSize / font.getBaseSize();
+    f32 scale = fontSize / font.getSDFSize();
 
     u32 atlasTexture = font.getAtlasTextureId();
     if (atlasTexture == 0) return;
@@ -672,14 +731,23 @@ void UIBatchRenderer::drawText(const std::string& text, const glm::vec2& positio
         data_->textureSlotIndex++;
     }
 
-    for (char c : text) {
-        if (c == '\n') {
+    // Calculate screen pixel range for SDF sharpness
+    // screenPxRange = fontSize / sdfSize * sdfSpread
+    f32 screenPxRange = fontSize / font.getSDFSize() * font.getSDFSpread();
+    // Encode as negative borderThickness: value = -(screenPxRange + 1.0)
+    f32 sdfBorderFlag = -(screenPxRange + 1.0f);
+
+    usize i = 0;
+    while (i < text.size()) {
+        u32 codepoint = nextCodepoint(text, i);
+
+        if (codepoint == '\n') {
             x = position.x;
             y += fontSize * 1.2f;
             continue;
         }
 
-        const auto* glyph = font.getGlyph(static_cast<u32>(c));
+        const auto* glyph = font.getGlyph(codepoint);
         if (!glyph) continue;
 
         f32 xPos = std::round(x + glyph->bearingX * scale);
@@ -688,9 +756,43 @@ void UIBatchRenderer::drawText(const std::string& text, const glm::vec2& positio
         f32 h = glyph->height * scale;
 
         if (w > 0 && h > 0) {
+            if (data_->vertices.size() >= MAX_VERTICES) {
+                flush();
+            }
+
+            f32 texIdx = static_cast<f32>(texIndex);
             Rect glyphRect(xPos, yPos, w, h);
-            addQuadVertices(glyphRect, color, {0, 0, 0, 0}, 0.0f, texIndex,
-                            {glyph->u0, glyph->v0}, {glyph->u1, glyph->v1});
+            glm::vec2 rectSize = {w, h};
+            glm::vec2 halfSize = rectSize * 0.5f;
+
+            UIVertex vertices[4];
+
+            vertices[0].position = {glyphRect.x, glyphRect.y, 0.0f};
+            vertices[0].texCoord = {glyph->u0, glyph->v0};
+            vertices[0].localPos = {-halfSize.x, -halfSize.y};
+
+            vertices[1].position = {glyphRect.right(), glyphRect.y, 0.0f};
+            vertices[1].texCoord = {glyph->u1, glyph->v0};
+            vertices[1].localPos = {halfSize.x, -halfSize.y};
+
+            vertices[2].position = {glyphRect.right(), glyphRect.bottom(), 0.0f};
+            vertices[2].texCoord = {glyph->u1, glyph->v1};
+            vertices[2].localPos = halfSize;
+
+            vertices[3].position = {glyphRect.x, glyphRect.bottom(), 0.0f};
+            vertices[3].texCoord = {glyph->u0, glyph->v1};
+            vertices[3].localPos = {-halfSize.x, halfSize.y};
+
+            for (auto& v : vertices) {
+                v.color = color;
+                v.cornerRadii = {0, 0, 0, 0};
+                v.rectSize = rectSize;
+                v.texIndex = texIdx;
+                v.borderThickness = sdfBorderFlag;
+                data_->vertices.push_back(v);
+            }
+
+            data_->indexCount += 6;
             data_->stats.textQuadCount++;
         }
 
@@ -698,12 +800,16 @@ void UIBatchRenderer::drawText(const std::string& text, const glm::vec2& positio
     }
 }
 
-void UIBatchRenderer::drawTextInBounds(const std::string& text, const Rect& bounds, Font& font,
-                                        f32 fontSize, const glm::vec4& color, HAlign hAlign,
-                                        VAlign vAlign) {
+void UIBatchRenderer::drawTextInBounds(const std::string& text, const Rect& bounds,
+                                        SDFFont& font, f32 fontSize, const glm::vec4& color,
+                                        HAlign hAlign, VAlign vAlign) {
     if (text.empty()) return;
 
     glm::vec2 textSize = font.measureText(text, fontSize);
+    f32 scale = fontSize / font.getSDFSize();
+    f32 ascent = font.getAscent() * scale;
+    f32 descent = font.getDescent() * scale;
+    f32 visualHeight = ascent + descent;
 
     f32 x = bounds.x;
     f32 y = bounds.y;
@@ -725,10 +831,10 @@ void UIBatchRenderer::drawTextInBounds(const std::string& text, const Rect& boun
         case VAlign::Top:
             break;
         case VAlign::Center:
-            y += (bounds.height - textSize.y) * 0.5f;
+            y += (bounds.height - visualHeight) * 0.5f;
             break;
         case VAlign::Bottom:
-            y += bounds.height - textSize.y;
+            y += bounds.height - visualHeight;
             break;
         case VAlign::Stretch:
             break;

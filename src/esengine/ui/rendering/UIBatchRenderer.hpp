@@ -31,7 +31,10 @@ class RenderContext;
 
 namespace ui {
 
-class Font;
+class SDFFont;
+
+// Font is now an alias for SDFFont
+using Font = SDFFont;
 
 // =============================================================================
 // UI Render Statistics
@@ -197,22 +200,22 @@ public:
                   f32 thickness = 1.0f);
 
     // =========================================================================
-    // Text Drawing
+    // Text Drawing (SDF-based)
     // =========================================================================
 
     /**
-     * @brief Draws text at a position
+     * @brief Draws text at a position (UTF-8 supported)
      * @param text Text string to draw
      * @param position Top-left position
      * @param font Font to use
      * @param fontSize Font size in pixels
      * @param color Text color
      */
-    void drawText(const std::string& text, const glm::vec2& position, Font& font, f32 fontSize,
+    void drawText(const std::string& text, const glm::vec2& position, SDFFont& font, f32 fontSize,
                   const glm::vec4& color);
 
     /**
-     * @brief Draws text with clipping to a bounds
+     * @brief Draws text with clipping to a bounds (UTF-8 supported)
      * @param text Text string to draw
      * @param bounds Bounding rectangle for text
      * @param font Font to use
@@ -221,7 +224,7 @@ public:
      * @param hAlign Horizontal alignment within bounds
      * @param vAlign Vertical alignment within bounds
      */
-    void drawTextInBounds(const std::string& text, const Rect& bounds, Font& font, f32 fontSize,
+    void drawTextInBounds(const std::string& text, const Rect& bounds, SDFFont& font, f32 fontSize,
                           const glm::vec4& color, HAlign hAlign = HAlign::Left,
                           VAlign vAlign = VAlign::Top);
 

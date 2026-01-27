@@ -11,7 +11,7 @@
 
 #include "TextField.hpp"
 #include "../UIContext.hpp"
-#include "../font/Font.hpp"
+#include "../font/SDFFont.hpp"
 #include "../rendering/UIBatchRenderer.hpp"
 #include "../../core/Log.hpp"
 #include "../../math/Math.hpp"
@@ -516,7 +516,7 @@ usize TextField::getCharIndexAtX(f32 x) const {
     f32 fontSize = getContext()->getTheme().typography.fontSizeNormal;
 
     // Use regular font for character measurement
-    Font* font = getContext()->getDefaultFont();
+    SDFFont* font = getContext()->getDefaultFont();
 
     f32 currentX = 0.0f;
     for (usize i = 0; i < text_.size(); ++i) {
@@ -545,7 +545,7 @@ f32 TextField::getXForCharIndex(usize index) const {
     f32 fontSize = getContext()->getTheme().typography.fontSizeNormal;
 
     // Use regular font for character measurement
-    Font* font = getContext()->getDefaultFont();
+    SDFFont* font = getContext()->getDefaultFont();
 
     if (font) {
         f32 currentX = 0.0f;

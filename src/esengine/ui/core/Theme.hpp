@@ -153,12 +153,12 @@ struct ThemeSpacing {
 struct ThemeTypography {
     std::string defaultFont = "default";
 
-    f32 fontSizeSmall = 14.0f;
-    f32 fontSizeNormal = 16.0f;
-    f32 fontSizeMedium = 20.0f;
-    f32 fontSizeLarge = 24.0f;
-    f32 fontSizeTitle = 28.0f;
-    f32 fontSizeHeader = 36.0f;
+    f32 fontSizeSmall = 12.0f;
+    f32 fontSizeNormal = 14.0f;
+    f32 fontSizeMedium = 18.0f;
+    f32 fontSizeLarge = 22.0f;
+    f32 fontSizeTitle = 26.0f;
+    f32 fontSizeHeader = 32.0f;
 
     f32 lineHeight = 1.4f;
     f32 letterSpacing = 0.0f;

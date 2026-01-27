@@ -33,9 +33,12 @@ class Dispatcher;
 
 namespace ui {
 
-class Font;
+class SDFFont;
 class UIBatchRenderer;
 class Widget;
+
+// Alias for backward compatibility - Font now means SDFFont
+using Font = SDFFont;
 
 // =============================================================================
 // UIContext Class
@@ -133,30 +136,32 @@ public:
     const Theme& getTheme() const { return *theme_; }
 
     // =========================================================================
-    // Font Management
+    // Font Management (SDF-based)
     // =========================================================================
 
     /**
-     * @brief Loads a font from file
+     * @brief Loads a font from file (uses SDF rendering)
      * @param name Name to register the font as
      * @param path Path to the TTF font file
-     * @param baseSize Base size for atlas generation
+     * @param fontSize SDF glyph size (recommended: 32-64)
+     * @param sdfSpread SDF spread in pixels (default: 8)
      * @return Pointer to the loaded font or nullptr on failure
      */
-    Font* loadFont(const std::string& name, const std::string& path, f32 baseSize = 32.0f);
+    SDFFont* loadFont(const std::string& name, const std::string& path, f32 fontSize = 48.0f,
+                      f32 sdfSpread = 8.0f);
 
     /**
      * @brief Gets a loaded font by name
      * @param name Font name
      * @return Pointer to the font or nullptr if not found
      */
-    Font* getFont(const std::string& name);
+    SDFFont* getFont(const std::string& name);
 
     /**
      * @brief Gets the default font
      * @return Pointer to the default font or nullptr
      */
-    Font* getDefaultFont();
+    SDFFont* getDefaultFont();
 
     /**
      * @brief Sets the default font name
@@ -332,7 +337,7 @@ private:
     Unique<Widget> root_;
     Unique<Theme> theme_;
 
-    std::unordered_map<std::string, Unique<Font>> fonts_;
+    std::unordered_map<std::string, Unique<SDFFont>> fonts_;
     std::string defaultFontName_ = "default";
 
     u32 viewportWidth_ = 0;

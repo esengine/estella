@@ -62,17 +62,19 @@ void EditorApplication::onInit() {
 
     const char* fontPaths[] = {
 #ifdef ES_PLATFORM_WINDOWS
+        "C:/Windows/Fonts/msyh.ttc",
+        "C:/Windows/Fonts/msyhl.ttc",
+        "C:/Windows/Fonts/simhei.ttf",
         "C:/Windows/Fonts/segoeui.ttf",
         "C:/Windows/Fonts/arial.ttf",
-        "C:/Windows/Fonts/tahoma.ttf",
 #elif defined(ES_PLATFORM_MACOS)
+        "/System/Library/Fonts/PingFang.ttc",
+        "/System/Library/Fonts/Hiragino Sans GB.ttc",
         "/System/Library/Fonts/SFNS.ttf",
-        "/System/Library/Fonts/Helvetica.ttc",
-        "/Library/Fonts/Arial.ttf",
 #else
+        "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "/usr/share/fonts/TTF/DejaVuSans.ttf",
-        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
 #endif
         "assets/fonts/default.ttf",
         nullptr
@@ -80,8 +82,8 @@ void EditorApplication::onInit() {
 
     bool fontLoaded = false;
     for (const char** path = fontPaths; *path != nullptr; ++path) {
-        if (uiContext_->loadFont("default", *path, 24.0f)) {
-            ES_LOG_INFO("Loaded font: {}", *path);
+        if (uiContext_->loadFont("default", *path, 48.0f, 8.0f)) {
+            ES_LOG_INFO("Loaded SDF font: {}", *path);
             fontLoaded = true;
             break;
         }

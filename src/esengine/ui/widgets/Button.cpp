@@ -11,7 +11,7 @@
 
 #include "Button.hpp"
 #include "../UIContext.hpp"
-#include "../font/Font.hpp"
+#include "../font/SDFFont.hpp"
 #include "../rendering/UIBatchRenderer.hpp"
 
 namespace esengine::ui {
@@ -58,7 +58,7 @@ glm::vec2 Button::measure(f32 availableWidth, f32 availableHeight) {
                             : ctx->getTheme().getButtonStyle();
 
     // Use regular font for measurement
-    Font* font = fontName_.empty() ? ctx->getDefaultFont() : ctx->getFont(fontName_);
+    SDFFont* font = fontName_.empty() ? ctx->getDefaultFont() : ctx->getFont(fontName_);
     if (font && textSizeDirty_) {
         cachedTextSize_ = font->measureText(text_, fontSize_);
         textSizeDirty_ = false;
@@ -117,7 +117,7 @@ void Button::render(UIBatchRenderer& renderer) {
         Rect textBounds = style.padding.shrink(bounds);
 
         // Use regular font for now
-        Font* font = fontName_.empty() ? ctx->getDefaultFont() : ctx->getFont(fontName_);
+        SDFFont* font = fontName_.empty() ? ctx->getDefaultFont() : ctx->getFont(fontName_);
         if (font) {
             renderer.drawTextInBounds(text_, textBounds, *font, fontSize_, textColor,
                                       HAlign::Center, VAlign::Center);

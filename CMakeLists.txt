@@ -40,7 +40,7 @@ set(ESENGINE_SOURCES
     # UI System
     src/esengine/ui/UIContext.cpp
     src/esengine/ui/rendering/UIBatchRenderer.cpp
-    src/esengine/ui/font/Font.cpp
+    src/esengine/ui/font/SDFFont.cpp
     src/esengine/ui/layout/StackLayout.cpp
     src/esengine/ui/layout/WrapLayout.cpp
     src/esengine/ui/widgets/Widget.cpp
@@ -110,7 +110,7 @@ set(ESENGINE_HEADERS
     src/esengine/ui/layout/Layout.hpp
     src/esengine/ui/layout/StackLayout.hpp
     src/esengine/ui/rendering/UIBatchRenderer.hpp
-    src/esengine/ui/font/Font.hpp
+    src/esengine/ui/font/SDFFont.hpp
     src/esengine/ui/widgets/Widget.hpp
     src/esengine/ui/widgets/Panel.hpp
     src/esengine/ui/widgets/Label.hpp
@@ -252,12 +252,13 @@ if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
         target_compile_definitions(esengine PUBLIC ES_PLATFORM_WXGAME)
     endif()
 else()
-    # Native platform - link GLFW, GLAD, OpenGL, and QuickJS
+    # Native platform - link GLFW, GLAD, OpenGL, QuickJS, and FreeType
     find_package(OpenGL REQUIRED)
     target_compile_definitions(esengine PUBLIC ES_PLATFORM_NATIVE)
-    target_link_libraries(esengine PUBLIC glfw glad OpenGL::GL quickjs)
+    target_link_libraries(esengine PUBLIC glfw glad OpenGL::GL quickjs freetype)
     target_include_directories(esengine PUBLIC
         ${CMAKE_SOURCE_DIR}/third_party/glad/include
+        ${CMAKE_SOURCE_DIR}/third_party/freetype/include
     )
 endif()
 

@@ -11,7 +11,7 @@
 
 #include "Label.hpp"
 #include "../UIContext.hpp"
-#include "../font/Font.hpp"
+#include "../font/SDFFont.hpp"
 #include "../rendering/UIBatchRenderer.hpp"
 
 namespace esengine::ui {
@@ -53,7 +53,7 @@ glm::vec2 Label::measure(f32 availableWidth, f32 availableHeight) {
         return Widget::measure(availableWidth, availableHeight);
     }
 
-    Font* font = fontName_.empty() ? getContext()->getDefaultFont()
+    SDFFont* font = fontName_.empty() ? getContext()->getDefaultFont()
                                    : getContext()->getFont(fontName_);
 
     if (font && textSizeDirty_) {
@@ -87,7 +87,7 @@ void Label::render(UIBatchRenderer& renderer) {
     glm::vec4 textColor = customColor_ ? color_ : style.getTextColor(getState());
     Rect contentBounds = getContentBounds();
 
-    Font* font = fontName_.empty() ? ctx->getDefaultFont() : ctx->getFont(fontName_);
+    SDFFont* font = fontName_.empty() ? ctx->getDefaultFont() : ctx->getFont(fontName_);
     if (font) {
         renderer.drawTextInBounds(text_, contentBounds, *font, fontSize_, textColor, hAlign_, vAlign_);
     }

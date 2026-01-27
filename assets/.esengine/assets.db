@@ -1,0 +1,68 @@
+{
+  "version": "1.0",
+  "assets": [
+    {
+      "guid": "cf70754c-26ba-346d-c01d-ff9fc29a6e9e",
+      "path": "assets\\.esengine",
+      "name": ".esengine",
+      "type": 1,
+      "fileSize": 0,
+      "lastModified": 1769495856,
+      "isDirectory": true
+    },
+    {
+      "guid": "86ed9e0d-442c-a047-9b51-09011c881685",
+      "path": "assets\\audio",
+      "name": "audio",
+      "type": 1,
+      "fileSize": 0,
+      "lastModified": 1769488063,
+      "isDirectory": true
+    },
+    {
+      "guid": "08964537-6809-2c47-8997-7bbf1c75029f",
+      "path": "assets\\scripts",
+      "name": "scripts",
+      "type": 1,
+      "fileSize": 0,
+      "lastModified": 1769488063,
+      "isDirectory": true
+    },
+    {
+      "guid": "9db35f84-665c-e687-86b1-cc78a3934216",
+      "path": "assets\\test.txt",
+      "name": "test.txt",
+      "type": 0,
+      "fileSize": 5,
+      "lastModified": 1769488063,
+      "isDirectory": false
+    },
+    {
+      "guid": "44aa95ad-d460-37e0-041f-c6a4449f8b17",
+      "path": "assets\\textures\\test.png",
+      "name": "test.png",
+      "type": 2,
+      "fileSize": 6,
+      "lastModified": 1769488062,
+      "isDirectory": false
+    },
+    {
+      "guid": "a638dc81-b60d-567f-6820-13f4e9998407",
+      "path": "assets\\.esengine\\assets.db",
+      "name": "assets.db",
+      "type": 0,
+      "fileSize": 1220,
+      "lastModified": 1769495857,
+      "isDirectory": false
+    },
+    {
+      "guid": "e0220f45-6261-175f-883b-ba80783788f2",
+      "path": "assets\\textures",
+      "name": "textures",
+      "type": 1,
+      "fileSize": 0,
+      "lastModified": 1769488063,
+      "isDirectory": true
+    }
+  ]
+}

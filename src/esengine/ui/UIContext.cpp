@@ -14,7 +14,7 @@
 #include "../events/Dispatcher.hpp"
 #include "../renderer/RenderCommand.hpp"
 #include "../renderer/RenderContext.hpp"
-#include "font/Font.hpp"
+#include "font/SDFFont.hpp"
 #include "rendering/UIBatchRenderer.hpp"
 #include "widgets/Widget.hpp"
 
@@ -107,24 +107,25 @@ void UIContext::setTheme(Unique<Theme> theme) {
 }
 
 // =============================================================================
-// Font Management
+// Font Management (SDF-based)
 // =============================================================================
 
-Font* UIContext::loadFont(const std::string& name, const std::string& path, f32 baseSize) {
-    auto font = Font::create(path, baseSize);
+SDFFont* UIContext::loadFont(const std::string& name, const std::string& path, f32 fontSize,
+                              f32 sdfSpread) {
+    auto font = SDFFont::create(path, fontSize, sdfSpread);
     if (!font) {
         ES_LOG_ERROR("Failed to load font: {}", path);
         return nullptr;
     }
 
-    Font* ptr = font.get();
+    SDFFont* ptr = font.get();
     fonts_[name] = std::move(font);
 
-    ES_LOG_INFO("Loaded font '{}' from {}", name, path);
+    ES_LOG_INFO("Loaded SDF font '{}' from {}", name, path);
     return ptr;
 }
 
-Font* UIContext::getFont(const std::string& name) {
+SDFFont* UIContext::getFont(const std::string& name) {
     auto it = fonts_.find(name);
     if (it != fonts_.end()) {
         return it->second.get();
@@ -132,7 +133,7 @@ Font* UIContext::getFont(const std::string& name) {
     return nullptr;
 }
 
-Font* UIContext::getDefaultFont() {
+SDFFont* UIContext::getDefaultFont() {
     return getFont(defaultFontName_);
 }
 

@@ -14,7 +14,7 @@
 #include "DockPanel.hpp"
 #include "../UIContext.hpp"
 #include "../rendering/UIBatchRenderer.hpp"
-#include "../font/Font.hpp"
+#include "../font/SDFFont.hpp"
 
 #include <cmath>
 
@@ -166,10 +166,10 @@ void DockTabBar::renderTab(UIBatchRenderer& renderer, const DockTabInfo& tab, us
         tab.bounds.height
     };
 
-    Font* font = ctx->getDefaultFont();
+    SDFFont* font = ctx->getDefaultFont();
     if (font) {
         renderer.drawTextInBounds(tab.title, textBounds, *font,
-                                   theme.typography.fontSizeNormal, textColor,
+                                   theme.typography.fontSizeSmall, textColor,
                                    HAlign::Left, VAlign::Center);
     }
 
