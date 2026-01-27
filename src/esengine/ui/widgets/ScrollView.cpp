@@ -125,8 +125,19 @@ glm::vec2 ScrollView::measure(f32 availableWidth, f32 availableHeight) {
             }
         }
 
-        contentSize_ = content_->measure(std::numeric_limits<f32>::infinity(),
-                                          std::numeric_limits<f32>::infinity());
+        f32 measureWidth = contentAvailableWidth;
+        f32 measureHeight = contentAvailableHeight;
+
+        if (scrollDirection_ == ScrollDirection::Vertical) {
+            measureHeight = std::numeric_limits<f32>::infinity();
+        } else if (scrollDirection_ == ScrollDirection::Horizontal) {
+            measureWidth = std::numeric_limits<f32>::infinity();
+        } else if (scrollDirection_ == ScrollDirection::Both) {
+            measureWidth = std::numeric_limits<f32>::infinity();
+            measureHeight = std::numeric_limits<f32>::infinity();
+        }
+
+        contentSize_ = content_->measure(measureWidth, measureHeight);
     }
 
     return size;
@@ -157,6 +168,12 @@ void ScrollView::layout(const Rect& bounds) {
 // =============================================================================
 // Rendering
 // =============================================================================
+
+void ScrollView::renderTree(UIBatchRenderer& renderer) {
+    if (!isVisible()) return;
+
+    render(renderer);
+}
 
 void ScrollView::render(UIBatchRenderer& renderer) {
     if (!content_) return;
@@ -333,11 +350,20 @@ void ScrollView::updateContentLayout() {
     const Rect& bounds = getBounds();
     const Insets& padding = getPadding();
 
+    f32 contentWidth = contentSize_.x;
+    f32 contentHeight = contentSize_.y;
+
+    if (scrollDirection_ == ScrollDirection::Vertical) {
+        contentWidth = viewportSize_.x;
+    } else if (scrollDirection_ == ScrollDirection::Horizontal) {
+        contentHeight = viewportSize_.y;
+    }
+
     Rect contentBounds{
         bounds.x + padding.left - scrollOffset_.x,
         bounds.y + padding.top - scrollOffset_.y,
-        contentSize_.x,
-        contentSize_.y
+        contentWidth,
+        contentHeight
     };
 
     content_->layout(contentBounds);

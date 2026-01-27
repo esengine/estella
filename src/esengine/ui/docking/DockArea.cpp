@@ -305,11 +305,41 @@ void DockArea::render(UIBatchRenderer& renderer) {
 }
 
 Widget* DockArea::hitTest(f32 x, f32 y) {
+    if (!containsPoint(x, y)) {
+        return nullptr;
+    }
+
     if (hitTestSplitter(x, y)) {
         return this;
     }
 
-    return Widget::hitTest(x, y);
+    if (rootNode_) {
+        DockNode* leafNode = rootNode_->findLeafAt(x, y);
+        if (leafNode) {
+            Rect tabBarBounds{
+                leafNode->getBounds().x,
+                leafNode->getBounds().y,
+                leafNode->getBounds().width,
+                tabBarHeight_
+            };
+            if (tabBarBounds.contains({x, y})) {
+                DockTabBar* tabBar = getOrCreateTabBar(leafNode);
+                if (tabBar) {
+                    return tabBar;
+                }
+            }
+
+            DockPanel* activePanel = leafNode->getActivePanel();
+            if (activePanel) {
+                Widget* hit = activePanel->hitTest(x, y);
+                if (hit) {
+                    return hit;
+                }
+            }
+        }
+    }
+
+    return this;
 }
 
 void DockArea::renderNode(UIBatchRenderer& renderer, DockNode* node) {

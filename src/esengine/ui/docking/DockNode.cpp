@@ -339,6 +339,30 @@ DockNode* DockNode::findNodeContainingPanel(DockPanelId panelId) {
     return nullptr;
 }
 
+DockNode* DockNode::findLeafAt(f32 x, f32 y) {
+    if (!bounds_.contains({x, y})) {
+        return nullptr;
+    }
+
+    if (isTabs()) {
+        return this;
+    }
+
+    if (first_) {
+        if (auto* found = first_->findLeafAt(x, y)) {
+            return found;
+        }
+    }
+
+    if (second_) {
+        if (auto* found = second_->findLeafAt(x, y)) {
+            return found;
+        }
+    }
+
+    return nullptr;
+}
+
 void DockNode::forEachLeaf(const std::function<void(DockNode&)>& callback) {
     if (isTabs()) {
         callback(*this);

@@ -178,6 +178,7 @@ public:
     glm::vec2 measure(f32 availableWidth, f32 availableHeight) override;
     void layout(const Rect& bounds) override;
     void render(UIBatchRenderer& renderer) override;
+    void renderTree(UIBatchRenderer& renderer) override;
     Widget* hitTest(f32 x, f32 y) override;
 
     bool onScroll(const ScrollEvent& event) override;

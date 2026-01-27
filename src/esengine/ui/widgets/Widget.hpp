@@ -243,7 +243,7 @@ public:
      * @brief Renders this widget and all children
      * @param renderer The batch renderer to use
      */
-    void renderTree(UIBatchRenderer& renderer);
+    virtual void renderTree(UIBatchRenderer& renderer);
 
     // =========================================================================
     // Event Handling

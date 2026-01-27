@@ -277,6 +277,14 @@ public:
     DockNode* findNodeContainingPanel(DockPanelId panelId);
 
     /**
+     * @brief Find the leaf node at a given point
+     * @param x X coordinate
+     * @param y Y coordinate
+     * @return Leaf node pointer or nullptr
+     */
+    DockNode* findLeafAt(f32 x, f32 y);
+
+    /**
      * @brief Execute a callback for each leaf (Tabs) node
      * @param callback Function to call
      */

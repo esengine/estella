@@ -287,7 +287,13 @@ void UIContext::processMouseScroll(f32 deltaX, f32 deltaY, f32 x, f32 y) {
         event.x = x;
         event.y = y;
 
-        hoveredWidget_->onScroll(event);
+        Widget* target = hoveredWidget_;
+        while (target) {
+            if (target->onScroll(event)) {
+                break;
+            }
+            target = target->getParent();
+        }
     }
 }
 

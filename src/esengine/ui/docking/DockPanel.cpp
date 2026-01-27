@@ -102,7 +102,7 @@ void DockPanel::render(UIBatchRenderer& renderer) {
     renderer.drawRect(bounds, style.backgroundColor);
 
     if (contentWidget_) {
-        contentWidget_->render(renderer);
+        contentWidget_->renderTree(renderer);
     }
 
     onRenderContent(renderer);
