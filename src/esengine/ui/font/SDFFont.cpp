@@ -12,10 +12,6 @@
 #include "SDFFont.hpp"
 #include "../../core/Log.hpp"
 
-#include <ft2build.h>
-#include FT_FREETYPE_H
-#include FT_MODULE_H
-
 #include <algorithm>
 #include <cstring>
 #include <fstream>
@@ -23,6 +19,9 @@
 #ifdef ES_PLATFORM_WEB
     #include <GLES3/gl3.h>
 #else
+    #include <ft2build.h>
+    #include FT_FREETYPE_H
+    #include FT_MODULE_H
     #ifdef _WIN32
         #include <windows.h>
     #endif
@@ -35,14 +34,18 @@
 namespace esengine::ui {
 
 // =============================================================================
-// FreeType Data
+// FreeType Data (Native only)
 // =============================================================================
 
+#ifndef ES_PLATFORM_WEB
 struct SDFFont::FTData {
     FT_Library library = nullptr;
     FT_Face face = nullptr;
     std::vector<u8> fontBuffer;
 };
+#else
+struct SDFFont::FTData {};
+#endif
 
 // =============================================================================
 // Constructor / Destructor
@@ -54,6 +57,7 @@ SDFFont::~SDFFont() {
         atlasTextureId_ = 0;
     }
 
+#ifndef ES_PLATFORM_WEB
     if (ftData_) {
         if (ftData_->face) {
             FT_Done_Face(ftData_->face);
@@ -62,6 +66,7 @@ SDFFont::~SDFFont() {
             FT_Done_FreeType(ftData_->library);
         }
     }
+#endif
 }
 
 SDFFont::SDFFont(SDFFont&& other) noexcept
@@ -90,10 +95,12 @@ SDFFont& SDFFont::operator=(SDFFont&& other) noexcept {
         if (atlasTextureId_ != 0) {
             glDeleteTextures(1, &atlasTextureId_);
         }
+#ifndef ES_PLATFORM_WEB
         if (ftData_) {
             if (ftData_->face) FT_Done_Face(ftData_->face);
             if (ftData_->library) FT_Done_FreeType(ftData_->library);
         }
+#endif
 
         ftData_ = std::move(other.ftData_);
         sdfSize_ = other.sdfSize_;
@@ -133,6 +140,13 @@ Unique<SDFFont> SDFFont::create(const std::string& path, f32 sdfSize, f32 sdfSpr
 // Loading
 // =============================================================================
 
+#ifdef ES_PLATFORM_WEB
+bool SDFFont::loadFromFile(const std::string& path, f32 sdfSize, f32 sdfSpread) {
+    (void)path; (void)sdfSize; (void)sdfSpread;
+    ES_LOG_WARN("SDFFont: Dynamic font loading not supported on Web platform");
+    return false;
+}
+#else
 bool SDFFont::loadFromFile(const std::string& path, f32 sdfSize, f32 sdfSpread) {
     sdfSize_ = sdfSize;
     sdfSpread_ = sdfSpread;
@@ -186,7 +200,6 @@ bool SDFFont::loadFromFile(const std::string& path, f32 sdfSize, f32 sdfSpread) 
         return false;
     }
 
-    // Set SDF spread parameter
     FT_UInt spread = static_cast<FT_UInt>(sdfSpread_);
     FT_Property_Set(ftData_->library, "sdf", "spread", &spread);
 
@@ -203,14 +216,9 @@ bool SDFFont::loadFromFile(const std::string& path, f32 sdfSize, f32 sdfSpread) 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-#ifdef ES_PLATFORM_WEB
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE, atlasWidth_, atlasHeight_, 0,
-                 GL_LUMINANCE, GL_UNSIGNED_BYTE, atlasData_.data());
-#else
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, atlasWidth_, atlasHeight_, 0,
                  GL_RED, GL_UNSIGNED_BYTE, atlasData_.data());
-#endif
 
     glBindTexture(GL_TEXTURE_2D, 0);
 
@@ -221,6 +229,7 @@ bool SDFFont::loadFromFile(const std::string& path, f32 sdfSize, f32 sdfSpread) 
 
     return true;
 }
+#endif
 
 // =============================================================================
 // Glyph Loading
@@ -241,6 +250,12 @@ const SDFGlyphInfo* SDFFont::getGlyph(u32 codepoint) {
     return loadGlyph(codepoint);
 }
 
+#ifdef ES_PLATFORM_WEB
+SDFGlyphInfo* SDFFont::loadGlyph(u32 codepoint) {
+    (void)codepoint;
+    return nullptr;
+}
+#else
 SDFGlyphInfo* SDFFont::loadGlyph(u32 codepoint) {
     if (!ftData_ || !ftData_->face) return nullptr;
 
@@ -255,10 +270,8 @@ SDFGlyphInfo* SDFFont::loadGlyph(u32 codepoint) {
         return nullptr;
     }
 
-    // Try SDF rendering first, fall back to normal if not available
     error = FT_Render_Glyph(ftData_->face->glyph, FT_RENDER_MODE_SDF);
     if (error) {
-        // Fallback to normal rendering
         error = FT_Render_Glyph(ftData_->face->glyph, FT_RENDER_MODE_NORMAL);
         if (error) {
             ES_LOG_WARN("SDFFont: Failed to render glyph for codepoint {}: {}", codepoint, error);
@@ -324,13 +337,8 @@ SDFGlyphInfo* SDFFont::loadGlyph(u32 codepoint) {
         glyph.v1 = static_cast<f32>(atlasY + glyphH) / static_cast<f32>(atlasHeight_);
 
         glBindTexture(GL_TEXTURE_2D, atlasTextureId_);
-#ifdef ES_PLATFORM_WEB
-        glTexSubImage2D(GL_TEXTURE_2D, 0, atlasX, atlasY, glyphW, glyphH,
-                        GL_LUMINANCE, GL_UNSIGNED_BYTE, bitmap.buffer);
-#else
         glTexSubImage2D(GL_TEXTURE_2D, 0, atlasX, atlasY, glyphW, glyphH,
                         GL_RED, GL_UNSIGNED_BYTE, bitmap.buffer);
-#endif
         glBindTexture(GL_TEXTURE_2D, 0);
 
         markAtlasRegionUsed(atlasX, atlasY, glyphW + padding, glyphH + padding);
@@ -344,6 +352,7 @@ SDFGlyphInfo* SDFFont::loadGlyph(u32 codepoint) {
 
     return &insertIt->second;
 }
+#endif
 
 // =============================================================================
 // LRU Cache Management
