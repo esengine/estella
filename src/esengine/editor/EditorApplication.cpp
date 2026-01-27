@@ -14,6 +14,7 @@
 #include "../renderer/RenderCommand.hpp"
 #include "../math/Math.hpp"
 #include "../platform/input/Input.hpp"
+#include "../platform/PathResolver.hpp"
 #include "../ui/widgets/Panel.hpp"
 #include "../ui/widgets/Label.hpp"
 #include "../ui/widgets/Button.hpp"
@@ -76,7 +77,6 @@ void EditorApplication::onInit() {
         "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
 #endif
-        "assets/fonts/default.ttf",
         nullptr
     };
 
@@ -88,11 +88,21 @@ void EditorApplication::onInit() {
             break;
         }
     }
+
+    if (!fontLoaded) {
+        std::string fallbackFont = PathResolver::editorPath("assets/fonts/default.ttf");
+        if (uiContext_->loadFont("default", fallbackFont, 48.0f, 8.0f)) {
+            ES_LOG_INFO("Loaded SDF font: {}", fallbackFont);
+            fontLoaded = true;
+        }
+    }
+
     if (!fontLoaded) {
         ES_LOG_WARN("No font loaded, text will not render");
     }
 
-    if (!uiContext_->loadFont("icons", "assets/fonts/lucide.ttf", 48.0f, 4.0f)) {
+    std::string iconFontPath = PathResolver::editorPath("assets/fonts/lucide.ttf");
+    if (!uiContext_->loadFont("icons", iconFontPath, 48.0f, 4.0f)) {
         ES_LOG_WARN("Icon font not loaded, icons will not render");
     }
 
@@ -114,7 +124,7 @@ void EditorApplication::onInit() {
     assetDatabase_.setOnAssetAdded([this](const AssetMetadata& asset) {
         thumbnailGenerator_.generateThumbnail(asset.guid, asset.path, asset.type);
     });
-    assetDatabase_.setProjectPath("assets");
+    assetDatabase_.setProjectPath(PathResolver::projectPath("assets"));
     assetDatabase_.scan();
 
     // Create demo scene for testing

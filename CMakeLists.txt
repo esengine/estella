@@ -37,6 +37,7 @@ set(ESENGINE_SOURCES
     src/esengine/renderer/Framebuffer.cpp
     src/esengine/renderer/stb_image_impl.cpp
     src/esengine/platform/input/Input.cpp
+    src/esengine/platform/PathResolver.cpp
     # UI System
     src/esengine/ui/UIContext.cpp
     src/esengine/ui/rendering/UIBatchRenderer.cpp
@@ -256,6 +257,8 @@ else()
     # Native platform - link GLFW, GLAD, OpenGL, QuickJS, and FreeType
     find_package(OpenGL REQUIRED)
     target_compile_definitions(esengine PUBLIC ES_PLATFORM_NATIVE)
+    # Development mode: use source directory for editor assets
+    target_compile_definitions(esengine PUBLIC ES_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
     target_link_libraries(esengine PUBLIC glfw glad OpenGL::GL quickjs freetype)
     target_include_directories(esengine PUBLIC
         ${CMAKE_SOURCE_DIR}/third_party/glad/include

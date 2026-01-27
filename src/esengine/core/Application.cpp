@@ -13,6 +13,7 @@
 #include "Application.hpp"
 #include "Log.hpp"
 #include "../platform/input/Input.hpp"
+#include "../platform/FileSystem.hpp"
 
 #ifdef ES_PLATFORM_WEB
     #include <emscripten.h>
@@ -69,6 +70,9 @@ void Application::init() {
     // Initialize logging
     Log::init();
     ES_LOG_INFO("Initializing ESEngine Application: {}", config_.title);
+
+    // Initialize file system (and PathResolver)
+    FileSystem::init();
 
     // Create and initialize platform
     platform_ = Platform::create();
@@ -184,6 +188,9 @@ void Application::shutdown() {
 
     // Shutdown platform
     platform_->shutdown();
+
+    // Shutdown file system
+    FileSystem::shutdown();
 
     Log::shutdown();
 }

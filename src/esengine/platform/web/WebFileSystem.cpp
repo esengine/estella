@@ -10,6 +10,7 @@
  */
 
 #include "../FileSystem.hpp"
+#include "../PathResolver.hpp"
 #include "../../core/Log.hpp"
 
 #ifdef ES_PLATFORM_WEB
@@ -26,10 +27,12 @@ namespace esengine {
 // =============================================================================
 
 void FileSystem::init() {
+    PathResolver::init();
     ES_LOG_INFO("FileSystem initialized (Web platform - read-only preloaded assets)");
 }
 
 void FileSystem::shutdown() {
+    PathResolver::shutdown();
     ES_LOG_INFO("FileSystem shutdown");
 }
 

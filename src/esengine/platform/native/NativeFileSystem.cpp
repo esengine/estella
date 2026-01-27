@@ -10,6 +10,7 @@
  */
 
 #include "../FileSystem.hpp"
+#include "../PathResolver.hpp"
 #include "../../core/Log.hpp"
 
 #include <fstream>
@@ -45,6 +46,8 @@ void FileSystem::init() {
         return;
     }
 
+    PathResolver::init();
+
     s_watchedFiles.clear();
     s_initialized = true;
 
@@ -58,6 +61,8 @@ void FileSystem::shutdown() {
 
     s_watchedFiles.clear();
     s_initialized = false;
+
+    PathResolver::shutdown();
 
     ES_LOG_INFO("FileSystem shutdown");
 }
