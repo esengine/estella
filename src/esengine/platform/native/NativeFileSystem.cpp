@@ -193,27 +193,23 @@ bool FileSystem::directoryExists(const std::string& path) {
 }
 
 std::vector<std::string> FileSystem::listDirectory(const std::string& path, bool recursive) {
-    std::vector<std::string> files;
+    std::vector<std::string> entries;
 
     try {
         if (recursive) {
             for (const auto& entry : fs::recursive_directory_iterator(path)) {
-                if (entry.is_regular_file()) {
-                    files.push_back(entry.path().string());
-                }
+                entries.push_back(entry.path().string());
             }
         } else {
             for (const auto& entry : fs::directory_iterator(path)) {
-                if (entry.is_regular_file()) {
-                    files.push_back(entry.path().string());
-                }
+                entries.push_back(entry.path().string());
             }
         }
     } catch (const fs::filesystem_error& e) {
         ES_LOG_ERROR("listDirectory error: {}", e.what());
     }
 
-    return files;
+    return entries;
 }
 
 bool FileSystem::createDirectory(const std::string& path) {
