@@ -28,9 +28,11 @@ set(ES_EMSCRIPTEN_LINK_FLAGS
     -sEXPORT_ES6=1                  # Export as ES6 module
     -sMODULARIZE=1                  # Wrap in module factory function
     "-sEXPORT_NAME='ESEngineModule'" # Module name
-    # EMSCRIPTEN_KEEPALIVE functions are auto-exported, only need to add stdlib functions
-    "-sEXPORTED_FUNCTIONS=['_malloc','_free']"
+    # Exported functions (EMSCRIPTEN_KEEPALIVE + stdlib)
+    "-sEXPORTED_FUNCTIONS=['_malloc','_free','_es_app_init']"
     "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32']"
+    # Embed assets (fonts, etc.)
+    "--embed-file=${CMAKE_SOURCE_DIR}/assets/fonts@/assets/fonts"
 )
 
 # Debug-specific flags

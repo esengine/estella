@@ -32,7 +32,9 @@ protected:
 
         // Load SDF font with CJK support
         const char* fontPaths[] = {
-#ifdef _WIN32
+#ifdef ES_PLATFORM_WEB
+            "/assets/fonts/msyh.ttc",       // Embedded font for web
+#elif defined(_WIN32)
             "C:/Windows/Fonts/msyh.ttc",    // Microsoft YaHei (中文)
             "C:/Windows/Fonts/simhei.ttf",  // SimHei
             "C:/Windows/Fonts/simsun.ttc",  // SimSun

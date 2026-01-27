@@ -202,11 +202,12 @@ bool SDFFont::loadFromFile(const std::string& path, f32 sdfSize, f32 sdfSpread) 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-#ifdef ES_PLATFORM_WEB
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE, atlasWidth_, atlasHeight_, 0,
-                 GL_LUMINANCE, GL_UNSIGNED_BYTE, atlasData_.data());
-#else
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+#ifdef ES_PLATFORM_WEB
+    // WebGL 2 (GLES 3.0) uses GL_R8 format for single-channel textures
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, atlasWidth_, atlasHeight_, 0,
+                 GL_RED, GL_UNSIGNED_BYTE, atlasData_.data());
+#else
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, atlasWidth_, atlasHeight_, 0,
                  GL_RED, GL_UNSIGNED_BYTE, atlasData_.data());
 #endif
@@ -321,13 +322,8 @@ SDFGlyphInfo* SDFFont::loadGlyph(u32 codepoint) {
         glyph.v1 = static_cast<f32>(atlasY + glyphH) / static_cast<f32>(atlasHeight_);
 
         glBindTexture(GL_TEXTURE_2D, atlasTextureId_);
-#ifdef ES_PLATFORM_WEB
-        glTexSubImage2D(GL_TEXTURE_2D, 0, atlasX, atlasY, glyphW, glyphH,
-                        GL_LUMINANCE, GL_UNSIGNED_BYTE, bitmap.buffer);
-#else
         glTexSubImage2D(GL_TEXTURE_2D, 0, atlasX, atlasY, glyphW, glyphH,
                         GL_RED, GL_UNSIGNED_BYTE, bitmap.buffer);
-#endif
         glBindTexture(GL_TEXTURE_2D, 0);
 
         markAtlasRegionUsed(atlasX, atlasY, glyphW + padding, glyphH + padding);
@@ -408,8 +404,8 @@ void SDFFont::rebuildAtlasTexture() {
 
     glBindTexture(GL_TEXTURE_2D, atlasTextureId_);
 #ifdef ES_PLATFORM_WEB
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE, atlasWidth_, atlasHeight_, 0,
-                 GL_LUMINANCE, GL_UNSIGNED_BYTE, atlasData_.data());
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, atlasWidth_, atlasHeight_, 0,
+                 GL_RED, GL_UNSIGNED_BYTE, atlasData_.data());
 #else
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, atlasWidth_, atlasHeight_, 0,
                  GL_RED, GL_UNSIGNED_BYTE, atlasData_.data());

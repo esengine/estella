@@ -5,11 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>ESEngine</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         html, body {
             width: 100%;
             height: 100%;
@@ -31,44 +27,43 @@
             font-family: sans-serif;
             font-size: 18px;
         }
-        #loading.hidden {
-            display: none;
-        }
+        #loading.hidden { display: none; }
     </style>
 </head>
 <body>
     <div id="loading">Loading ESEngine...</div>
     <canvas id="canvas"></canvas>
 
-    <script>
-        // ESEngine Web Loader
-        var Module = {
-            canvas: (function() {
-                return document.getElementById('canvas');
-            })(),
-            onRuntimeInitialized: function() {
-                document.getElementById('loading').classList.add('hidden');
-                console.log('ESEngine initialized');
-            },
-            print: function(text) {
-                console.log(text);
-            },
-            printErr: function(text) {
-                console.error(text);
-            }
-        };
+    <script type="module">
+        // ESEngine ES6 Module Loader
+        import ESEngineModule from './hello_triangle.js';
 
-        // Handle canvas resizing
         function resizeCanvas() {
-            var canvas = document.getElementById('canvas');
-            var dpr = window.devicePixelRatio || 1;
+            const canvas = document.getElementById('canvas');
+            const dpr = window.devicePixelRatio || 1;
             canvas.width = window.innerWidth * dpr;
             canvas.height = window.innerHeight * dpr;
         }
-
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
+
+        ESEngineModule({
+            canvas: document.getElementById('canvas'),
+            print: (text) => console.log(text),
+            printErr: (text) => console.error(text)
+        }).then((Module) => {
+            console.log('ESEngine module loaded');
+            document.getElementById('loading').classList.add('hidden');
+            Module._es_app_init();
+        }).catch((err) => {
+            // "unwind" is expected for Emscripten main loop
+            if (err === 'unwind' || (err.message && err.message.includes('unwind'))) {
+                console.log('App running');
+                return;
+            }
+            console.error('Failed:', err);
+            document.getElementById('loading').textContent = 'Error: ' + err.message;
+        });
     </script>
-    <script src="hello_triangle.js"></script>
 </body>
 </html>
