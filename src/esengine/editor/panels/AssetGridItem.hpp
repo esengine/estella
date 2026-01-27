@@ -1,4 +1,18 @@
+/**
+ * @file    AssetGridItem.hpp
+ * @brief   Grid item widget for displaying assets in the browser
+ *
+ * @author  ESEngine Team
+ * @date    2026
+ *
+ * @copyright Copyright (c) 2026 ESEngine Team
+ *            Licensed under the MIT License.
+ */
 #pragma once
+
+// =============================================================================
+// Includes
+// =============================================================================
 
 #include "../../ui/widgets/Widget.hpp"
 #include "../../events/Signal.hpp"
@@ -7,6 +21,10 @@
 #include <glm/glm.hpp>
 
 namespace esengine::editor {
+
+// =============================================================================
+// AssetGridItem Class
+// =============================================================================
 
 class AssetGridItem : public ui::Widget {
 public:

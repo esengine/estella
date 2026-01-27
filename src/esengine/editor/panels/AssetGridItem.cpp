@@ -1,3 +1,14 @@
+/**
+ * @file    AssetGridItem.cpp
+ * @brief   Grid item widget implementation
+ *
+ * @author  ESEngine Team
+ * @date    2026
+ *
+ * @copyright Copyright (c) 2026 ESEngine Team
+ *            Licensed under the MIT License.
+ */
+
 #include "AssetGridItem.hpp"
 #include "../../ui/UIContext.hpp"
 #include "../../ui/font/Font.hpp"
@@ -7,13 +18,23 @@
 
 namespace esengine::editor {
 
+// =============================================================================
+// Helper Functions
+// =============================================================================
+
 namespace {
-    f64 getCurrentTimeSeconds() {
-        auto now = std::chrono::steady_clock::now();
-        auto duration = now.time_since_epoch();
-        return std::chrono::duration<f64>(duration).count();
-    }
+
+f64 getCurrentTimeSeconds() {
+    auto now = std::chrono::steady_clock::now();
+    auto duration = now.time_since_epoch();
+    return std::chrono::duration<f64>(duration).count();
+}
+
 }  // namespace
+
+// =============================================================================
+// Constructor
+// =============================================================================
 
 AssetGridItem::AssetGridItem(const ui::WidgetId& id, const AssetEntry& entry)
     : Widget(id), entry_(entry) {
@@ -25,17 +46,30 @@ void AssetGridItem::setSelected(bool selected) {
     selected_ = selected;
 }
 
+// =============================================================================
+// Layout
+// =============================================================================
+
 glm::vec2 AssetGridItem::measure(f32 availableWidth, f32 availableHeight) {
     (void)availableWidth;
     (void)availableHeight;
     return {ITEM_WIDTH, ITEM_HEIGHT};
 }
 
+// =============================================================================
+// Rendering
+// =============================================================================
+
 void AssetGridItem::render(ui::UIBatchRenderer& renderer) {
     ui::UIContext* ctx = getContext();
     if (!ctx) return;
 
     ui::Rect bounds = getBounds();
+
+    if (bounds.width <= 0 || bounds.height <= 0) {
+        return;
+    }
+
     const auto& theme = ctx->getTheme();
 
     if (selected_) {
@@ -80,6 +114,10 @@ void AssetGridItem::render(ui::UIBatchRenderer& renderer) {
         );
     }
 }
+
+// =============================================================================
+// Event Handling
+// =============================================================================
 
 bool AssetGridItem::onMouseDown(const ui::MouseButtonEvent& event) {
     if (event.button == ui::MouseButton::Left) {

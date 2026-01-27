@@ -1,4 +1,20 @@
+/**
+ * @file    AssetBrowserPanel.hpp
+ * @brief   Asset browser panel for the editor
+ * @details Provides a file browser interface for navigating and managing
+ *          project assets with folder tree and grid view.
+ *
+ * @author  ESEngine Team
+ * @date    2026
+ *
+ * @copyright Copyright (c) 2026 ESEngine Team
+ *            Licensed under the MIT License.
+ */
 #pragma once
+
+// =============================================================================
+// Includes
+// =============================================================================
 
 #include "../../ui/docking/DockPanel.hpp"
 #include "../../ui/widgets/TreeView.hpp"
@@ -13,8 +29,16 @@
 
 namespace esengine::editor {
 
+// =============================================================================
+// Forward Declarations
+// =============================================================================
+
 class AssetDatabase;
 class ThumbnailGenerator;
+
+// =============================================================================
+// AssetBrowserPanel Class
+// =============================================================================
 
 class AssetBrowserPanel : public ui::DockPanel {
 public:

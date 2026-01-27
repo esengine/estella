@@ -1,9 +1,21 @@
+/**
+ * @file    AssetBrowserPanel.cpp
+ * @brief   Asset browser panel implementation
+ *
+ * @author  ESEngine Team
+ * @date    2026
+ *
+ * @copyright Copyright (c) 2026 ESEngine Team
+ *            Licensed under the MIT License.
+ */
+
 #include "AssetBrowserPanel.hpp"
 #include "AssetGridItem.hpp"
 #include "../AssetDatabase.hpp"
 #include "../ThumbnailGenerator.hpp"
 #include "../../ui/UIContext.hpp"
 #include "../../ui/layout/StackLayout.hpp"
+#include "../../ui/layout/WrapLayout.hpp"
 #include "../../ui/widgets/Label.hpp"
 #include "../../platform/FileSystem.hpp"
 #include "../../core/Log.hpp"
@@ -13,6 +25,10 @@
 #include <cctype>
 
 namespace esengine::editor {
+
+// =============================================================================
+// Constructor / Destructor
+// =============================================================================
 
 AssetBrowserPanel::AssetBrowserPanel(AssetDatabase& assetDB, ThumbnailGenerator& thumbnailGen)
     : DockPanel(ui::WidgetId("asset_browser_panel"), "Assets"),
@@ -29,6 +45,9 @@ AssetBrowserPanel::AssetBrowserPanel(AssetDatabase& assetDB, ThumbnailGenerator&
     }
     currentPath_ = rootPath_;
 
+    ES_LOG_INFO("AssetBrowserPanel: rootPath = {}", rootPath_);
+    ES_LOG_INFO("AssetBrowserPanel: directoryExists = {}", FileSystem::directoryExists(rootPath_));
+
     buildUI();
 
 #ifndef ES_PLATFORM_WEB
@@ -38,6 +57,10 @@ AssetBrowserPanel::AssetBrowserPanel(AssetDatabase& assetDB, ThumbnailGenerator&
 }
 
 AssetBrowserPanel::~AssetBrowserPanel() = default;
+
+// =============================================================================
+// Public Methods
+// =============================================================================
 
 void AssetBrowserPanel::refresh() {
     needsRebuild_ = true;
@@ -67,6 +90,10 @@ void AssetBrowserPanel::onActivated() {
     }
 }
 
+// =============================================================================
+// UI Building
+// =============================================================================
+
 void AssetBrowserPanel::buildUI() {
     auto rootPanel = makeUnique<ui::Panel>(ui::WidgetId(getId().path + "_root"));
     rootPanel->setLayout(makeUnique<ui::StackLayout>(ui::StackDirection::Horizontal, 4.0f));
@@ -76,16 +103,22 @@ void AssetBrowserPanel::buildUI() {
     leftPanel->setWidth(ui::SizeValue::px(200.0f));
     leftPanel->setHeight(ui::SizeValue::flex(1.0f));
     leftPanel->setDrawBackground(true);
-    leftPanel->setPadding(ui::Insets::all(4.0f));
+
+    auto leftScrollView = makeUnique<ui::ScrollView>(ui::WidgetId(getId().path + "_left_scroll"));
+    leftScrollView->setScrollDirection(ui::ScrollDirection::Vertical);
+    leftScrollView->setWidth(ui::SizeValue::flex(1.0f));
+    leftScrollView->setHeight(ui::SizeValue::flex(1.0f));
 
     auto folderTree = makeUnique<ui::TreeView>(ui::WidgetId(getId().path + "_folder_tree"));
     folderTree->setMultiSelect(false);
     folderTree->setRowHeight(22.0f);
     folderTree->setIndentSize(16.0f);
     folderTree->setWidth(ui::SizeValue::flex(1.0f));
-    folderTree->setHeight(ui::SizeValue::flex(1.0f));
+    folderTree->setHeight(ui::SizeValue::autoSize());
     folderTree_ = folderTree.get();
-    leftPanel->addChild(std::move(folderTree));
+
+    leftScrollView->setContent(std::move(folderTree));
+    leftPanel->addChild(std::move(leftScrollView));
 
     leftPanel_ = leftPanel.get();
     rootPanel->addChild(std::move(leftPanel));
@@ -120,6 +153,7 @@ void AssetBrowserPanel::buildUI() {
     gridPanel->setDrawBackground(false);
     gridPanel->setWidth(ui::SizeValue::flex(1.0f));
     gridPanel->setHeight(ui::SizeValue::autoSize());
+    gridPanel->setLayout(makeUnique<ui::WrapLayout>(8.0f, 8.0f));
     assetGridPanel_ = gridPanel.get();
     scrollView->setContent(std::move(gridPanel));
 
@@ -139,6 +173,10 @@ void AssetBrowserPanel::buildUI() {
         [this](const std::string& text) { onSearchTextChanged(text); }
     );
 }
+
+// =============================================================================
+// Directory Scanning
+// =============================================================================
 
 void AssetBrowserPanel::rebuildFolderTree() {
 #ifdef ES_PLATFORM_WEB
@@ -174,10 +212,12 @@ void AssetBrowserPanel::addFolderNodes(const std::string& path, ui::TreeNodeId p
 #endif
 
     std::vector<std::string> entries = FileSystem::listDirectory(path, false);
+    ES_LOG_INFO("AssetBrowserPanel::addFolderNodes: {} has {} entries", path, entries.size());
 
     for (const auto& entry : entries) {
         if (FileSystem::directoryExists(entry)) {
             std::string folderName = getFileName(entry);
+            ES_LOG_DEBUG("  Found folder: {}", folderName);
 
             ui::TreeNodeId nodeId = folderTree_->addNode(parentNode, folderName);
             nodeToPath_[nodeId] = entry;
@@ -197,10 +237,12 @@ void AssetBrowserPanel::refreshAssetList() {
     assetGridPanel_->clearChildren();
 
     if (!FileSystem::directoryExists(currentPath_)) {
+        ES_LOG_WARN("AssetBrowserPanel::refreshAssetList: directory not found: {}", currentPath_);
         return;
     }
 
     std::vector<std::string> files = FileSystem::listDirectory(currentPath_, false);
+    ES_LOG_INFO("AssetBrowserPanel::refreshAssetList: {} has {} items", currentPath_, files.size());
 
     for (const auto& filePath : files) {
         AssetEntry entry;
@@ -254,7 +296,13 @@ void AssetBrowserPanel::refreshAssetList() {
 
         assetGridPanel_->addChild(std::move(item));
     }
+
+    ES_LOG_INFO("AssetBrowserPanel::refreshAssetList: added {} items to grid", currentAssets_.size());
 }
+
+// =============================================================================
+// Event Handlers
+// =============================================================================
 
 void AssetBrowserPanel::onFolderSelected(ui::TreeNodeId nodeId) {
     auto it = nodeToPath_.find(nodeId);
@@ -298,6 +346,10 @@ void AssetBrowserPanel::onAssetItemDoubleClicked(const std::string& path) {
         onAssetDoubleClicked.publish(path);
     }
 }
+
+// =============================================================================
+// Utility Methods
+// =============================================================================
 
 std::string AssetBrowserPanel::getFileName(const std::string& path) const {
     usize pos = path.find_last_of("/\\");

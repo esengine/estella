@@ -1,4 +1,18 @@
+/**
+ * @file    AssetBrowserTypes.hpp
+ * @brief   Type definitions for the asset browser
+ *
+ * @author  ESEngine Team
+ * @date    2026
+ *
+ * @copyright Copyright (c) 2026 ESEngine Team
+ *            Licensed under the MIT License.
+ */
 #pragma once
+
+// =============================================================================
+// Includes
+// =============================================================================
 
 #include "../../core/Types.hpp"
 
@@ -7,6 +21,10 @@
 #include <string>
 
 namespace esengine::editor {
+
+// =============================================================================
+// Enumerations
+// =============================================================================
 
 enum class AssetType : u8 {
     Unknown,
@@ -25,6 +43,10 @@ enum class AssetViewMode : u8 {
     List
 };
 
+// =============================================================================
+// Data Structures
+// =============================================================================
+
 struct AssetEntry {
     std::string name;
     std::string path;
@@ -34,6 +56,10 @@ struct AssetEntry {
     u64 modificationTime = 0;
     bool isDirectory = false;
 };
+
+// =============================================================================
+// Utility Functions
+// =============================================================================
 
 inline AssetType getAssetTypeFromExtension(const std::string& ext) {
     if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".bmp" || ext == ".tga") {
