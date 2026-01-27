@@ -5,6 +5,7 @@ set(EDITOR_SOURCES
     EditorApplication.cpp
     AssetDatabase.cpp
     ThumbnailGenerator.cpp
+    DragDropManager.cpp
 
     # Property editors
     property/PropertyEditor.cpp
@@ -29,6 +30,8 @@ set(EDITOR_HEADERS
     EditorApplication.hpp
     AssetDatabase.hpp
     ThumbnailGenerator.hpp
+    DragDropTypes.hpp
+    DragDropManager.hpp
 
     # Core subsystem
     core/EditorEvents.hpp

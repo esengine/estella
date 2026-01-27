@@ -238,6 +238,8 @@ void EditorApplication::onTouch(TouchType type, const TouchPoint& point) {
         return;
     }
 
+    glm::vec2 pos(point.x, point.y);
+
     switch (type) {
         case TouchType::Begin:
             uiContext_->processMouseDown(ui::MouseButton::Left, point.x, point.y);
@@ -245,10 +247,14 @@ void EditorApplication::onTouch(TouchType type, const TouchPoint& point) {
 
         case TouchType::Move:
             uiContext_->processMouseMove(point.x, point.y);
+            dragDropManager_.updateDrag(pos);
             break;
 
         case TouchType::End:
         case TouchType::Cancel:
+            if (dragDropManager_.isDragging()) {
+                dragDropManager_.endDrag(pos);
+            }
             uiContext_->processMouseUp(ui::MouseButton::Left, point.x, point.y);
             break;
     }

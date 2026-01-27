@@ -26,6 +26,7 @@
 #include "core/Selection.hpp"
 #include "AssetDatabase.hpp"
 #include "ThumbnailGenerator.hpp"
+#include "DragDropManager.hpp"
 
 namespace esengine {
 namespace editor {
@@ -111,6 +112,12 @@ public:
      * @return Reference to the thumbnail generator
      */
     ThumbnailGenerator& getThumbnailGenerator() { return thumbnailGenerator_; }
+
+    /**
+     * @brief Get the drag-drop manager
+     * @return Reference to the drag-drop manager
+     */
+    DragDropManager& getDragDropManager() { return dragDropManager_; }
 
 protected:
     // =========================================================================
@@ -207,6 +214,7 @@ private:
     EntitySelection selection_;       ///< Entity selection manager
     AssetDatabase assetDatabase_;     ///< Asset database
     ThumbnailGenerator thumbnailGenerator_; ///< Thumbnail generator
+    DragDropManager dragDropManager_; ///< Drag-drop manager
     Unique<ui::UIContext> uiContext_; ///< UI system context
     ui::DockArea* dockArea_ = nullptr; ///< Main docking area (owned by UIContext)
 
