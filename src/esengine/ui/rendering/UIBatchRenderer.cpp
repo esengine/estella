@@ -291,6 +291,7 @@ struct UIBatchRenderer::BatchData {
     u32 textureSlotIndex = 1;
 
     glm::mat4 projection{1.0f};
+    f32 devicePixelRatio = 1.0f;
 
     std::vector<Rect> clipStack;
     Rect currentClip;
@@ -388,8 +389,9 @@ bool UIBatchRenderer::isInitialized() const {
 // Frame Management
 // =============================================================================
 
-void UIBatchRenderer::begin(const glm::mat4& projection) {
+void UIBatchRenderer::begin(const glm::mat4& projection, f32 devicePixelRatio) {
     data_->projection = projection;
+    data_->devicePixelRatio = devicePixelRatio > 0.0f ? devicePixelRatio : 1.0f;
     data_->inFrame = true;
     data_->stats.reset();
 
@@ -511,10 +513,11 @@ void UIBatchRenderer::applyScissor() {
 
     glEnable(GL_SCISSOR_TEST);
 
-    i32 x = static_cast<i32>(data_->currentClip.x);
-    i32 y = static_cast<i32>(data_->currentClip.y);
-    i32 w = static_cast<i32>(data_->currentClip.width);
-    i32 h = static_cast<i32>(data_->currentClip.height);
+    f32 dpr = data_->devicePixelRatio;
+    i32 x = static_cast<i32>(data_->currentClip.x * dpr);
+    i32 y = static_cast<i32>(data_->currentClip.y * dpr);
+    i32 w = static_cast<i32>(data_->currentClip.width * dpr);
+    i32 h = static_cast<i32>(data_->currentClip.height * dpr);
 
     GLint viewport[4];
     glGetIntegerv(GL_VIEWPORT, viewport);

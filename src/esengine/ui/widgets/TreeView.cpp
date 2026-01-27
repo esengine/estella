@@ -12,6 +12,7 @@
 #include "TreeView.hpp"
 #include "../UIContext.hpp"
 #include "../font/SDFFont.hpp"
+#include "../icons/Icons.hpp"
 #include "../rendering/UIBatchRenderer.hpp"
 #include "../../core/Log.hpp"
 #include "../../math/Math.hpp"
@@ -297,25 +298,14 @@ void TreeView::renderNode(UIBatchRenderer& renderer, const TreeNode& node, f32 y
 
         glm::vec4 iconColor = style.textColor;
         if (getContext()) {
-            iconColor = getContext()->getTheme().colors.textPrimary;
+            iconColor = getContext()->getTheme().colors.textSecondary;
         }
 
-        if (node.expanded) {
-            // Draw expanded icon (▼)
-            f32 cx = iconBounds.x + iconBounds.width * 0.5f;
-            f32 cy = iconBounds.y + iconBounds.height * 0.5f;
-            f32 size = iconSize_ * 0.3f;
-
-            Rect arrowRect{cx - size, cy - size * 0.3f, size * 2.0f, size * 0.6f};
-            renderer.drawRect(arrowRect, iconColor);
-        } else {
-            // Draw collapsed icon (▶)
-            f32 cx = iconBounds.x + iconBounds.width * 0.5f;
-            f32 cy = iconBounds.y + iconBounds.height * 0.5f;
-            f32 size = iconSize_ * 0.3f;
-
-            Rect arrowRect{cx - size * 0.3f, cy - size, size * 0.6f, size * 2.0f};
-            renderer.drawRect(arrowRect, iconColor);
+        SDFFont* iconFont = getContext() ? getContext()->getIconFont() : nullptr;
+        if (iconFont) {
+            const char* icon = node.expanded ? icons::ChevronDown : icons::ChevronRight;
+            renderer.drawTextInBounds(icon, iconBounds, *iconFont, iconSize_, iconColor,
+                                       HAlign::Center, VAlign::Center);
         }
 
         x += iconSize_ + 4.0f;

@@ -14,6 +14,8 @@
 #include "../rendering/UIBatchRenderer.hpp"
 #include "../../math/Math.hpp"
 
+#include <limits>
+
 namespace esengine::ui {
 
 // =============================================================================
@@ -349,6 +351,19 @@ void ScrollView::updateContentLayout() {
 
     const Rect& bounds = getBounds();
     const Insets& padding = getPadding();
+
+    f32 measureWidth = viewportSize_.x;
+    f32 measureHeight = std::numeric_limits<f32>::infinity();
+
+    if (scrollDirection_ == ScrollDirection::Horizontal) {
+        measureWidth = std::numeric_limits<f32>::infinity();
+        measureHeight = viewportSize_.y;
+    } else if (scrollDirection_ == ScrollDirection::Both) {
+        measureWidth = std::numeric_limits<f32>::infinity();
+        measureHeight = std::numeric_limits<f32>::infinity();
+    }
+
+    contentSize_ = content_->measure(measureWidth, measureHeight);
 
     f32 contentWidth = contentSize_.x;
     f32 contentHeight = contentSize_.y;

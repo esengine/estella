@@ -115,8 +115,9 @@ public:
     /**
      * @brief Begins a UI rendering frame
      * @param projection Orthographic projection matrix
+     * @param devicePixelRatio Scale factor for high-DPI displays (default 1.0)
      */
-    void begin(const glm::mat4& projection);
+    void begin(const glm::mat4& projection, f32 devicePixelRatio = 1.0f);
 
     /**
      * @brief Ends the UI rendering frame and flushes all batches

@@ -111,6 +111,7 @@ set(ESENGINE_HEADERS
     src/esengine/ui/layout/StackLayout.hpp
     src/esengine/ui/rendering/UIBatchRenderer.hpp
     src/esengine/ui/font/SDFFont.hpp
+    src/esengine/ui/icons/Icons.hpp
     src/esengine/ui/widgets/Widget.hpp
     src/esengine/ui/widgets/Panel.hpp
     src/esengine/ui/widgets/Label.hpp

@@ -137,6 +137,10 @@ SDFFont* UIContext::getDefaultFont() {
     return getFont(defaultFontName_);
 }
 
+SDFFont* UIContext::getIconFont() {
+    return getFont("icons");
+}
+
 // =============================================================================
 // Update and Render
 // =============================================================================
@@ -162,7 +166,7 @@ void UIContext::render() {
     glm::mat4 projection = glm::ortho(0.0f, static_cast<f32>(viewportWidth_),
                                       static_cast<f32>(viewportHeight_), 0.0f, -1.0f, 1.0f);
 
-    renderer_->begin(projection);
+    renderer_->begin(projection, devicePixelRatio_);
     root_->renderTree(*renderer_);
     renderer_->end();
 }

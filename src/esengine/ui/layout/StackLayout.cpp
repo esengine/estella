@@ -77,11 +77,20 @@ void StackLayout::layout(Widget& container, const Rect& bounds) {
     std::vector<Widget*> visibleChildren;
     std::vector<glm::vec2> childSizes;
 
+    f32 usedMainSize = 0.0f;
     for (const auto& child : children) {
         if (child->isVisible()) {
             visibleChildren.push_back(child.get());
-            auto size = child->measure(bounds.width, bounds.height);
+
+            f32 childAvailW = isVertical ? bounds.width : (bounds.width - usedMainSize);
+            f32 childAvailH = isVertical ? (bounds.height - usedMainSize) : bounds.height;
+            auto size = child->measure(childAvailW, childAvailH);
             childSizes.push_back(size);
+
+            const auto& margin = child->getMargin();
+            f32 childMainSize = isVertical ? (size.y + margin.totalVertical())
+                                           : (size.x + margin.totalHorizontal());
+            usedMainSize += childMainSize + spacing_;
         }
     }
 

@@ -164,6 +164,12 @@ public:
     SDFFont* getDefaultFont();
 
     /**
+     * @brief Gets the icon font (Lucide icons)
+     * @return Pointer to the icon font or nullptr
+     */
+    SDFFont* getIconFont();
+
+    /**
      * @brief Sets the default font name
      */
     void setDefaultFontName(const std::string& name) { defaultFontName_ = name; }

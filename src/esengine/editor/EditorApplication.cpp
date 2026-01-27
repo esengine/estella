@@ -92,6 +92,10 @@ void EditorApplication::onInit() {
         ES_LOG_WARN("No font loaded, text will not render");
     }
 
+    if (!uiContext_->loadFont("icons", "assets/fonts/lucide.ttf", 48.0f, 4.0f)) {
+        ES_LOG_WARN("Icon font not loaded, icons will not render");
+    }
+
     // Wire up scroll events to UI system
     getPlatform().setScrollCallback([this](f32 deltaX, f32 deltaY, f32 x, f32 y) {
         if (uiContext_) {

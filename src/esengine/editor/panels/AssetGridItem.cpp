@@ -12,6 +12,7 @@
 #include "AssetGridItem.hpp"
 #include "../../ui/UIContext.hpp"
 #include "../../ui/font/SDFFont.hpp"
+#include "../../ui/icons/Icons.hpp"
 #include "../../ui/rendering/UIBatchRenderer.hpp"
 
 #include <chrono>
@@ -28,6 +29,21 @@ f64 getCurrentTimeSeconds() {
     auto now = std::chrono::steady_clock::now();
     auto duration = now.time_since_epoch();
     return std::chrono::duration<f64>(duration).count();
+}
+
+const char* getAssetTypeIcon(AssetType type) {
+    using namespace ui::icons;
+    switch (type) {
+        case AssetType::Folder:     return Folder;
+        case AssetType::Texture:    return Image;
+        case AssetType::Audio:      return Music;
+        case AssetType::Script:     return FileCode;
+        case AssetType::Scene:      return Layers;
+        case AssetType::Prefab:     return Box;
+        case AssetType::Shader:     return Code;
+        case AssetType::Font:       return FileText;
+        default:                    return File;
+    }
 }
 
 std::string truncateText(const std::string& text, ui::SDFFont& font, f32 fontSize, f32 maxWidth) {
@@ -145,8 +161,17 @@ void AssetGridItem::render(ui::UIBatchRenderer& renderer) {
     f32 iconY = bounds.y + ICON_PADDING;
     ui::Rect iconBounds{iconX, iconY, ICON_SIZE, ICON_SIZE};
 
-    glm::vec4 iconColor = getAssetTypeColor(entry_.type);
-    renderer.drawRoundedRect(iconBounds, iconColor, ui::CornerRadii::all(6.0f));
+    glm::vec4 bgColor = getAssetTypeColor(entry_.type);
+    bgColor.a = 0.15f;
+    renderer.drawRoundedRect(iconBounds, bgColor, ui::CornerRadii::all(6.0f));
+
+    ui::SDFFont* iconFont = ctx->getIconFont();
+    if (iconFont) {
+        glm::vec4 iconColor = getAssetTypeColor(entry_.type);
+        const char* icon = getAssetTypeIcon(entry_.type);
+        renderer.drawTextInBounds(icon, iconBounds, *iconFont, 28.0f, iconColor,
+                                   ui::HAlign::Center, ui::VAlign::Center);
+    }
 
     ui::SDFFont* font = ctx->getDefaultFont();
     if (font) {
