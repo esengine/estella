@@ -57,8 +57,8 @@ glm::vec2 Button::measure(f32 availableWidth, f32 availableHeight) {
                             ? ctx->getTheme().getPrimaryButtonStyle()
                             : ctx->getTheme().getButtonStyle();
 
+    // Use regular font for measurement
     Font* font = fontName_.empty() ? ctx->getDefaultFont() : ctx->getFont(fontName_);
-
     if (font && textSizeDirty_) {
         cachedTextSize_ = font->measureText(text_, fontSize_);
         textSizeDirty_ = false;
@@ -113,11 +113,12 @@ void Button::render(UIBatchRenderer& renderer) {
     }
 
     if (!text_.empty()) {
+        glm::vec4 textColor = style.getTextColor(state);
+        Rect textBounds = style.padding.shrink(bounds);
+
+        // Use regular font for now
         Font* font = fontName_.empty() ? ctx->getDefaultFont() : ctx->getFont(fontName_);
         if (font) {
-            glm::vec4 textColor = style.getTextColor(state);
-            Rect textBounds = style.padding.shrink(bounds);
-
             renderer.drawTextInBounds(text_, textBounds, *font, fontSize_, textColor,
                                       HAlign::Center, VAlign::Center);
         }

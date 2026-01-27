@@ -11,6 +11,7 @@
 
 #include "TreeView.hpp"
 #include "../UIContext.hpp"
+#include "../font/Font.hpp"
 #include "../rendering/UIBatchRenderer.hpp"
 #include "../../core/Log.hpp"
 #include "../../math/Math.hpp"

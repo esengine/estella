@@ -126,8 +126,18 @@ void DockArea::movePanel(DockPanel* panel, const DockDropTarget& target) {
     if (!detachedPanel) return;
 
     if (target.zone == DockDropZone::Center) {
-        if (target.targetNode && target.targetNode->isTabs()) {
-            target.targetNode->addPanel(std::move(detachedPanel));
+        if (target.targetNode) {
+            if (target.targetNode->isTabs()) {
+                target.targetNode->addPanel(std::move(detachedPanel));
+            } else {
+                DockNode* leaf = nullptr;
+                target.targetNode->forEachLeaf([&](DockNode& node) {
+                    if (!leaf) leaf = &node;
+                });
+                if (leaf) {
+                    leaf->addPanel(std::move(detachedPanel));
+                }
+            }
         }
     } else if (isEdgeDropZone(target.zone)) {
         DockSplitDirection dir = dropZoneToSplitDirection(target.zone);
@@ -404,8 +414,8 @@ bool DockArea::onMouseUp(const MouseButtonEvent& event) {
     if (event.button != MouseButton::Left) return false;
 
     if (zoneDetector_.isDragging()) {
-        DockDropTarget target = zoneDetector_.endDrag();
         DockPanel* panel = zoneDetector_.getDraggedPanel();
+        DockDropTarget target = zoneDetector_.endDrag();
         if (panel && target.zone != DockDropZone::None) {
             movePanel(panel, target);
         }

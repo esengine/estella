@@ -128,7 +128,6 @@ void DockTabBar::renderTab(UIBatchRenderer& renderer, const DockTabInfo& tab, us
     if (!ctx) return;
 
     const Theme& theme = ctx->getTheme();
-    Font* font = ctx->getDefaultFont();
 
     glm::vec4 bgColor;
     if (tab.active) {
@@ -151,23 +150,24 @@ void DockTabBar::renderTab(UIBatchRenderer& renderer, const DockTabInfo& tab, us
         renderer.drawRect(indicator, theme.colors.accent);
     }
 
+    f32 textX = tab.bounds.x + tabPadding_;
+    f32 maxTextWidth = tab.bounds.width - tabPadding_ * 2.0f;
+
+    if (tab.closable) {
+        maxTextWidth -= closeButtonSize_ + 4.0f;
+    }
+
+    glm::vec4 textColor = tab.active ? theme.colors.textPrimary : theme.colors.textSecondary;
+
+    Rect textBounds{
+        textX,
+        tab.bounds.y,
+        maxTextWidth,
+        tab.bounds.height
+    };
+
+    Font* font = ctx->getDefaultFont();
     if (font) {
-        f32 textX = tab.bounds.x + tabPadding_;
-        f32 maxTextWidth = tab.bounds.width - tabPadding_ * 2.0f;
-
-        if (tab.closable) {
-            maxTextWidth -= closeButtonSize_ + 4.0f;
-        }
-
-        glm::vec4 textColor = tab.active ? theme.colors.textPrimary : theme.colors.textSecondary;
-
-        Rect textBounds{
-            textX,
-            tab.bounds.y,
-            maxTextWidth,
-            tab.bounds.height
-        };
-
         renderer.drawTextInBounds(tab.title, textBounds, *font,
                                    theme.typography.fontSizeNormal, textColor,
                                    HAlign::Left, VAlign::Center);

@@ -83,15 +83,14 @@ void Label::render(UIBatchRenderer& renderer) {
     UIContext* ctx = getContext();
     if (!ctx) return;
 
-    Font* font = fontName_.empty() ? ctx->getDefaultFont() : ctx->getFont(fontName_);
-    if (!font) return;
-
     WidgetStyle style = ctx->getTheme().getLabelStyle();
     glm::vec4 textColor = customColor_ ? color_ : style.getTextColor(getState());
-
     Rect contentBounds = getContentBounds();
 
-    renderer.drawTextInBounds(text_, contentBounds, *font, fontSize_, textColor, hAlign_, vAlign_);
+    Font* font = fontName_.empty() ? ctx->getDefaultFont() : ctx->getFont(fontName_);
+    if (font) {
+        renderer.drawTextInBounds(text_, contentBounds, *font, fontSize_, textColor, hAlign_, vAlign_);
+    }
 }
 
 }  // namespace esengine::ui

@@ -11,6 +11,7 @@
 
 #include "TextField.hpp"
 #include "../UIContext.hpp"
+#include "../font/Font.hpp"
 #include "../rendering/UIBatchRenderer.hpp"
 #include "../../core/Log.hpp"
 #include "../../math/Math.hpp"
@@ -499,7 +500,7 @@ void TextField::cutToClipboard() {
 }
 
 usize TextField::getCharIndexAtX(f32 x) const {
-    if (!getContext() || !getContext()->getDefaultFont()) {
+    if (!getContext()) {
         return 0;
     }
 
@@ -512,14 +513,19 @@ usize TextField::getCharIndexAtX(f32 x) const {
         return 0;
     }
 
-    f32 fontSize = 14.0f;
-    if (getContext()) {
-        fontSize = getContext()->getTheme().typography.fontSizeNormal;
-    }
+    f32 fontSize = getContext()->getTheme().typography.fontSizeNormal;
+
+    // Use regular font for character measurement
+    Font* font = getContext()->getDefaultFont();
 
     f32 currentX = 0.0f;
     for (usize i = 0; i < text_.size(); ++i) {
-        f32 charWidth = fontSize * 0.6f;
+        f32 charWidth;
+        if (font) {
+            charWidth = font->getCharWidth(static_cast<u32>(text_[i]), fontSize);
+        } else {
+            charWidth = fontSize * 0.6f;
+        }
 
         if (relativeX < currentX + charWidth * 0.5f) {
             return i;
@@ -536,9 +542,17 @@ f32 TextField::getXForCharIndex(usize index) const {
         return 0.0f;
     }
 
-    f32 fontSize = 14.0f;
-    if (getContext()) {
-        fontSize = getContext()->getTheme().typography.fontSizeNormal;
+    f32 fontSize = getContext()->getTheme().typography.fontSizeNormal;
+
+    // Use regular font for character measurement
+    Font* font = getContext()->getDefaultFont();
+
+    if (font) {
+        f32 currentX = 0.0f;
+        for (usize i = 0; i < index && i < text_.size(); ++i) {
+            currentX += font->getCharWidth(static_cast<u32>(text_[i]), fontSize);
+        }
+        return currentX;
     }
 
     f32 charWidth = fontSize * 0.6f;
