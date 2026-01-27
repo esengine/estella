@@ -12,14 +12,16 @@
 #include "PathResolver.hpp"
 #include "../core/Log.hpp"
 
-#ifdef ES_PLATFORM_WINDOWS
-#include <windows.h>
-#elif defined(ES_PLATFORM_LINUX)
-#include <unistd.h>
-#include <linux/limits.h>
-#elif defined(ES_PLATFORM_MACOS)
-#include <mach-o/dyld.h>
-#include <limits.h>
+#ifdef ES_PLATFORM_WEB
+    // Web platform - no executable path needed
+#elif defined(_WIN32) || defined(_WIN64)
+    #include <windows.h>
+#elif defined(__APPLE__)
+    #include <mach-o/dyld.h>
+    #include <limits.h>
+#elif defined(__linux__)
+    #include <unistd.h>
+    #include <limits.h>
 #endif
 
 #include <algorithm>
@@ -105,7 +107,7 @@ std::string PathResolver::projectPath(const std::string& relativePath) {
 bool PathResolver::isAbsolutePath(const std::string& path) {
     if (path.empty()) return false;
 
-#ifdef ES_PLATFORM_WINDOWS
+#if defined(_WIN32) || defined(_WIN64)
     if (path.length() >= 2 && path[1] == ':') {
         return true;
     }
@@ -122,7 +124,10 @@ bool PathResolver::isAbsolutePath(const std::string& path) {
 }
 
 std::string PathResolver::getExecutableDirectory() {
-#ifdef ES_PLATFORM_WINDOWS
+#ifdef ES_PLATFORM_WEB
+    return "";
+
+#elif defined(_WIN32) || defined(_WIN64)
     char buffer[MAX_PATH];
     DWORD length = GetModuleFileNameA(nullptr, buffer, MAX_PATH);
     if (length > 0 && length < MAX_PATH) {
@@ -134,20 +139,7 @@ std::string PathResolver::getExecutableDirectory() {
     }
     return ".";
 
-#elif defined(ES_PLATFORM_LINUX)
-    char buffer[PATH_MAX];
-    ssize_t len = readlink("/proc/self/exe", buffer, sizeof(buffer) - 1);
-    if (len != -1) {
-        buffer[len] = '\0';
-        std::string path(buffer);
-        auto pos = path.find_last_of('/');
-        if (pos != std::string::npos) {
-            return path.substr(0, pos);
-        }
-    }
-    return ".";
-
-#elif defined(ES_PLATFORM_MACOS)
+#elif defined(__APPLE__)
     char buffer[PATH_MAX];
     uint32_t size = sizeof(buffer);
     if (_NSGetExecutablePath(buffer, &size) == 0) {
@@ -162,8 +154,18 @@ std::string PathResolver::getExecutableDirectory() {
     }
     return ".";
 
-#elif defined(ES_PLATFORM_WEB)
-    return "";
+#elif defined(__linux__)
+    char buffer[PATH_MAX];
+    ssize_t len = readlink("/proc/self/exe", buffer, sizeof(buffer) - 1);
+    if (len != -1) {
+        buffer[len] = '\0';
+        std::string path(buffer);
+        auto pos = path.find_last_of('/');
+        if (pos != std::string::npos) {
+            return path.substr(0, pos);
+        }
+    }
+    return ".";
 
 #else
     return ".";
@@ -175,7 +177,7 @@ std::string PathResolver::normalizePath(const std::string& path) {
 
     std::string result = path;
 
-#ifdef ES_PLATFORM_WINDOWS
+#if defined(_WIN32) || defined(_WIN64)
     std::replace(result.begin(), result.end(), '/', '\\');
 
     while (result.length() > 1 && result.back() == '\\') {
