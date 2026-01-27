@@ -19,6 +19,8 @@ set(EDITOR_SOURCES
     panels/HierarchyPanel.cpp
     panels/InspectorPanel.cpp
     panels/SceneViewPanel.cpp
+    panels/AssetBrowserPanel.cpp
+    panels/AssetGridItem.cpp
 )
 
 set(EDITOR_HEADERS
@@ -50,6 +52,9 @@ set(EDITOR_HEADERS
     panels/HierarchyPanel.hpp
     panels/InspectorPanel.hpp
     panels/SceneViewPanel.hpp
+    panels/AssetBrowserPanel.hpp
+    panels/AssetBrowserTypes.hpp
+    panels/AssetGridItem.hpp
 )
 
 # Create editor executable

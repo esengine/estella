@@ -26,6 +26,7 @@
 #include "panels/HierarchyPanel.hpp"
 #include "panels/InspectorPanel.hpp"
 #include "panels/SceneViewPanel.hpp"
+#include "panels/AssetBrowserPanel.hpp"
 
 namespace esengine {
 namespace editor {
@@ -309,11 +310,18 @@ void EditorApplication::setupEditorLayout() {
     ES_LOG_INFO("setupEditorLayout: Adding InspectorPanel to dock...");
     dockArea_->addPanel(std::move(inspectorPanel), ui::DockDropZone::Right, nullptr, 0.25f);
 
+    ES_LOG_INFO("setupEditorLayout: Creating AssetBrowserPanel...");
+    // Create Asset Browser panel (bottom)
+    auto assetBrowserPanel = makeUnique<AssetBrowserPanel>();
+    assetBrowserPanel->setMinSize(glm::vec2(300.0f, 200.0f));
+    ES_LOG_INFO("setupEditorLayout: Adding AssetBrowserPanel to dock...");
+    dockArea_->addPanel(std::move(assetBrowserPanel), ui::DockDropZone::Bottom, nullptr, 0.25f);
+
     ES_LOG_INFO("setupEditorLayout: Setting root widget...");
     // Set dock area as the root widget
     uiContext_->setRoot(std::move(dockArea));
 
-    ES_LOG_INFO("Editor layout initialized with Hierarchy, SceneView, and Inspector panels");
+    ES_LOG_INFO("Editor layout initialized with Hierarchy, SceneView, Inspector, and AssetBrowser panels");
 }
 
 void EditorApplication::createDemoScene() {
