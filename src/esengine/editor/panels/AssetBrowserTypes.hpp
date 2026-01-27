@@ -2,6 +2,8 @@
 
 #include "../../core/Types.hpp"
 
+#include <glm/glm.hpp>
+
 #include <string>
 
 namespace esengine::editor {

@@ -24,6 +24,7 @@
 #include "../ui/docking/DockArea.hpp"
 #include "command/CommandHistory.hpp"
 #include "core/Selection.hpp"
+#include "AssetDatabase.hpp"
 
 namespace esengine {
 namespace editor {
@@ -97,6 +98,12 @@ public:
      * @return Reference to the ECS registry
      */
     ecs::Registry& getEditorRegistry() { return Application::getRegistry(); }
+
+    /**
+     * @brief Get the asset database
+     * @return Reference to the asset database
+     */
+    AssetDatabase& getAssetDatabase() { return assetDatabase_; }
 
 protected:
     // =========================================================================
@@ -191,6 +198,7 @@ private:
     Dispatcher dispatcher_;           ///< Central event bus
     CommandHistory commandHistory_;   ///< Undo/redo history
     EntitySelection selection_;       ///< Entity selection manager
+    AssetDatabase assetDatabase_;     ///< Asset database
     Unique<ui::UIContext> uiContext_; ///< UI system context
     ui::DockArea* dockArea_ = nullptr; ///< Main docking area (owned by UIContext)
 

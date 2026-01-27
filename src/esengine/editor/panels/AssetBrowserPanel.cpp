@@ -1,5 +1,6 @@
 #include "AssetBrowserPanel.hpp"
 #include "AssetGridItem.hpp"
+#include "../AssetDatabase.hpp"
 #include "../../ui/UIContext.hpp"
 #include "../../ui/layout/StackLayout.hpp"
 #include "../../ui/widgets/Label.hpp"
@@ -12,14 +13,18 @@
 
 namespace esengine::editor {
 
-AssetBrowserPanel::AssetBrowserPanel()
-    : DockPanel(ui::WidgetId("asset_browser_panel"), "Assets") {
+AssetBrowserPanel::AssetBrowserPanel(AssetDatabase& assetDB)
+    : DockPanel(ui::WidgetId("asset_browser_panel"), "Assets"),
+      assetDB_(assetDB) {
 
     setPanelType("AssetBrowser");
     setClosable(true);
     setMinSize(glm::vec2(400.0f, 250.0f));
 
-    rootPath_ = "assets";
+    rootPath_ = assetDB_.getProjectPath();
+    if (rootPath_.empty()) {
+        rootPath_ = "assets";
+    }
     currentPath_ = rootPath_;
 
     buildUI();

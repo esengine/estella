@@ -97,6 +97,10 @@ void EditorApplication::onInit() {
         }
     });
 
+    // Initialize asset database
+    assetDatabase_.setProjectPath("assets");
+    assetDatabase_.scan();
+
     // Create demo scene for testing
     createDemoScene();
 
@@ -312,7 +316,7 @@ void EditorApplication::setupEditorLayout() {
 
     ES_LOG_INFO("setupEditorLayout: Creating AssetBrowserPanel...");
     // Create Asset Browser panel (bottom)
-    auto assetBrowserPanel = makeUnique<AssetBrowserPanel>();
+    auto assetBrowserPanel = makeUnique<AssetBrowserPanel>(assetDatabase_);
     assetBrowserPanel->setMinSize(glm::vec2(300.0f, 200.0f));
     ES_LOG_INFO("setupEditorLayout: Adding AssetBrowserPanel to dock...");
     dockArea_->addPanel(std::move(assetBrowserPanel), ui::DockDropZone::Bottom, nullptr, 0.25f);

@@ -13,9 +13,11 @@
 
 namespace esengine::editor {
 
+class AssetDatabase;
+
 class AssetBrowserPanel : public ui::DockPanel {
 public:
-    AssetBrowserPanel();
+    explicit AssetBrowserPanel(AssetDatabase& assetDB);
     ~AssetBrowserPanel() override;
 
     void refresh();
@@ -64,6 +66,8 @@ private:
 
     std::string selectedAssetPath_;
     bool needsRebuild_ = false;
+
+    AssetDatabase& assetDB_;
 
     Connection folderSelectedConnection_;
     Connection searchChangedConnection_;
