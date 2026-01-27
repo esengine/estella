@@ -1,3 +1,14 @@
+/**
+ * @file    AssetDatabase.cpp
+ * @brief   Asset database implementation
+ *
+ * @author  ESEngine Team
+ * @date    2026
+ *
+ * @copyright Copyright (c) 2026 ESEngine Team
+ *            Licensed under the MIT License.
+ */
+
 #include "AssetDatabase.hpp"
 #include "../platform/FileSystem.hpp"
 #include "../core/Log.hpp"
@@ -9,62 +20,76 @@
 
 namespace esengine::editor {
 
+// =============================================================================
+// Helper Functions
+// =============================================================================
+
 namespace {
-    std::string getFileName(const std::string& path) {
-        usize pos = path.find_last_of("/\\");
-        if (pos != std::string::npos) {
-            return path.substr(pos + 1);
-        }
-        return path;
-    }
 
-    std::string getFileExtension(const std::string& path) {
-        usize pos = path.find_last_of('.');
-        if (pos != std::string::npos) {
-            return path.substr(pos);
-        }
-        return "";
+std::string getFileName(const std::string& path) {
+    usize pos = path.find_last_of("/\\");
+    if (pos != std::string::npos) {
+        return path.substr(pos + 1);
     }
+    return path;
+}
 
-    std::string escapeJsonString(const std::string& str) {
-        std::string result;
-        result.reserve(str.size() + 16);
-        for (char c : str) {
-            switch (c) {
-                case '"': result += "\\\""; break;
-                case '\\': result += "\\\\"; break;
-                case '\n': result += "\\n"; break;
-                case '\r': result += "\\r"; break;
-                case '\t': result += "\\t"; break;
-                default: result += c; break;
+std::string getFileExtension(const std::string& path) {
+    usize pos = path.find_last_of('.');
+    if (pos != std::string::npos) {
+        return path.substr(pos);
+    }
+    return "";
+}
+
+std::string escapeJsonString(const std::string& str) {
+    std::string result;
+    result.reserve(str.size() + 16);
+    for (char c : str) {
+        switch (c) {
+            case '"': result += "\\\""; break;
+            case '\\': result += "\\\\"; break;
+            case '\n': result += "\\n"; break;
+            case '\r': result += "\\r"; break;
+            case '\t': result += "\\t"; break;
+            default: result += c; break;
+        }
+    }
+    return result;
+}
+
+std::string unescapeJsonString(const std::string& str) {
+    std::string result;
+    result.reserve(str.size());
+    for (usize i = 0; i < str.size(); ++i) {
+        if (str[i] == '\\' && i + 1 < str.size()) {
+            switch (str[i + 1]) {
+                case '"': result += '"'; ++i; break;
+                case '\\': result += '\\'; ++i; break;
+                case 'n': result += '\n'; ++i; break;
+                case 'r': result += '\r'; ++i; break;
+                case 't': result += '\t'; ++i; break;
+                default: result += str[i]; break;
             }
+        } else {
+            result += str[i];
         }
-        return result;
     }
+    return result;
+}
 
-    std::string unescapeJsonString(const std::string& str) {
-        std::string result;
-        result.reserve(str.size());
-        for (usize i = 0; i < str.size(); ++i) {
-            if (str[i] == '\\' && i + 1 < str.size()) {
-                switch (str[i + 1]) {
-                    case '"': result += '"'; ++i; break;
-                    case '\\': result += '\\'; ++i; break;
-                    case 'n': result += '\n'; ++i; break;
-                    case 'r': result += '\r'; ++i; break;
-                    case 't': result += '\t'; ++i; break;
-                    default: result += str[i]; break;
-                }
-            } else {
-                result += str[i];
-            }
-        }
-        return result;
-    }
 }  // namespace
+
+// =============================================================================
+// Constructor / Destructor
+// =============================================================================
 
 AssetDatabase::AssetDatabase() = default;
 AssetDatabase::~AssetDatabase() = default;
+
+// =============================================================================
+// Public Methods
+// =============================================================================
 
 void AssetDatabase::setProjectPath(const std::string& path) {
     if (projectPath_ != path) {
@@ -93,6 +118,10 @@ void AssetDatabase::scan() {
 void AssetDatabase::refresh() {
     scan();
 }
+
+// =============================================================================
+// Directory Scanning
+// =============================================================================
 
 void AssetDatabase::scanDirectory(const std::string& directory, bool recursive) {
 #ifdef ES_PLATFORM_WEB
@@ -139,6 +168,10 @@ void AssetDatabase::scanDirectory(const std::string& directory, bool recursive) 
         }
     }
 }
+
+// =============================================================================
+// Query Methods
+// =============================================================================
 
 const AssetMetadata* AssetDatabase::findByPath(const std::string& path) const {
     auto it = pathToGUID_.find(path);
@@ -232,6 +265,10 @@ AssetType AssetDatabase::detectAssetType(const std::string& path) const {
         [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
     return getAssetTypeFromExtension(ext);
 }
+
+// =============================================================================
+// Database Persistence
+// =============================================================================
 
 void AssetDatabase::saveDatabase() {
 #ifdef ES_PLATFORM_WEB
@@ -335,6 +372,10 @@ void AssetDatabase::loadDatabase() {
 
     ES_LOG_DEBUG("AssetDatabase: Loaded {} assets from {}", assetsByGUID_.size(), dbPath);
 }
+
+// =============================================================================
+// Callbacks
+// =============================================================================
 
 void AssetDatabase::setOnAssetAdded(std::function<void(const AssetMetadata&)> callback) {
     onAssetAdded_ = std::move(callback);

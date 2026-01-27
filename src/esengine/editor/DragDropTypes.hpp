@@ -1,4 +1,18 @@
+/**
+ * @file    DragDropTypes.hpp
+ * @brief   Type definitions for drag-and-drop operations
+ *
+ * @author  ESEngine Team
+ * @date    2026
+ *
+ * @copyright Copyright (c) 2026 ESEngine Team
+ *            Licensed under the MIT License.
+ */
 #pragma once
+
+// =============================================================================
+// Includes
+// =============================================================================
 
 #include "../core/Types.hpp"
 #include "../ecs/Entity.hpp"
@@ -10,12 +24,20 @@
 
 namespace esengine::editor {
 
+// =============================================================================
+// Enumerations
+// =============================================================================
+
 enum class DragDropType : u8 {
     None,
     Asset,
     Entity,
     Component
 };
+
+// =============================================================================
+// Data Structures
+// =============================================================================
 
 struct AssetDragData {
     std::string guid;

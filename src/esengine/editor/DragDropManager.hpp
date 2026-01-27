@@ -1,4 +1,20 @@
+/**
+ * @file    DragDropManager.hpp
+ * @brief   Manager for editor drag-and-drop operations
+ * @details Handles drag state tracking, threshold detection, and
+ *          signal dispatch for drag-and-drop interactions.
+ *
+ * @author  ESEngine Team
+ * @date    2026
+ *
+ * @copyright Copyright (c) 2026 ESEngine Team
+ *            Licensed under the MIT License.
+ */
 #pragma once
+
+// =============================================================================
+// Includes
+// =============================================================================
 
 #include "DragDropTypes.hpp"
 #include "../events/Signal.hpp"
@@ -8,6 +24,10 @@
 #include <optional>
 
 namespace esengine::editor {
+
+// =============================================================================
+// DragDropManager Class
+// =============================================================================
 
 class DragDropManager {
 public:

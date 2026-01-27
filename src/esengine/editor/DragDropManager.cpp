@@ -1,8 +1,23 @@
+/**
+ * @file    DragDropManager.cpp
+ * @brief   Drag-and-drop manager implementation
+ *
+ * @author  ESEngine Team
+ * @date    2026
+ *
+ * @copyright Copyright (c) 2026 ESEngine Team
+ *            Licensed under the MIT License.
+ */
+
 #include "DragDropManager.hpp"
 
 #include <cmath>
 
 namespace esengine::editor {
+
+// =============================================================================
+// Drag Operations
+// =============================================================================
 
 void DragDropManager::beginDrag(const DragDropPayload& payload, const glm::vec2& startPos) {
     if (isDragging_) {
@@ -53,6 +68,10 @@ void DragDropManager::cancelDrag() {
     activePayload_ = {};
     pendingPayload_.reset();
 }
+
+// =============================================================================
+// Accessors
+// =============================================================================
 
 const DragDropPayload* DragDropManager::getPayload() const {
     if (isDragging_) {

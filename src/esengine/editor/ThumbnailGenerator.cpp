@@ -1,3 +1,14 @@
+/**
+ * @file    ThumbnailGenerator.cpp
+ * @brief   Thumbnail generator implementation
+ *
+ * @author  ESEngine Team
+ * @date    2026
+ *
+ * @copyright Copyright (c) 2026 ESEngine Team
+ *            Licensed under the MIT License.
+ */
+
 #include "ThumbnailGenerator.hpp"
 #include "panels/AssetBrowserTypes.hpp"
 #include "../core/Log.hpp"
@@ -8,6 +19,10 @@
 #include <cstring>
 
 namespace esengine::editor {
+
+// =============================================================================
+// Helper Functions
+// =============================================================================
 
 namespace {
 
@@ -48,9 +63,17 @@ glm::vec4 getColorForType(AssetType type) {
 
 }  // namespace
 
+// =============================================================================
+// Constructor / Destructor
+// =============================================================================
+
 ThumbnailGenerator::ThumbnailGenerator() = default;
 
 ThumbnailGenerator::~ThumbnailGenerator() = default;
+
+// =============================================================================
+// Public Methods
+// =============================================================================
 
 void ThumbnailGenerator::generateThumbnail(const std::string& guid, const std::string& path, AssetType type) {
     if (hasThumbnail(guid)) {
@@ -83,6 +106,10 @@ void ThumbnailGenerator::clear() {
 void ThumbnailGenerator::removeThumbnail(const std::string& guid) {
     thumbnails_.erase(guid);
 }
+
+// =============================================================================
+// Private Methods
+// =============================================================================
 
 void ThumbnailGenerator::generateTextureThumbnail(const std::string& guid, const std::string& path) {
     int width, height, channels;

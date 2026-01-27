@@ -1,4 +1,20 @@
+/**
+ * @file    AssetDatabase.hpp
+ * @brief   Centralized asset management and tracking
+ * @details Maintains a database of all project assets with GUID-based
+ *          identification and metadata caching.
+ *
+ * @author  ESEngine Team
+ * @date    2026
+ *
+ * @copyright Copyright (c) 2026 ESEngine Team
+ *            Licensed under the MIT License.
+ */
 #pragma once
+
+// =============================================================================
+// Includes
+// =============================================================================
 
 #include "../core/Types.hpp"
 #include "panels/AssetBrowserTypes.hpp"
@@ -10,6 +26,10 @@
 
 namespace esengine::editor {
 
+// =============================================================================
+// Data Structures
+// =============================================================================
+
 struct AssetMetadata {
     std::string guid;
     std::string path;
@@ -20,6 +40,10 @@ struct AssetMetadata {
     u64 lastModified = 0;
     bool isDirectory = false;
 };
+
+// =============================================================================
+// AssetDatabase Class
+// =============================================================================
 
 class AssetDatabase {
 public:

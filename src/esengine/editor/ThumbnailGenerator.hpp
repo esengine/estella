@@ -1,4 +1,20 @@
+/**
+ * @file    ThumbnailGenerator.hpp
+ * @brief   Asset thumbnail generation and caching
+ * @details Generates and caches thumbnail images for various asset types
+ *          for display in the asset browser.
+ *
+ * @author  ESEngine Team
+ * @date    2026
+ *
+ * @copyright Copyright (c) 2026 ESEngine Team
+ *            Licensed under the MIT License.
+ */
 #pragma once
+
+// =============================================================================
+// Includes
+// =============================================================================
 
 #include "../core/Types.hpp"
 #include "../renderer/Texture.hpp"
@@ -8,7 +24,15 @@
 
 namespace esengine::editor {
 
+// =============================================================================
+// Forward Declarations
+// =============================================================================
+
 enum class AssetType : u8;
+
+// =============================================================================
+// ThumbnailGenerator Class
+// =============================================================================
 
 class ThumbnailGenerator {
 public:
