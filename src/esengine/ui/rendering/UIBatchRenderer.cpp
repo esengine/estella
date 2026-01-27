@@ -19,6 +19,7 @@
 #include "../layout/SizeValue.hpp"
 
 #include <array>
+#include <cmath>
 #include <vector>
 
 #ifdef ES_PLATFORM_WEB
@@ -130,7 +131,12 @@ static const char* UI_FRAGMENT_SHADER = R"(
         else if (index == 6) texColor = texture2D(u_textures[6], v_texCoord);
         else if (index == 7) texColor = texture2D(u_textures[7], v_texCoord);
 
-        vec4 color = texColor * v_color;
+        vec4 color;
+        if (texColor.g == 0.0 && texColor.b == 0.0 && texColor.a == 1.0) {
+            color = vec4(v_color.rgb, texColor.r * v_color.a);
+        } else {
+            color = texColor * v_color;
+        }
 
         if (v_cornerRadii.x > 0.0 || v_cornerRadii.y > 0.0 ||
             v_cornerRadii.z > 0.0 || v_cornerRadii.w > 0.0) {
@@ -215,7 +221,12 @@ static const char* UI_FRAGMENT_SHADER = R"(
 
     void main() {
         vec4 texColor = texture(u_textures[v_texIndex], v_texCoord);
-        vec4 color = texColor * v_color;
+        vec4 color;
+        if (texColor.g == 0.0 && texColor.b == 0.0 && texColor.a == 1.0) {
+            color = vec4(v_color.rgb, texColor.r * v_color.a);
+        } else {
+            color = texColor * v_color;
+        }
 
         if (v_cornerRadii.x > 0.0 || v_cornerRadii.y > 0.0 ||
             v_cornerRadii.z > 0.0 || v_cornerRadii.w > 0.0) {
@@ -670,8 +681,8 @@ void UIBatchRenderer::drawText(const std::string& text, const glm::vec2& positio
         const auto* glyph = font.getGlyph(static_cast<u32>(c));
         if (!glyph) continue;
 
-        f32 xPos = x + glyph->bearingX * scale;
-        f32 yPos = y + (font.getAscent() - glyph->bearingY) * scale;
+        f32 xPos = std::round(x + glyph->bearingX * scale);
+        f32 yPos = std::round(y + (font.getAscent() - glyph->bearingY) * scale);
         f32 w = glyph->width * scale;
         f32 h = glyph->height * scale;
 
@@ -722,6 +733,8 @@ void UIBatchRenderer::drawTextInBounds(const std::string& text, const Rect& boun
             break;
     }
 
+    x = std::round(x);
+    y = std::round(y);
     drawText(text, {x, y}, font, fontSize, color);
 }
 

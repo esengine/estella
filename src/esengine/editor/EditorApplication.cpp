@@ -59,19 +59,34 @@ void EditorApplication::onInit() {
     uiContext_->setViewport(getWidth(), getHeight());
     uiContext_->setDevicePixelRatio(getPlatform().getDevicePixelRatio());
 
-    // Load default font (try Windows system fonts)
     const char* fontPaths[] = {
+#ifdef ES_PLATFORM_WINDOWS
         "C:/Windows/Fonts/segoeui.ttf",
         "C:/Windows/Fonts/arial.ttf",
         "C:/Windows/Fonts/tahoma.ttf",
+#elif defined(ES_PLATFORM_MACOS)
+        "/System/Library/Fonts/SFNS.ttf",
+        "/System/Library/Fonts/Helvetica.ttc",
+        "/Library/Fonts/Arial.ttf",
+#else
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/TTF/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+#endif
+        "assets/fonts/default.ttf",
         nullptr
     };
 
+    bool fontLoaded = false;
     for (const char** path = fontPaths; *path != nullptr; ++path) {
-        if (uiContext_->loadFont("default", *path, 16.0f)) {
+        if (uiContext_->loadFont("default", *path, 24.0f)) {
             ES_LOG_INFO("Loaded font: {}", *path);
+            fontLoaded = true;
             break;
         }
+    }
+    if (!fontLoaded) {
+        ES_LOG_WARN("No font loaded, text will not render");
     }
 
     // Wire up scroll events to UI system

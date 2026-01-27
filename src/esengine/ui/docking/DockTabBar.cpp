@@ -168,7 +168,8 @@ void DockTabBar::renderTab(UIBatchRenderer& renderer, const DockTabInfo& tab, us
             tab.bounds.height
         };
 
-        renderer.drawTextInBounds(tab.title, textBounds, *font, 12.0f, textColor,
+        renderer.drawTextInBounds(tab.title, textBounds, *font,
+                                   theme.typography.fontSizeNormal, textColor,
                                    HAlign::Left, VAlign::Center);
     }
 
