@@ -26,6 +26,7 @@
 
 // Standard library
 #include <string>
+#include <unordered_map>
 
 namespace esengine::resource {
 
@@ -192,6 +193,27 @@ public:
      */
     void releaseTexture(TextureHandle handle);
 
+    /**
+     * @brief Loads a texture by GUID (with caching)
+     * @param guid Asset GUID from AssetDatabase
+     * @param path File path to load if not cached
+     * @return Handle to the texture, or invalid handle on failure
+     */
+    TextureHandle loadTextureByGUID(const std::string& guid, const std::string& path);
+
+    /**
+     * @brief Gets a texture handle by GUID if already loaded
+     * @param guid Asset GUID
+     * @return Handle to the texture, or invalid handle if not loaded
+     */
+    TextureHandle getTextureByGUID(const std::string& guid) const;
+
+    /**
+     * @brief Releases a texture by GUID
+     * @param guid Asset GUID
+     */
+    void releaseTextureByGUID(const std::string& guid);
+
     // =========================================================================
     // Vertex Buffer Resources
     // =========================================================================
@@ -290,6 +312,7 @@ private:
     ResourcePool<Texture> textures_;
     ResourcePool<VertexBuffer> vertexBuffers_;
     ResourcePool<IndexBuffer> indexBuffers_;
+    std::unordered_map<std::string, TextureHandle> guidToTexture_;
     mutable ResourceStats stats_;
     bool initialized_ = false;
 };

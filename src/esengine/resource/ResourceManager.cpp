@@ -36,6 +36,7 @@ void ResourceManager::shutdown() {
     ES_LOG_INFO("ResourceManager shutting down (shaders: {}, textures: {}, vbos: {}, ibos: {})",
                 shaders_.size(), textures_.size(), vertexBuffers_.size(), indexBuffers_.size());
 
+    guidToTexture_.clear();
     shaders_.clear();
     textures_.clear();
     vertexBuffers_.clear();
@@ -150,6 +151,37 @@ const Texture* ResourceManager::getTexture(TextureHandle handle) const {
 void ResourceManager::releaseTexture(TextureHandle handle) {
     if (handle.isValid()) {
         textures_.release(handle.id());
+    }
+}
+
+TextureHandle ResourceManager::loadTextureByGUID(const std::string& guid, const std::string& path) {
+    auto it = guidToTexture_.find(guid);
+    if (it != guidToTexture_.end() && it->second.isValid()) {
+        textures_.addRef(it->second);
+        stats_.cacheHits++;
+        return it->second;
+    }
+
+    TextureHandle handle = loadTexture(path);
+    if (handle.isValid()) {
+        guidToTexture_[guid] = handle;
+    }
+    return handle;
+}
+
+TextureHandle ResourceManager::getTextureByGUID(const std::string& guid) const {
+    auto it = guidToTexture_.find(guid);
+    if (it != guidToTexture_.end()) {
+        return it->second;
+    }
+    return TextureHandle();
+}
+
+void ResourceManager::releaseTextureByGUID(const std::string& guid) {
+    auto it = guidToTexture_.find(guid);
+    if (it != guidToTexture_.end()) {
+        releaseTexture(it->second);
+        guidToTexture_.erase(it);
     }
 }
 
