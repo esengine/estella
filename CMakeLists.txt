@@ -244,7 +244,8 @@ if(NOT ES_BUILD_WEB AND NOT ES_BUILD_WXGAME)
     target_include_directories(esengine SYSTEM PRIVATE ${QUICKJS_INCLUDE_DIR})
 endif()
 
-target_link_libraries(esengine PUBLIC glm)
+target_link_libraries(esengine PUBLIC glm freetype)
+target_include_directories(esengine PUBLIC ${CMAKE_SOURCE_DIR}/third_party/freetype/include)
 
 # Platform-specific settings
 if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
@@ -254,15 +255,14 @@ if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
         target_compile_definitions(esengine PUBLIC ES_PLATFORM_WXGAME)
     endif()
 else()
-    # Native platform - link GLFW, GLAD, OpenGL, QuickJS, and FreeType
+    # Native platform - link GLFW, GLAD, OpenGL, QuickJS
     find_package(OpenGL REQUIRED)
     target_compile_definitions(esengine PUBLIC ES_PLATFORM_NATIVE)
     # Development mode: use source directory for editor assets
     target_compile_definitions(esengine PUBLIC ES_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
-    target_link_libraries(esengine PUBLIC glfw glad OpenGL::GL quickjs freetype)
+    target_link_libraries(esengine PUBLIC glfw glad OpenGL::GL quickjs)
     target_include_directories(esengine PUBLIC
         ${CMAKE_SOURCE_DIR}/third_party/glad/include
-        ${CMAKE_SOURCE_DIR}/third_party/freetype/include
     )
 endif()
 
