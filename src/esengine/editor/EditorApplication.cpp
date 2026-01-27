@@ -97,6 +97,13 @@ void EditorApplication::onInit() {
         }
     });
 
+    // Wire up text input events to UI system
+    getPlatform().setTextInputCallback([this](const std::string& text) {
+        if (uiContext_) {
+            uiContext_->processTextInput(text);
+        }
+    });
+
     // Initialize asset database with thumbnail generation callback
     assetDatabase_.setOnAssetAdded([this](const AssetMetadata& asset) {
         thumbnailGenerator_.generateThumbnail(asset.guid, asset.path, asset.type);

@@ -148,6 +148,10 @@ public:
         scrollCallback_ = std::move(callback);
     }
 
+    void setTextInputCallback(TextInputCallback callback) override {
+        textInputCallback_ = std::move(callback);
+    }
+
     // Static instance for callbacks
     static WebPlatform* instance_;
 
@@ -274,6 +278,7 @@ private:
     KeyCallback keyCallback_;
     ResizeCallback resizeCallback_;
     ScrollCallback scrollCallback_;
+    TextInputCallback textInputCallback_;
 };
 
 WebPlatform* WebPlatform::instance_ = nullptr;

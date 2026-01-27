@@ -169,6 +169,12 @@ public:
      */
     void setScrollCallback(ScrollCallback callback) override;
 
+    /**
+     * @brief Sets text input callback
+     * @param callback Function to call on character input
+     */
+    void setTextInputCallback(TextInputCallback callback) override;
+
 private:
     // =========================================================================
     // GLFW Callbacks
@@ -179,6 +185,7 @@ private:
     static void glfwMouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
     static void glfwCursorPosCallback(GLFWwindow* window, double xpos, double ypos);
     static void glfwScrollCallback(GLFWwindow* window, double xoffset, double yoffset);
+    static void glfwCharCallback(GLFWwindow* window, unsigned int codepoint);
     static void glfwFramebufferSizeCallback(GLFWwindow* window, int width, int height);
     static void glfwWindowCloseCallback(GLFWwindow* window);
 
@@ -215,6 +222,7 @@ private:
     KeyCallback keyCallback_;             ///< Keyboard event callback
     ResizeCallback resizeCallback_;       ///< Window resize callback
     ScrollCallback scrollCallback_;       ///< Scroll event callback
+    TextInputCallback textInputCallback_; ///< Text input callback
 
     static NativePlatform* instance_;     ///< Singleton instance for callbacks
 };

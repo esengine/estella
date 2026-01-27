@@ -132,6 +132,7 @@ bool NativePlatform::initialize(u32 width, u32 height) {
     glfwSetMouseButtonCallback(window_, glfwMouseButtonCallback);
     glfwSetCursorPosCallback(window_, glfwCursorPosCallback);
     glfwSetScrollCallback(window_, glfwScrollCallback);
+    glfwSetCharCallback(window_, glfwCharCallback);
     glfwSetFramebufferSizeCallback(window_, glfwFramebufferSizeCallback);
     glfwSetWindowCloseCallback(window_, glfwWindowCloseCallback);
 
@@ -259,6 +260,10 @@ void NativePlatform::setScrollCallback(ScrollCallback callback) {
     scrollCallback_ = std::move(callback);
 }
 
+void NativePlatform::setTextInputCallback(TextInputCallback callback) {
+    textInputCallback_ = std::move(callback);
+}
+
 // =============================================================================
 // GLFW Callbacks
 // =============================================================================
@@ -334,6 +339,31 @@ void NativePlatform::glfwScrollCallback(GLFWwindow* window, double xoffset, doub
     }
 }
 
+void NativePlatform::glfwCharCallback(GLFWwindow* window, unsigned int codepoint) {
+    auto* platform = static_cast<NativePlatform*>(glfwGetWindowUserPointer(window));
+    if (!platform || !platform->textInputCallback_) return;
+
+    // Convert UTF-32 codepoint to UTF-8 string
+    std::string utf8;
+    if (codepoint < 0x80) {
+        utf8 += static_cast<char>(codepoint);
+    } else if (codepoint < 0x800) {
+        utf8 += static_cast<char>(0xC0 | (codepoint >> 6));
+        utf8 += static_cast<char>(0x80 | (codepoint & 0x3F));
+    } else if (codepoint < 0x10000) {
+        utf8 += static_cast<char>(0xE0 | (codepoint >> 12));
+        utf8 += static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F));
+        utf8 += static_cast<char>(0x80 | (codepoint & 0x3F));
+    } else {
+        utf8 += static_cast<char>(0xF0 | (codepoint >> 18));
+        utf8 += static_cast<char>(0x80 | ((codepoint >> 12) & 0x3F));
+        utf8 += static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F));
+        utf8 += static_cast<char>(0x80 | (codepoint & 0x3F));
+    }
+
+    platform->textInputCallback_(utf8);
+}
+
 void NativePlatform::glfwFramebufferSizeCallback(GLFWwindow* window, int width, int height) {
     auto* platform = static_cast<NativePlatform*>(glfwGetWindowUserPointer(window));
     if (!platform) return;
@@ -373,26 +403,34 @@ void NativePlatform::glfwWindowCloseCallback(GLFWwindow* window) {
 
 KeyCode NativePlatform::convertKeyCode(int glfwKey) {
     switch (glfwKey) {
-        case GLFW_KEY_SPACE:       return KeyCode::Space;
-        case GLFW_KEY_ENTER:       return KeyCode::Enter;
-        case GLFW_KEY_ESCAPE:      return KeyCode::Escape;
-        case GLFW_KEY_LEFT:        return KeyCode::Left;
-        case GLFW_KEY_UP:          return KeyCode::Up;
-        case GLFW_KEY_RIGHT:       return KeyCode::Right;
-        case GLFW_KEY_DOWN:        return KeyCode::Down;
-        case GLFW_KEY_A:           return KeyCode::A;
-        case GLFW_KEY_D:           return KeyCode::D;
-        case GLFW_KEY_S:           return KeyCode::S;
-        case GLFW_KEY_W:           return KeyCode::W;
-        case GLFW_KEY_Y:           return KeyCode::Y;
-        case GLFW_KEY_Z:           return KeyCode::Z;
-        case GLFW_KEY_LEFT_SHIFT:  return KeyCode::LeftShift;
-        case GLFW_KEY_RIGHT_SHIFT: return KeyCode::RightShift;
+        case GLFW_KEY_SPACE:         return KeyCode::Space;
+        case GLFW_KEY_ENTER:         return KeyCode::Enter;
+        case GLFW_KEY_ESCAPE:        return KeyCode::Escape;
+        case GLFW_KEY_BACKSPACE:     return KeyCode::Backspace;
+        case GLFW_KEY_DELETE:        return KeyCode::Delete;
+        case GLFW_KEY_TAB:           return KeyCode::Tab;
+        case GLFW_KEY_HOME:          return KeyCode::Home;
+        case GLFW_KEY_END:           return KeyCode::End;
+        case GLFW_KEY_LEFT:          return KeyCode::Left;
+        case GLFW_KEY_UP:            return KeyCode::Up;
+        case GLFW_KEY_RIGHT:         return KeyCode::Right;
+        case GLFW_KEY_DOWN:          return KeyCode::Down;
+        case GLFW_KEY_A:             return KeyCode::A;
+        case GLFW_KEY_C:             return KeyCode::C;
+        case GLFW_KEY_D:             return KeyCode::D;
+        case GLFW_KEY_S:             return KeyCode::S;
+        case GLFW_KEY_V:             return KeyCode::V;
+        case GLFW_KEY_W:             return KeyCode::W;
+        case GLFW_KEY_X:             return KeyCode::X;
+        case GLFW_KEY_Y:             return KeyCode::Y;
+        case GLFW_KEY_Z:             return KeyCode::Z;
+        case GLFW_KEY_LEFT_SHIFT:    return KeyCode::LeftShift;
+        case GLFW_KEY_RIGHT_SHIFT:   return KeyCode::RightShift;
         case GLFW_KEY_LEFT_CONTROL:  return KeyCode::LeftControl;
         case GLFW_KEY_RIGHT_CONTROL: return KeyCode::RightControl;
-        case GLFW_KEY_LEFT_ALT:    return KeyCode::LeftAlt;
-        case GLFW_KEY_RIGHT_ALT:   return KeyCode::RightAlt;
-        default:                   return KeyCode::Unknown;
+        case GLFW_KEY_LEFT_ALT:      return KeyCode::LeftAlt;
+        case GLFW_KEY_RIGHT_ALT:     return KeyCode::RightAlt;
+        default:                     return KeyCode::Unknown;
     }
 }
 

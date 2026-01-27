@@ -21,6 +21,7 @@
 
 // Standard library
 #include <functional>
+#include <string>
 
 namespace esengine {
 
@@ -131,6 +132,12 @@ using ResizeCallback = std::function<void(u32 width, u32 height)>;
  * @param y Mouse Y position
  */
 using ScrollCallback = std::function<void(f32 deltaX, f32 deltaY, f32 x, f32 y)>;
+
+/**
+ * @brief Callback type for text input events
+ * @param text UTF-8 encoded text input
+ */
+using TextInputCallback = std::function<void(const std::string& text)>;
 
 // =============================================================================
 // Platform Class
@@ -288,6 +295,12 @@ public:
      * @param callback Function to call on scroll events
      */
     virtual void setScrollCallback(ScrollCallback callback) = 0;
+
+    /**
+     * @brief Sets the text input callback
+     * @param callback Function to call on text input events
+     */
+    virtual void setTextInputCallback(TextInputCallback callback) = 0;
 
     // =========================================================================
     // Factory
