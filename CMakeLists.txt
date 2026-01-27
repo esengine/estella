@@ -42,6 +42,7 @@ set(ESENGINE_SOURCES
     src/esengine/ui/rendering/UIBatchRenderer.cpp
     src/esengine/ui/font/Font.cpp
     src/esengine/ui/layout/StackLayout.cpp
+    src/esengine/ui/layout/WrapLayout.cpp
     src/esengine/ui/widgets/Widget.cpp
     src/esengine/ui/widgets/Panel.cpp
     src/esengine/ui/widgets/Label.cpp
