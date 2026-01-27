@@ -1,6 +1,7 @@
 #include "AssetBrowserPanel.hpp"
 #include "AssetGridItem.hpp"
 #include "../AssetDatabase.hpp"
+#include "../ThumbnailGenerator.hpp"
 #include "../../ui/UIContext.hpp"
 #include "../../ui/layout/StackLayout.hpp"
 #include "../../ui/widgets/Label.hpp"
@@ -13,9 +14,10 @@
 
 namespace esengine::editor {
 
-AssetBrowserPanel::AssetBrowserPanel(AssetDatabase& assetDB)
+AssetBrowserPanel::AssetBrowserPanel(AssetDatabase& assetDB, ThumbnailGenerator& thumbnailGen)
     : DockPanel(ui::WidgetId("asset_browser_panel"), "Assets"),
-      assetDB_(assetDB) {
+      assetDB_(assetDB),
+      thumbnailGen_(thumbnailGen) {
 
     setPanelType("AssetBrowser");
     setClosable(true);

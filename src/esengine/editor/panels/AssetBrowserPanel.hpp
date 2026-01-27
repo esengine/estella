@@ -14,10 +14,11 @@
 namespace esengine::editor {
 
 class AssetDatabase;
+class ThumbnailGenerator;
 
 class AssetBrowserPanel : public ui::DockPanel {
 public:
-    explicit AssetBrowserPanel(AssetDatabase& assetDB);
+    AssetBrowserPanel(AssetDatabase& assetDB, ThumbnailGenerator& thumbnailGen);
     ~AssetBrowserPanel() override;
 
     void refresh();
@@ -68,6 +69,7 @@ private:
     bool needsRebuild_ = false;
 
     AssetDatabase& assetDB_;
+    ThumbnailGenerator& thumbnailGen_;
 
     Connection folderSelectedConnection_;
     Connection searchChangedConnection_;

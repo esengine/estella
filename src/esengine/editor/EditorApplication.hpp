@@ -25,6 +25,7 @@
 #include "command/CommandHistory.hpp"
 #include "core/Selection.hpp"
 #include "AssetDatabase.hpp"
+#include "ThumbnailGenerator.hpp"
 
 namespace esengine {
 namespace editor {
@@ -104,6 +105,12 @@ public:
      * @return Reference to the asset database
      */
     AssetDatabase& getAssetDatabase() { return assetDatabase_; }
+
+    /**
+     * @brief Get the thumbnail generator
+     * @return Reference to the thumbnail generator
+     */
+    ThumbnailGenerator& getThumbnailGenerator() { return thumbnailGenerator_; }
 
 protected:
     // =========================================================================
@@ -199,6 +206,7 @@ private:
     CommandHistory commandHistory_;   ///< Undo/redo history
     EntitySelection selection_;       ///< Entity selection manager
     AssetDatabase assetDatabase_;     ///< Asset database
+    ThumbnailGenerator thumbnailGenerator_; ///< Thumbnail generator
     Unique<ui::UIContext> uiContext_; ///< UI system context
     ui::DockArea* dockArea_ = nullptr; ///< Main docking area (owned by UIContext)
 

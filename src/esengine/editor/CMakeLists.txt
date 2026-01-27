@@ -4,6 +4,7 @@ set(EDITOR_SOURCES
     main.cpp
     EditorApplication.cpp
     AssetDatabase.cpp
+    ThumbnailGenerator.cpp
 
     # Property editors
     property/PropertyEditor.cpp
@@ -27,6 +28,7 @@ set(EDITOR_SOURCES
 set(EDITOR_HEADERS
     EditorApplication.hpp
     AssetDatabase.hpp
+    ThumbnailGenerator.hpp
 
     # Core subsystem
     core/EditorEvents.hpp
