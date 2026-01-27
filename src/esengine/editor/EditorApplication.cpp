@@ -57,6 +57,7 @@ void EditorApplication::onInit() {
     uiContext_ = makeUnique<ui::UIContext>(getRenderContext(), dispatcher_);
     uiContext_->init();
     uiContext_->setViewport(getWidth(), getHeight());
+    uiContext_->setDevicePixelRatio(getPlatform().getDevicePixelRatio());
 
     // Load default font (try Windows system fonts)
     const char* fontPaths[] = {
@@ -183,6 +184,7 @@ void EditorApplication::onResize(u32 width, u32 height) {
 
     if (uiContext_) {
         uiContext_->setViewport(width, height);
+        uiContext_->setDevicePixelRatio(getPlatform().getDevicePixelRatio());
     }
 }
 

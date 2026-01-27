@@ -294,6 +294,14 @@ void DockArea::render(UIBatchRenderer& renderer) {
     zoneDetector_.render(renderer);
 }
 
+Widget* DockArea::hitTest(f32 x, f32 y) {
+    if (hitTestSplitter(x, y)) {
+        return this;
+    }
+
+    return Widget::hitTest(x, y);
+}
+
 void DockArea::renderNode(UIBatchRenderer& renderer, DockNode* node) {
     if (!node) return;
 
@@ -321,8 +329,9 @@ void DockArea::renderSplitter(UIBatchRenderer& renderer, DockNode* node) {
     if (!ctx) return;
 
     Rect splitterBounds = node->getSplitterBounds(splitterThickness_);
+    glm::vec2 mousePos = ctx->getMousePosition();
     bool hovered = (draggedSplitter_ == node) ||
-                   splitterBounds.contains({lastMouseX_, lastMouseY_});
+                   splitterBounds.contains({mousePos.x, mousePos.y});
 
     glm::vec4 color = hovered
                           ? ctx->getTheme().colors.accent

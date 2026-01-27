@@ -180,15 +180,31 @@ public:
 
     /**
      * @brief Sets the viewport size
-     * @param width Viewport width in pixels
-     * @param height Viewport height in pixels
+     * @param width Viewport width in logical pixels
+     * @param height Viewport height in logical pixels
      */
     void setViewport(u32 width, u32 height);
+
+    /**
+     * @brief Sets the device pixel ratio for high-DPI displays
+     * @param ratio Pixel ratio (1.0 for standard, 2.0 for retina, etc.)
+     */
+    void setDevicePixelRatio(f32 ratio);
+
+    /**
+     * @brief Gets the device pixel ratio
+     */
+    f32 getDevicePixelRatio() const { return devicePixelRatio_; }
 
     /**
      * @brief Gets the viewport size
      */
     glm::vec2 getViewportSize() const { return {viewportWidth_, viewportHeight_}; }
+
+    /**
+     * @brief Gets the current mouse position
+     */
+    glm::vec2 getMousePosition() const { return {lastMouseX_, lastMouseY_}; }
 
     // =========================================================================
     // Input Processing
@@ -321,6 +337,7 @@ private:
 
     u32 viewportWidth_ = 0;
     u32 viewportHeight_ = 0;
+    f32 devicePixelRatio_ = 1.0f;
 
     Widget* focusedWidget_ = nullptr;
     Widget* hoveredWidget_ = nullptr;

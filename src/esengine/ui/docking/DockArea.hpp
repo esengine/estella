@@ -207,6 +207,7 @@ public:
     glm::vec2 measure(f32 availableWidth, f32 availableHeight) override;
     void render(UIBatchRenderer& renderer) override;
 
+    Widget* hitTest(f32 x, f32 y) override;
     bool onMouseDown(const MouseButtonEvent& event) override;
     bool onMouseUp(const MouseButtonEvent& event) override;
     bool onMouseMove(const MouseMoveEvent& event) override;

@@ -15,6 +15,10 @@
 #include "../../ecs/components/Transform.hpp"
 #include "../../ecs/components/Sprite.hpp"
 #include "../../core/Log.hpp"
+#include <glad/glad.h>
+#ifndef GL_VIEWPORT
+#define GL_VIEWPORT 0x0BA2
+#endif
 
 namespace esengine::editor {
 
@@ -114,6 +118,10 @@ void SceneViewPanel::renderSceneToTexture() {
         return;
     }
 
+    // Save current viewport
+    GLint savedViewport[4];
+    glGetIntegerv(GL_VIEWPORT, savedViewport);
+
     framebuffer_->bind();
 
     RenderCommand::setViewport(0, 0, viewportWidth_, viewportHeight_);
@@ -123,6 +131,9 @@ void SceneViewPanel::renderSceneToTexture() {
     renderSceneContent();
 
     framebuffer_->unbind();
+
+    // Restore viewport
+    glViewport(savedViewport[0], savedViewport[1], savedViewport[2], savedViewport[3]);
 }
 
 void SceneViewPanel::renderSceneContent() {

@@ -92,9 +92,11 @@ bool NativePlatform::initialize(u32 width, u32 height) {
         return false;
     }
 
-    // Store window dimensions
-    windowWidth_ = width;
-    windowHeight_ = height;
+    // Get actual window size (may differ from requested due to DPI scaling)
+    int actualWidth, actualHeight;
+    glfwGetWindowSize(window_, &actualWidth, &actualHeight);
+    windowWidth_ = static_cast<u32>(actualWidth);
+    windowHeight_ = static_cast<u32>(actualHeight);
 
     // Get framebuffer size (for high-DPI)
     int fbWidth, fbHeight;
@@ -102,7 +104,7 @@ bool NativePlatform::initialize(u32 width, u32 height) {
     framebufferWidth_ = static_cast<u32>(fbWidth);
     framebufferHeight_ = static_cast<u32>(fbHeight);
 
-    ES_LOG_DEBUG("Window size: {}x{}, Framebuffer size: {}x{}",
+    ES_LOG_DEBUG("Window: {}x{}, Framebuffer: {}x{}",
                  windowWidth_, windowHeight_, framebufferWidth_, framebufferHeight_);
 
     // Make OpenGL context current

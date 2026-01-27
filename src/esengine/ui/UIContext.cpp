@@ -153,7 +153,10 @@ void UIContext::render() {
         return;
     }
 
-    RenderCommand::setViewport(0, 0, viewportWidth_, viewportHeight_);
+    u32 physicalWidth = static_cast<u32>(viewportWidth_ * devicePixelRatio_);
+    u32 physicalHeight = static_cast<u32>(viewportHeight_ * devicePixelRatio_);
+
+    RenderCommand::setViewport(0, 0, physicalWidth, physicalHeight);
 
     glm::mat4 projection = glm::ortho(0.0f, static_cast<f32>(viewportWidth_),
                                       static_cast<f32>(viewportHeight_), 0.0f, -1.0f, 1.0f);
@@ -172,6 +175,10 @@ void UIContext::setViewport(u32 width, u32 height) {
             root_->invalidateLayout();
         }
     }
+}
+
+void UIContext::setDevicePixelRatio(f32 ratio) {
+    devicePixelRatio_ = ratio > 0.0f ? ratio : 1.0f;
 }
 
 void UIContext::doLayout() {
