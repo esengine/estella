@@ -27,12 +27,14 @@ Vector3Editor::Vector3Editor(const ui::WidgetId& id, const std::string& property
     if (showLabel_) {
         auto mainLabelWidget = makeUnique<ui::Label>(ui::WidgetId(getId().path + "_label"));
         mainLabelWidget->setText(label_);
+        mainLabelWidget->setFontSize(12.0f);
         mainLabel_ = mainLabelWidget.get();
         addChild(std::move(mainLabelWidget));
     }
 
     auto xLabelWidget = makeUnique<ui::Label>(ui::WidgetId(getId().path + "_x_label"));
     xLabelWidget->setText("X");
+    xLabelWidget->setFontSize(12.0f);
     xLabel_ = xLabelWidget.get();
     addChild(std::move(xLabelWidget));
 
@@ -43,6 +45,7 @@ Vector3Editor::Vector3Editor(const ui::WidgetId& id, const std::string& property
 
     auto yLabelWidget = makeUnique<ui::Label>(ui::WidgetId(getId().path + "_y_label"));
     yLabelWidget->setText("Y");
+    yLabelWidget->setFontSize(12.0f);
     yLabel_ = yLabelWidget.get();
     addChild(std::move(yLabelWidget));
 
@@ -53,6 +56,7 @@ Vector3Editor::Vector3Editor(const ui::WidgetId& id, const std::string& property
 
     auto zLabelWidget = makeUnique<ui::Label>(ui::WidgetId(getId().path + "_z_label"));
     zLabelWidget->setText("Z");
+    zLabelWidget->setFontSize(12.0f);
     zLabel_ = zLabelWidget.get();
     addChild(std::move(zLabelWidget));
 
@@ -61,15 +65,15 @@ Vector3Editor::Vector3Editor(const ui::WidgetId& id, const std::string& property
     zEditor_ = zEditorWidget.get();
     addChild(std::move(zEditorWidget));
 
-    sink(xEditor_->onValueChanged).connect(
+    connections_.add(sink(xEditor_->onValueChanged).connect(
         [this](const std::any&) { onComponentChanged(); }
-    );
-    sink(yEditor_->onValueChanged).connect(
+    ));
+    connections_.add(sink(yEditor_->onValueChanged).connect(
         [this](const std::any&) { onComponentChanged(); }
-    );
-    sink(zEditor_->onValueChanged).connect(
+    ));
+    connections_.add(sink(zEditor_->onValueChanged).connect(
         [this](const std::any&) { onComponentChanged(); }
-    );
+    ));
 }
 
 // =============================================================================
@@ -125,7 +129,13 @@ void Vector3Editor::render(ui::UIBatchRenderer& renderer) {
     const ui::Rect& bounds = getBounds();
     f32 x = bounds.x;
 
+    constexpr glm::vec4 labelColor{0.686f, 0.686f, 0.686f, 1.0f};
+    constexpr glm::vec4 xColor{0.9f, 0.4f, 0.4f, 1.0f};
+    constexpr glm::vec4 yColor{0.4f, 0.9f, 0.4f, 1.0f};
+    constexpr glm::vec4 zColor{0.4f, 0.6f, 0.9f, 1.0f};
+
     if (mainLabel_ && showLabel_) {
+        mainLabel_->setColor(labelColor);
         ui::Rect labelBounds{x, bounds.y, MAIN_LABEL_WIDTH, bounds.height};
         mainLabel_->layout(labelBounds);
         mainLabel_->renderTree(renderer);
@@ -133,6 +143,7 @@ void Vector3Editor::render(ui::UIBatchRenderer& renderer) {
     }
 
     if (xLabel_) {
+        xLabel_->setColor(xColor);
         ui::Rect labelBounds{x, bounds.y, COMPONENT_LABEL_WIDTH, bounds.height};
         xLabel_->layout(labelBounds);
         xLabel_->renderTree(renderer);
@@ -147,6 +158,7 @@ void Vector3Editor::render(ui::UIBatchRenderer& renderer) {
     }
 
     if (yLabel_) {
+        yLabel_->setColor(yColor);
         ui::Rect labelBounds{x, bounds.y, COMPONENT_LABEL_WIDTH, bounds.height};
         yLabel_->layout(labelBounds);
         yLabel_->renderTree(renderer);
@@ -161,6 +173,7 @@ void Vector3Editor::render(ui::UIBatchRenderer& renderer) {
     }
 
     if (zLabel_) {
+        zLabel_->setColor(zColor);
         ui::Rect labelBounds{x, bounds.y, COMPONENT_LABEL_WIDTH, bounds.height};
         zLabel_->layout(labelBounds);
         zLabel_->renderTree(renderer);

@@ -20,6 +20,7 @@ set(EDITOR_SOURCES
     property/editors/BoolEditor.cpp
     property/editors/IntEditor.cpp
     property/editors/StringEditor.cpp
+    property/editors/ColorEditor.cpp
 
     # Camera
     camera/EditorCamera.cpp
@@ -75,6 +76,7 @@ set(EDITOR_HEADERS
     property/editors/BoolEditor.hpp
     property/editors/IntEditor.hpp
     property/editors/StringEditor.hpp
+    property/editors/ColorEditor.hpp
 
     # Camera
     camera/EditorCamera.hpp

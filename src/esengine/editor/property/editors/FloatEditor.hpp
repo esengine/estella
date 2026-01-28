@@ -20,6 +20,7 @@
 #include "../../../ui/widgets/TextField.hpp"
 #include "../../../ui/widgets/Slider.hpp"
 #include "../../../ui/widgets/Label.hpp"
+#include "../../../events/Connection.hpp"
 
 namespace esengine::editor {
 
@@ -143,6 +144,7 @@ private:
     ui::Label* labelWidget_ = nullptr;
     ui::TextField* textField_ = nullptr;
     ui::Slider* slider_ = nullptr;
+    ConnectionHolder connections_;
 
     static constexpr f32 LABEL_WIDTH = 60.0f;
     static constexpr f32 TEXTFIELD_WIDTH = 80.0f;

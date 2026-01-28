@@ -141,6 +141,7 @@ glm::vec2 IntEditor::measure(f32 availableWidth, f32 availableHeight) {
 void IntEditor::render(ui::UIBatchRenderer& renderer) {
     const ui::Rect& bounds = getBounds();
     f32 x = bounds.x;
+    f32 remainingWidth = bounds.width;
 
     constexpr glm::vec4 labelColor{0.686f, 0.686f, 0.686f, 1.0f};
 
@@ -150,13 +151,18 @@ void IntEditor::render(ui::UIBatchRenderer& renderer) {
         labelWidget_->layout(labelBounds);
         labelWidget_->renderTree(renderer);
         x += LABEL_WIDTH + SPACING;
+        remainingWidth -= LABEL_WIDTH + SPACING;
     }
 
     if (textField_) {
-        ui::Rect textBounds{x, bounds.y, TEXTFIELD_WIDTH, bounds.height};
+        f32 textFieldWidth = remainingWidth;
+        if (slider_ && showSlider_) {
+            textFieldWidth = TEXTFIELD_WIDTH;
+        }
+        ui::Rect textBounds{x, bounds.y, textFieldWidth, bounds.height};
         textField_->layout(textBounds);
         textField_->renderTree(renderer);
-        x += TEXTFIELD_WIDTH;
+        x += textFieldWidth;
     }
 
     if (slider_ && showSlider_) {

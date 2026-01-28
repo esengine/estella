@@ -20,6 +20,7 @@
 #include "../../ui/UIContext.hpp"
 #include "../../ui/layout/StackLayout.hpp"
 #include "../../ui/icons/Icons.hpp"
+#include "../../ui/widgets/Button.hpp"
 #include "../../ui/rendering/UIBatchRenderer.hpp"
 
 #if ES_FEATURE_SDF_FONT
@@ -65,36 +66,108 @@ InspectorPanel::~InspectorPanel() {
 // =============================================================================
 
 void InspectorPanel::buildUI() {
-    constexpr glm::vec4 panelBg{0.145f, 0.145f, 0.149f, 1.0f};          // #252526
+    constexpr glm::vec4 toolbarBg{0.2f, 0.2f, 0.2f, 1.0f};              // #333333
+    constexpr glm::vec4 mainBg{0.165f, 0.165f, 0.165f, 1.0f};           // #2a2a2a
     constexpr glm::vec4 headerBg{0.176f, 0.176f, 0.188f, 1.0f};         // #2d2d30
-    constexpr glm::vec4 mainBg{0.118f, 0.118f, 0.118f, 1.0f};           // #1e1e1e
-    constexpr glm::vec4 borderColor{0.235f, 0.235f, 0.235f, 1.0f};      // #3c3c3c
+    constexpr glm::vec4 borderColor{0.102f, 0.102f, 0.102f, 1.0f};      // #1a1a1a
     constexpr glm::vec4 textColor{0.878f, 0.878f, 0.878f, 1.0f};        // #e0e0e0
+    constexpr glm::vec4 dimTextColor{0.6f, 0.6f, 0.6f, 1.0f};           // #999999
 
     auto rootPanel = makeUnique<ui::Panel>(ui::WidgetId(getId().path + "_root"));
     rootPanel->setLayout(makeUnique<ui::StackLayout>(ui::StackDirection::Vertical, 0.0f));
     rootPanel->setDrawBackground(true);
     rootPanel->setBackgroundColor(mainBg);
 
+    // =========================================================================
+    // Toolbar
+    // =========================================================================
+    auto toolbar = makeUnique<ui::Panel>(ui::WidgetId(getId().path + "_toolbar"));
+    toolbar->setLayout(makeUnique<ui::StackLayout>(ui::StackDirection::Horizontal, 4.0f));
+    toolbar->setHeight(ui::SizeValue::px(34.0f));
+    toolbar->setWidth(ui::SizeValue::flex(1.0f));
+    toolbar->setPadding(ui::Insets(4.0f, 8.0f, 4.0f, 8.0f));
+    toolbar->setDrawBackground(true);
+    toolbar->setBackgroundColor(toolbarBg);
+    toolbar->setBorderColor(borderColor);
+    toolbar->setBorderWidth(ui::BorderWidth(0.0f, 0.0f, 1.0f, 0.0f));
+
+    auto lockButton = makeUnique<ui::Button>(ui::WidgetId(getId().path + "_lock_btn"), ui::icons::Lock);
+    lockButton->setButtonStyle(ui::ButtonStyle::Ghost);
+    lockButton->setWidth(ui::SizeValue::px(26.0f));
+    lockButton->setHeight(ui::SizeValue::px(26.0f));
+    lockButton->setCornerRadii(ui::CornerRadii::all(3.0f));
+    toolbar->addChild(std::move(lockButton));
+
+    auto debugButton = makeUnique<ui::Button>(ui::WidgetId(getId().path + "_debug_btn"), ui::icons::Bug);
+    debugButton->setButtonStyle(ui::ButtonStyle::Ghost);
+    debugButton->setWidth(ui::SizeValue::px(26.0f));
+    debugButton->setHeight(ui::SizeValue::px(26.0f));
+    debugButton->setCornerRadii(ui::CornerRadii::all(3.0f));
+    toolbar->addChild(std::move(debugButton));
+
+    auto spacer = makeUnique<ui::Panel>(ui::WidgetId(getId().path + "_spacer"));
+    spacer->setWidth(ui::SizeValue::flex(1.0f));
+    spacer->setHeight(ui::SizeValue::px(26.0f));
+    spacer->setDrawBackground(false);
+    toolbar->addChild(std::move(spacer));
+
+    auto addComponentButton = makeUnique<ui::Button>(ui::WidgetId(getId().path + "_add_btn"), ui::icons::Plus);
+    addComponentButton->setButtonStyle(ui::ButtonStyle::Ghost);
+    addComponentButton->setWidth(ui::SizeValue::px(26.0f));
+    addComponentButton->setHeight(ui::SizeValue::px(26.0f));
+    addComponentButton->setCornerRadii(ui::CornerRadii::all(3.0f));
+    toolbar->addChild(std::move(addComponentButton));
+
+    auto settingsButton = makeUnique<ui::Button>(ui::WidgetId(getId().path + "_settings_btn"), ui::icons::Settings);
+    settingsButton->setButtonStyle(ui::ButtonStyle::Ghost);
+    settingsButton->setWidth(ui::SizeValue::px(26.0f));
+    settingsButton->setHeight(ui::SizeValue::px(26.0f));
+    settingsButton->setCornerRadii(ui::CornerRadii::all(3.0f));
+    toolbar->addChild(std::move(settingsButton));
+
+    rootPanel->addChild(std::move(toolbar));
+
+    // =========================================================================
+    // Entity Header
+    // =========================================================================
     auto headerPanel = makeUnique<ui::Panel>(ui::WidgetId(getId().path + "_header"));
-    headerPanel->setHeight(ui::SizeValue::px(38.0f));
+    headerPanel->setLayout(makeUnique<ui::StackLayout>(ui::StackDirection::Horizontal, 8.0f));
+    headerPanel->setHeight(ui::SizeValue::px(32.0f));
     headerPanel->setWidth(ui::SizeValue::flex(1.0f));
-    headerPanel->setPadding(ui::Insets(8.0f, 12.0f, 8.0f, 12.0f));
+    headerPanel->setPadding(ui::Insets(6.0f, 12.0f, 6.0f, 12.0f));
     headerPanel->setDrawBackground(true);
     headerPanel->setBackgroundColor(headerBg);
     headerPanel->setBorderColor(borderColor);
     headerPanel->setBorderWidth(ui::BorderWidth(0.0f, 0.0f, 1.0f, 0.0f));
 
+    auto entityIconLabel = makeUnique<ui::Label>(ui::WidgetId(getId().path + "_entity_icon"), ui::icons::Box);
+    entityIconLabel->setFontSize(14.0f);
+    entityIconLabel->setColor(dimTextColor);
+    entityIconLabel->setIsIconFont(true);
+    entityIconLabel_ = entityIconLabel.get();
+    headerPanel->addChild(std::move(entityIconLabel));
+
     auto entityNameLabel = makeUnique<ui::Label>(ui::WidgetId(getId().path + "_entity_name"));
     entityNameLabel->setText("No Selection");
-    entityNameLabel->setFontSize(14.0f);
+    entityNameLabel->setFontSize(13.0f);
     entityNameLabel->setColor(textColor);
+    entityNameLabel->setWidth(ui::SizeValue::flex(1.0f));
     entityNameLabel_ = entityNameLabel.get();
     headerPanel->addChild(std::move(entityNameLabel));
+
+    auto entityIdLabel = makeUnique<ui::Label>(ui::WidgetId(getId().path + "_entity_id"));
+    entityIdLabel->setText("");
+    entityIdLabel->setFontSize(11.0f);
+    entityIdLabel->setColor(dimTextColor);
+    entityIdLabel_ = entityIdLabel.get();
+    headerPanel->addChild(std::move(entityIdLabel));
 
     headerPanel_ = headerPanel.get();
     rootPanel->addChild(std::move(headerPanel));
 
+    // =========================================================================
+    // Scroll Content
+    // =========================================================================
     auto scrollView = makeUnique<ui::ScrollView>(ui::WidgetId(getId().path + "_scroll"));
     scrollView->setScrollDirection(ui::ScrollDirection::Vertical);
     scrollView->setWidth(ui::SizeValue::flex(1.0f));
@@ -105,21 +178,42 @@ void InspectorPanel::buildUI() {
     contentPanel->setLayout(makeUnique<ui::StackLayout>(ui::StackDirection::Vertical, 0.0f));
     contentPanel->setWidth(ui::SizeValue::flex(1.0f));
     contentPanel->setHeight(ui::SizeValue::autoSize());
-    contentPanel->setPadding(ui::Insets(8.0f, 0.0f, 8.0f, 0.0f));
+    contentPanel->setPadding(ui::Insets(4.0f, 0.0f, 4.0f, 0.0f));
     contentPanel_ = contentPanel.get();
 
     scrollView->setContent(std::move(contentPanel));
     rootPanel->addChild(std::move(scrollView));
+
+    // =========================================================================
+    // Status Bar
+    // =========================================================================
+    auto statusBar = makeUnique<ui::Panel>(ui::WidgetId(getId().path + "_status"));
+    statusBar->setHeight(ui::SizeValue::px(24.0f));
+    statusBar->setWidth(ui::SizeValue::flex(1.0f));
+    statusBar->setPadding(ui::Insets(4.0f, 12.0f, 4.0f, 12.0f));
+    statusBar->setDrawBackground(true);
+    statusBar->setBackgroundColor(toolbarBg);
+    statusBar->setBorderColor(borderColor);
+    statusBar->setBorderWidth(ui::BorderWidth(1.0f, 0.0f, 0.0f, 0.0f));
+
+    auto componentCountLabel = makeUnique<ui::Label>(ui::WidgetId(getId().path + "_count"), "0 components");
+    componentCountLabel->setFontSize(11.0f);
+    componentCountLabel->setColor(dimTextColor);
+    componentCountLabel_ = componentCountLabel.get();
+    statusBar->addChild(std::move(componentCountLabel));
+
+    rootPanel->addChild(std::move(statusBar));
 
     rootPanel_ = rootPanel.get();
     setContent(std::move(rootPanel));
 }
 
 ui::Panel* InspectorPanel::createComponentSection(const std::string& name, const std::string& icon) {
-    constexpr glm::vec4 sectionHeaderBg{0.176f, 0.176f, 0.188f, 1.0f};   // #2d2d30
-    constexpr glm::vec4 sectionBg{0.145f, 0.145f, 0.149f, 1.0f};         // #252526
-    constexpr glm::vec4 borderColor{0.235f, 0.235f, 0.235f, 1.0f};       // #3c3c3c
-    constexpr glm::vec4 textColor{0.878f, 0.878f, 0.878f, 1.0f};         // #e0e0e0
+    constexpr glm::vec4 sectionHeaderBg{0.2f, 0.2f, 0.2f, 1.0f};          // #333333
+    constexpr glm::vec4 sectionBg{0.165f, 0.165f, 0.165f, 1.0f};          // #2a2a2a
+    constexpr glm::vec4 borderColor{0.102f, 0.102f, 0.102f, 1.0f};        // #1a1a1a
+    constexpr glm::vec4 textColor{0.878f, 0.878f, 0.878f, 1.0f};          // #e0e0e0
+    constexpr glm::vec4 iconColor{0.6f, 0.6f, 0.6f, 1.0f};                // #999999
 
     auto section = makeUnique<ui::Panel>(ui::WidgetId(contentPanel_->getId().path + "_" + name));
     section->setLayout(makeUnique<ui::StackLayout>(ui::StackDirection::Vertical, 0.0f));
@@ -131,17 +225,38 @@ ui::Panel* InspectorPanel::createComponentSection(const std::string& name, const
     section->setBorderWidth(ui::BorderWidth(0.0f, 0.0f, 1.0f, 0.0f));
 
     auto header = makeUnique<ui::Panel>(ui::WidgetId(section->getId().path + "_header"));
-    header->setHeight(ui::SizeValue::px(28.0f));
+    header->setLayout(makeUnique<ui::StackLayout>(ui::StackDirection::Horizontal, 6.0f));
+    header->setHeight(ui::SizeValue::px(26.0f));
     header->setWidth(ui::SizeValue::flex(1.0f));
     header->setPadding(ui::Insets(4.0f, 8.0f, 4.0f, 8.0f));
     header->setDrawBackground(true);
     header->setBackgroundColor(sectionHeaderBg);
 
+    auto chevronLabel = makeUnique<ui::Label>(ui::WidgetId(header->getId().path + "_chevron"), ui::icons::ChevronDown);
+    chevronLabel->setFontSize(10.0f);
+    chevronLabel->setColor(iconColor);
+    chevronLabel->setIsIconFont(true);
+    header->addChild(std::move(chevronLabel));
+
+    auto iconLabel = makeUnique<ui::Label>(ui::WidgetId(header->getId().path + "_icon"), icon);
+    iconLabel->setFontSize(12.0f);
+    iconLabel->setColor(iconColor);
+    iconLabel->setIsIconFont(true);
+    header->addChild(std::move(iconLabel));
+
     auto headerLabel = makeUnique<ui::Label>(ui::WidgetId(header->getId().path + "_label"));
     headerLabel->setText(name);
     headerLabel->setFontSize(12.0f);
     headerLabel->setColor(textColor);
+    headerLabel->setWidth(ui::SizeValue::flex(1.0f));
     header->addChild(std::move(headerLabel));
+
+    auto removeButton = makeUnique<ui::Button>(ui::WidgetId(header->getId().path + "_remove"), ui::icons::X);
+    removeButton->setButtonStyle(ui::ButtonStyle::Ghost);
+    removeButton->setWidth(ui::SizeValue::px(18.0f));
+    removeButton->setHeight(ui::SizeValue::px(18.0f));
+    removeButton->setCornerRadii(ui::CornerRadii::all(2.0f));
+    header->addChild(std::move(removeButton));
 
     section->addChild(std::move(header));
 
@@ -194,11 +309,22 @@ void InspectorPanel::rebuildInspector() {
     clearInspector();
 
     constexpr glm::vec4 dimTextColor{0.533f, 0.533f, 0.533f, 1.0f};  // #888
+    constexpr glm::vec4 textColor{0.878f, 0.878f, 0.878f, 1.0f};     // #e0e0e0
 
     if (currentEntity_ == INVALID_ENTITY || !registry_.valid(currentEntity_)) {
+        if (entityIconLabel_) {
+            entityIconLabel_->setText(ui::icons::Box);
+            entityIconLabel_->setColor(dimTextColor);
+        }
         if (entityNameLabel_) {
             entityNameLabel_->setText("No Selection");
             entityNameLabel_->setColor(dimTextColor);
+        }
+        if (entityIdLabel_) {
+            entityIdLabel_->setText("");
+        }
+        if (componentCountLabel_) {
+            componentCountLabel_->setText("0 components");
         }
 
         auto noSelectionLabel = makeUnique<ui::Label>(
@@ -210,32 +336,59 @@ void InspectorPanel::rebuildInspector() {
         return;
     }
 
-    constexpr glm::vec4 textColor{0.878f, 0.878f, 0.878f, 1.0f};  // #e0e0e0
+    std::string displayName = "Entity " + std::to_string(currentEntity_);
+    std::string entityIcon = ui::icons::Box;
+
+    if (registry_.has<ecs::Name>(currentEntity_)) {
+        displayName = registry_.get<ecs::Name>(currentEntity_).value;
+    }
+    if (registry_.has<ecs::Camera>(currentEntity_)) {
+        entityIcon = ui::icons::Camera;
+    } else if (registry_.has<ecs::Sprite>(currentEntity_)) {
+        entityIcon = ui::icons::Image;
+    }
+
+    if (entityIconLabel_) {
+        entityIconLabel_->setText(entityIcon);
+        entityIconLabel_->setColor(textColor);
+    }
     if (entityNameLabel_) {
-        std::string displayName = "Entity " + std::to_string(currentEntity_);
-        if (registry_.has<ecs::Name>(currentEntity_)) {
-            displayName = registry_.get<ecs::Name>(currentEntity_).value;
-        }
         entityNameLabel_->setText(displayName);
         entityNameLabel_->setColor(textColor);
     }
+    if (entityIdLabel_) {
+        entityIdLabel_->setText("ID: " + std::to_string(currentEntity_));
+    }
+
+    i32 componentCount = 0;
 
     addTagsEditor(currentEntity_);
+    componentCount++;
 
     if (registry_.has<ecs::Name>(currentEntity_)) {
         addNameEditor(currentEntity_);
+        componentCount++;
     }
 
     if (registry_.has<ecs::LocalTransform>(currentEntity_)) {
         addLocalTransformEditor(currentEntity_);
+        componentCount++;
     }
 
     if (registry_.has<ecs::Camera>(currentEntity_)) {
         addCameraEditor(currentEntity_);
+        componentCount++;
     }
 
     if (registry_.has<ecs::Sprite>(currentEntity_)) {
         addSpriteEditor(currentEntity_);
+        componentCount++;
+    }
+
+    if (componentCountLabel_) {
+        std::string countText = std::to_string(componentCount) +
+            (componentCount == 1 ? " component" : " components");
+        componentCountLabel_->setText(countText);
     }
 }
 
@@ -398,6 +551,29 @@ void InspectorPanel::addCameraEditor(Entity entity) {
 
     content->addChild(std::move(fovEditor));
 
+    auto orthoSizeEditor = makeUnique<FloatEditor>(
+        ui::WidgetId(content->getId().path + "_orthoSize"),
+        "orthoSize");
+    orthoSizeEditor->setLabel("Ortho Size");
+    orthoSizeEditor->setValue(camera.orthoSize);
+    orthoSizeEditor->setRange(0.1f, 100.0f);
+    orthoSizeEditor->setCommandHistory(&history_);
+
+    editorConnections_.add(sink(orthoSizeEditor->onValueChanged).connect(
+        [this, entity](const std::any& value) {
+            if (registry_.valid(entity) && registry_.has<ecs::Camera>(entity)) {
+                auto& c = registry_.get<ecs::Camera>(entity);
+                try {
+                    c.orthoSize = std::any_cast<f32>(value);
+                } catch (const std::bad_any_cast&) {
+                    ES_LOG_ERROR("Failed to cast orthoSize value");
+                }
+            }
+        }
+    ));
+
+    content->addChild(std::move(orthoSizeEditor));
+
     auto nearEditor = makeUnique<FloatEditor>(
         ui::WidgetId(content->getId().path + "_near"),
         "nearPlane");
@@ -441,6 +617,29 @@ void InspectorPanel::addCameraEditor(Entity entity) {
     ));
 
     content->addChild(std::move(farEditor));
+
+    auto aspectEditor = makeUnique<FloatEditor>(
+        ui::WidgetId(content->getId().path + "_aspect"),
+        "aspectRatio");
+    aspectEditor->setLabel("Aspect");
+    aspectEditor->setValue(camera.aspectRatio);
+    aspectEditor->setRange(0.0f, 4.0f);
+    aspectEditor->setCommandHistory(&history_);
+
+    editorConnections_.add(sink(aspectEditor->onValueChanged).connect(
+        [this, entity](const std::any& value) {
+            if (registry_.valid(entity) && registry_.has<ecs::Camera>(entity)) {
+                auto& c = registry_.get<ecs::Camera>(entity);
+                try {
+                    c.aspectRatio = std::any_cast<f32>(value);
+                } catch (const std::bad_any_cast&) {
+                    ES_LOG_ERROR("Failed to cast aspectRatio value");
+                }
+            }
+        }
+    ));
+
+    content->addChild(std::move(aspectEditor));
 
     auto activeEditor = makeUnique<BoolEditor>(
         ui::WidgetId(content->getId().path + "_active"),
@@ -500,6 +699,28 @@ void InspectorPanel::addSpriteEditor(Entity entity) {
     content->setHeight(ui::SizeValue::autoSize());
     content->setPadding(ui::Insets(8.0f, 12.0f, 8.0f, 12.0f));
 
+    auto colorEditor = makeUnique<ColorEditor>(
+        ui::WidgetId(content->getId().path + "_color"),
+        "color");
+    colorEditor->setLabel("Color");
+    colorEditor->setValue(sprite.color);
+    colorEditor->setCommandHistory(&history_);
+
+    editorConnections_.add(sink(colorEditor->onValueChanged).connect(
+        [this, entity](const std::any& value) {
+            if (registry_.valid(entity) && registry_.has<ecs::Sprite>(entity)) {
+                auto& s = registry_.get<ecs::Sprite>(entity);
+                try {
+                    s.color = std::any_cast<glm::vec4>(value);
+                } catch (const std::bad_any_cast&) {
+                    ES_LOG_ERROR("Failed to cast color value");
+                }
+            }
+        }
+    ));
+
+    content->addChild(std::move(colorEditor));
+
     auto sizeEditor = makeUnique<Vector2Editor>(
         ui::WidgetId(content->getId().path + "_size"),
         "size");
@@ -521,6 +742,50 @@ void InspectorPanel::addSpriteEditor(Entity entity) {
     ));
 
     content->addChild(std::move(sizeEditor));
+
+    auto uvOffsetEditor = makeUnique<Vector2Editor>(
+        ui::WidgetId(content->getId().path + "_uvOffset"),
+        "uvOffset");
+    uvOffsetEditor->setLabel("UV Offset");
+    uvOffsetEditor->setValue(sprite.uvOffset);
+    uvOffsetEditor->setCommandHistory(&history_);
+
+    editorConnections_.add(sink(uvOffsetEditor->onValueChanged).connect(
+        [this, entity](const std::any& value) {
+            if (registry_.valid(entity) && registry_.has<ecs::Sprite>(entity)) {
+                auto& s = registry_.get<ecs::Sprite>(entity);
+                try {
+                    s.uvOffset = std::any_cast<glm::vec2>(value);
+                } catch (const std::bad_any_cast&) {
+                    ES_LOG_ERROR("Failed to cast uvOffset value");
+                }
+            }
+        }
+    ));
+
+    content->addChild(std::move(uvOffsetEditor));
+
+    auto uvScaleEditor = makeUnique<Vector2Editor>(
+        ui::WidgetId(content->getId().path + "_uvScale"),
+        "uvScale");
+    uvScaleEditor->setLabel("UV Scale");
+    uvScaleEditor->setValue(sprite.uvScale);
+    uvScaleEditor->setCommandHistory(&history_);
+
+    editorConnections_.add(sink(uvScaleEditor->onValueChanged).connect(
+        [this, entity](const std::any& value) {
+            if (registry_.valid(entity) && registry_.has<ecs::Sprite>(entity)) {
+                auto& s = registry_.get<ecs::Sprite>(entity);
+                try {
+                    s.uvScale = std::any_cast<glm::vec2>(value);
+                } catch (const std::bad_any_cast&) {
+                    ES_LOG_ERROR("Failed to cast uvScale value");
+                }
+            }
+        }
+    ));
+
+    content->addChild(std::move(uvScaleEditor));
 
     auto layerEditor = makeUnique<IntEditor>(
         ui::WidgetId(content->getId().path + "_layer"),

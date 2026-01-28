@@ -30,6 +30,7 @@
 #include "../property/editors/BoolEditor.hpp"
 #include "../property/editors/IntEditor.hpp"
 #include "../property/editors/StringEditor.hpp"
+#include "../property/editors/ColorEditor.hpp"
 #include "../../events/Connection.hpp"
 
 #include <unordered_set>
@@ -99,7 +100,10 @@ private:
 
     ui::Panel* rootPanel_ = nullptr;
     ui::Panel* headerPanel_ = nullptr;
+    ui::Label* entityIconLabel_ = nullptr;
     ui::Label* entityNameLabel_ = nullptr;
+    ui::Label* entityIdLabel_ = nullptr;
+    ui::Label* componentCountLabel_ = nullptr;
     ui::ScrollView* scrollView_ = nullptr;
     ui::Panel* contentPanel_ = nullptr;
 

@@ -30,6 +30,7 @@ FloatEditor::FloatEditor(const ui::WidgetId& id, const std::string& propertyName
     if (showLabel_) {
         auto labelWidget = makeUnique<ui::Label>(ui::WidgetId(getId().path + "_label"));
         labelWidget->setText(label_);
+        labelWidget->setFontSize(12.0f);
         labelWidget_ = labelWidget.get();
         addChild(std::move(labelWidget));
     }
@@ -39,9 +40,9 @@ FloatEditor::FloatEditor(const ui::WidgetId& id, const std::string& propertyName
     textField_ = textField.get();
     addChild(std::move(textField));
 
-    sink(textField_->onTextChanged).connect(
+    connections_.add(sink(textField_->onTextChanged).connect(
         [this](const std::string& text) { onTextChanged(text); }
-    );
+    ));
 
     updateTextFromValue();
 }
@@ -110,9 +111,9 @@ void FloatEditor::setShowSlider(bool show) {
         slider_ = sliderWidget.get();
         addChild(std::move(sliderWidget));
 
-        sink(slider_->onValueChanged).connect(
+        connections_.add(sink(slider_->onValueChanged).connect(
             [this](f32 value) { onSliderChanged(value); }
-        );
+        ));
 
         updateSliderFromValue();
     } else if (!showSlider_ && slider_) {
@@ -155,19 +156,28 @@ glm::vec2 FloatEditor::measure(f32 availableWidth, f32 availableHeight) {
 void FloatEditor::render(ui::UIBatchRenderer& renderer) {
     const ui::Rect& bounds = getBounds();
     f32 x = bounds.x;
+    f32 remainingWidth = bounds.width;
+
+    constexpr glm::vec4 labelColor{0.686f, 0.686f, 0.686f, 1.0f};
 
     if (labelWidget_ && showLabel_) {
+        labelWidget_->setColor(labelColor);
         ui::Rect labelBounds{x, bounds.y, LABEL_WIDTH, bounds.height};
         labelWidget_->layout(labelBounds);
         labelWidget_->renderTree(renderer);
         x += LABEL_WIDTH + SPACING;
+        remainingWidth -= LABEL_WIDTH + SPACING;
     }
 
     if (textField_) {
-        ui::Rect textBounds{x, bounds.y, TEXTFIELD_WIDTH, bounds.height};
+        f32 textFieldWidth = remainingWidth;
+        if (slider_ && showSlider_) {
+            textFieldWidth = TEXTFIELD_WIDTH;
+        }
+        ui::Rect textBounds{x, bounds.y, textFieldWidth, bounds.height};
         textField_->layout(textBounds);
         textField_->renderTree(renderer);
-        x += TEXTFIELD_WIDTH;
+        x += textFieldWidth;
     }
 
     if (slider_ && showSlider_) {
