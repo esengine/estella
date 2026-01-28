@@ -122,6 +122,13 @@ private:
      */
     std::string getEntityIcon(Entity entity) const;
 
+    /**
+     * @brief Gets the type name for an entity based on its components
+     * @param entity Entity to get type for
+     * @return Type name string
+     */
+    std::string getEntityType(Entity entity) const;
+
     // =========================================================================
     // Event Handlers
     // =========================================================================

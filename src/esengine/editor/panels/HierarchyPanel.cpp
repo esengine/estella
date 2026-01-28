@@ -391,10 +391,8 @@ ui::TreeNodeId HierarchyPanel::addEntityToTree(Entity entity, ui::TreeNodeId par
 
     ui::TreeNodeId nodeId = treeView_->addNode(parentNodeId, displayName);
 
-    std::string icon = getEntityIcon(entity);
-    if (!icon.empty()) {
-        treeView_->setNodeIcon(nodeId, icon);
-    }
+    treeView_->setNodeIcon(nodeId, getEntityIcon(entity));
+    treeView_->setNodeType(nodeId, getEntityType(entity));
 
     nodeToEntity_[nodeId] = entity;
     entityToNode_[entity] = nodeId;
@@ -446,6 +444,19 @@ std::string HierarchyPanel::getEntityIcon(Entity entity) const {
         return ui::icons::Image;
     }
     return ui::icons::Box;
+}
+
+std::string HierarchyPanel::getEntityType(Entity entity) const {
+    if (registry_.has<ecs::Folder>(entity)) {
+        return "Folder";
+    }
+    if (registry_.has<ecs::Camera>(entity)) {
+        return "Camera";
+    }
+    if (registry_.has<ecs::Sprite>(entity)) {
+        return "Sprite";
+    }
+    return "Entity";
 }
 
 // =============================================================================

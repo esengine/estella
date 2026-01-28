@@ -48,13 +48,15 @@ constexpr TreeNodeId INVALID_TREE_NODE = 0;
  *          accessed via callbacks.
  */
 struct TreeNode {
-    TreeNodeId id = INVALID_TREE_NODE;      ///< Unique node identifier
+    TreeNodeId id = INVALID_TREE_NODE;       ///< Unique node identifier
     TreeNodeId parentId = INVALID_TREE_NODE; ///< Parent node ID
     std::string label;                       ///< Display label
     std::string icon;                        ///< Icon Unicode character
+    std::string type;                        ///< Type label for right column
     std::vector<TreeNodeId> children;        ///< Child node IDs
     bool expanded = false;                   ///< Expanded state
-    u32 depth = 0;                          ///< Depth in the tree (0 = root)
+    bool visible = true;                     ///< Visibility state for eye icon
+    u32 depth = 0;                           ///< Depth in tree (0 = root)
 };
 
 // =============================================================================
@@ -189,17 +191,16 @@ public:
      */
     void setNodeLabel(TreeNodeId nodeId, const std::string& label);
 
-    /**
-     * @brief Sets a node's icon
-     * @param nodeId Node ID
-     * @param icon Icon Unicode character
-     */
+    /** @brief Sets a node's icon */
     void setNodeIcon(TreeNodeId nodeId, const std::string& icon);
 
-    /**
-     * @brief Gets all root nodes
-     * @return Vector of root node IDs
-     */
+    /** @brief Sets a node's type label */
+    void setNodeType(TreeNodeId nodeId, const std::string& type);
+
+    /** @brief Sets a node's visibility state */
+    void setNodeVisible(TreeNodeId nodeId, bool visible);
+
+    /** @brief Gets all root nodes */
     const std::vector<TreeNodeId>& getRootNodes() const { return rootNodes_; }
 
     // =========================================================================

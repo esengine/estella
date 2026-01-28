@@ -137,6 +137,20 @@ void TreeView::setNodeIcon(TreeNodeId nodeId, const std::string& icon) {
     }
 }
 
+void TreeView::setNodeType(TreeNodeId nodeId, const std::string& type) {
+    TreeNode* node = getNode(nodeId);
+    if (node) {
+        node->type = type;
+    }
+}
+
+void TreeView::setNodeVisible(TreeNodeId nodeId, bool visible) {
+    TreeNode* node = getNode(nodeId);
+    if (node) {
+        node->visible = visible;
+    }
+}
+
 // =============================================================================
 // Expand/Collapse
 // =============================================================================
@@ -281,15 +295,21 @@ void TreeView::renderNode(UIBatchRenderer& renderer, const TreeNode& node, f32 y
     const Insets& padding = getPadding();
 
     constexpr f32 ROW_PADDING_X = 8.0f;
+    constexpr f32 ICON_SIZE = 14.0f;
     constexpr f32 ARROW_SIZE = 16.0f;
-    constexpr f32 FOLDER_ICON_SIZE = 16.0f;
-    constexpr f32 FONT_SIZE = 13.0f;
+    constexpr f32 FONT_SIZE = 12.0f;
+    constexpr f32 TYPE_COLUMN_WIDTH = 80.0f;
+    constexpr f32 VISIBILITY_COLUMN_WIDTH = 20.0f;
 
-    constexpr glm::vec4 hoverBg{0.165f, 0.176f, 0.180f, 1.0f};       // #2a2d2e
-    constexpr glm::vec4 selectedBg{0.216f, 0.216f, 0.239f, 1.0f};    // #37373d
-    constexpr glm::vec4 textColor{0.8f, 0.8f, 0.8f, 1.0f};           // #cccccc
-    constexpr glm::vec4 arrowColor{0.8f, 0.8f, 0.8f, 1.0f};          // #cccccc
-    constexpr glm::vec4 folderColor{0.863f, 0.714f, 0.478f, 1.0f};   // #dcb67a
+    constexpr glm::vec4 hoverBg{0.165f, 0.176f, 0.180f, 1.0f};
+    constexpr glm::vec4 selectedBg{0.216f, 0.216f, 0.239f, 1.0f};
+    constexpr glm::vec4 textColor{0.8f, 0.8f, 0.8f, 1.0f};
+    constexpr glm::vec4 dimTextColor{0.5f, 0.5f, 0.5f, 1.0f};
+    constexpr glm::vec4 arrowColor{0.8f, 0.8f, 0.8f, 1.0f};
+    constexpr glm::vec4 folderColor{0.863f, 0.714f, 0.478f, 1.0f};
+    constexpr glm::vec4 entityIconColor{0.525f, 0.725f, 0.855f, 1.0f};
+    constexpr glm::vec4 visibleIconColor{0.5f, 0.5f, 0.5f, 1.0f};
+    constexpr glm::vec4 hiddenIconColor{0.3f, 0.3f, 0.3f, 1.0f};
 
     f32 rowWidth = bounds.width - padding.left - padding.right;
     Rect rowBounds{bounds.x + padding.left, y, rowWidth, rowHeight_};
@@ -302,28 +322,38 @@ void TreeView::renderNode(UIBatchRenderer& renderer, const TreeNode& node, f32 y
         renderer.drawRect(rowBounds, hoverBg);
     }
 
-    f32 x = bounds.x + padding.left + ROW_PADDING_X + node.depth * indentSize_;
-
-    bool hasChild = hasChildren(node);
-
-    Rect arrowBounds{x, y + (rowHeight_ - ARROW_SIZE) * 0.5f, ARROW_SIZE, ARROW_SIZE};
-
 #if ES_FEATURE_SDF_FONT
     MSDFFont* iconFont = getContext() ? getContext()->getIconMSDFFont() : nullptr;
+    MSDFFont* textFont = getContext() ? getContext()->getDefaultMSDFFont() : nullptr;
+
+    f32 x = bounds.x + padding.left + ROW_PADDING_X;
+
+    // Visibility icon
+    if (iconFont) {
+        Rect eyeBounds{x, y + (rowHeight_ - ICON_SIZE) * 0.5f, ICON_SIZE, ICON_SIZE};
+        const char* eyeIcon = node.visible ? icons::Eye : icons::EyeOff;
+        glm::vec4 eyeColor = node.visible ? visibleIconColor : hiddenIconColor;
+        renderer.drawTextInBounds(eyeIcon, eyeBounds, *iconFont, 12.0f, eyeColor,
+                                   HAlign::Center, VAlign::Center);
+    }
+    x += VISIBILITY_COLUMN_WIDTH;
+
+    // Indent + expand arrow
+    x += static_cast<f32>(node.depth) * indentSize_;
+
+    bool hasChild = hasChildren(node);
+    Rect arrowBounds{x, y + (rowHeight_ - ARROW_SIZE) * 0.5f, ARROW_SIZE, ARROW_SIZE};
+
     if (iconFont && hasChild) {
         const char* arrowIcon = node.expanded ? icons::ChevronDown : icons::ChevronRight;
         renderer.drawTextInBounds(arrowIcon, arrowBounds, *iconFont, 12.0f, arrowColor,
                                    HAlign::Center, VAlign::Center);
     }
-#endif
+    x += ARROW_SIZE + 2.0f;
 
-    x += ARROW_SIZE + 4.0f;
-
-#if ES_FEATURE_SDF_FONT
+    // Entity icon
     if (iconFont) {
-        constexpr glm::vec4 entityIconColor{0.525f, 0.725f, 0.855f, 1.0f};  // #86b9da cyan
-        Rect iconBounds{x, y + (rowHeight_ - FOLDER_ICON_SIZE) * 0.5f,
-                        FOLDER_ICON_SIZE, FOLDER_ICON_SIZE};
+        Rect iconBounds{x, y + (rowHeight_ - ICON_SIZE) * 0.5f, ICON_SIZE, ICON_SIZE};
 
         if (!node.icon.empty()) {
             renderer.drawTextInBounds(node.icon, iconBounds, *iconFont, 14.0f, entityIconColor,
@@ -334,18 +364,25 @@ void TreeView::renderNode(UIBatchRenderer& renderer, const TreeNode& node, f32 y
                                        HAlign::Center, VAlign::Center);
         }
     }
-#endif
+    x += ICON_SIZE + 6.0f;
 
-    x += FOLDER_ICON_SIZE + 6.0f;
-
+    // Label
+    f32 labelMaxWidth = bounds.x + bounds.width - padding.right - TYPE_COLUMN_WIDTH - x;
     f32 textY = y + (rowHeight_ - FONT_SIZE) * 0.5f;
 
-#if ES_FEATURE_SDF_FONT
-    if (getContext() && getContext()->getDefaultMSDFFont()) {
-        renderer.drawText(node.label, glm::vec2(x, textY), *getContext()->getDefaultMSDFFont(),
-                          FONT_SIZE, textColor);
+    if (textFont && labelMaxWidth > 0) {
+        renderer.drawText(node.label, glm::vec2(x, textY), *textFont, FONT_SIZE, textColor);
     }
+
+    // Type column (right-aligned)
+    if (textFont && !node.type.empty()) {
+        f32 typeX = bounds.x + bounds.width - padding.right - TYPE_COLUMN_WIDTH;
+        renderer.drawText(node.type, glm::vec2(typeX, textY), *textFont, 11.0f, dimTextColor);
+    }
+
 #elif ES_FEATURE_BITMAP_FONT
+    f32 x = bounds.x + padding.left + ROW_PADDING_X + static_cast<f32>(node.depth) * indentSize_;
+    f32 textY = y + (rowHeight_ - FONT_SIZE) * 0.5f;
     if (getContext() && getContext()->getDefaultBitmapFont()) {
         renderer.drawText(node.label, glm::vec2(x, textY), *getContext()->getDefaultBitmapFont(),
                           FONT_SIZE, textColor);
@@ -482,8 +519,10 @@ Rect TreeView::getIconBounds(const TreeNode& node, f32 y) const {
 
     constexpr f32 ROW_PADDING_X = 8.0f;
     constexpr f32 ARROW_SIZE = 16.0f;
+    constexpr f32 VISIBILITY_COLUMN_WIDTH = 20.0f;
 
-    f32 x = bounds.x + padding.left + ROW_PADDING_X + node.depth * indentSize_;
+    f32 x = bounds.x + padding.left + ROW_PADDING_X + VISIBILITY_COLUMN_WIDTH
+            + static_cast<f32>(node.depth) * indentSize_;
 
     return Rect{
         x,
