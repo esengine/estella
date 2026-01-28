@@ -25,6 +25,11 @@
 #include "../core/Selection.hpp"
 #include "../command/CommandHistory.hpp"
 #include "../property/editors/Vector3Editor.hpp"
+#include "../property/editors/Vector2Editor.hpp"
+#include "../property/editors/FloatEditor.hpp"
+#include "../property/editors/BoolEditor.hpp"
+#include "../property/editors/IntEditor.hpp"
+#include "../property/editors/StringEditor.hpp"
 #include "../../events/Connection.hpp"
 
 #include <unordered_set>
@@ -82,8 +87,11 @@ private:
     void toggleSection(const std::string& name);
 
     // Component editors
-    void addLocalTransformEditor(Entity entity);
     void addNameEditor(Entity entity);
+    void addLocalTransformEditor(Entity entity);
+    void addCameraEditor(Entity entity);
+    void addSpriteEditor(Entity entity);
+    void addTagsEditor(Entity entity);
 
     ecs::Registry& registry_;
     EntitySelection& selection_;

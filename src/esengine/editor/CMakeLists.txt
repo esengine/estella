@@ -16,6 +16,10 @@ set(EDITOR_SOURCES
     property/PropertyEditor.cpp
     property/editors/FloatEditor.cpp
     property/editors/Vector3Editor.cpp
+    property/editors/Vector2Editor.cpp
+    property/editors/BoolEditor.cpp
+    property/editors/IntEditor.cpp
+    property/editors/StringEditor.cpp
 
     # Camera
     camera/EditorCamera.cpp
@@ -67,6 +71,10 @@ set(EDITOR_HEADERS
     property/PropertyEditor.hpp
     property/editors/FloatEditor.hpp
     property/editors/Vector3Editor.hpp
+    property/editors/Vector2Editor.hpp
+    property/editors/BoolEditor.hpp
+    property/editors/IntEditor.hpp
+    property/editors/StringEditor.hpp
 
     # Camera
     camera/EditorCamera.hpp

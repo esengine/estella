@@ -12,6 +12,8 @@
 #include "InspectorPanel.hpp"
 #include "../../ecs/components/Transform.hpp"
 #include "../../ecs/components/Common.hpp"
+#include "../../ecs/components/Camera.hpp"
+#include "../../ecs/components/Sprite.hpp"
 #include "../../math/Math.hpp"
 #include "../../events/Sink.hpp"
 #include "../../core/Log.hpp"
@@ -218,6 +220,8 @@ void InspectorPanel::rebuildInspector() {
         entityNameLabel_->setColor(textColor);
     }
 
+    addTagsEditor(currentEntity_);
+
     if (registry_.has<ecs::Name>(currentEntity_)) {
         addNameEditor(currentEntity_);
     }
@@ -225,35 +229,58 @@ void InspectorPanel::rebuildInspector() {
     if (registry_.has<ecs::LocalTransform>(currentEntity_)) {
         addLocalTransformEditor(currentEntity_);
     }
+
+    if (registry_.has<ecs::Camera>(currentEntity_)) {
+        addCameraEditor(currentEntity_);
+    }
+
+    if (registry_.has<ecs::Sprite>(currentEntity_)) {
+        addSpriteEditor(currentEntity_);
+    }
 }
 
 void InspectorPanel::clearInspector() {
+    editorConnections_.disconnectAll();
     if (contentPanel_) {
         contentPanel_->clearChildren();
     }
-    editorConnections_.disconnectAll();
 }
 
 void InspectorPanel::addNameEditor(Entity entity) {
-    constexpr glm::vec4 sectionBg{0.145f, 0.145f, 0.149f, 1.0f};
-    constexpr glm::vec4 labelColor{0.686f, 0.686f, 0.686f, 1.0f};  // #afafaf
-    constexpr glm::vec4 valueColor{0.878f, 0.878f, 0.878f, 1.0f};  // #e0e0e0
-
     auto section = createComponentSection("Name", ui::icons::User);
     auto& name = registry_.get<ecs::Name>(entity);
 
-    auto row = makeUnique<ui::Panel>(ui::WidgetId(section->getId().path + "_row"));
-    row->setHeight(ui::SizeValue::px(26.0f));
-    row->setWidth(ui::SizeValue::flex(1.0f));
-    row->setPadding(ui::Insets(4.0f, 12.0f, 4.0f, 12.0f));
+    auto content = makeUnique<ui::Panel>(ui::WidgetId(section->getId().path + "_content"));
+    content->setLayout(makeUnique<ui::StackLayout>(ui::StackDirection::Vertical, 4.0f));
+    content->setWidth(ui::SizeValue::flex(1.0f));
+    content->setHeight(ui::SizeValue::autoSize());
+    content->setPadding(ui::Insets(8.0f, 12.0f, 8.0f, 12.0f));
 
-    auto valueLabel = makeUnique<ui::Label>(ui::WidgetId(row->getId().path + "_value"));
-    valueLabel->setText(name.value);
-    valueLabel->setFontSize(12.0f);
-    valueLabel->setColor(valueColor);
-    row->addChild(std::move(valueLabel));
+    auto nameEditor = makeUnique<StringEditor>(
+        ui::WidgetId(content->getId().path + "_name"),
+        "name");
+    nameEditor->setLabel("Name");
+    nameEditor->setValue(name.value);
+    nameEditor->setCommandHistory(&history_);
 
-    section->addChild(std::move(row));
+    editorConnections_.add(sink(nameEditor->onValueChanged).connect(
+        [this, entity](const std::any& value) {
+            if (registry_.valid(entity) && registry_.has<ecs::Name>(entity)) {
+                auto& n = registry_.get<ecs::Name>(entity);
+                try {
+                    n.value = std::any_cast<std::string>(value);
+                    if (entityNameLabel_) {
+                        entityNameLabel_->setText(n.value);
+                    }
+                } catch (const std::bad_any_cast&) {
+                    ES_LOG_ERROR("Failed to cast name value");
+                }
+            }
+        }
+    ));
+
+    content->addChild(std::move(nameEditor));
+    section->addChild(std::move(content));
 }
 
 void InspectorPanel::addLocalTransformEditor(Entity entity) {
@@ -334,6 +361,323 @@ void InspectorPanel::addLocalTransformEditor(Entity entity) {
     ));
 
     content->addChild(std::move(scaleEditor));
+
+    section->addChild(std::move(content));
+}
+
+void InspectorPanel::addCameraEditor(Entity entity) {
+    auto section = createComponentSection("Camera", ui::icons::Camera);
+    auto& camera = registry_.get<ecs::Camera>(entity);
+
+    auto content = makeUnique<ui::Panel>(ui::WidgetId(section->getId().path + "_content"));
+    content->setLayout(makeUnique<ui::StackLayout>(ui::StackDirection::Vertical, 4.0f));
+    content->setWidth(ui::SizeValue::flex(1.0f));
+    content->setHeight(ui::SizeValue::autoSize());
+    content->setPadding(ui::Insets(8.0f, 12.0f, 8.0f, 12.0f));
+
+    auto fovEditor = makeUnique<FloatEditor>(
+        ui::WidgetId(content->getId().path + "_fov"),
+        "fov");
+    fovEditor->setLabel("FOV");
+    fovEditor->setValue(camera.fov);
+    fovEditor->setRange(1.0f, 180.0f);
+    fovEditor->setCommandHistory(&history_);
+
+    editorConnections_.add(sink(fovEditor->onValueChanged).connect(
+        [this, entity](const std::any& value) {
+            if (registry_.valid(entity) && registry_.has<ecs::Camera>(entity)) {
+                auto& c = registry_.get<ecs::Camera>(entity);
+                try {
+                    c.fov = std::any_cast<f32>(value);
+                } catch (const std::bad_any_cast&) {
+                    ES_LOG_ERROR("Failed to cast fov value");
+                }
+            }
+        }
+    ));
+
+    content->addChild(std::move(fovEditor));
+
+    auto nearEditor = makeUnique<FloatEditor>(
+        ui::WidgetId(content->getId().path + "_near"),
+        "nearPlane");
+    nearEditor->setLabel("Near");
+    nearEditor->setValue(camera.nearPlane);
+    nearEditor->setCommandHistory(&history_);
+
+    editorConnections_.add(sink(nearEditor->onValueChanged).connect(
+        [this, entity](const std::any& value) {
+            if (registry_.valid(entity) && registry_.has<ecs::Camera>(entity)) {
+                auto& c = registry_.get<ecs::Camera>(entity);
+                try {
+                    c.nearPlane = std::any_cast<f32>(value);
+                } catch (const std::bad_any_cast&) {
+                    ES_LOG_ERROR("Failed to cast nearPlane value");
+                }
+            }
+        }
+    ));
+
+    content->addChild(std::move(nearEditor));
+
+    auto farEditor = makeUnique<FloatEditor>(
+        ui::WidgetId(content->getId().path + "_far"),
+        "farPlane");
+    farEditor->setLabel("Far");
+    farEditor->setValue(camera.farPlane);
+    farEditor->setCommandHistory(&history_);
+
+    editorConnections_.add(sink(farEditor->onValueChanged).connect(
+        [this, entity](const std::any& value) {
+            if (registry_.valid(entity) && registry_.has<ecs::Camera>(entity)) {
+                auto& c = registry_.get<ecs::Camera>(entity);
+                try {
+                    c.farPlane = std::any_cast<f32>(value);
+                } catch (const std::bad_any_cast&) {
+                    ES_LOG_ERROR("Failed to cast farPlane value");
+                }
+            }
+        }
+    ));
+
+    content->addChild(std::move(farEditor));
+
+    auto activeEditor = makeUnique<BoolEditor>(
+        ui::WidgetId(content->getId().path + "_active"),
+        "isActive");
+    activeEditor->setLabel("Active");
+    activeEditor->setValue(camera.isActive);
+    activeEditor->setCommandHistory(&history_);
+
+    editorConnections_.add(sink(activeEditor->onValueChanged).connect(
+        [this, entity](const std::any& value) {
+            if (registry_.valid(entity) && registry_.has<ecs::Camera>(entity)) {
+                auto& c = registry_.get<ecs::Camera>(entity);
+                try {
+                    c.isActive = std::any_cast<bool>(value);
+                } catch (const std::bad_any_cast&) {
+                    ES_LOG_ERROR("Failed to cast isActive value");
+                }
+            }
+        }
+    ));
+
+    content->addChild(std::move(activeEditor));
+
+    auto priorityEditor = makeUnique<IntEditor>(
+        ui::WidgetId(content->getId().path + "_priority"),
+        "priority");
+    priorityEditor->setLabel("Priority");
+    priorityEditor->setValue(camera.priority);
+    priorityEditor->setRange(-100, 100);
+    priorityEditor->setCommandHistory(&history_);
+
+    editorConnections_.add(sink(priorityEditor->onValueChanged).connect(
+        [this, entity](const std::any& value) {
+            if (registry_.valid(entity) && registry_.has<ecs::Camera>(entity)) {
+                auto& c = registry_.get<ecs::Camera>(entity);
+                try {
+                    c.priority = std::any_cast<i32>(value);
+                } catch (const std::bad_any_cast&) {
+                    ES_LOG_ERROR("Failed to cast priority value");
+                }
+            }
+        }
+    ));
+
+    content->addChild(std::move(priorityEditor));
+
+    section->addChild(std::move(content));
+}
+
+void InspectorPanel::addSpriteEditor(Entity entity) {
+    auto section = createComponentSection("Sprite", ui::icons::Image);
+    auto& sprite = registry_.get<ecs::Sprite>(entity);
+
+    auto content = makeUnique<ui::Panel>(ui::WidgetId(section->getId().path + "_content"));
+    content->setLayout(makeUnique<ui::StackLayout>(ui::StackDirection::Vertical, 4.0f));
+    content->setWidth(ui::SizeValue::flex(1.0f));
+    content->setHeight(ui::SizeValue::autoSize());
+    content->setPadding(ui::Insets(8.0f, 12.0f, 8.0f, 12.0f));
+
+    auto sizeEditor = makeUnique<Vector2Editor>(
+        ui::WidgetId(content->getId().path + "_size"),
+        "size");
+    sizeEditor->setLabel("Size");
+    sizeEditor->setValue(sprite.size);
+    sizeEditor->setCommandHistory(&history_);
+
+    editorConnections_.add(sink(sizeEditor->onValueChanged).connect(
+        [this, entity](const std::any& value) {
+            if (registry_.valid(entity) && registry_.has<ecs::Sprite>(entity)) {
+                auto& s = registry_.get<ecs::Sprite>(entity);
+                try {
+                    s.size = std::any_cast<glm::vec2>(value);
+                } catch (const std::bad_any_cast&) {
+                    ES_LOG_ERROR("Failed to cast size value");
+                }
+            }
+        }
+    ));
+
+    content->addChild(std::move(sizeEditor));
+
+    auto layerEditor = makeUnique<IntEditor>(
+        ui::WidgetId(content->getId().path + "_layer"),
+        "layer");
+    layerEditor->setLabel("Layer");
+    layerEditor->setValue(sprite.layer);
+    layerEditor->setRange(-1000, 1000);
+    layerEditor->setCommandHistory(&history_);
+
+    editorConnections_.add(sink(layerEditor->onValueChanged).connect(
+        [this, entity](const std::any& value) {
+            if (registry_.valid(entity) && registry_.has<ecs::Sprite>(entity)) {
+                auto& s = registry_.get<ecs::Sprite>(entity);
+                try {
+                    s.layer = std::any_cast<i32>(value);
+                } catch (const std::bad_any_cast&) {
+                    ES_LOG_ERROR("Failed to cast layer value");
+                }
+            }
+        }
+    ));
+
+    content->addChild(std::move(layerEditor));
+
+    auto flipXEditor = makeUnique<BoolEditor>(
+        ui::WidgetId(content->getId().path + "_flipX"),
+        "flipX");
+    flipXEditor->setLabel("Flip X");
+    flipXEditor->setValue(sprite.flipX);
+    flipXEditor->setCommandHistory(&history_);
+
+    editorConnections_.add(sink(flipXEditor->onValueChanged).connect(
+        [this, entity](const std::any& value) {
+            if (registry_.valid(entity) && registry_.has<ecs::Sprite>(entity)) {
+                auto& s = registry_.get<ecs::Sprite>(entity);
+                try {
+                    s.flipX = std::any_cast<bool>(value);
+                } catch (const std::bad_any_cast&) {
+                    ES_LOG_ERROR("Failed to cast flipX value");
+                }
+            }
+        }
+    ));
+
+    content->addChild(std::move(flipXEditor));
+
+    auto flipYEditor = makeUnique<BoolEditor>(
+        ui::WidgetId(content->getId().path + "_flipY"),
+        "flipY");
+    flipYEditor->setLabel("Flip Y");
+    flipYEditor->setValue(sprite.flipY);
+    flipYEditor->setCommandHistory(&history_);
+
+    editorConnections_.add(sink(flipYEditor->onValueChanged).connect(
+        [this, entity](const std::any& value) {
+            if (registry_.valid(entity) && registry_.has<ecs::Sprite>(entity)) {
+                auto& s = registry_.get<ecs::Sprite>(entity);
+                try {
+                    s.flipY = std::any_cast<bool>(value);
+                } catch (const std::bad_any_cast&) {
+                    ES_LOG_ERROR("Failed to cast flipY value");
+                }
+            }
+        }
+    ));
+
+    content->addChild(std::move(flipYEditor));
+
+    section->addChild(std::move(content));
+}
+
+void InspectorPanel::addTagsEditor(Entity entity) {
+    auto section = createComponentSection("Tags", ui::icons::Check);
+
+    auto content = makeUnique<ui::Panel>(ui::WidgetId(section->getId().path + "_content"));
+    content->setLayout(makeUnique<ui::StackLayout>(ui::StackDirection::Vertical, 4.0f));
+    content->setWidth(ui::SizeValue::flex(1.0f));
+    content->setHeight(ui::SizeValue::autoSize());
+    content->setPadding(ui::Insets(8.0f, 12.0f, 8.0f, 12.0f));
+
+    bool hasActive = registry_.has<ecs::Active>(entity);
+    auto activeEditor = makeUnique<BoolEditor>(
+        ui::WidgetId(content->getId().path + "_active"),
+        "active");
+    activeEditor->setLabel("Active");
+    activeEditor->setValue(hasActive);
+    activeEditor->setCommandHistory(&history_);
+
+    editorConnections_.add(sink(activeEditor->onValueChanged).connect(
+        [this, entity](const std::any& value) {
+            if (!registry_.valid(entity)) return;
+            try {
+                bool active = std::any_cast<bool>(value);
+                if (active && !registry_.has<ecs::Active>(entity)) {
+                    registry_.emplace<ecs::Active>(entity);
+                } else if (!active && registry_.has<ecs::Active>(entity)) {
+                    registry_.remove<ecs::Active>(entity);
+                }
+            } catch (const std::bad_any_cast&) {
+                ES_LOG_ERROR("Failed to cast active value");
+            }
+        }
+    ));
+
+    content->addChild(std::move(activeEditor));
+
+    bool hasVisible = registry_.has<ecs::Visible>(entity);
+    auto visibleEditor = makeUnique<BoolEditor>(
+        ui::WidgetId(content->getId().path + "_visible"),
+        "visible");
+    visibleEditor->setLabel("Visible");
+    visibleEditor->setValue(hasVisible);
+    visibleEditor->setCommandHistory(&history_);
+
+    editorConnections_.add(sink(visibleEditor->onValueChanged).connect(
+        [this, entity](const std::any& value) {
+            if (!registry_.valid(entity)) return;
+            try {
+                bool visible = std::any_cast<bool>(value);
+                if (visible && !registry_.has<ecs::Visible>(entity)) {
+                    registry_.emplace<ecs::Visible>(entity);
+                } else if (!visible && registry_.has<ecs::Visible>(entity)) {
+                    registry_.remove<ecs::Visible>(entity);
+                }
+            } catch (const std::bad_any_cast&) {
+                ES_LOG_ERROR("Failed to cast visible value");
+            }
+        }
+    ));
+
+    content->addChild(std::move(visibleEditor));
+
+    bool hasStatic = registry_.has<ecs::Static>(entity);
+    auto staticEditor = makeUnique<BoolEditor>(
+        ui::WidgetId(content->getId().path + "_static"),
+        "static");
+    staticEditor->setLabel("Static");
+    staticEditor->setValue(hasStatic);
+    staticEditor->setCommandHistory(&history_);
+
+    editorConnections_.add(sink(staticEditor->onValueChanged).connect(
+        [this, entity](const std::any& value) {
+            if (!registry_.valid(entity)) return;
+            try {
+                bool isStatic = std::any_cast<bool>(value);
+                if (isStatic && !registry_.has<ecs::Static>(entity)) {
+                    registry_.emplace<ecs::Static>(entity);
+                } else if (!isStatic && registry_.has<ecs::Static>(entity)) {
+                    registry_.remove<ecs::Static>(entity);
+                }
+            } catch (const std::bad_any_cast&) {
+                ES_LOG_ERROR("Failed to cast static value");
+            }
+        }
+    ));
+
+    content->addChild(std::move(staticEditor));
 
     section->addChild(std::move(content));
 }
