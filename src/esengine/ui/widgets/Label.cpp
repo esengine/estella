@@ -14,7 +14,7 @@
 #include "../rendering/UIBatchRenderer.hpp"
 
 #if ES_FEATURE_SDF_FONT
-#include "../font/SDFFont.hpp"
+#include "../font/MSDFFont.hpp"
 #endif
 
 #if ES_FEATURE_BITMAP_FONT
@@ -62,8 +62,8 @@ glm::vec2 Label::measure(f32 availableWidth, f32 availableHeight) {
 
     if (textSizeDirty_) {
 #if ES_FEATURE_SDF_FONT
-        SDFFont* font = fontName_.empty() ? getContext()->getDefaultFont()
-                                          : getContext()->getFont(fontName_);
+        MSDFFont* font = fontName_.empty() ? getContext()->getDefaultMSDFFont()
+                                           : getContext()->getMSDFFont(fontName_);
         if (font) {
             cachedTextSize_ = font->measureText(text_, fontSize_);
             textSizeDirty_ = false;
@@ -105,7 +105,7 @@ void Label::render(UIBatchRenderer& renderer) {
     Rect contentBounds = getContentBounds();
 
 #if ES_FEATURE_SDF_FONT
-    SDFFont* font = fontName_.empty() ? ctx->getDefaultFont() : ctx->getFont(fontName_);
+    MSDFFont* font = fontName_.empty() ? ctx->getDefaultMSDFFont() : ctx->getMSDFFont(fontName_);
     if (font) {
         renderer.drawTextInBounds(text_, contentBounds, *font, fontSize_, textColor, hAlign_, vAlign_);
     }

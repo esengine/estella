@@ -17,7 +17,7 @@
 #include "../../math/Math.hpp"
 
 #if ES_FEATURE_SDF_FONT
-#include "../font/SDFFont.hpp"
+#include "../font/MSDFFont.hpp"
 #endif
 
 #if ES_FEATURE_BITMAP_FONT
@@ -309,7 +309,7 @@ void TreeView::renderNode(UIBatchRenderer& renderer, const TreeNode& node, f32 y
         }
 
 #if ES_FEATURE_SDF_FONT
-        SDFFont* iconFont = getContext() ? getContext()->getIconFont() : nullptr;
+        MSDFFont* iconFont = getContext() ? getContext()->getIconMSDFFont() : nullptr;
         if (iconFont) {
             const char* icon = node.expanded ? icons::ChevronDown : icons::ChevronRight;
             renderer.drawTextInBounds(icon, iconBounds, *iconFont, iconSize_, iconColor,
@@ -335,8 +335,8 @@ void TreeView::renderNode(UIBatchRenderer& renderer, const TreeNode& node, f32 y
     f32 textY = y + (rowHeight_ - fontSize) * 0.5f;
 
 #if ES_FEATURE_SDF_FONT
-    if (getContext() && getContext()->getDefaultFont()) {
-        renderer.drawText(node.label, glm::vec2(x, textY), *getContext()->getDefaultFont(),
+    if (getContext() && getContext()->getDefaultMSDFFont()) {
+        renderer.drawText(node.label, glm::vec2(x, textY), *getContext()->getDefaultMSDFFont(),
                           fontSize, textColor);
     }
 #elif ES_FEATURE_BITMAP_FONT

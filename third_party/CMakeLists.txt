@@ -103,3 +103,23 @@ set(FT_DISABLE_PNG ON CACHE BOOL "" FORCE)
 set(FT_DISABLE_HARFBUZZ ON CACHE BOOL "" FORCE)
 set(FT_DISABLE_BROTLI ON CACHE BOOL "" FORCE)
 add_subdirectory(freetype)
+
+# Create alias for FreeType to match msdfgen's expected target name
+if(NOT TARGET Freetype::Freetype)
+    add_library(Freetype::Freetype ALIAS freetype)
+endif()
+
+# =============================================================================
+# msdfgen - Multi-channel Signed Distance Field generator
+# =============================================================================
+if(ES_FEATURE_SDF_FONT)
+    set(MSDFGEN_CORE_ONLY OFF CACHE BOOL "" FORCE)
+    set(MSDFGEN_BUILD_STANDALONE OFF CACHE BOOL "" FORCE)
+    set(MSDFGEN_USE_VCPKG OFF CACHE BOOL "" FORCE)
+    set(MSDFGEN_USE_OPENMP OFF CACHE BOOL "" FORCE)
+    set(MSDFGEN_USE_SKIA OFF CACHE BOOL "" FORCE)
+    set(MSDFGEN_DISABLE_SVG ON CACHE BOOL "" FORCE)
+    set(MSDFGEN_DISABLE_PNG ON CACHE BOOL "" FORCE)
+    set(MSDFGEN_INSTALL OFF CACHE BOOL "" FORCE)
+    add_subdirectory(msdfgen)
+endif()

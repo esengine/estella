@@ -19,6 +19,7 @@
 
 #if ES_FEATURE_SDF_FONT
 #include "font/SDFFont.hpp"
+#include "font/MSDFFont.hpp"
 #endif
 
 #if ES_FEATURE_BITMAP_FONT
@@ -64,6 +65,7 @@ void UIContext::shutdown() {
     root_.reset();
 #if ES_FEATURE_SDF_FONT
     fonts_.clear();
+    msdfFonts_.clear();
 #endif
 #if ES_FEATURE_BITMAP_FONT
     bitmapFonts_.clear();
@@ -152,6 +154,37 @@ SDFFont* UIContext::getDefaultFont() {
 
 SDFFont* UIContext::getIconFont() {
     return getFont("icons");
+}
+
+MSDFFont* UIContext::loadMSDFFont(const std::string& name, const std::string& path, f32 fontSize,
+                                   f32 pixelRange) {
+    auto font = MSDFFont::create(path, fontSize, pixelRange);
+    if (!font) {
+        ES_LOG_ERROR("Failed to load MSDF font: {}", path);
+        return nullptr;
+    }
+
+    MSDFFont* ptr = font.get();
+    msdfFonts_[name] = std::move(font);
+
+    ES_LOG_INFO("Loaded MSDF font '{}' from {}", name, path);
+    return ptr;
+}
+
+MSDFFont* UIContext::getMSDFFont(const std::string& name) {
+    auto it = msdfFonts_.find(name);
+    if (it != msdfFonts_.end()) {
+        return it->second.get();
+    }
+    return nullptr;
+}
+
+MSDFFont* UIContext::getDefaultMSDFFont() {
+    return getMSDFFont(defaultFontName_);
+}
+
+MSDFFont* UIContext::getIconMSDFFont() {
+    return getMSDFFont("icons");
 }
 #endif  // ES_FEATURE_SDF_FONT
 

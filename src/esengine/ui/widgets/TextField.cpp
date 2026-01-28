@@ -16,7 +16,7 @@
 #include "../../math/Math.hpp"
 
 #if ES_FEATURE_SDF_FONT
-#include "../font/SDFFont.hpp"
+#include "../font/MSDFFont.hpp"
 #endif
 
 #if ES_FEATURE_BITMAP_FONT
@@ -152,9 +152,9 @@ void TextField::render(UIBatchRenderer& renderer) {
         placeholderColor.a *= 0.5f;
 
 #if ES_FEATURE_SDF_FONT
-        if (getContext() && getContext()->getDefaultFont()) {
+        if (getContext() && getContext()->getDefaultMSDFFont()) {
             renderer.drawText(placeholder_, glm::vec2(textX, textY),
-                            *getContext()->getDefaultFont(), fontSize, placeholderColor);
+                            *getContext()->getDefaultMSDFFont(), fontSize, placeholderColor);
         }
 #elif ES_FEATURE_BITMAP_FONT
         if (getContext() && getContext()->getDefaultBitmapFont()) {
@@ -185,9 +185,9 @@ void TextField::render(UIBatchRenderer& renderer) {
         }
 
 #if ES_FEATURE_SDF_FONT
-        if (getContext() && getContext()->getDefaultFont()) {
+        if (getContext() && getContext()->getDefaultMSDFFont()) {
             renderer.drawText(text_, glm::vec2(textX, textY),
-                            *getContext()->getDefaultFont(), fontSize, textColor);
+                            *getContext()->getDefaultMSDFFont(), fontSize, textColor);
         }
 #elif ES_FEATURE_BITMAP_FONT
         if (getContext() && getContext()->getDefaultBitmapFont()) {
@@ -541,7 +541,7 @@ usize TextField::getCharIndexAtX(f32 x) const {
     for (usize i = 0; i < text_.size(); ++i) {
         f32 charWidth = fontSize * 0.6f;
 #if ES_FEATURE_SDF_FONT
-        SDFFont* font = getContext()->getDefaultFont();
+        MSDFFont* font = getContext()->getDefaultMSDFFont();
         if (font) {
             charWidth = font->getCharWidth(static_cast<u32>(text_[i]), fontSize);
         }
@@ -570,7 +570,7 @@ f32 TextField::getXForCharIndex(usize index) const {
     f32 fontSize = getContext()->getTheme().typography.fontSizeNormal;
 
 #if ES_FEATURE_SDF_FONT
-    SDFFont* font = getContext()->getDefaultFont();
+    MSDFFont* font = getContext()->getDefaultMSDFFont();
     if (font) {
         f32 currentX = 0.0f;
         for (usize i = 0; i < index && i < text_.size(); ++i) {

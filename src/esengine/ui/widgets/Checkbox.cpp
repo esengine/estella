@@ -15,7 +15,7 @@
 #include "../../math/Math.hpp"
 
 #if ES_FEATURE_SDF_FONT
-#include "../font/SDFFont.hpp"
+#include "../font/MSDFFont.hpp"
 #endif
 
 #if ES_FEATURE_BITMAP_FONT
@@ -88,7 +88,7 @@ glm::vec2 Checkbox::measure(f32 availableWidth, f32 availableHeight) {
         f32 labelWidth = static_cast<f32>(label_.length()) * fontSize * 0.6f;
 
 #if ES_FEATURE_SDF_FONT
-        SDFFont* font = getContext()->getDefaultFont();
+        MSDFFont* font = getContext()->getDefaultMSDFFont();
         if (font) {
             labelWidth = font->measureText(label_, fontSize).x;
         }
@@ -186,9 +186,9 @@ void Checkbox::render(UIBatchRenderer& renderer) {
         f32 labelY = bounds.y + (bounds.height - fontSize) * 0.5f;
 
 #if ES_FEATURE_SDF_FONT
-        if (getContext() && getContext()->getDefaultFont()) {
+        if (getContext() && getContext()->getDefaultMSDFFont()) {
             renderer.drawText(label_, glm::vec2(labelX, labelY),
-                            *getContext()->getDefaultFont(), fontSize, textColor);
+                            *getContext()->getDefaultMSDFFont(), fontSize, textColor);
         }
 #elif ES_FEATURE_BITMAP_FONT
         if (getContext() && getContext()->getDefaultBitmapFont()) {

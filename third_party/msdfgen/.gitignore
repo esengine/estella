@@ -1,0 +1,32 @@
+/build/
+/Debug/
+/Release/
+/Release OpenMP/
+/Debug Library/
+/Release Library/
+/Release Library OpenMP/
+/x86/
+/x64/
+.vs/
+.vscode/
+.DS_Store
+*.exe
+*.zip
+*.user
+*.sdf
+*.pdb
+*.ipdb
+*.iobj
+*.suo
+*.VC.opendb
+*.VC.db
+/bin/*.lib
+/bin/msdfgen
+output.png
+render.png
+CMakeUserPresets.json
+out/
+/all-in-one/
+/build_xcode/
+/cmake-gen.bat
+/line-ending-check.bat

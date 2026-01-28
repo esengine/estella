@@ -74,7 +74,10 @@ set(ESENGINE_SOURCES
 
 # Font sources (conditional)
 if(ES_FEATURE_SDF_FONT)
-    list(APPEND ESENGINE_SOURCES src/esengine/ui/font/SDFFont.cpp)
+    list(APPEND ESENGINE_SOURCES
+        src/esengine/ui/font/SDFFont.cpp
+        src/esengine/ui/font/MSDFFont.cpp
+    )
 endif()
 
 if(ES_FEATURE_BITMAP_FONT)
@@ -154,7 +157,10 @@ set(ESENGINE_HEADERS
 
 # Font headers (conditional)
 if(ES_FEATURE_SDF_FONT)
-    list(APPEND ESENGINE_HEADERS src/esengine/ui/font/SDFFont.hpp)
+    list(APPEND ESENGINE_HEADERS
+        src/esengine/ui/font/SDFFont.hpp
+        src/esengine/ui/font/MSDFFont.hpp
+    )
 endif()
 
 if(ES_FEATURE_BITMAP_FONT)
@@ -279,8 +285,11 @@ target_link_libraries(esengine PUBLIC glm)
 
 # FreeType dependency (only needed for SDF fonts)
 if(ES_FEATURE_SDF_FONT)
-    target_link_libraries(esengine PUBLIC freetype)
-    target_include_directories(esengine PUBLIC ${CMAKE_SOURCE_DIR}/third_party/freetype/include)
+    target_link_libraries(esengine PUBLIC freetype msdfgen-core msdfgen-ext)
+    target_include_directories(esengine PUBLIC
+        ${CMAKE_SOURCE_DIR}/third_party/freetype/include
+        ${CMAKE_SOURCE_DIR}/third_party/msdfgen
+    )
     target_compile_definitions(esengine PUBLIC ES_FEATURE_SDF_FONT=1)
 endif()
 

@@ -14,7 +14,7 @@
 #include "../rendering/UIBatchRenderer.hpp"
 
 #if ES_FEATURE_SDF_FONT
-#include "../font/SDFFont.hpp"
+#include "../font/MSDFFont.hpp"
 #endif
 
 #if ES_FEATURE_BITMAP_FONT
@@ -66,7 +66,7 @@ glm::vec2 Button::measure(f32 availableWidth, f32 availableHeight) {
 
     if (textSizeDirty_) {
 #if ES_FEATURE_SDF_FONT
-        SDFFont* font = fontName_.empty() ? ctx->getDefaultFont() : ctx->getFont(fontName_);
+        MSDFFont* font = fontName_.empty() ? ctx->getDefaultMSDFFont() : ctx->getMSDFFont(fontName_);
         if (font) {
             cachedTextSize_ = font->measureText(text_, fontSize_);
             textSizeDirty_ = false;
@@ -133,7 +133,7 @@ void Button::render(UIBatchRenderer& renderer) {
         Rect textBounds = style.padding.shrink(bounds);
 
 #if ES_FEATURE_SDF_FONT
-        SDFFont* font = fontName_.empty() ? ctx->getDefaultFont() : ctx->getFont(fontName_);
+        MSDFFont* font = fontName_.empty() ? ctx->getDefaultMSDFFont() : ctx->getMSDFFont(fontName_);
         if (font) {
             renderer.drawTextInBounds(text_, textBounds, *font, fontSize_, textColor,
                                       HAlign::Center, VAlign::Center);

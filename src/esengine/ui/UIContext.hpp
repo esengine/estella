@@ -35,6 +35,7 @@ namespace ui {
 
 #if ES_FEATURE_SDF_FONT
 class SDFFont;
+class MSDFFont;
 #endif
 
 #if ES_FEATURE_BITMAP_FONT
@@ -159,6 +160,16 @@ public:
     SDFFont* getFont(const std::string& name);
     SDFFont* getDefaultFont();
     SDFFont* getIconFont();
+
+    /**
+     * @brief Loads a font from file (uses MSDF rendering for sharper text)
+     */
+    MSDFFont* loadMSDFFont(const std::string& name, const std::string& path, f32 fontSize = 32.0f,
+                            f32 pixelRange = 4.0f);
+
+    MSDFFont* getMSDFFont(const std::string& name);
+    MSDFFont* getDefaultMSDFFont();
+    MSDFFont* getIconMSDFFont();
 #endif
 
 #if ES_FEATURE_BITMAP_FONT
@@ -345,6 +356,7 @@ private:
 
 #if ES_FEATURE_SDF_FONT
     std::unordered_map<std::string, Unique<SDFFont>> fonts_;
+    std::unordered_map<std::string, Unique<MSDFFont>> msdfFonts_;
 #endif
 
 #if ES_FEATURE_BITMAP_FONT

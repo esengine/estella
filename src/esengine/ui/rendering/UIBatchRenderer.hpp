@@ -33,6 +33,7 @@ namespace ui {
 
 #if ES_FEATURE_SDF_FONT
 class SDFFont;
+class MSDFFont;
 #endif
 
 #if ES_FEATURE_BITMAP_FONT
@@ -221,6 +222,16 @@ public:
                   const glm::vec4& color);
 
     void drawTextInBounds(const std::string& text, const Rect& bounds, SDFFont& font, f32 fontSize,
+                          const glm::vec4& color, HAlign hAlign = HAlign::Left,
+                          VAlign vAlign = VAlign::Top);
+
+    /**
+     * @brief Draws text using MSDF font for sharper rendering (UTF-8 supported)
+     */
+    void drawText(const std::string& text, const glm::vec2& position, MSDFFont& font, f32 fontSize,
+                  const glm::vec4& color);
+
+    void drawTextInBounds(const std::string& text, const Rect& bounds, MSDFFont& font, f32 fontSize,
                           const glm::vec4& color, HAlign hAlign = HAlign::Left,
                           VAlign vAlign = VAlign::Top);
 #endif

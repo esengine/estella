@@ -19,6 +19,7 @@
 
 #if ES_FEATURE_SDF_FONT
 #include "../font/SDFFont.hpp"
+#include "../font/MSDFFont.hpp"
 #endif
 
 #if ES_FEATURE_BITMAP_FONT
@@ -27,6 +28,7 @@
 
 #include <array>
 #include <cmath>
+#include <cstdio>
 #include <vector>
 
 #ifdef ES_PLATFORM_WEB
@@ -126,6 +128,10 @@ static const char* UI_FRAGMENT_SHADER = R"(
         return min(max(q.x, q.y), 0.0) + length(max(q, 0.0)) - r.x;
     }
 
+    float median(float r, float g, float b) {
+        return max(min(r, g), min(max(r, g), b));
+    }
+
     void main() {
         vec4 texColor = vec4(1.0);
         int index = int(v_texIndex);
@@ -141,8 +147,16 @@ static const char* UI_FRAGMENT_SHADER = R"(
 
         vec4 color;
 
+        // MSDF text rendering: borderThickness < -100.0 indicates MSDF mode
+        if (v_borderThickness < -100.0) {
+            float screenPxRange = -v_borderThickness - 100.0 - 1.0;
+            float sd = median(texColor.r, texColor.g, texColor.b);
+            float edgeWidth = 0.5 / max(screenPxRange, 1.0);
+            float alpha = smoothstep(0.5 - edgeWidth, 0.5 + edgeWidth, sd);
+            color = vec4(v_color.rgb, alpha * v_color.a);
+        }
         // SDF text rendering: borderThickness < -1.0 indicates SDF mode
-        if (v_borderThickness < -1.0) {
+        else if (v_borderThickness < -1.0) {
             float screenPxRange = -v_borderThickness - 1.0;
             float sd = texColor.r;
             float edgeWidth = 0.5 / max(screenPxRange, 1.0);
@@ -237,16 +251,26 @@ static const char* UI_FRAGMENT_SHADER = R"(
         return min(max(q.x, q.y), 0.0) + length(max(q, 0.0)) - r.x;
     }
 
+    float median(float r, float g, float b) {
+        return max(min(r, g), min(max(r, g), b));
+    }
+
     void main() {
         vec4 texColor = texture(u_textures[v_texIndex], v_texCoord);
         vec4 color;
 
+        // MSDF text rendering: borderThickness < -100.0 indicates MSDF mode
+        if (v_borderThickness < -100.0) {
+            float screenPxRange = -v_borderThickness - 100.0 - 1.0;
+            float sd = median(texColor.r, texColor.g, texColor.b);
+            float edgeWidth = 0.5 / max(screenPxRange, 1.0);
+            float alpha = smoothstep(0.5 - edgeWidth, 0.5 + edgeWidth, sd);
+            color = vec4(v_color.rgb, alpha * v_color.a);
+        }
         // SDF text rendering: borderThickness < -1.0 indicates SDF mode
-        // The absolute value encodes the screen pixel range
-        if (v_borderThickness < -1.0) {
+        else if (v_borderThickness < -1.0) {
             float screenPxRange = -v_borderThickness - 1.0;
             float sd = texColor.r;
-            // FreeType SDF: 0.5 = edge, >0.5 = inside, <0.5 = outside
             float edgeWidth = 0.5 / max(screenPxRange, 1.0);
             float alpha = smoothstep(0.5 - edgeWidth, 0.5 + edgeWidth, sd);
             color = vec4(v_color.rgb, alpha * v_color.a);
@@ -742,10 +766,7 @@ void UIBatchRenderer::drawText(const std::string& text, const glm::vec2& positio
         data_->textureSlotIndex++;
     }
 
-    // Calculate screen pixel range for SDF sharpness
-    // screenPxRange = fontSize / sdfSize * sdfSpread
     f32 screenPxRange = fontSize / font.getSDFSize() * font.getSDFSpread();
-    // Encode as negative borderThickness: value = -(screenPxRange + 1.0)
     f32 sdfBorderFlag = -(screenPxRange + 1.0f);
 
     usize i = 0;
@@ -818,6 +839,146 @@ void UIBatchRenderer::drawTextInBounds(const std::string& text, const Rect& boun
 
     glm::vec2 textSize = font.measureText(text, fontSize);
     f32 scale = fontSize / font.getSDFSize();
+    f32 ascent = font.getAscent() * scale;
+    f32 descent = font.getDescent() * scale;
+    f32 visualHeight = ascent + descent;
+
+    f32 x = bounds.x;
+    f32 y = bounds.y;
+
+    switch (hAlign) {
+        case HAlign::Left:
+            break;
+        case HAlign::Center:
+            x += (bounds.width - textSize.x) * 0.5f;
+            break;
+        case HAlign::Right:
+            x += bounds.width - textSize.x;
+            break;
+        case HAlign::Stretch:
+            break;
+    }
+
+    switch (vAlign) {
+        case VAlign::Top:
+            break;
+        case VAlign::Center:
+            y += (bounds.height - visualHeight) * 0.5f;
+            break;
+        case VAlign::Bottom:
+            y += bounds.height - visualHeight;
+            break;
+        case VAlign::Stretch:
+            break;
+    }
+
+    x = std::round(x);
+    y = std::round(y);
+    drawText(text, {x, y}, font, fontSize, color);
+}
+
+void UIBatchRenderer::drawText(const std::string& text, const glm::vec2& position,
+                                MSDFFont& font, f32 fontSize, const glm::vec4& color) {
+    if (text.empty()) return;
+
+    f32 x = position.x;
+    f32 y = position.y;
+    f32 scale = fontSize / font.getFontSize();
+
+    u32 atlasTexture = font.getAtlasTextureId();
+    if (atlasTexture == 0) return;
+
+    u32 texIndex = 0;
+    bool found = false;
+    for (u32 i = 0; i < data_->textureSlotIndex; ++i) {
+        if (data_->textureSlots[i] == atlasTexture) {
+            texIndex = i;
+            found = true;
+            break;
+        }
+    }
+    if (!found) {
+        if (data_->textureSlotIndex >= MAX_TEXTURE_SLOTS) {
+            flush();
+        }
+        data_->textureSlots[data_->textureSlotIndex] = atlasTexture;
+        texIndex = data_->textureSlotIndex;
+        data_->textureSlotIndex++;
+    }
+
+    f32 screenPxRange = fontSize / font.getFontSize() * font.getPixelRange();
+    f32 msdfBorderFlag = -(screenPxRange + 100.0f + 1.0f);
+
+    usize i = 0;
+    while (i < text.size()) {
+        u32 codepoint = nextCodepoint(text, i);
+
+        if (codepoint == '\n') {
+            x = position.x;
+            y += fontSize * 1.2f;
+            continue;
+        }
+
+        const auto* glyph = font.getGlyph(codepoint);
+        if (!glyph) continue;
+
+        f32 xPos = std::round(x + glyph->bearingX * scale);
+        f32 yPos = std::round(y + (font.getAscent() - glyph->bearingY) * scale);
+        f32 w = glyph->width * scale;
+        f32 h = glyph->height * scale;
+
+        if (w > 0 && h > 0) {
+            if (data_->vertices.size() >= MAX_VERTICES) {
+                flush();
+            }
+
+            f32 texIdx = static_cast<f32>(texIndex);
+            Rect glyphRect(xPos, yPos, w, h);
+            glm::vec2 rectSize = {w, h};
+            glm::vec2 halfSize = rectSize * 0.5f;
+
+            UIVertex vertices[4];
+
+            vertices[0].position = {glyphRect.x, glyphRect.y, 0.0f};
+            vertices[0].texCoord = {glyph->u0, glyph->v0};
+            vertices[0].localPos = {-halfSize.x, -halfSize.y};
+
+            vertices[1].position = {glyphRect.right(), glyphRect.y, 0.0f};
+            vertices[1].texCoord = {glyph->u1, glyph->v0};
+            vertices[1].localPos = {halfSize.x, -halfSize.y};
+
+            vertices[2].position = {glyphRect.right(), glyphRect.bottom(), 0.0f};
+            vertices[2].texCoord = {glyph->u1, glyph->v1};
+            vertices[2].localPos = halfSize;
+
+            vertices[3].position = {glyphRect.x, glyphRect.bottom(), 0.0f};
+            vertices[3].texCoord = {glyph->u0, glyph->v1};
+            vertices[3].localPos = {-halfSize.x, halfSize.y};
+
+            for (auto& v : vertices) {
+                v.color = color;
+                v.cornerRadii = {0, 0, 0, 0};
+                v.rectSize = rectSize;
+                v.texIndex = texIdx;
+                v.borderThickness = msdfBorderFlag;
+                data_->vertices.push_back(v);
+            }
+
+            data_->indexCount += 6;
+            data_->stats.textQuadCount++;
+        }
+
+        x += glyph->advance * scale;
+    }
+}
+
+void UIBatchRenderer::drawTextInBounds(const std::string& text, const Rect& bounds,
+                                        MSDFFont& font, f32 fontSize, const glm::vec4& color,
+                                        HAlign hAlign, VAlign vAlign) {
+    if (text.empty()) return;
+
+    glm::vec2 textSize = font.measureText(text, fontSize);
+    f32 scale = fontSize / font.getFontSize();
     f32 ascent = font.getAscent() * scale;
     f32 descent = font.getDescent() * scale;
     f32 visualHeight = ascent + descent;

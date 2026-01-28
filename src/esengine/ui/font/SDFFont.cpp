@@ -244,6 +244,10 @@ const SDFGlyphInfo* SDFFont::getGlyph(u32 codepoint) {
 SDFGlyphInfo* SDFFont::loadGlyph(u32 codepoint) {
     if (!ftData_ || !ftData_->face) return nullptr;
 
+    if (codepoint == 'H') {
+        ES_LOG_INFO("SDF: Loading glyph 'H'");
+    }
+
     FT_UInt glyphIndex = FT_Get_Char_Index(ftData_->face, codepoint);
     if (glyphIndex == 0 && codepoint != 0) {
         return nullptr;
@@ -273,6 +277,12 @@ SDFGlyphInfo* SDFFont::loadGlyph(u32 codepoint) {
     glyph.bearingX = static_cast<f32>(slot->bitmap_left);
     glyph.bearingY = static_cast<f32>(slot->bitmap_top);
     glyph.advance = static_cast<f32>(slot->advance.x) / 64.0f;
+
+    if (codepoint == 'H') {
+        ES_LOG_INFO("SDF 'H': bearingX={:.1f} bearingY={:.1f} advance={:.1f} w={} h={}",
+                    glyph.bearingX, glyph.bearingY, glyph.advance,
+                    bitmap.width, bitmap.rows);
+    }
 
     if (bitmap.width > 0 && bitmap.rows > 0) {
         i32 glyphW = static_cast<i32>(bitmap.width);

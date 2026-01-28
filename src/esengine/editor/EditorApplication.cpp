@@ -86,8 +86,8 @@ void EditorApplication::onInit() {
 
     bool fontLoaded = false;
     for (const char** path = fontPaths; *path != nullptr; ++path) {
-        if (uiContext_->loadFont("default", *path, 48.0f, 8.0f)) {
-            ES_LOG_INFO("Loaded SDF font: {}", *path);
+        if (uiContext_->loadMSDFFont("default", *path, 32.0f, 4.0f)) {
+            ES_LOG_INFO("Loaded MSDF font: {}", *path);
             fontLoaded = true;
             break;
         }
@@ -95,8 +95,8 @@ void EditorApplication::onInit() {
 
     if (!fontLoaded) {
         std::string fallbackFont = PathResolver::editorPath("assets/fonts/default.ttf");
-        if (uiContext_->loadFont("default", fallbackFont, 48.0f, 8.0f)) {
-            ES_LOG_INFO("Loaded SDF font: {}", fallbackFont);
+        if (uiContext_->loadMSDFFont("default", fallbackFont, 32.0f, 4.0f)) {
+            ES_LOG_INFO("Loaded MSDF font: {}", fallbackFont);
             fontLoaded = true;
         }
     }
@@ -106,7 +106,7 @@ void EditorApplication::onInit() {
     }
 
     std::string iconFontPath = PathResolver::editorPath("assets/fonts/lucide.ttf");
-    if (!uiContext_->loadFont("icons", iconFontPath, 48.0f, 4.0f)) {
+    if (!uiContext_->loadMSDFFont("icons", iconFontPath, 32.0f, 4.0f)) {
         ES_LOG_WARN("Icon font not loaded, icons will not render");
     }
 

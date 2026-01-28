@@ -16,7 +16,7 @@
 #include "../rendering/UIBatchRenderer.hpp"
 
 #if ES_FEATURE_SDF_FONT
-#include "../font/SDFFont.hpp"
+#include "../font/MSDFFont.hpp"
 #endif
 
 #if ES_FEATURE_BITMAP_FONT
@@ -174,7 +174,7 @@ void DockTabBar::renderTab(UIBatchRenderer& renderer, const DockTabInfo& tab, us
     };
 
 #if ES_FEATURE_SDF_FONT
-    SDFFont* font = ctx->getDefaultFont();
+    MSDFFont* font = ctx->getDefaultMSDFFont();
     if (font) {
         renderer.drawTextInBounds(tab.title, textBounds, *font,
                                    theme.typography.fontSizeSmall, textColor,
