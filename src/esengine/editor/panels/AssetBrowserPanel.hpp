@@ -22,6 +22,7 @@
 #include "../../ui/widgets/TextField.hpp"
 #include "../../ui/widgets/Panel.hpp"
 #include "../../ui/widgets/Label.hpp"
+#include "../../ui/widgets/ContextMenu.hpp"
 #include "../../events/Connection.hpp"
 #include "AssetBrowserTypes.hpp"
 
@@ -56,6 +57,8 @@ public:
     Signal<void(const std::string&)> onAssetSelected;
     Signal<void(const std::string&)> onAssetDoubleClicked;
 
+    bool onMouseDown(const ui::MouseButtonEvent& event) override;
+
 protected:
     void onActivated() override;
 
@@ -69,6 +72,13 @@ private:
     void onSearchTextChanged(const std::string& text);
     void onAssetItemClicked(const std::string& path);
     void onAssetItemDoubleClicked(const std::string& path);
+    void onContextMenuItemSelected(const std::string& itemId);
+
+    void createFolder();
+    void createScene();
+    void createScript();
+    void deleteSelectedAsset();
+    void renameSelectedAsset();
 
     std::string getFileName(const std::string& path) const;
     std::string getFileExtension(const std::string& path) const;
@@ -100,6 +110,10 @@ private:
     Connection folderSelectedConnection_;
     Connection searchChangedConnection_;
     ConnectionHolder itemConnections_;
+
+    Unique<ui::ContextMenu> contextMenu_;
+    Connection contextMenuItemSelectedConnection_;
+    Connection contextMenuClosedConnection_;
 };
 
 }  // namespace esengine::editor

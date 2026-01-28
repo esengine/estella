@@ -20,9 +20,12 @@
 #include "../../platform/FileSystem.hpp"
 #include "../../core/Log.hpp"
 #include "../../events/Sink.hpp"
+#include "../../ui/icons/Icons.hpp"
 
 #include <algorithm>
+#include <fstream>
 #include <cctype>
+#include <filesystem>
 
 namespace esengine::editor {
 
@@ -202,6 +205,18 @@ void AssetBrowserPanel::buildUI() {
 
     searchChangedConnection_ = sink(searchField_->onTextChanged).connect(
         [this](const std::string& text) { onSearchTextChanged(text); }
+    );
+
+    contextMenu_ = makeUnique<ui::ContextMenu>(ui::WidgetId("asset_browser_context_menu"));
+    contextMenuItemSelectedConnection_ = sink(contextMenu_->onItemSelected).connect(
+        [this](const std::string& itemId) { onContextMenuItemSelected(itemId); }
+    );
+    contextMenuClosedConnection_ = sink(contextMenu_->onClosed).connect(
+        [this]() {
+            if (getContext()) {
+                getContext()->removeOverlay(contextMenu_.get());
+            }
+        }
     );
 }
 
@@ -383,6 +398,179 @@ void AssetBrowserPanel::onAssetItemDoubleClicked(const std::string& path) {
     } else {
         onAssetDoubleClicked.publish(path);
     }
+}
+
+bool AssetBrowserPanel::onMouseDown(const ui::MouseButtonEvent& event) {
+    if (event.button == ui::MouseButton::Right) {
+        if (assetScrollView_ && assetScrollView_->getBounds().contains(event.x, event.y)) {
+            contextMenu_->clearItems();
+
+            contextMenu_->addItem(ui::MenuItem::action("create_folder", "New Folder", ui::icons::FolderPlus));
+            contextMenu_->addItem(ui::MenuItem::divider());
+            contextMenu_->addItem(ui::MenuItem::action("create_scene", "New Scene", ui::icons::Layers));
+            contextMenu_->addItem(ui::MenuItem::action("create_script", "New Script", ui::icons::File));
+            contextMenu_->addItem(ui::MenuItem::divider());
+
+            if (!selectedAssetPath_.empty()) {
+                contextMenu_->addItem(ui::MenuItem::action("rename", "Rename", ui::icons::Edit2, "F2"));
+                contextMenu_->addItem(ui::MenuItem::action("delete", "Delete", ui::icons::Trash2, "Del"));
+                contextMenu_->addItem(ui::MenuItem::divider());
+            }
+
+            contextMenu_->addItem(ui::MenuItem::action("refresh", "Refresh", ui::icons::Refresh));
+
+            if (getContext()) {
+                getContext()->addOverlay(contextMenu_.get());
+            }
+            contextMenu_->show(event.x, event.y);
+            return true;
+        }
+    }
+
+    return DockPanel::onMouseDown(event);
+}
+
+void AssetBrowserPanel::onContextMenuItemSelected(const std::string& itemId) {
+    if (getContext()) {
+        getContext()->removeOverlay(contextMenu_.get());
+    }
+
+    if (itemId == "create_folder") {
+        createFolder();
+    } else if (itemId == "create_scene") {
+        createScene();
+    } else if (itemId == "create_script") {
+        createScript();
+    } else if (itemId == "rename") {
+        renameSelectedAsset();
+    } else if (itemId == "delete") {
+        deleteSelectedAsset();
+    } else if (itemId == "refresh") {
+        rebuildFolderTree();
+        refreshAssetList();
+    }
+}
+
+void AssetBrowserPanel::createFolder() {
+#ifdef ES_PLATFORM_WEB
+    return;
+#endif
+
+    std::string baseName = "New Folder";
+    std::string folderPath = currentPath_ + "/" + baseName;
+
+    i32 counter = 1;
+    while (FileSystem::directoryExists(folderPath)) {
+        folderPath = currentPath_ + "/" + baseName + " " + std::to_string(counter);
+        ++counter;
+    }
+
+    if (FileSystem::createDirectory(folderPath)) {
+        rebuildFolderTree();
+        refreshAssetList();
+        ES_LOG_INFO("Created folder: {}", folderPath);
+    } else {
+        ES_LOG_ERROR("Failed to create folder: {}", folderPath);
+    }
+}
+
+void AssetBrowserPanel::createScene() {
+#ifdef ES_PLATFORM_WEB
+    return;
+#endif
+
+    std::string baseName = "New Scene";
+    std::string scenePath = currentPath_ + "/" + baseName + ".scene";
+
+    i32 counter = 1;
+    while (FileSystem::fileExists(scenePath)) {
+        scenePath = currentPath_ + "/" + baseName + " " + std::to_string(counter) + ".scene";
+        ++counter;
+    }
+
+    std::ofstream file(scenePath);
+    if (file.is_open()) {
+        file << "{\n";
+        file << "  \"version\": 1,\n";
+        file << "  \"name\": \"" << getFileName(scenePath) << "\",\n";
+        file << "  \"entities\": []\n";
+        file << "}\n";
+        file.close();
+
+        refreshAssetList();
+        ES_LOG_INFO("Created scene: {}", scenePath);
+    } else {
+        ES_LOG_ERROR("Failed to create scene: {}", scenePath);
+    }
+}
+
+void AssetBrowserPanel::createScript() {
+#ifdef ES_PLATFORM_WEB
+    return;
+#endif
+
+    std::string baseName = "NewScript";
+    std::string scriptPath = currentPath_ + "/" + baseName + ".js";
+
+    i32 counter = 1;
+    while (FileSystem::fileExists(scriptPath)) {
+        scriptPath = currentPath_ + "/" + baseName + std::to_string(counter) + ".js";
+        ++counter;
+    }
+
+    std::ofstream file(scriptPath);
+    if (file.is_open()) {
+        file << "// " << getFileName(scriptPath) << "\n";
+        file << "\n";
+        file << "export default class {\n";
+        file << "    onStart() {\n";
+        file << "        // Called when the entity is created\n";
+        file << "    }\n";
+        file << "\n";
+        file << "    onUpdate(deltaTime) {\n";
+        file << "        // Called every frame\n";
+        file << "    }\n";
+        file << "}\n";
+        file.close();
+
+        refreshAssetList();
+        ES_LOG_INFO("Created script: {}", scriptPath);
+    } else {
+        ES_LOG_ERROR("Failed to create script: {}", scriptPath);
+    }
+}
+
+void AssetBrowserPanel::deleteSelectedAsset() {
+#ifdef ES_PLATFORM_WEB
+    return;
+#endif
+
+    if (selectedAssetPath_.empty()) {
+        return;
+    }
+
+    std::error_code ec;
+    bool success = false;
+
+    if (FileSystem::directoryExists(selectedAssetPath_)) {
+        success = std::filesystem::remove_all(selectedAssetPath_, ec) > 0;
+    } else if (FileSystem::fileExists(selectedAssetPath_)) {
+        success = std::filesystem::remove(selectedAssetPath_, ec);
+    }
+
+    if (success && !ec) {
+        ES_LOG_INFO("Deleted: {}", selectedAssetPath_);
+        selectedAssetPath_.clear();
+        rebuildFolderTree();
+        refreshAssetList();
+    } else {
+        ES_LOG_ERROR("Failed to delete: {} ({})", selectedAssetPath_, ec.message());
+    }
+}
+
+void AssetBrowserPanel::renameSelectedAsset() {
+    // TODO: Implement inline renaming
+    ES_LOG_INFO("Rename asset: not yet implemented");
 }
 
 // =============================================================================

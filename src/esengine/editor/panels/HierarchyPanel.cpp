@@ -275,6 +275,28 @@ void HierarchyPanel::render(ui::UIBatchRenderer& renderer) {
     }
 }
 
+bool HierarchyPanel::onMouseDown(const ui::MouseButtonEvent& event) {
+    if (event.button == ui::MouseButton::Right) {
+        if (scrollView_ && scrollView_->getBounds().contains(event.x, event.y)) {
+            contextMenuTargetEntity_ = INVALID_ENTITY;
+
+            contextMenu_->clearItems();
+            contextMenu_->addItem(ui::MenuItem::action("create_entity", "Create Empty Entity", ui::icons::Plus));
+            contextMenu_->addItem(ui::MenuItem::action("create_folder", "Create Folder", ui::icons::FolderPlus));
+            contextMenu_->addItem(ui::MenuItem::divider());
+            contextMenu_->addItem(ui::MenuItem::action("paste", "Paste", ui::icons::Clipboard, "Ctrl+V"));
+
+            if (getContext()) {
+                getContext()->addOverlay(contextMenu_.get());
+            }
+            contextMenu_->show(event.x, event.y);
+            return true;
+        }
+    }
+
+    return DockPanel::onMouseDown(event);
+}
+
 bool HierarchyPanel::onKeyDown(const ui::KeyEvent& event) {
     if (event.key == KeyCode::Delete) {
         deleteSelectedEntity();

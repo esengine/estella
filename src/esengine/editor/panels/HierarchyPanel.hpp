@@ -85,6 +85,7 @@ public:
     bool getShowOrphans() const { return showOrphans_; }
 
     void render(ui::UIBatchRenderer& renderer) override;
+    bool onMouseDown(const ui::MouseButtonEvent& event) override;
     bool onKeyDown(const ui::KeyEvent& event) override;
 
 protected:
