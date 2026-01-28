@@ -32,6 +32,17 @@
 namespace esengine {
 namespace editor {
 
+class ProjectLauncherPanel;
+
+// =============================================================================
+// Editor Mode
+// =============================================================================
+
+enum class EditorMode : u8 {
+    Launcher,
+    Editor
+};
+
 // =============================================================================
 // EditorApplication Class
 // =============================================================================
@@ -126,6 +137,22 @@ public:
      */
     ProjectManager& getProjectManager() { return *projectManager_; }
 
+    /**
+     * @brief Get current editor mode
+     * @return Current editor mode (Launcher or Editor)
+     */
+    EditorMode getMode() const { return mode_; }
+
+    /**
+     * @brief Switch to launcher mode
+     */
+    void showLauncher();
+
+    /**
+     * @brief Switch to editor mode
+     */
+    void showEditor();
+
 protected:
     // =========================================================================
     // Application Lifecycle Overrides
@@ -205,6 +232,21 @@ private:
      */
     void createDemoScene();
 
+    /**
+     * @brief Setup project launcher UI
+     */
+    void setupLauncherLayout();
+
+    /**
+     * @brief Handle new project request from launcher
+     */
+    void onNewProjectRequested();
+
+    /**
+     * @brief Handle open project request from launcher
+     */
+    void onOpenProjectRequested();
+
     // =========================================================================
     // Constants
     // =========================================================================
@@ -225,11 +267,13 @@ private:
     Unique<ProjectManager> projectManager_; ///< Project manager
     Unique<ui::UIContext> uiContext_; ///< UI system context
     ui::DockArea* dockArea_ = nullptr; ///< Main docking area (owned by UIContext)
+    ProjectLauncherPanel* launcherPanel_ = nullptr; ///< Launcher panel (owned by UIContext)
 
     // =========================================================================
     // State
     // =========================================================================
 
+    EditorMode mode_ = EditorMode::Launcher;            ///< Current editor mode
     glm::vec4 clearColor_{0.15f, 0.15f, 0.15f, 1.0f};  ///< Editor background color
     f64 frameTime_ = 0.0;                               ///< Accumulated frame time
     u32 frameCount_ = 0;                                ///< Frame counter for FPS

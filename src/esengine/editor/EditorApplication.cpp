@@ -28,6 +28,7 @@
 #include "panels/InspectorPanel.hpp"
 #include "panels/SceneViewPanel.hpp"
 #include "panels/AssetBrowserPanel.hpp"
+#include "panels/ProjectLauncherPanel.hpp"
 
 namespace esengine {
 namespace editor {
@@ -131,13 +132,10 @@ void EditorApplication::onInit() {
     // Load recent projects list
     projectManager_->getRecentProjects().load();
 
-    // Create demo scene for testing
-    createDemoScene();
-
-    // Setup editor UI layout
-    setupEditorLayout();
-
     setupEventListeners();
+
+    // Start in launcher mode
+    setupLauncherLayout();
 }
 
 void EditorApplication::onUpdate(f32 deltaTime) {
@@ -427,6 +425,85 @@ void EditorApplication::createDemoScene() {
     registry_.emplace<ecs::LocalTransform>(obstacle2, glm::vec3(-5.0f, 1.0f, 3.0f));
 
     ES_LOG_INFO("Demo scene created with {} entities", registry_.entityCount());
+}
+
+// =============================================================================
+// Mode Switching
+// =============================================================================
+
+void EditorApplication::setupLauncherLayout() {
+    ES_LOG_INFO("Setting up launcher layout");
+
+    mode_ = EditorMode::Launcher;
+
+    auto launcherPanel = makeUnique<ProjectLauncherPanel>(
+        ui::WidgetId("editor.launcher"),
+        *projectManager_,
+        dispatcher_);
+
+    launcherPanel_ = launcherPanel.get();
+
+    eventConnections_.add(
+        sink(launcherPanel_->onCreateProjectRequested).connect([this]() {
+            onNewProjectRequested();
+        }));
+
+    eventConnections_.add(
+        sink(launcherPanel_->onBrowseProjectRequested).connect([this]() {
+            onOpenProjectRequested();
+        }));
+
+    eventConnections_.add(
+        sink(launcherPanel_->onProjectOpened).connect([this](const std::string& path) {
+            auto result = projectManager_->openProject(path);
+            if (result.isOk()) {
+                showEditor();
+            } else {
+                ES_LOG_ERROR("Failed to open project: {}", result.error());
+            }
+        }));
+
+    uiContext_->setRoot(std::move(launcherPanel));
+
+    ES_LOG_INFO("Launcher layout initialized");
+}
+
+void EditorApplication::showLauncher() {
+    if (mode_ == EditorMode::Launcher) {
+        return;
+    }
+
+    ES_LOG_INFO("Switching to launcher mode");
+
+    dockArea_ = nullptr;
+
+    setupLauncherLayout();
+}
+
+void EditorApplication::showEditor() {
+    if (mode_ == EditorMode::Editor) {
+        return;
+    }
+
+    ES_LOG_INFO("Switching to editor mode");
+
+    launcherPanel_ = nullptr;
+
+    mode_ = EditorMode::Editor;
+
+    createDemoScene();
+
+    setupEditorLayout();
+
+    ES_LOG_INFO("Editor mode active");
+}
+
+void EditorApplication::onNewProjectRequested() {
+    ES_LOG_INFO("New project requested - TODO: Show project creation dialog");
+}
+
+void EditorApplication::onOpenProjectRequested() {
+    ES_LOG_INFO("Open project requested - TODO: Show file browser dialog");
 }
 
 }  // namespace editor
