@@ -114,3 +114,50 @@ jobs:
 
     - name: Build
       run: cmake --build build_web
+
+  build-emscripten-modular:
+    name: Web Modular (Emscripten Side Modules)
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Setup Emscripten
+      uses: mymindstorm/setup-emsdk@v14
+      with:
+        version: latest
+
+    - name: Configure CMake (Modular)
+      run: |
+        emcmake cmake -B build_modular -G Ninja \
+          -DES_BUILD_WEB=ON \
+          -DES_BUILD_MODULAR=ON \
+          -DES_BUILD_EXAMPLES=OFF \
+          -DES_BUILD_TESTS=OFF \
+          -DCMAKE_BUILD_TYPE=Release
+
+    - name: Build Side Modules
+      run: |
+        cmake --build build_modular --target es_ui_core es_ui_widgets es_ui_docking es_font_bitmap
+
+    - name: Check Module Sizes
+      run: |
+        echo "=== Side Module Sizes ==="
+        ls -lh build_modular/lib/*.wasm
+        echo ""
+        echo "=== Size Summary ==="
+        du -ch build_modular/lib/*.wasm | tail -1
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Build Web SDK
+      working-directory: sdk/web
+      run: |
+        npm ci
+        npm run build
+        npm run lint
