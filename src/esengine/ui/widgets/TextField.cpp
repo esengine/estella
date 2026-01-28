@@ -95,18 +95,19 @@ std::string TextField::getSelectedText() const {
 // =============================================================================
 
 glm::vec2 TextField::measure(f32 availableWidth, f32 availableHeight) {
-    (void)availableHeight;
-
-    const SizeConstraints& constraints = getConstraints();
-    f32 width = glm::clamp(availableWidth, constraints.minWidth, constraints.maxWidth);
-
     f32 fontSize = 14.0f;
     if (getContext()) {
         fontSize = getContext()->getTheme().typography.fontSizeNormal;
     }
 
-    f32 height = fontSize + TEXT_PADDING * 2.0f;
-    height = glm::clamp(height, constraints.minHeight, constraints.maxHeight);
+    f32 contentHeight = fontSize + TEXT_PADDING * 2.0f;
+
+    f32 width = getWidth().resolve(availableWidth, availableWidth);
+    f32 height = getHeight().resolve(availableHeight, contentHeight);
+
+    const SizeConstraints& constraints = getConstraints();
+    width = constraints.constrainWidth(width);
+    height = constraints.constrainHeight(height);
 
     return glm::vec2(width, height);
 }

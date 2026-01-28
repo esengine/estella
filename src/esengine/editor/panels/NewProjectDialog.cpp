@@ -85,14 +85,14 @@ void NewProjectDialog::setupUI() {
 
     auto pathField = makeUnique<ui::TextField>(ui::WidgetId(getId().path + ".path_field"));
     pathField->setPlaceholder("Select folder...");
-    pathField->setWidth(ui::SizeValue::px(320.0f));
+    pathField->setWidth(ui::SizeValue::px(310.0f));
     pathField->setHeight(ui::SizeValue::px(38.0f));
     pathField_ = pathField.get();
     pathRow->addChild(std::move(pathField));
 
-    auto browseButton = makeUnique<ui::Button>(ui::WidgetId(getId().path + ".browse"), "Browse...");
+    auto browseButton = makeUnique<ui::Button>(ui::WidgetId(getId().path + ".browse"), "...");
     browseButton->setButtonStyle(ui::ButtonStyle::Secondary);
-    browseButton->setWidth(ui::SizeValue::px(90.0f));
+    browseButton->setWidth(ui::SizeValue::px(50.0f));
     browseButton->setHeight(ui::SizeValue::px(38.0f));
     browseButton_ = browseButton.get();
     connections_.push_back(
