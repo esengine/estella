@@ -34,6 +34,8 @@ namespace editor {
 
 class ProjectLauncherPanel;
 class NewProjectDialog;
+class EditorRootContainer;
+class AssetBrowserPanel;
 
 // =============================================================================
 // Editor Mode
@@ -248,6 +250,11 @@ private:
      */
     void onOpenProjectRequested();
 
+    /**
+     * @brief Dock the asset browser from drawer to dock area
+     */
+    void dockAssetBrowser();
+
     // =========================================================================
     // Constants
     // =========================================================================
@@ -268,6 +275,8 @@ private:
     Unique<ProjectManager> projectManager_; ///< Project manager
     Unique<ui::UIContext> uiContext_; ///< UI system context
     ui::DockArea* dockArea_ = nullptr; ///< Main docking area (owned by UIContext)
+    EditorRootContainer* editorRoot_ = nullptr; ///< Editor root container
+    AssetBrowserPanel* dockedAssetBrowser_ = nullptr; ///< Docked asset browser (if any)
     ProjectLauncherPanel* launcherPanel_ = nullptr; ///< Launcher panel (owned by UIContext)
     NewProjectDialog* newProjectDialog_ = nullptr;  ///< New project dialog
 

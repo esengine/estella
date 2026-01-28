@@ -141,35 +141,32 @@ void AssetGridItem::render(ui::UIBatchRenderer& renderer) {
         return;
     }
 
-    const auto& theme = ctx->getTheme();
+    constexpr glm::vec4 selectedBg{0.035f, 0.278f, 0.443f, 1.0f};    // #094771
+    constexpr glm::vec4 selectedBorder{0.231f, 0.510f, 0.965f, 1.0f}; // #3b82f6
+    constexpr glm::vec4 hoverBg{0.176f, 0.176f, 0.188f, 1.0f};        // #2d2d30
+    constexpr glm::vec4 textColor{0.878f, 0.878f, 0.878f, 1.0f};      // #e0e0e0
 
     if (selected_) {
-        renderer.drawRoundedRect(
-            bounds,
-            theme.colors.selection,
-            ui::CornerRadii::all(4.0f)
-        );
+        renderer.drawRoundedRect(bounds, selectedBg, ui::CornerRadii::all(4.0f));
+        renderer.drawRoundedRectOutline(bounds, selectedBorder, ui::CornerRadii::all(4.0f), 1.0f);
     } else if (isHovered()) {
-        renderer.drawRoundedRect(
-            bounds,
-            theme.colors.buttonHover,
-            ui::CornerRadii::all(4.0f)
-        );
+        renderer.drawRoundedRect(bounds, hoverBg, ui::CornerRadii::all(4.0f));
     }
 
     f32 iconX = bounds.x + (bounds.width - ICON_SIZE) * 0.5f;
     f32 iconY = bounds.y + ICON_PADDING;
     ui::Rect iconBounds{iconX, iconY, ICON_SIZE, ICON_SIZE};
 
-    glm::vec4 bgColor = getAssetTypeColor(entry_.type);
-    bgColor.a = 0.15f;
-    renderer.drawRoundedRect(iconBounds, bgColor, ui::CornerRadii::all(6.0f));
+    constexpr glm::vec4 thumbnailBg{0.102f, 0.102f, 0.102f, 1.0f};    // #1a1a1a
+    constexpr glm::vec4 thumbnailBorder{0.2f, 0.2f, 0.2f, 1.0f};      // #333
+    renderer.drawRoundedRect(iconBounds, thumbnailBg, ui::CornerRadii::all(4.0f));
+    renderer.drawRoundedRectOutline(iconBounds, thumbnailBorder, ui::CornerRadii::all(4.0f), 1.0f);
 
     ui::MSDFFont* iconFont = ctx->getIconMSDFFont();
     if (iconFont) {
         glm::vec4 iconColor = getAssetTypeColor(entry_.type);
         const char* icon = getAssetTypeIcon(entry_.type);
-        renderer.drawTextInBounds(icon, iconBounds, *iconFont, 28.0f, iconColor,
+        renderer.drawTextInBounds(icon, iconBounds, *iconFont, 32.0f, iconColor,
                                    ui::HAlign::Center, ui::VAlign::Center);
     }
 
@@ -178,13 +175,12 @@ void AssetGridItem::render(ui::UIBatchRenderer& renderer) {
         f32 labelWidth = bounds.width - 8.0f;
         ui::Rect labelBounds{
             bounds.x + 4.0f,
-            bounds.y + ICON_PADDING + ICON_SIZE + 4.0f,
+            bounds.y + ICON_PADDING + ICON_SIZE + 6.0f,
             labelWidth,
             LABEL_HEIGHT
         };
 
         std::string displayName = truncateText(entry_.name, *font, 11.0f, labelWidth);
-        glm::vec4 textColor = theme.colors.textPrimary;
         renderer.drawTextInBounds(
             displayName,
             labelBounds,

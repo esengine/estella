@@ -31,6 +31,11 @@ set(EDITOR_SOURCES
     panels/AssetGridItem.cpp
     panels/ProjectLauncherPanel.cpp
     panels/NewProjectDialog.cpp
+
+    # Editor widgets
+    widgets/StatusBar.cpp
+    widgets/DrawerPanel.cpp
+    widgets/EditorRootContainer.cpp
 )
 
 set(EDITOR_HEADERS
@@ -77,6 +82,11 @@ set(EDITOR_HEADERS
     panels/AssetGridItem.hpp
     panels/ProjectLauncherPanel.hpp
     panels/NewProjectDialog.hpp
+
+    # Editor widgets
+    widgets/StatusBar.hpp
+    widgets/DrawerPanel.hpp
+    widgets/EditorRootContainer.hpp
 )
 
 # Create editor executable

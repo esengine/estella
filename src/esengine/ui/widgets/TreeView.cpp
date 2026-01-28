@@ -273,76 +273,68 @@ void TreeView::renderNode(UIBatchRenderer& renderer, const TreeNode& node, f32 y
     const Rect& bounds = getBounds();
     const Insets& padding = getPadding();
 
-    f32 x = bounds.x + padding.left + node.depth * indentSize_;
+    constexpr f32 ROW_PADDING_X = 8.0f;
+    constexpr f32 ARROW_SIZE = 16.0f;
+    constexpr f32 FOLDER_ICON_SIZE = 16.0f;
+    constexpr f32 FONT_SIZE = 13.0f;
+
+    constexpr glm::vec4 hoverBg{0.165f, 0.176f, 0.180f, 1.0f};       // #2a2d2e
+    constexpr glm::vec4 selectedBg{0.216f, 0.216f, 0.239f, 1.0f};    // #37373d
+    constexpr glm::vec4 textColor{0.8f, 0.8f, 0.8f, 1.0f};           // #cccccc
+    constexpr glm::vec4 arrowColor{0.8f, 0.8f, 0.8f, 1.0f};          // #cccccc
+    constexpr glm::vec4 folderColor{0.863f, 0.714f, 0.478f, 1.0f};   // #dcb67a
+
     f32 rowWidth = bounds.width - padding.left - padding.right;
-
     Rect rowBounds{bounds.x + padding.left, y, rowWidth, rowHeight_};
-
-    WidgetStyle style;
-    if (getContext()) {
-        style = getContext()->getTheme().getPanelStyle();
-    }
 
     bool isSelected = isNodeSelected(node.id);
 
     if (isSelected) {
-        glm::vec4 selectionColor = style.backgroundColor;
-        if (getContext()) {
-            selectionColor = getContext()->getTheme().colors.selection;
-        }
-        renderer.drawRect(rowBounds, selectionColor);
+        renderer.drawRect(rowBounds, selectedBg);
     } else if (isHovered) {
-        glm::vec4 hoverColor = style.getBackgroundColor(
-            WidgetState{.hovered = true, .pressed = false, .focused = false, .disabled = false,
-                        .visible = true});
-        renderer.drawRect(rowBounds, hoverColor);
+        renderer.drawRect(rowBounds, hoverBg);
     }
+
+    f32 x = bounds.x + padding.left + ROW_PADDING_X + node.depth * indentSize_;
 
     bool hasChild = hasChildren(node);
 
-    if (hasChild) {
-        Rect iconBounds = getIconBounds(node, y);
-
-        glm::vec4 iconColor = style.textColor;
-        if (getContext()) {
-            iconColor = getContext()->getTheme().colors.textSecondary;
-        }
+    Rect arrowBounds{x, y + (rowHeight_ - ARROW_SIZE) * 0.5f, ARROW_SIZE, ARROW_SIZE};
 
 #if ES_FEATURE_SDF_FONT
-        MSDFFont* iconFont = getContext() ? getContext()->getIconMSDFFont() : nullptr;
-        if (iconFont) {
-            const char* icon = node.expanded ? icons::ChevronDown : icons::ChevronRight;
-            renderer.drawTextInBounds(icon, iconBounds, *iconFont, iconSize_, iconColor,
-                                       HAlign::Center, VAlign::Center);
-        }
+    MSDFFont* iconFont = getContext() ? getContext()->getIconMSDFFont() : nullptr;
+    if (iconFont && hasChild) {
+        const char* arrowIcon = node.expanded ? icons::ChevronDown : icons::ChevronRight;
+        renderer.drawTextInBounds(arrowIcon, arrowBounds, *iconFont, 12.0f, arrowColor,
+                                   HAlign::Center, VAlign::Center);
+    }
 #endif
 
-        x += iconSize_ + 4.0f;
-    } else {
-        x += iconSize_ + 4.0f;
-    }
+    x += ARROW_SIZE + 4.0f;
 
-    glm::vec4 textColor = style.textColor;
-    if (getContext()) {
-        textColor = getContext()->getTheme().colors.textPrimary;
+#if ES_FEATURE_SDF_FONT
+    if (iconFont) {
+        Rect folderBounds{x, y + (rowHeight_ - FOLDER_ICON_SIZE) * 0.5f,
+                          FOLDER_ICON_SIZE, FOLDER_ICON_SIZE};
+        const char* folderIcon = hasChild && node.expanded ? icons::FolderOpen : icons::Folder;
+        renderer.drawTextInBounds(folderIcon, folderBounds, *iconFont, 14.0f, folderColor,
+                                   HAlign::Center, VAlign::Center);
     }
+#endif
 
-    f32 fontSize = style.fontSize;
-    if (getContext()) {
-        fontSize = getContext()->getTheme().typography.fontSizeNormal;
-    }
+    x += FOLDER_ICON_SIZE + 6.0f;
 
-    f32 textY = y + (rowHeight_ - fontSize) * 0.5f;
+    f32 textY = y + (rowHeight_ - FONT_SIZE) * 0.5f;
 
 #if ES_FEATURE_SDF_FONT
     if (getContext() && getContext()->getDefaultMSDFFont()) {
         renderer.drawText(node.label, glm::vec2(x, textY), *getContext()->getDefaultMSDFFont(),
-                          fontSize, textColor);
+                          FONT_SIZE, textColor);
     }
 #elif ES_FEATURE_BITMAP_FONT
     if (getContext() && getContext()->getDefaultBitmapFont()) {
         renderer.drawText(node.label, glm::vec2(x, textY), *getContext()->getDefaultBitmapFont(),
-                          fontSize, textColor);
+                          FONT_SIZE, textColor);
     }
 #endif
 }
@@ -470,13 +462,16 @@ Rect TreeView::getIconBounds(const TreeNode& node, f32 y) const {
     const Rect& bounds = getBounds();
     const Insets& padding = getPadding();
 
-    f32 x = bounds.x + padding.left + node.depth * indentSize_;
+    constexpr f32 ROW_PADDING_X = 8.0f;
+    constexpr f32 ARROW_SIZE = 16.0f;
+
+    f32 x = bounds.x + padding.left + ROW_PADDING_X + node.depth * indentSize_;
 
     return Rect{
         x,
-        y + (rowHeight_ - iconSize_) * 0.5f,
-        iconSize_,
-        iconSize_
+        y + (rowHeight_ - ARROW_SIZE) * 0.5f,
+        ARROW_SIZE,
+        ARROW_SIZE
     };
 }
 

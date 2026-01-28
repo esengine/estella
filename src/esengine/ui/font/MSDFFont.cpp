@@ -209,6 +209,7 @@ MSDFGlyphInfo* MSDFFont::loadGlyph(u32 codepoint) {
     }
 
     shape.normalize();
+    shape.orientContours();
     msdfgen::edgeColoringSimple(shape, 3.0);
 
     msdfgen::Shape::Bounds bounds = shape.getBounds(pixelRange_ / fontSize_);

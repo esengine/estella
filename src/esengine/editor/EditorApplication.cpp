@@ -30,6 +30,7 @@
 #include "panels/AssetBrowserPanel.hpp"
 #include "panels/ProjectLauncherPanel.hpp"
 #include "panels/NewProjectDialog.hpp"
+#include "widgets/EditorRootContainer.hpp"
 #include "../platform/FileDialog.hpp"
 
 namespace esengine {
@@ -344,51 +345,48 @@ void EditorApplication::setupEventListeners() {
 }
 
 void EditorApplication::setupEditorLayout() {
-    ES_LOG_INFO("setupEditorLayout: Creating dock area...");
+    ES_LOG_INFO("setupEditorLayout: Creating editor root container...");
 
-    // Create main dock area
+    auto editorRoot = makeUnique<EditorRootContainer>(ui::WidgetId("editor.root"));
+    editorRoot_ = editorRoot.get();
+
     auto dockArea = makeUnique<ui::DockArea>(ui::WidgetId("editor.dock_area"));
     dockArea_ = dockArea.get();
 
-    // Configure dock area
     dockArea_->setMinPanelSize(glm::vec2(150.0f, 100.0f));
     dockArea_->setSplitterThickness(4.0f);
     dockArea_->setTabBarHeight(26.0f);
 
     ES_LOG_INFO("setupEditorLayout: Creating SceneViewPanel...");
-    // Create Scene View panel (center - add first as the main content)
     auto sceneViewPanel = makeUnique<SceneViewPanel>(registry_, selection_);
-    ES_LOG_INFO("setupEditorLayout: SceneViewPanel created, setting min size...");
     sceneViewPanel->setMinSize(glm::vec2(400.0f, 300.0f));
-    ES_LOG_INFO("setupEditorLayout: Adding SceneViewPanel to dock...");
     dockArea_->addPanel(std::move(sceneViewPanel), ui::DockDropZone::Center);
 
     ES_LOG_INFO("setupEditorLayout: Creating HierarchyPanel...");
-    // Create Hierarchy panel (left side)
     auto hierarchyPanel = makeUnique<HierarchyPanel>(registry_, selection_);
     hierarchyPanel->setMinSize(glm::vec2(200.0f, 200.0f));
-    ES_LOG_INFO("setupEditorLayout: Adding HierarchyPanel to dock...");
     dockArea_->addPanel(std::move(hierarchyPanel), ui::DockDropZone::Left, nullptr, 0.2f);
 
     ES_LOG_INFO("setupEditorLayout: Creating InspectorPanel...");
-    // Create Inspector panel (right side)
     auto inspectorPanel = makeUnique<InspectorPanel>(registry_, selection_, commandHistory_);
     inspectorPanel->setMinSize(glm::vec2(250.0f, 200.0f));
-    ES_LOG_INFO("setupEditorLayout: Adding InspectorPanel to dock...");
     dockArea_->addPanel(std::move(inspectorPanel), ui::DockDropZone::Right, nullptr, 0.25f);
 
-    ES_LOG_INFO("setupEditorLayout: Creating AssetBrowserPanel...");
-    // Create Asset Browser panel (bottom)
+    editorRoot_->setMainContent(std::move(dockArea));
+
+    ES_LOG_INFO("setupEditorLayout: Creating AssetBrowserPanel for drawer...");
     auto assetBrowserPanel = makeUnique<AssetBrowserPanel>(assetDatabase_, thumbnailGenerator_);
     assetBrowserPanel->setMinSize(glm::vec2(300.0f, 200.0f));
-    ES_LOG_INFO("setupEditorLayout: Adding AssetBrowserPanel to dock...");
-    dockArea_->addPanel(std::move(assetBrowserPanel), ui::DockDropZone::Bottom, nullptr, 0.25f);
 
-    ES_LOG_INFO("setupEditorLayout: Setting root widget...");
-    // Set dock area as the root widget
-    uiContext_->setRoot(std::move(dockArea));
+    editorRoot_->setAssetsDrawerContent(std::move(assetBrowserPanel));
 
-    ES_LOG_INFO("Editor layout initialized with Hierarchy, SceneView, Inspector, and AssetBrowser panels");
+    (void)sink(editorRoot_->getAssetsDrawer()->onDockRequested).connect([this]() {
+        dockAssetBrowser();
+    });
+
+    uiContext_->setRoot(std::move(editorRoot));
+
+    ES_LOG_INFO("Editor layout initialized with StatusBar and Drawer system");
 }
 
 void EditorApplication::createDemoScene() {
@@ -521,6 +519,8 @@ void EditorApplication::showLauncher() {
     ES_LOG_INFO("Switching to launcher mode");
 
     dockArea_ = nullptr;
+    editorRoot_ = nullptr;
+    dockedAssetBrowser_ = nullptr;
 
     setupLauncherLayout();
 }
@@ -572,6 +572,25 @@ void EditorApplication::onOpenProjectRequested() {
     } else {
         ES_LOG_ERROR("Failed to open project: {}", result.error());
     }
+}
+
+void EditorApplication::dockAssetBrowser() {
+    if (!dockArea_ || !editorRoot_) {
+        return;
+    }
+
+    ES_LOG_INFO("Docking AssetBrowser to dock area");
+
+    editorRoot_->closeAssetsDrawer();
+
+    if (!dockedAssetBrowser_) {
+        auto assetBrowserPanel = makeUnique<AssetBrowserPanel>(assetDatabase_, thumbnailGenerator_);
+        assetBrowserPanel->setMinSize(glm::vec2(300.0f, 200.0f));
+        dockedAssetBrowser_ = assetBrowserPanel.get();
+        dockArea_->addPanel(std::move(assetBrowserPanel), ui::DockDropZone::Bottom, nullptr, 0.25f);
+    }
+
+    ES_LOG_INFO("AssetBrowser docked successfully");
 }
 
 }  // namespace editor

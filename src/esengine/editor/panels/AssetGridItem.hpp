@@ -28,11 +28,11 @@ namespace esengine::editor {
 
 class AssetGridItem : public ui::Widget {
 public:
-    static constexpr f32 ITEM_WIDTH = 80.0f;
-    static constexpr f32 ITEM_HEIGHT = 100.0f;
-    static constexpr f32 ICON_SIZE = 48.0f;
-    static constexpr f32 ICON_PADDING = 16.0f;
-    static constexpr f32 LABEL_HEIGHT = 36.0f;
+    static constexpr f32 ITEM_WIDTH = 90.0f;
+    static constexpr f32 ITEM_HEIGHT = 110.0f;
+    static constexpr f32 ICON_SIZE = 64.0f;
+    static constexpr f32 ICON_PADDING = 12.0f;
+    static constexpr f32 LABEL_HEIGHT = 30.0f;
 
     AssetGridItem(const ui::WidgetId& id, const AssetEntry& entry);
 

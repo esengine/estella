@@ -320,6 +320,8 @@ void UIContext::processMouseDown(MouseButton button, f32 x, f32 y) {
 
         if (hoveredWidget_->isFocusable()) {
             setFocus(hoveredWidget_);
+        } else {
+            setFocus(nullptr);
         }
 
         MouseButtonEvent event;

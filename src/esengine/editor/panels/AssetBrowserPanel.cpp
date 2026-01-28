@@ -95,14 +95,23 @@ void AssetBrowserPanel::onActivated() {
 // =============================================================================
 
 void AssetBrowserPanel::buildUI() {
+    constexpr glm::vec4 panelBg{0.145f, 0.145f, 0.149f, 1.0f};          // #252526
+    constexpr glm::vec4 toolbarBg{0.176f, 0.176f, 0.188f, 1.0f};        // #2d2d30
+    constexpr glm::vec4 mainBg{0.118f, 0.118f, 0.118f, 1.0f};           // #1e1e1e
+    constexpr glm::vec4 borderColor{0.235f, 0.235f, 0.235f, 1.0f};      // #3c3c3c
+
     auto rootPanel = makeUnique<ui::Panel>(ui::WidgetId(getId().path + "_root"));
-    rootPanel->setLayout(makeUnique<ui::StackLayout>(ui::StackDirection::Horizontal, 4.0f));
-    rootPanel->setDrawBackground(false);
+    rootPanel->setLayout(makeUnique<ui::StackLayout>(ui::StackDirection::Horizontal, 0.0f));
+    rootPanel->setDrawBackground(true);
+    rootPanel->setBackgroundColor(mainBg);
 
     auto leftPanel = makeUnique<ui::Panel>(ui::WidgetId(getId().path + "_left"));
     leftPanel->setWidth(ui::SizeValue::px(200.0f));
     leftPanel->setHeight(ui::SizeValue::flex(1.0f));
     leftPanel->setDrawBackground(true);
+    leftPanel->setBackgroundColor(panelBg);
+    leftPanel->setBorderColor(borderColor);
+    leftPanel->setBorderWidth(ui::BorderWidth(0.0f, 1.0f, 0.0f, 0.0f));
 
     auto leftScrollView = makeUnique<ui::ScrollView>(ui::WidgetId(getId().path + "_left_scroll"));
     leftScrollView->setScrollDirection(ui::ScrollDirection::Vertical);
@@ -111,7 +120,7 @@ void AssetBrowserPanel::buildUI() {
 
     auto folderTree = makeUnique<ui::TreeView>(ui::WidgetId(getId().path + "_folder_tree"));
     folderTree->setMultiSelect(false);
-    folderTree->setRowHeight(22.0f);
+    folderTree->setRowHeight(24.0f);
     folderTree->setIndentSize(16.0f);
     folderTree->setWidth(ui::SizeValue::flex(1.0f));
     folderTree->setHeight(ui::SizeValue::autoSize());
@@ -126,19 +135,23 @@ void AssetBrowserPanel::buildUI() {
     auto rightPanel = makeUnique<ui::Panel>(ui::WidgetId(getId().path + "_right"));
     rightPanel->setWidth(ui::SizeValue::flex(1.0f));
     rightPanel->setHeight(ui::SizeValue::flex(1.0f));
-    rightPanel->setLayout(makeUnique<ui::StackLayout>(ui::StackDirection::Vertical, 4.0f));
-    rightPanel->setDrawBackground(false);
+    rightPanel->setLayout(makeUnique<ui::StackLayout>(ui::StackDirection::Vertical, 0.0f));
+    rightPanel->setDrawBackground(true);
+    rightPanel->setBackgroundColor(mainBg);
 
     auto toolbar = makeUnique<ui::Panel>(ui::WidgetId(getId().path + "_toolbar"));
-    toolbar->setHeight(ui::SizeValue::px(32.0f));
+    toolbar->setHeight(ui::SizeValue::px(38.0f));
     toolbar->setWidth(ui::SizeValue::flex(1.0f));
-    toolbar->setPadding(ui::Insets::symmetric(4.0f, 4.0f));
+    toolbar->setPadding(ui::Insets(6.0f, 12.0f, 6.0f, 12.0f));
     toolbar->setDrawBackground(true);
+    toolbar->setBackgroundColor(toolbarBg);
+    toolbar->setBorderColor(borderColor);
+    toolbar->setBorderWidth(ui::BorderWidth(0.0f, 0.0f, 1.0f, 0.0f));
 
     auto searchField = makeUnique<ui::TextField>(ui::WidgetId(getId().path + "_search"));
-    searchField->setPlaceholder("Search...");
+    searchField->setPlaceholder("Search assets...");
     searchField->setWidth(ui::SizeValue::px(200.0f));
-    searchField->setHeight(ui::SizeValue::px(24.0f));
+    searchField->setHeight(ui::SizeValue::px(26.0f));
     searchField_ = searchField.get();
     toolbar->addChild(std::move(searchField));
 
@@ -154,11 +167,22 @@ void AssetBrowserPanel::buildUI() {
     gridPanel->setWidth(ui::SizeValue::flex(1.0f));
     gridPanel->setHeight(ui::SizeValue::autoSize());
     gridPanel->setLayout(makeUnique<ui::WrapLayout>(8.0f, 8.0f));
+    gridPanel->setPadding(ui::Insets::all(12.0f));
     assetGridPanel_ = gridPanel.get();
     scrollView->setContent(std::move(gridPanel));
 
     assetScrollView_ = scrollView.get();
     rightPanel->addChild(std::move(scrollView));
+
+    auto statusBar = makeUnique<ui::Panel>(ui::WidgetId(getId().path + "_status"));
+    statusBar->setHeight(ui::SizeValue::px(24.0f));
+    statusBar->setWidth(ui::SizeValue::flex(1.0f));
+    statusBar->setPadding(ui::Insets(4.0f, 12.0f, 4.0f, 12.0f));
+    statusBar->setDrawBackground(true);
+    statusBar->setBackgroundColor(panelBg);
+    statusBar->setBorderColor(borderColor);
+    statusBar->setBorderWidth(ui::BorderWidth(1.0f, 0.0f, 0.0f, 0.0f));
+    rightPanel->addChild(std::move(statusBar));
 
     rightPanel_ = rightPanel.get();
     rootPanel->addChild(std::move(rightPanel));

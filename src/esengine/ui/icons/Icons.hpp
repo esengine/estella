@@ -110,6 +110,7 @@ constexpr const char* MoreVertical = "\ue129";
 constexpr const char* Grid = "\ue0fe";
 constexpr const char* List = "\ue110";
 constexpr const char* Layout = "\ue109";
+constexpr const char* LayoutGrid = "\ue10a";
 constexpr const char* Layers = "\ue106";
 constexpr const char* Maximize = "\ue11a";
 constexpr const char* Maximize2 = "\ue11b";

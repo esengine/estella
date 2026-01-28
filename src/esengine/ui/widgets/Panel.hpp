@@ -21,6 +21,23 @@
 namespace esengine::ui {
 
 // =============================================================================
+// BorderWidth Struct
+// =============================================================================
+
+struct BorderWidth {
+    f32 top = 0.0f;
+    f32 right = 0.0f;
+    f32 bottom = 0.0f;
+    f32 left = 0.0f;
+
+    constexpr BorderWidth() = default;
+    constexpr BorderWidth(f32 t, f32 r, f32 b, f32 l) : top(t), right(r), bottom(b), left(l) {}
+    static constexpr BorderWidth all(f32 v) { return {v, v, v, v}; }
+    [[nodiscard]] bool isZero() const { return top == 0 && right == 0 && bottom == 0 && left == 0; }
+    [[nodiscard]] bool hasAny() const { return top > 0 || right > 0 || bottom > 0 || left > 0; }
+};
+
+// =============================================================================
 // Panel Class
 // =============================================================================
 
@@ -70,6 +87,12 @@ public:
     /** @brief Sets a custom border color (overrides theme) */
     void setBorderColor(const glm::vec4& color);
 
+    /** @brief Sets per-side border widths */
+    void setBorderWidth(const BorderWidth& width);
+
+    /** @brief Gets the border width */
+    const BorderWidth& getBorderWidth() const { return borderWidth_; }
+
     /** @brief Sets the corner radii */
     void setCornerRadii(const CornerRadii& radii) { cornerRadii_ = radii; }
 
@@ -91,6 +114,7 @@ private:
     glm::vec4 backgroundColor_{0.0f};
     glm::vec4 borderColor_{0.0f};
     CornerRadii cornerRadii_;
+    BorderWidth borderWidth_;
 };
 
 }  // namespace esengine::ui

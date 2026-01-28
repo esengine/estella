@@ -88,15 +88,15 @@ inline AssetType getAssetTypeFromExtension(const std::string& ext) {
 
 inline glm::vec4 getAssetTypeColor(AssetType type) {
     switch (type) {
-        case AssetType::Folder:  return {0.9f, 0.8f, 0.3f, 1.0f};
-        case AssetType::Texture: return {0.3f, 0.7f, 0.9f, 1.0f};
-        case AssetType::Audio:   return {0.9f, 0.5f, 0.3f, 1.0f};
-        case AssetType::Script:  return {0.5f, 0.9f, 0.5f, 1.0f};
-        case AssetType::Shader:  return {0.8f, 0.5f, 0.9f, 1.0f};
-        case AssetType::Scene:   return {0.3f, 0.9f, 0.9f, 1.0f};
-        case AssetType::Prefab:  return {0.9f, 0.3f, 0.6f, 1.0f};
-        case AssetType::Font:    return {0.7f, 0.7f, 0.7f, 1.0f};
-        default:                 return {0.5f, 0.5f, 0.5f, 1.0f};
+        case AssetType::Folder:  return {0.863f, 0.714f, 0.478f, 1.0f};  // #dcb67a
+        case AssetType::Texture: return {0.925f, 0.251f, 0.478f, 1.0f};  // #ec407a
+        case AssetType::Audio:   return {1.0f, 0.655f, 0.149f, 1.0f};    // #ffa726
+        case AssetType::Script:  return {0.259f, 0.647f, 0.961f, 1.0f};  // #42a5f5
+        case AssetType::Shader:  return {0.545f, 0.361f, 0.965f, 1.0f};  // #8b5cf6
+        case AssetType::Scene:   return {0.4f, 0.733f, 0.416f, 1.0f};    // #66bb6a
+        case AssetType::Prefab:  return {0.149f, 0.651f, 0.604f, 1.0f};  // #26a69a
+        case AssetType::Font:    return {0.565f, 0.792f, 0.976f, 1.0f};  // #90caf9
+        default:                 return {0.565f, 0.792f, 0.976f, 1.0f};  // #90caf9
     }
 }
 
