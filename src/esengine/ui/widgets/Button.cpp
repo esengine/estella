@@ -114,7 +114,17 @@ void Button::render(UIBatchRenderer& renderer) {
     glm::vec4 bgColor = style.getBackgroundColor(state);
     CornerRadii radii = cornerRadii_.isZero() ? style.cornerRadii : cornerRadii_;
 
-    if (buttonStyle_ != ButtonStyle::Text) {
+    bool drawBackground = true;
+    if (buttonStyle_ == ButtonStyle::Text) {
+        drawBackground = false;
+    } else if (buttonStyle_ == ButtonStyle::Ghost) {
+        drawBackground = state.hovered || state.pressed;
+        if (drawBackground) {
+            bgColor = ctx->getTheme().colors.buttonHover;
+        }
+    }
+
+    if (drawBackground) {
         if (radii.isZero()) {
             renderer.drawRect(bounds, bgColor);
         } else {
@@ -122,7 +132,7 @@ void Button::render(UIBatchRenderer& renderer) {
         }
     }
 
-    if (state.focused && buttonStyle_ != ButtonStyle::Text) {
+    if (state.focused && buttonStyle_ != ButtonStyle::Text && buttonStyle_ != ButtonStyle::Ghost) {
         glm::vec4 focusColor = ctx->getTheme().colors.accent;
         focusColor.a = 0.3f;
         renderer.drawRoundedRectOutline(bounds, focusColor, radii, 2.0f);
@@ -136,13 +146,13 @@ void Button::render(UIBatchRenderer& renderer) {
         MSDFFont* font = fontName_.empty() ? ctx->getDefaultMSDFFont() : ctx->getMSDFFont(fontName_);
         if (font) {
             renderer.drawTextInBounds(text_, textBounds, *font, fontSize_, textColor,
-                                      HAlign::Center, VAlign::Center);
+                                      textAlign_, VAlign::Center);
         }
 #elif ES_FEATURE_BITMAP_FONT
         BitmapFont* font = fontName_.empty() ? ctx->getDefaultBitmapFont() : ctx->getBitmapFont(fontName_);
         if (font) {
             renderer.drawTextInBounds(text_, textBounds, *font, fontSize_, textColor,
-                                      HAlign::Center, VAlign::Center);
+                                      textAlign_, VAlign::Center);
         }
 #endif
     }

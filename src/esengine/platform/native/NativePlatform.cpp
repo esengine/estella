@@ -264,6 +264,10 @@ void NativePlatform::setTextInputCallback(TextInputCallback callback) {
     textInputCallback_ = std::move(callback);
 }
 
+void NativePlatform::setMouseMoveCallback(MouseMoveCallback callback) {
+    mouseMoveCallback_ = std::move(callback);
+}
+
 // =============================================================================
 // GLFW Callbacks
 // =============================================================================
@@ -318,7 +322,10 @@ void NativePlatform::glfwCursorPosCallback(GLFWwindow* window, double xpos, doub
     platform->mouseX_ = xpos;
     platform->mouseY_ = ypos;
 
-    // Emit move event if mouse is pressed (drag)
+    if (platform->mouseMoveCallback_) {
+        platform->mouseMoveCallback_(static_cast<f32>(xpos), static_cast<f32>(ypos));
+    }
+
     if (platform->mousePressed_ && platform->touchCallback_) {
         TouchPoint point;
         point.id = 0;

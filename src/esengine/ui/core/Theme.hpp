@@ -43,18 +43,19 @@ struct ThemeColors {
     glm::vec4 surfaceHover{0.165f, 0.176f, 0.180f, 1.0f};
 
     glm::vec4 textPrimary{0.8f, 0.8f, 0.8f, 1.0f};
-    glm::vec4 textSecondary{0.616f, 0.616f, 0.616f, 1.0f};
-    glm::vec4 textDisabled{0.416f, 0.416f, 0.416f, 1.0f};
-    glm::vec4 textPlaceholder{0.416f, 0.416f, 0.416f, 1.0f};
+    glm::vec4 textSecondary{0.522f, 0.522f, 0.522f, 1.0f};
+    glm::vec4 textDisabled{0.431f, 0.431f, 0.431f, 1.0f};
+    glm::vec4 textPlaceholder{0.431f, 0.431f, 0.431f, 1.0f};
 
-    glm::vec4 accent{0.0f, 0.478f, 0.8f, 1.0f};
+    glm::vec4 accent{0.055f, 0.388f, 0.612f, 1.0f};
     glm::vec4 accentHover{0.067f, 0.467f, 0.733f, 1.0f};
-    glm::vec4 accentPressed{0.055f, 0.388f, 0.612f, 1.0f};
+    glm::vec4 accentPressed{0.043f, 0.310f, 0.490f, 1.0f};
 
-    glm::vec4 button{0.235f, 0.235f, 0.235f, 1.0f};
-    glm::vec4 buttonHover{0.298f, 0.298f, 0.298f, 1.0f};
-    glm::vec4 buttonPressed{0.2f, 0.2f, 0.2f, 1.0f};
+    glm::vec4 button{0.176f, 0.176f, 0.188f, 1.0f};
+    glm::vec4 buttonHover{0.216f, 0.216f, 0.239f, 1.0f};
+    glm::vec4 buttonPressed{0.157f, 0.157f, 0.169f, 1.0f};
     glm::vec4 buttonDisabled{0.176f, 0.176f, 0.176f, 1.0f};
+    glm::vec4 buttonBorder{0.243f, 0.243f, 0.259f, 1.0f};
 
     glm::vec4 input{0.051f, 0.051f, 0.051f, 1.0f};
     glm::vec4 inputBorder{0.2f, 0.2f, 0.2f, 1.0f};

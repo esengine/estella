@@ -139,6 +139,13 @@ using ScrollCallback = std::function<void(f32 deltaX, f32 deltaY, f32 x, f32 y)>
  */
 using TextInputCallback = std::function<void(const std::string& text)>;
 
+/**
+ * @brief Callback type for mouse move events
+ * @param x Mouse X position
+ * @param y Mouse Y position
+ */
+using MouseMoveCallback = std::function<void(f32 x, f32 y)>;
+
 // =============================================================================
 // Platform Class
 // =============================================================================
@@ -301,6 +308,12 @@ public:
      * @param callback Function to call on text input events
      */
     virtual void setTextInputCallback(TextInputCallback callback) = 0;
+
+    /**
+     * @brief Sets the mouse move callback
+     * @param callback Function to call on mouse move events
+     */
+    virtual void setMouseMoveCallback(MouseMoveCallback callback) = 0;
 
     // =========================================================================
     // Factory

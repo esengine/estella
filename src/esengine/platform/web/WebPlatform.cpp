@@ -152,6 +152,10 @@ public:
         textInputCallback_ = std::move(callback);
     }
 
+    void setMouseMoveCallback(MouseMoveCallback callback) override {
+        mouseMoveCallback_ = std::move(callback);
+    }
+
     // Static instance for callbacks
     static WebPlatform* instance_;
 
@@ -209,13 +213,21 @@ private:
 
     static EM_BOOL mouseCallback(int eventType, const EmscriptenMouseEvent* event, void* userData) {
         auto* platform = static_cast<WebPlatform*>(userData);
+
+        f32 x = static_cast<f32>(event->targetX);
+        f32 y = static_cast<f32>(event->targetY);
+
+        if (eventType == EMSCRIPTEN_EVENT_MOUSEMOVE && platform->mouseMoveCallback_) {
+            platform->mouseMoveCallback_(x, y);
+        }
+
         if (!platform->touchCallback_) return false;
 
         TouchType type;
         switch (eventType) {
         case EMSCRIPTEN_EVENT_MOUSEDOWN: type = TouchType::Begin; break;
         case EMSCRIPTEN_EVENT_MOUSEMOVE:
-            if (!(event->buttons & 1)) return false;  // Only when button pressed
+            if (!(event->buttons & 1)) return true;
             type = TouchType::Move;
             break;
         case EMSCRIPTEN_EVENT_MOUSEUP: type = TouchType::End; break;
@@ -224,8 +236,8 @@ private:
 
         TouchPoint point;
         point.id = 0;
-        point.x = static_cast<f32>(event->targetX);
-        point.y = static_cast<f32>(event->targetY);
+        point.x = x;
+        point.y = y;
         platform->touchCallback_(type, point);
 
         return true;
@@ -279,6 +291,7 @@ private:
     ResizeCallback resizeCallback_;
     ScrollCallback scrollCallback_;
     TextInputCallback textInputCallback_;
+    MouseMoveCallback mouseMoveCallback_;
 };
 
 WebPlatform* WebPlatform::instance_ = nullptr;

@@ -35,7 +35,8 @@ enum class ButtonStyle : u8 {
     Default,
     Primary,
     Secondary,
-    Text
+    Text,
+    Ghost
 };
 
 // =============================================================================
@@ -109,6 +110,12 @@ public:
     /** @brief Gets the corner radii */
     const CornerRadii& getCornerRadii() const { return cornerRadii_; }
 
+    /** @brief Sets the text horizontal alignment */
+    void setTextAlignment(HAlign align) { textAlign_ = align; }
+
+    /** @brief Gets the text horizontal alignment */
+    HAlign getTextAlignment() const { return textAlign_; }
+
     // =========================================================================
     // Widget Overrides
     // =========================================================================
@@ -133,6 +140,7 @@ private:
     f32 fontSize_ = 14.0f;
     ButtonStyle buttonStyle_ = ButtonStyle::Default;
     CornerRadii cornerRadii_;
+    HAlign textAlign_ = HAlign::Center;
 
     glm::vec2 cachedTextSize_{0.0f};
     bool textSizeDirty_ = true;

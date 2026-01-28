@@ -175,6 +175,12 @@ public:
      */
     void setTextInputCallback(TextInputCallback callback) override;
 
+    /**
+     * @brief Sets mouse move callback
+     * @param callback Function to call on mouse move
+     */
+    void setMouseMoveCallback(MouseMoveCallback callback) override;
+
 private:
     // =========================================================================
     // GLFW Callbacks
@@ -223,6 +229,7 @@ private:
     ResizeCallback resizeCallback_;       ///< Window resize callback
     ScrollCallback scrollCallback_;       ///< Scroll event callback
     TextInputCallback textInputCallback_; ///< Text input callback
+    MouseMoveCallback mouseMoveCallback_; ///< Mouse move callback
 
     static NativePlatform* instance_;     ///< Singleton instance for callbacks
 };

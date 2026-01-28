@@ -10,14 +10,11 @@
  */
 #pragma once
 
-// =============================================================================
-// Includes
-// =============================================================================
-
 #include "../../ui/widgets/Widget.hpp"
 #include "../../ui/core/Types.hpp"
 #include "../../events/Signal.hpp"
 #include "../../events/Connection.hpp"
+#include "../project/ProjectTypes.hpp"
 
 #include <string>
 #include <vector>
@@ -27,16 +24,15 @@ class Dispatcher;
 }
 
 namespace esengine::ui {
-class Button;
-class Label;
-class ScrollView;
 class Panel;
+class Label;
+class Button;
+class ScrollView;
 }
 
 namespace esengine::editor {
 
 class ProjectManager;
-struct RecentProject;
 
 // =============================================================================
 // ProjectLauncherPanel
@@ -48,23 +44,11 @@ public:
                          Dispatcher& dispatcher);
     ~ProjectLauncherPanel() override;
 
-    // =========================================================================
-    // Signals
-    // =========================================================================
-
     Signal<void(const std::string&)> onProjectOpened;
     Signal<void()> onCreateProjectRequested;
     Signal<void()> onBrowseProjectRequested;
 
-    // =========================================================================
-    // Methods
-    // =========================================================================
-
     void refreshRecentProjects();
-
-    // =========================================================================
-    // Widget Overrides
-    // =========================================================================
 
     glm::vec2 measure(f32 availableWidth, f32 availableHeight) override;
     void layout(const ui::Rect& bounds) override;
@@ -81,9 +65,9 @@ private:
     ui::Panel* rightPanel_ = nullptr;
     ui::Label* titleLabel_ = nullptr;
     ui::Label* subtitleLabel_ = nullptr;
-    ui::Label* versionLabel_ = nullptr;
     ui::Button* newProjectButton_ = nullptr;
     ui::Button* openProjectButton_ = nullptr;
+    ui::Label* versionLabel_ = nullptr;
     ui::Label* recentLabel_ = nullptr;
     ui::ScrollView* recentScrollView_ = nullptr;
     ui::Panel* recentListPanel_ = nullptr;

@@ -117,6 +117,13 @@ void EditorApplication::onInit() {
         }
     });
 
+    // Wire up mouse move events to UI system for hover detection
+    getPlatform().setMouseMoveCallback([this](f32 x, f32 y) {
+        if (uiContext_) {
+            uiContext_->processMouseMove(x, y);
+        }
+    });
+
     // Wire up text input events to UI system
     getPlatform().setTextInputCallback([this](const std::string& text) {
         if (uiContext_) {
