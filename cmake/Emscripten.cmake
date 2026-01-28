@@ -16,6 +16,7 @@ set(ES_EMSCRIPTEN_COMPILE_FLAGS
     # Compile flags only
 )
 
+# Standard (monolithic) link flags
 set(ES_EMSCRIPTEN_LINK_FLAGS
     --bind                          # Enable embind for C++ bindings
     --emit-tsd esengine.d.ts        # Auto-generate TypeScript definitions
@@ -33,6 +34,41 @@ set(ES_EMSCRIPTEN_LINK_FLAGS
     "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32']"
     # Embed assets (fonts, etc.)
     "--embed-file=${CMAKE_SOURCE_DIR}/assets/fonts@/assets/fonts"
+)
+
+# =============================================================================
+# Modular Build (Dynamic Linking) Configuration
+# =============================================================================
+
+# Main module link flags (for dynamic linking)
+set(ES_EMSCRIPTEN_MAIN_MODULE_FLAGS
+    -sMAIN_MODULE=2                 # Main module with minimal stdlib exports
+    -sWASM=1
+    -sUSE_WEBGL2=1
+    -sFULL_ES3=1
+    -sALLOW_MEMORY_GROWTH=1
+    -sNO_EXIT_RUNTIME=1
+    -sASSERTIONS=1
+    -sEXPORT_ES6=1
+    -sMODULARIZE=1
+    "-sEXPORT_NAME='ESEngineCore'"
+    "-sEXPORTED_FUNCTIONS=['_malloc','_free','_es_app_init','_dlopen','_dlsym','_dlclose']"
+    "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32','loadDynamicLibrary']"
+    # Embed minimal assets for core
+    "--embed-file=${CMAKE_SOURCE_DIR}/assets/shaders@/assets/shaders"
+)
+
+# Side module compile flags (position independent code)
+set(ES_EMSCRIPTEN_SIDE_MODULE_COMPILE_FLAGS
+    -fPIC
+    -sRELOCATABLE=1
+)
+
+# Side module link flags
+set(ES_EMSCRIPTEN_SIDE_MODULE_FLAGS
+    -sSIDE_MODULE=2                 # Side module (dynamic library)
+    -sWASM=1
+    -sRELOCATABLE=1
 )
 
 # Debug-specific flags
@@ -66,7 +102,7 @@ if(ES_BUILD_WXGAME)
     )
 endif()
 
-# Helper function to apply Emscripten settings to a target
+# Helper function to apply Emscripten settings to a target (monolithic build)
 function(es_apply_emscripten_settings TARGET_NAME)
     if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
         target_compile_options(${TARGET_NAME} PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS})
@@ -79,4 +115,39 @@ function(es_apply_emscripten_settings TARGET_NAME)
     endif()
 endfunction()
 
+# Helper function to apply MAIN_MODULE settings (modular build)
+function(es_apply_main_module_settings TARGET_NAME)
+    if(ES_BUILD_WEB AND ES_BUILD_MODULAR)
+        target_compile_options(${TARGET_NAME} PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS})
+
+        string(REPLACE ";" " " LINK_FLAGS_STR "${ES_EMSCRIPTEN_MAIN_MODULE_FLAGS}")
+        set_target_properties(${TARGET_NAME} PROPERTIES
+            SUFFIX ".js"
+            LINK_FLAGS "${LINK_FLAGS_STR}"
+        )
+        message(STATUS "Configured ${TARGET_NAME} as MAIN_MODULE")
+    endif()
+endfunction()
+
+# Helper function to apply SIDE_MODULE settings (modular build)
+function(es_apply_side_module_settings TARGET_NAME)
+    if(ES_BUILD_WEB AND ES_BUILD_MODULAR)
+        target_compile_options(${TARGET_NAME} PRIVATE
+            ${ES_EMSCRIPTEN_COMPILE_FLAGS}
+            ${ES_EMSCRIPTEN_SIDE_MODULE_COMPILE_FLAGS}
+        )
+
+        string(REPLACE ";" " " LINK_FLAGS_STR "${ES_EMSCRIPTEN_SIDE_MODULE_FLAGS}")
+        set_target_properties(${TARGET_NAME} PROPERTIES
+            PREFIX ""
+            SUFFIX ".wasm"
+            LINK_FLAGS "${LINK_FLAGS_STR}"
+        )
+        message(STATUS "Configured ${TARGET_NAME} as SIDE_MODULE")
+    endif()
+endfunction()
+
 message(STATUS "Emscripten configuration loaded")
+if(ES_BUILD_MODULAR)
+    message(STATUS "Modular build enabled: MAIN_MODULE + SIDE_MODULE architecture")
+endif()

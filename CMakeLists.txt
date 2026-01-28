@@ -11,6 +11,7 @@ option(ES_BUILD_WXGAME "Build for WeChat MiniGame" OFF)
 option(ES_BUILD_EXAMPLES "Build examples" ON)
 option(ES_BUILD_TESTS "Build tests" ON)
 option(ES_BUILD_EDITOR "Build editor (native only)" OFF)
+option(ES_BUILD_MODULAR "Build modular WASM (Web only, dynamic linking)" OFF)
 
 # Feature options (modular compilation)
 option(ES_FEATURE_SDF_FONT "Enable SDF font rendering (requires FreeType)" ON)
@@ -22,6 +23,11 @@ include(ESEngineConfig)
 
 if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
     include(Emscripten)
+endif()
+
+# Modular build configuration (dynamic linking for Web)
+if(ES_BUILD_MODULAR AND ES_BUILD_WEB)
+    include(ModularBuild)
 endif()
 
 # Third party libraries
