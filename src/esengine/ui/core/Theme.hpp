@@ -35,67 +35,57 @@ namespace esengine::ui {
  *          semantic purpose rather than specific widgets.
  */
 struct ThemeColors {
-    // Background colors
-    glm::vec4 background{0.15f, 0.15f, 0.15f, 1.0f};
-    glm::vec4 backgroundDark{0.10f, 0.10f, 0.10f, 1.0f};
-    glm::vec4 backgroundMedium{0.17f, 0.17f, 0.17f, 1.0f};
-    glm::vec4 backgroundLight{0.20f, 0.20f, 0.20f, 1.0f};
-    glm::vec4 surface{0.18f, 0.18f, 0.18f, 1.0f};
-    glm::vec4 surfaceHover{0.22f, 0.22f, 0.22f, 1.0f};
+    glm::vec4 background{0.118f, 0.118f, 0.118f, 1.0f};
+    glm::vec4 backgroundDark{0.094f, 0.094f, 0.094f, 1.0f};
+    glm::vec4 backgroundMedium{0.145f, 0.145f, 0.149f, 1.0f};
+    glm::vec4 backgroundLight{0.176f, 0.176f, 0.176f, 1.0f};
+    glm::vec4 surface{0.145f, 0.145f, 0.149f, 1.0f};
+    glm::vec4 surfaceHover{0.165f, 0.176f, 0.180f, 1.0f};
 
-    // Text colors
-    glm::vec4 textPrimary{0.95f, 0.95f, 0.95f, 1.0f};
-    glm::vec4 textSecondary{0.70f, 0.70f, 0.70f, 1.0f};
-    glm::vec4 textDisabled{0.45f, 0.45f, 0.45f, 1.0f};
-    glm::vec4 textPlaceholder{0.50f, 0.50f, 0.50f, 1.0f};
+    glm::vec4 textPrimary{0.8f, 0.8f, 0.8f, 1.0f};
+    glm::vec4 textSecondary{0.616f, 0.616f, 0.616f, 1.0f};
+    glm::vec4 textDisabled{0.416f, 0.416f, 0.416f, 1.0f};
+    glm::vec4 textPlaceholder{0.416f, 0.416f, 0.416f, 1.0f};
 
-    // Accent colors
-    glm::vec4 accent{0.26f, 0.59f, 0.98f, 1.0f};
-    glm::vec4 accentHover{0.35f, 0.65f, 1.0f, 1.0f};
-    glm::vec4 accentPressed{0.20f, 0.50f, 0.85f, 1.0f};
+    glm::vec4 accent{0.0f, 0.478f, 0.8f, 1.0f};
+    glm::vec4 accentHover{0.067f, 0.467f, 0.733f, 1.0f};
+    glm::vec4 accentPressed{0.055f, 0.388f, 0.612f, 1.0f};
 
-    // Button colors
-    glm::vec4 button{0.25f, 0.25f, 0.25f, 1.0f};
-    glm::vec4 buttonHover{0.30f, 0.30f, 0.30f, 1.0f};
-    glm::vec4 buttonPressed{0.20f, 0.20f, 0.20f, 1.0f};
-    glm::vec4 buttonDisabled{0.18f, 0.18f, 0.18f, 1.0f};
+    glm::vec4 button{0.235f, 0.235f, 0.235f, 1.0f};
+    glm::vec4 buttonHover{0.298f, 0.298f, 0.298f, 1.0f};
+    glm::vec4 buttonPressed{0.2f, 0.2f, 0.2f, 1.0f};
+    glm::vec4 buttonDisabled{0.176f, 0.176f, 0.176f, 1.0f};
 
-    // Input colors
-    glm::vec4 input{0.12f, 0.12f, 0.12f, 1.0f};
-    glm::vec4 inputBorder{0.30f, 0.30f, 0.30f, 1.0f};
-    glm::vec4 inputBorderFocused{0.26f, 0.59f, 0.98f, 1.0f};
+    glm::vec4 input{0.051f, 0.051f, 0.051f, 1.0f};
+    glm::vec4 inputBorder{0.2f, 0.2f, 0.2f, 1.0f};
+    glm::vec4 inputBorderFocused{0.0f, 0.478f, 0.8f, 1.0f};
 
-    // Border colors
-    glm::vec4 border{0.25f, 0.25f, 0.25f, 1.0f};
-    glm::vec4 borderLight{0.35f, 0.35f, 0.35f, 1.0f};
-    glm::vec4 separator{0.20f, 0.20f, 0.20f, 1.0f};
+    glm::vec4 border{0.243f, 0.243f, 0.259f, 1.0f};
+    glm::vec4 borderLight{0.314f, 0.314f, 0.314f, 1.0f};
+    glm::vec4 separator{0.169f, 0.169f, 0.169f, 1.0f};
 
-    // State colors
-    glm::vec4 selection{0.26f, 0.59f, 0.98f, 0.30f};
+    glm::vec4 selection{0.035f, 0.278f, 0.443f, 1.0f};
     glm::vec4 highlight{1.0f, 1.0f, 1.0f, 0.05f};
-    glm::vec4 error{0.90f, 0.30f, 0.30f, 1.0f};
-    glm::vec4 warning{0.95f, 0.75f, 0.25f, 1.0f};
-    glm::vec4 success{0.30f, 0.85f, 0.45f, 1.0f};
+    glm::vec4 error{0.957f, 0.529f, 0.443f, 1.0f};
+    glm::vec4 warning{0.808f, 0.569f, 0.471f, 1.0f};
+    glm::vec4 success{0.306f, 0.788f, 0.690f, 1.0f};
 
-    // Scrollbar colors
-    glm::vec4 scrollbarTrack{0.10f, 0.10f, 0.10f, 0.5f};
-    glm::vec4 scrollbarThumb{0.40f, 0.40f, 0.40f, 0.7f};
-    glm::vec4 scrollbarThumbHover{0.50f, 0.50f, 0.50f, 0.8f};
+    glm::vec4 scrollbarTrack{0.0f, 0.0f, 0.0f, 0.0f};
+    glm::vec4 scrollbarThumb{1.0f, 1.0f, 1.0f, 0.1f};
+    glm::vec4 scrollbarThumbHover{1.0f, 1.0f, 1.0f, 0.2f};
 
-    // Shadow/overlay
-    glm::vec4 shadow{0.0f, 0.0f, 0.0f, 0.5f};
-    glm::vec4 overlay{0.0f, 0.0f, 0.0f, 0.6f};
+    glm::vec4 shadow{0.0f, 0.0f, 0.0f, 0.4f};
+    glm::vec4 overlay{0.0f, 0.0f, 0.0f, 0.5f};
 
-    // Docking colors
-    glm::vec4 dockTabBackground{0.12f, 0.12f, 0.12f, 1.0f};
-    glm::vec4 dockTabHover{0.18f, 0.18f, 0.18f, 1.0f};
-    glm::vec4 dockTabActive{0.20f, 0.20f, 0.20f, 1.0f};
-    glm::vec4 dockTabIndicator{0.26f, 0.59f, 0.98f, 1.0f};
-    glm::vec4 dockSplitter{0.20f, 0.20f, 0.20f, 1.0f};
-    glm::vec4 dockSplitterHover{0.26f, 0.59f, 0.98f, 1.0f};
-    glm::vec4 dockDropPreview{0.26f, 0.59f, 0.98f, 0.30f};
-    glm::vec4 dockZoneButton{0.30f, 0.30f, 0.30f, 0.90f};
-    glm::vec4 dockZoneButtonHover{0.26f, 0.59f, 0.98f, 1.0f};
+    glm::vec4 dockTabBackground{0.165f, 0.165f, 0.165f, 1.0f};
+    glm::vec4 dockTabHover{0.2f, 0.2f, 0.2f, 1.0f};
+    glm::vec4 dockTabActive{0.118f, 0.118f, 0.118f, 1.0f};
+    glm::vec4 dockTabIndicator{0.0f, 0.478f, 0.8f, 1.0f};
+    glm::vec4 dockSplitter{0.102f, 0.102f, 0.102f, 1.0f};
+    glm::vec4 dockSplitterHover{0.29f, 0.61f, 1.0f, 1.0f};
+    glm::vec4 dockDropPreview{0.29f, 0.61f, 1.0f, 0.15f};
+    glm::vec4 dockZoneButton{0.235f, 0.235f, 0.235f, 0.9f};
+    glm::vec4 dockZoneButtonHover{0.0f, 0.478f, 0.8f, 1.0f};
 };
 
 // =============================================================================
