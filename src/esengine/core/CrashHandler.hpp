@@ -31,7 +31,9 @@ public:
 private:
     static std::string app_name_;
 
+#ifdef _WIN32
     friend long __stdcall unhandledExceptionFilterImpl(void*);
+#endif
     friend void signalHandlerImpl(int);
 };
 
