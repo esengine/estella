@@ -29,6 +29,8 @@
 #include "panels/SceneViewPanel.hpp"
 #include "panels/AssetBrowserPanel.hpp"
 #include "panels/ProjectLauncherPanel.hpp"
+#include "panels/NewProjectDialog.hpp"
+#include "../platform/FileDialog.hpp"
 
 namespace esengine {
 namespace editor {
@@ -436,6 +438,10 @@ void EditorApplication::setupLauncherLayout() {
 
     mode_ = EditorMode::Launcher;
 
+    auto container = makeUnique<ui::Panel>(ui::WidgetId("editor.launcher_container"));
+    container->setWidth(ui::SizeValue::percent(100.0f));
+    container->setHeight(ui::SizeValue::percent(100.0f));
+
     auto launcherPanel = makeUnique<ProjectLauncherPanel>(
         ui::WidgetId("editor.launcher"),
         *projectManager_,
@@ -463,7 +469,31 @@ void EditorApplication::setupLauncherLayout() {
             }
         }));
 
-    uiContext_->setRoot(std::move(launcherPanel));
+    container->addChild(std::move(launcherPanel));
+
+    auto newProjectDialog = makeUnique<NewProjectDialog>(ui::WidgetId("editor.new_project_dialog"));
+    newProjectDialog_ = newProjectDialog.get();
+    newProjectDialog_->hide();
+
+    eventConnections_.add(
+        sink(newProjectDialog_->onProjectCreate).connect([this](const std::string& name, const std::string& path) {
+            ES_LOG_INFO("Creating project '{}' at {}", name, path);
+            auto result = projectManager_->createProject(path, name);
+            if (result.isOk()) {
+                showEditor();
+            } else {
+                ES_LOG_ERROR("Failed to create project: {}", result.error());
+            }
+        }));
+
+    eventConnections_.add(
+        sink(newProjectDialog_->onCancel).connect([this]() {
+            ES_LOG_DEBUG("New project dialog cancelled");
+        }));
+
+    container->addChild(std::move(newProjectDialog));
+
+    uiContext_->setRoot(std::move(container));
 
     ES_LOG_INFO("Launcher layout initialized");
 }
@@ -499,11 +529,32 @@ void EditorApplication::showEditor() {
 }
 
 void EditorApplication::onNewProjectRequested() {
-    ES_LOG_INFO("New project requested - TODO: Show project creation dialog");
+    ES_LOG_INFO("New project requested");
+    if (newProjectDialog_) {
+        newProjectDialog_->show();
+    }
 }
 
 void EditorApplication::onOpenProjectRequested() {
-    ES_LOG_INFO("Open project requested - TODO: Show file browser dialog");
+    ES_LOG_INFO("Open project requested");
+
+    std::string projectFile = FileDialog::openFile(
+        "Open Project",
+        {{.name = "ESEngine Project", .pattern = "*.esproject"}});
+
+    if (projectFile.empty()) {
+        ES_LOG_DEBUG("Open project cancelled");
+        return;
+    }
+
+    ES_LOG_INFO("Opening project: {}", projectFile);
+
+    auto result = projectManager_->openProject(projectFile);
+    if (result.isOk()) {
+        showEditor();
+    } else {
+        ES_LOG_ERROR("Failed to open project: {}", result.error());
+    }
 }
 
 }  // namespace editor

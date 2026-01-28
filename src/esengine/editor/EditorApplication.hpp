@@ -33,6 +33,7 @@ namespace esengine {
 namespace editor {
 
 class ProjectLauncherPanel;
+class NewProjectDialog;
 
 // =============================================================================
 // Editor Mode
@@ -268,6 +269,7 @@ private:
     Unique<ui::UIContext> uiContext_; ///< UI system context
     ui::DockArea* dockArea_ = nullptr; ///< Main docking area (owned by UIContext)
     ProjectLauncherPanel* launcherPanel_ = nullptr; ///< Launcher panel (owned by UIContext)
+    NewProjectDialog* newProjectDialog_ = nullptr;  ///< New project dialog
 
     // =========================================================================
     // State

@@ -30,6 +30,7 @@ set(EDITOR_SOURCES
     panels/AssetBrowserPanel.cpp
     panels/AssetGridItem.cpp
     panels/ProjectLauncherPanel.cpp
+    panels/NewProjectDialog.cpp
 )
 
 set(EDITOR_HEADERS
@@ -75,6 +76,7 @@ set(EDITOR_HEADERS
     panels/AssetBrowserTypes.hpp
     panels/AssetGridItem.hpp
     panels/ProjectLauncherPanel.hpp
+    panels/NewProjectDialog.hpp
 )
 
 # Create editor executable

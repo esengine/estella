@@ -158,28 +158,22 @@ void ProjectLauncherPanel::refreshRecentProjects() {
 void ProjectLauncherPanel::createRecentProjectItem(const RecentProject& project,
                                                     ui::Panel* container, usize index) {
     std::string itemId = getId().path + ".item_" + std::to_string(index);
+    std::string projectPath = project.path;
 
-    auto itemPanel = makeUnique<ui::Panel>(ui::WidgetId(itemId));
-    itemPanel->setBackgroundColor(glm::vec4(0.18f, 0.18f, 0.18f, 1.0f));
-    itemPanel->setWidth(ui::SizeValue::percent(100.0f));
-    itemPanel->setHeight(ui::SizeValue::px(60.0f));
-    itemPanel->setCornerRadii(ui::CornerRadii::all(4.0f));
+    auto itemButton = makeUnique<ui::Button>(ui::WidgetId(itemId), project.name);
+    itemButton->setButtonStyle(ui::ButtonStyle::Text);
+    itemButton->setWidth(ui::SizeValue::percent(100.0f));
+    itemButton->setHeight(ui::SizeValue::px(50.0f));
+    itemButton->setFontSize(14.0f);
+    itemButton->setCornerRadii(ui::CornerRadii::all(4.0f));
 
-    auto itemLayout = makeUnique<ui::StackLayout>(ui::StackDirection::Vertical, 4.0f);
-    itemPanel->setLayout(std::move(itemLayout));
-    itemPanel->setPadding(ui::Insets(8.0f, 12.0f, 8.0f, 12.0f));
+    connections_.push_back(
+        sink(itemButton->onClick).connect([this, projectPath]() {
+            ES_LOG_INFO("ProjectLauncher: Opening project {}", projectPath);
+            onProjectOpened.publish(projectPath);
+        }));
 
-    auto nameLabel = makeUnique<ui::Label>(ui::WidgetId(itemId + ".name"), project.name);
-    nameLabel->setFontSize(14.0f);
-    nameLabel->setColor(glm::vec4(1.0f));
-    itemPanel->addChild(std::move(nameLabel));
-
-    auto pathLabel = makeUnique<ui::Label>(ui::WidgetId(itemId + ".path"), project.path);
-    pathLabel->setFontSize(11.0f);
-    pathLabel->setColor(glm::vec4(0.5f, 0.5f, 0.5f, 1.0f));
-    itemPanel->addChild(std::move(pathLabel));
-
-    container->addChild(std::move(itemPanel));
+    container->addChild(std::move(itemButton));
 }
 
 // =============================================================================

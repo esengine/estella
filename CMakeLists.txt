@@ -172,6 +172,7 @@ else()
     list(APPEND ESENGINE_SOURCES
         src/esengine/platform/native/NativePlatform.cpp
         src/esengine/platform/native/NativeFileSystem.cpp
+        src/esengine/platform/FileDialog.cpp
         # Scripting (Native only - Web uses Emscripten bindings)
         src/esengine/scripting/ScriptContext.cpp
         src/esengine/scripting/ScriptValue.cpp
@@ -194,6 +195,7 @@ endif()
 # Platform-independent headers
 list(APPEND ESENGINE_HEADERS
     src/esengine/platform/FileSystem.hpp
+    src/esengine/platform/FileDialog.hpp
     src/esengine/core/Reflection.hpp
 )
 
