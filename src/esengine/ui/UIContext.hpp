@@ -25,6 +25,7 @@
 
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 namespace esengine {
 
@@ -309,6 +310,27 @@ public:
     void clearFocus() { setFocus(nullptr); }
 
     // =========================================================================
+    // Overlay Management
+    // =========================================================================
+
+    /**
+     * @brief Adds an overlay widget (rendered on top of everything)
+     * @param overlay Widget to add as overlay
+     */
+    void addOverlay(Widget* overlay);
+
+    /**
+     * @brief Removes an overlay widget
+     * @param overlay Widget to remove
+     */
+    void removeOverlay(Widget* overlay);
+
+    /**
+     * @brief Checks if any overlay is currently active
+     */
+    bool hasActiveOverlay() const { return !overlays_.empty(); }
+
+    // =========================================================================
     // Clipboard
     // =========================================================================
 
@@ -378,6 +400,8 @@ private:
     bool mouseButtonDown_[static_cast<usize>(MouseButton::Count)] = {};
 
     std::string clipboardText_;
+
+    std::vector<Widget*> overlays_;
 
     bool initialized_ = false;
 };

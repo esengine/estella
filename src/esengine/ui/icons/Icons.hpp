@@ -109,6 +109,7 @@ constexpr const char* MoreHorizontal = "\ue128";
 constexpr const char* MoreVertical = "\ue129";
 constexpr const char* Grid = "\ue0fe";
 constexpr const char* List = "\ue110";
+constexpr const char* Filter = "\ue0c4";
 constexpr const char* Layout = "\ue109";
 constexpr const char* LayoutGrid = "\ue10a";
 constexpr const char* Layers = "\ue106";

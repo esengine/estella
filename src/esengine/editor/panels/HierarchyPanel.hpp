@@ -21,6 +21,9 @@
 #include "../../ui/widgets/ScrollView.hpp"
 #include "../../ui/widgets/Panel.hpp"
 #include "../../ui/widgets/TextField.hpp"
+#include "../../ui/widgets/Button.hpp"
+#include "../../ui/widgets/Label.hpp"
+#include "../../ui/widgets/ContextMenu.hpp"
 #include "../../ecs/Registry.hpp"
 #include "../core/Selection.hpp"
 #include "../../events/Connection.hpp"
@@ -81,6 +84,9 @@ public:
      */
     bool getShowOrphans() const { return showOrphans_; }
 
+    void render(ui::UIBatchRenderer& renderer) override;
+    bool onKeyDown(const ui::KeyEvent& event) override;
+
 protected:
     void onActivated() override;
     void onDeactivated() override;
@@ -109,6 +115,13 @@ private:
      */
     std::string getEntityDisplayName(Entity entity) const;
 
+    /**
+     * @brief Gets the icon for an entity based on its components
+     * @param entity Entity to get icon for
+     * @return Icon Unicode character or empty string for default
+     */
+    std::string getEntityIcon(Entity entity) const;
+
     // =========================================================================
     // Event Handlers
     // =========================================================================
@@ -126,12 +139,33 @@ private:
     void onNodeDoubleClicked(ui::TreeNodeId nodeId);
 
     /**
+     * @brief Called when a tree node is right-clicked
+     * @param nodeId Clicked node ID
+     * @param x Screen X position
+     * @param y Screen Y position
+     */
+    void onNodeRightClicked(ui::TreeNodeId nodeId, f32 x, f32 y);
+
+    /**
+     * @brief Handles context menu item selection
+     * @param itemId Selected menu item ID
+     */
+    void onContextMenuItemSelected(const std::string& itemId);
+
+    /**
      * @brief Called when entity selection changes externally
      * @param previous Previous selection
      * @param current Current selection
      */
     void onSelectionChanged(const std::vector<Entity>& previous,
                             const std::vector<Entity>& current);
+
+    void createEntity();
+    void createChildEntity(Entity parent);
+    void createFolder();
+    void deleteSelectedEntity();
+    void renameSelectedEntity();
+    void updateStatusBar();
 
     // =========================================================================
     // Mapping Helpers
@@ -163,9 +197,17 @@ private:
 
     ui::Panel* rootPanel_ = nullptr;
     ui::Panel* toolbar_ = nullptr;
+    ui::Button* addEntityButton_ = nullptr;
+    ui::Button* createFolderButton_ = nullptr;
     ui::TextField* searchField_ = nullptr;
+    ui::Panel* columnHeader_ = nullptr;
     ui::ScrollView* scrollView_ = nullptr;
     ui::TreeView* treeView_ = nullptr;
+    ui::Panel* statusBar_ = nullptr;
+    ui::Label* entityCountLabel_ = nullptr;
+
+    Unique<ui::ContextMenu> contextMenu_;
+    Entity contextMenuTargetEntity_ = INVALID_ENTITY;
 
     // Bidirectional mapping between entities and tree nodes
     std::unordered_map<ui::TreeNodeId, Entity> nodeToEntity_;
@@ -176,12 +218,18 @@ private:
     // Settings
     bool showOrphans_ = true;
     bool needsRebuild_ = false;
+    bool processingSelection_ = false;
 
     // Event connections
     Connection selectionChangedConnection_;
     Connection nodeSelectedConnection_;
     Connection nodeDoubleClickedConnection_;
+    Connection nodeRightClickedConnection_;
     Connection searchChangedConnection_;
+    Connection addEntityClickedConnection_;
+    Connection createFolderClickedConnection_;
+    Connection contextMenuItemSelectedConnection_;
+    Connection contextMenuClosedConnection_;
 };
 
 }  // namespace esengine::editor

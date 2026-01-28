@@ -62,8 +62,13 @@ glm::vec2 Label::measure(f32 availableWidth, f32 availableHeight) {
 
     if (textSizeDirty_) {
 #if ES_FEATURE_SDF_FONT
-        MSDFFont* font = fontName_.empty() ? getContext()->getDefaultMSDFFont()
-                                           : getContext()->getMSDFFont(fontName_);
+        MSDFFont* font = nullptr;
+        if (useIconFont_) {
+            font = getContext()->getIconMSDFFont();
+        } else {
+            font = fontName_.empty() ? getContext()->getDefaultMSDFFont()
+                                     : getContext()->getMSDFFont(fontName_);
+        }
         if (font) {
             cachedTextSize_ = font->measureText(text_, fontSize_);
             textSizeDirty_ = false;
@@ -105,7 +110,12 @@ void Label::render(UIBatchRenderer& renderer) {
     Rect contentBounds = getContentBounds();
 
 #if ES_FEATURE_SDF_FONT
-    MSDFFont* font = fontName_.empty() ? ctx->getDefaultMSDFFont() : ctx->getMSDFFont(fontName_);
+    MSDFFont* font = nullptr;
+    if (useIconFont_) {
+        font = ctx->getIconMSDFFont();
+    } else {
+        font = fontName_.empty() ? ctx->getDefaultMSDFFont() : ctx->getMSDFFont(fontName_);
+    }
     if (font) {
         renderer.drawTextInBounds(text_, contentBounds, *font, fontSize_, textColor, hAlign_, vAlign_);
     }

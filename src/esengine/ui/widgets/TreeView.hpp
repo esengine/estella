@@ -51,6 +51,7 @@ struct TreeNode {
     TreeNodeId id = INVALID_TREE_NODE;      ///< Unique node identifier
     TreeNodeId parentId = INVALID_TREE_NODE; ///< Parent node ID
     std::string label;                       ///< Display label
+    std::string icon;                        ///< Icon Unicode character
     std::vector<TreeNodeId> children;        ///< Child node IDs
     bool expanded = false;                   ///< Expanded state
     u32 depth = 0;                          ///< Depth in the tree (0 = root)
@@ -189,6 +190,13 @@ public:
     void setNodeLabel(TreeNodeId nodeId, const std::string& label);
 
     /**
+     * @brief Sets a node's icon
+     * @param nodeId Node ID
+     * @param icon Icon Unicode character
+     */
+    void setNodeIcon(TreeNodeId nodeId, const std::string& icon);
+
+    /**
      * @brief Gets all root nodes
      * @return Vector of root node IDs
      */
@@ -282,6 +290,9 @@ public:
 
     /** @brief Emitted when a node is collapsed */
     Signal<void(TreeNodeId)> onNodeCollapsed;
+
+    /** @brief Emitted when a node is right-clicked (with screen coordinates) */
+    Signal<void(TreeNodeId, f32, f32)> onNodeRightClicked;
 
     // =========================================================================
     // Widget Overrides

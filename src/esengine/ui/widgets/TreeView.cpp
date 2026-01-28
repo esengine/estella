@@ -130,6 +130,13 @@ void TreeView::setNodeLabel(TreeNodeId nodeId, const std::string& label) {
     }
 }
 
+void TreeView::setNodeIcon(TreeNodeId nodeId, const std::string& icon) {
+    TreeNode* node = getNode(nodeId);
+    if (node) {
+        node->icon = icon;
+    }
+}
+
 // =============================================================================
 // Expand/Collapse
 // =============================================================================
@@ -314,11 +321,18 @@ void TreeView::renderNode(UIBatchRenderer& renderer, const TreeNode& node, f32 y
 
 #if ES_FEATURE_SDF_FONT
     if (iconFont) {
-        Rect folderBounds{x, y + (rowHeight_ - FOLDER_ICON_SIZE) * 0.5f,
-                          FOLDER_ICON_SIZE, FOLDER_ICON_SIZE};
-        const char* folderIcon = hasChild && node.expanded ? icons::FolderOpen : icons::Folder;
-        renderer.drawTextInBounds(folderIcon, folderBounds, *iconFont, 14.0f, folderColor,
-                                   HAlign::Center, VAlign::Center);
+        constexpr glm::vec4 entityIconColor{0.525f, 0.725f, 0.855f, 1.0f};  // #86b9da cyan
+        Rect iconBounds{x, y + (rowHeight_ - FOLDER_ICON_SIZE) * 0.5f,
+                        FOLDER_ICON_SIZE, FOLDER_ICON_SIZE};
+
+        if (!node.icon.empty()) {
+            renderer.drawTextInBounds(node.icon, iconBounds, *iconFont, 14.0f, entityIconColor,
+                                       HAlign::Center, VAlign::Center);
+        } else {
+            const char* folderIcon = hasChild && node.expanded ? icons::FolderOpen : icons::Folder;
+            renderer.drawTextInBounds(folderIcon, iconBounds, *iconFont, 14.0f, folderColor,
+                                       HAlign::Center, VAlign::Center);
+        }
     }
 #endif
 
@@ -344,10 +358,6 @@ void TreeView::renderNode(UIBatchRenderer& renderer, const TreeNode& node, f32 y
 // =============================================================================
 
 bool TreeView::onMouseDown(const MouseButtonEvent& event) {
-    if (event.button != MouseButton::Left) {
-        return false;
-    }
-
     if (visibleNodesDirty_) {
         rebuildVisibleNodes();
     }
@@ -359,6 +369,16 @@ bool TreeView::onMouseDown(const MouseButtonEvent& event) {
 
     const TreeNode* node = getNode(clickedNode);
     if (!node) {
+        return false;
+    }
+
+    if (event.button == MouseButton::Right) {
+        selectNode(clickedNode, true);
+        onNodeRightClicked.publish(clickedNode, event.x, event.y);
+        return true;
+    }
+
+    if (event.button != MouseButton::Left) {
         return false;
     }
 
@@ -386,8 +406,6 @@ bool TreeView::onMouseDown(const MouseButtonEvent& event) {
         }
     }
 
-    // Simple double-click detection without time tracking
-    // TODO: Implement proper time tracking when platform provides it
     bool isDoubleClick = (clickedNode == lastClickedNode_);
 
     if (isDoubleClick) {

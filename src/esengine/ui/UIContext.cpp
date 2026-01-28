@@ -28,6 +28,8 @@
 
 #include <glm/gtc/matrix_transform.hpp>
 
+#include <algorithm>
+
 namespace esengine::ui {
 
 // =============================================================================
@@ -244,6 +246,13 @@ void UIContext::render() {
 
     renderer_->begin(projection, devicePixelRatio_);
     root_->renderTree(*renderer_);
+
+    for (Widget* overlay : overlays_) {
+        if (overlay && overlay->isVisible()) {
+            overlay->render(*renderer_);
+        }
+    }
+
     renderer_->end();
 }
 
@@ -284,6 +293,18 @@ void UIContext::processMouseMove(f32 x, f32 y) {
     lastMouseX_ = x;
     lastMouseY_ = y;
 
+    for (auto it = overlays_.rbegin(); it != overlays_.rend(); ++it) {
+        Widget* overlay = *it;
+        if (overlay && overlay->isVisible()) {
+            MouseMoveEvent event;
+            event.x = x;
+            event.y = y;
+            event.deltaX = deltaX;
+            event.deltaY = deltaY;
+            overlay->onMouseMove(event);
+        }
+    }
+
     updateHoveredWidget(x, y);
 
     if (pressedWidget_) {
@@ -312,6 +333,22 @@ void UIContext::processMouseDown(MouseButton button, f32 x, f32 y) {
     mouseButtonDown_[static_cast<usize>(button)] = true;
     lastMouseX_ = x;
     lastMouseY_ = y;
+
+    for (auto it = overlays_.rbegin(); it != overlays_.rend(); ++it) {
+        Widget* overlay = *it;
+        if (overlay && overlay->isVisible()) {
+            Widget* hit = overlay->hitTest(x, y);
+            if (hit) {
+                MouseButtonEvent event;
+                event.button = button;
+                event.pressed = true;
+                event.x = x;
+                event.y = y;
+                hit->onMouseDown(event);
+                return;
+            }
+        }
+    }
 
     updateHoveredWidget(x, y);
 
@@ -467,6 +504,27 @@ void UIContext::updateHoveredWidget(f32 x, f32 y) {
                 hoveredWidget_->setState(true, false);
             }
         }
+    }
+}
+
+// =============================================================================
+// Overlay Management
+// =============================================================================
+
+void UIContext::addOverlay(Widget* overlay) {
+    if (!overlay) return;
+
+    auto it = std::find(overlays_.begin(), overlays_.end(), overlay);
+    if (it == overlays_.end()) {
+        overlays_.push_back(overlay);
+        overlay->setContext(this);
+    }
+}
+
+void UIContext::removeOverlay(Widget* overlay) {
+    auto it = std::find(overlays_.begin(), overlays_.end(), overlay);
+    if (it != overlays_.end()) {
+        overlays_.erase(it);
     }
 }
 

@@ -56,6 +56,14 @@ struct Static {};
  */
 struct MainEntity {};
 
+/**
+ * @brief Tag component marking an entity as a folder for organization
+ *
+ * @details Folders are containers for organizing entities in the hierarchy.
+ *          They have no transform or visual representation, just grouping.
+ */
+struct Folder {};
+
 // =============================================================================
 // Name Component
 // =============================================================================

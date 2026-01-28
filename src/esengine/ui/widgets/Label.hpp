@@ -83,6 +83,12 @@ public:
     /** @brief Clears the custom color (use theme) */
     void clearColor() { customColor_ = false; }
 
+    /** @brief Sets whether to use icon font instead of text font */
+    void setIsIconFont(bool isIcon) { useIconFont_ = isIcon; }
+
+    /** @brief Returns true if using icon font */
+    bool isIconFont() const { return useIconFont_; }
+
     // =========================================================================
     // Alignment
     // =========================================================================
@@ -113,6 +119,7 @@ private:
 
     bool customColor_ = false;
     glm::vec4 color_{1.0f};
+    bool useIconFont_ = false;
 
     HAlign hAlign_ = HAlign::Left;
     VAlign vAlign_ = VAlign::Center;
