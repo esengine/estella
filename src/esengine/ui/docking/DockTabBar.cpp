@@ -10,6 +10,7 @@
  */
 
 #include "DockTabBar.hpp"
+#include "DockArea.hpp"
 #include "DockNode.hpp"
 #include "DockPanel.hpp"
 #include "../UIContext.hpp"
@@ -271,6 +272,16 @@ bool DockTabBar::onMouseDown(const MouseButtonEvent& event) {
 bool DockTabBar::onMouseUp(const MouseButtonEvent& event) {
     if (event.button != MouseButton::Left) return false;
 
+    if (isDragging_) {
+        DockArea* area = ownerNode_ ? ownerNode_->getArea() : nullptr;
+        if (area) {
+            area->onMouseUp(event);
+        }
+        isDragging_ = false;
+        pressedTabIndex_ = -1;
+        return true;
+    }
+
     i32 closeIndex = hitTestCloseButton(event.x, event.y);
     if (closeIndex >= 0 && closeIndex < static_cast<i32>(tabs_.size())) {
         onTabCloseRequested.publish(tabs_[static_cast<usize>(closeIndex)].panelId);
@@ -287,6 +298,14 @@ bool DockTabBar::onMouseUp(const MouseButtonEvent& event) {
 bool DockTabBar::onMouseMove(const MouseMoveEvent& event) {
     updateHoverState(event.x, event.y);
 
+    if (isDragging_) {
+        DockArea* area = ownerNode_ ? ownerNode_->getArea() : nullptr;
+        if (area) {
+            area->onMouseMove(event);
+        }
+        return true;
+    }
+
     if (potentialDrag_ && pressedTabIndex_ >= 0) {
         f32 dx = event.x - pressStartPos_.x;
         f32 dy = event.y - pressStartPos_.y;
@@ -301,6 +320,11 @@ bool DockTabBar::onMouseMove(const MouseMoveEvent& event) {
                     tabs_[static_cast<usize>(pressedTabIndex_)].panelId,
                     {event.x, event.y}
                 );
+
+                DockArea* area = ownerNode_ ? ownerNode_->getArea() : nullptr;
+                if (area) {
+                    area->onMouseMove(event);
+                }
             }
         }
     }
