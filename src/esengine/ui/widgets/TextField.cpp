@@ -11,10 +11,17 @@
 
 #include "TextField.hpp"
 #include "../UIContext.hpp"
-#include "../font/SDFFont.hpp"
 #include "../rendering/UIBatchRenderer.hpp"
 #include "../../core/Log.hpp"
 #include "../../math/Math.hpp"
+
+#if ES_FEATURE_SDF_FONT
+#include "../font/SDFFont.hpp"
+#endif
+
+#if ES_FEATURE_BITMAP_FONT
+#include "../font/BitmapFont.hpp"
+#endif
 
 #include <algorithm>
 
@@ -143,10 +150,17 @@ void TextField::render(UIBatchRenderer& renderer) {
         glm::vec4 placeholderColor = textColor;
         placeholderColor.a *= 0.5f;
 
+#if ES_FEATURE_SDF_FONT
         if (getContext() && getContext()->getDefaultFont()) {
             renderer.drawText(placeholder_, glm::vec2(textX, textY),
                             *getContext()->getDefaultFont(), fontSize, placeholderColor);
         }
+#elif ES_FEATURE_BITMAP_FONT
+        if (getContext() && getContext()->getDefaultBitmapFont()) {
+            renderer.drawText(placeholder_, glm::vec2(textX, textY),
+                            *getContext()->getDefaultBitmapFont(), fontSize, placeholderColor);
+        }
+#endif
     } else if (!text_.empty()) {
         if (hasSelection()) {
             usize start = glm::min(selectionStart_, selectionEnd_);
@@ -169,10 +183,17 @@ void TextField::render(UIBatchRenderer& renderer) {
             renderer.drawRect(selRect, selectionColor);
         }
 
+#if ES_FEATURE_SDF_FONT
         if (getContext() && getContext()->getDefaultFont()) {
             renderer.drawText(text_, glm::vec2(textX, textY),
                             *getContext()->getDefaultFont(), fontSize, textColor);
         }
+#elif ES_FEATURE_BITMAP_FONT
+        if (getContext() && getContext()->getDefaultBitmapFont()) {
+            renderer.drawText(text_, glm::vec2(textX, textY),
+                            *getContext()->getDefaultBitmapFont(), fontSize, textColor);
+        }
+#endif
     }
 
     if (isFocused()) {
@@ -515,17 +536,20 @@ usize TextField::getCharIndexAtX(f32 x) const {
 
     f32 fontSize = getContext()->getTheme().typography.fontSizeNormal;
 
-    // Use regular font for character measurement
-    SDFFont* font = getContext()->getDefaultFont();
-
     f32 currentX = 0.0f;
     for (usize i = 0; i < text_.size(); ++i) {
-        f32 charWidth;
+        f32 charWidth = fontSize * 0.6f;
+#if ES_FEATURE_SDF_FONT
+        SDFFont* font = getContext()->getDefaultFont();
         if (font) {
             charWidth = font->getCharWidth(static_cast<u32>(text_[i]), fontSize);
-        } else {
-            charWidth = fontSize * 0.6f;
         }
+#elif ES_FEATURE_BITMAP_FONT
+        BitmapFont* font = getContext()->getDefaultBitmapFont();
+        if (font) {
+            charWidth = font->getCharWidth(static_cast<u32>(text_[i]), fontSize);
+        }
+#endif
 
         if (relativeX < currentX + charWidth * 0.5f) {
             return i;
@@ -544,9 +568,8 @@ f32 TextField::getXForCharIndex(usize index) const {
 
     f32 fontSize = getContext()->getTheme().typography.fontSizeNormal;
 
-    // Use regular font for character measurement
+#if ES_FEATURE_SDF_FONT
     SDFFont* font = getContext()->getDefaultFont();
-
     if (font) {
         f32 currentX = 0.0f;
         for (usize i = 0; i < index && i < text_.size(); ++i) {
@@ -554,6 +577,16 @@ f32 TextField::getXForCharIndex(usize index) const {
         }
         return currentX;
     }
+#elif ES_FEATURE_BITMAP_FONT
+    BitmapFont* font = getContext()->getDefaultBitmapFont();
+    if (font) {
+        f32 currentX = 0.0f;
+        for (usize i = 0; i < index && i < text_.size(); ++i) {
+            currentX += font->getCharWidth(static_cast<u32>(text_[i]), fontSize);
+        }
+        return currentX;
+    }
+#endif
 
     f32 charWidth = fontSize * 0.6f;
     return static_cast<f32>(index) * charWidth;

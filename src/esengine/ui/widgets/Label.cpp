@@ -11,8 +11,15 @@
 
 #include "Label.hpp"
 #include "../UIContext.hpp"
-#include "../font/SDFFont.hpp"
 #include "../rendering/UIBatchRenderer.hpp"
+
+#if ES_FEATURE_SDF_FONT
+#include "../font/SDFFont.hpp"
+#endif
+
+#if ES_FEATURE_BITMAP_FONT
+#include "../font/BitmapFont.hpp"
+#endif
 
 namespace esengine::ui {
 
@@ -53,12 +60,22 @@ glm::vec2 Label::measure(f32 availableWidth, f32 availableHeight) {
         return Widget::measure(availableWidth, availableHeight);
     }
 
-    SDFFont* font = fontName_.empty() ? getContext()->getDefaultFont()
-                                   : getContext()->getFont(fontName_);
-
-    if (font && textSizeDirty_) {
-        cachedTextSize_ = font->measureText(text_, fontSize_);
-        textSizeDirty_ = false;
+    if (textSizeDirty_) {
+#if ES_FEATURE_SDF_FONT
+        SDFFont* font = fontName_.empty() ? getContext()->getDefaultFont()
+                                          : getContext()->getFont(fontName_);
+        if (font) {
+            cachedTextSize_ = font->measureText(text_, fontSize_);
+            textSizeDirty_ = false;
+        }
+#elif ES_FEATURE_BITMAP_FONT
+        BitmapFont* font = fontName_.empty() ? getContext()->getDefaultBitmapFont()
+                                             : getContext()->getBitmapFont(fontName_);
+        if (font) {
+            cachedTextSize_ = font->measureText(text_, fontSize_);
+            textSizeDirty_ = false;
+        }
+#endif
     }
 
     f32 contentWidth = cachedTextSize_.x + getPadding().totalHorizontal();
@@ -87,10 +104,17 @@ void Label::render(UIBatchRenderer& renderer) {
     glm::vec4 textColor = customColor_ ? color_ : style.getTextColor(getState());
     Rect contentBounds = getContentBounds();
 
+#if ES_FEATURE_SDF_FONT
     SDFFont* font = fontName_.empty() ? ctx->getDefaultFont() : ctx->getFont(fontName_);
     if (font) {
         renderer.drawTextInBounds(text_, contentBounds, *font, fontSize_, textColor, hAlign_, vAlign_);
     }
+#elif ES_FEATURE_BITMAP_FONT
+    BitmapFont* font = fontName_.empty() ? ctx->getDefaultBitmapFont() : ctx->getBitmapFont(fontName_);
+    if (font) {
+        renderer.drawTextInBounds(text_, contentBounds, *font, fontSize_, textColor, hAlign_, vAlign_);
+    }
+#endif
 }
 
 }  // namespace esengine::ui

@@ -11,9 +11,16 @@
 
 #include "Checkbox.hpp"
 #include "../UIContext.hpp"
-#include "../font/SDFFont.hpp"
 #include "../rendering/UIBatchRenderer.hpp"
 #include "../../math/Math.hpp"
+
+#if ES_FEATURE_SDF_FONT
+#include "../font/SDFFont.hpp"
+#endif
+
+#if ES_FEATURE_BITMAP_FONT
+#include "../font/BitmapFont.hpp"
+#endif
 
 namespace esengine::ui {
 
@@ -78,15 +85,20 @@ glm::vec2 Checkbox::measure(f32 availableWidth, f32 availableHeight) {
 
     if (!label_.empty() && getContext()) {
         f32 fontSize = getContext()->getTheme().typography.fontSizeNormal;
+        f32 labelWidth = static_cast<f32>(label_.length()) * fontSize * 0.6f;
 
-        // Use regular font for measurement
+#if ES_FEATURE_SDF_FONT
         SDFFont* font = getContext()->getDefaultFont();
-        f32 labelWidth;
         if (font) {
             labelWidth = font->measureText(label_, fontSize).x;
-        } else {
-            labelWidth = static_cast<f32>(label_.length()) * fontSize * 0.6f;
         }
+#elif ES_FEATURE_BITMAP_FONT
+        BitmapFont* font = getContext()->getDefaultBitmapFont();
+        if (font) {
+            labelWidth = font->measureText(label_, fontSize).x;
+        }
+#endif
+
         width += LABEL_SPACING + labelWidth;
         height = glm::max(height, fontSize);
     }
@@ -173,10 +185,17 @@ void Checkbox::render(UIBatchRenderer& renderer) {
         f32 labelX = checkboxX + checkboxSize_ + LABEL_SPACING;
         f32 labelY = bounds.y + (bounds.height - fontSize) * 0.5f;
 
+#if ES_FEATURE_SDF_FONT
         if (getContext() && getContext()->getDefaultFont()) {
             renderer.drawText(label_, glm::vec2(labelX, labelY),
                             *getContext()->getDefaultFont(), fontSize, textColor);
         }
+#elif ES_FEATURE_BITMAP_FONT
+        if (getContext() && getContext()->getDefaultBitmapFont()) {
+            renderer.drawText(label_, glm::vec2(labelX, labelY),
+                            *getContext()->getDefaultBitmapFont(), fontSize, textColor);
+        }
+#endif
     }
 }
 

@@ -33,12 +33,22 @@ class Dispatcher;
 
 namespace ui {
 
+#if ES_FEATURE_SDF_FONT
 class SDFFont;
+#endif
+
+#if ES_FEATURE_BITMAP_FONT
+class BitmapFont;
+#endif
+
 class UIBatchRenderer;
 class Widget;
 
-// Alias for backward compatibility - Font now means SDFFont
+#if ES_FEATURE_SDF_FONT
 using Font = SDFFont;
+#elif ES_FEATURE_BITMAP_FONT
+using Font = BitmapFont;
+#endif
 
 // =============================================================================
 // UIContext Class
@@ -136,42 +146,32 @@ public:
     const Theme& getTheme() const { return *theme_; }
 
     // =========================================================================
-    // Font Management (SDF-based)
+    // Font Management
     // =========================================================================
 
+#if ES_FEATURE_SDF_FONT
     /**
      * @brief Loads a font from file (uses SDF rendering)
-     * @param name Name to register the font as
-     * @param path Path to the TTF font file
-     * @param fontSize SDF glyph size (recommended: 32-64)
-     * @param sdfSpread SDF spread in pixels (default: 8)
-     * @return Pointer to the loaded font or nullptr on failure
      */
     SDFFont* loadFont(const std::string& name, const std::string& path, f32 fontSize = 48.0f,
                       f32 sdfSpread = 8.0f);
 
-    /**
-     * @brief Gets a loaded font by name
-     * @param name Font name
-     * @return Pointer to the font or nullptr if not found
-     */
     SDFFont* getFont(const std::string& name);
-
-    /**
-     * @brief Gets the default font
-     * @return Pointer to the default font or nullptr
-     */
     SDFFont* getDefaultFont();
-
-    /**
-     * @brief Gets the icon font (Lucide icons)
-     * @return Pointer to the icon font or nullptr
-     */
     SDFFont* getIconFont();
+#endif
 
+#if ES_FEATURE_BITMAP_FONT
     /**
-     * @brief Sets the default font name
+     * @brief Loads a bitmap font from atlas and metrics files
      */
+    BitmapFont* loadBitmapFont(const std::string& name, const std::string& atlasPath,
+                                const std::string& metricsPath);
+
+    BitmapFont* getBitmapFont(const std::string& name);
+    BitmapFont* getDefaultBitmapFont();
+#endif
+
     void setDefaultFontName(const std::string& name) { defaultFontName_ = name; }
 
     // =========================================================================
@@ -343,7 +343,14 @@ private:
     Unique<Widget> root_;
     Unique<Theme> theme_;
 
+#if ES_FEATURE_SDF_FONT
     std::unordered_map<std::string, Unique<SDFFont>> fonts_;
+#endif
+
+#if ES_FEATURE_BITMAP_FONT
+    std::unordered_map<std::string, Unique<BitmapFont>> bitmapFonts_;
+#endif
+
     std::string defaultFontName_ = "default";
 
     u32 viewportWidth_ = 0;

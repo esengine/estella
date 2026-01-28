@@ -14,9 +14,16 @@
 #include "../events/Dispatcher.hpp"
 #include "../renderer/RenderCommand.hpp"
 #include "../renderer/RenderContext.hpp"
-#include "font/SDFFont.hpp"
 #include "rendering/UIBatchRenderer.hpp"
 #include "widgets/Widget.hpp"
+
+#if ES_FEATURE_SDF_FONT
+#include "font/SDFFont.hpp"
+#endif
+
+#if ES_FEATURE_BITMAP_FONT
+#include "font/BitmapFont.hpp"
+#endif
 
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -55,7 +62,12 @@ void UIContext::shutdown() {
     if (!initialized_) return;
 
     root_.reset();
+#if ES_FEATURE_SDF_FONT
     fonts_.clear();
+#endif
+#if ES_FEATURE_BITMAP_FONT
+    bitmapFonts_.clear();
+#endif
     theme_.reset();
 
     if (renderer_) {
@@ -107,9 +119,10 @@ void UIContext::setTheme(Unique<Theme> theme) {
 }
 
 // =============================================================================
-// Font Management (SDF-based)
+// Font Management
 // =============================================================================
 
+#if ES_FEATURE_SDF_FONT
 SDFFont* UIContext::loadFont(const std::string& name, const std::string& path, f32 fontSize,
                               f32 sdfSpread) {
     auto font = SDFFont::create(path, fontSize, sdfSpread);
@@ -140,6 +153,36 @@ SDFFont* UIContext::getDefaultFont() {
 SDFFont* UIContext::getIconFont() {
     return getFont("icons");
 }
+#endif  // ES_FEATURE_SDF_FONT
+
+#if ES_FEATURE_BITMAP_FONT
+BitmapFont* UIContext::loadBitmapFont(const std::string& name, const std::string& atlasPath,
+                                       const std::string& metricsPath) {
+    auto font = BitmapFont::load(atlasPath, metricsPath);
+    if (!font) {
+        ES_LOG_ERROR("Failed to load bitmap font: {} / {}", atlasPath, metricsPath);
+        return nullptr;
+    }
+
+    BitmapFont* ptr = font.get();
+    bitmapFonts_[name] = std::move(font);
+
+    ES_LOG_INFO("Loaded bitmap font '{}' from {}", name, atlasPath);
+    return ptr;
+}
+
+BitmapFont* UIContext::getBitmapFont(const std::string& name) {
+    auto it = bitmapFonts_.find(name);
+    if (it != bitmapFonts_.end()) {
+        return it->second.get();
+    }
+    return nullptr;
+}
+
+BitmapFont* UIContext::getDefaultBitmapFont() {
+    return getBitmapFont(defaultFontName_);
+}
+#endif  // ES_FEATURE_BITMAP_FONT
 
 // =============================================================================
 // Update and Render

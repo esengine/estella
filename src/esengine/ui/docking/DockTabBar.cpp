@@ -14,7 +14,14 @@
 #include "DockPanel.hpp"
 #include "../UIContext.hpp"
 #include "../rendering/UIBatchRenderer.hpp"
+
+#if ES_FEATURE_SDF_FONT
 #include "../font/SDFFont.hpp"
+#endif
+
+#if ES_FEATURE_BITMAP_FONT
+#include "../font/BitmapFont.hpp"
+#endif
 
 #include <cmath>
 
@@ -166,12 +173,21 @@ void DockTabBar::renderTab(UIBatchRenderer& renderer, const DockTabInfo& tab, us
         tab.bounds.height
     };
 
+#if ES_FEATURE_SDF_FONT
     SDFFont* font = ctx->getDefaultFont();
     if (font) {
         renderer.drawTextInBounds(tab.title, textBounds, *font,
                                    theme.typography.fontSizeSmall, textColor,
                                    HAlign::Left, VAlign::Center);
     }
+#elif ES_FEATURE_BITMAP_FONT
+    BitmapFont* font = ctx->getDefaultBitmapFont();
+    if (font) {
+        renderer.drawTextInBounds(tab.title, textBounds, *font,
+                                   theme.typography.fontSizeSmall, textColor,
+                                   HAlign::Left, VAlign::Center);
+    }
+#endif
 
     if (tab.closable) {
         glm::vec4 closeColor = tab.closeHovered

@@ -11,8 +11,15 @@
 
 #include "Button.hpp"
 #include "../UIContext.hpp"
-#include "../font/SDFFont.hpp"
 #include "../rendering/UIBatchRenderer.hpp"
+
+#if ES_FEATURE_SDF_FONT
+#include "../font/SDFFont.hpp"
+#endif
+
+#if ES_FEATURE_BITMAP_FONT
+#include "../font/BitmapFont.hpp"
+#endif
 
 namespace esengine::ui {
 
@@ -57,11 +64,20 @@ glm::vec2 Button::measure(f32 availableWidth, f32 availableHeight) {
                             ? ctx->getTheme().getPrimaryButtonStyle()
                             : ctx->getTheme().getButtonStyle();
 
-    // Use regular font for measurement
-    SDFFont* font = fontName_.empty() ? ctx->getDefaultFont() : ctx->getFont(fontName_);
-    if (font && textSizeDirty_) {
-        cachedTextSize_ = font->measureText(text_, fontSize_);
-        textSizeDirty_ = false;
+    if (textSizeDirty_) {
+#if ES_FEATURE_SDF_FONT
+        SDFFont* font = fontName_.empty() ? ctx->getDefaultFont() : ctx->getFont(fontName_);
+        if (font) {
+            cachedTextSize_ = font->measureText(text_, fontSize_);
+            textSizeDirty_ = false;
+        }
+#elif ES_FEATURE_BITMAP_FONT
+        BitmapFont* font = fontName_.empty() ? ctx->getDefaultBitmapFont() : ctx->getBitmapFont(fontName_);
+        if (font) {
+            cachedTextSize_ = font->measureText(text_, fontSize_);
+            textSizeDirty_ = false;
+        }
+#endif
     }
 
     f32 contentWidth = cachedTextSize_.x + style.padding.totalHorizontal() +
@@ -116,12 +132,19 @@ void Button::render(UIBatchRenderer& renderer) {
         glm::vec4 textColor = style.getTextColor(state);
         Rect textBounds = style.padding.shrink(bounds);
 
-        // Use regular font for now
+#if ES_FEATURE_SDF_FONT
         SDFFont* font = fontName_.empty() ? ctx->getDefaultFont() : ctx->getFont(fontName_);
         if (font) {
             renderer.drawTextInBounds(text_, textBounds, *font, fontSize_, textColor,
                                       HAlign::Center, VAlign::Center);
         }
+#elif ES_FEATURE_BITMAP_FONT
+        BitmapFont* font = fontName_.empty() ? ctx->getDefaultBitmapFont() : ctx->getBitmapFont(fontName_);
+        if (font) {
+            renderer.drawTextInBounds(text_, textBounds, *font, fontSize_, textColor,
+                                      HAlign::Center, VAlign::Center);
+        }
+#endif
     }
 }
 

@@ -11,11 +11,18 @@
 
 #include "TreeView.hpp"
 #include "../UIContext.hpp"
-#include "../font/SDFFont.hpp"
 #include "../icons/Icons.hpp"
 #include "../rendering/UIBatchRenderer.hpp"
 #include "../../core/Log.hpp"
 #include "../../math/Math.hpp"
+
+#if ES_FEATURE_SDF_FONT
+#include "../font/SDFFont.hpp"
+#endif
+
+#if ES_FEATURE_BITMAP_FONT
+#include "../font/BitmapFont.hpp"
+#endif
 
 #include <algorithm>
 
@@ -301,12 +308,14 @@ void TreeView::renderNode(UIBatchRenderer& renderer, const TreeNode& node, f32 y
             iconColor = getContext()->getTheme().colors.textSecondary;
         }
 
+#if ES_FEATURE_SDF_FONT
         SDFFont* iconFont = getContext() ? getContext()->getIconFont() : nullptr;
         if (iconFont) {
             const char* icon = node.expanded ? icons::ChevronDown : icons::ChevronRight;
             renderer.drawTextInBounds(icon, iconBounds, *iconFont, iconSize_, iconColor,
                                        HAlign::Center, VAlign::Center);
         }
+#endif
 
         x += iconSize_ + 4.0f;
     } else {
@@ -325,10 +334,17 @@ void TreeView::renderNode(UIBatchRenderer& renderer, const TreeNode& node, f32 y
 
     f32 textY = y + (rowHeight_ - fontSize) * 0.5f;
 
+#if ES_FEATURE_SDF_FONT
     if (getContext() && getContext()->getDefaultFont()) {
         renderer.drawText(node.label, glm::vec2(x, textY), *getContext()->getDefaultFont(),
                           fontSize, textColor);
     }
+#elif ES_FEATURE_BITMAP_FONT
+    if (getContext() && getContext()->getDefaultBitmapFont()) {
+        renderer.drawText(node.label, glm::vec2(x, textY), *getContext()->getDefaultBitmapFont(),
+                          fontSize, textColor);
+    }
+#endif
 }
 
 // =============================================================================

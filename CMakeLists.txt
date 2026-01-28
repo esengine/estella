@@ -12,6 +12,10 @@ option(ES_BUILD_EXAMPLES "Build examples" ON)
 option(ES_BUILD_TESTS "Build tests" ON)
 option(ES_BUILD_EDITOR "Build editor (native only)" OFF)
 
+# Feature options (modular compilation)
+option(ES_FEATURE_SDF_FONT "Enable SDF font rendering (requires FreeType)" ON)
+option(ES_FEATURE_BITMAP_FONT "Enable bitmap font rendering (lightweight)" ON)
+
 # Include custom CMake modules
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(ESEngineConfig)
@@ -41,7 +45,6 @@ set(ESENGINE_SOURCES
     # UI System
     src/esengine/ui/UIContext.cpp
     src/esengine/ui/rendering/UIBatchRenderer.cpp
-    src/esengine/ui/font/SDFFont.cpp
     src/esengine/ui/layout/StackLayout.cpp
     src/esengine/ui/layout/WrapLayout.cpp
     src/esengine/ui/widgets/Widget.cpp
@@ -61,6 +64,15 @@ set(ESENGINE_SOURCES
     src/esengine/ui/docking/DockArea.cpp
     src/esengine/ui/docking/DockLayoutSerializer.cpp
 )
+
+# Font sources (conditional)
+if(ES_FEATURE_SDF_FONT)
+    list(APPEND ESENGINE_SOURCES src/esengine/ui/font/SDFFont.cpp)
+endif()
+
+if(ES_FEATURE_BITMAP_FONT)
+    list(APPEND ESENGINE_SOURCES src/esengine/ui/font/BitmapFont.cpp)
+endif()
 
 set(ESENGINE_HEADERS
     src/esengine/ESEngine.hpp
@@ -111,7 +123,6 @@ set(ESENGINE_HEADERS
     src/esengine/ui/layout/Layout.hpp
     src/esengine/ui/layout/StackLayout.hpp
     src/esengine/ui/rendering/UIBatchRenderer.hpp
-    src/esengine/ui/font/SDFFont.hpp
     src/esengine/ui/icons/Icons.hpp
     src/esengine/ui/widgets/Widget.hpp
     src/esengine/ui/widgets/Panel.hpp
@@ -132,6 +143,15 @@ set(ESENGINE_HEADERS
     src/esengine/ui/docking/DockEvents.hpp
     src/esengine/ui/docking/DockLayoutSerializer.hpp
 )
+
+# Font headers (conditional)
+if(ES_FEATURE_SDF_FONT)
+    list(APPEND ESENGINE_HEADERS src/esengine/ui/font/SDFFont.hpp)
+endif()
+
+if(ES_FEATURE_BITMAP_FONT)
+    list(APPEND ESENGINE_HEADERS src/esengine/ui/font/BitmapFont.hpp)
+endif()
 
 # Platform-specific sources
 if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
@@ -244,8 +264,19 @@ if(NOT ES_BUILD_WEB AND NOT ES_BUILD_WXGAME)
     target_include_directories(esengine SYSTEM PRIVATE ${QUICKJS_INCLUDE_DIR})
 endif()
 
-target_link_libraries(esengine PUBLIC glm freetype)
-target_include_directories(esengine PUBLIC ${CMAKE_SOURCE_DIR}/third_party/freetype/include)
+# Core dependencies
+target_link_libraries(esengine PUBLIC glm)
+
+# FreeType dependency (only needed for SDF fonts)
+if(ES_FEATURE_SDF_FONT)
+    target_link_libraries(esengine PUBLIC freetype)
+    target_include_directories(esengine PUBLIC ${CMAKE_SOURCE_DIR}/third_party/freetype/include)
+    target_compile_definitions(esengine PUBLIC ES_FEATURE_SDF_FONT=1)
+endif()
+
+if(ES_FEATURE_BITMAP_FONT)
+    target_compile_definitions(esengine PUBLIC ES_FEATURE_BITMAP_FONT=1)
+endif()
 
 # Platform-specific settings
 if(ES_BUILD_WEB OR ES_BUILD_WXGAME)

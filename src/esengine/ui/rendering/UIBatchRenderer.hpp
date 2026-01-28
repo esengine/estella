@@ -31,10 +31,19 @@ class RenderContext;
 
 namespace ui {
 
+#if ES_FEATURE_SDF_FONT
 class SDFFont;
+#endif
 
-// Font is now an alias for SDFFont
+#if ES_FEATURE_BITMAP_FONT
+class BitmapFont;
+#endif
+
+#if ES_FEATURE_SDF_FONT
 using Font = SDFFont;
+#elif ES_FEATURE_BITMAP_FONT
+using Font = BitmapFont;
+#endif
 
 // =============================================================================
 // UI Render Statistics
@@ -201,33 +210,32 @@ public:
                   f32 thickness = 1.0f);
 
     // =========================================================================
-    // Text Drawing (SDF-based)
+    // Text Drawing
     // =========================================================================
 
+#if ES_FEATURE_SDF_FONT
     /**
-     * @brief Draws text at a position (UTF-8 supported)
-     * @param text Text string to draw
-     * @param position Top-left position
-     * @param font Font to use
-     * @param fontSize Font size in pixels
-     * @param color Text color
+     * @brief Draws text using SDF font (UTF-8 supported)
      */
     void drawText(const std::string& text, const glm::vec2& position, SDFFont& font, f32 fontSize,
                   const glm::vec4& color);
 
-    /**
-     * @brief Draws text with clipping to a bounds (UTF-8 supported)
-     * @param text Text string to draw
-     * @param bounds Bounding rectangle for text
-     * @param font Font to use
-     * @param fontSize Font size in pixels
-     * @param color Text color
-     * @param hAlign Horizontal alignment within bounds
-     * @param vAlign Vertical alignment within bounds
-     */
     void drawTextInBounds(const std::string& text, const Rect& bounds, SDFFont& font, f32 fontSize,
                           const glm::vec4& color, HAlign hAlign = HAlign::Left,
                           VAlign vAlign = VAlign::Top);
+#endif
+
+#if ES_FEATURE_BITMAP_FONT
+    /**
+     * @brief Draws text using bitmap font (UTF-8 supported)
+     */
+    void drawText(const std::string& text, const glm::vec2& position, BitmapFont& font, f32 fontSize,
+                  const glm::vec4& color);
+
+    void drawTextInBounds(const std::string& text, const Rect& bounds, BitmapFont& font, f32 fontSize,
+                          const glm::vec4& color, HAlign hAlign = HAlign::Left,
+                          VAlign vAlign = VAlign::Top);
+#endif
 
     // =========================================================================
     // Statistics
