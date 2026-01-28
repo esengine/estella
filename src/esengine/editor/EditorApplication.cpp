@@ -44,6 +44,7 @@ EditorApplication::EditorApplication()
     }) {
     commandHistory_.setDispatcher(&dispatcher_);
     selection_.setDispatcher(&dispatcher_);
+    projectManager_ = makeUnique<ProjectManager>(dispatcher_, assetDatabase_);
 }
 
 // =============================================================================
@@ -126,6 +127,9 @@ void EditorApplication::onInit() {
     });
     assetDatabase_.setProjectPath(PathResolver::projectPath("assets"));
     assetDatabase_.scan();
+
+    // Load recent projects list
+    projectManager_->getRecentProjects().load();
 
     // Create demo scene for testing
     createDemoScene();
@@ -309,6 +313,18 @@ void EditorApplication::setupEventListeners() {
         dispatcher_.sink<EntityDeleted>().connect(
             [](const EntityDeleted& e) {
                 ES_LOG_DEBUG("Entity deleted: {}", e.entity);
+            }));
+
+    eventConnections_.add(
+        dispatcher_.sink<ProjectOpened>().connect(
+            [](const ProjectOpened& e) {
+                ES_LOG_INFO("Project opened: {} ({})", e.name, e.path);
+            }));
+
+    eventConnections_.add(
+        dispatcher_.sink<ProjectClosed>().connect(
+            [](const ProjectClosed&) {
+                ES_LOG_INFO("Project closed");
             }));
 }
 

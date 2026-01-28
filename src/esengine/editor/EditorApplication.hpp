@@ -27,6 +27,7 @@
 #include "AssetDatabase.hpp"
 #include "ThumbnailGenerator.hpp"
 #include "DragDropManager.hpp"
+#include "project/ProjectManager.hpp"
 
 namespace esengine {
 namespace editor {
@@ -118,6 +119,12 @@ public:
      * @return Reference to the drag-drop manager
      */
     DragDropManager& getDragDropManager() { return dragDropManager_; }
+
+    /**
+     * @brief Get the project manager
+     * @return Reference to the project manager
+     */
+    ProjectManager& getProjectManager() { return *projectManager_; }
 
 protected:
     // =========================================================================
@@ -215,6 +222,7 @@ private:
     AssetDatabase assetDatabase_;     ///< Asset database
     ThumbnailGenerator thumbnailGenerator_; ///< Thumbnail generator
     DragDropManager dragDropManager_; ///< Drag-drop manager
+    Unique<ProjectManager> projectManager_; ///< Project manager
     Unique<ui::UIContext> uiContext_; ///< UI system context
     ui::DockArea* dockArea_ = nullptr; ///< Main docking area (owned by UIContext)
 

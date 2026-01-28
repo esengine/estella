@@ -7,6 +7,11 @@ set(EDITOR_SOURCES
     ThumbnailGenerator.cpp
     DragDropManager.cpp
 
+    # Project management
+    project/ProjectSerializer.cpp
+    project/RecentProjectsManager.cpp
+    project/ProjectManager.cpp
+
     # Property editors
     property/PropertyEditor.cpp
     property/editors/FloatEditor.cpp
@@ -36,6 +41,12 @@ set(EDITOR_HEADERS
     # Core subsystem
     core/EditorEvents.hpp
     core/Selection.hpp
+
+    # Project management
+    project/ProjectTypes.hpp
+    project/ProjectSerializer.hpp
+    project/RecentProjectsManager.hpp
+    project/ProjectManager.hpp
 
     # Command subsystem
     command/Command.hpp
