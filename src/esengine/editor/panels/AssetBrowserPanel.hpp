@@ -97,6 +97,7 @@ private:
 
     Connection folderSelectedConnection_;
     Connection searchChangedConnection_;
+    ConnectionHolder itemConnections_;
 };
 
 }  // namespace esengine::editor

@@ -20,9 +20,12 @@
 #include "Types.hpp"
 
 // Standard library
+#include <functional>
 #include <iostream>
+#include <mutex>
 #include <sstream>
 #include <string>
+#include <vector>
 
 namespace esengine {
 
@@ -44,6 +47,14 @@ enum class LogLevel : u8 {
     Error = 4,  ///< Error messages
     Fatal = 5   ///< Fatal errors (application cannot continue)
 };
+
+struct LogEntry {
+    LogLevel level;
+    std::string message;
+    u64 timestamp;
+};
+
+using LogSink = std::function<void(const LogEntry&)>;
 
 // =============================================================================
 // Log Class
@@ -86,6 +97,19 @@ public:
      * @return The current log level threshold
      */
     static LogLevel getLevel();
+
+    /**
+     * @brief Registers a log sink to receive log entries
+     * @param sink Callback function to receive log entries
+     * @return Sink ID for unregistration
+     */
+    static u32 addSink(LogSink sink);
+
+    /**
+     * @brief Unregisters a log sink
+     * @param sinkId ID returned from addSink
+     */
+    static void removeSink(u32 sinkId);
 
     // =========================================================================
     // Logging Methods
@@ -159,23 +183,31 @@ public:
 
 private:
     static LogLevel level_;
+    static std::vector<std::pair<u32, LogSink>> sinks_;
+    static std::mutex sinkMutex_;
+    static u32 nextSinkId_;
 
     template<typename... Args>
     static void log(LogLevel level, const char* fmt, Args&&... args) {
         if (level < level_) return;
 
+        std::ostringstream msgOss;
+        formatTo(msgOss, fmt, std::forward<Args>(args)...);
+        std::string message = msgOss.str();
+
         std::ostringstream oss;
-        oss << "[" << levelToString(level) << "] ";
-        formatTo(oss, fmt, std::forward<Args>(args)...);
-        oss << "\n";
+        oss << "[" << levelToString(level) << "] " << message << "\n";
 
         if (level >= LogLevel::Error) {
             std::cerr << oss.str();
         } else {
             std::cout << oss.str();
         }
+
+        notifySinks(level, message);
     }
 
+    static void notifySinks(LogLevel level, const std::string& message);
     static const char* levelToString(LogLevel level);
 
     // Simple format implementation with {} placeholders

@@ -31,6 +31,7 @@ set(EDITOR_SOURCES
     panels/AssetGridItem.cpp
     panels/ProjectLauncherPanel.cpp
     panels/NewProjectDialog.cpp
+    panels/OutputLogPanel.cpp
 
     # Editor widgets
     widgets/StatusBar.cpp
@@ -82,6 +83,7 @@ set(EDITOR_HEADERS
     panels/AssetGridItem.hpp
     panels/ProjectLauncherPanel.hpp
     panels/NewProjectDialog.hpp
+    panels/OutputLogPanel.hpp
 
     # Editor widgets
     widgets/StatusBar.hpp

@@ -12,9 +12,15 @@
 
 #include "Log.hpp"
 
+#include <algorithm>
+#include <chrono>
+
 namespace esengine {
 
 LogLevel Log::level_ = LogLevel::Info;
+std::vector<std::pair<u32, LogSink>> Log::sinks_;
+std::mutex Log::sinkMutex_;
+u32 Log::nextSinkId_ = 1;
 
 void Log::init() {
 #ifdef ES_DEBUG
@@ -46,6 +52,35 @@ const char* Log::levelToString(LogLevel level) {
     case LogLevel::Error: return "ERROR";
     case LogLevel::Fatal: return "FATAL";
     default: return "UNKNOWN";
+    }
+}
+
+u32 Log::addSink(LogSink sink) {
+    std::lock_guard<std::mutex> lock(sinkMutex_);
+    u32 id = nextSinkId_++;
+    sinks_.emplace_back(id, std::move(sink));
+    return id;
+}
+
+void Log::removeSink(u32 sinkId) {
+    std::lock_guard<std::mutex> lock(sinkMutex_);
+    sinks_.erase(
+        std::remove_if(sinks_.begin(), sinks_.end(),
+                       [sinkId](const auto& pair) { return pair.first == sinkId; }),
+        sinks_.end());
+}
+
+void Log::notifySinks(LogLevel level, const std::string& message) {
+    std::lock_guard<std::mutex> lock(sinkMutex_);
+
+    auto now = std::chrono::system_clock::now();
+    auto duration = now.time_since_epoch();
+    auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
+
+    LogEntry entry{level, message, static_cast<u64>(millis)};
+
+    for (const auto& [id, sink] : sinks_) {
+        sink(entry);
     }
 }
 

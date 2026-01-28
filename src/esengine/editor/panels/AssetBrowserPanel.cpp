@@ -259,6 +259,7 @@ void AssetBrowserPanel::refreshAssetList() {
 
     currentAssets_.clear();
     assetGridPanel_->clearChildren();
+    itemConnections_.disconnectAll();
 
     if (!FileSystem::directoryExists(currentPath_)) {
         ES_LOG_WARN("AssetBrowserPanel::refreshAssetList: directory not found: {}", currentPath_);
@@ -310,13 +311,13 @@ void AssetBrowserPanel::refreshAssetList() {
             entry
         );
 
-        (void)sink(item->onClick).connect([this](const std::string& path) {
+        itemConnections_.add(sink(item->onClick).connect([this](const std::string& path) {
             onAssetItemClicked(path);
-        });
+        }));
 
-        (void)sink(item->onDoubleClick).connect([this](const std::string& path) {
+        itemConnections_.add(sink(item->onDoubleClick).connect([this](const std::string& path) {
             onAssetItemDoubleClicked(path);
-        });
+        }));
 
         assetGridPanel_->addChild(std::move(item));
     }

@@ -30,6 +30,7 @@
 #include "panels/AssetBrowserPanel.hpp"
 #include "panels/ProjectLauncherPanel.hpp"
 #include "panels/NewProjectDialog.hpp"
+#include "panels/OutputLogPanel.hpp"
 #include "widgets/EditorRootContainer.hpp"
 #include "../platform/FileDialog.hpp"
 
@@ -379,6 +380,10 @@ void EditorApplication::setupEditorLayout() {
     assetBrowserPanel->setMinSize(glm::vec2(300.0f, 200.0f));
 
     editorRoot_->setAssetsDrawerContent(std::move(assetBrowserPanel));
+
+    ES_LOG_INFO("setupEditorLayout: Creating OutputLogPanel for drawer...");
+    auto outputLogPanel = makeUnique<OutputLogPanel>(ui::WidgetId("editor.output_log"));
+    editorRoot_->setOutputDrawerContent(std::move(outputLogPanel));
 
     (void)sink(editorRoot_->getAssetsDrawer()->onDockRequested).connect([this]() {
         dockAssetBrowser();
