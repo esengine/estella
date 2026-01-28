@@ -141,6 +141,12 @@ void EditorApplication::onInit() {
 }
 
 void EditorApplication::onUpdate(f32 deltaTime) {
+    if (pendingShowEditor_) {
+        pendingShowEditor_ = false;
+        showEditor();
+        return;
+    }
+
     frameTime_ += deltaTime;
     frameCount_++;
 
@@ -463,7 +469,7 @@ void EditorApplication::setupLauncherLayout() {
         sink(launcherPanel_->onProjectOpened).connect([this](const std::string& path) {
             auto result = projectManager_->openProject(path);
             if (result.isOk()) {
-                showEditor();
+                pendingShowEditor_ = true;
             } else {
                 ES_LOG_ERROR("Failed to open project: {}", result.error());
             }
@@ -480,7 +486,7 @@ void EditorApplication::setupLauncherLayout() {
             ES_LOG_INFO("Creating project '{}' at {}", name, path);
             auto result = projectManager_->createProject(path, name);
             if (result.isOk()) {
-                showEditor();
+                pendingShowEditor_ = true;
             } else {
                 ES_LOG_ERROR("Failed to create project: {}", result.error());
             }

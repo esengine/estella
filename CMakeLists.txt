@@ -38,6 +38,7 @@ set(ESENGINE_SOURCES
     src/esengine/core/Application.cpp
     src/esengine/core/Engine.cpp
     src/esengine/core/Log.cpp
+    src/esengine/core/CrashHandler.cpp
     src/esengine/resource/ResourceManager.cpp
     src/esengine/renderer/RenderContext.cpp
     src/esengine/renderer/Renderer.cpp
@@ -86,6 +87,7 @@ set(ESENGINE_HEADERS
     src/esengine/core/Application.hpp
     src/esengine/core/Engine.hpp
     src/esengine/core/Log.hpp
+    src/esengine/core/CrashHandler.hpp
     src/esengine/ecs/Entity.hpp
     src/esengine/ecs/Component.hpp
     src/esengine/ecs/System.hpp
@@ -303,6 +305,11 @@ else()
     target_include_directories(esengine PUBLIC
         ${CMAKE_SOURCE_DIR}/third_party/glad/include
     )
+    # Windows-specific libraries
+    if(WIN32)
+        target_compile_definitions(esengine PUBLIC ES_PLATFORM_WINDOWS)
+        target_link_libraries(esengine PUBLIC dbghelp)
+    endif()
 endif()
 
 # Strict compiler warnings

@@ -180,8 +180,8 @@ void NewProjectDialog::onCreateClicked() {
     std::string fullPath = basePath + "/" + name;
     ES_LOG_INFO("Creating project '{}' at {}", name, fullPath);
 
+    showing_ = false;
     onProjectCreate.publish(name, fullPath);
-    hide();
 }
 
 void NewProjectDialog::onCancelClicked() {

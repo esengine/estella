@@ -11,12 +11,16 @@
 
 #include "EditorApplication.hpp"
 #include "../core/Log.hpp"
+#include "../core/CrashHandler.hpp"
 
 /**
  * @brief Editor application entry point
  * @return Exit code (0 on success)
  */
 int main() {
+    esengine::CrashHandler::init();
+    esengine::CrashHandler::setAppName("ESEngine Editor");
+
     esengine::Log::init();
 
     ES_LOG_INFO("Starting ESEngine Editor...");
@@ -25,5 +29,7 @@ int main() {
     editor.run();
 
     ES_LOG_INFO("ESEngine Editor exited");
+
+    esengine::CrashHandler::shutdown();
     return 0;
 }

@@ -282,6 +282,7 @@ private:
     f32 fps_ = 0.0f;                                    ///< Frames per second
     bool ctrlPressed_ = false;                          ///< Ctrl key state
     bool shiftPressed_ = false;                         ///< Shift key state
+    bool pendingShowEditor_ = false;                    ///< Deferred mode switch flag
 
     // =========================================================================
     // Event Connections
