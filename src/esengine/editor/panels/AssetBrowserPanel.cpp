@@ -182,6 +182,13 @@ void AssetBrowserPanel::buildUI() {
     statusBar->setBackgroundColor(panelBg);
     statusBar->setBorderColor(borderColor);
     statusBar->setBorderWidth(ui::BorderWidth(1.0f, 0.0f, 0.0f, 0.0f));
+
+    auto statusLabel = makeUnique<ui::Label>(ui::WidgetId(getId().path + "_status_label"), "0 items");
+    statusLabel->setFontSize(11.0f);
+    statusLabel->setColor({0.6f, 0.6f, 0.6f, 1.0f});
+    statusLabel_ = statusLabel.get();
+    statusBar->addChild(std::move(statusLabel));
+
     rightPanel->addChild(std::move(statusBar));
 
     rightPanel_ = rightPanel.get();
@@ -323,6 +330,12 @@ void AssetBrowserPanel::refreshAssetList() {
     }
 
     ES_LOG_INFO("AssetBrowserPanel::refreshAssetList: added {} items to grid", currentAssets_.size());
+
+    if (statusLabel_) {
+        usize count = currentAssets_.size();
+        std::string text = std::to_string(count) + (count == 1 ? " item" : " items");
+        statusLabel_->setText(text);
+    }
 }
 
 // =============================================================================

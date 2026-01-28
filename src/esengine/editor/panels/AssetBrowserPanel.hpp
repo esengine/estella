@@ -21,6 +21,7 @@
 #include "../../ui/widgets/ScrollView.hpp"
 #include "../../ui/widgets/TextField.hpp"
 #include "../../ui/widgets/Panel.hpp"
+#include "../../ui/widgets/Label.hpp"
 #include "../../events/Connection.hpp"
 #include "AssetBrowserTypes.hpp"
 
@@ -83,6 +84,7 @@ private:
     ui::TextField* searchField_ = nullptr;
     ui::ScrollView* assetScrollView_ = nullptr;
     ui::Panel* assetGridPanel_ = nullptr;
+    ui::Label* statusLabel_ = nullptr;
 
     std::vector<AssetEntry> currentAssets_;
     std::unordered_map<ui::TreeNodeId, std::string> nodeToPath_;

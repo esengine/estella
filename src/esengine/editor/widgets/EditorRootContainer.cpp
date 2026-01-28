@@ -233,4 +233,34 @@ void EditorRootContainer::render(ui::UIBatchRenderer& renderer) {
     statusBar_->renderTree(renderer);
 }
 
+ui::Widget* EditorRootContainer::hitTest(f32 x, f32 y) {
+    if (!containsPoint(x, y)) {
+        return nullptr;
+    }
+
+    if (auto* hit = statusBar_->hitTest(x, y)) {
+        return hit;
+    }
+
+    if (outputDrawer_->isOpen()) {
+        if (auto* hit = outputDrawer_->hitTest(x, y)) {
+            return hit;
+        }
+    }
+
+    if (assetsDrawer_->isOpen()) {
+        if (auto* hit = assetsDrawer_->hitTest(x, y)) {
+            return hit;
+        }
+    }
+
+    if (mainContent_) {
+        if (auto* hit = mainContent_->hitTest(x, y)) {
+            return hit;
+        }
+    }
+
+    return this;
+}
+
 }  // namespace esengine::editor

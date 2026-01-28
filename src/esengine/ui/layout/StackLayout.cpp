@@ -73,43 +73,77 @@ void StackLayout::layout(Widget& container, const Rect& bounds) {
     if (children.empty()) return;
 
     bool isVertical = (direction_ == StackDirection::Vertical);
+    f32 mainAvailable = isVertical ? bounds.height : bounds.width;
 
     std::vector<Widget*> visibleChildren;
-    std::vector<glm::vec2> childSizes;
+    std::vector<f32> flexWeights;
+    f32 totalFixedSize = 0.0f;
+    f32 totalFlexWeight = 0.0f;
 
-    f32 usedMainSize = 0.0f;
     for (const auto& child : children) {
-        if (child->isVisible()) {
-            visibleChildren.push_back(child.get());
+        if (!child->isVisible()) continue;
 
-            f32 childAvailW = isVertical ? bounds.width : (bounds.width - usedMainSize);
-            f32 childAvailH = isVertical ? (bounds.height - usedMainSize) : bounds.height;
-            auto size = child->measure(childAvailW, childAvailH);
-            childSizes.push_back(size);
+        visibleChildren.push_back(child.get());
 
-            const auto& margin = child->getMargin();
-            f32 childMainSize = isVertical ? (size.y + margin.totalVertical())
-                                           : (size.x + margin.totalHorizontal());
-            usedMainSize += childMainSize + spacing_;
+        const SizeValue& mainSizeValue = isVertical ? child->getHeight()
+                                                     : child->getWidth();
+        const auto& margin = child->getMargin();
+        f32 marginMain = isVertical ? margin.totalVertical() : margin.totalHorizontal();
+
+        if (mainSizeValue.isFlex()) {
+            flexWeights.push_back(mainSizeValue.value);
+            totalFlexWeight += mainSizeValue.value;
+            totalFixedSize += marginMain;
+        } else {
+            flexWeights.push_back(0.0f);
+
+            f32 childAvailW = isVertical ? bounds.width : mainAvailable;
+            f32 childAvailH = isVertical ? mainAvailable : bounds.height;
+            auto childSize = child->measure(childAvailW, childAvailH);
+
+            f32 childMainSize = isVertical ? childSize.y : childSize.x;
+            totalFixedSize += childMainSize + marginMain;
         }
     }
 
     if (visibleChildren.empty()) return;
 
+    f32 totalSpacing = spacing_ * static_cast<f32>(visibleChildren.size() - 1);
+    f32 flexSpace = mainAvailable - totalFixedSize - totalSpacing;
+    if (flexSpace < 0.0f) flexSpace = 0.0f;
+
+    std::vector<f32> childMainSizes;
+    for (usize i = 0; i < visibleChildren.size(); ++i) {
+        Widget* child = visibleChildren[i];
+
+        if (flexWeights[i] > 0.0f && totalFlexWeight > 0.0f) {
+            f32 flexPortion = (flexWeights[i] / totalFlexWeight) * flexSpace;
+            childMainSizes.push_back(flexPortion);
+        } else {
+            f32 childAvailW = isVertical ? bounds.width : mainAvailable;
+            f32 childAvailH = isVertical ? mainAvailable : bounds.height;
+            auto childSize = child->measure(childAvailW, childAvailH);
+            f32 childMainSize = isVertical ? childSize.y : childSize.x;
+            childMainSizes.push_back(childMainSize);
+        }
+    }
+
     if (reverse_) {
         std::reverse(visibleChildren.begin(), visibleChildren.end());
-        std::reverse(childSizes.begin(), childSizes.end());
+        std::reverse(childMainSizes.begin(), childMainSizes.end());
     }
 
     f32 position = isVertical ? bounds.y : bounds.x;
 
     for (usize i = 0; i < visibleChildren.size(); ++i) {
         Widget* child = visibleChildren[i];
-        const auto& childSize = childSizes[i];
+        f32 childMainSize = childMainSizes[i];
         const auto& margin = child->getMargin();
 
-        f32 childMainSize = isVertical ? childSize.y : childSize.x;
-        f32 childCrossSize = isVertical ? childSize.x : childSize.y;
+        f32 childAvailW = isVertical ? bounds.width : childMainSize;
+        f32 childAvailH = isVertical ? childMainSize : bounds.height;
+        auto childMeasured = child->measure(childAvailW, childAvailH);
+        f32 childCrossSize = isVertical ? childMeasured.x : childMeasured.y;
 
         f32 crossStart = isVertical ? bounds.x : bounds.y;
         f32 crossAvail = isVertical ? bounds.width : bounds.height;
