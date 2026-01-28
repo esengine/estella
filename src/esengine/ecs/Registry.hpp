@@ -155,6 +155,20 @@ public:
         return count;
     }
 
+    /**
+     * @brief Executes a function for each valid entity
+     * @tparam Func The callback type
+     * @param func Callback receiving Entity
+     */
+    template<typename Func>
+    void forEachEntity(Func&& func) const {
+        for (Entity e = 0; e < entityValid_.size(); ++e) {
+            if (entityValid_[e]) {
+                func(e);
+            }
+        }
+    }
+
     // =========================================================================
     // Component Management
     // =========================================================================

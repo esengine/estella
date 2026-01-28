@@ -175,6 +175,8 @@ void EditorApplication::onRender() {
 void EditorApplication::onShutdown() {
     ES_LOG_INFO("ESEngine Editor shutting down");
 
+    eventConnections_.disconnectAll();
+
     if (uiContext_) {
         uiContext_->shutdown();
         uiContext_.reset();
@@ -523,7 +525,9 @@ void EditorApplication::showEditor() {
 
     ES_LOG_INFO("Switching to editor mode");
 
+    eventConnections_.disconnectAll();
     launcherPanel_ = nullptr;
+    newProjectDialog_ = nullptr;
 
     mode_ = EditorMode::Editor;
 

@@ -15,6 +15,7 @@
 #include "../../math/Math.hpp"
 #include "../../events/Sink.hpp"
 #include "../../core/Log.hpp"
+#include "../../ui/layout/StackLayout.hpp"
 
 namespace esengine::editor {
 
@@ -35,14 +36,23 @@ InspectorPanel::InspectorPanel(ecs::Registry& registry,
     addChild(std::move(scrollView));
 
     auto content = makeUnique<ui::Panel>(ui::WidgetId(getId().path + "_content"));
+    content->setLayout(makeUnique<ui::StackLayout>(ui::StackDirection::Vertical, 8.0f));
+    content->setPadding(ui::Insets::all(8.0f));
     contentPanel_ = content.get();
     scrollView_->setContent(std::move(content));
 
-    selection_.addListener([this](const std::vector<Entity>&, const std::vector<Entity>&) {
-        refresh();
-    });
+    selectionListenerId_ = selection_.addListener(
+        [this](const std::vector<Entity>&, const std::vector<Entity>&) {
+            refresh();
+        });
 
     refresh();
+}
+
+InspectorPanel::~InspectorPanel() {
+    if (selectionListenerId_ != 0) {
+        selection_.removeListener(selectionListenerId_);
+    }
 }
 
 // =============================================================================

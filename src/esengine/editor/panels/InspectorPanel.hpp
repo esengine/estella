@@ -56,7 +56,7 @@ public:
                   EntitySelection& selection,
                   CommandHistory& history);
 
-    ~InspectorPanel() override = default;
+    ~InspectorPanel() override;
 
     /**
      * @brief Refreshes inspector to show selected entity's components
@@ -86,6 +86,7 @@ private:
     ui::Panel* contentPanel_ = nullptr;
 
     Entity currentEntity_ = INVALID_ENTITY;
+    u32 selectionListenerId_ = 0;
 };
 
 }  // namespace esengine::editor

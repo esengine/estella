@@ -114,11 +114,14 @@ void HierarchyPanel::rebuildTree() {
 
     // Collect all entities
     std::vector<Entity> allEntities;
-    registry_.each([&allEntities](Entity entity) {
+    registry_.forEachEntity([&allEntities](Entity entity) {
         allEntities.push_back(entity);
     });
 
+    ES_LOG_DEBUG("HierarchyPanel::rebuildTree: Found {} entities", allEntities.size());
+
     // Build tree starting from root entities (entities without Parent component)
+    usize rootCount = 0;
     for (Entity entity : allEntities) {
         // Skip if entity has a parent (will be added as child)
         if (registry_.has<ecs::Parent>(entity)) {
@@ -127,7 +130,9 @@ void HierarchyPanel::rebuildTree() {
 
         // Add as root node
         addEntityToTree(entity, ui::INVALID_TREE_NODE);
+        rootCount++;
     }
+    ES_LOG_DEBUG("HierarchyPanel::rebuildTree: Added {} root nodes", rootCount);
 
     // Sync with current selection
     if (!selection_.empty()) {
