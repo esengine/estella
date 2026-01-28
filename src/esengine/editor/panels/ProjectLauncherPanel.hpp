@@ -77,8 +77,11 @@ private:
     ProjectManager& project_manager_;
     Dispatcher& dispatcher_;
 
+    ui::Panel* leftPanel_ = nullptr;
+    ui::Panel* rightPanel_ = nullptr;
     ui::Label* titleLabel_ = nullptr;
     ui::Label* subtitleLabel_ = nullptr;
+    ui::Label* versionLabel_ = nullptr;
     ui::Button* newProjectButton_ = nullptr;
     ui::Button* openProjectButton_ = nullptr;
     ui::Label* recentLabel_ = nullptr;
