@@ -528,6 +528,32 @@ void InspectorPanel::addCameraEditor(Entity entity) {
     content->setHeight(ui::SizeValue::autoSize());
     content->setPadding(ui::Insets(8.0f, 12.0f, 8.0f, 12.0f));
 
+    auto projTypeEditor = makeUnique<EnumEditor>(
+        ui::WidgetId(content->getId().path + "_projType"),
+        "projectionType");
+    projTypeEditor->setLabel("Projection");
+    projTypeEditor->addOption(EnumOption::create(
+        static_cast<i32>(ecs::ProjectionType::Perspective), "Perspective"));
+    projTypeEditor->addOption(EnumOption::create(
+        static_cast<i32>(ecs::ProjectionType::Orthographic), "Orthographic"));
+    projTypeEditor->setValue(static_cast<i32>(camera.projectionType));
+    projTypeEditor->setCommandHistory(&history_);
+
+    editorConnections_.add(sink(projTypeEditor->onValueChanged).connect(
+        [this, entity](const std::any& value) {
+            if (registry_.valid(entity) && registry_.has<ecs::Camera>(entity)) {
+                auto& c = registry_.get<ecs::Camera>(entity);
+                try {
+                    c.projectionType = static_cast<ecs::ProjectionType>(std::any_cast<i32>(value));
+                } catch (const std::bad_any_cast&) {
+                    ES_LOG_ERROR("Failed to cast projectionType value");
+                }
+            }
+        }
+    ));
+
+    content->addChild(std::move(projTypeEditor));
+
     auto fovEditor = makeUnique<FloatEditor>(
         ui::WidgetId(content->getId().path + "_fov"),
         "fov");

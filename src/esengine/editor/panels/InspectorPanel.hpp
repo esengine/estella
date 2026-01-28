@@ -31,6 +31,7 @@
 #include "../property/editors/IntEditor.hpp"
 #include "../property/editors/StringEditor.hpp"
 #include "../property/editors/ColorEditor.hpp"
+#include "../property/editors/EnumEditor.hpp"
 #include "../../events/Connection.hpp"
 
 #include <unordered_set>
