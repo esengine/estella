@@ -19,12 +19,15 @@
 #include "../../ui/widgets/ScrollView.hpp"
 #include "../../ui/widgets/Label.hpp"
 #include "../../ui/widgets/Panel.hpp"
+#include "../../ui/widgets/TextField.hpp"
 #include "../../ecs/Registry.hpp"
 #include "../../ecs/Entity.hpp"
 #include "../core/Selection.hpp"
 #include "../command/CommandHistory.hpp"
 #include "../property/editors/Vector3Editor.hpp"
 #include "../../events/Connection.hpp"
+
+#include <unordered_set>
 
 namespace esengine::editor {
 
@@ -71,8 +74,12 @@ public:
     void render(ui::UIBatchRenderer& renderer) override;
 
 private:
+    void buildUI();
     void rebuildInspector();
     void clearInspector();
+
+    ui::Panel* createComponentSection(const std::string& name, const std::string& icon);
+    void toggleSection(const std::string& name);
 
     // Component editors
     void addLocalTransformEditor(Entity entity);
@@ -82,11 +89,18 @@ private:
     EntitySelection& selection_;
     CommandHistory& history_;
 
+    ui::Panel* rootPanel_ = nullptr;
+    ui::Panel* headerPanel_ = nullptr;
+    ui::Label* entityNameLabel_ = nullptr;
     ui::ScrollView* scrollView_ = nullptr;
     ui::Panel* contentPanel_ = nullptr;
 
+    std::unordered_set<std::string> collapsedSections_;
+
     Entity currentEntity_ = INVALID_ENTITY;
     u32 selectionListenerId_ = 0;
+
+    ConnectionHolder editorConnections_;
 };
 
 }  // namespace esengine::editor

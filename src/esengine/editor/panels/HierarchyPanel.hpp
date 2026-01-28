@@ -18,6 +18,9 @@
 
 #include "../../ui/docking/DockPanel.hpp"
 #include "../../ui/widgets/TreeView.hpp"
+#include "../../ui/widgets/ScrollView.hpp"
+#include "../../ui/widgets/Panel.hpp"
+#include "../../ui/widgets/TextField.hpp"
 #include "../../ecs/Registry.hpp"
 #include "../core/Selection.hpp"
 #include "../../events/Connection.hpp"
@@ -148,6 +151,9 @@ private:
      */
     ui::TreeNodeId getNodeForEntity(Entity entity) const;
 
+    void buildUI();
+    void onSearchTextChanged(const std::string& text);
+
     // =========================================================================
     // Member Variables
     // =========================================================================
@@ -155,11 +161,17 @@ private:
     ecs::Registry& registry_;
     EntitySelection& selection_;
 
+    ui::Panel* rootPanel_ = nullptr;
+    ui::Panel* toolbar_ = nullptr;
+    ui::TextField* searchField_ = nullptr;
+    ui::ScrollView* scrollView_ = nullptr;
     ui::TreeView* treeView_ = nullptr;
 
     // Bidirectional mapping between entities and tree nodes
     std::unordered_map<ui::TreeNodeId, Entity> nodeToEntity_;
     std::unordered_map<Entity, ui::TreeNodeId> entityToNode_;
+
+    std::string searchFilter_;
 
     // Settings
     bool showOrphans_ = true;
@@ -169,6 +181,7 @@ private:
     Connection selectionChangedConnection_;
     Connection nodeSelectedConnection_;
     Connection nodeDoubleClickedConnection_;
+    Connection searchChangedConnection_;
 };
 
 }  // namespace esengine::editor

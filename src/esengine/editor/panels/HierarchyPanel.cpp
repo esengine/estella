@@ -14,7 +14,10 @@
 #include "../../ecs/components/Hierarchy.hpp"
 #include "../../core/Log.hpp"
 #include "../../events/Sink.hpp"
+#include "../../ui/layout/StackLayout.hpp"
 
+#include <algorithm>
+#include <cctype>
 #include <sstream>
 
 namespace esengine::editor {
@@ -32,14 +35,7 @@ HierarchyPanel::HierarchyPanel(ecs::Registry& registry, EntitySelection& selecti
     setClosable(false);
     setMinSize(glm::vec2(200.0f, 200.0f));
 
-    // Create tree view
-    auto treeView = makeUnique<ui::TreeView>(ui::WidgetId("hierarchy_tree"));
-    treeView->setMultiSelect(false);
-    treeView->setRowHeight(22.0f);
-    treeView->setIndentSize(16.0f);
-
-    treeView_ = treeView.get();
-    setContent(std::move(treeView));
+    buildUI();
 
     // Connect tree view signals using sink helper
     nodeSelectedConnection_ = sink(treeView_->onNodeSelected).connect(
@@ -48,6 +44,10 @@ HierarchyPanel::HierarchyPanel(ecs::Registry& registry, EntitySelection& selecti
 
     nodeDoubleClickedConnection_ = sink(treeView_->onNodeDoubleClicked).connect(
         [this](ui::TreeNodeId nodeId) { onNodeDoubleClicked(nodeId); }
+    );
+
+    searchChangedConnection_ = sink(searchField_->onTextChanged).connect(
+        [this](const std::string& text) { onSearchTextChanged(text); }
     );
 
     // Connect selection change events
@@ -66,6 +66,66 @@ HierarchyPanel::HierarchyPanel(ecs::Registry& registry, EntitySelection& selecti
 
 HierarchyPanel::~HierarchyPanel() {
     // Connections are automatically cleaned up by Connection RAII
+}
+
+// =============================================================================
+// UI Building
+// =============================================================================
+
+void HierarchyPanel::buildUI() {
+    constexpr glm::vec4 panelBg{0.145f, 0.145f, 0.149f, 1.0f};          // #252526
+    constexpr glm::vec4 toolbarBg{0.176f, 0.176f, 0.188f, 1.0f};        // #2d2d30
+    constexpr glm::vec4 mainBg{0.118f, 0.118f, 0.118f, 1.0f};           // #1e1e1e
+    constexpr glm::vec4 borderColor{0.235f, 0.235f, 0.235f, 1.0f};      // #3c3c3c
+
+    auto rootPanel = makeUnique<ui::Panel>(ui::WidgetId(getId().path + "_root"));
+    rootPanel->setLayout(makeUnique<ui::StackLayout>(ui::StackDirection::Vertical, 0.0f));
+    rootPanel->setDrawBackground(true);
+    rootPanel->setBackgroundColor(mainBg);
+
+    auto toolbar = makeUnique<ui::Panel>(ui::WidgetId(getId().path + "_toolbar"));
+    toolbar->setHeight(ui::SizeValue::px(38.0f));
+    toolbar->setWidth(ui::SizeValue::flex(1.0f));
+    toolbar->setPadding(ui::Insets(6.0f, 12.0f, 6.0f, 12.0f));
+    toolbar->setDrawBackground(true);
+    toolbar->setBackgroundColor(toolbarBg);
+    toolbar->setBorderColor(borderColor);
+    toolbar->setBorderWidth(ui::BorderWidth(0.0f, 0.0f, 1.0f, 0.0f));
+
+    auto searchField = makeUnique<ui::TextField>(ui::WidgetId(getId().path + "_search"));
+    searchField->setPlaceholder("Search...");
+    searchField->setWidth(ui::SizeValue::flex(1.0f));
+    searchField->setHeight(ui::SizeValue::px(26.0f));
+    searchField_ = searchField.get();
+    toolbar->addChild(std::move(searchField));
+
+    toolbar_ = toolbar.get();
+    rootPanel->addChild(std::move(toolbar));
+
+    auto scrollView = makeUnique<ui::ScrollView>(ui::WidgetId(getId().path + "_scroll"));
+    scrollView->setScrollDirection(ui::ScrollDirection::Vertical);
+    scrollView->setWidth(ui::SizeValue::flex(1.0f));
+    scrollView->setHeight(ui::SizeValue::flex(1.0f));
+
+    auto treeView = makeUnique<ui::TreeView>(ui::WidgetId(getId().path + "_tree"));
+    treeView->setMultiSelect(false);
+    treeView->setRowHeight(22.0f);
+    treeView->setIndentSize(16.0f);
+    treeView->setWidth(ui::SizeValue::flex(1.0f));
+    treeView->setHeight(ui::SizeValue::autoSize());
+    treeView_ = treeView.get();
+
+    scrollView->setContent(std::move(treeView));
+    scrollView_ = scrollView.get();
+    rootPanel->addChild(std::move(scrollView));
+
+    rootPanel_ = rootPanel.get();
+    setContent(std::move(rootPanel));
+}
+
+void HierarchyPanel::onSearchTextChanged(const std::string& text) {
+    searchFilter_ = text;
+    rebuildTree();
 }
 
 // =============================================================================
@@ -120,12 +180,30 @@ void HierarchyPanel::rebuildTree() {
 
     ES_LOG_DEBUG("HierarchyPanel::rebuildTree: Found {} entities", allEntities.size());
 
+    // Convert search filter to lowercase for case-insensitive search
+    std::string lowerFilter = searchFilter_;
+    std::transform(lowerFilter.begin(), lowerFilter.end(), lowerFilter.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+
     // Build tree starting from root entities (entities without Parent component)
     usize rootCount = 0;
     for (Entity entity : allEntities) {
         // Skip if entity has a parent (will be added as child)
         if (registry_.has<ecs::Parent>(entity)) {
             continue;
+        }
+
+        // If we have a search filter, check if entity or any descendant matches
+        if (!searchFilter_.empty()) {
+            bool matches = false;
+            std::string displayName = getEntityDisplayName(entity);
+            std::string lowerName = displayName;
+            std::transform(lowerName.begin(), lowerName.end(), lowerName.begin(),
+                           [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+            if (lowerName.find(lowerFilter) != std::string::npos) {
+                matches = true;
+            }
+            if (!matches) continue;
         }
 
         // Add as root node
