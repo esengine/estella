@@ -215,20 +215,21 @@ void EditorApplication::onShutdown() {
 void EditorApplication::onKey(KeyCode key, bool pressed) {
     if (key == KeyCode::LeftControl || key == KeyCode::RightControl) {
         ctrlPressed_ = pressed;
-        return;
     }
 
     if (key == KeyCode::LeftShift || key == KeyCode::RightShift) {
         shiftPressed_ = pressed;
-        return;
     }
 
-    // Pass key events to UI system
+    if (key == KeyCode::LeftAlt || key == KeyCode::RightAlt) {
+        altPressed_ = pressed;
+    }
+
     if (uiContext_) {
         if (pressed) {
-            uiContext_->processKeyDown(key, ctrlPressed_, shiftPressed_, false);
+            uiContext_->processKeyDown(key, ctrlPressed_, shiftPressed_, altPressed_);
         } else {
-            uiContext_->processKeyUp(key, ctrlPressed_, shiftPressed_, false);
+            uiContext_->processKeyUp(key, ctrlPressed_, shiftPressed_, altPressed_);
         }
     }
 
