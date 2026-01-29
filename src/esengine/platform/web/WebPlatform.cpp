@@ -156,6 +156,10 @@ public:
         mouseMoveCallback_ = std::move(callback);
     }
 
+    void setMouseButtonCallback(MouseButtonCallback callback) override {
+        mouseButtonCallback_ = std::move(callback);
+    }
+
     // Static instance for callbacks
     static WebPlatform* instance_;
 
@@ -292,6 +296,7 @@ private:
     ScrollCallback scrollCallback_;
     TextInputCallback textInputCallback_;
     MouseMoveCallback mouseMoveCallback_;
+    MouseButtonCallback mouseButtonCallback_;
 };
 
 WebPlatform* WebPlatform::instance_ = nullptr;
