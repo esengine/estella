@@ -83,7 +83,7 @@ ShaderHandle ResourceManager::loadShader(const std::string& vertPath, const std:
     return shaders_.add(std::move(shader), cacheKey);
 }
 
-ShaderHandle ResourceManager::loadUnifiedShader(const std::string& path, const std::string& platform) {
+ShaderHandle ResourceManager::loadShaderFile(const std::string& path, const std::string& platform) {
     auto cached = shaders_.findByPath(path);
     if (cached.isValid()) {
         shaders_.addRef(cached);

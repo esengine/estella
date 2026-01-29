@@ -115,6 +115,9 @@ add_executable(esengine_editor ${EDITOR_SOURCES} ${EDITOR_HEADERS})
 # Link against the engine library
 target_link_libraries(esengine_editor PRIVATE esengine)
 
+# Define ES_EDITOR macro for editor-specific code
+target_compile_definitions(esengine_editor PRIVATE ES_EDITOR)
+
 # Include directories
 target_include_directories(esengine_editor PRIVATE
     ${CMAKE_SOURCE_DIR}/src

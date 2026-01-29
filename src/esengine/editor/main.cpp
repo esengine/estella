@@ -11,9 +11,13 @@
 
 #include "EditorApplication.hpp"
 #include "../core/Log.hpp"
+#include "../core/RuntimeConfig.hpp"
 
 int main() {
     esengine::Log::init();
+
+    esengine::RuntimeConfig::get().setEditorMode(true);
+    esengine::RuntimeConfig::get().setHotReloadEnabled(true);
 
     ES_LOG_INFO("Starting ESEngine Editor...");
 
