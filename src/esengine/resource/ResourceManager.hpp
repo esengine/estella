@@ -127,11 +127,19 @@ public:
 
     /**
      * @brief Loads a shader from .esshader file (with caching)
-     * @param path Path to the .esshader file
+     * @param path Path to the .esshader file (relative to project)
      * @param platform Platform variant (empty for auto-detect)
      * @return Handle to the shader, or invalid handle on failure
      */
     ShaderHandle loadShaderFile(const std::string& path, const std::string& platform = "");
+
+    /**
+     * @brief Loads an engine shader from data/shaders/ (with caching)
+     * @param name Shader name without path or extension (e.g., "grid", "ui")
+     * @param platform Platform variant (empty for auto-detect)
+     * @return Handle to the shader, or invalid handle on failure
+     */
+    ShaderHandle loadEngineShader(const std::string& name, const std::string& platform = "");
 
     /**
      * @brief Gets a shader by handle

@@ -12,6 +12,7 @@
 #include "ResourceManager.hpp"
 #include "loaders/ShaderLoader.hpp"
 #include "../core/Log.hpp"
+#include "../platform/PathResolver.hpp"
 #include "../renderer/Shader.hpp"
 #include "../renderer/Texture.hpp"
 #include "../renderer/Buffer.hpp"
@@ -100,6 +101,29 @@ ShaderHandle ResourceManager::loadShaderFile(const std::string& path, const std:
 
     stats_.cacheMisses++;
     return shaders_.add(std::move(result.resource), path);
+}
+
+ShaderHandle ResourceManager::loadEngineShader(const std::string& name, const std::string& platform) {
+    std::string cacheKey = "engine:" + name;
+    auto cached = shaders_.findByPath(cacheKey);
+    if (cached.isValid()) {
+        shaders_.addRef(cached);
+        stats_.cacheHits++;
+        return cached;
+    }
+
+    std::string path = PathResolver::editorPath("data/shaders/" + name + ".esshader");
+
+    ShaderLoader loader;
+    auto result = loader.loadFromFile(path, platform);
+    if (!result.isOk()) {
+        ES_LOG_ERROR("Failed to load engine shader '{}': {}", name, result.errorMessage);
+        stats_.cacheMisses++;
+        return ShaderHandle();
+    }
+
+    stats_.cacheMisses++;
+    return shaders_.add(std::move(result.resource), cacheKey);
 }
 
 Shader* ResourceManager::getShader(ShaderHandle handle) {
