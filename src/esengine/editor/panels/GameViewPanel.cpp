@@ -16,6 +16,7 @@
 #include "../../ui/UIContext.hpp"
 #include "../../ecs/components/Transform.hpp"
 #include "../../ecs/components/Camera.hpp"
+#include "../../ecs/components/Canvas.hpp"
 #include "../../ecs/components/Sprite.hpp"
 #include "../../math/Math.hpp"
 
@@ -101,7 +102,14 @@ void GameViewPanel::renderGameToTexture() {
     framebuffer_->bind();
 
     RenderCommand::setViewport(0, 0, viewportWidth_, viewportHeight_);
-    RenderCommand::setClearColor(glm::vec4(0.1f, 0.1f, 0.1f, 1.0f));
+
+    Entity canvasEntity = findCanvas();
+    ecs::Canvas* canvas = canvasEntity != INVALID_ENTITY
+        ? registry_.tryGet<ecs::Canvas>(canvasEntity)
+        : nullptr;
+
+    glm::vec4 clearColor = canvas ? canvas->backgroundColor : glm::vec4(0.1f, 0.1f, 0.1f, 1.0f);
+    RenderCommand::setClearColor(clearColor);
     RenderCommand::clear();
 
     Entity cameraEntity = findActiveCamera();
@@ -115,12 +123,11 @@ void GameViewPanel::renderGameToTexture() {
                 glm::mat4_cast(transform->rotation)
             );
 
-            f32 aspectRatio = camera->aspectRatio > 0.0f
-                ? camera->aspectRatio
-                : static_cast<f32>(viewportWidth_) / static_cast<f32>(viewportHeight_);
+            f32 viewportAspect = static_cast<f32>(viewportWidth_) / static_cast<f32>(viewportHeight_);
 
             glm::mat4 proj;
             if (camera->projectionType == ecs::ProjectionType::Perspective) {
+                f32 aspectRatio = camera->aspectRatio > 0.0f ? camera->aspectRatio : viewportAspect;
                 proj = glm::perspective(
                     glm::radians(camera->fov),
                     aspectRatio,
@@ -129,7 +136,45 @@ void GameViewPanel::renderGameToTexture() {
                 );
             } else {
                 f32 orthoHeight = camera->orthoSize;
-                f32 orthoWidth = orthoHeight * aspectRatio;
+                f32 orthoWidth = orthoHeight * viewportAspect;
+
+                if (canvas) {
+                    orthoHeight = canvas->getOrthoSize();
+                    f32 designAspect = canvas->getDesignAspectRatio();
+
+                    switch (canvas->scaleMode) {
+                        case ecs::CanvasScaleMode::FixedHeight:
+                            orthoWidth = orthoHeight * viewportAspect;
+                            break;
+                        case ecs::CanvasScaleMode::FixedWidth:
+                            orthoWidth = canvas->getWorldSize().x * 0.5f;
+                            orthoHeight = orthoWidth / viewportAspect;
+                            break;
+                        case ecs::CanvasScaleMode::Expand:
+                            if (viewportAspect > designAspect) {
+                                orthoWidth = orthoHeight * viewportAspect;
+                            } else {
+                                orthoHeight = orthoWidth / viewportAspect;
+                            }
+                            break;
+                        case ecs::CanvasScaleMode::Shrink:
+                            if (viewportAspect < designAspect) {
+                                orthoWidth = orthoHeight * viewportAspect;
+                            } else {
+                                orthoHeight = orthoWidth / viewportAspect;
+                            }
+                            break;
+                        case ecs::CanvasScaleMode::Match: {
+                            f32 logWidth = glm::log2(viewportAspect / designAspect);
+                            f32 blend = canvas->matchWidthOrHeight;
+                            f32 scaleFactor = glm::pow(2.0f, logWidth * (1.0f - blend));
+                            orthoWidth = orthoHeight * designAspect * scaleFactor;
+                            orthoHeight = orthoWidth / viewportAspect;
+                            break;
+                        }
+                    }
+                }
+
                 proj = glm::ortho(
                     -orthoWidth, orthoWidth,
                     -orthoHeight, orthoHeight,
@@ -217,6 +262,14 @@ Entity GameViewPanel::findActiveCamera() {
     }
 
     return bestCamera;
+}
+
+Entity GameViewPanel::findCanvas() {
+    auto view = registry_.view<ecs::Canvas>();
+    for (auto entity : view) {
+        return entity;
+    }
+    return INVALID_ENTITY;
 }
 
 }  // namespace esengine::editor

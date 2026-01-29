@@ -46,6 +46,7 @@ private:
     void renderSceneContent(const glm::mat4& viewProj);
     void updateFramebufferSize();
     Entity findActiveCamera();
+    Entity findCanvas();
 
     ecs::Registry& registry_;
     resource::ResourceManager& resourceManager_;

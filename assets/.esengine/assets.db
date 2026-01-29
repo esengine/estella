@@ -2,6 +2,546 @@
   "version": "1.0",
   "assets": [
     {
+      "guid": "d6dbbbb3-87ce-a096-8027-f7b9d7129e6f",
+      "path": "assets\\scripts\\EnemyAI.js",
+      "name": "EnemyAI.js",
+      "type": 4,
+      "fileSize": 0,
+      "lastModified": 1769503001,
+      "isDirectory": false
+    },
+    {
+      "guid": "8283ad01-d8a2-48ae-c4e7-c1f8f0de7955",
+      "path": "F:\\microes\\assets\\scripts\\UIManager.js",
+      "name": "UIManager.js",
+      "type": 4,
+      "fileSize": 0,
+      "lastModified": 1769503001,
+      "isDirectory": false
+    },
+    {
+      "guid": "04f5ced8-9d11-fa20-d612-06f12e563341",
+      "path": "assets\\prefabs\\Coin.prefab",
+      "name": "Coin.prefab",
+      "type": 7,
+      "fileSize": 0,
+      "lastModified": 1769503001,
+      "isDirectory": false
+    },
+    {
+      "guid": "a6dd418b-dd75-0249-f26e-bb1b4cc294c8",
+      "path": "F:\\microes\\assets\\shaders\\postprocess.glsl",
+      "name": "postprocess.glsl",
+      "type": 5,
+      "fileSize": 0,
+      "lastModified": 1769503002,
+      "isDirectory": false
+    },
+    {
+      "guid": "835ed25e-a75f-3a42-0953-d9af26b1cc87",
+      "path": "F:\\microes\\assets\\test.txt",
+      "name": "test.txt",
+      "type": 0,
+      "fileSize": 5,
+      "lastModified": 1769488063,
+      "isDirectory": false
+    },
+    {
+      "guid": "83dd6048-d8fa-b62a-47d1-6f17771c459f",
+      "path": "F:\\microes\\assets\\scripts",
+      "name": "scripts",
+      "type": 1,
+      "fileSize": 0,
+      "lastModified": 1769503002,
+      "isDirectory": true
+    },
+    {
+      "guid": "c6113f63-03d0-811d-550a-8f26f331233d",
+      "path": "assets\\textures\\tileset.png",
+      "name": "tileset.png",
+      "type": 2,
+      "fileSize": 0,
+      "lastModified": 1769503002,
+      "isDirectory": false
+    },
+    {
+      "guid": "6e88b347-db2d-b526-87c6-301569094b15",
+      "path": "F:\\microes\\assets\\audio\\sfx_explosion.wav",
+      "name": "sfx_explosion.wav",
+      "type": 3,
+      "fileSize": 0,
+      "lastModified": 1769503001,
+      "isDirectory": false
+    },
+    {
+      "guid": "90db01ce-eadb-5131-35ee-a55e9f60bb4d",
+      "path": "assets\\shaders\\water.glsl",
+      "name": "water.glsl",
+      "type": 5,
+      "fileSize": 0,
+      "lastModified": 1769503001,
+      "isDirectory": false
+    },
+    {
+      "guid": "b55ead52-b974-950b-26a3-a227e2ac41e9",
+      "path": "assets\\audio\\sfx_coin.wav",
+      "name": "sfx_coin.wav",
+      "type": 3,
+      "fileSize": 0,
+      "lastModified": 1769503002,
+      "isDirectory": false
+    },
+    {
+      "guid": "f928d327-1c23-3d66-2009-d4d3daea8e31",
+      "path": "F:\\microes\\assets\\textures\\skybox.png",
+      "name": "skybox.png",
+      "type": 2,
+      "fileSize": 0,
+      "lastModified": 1769503001,
+      "isDirectory": false
+    },
+    {
+      "guid": "30c0a678-ec31-5c3c-f60c-2b982d208861",
+      "path": "F:\\microes\\assets\\textures\\background.png",
+      "name": "background.png",
+      "type": 2,
+      "fileSize": 0,
+      "lastModified": 1769503002,
+      "isDirectory": false
+    },
+    {
+      "guid": "fb6e1999-a210-5293-9dc9-f648e6e8fc1f",
+      "path": "assets\\shaders\\sprite.glsl",
+      "name": "sprite.glsl",
+      "type": 5,
+      "fileSize": 0,
+      "lastModified": 1769503002,
+      "isDirectory": false
+    },
+    {
+      "guid": "539c3218-76fb-bed8-1442-3c43ae5be464",
+      "path": "F:\\microes\\assets\\textures\\tileset.png",
+      "name": "tileset.png",
+      "type": 2,
+      "fileSize": 0,
+      "lastModified": 1769503001,
+      "isDirectory": false
+    },
+    {
+      "guid": "9db35f84-665c-e687-86b1-cc78a3934216",
+      "path": "assets\\test.txt",
+      "name": "test.txt",
+      "type": 0,
+      "fileSize": 5,
+      "lastModified": 1769488062,
+      "isDirectory": false
+    },
+    {
+      "guid": "7fe2a865-bb30-1847-62e3-d289b5616a3a",
+      "path": "F:\\microes\\assets\\scenes\\BossRoom.scene",
+      "name": "BossRoom.scene",
+      "type": 6,
+      "fileSize": 0,
+      "lastModified": 1769503001,
+      "isDirectory": false
+    },
+    {
+      "guid": "abf642da-9512-d0bd-e306-e1bce616320c",
+      "path": "F:\\microes\\assets\\scenes\\Level2.scene",
+      "name": "Level2.scene",
+      "type": 6,
+      "fileSize": 0,
+      "lastModified": 1769503002,
+      "isDirectory": false
+    },
+    {
+      "guid": "bbbdbf23-cecf-5053-0ebe-f3daf5b9e103",
+      "path": "assets\\prefabs\\Explosion.prefab",
+      "name": "Explosion.prefab",
+      "type": 7,
+      "fileSize": 0,
+      "lastModified": 1769503002,
+      "isDirectory": false
+    },
+    {
+      "guid": "ab8960b7-4b05-8029-7577-571c44b9c394",
+      "path": "F:\\microes\\assets\\fonts",
+      "name": "fonts",
+      "type": 1,
+      "fileSize": 0,
+      "lastModified": 1769653161,
+      "isDirectory": true
+    },
+    {
+      "guid": "0f5a7d56-b021-7cfe-9ffd-b6deba57b565",
+      "path": "assets\\textures\\ui_panel.png",
+      "name": "ui_panel.png",
+      "type": 2,
+      "fileSize": 0,
+      "lastModified": 1769503001,
+      "isDirectory": false
+    },
+    {
+      "guid": "0926ee8f-8eef-58fa-8d75-0ac49a8bf2b1",
+      "path": "F:\\microes\\assets\\scenes",
+      "name": "scenes",
+      "type": 1,
+      "fileSize": 0,
+      "lastModified": 1769503001,
+      "isDirectory": true
+    },
+    {
+      "guid": "ff5ba3b5-d524-f202-72ae-a40add555353",
+      "path": "assets\\scenes\\Level2.scene",
+      "name": "Level2.scene",
+      "type": 6,
+      "fileSize": 0,
+      "lastModified": 1769503002,
+      "isDirectory": false
+    },
+    {
+      "guid": "e0220f45-6261-175f-883b-ba80783788f2",
+      "path": "assets\\textures",
+      "name": "textures",
+      "type": 1,
+      "fileSize": 0,
+      "lastModified": 1769503001,
+      "isDirectory": true
+    },
+    {
+      "guid": "090ed68c-0dbe-382c-e163-5ad3bc22abad",
+      "path": "F:\\microes\\assets\\scenes\\Level1.scene",
+      "name": "Level1.scene",
+      "type": 6,
+      "fileSize": 0,
+      "lastModified": 1769503002,
+      "isDirectory": false
+    },
+    {
+      "guid": "44626f54-604d-ae12-0f2e-2087f068acbf",
+      "path": "F:\\microes\\assets\\prefabs\\Enemy.prefab",
+      "name": "Enemy.prefab",
+      "type": 7,
+      "fileSize": 0,
+      "lastModified": 1769503001,
+      "isDirectory": false
+    },
+    {
+      "guid": "986b148c-b4ea-cf89-2e04-37dc26624976",
+      "path": "F:\\microes\\assets\\textures\\particle.png",
+      "name": "particle.png",
+      "type": 2,
+      "fileSize": 0,
+      "lastModified": 1769503001,
+      "isDirectory": false
+    },
+    {
+      "guid": "234c30b6-359c-51c1-a526-a970984ad90a",
+      "path": "F:\\microes\\assets\\textures\\enemy.png",
+      "name": "enemy.png",
+      "type": 2,
+      "fileSize": 0,
+      "lastModified": 1769503001,
+      "isDirectory": false
+    },
+    {
+      "guid": "38633421-fb34-4766-58e7-b4ba7c8b5ee3",
+      "path": "assets\\audio\\sfx_explosion.wav",
+      "name": "sfx_explosion.wav",
+      "type": 3,
+      "fileSize": 0,
+      "lastModified": 1769503002,
+      "isDirectory": false
+    },
+    {
+      "guid": "02f457d5-e200-7f62-6850-7612ed829a63",
+      "path": "assets\\scenes\\BossRoom.scene",
+      "name": "BossRoom.scene",
+      "type": 6,
+      "fileSize": 0,
+      "lastModified": 1769503002,
+      "isDirectory": false
+    },
+    {
+      "guid": "b162bd84-eee3-1b79-807c-c64d2c64cb2b",
+      "path": "F:\\microes\\assets\\scripts\\PlayerController.js",
+      "name": "PlayerController.js",
+      "type": 4,
+      "fileSize": 0,
+      "lastModified": 1769503002,
+      "isDirectory": false
+    },
+    {
+      "guid": "c6908b3b-7d16-8e81-5c2d-c65c46fee0d4",
+      "path": "assets\\audio\\bgm_battle.mp3",
+      "name": "bgm_battle.mp3",
+      "type": 3,
+      "fileSize": 0,
+      "lastModified": 1769503002,
+      "isDirectory": false
+    },
+    {
+      "guid": "d11c2d62-5870-5040-3e1a-bf5bc046b98a",
+      "path": "F:\\microes\\assets\\textures\\ui_button.png",
+      "name": "ui_button.png",
+      "type": 2,
+      "fileSize": 0,
+      "lastModified": 1769503002,
+      "isDirectory": false
+    },
+    {
+      "guid": "d44064b6-5cd8-29c4-8dc3-e6f0b71c6ad1",
+      "path": "F:\\microes\\assets\\textures\\ui_panel.png",
+      "name": "ui_panel.png",
+      "type": 2,
+      "fileSize": 0,
+      "lastModified": 1769503001,
+      "isDirectory": false
+    },
+    {
+      "guid": "bca66dcd-f892-9c43-f176-62ac939c4de4",
+      "path": "F:\\microes\\assets\\audio\\sfx_attack.wav",
+      "name": "sfx_attack.wav",
+      "type": 3,
+      "fileSize": 0,
+      "lastModified": 1769503002,
+      "isDirectory": false
+    },
+    {
+      "guid": "57c85655-8b7d-e5b6-d5a6-80eb2b0b49d3",
+      "path": "assets\\scripts\\Inventory.js",
+      "name": "Inventory.js",
+      "type": 4,
+      "fileSize": 0,
+      "lastModified": 1769503002,
+      "isDirectory": false
+    },
+    {
+      "guid": "f543cca8-b481-a8be-8507-770c03c75eab",
+      "path": "assets\\scenes",
+      "name": "scenes",
+      "type": 1,
+      "fileSize": 0,
+      "lastModified": 1769503002,
+      "isDirectory": true
+    },
+    {
+      "guid": "c71b2168-6faf-8d98-2ce8-4175ecfc98f2",
+      "path": "assets\\prefabs\\Bullet.prefab",
+      "name": "Bullet.prefab",
+      "type": 7,
+      "fileSize": 0,
+      "lastModified": 1769503002,
+      "isDirectory": false
+    },
+    {
+      "guid": "6a7bd38a-6b72-be37-a497-9628dafb35e1",
+      "path": "F:\\microes\\assets\\.esengine\\assets.db",
+      "name": "assets.db",
+      "type": 0,
+      "fileSize": 23550,
+      "lastModified": 1769685192,
+      "isDirectory": false
+    },
+    {
+      "guid": "08719359-3487-beb2-0d62-f54a2a8634c4",
+      "path": "assets\\shaders",
+      "name": "shaders",
+      "type": 1,
+      "fileSize": 0,
+      "lastModified": 1769503002,
+      "isDirectory": true
+    },
+    {
+      "guid": "6650f3d3-a906-b4a9-1873-b75759499bf8",
+      "path": "F:\\microes\\assets\\audio\\sfx_jump.wav",
+      "name": "sfx_jump.wav",
+      "type": 3,
+      "fileSize": 0,
+      "lastModified": 1769503001,
+      "isDirectory": false
+    },
+    {
+      "guid": "a19bf5bf-7a78-8cbd-00c8-8f38cf141628",
+      "path": "F:\\microes\\assets\\fonts\\msyh.ttc",
+      "name": "msyh.ttc",
+      "type": 0,
+      "fileSize": 19704352,
+      "lastModified": 1769511857,
+      "isDirectory": false
+    },
+    {
+      "guid": "c771ea16-ad7f-3333-df52-9426cff8a384",
+      "path": "assets\\textures\\ui_button.png",
+      "name": "ui_button.png",
+      "type": 2,
+      "fileSize": 0,
+      "lastModified": 1769503002,
+      "isDirectory": false
+    },
+    {
+      "guid": "06d02285-6f13-7665-e142-87cc08b9f6b8",
+      "path": "assets\\fonts\\lucide.ttf",
+      "name": "lucide.ttf",
+      "type": 8,
+      "fileSize": 793848,
+      "lastModified": 1769501796,
+      "isDirectory": false
+    },
+    {
+      "guid": "ce69c963-c0ea-0fb2-c96c-bf1afc0e0802",
+      "path": "assets\\shaders\\postprocess.glsl",
+      "name": "postprocess.glsl",
+      "type": 5,
+      "fileSize": 0,
+      "lastModified": 1769503002,
+      "isDirectory": false
+    },
+    {
+      "guid": "99c227eb-f8d3-d0e8-843b-ceb126687e8b",
+      "path": "F:\\microes\\assets\\audio",
+      "name": "audio",
+      "type": 1,
+      "fileSize": 0,
+      "lastModified": 1769503002,
+      "isDirectory": true
+    },
+    {
+      "guid": "1c90475d-0d57-c627-f004-15d52bee4319",
+      "path": "F:\\microes\\assets\\shaders\\water.glsl",
+      "name": "water.glsl",
+      "type": 5,
+      "fileSize": 0,
+      "lastModified": 1769503002,
+      "isDirectory": false
+    },
+    {
+      "guid": "9d69bbdf-276b-8f14-cc66-10e8dfcdb283",
+      "path": "F:\\microes\\assets\\scripts\\CameraFollow.js",
+      "name": "CameraFollow.js",
+      "type": 4,
+      "fileSize": 0,
+      "lastModified": 1769503001,
+      "isDirectory": false
+    },
+    {
+      "guid": "f23cff38-7fcd-d864-b487-6ca733c33582",
+      "path": "F:\\microes\\assets\\scripts\\EnemyAI.js",
+      "name": "EnemyAI.js",
+      "type": 4,
+      "fileSize": 0,
+      "lastModified": 1769503002,
+      "isDirectory": false
+    },
+    {
+      "guid": "cc395f8f-d6f9-a23d-db3b-7253b437aa8a",
+      "path": "F:\\microes\\assets\\.esengine",
+      "name": ".esengine",
+      "type": 1,
+      "fileSize": 0,
+      "lastModified": 1769670136,
+      "isDirectory": true
+    },
+    {
+      "guid": "b9c53311-d99a-e00b-9ba2-358e123efa4e",
+      "path": "assets\\scripts\\GameManager.js",
+      "name": "GameManager.js",
+      "type": 4,
+      "fileSize": 0,
+      "lastModified": 1769503002,
+      "isDirectory": false
+    },
+    {
+      "guid": "44aa95ad-d460-37e0-041f-c6a4449f8b17",
+      "path": "assets\\textures\\test.png",
+      "name": "test.png",
+      "type": 2,
+      "fileSize": 6,
+      "lastModified": 1769488063,
+      "isDirectory": false
+    },
+    {
+      "guid": "4f4e6a0b-08fb-1c62-5a27-830f643cacff",
+      "path": "F:\\microes\\assets\\prefabs",
+      "name": "prefabs",
+      "type": 1,
+      "fileSize": 0,
+      "lastModified": 1769503002,
+      "isDirectory": true
+    },
+    {
+      "guid": "e1d87090-38ce-2d60-5bdd-1f928fdaf88a",
+      "path": "assets\\scenes\\Level1.scene",
+      "name": "Level1.scene",
+      "type": 6,
+      "fileSize": 0,
+      "lastModified": 1769503002,
+      "isDirectory": false
+    },
+    {
+      "guid": "53cf7de5-ae26-2632-e022-e9108f6bbc2c",
+      "path": "F:\\microes\\assets\\audio\\sfx_coin.wav",
+      "name": "sfx_coin.wav",
+      "type": 3,
+      "fileSize": 0,
+      "lastModified": 1769503002,
+      "isDirectory": false
+    },
+    {
+      "guid": "0b354ef8-0528-35e8-b628-bed14b4960db",
+      "path": "F:\\microes\\assets\\audio\\bgm_battle.mp3",
+      "name": "bgm_battle.mp3",
+      "type": 3,
+      "fileSize": 0,
+      "lastModified": 1769503001,
+      "isDirectory": false
+    },
+    {
+      "guid": "22bdfe10-0ff6-620f-56ec-26a8142aec33",
+      "path": "assets\\textures\\skybox.png",
+      "name": "skybox.png",
+      "type": 2,
+      "fileSize": 0,
+      "lastModified": 1769503001,
+      "isDirectory": false
+    },
+    {
+      "guid": "ed1cf9a5-9d96-50d7-e385-82c605f70a63",
+      "path": "F:\\microes\\assets\\prefabs\\Explosion.prefab",
+      "name": "Explosion.prefab",
+      "type": 7,
+      "fileSize": 0,
+      "lastModified": 1769503002,
+      "isDirectory": false
+    },
+    {
+      "guid": "08964537-6809-2c47-8997-7bbf1c75029f",
+      "path": "assets\\scripts",
+      "name": "scripts",
+      "type": 1,
+      "fileSize": 0,
+      "lastModified": 1769503002,
+      "isDirectory": true
+    },
+    {
+      "guid": "8af759e0-a053-8e8c-1e34-48843f734d2f",
+      "path": "assets\\textures\\enemy.png",
+      "name": "enemy.png",
+      "type": 2,
+      "fileSize": 0,
+      "lastModified": 1769503002,
+      "isDirectory": false
+    },
+    {
+      "guid": "2402078f-7772-c860-8bce-dfdb1fc37788",
+      "path": "F:\\microes\\assets\\audio\\bgm_main.mp3",
+      "name": "bgm_main.mp3",
+      "type": 3,
+      "fileSize": 0,
+      "lastModified": 1769503002,
+      "isDirectory": false
+    },
+    {
       "guid": "cf70754c-26ba-346d-c01d-ff9fc29a6e9e",
       "path": "assets\\.esengine",
       "name": ".esengine",
@@ -29,206 +569,17 @@
       "isDirectory": false
     },
     {
-      "guid": "8af759e0-a053-8e8c-1e34-48843f734d2f",
-      "path": "assets\\textures\\enemy.png",
-      "name": "enemy.png",
-      "type": 2,
-      "fileSize": 0,
-      "lastModified": 1769503002,
-      "isDirectory": false
-    },
-    {
-      "guid": "ed1cf9a5-9d96-50d7-e385-82c605f70a63",
-      "path": "F:\\microes\\assets\\prefabs\\Explosion.prefab",
-      "name": "Explosion.prefab",
-      "type": 7,
-      "fileSize": 0,
-      "lastModified": 1769503002,
-      "isDirectory": false
-    },
-    {
-      "guid": "08964537-6809-2c47-8997-7bbf1c75029f",
-      "path": "assets\\scripts",
-      "name": "scripts",
-      "type": 1,
-      "fileSize": 0,
-      "lastModified": 1769503002,
-      "isDirectory": true
-    },
-    {
-      "guid": "53cf7de5-ae26-2632-e022-e9108f6bbc2c",
-      "path": "F:\\microes\\assets\\audio\\sfx_coin.wav",
-      "name": "sfx_coin.wav",
-      "type": 3,
-      "fileSize": 0,
-      "lastModified": 1769503002,
-      "isDirectory": false
-    },
-    {
-      "guid": "e1d87090-38ce-2d60-5bdd-1f928fdaf88a",
-      "path": "assets\\scenes\\Level1.scene",
-      "name": "Level1.scene",
-      "type": 6,
-      "fileSize": 0,
-      "lastModified": 1769503002,
-      "isDirectory": false
-    },
-    {
-      "guid": "ca417dff-fe94-4361-ec9b-16504f048514",
-      "path": "F:\\microes\\assets\\prefabs\\Bullet.prefab",
-      "name": "Bullet.prefab",
-      "type": 7,
-      "fileSize": 0,
-      "lastModified": 1769503002,
-      "isDirectory": false
-    },
-    {
-      "guid": "7d86b8df-60d3-330a-ae99-ae597a929a9b",
-      "path": "assets\\textures\\player.png",
-      "name": "player.png",
-      "type": 2,
-      "fileSize": 0,
-      "lastModified": 1769503002,
-      "isDirectory": false
-    },
-    {
-      "guid": "fb6e1999-a210-5293-9dc9-f648e6e8fc1f",
-      "path": "assets\\shaders\\sprite.glsl",
-      "name": "sprite.glsl",
-      "type": 5,
-      "fileSize": 0,
-      "lastModified": 1769503002,
-      "isDirectory": false
-    },
-    {
-      "guid": "539c3218-76fb-bed8-1442-3c43ae5be464",
-      "path": "F:\\microes\\assets\\textures\\tileset.png",
-      "name": "tileset.png",
-      "type": 2,
-      "fileSize": 0,
-      "lastModified": 1769503001,
-      "isDirectory": false
-    },
-    {
-      "guid": "b9c53311-d99a-e00b-9ba2-358e123efa4e",
-      "path": "assets\\scripts\\GameManager.js",
-      "name": "GameManager.js",
-      "type": 4,
-      "fileSize": 0,
-      "lastModified": 1769503002,
-      "isDirectory": false
-    },
-    {
-      "guid": "44aa95ad-d460-37e0-041f-c6a4449f8b17",
-      "path": "assets\\textures\\test.png",
-      "name": "test.png",
-      "type": 2,
-      "fileSize": 6,
-      "lastModified": 1769488063,
-      "isDirectory": false
-    },
-    {
-      "guid": "4f4e6a0b-08fb-1c62-5a27-830f643cacff",
-      "path": "F:\\microes\\assets\\prefabs",
-      "name": "prefabs",
-      "type": 1,
-      "fileSize": 0,
-      "lastModified": 1769503001,
-      "isDirectory": true
-    },
-    {
-      "guid": "e11483d8-2203-6eff-1b7e-0932b819f1c9",
-      "path": "assets\\audio\\sfx_attack.wav",
-      "name": "sfx_attack.wav",
-      "type": 3,
-      "fileSize": 0,
-      "lastModified": 1769503001,
-      "isDirectory": false
-    },
-    {
-      "guid": "0e48ebc1-25c8-2588-29aa-fb40564e2355",
-      "path": "assets\\scenes\\MainMenu.scene",
-      "name": "MainMenu.scene",
-      "type": 6,
-      "fileSize": 0,
-      "lastModified": 1769503002,
-      "isDirectory": false
-    },
-    {
-      "guid": "2402078f-7772-c860-8bce-dfdb1fc37788",
-      "path": "F:\\microes\\assets\\audio\\bgm_main.mp3",
+      "guid": "88f4512c-08fc-7521-0720-aa75e35defbc",
+      "path": "assets\\audio\\bgm_main.mp3",
       "name": "bgm_main.mp3",
       "type": 3,
       "fileSize": 0,
-      "lastModified": 1769503002,
-      "isDirectory": false
-    },
-    {
-      "guid": "e0220f45-6261-175f-883b-ba80783788f2",
-      "path": "assets\\textures",
-      "name": "textures",
-      "type": 1,
-      "fileSize": 0,
-      "lastModified": 1769503001,
-      "isDirectory": true
-    },
-    {
-      "guid": "06d02285-6f13-7665-e142-87cc08b9f6b8",
-      "path": "assets\\fonts\\lucide.ttf",
-      "name": "lucide.ttf",
-      "type": 8,
-      "fileSize": 793848,
-      "lastModified": 1769501796,
-      "isDirectory": false
-    },
-    {
-      "guid": "c771ea16-ad7f-3333-df52-9426cff8a384",
-      "path": "assets\\textures\\ui_button.png",
-      "name": "ui_button.png",
-      "type": 2,
-      "fileSize": 0,
-      "lastModified": 1769503002,
-      "isDirectory": false
-    },
-    {
-      "guid": "a19bf5bf-7a78-8cbd-00c8-8f38cf141628",
-      "path": "F:\\microes\\assets\\fonts\\msyh.ttc",
-      "name": "msyh.ttc",
-      "type": 0,
-      "fileSize": 19704352,
-      "lastModified": 1769511857,
-      "isDirectory": false
-    },
-    {
-      "guid": "ce69c963-c0ea-0fb2-c96c-bf1afc0e0802",
-      "path": "assets\\shaders\\postprocess.glsl",
-      "name": "postprocess.glsl",
-      "type": 5,
-      "fileSize": 0,
-      "lastModified": 1769503002,
-      "isDirectory": false
-    },
-    {
-      "guid": "44626f54-604d-ae12-0f2e-2087f068acbf",
-      "path": "F:\\microes\\assets\\prefabs\\Enemy.prefab",
-      "name": "Enemy.prefab",
-      "type": 7,
-      "fileSize": 0,
       "lastModified": 1769503001,
       "isDirectory": false
     },
     {
-      "guid": "6650f3d3-a906-b4a9-1873-b75759499bf8",
-      "path": "F:\\microes\\assets\\audio\\sfx_jump.wav",
-      "name": "sfx_jump.wav",
-      "type": 3,
-      "fileSize": 0,
-      "lastModified": 1769503002,
-      "isDirectory": false
-    },
-    {
-      "guid": "08719359-3487-beb2-0d62-f54a2a8634c4",
-      "path": "assets\\shaders",
+      "guid": "9d4aa6d5-4f32-3634-e6fa-2c79467a2a9c",
+      "path": "F:\\microes\\assets\\shaders",
       "name": "shaders",
       "type": 1,
       "fileSize": 0,
@@ -236,45 +587,27 @@
       "isDirectory": true
     },
     {
-      "guid": "22bdfe10-0ff6-620f-56ec-26a8142aec33",
-      "path": "assets\\textures\\skybox.png",
-      "name": "skybox.png",
+      "guid": "6f4b1d08-8b77-b7eb-629d-c2ea4efba441",
+      "path": "F:\\microes\\assets\\prefabs\\Coin.prefab",
+      "name": "Coin.prefab",
+      "type": 7,
+      "fileSize": 0,
+      "lastModified": 1769503001,
+      "isDirectory": false
+    },
+    {
+      "guid": "3cc64ba4-5416-2768-7eff-dbba531179c4",
+      "path": "assets\\textures\\particle.png",
+      "name": "particle.png",
       "type": 2,
       "fileSize": 0,
       "lastModified": 1769503001,
       "isDirectory": false
     },
     {
-      "guid": "090ed68c-0dbe-382c-e163-5ad3bc22abad",
-      "path": "F:\\microes\\assets\\scenes\\Level1.scene",
-      "name": "Level1.scene",
-      "type": 6,
-      "fileSize": 0,
-      "lastModified": 1769503002,
-      "isDirectory": false
-    },
-    {
-      "guid": "4b48ff38-aeb0-7a1b-38ec-03ad938736e9",
-      "path": "F:\\microes\\assets\\shaders\\sprite.glsl",
-      "name": "sprite.glsl",
-      "type": 5,
-      "fileSize": 0,
-      "lastModified": 1769503002,
-      "isDirectory": false
-    },
-    {
-      "guid": "32dd883f-81c7-59a9-8229-5920e8152da1",
-      "path": "assets\\prefabs",
-      "name": "prefabs",
-      "type": 1,
-      "fileSize": 0,
-      "lastModified": 1769503001,
-      "isDirectory": true
-    },
-    {
-      "guid": "a424334b-4399-6ab1-440c-7da10d865e15",
-      "path": "assets\\scripts\\UIManager.js",
-      "name": "UIManager.js",
+      "guid": "02f1f294-5a7f-d28b-7095-a04518207f9c",
+      "path": "F:\\microes\\assets\\scripts\\GameManager.js",
+      "name": "GameManager.js",
       "type": 4,
       "fileSize": 0,
       "lastModified": 1769503001,
@@ -286,25 +619,7 @@
       "name": "lucide.ttf",
       "type": 8,
       "fileSize": 793848,
-      "lastModified": 1769501796,
-      "isDirectory": false
-    },
-    {
-      "guid": "458ea613-0ce1-0325-3f9c-9f6937eafacf",
-      "path": "assets\\prefabs\\Player.prefab",
-      "name": "Player.prefab",
-      "type": 7,
-      "fileSize": 0,
-      "lastModified": 1769503001,
-      "isDirectory": false
-    },
-    {
-      "guid": "a9993ed8-9802-fb1c-f5e4-15864011fa2c",
-      "path": "F:\\microes\\assets\\textures\\test.png",
-      "name": "test.png",
-      "type": 2,
-      "fileSize": 6,
-      "lastModified": 1769488063,
+      "lastModified": 1769501795,
       "isDirectory": false
     },
     {
@@ -314,6 +629,24 @@
       "type": 4,
       "fileSize": 0,
       "lastModified": 1769503002,
+      "isDirectory": false
+    },
+    {
+      "guid": "a9993ed8-9802-fb1c-f5e4-15864011fa2c",
+      "path": "F:\\microes\\assets\\textures\\test.png",
+      "name": "test.png",
+      "type": 2,
+      "fileSize": 6,
+      "lastModified": 1769488062,
+      "isDirectory": false
+    },
+    {
+      "guid": "458ea613-0ce1-0325-3f9c-9f6937eafacf",
+      "path": "assets\\prefabs\\Player.prefab",
+      "name": "Player.prefab",
+      "type": 7,
+      "fileSize": 0,
+      "lastModified": 1769503001,
       "isDirectory": false
     },
     {
@@ -344,15 +677,6 @@
       "isDirectory": true
     },
     {
-      "guid": "602e5d05-e6b5-3cbe-a3a4-857b4290f255",
-      "path": "assets\\scripts\\CameraFollow.js",
-      "name": "CameraFollow.js",
-      "type": 4,
-      "fileSize": 0,
-      "lastModified": 1769503002,
-      "isDirectory": false
-    },
-    {
       "guid": "ca89cb26-11ee-a95a-940a-4d952d33b936",
       "path": "F:\\microes\\assets\\scenes\\MainMenu.scene",
       "name": "MainMenu.scene",
@@ -362,39 +686,39 @@
       "isDirectory": false
     },
     {
-      "guid": "d44064b6-5cd8-29c4-8dc3-e6f0b71c6ad1",
-      "path": "F:\\microes\\assets\\textures\\ui_panel.png",
-      "name": "ui_panel.png",
-      "type": 2,
-      "fileSize": 0,
-      "lastModified": 1769503001,
-      "isDirectory": false
-    },
-    {
-      "guid": "57c85655-8b7d-e5b6-d5a6-80eb2b0b49d3",
-      "path": "assets\\scripts\\Inventory.js",
-      "name": "Inventory.js",
+      "guid": "602e5d05-e6b5-3cbe-a3a4-857b4290f255",
+      "path": "assets\\scripts\\CameraFollow.js",
+      "name": "CameraFollow.js",
       "type": 4,
       "fileSize": 0,
       "lastModified": 1769503002,
       "isDirectory": false
     },
     {
-      "guid": "bca66dcd-f892-9c43-f176-62ac939c4de4",
-      "path": "F:\\microes\\assets\\audio\\sfx_attack.wav",
-      "name": "sfx_attack.wav",
-      "type": 3,
+      "guid": "d3d9a556-8861-fbc2-504a-151ef73f41de",
+      "path": "F:\\microes\\assets\\textures\\player.png",
+      "name": "player.png",
+      "type": 2,
       "fileSize": 0,
       "lastModified": 1769503002,
       "isDirectory": false
     },
     {
-      "guid": "ce792685-9959-2c9f-d909-597cab98305a",
-      "path": "F:\\microes\\assets\\fonts\\lucide_new.ttf",
-      "name": "lucide_new.ttf",
-      "type": 8,
-      "fileSize": 793848,
-      "lastModified": 1769653162,
+      "guid": "49fa3441-7d74-bf79-c116-717b849b78ce",
+      "path": "F:\\microes\\assets\\prefabs\\Player.prefab",
+      "name": "Player.prefab",
+      "type": 7,
+      "fileSize": 0,
+      "lastModified": 1769503002,
+      "isDirectory": false
+    },
+    {
+      "guid": "f29a2ee0-016a-f018-436a-9c11731f251a",
+      "path": "F:\\microes\\assets\\scripts\\Inventory.js",
+      "name": "Inventory.js",
+      "type": 4,
+      "fileSize": 0,
+      "lastModified": 1769503001,
       "isDirectory": false
     },
     {
@@ -403,7 +727,7 @@
       "name": "particle.glsl",
       "type": 5,
       "fileSize": 0,
-      "lastModified": 1769503002,
+      "lastModified": 1769503001,
       "isDirectory": false
     },
     {
@@ -416,157 +740,22 @@
       "isDirectory": true
     },
     {
-      "guid": "d3d9a556-8861-fbc2-504a-151ef73f41de",
-      "path": "F:\\microes\\assets\\textures\\player.png",
-      "name": "player.png",
-      "type": 2,
-      "fileSize": 0,
-      "lastModified": 1769503001,
+      "guid": "ce792685-9959-2c9f-d909-597cab98305a",
+      "path": "F:\\microes\\assets\\fonts\\lucide_new.ttf",
+      "name": "lucide_new.ttf",
+      "type": 8,
+      "fileSize": 793848,
+      "lastModified": 1769653162,
       "isDirectory": false
     },
     {
-      "guid": "f29a2ee0-016a-f018-436a-9c11731f251a",
-      "path": "F:\\microes\\assets\\scripts\\Inventory.js",
-      "name": "Inventory.js",
-      "type": 4,
-      "fileSize": 0,
-      "lastModified": 1769503002,
-      "isDirectory": false
-    },
-    {
-      "guid": "49fa3441-7d74-bf79-c116-717b849b78ce",
-      "path": "F:\\microes\\assets\\prefabs\\Player.prefab",
-      "name": "Player.prefab",
-      "type": 7,
-      "fileSize": 0,
-      "lastModified": 1769503001,
-      "isDirectory": false
-    },
-    {
-      "guid": "b162bd84-eee3-1b79-807c-c64d2c64cb2b",
-      "path": "F:\\microes\\assets\\scripts\\PlayerController.js",
-      "name": "PlayerController.js",
-      "type": 4,
-      "fileSize": 0,
-      "lastModified": 1769503001,
-      "isDirectory": false
-    },
-    {
-      "guid": "02f457d5-e200-7f62-6850-7612ed829a63",
-      "path": "assets\\scenes\\BossRoom.scene",
-      "name": "BossRoom.scene",
-      "type": 6,
-      "fileSize": 0,
-      "lastModified": 1769503002,
-      "isDirectory": false
-    },
-    {
-      "guid": "38633421-fb34-4766-58e7-b4ba7c8b5ee3",
-      "path": "assets\\audio\\sfx_explosion.wav",
-      "name": "sfx_explosion.wav",
-      "type": 3,
-      "fileSize": 0,
-      "lastModified": 1769503002,
-      "isDirectory": false
-    },
-    {
-      "guid": "234c30b6-359c-51c1-a526-a970984ad90a",
-      "path": "F:\\microes\\assets\\textures\\enemy.png",
-      "name": "enemy.png",
-      "type": 2,
-      "fileSize": 0,
-      "lastModified": 1769503001,
-      "isDirectory": false
-    },
-    {
-      "guid": "986b148c-b4ea-cf89-2e04-37dc26624976",
-      "path": "F:\\microes\\assets\\textures\\particle.png",
-      "name": "particle.png",
-      "type": 2,
-      "fileSize": 0,
-      "lastModified": 1769503002,
-      "isDirectory": false
-    },
-    {
-      "guid": "c71b2168-6faf-8d98-2ce8-4175ecfc98f2",
-      "path": "assets\\prefabs\\Bullet.prefab",
-      "name": "Bullet.prefab",
-      "type": 7,
-      "fileSize": 0,
-      "lastModified": 1769503002,
-      "isDirectory": false
-    },
-    {
-      "guid": "6a7bd38a-6b72-be37-a497-9628dafb35e1",
-      "path": "F:\\microes\\assets\\.esengine\\assets.db",
-      "name": "assets.db",
-      "type": 0,
-      "fileSize": 23550,
-      "lastModified": 1769679593,
-      "isDirectory": false
-    },
-    {
-      "guid": "f543cca8-b481-a8be-8507-770c03c75eab",
-      "path": "assets\\scenes",
-      "name": "scenes",
-      "type": 1,
-      "fileSize": 0,
-      "lastModified": 1769503002,
-      "isDirectory": true
-    },
-    {
-      "guid": "99c227eb-f8d3-d0e8-843b-ceb126687e8b",
-      "path": "F:\\microes\\assets\\audio",
-      "name": "audio",
-      "type": 1,
-      "fileSize": 0,
-      "lastModified": 1769503001,
-      "isDirectory": true
-    },
-    {
-      "guid": "1c90475d-0d57-c627-f004-15d52bee4319",
-      "path": "F:\\microes\\assets\\shaders\\water.glsl",
-      "name": "water.glsl",
+      "guid": "4b48ff38-aeb0-7a1b-38ec-03ad938736e9",
+      "path": "F:\\microes\\assets\\shaders\\sprite.glsl",
+      "name": "sprite.glsl",
       "type": 5,
       "fileSize": 0,
       "lastModified": 1769503002,
       "isDirectory": false
-    },
-    {
-      "guid": "9d69bbdf-276b-8f14-cc66-10e8dfcdb283",
-      "path": "F:\\microes\\assets\\scripts\\CameraFollow.js",
-      "name": "CameraFollow.js",
-      "type": 4,
-      "fileSize": 0,
-      "lastModified": 1769503002,
-      "isDirectory": false
-    },
-    {
-      "guid": "f23cff38-7fcd-d864-b487-6ca733c33582",
-      "path": "F:\\microes\\assets\\scripts\\EnemyAI.js",
-      "name": "EnemyAI.js",
-      "type": 4,
-      "fileSize": 0,
-      "lastModified": 1769503002,
-      "isDirectory": false
-    },
-    {
-      "guid": "cc395f8f-d6f9-a23d-db3b-7253b437aa8a",
-      "path": "F:\\microes\\assets\\.esengine",
-      "name": ".esengine",
-      "type": 1,
-      "fileSize": 0,
-      "lastModified": 1769670136,
-      "isDirectory": true
-    },
-    {
-      "guid": "78390dfc-f548-9908-8279-6b3064ea26b3",
-      "path": "F:\\microes\\assets\\textures",
-      "name": "textures",
-      "type": 1,
-      "fileSize": 0,
-      "lastModified": 1769503002,
-      "isDirectory": true
     },
     {
       "guid": "e704f3d4-170b-fecb-d4f9-4534e5056d78",
@@ -578,255 +767,66 @@
       "isDirectory": false
     },
     {
-      "guid": "ff5ba3b5-d524-f202-72ae-a40add555353",
-      "path": "assets\\scenes\\Level2.scene",
-      "name": "Level2.scene",
-      "type": 6,
-      "fileSize": 0,
-      "lastModified": 1769503002,
-      "isDirectory": false
-    },
-    {
-      "guid": "0926ee8f-8eef-58fa-8d75-0ac49a8bf2b1",
-      "path": "F:\\microes\\assets\\scenes",
-      "name": "scenes",
+      "guid": "78390dfc-f548-9908-8279-6b3064ea26b3",
+      "path": "F:\\microes\\assets\\textures",
+      "name": "textures",
       "type": 1,
       "fileSize": 0,
-      "lastModified": 1769503002,
+      "lastModified": 1769503001,
       "isDirectory": true
     },
     {
-      "guid": "bbbdbf23-cecf-5053-0ebe-f3daf5b9e103",
-      "path": "assets\\prefabs\\Explosion.prefab",
-      "name": "Explosion.prefab",
-      "type": 7,
-      "fileSize": 0,
-      "lastModified": 1769503002,
-      "isDirectory": false
-    },
-    {
-      "guid": "ab8960b7-4b05-8029-7577-571c44b9c394",
-      "path": "F:\\microes\\assets\\fonts",
-      "name": "fonts",
+      "guid": "32dd883f-81c7-59a9-8229-5920e8152da1",
+      "path": "assets\\prefabs",
+      "name": "prefabs",
       "type": 1,
       "fileSize": 0,
-      "lastModified": 1769653161,
+      "lastModified": 1769503001,
       "isDirectory": true
     },
     {
-      "guid": "0f5a7d56-b021-7cfe-9ffd-b6deba57b565",
-      "path": "assets\\textures\\ui_panel.png",
-      "name": "ui_panel.png",
-      "type": 2,
-      "fileSize": 0,
-      "lastModified": 1769503001,
-      "isDirectory": false
-    },
-    {
-      "guid": "abf642da-9512-d0bd-e306-e1bce616320c",
-      "path": "F:\\microes\\assets\\scenes\\Level2.scene",
-      "name": "Level2.scene",
-      "type": 6,
-      "fileSize": 0,
-      "lastModified": 1769503001,
-      "isDirectory": false
-    },
-    {
-      "guid": "7fe2a865-bb30-1847-62e3-d289b5616a3a",
-      "path": "F:\\microes\\assets\\scenes\\BossRoom.scene",
-      "name": "BossRoom.scene",
-      "type": 6,
-      "fileSize": 0,
-      "lastModified": 1769503002,
-      "isDirectory": false
-    },
-    {
-      "guid": "6e88b347-db2d-b526-87c6-301569094b15",
-      "path": "F:\\microes\\assets\\audio\\sfx_explosion.wav",
-      "name": "sfx_explosion.wav",
-      "type": 3,
-      "fileSize": 0,
-      "lastModified": 1769503002,
-      "isDirectory": false
-    },
-    {
-      "guid": "c6113f63-03d0-811d-550a-8f26f331233d",
-      "path": "assets\\textures\\tileset.png",
-      "name": "tileset.png",
-      "type": 2,
-      "fileSize": 0,
-      "lastModified": 1769503002,
-      "isDirectory": false
-    },
-    {
-      "guid": "b55ead52-b974-950b-26a3-a227e2ac41e9",
-      "path": "assets\\audio\\sfx_coin.wav",
-      "name": "sfx_coin.wav",
-      "type": 3,
-      "fileSize": 0,
-      "lastModified": 1769503002,
-      "isDirectory": false
-    },
-    {
-      "guid": "90db01ce-eadb-5131-35ee-a55e9f60bb4d",
-      "path": "assets\\shaders\\water.glsl",
-      "name": "water.glsl",
-      "type": 5,
-      "fileSize": 0,
-      "lastModified": 1769503001,
-      "isDirectory": false
-    },
-    {
-      "guid": "d6dbbbb3-87ce-a096-8027-f7b9d7129e6f",
-      "path": "assets\\scripts\\EnemyAI.js",
-      "name": "EnemyAI.js",
-      "type": 4,
-      "fileSize": 0,
-      "lastModified": 1769503001,
-      "isDirectory": false
-    },
-    {
-      "guid": "04f5ced8-9d11-fa20-d612-06f12e563341",
-      "path": "assets\\prefabs\\Coin.prefab",
-      "name": "Coin.prefab",
-      "type": 7,
-      "fileSize": 0,
-      "lastModified": 1769503001,
-      "isDirectory": false
-    },
-    {
-      "guid": "8283ad01-d8a2-48ae-c4e7-c1f8f0de7955",
-      "path": "F:\\microes\\assets\\scripts\\UIManager.js",
+      "guid": "a424334b-4399-6ab1-440c-7da10d865e15",
+      "path": "assets\\scripts\\UIManager.js",
       "name": "UIManager.js",
       "type": 4,
       "fileSize": 0,
+      "lastModified": 1769503001,
+      "isDirectory": false
+    },
+    {
+      "guid": "0e48ebc1-25c8-2588-29aa-fb40564e2355",
+      "path": "assets\\scenes\\MainMenu.scene",
+      "name": "MainMenu.scene",
+      "type": 6,
+      "fileSize": 0,
       "lastModified": 1769503002,
       "isDirectory": false
     },
     {
-      "guid": "3cc64ba4-5416-2768-7eff-dbba531179c4",
-      "path": "assets\\textures\\particle.png",
-      "name": "particle.png",
-      "type": 2,
-      "fileSize": 0,
-      "lastModified": 1769503001,
-      "isDirectory": false
-    },
-    {
-      "guid": "02f1f294-5a7f-d28b-7095-a04518207f9c",
-      "path": "F:\\microes\\assets\\scripts\\GameManager.js",
-      "name": "GameManager.js",
-      "type": 4,
-      "fileSize": 0,
-      "lastModified": 1769503001,
-      "isDirectory": false
-    },
-    {
-      "guid": "0b354ef8-0528-35e8-b628-bed14b4960db",
-      "path": "F:\\microes\\assets\\audio\\bgm_battle.mp3",
-      "name": "bgm_battle.mp3",
+      "guid": "e11483d8-2203-6eff-1b7e-0932b819f1c9",
+      "path": "assets\\audio\\sfx_attack.wav",
+      "name": "sfx_attack.wav",
       "type": 3,
       "fileSize": 0,
       "lastModified": 1769503001,
       "isDirectory": false
     },
     {
-      "guid": "d11c2d62-5870-5040-3e1a-bf5bc046b98a",
-      "path": "F:\\microes\\assets\\textures\\ui_button.png",
-      "name": "ui_button.png",
+      "guid": "7d86b8df-60d3-330a-ae99-ae597a929a9b",
+      "path": "assets\\textures\\player.png",
+      "name": "player.png",
       "type": 2,
-      "fileSize": 0,
-      "lastModified": 1769503001,
-      "isDirectory": false
-    },
-    {
-      "guid": "c6908b3b-7d16-8e81-5c2d-c65c46fee0d4",
-      "path": "assets\\audio\\bgm_battle.mp3",
-      "name": "bgm_battle.mp3",
-      "type": 3,
       "fileSize": 0,
       "lastModified": 1769503002,
       "isDirectory": false
     },
     {
-      "guid": "6f4b1d08-8b77-b7eb-629d-c2ea4efba441",
-      "path": "F:\\microes\\assets\\prefabs\\Coin.prefab",
-      "name": "Coin.prefab",
+      "guid": "ca417dff-fe94-4361-ec9b-16504f048514",
+      "path": "F:\\microes\\assets\\prefabs\\Bullet.prefab",
+      "name": "Bullet.prefab",
       "type": 7,
       "fileSize": 0,
       "lastModified": 1769503001,
-      "isDirectory": false
-    },
-    {
-      "guid": "88f4512c-08fc-7521-0720-aa75e35defbc",
-      "path": "assets\\audio\\bgm_main.mp3",
-      "name": "bgm_main.mp3",
-      "type": 3,
-      "fileSize": 0,
-      "lastModified": 1769503001,
-      "isDirectory": false
-    },
-    {
-      "guid": "9d4aa6d5-4f32-3634-e6fa-2c79467a2a9c",
-      "path": "F:\\microes\\assets\\shaders",
-      "name": "shaders",
-      "type": 1,
-      "fileSize": 0,
-      "lastModified": 1769503001,
-      "isDirectory": true
-    },
-    {
-      "guid": "a6dd418b-dd75-0249-f26e-bb1b4cc294c8",
-      "path": "F:\\microes\\assets\\shaders\\postprocess.glsl",
-      "name": "postprocess.glsl",
-      "type": 5,
-      "fileSize": 0,
-      "lastModified": 1769503002,
-      "isDirectory": false
-    },
-    {
-      "guid": "835ed25e-a75f-3a42-0953-d9af26b1cc87",
-      "path": "F:\\microes\\assets\\test.txt",
-      "name": "test.txt",
-      "type": 0,
-      "fileSize": 5,
-      "lastModified": 1769488063,
-      "isDirectory": false
-    },
-    {
-      "guid": "83dd6048-d8fa-b62a-47d1-6f17771c459f",
-      "path": "F:\\microes\\assets\\scripts",
-      "name": "scripts",
-      "type": 1,
-      "fileSize": 0,
-      "lastModified": 1769503002,
-      "isDirectory": true
-    },
-    {
-      "guid": "30c0a678-ec31-5c3c-f60c-2b982d208861",
-      "path": "F:\\microes\\assets\\textures\\background.png",
-      "name": "background.png",
-      "type": 2,
-      "fileSize": 0,
-      "lastModified": 1769503001,
-      "isDirectory": false
-    },
-    {
-      "guid": "f928d327-1c23-3d66-2009-d4d3daea8e31",
-      "path": "F:\\microes\\assets\\textures\\skybox.png",
-      "name": "skybox.png",
-      "type": 2,
-      "fileSize": 0,
-      "lastModified": 1769503002,
-      "isDirectory": false
-    },
-    {
-      "guid": "9db35f84-665c-e687-86b1-cc78a3934216",
-      "path": "assets\\test.txt",
-      "name": "test.txt",
-      "type": 0,
-      "fileSize": 5,
-      "lastModified": 1769488062,
       "isDirectory": false
     }
   ]

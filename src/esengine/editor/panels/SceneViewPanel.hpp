@@ -106,7 +106,9 @@ private:
     void renderGrid(const glm::mat4& viewProj);
     void renderGrid2D(const glm::mat4& viewProj);
     void renderSprites(const glm::mat4& viewProj);
+    void renderCanvasGizmo(const glm::mat4& viewProj);
     void initGrid2DData();
+    void initCanvasGizmoData();
     void renderAxisGizmo();
     void renderAxisGizmo2D();
     void updateFramebufferSize();
@@ -115,6 +117,7 @@ private:
     void initAxisGizmo2DData();
     i32 hitTestAxisGizmo(f32 x, f32 y);
     i32 hitTestAxisGizmo2D(f32 x, f32 y);
+    Entity findCanvas();
 
     ecs::Registry& registry_;
     EntitySelection& selection_;
@@ -149,6 +152,9 @@ private:
     Unique<VertexArray> axis2DVAO_;
     u32 axis2DVertexCount_ = 0;
     bool axis2DInitialized_ = false;
+
+    Unique<VertexArray> canvasGizmoVAO_;
+    bool canvasGizmoInitialized_ = false;
 };
 
 }  // namespace esengine::editor

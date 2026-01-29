@@ -25,6 +25,7 @@
 #include "../ecs/components/Hierarchy.hpp"
 #include "../ecs/components/Camera.hpp"
 #include "../ecs/components/Sprite.hpp"
+#include "../ecs/components/Canvas.hpp"
 #include "core/EditorEvents.hpp"
 #include "panels/HierarchyPanel.hpp"
 #include "panels/InspectorPanel.hpp"
@@ -438,13 +439,22 @@ void EditorApplication::createDemoScene() {
     registry_.emplace<ecs::Name>(root, "Scene Root");
     registry_.emplace<ecs::LocalTransform>(root);
 
+    Entity canvasEntity = registry_.create();
+    registry_.emplace<ecs::Name>(canvasEntity, "Canvas");
+    auto& canvas = registry_.emplace<ecs::Canvas>(canvasEntity);
+    canvas.designResolution = glm::uvec2(1920, 1080);
+    canvas.pixelsPerUnit = 100.0f;
+    canvas.scaleMode = ecs::CanvasScaleMode::FixedHeight;
+    canvas.backgroundColor = glm::vec4(0.1f, 0.1f, 0.15f, 1.0f);
+
     Entity camera = registry_.create();
     registry_.emplace<ecs::Name>(camera, "Main Camera");
-    registry_.emplace<ecs::LocalTransform>(camera, glm::vec3(0.0f, 5.0f, 10.0f));
+    registry_.emplace<ecs::LocalTransform>(camera, glm::vec3(0.0f, 0.0f, 10.0f));
     auto& cam = registry_.emplace<ecs::Camera>(camera);
     cam.isActive = true;
     cam.priority = 0;
-    cam.fov = 60.0f;
+    cam.projectionType = ecs::ProjectionType::Orthographic;
+    cam.orthoSize = canvas.getOrthoSize();
 
     Entity light = registry_.create();
     registry_.emplace<ecs::Name>(light, "Directional Light");
@@ -452,7 +462,7 @@ void EditorApplication::createDemoScene() {
 
     Entity player = registry_.create();
     registry_.emplace<ecs::Name>(player, "Player");
-    registry_.emplace<ecs::LocalTransform>(player, glm::vec3(0.0f, 1.0f, 0.0f));
+    registry_.emplace<ecs::LocalTransform>(player, glm::vec3(0.0f, -3.0f, 0.0f));
     auto& playerSprite = registry_.emplace<ecs::Sprite>(player);
     playerSprite.color = glm::vec4(0.2f, 0.6f, 1.0f, 1.0f);
     playerSprite.size = glm::vec2(1.0f, 2.0f);
@@ -476,14 +486,14 @@ void EditorApplication::createDemoScene() {
 
     Entity obstacle1 = registry_.create();
     registry_.emplace<ecs::Name>(obstacle1, "Obstacle 1");
-    registry_.emplace<ecs::LocalTransform>(obstacle1, glm::vec3(5.0f, 1.0f, 0.0f));
+    registry_.emplace<ecs::LocalTransform>(obstacle1, glm::vec3(5.0f, 0.0f, 0.0f));
     auto& obs1Sprite = registry_.emplace<ecs::Sprite>(obstacle1);
     obs1Sprite.color = glm::vec4(1.0f, 0.3f, 0.3f, 1.0f);
     obs1Sprite.size = glm::vec2(2.0f, 2.0f);
 
     Entity obstacle2 = registry_.create();
     registry_.emplace<ecs::Name>(obstacle2, "Obstacle 2");
-    registry_.emplace<ecs::LocalTransform>(obstacle2, glm::vec3(-5.0f, 1.0f, 3.0f));
+    registry_.emplace<ecs::LocalTransform>(obstacle2, glm::vec3(-5.0f, 2.0f, 0.0f));
     auto& obs2Sprite = registry_.emplace<ecs::Sprite>(obstacle2);
     obs2Sprite.color = glm::vec4(0.3f, 1.0f, 0.3f, 1.0f);
     obs2Sprite.size = glm::vec2(1.5f, 1.5f);

@@ -16,6 +16,7 @@
 #include "../../ui/UIContext.hpp"
 #include "../../ecs/components/Transform.hpp"
 #include "../../ecs/components/Sprite.hpp"
+#include "../../ecs/components/Canvas.hpp"
 #include "../../core/Log.hpp"
 #include <glad/glad.h>
 #include <vector>
@@ -235,6 +236,7 @@ void SceneViewPanel::renderSceneContent() {
             initGrid2DData();
         }
         renderGrid2D(viewProj);
+        renderCanvasGizmo(viewProj);
     } else {
         if (!gridInitialized_) {
             initGridData();
@@ -766,6 +768,74 @@ i32 SceneViewPanel::hitTestAxisGizmo2D(f32 x, f32 y) {
     (void)x;
     (void)y;
     return -1;
+}
+
+Entity SceneViewPanel::findCanvas() {
+    auto view = registry_.view<ecs::Canvas>();
+    for (auto entity : view) {
+        return entity;
+    }
+    return INVALID_ENTITY;
+}
+
+void SceneViewPanel::initCanvasGizmoData() {
+    std::vector<f32> vertices;
+
+    // Simple rectangle (4 corners, 8 vertices for lines)
+    // We'll draw as GL_LINES so we need pairs
+    // Bottom: (-1,-1) to (1,-1)
+    // Right:  (1,-1) to (1,1)
+    // Top:    (1,1) to (-1,1)
+    // Left:   (-1,1) to (-1,-1)
+    f32 rect[] = {
+        -1.0f, -1.0f, 0.0f,   1.0f, -1.0f, 0.0f,
+         1.0f, -1.0f, 0.0f,   1.0f,  1.0f, 0.0f,
+         1.0f,  1.0f, 0.0f,  -1.0f,  1.0f, 0.0f,
+        -1.0f,  1.0f, 0.0f,  -1.0f, -1.0f, 0.0f
+    };
+
+    for (f32 v : rect) {
+        vertices.push_back(v);
+    }
+
+    canvasGizmoVAO_ = VertexArray::create();
+
+    auto vbo = VertexBuffer::createRaw(vertices.data(), static_cast<u32>(vertices.size() * sizeof(f32)));
+    vbo->setLayout({
+        { ShaderDataType::Float3, "a_position" }
+    });
+
+    canvasGizmoVAO_->addVertexBuffer(Shared<VertexBuffer>(std::move(vbo)));
+
+    canvasGizmoInitialized_ = true;
+}
+
+void SceneViewPanel::renderCanvasGizmo(const glm::mat4& viewProj) {
+    Entity canvasEntity = findCanvas();
+    if (canvasEntity == INVALID_ENTITY) return;
+
+    auto* canvas = registry_.tryGet<ecs::Canvas>(canvasEntity);
+    if (!canvas) return;
+
+    if (!canvasGizmoInitialized_) {
+        initCanvasGizmoData();
+    }
+
+    if (!canvasGizmoVAO_ || !gridShader_) return;
+
+    glm::vec2 worldSize = canvas->getWorldSize();
+    f32 halfWidth = worldSize.x * 0.5f;
+    f32 halfHeight = worldSize.y * 0.5f;
+
+    glm::mat4 model = glm::scale(glm::mat4(1.0f), glm::vec3(halfWidth, halfHeight, 1.0f));
+    glm::mat4 mvp = viewProj * model;
+
+    gridShader_->bind();
+    gridShader_->setUniform("u_viewProj", mvp);
+    gridShader_->setUniform("u_color", glm::vec4(0.4f, 0.8f, 1.0f, 0.8f));
+
+    canvasGizmoVAO_->bind();
+    glDrawArrays(GL_LINES, 0, 8);
 }
 
 }  // namespace esengine::editor
