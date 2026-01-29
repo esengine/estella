@@ -151,23 +151,29 @@ void SceneViewPanel::render(ui::UIBatchRenderer& renderer) {
         );
 
         renderer.flush();
-        renderAxisGizmo();
+        if (viewMode_ == ViewMode::Mode3D) {
+            renderAxisGizmo();
+        } else {
+            renderAxisGizmo2D();
+        }
     }
 }
 
 bool SceneViewPanel::onMouseDown(const ui::MouseButtonEvent& event) {
-    if (event.button == ui::MouseButton::Left && !event.alt && !event.ctrl && !event.shift) {
-        i32 axisHit = hitTestAxisGizmo(event.x, event.y);
-        if (axisHit >= 0) {
-            switch (axisHit) {
-                case 0: setViewToRight(); break;
-                case 1: setViewToTop(); break;
-                case 2: setViewToFront(); break;
-                case 3: setViewToLeft(); break;
-                case 4: setViewToBottom(); break;
-                case 5: setViewToBack(); break;
+    if (viewMode_ == ViewMode::Mode3D) {
+        if (event.button == ui::MouseButton::Left && !event.alt && !event.ctrl && !event.shift) {
+            i32 axisHit = hitTestAxisGizmo(event.x, event.y);
+            if (axisHit >= 0) {
+                switch (axisHit) {
+                    case 0: setViewToRight(); break;
+                    case 1: setViewToTop(); break;
+                    case 2: setViewToFront(); break;
+                    case 3: setViewToLeft(); break;
+                    case 4: setViewToBottom(); break;
+                    case 5: setViewToBack(); break;
+                }
+                return true;
             }
-            return true;
         }
     }
 
@@ -500,7 +506,6 @@ void SceneViewPanel::renderAxisGizmo() {
     axisVAO_->bind();
     glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(axisVertexCount_));
 
-    glDisable(GL_BLEND);
     glDisable(GL_DEPTH_TEST);
     glViewport(savedViewport[0], savedViewport[1], savedViewport[2], savedViewport[3]);
 }
@@ -570,6 +575,121 @@ void SceneViewPanel::setViewToRight() {
 
 void SceneViewPanel::setViewToLeft() {
     camera_.animateTo(0.0f, glm::half_pi<f32>());
+}
+
+void SceneViewPanel::setViewMode(ViewMode mode) {
+    if (viewMode_ == mode) return;
+
+    viewMode_ = mode;
+
+    if (mode == ViewMode::Mode2D) {
+        camera_.animateTo(glm::half_pi<f32>() - 0.01f, 0.0f);
+    } else {
+        camera_.animateTo(0.5f, 0.5f);
+    }
+}
+
+void SceneViewPanel::initAxisGizmo2DData() {
+    std::vector<f32> vertices;
+
+    auto addVertex = [&vertices](const glm::vec3& pos, const glm::vec4& color) {
+        vertices.insert(vertices.end(), {pos.x, pos.y, pos.z, color.r, color.g, color.b, color.a});
+    };
+
+    auto addArrow2D = [&](const glm::vec3& start, const glm::vec3& end, f32 thickness, f32 headSize,
+                          const glm::vec4& color) {
+        glm::vec3 dir = glm::normalize(end - start);
+        glm::vec3 perp(-dir.y, dir.x, 0.0f);
+
+        glm::vec3 shaftEnd = end - dir * headSize;
+
+        glm::vec3 s1 = start + perp * thickness;
+        glm::vec3 s2 = start - perp * thickness;
+        glm::vec3 e1 = shaftEnd + perp * thickness;
+        glm::vec3 e2 = shaftEnd - perp * thickness;
+
+        addVertex(s1, color);
+        addVertex(e1, color);
+        addVertex(e2, color);
+        addVertex(s1, color);
+        addVertex(e2, color);
+        addVertex(s2, color);
+
+        glm::vec3 h1 = shaftEnd + perp * headSize * 0.5f;
+        glm::vec3 h2 = shaftEnd - perp * headSize * 0.5f;
+
+        addVertex(end, color);
+        addVertex(h1, color);
+        addVertex(h2, color);
+    };
+
+    glm::vec4 red(0.9f, 0.2f, 0.2f, 0.9f);
+    glm::vec4 green(0.3f, 0.85f, 0.3f, 0.9f);
+
+    f32 length = 0.8f;
+    f32 thickness = 0.04f;
+    f32 headSize = 0.2f;
+
+    addArrow2D(glm::vec3(0), glm::vec3(length, 0, 0), thickness, headSize, red);
+    addArrow2D(glm::vec3(0), glm::vec3(0, length, 0), thickness, headSize, green);
+
+    axis2DVertexCount_ = static_cast<u32>(vertices.size() / 7);
+
+    axis2DVAO_ = VertexArray::create();
+
+    auto vbo = VertexBuffer::createRaw(vertices.data(), static_cast<u32>(vertices.size() * sizeof(f32)));
+    vbo->setLayout({
+        { ShaderDataType::Float3, "a_position" },
+        { ShaderDataType::Float4, "a_color" }
+    });
+
+    axis2DVAO_->addVertexBuffer(Shared<VertexBuffer>(std::move(vbo)));
+
+    axis2DInitialized_ = true;
+}
+
+void SceneViewPanel::renderAxisGizmo2D() {
+    if (!axis2DInitialized_) {
+        initAxisGizmo2DData();
+    }
+
+    if (!axis2DVAO_ || !axisShader_) return;
+
+    const ui::Rect& bounds = getBounds();
+    f32 gizmoSize = 50.0f;
+    f32 padding = 12.0f;
+
+    axisGizmoCenter_ = glm::vec2(
+        bounds.x + bounds.width - gizmoSize - padding,
+        bounds.y + gizmoSize + padding
+    );
+
+    GLint savedViewport[4];
+    glGetIntegerv(GL_VIEWPORT, savedViewport);
+
+    f32 vpX = axisGizmoCenter_.x - gizmoSize;
+    f32 vpY = savedViewport[3] - axisGizmoCenter_.y - gizmoSize;
+    glViewport(static_cast<GLint>(vpX), static_cast<GLint>(vpY),
+               static_cast<GLsizei>(gizmoSize * 2), static_cast<GLsizei>(gizmoSize * 2));
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    glm::mat4 proj = glm::ortho(-1.2f, 1.2f, -1.2f, 1.2f, -1.0f, 1.0f);
+
+    axisShader_->bind();
+    axisShader_->setUniform("u_viewProj", proj);
+
+    axis2DVAO_->bind();
+    glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(axis2DVertexCount_));
+
+    glViewport(savedViewport[0], savedViewport[1], savedViewport[2], savedViewport[3]);
+}
+
+i32 SceneViewPanel::hitTestAxisGizmo2D(f32 x, f32 y) {
+    (void)x;
+    (void)y;
+    return -1;
 }
 
 }  // namespace esengine::editor

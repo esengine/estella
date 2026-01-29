@@ -53,6 +53,17 @@ void EditorToolbar::stop() {
     }
 }
 
+void EditorToolbar::setViewMode(ViewMode mode) {
+    if (viewMode_ != mode) {
+        viewMode_ = mode;
+        onViewModeChanged.publish(viewMode_);
+    }
+}
+
+void EditorToolbar::toggleViewMode() {
+    setViewMode(viewMode_ == ViewMode::Mode2D ? ViewMode::Mode3D : ViewMode::Mode2D);
+}
+
 // =============================================================================
 // Layout
 // =============================================================================
@@ -103,6 +114,12 @@ void EditorToolbar::render(ui::UIBatchRenderer& renderer) {
     drawButton(playButton_, icons::Play, playing, playingBg);
     drawButton(pauseButton_, icons::Pause, paused, pausedBg);
     drawButton(stopButton_, icons::Square, false, buttonBg);
+
+    std::string viewModeIcon = viewMode_ == ViewMode::Mode2D ? icons::Square : icons::Box;
+    glm::vec4 viewModeBg = viewModeButton_.hovered ? buttonHover : buttonBg;
+    renderer.drawRoundedRect(viewModeButton_.bounds, viewModeBg, ui::CornerRadii::all(4.0f));
+    renderer.drawTextInBounds(viewModeIcon, viewModeButton_.bounds, *iconFont, 16.0f, textColor,
+                              ui::HAlign::Center, ui::VAlign::Center);
 #endif
 }
 
@@ -136,6 +153,11 @@ bool EditorToolbar::onMouseDown(const ui::MouseButtonEvent& event) {
         return true;
     }
 
+    if (viewModeButton_.bounds.contains(event.x, event.y)) {
+        toggleViewMode();
+        return true;
+    }
+
     return false;
 }
 
@@ -143,6 +165,7 @@ bool EditorToolbar::onMouseMove(const ui::MouseMoveEvent& event) {
     playButton_.hovered = playButton_.bounds.contains(event.x, event.y);
     pauseButton_.hovered = pauseButton_.bounds.contains(event.x, event.y);
     stopButton_.hovered = stopButton_.bounds.contains(event.x, event.y);
+    viewModeButton_.hovered = viewModeButton_.bounds.contains(event.x, event.y);
     return false;
 }
 
@@ -164,6 +187,15 @@ void EditorToolbar::updateButtonBounds() {
     playButton_.bounds = ui::Rect{startX, centerY, buttonSize, buttonSize};
     pauseButton_.bounds = ui::Rect{startX + buttonSize + buttonGap, centerY, buttonSize, buttonSize};
     stopButton_.bounds = ui::Rect{startX + (buttonSize + buttonGap) * 2, centerY, buttonSize, buttonSize};
+
+    constexpr f32 viewModeWidth = 36.0f;
+    constexpr f32 rightPadding = 12.0f;
+    viewModeButton_.bounds = ui::Rect{
+        bounds.x + bounds.width - viewModeWidth - rightPadding,
+        centerY,
+        viewModeWidth,
+        buttonSize
+    };
 }
 
 }  // namespace esengine::editor

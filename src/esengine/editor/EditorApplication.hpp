@@ -37,6 +37,7 @@ class NewProjectDialog;
 class EditorRootContainer;
 class AssetBrowserPanel;
 class GameViewPanel;
+class SceneViewPanel;
 
 // =============================================================================
 // Editor Mode
@@ -278,6 +279,7 @@ private:
     ui::DockArea* dockArea_ = nullptr; ///< Main docking area (owned by UIContext)
     EditorRootContainer* editorRoot_ = nullptr; ///< Editor root container
     GameViewPanel* gameViewPanel_ = nullptr; ///< Game view panel
+    SceneViewPanel* sceneViewPanel_ = nullptr; ///< Scene view panel
     AssetBrowserPanel* dockedAssetBrowser_ = nullptr; ///< Docked asset browser (if any)
     ProjectLauncherPanel* launcherPanel_ = nullptr; ///< Launcher panel (owned by UIContext)
     NewProjectDialog* newProjectDialog_ = nullptr;  ///< New project dialog

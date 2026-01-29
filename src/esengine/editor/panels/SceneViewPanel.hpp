@@ -23,6 +23,7 @@
 #include "../camera/EditorCamera.hpp"
 #include "../../ecs/Registry.hpp"
 #include "../core/Selection.hpp"
+#include "../widgets/EditorToolbar.hpp"
 
 namespace esengine::editor {
 
@@ -73,6 +74,12 @@ public:
      */
     const EditorCamera& getCamera() const { return camera_; }
 
+    /** @brief Sets the view mode (2D or 3D) */
+    void setViewMode(ViewMode mode);
+
+    /** @brief Gets the current view mode */
+    ViewMode getViewMode() const { return viewMode_; }
+
     // =========================================================================
     // Widget Interface
     // =========================================================================
@@ -96,10 +103,13 @@ private:
     void renderGrid(const glm::mat4& viewProj);
     void renderSprites(const glm::mat4& viewProj);
     void renderAxisGizmo();
+    void renderAxisGizmo2D();
     void updateFramebufferSize();
     void initGridData();
     void initAxisGizmoData();
+    void initAxisGizmo2DData();
     i32 hitTestAxisGizmo(f32 x, f32 y);
+    i32 hitTestAxisGizmo2D(f32 x, f32 y);
 
     ecs::Registry& registry_;
     EntitySelection& selection_;
@@ -125,6 +135,11 @@ private:
     bool framebufferNeedsResize_ = false;
 
     f64 lastFrameTime_ = 0.0;
+
+    ViewMode viewMode_ = ViewMode::Mode3D;
+    Unique<VertexArray> axis2DVAO_;
+    u32 axis2DVertexCount_ = 0;
+    bool axis2DInitialized_ = false;
 };
 
 }  // namespace esengine::editor

@@ -371,6 +371,7 @@ void EditorApplication::setupEditorLayout() {
     ES_LOG_INFO("setupEditorLayout: Creating SceneViewPanel...");
     auto sceneViewPanel = makeUnique<SceneViewPanel>(registry_, selection_);
     sceneViewPanel->setMinSize(glm::vec2(400.0f, 300.0f));
+    sceneViewPanel_ = sceneViewPanel.get();
     auto sceneViewPanelId = sceneViewPanel->getPanelId();
     dockArea_->addPanel(std::move(sceneViewPanel), ui::DockDropZone::Center);
 
@@ -418,6 +419,13 @@ void EditorApplication::setupEditorLayout() {
 
     eventConnections_.add(sink(toolbar->onStop).connect([this]() {
         ES_LOG_INFO("Play mode stopped");
+    }));
+
+    eventConnections_.add(sink(toolbar->onViewModeChanged).connect([this](ViewMode mode) {
+        if (sceneViewPanel_) {
+            sceneViewPanel_->setViewMode(mode);
+        }
+        ES_LOG_INFO("View mode changed to {}", mode == ViewMode::Mode2D ? "2D" : "3D");
     }));
 
     uiContext_->setRoot(std::move(editorRoot));
