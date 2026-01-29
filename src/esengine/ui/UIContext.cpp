@@ -475,6 +475,20 @@ void UIContext::setFocus(Widget* widget) {
     }
 }
 
+void UIContext::clearWidgetReferences(Widget* widget) {
+    if (!widget) return;
+
+    if (focusedWidget_ == widget) {
+        focusedWidget_ = nullptr;
+    }
+    if (hoveredWidget_ == widget) {
+        hoveredWidget_ = nullptr;
+    }
+    if (pressedWidget_ == widget) {
+        pressedWidget_ = nullptr;
+    }
+}
+
 // =============================================================================
 // Internal
 // =============================================================================

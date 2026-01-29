@@ -309,6 +309,12 @@ public:
      */
     void clearFocus() { setFocus(nullptr); }
 
+    /**
+     * @brief Clears all references to a widget (called when widget is destroyed)
+     * @param widget Widget being destroyed
+     */
+    void clearWidgetReferences(Widget* widget);
+
     // =========================================================================
     // Overlay Management
     // =========================================================================

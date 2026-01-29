@@ -58,6 +58,7 @@ public:
     Signal<void(const std::string&)> onAssetDoubleClicked;
 
     bool onMouseDown(const ui::MouseButtonEvent& event) override;
+    void render(ui::UIBatchRenderer& renderer) override;
 
 protected:
     void onActivated() override;
@@ -103,6 +104,8 @@ private:
 
     std::string selectedAssetPath_;
     bool needsRebuild_ = false;
+    bool needsRefreshAssetList_ = false;
+    std::string pendingNavigatePath_;
 
     AssetDatabase& assetDB_;
     ThumbnailGenerator& thumbnailGen_;

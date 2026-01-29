@@ -93,6 +93,24 @@ void AssetBrowserPanel::onActivated() {
     }
 }
 
+void AssetBrowserPanel::render(ui::UIBatchRenderer& renderer) {
+    // Process deferred navigation to avoid deleting objects during their event handlers
+    if (needsRefreshAssetList_) {
+        needsRefreshAssetList_ = false;
+        currentPath_ = pendingNavigatePath_;
+        refreshAssetList();
+
+        auto it = pathToNode_.find(pendingNavigatePath_);
+        if (it != pathToNode_.end()) {
+            folderTree_->selectNode(it->second);
+            folderTree_->setNodeExpanded(it->second, true);
+        }
+        pendingNavigatePath_.clear();
+    }
+
+    DockPanel::render(renderer);
+}
+
 // =============================================================================
 // UI Building
 // =============================================================================
@@ -279,9 +297,9 @@ void AssetBrowserPanel::refreshAssetList() {
     return;
 #endif
 
+    itemConnections_.disconnectAll();
     currentAssets_.clear();
     assetGridPanel_->clearChildren();
-    itemConnections_.disconnectAll();
 
     if (!FileSystem::directoryExists(currentPath_)) {
         ES_LOG_WARN("AssetBrowserPanel::refreshAssetList: directory not found: {}", currentPath_);
@@ -386,17 +404,15 @@ void AssetBrowserPanel::onAssetItemClicked(const std::string& path) {
 }
 
 void AssetBrowserPanel::onAssetItemDoubleClicked(const std::string& path) {
-    if (FileSystem::directoryExists(path)) {
-        currentPath_ = path;
-        refreshAssetList();
+    // Copy path - the source object will be destroyed when we refresh
+    std::string pathCopy = path;
 
-        auto it = pathToNode_.find(path);
-        if (it != pathToNode_.end()) {
-            folderTree_->selectNode(it->second);
-            folderTree_->setNodeExpanded(it->second, true);
-        }
+    if (FileSystem::directoryExists(pathCopy)) {
+        // Defer the refresh to avoid deleting the object that's currently handling the event
+        pendingNavigatePath_ = pathCopy;
+        needsRefreshAssetList_ = true;
     } else {
-        onAssetDoubleClicked.publish(path);
+        onAssetDoubleClicked.publish(pathCopy);
     }
 }
 

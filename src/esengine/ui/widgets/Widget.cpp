@@ -12,6 +12,7 @@
 #include "Widget.hpp"
 #include "../layout/Layout.hpp"
 #include "../rendering/UIBatchRenderer.hpp"
+#include "../UIContext.hpp"
 
 namespace esengine::ui {
 
@@ -248,6 +249,9 @@ bool Widget::containsPoint(f32 x, f32 y) const {
 // =============================================================================
 
 void Widget::setContext(UIContext* context) {
+    if (context_ && context_ != context) {
+        context_->clearWidgetReferences(this);
+    }
     context_ = context;
     for (auto& child : children_) {
         child->setContext(context);
