@@ -143,6 +143,8 @@ void AssetBrowserPanel::buildUI() {
     folderTree->setMultiSelect(false);
     folderTree->setRowHeight(24.0f);
     folderTree->setIndentSize(16.0f);
+    folderTree->setShowVisibilityColumn(false);
+    folderTree->setShowTypeColumn(false);
     folderTree->setWidth(ui::SizeValue::flex(1.0f));
     folderTree->setHeight(ui::SizeValue::autoSize());
     folderTree_ = folderTree.get();

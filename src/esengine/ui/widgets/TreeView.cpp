@@ -328,15 +328,16 @@ void TreeView::renderNode(UIBatchRenderer& renderer, const TreeNode& node, f32 y
 
     f32 x = bounds.x + padding.left + ROW_PADDING_X;
 
-    // Visibility icon
-    if (iconFont) {
-        Rect eyeBounds{x, y + (rowHeight_ - ICON_SIZE) * 0.5f, ICON_SIZE, ICON_SIZE};
-        const char* eyeIcon = node.visible ? icons::Eye : icons::EyeOff;
-        glm::vec4 eyeColor = node.visible ? visibleIconColor : hiddenIconColor;
-        renderer.drawTextInBounds(eyeIcon, eyeBounds, *iconFont, 12.0f, eyeColor,
-                                   HAlign::Center, VAlign::Center);
+    if (showVisibilityColumn_) {
+        if (iconFont) {
+            Rect eyeBounds{x, y + (rowHeight_ - ICON_SIZE) * 0.5f, ICON_SIZE, ICON_SIZE};
+            const char* eyeIcon = node.visible ? icons::Eye : icons::EyeOff;
+            glm::vec4 eyeColor = node.visible ? visibleIconColor : hiddenIconColor;
+            renderer.drawTextInBounds(eyeIcon, eyeBounds, *iconFont, 12.0f, eyeColor,
+                                       HAlign::Center, VAlign::Center);
+        }
+        x += VISIBILITY_COLUMN_WIDTH;
     }
-    x += VISIBILITY_COLUMN_WIDTH;
 
     // Indent + expand arrow
     x += static_cast<f32>(node.depth) * indentSize_;
@@ -367,7 +368,8 @@ void TreeView::renderNode(UIBatchRenderer& renderer, const TreeNode& node, f32 y
     x += ICON_SIZE + 6.0f;
 
     // Label
-    f32 labelMaxWidth = bounds.x + bounds.width - padding.right - TYPE_COLUMN_WIDTH - x;
+    f32 typeColumnSpace = showTypeColumn_ ? TYPE_COLUMN_WIDTH : 0.0f;
+    f32 labelMaxWidth = bounds.x + bounds.width - padding.right - typeColumnSpace - x;
     f32 textY = y + (rowHeight_ - FONT_SIZE) * 0.5f;
 
     if (textFont && labelMaxWidth > 0) {
@@ -377,8 +379,7 @@ void TreeView::renderNode(UIBatchRenderer& renderer, const TreeNode& node, f32 y
         renderer.popClipRect();
     }
 
-    // Type column (right-aligned)
-    if (textFont && !node.type.empty()) {
+    if (showTypeColumn_ && textFont && !node.type.empty()) {
         f32 typeX = bounds.x + bounds.width - padding.right - TYPE_COLUMN_WIDTH;
         renderer.drawText(node.type, glm::vec2(typeX, textY), *textFont, 11.0f, dimTextColor);
     }

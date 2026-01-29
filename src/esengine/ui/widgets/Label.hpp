@@ -105,6 +105,12 @@ public:
     /** @brief Gets vertical text alignment */
     VAlign getVAlign() const { return vAlign_; }
 
+    /** @brief Sets whether to clip text to bounds */
+    void setClipContent(bool clip) { clipContent_ = clip; }
+
+    /** @brief Returns true if content is clipped */
+    bool getClipContent() const { return clipContent_; }
+
     // =========================================================================
     // Widget Overrides
     // =========================================================================
@@ -123,6 +129,7 @@ private:
 
     HAlign hAlign_ = HAlign::Left;
     VAlign vAlign_ = VAlign::Center;
+    bool clipContent_ = false;
 
     glm::vec2 cachedTextSize_{0.0f};
     bool textSizeDirty_ = true;

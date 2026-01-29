@@ -147,6 +147,18 @@ public:
      */
     f32 getIconSize() const { return iconSize_; }
 
+    /** @brief Sets whether to show the visibility column */
+    void setShowVisibilityColumn(bool show) { showVisibilityColumn_ = show; }
+
+    /** @brief Returns true if the visibility column is shown */
+    bool getShowVisibilityColumn() const { return showVisibilityColumn_; }
+
+    /** @brief Sets whether to show the type column */
+    void setShowTypeColumn(bool show) { showTypeColumn_ = show; }
+
+    /** @brief Returns true if the type column is shown */
+    bool getShowTypeColumn() const { return showTypeColumn_; }
+
     // =========================================================================
     // Node Management
     // =========================================================================
@@ -371,6 +383,8 @@ private:
     f32 indentSize_ = 20.0f;
     f32 rowHeight_ = 24.0f;
     f32 iconSize_ = 12.0f;
+    bool showVisibilityColumn_ = true;
+    bool showTypeColumn_ = true;
 
     // ID generation
     TreeNodeId nextNodeId_ = 1;

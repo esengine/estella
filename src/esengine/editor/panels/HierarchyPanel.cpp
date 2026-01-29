@@ -39,7 +39,7 @@ HierarchyPanel::HierarchyPanel(ecs::Registry& registry, EntitySelection& selecti
 
     setPanelType("Hierarchy");
     setClosable(false);
-    setMinSize(glm::vec2(200.0f, 200.0f));
+    setMinSize(glm::vec2(280.0f, 200.0f));
 
     buildUI();
 
@@ -206,6 +206,7 @@ void HierarchyPanel::buildUI() {
     itemLabelHeader->setFontSize(11.0f);
     itemLabelHeader->setColor(headerTextColor);
     itemLabelHeader->setWidth(ui::SizeValue::flex(1.0f));
+    itemLabelHeader->setClipContent(true);
     columnHeader->addChild(std::move(itemLabelHeader));
 
     auto typeHeader = makeUnique<ui::Label>(ui::WidgetId(getId().path + "_type_header"), "Type");

@@ -370,8 +370,8 @@ void EditorApplication::setupEditorLayout() {
 
     ES_LOG_INFO("setupEditorLayout: Creating HierarchyPanel...");
     auto hierarchyPanel = makeUnique<HierarchyPanel>(registry_, selection_);
-    hierarchyPanel->setMinSize(glm::vec2(200.0f, 200.0f));
-    dockArea_->addPanel(std::move(hierarchyPanel), ui::DockDropZone::Left, nullptr, 0.2f);
+    hierarchyPanel->setMinSize(glm::vec2(280.0f, 200.0f));
+    dockArea_->addPanel(std::move(hierarchyPanel), ui::DockDropZone::Left, nullptr, 0.22f);
 
     ES_LOG_INFO("setupEditorLayout: Creating InspectorPanel...");
     auto inspectorPanel = makeUnique<InspectorPanel>(registry_, selection_, commandHistory_);

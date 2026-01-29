@@ -109,7 +109,9 @@ void Label::render(UIBatchRenderer& renderer) {
     glm::vec4 textColor = customColor_ ? color_ : style.getTextColor(getState());
     Rect contentBounds = getContentBounds();
 
-    renderer.pushClipRect(contentBounds);
+    if (clipContent_) {
+        renderer.pushClipRect(contentBounds);
+    }
 
 #if ES_FEATURE_SDF_FONT
     MSDFFont* font = nullptr;
@@ -128,7 +130,9 @@ void Label::render(UIBatchRenderer& renderer) {
     }
 #endif
 
-    renderer.popClipRect();
+    if (clipContent_) {
+        renderer.popClipRect();
+    }
 }
 
 }  // namespace esengine::ui
