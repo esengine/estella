@@ -16,6 +16,7 @@
 // =============================================================================
 
 #include "../../core/Types.hpp"
+#include "../ResourceLoader.hpp"
 #include "../ShaderParser.hpp"
 #include "../../renderer/Shader.hpp"
 
@@ -24,49 +25,35 @@
 namespace esengine::resource {
 
 // =============================================================================
-// Load Result
+// ShaderLoadResult (legacy compatibility)
 // =============================================================================
 
-/**
- * @brief Result of shader loading operation
- */
-struct ShaderLoadResult {
-    Unique<Shader> shader;           ///< Loaded shader (nullptr on failure)
-    std::string errorMessage;        ///< Error message if loading failed
-    std::vector<std::string> dependencies;  ///< File dependencies for hot reload
-
-    /** @brief Checks if loading succeeded */
-    bool isOk() const { return shader != nullptr; }
-};
+using ShaderLoadResult = LoadResult<Shader>;
 
 // =============================================================================
-// ShaderLoader Class
+// ShaderFileLoader Class
 // =============================================================================
 
 /**
  * @brief Loader for unified .esshader files
  *
- * @details Parses .esshader format and creates GPU shader resources.
- *          Supports platform variants for cross-platform compatibility.
+ * @details Implements ResourceLoader<Shader> interface for loading shaders
+ *          from the unified .esshader format. Supports platform variants.
  *
  * @code
- * ShaderLoader loader;
- * auto result = loader.loadFromFile("shaders/sprite.esshader");
+ * ShaderFileLoader loader;
+ * auto result = loader.load({"shaders/sprite.esshader"});
  * if (result.isOk()) {
- *     Shader* shader = result.shader.get();
+ *     Shader* shader = result.resource.get();
  * }
  * @endcode
  */
-class ShaderLoader {
+class ShaderFileLoader : public ResourceLoader<Shader> {
 public:
-    /**
-     * @brief Loads a shader from .esshader file
-     * @param path Path to the .esshader file
-     * @param platform Platform variant to use (empty for auto-detect)
-     * @return Load result with shader or error message
-     */
-    ShaderLoadResult loadFromFile(const std::string& path,
-                                   const std::string& platform = "");
+    bool canLoad(const std::string& path) const override;
+    std::vector<std::string> getSupportedExtensions() const override;
+    LoadResult<Shader> load(const LoadRequest& request) override;
+    const char* getTypeName() const override { return "Shader"; }
 
     /**
      * @brief Loads a shader from source string
@@ -74,27 +61,37 @@ public:
      * @param platform Platform variant to use (empty for auto-detect)
      * @return Load result with shader or error message
      */
-    ShaderLoadResult loadFromSource(const std::string& source,
-                                     const std::string& platform = "");
+    LoadResult<Shader> loadFromSource(const std::string& source,
+                                       const std::string& platform = "");
 
     /**
      * @brief Gets the default platform identifier for current build
      * @return Platform string (e.g., "WEBGL", "DESKTOP")
      */
     static std::string getDefaultPlatform();
+};
 
-    /**
-     * @brief Checks if a file path is a supported shader format
-     * @param path File path to check
-     * @return True if the file extension is supported
-     */
+// =============================================================================
+// ShaderLoader (legacy compatibility alias)
+// =============================================================================
+
+/**
+ * @brief Legacy shader loader (use ShaderFileLoader for new code)
+ */
+class ShaderLoader {
+public:
+    ShaderLoadResult loadFromFile(const std::string& path,
+                                   const std::string& platform = "");
+
+    ShaderLoadResult loadFromSource(const std::string& source,
+                                     const std::string& platform = "");
+
+    static std::string getDefaultPlatform() { return ShaderFileLoader::getDefaultPlatform(); }
     static bool canLoad(const std::string& path);
-
-    /**
-     * @brief Gets supported file extensions
-     * @return List of supported extensions (e.g., {".esshader"})
-     */
     static std::vector<std::string> getSupportedExtensions();
+
+private:
+    ShaderFileLoader loader_;
 };
 
 }  // namespace esengine::resource

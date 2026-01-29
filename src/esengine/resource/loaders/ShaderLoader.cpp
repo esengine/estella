@@ -18,85 +18,10 @@
 namespace esengine::resource {
 
 // =============================================================================
-// Public Methods
+// ShaderFileLoader Implementation
 // =============================================================================
 
-ShaderLoadResult ShaderLoader::loadFromFile(const std::string& path,
-                                             const std::string& platform) {
-    ShaderLoadResult result;
-
-    if (!FileSystem::fileExists(path)) {
-        result.errorMessage = "Shader file not found: " + path;
-        ES_LOG_ERROR("ShaderLoader: {}", result.errorMessage);
-        return result;
-    }
-
-    std::string source = FileSystem::readTextFile(path);
-    if (source.empty()) {
-        result.errorMessage = "Failed to read shader file: " + path;
-        ES_LOG_ERROR("ShaderLoader: {}", result.errorMessage);
-        return result;
-    }
-
-    result = loadFromSource(source, platform);
-    result.dependencies.push_back(path);
-
-    if (result.isOk()) {
-        ES_LOG_DEBUG("ShaderLoader: Loaded shader from {}", path);
-    }
-
-    return result;
-}
-
-ShaderLoadResult ShaderLoader::loadFromSource(const std::string& source,
-                                               const std::string& platform) {
-    ShaderLoadResult result;
-
-    ParsedShader parsed = ShaderParser::parse(source);
-    if (!parsed.valid) {
-        result.errorMessage = "Shader parse error: " + parsed.errorMessage;
-        ES_LOG_ERROR("ShaderLoader: {}", result.errorMessage);
-        return result;
-    }
-
-    std::string effectivePlatform = platform.empty() ? getDefaultPlatform() : platform;
-
-    std::string vertexSrc = ShaderParser::assembleStage(parsed, ShaderStage::Vertex, effectivePlatform);
-    std::string fragmentSrc = ShaderParser::assembleStage(parsed, ShaderStage::Fragment, effectivePlatform);
-
-    if (vertexSrc.empty()) {
-        result.errorMessage = "Failed to assemble vertex shader";
-        ES_LOG_ERROR("ShaderLoader: {}", result.errorMessage);
-        return result;
-    }
-
-    if (fragmentSrc.empty()) {
-        result.errorMessage = "Failed to assemble fragment shader";
-        ES_LOG_ERROR("ShaderLoader: {}", result.errorMessage);
-        return result;
-    }
-
-    result.shader = Shader::create(vertexSrc, fragmentSrc);
-    if (!result.shader || !result.shader->isValid()) {
-        result.errorMessage = "Failed to compile shader";
-        result.shader.reset();
-        ES_LOG_ERROR("ShaderLoader: {}", result.errorMessage);
-        return result;
-    }
-
-    ES_LOG_DEBUG("ShaderLoader: Successfully compiled shader '{}'", parsed.name);
-    return result;
-}
-
-std::string ShaderLoader::getDefaultPlatform() {
-#ifdef ES_PLATFORM_WEB
-    return "WEBGL";
-#else
-    return "DESKTOP";
-#endif
-}
-
-bool ShaderLoader::canLoad(const std::string& path) {
+bool ShaderFileLoader::canLoad(const std::string& path) const {
     auto extensions = getSupportedExtensions();
     for (const auto& ext : extensions) {
         if (path.size() >= ext.size() &&
@@ -107,8 +32,94 @@ bool ShaderLoader::canLoad(const std::string& path) {
     return false;
 }
 
-std::vector<std::string> ShaderLoader::getSupportedExtensions() {
+std::vector<std::string> ShaderFileLoader::getSupportedExtensions() const {
     return {".esshader"};
+}
+
+LoadResult<Shader> ShaderFileLoader::load(const LoadRequest& request) {
+    if (!FileSystem::fileExists(request.path)) {
+        return LoadResult<Shader>::err("Shader file not found: " + request.path);
+    }
+
+    std::string source = FileSystem::readTextFile(request.path);
+    if (source.empty()) {
+        return LoadResult<Shader>::err("Failed to read shader file: " + request.path);
+    }
+
+    auto result = loadFromSource(source, request.platform);
+    result.dependencies.push_back(request.path);
+
+    if (result.isOk()) {
+        ES_LOG_DEBUG("ShaderFileLoader: Loaded shader from {}", request.path);
+    }
+
+    return result;
+}
+
+LoadResult<Shader> ShaderFileLoader::loadFromSource(const std::string& source,
+                                                     const std::string& platform) {
+    ParsedShader parsed = ShaderParser::parse(source);
+    if (!parsed.valid) {
+        ES_LOG_ERROR("ShaderFileLoader: {}", parsed.errorMessage);
+        return LoadResult<Shader>::err("Shader parse error: " + parsed.errorMessage);
+    }
+
+    std::string effectivePlatform = platform.empty() ? getDefaultPlatform() : platform;
+
+    std::string vertexSrc = ShaderParser::assembleStage(parsed, ShaderStage::Vertex, effectivePlatform);
+    std::string fragmentSrc = ShaderParser::assembleStage(parsed, ShaderStage::Fragment, effectivePlatform);
+
+    if (vertexSrc.empty()) {
+        return LoadResult<Shader>::err("Failed to assemble vertex shader");
+    }
+
+    if (fragmentSrc.empty()) {
+        return LoadResult<Shader>::err("Failed to assemble fragment shader");
+    }
+
+    auto shader = Shader::create(vertexSrc, fragmentSrc);
+    if (!shader || !shader->isValid()) {
+        ES_LOG_ERROR("ShaderFileLoader: Failed to compile shader");
+        return LoadResult<Shader>::err("Failed to compile shader");
+    }
+
+    ES_LOG_DEBUG("ShaderFileLoader: Successfully compiled shader '{}'", parsed.name);
+    return LoadResult<Shader>::ok(std::move(shader));
+}
+
+std::string ShaderFileLoader::getDefaultPlatform() {
+#ifdef ES_PLATFORM_WEB
+    return "WEBGL";
+#else
+    return "DESKTOP";
+#endif
+}
+
+// =============================================================================
+// ShaderLoader (Legacy) Implementation
+// =============================================================================
+
+ShaderLoadResult ShaderLoader::loadFromFile(const std::string& path,
+                                             const std::string& platform) {
+    LoadRequest request;
+    request.path = path;
+    request.platform = platform;
+    return loader_.load(request);
+}
+
+ShaderLoadResult ShaderLoader::loadFromSource(const std::string& source,
+                                               const std::string& platform) {
+    return loader_.loadFromSource(source, platform);
+}
+
+bool ShaderLoader::canLoad(const std::string& path) {
+    ShaderFileLoader loader;
+    return loader.canLoad(path);
+}
+
+std::vector<std::string> ShaderLoader::getSupportedExtensions() {
+    ShaderFileLoader loader;
+    return loader.getSupportedExtensions();
 }
 
 }  // namespace esengine::resource

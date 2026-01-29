@@ -99,7 +99,7 @@ ShaderHandle ResourceManager::loadUnifiedShader(const std::string& path, const s
     }
 
     stats_.cacheMisses++;
-    return shaders_.add(std::move(result.shader), path);
+    return shaders_.add(std::move(result.resource), path);
 }
 
 Shader* ResourceManager::getShader(ShaderHandle handle) {

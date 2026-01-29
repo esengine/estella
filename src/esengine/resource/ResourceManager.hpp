@@ -20,6 +20,7 @@
 #include "../core/Types.hpp"
 #include "Handle.hpp"
 #include "ResourcePool.hpp"
+#include "LoaderRegistry.hpp"
 #include "../renderer/Shader.hpp"
 #include "../renderer/Texture.hpp"
 #include "../renderer/Buffer.hpp"
@@ -315,12 +316,47 @@ public:
      */
     void resetCacheStats();
 
+    // =========================================================================
+    // Loader Registration
+    // =========================================================================
+
+    /**
+     * @brief Registers a custom resource loader
+     * @tparam T Resource type the loader produces
+     * @param loader The loader instance
+     */
+    template<typename T>
+    void registerLoader(Unique<ResourceLoader<T>> loader);
+
+    /**
+     * @brief Gets a registered loader for a resource type
+     * @tparam T Resource type
+     * @return Pointer to the loader, or nullptr if not registered
+     */
+    template<typename T>
+    ResourceLoader<T>* getLoader();
+
+    /**
+     * @brief Checks if a loader is registered for a type
+     * @tparam T Resource type
+     * @return True if a loader is registered
+     */
+    template<typename T>
+    bool hasLoader() const;
+
+    /**
+     * @brief Gets the loader registry for advanced usage
+     * @return Reference to the loader registry
+     */
+    LoaderRegistry& getLoaderRegistry() { return loaderRegistry_; }
+
 private:
     ResourcePool<Shader> shaders_;
     ResourcePool<Texture> textures_;
     ResourcePool<VertexBuffer> vertexBuffers_;
     ResourcePool<IndexBuffer> indexBuffers_;
     std::unordered_map<std::string, TextureHandle> guidToTexture_;
+    LoaderRegistry loaderRegistry_;
     mutable ResourceStats stats_;
     bool initialized_ = false;
 };
@@ -334,6 +370,21 @@ VertexBufferHandle ResourceManager::createVertexBuffer(ConstSpan<T> data) {
     auto buffer = VertexBuffer::create(data);
     if (!buffer) return VertexBufferHandle();
     return vertexBuffers_.add(std::move(buffer));
+}
+
+template<typename T>
+void ResourceManager::registerLoader(Unique<ResourceLoader<T>> loader) {
+    loaderRegistry_.registerLoader<T>(std::move(loader));
+}
+
+template<typename T>
+ResourceLoader<T>* ResourceManager::getLoader() {
+    return loaderRegistry_.getLoader<T>();
+}
+
+template<typename T>
+bool ResourceManager::hasLoader() const {
+    return loaderRegistry_.hasLoader<T>();
 }
 
 }  // namespace esengine::resource
