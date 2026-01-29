@@ -212,10 +212,12 @@ MSDFGlyphInfo* MSDFFont::loadGlyph(u32 codepoint) {
     shape.orientContours();
     msdfgen::edgeColoringSimple(shape, 3.0);
 
+    msdfgen::Shape::Bounds tightBounds = shape.getBounds();
     msdfgen::Shape::Bounds bounds = shape.getBounds(pixelRange_ / fontSize_);
 
-    i32 glyphWidth = static_cast<i32>(std::ceil((bounds.r - bounds.l) * fontSize_)) + 2;
-    i32 glyphHeight = static_cast<i32>(std::ceil((bounds.t - bounds.b) * fontSize_)) + 2;
+    constexpr i32 BITMAP_PADDING = 1;
+    i32 glyphWidth = static_cast<i32>(std::ceil((bounds.r - bounds.l) * fontSize_)) + BITMAP_PADDING * 2;
+    i32 glyphHeight = static_cast<i32>(std::ceil((bounds.t - bounds.b) * fontSize_)) + BITMAP_PADDING * 2;
 
     glyphWidth = std::max(glyphWidth, 1);
     glyphHeight = std::max(glyphHeight, 1);
@@ -239,7 +241,8 @@ MSDFGlyphInfo* MSDFFont::loadGlyph(u32 codepoint) {
     msdfgen::Bitmap<float, 3> msdf(glyphWidth, glyphHeight);
 
     msdfgen::Vector2 scale(fontSize_, fontSize_);
-    msdfgen::Vector2 translate(1.0 / fontSize_ - bounds.l, 1.0 / fontSize_ - bounds.b);
+    double paddingInEm = BITMAP_PADDING / static_cast<double>(fontSize_);
+    msdfgen::Vector2 translate(paddingInEm - bounds.l, paddingInEm - bounds.b);
 
     double rangeInEm = pixelRange_ / fontSize_;
     msdfgen::Range range(-rangeInEm / 2.0, rangeInEm / 2.0);
@@ -270,8 +273,9 @@ MSDFGlyphInfo* MSDFFont::loadGlyph(u32 codepoint) {
     MSDFGlyphInfo& info = glyphs_[codepoint];
     info.width = static_cast<f32>(glyphWidth);
     info.height = static_cast<f32>(glyphHeight);
-    info.bearingX = static_cast<f32>(bounds.l) * fontSize_ - 1.0f;
-    info.bearingY = static_cast<f32>(bounds.t) * fontSize_ + 1.0f;
+    f32 spreadPixels = static_cast<f32>(bounds.t - tightBounds.t) * fontSize_;
+    info.bearingX = static_cast<f32>(tightBounds.l) * fontSize_ - spreadPixels - BITMAP_PADDING;
+    info.bearingY = static_cast<f32>(tightBounds.t) * fontSize_ + spreadPixels + BITMAP_PADDING;
     info.advance = static_cast<f32>(advance) * fontSize_;
 
     info.atlasX = atlasX;

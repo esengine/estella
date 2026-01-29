@@ -145,7 +145,16 @@ void TextField::render(UIBatchRenderer& renderer) {
     }
 
     f32 textX = bounds.x + padding.left + TEXT_PADDING - textOffsetX_;
-    f32 textY = bounds.y + (bounds.height - fontSize) * 0.5f;
+
+    f32 lineHeight = fontSize;
+#if ES_FEATURE_SDF_FONT
+    if (getContext() && getContext()->getDefaultMSDFFont()) {
+        MSDFFont* font = getContext()->getDefaultMSDFFont();
+        f32 scale = fontSize / font->getFontSize();
+        lineHeight = font->getLineHeight() * scale;
+    }
+#endif
+    f32 textY = bounds.y + (bounds.height - lineHeight) * 0.5f;
 
     if (text_.empty() && !isFocused() && !placeholder_.empty()) {
         glm::vec4 placeholderColor = textColor;
