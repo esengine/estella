@@ -174,4 +174,10 @@ void EditorCamera::mouseZoom(f32 delta) {
     updateView();
 }
 
+void EditorCamera::setRotation(f32 pitch, f32 yaw) {
+    pitch_ = glm::clamp(pitch, -glm::half_pi<f32>() + 0.01f, glm::half_pi<f32>() - 0.01f);
+    yaw_ = yaw;
+    updateView();
+}
+
 }  // namespace esengine::editor

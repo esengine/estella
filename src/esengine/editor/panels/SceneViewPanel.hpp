@@ -83,13 +83,23 @@ public:
     bool onMouseMove(const ui::MouseMoveEvent& event) override;
     bool onScroll(const ui::ScrollEvent& event) override;
 
+    void setViewToTop();
+    void setViewToFront();
+    void setViewToRight();
+    void setViewToBack();
+    void setViewToLeft();
+    void setViewToBottom();
+
 private:
     void renderSceneToTexture();
     void renderSceneContent();
     void renderGrid(const glm::mat4& viewProj);
     void renderSprites(const glm::mat4& viewProj);
+    void renderAxisGizmo();
     void updateFramebufferSize();
     void initGridData();
+    void initAxisGizmoData();
+    i32 hitTestAxisGizmo(f32 x, f32 y);
 
     ecs::Registry& registry_;
     EntitySelection& selection_;
@@ -101,6 +111,14 @@ private:
     Unique<Shader> gridShader_;
     u32 gridVertexCount_ = 0;
     bool gridInitialized_ = false;
+
+    Unique<VertexArray> axisVAO_;
+    Unique<Shader> axisShader_;
+    u32 axisVertexCount_ = 0;
+    bool axisInitialized_ = false;
+    glm::vec2 axisGizmoCenter_{0.0f};
+    f32 axisGizmoRadius_ = 50.0f;
+    i32 hoveredAxis_ = -1;
 
     u32 viewportWidth_ = 1280;
     u32 viewportHeight_ = 720;

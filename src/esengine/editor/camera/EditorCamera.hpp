@@ -154,6 +154,15 @@ public:
     /** @brief Gets the distance from focal point */
     f32 getDistance() const { return distance_; }
 
+    /** @brief Gets pitch angle */
+    f32 getPitch() const { return pitch_; }
+
+    /** @brief Gets yaw angle */
+    f32 getYaw() const { return yaw_; }
+
+    /** @brief Sets pitch and yaw angles directly */
+    void setRotation(f32 pitch, f32 yaw);
+
 private:
     void updateView();
     glm::quat getOrientation() const;

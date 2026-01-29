@@ -46,6 +46,30 @@ const char* GRID_FRAGMENT_SHADER = R"(
     }
 )";
 
+const char* AXIS_VERTEX_SHADER = R"(
+    attribute vec3 a_position;
+    attribute vec4 a_color;
+
+    uniform mat4 u_viewProj;
+
+    varying vec4 v_color;
+
+    void main() {
+        gl_Position = u_viewProj * vec4(a_position, 1.0);
+        v_color = a_color;
+    }
+)";
+
+const char* AXIS_FRAGMENT_SHADER = R"(
+    precision mediump float;
+
+    varying vec4 v_color;
+
+    void main() {
+        gl_FragColor = v_color;
+    }
+)";
+
 }
 
 namespace esengine::editor {
@@ -114,10 +138,28 @@ void SceneViewPanel::render(ui::UIBatchRenderer& renderer) {
             glm::vec2(0.0f, 1.0f),
             glm::vec2(1.0f, 0.0f)
         );
+
+        renderer.flush();
+        renderAxisGizmo();
     }
 }
 
 bool SceneViewPanel::onMouseDown(const ui::MouseButtonEvent& event) {
+    if (event.button == ui::MouseButton::Left && !event.alt && !event.ctrl && !event.shift) {
+        i32 axisHit = hitTestAxisGizmo(event.x, event.y);
+        if (axisHit >= 0) {
+            switch (axisHit) {
+                case 0: setViewToRight(); break;
+                case 1: setViewToTop(); break;
+                case 2: setViewToFront(); break;
+                case 3: setViewToLeft(); break;
+                case 4: setViewToBottom(); break;
+                case 5: setViewToBack(); break;
+            }
+            return true;
+        }
+    }
+
     camera_.onMouseDown(event);
     return true;
 }
@@ -275,6 +317,248 @@ void SceneViewPanel::updateFramebufferSize() {
         camera_.setViewportSize(static_cast<f32>(viewportWidth_), static_cast<f32>(viewportHeight_));
         framebufferNeedsResize_ = false;
     }
+}
+
+void SceneViewPanel::initAxisGizmoData() {
+    std::vector<f32> vertices;
+
+    auto addVertex = [&vertices](const glm::vec3& pos, const glm::vec4& color) {
+        vertices.insert(vertices.end(), {pos.x, pos.y, pos.z, color.r, color.g, color.b, color.a});
+    };
+
+    auto addCone = [&](const glm::vec3& base, const glm::vec3& tip, f32 radius,
+                       const glm::vec4& color, i32 segments = 16) {
+        glm::vec3 dir = glm::normalize(tip - base);
+        glm::vec3 up = glm::abs(dir.y) < 0.99f ? glm::vec3(0, 1, 0) : glm::vec3(1, 0, 0);
+        glm::vec3 right = glm::normalize(glm::cross(dir, up));
+        up = glm::cross(right, dir);
+
+        for (i32 i = 0; i < segments; ++i) {
+            f32 angle1 = (f32(i) / segments) * glm::two_pi<f32>();
+            f32 angle2 = (f32(i + 1) / segments) * glm::two_pi<f32>();
+
+            glm::vec3 p1 = base + (right * glm::cos(angle1) + up * glm::sin(angle1)) * radius;
+            glm::vec3 p2 = base + (right * glm::cos(angle2) + up * glm::sin(angle2)) * radius;
+
+            addVertex(tip, color);
+            addVertex(p1, color);
+            addVertex(p2, color);
+
+            addVertex(base, color);
+            addVertex(p2, color);
+            addVertex(p1, color);
+        }
+    };
+
+    auto addCylinder = [&](const glm::vec3& start, const glm::vec3& end, f32 radius,
+                           const glm::vec4& color, i32 segments = 10) {
+        glm::vec3 dir = glm::normalize(end - start);
+        glm::vec3 up = glm::abs(dir.y) < 0.99f ? glm::vec3(0, 1, 0) : glm::vec3(1, 0, 0);
+        glm::vec3 right = glm::normalize(glm::cross(dir, up));
+        up = glm::cross(right, dir);
+
+        for (i32 i = 0; i < segments; ++i) {
+            f32 angle1 = (f32(i) / segments) * glm::two_pi<f32>();
+            f32 angle2 = (f32(i + 1) / segments) * glm::two_pi<f32>();
+
+            glm::vec3 offset1 = (right * glm::cos(angle1) + up * glm::sin(angle1)) * radius;
+            glm::vec3 offset2 = (right * glm::cos(angle2) + up * glm::sin(angle2)) * radius;
+
+            glm::vec3 s1 = start + offset1, s2 = start + offset2;
+            glm::vec3 e1 = end + offset1, e2 = end + offset2;
+
+            addVertex(s1, color);
+            addVertex(e1, color);
+            addVertex(e2, color);
+
+            addVertex(s1, color);
+            addVertex(e2, color);
+            addVertex(s2, color);
+        }
+    };
+
+    auto addSphere = [&](const glm::vec3& center, f32 radius, const glm::vec4& color,
+                         i32 rings = 8, i32 sectors = 12) {
+        for (i32 r = 0; r < rings; ++r) {
+            f32 theta1 = (f32(r) / rings) * glm::pi<f32>();
+            f32 theta2 = (f32(r + 1) / rings) * glm::pi<f32>();
+
+            for (i32 s = 0; s < sectors; ++s) {
+                f32 phi1 = (f32(s) / sectors) * glm::two_pi<f32>();
+                f32 phi2 = (f32(s + 1) / sectors) * glm::two_pi<f32>();
+
+                glm::vec3 n1(glm::sin(theta1) * glm::cos(phi1), glm::cos(theta1), glm::sin(theta1) * glm::sin(phi1));
+                glm::vec3 n2(glm::sin(theta1) * glm::cos(phi2), glm::cos(theta1), glm::sin(theta1) * glm::sin(phi2));
+                glm::vec3 n3(glm::sin(theta2) * glm::cos(phi2), glm::cos(theta2), glm::sin(theta2) * glm::sin(phi2));
+                glm::vec3 n4(glm::sin(theta2) * glm::cos(phi1), glm::cos(theta2), glm::sin(theta2) * glm::sin(phi1));
+
+                addVertex(center + n1 * radius, color);
+                addVertex(center + n3 * radius, color);
+                addVertex(center + n2 * radius, color);
+
+                addVertex(center + n1 * radius, color);
+                addVertex(center + n4 * radius, color);
+                addVertex(center + n3 * radius, color);
+            }
+        }
+    };
+
+    glm::vec4 red(0.9f, 0.2f, 0.2f, 0.9f);
+    glm::vec4 green(0.3f, 0.85f, 0.3f, 0.9f);
+    glm::vec4 blue(0.3f, 0.5f, 0.95f, 0.9f);
+    glm::vec4 dimRed(0.5f, 0.2f, 0.2f, 0.5f);
+    glm::vec4 dimGreen(0.2f, 0.45f, 0.2f, 0.5f);
+    glm::vec4 dimBlue(0.2f, 0.3f, 0.55f, 0.5f);
+    glm::vec4 gray(0.45f, 0.45f, 0.5f, 0.85f);
+
+    f32 shaftLen = 0.6f;
+    f32 shaftRadius = 0.04f;
+    f32 coneLen = 0.35f;
+    f32 coneRadius = 0.12f;
+
+    addCylinder(glm::vec3(0), glm::vec3(shaftLen, 0, 0), shaftRadius, red);
+    addCone(glm::vec3(shaftLen, 0, 0), glm::vec3(shaftLen + coneLen, 0, 0), coneRadius, red);
+
+    addCylinder(glm::vec3(0), glm::vec3(0, shaftLen, 0), shaftRadius, green);
+    addCone(glm::vec3(0, shaftLen, 0), glm::vec3(0, shaftLen + coneLen, 0), coneRadius, green);
+
+    addCylinder(glm::vec3(0), glm::vec3(0, 0, shaftLen), shaftRadius, blue);
+    addCone(glm::vec3(0, 0, shaftLen), glm::vec3(0, 0, shaftLen + coneLen), coneRadius, blue);
+
+    f32 backDist = 0.35f;
+    f32 backRadius = 0.08f;
+    addSphere(glm::vec3(-backDist, 0, 0), backRadius, dimRed);
+    addSphere(glm::vec3(0, -backDist, 0), backRadius, dimGreen);
+    addSphere(glm::vec3(0, 0, -backDist), backRadius, dimBlue);
+
+    addSphere(glm::vec3(0), 0.1f, gray);
+
+    axisVertexCount_ = static_cast<u32>(vertices.size() / 7);
+
+    axisVAO_ = VertexArray::create();
+
+    auto vbo = VertexBuffer::createRaw(vertices.data(), static_cast<u32>(vertices.size() * sizeof(f32)));
+    vbo->setLayout({
+        { ShaderDataType::Float3, "a_position" },
+        { ShaderDataType::Float4, "a_color" }
+    });
+
+    axisVAO_->addVertexBuffer(Shared<VertexBuffer>(std::move(vbo)));
+
+    axisShader_ = Shader::create(AXIS_VERTEX_SHADER, AXIS_FRAGMENT_SHADER);
+
+    axisInitialized_ = true;
+}
+
+void SceneViewPanel::renderAxisGizmo() {
+    if (!axisInitialized_) {
+        initAxisGizmoData();
+    }
+
+    if (!axisVAO_ || !axisShader_) return;
+
+    const ui::Rect& bounds = getBounds();
+    f32 gizmoSize = 60.0f;
+    f32 padding = 12.0f;
+
+    axisGizmoCenter_ = glm::vec2(
+        bounds.x + bounds.width - gizmoSize - padding,
+        bounds.y + gizmoSize + padding
+    );
+
+    GLint savedViewport[4];
+    glGetIntegerv(GL_VIEWPORT, savedViewport);
+
+    f32 vpX = axisGizmoCenter_.x - gizmoSize;
+    f32 vpY = savedViewport[3] - axisGizmoCenter_.y - gizmoSize;
+    glViewport(static_cast<GLint>(vpX), static_cast<GLint>(vpY),
+               static_cast<GLsizei>(gizmoSize * 2), static_cast<GLsizei>(gizmoSize * 2));
+
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glClear(GL_DEPTH_BUFFER_BIT);
+
+    glm::mat4 rotation = glm::mat4_cast(glm::conjugate(glm::quat(glm::vec3(-camera_.getPitch(), -camera_.getYaw(), 0.0f))));
+    glm::mat4 proj = glm::ortho(-1.5f, 1.5f, -1.5f, 1.5f, -10.0f, 10.0f);
+    glm::mat4 viewProj = proj * rotation;
+
+    axisShader_->bind();
+    axisShader_->setUniform("u_viewProj", viewProj);
+
+    axisVAO_->bind();
+    glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(axisVertexCount_));
+
+    glDisable(GL_BLEND);
+    glDisable(GL_DEPTH_TEST);
+    glViewport(savedViewport[0], savedViewport[1], savedViewport[2], savedViewport[3]);
+}
+
+i32 SceneViewPanel::hitTestAxisGizmo(f32 x, f32 y) {
+    f32 localX = x - axisGizmoCenter_.x;
+    f32 localY = y - axisGizmoCenter_.y;
+
+    f32 dist = glm::sqrt(localX * localX + localY * localY);
+    if (dist > axisGizmoRadius_ * 2.0f) return -1;
+
+    glm::quat camOrientation = glm::quat(glm::vec3(-camera_.getPitch(), -camera_.getYaw(), 0.0f));
+    glm::mat4 rotation = glm::mat4_cast(glm::conjugate(camOrientation));
+
+    f32 posAxisDist = 0.95f;
+    f32 negAxisDist = 0.35f;
+    f32 scale = axisGizmoRadius_ / 1.5f;
+
+    glm::vec3 xPos = glm::vec3(rotation * glm::vec4(posAxisDist, 0, 0, 0));
+    glm::vec3 yPos = glm::vec3(rotation * glm::vec4(0, posAxisDist, 0, 0));
+    glm::vec3 zPos = glm::vec3(rotation * glm::vec4(0, 0, posAxisDist, 0));
+    glm::vec3 xNeg = glm::vec3(rotation * glm::vec4(-negAxisDist, 0, 0, 0));
+    glm::vec3 yNeg = glm::vec3(rotation * glm::vec4(0, -negAxisDist, 0, 0));
+    glm::vec3 zNeg = glm::vec3(rotation * glm::vec4(0, 0, -negAxisDist, 0));
+
+    glm::vec2 screenXPos = glm::vec2(xPos.x, -xPos.y) * scale;
+    glm::vec2 screenYPos = glm::vec2(yPos.x, -yPos.y) * scale;
+    glm::vec2 screenZPos = glm::vec2(zPos.x, -zPos.y) * scale;
+    glm::vec2 screenXNeg = glm::vec2(xNeg.x, -xNeg.y) * scale;
+    glm::vec2 screenYNeg = glm::vec2(yNeg.x, -yNeg.y) * scale;
+    glm::vec2 screenZNeg = glm::vec2(zNeg.x, -zNeg.y) * scale;
+
+    glm::vec2 clickPos(localX, localY);
+    f32 threshold = 18.0f;
+    f32 smallThreshold = 12.0f;
+
+    if (glm::length(clickPos - screenXPos) < threshold) return 0;
+    if (glm::length(clickPos - screenYPos) < threshold) return 1;
+    if (glm::length(clickPos - screenZPos) < threshold) return 2;
+
+    if (glm::length(clickPos - screenXNeg) < smallThreshold) return 3;
+    if (glm::length(clickPos - screenYNeg) < smallThreshold) return 4;
+    if (glm::length(clickPos - screenZNeg) < smallThreshold) return 5;
+
+    return -1;
+}
+
+void SceneViewPanel::setViewToTop() {
+    camera_.setRotation(glm::half_pi<f32>() - 0.01f, 0.0f);
+}
+
+void SceneViewPanel::setViewToBottom() {
+    camera_.setRotation(-glm::half_pi<f32>() + 0.01f, 0.0f);
+}
+
+void SceneViewPanel::setViewToFront() {
+    camera_.setRotation(0.0f, 0.0f);
+}
+
+void SceneViewPanel::setViewToBack() {
+    camera_.setRotation(0.0f, glm::pi<f32>());
+}
+
+void SceneViewPanel::setViewToRight() {
+    camera_.setRotation(0.0f, -glm::half_pi<f32>());
+}
+
+void SceneViewPanel::setViewToLeft() {
+    camera_.setRotation(0.0f, glm::half_pi<f32>());
 }
 
 }  // namespace esengine::editor
