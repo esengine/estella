@@ -177,6 +177,39 @@ void EditorCamera::mouseZoom(f32 delta) {
 void EditorCamera::setRotation(f32 pitch, f32 yaw) {
     pitch_ = glm::clamp(pitch, -glm::half_pi<f32>() + 0.01f, glm::half_pi<f32>() - 0.01f);
     yaw_ = yaw;
+    targetPitch_ = pitch_;
+    targetYaw_ = yaw_;
+    isAnimating_ = false;
+    updateView();
+}
+
+void EditorCamera::animateTo(f32 pitch, f32 yaw) {
+    targetPitch_ = glm::clamp(pitch, -glm::half_pi<f32>() + 0.01f, glm::half_pi<f32>() - 0.01f);
+    targetYaw_ = yaw;
+
+    while (targetYaw_ - yaw_ > glm::pi<f32>()) targetYaw_ -= glm::two_pi<f32>();
+    while (targetYaw_ - yaw_ < -glm::pi<f32>()) targetYaw_ += glm::two_pi<f32>();
+
+    isAnimating_ = true;
+}
+
+void EditorCamera::update(f32 deltaTime) {
+    if (!isAnimating_) return;
+
+    f32 t = 1.0f - glm::exp(-animationSpeed_ * deltaTime);
+
+    pitch_ = glm::mix(pitch_, targetPitch_, t);
+    yaw_ = glm::mix(yaw_, targetYaw_, t);
+
+    f32 pitchDiff = glm::abs(pitch_ - targetPitch_);
+    f32 yawDiff = glm::abs(yaw_ - targetYaw_);
+
+    if (pitchDiff < 0.001f && yawDiff < 0.001f) {
+        pitch_ = targetPitch_;
+        yaw_ = targetYaw_;
+        isAnimating_ = false;
+    }
+
     updateView();
 }
 

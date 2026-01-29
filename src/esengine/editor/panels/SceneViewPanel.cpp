@@ -19,6 +19,7 @@
 #include "../../core/Log.hpp"
 #include <glad/glad.h>
 #include <vector>
+#include <chrono>
 
 #ifndef GL_VIEWPORT
 #define GL_VIEWPORT 0x0BA2
@@ -115,6 +116,16 @@ void SceneViewPanel::setViewportSize(u32 width, u32 height) {
 // =============================================================================
 
 void SceneViewPanel::render(ui::UIBatchRenderer& renderer) {
+    using Clock = std::chrono::steady_clock;
+    static auto startTime = Clock::now();
+    f64 currentTime = std::chrono::duration<f64>(Clock::now() - startTime).count();
+    f32 deltaTime = static_cast<f32>(currentTime - lastFrameTime_);
+    lastFrameTime_ = currentTime;
+
+    if (deltaTime > 0.0f && deltaTime < 1.0f) {
+        camera_.update(deltaTime);
+    }
+
     const ui::Rect& bounds = getBounds();
 
     u32 newWidth = static_cast<u32>(bounds.width);
@@ -538,27 +549,27 @@ i32 SceneViewPanel::hitTestAxisGizmo(f32 x, f32 y) {
 }
 
 void SceneViewPanel::setViewToTop() {
-    camera_.setRotation(glm::half_pi<f32>() - 0.01f, 0.0f);
+    camera_.animateTo(glm::half_pi<f32>() - 0.01f, 0.0f);
 }
 
 void SceneViewPanel::setViewToBottom() {
-    camera_.setRotation(-glm::half_pi<f32>() + 0.01f, 0.0f);
+    camera_.animateTo(-glm::half_pi<f32>() + 0.01f, 0.0f);
 }
 
 void SceneViewPanel::setViewToFront() {
-    camera_.setRotation(0.0f, 0.0f);
+    camera_.animateTo(0.0f, 0.0f);
 }
 
 void SceneViewPanel::setViewToBack() {
-    camera_.setRotation(0.0f, glm::pi<f32>());
+    camera_.animateTo(0.0f, glm::pi<f32>());
 }
 
 void SceneViewPanel::setViewToRight() {
-    camera_.setRotation(0.0f, -glm::half_pi<f32>());
+    camera_.animateTo(0.0f, -glm::half_pi<f32>());
 }
 
 void SceneViewPanel::setViewToLeft() {
-    camera_.setRotation(0.0f, glm::half_pi<f32>());
+    camera_.animateTo(0.0f, glm::half_pi<f32>());
 }
 
 }  // namespace esengine::editor

@@ -123,6 +123,8 @@ private:
     u32 viewportWidth_ = 1280;
     u32 viewportHeight_ = 720;
     bool framebufferNeedsResize_ = false;
+
+    f64 lastFrameTime_ = 0.0;
 };
 
 }  // namespace esengine::editor

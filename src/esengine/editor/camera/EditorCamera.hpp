@@ -160,8 +160,17 @@ public:
     /** @brief Gets yaw angle */
     f32 getYaw() const { return yaw_; }
 
-    /** @brief Sets pitch and yaw angles directly */
+    /** @brief Sets pitch and yaw angles directly (immediate) */
     void setRotation(f32 pitch, f32 yaw);
+
+    /** @brief Animates to target pitch and yaw angles */
+    void animateTo(f32 pitch, f32 yaw);
+
+    /** @brief Updates animation, call every frame */
+    void update(f32 deltaTime);
+
+    /** @brief Returns true if animation is in progress */
+    bool isAnimating() const { return isAnimating_; }
 
 private:
     void updateView();
@@ -190,6 +199,11 @@ private:
     bool isOrbiting_ = false;
 
     glm::mat4 viewMatrix_{1.0f};
+
+    f32 targetPitch_ = 0.5f;
+    f32 targetYaw_ = 0.0f;
+    bool isAnimating_ = false;
+    f32 animationSpeed_ = 8.0f;
 };
 
 }  // namespace esengine::editor
