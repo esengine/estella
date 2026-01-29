@@ -21,6 +21,7 @@
 #include "../../ui/layout/StackLayout.hpp"
 #include "../../ui/icons/Icons.hpp"
 #include "../../ui/widgets/Button.hpp"
+#include "../../ui/widgets/ClickablePanel.hpp"
 #include "../../ui/rendering/UIBatchRenderer.hpp"
 
 #if ES_FEATURE_SDF_FONT
@@ -208,12 +209,14 @@ void InspectorPanel::buildUI() {
     setContent(std::move(rootPanel));
 }
 
-ui::Panel* InspectorPanel::createComponentSection(const std::string& name, const std::string& icon) {
+InspectorPanel::SectionWidgets InspectorPanel::createComponentSection(const std::string& name, const std::string& icon) {
     constexpr glm::vec4 sectionHeaderBg{0.2f, 0.2f, 0.2f, 1.0f};          // #333333
     constexpr glm::vec4 sectionBg{0.165f, 0.165f, 0.165f, 1.0f};          // #2a2a2a
     constexpr glm::vec4 borderColor{0.102f, 0.102f, 0.102f, 1.0f};        // #1a1a1a
     constexpr glm::vec4 textColor{0.878f, 0.878f, 0.878f, 1.0f};          // #e0e0e0
     constexpr glm::vec4 iconColor{0.6f, 0.6f, 0.6f, 1.0f};                // #999999
+
+    SectionWidgets widgets;
 
     auto section = makeUnique<ui::Panel>(ui::WidgetId(contentPanel_->getId().path + "_" + name));
     section->setLayout(makeUnique<ui::StackLayout>(ui::StackDirection::Vertical, 0.0f));
@@ -223,8 +226,9 @@ ui::Panel* InspectorPanel::createComponentSection(const std::string& name, const
     section->setBackgroundColor(sectionBg);
     section->setBorderColor(borderColor);
     section->setBorderWidth(ui::BorderWidth(0.0f, 0.0f, 1.0f, 0.0f));
+    widgets.section = section.get();
 
-    auto header = makeUnique<ui::Panel>(ui::WidgetId(section->getId().path + "_header"));
+    auto header = makeUnique<ui::ClickablePanel>(ui::WidgetId(section->getId().path + "_header"));
     header->setLayout(makeUnique<ui::StackLayout>(ui::StackDirection::Horizontal, 6.0f));
     header->setHeight(ui::SizeValue::px(26.0f));
     header->setWidth(ui::SizeValue::flex(1.0f));
@@ -232,10 +236,14 @@ ui::Panel* InspectorPanel::createComponentSection(const std::string& name, const
     header->setDrawBackground(true);
     header->setBackgroundColor(sectionHeaderBg);
 
-    auto chevronLabel = makeUnique<ui::Label>(ui::WidgetId(header->getId().path + "_chevron"), ui::icons::ChevronDown);
+    bool isCollapsed = collapsedSections_.count(name) > 0;
+    std::string chevronIcon = isCollapsed ? ui::icons::ChevronRight : ui::icons::ChevronDown;
+
+    auto chevronLabel = makeUnique<ui::Label>(ui::WidgetId(header->getId().path + "_chevron"), chevronIcon);
     chevronLabel->setFontSize(10.0f);
     chevronLabel->setColor(iconColor);
     chevronLabel->setIsIconFont(true);
+    widgets.chevron = chevronLabel.get();
     header->addChild(std::move(chevronLabel));
 
     auto iconLabel = makeUnique<ui::Label>(ui::WidgetId(header->getId().path + "_icon"), icon);
@@ -258,11 +266,29 @@ ui::Panel* InspectorPanel::createComponentSection(const std::string& name, const
     removeButton->setCornerRadii(ui::CornerRadii::all(2.0f));
     header->addChild(std::move(removeButton));
 
+    ui::ClickablePanel* headerPtr = header.get();
     section->addChild(std::move(header));
 
-    ui::Panel* sectionPtr = section.get();
+    auto content = makeUnique<ui::Panel>(ui::WidgetId(section->getId().path + "_content"));
+    content->setLayout(makeUnique<ui::StackLayout>(ui::StackDirection::Vertical, 4.0f));
+    content->setWidth(ui::SizeValue::flex(1.0f));
+    content->setHeight(ui::SizeValue::autoSize());
+    content->setPadding(ui::Insets(8.0f, 12.0f, 8.0f, 12.0f));
+    content->setVisible(!isCollapsed);
+    widgets.content = content.get();
+    section->addChild(std::move(content));
+
+    editorConnections_.add(sink(headerPtr->onClick).connect(
+        [this, name](const ui::MouseButtonEvent& event) {
+            if (event.button == ui::MouseButton::Left) {
+                toggleSection(name);
+            }
+        }
+    ));
+
+    sectionWidgets_[name] = widgets;
     contentPanel_->addChild(std::move(section));
-    return sectionPtr;
+    return widgets;
 }
 
 void InspectorPanel::toggleSection(const std::string& name) {
@@ -271,7 +297,27 @@ void InspectorPanel::toggleSection(const std::string& name) {
     } else {
         collapsedSections_.insert(name);
     }
-    rebuildInspector();
+
+    auto it = sectionWidgets_.find(name);
+    if (it != sectionWidgets_.end()) {
+        updateSectionVisibility(name, it->second);
+    }
+}
+
+void InspectorPanel::updateSectionVisibility(const std::string& name, SectionWidgets& widgets) {
+    bool isCollapsed = collapsedSections_.count(name) > 0;
+
+    if (widgets.content) {
+        widgets.content->setVisible(!isCollapsed);
+    }
+
+    if (widgets.chevron) {
+        widgets.chevron->setText(isCollapsed ? ui::icons::ChevronRight : ui::icons::ChevronDown);
+    }
+
+    if (scrollView_) {
+        scrollView_->invalidateLayout();
+    }
 }
 
 // =============================================================================
@@ -394,23 +440,18 @@ void InspectorPanel::rebuildInspector() {
 
 void InspectorPanel::clearInspector() {
     editorConnections_.disconnectAll();
+    sectionWidgets_.clear();
     if (contentPanel_) {
         contentPanel_->clearChildren();
     }
 }
 
 void InspectorPanel::addNameEditor(Entity entity) {
-    auto section = createComponentSection("Name", ui::icons::User);
+    auto widgets = createComponentSection("Name", ui::icons::User);
     auto& name = registry_.get<ecs::Name>(entity);
 
-    auto content = makeUnique<ui::Panel>(ui::WidgetId(section->getId().path + "_content"));
-    content->setLayout(makeUnique<ui::StackLayout>(ui::StackDirection::Vertical, 4.0f));
-    content->setWidth(ui::SizeValue::flex(1.0f));
-    content->setHeight(ui::SizeValue::autoSize());
-    content->setPadding(ui::Insets(8.0f, 12.0f, 8.0f, 12.0f));
-
     auto nameEditor = makeUnique<StringEditor>(
-        ui::WidgetId(content->getId().path + "_name"),
+        ui::WidgetId(widgets.content->getId().path + "_name"),
         "name");
     nameEditor->setLabel("Name");
     nameEditor->setValue(name.value);
@@ -432,22 +473,15 @@ void InspectorPanel::addNameEditor(Entity entity) {
         }
     ));
 
-    content->addChild(std::move(nameEditor));
-    section->addChild(std::move(content));
+    widgets.content->addChild(std::move(nameEditor));
 }
 
 void InspectorPanel::addLocalTransformEditor(Entity entity) {
-    auto section = createComponentSection("Transform", ui::icons::Move3d);
+    auto widgets = createComponentSection("Transform", ui::icons::Move3d);
     auto& transform = registry_.get<ecs::LocalTransform>(entity);
 
-    auto content = makeUnique<ui::Panel>(ui::WidgetId(section->getId().path + "_content"));
-    content->setLayout(makeUnique<ui::StackLayout>(ui::StackDirection::Vertical, 4.0f));
-    content->setWidth(ui::SizeValue::flex(1.0f));
-    content->setHeight(ui::SizeValue::autoSize());
-    content->setPadding(ui::Insets(8.0f, 12.0f, 8.0f, 12.0f));
-
     auto positionEditor = makeUnique<Vector3Editor>(
-        ui::WidgetId(content->getId().path + "_position"),
+        ui::WidgetId(widgets.content->getId().path + "_position"),
         "position");
     positionEditor->setLabel("Position");
     positionEditor->setValue(transform.position);
@@ -466,12 +500,12 @@ void InspectorPanel::addLocalTransformEditor(Entity entity) {
         }
     ));
 
-    content->addChild(std::move(positionEditor));
+    widgets.content->addChild(std::move(positionEditor));
 
     glm::vec3 eulerAngles = math::quatToEulerDegrees(transform.rotation);
 
     auto rotationEditor = makeUnique<Vector3Editor>(
-        ui::WidgetId(content->getId().path + "_rotation"),
+        ui::WidgetId(widgets.content->getId().path + "_rotation"),
         "rotation");
     rotationEditor->setLabel("Rotation");
     rotationEditor->setValue(eulerAngles);
@@ -491,10 +525,10 @@ void InspectorPanel::addLocalTransformEditor(Entity entity) {
         }
     ));
 
-    content->addChild(std::move(rotationEditor));
+    widgets.content->addChild(std::move(rotationEditor));
 
     auto scaleEditor = makeUnique<Vector3Editor>(
-        ui::WidgetId(content->getId().path + "_scale"),
+        ui::WidgetId(widgets.content->getId().path + "_scale"),
         "scale");
     scaleEditor->setLabel("Scale");
     scaleEditor->setValue(transform.scale);
@@ -513,23 +547,15 @@ void InspectorPanel::addLocalTransformEditor(Entity entity) {
         }
     ));
 
-    content->addChild(std::move(scaleEditor));
-
-    section->addChild(std::move(content));
+    widgets.content->addChild(std::move(scaleEditor));
 }
 
 void InspectorPanel::addCameraEditor(Entity entity) {
-    auto section = createComponentSection("Camera", ui::icons::Camera);
+    auto widgets = createComponentSection("Camera", ui::icons::Camera);
     auto& camera = registry_.get<ecs::Camera>(entity);
 
-    auto content = makeUnique<ui::Panel>(ui::WidgetId(section->getId().path + "_content"));
-    content->setLayout(makeUnique<ui::StackLayout>(ui::StackDirection::Vertical, 4.0f));
-    content->setWidth(ui::SizeValue::flex(1.0f));
-    content->setHeight(ui::SizeValue::autoSize());
-    content->setPadding(ui::Insets(8.0f, 12.0f, 8.0f, 12.0f));
-
     auto projTypeEditor = makeUnique<EnumEditor>(
-        ui::WidgetId(content->getId().path + "_projType"),
+        ui::WidgetId(widgets.content->getId().path + "_projType"),
         "projectionType");
     projTypeEditor->setLabel("Projection");
     projTypeEditor->addOption(EnumOption::create(
@@ -552,10 +578,10 @@ void InspectorPanel::addCameraEditor(Entity entity) {
         }
     ));
 
-    content->addChild(std::move(projTypeEditor));
+    widgets.content->addChild(std::move(projTypeEditor));
 
     auto fovEditor = makeUnique<FloatEditor>(
-        ui::WidgetId(content->getId().path + "_fov"),
+        ui::WidgetId(widgets.content->getId().path + "_fov"),
         "fov");
     fovEditor->setLabel("FOV");
     fovEditor->setValue(camera.fov);
@@ -575,10 +601,10 @@ void InspectorPanel::addCameraEditor(Entity entity) {
         }
     ));
 
-    content->addChild(std::move(fovEditor));
+    widgets.content->addChild(std::move(fovEditor));
 
     auto orthoSizeEditor = makeUnique<FloatEditor>(
-        ui::WidgetId(content->getId().path + "_orthoSize"),
+        ui::WidgetId(widgets.content->getId().path + "_orthoSize"),
         "orthoSize");
     orthoSizeEditor->setLabel("Ortho Size");
     orthoSizeEditor->setValue(camera.orthoSize);
@@ -598,10 +624,10 @@ void InspectorPanel::addCameraEditor(Entity entity) {
         }
     ));
 
-    content->addChild(std::move(orthoSizeEditor));
+    widgets.content->addChild(std::move(orthoSizeEditor));
 
     auto nearEditor = makeUnique<FloatEditor>(
-        ui::WidgetId(content->getId().path + "_near"),
+        ui::WidgetId(widgets.content->getId().path + "_near"),
         "nearPlane");
     nearEditor->setLabel("Near");
     nearEditor->setValue(camera.nearPlane);
@@ -620,10 +646,10 @@ void InspectorPanel::addCameraEditor(Entity entity) {
         }
     ));
 
-    content->addChild(std::move(nearEditor));
+    widgets.content->addChild(std::move(nearEditor));
 
     auto farEditor = makeUnique<FloatEditor>(
-        ui::WidgetId(content->getId().path + "_far"),
+        ui::WidgetId(widgets.content->getId().path + "_far"),
         "farPlane");
     farEditor->setLabel("Far");
     farEditor->setValue(camera.farPlane);
@@ -642,10 +668,10 @@ void InspectorPanel::addCameraEditor(Entity entity) {
         }
     ));
 
-    content->addChild(std::move(farEditor));
+    widgets.content->addChild(std::move(farEditor));
 
     auto aspectEditor = makeUnique<FloatEditor>(
-        ui::WidgetId(content->getId().path + "_aspect"),
+        ui::WidgetId(widgets.content->getId().path + "_aspect"),
         "aspectRatio");
     aspectEditor->setLabel("Aspect");
     aspectEditor->setValue(camera.aspectRatio);
@@ -665,10 +691,10 @@ void InspectorPanel::addCameraEditor(Entity entity) {
         }
     ));
 
-    content->addChild(std::move(aspectEditor));
+    widgets.content->addChild(std::move(aspectEditor));
 
     auto activeEditor = makeUnique<BoolEditor>(
-        ui::WidgetId(content->getId().path + "_active"),
+        ui::WidgetId(widgets.content->getId().path + "_active"),
         "isActive");
     activeEditor->setLabel("Active");
     activeEditor->setValue(camera.isActive);
@@ -687,10 +713,10 @@ void InspectorPanel::addCameraEditor(Entity entity) {
         }
     ));
 
-    content->addChild(std::move(activeEditor));
+    widgets.content->addChild(std::move(activeEditor));
 
     auto priorityEditor = makeUnique<IntEditor>(
-        ui::WidgetId(content->getId().path + "_priority"),
+        ui::WidgetId(widgets.content->getId().path + "_priority"),
         "priority");
     priorityEditor->setLabel("Priority");
     priorityEditor->setValue(camera.priority);
@@ -710,23 +736,15 @@ void InspectorPanel::addCameraEditor(Entity entity) {
         }
     ));
 
-    content->addChild(std::move(priorityEditor));
-
-    section->addChild(std::move(content));
+    widgets.content->addChild(std::move(priorityEditor));
 }
 
 void InspectorPanel::addSpriteEditor(Entity entity) {
-    auto section = createComponentSection("Sprite", ui::icons::Image);
+    auto widgets = createComponentSection("Sprite", ui::icons::Image);
     auto& sprite = registry_.get<ecs::Sprite>(entity);
 
-    auto content = makeUnique<ui::Panel>(ui::WidgetId(section->getId().path + "_content"));
-    content->setLayout(makeUnique<ui::StackLayout>(ui::StackDirection::Vertical, 4.0f));
-    content->setWidth(ui::SizeValue::flex(1.0f));
-    content->setHeight(ui::SizeValue::autoSize());
-    content->setPadding(ui::Insets(8.0f, 12.0f, 8.0f, 12.0f));
-
     auto colorEditor = makeUnique<ColorEditor>(
-        ui::WidgetId(content->getId().path + "_color"),
+        ui::WidgetId(widgets.content->getId().path + "_color"),
         "color");
     colorEditor->setLabel("Color");
     colorEditor->setValue(sprite.color);
@@ -745,10 +763,10 @@ void InspectorPanel::addSpriteEditor(Entity entity) {
         }
     ));
 
-    content->addChild(std::move(colorEditor));
+    widgets.content->addChild(std::move(colorEditor));
 
     auto sizeEditor = makeUnique<Vector2Editor>(
-        ui::WidgetId(content->getId().path + "_size"),
+        ui::WidgetId(widgets.content->getId().path + "_size"),
         "size");
     sizeEditor->setLabel("Size");
     sizeEditor->setValue(sprite.size);
@@ -767,10 +785,10 @@ void InspectorPanel::addSpriteEditor(Entity entity) {
         }
     ));
 
-    content->addChild(std::move(sizeEditor));
+    widgets.content->addChild(std::move(sizeEditor));
 
     auto uvOffsetEditor = makeUnique<Vector2Editor>(
-        ui::WidgetId(content->getId().path + "_uvOffset"),
+        ui::WidgetId(widgets.content->getId().path + "_uvOffset"),
         "uvOffset");
     uvOffsetEditor->setLabel("UV Offset");
     uvOffsetEditor->setValue(sprite.uvOffset);
@@ -789,10 +807,10 @@ void InspectorPanel::addSpriteEditor(Entity entity) {
         }
     ));
 
-    content->addChild(std::move(uvOffsetEditor));
+    widgets.content->addChild(std::move(uvOffsetEditor));
 
     auto uvScaleEditor = makeUnique<Vector2Editor>(
-        ui::WidgetId(content->getId().path + "_uvScale"),
+        ui::WidgetId(widgets.content->getId().path + "_uvScale"),
         "uvScale");
     uvScaleEditor->setLabel("UV Scale");
     uvScaleEditor->setValue(sprite.uvScale);
@@ -811,10 +829,10 @@ void InspectorPanel::addSpriteEditor(Entity entity) {
         }
     ));
 
-    content->addChild(std::move(uvScaleEditor));
+    widgets.content->addChild(std::move(uvScaleEditor));
 
     auto layerEditor = makeUnique<IntEditor>(
-        ui::WidgetId(content->getId().path + "_layer"),
+        ui::WidgetId(widgets.content->getId().path + "_layer"),
         "layer");
     layerEditor->setLabel("Layer");
     layerEditor->setValue(sprite.layer);
@@ -834,10 +852,10 @@ void InspectorPanel::addSpriteEditor(Entity entity) {
         }
     ));
 
-    content->addChild(std::move(layerEditor));
+    widgets.content->addChild(std::move(layerEditor));
 
     auto flipXEditor = makeUnique<BoolEditor>(
-        ui::WidgetId(content->getId().path + "_flipX"),
+        ui::WidgetId(widgets.content->getId().path + "_flipX"),
         "flipX");
     flipXEditor->setLabel("Flip X");
     flipXEditor->setValue(sprite.flipX);
@@ -856,10 +874,10 @@ void InspectorPanel::addSpriteEditor(Entity entity) {
         }
     ));
 
-    content->addChild(std::move(flipXEditor));
+    widgets.content->addChild(std::move(flipXEditor));
 
     auto flipYEditor = makeUnique<BoolEditor>(
-        ui::WidgetId(content->getId().path + "_flipY"),
+        ui::WidgetId(widgets.content->getId().path + "_flipY"),
         "flipY");
     flipYEditor->setLabel("Flip Y");
     flipYEditor->setValue(sprite.flipY);
@@ -878,23 +896,15 @@ void InspectorPanel::addSpriteEditor(Entity entity) {
         }
     ));
 
-    content->addChild(std::move(flipYEditor));
-
-    section->addChild(std::move(content));
+    widgets.content->addChild(std::move(flipYEditor));
 }
 
 void InspectorPanel::addTagsEditor(Entity entity) {
-    auto section = createComponentSection("Tags", ui::icons::Check);
-
-    auto content = makeUnique<ui::Panel>(ui::WidgetId(section->getId().path + "_content"));
-    content->setLayout(makeUnique<ui::StackLayout>(ui::StackDirection::Vertical, 4.0f));
-    content->setWidth(ui::SizeValue::flex(1.0f));
-    content->setHeight(ui::SizeValue::autoSize());
-    content->setPadding(ui::Insets(8.0f, 12.0f, 8.0f, 12.0f));
+    auto widgets = createComponentSection("Tags", ui::icons::Check);
 
     bool hasActive = registry_.has<ecs::Active>(entity);
     auto activeEditor = makeUnique<BoolEditor>(
-        ui::WidgetId(content->getId().path + "_active"),
+        ui::WidgetId(widgets.content->getId().path + "_active"),
         "active");
     activeEditor->setLabel("Active");
     activeEditor->setValue(hasActive);
@@ -916,11 +926,11 @@ void InspectorPanel::addTagsEditor(Entity entity) {
         }
     ));
 
-    content->addChild(std::move(activeEditor));
+    widgets.content->addChild(std::move(activeEditor));
 
     bool hasVisible = registry_.has<ecs::Visible>(entity);
     auto visibleEditor = makeUnique<BoolEditor>(
-        ui::WidgetId(content->getId().path + "_visible"),
+        ui::WidgetId(widgets.content->getId().path + "_visible"),
         "visible");
     visibleEditor->setLabel("Visible");
     visibleEditor->setValue(hasVisible);
@@ -942,11 +952,11 @@ void InspectorPanel::addTagsEditor(Entity entity) {
         }
     ));
 
-    content->addChild(std::move(visibleEditor));
+    widgets.content->addChild(std::move(visibleEditor));
 
     bool hasStatic = registry_.has<ecs::Static>(entity);
     auto staticEditor = makeUnique<BoolEditor>(
-        ui::WidgetId(content->getId().path + "_static"),
+        ui::WidgetId(widgets.content->getId().path + "_static"),
         "static");
     staticEditor->setLabel("Static");
     staticEditor->setValue(hasStatic);
@@ -968,9 +978,7 @@ void InspectorPanel::addTagsEditor(Entity entity) {
         }
     ));
 
-    content->addChild(std::move(staticEditor));
-
-    section->addChild(std::move(content));
+    widgets.content->addChild(std::move(staticEditor));
 }
 
 }  // namespace esengine::editor

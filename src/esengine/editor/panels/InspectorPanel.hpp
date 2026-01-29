@@ -35,6 +35,7 @@
 #include "../../events/Connection.hpp"
 
 #include <unordered_set>
+#include <unordered_map>
 
 namespace esengine::editor {
 
@@ -85,8 +86,15 @@ private:
     void rebuildInspector();
     void clearInspector();
 
-    ui::Panel* createComponentSection(const std::string& name, const std::string& icon);
+    struct SectionWidgets {
+        ui::Panel* section = nullptr;
+        ui::Panel* content = nullptr;
+        ui::Label* chevron = nullptr;
+    };
+
+    SectionWidgets createComponentSection(const std::string& name, const std::string& icon);
     void toggleSection(const std::string& name);
+    void updateSectionVisibility(const std::string& name, SectionWidgets& widgets);
 
     // Component editors
     void addNameEditor(Entity entity);
@@ -109,6 +117,7 @@ private:
     ui::Panel* contentPanel_ = nullptr;
 
     std::unordered_set<std::string> collapsedSections_;
+    std::unordered_map<std::string, SectionWidgets> sectionWidgets_;
 
     Entity currentEntity_ = INVALID_ENTITY;
     u32 selectionListenerId_ = 0;
