@@ -18,6 +18,8 @@
 
 #include "../../ui/docking/DockPanel.hpp"
 #include "../../renderer/Framebuffer.hpp"
+#include "../../renderer/Buffer.hpp"
+#include "../../renderer/Shader.hpp"
 #include "../camera/EditorCamera.hpp"
 #include "../../ecs/Registry.hpp"
 #include "../core/Selection.hpp"
@@ -84,13 +86,21 @@ public:
 private:
     void renderSceneToTexture();
     void renderSceneContent();
+    void renderGrid(const glm::mat4& viewProj);
+    void renderSprites(const glm::mat4& viewProj);
     void updateFramebufferSize();
+    void initGridData();
 
     ecs::Registry& registry_;
     EntitySelection& selection_;
 
     Unique<Framebuffer> framebuffer_;
     EditorCamera camera_;
+
+    Unique<VertexArray> gridVAO_;
+    Unique<Shader> gridShader_;
+    u32 gridVertexCount_ = 0;
+    bool gridInitialized_ = false;
 
     u32 viewportWidth_ = 1280;
     u32 viewportHeight_ = 720;

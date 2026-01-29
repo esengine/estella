@@ -23,6 +23,8 @@
 #include "../ecs/components/Common.hpp"
 #include "../ecs/components/Transform.hpp"
 #include "../ecs/components/Hierarchy.hpp"
+#include "../ecs/components/Camera.hpp"
+#include "../ecs/components/Sprite.hpp"
 #include "core/EditorEvents.hpp"
 #include "panels/HierarchyPanel.hpp"
 #include "panels/InspectorPanel.hpp"
@@ -423,27 +425,28 @@ void EditorApplication::setupEditorLayout() {
 }
 
 void EditorApplication::createDemoScene() {
-    // Create some demo entities for testing the editor
-
-    // Root entity
     Entity root = registry_.create();
     registry_.emplace<ecs::Name>(root, "Scene Root");
     registry_.emplace<ecs::LocalTransform>(root);
 
-    // Camera entity
     Entity camera = registry_.create();
     registry_.emplace<ecs::Name>(camera, "Main Camera");
     registry_.emplace<ecs::LocalTransform>(camera, glm::vec3(0.0f, 5.0f, 10.0f));
+    auto& cam = registry_.emplace<ecs::Camera>(camera);
+    cam.isActive = true;
+    cam.priority = 0;
+    cam.fov = 60.0f;
 
-    // Light entity
     Entity light = registry_.create();
     registry_.emplace<ecs::Name>(light, "Directional Light");
     registry_.emplace<ecs::LocalTransform>(light, glm::vec3(0.0f, 10.0f, 0.0f));
 
-    // Parent-child hierarchy: Player with children
     Entity player = registry_.create();
     registry_.emplace<ecs::Name>(player, "Player");
     registry_.emplace<ecs::LocalTransform>(player, glm::vec3(0.0f, 1.0f, 0.0f));
+    auto& playerSprite = registry_.emplace<ecs::Sprite>(player);
+    playerSprite.color = glm::vec4(0.2f, 0.6f, 1.0f, 1.0f);
+    playerSprite.size = glm::vec2(1.0f, 2.0f);
 
     Entity playerMesh = registry_.create();
     registry_.emplace<ecs::Name>(playerMesh, "PlayerMesh");
@@ -455,11 +458,9 @@ void EditorApplication::createDemoScene() {
     registry_.emplace<ecs::LocalTransform>(playerWeapon, glm::vec3(0.5f, 0.0f, 0.0f));
     registry_.emplace<ecs::Parent>(playerWeapon, player);
 
-    // Add children to player
     auto& playerChildren = registry_.emplace<ecs::Children>(player);
     playerChildren.entities = {playerMesh, playerWeapon};
 
-    // Some standalone entities
     Entity ground = registry_.create();
     registry_.emplace<ecs::Name>(ground, "Ground");
     registry_.emplace<ecs::LocalTransform>(ground, glm::vec3(0.0f, 0.0f, 0.0f), glm::quat(1.0f, 0.0f, 0.0f, 0.0f), glm::vec3(100.0f, 0.1f, 100.0f));
@@ -467,10 +468,16 @@ void EditorApplication::createDemoScene() {
     Entity obstacle1 = registry_.create();
     registry_.emplace<ecs::Name>(obstacle1, "Obstacle 1");
     registry_.emplace<ecs::LocalTransform>(obstacle1, glm::vec3(5.0f, 1.0f, 0.0f));
+    auto& obs1Sprite = registry_.emplace<ecs::Sprite>(obstacle1);
+    obs1Sprite.color = glm::vec4(1.0f, 0.3f, 0.3f, 1.0f);
+    obs1Sprite.size = glm::vec2(2.0f, 2.0f);
 
     Entity obstacle2 = registry_.create();
     registry_.emplace<ecs::Name>(obstacle2, "Obstacle 2");
     registry_.emplace<ecs::LocalTransform>(obstacle2, glm::vec3(-5.0f, 1.0f, 3.0f));
+    auto& obs2Sprite = registry_.emplace<ecs::Sprite>(obstacle2);
+    obs2Sprite.color = glm::vec4(0.3f, 1.0f, 0.3f, 1.0f);
+    obs2Sprite.size = glm::vec2(1.5f, 1.5f);
 
     ES_LOG_INFO("Demo scene created with {} entities", registry_.entityCount());
 }

@@ -11,9 +11,12 @@
 
 #include "GameViewPanel.hpp"
 #include "../../renderer/RenderCommand.hpp"
+#include "../../renderer/RenderContext.hpp"
 #include "../../ui/rendering/UIBatchRenderer.hpp"
+#include "../../ui/UIContext.hpp"
 #include "../../ecs/components/Transform.hpp"
 #include "../../ecs/components/Camera.hpp"
+#include "../../ecs/components/Sprite.hpp"
 #include "../../math/Math.hpp"
 
 #include <glad/glad.h>
@@ -80,8 +83,8 @@ void GameViewPanel::render(ui::UIBatchRenderer& renderer) {
             bounds,
             framebuffer_->getColorAttachment(),
             glm::vec4(1.0f),
-            glm::vec2(0.0f, 0.0f),
-            glm::vec2(1.0f, 1.0f)
+            glm::vec2(0.0f, 1.0f),
+            glm::vec2(1.0f, 0.0f)
         );
     }
 }
@@ -144,17 +147,36 @@ void GameViewPanel::renderGameToTexture() {
 }
 
 void GameViewPanel::renderSceneContent(const glm::mat4& viewProj) {
-    auto transformView = registry_.view<ecs::LocalTransform>();
-    for (auto entity : transformView) {
-        const auto& transform = transformView.get(entity);
+    ui::UIContext* ctx = getContext();
+    if (!ctx) return;
+
+    RenderContext& renderCtx = ctx->getRenderContext();
+    Shader* shader = renderCtx.getTextureShader();
+    VertexArray* quadVAO = renderCtx.getQuadVAO();
+
+    if (!shader || !quadVAO) return;
+
+    auto spriteView = registry_.view<ecs::LocalTransform, ecs::Sprite>();
+
+    for (auto entity : spriteView) {
+        const auto& transform = spriteView.get<ecs::LocalTransform>(entity);
+        const auto& sprite = spriteView.get<ecs::Sprite>(entity);
 
         glm::mat4 model = glm::mat4(1.0f);
         model = glm::translate(model, transform.position);
         model *= glm::mat4_cast(transform.rotation);
-        model = glm::scale(model, transform.scale);
+        model = glm::scale(model, glm::vec3(sprite.size * transform.scale.x, 1.0f));
 
-        glm::mat4 mvp = viewProj * model;
-        (void)mvp;
+        shader->bind();
+        shader->setUniform("u_projection", viewProj);
+        shader->setUniform("u_model", model);
+        shader->setUniform("u_color", sprite.color);
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, renderCtx.getWhiteTextureId());
+        shader->setUniform("u_texture", 0);
+
+        RenderCommand::drawIndexed(*quadVAO);
     }
 }
 

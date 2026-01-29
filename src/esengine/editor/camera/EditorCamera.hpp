@@ -164,7 +164,7 @@ private:
 
     glm::vec3 focalPoint_{0.0f};
     f32 distance_ = 10.0f;
-    f32 pitch_ = 0.0f;
+    f32 pitch_ = 0.5f;
     f32 yaw_ = 0.0f;
 
     f32 fov_ = 45.0f;

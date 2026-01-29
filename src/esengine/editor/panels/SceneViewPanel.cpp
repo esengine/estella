@@ -11,14 +11,42 @@
 
 #include "SceneViewPanel.hpp"
 #include "../../renderer/RenderCommand.hpp"
+#include "../../renderer/RenderContext.hpp"
 #include "../../ui/rendering/UIBatchRenderer.hpp"
+#include "../../ui/UIContext.hpp"
 #include "../../ecs/components/Transform.hpp"
 #include "../../ecs/components/Sprite.hpp"
 #include "../../core/Log.hpp"
 #include <glad/glad.h>
+#include <vector>
+
 #ifndef GL_VIEWPORT
 #define GL_VIEWPORT 0x0BA2
 #endif
+
+namespace {
+
+const char* GRID_VERTEX_SHADER = R"(
+    attribute vec3 a_position;
+
+    uniform mat4 u_viewProj;
+
+    void main() {
+        gl_Position = u_viewProj * vec4(a_position, 1.0);
+    }
+)";
+
+const char* GRID_FRAGMENT_SHADER = R"(
+    precision mediump float;
+
+    uniform vec4 u_color;
+
+    void main() {
+        gl_FragColor = u_color;
+    }
+)";
+
+}
 
 namespace esengine::editor {
 
@@ -83,8 +111,8 @@ void SceneViewPanel::render(ui::UIBatchRenderer& renderer) {
             bounds,
             framebuffer_->getColorAttachment(),
             glm::vec4(1.0f),
-            glm::vec2(0.0f, 0.0f),
-            glm::vec2(1.0f, 1.0f)
+            glm::vec2(0.0f, 1.0f),
+            glm::vec2(1.0f, 0.0f)
         );
     }
 }
@@ -137,20 +165,103 @@ void SceneViewPanel::renderSceneToTexture() {
 }
 
 void SceneViewPanel::renderSceneContent() {
+    if (!gridInitialized_) {
+        initGridData();
+    }
+
     glm::mat4 view = camera_.getViewMatrix();
     glm::mat4 proj = camera_.getProjectionMatrix();
     glm::mat4 viewProj = proj * view;
 
-    auto transformView = registry_.view<ecs::LocalTransform>();
-    for (auto entity : transformView) {
-        const auto& transform = transformView.get(entity);
+    renderGrid(viewProj);
+    renderSprites(viewProj);
+}
+
+void SceneViewPanel::initGridData() {
+    std::vector<f32> vertices;
+
+    constexpr f32 gridSize = 100.0f;
+    constexpr f32 gridStep = 1.0f;
+
+    for (f32 x = -gridSize; x <= gridSize; x += gridStep) {
+        vertices.push_back(x);
+        vertices.push_back(0.0f);
+        vertices.push_back(-gridSize);
+
+        vertices.push_back(x);
+        vertices.push_back(0.0f);
+        vertices.push_back(gridSize);
+    }
+
+    for (f32 z = -gridSize; z <= gridSize; z += gridStep) {
+        vertices.push_back(-gridSize);
+        vertices.push_back(0.0f);
+        vertices.push_back(z);
+
+        vertices.push_back(gridSize);
+        vertices.push_back(0.0f);
+        vertices.push_back(z);
+    }
+
+    gridVertexCount_ = static_cast<u32>(vertices.size() / 3);
+
+    gridVAO_ = VertexArray::create();
+
+    auto vbo = VertexBuffer::createRaw(vertices.data(), static_cast<u32>(vertices.size() * sizeof(f32)));
+    vbo->setLayout({
+        { ShaderDataType::Float3, "a_position" }
+    });
+
+    gridVAO_->addVertexBuffer(Shared<VertexBuffer>(std::move(vbo)));
+
+    gridShader_ = Shader::create(GRID_VERTEX_SHADER, GRID_FRAGMENT_SHADER);
+
+    gridInitialized_ = true;
+    ES_LOG_DEBUG("Grid initialized with {} vertices", gridVertexCount_);
+}
+
+void SceneViewPanel::renderGrid(const glm::mat4& viewProj) {
+    if (!gridVAO_ || !gridShader_) return;
+
+    gridShader_->bind();
+    gridShader_->setUniform("u_viewProj", viewProj);
+    gridShader_->setUniform("u_color", glm::vec4(0.3f, 0.3f, 0.3f, 1.0f));
+
+    gridVAO_->bind();
+    glDrawArrays(GL_LINES, 0, static_cast<GLsizei>(gridVertexCount_));
+}
+
+void SceneViewPanel::renderSprites(const glm::mat4& viewProj) {
+    ui::UIContext* ctx = getContext();
+    if (!ctx) return;
+
+    RenderContext& renderCtx = ctx->getRenderContext();
+    Shader* shader = renderCtx.getTextureShader();
+    VertexArray* quadVAO = renderCtx.getQuadVAO();
+
+    if (!shader || !quadVAO) return;
+
+    auto spriteView = registry_.view<ecs::LocalTransform, ecs::Sprite>();
+
+    for (auto entity : spriteView) {
+        const auto& transform = spriteView.get<ecs::LocalTransform>(entity);
+        const auto& sprite = spriteView.get<ecs::Sprite>(entity);
 
         glm::mat4 model = glm::mat4(1.0f);
         model = glm::translate(model, transform.position);
         model *= glm::mat4_cast(transform.rotation);
-        model = glm::scale(model, transform.scale);
+        model = glm::scale(model, glm::vec3(sprite.size * transform.scale.x, 1.0f));
 
-        glm::mat4 mvp = viewProj * model;
+        shader->bind();
+        shader->setUniform("u_projection", viewProj);
+        shader->setUniform("u_model", model);
+        shader->setUniform("u_color", sprite.color);
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, renderCtx.getWhiteTextureId());
+        shader->setUniform("u_texture", 0);
+
+        RenderCommand::drawIndexed(*quadVAO);
     }
 }
 
