@@ -57,14 +57,6 @@ public:
     Signal<void()> onPause;
     Signal<void()> onStop;
 
-    ViewMode getViewMode() const { return viewMode_; }
-    bool is2DMode() const { return viewMode_ == ViewMode::Mode2D; }
-    bool is3DMode() const { return viewMode_ == ViewMode::Mode3D; }
-    void setViewMode(ViewMode mode);
-    void toggleViewMode();
-
-    Signal<void(ViewMode)> onViewModeChanged;
-
     glm::vec2 measure(f32 availableWidth, f32 availableHeight) override;
     void render(ui::UIBatchRenderer& renderer) override;
     bool onMouseDown(const ui::MouseButtonEvent& event) override;
@@ -74,7 +66,6 @@ private:
     void updateButtonBounds();
 
     PlayState state_ = PlayState::Stopped;
-    ViewMode viewMode_ = ViewMode::Mode3D;
 
     struct ButtonState {
         ui::Rect bounds;
@@ -84,7 +75,6 @@ private:
     ButtonState playButton_;
     ButtonState pauseButton_;
     ButtonState stopButton_;
-    ButtonState viewModeButton_;
 };
 
 }  // namespace esengine::editor
