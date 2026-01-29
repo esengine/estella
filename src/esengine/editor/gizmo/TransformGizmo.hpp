@@ -19,6 +19,8 @@
 #include "../../core/Types.hpp"
 #include "../../math/Math.hpp"
 #include "../../ecs/Registry.hpp"
+#include "../../renderer/Buffer.hpp"
+#include "../../renderer/Shader.hpp"
 
 namespace esengine::editor {
 
@@ -162,10 +164,22 @@ public:
      */
     bool isDragging() const { return dragging_; }
 
+    /**
+     * @brief Sets the hovered axis for visual feedback
+     * @param axis The axis being hovered
+     */
+    void setHoveredAxis(GizmoAxis axis) { hoveredAxis_ = axis; }
+
+    /**
+     * @brief Gets the gizmo world position
+     * @return Position in world space
+     */
+    const glm::vec3& getPosition() const { return gizmoPosition_; }
+
 private:
-    void renderTranslateGizmo(const glm::mat4& mvp, const glm::vec3& position);
-    void renderRotateGizmo(const glm::mat4& mvp, const glm::vec3& position);
-    void renderScaleGizmo(const glm::mat4& mvp, const glm::vec3& position);
+    void renderTranslateGizmo(const glm::mat4& viewProj, const glm::mat4& model);
+    void renderRotateGizmo(const glm::mat4& viewProj, const glm::mat4& model);
+    void renderScaleGizmo(const glm::mat4& viewProj, const glm::mat4& model);
 
     void renderAxis(const glm::mat4& mvp, const glm::vec3& start,
                    const glm::vec3& end, const glm::vec4& color);
@@ -177,13 +191,28 @@ private:
     f32 rayAxisDistance(const glm::vec3& rayOrigin, const glm::vec3& rayDir,
                         const glm::vec3& axisOrigin, const glm::vec3& axisDir) const;
 
+    void initRenderData();
+    void buildTranslateGeometry(std::vector<f32>& vertices);
+    void buildRotateGeometry(std::vector<f32>& vertices);
+    void buildScaleGeometry(std::vector<f32>& vertices);
+
     GizmoMode mode_ = GizmoMode::Translate;
     GizmoAxis activeAxis_ = GizmoAxis::None;
+    GizmoAxis hoveredAxis_ = GizmoAxis::None;
     f32 size_ = 1.0f;
 
     bool dragging_ = false;
     glm::vec3 dragStartPoint_{0.0f};
     glm::vec3 gizmoPosition_{0.0f};
+
+    Unique<VertexArray> translateVAO_;
+    Unique<VertexArray> rotateVAO_;
+    Unique<VertexArray> scaleVAO_;
+    Unique<Shader> shader_;
+    u32 translateVertexCount_ = 0;
+    u32 rotateVertexCount_ = 0;
+    u32 scaleVertexCount_ = 0;
+    bool initialized_ = false;
 };
 
 }  // namespace esengine::editor

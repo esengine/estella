@@ -18,6 +18,7 @@
 #include "../../ecs/components/Sprite.hpp"
 #include "../../ecs/components/Canvas.hpp"
 #include "../../core/Log.hpp"
+#include "../command/TransformCommand.hpp"
 #include <glad/glad.h>
 #include <vector>
 #include <chrono>
@@ -99,17 +100,24 @@ SceneViewPanel::SceneViewPanel(ecs::Registry& registry, EntitySelection& selecti
 
     toolbar_ = makeUnique<SceneToolbar>(ui::WidgetId("scene_toolbar"));
 
-    sink(toolbar_->onViewModeChanged).connect([this](ViewMode mode) {
+    connections_.add(sink(toolbar_->onViewModeChanged).connect([this](ViewMode mode) {
         setViewMode(mode);
-    });
+    }));
 
-    sink(toolbar_->onGridVisibilityChanged).connect([this](bool visible) {
+    connections_.add(sink(toolbar_->onGridVisibilityChanged).connect([this](bool visible) {
         gridVisible_ = visible;
-    });
+    }));
 
-    sink(toolbar_->onGizmosVisibilityChanged).connect([this](bool visible) {
+    connections_.add(sink(toolbar_->onGizmosVisibilityChanged).connect([this](bool visible) {
         gizmosVisible_ = visible;
-    });
+    }));
+
+    transformGizmo_ = makeUnique<TransformGizmo>();
+    transformGizmo_->setSize(1.5f);
+
+    connections_.add(sink(toolbar_->onGizmoModeChanged).connect([this](GizmoMode mode) {
+        transformGizmo_->setMode(mode);
+    }));
 
     setMinSize(glm::vec2(200.0f, 200.0f));
 }
@@ -215,11 +223,60 @@ bool SceneViewPanel::onMouseDown(const ui::MouseButtonEvent& event) {
         }
     }
 
+    if (event.button == ui::MouseButton::Left && !event.alt) {
+        if (viewportBounds_.contains(event.x, event.y)) {
+            glm::vec3 rayOrigin, rayDir;
+            screenToWorldRay(event.x, event.y, rayOrigin, rayDir);
+
+            if (gizmosVisible_ && selection_.count() > 0) {
+                GizmoAxis axis = transformGizmo_->hitTest(rayOrigin, rayDir);
+                if (axis != GizmoAxis::None) {
+                    Entity selected = selection_.getFirst();
+                    if (selected != INVALID_ENTITY && registry_.has<ecs::LocalTransform>(selected)) {
+                        draggingEntity_ = selected;
+                        dragStartTransform_ = registry_.get<ecs::LocalTransform>(selected);
+                    }
+                    transformGizmo_->startDrag(axis, rayOrigin + rayDir * 5.0f);
+                    return true;
+                }
+            }
+
+            Entity hit = pickEntity(rayOrigin, rayDir);
+            if (hit != INVALID_ENTITY) {
+                if (event.ctrl) {
+                    selection_.toggleSelection(hit);
+                } else {
+                    selection_.select(hit);
+                }
+            } else if (!event.ctrl) {
+                selection_.clear();
+            }
+            return true;
+        }
+    }
+
     camera_.onMouseDown(event);
     return true;
 }
 
 bool SceneViewPanel::onMouseUp(const ui::MouseButtonEvent& event) {
+    if (transformGizmo_->isDragging()) {
+        transformGizmo_->endDrag();
+
+        if (commandHistory_ && draggingEntity_ != INVALID_ENTITY &&
+            registry_.has<ecs::LocalTransform>(draggingEntity_)) {
+            const auto& currentTransform = registry_.get<ecs::LocalTransform>(draggingEntity_);
+
+            if (currentTransform.position != dragStartTransform_.position ||
+                currentTransform.rotation != dragStartTransform_.rotation ||
+                currentTransform.scale != dragStartTransform_.scale) {
+                commandHistory_->execute(makeUnique<TransformCommand>(
+                    registry_, draggingEntity_, dragStartTransform_, currentTransform));
+            }
+        }
+
+        draggingEntity_ = INVALID_ENTITY;
+    }
     camera_.onMouseUp(event);
     return true;
 }
@@ -228,6 +285,31 @@ bool SceneViewPanel::onMouseMove(const ui::MouseMoveEvent& event) {
     if (toolbar_) {
         toolbar_->onMouseMove(event);
     }
+
+    if (transformGizmo_->isDragging()) {
+        glm::vec3 rayOrigin, rayDir;
+        screenToWorldRay(event.x, event.y, rayOrigin, rayDir);
+
+        glm::vec3 delta = transformGizmo_->updateDrag(rayOrigin, rayDir);
+
+        Entity selected = selection_.getFirst();
+        if (selected != INVALID_ENTITY && registry_.has<ecs::LocalTransform>(selected)) {
+            auto& transform = registry_.get<ecs::LocalTransform>(selected);
+
+            switch (transformGizmo_->getMode()) {
+                case GizmoMode::Translate:
+                    transform.position = dragStartTransform_.position + delta;
+                    break;
+                case GizmoMode::Scale:
+                    transform.scale = dragStartTransform_.scale + delta;
+                    break;
+                case GizmoMode::Rotate:
+                    break;
+            }
+        }
+        return true;
+    }
+
     camera_.onMouseMove(event);
     return true;
 }
@@ -288,6 +370,13 @@ void SceneViewPanel::renderSceneContent() {
         }
     }
     renderSprites(viewProj);
+
+    if (gizmosVisible_ && selection_.count() > 0) {
+        Entity selected = selection_.getFirst();
+        if (selected != INVALID_ENTITY) {
+            transformGizmo_->render(view, proj, selected, registry_);
+        }
+    }
 }
 
 void SceneViewPanel::initGridData() {
@@ -625,9 +714,11 @@ void SceneViewPanel::renderAxisGizmo() {
 
     axisVAO_->bind();
     glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(axisVertexCount_));
+    axisVAO_->unbind();
+    axisShader_->unbind();
 
-    glDisable(GL_DEPTH_TEST);
     glViewport(savedViewport[0], savedViewport[1], savedViewport[2], savedViewport[3]);
+    glDisable(GL_DEPTH_TEST);
 }
 
 i32 SceneViewPanel::hitTestAxisGizmo(f32 x, f32 y) {
@@ -794,6 +885,7 @@ void SceneViewPanel::renderAxisGizmo2D() {
     glViewport(static_cast<GLint>(vpX), static_cast<GLint>(vpY),
                static_cast<GLsizei>(gizmoSize * 2), static_cast<GLsizei>(gizmoSize * 2));
 
+    glDisable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
@@ -804,6 +896,8 @@ void SceneViewPanel::renderAxisGizmo2D() {
 
     axis2DVAO_->bind();
     glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(axis2DVertexCount_));
+    axis2DVAO_->unbind();
+    axisShader_->unbind();
 
     glViewport(savedViewport[0], savedViewport[1], savedViewport[2], savedViewport[3]);
 }
@@ -880,6 +974,78 @@ void SceneViewPanel::renderCanvasGizmo(const glm::mat4& viewProj) {
 
     canvasGizmoVAO_->bind();
     glDrawArrays(GL_LINES, 0, 8);
+}
+
+// =============================================================================
+// Ray Picking
+// =============================================================================
+
+void SceneViewPanel::screenToWorldRay(f32 screenX, f32 screenY,
+                                       glm::vec3& rayOrigin, glm::vec3& rayDir) {
+    f32 localX = screenX - viewportBounds_.x;
+    f32 localY = screenY - viewportBounds_.y;
+
+    f32 ndcX = (localX / viewportBounds_.width) * 2.0f - 1.0f;
+    f32 ndcY = 1.0f - (localY / viewportBounds_.height) * 2.0f;
+
+    glm::mat4 view = camera_.getViewMatrix();
+    glm::mat4 proj = camera_.getProjectionMatrix();
+    glm::mat4 invViewProj = glm::inverse(proj * view);
+
+    glm::vec4 nearPoint = invViewProj * glm::vec4(ndcX, ndcY, -1.0f, 1.0f);
+    glm::vec4 farPoint = invViewProj * glm::vec4(ndcX, ndcY, 1.0f, 1.0f);
+
+    nearPoint /= nearPoint.w;
+    farPoint /= farPoint.w;
+
+    rayOrigin = glm::vec3(nearPoint);
+    rayDir = glm::normalize(glm::vec3(farPoint - nearPoint));
+}
+
+bool SceneViewPanel::rayIntersectsAABB(const glm::vec3& rayOrigin, const glm::vec3& rayDir,
+                                        const glm::vec3& boxMin, const glm::vec3& boxMax, f32& t) {
+    glm::vec3 invDir = 1.0f / rayDir;
+
+    glm::vec3 t1 = (boxMin - rayOrigin) * invDir;
+    glm::vec3 t2 = (boxMax - rayOrigin) * invDir;
+
+    glm::vec3 tMin = glm::min(t1, t2);
+    glm::vec3 tMax = glm::max(t1, t2);
+
+    f32 tNear = glm::max(glm::max(tMin.x, tMin.y), tMin.z);
+    f32 tFar = glm::min(glm::min(tMax.x, tMax.y), tMax.z);
+
+    if (tNear > tFar || tFar < 0.0f) {
+        return false;
+    }
+
+    t = tNear >= 0.0f ? tNear : tFar;
+    return true;
+}
+
+Entity SceneViewPanel::pickEntity(const glm::vec3& rayOrigin, const glm::vec3& rayDir) {
+    f32 closestDist = std::numeric_limits<f32>::max();
+    Entity closestEntity = INVALID_ENTITY;
+
+    auto spriteView = registry_.view<ecs::LocalTransform, ecs::Sprite>();
+    for (auto entity : spriteView) {
+        const auto& transform = spriteView.get<ecs::LocalTransform>(entity);
+        const auto& sprite = spriteView.get<ecs::Sprite>(entity);
+
+        glm::vec3 halfSize(sprite.size.x * 0.5f, sprite.size.y * 0.5f, 0.1f);
+        glm::vec3 boxMin = transform.position - halfSize;
+        glm::vec3 boxMax = transform.position + halfSize;
+
+        f32 t;
+        if (rayIntersectsAABB(rayOrigin, rayDir, boxMin, boxMax, t)) {
+            if (t < closestDist) {
+                closestDist = t;
+                closestEntity = entity;
+            }
+        }
+    }
+
+    return closestEntity;
 }
 
 }  // namespace esengine::editor

@@ -75,6 +75,12 @@ public:
      */
     void refresh();
 
+    /**
+     * @brief Updates editor values from component data without rebuilding
+     * @details Should be called each frame to sync with external changes
+     */
+    void syncEditorValues();
+
     // =========================================================================
     // Widget Interface
     // =========================================================================
@@ -123,6 +129,10 @@ private:
     u32 selectionListenerId_ = 0;
 
     ConnectionHolder editorConnections_;
+
+    Vector3Editor* positionEditor_ = nullptr;
+    Vector3Editor* rotationEditor_ = nullptr;
+    Vector3Editor* scaleEditor_ = nullptr;
 };
 
 }  // namespace esengine::editor

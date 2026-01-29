@@ -338,6 +338,8 @@ void InspectorPanel::refresh() {
 // =============================================================================
 
 void InspectorPanel::render(ui::UIBatchRenderer& renderer) {
+    syncEditorValues();
+
     if (rootPanel_) {
         if (rootPanel_->getContext() != getContext()) {
             rootPanel_->setContext(getContext());
@@ -441,8 +443,32 @@ void InspectorPanel::rebuildInspector() {
 void InspectorPanel::clearInspector() {
     editorConnections_.disconnectAll();
     sectionWidgets_.clear();
+    positionEditor_ = nullptr;
+    rotationEditor_ = nullptr;
+    scaleEditor_ = nullptr;
     if (contentPanel_) {
         contentPanel_->clearChildren();
+    }
+}
+
+void InspectorPanel::syncEditorValues() {
+    if (currentEntity_ == INVALID_ENTITY || !registry_.valid(currentEntity_)) {
+        return;
+    }
+
+    if (registry_.has<ecs::LocalTransform>(currentEntity_)) {
+        const auto& transform = registry_.get<ecs::LocalTransform>(currentEntity_);
+
+        if (positionEditor_) {
+            positionEditor_->setValue(transform.position);
+        }
+        if (rotationEditor_) {
+            glm::vec3 eulerAngles = math::quatToEulerDegrees(transform.rotation);
+            rotationEditor_->setValue(eulerAngles);
+        }
+        if (scaleEditor_) {
+            scaleEditor_->setValue(transform.scale);
+        }
     }
 }
 
@@ -486,6 +512,7 @@ void InspectorPanel::addLocalTransformEditor(Entity entity) {
     positionEditor->setLabel("Position");
     positionEditor->setValue(transform.position);
     positionEditor->setCommandHistory(&history_);
+    positionEditor_ = positionEditor.get();
 
     editorConnections_.add(sink(positionEditor->onValueChanged).connect(
         [this, entity](const std::any& value) {
@@ -510,6 +537,7 @@ void InspectorPanel::addLocalTransformEditor(Entity entity) {
     rotationEditor->setLabel("Rotation");
     rotationEditor->setValue(eulerAngles);
     rotationEditor->setCommandHistory(&history_);
+    rotationEditor_ = rotationEditor.get();
 
     editorConnections_.add(sink(rotationEditor->onValueChanged).connect(
         [this, entity](const std::any& value) {
@@ -533,6 +561,7 @@ void InspectorPanel::addLocalTransformEditor(Entity entity) {
     scaleEditor->setLabel("Scale");
     scaleEditor->setValue(transform.scale);
     scaleEditor->setCommandHistory(&history_);
+    scaleEditor_ = scaleEditor.get();
 
     editorConnections_.add(sink(scaleEditor->onValueChanged).connect(
         [this, entity](const std::any& value) {

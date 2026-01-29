@@ -122,6 +122,7 @@ bool SceneToolbar::onMouseDown(const ui::MouseButtonEvent& event) {
         return false;
     }
 
+    updateButtonBounds();
     i32 btn = getHoveredButton(event.x, event.y);
 
     switch (btn) {
@@ -138,6 +139,7 @@ bool SceneToolbar::onMouseDown(const ui::MouseButtonEvent& event) {
 }
 
 bool SceneToolbar::onMouseMove(const ui::MouseMoveEvent& event) {
+    updateButtonBounds();
     hoveredButton_ = getHoveredButton(event.x, event.y);
     return false;
 }

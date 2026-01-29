@@ -13,6 +13,7 @@
 #include "../../ecs/components/Transform.hpp"
 #include "../../renderer/RenderCommand.hpp"
 #include "../../core/Log.hpp"
+#include <glad/glad.h>
 
 namespace esengine::editor {
 
@@ -22,23 +23,265 @@ constexpr f32 AXIS_LENGTH = 1.0f;
 constexpr f32 ARROW_HEAD_SIZE = 0.15f;
 constexpr f32 HIT_THRESHOLD = 0.1f;
 
-glm::vec4 getAxisColor(GizmoAxis axis, GizmoAxis activeAxis) {
+const char* GIZMO_VERTEX_SHADER = R"(
+    attribute vec3 a_position;
+    attribute vec4 a_color;
+
+    uniform mat4 u_viewProj;
+    uniform mat4 u_model;
+
+    varying vec4 v_color;
+
+    void main() {
+        gl_Position = u_viewProj * u_model * vec4(a_position, 1.0);
+        v_color = a_color;
+    }
+)";
+
+const char* GIZMO_FRAGMENT_SHADER = R"(
+    precision mediump float;
+
+    varying vec4 v_color;
+
+    void main() {
+        gl_FragColor = v_color;
+    }
+)";
+
+glm::vec4 getAxisColor(GizmoAxis axis, GizmoAxis activeAxis, GizmoAxis hoveredAxis) {
     bool isActive = (axis == activeAxis);
-    f32 brightness = isActive ? 1.0f : 0.7f;
+    bool isHovered = (axis == hoveredAxis);
+
+    if (isActive) {
+        return glm::vec4(1.0f, 1.0f, 0.0f, 1.0f);
+    }
+
+    f32 brightness = isHovered ? 1.0f : 0.85f;
 
     switch (axis) {
         case GizmoAxis::X:
-            return glm::vec4(1.0f, 0.0f, 0.0f, 1.0f) * brightness;
+            return glm::vec4(0.9f, 0.2f, 0.2f, 1.0f) * brightness;
         case GizmoAxis::Y:
-            return glm::vec4(0.0f, 1.0f, 0.0f, 1.0f) * brightness;
+            return glm::vec4(0.3f, 0.85f, 0.3f, 1.0f) * brightness;
         case GizmoAxis::Z:
-            return glm::vec4(0.0f, 0.0f, 1.0f, 1.0f) * brightness;
+            return glm::vec4(0.3f, 0.5f, 0.95f, 1.0f) * brightness;
         default:
             return glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
     }
 }
 
+void addVertex(std::vector<f32>& vertices, const glm::vec3& pos, const glm::vec4& color) {
+    vertices.insert(vertices.end(), {pos.x, pos.y, pos.z, color.r, color.g, color.b, color.a});
+}
+
+void addCone(std::vector<f32>& vertices, const glm::vec3& base, const glm::vec3& tip,
+             f32 radius, const glm::vec4& color, i32 segments = 12) {
+    glm::vec3 dir = glm::normalize(tip - base);
+    glm::vec3 up = glm::abs(dir.y) < 0.99f ? glm::vec3(0, 1, 0) : glm::vec3(1, 0, 0);
+    glm::vec3 right = glm::normalize(glm::cross(dir, up));
+    up = glm::cross(right, dir);
+
+    for (i32 i = 0; i < segments; ++i) {
+        f32 angle1 = (f32(i) / segments) * glm::two_pi<f32>();
+        f32 angle2 = (f32(i + 1) / segments) * glm::two_pi<f32>();
+
+        glm::vec3 p1 = base + (right * glm::cos(angle1) + up * glm::sin(angle1)) * radius;
+        glm::vec3 p2 = base + (right * glm::cos(angle2) + up * glm::sin(angle2)) * radius;
+
+        addVertex(vertices, tip, color);
+        addVertex(vertices, p1, color);
+        addVertex(vertices, p2, color);
+
+        addVertex(vertices, base, color);
+        addVertex(vertices, p2, color);
+        addVertex(vertices, p1, color);
+    }
+}
+
+void addCylinder(std::vector<f32>& vertices, const glm::vec3& start, const glm::vec3& end,
+                 f32 radius, const glm::vec4& color, i32 segments = 8) {
+    glm::vec3 dir = glm::normalize(end - start);
+    glm::vec3 up = glm::abs(dir.y) < 0.99f ? glm::vec3(0, 1, 0) : glm::vec3(1, 0, 0);
+    glm::vec3 right = glm::normalize(glm::cross(dir, up));
+    up = glm::cross(right, dir);
+
+    for (i32 i = 0; i < segments; ++i) {
+        f32 angle1 = (f32(i) / segments) * glm::two_pi<f32>();
+        f32 angle2 = (f32(i + 1) / segments) * glm::two_pi<f32>();
+
+        glm::vec3 offset1 = (right * glm::cos(angle1) + up * glm::sin(angle1)) * radius;
+        glm::vec3 offset2 = (right * glm::cos(angle2) + up * glm::sin(angle2)) * radius;
+
+        glm::vec3 s1 = start + offset1, s2 = start + offset2;
+        glm::vec3 e1 = end + offset1, e2 = end + offset2;
+
+        addVertex(vertices, s1, color);
+        addVertex(vertices, e1, color);
+        addVertex(vertices, e2, color);
+
+        addVertex(vertices, s1, color);
+        addVertex(vertices, e2, color);
+        addVertex(vertices, s2, color);
+    }
+}
+
+void addCube(std::vector<f32>& vertices, const glm::vec3& center, f32 size, const glm::vec4& color) {
+    f32 h = size * 0.5f;
+
+    glm::vec3 corners[8] = {
+        center + glm::vec3(-h, -h, -h), center + glm::vec3(h, -h, -h),
+        center + glm::vec3(h, h, -h), center + glm::vec3(-h, h, -h),
+        center + glm::vec3(-h, -h, h), center + glm::vec3(h, -h, h),
+        center + glm::vec3(h, h, h), center + glm::vec3(-h, h, h)
+    };
+
+    auto addFace = [&](i32 a, i32 b, i32 c, i32 d) {
+        addVertex(vertices, corners[a], color);
+        addVertex(vertices, corners[b], color);
+        addVertex(vertices, corners[c], color);
+        addVertex(vertices, corners[a], color);
+        addVertex(vertices, corners[c], color);
+        addVertex(vertices, corners[d], color);
+    };
+
+    addFace(0, 1, 2, 3);
+    addFace(5, 4, 7, 6);
+    addFace(4, 0, 3, 7);
+    addFace(1, 5, 6, 2);
+    addFace(3, 2, 6, 7);
+    addFace(4, 5, 1, 0);
+}
+
+void addCircle(std::vector<f32>& vertices, const glm::vec3& center, const glm::vec3& normal,
+               f32 radius, const glm::vec4& color, i32 segments = 32, f32 thickness = 0.02f) {
+    glm::vec3 up = glm::abs(normal.y) < 0.99f ? glm::vec3(0, 1, 0) : glm::vec3(1, 0, 0);
+    glm::vec3 right = glm::normalize(glm::cross(normal, up));
+    up = glm::normalize(glm::cross(right, normal));
+
+    for (i32 i = 0; i < segments; ++i) {
+        f32 angle1 = (f32(i) / segments) * glm::two_pi<f32>();
+        f32 angle2 = (f32(i + 1) / segments) * glm::two_pi<f32>();
+
+        glm::vec3 p1 = center + (right * glm::cos(angle1) + up * glm::sin(angle1)) * radius;
+        glm::vec3 p2 = center + (right * glm::cos(angle2) + up * glm::sin(angle2)) * radius;
+
+        glm::vec3 innerP1 = center + (right * glm::cos(angle1) + up * glm::sin(angle1)) * (radius - thickness);
+        glm::vec3 innerP2 = center + (right * glm::cos(angle2) + up * glm::sin(angle2)) * (radius - thickness);
+
+        addVertex(vertices, p1, color);
+        addVertex(vertices, p2, color);
+        addVertex(vertices, innerP2, color);
+
+        addVertex(vertices, p1, color);
+        addVertex(vertices, innerP2, color);
+        addVertex(vertices, innerP1, color);
+    }
+}
+
 }  // namespace
+
+// =============================================================================
+// Initialization
+// =============================================================================
+
+void TransformGizmo::initRenderData() {
+    if (initialized_) return;
+
+    shader_ = Shader::create(GIZMO_VERTEX_SHADER, GIZMO_FRAGMENT_SHADER);
+
+    std::vector<f32> translateVerts;
+    buildTranslateGeometry(translateVerts);
+    translateVertexCount_ = static_cast<u32>(translateVerts.size() / 7);
+
+    translateVAO_ = VertexArray::create();
+    auto translateVBO = VertexBuffer::createRaw(translateVerts.data(),
+        static_cast<u32>(translateVerts.size() * sizeof(f32)));
+    translateVBO->setLayout({
+        { ShaderDataType::Float3, "a_position" },
+        { ShaderDataType::Float4, "a_color" }
+    });
+    translateVAO_->addVertexBuffer(Shared<VertexBuffer>(std::move(translateVBO)));
+
+    std::vector<f32> rotateVerts;
+    buildRotateGeometry(rotateVerts);
+    rotateVertexCount_ = static_cast<u32>(rotateVerts.size() / 7);
+
+    rotateVAO_ = VertexArray::create();
+    auto rotateVBO = VertexBuffer::createRaw(rotateVerts.data(),
+        static_cast<u32>(rotateVerts.size() * sizeof(f32)));
+    rotateVBO->setLayout({
+        { ShaderDataType::Float3, "a_position" },
+        { ShaderDataType::Float4, "a_color" }
+    });
+    rotateVAO_->addVertexBuffer(Shared<VertexBuffer>(std::move(rotateVBO)));
+
+    std::vector<f32> scaleVerts;
+    buildScaleGeometry(scaleVerts);
+    scaleVertexCount_ = static_cast<u32>(scaleVerts.size() / 7);
+
+    scaleVAO_ = VertexArray::create();
+    auto scaleVBO = VertexBuffer::createRaw(scaleVerts.data(),
+        static_cast<u32>(scaleVerts.size() * sizeof(f32)));
+    scaleVBO->setLayout({
+        { ShaderDataType::Float3, "a_position" },
+        { ShaderDataType::Float4, "a_color" }
+    });
+    scaleVAO_->addVertexBuffer(Shared<VertexBuffer>(std::move(scaleVBO)));
+
+    initialized_ = true;
+}
+
+void TransformGizmo::buildTranslateGeometry(std::vector<f32>& vertices) {
+    glm::vec4 red(0.9f, 0.2f, 0.2f, 1.0f);
+    glm::vec4 green(0.3f, 0.85f, 0.3f, 1.0f);
+    glm::vec4 blue(0.3f, 0.5f, 0.95f, 1.0f);
+
+    f32 shaftLen = 0.7f;
+    f32 shaftRadius = 0.02f;
+    f32 coneLen = 0.25f;
+    f32 coneRadius = 0.06f;
+
+    addCylinder(vertices, glm::vec3(0), glm::vec3(shaftLen, 0, 0), shaftRadius, red);
+    addCone(vertices, glm::vec3(shaftLen, 0, 0), glm::vec3(shaftLen + coneLen, 0, 0), coneRadius, red);
+
+    addCylinder(vertices, glm::vec3(0), glm::vec3(0, shaftLen, 0), shaftRadius, green);
+    addCone(vertices, glm::vec3(0, shaftLen, 0), glm::vec3(0, shaftLen + coneLen, 0), coneRadius, green);
+
+    addCylinder(vertices, glm::vec3(0), glm::vec3(0, 0, shaftLen), shaftRadius, blue);
+    addCone(vertices, glm::vec3(0, 0, shaftLen), glm::vec3(0, 0, shaftLen + coneLen), coneRadius, blue);
+}
+
+void TransformGizmo::buildRotateGeometry(std::vector<f32>& vertices) {
+    glm::vec4 red(0.9f, 0.2f, 0.2f, 1.0f);
+    glm::vec4 green(0.3f, 0.85f, 0.3f, 1.0f);
+    glm::vec4 blue(0.3f, 0.5f, 0.95f, 1.0f);
+
+    f32 radius = 0.8f;
+    f32 thickness = 0.03f;
+
+    addCircle(vertices, glm::vec3(0), glm::vec3(1, 0, 0), radius, red, 48, thickness);
+    addCircle(vertices, glm::vec3(0), glm::vec3(0, 1, 0), radius, green, 48, thickness);
+    addCircle(vertices, glm::vec3(0), glm::vec3(0, 0, 1), radius, blue, 48, thickness);
+}
+
+void TransformGizmo::buildScaleGeometry(std::vector<f32>& vertices) {
+    glm::vec4 red(0.9f, 0.2f, 0.2f, 1.0f);
+    glm::vec4 green(0.3f, 0.85f, 0.3f, 1.0f);
+    glm::vec4 blue(0.3f, 0.5f, 0.95f, 1.0f);
+
+    f32 shaftLen = 0.7f;
+    f32 shaftRadius = 0.02f;
+    f32 cubeSize = 0.1f;
+
+    addCylinder(vertices, glm::vec3(0), glm::vec3(shaftLen, 0, 0), shaftRadius, red);
+    addCube(vertices, glm::vec3(shaftLen + cubeSize * 0.5f, 0, 0), cubeSize, red);
+
+    addCylinder(vertices, glm::vec3(0), glm::vec3(0, shaftLen, 0), shaftRadius, green);
+    addCube(vertices, glm::vec3(0, shaftLen + cubeSize * 0.5f, 0), cubeSize, green);
+
+    addCylinder(vertices, glm::vec3(0), glm::vec3(0, 0, shaftLen), shaftRadius, blue);
+    addCube(vertices, glm::vec3(0, 0, shaftLen + cubeSize * 0.5f), cubeSize, blue);
+}
 
 // =============================================================================
 // Rendering
@@ -50,69 +293,108 @@ void TransformGizmo::render(const glm::mat4& view, const glm::mat4& proj,
         return;
     }
 
+    if (!initialized_) {
+        initRenderData();
+    }
+
     const auto& transform = registry.get<ecs::LocalTransform>(entity);
     gizmoPosition_ = transform.position;
 
-    glm::mat4 mvp = proj * view;
+    glm::mat4 viewProj = proj * view;
+    glm::mat4 model = glm::translate(glm::mat4(1.0f), gizmoPosition_);
+    model = glm::scale(model, glm::vec3(size_));
 
     switch (mode_) {
         case GizmoMode::Translate:
-            renderTranslateGizmo(mvp, gizmoPosition_);
+            renderTranslateGizmo(viewProj, model);
             break;
         case GizmoMode::Rotate:
-            renderRotateGizmo(mvp, gizmoPosition_);
+            renderRotateGizmo(viewProj, model);
             break;
         case GizmoMode::Scale:
-            renderScaleGizmo(mvp, gizmoPosition_);
+            renderScaleGizmo(viewProj, model);
             break;
     }
 }
 
-void TransformGizmo::renderTranslateGizmo(const glm::mat4& mvp, const glm::vec3& position) {
-    f32 axisLength = AXIS_LENGTH * size_;
+void TransformGizmo::renderTranslateGizmo(const glm::mat4& viewProj, const glm::mat4& model) {
+    if (!translateVAO_ || !shader_) return;
 
-    renderArrow(mvp, position, glm::vec3(1, 0, 0), axisLength,
-                getAxisColor(GizmoAxis::X, activeAxis_));
-    renderArrow(mvp, position, glm::vec3(0, 1, 0), axisLength,
-                getAxisColor(GizmoAxis::Y, activeAxis_));
-    renderArrow(mvp, position, glm::vec3(0, 0, 1), axisLength,
-                getAxisColor(GizmoAxis::Z, activeAxis_));
+    glDisable(GL_DEPTH_TEST);
+
+    shader_->bind();
+    shader_->setUniform("u_viewProj", viewProj);
+    shader_->setUniform("u_model", model);
+
+    translateVAO_->bind();
+    glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(translateVertexCount_));
+    translateVAO_->unbind();
+
+    shader_->unbind();
+
+    glEnable(GL_DEPTH_TEST);
 }
 
-void TransformGizmo::renderRotateGizmo(const glm::mat4& mvp, const glm::vec3& position) {
-    f32 radius = AXIS_LENGTH * size_;
+void TransformGizmo::renderRotateGizmo(const glm::mat4& viewProj, const glm::mat4& model) {
+    if (!rotateVAO_ || !shader_) return;
 
-    renderCircle(mvp, position, glm::vec3(1, 0, 0), radius,
-                 getAxisColor(GizmoAxis::X, activeAxis_));
-    renderCircle(mvp, position, glm::vec3(0, 1, 0), radius,
-                 getAxisColor(GizmoAxis::Y, activeAxis_));
-    renderCircle(mvp, position, glm::vec3(0, 0, 1), radius,
-                 getAxisColor(GizmoAxis::Z, activeAxis_));
+    glDisable(GL_DEPTH_TEST);
+
+    shader_->bind();
+    shader_->setUniform("u_viewProj", viewProj);
+    shader_->setUniform("u_model", model);
+
+    rotateVAO_->bind();
+    glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(rotateVertexCount_));
+    rotateVAO_->unbind();
+
+    shader_->unbind();
+
+    glEnable(GL_DEPTH_TEST);
 }
 
-void TransformGizmo::renderScaleGizmo(const glm::mat4& mvp, const glm::vec3& position) {
-    f32 axisLength = AXIS_LENGTH * size_;
+void TransformGizmo::renderScaleGizmo(const glm::mat4& viewProj, const glm::mat4& model) {
+    if (!scaleVAO_ || !shader_) return;
 
-    renderAxis(mvp, position, position + glm::vec3(axisLength, 0, 0),
-               getAxisColor(GizmoAxis::X, activeAxis_));
-    renderAxis(mvp, position, position + glm::vec3(0, axisLength, 0),
-               getAxisColor(GizmoAxis::Y, activeAxis_));
-    renderAxis(mvp, position, position + glm::vec3(0, 0, axisLength),
-               getAxisColor(GizmoAxis::Z, activeAxis_));
+    glDisable(GL_DEPTH_TEST);
+
+    shader_->bind();
+    shader_->setUniform("u_viewProj", viewProj);
+    shader_->setUniform("u_model", model);
+
+    scaleVAO_->bind();
+    glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(scaleVertexCount_));
+    scaleVAO_->unbind();
+
+    shader_->unbind();
+
+    glEnable(GL_DEPTH_TEST);
 }
 
 void TransformGizmo::renderAxis(const glm::mat4& mvp, const glm::vec3& start,
                                 const glm::vec3& end, const glm::vec4& color) {
+    (void)mvp;
+    (void)start;
+    (void)end;
+    (void)color;
 }
 
 void TransformGizmo::renderArrow(const glm::mat4& mvp, const glm::vec3& start,
                                  const glm::vec3& dir, f32 length, const glm::vec4& color) {
-    glm::vec3 end = start + dir * length;
-    renderAxis(mvp, start, end, color);
+    (void)mvp;
+    (void)start;
+    (void)dir;
+    (void)length;
+    (void)color;
 }
 
 void TransformGizmo::renderCircle(const glm::mat4& mvp, const glm::vec3& center,
                                   const glm::vec3& normal, f32 radius, const glm::vec4& color) {
+    (void)mvp;
+    (void)center;
+    (void)normal;
+    (void)radius;
+    (void)color;
 }
 
 // =============================================================================

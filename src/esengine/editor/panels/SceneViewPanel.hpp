@@ -22,10 +22,14 @@
 #include "../../renderer/Shader.hpp"
 #include "../camera/EditorCamera.hpp"
 #include "../../ecs/Registry.hpp"
+#include "../../ecs/components/Transform.hpp"
 #include "../../resource/ResourceManager.hpp"
 #include "../core/Selection.hpp"
 #include "../widgets/EditorToolbar.hpp"
 #include "../widgets/SceneToolbar.hpp"
+#include "../gizmo/TransformGizmo.hpp"
+#include "../command/CommandHistory.hpp"
+#include "../../events/Connection.hpp"
 
 namespace esengine::editor {
 
@@ -84,6 +88,9 @@ public:
     /** @brief Gets the current view mode */
     ViewMode getViewMode() const { return viewMode_; }
 
+    /** @brief Sets the command history for undo/redo support */
+    void setCommandHistory(CommandHistory* history) { commandHistory_ = history; }
+
     // =========================================================================
     // Widget Interface
     // =========================================================================
@@ -119,6 +126,11 @@ private:
     i32 hitTestAxisGizmo(f32 x, f32 y);
     i32 hitTestAxisGizmo2D(f32 x, f32 y);
     Entity findCanvas();
+
+    void screenToWorldRay(f32 screenX, f32 screenY, glm::vec3& rayOrigin, glm::vec3& rayDir);
+    Entity pickEntity(const glm::vec3& rayOrigin, const glm::vec3& rayDir);
+    bool rayIntersectsAABB(const glm::vec3& rayOrigin, const glm::vec3& rayDir,
+                           const glm::vec3& boxMin, const glm::vec3& boxMax, f32& t);
 
     ecs::Registry& registry_;
     EntitySelection& selection_;
@@ -158,9 +170,16 @@ private:
     bool canvasGizmoInitialized_ = false;
 
     Unique<SceneToolbar> toolbar_;
+    Unique<TransformGizmo> transformGizmo_;
     bool gridVisible_ = true;
     bool gizmosVisible_ = true;
     ui::Rect viewportBounds_;
+
+    CommandHistory* commandHistory_ = nullptr;
+    ecs::LocalTransform dragStartTransform_;
+    Entity draggingEntity_ = INVALID_ENTITY;
+
+    ConnectionHolder connections_;
 };
 
 }  // namespace esengine::editor
