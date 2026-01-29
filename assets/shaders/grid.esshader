@@ -1,0 +1,21 @@
+#pragma shader "Grid"
+
+#pragma vertex
+attribute vec3 a_position;
+
+uniform mat4 u_viewProj;
+
+void main() {
+    gl_Position = u_viewProj * vec4(a_position, 1.0);
+}
+#pragma end
+
+#pragma fragment
+precision mediump float;
+
+uniform vec4 u_color;
+
+void main() {
+    gl_FragColor = u_color;
+}
+#pragma end

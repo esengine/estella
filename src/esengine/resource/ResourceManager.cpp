@@ -10,6 +10,7 @@
  */
 
 #include "ResourceManager.hpp"
+#include "loaders/ShaderLoader.hpp"
 #include "../core/Log.hpp"
 #include "../renderer/Shader.hpp"
 #include "../renderer/Texture.hpp"
@@ -80,6 +81,25 @@ ShaderHandle ResourceManager::loadShader(const std::string& vertPath, const std:
 
     stats_.cacheMisses++;
     return shaders_.add(std::move(shader), cacheKey);
+}
+
+ShaderHandle ResourceManager::loadUnifiedShader(const std::string& path, const std::string& platform) {
+    auto cached = shaders_.findByPath(path);
+    if (cached.isValid()) {
+        shaders_.addRef(cached);
+        stats_.cacheHits++;
+        return cached;
+    }
+
+    ShaderLoader loader;
+    auto result = loader.loadFromFile(path, platform);
+    if (!result.isOk()) {
+        stats_.cacheMisses++;
+        return ShaderHandle();
+    }
+
+    stats_.cacheMisses++;
+    return shaders_.add(std::move(result.shader), path);
 }
 
 Shader* ResourceManager::getShader(ShaderHandle handle) {

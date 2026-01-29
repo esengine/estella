@@ -39,6 +39,8 @@ set(ESENGINE_SOURCES
     src/esengine/core/Engine.cpp
     src/esengine/core/Log.cpp
     src/esengine/resource/ResourceManager.cpp
+    src/esengine/resource/ShaderParser.cpp
+    src/esengine/resource/loaders/ShaderLoader.cpp
     src/esengine/renderer/RenderContext.cpp
     src/esengine/renderer/Renderer.cpp
     src/esengine/renderer/Shader.cpp

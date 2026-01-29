@@ -125,6 +125,14 @@ public:
     ShaderHandle loadShader(const std::string& vertPath, const std::string& fragPath);
 
     /**
+     * @brief Loads a unified shader from .esshader file (with caching)
+     * @param path Path to the .esshader file
+     * @param platform Platform variant (empty for auto-detect)
+     * @return Handle to the shader, or invalid handle on failure
+     */
+    ShaderHandle loadUnifiedShader(const std::string& path, const std::string& platform = "");
+
+    /**
      * @brief Gets a shader by handle
      * @param handle The shader handle
      * @return Pointer to the shader, or nullptr if invalid
