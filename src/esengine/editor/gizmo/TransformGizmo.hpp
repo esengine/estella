@@ -20,7 +20,7 @@
 #include "../../math/Math.hpp"
 #include "../../ecs/Registry.hpp"
 #include "../../renderer/Buffer.hpp"
-#include "../../renderer/Shader.hpp"
+#include "../../resource/ResourceManager.hpp"
 
 namespace esengine::editor {
 
@@ -81,7 +81,11 @@ enum class GizmoAxis : u8 {
  */
 class TransformGizmo {
 public:
-    TransformGizmo() = default;
+    /**
+     * @brief Constructs transform gizmo with resource manager
+     * @param resourceManager Resource manager for shader loading
+     */
+    explicit TransformGizmo(resource::ResourceManager& resourceManager);
     ~TransformGizmo() = default;
 
     // =========================================================================
@@ -205,10 +209,11 @@ private:
     glm::vec3 dragStartPoint_{0.0f};
     glm::vec3 gizmoPosition_{0.0f};
 
+    resource::ResourceManager& resourceManager_;
     Unique<VertexArray> translateVAO_;
     Unique<VertexArray> rotateVAO_;
     Unique<VertexArray> scaleVAO_;
-    Unique<Shader> shader_;
+    resource::ShaderHandle shaderHandle_;
     u32 translateVertexCount_ = 0;
     u32 rotateVertexCount_ = 0;
     u32 scaleVertexCount_ = 0;

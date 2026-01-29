@@ -27,6 +27,7 @@
 #include "AssetBrowserTypes.hpp"
 
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 #include <functional>
 
@@ -67,7 +68,7 @@ protected:
 private:
     void buildUI();
     void rebuildFolderTree();
-    void addFolderNodes(const std::string& path, ui::TreeNodeId parentNode);
+    void addFolderNodes(const std::string& path, ui::TreeNodeId parentNode, bool isEngine = false);
     void refreshAssetList();
 
     void onFolderSelected(ui::TreeNodeId nodeId);
@@ -92,7 +93,9 @@ private:
 
     std::string rootPath_;
     std::string currentPath_;
+    std::string engineResourcesPath_;
     AssetViewMode viewMode_ = AssetViewMode::Grid;
+    bool browsingEngineResources_ = false;
 
     ui::Panel* leftPanel_ = nullptr;
     ui::Panel* rightPanel_ = nullptr;
@@ -107,6 +110,7 @@ private:
     std::vector<AssetEntry> currentAssets_;
     std::unordered_map<ui::TreeNodeId, std::string> nodeToPath_;
     std::unordered_map<std::string, ui::TreeNodeId> pathToNode_;
+    std::unordered_set<ui::TreeNodeId> engineNodes_;
     std::string searchFilter_;
 
     std::string selectedAssetPath_;

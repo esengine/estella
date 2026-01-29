@@ -20,6 +20,7 @@
 #include "../../ui/widgets/Button.hpp"
 #include "../../platform/FileSystem.hpp"
 #include "../../platform/FileDialog.hpp"
+#include "../../platform/PathResolver.hpp"
 #include "../../core/Log.hpp"
 #include "../../events/Sink.hpp"
 #include "../../ui/icons/Icons.hpp"
@@ -52,7 +53,9 @@ AssetBrowserPanel::AssetBrowserPanel(AssetDatabase& assetDB, ThumbnailGenerator&
     }
     currentPath_ = rootPath_;
 
+    engineResourcesPath_ = PathResolver::editorPath("data");
     ES_LOG_INFO("AssetBrowserPanel: rootPath = {}", rootPath_);
+    ES_LOG_INFO("AssetBrowserPanel: engineResourcesPath = {}", engineResourcesPath_);
     ES_LOG_INFO("AssetBrowserPanel: directoryExists = {}", FileSystem::directoryExists(rootPath_));
 
     buildUI();
@@ -341,23 +344,33 @@ void AssetBrowserPanel::rebuildFolderTree() {
     folderTree_->clear();
     nodeToPath_.clear();
     pathToNode_.clear();
+    engineNodes_.clear();
 
     if (!FileSystem::directoryExists(rootPath_)) {
         ES_LOG_WARN("Asset root path does not exist: {}", rootPath_);
         return;
     }
 
-    ui::TreeNodeId rootNodeId = folderTree_->addNode(ui::INVALID_TREE_NODE, "assets");
-    nodeToPath_[rootNodeId] = rootPath_;
-    pathToNode_[rootPath_] = rootNodeId;
+    ui::TreeNodeId projectNodeId = folderTree_->addNode(ui::INVALID_TREE_NODE, "Project");
+    nodeToPath_[projectNodeId] = rootPath_;
+    pathToNode_[rootPath_] = projectNodeId;
 
-    addFolderNodes(rootPath_, rootNodeId);
+    addFolderNodes(rootPath_, projectNodeId);
 
-    folderTree_->setNodeExpanded(rootNodeId, true);
-    folderTree_->selectNode(rootNodeId);
+    folderTree_->setNodeExpanded(projectNodeId, true);
+    folderTree_->selectNode(projectNodeId);
+
+    if (FileSystem::directoryExists(engineResourcesPath_)) {
+        ui::TreeNodeId engineNodeId = folderTree_->addNode(ui::INVALID_TREE_NODE, "Engine");
+        nodeToPath_[engineNodeId] = engineResourcesPath_;
+        pathToNode_[engineResourcesPath_] = engineNodeId;
+        engineNodes_.insert(engineNodeId);
+
+        addFolderNodes(engineResourcesPath_, engineNodeId, true);
+    }
 }
 
-void AssetBrowserPanel::addFolderNodes(const std::string& path, ui::TreeNodeId parentNode) {
+void AssetBrowserPanel::addFolderNodes(const std::string& path, ui::TreeNodeId parentNode, bool isEngine) {
 #ifdef ES_PLATFORM_WEB
     return;
 #endif
@@ -374,7 +387,11 @@ void AssetBrowserPanel::addFolderNodes(const std::string& path, ui::TreeNodeId p
             nodeToPath_[nodeId] = entry;
             pathToNode_[entry] = nodeId;
 
-            addFolderNodes(entry, nodeId);
+            if (isEngine) {
+                engineNodes_.insert(nodeId);
+            }
+
+            addFolderNodes(entry, nodeId, isEngine);
         }
     }
 }
@@ -454,6 +471,9 @@ void AssetBrowserPanel::refreshAssetList() {
     if (statusLabel_) {
         usize count = currentAssets_.size();
         std::string text = std::to_string(count) + (count == 1 ? " item" : " items");
+        if (browsingEngineResources_) {
+            text += " (Read-only)";
+        }
         statusLabel_->setText(text);
     }
 }
@@ -467,6 +487,7 @@ void AssetBrowserPanel::onFolderSelected(ui::TreeNodeId nodeId) {
     if (it != nodeToPath_.end()) {
         if (currentPath_ != it->second) {
             currentPath_ = it->second;
+            browsingEngineResources_ = (engineNodes_.find(nodeId) != engineNodes_.end());
             refreshAssetList();
             rebuildBreadcrumb();
         }
@@ -509,16 +530,18 @@ bool AssetBrowserPanel::onMouseDown(const ui::MouseButtonEvent& event) {
         if (assetScrollView_ && assetScrollView_->getBounds().contains(event.x, event.y)) {
             contextMenu_->clearItems();
 
-            contextMenu_->addItem(ui::MenuItem::action("create_folder", "New Folder", ui::icons::FolderPlus));
-            contextMenu_->addItem(ui::MenuItem::divider());
-            contextMenu_->addItem(ui::MenuItem::action("create_scene", "New Scene", ui::icons::Layers));
-            contextMenu_->addItem(ui::MenuItem::action("create_script", "New Script", ui::icons::File));
-            contextMenu_->addItem(ui::MenuItem::divider());
-
-            if (!selectedAssetPath_.empty()) {
-                contextMenu_->addItem(ui::MenuItem::action("rename", "Rename", ui::icons::Edit2, "F2"));
-                contextMenu_->addItem(ui::MenuItem::action("delete", "Delete", ui::icons::Trash2, "Del"));
+            if (!browsingEngineResources_) {
+                contextMenu_->addItem(ui::MenuItem::action("create_folder", "New Folder", ui::icons::FolderPlus));
                 contextMenu_->addItem(ui::MenuItem::divider());
+                contextMenu_->addItem(ui::MenuItem::action("create_scene", "New Scene", ui::icons::Layers));
+                contextMenu_->addItem(ui::MenuItem::action("create_script", "New Script", ui::icons::File));
+                contextMenu_->addItem(ui::MenuItem::divider());
+
+                if (!selectedAssetPath_.empty()) {
+                    contextMenu_->addItem(ui::MenuItem::action("rename", "Rename", ui::icons::Edit2, "F2"));
+                    contextMenu_->addItem(ui::MenuItem::action("delete", "Delete", ui::icons::Trash2, "Del"));
+                    contextMenu_->addItem(ui::MenuItem::divider());
+                }
             }
 
             contextMenu_->addItem(ui::MenuItem::action("refresh", "Refresh", ui::icons::Refresh));
@@ -710,18 +733,16 @@ void AssetBrowserPanel::rebuildBreadcrumb() {
     breadcrumbConnections_.disconnectAll();
     breadcrumbPanel_->clearChildren();
 
+    std::string actualRoot = browsingEngineResources_ ? engineResourcesPath_ : rootPath_;
+    std::string rootDisplayName = browsingEngineResources_ ? "Engine" : "Project";
+
     std::string normalizedCurrent = currentPath_;
-    std::string normalizedRoot = rootPath_;
+    std::string normalizedRoot = actualRoot;
     for (char& c : normalizedCurrent) { if (c == '\\') c = '/'; }
     for (char& c : normalizedRoot) { if (c == '\\') c = '/'; }
 
     std::vector<std::pair<std::string, std::string>> segments;
-
-    std::string rootName = normalizedRoot;
-    if (auto pos = rootName.rfind('/'); pos != std::string::npos) {
-        rootName = rootName.substr(pos + 1);
-    }
-    segments.emplace_back(rootName, rootPath_);
+    segments.emplace_back(rootDisplayName, actualRoot);
 
     if (normalizedCurrent.size() > normalizedRoot.size() &&
         normalizedCurrent.substr(0, normalizedRoot.size()) == normalizedRoot) {
@@ -730,7 +751,7 @@ void AssetBrowserPanel::rebuildBreadcrumb() {
             relativePath = relativePath.substr(1);
         }
 
-        std::string accumulated = rootPath_;
+        std::string accumulated = actualRoot;
         std::string segment;
         for (char c : relativePath) {
             if (c == '/') {

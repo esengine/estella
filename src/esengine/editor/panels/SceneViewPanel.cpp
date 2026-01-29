@@ -27,54 +27,6 @@
 #define GL_VIEWPORT 0x0BA2
 #endif
 
-namespace {
-
-const char* GRID_VERTEX_SHADER = R"(
-    attribute vec3 a_position;
-
-    uniform mat4 u_viewProj;
-
-    void main() {
-        gl_Position = u_viewProj * vec4(a_position, 1.0);
-    }
-)";
-
-const char* GRID_FRAGMENT_SHADER = R"(
-    precision mediump float;
-
-    uniform vec4 u_color;
-
-    void main() {
-        gl_FragColor = u_color;
-    }
-)";
-
-const char* AXIS_VERTEX_SHADER = R"(
-    attribute vec3 a_position;
-    attribute vec4 a_color;
-
-    uniform mat4 u_viewProj;
-
-    varying vec4 v_color;
-
-    void main() {
-        gl_Position = u_viewProj * vec4(a_position, 1.0);
-        v_color = a_color;
-    }
-)";
-
-const char* AXIS_FRAGMENT_SHADER = R"(
-    precision mediump float;
-
-    varying vec4 v_color;
-
-    void main() {
-        gl_FragColor = v_color;
-    }
-)";
-
-}
-
 namespace esengine::editor {
 
 // =============================================================================
@@ -112,7 +64,7 @@ SceneViewPanel::SceneViewPanel(ecs::Registry& registry, EntitySelection& selecti
         gizmosVisible_ = visible;
     }));
 
-    transformGizmo_ = makeUnique<TransformGizmo>();
+    transformGizmo_ = makeUnique<TransformGizmo>(resourceManager);
     transformGizmo_->setSize(1.5f);
 
     connections_.add(sink(toolbar_->onGizmoModeChanged).connect([this](GizmoMode mode) {
@@ -416,18 +368,19 @@ void SceneViewPanel::initGridData() {
 
     gridVAO_->addVertexBuffer(Shared<VertexBuffer>(std::move(vbo)));
 
-    gridShader_ = Shader::create(GRID_VERTEX_SHADER, GRID_FRAGMENT_SHADER);
+    gridShaderHandle_ = resourceManager_.loadEngineShader("grid");
 
     gridInitialized_ = true;
     ES_LOG_DEBUG("Grid initialized with {} vertices", gridVertexCount_);
 }
 
 void SceneViewPanel::renderGrid(const glm::mat4& viewProj) {
-    if (!gridVAO_ || !gridShader_) return;
+    Shader* gridShader = resourceManager_.getShader(gridShaderHandle_);
+    if (!gridVAO_ || !gridShader) return;
 
-    gridShader_->bind();
-    gridShader_->setUniform("u_viewProj", viewProj);
-    gridShader_->setUniform("u_color", glm::vec4(0.3f, 0.3f, 0.3f, 1.0f));
+    gridShader->bind();
+    gridShader->setUniform("u_viewProj", viewProj);
+    gridShader->setUniform("u_color", glm::vec4(0.3f, 0.3f, 0.3f, 1.0f));
 
     gridVAO_->bind();
     glDrawArrays(GL_LINES, 0, static_cast<GLsizei>(gridVertexCount_));
@@ -470,8 +423,8 @@ void SceneViewPanel::initGrid2DData() {
 
     grid2DVAO_->addVertexBuffer(Shared<VertexBuffer>(std::move(vbo)));
 
-    if (!gridShader_) {
-        gridShader_ = Shader::create(GRID_VERTEX_SHADER, GRID_FRAGMENT_SHADER);
+    if (!gridShaderHandle_.isValid()) {
+        gridShaderHandle_ = resourceManager_.loadEngineShader("grid");
     }
 
     grid2DInitialized_ = true;
@@ -479,11 +432,12 @@ void SceneViewPanel::initGrid2DData() {
 }
 
 void SceneViewPanel::renderGrid2D(const glm::mat4& viewProj) {
-    if (!grid2DVAO_ || !gridShader_) return;
+    Shader* gridShader = resourceManager_.getShader(gridShaderHandle_);
+    if (!grid2DVAO_ || !gridShader) return;
 
-    gridShader_->bind();
-    gridShader_->setUniform("u_viewProj", viewProj);
-    gridShader_->setUniform("u_color", glm::vec4(0.3f, 0.3f, 0.3f, 1.0f));
+    gridShader->bind();
+    gridShader->setUniform("u_viewProj", viewProj);
+    gridShader->setUniform("u_color", glm::vec4(0.3f, 0.3f, 0.3f, 1.0f));
 
     grid2DVAO_->bind();
     glDrawArrays(GL_LINES, 0, static_cast<GLsizei>(grid2DVertexCount_));
@@ -671,7 +625,7 @@ void SceneViewPanel::initAxisGizmoData() {
 
     axisVAO_->addVertexBuffer(Shared<VertexBuffer>(std::move(vbo)));
 
-    axisShader_ = Shader::create(AXIS_VERTEX_SHADER, AXIS_FRAGMENT_SHADER);
+    axisShaderHandle_ = resourceManager_.loadEngineShader("axis");
 
     axisInitialized_ = true;
 }
@@ -681,7 +635,8 @@ void SceneViewPanel::renderAxisGizmo() {
         initAxisGizmoData();
     }
 
-    if (!axisVAO_ || !axisShader_) return;
+    Shader* axisShader = resourceManager_.getShader(axisShaderHandle_);
+    if (!axisVAO_ || !axisShader) return;
 
     const ui::Rect& bounds = getBounds();
     f32 gizmoSize = 60.0f;
@@ -709,13 +664,13 @@ void SceneViewPanel::renderAxisGizmo() {
     glm::mat4 proj = glm::ortho(-1.5f, 1.5f, -1.5f, 1.5f, -10.0f, 10.0f);
     glm::mat4 viewProj = proj * rotation;
 
-    axisShader_->bind();
-    axisShader_->setUniform("u_viewProj", viewProj);
+    axisShader->bind();
+    axisShader->setUniform("u_viewProj", viewProj);
 
     axisVAO_->bind();
     glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(axisVertexCount_));
     axisVAO_->unbind();
-    axisShader_->unbind();
+    axisShader->unbind();
 
     glViewport(savedViewport[0], savedViewport[1], savedViewport[2], savedViewport[3]);
     glDisable(GL_DEPTH_TEST);
@@ -866,7 +821,8 @@ void SceneViewPanel::renderAxisGizmo2D() {
         initAxisGizmo2DData();
     }
 
-    if (!axis2DVAO_ || !axisShader_) return;
+    Shader* axisShader = resourceManager_.getShader(axisShaderHandle_);
+    if (!axis2DVAO_ || !axisShader) return;
 
     const ui::Rect& bounds = getBounds();
     f32 gizmoSize = 50.0f;
@@ -891,13 +847,13 @@ void SceneViewPanel::renderAxisGizmo2D() {
 
     glm::mat4 proj = glm::ortho(-1.2f, 1.2f, -1.2f, 1.2f, -1.0f, 1.0f);
 
-    axisShader_->bind();
-    axisShader_->setUniform("u_viewProj", proj);
+    axisShader->bind();
+    axisShader->setUniform("u_viewProj", proj);
 
     axis2DVAO_->bind();
     glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(axis2DVertexCount_));
     axis2DVAO_->unbind();
-    axisShader_->unbind();
+    axisShader->unbind();
 
     glViewport(savedViewport[0], savedViewport[1], savedViewport[2], savedViewport[3]);
 }
@@ -959,7 +915,8 @@ void SceneViewPanel::renderCanvasGizmo(const glm::mat4& viewProj) {
         initCanvasGizmoData();
     }
 
-    if (!canvasGizmoVAO_ || !gridShader_) return;
+    Shader* gridShader = resourceManager_.getShader(gridShaderHandle_);
+    if (!canvasGizmoVAO_ || !gridShader) return;
 
     glm::vec2 worldSize = canvas->getWorldSize();
     f32 halfWidth = worldSize.x * 0.5f;
@@ -968,9 +925,9 @@ void SceneViewPanel::renderCanvasGizmo(const glm::mat4& viewProj) {
     glm::mat4 model = glm::scale(glm::mat4(1.0f), glm::vec3(halfWidth, halfHeight, 1.0f));
     glm::mat4 mvp = viewProj * model;
 
-    gridShader_->bind();
-    gridShader_->setUniform("u_viewProj", mvp);
-    gridShader_->setUniform("u_color", glm::vec4(0.4f, 0.8f, 1.0f, 0.8f));
+    gridShader->bind();
+    gridShader->setUniform("u_viewProj", mvp);
+    gridShader->setUniform("u_color", glm::vec4(0.4f, 0.8f, 1.0f, 0.8f));
 
     canvasGizmoVAO_->bind();
     glDrawArrays(GL_LINES, 0, 8);

@@ -141,14 +141,14 @@ private:
 
     Unique<VertexArray> gridVAO_;
     Unique<VertexArray> grid2DVAO_;
-    Unique<Shader> gridShader_;
+    resource::ShaderHandle gridShaderHandle_;
     u32 gridVertexCount_ = 0;
     u32 grid2DVertexCount_ = 0;
     bool gridInitialized_ = false;
     bool grid2DInitialized_ = false;
 
     Unique<VertexArray> axisVAO_;
-    Unique<Shader> axisShader_;
+    resource::ShaderHandle axisShaderHandle_;
     u32 axisVertexCount_ = 0;
     bool axisInitialized_ = false;
     glm::vec2 axisGizmoCenter_{0.0f};

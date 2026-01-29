@@ -23,31 +23,6 @@ constexpr f32 AXIS_LENGTH = 1.0f;
 constexpr f32 ARROW_HEAD_SIZE = 0.15f;
 constexpr f32 HIT_THRESHOLD = 0.1f;
 
-const char* GIZMO_VERTEX_SHADER = R"(
-    attribute vec3 a_position;
-    attribute vec4 a_color;
-
-    uniform mat4 u_viewProj;
-    uniform mat4 u_model;
-
-    varying vec4 v_color;
-
-    void main() {
-        gl_Position = u_viewProj * u_model * vec4(a_position, 1.0);
-        v_color = a_color;
-    }
-)";
-
-const char* GIZMO_FRAGMENT_SHADER = R"(
-    precision mediump float;
-
-    varying vec4 v_color;
-
-    void main() {
-        gl_FragColor = v_color;
-    }
-)";
-
 glm::vec4 getAxisColor(GizmoAxis axis, GizmoAxis activeAxis, GizmoAxis hoveredAxis) {
     bool isActive = (axis == activeAxis);
     bool isHovered = (axis == hoveredAxis);
@@ -181,13 +156,20 @@ void addCircle(std::vector<f32>& vertices, const glm::vec3& center, const glm::v
 }  // namespace
 
 // =============================================================================
+// Constructor
+// =============================================================================
+
+TransformGizmo::TransformGizmo(resource::ResourceManager& resourceManager)
+    : resourceManager_(resourceManager) {}
+
+// =============================================================================
 // Initialization
 // =============================================================================
 
 void TransformGizmo::initRenderData() {
     if (initialized_) return;
 
-    shader_ = Shader::create(GIZMO_VERTEX_SHADER, GIZMO_FRAGMENT_SHADER);
+    shaderHandle_ = resourceManager_.loadEngineShader("gizmo");
 
     std::vector<f32> translateVerts;
     buildTranslateGeometry(translateVerts);
@@ -318,55 +300,58 @@ void TransformGizmo::render(const glm::mat4& view, const glm::mat4& proj,
 }
 
 void TransformGizmo::renderTranslateGizmo(const glm::mat4& viewProj, const glm::mat4& model) {
-    if (!translateVAO_ || !shader_) return;
+    Shader* shader = resourceManager_.getShader(shaderHandle_);
+    if (!translateVAO_ || !shader) return;
 
     glDisable(GL_DEPTH_TEST);
 
-    shader_->bind();
-    shader_->setUniform("u_viewProj", viewProj);
-    shader_->setUniform("u_model", model);
+    shader->bind();
+    shader->setUniform("u_viewProj", viewProj);
+    shader->setUniform("u_model", model);
 
     translateVAO_->bind();
     glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(translateVertexCount_));
     translateVAO_->unbind();
 
-    shader_->unbind();
+    shader->unbind();
 
     glEnable(GL_DEPTH_TEST);
 }
 
 void TransformGizmo::renderRotateGizmo(const glm::mat4& viewProj, const glm::mat4& model) {
-    if (!rotateVAO_ || !shader_) return;
+    Shader* shader = resourceManager_.getShader(shaderHandle_);
+    if (!rotateVAO_ || !shader) return;
 
     glDisable(GL_DEPTH_TEST);
 
-    shader_->bind();
-    shader_->setUniform("u_viewProj", viewProj);
-    shader_->setUniform("u_model", model);
+    shader->bind();
+    shader->setUniform("u_viewProj", viewProj);
+    shader->setUniform("u_model", model);
 
     rotateVAO_->bind();
     glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(rotateVertexCount_));
     rotateVAO_->unbind();
 
-    shader_->unbind();
+    shader->unbind();
 
     glEnable(GL_DEPTH_TEST);
 }
 
 void TransformGizmo::renderScaleGizmo(const glm::mat4& viewProj, const glm::mat4& model) {
-    if (!scaleVAO_ || !shader_) return;
+    Shader* shader = resourceManager_.getShader(shaderHandle_);
+    if (!scaleVAO_ || !shader) return;
 
     glDisable(GL_DEPTH_TEST);
 
-    shader_->bind();
-    shader_->setUniform("u_viewProj", viewProj);
-    shader_->setUniform("u_model", model);
+    shader->bind();
+    shader->setUniform("u_viewProj", viewProj);
+    shader->setUniform("u_model", model);
 
     scaleVAO_->bind();
     glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(scaleVertexCount_));
     scaleVAO_->unbind();
 
-    shader_->unbind();
+    shader->unbind();
 
     glEnable(GL_DEPTH_TEST);
 }
