@@ -116,6 +116,33 @@ public:
     /** @brief Gets the text horizontal alignment */
     HAlign getTextAlignment() const { return textAlign_; }
 
+    /** @brief Sets custom background color (overrides style) */
+    void setBackgroundColor(const glm::vec4& color) {
+        customBgColor_ = color;
+        useCustomColors_ = true;
+    }
+
+    /** @brief Sets custom hover color (overrides style) */
+    void setHoverColor(const glm::vec4& color) {
+        customHoverColor_ = color;
+        useCustomColors_ = true;
+    }
+
+    /** @brief Sets custom pressed color (overrides style) */
+    void setPressedColor(const glm::vec4& color) {
+        customPressedColor_ = color;
+        useCustomColors_ = true;
+    }
+
+    /** @brief Sets custom text color (overrides style) */
+    void setTextColor(const glm::vec4& color) {
+        customTextColor_ = color;
+        useCustomColors_ = true;
+    }
+
+    /** @brief Clears custom colors and uses theme styles */
+    void clearCustomColors() { useCustomColors_ = false; }
+
     // =========================================================================
     // Widget Overrides
     // =========================================================================
@@ -141,6 +168,12 @@ private:
     ButtonStyle buttonStyle_ = ButtonStyle::Default;
     CornerRadii cornerRadii_;
     HAlign textAlign_ = HAlign::Center;
+
+    bool useCustomColors_ = false;
+    glm::vec4 customBgColor_{0.0f};
+    glm::vec4 customHoverColor_{0.0f};
+    glm::vec4 customPressedColor_{0.0f};
+    glm::vec4 customTextColor_{1.0f};
 
     glm::vec2 cachedTextSize_{0.0f};
     bool textSizeDirty_ = true;

@@ -129,17 +129,37 @@ void Button::render(UIBatchRenderer& renderer) {
     const Rect& bounds = getBounds();
     const WidgetState& state = getState();
 
-    glm::vec4 bgColor = style.getBackgroundColor(state);
+    glm::vec4 bgColor;
+    glm::vec4 textColor;
+
+    if (useCustomColors_) {
+        if (state.pressed && customPressedColor_.a > 0.0f) {
+            bgColor = customPressedColor_;
+        } else if (state.hovered && customHoverColor_.a > 0.0f) {
+            bgColor = customHoverColor_;
+        } else {
+            bgColor = customBgColor_;
+        }
+        textColor = customTextColor_;
+    } else {
+        bgColor = style.getBackgroundColor(state);
+        textColor = style.getTextColor(state);
+    }
+
     CornerRadii radii = cornerRadii_.isZero() ? style.cornerRadii : cornerRadii_;
 
     bool drawBackground = true;
-    if (buttonStyle_ == ButtonStyle::Text) {
-        drawBackground = false;
-    } else if (buttonStyle_ == ButtonStyle::Ghost) {
-        drawBackground = state.hovered || state.pressed;
-        if (drawBackground) {
-            bgColor = ctx->getTheme().colors.buttonHover;
+    if (!useCustomColors_) {
+        if (buttonStyle_ == ButtonStyle::Text) {
+            drawBackground = false;
+        } else if (buttonStyle_ == ButtonStyle::Ghost) {
+            drawBackground = state.hovered || state.pressed;
+            if (drawBackground) {
+                bgColor = ctx->getTheme().colors.buttonHover;
+            }
         }
+    } else {
+        drawBackground = (bgColor.a > 0.0f);
     }
 
     if (drawBackground) {
@@ -157,7 +177,6 @@ void Button::render(UIBatchRenderer& renderer) {
     }
 
     if (!text_.empty()) {
-        glm::vec4 textColor = style.getTextColor(state);
         Rect textBounds = style.padding.shrink(bounds);
 
         bool isIcon = false;

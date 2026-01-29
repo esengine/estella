@@ -28,6 +28,7 @@
 
 #include <unordered_map>
 #include <vector>
+#include <functional>
 
 namespace esengine::editor {
 
@@ -84,6 +85,10 @@ private:
     std::string getFileName(const std::string& path) const;
     std::string getFileExtension(const std::string& path) const;
     std::string toLower(const std::string& str) const;
+    void rebuildBreadcrumb();
+    void updateViewModeButtons();
+    void navigateToPath(const std::string& path);
+    void importAsset();
 
     std::string rootPath_;
     std::string currentPath_;
@@ -96,6 +101,8 @@ private:
     ui::ScrollView* assetScrollView_ = nullptr;
     ui::Panel* assetGridPanel_ = nullptr;
     ui::Label* statusLabel_ = nullptr;
+    ui::Panel* breadcrumbPanel_ = nullptr;
+    ui::Panel* viewModePanel_ = nullptr;
 
     std::vector<AssetEntry> currentAssets_;
     std::unordered_map<ui::TreeNodeId, std::string> nodeToPath_;
@@ -113,6 +120,8 @@ private:
     Connection folderSelectedConnection_;
     Connection searchChangedConnection_;
     ConnectionHolder itemConnections_;
+    ConnectionHolder breadcrumbConnections_;
+    ConnectionHolder toolbarConnections_;
 
     Unique<ui::ContextMenu> contextMenu_;
     Connection contextMenuItemSelectedConnection_;

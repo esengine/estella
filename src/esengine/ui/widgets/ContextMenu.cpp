@@ -212,7 +212,7 @@ bool ContextMenu::onMouseDown(const MouseButtonEvent& event) {
 
     if (!menuBounds.contains(event.x, event.y)) {
         hide();
-        return true;
+        return false;
     }
 
     if (event.button == MouseButton::Left && hoveredIndex_ >= 0) {

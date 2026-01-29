@@ -17,10 +17,14 @@
 #include "../../ui/layout/StackLayout.hpp"
 #include "../../ui/layout/WrapLayout.hpp"
 #include "../../ui/widgets/Label.hpp"
+#include "../../ui/widgets/Button.hpp"
 #include "../../platform/FileSystem.hpp"
+#include "../../platform/FileDialog.hpp"
 #include "../../core/Log.hpp"
 #include "../../events/Sink.hpp"
 #include "../../ui/icons/Icons.hpp"
+
+namespace icons = esengine::ui::icons;
 
 #include <algorithm>
 #include <fstream>
@@ -56,6 +60,7 @@ AssetBrowserPanel::AssetBrowserPanel(AssetDatabase& assetDB, ThumbnailGenerator&
 #ifndef ES_PLATFORM_WEB
     rebuildFolderTree();
     refreshAssetList();
+    rebuildBreadcrumb();
 #endif
 }
 
@@ -81,6 +86,7 @@ void AssetBrowserPanel::setRootPath(const std::string& path) {
 void AssetBrowserPanel::setViewMode(AssetViewMode mode) {
     if (viewMode_ != mode) {
         viewMode_ = mode;
+        updateViewModeButtons();
         refreshAssetList();
     }
 }
@@ -94,11 +100,11 @@ void AssetBrowserPanel::onActivated() {
 }
 
 void AssetBrowserPanel::render(ui::UIBatchRenderer& renderer) {
-    // Process deferred navigation to avoid deleting objects during their event handlers
     if (needsRefreshAssetList_) {
         needsRefreshAssetList_ = false;
         currentPath_ = pendingNavigatePath_;
         refreshAssetList();
+        rebuildBreadcrumb();
 
         auto it = pathToNode_.find(pendingNavigatePath_);
         if (it != pathToNode_.end()) {
@@ -116,10 +122,12 @@ void AssetBrowserPanel::render(ui::UIBatchRenderer& renderer) {
 // =============================================================================
 
 void AssetBrowserPanel::buildUI() {
-    constexpr glm::vec4 panelBg{0.145f, 0.145f, 0.149f, 1.0f};          // #252526
-    constexpr glm::vec4 toolbarBg{0.176f, 0.176f, 0.188f, 1.0f};        // #2d2d30
-    constexpr glm::vec4 mainBg{0.118f, 0.118f, 0.118f, 1.0f};           // #1e1e1e
-    constexpr glm::vec4 borderColor{0.235f, 0.235f, 0.235f, 1.0f};      // #3c3c3c
+    constexpr glm::vec4 panelBg{0.145f, 0.145f, 0.149f, 1.0f};
+    constexpr glm::vec4 toolbarBg{0.176f, 0.176f, 0.188f, 1.0f};
+    constexpr glm::vec4 mainBg{0.118f, 0.118f, 0.118f, 1.0f};
+    constexpr glm::vec4 borderColor{0.235f, 0.235f, 0.235f, 1.0f};
+    constexpr glm::vec4 buttonBg{0.235f, 0.235f, 0.235f, 1.0f};
+    constexpr glm::vec4 primaryBg{0.231f, 0.510f, 0.965f, 1.0f};
 
     auto rootPanel = makeUnique<ui::Panel>(ui::WidgetId(getId().path + "_root"));
     rootPanel->setLayout(makeUnique<ui::StackLayout>(ui::StackDirection::Horizontal, 0.0f));
@@ -170,13 +178,90 @@ void AssetBrowserPanel::buildUI() {
     toolbar->setBackgroundColor(toolbarBg);
     toolbar->setBorderColor(borderColor);
     toolbar->setBorderWidth(ui::BorderWidth(0.0f, 0.0f, 1.0f, 0.0f));
+    toolbar->setLayout(makeUnique<ui::StackLayout>(ui::StackDirection::Horizontal, 8.0f));
+
+    auto addBtn = makeUnique<ui::Button>(ui::WidgetId(getId().path + "_add_btn"), icons::Plus);
+    addBtn->setFontSize(14.0f);
+    addBtn->setWidth(ui::SizeValue::px(32.0f));
+    addBtn->setHeight(ui::SizeValue::px(26.0f));
+    addBtn->setBackgroundColor(primaryBg);
+    addBtn->setHoverColor({0.149f, 0.388f, 0.933f, 1.0f});
+    toolbarConnections_.add(sink(addBtn->onClick).connect([this]() {
+        if (getContext()) {
+            contextMenu_->clearItems();
+            contextMenu_->addItem(ui::MenuItem::action("create_folder", "New Folder", icons::FolderPlus));
+            contextMenu_->addItem(ui::MenuItem::divider());
+            contextMenu_->addItem(ui::MenuItem::action("create_scene", "New Scene", icons::Layers));
+            contextMenu_->addItem(ui::MenuItem::action("create_script", "New Script", icons::File));
+            getContext()->addOverlay(contextMenu_.get());
+            auto bounds = getContentBounds();
+            contextMenu_->show(bounds.x + 12.0f, bounds.y + 44.0f);
+        }
+    }));
+    toolbar->addChild(std::move(addBtn));
+
+    auto importBtn = makeUnique<ui::Button>(ui::WidgetId(getId().path + "_import_btn"), icons::Download);
+    importBtn->setFontSize(14.0f);
+    importBtn->setWidth(ui::SizeValue::px(32.0f));
+    importBtn->setHeight(ui::SizeValue::px(26.0f));
+    importBtn->setBackgroundColor(buttonBg);
+    importBtn->setHoverColor({0.3f, 0.3f, 0.3f, 1.0f});
+    toolbarConnections_.add(sink(importBtn->onClick).connect([this]() { importAsset(); }));
+    toolbar->addChild(std::move(importBtn));
+
+    auto refreshBtn = makeUnique<ui::Button>(ui::WidgetId(getId().path + "_refresh_btn"), icons::Refresh);
+    refreshBtn->setFontSize(14.0f);
+    refreshBtn->setWidth(ui::SizeValue::px(32.0f));
+    refreshBtn->setHeight(ui::SizeValue::px(26.0f));
+    refreshBtn->setBackgroundColor(buttonBg);
+    refreshBtn->setHoverColor({0.3f, 0.3f, 0.3f, 1.0f});
+    toolbarConnections_.add(sink(refreshBtn->onClick).connect([this]() {
+        rebuildFolderTree();
+        refreshAssetList();
+    }));
+    toolbar->addChild(std::move(refreshBtn));
+
+    auto breadcrumbPanel = makeUnique<ui::Panel>(ui::WidgetId(getId().path + "_breadcrumb"));
+    breadcrumbPanel->setWidth(ui::SizeValue::flex(1.0f));
+    breadcrumbPanel->setHeight(ui::SizeValue::px(26.0f));
+    breadcrumbPanel->setLayout(makeUnique<ui::StackLayout>(ui::StackDirection::Horizontal, 2.0f));
+    breadcrumbPanel->setDrawBackground(false);
+    breadcrumbPanel_ = breadcrumbPanel.get();
+    toolbar->addChild(std::move(breadcrumbPanel));
 
     auto searchField = makeUnique<ui::TextField>(ui::WidgetId(getId().path + "_search"));
-    searchField->setPlaceholder("Search assets...");
-    searchField->setWidth(ui::SizeValue::px(200.0f));
+    searchField->setPlaceholder("Search...");
+    searchField->setWidth(ui::SizeValue::px(150.0f));
     searchField->setHeight(ui::SizeValue::px(26.0f));
     searchField_ = searchField.get();
     toolbar->addChild(std::move(searchField));
+
+    auto viewModePanel = makeUnique<ui::Panel>(ui::WidgetId(getId().path + "_viewmode"));
+    viewModePanel->setWidth(ui::SizeValue::autoSize());
+    viewModePanel->setHeight(ui::SizeValue::px(26.0f));
+    viewModePanel->setLayout(makeUnique<ui::StackLayout>(ui::StackDirection::Horizontal, 0.0f));
+    viewModePanel->setDrawBackground(false);
+
+    auto gridBtn = makeUnique<ui::Button>(ui::WidgetId(getId().path + "_grid_btn"), icons::LayoutGrid);
+    gridBtn->setFontSize(14.0f);
+    gridBtn->setWidth(ui::SizeValue::px(28.0f));
+    gridBtn->setHeight(ui::SizeValue::px(26.0f));
+    gridBtn->setBackgroundColor(viewMode_ == AssetViewMode::Grid ? buttonBg : glm::vec4(0.0f));
+    gridBtn->setHoverColor({0.3f, 0.3f, 0.3f, 1.0f});
+    toolbarConnections_.add(sink(gridBtn->onClick).connect([this]() { setViewMode(AssetViewMode::Grid); }));
+    viewModePanel->addChild(std::move(gridBtn));
+
+    auto listBtn = makeUnique<ui::Button>(ui::WidgetId(getId().path + "_list_btn"), icons::List);
+    listBtn->setFontSize(14.0f);
+    listBtn->setWidth(ui::SizeValue::px(28.0f));
+    listBtn->setHeight(ui::SizeValue::px(26.0f));
+    listBtn->setBackgroundColor(viewMode_ == AssetViewMode::List ? buttonBg : glm::vec4(0.0f));
+    listBtn->setHoverColor({0.3f, 0.3f, 0.3f, 1.0f});
+    toolbarConnections_.add(sink(listBtn->onClick).connect([this]() { setViewMode(AssetViewMode::List); }));
+    viewModePanel->addChild(std::move(listBtn));
+
+    viewModePanel_ = viewModePanel.get();
+    toolbar->addChild(std::move(viewModePanel));
 
     rightPanel->addChild(std::move(toolbar));
 
@@ -383,6 +468,7 @@ void AssetBrowserPanel::onFolderSelected(ui::TreeNodeId nodeId) {
         if (currentPath_ != it->second) {
             currentPath_ = it->second;
             refreshAssetList();
+            rebuildBreadcrumb();
         }
     }
 }
@@ -616,6 +702,148 @@ std::string AssetBrowserPanel::toLower(const std::string& str) const {
     std::transform(result.begin(), result.end(), result.begin(),
         [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
     return result;
+}
+
+void AssetBrowserPanel::rebuildBreadcrumb() {
+    if (!breadcrumbPanel_) return;
+
+    breadcrumbConnections_.disconnectAll();
+    breadcrumbPanel_->clearChildren();
+
+    std::string normalizedCurrent = currentPath_;
+    std::string normalizedRoot = rootPath_;
+    for (char& c : normalizedCurrent) { if (c == '\\') c = '/'; }
+    for (char& c : normalizedRoot) { if (c == '\\') c = '/'; }
+
+    std::vector<std::pair<std::string, std::string>> segments;
+
+    std::string rootName = normalizedRoot;
+    if (auto pos = rootName.rfind('/'); pos != std::string::npos) {
+        rootName = rootName.substr(pos + 1);
+    }
+    segments.emplace_back(rootName, rootPath_);
+
+    if (normalizedCurrent.size() > normalizedRoot.size() &&
+        normalizedCurrent.substr(0, normalizedRoot.size()) == normalizedRoot) {
+        std::string relativePath = normalizedCurrent.substr(normalizedRoot.size());
+        if (!relativePath.empty() && relativePath[0] == '/') {
+            relativePath = relativePath.substr(1);
+        }
+
+        std::string accumulated = rootPath_;
+        std::string segment;
+        for (char c : relativePath) {
+            if (c == '/') {
+                if (!segment.empty()) {
+                    accumulated += "/" + segment;
+                    segments.emplace_back(segment, accumulated);
+                    segment.clear();
+                }
+            } else {
+                segment += c;
+            }
+        }
+        if (!segment.empty()) {
+            accumulated += "/" + segment;
+            segments.emplace_back(segment, accumulated);
+        }
+    }
+
+    constexpr glm::vec4 textColor{0.6f, 0.6f, 0.6f, 1.0f};
+    constexpr glm::vec4 sepColor{0.4f, 0.4f, 0.4f, 1.0f};
+
+    for (usize i = 0; i < segments.size(); ++i) {
+        const auto& [name, fullPath] = segments[i];
+
+        if (i > 0) {
+            auto sep = makeUnique<ui::Label>(
+                ui::WidgetId::indexed(breadcrumbPanel_->getId().path, "sep", static_cast<u32>(i)),
+                icons::ChevronRight
+            );
+            sep->setIsIconFont(true);
+            sep->setFontSize(10.0f);
+            sep->setColor(sepColor);
+            sep->setWidth(ui::SizeValue::autoSize());
+            sep->setHeight(ui::SizeValue::px(26.0f));
+            breadcrumbPanel_->addChild(std::move(sep));
+        }
+
+        auto btn = makeUnique<ui::Button>(
+            ui::WidgetId::indexed(breadcrumbPanel_->getId().path, "seg", static_cast<u32>(i)),
+            name
+        );
+        btn->setFontSize(11.0f);
+        btn->setWidth(ui::SizeValue::autoSize());
+        btn->setHeight(ui::SizeValue::px(22.0f));
+        btn->setBackgroundColor(glm::vec4(0.0f));
+        btn->setHoverColor({0.235f, 0.235f, 0.235f, 1.0f});
+        btn->setTextColor(textColor);
+
+        std::string pathCopy = fullPath;
+        breadcrumbConnections_.add(sink(btn->onClick).connect([this, pathCopy]() {
+            navigateToPath(pathCopy);
+        }));
+
+        breadcrumbPanel_->addChild(std::move(btn));
+    }
+}
+
+void AssetBrowserPanel::updateViewModeButtons() {
+    if (!viewModePanel_) return;
+
+    constexpr glm::vec4 activeBg{0.235f, 0.235f, 0.235f, 1.0f};
+    constexpr glm::vec4 inactiveBg{0.0f, 0.0f, 0.0f, 0.0f};
+
+    auto& children = viewModePanel_->getChildren();
+    if (children.size() >= 2) {
+        auto* gridBtn = dynamic_cast<ui::Button*>(children[0].get());
+        auto* listBtn = dynamic_cast<ui::Button*>(children[1].get());
+
+        if (gridBtn) {
+            gridBtn->setBackgroundColor(viewMode_ == AssetViewMode::Grid ? activeBg : inactiveBg);
+        }
+        if (listBtn) {
+            listBtn->setBackgroundColor(viewMode_ == AssetViewMode::List ? activeBg : inactiveBg);
+        }
+    }
+}
+
+void AssetBrowserPanel::navigateToPath(const std::string& path) {
+    if (currentPath_ == path) return;
+
+    // Defer navigation to avoid deleting objects during their event handlers
+    pendingNavigatePath_ = path;
+    needsRefreshAssetList_ = true;
+}
+
+void AssetBrowserPanel::importAsset() {
+#ifdef ES_PLATFORM_WEB
+    ES_LOG_WARN("Import not available on web platform");
+    return;
+#endif
+
+    std::vector<FileFilter> filters = {
+        {"Images", "*.png;*.jpg;*.jpeg;*.bmp;*.tga"},
+        {"Audio", "*.wav;*.mp3;*.ogg"},
+        {"3D Models", "*.fbx;*.gltf;*.glb;*.obj"},
+        {"All Files", "*.*"}
+    };
+
+    std::string sourcePath = FileDialog::openFile("Import Asset", filters);
+    if (sourcePath.empty()) return;
+
+    std::string fileName = getFileName(sourcePath);
+    std::string destPath = currentPath_ + "/" + fileName;
+
+    std::error_code ec;
+    std::filesystem::copy_file(sourcePath, destPath, std::filesystem::copy_options::overwrite_existing, ec);
+
+    if (!ec) {
+        ES_LOG_INFO("Imported asset: {} -> {}", sourcePath, destPath);
+        refreshAssetList();
+    } else {
+        ES_LOG_ERROR("Failed to import asset: {}", ec.message());
+    }
 }
 
 }  // namespace esengine::editor

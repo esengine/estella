@@ -364,7 +364,10 @@ void UIContext::processMouseDown(MouseButton button, f32 x, f32 y) {
                     }
                     target = target->getParent();
                 }
-                return;
+
+                if (event.consumed) {
+                    return;
+                }
             }
         }
     }
