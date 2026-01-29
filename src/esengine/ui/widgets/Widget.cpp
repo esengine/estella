@@ -107,6 +107,12 @@ void Widget::setMaxSize(f32 maxWidth, f32 maxHeight) {
 }
 
 glm::vec2 Widget::measure(f32 availableWidth, f32 availableHeight) {
+    if (!measureDirty_ &&
+        lastAvailableWidth_ == availableWidth &&
+        lastAvailableHeight_ == availableHeight) {
+        return {cachedMeasureWidth_, cachedMeasureHeight_};
+    }
+
     f32 contentWidth = 0.0f;
     f32 contentHeight = 0.0f;
 
@@ -130,6 +136,12 @@ glm::vec2 Widget::measure(f32 availableWidth, f32 availableHeight) {
 
     width = constraints_.constrainWidth(width);
     height = constraints_.constrainHeight(height);
+
+    cachedMeasureWidth_ = width;
+    cachedMeasureHeight_ = height;
+    lastAvailableWidth_ = availableWidth;
+    lastAvailableHeight_ = availableHeight;
+    measureDirty_ = false;
 
     return {width, height};
 }
@@ -155,9 +167,20 @@ Rect Widget::getContentBounds() const {
 }
 
 void Widget::invalidateLayout() {
+    if (layoutDirty_) return;
     layoutDirty_ = true;
+    measureDirty_ = true;
     if (parent_) {
         parent_->invalidateLayout();
+    }
+}
+
+void Widget::invalidateMeasure() {
+    if (measureDirty_) return;
+    measureDirty_ = true;
+    layoutDirty_ = true;
+    if (parent_) {
+        parent_->invalidateMeasure();
     }
 }
 

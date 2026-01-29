@@ -353,7 +353,17 @@ void UIContext::processMouseDown(MouseButton button, f32 x, f32 y) {
                 event.pressed = true;
                 event.x = x;
                 event.y = y;
-                hit->onMouseDown(event);
+                event.ctrl = ctrlDown_;
+                event.shift = shiftDown_;
+                event.alt = altDown_;
+
+                Widget* target = hit;
+                while (target && !event.consumed && !event.propagationStopped) {
+                    if (target->onMouseDown(event)) {
+                        event.consume();
+                    }
+                    target = target->getParent();
+                }
                 return;
             }
         }
@@ -375,8 +385,17 @@ void UIContext::processMouseDown(MouseButton button, f32 x, f32 y) {
         event.pressed = true;
         event.x = x;
         event.y = y;
+        event.ctrl = ctrlDown_;
+        event.shift = shiftDown_;
+        event.alt = altDown_;
 
-        hoveredWidget_->onMouseDown(event);
+        Widget* target = hoveredWidget_;
+        while (target && !event.consumed && !event.propagationStopped) {
+            if (target->onMouseDown(event)) {
+                event.consume();
+            }
+            target = target->getParent();
+        }
     } else {
         setFocus(nullptr);
     }
@@ -387,16 +406,25 @@ void UIContext::processMouseUp(MouseButton button, f32 x, f32 y) {
     lastMouseX_ = x;
     lastMouseY_ = y;
 
-    Widget* targetWidget = pressedWidget_ ? pressedWidget_ : hoveredWidget_;
+    Widget* startWidget = pressedWidget_ ? pressedWidget_ : hoveredWidget_;
 
-    if (targetWidget) {
+    if (startWidget) {
         MouseButtonEvent event;
         event.button = button;
         event.pressed = false;
         event.x = x;
         event.y = y;
+        event.ctrl = ctrlDown_;
+        event.shift = shiftDown_;
+        event.alt = altDown_;
 
-        targetWidget->onMouseUp(event);
+        Widget* target = startWidget;
+        while (target && !event.consumed && !event.propagationStopped) {
+            if (target->onMouseUp(event)) {
+                event.consume();
+            }
+            target = target->getParent();
+        }
     }
 
     if (button == MouseButton::Left) {
@@ -415,11 +443,13 @@ void UIContext::processMouseScroll(f32 deltaX, f32 deltaY, f32 x, f32 y) {
         event.deltaY = deltaY;
         event.x = x;
         event.y = y;
+        event.ctrl = ctrlDown_;
+        event.shift = shiftDown_;
 
         Widget* target = hoveredWidget_;
-        while (target) {
+        while (target && !event.consumed && !event.propagationStopped) {
             if (target->onScroll(event)) {
-                break;
+                event.consume();
             }
             target = target->getParent();
         }
@@ -439,7 +469,13 @@ void UIContext::processKeyDown(KeyCode key, bool ctrl, bool shift, bool alt) {
         event.shift = shift;
         event.alt = alt;
 
-        focusedWidget_->onKeyDown(event);
+        Widget* target = focusedWidget_;
+        while (target && !event.consumed && !event.propagationStopped) {
+            if (target->onKeyDown(event)) {
+                event.consume();
+            }
+            target = target->getParent();
+        }
     }
 }
 
@@ -456,7 +492,13 @@ void UIContext::processKeyUp(KeyCode key, bool ctrl, bool shift, bool alt) {
         event.shift = shift;
         event.alt = alt;
 
-        focusedWidget_->onKeyUp(event);
+        Widget* target = focusedWidget_;
+        while (target && !event.consumed && !event.propagationStopped) {
+            if (target->onKeyUp(event)) {
+                event.consume();
+            }
+            target = target->getParent();
+        }
     }
 }
 
@@ -473,6 +515,13 @@ void UIContext::processTextInput(const std::string& text) {
 // =============================================================================
 // Focus Management
 // =============================================================================
+
+Widget* UIContext::getFocusedWidget() {
+    if (focusedWidget_ && focusedWidget_->getContext() != this) {
+        focusedWidget_ = nullptr;
+    }
+    return focusedWidget_;
+}
 
 void UIContext::setFocus(Widget* widget) {
     if (focusedWidget_ == widget) return;
@@ -504,6 +553,16 @@ void UIContext::clearWidgetReferences(Widget* widget) {
     if (pressedWidget_ == widget) {
         pressedWidget_ = nullptr;
     }
+}
+
+Widget* UIContext::findWidgetById(const WidgetId& id) {
+    if (!root_) return nullptr;
+
+    if (root_->getId() == id) {
+        return root_.get();
+    }
+
+    return root_->findChild(id);
 }
 
 // =============================================================================

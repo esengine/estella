@@ -540,13 +540,60 @@ void DockArea::handleSplitterDrag(f32 x, f32 y) {
     if (draggedSplitter_->getSplitDirection() == DockSplitDirection::Horizontal) {
         f32 relX = x - bounds.x;
         newRatio = relX / bounds.width;
+
+        f32 availableWidth = bounds.width - splitterThickness_;
+        f32 minFirst = getMinSizeForNode(draggedSplitter_->getFirst()).x;
+        f32 minSecond = getMinSizeForNode(draggedSplitter_->getSecond()).x;
+
+        f32 minRatio = minFirst / availableWidth;
+        f32 maxRatio = 1.0f - (minSecond / availableWidth);
+        newRatio = std::clamp(newRatio, minRatio, maxRatio);
     } else {
         f32 relY = y - bounds.y;
         newRatio = relY / bounds.height;
+
+        f32 availableHeight = bounds.height - splitterThickness_;
+        f32 minFirst = getMinSizeForNode(draggedSplitter_->getFirst()).y;
+        f32 minSecond = getMinSizeForNode(draggedSplitter_->getSecond()).y;
+
+        f32 minRatio = minFirst / availableHeight;
+        f32 maxRatio = 1.0f - (minSecond / availableHeight);
+        newRatio = std::clamp(newRatio, minRatio, maxRatio);
     }
 
     draggedSplitter_->setSplitRatio(newRatio);
     invalidateLayout();
+}
+
+glm::vec2 DockArea::getMinSizeForNode(DockNode* node) const {
+    if (!node) return minPanelSize_;
+
+    if (node->isTabs()) {
+        glm::vec2 maxMin = minPanelSize_;
+        for (const auto& panel : node->getPanels()) {
+            if (panel) {
+                const auto& constraints = panel->getConstraints();
+                maxMin.x = std::max(maxMin.x, constraints.minWidth);
+                maxMin.y = std::max(maxMin.y, constraints.minHeight);
+            }
+        }
+        return maxMin;
+    }
+
+    if (node->isSplit()) {
+        glm::vec2 firstMin = getMinSizeForNode(node->getFirst());
+        glm::vec2 secondMin = getMinSizeForNode(node->getSecond());
+
+        if (node->getSplitDirection() == DockSplitDirection::Horizontal) {
+            return {firstMin.x + secondMin.x + splitterThickness_,
+                    std::max(firstMin.y, secondMin.y)};
+        } else {
+            return {std::max(firstMin.x, secondMin.x),
+                    firstMin.y + secondMin.y + splitterThickness_};
+        }
+    }
+
+    return minPanelSize_;
 }
 
 void DockArea::setNodeArea(DockNode* node) {

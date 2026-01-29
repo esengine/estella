@@ -224,6 +224,7 @@ private:
 
     DockNode* hitTestSplitter(f32 x, f32 y);
     void handleSplitterDrag(f32 x, f32 y);
+    glm::vec2 getMinSizeForNode(DockNode* node) const;
 
     void setNodeArea(DockNode* node);
     void connectTabBarSignals(DockNode* node);

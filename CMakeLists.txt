@@ -65,6 +65,8 @@ set(ESENGINE_SOURCES
     src/esengine/ui/widgets/ContextMenu.cpp
     src/esengine/ui/widgets/Dropdown.cpp
     src/esengine/ui/widgets/ClickablePanel.cpp
+    # Text utilities
+    src/esengine/ui/text/TextMeasureHelper.cpp
     # Docking System
     src/esengine/ui/docking/DockNode.cpp
     src/esengine/ui/docking/DockPanel.cpp
@@ -148,6 +150,8 @@ set(ESENGINE_HEADERS
     src/esengine/ui/widgets/ContextMenu.hpp
     src/esengine/ui/widgets/Dropdown.hpp
     src/esengine/ui/widgets/ClickablePanel.hpp
+    # Text utilities
+    src/esengine/ui/text/TextMeasureHelper.hpp
     # Docking System
     src/esengine/ui/docking/DockTypes.hpp
     src/esengine/ui/docking/DockNode.hpp

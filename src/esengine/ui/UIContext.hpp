@@ -295,8 +295,9 @@ public:
 
     /**
      * @brief Gets the currently focused widget
+     * @return Focused widget or nullptr if none/invalid
      */
-    Widget* getFocusedWidget() { return focusedWidget_; }
+    Widget* getFocusedWidget();
 
     /**
      * @brief Sets focus to a widget
@@ -314,6 +315,13 @@ public:
      * @param widget Widget being destroyed
      */
     void clearWidgetReferences(Widget* widget);
+
+    /**
+     * @brief Finds a widget by ID in the tree
+     * @param id Widget ID to find
+     * @return Widget pointer or nullptr if not found
+     */
+    Widget* findWidgetById(const WidgetId& id);
 
     // =========================================================================
     // Overlay Management

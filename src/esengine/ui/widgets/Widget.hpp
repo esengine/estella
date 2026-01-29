@@ -195,8 +195,14 @@ public:
     /** @brief Marks layout as needing recalculation */
     void invalidateLayout();
 
+    /** @brief Marks measure cache as dirty (called when content changes) */
+    void invalidateMeasure();
+
     /** @brief Returns true if layout needs recalculation */
     bool isLayoutDirty() const { return layoutDirty_; }
+
+    /** @brief Returns true if measure cache is dirty */
+    bool isMeasureDirty() const { return measureDirty_; }
 
     // =========================================================================
     // State
@@ -344,6 +350,12 @@ private:
     Rect bounds_;
     WidgetState state_;
     bool layoutDirty_ = true;
+    bool measureDirty_ = true;
+
+    f32 cachedMeasureWidth_ = 0.0f;
+    f32 cachedMeasureHeight_ = 0.0f;
+    f32 lastAvailableWidth_ = -1.0f;
+    f32 lastAvailableHeight_ = -1.0f;
 
     UIContext* context_ = nullptr;
 };
