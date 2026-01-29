@@ -126,6 +126,18 @@ void EditorApplication::onInit() {
         }
     });
 
+    // Wire up mouse button events (for right-click context menus, etc.)
+    getPlatform().setMouseButtonCallback([this](MouseButton button, bool pressed, f32 x, f32 y) {
+        if (!uiContext_) return;
+
+        auto uiButton = static_cast<ui::MouseButton>(static_cast<u8>(button));
+        if (pressed) {
+            uiContext_->processMouseDown(uiButton, x, y);
+        } else {
+            uiContext_->processMouseUp(uiButton, x, y);
+        }
+    });
+
     // Wire up text input events to UI system
     getPlatform().setTextInputCallback([this](const std::string& text) {
         if (uiContext_) {
@@ -278,19 +290,13 @@ void EditorApplication::handleRedo() {
 }
 
 void EditorApplication::onTouch(TouchType type, const TouchPoint& point) {
-    if (!uiContext_) {
-        return;
-    }
-
     glm::vec2 pos(point.x, point.y);
 
     switch (type) {
         case TouchType::Begin:
-            uiContext_->processMouseDown(ui::MouseButton::Left, point.x, point.y);
             break;
 
         case TouchType::Move:
-            uiContext_->processMouseMove(point.x, point.y);
             dragDropManager_.updateDrag(pos);
             break;
 
@@ -299,7 +305,6 @@ void EditorApplication::onTouch(TouchType type, const TouchPoint& point) {
             if (dragDropManager_.isDragging()) {
                 dragDropManager_.endDrag(pos);
             }
-            uiContext_->processMouseUp(ui::MouseButton::Left, point.x, point.y);
             break;
     }
 }

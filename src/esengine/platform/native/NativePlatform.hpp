@@ -181,6 +181,12 @@ public:
      */
     void setMouseMoveCallback(MouseMoveCallback callback) override;
 
+    /**
+     * @brief Sets mouse button callback
+     * @param callback Function to call on mouse button events
+     */
+    void setMouseButtonCallback(MouseButtonCallback callback) override;
+
 private:
     // =========================================================================
     // GLFW Callbacks
@@ -224,14 +230,15 @@ private:
     f64 mouseX_ = 0.0;                    ///< Current mouse X position
     f64 mouseY_ = 0.0;                    ///< Current mouse Y position
 
-    TouchCallback touchCallback_;         ///< Touch/mouse event callback
-    KeyCallback keyCallback_;             ///< Keyboard event callback
-    ResizeCallback resizeCallback_;       ///< Window resize callback
-    ScrollCallback scrollCallback_;       ///< Scroll event callback
-    TextInputCallback textInputCallback_; ///< Text input callback
-    MouseMoveCallback mouseMoveCallback_; ///< Mouse move callback
+    TouchCallback touchCallback_;             ///< Touch/mouse event callback
+    KeyCallback keyCallback_;                 ///< Keyboard event callback
+    ResizeCallback resizeCallback_;           ///< Window resize callback
+    ScrollCallback scrollCallback_;           ///< Scroll event callback
+    TextInputCallback textInputCallback_;     ///< Text input callback
+    MouseMoveCallback mouseMoveCallback_;     ///< Mouse move callback
+    MouseButtonCallback mouseButtonCallback_; ///< Mouse button callback
 
-    static NativePlatform* instance_;     ///< Singleton instance for callbacks
+    static NativePlatform* instance_;         ///< Singleton instance for callbacks
 };
 
 }  // namespace esengine

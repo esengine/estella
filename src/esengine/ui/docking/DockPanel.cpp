@@ -92,6 +92,14 @@ glm::vec2 DockPanel::measure(f32 availableWidth, f32 availableHeight) {
     };
 }
 
+void DockPanel::layout(const Rect& bounds) {
+    Widget::layout(bounds);
+
+    if (contentWidget_) {
+        contentWidget_->layout(getContentBounds());
+    }
+}
+
 void DockPanel::render(UIBatchRenderer& renderer) {
     UIContext* ctx = getContext();
     if (!ctx) return;

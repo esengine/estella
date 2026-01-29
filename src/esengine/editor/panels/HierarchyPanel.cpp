@@ -266,13 +266,7 @@ void HierarchyPanel::onSearchTextChanged(const std::string& text) {
 // =============================================================================
 
 void HierarchyPanel::render(ui::UIBatchRenderer& renderer) {
-    if (rootPanel_) {
-        if (rootPanel_->getContext() != getContext()) {
-            rootPanel_->setContext(getContext());
-        }
-        rootPanel_->layout(getBounds());
-        rootPanel_->renderTree(renderer);
-    }
+    DockPanel::render(renderer);
 }
 
 bool HierarchyPanel::onMouseDown(const ui::MouseButtonEvent& event) {
@@ -507,8 +501,11 @@ void HierarchyPanel::onNodeDoubleClicked(ui::TreeNodeId nodeId) {
 }
 
 void HierarchyPanel::onNodeRightClicked(ui::TreeNodeId nodeId, f32 x, f32 y) {
+    ES_LOG_DEBUG("HierarchyPanel::onNodeRightClicked nodeId={} x={} y={}", nodeId, x, y);
+
     Entity entity = getEntityForNode(nodeId);
     if (entity == INVALID_ENTITY) {
+        ES_LOG_DEBUG("  -> entity not found for node");
         return;
     }
 

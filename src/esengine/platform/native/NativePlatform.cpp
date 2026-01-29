@@ -268,6 +268,10 @@ void NativePlatform::setMouseMoveCallback(MouseMoveCallback callback) {
     mouseMoveCallback_ = std::move(callback);
 }
 
+void NativePlatform::setMouseButtonCallback(MouseButtonCallback callback) {
+    mouseButtonCallback_ = std::move(callback);
+}
+
 // =============================================================================
 // GLFW Callbacks
 // =============================================================================
@@ -296,19 +300,34 @@ void NativePlatform::glfwMouseButtonCallback(GLFWwindow* window, int button,
     (void)mods;
 
     auto* platform = static_cast<NativePlatform*>(glfwGetWindowUserPointer(window));
-    if (!platform || !platform->touchCallback_) return;
+    if (!platform) return;
 
-    // Only handle left mouse button (emulate as touch)
-    if (button == GLFW_MOUSE_BUTTON_LEFT) {
+    f32 x = static_cast<f32>(platform->mouseX_);
+    f32 y = static_cast<f32>(platform->mouseY_);
+    bool pressed = (action == GLFW_PRESS);
+
+    MouseButton mouseBtn;
+    switch (button) {
+        case GLFW_MOUSE_BUTTON_LEFT:   mouseBtn = MouseButton::Left; break;
+        case GLFW_MOUSE_BUTTON_RIGHT:  mouseBtn = MouseButton::Right; break;
+        case GLFW_MOUSE_BUTTON_MIDDLE: mouseBtn = MouseButton::Middle; break;
+        default: return;
+    }
+
+    if (platform->mouseButtonCallback_) {
+        platform->mouseButtonCallback_(mouseBtn, pressed, x, y);
+    }
+
+    if (button == GLFW_MOUSE_BUTTON_LEFT && platform->touchCallback_) {
         TouchPoint point;
-        point.id = 0;  // Mouse is always touch ID 0
-        point.x = static_cast<f32>(platform->mouseX_);
-        point.y = static_cast<f32>(platform->mouseY_);
+        point.id = 0;
+        point.x = x;
+        point.y = y;
 
-        if (action == GLFW_PRESS) {
+        if (pressed) {
             platform->mousePressed_ = true;
             platform->touchCallback_(TouchType::Begin, point);
-        } else if (action == GLFW_RELEASE) {
+        } else {
             platform->mousePressed_ = false;
             platform->touchCallback_(TouchType::End, point);
         }

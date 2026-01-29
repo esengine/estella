@@ -291,13 +291,29 @@ glm::vec2 DockArea::measure(f32 availableWidth, f32 availableHeight) {
     return {availableWidth, availableHeight};
 }
 
+void DockArea::layout(const Rect& bounds) {
+    Widget::layout(bounds);
+
+    if (rootNode_) {
+        rootNode_->setBounds(getBounds());
+        rootNode_->layout(splitterThickness_, tabBarHeight_);
+
+        // Propagate context to all panels
+        UIContext* ctx = getContext();
+        rootNode_->forEachLeaf([ctx](DockNode& node) {
+            for (const auto& panel : node.getPanels()) {
+                if (panel && panel->getContext() != ctx) {
+                    panel->setContext(ctx);
+                }
+            }
+        });
+    }
+}
+
 void DockArea::render(UIBatchRenderer& renderer) {
     if (!rootNode_) {
         return;
     }
-
-    rootNode_->setBounds(getBounds());
-    rootNode_->layout(splitterThickness_, tabBarHeight_);
 
     renderNode(renderer, rootNode_.get());
 
@@ -530,6 +546,7 @@ void DockArea::handleSplitterDrag(f32 x, f32 y) {
     }
 
     draggedSplitter_->setSplitRatio(newRatio);
+    invalidateLayout();
 }
 
 void DockArea::setNodeArea(DockNode* node) {

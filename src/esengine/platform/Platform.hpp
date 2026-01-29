@@ -146,6 +146,24 @@ using TextInputCallback = std::function<void(const std::string& text)>;
  */
 using MouseMoveCallback = std::function<void(f32 x, f32 y)>;
 
+/**
+ * @brief Mouse button identifiers
+ */
+enum class MouseButton : u8 {
+    Left = 0,
+    Right = 1,
+    Middle = 2
+};
+
+/**
+ * @brief Callback type for mouse button events
+ * @param button The mouse button
+ * @param pressed True if pressed, false if released
+ * @param x Mouse X position
+ * @param y Mouse Y position
+ */
+using MouseButtonCallback = std::function<void(MouseButton button, bool pressed, f32 x, f32 y)>;
+
 // =============================================================================
 // Platform Class
 // =============================================================================
@@ -314,6 +332,12 @@ public:
      * @param callback Function to call on mouse move events
      */
     virtual void setMouseMoveCallback(MouseMoveCallback callback) = 0;
+
+    /**
+     * @brief Sets the mouse button callback
+     * @param callback Function to call on mouse button events
+     */
+    virtual void setMouseButtonCallback(MouseButtonCallback callback) = 0;
 
     // =========================================================================
     // Factory

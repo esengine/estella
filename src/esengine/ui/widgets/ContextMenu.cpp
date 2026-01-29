@@ -195,7 +195,20 @@ bool ContextMenu::onMouseDown(const MouseButtonEvent& event) {
     if (!isOpen_) return false;
 
     glm::vec2 size = measure(0.0f, 0.0f);
-    Rect menuBounds{menuX_, menuY_, size.x, size.y};
+
+    UIContext* ctx = getContext();
+    glm::vec2 viewportSize = ctx ? ctx->getViewportSize() : glm::vec2(9999.0f);
+
+    f32 x = menuX_;
+    f32 y = menuY_;
+    if (x + size.x > viewportSize.x) {
+        x = viewportSize.x - size.x - 4.0f;
+    }
+    if (y + size.y > viewportSize.y) {
+        y = viewportSize.y - size.y - 4.0f;
+    }
+
+    Rect menuBounds{x, y, size.x, size.y};
 
     if (!menuBounds.contains(event.x, event.y)) {
         hide();
@@ -227,7 +240,12 @@ bool ContextMenu::onMouseMove(const MouseMoveEvent& event) {
         y = viewportSize.y - size.y - 4.0f;
     }
 
-    hoveredIndex_ = getItemAtY(event.y - y);
+    Rect menuBounds{x, y, size.x, size.y};
+    if (menuBounds.contains(event.x, event.y)) {
+        hoveredIndex_ = getItemAtY(event.y - y);
+    } else {
+        hoveredIndex_ = -1;
+    }
 
     return false;
 }
@@ -271,27 +289,10 @@ bool ContextMenu::onKeyDown(const KeyEvent& event) {
 }
 
 Widget* ContextMenu::hitTest(f32 x, f32 y) {
+    (void)x;
+    (void)y;
+
     if (!isOpen_) return nullptr;
-
-    glm::vec2 size = measure(0.0f, 0.0f);
-
-    UIContext* ctx = getContext();
-    glm::vec2 viewportSize = ctx ? ctx->getViewportSize() : glm::vec2(9999.0f);
-
-    f32 menuX = menuX_;
-    f32 menuY = menuY_;
-    if (menuX + size.x > viewportSize.x) {
-        menuX = viewportSize.x - size.x - 4.0f;
-    }
-    if (menuY + size.y > viewportSize.y) {
-        menuY = viewportSize.y - size.y - 4.0f;
-    }
-
-    Rect menuBounds{menuX, menuY, size.x, size.y};
-
-    if (menuBounds.contains(x, y)) {
-        return this;
-    }
 
     return this;
 }

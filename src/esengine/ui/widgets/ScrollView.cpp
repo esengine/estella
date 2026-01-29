@@ -190,9 +190,24 @@ void ScrollView::render(UIBatchRenderer& renderer) {
         viewportSize_.y
     };
 
+    // Save original content bounds for hitTest (not offset)
+    Rect originalBounds = content_->getBounds();
+
+    // Temporarily offset content bounds for rendering
+    Rect renderBounds{
+        originalBounds.x - scrollOffset_.x,
+        originalBounds.y - scrollOffset_.y,
+        originalBounds.width,
+        originalBounds.height
+    };
+    content_->layout(renderBounds);
+
     renderer.pushClipRect(viewportRect);
     content_->renderTree(renderer);
     renderer.popClipRect();
+
+    // Restore original bounds for hitTest
+    content_->layout(originalBounds);
 
     if (showScrollbars_) {
         if (canScrollVertically()) {
@@ -226,9 +241,29 @@ Widget* ScrollView::hitTest(f32 x, f32 y) {
     }
 
     if (content_) {
-        Widget* hit = content_->hitTest(x, y);
-        if (hit) {
-            return hit;
+        // Content bounds are not offset (offset is applied only during render).
+        // We need to check if the click is within the viewport, then transform
+        // coordinates to content's local coordinate system.
+        const Rect& bounds = getBounds();
+        const Insets& padding = getPadding();
+
+        Rect viewportRect{
+            bounds.x + padding.left,
+            bounds.y + padding.top,
+            viewportSize_.x,
+            viewportSize_.y
+        };
+
+        if (viewportRect.contains(x, y)) {
+            // Transform screen coordinates to content coordinates
+            // by adding scroll offset
+            f32 contentX = x + scrollOffset_.x;
+            f32 contentY = y + scrollOffset_.y;
+
+            Widget* hit = content_->hitTest(contentX, contentY);
+            if (hit) {
+                return hit;
+            }
         }
     }
 
@@ -374,9 +409,11 @@ void ScrollView::updateContentLayout() {
         contentHeight = viewportSize_.y;
     }
 
+    // Content bounds are NOT offset by scrollOffset_ for correct hitTest.
+    // The scroll offset is applied during rendering only.
     Rect contentBounds{
-        bounds.x + padding.left - scrollOffset_.x,
-        bounds.y + padding.top - scrollOffset_.y,
+        bounds.x + padding.left,
+        bounds.y + padding.top,
         contentWidth,
         contentHeight
     };
