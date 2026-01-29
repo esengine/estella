@@ -65,8 +65,26 @@ glm::vec2 Button::measure(f32 availableWidth, f32 availableHeight) {
                             : ctx->getTheme().getButtonStyle();
 
     if (textSizeDirty_) {
+        bool isIcon = false;
+        if (!text_.empty()) {
+            u8 firstByte = static_cast<u8>(text_[0]);
+            if ((firstByte & 0xF0) == 0xE0 && text_.size() >= 3) {
+                u32 codepoint = ((firstByte & 0x0F) << 12) |
+                               ((static_cast<u8>(text_[1]) & 0x3F) << 6) |
+                               (static_cast<u8>(text_[2]) & 0x3F);
+                isIcon = (codepoint >= 0xE000 && codepoint <= 0xF8FF);
+            }
+        }
+
 #if ES_FEATURE_SDF_FONT
-        MSDFFont* font = fontName_.empty() ? ctx->getDefaultMSDFFont() : ctx->getMSDFFont(fontName_);
+        MSDFFont* font = nullptr;
+        if (!fontName_.empty()) {
+            font = ctx->getMSDFFont(fontName_);
+        } else if (isIcon) {
+            font = ctx->getMSDFFont("icons");
+        } else {
+            font = ctx->getDefaultMSDFFont();
+        }
         if (font) {
             cachedTextSize_ = font->measureText(text_, fontSize_);
             textSizeDirty_ = false;
@@ -142,8 +160,26 @@ void Button::render(UIBatchRenderer& renderer) {
         glm::vec4 textColor = style.getTextColor(state);
         Rect textBounds = style.padding.shrink(bounds);
 
+        bool isIcon = false;
+        if (!text_.empty()) {
+            u8 firstByte = static_cast<u8>(text_[0]);
+            if ((firstByte & 0xF0) == 0xE0 && text_.size() >= 3) {
+                u32 codepoint = ((firstByte & 0x0F) << 12) |
+                               ((static_cast<u8>(text_[1]) & 0x3F) << 6) |
+                               (static_cast<u8>(text_[2]) & 0x3F);
+                isIcon = (codepoint >= 0xE000 && codepoint <= 0xF8FF);
+            }
+        }
+
 #if ES_FEATURE_SDF_FONT
-        MSDFFont* font = fontName_.empty() ? ctx->getDefaultMSDFFont() : ctx->getMSDFFont(fontName_);
+        MSDFFont* font = nullptr;
+        if (!fontName_.empty()) {
+            font = ctx->getMSDFFont(fontName_);
+        } else if (isIcon) {
+            font = ctx->getMSDFFont("icons");
+        } else {
+            font = ctx->getDefaultMSDFFont();
+        }
         if (font) {
             renderer.drawTextInBounds(text_, textBounds, *font, fontSize_, textColor,
                                       textAlign_, VAlign::Center);

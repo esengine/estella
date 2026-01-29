@@ -156,6 +156,14 @@ void TextField::render(UIBatchRenderer& renderer) {
 #endif
     f32 textY = bounds.y + (bounds.height - lineHeight) * 0.5f;
 
+    Rect contentArea{
+        bounds.x + padding.left,
+        bounds.y + padding.top,
+        bounds.width - padding.left - padding.right,
+        bounds.height - padding.top - padding.bottom
+    };
+    renderer.pushClipRect(contentArea);
+
     if (text_.empty() && !isFocused() && !placeholder_.empty()) {
         glm::vec4 placeholderColor = textColor;
         placeholderColor.a *= 0.5f;
@@ -219,6 +227,8 @@ void TextField::render(UIBatchRenderer& renderer) {
 
         renderer.drawRect(cursorRect, textColor);
     }
+
+    renderer.popClipRect();
 }
 
 bool TextField::onMouseDown(const MouseButtonEvent& event) {

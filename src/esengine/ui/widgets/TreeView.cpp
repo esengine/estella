@@ -371,7 +371,10 @@ void TreeView::renderNode(UIBatchRenderer& renderer, const TreeNode& node, f32 y
     f32 textY = y + (rowHeight_ - FONT_SIZE) * 0.5f;
 
     if (textFont && labelMaxWidth > 0) {
+        Rect labelClipRect{x, y, labelMaxWidth, rowHeight_};
+        renderer.pushClipRect(labelClipRect);
         renderer.drawText(node.label, glm::vec2(x, textY), *textFont, FONT_SIZE, textColor);
+        renderer.popClipRect();
     }
 
     // Type column (right-aligned)
