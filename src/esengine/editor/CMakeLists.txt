@@ -38,11 +38,13 @@ set(EDITOR_SOURCES
     panels/ProjectLauncherPanel.cpp
     panels/NewProjectDialog.cpp
     panels/OutputLogPanel.cpp
+    panels/GameViewPanel.cpp
 
     # Editor widgets
     widgets/StatusBar.cpp
     widgets/DrawerPanel.cpp
     widgets/EditorRootContainer.cpp
+    widgets/EditorToolbar.cpp
 )
 
 set(EDITOR_HEADERS
@@ -96,11 +98,13 @@ set(EDITOR_HEADERS
     panels/ProjectLauncherPanel.hpp
     panels/NewProjectDialog.hpp
     panels/OutputLogPanel.hpp
+    panels/GameViewPanel.hpp
 
     # Editor widgets
     widgets/StatusBar.hpp
     widgets/DrawerPanel.hpp
     widgets/EditorRootContainer.hpp
+    widgets/EditorToolbar.hpp
 )
 
 # Create editor executable

@@ -22,6 +22,10 @@ namespace esengine::editor {
 // =============================================================================
 
 EditorRootContainer::EditorRootContainer(const ui::WidgetId& id) : Widget(id) {
+    auto toolbar = makeUnique<EditorToolbar>(ui::WidgetId(id.path + ".toolbar"));
+    toolbar_ = toolbar.get();
+    addChild(std::move(toolbar));
+
     auto statusBar = makeUnique<StatusBar>(ui::WidgetId(id.path + ".status_bar"));
     statusBar_ = statusBar.get();
     addChild(std::move(statusBar));
@@ -162,6 +166,15 @@ void EditorRootContainer::layout(const ui::Rect& bounds) {
 void EditorRootContainer::updateLayout() {
     const ui::Rect& bounds = getBounds();
 
+    ui::Rect toolbarBounds{
+        bounds.x,
+        bounds.y,
+        bounds.width,
+        EditorToolbar::HEIGHT
+    };
+    toolbar_->measure(toolbarBounds.width, toolbarBounds.height);
+    toolbar_->layout(toolbarBounds);
+
     ui::Rect statusBarBounds{
         bounds.x,
         bounds.y + bounds.height - StatusBar::HEIGHT,
@@ -201,10 +214,10 @@ void EditorRootContainer::updateLayout() {
     }
 
     if (mainContent_) {
-        f32 mainContentHeight = bounds.height - StatusBar::HEIGHT - drawerHeight;
+        f32 mainContentHeight = bounds.height - EditorToolbar::HEIGHT - StatusBar::HEIGHT - drawerHeight;
         ui::Rect mainBounds{
             bounds.x,
-            bounds.y,
+            bounds.y + EditorToolbar::HEIGHT,
             bounds.width,
             mainContentHeight
         };
@@ -217,7 +230,11 @@ void EditorRootContainer::updateLayout() {
 // Rendering
 // =============================================================================
 
-void EditorRootContainer::render(ui::UIBatchRenderer& renderer) {
+void EditorRootContainer::renderTree(ui::UIBatchRenderer& renderer) {
+    if (!isVisible()) return;
+
+    toolbar_->renderTree(renderer);
+
     if (mainContent_) {
         mainContent_->renderTree(renderer);
     }
@@ -236,6 +253,10 @@ void EditorRootContainer::render(ui::UIBatchRenderer& renderer) {
 ui::Widget* EditorRootContainer::hitTest(f32 x, f32 y) {
     if (!containsPoint(x, y)) {
         return nullptr;
+    }
+
+    if (auto* hit = toolbar_->hitTest(x, y)) {
+        return hit;
     }
 
     if (auto* hit = statusBar_->hitTest(x, y)) {

@@ -27,11 +27,13 @@
 #include "panels/HierarchyPanel.hpp"
 #include "panels/InspectorPanel.hpp"
 #include "panels/SceneViewPanel.hpp"
+#include "panels/GameViewPanel.hpp"
 #include "panels/AssetBrowserPanel.hpp"
 #include "panels/ProjectLauncherPanel.hpp"
 #include "panels/NewProjectDialog.hpp"
 #include "panels/OutputLogPanel.hpp"
 #include "widgets/EditorRootContainer.hpp"
+#include "widgets/EditorToolbar.hpp"
 #include "../platform/FileDialog.hpp"
 
 namespace esengine {
@@ -366,7 +368,15 @@ void EditorApplication::setupEditorLayout() {
     ES_LOG_INFO("setupEditorLayout: Creating SceneViewPanel...");
     auto sceneViewPanel = makeUnique<SceneViewPanel>(registry_, selection_);
     sceneViewPanel->setMinSize(glm::vec2(400.0f, 300.0f));
+    auto sceneViewPanelId = sceneViewPanel->getPanelId();
     dockArea_->addPanel(std::move(sceneViewPanel), ui::DockDropZone::Center);
+
+    ES_LOG_INFO("setupEditorLayout: Creating GameViewPanel...");
+    auto gameViewPanel = makeUnique<GameViewPanel>(registry_);
+    gameViewPanel->setMinSize(glm::vec2(400.0f, 300.0f));
+    gameViewPanel_ = gameViewPanel.get();
+    ui::DockNode* sceneViewNode = dockArea_->findNodeContainingPanel(sceneViewPanelId);
+    dockArea_->addPanel(std::move(gameViewPanel), ui::DockDropZone::Center, sceneViewNode);
 
     ES_LOG_INFO("setupEditorLayout: Creating HierarchyPanel...");
     auto hierarchyPanel = makeUnique<HierarchyPanel>(registry_, selection_);
@@ -393,6 +403,19 @@ void EditorApplication::setupEditorLayout() {
     (void)sink(editorRoot_->getAssetsDrawer()->onDockRequested).connect([this]() {
         dockAssetBrowser();
     });
+
+    auto* toolbar = editorRoot_->getToolbar();
+    eventConnections_.add(sink(toolbar->onPlay).connect([this]() {
+        ES_LOG_INFO("Play mode started");
+    }));
+
+    eventConnections_.add(sink(toolbar->onPause).connect([this]() {
+        ES_LOG_INFO("Play mode paused");
+    }));
+
+    eventConnections_.add(sink(toolbar->onStop).connect([this]() {
+        ES_LOG_INFO("Play mode stopped");
+    }));
 
     uiContext_->setRoot(std::move(editorRoot));
 
@@ -530,6 +553,7 @@ void EditorApplication::showLauncher() {
 
     dockArea_ = nullptr;
     editorRoot_ = nullptr;
+    gameViewPanel_ = nullptr;
     dockedAssetBrowser_ = nullptr;
 
     setupLauncherLayout();

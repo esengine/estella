@@ -16,6 +16,7 @@
 
 #include "../../ui/widgets/Widget.hpp"
 #include "../../events/Signal.hpp"
+#include "EditorToolbar.hpp"
 #include "StatusBar.hpp"
 #include "DrawerPanel.hpp"
 
@@ -45,18 +46,20 @@ public:
     void toggleOutputDrawer();
     bool isOutputDrawerOpen() const;
 
+    EditorToolbar* getToolbar() const { return toolbar_; }
     StatusBar* getStatusBar() const { return statusBar_; }
     DrawerPanel* getAssetsDrawer() const { return assetsDrawer_; }
     DrawerPanel* getOutputDrawer() const { return outputDrawer_; }
 
     glm::vec2 measure(f32 availableWidth, f32 availableHeight) override;
     void layout(const ui::Rect& bounds) override;
-    void render(ui::UIBatchRenderer& renderer) override;
+    void renderTree(ui::UIBatchRenderer& renderer) override;
     Widget* hitTest(f32 x, f32 y) override;
 
 private:
     void updateLayout();
 
+    EditorToolbar* toolbar_ = nullptr;
     Widget* mainContent_ = nullptr;
     StatusBar* statusBar_ = nullptr;
     DrawerPanel* assetsDrawer_ = nullptr;
