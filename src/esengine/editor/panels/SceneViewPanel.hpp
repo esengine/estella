@@ -25,6 +25,7 @@
 #include "../../resource/ResourceManager.hpp"
 #include "../core/Selection.hpp"
 #include "../widgets/EditorToolbar.hpp"
+#include "../widgets/SceneToolbar.hpp"
 
 namespace esengine::editor {
 
@@ -155,6 +156,11 @@ private:
 
     Unique<VertexArray> canvasGizmoVAO_;
     bool canvasGizmoInitialized_ = false;
+
+    Unique<SceneToolbar> toolbar_;
+    bool gridVisible_ = true;
+    bool gizmosVisible_ = true;
+    ui::Rect viewportBounds_;
 };
 
 }  // namespace esengine::editor

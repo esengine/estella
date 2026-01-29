@@ -14,6 +14,7 @@
 #include "../../math/Math.hpp"
 
 #include "../../ecs/components/Camera.hpp"
+#include "../../ecs/components/Canvas.hpp"
 #include "../../ecs/components/Hierarchy.hpp"
 #include "../../ecs/components/Sprite.hpp"
 #include "../../ecs/components/Transform.hpp"
@@ -144,6 +145,50 @@ static JSValue js_Registry_addCamera(JSContext* ctx, JSValueConst this_val, int 
     JSValue priorityVal = JS_GetPropertyStr(ctx, argv[1], "priority");
     JS_FreeValue(ctx, priorityVal);
     g_registry->emplaceOrReplace<esengine::ecs::Camera>(entity, comp);
+    return JS_UNDEFINED;
+}
+
+// =============================================================================
+// Canvas Component Bindings
+// =============================================================================
+
+static JSValue js_Registry_getCanvas(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv) {
+    u32 entity;
+    JS_ToUint32(ctx, &entity, argv[0]);
+    if (!g_registry->has<esengine::ecs::Canvas>(entity)) {
+        return JS_ThrowReferenceError(ctx, "Entity does not have Canvas component");
+    }
+    auto& comp = g_registry->get<esengine::ecs::Canvas>(entity);
+    JSValue obj = JS_NewObject(ctx);
+    // TODO: Add converter for glm::uvec2
+    JS_SetPropertyStr(ctx, obj, "pixelsPerUnit", JS_NewFloat64(ctx, comp.pixelsPerUnit));
+    // TODO: Add converter for CanvasScaleMode
+    JS_SetPropertyStr(ctx, obj, "matchWidthOrHeight", JS_NewFloat64(ctx, comp.matchWidthOrHeight));
+    // TODO: Add converter for glm::vec4
+    return obj;
+}
+
+static JSValue js_Registry_addCanvas(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv) {
+    u32 entity;
+    JS_ToUint32(ctx, &entity, argv[0]);
+    esengine::ecs::Canvas comp;
+    JSValue designResolutionVal = JS_GetPropertyStr(ctx, argv[1], "designResolution");
+    JS_FreeValue(ctx, designResolutionVal);
+    JSValue pixelsPerUnitVal = JS_GetPropertyStr(ctx, argv[1], "pixelsPerUnit");
+    double dpixelsPerUnit;
+    JS_ToFloat64(ctx, &dpixelsPerUnit, pixelsPerUnitVal);
+    comp.pixelsPerUnit = static_cast<f32>(dpixelsPerUnit);
+    JS_FreeValue(ctx, pixelsPerUnitVal);
+    JSValue scaleModeVal = JS_GetPropertyStr(ctx, argv[1], "scaleMode");
+    JS_FreeValue(ctx, scaleModeVal);
+    JSValue matchWidthOrHeightVal = JS_GetPropertyStr(ctx, argv[1], "matchWidthOrHeight");
+    double dmatchWidthOrHeight;
+    JS_ToFloat64(ctx, &dmatchWidthOrHeight, matchWidthOrHeightVal);
+    comp.matchWidthOrHeight = static_cast<f32>(dmatchWidthOrHeight);
+    JS_FreeValue(ctx, matchWidthOrHeightVal);
+    JSValue backgroundColorVal = JS_GetPropertyStr(ctx, argv[1], "backgroundColor");
+    JS_FreeValue(ctx, backgroundColorVal);
+    g_registry->emplaceOrReplace<esengine::ecs::Canvas>(entity, comp);
     return JS_UNDEFINED;
 }
 
@@ -385,6 +430,12 @@ void bindECS(ScriptContext& ctx, ecs::Registry& registry) {
                      JS_NewCFunction(jsCtx, js_Registry_getCamera, "getCamera", 1));
     JS_SetPropertyStr(jsCtx, registryObj, "addCamera",
                      JS_NewCFunction(jsCtx, js_Registry_addCamera, "addCamera", 2));
+
+    // Canvas component
+    JS_SetPropertyStr(jsCtx, registryObj, "getCanvas",
+                     JS_NewCFunction(jsCtx, js_Registry_getCanvas, "getCanvas", 1));
+    JS_SetPropertyStr(jsCtx, registryObj, "addCanvas",
+                     JS_NewCFunction(jsCtx, js_Registry_addCanvas, "addCanvas", 2));
 
     // Parent component
     JS_SetPropertyStr(jsCtx, registryObj, "getParent",

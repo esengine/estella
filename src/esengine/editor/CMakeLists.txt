@@ -45,6 +45,7 @@ set(EDITOR_SOURCES
     widgets/DrawerPanel.cpp
     widgets/EditorRootContainer.cpp
     widgets/EditorToolbar.cpp
+    widgets/SceneToolbar.cpp
 )
 
 set(EDITOR_HEADERS
@@ -105,6 +106,7 @@ set(EDITOR_HEADERS
     widgets/DrawerPanel.hpp
     widgets/EditorRootContainer.hpp
     widgets/EditorToolbar.hpp
+    widgets/SceneToolbar.hpp
 )
 
 # Create editor executable

@@ -97,6 +97,20 @@ SceneViewPanel::SceneViewPanel(ecs::Registry& registry, EntitySelection& selecti
     camera_.setFocalPoint(glm::vec3(0.0f));
     camera_.setDistance(10.0f);
 
+    toolbar_ = makeUnique<SceneToolbar>(ui::WidgetId("scene_toolbar"));
+
+    sink(toolbar_->onViewModeChanged).connect([this](ViewMode mode) {
+        setViewMode(mode);
+    });
+
+    sink(toolbar_->onGridVisibilityChanged).connect([this](bool visible) {
+        gridVisible_ = visible;
+    });
+
+    sink(toolbar_->onGizmosVisibilityChanged).connect([this](bool visible) {
+        gizmosVisible_ = visible;
+    });
+
     setMinSize(glm::vec2(200.0f, 200.0f));
 }
 
@@ -131,8 +145,16 @@ void SceneViewPanel::render(ui::UIBatchRenderer& renderer) {
 
     const ui::Rect& bounds = getBounds();
 
-    u32 newWidth = static_cast<u32>(bounds.width);
-    u32 newHeight = static_cast<u32>(bounds.height);
+    ui::Rect toolbarBounds = {bounds.x, bounds.y, bounds.width, SceneToolbar::HEIGHT};
+    viewportBounds_ = {
+        bounds.x,
+        bounds.y + SceneToolbar::HEIGHT,
+        bounds.width,
+        bounds.height - SceneToolbar::HEIGHT
+    };
+
+    u32 newWidth = static_cast<u32>(viewportBounds_.width);
+    u32 newHeight = static_cast<u32>(viewportBounds_.height);
 
     if (newWidth != viewportWidth_ || newHeight != viewportHeight_) {
         setViewportSize(newWidth, newHeight);
@@ -146,7 +168,7 @@ void SceneViewPanel::render(ui::UIBatchRenderer& renderer) {
         renderSceneToTexture();
 
         renderer.drawTexturedRect(
-            bounds,
+            viewportBounds_,
             framebuffer_->getColorAttachment(),
             glm::vec4(1.0f),
             glm::vec2(0.0f, 1.0f),
@@ -154,15 +176,28 @@ void SceneViewPanel::render(ui::UIBatchRenderer& renderer) {
         );
 
         renderer.flush();
-        if (viewMode_ == ViewMode::Mode3D) {
-            renderAxisGizmo();
-        } else {
-            renderAxisGizmo2D();
+        if (gizmosVisible_) {
+            if (viewMode_ == ViewMode::Mode3D) {
+                renderAxisGizmo();
+            } else {
+                renderAxisGizmo2D();
+            }
         }
+    }
+
+    if (toolbar_) {
+        toolbar_->setContext(getContext());
+        toolbar_->measure(toolbarBounds.width, toolbarBounds.height);
+        toolbar_->layout(toolbarBounds);
+        toolbar_->render(renderer);
     }
 }
 
 bool SceneViewPanel::onMouseDown(const ui::MouseButtonEvent& event) {
+    if (toolbar_ && toolbar_->getBounds().contains(event.x, event.y)) {
+        return toolbar_->onMouseDown(event);
+    }
+
     if (viewMode_ == ViewMode::Mode3D) {
         if (event.button == ui::MouseButton::Left && !event.alt && !event.ctrl && !event.shift) {
             i32 axisHit = hitTestAxisGizmo(event.x, event.y);
@@ -190,6 +225,9 @@ bool SceneViewPanel::onMouseUp(const ui::MouseButtonEvent& event) {
 }
 
 bool SceneViewPanel::onMouseMove(const ui::MouseMoveEvent& event) {
+    if (toolbar_) {
+        toolbar_->onMouseMove(event);
+    }
     camera_.onMouseMove(event);
     return true;
 }
@@ -232,16 +270,22 @@ void SceneViewPanel::renderSceneContent() {
     glm::mat4 viewProj = proj * view;
 
     if (viewMode_ == ViewMode::Mode2D) {
-        if (!grid2DInitialized_) {
-            initGrid2DData();
+        if (gridVisible_) {
+            if (!grid2DInitialized_) {
+                initGrid2DData();
+            }
+            renderGrid2D(viewProj);
         }
-        renderGrid2D(viewProj);
-        renderCanvasGizmo(viewProj);
+        if (gizmosVisible_) {
+            renderCanvasGizmo(viewProj);
+        }
     } else {
-        if (!gridInitialized_) {
-            initGridData();
+        if (gridVisible_) {
+            if (!gridInitialized_) {
+                initGridData();
+            }
+            renderGrid(viewProj);
         }
-        renderGrid(viewProj);
     }
     renderSprites(viewProj);
 }

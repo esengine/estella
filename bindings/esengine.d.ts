@@ -55,6 +55,14 @@ declare namespace Module {
         priority: number;
     }
 
+    interface Canvas {
+        designResolution: any;
+        pixelsPerUnit: number;
+        scaleMode: any;
+        matchWidthOrHeight: number;
+        backgroundColor: Vec4;
+    }
+
     interface Parent {
         entity: Entity;
     }
@@ -113,6 +121,12 @@ declare namespace Module {
         getCamera(entity: Entity): Camera;
         addCamera(entity: Entity, component: Camera): Camera;
         removeCamera(entity: Entity): void;
+
+        // Canvas component
+        hasCanvas(entity: Entity): boolean;
+        getCanvas(entity: Entity): Canvas;
+        addCanvas(entity: Entity, component: Canvas): Canvas;
+        removeCanvas(entity: Entity): void;
 
         // Parent component
         hasParent(entity: Entity): boolean;

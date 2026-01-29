@@ -15,6 +15,7 @@
 #include "../math/Math.hpp"
 
 #include "../ecs/components/Camera.hpp"
+#include "../ecs/components/Canvas.hpp"
 #include "../ecs/components/Hierarchy.hpp"
 #include "../ecs/components/Sprite.hpp"
 #include "../ecs/components/Transform.hpp"
@@ -78,6 +79,15 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("aspectRatio", &esengine::ecs::Camera::aspectRatio)
         .field("isActive", &esengine::ecs::Camera::isActive)
         .field("priority", &esengine::ecs::Camera::priority)
+        ;
+
+    // Canvas component
+    value_object<esengine::ecs::Canvas>("Canvas")
+        .field("designResolution", &esengine::ecs::Canvas::designResolution)
+        .field("pixelsPerUnit", &esengine::ecs::Canvas::pixelsPerUnit)
+        .field("scaleMode", &esengine::ecs::Canvas::scaleMode)
+        .field("matchWidthOrHeight", &esengine::ecs::Canvas::matchWidthOrHeight)
+        .field("backgroundColor", &esengine::ecs::Canvas::backgroundColor)
         ;
 
     // Parent component
@@ -162,6 +172,20 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         }))
         .function("removeCamera", optional_override([](ecs::Registry& self, Entity e) {
             self.remove<esengine::ecs::Camera>(e);
+        }))
+
+        // Canvas component
+        .function("hasCanvas", optional_override([](ecs::Registry& self, Entity e) {
+            return self.has<esengine::ecs::Canvas>(e);
+        }))
+        .function("getCanvas", optional_override([](ecs::Registry& self, Entity e) -> esengine::ecs::Canvas& {
+            return self.get<esengine::ecs::Canvas>(e);
+        }))
+        .function("addCanvas", optional_override([](ecs::Registry& self, Entity e, const esengine::ecs::Canvas& c) -> esengine::ecs::Canvas& {
+            return self.emplaceOrReplace<esengine::ecs::Canvas>(e, c);
+        }))
+        .function("removeCanvas", optional_override([](ecs::Registry& self, Entity e) {
+            self.remove<esengine::ecs::Canvas>(e);
         }))
 
         // Parent component
