@@ -88,17 +88,14 @@ glm::vec2 BoolEditor::measure(f32 availableWidth, f32 availableHeight) {
     return glm::vec2(width, height);
 }
 
-void BoolEditor::render(ui::UIBatchRenderer& renderer) {
-    const ui::Rect& bounds = getBounds();
+void BoolEditor::layout(const ui::Rect& bounds) {
+    Widget::layout(bounds);
+
     f32 x = bounds.x;
 
-    constexpr glm::vec4 labelColor{0.686f, 0.686f, 0.686f, 1.0f};
-
     if (labelWidget_ && showLabel_) {
-        labelWidget_->setColor(labelColor);
         ui::Rect labelBounds{x, bounds.y, LABEL_WIDTH, bounds.height};
         labelWidget_->layout(labelBounds);
-        labelWidget_->renderTree(renderer);
         x += LABEL_WIDTH + SPACING;
     }
 
@@ -106,6 +103,18 @@ void BoolEditor::render(ui::UIBatchRenderer& renderer) {
         f32 checkboxY = bounds.y + (bounds.height - CHECKBOX_SIZE) * 0.5f;
         ui::Rect checkboxBounds{x, checkboxY, CHECKBOX_SIZE, CHECKBOX_SIZE};
         checkbox_->layout(checkboxBounds);
+    }
+}
+
+void BoolEditor::render(ui::UIBatchRenderer& renderer) {
+    constexpr glm::vec4 labelColor{0.686f, 0.686f, 0.686f, 1.0f};
+
+    if (labelWidget_ && showLabel_) {
+        labelWidget_->setColor(labelColor);
+        labelWidget_->renderTree(renderer);
+    }
+
+    if (checkbox_) {
         checkbox_->renderTree(renderer);
     }
 }

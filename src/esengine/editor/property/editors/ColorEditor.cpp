@@ -151,11 +151,77 @@ glm::vec2 ColorEditor::measure(f32 availableWidth, f32 availableHeight) {
     return glm::vec2(width, height);
 }
 
-void ColorEditor::render(ui::UIBatchRenderer& renderer) {
-    const ui::Rect& bounds = getBounds();
+void ColorEditor::layout(const ui::Rect& bounds) {
+    Widget::layout(bounds);
+
     f32 x = bounds.x;
     f32 y = bounds.y;
 
+    if (mainLabel_ && showLabel_) {
+        ui::Rect labelBounds{x, y, MAIN_LABEL_WIDTH, ROW_HEIGHT};
+        mainLabel_->layout(labelBounds);
+        x += MAIN_LABEL_WIDTH + SPACING;
+    }
+
+    if (colorPreview_) {
+        ui::Rect previewBounds{x, y, COLOR_PREVIEW_SIZE, ROW_HEIGHT * 2.0f + SPACING};
+        colorPreview_->layout(previewBounds);
+        x += COLOR_PREVIEW_SIZE + SPACING;
+    }
+
+    f32 rowX = x;
+
+    if (rLabel_) {
+        ui::Rect labelBounds{rowX, y, COMPONENT_LABEL_WIDTH, ROW_HEIGHT};
+        rLabel_->layout(labelBounds);
+        rowX += COMPONENT_LABEL_WIDTH + SPACING;
+    }
+
+    if (rEditor_) {
+        ui::Rect editorBounds{rowX, y, FLOAT_EDITOR_WIDTH, ROW_HEIGHT};
+        rEditor_->layout(editorBounds);
+        rowX += FLOAT_EDITOR_WIDTH + SPACING;
+    }
+
+    if (gLabel_) {
+        ui::Rect labelBounds{rowX, y, COMPONENT_LABEL_WIDTH, ROW_HEIGHT};
+        gLabel_->layout(labelBounds);
+        rowX += COMPONENT_LABEL_WIDTH + SPACING;
+    }
+
+    if (gEditor_) {
+        ui::Rect editorBounds{rowX, y, FLOAT_EDITOR_WIDTH, ROW_HEIGHT};
+        gEditor_->layout(editorBounds);
+    }
+
+    y += ROW_HEIGHT + SPACING;
+    rowX = x;
+
+    if (bLabel_) {
+        ui::Rect labelBounds{rowX, y, COMPONENT_LABEL_WIDTH, ROW_HEIGHT};
+        bLabel_->layout(labelBounds);
+        rowX += COMPONENT_LABEL_WIDTH + SPACING;
+    }
+
+    if (bEditor_) {
+        ui::Rect editorBounds{rowX, y, FLOAT_EDITOR_WIDTH, ROW_HEIGHT};
+        bEditor_->layout(editorBounds);
+        rowX += FLOAT_EDITOR_WIDTH + SPACING;
+    }
+
+    if (aLabel_) {
+        ui::Rect labelBounds{rowX, y, COMPONENT_LABEL_WIDTH, ROW_HEIGHT};
+        aLabel_->layout(labelBounds);
+        rowX += COMPONENT_LABEL_WIDTH + SPACING;
+    }
+
+    if (aEditor_) {
+        ui::Rect editorBounds{rowX, y, FLOAT_EDITOR_WIDTH, ROW_HEIGHT};
+        aEditor_->layout(editorBounds);
+    }
+}
+
+void ColorEditor::render(ui::UIBatchRenderer& renderer) {
     constexpr glm::vec4 labelColor{0.686f, 0.686f, 0.686f, 1.0f};
     constexpr glm::vec4 rColor{0.9f, 0.4f, 0.4f, 1.0f};
     constexpr glm::vec4 gColor{0.4f, 0.9f, 0.4f, 1.0f};
@@ -164,80 +230,43 @@ void ColorEditor::render(ui::UIBatchRenderer& renderer) {
 
     if (mainLabel_ && showLabel_) {
         mainLabel_->setColor(labelColor);
-        ui::Rect labelBounds{x, y, MAIN_LABEL_WIDTH, ROW_HEIGHT};
-        mainLabel_->layout(labelBounds);
         mainLabel_->renderTree(renderer);
-        x += MAIN_LABEL_WIDTH + SPACING;
     }
 
     if (colorPreview_) {
         colorPreview_->setBackgroundColor(value_);
-        ui::Rect previewBounds{x, y, COLOR_PREVIEW_SIZE, ROW_HEIGHT * 2.0f + SPACING};
-        colorPreview_->layout(previewBounds);
         colorPreview_->renderTree(renderer);
-        x += COLOR_PREVIEW_SIZE + SPACING;
     }
-
-    f32 rowX = x;
 
     if (rLabel_) {
         rLabel_->setColor(rColor);
-        ui::Rect labelBounds{rowX, y, COMPONENT_LABEL_WIDTH, ROW_HEIGHT};
-        rLabel_->layout(labelBounds);
         rLabel_->renderTree(renderer);
-        rowX += COMPONENT_LABEL_WIDTH + SPACING;
     }
-
     if (rEditor_) {
-        ui::Rect editorBounds{rowX, y, FLOAT_EDITOR_WIDTH, ROW_HEIGHT};
-        rEditor_->layout(editorBounds);
         rEditor_->renderTree(renderer);
-        rowX += FLOAT_EDITOR_WIDTH + SPACING;
     }
 
     if (gLabel_) {
         gLabel_->setColor(gColor);
-        ui::Rect labelBounds{rowX, y, COMPONENT_LABEL_WIDTH, ROW_HEIGHT};
-        gLabel_->layout(labelBounds);
         gLabel_->renderTree(renderer);
-        rowX += COMPONENT_LABEL_WIDTH + SPACING;
     }
-
     if (gEditor_) {
-        ui::Rect editorBounds{rowX, y, FLOAT_EDITOR_WIDTH, ROW_HEIGHT};
-        gEditor_->layout(editorBounds);
         gEditor_->renderTree(renderer);
     }
 
-    y += ROW_HEIGHT + SPACING;
-    rowX = x;
-
     if (bLabel_) {
         bLabel_->setColor(bColor);
-        ui::Rect labelBounds{rowX, y, COMPONENT_LABEL_WIDTH, ROW_HEIGHT};
-        bLabel_->layout(labelBounds);
         bLabel_->renderTree(renderer);
-        rowX += COMPONENT_LABEL_WIDTH + SPACING;
     }
-
     if (bEditor_) {
-        ui::Rect editorBounds{rowX, y, FLOAT_EDITOR_WIDTH, ROW_HEIGHT};
-        bEditor_->layout(editorBounds);
         bEditor_->renderTree(renderer);
-        rowX += FLOAT_EDITOR_WIDTH + SPACING;
     }
 
     if (aLabel_) {
         aLabel_->setColor(aColor);
-        ui::Rect labelBounds{rowX, y, COMPONENT_LABEL_WIDTH, ROW_HEIGHT};
-        aLabel_->layout(labelBounds);
         aLabel_->renderTree(renderer);
-        rowX += COMPONENT_LABEL_WIDTH + SPACING;
     }
-
     if (aEditor_) {
-        ui::Rect editorBounds{rowX, y, FLOAT_EDITOR_WIDTH, ROW_HEIGHT};
-        aEditor_->layout(editorBounds);
         aEditor_->renderTree(renderer);
     }
 }

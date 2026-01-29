@@ -301,6 +301,9 @@ void UIContext::processMouseMove(f32 x, f32 y) {
             event.y = y;
             event.deltaX = deltaX;
             event.deltaY = deltaY;
+            event.ctrl = ctrlDown_;
+            event.shift = shiftDown_;
+            event.alt = altDown_;
             overlay->onMouseMove(event);
         }
     }
@@ -316,6 +319,9 @@ void UIContext::processMouseMove(f32 x, f32 y) {
         event.leftButton = mouseButtonDown_[static_cast<usize>(MouseButton::Left)];
         event.rightButton = mouseButtonDown_[static_cast<usize>(MouseButton::Right)];
         event.middleButton = mouseButtonDown_[static_cast<usize>(MouseButton::Middle)];
+        event.ctrl = ctrlDown_;
+        event.shift = shiftDown_;
+        event.alt = altDown_;
 
         pressedWidget_->onMouseMove(event);
     } else if (hoveredWidget_) {
@@ -324,6 +330,9 @@ void UIContext::processMouseMove(f32 x, f32 y) {
         event.y = y;
         event.deltaX = deltaX;
         event.deltaY = deltaY;
+        event.ctrl = ctrlDown_;
+        event.shift = shiftDown_;
+        event.alt = altDown_;
 
         hoveredWidget_->onMouseMove(event);
     }
@@ -418,6 +427,10 @@ void UIContext::processMouseScroll(f32 deltaX, f32 deltaY, f32 x, f32 y) {
 }
 
 void UIContext::processKeyDown(KeyCode key, bool ctrl, bool shift, bool alt) {
+    ctrlDown_ = ctrl;
+    shiftDown_ = shift;
+    altDown_ = alt;
+
     if (focusedWidget_) {
         KeyEvent event;
         event.key = key;
@@ -431,6 +444,10 @@ void UIContext::processKeyDown(KeyCode key, bool ctrl, bool shift, bool alt) {
 }
 
 void UIContext::processKeyUp(KeyCode key, bool ctrl, bool shift, bool alt) {
+    ctrlDown_ = ctrl;
+    shiftDown_ = shift;
+    altDown_ = alt;
+
     if (focusedWidget_) {
         KeyEvent event;
         event.key = key;

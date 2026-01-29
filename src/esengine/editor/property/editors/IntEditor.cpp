@@ -138,18 +138,15 @@ glm::vec2 IntEditor::measure(f32 availableWidth, f32 availableHeight) {
     return glm::vec2(width, height);
 }
 
-void IntEditor::render(ui::UIBatchRenderer& renderer) {
-    const ui::Rect& bounds = getBounds();
+void IntEditor::layout(const ui::Rect& bounds) {
+    Widget::layout(bounds);
+
     f32 x = bounds.x;
     f32 remainingWidth = bounds.width;
 
-    constexpr glm::vec4 labelColor{0.686f, 0.686f, 0.686f, 1.0f};
-
     if (labelWidget_ && showLabel_) {
-        labelWidget_->setColor(labelColor);
         ui::Rect labelBounds{x, bounds.y, LABEL_WIDTH, bounds.height};
         labelWidget_->layout(labelBounds);
-        labelWidget_->renderTree(renderer);
         x += LABEL_WIDTH + SPACING;
         remainingWidth -= LABEL_WIDTH + SPACING;
     }
@@ -161,7 +158,6 @@ void IntEditor::render(ui::UIBatchRenderer& renderer) {
         }
         ui::Rect textBounds{x, bounds.y, textFieldWidth, bounds.height};
         textField_->layout(textBounds);
-        textField_->renderTree(renderer);
         x += textFieldWidth;
     }
 
@@ -170,6 +166,22 @@ void IntEditor::render(ui::UIBatchRenderer& renderer) {
         f32 sliderWidth = bounds.x + bounds.width - x;
         ui::Rect sliderBounds{x, bounds.y, sliderWidth, bounds.height};
         slider_->layout(sliderBounds);
+    }
+}
+
+void IntEditor::render(ui::UIBatchRenderer& renderer) {
+    constexpr glm::vec4 labelColor{0.686f, 0.686f, 0.686f, 1.0f};
+
+    if (labelWidget_ && showLabel_) {
+        labelWidget_->setColor(labelColor);
+        labelWidget_->renderTree(renderer);
+    }
+
+    if (textField_) {
+        textField_->renderTree(renderer);
+    }
+
+    if (slider_ && showSlider_) {
         slider_->renderTree(renderer);
     }
 }

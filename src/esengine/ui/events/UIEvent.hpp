@@ -85,6 +85,9 @@ struct MouseMoveEvent : UIEvent {
     bool leftButton = false;
     bool rightButton = false;
     bool middleButton = false;
+    bool ctrl = false;
+    bool shift = false;
+    bool alt = false;
 
     glm::vec2 position() const { return {x, y}; }
     glm::vec2 delta() const { return {deltaX, deltaY}; }

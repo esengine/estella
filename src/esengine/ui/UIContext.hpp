@@ -404,6 +404,9 @@ private:
     f32 lastMouseX_ = 0.0f;
     f32 lastMouseY_ = 0.0f;
     bool mouseButtonDown_[static_cast<usize>(MouseButton::Count)] = {};
+    bool ctrlDown_ = false;
+    bool shiftDown_ = false;
+    bool altDown_ = false;
 
     std::string clipboardText_;
 
