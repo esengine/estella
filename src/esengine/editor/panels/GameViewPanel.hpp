@@ -17,6 +17,7 @@
 #include "../../ui/docking/DockPanel.hpp"
 #include "../../renderer/Framebuffer.hpp"
 #include "../../ecs/Registry.hpp"
+#include "../../resource/ResourceManager.hpp"
 
 namespace esengine::editor {
 
@@ -33,7 +34,7 @@ namespace esengine::editor {
  */
 class GameViewPanel : public ui::DockPanel {
 public:
-    explicit GameViewPanel(ecs::Registry& registry);
+    GameViewPanel(ecs::Registry& registry, resource::ResourceManager& resourceManager);
     ~GameViewPanel() override = default;
 
     void setViewportSize(u32 width, u32 height);
@@ -47,6 +48,7 @@ private:
     Entity findActiveCamera();
 
     ecs::Registry& registry_;
+    resource::ResourceManager& resourceManager_;
     Unique<Framebuffer> framebuffer_;
 
     u32 viewportWidth_ = 1280;

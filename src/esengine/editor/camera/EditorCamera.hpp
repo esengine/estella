@@ -172,6 +172,12 @@ public:
     /** @brief Returns true if animation is in progress */
     bool isAnimating() const { return isAnimating_; }
 
+    /** @brief Enables or disables orbit rotation */
+    void setOrbitEnabled(bool enabled) { orbitEnabled_ = enabled; }
+
+    /** @brief Returns true if orbit is enabled */
+    bool isOrbitEnabled() const { return orbitEnabled_; }
+
 private:
     void updateView();
     glm::quat getOrientation() const;
@@ -204,6 +210,7 @@ private:
     f32 targetYaw_ = 0.0f;
     bool isAnimating_ = false;
     f32 animationSpeed_ = 8.0f;
+    bool orbitEnabled_ = true;
 };
 
 }  // namespace esengine::editor

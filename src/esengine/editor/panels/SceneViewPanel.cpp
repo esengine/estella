@@ -79,10 +79,12 @@ namespace esengine::editor {
 // Constructor
 // =============================================================================
 
-SceneViewPanel::SceneViewPanel(ecs::Registry& registry, EntitySelection& selection)
+SceneViewPanel::SceneViewPanel(ecs::Registry& registry, EntitySelection& selection,
+                               resource::ResourceManager& resourceManager)
     : DockPanel(ui::WidgetId("scene_view_panel"), "Scene"),
       registry_(registry),
-      selection_(selection) {
+      selection_(selection),
+      resourceManager_(resourceManager) {
 
     FramebufferSpec spec;
     spec.width = viewportWidth_;
@@ -224,15 +226,21 @@ void SceneViewPanel::renderSceneToTexture() {
 }
 
 void SceneViewPanel::renderSceneContent() {
-    if (!gridInitialized_) {
-        initGridData();
-    }
-
     glm::mat4 view = camera_.getViewMatrix();
     glm::mat4 proj = camera_.getProjectionMatrix();
     glm::mat4 viewProj = proj * view;
 
-    renderGrid(viewProj);
+    if (viewMode_ == ViewMode::Mode2D) {
+        if (!grid2DInitialized_) {
+            initGrid2DData();
+        }
+        renderGrid2D(viewProj);
+    } else {
+        if (!gridInitialized_) {
+            initGridData();
+        }
+        renderGrid(viewProj);
+    }
     renderSprites(viewProj);
 }
 
@@ -290,6 +298,62 @@ void SceneViewPanel::renderGrid(const glm::mat4& viewProj) {
     glDrawArrays(GL_LINES, 0, static_cast<GLsizei>(gridVertexCount_));
 }
 
+void SceneViewPanel::initGrid2DData() {
+    std::vector<f32> vertices;
+
+    constexpr f32 gridSize = 100.0f;
+    constexpr f32 gridStep = 1.0f;
+
+    for (f32 x = -gridSize; x <= gridSize; x += gridStep) {
+        vertices.push_back(x);
+        vertices.push_back(-gridSize);
+        vertices.push_back(0.0f);
+
+        vertices.push_back(x);
+        vertices.push_back(gridSize);
+        vertices.push_back(0.0f);
+    }
+
+    for (f32 y = -gridSize; y <= gridSize; y += gridStep) {
+        vertices.push_back(-gridSize);
+        vertices.push_back(y);
+        vertices.push_back(0.0f);
+
+        vertices.push_back(gridSize);
+        vertices.push_back(y);
+        vertices.push_back(0.0f);
+    }
+
+    grid2DVertexCount_ = static_cast<u32>(vertices.size() / 3);
+
+    grid2DVAO_ = VertexArray::create();
+
+    auto vbo = VertexBuffer::createRaw(vertices.data(), static_cast<u32>(vertices.size() * sizeof(f32)));
+    vbo->setLayout({
+        { ShaderDataType::Float3, "a_position" }
+    });
+
+    grid2DVAO_->addVertexBuffer(Shared<VertexBuffer>(std::move(vbo)));
+
+    if (!gridShader_) {
+        gridShader_ = Shader::create(GRID_VERTEX_SHADER, GRID_FRAGMENT_SHADER);
+    }
+
+    grid2DInitialized_ = true;
+    ES_LOG_DEBUG("2D Grid initialized with {} vertices", grid2DVertexCount_);
+}
+
+void SceneViewPanel::renderGrid2D(const glm::mat4& viewProj) {
+    if (!grid2DVAO_ || !gridShader_) return;
+
+    gridShader_->bind();
+    gridShader_->setUniform("u_viewProj", viewProj);
+    gridShader_->setUniform("u_color", glm::vec4(0.3f, 0.3f, 0.3f, 1.0f));
+
+    grid2DVAO_->bind();
+    glDrawArrays(GL_LINES, 0, static_cast<GLsizei>(grid2DVertexCount_));
+}
+
 void SceneViewPanel::renderSprites(const glm::mat4& viewProj) {
     ui::UIContext* ctx = getContext();
     if (!ctx) return;
@@ -299,6 +363,9 @@ void SceneViewPanel::renderSprites(const glm::mat4& viewProj) {
     VertexArray* quadVAO = renderCtx.getQuadVAO();
 
     if (!shader || !quadVAO) return;
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     auto spriteView = registry_.view<ecs::LocalTransform, ecs::Sprite>();
 
@@ -317,7 +384,14 @@ void SceneViewPanel::renderSprites(const glm::mat4& viewProj) {
         shader->setUniform("u_color", sprite.color);
 
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, renderCtx.getWhiteTextureId());
+        u32 textureId = renderCtx.getWhiteTextureId();
+        if (sprite.texture.isValid()) {
+            Texture* tex = resourceManager_.getTexture(sprite.texture);
+            if (tex) {
+                textureId = tex->getId();
+            }
+        }
+        glBindTexture(GL_TEXTURE_2D, textureId);
         shader->setUniform("u_texture", 0);
 
         RenderCommand::drawIndexed(*quadVAO);
@@ -583,9 +657,11 @@ void SceneViewPanel::setViewMode(ViewMode mode) {
     viewMode_ = mode;
 
     if (mode == ViewMode::Mode2D) {
-        camera_.animateTo(glm::half_pi<f32>() - 0.01f, 0.0f);
+        camera_.animateTo(0.0f, 0.0f);
+        camera_.setOrbitEnabled(false);
     } else {
         camera_.animateTo(0.5f, 0.5f);
+        camera_.setOrbitEnabled(true);
     }
 }
 

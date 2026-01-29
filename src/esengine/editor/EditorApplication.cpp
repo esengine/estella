@@ -369,14 +369,14 @@ void EditorApplication::setupEditorLayout() {
     dockArea_->setTabBarHeight(26.0f);
 
     ES_LOG_INFO("setupEditorLayout: Creating SceneViewPanel...");
-    auto sceneViewPanel = makeUnique<SceneViewPanel>(registry_, selection_);
+    auto sceneViewPanel = makeUnique<SceneViewPanel>(registry_, selection_, getResourceManager());
     sceneViewPanel->setMinSize(glm::vec2(400.0f, 300.0f));
     sceneViewPanel_ = sceneViewPanel.get();
     auto sceneViewPanelId = sceneViewPanel->getPanelId();
     dockArea_->addPanel(std::move(sceneViewPanel), ui::DockDropZone::Center);
 
     ES_LOG_INFO("setupEditorLayout: Creating GameViewPanel...");
-    auto gameViewPanel = makeUnique<GameViewPanel>(registry_);
+    auto gameViewPanel = makeUnique<GameViewPanel>(registry_, getResourceManager());
     gameViewPanel->setMinSize(glm::vec2(400.0f, 300.0f));
     gameViewPanel_ = gameViewPanel.get();
     ui::DockNode* sceneViewNode = dockArea_->findNodeContainingPanel(sceneViewPanelId);

@@ -22,6 +22,7 @@
 #include "../../renderer/Shader.hpp"
 #include "../camera/EditorCamera.hpp"
 #include "../../ecs/Registry.hpp"
+#include "../../resource/ResourceManager.hpp"
 #include "../core/Selection.hpp"
 #include "../widgets/EditorToolbar.hpp"
 
@@ -50,8 +51,10 @@ public:
      * @brief Constructs scene view panel
      * @param registry Entity registry
      * @param selection Entity selection manager
+     * @param resourceManager Resource manager for texture lookup
      */
-    SceneViewPanel(ecs::Registry& registry, EntitySelection& selection);
+    SceneViewPanel(ecs::Registry& registry, EntitySelection& selection,
+                   resource::ResourceManager& resourceManager);
 
     ~SceneViewPanel() override = default;
 
@@ -101,7 +104,9 @@ private:
     void renderSceneToTexture();
     void renderSceneContent();
     void renderGrid(const glm::mat4& viewProj);
+    void renderGrid2D(const glm::mat4& viewProj);
     void renderSprites(const glm::mat4& viewProj);
+    void initGrid2DData();
     void renderAxisGizmo();
     void renderAxisGizmo2D();
     void updateFramebufferSize();
@@ -113,14 +118,18 @@ private:
 
     ecs::Registry& registry_;
     EntitySelection& selection_;
+    resource::ResourceManager& resourceManager_;
 
     Unique<Framebuffer> framebuffer_;
     EditorCamera camera_;
 
     Unique<VertexArray> gridVAO_;
+    Unique<VertexArray> grid2DVAO_;
     Unique<Shader> gridShader_;
     u32 gridVertexCount_ = 0;
+    u32 grid2DVertexCount_ = 0;
     bool gridInitialized_ = false;
+    bool grid2DInitialized_ = false;
 
     Unique<VertexArray> axisVAO_;
     Unique<Shader> axisShader_;

@@ -58,7 +58,7 @@ void EditorCamera::setClipPlanes(f32 near, f32 far) {
 bool EditorCamera::onMouseDown(const ui::MouseButtonEvent& event) {
     lastMousePos_ = glm::vec2(event.x, event.y);
 
-    if (event.button == ui::MouseButton::Left && event.alt) {
+    if (event.button == ui::MouseButton::Left && event.alt && orbitEnabled_) {
         isOrbiting_ = true;
         return true;
     }

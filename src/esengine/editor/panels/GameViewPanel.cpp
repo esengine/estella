@@ -31,9 +31,10 @@ namespace esengine::editor {
 // Constructor
 // =============================================================================
 
-GameViewPanel::GameViewPanel(ecs::Registry& registry)
+GameViewPanel::GameViewPanel(ecs::Registry& registry, resource::ResourceManager& resourceManager)
     : DockPanel(ui::WidgetId("game_view_panel"), "Game"),
-      registry_(registry) {
+      registry_(registry),
+      resourceManager_(resourceManager) {
 
     FramebufferSpec spec;
     spec.width = viewportWidth_;
@@ -156,6 +157,9 @@ void GameViewPanel::renderSceneContent(const glm::mat4& viewProj) {
 
     if (!shader || !quadVAO) return;
 
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
     auto spriteView = registry_.view<ecs::LocalTransform, ecs::Sprite>();
 
     for (auto entity : spriteView) {
@@ -173,7 +177,14 @@ void GameViewPanel::renderSceneContent(const glm::mat4& viewProj) {
         shader->setUniform("u_color", sprite.color);
 
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, renderCtx.getWhiteTextureId());
+        u32 textureId = renderCtx.getWhiteTextureId();
+        if (sprite.texture.isValid()) {
+            Texture* tex = resourceManager_.getTexture(sprite.texture);
+            if (tex) {
+                textureId = tex->getId();
+            }
+        }
+        glBindTexture(GL_TEXTURE_2D, textureId);
         shader->setUniform("u_texture", 0);
 
         RenderCommand::drawIndexed(*quadVAO);

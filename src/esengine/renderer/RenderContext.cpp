@@ -57,7 +57,6 @@ void RenderContext::shutdown() {
 }
 
 void RenderContext::initQuadData() {
-#ifdef ES_PLATFORM_WEB
     // Quad vertices with position and texture coordinates
     float vertices[] = {
         // Position (x, y)  TexCoord (u, v)
@@ -83,7 +82,6 @@ void RenderContext::initQuadData() {
     quadVAO_->setIndexBuffer(Shared<IndexBuffer>(std::move(ibo)));
 
     ES_LOG_DEBUG("Quad VAO initialized");
-#endif
 }
 
 void RenderContext::initShaders() {
