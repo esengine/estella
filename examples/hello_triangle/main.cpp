@@ -1,15 +1,12 @@
 #include <esengine/ESEngine.hpp>
 #include <esengine/ui/UIContext.hpp>
 #include <esengine/ui/rendering/UIBatchRenderer.hpp>
-#include <esengine/ui/font/SDFFont.hpp>
-#include <esengine/ui/font/MSDFFont.hpp>
+#include <esengine/ui/font/SystemFont.hpp>
 #include <esengine/events/Dispatcher.hpp>
-#include <cstdio>
 
 using namespace esengine;
 using namespace esengine::ecs;
 
-// Demo application with MSDF font testing
 class HelloTriangleApp : public Application {
 public:
     HelloTriangleApp() : Application(createConfig()) {}
@@ -17,7 +14,7 @@ public:
 private:
     static ApplicationConfig createConfig() {
         ApplicationConfig config;
-        config.title = "MSDF Font Test - 中英文测试";
+        config.title = "ESEngine - SystemFont Demo";
         config.width = 800;
         config.height = 600;
         return config;
@@ -25,56 +22,29 @@ private:
 
 protected:
     void onInit() override {
-        ES_LOG_INFO("MSDF Font Test initialized!");
+        ES_LOG_INFO("SystemFont Demo initialized!");
 
-        // Create UI context for font rendering
         uiContext_ = makeUnique<ui::UIContext>(getRenderContext(), dispatcher_);
         uiContext_->init();
         uiContext_->setViewport(getWidth(), getHeight());
 
-        // Load MSDF font with CJK support
-        const char* fontPaths[] = {
-#ifdef ES_PLATFORM_WEB
-            "/assets/fonts/msyh.ttc",       // Embedded font for web
-#elif defined(_WIN32)
-            "C:/Windows/Fonts/msyh.ttc",    // Microsoft YaHei (中文)
-            "C:/Windows/Fonts/simhei.ttf",  // SimHei
-            "C:/Windows/Fonts/simsun.ttc",  // SimSun
-            "C:/Windows/Fonts/arial.ttf",   // Arial (English fallback)
-#else
-            "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-#endif
-            nullptr
-        };
-
-        // Load MSDF font
-        for (const char** path = fontPaths; *path != nullptr; ++path) {
-            msdfFont_ = ui::MSDFFont::create(*path, 32.0f, 4.0f);
-            if (msdfFont_) {
-                ES_LOG_INFO("Loaded MSDF font: {}", *path);
-                break;
-            }
+        font_ = ui::SystemFont::create("Microsoft YaHei", 32.0f);
+        if (!font_) {
+            font_ = ui::SystemFont::create("Arial", 32.0f);
         }
 
-        if (!msdfFont_) {
-            ES_LOG_ERROR("Failed to load any MSDF font!");
+        if (font_) {
+            ES_LOG_INFO("Created SystemFont: {}", font_->getFontFamily());
+            font_->preloadASCII();
+            font_->preloadChars("你好世界中文测试游戏引擎");
+        } else {
+            ES_LOG_ERROR("Failed to create SystemFont!");
         }
 
-        // Also load SDF font for comparison
-        for (const char** path = fontPaths; *path != nullptr; ++path) {
-            sdfFont_ = ui::SDFFont::create(*path, 48.0f, 8.0f);
-            if (sdfFont_) {
-                ES_LOG_INFO("Loaded SDF font: {}", *path);
-                break;
-            }
-        }
-
-        // Create some entities
         auto& registry = getRegistry();
-        Entity triangle = registry.create();
-        registry.emplace<LocalTransform>(triangle, glm::vec3(400.0f, 450.0f, 0.0f));
-        registry.emplace<Name>(triangle, "Triangle");
+        Entity entity = registry.create();
+        registry.emplace<LocalTransform>(entity, glm::vec3(400.0f, 300.0f, 0.0f));
+        registry.emplace<Name>(entity, "Demo");
 
         ES_LOG_INFO("Press ESC to exit");
     }
@@ -87,150 +57,81 @@ protected:
     }
 
     void onRender() override {
-        auto& renderer = getRenderer();
+        if (!uiContext_ || !font_) return;
 
-        // Draw a simple quad
-        renderer.drawQuad(
-            glm::vec2(400.0f, 550.0f),
-            glm::vec2(100.0f, 50.0f),
-            glm::vec4(0.2f, 0.2f, 0.3f, 1.0f)
+        auto& uiRenderer = uiContext_->getRenderer();
+
+        glm::mat4 projection = glm::ortho(
+            0.0f, static_cast<f32>(getWidth()),
+            static_cast<f32>(getHeight()), 0.0f,
+            -1.0f, 1.0f
         );
 
-        if (uiContext_) {
-            auto& uiRenderer = uiContext_->getRenderer();
+        uiRenderer.begin(projection);
 
-            glm::mat4 projection = glm::ortho(
-                0.0f, static_cast<f32>(getWidth()),
-                static_cast<f32>(getHeight()), 0.0f,
-                -1.0f, 1.0f
-            );
+        uiRenderer.drawText(
+            "ESEngine SystemFont",
+            {50.0f, 50.0f},
+            *font_,
+            32.0f,
+            {1.0f, 1.0f, 1.0f, 1.0f}
+        );
 
-            uiRenderer.begin(projection);
+        uiRenderer.drawText(
+            "Hello World! 你好世界!",
+            {50.0f, 100.0f},
+            *font_,
+            28.0f,
+            {0.0f, 1.0f, 0.8f, 1.0f}
+        );
 
-            if (sdfFont_) {
-                uiRenderer.drawText(
-                    "SDF:  Hello World 123",
-                    {50.0f, 30.0f},
-                    *sdfFont_,
-                    32.0f,
-                    {0.0f, 1.0f, 1.0f, 1.0f}
-                );
-            }
-            if (msdfFont_) {
-                uiRenderer.drawText(
-                    "MSDF: Hello World 123",
-                    {50.0f, 70.0f},
-                    *msdfFont_,
-                    32.0f,
-                    {1.0f, 0.5f, 0.0f, 1.0f}
-                );
-            }
+        uiRenderer.drawText(
+            "中文测试 Chinese Test",
+            {50.0f, 150.0f},
+            *font_,
+            24.0f,
+            {1.0f, 1.0f, 0.0f, 1.0f}
+        );
 
-            // Draw MSDF text (left side)
-            if (msdfFont_) {
-                uiRenderer.drawText(
-                    "MSDF Font:",
-                    {50.0f, 80.0f},
-                    *msdfFont_,
-                    24.0f,
-                    {1.0f, 0.8f, 0.0f, 1.0f}
-                );
+        uiRenderer.drawText(
+            "Small 14px text",
+            {50.0f, 200.0f},
+            *font_,
+            14.0f,
+            {0.8f, 0.8f, 1.0f, 1.0f}
+        );
 
-                uiRenderer.drawText(
-                    "Hello MSDF!",
-                    {50.0f, 120.0f},
-                    *msdfFont_,
-                    32.0f,
-                    {1.0f, 1.0f, 1.0f, 1.0f}
-                );
+        uiRenderer.drawText(
+            "Large 48px",
+            {50.0f, 230.0f},
+            *font_,
+            48.0f,
+            {1.0f, 0.6f, 0.6f, 1.0f}
+        );
 
-                uiRenderer.drawText(
-                    "你好世界 中文",
-                    {50.0f, 170.0f},
-                    *msdfFont_,
-                    32.0f,
-                    {1.0f, 1.0f, 0.0f, 1.0f}
-                );
+        uiRenderer.drawText(
+            "游戏引擎 Game Engine",
+            {50.0f, 300.0f},
+            *font_,
+            32.0f,
+            {0.5f, 1.0f, 0.5f, 1.0f}
+        );
 
-                uiRenderer.drawText(
-                    "Small 14px",
-                    {50.0f, 220.0f},
-                    *msdfFont_,
-                    14.0f,
-                    {0.8f, 0.8f, 1.0f, 1.0f}
-                );
-
-                uiRenderer.drawText(
-                    "Large 48px",
-                    {50.0f, 250.0f},
-                    *msdfFont_,
-                    48.0f,
-                    {1.0f, 0.6f, 0.6f, 1.0f}
-                );
-            }
-
-            // Draw SDF text (right side) for comparison
-            if (sdfFont_) {
-                uiRenderer.drawText(
-                    "SDF Font:",
-                    {420.0f, 30.0f},
-                    *sdfFont_,
-                    24.0f,
-                    {0.0f, 0.8f, 1.0f, 1.0f}
-                );
-
-                uiRenderer.drawText(
-                    "Hello SDF!",
-                    {420.0f, 70.0f},
-                    *sdfFont_,
-                    32.0f,
-                    {1.0f, 1.0f, 1.0f, 1.0f}
-                );
-
-                uiRenderer.drawText(
-                    "你好世界 中文",
-                    {420.0f, 120.0f},
-                    *sdfFont_,
-                    32.0f,
-                    {1.0f, 1.0f, 0.0f, 1.0f}
-                );
-
-                uiRenderer.drawText(
-                    "Small 14px",
-                    {420.0f, 170.0f},
-                    *sdfFont_,
-                    14.0f,
-                    {0.8f, 0.8f, 1.0f, 1.0f}
-                );
-
-                uiRenderer.drawText(
-                    "Large 48px",
-                    {420.0f, 200.0f},
-                    *sdfFont_,
-                    48.0f,
-                    {1.0f, 0.6f, 0.6f, 1.0f}
-                );
-            }
-
-            uiRenderer.end();
-        }
+        uiRenderer.end();
     }
 
     void onShutdown() override {
-        msdfFont_.reset();
-        sdfFont_.reset();
+        font_.reset();
         uiContext_.reset();
-        ES_LOG_INFO("MSDF Font Test shutdown");
+        ES_LOG_INFO("SystemFont Demo shutdown");
     }
 
 private:
     Dispatcher dispatcher_;
     Unique<ui::UIContext> uiContext_;
-    Unique<ui::MSDFFont> msdfFont_;
-    Unique<ui::SDFFont> sdfFont_;
+    Unique<ui::SystemFont> font_;
 };
 
-// Entry point
 #ifndef ES_PLATFORM_WEB
 int main() {
     HelloTriangleApp app;

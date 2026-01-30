@@ -26,6 +26,8 @@
 #include "../font/BitmapFont.hpp"
 #endif
 
+#include "../font/SystemFont.hpp"
+
 #include <array>
 #include <cmath>
 #include <cstdio>
@@ -1156,6 +1158,147 @@ void UIBatchRenderer::drawTextInBounds(const std::string& text, const Rect& boun
     drawText(text, {x, y}, font, fontSize, color);
 }
 #endif  // ES_FEATURE_BITMAP_FONT
+
+// =============================================================================
+// SystemFont Text Drawing
+// =============================================================================
+
+void UIBatchRenderer::drawText(const std::string& text, const glm::vec2& position,
+                                SystemFont& font, f32 fontSize, const glm::vec4& color) {
+    if (text.empty()) return;
+
+    f32 x = position.x;
+    f32 y = position.y;
+    f32 scale = fontSize / font.getFontSize();
+
+    u32 atlasTexture = font.getTextureId();
+    if (atlasTexture == 0) return;
+
+    u32 texIndex = 0;
+    bool found = false;
+    for (u32 i = 0; i < data_->textureSlotIndex; ++i) {
+        if (data_->textureSlots[i] == atlasTexture) {
+            texIndex = i;
+            found = true;
+            break;
+        }
+    }
+    if (!found) {
+        if (data_->textureSlotIndex >= MAX_TEXTURE_SLOTS) {
+            flush();
+        }
+        data_->textureSlots[data_->textureSlotIndex] = atlasTexture;
+        texIndex = data_->textureSlotIndex;
+        data_->textureSlotIndex++;
+    }
+
+    usize i = 0;
+    while (i < text.size()) {
+        u32 codepoint = nextCodepoint(text, i);
+
+        if (codepoint == '\n') {
+            x = position.x;
+            y += fontSize * 1.2f;
+            continue;
+        }
+
+        const auto* glyph = font.getGlyph(codepoint);
+        if (!glyph) continue;
+
+        f32 xPos = std::round(x + glyph->bearingX * scale);
+        f32 yPos = std::round(y + (font.getAscent() - glyph->bearingY) * scale);
+        f32 w = glyph->width * scale;
+        f32 h = glyph->height * scale;
+
+        if (w > 0 && h > 0) {
+            if (data_->vertices.size() >= MAX_VERTICES) {
+                flush();
+            }
+
+            f32 texIdx = static_cast<f32>(texIndex);
+            Rect glyphRect(xPos, yPos, w, h);
+            glm::vec2 rectSize = {w, h};
+            glm::vec2 halfSize = rectSize * 0.5f;
+
+            UIVertex vertices[4];
+
+            vertices[0].position = {glyphRect.x, glyphRect.y, 0.0f};
+            vertices[0].texCoord = {glyph->u0, glyph->v0};
+            vertices[0].localPos = {-halfSize.x, -halfSize.y};
+
+            vertices[1].position = {glyphRect.right(), glyphRect.y, 0.0f};
+            vertices[1].texCoord = {glyph->u1, glyph->v0};
+            vertices[1].localPos = {halfSize.x, -halfSize.y};
+
+            vertices[2].position = {glyphRect.right(), glyphRect.bottom(), 0.0f};
+            vertices[2].texCoord = {glyph->u1, glyph->v1};
+            vertices[2].localPos = halfSize;
+
+            vertices[3].position = {glyphRect.x, glyphRect.bottom(), 0.0f};
+            vertices[3].texCoord = {glyph->u0, glyph->v1};
+            vertices[3].localPos = {-halfSize.x, halfSize.y};
+
+            for (auto& v : vertices) {
+                v.color = color;
+                v.cornerRadii = {0, 0, 0, 0};
+                v.rectSize = rectSize;
+                v.texIndex = texIdx;
+                v.borderThickness = 0.0f;
+                data_->vertices.push_back(v);
+            }
+
+            data_->indexCount += 6;
+            data_->stats.textQuadCount++;
+        }
+
+        x += glyph->advance * scale;
+    }
+}
+
+void UIBatchRenderer::drawTextInBounds(const std::string& text, const Rect& bounds,
+                                        SystemFont& font, f32 fontSize, const glm::vec4& color,
+                                        HAlign hAlign, VAlign vAlign) {
+    if (text.empty()) return;
+
+    glm::vec2 textSize = font.measureText(text, fontSize);
+    f32 scale = fontSize / font.getFontSize();
+    f32 ascent = font.getAscent() * scale;
+    f32 descent = font.getDescent() * scale;
+    f32 visualHeight = ascent + descent;
+
+    f32 x = bounds.x;
+    f32 y = bounds.y;
+
+    switch (hAlign) {
+        case HAlign::Left:
+            break;
+        case HAlign::Center:
+            x += (bounds.width - textSize.x) * 0.5f;
+            break;
+        case HAlign::Right:
+            x += bounds.width - textSize.x;
+            break;
+        case HAlign::Stretch:
+            break;
+    }
+
+    switch (vAlign) {
+        case VAlign::Top:
+            break;
+        case VAlign::Center:
+            y += (bounds.height - visualHeight) * 0.5f;
+            break;
+        case VAlign::Bottom:
+            y += bounds.height - visualHeight;
+            break;
+        case VAlign::Stretch:
+            break;
+    }
+
+    x = std::round(x);
+    y = std::round(y);
+    drawText(text, {x, y}, font, fontSize, color);
+}
 
 // =============================================================================
 // Statistics

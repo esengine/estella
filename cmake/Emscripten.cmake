@@ -30,7 +30,7 @@ set(ES_EMSCRIPTEN_LINK_FLAGS
     -sMODULARIZE=1                  # Wrap in module factory function
     "-sEXPORT_NAME='ESEngineModule'" # Module name
     # Exported functions (EMSCRIPTEN_KEEPALIVE + stdlib)
-    "-sEXPORTED_FUNCTIONS=['_malloc','_free','_es_app_init']"
+    "-sEXPORTED_FUNCTIONS=['_malloc','_free','_es_app_init','_es_sdk_init','_es_sdk_version']"
     "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32']"
     # Embed assets (fonts, etc.)
     "--embed-file=${CMAKE_SOURCE_DIR}/assets/fonts@/assets/fonts"
@@ -144,6 +144,36 @@ function(es_apply_side_module_settings TARGET_NAME)
             LINK_FLAGS "${LINK_FLAGS_STR}"
         )
         message(STATUS "Configured ${TARGET_NAME} as SIDE_MODULE")
+    endif()
+endfunction()
+
+# SDK-specific link flags (library only, no app entry)
+set(ES_EMSCRIPTEN_SDK_LINK_FLAGS
+    --bind
+    --emit-tsd esengine.d.ts
+    -sWASM=1
+    -sUSE_WEBGL2=1
+    -sFULL_ES3=1
+    -sALLOW_MEMORY_GROWTH=1
+    -sNO_EXIT_RUNTIME=1
+    -sEXPORT_ES6=1
+    -sMODULARIZE=1
+    "-sEXPORT_NAME='ESEngineModule'"
+    "-sEXPORTED_FUNCTIONS=['_malloc','_free','_es_sdk_init','_es_sdk_version']"
+    "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32']"
+    -O3
+    --closure=1
+)
+
+function(es_apply_sdk_settings TARGET_NAME)
+    if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
+        target_compile_options(${TARGET_NAME} PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS})
+
+        string(REPLACE ";" " " LINK_FLAGS_STR "${ES_EMSCRIPTEN_SDK_LINK_FLAGS}")
+        set_target_properties(${TARGET_NAME} PROPERTIES
+            SUFFIX ".js"
+            LINK_FLAGS "${LINK_FLAGS_STR}"
+        )
     endif()
 endfunction()
 

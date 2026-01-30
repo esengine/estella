@@ -40,6 +40,8 @@ class MSDFFont;
 class BitmapFont;
 #endif
 
+class SystemFont;
+
 #if ES_FEATURE_SDF_FONT
 using Font = SDFFont;
 #elif ES_FEATURE_BITMAP_FONT
@@ -247,6 +249,13 @@ public:
                           const glm::vec4& color, HAlign hAlign = HAlign::Left,
                           VAlign vAlign = VAlign::Top);
 #endif
+
+    void drawText(const std::string& text, const glm::vec2& position, SystemFont& font, f32 fontSize,
+                  const glm::vec4& color);
+
+    void drawTextInBounds(const std::string& text, const Rect& bounds, SystemFont& font, f32 fontSize,
+                          const glm::vec4& color, HAlign hAlign = HAlign::Left,
+                          VAlign vAlign = VAlign::Top);
 
     // =========================================================================
     // Statistics

@@ -14,8 +14,8 @@ option(ES_BUILD_EDITOR "Build editor (native only)" OFF)
 option(ES_BUILD_MODULAR "Build modular WASM (Web only, dynamic linking)" OFF)
 
 # Feature options (modular compilation)
-option(ES_FEATURE_SDF_FONT "Enable SDF font rendering (requires FreeType)" ON)
-option(ES_FEATURE_BITMAP_FONT "Enable bitmap font rendering (lightweight)" ON)
+option(ES_FEATURE_SDF_FONT "Enable SDF font rendering (requires FreeType)" OFF)
+option(ES_FEATURE_BITMAP_FONT "Enable bitmap font rendering (lightweight)" OFF)
 
 # Include custom CMake modules
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
@@ -92,6 +92,9 @@ endif()
 if(ES_FEATURE_BITMAP_FONT)
     list(APPEND ESENGINE_SOURCES src/esengine/ui/font/BitmapFont.cpp)
 endif()
+
+# SystemFont is always available (uses OS native APIs)
+list(APPEND ESENGINE_SOURCES src/esengine/ui/font/SystemFont.cpp)
 
 set(ESENGINE_HEADERS
     src/esengine/ESEngine.hpp
@@ -180,12 +183,20 @@ if(ES_FEATURE_BITMAP_FONT)
     list(APPEND ESENGINE_HEADERS src/esengine/ui/font/BitmapFont.hpp)
 endif()
 
+list(APPEND ESENGINE_HEADERS
+    src/esengine/ui/font/IFont.hpp
+    src/esengine/ui/font/SystemFont.hpp
+)
+
+# Generated binding file paths (defined early for use in source lists)
+set(GENERATED_WEB_BINDINGS "${CMAKE_CURRENT_SOURCE_DIR}/src/esengine/bindings/WebBindings.generated.cpp")
+set(GENERATED_TS_DEFINITIONS "${CMAKE_CURRENT_SOURCE_DIR}/bindings/esengine.d.ts")
+
 # Platform-specific sources
 if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
     list(APPEND ESENGINE_SOURCES
         src/esengine/platform/web/WebPlatform.cpp
         src/esengine/platform/web/WebFileSystem.cpp
-        # Generated Web bindings (from tools/generate_bindings.py)
         ${GENERATED_WEB_BINDINGS}
     )
 else()
@@ -194,16 +205,12 @@ else()
         src/esengine/platform/native/NativePlatform.cpp
         src/esengine/platform/native/NativeFileSystem.cpp
         src/esengine/platform/FileDialog.cpp
-        # Scripting (Native only - Web uses Emscripten bindings)
         src/esengine/scripting/ScriptContext.cpp
         src/esengine/scripting/ScriptValue.cpp
-        # Generated QuickJS bindings (from tools/generate_bindings.py)
-        ${GENERATED_QUICKJS_BINDINGS}
         src/esengine/ecs/systems/ScriptSystem.cpp
     )
     list(APPEND ESENGINE_HEADERS
         src/esengine/platform/native/NativePlatform.hpp
-        # Scripting headers
         src/esengine/scripting/ScriptContext.hpp
         src/esengine/scripting/ScriptValue.hpp
         src/esengine/scripting/bindings/ECSBindings.hpp
@@ -221,60 +228,53 @@ list(APPEND ESENGINE_HEADERS
 )
 
 # =============================================================================
-# Automatic Binding Generation
+# EHT - ESEngine Header Tool (Binding Generation)
 # =============================================================================
 
-# Find Python3 for binding generator
+# Find Python3 for EHT
 find_package(Python3 COMPONENTS Interpreter)
 
 if(Python3_FOUND)
-    # Generated binding files
-    set(GENERATED_WEB_BINDINGS "${CMAKE_CURRENT_SOURCE_DIR}/src/esengine/bindings/WebBindings.generated.cpp")
-    set(GENERATED_QUICKJS_BINDINGS "${CMAKE_CURRENT_SOURCE_DIR}/src/esengine/scripting/bindings/ECSBindings.generated.cpp")
-    set(GENERATED_TS_DEFINITIONS "${CMAKE_CURRENT_SOURCE_DIR}/bindings/esengine.d.ts")
-
-    # Component header files to scan
     file(GLOB_RECURSE COMPONENT_HEADERS
         "${CMAKE_CURRENT_SOURCE_DIR}/src/esengine/ecs/components/*.hpp"
     )
 
-    # Custom command to generate bindings
+    # Custom command to run EHT
     add_custom_command(
         OUTPUT
             ${GENERATED_WEB_BINDINGS}
-            ${GENERATED_QUICKJS_BINDINGS}
             ${GENERATED_TS_DEFINITIONS}
         COMMAND ${Python3_EXECUTABLE}
-            "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_bindings.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/eht.py"
             --input "${CMAKE_CURRENT_SOURCE_DIR}/src/esengine/ecs/components"
             --output "${CMAKE_CURRENT_SOURCE_DIR}/src/esengine/bindings"
+            --ts-output "${CMAKE_CURRENT_SOURCE_DIR}/bindings"
         DEPENDS
             ${COMPONENT_HEADERS}
-            "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_bindings.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/eht.py"
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-        COMMENT "Generating bindings from marked components..."
+        COMMENT "Running EHT (ESEngine Header Tool)..."
         VERBATIM
     )
 
-    # Create custom target for binding generation
-    add_custom_target(generate_bindings
+    # Create custom target for EHT
+    add_custom_target(eht
         DEPENDS
             ${GENERATED_WEB_BINDINGS}
-            ${GENERATED_QUICKJS_BINDINGS}
             ${GENERATED_TS_DEFINITIONS}
     )
 
-    message(STATUS "Automatic binding generation: ENABLED")
+    message(STATUS "EHT (ESEngine Header Tool): ENABLED")
 else()
-    message(WARNING "Python3 not found - automatic binding generation DISABLED")
+    message(WARNING "Python3 not found - EHT DISABLED")
     message(WARNING "Using pre-existing binding files (may be outdated)")
 endif()
 
 add_library(esengine STATIC ${ESENGINE_SOURCES} ${ESENGINE_HEADERS})
 
-# Add dependency on binding generation if Python is available
+# Add dependency on EHT if Python is available
 if(Python3_FOUND)
-    add_dependencies(esengine generate_bindings)
+    add_dependencies(esengine eht)
 endif()
 
 target_include_directories(esengine
@@ -334,6 +334,28 @@ endif()
 
 # Strict compiler warnings
 esengine_set_strict_warnings(esengine)
+
+# =============================================================================
+# Web SDK Library
+# =============================================================================
+
+if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
+    add_executable(esengine_sdk src/esengine/bindings/WebSDKEntry.cpp)
+    target_link_libraries(esengine_sdk PRIVATE esengine)
+    es_apply_sdk_settings(esengine_sdk)
+
+    set_target_properties(esengine_sdk PROPERTIES
+        OUTPUT_NAME "esengine"
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/sdk"
+    )
+
+    add_custom_command(TARGET esengine_sdk POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy
+            "${CMAKE_SOURCE_DIR}/bindings/esengine.d.ts"
+            "${CMAKE_BINARY_DIR}/sdk/esengine.d.ts"
+        COMMENT "Copying TypeScript definitions to SDK output"
+    )
+endif()
 
 # Examples
 if(ES_BUILD_EXAMPLES)
