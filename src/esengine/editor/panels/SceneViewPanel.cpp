@@ -337,6 +337,8 @@ void SceneViewPanel::renderSceneContent() {
     renderSprites(viewProj);
 
     if (gizmosVisible_ && selection_.count() > 0) {
+        renderSelectionBox(viewProj);
+
         Entity selected = selection_.getFirst();
         if (selected != INVALID_ENTITY) {
             transformGizmo_->render(view, proj, selected, registry_);
@@ -498,6 +500,75 @@ void SceneViewPanel::renderSprites(const glm::mat4& viewProj) {
 
         RenderCommand::drawIndexed(*quadVAO);
     }
+}
+
+void SceneViewPanel::renderSelectionBox(const glm::mat4& viewProj) {
+    Shader* shader = resourceManager_.getShader(resourceManager_.loadEngineShader("gizmo"));
+    if (!shader) return;
+
+    glDisable(GL_DEPTH_TEST);
+
+    const auto& selectedEntities = selection_.getSelected();
+    for (Entity entity : selectedEntities) {
+        if (!registry_.valid(entity) || !registry_.has<ecs::LocalTransform>(entity)) {
+            continue;
+        }
+
+        const auto& transform = registry_.get<ecs::LocalTransform>(entity);
+
+        glm::vec3 halfSize(0.5f);
+        if (registry_.has<ecs::Sprite>(entity)) {
+            const auto& sprite = registry_.get<ecs::Sprite>(entity);
+            halfSize = glm::vec3(sprite.size.x * 0.5f * transform.scale.x, sprite.size.y * 0.5f * transform.scale.y, 0.01f);
+        }
+
+        glm::mat4 model = glm::translate(glm::mat4(1.0f), transform.position);
+        model *= glm::mat4_cast(transform.rotation);
+
+        glm::vec4 color(1.0f, 0.6f, 0.0f, 1.0f);
+
+        glm::vec3 corners[8] = {
+            glm::vec3(-halfSize.x, -halfSize.y, -halfSize.z),
+            glm::vec3( halfSize.x, -halfSize.y, -halfSize.z),
+            glm::vec3( halfSize.x,  halfSize.y, -halfSize.z),
+            glm::vec3(-halfSize.x,  halfSize.y, -halfSize.z),
+            glm::vec3(-halfSize.x, -halfSize.y,  halfSize.z),
+            glm::vec3( halfSize.x, -halfSize.y,  halfSize.z),
+            glm::vec3( halfSize.x,  halfSize.y,  halfSize.z),
+            glm::vec3(-halfSize.x,  halfSize.y,  halfSize.z)
+        };
+
+        std::vector<f32> vertices;
+        auto addLine = [&](i32 a, i32 b) {
+            vertices.insert(vertices.end(), {corners[a].x, corners[a].y, corners[a].z, color.r, color.g, color.b, color.a});
+            vertices.insert(vertices.end(), {corners[b].x, corners[b].y, corners[b].z, color.r, color.g, color.b, color.a});
+        };
+
+        // Bottom face
+        addLine(0, 1); addLine(1, 2); addLine(2, 3); addLine(3, 0);
+        // Top face
+        addLine(4, 5); addLine(5, 6); addLine(6, 7); addLine(7, 4);
+        // Vertical edges
+        addLine(0, 4); addLine(1, 5); addLine(2, 6); addLine(3, 7);
+
+        Unique<VertexArray> vao = VertexArray::create();
+        auto vbo = VertexBuffer::createRaw(vertices.data(), static_cast<u32>(vertices.size() * sizeof(f32)));
+        vbo->setLayout({
+            { ShaderDataType::Float3, "a_position" },
+            { ShaderDataType::Float4, "a_color" }
+        });
+        vao->addVertexBuffer(Shared<VertexBuffer>(std::move(vbo)));
+
+        shader->bind();
+        shader->setUniform("u_viewProj", viewProj);
+        shader->setUniform("u_model", model);
+
+        vao->bind();
+        glDrawArrays(GL_LINES, 0, 24);
+        vao->unbind();
+    }
+
+    glEnable(GL_DEPTH_TEST);
 }
 
 void SceneViewPanel::updateFramebufferSize() {

@@ -115,6 +115,7 @@ private:
     void renderGrid2D(const glm::mat4& viewProj);
     void renderSprites(const glm::mat4& viewProj);
     void renderCanvasGizmo(const glm::mat4& viewProj);
+    void renderSelectionBox(const glm::mat4& viewProj);
     void initGrid2DData();
     void initCanvasGizmoData();
     void renderAxisGizmo();
