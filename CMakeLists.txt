@@ -38,6 +38,7 @@ set(ESENGINE_SOURCES
     src/esengine/core/Application.cpp
     src/esengine/core/Engine.cpp
     src/esengine/core/Log.cpp
+    src/esengine/app/App.cpp
     src/esengine/resource/ResourceManager.cpp
     src/esengine/resource/ShaderParser.cpp
     src/esengine/resource/LoaderJobQueue.cpp
@@ -341,7 +342,10 @@ esengine_set_strict_warnings(esengine)
 
 if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
     add_executable(esengine_sdk src/esengine/bindings/WebSDKEntry.cpp)
-    target_link_libraries(esengine_sdk PRIVATE esengine)
+    # Use --whole-archive to force link entire engine (prevent dead code elimination)
+    target_link_libraries(esengine_sdk PRIVATE
+        -Wl,--whole-archive esengine -Wl,--no-whole-archive
+    )
     es_apply_sdk_settings(esengine_sdk)
 
     set_target_properties(esengine_sdk PROPERTIES

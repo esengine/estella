@@ -28,11 +28,28 @@ export interface Quat { w: number; x: number; y: number; z: number; }
 export type Mat4 = number[];
 
 // =============================================================================
+// Enums
+// =============================================================================
+
+export const enum ProjectionType {
+    Perspective = 0,
+    Orthographic = 1
+}
+
+export const enum CanvasScaleMode {
+    FixedWidth = 0,
+    FixedHeight = 1,
+    Expand = 2,
+    Shrink = 3,
+    Match = 4
+}
+
+// =============================================================================
 // Components
 // =============================================================================
 
 export interface Camera {
-    projectionType: any;
+    projectionType: ProjectionType;
     fov: number;
     orthoSize: number;
     nearPlane: number;
@@ -45,7 +62,7 @@ export interface Camera {
 export interface Canvas {
     designResolution: UVec2;
     pixelsPerUnit: number;
-    scaleMode: any;
+    scaleMode: CanvasScaleMode;
     matchWidthOrHeight: number;
     backgroundColor: Vec4;
 }
@@ -55,10 +72,11 @@ export interface Parent {
 }
 
 export interface Children {
+    entities: Entity[];
 }
 
 export interface Sprite {
-    texture: any;
+    texture: number;
     color: Vec4;
     size: Vec2;
     uvOffset: Vec2;
@@ -100,34 +118,109 @@ export interface Registry {
     getCamera(entity: Entity): Camera;
     addCamera(entity: Entity, component: Camera): void;
     removeCamera(entity: Entity): void;
+
     hasCanvas(entity: Entity): boolean;
     getCanvas(entity: Entity): Canvas;
     addCanvas(entity: Entity, component: Canvas): void;
     removeCanvas(entity: Entity): void;
+
     hasParent(entity: Entity): boolean;
     getParent(entity: Entity): Parent;
     addParent(entity: Entity, component: Parent): void;
     removeParent(entity: Entity): void;
+
     hasChildren(entity: Entity): boolean;
     getChildren(entity: Entity): Children;
     addChildren(entity: Entity, component: Children): void;
     removeChildren(entity: Entity): void;
+
     hasSprite(entity: Entity): boolean;
     getSprite(entity: Entity): Sprite;
     addSprite(entity: Entity, component: Sprite): void;
     removeSprite(entity: Entity): void;
+
     hasLocalTransform(entity: Entity): boolean;
     getLocalTransform(entity: Entity): LocalTransform;
     addLocalTransform(entity: Entity, component: LocalTransform): void;
     removeLocalTransform(entity: Entity): void;
+
     hasWorldTransform(entity: Entity): boolean;
     getWorldTransform(entity: Entity): WorldTransform;
     addWorldTransform(entity: Entity, component: WorldTransform): void;
     removeWorldTransform(entity: Entity): void;
+
     hasVelocity(entity: Entity): boolean;
     getVelocity(entity: Entity): Velocity;
     addVelocity(entity: Entity, component: Velocity): void;
     removeVelocity(entity: Entity): void;
+
+    [key: string]: unknown;
+}
+
+// =============================================================================
+// Resource Types
+// =============================================================================
+
+export type ShaderHandle = number;
+export type TextureHandle = number;
+
+export const enum TextureFormat {
+    RGB8 = 0,
+    RGBA8 = 1
+}
+
+export interface ResourceManager {
+    init(): void;
+    shutdown(): void;
+    createShader(vertSrc: string, fragSrc: string): ShaderHandle;
+    createTexture(width: number, height: number, pixelsPtr: number, pixelsLen: number, format: TextureFormat): TextureHandle;
+    releaseShader(handle: ShaderHandle): void;
+    releaseTexture(handle: TextureHandle): void;
+}
+
+// =============================================================================
+// App Types
+// =============================================================================
+
+export const enum Schedule {
+    Startup = 0,
+    PreUpdate = 1,
+    Update = 2,
+    PostUpdate = 3,
+    PreRender = 4,
+    Render = 5,
+    PostRender = 6,
+}
+
+export interface Time {
+    delta: number;
+    elapsed: number;
+    frameCount: number;
+}
+
+export interface AppConfig {
+    title: string;
+    width: number;
+    height: number;
+    vsync: boolean;
+}
+
+export interface NativeApp {
+    run(): void;
+    quit(): void;
+    registry(): Registry;
+    time(): Time;
+    width(): number;
+    height(): number;
+}
+
+// =============================================================================
+// Query Types
+// =============================================================================
+
+export interface EntityVector {
+    size(): number;
+    get(index: number): Entity;
 }
 
 // =============================================================================
@@ -135,7 +228,9 @@ export interface Registry {
 // =============================================================================
 
 export interface ESEngineModule {
-    Registry: new () => Registry;
+    ResourceManager: new () => ResourceManager;
+    AppConfig: new () => AppConfig;
+
     Camera: new () => Camera;
     Canvas: new () => Canvas;
     Parent: new () => Parent;
@@ -144,6 +239,26 @@ export interface ESEngineModule {
     LocalTransform: new () => LocalTransform;
     WorldTransform: new () => WorldTransform;
     Velocity: new () => Velocity;
+
+    Schedule: typeof Schedule;
+    TextureFormat: typeof TextureFormat;
+    ProjectionType: typeof ProjectionType;
+    CanvasScaleMode: typeof CanvasScaleMode;
+
+    createApp(): NativeApp;
+    createAppWithConfig(config: AppConfig): NativeApp;
+    getApp(): NativeApp;
+
+    queryLocalTransform(registry: Registry): EntityVector;
+    queryLocalTransformSprite(registry: Registry): EntityVector;
+
+    HEAPU8: Uint8Array;
+    _malloc(size: number): number;
+    _free(ptr: number): void;
+
+    _esRunJSSystems?: (schedule: number, dt: number) => void;
+
+    [key: string]: unknown;
 }
 
 export default function createModule(): Promise<ESEngineModule>;

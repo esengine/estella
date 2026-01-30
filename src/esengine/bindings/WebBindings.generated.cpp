@@ -15,6 +15,11 @@
 #include <emscripten/bind.h>
 #include "../ecs/Registry.hpp"
 #include "../math/Math.hpp"
+#include "../resource/ResourceManager.hpp"
+#include "../renderer/Texture.hpp"
+#include "../renderer/Shader.hpp"
+#include "../app/App.hpp"
+#include "../app/Schedule.hpp"
 
 #include "../ecs/components/Camera.hpp"
 #include "../ecs/components/Canvas.hpp"
@@ -26,6 +31,23 @@
 using namespace emscripten;
 using namespace esengine;
 using namespace esengine::ecs;
+
+// =============================================================================
+// Enums
+// =============================================================================
+
+EMSCRIPTEN_BINDINGS(esengine_enums) {
+    enum_<esengine::ecs::ProjectionType>("ProjectionType")
+        .value("Perspective", esengine::ecs::ProjectionType::Perspective)
+        .value("Orthographic", esengine::ecs::ProjectionType::Orthographic);
+
+    enum_<esengine::ecs::CanvasScaleMode>("CanvasScaleMode")
+        .value("FixedWidth", esengine::ecs::CanvasScaleMode::FixedWidth)
+        .value("FixedHeight", esengine::ecs::CanvasScaleMode::FixedHeight)
+        .value("Expand", esengine::ecs::CanvasScaleMode::Expand)
+        .value("Shrink", esengine::ecs::CanvasScaleMode::Shrink)
+        .value("Match", esengine::ecs::CanvasScaleMode::Match);
+}
 
 // =============================================================================
 // Math Types
@@ -123,7 +145,6 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
 
 EMSCRIPTEN_BINDINGS(esengine_registry) {
     class_<Registry>("Registry")
-        .constructor<>()
         .function("create", optional_override([](Registry& r) {
             return static_cast<u32>(r.create());
         }))
@@ -248,6 +269,119 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         }))
 
         ;
+}
+
+// =============================================================================
+// Resource Manager
+// =============================================================================
+
+EMSCRIPTEN_BINDINGS(esengine_resources) {
+    using namespace esengine::resource;
+
+    class_<ResourceManager>("ResourceManager")
+        .constructor<>()
+        .function("init", &ResourceManager::init)
+        .function("shutdown", &ResourceManager::shutdown)
+        .function("createShader", optional_override([](ResourceManager& rm,
+            const std::string& vertSrc, const std::string& fragSrc) -> u32 {
+            return rm.createShader(vertSrc, fragSrc).id();
+        }))
+        .function("createTexture", optional_override([](ResourceManager& rm,
+            u32 width, u32 height, uintptr_t pixelsPtr, usize pixelsLen, int format) -> u32 {
+            const u8* pixels = reinterpret_cast<const u8*>(pixelsPtr);
+            ConstSpan<u8> span(pixels, pixelsLen);
+            return rm.createTexture(width, height, span,
+                static_cast<TextureFormat>(format)).id();
+        }))
+        .function("releaseShader", optional_override([](ResourceManager& rm, u32 handle) {
+            rm.releaseShader(ShaderHandle(handle));
+        }))
+        .function("releaseTexture", optional_override([](ResourceManager& rm, u32 handle) {
+            rm.releaseTexture(TextureHandle(handle));
+        }));
+
+    enum_<TextureFormat>("TextureFormat")
+        .value("RGB8", TextureFormat::RGB8)
+        .value("RGBA8", TextureFormat::RGBA8);
+}
+
+// =============================================================================
+// App
+// =============================================================================
+
+EMSCRIPTEN_BINDINGS(esengine_app) {
+    enum_<Schedule>("Schedule")
+        .value("Startup", Schedule::Startup)
+        .value("PreUpdate", Schedule::PreUpdate)
+        .value("Update", Schedule::Update)
+        .value("PostUpdate", Schedule::PostUpdate)
+        .value("PreRender", Schedule::PreRender)
+        .value("Render", Schedule::Render)
+        .value("PostRender", Schedule::PostRender);
+
+    value_object<Time>("Time")
+        .field("delta", &Time::delta)
+        .field("elapsed", &Time::elapsed)
+        .field("frameCount", &Time::frameCount);
+
+    value_object<AppConfig>("AppConfig")
+        .field("title", &AppConfig::title)
+        .field("width", &AppConfig::width)
+        .field("height", &AppConfig::height)
+        .field("vsync", &AppConfig::vsync);
+
+    class_<App>("App")
+        .function("run", &App::run)
+        .function("quit", &App::quit)
+        .function("registry", optional_override([](App& app) -> Registry* {
+            return &app.registry();
+        }), allow_raw_pointers())
+        .function("time", &App::time)
+        .function("width", &App::width)
+        .function("height", &App::height);
+
+    function("createApp", optional_override([]() -> App* {
+        static App app;
+        return &app;
+    }), allow_raw_pointers());
+
+    function("createAppWithConfig", optional_override([](const AppConfig& config) -> App* {
+        static App app(config);
+        return &app;
+    }), allow_raw_pointers());
+
+    function("getApp", optional_override([]() -> App* {
+        return &App::get();
+    }), allow_raw_pointers());
+}
+
+// =============================================================================
+// View Iterator for Query
+// =============================================================================
+
+EMSCRIPTEN_BINDINGS(esengine_query) {
+    class_<std::vector<u32>>("EntityVector")
+        .constructor<>()
+        .function("size", &std::vector<u32>::size)
+        .function("get", optional_override([](const std::vector<u32>& v, usize i) {
+            return v[i];
+        }));
+
+    function("queryLocalTransformSprite", optional_override([](Registry& reg) {
+        std::vector<u32> entities;
+        reg.each<LocalTransform, Sprite>([&entities](Entity e, LocalTransform&, Sprite&) {
+            entities.push_back(static_cast<u32>(e));
+        });
+        return entities;
+    }));
+
+    function("queryLocalTransform", optional_override([](Registry& reg) {
+        std::vector<u32> entities;
+        reg.each<LocalTransform>([&entities](Entity e, LocalTransform&) {
+            entities.push_back(static_cast<u32>(e));
+        });
+        return entities;
+    }));
 }
 
 #endif  // ES_PLATFORM_WEB
