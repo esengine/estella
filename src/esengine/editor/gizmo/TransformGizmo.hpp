@@ -157,17 +157,30 @@ public:
     /**
      * @brief Starts a drag operation
      * @param axis Axis to manipulate
-     * @param hitPoint World position where drag started
-     */
-    void startDrag(GizmoAxis axis, const glm::vec3& hitPoint);
-
-    /**
-     * @brief Updates the drag operation
      * @param rayOrigin Ray origin in world space
      * @param rayDir Ray direction (normalized)
-     * @return Delta transform to apply
+     */
+    void startDrag(GizmoAxis axis, const glm::vec3& rayOrigin, const glm::vec3& rayDir);
+
+    /**
+     * @brief Updates the drag operation for translation/scale
+     * @param rayOrigin Ray origin in world space
+     * @param rayDir Ray direction (normalized)
+     * @return Delta position/scale to apply
      */
     glm::vec3 updateDrag(const glm::vec3& rayOrigin, const glm::vec3& rayDir);
+
+    /**
+     * @brief Gets the rotation delta during drag
+     * @return Rotation delta in radians around the active axis
+     */
+    f32 getRotationDelta() const { return rotationDelta_; }
+
+    /**
+     * @brief Gets the currently active drag axis
+     * @return Active axis or GizmoAxis::None
+     */
+    GizmoAxis getActiveAxis() const { return activeAxis_; }
 
     /**
      * @brief Ends the drag operation
@@ -220,6 +233,9 @@ private:
 
     bool dragging_ = false;
     glm::vec3 dragStartPoint_{0.0f};
+    glm::vec3 dragPlaneNormal_{0.0f};
+    f32 dragStartAngle_ = 0.0f;
+    f32 rotationDelta_ = 0.0f;
     glm::vec3 gizmoPosition_{0.0f};
 
     resource::ResourceManager& resourceManager_;

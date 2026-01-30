@@ -489,10 +489,64 @@ GizmoAxis TransformGizmo::hitTest(const glm::vec3& rayOrigin, const glm::vec3& r
     return GizmoAxis::None;
 }
 
-void TransformGizmo::startDrag(GizmoAxis axis, const glm::vec3& hitPoint) {
+void TransformGizmo::startDrag(GizmoAxis axis, const glm::vec3& rayOrigin, const glm::vec3& rayDir) {
     activeAxis_ = axis;
     dragging_ = true;
-    dragStartPoint_ = hitPoint;
+    rotationDelta_ = 0.0f;
+
+    glm::vec3 axisDir(0.0f);
+    switch (axis) {
+        case GizmoAxis::X: axisDir = glm::vec3(1, 0, 0); break;
+        case GizmoAxis::Y: axisDir = glm::vec3(0, 1, 0); break;
+        case GizmoAxis::Z: axisDir = glm::vec3(0, 0, 1); break;
+        default: return;
+    }
+
+    if (mode_ == GizmoMode::Rotate) {
+        dragPlaneNormal_ = axisDir;
+        f32 denom = glm::dot(rayDir, dragPlaneNormal_);
+        if (std::abs(denom) > 0.001f) {
+            f32 t = glm::dot(gizmoPosition_ - rayOrigin, dragPlaneNormal_) / denom;
+            glm::vec3 hitPoint = rayOrigin + rayDir * t;
+            glm::vec3 toHit = hitPoint - gizmoPosition_;
+            dragStartAngle_ = std::atan2(
+                glm::dot(toHit, glm::cross(dragPlaneNormal_, glm::vec3(0, 1, 0))),
+                glm::dot(toHit, glm::vec3(0, 1, 0))
+            );
+            if (axis == GizmoAxis::Y) {
+                dragStartAngle_ = std::atan2(
+                    glm::dot(toHit, glm::vec3(0, 0, 1)),
+                    glm::dot(toHit, glm::vec3(1, 0, 0))
+                );
+            } else if (axis == GizmoAxis::Z) {
+                dragStartAngle_ = std::atan2(
+                    glm::dot(toHit, glm::vec3(0, 1, 0)),
+                    glm::dot(toHit, glm::vec3(1, 0, 0))
+                );
+            } else {
+                dragStartAngle_ = std::atan2(
+                    glm::dot(toHit, glm::vec3(0, 0, 1)),
+                    glm::dot(toHit, glm::vec3(0, 1, 0))
+                );
+            }
+            dragStartPoint_ = hitPoint;
+        }
+    } else {
+        dragPlaneNormal_ = glm::cross(axisDir, glm::cross(rayDir, axisDir));
+        if (glm::length(dragPlaneNormal_) > 0.001f) {
+            dragPlaneNormal_ = glm::normalize(dragPlaneNormal_);
+        } else {
+            dragPlaneNormal_ = glm::abs(axisDir.x) > 0.9f ? glm::vec3(0, 1, 0) : glm::vec3(1, 0, 0);
+        }
+
+        f32 denom = glm::dot(rayDir, dragPlaneNormal_);
+        if (std::abs(denom) > 0.001f) {
+            f32 t = glm::dot(gizmoPosition_ - rayOrigin, dragPlaneNormal_) / denom;
+            dragStartPoint_ = rayOrigin + rayDir * t;
+        } else {
+            dragStartPoint_ = gizmoPosition_;
+        }
+    }
 }
 
 glm::vec3 TransformGizmo::updateDrag(const glm::vec3& rayOrigin, const glm::vec3& rayDir) {
@@ -508,19 +562,36 @@ glm::vec3 TransformGizmo::updateDrag(const glm::vec3& rayOrigin, const glm::vec3
         default: return glm::vec3(0.0f);
     }
 
-    glm::vec3 planeNormal = glm::cross(axisDir, glm::cross(rayDir, axisDir));
-    if (glm::length(planeNormal) < 0.001f) {
-        return glm::vec3(0.0f);
-    }
-    planeNormal = glm::normalize(planeNormal);
-
-    f32 denom = glm::dot(rayDir, planeNormal);
+    f32 denom = glm::dot(rayDir, dragPlaneNormal_);
     if (std::abs(denom) < 0.001f) {
         return glm::vec3(0.0f);
     }
 
-    f32 t = glm::dot(dragStartPoint_ - rayOrigin, planeNormal) / denom;
+    f32 t = glm::dot(gizmoPosition_ - rayOrigin, dragPlaneNormal_) / denom;
     glm::vec3 hitPoint = rayOrigin + rayDir * t;
+
+    if (mode_ == GizmoMode::Rotate) {
+        glm::vec3 toHit = hitPoint - gizmoPosition_;
+        f32 currentAngle;
+        if (activeAxis_ == GizmoAxis::Y) {
+            currentAngle = std::atan2(
+                glm::dot(toHit, glm::vec3(0, 0, 1)),
+                glm::dot(toHit, glm::vec3(1, 0, 0))
+            );
+        } else if (activeAxis_ == GizmoAxis::Z) {
+            currentAngle = std::atan2(
+                glm::dot(toHit, glm::vec3(0, 1, 0)),
+                glm::dot(toHit, glm::vec3(1, 0, 0))
+            );
+        } else {
+            currentAngle = std::atan2(
+                glm::dot(toHit, glm::vec3(0, 0, 1)),
+                glm::dot(toHit, glm::vec3(0, 1, 0))
+            );
+        }
+        rotationDelta_ = currentAngle - dragStartAngle_;
+        return glm::vec3(0.0f);
+    }
 
     glm::vec3 delta = hitPoint - dragStartPoint_;
     f32 projection = glm::dot(delta, axisDir);
@@ -531,6 +602,7 @@ glm::vec3 TransformGizmo::updateDrag(const glm::vec3& rayOrigin, const glm::vec3
 void TransformGizmo::endDrag() {
     dragging_ = false;
     activeAxis_ = GizmoAxis::None;
+    rotationDelta_ = 0.0f;
 }
 
 // =============================================================================

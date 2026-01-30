@@ -188,7 +188,7 @@ bool SceneViewPanel::onMouseDown(const ui::MouseButtonEvent& event) {
                         draggingEntity_ = selected;
                         dragStartTransform_ = registry_.get<ecs::LocalTransform>(selected);
                     }
-                    transformGizmo_->startDrag(axis, rayOrigin + rayDir * 5.0f);
+                    transformGizmo_->startDrag(axis, rayOrigin, rayDir);
                     return true;
                 }
             }
@@ -255,8 +255,21 @@ bool SceneViewPanel::onMouseMove(const ui::MouseMoveEvent& event) {
                 case GizmoMode::Scale:
                     transform.scale = dragStartTransform_.scale + delta;
                     break;
-                case GizmoMode::Rotate:
+                case GizmoMode::Rotate: {
+                    f32 rotationDelta = transformGizmo_->getRotationDelta();
+                    GizmoAxis axis = transformGizmo_->getActiveAxis();
+                    glm::vec3 rotationAxis(0.0f);
+                    if (axis == GizmoAxis::X) {
+                        rotationAxis = glm::vec3(1, 0, 0);
+                    } else if (axis == GizmoAxis::Y) {
+                        rotationAxis = glm::vec3(0, 1, 0);
+                    } else if (axis == GizmoAxis::Z) {
+                        rotationAxis = glm::vec3(0, 0, 1);
+                    }
+                    glm::quat deltaRotation = glm::angleAxis(rotationDelta, rotationAxis);
+                    transform.rotation = deltaRotation * dragStartTransform_.rotation;
                     break;
+                }
             }
         }
         return true;
