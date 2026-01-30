@@ -171,49 +171,77 @@ void TransformGizmo::initRenderData() {
 
     shaderHandle_ = resourceManager_.loadEngineShader("gizmo");
 
+    VertexLayout gizmoLayout = {
+        { ShaderDataType::Float3, "a_position" },
+        { ShaderDataType::Float4, "a_color" }
+    };
+
+    // 3D geometry
     std::vector<f32> translateVerts;
-    buildTranslateGeometry(translateVerts);
+    buildTranslateGeometry(translateVerts, false);
     translateVertexCount_ = static_cast<u32>(translateVerts.size() / 7);
 
     translateVAO_ = VertexArray::create();
     auto translateVBO = VertexBuffer::createRaw(translateVerts.data(),
         static_cast<u32>(translateVerts.size() * sizeof(f32)));
-    translateVBO->setLayout({
-        { ShaderDataType::Float3, "a_position" },
-        { ShaderDataType::Float4, "a_color" }
-    });
+    translateVBO->setLayout(gizmoLayout);
     translateVAO_->addVertexBuffer(Shared<VertexBuffer>(std::move(translateVBO)));
 
     std::vector<f32> rotateVerts;
-    buildRotateGeometry(rotateVerts);
+    buildRotateGeometry(rotateVerts, false);
     rotateVertexCount_ = static_cast<u32>(rotateVerts.size() / 7);
 
     rotateVAO_ = VertexArray::create();
     auto rotateVBO = VertexBuffer::createRaw(rotateVerts.data(),
         static_cast<u32>(rotateVerts.size() * sizeof(f32)));
-    rotateVBO->setLayout({
-        { ShaderDataType::Float3, "a_position" },
-        { ShaderDataType::Float4, "a_color" }
-    });
+    rotateVBO->setLayout(gizmoLayout);
     rotateVAO_->addVertexBuffer(Shared<VertexBuffer>(std::move(rotateVBO)));
 
     std::vector<f32> scaleVerts;
-    buildScaleGeometry(scaleVerts);
+    buildScaleGeometry(scaleVerts, false);
     scaleVertexCount_ = static_cast<u32>(scaleVerts.size() / 7);
 
     scaleVAO_ = VertexArray::create();
     auto scaleVBO = VertexBuffer::createRaw(scaleVerts.data(),
         static_cast<u32>(scaleVerts.size() * sizeof(f32)));
-    scaleVBO->setLayout({
-        { ShaderDataType::Float3, "a_position" },
-        { ShaderDataType::Float4, "a_color" }
-    });
+    scaleVBO->setLayout(gizmoLayout);
     scaleVAO_->addVertexBuffer(Shared<VertexBuffer>(std::move(scaleVBO)));
+
+    // 2D geometry
+    std::vector<f32> translate2DVerts;
+    buildTranslateGeometry(translate2DVerts, true);
+    translate2DVertexCount_ = static_cast<u32>(translate2DVerts.size() / 7);
+
+    translate2DVAO_ = VertexArray::create();
+    auto translate2DVBO = VertexBuffer::createRaw(translate2DVerts.data(),
+        static_cast<u32>(translate2DVerts.size() * sizeof(f32)));
+    translate2DVBO->setLayout(gizmoLayout);
+    translate2DVAO_->addVertexBuffer(Shared<VertexBuffer>(std::move(translate2DVBO)));
+
+    std::vector<f32> rotate2DVerts;
+    buildRotateGeometry(rotate2DVerts, true);
+    rotate2DVertexCount_ = static_cast<u32>(rotate2DVerts.size() / 7);
+
+    rotate2DVAO_ = VertexArray::create();
+    auto rotate2DVBO = VertexBuffer::createRaw(rotate2DVerts.data(),
+        static_cast<u32>(rotate2DVerts.size() * sizeof(f32)));
+    rotate2DVBO->setLayout(gizmoLayout);
+    rotate2DVAO_->addVertexBuffer(Shared<VertexBuffer>(std::move(rotate2DVBO)));
+
+    std::vector<f32> scale2DVerts;
+    buildScaleGeometry(scale2DVerts, true);
+    scale2DVertexCount_ = static_cast<u32>(scale2DVerts.size() / 7);
+
+    scale2DVAO_ = VertexArray::create();
+    auto scale2DVBO = VertexBuffer::createRaw(scale2DVerts.data(),
+        static_cast<u32>(scale2DVerts.size() * sizeof(f32)));
+    scale2DVBO->setLayout(gizmoLayout);
+    scale2DVAO_->addVertexBuffer(Shared<VertexBuffer>(std::move(scale2DVBO)));
 
     initialized_ = true;
 }
 
-void TransformGizmo::buildTranslateGeometry(std::vector<f32>& vertices) {
+void TransformGizmo::buildTranslateGeometry(std::vector<f32>& vertices, bool is2D) {
     glm::vec4 red(0.9f, 0.2f, 0.2f, 1.0f);
     glm::vec4 green(0.3f, 0.85f, 0.3f, 1.0f);
     glm::vec4 blue(0.3f, 0.5f, 0.95f, 1.0f);
@@ -229,11 +257,13 @@ void TransformGizmo::buildTranslateGeometry(std::vector<f32>& vertices) {
     addCylinder(vertices, glm::vec3(0), glm::vec3(0, shaftLen, 0), shaftRadius, green);
     addCone(vertices, glm::vec3(0, shaftLen, 0), glm::vec3(0, shaftLen + coneLen, 0), coneRadius, green);
 
-    addCylinder(vertices, glm::vec3(0), glm::vec3(0, 0, shaftLen), shaftRadius, blue);
-    addCone(vertices, glm::vec3(0, 0, shaftLen), glm::vec3(0, 0, shaftLen + coneLen), coneRadius, blue);
+    if (!is2D) {
+        addCylinder(vertices, glm::vec3(0), glm::vec3(0, 0, shaftLen), shaftRadius, blue);
+        addCone(vertices, glm::vec3(0, 0, shaftLen), glm::vec3(0, 0, shaftLen + coneLen), coneRadius, blue);
+    }
 }
 
-void TransformGizmo::buildRotateGeometry(std::vector<f32>& vertices) {
+void TransformGizmo::buildRotateGeometry(std::vector<f32>& vertices, bool is2D) {
     glm::vec4 red(0.9f, 0.2f, 0.2f, 1.0f);
     glm::vec4 green(0.3f, 0.85f, 0.3f, 1.0f);
     glm::vec4 blue(0.3f, 0.5f, 0.95f, 1.0f);
@@ -241,12 +271,14 @@ void TransformGizmo::buildRotateGeometry(std::vector<f32>& vertices) {
     f32 radius = 0.8f;
     f32 thickness = 0.03f;
 
-    addCircle(vertices, glm::vec3(0), glm::vec3(1, 0, 0), radius, red, 48, thickness);
-    addCircle(vertices, glm::vec3(0), glm::vec3(0, 1, 0), radius, green, 48, thickness);
+    if (!is2D) {
+        addCircle(vertices, glm::vec3(0), glm::vec3(1, 0, 0), radius, red, 48, thickness);
+        addCircle(vertices, glm::vec3(0), glm::vec3(0, 1, 0), radius, green, 48, thickness);
+    }
     addCircle(vertices, glm::vec3(0), glm::vec3(0, 0, 1), radius, blue, 48, thickness);
 }
 
-void TransformGizmo::buildScaleGeometry(std::vector<f32>& vertices) {
+void TransformGizmo::buildScaleGeometry(std::vector<f32>& vertices, bool is2D) {
     glm::vec4 red(0.9f, 0.2f, 0.2f, 1.0f);
     glm::vec4 green(0.3f, 0.85f, 0.3f, 1.0f);
     glm::vec4 blue(0.3f, 0.5f, 0.95f, 1.0f);
@@ -261,8 +293,10 @@ void TransformGizmo::buildScaleGeometry(std::vector<f32>& vertices) {
     addCylinder(vertices, glm::vec3(0), glm::vec3(0, shaftLen, 0), shaftRadius, green);
     addCube(vertices, glm::vec3(0, shaftLen + cubeSize * 0.5f, 0), cubeSize, green);
 
-    addCylinder(vertices, glm::vec3(0), glm::vec3(0, 0, shaftLen), shaftRadius, blue);
-    addCube(vertices, glm::vec3(0, 0, shaftLen + cubeSize * 0.5f), cubeSize, blue);
+    if (!is2D) {
+        addCylinder(vertices, glm::vec3(0), glm::vec3(0, 0, shaftLen), shaftRadius, blue);
+        addCube(vertices, glm::vec3(0, 0, shaftLen + cubeSize * 0.5f), cubeSize, blue);
+    }
 }
 
 // =============================================================================
@@ -301,7 +335,9 @@ void TransformGizmo::render(const glm::mat4& view, const glm::mat4& proj,
 
 void TransformGizmo::renderTranslateGizmo(const glm::mat4& viewProj, const glm::mat4& model) {
     Shader* shader = resourceManager_.getShader(shaderHandle_);
-    if (!translateVAO_ || !shader) return;
+    VertexArray* vao = is2DMode_ ? translate2DVAO_.get() : translateVAO_.get();
+    u32 vertexCount = is2DMode_ ? translate2DVertexCount_ : translateVertexCount_;
+    if (!vao || !shader) return;
 
     glDisable(GL_DEPTH_TEST);
 
@@ -309,9 +345,9 @@ void TransformGizmo::renderTranslateGizmo(const glm::mat4& viewProj, const glm::
     shader->setUniform("u_viewProj", viewProj);
     shader->setUniform("u_model", model);
 
-    translateVAO_->bind();
-    glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(translateVertexCount_));
-    translateVAO_->unbind();
+    vao->bind();
+    glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(vertexCount));
+    vao->unbind();
 
     shader->unbind();
 
@@ -320,7 +356,9 @@ void TransformGizmo::renderTranslateGizmo(const glm::mat4& viewProj, const glm::
 
 void TransformGizmo::renderRotateGizmo(const glm::mat4& viewProj, const glm::mat4& model) {
     Shader* shader = resourceManager_.getShader(shaderHandle_);
-    if (!rotateVAO_ || !shader) return;
+    VertexArray* vao = is2DMode_ ? rotate2DVAO_.get() : rotateVAO_.get();
+    u32 vertexCount = is2DMode_ ? rotate2DVertexCount_ : rotateVertexCount_;
+    if (!vao || !shader) return;
 
     glDisable(GL_DEPTH_TEST);
 
@@ -328,9 +366,9 @@ void TransformGizmo::renderRotateGizmo(const glm::mat4& viewProj, const glm::mat
     shader->setUniform("u_viewProj", viewProj);
     shader->setUniform("u_model", model);
 
-    rotateVAO_->bind();
-    glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(rotateVertexCount_));
-    rotateVAO_->unbind();
+    vao->bind();
+    glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(vertexCount));
+    vao->unbind();
 
     shader->unbind();
 
@@ -339,7 +377,9 @@ void TransformGizmo::renderRotateGizmo(const glm::mat4& viewProj, const glm::mat
 
 void TransformGizmo::renderScaleGizmo(const glm::mat4& viewProj, const glm::mat4& model) {
     Shader* shader = resourceManager_.getShader(shaderHandle_);
-    if (!scaleVAO_ || !shader) return;
+    VertexArray* vao = is2DMode_ ? scale2DVAO_.get() : scaleVAO_.get();
+    u32 vertexCount = is2DMode_ ? scale2DVertexCount_ : scaleVertexCount_;
+    if (!vao || !shader) return;
 
     glDisable(GL_DEPTH_TEST);
 
@@ -347,9 +387,9 @@ void TransformGizmo::renderScaleGizmo(const glm::mat4& viewProj, const glm::mat4
     shader->setUniform("u_viewProj", viewProj);
     shader->setUniform("u_model", model);
 
-    scaleVAO_->bind();
-    glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(scaleVertexCount_));
-    scaleVAO_->unbind();
+    vao->bind();
+    glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(vertexCount));
+    vao->unbind();
 
     shader->unbind();
 
@@ -403,10 +443,12 @@ GizmoAxis TransformGizmo::hitTest(const glm::vec3& rayOrigin, const glm::vec3& r
             closestAxis = GizmoAxis::Y;
         }
 
-        f32 distZ = rayAxisDistance(rayOrigin, rayDir, gizmoPosition_, glm::vec3(0, 0, 1));
-        if (distZ < HIT_THRESHOLD && distZ < minDist) {
-            minDist = distZ;
-            closestAxis = GizmoAxis::Z;
+        if (!is2DMode_) {
+            f32 distZ = rayAxisDistance(rayOrigin, rayDir, gizmoPosition_, glm::vec3(0, 0, 1));
+            if (distZ < HIT_THRESHOLD && distZ < minDist) {
+                minDist = distZ;
+                closestAxis = GizmoAxis::Z;
+            }
         }
 
         return closestAxis;
@@ -435,8 +477,10 @@ GizmoAxis TransformGizmo::hitTest(const glm::vec3& rayOrigin, const glm::vec3& r
             }
         };
 
-        checkCircle(glm::vec3(1, 0, 0), GizmoAxis::X);
-        checkCircle(glm::vec3(0, 1, 0), GizmoAxis::Y);
+        if (!is2DMode_) {
+            checkCircle(glm::vec3(1, 0, 0), GizmoAxis::X);
+            checkCircle(glm::vec3(0, 1, 0), GizmoAxis::Y);
+        }
         checkCircle(glm::vec3(0, 0, 1), GizmoAxis::Z);
 
         return closestAxis;

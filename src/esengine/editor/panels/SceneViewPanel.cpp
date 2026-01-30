@@ -748,6 +748,10 @@ void SceneViewPanel::setViewMode(ViewMode mode) {
 
     viewMode_ = mode;
 
+    if (transformGizmo_) {
+        transformGizmo_->set2DMode(mode == ViewMode::Mode2D);
+    }
+
     if (mode == ViewMode::Mode2D) {
         camera_.animateTo(0.0f, 0.0f);
         camera_.setOrbitEnabled(false);

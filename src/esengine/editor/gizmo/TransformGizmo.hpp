@@ -116,6 +116,18 @@ public:
      */
     f32 getSize() const { return size_; }
 
+    /**
+     * @brief Sets 2D mode (only X/Y axes)
+     * @param enabled True for 2D mode
+     */
+    void set2DMode(bool enabled) { is2DMode_ = enabled; }
+
+    /**
+     * @brief Checks if in 2D mode
+     * @return True if 2D mode
+     */
+    bool is2DMode() const { return is2DMode_; }
+
     // =========================================================================
     // Rendering
     // =========================================================================
@@ -196,14 +208,15 @@ private:
                         const glm::vec3& axisOrigin, const glm::vec3& axisDir) const;
 
     void initRenderData();
-    void buildTranslateGeometry(std::vector<f32>& vertices);
-    void buildRotateGeometry(std::vector<f32>& vertices);
-    void buildScaleGeometry(std::vector<f32>& vertices);
+    void buildTranslateGeometry(std::vector<f32>& vertices, bool is2D = false);
+    void buildRotateGeometry(std::vector<f32>& vertices, bool is2D = false);
+    void buildScaleGeometry(std::vector<f32>& vertices, bool is2D = false);
 
     GizmoMode mode_ = GizmoMode::Translate;
     GizmoAxis activeAxis_ = GizmoAxis::None;
     GizmoAxis hoveredAxis_ = GizmoAxis::None;
     f32 size_ = 1.0f;
+    bool is2DMode_ = false;
 
     bool dragging_ = false;
     glm::vec3 dragStartPoint_{0.0f};
@@ -213,10 +226,16 @@ private:
     Unique<VertexArray> translateVAO_;
     Unique<VertexArray> rotateVAO_;
     Unique<VertexArray> scaleVAO_;
+    Unique<VertexArray> translate2DVAO_;
+    Unique<VertexArray> rotate2DVAO_;
+    Unique<VertexArray> scale2DVAO_;
     resource::ShaderHandle shaderHandle_;
     u32 translateVertexCount_ = 0;
     u32 rotateVertexCount_ = 0;
     u32 scaleVertexCount_ = 0;
+    u32 translate2DVertexCount_ = 0;
+    u32 rotate2DVertexCount_ = 0;
+    u32 scale2DVertexCount_ = 0;
     bool initialized_ = false;
 };
 
