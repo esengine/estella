@@ -480,7 +480,7 @@ void SceneViewPanel::renderSprites(const glm::mat4& viewProj) {
         glm::mat4 model = glm::mat4(1.0f);
         model = glm::translate(model, transform.position);
         model *= glm::mat4_cast(transform.rotation);
-        model = glm::scale(model, glm::vec3(sprite.size * transform.scale.x, 1.0f));
+        model = glm::scale(model, glm::vec3(sprite.size.x * transform.scale.x, sprite.size.y * transform.scale.y, 1.0f));
 
         shader->bind();
         shader->setUniform("u_projection", viewProj);
