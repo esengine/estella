@@ -30,6 +30,7 @@
 #include "../gizmo/TransformGizmo.hpp"
 #include "../command/CommandHistory.hpp"
 #include "../../events/Connection.hpp"
+#include "../../renderer/RenderPipeline.hpp"
 
 namespace esengine::editor {
 
@@ -172,6 +173,7 @@ private:
 
     Unique<SceneToolbar> toolbar_;
     Unique<TransformGizmo> transformGizmo_;
+    Unique<RenderPipeline> renderPipeline_;
     bool gridVisible_ = true;
     bool gizmosVisible_ = true;
     ui::Rect viewportBounds_;

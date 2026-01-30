@@ -463,43 +463,16 @@ void SceneViewPanel::renderSprites(const glm::mat4& viewProj) {
     if (!ctx) return;
 
     RenderContext& renderCtx = ctx->getRenderContext();
-    Shader* shader = renderCtx.getTextureShader();
-    VertexArray* quadVAO = renderCtx.getQuadVAO();
 
-    if (!shader || !quadVAO) return;
-
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-    auto spriteView = registry_.view<ecs::LocalTransform, ecs::Sprite>();
-
-    for (auto entity : spriteView) {
-        const auto& transform = spriteView.get<ecs::LocalTransform>(entity);
-        const auto& sprite = spriteView.get<ecs::Sprite>(entity);
-
-        glm::mat4 model = glm::mat4(1.0f);
-        model = glm::translate(model, transform.position);
-        model *= glm::mat4_cast(transform.rotation);
-        model = glm::scale(model, glm::vec3(sprite.size.x * transform.scale.x, sprite.size.y * transform.scale.y, 1.0f));
-
-        shader->bind();
-        shader->setUniform("u_projection", viewProj);
-        shader->setUniform("u_model", model);
-        shader->setUniform("u_color", sprite.color);
-
-        glActiveTexture(GL_TEXTURE0);
-        u32 textureId = renderCtx.getWhiteTextureId();
-        if (sprite.texture.isValid()) {
-            Texture* tex = resourceManager_.getTexture(sprite.texture);
-            if (tex) {
-                textureId = tex->getId();
-            }
-        }
-        glBindTexture(GL_TEXTURE_2D, textureId);
-        shader->setUniform("u_texture", 0);
-
-        RenderCommand::drawIndexed(*quadVAO);
+    // Lazy initialize RenderPipeline
+    if (!renderPipeline_) {
+        renderPipeline_ = makeUnique<RenderPipeline>(renderCtx, resourceManager_);
     }
+
+    // Use RenderPipeline for sprite rendering
+    renderPipeline_->begin(viewProj);
+    renderPipeline_->submit(registry_);
+    renderPipeline_->end();
 }
 
 void SceneViewPanel::renderSelectionBox(const glm::mat4& viewProj) {

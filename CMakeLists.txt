@@ -49,6 +49,7 @@ set(ESENGINE_SOURCES
     src/esengine/renderer/Buffer.cpp
     src/esengine/renderer/Texture.cpp
     src/esengine/renderer/Framebuffer.cpp
+    src/esengine/renderer/RenderPipeline.cpp
     src/esengine/renderer/stb_image_impl.cpp
     src/esengine/platform/input/Input.cpp
     src/esengine/platform/PathResolver.cpp
