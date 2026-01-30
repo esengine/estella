@@ -263,8 +263,8 @@ void TransformGizmo::buildTranslateGeometry(std::vector<f32>& vertices, bool is2
     f32 shaftRadius = 0.02f;
     f32 coneLen = 0.25f;
     f32 coneRadius = 0.06f;
-    f32 planeOffset = 0.15f;
-    f32 planeSize = 0.12f;
+    f32 planeOffset = shaftRadius + 0.01f;
+    f32 planeSize = 0.25f;
 
     addCylinder(vertices, glm::vec3(0), glm::vec3(shaftLen, 0, 0), shaftRadius, red);
     addCone(vertices, glm::vec3(shaftLen, 0, 0), glm::vec3(shaftLen + coneLen, 0, 0), coneRadius, red);
@@ -469,8 +469,8 @@ void TransformGizmo::renderCircle(const glm::mat4& mvp, const glm::vec3& center,
 
 GizmoAxis TransformGizmo::hitTest(const glm::vec3& rayOrigin, const glm::vec3& rayDir) const {
     if (mode_ == GizmoMode::Translate) {
-        constexpr f32 planeOffset = 0.15f;
-        constexpr f32 planeSize = 0.12f;
+        constexpr f32 planeOffset = 0.03f;
+        constexpr f32 planeSize = 0.25f;
 
         auto checkPlaneHit = [&](const glm::vec3& planeNormal, const glm::vec3& u, const glm::vec3& v,
                                  GizmoAxis axis) -> bool {
