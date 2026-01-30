@@ -66,6 +66,7 @@ void DockArea::addPanel(Unique<DockPanel> panel, DockDropZone zone,
         rootNode_ = DockNode::createTabs(generateNodeId());
         setNodeArea(rootNode_.get());
         rootNode_->addPanel(std::move(panel));
+        invalidateLayout();
         onLayoutChanged.publish();
         return;
     }
@@ -96,6 +97,7 @@ void DockArea::addPanel(Unique<DockPanel> panel, DockDropZone zone,
         }
     }
 
+    invalidateLayout();
     onLayoutChanged.publish();
 }
 
@@ -112,6 +114,7 @@ Unique<DockPanel> DockArea::removePanel(DockPanelId panelId) {
         tryMergeNode(node);
     }
 
+    invalidateLayout();
     onLayoutChanged.publish();
     return removed;
 }
@@ -153,6 +156,7 @@ void DockArea::movePanel(DockPanel* panel, const DockDropTarget& target) {
         tryMergeNode(sourceNode);
     }
 
+    invalidateLayout();
     onLayoutChanged.publish();
 }
 
@@ -269,10 +273,10 @@ void DockArea::tryMergeNode(DockNode* node) {
         }
     }
 
-    tabBars_.erase(node->getId());
     tabBarConnections_.erase(node->getId());
-    tabBars_.erase(parent->getId());
+    tabBars_.erase(node->getId());
     tabBarConnections_.erase(parent->getId());
+    tabBars_.erase(parent->getId());
 }
 
 // =============================================================================
@@ -399,17 +403,20 @@ void DockArea::renderSplitter(UIBatchRenderer& renderer, DockNode* node) {
 void DockArea::renderTabBar(UIBatchRenderer& renderer, DockNode* node) {
     if (!node || !node->isTabs()) return;
 
+    const Rect& nodeBounds = node->getBounds();
+    if (nodeBounds.width <= 0 || nodeBounds.height <= 0) {
+        return;
+    }
+
     DockTabBar* tabBar = getOrCreateTabBar(node);
     if (!tabBar) return;
 
-    if (tabBar->getContext() != getContext()) {
-        tabBar->setContext(getContext());
-    }
+    tabBar->setContext(getContext());
 
     Rect tabBarBounds{
-        node->getBounds().x,
-        node->getBounds().y,
-        node->getBounds().width,
+        nodeBounds.x,
+        nodeBounds.y,
+        nodeBounds.width,
         tabBarHeight_
     };
 

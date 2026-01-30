@@ -170,7 +170,6 @@ void EditorApplication::onUpdate(f32 deltaTime) {
     if (pendingShowEditor_) {
         pendingShowEditor_ = false;
         showEditor();
-        return;
     }
 
     frameTime_ += deltaTime;
