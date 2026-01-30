@@ -18,6 +18,8 @@
 #include "../../ui/font/MSDFFont.hpp"
 #endif
 
+#include "../../ui/font/SystemFont.hpp"
+
 namespace esengine::editor {
 
 namespace icons = ui::icons;
@@ -93,6 +95,9 @@ void SceneToolbar::render(ui::UIBatchRenderer& renderer) {
 
 #if ES_FEATURE_SDF_FONT
     ui::MSDFFont* iconFont = ctx->getIconMSDFFont();
+#else
+    ui::SystemFont* iconFont = ctx->getIconSystemFont();
+#endif
     if (!iconFont) return;
 
     auto drawButton = [&](const ui::Rect& btnBounds, const char* icon, bool active, bool hovered) {
@@ -119,7 +124,6 @@ void SceneToolbar::render(ui::UIBatchRenderer& renderer) {
     drawButton(scaleButtonBounds_, icons::Scale3d, gizmoMode_ == GizmoMode::Scale, hoveredButton_ == 6);
 
     drawButton(stats_button_bounds_, icons::Info, stats_visible_, hoveredButton_ == 7);
-#endif
 }
 
 // =============================================================================

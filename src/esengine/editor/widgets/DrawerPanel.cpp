@@ -13,11 +13,13 @@
 #include "../../ui/UIContext.hpp"
 #include "../../ui/rendering/UIBatchRenderer.hpp"
 #include "../../ui/icons/Icons.hpp"
-#include "../../math/Math.hpp"
 
 #if ES_FEATURE_SDF_FONT
 #include "../../ui/font/MSDFFont.hpp"
 #endif
+
+#include "../../ui/font/SystemFont.hpp"
+#include "../../math/Math.hpp"
 
 namespace esengine::editor {
 
@@ -137,6 +139,10 @@ void DrawerPanel::render(ui::UIBatchRenderer& renderer) {
 #if ES_FEATURE_SDF_FONT
     ui::MSDFFont* iconFont = ctx->getIconMSDFFont();
     ui::MSDFFont* textFont = ctx->getDefaultMSDFFont();
+#else
+    ui::SystemFont* iconFont = ctx->getIconSystemFont();
+    ui::SystemFont* textFont = ctx->getDefaultSystemFont();
+#endif
 
     f32 headerCenterY = bounds.y + HEADER_HEIGHT * 0.5f;
 
@@ -175,7 +181,6 @@ void DrawerPanel::render(ui::UIBatchRenderer& renderer) {
                                       ui::HAlign::Center, ui::VAlign::Center);
         }
     }
-#endif
 
     if (content_) {
         content_->renderTree(renderer);

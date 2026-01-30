@@ -19,6 +19,8 @@
 #include "../../ui/font/MSDFFont.hpp"
 #endif
 
+#include "../../ui/font/SystemFont.hpp"
+
 namespace esengine::editor {
 
 // =============================================================================
@@ -70,6 +72,10 @@ void StatusBar::render(ui::UIBatchRenderer& renderer) {
 #if ES_FEATURE_SDF_FONT
     ui::MSDFFont* iconFont = ctx->getIconMSDFFont();
     ui::MSDFFont* textFont = ctx->getDefaultMSDFFont();
+#else
+    ui::SystemFont* iconFont = ctx->getIconSystemFont();
+    ui::SystemFont* textFont = ctx->getDefaultSystemFont();
+#endif
 
     if (assetsButton_.bounds.width > 0) {
         glm::vec4 btnBg = assetsDrawerOpen_ ? activeBg : assetsBtnBg;
@@ -195,7 +201,6 @@ void StatusBar::render(ui::UIBatchRenderer& renderer) {
         renderer.drawTextInBounds("Saved", saveTextBounds, *textFont, 11.0f, textColor,
                                   ui::HAlign::Left, ui::VAlign::Center);
     }
-#endif
 }
 
 // =============================================================================

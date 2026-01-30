@@ -24,6 +24,8 @@
 #include "../../ui/font/MSDFFont.hpp"
 #endif
 
+#include "../../ui/font/SystemFont.hpp"
+
 #include <glad/glad.h>
 #include <cstdio>
 #include <vector>
@@ -1015,6 +1017,9 @@ void SceneViewPanel::renderStats(ui::UIBatchRenderer& renderer) {
 
 #if ES_FEATURE_SDF_FONT
     ui::MSDFFont* font = ctx->getDefaultMSDFFont();
+#else
+    ui::SystemFont* font = ctx->getDefaultSystemFont();
+#endif
     if (!font) return;
 
     RenderPipeline::Stats stats{};
@@ -1086,7 +1091,6 @@ void SceneViewPanel::renderStats(ui::UIBatchRenderer& renderer) {
 
     snprintf(buffer, sizeof(buffer), "Visible: %u  Culled: %u", stats.visible_items, stats.culled_items);
     renderer.drawText(buffer, glm::vec2(x, y), *font, fontSize, labelColor);
-#endif
 }
 
 // =============================================================================

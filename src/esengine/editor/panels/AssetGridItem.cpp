@@ -11,9 +11,14 @@
 
 #include "AssetGridItem.hpp"
 #include "../../ui/UIContext.hpp"
-#include "../../ui/font/MSDFFont.hpp"
 #include "../../ui/icons/Icons.hpp"
 #include "../../ui/rendering/UIBatchRenderer.hpp"
+
+#if ES_FEATURE_SDF_FONT
+#include "../../ui/font/MSDFFont.hpp"
+#endif
+
+#include "../../ui/font/SystemFont.hpp"
 
 #include <chrono>
 
@@ -46,7 +51,8 @@ const char* getAssetTypeIcon(AssetType type) {
     }
 }
 
-std::string truncateText(const std::string& text, ui::MSDFFont& font, f32 fontSize, f32 maxWidth) {
+template<typename FontType>
+std::string truncateText(const std::string& text, FontType& font, f32 fontSize, f32 maxWidth) {
     glm::vec2 textSize = font.measureText(text, fontSize);
     if (textSize.x <= maxWidth) {
         return text;
@@ -162,7 +168,14 @@ void AssetGridItem::render(ui::UIBatchRenderer& renderer) {
     renderer.drawRoundedRect(iconBounds, thumbnailBg, ui::CornerRadii::all(4.0f));
     renderer.drawRoundedRectOutline(iconBounds, thumbnailBorder, ui::CornerRadii::all(4.0f), 1.0f);
 
+#if ES_FEATURE_SDF_FONT
     ui::MSDFFont* iconFont = ctx->getIconMSDFFont();
+    ui::MSDFFont* font = ctx->getDefaultMSDFFont();
+#else
+    ui::SystemFont* iconFont = ctx->getIconSystemFont();
+    ui::SystemFont* font = ctx->getDefaultSystemFont();
+#endif
+
     if (iconFont) {
         glm::vec4 iconColor = getAssetTypeColor(entry_.type);
         const char* icon = getAssetTypeIcon(entry_.type);
@@ -170,7 +183,6 @@ void AssetGridItem::render(ui::UIBatchRenderer& renderer) {
                                    ui::HAlign::Center, ui::VAlign::Center);
     }
 
-    ui::MSDFFont* font = ctx->getDefaultMSDFFont();
     if (font) {
         f32 labelWidth = bounds.width - 8.0f;
         ui::Rect labelBounds{

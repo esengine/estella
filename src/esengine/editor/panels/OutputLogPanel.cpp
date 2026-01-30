@@ -19,6 +19,8 @@
 #include "../../ui/font/MSDFFont.hpp"
 #endif
 
+#include "../../ui/font/SystemFont.hpp"
+
 namespace esengine::editor {
 
 // =============================================================================
@@ -105,6 +107,10 @@ void OutputLogPanel::render(ui::UIBatchRenderer& renderer) {
 #if ES_FEATURE_SDF_FONT
     ui::MSDFFont* iconFont = ctx->getIconMSDFFont();
     ui::MSDFFont* textFont = ctx->getDefaultMSDFFont();
+#else
+    ui::SystemFont* iconFont = ctx->getIconSystemFont();
+    ui::SystemFont* textFont = ctx->getDefaultSystemFont();
+#endif
 
     if (iconFont) {
         if (clearHovered_) {
@@ -169,7 +175,6 @@ void OutputLogPanel::render(ui::UIBatchRenderer& renderer) {
 
         renderer.popClipRect();
     }
-#endif
 }
 
 // =============================================================================

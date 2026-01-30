@@ -18,6 +18,8 @@
 #include "../../ui/font/MSDFFont.hpp"
 #endif
 
+#include "../../ui/font/SystemFont.hpp"
+
 namespace esengine::editor {
 
 namespace icons = ui::icons;
@@ -51,6 +53,20 @@ void EditorToolbar::stop() {
         state_ = PlayState::Stopped;
         onStop.publish();
     }
+}
+
+void EditorToolbar::startWebPreview(const std::string& directory) {
+    if (previewServer_.isRunning()) {
+        previewServer_.stop();
+    }
+    if (previewServer_.start(directory)) {
+        WebPreviewServer::openInBrowser(previewServer_.getUrl());
+        onWebPreview.publish();
+    }
+}
+
+void EditorToolbar::stopWebPreview() {
+    previewServer_.stop();
 }
 
 // =============================================================================
@@ -88,6 +104,9 @@ void EditorToolbar::render(ui::UIBatchRenderer& renderer) {
 
 #if ES_FEATURE_SDF_FONT
     ui::MSDFFont* iconFont = ctx->getIconMSDFFont();
+#else
+    ui::SystemFont* iconFont = ctx->getIconSystemFont();
+#endif
     if (!iconFont) return;
 
     auto drawButton = [&](const ButtonState& btn, const std::string& icon, bool active, const glm::vec4& activeBg) {
@@ -99,11 +118,14 @@ void EditorToolbar::render(ui::UIBatchRenderer& renderer) {
 
     bool playing = state_ == PlayState::Playing;
     bool paused = state_ == PlayState::Paused;
+    bool previewing = previewServer_.isRunning();
+
+    constexpr glm::vec4 previewingBg{0.180f, 0.545f, 0.341f, 1.0f};
 
     drawButton(playButton_, icons::Play, playing, playingBg);
     drawButton(pauseButton_, icons::Pause, paused, pausedBg);
     drawButton(stopButton_, icons::Square, false, buttonBg);
-#endif
+    drawButton(webPreviewButton_, icons::Globe, previewing, previewingBg);
 }
 
 // =============================================================================
@@ -136,6 +158,11 @@ bool EditorToolbar::onMouseDown(const ui::MouseButtonEvent& event) {
         return true;
     }
 
+    if (webPreviewButton_.bounds.contains(event.x, event.y)) {
+        onWebPreview.publish();
+        return true;
+    }
+
     return false;
 }
 
@@ -143,6 +170,7 @@ bool EditorToolbar::onMouseMove(const ui::MouseMoveEvent& event) {
     playButton_.hovered = playButton_.bounds.contains(event.x, event.y);
     pauseButton_.hovered = pauseButton_.bounds.contains(event.x, event.y);
     stopButton_.hovered = stopButton_.bounds.contains(event.x, event.y);
+    webPreviewButton_.hovered = webPreviewButton_.bounds.contains(event.x, event.y);
     return false;
 }
 
@@ -156,6 +184,7 @@ void EditorToolbar::updateButtonBounds() {
     constexpr f32 buttonSize = 28.0f;
     constexpr f32 buttonGap = 4.0f;
     constexpr f32 groupWidth = buttonSize * 3 + buttonGap * 2;
+    constexpr f32 padding = 8.0f;
 
     f32 centerX = bounds.x + bounds.width * 0.5f;
     f32 startX = centerX - groupWidth * 0.5f;
@@ -164,6 +193,9 @@ void EditorToolbar::updateButtonBounds() {
     playButton_.bounds = ui::Rect{startX, centerY, buttonSize, buttonSize};
     pauseButton_.bounds = ui::Rect{startX + buttonSize + buttonGap, centerY, buttonSize, buttonSize};
     stopButton_.bounds = ui::Rect{startX + (buttonSize + buttonGap) * 2, centerY, buttonSize, buttonSize};
+
+    f32 rightX = bounds.x + bounds.width - padding - buttonSize;
+    webPreviewButton_.bounds = ui::Rect{rightX, centerY, buttonSize, buttonSize};
 }
 
 }  // namespace esengine::editor
