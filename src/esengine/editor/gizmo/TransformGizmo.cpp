@@ -100,6 +100,16 @@ void addCylinder(std::vector<f32>& vertices, const glm::vec3& start, const glm::
     }
 }
 
+void addQuad(std::vector<f32>& vertices, const glm::vec3& p0, const glm::vec3& p1,
+             const glm::vec3& p2, const glm::vec3& p3, const glm::vec4& color) {
+    addVertex(vertices, p0, color);
+    addVertex(vertices, p1, color);
+    addVertex(vertices, p2, color);
+    addVertex(vertices, p0, color);
+    addVertex(vertices, p2, color);
+    addVertex(vertices, p3, color);
+}
+
 void addCube(std::vector<f32>& vertices, const glm::vec3& center, f32 size, const glm::vec4& color) {
     f32 h = size * 0.5f;
 
@@ -245,11 +255,16 @@ void TransformGizmo::buildTranslateGeometry(std::vector<f32>& vertices, bool is2
     glm::vec4 red(0.9f, 0.2f, 0.2f, 1.0f);
     glm::vec4 green(0.3f, 0.85f, 0.3f, 1.0f);
     glm::vec4 blue(0.3f, 0.5f, 0.95f, 1.0f);
+    glm::vec4 yellow(0.9f, 0.9f, 0.2f, 0.6f);
+    glm::vec4 cyan(0.2f, 0.9f, 0.9f, 0.6f);
+    glm::vec4 magenta(0.9f, 0.2f, 0.9f, 0.6f);
 
     f32 shaftLen = 0.7f;
     f32 shaftRadius = 0.02f;
     f32 coneLen = 0.25f;
     f32 coneRadius = 0.06f;
+    f32 planeOffset = 0.15f;
+    f32 planeSize = 0.12f;
 
     addCylinder(vertices, glm::vec3(0), glm::vec3(shaftLen, 0, 0), shaftRadius, red);
     addCone(vertices, glm::vec3(shaftLen, 0, 0), glm::vec3(shaftLen + coneLen, 0, 0), coneRadius, red);
@@ -260,6 +275,32 @@ void TransformGizmo::buildTranslateGeometry(std::vector<f32>& vertices, bool is2
     if (!is2D) {
         addCylinder(vertices, glm::vec3(0), glm::vec3(0, 0, shaftLen), shaftRadius, blue);
         addCone(vertices, glm::vec3(0, 0, shaftLen), glm::vec3(0, 0, shaftLen + coneLen), coneRadius, blue);
+    }
+
+    // XY plane handle (blue tint - Z normal)
+    addQuad(vertices,
+        glm::vec3(planeOffset, planeOffset, 0),
+        glm::vec3(planeOffset + planeSize, planeOffset, 0),
+        glm::vec3(planeOffset + planeSize, planeOffset + planeSize, 0),
+        glm::vec3(planeOffset, planeOffset + planeSize, 0),
+        blue * glm::vec4(1.0f, 1.0f, 1.0f, 0.5f));
+
+    if (!is2D) {
+        // YZ plane handle (red tint - X normal)
+        addQuad(vertices,
+            glm::vec3(0, planeOffset, planeOffset),
+            glm::vec3(0, planeOffset + planeSize, planeOffset),
+            glm::vec3(0, planeOffset + planeSize, planeOffset + planeSize),
+            glm::vec3(0, planeOffset, planeOffset + planeSize),
+            red * glm::vec4(1.0f, 1.0f, 1.0f, 0.5f));
+
+        // XZ plane handle (green tint - Y normal)
+        addQuad(vertices,
+            glm::vec3(planeOffset, 0, planeOffset),
+            glm::vec3(planeOffset, 0, planeOffset + planeSize),
+            glm::vec3(planeOffset + planeSize, 0, planeOffset + planeSize),
+            glm::vec3(planeOffset + planeSize, 0, planeOffset),
+            green * glm::vec4(1.0f, 1.0f, 1.0f, 0.5f));
     }
 }
 
@@ -427,6 +468,46 @@ void TransformGizmo::renderCircle(const glm::mat4& mvp, const glm::vec3& center,
 // =============================================================================
 
 GizmoAxis TransformGizmo::hitTest(const glm::vec3& rayOrigin, const glm::vec3& rayDir) const {
+    if (mode_ == GizmoMode::Translate) {
+        constexpr f32 planeOffset = 0.15f;
+        constexpr f32 planeSize = 0.12f;
+
+        auto checkPlaneHit = [&](const glm::vec3& planeNormal, const glm::vec3& u, const glm::vec3& v,
+                                 GizmoAxis axis) -> bool {
+            f32 denom = glm::dot(rayDir, planeNormal);
+            if (std::abs(denom) < 0.001f) return false;
+
+            f32 t = glm::dot(gizmoPosition_ - rayOrigin, planeNormal) / denom;
+            if (t < 0.0f) return false;
+
+            glm::vec3 hitPoint = rayOrigin + rayDir * t;
+            glm::vec3 localHit = (hitPoint - gizmoPosition_) / size_;
+
+            f32 uCoord = glm::dot(localHit, u);
+            f32 vCoord = glm::dot(localHit, v);
+
+            return uCoord >= planeOffset && uCoord <= planeOffset + planeSize &&
+                   vCoord >= planeOffset && vCoord <= planeOffset + planeSize;
+        };
+
+        // Check XY plane (Z normal)
+        if (checkPlaneHit(glm::vec3(0, 0, 1), glm::vec3(1, 0, 0), glm::vec3(0, 1, 0), GizmoAxis::XY)) {
+            return GizmoAxis::XY;
+        }
+
+        if (!is2DMode_) {
+            // Check YZ plane (X normal)
+            if (checkPlaneHit(glm::vec3(1, 0, 0), glm::vec3(0, 1, 0), glm::vec3(0, 0, 1), GizmoAxis::YZ)) {
+                return GizmoAxis::YZ;
+            }
+
+            // Check XZ plane (Y normal)
+            if (checkPlaneHit(glm::vec3(0, 1, 0), glm::vec3(1, 0, 0), glm::vec3(0, 0, 1), GizmoAxis::XZ)) {
+                return GizmoAxis::XZ;
+            }
+        }
+    }
+
     if (mode_ == GizmoMode::Translate || mode_ == GizmoMode::Scale) {
         f32 minDist = std::numeric_limits<f32>::max();
         GizmoAxis closestAxis = GizmoAxis::None;
@@ -494,6 +575,25 @@ void TransformGizmo::startDrag(GizmoAxis axis, const glm::vec3& rayOrigin, const
     dragging_ = true;
     rotationDelta_ = 0.0f;
 
+    // Handle plane axes
+    if (axis == GizmoAxis::XY || axis == GizmoAxis::XZ || axis == GizmoAxis::YZ) {
+        switch (axis) {
+            case GizmoAxis::XY: dragPlaneNormal_ = glm::vec3(0, 0, 1); break;
+            case GizmoAxis::XZ: dragPlaneNormal_ = glm::vec3(0, 1, 0); break;
+            case GizmoAxis::YZ: dragPlaneNormal_ = glm::vec3(1, 0, 0); break;
+            default: break;
+        }
+
+        f32 denom = glm::dot(rayDir, dragPlaneNormal_);
+        if (std::abs(denom) > 0.001f) {
+            f32 t = glm::dot(gizmoPosition_ - rayOrigin, dragPlaneNormal_) / denom;
+            dragStartPoint_ = rayOrigin + rayDir * t;
+        } else {
+            dragStartPoint_ = gizmoPosition_;
+        }
+        return;
+    }
+
     glm::vec3 axisDir(0.0f);
     switch (axis) {
         case GizmoAxis::X: axisDir = glm::vec3(1, 0, 0); break;
@@ -554,14 +654,6 @@ glm::vec3 TransformGizmo::updateDrag(const glm::vec3& rayOrigin, const glm::vec3
         return glm::vec3(0.0f);
     }
 
-    glm::vec3 axisDir(0.0f);
-    switch (activeAxis_) {
-        case GizmoAxis::X: axisDir = glm::vec3(1, 0, 0); break;
-        case GizmoAxis::Y: axisDir = glm::vec3(0, 1, 0); break;
-        case GizmoAxis::Z: axisDir = glm::vec3(0, 0, 1); break;
-        default: return glm::vec3(0.0f);
-    }
-
     f32 denom = glm::dot(rayDir, dragPlaneNormal_);
     if (std::abs(denom) < 0.001f) {
         return glm::vec3(0.0f);
@@ -569,6 +661,27 @@ glm::vec3 TransformGizmo::updateDrag(const glm::vec3& rayOrigin, const glm::vec3
 
     f32 t = glm::dot(gizmoPosition_ - rayOrigin, dragPlaneNormal_) / denom;
     glm::vec3 hitPoint = rayOrigin + rayDir * t;
+    glm::vec3 delta = hitPoint - dragStartPoint_;
+
+    // Handle plane movement
+    if (activeAxis_ == GizmoAxis::XY || activeAxis_ == GizmoAxis::XZ || activeAxis_ == GizmoAxis::YZ) {
+        glm::vec3 mask(0.0f);
+        switch (activeAxis_) {
+            case GizmoAxis::XY: mask = glm::vec3(1, 1, 0); break;
+            case GizmoAxis::XZ: mask = glm::vec3(1, 0, 1); break;
+            case GizmoAxis::YZ: mask = glm::vec3(0, 1, 1); break;
+            default: break;
+        }
+        return delta * mask;
+    }
+
+    glm::vec3 axisDir(0.0f);
+    switch (activeAxis_) {
+        case GizmoAxis::X: axisDir = glm::vec3(1, 0, 0); break;
+        case GizmoAxis::Y: axisDir = glm::vec3(0, 1, 0); break;
+        case GizmoAxis::Z: axisDir = glm::vec3(0, 0, 1); break;
+        default: return glm::vec3(0.0f);
+    }
 
     if (mode_ == GizmoMode::Rotate) {
         glm::vec3 toHit = hitPoint - gizmoPosition_;
@@ -593,9 +706,7 @@ glm::vec3 TransformGizmo::updateDrag(const glm::vec3& rayOrigin, const glm::vec3
         return glm::vec3(0.0f);
     }
 
-    glm::vec3 delta = hitPoint - dragStartPoint_;
     f32 projection = glm::dot(delta, axisDir);
-
     return axisDir * projection;
 }
 
