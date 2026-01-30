@@ -387,33 +387,62 @@ void TransformGizmo::renderCircle(const glm::mat4& mvp, const glm::vec3& center,
 // =============================================================================
 
 GizmoAxis TransformGizmo::hitTest(const glm::vec3& rayOrigin, const glm::vec3& rayDir) const {
-    if (mode_ != GizmoMode::Translate) {
-        return GizmoAxis::None;
+    if (mode_ == GizmoMode::Translate || mode_ == GizmoMode::Scale) {
+        f32 minDist = std::numeric_limits<f32>::max();
+        GizmoAxis closestAxis = GizmoAxis::None;
+
+        f32 distX = rayAxisDistance(rayOrigin, rayDir, gizmoPosition_, glm::vec3(1, 0, 0));
+        if (distX < HIT_THRESHOLD && distX < minDist) {
+            minDist = distX;
+            closestAxis = GizmoAxis::X;
+        }
+
+        f32 distY = rayAxisDistance(rayOrigin, rayDir, gizmoPosition_, glm::vec3(0, 1, 0));
+        if (distY < HIT_THRESHOLD && distY < minDist) {
+            minDist = distY;
+            closestAxis = GizmoAxis::Y;
+        }
+
+        f32 distZ = rayAxisDistance(rayOrigin, rayDir, gizmoPosition_, glm::vec3(0, 0, 1));
+        if (distZ < HIT_THRESHOLD && distZ < minDist) {
+            minDist = distZ;
+            closestAxis = GizmoAxis::Z;
+        }
+
+        return closestAxis;
     }
 
-    f32 axisLength = AXIS_LENGTH * size_;
-    f32 minDist = std::numeric_limits<f32>::max();
-    GizmoAxis closestAxis = GizmoAxis::None;
+    if (mode_ == GizmoMode::Rotate) {
+        f32 radius = 0.8f * size_;
+        f32 threshold = 0.15f * size_;
+        f32 minDist = std::numeric_limits<f32>::max();
+        GizmoAxis closestAxis = GizmoAxis::None;
 
-    f32 distX = rayAxisDistance(rayOrigin, rayDir, gizmoPosition_, glm::vec3(1, 0, 0));
-    if (distX < HIT_THRESHOLD && distX < minDist) {
-        minDist = distX;
-        closestAxis = GizmoAxis::X;
+        auto checkCircle = [&](const glm::vec3& normal, GizmoAxis axis) {
+            f32 denom = glm::dot(rayDir, normal);
+            if (std::abs(denom) < 0.001f) return;
+
+            f32 t = glm::dot(gizmoPosition_ - rayOrigin, normal) / denom;
+            if (t < 0.0f) return;
+
+            glm::vec3 hitPoint = rayOrigin + rayDir * t;
+            f32 distFromCenter = glm::length(hitPoint - gizmoPosition_);
+            f32 distFromCircle = std::abs(distFromCenter - radius);
+
+            if (distFromCircle < threshold && distFromCircle < minDist) {
+                minDist = distFromCircle;
+                closestAxis = axis;
+            }
+        };
+
+        checkCircle(glm::vec3(1, 0, 0), GizmoAxis::X);
+        checkCircle(glm::vec3(0, 1, 0), GizmoAxis::Y);
+        checkCircle(glm::vec3(0, 0, 1), GizmoAxis::Z);
+
+        return closestAxis;
     }
 
-    f32 distY = rayAxisDistance(rayOrigin, rayDir, gizmoPosition_, glm::vec3(0, 1, 0));
-    if (distY < HIT_THRESHOLD && distY < minDist) {
-        minDist = distY;
-        closestAxis = GizmoAxis::Y;
-    }
-
-    f32 distZ = rayAxisDistance(rayOrigin, rayDir, gizmoPosition_, glm::vec3(0, 0, 1));
-    if (distZ < HIT_THRESHOLD && distZ < minDist) {
-        minDist = distZ;
-        closestAxis = GizmoAxis::Z;
-    }
-
-    return closestAxis;
+    return GizmoAxis::None;
 }
 
 void TransformGizmo::startDrag(GizmoAxis axis, const glm::vec3& hitPoint) {
