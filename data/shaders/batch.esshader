@@ -1,32 +1,47 @@
 #pragma shader "Batch"
 
 #pragma vertex
-attribute vec2 a_position;
-attribute vec2 a_texCoord;
+attribute vec3 a_position;
 attribute vec4 a_color;
+attribute vec2 a_texCoord;
+attribute float a_texIndex;
 
 uniform mat4 u_projection;
 
-varying vec2 v_texCoord;
 varying vec4 v_color;
+varying vec2 v_texCoord;
+varying float v_texIndex;
 
 void main() {
-    gl_Position = u_projection * vec4(a_position, 0.0, 1.0);
-    v_texCoord = a_texCoord;
+    gl_Position = u_projection * vec4(a_position, 1.0);
     v_color = a_color;
+    v_texCoord = a_texCoord;
+    v_texIndex = a_texIndex;
 }
 #pragma end
 
 #pragma fragment
 precision mediump float;
 
-uniform sampler2D u_texture;
-
-varying vec2 v_texCoord;
 varying vec4 v_color;
+varying vec2 v_texCoord;
+varying float v_texIndex;
+
+uniform sampler2D u_textures[8];
 
 void main() {
-    vec4 texColor = texture2D(u_texture, v_texCoord);
+    int index = int(v_texIndex);
+    vec4 texColor = vec4(1.0);
+
+    if (index == 0) texColor = texture2D(u_textures[0], v_texCoord);
+    else if (index == 1) texColor = texture2D(u_textures[1], v_texCoord);
+    else if (index == 2) texColor = texture2D(u_textures[2], v_texCoord);
+    else if (index == 3) texColor = texture2D(u_textures[3], v_texCoord);
+    else if (index == 4) texColor = texture2D(u_textures[4], v_texCoord);
+    else if (index == 5) texColor = texture2D(u_textures[5], v_texCoord);
+    else if (index == 6) texColor = texture2D(u_textures[6], v_texCoord);
+    else if (index == 7) texColor = texture2D(u_textures[7], v_texCoord);
+
     gl_FragColor = texColor * v_color;
 }
 #pragma end

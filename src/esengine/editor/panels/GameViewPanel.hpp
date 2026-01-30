@@ -16,6 +16,7 @@
 
 #include "../../ui/docking/DockPanel.hpp"
 #include "../../renderer/Framebuffer.hpp"
+#include "../../renderer/RenderPipeline.hpp"
 #include "../../ecs/Registry.hpp"
 #include "../../resource/ResourceManager.hpp"
 
@@ -51,10 +52,11 @@ private:
     ecs::Registry& registry_;
     resource::ResourceManager& resourceManager_;
     Unique<Framebuffer> framebuffer_;
+    Unique<RenderPipeline> render_pipeline_;
 
-    u32 viewportWidth_ = 1280;
-    u32 viewportHeight_ = 720;
-    bool framebufferNeedsResize_ = false;
+    u32 viewport_width_ = 1280;
+    u32 viewport_height_ = 720;
+    bool framebuffer_needs_resize_ = false;
 };
 
 }  // namespace esengine::editor

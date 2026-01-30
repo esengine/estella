@@ -63,6 +63,13 @@ void SceneToolbar::setGizmoMode(GizmoMode mode) {
     }
 }
 
+void SceneToolbar::setStatsVisible(bool visible) {
+    if (stats_visible_ != visible) {
+        stats_visible_ = visible;
+        onStatsVisibilityChanged.publish(visible);
+    }
+}
+
 // =============================================================================
 // Rendering
 // =============================================================================
@@ -110,6 +117,8 @@ void SceneToolbar::render(ui::UIBatchRenderer& renderer) {
     drawButton(translateButtonBounds_, icons::Move, gizmoMode_ == GizmoMode::Translate, hoveredButton_ == 4);
     drawButton(rotateButtonBounds_, icons::Rotate3d, gizmoMode_ == GizmoMode::Rotate, hoveredButton_ == 5);
     drawButton(scaleButtonBounds_, icons::Scale3d, gizmoMode_ == GizmoMode::Scale, hoveredButton_ == 6);
+
+    drawButton(stats_button_bounds_, icons::Info, stats_visible_, hoveredButton_ == 7);
 #endif
 }
 
@@ -133,6 +142,7 @@ bool SceneToolbar::onMouseDown(const ui::MouseButtonEvent& event) {
         case 4: setGizmoMode(GizmoMode::Translate); return true;
         case 5: setGizmoMode(GizmoMode::Rotate); return true;
         case 6: setGizmoMode(GizmoMode::Scale); return true;
+        case 7: setStatsVisible(!stats_visible_); return true;
     }
 
     return false;
@@ -173,6 +183,8 @@ void SceneToolbar::updateButtonBounds() {
     rotateButtonBounds_ = {x, y, btnSize, btnSize};
     x += btnSize + 2.0f;
     scaleButtonBounds_ = {x, y, btnSize, btnSize};
+
+    stats_button_bounds_ = {bounds.x + bounds.width - btnSize - padding, y, btnSize, btnSize};
 }
 
 i32 SceneToolbar::getHoveredButton(f32 x, f32 y) const {
@@ -183,6 +195,7 @@ i32 SceneToolbar::getHoveredButton(f32 x, f32 y) const {
     if (translateButtonBounds_.contains(x, y)) return 4;
     if (rotateButtonBounds_.contains(x, y)) return 5;
     if (scaleButtonBounds_.contains(x, y)) return 6;
+    if (stats_button_bounds_.contains(x, y)) return 7;
     return -1;
 }
 

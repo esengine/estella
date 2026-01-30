@@ -104,11 +104,20 @@ public:
      * @brief Pipeline statistics
      */
     struct Stats {
-        u32 total_items = 0;    ///< Total items submitted
-        u32 culled_items = 0;   ///< Items culled by frustum
-        u32 visible_items = 0;  ///< Items actually rendered
-        u32 batch_count = 0;    ///< Number of batches
-        u32 draw_calls = 0;     ///< Number of draw calls
+        // Rendering
+        u32 draw_calls = 0;         ///< Number of draw calls
+        u32 batch_count = 0;        ///< Number of batches
+        u32 triangles = 0;          ///< Total triangles rendered
+        u32 vertices = 0;           ///< Total vertices rendered
+
+        // Objects
+        u32 total_items = 0;        ///< Total items submitted
+        u32 visible_items = 0;      ///< Items actually rendered
+        u32 culled_items = 0;       ///< Items culled by frustum
+
+        // Textures
+        u32 unique_textures = 0;    ///< Unique textures used
+        u32 texture_switches = 0;   ///< Texture bind changes
     };
 
     // =========================================================================

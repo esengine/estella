@@ -19,7 +19,13 @@
 #include "../../ecs/components/Canvas.hpp"
 #include "../../core/Log.hpp"
 #include "../command/TransformCommand.hpp"
+
+#if ES_FEATURE_SDF_FONT
+#include "../../ui/font/MSDFFont.hpp"
+#endif
+
 #include <glad/glad.h>
+#include <cstdio>
 #include <vector>
 #include <chrono>
 
@@ -71,6 +77,10 @@ SceneViewPanel::SceneViewPanel(ecs::Registry& registry, EntitySelection& selecti
         transformGizmo_->setMode(mode);
     }));
 
+    connections_.add(sink(toolbar_->onStatsVisibilityChanged).connect([this](bool visible) {
+        stats_visible_ = visible;
+    }));
+
     setMinSize(glm::vec2(200.0f, 200.0f));
 }
 
@@ -96,8 +106,9 @@ void SceneViewPanel::render(ui::UIBatchRenderer& renderer) {
     using Clock = std::chrono::steady_clock;
     static auto startTime = Clock::now();
     f64 currentTime = std::chrono::duration<f64>(Clock::now() - startTime).count();
-    f32 deltaTime = static_cast<f32>(currentTime - lastFrameTime_);
-    lastFrameTime_ = currentTime;
+    f32 deltaTime = static_cast<f32>(currentTime - last_frame_time_);
+    prev_frame_time_ = last_frame_time_;
+    last_frame_time_ = currentTime;
 
     if (deltaTime > 0.0f && deltaTime < 1.0f) {
         camera_.update(deltaTime);
@@ -142,6 +153,10 @@ void SceneViewPanel::render(ui::UIBatchRenderer& renderer) {
             } else {
                 renderAxisGizmo2D();
             }
+        }
+
+        if (stats_visible_) {
+            renderStats(renderer);
         }
     }
 
@@ -992,6 +1007,86 @@ void SceneViewPanel::renderCanvasGizmo(const glm::mat4& viewProj) {
 
     canvasGizmoVAO_->bind();
     glDrawArrays(GL_LINES, 0, 8);
+}
+
+void SceneViewPanel::renderStats(ui::UIBatchRenderer& renderer) {
+    ui::UIContext* ctx = getContext();
+    if (!ctx) return;
+
+#if ES_FEATURE_SDF_FONT
+    ui::MSDFFont* font = ctx->getDefaultMSDFFont();
+    if (!font) return;
+
+    RenderPipeline::Stats stats{};
+    if (renderPipeline_) {
+        stats = renderPipeline_->getStats();
+    }
+
+    f64 frameDelta = last_frame_time_ - prev_frame_time_;
+    f32 fps = (frameDelta > 0.001) ? 1.0f / static_cast<f32>(frameDelta) : 0.0f;
+    f32 frameMs = static_cast<f32>(frameDelta * 1000.0);
+
+    constexpr f32 padding = 10.0f;
+    constexpr f32 lineHeight = 16.0f;
+    constexpr f32 fontSize = 11.0f;
+    constexpr f32 panelWidth = 160.0f;
+    constexpr f32 panelHeight = 180.0f;
+    constexpr f32 sectionGap = 6.0f;
+
+    ui::Rect panelBounds = {
+        viewportBounds_.x + padding,
+        viewportBounds_.y + viewportBounds_.height - panelHeight - padding,
+        panelWidth,
+        panelHeight
+    };
+
+    constexpr glm::vec4 bgColor{0.08f, 0.08f, 0.10f, 0.92f};
+    constexpr glm::vec4 headerColor{0.4f, 0.7f, 1.0f, 1.0f};
+    constexpr glm::vec4 valueColor{0.9f, 0.9f, 0.9f, 1.0f};
+    constexpr glm::vec4 labelColor{0.6f, 0.6f, 0.6f, 1.0f};
+
+    renderer.drawRoundedRect(panelBounds, bgColor, ui::CornerRadii::all(6.0f));
+
+    f32 y = panelBounds.y + padding;
+    f32 x = panelBounds.x + padding;
+    char buffer[64];
+
+    renderer.drawText("Rendering", glm::vec2(x, y), *font, fontSize, headerColor);
+    y += lineHeight;
+
+    snprintf(buffer, sizeof(buffer), "FPS: %.1f (%.2fms)", fps, frameMs);
+    renderer.drawText(buffer, glm::vec2(x, y), *font, fontSize, valueColor);
+    y += lineHeight;
+
+    snprintf(buffer, sizeof(buffer), "Draw Calls: %u", stats.draw_calls);
+    renderer.drawText(buffer, glm::vec2(x, y), *font, fontSize, valueColor);
+    y += lineHeight;
+
+    snprintf(buffer, sizeof(buffer), "Tris: %u  Verts: %u", stats.triangles, stats.vertices);
+    renderer.drawText(buffer, glm::vec2(x, y), *font, fontSize, valueColor);
+    y += lineHeight + sectionGap;
+
+    renderer.drawText("Batching", glm::vec2(x, y), *font, fontSize, headerColor);
+    y += lineHeight;
+
+    snprintf(buffer, sizeof(buffer), "Batches: %u", stats.batch_count);
+    renderer.drawText(buffer, glm::vec2(x, y), *font, fontSize, valueColor);
+    y += lineHeight;
+
+    snprintf(buffer, sizeof(buffer), "Tex Switches: %u", stats.texture_switches);
+    renderer.drawText(buffer, glm::vec2(x, y), *font, fontSize, labelColor);
+    y += lineHeight + sectionGap;
+
+    renderer.drawText("Scene", glm::vec2(x, y), *font, fontSize, headerColor);
+    y += lineHeight;
+
+    snprintf(buffer, sizeof(buffer), "Sprites: %u", stats.total_items);
+    renderer.drawText(buffer, glm::vec2(x, y), *font, fontSize, valueColor);
+    y += lineHeight;
+
+    snprintf(buffer, sizeof(buffer), "Visible: %u  Culled: %u", stats.visible_items, stats.culled_items);
+    renderer.drawText(buffer, glm::vec2(x, y), *font, fontSize, labelColor);
+#endif
 }
 
 // =============================================================================

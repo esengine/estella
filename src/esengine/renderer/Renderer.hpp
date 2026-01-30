@@ -245,10 +245,11 @@ private:
 class BatchRenderer2D {
 public:
     /**
-     * @brief Constructs a batch renderer with the given context
-     * @param context Reference to the rendering context
+     * @brief Constructs a batch renderer
+     * @param context Render context for shared resources
+     * @param resource_manager Resource manager for shader loading
      */
-    explicit BatchRenderer2D(RenderContext& context);
+    BatchRenderer2D(RenderContext& context, resource::ResourceManager& resource_manager);
 
     ~BatchRenderer2D();
 
@@ -366,6 +367,7 @@ private:
     struct BatchData;
     Unique<BatchData> data_;
     RenderContext& context_;
+    resource::ResourceManager& resource_manager_;
 };
 
 }  // namespace esengine

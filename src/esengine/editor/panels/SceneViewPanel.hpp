@@ -117,6 +117,7 @@ private:
     void renderSprites(const glm::mat4& viewProj);
     void renderCanvasGizmo(const glm::mat4& viewProj);
     void renderSelectionBox(const glm::mat4& viewProj);
+    void renderStats(ui::UIBatchRenderer& renderer);
     void initGrid2DData();
     void initCanvasGizmoData();
     void renderAxisGizmo();
@@ -161,7 +162,8 @@ private:
     u32 viewportHeight_ = 720;
     bool framebufferNeedsResize_ = false;
 
-    f64 lastFrameTime_ = 0.0;
+    f64 last_frame_time_ = 0.0;
+    f64 prev_frame_time_ = 0.0;
 
     ViewMode viewMode_ = ViewMode::Mode3D;
     Unique<VertexArray> axis2DVAO_;
@@ -176,6 +178,7 @@ private:
     Unique<RenderPipeline> renderPipeline_;
     bool gridVisible_ = true;
     bool gizmosVisible_ = true;
+    bool stats_visible_ = false;
     ui::Rect viewportBounds_;
 
     CommandHistory* commandHistory_ = nullptr;

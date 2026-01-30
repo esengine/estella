@@ -24,6 +24,7 @@
 #endif
 
 #include <algorithm>
+#include <unordered_set>
 
 namespace esengine {
 
@@ -60,7 +61,7 @@ RenderPipeline::RenderPipeline(RenderContext& context,
     , resource_manager_(resource_manager)
     , view_bounds_(0.0f) {
 
-    batcher_ = makeUnique<BatchRenderer2D>(context_);
+    batcher_ = makeUnique<BatchRenderer2D>(context_, resource_manager_);
     batcher_->init();
 
     items_.reserve(1024);
@@ -110,15 +111,11 @@ void RenderPipeline::end() {
     sortItems();
     buildBatches();
 
-#ifdef ES_PLATFORM_WEB
     if (batching_enabled_) {
         executeBatches();
     } else {
         executeNonBatched();
     }
-#else
-    executeNonBatched();
-#endif
 }
 
 // =============================================================================
@@ -201,14 +198,20 @@ void RenderPipeline::buildBatches() {
         return;
     }
 
+    std::unordered_set<u32> uniqueTextures;
+    u32 textureSwitch = 0;
+
     u32 currentTexture = items_[0].texture_id;
     u32 batchStart = 0;
+    uniqueTextures.insert(currentTexture);
 
     for (u32 i = 1; i < items_.size(); ++i) {
+        uniqueTextures.insert(items_[i].texture_id);
         if (items_[i].texture_id != currentTexture) {
             batches_.push_back({currentTexture, batchStart, i - batchStart});
             currentTexture = items_[i].texture_id;
             batchStart = i;
+            textureSwitch++;
         }
     }
 
@@ -216,10 +219,14 @@ void RenderPipeline::buildBatches() {
                         static_cast<u32>(items_.size()) - batchStart});
 
     stats_.batch_count = static_cast<u32>(batches_.size());
+    stats_.unique_textures = static_cast<u32>(uniqueTextures.size());
+    stats_.texture_switches = textureSwitch;
+
+    stats_.triangles = stats_.visible_items * 2;
+    stats_.vertices = stats_.visible_items * 4;
 }
 
 void RenderPipeline::executeBatches() {
-#ifdef ES_PLATFORM_WEB
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
@@ -255,7 +262,6 @@ void RenderPipeline::executeBatches() {
 
     batcher_->endBatch();
     stats_.draw_calls = batcher_->getDrawCallCount();
-#endif
 }
 
 void RenderPipeline::executeNonBatched() {

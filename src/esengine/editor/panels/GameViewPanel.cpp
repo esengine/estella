@@ -38,8 +38,8 @@ GameViewPanel::GameViewPanel(ecs::Registry& registry, resource::ResourceManager&
       resourceManager_(resourceManager) {
 
     FramebufferSpec spec;
-    spec.width = viewportWidth_;
-    spec.height = viewportHeight_;
+    spec.width = viewport_width_;
+    spec.height = viewport_height_;
     spec.depthStencil = true;
     framebuffer_ = Framebuffer::create(spec);
 
@@ -51,13 +51,13 @@ GameViewPanel::GameViewPanel(ecs::Registry& registry, resource::ResourceManager&
 // =============================================================================
 
 void GameViewPanel::setViewportSize(u32 width, u32 height) {
-    if (width == viewportWidth_ && height == viewportHeight_) {
+    if (width == viewport_width_ && height == viewport_height_) {
         return;
     }
 
-    viewportWidth_ = width;
-    viewportHeight_ = height;
-    framebufferNeedsResize_ = true;
+    viewport_width_ = width;
+    viewport_height_ = height;
+    framebuffer_needs_resize_ = true;
 }
 
 // =============================================================================
@@ -70,11 +70,11 @@ void GameViewPanel::render(ui::UIBatchRenderer& renderer) {
     u32 newWidth = static_cast<u32>(bounds.width);
     u32 newHeight = static_cast<u32>(bounds.height);
 
-    if (newWidth != viewportWidth_ || newHeight != viewportHeight_) {
+    if (newWidth != viewport_width_ || newHeight != viewport_height_) {
         setViewportSize(newWidth, newHeight);
     }
 
-    if (framebufferNeedsResize_) {
+    if (framebuffer_needs_resize_) {
         updateFramebufferSize();
     }
 
@@ -101,7 +101,7 @@ void GameViewPanel::renderGameToTexture() {
 
     framebuffer_->bind();
 
-    RenderCommand::setViewport(0, 0, viewportWidth_, viewportHeight_);
+    RenderCommand::setViewport(0, 0, viewport_width_, viewport_height_);
 
     Entity canvasEntity = findCanvas();
     ecs::Canvas* canvas = canvasEntity != INVALID_ENTITY
@@ -123,7 +123,7 @@ void GameViewPanel::renderGameToTexture() {
                 glm::mat4_cast(transform->rotation)
             );
 
-            f32 viewportAspect = static_cast<f32>(viewportWidth_) / static_cast<f32>(viewportHeight_);
+            f32 viewportAspect = static_cast<f32>(viewport_width_) / static_cast<f32>(viewport_height_);
 
             glm::mat4 proj;
             if (camera->projectionType == ecs::ProjectionType::Perspective) {
@@ -197,53 +197,24 @@ void GameViewPanel::renderSceneContent(const glm::mat4& viewProj) {
     if (!ctx) return;
 
     RenderContext& renderCtx = ctx->getRenderContext();
-    Shader* shader = renderCtx.getTextureShader();
-    VertexArray* quadVAO = renderCtx.getQuadVAO();
 
-    if (!shader || !quadVAO) return;
-
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-    auto spriteView = registry_.view<ecs::LocalTransform, ecs::Sprite>();
-
-    for (auto entity : spriteView) {
-        const auto& transform = spriteView.get<ecs::LocalTransform>(entity);
-        const auto& sprite = spriteView.get<ecs::Sprite>(entity);
-
-        glm::mat4 model = glm::mat4(1.0f);
-        model = glm::translate(model, transform.position);
-        model *= glm::mat4_cast(transform.rotation);
-        model = glm::scale(model, glm::vec3(sprite.size * transform.scale.x, 1.0f));
-
-        shader->bind();
-        shader->setUniform("u_projection", viewProj);
-        shader->setUniform("u_model", model);
-        shader->setUniform("u_color", sprite.color);
-
-        glActiveTexture(GL_TEXTURE0);
-        u32 textureId = renderCtx.getWhiteTextureId();
-        if (sprite.texture.isValid()) {
-            Texture* tex = resourceManager_.getTexture(sprite.texture);
-            if (tex) {
-                textureId = tex->getId();
-            }
-        }
-        glBindTexture(GL_TEXTURE_2D, textureId);
-        shader->setUniform("u_texture", 0);
-
-        RenderCommand::drawIndexed(*quadVAO);
+    if (!render_pipeline_) {
+        render_pipeline_ = makeUnique<RenderPipeline>(renderCtx, resourceManager_);
     }
+
+    render_pipeline_->begin(viewProj);
+    render_pipeline_->submit(registry_);
+    render_pipeline_->end();
 }
 
 void GameViewPanel::updateFramebufferSize() {
-    if (viewportWidth_ == 0 || viewportHeight_ == 0) {
+    if (viewport_width_ == 0 || viewport_height_ == 0) {
         return;
     }
 
     if (framebuffer_) {
-        framebuffer_->resize(viewportWidth_, viewportHeight_);
-        framebufferNeedsResize_ = false;
+        framebuffer_->resize(viewport_width_, viewport_height_);
+        framebuffer_needs_resize_ = false;
     }
 }
 

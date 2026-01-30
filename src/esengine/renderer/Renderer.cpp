@@ -265,77 +265,31 @@ constexpr glm::vec2 QUAD_TEX_COORDS[4] = {
     { 0.0f, 1.0f }
 };
 
-// Batch shader sources
-const char* BATCH_VERTEX_SHADER = R"(
-    attribute vec3 a_position;
-    attribute vec4 a_color;
-    attribute vec2 a_texCoord;
-    attribute float a_texIndex;
-
-    uniform mat4 u_projection;
-
-    varying vec4 v_color;
-    varying vec2 v_texCoord;
-    varying float v_texIndex;
-
-    void main() {
-        gl_Position = u_projection * vec4(a_position, 1.0);
-        v_color = a_color;
-        v_texCoord = a_texCoord;
-        v_texIndex = a_texIndex;
-    }
-)";
-
-const char* BATCH_FRAGMENT_SHADER = R"(
-    precision mediump float;
-
-    varying vec4 v_color;
-    varying vec2 v_texCoord;
-    varying float v_texIndex;
-
-    uniform sampler2D u_textures[8];
-
-    void main() {
-        int index = int(v_texIndex);
-        vec4 texColor = vec4(1.0);
-
-        // WebGL 1.0 doesn't support dynamic array indexing
-        if (index == 0) texColor = texture2D(u_textures[0], v_texCoord);
-        else if (index == 1) texColor = texture2D(u_textures[1], v_texCoord);
-        else if (index == 2) texColor = texture2D(u_textures[2], v_texCoord);
-        else if (index == 3) texColor = texture2D(u_textures[3], v_texCoord);
-        else if (index == 4) texColor = texture2D(u_textures[4], v_texCoord);
-        else if (index == 5) texColor = texture2D(u_textures[5], v_texCoord);
-        else if (index == 6) texColor = texture2D(u_textures[6], v_texCoord);
-        else if (index == 7) texColor = texture2D(u_textures[7], v_texCoord);
-
-        gl_FragColor = texColor * v_color;
-    }
-)";
-
 // BatchRenderer2D internal data
 struct BatchRenderer2D::BatchData {
     Unique<VertexArray> vao;
     Shared<VertexBuffer> vbo;
-    Unique<Shader> shader;
+    resource::ShaderHandle shader_handle;
 
     std::vector<BatchVertex> vertices;
     u32 indexCount = 0;
 
     std::array<u32, MAX_TEXTURE_SLOTS> textureSlots;
-    u32 textureSlotIndex = 1;  // 0 = white texture
+    u32 textureSlotIndex = 1;
 
     glm::mat4 projection{1.0f};
 
-    // Statistics
     u32 drawCallCount = 0;
     u32 quadCount = 0;
 
     bool initialized = false;
 };
 
-BatchRenderer2D::BatchRenderer2D(RenderContext& context)
-    : data_(makeUnique<BatchData>()), context_(context) {
+BatchRenderer2D::BatchRenderer2D(RenderContext& context,
+                                 resource::ResourceManager& resource_manager)
+    : data_(makeUnique<BatchData>())
+    , context_(context)
+    , resource_manager_(resource_manager) {
 }
 
 BatchRenderer2D::~BatchRenderer2D() {
@@ -347,11 +301,8 @@ BatchRenderer2D::~BatchRenderer2D() {
 void BatchRenderer2D::init() {
     data_->vertices.reserve(MAX_VERTICES);
 
-#ifdef ES_PLATFORM_WEB
-    // Create VAO
     data_->vao = VertexArray::create();
 
-    // Create dynamic vertex buffer
     data_->vbo = makeShared<VertexBuffer>();
     *data_->vbo = std::move(*VertexBuffer::create(MAX_VERTICES * sizeof(BatchVertex)));
     data_->vbo->setLayout({
@@ -363,7 +314,6 @@ void BatchRenderer2D::init() {
 
     data_->vao->addVertexBuffer(data_->vbo);
 
-    // Create index buffer (pre-computed pattern for quads)
     std::vector<u32> indices(MAX_INDICES);
     u32 offset = 0;
     for (u32 i = 0; i < MAX_INDICES; i += 6) {
@@ -378,15 +328,12 @@ void BatchRenderer2D::init() {
     auto ibo = IndexBuffer::create(indices.data(), MAX_INDICES);
     data_->vao->setIndexBuffer(Shared<IndexBuffer>(std::move(ibo)));
 
-    // Create batch shader
-    data_->shader = Shader::create(BATCH_VERTEX_SHADER, BATCH_FRAGMENT_SHADER);
+    data_->shader_handle = resource_manager_.loadEngineShader("batch");
 
-    // Initialize texture slots (slot 0 = white texture from context)
     data_->textureSlots[0] = context_.getWhiteTextureId();
     for (u32 i = 1; i < MAX_TEXTURE_SLOTS; ++i) {
         data_->textureSlots[i] = 0;
     }
-#endif
 
     data_->initialized = true;
     ES_LOG_INFO("BatchRenderer2D initialized (max {} quads per batch)", MAX_QUADS);
@@ -397,7 +344,6 @@ void BatchRenderer2D::shutdown() {
 
     data_->vao.reset();
     data_->vbo.reset();
-    data_->shader.reset();
     data_->initialized = false;
 
     ES_LOG_INFO("BatchRenderer2D shutdown");
@@ -407,6 +353,8 @@ void BatchRenderer2D::beginBatch() {
     data_->vertices.clear();
     data_->indexCount = 0;
     data_->textureSlotIndex = 1;
+    data_->drawCallCount = 0;
+    data_->quadCount = 0;
 }
 
 void BatchRenderer2D::endBatch() {
@@ -416,34 +364,30 @@ void BatchRenderer2D::endBatch() {
 void BatchRenderer2D::flush() {
     if (data_->vertices.empty()) return;
 
-#ifdef ES_PLATFORM_WEB
-    // Upload vertex data
+    Shader* shader = resource_manager_.getShader(data_->shader_handle);
+    if (!shader) return;
+
     data_->vbo->setDataRaw(
         data_->vertices.data(),
         static_cast<u32>(data_->vertices.size() * sizeof(BatchVertex))
     );
 
-    // Bind textures
     for (u32 i = 0; i < data_->textureSlotIndex; ++i) {
         glActiveTexture(GL_TEXTURE0 + i);
         glBindTexture(GL_TEXTURE_2D, data_->textureSlots[i]);
     }
 
-    // Set uniforms and draw
-    data_->shader->bind();
-    data_->shader->setUniform("u_projection", data_->projection);
+    shader->bind();
+    shader->setUniform("u_projection", data_->projection);
 
-    // Set texture uniform array
     i32 samplers[MAX_TEXTURE_SLOTS] = { 0, 1, 2, 3, 4, 5, 6, 7 };
-    glUniform1iv(glGetUniformLocation(data_->shader->getProgramId(), "u_textures"),
+    glUniform1iv(glGetUniformLocation(shader->getProgramId(), "u_textures"),
                  MAX_TEXTURE_SLOTS, samplers);
 
     RenderCommand::drawIndexed(*data_->vao, data_->indexCount);
 
     data_->drawCallCount++;
-#endif
 
-    // Reset batch
     data_->vertices.clear();
     data_->indexCount = 0;
     data_->textureSlotIndex = 1;

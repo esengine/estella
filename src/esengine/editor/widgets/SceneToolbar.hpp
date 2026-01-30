@@ -51,6 +51,9 @@ public:
     GizmoMode getGizmoMode() const { return gizmoMode_; }
     void setGizmoMode(GizmoMode mode);
 
+    bool isStatsVisible() const { return stats_visible_; }
+    void setStatsVisible(bool visible);
+
     // =========================================================================
     // Signals
     // =========================================================================
@@ -59,6 +62,7 @@ public:
     Signal<void(bool)> onGridVisibilityChanged;
     Signal<void(bool)> onGizmosVisibilityChanged;
     Signal<void(GizmoMode)> onGizmoModeChanged;
+    Signal<void(bool)> onStatsVisibilityChanged;
 
     // =========================================================================
     // Widget Interface
@@ -75,6 +79,7 @@ private:
     ViewMode viewMode_ = ViewMode::Mode3D;
     bool gridVisible_ = true;
     bool gizmosVisible_ = true;
+    bool stats_visible_ = false;
     GizmoMode gizmoMode_ = GizmoMode::Translate;
 
     ui::Rect viewMode2DButtonBounds_;
@@ -84,6 +89,7 @@ private:
     ui::Rect translateButtonBounds_;
     ui::Rect rotateButtonBounds_;
     ui::Rect scaleButtonBounds_;
+    ui::Rect stats_button_bounds_;
 
     i32 hoveredButton_ = -1;
 };
