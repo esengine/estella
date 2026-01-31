@@ -17,6 +17,19 @@ option(ES_BUILD_MODULAR "Build modular WASM (Web only, dynamic linking)" OFF)
 option(ES_FEATURE_SDF_FONT "Enable SDF font rendering (requires FreeType)" OFF)
 option(ES_FEATURE_BITMAP_FONT "Enable bitmap font rendering (lightweight)" OFF)
 
+# Auto-configure font features based on build target
+if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
+    # Web/Mini-game: Force disable SDF font to reduce package size
+    set(ES_FEATURE_SDF_FONT OFF CACHE BOOL "" FORCE)
+    message(STATUS "Web build: SDF font disabled, using SystemFont")
+elseif(ES_BUILD_EDITOR)
+    # Editor: Enable SDF font by default for better quality
+    if(NOT DEFINED CACHE{ES_FEATURE_SDF_FONT} OR NOT ES_FEATURE_SDF_FONT)
+        set(ES_FEATURE_SDF_FONT ON CACHE BOOL "" FORCE)
+        message(STATUS "Editor build: SDF font enabled")
+    endif()
+endif()
+
 # Include custom CMake modules
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(ESEngineConfig)

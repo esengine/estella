@@ -16,6 +16,7 @@
 #ifdef ES_PLATFORM_WEB
 #include <emscripten.h>
 #include <emscripten/html5.h>
+#include <emscripten/val.h>
 #endif
 
 namespace esengine {
@@ -183,14 +184,17 @@ void App::runSystems(Schedule schedule) {
 }
 
 #ifdef ES_PLATFORM_WEB
-EM_JS(void, es_call_js_systems, (int schedule, float dt), {
-    if (Module._esRunJSSystems) {
-        Module._esRunJSSystems(schedule, dt);
-    }
-});
+void* App::jsSystemsCallback_ = nullptr;
+
+void App::setJSSystemsCallback(void* callback) {
+    jsSystemsCallback_ = callback;
+}
 
 void App::runJSSystems(Schedule schedule, f32 dt) {
-    es_call_js_systems(static_cast<int>(schedule), dt);
+    if (jsSystemsCallback_) {
+        auto& callback = *static_cast<emscripten::val*>(jsSystemsCallback_);
+        callback(static_cast<int>(schedule), dt);
+    }
 }
 #endif
 

@@ -23,6 +23,8 @@
 #include "../font/BitmapFont.hpp"
 #endif
 
+#include "../font/SystemFont.hpp"
+
 #include <algorithm>
 
 namespace esengine::ui {
@@ -153,6 +155,12 @@ void TextField::render(UIBatchRenderer& renderer) {
         f32 scale = fontSize / font->getFontSize();
         lineHeight = font->getLineHeight() * scale;
     }
+#elif !ES_FEATURE_BITMAP_FONT
+    if (getContext() && getContext()->getDefaultSystemFont()) {
+        SystemFont* font = getContext()->getDefaultSystemFont();
+        f32 scale = fontSize / font->getFontSize();
+        lineHeight = font->getLineHeight() * scale;
+    }
 #endif
     f32 textY = bounds.y + (bounds.height - lineHeight) * 0.5f;
 
@@ -177,6 +185,11 @@ void TextField::render(UIBatchRenderer& renderer) {
         if (getContext() && getContext()->getDefaultBitmapFont()) {
             renderer.drawText(placeholder_, glm::vec2(textX, textY),
                             *getContext()->getDefaultBitmapFont(), fontSize, placeholderColor);
+        }
+#else
+        if (getContext() && getContext()->getDefaultSystemFont()) {
+            renderer.drawText(placeholder_, glm::vec2(textX, textY),
+                            *getContext()->getDefaultSystemFont(), fontSize, placeholderColor);
         }
 #endif
     } else if (!text_.empty()) {
@@ -210,6 +223,11 @@ void TextField::render(UIBatchRenderer& renderer) {
         if (getContext() && getContext()->getDefaultBitmapFont()) {
             renderer.drawText(text_, glm::vec2(textX, textY),
                             *getContext()->getDefaultBitmapFont(), fontSize, textColor);
+        }
+#else
+        if (getContext() && getContext()->getDefaultSystemFont()) {
+            renderer.drawText(text_, glm::vec2(textX, textY),
+                            *getContext()->getDefaultSystemFont(), fontSize, textColor);
         }
 #endif
     }
@@ -569,6 +587,11 @@ usize TextField::getCharIndexAtX(f32 x) const {
         if (font) {
             charWidth = font->getCharWidth(static_cast<u32>(text_[i]), fontSize);
         }
+#else
+        SystemFont* font = getContext()->getDefaultSystemFont();
+        if (font) {
+            charWidth = font->getCharWidth(static_cast<u32>(text_[i]), fontSize);
+        }
 #endif
 
         if (relativeX < currentX + charWidth * 0.5f) {
@@ -599,6 +622,15 @@ f32 TextField::getXForCharIndex(usize index) const {
     }
 #elif ES_FEATURE_BITMAP_FONT
     BitmapFont* font = getContext()->getDefaultBitmapFont();
+    if (font) {
+        f32 currentX = 0.0f;
+        for (usize i = 0; i < index && i < text_.size(); ++i) {
+            currentX += font->getCharWidth(static_cast<u32>(text_[i]), fontSize);
+        }
+        return currentX;
+    }
+#else
+    SystemFont* font = getContext()->getDefaultSystemFont();
     if (font) {
         f32 currentX = 0.0f;
         for (usize i = 0; i < index && i < text_.size(); ++i) {

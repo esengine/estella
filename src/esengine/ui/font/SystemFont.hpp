@@ -40,6 +40,14 @@ public:
      */
     static Unique<SystemFont> create(const std::string& fontFamily, f32 fontSize = 32.0f);
 
+    /**
+     * @brief Create a font from TTF file
+     * @param filePath Path to TTF font file
+     * @param fontSize Base font size in pixels
+     * @return Font instance or nullptr on failure
+     */
+    static Unique<SystemFont> createFromFile(const std::string& filePath, f32 fontSize = 32.0f);
+
     // =========================================================================
     // IFont Interface
     // =========================================================================

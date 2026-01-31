@@ -61,7 +61,6 @@ void EditorToolbar::startWebPreview(const std::string& directory) {
     }
     if (previewServer_.start(directory)) {
         WebPreviewServer::openInBrowser(previewServer_.getUrl());
-        onWebPreview.publish();
     }
 }
 

@@ -12,6 +12,8 @@
 #include "SystemFont.hpp"
 #include "../../core/Log.hpp"
 
+#include <algorithm>
+
 #ifdef ES_PLATFORM_WINDOWS
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
@@ -21,6 +23,29 @@
 #ifdef ES_PLATFORM_WEB
 #include <emscripten.h>
 #include <emscripten/html5.h>
+
+EM_JS(void, es_systemfont_init, (const char* fontFamily, int fontSize), {
+    if (!Module._systemFontCanvases) Module._systemFontCanvases = {};
+    var id = Object.keys(Module._systemFontCanvases).length;
+    var canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 256;
+    var ctx = canvas.getContext('2d');
+    ctx.font = fontSize + 'px ' + UTF8ToString(fontFamily);
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = 'white';
+    Module._systemFontCanvases[id] = { canvas: canvas, ctx: ctx };
+});
+
+EM_JS(double, es_systemfont_measure_char, (int codepoint), {
+    var canvasData = Module._systemFontCanvases[0];
+    if (!canvasData) return 0;
+    var ctx = canvasData.ctx;
+    var char = String.fromCodePoint(codepoint);
+    var metrics = ctx.measureText(char);
+    return metrics.width;
+});
+
 #endif
 
 #ifndef ES_PLATFORM_WEB
@@ -41,6 +66,7 @@ struct SystemFont::PlatformData {
     void* bitmapBits = nullptr;
     i32 bitmapWidth = 256;
     i32 bitmapHeight = 256;
+    std::string fontFilePath;
 };
 #elif defined(ES_PLATFORM_WEB)
 struct SystemFont::PlatformData {
@@ -60,6 +86,9 @@ SystemFont::~SystemFont() {
         if (platformData_->hFont) DeleteObject(platformData_->hFont);
         if (platformData_->hBitmap) DeleteObject(platformData_->hBitmap);
         if (platformData_->hdc) DeleteDC(platformData_->hdc);
+        if (!platformData_->fontFilePath.empty()) {
+            RemoveFontResourceExA(platformData_->fontFilePath.c_str(), FR_PRIVATE, nullptr);
+        }
     }
 #endif
 
@@ -127,6 +156,38 @@ Unique<SystemFont> SystemFont::create(const std::string& fontFamily, f32 fontSiz
     return font;
 }
 
+Unique<SystemFont> SystemFont::createFromFile(const std::string& filePath, f32 fontSize) {
+#ifdef ES_PLATFORM_WINDOWS
+    int result = AddFontResourceExA(filePath.c_str(), FR_PRIVATE, nullptr);
+    if (result == 0) {
+        ES_LOG_ERROR("SystemFont: Failed to load font file '{}'", filePath);
+        return nullptr;
+    }
+
+    std::string fontName;
+    size_t lastSlash = filePath.find_last_of("/\\");
+    size_t lastDot = filePath.find_last_of('.');
+    if (lastSlash != std::string::npos) {
+        fontName = filePath.substr(lastSlash + 1, lastDot - lastSlash - 1);
+    } else {
+        fontName = filePath.substr(0, lastDot);
+    }
+
+    auto font = Unique<SystemFont>(new SystemFont());
+    if (!font->init(fontName, fontSize)) {
+        RemoveFontResourceExA(filePath.c_str(), FR_PRIVATE, nullptr);
+        return nullptr;
+    }
+
+    font->platformData_->fontFilePath = filePath;
+    ES_LOG_INFO("SystemFont: Loaded font from file '{}' as '{}'", filePath, fontName);
+    return font;
+#else
+    ES_LOG_WARN("SystemFont::createFromFile not supported on this platform");
+    return nullptr;
+#endif
+}
+
 bool SystemFont::init(const std::string& fontFamily, f32 fontSize) {
     fontFamily_ = fontFamily;
     fontSize_ = fontSize;
@@ -188,37 +249,19 @@ bool SystemFont::init(const std::string& fontFamily, f32 fontSize) {
     SetTextColor(platformData_->hdc, RGB(255, 255, 255));
 
 #elif defined(ES_PLATFORM_WEB)
-    EM_ASM({
-        if (!Module._systemFontCanvases) Module._systemFontCanvases = {};
-        var id = Object.keys(Module._systemFontCanvases).length;
-        var canvas = document.createElement('canvas');
-        canvas.width = 256;
-        canvas.height = 256;
-        var ctx = canvas.getContext('2d');
-        ctx.font = $1 + 'px ' + UTF8ToString($0);
-        ctx.textBaseline = 'top';
-        ctx.fillStyle = 'white';
-        Module._systemFontCanvases[id] = { canvas: canvas, ctx: ctx };
-
-        var metrics = ctx.measureText('M');
-        Module._systemFontMetrics = {
-            ascent: metrics.actualBoundingBoxAscent || $1 * 0.8,
-            descent: metrics.actualBoundingBoxDescent || $1 * 0.2
-        };
-    }, fontFamily.c_str(), static_cast<int>(fontSize));
-
+    es_systemfont_init(fontFamily.c_str(), static_cast<int>(fontSize));
     ascent_ = fontSize * 0.8f;
     descent_ = fontSize * 0.2f;
     lineHeight_ = fontSize * 1.2f;
 #endif
 
-    atlasData_.resize(static_cast<size_t>(atlasWidth_) * atlasHeight_, 0);
+    atlasData_.resize(static_cast<size_t>(atlasWidth_) * atlasHeight_ * 4, 0);
 
 #ifndef ES_PLATFORM_WEB
     glGenTextures(1, &atlasTextureId_);
     glBindTexture(GL_TEXTURE_2D, atlasTextureId_);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, atlasWidth_, atlasHeight_, 0,
-                 GL_RED, GL_UNSIGNED_BYTE, atlasData_.data());
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, atlasWidth_, atlasHeight_, 0,
+                 GL_RGBA, GL_UNSIGNED_BYTE, atlasData_.data());
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -285,8 +328,15 @@ GlyphInfo* SystemFont::renderGlyph(u32 codepoint) {
     for (i32 y = 0; y < glyphHeight; ++y) {
         for (i32 x = 0; x < glyphWidth; ++x) {
             i32 srcIdx = (y * platformData_->bitmapWidth + x) * 4;
-            i32 dstIdx = (atlasY + y) * atlasWidth_ + (atlasX + x);
-            atlasData_[dstIdx] = src[srcIdx];
+            i32 dstIdx = ((atlasY + y) * atlasWidth_ + (atlasX + x)) * 4;
+            u8 r = src[srcIdx + 2];
+            u8 g = src[srcIdx + 1];
+            u8 b = src[srcIdx + 0];
+            u8 a = std::max({r, g, b});
+            atlasData_[dstIdx + 0] = 255;
+            atlasData_[dstIdx + 1] = 255;
+            atlasData_[dstIdx + 2] = 255;
+            atlasData_[dstIdx + 3] = a;
         }
     }
 
@@ -319,26 +369,13 @@ GlyphInfo* SystemFont::renderGlyph(u32 codepoint) {
         }
     }
 
-    f32 advance = EM_ASM_DOUBLE({
-        var canvasData = Module._systemFontCanvases[0];
-        if (!canvasData) return $4;
-
-        var ctx = canvasData.ctx;
-        var canvas = canvasData.canvas;
-
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        var char = String.fromCodePoint($0);
-        ctx.fillText(char, 1, 1);
-
-        var metrics = ctx.measureText(char);
-        return metrics.width;
-    }, codepoint, atlasX, atlasY, glyphWidth, fontSize_);
+    f32 advance = static_cast<f32>(es_systemfont_measure_char(static_cast<int>(codepoint)));
 
     glyph.width = static_cast<f32>(glyphWidth);
     glyph.height = static_cast<f32>(glyphHeight);
     glyph.bearingX = 0;
     glyph.bearingY = ascent_;
-    glyph.advance = static_cast<f32>(advance);
+    glyph.advance = advance;
     glyph.u0 = static_cast<f32>(atlasX) / atlasWidth_;
     glyph.v0 = static_cast<f32>(atlasY) / atlasHeight_;
     glyph.u1 = static_cast<f32>(atlasX + glyphWidth) / atlasWidth_;
@@ -352,7 +389,7 @@ GlyphInfo* SystemFont::renderGlyph(u32 codepoint) {
 #ifndef ES_PLATFORM_WEB
     glBindTexture(GL_TEXTURE_2D, atlasTextureId_);
     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, atlasWidth_, atlasHeight_,
-                    GL_RED, GL_UNSIGNED_BYTE, atlasData_.data());
+                    GL_RGBA, GL_UNSIGNED_BYTE, atlasData_.data());
 #endif
 
     return &glyphs_[codepoint];

@@ -46,6 +46,10 @@ set(EDITOR_SOURCES
     widgets/EditorRootContainer.cpp
     widgets/EditorToolbar.cpp
     widgets/SceneToolbar.cpp
+
+    # Preview
+    preview/WebPreviewServer.cpp
+    preview/WebExporter.cpp
 )
 
 set(EDITOR_HEADERS
@@ -107,6 +111,10 @@ set(EDITOR_HEADERS
     widgets/EditorRootContainer.hpp
     widgets/EditorToolbar.hpp
     widgets/SceneToolbar.hpp
+
+    # Preview
+    preview/WebPreviewServer.hpp
+    preview/WebExporter.hpp
 )
 
 # Create editor executable

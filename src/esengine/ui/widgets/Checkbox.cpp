@@ -22,6 +22,8 @@
 #include "../font/BitmapFont.hpp"
 #endif
 
+#include "../font/SystemFont.hpp"
+
 namespace esengine::ui {
 
 // =============================================================================
@@ -94,6 +96,11 @@ glm::vec2 Checkbox::measure(f32 availableWidth, f32 availableHeight) {
         }
 #elif ES_FEATURE_BITMAP_FONT
         BitmapFont* font = getContext()->getDefaultBitmapFont();
+        if (font) {
+            labelWidth = font->measureText(label_, fontSize).x;
+        }
+#else
+        SystemFont* font = getContext()->getDefaultSystemFont();
         if (font) {
             labelWidth = font->measureText(label_, fontSize).x;
         }
@@ -194,6 +201,11 @@ void Checkbox::render(UIBatchRenderer& renderer) {
         if (getContext() && getContext()->getDefaultBitmapFont()) {
             renderer.drawText(label_, glm::vec2(labelX, labelY),
                             *getContext()->getDefaultBitmapFont(), fontSize, textColor);
+        }
+#else
+        if (getContext() && getContext()->getDefaultSystemFont()) {
+            renderer.drawText(label_, glm::vec2(labelX, labelY),
+                            *getContext()->getDefaultSystemFont(), fontSize, textColor);
         }
 #endif
     }

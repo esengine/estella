@@ -176,7 +176,9 @@ public:
      *
      * @note Supported formats depend on the image loading implementation.
      */
+#ifndef ES_PLATFORM_WEB
     static Unique<Texture> createFromFile(const std::string& path);
+#endif
 
     // =========================================================================
     // Operations

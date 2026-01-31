@@ -20,6 +20,8 @@
 #include "../font/BitmapFont.hpp"
 #endif
 
+#include "../font/SystemFont.hpp"
+
 namespace esengine::ui {
 
 // =============================================================================
@@ -88,6 +90,19 @@ glm::vec2 TextMeasureHelper::measureText(UIContext* ctx, const std::string& text
     }
 #elif ES_FEATURE_BITMAP_FONT
     BitmapFont* font = resolveBitmapFont(ctx, fontName);
+    if (font) {
+        return font->measureText(text, fontSize);
+    }
+#else
+    bool isIcon = useIconFont || (fontName.empty() && isIconText(text));
+    SystemFont* font = nullptr;
+    if (!fontName.empty()) {
+        font = ctx->getSystemFont(fontName);
+    } else if (isIcon) {
+        font = ctx->getIconSystemFont();
+    } else {
+        font = ctx->getDefaultSystemFont();
+    }
     if (font) {
         return font->measureText(text, fontSize);
     }

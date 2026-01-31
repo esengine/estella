@@ -128,6 +128,8 @@ public:
 
 #ifdef ES_PLATFORM_WEB
     void runJSSystems(Schedule schedule, f32 dt);
+    static void setJSSystemsCallback(void* callback);
+    static void* jsSystemsCallback_;
 #endif
 
 private:

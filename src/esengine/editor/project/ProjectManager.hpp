@@ -67,6 +67,12 @@ public:
     void updateSettings(const ProjectSettings& settings);
 
     // =========================================================================
+    // Build Paths
+    // =========================================================================
+
+    [[nodiscard]] std::string getWebBuildPath() const;
+
+    // =========================================================================
     // Recent Projects
     // =========================================================================
 
@@ -75,6 +81,9 @@ public:
 
 private:
     void createDirectoryStructure(const std::string& rootDir);
+    void createProjectFiles(const std::string& rootDir);
+    void createGitignore(const std::string& rootDir);
+    void checkAndSyncDependencies();
     void updatePathResolver(const std::string& rootDir);
     void initializeAssetDatabase(const std::string& rootDir);
     void fireProjectOpenedEvent();

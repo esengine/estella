@@ -24,6 +24,8 @@
 #include "../font/BitmapFont.hpp"
 #endif
 
+#include "../font/SystemFont.hpp"
+
 #include <cmath>
 
 namespace esengine::ui {
@@ -183,6 +185,13 @@ void DockTabBar::renderTab(UIBatchRenderer& renderer, const DockTabInfo& tab, us
     }
 #elif ES_FEATURE_BITMAP_FONT
     BitmapFont* font = ctx->getDefaultBitmapFont();
+    if (font) {
+        renderer.drawTextInBounds(tab.title, textBounds, *font,
+                                   theme.typography.fontSizeSmall, textColor,
+                                   HAlign::Left, VAlign::Center);
+    }
+#else
+    SystemFont* font = ctx->getDefaultSystemFont();
     if (font) {
         renderer.drawTextInBounds(tab.title, textBounds, *font,
                                    theme.typography.fontSizeSmall, textColor,

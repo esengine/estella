@@ -52,10 +52,6 @@ class RenderSystem extends UpdateSystem {
     }
 }
 
-// =============================================================================
-// Main
-// =============================================================================
-
 async function main(): Promise<void> {
     const module = await createModule();
 

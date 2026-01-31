@@ -19,6 +19,8 @@
 #include "../font/MSDFFont.hpp"
 #endif
 
+#include "../font/SystemFont.hpp"
+
 namespace esengine::ui {
 
 // =============================================================================
@@ -94,6 +96,20 @@ glm::vec2 ContextMenu::measure(f32 availableWidth, f32 availableHeight) {
             width = glm::max(width, itemWidth);
         }
     }
+#else
+    UIContext* ctx = getContext();
+    SystemFont* font = ctx ? ctx->getDefaultSystemFont() : nullptr;
+    if (font) {
+        for (const auto& item : items_) {
+            if (item.separator) continue;
+
+            f32 textWidth = font->measureText(item.label, 13.0f).x;
+            f32 shortcutWidth = item.shortcut.empty() ? 0.0f
+                : font->measureText(item.shortcut, 12.0f).x + 32.0f;
+            f32 itemWidth = PADDING_X * 2 + ICON_SIZE + 8.0f + textWidth + shortcutWidth + 8.0f;
+            width = glm::max(width, itemWidth);
+        }
+    }
 #endif
 
     return {width, height};
@@ -138,6 +154,55 @@ void ContextMenu::render(UIBatchRenderer& renderer) {
 #if ES_FEATURE_SDF_FONT
     MSDFFont* textFont = ctx->getDefaultMSDFFont();
     MSDFFont* iconFont = ctx->getIconMSDFFont();
+
+    if (!textFont) return;
+
+    f32 itemY = y + PADDING_Y;
+
+    for (usize i = 0; i < items_.size(); ++i) {
+        const MenuItem& item = items_[i];
+
+        if (item.separator) {
+            f32 sepY = itemY + SEPARATOR_HEIGHT * 0.5f;
+            Rect sepLine{x + 8.0f, sepY, size.x - 16.0f, 1.0f};
+            renderer.drawRect(sepLine, separatorColor);
+            itemY += SEPARATOR_HEIGHT;
+            continue;
+        }
+
+        Rect itemBounds{x + 4.0f, itemY, size.x - 8.0f, ITEM_HEIGHT};
+
+        bool isHovered = (static_cast<i32>(i) == hoveredIndex_) && item.enabled;
+        if (isHovered) {
+            renderer.drawRoundedRect(itemBounds, hoverBg, CornerRadii::all(3.0f));
+        }
+
+        glm::vec4 color = item.enabled ? textColor : disabledColor;
+
+        f32 iconX = x + PADDING_X;
+        if (iconFont && !item.icon.empty()) {
+            Rect iconBounds{iconX, itemY + (ITEM_HEIGHT - ICON_SIZE) * 0.5f,
+                            ICON_SIZE, ICON_SIZE};
+            renderer.drawTextInBounds(item.icon, iconBounds, *iconFont, 14.0f, color,
+                                      HAlign::Center, VAlign::Center);
+        }
+
+        f32 textX = iconX + ICON_SIZE + 8.0f;
+        f32 textY = itemY + (ITEM_HEIGHT - 13.0f) * 0.5f;
+        renderer.drawText(item.label, {textX, textY}, *textFont, 13.0f, color);
+
+        if (!item.shortcut.empty()) {
+            f32 shortcutWidth = textFont->measureText(item.shortcut, 12.0f).x;
+            f32 shortcutX = x + size.x - PADDING_X - shortcutWidth;
+            f32 shortcutY = itemY + (ITEM_HEIGHT - 12.0f) * 0.5f;
+            renderer.drawText(item.shortcut, {shortcutX, shortcutY}, *textFont, 12.0f, shortcutColor);
+        }
+
+        itemY += ITEM_HEIGHT;
+    }
+#else
+    SystemFont* textFont = ctx->getDefaultSystemFont();
+    SystemFont* iconFont = ctx->getIconSystemFont();
 
     if (!textFont) return;
 

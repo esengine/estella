@@ -257,6 +257,12 @@ private:
      */
     void dockAssetBrowser();
 
+    /**
+     * @brief Find the web SDK path
+     * @return Path to web SDK directory, or empty string if not found
+     */
+    std::string findWebSDKPath();
+
     // =========================================================================
     // Constants
     // =========================================================================

@@ -24,9 +24,7 @@
 #include "../../ui/widgets/ClickablePanel.hpp"
 #include "../../ui/rendering/UIBatchRenderer.hpp"
 
-#if ES_FEATURE_SDF_FONT
-#include "../../ui/font/MSDFFont.hpp"
-#endif
+#include "../../ui/font/SystemFont.hpp"
 
 namespace esengine::editor {
 

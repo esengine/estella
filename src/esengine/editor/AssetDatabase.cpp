@@ -132,6 +132,12 @@ void AssetDatabase::scanDirectory(const std::string& directory, bool recursive) 
 
     for (const auto& entryPath : entries) {
         bool isDir = FileSystem::directoryExists(entryPath);
+        std::string name = getFileName(entryPath);
+
+        // Skip excluded directories
+        if (isDir && isExcludedDirectory(name)) {
+            continue;
+        }
 
         auto existingIt = pathToGUID_.find(entryPath);
         if (existingIt != pathToGUID_.end()) {
@@ -148,7 +154,7 @@ void AssetDatabase::scanDirectory(const std::string& directory, bool recursive) 
             AssetMetadata metadata;
             metadata.guid = generateGUID();
             metadata.path = entryPath;
-            metadata.name = getFileName(entryPath);
+            metadata.name = name;
             metadata.extension = getFileExtension(entryPath);
             metadata.isDirectory = isDir;
             metadata.type = isDir ? AssetType::Folder : detectAssetType(entryPath);
@@ -167,6 +173,15 @@ void AssetDatabase::scanDirectory(const std::string& directory, bool recursive) 
             scanDirectory(entryPath, true);
         }
     }
+}
+
+bool AssetDatabase::isExcludedDirectory(const std::string& name) const {
+    for (const auto& excluded : excludedDirs_) {
+        if (name == excluded) {
+            return true;
+        }
+    }
+    return false;
 }
 
 // =============================================================================

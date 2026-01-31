@@ -43,6 +43,7 @@ class MSDFFont;
 class BitmapFont;
 #endif
 
+class SystemFont;
 class UIBatchRenderer;
 class Widget;
 
@@ -183,6 +184,30 @@ public:
     BitmapFont* getBitmapFont(const std::string& name);
     BitmapFont* getDefaultBitmapFont();
 #endif
+
+    /**
+     * @brief Creates a system font using OS native APIs
+     * @param name Font identifier name
+     * @param fontFamily System font family (e.g. "Microsoft YaHei", "Arial")
+     * @param fontSize Font size in pixels
+     * @return Pointer to created font or nullptr on failure
+     */
+    SystemFont* createSystemFont(const std::string& name, const std::string& fontFamily,
+                                  f32 fontSize = 32.0f);
+
+    /**
+     * @brief Creates a font from a TTF file
+     * @param name Font identifier name
+     * @param filePath Path to TTF font file
+     * @param fontSize Font size in pixels
+     * @return Pointer to created font or nullptr on failure
+     */
+    SystemFont* createSystemFontFromFile(const std::string& name, const std::string& filePath,
+                                          f32 fontSize = 32.0f);
+
+    SystemFont* getSystemFont(const std::string& name);
+    SystemFont* getDefaultSystemFont();
+    SystemFont* getIconSystemFont();
 
     void setDefaultFontName(const std::string& name) { defaultFontName_ = name; }
 
@@ -398,6 +423,8 @@ private:
 #if ES_FEATURE_BITMAP_FONT
     std::unordered_map<std::string, Unique<BitmapFont>> bitmapFonts_;
 #endif
+
+    std::unordered_map<std::string, Unique<SystemFont>> systemFonts_;
 
     std::string defaultFontName_ = "default";
 

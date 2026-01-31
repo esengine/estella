@@ -15,7 +15,10 @@
 #include "OpenGLHeaders.hpp"
 
 #include <span>
+
+#ifndef ES_PLATFORM_WEB
 #include <stb_image.h>
+#endif
 
 namespace esengine {
 
@@ -130,9 +133,9 @@ Unique<Texture> Texture::createRaw(u32 width, u32 height, const void* data, Text
     return texture;
 }
 
+#ifndef ES_PLATFORM_WEB
 Unique<Texture> Texture::createFromFile(const std::string& path) {
-    // Load image using stb_image
-    stbi_set_flip_vertically_on_load(true);  // OpenGL expects bottom-to-top
+    stbi_set_flip_vertically_on_load(true);
 
     int width, height, channels;
     unsigned char* data = stbi_load(path.c_str(), &width, &height, &channels, 0);
@@ -142,7 +145,6 @@ Unique<Texture> Texture::createFromFile(const std::string& path) {
         return nullptr;
     }
 
-    // Determine format based on channels
     TextureFormat format = TextureFormat::RGBA8;
     if (channels == 3) {
         format = TextureFormat::RGB8;
@@ -152,7 +154,6 @@ Unique<Texture> Texture::createFromFile(const std::string& path) {
         ES_LOG_WARN("Unsupported texture format ({} channels), converting to RGBA", channels);
         stbi_image_free(data);
 
-        // Reload with forced RGBA
         data = stbi_load(path.c_str(), &width, &height, &channels, 4);
         if (!data) {
             ES_LOG_ERROR("Failed to convert texture to RGBA: {}", path);
@@ -161,10 +162,7 @@ Unique<Texture> Texture::createFromFile(const std::string& path) {
         format = TextureFormat::RGBA8;
     }
 
-    // Create texture from loaded data
     auto texture = createRaw(static_cast<u32>(width), static_cast<u32>(height), data, format);
-
-    // Free image data
     stbi_image_free(data);
 
     if (texture) {
@@ -173,6 +171,7 @@ Unique<Texture> Texture::createFromFile(const std::string& path) {
 
     return texture;
 }
+#endif
 
 bool Texture::initialize(const TextureSpecification& spec) {
     width_ = spec.width;

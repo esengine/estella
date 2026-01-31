@@ -1,0 +1,30 @@
+{
+  "name": "esengine",
+  "version": "0.1.0",
+  "description": "ESEngine TypeScript SDK and type definitions",
+  "main": "App.ts",
+  "types": "App.ts",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./App.ts",
+      "default": "./App.ts"
+    },
+    "./wasm": {
+      "types": "./esengine.d.ts"
+    }
+  },
+  "files": [
+    "esengine.d.ts",
+    "App.ts",
+    "AssetLoader.ts",
+    "platform/"
+  ],
+  "keywords": ["esengine", "game-engine", "webassembly", "ecs"],
+  "author": "ESEngine Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/esengine/esengine.git"
+  }
+}

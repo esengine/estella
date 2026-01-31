@@ -14,7 +14,6 @@
 
 #include <sstream>
 #include <algorithm>
-#include <regex>
 
 namespace esengine::resource {
 
@@ -244,14 +243,26 @@ void ShaderParser::parseDirective(const std::string& line,
 ShaderProperty ShaderParser::parsePropertyAnnotation(const std::string& line) {
     ShaderProperty prop;
 
-    std::regex uniformRegex(R"(uniform\s+(\w+)\s+(\w+)\s*;)");
-    std::smatch match;
-    if (!std::regex_search(line, match, uniformRegex)) {
+    usize uniformPos = line.find("uniform");
+    if (uniformPos == std::string::npos) {
         return prop;
     }
 
-    std::string glslType = match[1].str();
-    prop.name = match[2].str();
+    std::string afterUniform = trim(line.substr(uniformPos + 7));
+    usize spacePos = afterUniform.find_first_of(" \t");
+    if (spacePos == std::string::npos) {
+        return prop;
+    }
+
+    std::string glslType = afterUniform.substr(0, spacePos);
+    std::string rest = trim(afterUniform.substr(spacePos));
+
+    usize semicolonPos = rest.find(';');
+    if (semicolonPos == std::string::npos) {
+        return prop;
+    }
+
+    prop.name = trim(rest.substr(0, semicolonPos));
 
     if (glslType == "float") {
         prop.type = ShaderPropertyType::Float;
@@ -269,29 +280,52 @@ ShaderProperty ShaderParser::parsePropertyAnnotation(const std::string& line) {
         prop.type = ShaderPropertyType::Unknown;
     }
 
-    std::regex annotationRegex(R"(@property\s*\(([^)]*)\))");
-    if (std::regex_search(line, match, annotationRegex)) {
-        std::string params = match[1].str();
+    usize propStart = line.find("@property");
+    if (propStart != std::string::npos) {
+        usize parenStart = line.find('(', propStart);
+        usize parenEnd = line.find(')', parenStart);
+        if (parenStart != std::string::npos && parenEnd != std::string::npos) {
+            std::string params = line.substr(parenStart + 1, parenEnd - parenStart - 1);
 
-        std::regex typeRegex(R"(type\s*=\s*(\w+))");
-        if (std::regex_search(params, match, typeRegex)) {
-            prop.type = stringToPropertyType(match[1].str());
-        }
+            usize typePos = params.find("type");
+            if (typePos != std::string::npos) {
+                usize eqPos = params.find('=', typePos);
+                if (eqPos != std::string::npos) {
+                    usize valStart = params.find_first_not_of(" \t", eqPos + 1);
+                    usize valEnd = params.find_first_of(" \t,)", valStart);
+                    if (valStart != std::string::npos) {
+                        std::string typeVal = params.substr(valStart, valEnd - valStart);
+                        prop.type = stringToPropertyType(typeVal);
+                    }
+                }
+            }
 
-        std::regex defaultRegex(R"(default\s*=\s*([^,)]+))");
-        if (std::regex_search(params, match, defaultRegex)) {
-            prop.defaultValue = trim(match[1].str());
-        }
+            usize defaultPos = params.find("default");
+            if (defaultPos != std::string::npos) {
+                usize eqPos = params.find('=', defaultPos);
+                if (eqPos != std::string::npos) {
+                    usize valStart = params.find_first_not_of(" \t", eqPos + 1);
+                    usize valEnd = params.find_first_of(",)", valStart);
+                    if (valStart != std::string::npos) {
+                        prop.defaultValue = trim(params.substr(valStart, valEnd - valStart));
+                    }
+                }
+            }
 
-        std::regex nameRegex(R"regex(name\s*=\s*"([^"]+)")regex");
-        if (std::regex_search(params, match, nameRegex)) {
-            prop.displayName = match[1].str();
+            usize namePos = params.find("name");
+            if (namePos != std::string::npos) {
+                usize quoteStart = params.find('"', namePos);
+                usize quoteEnd = params.find('"', quoteStart + 1);
+                if (quoteStart != std::string::npos && quoteEnd != std::string::npos) {
+                    prop.displayName = params.substr(quoteStart + 1, quoteEnd - quoteStart - 1);
+                }
+            }
         }
     }
 
     if (prop.displayName.empty()) {
         prop.displayName = prop.name;
-        if (prop.displayName.substr(0, 2) == "u_") {
+        if (prop.displayName.size() > 2 && prop.displayName.substr(0, 2) == "u_") {
             prop.displayName = prop.displayName.substr(2);
         }
         if (!prop.displayName.empty()) {

@@ -394,10 +394,6 @@ export interface AppConfig {
 // App
 // =============================================================================
 
-interface ModuleWithCallback extends ESEngineModule {
-    _esRunJSSystems?: (schedule: number, dt: number) => void;
-}
-
 type SystemEntry = SystemFn | System;
 
 export class App {
@@ -411,11 +407,13 @@ export class App {
         this.module_ = module;
 
         if (config) {
-            const cppConfig = new module.AppConfig();
-            if (config.title) cppConfig.title = config.title;
-            if (config.width) cppConfig.width = config.width;
-            if (config.height) cppConfig.height = config.height;
-            if (config.vsync !== undefined) cppConfig.vsync = config.vsync;
+            // Pass config as plain object - embind value_object accepts JS objects
+            const cppConfig = {
+                title: config.title ?? 'ESEngine',
+                width: config.width ?? 800,
+                height: config.height ?? 600,
+                vsync: config.vsync ?? true
+            };
             this.cppApp_ = module.createAppWithConfig(cppConfig);
         } else {
             this.cppApp_ = module.createApp();
@@ -425,9 +423,9 @@ export class App {
             this.systems_.set(i as Schedule, []);
         }
 
-        (module as ModuleWithCallback)._esRunJSSystems = (schedule: number) => {
+        module.setJSSystemsCallback((schedule: number) => {
             this.runSystems(schedule as Schedule);
-        };
+        });
     }
 
     addSystem(schedule: Schedule, system: SystemFn | System): this {

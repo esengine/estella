@@ -16,6 +16,7 @@
 
 #include "../../ui/widgets/Widget.hpp"
 #include "../../events/Signal.hpp"
+#include "../preview/WebPreviewServer.hpp"
 
 namespace esengine::editor {
 
@@ -56,6 +57,11 @@ public:
     Signal<void()> onPlay;
     Signal<void()> onPause;
     Signal<void()> onStop;
+    Signal<void()> onWebPreview;
+
+    void startWebPreview(const std::string& directory);
+    void stopWebPreview();
+    bool isWebPreviewRunning() const { return previewServer_.isRunning(); }
 
     glm::vec2 measure(f32 availableWidth, f32 availableHeight) override;
     void render(ui::UIBatchRenderer& renderer) override;
@@ -75,6 +81,9 @@ private:
     ButtonState playButton_;
     ButtonState pauseButton_;
     ButtonState stopButton_;
+    ButtonState webPreviewButton_;
+
+    WebPreviewServer previewServer_;
 };
 
 }  // namespace esengine::editor

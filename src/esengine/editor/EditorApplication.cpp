@@ -38,6 +38,9 @@
 #include "widgets/EditorRootContainer.hpp"
 #include "widgets/EditorToolbar.hpp"
 #include "../platform/FileDialog.hpp"
+#include "preview/WebExporter.hpp"
+
+#include <filesystem>
 
 namespace esengine {
 namespace editor {
@@ -72,49 +75,64 @@ void EditorApplication::onInit() {
     uiContext_->setViewport(getWidth(), getHeight());
     uiContext_->setDevicePixelRatio(getPlatform().getDevicePixelRatio());
 
-    const char* fontPaths[] = {
-#ifdef ES_PLATFORM_WINDOWS
-        "C:/Windows/Fonts/msyh.ttc",
-        "C:/Windows/Fonts/msyhl.ttc",
-        "C:/Windows/Fonts/simhei.ttf",
-        "C:/Windows/Fonts/segoeui.ttf",
-        "C:/Windows/Fonts/arial.ttf",
-#elif defined(ES_PLATFORM_MACOS)
-        "/System/Library/Fonts/PingFang.ttc",
-        "/System/Library/Fonts/Hiragino Sans GB.ttc",
-        "/System/Library/Fonts/SFNS.ttf",
-#else
-        "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
-        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-#endif
+    bool fontLoaded = false;
+
+#if ES_FEATURE_SDF_FONT
+    // Try system fonts for MSDF rendering
+    const char* msdfFontPaths[] = {
+        "C:/Windows/Fonts/msyh.ttc",    // Microsoft YaHei (Chinese)
+        "C:/Windows/Fonts/segoeui.ttf", // Segoe UI
+        "C:/Windows/Fonts/arial.ttf",   // Arial
         nullptr
     };
 
-    bool fontLoaded = false;
-    for (const char** path = fontPaths; *path != nullptr; ++path) {
-        if (uiContext_->loadMSDFFont("default", *path, 32.0f, 4.0f)) {
-            ES_LOG_INFO("Loaded MSDF font: {}", *path);
+    for (const char** fontPath = msdfFontPaths; *fontPath != nullptr; ++fontPath) {
+        if (uiContext_->loadMSDFFont("default", *fontPath, 32.0f)) {
+            ES_LOG_INFO("Loaded MSDF font: {}", *fontPath);
             fontLoaded = true;
             break;
         }
     }
 
-    if (!fontLoaded) {
-        std::string fallbackFont = PathResolver::editorPath("assets/fonts/default.ttf");
-        if (uiContext_->loadMSDFFont("default", fallbackFont, 32.0f, 4.0f)) {
-            ES_LOG_INFO("Loaded MSDF font: {}", fallbackFont);
+    std::string iconFontPath = PathResolver::editorPath("assets/fonts/lucide.ttf");
+    if (!uiContext_->loadMSDFFont("icons", iconFontPath, 32.0f)) {
+        ES_LOG_WARN("Icon MSDF font not loaded from '{}', icons will not render", iconFontPath);
+    }
+#else
+    const char* fontFamilies[] = {
+#ifdef ES_PLATFORM_WINDOWS
+        "Microsoft YaHei",
+        "SimHei",
+        "Segoe UI",
+        "Arial",
+#elif defined(ES_PLATFORM_MACOS)
+        "PingFang SC",
+        "Hiragino Sans GB",
+        "SF Pro",
+#else
+        "Noto Sans CJK SC",
+        "DejaVu Sans",
+        "sans-serif",
+#endif
+        nullptr
+    };
+
+    for (const char** family = fontFamilies; *family != nullptr; ++family) {
+        if (uiContext_->createSystemFont("default", *family, 14.0f)) {
+            ES_LOG_INFO("Created system font: {}", *family);
             fontLoaded = true;
+            break;
         }
     }
 
+    std::string iconFontPath = PathResolver::editorPath("assets/fonts/lucide.ttf");
+    if (!uiContext_->createSystemFontFromFile("icons", iconFontPath, 16.0f)) {
+        ES_LOG_WARN("Icon font not loaded from '{}', icons will not render", iconFontPath);
+    }
+#endif
+
     if (!fontLoaded) {
         ES_LOG_WARN("No font loaded, text will not render");
-    }
-
-    std::string iconFontPath = PathResolver::editorPath("assets/fonts/lucide.ttf");
-    if (!uiContext_->loadMSDFFont("icons", iconFontPath, 32.0f, 4.0f)) {
-        ES_LOG_WARN("Icon font not loaded, icons will not render");
     }
 
     // Wire up scroll events to UI system
@@ -422,6 +440,40 @@ void EditorApplication::setupEditorLayout() {
         ES_LOG_INFO("Play mode stopped");
     }));
 
+    eventConnections_.add(sink(toolbar->onWebPreview).connect([this, toolbar]() {
+        if (toolbar->isWebPreviewRunning()) {
+            toolbar->stopWebPreview();
+            ES_LOG_INFO("Web preview stopped");
+        } else {
+            std::string webBuildDir = projectManager_->getWebBuildPath();
+            std::string sdkPath = findWebSDKPath();
+
+            if (sdkPath.empty()) {
+                ES_LOG_ERROR("Web SDK not found. Please set ESENGINE_WEB_SDK environment variable.");
+                return;
+            }
+
+            ES_LOG_INFO("Building and exporting project for web preview...");
+
+            std::string projectPath = projectManager_->getCurrentProject().rootDirectory;
+            bool success = WebExporter::exportProject(
+                projectPath,
+                sdkPath,
+                webBuildDir,
+                [](const std::string& status, f32 progress) {
+                    ES_LOG_INFO("[{:.0f}%] {}", progress * 100.0f, status);
+                }
+            );
+
+            if (!success) {
+                ES_LOG_ERROR("Failed to export web build");
+                return;
+            }
+
+            toolbar->startWebPreview(webBuildDir);
+        }
+    }));
+
     uiContext_->setRoot(std::move(editorRoot));
 
     ES_LOG_INFO("Editor layout initialized with StatusBar and Drawer system");
@@ -644,6 +696,43 @@ void EditorApplication::dockAssetBrowser() {
     }
 
     ES_LOG_INFO("AssetBrowser docked successfully");
+}
+
+std::string EditorApplication::findWebSDKPath() {
+    namespace fs = std::filesystem;
+
+    // 1. Check environment variable
+    if (const char* envPath = std::getenv("ESENGINE_WEB_SDK")) {
+        if (fs::exists(envPath) && fs::exists(fs::path(envPath) / "esengine.wasm")) {
+            ES_LOG_DEBUG("Found Web SDK via ESENGINE_WEB_SDK: {}", envPath);
+            return envPath;
+        }
+    }
+
+    // 2. Check relative to editor root (for development)
+    std::string editorDir = PathResolver::editorPath("");
+    std::vector<std::string> searchPaths = {
+        editorDir + "/build-web/sdk",           // F:\microes\build-web\sdk
+        editorDir + "/../build-web/sdk",        // One level up
+        editorDir + "/../../build-web/sdk",     // Two levels up (if running from bin/)
+        editorDir + "/sdk/web",
+        editorDir + "/web-sdk"
+    };
+
+    for (const auto& path : searchPaths) {
+        fs::path sdkPath = fs::weakly_canonical(path);
+        if (fs::exists(sdkPath) && fs::exists(sdkPath / "esengine.wasm")) {
+            ES_LOG_DEBUG("Found Web SDK at: {}", sdkPath.string());
+            return sdkPath.string();
+        }
+    }
+
+    ES_LOG_WARN("Web SDK not found. Searched paths:");
+    for (const auto& path : searchPaths) {
+        ES_LOG_WARN("  - {}", path);
+    }
+
+    return "";
 }
 
 }  // namespace editor

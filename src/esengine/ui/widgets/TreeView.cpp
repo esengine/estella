@@ -24,6 +24,8 @@
 #include "../font/BitmapFont.hpp"
 #endif
 
+#include "../font/SystemFont.hpp"
+
 #include <algorithm>
 
 namespace esengine::ui {
@@ -390,6 +392,64 @@ void TreeView::renderNode(UIBatchRenderer& renderer, const TreeNode& node, f32 y
     if (getContext() && getContext()->getDefaultBitmapFont()) {
         renderer.drawText(node.label, glm::vec2(x, textY), *getContext()->getDefaultBitmapFont(),
                           FONT_SIZE, textColor);
+    }
+#else
+    SystemFont* iconFont = getContext() ? getContext()->getIconSystemFont() : nullptr;
+    SystemFont* textFont = getContext() ? getContext()->getDefaultSystemFont() : nullptr;
+
+    f32 x = bounds.x + padding.left + ROW_PADDING_X;
+
+    if (showVisibilityColumn_) {
+        if (iconFont) {
+            Rect eyeBounds{x, y + (rowHeight_ - ICON_SIZE) * 0.5f, ICON_SIZE, ICON_SIZE};
+            const char* eyeIcon = node.visible ? icons::Eye : icons::EyeOff;
+            glm::vec4 eyeColor = node.visible ? visibleIconColor : hiddenIconColor;
+            renderer.drawTextInBounds(eyeIcon, eyeBounds, *iconFont, 12.0f, eyeColor,
+                                       HAlign::Center, VAlign::Center);
+        }
+        x += VISIBILITY_COLUMN_WIDTH;
+    }
+
+    x += static_cast<f32>(node.depth) * indentSize_;
+
+    bool hasChild = hasChildren(node);
+    Rect arrowBounds{x, y + (rowHeight_ - ARROW_SIZE) * 0.5f, ARROW_SIZE, ARROW_SIZE};
+
+    if (iconFont && hasChild) {
+        const char* arrowIcon = node.expanded ? icons::ChevronDown : icons::ChevronRight;
+        renderer.drawTextInBounds(arrowIcon, arrowBounds, *iconFont, 12.0f, arrowColor,
+                                   HAlign::Center, VAlign::Center);
+    }
+    x += ARROW_SIZE + 2.0f;
+
+    if (iconFont) {
+        Rect iconBounds{x, y + (rowHeight_ - ICON_SIZE) * 0.5f, ICON_SIZE, ICON_SIZE};
+
+        if (!node.icon.empty()) {
+            renderer.drawTextInBounds(node.icon, iconBounds, *iconFont, 14.0f, entityIconColor,
+                                       HAlign::Center, VAlign::Center);
+        } else {
+            const char* folderIcon = hasChild && node.expanded ? icons::FolderOpen : icons::Folder;
+            renderer.drawTextInBounds(folderIcon, iconBounds, *iconFont, 14.0f, folderColor,
+                                       HAlign::Center, VAlign::Center);
+        }
+    }
+    x += ICON_SIZE + 6.0f;
+
+    f32 typeColumnSpace = showTypeColumn_ ? TYPE_COLUMN_WIDTH : 0.0f;
+    f32 labelMaxWidth = bounds.x + bounds.width - padding.right - typeColumnSpace - x;
+    f32 textY = y + (rowHeight_ - FONT_SIZE) * 0.5f;
+
+    if (textFont && labelMaxWidth > 0) {
+        Rect labelClipRect{x, y, labelMaxWidth, rowHeight_};
+        renderer.pushClipRect(labelClipRect);
+        renderer.drawText(node.label, glm::vec2(x, textY), *textFont, FONT_SIZE, textColor);
+        renderer.popClipRect();
+    }
+
+    if (showTypeColumn_ && textFont && !node.type.empty()) {
+        f32 typeX = bounds.x + bounds.width - padding.right - TYPE_COLUMN_WIDTH;
+        renderer.drawText(node.type, glm::vec2(typeX, textY), *textFont, 11.0f, dimTextColor);
     }
 #endif
 }

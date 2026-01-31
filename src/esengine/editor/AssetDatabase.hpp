@@ -73,6 +73,7 @@ public:
 
 private:
     void scanDirectory(const std::string& directory, bool recursive);
+    bool isExcludedDirectory(const std::string& name) const;
     std::string generateGUID() const;
     std::string getDatabasePath() const;
     AssetType detectAssetType(const std::string& path) const;
@@ -80,6 +81,7 @@ private:
     std::string projectPath_;
     std::unordered_map<std::string, AssetMetadata> assetsByGUID_;
     std::unordered_map<std::string, std::string> pathToGUID_;
+    std::vector<std::string> excludedDirs_ = {"node_modules", "build", ".esengine", ".git", ".vscode", ".idea"};
 
     std::function<void(const AssetMetadata&)> onAssetAdded_;
     std::function<void(const std::string&)> onAssetRemoved_;

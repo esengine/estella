@@ -26,6 +26,8 @@
 #include "font/BitmapFont.hpp"
 #endif
 
+#include "font/SystemFont.hpp"
+
 #include <glm/gtc/matrix_transform.hpp>
 
 #include <algorithm>
@@ -72,6 +74,7 @@ void UIContext::shutdown() {
 #if ES_FEATURE_BITMAP_FONT
     bitmapFonts_.clear();
 #endif
+    systemFonts_.clear();
     theme_.reset();
 
     if (renderer_) {
@@ -218,6 +221,60 @@ BitmapFont* UIContext::getDefaultBitmapFont() {
     return getBitmapFont(defaultFontName_);
 }
 #endif  // ES_FEATURE_BITMAP_FONT
+
+// =============================================================================
+// System Font
+// =============================================================================
+
+SystemFont* UIContext::createSystemFont(const std::string& name, const std::string& fontFamily,
+                                          f32 fontSize) {
+    auto font = SystemFont::create(fontFamily, fontSize);
+    if (!font) {
+        ES_LOG_ERROR("Failed to create system font: {}", fontFamily);
+        return nullptr;
+    }
+
+    font->preloadASCII();
+
+    SystemFont* ptr = font.get();
+    systemFonts_[name] = std::move(font);
+
+    ES_LOG_INFO("Created system font '{}' with family '{}'", name, fontFamily);
+    return ptr;
+}
+
+SystemFont* UIContext::createSystemFontFromFile(const std::string& name, const std::string& filePath,
+                                                  f32 fontSize) {
+    auto font = SystemFont::createFromFile(filePath, fontSize);
+    if (!font) {
+        ES_LOG_ERROR("Failed to create font from file: {}", filePath);
+        return nullptr;
+    }
+
+    font->preloadASCII();
+
+    SystemFont* ptr = font.get();
+    systemFonts_[name] = std::move(font);
+
+    ES_LOG_INFO("Created font '{}' from file '{}'", name, filePath);
+    return ptr;
+}
+
+SystemFont* UIContext::getSystemFont(const std::string& name) {
+    auto it = systemFonts_.find(name);
+    if (it != systemFonts_.end()) {
+        return it->second.get();
+    }
+    return nullptr;
+}
+
+SystemFont* UIContext::getDefaultSystemFont() {
+    return getSystemFont(defaultFontName_);
+}
+
+SystemFont* UIContext::getIconSystemFont() {
+    return getSystemFont("icons");
+}
 
 // =============================================================================
 // Update and Render

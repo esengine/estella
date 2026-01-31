@@ -21,6 +21,8 @@
 #include "../font/BitmapFont.hpp"
 #endif
 
+#include "../font/SystemFont.hpp"
+
 namespace esengine::ui {
 
 // =============================================================================
@@ -80,6 +82,18 @@ glm::vec2 Label::measure(f32 availableWidth, f32 availableHeight) {
             cachedTextSize_ = font->measureText(text_, fontSize_);
             textSizeDirty_ = false;
         }
+#else
+        SystemFont* font = nullptr;
+        if (useIconFont_) {
+            font = getContext()->getIconSystemFont();
+        } else {
+            font = fontName_.empty() ? getContext()->getDefaultSystemFont()
+                                     : getContext()->getSystemFont(fontName_);
+        }
+        if (font) {
+            cachedTextSize_ = font->measureText(text_, fontSize_);
+            textSizeDirty_ = false;
+        }
 #endif
     }
 
@@ -125,6 +139,16 @@ void Label::render(UIBatchRenderer& renderer) {
     }
 #elif ES_FEATURE_BITMAP_FONT
     BitmapFont* font = fontName_.empty() ? ctx->getDefaultBitmapFont() : ctx->getBitmapFont(fontName_);
+    if (font) {
+        renderer.drawTextInBounds(text_, contentBounds, *font, fontSize_, textColor, hAlign_, vAlign_);
+    }
+#else
+    SystemFont* font = nullptr;
+    if (useIconFont_) {
+        font = ctx->getIconSystemFont();
+    } else {
+        font = fontName_.empty() ? ctx->getDefaultSystemFont() : ctx->getSystemFont(fontName_);
+    }
     if (font) {
         renderer.drawTextInBounds(text_, contentBounds, *font, fontSize_, textColor, hAlign_, vAlign_);
     }

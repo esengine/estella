@@ -256,7 +256,7 @@ export interface ESEngineModule {
     _malloc(size: number): number;
     _free(ptr: number): void;
 
-    _esRunJSSystems?: (schedule: number, dt: number) => void;
+    setJSSystemsCallback(callback: (schedule: number, dt: number) => void): void;
 
     [key: string]: unknown;
 }

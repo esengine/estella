@@ -21,6 +21,8 @@
 #include "../font/BitmapFont.hpp"
 #endif
 
+#include "../font/SystemFont.hpp"
+
 namespace esengine::ui {
 
 // =============================================================================
@@ -91,6 +93,19 @@ glm::vec2 Button::measure(f32 availableWidth, f32 availableHeight) {
         }
 #elif ES_FEATURE_BITMAP_FONT
         BitmapFont* font = fontName_.empty() ? ctx->getDefaultBitmapFont() : ctx->getBitmapFont(fontName_);
+        if (font) {
+            cachedTextSize_ = font->measureText(text_, fontSize_);
+            textSizeDirty_ = false;
+        }
+#else
+        SystemFont* font = nullptr;
+        if (!fontName_.empty()) {
+            font = ctx->getSystemFont(fontName_);
+        } else if (isIcon) {
+            font = ctx->getSystemFont("icons");
+        } else {
+            font = ctx->getDefaultSystemFont();
+        }
         if (font) {
             cachedTextSize_ = font->measureText(text_, fontSize_);
             textSizeDirty_ = false;
@@ -205,6 +220,19 @@ void Button::render(UIBatchRenderer& renderer) {
         }
 #elif ES_FEATURE_BITMAP_FONT
         BitmapFont* font = fontName_.empty() ? ctx->getDefaultBitmapFont() : ctx->getBitmapFont(fontName_);
+        if (font) {
+            renderer.drawTextInBounds(text_, textBounds, *font, fontSize_, textColor,
+                                      textAlign_, VAlign::Center);
+        }
+#else
+        SystemFont* font = nullptr;
+        if (!fontName_.empty()) {
+            font = ctx->getSystemFont(fontName_);
+        } else if (isIcon) {
+            font = ctx->getSystemFont("icons");
+        } else {
+            font = ctx->getDefaultSystemFont();
+        }
         if (font) {
             renderer.drawTextInBounds(text_, textBounds, *font, fontSize_, textColor,
                                       textAlign_, VAlign::Center);

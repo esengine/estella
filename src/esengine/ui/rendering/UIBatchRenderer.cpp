@@ -149,8 +149,12 @@ static const char* UI_FRAGMENT_SHADER = R"(
 
         vec4 color;
 
+        // SystemFont rendering: borderThickness < -200.0 indicates SystemFont mode
+        if (v_borderThickness < -200.0) {
+            color = vec4(v_color.rgb, texColor.a * v_color.a);
+        }
         // MSDF text rendering: borderThickness < -100.0 indicates MSDF mode
-        if (v_borderThickness < -100.0) {
+        else if (v_borderThickness < -100.0) {
             float screenPxRange = -v_borderThickness - 100.0 - 1.0;
             float sd = median(texColor.r, texColor.g, texColor.b);
             float edgeWidth = 0.5 / max(screenPxRange, 1.0);
@@ -261,8 +265,12 @@ static const char* UI_FRAGMENT_SHADER = R"(
         vec4 texColor = texture(u_textures[v_texIndex], v_texCoord);
         vec4 color;
 
+        // SystemFont rendering: borderThickness < -200.0 indicates SystemFont mode
+        if (v_borderThickness < -200.0) {
+            color = vec4(v_color.rgb, texColor.a * v_color.a);
+        }
         // MSDF text rendering: borderThickness < -100.0 indicates MSDF mode
-        if (v_borderThickness < -100.0) {
+        else if (v_borderThickness < -100.0) {
             float screenPxRange = -v_borderThickness - 100.0 - 1.0;
             float sd = median(texColor.r, texColor.g, texColor.b);
             float edgeWidth = 0.5 / max(screenPxRange, 1.0);
@@ -1243,7 +1251,7 @@ void UIBatchRenderer::drawText(const std::string& text, const glm::vec2& positio
                 v.cornerRadii = {0, 0, 0, 0};
                 v.rectSize = rectSize;
                 v.texIndex = texIdx;
-                v.borderThickness = 0.0f;
+                v.borderThickness = -300.0f;  // SystemFont mode marker
                 data_->vertices.push_back(v);
             }
 

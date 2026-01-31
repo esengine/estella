@@ -5,10 +5,13 @@
 # This file configures the modular WASM build using Emscripten's dynamic linking.
 #
 # Module Structure:
-#   - esengine_core (MAIN_MODULE): Core engine, renderer, ECS, platform
-#   - es_ui (SIDE_MODULE): UI system, widgets, docking
-#   - es_font_sdf (SIDE_MODULE): SDF font rendering (requires FreeType)
-#   - es_font_bitmap (SIDE_MODULE): Bitmap font rendering (lightweight)
+#   - es_core (SIDE_MODULE): Platform, Application, Log, Input
+#   - es_ecs (SIDE_MODULE): ECS system (header-only, minimal cpp)
+#   - es_renderer (SIDE_MODULE): Shader, Texture, Buffer, RenderPipeline
+#   - es_resource (SIDE_MODULE): ResourceManager, Loaders
+#   - es_ui_core (SIDE_MODULE): UIContext, Widget base, Layout, SystemFont
+#   - es_ui_widgets (SIDE_MODULE): Button, Label, ScrollView, etc.
+#   - es_ui_docking (SIDE_MODULE): Editor-only docking system
 #
 # Usage:
 #   emcmake cmake -B build-modular -DES_BUILD_WEB=ON -DES_BUILD_MODULAR=ON
@@ -27,30 +30,86 @@ message(STATUS "")
 message(STATUS "=== ESEngine Modular Build Configuration ===")
 message(STATUS "")
 
+# Common include directories for all modules
+set(ES_COMMON_INCLUDES
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb>
+)
+
+# Common compile definitions
+set(ES_COMMON_DEFINITIONS ES_PLATFORM_WEB ES_BUILD_MODULAR)
+
 # =============================================================================
-# Core Module Sources (MAIN_MODULE)
+# es_core - Platform Core Module
 # =============================================================================
 
 set(ES_CORE_SOURCES
     src/esengine/core/Application.cpp
     src/esengine/core/Engine.cpp
     src/esengine/core/Log.cpp
-    src/esengine/resource/ResourceManager.cpp
-    src/esengine/renderer/RenderContext.cpp
-    src/esengine/renderer/Renderer.cpp
-    src/esengine/renderer/Shader.cpp
-    src/esengine/renderer/Buffer.cpp
-    src/esengine/renderer/Texture.cpp
-    src/esengine/renderer/Framebuffer.cpp
-    src/esengine/renderer/stb_image_impl.cpp
     src/esengine/platform/input/Input.cpp
     src/esengine/platform/PathResolver.cpp
     src/esengine/platform/web/WebPlatform.cpp
     src/esengine/platform/web/WebFileSystem.cpp
 )
 
+add_library(es_core SHARED ${ES_CORE_SOURCES})
+target_include_directories(es_core PUBLIC ${ES_COMMON_INCLUDES})
+target_link_libraries(es_core PRIVATE glm)
+target_compile_definitions(es_core PUBLIC ${ES_COMMON_DEFINITIONS})
+es_apply_side_module_settings(es_core)
+
+set_target_properties(es_core PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/modules"
+)
+
 # =============================================================================
-# UI Core Module Sources (SIDE_MODULE) - Base UI system
+# es_renderer - Rendering Module
+# =============================================================================
+
+set(ES_RENDERER_SOURCES
+    src/esengine/renderer/RenderContext.cpp
+    src/esengine/renderer/Renderer.cpp
+    src/esengine/renderer/Shader.cpp
+    src/esengine/renderer/Buffer.cpp
+    src/esengine/renderer/Texture.cpp
+    src/esengine/renderer/Framebuffer.cpp
+    src/esengine/renderer/RenderPipeline.cpp
+)
+
+add_library(es_renderer SHARED ${ES_RENDERER_SOURCES})
+target_include_directories(es_renderer PUBLIC ${ES_COMMON_INCLUDES})
+target_link_libraries(es_renderer PRIVATE glm)
+target_compile_definitions(es_renderer PUBLIC ${ES_COMMON_DEFINITIONS})
+es_apply_side_module_settings(es_renderer)
+
+set_target_properties(es_renderer PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/modules"
+)
+
+# =============================================================================
+# es_resource - Resource Management Module
+# =============================================================================
+
+set(ES_RESOURCE_SOURCES
+    src/esengine/resource/ResourceManager.cpp
+    src/esengine/resource/ShaderParser.cpp
+    src/esengine/resource/loaders/ShaderLoader.cpp
+)
+
+add_library(es_resource SHARED ${ES_RESOURCE_SOURCES})
+target_include_directories(es_resource PUBLIC ${ES_COMMON_INCLUDES})
+target_link_libraries(es_resource PRIVATE glm)
+target_compile_definitions(es_resource PUBLIC ${ES_COMMON_DEFINITIONS})
+es_apply_side_module_settings(es_resource)
+
+set_target_properties(es_resource PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/modules"
+)
+
+# =============================================================================
+# es_ui_core - UI Core Module (includes SystemFont)
 # =============================================================================
 
 set(ES_UI_CORE_SOURCES
@@ -60,24 +119,99 @@ set(ES_UI_CORE_SOURCES
     src/esengine/ui/layout/WrapLayout.cpp
     src/esengine/ui/widgets/Widget.cpp
     src/esengine/ui/widgets/Panel.cpp
+    src/esengine/ui/font/SystemFont.cpp
+    src/esengine/ui/text/TextMeasureHelper.cpp
+)
+
+add_library(es_ui_core SHARED ${ES_UI_CORE_SOURCES})
+target_include_directories(es_ui_core PUBLIC ${ES_COMMON_INCLUDES})
+target_link_libraries(es_ui_core PRIVATE glm)
+target_compile_definitions(es_ui_core PUBLIC ${ES_COMMON_DEFINITIONS})
+es_apply_side_module_settings(es_ui_core)
+
+set_target_properties(es_ui_core PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/modules"
 )
 
 # =============================================================================
-# UI Widgets Module Sources (SIDE_MODULE) - Common widgets
+# es_ui_widgets - UI Widgets Module
 # =============================================================================
 
 set(ES_UI_WIDGETS_SOURCES
     src/esengine/ui/widgets/Label.cpp
     src/esengine/ui/widgets/Button.cpp
-    src/esengine/ui/widgets/ScrollView.cpp
-    src/esengine/ui/widgets/TreeView.cpp
-    src/esengine/ui/widgets/TextField.cpp
     src/esengine/ui/widgets/Checkbox.cpp
     src/esengine/ui/widgets/Slider.cpp
+    src/esengine/ui/widgets/ClickablePanel.cpp
+)
+
+add_library(es_ui_widgets SHARED ${ES_UI_WIDGETS_SOURCES})
+target_include_directories(es_ui_widgets PUBLIC ${ES_COMMON_INCLUDES})
+target_link_libraries(es_ui_widgets PRIVATE glm)
+target_compile_definitions(es_ui_widgets PUBLIC ${ES_COMMON_DEFINITIONS})
+es_apply_side_module_settings(es_ui_widgets)
+
+set_target_properties(es_ui_widgets PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/modules"
 )
 
 # =============================================================================
-# UI Docking Module Sources (SIDE_MODULE) - Editor docking system
+# es_scrollview
+# =============================================================================
+
+add_library(es_scrollview SHARED src/esengine/ui/widgets/ScrollView.cpp)
+target_include_directories(es_scrollview PUBLIC ${ES_COMMON_INCLUDES})
+target_link_libraries(es_scrollview PRIVATE glm)
+target_compile_definitions(es_scrollview PUBLIC ${ES_COMMON_DEFINITIONS})
+es_apply_side_module_settings(es_scrollview)
+set_target_properties(es_scrollview PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/modules")
+
+# =============================================================================
+# es_textfield
+# =============================================================================
+
+add_library(es_textfield SHARED src/esengine/ui/widgets/TextField.cpp)
+target_include_directories(es_textfield PUBLIC ${ES_COMMON_INCLUDES})
+target_link_libraries(es_textfield PRIVATE glm)
+target_compile_definitions(es_textfield PUBLIC ${ES_COMMON_DEFINITIONS})
+es_apply_side_module_settings(es_textfield)
+set_target_properties(es_textfield PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/modules")
+
+# =============================================================================
+# es_dropdown
+# =============================================================================
+
+add_library(es_dropdown SHARED src/esengine/ui/widgets/Dropdown.cpp)
+target_include_directories(es_dropdown PUBLIC ${ES_COMMON_INCLUDES})
+target_link_libraries(es_dropdown PRIVATE glm)
+target_compile_definitions(es_dropdown PUBLIC ${ES_COMMON_DEFINITIONS})
+es_apply_side_module_settings(es_dropdown)
+set_target_properties(es_dropdown PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/modules")
+
+# =============================================================================
+# es_treeview
+# =============================================================================
+
+add_library(es_treeview SHARED src/esengine/ui/widgets/TreeView.cpp)
+target_include_directories(es_treeview PUBLIC ${ES_COMMON_INCLUDES})
+target_link_libraries(es_treeview PRIVATE glm)
+target_compile_definitions(es_treeview PUBLIC ${ES_COMMON_DEFINITIONS})
+es_apply_side_module_settings(es_treeview)
+set_target_properties(es_treeview PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/modules")
+
+# =============================================================================
+# es_contextmenu
+# =============================================================================
+
+add_library(es_contextmenu SHARED src/esengine/ui/widgets/ContextMenu.cpp)
+target_include_directories(es_contextmenu PUBLIC ${ES_COMMON_INCLUDES})
+target_link_libraries(es_contextmenu PRIVATE glm)
+target_compile_definitions(es_contextmenu PUBLIC ${ES_COMMON_DEFINITIONS})
+es_apply_side_module_settings(es_contextmenu)
+set_target_properties(es_contextmenu PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/modules")
+
+# =============================================================================
+# es_ui_docking - UI Docking Module (Editor only)
 # =============================================================================
 
 set(ES_UI_DOCKING_SOURCES
@@ -89,131 +223,55 @@ set(ES_UI_DOCKING_SOURCES
     src/esengine/ui/docking/DockLayoutSerializer.cpp
 )
 
-# =============================================================================
-# Font Module Sources (SIDE_MODULE)
-# =============================================================================
-
-set(ES_FONT_SDF_SOURCES
-    src/esengine/ui/font/SDFFont.cpp
-)
-
-set(ES_FONT_BITMAP_SOURCES
-    src/esengine/ui/font/BitmapFont.cpp
-)
-
-# =============================================================================
-# Create Core Library (Static for linking)
-# =============================================================================
-
-add_library(esengine_core_lib STATIC ${ES_CORE_SOURCES})
-
-target_include_directories(esengine_core_lib
-    PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb>
-)
-
-target_link_libraries(esengine_core_lib PUBLIC glm)
-target_compile_definitions(esengine_core_lib PUBLIC ES_PLATFORM_WEB ES_BUILD_MODULAR)
-
-# =============================================================================
-# Create UI Core Side Module
-# =============================================================================
-
-add_library(es_ui_core SHARED ${ES_UI_CORE_SOURCES})
-
-target_include_directories(es_ui_core
-    PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb>
-)
-
-target_link_libraries(es_ui_core PRIVATE glm)
-target_compile_definitions(es_ui_core PUBLIC ES_PLATFORM_WEB ES_BUILD_MODULAR)
-
-es_apply_side_module_settings(es_ui_core)
-
-# =============================================================================
-# Create UI Widgets Side Module
-# =============================================================================
-
-add_library(es_ui_widgets SHARED ${ES_UI_WIDGETS_SOURCES})
-
-target_include_directories(es_ui_widgets
-    PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb>
-)
-
-target_link_libraries(es_ui_widgets PRIVATE glm)
-target_compile_definitions(es_ui_widgets PUBLIC ES_PLATFORM_WEB ES_BUILD_MODULAR)
-
-es_apply_side_module_settings(es_ui_widgets)
-
-# =============================================================================
-# Create UI Docking Side Module (Editor only)
-# =============================================================================
-
 add_library(es_ui_docking SHARED ${ES_UI_DOCKING_SOURCES})
-
-target_include_directories(es_ui_docking
-    PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb>
-)
-
+target_include_directories(es_ui_docking PUBLIC ${ES_COMMON_INCLUDES})
 target_link_libraries(es_ui_docking PRIVATE glm)
-target_compile_definitions(es_ui_docking PUBLIC ES_PLATFORM_WEB ES_BUILD_MODULAR)
-
+target_compile_definitions(es_ui_docking PUBLIC ${ES_COMMON_DEFINITIONS})
 es_apply_side_module_settings(es_ui_docking)
 
+set_target_properties(es_ui_docking PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/modules"
+)
+
 # =============================================================================
-# Create Font SDF Side Module (if enabled)
+# Optional Font Modules
 # =============================================================================
 
 if(ES_FEATURE_SDF_FONT)
-    add_library(es_font_sdf SHARED ${ES_FONT_SDF_SOURCES})
-
-    target_include_directories(es_font_sdf
-        PUBLIC
-            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
-            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb>
-            ${CMAKE_SOURCE_DIR}/third_party/freetype/include
+    set(ES_FONT_SDF_SOURCES
+        src/esengine/ui/font/SDFFont.cpp
+        src/esengine/ui/font/MSDFFont.cpp
     )
 
-    target_link_libraries(es_font_sdf PRIVATE glm freetype)
-    target_compile_definitions(es_font_sdf PUBLIC ES_PLATFORM_WEB ES_BUILD_MODULAR ES_FEATURE_SDF_FONT=1)
-
+    add_library(es_font_sdf SHARED ${ES_FONT_SDF_SOURCES})
+    target_include_directories(es_font_sdf PUBLIC
+        ${ES_COMMON_INCLUDES}
+        ${CMAKE_SOURCE_DIR}/third_party/freetype/include
+        ${CMAKE_SOURCE_DIR}/third_party/msdfgen
+    )
+    target_link_libraries(es_font_sdf PRIVATE glm freetype msdfgen-core msdfgen-ext)
+    target_compile_definitions(es_font_sdf PUBLIC ${ES_COMMON_DEFINITIONS} ES_FEATURE_SDF_FONT=1)
     es_apply_side_module_settings(es_font_sdf)
 
-    message(STATUS "  - es_font_sdf: ENABLED (SDF font with FreeType)")
-endif()
-
-# =============================================================================
-# Create Font Bitmap Side Module (if enabled)
-# =============================================================================
-
-if(ES_FEATURE_BITMAP_FONT)
-    add_library(es_font_bitmap SHARED ${ES_FONT_BITMAP_SOURCES})
-
-    target_include_directories(es_font_bitmap
-        PUBLIC
-            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
-            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb>
+    set_target_properties(es_font_sdf PROPERTIES
+        LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/modules"
     )
 
-    target_link_libraries(es_font_bitmap PRIVATE glm)
-    target_compile_definitions(es_font_bitmap PUBLIC ES_PLATFORM_WEB ES_BUILD_MODULAR ES_FEATURE_BITMAP_FONT=1)
+    message(STATUS "  - es_font_sdf: ENABLED")
+endif()
 
+if(ES_FEATURE_BITMAP_FONT)
+    add_library(es_font_bitmap SHARED src/esengine/ui/font/BitmapFont.cpp)
+    target_include_directories(es_font_bitmap PUBLIC ${ES_COMMON_INCLUDES})
+    target_link_libraries(es_font_bitmap PRIVATE glm)
+    target_compile_definitions(es_font_bitmap PUBLIC ${ES_COMMON_DEFINITIONS} ES_FEATURE_BITMAP_FONT=1)
     es_apply_side_module_settings(es_font_bitmap)
 
-    message(STATUS "  - es_font_bitmap: ENABLED (lightweight bitmap font)")
+    set_target_properties(es_font_bitmap PROPERTIES
+        LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/modules"
+    )
+
+    message(STATUS "  - es_font_bitmap: ENABLED")
 endif()
 
 # =============================================================================
@@ -221,15 +279,13 @@ endif()
 # =============================================================================
 
 message(STATUS "")
-message(STATUS "Modular build targets:")
-message(STATUS "  - esengine_core_lib: Core engine (static library)")
-message(STATUS "  - es_ui_core: UI core (side module)")
-message(STATUS "  - es_ui_widgets: UI widgets (side module)")
-message(STATUS "  - es_ui_docking: UI docking - editor only (side module)")
-if(ES_FEATURE_SDF_FONT)
-    message(STATUS "  - es_font_sdf: SDF font (side module)")
-endif()
-if(ES_FEATURE_BITMAP_FONT)
-    message(STATUS "  - es_font_bitmap: Bitmap font (side module)")
-endif()
+message(STATUS "Modular build targets (output: build-modular/modules/):")
+message(STATUS "  Core:")
+message(STATUS "    - es_core, es_renderer, es_resource")
+message(STATUS "  UI:")
+message(STATUS "    - es_ui_core, es_ui_widgets")
+message(STATUS "    - es_scrollview, es_textfield, es_dropdown")
+message(STATUS "    - es_treeview, es_contextmenu")
+message(STATUS "  Editor:")
+message(STATUS "    - es_ui_docking")
 message(STATUS "")

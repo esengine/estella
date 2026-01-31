@@ -22,6 +22,8 @@
 #include "../font/BitmapFont.hpp"
 #endif
 
+#include "../font/SystemFont.hpp"
+
 namespace esengine::ui {
 
 // =============================================================================
@@ -122,6 +124,14 @@ glm::vec2 Dropdown::measure(f32 availableWidth, f32 availableHeight) {
             maxTextWidth = glm::max(maxTextWidth, textWidth);
         }
     }
+#else
+    SystemFont* font = ctx->getDefaultSystemFont();
+    if (font) {
+        for (const auto& item : items_) {
+            f32 textWidth = font->measureText(item.label, fontSize_).x;
+            maxTextWidth = glm::max(maxTextWidth, textWidth);
+        }
+    }
 #endif
 
     f32 contentWidth = PADDING_X * 2 + maxTextWidth + ARROW_WIDTH;
@@ -190,6 +200,26 @@ void Dropdown::render(UIBatchRenderer& renderer) {
         f32 textY = bounds.y + (bounds.height - fontSize_) * 0.5f;
         renderer.drawText(displayText, {textX, textY}, *textFont, fontSize_, textColor);
     }
+#else
+    SystemFont* textFont = ctx->getDefaultSystemFont();
+    SystemFont* iconFont = ctx->getIconSystemFont();
+
+    if (textFont) {
+        const DropdownItem* selected = getSelectedItem();
+        std::string displayText = selected ? selected->label : "";
+
+        f32 textX = bounds.x + PADDING_X;
+        f32 textY = bounds.y + (bounds.height - fontSize_) * 0.5f;
+        renderer.drawText(displayText, {textX, textY}, *textFont, fontSize_, textColor);
+    }
+
+    if (iconFont) {
+        f32 arrowX = bounds.x + bounds.width - ARROW_WIDTH;
+        Rect arrowBounds{arrowX, bounds.y, ARROW_WIDTH, bounds.height};
+        std::string arrowIcon = isOpen_ ? icons::ChevronUp : icons::ChevronDown;
+        renderer.drawTextInBounds(arrowIcon, arrowBounds, *iconFont, 12.0f, arrowColor,
+                                  HAlign::Center, VAlign::Center);
+    }
 #endif
 
     if (isOpen_) {
@@ -223,6 +253,30 @@ void Dropdown::render(UIBatchRenderer& renderer) {
             }
         }
 #elif ES_FEATURE_BITMAP_FONT
+        if (textFont) {
+            f32 itemY = popupBounds.y + PADDING_Y;
+
+            for (i32 i = 0; i < static_cast<i32>(items_.size()); ++i) {
+                const DropdownItem& item = items_[i];
+                Rect itemBounds{popupBounds.x + 4.0f, itemY, popupBounds.width - 8.0f, ITEM_HEIGHT};
+
+                bool isHovered = (i == hoveredIndex_) && item.enabled;
+                bool isSelected = (i == selectedIndex_);
+
+                if (isHovered || isSelected) {
+                    glm::vec4 highlightColor = isHovered ? hoverBgColor : glm::vec4{0.25f, 0.25f, 0.25f, 1.0f};
+                    renderer.drawRoundedRect(itemBounds, highlightColor, CornerRadii::all(2.0f));
+                }
+
+                glm::vec4 itemTextColor = item.enabled ? textColor : glm::vec4{0.5f, 0.5f, 0.5f, 1.0f};
+                f32 textX = popupBounds.x + PADDING_X;
+                f32 textY = itemY + (ITEM_HEIGHT - fontSize_) * 0.5f;
+                renderer.drawText(item.label, {textX, textY}, *textFont, fontSize_, itemTextColor);
+
+                itemY += ITEM_HEIGHT;
+            }
+        }
+#else
         if (textFont) {
             f32 itemY = popupBounds.y + PADDING_Y;
 

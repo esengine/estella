@@ -353,6 +353,12 @@ EMSCRIPTEN_BINDINGS(esengine_app) {
     function("getApp", optional_override([]() -> App* {
         return &App::get();
     }), allow_raw_pointers());
+
+    function("setJSSystemsCallback", optional_override([](emscripten::val callback) {
+        static emscripten::val storedCallback = emscripten::val::undefined();
+        storedCallback = callback;
+        App::setJSSystemsCallback(&storedCallback);
+    }));
 }
 
 // =============================================================================
