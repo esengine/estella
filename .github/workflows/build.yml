@@ -140,7 +140,7 @@ jobs:
 
     - name: Build Side Modules
       run: |
-        cmake --build build_modular --target es_ui_core es_ui_widgets es_ui_docking es_font_bitmap
+        cmake --build build_modular --target es_ui_core es_ui_widgets es_ui_docking
 
     - name: Check Module Sizes
       run: |

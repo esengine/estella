@@ -30,7 +30,7 @@ set(ES_EMSCRIPTEN_LINK_FLAGS
     -sMODULARIZE=1                  # Wrap in module factory function
     "-sEXPORT_NAME='ESEngineModule'" # Module name
     # Exported functions (EMSCRIPTEN_KEEPALIVE + stdlib)
-    "-sEXPORTED_FUNCTIONS=['_malloc','_free','_es_app_init','_es_sdk_init','_es_sdk_version']"
+    "-sEXPORTED_FUNCTIONS=['_malloc','_free','_es_app_init']"
     "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32']"
     # Embed assets (fonts, etc.)
     "--embed-file=${CMAKE_SOURCE_DIR}/assets/fonts@/assets/fonts"

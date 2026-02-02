@@ -47,6 +47,7 @@ InspectorPanel::InspectorPanel(ecs::Registry& registry,
     setMinSize(glm::vec2(250.0f, 200.0f));
 
     buildUI();
+    connectToolbarButtons();
 
     selectionListenerId_ = selection_.addListener(
         [this](const std::vector<Entity>&, const std::vector<Entity>&) {
@@ -97,6 +98,7 @@ void InspectorPanel::buildUI() {
     lockButton->setWidth(ui::SizeValue::px(26.0f));
     lockButton->setHeight(ui::SizeValue::px(26.0f));
     lockButton->setCornerRadii(ui::CornerRadii::all(3.0f));
+    lockButton_ = lockButton.get();
     toolbar->addChild(std::move(lockButton));
 
     auto debugButton = makeUnique<ui::Button>(ui::WidgetId(getId().path + "_debug_btn"), ui::icons::Bug);
@@ -104,6 +106,7 @@ void InspectorPanel::buildUI() {
     debugButton->setWidth(ui::SizeValue::px(26.0f));
     debugButton->setHeight(ui::SizeValue::px(26.0f));
     debugButton->setCornerRadii(ui::CornerRadii::all(3.0f));
+    debugButton_ = debugButton.get();
     toolbar->addChild(std::move(debugButton));
 
     auto spacer = makeUnique<ui::Panel>(ui::WidgetId(getId().path + "_spacer"));
@@ -117,6 +120,7 @@ void InspectorPanel::buildUI() {
     addComponentButton->setWidth(ui::SizeValue::px(26.0f));
     addComponentButton->setHeight(ui::SizeValue::px(26.0f));
     addComponentButton->setCornerRadii(ui::CornerRadii::all(3.0f));
+    addComponentButton_ = addComponentButton.get();
     toolbar->addChild(std::move(addComponentButton));
 
     auto settingsButton = makeUnique<ui::Button>(ui::WidgetId(getId().path + "_settings_btn"), ui::icons::Settings);
@@ -124,6 +128,7 @@ void InspectorPanel::buildUI() {
     settingsButton->setWidth(ui::SizeValue::px(26.0f));
     settingsButton->setHeight(ui::SizeValue::px(26.0f));
     settingsButton->setCornerRadii(ui::CornerRadii::all(3.0f));
+    settingsButton_ = settingsButton.get();
     toolbar->addChild(std::move(settingsButton));
 
     rootPanel->addChild(std::move(toolbar));
@@ -1243,6 +1248,41 @@ void InspectorPanel::addScriptComponentEditors(Entity entity) {
             }
         }
     }
+}
+
+void InspectorPanel::connectToolbarButtons() {
+    if (addComponentButton_) {
+        toolbarConnections_.add(sink(addComponentButton_->onClick).connect(
+            [this]() { onAddComponentClicked(); }
+        ));
+    }
+}
+
+void InspectorPanel::onAddComponentClicked() {
+    if (currentEntity_ == INVALID_ENTITY || !registry_.valid(currentEntity_)) {
+        ES_LOG_WARN("No entity selected to add component");
+        return;
+    }
+
+    ES_LOG_INFO("Add component clicked for entity {}", currentEntity_);
+
+    // Add Camera component if not already present
+    if (!registry_.has<ecs::Camera>(currentEntity_)) {
+        registry_.emplace<ecs::Camera>(currentEntity_);
+        ES_LOG_INFO("Added Camera component to entity {}", currentEntity_);
+        rebuildInspector();
+        return;
+    }
+
+    // Add Sprite component if not already present
+    if (!registry_.has<ecs::Sprite>(currentEntity_)) {
+        registry_.emplace<ecs::Sprite>(currentEntity_);
+        ES_LOG_INFO("Added Sprite component to entity {}", currentEntity_);
+        rebuildInspector();
+        return;
+    }
+
+    ES_LOG_INFO("Entity already has all available components");
 }
 
 }  // namespace esengine::editor

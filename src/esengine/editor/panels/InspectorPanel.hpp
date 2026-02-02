@@ -20,6 +20,7 @@
 #include "../../ui/widgets/Label.hpp"
 #include "../../ui/widgets/Panel.hpp"
 #include "../../ui/widgets/TextField.hpp"
+#include "../../ui/widgets/Button.hpp"
 #include "../../ecs/Registry.hpp"
 #include "../../ecs/Entity.hpp"
 #include "../core/Selection.hpp"
@@ -134,10 +135,20 @@ private:
     u32 selectionListenerId_ = 0;
 
     ConnectionHolder editorConnections_;
+    ConnectionHolder toolbarConnections_;
 
     Vector3Editor* positionEditor_ = nullptr;
     Vector3Editor* rotationEditor_ = nullptr;
     Vector3Editor* scaleEditor_ = nullptr;
+
+    // Toolbar buttons
+    ui::Button* addComponentButton_ = nullptr;
+    ui::Button* lockButton_ = nullptr;
+    ui::Button* debugButton_ = nullptr;
+    ui::Button* settingsButton_ = nullptr;
+
+    void connectToolbarButtons();
+    void onAddComponentClicked();
 };
 
 }  // namespace esengine::editor
