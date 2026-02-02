@@ -18,6 +18,9 @@
 #include "RecentProjectsManager.hpp"
 #include "../../core/Types.hpp"
 
+#include <string>
+#include <unordered_map>
+
 namespace esengine {
 class Dispatcher;
 }
@@ -81,9 +84,12 @@ public:
 
 private:
     void createDirectoryStructure(const std::string& rootDir);
-    void createProjectFiles(const std::string& rootDir);
-    void createGitignore(const std::string& rootDir);
+    void copyTemplates(const std::string& rootDir);
     void checkAndSyncDependencies();
+    void copyTemplateFile(const std::string& src, const std::string& dst,
+                          const std::unordered_map<std::string, std::string>& vars);
+    void copyTemplateDirectory(const std::string& srcDir, const std::string& dstDir,
+                               const std::unordered_map<std::string, std::string>& vars);
     void updatePathResolver(const std::string& rootDir);
     void initializeAssetDatabase(const std::string& rootDir);
     void fireProjectOpenedEvent();

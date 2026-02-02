@@ -58,6 +58,8 @@ public:
     Signal<void()> onPause;
     Signal<void()> onStop;
     Signal<void()> onWebPreview;
+    Signal<void()> onSave;
+    Signal<void()> onNewScene;
 
     void startWebPreview(const std::string& directory);
     void stopWebPreview();
@@ -78,6 +80,8 @@ private:
         bool hovered = false;
     };
 
+    ButtonState newSceneButton_;
+    ButtonState saveButton_;
     ButtonState playButton_;
     ButtonState pauseButton_;
     ButtonState stopButton_;

@@ -17,126 +17,280 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <windows.h>
-#include <commdlg.h>
+#include <shobjidl.h>
 #include <shlobj.h>
 #endif
 
 namespace esengine {
 
 // =============================================================================
-// Windows Implementation
+// Windows Implementation - Modern COM API
 // =============================================================================
 
 #ifdef ES_PLATFORM_WINDOWS
 
+namespace {
+
+// Convert UTF-8 to wide string
+std::wstring toWideString(const std::string& str) {
+    if (str.empty()) return L"";
+    int size = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, nullptr, 0);
+    std::wstring result(size - 1, 0);
+    MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, &result[0], size);
+    return result;
+}
+
+// Convert wide string to UTF-8
+std::string toUtf8String(const std::wstring& wstr) {
+    if (wstr.empty()) return "";
+    int size = WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1, nullptr, 0, nullptr, nullptr);
+    std::string result(size - 1, 0);
+    WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1, &result[0], size, nullptr, nullptr);
+    return result;
+}
+
+} // namespace
+
 std::string FileDialog::openFile(const std::string& title,
                                   const std::vector<FileFilter>& filters,
                                   const std::string& defaultPath) {
-    char filename[MAX_PATH] = {0};
+    // Initialize COM
+    HRESULT hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+    bool comInitialized = SUCCEEDED(hr) || hr == S_FALSE;
+    if (!comInitialized) {
+        ES_LOG_ERROR("Failed to initialize COM for file dialog");
+        return "";
+    }
 
-    std::string filterStr;
-    if (filters.empty()) {
-        filterStr = "All Files\0*.*\0";
-    } else {
+    std::string result;
+    IFileOpenDialog* pDialog = nullptr;
+
+    hr = CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_ALL,
+                           IID_IFileOpenDialog, reinterpret_cast<void**>(&pDialog));
+    if (FAILED(hr) || !pDialog) {
+        ES_LOG_ERROR("Failed to create file open dialog");
+        CoUninitialize();
+        return "";
+    }
+
+    // Set title
+    std::wstring wTitle = toWideString(title);
+    pDialog->SetTitle(wTitle.c_str());
+
+    // Set file type filters
+    if (!filters.empty()) {
+        std::vector<COMDLG_FILTERSPEC> specs;
+        std::vector<std::wstring> names, patterns;
+
         for (const auto& filter : filters) {
-            filterStr += filter.name;
-            filterStr.push_back('\0');
-            filterStr += filter.pattern;
-            filterStr.push_back('\0');
+            names.push_back(toWideString(filter.name));
+            std::string pattern = filter.pattern;
+            if (!pattern.empty() && pattern[0] != '*') {
+                pattern = "*." + pattern;
+            }
+            patterns.push_back(toWideString(pattern));
+        }
+
+        for (size_t i = 0; i < filters.size(); ++i) {
+            specs.push_back({names[i].c_str(), patterns[i].c_str()});
+        }
+
+        pDialog->SetFileTypes(static_cast<UINT>(specs.size()), specs.data());
+        pDialog->SetFileTypeIndex(1);
+    }
+
+    // Set default folder
+    if (!defaultPath.empty()) {
+        IShellItem* pFolder = nullptr;
+        std::wstring wPath = toWideString(defaultPath);
+        hr = SHCreateItemFromParsingName(wPath.c_str(), nullptr, IID_IShellItem,
+                                          reinterpret_cast<void**>(&pFolder));
+        if (SUCCEEDED(hr) && pFolder) {
+            pDialog->SetFolder(pFolder);
+            pFolder->Release();
         }
     }
-    filterStr.push_back('\0');
 
-    OPENFILENAMEA ofn = {};
-    ofn.lStructSize = sizeof(ofn);
-    ofn.hwndOwner = nullptr;
-    ofn.lpstrFilter = filterStr.c_str();
-    ofn.lpstrFile = filename;
-    ofn.nMaxFile = MAX_PATH;
-    ofn.lpstrTitle = title.c_str();
-    ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
-
-    if (!defaultPath.empty()) {
-        ofn.lpstrInitialDir = defaultPath.c_str();
+    // Show dialog
+    hr = pDialog->Show(nullptr);
+    if (SUCCEEDED(hr)) {
+        IShellItem* pItem = nullptr;
+        hr = pDialog->GetResult(&pItem);
+        if (SUCCEEDED(hr) && pItem) {
+            PWSTR pszPath = nullptr;
+            hr = pItem->GetDisplayName(SIGDN_FILESYSPATH, &pszPath);
+            if (SUCCEEDED(hr) && pszPath) {
+                result = toUtf8String(pszPath);
+                CoTaskMemFree(pszPath);
+            }
+            pItem->Release();
+        }
     }
 
-    if (GetOpenFileNameA(&ofn)) {
-        return std::string(filename);
-    }
+    pDialog->Release();
+    CoUninitialize();
 
-    return "";
+    return result;
 }
 
 std::string FileDialog::saveFile(const std::string& title,
                                   const std::vector<FileFilter>& filters,
                                   const std::string& defaultPath,
                                   const std::string& defaultName) {
-    char filename[MAX_PATH] = {0};
-
-    if (!defaultName.empty()) {
-        strncpy_s(filename, defaultName.c_str(), MAX_PATH - 1);
+    // Initialize COM
+    HRESULT hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+    bool comInitialized = SUCCEEDED(hr) || hr == S_FALSE;
+    if (!comInitialized) {
+        ES_LOG_ERROR("Failed to initialize COM for file dialog");
+        return "";
     }
 
-    std::string filterStr;
-    if (filters.empty()) {
-        filterStr = "All Files\0*.*\0";
-    } else {
+    std::string result;
+    IFileSaveDialog* pDialog = nullptr;
+
+    hr = CoCreateInstance(CLSID_FileSaveDialog, nullptr, CLSCTX_ALL,
+                           IID_IFileSaveDialog, reinterpret_cast<void**>(&pDialog));
+    if (FAILED(hr) || !pDialog) {
+        ES_LOG_ERROR("Failed to create file save dialog");
+        CoUninitialize();
+        return "";
+    }
+
+    // Set title
+    std::wstring wTitle = toWideString(title);
+    pDialog->SetTitle(wTitle.c_str());
+
+    // Set file type filters
+    std::string defaultExtension;
+    if (!filters.empty()) {
+        std::vector<COMDLG_FILTERSPEC> specs;
+        std::vector<std::wstring> names, patterns;
+
         for (const auto& filter : filters) {
-            filterStr += filter.name;
-            filterStr.push_back('\0');
-            filterStr += filter.pattern;
-            filterStr.push_back('\0');
+            names.push_back(toWideString(filter.name));
+            std::string pattern = filter.pattern;
+            if (!pattern.empty() && pattern[0] != '*') {
+                defaultExtension = pattern;
+                pattern = "*." + pattern;
+            }
+            patterns.push_back(toWideString(pattern));
+        }
+
+        for (size_t i = 0; i < filters.size(); ++i) {
+            specs.push_back({names[i].c_str(), patterns[i].c_str()});
+        }
+
+        pDialog->SetFileTypes(static_cast<UINT>(specs.size()), specs.data());
+        pDialog->SetFileTypeIndex(1);
+
+        if (!defaultExtension.empty()) {
+            std::wstring wExt = toWideString(defaultExtension);
+            pDialog->SetDefaultExtension(wExt.c_str());
         }
     }
-    filterStr.push_back('\0');
 
-    OPENFILENAMEA ofn = {};
-    ofn.lStructSize = sizeof(ofn);
-    ofn.hwndOwner = nullptr;
-    ofn.lpstrFilter = filterStr.c_str();
-    ofn.lpstrFile = filename;
-    ofn.nMaxFile = MAX_PATH;
-    ofn.lpstrTitle = title.c_str();
-    ofn.Flags = OFN_OVERWRITEPROMPT | OFN_NOCHANGEDIR;
+    // Set default filename
+    if (!defaultName.empty()) {
+        std::wstring wName = toWideString(defaultName);
+        pDialog->SetFileName(wName.c_str());
+    }
 
+    // Set default folder
     if (!defaultPath.empty()) {
-        ofn.lpstrInitialDir = defaultPath.c_str();
+        IShellItem* pFolder = nullptr;
+        std::wstring wPath = toWideString(defaultPath);
+        hr = SHCreateItemFromParsingName(wPath.c_str(), nullptr, IID_IShellItem,
+                                          reinterpret_cast<void**>(&pFolder));
+        if (SUCCEEDED(hr) && pFolder) {
+            pDialog->SetFolder(pFolder);
+            pFolder->Release();
+        }
     }
 
-    if (GetSaveFileNameA(&ofn)) {
-        return std::string(filename);
+    // Show dialog
+    hr = pDialog->Show(nullptr);
+    if (SUCCEEDED(hr)) {
+        IShellItem* pItem = nullptr;
+        hr = pDialog->GetResult(&pItem);
+        if (SUCCEEDED(hr) && pItem) {
+            PWSTR pszPath = nullptr;
+            hr = pItem->GetDisplayName(SIGDN_FILESYSPATH, &pszPath);
+            if (SUCCEEDED(hr) && pszPath) {
+                result = toUtf8String(pszPath);
+                CoTaskMemFree(pszPath);
+            }
+            pItem->Release();
+        }
     }
 
-    return "";
-}
+    pDialog->Release();
+    CoUninitialize();
 
-static int CALLBACK BrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM /*lParam*/, LPARAM lpData) {
-    if (uMsg == BFFM_INITIALIZED && lpData != 0) {
-        SendMessageA(hwnd, BFFM_SETSELECTION, TRUE, lpData);
-    }
-    return 0;
+    return result;
 }
 
 std::string FileDialog::selectFolder(const std::string& title,
                                       const std::string& defaultPath) {
-    char path[MAX_PATH] = {0};
-
-    BROWSEINFOA bi = {};
-    bi.lpszTitle = title.c_str();
-    bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE;
-    bi.lpfn = BrowseCallbackProc;
-    bi.lParam = reinterpret_cast<LPARAM>(defaultPath.empty() ? nullptr : defaultPath.c_str());
-
-    LPITEMIDLIST pidl = SHBrowseForFolderA(&bi);
-    if (pidl != nullptr) {
-        if (SHGetPathFromIDListA(pidl, path)) {
-            CoTaskMemFree(pidl);
-            return std::string(path);
-        }
-        CoTaskMemFree(pidl);
+    // Initialize COM
+    HRESULT hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+    bool comInitialized = SUCCEEDED(hr) || hr == S_FALSE;
+    if (!comInitialized) {
+        ES_LOG_ERROR("Failed to initialize COM for folder dialog");
+        return "";
     }
 
-    return "";
+    std::string result;
+    IFileOpenDialog* pDialog = nullptr;
+
+    hr = CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_ALL,
+                           IID_IFileOpenDialog, reinterpret_cast<void**>(&pDialog));
+    if (FAILED(hr) || !pDialog) {
+        ES_LOG_ERROR("Failed to create folder dialog");
+        CoUninitialize();
+        return "";
+    }
+
+    // Set options to pick folders
+    DWORD options;
+    pDialog->GetOptions(&options);
+    pDialog->SetOptions(options | FOS_PICKFOLDERS);
+
+    // Set title
+    std::wstring wTitle = toWideString(title);
+    pDialog->SetTitle(wTitle.c_str());
+
+    // Set default folder
+    if (!defaultPath.empty()) {
+        IShellItem* pFolder = nullptr;
+        std::wstring wPath = toWideString(defaultPath);
+        hr = SHCreateItemFromParsingName(wPath.c_str(), nullptr, IID_IShellItem,
+                                          reinterpret_cast<void**>(&pFolder));
+        if (SUCCEEDED(hr) && pFolder) {
+            pDialog->SetFolder(pFolder);
+            pFolder->Release();
+        }
+    }
+
+    // Show dialog
+    hr = pDialog->Show(nullptr);
+    if (SUCCEEDED(hr)) {
+        IShellItem* pItem = nullptr;
+        hr = pDialog->GetResult(&pItem);
+        if (SUCCEEDED(hr) && pItem) {
+            PWSTR pszPath = nullptr;
+            hr = pItem->GetDisplayName(SIGDN_FILESYSPATH, &pszPath);
+            if (SUCCEEDED(hr) && pszPath) {
+                result = toUtf8String(pszPath);
+                CoTaskMemFree(pszPath);
+            }
+            pItem->Release();
+        }
+    }
+
+    pDialog->Release();
+    CoUninitialize();
+
+    return result;
 }
 
 // =============================================================================

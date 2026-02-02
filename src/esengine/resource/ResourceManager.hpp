@@ -211,6 +211,13 @@ public:
     void releaseTexture(TextureHandle handle);
 
     /**
+     * @brief Gets the cached path for a texture
+     * @param handle The texture handle
+     * @return The path used to load the texture, or empty if not found
+     */
+    const std::string& getTexturePath(TextureHandle handle) const;
+
+    /**
      * @brief Loads a texture by GUID (with caching)
      * @param guid Asset GUID from AssetDatabase
      * @param path File path to load if not cached

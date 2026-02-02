@@ -121,9 +121,16 @@ void EditorToolbar::render(ui::UIBatchRenderer& renderer) {
 
     constexpr glm::vec4 previewingBg{0.180f, 0.545f, 0.341f, 1.0f};
 
+    // Left side: scene management
+    drawButton(newSceneButton_, icons::FilePlus, false, buttonBg);
+    drawButton(saveButton_, icons::Save, false, buttonBg);
+
+    // Center: play controls
     drawButton(playButton_, icons::Play, playing, playingBg);
     drawButton(pauseButton_, icons::Pause, paused, pausedBg);
     drawButton(stopButton_, icons::Square, false, buttonBg);
+
+    // Right side: web preview
     drawButton(webPreviewButton_, icons::Globe, previewing, previewingBg);
 }
 
@@ -133,6 +140,16 @@ void EditorToolbar::render(ui::UIBatchRenderer& renderer) {
 
 bool EditorToolbar::onMouseDown(const ui::MouseButtonEvent& event) {
     if (event.button != ui::MouseButton::Left) return false;
+
+    if (newSceneButton_.bounds.contains(event.x, event.y)) {
+        onNewScene.publish();
+        return true;
+    }
+
+    if (saveButton_.bounds.contains(event.x, event.y)) {
+        onSave.publish();
+        return true;
+    }
 
     if (playButton_.bounds.contains(event.x, event.y)) {
         if (state_ == PlayState::Paused) {
@@ -166,6 +183,8 @@ bool EditorToolbar::onMouseDown(const ui::MouseButtonEvent& event) {
 }
 
 bool EditorToolbar::onMouseMove(const ui::MouseMoveEvent& event) {
+    newSceneButton_.hovered = newSceneButton_.bounds.contains(event.x, event.y);
+    saveButton_.hovered = saveButton_.bounds.contains(event.x, event.y);
     playButton_.hovered = playButton_.bounds.contains(event.x, event.y);
     pauseButton_.hovered = pauseButton_.bounds.contains(event.x, event.y);
     stopButton_.hovered = stopButton_.bounds.contains(event.x, event.y);
@@ -185,14 +204,21 @@ void EditorToolbar::updateButtonBounds() {
     constexpr f32 groupWidth = buttonSize * 3 + buttonGap * 2;
     constexpr f32 padding = 8.0f;
 
-    f32 centerX = bounds.x + bounds.width * 0.5f;
-    f32 startX = centerX - groupWidth * 0.5f;
     f32 centerY = bounds.y + (bounds.height - buttonSize) * 0.5f;
 
+    // Left side: scene management buttons
+    f32 leftX = bounds.x + padding;
+    newSceneButton_.bounds = ui::Rect{leftX, centerY, buttonSize, buttonSize};
+    saveButton_.bounds = ui::Rect{leftX + buttonSize + buttonGap, centerY, buttonSize, buttonSize};
+
+    // Center: play controls
+    f32 centerX = bounds.x + bounds.width * 0.5f;
+    f32 startX = centerX - groupWidth * 0.5f;
     playButton_.bounds = ui::Rect{startX, centerY, buttonSize, buttonSize};
     pauseButton_.bounds = ui::Rect{startX + buttonSize + buttonGap, centerY, buttonSize, buttonSize};
     stopButton_.bounds = ui::Rect{startX + (buttonSize + buttonGap) * 2, centerY, buttonSize, buttonSize};
 
+    // Right side: web preview
     f32 rightX = bounds.x + bounds.width - padding - buttonSize;
     webPreviewButton_.bounds = ui::Rect{rightX, centerY, buttonSize, buttonSize};
 }

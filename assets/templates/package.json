@@ -1,0 +1,17 @@
+{
+  "name": "{{PROJECT_NAME}}",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "npx esbuild src/main.ts --bundle --format=esm --outfile=build/js/main.js --sourcemap",
+    "dev": "npx esbuild src/main.ts --bundle --format=esm --outfile=build/js/main.js --sourcemap --watch",
+    "typecheck": "npx tsc --noEmit"
+  },
+  "dependencies": {
+    "esengine": "file:{{SDK_PATH}}"
+  },
+  "devDependencies": {
+    "esbuild": "^0.20.0",
+    "typescript": "^5.0.0"
+  }
+}

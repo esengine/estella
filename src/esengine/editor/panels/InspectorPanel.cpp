@@ -34,11 +34,13 @@ namespace esengine::editor {
 
 InspectorPanel::InspectorPanel(ecs::Registry& registry,
                                EntitySelection& selection,
-                               CommandHistory& history)
+                               CommandHistory& history,
+                               ScriptComponentRegistry* scriptRegistry)
     : DockPanel(ui::WidgetId("inspector_panel"), "Inspector"),
       registry_(registry),
       selection_(selection),
-      history_(history) {
+      history_(history),
+      scriptRegistry_(scriptRegistry) {
 
     setPanelType("Inspector");
     setClosable(false);
@@ -429,6 +431,12 @@ void InspectorPanel::rebuildInspector() {
     if (registry_.has<ecs::Sprite>(currentEntity_)) {
         addSpriteEditor(currentEntity_);
         componentCount++;
+    }
+
+    // Script components
+    if (registry_.has<ecs::Scripts>(currentEntity_)) {
+        addScriptComponentEditors(currentEntity_);
+        componentCount += static_cast<i32>(registry_.get<ecs::Scripts>(currentEntity_).instances.size());
     }
 
     if (componentCountLabel_) {
@@ -1006,6 +1014,235 @@ void InspectorPanel::addTagsEditor(Entity entity) {
     ));
 
     widgets.content->addChild(std::move(staticEditor));
+}
+
+void InspectorPanel::addScriptComponentEditors(Entity entity) {
+    if (!registry_.has<ecs::Scripts>(entity)) return;
+
+    auto& scripts = registry_.get<ecs::Scripts>(entity);
+
+    for (auto& instance : scripts.instances) {
+        // Get field definitions from registry if available
+        const ScriptComponentDef* def = nullptr;
+        if (scriptRegistry_) {
+            def = scriptRegistry_->getComponent(instance.componentName);
+        }
+
+        auto widgets = createComponentSection(instance.componentName, ui::icons::Code);
+
+        for (auto& [fieldName, fieldValue] : instance.values) {
+            ScriptFieldType fieldType = ScriptFieldType::F32;  // Default
+
+            // Try to get type from definition
+            if (def) {
+                for (const auto& field : def->fields) {
+                    if (field.name == fieldName) {
+                        fieldType = field.type;
+                        break;
+                    }
+                }
+            }
+
+            // Create appropriate editor based on field type
+            std::string fieldId = widgets.content->getId().path + "_" + fieldName;
+
+            switch (fieldType) {
+                case ScriptFieldType::F32: {
+                    auto editor = makeUnique<FloatEditor>(ui::WidgetId(fieldId), fieldName);
+                    editor->setLabel(fieldName);
+                    if (std::holds_alternative<f32>(fieldValue)) {
+                        editor->setValue(std::get<f32>(fieldValue));
+                    }
+                    editor->setCommandHistory(&history_);
+
+                    editorConnections_.add(sink(editor->onValueChanged).connect(
+                        [this, entity, compName = instance.componentName, fieldName](const std::any& value) {
+                            if (!registry_.valid(entity) || !registry_.has<ecs::Scripts>(entity)) return;
+                            auto& s = registry_.get<ecs::Scripts>(entity);
+                            if (auto* inst = s.get(compName)) {
+                                try {
+                                    inst->values[fieldName] = std::any_cast<f32>(value);
+                                } catch (const std::bad_any_cast&) {}
+                            }
+                        }
+                    ));
+
+                    widgets.content->addChild(std::move(editor));
+                    break;
+                }
+
+                case ScriptFieldType::I32: {
+                    auto editor = makeUnique<IntEditor>(ui::WidgetId(fieldId), fieldName);
+                    editor->setLabel(fieldName);
+                    if (std::holds_alternative<i32>(fieldValue)) {
+                        editor->setValue(std::get<i32>(fieldValue));
+                    }
+                    editor->setCommandHistory(&history_);
+
+                    editorConnections_.add(sink(editor->onValueChanged).connect(
+                        [this, entity, compName = instance.componentName, fieldName](const std::any& value) {
+                            if (!registry_.valid(entity) || !registry_.has<ecs::Scripts>(entity)) return;
+                            auto& s = registry_.get<ecs::Scripts>(entity);
+                            if (auto* inst = s.get(compName)) {
+                                try {
+                                    inst->values[fieldName] = std::any_cast<i32>(value);
+                                } catch (const std::bad_any_cast&) {}
+                            }
+                        }
+                    ));
+
+                    widgets.content->addChild(std::move(editor));
+                    break;
+                }
+
+                case ScriptFieldType::Bool: {
+                    auto editor = makeUnique<BoolEditor>(ui::WidgetId(fieldId), fieldName);
+                    editor->setLabel(fieldName);
+                    if (std::holds_alternative<bool>(fieldValue)) {
+                        editor->setValue(std::get<bool>(fieldValue));
+                    }
+                    editor->setCommandHistory(&history_);
+
+                    editorConnections_.add(sink(editor->onValueChanged).connect(
+                        [this, entity, compName = instance.componentName, fieldName](const std::any& value) {
+                            if (!registry_.valid(entity) || !registry_.has<ecs::Scripts>(entity)) return;
+                            auto& s = registry_.get<ecs::Scripts>(entity);
+                            if (auto* inst = s.get(compName)) {
+                                try {
+                                    inst->values[fieldName] = std::any_cast<bool>(value);
+                                } catch (const std::bad_any_cast&) {}
+                            }
+                        }
+                    ));
+
+                    widgets.content->addChild(std::move(editor));
+                    break;
+                }
+
+                case ScriptFieldType::String: {
+                    auto editor = makeUnique<StringEditor>(ui::WidgetId(fieldId), fieldName);
+                    editor->setLabel(fieldName);
+                    if (std::holds_alternative<std::string>(fieldValue)) {
+                        editor->setValue(std::get<std::string>(fieldValue));
+                    }
+                    editor->setCommandHistory(&history_);
+
+                    editorConnections_.add(sink(editor->onValueChanged).connect(
+                        [this, entity, compName = instance.componentName, fieldName](const std::any& value) {
+                            if (!registry_.valid(entity) || !registry_.has<ecs::Scripts>(entity)) return;
+                            auto& s = registry_.get<ecs::Scripts>(entity);
+                            if (auto* inst = s.get(compName)) {
+                                try {
+                                    inst->values[fieldName] = std::any_cast<std::string>(value);
+                                } catch (const std::bad_any_cast&) {}
+                            }
+                        }
+                    ));
+
+                    widgets.content->addChild(std::move(editor));
+                    break;
+                }
+
+                case ScriptFieldType::Vec2: {
+                    auto editor = makeUnique<Vector2Editor>(ui::WidgetId(fieldId), fieldName);
+                    editor->setLabel(fieldName);
+                    if (std::holds_alternative<glm::vec2>(fieldValue)) {
+                        editor->setValue(std::get<glm::vec2>(fieldValue));
+                    }
+                    editor->setCommandHistory(&history_);
+
+                    editorConnections_.add(sink(editor->onValueChanged).connect(
+                        [this, entity, compName = instance.componentName, fieldName](const std::any& value) {
+                            if (!registry_.valid(entity) || !registry_.has<ecs::Scripts>(entity)) return;
+                            auto& s = registry_.get<ecs::Scripts>(entity);
+                            if (auto* inst = s.get(compName)) {
+                                try {
+                                    inst->values[fieldName] = std::any_cast<glm::vec2>(value);
+                                } catch (const std::bad_any_cast&) {}
+                            }
+                        }
+                    ));
+
+                    widgets.content->addChild(std::move(editor));
+                    break;
+                }
+
+                case ScriptFieldType::Vec3: {
+                    auto editor = makeUnique<Vector3Editor>(ui::WidgetId(fieldId), fieldName);
+                    editor->setLabel(fieldName);
+                    if (std::holds_alternative<glm::vec3>(fieldValue)) {
+                        editor->setValue(std::get<glm::vec3>(fieldValue));
+                    }
+                    editor->setCommandHistory(&history_);
+
+                    editorConnections_.add(sink(editor->onValueChanged).connect(
+                        [this, entity, compName = instance.componentName, fieldName](const std::any& value) {
+                            if (!registry_.valid(entity) || !registry_.has<ecs::Scripts>(entity)) return;
+                            auto& s = registry_.get<ecs::Scripts>(entity);
+                            if (auto* inst = s.get(compName)) {
+                                try {
+                                    inst->values[fieldName] = std::any_cast<glm::vec3>(value);
+                                } catch (const std::bad_any_cast&) {}
+                            }
+                        }
+                    ));
+
+                    widgets.content->addChild(std::move(editor));
+                    break;
+                }
+
+                case ScriptFieldType::Vec4:
+                case ScriptFieldType::Color: {
+                    auto editor = makeUnique<ColorEditor>(ui::WidgetId(fieldId), fieldName);
+                    editor->setLabel(fieldName);
+                    if (std::holds_alternative<glm::vec4>(fieldValue)) {
+                        editor->setValue(std::get<glm::vec4>(fieldValue));
+                    }
+                    editor->setCommandHistory(&history_);
+
+                    editorConnections_.add(sink(editor->onValueChanged).connect(
+                        [this, entity, compName = instance.componentName, fieldName](const std::any& value) {
+                            if (!registry_.valid(entity) || !registry_.has<ecs::Scripts>(entity)) return;
+                            auto& s = registry_.get<ecs::Scripts>(entity);
+                            if (auto* inst = s.get(compName)) {
+                                try {
+                                    inst->values[fieldName] = std::any_cast<glm::vec4>(value);
+                                } catch (const std::bad_any_cast&) {}
+                            }
+                        }
+                    ));
+
+                    widgets.content->addChild(std::move(editor));
+                    break;
+                }
+
+                case ScriptFieldType::Entity: {
+                    auto editor = makeUnique<IntEditor>(ui::WidgetId(fieldId), fieldName);
+                    editor->setLabel(fieldName + " (Entity)");
+                    if (std::holds_alternative<u32>(fieldValue)) {
+                        editor->setValue(static_cast<i32>(std::get<u32>(fieldValue)));
+                    }
+                    editor->setRange(0, 1000000);
+                    editor->setCommandHistory(&history_);
+
+                    editorConnections_.add(sink(editor->onValueChanged).connect(
+                        [this, entity, compName = instance.componentName, fieldName](const std::any& value) {
+                            if (!registry_.valid(entity) || !registry_.has<ecs::Scripts>(entity)) return;
+                            auto& s = registry_.get<ecs::Scripts>(entity);
+                            if (auto* inst = s.get(compName)) {
+                                try {
+                                    inst->values[fieldName] = static_cast<u32>(std::any_cast<i32>(value));
+                                } catch (const std::bad_any_cast&) {}
+                            }
+                        }
+                    ));
+
+                    widgets.content->addChild(std::move(editor));
+                    break;
+                }
+            }
+        }
+    }
 }
 
 }  // namespace esengine::editor

@@ -15,6 +15,7 @@
 
 #ifdef ES_PLATFORM_WINDOWS
 #define WIN32_LEAN_AND_MEAN
+#include <winsock2.h>
 #include <windows.h>
 #endif
 
@@ -36,6 +37,7 @@ public:
     std::string getUrl() const;
 
     static void openInBrowser(const std::string& url);
+    static bool isPortAvailable(u16 port);
 
 private:
     bool running_ = false;

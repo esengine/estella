@@ -202,6 +202,10 @@ void ResourceManager::releaseTexture(TextureHandle handle) {
     }
 }
 
+const std::string& ResourceManager::getTexturePath(TextureHandle handle) const {
+    return textures_.getPath(handle);
+}
+
 TextureHandle ResourceManager::loadTextureByGUID(const std::string& guid, const std::string& path) {
     auto it = guidToTexture_.find(guid);
     if (it != guidToTexture_.end() && it->second.isValid()) {

@@ -21,6 +21,7 @@
 #include "../core/Log.hpp"
 #include "../core/Types.hpp"
 #include "Entity.hpp"
+#include "SchemaComponent.hpp"
 #include "SparseSet.hpp"
 #include "View.hpp"
 
@@ -123,10 +124,13 @@ public:
     void destroy(Entity entity) {
         if (!valid(entity)) return;
 
-        // Remove all components from this entity
+        // Remove all static components from this entity
         for (auto& [typeId, pool] : pools_) {
             pool->remove(entity);
         }
+
+        // Remove all schema components from this entity
+        schemaRegistry_.removeAll(entity);
 
         entityValid_[entity] = false;
         recycled_.push(entity);
@@ -417,6 +421,60 @@ public:
         }
     }
 
+    // =========================================================================
+    // Schema Component Management (Script-defined, direct memory access)
+    // =========================================================================
+
+    /** @brief Registers a schema component pool */
+    u32 registerSchemaPool(const std::string& name, u32 stride) {
+        return schemaRegistry_.registerPool(name, stride);
+    }
+
+    /** @brief Gets schema pool ID by name */
+    u32 getSchemaPoolId(const std::string& name) const {
+        return schemaRegistry_.getPoolId(name);
+    }
+
+    /** @brief Adds schema component to entity, returns byte offset */
+    u32 addSchemaComponent(u32 poolId, Entity entity) {
+        ES_ASSERT(valid(entity), "Invalid entity");
+        return schemaRegistry_.addComponent(poolId, entity);
+    }
+
+    /** @brief Checks if entity has schema component */
+    bool hasSchemaComponent(u32 poolId, Entity entity) const {
+        return schemaRegistry_.hasComponent(poolId, entity);
+    }
+
+    /** @brief Gets byte offset of entity's schema component */
+    u32 getSchemaComponentOffset(u32 poolId, Entity entity) const {
+        return schemaRegistry_.getComponentOffset(poolId, entity);
+    }
+
+    /** @brief Removes schema component from entity */
+    void removeSchemaComponent(u32 poolId, Entity entity) {
+        schemaRegistry_.removeComponent(poolId, entity);
+    }
+
+    /** @brief Gets base pointer for schema pool (for JS direct access) */
+    uintptr_t getSchemaPoolBasePtr(u32 poolId) const {
+        return schemaRegistry_.getPoolBasePtr(poolId);
+    }
+
+    /** @brief Gets stride for schema pool */
+    u32 getSchemaPoolStride(u32 poolId) const {
+        return schemaRegistry_.getPoolStride(poolId);
+    }
+
+    /** @brief Gets entities with schema component */
+    const std::vector<Entity>& getSchemaEntities(u32 poolId) const {
+        return schemaRegistry_.getEntities(poolId);
+    }
+
+    /** @brief Gets the schema registry */
+    SchemaRegistry& schemaRegistry() { return schemaRegistry_; }
+    const SchemaRegistry& schemaRegistry() const { return schemaRegistry_; }
+
 private:
     // =========================================================================
     // Private Helpers
@@ -474,6 +532,9 @@ private:
 
     /** @brief Type-erased component pools indexed by TypeId */
     std::unordered_map<TypeId, Unique<SparseSetBase>> pools_;
+
+    /** @brief Schema component registry for script-defined components */
+    SchemaRegistry schemaRegistry_;
 };
 
 }  // namespace esengine::ecs

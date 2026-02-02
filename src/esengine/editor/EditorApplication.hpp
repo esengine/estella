@@ -28,6 +28,7 @@
 #include "ThumbnailGenerator.hpp"
 #include "DragDropManager.hpp"
 #include "project/ProjectManager.hpp"
+#include "script/ScriptComponentRegistry.hpp"
 
 namespace esengine {
 namespace editor {
@@ -38,6 +39,7 @@ class EditorRootContainer;
 class AssetBrowserPanel;
 class GameViewPanel;
 class SceneViewPanel;
+class HierarchyPanel;
 
 // =============================================================================
 // Editor Mode
@@ -143,6 +145,12 @@ public:
     ProjectManager& getProjectManager() { return *projectManager_; }
 
     /**
+     * @brief Get the script component registry
+     * @return Reference to the script component registry
+     */
+    ScriptComponentRegistry& getScriptComponentRegistry() { return scriptComponentRegistry_; }
+
+    /**
      * @brief Get current editor mode
      * @return Current editor mode (Launcher or Editor)
      */
@@ -157,6 +165,52 @@ public:
      * @brief Switch to editor mode
      */
     void showEditor();
+
+    // =========================================================================
+    // Scene Management
+    // =========================================================================
+
+    /**
+     * @brief Create a new empty scene
+     */
+    void newScene();
+
+    /**
+     * @brief Save the current scene
+     * @return true if save succeeded
+     */
+    bool saveCurrentScene();
+
+    /**
+     * @brief Save the current scene to a new path
+     * @param path Path to save to
+     * @return true if save succeeded
+     */
+    bool saveSceneAs(const std::string& path);
+
+    /**
+     * @brief Load a scene from file
+     * @param path Path to .esscene file
+     * @return true if load succeeded
+     */
+    bool loadScene(const std::string& path);
+
+    /**
+     * @brief Get current scene path
+     * @return Path to current scene file, empty if unsaved
+     */
+    const std::string& getCurrentScenePath() const { return currentScenePath_; }
+
+    /**
+     * @brief Check if scene has unsaved changes
+     * @return true if scene is dirty
+     */
+    bool isSceneDirty() const { return sceneDirty_; }
+
+    /**
+     * @brief Mark scene as dirty (has unsaved changes)
+     */
+    void markSceneDirty() { sceneDirty_ = true; }
 
 protected:
     // =========================================================================
@@ -238,6 +292,11 @@ private:
     void createDemoScene();
 
     /**
+     * @brief Create a minimal empty scene with Canvas and Camera
+     */
+    void createEmptyScene();
+
+    /**
      * @brief Setup project launcher UI
      */
     void setupLauncherLayout();
@@ -263,6 +322,12 @@ private:
      */
     std::string findWebSDKPath();
 
+    /**
+     * @brief Ensure scenes directory exists and return its path
+     * @return Path to scenes directory
+     */
+    std::string ensureScenesDirectory();
+
     // =========================================================================
     // Constants
     // =========================================================================
@@ -281,11 +346,13 @@ private:
     ThumbnailGenerator thumbnailGenerator_; ///< Thumbnail generator
     DragDropManager dragDropManager_; ///< Drag-drop manager
     Unique<ProjectManager> projectManager_; ///< Project manager
+    ScriptComponentRegistry scriptComponentRegistry_; ///< Script component registry
     Unique<ui::UIContext> uiContext_; ///< UI system context
     ui::DockArea* dockArea_ = nullptr; ///< Main docking area (owned by UIContext)
     EditorRootContainer* editorRoot_ = nullptr; ///< Editor root container
     GameViewPanel* gameViewPanel_ = nullptr; ///< Game view panel
     SceneViewPanel* sceneViewPanel_ = nullptr; ///< Scene view panel
+    HierarchyPanel* hierarchyPanel_ = nullptr; ///< Hierarchy panel
     AssetBrowserPanel* dockedAssetBrowser_ = nullptr; ///< Docked asset browser (if any)
     ProjectLauncherPanel* launcherPanel_ = nullptr; ///< Launcher panel (owned by UIContext)
     NewProjectDialog* newProjectDialog_ = nullptr;  ///< New project dialog
@@ -303,6 +370,13 @@ private:
     bool shiftPressed_ = false;                         ///< Shift key state
     bool altPressed_ = false;                           ///< Alt key state
     bool pendingShowEditor_ = false;                    ///< Deferred mode switch flag
+
+    // =========================================================================
+    // Scene State
+    // =========================================================================
+
+    std::string currentScenePath_;                       ///< Path to current scene file
+    bool sceneDirty_ = false;                           ///< Whether scene has unsaved changes
 
     // =========================================================================
     // Event Connections

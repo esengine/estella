@@ -20,6 +20,8 @@
 
 #include <algorithm>
 #include <chrono>
+#include <filesystem>
+#include <unordered_map>
 
 namespace esengine::editor {
 
@@ -238,138 +240,80 @@ const RecentProjectsManager& ProjectManager::getRecentProjects() const {
 
 void ProjectManager::createDirectoryStructure(const std::string& rootDir) {
     const std::vector<std::string> directories = {
-        "/src",                 // User source code
-        "/assets",              // Resources only
+        "/src",
+        "/src/components",
+        "/src/systems",
+        "/assets",
         "/assets/scenes",
         "/assets/textures",
         "/assets/audio",
         "/assets/fonts",
         "/assets/prefabs",
         "/assets/shaders",
-        "/build",               // Build output (should be gitignored)
-        "/.esengine"            // Editor cache (should be gitignored)
+        "/build",
+        "/.esengine"
     };
 
     for (const auto& dir : directories) {
         FileSystem::createDirectory(rootDir + dir);
     }
 
-    createProjectFiles(rootDir);
-    createGitignore(rootDir);
+    copyTemplates(rootDir);
 }
 
-void ProjectManager::createProjectFiles(const std::string& rootDir) {
-    std::string sdkDir = PathResolver::editorPath("bindings");
-    // Convert backslashes to forward slashes for JSON/npm compatibility
+void ProjectManager::copyTemplates(const std::string& rootDir) {
+    std::string templateDir = PathResolver::editorPath("assets/templates");
+    std::string sdkDir = PathResolver::editorPath("sdk");
     std::replace(sdkDir.begin(), sdkDir.end(), '\\', '/');
 
-    // Generate package.json in project root
-    std::string packageJson = R"({
-  "name": ")" + current_project_.name + R"(",
-  "version": "1.0.0",
-  "type": "module",
-  "scripts": {
-    "build": "npx esbuild src/main.ts --bundle --format=esm --outfile=build/js/main.js --sourcemap",
-    "dev": "npx esbuild src/main.ts --bundle --format=esm --outfile=build/js/main.js --sourcemap --watch",
-    "typecheck": "npx tsc --noEmit"
-  },
-  "dependencies": {
-    "esengine": "file:)" + sdkDir + R"("
-  },
-  "devDependencies": {
-    "esbuild": "^0.20.0",
-    "typescript": "^5.0.0"
-  }
+    std::unordered_map<std::string, std::string> vars = {
+        {"{{PROJECT_NAME}}", current_project_.name},
+        {"{{SDK_PATH}}", sdkDir}
+    };
+
+    copyTemplateDirectory(templateDir, rootDir, vars);
 }
-)";
-    FileSystem::writeTextFile(rootDir + "/package.json", packageJson);
-    ES_LOG_DEBUG("Created package.json");
 
-    // Generate tsconfig.json in project root (for type checking and IDE support)
-    std::string tsconfig = R"({
-  "compilerOptions": {
-    "target": "ES2020",
-    "module": "ESNext",
-    "lib": ["ES2020", "DOM"],
-    "moduleResolution": "node",
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "noEmit": true
-  },
-  "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "build"]
-}
-)";
-    FileSystem::writeTextFile(rootDir + "/tsconfig.json", tsconfig);
-    ES_LOG_DEBUG("Created tsconfig.json");
-
-    // Create main.ts in src/ directory
-    std::string mainScript = R"(/**
- * @file    main.ts
- * @brief   Game entry point
- */
-
-import { App, StartupSystem, LocalTransform, Sprite } from 'esengine';
-
-class SetupSystem extends StartupSystem {
-    onStart(): void {
-        // Create a simple sprite entity
-        this.world_.spawn()
-            .with(LocalTransform, {
-                position: { x: 400, y: 300, z: 0 }
-            })
-            .with(Sprite, {
-                color: { x: 1, y: 1, z: 1, w: 1 },
-                size: { x: 64, y: 64 }
-            });
-
-        console.log('Game started!');
+void ProjectManager::copyTemplateFile(const std::string& src, const std::string& dst,
+                                       const std::unordered_map<std::string, std::string>& vars) {
+    std::string content = FileSystem::readTextFile(src);
+    if (content.empty()) {
+        ES_LOG_WARN("Template file empty or not found: {}", src);
+        return;
     }
+
+    for (const auto& [key, value] : vars) {
+        usize pos = 0;
+        while ((pos = content.find(key, pos)) != std::string::npos) {
+            content.replace(pos, key.length(), value);
+            pos += value.length();
+        }
+    }
+
+    FileSystem::writeTextFile(dst, content);
+    ES_LOG_DEBUG("Created {}", dst);
 }
 
-/**
- * Game entry point - called by the engine after WASM is loaded
- */
-export function main(module: any): void {
-    const app = new App(module, {
-        title: ')" + current_project_.name + R"(',
-        width: 800,
-        height: 600
-    });
+void ProjectManager::copyTemplateDirectory(const std::string& srcDir, const std::string& dstDir,
+                                            const std::unordered_map<std::string, std::string>& vars) {
+    namespace fs = std::filesystem;
 
-    app.addStartupSystem(new SetupSystem());
-    app.run();
-}
-)";
-    FileSystem::writeTextFile(rootDir + "/src/main.ts", mainScript);
-    ES_LOG_DEBUG("Created src/main.ts");
-}
+    if (!fs::exists(srcDir)) {
+        ES_LOG_ERROR("Template directory not found: {}", srcDir);
+        return;
+    }
 
-void ProjectManager::createGitignore(const std::string& rootDir) {
-    std::string gitignore = R"(# Dependencies
-node_modules/
+    for (const auto& entry : fs::recursive_directory_iterator(srcDir)) {
+        std::string relativePath = fs::relative(entry.path(), srcDir).string();
+        std::string dstPath = dstDir + "/" + relativePath;
+        std::replace(dstPath.begin(), dstPath.end(), '\\', '/');
 
-# Build output
-build/
-dist/
-
-# Editor cache
-.esengine/
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS
-.DS_Store
-Thumbs.db
-)";
-    FileSystem::writeTextFile(rootDir + "/.gitignore", gitignore);
-    ES_LOG_DEBUG("Created .gitignore");
+        if (entry.is_directory()) {
+            FileSystem::createDirectory(dstPath);
+        } else if (entry.is_regular_file()) {
+            copyTemplateFile(entry.path().string(), dstPath, vars);
+        }
+    }
 }
 
 void ProjectManager::updatePathResolver(const std::string& rootDir) {
@@ -417,47 +361,28 @@ void ProjectManager::checkAndSyncDependencies() {
     std::string nodeModulesPath = rootDir + "/node_modules";
     std::string esengineModulePath = nodeModulesPath + "/esengine";
 
-    // Check if package.json exists
     if (!FileSystem::fileExists(packageJsonPath)) {
-        ES_LOG_INFO("No package.json found, creating project files...");
-        createProjectFiles(rootDir);
+        ES_LOG_INFO("No package.json found, copying templates...");
+        copyTemplates(rootDir);
         return;
     }
 
-    // Check if node_modules/esengine exists
     if (!FileSystem::directoryExists(esengineModulePath)) {
         ES_LOG_WARN("Dependencies not installed. Please run 'npm install' in {}", rootDir);
     }
 
-    // Update package.json with current SDK path (in case engine location changed)
-    std::string sdkDir = PathResolver::editorPath("bindings");
-    // Convert backslashes to forward slashes for JSON/npm compatibility
+    std::string sdkDir = PathResolver::editorPath("sdk");
     std::replace(sdkDir.begin(), sdkDir.end(), '\\', '/');
     std::string currentPackageJson = FileSystem::readTextFile(packageJsonPath);
 
-    // Check if SDK path needs updating
     if (currentPackageJson.find(sdkDir) == std::string::npos) {
         ES_LOG_INFO("Updating package.json with current SDK path...");
-
-        std::string packageJson = R"({
-  "name": ")" + current_project_.name + R"(",
-  "version": "1.0.0",
-  "type": "module",
-  "scripts": {
-    "build": "npx esbuild src/main.ts --bundle --format=esm --outfile=build/js/main.js --sourcemap",
-    "dev": "npx esbuild src/main.ts --bundle --format=esm --outfile=build/js/main.js --sourcemap --watch",
-    "typecheck": "npx tsc --noEmit"
-  },
-  "dependencies": {
-    "esengine": "file:)" + sdkDir + R"("
-  },
-  "devDependencies": {
-    "esbuild": "^0.20.0",
-    "typescript": "^5.0.0"
-  }
-}
-)";
-        FileSystem::writeTextFile(packageJsonPath, packageJson);
+        std::string templatePath = PathResolver::editorPath("assets/templates/package.json");
+        std::unordered_map<std::string, std::string> vars = {
+            {"{{PROJECT_NAME}}", current_project_.name},
+            {"{{SDK_PATH}}", sdkDir}
+        };
+        copyTemplateFile(templatePath, packageJsonPath, vars);
         ES_LOG_INFO("package.json updated. Please run 'npm install' to update dependencies.");
     }
 }

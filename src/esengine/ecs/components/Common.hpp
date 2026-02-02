@@ -18,6 +18,9 @@
 #include "../../core/Types.hpp"
 
 #include <string>
+#include <unordered_map>
+#include <variant>
+#include <vector>
 
 namespace esengine::ecs {
 
@@ -124,6 +127,73 @@ struct UUID {
 
     bool operator==(const UUID& other) const { return value == other.value; }
     bool operator!=(const UUID& other) const { return value != other.value; }
+};
+
+// =============================================================================
+// Script Components
+// =============================================================================
+
+/** @brief Value type for script component fields */
+using ScriptFieldValue = std::variant<
+    f32,
+    i32,
+    bool,
+    std::string,
+    glm::vec2,
+    glm::vec3,
+    glm::vec4,
+    u32  // Entity reference
+>;
+
+/**
+ * @brief Instance of a script component attached to an entity
+ */
+struct ScriptInstance {
+    std::string componentName;
+    std::unordered_map<std::string, ScriptFieldValue> values;
+};
+
+/**
+ * @brief Component storing all script instances for an entity
+ */
+struct Scripts {
+    std::vector<ScriptInstance> instances;
+
+    /** @brief Check if entity has a specific script component */
+    bool has(const std::string& name) const {
+        for (const auto& inst : instances) {
+            if (inst.componentName == name) return true;
+        }
+        return false;
+    }
+
+    /** @brief Get script instance by name (nullptr if not found) */
+    ScriptInstance* get(const std::string& name) {
+        for (auto& inst : instances) {
+            if (inst.componentName == name) return &inst;
+        }
+        return nullptr;
+    }
+
+    const ScriptInstance* get(const std::string& name) const {
+        for (const auto& inst : instances) {
+            if (inst.componentName == name) return &inst;
+        }
+        return nullptr;
+    }
+
+    /** @brief Add a script instance */
+    void add(ScriptInstance&& instance) {
+        instances.push_back(std::move(instance));
+    }
+
+    /** @brief Remove script instance by name */
+    void remove(const std::string& name) {
+        instances.erase(
+            std::remove_if(instances.begin(), instances.end(),
+                [&name](const ScriptInstance& inst) { return inst.componentName == name; }),
+            instances.end());
+    }
 };
 
 }  // namespace esengine::ecs

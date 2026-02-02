@@ -39,6 +39,7 @@
 #include "widgets/EditorToolbar.hpp"
 #include "../platform/FileDialog.hpp"
 #include "preview/WebExporter.hpp"
+#include "scene/SceneSerializer.hpp"
 
 #include <filesystem>
 
@@ -195,7 +196,6 @@ void EditorApplication::onUpdate(f32 deltaTime) {
 
     if (frameTime_ >= FPS_UPDATE_INTERVAL) {
         fps_ = static_cast<f32>(frameCount_) / static_cast<f32>(frameTime_);
-        ES_LOG_TRACE("FPS: {:.1f}", fps_);
         frameTime_ = 0.0;
         frameCount_ = 0;
     }
@@ -273,6 +273,42 @@ void EditorApplication::onKey(KeyCode key, bool pressed) {
 
             case KeyCode::Y:
                 handleRedo();
+                break;
+
+            case KeyCode::S:
+                if (mode_ == EditorMode::Editor && projectManager_->hasOpenProject()) {
+                    if (shiftPressed_) {
+                        // Ctrl+Shift+S: Save As
+                        std::string scenesDir = ensureScenesDirectory();
+                        std::string path = FileDialog::saveFile("Save Scene As",
+                            {{"ESEngine Scene", "esscene"}}, scenesDir, "Untitled");
+                        if (!path.empty()) {
+                            saveSceneAs(path);
+                        }
+                    } else {
+                        // Ctrl+S: Save
+                        saveCurrentScene();
+                    }
+                }
+                break;
+
+            case KeyCode::O:
+                if (mode_ == EditorMode::Editor && projectManager_->hasOpenProject()) {
+                    // Ctrl+O: Open Scene
+                    std::string scenesDir = ensureScenesDirectory();
+                    std::string path = FileDialog::openFile("Open Scene",
+                        {{"ESEngine Scene", "esscene"}}, scenesDir);
+                    if (!path.empty()) {
+                        loadScene(path);
+                    }
+                }
+                break;
+
+            case KeyCode::N:
+                if (mode_ == EditorMode::Editor) {
+                    // Ctrl+N: New Scene
+                    newScene();
+                }
                 break;
 
             default:
@@ -362,8 +398,13 @@ void EditorApplication::setupEventListeners() {
 
     eventConnections_.add(
         dispatcher_.sink<ProjectOpened>().connect(
-            [](const ProjectOpened& e) {
+            [this](const ProjectOpened& e) {
                 ES_LOG_INFO("Project opened: {} ({})", e.name, e.path);
+                // Scan TypeScript source for script component definitions
+                std::string projectDir = std::filesystem::path(e.path).parent_path().string();
+                if (scriptComponentRegistry_.scanProject(projectDir)) {
+                    ES_LOG_INFO("Discovered {} script components", scriptComponentRegistry_.componentCount());
+                }
             }));
 
     eventConnections_.add(
@@ -404,10 +445,11 @@ void EditorApplication::setupEditorLayout() {
     ES_LOG_INFO("setupEditorLayout: Creating HierarchyPanel...");
     auto hierarchyPanel = makeUnique<HierarchyPanel>(registry_, selection_);
     hierarchyPanel->setMinSize(glm::vec2(280.0f, 200.0f));
+    hierarchyPanel_ = hierarchyPanel.get();
     dockArea_->addPanel(std::move(hierarchyPanel), ui::DockDropZone::Left, nullptr, 0.22f);
 
     ES_LOG_INFO("setupEditorLayout: Creating InspectorPanel...");
-    auto inspectorPanel = makeUnique<InspectorPanel>(registry_, selection_, commandHistory_);
+    auto inspectorPanel = makeUnique<InspectorPanel>(registry_, selection_, commandHistory_, &scriptComponentRegistry_);
     inspectorPanel->setMinSize(glm::vec2(250.0f, 200.0f));
     dockArea_->addPanel(std::move(inspectorPanel), ui::DockDropZone::Right, nullptr, 0.25f);
 
@@ -416,6 +458,14 @@ void EditorApplication::setupEditorLayout() {
     ES_LOG_INFO("setupEditorLayout: Creating AssetBrowserPanel for drawer...");
     auto assetBrowserPanel = makeUnique<AssetBrowserPanel>(assetDatabase_, thumbnailGenerator_);
     assetBrowserPanel->setMinSize(glm::vec2(300.0f, 200.0f));
+
+    // Connect double-click handler for scene files
+    eventConnections_.add(sink(assetBrowserPanel->onAssetDoubleClicked).connect([this](const std::string& path) {
+        // Check if it's a scene file
+        if (path.size() > 8 && path.substr(path.size() - 8) == ".esscene") {
+            loadScene(path);
+        }
+    }));
 
     editorRoot_->setAssetsDrawerContent(std::move(assetBrowserPanel));
 
@@ -453,25 +503,46 @@ void EditorApplication::setupEditorLayout() {
                 return;
             }
 
-            ES_LOG_INFO("Building and exporting project for web preview...");
-
+            // Export current scene for web preview
             std::string projectPath = projectManager_->getCurrentProject().rootDirectory;
-            bool success = WebExporter::exportProject(
-                projectPath,
-                sdkPath,
-                webBuildDir,
-                [](const std::string& status, f32 progress) {
-                    ES_LOG_INFO("[{:.0f}%] {}", progress * 100.0f, status);
-                }
-            );
+            std::string mainScenePath = projectPath + "/assets/scenes/main.esscene";
+            std::filesystem::create_directories(std::filesystem::path(mainScenePath).parent_path());
+            if (!SceneSerializer::saveScene(getEditorRegistry(), mainScenePath, "main",
+                                           &getResourceManager(), projectPath)) {
+                ES_LOG_ERROR("Failed to export scene for web preview");
+                return;
+            }
+            ES_LOG_INFO("Exported scene for web preview: {}", mainScenePath);
 
-            if (!success) {
-                ES_LOG_ERROR("Failed to export web build");
+            if (WebExporter::isExporting()) {
+                ES_LOG_WARN("Export already in progress, please wait...");
                 return;
             }
 
-            toolbar->startWebPreview(webBuildDir);
+            ES_LOG_INFO("Building and exporting project for web preview...");
+
+            WebExporter::exportProjectAsync(
+                projectPath,
+                sdkPath,
+                webBuildDir,
+                [toolbar, webBuildDir](bool success) {
+                    if (!success) {
+                        ES_LOG_ERROR("Failed to export web build");
+                        return;
+                    }
+                    ES_LOG_INFO("Export complete, starting web preview...");
+                    toolbar->startWebPreview(webBuildDir);
+                }
+            );
         }
+    }));
+
+    eventConnections_.add(sink(toolbar->onSave).connect([this]() {
+        saveCurrentScene();
+    }));
+
+    eventConnections_.add(sink(toolbar->onNewScene).connect([this]() {
+        newScene();
     }));
 
     uiContext_->setRoot(std::move(editorRoot));
@@ -544,6 +615,32 @@ void EditorApplication::createDemoScene() {
     obs2Sprite.size = glm::vec2(1.5f, 1.5f);
 
     ES_LOG_INFO("Demo scene created with {} entities", registry_.entityCount());
+}
+
+void EditorApplication::createEmptyScene() {
+    SceneSerializer::clearScene(getEditorRegistry());
+
+    Entity canvasEntity = registry_.create();
+    registry_.emplace<ecs::Name>(canvasEntity, "Canvas");
+    auto& canvas = registry_.emplace<ecs::Canvas>(canvasEntity);
+    canvas.designResolution = glm::uvec2(1920, 1080);
+    canvas.pixelsPerUnit = 100.0f;
+    canvas.scaleMode = ecs::CanvasScaleMode::FixedHeight;
+    canvas.backgroundColor = glm::vec4(0.1f, 0.1f, 0.15f, 1.0f);
+
+    Entity camera = registry_.create();
+    registry_.emplace<ecs::Name>(camera, "Main Camera");
+    registry_.emplace<ecs::LocalTransform>(camera, glm::vec3(0.0f, 0.0f, 10.0f));
+    auto& cam = registry_.emplace<ecs::Camera>(camera);
+    cam.isActive = true;
+    cam.priority = 0;
+    cam.projectionType = ecs::ProjectionType::Orthographic;
+    cam.orthoSize = canvas.getOrthoSize();
+
+    currentScenePath_.clear();
+    sceneDirty_ = false;
+
+    ES_LOG_INFO("Created empty scene with Canvas and Camera");
 }
 
 // =============================================================================
@@ -643,7 +740,7 @@ void EditorApplication::showEditor() {
 
     mode_ = EditorMode::Editor;
 
-    createDemoScene();
+    createEmptyScene();
 
     setupEditorLayout();
 
@@ -691,6 +788,14 @@ void EditorApplication::dockAssetBrowser() {
     if (!dockedAssetBrowser_) {
         auto assetBrowserPanel = makeUnique<AssetBrowserPanel>(assetDatabase_, thumbnailGenerator_);
         assetBrowserPanel->setMinSize(glm::vec2(300.0f, 200.0f));
+
+        // Connect double-click handler for scene files
+        eventConnections_.add(sink(assetBrowserPanel->onAssetDoubleClicked).connect([this](const std::string& path) {
+            if (path.size() > 8 && path.substr(path.size() - 8) == ".esscene") {
+                loadScene(path);
+            }
+        }));
+
         dockedAssetBrowser_ = assetBrowserPanel.get();
         dockArea_->addPanel(std::move(assetBrowserPanel), ui::DockDropZone::Bottom, nullptr, 0.25f);
     }
@@ -733,6 +838,112 @@ std::string EditorApplication::findWebSDKPath() {
     }
 
     return "";
+}
+
+std::string EditorApplication::ensureScenesDirectory() {
+    namespace fs = std::filesystem;
+
+    if (!projectManager_->hasOpenProject()) {
+        return "";
+    }
+
+    std::string projectPath = projectManager_->getCurrentProject().rootDirectory;
+    fs::path scenesDir = fs::path(projectPath) / "assets" / "scenes";
+
+    if (!fs::exists(scenesDir)) {
+        try {
+            fs::create_directories(scenesDir);
+            ES_LOG_INFO("Created scenes directory: {}", scenesDir.string());
+        } catch (const std::exception& e) {
+            ES_LOG_ERROR("Failed to create scenes directory: {}", e.what());
+            return projectPath + "/assets";
+        }
+    }
+
+    return scenesDir.string();
+}
+
+// =============================================================================
+// Scene Management
+// =============================================================================
+
+void EditorApplication::newScene() {
+    ES_LOG_INFO("Creating new scene");
+
+    // Clear current scene
+    SceneSerializer::clearScene(getEditorRegistry());
+
+    // Reset scene state
+    currentScenePath_.clear();
+    sceneDirty_ = false;
+
+    // Clear selection
+    selection_.clear();
+
+    // Create default entities for new scene
+    createDemoScene();
+
+    // Refresh hierarchy panel
+    if (hierarchyPanel_) {
+        hierarchyPanel_->refresh();
+    }
+}
+
+bool EditorApplication::saveCurrentScene() {
+    if (currentScenePath_.empty()) {
+        // Need to use Save As dialog
+        std::string scenesDir = ensureScenesDirectory();
+        if (scenesDir.empty()) {
+            ES_LOG_ERROR("No project open, cannot save scene");
+            return false;
+        }
+
+        std::string path = FileDialog::saveFile("Save Scene",
+            {{"ESEngine Scene", "esscene"}}, scenesDir, "Untitled");
+        if (path.empty()) {
+            return false;
+        }
+        return saveSceneAs(path);
+    }
+
+    return saveSceneAs(currentScenePath_);
+}
+
+bool EditorApplication::saveSceneAs(const std::string& path) {
+    std::string sceneName = SceneSerializer::getSceneName(path);
+    std::string projectPath = projectManager_->hasOpenProject()
+        ? projectManager_->getCurrentProject().rootDirectory
+        : "";
+
+    if (SceneSerializer::saveScene(getEditorRegistry(), path, sceneName,
+                                   &getResourceManager(), projectPath)) {
+        currentScenePath_ = path;
+        sceneDirty_ = false;
+        ES_LOG_INFO("Scene saved: {}", path);
+        return true;
+    }
+
+    ES_LOG_ERROR("Failed to save scene: {}", path);
+    return false;
+}
+
+bool EditorApplication::loadScene(const std::string& path) {
+    if (SceneSerializer::loadScene(getEditorRegistry(), path)) {
+        currentScenePath_ = path;
+        sceneDirty_ = false;
+        selection_.clear();
+
+        // Refresh hierarchy panel to show loaded entities
+        if (hierarchyPanel_) {
+            hierarchyPanel_->refresh();
+        }
+
+        ES_LOG_INFO("Scene loaded: {}", path);
+        return true;
+    }
+
+    ES_LOG_ERROR("Failed to load scene: {}", path);
+    return false;
 }
 
 }  // namespace editor

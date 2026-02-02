@@ -133,7 +133,44 @@ export function createStatic(): Static {
   return {};
 }
 
-// Component type symbols for type identification
+// =============================================================================
+// Hierarchy Components
+// =============================================================================
+
+import { Entity } from '../core/Types';
+
+/**
+ * Parent component - References the parent entity
+ */
+export interface Parent {
+  entity: Entity;
+}
+
+/**
+ * Create a Parent component
+ */
+export function createParent(entity: Entity): Parent {
+  return { entity };
+}
+
+/**
+ * Children component - List of child entities
+ */
+export interface Children {
+  entities: Entity[];
+}
+
+/**
+ * Create a Children component
+ */
+export function createChildren(entities: Entity[] = []): Children {
+  return { entities: [...entities] };
+}
+
+// =============================================================================
+// Component Type Symbols
+// =============================================================================
+
 export const TransformType = Symbol('Transform');
 export const VelocityType = Symbol('Velocity');
 export const SpriteType = Symbol('Sprite');
@@ -141,3 +178,5 @@ export const NameType = Symbol('Name');
 export const ActiveType = Symbol('Active');
 export const VisibleType = Symbol('Visible');
 export const StaticType = Symbol('Static');
+export const ParentType = Symbol('Parent');
+export const ChildrenType = Symbol('Children');

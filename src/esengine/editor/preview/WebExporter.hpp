@@ -13,6 +13,8 @@
 #include "../../core/Types.hpp"
 #include <string>
 #include <functional>
+#include <future>
+#include <atomic>
 
 namespace esengine::editor {
 
@@ -22,14 +24,10 @@ namespace esengine::editor {
 class WebExporter {
 public:
     using ProgressCallback = std::function<void(const std::string& status, f32 progress)>;
+    using CompletionCallback = std::function<void(bool success)>;
 
     /**
-     * @brief Export project to web format
-     * @param projectPath Root directory of the game project
-     * @param sdkPath Path to the prebuilt web SDK (build-web/sdk)
-     * @param outputPath Output directory (usually project/build/web)
-     * @param callback Optional progress callback
-     * @return true if export succeeded
+     * @brief Export project to web format (blocking)
      */
     static bool exportProject(
         const std::string& projectPath,
@@ -38,7 +36,23 @@ public:
         ProgressCallback callback = nullptr
     );
 
+    /**
+     * @brief Export project to web format (async, non-blocking)
+     */
+    static void exportProjectAsync(
+        const std::string& projectPath,
+        const std::string& sdkPath,
+        const std::string& outputPath,
+        CompletionCallback onComplete
+    );
+
+    /** @brief Check if async export is running */
+    static bool isExporting();
+
 private:
+    static std::atomic<bool> exporting_;
+    static std::future<bool> exportFuture_;
+
     static bool ensureDependencies(const std::string& projectPath, ProgressCallback& callback);
     static bool compileTypeScript(const std::string& projectPath, ProgressCallback& callback);
     static bool copySDKFiles(const std::string& sdkPath, const std::string& outputPath, ProgressCallback& callback);

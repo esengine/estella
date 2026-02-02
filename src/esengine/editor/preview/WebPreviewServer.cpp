@@ -17,11 +17,15 @@
 
 #ifdef ES_PLATFORM_WINDOWS
 #include <shellapi.h>
+#include <ws2tcpip.h>
 #else
 #include <unistd.h>
 #include <signal.h>
 #include <sys/wait.h>
 #include <cstdlib>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 #endif
 
 namespace esengine {
@@ -51,11 +55,25 @@ bool WebPreviewServer::start(const std::string& directory, u16 port) {
     }
 
     directory_ = directory;
-    port_ = port;
+
+    constexpr int MAX_PORT_ATTEMPTS = 10;
+    u16 selectedPort = port;
+    for (int i = 0; i < MAX_PORT_ATTEMPTS; ++i) {
+        if (isPortAvailable(selectedPort)) {
+            break;
+        }
+        ES_LOG_WARN("Port {} is in use, trying {}", selectedPort, selectedPort + 1);
+        ++selectedPort;
+        if (i == MAX_PORT_ATTEMPTS - 1) {
+            ES_LOG_ERROR("Could not find available port after {} attempts", MAX_PORT_ATTEMPTS);
+            return false;
+        }
+    }
+    port_ = selectedPort;
 
 #ifdef ES_PLATFORM_WINDOWS
     std::stringstream cmd;
-    cmd << "python -m http.server " << port << " --directory \"" << directory << "\"";
+    cmd << "python -m http.server " << port_ << " --directory \"" << directory << "\"";
 
     STARTUPINFOA si = {};
     si.cb = sizeof(si);
@@ -91,7 +109,7 @@ bool WebPreviewServer::start(const std::string& directory, u16 port) {
     }
 
     if (pid_ == 0) {
-        std::string portStr = std::to_string(port);
+        std::string portStr = std::to_string(port_);
         execlp("python3", "python3", "-m", "http.server", portStr.c_str(),
                "--directory", directory.c_str(), nullptr);
         execlp("python", "python", "-m", "http.server", portStr.c_str(),
@@ -147,6 +165,47 @@ void WebPreviewServer::openInBrowser(const std::string& url) {
 #else
     std::string cmd = "xdg-open \"" + url + "\"";
     std::system(cmd.c_str());
+#endif
+}
+
+bool WebPreviewServer::isPortAvailable(u16 port) {
+#ifdef ES_PLATFORM_WINDOWS
+    WSADATA wsaData;
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+        return false;
+    }
+
+    SOCKET sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (sock == INVALID_SOCKET) {
+        WSACleanup();
+        return false;
+    }
+
+    sockaddr_in addr = {};
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    addr.sin_port = htons(port);
+
+    int result = bind(sock, reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
+    closesocket(sock);
+    WSACleanup();
+
+    return result == 0;
+#else
+    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock < 0) {
+        return false;
+    }
+
+    sockaddr_in addr = {};
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    addr.sin_port = htons(port);
+
+    int result = bind(sock, reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
+    close(sock);
+
+    return result == 0;
 #endif
 }
 

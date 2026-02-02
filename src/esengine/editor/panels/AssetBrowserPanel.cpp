@@ -607,11 +607,11 @@ void AssetBrowserPanel::createScene() {
 #endif
 
     std::string baseName = "New Scene";
-    std::string scenePath = currentPath_ + "/" + baseName + ".scene";
+    std::string scenePath = currentPath_ + "/" + baseName + ".esscene";
 
     i32 counter = 1;
     while (FileSystem::fileExists(scenePath)) {
-        scenePath = currentPath_ + "/" + baseName + " " + std::to_string(counter) + ".scene";
+        scenePath = currentPath_ + "/" + baseName + " " + std::to_string(counter) + ".esscene";
         ++counter;
     }
 

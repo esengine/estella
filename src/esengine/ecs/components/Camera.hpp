@@ -27,9 +27,10 @@ namespace esengine::ecs {
 /**
  * @brief Camera projection type
  */
+ES_ENUM()
 enum class ProjectionType : u8 {
-    Perspective,   ///< 3D perspective projection
-    Orthographic   ///< 2D orthographic projection
+    Perspective,
+    Orthographic
 };
 
 // =============================================================================

@@ -312,7 +312,7 @@ bool HierarchyPanel::onKeyDown(const ui::KeyEvent& event) {
 // =============================================================================
 
 void HierarchyPanel::refresh() {
-    needsRebuild_ = true;
+    rebuildTree();
 }
 
 void HierarchyPanel::setShowOrphans(bool showOrphans) {
@@ -355,6 +355,13 @@ void HierarchyPanel::rebuildTree() {
     std::vector<Entity> allEntities;
     registry_.forEachEntity([&allEntities](Entity entity) {
         allEntities.push_back(entity);
+    });
+
+    // Sort entities by name for consistent ordering
+    std::sort(allEntities.begin(), allEntities.end(), [this](Entity a, Entity b) {
+        std::string nameA = getEntityDisplayName(a);
+        std::string nameB = getEntityDisplayName(b);
+        return nameA < nameB;
     });
 
     ES_LOG_DEBUG("HierarchyPanel::rebuildTree: Found {} entities", allEntities.size());
@@ -417,19 +424,27 @@ ui::TreeNodeId HierarchyPanel::addEntityToTree(Entity entity, ui::TreeNodeId par
     // Add children if entity has Children component
     if (registry_.has<ecs::Children>(entity)) {
         const auto& children = registry_.get<ecs::Children>(entity);
+
+        // Sort children by name for consistent ordering
+        std::vector<Entity> sortedChildren;
         for (Entity childEntity : children.entities) {
-            // Verify child is valid
-            if (!registry_.valid(childEntity)) {
+            if (registry_.valid(childEntity)) {
+                sortedChildren.push_back(childEntity);
+            } else {
                 ES_LOG_WARN("HierarchyPanel: Invalid child entity {} for parent {}",
                             childEntity, entity);
-                continue;
             }
+        }
+        std::sort(sortedChildren.begin(), sortedChildren.end(), [this](Entity a, Entity b) {
+            return getEntityDisplayName(a) < getEntityDisplayName(b);
+        });
 
+        for (Entity childEntity : sortedChildren) {
             addEntityToTree(childEntity, nodeId);
         }
 
         // Expand node if it has children
-        if (!children.empty()) {
+        if (!sortedChildren.empty()) {
             treeView_->setNodeExpanded(nodeId, true);
         }
     }

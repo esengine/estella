@@ -217,6 +217,19 @@ public:
         return entries_[handle.id()].refCount;
     }
 
+    /**
+     * @brief Gets the cached path for a resource
+     * @param handle The resource handle
+     * @return The path, or empty string if not found
+     */
+    const std::string& getPath(Handle<T> handle) const {
+        static const std::string empty;
+        if (!handle.isValid() || handle.id() >= entries_.size()) {
+            return empty;
+        }
+        return entries_[handle.id()].path;
+    }
+
 private:
     std::vector<Entry> entries_;
     std::vector<u32> freeList_;

@@ -29,12 +29,13 @@ namespace esengine::ecs {
 /**
  * @brief Canvas scaling mode for different screen resolutions
  */
+ES_ENUM()
 enum class CanvasScaleMode : u8 {
-    FixedWidth,   ///< Keep design width, adjust height
-    FixedHeight,  ///< Keep design height, adjust width
-    Expand,       ///< Expand to fill screen (may show more content)
-    Shrink,       ///< Shrink to fit screen (may show less content)
-    Match         ///< Match width/height by a blend factor
+    FixedWidth,
+    FixedHeight,
+    Expand,
+    Shrink,
+    Match
 };
 
 // =============================================================================

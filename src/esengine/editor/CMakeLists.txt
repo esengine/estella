@@ -50,6 +50,12 @@ set(EDITOR_SOURCES
     # Preview
     preview/WebPreviewServer.cpp
     preview/WebExporter.cpp
+
+    # Scene
+    scene/SceneSerializer.cpp
+
+    # Script
+    script/ScriptComponentRegistry.cpp
 )
 
 set(EDITOR_HEADERS
@@ -115,6 +121,12 @@ set(EDITOR_HEADERS
     # Preview
     preview/WebPreviewServer.hpp
     preview/WebExporter.hpp
+
+    # Scene
+    scene/SceneSerializer.hpp
+
+    # Script
+    script/ScriptComponentRegistry.hpp
 )
 
 # Create editor executable
@@ -142,6 +154,7 @@ if(WIN32)
     set_target_properties(esengine_editor PROPERTIES
         WIN32_EXECUTABLE OFF
     )
+    target_link_libraries(esengine_editor PRIVATE ws2_32)
 endif()
 
 # Copy assets or resources if needed (future)

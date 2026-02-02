@@ -1,8 +1,17 @@
 /**
- * ESEngine TypeScript SDK
+ * @file    index.ts
+ * @brief   ESEngine TypeScript SDK public API exports
  *
- * A lightweight 2D game engine for Web and WeChat MiniGames.
+ * @author  ESEngine Team
+ * @date    2026
+ *
+ * @copyright Copyright (c) 2026 ESEngine Team
+ *            Licensed under the MIT License.
  */
+
+// =============================================================================
+// Core
+// =============================================================================
 
 // Core types and utilities
 export {
@@ -46,7 +55,10 @@ export {
   withFloat32Array,
 } from './core/WasmBridge';
 
-// ECS - Entity
+// =============================================================================
+// ECS
+// =============================================================================
+
 export {
   generateEntityId,
   recycleEntityId,
@@ -54,10 +66,8 @@ export {
   resetEntityIds,
 } from './ecs/Entity';
 
-// ECS - Registry
 export { Registry } from './ecs/Registry';
 
-// ECS - Components
 export {
   Transform,
   Velocity,
@@ -66,6 +76,8 @@ export {
   Active,
   Visible,
   Static,
+  Parent,
+  Children,
   createTransform,
   createVelocity,
   createSprite,
@@ -73,6 +85,8 @@ export {
   createActive,
   createVisible,
   createStatic,
+  createParent,
+  createChildren,
   TransformType,
   VelocityType,
   SpriteType,
@@ -80,15 +94,18 @@ export {
   ActiveType,
   VisibleType,
   StaticType,
+  ParentType,
+  ChildrenType,
 } from './ecs/Components';
 
-// ECS - View
 export { View, View2, View3, View4 } from './ecs/View';
 
-// ECS - System
 export { System, SystemGroup } from './ecs/System';
 
-// Math utilities
+// =============================================================================
+// Math
+// =============================================================================
+
 export {
   PI,
   TWO_PI,
@@ -104,10 +121,12 @@ export {
   Mat4Math,
 } from './math/Math';
 
-// Input
+// =============================================================================
+// Platform
+// =============================================================================
+
 export { Input } from './input/Input';
 
-// Platform
 export {
   Platform,
   PlatformCapabilities,
@@ -119,5 +138,46 @@ export {
 export { WebPlatform } from './platform/WebPlatform';
 export { WxPlatform } from './platform/WxPlatform';
 
+// =============================================================================
 // Renderer
+// =============================================================================
+
 export { Renderer, RendererMode, DrawQuadOptions } from './renderer/Renderer';
+
+// =============================================================================
+// Scene
+// =============================================================================
+
+export {
+  loadScene,
+  loadSceneFromData,
+  SceneData,
+  EntityData,
+  ComponentsData,
+  ScriptComponentData,
+  TextureLoader,
+  ComponentRegistry,
+  SceneLoaderOptions,
+  SceneLoadResult,
+  SCENE_FORMAT_VERSION,
+} from './scene/SceneLoader';
+
+// =============================================================================
+// Assets & WASM
+// =============================================================================
+
+export { AssetLoader, type TextureData, type ShaderData } from './assets';
+
+export type {
+  CppRegistry,
+  CppApp,
+  CppResourceManager,
+  TextureHandle,
+  ShaderHandle,
+} from './wasm';
+
+// =============================================================================
+// Framework
+// =============================================================================
+
+export * from './framework';

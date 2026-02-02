@@ -33,6 +33,7 @@
 #include "../property/editors/ColorEditor.hpp"
 #include "../property/editors/EnumEditor.hpp"
 #include "../../events/Connection.hpp"
+#include "../script/ScriptComponentRegistry.hpp"
 
 #include <unordered_set>
 #include <unordered_map>
@@ -62,10 +63,12 @@ public:
      * @param registry Entity registry
      * @param selection Entity selection manager
      * @param history Command history for undo/redo
+     * @param scriptRegistry Script component registry (optional)
      */
     InspectorPanel(ecs::Registry& registry,
                   EntitySelection& selection,
-                  CommandHistory& history);
+                  CommandHistory& history,
+                  ScriptComponentRegistry* scriptRegistry = nullptr);
 
     ~InspectorPanel() override;
 
@@ -108,10 +111,12 @@ private:
     void addCameraEditor(Entity entity);
     void addSpriteEditor(Entity entity);
     void addTagsEditor(Entity entity);
+    void addScriptComponentEditors(Entity entity);
 
     ecs::Registry& registry_;
     EntitySelection& selection_;
     CommandHistory& history_;
+    ScriptComponentRegistry* scriptRegistry_ = nullptr;
 
     ui::Panel* rootPanel_ = nullptr;
     ui::Panel* headerPanel_ = nullptr;

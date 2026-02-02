@@ -11,15 +11,47 @@
 
 #include "WebExporter.hpp"
 #include "../../core/Log.hpp"
+#include "../../platform/FileSystem.hpp"
+#include "../../platform/PathResolver.hpp"
 
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
-#include <sstream>
 
 namespace fs = std::filesystem;
 
 namespace esengine::editor {
+
+std::atomic<bool> WebExporter::exporting_{false};
+std::future<bool> WebExporter::exportFuture_;
+
+bool WebExporter::isExporting() {
+    return exporting_.load();
+}
+
+void WebExporter::exportProjectAsync(
+    const std::string& projectPath,
+    const std::string& sdkPath,
+    const std::string& outputPath,
+    CompletionCallback onComplete
+) {
+    if (exporting_.load()) {
+        ES_LOG_WARN("Export already in progress");
+        if (onComplete) onComplete(false);
+        return;
+    }
+
+    exporting_.store(true);
+
+    exportFuture_ = std::async(std::launch::async,
+        [projectPath, sdkPath, outputPath, onComplete]() {
+            bool result = exportProject(projectPath, sdkPath, outputPath, nullptr);
+            exporting_.store(false);
+            if (onComplete) onComplete(result);
+            return result;
+        }
+    );
+}
 
 bool WebExporter::exportProject(
     const std::string& projectPath,
@@ -146,15 +178,8 @@ bool WebExporter::compileTypeScript(const std::string& projectPath, ProgressCall
         fs::create_directories(buildDir);
     }
 
-    // Check if already compiled and up to date
-    if (fs::exists(mainJs)) {
-        auto srcTime = fs::last_write_time(mainTs);
-        auto jsTime = fs::last_write_time(mainJs);
-        if (jsTime >= srcTime) {
-            ES_LOG_DEBUG("TypeScript already compiled and up to date");
-            return true;
-        }
-    }
+    // Always recompile for web preview to ensure latest SDK changes are included
+    // (SDK files in node_modules/esengine may have been updated)
 
     // Run esbuild to bundle and compile
     ES_LOG_INFO("Bundling TypeScript with esbuild...");
@@ -259,100 +284,26 @@ bool WebExporter::copyAssets(const std::string& projectPath, const std::string& 
 }
 
 bool WebExporter::generateIndexHtml(const std::string& outputPath, const std::string& projectName) {
-    std::ostringstream html;
-    html << R"(<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>)" << projectName << R"(</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        html, body {
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            background-color: #1a1a1a;
-        }
-        #canvas {
-            display: block;
-            width: 100%;
-            height: 100%;
-            touch-action: none;
-        }
-        #loading {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            color: #fff;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            font-size: 16px;
-            text-align: center;
-        }
-        #loading.hidden { display: none; }
-        .spinner {
-            width: 40px;
-            height: 40px;
-            margin: 0 auto 16px;
-            border: 3px solid #333;
-            border-top-color: #3b82f6;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin { to { transform: rotate(360deg); } }
-    </style>
-</head>
-<body>
-    <div id="loading">
-        <div class="spinner"></div>
-        <div>Loading...</div>
-    </div>
-    <canvas id="canvas"></canvas>
+    std::string templatePath = PathResolver::editorPath("assets/templates/web/index.html");
+    std::string content = FileSystem::readTextFile(templatePath);
 
-    <script type="module">
-        import ESEngineModule from './esengine.js';
-        import { main } from './scripts/main.js';
-
-        function resizeCanvas() {
-            const canvas = document.getElementById('canvas');
-            const dpr = window.devicePixelRatio || 1;
-            canvas.width = window.innerWidth * dpr;
-            canvas.height = window.innerHeight * dpr;
-        }
-        window.addEventListener('resize', resizeCanvas);
-        resizeCanvas();
-
-        ESEngineModule({
-            canvas: document.getElementById('canvas'),
-            print: (text) => console.log(text),
-            printErr: (text) => console.error(text)
-        }).then((Module) => {
-            console.log('ESEngine loaded');
-            document.getElementById('loading').classList.add('hidden');
-            main(Module);
-        }).catch((err) => {
-            if (err === 'unwind' || (err.message && err.message.includes('unwind'))) {
-                console.log('App running');
-                return;
-            }
-            console.error('Failed:', err);
-            document.getElementById('loading').innerHTML = '<div style="color:#f87171">Error: ' + err.message + '</div>';
-        });
-    </script>
-</body>
-</html>
-)";
-
-    fs::path indexPath = fs::path(outputPath) / "index.html";
-    std::ofstream file(indexPath);
-    if (!file) {
-        ES_LOG_ERROR("Failed to create index.html");
+    if (content.empty()) {
+        ES_LOG_ERROR("Failed to read index.html template from {}", templatePath);
         return false;
     }
 
-    file << html.str();
-    file.close();
+    std::string placeholder = "{{PROJECT_NAME}}";
+    size_t pos = 0;
+    while ((pos = content.find(placeholder, pos)) != std::string::npos) {
+        content.replace(pos, placeholder.length(), projectName);
+        pos += projectName.length();
+    }
+
+    std::string indexPath = outputPath + "/index.html";
+    if (!FileSystem::writeTextFile(indexPath, content)) {
+        ES_LOG_ERROR("Failed to write index.html");
+        return false;
+    }
 
     ES_LOG_DEBUG("Generated index.html");
     return true;

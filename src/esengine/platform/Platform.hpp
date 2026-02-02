@@ -83,6 +83,8 @@ enum class KeyCode : u32 {
     A = 65,              ///< A key
     C = 67,              ///< C key
     D = 68,              ///< D key
+    N = 78,              ///< N key
+    O = 79,              ///< O key
     S = 83,              ///< S key
     V = 86,              ///< V key
     W = 87,              ///< W key
