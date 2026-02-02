@@ -15,12 +15,13 @@
 // Includes
 // =============================================================================
 
-#include "../../ui/docking/DockPanel.hpp"
+#include "../ui/docking/DockPanel.hpp"
 #include "../../ui/widgets/ScrollView.hpp"
 #include "../../ui/widgets/Label.hpp"
 #include "../../ui/widgets/Panel.hpp"
 #include "../../ui/widgets/TextField.hpp"
 #include "../../ui/widgets/Button.hpp"
+#include "../../ui/widgets/ContextMenu.hpp"
 #include "../../ecs/Registry.hpp"
 #include "../../ecs/Entity.hpp"
 #include "../core/Selection.hpp"
@@ -100,6 +101,7 @@ private:
         ui::Panel* section = nullptr;
         ui::Panel* content = nullptr;
         ui::Label* chevron = nullptr;
+        ui::Button* removeButton = nullptr;
     };
 
     SectionWidgets createComponentSection(const std::string& name, const std::string& icon);
@@ -132,10 +134,15 @@ private:
     std::unordered_map<std::string, SectionWidgets> sectionWidgets_;
 
     Entity currentEntity_ = INVALID_ENTITY;
-    u32 selectionListenerId_ = 0;
 
+    // Dynamic editor connections (cleared on rebuild)
     ConnectionHolder editorConnections_;
-    ConnectionHolder toolbarConnections_;
+
+    // Persistent connections (RAII cleanup)
+    Connection selectionChangedConnection_;
+    Connection addComponentClickedConnection_;
+    Connection addComponentMenuSelectedConnection_;
+    Connection addComponentMenuClosedConnection_;
 
     Vector3Editor* positionEditor_ = nullptr;
     Vector3Editor* rotationEditor_ = nullptr;
@@ -147,8 +154,13 @@ private:
     ui::Button* debugButton_ = nullptr;
     ui::Button* settingsButton_ = nullptr;
 
-    void connectToolbarButtons();
-    void onAddComponentClicked();
+    Unique<ui::ContextMenu> addComponentMenu_;
+    bool needsRebuild_ = false;
+
+    void setupConnections();
+    void showAddComponentMenu();
+    void onAddComponentMenuSelected(const std::string& itemId);
+    void removeComponent(const std::string& componentName);
 };
 
 }  // namespace esengine::editor

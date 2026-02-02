@@ -17,8 +17,8 @@
 // =============================================================================
 
 #include "DockTypes.hpp"
-#include "../widgets/Widget.hpp"
-#include "../../events/Signal.hpp"
+#include "../../../ui/widgets/Widget.hpp"
+#include "../../../events/Signal.hpp"
 
 #include <string>
 
@@ -150,10 +150,13 @@ public:
     // =========================================================================
 
     glm::vec2 measure(f32 availableWidth, f32 availableHeight) override;
-    void layout(const Rect& bounds) override;
     void render(UIBatchRenderer& renderer) override;
+    void renderTree(UIBatchRenderer& renderer) override;
+    void invalidateLayout() override;
 
 protected:
+    void layoutChildren(const Rect& contentBounds) override;
+
     /**
      * @brief Called to render panel-specific content
      * @param renderer Batch renderer

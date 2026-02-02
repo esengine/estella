@@ -51,8 +51,10 @@ public:
     void refreshRecentProjects();
 
     glm::vec2 measure(f32 availableWidth, f32 availableHeight) override;
-    void layout(const ui::Rect& bounds) override;
     void render(ui::UIBatchRenderer& renderer) override;
+
+protected:
+    void layoutChildren(const ui::Rect& contentBounds) override;
 
 private:
     void setupUI();

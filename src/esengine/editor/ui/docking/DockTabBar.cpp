@@ -13,18 +13,18 @@
 #include "DockArea.hpp"
 #include "DockNode.hpp"
 #include "DockPanel.hpp"
-#include "../UIContext.hpp"
-#include "../rendering/UIBatchRenderer.hpp"
+#include "../../../ui/UIContext.hpp"
+#include "../../../ui/rendering/UIBatchRenderer.hpp"
 
 #if ES_FEATURE_SDF_FONT
-#include "../font/MSDFFont.hpp"
+#include "../../../ui/font/MSDFFont.hpp"
 #endif
 
 #if ES_FEATURE_BITMAP_FONT
-#include "../font/BitmapFont.hpp"
+#include "../../../ui/font/BitmapFont.hpp"
 #endif
 
-#include "../font/SystemFont.hpp"
+#include "../../../ui/font/SystemFont.hpp"
 
 #include <cmath>
 

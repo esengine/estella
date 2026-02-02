@@ -19,9 +19,9 @@
 #include "DockTypes.hpp"
 #include "DockNode.hpp"
 #include "DockZone.hpp"
-#include "../widgets/Widget.hpp"
-#include "../../events/Signal.hpp"
-#include "../../events/Connection.hpp"
+#include "../../../ui/widgets/Widget.hpp"
+#include "../../../events/Signal.hpp"
+#include "../../../events/Connection.hpp"
 
 #include <unordered_map>
 #include <vector>
@@ -205,7 +205,6 @@ public:
     // =========================================================================
 
     glm::vec2 measure(f32 availableWidth, f32 availableHeight) override;
-    void layout(const Rect& bounds) override;
     void render(UIBatchRenderer& renderer) override;
 
     Widget* hitTest(f32 x, f32 y) override;
@@ -214,6 +213,7 @@ public:
     bool onMouseMove(const MouseMoveEvent& event) override;
 
 protected:
+    void layoutChildren(const Rect& contentBounds) override;
     void onStateChanged() override;
 
 private:

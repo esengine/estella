@@ -8,7 +8,6 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # Build options
 option(ES_BUILD_WEB "Build for Web/Emscripten" OFF)
 option(ES_BUILD_WXGAME "Build for WeChat MiniGame" OFF)
-option(ES_BUILD_EXAMPLES "Build examples" ON)
 option(ES_BUILD_TESTS "Build tests" ON)
 option(ES_BUILD_EDITOR "Build editor (native only)" OFF)
 option(ES_BUILD_MODULAR "Build modular WASM (Web only, dynamic linking)" OFF)
@@ -83,16 +82,10 @@ set(ESENGINE_SOURCES
     src/esengine/ui/widgets/Slider.cpp
     src/esengine/ui/widgets/ContextMenu.cpp
     src/esengine/ui/widgets/Dropdown.cpp
+    src/esengine/ui/widgets/DropdownPopup.cpp
     src/esengine/ui/widgets/ClickablePanel.cpp
     # Text utilities
     src/esengine/ui/text/TextMeasureHelper.cpp
-    # Docking System
-    src/esengine/ui/docking/DockNode.cpp
-    src/esengine/ui/docking/DockPanel.cpp
-    src/esengine/ui/docking/DockTabBar.cpp
-    src/esengine/ui/docking/DockZone.cpp
-    src/esengine/ui/docking/DockArea.cpp
-    src/esengine/ui/docking/DockLayoutSerializer.cpp
 )
 
 # Font sources (conditional)
@@ -171,18 +164,10 @@ set(ESENGINE_HEADERS
     src/esengine/ui/widgets/Slider.hpp
     src/esengine/ui/widgets/ContextMenu.hpp
     src/esengine/ui/widgets/Dropdown.hpp
+    src/esengine/ui/widgets/DropdownPopup.hpp
     src/esengine/ui/widgets/ClickablePanel.hpp
     # Text utilities
     src/esengine/ui/text/TextMeasureHelper.hpp
-    # Docking System
-    src/esengine/ui/docking/DockTypes.hpp
-    src/esengine/ui/docking/DockNode.hpp
-    src/esengine/ui/docking/DockPanel.hpp
-    src/esengine/ui/docking/DockTabBar.hpp
-    src/esengine/ui/docking/DockZone.hpp
-    src/esengine/ui/docking/DockArea.hpp
-    src/esengine/ui/docking/DockEvents.hpp
-    src/esengine/ui/docking/DockLayoutSerializer.hpp
 )
 
 # Font headers (conditional)
@@ -372,11 +357,6 @@ if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
             "${CMAKE_BINARY_DIR}/sdk/esengine.d.ts"
         COMMENT "Copying TypeScript definitions to SDK output"
     )
-endif()
-
-# Examples
-if(ES_BUILD_EXAMPLES)
-    add_subdirectory(examples)
 endif()
 
 # Tests

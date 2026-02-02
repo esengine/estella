@@ -22,3 +22,17 @@ add_executable(test_commands
 )
 target_link_libraries(test_commands PRIVATE esengine)
 add_test(NAME test_commands COMMAND test_commands)
+
+# UI layout tests
+add_executable(test_layout
+    ui/test_layout.cpp
+)
+target_link_libraries(test_layout PRIVATE esengine)
+add_test(NAME test_layout COMMAND test_layout)
+
+# UI layout debug tool
+add_executable(test_layout_debug
+    ui/test_layout_debug.cpp
+)
+target_link_libraries(test_layout_debug PRIVATE esengine)
+

@@ -16,7 +16,7 @@
 // Includes
 // =============================================================================
 
-#include "../../ui/docking/DockPanel.hpp"
+#include "../ui/docking/DockPanel.hpp"
 #include "../../ui/widgets/TreeView.hpp"
 #include "../../ui/widgets/ScrollView.hpp"
 #include "../../ui/widgets/Panel.hpp"

@@ -12,9 +12,9 @@
 #include "DockArea.hpp"
 #include "DockPanel.hpp"
 #include "DockTabBar.hpp"
-#include "../UIContext.hpp"
-#include "../rendering/UIBatchRenderer.hpp"
-#include "../../events/Sink.hpp"
+#include "../../../ui/UIContext.hpp"
+#include "../../../ui/rendering/UIBatchRenderer.hpp"
+#include "../../../events/Sink.hpp"
 
 namespace esengine::ui {
 
@@ -295,14 +295,13 @@ glm::vec2 DockArea::measure(f32 availableWidth, f32 availableHeight) {
     return {availableWidth, availableHeight};
 }
 
-void DockArea::layout(const Rect& bounds) {
-    Widget::layout(bounds);
+void DockArea::layoutChildren(const Rect& contentBounds) {
+    (void)contentBounds;
 
     if (rootNode_) {
         rootNode_->setBounds(getBounds());
         rootNode_->layout(splitterThickness_, tabBarHeight_);
 
-        // Propagate context to all panels
         UIContext* ctx = getContext();
         rootNode_->forEachLeaf([ctx](DockNode& node) {
             for (const auto& panel : node.getPanels()) {

@@ -21,7 +21,7 @@
 #include "../math/Math.hpp"
 #include "../events/Dispatcher.hpp"
 #include "../ui/UIContext.hpp"
-#include "../ui/docking/DockArea.hpp"
+#include "ui/docking/DockArea.hpp"
 #include "command/CommandHistory.hpp"
 #include "core/Selection.hpp"
 #include "AssetDatabase.hpp"

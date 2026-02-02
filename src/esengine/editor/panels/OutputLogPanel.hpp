@@ -50,11 +50,13 @@ public:
     bool isShowError() const { return showError_; }
 
     glm::vec2 measure(f32 availableWidth, f32 availableHeight) override;
-    void layout(const ui::Rect& bounds) override;
     void render(ui::UIBatchRenderer& renderer) override;
     bool onScroll(const ui::ScrollEvent& event) override;
     bool onMouseDown(const ui::MouseButtonEvent& event) override;
     bool onMouseMove(const ui::MouseMoveEvent& event) override;
+
+protected:
+    void layoutChildren(const ui::Rect& contentBounds) override;
 
 private:
     void onLogEntry(const LogEntry& entry);

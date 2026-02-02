@@ -17,7 +17,7 @@
 // =============================================================================
 
 #include "DockTypes.hpp"
-#include "../core/Types.hpp"
+#include "../../../ui/core/Types.hpp"
 
 #include <functional>
 #include <vector>

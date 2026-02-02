@@ -13,8 +13,8 @@
 #include "DockArea.hpp"
 #include "DockNode.hpp"
 #include "DockPanel.hpp"
-#include "../UIContext.hpp"
-#include "../rendering/UIBatchRenderer.hpp"
+#include "../../../ui/UIContext.hpp"
+#include "../../../ui/rendering/UIBatchRenderer.hpp"
 
 namespace esengine::ui {
 

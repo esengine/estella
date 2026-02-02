@@ -108,6 +108,8 @@ void HierarchyPanel::buildUI() {
 
     auto rootPanel = makeUnique<ui::Panel>(ui::WidgetId(getId().path + "_root"));
     rootPanel->setLayout(makeUnique<ui::StackLayout>(ui::StackDirection::Vertical, 0.0f));
+    rootPanel->setWidth(ui::SizeValue::flex(1.0f));
+    rootPanel->setHeight(ui::SizeValue::flex(1.0f));
     rootPanel->setDrawBackground(true);
     rootPanel->setBackgroundColor(mainBg);
 
@@ -238,7 +240,7 @@ void HierarchyPanel::buildUI() {
     auto statusBar = makeUnique<ui::Panel>(ui::WidgetId(getId().path + "_status"));
     statusBar->setHeight(ui::SizeValue::px(24.0f));
     statusBar->setWidth(ui::SizeValue::flex(1.0f));
-    statusBar->setPadding(ui::Insets(4.0f, 8.0f, 4.0f, 8.0f));
+    statusBar->setPadding(ui::Insets(0.0f, 8.0f, 0.0f, 8.0f));
     statusBar->setDrawBackground(true);
     statusBar->setBackgroundColor(toolbarBg);
     statusBar->setBorderColor(borderColor);
@@ -247,6 +249,8 @@ void HierarchyPanel::buildUI() {
     auto entityCountLabel = makeUnique<ui::Label>(ui::WidgetId(getId().path + "_count"), "0 entities");
     entityCountLabel->setFontSize(11.0f);
     entityCountLabel->setColor({0.6f, 0.6f, 0.6f, 1.0f});
+    entityCountLabel->setWidth(ui::SizeValue::flex(1.0f));
+    entityCountLabel->setHeight(ui::SizeValue::flex(1.0f));
     entityCountLabel_ = entityCountLabel.get();
     statusBar->addChild(std::move(entityCountLabel));
 

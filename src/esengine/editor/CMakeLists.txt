@@ -7,6 +7,14 @@ set(EDITOR_SOURCES
     ThumbnailGenerator.cpp
     DragDropManager.cpp
 
+    # Docking System (Editor-specific UI)
+    ui/docking/DockNode.cpp
+    ui/docking/DockPanel.cpp
+    ui/docking/DockTabBar.cpp
+    ui/docking/DockZone.cpp
+    ui/docking/DockArea.cpp
+    ui/docking/DockLayoutSerializer.cpp
+
     # Project management
     project/ProjectSerializer.cpp
     project/RecentProjectsManager.cpp
@@ -64,6 +72,16 @@ set(EDITOR_HEADERS
     ThumbnailGenerator.hpp
     DragDropTypes.hpp
     DragDropManager.hpp
+
+    # Docking System (Editor-specific UI)
+    ui/docking/DockTypes.hpp
+    ui/docking/DockEvents.hpp
+    ui/docking/DockNode.hpp
+    ui/docking/DockPanel.hpp
+    ui/docking/DockTabBar.hpp
+    ui/docking/DockZone.hpp
+    ui/docking/DockArea.hpp
+    ui/docking/DockLayoutSerializer.hpp
 
     # Core subsystem
     core/EditorEvents.hpp

@@ -13,7 +13,7 @@
 #include "DockArea.hpp"
 #include "DockNode.hpp"
 #include "DockPanel.hpp"
-#include "../../core/Log.hpp"
+#include "../../../core/Log.hpp"
 
 #include <sstream>
 #include <iomanip>

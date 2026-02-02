@@ -17,8 +17,8 @@
 // =============================================================================
 
 #include "DockTypes.hpp"
-#include "../widgets/Widget.hpp"
-#include "../../events/Signal.hpp"
+#include "../../../ui/widgets/Widget.hpp"
+#include "../../../events/Signal.hpp"
 
 #include <string>
 #include <vector>

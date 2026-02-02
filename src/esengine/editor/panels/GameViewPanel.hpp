@@ -14,7 +14,7 @@
 // Includes
 // =============================================================================
 
-#include "../../ui/docking/DockPanel.hpp"
+#include "../ui/docking/DockPanel.hpp"
 #include "../../renderer/Framebuffer.hpp"
 #include "../../renderer/RenderPipeline.hpp"
 #include "../../ecs/Registry.hpp"

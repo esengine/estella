@@ -19,7 +19,7 @@
 #include "../ui/widgets/Label.hpp"
 #include "../ui/widgets/Button.hpp"
 #include "../ui/layout/StackLayout.hpp"
-#include "../ui/docking/DockArea.hpp"
+#include "ui/docking/DockArea.hpp"
 #include "../ecs/components/Common.hpp"
 #include "../ecs/components/Transform.hpp"
 #include "../ecs/components/Hierarchy.hpp"

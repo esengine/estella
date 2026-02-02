@@ -12,8 +12,8 @@
 #include "DockPanel.hpp"
 #include "DockNode.hpp"
 #include "DockArea.hpp"
-#include "../UIContext.hpp"
-#include "../rendering/UIBatchRenderer.hpp"
+#include "../../../ui/UIContext.hpp"
+#include "../../../ui/rendering/UIBatchRenderer.hpp"
 
 namespace esengine::ui {
 
@@ -92,11 +92,20 @@ glm::vec2 DockPanel::measure(f32 availableWidth, f32 availableHeight) {
     };
 }
 
-void DockPanel::layout(const Rect& bounds) {
-    Widget::layout(bounds);
-
+void DockPanel::layoutChildren(const Rect& contentBounds) {
     if (contentWidget_) {
-        contentWidget_->layout(getContentBounds());
+        contentWidget_->layout(contentBounds);
+    }
+}
+
+void DockPanel::invalidateLayout() {
+    Widget::invalidateLayout();
+
+    if (ownerNode_) {
+        DockArea* area = ownerNode_->getArea();
+        if (area) {
+            area->invalidateLayout();
+        }
     }
 }
 
@@ -114,6 +123,11 @@ void DockPanel::render(UIBatchRenderer& renderer) {
     }
 
     onRenderContent(renderer);
+}
+
+void DockPanel::renderTree(UIBatchRenderer& renderer) {
+    if (!isVisible()) return;
+    render(renderer);
 }
 
 void DockPanel::onRenderContent(UIBatchRenderer& renderer) {
