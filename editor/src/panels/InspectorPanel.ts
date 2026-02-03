@@ -1,11 +1,11 @@
 /**
  * @file    InspectorPanel.ts
- * @brief   Entity inspector panel for editing components
+ * @brief   Unified inspector panel for entities and assets
  */
 
 import type { Entity } from 'esengine';
 import type { ComponentData } from '../types/SceneTypes';
-import type { EditorStore } from '../store/EditorStore';
+import type { EditorStore, AssetSelection, AssetType } from '../store/EditorStore';
 import {
     createPropertyEditor,
     type PropertyEditorInstance,
@@ -13,10 +13,93 @@ import {
 import { getComponentSchema, getAllComponentSchemas } from '../schemas/ComponentSchemas';
 import { icons } from '../utils/icons';
 
+// =============================================================================
+// Types
+// =============================================================================
+
 interface EditorInfo {
     editor: PropertyEditorInstance;
     componentType: string;
     propertyName: string;
+}
+
+interface FileStats {
+    size: number;
+    modified: Date | null;
+    created: Date | null;
+}
+
+interface NativeFS {
+    readFile(path: string): Promise<string | null>;
+    readBinaryFile(path: string): Promise<Uint8Array | null>;
+    getFileStats(path: string): Promise<FileStats | null>;
+}
+
+// =============================================================================
+// Helpers
+// =============================================================================
+
+function getNativeFS(): NativeFS | null {
+    return (window as any).__esengine_fs ?? null;
+}
+
+function getFileName(path: string): string {
+    const normalized = path.replace(/\\/g, '/');
+    const lastSlash = normalized.lastIndexOf('/');
+    return lastSlash >= 0 ? normalized.substring(lastSlash + 1) : normalized;
+}
+
+function getFileExtension(filename: string): string {
+    const dotIndex = filename.lastIndexOf('.');
+    return dotIndex > 0 ? filename.substring(dotIndex).toLowerCase() : '';
+}
+
+function getMimeType(ext: string): string {
+    switch (ext) {
+        case '.png': return 'image/png';
+        case '.jpg':
+        case '.jpeg': return 'image/jpeg';
+        case '.gif': return 'image/gif';
+        case '.webp': return 'image/webp';
+        case '.bmp': return 'image/bmp';
+        case '.svg': return 'image/svg+xml';
+        default: return 'application/octet-stream';
+    }
+}
+
+function formatFileSize(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatDate(date: Date | null): string {
+    if (!date) return 'Unknown';
+    return date.toLocaleString();
+}
+
+function getAssetIcon(type: AssetType, size: number = 16): string {
+    switch (type) {
+        case 'image': return icons.image(size);
+        case 'script': return icons.code(size);
+        case 'scene': return icons.layers(size);
+        case 'audio': return icons.volume(size);
+        case 'json': return icons.braces(size);
+        case 'folder': return icons.folder(size);
+        default: return icons.file(size);
+    }
+}
+
+function getAssetTypeName(type: AssetType): string {
+    switch (type) {
+        case 'image': return 'Image';
+        case 'script': return 'Script';
+        case 'scene': return 'Scene';
+        case 'audio': return 'Audio';
+        case 'json': return 'JSON';
+        case 'folder': return 'Folder';
+        default: return 'File';
+    }
 }
 
 // =============================================================================
@@ -30,9 +113,13 @@ export class InspectorPanel {
     private unsubscribe_: (() => void) | null = null;
     private editors_: EditorInfo[] = [];
     private currentEntity_: Entity | null = null;
+    private currentAssetPath_: string | null = null;
     private currentComponentCount_: number = 0;
+    private currentImageUrl_: string | null = null;
 
     private footerContainer_: HTMLElement | null = null;
+    private lockBtn_: HTMLElement | null = null;
+    private locked_: boolean = false;
 
     constructor(container: HTMLElement, store: EditorStore) {
         this.container_ = container;
@@ -48,52 +135,120 @@ export class InspectorPanel {
                 </div>
             </div>
             <div class="es-inspector-toolbar">
-                <button class="es-btn es-btn-icon" title="Lock">${icons.lock()}</button>
+                <button class="es-btn es-btn-icon es-lock-btn" title="Lock Inspector">${icons.lockOpen()}</button>
                 <button class="es-btn es-btn-icon" title="Debug">${icons.bug()}</button>
                 <div class="es-toolbar-spacer"></div>
                 <button class="es-btn es-btn-icon" title="Add Component">${icons.plus()}</button>
                 <button class="es-btn es-btn-icon" title="Settings">${icons.settings()}</button>
             </div>
             <div class="es-inspector-content"></div>
-            <div class="es-inspector-footer">0 components</div>
+            <div class="es-inspector-footer">No selection</div>
         `;
 
         this.contentContainer_ = this.container_.querySelector('.es-inspector-content')!;
         this.footerContainer_ = this.container_.querySelector('.es-inspector-footer');
+        this.lockBtn_ = this.container_.querySelector('.es-lock-btn');
 
+        this.setupLockButton();
         this.unsubscribe_ = store.subscribe(() => this.render());
         this.render();
     }
 
+    private setupLockButton(): void {
+        this.lockBtn_?.addEventListener('click', () => {
+            this.locked_ = !this.locked_;
+            this.updateLockButton();
+        });
+    }
+
+    private updateLockButton(): void {
+        if (this.lockBtn_) {
+            if (this.locked_) {
+                this.lockBtn_.classList.add('es-active');
+                this.lockBtn_.title = 'Unlock Inspector';
+                this.lockBtn_.innerHTML = icons.lock();
+            } else {
+                this.lockBtn_.classList.remove('es-active');
+                this.lockBtn_.title = 'Lock Inspector';
+                this.lockBtn_.innerHTML = icons.lockOpen();
+            }
+        }
+    }
+
     dispose(): void {
         this.disposeEditors();
+        this.cleanupImageUrl();
         if (this.unsubscribe_) {
             this.unsubscribe_();
             this.unsubscribe_ = null;
         }
     }
 
+    // =========================================================================
+    // Main Render
+    // =========================================================================
+
     private render(): void {
+        if (this.locked_) {
+            if (this.currentEntity_ !== null) {
+                this.updateEditors();
+            }
+            return;
+        }
+
         const entity = this.store_.selectedEntity;
-        const entityData = entity !== null ? this.store_.getSelectedEntityData() : null;
+        const asset = this.store_.selectedAsset;
+
+        if (entity !== null) {
+            this.renderEntityInspector(entity);
+        } else if (asset !== null) {
+            this.renderAssetInspector(asset);
+        } else {
+            this.renderEmptyState();
+        }
+    }
+
+    private renderEmptyState(): void {
+        if (this.currentEntity_ === null && this.currentAssetPath_ === null) {
+            return;
+        }
+
+        this.currentEntity_ = null;
+        this.currentAssetPath_ = null;
+        this.currentComponentCount_ = 0;
+        this.disposeEditors();
+        this.cleanupImageUrl();
+        this.contentContainer_.innerHTML = '<div class="es-inspector-empty">No selection</div>';
+        this.updateFooter('No selection');
+    }
+
+    // =========================================================================
+    // Entity Inspector
+    // =========================================================================
+
+    private renderEntityInspector(entity: Entity): void {
+        const entityData = this.store_.getSelectedEntityData();
         const componentCount = entityData?.components.length ?? 0;
 
         const entityChanged = entity !== this.currentEntity_;
         const componentsChanged = componentCount !== this.currentComponentCount_;
+        const wasAsset = this.currentAssetPath_ !== null;
 
-        if (!entityChanged && !componentsChanged) {
+        if (!entityChanged && !componentsChanged && !wasAsset) {
             this.updateEditors();
             return;
         }
 
         this.currentEntity_ = entity;
+        this.currentAssetPath_ = null;
         this.currentComponentCount_ = componentCount;
         this.disposeEditors();
+        this.cleanupImageUrl();
         this.contentContainer_.innerHTML = '';
 
-        if (entity === null || !entityData) {
-            this.contentContainer_.innerHTML = '<div class="es-inspector-empty">No entity selected</div>';
-            this.updateFooter(0);
+        if (!entityData) {
+            this.contentContainer_.innerHTML = '<div class="es-inspector-empty">Entity not found</div>';
+            this.updateFooter('Error');
             return;
         }
 
@@ -105,12 +260,12 @@ export class InspectorPanel {
         }
 
         this.renderAddComponentButton(entity, entityData.components);
-        this.updateFooter(entityData.components.length + 1);
+        this.updateFooter(`${entityData.components.length + 1} components`);
     }
 
-    private updateFooter(count: number): void {
+    private updateFooter(text: string): void {
         if (this.footerContainer_) {
-            this.footerContainer_.textContent = `${count} ${count === 1 ? 'component' : 'components'}`;
+            this.footerContainer_.textContent = text;
         }
     }
 
@@ -125,7 +280,7 @@ export class InspectorPanel {
         this.contentContainer_.appendChild(header);
     }
 
-    private renderTagsSection(entity: Entity): void {
+    private renderTagsSection(_entity: Entity): void {
         const section = document.createElement('div');
         section.className = 'es-component-section es-collapsible es-expanded';
         section.innerHTML = `
@@ -386,5 +541,325 @@ export class InspectorPanel {
             info.editor.dispose();
         }
         this.editors_ = [];
+    }
+
+    // =========================================================================
+    // Asset Inspector
+    // =========================================================================
+
+    private async renderAssetInspector(asset: AssetSelection): Promise<void> {
+        if (asset.path === this.currentAssetPath_) {
+            return;
+        }
+
+        this.currentAssetPath_ = asset.path;
+        this.currentEntity_ = null;
+        this.currentComponentCount_ = 0;
+        this.disposeEditors();
+        this.cleanupImageUrl();
+        this.contentContainer_.innerHTML = '';
+
+        this.renderAssetHeader(asset);
+
+        switch (asset.type) {
+            case 'image':
+                await this.renderImageInspector(asset.path);
+                break;
+            case 'script':
+                await this.renderScriptInspector(asset.path);
+                break;
+            case 'scene':
+                await this.renderSceneInspector(asset.path);
+                break;
+            default:
+                await this.renderFileInspector(asset.path, asset.type);
+        }
+
+        this.updateFooter(getAssetTypeName(asset.type));
+    }
+
+    private renderAssetHeader(asset: AssetSelection): void {
+        const header = document.createElement('div');
+        header.className = 'es-inspector-asset-header';
+        header.innerHTML = `
+            <span class="es-asset-header-icon">${getAssetIcon(asset.type, 20)}</span>
+            <span class="es-asset-header-name">${this.escapeHtml(asset.name)}</span>
+        `;
+        this.contentContainer_.appendChild(header);
+    }
+
+    private async renderImageInspector(path: string): Promise<void> {
+        const fs = getNativeFS();
+        if (!fs) {
+            this.renderError('File system not available');
+            return;
+        }
+
+        const previewSection = document.createElement('div');
+        previewSection.className = 'es-asset-preview-section';
+        previewSection.innerHTML = '<div class="es-asset-preview-loading">Loading...</div>';
+        this.contentContainer_.appendChild(previewSection);
+
+        try {
+            const data = await fs.readBinaryFile(path);
+            if (!data) {
+                previewSection.innerHTML = '<div class="es-asset-preview-error">Failed to load image</div>';
+                return;
+            }
+
+            const ext = getFileExtension(path);
+            const mimeType = getMimeType(ext);
+            const blob = new Blob([data], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            this.currentImageUrl_ = url;
+
+            previewSection.innerHTML = `
+                <div class="es-image-preview-container">
+                    <img class="es-image-preview" src="${url}" alt="${getFileName(path)}">
+                </div>
+            `;
+
+            const img = previewSection.querySelector('.es-image-preview') as HTMLImageElement;
+            img.onload = async () => {
+                await this.renderImageMetadata(path, img.naturalWidth, img.naturalHeight);
+            };
+        } catch (err) {
+            console.error('Failed to load image:', err);
+            previewSection.innerHTML = '<div class="es-asset-preview-error">Failed to load image</div>';
+        }
+    }
+
+    private async renderImageMetadata(path: string, width: number, height: number): Promise<void> {
+        const fs = getNativeFS();
+        const stats = fs ? await fs.getFileStats(path) : null;
+
+        const section = document.createElement('div');
+        section.className = 'es-component-section es-collapsible es-expanded';
+        section.innerHTML = `
+            <div class="es-component-header es-collapsible-header">
+                <span class="es-collapse-icon">${icons.chevronDown(12)}</span>
+                <span class="es-component-icon">${icons.settings(14)}</span>
+                <span class="es-component-title">Properties</span>
+            </div>
+            <div class="es-component-properties es-collapsible-content">
+                <div class="es-property-row">
+                    <label class="es-property-label">Size</label>
+                    <div class="es-property-value">${width} × ${height}</div>
+                </div>
+                <div class="es-property-row">
+                    <label class="es-property-label">Format</label>
+                    <div class="es-property-value">${getFileExtension(path).substring(1).toUpperCase() || 'Unknown'}</div>
+                </div>
+                <div class="es-property-row">
+                    <label class="es-property-label">File Size</label>
+                    <div class="es-property-value">${stats ? formatFileSize(stats.size) : 'Unknown'}</div>
+                </div>
+                <div class="es-property-row">
+                    <label class="es-property-label">Modified</label>
+                    <div class="es-property-value">${stats ? formatDate(stats.modified) : 'Unknown'}</div>
+                </div>
+            </div>
+        `;
+
+        const header = section.querySelector('.es-collapsible-header');
+        header?.addEventListener('click', () => {
+            section.classList.toggle('es-expanded');
+        });
+
+        this.contentContainer_.appendChild(section);
+    }
+
+    private async renderScriptInspector(path: string): Promise<void> {
+        const fs = getNativeFS();
+        if (!fs) {
+            this.renderError('File system not available');
+            return;
+        }
+
+        const stats = await fs.getFileStats(path);
+        const content = await fs.readFile(path);
+        const lineCount = content ? content.split('\n').length : 0;
+        const ext = getFileExtension(path);
+
+        const propsSection = document.createElement('div');
+        propsSection.className = 'es-component-section es-collapsible es-expanded';
+        propsSection.innerHTML = `
+            <div class="es-component-header es-collapsible-header">
+                <span class="es-collapse-icon">${icons.chevronDown(12)}</span>
+                <span class="es-component-icon">${icons.settings(14)}</span>
+                <span class="es-component-title">Properties</span>
+            </div>
+            <div class="es-component-properties es-collapsible-content">
+                <div class="es-property-row">
+                    <label class="es-property-label">Type</label>
+                    <div class="es-property-value">${ext === '.ts' ? 'TypeScript' : ext === '.js' ? 'JavaScript' : 'Script'}</div>
+                </div>
+                <div class="es-property-row">
+                    <label class="es-property-label">Lines</label>
+                    <div class="es-property-value">${lineCount}</div>
+                </div>
+                <div class="es-property-row">
+                    <label class="es-property-label">File Size</label>
+                    <div class="es-property-value">${stats ? formatFileSize(stats.size) : 'Unknown'}</div>
+                </div>
+                <div class="es-property-row">
+                    <label class="es-property-label">Modified</label>
+                    <div class="es-property-value">${stats ? formatDate(stats.modified) : 'Unknown'}</div>
+                </div>
+            </div>
+        `;
+
+        const header1 = propsSection.querySelector('.es-collapsible-header');
+        header1?.addEventListener('click', () => {
+            propsSection.classList.toggle('es-expanded');
+        });
+
+        this.contentContainer_.appendChild(propsSection);
+
+        if (content) {
+            const previewSection = document.createElement('div');
+            previewSection.className = 'es-component-section es-collapsible es-expanded';
+            const previewContent = content.substring(0, 500) + (content.length > 500 ? '\n...' : '');
+            previewSection.innerHTML = `
+                <div class="es-component-header es-collapsible-header">
+                    <span class="es-collapse-icon">${icons.chevronDown(12)}</span>
+                    <span class="es-component-icon">${icons.code(14)}</span>
+                    <span class="es-component-title">Preview</span>
+                </div>
+                <div class="es-collapsible-content">
+                    <pre class="es-code-preview">${this.escapeHtml(previewContent)}</pre>
+                </div>
+            `;
+
+            const header2 = previewSection.querySelector('.es-collapsible-header');
+            header2?.addEventListener('click', () => {
+                previewSection.classList.toggle('es-expanded');
+            });
+
+            this.contentContainer_.appendChild(previewSection);
+        }
+    }
+
+    private async renderSceneInspector(path: string): Promise<void> {
+        const fs = getNativeFS();
+        if (!fs) {
+            this.renderError('File system not available');
+            return;
+        }
+
+        const stats = await fs.getFileStats(path);
+        const content = await fs.readFile(path);
+
+        let entityCount = 0;
+        if (content) {
+            try {
+                const scene = JSON.parse(content);
+                entityCount = scene.entities?.length ?? 0;
+            } catch {
+                // Ignore parse errors
+            }
+        }
+
+        const propsSection = document.createElement('div');
+        propsSection.className = 'es-component-section es-collapsible es-expanded';
+        propsSection.innerHTML = `
+            <div class="es-component-header es-collapsible-header">
+                <span class="es-collapse-icon">${icons.chevronDown(12)}</span>
+                <span class="es-component-icon">${icons.settings(14)}</span>
+                <span class="es-component-title">Properties</span>
+            </div>
+            <div class="es-component-properties es-collapsible-content">
+                <div class="es-property-row">
+                    <label class="es-property-label">Entities</label>
+                    <div class="es-property-value">${entityCount}</div>
+                </div>
+                <div class="es-property-row">
+                    <label class="es-property-label">File Size</label>
+                    <div class="es-property-value">${stats ? formatFileSize(stats.size) : 'Unknown'}</div>
+                </div>
+                <div class="es-property-row">
+                    <label class="es-property-label">Modified</label>
+                    <div class="es-property-value">${stats ? formatDate(stats.modified) : 'Unknown'}</div>
+                </div>
+            </div>
+        `;
+
+        const header = propsSection.querySelector('.es-collapsible-header');
+        header?.addEventListener('click', () => {
+            propsSection.classList.toggle('es-expanded');
+        });
+
+        this.contentContainer_.appendChild(propsSection);
+
+        const actionsWrapper = document.createElement('div');
+        actionsWrapper.className = 'es-asset-actions';
+        actionsWrapper.innerHTML = `
+            <button class="es-btn es-btn-primary es-btn-open-scene">Open Scene</button>
+        `;
+
+        const openBtn = actionsWrapper.querySelector('.es-btn-open-scene');
+        openBtn?.addEventListener('click', () => {
+            const editor = (window as any).__esengine_editor;
+            if (editor && typeof editor.openSceneFromPath === 'function') {
+                editor.openSceneFromPath(path);
+            }
+        });
+
+        this.contentContainer_.appendChild(actionsWrapper);
+    }
+
+    private async renderFileInspector(path: string, type: AssetType): Promise<void> {
+        const fs = getNativeFS();
+        const stats = fs ? await fs.getFileStats(path) : null;
+        const ext = getFileExtension(path);
+
+        const propsSection = document.createElement('div');
+        propsSection.className = 'es-component-section es-collapsible es-expanded';
+        propsSection.innerHTML = `
+            <div class="es-component-header es-collapsible-header">
+                <span class="es-collapse-icon">${icons.chevronDown(12)}</span>
+                <span class="es-component-icon">${icons.settings(14)}</span>
+                <span class="es-component-title">Properties</span>
+            </div>
+            <div class="es-component-properties es-collapsible-content">
+                <div class="es-property-row">
+                    <label class="es-property-label">Type</label>
+                    <div class="es-property-value">${getAssetTypeName(type)}${ext ? ` (${ext})` : ''}</div>
+                </div>
+                <div class="es-property-row">
+                    <label class="es-property-label">File Size</label>
+                    <div class="es-property-value">${stats ? formatFileSize(stats.size) : 'Unknown'}</div>
+                </div>
+                <div class="es-property-row">
+                    <label class="es-property-label">Modified</label>
+                    <div class="es-property-value">${stats ? formatDate(stats.modified) : 'Unknown'}</div>
+                </div>
+                <div class="es-property-row">
+                    <label class="es-property-label">Created</label>
+                    <div class="es-property-value">${stats ? formatDate(stats.created) : 'Unknown'}</div>
+                </div>
+            </div>
+        `;
+
+        const header = propsSection.querySelector('.es-collapsible-header');
+        header?.addEventListener('click', () => {
+            propsSection.classList.toggle('es-expanded');
+        });
+
+        this.contentContainer_.appendChild(propsSection);
+    }
+
+    private renderError(message: string): void {
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'es-asset-preview-error';
+        errorDiv.textContent = message;
+        this.contentContainer_.appendChild(errorDiv);
+    }
+
+    private cleanupImageUrl(): void {
+        if (this.currentImageUrl_) {
+            URL.revokeObjectURL(this.currentImageUrl_);
+            this.currentImageUrl_ = null;
+        }
     }
 }

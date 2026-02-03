@@ -66,6 +66,15 @@ svg {
     stroke: var(--es-text-primary);
 }
 
+.es-btn-icon.es-active {
+    background: var(--es-accent);
+    border-radius: 3px;
+}
+
+.es-btn-icon.es-active svg {
+    stroke: white;
+}
+
 .es-hierarchy-visibility svg,
 .es-hierarchy-expand svg,
 .es-hierarchy-icon svg {
@@ -529,6 +538,114 @@ svg {
     color: var(--es-text-secondary);
     background: var(--es-bg-secondary);
     border-top: 1px solid var(--es-border);
+}
+
+/* Asset Inspector */
+
+.es-inspector-asset-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    margin-bottom: 4px;
+    background: var(--es-bg-secondary);
+    border: 1px solid var(--es-border);
+}
+
+.es-asset-header-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.es-asset-header-icon svg {
+    stroke: var(--es-accent);
+}
+
+.es-asset-header-name {
+    flex: 1;
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--es-text-primary);
+    word-break: break-all;
+}
+
+.es-asset-preview-section {
+    margin-bottom: 4px;
+    background: var(--es-bg-secondary);
+    border: 1px solid var(--es-border);
+}
+
+.es-asset-preview-loading,
+.es-asset-preview-error {
+    padding: 20px;
+    text-align: center;
+    color: var(--es-text-secondary);
+    font-size: 12px;
+}
+
+.es-asset-preview-error {
+    color: #e74c3c;
+}
+
+.es-image-preview-container {
+    padding: 10px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: repeating-conic-gradient(#222 0% 25%, #2a2a2a 0% 50%) 50% / 16px 16px;
+    min-height: 100px;
+    max-height: 200px;
+}
+
+.es-image-preview {
+    max-width: 100%;
+    max-height: 180px;
+    object-fit: contain;
+    border: 1px solid var(--es-border);
+}
+
+.es-property-value {
+    flex: 1;
+    font-size: 11px;
+    color: var(--es-text-primary);
+    background: var(--es-bg-tertiary);
+    padding: 4px 8px;
+    border-radius: 3px;
+}
+
+.es-code-preview {
+    margin: 0;
+    padding: 10px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--es-text-secondary);
+    background: var(--es-bg-primary);
+    overflow: auto;
+    max-height: 150px;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.es-asset-actions {
+    padding: 8px;
+    display: flex;
+    justify-content: center;
+}
+
+.es-btn-primary {
+    background: var(--es-accent);
+    color: white;
+    border: none;
+    padding: 6px 16px;
+    font-size: 12px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.es-btn-primary:hover {
+    background: #5a9cf5;
 }
 
 /* =============================================================================

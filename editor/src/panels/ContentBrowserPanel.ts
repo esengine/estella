@@ -3,6 +3,7 @@
  * @brief   Asset browser panel for managing project files
  */
 
+import type { EditorStore, AssetType } from '../store/EditorStore';
 import { icons } from '../utils/icons';
 
 // =============================================================================
@@ -125,6 +126,7 @@ function getAssetIcon(type: AssetItem['type'], size: number = 32): string {
 
 export class ContentBrowserPanel {
     private container_: HTMLElement;
+    private store_: EditorStore;
     private treeContainer_: HTMLElement | null = null;
     private gridContainer_: HTMLElement | null = null;
     private footerContainer_: HTMLElement | null = null;
@@ -139,8 +141,9 @@ export class ContentBrowserPanel {
     private onOpenScene_: ((scenePath: string) => void) | null = null;
     private selectedAssetPath_: string | null = null;
 
-    constructor(container: HTMLElement, options?: ContentBrowserOptions) {
+    constructor(container: HTMLElement, store: EditorStore, options?: ContentBrowserOptions) {
         this.container_ = container;
+        this.store_ = store;
         this.projectPath_ = options?.projectPath ?? null;
         this.onOpenScene_ = options?.onOpenScene ?? null;
 
@@ -359,6 +362,15 @@ export class ContentBrowserPanel {
     private selectAsset(path: string): void {
         this.selectedAssetPath_ = path;
         this.updateAssetSelection();
+
+        const item = this.currentItems_.find(i => i.path === path);
+        if (item) {
+            this.store_.selectAsset({
+                path: item.path,
+                type: item.type as AssetType,
+                name: item.name,
+            });
+        }
     }
 
     private updateAssetSelection(): void {

@@ -20,9 +20,18 @@ import {
 // Types
 // =============================================================================
 
+export type AssetType = 'image' | 'script' | 'scene' | 'audio' | 'json' | 'file' | 'folder';
+
+export interface AssetSelection {
+    path: string;
+    type: AssetType;
+    name: string;
+}
+
 export interface EditorState {
     scene: SceneData;
     selectedEntity: Entity | null;
+    selectedAsset: AssetSelection | null;
     isDirty: boolean;
     filePath: string | null;
 }
@@ -43,6 +52,7 @@ export class EditorStore {
         this.state_ = {
             scene: createEmptyScene(),
             selectedEntity: null,
+            selectedAsset: null,
             isDirty: false,
             filePath: null,
         };
@@ -65,6 +75,10 @@ export class EditorStore {
         return this.state_.selectedEntity;
     }
 
+    get selectedAsset(): AssetSelection | null {
+        return this.state_.selectedAsset;
+    }
+
     get canUndo(): boolean {
         return this.history_.canUndo();
     }
@@ -84,6 +98,7 @@ export class EditorStore {
     newScene(name: string = 'Untitled'): void {
         this.state_.scene = createEmptyScene(name);
         this.state_.selectedEntity = null;
+        this.state_.selectedAsset = null;
         this.state_.isDirty = false;
         this.state_.filePath = null;
         this.history_.clear();
@@ -94,6 +109,7 @@ export class EditorStore {
     loadScene(scene: SceneData, filePath: string | null = null): void {
         this.state_.scene = scene;
         this.state_.selectedEntity = null;
+        this.state_.selectedAsset = null;
         this.state_.isDirty = false;
         this.state_.filePath = filePath;
         this.history_.clear();
@@ -119,8 +135,15 @@ export class EditorStore {
     selectEntity(entity: Entity | null): void {
         if (this.state_.selectedEntity !== entity) {
             this.state_.selectedEntity = entity;
+            this.state_.selectedAsset = null;
             this.notify();
         }
+    }
+
+    selectAsset(asset: AssetSelection | null): void {
+        this.state_.selectedAsset = asset;
+        this.state_.selectedEntity = null;
+        this.notify();
     }
 
     getSelectedEntityData(): EntityData | null {

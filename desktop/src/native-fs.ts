@@ -7,9 +7,11 @@ import { open, save } from '@tauri-apps/plugin-dialog';
 import {
     readTextFile,
     writeTextFile,
+    readFile,
     mkdir,
     exists,
     readDir,
+    stat,
 } from '@tauri-apps/plugin-fs';
 
 export interface DirectoryEntry {
@@ -23,6 +25,12 @@ export interface FileChangeEvent {
     paths: string[];
 }
 
+export interface FileStats {
+    size: number;
+    modified: Date | null;
+    created: Date | null;
+}
+
 export type UnwatchFn = () => void;
 
 export interface NativeFS {
@@ -33,6 +41,8 @@ export interface NativeFS {
     exists(path: string): Promise<boolean>;
     writeFile(path: string, content: string): Promise<boolean>;
     readFile(path: string): Promise<string | null>;
+    readBinaryFile(path: string): Promise<Uint8Array | null>;
+    getFileStats(path: string): Promise<FileStats | null>;
     openProject(): Promise<string | null>;
     listDirectory(path: string): Promise<string[]>;
     listDirectoryDetailed(path: string): Promise<DirectoryEntry[]>;
@@ -127,6 +137,29 @@ export function injectNativeFS(): void {
                 return await readTextFile(path);
             } catch (err) {
                 console.error('Failed to read file:', err);
+                return null;
+            }
+        },
+
+        async readBinaryFile(path: string) {
+            try {
+                return await readFile(path);
+            } catch (err) {
+                console.error('Failed to read binary file:', err);
+                return null;
+            }
+        },
+
+        async getFileStats(path: string) {
+            try {
+                const stats = await stat(path);
+                return {
+                    size: stats.size,
+                    modified: stats.mtime,
+                    created: stats.birthtime,
+                };
+            } catch (err) {
+                console.error('Failed to get file stats:', err);
                 return null;
             }
         },

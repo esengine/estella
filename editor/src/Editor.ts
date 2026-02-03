@@ -188,10 +188,12 @@ export class Editor {
         this.hierarchyPanel_ = new HierarchyPanel(hierarchyContainer, this.store_);
         this.inspectorPanel_ = new InspectorPanel(inspectorContainer, this.store_);
         this.sceneViewPanel_ = new SceneViewPanel(sceneViewContainer, this.store_);
-        this.contentBrowserPanel_ = new ContentBrowserPanel(contentBrowserContainer, {
+        this.contentBrowserPanel_ = new ContentBrowserPanel(contentBrowserContainer, this.store_, {
             projectPath: this.projectPath_ ?? undefined,
             onOpenScene: (scenePath) => this.openSceneFromPath(scenePath),
         });
+
+        (window as any).__esengine_editor = this;
 
         this.setupToolbarEvents();
         this.setupStatusbarEvents();
