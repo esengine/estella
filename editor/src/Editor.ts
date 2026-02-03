@@ -9,9 +9,11 @@ import { EditorBridge } from './bridge/EditorBridge';
 import { HierarchyPanel } from './panels/HierarchyPanel';
 import { InspectorPanel } from './panels/InspectorPanel';
 import { SceneViewPanel } from './panels/SceneViewPanel';
+import { ContentBrowserPanel } from './panels/ContentBrowserPanel';
 import { registerBuiltinEditors } from './property/editors';
 import { registerBuiltinSchemas } from './schemas/ComponentSchemas';
 import { saveSceneToFile, loadSceneFromFile } from './io/SceneSerializer';
+import { icons } from './utils/icons';
 
 // =============================================================================
 // Editor
@@ -26,6 +28,9 @@ export class Editor {
     private hierarchyPanel_: HierarchyPanel | null = null;
     private inspectorPanel_: InspectorPanel | null = null;
     private sceneViewPanel_: SceneViewPanel | null = null;
+    private contentBrowserPanel_: ContentBrowserPanel | null = null;
+    private assetsPanelVisible_: boolean = true;
+    private outputPanelVisible_: boolean = false;
 
     constructor(container: HTMLElement) {
         this.container_ = container;
@@ -86,15 +91,69 @@ export class Editor {
                 <button class="es-btn" data-action="undo" disabled>Undo</button>
                 <button class="es-btn" data-action="redo" disabled>Redo</button>
             </div>
-            <div class="es-editor-main">
-                <div class="es-editor-left">
-                    <div class="es-hierarchy-container"></div>
+            <div class="es-editor-tabs">
+                <div class="es-tab es-tab-active" data-panel="hierarchy">
+                    <span class="es-tab-label">Hierarchy</span>
+                    <button class="es-tab-close">${icons.x(10)}</button>
                 </div>
-                <div class="es-editor-center">
-                    <div class="es-sceneview-container"></div>
+                <div class="es-tab es-tab-active" data-panel="scene">
+                    <span class="es-tab-label">Scene</span>
+                    <button class="es-tab-close">${icons.x(10)}</button>
                 </div>
-                <div class="es-editor-right">
-                    <div class="es-inspector-container"></div>
+                <div class="es-tab es-tab-active" data-panel="inspector">
+                    <span class="es-tab-label">Inspector</span>
+                    <button class="es-tab-close">${icons.x(10)}</button>
+                </div>
+            </div>
+            <div class="es-editor-body">
+                <div class="es-editor-main">
+                    <div class="es-editor-left">
+                        <div class="es-hierarchy-container"></div>
+                    </div>
+                    <div class="es-editor-center">
+                        <div class="es-sceneview-container"></div>
+                    </div>
+                    <div class="es-editor-right">
+                        <div class="es-inspector-container"></div>
+                    </div>
+                </div>
+                <div class="es-editor-bottom">
+                    <div class="es-content-browser-container"></div>
+                    <div class="es-output-container" style="display: none;">
+                        <div class="es-output-panel">
+                            <div class="es-output-header">
+                                <span class="es-output-title">${icons.list(14)} Output</span>
+                                <div class="es-output-actions">
+                                    <button class="es-btn es-btn-icon" title="Clear">${icons.trash(12)}</button>
+                                </div>
+                            </div>
+                            <div class="es-output-content">
+                                <div class="es-output-empty">No output messages</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="es-editor-statusbar">
+                <div class="es-statusbar-left">
+                    <button class="es-btn-dropdown es-active" data-action="toggle-assets">
+                        ${icons.folder(12)}
+                        <span>Assets</span>
+                        ${icons.chevronDown(10)}
+                    </button>
+                    <button class="es-btn-tab" data-action="toggle-output">
+                        ${icons.list(12)}
+                        <span>Output</span>
+                    </button>
+                </div>
+                <div class="es-statusbar-right">
+                    <div class="es-statusbar-icons">
+                        <button title="Grid">${icons.hash(12)}</button>
+                    </div>
+                    <span class="es-status-indicator es-status-saved">
+                        ${icons.check(12)}
+                        <span>Saved</span>
+                    </span>
                 </div>
             </div>
         `;
@@ -102,13 +161,17 @@ export class Editor {
         const hierarchyContainer = this.container_.querySelector('.es-hierarchy-container') as HTMLElement;
         const inspectorContainer = this.container_.querySelector('.es-inspector-container') as HTMLElement;
         const sceneViewContainer = this.container_.querySelector('.es-sceneview-container') as HTMLElement;
+        const contentBrowserContainer = this.container_.querySelector('.es-content-browser-container') as HTMLElement;
 
         this.hierarchyPanel_ = new HierarchyPanel(hierarchyContainer, this.store_);
         this.inspectorPanel_ = new InspectorPanel(inspectorContainer, this.store_);
         this.sceneViewPanel_ = new SceneViewPanel(sceneViewContainer, this.store_);
+        this.contentBrowserPanel_ = new ContentBrowserPanel(contentBrowserContainer);
 
         this.setupToolbarEvents();
+        this.setupStatusbarEvents();
         this.store_.subscribe(() => this.updateToolbarState());
+        this.store_.subscribe(() => this.updateStatusbar());
     }
 
     private setupToolbarEvents(): void {
@@ -189,10 +252,96 @@ export class Editor {
         });
     }
 
+    private setupStatusbarEvents(): void {
+        const statusbar = this.container_.querySelector('.es-editor-statusbar');
+        if (!statusbar) return;
+
+        statusbar.addEventListener('click', (e) => {
+            const target = e.target as HTMLElement;
+            const btn = target.closest('[data-action]') as HTMLElement;
+            if (!btn) return;
+
+            const action = btn.dataset.action;
+            if (action === 'toggle-assets') {
+                this.toggleAssetsPanel();
+            } else if (action === 'toggle-output') {
+                this.toggleOutputPanel();
+            }
+        });
+    }
+
+    private toggleAssetsPanel(): void {
+        const assetsBtn = this.container_.querySelector('[data-action="toggle-assets"]');
+        const outputBtn = this.container_.querySelector('[data-action="toggle-output"]');
+        const contentBrowser = this.container_.querySelector('.es-content-browser-container') as HTMLElement;
+        const outputPanel = this.container_.querySelector('.es-output-container') as HTMLElement;
+        const bottomPanel = this.container_.querySelector('.es-editor-bottom') as HTMLElement;
+
+        if (this.assetsPanelVisible_) {
+            // Already showing assets, hide it
+            this.assetsPanelVisible_ = false;
+            assetsBtn?.classList.remove('es-active');
+            if (contentBrowser) contentBrowser.style.display = 'none';
+            if (bottomPanel) bottomPanel.style.display = this.outputPanelVisible_ ? 'flex' : 'none';
+        } else {
+            // Show assets, hide output
+            this.assetsPanelVisible_ = true;
+            this.outputPanelVisible_ = false;
+            assetsBtn?.classList.add('es-active');
+            outputBtn?.classList.remove('es-active');
+            if (contentBrowser) contentBrowser.style.display = 'block';
+            if (outputPanel) outputPanel.style.display = 'none';
+            if (bottomPanel) bottomPanel.style.display = 'flex';
+        }
+    }
+
+    private toggleOutputPanel(): void {
+        const assetsBtn = this.container_.querySelector('[data-action="toggle-assets"]');
+        const outputBtn = this.container_.querySelector('[data-action="toggle-output"]');
+        const contentBrowser = this.container_.querySelector('.es-content-browser-container') as HTMLElement;
+        const outputPanel = this.container_.querySelector('.es-output-container') as HTMLElement;
+        const bottomPanel = this.container_.querySelector('.es-editor-bottom') as HTMLElement;
+
+        if (this.outputPanelVisible_) {
+            // Already showing output, hide it
+            this.outputPanelVisible_ = false;
+            outputBtn?.classList.remove('es-active');
+            if (outputPanel) outputPanel.style.display = 'none';
+            if (bottomPanel) bottomPanel.style.display = this.assetsPanelVisible_ ? 'flex' : 'none';
+        } else {
+            // Show output, hide assets
+            this.outputPanelVisible_ = true;
+            this.assetsPanelVisible_ = false;
+            outputBtn?.classList.add('es-active');
+            assetsBtn?.classList.remove('es-active');
+            if (outputPanel) outputPanel.style.display = 'block';
+            if (contentBrowser) contentBrowser.style.display = 'none';
+            if (bottomPanel) bottomPanel.style.display = 'flex';
+        }
+    }
+
+    private updateStatusbar(): void {
+        const savedIndicator = this.container_.querySelector('.es-status-saved');
+        const unsavedIndicator = this.container_.querySelector('.es-status-unsaved');
+
+        if (this.store_.isDirty) {
+            savedIndicator?.classList.add('es-hidden');
+            if (unsavedIndicator) {
+                unsavedIndicator.classList.remove('es-hidden');
+            }
+        } else {
+            savedIndicator?.classList.remove('es-hidden');
+            if (unsavedIndicator) {
+                unsavedIndicator.classList.add('es-hidden');
+            }
+        }
+    }
+
     dispose(): void {
         this.hierarchyPanel_?.dispose();
         this.inspectorPanel_?.dispose();
         this.sceneViewPanel_?.dispose();
+        this.contentBrowserPanel_?.dispose();
     }
 }
 

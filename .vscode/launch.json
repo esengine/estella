@@ -2,7 +2,18 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Debug ESEngine Editor",
+            "name": "Tauri Editor",
+            "type": "node",
+            "request": "launch",
+            "runtimeExecutable": "pnpm",
+            "runtimeArgs": ["tauri", "dev"],
+            "cwd": "${workspaceFolder}/desktop",
+            "preLaunchTask": "build-editor",
+            "console": "integratedTerminal",
+            "skipFiles": ["<node_internals>/**"]
+        },
+        {
+            "name": "Debug ESEngine Editor (C++)",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/bin/esengine_editor.exe",

@@ -3,6 +3,15 @@ build/
 build-*/
 build_*/
 out/
+dist/
+
+# Node.js
+node_modules/
+pnpm-debug.log*
+
+# Rust/Tauri
+target/
+Cargo.lock
 
 # IDE
 .vs/

@@ -17,6 +17,42 @@
                 "isDefault": true
             },
             "problemMatcher": ["$gcc"]
+        },
+        {
+            "label": "build-editor",
+            "type": "shell",
+            "command": "pnpm",
+            "args": ["build"],
+            "options": {
+                "cwd": "${workspaceFolder}/editor"
+            },
+            "problemMatcher": ["$tsc"]
+        },
+        {
+            "label": "tauri-dev",
+            "type": "shell",
+            "command": "pnpm",
+            "args": ["tauri", "dev"],
+            "options": {
+                "cwd": "${workspaceFolder}/desktop"
+            },
+            "isBackground": true,
+            "problemMatcher": {
+                "pattern": {
+                    "regexp": "^$"
+                },
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": "^.*Running.*$",
+                    "endsPattern": "^.*Finished.*$"
+                }
+            }
+        },
+        {
+            "label": "build-and-run-tauri",
+            "dependsOn": ["build-editor", "tauri-dev"],
+            "dependsOrder": "sequence",
+            "group": "build"
         }
     ]
 }

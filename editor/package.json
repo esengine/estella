@@ -9,7 +9,8 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
-    }
+    },
+    "./styles": "./src/styles/editor.css"
   },
   "files": [
     "dist"
@@ -20,9 +21,12 @@
     "clean": "rimraf dist"
   },
   "dependencies": {
-    "esengine": "workspace:*"
+    "esengine": "workspace:*",
+    "lucide": "^0.563.0"
   },
   "devDependencies": {
+    "@rollup/plugin-alias": "^6.0.0",
+    "@rollup/plugin-node-resolve": "^16.0.3",
     "@rollup/plugin-typescript": "^11.1.5",
     "rimraf": "^5.0.5",
     "rollup": "^4.9.0",

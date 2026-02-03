@@ -73,6 +73,10 @@ export class EditorStore {
         return this.history_.canRedo();
     }
 
+    get isDirty(): boolean {
+        return this.state_.isDirty;
+    }
+
     // =========================================================================
     // Scene Operations
     // =========================================================================

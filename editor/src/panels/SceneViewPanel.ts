@@ -252,34 +252,42 @@ export class SceneViewPanel {
 
     private drawGrid(ctx: CanvasRenderingContext2D, w: number, h: number): void {
         const gridSize = 50;
-        const gridExtent = Math.max(w, h) / this.zoom_;
+        const halfW = w / 2 / this.zoom_;
+        const halfH = h / 2 / this.zoom_;
+
+        const startX = Math.floor((-halfW - this.panX_) / gridSize) * gridSize;
+        const endX = Math.ceil((halfW - this.panX_) / gridSize) * gridSize;
+        const startY = Math.floor((-halfH - this.panY_) / gridSize) * gridSize;
+        const endY = Math.ceil((halfH - this.panY_) / gridSize) * gridSize;
 
         ctx.strokeStyle = '#333';
         ctx.lineWidth = 1 / this.zoom_;
 
-        for (let x = -gridExtent; x <= gridExtent; x += gridSize) {
+        for (let x = startX; x <= endX; x += gridSize) {
+            if (x === 0) continue;
             ctx.beginPath();
-            ctx.moveTo(x, -gridExtent);
-            ctx.lineTo(x, gridExtent);
+            ctx.moveTo(x, startY);
+            ctx.lineTo(x, endY);
             ctx.stroke();
         }
 
-        for (let y = -gridExtent; y <= gridExtent; y += gridSize) {
+        for (let y = startY; y <= endY; y += gridSize) {
+            if (y === 0) continue;
             ctx.beginPath();
-            ctx.moveTo(-gridExtent, y);
-            ctx.lineTo(gridExtent, y);
+            ctx.moveTo(startX, y);
+            ctx.lineTo(endX, y);
             ctx.stroke();
         }
 
         ctx.strokeStyle = '#555';
         ctx.lineWidth = 2 / this.zoom_;
         ctx.beginPath();
-        ctx.moveTo(-gridExtent, 0);
-        ctx.lineTo(gridExtent, 0);
+        ctx.moveTo(startX, 0);
+        ctx.lineTo(endX, 0);
         ctx.stroke();
         ctx.beginPath();
-        ctx.moveTo(0, -gridExtent);
-        ctx.lineTo(0, gridExtent);
+        ctx.moveTo(0, startY);
+        ctx.lineTo(0, endY);
         ctx.stroke();
     }
 

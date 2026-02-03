@@ -10,6 +10,46 @@ import {
 } from './PropertyEditor';
 
 // =============================================================================
+// Drag Helper
+// =============================================================================
+
+function setupDragLabel(
+    label: HTMLElement,
+    input: HTMLInputElement,
+    onChange: (delta: number) => void,
+    step: number = 0.1
+): void {
+    let startX = 0;
+    let startValue = 0;
+    let isDragging = false;
+
+    const onMouseMove = (e: MouseEvent) => {
+        if (!isDragging) return;
+        const delta = (e.clientX - startX) * step;
+        const newValue = startValue + delta;
+        input.value = newValue.toFixed(2);
+        onChange(newValue);
+    };
+
+    const onMouseUp = () => {
+        isDragging = false;
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+        document.body.style.cursor = '';
+    };
+
+    label.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        isDragging = true;
+        startX = e.clientX;
+        startValue = parseFloat(input.value) || 0;
+        document.body.style.cursor = 'ew-resize';
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    });
+}
+
+// =============================================================================
 // Number Editor
 // =============================================================================
 
@@ -117,36 +157,41 @@ function createVec2Editor(
     ctx: PropertyEditorContext
 ): PropertyEditorInstance {
     const { value, onChange } = ctx;
-    const vec = (value as Vec2) ?? { x: 0, y: 0 };
+    let currentVec = (value as Vec2) ?? { x: 0, y: 0 };
 
     const wrapper = document.createElement('div');
     wrapper.className = 'es-vec-editor es-vec2-editor';
 
     const inputs: HTMLInputElement[] = [];
-    const labels = ['X', 'Y'];
+    const labelTexts = ['X', 'Y'];
+    const colorClasses = ['es-vec-x', 'es-vec-y'];
+    const keys: (keyof Vec2)[] = ['x', 'y'];
 
-    labels.forEach((label, i) => {
+    labelTexts.forEach((labelText, i) => {
         const group = document.createElement('div');
-        group.className = 'es-vec-field';
+        group.className = `es-vec-field ${colorClasses[i]}`;
 
-        const span = document.createElement('span');
-        span.className = 'es-vec-label';
-        span.textContent = label;
+        const label = document.createElement('span');
+        label.className = 'es-vec-label';
+        label.textContent = labelText;
 
         const input = document.createElement('input');
         input.type = 'number';
         input.className = 'es-input es-input-number';
         input.step = '0.01';
-        input.value = String(i === 0 ? vec.x : vec.y);
+        input.value = String(currentVec[keys[i]]);
 
         input.addEventListener('change', () => {
-            const newVec = { ...vec };
-            if (i === 0) newVec.x = parseFloat(input.value) || 0;
-            else newVec.y = parseFloat(input.value) || 0;
-            onChange(newVec);
+            currentVec = { ...currentVec, [keys[i]]: parseFloat(input.value) || 0 };
+            onChange(currentVec);
         });
 
-        group.appendChild(span);
+        setupDragLabel(label, input, (newValue) => {
+            currentVec = { ...currentVec, [keys[i]]: newValue };
+            onChange(currentVec);
+        });
+
+        group.appendChild(label);
         group.appendChild(input);
         wrapper.appendChild(group);
         inputs.push(input);
@@ -156,9 +201,9 @@ function createVec2Editor(
 
     return {
         update(v: unknown) {
-            const newVec = (v as Vec2) ?? { x: 0, y: 0 };
-            inputs[0].value = String(newVec.x);
-            inputs[1].value = String(newVec.y);
+            currentVec = (v as Vec2) ?? { x: 0, y: 0 };
+            inputs[0].value = String(currentVec.x);
+            inputs[1].value = String(currentVec.y);
         },
         dispose() {
             wrapper.remove();
@@ -181,36 +226,41 @@ function createVec3Editor(
     ctx: PropertyEditorContext
 ): PropertyEditorInstance {
     const { value, onChange } = ctx;
-    const vec = (value as Vec3) ?? { x: 0, y: 0, z: 0 };
+    let currentVec = (value as Vec3) ?? { x: 0, y: 0, z: 0 };
 
     const wrapper = document.createElement('div');
     wrapper.className = 'es-vec-editor es-vec3-editor';
 
     const inputs: HTMLInputElement[] = [];
-    const labels = ['X', 'Y', 'Z'];
+    const labelTexts = ['X', 'Y', 'Z'];
     const keys: (keyof Vec3)[] = ['x', 'y', 'z'];
+    const colorClasses = ['es-vec-x', 'es-vec-y', 'es-vec-z'];
 
-    labels.forEach((label, i) => {
+    labelTexts.forEach((labelText, i) => {
         const group = document.createElement('div');
-        group.className = 'es-vec-field';
+        group.className = `es-vec-field ${colorClasses[i]}`;
 
-        const span = document.createElement('span');
-        span.className = 'es-vec-label';
-        span.textContent = label;
+        const label = document.createElement('span');
+        label.className = 'es-vec-label';
+        label.textContent = labelText;
 
         const input = document.createElement('input');
         input.type = 'number';
         input.className = 'es-input es-input-number';
         input.step = '0.01';
-        input.value = String(vec[keys[i]]);
+        input.value = String(currentVec[keys[i]]);
 
         input.addEventListener('change', () => {
-            const newVec = { ...vec };
-            newVec[keys[i]] = parseFloat(input.value) || 0;
-            onChange(newVec);
+            currentVec = { ...currentVec, [keys[i]]: parseFloat(input.value) || 0 };
+            onChange(currentVec);
         });
 
-        group.appendChild(span);
+        setupDragLabel(label, input, (newValue) => {
+            currentVec = { ...currentVec, [keys[i]]: newValue };
+            onChange(currentVec);
+        });
+
+        group.appendChild(label);
         group.appendChild(input);
         wrapper.appendChild(group);
         inputs.push(input);
@@ -220,10 +270,10 @@ function createVec3Editor(
 
     return {
         update(v: unknown) {
-            const newVec = (v as Vec3) ?? { x: 0, y: 0, z: 0 };
-            inputs[0].value = String(newVec.x);
-            inputs[1].value = String(newVec.y);
-            inputs[2].value = String(newVec.z);
+            currentVec = (v as Vec3) ?? { x: 0, y: 0, z: 0 };
+            inputs[0].value = String(currentVec.x);
+            inputs[1].value = String(currentVec.y);
+            inputs[2].value = String(currentVec.z);
         },
         dispose() {
             wrapper.remove();
@@ -247,36 +297,41 @@ function createVec4Editor(
     ctx: PropertyEditorContext
 ): PropertyEditorInstance {
     const { value, onChange } = ctx;
-    const vec = (value as Vec4) ?? { x: 0, y: 0, z: 0, w: 1 };
+    let currentVec = (value as Vec4) ?? { x: 0, y: 0, z: 0, w: 1 };
 
     const wrapper = document.createElement('div');
     wrapper.className = 'es-vec-editor es-vec4-editor';
 
     const inputs: HTMLInputElement[] = [];
-    const labels = ['X', 'Y', 'Z', 'W'];
+    const labelTexts = ['X', 'Y', 'Z', 'W'];
     const keys: (keyof Vec4)[] = ['x', 'y', 'z', 'w'];
+    const colorClasses = ['es-vec-x', 'es-vec-y', 'es-vec-z', 'es-vec-w'];
 
-    labels.forEach((label, i) => {
+    labelTexts.forEach((labelText, i) => {
         const group = document.createElement('div');
-        group.className = 'es-vec-field';
+        group.className = `es-vec-field ${colorClasses[i]}`;
 
-        const span = document.createElement('span');
-        span.className = 'es-vec-label';
-        span.textContent = label;
+        const label = document.createElement('span');
+        label.className = 'es-vec-label';
+        label.textContent = labelText;
 
         const input = document.createElement('input');
         input.type = 'number';
         input.className = 'es-input es-input-number';
         input.step = '0.01';
-        input.value = String(vec[keys[i]]);
+        input.value = String(currentVec[keys[i]]);
 
         input.addEventListener('change', () => {
-            const newVec = { ...vec };
-            newVec[keys[i]] = parseFloat(input.value) || 0;
-            onChange(newVec);
+            currentVec = { ...currentVec, [keys[i]]: parseFloat(input.value) || 0 };
+            onChange(currentVec);
         });
 
-        group.appendChild(span);
+        setupDragLabel(label, input, (newValue) => {
+            currentVec = { ...currentVec, [keys[i]]: newValue };
+            onChange(currentVec);
+        });
+
+        group.appendChild(label);
         group.appendChild(input);
         wrapper.appendChild(group);
         inputs.push(input);
@@ -286,11 +341,11 @@ function createVec4Editor(
 
     return {
         update(v: unknown) {
-            const newVec = (v as Vec4) ?? { x: 0, y: 0, z: 0, w: 1 };
-            inputs[0].value = String(newVec.x);
-            inputs[1].value = String(newVec.y);
-            inputs[2].value = String(newVec.z);
-            inputs[3].value = String(newVec.w);
+            currentVec = (v as Vec4) ?? { x: 0, y: 0, z: 0, w: 1 };
+            inputs[0].value = String(currentVec.x);
+            inputs[1].value = String(currentVec.y);
+            inputs[2].value = String(currentVec.z);
+            inputs[3].value = String(currentVec.w);
         },
         dispose() {
             wrapper.remove();

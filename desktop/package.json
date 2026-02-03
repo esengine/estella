@@ -1,0 +1,25 @@
+{
+  "name": "@esengine/desktop",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "ESEngine Editor Desktop Application",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@esengine/editor": "workspace:*",
+    "esengine": "workspace:*",
+    "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/plugin-dialog": "^2.0.0",
+    "@tauri-apps/plugin-fs": "^2.0.0",
+    "@tauri-apps/plugin-shell": "^2.0.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0",
+    "typescript": "^5.3.0",
+    "vite": "^5.0.0"
+  }
+}

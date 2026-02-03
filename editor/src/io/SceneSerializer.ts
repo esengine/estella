@@ -66,15 +66,59 @@ export class SceneSerializer {
 }
 
 // =============================================================================
-// File Operations (Browser)
+// Native File System Interface (for Tauri)
 // =============================================================================
 
-export async function saveSceneToFile(scene: SceneData, fileName?: string): Promise<void> {
+interface NativeFS {
+    saveFile(content: string, defaultPath?: string): Promise<string | null>;
+    loadFile(): Promise<{ path: string; content: string } | null>;
+}
+
+function getNativeFS(): NativeFS | null {
+    return (window as any).__esengine_fs ?? null;
+}
+
+function isNativeApp(): boolean {
+    return '__TAURI__' in window || getNativeFS() !== null;
+}
+
+// =============================================================================
+// File Operations
+// =============================================================================
+
+export async function saveSceneToFile(scene: SceneData, fileName?: string): Promise<string | null> {
     const serializer = new SceneSerializer();
     const json = serializer.serialize(scene);
-    const blob = new Blob([json], { type: 'application/json' });
-
     const name = fileName ?? `${scene.name}.esscene`;
+
+    const nativeFS = getNativeFS();
+    if (isNativeApp() && nativeFS) {
+        return nativeFS.saveFile(json, name);
+    }
+
+    return browserSaveFile(json, name);
+}
+
+export async function loadSceneFromFile(): Promise<SceneData | null> {
+    const nativeFS = getNativeFS();
+    if (isNativeApp() && nativeFS) {
+        const result = await nativeFS.loadFile();
+        if (result) {
+            const serializer = new SceneSerializer();
+            return serializer.deserialize(result.content);
+        }
+        return null;
+    }
+
+    return browserLoadFile();
+}
+
+// =============================================================================
+// Browser File Operations (Fallback)
+// =============================================================================
+
+async function browserSaveFile(json: string, name: string): Promise<string | null> {
+    const blob = new Blob([json], { type: 'application/json' });
 
     if ('showSaveFilePicker' in window) {
         try {
@@ -88,9 +132,9 @@ export async function saveSceneToFile(scene: SceneData, fileName?: string): Prom
             const writable = await handle.createWritable();
             await writable.write(blob);
             await writable.close();
-            return;
+            return name;
         } catch (e) {
-            if ((e as Error).name === 'AbortError') return;
+            if ((e as Error).name === 'AbortError') return null;
         }
     }
 
@@ -100,9 +144,10 @@ export async function saveSceneToFile(scene: SceneData, fileName?: string): Prom
     a.download = name;
     a.click();
     URL.revokeObjectURL(url);
+    return name;
 }
 
-export async function loadSceneFromFile(): Promise<SceneData | null> {
+async function browserLoadFile(): Promise<SceneData | null> {
     return new Promise((resolve) => {
         const input = document.createElement('input');
         input.type = 'file';
