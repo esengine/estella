@@ -84,7 +84,7 @@ set(ESENGINE_HEADERS
 )
 
 set(GENERATED_WEB_BINDINGS "${CMAKE_CURRENT_SOURCE_DIR}/src/esengine/bindings/WebBindings.generated.cpp")
-set(GENERATED_TS_DEFINITIONS "${CMAKE_CURRENT_SOURCE_DIR}/bindings/esengine.d.ts")
+set(GENERATED_TS_DEFINITIONS "${CMAKE_CURRENT_SOURCE_DIR}/sdk/src/wasm.generated.ts")
 
 if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
     list(APPEND ESENGINE_SOURCES
@@ -126,7 +126,7 @@ if(Python3_FOUND)
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/eht.py"
             --input "${CMAKE_CURRENT_SOURCE_DIR}/src/esengine/ecs/components"
             --output "${CMAKE_CURRENT_SOURCE_DIR}/src/esengine/bindings"
-            --ts-output "${CMAKE_CURRENT_SOURCE_DIR}/bindings"
+            --ts-output "${CMAKE_CURRENT_SOURCE_DIR}/sdk/src"
         DEPENDS ${COMPONENT_HEADERS} "${CMAKE_CURRENT_SOURCE_DIR}/tools/eht.py"
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
         COMMENT "Running EHT..."
@@ -141,10 +141,9 @@ endif()
 
 add_library(esengine STATIC ${ESENGINE_SOURCES} ${ESENGINE_HEADERS})
 
-# EHT disabled - WebBindings.generated.cpp manually maintained
-# if(Python3_FOUND)
-#     add_dependencies(esengine eht)
-# endif()
+if(Python3_FOUND)
+    add_dependencies(esengine eht)
+endif()
 
 target_include_directories(esengine
     PUBLIC
@@ -188,12 +187,6 @@ if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
     set_target_properties(esengine_sdk PROPERTIES
         OUTPUT_NAME "esengine"
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/sdk"
-    )
-
-    add_custom_command(TARGET esengine_sdk POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy
-            "${CMAKE_SOURCE_DIR}/bindings/esengine.d.ts"
-            "${CMAKE_BINARY_DIR}/sdk/esengine.d.ts"
     )
 
     # Single-file SDK (WASM inlined as Base64, for playable ads)
@@ -283,10 +276,6 @@ if(ES_BUILD_TESTS)
     add_subdirectory(tests)
 endif()
 
-# Bundler tool (native only)
-if(NOT ES_BUILD_WEB AND NOT ES_BUILD_WXGAME)
-    add_subdirectory(tools/bundler)
-endif()
 
 install(TARGETS esengine
     EXPORT ESEngineTargets
