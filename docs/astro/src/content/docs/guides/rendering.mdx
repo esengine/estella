@@ -1,248 +1,230 @@
 ---
 title: Rendering
-description: Drawing sprites, shapes, and text with ESEngine
+description: Drawing sprites and managing the camera in ESEngine
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-ESEngine provides a WebGL-based rendering system optimized for 2D games. This guide covers the rendering APIs.
+ESEngine uses a component-based rendering system. Add rendering components to entities and the engine handles drawing automatically.
 
-## Render Loop
+## Sprites
 
-Rendering happens in the `onRender()` callback:
+The `Sprite` component makes an entity visible:
 
-```cpp
-class MyGame : public Application {
-protected:
-    void onRender() override {
-        auto& renderer = getRenderer();
+```typescript
+import { Commands, Sprite, LocalTransform } from 'esengine';
 
-        renderer.clear(Color::Black);
+defineSystem([Commands()], (cmds) => {
+    cmds.spawn()
+        .insert(Sprite, {
+            texture: 0,                           // Texture ID
+            color: { x: 1, y: 1, z: 1, w: 1 },   // RGBA (white)
+            size: { x: 64, y: 64 },              // Width, height
+            uvOffset: { x: 0, y: 0 },            // Texture offset
+            uvScale: { x: 1, y: 1 },             // Texture scale
+            layer: 0,                             // Render order
+            flipX: false,
+            flipY: false
+        })
+        .insert(LocalTransform, {
+            position: { x: 100, y: 100, z: 0 }
+        });
+});
+```
 
-        // Draw your game...
+### Sprite Properties
 
-        renderer.present();
+| Property | Type | Description |
+|----------|------|-------------|
+| `texture` | number | Texture resource ID |
+| `color` | Vec4 | Tint color (RGBA, 0-1) |
+| `size` | Vec2 | Sprite dimensions in pixels |
+| `uvOffset` | Vec2 | Texture coordinate offset |
+| `uvScale` | Vec2 | Texture coordinate scale |
+| `layer` | number | Render order (higher = on top) |
+| `flipX` | boolean | Flip horizontally |
+| `flipY` | boolean | Flip vertically |
+
+### Colored Rectangle
+
+For simple colored rectangles without textures:
+
+```typescript
+cmds.spawn()
+    .insert(Sprite, {
+        texture: 0,  // No texture
+        color: { x: 1, y: 0, z: 0, w: 1 },  // Red
+        size: { x: 50, y: 50 }
+    })
+    .insert(LocalTransform, {
+        position: { x: 200, y: 200, z: 0 }
+    });
+```
+
+## Camera
+
+A `Camera` component is required to see anything. Create one in your startup system:
+
+```typescript
+cmds.spawn()
+    .insert(Camera, {
+        projectionType: 1,    // 0 = Perspective, 1 = Orthographic
+        fov: 60,              // Field of view (perspective only)
+        orthoSize: 400,       // Half-height in world units (ortho only)
+        nearPlane: 0.1,
+        farPlane: 1000,
+        aspectRatio: 1,       // Usually set automatically
+        isActive: true,       // Only one camera should be active
+        priority: 0           // Higher priority camera wins
+    })
+    .insert(LocalTransform, {
+        position: { x: 0, y: 0, z: 10 }  // Camera position
+    });
+```
+
+### Orthographic Camera
+
+Best for 2D games. The `orthoSize` determines how much of the world is visible:
+
+```typescript
+// Camera showing 800x600 world units
+cmds.spawn()
+    .insert(Camera, {
+        projectionType: 1,
+        orthoSize: 300,  // Half of 600
+        isActive: true
+    })
+    .insert(LocalTransform, {
+        position: { x: 400, y: 300, z: 10 }  // Center of 800x600 world
+    });
+```
+
+### Moving the Camera
+
+Query and modify the camera's transform:
+
+```typescript
+defineSystem(
+    [Res(Input), Query(LocalTransform, Camera)],
+    (input, query) => {
+        for (const [entity, transform, camera] of query) {
+            // Pan camera with arrow keys
+            if (input.isKeyDown('ArrowLeft')) {
+                transform.position.x -= 5;
+            }
+            if (input.isKeyDown('ArrowRight')) {
+                transform.position.x += 5;
+            }
+        }
     }
-};
+);
 ```
 
-## Coordinate System
+## Transform
 
-ESEngine uses a standard 2D coordinate system:
+Every visible entity needs a `LocalTransform`:
 
-```
-(0,0) ───────────► X (width)
-  │
-  │
-  │
-  ▼
-  Y (height)
-```
-
-<Aside>
-  Origin is top-left. Y increases downward. This matches most 2D game engines and web conventions.
-</Aside>
-
-## Drawing Primitives
-
-### Rectangles
-
-```cpp
-// Filled rectangle
-renderer.fillRect(x, y, width, height, Color::Red);
-
-// Outlined rectangle
-renderer.drawRect(x, y, width, height, Color::White, lineWidth);
+```typescript
+cmds.spawn()
+    .insert(LocalTransform, {
+        position: { x: 100, y: 200, z: 0 },
+        rotation: { w: 1, x: 0, y: 0, z: 0 },  // Quaternion
+        scale: { x: 1, y: 1, z: 1 }
+    })
+    .insert(Sprite, { ... });
 ```
 
-### Lines
+### Rotation
 
-```cpp
-renderer.drawLine(x1, y1, x2, y2, Color::Green, lineWidth);
-```
+Rotation uses quaternions. For 2D rotation around Z-axis:
 
-### Circles
-
-```cpp
-renderer.fillCircle(centerX, centerY, radius, Color::Blue);
-renderer.drawCircle(centerX, centerY, radius, Color::White, lineWidth);
-```
-
-## Textures
-
-### Loading
-
-```cpp
-Texture texture;
-
-void onInit() override {
-    texture = Texture::load("assets/player.png");
-    // Or from memory:
-    // texture = Texture::loadFromMemory(data, size);
-}
-```
-
-### Drawing
-
-```cpp
-// Draw at position
-renderer.drawTexture(texture, x, y);
-
-// Draw with size
-renderer.drawTexture(texture, x, y, width, height);
-
-// Draw region (sprite sheet)
-Rect srcRect = {0, 0, 32, 32};  // Source rectangle in texture
-Rect dstRect = {x, y, 64, 64}; // Destination on screen
-renderer.drawTexture(texture, srcRect, dstRect);
-```
-
-### Sprite Sheets
-
-```cpp
-struct SpriteSheet {
-    Texture texture;
-    int tileWidth;
-    int tileHeight;
-    int columns;
-
-    Rect getTileRect(int index) {
-        int col = index % columns;
-        int row = index / columns;
-        return {col * tileWidth, row * tileHeight, tileWidth, tileHeight};
+```typescript
+// Rotate sprite over time
+defineSystem(
+    [Res(Time), Query(LocalTransform, Sprite)],
+    (time, query) => {
+        for (const [entity, transform, sprite] of query) {
+            const angle = time.elapsed;  // Radians
+            const halfAngle = angle / 2;
+            transform.rotation = {
+                w: Math.cos(halfAngle),
+                x: 0,
+                y: 0,
+                z: Math.sin(halfAngle)
+            };
+        }
     }
-};
-
-// Usage
-SpriteSheet sheet = {texture, 32, 32, 8};
-Rect src = sheet.getTileRect(5);  // Get 6th tile
-renderer.drawTexture(sheet.texture, src, dstRect);
+);
 ```
 
-## Colors
+### Scale
 
-```cpp
-// Predefined colors
-Color::Black, Color::White, Color::Red, Color::Green, Color::Blue
+```typescript
+// Double size
+transform.scale = { x: 2, y: 2, z: 1 };
 
-// Custom colors (RGBA, 0-255)
-Color custom = {128, 64, 255, 255};
-
-// With alpha
-Color semiTransparent = {255, 0, 0, 128};  // 50% red
+// Flip horizontally
+transform.scale = { x: -1, y: 1, z: 1 };
 ```
 
-## Transformations
+## Render Order
 
-### Translation, Rotation, Scale
+Sprites are drawn in order by:
 
-```cpp
-renderer.pushTransform();
+1. **Z position** - Lower Z draws first (behind)
+2. **Layer** - Higher layer draws on top
 
-renderer.translate(100, 100);
-renderer.rotate(glm::radians(45.0f));  // Rotate 45 degrees
-renderer.scale(2.0f, 2.0f);            // Double size
+```typescript
+// Background (behind everything)
+cmds.spawn()
+    .insert(Sprite, { layer: 0, ... })
+    .insert(LocalTransform, { position: { x: 0, y: 0, z: -10 } });
 
-renderer.drawTexture(texture, 0, 0);   // Draws at transformed position
+// Player (middle)
+cmds.spawn()
+    .insert(Sprite, { layer: 1, ... })
+    .insert(LocalTransform, { position: { x: 0, y: 0, z: 0 } });
 
-renderer.popTransform();
+// UI (on top)
+cmds.spawn()
+    .insert(Sprite, { layer: 10, ... })
+    .insert(LocalTransform, { position: { x: 0, y: 0, z: 10 } });
 ```
 
-### Camera
+## Example: Animated Sprite
 
-```cpp
-class Camera {
-public:
-    float x = 0, y = 0;
-    float zoom = 1.0f;
+```typescript
+import {
+    defineSystem, defineComponent, Schedule,
+    Res, Time, Query, LocalTransform, Sprite
+} from 'esengine';
 
-    void apply(Renderer& renderer) {
-        renderer.translate(-x, -y);
-        renderer.scale(zoom, zoom);
+const Animation = defineComponent('Animation', {
+    frames: 4,
+    currentFrame: 0,
+    frameTime: 0.1,
+    elapsed: 0
+});
+
+// Animation system
+app.addSystemToSchedule(Schedule.Update, defineSystem(
+    [Res(Time), Query(Sprite, Animation)],
+    (time, query) => {
+        for (const [entity, sprite, anim] of query) {
+            anim.elapsed += time.delta;
+
+            if (anim.elapsed >= anim.frameTime) {
+                anim.elapsed = 0;
+                anim.currentFrame = (anim.currentFrame + 1) % anim.frames;
+
+                // Update UV offset for sprite sheet
+                sprite.uvOffset.x = anim.currentFrame / anim.frames;
+            }
+        }
     }
-};
-
-// In onRender:
-renderer.pushTransform();
-camera.apply(renderer);
-
-// Draw world objects...
-
-renderer.popTransform();
-
-// Draw UI (not affected by camera)
-renderer.drawText("Score: 100", 10, 10);
+));
 ```
 
-## Render Targets
-
-Render to an off-screen texture:
-
-```cpp
-RenderTarget target;
-
-void onInit() override {
-    target = RenderTarget::create(256, 256);
-}
-
-void onRender() override {
-    // Render to target
-    renderer.setTarget(target);
-    renderer.clear(Color::Transparent);
-    renderer.fillCircle(128, 128, 64, Color::Red);
-
-    // Render to screen
-    renderer.setTarget(nullptr);
-    renderer.clear(Color::Black);
-    renderer.drawTexture(target.getTexture(), 0, 0);
-}
-```
-
-## Blending
-
-```cpp
-// Set blend mode
-renderer.setBlendMode(BlendMode::Alpha);    // Default
-renderer.setBlendMode(BlendMode::Additive); // For glow effects
-renderer.setBlendMode(BlendMode::Multiply); // For shadows
-```
-
-## Batching
-
-ESEngine automatically batches draw calls when possible. For best performance:
-
-1. Draw same texture consecutively
-2. Minimize blend mode changes
-3. Minimize transform changes
-
-```cpp
-// Good: All same texture
-for (auto& enemy : enemies) {
-    renderer.drawTexture(enemyTexture, enemy.x, enemy.y);
-}
-
-// Avoid: Alternating textures
-for (int i = 0; i < 100; i++) {
-    renderer.drawTexture(textureA, ...);  // Breaks batch
-    renderer.drawTexture(textureB, ...);  // Breaks batch
-}
-```
-
-## Shaders
-
-For advanced effects, use custom shaders:
-
-```cpp
-Shader shader = Shader::load("assets/custom.vert", "assets/custom.frag");
-
-void onRender() override {
-    renderer.setShader(shader);
-    shader.setUniform("u_time", getTime());
-    renderer.drawTexture(texture, 0, 0);
-    renderer.setShader(nullptr);  // Reset to default
-}
-```
-
-<Aside type="caution">
-  Custom shaders must be GLSL ES 2.0/3.0 compatible for WebGL.
+<Aside type="tip">
+  The C++ backend handles all WebGL rendering. You just set component data and the engine draws everything automatically each frame.
 </Aside>

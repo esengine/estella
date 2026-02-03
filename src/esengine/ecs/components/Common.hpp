@@ -17,6 +17,7 @@
 
 #include "../../core/Types.hpp"
 
+#include <glm/glm.hpp>
 #include <string>
 #include <unordered_map>
 #include <variant>

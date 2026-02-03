@@ -281,6 +281,71 @@ inline const char* COLOR_FRAGMENT = R"(
     }
 )";
 
+/**
+ * @brief Vertex shader for batched sprite rendering
+ */
+inline const char* BATCH_VERTEX = R"(#version 300 es
+    layout(location = 0) in vec3 a_position;
+    layout(location = 1) in vec4 a_color;
+    layout(location = 2) in vec2 a_texCoord;
+    layout(location = 3) in float a_texIndex;
+
+    uniform mat4 u_projection;
+
+    out vec4 v_color;
+    out vec2 v_texCoord;
+    out float v_texIndex;
+
+    void main() {
+        gl_Position = u_projection * vec4(a_position, 1.0);
+        v_color = a_color;
+        v_texCoord = a_texCoord;
+        v_texIndex = a_texIndex;
+    }
+)";
+
+/**
+ * @brief Fragment shader for batched sprite rendering
+ */
+inline const char* BATCH_FRAGMENT = R"(#version 300 es
+    precision mediump float;
+
+    in vec4 v_color;
+    in vec2 v_texCoord;
+    in float v_texIndex;
+
+    uniform sampler2D u_textures[16];
+
+    out vec4 fragColor;
+
+    void main() {
+        int index = int(v_texIndex);
+        vec4 texColor = vec4(1.0);
+
+        // WebGL2 requires constant index for sampler arrays
+        switch(index) {
+            case 0:  texColor = texture(u_textures[0], v_texCoord); break;
+            case 1:  texColor = texture(u_textures[1], v_texCoord); break;
+            case 2:  texColor = texture(u_textures[2], v_texCoord); break;
+            case 3:  texColor = texture(u_textures[3], v_texCoord); break;
+            case 4:  texColor = texture(u_textures[4], v_texCoord); break;
+            case 5:  texColor = texture(u_textures[5], v_texCoord); break;
+            case 6:  texColor = texture(u_textures[6], v_texCoord); break;
+            case 7:  texColor = texture(u_textures[7], v_texCoord); break;
+            case 8:  texColor = texture(u_textures[8], v_texCoord); break;
+            case 9:  texColor = texture(u_textures[9], v_texCoord); break;
+            case 10: texColor = texture(u_textures[10], v_texCoord); break;
+            case 11: texColor = texture(u_textures[11], v_texCoord); break;
+            case 12: texColor = texture(u_textures[12], v_texCoord); break;
+            case 13: texColor = texture(u_textures[13], v_texCoord); break;
+            case 14: texColor = texture(u_textures[14], v_texCoord); break;
+            case 15: texColor = texture(u_textures[15], v_texCoord); break;
+        }
+
+        fragColor = texColor * v_color;
+    }
+)";
+
 }  // namespace ShaderSources
 
 }  // namespace esengine

@@ -115,6 +115,29 @@ public:
     }
 
     /**
+     * @brief Restores a previously destroyed entity with the same ID
+     * @param entity The entity ID to restore
+     * @return true if restored successfully, false if entity is already valid
+     */
+    bool restore(Entity entity) {
+        if (valid(entity)) {
+            return false;
+        }
+
+        if (entity >= entityValid_.size()) {
+            entityValid_.resize(entity + 1, false);
+        }
+        entityValid_[entity] = true;
+
+        if (entity >= nextEntity_) {
+            nextEntity_ = entity + 1;
+        }
+
+        ES_LOG_TRACE("Restored entity {}", entity);
+        return true;
+    }
+
+    /**
      * @brief Destroys an entity and removes all its components
      * @param entity The entity to destroy
      *

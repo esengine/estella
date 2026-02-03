@@ -1,11 +1,29 @@
 {
   "name": "esengine",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
-  "description": "TypeScript SDK for ESEngine - A lightweight 2D game engine for Web and WeChat MiniGames",
-  "main": "dist/esengine.cjs.js",
-  "module": "dist/esengine.esm.js",
-  "types": "dist/index.d.ts",
+  "description": "Modular TypeScript SDK for ESEngine - A lightweight 2D game engine for Web and WeChat MiniGames",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./wasm": {
+      "import": "./dist/wasm.js",
+      "types": "./dist/wasm.d.ts"
+    },
+    "./scene": {
+      "import": "./dist/scene/index.js",
+      "types": "./dist/scene/index.d.ts"
+    },
+    "./assets": {
+      "import": "./dist/assets/index.js",
+      "types": "./dist/assets/index.d.ts"
+    }
+  },
   "files": [
     "dist"
   ],
@@ -20,7 +38,8 @@
     "ecs",
     "webgl",
     "wechat-minigame",
-    "typescript"
+    "typescript",
+    "modular"
   ],
   "author": "ESEngine Team",
   "license": "MIT",
@@ -32,7 +51,6 @@
     "tslib": "^2.6.2",
     "typescript": "^5.3.0"
   },
-  "peerDependencies": {},
   "repository": {
     "type": "git",
     "url": "https://github.com/esengine/esengine.git"

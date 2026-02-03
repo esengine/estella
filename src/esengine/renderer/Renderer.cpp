@@ -329,6 +329,13 @@ void BatchRenderer2D::init() {
     data_->vao->setIndexBuffer(Shared<IndexBuffer>(std::move(ibo)));
 
     data_->shader_handle = resource_manager_.loadEngineShader("batch");
+    if (!data_->shader_handle.isValid()) {
+        ES_LOG_INFO("Using embedded batch shader for Web platform");
+        data_->shader_handle = resource_manager_.createShader(
+            ShaderSources::BATCH_VERTEX,
+            ShaderSources::BATCH_FRAGMENT
+        );
+    }
 
     data_->textureSlots[0] = context_.getWhiteTextureId();
     for (u32 i = 1; i < MAX_TEXTURE_SLOTS; ++i) {

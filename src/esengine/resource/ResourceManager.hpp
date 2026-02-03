@@ -134,7 +134,7 @@ public:
     ShaderHandle loadShaderFile(const std::string& path, const std::string& platform = "");
 
     /**
-     * @brief Loads an engine shader from data/shaders/ (with caching)
+     * @brief Loads an engine shader from src/esengine/data/shaders/ (with caching)
      * @param name Shader name without path or extension (e.g., "grid", "ui")
      * @param platform Platform variant (empty for auto-detect)
      * @return Handle to the shader, or invalid handle on failure

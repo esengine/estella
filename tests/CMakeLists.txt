@@ -1,7 +1,5 @@
 # ESEngine Tests
 
-# Simple test framework (minimal, no external dependencies)
-
 # ECS tests
 add_executable(test_ecs
     ecs/test_registry.cpp
@@ -15,24 +13,3 @@ add_executable(test_events
 )
 target_link_libraries(test_events PRIVATE esengine)
 add_test(NAME test_events COMMAND test_events)
-
-# Editor command system tests
-add_executable(test_commands
-    editor/test_commands.cpp
-)
-target_link_libraries(test_commands PRIVATE esengine)
-add_test(NAME test_commands COMMAND test_commands)
-
-# UI layout tests
-add_executable(test_layout
-    ui/test_layout.cpp
-)
-target_link_libraries(test_layout PRIVATE esengine)
-add_test(NAME test_layout COMMAND test_layout)
-
-# UI layout debug tool
-add_executable(test_layout_debug
-    ui/test_layout_debug.cpp
-)
-target_link_libraries(test_layout_debug PRIVATE esengine)
-

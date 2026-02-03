@@ -3,22 +3,86 @@ title: Installation
 description: Set up your development environment for ESEngine
 ---
 
-import { Tabs, TabItem, Steps } from '@astrojs/starlight/components';
+import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
 
 This guide will help you set up your development environment for building games with ESEngine.
 
-## Prerequisites
+## Quick Start (SDK Only)
 
-Before you begin, ensure you have the following installed:
+For most users, just install the TypeScript SDK:
+
+```bash
+npm install esengine
+```
+
+You'll also need the WASM files. Download them from the [releases page](https://github.com/esengine/microes/releases) or build them yourself (see below).
+
+<Aside type="tip">
+  If you're just getting started, skip to [Quick Start](/microes/getting-started/quick-start/) after installing the SDK.
+</Aside>
+
+## Project Setup
+
+<Steps>
+
+1. **Create your project**
+
+   ```bash
+   mkdir my-game
+   cd my-game
+   npm init -y
+   ```
+
+2. **Install dependencies**
+
+   ```bash
+   npm install esengine
+   npm install -D esbuild typescript
+   ```
+
+3. **Create tsconfig.json**
+
+   ```json
+   {
+     "compilerOptions": {
+       "target": "ES2020",
+       "module": "ESNext",
+       "moduleResolution": "bundler",
+       "strict": true,
+       "esModuleInterop": true
+     },
+     "include": ["src"]
+   }
+   ```
+
+4. **Add build scripts to package.json**
+
+   ```json
+   {
+     "type": "module",
+     "scripts": {
+       "build": "esbuild src/main.ts --bundle --format=esm --outfile=build/main.js",
+       "dev": "esbuild src/main.ts --bundle --format=esm --outfile=build/main.js --watch"
+     }
+   }
+   ```
+
+</Steps>
+
+## Building WASM (Advanced)
+
+If you need to build the C++ WASM backend yourself:
+
+### Prerequisites
 
 | Tool | Version | Purpose |
 |------|---------|---------|
 | CMake | 3.16+ | Build system |
 | C++ Compiler | C++17 support | GCC 8+, Clang 7+, MSVC 2019+ |
 | Emscripten | 3.1+ | WebAssembly compilation |
-| Git | Any | Clone the repository |
+| Node.js | 18+ | SDK build |
 
-## Installing Emscripten
+### Installing Emscripten
 
 <Tabs>
   <TabItem label="Linux/macOS">
@@ -58,7 +122,7 @@ emcc --version
 # emcc (Emscripten gcc/clang-like replacement) 3.x.x
 ```
 
-## Getting ESEngine
+### Building
 
 <Steps>
 
@@ -66,62 +130,37 @@ emcc --version
 
    ```bash
    git clone https://github.com/esengine/microes.git
-   cd esengine
+   cd microes
    ```
 
-2. **Initialize submodules** (if any)
+2. **Build WASM**
 
    ```bash
-   git submodule update --init --recursive
+   # Web build
+   emcmake cmake -B build_web -DES_BUILD_WEB=ON
+   cmake --build build_web
+
+   # WeChat MiniGame build
+   emcmake cmake -B build_wxgame -DES_BUILD_WXGAME=ON
+   cmake --build build_wxgame
    ```
 
-3. **Verify the structure**
+3. **Build SDK**
 
-   ```
-   esengine/
-   ├── src/esengine/    # Engine source
-   ├── include/         # Public headers
-   ├── third_party/     # Dependencies (GLM)
-   ├── examples/        # Example projects
-   └── CMakeLists.txt   # Build configuration
+   ```bash
+   cd sdk
+   npm install
+   npm run build
    ```
 
 </Steps>
 
-## Building
-
-### Native Build (for testing)
-
-```bash
-cmake -B build -DCMAKE_BUILD_TYPE=Debug
-cmake --build build
-```
-
-### Web Build
-
-```bash
-# Ensure Emscripten is activated
-source /path/to/emsdk/emsdk_env.sh  # Linux/macOS
-# or: .\emsdk_env.bat                # Windows
-
-emcmake cmake -B build_web -DES_BUILD_WEB=ON
-cmake --build build_web
-```
-
-### WeChat MiniGame Build
-
-```bash
-emcmake cmake -B build_wxgame -DES_BUILD_WXGAME=ON
-cmake --build build_wxgame
-```
-
-## CMake Options
+### CMake Options
 
 | Option | Default | Description |
 |--------|---------|-------------|
 | `ES_BUILD_WEB` | OFF | Build for web browsers |
 | `ES_BUILD_WXGAME` | OFF | Build for WeChat MiniGames |
-| `ES_BUILD_EXAMPLES` | ON | Build example projects |
 | `ES_BUILD_TESTS` | OFF | Build unit tests |
 
 ## IDE Setup
@@ -129,21 +168,12 @@ cmake --build build_wxgame
 ### Visual Studio Code
 
 Recommended extensions:
+- ESLint
+- TypeScript
+
+For C++ development:
 - C/C++ (Microsoft)
 - CMake Tools
-- clangd (for better intellisense)
-
-`.vscode/settings.json`:
-```json
-{
-  "cmake.configureArgs": ["-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"],
-  "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools"
-}
-```
-
-### CLion
-
-CLion works out of the box with CMake projects. Open the `esengine` folder and it will auto-detect the CMakeLists.txt.
 
 ## Next Steps
 

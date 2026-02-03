@@ -134,26 +134,4 @@ struct WorldTransform {
  */
 struct TransformDirty {};
 
-// =============================================================================
-// Legacy Transform (Deprecated)
-// =============================================================================
-
-/**
- * @brief Legacy transform component (deprecated)
- *
- * @deprecated Use LocalTransform and WorldTransform instead.
- *             This component is kept for backward compatibility and
- *             will be removed in a future version.
- */
-struct [[deprecated("Use LocalTransform instead")]] Transform {
-    glm::vec3 position{0.0f, 0.0f, 0.0f};
-    glm::vec3 rotation{0.0f, 0.0f, 0.0f};
-    glm::vec3 scale{1.0f, 1.0f, 1.0f};
-
-    Transform() = default;
-    explicit Transform(const glm::vec3& pos) : position(pos) {}
-    Transform(const glm::vec3& pos, const glm::vec3& rot, const glm::vec3& scl)
-        : position(pos), rotation(rot), scale(scl) {}
-};
-
 }  // namespace esengine::ecs

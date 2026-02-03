@@ -49,59 +49,57 @@ emcmake cmake -B build_web -DES_BUILD_WEB=ON && cmake --build build_web
 emcmake cmake -B build_wxgame -DES_BUILD_WXGAME=ON && cmake --build build_wxgame
 ```
 
-### Quick Example (C++)
+### Quick Start
 
-```cpp
-#include <esengine/ESEngine.hpp>
-
-class MyGame : public esengine::Application {
-protected:
-    void onInit() override { /* Initialize */ }
-    void onUpdate(float dt) override { /* Update logic */ }
-    void onRender() override { /* Render frame */ }
-};
-
-ES_MAIN(MyGame)
-```
-
-### TypeScript SDK
-
-The TypeScript SDK provides a high-level API for building games with ESEngine in the browser.
+The TypeScript SDK provides an ECS-style API for building games with ESEngine.
 
 ```bash
 cd sdk && npm install && npm run build
 ```
 
 ```typescript
-import { Application, Renderer, Input, KeyCode } from '@esengine/sdk';
+import {
+    App, createWebApp, defineSystem, Schedule,
+    Commands, Query, Res, Time,
+    LocalTransform, Sprite, Camera,
+    type ESEngineModule
+} from 'esengine';
 
-class MyGame extends Application {
-  protected onInit(): void {
-    console.log('Game initialized!');
-  }
+export async function main(Module: ESEngineModule): Promise<void> {
+    const app = createWebApp(Module);
 
-  protected onUpdate(dt: number): void {
-    if (Input.isKeyDown(KeyCode.Space)) {
-      // Handle input
-    }
-  }
+    // Startup system - runs once
+    app.addSystemToSchedule(Schedule.Startup, defineSystem(
+        [Commands()],
+        (cmds) => {
+            // Create camera
+            cmds.spawn()
+                .insert(Camera, { projectionType: 1, orthoSize: 400, isActive: true })
+                .insert(LocalTransform, { position: { x: 0, y: 0, z: 10 } });
 
-  protected onRender(): void {
-    Renderer.clear();
-    Renderer.drawQuad({ x: 100, y: 100 }, { x: 50, y: 50 }, { r: 1, g: 0, b: 0, a: 1 });
-  }
+            // Create sprite
+            cmds.spawn()
+                .insert(Sprite, { color: { x: 1, y: 0.5, z: 0.2, w: 1 }, size: { x: 100, y: 100 } })
+                .insert(LocalTransform, { position: { x: 0, y: 0, z: 0 } });
+        }
+    ));
+
+    // Update system - runs every frame
+    app.addSystemToSchedule(Schedule.Update, defineSystem(
+        [Res(Time), Query(LocalTransform, Sprite)],
+        (time, query) => {
+            for (const [entity, transform, sprite] of query) {
+                transform.position.x = Math.sin(time.elapsed) * 100;
+                transform.position.y = Math.cos(time.elapsed) * 100;
+            }
+        }
+    ));
+
+    app.run();
 }
-
-const game = new MyGame({
-  width: 800,
-  height: 600,
-  canvas: 'canvas',
-  wasmPath: './esengine.js',  // Use C++ WASM backend
-});
-game.run();
 ```
 
-See [sdk/examples/hello-game](sdk/examples/hello-game/) for a complete example.
+See [sdk/examples/playground](sdk/examples/playground/) for a complete example.
 
 ## Documentation
 

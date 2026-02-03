@@ -92,6 +92,20 @@ enum class KeyCode : u32 {
     Y = 89,              ///< Y key
     Z = 90,              ///< Z key
 
+    // Function keys
+    F1 = 112,            ///< F1 key
+    F2 = 113,            ///< F2 key
+    F3 = 114,            ///< F3 key
+    F4 = 115,            ///< F4 key
+    F5 = 116,            ///< F5 key
+    F6 = 117,            ///< F6 key
+    F7 = 118,            ///< F7 key
+    F8 = 119,            ///< F8 key
+    F9 = 120,            ///< F9 key
+    F10 = 121,           ///< F10 key
+    F11 = 122,           ///< F11 key
+    F12 = 123,           ///< F12 key
+
     // Modifier keys
     LeftShift = 16,      ///< Left Shift key
     RightShift = 161,    ///< Right Shift key

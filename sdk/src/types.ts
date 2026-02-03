@@ -1,0 +1,52 @@
+/**
+ * @file    types.ts
+ * @brief   Core type definitions for ESEngine SDK
+ */
+
+// =============================================================================
+// Entity
+// =============================================================================
+
+export type Entity = number;
+export const INVALID_ENTITY = 0 as Entity;
+
+// =============================================================================
+// Math Types
+// =============================================================================
+
+export interface Vec2 {
+    x: number;
+    y: number;
+}
+
+export interface Vec3 {
+    x: number;
+    y: number;
+    z: number;
+}
+
+export interface Vec4 {
+    x: number;
+    y: number;
+    z: number;
+    w: number;
+}
+
+export interface Quat {
+    w: number;
+    x: number;
+    y: number;
+    z: number;
+}
+
+export type Color = Vec4;
+
+// =============================================================================
+// Factory Functions
+// =============================================================================
+
+export const vec2 = (x = 0, y = 0): Vec2 => ({ x, y });
+export const vec3 = (x = 0, y = 0, z = 0): Vec3 => ({ x, y, z });
+export const vec4 = (x = 0, y = 0, z = 0, w = 1): Vec4 => ({ x, y, z, w });
+export const color = (r = 1, g = 1, b = 1, a = 1): Color => ({ x: r, y: g, z: b, w: a });
+export const quat = (w = 1, x = 0, y = 0, z = 0): Quat => ({ w, x, y, z });

@@ -1,159 +1,201 @@
 ---
 title: Project Structure
-description: Understanding the ESEngine codebase organization
+description: How to organize your ESEngine game project
 ---
 
-This guide explains how the ESEngine codebase is organized and where to find specific functionality.
+This guide explains how to structure your ESEngine game project and the SDK architecture.
 
-## Directory Layout
+## Game Project Structure
+
+A typical ESEngine game project:
 
 ```
-esengine/
-├── include/esengine/       # Public API headers
-│   └── ESEngine.hpp        # Main include file
-│
-├── src/esengine/           # Engine implementation
-│   ├── core/               # Core systems
-│   │   ├── Application.hpp # Base application class
-│   │   ├── Engine.hpp      # Engine singleton
-│   │   ├── Log.hpp         # Logging utilities
-│   │   └── Types.hpp       # Common type aliases
-│   │
-│   ├── ecs/                # Entity-Component-System
-│   │   ├── Entity.hpp      # Entity type definition
-│   │   ├── Component.hpp   # Component traits
-│   │   ├── Registry.hpp    # Main ECS container
-│   │   ├── SparseSet.hpp   # Component storage
-│   │   ├── View.hpp        # Query iterators
-│   │   └── System.hpp      # System base class
-│   │
-│   ├── math/               # Mathematics
-│   │   └── Math.hpp        # GLM wrapper and utilities
-│   │
-│   ├── renderer/           # Graphics
-│   │   ├── Renderer.hpp    # High-level render API
-│   │   ├── RenderCommand.hpp
-│   │   ├── Shader.hpp      # Shader program
-│   │   ├── Texture.hpp     # Texture loading
-│   │   └── Buffer.hpp      # Vertex/Index buffers
-│   │
-│   ├── platform/           # Platform abstraction
-│   │   ├── Platform.hpp    # Platform interface
-│   │   └── input/
-│   │       └── Input.hpp   # Input handling
-│   │
-│   └── ESEngine.hpp        # Internal aggregation header
-│
-├── third_party/            # External dependencies
-│   └── glm/                # OpenGL Mathematics
-│
-├── examples/               # Example projects
-├── tests/                  # Unit tests
-├── bindings/               # JS bindings
-└── docs/                   # Documentation
+my-game/
+├── src/
+│   ├── main.ts           # Entry point
+│   ├── systems/          # Game systems
+│   │   ├── movement.ts
+│   │   ├── collision.ts
+│   │   └── input.ts
+│   └── components/       # Custom components
+│       ├── player.ts
+│       └── enemy.ts
+├── assets/               # Game assets
+│   ├── sprites/
+│   └── audio/
+├── build/                # Build output
+│   ├── main.js
+│   ├── esengine.js       # WASM loader
+│   └── esengine.wasm     # WASM binary
+├── index.html            # HTML entry
+├── package.json
+└── tsconfig.json
 ```
 
-## Module Overview
+## Entry Point
 
-### Core (`src/esengine/core/`)
+Your `src/main.ts` exports a `main` function that receives the WASM module:
 
-Foundation types and the application framework.
+```typescript
+import { createWebApp, defineSystem, Schedule, ... } from 'esengine';
+import type { ESEngineModule } from 'esengine';
 
-| File | Purpose |
-|------|---------|
-| `Application.hpp` | Base class for games, manages lifecycle |
-| `Engine.hpp` | Global engine state and subsystems |
-| `Log.hpp` | Logging macros (`ES_LOG_INFO`, etc.) |
-| `Types.hpp` | Typedefs (`u32`, `f32`, `Unique<T>`) |
+// Import your systems
+import { movementSystem } from './systems/movement';
+import { inputSystem } from './systems/input';
 
-### ECS (`src/esengine/ecs/`)
+export async function main(Module: ESEngineModule): Promise<void> {
+    const app = createWebApp(Module);
 
-The Entity-Component-System implementation.
+    // Add systems
+    app.addSystemToSchedule(Schedule.Startup, setupSystem);
+    app.addSystemToSchedule(Schedule.Update, inputSystem);
+    app.addSystemToSchedule(Schedule.Update, movementSystem);
 
-| File | Purpose |
-|------|---------|
-| `Entity.hpp` | Entity ID type and utilities |
-| `Registry.hpp` | Central container for entities/components |
-| `SparseSet.hpp` | O(1) component storage |
-| `View.hpp` | Query interface for iteration |
-| `System.hpp` | Base class for game systems |
-
-### Renderer (`src/esengine/renderer/`)
-
-WebGL-based rendering pipeline.
-
-| File | Purpose |
-|------|---------|
-| `Renderer.hpp` | High-level drawing API |
-| `Shader.hpp` | GLSL shader compilation |
-| `Texture.hpp` | Image loading and binding |
-| `Buffer.hpp` | GPU buffer management |
-
-### Platform (`src/esengine/platform/`)
-
-OS and browser abstraction layer.
-
-| File | Purpose |
-|------|---------|
-| `Platform.hpp` | Window, context, timing |
-| `input/Input.hpp` | Keyboard, mouse, touch |
-
-## Include Conventions
-
-### For Game Code
-
-Include only the public header:
-
-```cpp
-#include <esengine/ESEngine.hpp>
-```
-
-This gives you access to all public APIs.
-
-### For Engine Development
-
-Include specific internal headers:
-
-```cpp
-#include "core/Application.hpp"
-#include "ecs/Registry.hpp"
-```
-
-## Namespace Organization
-
-```cpp
-namespace esengine {
-    // Core classes
-    class Application;
-    class Platform;
-
-    namespace ecs {
-        // ECS types
-        class Registry;
-        using Entity = uint32_t;
-    }
-
-    namespace math {
-        // Math utilities (mostly GLM re-exports)
-    }
+    app.run();
 }
 ```
 
-## Adding New Features
+## Organizing Systems
 
-### Adding a Component
+Create separate files for each system:
 
-1. Define in your game code (components are just structs):
-   ```cpp
-   struct Health {
-       int current;
-       int max;
-   };
-   ```
+```typescript
+// src/systems/movement.ts
+import { defineSystem, Res, Time, Query, LocalTransform, Velocity } from 'esengine';
 
-### Adding an Engine System
+export const movementSystem = defineSystem(
+    [Res(Time), Query(LocalTransform, Velocity)],
+    (time, query) => {
+        for (const [entity, transform, velocity] of query) {
+            transform.position.x += velocity.linear.x * time.delta;
+            transform.position.y += velocity.linear.y * time.delta;
+        }
+    }
+);
+```
 
-1. Create header in appropriate module
-2. Include in `ESEngine.hpp` if public
-3. Add to `CMakeLists.txt` if new files
-4. Document with Doxygen comments
+## Organizing Components
+
+Define custom components in separate files:
+
+```typescript
+// src/components/player.ts
+import { defineComponent, defineTag } from 'esengine';
+
+export const Player = defineTag('Player');
+
+export const Health = defineComponent('Health', {
+    current: 100,
+    max: 100
+});
+
+export const MoveSpeed = defineComponent('MoveSpeed', {
+    value: 200
+});
+```
+
+## HTML Setup
+
+Your `index.html` loads the WASM and your game:
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>My Game</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <script type="module">
+        import ESEngineModule from './build/esengine.js';
+        import { main } from './build/main.js';
+
+        ESEngineModule().then(Module => {
+            main(Module);
+        });
+    </script>
+</body>
+</html>
+```
+
+## SDK Architecture
+
+The ESEngine SDK is organized as a single-entry package:
+
+```
+esengine/
+├── dist/
+│   ├── index.js          # Main entry
+│   ├── index.d.ts         # TypeScript types
+│   ├── wasm.js           # WASM types export
+│   └── wasm.d.ts
+└── src/
+    ├── index.ts          # Public exports
+    ├── types.ts          # Entity, Vec2, Vec3, etc.
+    ├── component.ts      # Components
+    ├── resource.ts       # Resources
+    ├── query.ts          # Query system
+    ├── commands.ts       # Commands
+    ├── system.ts         # System definitions
+    ├── world.ts          # World management
+    ├── app.ts            # App and createWebApp
+    └── wasm.ts           # WASM interface types
+```
+
+### Import from Single Entry
+
+```typescript
+// All imports from 'esengine'
+import {
+    // App
+    App, createWebApp,
+
+    // ECS
+    defineSystem, Schedule,
+    Commands, Query,
+    defineComponent, defineTag,
+
+    // Resources
+    Res, ResMut, defineResource, Time, Input,
+
+    // Builtin Components
+    LocalTransform, Sprite, Camera, Velocity,
+
+    // Types
+    type Entity, vec2, vec3, vec4, quat
+} from 'esengine';
+```
+
+## Best Practices
+
+### File Organization
+
+- Keep systems small and focused (one concern per system)
+- Group related components together
+- Use barrel exports (`index.ts`) for cleaner imports
+
+### Code Structure
+
+```typescript
+// src/systems/index.ts
+export { movementSystem } from './movement';
+export { inputSystem } from './input';
+export { collisionSystem } from './collision';
+
+// src/main.ts
+import { movementSystem, inputSystem, collisionSystem } from './systems';
+```
+
+### Separation of Concerns
+
+| Layer | Responsibility |
+|-------|----------------|
+| Components | Data only, no logic |
+| Systems | Game logic, operates on components |
+| Resources | Global state (time, input, game state) |
+| App | Wiring systems together |

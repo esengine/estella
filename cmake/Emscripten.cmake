@@ -150,7 +150,7 @@ endfunction()
 # SDK-specific link flags (library only, no app entry)
 set(ES_EMSCRIPTEN_SDK_LINK_FLAGS
     --bind
-    --emit-tsd esengine.d.ts
+    # --emit-tsd esengine.d.ts  # Temporarily disabled due to binding mismatch
     -sWASM=1
     -sUSE_WEBGL2=1
     -sFULL_ES3=1
@@ -159,7 +159,7 @@ set(ES_EMSCRIPTEN_SDK_LINK_FLAGS
     -sEXPORT_ES6=1
     -sMODULARIZE=1
     "-sEXPORT_NAME='ESEngineModule'"
-    "-sEXPORTED_FUNCTIONS=['_malloc','_free','_es_sdk_init','_es_sdk_version']"
+    "-sEXPORTED_FUNCTIONS=['_malloc','_free']"
     "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32']"
     -O3
     --closure=1
@@ -176,7 +176,7 @@ set(ES_EMSCRIPTEN_SINGLE_FILE_FLAGS
     -sNO_EXIT_RUNTIME=1
     -sMODULARIZE=1
     "-sEXPORT_NAME='ESEngineModule'"
-    "-sEXPORTED_FUNCTIONS=['_malloc','_free','_es_sdk_init','_es_sdk_version']"
+    "-sEXPORTED_FUNCTIONS=['_malloc','_free']"
     "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32']"
     -O3
     -flto

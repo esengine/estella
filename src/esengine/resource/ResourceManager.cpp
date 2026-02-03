@@ -112,7 +112,7 @@ ShaderHandle ResourceManager::loadEngineShader(const std::string& name, const st
         return cached;
     }
 
-    std::string path = PathResolver::editorPath("data/shaders/" + name + ".esshader");
+    std::string path = PathResolver::editorPath("src/esengine/data/shaders/" + name + ".esshader");
 
     ShaderLoader loader;
     auto result = loader.loadFromFile(path, platform);

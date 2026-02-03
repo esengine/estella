@@ -11,163 +11,186 @@ Let's create a simple game that displays a moving sprite. This will introduce yo
 
 <Steps>
 
-1. **Create your game directory**
+1. **Create your project directory**
 
    ```bash
    mkdir my-game
    cd my-game
+   npm init -y
    ```
 
-2. **Create CMakeLists.txt**
+2. **Install dependencies**
 
-   ```cmake
-   cmake_minimum_required(VERSION 3.16)
-   project(MyGame)
-
-   # Find ESEngine (adjust path as needed)
-   add_subdirectory(../esengine esengine)
-
-   # Create executable
-   add_executable(MyGame src/main.cpp)
-   target_link_libraries(MyGame PRIVATE esengine)
+   ```bash
+   npm install esengine
+   npm install -D esbuild typescript
    ```
 
-3. **Create src/main.cpp**
+3. **Create src/main.ts**
 
-   ```cpp
-   #include <esengine/ESEngine.hpp>
+   ```typescript
+   import {
+       type ESEngineModule,
+       createWebApp,
+       defineSystem,
+       Schedule,
+       Commands,
+       Query,
+       Res,
+       Time,
+       LocalTransform,
+       Sprite,
+       Camera
+   } from 'esengine';
 
-   using namespace esengine;
-   using namespace esengine::ecs;
+   export async function main(Module: ESEngineModule): Promise<void> {
+       const app = createWebApp(Module);
 
-   // Components
-   struct Position {
-       float x, y;
-   };
+       // Startup system - runs once at the beginning
+       app.addSystemToSchedule(Schedule.Startup, defineSystem(
+           [Commands()],
+           (cmds) => {
+               // Create camera
+               cmds.spawn()
+                   .insert(Camera, {
+                       projectionType: 1,
+                       orthoSize: 400,
+                       isActive: true
+                   })
+                   .insert(LocalTransform, {
+                       position: { x: 0, y: 0, z: 10 }
+                   });
 
-   struct Velocity {
-       float vx, vy;
-   };
-
-   class MyGame : public Application {
-   public:
-       MyGame() : Application({.title = "My First Game", .width = 800, .height = 600}) {}
-
-   protected:
-       void onInit() override {
-           // Create a player entity
-           Entity player = getRegistry().create();
-           getRegistry().emplace<Position>(player, 400.0f, 300.0f);
-           getRegistry().emplace<Velocity>(player, 100.0f, 50.0f);
-       }
-
-       void onUpdate(float dt) override {
-           // Update all entities with Position and Velocity
-           auto view = getRegistry().view<Position, Velocity>();
-           for (auto [entity, pos, vel] : view.each()) {
-               pos.x += vel.vx * dt;
-               pos.y += vel.vy * dt;
-
-               // Bounce off edges
-               if (pos.x < 0 || pos.x > 800) vel.vx *= -1;
-               if (pos.y < 0 || pos.y > 600) vel.vy *= -1;
+               // Create a sprite
+               cmds.spawn()
+                   .insert(Sprite, {
+                       color: { x: 1, y: 0.5, z: 0.2, w: 1 },
+                       size: { x: 100, y: 100 }
+                   })
+                   .insert(LocalTransform, {
+                       position: { x: 0, y: 0, z: 0 }
+                   });
            }
-       }
+       ));
 
-       void onRender() override {
-           // Draw entities (simplified - actual rendering uses Renderer API)
-           auto view = getRegistry().view<Position>();
-           for (auto [entity, pos] : view.each()) {
-               // renderer.drawRect(pos.x - 25, pos.y - 25, 50, 50, Color::Red);
+       // Update system - runs every frame
+       app.addSystemToSchedule(Schedule.Update, defineSystem(
+           [Res(Time), Query(LocalTransform, Sprite)],
+           (time, query) => {
+               for (const [entity, transform, sprite] of query) {
+                   // Move sprite in a circle
+                   transform.position.x = Math.sin(time.elapsed) * 100;
+                   transform.position.y = Math.cos(time.elapsed) * 100;
+               }
            }
-       }
-   };
+       ));
 
-   ES_MAIN(MyGame)
+       app.run();
+   }
+   ```
+
+4. **Add build script to package.json**
+
+   ```json
+   {
+     "scripts": {
+       "build": "esbuild src/main.ts --bundle --format=esm --outfile=build/main.js"
+     }
+   }
+   ```
+
+5. **Build your game**
+
+   ```bash
+   npm run build
    ```
 
 </Steps>
 
-## Build and Run
-
-### Native (for quick testing)
-
-```bash
-cmake -B build
-cmake --build build
-./build/MyGame
-```
-
-### Web
-
-```bash
-emcmake cmake -B build_web -DES_BUILD_WEB=ON
-cmake --build build_web
-
-# Serve the output
-npx serve build_web
-# Open http://localhost:3000/MyGame.html
-```
-
 <Aside type="tip">
-  Use native builds for fast iteration during development, then test on web periodically.
+  You also need the ESEngine WASM files. See [Installation](/microes/getting-started/installation/) for how to build them.
 </Aside>
 
 ## Understanding the Code
 
-### Application Lifecycle
+### App and Systems
 
-```
-┌─────────────┐
-│ Constructor │
-└──────┬──────┘
-       ▼
-┌─────────────┐
-│   onInit()  │ ← Load assets, create entities
-└──────┬──────┘
-       ▼
-┌─────────────┐
-│  Main Loop  │ ◄─────────────────┐
-│  ┌────────┐ │                   │
-│  │onUpdate│ │ ← Game logic      │
-│  └────────┘ │                   │
-│  ┌────────┐ │                   │
-│  │onRender│ │ ← Draw frame      │
-│  └────────┘ │                   │
-└──────┬──────┘                   │
-       │ (running)                │
-       └──────────────────────────┘
-       │ (quit)
-       ▼
-┌─────────────┐
-│ onShutdown()│ ← Cleanup
-└─────────────┘
+ESEngine uses a system-based architecture. Systems are functions that run at specific points in the game loop:
+
+```typescript
+// Create the app with WASM module
+const app = createWebApp(Module);
+
+// Add a system to a schedule
+app.addSystemToSchedule(Schedule.Update, defineSystem(
+    [/* parameters */],
+    (/* injected params */) => {
+        // Game logic here
+    }
+));
+
+// Start the game loop
+app.run();
 ```
 
-### ECS Basics
+### Schedule Types
 
-ESEngine uses an Entity-Component-System architecture:
+| Schedule | When it runs |
+|----------|--------------|
+| `Startup` | Once at the beginning |
+| `Update` | Every frame |
+| `PostUpdate` | After Update, every frame |
+| `FixedUpdate` | At fixed time intervals |
 
-- **Entity**: A unique identifier (just a number)
-- **Component**: Plain data structs attached to entities
-- **System**: Logic that operates on entities with specific components
+### System Parameters
 
-```cpp
-// Create entity
-Entity e = registry.create();
+Systems declare what data they need, and it gets injected automatically:
 
-// Add components
-registry.emplace<Position>(e, 0.0f, 0.0f);
-registry.emplace<Velocity>(e, 1.0f, 0.0f);
+```typescript
+defineSystem(
+    [Commands(), Res(Time), Query(LocalTransform, Sprite)],
+    (cmds, time, query) => {
+        // cmds: spawn/despawn entities
+        // time: elapsed time, delta time
+        // query: iterate entities with components
+    }
+)
+```
 
-// Query and iterate
-for (auto [entity, pos, vel] : registry.view<Position, Velocity>().each()) {
-    pos.x += vel.vx * dt;
+### Components
+
+Components are data attached to entities. ESEngine provides builtin components:
+
+| Component | Description |
+|-----------|-------------|
+| `LocalTransform` | Position, rotation, scale |
+| `Sprite` | 2D sprite rendering |
+| `Camera` | Camera settings |
+| `Velocity` | Movement velocity |
+
+### Creating Entities
+
+Use `Commands` to spawn entities and attach components:
+
+```typescript
+cmds.spawn()
+    .insert(Sprite, { color: { x: 1, y: 0, z: 0, w: 1 } })
+    .insert(LocalTransform, { position: { x: 100, y: 100, z: 0 } })
+    .id();  // Returns the entity ID
+```
+
+### Querying Entities
+
+Use `Query` to iterate entities with specific components:
+
+```typescript
+for (const [entity, transform, sprite] of query) {
+    transform.position.x += 1;
 }
 ```
 
 ## Next Steps
 
 - [Learn ECS in depth](/microes/guides/ecs/)
-- [Add sprites and textures](/microes/guides/rendering/)
 - [Handle input](/microes/guides/input/)
+- [Add sprites and textures](/microes/guides/rendering/)
