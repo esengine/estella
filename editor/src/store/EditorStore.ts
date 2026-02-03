@@ -1,0 +1,268 @@
+/**
+ * @file    EditorStore.ts
+ * @brief   Editor state management
+ */
+
+import type { Entity } from 'esengine';
+import type { SceneData, EntityData, ComponentData } from '../types/SceneTypes';
+import { createEmptyScene, createEntityData } from '../types/SceneTypes';
+import {
+    CommandHistory,
+    PropertyCommand,
+    CreateEntityCommand,
+    DeleteEntityCommand,
+    ReparentCommand,
+    AddComponentCommand,
+    RemoveComponentCommand,
+} from '../commands';
+
+// =============================================================================
+// Types
+// =============================================================================
+
+export interface EditorState {
+    scene: SceneData;
+    selectedEntity: Entity | null;
+    isDirty: boolean;
+    filePath: string | null;
+}
+
+export type EditorListener = (state: EditorState) => void;
+
+// =============================================================================
+// EditorStore
+// =============================================================================
+
+export class EditorStore {
+    private state_: EditorState;
+    private history_: CommandHistory;
+    private listeners_: Set<EditorListener> = new Set();
+    private nextEntityId_ = 1;
+
+    constructor() {
+        this.state_ = {
+            scene: createEmptyScene(),
+            selectedEntity: null,
+            isDirty: false,
+            filePath: null,
+        };
+        this.history_ = new CommandHistory();
+    }
+
+    // =========================================================================
+    // State Access
+    // =========================================================================
+
+    get state(): Readonly<EditorState> {
+        return this.state_;
+    }
+
+    get scene(): SceneData {
+        return this.state_.scene;
+    }
+
+    get selectedEntity(): Entity | null {
+        return this.state_.selectedEntity;
+    }
+
+    get canUndo(): boolean {
+        return this.history_.canUndo();
+    }
+
+    get canRedo(): boolean {
+        return this.history_.canRedo();
+    }
+
+    // =========================================================================
+    // Scene Operations
+    // =========================================================================
+
+    newScene(name: string = 'Untitled'): void {
+        this.state_.scene = createEmptyScene(name);
+        this.state_.selectedEntity = null;
+        this.state_.isDirty = false;
+        this.state_.filePath = null;
+        this.history_.clear();
+        this.nextEntityId_ = 1;
+        this.notify();
+    }
+
+    loadScene(scene: SceneData, filePath: string | null = null): void {
+        this.state_.scene = scene;
+        this.state_.selectedEntity = null;
+        this.state_.isDirty = false;
+        this.state_.filePath = filePath;
+        this.history_.clear();
+
+        const maxId = scene.entities.reduce((max, e) => Math.max(max, e.id), 0);
+        this.nextEntityId_ = maxId + 1;
+
+        this.notify();
+    }
+
+    markSaved(filePath: string | null = null): void {
+        this.state_.isDirty = false;
+        if (filePath) {
+            this.state_.filePath = filePath;
+        }
+        this.notify();
+    }
+
+    // =========================================================================
+    // Selection
+    // =========================================================================
+
+    selectEntity(entity: Entity | null): void {
+        if (this.state_.selectedEntity !== entity) {
+            this.state_.selectedEntity = entity;
+            this.notify();
+        }
+    }
+
+    getSelectedEntityData(): EntityData | null {
+        if (this.state_.selectedEntity === null) return null;
+        return this.state_.scene.entities.find(
+            e => e.id === this.state_.selectedEntity
+        ) ?? null;
+    }
+
+    // =========================================================================
+    // Entity Operations
+    // =========================================================================
+
+    createEntity(name?: string, parent: Entity | null = null): Entity {
+        const id = this.nextEntityId_++;
+        const entityName = name ?? `Entity_${id}`;
+
+        const cmd = new CreateEntityCommand(
+            this.state_.scene,
+            id,
+            entityName,
+            parent
+        );
+        this.executeCommand(cmd);
+
+        return id as Entity;
+    }
+
+    deleteEntity(entity: Entity): void {
+        const cmd = new DeleteEntityCommand(this.state_.scene, entity);
+        this.executeCommand(cmd);
+
+        if (this.state_.selectedEntity === entity) {
+            this.state_.selectedEntity = null;
+        }
+    }
+
+    reparentEntity(entity: Entity, newParent: Entity | null): void {
+        const cmd = new ReparentCommand(this.state_.scene, entity, newParent);
+        this.executeCommand(cmd);
+    }
+
+    renameEntity(entity: Entity, name: string): void {
+        const entityData = this.state_.scene.entities.find(e => e.id === entity);
+        if (entityData) {
+            entityData.name = name;
+            this.state_.isDirty = true;
+            this.notify();
+        }
+    }
+
+    // =========================================================================
+    // Component Operations
+    // =========================================================================
+
+    addComponent(entity: Entity, type: string, data: Record<string, unknown>): void {
+        const cmd = new AddComponentCommand(this.state_.scene, entity, type, data);
+        this.executeCommand(cmd);
+    }
+
+    removeComponent(entity: Entity, type: string): void {
+        const cmd = new RemoveComponentCommand(this.state_.scene, entity, type);
+        this.executeCommand(cmd);
+    }
+
+    updateProperty(
+        entity: Entity,
+        componentType: string,
+        propertyName: string,
+        oldValue: unknown,
+        newValue: unknown
+    ): void {
+        const cmd = new PropertyCommand(
+            this.state_.scene,
+            entity,
+            componentType,
+            propertyName,
+            oldValue,
+            newValue
+        );
+        this.executeCommand(cmd);
+    }
+
+    getComponent(entity: Entity, type: string): ComponentData | null {
+        const entityData = this.state_.scene.entities.find(e => e.id === entity);
+        if (!entityData) return null;
+        return entityData.components.find(c => c.type === type) ?? null;
+    }
+
+    // =========================================================================
+    // Undo/Redo
+    // =========================================================================
+
+    undo(): void {
+        if (this.history_.undo()) {
+            this.state_.isDirty = true;
+            this.notify();
+        }
+    }
+
+    redo(): void {
+        if (this.history_.redo()) {
+            this.state_.isDirty = true;
+            this.notify();
+        }
+    }
+
+    // =========================================================================
+    // Subscription
+    // =========================================================================
+
+    subscribe(listener: EditorListener): () => void {
+        this.listeners_.add(listener);
+        return () => this.listeners_.delete(listener);
+    }
+
+    // =========================================================================
+    // Private
+    // =========================================================================
+
+    private executeCommand(cmd: import('../commands').Command): void {
+        this.history_.execute(cmd);
+        this.state_.isDirty = true;
+        this.notify();
+    }
+
+    private notify(): void {
+        for (const listener of this.listeners_) {
+            listener(this.state_);
+        }
+    }
+}
+
+// =============================================================================
+// Singleton Instance
+// =============================================================================
+
+let editorStore: EditorStore | null = null;
+
+export function getEditorStore(): EditorStore {
+    if (!editorStore) {
+        editorStore = new EditorStore();
+    }
+    return editorStore;
+}
+
+export function resetEditorStore(): void {
+    editorStore = null;
+}

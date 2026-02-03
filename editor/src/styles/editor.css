@@ -1,0 +1,430 @@
+/**
+ * ESEngine Web Editor Styles
+ */
+
+/* =============================================================================
+ * Variables
+ * ============================================================================= */
+
+:root {
+    --es-bg-primary: #1e1e1e;
+    --es-bg-secondary: #252526;
+    --es-bg-tertiary: #2d2d30;
+    --es-bg-hover: #3e3e42;
+    --es-border: #3c3c3c;
+    --es-text-primary: #cccccc;
+    --es-text-secondary: #808080;
+    --es-accent: #0078d4;
+    --es-accent-hover: #1084d8;
+    --es-danger: #f44336;
+    --es-success: #4caf50;
+}
+
+/* =============================================================================
+ * Editor Layout
+ * ============================================================================= */
+
+.es-editor {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    background: var(--es-bg-primary);
+    color: var(--es-text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 13px;
+}
+
+.es-editor-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    background: var(--es-bg-secondary);
+    border-bottom: 1px solid var(--es-border);
+}
+
+.es-toolbar-spacer {
+    flex: 1;
+}
+
+.es-editor-main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+}
+
+.es-editor-left {
+    width: 250px;
+    min-width: 200px;
+    border-right: 1px solid var(--es-border);
+}
+
+.es-editor-center {
+    flex: 1;
+    min-width: 300px;
+}
+
+.es-editor-right {
+    width: 300px;
+    min-width: 250px;
+    border-left: 1px solid var(--es-border);
+}
+
+/* =============================================================================
+ * Panels
+ * ============================================================================= */
+
+.es-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: var(--es-bg-secondary);
+    border-bottom: 1px solid var(--es-border);
+}
+
+.es-panel-title {
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* =============================================================================
+ * Hierarchy Panel
+ * ============================================================================= */
+
+.es-hierarchy-panel {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.es-hierarchy-tree {
+    flex: 1;
+    overflow: auto;
+    padding: 4px;
+}
+
+.es-hierarchy-item {
+    user-select: none;
+}
+
+.es-hierarchy-row {
+    display: flex;
+    align-items: center;
+    padding: 4px 8px;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.es-hierarchy-row:hover {
+    background: var(--es-bg-hover);
+}
+
+.es-hierarchy-item.es-selected > .es-hierarchy-row {
+    background: var(--es-accent);
+    color: white;
+}
+
+.es-hierarchy-expand {
+    width: 16px;
+    font-size: 10px;
+    transition: transform 0.15s;
+}
+
+.es-hierarchy-item.es-expanded > .es-hierarchy-row > .es-hierarchy-expand {
+    transform: rotate(90deg);
+}
+
+.es-hierarchy-spacer {
+    width: 16px;
+}
+
+.es-hierarchy-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.es-hierarchy-children {
+    display: none;
+    padding-left: 16px;
+}
+
+.es-hierarchy-item.es-expanded > .es-hierarchy-children {
+    display: block;
+}
+
+/* =============================================================================
+ * Inspector Panel
+ * ============================================================================= */
+
+.es-inspector-panel {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.es-inspector-content {
+    flex: 1;
+    overflow: auto;
+    padding: 8px;
+}
+
+.es-inspector-empty {
+    color: var(--es-text-secondary);
+    text-align: center;
+    padding: 20px;
+}
+
+.es-inspector-entity-header {
+    margin-bottom: 12px;
+}
+
+.es-entity-name-input {
+    width: 100%;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.es-component-section {
+    background: var(--es-bg-secondary);
+    border-radius: 4px;
+    margin-bottom: 8px;
+    overflow: hidden;
+}
+
+.es-component-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: var(--es-bg-tertiary);
+}
+
+.es-component-title {
+    font-weight: 600;
+}
+
+.es-component-properties {
+    padding: 8px;
+}
+
+.es-component-raw {
+    padding: 8px;
+    font-size: 11px;
+    overflow: auto;
+    background: var(--es-bg-primary);
+    margin: 0;
+}
+
+.es-property-row {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 8px;
+}
+
+.es-property-label {
+    width: 80px;
+    flex-shrink: 0;
+    padding: 6px 8px 6px 0;
+    color: var(--es-text-secondary);
+    font-size: 12px;
+}
+
+.es-property-editor {
+    flex: 1;
+}
+
+.es-add-component-wrapper {
+    margin-top: 8px;
+}
+
+.es-btn-add-component {
+    width: 100%;
+}
+
+/* =============================================================================
+ * SceneView Panel
+ * ============================================================================= */
+
+.es-sceneview-panel {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.es-sceneview-tools {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.es-zoom-display {
+    font-size: 11px;
+    color: var(--es-text-secondary);
+    min-width: 40px;
+}
+
+.es-sceneview-viewport {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    background: #1a1a1a;
+}
+
+.es-sceneview-canvas {
+    display: block;
+}
+
+/* =============================================================================
+ * Common Elements
+ * ============================================================================= */
+
+.es-btn {
+    padding: 6px 12px;
+    background: var(--es-bg-tertiary);
+    border: 1px solid var(--es-border);
+    border-radius: 3px;
+    color: var(--es-text-primary);
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.es-btn:hover:not(:disabled) {
+    background: var(--es-bg-hover);
+}
+
+.es-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.es-btn-icon {
+    padding: 4px 8px;
+    min-width: 24px;
+}
+
+.es-btn-remove {
+    background: transparent;
+    border: none;
+    color: var(--es-text-secondary);
+    font-size: 16px;
+}
+
+.es-btn-remove:hover {
+    color: var(--es-danger);
+}
+
+.es-input {
+    padding: 6px 8px;
+    background: var(--es-bg-primary);
+    border: 1px solid var(--es-border);
+    border-radius: 3px;
+    color: var(--es-text-primary);
+    font-size: 12px;
+    width: 100%;
+}
+
+.es-input:focus {
+    outline: none;
+    border-color: var(--es-accent);
+}
+
+.es-input-number {
+    width: 100%;
+}
+
+.es-input-checkbox {
+    width: auto;
+}
+
+.es-input-select {
+    width: 100%;
+}
+
+/* =============================================================================
+ * Vector Editors
+ * ============================================================================= */
+
+.es-vec-editor {
+    display: flex;
+    gap: 4px;
+}
+
+.es-vec-field {
+    display: flex;
+    align-items: center;
+    flex: 1;
+}
+
+.es-vec-label {
+    width: 16px;
+    text-align: center;
+    font-size: 11px;
+    color: var(--es-text-secondary);
+}
+
+.es-vec-field .es-input {
+    flex: 1;
+    min-width: 0;
+}
+
+/* =============================================================================
+ * Color Editor
+ * ============================================================================= */
+
+.es-color-editor {
+    display: flex;
+    gap: 8px;
+}
+
+.es-input-color {
+    width: 48px;
+    height: 28px;
+    padding: 2px;
+    cursor: pointer;
+}
+
+.es-input-alpha {
+    width: 60px;
+}
+
+/* =============================================================================
+ * Context Menu
+ * ============================================================================= */
+
+.es-context-menu {
+    position: fixed;
+    background: var(--es-bg-secondary);
+    border: 1px solid var(--es-border);
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    min-width: 150px;
+    z-index: 1000;
+    overflow: hidden;
+}
+
+.es-context-menu-item {
+    padding: 8px 12px;
+    cursor: pointer;
+}
+
+.es-context-menu-item:hover {
+    background: var(--es-accent);
+    color: white;
+}
+
+/* =============================================================================
+ * Container Classes
+ * ============================================================================= */
+
+.es-hierarchy-container,
+.es-inspector-container,
+.es-sceneview-container {
+    height: 100%;
+}
