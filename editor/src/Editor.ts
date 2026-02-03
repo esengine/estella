@@ -12,7 +12,7 @@ import { SceneViewPanel } from './panels/SceneViewPanel';
 import { ContentBrowserPanel, type ContentBrowserOptions } from './panels/ContentBrowserPanel';
 import { registerBuiltinEditors } from './property/editors';
 import { registerBuiltinSchemas } from './schemas/ComponentSchemas';
-import { saveSceneToFile, loadSceneFromFile } from './io/SceneSerializer';
+import { saveSceneToFile, loadSceneFromFile, loadSceneFromPath } from './io/SceneSerializer';
 import { icons } from './utils/icons';
 
 // =============================================================================
@@ -87,6 +87,14 @@ export class Editor {
         const scene = await loadSceneFromFile();
         if (scene) {
             this.store_.loadScene(scene);
+        }
+    }
+
+    async openSceneFromPath(scenePath: string): Promise<void> {
+        const scene = await loadSceneFromPath(scenePath);
+        if (scene) {
+            this.store_.loadScene(scene);
+            console.log('Scene loaded:', scenePath);
         }
     }
 
@@ -182,6 +190,7 @@ export class Editor {
         this.sceneViewPanel_ = new SceneViewPanel(sceneViewContainer, this.store_);
         this.contentBrowserPanel_ = new ContentBrowserPanel(contentBrowserContainer, {
             projectPath: this.projectPath_ ?? undefined,
+            onOpenScene: (scenePath) => this.openSceneFromPath(scenePath),
         });
 
         this.setupToolbarEvents();

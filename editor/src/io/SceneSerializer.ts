@@ -72,6 +72,7 @@ export class SceneSerializer {
 interface NativeFS {
     saveFile(content: string, defaultPath?: string): Promise<string | null>;
     loadFile(): Promise<{ path: string; content: string } | null>;
+    readFile(path: string): Promise<string | null>;
 }
 
 function getNativeFS(): NativeFS | null {
@@ -111,6 +112,26 @@ export async function loadSceneFromFile(): Promise<SceneData | null> {
     }
 
     return browserLoadFile();
+}
+
+export async function loadSceneFromPath(path: string): Promise<SceneData | null> {
+    const nativeFS = getNativeFS();
+    if (!nativeFS) {
+        console.error('Native FS not available');
+        return null;
+    }
+
+    try {
+        const content = await nativeFS.readFile(path);
+        if (content) {
+            const serializer = new SceneSerializer();
+            return serializer.deserialize(content);
+        }
+        return null;
+    } catch (err) {
+        console.error('Failed to load scene from path:', path, err);
+        return null;
+    }
 }
 
 // =============================================================================

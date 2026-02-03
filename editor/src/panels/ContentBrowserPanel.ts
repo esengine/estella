@@ -45,6 +45,7 @@ interface AssetItem {
 
 export interface ContentBrowserOptions {
     projectPath?: string;
+    onOpenScene?: (scenePath: string) => void;
 }
 
 // =============================================================================
@@ -135,10 +136,13 @@ export class ContentBrowserPanel {
     private searchFilter_: string = '';
     private unwatchFn_: (() => void) | null = null;
     private currentItems_: AssetItem[] = [];
+    private onOpenScene_: ((scenePath: string) => void) | null = null;
+    private selectedAssetPath_: string | null = null;
 
     constructor(container: HTMLElement, options?: ContentBrowserOptions) {
         this.container_ = container;
         this.projectPath_ = options?.projectPath ?? null;
+        this.onOpenScene_ = options?.onOpenScene ?? null;
 
         if (this.projectPath_) {
             this.currentPath_ = getParentPath(this.projectPath_);
@@ -319,6 +323,17 @@ export class ContentBrowserPanel {
             }
         });
 
+        this.gridContainer_?.addEventListener('click', (e) => {
+            const target = e.target as HTMLElement;
+            const item = target.closest('.es-asset-item') as HTMLElement;
+            if (!item) return;
+
+            const path = item.dataset.path;
+            if (path) {
+                this.selectAsset(path);
+            }
+        });
+
         this.gridContainer_?.addEventListener('dblclick', async (e) => {
             const target = e.target as HTMLElement;
             const item = target.closest('.es-asset-item') as HTMLElement;
@@ -341,8 +356,29 @@ export class ContentBrowserPanel {
         });
     }
 
+    private selectAsset(path: string): void {
+        this.selectedAssetPath_ = path;
+        this.updateAssetSelection();
+    }
+
+    private updateAssetSelection(): void {
+        if (!this.gridContainer_) return;
+
+        const items = this.gridContainer_.querySelectorAll('.es-asset-item');
+        items.forEach((item) => {
+            const el = item as HTMLElement;
+            if (el.dataset.path === this.selectedAssetPath_) {
+                el.classList.add('es-selected');
+            } else {
+                el.classList.remove('es-selected');
+            }
+        });
+    }
+
     private onAssetDoubleClick(path: string, type: AssetItem['type']): void {
-        console.log('Asset double-clicked:', path, type);
+        if (type === 'scene' && this.onOpenScene_) {
+            this.onOpenScene_(path);
+        }
     }
 
     private async toggleFolder(path: string): Promise<void> {

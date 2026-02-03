@@ -3,4 +3,4 @@
  * @brief   IO module exports
  */
 
-export { SceneSerializer, saveSceneToFile, loadSceneFromFile } from './SceneSerializer';
+export { SceneSerializer, saveSceneToFile, loadSceneFromFile, loadSceneFromPath } from './SceneSerializer';

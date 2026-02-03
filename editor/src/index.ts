@@ -106,6 +106,7 @@ export {
     SceneSerializer,
     saveSceneToFile,
     loadSceneFromFile,
+    loadSceneFromPath,
 } from './io';
 
 // =============================================================================
