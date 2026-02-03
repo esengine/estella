@@ -10,6 +10,8 @@
 export {
     type Entity,
     INVALID_ENTITY,
+    type TextureHandle,
+    INVALID_TEXTURE,
     type Vec2,
     type Vec3,
     type Vec4,
@@ -134,3 +136,18 @@ export type {
     CppRegistry,
     CppResourceManager,
 } from './wasm';
+
+// =============================================================================
+// UI
+// =============================================================================
+
+export {
+    Text,
+    TextAlign,
+    TextBaseline,
+    TextRenderer,
+    TextPlugin,
+    textPlugin,
+    type TextData,
+    type TextRenderResult,
+} from './ui';

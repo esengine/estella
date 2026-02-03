@@ -9,6 +9,7 @@ import {
     App,
     createWebApp,
     defineSystem,
+    defineTag,
     Schedule,
     Commands,
     LocalTransform,
@@ -19,8 +20,14 @@ import {
     Time,
     Query,
     Mut,
-    type Entity
+    type Entity,
+    Text,
+    TextAlign,
+    textPlugin,
+    INVALID_TEXTURE
 } from 'esengine';
+
+const Animated = defineTag('Animated');
 
 // =============================================================================
 // Main Entry Point
@@ -31,6 +38,9 @@ export async function main(Module: ESEngineModule): Promise<void> {
 
     // Create the app with WASM module (handles renderer init + render loop)
     const app = createWebApp(Module);
+
+    // Add the text plugin for automatic Text -> Sprite texture sync
+    app.addPlugin(textPlugin);
 
     // Add startup system - runs once at beginning
     app.addSystemToSchedule(Schedule.Startup, defineSystem(
@@ -59,8 +69,9 @@ export async function main(Module: ESEngineModule): Promise<void> {
 
             // Create a test sprite
             const sprite = cmds.spawn()
+                .insert(Animated)
                 .insert(Sprite, {
-                    texture: 0,
+                    texture: INVALID_TEXTURE,
                     color: { x: 1, y: 0.5, z: 0.2, w: 1 },
                     size: { x: 100, y: 100 },
                     uvOffset: { x: 0, y: 0 },
@@ -76,18 +87,43 @@ export async function main(Module: ESEngineModule): Promise<void> {
                 })
                 .id();
 
-            console.log(`Created camera: ${camera}, sprite: ${sprite}`);
+            const textEntity = cmds.spawn()
+                .insert(Text, {
+                    content: 'Hello ESEngine!',
+                    fontFamily: 'Arial',
+                    fontSize: 32,
+                    color: { x: 1, y: 1, z: 1, w: 1 },
+                    align: TextAlign.Center,
+                    baseline: 0,
+                    maxWidth: 0,
+                    lineHeight: 1.2,
+                    dirty: true
+                })
+                .insert(Sprite, {
+                    texture: 0,
+                    color: { x: 1, y: 1, z: 1, w: 1 },
+                    size: { x: 200, y: 50 },
+                    uvOffset: { x: 0, y: 0 },
+                    uvScale: { x: 1, y: 1 },
+                    layer: 10,
+                    flipX: false,
+                    flipY: false
+                })
+                .insert(LocalTransform, {
+                    position: { x: 0, y: 150, z: 0 },
+                    rotation: { w: 1, x: 0, y: 0, z: 0 },
+                    scale: { x: 1, y: 1, z: 1 }
+                })
+                .id();
+
+            console.log(`Created camera: ${camera}, sprite: ${sprite}, text: ${textEntity}`);
         }
     ));
 
-    // Add update system - runs every frame
-    // Use Mut() to mark components that will be modified (auto-commits on iteration end)
     app.addSystemToSchedule(Schedule.Update, defineSystem(
-        [Res(Time), Query(Mut(LocalTransform), Sprite)],
+        [Res(Time), Query(Animated, Mut(LocalTransform))],
         (time, query) => {
-            for (const [entity, transform, sprite] of query) {
-                // Move the sprite in a circle
-                // Set the whole position object (nested properties are copies)
+            for (const [entity, _, transform] of query) {
                 transform.position = {
                     x: Math.sin(time.elapsed) * 100,
                     y: Math.cos(time.elapsed) * 100,

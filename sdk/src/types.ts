@@ -10,6 +10,9 @@
 export type Entity = number;
 export const INVALID_ENTITY = 0 as Entity;
 
+export type TextureHandle = number;
+export const INVALID_TEXTURE = 0xFFFFFFFF as TextureHandle;
+
 // =============================================================================
 // Math Types
 // =============================================================================
