@@ -14,6 +14,7 @@ import { registerBuiltinEditors } from './property/editors';
 import { registerBuiltinSchemas } from './schemas/ComponentSchemas';
 import { saveSceneToFile, loadSceneFromFile, loadSceneFromPath } from './io/SceneSerializer';
 import { icons } from './utils/icons';
+import { ScriptLoader } from './scripting';
 
 // =============================================================================
 // Types
@@ -38,6 +39,7 @@ export class Editor {
     private inspectorPanel_: InspectorPanel | null = null;
     private sceneViewPanel_: SceneViewPanel | null = null;
     private contentBrowserPanel_: ContentBrowserPanel | null = null;
+    private scriptLoader_: ScriptLoader | null = null;
     private assetsPanelVisible_: boolean = true;
     private outputPanelVisible_: boolean = false;
 
@@ -51,6 +53,10 @@ export class Editor {
 
         this.setupLayout();
         this.setupKeyboardShortcuts();
+
+        if (this.projectPath_) {
+            this.initializeScripts();
+        }
     }
 
     get projectPath(): string | null {
@@ -96,6 +102,42 @@ export class Editor {
             this.store_.loadScene(scene);
             console.log('Scene loaded:', scenePath);
         }
+    }
+
+    // =========================================================================
+    // Script Operations
+    // =========================================================================
+
+    private async initializeScripts(): Promise<void> {
+        if (!this.projectPath_) return;
+
+        this.scriptLoader_ = new ScriptLoader({
+            projectPath: this.projectPath_,
+            onCompileError: (errors) => {
+                console.error('Script compilation errors:', errors);
+            },
+            onCompileSuccess: () => {
+                console.log('Scripts compiled successfully');
+            },
+        });
+
+        try {
+            await this.scriptLoader_.initialize();
+            await this.scriptLoader_.compileAndExecute();
+        } catch (err) {
+            console.error('Failed to initialize scripts:', err);
+        }
+    }
+
+    async reloadScripts(): Promise<boolean> {
+        if (!this.scriptLoader_) {
+            if (this.projectPath_) {
+                await this.initializeScripts();
+                return true;
+            }
+            return false;
+        }
+        return this.scriptLoader_.reload();
     }
 
     // =========================================================================

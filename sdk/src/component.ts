@@ -19,7 +19,7 @@ export interface ComponentDef<T> {
 
 let componentCounter = 0;
 
-export function defineComponent<T extends object>(
+function createComponentDef<T extends object>(
     name: string,
     defaults: T
 ): ComponentDef<T> {
@@ -28,15 +28,36 @@ export function defineComponent<T extends object>(
         _id: Symbol(`Component_${id}_${name}`),
         _name: name,
         _default: defaults,
-        _builtin: false,
+        _builtin: false as const,
         create(data?: Partial<T>): T {
             return { ...defaults, ...data };
         }
     };
 }
 
+export function defineComponent<T extends object>(
+    name: string,
+    defaults: T
+): ComponentDef<T> {
+    const def = createComponentDef(name, defaults);
+    registerToEditor(name, defaults as Record<string, unknown>, false);
+    return def;
+}
+
 export function defineTag(name: string): ComponentDef<{}> {
-    return defineComponent(name, {});
+    const def = createComponentDef(name, {});
+    registerToEditor(name, {}, true);
+    return def;
+}
+
+function registerToEditor(
+    name: string,
+    defaults: Record<string, unknown>,
+    isTag: boolean
+): void {
+    if (typeof window !== 'undefined' && (window as any).__esengine_registerComponent) {
+        (window as any).__esengine_registerComponent(name, defaults, isTag);
+    }
 }
 
 // =============================================================================

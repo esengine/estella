@@ -9,9 +9,41 @@ import type { PropertyMeta } from '../property/PropertyEditor';
 // Types
 // =============================================================================
 
+export type ComponentCategory = 'builtin' | 'script' | 'tag';
+
 export interface ComponentSchema {
     name: string;
+    category: ComponentCategory;
     properties: PropertyMeta[];
+}
+
+// =============================================================================
+// Type Inference
+// =============================================================================
+
+function isVec2(v: unknown): boolean {
+    return typeof v === 'object' && v !== null &&
+           'x' in v && 'y' in v && !('z' in v);
+}
+
+function isVec3(v: unknown): boolean {
+    return typeof v === 'object' && v !== null &&
+           'x' in v && 'y' in v && 'z' in v && !('w' in v);
+}
+
+function isVec4OrColor(v: unknown): boolean {
+    return typeof v === 'object' && v !== null &&
+           'x' in v && 'y' in v && 'z' in v && 'w' in v;
+}
+
+function inferPropertyType(value: unknown): string {
+    if (typeof value === 'number') return 'number';
+    if (typeof value === 'string') return 'string';
+    if (typeof value === 'boolean') return 'boolean';
+    if (isVec2(value)) return 'vec2';
+    if (isVec3(value)) return 'vec3';
+    if (isVec4OrColor(value)) return 'vec4';
+    return 'string';
 }
 
 // =============================================================================
@@ -20,6 +52,7 @@ export interface ComponentSchema {
 
 export const LocalTransformSchema: ComponentSchema = {
     name: 'LocalTransform',
+    category: 'builtin',
     properties: [
         { name: 'position', type: 'vec3' },
         { name: 'rotation', type: 'euler' },
@@ -29,6 +62,7 @@ export const LocalTransformSchema: ComponentSchema = {
 
 export const SpriteSchema: ComponentSchema = {
     name: 'Sprite',
+    category: 'builtin',
     properties: [
         { name: 'texture', type: 'number' },
         { name: 'color', type: 'color' },
@@ -43,6 +77,7 @@ export const SpriteSchema: ComponentSchema = {
 
 export const CameraSchema: ComponentSchema = {
     name: 'Camera',
+    category: 'builtin',
     properties: [
         { name: 'isActive', type: 'boolean' },
         {
@@ -62,6 +97,7 @@ export const CameraSchema: ComponentSchema = {
 
 export const TextSchema: ComponentSchema = {
     name: 'Text',
+    category: 'builtin',
     properties: [
         { name: 'content', type: 'string' },
         { name: 'fontSize', type: 'number', min: 8, max: 200 },
@@ -106,9 +142,65 @@ export function getAllComponentSchemas(): ComponentSchema[] {
     return Array.from(schemaRegistry.values());
 }
 
+export interface ComponentsByCategory {
+    builtin: ComponentSchema[];
+    script: ComponentSchema[];
+    tag: ComponentSchema[];
+}
+
+export function getComponentsByCategory(): ComponentsByCategory {
+    const result: ComponentsByCategory = { builtin: [], script: [], tag: [] };
+    for (const schema of schemaRegistry.values()) {
+        result[schema.category].push(schema);
+    }
+    result.builtin.sort((a, b) => a.name.localeCompare(b.name));
+    result.script.sort((a, b) => a.name.localeCompare(b.name));
+    result.tag.sort((a, b) => a.name.localeCompare(b.name));
+    return result;
+}
+
+export function clearScriptComponents(): void {
+    for (const [name, schema] of schemaRegistry.entries()) {
+        if (schema.category === 'script' || schema.category === 'tag') {
+            schemaRegistry.delete(name);
+        }
+    }
+}
+
+// =============================================================================
+// User Component Registration
+// =============================================================================
+
+function registerUserComponent(
+    name: string,
+    defaults: Record<string, unknown>,
+    isTag: boolean
+): void {
+    const schema: ComponentSchema = {
+        name,
+        category: isTag ? 'tag' : 'script',
+        properties: isTag ? [] : Object.entries(defaults).map(([key, value]) => ({
+            name: key,
+            type: inferPropertyType(value),
+        })),
+    };
+    schemaRegistry.set(name, schema);
+}
+
+function exposeRegistrationAPI(): void {
+    if (typeof window !== 'undefined') {
+        (window as any).__esengine_registerComponent = registerUserComponent;
+    }
+}
+
+// =============================================================================
+// Initialization
+// =============================================================================
+
 export function registerBuiltinSchemas(): void {
     registerComponentSchema(LocalTransformSchema);
     registerComponentSchema(SpriteSchema);
     registerComponentSchema(CameraSchema);
     registerComponentSchema(TextSchema);
+    exposeRegistrationAPI();
 }

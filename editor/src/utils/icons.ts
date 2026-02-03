@@ -40,6 +40,8 @@ import {
     Volume2,
     Braces,
     MousePointer2,
+    Tag,
+    Cog,
 } from 'lucide';
 
 // =============================================================================
@@ -110,6 +112,8 @@ export const icons = {
     pointer: (size?: number) => renderIcon(MousePointer2 as IconNode, size),
     rotateCw: (size?: number) => renderIcon(RotateCw as IconNode, size),
     maximize: (size?: number) => renderIcon(Maximize as IconNode, size),
+    tag: (size?: number) => renderIcon(Tag as IconNode, size),
+    cog: (size?: number) => renderIcon(Cog as IconNode, size),
 };
 
 export type IconName = keyof typeof icons;

@@ -10,8 +10,9 @@ import {
     createPropertyEditor,
     type PropertyEditorInstance,
 } from '../property/PropertyEditor';
-import { getComponentSchema, getAllComponentSchemas } from '../schemas/ComponentSchemas';
+import { getComponentSchema } from '../schemas/ComponentSchemas';
 import { icons } from '../utils/icons';
+import { showAddComponentPopup } from './AddComponentPopup';
 
 // =============================================================================
 // Types
@@ -442,49 +443,16 @@ export class InspectorPanel {
     }
 
     private showAddComponentMenu(
-        anchor: HTMLElement,
+        _anchor: HTMLElement,
         entity: Entity,
         existingComponents: ComponentData[]
     ): void {
-        const existingTypes = new Set(existingComponents.map(c => c.type));
-        const availableSchemas = getAllComponentSchemas().filter(
-            s => !existingTypes.has(s.name)
-        );
+        const existingTypes = existingComponents.map(c => c.type);
 
-        if (availableSchemas.length === 0) return;
-
-        const existingMenu = document.querySelector('.es-context-menu');
-        existingMenu?.remove();
-
-        const rect = anchor.getBoundingClientRect();
-        const menu = document.createElement('div');
-        menu.className = 'es-context-menu';
-        menu.style.left = `${rect.left}px`;
-        menu.style.top = `${rect.bottom}px`;
-
-        availableSchemas.forEach(schema => {
-            const item = document.createElement('div');
-            item.className = 'es-context-menu-item';
-            item.textContent = schema.name;
-
-            item.addEventListener('click', () => {
-                const defaultData = this.createDefaultComponentData(schema.name);
-                this.store_.addComponent(entity, schema.name, defaultData);
-                menu.remove();
-            });
-
-            menu.appendChild(item);
+        showAddComponentPopup(existingTypes, (componentName: string) => {
+            const defaultData = this.createDefaultComponentData(componentName);
+            this.store_.addComponent(entity, componentName, defaultData);
         });
-
-        document.body.appendChild(menu);
-
-        const closeMenu = (e: MouseEvent) => {
-            if (!menu.contains(e.target as Node)) {
-                menu.remove();
-                document.removeEventListener('click', closeMenu);
-            }
-        };
-        setTimeout(() => document.addEventListener('click', closeMenu), 0);
     }
 
     private createDefaultComponentData(type: string): Record<string, unknown> {
@@ -609,7 +577,7 @@ export class InspectorPanel {
 
             const ext = getFileExtension(path);
             const mimeType = getMimeType(ext);
-            const blob = new Blob([data], { type: mimeType });
+            const blob = new Blob([new Uint8Array(data).buffer], { type: mimeType });
             const url = URL.createObjectURL(blob);
             this.currentImageUrl_ = url;
 

@@ -1766,3 +1766,186 @@ svg {
     background: #e5c07b;
     border-color: #e5c07b;
 }
+
+/* =============================================================================
+ * Add Component Popup
+ * ============================================================================= */
+
+.es-popup-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+}
+
+.es-popup-container {
+    max-width: 400px;
+    width: 90%;
+    max-height: 80vh;
+}
+
+.es-add-component-popup {
+    background: var(--es-bg-secondary);
+    border: 1px solid var(--es-border);
+    border-radius: 6px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    max-height: 80vh;
+}
+
+.es-add-component-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--es-border);
+    background: var(--es-bg-tertiary);
+}
+
+.es-add-component-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--es-text-primary);
+}
+
+.es-add-component-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+}
+
+.es-add-component-close:hover {
+    background: var(--es-bg-hover);
+}
+
+.es-add-component-close svg {
+    stroke: var(--es-text-secondary);
+}
+
+.es-add-component-close:hover svg {
+    stroke: var(--es-text-primary);
+}
+
+.es-add-component-search {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--es-border);
+    gap: 8px;
+}
+
+.es-search-icon svg {
+    stroke: var(--es-text-secondary);
+}
+
+.es-add-component-search .es-search-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--es-text-primary);
+    font-size: 13px;
+    outline: none;
+}
+
+.es-add-component-search .es-search-input::placeholder {
+    color: var(--es-text-secondary);
+}
+
+.es-add-component-list {
+    overflow-y: auto;
+    max-height: 400px;
+    padding: 8px 0;
+}
+
+.es-component-category {
+    margin-bottom: 4px;
+}
+
+.es-category-header {
+    display: flex;
+    align-items: center;
+    padding: 6px 12px;
+    cursor: pointer;
+    user-select: none;
+    gap: 6px;
+}
+
+.es-category-header:hover {
+    background: var(--es-bg-hover);
+}
+
+.es-category-chevron svg {
+    stroke: var(--es-text-secondary);
+}
+
+.es-category-label {
+    flex: 1;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--es-text-secondary);
+}
+
+.es-category-count {
+    font-size: 11px;
+    color: var(--es-text-secondary);
+    background: var(--es-bg-tertiary);
+    padding: 1px 6px;
+    border-radius: 10px;
+}
+
+.es-category-items {
+    padding-left: 12px;
+}
+
+.es-category-items.es-hidden {
+    display: none;
+}
+
+.es-component-item {
+    display: flex;
+    align-items: center;
+    padding: 6px 12px;
+    cursor: pointer;
+    gap: 8px;
+    border-radius: 4px;
+    margin: 2px 8px;
+}
+
+.es-component-item:hover {
+    background: var(--es-bg-hover);
+}
+
+.es-component-icon svg {
+    stroke: var(--es-text-secondary);
+}
+
+.es-component-item:hover .es-component-icon svg {
+    stroke: var(--es-accent);
+}
+
+.es-component-name {
+    font-size: 13px;
+    color: var(--es-text-primary);
+}
+
+.es-no-components {
+    padding: 24px;
+    text-align: center;
+    color: var(--es-text-secondary);
+    font-size: 13px;
+}

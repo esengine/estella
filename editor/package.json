@@ -21,6 +21,7 @@
     "clean": "rimraf dist"
   },
   "dependencies": {
+    "esbuild-wasm": "^0.27.2",
     "esengine": "workspace:*",
     "lucide": "^0.563.0"
   },
