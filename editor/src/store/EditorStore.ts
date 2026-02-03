@@ -210,6 +210,23 @@ export class EditorStore {
         return entityData.components.find(c => c.type === type) ?? null;
     }
 
+    updatePropertyDirect(
+        entity: Entity,
+        componentType: string,
+        propertyName: string,
+        newValue: unknown
+    ): void {
+        const entityData = this.state_.scene.entities.find(e => e.id === entity);
+        if (!entityData) return;
+
+        const component = entityData.components.find(c => c.type === componentType);
+        if (!component) return;
+
+        component.data[propertyName] = newValue;
+        this.state_.isDirty = true;
+        this.notify();
+    }
+
     // =========================================================================
     // Undo/Redo
     // =========================================================================

@@ -22,7 +22,7 @@ export const LocalTransformSchema: ComponentSchema = {
     name: 'LocalTransform',
     properties: [
         { name: 'position', type: 'vec3' },
-        { name: 'rotation', type: 'vec4' },
+        { name: 'rotation', type: 'euler' },
         { name: 'scale', type: 'vec3' },
     ],
 };

@@ -564,6 +564,43 @@ svg {
     display: block;
 }
 
+.es-gizmo-toolbar {
+    display: flex;
+    gap: 2px;
+    background: var(--es-bg-tertiary);
+    border-radius: 4px;
+    padding: 2px;
+}
+
+.es-gizmo-btn {
+    background: transparent;
+    border: none;
+    border-radius: 3px;
+    padding: 4px;
+    opacity: 0.6;
+}
+
+.es-gizmo-btn:hover {
+    background: var(--es-bg-hover);
+    opacity: 1;
+}
+
+.es-gizmo-btn.es-active {
+    background: var(--es-accent);
+    opacity: 1;
+}
+
+.es-gizmo-btn.es-active svg {
+    stroke: white;
+}
+
+.es-toolbar-divider {
+    width: 1px;
+    height: 20px;
+    background: var(--es-border);
+    margin: 0 4px;
+}
+
 /* =============================================================================
  * Common Elements
  * ============================================================================= */

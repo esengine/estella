@@ -13,6 +13,12 @@ import {
 import { getComponentSchema, getAllComponentSchemas } from '../schemas/ComponentSchemas';
 import { icons } from '../utils/icons';
 
+interface EditorInfo {
+    editor: PropertyEditorInstance;
+    componentType: string;
+    propertyName: string;
+}
+
 // =============================================================================
 // InspectorPanel
 // =============================================================================
@@ -22,7 +28,7 @@ export class InspectorPanel {
     private store_: EditorStore;
     private contentContainer_: HTMLElement;
     private unsubscribe_: (() => void) | null = null;
-    private editors_: PropertyEditorInstance[] = [];
+    private editors_: EditorInfo[] = [];
     private currentEntity_: Entity | null = null;
     private currentComponentCount_: number = 0;
 
@@ -241,7 +247,11 @@ export class InspectorPanel {
                 });
 
                 if (editor) {
-                    this.editors_.push(editor);
+                    this.editors_.push({
+                        editor,
+                        componentType: component.type,
+                        propertyName: propMeta.name,
+                    });
                 }
 
                 row.appendChild(label);
@@ -359,12 +369,21 @@ export class InspectorPanel {
     }
 
     private updateEditors(): void {
-        // TODO: Update existing editors with new values
+        const entityData = this.store_.getSelectedEntityData();
+        if (!entityData) return;
+
+        for (const info of this.editors_) {
+            const component = entityData.components.find(c => c.type === info.componentType);
+            if (component) {
+                const value = component.data[info.propertyName];
+                info.editor.update(value);
+            }
+        }
     }
 
     private disposeEditors(): void {
-        for (const editor of this.editors_) {
-            editor.dispose();
+        for (const info of this.editors_) {
+            info.editor.dispose();
         }
         this.editors_ = [];
     }

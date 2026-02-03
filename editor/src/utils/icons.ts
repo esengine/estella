@@ -38,6 +38,7 @@ import {
     Code,
     Volume2,
     Braces,
+    MousePointer2,
 } from 'lucide';
 
 // =============================================================================
@@ -104,6 +105,9 @@ export const icons = {
     code: (size?: number) => renderIcon(Code as IconNode, size),
     volume: (size?: number) => renderIcon(Volume2 as IconNode, size),
     braces: (size?: number) => renderIcon(Braces as IconNode, size),
+    pointer: (size?: number) => renderIcon(MousePointer2 as IconNode, size),
+    rotateCw: (size?: number) => renderIcon(RotateCw as IconNode, size),
+    maximize: (size?: number) => renderIcon(Maximize as IconNode, size),
 };
 
 export type IconName = keyof typeof icons;
