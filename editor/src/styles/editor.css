@@ -1215,3 +1215,400 @@ svg {
 .es-btn-tab.es-active svg {
     stroke: #d19a66;
 }
+
+/* =============================================================================
+ * Project Launcher
+ * ============================================================================= */
+
+.es-launcher {
+    width: 100%;
+    height: 100%;
+    background: var(--es-bg-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.es-launcher-content {
+    width: 100%;
+    max-width: 600px;
+    padding: 40px;
+}
+
+.es-launcher-header {
+    text-align: center;
+    margin-bottom: 40px;
+}
+
+.es-launcher-logo {
+    display: inline-flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.es-launcher-logo-icon {
+    width: 64px;
+    height: 64px;
+    background: linear-gradient(135deg, #d19a66, #e5c07b);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    font-weight: bold;
+    color: #1e1e1e;
+}
+
+.es-launcher-logo-text {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.es-launcher-title {
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--es-text-primary);
+}
+
+.es-launcher-subtitle {
+    font-size: 16px;
+    color: var(--es-text-secondary);
+}
+
+.es-launcher-actions {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 32px;
+}
+
+.es-launcher-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 16px 24px;
+    background: var(--es-bg-secondary);
+    border: 1px solid var(--es-border);
+    color: var(--es-text-primary);
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.es-launcher-btn:hover {
+    background: var(--es-bg-hover);
+    border-color: var(--es-text-secondary);
+}
+
+.es-launcher-btn-primary {
+    background: #d19a66;
+    border-color: #d19a66;
+    color: #1e1e1e;
+    font-weight: 500;
+}
+
+.es-launcher-btn-primary:hover {
+    background: #e5c07b;
+    border-color: #e5c07b;
+}
+
+.es-launcher-btn-icon {
+    font-size: 18px;
+}
+
+.es-launcher-recent {
+    background: var(--es-bg-secondary);
+    border: 1px solid var(--es-border);
+}
+
+.es-launcher-recent-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--es-border);
+    color: var(--es-text-secondary);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.es-launcher-recent-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.es-launcher-recent-empty {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--es-text-secondary);
+}
+
+.es-launcher-recent-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.es-launcher-recent-item:hover {
+    background: var(--es-bg-hover);
+}
+
+.es-launcher-recent-icon {
+    font-size: 20px;
+    flex-shrink: 0;
+}
+
+.es-launcher-recent-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.es-launcher-recent-name {
+    color: var(--es-text-primary);
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.es-launcher-recent-path {
+    color: var(--es-text-secondary);
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.es-launcher-recent-time {
+    color: var(--es-text-secondary);
+    font-size: 12px;
+    flex-shrink: 0;
+}
+
+.es-launcher-recent-remove {
+    width: 24px;
+    height: 24px;
+    background: transparent;
+    border: none;
+    color: var(--es-text-secondary);
+    font-size: 16px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+
+.es-launcher-recent-item:hover .es-launcher-recent-remove {
+    opacity: 1;
+}
+
+.es-launcher-recent-remove:hover {
+    color: var(--es-danger);
+}
+
+.es-launcher-footer {
+    margin-top: 24px;
+    text-align: center;
+    color: var(--es-text-secondary);
+    font-size: 12px;
+}
+
+/* =============================================================================
+ * Dialog Overlay
+ * ============================================================================= */
+
+.es-dialog-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.es-dialog {
+    width: 100%;
+    max-width: 480px;
+    background: var(--es-bg-secondary);
+    border: 1px solid var(--es-border);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.es-dialog-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--es-border);
+}
+
+.es-dialog-title {
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--es-text-primary);
+}
+
+.es-dialog-close {
+    width: 28px;
+    height: 28px;
+    background: transparent;
+    border: none;
+    color: var(--es-text-secondary);
+    font-size: 20px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.es-dialog-close:hover {
+    color: var(--es-text-primary);
+}
+
+.es-dialog-body {
+    padding: 20px;
+}
+
+.es-dialog-field {
+    margin-bottom: 16px;
+}
+
+.es-dialog-field:last-child {
+    margin-bottom: 0;
+}
+
+.es-dialog-label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 13px;
+    color: var(--es-text-secondary);
+}
+
+.es-dialog-input {
+    width: 100%;
+    padding: 8px 12px;
+    background: var(--es-bg-primary);
+    border: 1px solid var(--es-border);
+    color: var(--es-text-primary);
+    font-size: 14px;
+}
+
+.es-dialog-input:focus {
+    outline: none;
+    border-color: var(--es-accent);
+}
+
+.es-dialog-path-row {
+    display: flex;
+    gap: 8px;
+}
+
+.es-dialog-path {
+    flex: 1;
+}
+
+.es-dialog-browse {
+    padding: 8px 16px;
+    background: var(--es-bg-tertiary);
+    border: 1px solid var(--es-border);
+    color: var(--es-text-primary);
+    cursor: pointer;
+}
+
+.es-dialog-browse:hover {
+    background: var(--es-bg-hover);
+}
+
+.es-dialog-templates {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.es-dialog-template {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px;
+    background: var(--es-bg-primary);
+    border: 1px solid var(--es-border);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.es-dialog-template:hover:not(.disabled) {
+    border-color: var(--es-text-secondary);
+}
+
+.es-dialog-template.selected {
+    border-color: #d19a66;
+    background: rgba(209, 154, 102, 0.1);
+}
+
+.es-dialog-template.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.es-dialog-template input {
+    margin-top: 2px;
+}
+
+.es-dialog-template-name {
+    display: block;
+    color: var(--es-text-primary);
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.es-dialog-template-desc {
+    display: block;
+    color: var(--es-text-secondary);
+    font-size: 12px;
+    margin-top: 2px;
+}
+
+.es-dialog-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 16px 20px;
+    border-top: 1px solid var(--es-border);
+}
+
+.es-dialog-btn {
+    padding: 8px 20px;
+    background: var(--es-bg-tertiary);
+    border: 1px solid var(--es-border);
+    color: var(--es-text-primary);
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.es-dialog-btn:hover {
+    background: var(--es-bg-hover);
+}
+
+.es-dialog-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.es-dialog-btn-primary {
+    background: #d19a66;
+    border-color: #d19a66;
+    color: #1e1e1e;
+    font-weight: 500;
+}
+
+.es-dialog-btn-primary:hover:not(:disabled) {
+    background: #e5c07b;
+    border-color: #e5c07b;
+}

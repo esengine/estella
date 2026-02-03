@@ -33,6 +33,11 @@ import {
     File,
     Search,
     Trash2,
+    RefreshCw,
+    Layers,
+    Code,
+    Volume2,
+    Braces,
 } from 'lucide';
 
 // =============================================================================
@@ -94,6 +99,11 @@ export const icons = {
     file: (size?: number) => renderIcon(File as IconNode, size),
     search: (size?: number) => renderIcon(Search as IconNode, size),
     trash: (size?: number) => renderIcon(Trash2 as IconNode, size),
+    refresh: (size?: number) => renderIcon(RefreshCw as IconNode, size),
+    layers: (size?: number) => renderIcon(Layers as IconNode, size),
+    code: (size?: number) => renderIcon(Code as IconNode, size),
+    volume: (size?: number) => renderIcon(Volume2 as IconNode, size),
+    braces: (size?: number) => renderIcon(Braces as IconNode, size),
 };
 
 export type IconName = keyof typeof icons;

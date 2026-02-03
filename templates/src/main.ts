@@ -4,8 +4,8 @@
  * This file is the main entry point for your game logic.
  * Press F5 in the editor to run, or use Web Preview for browser testing.
  */
-import type { ESEngineModule } from 'esengine/wasm';
 import {
+    type ESEngineModule,
     App,
     createWebApp,
     defineSystem,
@@ -18,8 +18,9 @@ import {
     Res,
     Time,
     Query,
+    Mut,
     type Entity
-} from 'esengine/ecs';
+} from 'esengine';
 
 // =============================================================================
 // Main Entry Point

@@ -109,6 +109,38 @@ export {
 } from './io';
 
 // =============================================================================
+// Launcher
+// =============================================================================
+
+export {
+    ProjectLauncher,
+    NewProjectDialog,
+    createProject,
+    openProject,
+    openProjectDialog,
+    selectProjectLocation,
+    getRecentProjects,
+    loadProjectConfig,
+    type ProjectLauncherOptions,
+    type CreateProjectOptions,
+    type ProjectServiceResult,
+} from './launcher';
+
+// =============================================================================
+// Project Types
+// =============================================================================
+
+export {
+    type ProjectConfig,
+    type RecentProject,
+    type ProjectTemplate,
+    PROJECT_TEMPLATES,
+    PROJECT_FILE_EXTENSION,
+    SCENE_FILE_EXTENSION,
+    ENGINE_VERSION,
+} from './types/ProjectTypes';
+
+// =============================================================================
 // Styles
 // =============================================================================
 

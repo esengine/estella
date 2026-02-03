@@ -9,11 +9,19 @@ import { EditorBridge } from './bridge/EditorBridge';
 import { HierarchyPanel } from './panels/HierarchyPanel';
 import { InspectorPanel } from './panels/InspectorPanel';
 import { SceneViewPanel } from './panels/SceneViewPanel';
-import { ContentBrowserPanel } from './panels/ContentBrowserPanel';
+import { ContentBrowserPanel, type ContentBrowserOptions } from './panels/ContentBrowserPanel';
 import { registerBuiltinEditors } from './property/editors';
 import { registerBuiltinSchemas } from './schemas/ComponentSchemas';
 import { saveSceneToFile, loadSceneFromFile } from './io/SceneSerializer';
 import { icons } from './utils/icons';
+
+// =============================================================================
+// Types
+// =============================================================================
+
+export interface EditorOptions {
+    projectPath?: string;
+}
 
 // =============================================================================
 // Editor
@@ -24,6 +32,7 @@ export class Editor {
     private app_: App | null = null;
     private store_: EditorStore;
     private bridge_: EditorBridge | null = null;
+    private projectPath_: string | null = null;
 
     private hierarchyPanel_: HierarchyPanel | null = null;
     private inspectorPanel_: InspectorPanel | null = null;
@@ -32,15 +41,20 @@ export class Editor {
     private assetsPanelVisible_: boolean = true;
     private outputPanelVisible_: boolean = false;
 
-    constructor(container: HTMLElement) {
+    constructor(container: HTMLElement, options?: EditorOptions) {
         this.container_ = container;
         this.store_ = new EditorStore();
+        this.projectPath_ = options?.projectPath ?? null;
 
         registerBuiltinEditors();
         registerBuiltinSchemas();
 
         this.setupLayout();
         this.setupKeyboardShortcuts();
+    }
+
+    get projectPath(): string | null {
+        return this.projectPath_;
     }
 
     setApp(app: App): void {
@@ -166,7 +180,9 @@ export class Editor {
         this.hierarchyPanel_ = new HierarchyPanel(hierarchyContainer, this.store_);
         this.inspectorPanel_ = new InspectorPanel(inspectorContainer, this.store_);
         this.sceneViewPanel_ = new SceneViewPanel(sceneViewContainer, this.store_);
-        this.contentBrowserPanel_ = new ContentBrowserPanel(contentBrowserContainer);
+        this.contentBrowserPanel_ = new ContentBrowserPanel(contentBrowserContainer, {
+            projectPath: this.projectPath_ ?? undefined,
+        });
 
         this.setupToolbarEvents();
         this.setupStatusbarEvents();
@@ -278,21 +294,21 @@ export class Editor {
         const bottomPanel = this.container_.querySelector('.es-editor-bottom') as HTMLElement;
 
         if (this.assetsPanelVisible_) {
-            // Already showing assets, hide it
             this.assetsPanelVisible_ = false;
             assetsBtn?.classList.remove('es-active');
             if (contentBrowser) contentBrowser.style.display = 'none';
-            if (bottomPanel) bottomPanel.style.display = this.outputPanelVisible_ ? 'flex' : 'none';
+            if (bottomPanel) bottomPanel.style.display = this.outputPanelVisible_ ? '' : 'none';
         } else {
-            // Show assets, hide output
             this.assetsPanelVisible_ = true;
             this.outputPanelVisible_ = false;
             assetsBtn?.classList.add('es-active');
             outputBtn?.classList.remove('es-active');
-            if (contentBrowser) contentBrowser.style.display = 'block';
+            if (contentBrowser) contentBrowser.style.display = '';
             if (outputPanel) outputPanel.style.display = 'none';
-            if (bottomPanel) bottomPanel.style.display = 'flex';
+            if (bottomPanel) bottomPanel.style.display = '';
         }
+
+        requestAnimationFrame(() => this.sceneViewPanel_?.resize());
     }
 
     private toggleOutputPanel(): void {
@@ -303,21 +319,21 @@ export class Editor {
         const bottomPanel = this.container_.querySelector('.es-editor-bottom') as HTMLElement;
 
         if (this.outputPanelVisible_) {
-            // Already showing output, hide it
             this.outputPanelVisible_ = false;
             outputBtn?.classList.remove('es-active');
             if (outputPanel) outputPanel.style.display = 'none';
-            if (bottomPanel) bottomPanel.style.display = this.assetsPanelVisible_ ? 'flex' : 'none';
+            if (bottomPanel) bottomPanel.style.display = this.assetsPanelVisible_ ? '' : 'none';
         } else {
-            // Show output, hide assets
             this.outputPanelVisible_ = true;
             this.assetsPanelVisible_ = false;
             outputBtn?.classList.add('es-active');
             assetsBtn?.classList.remove('es-active');
-            if (outputPanel) outputPanel.style.display = 'block';
+            if (outputPanel) outputPanel.style.display = '';
             if (contentBrowser) contentBrowser.style.display = 'none';
-            if (bottomPanel) bottomPanel.style.display = 'flex';
+            if (bottomPanel) bottomPanel.style.display = '';
         }
+
+        requestAnimationFrame(() => this.sceneViewPanel_?.resize());
     }
 
     private updateStatusbar(): void {
@@ -349,6 +365,6 @@ export class Editor {
 // Factory Function
 // =============================================================================
 
-export function createEditor(container: HTMLElement): Editor {
-    return new Editor(container);
+export function createEditor(container: HTMLElement, options?: EditorOptions): Editor {
+    return new Editor(container, options);
 }

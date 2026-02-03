@@ -18,6 +18,7 @@ export class SceneViewPanel {
     private canvas_: HTMLCanvasElement;
     private unsubscribe_: (() => void) | null = null;
     private animationId_: number | null = null;
+    private resizeObserver_: ResizeObserver | null = null;
 
     private panX_ = 0;
     private panY_ = 0;
@@ -59,6 +60,10 @@ export class SceneViewPanel {
         if (this.unsubscribe_) {
             this.unsubscribe_();
             this.unsubscribe_ = null;
+        }
+        if (this.resizeObserver_) {
+            this.resizeObserver_.disconnect();
+            this.resizeObserver_ = null;
         }
     }
 
@@ -103,7 +108,13 @@ export class SceneViewPanel {
         this.canvas_.addEventListener('wheel', this.onWheel.bind(this));
         this.canvas_.addEventListener('click', this.onClick.bind(this));
 
-        window.addEventListener('resize', () => this.resize());
+        const viewport = this.container_.querySelector('.es-sceneview-viewport');
+        if (viewport) {
+            this.resizeObserver_ = new ResizeObserver(() => {
+                this.resize();
+            });
+            this.resizeObserver_.observe(viewport);
+        }
     }
 
     private onMouseDown(e: MouseEvent): void {

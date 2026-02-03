@@ -9,17 +9,113 @@ import { icons } from '../utils/icons';
 // Types
 // =============================================================================
 
+interface DirectoryEntry {
+    name: string;
+    isDirectory: boolean;
+    isFile: boolean;
+}
+
+interface FileChangeEvent {
+    type: 'create' | 'modify' | 'remove' | 'rename' | 'any';
+    paths: string[];
+}
+
+interface NativeFS {
+    listDirectoryDetailed(path: string): Promise<DirectoryEntry[]>;
+    watchDirectory(
+        path: string,
+        callback: (event: FileChangeEvent) => void,
+        options?: { recursive?: boolean }
+    ): Promise<() => void>;
+}
+
 interface FolderNode {
     name: string;
     path: string;
     children: FolderNode[];
     expanded: boolean;
+    loaded: boolean;
 }
 
 interface AssetItem {
     name: string;
     path: string;
-    type: 'folder' | 'file';
+    type: 'folder' | 'scene' | 'script' | 'image' | 'audio' | 'json' | 'file';
+}
+
+export interface ContentBrowserOptions {
+    projectPath?: string;
+}
+
+// =============================================================================
+// Helpers
+// =============================================================================
+
+function getNativeFS(): NativeFS | null {
+    return (window as any).__esengine_fs ?? null;
+}
+
+function joinPath(...parts: string[]): string {
+    return parts.join('/').replace(/\\/g, '/').replace(/\/+/g, '/');
+}
+
+function getParentPath(path: string): string {
+    const normalized = path.replace(/\\/g, '/');
+    const lastSlash = normalized.lastIndexOf('/');
+    return lastSlash > 0 ? normalized.substring(0, lastSlash) : normalized;
+}
+
+function getFileExtension(filename: string): string {
+    const dotIndex = filename.lastIndexOf('.');
+    return dotIndex > 0 ? filename.substring(dotIndex).toLowerCase() : '';
+}
+
+function getAssetType(entry: DirectoryEntry): AssetItem['type'] {
+    if (entry.isDirectory) return 'folder';
+
+    const ext = getFileExtension(entry.name);
+    switch (ext) {
+        case '.esscene':
+            return 'scene';
+        case '.ts':
+        case '.js':
+            return 'script';
+        case '.png':
+        case '.jpg':
+        case '.jpeg':
+        case '.gif':
+        case '.webp':
+        case '.bmp':
+            return 'image';
+        case '.mp3':
+        case '.wav':
+        case '.ogg':
+        case '.flac':
+            return 'audio';
+        case '.json':
+            return 'json';
+        default:
+            return 'file';
+    }
+}
+
+function getAssetIcon(type: AssetItem['type'], size: number = 32): string {
+    switch (type) {
+        case 'folder':
+            return icons.folder(size);
+        case 'scene':
+            return icons.layers(size);
+        case 'script':
+            return icons.code(size);
+        case 'image':
+            return icons.image(size);
+        case 'audio':
+            return icons.volume(size);
+        case 'json':
+            return icons.braces(size);
+        default:
+            return icons.file(size);
+    }
 }
 
 // =============================================================================
@@ -33,22 +129,27 @@ export class ContentBrowserPanel {
     private footerContainer_: HTMLElement | null = null;
     private searchInput_: HTMLInputElement | null = null;
 
-    private rootFolder_: FolderNode;
-    private currentPath_: string = 'assets';
+    private projectPath_: string | null = null;
+    private rootFolder_: FolderNode | null = null;
+    private currentPath_: string = '';
     private searchFilter_: string = '';
+    private unwatchFn_: (() => void) | null = null;
+    private currentItems_: AssetItem[] = [];
 
-    constructor(container: HTMLElement) {
+    constructor(container: HTMLElement, options?: ContentBrowserOptions) {
         this.container_ = container;
+        this.projectPath_ = options?.projectPath ?? null;
 
-        this.rootFolder_ = this.createMockFolderStructure();
+        if (this.projectPath_) {
+            this.currentPath_ = getParentPath(this.projectPath_);
+        }
 
         this.container_.classList.add('es-content-browser');
         this.container_.innerHTML = `
             <div class="es-content-browser-header">
                 <span class="es-content-browser-title">${icons.folder(14)} Content Browser</span>
                 <div class="es-content-browser-actions">
-                    <button class="es-btn es-btn-icon" title="Minimize">${icons.chevronDown(12)}</button>
-                    <button class="es-btn es-btn-icon" title="Close">${icons.x(12)}</button>
+                    <button class="es-btn es-btn-icon es-refresh-btn" title="Refresh">${icons.refresh(12)}</button>
                 </div>
             </div>
             <div class="es-content-browser-body">
@@ -69,27 +170,130 @@ export class ContentBrowserPanel {
         this.searchInput_ = this.container_.querySelector('.es-content-search');
 
         this.setupEvents();
-        this.render();
+        this.initialize();
     }
 
     dispose(): void {
-        // Cleanup
+        if (this.unwatchFn_) {
+            this.unwatchFn_();
+            this.unwatchFn_ = null;
+        }
     }
 
-    private createMockFolderStructure(): FolderNode {
-        return {
-            name: 'assets',
-            path: 'assets',
+    private async initialize(): Promise<void> {
+        if (this.projectPath_) {
+            await this.loadProjectDirectory();
+            await this.setupFileWatcher();
+        } else {
+            this.rootFolder_ = this.createEmptyFolderStructure();
+            this.render();
+        }
+    }
+
+    private async loadProjectDirectory(): Promise<void> {
+        const projectDir = getParentPath(this.projectPath_!);
+        this.currentPath_ = projectDir;
+
+        this.rootFolder_ = {
+            name: this.getProjectName(),
+            path: projectDir,
+            children: [],
             expanded: true,
+            loaded: false,
+        };
+
+        await this.loadFolderChildren(this.rootFolder_);
+        this.render();
+    }
+
+    private getProjectName(): string {
+        if (!this.projectPath_) return 'Project';
+        const normalized = this.projectPath_.replace(/\\/g, '/');
+        const parts = normalized.split('/');
+        return parts[parts.length - 2] || 'Project';
+    }
+
+    private async loadFolderChildren(folder: FolderNode): Promise<void> {
+        const fs = getNativeFS();
+        if (!fs) return;
+
+        try {
+            const entries = await fs.listDirectoryDetailed(folder.path);
+
+            folder.children = entries
+                .filter(e => e.isDirectory && !e.name.startsWith('.'))
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map(e => ({
+                    name: e.name,
+                    path: joinPath(folder.path, e.name),
+                    children: [],
+                    expanded: false,
+                    loaded: false,
+                }));
+
+            folder.loaded = true;
+        } catch (err) {
+            console.error('Failed to load folder:', folder.path, err);
+        }
+    }
+
+    private async setupFileWatcher(): Promise<void> {
+        const fs = getNativeFS();
+        if (!fs || !this.projectPath_) return;
+
+        const projectDir = getParentPath(this.projectPath_);
+
+        try {
+            this.unwatchFn_ = await fs.watchDirectory(
+                projectDir,
+                (event) => {
+                    console.log('File change:', event);
+                    this.refresh();
+                },
+                { recursive: true }
+            );
+        } catch (err) {
+            console.error('Failed to setup file watcher:', err);
+        }
+    }
+
+    async refresh(): Promise<void> {
+        if (this.rootFolder_ && this.projectPath_) {
+            this.rootFolder_.loaded = false;
+            await this.loadFolderChildren(this.rootFolder_);
+
+            const expandedPaths = this.collectExpandedPaths(this.rootFolder_);
+            for (const path of expandedPaths) {
+                const folder = this.findFolder(this.rootFolder_, path);
+                if (folder && !folder.loaded) {
+                    await this.loadFolderChildren(folder);
+                }
+            }
+
+            this.render();
+        }
+    }
+
+    private collectExpandedPaths(node: FolderNode): string[] {
+        const paths: string[] = [];
+        if (node.expanded) {
+            paths.push(node.path);
+            for (const child of node.children) {
+                paths.push(...this.collectExpandedPaths(child));
+            }
+        }
+        return paths;
+    }
+
+    private createEmptyFolderStructure(): FolderNode {
+        return {
+            name: 'Project',
+            path: '',
+            expanded: true,
+            loaded: true,
             children: [
-                { name: '.esengine', path: 'assets/.esengine', expanded: false, children: [] },
-                { name: 'audio', path: 'assets/audio', expanded: false, children: [] },
-                { name: 'fonts', path: 'assets/fonts', expanded: false, children: [] },
-                { name: 'prefabs', path: 'assets/prefabs', expanded: false, children: [] },
-                { name: 'scenes', path: 'assets/scenes', expanded: false, children: [] },
-                { name: 'scripts', path: 'assets/scripts', expanded: false, children: [] },
-                { name: 'shaders', path: 'assets/shaders', expanded: false, children: [] },
-                { name: 'textures', path: 'assets/textures', expanded: false, children: [] },
+                { name: 'assets', path: 'assets', expanded: false, loaded: true, children: [] },
+                { name: 'src', path: 'src', expanded: false, loaded: true, children: [] },
             ],
         };
     }
@@ -100,7 +304,7 @@ export class ContentBrowserPanel {
             this.renderGrid();
         });
 
-        this.treeContainer_?.addEventListener('click', (e) => {
+        this.treeContainer_?.addEventListener('click', async (e) => {
             const target = e.target as HTMLElement;
             const item = target.closest('.es-folder-item') as HTMLElement;
             if (!item) return;
@@ -109,13 +313,13 @@ export class ContentBrowserPanel {
             if (!path) return;
 
             if (target.closest('.es-folder-expand')) {
-                this.toggleFolder(path);
+                await this.toggleFolder(path);
             } else {
                 this.selectFolder(path);
             }
         });
 
-        this.gridContainer_?.addEventListener('dblclick', (e) => {
+        this.gridContainer_?.addEventListener('dblclick', async (e) => {
             const target = e.target as HTMLElement;
             const item = target.closest('.es-asset-item') as HTMLElement;
             if (!item) return;
@@ -125,23 +329,44 @@ export class ContentBrowserPanel {
 
             if (type === 'folder' && path) {
                 this.selectFolder(path);
-                this.expandFolder(path);
+                await this.expandFolder(path);
+            } else if (path) {
+                this.onAssetDoubleClick(path, type as AssetItem['type']);
             }
+        });
+
+        const refreshBtn = this.container_.querySelector('.es-refresh-btn');
+        refreshBtn?.addEventListener('click', () => {
+            this.refresh();
         });
     }
 
-    private toggleFolder(path: string): void {
+    private onAssetDoubleClick(path: string, type: AssetItem['type']): void {
+        console.log('Asset double-clicked:', path, type);
+    }
+
+    private async toggleFolder(path: string): Promise<void> {
         const folder = this.findFolder(this.rootFolder_, path);
         if (folder) {
             folder.expanded = !folder.expanded;
+
+            if (folder.expanded && !folder.loaded) {
+                await this.loadFolderChildren(folder);
+            }
+
             this.renderTree();
         }
     }
 
-    private expandFolder(path: string): void {
+    private async expandFolder(path: string): Promise<void> {
         const folder = this.findFolder(this.rootFolder_, path);
         if (folder) {
             folder.expanded = true;
+
+            if (!folder.loaded) {
+                await this.loadFolderChildren(folder);
+            }
+
             this.renderTree();
         }
     }
@@ -152,7 +377,8 @@ export class ContentBrowserPanel {
         this.renderGrid();
     }
 
-    private findFolder(node: FolderNode, path: string): FolderNode | null {
+    private findFolder(node: FolderNode | null, path: string): FolderNode | null {
+        if (!node) return null;
         if (node.path === path) return node;
         for (const child of node.children) {
             const found = this.findFolder(child, path);
@@ -167,13 +393,13 @@ export class ContentBrowserPanel {
     }
 
     private renderTree(): void {
-        if (!this.treeContainer_) return;
+        if (!this.treeContainer_ || !this.rootFolder_) return;
         this.treeContainer_.innerHTML = this.renderFolderNode(this.rootFolder_, 0);
     }
 
     private renderFolderNode(node: FolderNode, depth: number): string {
         const isSelected = node.path === this.currentPath_;
-        const hasChildren = node.children.length > 0;
+        const hasChildren = node.children.length > 0 || !node.loaded;
         const indent = depth * 16;
 
         let html = `
@@ -186,7 +412,7 @@ export class ContentBrowserPanel {
             </div>
         `;
 
-        if (node.expanded && hasChildren) {
+        if (node.expanded) {
             for (const child of node.children) {
                 html += this.renderFolderNode(child, depth + 1);
             }
@@ -195,29 +421,24 @@ export class ContentBrowserPanel {
         return html;
     }
 
-    private renderGrid(): void {
+    private async renderGrid(): Promise<void> {
         if (!this.gridContainer_) return;
 
-        const currentFolder = this.findFolder(this.rootFolder_, this.currentPath_);
-        if (!currentFolder) return;
+        const items = await this.loadCurrentFolderItems();
+        this.currentItems_ = items;
 
-        let items: AssetItem[] = currentFolder.children.map((child) => ({
-            name: child.name,
-            path: child.path,
-            type: 'folder' as const,
-        }));
-
+        let filteredItems = items;
         if (this.searchFilter_) {
-            items = items.filter((item) =>
+            filteredItems = items.filter((item) =>
                 item.name.toLowerCase().includes(this.searchFilter_)
             );
         }
 
-        this.gridContainer_.innerHTML = items
+        this.gridContainer_.innerHTML = filteredItems
             .map(
                 (item) => `
                 <div class="es-asset-item" data-path="${item.path}" data-type="${item.type}">
-                    <div class="es-asset-icon">${icons.folder(32)}</div>
+                    <div class="es-asset-icon">${getAssetIcon(item.type)}</div>
                     <div class="es-asset-name">${item.name}</div>
                 </div>
             `
@@ -225,7 +446,46 @@ export class ContentBrowserPanel {
             .join('');
 
         if (this.footerContainer_) {
-            this.footerContainer_.textContent = `${items.length} items`;
+            this.footerContainer_.textContent = `${filteredItems.length} items`;
         }
+    }
+
+    private async loadCurrentFolderItems(): Promise<AssetItem[]> {
+        const fs = getNativeFS();
+        if (!fs || !this.currentPath_) {
+            return this.getFallbackItems();
+        }
+
+        try {
+            const entries = await fs.listDirectoryDetailed(this.currentPath_);
+
+            return entries
+                .filter(e => !e.name.startsWith('.'))
+                .sort((a, b) => {
+                    if (a.isDirectory !== b.isDirectory) {
+                        return a.isDirectory ? -1 : 1;
+                    }
+                    return a.name.localeCompare(b.name);
+                })
+                .map(e => ({
+                    name: e.name,
+                    path: joinPath(this.currentPath_, e.name),
+                    type: getAssetType(e),
+                }));
+        } catch (err) {
+            console.error('Failed to load folder items:', err);
+            return this.getFallbackItems();
+        }
+    }
+
+    private getFallbackItems(): AssetItem[] {
+        const currentFolder = this.findFolder(this.rootFolder_, this.currentPath_);
+        if (!currentFolder) return [];
+
+        return currentFolder.children.map((child) => ({
+            name: child.name,
+            path: child.path,
+            type: 'folder' as const,
+        }));
     }
 }
