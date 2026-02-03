@@ -4,7 +4,7 @@
  */
 
 import { AnyComponentDef } from './component';
-import { QueryDescriptor, QueryInstance } from './query';
+import { QueryDescriptor, QueryInstance, MutWrapper } from './query';
 import { ResDescriptor, ResMutDescriptor, ResMutInstance, ResourceStorage } from './resource';
 import { CommandsDescriptor, CommandsInstance } from './commands';
 import type { World } from './world';
@@ -29,8 +29,10 @@ export enum Schedule {
 // System Parameter Types
 // =============================================================================
 
+type QueryArg = AnyComponentDef | MutWrapper<AnyComponentDef>;
+
 export type SystemParam =
-    | QueryDescriptor<readonly AnyComponentDef[]>
+    | QueryDescriptor<readonly QueryArg[]>
     | ResDescriptor<unknown>
     | ResMutDescriptor<unknown>
     | CommandsDescriptor;

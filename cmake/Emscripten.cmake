@@ -166,6 +166,7 @@ set(ES_EMSCRIPTEN_SDK_LINK_FLAGS
 )
 
 # Single-file SDK link flags (WASM inlined as Base64, for playable ads)
+# Uses IIFE pattern instead of ES6 modules for maximum compatibility
 set(ES_EMSCRIPTEN_SINGLE_FILE_FLAGS
     --bind
     -sWASM=1
@@ -174,11 +175,12 @@ set(ES_EMSCRIPTEN_SINGLE_FILE_FLAGS
     -sFULL_ES3=1
     -sALLOW_MEMORY_GROWTH=1
     -sNO_EXIT_RUNTIME=1
+    -sENVIRONMENT=web
     -sMODULARIZE=1
     "-sEXPORT_NAME='ESEngineModule'"
     "-sEXPORTED_FUNCTIONS=['_malloc','_free']"
     "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32']"
-    -O3
+    -Oz
     -flto
     --closure=1
 )

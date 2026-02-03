@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "build": "npx esbuild src/main.ts --bundle --format=esm --outfile=build/scripts/main.js --sourcemap",
-    "dev": "npx esbuild src/main.ts --bundle --format=esm --outfile=build/scripts/main.js --sourcemap --watch"
+    "dev": "npx esbuild src/main.ts --bundle --format=esm --outfile=build/scripts/main.js --sourcemap --watch",
+    "build:playable": "npx esbuild src/main.ts --bundle --format=iife --global-name=Game --outfile=build/playable/game.js --minify"
   },
   "dependencies": {
     "esengine": "file:../.."

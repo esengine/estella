@@ -4,9 +4,6 @@ import dts from 'rollup-plugin-dts';
 const modules = {
     'index': 'src/index.ts',
     'wasm': 'src/wasm.ts',
-    // TODO: Fix imports in scene and assets modules
-    // 'scene/index': 'src/scene/index.ts',
-    // 'assets/index': 'src/assets/index.ts',
 };
 
 const esmBuilds = Object.entries(modules).map(([name, input]) => ({
@@ -36,4 +33,24 @@ const dtsBuilds = Object.entries(modules).map(([name, input]) => ({
     plugins: [dts()],
 }));
 
-export default [...esmBuilds, ...dtsBuilds];
+// IIFE build for playable ads (no ES6 modules, single global)
+const iifeBuild = {
+    input: 'src/index.ts',
+    output: {
+        file: 'dist/esengine.iife.js',
+        format: 'iife',
+        name: 'ES',
+        sourcemap: false,
+    },
+    plugins: [
+        typescript({
+            tsconfig: './tsconfig.json',
+            declaration: false,
+        }),
+    ],
+    treeshake: {
+        moduleSideEffects: false,
+    },
+};
+
+export default [...esmBuilds, ...dtsBuilds, iifeBuild];

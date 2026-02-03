@@ -1,9 +1,13 @@
 // STB Image implementation file
-// This file compiles stb_image as a separate translation unit
+// PNG, JPEG, BMP support via stb_image
+// WebP uses browser's native decoding API
 
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_PNG
 #define STBI_ONLY_JPEG
 #define STBI_ONLY_BMP
+#define STBI_NO_STDIO
+#define STBI_NO_LINEAR
+#define STBI_NO_HDR
 
 #include <stb_image.h>

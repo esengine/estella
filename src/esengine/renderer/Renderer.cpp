@@ -328,9 +328,11 @@ void BatchRenderer2D::init() {
     auto ibo = IndexBuffer::create(indices.data(), MAX_INDICES);
     data_->vao->setIndexBuffer(Shared<IndexBuffer>(std::move(ibo)));
 
+#ifndef ES_PLATFORM_WEB
     data_->shader_handle = resource_manager_.loadEngineShader("batch");
+#endif
     if (!data_->shader_handle.isValid()) {
-        ES_LOG_INFO("Using embedded batch shader for Web platform");
+        ES_LOG_INFO("Using embedded batch shader");
         data_->shader_handle = resource_manager_.createShader(
             ShaderSources::BATCH_VERTEX,
             ShaderSources::BATCH_FRAGMENT

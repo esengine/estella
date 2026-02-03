@@ -125,6 +125,7 @@ public:
      */
     ShaderHandle loadShader(const std::string& vertPath, const std::string& fragPath);
 
+#ifndef ES_PLATFORM_WEB
     /**
      * @brief Loads a shader from .esshader file (with caching)
      * @param path Path to the .esshader file (relative to project)
@@ -140,6 +141,7 @@ public:
      * @return Handle to the shader, or invalid handle on failure
      */
     ShaderHandle loadEngineShader(const std::string& name, const std::string& platform = "");
+#endif
 
     /**
      * @brief Gets a shader by handle

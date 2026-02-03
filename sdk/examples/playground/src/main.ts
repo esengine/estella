@@ -18,6 +18,7 @@ import {
     Res,
     Time,
     Query,
+    Mut,
     type Entity
 } from 'esengine';
 
@@ -80,13 +81,18 @@ export async function main(Module: ESEngineModule): Promise<void> {
     ));
 
     // Add update system - runs every frame
+    // Use Mut() to mark components that will be modified (auto-commits on iteration end)
     app.addSystemToSchedule(Schedule.Update, defineSystem(
-        [Res(Time), Query(LocalTransform, Sprite)],
+        [Res(Time), Query(Mut(LocalTransform), Sprite)],
         (time, query) => {
             for (const [entity, transform, sprite] of query) {
                 // Move the sprite in a circle
-                transform.position.x = Math.sin(time.elapsed) * 100;
-                transform.position.y = Math.cos(time.elapsed) * 100;
+                // Set the whole position object (nested properties are copies)
+                transform.position = {
+                    x: Math.sin(time.elapsed) * 100,
+                    y: Math.cos(time.elapsed) * 100,
+                    z: 0
+                };
             }
         }
     ));

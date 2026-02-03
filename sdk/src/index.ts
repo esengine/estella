@@ -76,9 +76,11 @@ export {
 
 export {
     Query,
+    Mut,
     QueryInstance,
     type QueryDescriptor,
     type QueryResult,
+    type MutWrapper,
 } from './query';
 
 // =============================================================================

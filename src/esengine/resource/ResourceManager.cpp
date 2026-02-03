@@ -10,7 +10,9 @@
  */
 
 #include "ResourceManager.hpp"
+#ifndef ES_PLATFORM_WEB
 #include "loaders/ShaderLoader.hpp"
+#endif
 #include "../core/Log.hpp"
 #include "../platform/PathResolver.hpp"
 #include "../renderer/Shader.hpp"
@@ -84,6 +86,7 @@ ShaderHandle ResourceManager::loadShader(const std::string& vertPath, const std:
     return shaders_.add(std::move(shader), cacheKey);
 }
 
+#ifndef ES_PLATFORM_WEB
 ShaderHandle ResourceManager::loadShaderFile(const std::string& path, const std::string& platform) {
     auto cached = shaders_.findByPath(path);
     if (cached.isValid()) {
@@ -125,6 +128,7 @@ ShaderHandle ResourceManager::loadEngineShader(const std::string& name, const st
     stats_.cacheMisses++;
     return shaders_.add(std::move(result.resource), cacheKey);
 }
+#endif
 
 Shader* ResourceManager::getShader(ShaderHandle handle) {
     return shaders_.get(handle);
