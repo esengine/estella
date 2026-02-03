@@ -74,6 +74,10 @@ void initRenderer() {
     g_renderPipeline = makeUnique<RenderPipeline>(*g_renderContext, *g_resourceManager);
 
     g_initialized = true;
+
+    // Initial clear to prevent black flash before first render
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
 void shutdownRenderer() {
@@ -128,7 +132,7 @@ void renderFrame(ecs::Registry& registry, i32 viewportWidth, i32 viewportHeight)
     if (!g_initialized || !g_renderContext) return;
 
     glViewport(0, 0, viewportWidth, viewportHeight);
-    glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     glm::mat4 viewProjection = glm::mat4(1.0f);

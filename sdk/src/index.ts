@@ -151,3 +151,16 @@ export {
     type TextData,
     type TextRenderResult,
 } from './ui';
+
+// =============================================================================
+// Asset
+// =============================================================================
+
+export {
+    AssetServer,
+    Assets,
+    AssetPlugin,
+    assetPlugin,
+    type TextureInfo,
+    type AssetsData,
+} from './asset';

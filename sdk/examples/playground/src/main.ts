@@ -24,6 +24,8 @@ import {
     Text,
     TextAlign,
     textPlugin,
+    assetPlugin,
+    Assets,
     INVALID_TEXTURE
 } from 'esengine';
 
@@ -39,8 +41,14 @@ export async function main(Module: ESEngineModule): Promise<void> {
     // Create the app with WASM module (handles renderer init + render loop)
     const app = createWebApp(Module);
 
-    // Add the text plugin for automatic Text -> Sprite texture sync
+    // Add plugins
     app.addPlugin(textPlugin);
+    app.addPlugin(assetPlugin);
+
+    // Get asset server and load texture
+    const assets = app.getResource(Assets).server;
+    const testIcon = await assets.loadTexture('assets/beer.png');
+    console.log(`Loaded texture: ${testIcon.width}x${testIcon.height}, handle=${testIcon.handle}`);
 
     // Add startup system - runs once at beginning
     app.addSystemToSchedule(Schedule.Startup, defineSystem(
@@ -67,13 +75,13 @@ export async function main(Module: ESEngineModule): Promise<void> {
                 })
                 .id();
 
-            // Create a test sprite
+            // Create a sprite with loaded texture
             const sprite = cmds.spawn()
                 .insert(Animated)
                 .insert(Sprite, {
-                    texture: INVALID_TEXTURE,
-                    color: { x: 1, y: 0.5, z: 0.2, w: 1 },
-                    size: { x: 100, y: 100 },
+                    texture: testIcon.handle,
+                    color: { x: 1, y: 1, z: 1, w: 1 },
+                    size: { x: testIcon.width, y: testIcon.height },
                     uvOffset: { x: 0, y: 0 },
                     uvScale: { x: 1, y: 1 },
                     layer: 0,

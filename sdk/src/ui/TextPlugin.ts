@@ -55,6 +55,7 @@ export class TextPlugin implements Plugin {
                     if (!textData.dirty) continue;
 
                     const result = renderer.renderForEntity(entity, textData);
+                    console.log(`Text texture size: ${result.width}x${result.height}`);
 
                     spriteData.texture = result.textureHandle;
                     spriteData.size = { x: result.width, y: result.height };

@@ -63,16 +63,17 @@ export class TextRenderer {
             canvas.height = newHeight;
         }
 
-        ctx.clearRect(0, 0, width, height);
-
-        ctx.font = `${text.fontSize}px ${text.fontFamily}`;
-        ctx.textAlign = this.mapAlign(text.align);
-        ctx.textBaseline = 'top';
-
         const r = Math.round(text.color.x * 255);
         const g = Math.round(text.color.y * 255);
         const b = Math.round(text.color.z * 255);
         const a = text.color.w;
+
+        // Clear with text color but alpha=0 to avoid black fringing
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        ctx.font = `${text.fontSize}px ${text.fontFamily}`;
+        ctx.textAlign = this.mapAlign(text.align);
+        ctx.textBaseline = 'top';
         ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${a})`;
 
         let y = padding;
@@ -95,6 +96,7 @@ export class TextRenderer {
 
         const imageData = ctx.getImageData(0, 0, width, height);
         const pixels = new Uint8Array(imageData.data.buffer);
+        this.unpremultiplyAlpha(pixels);
         const flipped = this.flipVertically(pixels, width, height);
 
         const rm = this.module.getResourceManager();
@@ -214,8 +216,20 @@ export class TextRenderer {
         return p;
     }
 
+    private unpremultiplyAlpha(pixels: Uint8Array): void {
+        for (let i = 0; i < pixels.length; i += 4) {
+            const a = pixels[i + 3];
+            if (a > 0 && a < 255) {
+                const scale = 255 / a;
+                pixels[i] = Math.min(255, Math.round(pixels[i] * scale));
+                pixels[i + 1] = Math.min(255, Math.round(pixels[i + 1] * scale));
+                pixels[i + 2] = Math.min(255, Math.round(pixels[i + 2] * scale));
+            }
+        }
+    }
+
     private flipVertically(pixels: Uint8Array, width: number, height: number): Uint8Array {
-        const rowSize = width * 4; // RGBA
+        const rowSize = width * 4;
         const flipped = new Uint8Array(pixels.length);
 
         for (let y = 0; y < height; y++) {

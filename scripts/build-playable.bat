@@ -37,6 +37,7 @@ echo [4/4] Bundling into single HTML...
 node tools\bundle-playable.js ^
     --wasm build-web-single\sdk\esengine.single.js ^
     --game sdk\examples\playground\build\playable\game.js ^
+    --assets sdk\examples\playground\assets ^
     --output playable.html
 
 if errorlevel 1 goto :error

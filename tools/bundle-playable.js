@@ -5,11 +5,21 @@
  * Usage:
  *   node tools/bundle-playable.js --wasm build-web-single/sdk/esengine.single.js \
  *                                 --game sdk/examples/playground/build/playable/game.js \
+ *                                 --assets sdk/examples/playground/assets \
  *                                 --output playable.html
  */
 
 const fs = require('fs');
 const path = require('path');
+
+const MIME_TYPES = {
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif',
+    '.webp': 'image/webp',
+    '.svg': 'image/svg+xml',
+};
 
 const HTML_TEMPLATE = `<!DOCTYPE html>
 <html lang="en">
@@ -64,12 +74,14 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000}
 </html>`;
 
 function parseArgs(args) {
-    const result = { wasm: null, game: null, output: 'playable.html' };
+    const result = { wasm: null, game: null, assets: null, output: 'playable.html' };
     for (let i = 0; i < args.length; i++) {
         if (args[i] === '--wasm' && args[i + 1]) {
             result.wasm = args[++i];
         } else if (args[i] === '--game' && args[i + 1]) {
             result.game = args[++i];
+        } else if (args[i] === '--assets' && args[i + 1]) {
+            result.assets = args[++i];
         } else if (args[i] === '--output' && args[i + 1]) {
             result.output = args[++i];
         } else if (args[i] === '--help' || args[i] === '-h') {
@@ -77,21 +89,63 @@ function parseArgs(args) {
 Bundle ESEngine game into single HTML for playable ads.
 
 Usage:
-  node bundle-playable.js --wasm <sdk.js> --game <game.js> [--output <out.html>]
+  node bundle-playable.js --wasm <sdk.js> --game <game.js> [--assets <dir>] [--output <out.html>]
 
 Options:
   --wasm    Path to esengine.single.js (WASM SDK with inlined binary)
   --game    Path to game.js (IIFE bundle with SDK runtime)
+  --assets  Path to assets directory (images will be inlined as base64)
   --output  Output HTML file (default: playable.html)
 
 Example:
   node tools/bundle-playable.js \\
     --wasm build-web-single/sdk/esengine.single.js \\
     --game sdk/examples/playground/build/playable/game.js \\
+    --assets sdk/examples/playground/assets \\
     --output playable.html
 `);
             process.exit(0);
         }
+    }
+    return result;
+}
+
+function scanAssets(assetsDir) {
+    const assets = new Map();
+    if (!fs.existsSync(assetsDir)) {
+        return assets;
+    }
+
+    function scan(dir, prefix = '') {
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
+        for (const entry of entries) {
+            const fullPath = path.join(dir, entry.name);
+            const relativePath = prefix ? `${prefix}/${entry.name}` : entry.name;
+
+            if (entry.isDirectory()) {
+                scan(fullPath, relativePath);
+            } else {
+                const ext = path.extname(entry.name).toLowerCase();
+                if (MIME_TYPES[ext]) {
+                    const data = fs.readFileSync(fullPath);
+                    const base64 = data.toString('base64');
+                    const dataUrl = `data:${MIME_TYPES[ext]};base64,${base64}`;
+                    assets.set(relativePath, dataUrl);
+                }
+            }
+        }
+    }
+
+    scan(assetsDir);
+    return assets;
+}
+
+function inlineAssets(code, assets, assetsPrefix) {
+    let result = code;
+    for (const [relativePath, dataUrl] of assets) {
+        const assetPath = assetsPrefix ? `${assetsPrefix}/${relativePath}` : relativePath;
+        result = result.split(`'${assetPath}'`).join(`'${dataUrl}'`);
+        result = result.split(`"${assetPath}"`).join(`"${dataUrl}"`);
     }
     return result;
 }
@@ -118,7 +172,19 @@ function main() {
     }
 
     const wasmSdk = fs.readFileSync(args.wasm, 'utf-8');
-    const gameCode = fs.readFileSync(args.game, 'utf-8');
+    let gameCode = fs.readFileSync(args.game, 'utf-8');
+
+    // Inline assets if provided
+    if (args.assets) {
+        const assets = scanAssets(args.assets);
+        if (assets.size > 0) {
+            console.log(`Inlining ${assets.size} asset(s)...`);
+            for (const [name] of assets) {
+                console.log(`  - ${name}`);
+            }
+            gameCode = inlineAssets(gameCode, assets, 'assets');
+        }
+    }
 
     const html = HTML_TEMPLATE
         .replace('{{WASM_SDK}}', wasmSdk)

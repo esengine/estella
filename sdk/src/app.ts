@@ -5,7 +5,7 @@
 
 import { World } from './world';
 import { Schedule, SystemDef, SystemRunner } from './system';
-import { ResourceStorage, Time, TimeData } from './resource';
+import { ResourceStorage, Time, TimeData, type ResourceDef } from './resource';
 import type { ESEngineModule, CppRegistry } from './wasm';
 
 // =============================================================================
@@ -104,6 +104,23 @@ export class App {
 
     get world(): World {
         return this.world_;
+    }
+
+    // =========================================================================
+    // Resource Access
+    // =========================================================================
+
+    insertResource<T>(resource: ResourceDef<T>, value: T): this {
+        this.resources_.insert(resource, value);
+        return this;
+    }
+
+    getResource<T>(resource: ResourceDef<T>): T {
+        return this.resources_.get(resource);
+    }
+
+    hasResource<T>(resource: ResourceDef<T>): boolean {
+        return this.resources_.has(resource);
     }
 
     // =========================================================================

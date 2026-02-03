@@ -229,6 +229,7 @@ void RenderPipeline::buildBatches() {
 void RenderPipeline::executeBatches() {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glDisable(GL_DEPTH_TEST);
 
     batcher_->setProjection(view_projection_);
     batcher_->beginBatch();
@@ -274,6 +275,7 @@ void RenderPipeline::executeNonBatched() {
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glDisable(GL_DEPTH_TEST);
 
     for (const auto& item : items_) {
         glm::mat4 model = glm::mat4(1.0f);
