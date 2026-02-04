@@ -19,6 +19,16 @@
             "problemMatcher": ["$gcc"]
         },
         {
+            "label": "build-sdk",
+            "type": "shell",
+            "command": "pnpm",
+            "args": ["build"],
+            "options": {
+                "cwd": "${workspaceFolder}/sdk"
+            },
+            "problemMatcher": ["$tsc"]
+        },
+        {
             "label": "build-editor",
             "type": "shell",
             "command": "pnpm",
@@ -26,6 +36,7 @@
             "options": {
                 "cwd": "${workspaceFolder}/editor"
             },
+            "dependsOn": ["build-sdk"],
             "problemMatcher": ["$tsc"]
         },
         {

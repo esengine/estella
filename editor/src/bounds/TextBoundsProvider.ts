@@ -22,20 +22,52 @@ export const textBoundsProvider: BoundsProvider = {
         const fontSize = data.fontSize ?? 24;
         const fontFamily = data.fontFamily ?? 'Arial';
         const lineHeight = data.lineHeight ?? 1.2;
+        const maxWidthLimit = data.maxWidth ?? 0;
 
         const ctx = getContext();
         ctx.font = `${fontSize}px ${fontFamily}`;
 
-        const lines = content.split('\n');
+        const lines = wrapText(ctx, content, maxWidthLimit);
         let maxWidth = 0;
         for (const line of lines) {
             maxWidth = Math.max(maxWidth, ctx.measureText(line).width);
         }
 
-        const padding = fontSize * 0.2;
         return {
-            width: Math.ceil(maxWidth) + padding * 2,
-            height: Math.ceil(lines.length * fontSize * lineHeight) + padding * 2
+            width: Math.ceil(maxWidth),
+            height: Math.ceil(lines.length * fontSize * lineHeight)
         };
     }
 };
+
+function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+    if (maxWidth <= 0) {
+        return text.split('\n');
+    }
+
+    const result: string[] = [];
+    const paragraphs = text.split('\n');
+
+    for (const paragraph of paragraphs) {
+        const words = paragraph.split(' ');
+        let currentLine = '';
+
+        for (const word of words) {
+            const testLine = currentLine ? `${currentLine} ${word}` : word;
+            const metrics = ctx.measureText(testLine);
+
+            if (metrics.width > maxWidth && currentLine) {
+                result.push(currentLine);
+                currentLine = word;
+            } else {
+                currentLine = testLine;
+            }
+        }
+
+        if (currentLine) {
+            result.push(currentLine);
+        }
+    }
+
+    return result.length > 0 ? result : [''];
+}

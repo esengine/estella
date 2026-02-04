@@ -100,27 +100,29 @@ export const TextSchema: ComponentSchema = {
     category: 'builtin',
     properties: [
         { name: 'content', type: 'string' },
+        { name: 'fontFamily', type: 'font' },
         { name: 'fontSize', type: 'number', min: 8, max: 200 },
-        { name: 'fontFamily', type: 'string' },
         { name: 'color', type: 'color' },
         {
             name: 'align',
             type: 'enum',
             options: [
-                { label: 'Left', value: 'left' },
-                { label: 'Center', value: 'center' },
-                { label: 'Right', value: 'right' },
+                { label: 'Left', value: 0 },
+                { label: 'Center', value: 1 },
+                { label: 'Right', value: 2 },
             ],
         },
         {
             name: 'baseline',
             type: 'enum',
             options: [
-                { label: 'Top', value: 'top' },
-                { label: 'Middle', value: 'middle' },
-                { label: 'Bottom', value: 'bottom' },
+                { label: 'Top', value: 0 },
+                { label: 'Middle', value: 1 },
+                { label: 'Bottom', value: 2 },
             ],
         },
+        { name: 'maxWidth', type: 'number', min: 0 },
+        { name: 'lineHeight', type: 'number', min: 0.5, max: 3, step: 0.1 },
     ],
 };
 
@@ -176,6 +178,11 @@ function registerUserComponent(
     defaults: Record<string, unknown>,
     isTag: boolean
 ): void {
+    const existing = schemaRegistry.get(name);
+    if (existing?.category === 'builtin') {
+        return;
+    }
+
     const schema: ComponentSchema = {
         name,
         category: isTag ? 'tag' : 'script',
