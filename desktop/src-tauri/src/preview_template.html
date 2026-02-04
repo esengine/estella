@@ -37,6 +37,12 @@
     <div id="error"></div>
 
     <script type="module">
+        import {
+            createWebApp,
+            assetPlugin,
+            PreviewPlugin
+        } from '/esengine-sdk.js';
+
         const loading = document.getElementById('loading');
         const errorDiv = document.getElementById('error');
 
@@ -47,114 +53,59 @@
             console.error('Preview Error:', msg);
         }
 
-        // TextureManager - loads images and creates GPU textures
-        class TextureManager {
-            constructor(module) {
-                this.module_ = module;
-                this.cache_ = new Map();
-            }
-
-            async loadTexture(path) {
-                if (!path || typeof path !== 'string') return 0;
-                if (this.cache_.has(path)) return this.cache_.get(path);
-
-                try {
-                    const response = await fetch(`/${path}`);
-                    if (!response.ok) {
-                        console.warn(`Failed to load texture: ${path}`);
-                        return 0;
-                    }
-
-                    const blob = await response.blob();
-                    const img = await createImageBitmap(blob);
-
-                    const canvas = new OffscreenCanvas(img.width, img.height);
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0);
-                    const imageData = ctx.getImageData(0, 0, img.width, img.height);
-
-                    const rm = this.module_.getResourceManager();
-                    const handle = rm.createTexture(
-                        img.width, img.height,
-                        imageData.data.buffer, imageData.data.length,
-                        1  // RGBA format
-                    );
-
-                    this.cache_.set(path, handle);
-                    console.log(`Loaded texture: ${path} -> handle ${handle}`);
-                    return handle;
-                } catch (err) {
-                    console.warn(`Error loading texture ${path}:`, err);
-                    return 0;
-                }
-            }
-        }
-
-        async function loadSceneData(module, registry, sceneData, textureManager) {
-            console.log('Loading scene:', sceneData.name);
-
-            for (const entityData of sceneData.entities || []) {
-                const entity = registry.create();
-
-                for (const comp of entityData.components || []) {
-                    const compName = comp.type;
-                    const compData = { ...comp.data };
-
-                    // Resolve texture paths for Sprite components
-                    if (compName === 'Sprite' && typeof compData.texture === 'string') {
-                        compData.texture = await textureManager.loadTexture(compData.texture);
-                    }
-
-                    const addMethod = `add${compName}`;
-                    if (typeof registry[addMethod] === 'function' && module[compName]) {
-                        const component = new module[compName]();
-                        Object.assign(component, compData);
-                        registry[addMethod](entity, component);
-                    }
-                }
-            }
-        }
-
         async function loadPreview() {
             try {
-                // Load scene data
-                const sceneRes = await fetch('/.esengine/preview/scene.json');
-                if (!sceneRes.ok) throw new Error('Failed to load scene.json');
-                const sceneData = await sceneRes.json();
+                const ModuleLoader = await import('/esengine.js');
+                const Module = await ModuleLoader.default();
 
-                // Load WASM module
-                const Module = await import('/esengine.js');
-                const module = await Module.default();
-
-                // Create registry and initialize renderer
-                const registry = new module.Registry();
-                module.initRenderer();
-
-                // Create texture manager
-                const textureManager = new TextureManager(module);
-
-                // Load scene into registry (with texture loading)
-                await loadSceneData(module, registry, sceneData, textureManager);
-
-                // Load user scripts (optional)
+                let userMain = null;
                 try {
-                    await import('/.esengine/preview/user-scripts.js');
+                    const userModule = await import('/.esengine/preview/user-scripts.js');
+                    if (typeof userModule.main === 'function') {
+                        userMain = userModule.main;
+                    }
                 } catch (e) {
-                    console.warn('No user scripts:', e.message);
+                    console.log('No user main function, using default preview');
+                }
+
+                if (userMain) {
+                    await runWithUserMain(Module, userMain);
+                } else {
+                    await runDefaultPreview(Module);
                 }
 
                 loading.style.display = 'none';
-
-                // Main loop
-                const canvas = document.getElementById('canvas');
-                function loop() {
-                    module.renderFrame(registry, canvas.width, canvas.height);
-                    requestAnimationFrame(loop);
-                }
-                requestAnimationFrame(loop);
             } catch (err) {
-                showError(err.message);
+                showError(err.message || String(err));
             }
+        }
+
+        async function runWithUserMain(Module, userMain) {
+            const origCreate = createWebApp;
+
+            const patchedCreate = (module, options) => {
+                const app = origCreate(module, options);
+                app.addPlugin(new PreviewPlugin('/.esengine/preview/scene.json'));
+                return app;
+            };
+
+            window.esengine = window.esengine || {};
+            window.esengine.createWebApp = patchedCreate;
+
+            const sdkModule = await import('/esengine-sdk.js');
+            Object.defineProperty(sdkModule, 'createWebApp', {
+                value: patchedCreate,
+                writable: true
+            });
+
+            await userMain(Module);
+        }
+
+        async function runDefaultPreview(Module) {
+            const app = createWebApp(Module);
+            app.addPlugin(assetPlugin);
+            app.addPlugin(new PreviewPlugin('/.esengine/preview/scene.json'));
+            app.run();
         }
 
         loadPreview();

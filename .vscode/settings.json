@@ -8,5 +8,8 @@
     "files.associations": {
         "*.hpp": "cpp",
         "*.cpp": "cpp"
-    }
+    },
+    "rust-analyzer.linkedProjects": [
+        "desktop/src-tauri/Cargo.toml"
+    ]
 }

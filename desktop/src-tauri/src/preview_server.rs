@@ -12,6 +12,7 @@ use tiny_http::{Header, Response, Server};
 const PREVIEW_HTML: &str = include_str!("preview_template.html");
 const ENGINE_JS: &[u8] = include_bytes!("../../public/esengine.js");
 const ENGINE_WASM: &[u8] = include_bytes!("../../public/esengine.wasm");
+const SDK_JS: &[u8] = include_bytes!("../../public/esengine-sdk.js");
 
 // =============================================================================
 // Preview Server
@@ -53,6 +54,7 @@ impl PreviewServer {
                     "" | "index.html" => serve_html(),
                     "esengine.js" => serve_embedded(ENGINE_JS, "application/javascript"),
                     "esengine.wasm" => serve_embedded(ENGINE_WASM, "application/wasm"),
+                    "esengine-sdk.js" => serve_embedded(SDK_JS, "application/javascript"),
                     _ => serve_project_file(&project_dir, path),
                 };
 

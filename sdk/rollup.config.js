@@ -53,4 +53,23 @@ const iifeBuild = {
     },
 };
 
-export default [...esmBuilds, ...dtsBuilds, iifeBuild];
+// Preview bundle for editor preview server
+const previewBuild = {
+    input: 'src/index.ts',
+    output: {
+        file: '../desktop/public/esengine-sdk.js',
+        format: 'esm',
+        sourcemap: false,
+    },
+    plugins: [
+        typescript({
+            tsconfig: './tsconfig.json',
+            declaration: false,
+        }),
+    ],
+    treeshake: {
+        moduleSideEffects: false,
+    },
+};
+
+export default [...esmBuilds, ...dtsBuilds, iifeBuild, previewBuild];

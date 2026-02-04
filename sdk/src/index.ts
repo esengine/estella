@@ -171,7 +171,15 @@ export {
 
 export {
     loadSceneData,
+    loadSceneWithAssets,
     type SceneData,
     type SceneEntityData,
     type SceneComponentData,
+    type SceneLoadOptions,
 } from './scene';
+
+// =============================================================================
+// Preview
+// =============================================================================
+
+export { PreviewPlugin } from './preview';
