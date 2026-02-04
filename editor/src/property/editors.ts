@@ -8,6 +8,7 @@ import {
     type PropertyEditorContext,
     type PropertyEditorInstance,
 } from './PropertyEditor';
+import { getPlatformAdapter } from '../platform/PlatformAdapter';
 
 // =============================================================================
 // Drag Helper
@@ -591,6 +592,77 @@ function createEnumEditor(
 }
 
 // =============================================================================
+// Texture Editor
+// =============================================================================
+
+function createTextureEditor(
+    container: HTMLElement,
+    ctx: PropertyEditorContext
+): PropertyEditorInstance {
+    const { value, onChange } = ctx;
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'es-texture-editor';
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'es-input es-input-texture';
+    input.value = String(value ?? '');
+    input.placeholder = 'None';
+
+    const browseBtn = document.createElement('button');
+    browseBtn.className = 'es-btn es-btn-icon es-btn-browse';
+    browseBtn.title = 'Browse';
+    browseBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2z"></path></svg>`;
+
+    input.addEventListener('change', () => {
+        onChange(input.value || '');
+    });
+
+    browseBtn.addEventListener('click', async () => {
+        const editor = (window as any).__esengine_editor;
+        const projectPath = editor?.projectPath;
+        if (!projectPath) return;
+
+        const projectDir = projectPath.replace(/\\/g, '/').replace(/\/[^/]+$/, '');
+        const assetsDir = `${projectDir}/assets`;
+
+        try {
+            const platform = getPlatformAdapter();
+            const result = await platform.openFileDialog({
+                title: 'Select Texture',
+                defaultPath: assetsDir,
+                filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp'] }],
+            });
+            if (result) {
+                const normalizedPath = result.replace(/\\/g, '/');
+                const assetsIndex = normalizedPath.indexOf('/assets/');
+                if (assetsIndex !== -1) {
+                    const relativePath = normalizedPath.substring(assetsIndex + 1);
+                    input.value = relativePath;
+                    onChange(relativePath);
+                }
+            }
+        } catch (err) {
+            console.error('Failed to open file dialog:', err);
+        }
+    });
+
+    wrapper.appendChild(input);
+    wrapper.appendChild(browseBtn);
+    container.appendChild(wrapper);
+
+    return {
+        update(v: unknown) {
+            input.value = String(v ?? '');
+        },
+        dispose() {
+            wrapper.remove();
+        },
+    };
+}
+
+// =============================================================================
 // Register All Editors
 // =============================================================================
 
@@ -604,4 +676,5 @@ export function registerBuiltinEditors(): void {
     registerPropertyEditor('color', createColorEditor);
     registerPropertyEditor('enum', createEnumEditor);
     registerPropertyEditor('euler', createEulerEditor);
+    registerPropertyEditor('texture', createTextureEditor);
 }

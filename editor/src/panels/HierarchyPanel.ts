@@ -80,21 +80,30 @@ export class HierarchyPanel {
 
         this.treeContainer_.addEventListener('click', (e) => {
             const target = e.target as HTMLElement;
-            const item = target.closest('.es-hierarchy-item') as HTMLElement;
-            if (!item) return;
+
+            const expandBtn = target.closest('.es-hierarchy-expand') as HTMLElement;
+            if (expandBtn) {
+                e.stopPropagation();
+                const row = expandBtn.closest('.es-hierarchy-row');
+                const item = row?.parentElement as HTMLElement;
+                const entityId = parseInt(item?.dataset.entityId ?? '', 10);
+                if (!isNaN(entityId)) {
+                    if (this.expandedIds_.has(entityId)) {
+                        this.expandedIds_.delete(entityId);
+                    } else {
+                        this.expandedIds_.add(entityId);
+                    }
+                    this.render();
+                }
+                return;
+            }
+
+            const row = target.closest('.es-hierarchy-row');
+            const item = row?.parentElement as HTMLElement;
+            if (!item?.classList.contains('es-hierarchy-item')) return;
 
             const entityId = parseInt(item.dataset.entityId ?? '', 10);
             if (isNaN(entityId)) return;
-
-            if (target.classList.contains('es-hierarchy-expand')) {
-                if (this.expandedIds_.has(entityId)) {
-                    this.expandedIds_.delete(entityId);
-                } else {
-                    this.expandedIds_.add(entityId);
-                }
-                this.render();
-                return;
-            }
 
             this.store_.selectEntity(entityId as Entity);
         });

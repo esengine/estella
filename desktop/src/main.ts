@@ -4,7 +4,8 @@
  */
 
 import '@esengine/editor/styles';
-import { createEditor, ProjectLauncher } from '@esengine/editor';
+import { createEditor, ProjectLauncher, setPlatformAdapter } from '@esengine/editor';
+import { TauriPlatformAdapter } from './TauriPlatformAdapter';
 import { injectNativeFS } from './native-fs';
 import { invoke } from '@tauri-apps/api/core';
 
@@ -26,6 +27,7 @@ function openEditor(container: HTMLElement, projectPath: string): void {
 }
 
 async function init(): Promise<void> {
+    setPlatformAdapter(new TauriPlatformAdapter());
     injectNativeFS();
     (window as any).__esengine_invoke = invoke;
 

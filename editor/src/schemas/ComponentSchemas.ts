@@ -64,7 +64,7 @@ export const SpriteSchema: ComponentSchema = {
     name: 'Sprite',
     category: 'builtin',
     properties: [
-        { name: 'texture', type: 'number' },
+        { name: 'texture', type: 'texture' },
         { name: 'color', type: 'color' },
         { name: 'size', type: 'vec2' },
         { name: 'uvOffset', type: 'vec2' },

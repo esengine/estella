@@ -6,6 +6,7 @@
 import type { Entity } from 'esengine';
 import type { EditorStore } from '../store/EditorStore';
 import type { EditorBridge } from '../bridge/EditorBridge';
+import { getPlatformAdapter } from '../platform/PlatformAdapter';
 import { icons } from '../utils/icons';
 
 // =============================================================================
@@ -36,6 +37,10 @@ const GIZMO_HANDLE_SIZE = 10;
 // SceneViewPanel
 // =============================================================================
 
+export interface SceneViewPanelOptions {
+    projectPath?: string;
+}
+
 export class SceneViewPanel {
     private container_: HTMLElement;
     private store_: EditorStore;
@@ -44,6 +49,7 @@ export class SceneViewPanel {
     private unsubscribe_: (() => void) | null = null;
     private animationId_: number | null = null;
     private resizeObserver_: ResizeObserver | null = null;
+    private projectPath_: string | null = null;
 
     private panX_ = 0;
     private panY_ = 0;
@@ -64,9 +70,13 @@ export class SceneViewPanel {
     private boundOnDocumentMouseMove_: ((e: MouseEvent) => void) | null = null;
     private boundOnDocumentMouseUp_: ((e: MouseEvent) => void) | null = null;
 
-    constructor(container: HTMLElement, store: EditorStore) {
+    private textureCache_: Map<string, HTMLImageElement | null> = new Map();
+    private loadingTextures_: Set<string> = new Set();
+
+    constructor(container: HTMLElement, store: EditorStore, options?: SceneViewPanelOptions) {
         this.container_ = container;
         this.store_ = store;
+        this.projectPath_ = options?.projectPath ?? null;
 
         this.container_.className = 'es-sceneview-panel';
         this.container_.innerHTML = `
@@ -119,6 +129,47 @@ export class SceneViewPanel {
     setBridge(bridge: EditorBridge): void {
         this.bridge_ = bridge;
         this.requestRender();
+    }
+
+    setProjectPath(path: string): void {
+        this.projectPath_ = path;
+        this.textureCache_.clear();
+        this.loadingTextures_.clear();
+        this.requestRender();
+    }
+
+    private loadTexture(texturePath: string): HTMLImageElement | null {
+        if (!this.projectPath_ || !texturePath) return null;
+
+        if (this.textureCache_.has(texturePath)) {
+            return this.textureCache_.get(texturePath) ?? null;
+        }
+
+        if (this.loadingTextures_.has(texturePath)) {
+            return null;
+        }
+
+        this.loadingTextures_.add(texturePath);
+
+        const projectDir = this.projectPath_.replace(/\\/g, '/').replace(/\/[^/]+$/, '');
+        const fullPath = `${projectDir}/${texturePath}`;
+        const img = new Image();
+
+        img.onload = () => {
+            this.loadingTextures_.delete(texturePath);
+            this.textureCache_.set(texturePath, img);
+            this.requestRender();
+        };
+
+        img.onerror = () => {
+            this.loadingTextures_.delete(texturePath);
+            this.textureCache_.set(texturePath, null);
+            console.warn(`Failed to load texture: ${fullPath}`);
+        };
+
+        img.src = getPlatformAdapter().convertFilePathToUrl(fullPath);
+
+        return null;
     }
 
     get canvas(): HTMLCanvasElement {
@@ -769,35 +820,71 @@ export class SceneViewPanel {
 
         let w = 50;
         let h = 50;
-        let color = 'rgba(100, 100, 200, 0.5)';
+        let color: { x: number; y: number; z: number; w: number } | null = null;
         const hasSprite = !!sprite;
+        let textureImg: HTMLImageElement | null = null;
+        let flipX = false;
+        let flipY = false;
 
         if (sprite) {
             const size = sprite.data.size as { x: number; y: number };
             const col = sprite.data.color as { x: number; y: number; z: number; w: number };
+            const texturePath = sprite.data.texture;
 
             if (size) {
                 w = size.x * Math.abs(scale.x);
                 h = size.y * Math.abs(scale.y);
             }
             if (col) {
-                const r = Math.round(col.x * 255);
-                const g = Math.round(col.y * 255);
-                const b = Math.round(col.z * 255);
-                const a = col.w;
-                color = `rgba(${r}, ${g}, ${b}, ${a})`;
+                color = col;
+            }
+
+            flipX = sprite.data.flipX === true;
+            flipY = sprite.data.flipY === true;
+
+            if (typeof texturePath === 'string' && texturePath) {
+                textureImg = this.loadTexture(texturePath);
             }
         }
 
         ctx.save();
         ctx.translate(pos.x, -pos.y);
 
-        if (hasSprite) {
-            ctx.fillStyle = color;
-            ctx.fillRect(-w / 2, -h / 2, w, h);
+        if (flipX || flipY) {
+            ctx.scale(flipX ? -1 : 1, flipY ? -1 : 1);
         }
 
+        if (hasSprite) {
+            if (textureImg) {
+                ctx.globalAlpha = color?.w ?? 1;
+                ctx.drawImage(textureImg, -w / 2, -h / 2, w, h);
+
+                if (color && (color.x !== 1 || color.y !== 1 || color.z !== 1)) {
+                    ctx.globalCompositeOperation = 'multiply';
+                    const r = Math.round(color.x * 255);
+                    const g = Math.round(color.y * 255);
+                    const b = Math.round(color.z * 255);
+                    ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+                    ctx.fillRect(-w / 2, -h / 2, w, h);
+                    ctx.globalCompositeOperation = 'source-over';
+                }
+                ctx.globalAlpha = 1;
+            } else {
+                const r = Math.round((color?.x ?? 0.4) * 255);
+                const g = Math.round((color?.y ?? 0.4) * 255);
+                const b = Math.round((color?.z ?? 0.8) * 255);
+                const a = color?.w ?? 0.5;
+                ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${a})`;
+                ctx.fillRect(-w / 2, -h / 2, w, h);
+            }
+        }
+
+        ctx.restore();
+
         if (isSelected && hasSprite) {
+            ctx.save();
+            ctx.translate(pos.x, -pos.y);
+
             ctx.strokeStyle = '#00aaff';
             ctx.lineWidth = 2 / this.zoom_;
             ctx.setLineDash([]);
@@ -814,8 +901,8 @@ export class SceneViewPanel {
             for (const [cx, cy] of corners) {
                 ctx.fillRect(cx - handleSize / 2, cy - handleSize / 2, handleSize, handleSize);
             }
-        }
 
-        ctx.restore();
+            ctx.restore();
+        }
     }
 }

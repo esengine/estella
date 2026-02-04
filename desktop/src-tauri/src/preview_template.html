@@ -47,18 +47,69 @@
             console.error('Preview Error:', msg);
         }
 
-        function loadSceneData(module, registry, sceneData) {
+        // TextureManager - loads images and creates GPU textures
+        class TextureManager {
+            constructor(module) {
+                this.module_ = module;
+                this.cache_ = new Map();
+            }
+
+            async loadTexture(path) {
+                if (!path || typeof path !== 'string') return 0;
+                if (this.cache_.has(path)) return this.cache_.get(path);
+
+                try {
+                    const response = await fetch(`/${path}`);
+                    if (!response.ok) {
+                        console.warn(`Failed to load texture: ${path}`);
+                        return 0;
+                    }
+
+                    const blob = await response.blob();
+                    const img = await createImageBitmap(blob);
+
+                    const canvas = new OffscreenCanvas(img.width, img.height);
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0);
+                    const imageData = ctx.getImageData(0, 0, img.width, img.height);
+
+                    const rm = this.module_.getResourceManager();
+                    const handle = rm.createTexture(
+                        img.width, img.height,
+                        imageData.data.buffer, imageData.data.length,
+                        1  // RGBA format
+                    );
+
+                    this.cache_.set(path, handle);
+                    console.log(`Loaded texture: ${path} -> handle ${handle}`);
+                    return handle;
+                } catch (err) {
+                    console.warn(`Error loading texture ${path}:`, err);
+                    return 0;
+                }
+            }
+        }
+
+        async function loadSceneData(module, registry, sceneData, textureManager) {
             console.log('Loading scene:', sceneData.name);
+
             for (const entityData of sceneData.entities || []) {
                 const entity = registry.create();
-                console.log('Created entity:', entity, entityData.name);
 
-                for (const [compName, compData] of Object.entries(entityData.components || {})) {
+                for (const comp of entityData.components || []) {
+                    const compName = comp.type;
+                    const compData = { ...comp.data };
+
+                    // Resolve texture paths for Sprite components
+                    if (compName === 'Sprite' && typeof compData.texture === 'string') {
+                        compData.texture = await textureManager.loadTexture(compData.texture);
+                    }
+
                     const addMethod = `add${compName}`;
-                    if (typeof registry[addMethod] === 'function') {
-                        const comp = new module[compName]();
-                        Object.assign(comp, compData);
-                        registry[addMethod](entity, comp);
+                    if (typeof registry[addMethod] === 'function' && module[compName]) {
+                        const component = new module[compName]();
+                        Object.assign(component, compData);
+                        registry[addMethod](entity, component);
                     }
                 }
             }
@@ -79,8 +130,11 @@
                 const registry = new module.Registry();
                 module.initRenderer();
 
-                // Load scene into registry
-                loadSceneData(module, registry, sceneData);
+                // Create texture manager
+                const textureManager = new TextureManager(module);
+
+                // Load scene into registry (with texture loading)
+                await loadSceneData(module, registry, sceneData, textureManager);
 
                 // Load user scripts (optional)
                 try {

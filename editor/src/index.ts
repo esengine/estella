@@ -146,3 +146,16 @@ export {
 // =============================================================================
 
 export { EDITOR_STYLES_URL, injectEditorStyles } from './styles';
+
+// =============================================================================
+// Platform
+// =============================================================================
+
+export {
+    type PlatformAdapter,
+    type FileDialogOptions,
+    type SaveDialogOptions,
+    WebPlatformAdapter,
+    setPlatformAdapter,
+    getPlatformAdapter,
+} from './platform/PlatformAdapter';
