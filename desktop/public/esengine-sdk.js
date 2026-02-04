@@ -556,11 +556,7 @@ class World {
     }
     setParent(child, parent) {
         if (this.cppRegistry_) {
-            console.log(`[World] Calling cppRegistry_.setParent(${child}, ${parent})`);
             this.cppRegistry_.setParent(child, parent);
-        }
-        else {
-            console.warn('[World] setParent called but cppRegistry_ is null!');
         }
     }
     // =========================================================================
@@ -884,13 +880,13 @@ class TextRenderer {
         this.module = module;
         if (typeof OffscreenCanvas !== 'undefined') {
             this.canvas = new OffscreenCanvas(512, 512);
-            this.ctx = this.canvas.getContext('2d');
+            this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
         }
         else {
             this.canvas = document.createElement('canvas');
             this.canvas.width = 512;
             this.canvas.height = 512;
-            this.ctx = this.canvas.getContext('2d');
+            this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
         }
     }
     /**
@@ -1339,7 +1335,6 @@ async function loadSceneWithAssets(world, sceneData, options) {
             const entity = entityMap.get(entityData.id);
             const parentEntity = entityMap.get(entityData.parent);
             if (entity !== undefined && parentEntity !== undefined) {
-                console.log(`[SceneLoader] setParent: entity ${entity} -> parent ${parentEntity}`);
                 world.setParent(entity, parentEntity);
             }
         }
@@ -1419,12 +1414,6 @@ class PreviewPlugin {
                 assetServer: assets.server
             });
             this.ensureCamera();
-            this.debugCamera();
-            // 延迟检查，等渲染循环开始后
-            setTimeout(() => {
-                console.log('[PreviewPlugin] === Delayed Check (after render loop) ===');
-                this.debugCamera();
-            }, 1000);
         }
         catch (err) {
             console.error('[PreviewPlugin] Failed to load scene:', err);
@@ -1463,44 +1452,6 @@ class PreviewPlugin {
                 priority: 0,
             };
             world.insert(cameraEntity, Camera, cameraData);
-        }
-    }
-    debugCamera() {
-        if (!this.app_)
-            return;
-        const world = this.app_.world;
-        const cameraEntities = world.getEntitiesWithComponents([Camera]);
-        console.log('[PreviewPlugin] === Camera Debug ===');
-        console.log(`[PreviewPlugin] Found ${cameraEntities.length} camera entities`);
-        for (const entity of cameraEntities) {
-            const camera = world.get(entity, Camera);
-            const hasTransform = world.has(entity, LocalTransform);
-            console.log(`[PreviewPlugin] Camera Entity ${entity}:`);
-            console.log(`  - isActive: ${camera.isActive}`);
-            console.log(`  - projectionType: ${camera.projectionType} (0=Ortho, 1=Persp)`);
-            console.log(`  - orthoSize: ${camera.orthoSize}`);
-            console.log(`  - hasLocalTransform: ${hasTransform}`);
-            if (hasTransform) {
-                const transform = world.get(entity, LocalTransform);
-                console.log(`  - position: (${transform.position.x}, ${transform.position.y}, ${transform.position.z})`);
-            }
-        }
-        console.log('[PreviewPlugin] === Sprite Debug ===');
-        const spriteEntities = world.getEntitiesWithComponents([Sprite, LocalTransform]);
-        console.log(`[PreviewPlugin] Found ${spriteEntities.length} sprite entities with transform`);
-        for (const entity of spriteEntities.slice(0, 5)) {
-            const sprite = world.get(entity, Sprite);
-            const localTransform = world.get(entity, LocalTransform);
-            const hasWorld = world.has(entity, WorldTransform);
-            console.log(`[PreviewPlugin] Sprite Entity ${entity}:`);
-            console.log(`  - texture: ${sprite.texture}`);
-            console.log(`  - size: (${sprite.size.x}, ${sprite.size.y})`);
-            console.log(`  - localPosition: (${localTransform.position.x}, ${localTransform.position.y}, ${localTransform.position.z})`);
-            console.log(`  - hasWorldTransform: ${hasWorld}`);
-            if (hasWorld) {
-                const worldTransform = world.get(entity, WorldTransform);
-                console.log(`  - worldPosition: (${worldTransform.position.x}, ${worldTransform.position.y}, ${worldTransform.position.z})`);
-            }
         }
     }
 }

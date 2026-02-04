@@ -120,7 +120,6 @@ export async function loadSceneWithAssets(
             const entity = entityMap.get(entityData.id);
             const parentEntity = entityMap.get(entityData.parent);
             if (entity !== undefined && parentEntity !== undefined) {
-                console.log(`[SceneLoader] setParent: entity ${entity} -> parent ${parentEntity}`);
                 world.setParent(entity, parentEntity);
             }
         }

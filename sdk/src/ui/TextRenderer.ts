@@ -32,12 +32,12 @@ export class TextRenderer {
 
         if (typeof OffscreenCanvas !== 'undefined') {
             this.canvas = new OffscreenCanvas(512, 512);
-            this.ctx = this.canvas.getContext('2d')!;
+            this.ctx = this.canvas.getContext('2d', { willReadFrequently: true })!;
         } else {
             this.canvas = document.createElement('canvas');
             this.canvas.width = 512;
             this.canvas.height = 512;
-            this.ctx = this.canvas.getContext('2d')!;
+            this.ctx = this.canvas.getContext('2d', { willReadFrequently: true })!;
         }
     }
 

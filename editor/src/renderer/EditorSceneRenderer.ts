@@ -12,6 +12,7 @@ import {
     composeTransforms,
     createIdentityTransform,
 } from '../math/Transform';
+import { EditorTextRenderer } from './EditorTextRenderer';
 
 // =============================================================================
 // EditorSceneRenderer
@@ -21,6 +22,7 @@ export class EditorSceneRenderer {
     private module_: ESEngineModule | null = null;
     private registry_: CppRegistry | null = null;
     private textureManager_: EditorTextureManager | null = null;
+    private textRenderer_: EditorTextRenderer | null = null;
     private camera_: EditorCamera;
     private initialized_ = false;
     private projectDir_ = '';
@@ -55,6 +57,7 @@ export class EditorSceneRenderer {
 
         this.registry_ = new module.Registry();
         this.textureManager_ = new EditorTextureManager(module);
+        this.textRenderer_ = new EditorTextRenderer(module);
         this.initialized_ = true;
 
         return true;
@@ -168,6 +171,11 @@ export class EditorSceneRenderer {
             this.textureManager_ = null;
         }
 
+        if (this.textRenderer_) {
+            this.textRenderer_.releaseAll();
+            this.textRenderer_ = null;
+        }
+
         if (this.registry_) {
             this.registry_.delete();
             this.registry_ = null;
@@ -209,6 +217,10 @@ export class EditorSceneRenderer {
 
             case 'Camera':
                 this.syncCamera(entity, comp.data);
+                break;
+
+            case 'Text':
+                this.syncText(entity, comp.data, entityId);
                 break;
         }
     }
@@ -303,6 +315,28 @@ export class EditorSceneRenderer {
             aspectRatio: data.aspectRatio ?? 1.0,
             isActive: data.isActive ?? true,
             priority: data.priority ?? 0,
+        });
+    }
+
+    private syncText(entity: Entity, data: any, entityId: number): void {
+        if (!this.registry_ || !this.textRenderer_) return;
+
+        const result = this.textRenderer_.renderText(entityId, data);
+        if (!result) return;
+
+        if (this.registry_.hasSprite(entity)) {
+            this.registry_.removeSprite(entity);
+        }
+
+        this.registry_.addSprite(entity, {
+            texture: result.textureHandle,
+            color: { x: 1, y: 1, z: 1, w: 1 },
+            size: { x: result.width, y: result.height },
+            uvOffset: { x: 0, y: 0 },
+            uvScale: { x: 1, y: 1 },
+            layer: 25,
+            flipX: false,
+            flipY: false,
         });
     }
 }
