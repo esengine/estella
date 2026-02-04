@@ -140,6 +140,7 @@ export const icons = {
     play: (size?: number) => renderIcon(Play as IconNode, size),
     stop: (size?: number) => renderIcon(Square as IconNode, size),
     grid: (size?: number) => renderIcon(Grid3X3 as IconNode, size),
+    rect: (size?: number) => renderIcon(Square as IconNode, size),
 };
 
 export type IconName = keyof typeof icons;
