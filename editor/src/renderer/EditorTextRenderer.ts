@@ -120,7 +120,6 @@ export class EditorTextRenderer {
 
         const imageData = ctx.getImageData(0, 0, width, height);
         const pixels = new Uint8Array(imageData.data.buffer);
-        this.unpremultiplyAlpha(pixels);
         const flipped = this.flipVertically(pixels, width, height);
 
         const rm = this.module_.getResourceManager();
@@ -187,18 +186,6 @@ export class EditorTextRenderer {
         let p = 1;
         while (p < n) p *= 2;
         return p;
-    }
-
-    private unpremultiplyAlpha(pixels: Uint8Array): void {
-        for (let i = 0; i < pixels.length; i += 4) {
-            const a = pixels[i + 3];
-            if (a > 0 && a < 255) {
-                const scale = 255 / a;
-                pixels[i] = Math.min(255, Math.round(pixels[i] * scale));
-                pixels[i + 1] = Math.min(255, Math.round(pixels[i + 1] * scale));
-                pixels[i + 2] = Math.min(255, Math.round(pixels[i + 2] * scale));
-            }
-        }
     }
 
     private flipVertically(pixels: Uint8Array, width: number, height: number): Uint8Array {

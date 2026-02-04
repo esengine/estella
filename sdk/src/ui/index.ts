@@ -21,6 +21,4 @@ export {
 export {
     TextPlugin,
     textPlugin,
-    TextRendererRes,
-    type TextRendererData,
 } from './TextPlugin';

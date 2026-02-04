@@ -12,6 +12,7 @@ import { hasSlicing, parseTextureMetadata } from '../types/TextureMetadata';
 import { icons } from '../utils/icons';
 import { EditorSceneRenderer } from '../renderer/EditorSceneRenderer';
 import { quatToEuler, eulerToQuat } from '../math/Transform';
+import { getEntityBounds } from '../bounds';
 
 // =============================================================================
 // Types
@@ -775,7 +776,6 @@ export class SceneViewPanel {
 
     private findEntityAtPosition(worldX: number, worldY: number): Entity | null {
         const scene = this.store_.scene;
-        const defaultSize = 50;
 
         for (let i = scene.entities.length - 1; i >= 0; i--) {
             const entity = scene.entities[i];
@@ -786,16 +786,10 @@ export class SceneViewPanel {
             const worldTransform = this.store_.getWorldTransform(entity.id);
             const pos = worldTransform.position;
             const scale = worldTransform.scale;
-            const sprite = entity.components.find(c => c.type === 'Sprite');
 
-            let w = defaultSize;
-            let h = defaultSize;
-
-            if (sprite) {
-                const size = sprite.data.size as { x: number; y: number };
-                w = (size?.x ?? defaultSize) * Math.abs(scale.x);
-                h = (size?.y ?? defaultSize) * Math.abs(scale.y);
-            }
+            const bounds = getEntityBounds(entity.components);
+            const w = bounds.width * Math.abs(scale.x);
+            const h = bounds.height * Math.abs(scale.y);
 
             const halfW = w / 2;
             const halfH = h / 2;
@@ -883,24 +877,15 @@ export class SceneViewPanel {
         if (!entityData) return;
 
         const transform = entityData.components.find(c => c.type === 'LocalTransform');
-        const sprite = entityData.components.find(c => c.type === 'Sprite');
-
         if (!transform) return;
 
         const worldTransform = this.store_.getWorldTransform(entityData.id);
         const pos = worldTransform.position;
         const scale = worldTransform.scale;
 
-        let w = 50;
-        let h = 50;
-
-        if (sprite) {
-            const size = sprite.data.size as { x: number; y: number };
-            if (size) {
-                w = size.x * Math.abs(scale.x);
-                h = size.y * Math.abs(scale.y);
-            }
-        }
+        const bounds = getEntityBounds(entityData.components);
+        const w = bounds.width * Math.abs(scale.x);
+        const h = bounds.height * Math.abs(scale.y);
 
         ctx.save();
         ctx.translate(pos.x, -pos.y);

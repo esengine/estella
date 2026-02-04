@@ -12,6 +12,7 @@ import { SceneViewPanel } from './panels/SceneViewPanel';
 import { ContentBrowserPanel, type ContentBrowserOptions } from './panels/ContentBrowserPanel';
 import { registerBuiltinEditors } from './property/editors';
 import { registerBuiltinSchemas } from './schemas/ComponentSchemas';
+import { initBoundsProviders } from './bounds';
 import { saveSceneToFile, loadSceneFromFile, loadSceneFromPath } from './io/SceneSerializer';
 import { icons } from './utils/icons';
 import { ScriptLoader } from './scripting';
@@ -52,6 +53,7 @@ export class Editor {
 
         registerBuiltinEditors();
         registerBuiltinSchemas();
+        initBoundsProviders();
 
         this.setupLayout();
         this.setupKeyboardShortcuts();

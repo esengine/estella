@@ -936,7 +936,6 @@ class TextRenderer {
         }
         const imageData = ctx.getImageData(0, 0, width, height);
         const pixels = new Uint8Array(imageData.data.buffer);
-        this.unpremultiplyAlpha(pixels);
         const flipped = this.flipVertically(pixels, width, height);
         const rm = this.module.getResourceManager();
         const ptr = this.module._malloc(flipped.length);
@@ -1040,17 +1039,6 @@ class TextRenderer {
             p *= 2;
         return p;
     }
-    unpremultiplyAlpha(pixels) {
-        for (let i = 0; i < pixels.length; i += 4) {
-            const a = pixels[i + 3];
-            if (a > 0 && a < 255) {
-                const scale = 255 / a;
-                pixels[i] = Math.min(255, Math.round(pixels[i] * scale));
-                pixels[i + 1] = Math.min(255, Math.round(pixels[i + 1] * scale));
-                pixels[i + 2] = Math.min(255, Math.round(pixels[i + 2] * scale));
-            }
-        }
-    }
     flipVertically(pixels, width, height) {
         const rowSize = width * 4;
         const flipped = new Uint8Array(pixels.length);
@@ -1067,7 +1055,6 @@ class TextRenderer {
  * @file    TextPlugin.ts
  * @brief   Plugin that automatically syncs Text components to Sprite textures
  */
-defineResource({ renderer: null }, 'TextRenderer');
 // =============================================================================
 // Text Plugin
 // =============================================================================
@@ -1079,23 +1066,30 @@ class TextPlugin {
             return;
         }
         const renderer = new TextRenderer(module);
-        app.addSystemToSchedule(Schedule.Startup, defineSystem([], () => {
-            // Initialization if needed
-        }));
-        app.addSystemToSchedule(Schedule.PreUpdate, defineSystem([Query(Text, Mut(Sprite))], (query) => {
-            for (const [entity, text, sprite] of query) {
-                const textData = text;
-                const spriteData = sprite;
-                if (!textData.dirty)
+        const world = app.world;
+        app.addSystemToSchedule(Schedule.PreUpdate, defineSystem([], () => {
+            const entities = world.getEntitiesWithComponents([Text]);
+            for (const entity of entities) {
+                const text = world.get(entity, Text);
+                if (!text.dirty)
                     continue;
-                const result = renderer.renderForEntity(entity, textData);
-                console.log(`Text texture size: ${result.width}x${result.height}`);
-                spriteData.texture = result.textureHandle;
-                spriteData.size = { x: result.width, y: result.height };
-                spriteData.color = { x: 1, y: 1, z: 1, w: 1 };
-                spriteData.uvOffset = { x: 0, y: 0 };
-                spriteData.uvScale = { x: 1, y: 1 };
-                textData.dirty = false;
+                if (!world.has(entity, Sprite)) {
+                    world.insert(entity, Sprite, {
+                        texture: 0,
+                        size: { x: 0, y: 0 },
+                        color: { x: 1, y: 1, z: 1, w: 1 },
+                        anchor: { x: 0.5, y: 0.5 },
+                        flip: { x: false, y: false }
+                    });
+                }
+                const result = renderer.renderForEntity(entity, text);
+                const sprite = world.get(entity, Sprite);
+                sprite.texture = result.textureHandle;
+                sprite.size = { x: result.width, y: result.height };
+                sprite.uvOffset = { x: 0, y: 0 };
+                sprite.uvScale = { x: 1, y: 1 };
+                world.insert(entity, Sprite, sprite);
+                text.dirty = false;
             }
         }));
     }
