@@ -13,7 +13,7 @@ import { ContentBrowserPanel, type ContentBrowserOptions } from './panels/Conten
 import { registerBuiltinEditors } from './property/editors';
 import { registerBuiltinSchemas } from './schemas/ComponentSchemas';
 import { initBoundsProviders } from './bounds';
-import { saveSceneToFile, loadSceneFromFile, loadSceneFromPath } from './io/SceneSerializer';
+import { saveSceneToFile, saveSceneToPath, loadSceneFromFile, loadSceneFromPath, hasFileHandle, clearFileHandle } from './io/SceneSerializer';
 import { icons } from './utils/icons';
 import { ScriptLoader } from './scripting';
 import { PreviewService } from './preview';
@@ -88,11 +88,24 @@ export class Editor {
 
     newScene(): void {
         this.store_.newScene();
+        clearFileHandle();
     }
 
     async saveScene(): Promise<void> {
-        await saveSceneToFile(this.store_.scene);
-        this.store_.markSaved();
+        const filePath = this.store_.filePath;
+
+        if (filePath && hasFileHandle()) {
+            const success = await saveSceneToPath(this.store_.scene, filePath);
+            if (success) {
+                this.store_.markSaved();
+                return;
+            }
+        }
+
+        const savedPath = await saveSceneToFile(this.store_.scene);
+        if (savedPath) {
+            this.store_.markSaved(savedPath);
+        }
     }
 
     async loadScene(): Promise<void> {

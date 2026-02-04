@@ -73,6 +73,7 @@ interface NativeFS {
     saveFile(content: string, defaultPath?: string): Promise<string | null>;
     loadFile(): Promise<{ path: string; content: string } | null>;
     readFile(path: string): Promise<string | null>;
+    writeFile?(path: string, content: string): Promise<boolean>;
 }
 
 function getNativeFS(): NativeFS | null {
@@ -87,6 +88,8 @@ function isNativeApp(): boolean {
 // File Operations
 // =============================================================================
 
+let currentFileHandle: FileSystemFileHandle | null = null;
+
 export async function saveSceneToFile(scene: SceneData, fileName?: string): Promise<string | null> {
     const serializer = new SceneSerializer();
     const json = serializer.serialize(scene);
@@ -98,6 +101,42 @@ export async function saveSceneToFile(scene: SceneData, fileName?: string): Prom
     }
 
     return browserSaveFile(json, name);
+}
+
+export async function saveSceneToPath(scene: SceneData, filePath: string): Promise<boolean> {
+    const serializer = new SceneSerializer();
+    const json = serializer.serialize(scene);
+
+    const nativeFS = getNativeFS();
+    if (isNativeApp() && nativeFS) {
+        if (nativeFS.writeFile) {
+            return nativeFS.writeFile(filePath, json);
+        }
+        const result = await nativeFS.saveFile(json, filePath);
+        return result !== null;
+    }
+
+    if (currentFileHandle) {
+        try {
+            const writable = await currentFileHandle.createWritable();
+            await writable.write(json);
+            await writable.close();
+            return true;
+        } catch (e) {
+            console.error('Failed to save to existing handle:', e);
+            currentFileHandle = null;
+        }
+    }
+
+    return false;
+}
+
+export function hasFileHandle(): boolean {
+    return currentFileHandle !== null || isNativeApp();
+}
+
+export function clearFileHandle(): void {
+    currentFileHandle = null;
 }
 
 export async function loadSceneFromFile(): Promise<SceneData | null> {
@@ -153,7 +192,8 @@ async function browserSaveFile(json: string, name: string): Promise<string | nul
             const writable = await handle.createWritable();
             await writable.write(blob);
             await writable.close();
-            return name;
+            currentFileHandle = handle;
+            return handle.name;
         } catch (e) {
             if ((e as Error).name === 'AbortError') return null;
         }

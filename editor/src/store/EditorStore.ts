@@ -94,6 +94,10 @@ export class EditorStore {
         return this.state_.isDirty;
     }
 
+    get filePath(): string | null {
+        return this.state_.filePath;
+    }
+
     // =========================================================================
     // Scene Operations
     // =========================================================================
