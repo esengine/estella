@@ -21,6 +21,7 @@ export class HierarchyPanel {
     private unsubscribe_: (() => void) | null = null;
     private searchFilter_: string = '';
     private expandedIds_: Set<number> = new Set();
+    private lastSelectedEntity_: Entity | null = null;
 
     constructor(container: HTMLElement, store: EditorStore) {
         this.container_ = container;
@@ -128,6 +129,11 @@ export class HierarchyPanel {
         const scene = this.store_.scene;
         const selectedEntity = this.store_.selectedEntity;
 
+        if (selectedEntity !== null && selectedEntity !== this.lastSelectedEntity_) {
+            this.expandAncestors(selectedEntity, scene);
+        }
+        this.lastSelectedEntity_ = selectedEntity;
+
         let rootEntities = scene.entities.filter(e => e.parent === null);
 
         if (this.searchFilter_) {
@@ -141,6 +147,25 @@ export class HierarchyPanel {
         if (this.footerContainer_) {
             const count = scene.entities.length;
             this.footerContainer_.textContent = `${count} ${count === 1 ? 'entity' : 'entities'}`;
+        }
+
+        if (selectedEntity !== null) {
+            requestAnimationFrame(() => {
+                const selectedItem = this.treeContainer_.querySelector('.es-selected');
+                selectedItem?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            });
+        }
+    }
+
+    private expandAncestors(entityId: Entity, scene: SceneData): void {
+        const entity = scene.entities.find(e => e.id === entityId);
+        if (!entity || entity.parent === null) return;
+
+        let parentId: number | null = entity.parent;
+        while (parentId !== null) {
+            this.expandedIds_.add(parentId);
+            const parent = scene.entities.find(e => e.id === parentId);
+            parentId = parent?.parent ?? null;
         }
     }
 
