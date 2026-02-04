@@ -117,6 +117,20 @@ svg {
     border-bottom: 1px solid var(--es-border);
 }
 
+.es-toolbar-logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+}
+
+.es-toolbar-logo svg {
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+}
+
 .es-toolbar-spacer {
     flex: 1;
 }

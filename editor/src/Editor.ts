@@ -72,6 +72,7 @@ export class Editor {
 
         if (this.sceneViewPanel_) {
             this.sceneViewPanel_.setBridge(this.bridge_);
+            this.sceneViewPanel_.setApp(app);
         }
     }
 
@@ -165,6 +166,12 @@ export class Editor {
         await this.previewService_?.stopPreview();
     }
 
+    async navigateToAsset(assetPath: string): Promise<void> {
+        if (this.contentBrowserPanel_) {
+            await this.contentBrowserPanel_.navigateToAsset(assetPath);
+        }
+    }
+
     // =========================================================================
     // Private Methods
     // =========================================================================
@@ -173,6 +180,8 @@ export class Editor {
         this.container_.className = 'es-editor';
         this.container_.innerHTML = `
             <div class="es-editor-toolbar">
+                <div class="es-toolbar-logo">${icons.logo(24)}</div>
+                <div class="es-toolbar-divider"></div>
                 <button class="es-btn" data-action="new">New</button>
                 <button class="es-btn" data-action="open">Open</button>
                 <button class="es-btn" data-action="save">Save</button>
