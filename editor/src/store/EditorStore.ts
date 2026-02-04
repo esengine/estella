@@ -15,6 +15,8 @@ import {
     AddComponentCommand,
     RemoveComponentCommand,
 } from '../commands';
+import { WorldTransformCache } from '../transform/WorldTransformCache';
+import type { Transform } from '../math/Transform';
 
 // =============================================================================
 // Types
@@ -47,6 +49,7 @@ export class EditorStore {
     private history_: CommandHistory;
     private listeners_: Set<EditorListener> = new Set();
     private nextEntityId_ = 1;
+    private worldTransforms_ = new WorldTransformCache();
 
     constructor() {
         this.state_ = {
@@ -103,6 +106,7 @@ export class EditorStore {
         this.state_.filePath = null;
         this.history_.clear();
         this.nextEntityId_ = 1;
+        this.worldTransforms_.setScene(this.state_.scene);
         this.notify();
     }
 
@@ -117,6 +121,7 @@ export class EditorStore {
         const maxId = scene.entities.reduce((max, e) => Math.max(max, e.id), 0);
         this.nextEntityId_ = maxId + 1;
 
+        this.worldTransforms_.setScene(scene);
         this.notify();
     }
 
@@ -247,7 +252,31 @@ export class EditorStore {
 
         component.data[propertyName] = newValue;
         this.state_.isDirty = true;
+
+        if (componentType === 'LocalTransform') {
+            this.worldTransforms_.updateEntity(entityData);
+            this.worldTransforms_.markDirty(entity as number);
+        }
+
         this.notify();
+    }
+
+    // =========================================================================
+    // World Transform
+    // =========================================================================
+
+    /**
+     * @brief Get cached world transform for an entity
+     */
+    getWorldTransform(entityId: number): Transform {
+        return this.worldTransforms_.getWorldTransform(entityId);
+    }
+
+    /**
+     * @brief Invalidate all cached transforms (force recalculation)
+     */
+    invalidateAllTransforms(): void {
+        this.worldTransforms_.invalidateAll();
     }
 
     // =========================================================================
@@ -257,6 +286,7 @@ export class EditorStore {
     undo(): void {
         if (this.history_.undo()) {
             this.state_.isDirty = true;
+            this.worldTransforms_.invalidateAll();
             this.notify();
         }
     }
@@ -264,6 +294,7 @@ export class EditorStore {
     redo(): void {
         if (this.history_.redo()) {
             this.state_.isDirty = true;
+            this.worldTransforms_.invalidateAll();
             this.notify();
         }
     }
@@ -284,6 +315,7 @@ export class EditorStore {
     private executeCommand(cmd: import('../commands').Command): void {
         this.history_.execute(cmd);
         this.state_.isDirty = true;
+        this.worldTransforms_.invalidateAll();
         this.notify();
     }
 

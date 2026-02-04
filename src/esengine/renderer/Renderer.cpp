@@ -25,6 +25,7 @@
 #endif
 
 #include <array>
+#include <cmath>
 #include <vector>
 
 namespace esengine {
@@ -512,6 +513,146 @@ void BatchRenderer2D::drawRotatedQuad(const glm::vec2& position, const glm::vec2
 
 void BatchRenderer2D::setProjection(const glm::mat4& projection) {
     data_->projection = projection;
+}
+
+void BatchRenderer2D::drawNineSlice(const glm::vec2& position, const glm::vec2& size,
+                                     u32 textureId, const glm::vec2& texSize,
+                                     const resource::SliceBorder& border,
+                                     const glm::vec4& color,
+                                     f32 rotation) {
+    // Extract border values
+    f32 L = border.left;
+    f32 R = border.right;
+    f32 T = border.top;
+    f32 B = border.bottom;
+
+    // Calculate position splits (from left edge of sprite)
+    // Sprite is centered at position, so left edge is at position.x - size.x/2
+    f32 baseX = position.x - size.x * 0.5f;
+    f32 baseY = position.y - size.y * 0.5f;
+
+    f32 x0 = baseX;
+    f32 x1 = baseX + L;
+    f32 x2 = baseX + size.x - R;
+    f32 x3 = baseX + size.x;
+
+    f32 y0 = baseY;
+    f32 y1 = baseY + B;
+    f32 y2 = baseY + size.y - T;
+    f32 y3 = baseY + size.y;
+
+    // Calculate UV splits
+    f32 u0 = 0.0f;
+    f32 u1 = L / texSize.x;
+    f32 u2 = 1.0f - R / texSize.x;
+    f32 u3 = 1.0f;
+
+    f32 v0 = 0.0f;
+    f32 v1 = B / texSize.y;
+    f32 v2 = 1.0f - T / texSize.y;
+    f32 v3 = 1.0f;
+
+    // Precompute rotation sin/cos
+    f32 cosR = std::cos(rotation);
+    f32 sinR = std::sin(rotation);
+
+    // Helper to rotate a point around center (position)
+    auto rotatePoint = [&position, cosR, sinR](f32 x, f32 y) -> glm::vec2 {
+        f32 dx = x - position.x;
+        f32 dy = y - position.y;
+        return glm::vec2(
+            position.x + dx * cosR - dy * sinR,
+            position.y + dx * sinR + dy * cosR
+        );
+    };
+
+    // Helper to draw a single slice quad with rotation
+    auto drawSlice = [this, textureId, &color, &rotatePoint, rotation](
+        f32 px, f32 py, f32 pw, f32 ph,
+        f32 uvX, f32 uvY, f32 uvW, f32 uvH) {
+
+        if (pw <= 0 || ph <= 0) return;
+
+        // Check if batch is full
+        if (data_->vertices.size() >= MAX_VERTICES) {
+            flush();
+        }
+
+        // Find or add texture slot
+        f32 texIndex = 0.0f;
+        if (textureId != 0) {
+            bool found = false;
+            for (u32 i = 0; i < data_->textureSlotIndex; ++i) {
+                if (data_->textureSlots[i] == textureId) {
+                    texIndex = static_cast<f32>(i);
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                if (data_->textureSlotIndex >= MAX_TEXTURE_SLOTS) {
+                    flush();
+                }
+                data_->textureSlots[data_->textureSlotIndex] = textureId;
+                texIndex = static_cast<f32>(data_->textureSlotIndex);
+                data_->textureSlotIndex++;
+            }
+        }
+
+        // Vertices for this slice (bottom-left origin)
+        // 0: bottom-left, 1: bottom-right, 2: top-right, 3: top-left
+        BatchVertex v0, v1, v2, v3;
+
+        // Apply rotation to each vertex position
+        glm::vec2 p0 = rotatePoint(px, py);
+        glm::vec2 p1 = rotatePoint(px + pw, py);
+        glm::vec2 p2 = rotatePoint(px + pw, py + ph);
+        glm::vec2 p3 = rotatePoint(px, py + ph);
+
+        v0.position = glm::vec3(p0.x, p0.y, 0.0f);
+        v0.color = color;
+        v0.texCoord = glm::vec2(uvX, uvY);
+        v0.texIndex = texIndex;
+
+        v1.position = glm::vec3(p1.x, p1.y, 0.0f);
+        v1.color = color;
+        v1.texCoord = glm::vec2(uvX + uvW, uvY);
+        v1.texIndex = texIndex;
+
+        v2.position = glm::vec3(p2.x, p2.y, 0.0f);
+        v2.color = color;
+        v2.texCoord = glm::vec2(uvX + uvW, uvY + uvH);
+        v2.texIndex = texIndex;
+
+        v3.position = glm::vec3(p3.x, p3.y, 0.0f);
+        v3.color = color;
+        v3.texCoord = glm::vec2(uvX, uvY + uvH);
+        v3.texIndex = texIndex;
+
+        data_->vertices.push_back(v0);
+        data_->vertices.push_back(v1);
+        data_->vertices.push_back(v2);
+        data_->vertices.push_back(v3);
+
+        data_->indexCount += 6;
+        data_->quadCount++;
+    };
+
+    // Draw 9 slices (3x3 grid)
+    // Row 1 (bottom): y0 to y1
+    drawSlice(x0, y0, x1 - x0, y1 - y0, u0, v0, u1 - u0, v1 - v0);  // Bottom-left
+    drawSlice(x1, y0, x2 - x1, y1 - y0, u1, v0, u2 - u1, v1 - v0);  // Bottom-center
+    drawSlice(x2, y0, x3 - x2, y1 - y0, u2, v0, u3 - u2, v1 - v0);  // Bottom-right
+
+    // Row 2 (middle): y1 to y2
+    drawSlice(x0, y1, x1 - x0, y2 - y1, u0, v1, u1 - u0, v2 - v1);  // Middle-left
+    drawSlice(x1, y1, x2 - x1, y2 - y1, u1, v1, u2 - u1, v2 - v1);  // Center
+    drawSlice(x2, y1, x3 - x2, y2 - y1, u2, v1, u3 - u2, v2 - v1);  // Middle-right
+
+    // Row 3 (top): y2 to y3
+    drawSlice(x0, y2, x1 - x0, y3 - y2, u0, v2, u1 - u0, v3 - v2);  // Top-left
+    drawSlice(x1, y2, x2 - x1, y3 - y2, u1, v2, u2 - u1, v3 - v2);  // Top-center
+    drawSlice(x2, y2, x3 - x2, y3 - y2, u2, v2, u3 - u2, v3 - v2);  // Top-right
 }
 
 u32 BatchRenderer2D::getDrawCallCount() const {

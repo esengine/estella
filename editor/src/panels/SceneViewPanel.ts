@@ -1,13 +1,17 @@
 /**
  * @file    SceneViewPanel.ts
- * @brief   Scene viewport panel with canvas rendering and gizmo tools
+ * @brief   Scene viewport panel with WebGL rendering and gizmo overlay
  */
 
-import type { Entity } from 'esengine';
+import type { Entity, App } from 'esengine';
 import type { EditorStore } from '../store/EditorStore';
 import type { EditorBridge } from '../bridge/EditorBridge';
+import type { SliceBorder } from '../types/TextureMetadata';
 import { getPlatformAdapter } from '../platform/PlatformAdapter';
+import { hasSlicing, parseTextureMetadata } from '../types/TextureMetadata';
 import { icons } from '../utils/icons';
+import { EditorSceneRenderer } from '../renderer/EditorSceneRenderer';
+import { quatToEuler, eulerToQuat } from '../math/Transform';
 
 // =============================================================================
 // Types
@@ -23,6 +27,14 @@ interface GizmoColors {
     hover: string;
 }
 
+interface GizmoSettings {
+    showGrid: boolean;
+    gridColor: string;
+    gridOpacity: number;
+    showGizmos: boolean;
+    showSelectionBox: boolean;
+}
+
 const GIZMO_COLORS: GizmoColors = {
     x: '#e74c3c',
     y: '#2ecc71',
@@ -33,12 +45,21 @@ const GIZMO_COLORS: GizmoColors = {
 const GIZMO_SIZE = 80;
 const GIZMO_HANDLE_SIZE = 10;
 
+const DEFAULT_GIZMO_SETTINGS: GizmoSettings = {
+    showGrid: true,
+    gridColor: '#333333',
+    gridOpacity: 1.0,
+    showGizmos: true,
+    showSelectionBox: true,
+};
+
 // =============================================================================
 // SceneViewPanel
 // =============================================================================
 
 export interface SceneViewPanelOptions {
     projectPath?: string;
+    app?: App;
 }
 
 export class SceneViewPanel {
@@ -46,10 +67,18 @@ export class SceneViewPanel {
     private store_: EditorStore;
     private bridge_: EditorBridge | null = null;
     private canvas_: HTMLCanvasElement;
+    private webglCanvas_: HTMLCanvasElement | null = null;
+    private overlayCanvas_: HTMLCanvasElement | null = null;
     private unsubscribe_: (() => void) | null = null;
     private animationId_: number | null = null;
     private resizeObserver_: ResizeObserver | null = null;
     private projectPath_: string | null = null;
+    private app_: App | null = null;
+
+    private sceneRenderer_: EditorSceneRenderer | null = null;
+    private useWebGL_ = false;
+    private webglInitialized_ = false;
+    private webglInitPending_ = false;
 
     private panX_ = 0;
     private panY_ = 0;
@@ -65,18 +94,26 @@ export class SceneViewPanel {
     private gizmoDragStartX_ = 0;
     private gizmoDragStartY_ = 0;
     private gizmoDragStartValue_: { x: number; y: number; z: number } = { x: 0, y: 0, z: 0 };
+    private gizmoDragOriginalValue_: unknown = null;
+    private gizmoDragPropertyName_: string = '';
     private keydownHandler_: ((e: KeyboardEvent) => void) | null = null;
     private skipNextClick_ = false;
     private boundOnDocumentMouseMove_: ((e: MouseEvent) => void) | null = null;
     private boundOnDocumentMouseUp_: ((e: MouseEvent) => void) | null = null;
 
     private textureCache_: Map<string, HTMLImageElement | null> = new Map();
+    private metadataCache_: Map<string, SliceBorder | null> = new Map();
     private loadingTextures_: Set<string> = new Set();
+
+    private gizmoSettings_: GizmoSettings = { ...DEFAULT_GIZMO_SETTINGS };
+    private settingsDropdown_: HTMLElement | null = null;
+    private settingsDropdownClickHandler_: ((e: MouseEvent) => void) | null = null;
 
     constructor(container: HTMLElement, store: EditorStore, options?: SceneViewPanelOptions) {
         this.container_ = container;
         this.store_ = store;
         this.projectPath_ = options?.projectPath ?? null;
+        this.app_ = options?.app ?? null;
 
         this.container_.className = 'es-sceneview-panel';
         this.container_.innerHTML = `
@@ -92,18 +129,58 @@ export class SceneViewPanel {
                     <div class="es-toolbar-divider"></div>
                     <button class="es-btn es-btn-icon" data-action="reset-view" title="Reset View">${icons.refresh(14)}</button>
                     <span class="es-zoom-display">100%</span>
+                    <div class="es-toolbar-divider"></div>
+                    <div class="es-gizmo-settings-wrapper">
+                        <button class="es-btn es-btn-icon" data-action="gizmo-settings" title="Gizmo Settings">${icons.settings(14)}</button>
+                        <div class="es-gizmo-settings-dropdown" style="display: none;">
+                            <div class="es-settings-row">
+                                <label class="es-settings-checkbox">
+                                    <input type="checkbox" data-setting="showGrid" checked>
+                                    <span>Show Grid</span>
+                                </label>
+                            </div>
+                            <div class="es-settings-row">
+                                <label class="es-settings-label">Grid Color</label>
+                                <input type="color" data-setting="gridColor" value="#333333" class="es-color-input">
+                            </div>
+                            <div class="es-settings-row">
+                                <label class="es-settings-label">Grid Opacity</label>
+                                <input type="range" data-setting="gridOpacity" min="0" max="1" step="0.1" value="1" class="es-slider-input">
+                            </div>
+                            <div class="es-settings-divider"></div>
+                            <div class="es-settings-row">
+                                <label class="es-settings-checkbox">
+                                    <input type="checkbox" data-setting="showGizmos" checked>
+                                    <span>Show Gizmos</span>
+                                </label>
+                            </div>
+                            <div class="es-settings-row">
+                                <label class="es-settings-checkbox">
+                                    <input type="checkbox" data-setting="showSelectionBox" checked>
+                                    <span>Show Selection Box</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="es-sceneview-viewport">
-                <canvas class="es-sceneview-canvas"></canvas>
+                <canvas class="es-sceneview-webgl"></canvas>
+                <canvas class="es-sceneview-overlay"></canvas>
             </div>
         `;
 
-        this.canvas_ = this.container_.querySelector('.es-sceneview-canvas')!;
+        this.webglCanvas_ = this.container_.querySelector('.es-sceneview-webgl')!;
+        this.overlayCanvas_ = this.container_.querySelector('.es-sceneview-overlay')!;
+        this.canvas_ = this.overlayCanvas_;
 
         this.setupEvents();
-        this.unsubscribe_ = store.subscribe(() => this.requestRender());
+        this.unsubscribe_ = store.subscribe(() => this.onSceneChanged());
         this.resize();
+
+        if (this.app_?.wasmModule) {
+            this.initWebGLRenderer();
+        }
     }
 
     dispose(): void {
@@ -123,6 +200,14 @@ export class SceneViewPanel {
             document.removeEventListener('keydown', this.keydownHandler_);
             this.keydownHandler_ = null;
         }
+        if (this.settingsDropdownClickHandler_) {
+            document.removeEventListener('click', this.settingsDropdownClickHandler_);
+            this.settingsDropdownClickHandler_ = null;
+        }
+        if (this.sceneRenderer_) {
+            this.sceneRenderer_.dispose();
+            this.sceneRenderer_ = null;
+        }
         this.stopDocumentDrag();
     }
 
@@ -135,6 +220,63 @@ export class SceneViewPanel {
         this.projectPath_ = path;
         this.textureCache_.clear();
         this.loadingTextures_.clear();
+
+        if (this.sceneRenderer_) {
+            const projectDir = path.replace(/\\/g, '/').replace(/\/[^/]+$/, '');
+            this.sceneRenderer_.setProjectDir(projectDir);
+            this.syncSceneToRenderer();
+        }
+
+        this.requestRender();
+    }
+
+    setApp(app: App): void {
+        this.app_ = app;
+        if (app.wasmModule && !this.webglInitialized_ && !this.webglInitPending_) {
+            this.initWebGLRenderer();
+        }
+    }
+
+    private async initWebGLRenderer(): Promise<void> {
+        if (this.webglInitPending_ || this.webglInitialized_) return;
+        if (!this.app_?.wasmModule || !this.webglCanvas_) return;
+
+        this.webglInitPending_ = true;
+
+        const canvasId = `es-sceneview-webgl-${Date.now()}`;
+        this.webglCanvas_.id = canvasId;
+
+        this.sceneRenderer_ = new EditorSceneRenderer();
+        const success = await this.sceneRenderer_.init(this.app_.wasmModule, `#${canvasId}`);
+
+        if (success) {
+            this.webglInitialized_ = true;
+            this.useWebGL_ = true;
+
+            if (this.projectPath_) {
+                const projectDir = this.projectPath_.replace(/\\/g, '/').replace(/\/[^/]+$/, '');
+                this.sceneRenderer_.setProjectDir(projectDir);
+            }
+
+            await this.syncSceneToRenderer();
+            this.requestRender();
+        } else {
+            console.warn('WebGL init failed, falling back to Canvas 2D');
+            this.sceneRenderer_ = null;
+        }
+
+        this.webglInitPending_ = false;
+    }
+
+    private async syncSceneToRenderer(): Promise<void> {
+        if (!this.sceneRenderer_) return;
+        await this.sceneRenderer_.syncScene(this.store_.scene);
+    }
+
+    private async onSceneChanged(): Promise<void> {
+        if (this.sceneRenderer_ && this.useWebGL_) {
+            await this.syncSceneToRenderer();
+        }
         this.requestRender();
     }
 
@@ -183,6 +325,20 @@ export class SceneViewPanel {
         const rect = viewport.getBoundingClientRect();
         const dpr = window.devicePixelRatio || 1;
 
+        if (this.webglCanvas_) {
+            this.webglCanvas_.width = rect.width * dpr;
+            this.webglCanvas_.height = rect.height * dpr;
+            this.webglCanvas_.style.width = `${rect.width}px`;
+            this.webglCanvas_.style.height = `${rect.height}px`;
+        }
+
+        if (this.overlayCanvas_) {
+            this.overlayCanvas_.width = rect.width * dpr;
+            this.overlayCanvas_.height = rect.height * dpr;
+            this.overlayCanvas_.style.width = `${rect.width}px`;
+            this.overlayCanvas_.style.height = `${rect.height}px`;
+        }
+
         this.canvas_.width = rect.width * dpr;
         this.canvas_.height = rect.height * dpr;
         this.canvas_.style.width = `${rect.width}px`;
@@ -200,6 +356,8 @@ export class SceneViewPanel {
             this.updateZoomDisplay();
             this.requestRender();
         });
+
+        this.setupGizmoSettingsDropdown();
 
         const gizmoButtons = this.container_.querySelectorAll('.es-gizmo-btn');
         gizmoButtons.forEach(btn => {
@@ -256,6 +414,50 @@ export class SceneViewPanel {
         this.requestRender();
     }
 
+    private setupGizmoSettingsDropdown(): void {
+        const settingsBtn = this.container_.querySelector('[data-action="gizmo-settings"]');
+        this.settingsDropdown_ = this.container_.querySelector('.es-gizmo-settings-dropdown');
+
+        if (!settingsBtn || !this.settingsDropdown_) return;
+
+        settingsBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isVisible = this.settingsDropdown_!.style.display !== 'none';
+            this.settingsDropdown_!.style.display = isVisible ? 'none' : 'block';
+        });
+
+        this.settingsDropdownClickHandler_ = (e: MouseEvent) => {
+            if (this.settingsDropdown_ && !this.settingsDropdown_.contains(e.target as Node) &&
+                !settingsBtn.contains(e.target as Node)) {
+                this.settingsDropdown_.style.display = 'none';
+            }
+        };
+        document.addEventListener('click', this.settingsDropdownClickHandler_);
+
+        this.settingsDropdown_.querySelectorAll('input').forEach(input => {
+            const setting = input.dataset.setting as keyof GizmoSettings;
+            if (!setting) return;
+
+            input.addEventListener('change', () => {
+                if (input.type === 'checkbox') {
+                    (this.gizmoSettings_ as any)[setting] = input.checked;
+                } else if (input.type === 'range') {
+                    (this.gizmoSettings_ as any)[setting] = parseFloat(input.value);
+                } else if (input.type === 'color') {
+                    (this.gizmoSettings_ as any)[setting] = input.value;
+                }
+                this.requestRender();
+            });
+
+            if (input.type === 'range') {
+                input.addEventListener('input', () => {
+                    (this.gizmoSettings_ as any)[setting] = parseFloat(input.value);
+                    this.requestRender();
+                });
+            }
+        });
+    }
+
     private onMouseDown(e: MouseEvent): void {
         if (e.button === 1 || (e.button === 0 && e.altKey)) {
             this.isDragging_ = true;
@@ -283,11 +485,15 @@ export class SceneViewPanel {
                 if (transform) {
                     if (this.gizmoMode_ === 'rotate') {
                         const quat = transform.data.rotation as { x: number; y: number; z: number; w: number };
-                        this.gizmoDragStartValue_ = this.quatToEuler(quat ?? { x: 0, y: 0, z: 0, w: 1 });
+                        this.gizmoDragStartValue_ = quatToEuler(quat ?? { x: 0, y: 0, z: 0, w: 1 });
+                        this.gizmoDragPropertyName_ = 'rotation';
+                        this.gizmoDragOriginalValue_ = quat ? { ...quat } : { x: 0, y: 0, z: 0, w: 1 };
                     } else {
                         const prop = this.gizmoMode_ === 'scale' ? 'scale' : 'position';
                         const value = transform.data[prop] as { x: number; y: number; z: number };
                         this.gizmoDragStartValue_ = { ...value };
+                        this.gizmoDragPropertyName_ = prop;
+                        this.gizmoDragOriginalValue_ = { ...value };
                     }
                 }
                 this.startDocumentDrag();
@@ -365,10 +571,52 @@ export class SceneViewPanel {
         }
 
         if (this.isGizmoDragging_) {
+            this.commitGizmoDrag();
             this.isGizmoDragging_ = false;
             this.dragAxis_ = 'none';
             this.skipNextClick_ = true;
         }
+    }
+
+    private commitGizmoDrag(): void {
+        const entity = this.store_.selectedEntity;
+        if (entity === null || !this.gizmoDragPropertyName_ || this.gizmoDragOriginalValue_ === null) {
+            return;
+        }
+
+        const entityData = this.store_.getSelectedEntityData();
+        const transform = entityData?.components.find(c => c.type === 'LocalTransform');
+        if (!transform) return;
+
+        const currentValue = transform.data[this.gizmoDragPropertyName_];
+        if (!currentValue) return;
+
+        const oldValue = this.gizmoDragOriginalValue_;
+        const newValue = this.deepClone(currentValue);
+
+        if (this.valuesEqual(oldValue, newValue)) {
+            return;
+        }
+
+        this.store_.updateProperty(
+            entity,
+            'LocalTransform',
+            this.gizmoDragPropertyName_,
+            oldValue,
+            newValue
+        );
+
+        this.gizmoDragOriginalValue_ = null;
+        this.gizmoDragPropertyName_ = '';
+    }
+
+    private deepClone<T>(obj: T): T {
+        if (obj === null || typeof obj !== 'object') return obj;
+        return JSON.parse(JSON.stringify(obj));
+    }
+
+    private valuesEqual(a: unknown, b: unknown): boolean {
+        return JSON.stringify(a) === JSON.stringify(b);
     }
 
     private onMouseLeave(_e: MouseEvent): void {
@@ -416,10 +664,7 @@ export class SceneViewPanel {
         const entityData = this.store_.getSelectedEntityData();
         if (!entityData) return null;
 
-        const transform = entityData.components.find(c => c.type === 'LocalTransform');
-        if (!transform) return null;
-
-        return transform.data.position as { x: number; y: number; z: number } ?? { x: 0, y: 0, z: 0 };
+        return this.store_.getWorldTransform(entityData.id).position;
     }
 
     private hitTestGizmo(worldX: number, worldY: number): DragAxis {
@@ -499,50 +744,11 @@ export class SceneViewPanel {
 
             const newRotZ = this.gizmoDragStartValue_.z + deltaAngle;
             const euler = { x: 0, y: 0, z: newRotZ };
-            const quat = this.eulerToQuat(euler);
+            const quat = eulerToQuat(euler);
             this.store_.updatePropertyDirect(entity, 'LocalTransform', 'rotation', quat);
         }
 
         this.requestRender();
-    }
-
-    private quatToEuler(q: { x: number; y: number; z: number; w: number }): { x: number; y: number; z: number } {
-        const { x, y, z, w } = q;
-
-        const sinrCosp = 2 * (w * x + y * z);
-        const cosrCosp = 1 - 2 * (x * x + y * y);
-        const roll = Math.atan2(sinrCosp, cosrCosp);
-
-        const sinp = 2 * (w * y - z * x);
-        const pitch = Math.abs(sinp) >= 1 ? Math.sign(sinp) * Math.PI / 2 : Math.asin(sinp);
-
-        const sinyCosp = 2 * (w * z + x * y);
-        const cosyCosp = 1 - 2 * (y * y + z * z);
-        const yaw = Math.atan2(sinyCosp, cosyCosp);
-
-        const toDeg = 180 / Math.PI;
-        return { x: roll * toDeg, y: pitch * toDeg, z: yaw * toDeg };
-    }
-
-    private eulerToQuat(euler: { x: number; y: number; z: number }): { x: number; y: number; z: number; w: number } {
-        const toRad = Math.PI / 180;
-        const roll = euler.x * toRad;
-        const pitch = euler.y * toRad;
-        const yaw = euler.z * toRad;
-
-        const cr = Math.cos(roll * 0.5);
-        const sr = Math.sin(roll * 0.5);
-        const cp = Math.cos(pitch * 0.5);
-        const sp = Math.sin(pitch * 0.5);
-        const cy = Math.cos(yaw * 0.5);
-        const sy = Math.sin(yaw * 0.5);
-
-        return {
-            w: cr * cp * cy + sr * sp * sy,
-            x: sr * cp * cy - cr * sp * sy,
-            y: cr * sp * cy + sr * cp * sy,
-            z: cr * cp * sy - sr * sp * cy,
-        };
     }
 
     private onWheel(e: WheelEvent): void {
@@ -577,8 +783,9 @@ export class SceneViewPanel {
 
             if (!transform) continue;
 
-            const pos = transform.data.position as { x: number; y: number; z: number };
-            const scale = transform.data.scale as { x: number; y: number; z: number } ?? { x: 1, y: 1, z: 1 };
+            const worldTransform = this.store_.getWorldTransform(entity.id);
+            const pos = worldTransform.position;
+            const scale = worldTransform.scale;
             const sprite = entity.components.find(c => c.type === 'Sprite');
 
             let w = defaultSize;
@@ -594,10 +801,10 @@ export class SceneViewPanel {
             const halfH = h / 2;
 
             if (
-                worldX >= (pos?.x ?? 0) - halfW &&
-                worldX <= (pos?.x ?? 0) + halfW &&
-                worldY >= (pos?.y ?? 0) - halfH &&
-                worldY <= (pos?.y ?? 0) + halfH
+                worldX >= pos.x - halfW &&
+                worldX <= pos.x + halfW &&
+                worldY >= pos.y - halfH &&
+                worldY <= pos.y + halfH
             ) {
                 return entity.id as Entity;
             }
@@ -623,11 +830,97 @@ export class SceneViewPanel {
     }
 
     private render(): void {
-        if (this.bridge_) {
+        if (this.useWebGL_ && this.sceneRenderer_ && this.webglCanvas_) {
+            this.sceneRenderer_.camera.panX = this.panX_;
+            this.sceneRenderer_.camera.panY = this.panY_;
+            this.sceneRenderer_.camera.zoom = this.zoom_;
+
+            this.sceneRenderer_.render(this.webglCanvas_.width, this.webglCanvas_.height);
+            this.renderOverlay();
+        } else if (this.bridge_) {
             this.bridge_.render(this.canvas_.width, this.canvas_.height);
         } else {
             this.renderPreview();
         }
+    }
+
+    private renderOverlay(): void {
+        if (!this.overlayCanvas_) return;
+
+        const ctx = this.overlayCanvas_.getContext('2d');
+        if (!ctx) return;
+
+        const w = this.overlayCanvas_.width;
+        const h = this.overlayCanvas_.height;
+
+        ctx.clearRect(0, 0, w, h);
+
+        ctx.save();
+        ctx.translate(w / 2 + this.panX_ * this.zoom_, h / 2 + this.panY_ * this.zoom_);
+        ctx.scale(this.zoom_, this.zoom_);
+
+        this.drawGrid(ctx, w, h);
+
+        const selectedEntity = this.store_.selectedEntity;
+
+        if (selectedEntity !== null) {
+            if (this.gizmoSettings_.showSelectionBox) {
+                this.drawSelectionBox(ctx);
+            }
+
+            if (this.gizmoMode_ !== 'select' && this.gizmoSettings_.showGizmos) {
+                this.drawGizmo(ctx);
+            }
+        }
+
+        ctx.restore();
+    }
+
+    private drawSelectionBox(ctx: CanvasRenderingContext2D): void {
+        const entityData = this.store_.getSelectedEntityData();
+        if (!entityData) return;
+
+        const transform = entityData.components.find(c => c.type === 'LocalTransform');
+        const sprite = entityData.components.find(c => c.type === 'Sprite');
+
+        if (!transform) return;
+
+        const worldTransform = this.store_.getWorldTransform(entityData.id);
+        const pos = worldTransform.position;
+        const scale = worldTransform.scale;
+
+        let w = 50;
+        let h = 50;
+
+        if (sprite) {
+            const size = sprite.data.size as { x: number; y: number };
+            if (size) {
+                w = size.x * Math.abs(scale.x);
+                h = size.y * Math.abs(scale.y);
+            }
+        }
+
+        ctx.save();
+        ctx.translate(pos.x, -pos.y);
+
+        ctx.strokeStyle = '#00aaff';
+        ctx.lineWidth = 2 / this.zoom_;
+        ctx.setLineDash([]);
+        ctx.strokeRect(-w / 2, -h / 2, w, h);
+
+        ctx.fillStyle = '#00aaff';
+        const handleSize = 6 / this.zoom_;
+        const corners = [
+            [-w / 2, -h / 2],
+            [w / 2, -h / 2],
+            [-w / 2, h / 2],
+            [w / 2, h / 2],
+        ];
+        for (const [cx, cy] of corners) {
+            ctx.fillRect(cx - handleSize / 2, cy - handleSize / 2, handleSize, handleSize);
+        }
+
+        ctx.restore();
     }
 
     private renderPreview(): void {
@@ -653,7 +946,7 @@ export class SceneViewPanel {
             this.drawEntity(ctx, entity, entity.id === selectedEntity);
         }
 
-        if (selectedEntity !== null && this.gizmoMode_ !== 'select') {
+        if (selectedEntity !== null && this.gizmoMode_ !== 'select' && this.gizmoSettings_.showGizmos) {
             this.drawGizmo(ctx);
         }
 
@@ -710,7 +1003,7 @@ export class SceneViewPanel {
             const entityData = this.store_.getSelectedEntityData();
             const transform = entityData?.components.find(c => c.type === 'LocalTransform');
             const quat = transform?.data.rotation as { x: number; y: number; z: number; w: number } ?? { x: 0, y: 0, z: 0, w: 1 };
-            const euler = this.quatToEuler(quat);
+            const euler = quatToEuler(quat);
             const angleRad = -euler.z * Math.PI / 180;
 
             ctx.strokeStyle = 'rgba(100, 100, 100, 0.5)';
@@ -765,6 +1058,8 @@ export class SceneViewPanel {
     }
 
     private drawGrid(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+        if (!this.gizmoSettings_.showGrid) return;
+
         const gridSize = 50;
         const halfW = w / 2 / this.zoom_;
         const halfH = h / 2 / this.zoom_;
@@ -774,7 +1069,8 @@ export class SceneViewPanel {
         const startY = Math.floor((-halfH - this.panY_) / gridSize) * gridSize;
         const endY = Math.ceil((halfH - this.panY_) / gridSize) * gridSize;
 
-        ctx.strokeStyle = '#333';
+        ctx.globalAlpha = this.gizmoSettings_.gridOpacity;
+        ctx.strokeStyle = this.gizmoSettings_.gridColor;
         ctx.lineWidth = 1 / this.zoom_;
 
         for (let x = startX; x <= endX; x += gridSize) {
@@ -793,7 +1089,7 @@ export class SceneViewPanel {
             ctx.stroke();
         }
 
-        ctx.strokeStyle = '#555';
+        ctx.strokeStyle = this.lightenColor(this.gizmoSettings_.gridColor, 30);
         ctx.lineWidth = 2 / this.zoom_;
         ctx.beginPath();
         ctx.moveTo(startX, 0);
@@ -803,6 +1099,16 @@ export class SceneViewPanel {
         ctx.moveTo(0, startY);
         ctx.lineTo(0, endY);
         ctx.stroke();
+
+        ctx.globalAlpha = 1;
+    }
+
+    private lightenColor(hex: string, percent: number): string {
+        const num = parseInt(hex.replace('#', ''), 16);
+        const r = Math.min(255, ((num >> 16) & 0xff) + Math.round(255 * percent / 100));
+        const g = Math.min(255, ((num >> 8) & 0xff) + Math.round(255 * percent / 100));
+        const b = Math.min(255, (num & 0xff) + Math.round(255 * percent / 100));
+        return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
     }
 
     private drawEntity(
@@ -815,8 +1121,9 @@ export class SceneViewPanel {
 
         if (!transform) return;
 
-        const pos = transform.data.position as { x: number; y: number; z: number } ?? { x: 0, y: 0, z: 0 };
-        const scale = transform.data.scale as { x: number; y: number; z: number } ?? { x: 1, y: 1, z: 1 };
+        const worldTransform = this.store_.getWorldTransform(entity.id);
+        const pos = worldTransform.position;
+        const scale = worldTransform.scale;
 
         let w = 50;
         let h = 50;

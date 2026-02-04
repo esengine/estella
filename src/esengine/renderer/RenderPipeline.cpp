@@ -142,12 +142,26 @@ void RenderPipeline::collectFromRegistry(ecs::Registry& registry) {
         item.depth = transform.position.z;
         item.flip_x = sprite.flipX;
         item.flip_y = sprite.flipY;
+        item.use_nine_slice = false;
+        item.slice_border = {};
+        item.texture_size = {1.0f, 1.0f};
 
         item.texture_id = context_.getWhiteTextureId();
         if (sprite.texture.isValid()) {
             Texture* tex = resource_manager_.getTexture(sprite.texture);
             if (tex) {
                 item.texture_id = tex->getId();
+                item.texture_size = glm::vec2(
+                    static_cast<f32>(tex->getWidth()),
+                    static_cast<f32>(tex->getHeight())
+                );
+
+                // Auto-detect nine-slice from texture metadata
+                const auto* metadata = resource_manager_.getTextureMetadata(sprite.texture);
+                if (metadata && metadata->sliceBorder.hasSlicing()) {
+                    item.use_nine_slice = true;
+                    item.slice_border = metadata->sliceBorder;
+                }
             }
         }
 
@@ -237,27 +251,46 @@ void RenderPipeline::executeBatches() {
     for (const auto& item : items_) {
         glm::vec2 finalSize = item.size * glm::vec2(item.scale);
 
-        f32 angle = glm::angle(item.rotation);
-        glm::vec3 axis = glm::axis(item.rotation);
-        if (axis.z < 0) {
-            angle = -angle;
-        }
+        // Use nine-slice rendering if enabled and has valid borders
+        if (item.use_nine_slice) {
+            f32 angle = glm::angle(item.rotation);
+            glm::vec3 axis = glm::axis(item.rotation);
+            if (axis.z < 0) {
+                angle = -angle;
+            }
 
-        if (std::abs(angle) > 0.001f) {
-            batcher_->drawRotatedQuad(
+            batcher_->drawNineSlice(
                 glm::vec2(item.position),
                 finalSize,
-                angle,
                 item.texture_id,
-                item.color
+                item.texture_size,
+                item.slice_border,
+                item.color,
+                angle
             );
         } else {
-            batcher_->drawQuad(
-                glm::vec3(item.position.x, item.position.y, item.depth),
-                finalSize,
-                item.texture_id,
-                item.color
-            );
+            f32 angle = glm::angle(item.rotation);
+            glm::vec3 axis = glm::axis(item.rotation);
+            if (axis.z < 0) {
+                angle = -angle;
+            }
+
+            if (std::abs(angle) > 0.001f) {
+                batcher_->drawRotatedQuad(
+                    glm::vec2(item.position),
+                    finalSize,
+                    angle,
+                    item.texture_id,
+                    item.color
+                );
+            } else {
+                batcher_->drawQuad(
+                    glm::vec3(item.position.x, item.position.y, item.depth),
+                    finalSize,
+                    item.texture_id,
+                    item.color
+                );
+            }
         }
     }
 

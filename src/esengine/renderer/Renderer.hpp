@@ -24,6 +24,7 @@
 #include "Texture.hpp"
 #include "RenderContext.hpp"
 #include "../resource/Handle.hpp"
+#include "../resource/TextureMetadata.hpp"
 
 // Forward declaration
 namespace esengine::resource {
@@ -342,6 +343,26 @@ public:
     void drawRotatedQuad(const glm::vec2& position, const glm::vec2& size,
                          f32 rotation, u32 textureId,
                          const glm::vec4& tintColor = glm::vec4(1.0f));
+
+    // =========================================================================
+    // Nine-Slice Rendering
+    // =========================================================================
+
+    /**
+     * @brief Draws a nine-slice sprite
+     * @param position Center position (x, y)
+     * @param size Total width and height
+     * @param textureId GPU texture handle
+     * @param texSize Texture dimensions in pixels
+     * @param border Nine-slice border configuration
+     * @param color Color tint (defaults to white)
+     * @param rotation Rotation angle in radians (defaults to 0)
+     */
+    void drawNineSlice(const glm::vec2& position, const glm::vec2& size,
+                       u32 textureId, const glm::vec2& texSize,
+                       const resource::SliceBorder& border,
+                       const glm::vec4& color = glm::vec4(1.0f),
+                       f32 rotation = 0.0f);
 
     // =========================================================================
     // Configuration
