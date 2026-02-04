@@ -126,20 +126,35 @@ void RenderPipeline::collectFromRegistry(ecs::Registry& registry) {
     auto spriteView = registry.view<ecs::LocalTransform, ecs::Sprite>();
 
     for (auto entity : spriteView) {
-        const auto& transform = spriteView.get<ecs::LocalTransform>(entity);
         const auto& sprite = spriteView.get<ecs::Sprite>(entity);
+
+        glm::vec3 position;
+        glm::quat rotation;
+        glm::vec3 scale;
+
+        if (registry.has<ecs::WorldTransform>(entity)) {
+            const auto& world = registry.get<ecs::WorldTransform>(entity);
+            position = world.position;
+            rotation = world.rotation;
+            scale = world.scale;
+        } else {
+            const auto& local = spriteView.get<ecs::LocalTransform>(entity);
+            position = local.position;
+            rotation = local.rotation;
+            scale = local.scale;
+        }
 
         RenderItem item;
         item.entity = entity;
-        item.position = transform.position;
-        item.rotation = transform.rotation;
-        item.scale = transform.scale;
+        item.position = position;
+        item.rotation = rotation;
+        item.scale = scale;
         item.size = sprite.size;
         item.color = sprite.color;
         item.uv_offset = sprite.uvOffset;
         item.uv_scale = sprite.uvScale;
         item.layer = sprite.layer;
-        item.depth = transform.position.z;
+        item.depth = position.z;
         item.flip_x = sprite.flipX;
         item.flip_y = sprite.flipY;
         item.use_nine_slice = false;
@@ -156,7 +171,6 @@ void RenderPipeline::collectFromRegistry(ecs::Registry& registry) {
                     static_cast<f32>(tex->getHeight())
                 );
 
-                // Auto-detect nine-slice from texture metadata
                 const auto* metadata = resource_manager_.getTextureMetadata(sprite.texture);
                 if (metadata && metadata->sliceBorder.hasSlicing()) {
                     item.use_nine_slice = true;

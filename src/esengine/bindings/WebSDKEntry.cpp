@@ -20,24 +20,27 @@
 #include "../renderer/RenderPipeline.hpp"
 #include "../renderer/Texture.hpp"
 #include "../resource/ResourceManager.hpp"
+#include "../resource/TextureMetadata.hpp"
 #include "../ecs/Registry.hpp"
+#include "../ecs/TransformSystem.hpp"
 #include "../ecs/components/Camera.hpp"
 #include "../ecs/components/Transform.hpp"
 
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 namespace esengine {
 
 static Unique<RenderContext> g_renderContext;
 static Unique<RenderPipeline> g_renderPipeline;
+static Unique<ecs::TransformSystem> g_transformSystem;
 static Unique<resource::ResourceManager> g_resourceManager;
 static EMSCRIPTEN_WEBGL_CONTEXT_HANDLE g_webglContext = 0;
 static bool g_initialized = false;
 
-void initRenderer() {
-    if (g_initialized) return;
+bool initRendererInternal(const char* canvasSelector) {
+    if (g_initialized) return true;
 
-    // Create WebGL2 context
     EmscriptenWebGLContextAttributes attrs;
     emscripten_webgl_init_context_attributes(&attrs);
     attrs.majorVersion = 2;
@@ -51,19 +54,19 @@ void initRenderer() {
     attrs.powerPreference = EM_WEBGL_POWER_PREFERENCE_DEFAULT;
     attrs.failIfMajorPerformanceCaveat = false;
 
-    g_webglContext = emscripten_webgl_create_context("#canvas", &attrs);
+    g_webglContext = emscripten_webgl_create_context(canvasSelector, &attrs);
     if (g_webglContext <= 0) {
-        ES_LOG_ERROR("Failed to create WebGL2 context: {}", g_webglContext);
-        return;
+        ES_LOG_ERROR("Failed to create WebGL2 context for '{}': {}", canvasSelector, g_webglContext);
+        return false;
     }
 
     EMSCRIPTEN_RESULT result = emscripten_webgl_make_context_current(g_webglContext);
     if (result != EMSCRIPTEN_RESULT_SUCCESS) {
         ES_LOG_ERROR("Failed to make WebGL context current: {}", result);
-        return;
+        return false;
     }
 
-    ES_LOG_INFO("WebGL2 context created successfully");
+    ES_LOG_INFO("WebGL2 context created for '{}'", canvasSelector);
 
     g_resourceManager = makeUnique<resource::ResourceManager>();
     g_resourceManager->init();
@@ -72,17 +75,28 @@ void initRenderer() {
     g_renderContext->init();
 
     g_renderPipeline = makeUnique<RenderPipeline>(*g_renderContext, *g_resourceManager);
+    g_transformSystem = makeUnique<ecs::TransformSystem>();
 
     g_initialized = true;
 
-    // Initial clear to prevent black flash before first render
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    return true;
+}
+
+void initRenderer() {
+    initRendererInternal("#canvas");
+}
+
+bool initRendererWithCanvas(const std::string& canvasSelector) {
+    return initRendererInternal(canvasSelector.c_str());
 }
 
 void shutdownRenderer() {
     if (!g_initialized) return;
 
+    g_transformSystem.reset();
     g_renderPipeline.reset();
     g_renderContext->shutdown();
     g_renderContext.reset();
@@ -128,8 +142,22 @@ void rm_releaseShader(resource::ResourceManager& rm, u32 handleId) {
     rm.releaseShader(resource::ShaderHandle(handleId));
 }
 
+void rm_setTextureMetadata(resource::ResourceManager& rm, u32 handleId,
+                            f32 left, f32 right, f32 top, f32 bottom) {
+    resource::TextureMetadata metadata;
+    metadata.sliceBorder.left = left;
+    metadata.sliceBorder.right = right;
+    metadata.sliceBorder.top = top;
+    metadata.sliceBorder.bottom = bottom;
+    rm.setTextureMetadata(resource::TextureHandle(handleId), metadata);
+}
+
 void renderFrame(ecs::Registry& registry, i32 viewportWidth, i32 viewportHeight) {
     if (!g_initialized || !g_renderContext) return;
+
+    if (g_transformSystem) {
+        g_transformSystem->update(registry, 0.0f);
+    }
 
     glViewport(0, 0, viewportWidth, viewportHeight);
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
@@ -138,6 +166,7 @@ void renderFrame(ecs::Registry& registry, i32 viewportWidth, i32 viewportHeight)
     glm::mat4 viewProjection = glm::mat4(1.0f);
 
     auto cameraView = registry.view<ecs::Camera, ecs::LocalTransform>();
+
     for (auto entity : cameraView) {
         auto& camera = registry.get<ecs::Camera>(entity);
         if (!camera.isActive) continue;
@@ -146,8 +175,9 @@ void renderFrame(ecs::Registry& registry, i32 viewportWidth, i32 viewportHeight)
         glm::mat4 view = glm::inverse(glm::translate(glm::mat4(1.0f), transform.position));
 
         glm::mat4 projection;
+        f32 aspect = static_cast<f32>(viewportWidth) / static_cast<f32>(viewportHeight);
+
         if (camera.projectionType == ecs::ProjectionType::Orthographic) {
-            f32 aspect = static_cast<f32>(viewportWidth) / static_cast<f32>(viewportHeight);
             f32 halfHeight = camera.orthoSize;
             f32 halfWidth = halfHeight * aspect;
             projection = glm::ortho(-halfWidth, halfWidth, -halfHeight, halfHeight,
@@ -169,19 +199,42 @@ void renderFrame(ecs::Registry& registry, i32 viewportWidth, i32 viewportHeight)
     g_renderPipeline->end();
 }
 
+void renderFrameWithMatrix(ecs::Registry& registry, i32 viewportWidth, i32 viewportHeight,
+                           uintptr_t matrixPtr) {
+    if (!g_initialized || !g_renderContext) return;
+
+    if (g_transformSystem) {
+        g_transformSystem->update(registry, 0.0f);
+    }
+
+    glViewport(0, 0, viewportWidth, viewportHeight);
+    glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    const f32* matrixData = reinterpret_cast<const f32*>(matrixPtr);
+    glm::mat4 viewProjection = glm::make_mat4(matrixData);
+
+    g_renderPipeline->begin(viewProjection);
+    g_renderPipeline->submit(registry);
+    g_renderPipeline->end();
+}
+
 }  // namespace esengine
 
 EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("initRenderer", &esengine::initRenderer);
+    emscripten::function("initRendererWithCanvas", &esengine::initRendererWithCanvas);
     emscripten::function("shutdownRenderer", &esengine::shutdownRenderer);
     emscripten::function("renderFrame", &esengine::renderFrame);
+    emscripten::function("renderFrameWithMatrix", &esengine::renderFrameWithMatrix);
     emscripten::function("getResourceManager", &esengine::getResourceManager, emscripten::allow_raw_pointers());
 
     emscripten::class_<esengine::resource::ResourceManager>("ResourceManager")
         .function("createTexture", &esengine::rm_createTexture)
         .function("createShader", &esengine::rm_createShader)
         .function("releaseTexture", &esengine::rm_releaseTexture)
-        .function("releaseShader", &esengine::rm_releaseShader);
+        .function("releaseShader", &esengine::rm_releaseShader)
+        .function("setTextureMetadata", &esengine::rm_setTextureMetadata);
 }
 
 int main() {

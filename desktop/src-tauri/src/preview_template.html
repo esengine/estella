@@ -46,6 +46,10 @@
         const loading = document.getElementById('loading');
         const errorDiv = document.getElementById('error');
 
+        function updateLoading(message) {
+            loading.textContent = message;
+        }
+
         function showError(msg) {
             loading.style.display = 'none';
             errorDiv.style.display = 'block';
@@ -55,6 +59,7 @@
 
         async function loadPreview() {
             try {
+                updateLoading('Loading WASM module...');
                 const ModuleLoader = await import('/esengine.js');
                 const Module = await ModuleLoader.default();
 
@@ -81,11 +86,23 @@
         }
 
         async function runWithUserMain(Module, userMain) {
+            updateLoading('Loading scene...');
+
+            setupCanvas();
+            window.addEventListener('resize', () => {
+                setupCanvas();
+            });
+
+            const previewPlugin = new PreviewPlugin('/.esengine/preview/scene.json');
             const origCreate = createWebApp;
 
             const patchedCreate = (module, options) => {
-                const app = origCreate(module, options);
-                app.addPlugin(new PreviewPlugin('/.esengine/preview/scene.json'));
+                const mergedOptions = {
+                    ...options,
+                    getViewportSize: options?.getViewportSize ?? getCanvasViewportSize
+                };
+                const app = origCreate(module, mergedOptions);
+                app.addPlugin(previewPlugin);
                 return app;
             };
 
@@ -99,12 +116,48 @@
             });
 
             await userMain(Module);
+
+            // Wait for scene to be loaded
+            await previewPlugin.waitForReady();
+        }
+
+        function setupCanvas() {
+            const canvas = document.getElementById('canvas');
+            const dpr = window.devicePixelRatio || 1;
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            return canvas;
+        }
+
+        function getCanvasViewportSize() {
+            const canvas = document.getElementById('canvas');
+            return { width: canvas.width, height: canvas.height };
         }
 
         async function runDefaultPreview(Module) {
-            const app = createWebApp(Module);
+            updateLoading('Loading scene...');
+
+            // IMPORTANT: Setup canvas BEFORE creating WebGL context
+            setupCanvas();
+
+            const previewPlugin = new PreviewPlugin('/.esengine/preview/scene.json');
+
+            const app = createWebApp(Module, {
+                getViewportSize: getCanvasViewportSize
+            });
             app.addPlugin(assetPlugin);
-            app.addPlugin(new PreviewPlugin('/.esengine/preview/scene.json'));
+            app.addPlugin(previewPlugin);
+
+            // Setup resize handler AFTER app is created
+            window.addEventListener('resize', () => {
+                setupCanvas();
+            });
+
+            // Wait for scene to be loaded before starting render loop
+            await previewPlugin.waitForReady();
+
+            updateLoading('Starting renderer...');
             app.run();
         }
 
