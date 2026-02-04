@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESEngine Preview</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; overflow: hidden; background: #1a1a2e; }
+        #canvas { width: 100%; height: 100%; display: block; }
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #e0e0e0;
+            font-family: system-ui, sans-serif;
+            font-size: 14px;
+        }
+        #error {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #ff6b6b;
+            font-family: monospace;
+            font-size: 13px;
+            max-width: 80%;
+            white-space: pre-wrap;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <div id="loading">Loading...</div>
+    <div id="error"></div>
+
+    <script type="module">
+        const loading = document.getElementById('loading');
+        const errorDiv = document.getElementById('error');
+
+        function showError(msg) {
+            loading.style.display = 'none';
+            errorDiv.style.display = 'block';
+            errorDiv.textContent = msg;
+            console.error('Preview Error:', msg);
+        }
+
+        function loadSceneData(module, registry, sceneData) {
+            console.log('Loading scene:', sceneData.name);
+            for (const entityData of sceneData.entities || []) {
+                const entity = registry.create();
+                console.log('Created entity:', entity, entityData.name);
+
+                for (const [compName, compData] of Object.entries(entityData.components || {})) {
+                    const addMethod = `add${compName}`;
+                    if (typeof registry[addMethod] === 'function') {
+                        const comp = new module[compName]();
+                        Object.assign(comp, compData);
+                        registry[addMethod](entity, comp);
+                    }
+                }
+            }
+        }
+
+        async function loadPreview() {
+            try {
+                // Load scene data
+                const sceneRes = await fetch('/.esengine/preview/scene.json');
+                if (!sceneRes.ok) throw new Error('Failed to load scene.json');
+                const sceneData = await sceneRes.json();
+
+                // Load WASM module
+                const Module = await import('/esengine.js');
+                const module = await Module.default();
+
+                // Create registry and initialize renderer
+                const registry = new module.Registry();
+                module.initRenderer();
+
+                // Load scene into registry
+                loadSceneData(module, registry, sceneData);
+
+                // Load user scripts (optional)
+                try {
+                    await import('/.esengine/preview/user-scripts.js');
+                } catch (e) {
+                    console.warn('No user scripts:', e.message);
+                }
+
+                loading.style.display = 'none';
+
+                // Main loop
+                const canvas = document.getElementById('canvas');
+                function loop() {
+                    module.renderFrame(registry, canvas.width, canvas.height);
+                    requestAnimationFrame(loop);
+                }
+                requestAnimationFrame(loop);
+            } catch (err) {
+                showError(err.message);
+            }
+        }
+
+        loadPreview();
+    </script>
+</body>
+</html>

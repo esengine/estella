@@ -15,8 +15,10 @@ export interface DirectoryEntry {
 
 export interface NativeFS {
     readFile(path: string): Promise<string | null>;
+    writeFile(path: string, content: string): Promise<void>;
     listDirectoryDetailed(path: string): Promise<DirectoryEntry[]>;
     exists(path: string): Promise<boolean>;
+    createDirectory(path: string): Promise<void>;
 }
 
 // =============================================================================

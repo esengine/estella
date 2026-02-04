@@ -6,6 +6,7 @@
 import '@esengine/editor/styles';
 import { createEditor, ProjectLauncher } from '@esengine/editor';
 import { injectNativeFS } from './native-fs';
+import { invoke } from '@tauri-apps/api/core';
 
 let currentLauncher: ProjectLauncher | null = null;
 
@@ -26,6 +27,7 @@ function openEditor(container: HTMLElement, projectPath: string): void {
 
 async function init(): Promise<void> {
     injectNativeFS();
+    (window as any).__esengine_invoke = invoke;
 
     const container = document.getElementById('editor-root');
     if (!container) {

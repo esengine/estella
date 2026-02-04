@@ -20,6 +20,7 @@ export class HierarchyPanel {
     private footerContainer_: HTMLElement | null = null;
     private unsubscribe_: (() => void) | null = null;
     private searchFilter_: string = '';
+    private expandedIds_: Set<number> = new Set();
 
     constructor(container: HTMLElement, store: EditorStore) {
         this.container_ = container;
@@ -86,7 +87,12 @@ export class HierarchyPanel {
             if (isNaN(entityId)) return;
 
             if (target.classList.contains('es-hierarchy-expand')) {
-                item.classList.toggle('es-expanded');
+                if (this.expandedIds_.has(entityId)) {
+                    this.expandedIds_.delete(entityId);
+                } else {
+                    this.expandedIds_.add(entityId);
+                }
+                this.render();
                 return;
             }
 
@@ -157,20 +163,22 @@ export class HierarchyPanel {
                 : scene.entities.filter(e => e.parent === entity.id);
             const hasChildren = children.length > 0;
             const isSelected = entity.id === selectedEntity;
+            const isExpanded = this.expandedIds_.has(entity.id);
             const icon = this.getEntityIcon(entity);
             const type = this.getEntityType(entity);
+            const expandIcon = isExpanded ? icons.chevronDown(10) : icons.chevronRight(10);
 
             return `
-                <div class="es-hierarchy-item ${isSelected ? 'es-selected' : ''} ${hasChildren ? 'es-has-children' : ''}"
+                <div class="es-hierarchy-item ${isSelected ? 'es-selected' : ''} ${hasChildren ? 'es-has-children' : ''} ${isExpanded ? 'es-expanded' : ''}"
                      data-entity-id="${entity.id}">
                     <div class="es-hierarchy-row">
                         <span class="es-hierarchy-visibility">${icons.eye(10)}</span>
-                        ${hasChildren ? `<span class="es-hierarchy-expand">${icons.chevronRight(10)}</span>` : '<span class="es-hierarchy-spacer"></span>'}
+                        ${hasChildren ? `<span class="es-hierarchy-expand">${expandIcon}</span>` : '<span class="es-hierarchy-spacer"></span>'}
                         <span class="es-hierarchy-icon">${icon}</span>
                         <span class="es-hierarchy-name">${this.escapeHtml(entity.name)}</span>
                         <span class="es-hierarchy-type">${type}</span>
                     </div>
-                    ${hasChildren ? `<div class="es-hierarchy-children">${this.renderEntities(children, scene, selectedEntity)}</div>` : ''}
+                    ${hasChildren && isExpanded ? `<div class="es-hierarchy-children">${this.renderEntities(children, scene, selectedEntity)}</div>` : ''}
                 </div>
             `;
         }).join('');

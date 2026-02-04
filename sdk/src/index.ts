@@ -164,3 +164,14 @@ export {
     type TextureInfo,
     type AssetsData,
 } from './asset';
+
+// =============================================================================
+// Scene
+// =============================================================================
+
+export {
+    loadSceneData,
+    type SceneData,
+    type SceneEntityData,
+    type SceneComponentData,
+} from './scene';

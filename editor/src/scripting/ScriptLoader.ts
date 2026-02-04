@@ -42,6 +42,7 @@ export class ScriptLoader {
     private projectPath_: string;
     private projectDir_: string;
     private initialized_ = false;
+    private lastCompiledCode_: string | null = null;
     private onCompileError_?: (errors: CompileError[]) => void;
     private onCompileSuccess_?: () => void;
 
@@ -50,6 +51,10 @@ export class ScriptLoader {
         this.projectDir_ = getProjectDir(this.projectPath_);
         this.onCompileError_ = options.onCompileError;
         this.onCompileSuccess_ = options.onCompileSuccess;
+    }
+
+    getCompiledCode(): string | null {
+        return this.lastCompiledCode_;
     }
 
     async initialize(): Promise<void> {
@@ -153,6 +158,7 @@ export class ScriptLoader {
                 return false;
             }
 
+            this.lastCompiledCode_ = code;
             this.executeScript(code);
             console.log('ScriptLoader: Scripts loaded successfully');
             this.onCompileSuccess_?.();

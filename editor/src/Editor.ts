@@ -15,6 +15,7 @@ import { registerBuiltinSchemas } from './schemas/ComponentSchemas';
 import { saveSceneToFile, loadSceneFromFile, loadSceneFromPath } from './io/SceneSerializer';
 import { icons } from './utils/icons';
 import { ScriptLoader } from './scripting';
+import { PreviewService } from './preview';
 
 // =============================================================================
 // Types
@@ -40,6 +41,7 @@ export class Editor {
     private sceneViewPanel_: SceneViewPanel | null = null;
     private contentBrowserPanel_: ContentBrowserPanel | null = null;
     private scriptLoader_: ScriptLoader | null = null;
+    private previewService_: PreviewService | null = null;
     private assetsPanelVisible_: boolean = true;
     private outputPanelVisible_: boolean = false;
 
@@ -56,6 +58,7 @@ export class Editor {
 
         if (this.projectPath_) {
             this.initializeScripts();
+            this.previewService_ = new PreviewService({ projectPath: this.projectPath_ });
         }
     }
 
@@ -141,6 +144,28 @@ export class Editor {
     }
 
     // =========================================================================
+    // Preview Operations
+    // =========================================================================
+
+    async startPreview(): Promise<void> {
+        if (!this.previewService_) {
+            console.warn('Preview not available: no project loaded');
+            return;
+        }
+
+        try {
+            const compiledScript = this.scriptLoader_?.getCompiledCode() ?? undefined;
+            await this.previewService_.startPreview(this.store_.scene, compiledScript);
+        } catch (err) {
+            console.error('Failed to start preview:', err);
+        }
+    }
+
+    async stopPreview(): Promise<void> {
+        await this.previewService_?.stopPreview();
+    }
+
+    // =========================================================================
     // Private Methods
     // =========================================================================
 
@@ -154,6 +179,8 @@ export class Editor {
                 <div class="es-toolbar-spacer"></div>
                 <button class="es-btn" data-action="undo" disabled>Undo</button>
                 <button class="es-btn" data-action="redo" disabled>Redo</button>
+                <div class="es-toolbar-spacer"></div>
+                <button class="es-btn es-btn-preview" data-action="preview">${icons.play(14)} Preview</button>
             </div>
             <div class="es-editor-tabs">
                 <div class="es-tab es-tab-active" data-panel="hierarchy">
@@ -266,6 +293,9 @@ export class Editor {
                     break;
                 case 'redo':
                     this.store_.redo();
+                    break;
+                case 'preview':
+                    this.startPreview();
                     break;
             }
         });

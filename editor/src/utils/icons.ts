@@ -42,6 +42,8 @@ import {
     MousePointer2,
     Tag,
     Cog,
+    Play,
+    Square,
 } from 'lucide';
 
 // =============================================================================
@@ -114,6 +116,8 @@ export const icons = {
     maximize: (size?: number) => renderIcon(Maximize as IconNode, size),
     tag: (size?: number) => renderIcon(Tag as IconNode, size),
     cog: (size?: number) => renderIcon(Cog as IconNode, size),
+    play: (size?: number) => renderIcon(Play as IconNode, size),
+    stop: (size?: number) => renderIcon(Square as IconNode, size),
 };
 
 export type IconName = keyof typeof icons;

@@ -1,0 +1,138 @@
+//! HTTP server for game preview
+
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::thread;
+use tiny_http::{Header, Response, Server};
+
+// =============================================================================
+// Embedded Assets
+// =============================================================================
+
+const PREVIEW_HTML: &str = include_str!("preview_template.html");
+const ENGINE_JS: &[u8] = include_bytes!("../../public/esengine.js");
+const ENGINE_WASM: &[u8] = include_bytes!("../../public/esengine.wasm");
+
+// =============================================================================
+// Preview Server
+// =============================================================================
+
+pub struct PreviewServer {
+    server: Option<Arc<Server>>,
+    project_dir: PathBuf,
+    port: u16,
+}
+
+impl PreviewServer {
+    pub fn new(project_dir: PathBuf, port: u16) -> Self {
+        Self {
+            server: None,
+            project_dir,
+            port,
+        }
+    }
+
+    pub fn start(&mut self) -> Result<u16, String> {
+        if self.server.is_some() {
+            return Ok(self.port);
+        }
+
+        let addr = format!("127.0.0.1:{}", self.port);
+        let server = Server::http(&addr).map_err(|e| e.to_string())?;
+        let server = Arc::new(server);
+        self.server = Some(Arc::clone(&server));
+
+        let project_dir = self.project_dir.clone();
+
+        thread::spawn(move || {
+            for request in server.incoming_requests() {
+                let url = request.url().to_string();
+                let path = url.trim_start_matches('/');
+
+                let response = match path {
+                    "" | "index.html" => serve_html(),
+                    "esengine.js" => serve_embedded(ENGINE_JS, "application/javascript"),
+                    "esengine.wasm" => serve_embedded(ENGINE_WASM, "application/wasm"),
+                    _ => serve_project_file(&project_dir, path),
+                };
+
+                let _ = request.respond(response);
+            }
+        });
+
+        Ok(self.port)
+    }
+
+    pub fn stop(&mut self) {
+        self.server = None;
+    }
+
+    pub fn is_running(&self) -> bool {
+        self.server.is_some()
+    }
+
+    pub fn port(&self) -> u16 {
+        self.port
+    }
+}
+
+// =============================================================================
+// Response Builders
+// =============================================================================
+
+fn serve_html() -> Response<std::io::Cursor<Vec<u8>>> {
+    let data = PREVIEW_HTML.as_bytes().to_vec();
+    Response::from_data(data)
+        .with_header(content_type("text/html"))
+        .with_header(cors())
+}
+
+fn serve_embedded(data: &[u8], content_type_str: &str) -> Response<std::io::Cursor<Vec<u8>>> {
+    Response::from_data(data.to_vec())
+        .with_header(content_type(content_type_str))
+        .with_header(cors())
+}
+
+fn serve_project_file(project_dir: &PathBuf, path: &str) -> Response<std::io::Cursor<Vec<u8>>> {
+    let file_path = project_dir.join(path);
+
+    if !file_path.starts_with(project_dir) {
+        return not_found();
+    }
+
+    match std::fs::read(&file_path) {
+        Ok(data) => {
+            Response::from_data(data)
+                .with_header(content_type(get_mime_type(path)))
+                .with_header(cors())
+        }
+        Err(_) => not_found(),
+    }
+}
+
+fn not_found() -> Response<std::io::Cursor<Vec<u8>>> {
+    Response::from_string("Not Found")
+        .with_status_code(404)
+        .with_header(content_type("text/plain"))
+}
+
+fn content_type(ct: &str) -> Header {
+    Header::from_bytes("Content-Type", ct).unwrap()
+}
+
+fn cors() -> Header {
+    Header::from_bytes("Access-Control-Allow-Origin", "*").unwrap()
+}
+
+fn get_mime_type(path: &str) -> &'static str {
+    match path.rsplit('.').next() {
+        Some("html") => "text/html",
+        Some("js") => "application/javascript",
+        Some("wasm") => "application/wasm",
+        Some("json") => "application/json",
+        Some("css") => "text/css",
+        Some("png") => "image/png",
+        Some("jpg") | Some("jpeg") => "image/jpeg",
+        _ => "application/octet-stream",
+    }
+}
