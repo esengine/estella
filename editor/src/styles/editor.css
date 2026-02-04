@@ -108,31 +108,148 @@ svg {
     font-size: 13px;
 }
 
-.es-editor-toolbar {
+/* =============================================================================
+ * Menubar
+ * ============================================================================= */
+
+.es-editor-menubar {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 8px;
+    height: 32px;
     background: var(--es-bg-secondary);
     border-bottom: 1px solid var(--es-border);
+    user-select: none;
 }
 
-.es-toolbar-logo {
+.es-menubar-logo {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 24px;
-    height: 24px;
+    width: 40px;
+    height: 32px;
+    padding: 0 8px;
 }
 
-.es-toolbar-logo svg {
-    width: 24px;
-    height: 24px;
-    border-radius: 4px;
+.es-menubar-logo svg {
+    width: 20px;
+    height: 20px;
+    border-radius: 3px;
 }
 
-.es-toolbar-spacer {
+.es-menubar-spacer {
     flex: 1;
+}
+
+.es-menu {
+    position: relative;
+    height: 100%;
+}
+
+.es-menu-trigger {
+    display: flex;
+    align-items: center;
+    height: 100%;
+    padding: 0 12px;
+    font-size: 12px;
+    color: var(--es-text-primary);
+    cursor: pointer;
+    transition: background 0.1s;
+}
+
+.es-menu-trigger:hover,
+.es-menu.es-open .es-menu-trigger {
+    background: var(--es-bg-hover);
+}
+
+.es-menu-dropdown {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    min-width: 200px;
+    background: var(--es-bg-secondary);
+    border: 1px solid var(--es-border);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    z-index: 1000;
+    padding: 4px 0;
+}
+
+.es-menu.es-open .es-menu-dropdown {
+    display: block;
+}
+
+.es-menu-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 12px;
+    font-size: 12px;
+    color: var(--es-text-primary);
+    cursor: pointer;
+    transition: background 0.1s;
+}
+
+.es-menu-item:hover {
+    background: var(--es-accent);
+    color: white;
+}
+
+.es-menu-item:hover .es-menu-item-shortcut {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.es-menu-item.es-disabled {
+    color: var(--es-text-secondary);
+    cursor: not-allowed;
+}
+
+.es-menu-item.es-disabled:hover {
+    background: transparent;
+    color: var(--es-text-secondary);
+}
+
+.es-menu-item.es-disabled:hover .es-menu-item-shortcut {
+    color: var(--es-text-secondary);
+}
+
+.es-menu-item-text {
+    flex: 1;
+}
+
+.es-menu-item-shortcut {
+    margin-left: 24px;
+    font-size: 11px;
+    color: var(--es-text-secondary);
+}
+
+.es-menu-divider {
+    height: 1px;
+    margin: 4px 8px;
+    background: var(--es-border);
+}
+
+.es-editor-menubar .es-btn-preview {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 8px;
+    padding: 4px 12px;
+    background: var(--es-success);
+    border: none;
+    color: white;
+    font-size: 11px;
+    font-weight: 500;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.es-editor-menubar .es-btn-preview:hover {
+    background: #5cb85c;
+}
+
+.es-editor-menubar .es-btn-preview svg {
+    stroke: white;
 }
 
 .es-editor-body {

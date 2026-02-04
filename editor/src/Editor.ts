@@ -3,7 +3,7 @@
  * @brief   Main editor component
  */
 
-import type { App } from 'esengine';
+import type { App, Entity } from 'esengine';
 import { EditorStore } from './store/EditorStore';
 import { EditorBridge } from './bridge/EditorBridge';
 import { HierarchyPanel } from './panels/HierarchyPanel';
@@ -194,16 +194,82 @@ export class Editor {
     private setupLayout(): void {
         this.container_.className = 'es-editor';
         this.container_.innerHTML = `
-            <div class="es-editor-toolbar">
-                <div class="es-toolbar-logo">${icons.logo(24)}</div>
-                <div class="es-toolbar-divider"></div>
-                <button class="es-btn" data-action="new">New</button>
-                <button class="es-btn" data-action="open">Open</button>
-                <button class="es-btn" data-action="save">Save</button>
-                <div class="es-toolbar-spacer"></div>
-                <button class="es-btn" data-action="undo" disabled>Undo</button>
-                <button class="es-btn" data-action="redo" disabled>Redo</button>
-                <div class="es-toolbar-spacer"></div>
+            <div class="es-editor-menubar">
+                <div class="es-menubar-logo">${icons.logo(24)}</div>
+                <div class="es-menu" data-menu="file">
+                    <div class="es-menu-trigger">File</div>
+                    <div class="es-menu-dropdown">
+                        <div class="es-menu-item" data-action="new">
+                            <span class="es-menu-item-text">New Scene</span>
+                            <span class="es-menu-item-shortcut">Ctrl+N</span>
+                        </div>
+                        <div class="es-menu-item" data-action="open">
+                            <span class="es-menu-item-text">Open...</span>
+                            <span class="es-menu-item-shortcut">Ctrl+O</span>
+                        </div>
+                        <div class="es-menu-divider"></div>
+                        <div class="es-menu-item" data-action="save">
+                            <span class="es-menu-item-text">Save</span>
+                            <span class="es-menu-item-shortcut">Ctrl+S</span>
+                        </div>
+                        <div class="es-menu-item" data-action="save-as">
+                            <span class="es-menu-item-text">Save As...</span>
+                            <span class="es-menu-item-shortcut">Ctrl+Shift+S</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="es-menu" data-menu="edit">
+                    <div class="es-menu-trigger">Edit</div>
+                    <div class="es-menu-dropdown">
+                        <div class="es-menu-item" data-action="undo">
+                            <span class="es-menu-item-text">Undo</span>
+                            <span class="es-menu-item-shortcut">Ctrl+Z</span>
+                        </div>
+                        <div class="es-menu-item" data-action="redo">
+                            <span class="es-menu-item-text">Redo</span>
+                            <span class="es-menu-item-shortcut">Ctrl+Y</span>
+                        </div>
+                        <div class="es-menu-divider"></div>
+                        <div class="es-menu-item" data-action="delete">
+                            <span class="es-menu-item-text">Delete</span>
+                            <span class="es-menu-item-shortcut">Delete</span>
+                        </div>
+                        <div class="es-menu-item" data-action="duplicate">
+                            <span class="es-menu-item-text">Duplicate</span>
+                            <span class="es-menu-item-shortcut">Ctrl+D</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="es-menu" data-menu="view">
+                    <div class="es-menu-trigger">View</div>
+                    <div class="es-menu-dropdown">
+                        <div class="es-menu-item" data-action="toggle-hierarchy">
+                            <span class="es-menu-item-text">Hierarchy</span>
+                        </div>
+                        <div class="es-menu-item" data-action="toggle-inspector">
+                            <span class="es-menu-item-text">Inspector</span>
+                        </div>
+                        <div class="es-menu-item" data-action="toggle-assets">
+                            <span class="es-menu-item-text">Content Browser</span>
+                        </div>
+                        <div class="es-menu-item" data-action="toggle-output">
+                            <span class="es-menu-item-text">Output</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="es-menu" data-menu="help">
+                    <div class="es-menu-trigger">Help</div>
+                    <div class="es-menu-dropdown">
+                        <div class="es-menu-item" data-action="docs">
+                            <span class="es-menu-item-text">Documentation</span>
+                        </div>
+                        <div class="es-menu-divider"></div>
+                        <div class="es-menu-item" data-action="about">
+                            <span class="es-menu-item-text">About ESEngine</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="es-menubar-spacer"></div>
                 <button class="es-btn es-btn-preview" data-action="preview">${icons.play(14)} Preview</button>
             </div>
             <div class="es-editor-tabs">
@@ -297,46 +363,175 @@ export class Editor {
     }
 
     private setupToolbarEvents(): void {
-        const toolbar = this.container_.querySelector('.es-editor-toolbar');
-        if (!toolbar) return;
+        const menubar = this.container_.querySelector('.es-editor-menubar');
+        if (!menubar) return;
 
-        toolbar.addEventListener('click', (e) => {
+        let activeMenu: HTMLElement | null = null;
+
+        const closeAllMenus = () => {
+            menubar.querySelectorAll('.es-menu').forEach(m => m.classList.remove('es-open'));
+            activeMenu = null;
+        };
+
+        menubar.querySelectorAll('.es-menu-trigger').forEach(trigger => {
+            trigger.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const menu = (trigger as HTMLElement).parentElement!;
+                const isOpen = menu.classList.contains('es-open');
+                closeAllMenus();
+                if (!isOpen) {
+                    menu.classList.add('es-open');
+                    activeMenu = menu;
+                }
+            });
+
+            trigger.addEventListener('mouseenter', () => {
+                if (activeMenu && activeMenu !== trigger.parentElement) {
+                    closeAllMenus();
+                    const menu = (trigger as HTMLElement).parentElement!;
+                    menu.classList.add('es-open');
+                    activeMenu = menu;
+                }
+            });
+        });
+
+        menubar.addEventListener('click', (e) => {
             const target = e.target as HTMLElement;
-            const action = target.dataset.action;
+            const menuItem = target.closest('.es-menu-item') as HTMLElement;
+            if (!menuItem) return;
 
-            switch (action) {
-                case 'new':
-                    this.newScene();
-                    break;
-                case 'open':
-                    this.loadScene();
-                    break;
-                case 'save':
-                    this.saveScene();
-                    break;
-                case 'undo':
-                    this.store_.undo();
-                    break;
-                case 'redo':
-                    this.store_.redo();
-                    break;
-                case 'preview':
-                    this.startPreview();
-                    break;
+            const action = menuItem.dataset.action;
+            if (menuItem.classList.contains('es-disabled')) return;
+
+            closeAllMenus();
+            this.handleMenuAction(action);
+        });
+
+        const previewBtn = menubar.querySelector('[data-action="preview"]');
+        previewBtn?.addEventListener('click', () => this.startPreview());
+
+        document.addEventListener('click', (e) => {
+            if (!menubar.contains(e.target as Node)) {
+                closeAllMenus();
             }
         });
     }
 
-    private updateToolbarState(): void {
-        const undoBtn = this.container_.querySelector('[data-action="undo"]') as HTMLButtonElement;
-        const redoBtn = this.container_.querySelector('[data-action="redo"]') as HTMLButtonElement;
+    private handleMenuAction(action: string | undefined): void {
+        switch (action) {
+            case 'new':
+                this.newScene();
+                break;
+            case 'open':
+                this.loadScene();
+                break;
+            case 'save':
+                this.saveScene();
+                break;
+            case 'save-as':
+                this.saveSceneAs();
+                break;
+            case 'undo':
+                this.store_.undo();
+                break;
+            case 'redo':
+                this.store_.redo();
+                break;
+            case 'delete':
+                if (this.store_.selectedEntity !== null) {
+                    this.store_.deleteEntity(this.store_.selectedEntity);
+                }
+                break;
+            case 'duplicate':
+                this.duplicateSelected();
+                break;
+            case 'toggle-hierarchy':
+            case 'toggle-inspector':
+            case 'toggle-assets':
+                this.toggleAssetsPanel();
+                break;
+            case 'toggle-output':
+                this.toggleOutputPanel();
+                break;
+            case 'docs':
+                window.open('https://github.com/nicholaswan/ESEngine', '_blank');
+                break;
+            case 'about':
+                this.showAboutDialog();
+                break;
+        }
+    }
 
-        if (undoBtn) {
-            undoBtn.disabled = !this.store_.canUndo;
+    private async saveSceneAs(): Promise<void> {
+        clearFileHandle();
+        const savedPath = await saveSceneToFile(this.store_.scene);
+        if (savedPath) {
+            this.store_.markSaved(savedPath);
         }
-        if (redoBtn) {
-            redoBtn.disabled = !this.store_.canRedo;
+    }
+
+    private duplicateSelected(): void {
+        const entity = this.store_.selectedEntity;
+        if (entity === null) return;
+
+        const entityData = this.store_.scene.entities.find(e => e.id === entity);
+        if (!entityData) return;
+
+        const newEntity = this.store_.createEntity(
+            `${entityData.name}_copy`,
+            entityData.parent as Entity | null
+        );
+
+        for (const comp of entityData.components) {
+            this.store_.addComponent(newEntity, comp.type, { ...comp.data });
         }
+    }
+
+    private showAboutDialog(): void {
+        const overlay = document.createElement('div');
+        overlay.className = 'es-dialog-overlay';
+        overlay.innerHTML = `
+            <div class="es-dialog" style="max-width: 360px;">
+                <div class="es-dialog-header">
+                    <span class="es-dialog-title">About ESEngine</span>
+                    <button class="es-dialog-close">&times;</button>
+                </div>
+                <div class="es-dialog-body" style="text-align: center; padding: 24px;">
+                    <div style="margin-bottom: 16px;">${icons.logo(64)}</div>
+                    <h3 style="margin: 0 0 8px; color: var(--es-text-primary);">ESEngine Editor</h3>
+                    <p style="margin: 0 0 16px; color: var(--es-text-secondary);">Version 0.1.0</p>
+                    <p style="margin: 0; font-size: 12px; color: var(--es-text-secondary);">
+                        A lightweight 2D game engine<br>for web and mini-programs.
+                    </p>
+                </div>
+                <div class="es-dialog-footer" style="justify-content: center;">
+                    <button class="es-dialog-btn es-dialog-btn-primary">OK</button>
+                </div>
+            </div>
+        `;
+
+        const close = () => overlay.remove();
+        overlay.querySelector('.es-dialog-close')?.addEventListener('click', close);
+        overlay.querySelector('.es-dialog-btn')?.addEventListener('click', close);
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) close();
+        });
+
+        document.body.appendChild(overlay);
+    }
+
+    private updateToolbarState(): void {
+        const undoItem = this.container_.querySelector('[data-action="undo"]');
+        const redoItem = this.container_.querySelector('[data-action="redo"]');
+        const deleteItem = this.container_.querySelector('[data-action="delete"]');
+        const duplicateItem = this.container_.querySelector('[data-action="duplicate"]');
+
+        undoItem?.classList.toggle('es-disabled', !this.store_.canUndo);
+        redoItem?.classList.toggle('es-disabled', !this.store_.canRedo);
+
+        const hasSelection = this.store_.selectedEntity !== null;
+        deleteItem?.classList.toggle('es-disabled', !hasSelection);
+        duplicateItem?.classList.toggle('es-disabled', !hasSelection);
     }
 
     private setupKeyboardShortcuts(): void {
@@ -357,7 +552,11 @@ export class Editor {
                         break;
                     case 's':
                         e.preventDefault();
-                        this.saveScene();
+                        if (e.shiftKey) {
+                            this.saveSceneAs();
+                        } else {
+                            this.saveScene();
+                        }
                         break;
                     case 'o':
                         e.preventDefault();
@@ -366,6 +565,10 @@ export class Editor {
                     case 'n':
                         e.preventDefault();
                         this.newScene();
+                        break;
+                    case 'd':
+                        e.preventDefault();
+                        this.duplicateSelected();
                         break;
                 }
             } else if (e.key === 'Delete') {
