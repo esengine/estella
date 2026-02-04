@@ -97,9 +97,12 @@ export async function loadSceneWithAssets(
                 const data = compData.data as Record<string, unknown>;
                 if (typeof data.texture === 'string' && data.texture) {
                     const texturePath = data.texture;
-                    const url = options?.assetBaseUrl
-                        ? `${options.assetBaseUrl}/${texturePath}`
-                        : `/${texturePath}`;
+                    const isDataUrl = texturePath.startsWith('data:');
+                    const url = isDataUrl
+                        ? texturePath
+                        : options?.assetBaseUrl
+                            ? `${options.assetBaseUrl}/${texturePath}`
+                            : `/${texturePath}`;
                     try {
                         const info = await assetServer.loadTexture(url);
                         data.texture = info.handle;

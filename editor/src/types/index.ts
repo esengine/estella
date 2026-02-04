@@ -23,3 +23,17 @@ export {
     parseTextureMetadata,
     serializeTextureMetadata,
 } from './TextureMetadata';
+
+export {
+    type BuildPlatform,
+    type PlatformInfo,
+    type PlayableSettings,
+    type WeChatSettings,
+    type BuildConfig,
+    type BuildSettings,
+    PLATFORMS,
+    createDefaultPlayableSettings,
+    createDefaultWeChatSettings,
+    createDefaultBuildConfig,
+    createDefaultBuildSettings,
+} from './BuildTypes';

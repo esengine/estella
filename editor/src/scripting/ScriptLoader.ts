@@ -1,12 +1,11 @@
 /**
  * @file    ScriptLoader.ts
- * @brief   Load and compile user TypeScript scripts
+ * @brief   Load and compile user TypeScript scripts for preview
  */
 
 import * as esbuild from 'esbuild-wasm/esm/browser';
 import { virtualFsPlugin } from './esbuildPlugins';
 import type { NativeFS, ScriptLoaderOptions, CompileError } from './types';
-import { clearScriptComponents } from '../schemas/ComponentSchemas';
 
 // =============================================================================
 // Path Utilities
@@ -39,13 +38,6 @@ function getNativeFS(): NativeFS | null {
 // =============================================================================
 
 export class ScriptLoader {
-    private projectPath_: string;
-    private projectDir_: string;
-    private initialized_ = false;
-    private lastCompiledCode_: string | null = null;
-    private onCompileError_?: (errors: CompileError[]) => void;
-    private onCompileSuccess_?: () => void;
-
     constructor(options: ScriptLoaderOptions) {
         this.projectPath_ = normalizePath(options.projectPath);
         this.projectDir_ = getProjectDir(this.projectPath_);
@@ -53,8 +45,12 @@ export class ScriptLoader {
         this.onCompileSuccess_ = options.onCompileSuccess;
     }
 
+    // =========================================================================
+    // Public Methods
+    // =========================================================================
+
     getCompiledCode(): string | null {
-        return this.lastCompiledCode_;
+        return this.lastCompiled_;
     }
 
     async initialize(): Promise<void> {
@@ -99,7 +95,7 @@ export class ScriptLoader {
         }
     }
 
-    async compileAndExecute(): Promise<boolean> {
+    async compile(): Promise<boolean> {
         const fs = getNativeFS();
         if (!fs) {
             console.warn('ScriptLoader: NativeFS not available');
@@ -109,12 +105,11 @@ export class ScriptLoader {
         const scripts = await this.discoverScripts();
         if (scripts.length === 0) {
             console.log('ScriptLoader: No scripts found');
+            this.lastCompiled_ = null;
             return true;
         }
 
         console.log('ScriptLoader: Compiling scripts:', scripts);
-
-        clearScriptComponents();
 
         try {
             const entryContent = scripts
@@ -128,10 +123,11 @@ export class ScriptLoader {
                     resolveDir: joinPath(this.projectDir_, 'assets/scripts'),
                 },
                 bundle: true,
-                format: 'iife',
+                format: 'esm',
                 write: false,
                 platform: 'browser',
                 target: 'es2020',
+                external: ['esengine'],
                 plugins: [
                     virtualFsPlugin({
                         fs,
@@ -152,15 +148,8 @@ export class ScriptLoader {
                 return false;
             }
 
-            const code = result.outputFiles?.[0]?.text;
-            if (!code) {
-                console.error('ScriptLoader: No output generated');
-                return false;
-            }
-
-            this.lastCompiledCode_ = code;
-            this.executeScript(code);
-            console.log('ScriptLoader: Scripts loaded successfully');
+            this.lastCompiled_ = result.outputFiles?.[0]?.text ?? null;
+            console.log('ScriptLoader: Scripts compiled successfully');
             this.onCompileSuccess_?.();
             return true;
         } catch (err) {
@@ -176,17 +165,18 @@ export class ScriptLoader {
         }
     }
 
-    private executeScript(code: string): void {
-        try {
-            const fn = new Function(code);
-            fn();
-        } catch (err) {
-            console.error('ScriptLoader: Script execution error:', err);
-            throw err;
-        }
+    async reload(): Promise<boolean> {
+        return this.compile();
     }
 
-    async reload(): Promise<boolean> {
-        return this.compileAndExecute();
-    }
+    // =========================================================================
+    // Member Variables
+    // =========================================================================
+
+    private projectPath_: string;
+    private projectDir_: string;
+    private initialized_ = false;
+    private lastCompiled_: string | null = null;
+    private onCompileError_?: (errors: CompileError[]) => void;
+    private onCompileSuccess_?: () => void;
 }

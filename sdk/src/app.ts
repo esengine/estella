@@ -7,6 +7,7 @@ import { World } from './world';
 import { Schedule, SystemDef, SystemRunner } from './system';
 import { ResourceStorage, Time, TimeData, type ResourceDef } from './resource';
 import type { ESEngineModule, CppRegistry } from './wasm';
+import { textPlugin } from './ui/TextPlugin';
 
 // =============================================================================
 // Plugin Interface
@@ -227,6 +228,8 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
     };
 
     app.addSystemToSchedule(Schedule.Last, renderSystem);
+
+    app.addPlugin(textPlugin);
 
     return app;
 }

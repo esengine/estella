@@ -17,6 +17,7 @@ import { saveSceneToFile, saveSceneToPath, loadSceneFromFile, loadSceneFromPath,
 import { icons } from './utils/icons';
 import { ScriptLoader } from './scripting';
 import { PreviewService } from './preview';
+import { showBuildSettingsDialog, BuildService } from './builder';
 
 // =============================================================================
 // Types
@@ -66,6 +67,10 @@ export class Editor {
 
     get projectPath(): string | null {
         return this.projectPath_;
+    }
+
+    get currentScenePath(): string | null {
+        return this.store_.filePath;
     }
 
     setApp(app: App): void {
@@ -118,7 +123,7 @@ export class Editor {
     async openSceneFromPath(scenePath: string): Promise<void> {
         const scene = await loadSceneFromPath(scenePath);
         if (scene) {
-            this.store_.loadScene(scene);
+            this.store_.loadScene(scene, scenePath);
             console.log('Scene loaded:', scenePath);
         }
     }
@@ -142,7 +147,7 @@ export class Editor {
 
         try {
             await this.scriptLoader_.initialize();
-            await this.scriptLoader_.compileAndExecute();
+            await this.scriptLoader_.compile();
         } catch (err) {
             console.error('Failed to initialize scripts:', err);
         }
@@ -215,6 +220,11 @@ export class Editor {
                         <div class="es-menu-item" data-action="save-as">
                             <span class="es-menu-item-text">Save As...</span>
                             <span class="es-menu-item-shortcut">Ctrl+Shift+S</span>
+                        </div>
+                        <div class="es-menu-divider"></div>
+                        <div class="es-menu-item" data-action="build-settings">
+                            <span class="es-menu-item-text">Build Settings...</span>
+                            <span class="es-menu-item-shortcut">Ctrl+Shift+B</span>
                         </div>
                     </div>
                 </div>
@@ -459,7 +469,29 @@ export class Editor {
             case 'about':
                 this.showAboutDialog();
                 break;
+            case 'build-settings':
+                this.showBuildSettings();
+                break;
         }
+    }
+
+    private showBuildSettings(): void {
+        if (!this.projectPath_) {
+            alert('请先打开一个项目');
+            return;
+        }
+
+        const buildService = new BuildService(this.projectPath_);
+        showBuildSettingsDialog({
+            projectPath: this.projectPath_,
+            onBuild: async (config) => {
+                const result = await buildService.build(config);
+                if (!result.success) {
+                    throw new Error(result.error ?? 'Build failed');
+                }
+            },
+            onClose: () => {},
+        });
     }
 
     private async saveSceneAs(): Promise<void> {
@@ -569,6 +601,12 @@ export class Editor {
                     case 'd':
                         e.preventDefault();
                         this.duplicateSelected();
+                        break;
+                    case 'b':
+                        if (e.shiftKey) {
+                            e.preventDefault();
+                            this.showBuildSettings();
+                        }
                         break;
                 }
             } else if (e.key === 'Delete') {

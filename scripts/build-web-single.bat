@@ -19,13 +19,12 @@ echo Single-file SDK built:
 dir sdk\esengine.single.js
 
 echo.
-echo Bundling playable HTML...
-node "%~dp0\..\tools\bundle-playable.js" --wasm sdk\esengine.single.js --game "%~dp0\..\sdk\examples\playground\build\playable\game.js" --output sdk\playable.html
+echo Copying to desktop/public...
+copy /Y sdk\esengine.single.js "%~dp0\..\desktop\public\esengine.single.js"
 if errorlevel 1 goto :error
 
 echo.
-echo Final output:
-dir sdk\playable.html
+echo SDK copied to desktop/public/esengine.single.js
 goto :end
 
 :error

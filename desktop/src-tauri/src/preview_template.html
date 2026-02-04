@@ -4,6 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ESEngine Preview</title>
+    <script type="importmap">
+    {
+        "imports": {
+            "esengine": "/esengine-sdk.js"
+        }
+    }
+    </script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html, body { width: 100%; height: 100%; overflow: hidden; background: #1a1a2e; }
@@ -37,13 +44,6 @@
     <div id="error"></div>
 
     <script type="module">
-        import {
-            createWebApp,
-            assetPlugin,
-            textPlugin,
-            PreviewPlugin
-        } from '/esengine-sdk.js';
-
         const loading = document.getElementById('loading');
         const errorDiv = document.getElementById('error');
 
@@ -56,70 +56,6 @@
             errorDiv.style.display = 'block';
             errorDiv.textContent = msg;
             console.error('Preview Error:', msg);
-        }
-
-        async function loadPreview() {
-            try {
-                updateLoading('Loading WASM module...');
-                const ModuleLoader = await import('/esengine.js');
-                const Module = await ModuleLoader.default();
-
-                let userMain = null;
-                try {
-                    const userModule = await import('/.esengine/preview/user-scripts.js');
-                    if (typeof userModule.main === 'function') {
-                        userMain = userModule.main;
-                    }
-                } catch (e) {
-                    console.log('No user main function, using default preview');
-                }
-
-                if (userMain) {
-                    await runWithUserMain(Module, userMain);
-                } else {
-                    await runDefaultPreview(Module);
-                }
-
-                loading.style.display = 'none';
-            } catch (err) {
-                showError(err.message || String(err));
-            }
-        }
-
-        async function runWithUserMain(Module, userMain) {
-            updateLoading('Loading scene...');
-
-            setupCanvas();
-            window.addEventListener('resize', () => {
-                setupCanvas();
-            });
-
-            const previewPlugin = new PreviewPlugin('/.esengine/preview/scene.json');
-            const origCreate = createWebApp;
-
-            const patchedCreate = (module, options) => {
-                const mergedOptions = {
-                    ...options,
-                    getViewportSize: options?.getViewportSize ?? getCanvasViewportSize
-                };
-                const app = origCreate(module, mergedOptions);
-                app.addPlugin(previewPlugin);
-                return app;
-            };
-
-            window.esengine = window.esengine || {};
-            window.esengine.createWebApp = patchedCreate;
-
-            const sdkModule = await import('/esengine-sdk.js');
-            Object.defineProperty(sdkModule, 'createWebApp', {
-                value: patchedCreate,
-                writable: true
-            });
-
-            await userMain(Module);
-
-            // Wait for scene to be loaded
-            await previewPlugin.waitForReady();
         }
 
         function setupCanvas() {
@@ -136,31 +72,42 @@
             return { width: canvas.width, height: canvas.height };
         }
 
-        async function runDefaultPreview(Module) {
-            updateLoading('Loading scene...');
+        async function loadPreview() {
+            try {
+                updateLoading('Loading WASM module...');
+                const ModuleLoader = await import('/esengine.js');
+                const Module = await ModuleLoader.default();
 
-            // IMPORTANT: Setup canvas BEFORE creating WebGL context
-            setupCanvas();
+                updateLoading('Loading SDK...');
+                const sdk = await import('/esengine-sdk.js');
 
-            const previewPlugin = new PreviewPlugin('/.esengine/preview/scene.json');
+                // Load user scripts to register custom components (but don't call main)
+                try {
+                    await import('/.esengine/preview/user-scripts.js');
+                    console.log('User scripts loaded (components registered)');
+                } catch (e) {
+                    console.log('No user scripts found');
+                }
 
-            const app = createWebApp(Module, {
-                getViewportSize: getCanvasViewportSize
-            });
-            app.addPlugin(assetPlugin);
-            app.addPlugin(textPlugin);
-            app.addPlugin(previewPlugin);
-
-            // Setup resize handler AFTER app is created
-            window.addEventListener('resize', () => {
+                updateLoading('Loading scene...');
                 setupCanvas();
-            });
+                window.addEventListener('resize', () => setupCanvas());
 
-            // Wait for scene to be loaded before starting render loop
-            await previewPlugin.waitForReady();
+                const previewPlugin = new sdk.PreviewPlugin('/.esengine/preview/scene.json');
 
-            updateLoading('Starting renderer...');
-            app.run();
+                const app = sdk.createWebApp(Module, {
+                    getViewportSize: getCanvasViewportSize
+                });
+                app.addPlugin(sdk.assetPlugin);
+                app.addPlugin(previewPlugin);
+
+                await previewPlugin.waitForReady();
+
+                loading.style.display = 'none';
+                app.run();
+            } catch (err) {
+                showError(err.message || String(err));
+            }
         }
 
         loadPreview();

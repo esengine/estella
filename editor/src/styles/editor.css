@@ -2418,3 +2418,483 @@ svg {
 .es-btn-locate {
     flex-shrink: 0;
 }
+
+/* =============================================================================
+ * Build Settings Dialog
+ * ============================================================================= */
+
+.es-build-dialog {
+    width: 90%;
+    max-width: 800px;
+    max-height: 80vh;
+    background: var(--es-bg-secondary);
+    border: 1px solid var(--es-border);
+    border-radius: 6px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.es-build-toolbar {
+    display: flex;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--es-border);
+    background: var(--es-bg-tertiary);
+}
+
+.es-build-toolbar .es-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    font-size: 12px;
+}
+
+.es-build-body {
+    display: flex;
+    flex: 1;
+    min-height: 400px;
+    max-height: 60vh;
+    overflow: hidden;
+}
+
+.es-build-sidebar {
+    width: 200px;
+    flex-shrink: 0;
+    background: var(--es-bg-primary);
+    border-right: 1px solid var(--es-border);
+    overflow-y: auto;
+    padding: 8px 0;
+}
+
+.es-build-section-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--es-text-secondary);
+    text-transform: uppercase;
+    padding: 8px 12px 4px;
+    letter-spacing: 0.5px;
+}
+
+.es-build-platform {
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    color: var(--es-text-primary);
+    transition: background 0.15s;
+}
+
+.es-build-platform:hover {
+    background: var(--es-bg-hover);
+}
+
+.es-build-platform.es-active {
+    background: var(--es-bg-tertiary);
+}
+
+.es-build-platform-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+}
+
+.es-build-badge {
+    font-size: 10px;
+    padding: 2px 6px;
+    background: var(--es-accent);
+    color: white;
+    border-radius: 3px;
+    margin-left: auto;
+}
+
+.es-build-config-item {
+    padding: 6px 12px 6px 32px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    color: var(--es-text-secondary);
+    font-size: 12px;
+    transition: background 0.15s, color 0.15s;
+}
+
+.es-build-config-item:hover {
+    background: var(--es-bg-hover);
+    color: var(--es-text-primary);
+}
+
+.es-build-config-item.es-active {
+    background: var(--es-bg-tertiary);
+    color: var(--es-text-primary);
+}
+
+.es-build-config-item.es-active::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    width: 3px;
+    top: 0;
+    bottom: 0;
+    background: var(--es-accent);
+}
+
+.es-build-config-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.es-build-config-delete {
+    opacity: 0;
+    transition: opacity 0.15s;
+    color: var(--es-text-secondary);
+    padding: 2px;
+}
+
+.es-build-config-item:hover .es-build-config-delete {
+    opacity: 1;
+}
+
+.es-build-config-delete:hover {
+    color: var(--es-danger);
+}
+
+.es-build-detail {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    padding: 16px;
+}
+
+.es-build-detail-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--es-border);
+    margin-bottom: 16px;
+}
+
+.es-build-detail-title h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--es-text-primary);
+}
+
+.es-build-detail-platform {
+    font-size: 12px;
+    color: var(--es-text-secondary);
+}
+
+.es-build-detail-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.es-build-detail-actions .es-btn {
+    padding: 6px 12px;
+    font-size: 12px;
+}
+
+.es-build-detail-actions .es-btn-primary {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.es-build-detail-content {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.es-build-data-section h4,
+.es-build-settings-section h4 {
+    margin: 0 0 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--es-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.es-build-collapse {
+    border: 1px solid var(--es-border);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 8px;
+}
+
+.es-build-collapse-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    background: var(--es-bg-tertiary);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--es-text-primary);
+    transition: background 0.15s;
+}
+
+.es-build-collapse-header:hover {
+    background: var(--es-bg-hover);
+}
+
+.es-build-collapse-content {
+    display: none;
+    padding: 12px;
+    background: var(--es-bg-primary);
+}
+
+.es-build-collapse.es-expanded .es-build-collapse-content {
+    display: block;
+}
+
+.es-build-scene-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 8px;
+}
+
+.es-build-scene-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    background: var(--es-bg-secondary);
+    border-radius: 3px;
+    font-size: 12px;
+}
+
+.es-build-scene-item input[type="checkbox"] {
+    flex-shrink: 0;
+}
+
+.es-build-scene-item span {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--es-text-primary);
+}
+
+.es-build-scene-item .es-btn-icon {
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+
+.es-build-scene-item:hover .es-btn-icon {
+    opacity: 1;
+}
+
+.es-build-empty-list {
+    text-align: center;
+    color: var(--es-text-secondary);
+    font-size: 12px;
+    padding: 12px;
+}
+
+.es-build-define-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.es-build-define-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    background: var(--es-bg-secondary);
+    border-radius: 3px;
+    font-size: 11px;
+    font-family: monospace;
+    color: var(--es-accent);
+}
+
+.es-build-define-item .es-btn-icon {
+    padding: 2px;
+    opacity: 0.6;
+}
+
+.es-build-define-item:hover .es-btn-icon {
+    opacity: 1;
+}
+
+.es-build-define-add {
+    display: flex;
+    gap: 6px;
+}
+
+.es-build-define-add .es-input {
+    flex: 1;
+    min-width: 0;
+    padding: 4px 8px;
+    font-size: 12px;
+}
+
+.es-build-field {
+    margin-bottom: 12px;
+}
+
+.es-build-field:last-child {
+    margin-bottom: 0;
+}
+
+.es-build-field label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--es-text-primary);
+    cursor: pointer;
+}
+
+.es-build-field input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+}
+
+.es-build-label {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: var(--es-text-secondary);
+}
+
+.es-build-path-row {
+    display: flex;
+    gap: 6px;
+}
+
+.es-build-path-row .es-input {
+    flex: 1;
+    min-width: 0;
+}
+
+.es-build-path-row .es-btn {
+    flex-shrink: 0;
+    padding: 6px 10px;
+}
+
+.es-build-hint {
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--es-text-tertiary);
+}
+
+.es-build-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 200px;
+    color: var(--es-text-secondary);
+    text-align: center;
+}
+
+.es-build-empty p {
+    margin: 4px 0;
+    font-size: 13px;
+}
+
+.es-build-add-dialog {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.es-build-dialog .es-input {
+    padding: 6px 10px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+
+.es-build-dialog .es-select {
+    width: 100%;
+    padding: 6px 10px;
+    background: var(--es-bg-primary);
+    border: 1px solid var(--es-border);
+    border-radius: 3px;
+    color: var(--es-text-primary);
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.es-build-dialog .es-select:focus {
+    outline: none;
+    border-color: var(--es-accent);
+}
+
+.es-build-dialog .es-btn {
+    border-radius: 3px;
+}
+
+.es-build-dialog .es-btn-primary {
+    background: var(--es-accent);
+    border-color: var(--es-accent);
+    color: white;
+}
+
+.es-build-dialog .es-btn-primary:hover {
+    background: #3d9ee0;
+    border-color: #3d9ee0;
+}
+
+.es-btn-link {
+    background: none;
+    border: none;
+    color: var(--es-accent);
+    font-size: 12px;
+    cursor: pointer;
+    padding: 4px 0;
+    text-decoration: underline;
+}
+
+.es-btn-link:hover {
+    color: #3d9ee0;
+}
+
+.es-build-dialog .es-btn-icon {
+    background: transparent;
+    border: none;
+    color: var(--es-text-secondary);
+    padding: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+}
+
+.es-build-dialog .es-btn-icon:hover {
+    background: var(--es-bg-hover);
+    color: var(--es-text-primary);
+}
+
+.es-build-define-add .es-btn-icon {
+    background: var(--es-bg-tertiary);
+    border: 1px solid var(--es-border);
+}
+
+.es-build-define-add .es-btn-icon:hover {
+    background: var(--es-bg-hover);
+}
