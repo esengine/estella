@@ -677,6 +677,26 @@ svg {
     background: #1a1a1a;
 }
 
+.es-sceneview-webgl {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    pointer-events: none;
+}
+
+.es-sceneview-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    pointer-events: auto;
+}
+
 .es-sceneview-canvas {
     display: block;
 }
@@ -716,6 +736,109 @@ svg {
     height: 20px;
     background: var(--es-border);
     margin: 0 4px;
+}
+
+/* Gizmo Settings Dropdown */
+.es-gizmo-settings-wrapper {
+    position: relative;
+}
+
+.es-gizmo-settings-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 4px;
+    min-width: 180px;
+    background: var(--es-bg-secondary);
+    border: 1px solid var(--es-border);
+    border-radius: 4px;
+    padding: 8px;
+    z-index: 1000;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.es-settings-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 0;
+    gap: 8px;
+}
+
+.es-settings-label {
+    font-size: 11px;
+    color: var(--es-text-secondary);
+    white-space: nowrap;
+}
+
+.es-settings-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--es-text-primary);
+    cursor: pointer;
+}
+
+.es-settings-checkbox input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+    cursor: pointer;
+    accent-color: var(--es-accent);
+}
+
+.es-settings-divider {
+    height: 1px;
+    background: var(--es-border);
+    margin: 6px 0;
+}
+
+.es-color-input {
+    width: 32px;
+    height: 22px;
+    padding: 0;
+    border: 1px solid var(--es-border);
+    border-radius: 3px;
+    background: transparent;
+    cursor: pointer;
+}
+
+.es-color-input::-webkit-color-swatch-wrapper {
+    padding: 2px;
+}
+
+.es-color-input::-webkit-color-swatch {
+    border: none;
+    border-radius: 2px;
+}
+
+.es-slider-input {
+    width: 80px;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: var(--es-bg-tertiary);
+    border-radius: 2px;
+    cursor: pointer;
+}
+
+.es-slider-input::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--es-accent);
+    cursor: pointer;
+}
+
+.es-slider-input::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--es-accent);
+    border: none;
+    cursor: pointer;
 }
 
 /* =============================================================================
@@ -773,6 +896,13 @@ svg {
 
 .es-input-number {
     width: 100%;
+    -moz-appearance: textfield;
+}
+
+.es-input-number::-webkit-outer-spin-button,
+.es-input-number::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
 }
 
 .es-input-checkbox {
@@ -1403,14 +1533,15 @@ svg {
 .es-launcher-logo-icon {
     width: 64px;
     height: 64px;
-    background: linear-gradient(135deg, #d19a66, #e5c07b);
-    border-radius: 12px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 24px;
-    font-weight: bold;
-    color: #1e1e1e;
+}
+
+.es-launcher-logo-icon svg {
+    width: 64px;
+    height: 64px;
+    border-radius: 12px;
 }
 
 .es-launcher-logo-text {
@@ -1470,6 +1601,15 @@ svg {
 
 .es-launcher-btn-icon {
     font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.es-launcher-btn-icon svg {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
 }
 
 .es-launcher-recent {
@@ -1511,8 +1651,18 @@ svg {
 }
 
 .es-launcher-recent-icon {
-    font-size: 20px;
+    width: 20px;
+    height: 20px;
     flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.es-launcher-recent-icon svg {
+    width: 20px;
+    height: 20px;
+    stroke: var(--es-text-secondary);
 }
 
 .es-launcher-recent-info {
@@ -1948,4 +2098,158 @@ svg {
     text-align: center;
     color: var(--es-text-secondary);
     font-size: 13px;
+}
+
+/* =============================================================================
+ * Nine-Slice Editor
+ * ============================================================================= */
+
+.es-nine-slice-editor {
+    margin-bottom: 12px;
+}
+
+.es-nine-slice-preview {
+    position: relative;
+    width: 100%;
+    background: repeating-conic-gradient(#333 0% 25%, #444 0% 50%) 50% / 16px 16px;
+    border: 1px solid var(--es-border);
+    overflow: hidden;
+}
+
+.es-nine-slice-image {
+    display: block;
+    width: 100%;
+    height: auto;
+    image-rendering: pixelated;
+}
+
+.es-nine-slice-line {
+    position: absolute;
+    background: #00ff00;
+    z-index: 10;
+}
+
+.es-nine-slice-left,
+.es-nine-slice-right {
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    cursor: ew-resize;
+}
+
+.es-nine-slice-left {
+    left: 0;
+}
+
+.es-nine-slice-right {
+    right: 0;
+}
+
+.es-nine-slice-top,
+.es-nine-slice-bottom {
+    left: 0;
+    right: 0;
+    height: 2px;
+    cursor: ns-resize;
+}
+
+.es-nine-slice-top {
+    top: 0;
+}
+
+.es-nine-slice-bottom {
+    bottom: 0;
+}
+
+.es-nine-slice-line:hover {
+    background: #00ff88;
+}
+
+.es-nine-slice-line::before {
+    content: '';
+    position: absolute;
+    background: transparent;
+}
+
+.es-nine-slice-left::before,
+.es-nine-slice-right::before {
+    top: 0;
+    bottom: 0;
+    left: -4px;
+    right: -4px;
+}
+
+.es-nine-slice-top::before,
+.es-nine-slice-bottom::before {
+    left: 0;
+    right: 0;
+    top: -4px;
+    bottom: -4px;
+}
+
+.es-nine-slice-inputs {
+    margin-top: 8px;
+}
+
+/* =============================================================================
+ * Texture Editor
+ * ============================================================================= */
+
+.es-texture-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.es-texture-preview {
+    width: 64px;
+    height: 64px;
+    background: repeating-conic-gradient(#333 0% 25%, #444 0% 50%) 50% / 8px 8px;
+    border: 1px solid var(--es-border);
+    border-radius: 4px;
+    overflow: hidden;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-color 0.15s;
+}
+
+.es-texture-preview:hover {
+    border-color: var(--es-accent);
+}
+
+.es-texture-preview.es-has-preview:hover {
+    opacity: 0.9;
+}
+
+.es-texture-preview-img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    display: none;
+    image-rendering: pixelated;
+}
+
+.es-texture-preview::before {
+    content: '';
+    display: block;
+}
+
+.es-texture-preview.es-has-preview::before {
+    display: none;
+}
+
+.es-texture-input-row {
+    display: flex;
+    gap: 4px;
+}
+
+.es-texture-input-row .es-input-texture {
+    flex: 1;
+    min-width: 0;
+}
+
+.es-btn-locate {
+    flex-shrink: 0;
 }
