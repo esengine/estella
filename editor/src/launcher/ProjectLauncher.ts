@@ -49,7 +49,7 @@ export class ProjectLauncher {
             <div class="es-launcher-content">
                 <div class="es-launcher-header">
                     <div class="es-launcher-logo">
-                        <div class="es-launcher-logo-icon">${icons.logo}</div>
+                        <div class="es-launcher-logo-icon">${icons.logo()}</div>
                         <div class="es-launcher-logo-text">
                             <span class="es-launcher-title">ESEngine</span>
                             <span class="es-launcher-subtitle">Editor</span>
@@ -59,11 +59,11 @@ export class ProjectLauncher {
 
                 <div class="es-launcher-actions">
                     <button class="es-launcher-btn es-launcher-btn-primary" data-action="new">
-                        <span class="es-launcher-btn-icon">${icons.plus}</span>
+                        <span class="es-launcher-btn-icon">${icons.plus()}</span>
                         <span>New Project</span>
                     </button>
                     <button class="es-launcher-btn" data-action="open">
-                        <span class="es-launcher-btn-icon">${icons.folderOpen}</span>
+                        <span class="es-launcher-btn-icon">${icons.folderOpen()}</span>
                         <span>Open Project</span>
                     </button>
                 </div>
@@ -123,7 +123,7 @@ export class ProjectLauncher {
 
         return `
             <div class="es-launcher-recent-item">
-                <div class="es-launcher-recent-icon">${icons.folder}</div>
+                <div class="es-launcher-recent-icon">${icons.folder()}</div>
                 <div class="es-launcher-recent-info">
                     <div class="es-launcher-recent-name">${this.escapeHtml(project.name)}</div>
                     <div class="es-launcher-recent-path">${this.escapeHtml(shortPath)}</div>
