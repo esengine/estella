@@ -5,6 +5,8 @@
 
 import type { SceneData } from '../types/SceneTypes';
 import type { NativeFS } from '../scripting/types';
+import type { TextureMetadata } from '../types/TextureMetadata';
+import { getMetaFilePath, parseTextureMetadata } from '../types/TextureMetadata';
 
 // =============================================================================
 // Types
@@ -83,13 +85,59 @@ export class PreviewService {
     ): Promise<void> {
         await this.ensureDirectory(fs, this.previewDir_);
 
+        // Collect texture metadata
+        const textureMetadata = await this.collectTextureMetadata(fs, scene);
+        const sceneWithMetadata: SceneData = {
+            ...scene,
+            textureMetadata: Object.keys(textureMetadata).length > 0 ? textureMetadata : undefined,
+        };
+
         const scenePath = `${this.previewDir_}/scene.json`;
-        await fs.writeFile(scenePath, JSON.stringify(scene, null, 2));
+        await fs.writeFile(scenePath, JSON.stringify(sceneWithMetadata, null, 2));
 
         if (compiledScript) {
             const scriptPath = `${this.previewDir_}/user-scripts.js`;
             await fs.writeFile(scriptPath, compiledScript);
         }
+    }
+
+    private async collectTextureMetadata(
+        fs: NativeFS,
+        scene: SceneData
+    ): Promise<Record<string, TextureMetadata>> {
+        const result: Record<string, TextureMetadata> = {};
+        const processedPaths = new Set<string>();
+
+        for (const entity of scene.entities) {
+            for (const component of entity.components) {
+                if (component.type === 'Sprite') {
+                    const texturePath = component.data.texture as string | undefined;
+                    if (texturePath && !processedPaths.has(texturePath)) {
+                        processedPaths.add(texturePath);
+
+                        // Resolve texture path relative to project
+                        const fullPath = `${this.projectDir_}/${texturePath}`;
+                        const metaPath = getMetaFilePath(fullPath);
+
+                        try {
+                            if (await fs.exists(metaPath)) {
+                                const content = await fs.readFile(metaPath);
+                                if (content) {
+                                    const metadata = parseTextureMetadata(content);
+                                    if (metadata) {
+                                        result[texturePath] = metadata;
+                                    }
+                                }
+                            }
+                        } catch (err) {
+                            console.warn(`Failed to load texture metadata for ${texturePath}:`, err);
+                        }
+                    }
+                }
+            }
+        }
+
+        return result;
     }
 
     private async ensureDirectory(fs: NativeFS, path: string): Promise<void> {

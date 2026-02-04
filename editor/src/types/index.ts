@@ -12,3 +12,14 @@ export {
     createEmptyScene,
     createEntityData,
 } from './SceneTypes';
+
+export {
+    type SliceBorder,
+    type TextureMetadata,
+    createDefaultSliceBorder,
+    createDefaultTextureMetadata,
+    hasSlicing,
+    getMetaFilePath,
+    parseTextureMetadata,
+    serializeTextureMetadata,
+} from './TextureMetadata';

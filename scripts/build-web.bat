@@ -17,6 +17,12 @@ if errorlevel 1 goto :error
 echo.
 echo Build complete: %BUILD_DIR%\sdk\
 dir sdk\
+
+echo.
+echo Copying to desktop/public...
+copy /Y sdk\esengine.js ..\desktop\public\
+copy /Y sdk\esengine.wasm ..\desktop\public\
+echo Done!
 goto :end
 
 :error

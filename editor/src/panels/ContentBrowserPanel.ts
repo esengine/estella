@@ -187,6 +187,54 @@ export class ContentBrowserPanel {
         }
     }
 
+    async navigateToAsset(assetPath: string): Promise<void> {
+        if (!this.rootFolder_) return;
+
+        const normalized = assetPath.replace(/\\/g, '/');
+        const lastSlash = normalized.lastIndexOf('/');
+        const folderPath = lastSlash > 0 ? normalized.substring(0, lastSlash) : this.rootFolder_.path;
+
+        const projectDir = this.rootFolder_.path;
+        const targetFolderPath = joinPath(projectDir, folderPath);
+
+        const pathParts = folderPath.split('/').filter(p => p);
+        let currentNode = this.rootFolder_;
+
+        for (const part of pathParts) {
+            const childPath = joinPath(currentNode.path, part);
+            let child = currentNode.children.find(c => c.path === childPath);
+
+            if (!child) {
+                if (!currentNode.loaded) {
+                    await this.loadFolderChildren(currentNode);
+                    child = currentNode.children.find(c => c.path === childPath);
+                }
+            }
+
+            if (child) {
+                child.expanded = true;
+                if (!child.loaded) {
+                    await this.loadFolderChildren(child);
+                }
+                currentNode = child;
+            } else {
+                break;
+            }
+        }
+
+        this.currentPath_ = targetFolderPath;
+        const fullAssetPath = joinPath(projectDir, normalized);
+        this.selectedAssetPath_ = fullAssetPath;
+
+        this.renderTree();
+        await this.renderGrid();
+
+        requestAnimationFrame(() => {
+            const selectedItem = this.gridContainer_?.querySelector('.es-selected');
+            selectedItem?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        });
+    }
+
     private async initialize(): Promise<void> {
         if (this.projectPath_) {
             await this.loadProjectDirectory();
@@ -485,7 +533,7 @@ export class ContentBrowserPanel {
         this.gridContainer_.innerHTML = filteredItems
             .map(
                 (item) => `
-                <div class="es-asset-item" data-path="${item.path}" data-type="${item.type}">
+                <div class="es-asset-item${item.path === this.selectedAssetPath_ ? ' es-selected' : ''}" data-path="${item.path}" data-type="${item.type}">
                     <div class="es-asset-icon">${getAssetIcon(item.type)}</div>
                     <div class="es-asset-name">${item.name}</div>
                 </div>

@@ -13,6 +13,7 @@ export interface CppRegistry {
     create(): Entity;
     destroy(entity: Entity): void;
     valid(entity: Entity): boolean;
+    delete(): void;
 
     addLocalTransform(entity: Entity, data: unknown): void;
     getLocalTransform(entity: Entity): unknown;
@@ -54,6 +55,8 @@ export interface CppRegistry {
     hasChildren(entity: Entity): boolean;
     removeChildren(entity: Entity): void;
 
+    setParent(child: Entity, parent: Entity): void;
+
     [key: string]: unknown;
 }
 
@@ -66,6 +69,7 @@ export interface CppResourceManager {
     createShader(vertSrc: string, fragSrc: string): number;
     releaseTexture(handle: number): void;
     releaseShader(handle: number): void;
+    setTextureMetadata(handle: number, left: number, right: number, top: number, bottom: number): void;
 }
 
 // =============================================================================
@@ -75,10 +79,13 @@ export interface CppResourceManager {
 export interface ESEngineModule {
     Registry: new () => CppRegistry;
     HEAPU8: Uint8Array;
+    HEAPF32: Float32Array;
 
     initRenderer(): void;
+    initRendererWithCanvas(canvasSelector: string): boolean;
     shutdownRenderer(): void;
     renderFrame(registry: CppRegistry, width: number, height: number): void;
+    renderFrameWithMatrix(registry: CppRegistry, width: number, height: number, matrixPtr: number): void;
     getResourceManager(): CppResourceManager;
 
     _malloc(size: number): number;

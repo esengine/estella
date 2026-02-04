@@ -21,6 +21,7 @@
 #include "Handle.hpp"
 #include "ResourcePool.hpp"
 #include "LoaderRegistry.hpp"
+#include "TextureMetadata.hpp"
 #include "../renderer/Shader.hpp"
 #include "../renderer/Texture.hpp"
 #include "../renderer/Buffer.hpp"
@@ -241,6 +242,37 @@ public:
     void releaseTextureByGUID(const std::string& guid);
 
     // =========================================================================
+    // Texture Metadata
+    // =========================================================================
+
+    /**
+     * @brief Sets metadata for a texture
+     * @param handle The texture handle
+     * @param metadata The metadata to associate
+     */
+    void setTextureMetadata(TextureHandle handle, const TextureMetadata& metadata);
+
+    /**
+     * @brief Gets metadata for a texture
+     * @param handle The texture handle
+     * @return Pointer to metadata, or nullptr if not set
+     */
+    const TextureMetadata* getTextureMetadata(TextureHandle handle) const;
+
+    /**
+     * @brief Checks if a texture has metadata
+     * @param handle The texture handle
+     * @return True if metadata is set
+     */
+    bool hasTextureMetadata(TextureHandle handle) const;
+
+    /**
+     * @brief Removes metadata for a texture
+     * @param handle The texture handle
+     */
+    void removeTextureMetadata(TextureHandle handle);
+
+    // =========================================================================
     // Vertex Buffer Resources
     // =========================================================================
 
@@ -373,6 +405,7 @@ private:
     ResourcePool<VertexBuffer> vertexBuffers_;
     ResourcePool<IndexBuffer> indexBuffers_;
     std::unordered_map<std::string, TextureHandle> guidToTexture_;
+    std::unordered_map<TextureHandle::IdType, TextureMetadata> textureMetadata_;
     LoaderRegistry loaderRegistry_;
     mutable ResourceStats stats_;
     bool initialized_ = false;

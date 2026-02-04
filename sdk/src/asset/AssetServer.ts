@@ -16,6 +16,13 @@ export interface TextureInfo {
     height: number;
 }
 
+export interface SliceBorder {
+    left: number;
+    right: number;
+    top: number;
+    bottom: number;
+}
+
 // =============================================================================
 // AssetServer
 // =============================================================================
@@ -91,6 +98,20 @@ export class AssetServer {
             rm.releaseTexture(info.handle);
         }
         this.cache_.clear();
+    }
+
+    setTextureMetadata(handle: TextureHandle, border: SliceBorder): void {
+        const rm = this.module_.getResourceManager();
+        rm.setTextureMetadata(handle, border.left, border.right, border.top, border.bottom);
+    }
+
+    setTextureMetadataByPath(source: string, border: SliceBorder): boolean {
+        const info = this.cache_.get(source);
+        if (info) {
+            this.setTextureMetadata(info.handle, border);
+            return true;
+        }
+        return false;
     }
 
     // =========================================================================

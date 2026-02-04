@@ -129,6 +129,15 @@ export interface Registry {
     removeVelocity(entity: Entity): void;
 }
 
+// Resource Manager
+export interface ResourceManager {
+    createTexture(width: number, height: number, pixelsPtr: number, pixelsLen: number, format: number): number;
+    createShader(vertSrc: string, fragSrc: string): number;
+    releaseTexture(handleId: number): void;
+    releaseShader(handleId: number): void;
+    setTextureMetadata(handleId: number, left: number, right: number, top: number, bottom: number): void;
+}
+
 // Module
 export interface ESEngineModule {
     Registry: new () => Registry;
@@ -140,6 +149,20 @@ export interface ESEngineModule {
     LocalTransform: new () => LocalTransform;
     WorldTransform: new () => WorldTransform;
     Velocity: new () => Velocity;
+
+    // Renderer functions
+    initRenderer(): void;
+    initRendererWithCanvas(canvasSelector: string): boolean;
+    shutdownRenderer(): void;
+    renderFrame(registry: Registry, width: number, height: number): void;
+    renderFrameWithMatrix(registry: Registry, width: number, height: number, matrixPtr: number): void;
+    getResourceManager(): ResourceManager;
+
+    // Memory functions
+    _malloc(size: number): number;
+    _free(ptr: number): void;
+    HEAPU8: Uint8Array;
+    HEAPF32: Float32Array;
 }
 
 export default function createModule(): Promise<ESEngineModule>;

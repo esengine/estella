@@ -35,10 +35,24 @@ export interface SceneComponentData {
     data: Record<string, unknown>;
 }
 
+export interface SliceBorder {
+    left: number;
+    right: number;
+    top: number;
+    bottom: number;
+}
+
+export interface TextureMetadata {
+    version: string;
+    type: 'texture';
+    sliceBorder: SliceBorder;
+}
+
 export interface SceneData {
     version: string;
     name: string;
     entities: SceneEntityData[];
+    textureMetadata?: Record<string, TextureMetadata>;
 }
 
 export interface SceneLoadOptions {
@@ -72,6 +86,7 @@ export async function loadSceneWithAssets(
 ): Promise<Map<number, Entity>> {
     const entityMap = new Map<number, Entity>();
     const assetServer = options?.assetServer;
+    const texturePathToUrl = new Map<string, string>();
 
     for (const entityData of sceneData.entities) {
         const entity = world.spawn();
@@ -81,19 +96,42 @@ export async function loadSceneWithAssets(
             if (compData.type === 'Sprite' && assetServer) {
                 const data = compData.data as Record<string, unknown>;
                 if (typeof data.texture === 'string' && data.texture) {
-                    const path = options?.assetBaseUrl
-                        ? `${options.assetBaseUrl}/${data.texture}`
-                        : `/${data.texture}`;
+                    const texturePath = data.texture;
+                    const url = options?.assetBaseUrl
+                        ? `${options.assetBaseUrl}/${texturePath}`
+                        : `/${texturePath}`;
                     try {
-                        const info = await assetServer.loadTexture(path);
+                        const info = await assetServer.loadTexture(url);
                         data.texture = info.handle;
+                        texturePathToUrl.set(texturePath, url);
                     } catch (err) {
-                        console.warn(`Failed to load texture: ${path}`, err);
+                        console.warn(`Failed to load texture: ${url}`, err);
                         data.texture = 0;
                     }
                 }
             }
+
             loadComponent(world, entity, compData);
+        }
+    }
+
+    for (const entityData of sceneData.entities) {
+        if (entityData.parent !== null) {
+            const entity = entityMap.get(entityData.id);
+            const parentEntity = entityMap.get(entityData.parent);
+            if (entity !== undefined && parentEntity !== undefined) {
+                console.log(`[SceneLoader] setParent: entity ${entity} -> parent ${parentEntity}`);
+                world.setParent(entity, parentEntity);
+            }
+        }
+    }
+
+    if (assetServer && sceneData.textureMetadata) {
+        for (const [texturePath, metadata] of Object.entries(sceneData.textureMetadata)) {
+            const url = texturePathToUrl.get(texturePath);
+            if (url && metadata.sliceBorder) {
+                assetServer.setTextureMetadataByPath(url, metadata.sliceBorder);
+            }
         }
     }
 

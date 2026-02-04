@@ -21,6 +21,7 @@
 
 // Standard library
 #include <functional>
+#include <iomanip>
 #include <iostream>
 #include <mutex>
 #include <sstream>
@@ -210,7 +211,6 @@ private:
     static void notifySinks(LogLevel level, const std::string& message);
     static const char* levelToString(LogLevel level);
 
-    // Simple format implementation with {} placeholders
     static void formatTo(std::ostringstream& oss, const char* fmt) {
         oss << fmt;
     }
@@ -218,13 +218,41 @@ private:
     template<typename T, typename... Args>
     static void formatTo(std::ostringstream& oss, const char* fmt, T&& value, Args&&... args) {
         while (*fmt) {
-            if (*fmt == '{' && *(fmt + 1) == '}') {
-                oss << std::forward<T>(value);
-                formatTo(oss, fmt + 2, std::forward<Args>(args)...);
-                return;
+            if (*fmt == '{') {
+                const char* start = fmt + 1;
+                const char* end = start;
+                while (*end && *end != '}') ++end;
+
+                if (*end == '}') {
+                    std::string spec(start, end);
+                    applyFormat(oss, spec, std::forward<T>(value));
+                    formatTo(oss, end + 1, std::forward<Args>(args)...);
+                    return;
+                }
             }
             oss << *fmt++;
         }
+    }
+
+    template<typename T>
+    static void applyFormat(std::ostringstream& oss, const std::string& spec, T&& value) {
+        if (spec.empty()) {
+            oss << std::forward<T>(value);
+            return;
+        }
+
+        if (spec[0] == ':') {
+            std::string fmt = spec.substr(1);
+            if (!fmt.empty() && fmt.back() == 'f') {
+                auto dotPos = fmt.find('.');
+                if (dotPos != std::string::npos) {
+                    int precision = std::stoi(fmt.substr(dotPos + 1, fmt.size() - dotPos - 2));
+                    oss << std::fixed << std::setprecision(precision);
+                }
+            }
+        }
+        oss << std::forward<T>(value);
+        oss << std::defaultfloat;
     }
 };
 

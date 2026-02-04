@@ -59,6 +59,15 @@ function createNumberEditor(
     ctx: PropertyEditorContext
 ): PropertyEditorInstance {
     const { value, meta, onChange } = ctx;
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'es-number-editor';
+
+    const label = document.createElement('span');
+    label.className = 'es-number-drag-label';
+    label.innerHTML = '⋮⋮';
+    label.title = 'Drag to adjust value';
+
     const input = document.createElement('input');
     input.type = 'number';
     input.className = 'es-input es-input-number';
@@ -68,18 +77,33 @@ function createNumberEditor(
     if (meta.max !== undefined) input.max = String(meta.max);
     if (meta.step !== undefined) input.step = String(meta.step);
 
+    const step = meta.step ?? 1;
+
     input.addEventListener('change', () => {
         onChange(parseFloat(input.value) || 0);
     });
 
-    container.appendChild(input);
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            input.blur();
+            onChange(parseFloat(input.value) || 0);
+        }
+    });
+
+    setupDragLabel(label, input, (newValue) => {
+        onChange(newValue);
+    }, step);
+
+    wrapper.appendChild(label);
+    wrapper.appendChild(input);
+    container.appendChild(wrapper);
 
     return {
         update(v: unknown) {
             input.value = String(v ?? 0);
         },
         dispose() {
-            input.remove();
+            wrapper.remove();
         },
     };
 }
@@ -187,6 +211,14 @@ function createVec2Editor(
             onChange(currentVec);
         });
 
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                input.blur();
+                currentVec = { ...currentVec, [keys[i]]: parseFloat(input.value) || 0 };
+                onChange(currentVec);
+            }
+        });
+
         setupDragLabel(label, input, (newValue) => {
             currentVec = { ...currentVec, [keys[i]]: newValue };
             onChange(currentVec);
@@ -254,6 +286,14 @@ function createVec3Editor(
         input.addEventListener('change', () => {
             currentVec = { ...currentVec, [keys[i]]: parseFloat(input.value) || 0 };
             onChange(currentVec);
+        });
+
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                input.blur();
+                currentVec = { ...currentVec, [keys[i]]: parseFloat(input.value) || 0 };
+                onChange(currentVec);
+            }
         });
 
         setupDragLabel(label, input, (newValue) => {
@@ -325,6 +365,14 @@ function createVec4Editor(
         input.addEventListener('change', () => {
             currentVec = { ...currentVec, [keys[i]]: parseFloat(input.value) || 0 };
             onChange(currentVec);
+        });
+
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                input.blur();
+                currentVec = { ...currentVec, [keys[i]]: parseFloat(input.value) || 0 };
+                onChange(currentVec);
+            }
         });
 
         setupDragLabel(label, input, (newValue) => {
@@ -521,6 +569,14 @@ function createEulerEditor(
             onChange(eulerToQuat(currentEuler));
         });
 
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                input.blur();
+                currentEuler = { ...currentEuler, [keys[i]]: parseFloat(input.value) || 0 };
+                onChange(eulerToQuat(currentEuler));
+            }
+        });
+
         setupDragLabel(label, input, (newValue) => {
             currentEuler = { ...currentEuler, [keys[i]]: newValue };
             onChange(eulerToQuat(currentEuler));
@@ -595,14 +651,54 @@ function createEnumEditor(
 // Texture Editor
 // =============================================================================
 
+interface NativeFS {
+    readBinaryFile(path: string): Promise<Uint8Array | null>;
+}
+
+function getNativeFS(): NativeFS | null {
+    return (window as any).__esengine_fs ?? null;
+}
+
+function getProjectDir(): string | null {
+    const editor = (window as any).__esengine_editor;
+    const projectPath = editor?.projectPath;
+    if (!projectPath) return null;
+    return projectPath.replace(/\\/g, '/').replace(/\/[^/]+$/, '');
+}
+
+function getMimeType(path: string): string {
+    const ext = path.split('.').pop()?.toLowerCase();
+    switch (ext) {
+        case 'png': return 'image/png';
+        case 'jpg':
+        case 'jpeg': return 'image/jpeg';
+        case 'gif': return 'image/gif';
+        case 'webp': return 'image/webp';
+        case 'bmp': return 'image/bmp';
+        default: return 'image/png';
+    }
+}
+
 function createTextureEditor(
     container: HTMLElement,
     ctx: PropertyEditorContext
 ): PropertyEditorInstance {
     const { value, onChange } = ctx;
+    let currentBlobUrl: string | null = null;
 
     const wrapper = document.createElement('div');
     wrapper.className = 'es-texture-editor';
+
+    const preview = document.createElement('div');
+    preview.className = 'es-texture-preview';
+    preview.title = 'Click to locate in Content Browser';
+
+    const previewImg = document.createElement('img');
+    previewImg.className = 'es-texture-preview-img';
+    preview.appendChild(previewImg);
+
+    const inputRow = document.createElement('div');
+    inputRow.className = 'es-texture-input-row';
 
     const input = document.createElement('input');
     input.type = 'text';
@@ -615,16 +711,68 @@ function createTextureEditor(
     browseBtn.title = 'Browse';
     browseBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2z"></path></svg>`;
 
+    const locateBtn = document.createElement('button');
+    locateBtn.className = 'es-btn es-btn-icon es-btn-locate';
+    locateBtn.title = 'Locate in Content Browser';
+    locateBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><path d="M21 21l-4.35-4.35"></path></svg>`;
+
+    const updatePreview = async (texturePath: string) => {
+        if (currentBlobUrl) {
+            URL.revokeObjectURL(currentBlobUrl);
+            currentBlobUrl = null;
+        }
+
+        const projectDir = getProjectDir();
+        const fs = getNativeFS();
+
+        if (texturePath && projectDir && fs) {
+            const fullPath = `${projectDir}/${texturePath}`;
+            try {
+                const data = await fs.readBinaryFile(fullPath);
+                if (data) {
+                    const blob = new Blob([data.buffer as ArrayBuffer], { type: getMimeType(texturePath) });
+                    currentBlobUrl = URL.createObjectURL(blob);
+                    previewImg.src = currentBlobUrl;
+                    previewImg.style.display = 'block';
+                    preview.classList.add('es-has-preview');
+                    return;
+                }
+            } catch (err) {
+                console.warn('Failed to load texture preview:', err);
+            }
+        }
+
+        previewImg.src = '';
+        previewImg.style.display = 'none';
+        preview.classList.remove('es-has-preview');
+    };
+
+    const navigateToAsset = async (e: Event) => {
+        e.stopPropagation();
+        const texturePath = input.value;
+        if (!texturePath) return;
+
+        const editor = (window as any).__esengine_editor;
+        if (editor?.navigateToAsset) {
+            await editor.navigateToAsset(texturePath);
+        }
+    };
+
+    updatePreview(String(value ?? ''));
+
     input.addEventListener('change', () => {
-        onChange(input.value || '');
+        const newValue = input.value || '';
+        onChange(newValue);
+        updatePreview(newValue);
     });
 
-    browseBtn.addEventListener('click', async () => {
-        const editor = (window as any).__esengine_editor;
-        const projectPath = editor?.projectPath;
-        if (!projectPath) return;
+    preview.addEventListener('click', navigateToAsset);
+    locateBtn.addEventListener('click', navigateToAsset);
 
-        const projectDir = projectPath.replace(/\\/g, '/').replace(/\/[^/]+$/, '');
+    browseBtn.addEventListener('click', async () => {
+        const projectDir = getProjectDir();
+        if (!projectDir) return;
+
         const assetsDir = `${projectDir}/assets`;
 
         try {
@@ -641,6 +789,7 @@ function createTextureEditor(
                     const relativePath = normalizedPath.substring(assetsIndex + 1);
                     input.value = relativePath;
                     onChange(relativePath);
+                    updatePreview(relativePath);
                 }
             }
         } catch (err) {
@@ -648,15 +797,23 @@ function createTextureEditor(
         }
     });
 
-    wrapper.appendChild(input);
-    wrapper.appendChild(browseBtn);
+    inputRow.appendChild(input);
+    inputRow.appendChild(browseBtn);
+    inputRow.appendChild(locateBtn);
+    wrapper.appendChild(preview);
+    wrapper.appendChild(inputRow);
     container.appendChild(wrapper);
 
     return {
         update(v: unknown) {
-            input.value = String(v ?? '');
+            const newValue = String(v ?? '');
+            input.value = newValue;
+            updatePreview(newValue);
         },
         dispose() {
+            if (currentBlobUrl) {
+                URL.revokeObjectURL(currentBlobUrl);
+            }
             wrapper.remove();
         },
     };

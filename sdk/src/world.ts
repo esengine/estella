@@ -67,6 +67,15 @@ export class World {
         return Array.from(this.entities_);
     }
 
+    setParent(child: Entity, parent: Entity): void {
+        if (this.cppRegistry_) {
+            console.log(`[World] Calling cppRegistry_.setParent(${child}, ${parent})`);
+            this.cppRegistry_.setParent(child, parent);
+        } else {
+            console.warn('[World] setParent called but cppRegistry_ is null!');
+        }
+    }
+
     // =========================================================================
     // Component Management
     // =========================================================================

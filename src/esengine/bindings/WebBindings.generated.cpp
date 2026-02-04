@@ -11,6 +11,7 @@
 #include <emscripten/bind.h>
 #include "../ecs/Registry.hpp"
 #include "../math/Math.hpp"
+#include "../ecs/TransformSystem.hpp"
 #include "../ecs/components/Camera.hpp"
 #include "../ecs/components/Canvas.hpp"
 #include "../ecs/components/Hierarchy.hpp"
@@ -354,6 +355,11 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         }))
         .function("removeVelocity", optional_override([](Registry& r, u32 e) {
             r.remove<esengine::ecs::Velocity>(static_cast<Entity>(e));
+        }))
+
+        // Hierarchy Utilities
+        .function("setParent", optional_override([](Registry& r, u32 child, u32 parent) {
+            esengine::ecs::setParent(r, static_cast<Entity>(child), static_cast<Entity>(parent));
         }))
 
         ;

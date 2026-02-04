@@ -23,6 +23,7 @@
 #include "../ecs/components/Sprite.hpp"
 #include "RenderContext.hpp"
 #include "../resource/ResourceManager.hpp"
+#include "../resource/TextureMetadata.hpp"
 
 #include <vector>
 
@@ -55,6 +56,9 @@ struct RenderItem {
     f32 depth;                  ///< Z depth for sorting
     bool flip_x;                ///< Horizontal flip
     bool flip_y;                ///< Vertical flip
+    bool use_nine_slice;        ///< Use nine-slice rendering
+    resource::SliceBorder slice_border;  ///< Nine-slice borders
+    glm::vec2 texture_size;     ///< Texture dimensions for nine-slice UV calc
 
     /** @brief Generates a 64-bit sort key for efficient sorting */
     u64 sortKey() const;

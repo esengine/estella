@@ -253,6 +253,7 @@ class EmbindGenerator:
             if comp.header_path and 'src/esengine/' in comp.header_path:
                 rel = '../' + comp.header_path.replace('\\', '/').split('src/esengine/')[-1]
                 headers.add(f'#include "{rel}"')
+        headers.add('#include "../ecs/TransformSystem.hpp"')
         lines = sorted(headers)
         lines.extend([
             '',
@@ -451,6 +452,13 @@ class EmbindGenerator:
             lines.append('        }))')
             lines.append('')
 
+        lines.extend([
+            '        // Hierarchy Utilities',
+            '        .function("setParent", optional_override([](Registry& r, u32 child, u32 parent) {',
+            '            esengine::ecs::setParent(r, static_cast<Entity>(child), static_cast<Entity>(parent));',
+            '        }))',
+            '',
+        ])
         lines.append('        ;')
         lines.append('}')
         return lines
@@ -533,6 +541,11 @@ class TypeScriptGenerator:
                 f'    add{n}(entity: Entity, component: {n}): void;',
                 f'    remove{n}(entity: Entity): void;',
             ])
+        lines.extend([
+            '',
+            '    // Hierarchy Utilities',
+            '    setParent(child: Entity, parent: Entity): void;',
+        ])
         lines.append('}')
         lines.append('')
         return lines

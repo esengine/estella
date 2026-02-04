@@ -13,6 +13,15 @@ import {
 import { getComponentSchema } from '../schemas/ComponentSchemas';
 import { icons } from '../utils/icons';
 import { showAddComponentPopup } from './AddComponentPopup';
+import { getPlatformAdapter } from '../platform/PlatformAdapter';
+import {
+    type SliceBorder,
+    type TextureMetadata,
+    getMetaFilePath,
+    parseTextureMetadata,
+    serializeTextureMetadata,
+    createDefaultTextureMetadata,
+} from '../types/TextureMetadata';
 
 // =============================================================================
 // Types
@@ -121,6 +130,7 @@ export class InspectorPanel {
     private footerContainer_: HTMLElement | null = null;
     private lockBtn_: HTMLElement | null = null;
     private locked_: boolean = false;
+    private currentTextureMetadata_: TextureMetadata | null = null;
 
     constructor(container: HTMLElement, store: EditorStore) {
         this.container_ = container;
@@ -633,6 +643,200 @@ export class InspectorPanel {
         header?.addEventListener('click', () => {
             section.classList.toggle('es-expanded');
         });
+
+        this.contentContainer_.appendChild(section);
+
+        await this.renderNineSliceSection(path, width, height);
+    }
+
+    private async renderNineSliceSection(path: string, texWidth: number, texHeight: number): Promise<void> {
+        const platform = getPlatformAdapter();
+        const metaPath = getMetaFilePath(path);
+
+        let metadata: TextureMetadata = createDefaultTextureMetadata();
+
+        try {
+            if (await platform.exists(metaPath)) {
+                const content = await platform.readTextFile(metaPath);
+                const parsed = parseTextureMetadata(content);
+                if (parsed) {
+                    metadata = parsed;
+                }
+            }
+        } catch (err) {
+            console.warn('Failed to load texture metadata:', err);
+        }
+
+        this.currentTextureMetadata_ = metadata;
+        const border = metadata.sliceBorder;
+
+        const section = document.createElement('div');
+        section.className = 'es-component-section es-collapsible es-expanded';
+        section.innerHTML = `
+            <div class="es-component-header es-collapsible-header">
+                <span class="es-collapse-icon">${icons.chevronDown(12)}</span>
+                <span class="es-component-icon">${icons.grid(14)}</span>
+                <span class="es-component-title">Nine-Slice</span>
+            </div>
+            <div class="es-component-properties es-collapsible-content">
+                <div class="es-nine-slice-editor">
+                    <div class="es-nine-slice-preview">
+                        <img class="es-nine-slice-image" src="${this.currentImageUrl_ || ''}">
+                        <div class="es-nine-slice-line es-nine-slice-left"></div>
+                        <div class="es-nine-slice-line es-nine-slice-right"></div>
+                        <div class="es-nine-slice-line es-nine-slice-top"></div>
+                        <div class="es-nine-slice-line es-nine-slice-bottom"></div>
+                    </div>
+                </div>
+                <div class="es-nine-slice-inputs">
+                    <div class="es-property-row">
+                        <label class="es-property-label">Left</label>
+                        <div class="es-property-editor">
+                            <input type="number" class="es-input es-input-number es-slice-input-left" value="${border.left}" min="0" max="${texWidth}" step="1">
+                        </div>
+                    </div>
+                    <div class="es-property-row">
+                        <label class="es-property-label">Right</label>
+                        <div class="es-property-editor">
+                            <input type="number" class="es-input es-input-number es-slice-input-right" value="${border.right}" min="0" max="${texWidth}" step="1">
+                        </div>
+                    </div>
+                    <div class="es-property-row">
+                        <label class="es-property-label">Top</label>
+                        <div class="es-property-editor">
+                            <input type="number" class="es-input es-input-number es-slice-input-top" value="${border.top}" min="0" max="${texHeight}" step="1">
+                        </div>
+                    </div>
+                    <div class="es-property-row">
+                        <label class="es-property-label">Bottom</label>
+                        <div class="es-property-editor">
+                            <input type="number" class="es-input es-input-number es-slice-input-bottom" value="${border.bottom}" min="0" max="${texHeight}" step="1">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        const headerEl = section.querySelector('.es-collapsible-header');
+        headerEl?.addEventListener('click', () => {
+            section.classList.toggle('es-expanded');
+        });
+
+        const preview = section.querySelector('.es-nine-slice-preview') as HTMLElement;
+        const leftLine = section.querySelector('.es-nine-slice-left') as HTMLElement;
+        const rightLine = section.querySelector('.es-nine-slice-right') as HTMLElement;
+        const topLine = section.querySelector('.es-nine-slice-top') as HTMLElement;
+        const bottomLine = section.querySelector('.es-nine-slice-bottom') as HTMLElement;
+        const leftInput = section.querySelector('.es-slice-input-left') as HTMLInputElement;
+        const rightInput = section.querySelector('.es-slice-input-right') as HTMLInputElement;
+        const topInput = section.querySelector('.es-slice-input-top') as HTMLInputElement;
+        const bottomInput = section.querySelector('.es-slice-input-bottom') as HTMLInputElement;
+
+        const updateLines = () => {
+            const previewRect = preview.getBoundingClientRect();
+            const scaleX = previewRect.width / texWidth;
+            const scaleY = previewRect.height / texHeight;
+
+            const left = parseFloat(leftInput.value) || 0;
+            const right = parseFloat(rightInput.value) || 0;
+            const top = parseFloat(topInput.value) || 0;
+            const bottom = parseFloat(bottomInput.value) || 0;
+
+            leftLine.style.left = `${left * scaleX}px`;
+            rightLine.style.right = `${right * scaleX}px`;
+            topLine.style.top = `${top * scaleY}px`;
+            bottomLine.style.bottom = `${bottom * scaleY}px`;
+        };
+
+        const saveMetadata = async () => {
+            if (!this.currentTextureMetadata_) return;
+
+            const newBorder: SliceBorder = {
+                left: parseFloat(leftInput.value) || 0,
+                right: parseFloat(rightInput.value) || 0,
+                top: parseFloat(topInput.value) || 0,
+                bottom: parseFloat(bottomInput.value) || 0,
+            };
+
+            this.currentTextureMetadata_.sliceBorder = newBorder;
+
+            try {
+                const json = serializeTextureMetadata(this.currentTextureMetadata_);
+                await platform.writeTextFile(metaPath, json);
+            } catch (err) {
+                console.error('Failed to save texture metadata:', err);
+            }
+        };
+
+        const onInputChange = () => {
+            updateLines();
+            saveMetadata();
+        };
+
+        leftInput.addEventListener('input', updateLines);
+        rightInput.addEventListener('input', updateLines);
+        topInput.addEventListener('input', updateLines);
+        bottomInput.addEventListener('input', updateLines);
+        leftInput.addEventListener('change', saveMetadata);
+        rightInput.addEventListener('change', saveMetadata);
+        topInput.addEventListener('change', saveMetadata);
+        bottomInput.addEventListener('change', saveMetadata);
+
+        // Draggable lines
+        const setupDrag = (line: HTMLElement, input: HTMLInputElement, isHorizontal: boolean, isInverse: boolean) => {
+            let isDragging = false;
+            let startPos = 0;
+            let startValue = 0;
+
+            line.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                startPos = isHorizontal ? e.clientX : e.clientY;
+                startValue = parseFloat(input.value) || 0;
+                e.preventDefault();
+                document.body.style.cursor = isHorizontal ? 'ew-resize' : 'ns-resize';
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+
+                const previewRect = preview.getBoundingClientRect();
+                const scale = isHorizontal ? (previewRect.width / texWidth) : (previewRect.height / texHeight);
+                const delta = isHorizontal ? (e.clientX - startPos) : (e.clientY - startPos);
+                const pixelDelta = delta / scale;
+
+                let newValue = isInverse ? (startValue - pixelDelta) : (startValue + pixelDelta);
+                const maxValue = isHorizontal ? texWidth : texHeight;
+                newValue = Math.max(0, Math.min(maxValue, Math.round(newValue)));
+
+                input.value = String(newValue);
+                updateLines();
+            });
+
+            document.addEventListener('mouseup', () => {
+                if (isDragging) {
+                    isDragging = false;
+                    document.body.style.cursor = '';
+                    saveMetadata();
+                }
+            });
+        };
+
+        setupDrag(leftLine, leftInput, true, false);
+        setupDrag(rightLine, rightInput, true, true);
+        setupDrag(topLine, topInput, false, false);
+        setupDrag(bottomLine, bottomInput, false, true);
+
+        // Initial line positions after image loads
+        const img = section.querySelector('.es-nine-slice-image') as HTMLImageElement;
+        if (img.complete) {
+            setTimeout(updateLines, 0);
+        } else {
+            img.onload = updateLines;
+        }
+
+        // Update lines on resize
+        const resizeObserver = new ResizeObserver(updateLines);
+        resizeObserver.observe(preview);
 
         this.contentContainer_.appendChild(section);
     }

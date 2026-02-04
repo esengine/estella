@@ -96,7 +96,9 @@ fn serve_embedded(data: &[u8], content_type_str: &str) -> Response<std::io::Curs
 }
 
 fn serve_project_file(project_dir: &PathBuf, path: &str) -> Response<std::io::Cursor<Vec<u8>>> {
-    let file_path = project_dir.join(path);
+    // Decode URL-encoded path (e.g., Chinese characters)
+    let decoded_path = urlencoding::decode(path).unwrap_or_else(|_| path.into());
+    let file_path = project_dir.join(decoded_path.as_ref());
 
     if !file_path.starts_with(project_dir) {
         return not_found();

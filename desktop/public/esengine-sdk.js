@@ -554,6 +554,15 @@ class World {
     getAllEntities() {
         return Array.from(this.entities_);
     }
+    setParent(child, parent) {
+        if (this.cppRegistry_) {
+            console.log(`[World] Calling cppRegistry_.setParent(${child}, ${parent})`);
+            this.cppRegistry_.setParent(child, parent);
+        }
+        else {
+            console.warn('[World] setParent called but cppRegistry_ is null!');
+        }
+    }
     // =========================================================================
     // Component Management
     // =========================================================================
@@ -1164,6 +1173,18 @@ class AssetServer {
         }
         this.cache_.clear();
     }
+    setTextureMetadata(handle, border) {
+        const rm = this.module_.getResourceManager();
+        rm.setTextureMetadata(handle, border.left, border.right, border.top, border.bottom);
+    }
+    setTextureMetadataByPath(source, border) {
+        const info = this.cache_.get(source);
+        if (info) {
+            this.setTextureMetadata(info.handle, border);
+            return true;
+        }
+        return false;
+    }
     // =========================================================================
     // Private Methods
     // =========================================================================
@@ -1287,6 +1308,7 @@ function loadSceneData(world, sceneData) {
 async function loadSceneWithAssets(world, sceneData, options) {
     const entityMap = new Map();
     const assetServer = options?.assetServer;
+    const texturePathToUrl = new Map();
     for (const entityData of sceneData.entities) {
         const entity = world.spawn();
         entityMap.set(entityData.id, entity);
@@ -1294,20 +1316,40 @@ async function loadSceneWithAssets(world, sceneData, options) {
             if (compData.type === 'Sprite' && assetServer) {
                 const data = compData.data;
                 if (typeof data.texture === 'string' && data.texture) {
-                    const path = options?.assetBaseUrl
-                        ? `${options.assetBaseUrl}/${data.texture}`
-                        : `/${data.texture}`;
+                    const texturePath = data.texture;
+                    const url = options?.assetBaseUrl
+                        ? `${options.assetBaseUrl}/${texturePath}`
+                        : `/${texturePath}`;
                     try {
-                        const info = await assetServer.loadTexture(path);
+                        const info = await assetServer.loadTexture(url);
                         data.texture = info.handle;
+                        texturePathToUrl.set(texturePath, url);
                     }
                     catch (err) {
-                        console.warn(`Failed to load texture: ${path}`, err);
+                        console.warn(`Failed to load texture: ${url}`, err);
                         data.texture = 0;
                     }
                 }
             }
             loadComponent(world, entity, compData);
+        }
+    }
+    for (const entityData of sceneData.entities) {
+        if (entityData.parent !== null) {
+            const entity = entityMap.get(entityData.id);
+            const parentEntity = entityMap.get(entityData.parent);
+            if (entity !== undefined && parentEntity !== undefined) {
+                console.log(`[SceneLoader] setParent: entity ${entity} -> parent ${parentEntity}`);
+                world.setParent(entity, parentEntity);
+            }
+        }
+    }
+    if (assetServer && sceneData.textureMetadata) {
+        for (const [texturePath, metadata] of Object.entries(sceneData.textureMetadata)) {
+            const url = texturePathToUrl.get(texturePath);
+            if (url && metadata.sliceBorder) {
+                assetServer.setTextureMetadataByPath(url, metadata.sliceBorder);
+            }
         }
     }
     return entityMap;
@@ -1344,34 +1386,122 @@ function loadComponent(world, entity, compData) {
 // =============================================================================
 class PreviewPlugin {
     constructor(sceneUrl) {
-        this.sceneLoaded_ = false;
+        this.app_ = null;
+        this.loadPromise_ = null;
         this.sceneUrl_ = sceneUrl;
     }
     build(app) {
+        this.app_ = app;
         if (!app.hasResource(Assets)) {
             app.addPlugin(assetPlugin);
         }
-        const plugin = this;
-        app.addSystemToSchedule(Schedule.Startup, defineSystem([], async function previewSceneLoader() {
-            if (plugin.sceneLoaded_)
-                return;
-            plugin.sceneLoaded_ = true;
-            try {
-                const response = await fetch(plugin.sceneUrl_);
-                if (!response.ok) {
-                    throw new Error(`Failed to fetch scene: ${response.status}`);
-                }
-                const sceneData = await response.json();
-                const assets = app.getResource(Assets);
-                await loadSceneWithAssets(app.world, sceneData, {
-                    assetServer: assets.server
-                });
-                console.log(`[PreviewPlugin] Loaded scene: ${sceneData.name}`);
+        this.loadPromise_ = this.loadScene();
+    }
+    /**
+     * @brief Wait for scene loading to complete
+     */
+    async waitForReady() {
+        if (this.loadPromise_) {
+            await this.loadPromise_;
+        }
+    }
+    async loadScene() {
+        if (!this.app_)
+            return;
+        try {
+            const response = await fetch(this.sceneUrl_);
+            if (!response.ok) {
+                throw new Error(`Failed to fetch scene: ${response.status}`);
             }
-            catch (err) {
-                console.error('[PreviewPlugin] Failed to load scene:', err);
+            const sceneData = await response.json();
+            const assets = this.app_.getResource(Assets);
+            await loadSceneWithAssets(this.app_.world, sceneData, {
+                assetServer: assets.server
+            });
+            this.ensureCamera();
+            this.debugCamera();
+            // 延迟检查，等渲染循环开始后
+            setTimeout(() => {
+                console.log('[PreviewPlugin] === Delayed Check (after render loop) ===');
+                this.debugCamera();
+            }, 1000);
+        }
+        catch (err) {
+            console.error('[PreviewPlugin] Failed to load scene:', err);
+        }
+    }
+    ensureCamera() {
+        if (!this.app_)
+            return;
+        const world = this.app_.world;
+        let hasActiveCamera = false;
+        const cameraEntities = world.getEntitiesWithComponents([Camera]);
+        for (const entity of cameraEntities) {
+            const camera = world.get(entity, Camera);
+            if (camera.isActive) {
+                hasActiveCamera = true;
+                break;
             }
-        }));
+        }
+        if (!hasActiveCamera) {
+            console.warn('[PreviewPlugin] No active camera found, creating default camera');
+            const cameraEntity = world.spawn();
+            const transformData = {
+                position: { x: 0, y: 0, z: 10 },
+                rotation: { x: 0, y: 0, z: 0, w: 1 },
+                scale: { x: 1, y: 1, z: 1 },
+            };
+            world.insert(cameraEntity, LocalTransform, transformData);
+            const cameraData = {
+                isActive: true,
+                projectionType: 0,
+                fov: 60,
+                orthoSize: 540,
+                nearPlane: 0.1,
+                farPlane: 1000,
+                aspectRatio: 1.77,
+                priority: 0,
+            };
+            world.insert(cameraEntity, Camera, cameraData);
+        }
+    }
+    debugCamera() {
+        if (!this.app_)
+            return;
+        const world = this.app_.world;
+        const cameraEntities = world.getEntitiesWithComponents([Camera]);
+        console.log('[PreviewPlugin] === Camera Debug ===');
+        console.log(`[PreviewPlugin] Found ${cameraEntities.length} camera entities`);
+        for (const entity of cameraEntities) {
+            const camera = world.get(entity, Camera);
+            const hasTransform = world.has(entity, LocalTransform);
+            console.log(`[PreviewPlugin] Camera Entity ${entity}:`);
+            console.log(`  - isActive: ${camera.isActive}`);
+            console.log(`  - projectionType: ${camera.projectionType} (0=Ortho, 1=Persp)`);
+            console.log(`  - orthoSize: ${camera.orthoSize}`);
+            console.log(`  - hasLocalTransform: ${hasTransform}`);
+            if (hasTransform) {
+                const transform = world.get(entity, LocalTransform);
+                console.log(`  - position: (${transform.position.x}, ${transform.position.y}, ${transform.position.z})`);
+            }
+        }
+        console.log('[PreviewPlugin] === Sprite Debug ===');
+        const spriteEntities = world.getEntitiesWithComponents([Sprite, LocalTransform]);
+        console.log(`[PreviewPlugin] Found ${spriteEntities.length} sprite entities with transform`);
+        for (const entity of spriteEntities.slice(0, 5)) {
+            const sprite = world.get(entity, Sprite);
+            const localTransform = world.get(entity, LocalTransform);
+            const hasWorld = world.has(entity, WorldTransform);
+            console.log(`[PreviewPlugin] Sprite Entity ${entity}:`);
+            console.log(`  - texture: ${sprite.texture}`);
+            console.log(`  - size: (${sprite.size.x}, ${sprite.size.y})`);
+            console.log(`  - localPosition: (${localTransform.position.x}, ${localTransform.position.y}, ${localTransform.position.z})`);
+            console.log(`  - hasWorldTransform: ${hasWorld}`);
+            if (hasWorld) {
+                const worldTransform = world.get(entity, WorldTransform);
+                console.log(`  - worldPosition: (${worldTransform.position.x}, ${worldTransform.position.y}, ${worldTransform.position.z})`);
+            }
+        }
     }
 }
 

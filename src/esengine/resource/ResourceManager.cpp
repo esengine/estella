@@ -12,6 +12,8 @@
 #include "ResourceManager.hpp"
 #ifndef ES_PLATFORM_WEB
 #include "loaders/ShaderLoader.hpp"
+#include <json.hpp>
+#include <fstream>
 #endif
 #include "../core/Log.hpp"
 #include "../platform/PathResolver.hpp"
@@ -41,6 +43,7 @@ void ResourceManager::shutdown() {
                 shaders_.size(), textures_.size(), vertexBuffers_.size(), indexBuffers_.size());
 
     guidToTexture_.clear();
+    textureMetadata_.clear();
     shaders_.clear();
     textures_.clear();
     vertexBuffers_.clear();
@@ -188,7 +191,30 @@ TextureHandle ResourceManager::loadTexture(const std::string& path) {
     }
 
     stats_.cacheMisses++;
-    return textures_.add(std::move(texture), path);
+    auto handle = textures_.add(std::move(texture), path);
+
+    // Load .meta file if exists
+    std::string metaPath = path + ".meta";
+    std::ifstream metaFile(metaPath);
+    if (metaFile.is_open()) {
+        try {
+            nlohmann::json j;
+            metaFile >> j;
+            if (j.contains("sliceBorder")) {
+                TextureMetadata metadata;
+                auto& sb = j["sliceBorder"];
+                metadata.sliceBorder.left = sb.value("left", 0.0f);
+                metadata.sliceBorder.right = sb.value("right", 0.0f);
+                metadata.sliceBorder.top = sb.value("top", 0.0f);
+                metadata.sliceBorder.bottom = sb.value("bottom", 0.0f);
+                setTextureMetadata(handle, metadata);
+            }
+        } catch (const std::exception& e) {
+            ES_LOG_WARN("Failed to parse texture metadata {}: {}", metaPath, e.what());
+        }
+    }
+
+    return handle;
 #endif
 }
 
@@ -238,6 +264,36 @@ void ResourceManager::releaseTextureByGUID(const std::string& guid) {
     if (it != guidToTexture_.end()) {
         releaseTexture(it->second);
         guidToTexture_.erase(it);
+    }
+}
+
+// =============================================================================
+// Texture Metadata
+// =============================================================================
+
+void ResourceManager::setTextureMetadata(TextureHandle handle, const TextureMetadata& metadata) {
+    if (handle.isValid()) {
+        textureMetadata_[handle.id()] = metadata;
+    }
+}
+
+const TextureMetadata* ResourceManager::getTextureMetadata(TextureHandle handle) const {
+    if (!handle.isValid()) return nullptr;
+    auto it = textureMetadata_.find(handle.id());
+    if (it != textureMetadata_.end()) {
+        return &it->second;
+    }
+    return nullptr;
+}
+
+bool ResourceManager::hasTextureMetadata(TextureHandle handle) const {
+    if (!handle.isValid()) return false;
+    return textureMetadata_.find(handle.id()) != textureMetadata_.end();
+}
+
+void ResourceManager::removeTextureMetadata(TextureHandle handle) {
+    if (handle.isValid()) {
+        textureMetadata_.erase(handle.id());
     }
 }
 

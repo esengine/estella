@@ -4,6 +4,7 @@
  */
 
 import type { Entity } from 'esengine';
+import type { TextureMetadata } from './TextureMetadata';
 
 // =============================================================================
 // Scene Data Types
@@ -13,6 +14,7 @@ export interface SceneData {
     version: string;
     name: string;
     entities: EntityData[];
+    textureMetadata?: Record<string, TextureMetadata>;
 }
 
 export interface EntityData {
