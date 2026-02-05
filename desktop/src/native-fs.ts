@@ -13,6 +13,7 @@ import {
     readDir,
     stat,
 } from '@tauri-apps/plugin-fs';
+import { invoke } from '@tauri-apps/api/core';
 
 export interface DirectoryEntry {
     name: string;
@@ -51,6 +52,7 @@ export interface NativeFS {
         callback: (event: FileChangeEvent) => void,
         options?: { recursive?: boolean }
     ): Promise<UnwatchFn>;
+    openFolder(path: string): Promise<boolean>;
 }
 
 export function injectNativeFS(): void {
@@ -207,6 +209,16 @@ export function injectNativeFS(): void {
         ) {
             // File watching not yet supported - use manual refresh
             return () => {};
+        },
+
+        async openFolder(path: string) {
+            try {
+                await invoke('open_folder', { path });
+                return true;
+            } catch (err) {
+                console.error('Failed to open folder:', err);
+                return false;
+            }
         },
     };
 

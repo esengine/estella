@@ -485,10 +485,7 @@ export class Editor {
         showBuildSettingsDialog({
             projectPath: this.projectPath_,
             onBuild: async (config) => {
-                const result = await buildService.build(config);
-                if (!result.success) {
-                    throw new Error(result.error ?? 'Build failed');
-                }
+                return await buildService.build(config);
             },
             onClose: () => {},
         });

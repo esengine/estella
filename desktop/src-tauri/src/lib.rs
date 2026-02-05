@@ -54,6 +54,11 @@ fn open_preview_in_browser(port: u16) -> Result<(), String> {
     open::that(&url).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+fn open_folder(path: String) -> Result<(), String> {
+    open::that(&path).map_err(|e| e.to_string())
+}
+
 // =============================================================================
 // Entry Point
 // =============================================================================
@@ -71,6 +76,7 @@ pub fn run() {
             start_preview_server,
             stop_preview_server,
             open_preview_in_browser,
+            open_folder,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

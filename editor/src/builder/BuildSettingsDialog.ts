@@ -12,6 +12,8 @@ import {
     createDefaultBuildConfig,
     createDefaultBuildSettings,
 } from '../types/BuildTypes';
+import { type BuildResult } from './BuildService';
+import { showProgressToast, updateToast, dismissToast, showToast } from '../ui/Toast';
 
 // =============================================================================
 // Types
@@ -19,7 +21,7 @@ import {
 
 export interface BuildSettingsDialogOptions {
     projectPath: string;
-    onBuild: (config: BuildConfig) => Promise<void>;
+    onBuild: (config: BuildConfig) => Promise<BuildResult>;
     onClose: () => void;
 }
 
@@ -622,21 +624,99 @@ export class BuildSettingsDialog {
 
     private async handleBuild(config: BuildConfig): Promise<void> {
         const buildBtn = this.overlay_.querySelector('[data-action="build"]') as HTMLButtonElement;
+        const switchBtn = this.overlay_.querySelector('[data-action="switch-config"]') as HTMLButtonElement;
+
+        // Disable buttons
         if (buildBtn) {
             buildBtn.disabled = true;
             buildBtn.innerHTML = `${icons.refresh(14)} 构建中...`;
         }
+        if (switchBtn) {
+            switchBtn.disabled = true;
+        }
+
+        // Show progress toast
+        const platformName = this.getPlatformName(config.platform);
+        const toastId = showProgressToast(
+            `正在构建 ${config.name}`,
+            `目标平台: ${platformName}`
+        );
 
         try {
-            await this.options_.onBuild(config);
-            alert('构建完成！');
+            const result = await this.options_.onBuild(config);
+
+            dismissToast(toastId);
+
+            if (result.success && result.outputPath) {
+                // Show success toast with action to open folder
+                showToast({
+                    type: 'success',
+                    title: '构建完成',
+                    message: `输出: ${this.getFileName(result.outputPath)}`,
+                    duration: 0,
+                    actions: [
+                        {
+                            label: '打开文件夹',
+                            primary: true,
+                            onClick: () => this.openOutputFolder(result.outputPath!),
+                        },
+                        {
+                            label: '关闭',
+                            onClick: () => {},
+                        },
+                    ],
+                });
+            } else if (!result.success) {
+                showToast({
+                    type: 'error',
+                    title: '构建失败',
+                    message: result.error || '未知错误',
+                    duration: 5000,
+                });
+            }
         } catch (err) {
-            alert(`构建失败: ${err}`);
+            dismissToast(toastId);
+            showToast({
+                type: 'error',
+                title: '构建失败',
+                message: String(err),
+                duration: 5000,
+            });
         } finally {
+            // Re-enable buttons
             if (buildBtn) {
                 buildBtn.disabled = false;
                 buildBtn.innerHTML = `${icons.play(14)} 构建`;
             }
+            if (switchBtn) {
+                switchBtn.disabled = false;
+            }
+        }
+    }
+
+    private getFileName(path: string): string {
+        const parts = path.replace(/\\/g, '/').split('/');
+        return parts[parts.length - 1] || path;
+    }
+
+    private async openOutputFolder(outputPath: string): Promise<void> {
+        try {
+            // Get directory from output path
+            const dirPath = outputPath.replace(/\\/g, '/').split('/').slice(0, -1).join('/');
+
+            // Use Tauri shell plugin to open folder
+            const shell = (window as any).__TAURI__?.shell;
+            if (shell?.open) {
+                await shell.open(dirPath);
+            } else {
+                // Fallback: try using the fs adapter
+                const fs = (window as any).__esengine_fs;
+                if (fs?.openFolder) {
+                    await fs.openFolder(dirPath);
+                }
+            }
+        } catch (err) {
+            console.error('Failed to open folder:', err);
         }
     }
 
