@@ -1525,6 +1525,16 @@ function loadSceneData(world, sceneData) {
             loadComponent(world, entity, compData);
         }
     }
+    // Set parent-child relationships
+    for (const entityData of sceneData.entities) {
+        if (entityData.parent !== null) {
+            const entity = entityMap.get(entityData.id);
+            const parentEntity = entityMap.get(entityData.parent);
+            if (entity !== undefined && parentEntity !== undefined) {
+                world.setParent(entity, parentEntity);
+            }
+        }
+    }
     return entityMap;
 }
 async function loadSceneWithAssets(world, sceneData, options) {
@@ -1598,6 +1608,16 @@ function loadComponent(world, entity, compData) {
             break;
         default:
             console.warn(`Unknown component type: ${compData.type}`);
+    }
+}
+function updateCameraAspectRatio(world, aspectRatio) {
+    const cameraEntities = world.getEntitiesWithComponents([Camera]);
+    for (const entity of cameraEntities) {
+        const camera = world.get(entity, Camera);
+        if (camera) {
+            camera.aspectRatio = aspectRatio;
+            world.insert(entity, Camera, camera);
+        }
     }
 }
 
@@ -1745,6 +1765,7 @@ exports.platformReadFile = platformReadFile;
 exports.platformReadTextFile = platformReadTextFile;
 exports.quat = quat;
 exports.textPlugin = textPlugin;
+exports.updateCameraAspectRatio = updateCameraAspectRatio;
 exports.vec2 = vec2;
 exports.vec3 = vec3;
 exports.vec4 = vec4;

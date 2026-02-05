@@ -79,3 +79,4 @@ export const wechatAdapter = new WeChatPlatformAdapter();
 
 export { polyfillFetch, polyfillWebAssembly };
 export { wxReadFile, wxReadTextFile, wxFileExists, wxFileExistsSync, wxWriteFile } from './fs';
+export { wxLoadImage, wxGetImagePixels, wxLoadImagePixels, type ImageLoadResult } from './image';

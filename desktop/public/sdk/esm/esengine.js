@@ -1523,6 +1523,16 @@ function loadSceneData(world, sceneData) {
             loadComponent(world, entity, compData);
         }
     }
+    // Set parent-child relationships
+    for (const entityData of sceneData.entities) {
+        if (entityData.parent !== null) {
+            const entity = entityMap.get(entityData.id);
+            const parentEntity = entityMap.get(entityData.parent);
+            if (entity !== undefined && parentEntity !== undefined) {
+                world.setParent(entity, parentEntity);
+            }
+        }
+    }
     return entityMap;
 }
 async function loadSceneWithAssets(world, sceneData, options) {
@@ -1596,6 +1606,16 @@ function loadComponent(world, entity, compData) {
             break;
         default:
             console.warn(`Unknown component type: ${compData.type}`);
+    }
+}
+function updateCameraAspectRatio(world, aspectRatio) {
+    const cameraEntities = world.getEntitiesWithComponents([Camera]);
+    for (const entity of cameraEntities) {
+        const camera = world.get(entity, Camera);
+        if (camera) {
+            camera.aspectRatio = aspectRatio;
+            world.insert(entity, Camera, camera);
+        }
     }
 }
 
@@ -1690,4 +1710,4 @@ class PreviewPlugin {
 // Initialize Web platform
 setPlatform(webAdapter);
 
-export { App, AssetPlugin, AssetServer, Assets, Camera, Canvas, Children, Commands, CommandsInstance, EntityCommands, INVALID_ENTITY, INVALID_TEXTURE, Input, LocalTransform, Mut, Parent, PreviewPlugin, Query, QueryInstance, Res, ResMut, Schedule, Sprite, SystemRunner, Text, TextAlign, TextOverflow, TextPlugin, TextRenderer, TextVerticalAlign, Time, UIRect, Velocity, World, WorldTransform, assetPlugin, color, createWebApp, defineComponent, defineResource, defineSystem, defineTag, getPlatform, getPlatformType, isBuiltinComponent, isPlatformInitialized, isWeChat, isWeb, loadSceneData, loadSceneWithAssets, platformFetch, platformFileExists, platformInstantiateWasm, platformReadFile, platformReadTextFile, quat, textPlugin, vec2, vec3, vec4 };
+export { App, AssetPlugin, AssetServer, Assets, Camera, Canvas, Children, Commands, CommandsInstance, EntityCommands, INVALID_ENTITY, INVALID_TEXTURE, Input, LocalTransform, Mut, Parent, PreviewPlugin, Query, QueryInstance, Res, ResMut, Schedule, Sprite, SystemRunner, Text, TextAlign, TextOverflow, TextPlugin, TextRenderer, TextVerticalAlign, Time, UIRect, Velocity, World, WorldTransform, assetPlugin, color, createWebApp, defineComponent, defineResource, defineSystem, defineTag, getPlatform, getPlatformType, isBuiltinComponent, isPlatformInitialized, isWeChat, isWeb, loadSceneData, loadSceneWithAssets, platformFetch, platformFileExists, platformInstantiateWasm, platformReadFile, platformReadTextFile, quat, textPlugin, updateCameraAspectRatio, vec2, vec3, vec4 };

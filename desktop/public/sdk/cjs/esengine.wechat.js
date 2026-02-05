@@ -335,6 +335,84 @@ function wxWriteFile(path, data) {
 }
 
 /**
+ * @file    image.ts
+ * @brief   WeChat MiniGame image loading utilities
+ */
+/// <reference types="minigame-api-typings" />
+// =============================================================================
+// Canvas Management
+// =============================================================================
+let offscreenCanvas = null;
+let offscreenCtx = null;
+function getOffscreenCanvas(width, height) {
+    if (!offscreenCanvas) {
+        offscreenCanvas = wx.createCanvas();
+        offscreenCanvas.width = width;
+        offscreenCanvas.height = height;
+        offscreenCtx = offscreenCanvas.getContext('2d');
+    }
+    if (offscreenCanvas.width < width || offscreenCanvas.height < height) {
+        offscreenCanvas.width = Math.max(offscreenCanvas.width, width);
+        offscreenCanvas.height = Math.max(offscreenCanvas.height, height);
+    }
+    return { canvas: offscreenCanvas, ctx: offscreenCtx };
+}
+// =============================================================================
+// Image Loading
+// =============================================================================
+/**
+ * Load an image from a file path
+ * @param path - File path relative to game root
+ */
+function wxLoadImage(path) {
+    return new Promise((resolve, reject) => {
+        const img = wx.createImage();
+        img.onload = () => resolve(img);
+        img.onerror = (err) => reject(new Error(`Failed to load image: ${path}, ${err}`));
+        img.src = path;
+    });
+}
+/**
+ * Extract pixel data from an image
+ * @param img - Loaded image object
+ * @param flipY - Whether to flip the image vertically (default: true for OpenGL)
+ */
+function wxGetImagePixels(img, flipY = true) {
+    const { width, height } = img;
+    const { ctx } = getOffscreenCanvas(width, height);
+    ctx.clearRect(0, 0, width, height);
+    ctx.drawImage(img, 0, 0);
+    const imageData = ctx.getImageData(0, 0, width, height);
+    const pixels = new Uint8Array(imageData.data.buffer);
+    if (flipY) {
+        return { width, height, pixels: flipVertically(pixels, width, height) };
+    }
+    return { width, height, pixels };
+}
+/**
+ * Load image and get pixel data in one call
+ * @param path - File path relative to game root
+ * @param flipY - Whether to flip the image vertically (default: true for OpenGL)
+ */
+async function wxLoadImagePixels(path, flipY = true) {
+    const img = await wxLoadImage(path);
+    return wxGetImagePixels(img, flipY);
+}
+// =============================================================================
+// Utility Functions
+// =============================================================================
+function flipVertically(pixels, width, height) {
+    const rowSize = width * 4;
+    const flipped = new Uint8Array(pixels.length);
+    for (let y = 0; y < height; y++) {
+        const srcOffset = y * rowSize;
+        const dstOffset = (height - 1 - y) * rowSize;
+        flipped.set(pixels.subarray(srcOffset, srcOffset + rowSize), dstOffset);
+    }
+    return flipped;
+}
+
+/**
  * @file    index.ts
  * @brief   WeChat MiniGame platform adapter
  */
@@ -1767,6 +1845,16 @@ function loadSceneData(world, sceneData) {
             loadComponent(world, entity, compData);
         }
     }
+    // Set parent-child relationships
+    for (const entityData of sceneData.entities) {
+        if (entityData.parent !== null) {
+            const entity = entityMap.get(entityData.id);
+            const parentEntity = entityMap.get(entityData.parent);
+            if (entity !== undefined && parentEntity !== undefined) {
+                world.setParent(entity, parentEntity);
+            }
+        }
+    }
     return entityMap;
 }
 async function loadSceneWithAssets(world, sceneData, options) {
@@ -1840,6 +1928,16 @@ function loadComponent(world, entity, compData) {
             break;
         default:
             console.warn(`Unknown component type: ${compData.type}`);
+    }
+}
+function updateCameraAspectRatio(world, aspectRatio) {
+    const cameraEntities = world.getEntitiesWithComponents([Camera]);
+    for (const entity of cameraEntities) {
+        const camera = world.get(entity, Camera);
+        if (camera) {
+            camera.aspectRatio = aspectRatio;
+            world.insert(entity, Camera, camera);
+        }
     }
 }
 
@@ -1988,11 +2086,15 @@ exports.platformReadFile = platformReadFile;
 exports.platformReadTextFile = platformReadTextFile;
 exports.quat = quat;
 exports.textPlugin = textPlugin;
+exports.updateCameraAspectRatio = updateCameraAspectRatio;
 exports.vec2 = vec2;
 exports.vec3 = vec3;
 exports.vec4 = vec4;
 exports.wxFileExists = wxFileExists;
 exports.wxFileExistsSync = wxFileExistsSync;
+exports.wxGetImagePixels = wxGetImagePixels;
+exports.wxLoadImage = wxLoadImage;
+exports.wxLoadImagePixels = wxLoadImagePixels;
 exports.wxReadFile = wxReadFile;
 exports.wxReadTextFile = wxReadTextFile;
 exports.wxWriteFile = wxWriteFile;

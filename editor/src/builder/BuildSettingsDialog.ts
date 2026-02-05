@@ -439,10 +439,13 @@ export class BuildSettingsDialog {
                 if (config) {
                     const editor = (window as any).__esengine_editor;
                     const scenePath = editor?.currentScenePath;
-                    if (scenePath && !config.scenes.includes(scenePath)) {
-                        config.scenes.push(scenePath);
-                        saveBuildSettings(this.settings_);
-                        this.render();
+                    if (scenePath) {
+                        const relativePath = this.toRelativePath(scenePath);
+                        if (!config.scenes.includes(relativePath)) {
+                            config.scenes.push(relativePath);
+                            saveBuildSettings(this.settings_);
+                            this.render();
+                        }
                     }
                 }
                 break;
@@ -703,6 +706,21 @@ export class BuildSettingsDialog {
     private getFileName(path: string): string {
         const parts = path.replace(/\\/g, '/').split('/');
         return parts[parts.length - 1] || path;
+    }
+
+    private toRelativePath(absolutePath: string): string {
+        const normalized = absolutePath.replace(/\\/g, '/');
+        const projectDir = this.getProjectDir();
+        if (normalized.startsWith(projectDir)) {
+            return normalized.substring(projectDir.length + 1);
+        }
+        return normalized;
+    }
+
+    private getProjectDir(): string {
+        const normalized = this.options_.projectPath.replace(/\\/g, '/');
+        const lastSlash = normalized.lastIndexOf('/');
+        return lastSlash > 0 ? normalized.substring(0, lastSlash) : normalized;
     }
 
     private async openOutputFolder(outputPath: string): Promise<void> {

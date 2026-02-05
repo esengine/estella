@@ -76,6 +76,17 @@ export function loadSceneData(world: World, sceneData: SceneData): Map<number, E
         }
     }
 
+    // Set parent-child relationships
+    for (const entityData of sceneData.entities) {
+        if (entityData.parent !== null) {
+            const entity = entityMap.get(entityData.id);
+            const parentEntity = entityMap.get(entityData.parent);
+            if (entity !== undefined && parentEntity !== undefined) {
+                world.setParent(entity, parentEntity);
+            }
+        }
+    }
+
     return entityMap;
 }
 
@@ -162,3 +173,15 @@ function loadComponent(world: World, entity: Entity, compData: SceneComponentDat
             console.warn(`Unknown component type: ${compData.type}`);
     }
 }
+
+export function updateCameraAspectRatio(world: World, aspectRatio: number): void {
+    const cameraEntities = world.getEntitiesWithComponents([Camera]);
+    for (const entity of cameraEntities) {
+        const camera = world.get(entity, Camera) as CameraData;
+        if (camera) {
+            camera.aspectRatio = aspectRatio;
+            world.insert(entity, Camera, camera);
+        }
+    }
+}
+

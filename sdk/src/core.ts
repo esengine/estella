@@ -175,6 +175,7 @@ export {
 export {
     loadSceneData,
     loadSceneWithAssets,
+    updateCameraAspectRatio,
     type SceneData,
     type SceneEntityData,
     type SceneComponentData,

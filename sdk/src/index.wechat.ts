@@ -20,4 +20,8 @@ export {
     wxFileExists,
     wxFileExistsSync,
     wxWriteFile,
+    wxLoadImage,
+    wxGetImagePixels,
+    wxLoadImagePixels,
+    type ImageLoadResult,
 } from './platform/wechat';
