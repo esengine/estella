@@ -117,6 +117,12 @@ export class SceneViewPanel {
     private settingsDropdown_: HTMLElement | null = null;
     private settingsDropdownClickHandler_: ((e: MouseEvent) => void) | null = null;
 
+    private getSizeComponentType(entityData: import('../types/SceneTypes').EntityData): 'UIRect' | 'Sprite' | null {
+        if (entityData.components.some(c => c.type === 'UIRect')) return 'UIRect';
+        if (entityData.components.some(c => c.type === 'Sprite')) return 'Sprite';
+        return null;
+    }
+
     constructor(container: HTMLElement, store: EditorStore, options?: SceneViewPanelOptions) {
         this.container_ = container;
         this.store_ = store;
@@ -752,9 +758,9 @@ export class SceneViewPanel {
         newWidth = Math.max(1, newWidth);
         newHeight = Math.max(1, newHeight);
 
-        const sprite = entityData.components.find(c => c.type === 'Sprite');
-        if (sprite) {
-            this.store_.updatePropertyDirect(entity, 'Sprite', 'size', { x: newWidth, y: newHeight });
+        const sizeType = this.getSizeComponentType(entityData);
+        if (sizeType) {
+            this.store_.updatePropertyDirect(entity, sizeType, 'size', { x: newWidth, y: newHeight });
         }
 
         const transform = entityData.components.find(c => c.type === 'LocalTransform');
@@ -777,13 +783,14 @@ export class SceneViewPanel {
         const entityData = this.store_.getSelectedEntityData();
         if (!entityData) return;
 
-        const sprite = entityData.components.find(c => c.type === 'Sprite');
-        if (sprite && this.rectDragOriginalSize_) {
-            const currentSize = sprite.data.size as { x: number; y: number };
+        const sizeType = this.getSizeComponentType(entityData);
+        if (sizeType && this.rectDragOriginalSize_) {
+            const comp = entityData.components.find(c => c.type === sizeType)!;
+            const currentSize = comp.data.size as { x: number; y: number };
             if (currentSize && !this.valuesEqual(this.rectDragOriginalSize_, currentSize)) {
                 this.store_.updateProperty(
                     entity,
-                    'Sprite',
+                    sizeType,
                     'size',
                     { ...this.rectDragOriginalSize_ },
                     { ...currentSize }

@@ -36,6 +36,10 @@ export class EditorSceneRenderer {
     /** Map entity ID to EntityData for fast lookup */
     private entityDataMap_: Map<number, EntityData> = new Map();
 
+    /** Sync lock to prevent concurrent syncScene calls */
+    private syncing_ = false;
+    private pendingScene_: SceneData | null = null;
+
     constructor() {
         this.camera_ = new EditorCamera();
     }
@@ -74,6 +78,29 @@ export class EditorSceneRenderer {
      * @brief Sync entire scene to registry
      */
     async syncScene(scene: SceneData): Promise<void> {
+        if (!this.registry_ || !this.module_) return;
+
+        if (this.syncing_) {
+            this.pendingScene_ = scene;
+            return;
+        }
+
+        this.syncing_ = true;
+
+        try {
+            await this.syncSceneInternal(scene);
+
+            if (this.pendingScene_) {
+                const latest = this.pendingScene_;
+                this.pendingScene_ = null;
+                await this.syncSceneInternal(latest);
+            }
+        } finally {
+            this.syncing_ = false;
+        }
+    }
+
+    private async syncSceneInternal(scene: SceneData): Promise<void> {
         if (!this.registry_ || !this.module_) return;
 
         this.clearRegistry();
@@ -210,6 +237,10 @@ export class EditorSceneRenderer {
             this.registry_.destroy(entity);
         }
         this.entityMap_.clear();
+
+        if (this.textRenderer_) {
+            this.textRenderer_.releaseAll();
+        }
     }
 
     private async syncComponent(entity: Entity, comp: ComponentData, entityId: number): Promise<void> {
@@ -220,9 +251,14 @@ export class EditorSceneRenderer {
                 this.syncTransform(entity, comp.data, entityId);
                 break;
 
-            case 'Sprite':
-                await this.syncSprite(entity, comp.data);
+            case 'Sprite': {
+                const entityData = this.entityDataMap_.get(entityId);
+                const hasText = entityData?.components.some(c => c.type === 'Text');
+                if (!hasText) {
+                    await this.syncSprite(entity, comp.data);
+                }
                 break;
+            }
 
             case 'Camera':
                 this.syncCamera(entity, comp.data);
