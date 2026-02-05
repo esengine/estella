@@ -1,6 +1,30 @@
 {
     "configurations": [
         {
+            "name": "Mac",
+            "includePath": [
+                "${workspaceFolder}/src",
+                "${workspaceFolder}/include",
+                "${workspaceFolder}/third_party/glm",
+                "${workspaceFolder}/third_party/glfw/include",
+                "${workspaceFolder}/third_party/glad/include",
+                "${workspaceFolder}/third_party/stb",
+                "${workspaceFolder}/third_party/spine-runtimes/spine-cpp/spine-cpp/include",
+                "${workspaceFolder}/third_party/json/single_include",
+                "${workspaceFolder}/build/quickjs_headers"
+            ],
+            "defines": [
+                "_DEBUG",
+                "ES_PLATFORM_NATIVE",
+                "ES_PLATFORM_MACOS",
+                "ES_DEBUG"
+            ],
+            "cStandard": "c17",
+            "cppStandard": "c++20",
+            "intelliSenseMode": "macos-clang-arm64",
+            "compileCommands": "${workspaceFolder}/build/compile_commands.json"
+        },
+        {
             "name": "Win32",
             "includePath": [
                 "${workspaceFolder}/src",
@@ -9,6 +33,8 @@
                 "${workspaceFolder}/third_party/glfw/include",
                 "${workspaceFolder}/third_party/glad/include",
                 "${workspaceFolder}/third_party/stb",
+                "${workspaceFolder}/third_party/spine-runtimes/spine-cpp/spine-cpp/include",
+                "${workspaceFolder}/third_party/json/single_include",
                 "${workspaceFolder}/build/quickjs_headers"
             ],
             "defines": [

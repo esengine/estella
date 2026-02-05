@@ -159,6 +159,23 @@ public:
     }
 
     /**
+     * @brief Associates a path with an existing resource
+     * @param handle The resource handle
+     * @param path The path to associate
+     */
+    void setPath(Handle<T> handle, const std::string& path) {
+        if (!handle.isValid() || handle.id() >= entries_.size()) return;
+        auto& entry = entries_[handle.id()];
+        if (entry.refCount > 0 && !path.empty()) {
+            if (!entry.path.empty()) {
+                pathToId_.erase(entry.path);
+            }
+            entry.path = path;
+            pathToId_[path] = handle.id();
+        }
+    }
+
+    /**
      * @brief Increments the reference count for a resource
      * @param handle The resource handle
      */

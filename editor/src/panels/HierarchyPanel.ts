@@ -7,6 +7,7 @@ import type { Entity } from 'esengine';
 import type { EntityData, SceneData } from '../types/SceneTypes';
 import type { EditorStore } from '../store/EditorStore';
 import { icons } from '../utils/icons';
+import { getGlobalPathResolver } from '../asset';
 
 // =============================================================================
 // HierarchyPanel
@@ -123,6 +124,192 @@ export class HierarchyPanel {
                 this.showContextMenu(e.clientX, e.clientY, null);
             }
         });
+
+        this.setupDragAndDrop();
+    }
+
+    private setupDragAndDrop(): void {
+        this.treeContainer_.addEventListener('dragover', (e) => {
+            const types = e.dataTransfer?.types ?? [];
+            const hasAssetData = Array.from(types).includes('application/esengine-asset');
+            if (!hasAssetData) return;
+
+            e.preventDefault();
+            e.dataTransfer!.dropEffect = 'copy';
+
+            const target = e.target as HTMLElement;
+            const item = target.closest('.es-hierarchy-item') as HTMLElement;
+
+            this.treeContainer_.querySelectorAll('.es-drag-over').forEach(el => {
+                el.classList.remove('es-drag-over');
+            });
+
+            if (item) {
+                item.classList.add('es-drag-over');
+            } else {
+                this.treeContainer_.classList.add('es-drag-over');
+            }
+        });
+
+        this.treeContainer_.addEventListener('dragleave', (e) => {
+            const relatedTarget = e.relatedTarget as HTMLElement;
+            if (this.treeContainer_.contains(relatedTarget)) return;
+
+            this.treeContainer_.querySelectorAll('.es-drag-over').forEach(el => {
+                el.classList.remove('es-drag-over');
+            });
+            this.treeContainer_.classList.remove('es-drag-over');
+        });
+
+        this.treeContainer_.addEventListener('drop', (e) => {
+            e.preventDefault();
+
+            this.treeContainer_.querySelectorAll('.es-drag-over').forEach(el => {
+                el.classList.remove('es-drag-over');
+            });
+            this.treeContainer_.classList.remove('es-drag-over');
+
+            const assetDataStr = e.dataTransfer?.getData('application/esengine-asset');
+            if (!assetDataStr) return;
+
+            let assetData: { type: string; path: string; name: string };
+            try {
+                assetData = JSON.parse(assetDataStr);
+            } catch {
+                return;
+            }
+
+            const target = e.target as HTMLElement;
+            const item = target.closest('.es-hierarchy-item') as HTMLElement;
+            const parentEntity = item
+                ? parseInt(item.dataset.entityId ?? '', 10) as Entity
+                : null;
+
+            this.createEntityFromAsset(assetData, parentEntity);
+        });
+    }
+
+    private async createEntityFromAsset(
+        asset: { type: string; path: string; name: string },
+        parent: Entity | null
+    ): Promise<void> {
+        const baseName = asset.name.replace(/\.[^.]+$/, '');
+
+        if (asset.type === 'spine' || asset.type === 'json') {
+            const ext = asset.name.substring(asset.name.lastIndexOf('.')).toLowerCase();
+            if (ext === '.atlas') return;
+
+            const skeletonPath = this.toRelativePath(asset.path);
+            const atlasPath = await this.findAtlasFile(skeletonPath);
+
+            if (!atlasPath) {
+                console.error(`[HierarchyPanel] No atlas file found for: ${skeletonPath}`);
+                alert(`无法找到 atlas 文件。\n请确保骨骼文件所在目录下有 .atlas 文件。`);
+                return;
+            }
+
+            const newEntity = this.store_.createEntity(baseName, parent);
+
+            this.store_.addComponent(newEntity, 'LocalTransform', {
+                position: { x: 0, y: 0, z: 0 },
+                rotation: { x: 0, y: 0, z: 0, w: 1 },
+                scale: { x: 1, y: 1, z: 1 },
+            });
+
+            this.store_.addComponent(newEntity, 'SpineAnimation', {
+                skeletonPath,
+                atlasPath,
+                skin: 'default',
+                animation: '',
+                timeScale: 1,
+                loop: true,
+                playing: true,
+                flipX: false,
+                flipY: false,
+                color: { x: 1, y: 1, z: 1, w: 1 },
+                layer: 0,
+                skeletonScale: 1,
+            });
+        } else if (asset.type === 'image') {
+            const newEntity = this.store_.createEntity(baseName, parent);
+
+            this.store_.addComponent(newEntity, 'LocalTransform', {
+                position: { x: 0, y: 0, z: 0 },
+                rotation: { x: 0, y: 0, z: 0, w: 1 },
+                scale: { x: 1, y: 1, z: 1 },
+            });
+
+            this.store_.addComponent(newEntity, 'UIRect', {
+                size: { x: 100, y: 100 },
+                anchor: { x: 0.5, y: 0.5 },
+                pivot: { x: 0.5, y: 0.5 },
+            });
+
+            this.store_.addComponent(newEntity, 'Sprite', {
+                texture: this.toRelativePath(asset.path),
+                color: { x: 1, y: 1, z: 1, w: 1 },
+                size: { x: 100, y: 100 },
+                uvOffset: { x: 0, y: 0 },
+                uvScale: { x: 1, y: 1 },
+                layer: 0,
+                flipX: false,
+                flipY: false,
+            });
+        }
+    }
+
+    private toRelativePath(absolutePath: string): string {
+        return getGlobalPathResolver().toRelativePath(absolutePath);
+    }
+
+    private async findAtlasFile(skeletonPath: string): Promise<string | null> {
+        const pathResolver = getGlobalPathResolver();
+
+        const sameNameAtlas = skeletonPath.replace(/\.(json|skel)$/i, '.atlas');
+        const validation = await pathResolver.validatePath(sameNameAtlas);
+        if (validation.exists) {
+            return sameNameAtlas;
+        }
+
+        const dir = skeletonPath.substring(0, skeletonPath.lastIndexOf('/'));
+        const absoluteDir = pathResolver.toAbsolutePath(dir);
+
+        const fs = (window as any).__esengine_fs;
+        if (!fs?.listDirectoryDetailed) {
+            return null;
+        }
+
+        try {
+            const entries = await fs.listDirectoryDetailed(absoluteDir);
+            const atlasFiles = entries
+                .filter((e: { name: string; isFile: boolean }) =>
+                    e.isFile && e.name.endsWith('.atlas'))
+                .map((e: { name: string }) => e.name);
+
+            if (atlasFiles.length === 1) {
+                return dir ? `${dir}/${atlasFiles[0]}` : atlasFiles[0];
+            }
+
+            if (atlasFiles.length > 1) {
+                const baseName = skeletonPath
+                    .substring(skeletonPath.lastIndexOf('/') + 1)
+                    .replace(/\.(json|skel)$/i, '');
+
+                const matching = atlasFiles.find((name: string) =>
+                    name.replace('.atlas', '').toLowerCase().includes(baseName.toLowerCase().split('-')[0])
+                );
+
+                if (matching) {
+                    return dir ? `${dir}/${matching}` : matching;
+                }
+
+                return dir ? `${dir}/${atlasFiles[0]}` : atlasFiles[0];
+            }
+        } catch (err) {
+            console.warn('[HierarchyPanel] Failed to scan directory for atlas files:', err);
+        }
+
+        return null;
     }
 
     private render(): void {
@@ -173,8 +360,10 @@ export class HierarchyPanel {
         const hasCamera = entity.components.some(c => c.type === 'Camera');
         const hasSprite = entity.components.some(c => c.type === 'Sprite');
         const hasText = entity.components.some(c => c.type === 'Text');
+        const hasSpine = entity.components.some(c => c.type === 'SpineAnimation');
 
         if (hasCamera) return icons.camera(12);
+        if (hasSpine) return icons.bone(12);
         if (hasText) return icons.type(12);
         if (hasSprite) return icons.image(12);
         return icons.box(12);
@@ -182,7 +371,9 @@ export class HierarchyPanel {
 
     private getEntityType(entity: EntityData): string {
         const hasCamera = entity.components.some(c => c.type === 'Camera');
+        const hasSpine = entity.components.some(c => c.type === 'SpineAnimation');
         if (hasCamera) return 'Camera';
+        if (hasSpine) return 'Spine';
         return 'Entity';
     }
 
@@ -231,6 +422,7 @@ export class HierarchyPanel {
             { label: 'Create Entity', action: () => this.store_.createEntity(undefined, entity) },
             { label: 'Create Sprite', action: () => this.createEntityWithComponent('Sprite', entity) },
             { label: 'Create Text', action: () => this.createEntityWithComponent('Text', entity) },
+            { label: 'Create Spine', action: () => this.createEntityWithComponent('SpineAnimation', entity) },
             { label: 'Create Camera', action: () => this.createEntityWithComponent('Camera', entity), separator: true },
         ];
 
@@ -320,6 +512,21 @@ export class HierarchyPanel {
                     size: { x: 100, y: 100 },
                     anchor: { x: 0.5, y: 0.5 },
                     pivot: { x: 0.5, y: 0.5 },
+                };
+            case 'SpineAnimation':
+                return {
+                    skeletonPath: '',
+                    atlasPath: '',
+                    skin: 'default',
+                    animation: '',
+                    timeScale: 1,
+                    loop: true,
+                    playing: true,
+                    flipX: false,
+                    flipY: false,
+                    color: { x: 1, y: 1, z: 1, w: 1 },
+                    layer: 0,
+                    skeletonScale: 1,
                 };
             default:
                 return {};

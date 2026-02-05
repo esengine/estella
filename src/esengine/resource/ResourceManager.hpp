@@ -214,6 +214,13 @@ public:
     void releaseTexture(TextureHandle handle);
 
     /**
+     * @brief Registers a texture with a path for cache lookup
+     * @param handle The texture handle
+     * @param path The path to associate (used by loadTexture cache)
+     */
+    void registerTextureWithPath(TextureHandle handle, const std::string& path);
+
+    /**
      * @brief Gets the cached path for a texture
      * @param handle The texture handle
      * @return The path used to load the texture, or empty if not found

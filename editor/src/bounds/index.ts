@@ -10,9 +10,11 @@ import { registerBoundsProvider } from './BoundsRegistry';
 import { spriteBoundsProvider } from './SpriteBoundsProvider';
 import { textBoundsProvider } from './TextBoundsProvider';
 import { uiRectBoundsProvider } from './UIRectBoundsProvider';
+import { spineAnimationBoundsProvider } from './SpineAnimationBoundsProvider';
 
 export function initBoundsProviders(): void {
     registerBoundsProvider('UIRect', uiRectBoundsProvider);
     registerBoundsProvider('Sprite', spriteBoundsProvider);
     registerBoundsProvider('Text', textBoundsProvider);
+    registerBoundsProvider('SpineAnimation', spineAnimationBoundsProvider);
 }

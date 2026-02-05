@@ -73,6 +73,7 @@ export class SceneViewPanel {
     private overlayCanvas_: HTMLCanvasElement | null = null;
     private unsubscribe_: (() => void) | null = null;
     private animationId_: number | null = null;
+    private continuousRender_ = false;
     private resizeObserver_: ResizeObserver | null = null;
     private projectPath_: string | null = null;
     private app_: App | null = null;
@@ -121,6 +122,22 @@ export class SceneViewPanel {
         if (entityData.components.some(c => c.type === 'UIRect')) return 'UIRect';
         if (entityData.components.some(c => c.type === 'Sprite')) return 'Sprite';
         return null;
+    }
+
+    private getEntityBoundsWithSpine(entityData: import('../types/SceneTypes').EntityData): { width: number; height: number; offsetX?: number; offsetY?: number } {
+        const hasSpine = entityData.components.some(c => c.type === 'SpineAnimation');
+        if (hasSpine && this.sceneRenderer_) {
+            const spineBounds = this.sceneRenderer_.getSpineBounds(entityData.id);
+            if (spineBounds) {
+                return {
+                    width: Math.abs(spineBounds.width),
+                    height: Math.abs(spineBounds.height),
+                    offsetX: spineBounds.x + spineBounds.width / 2,
+                    offsetY: spineBounds.y + spineBounds.height / 2
+                };
+            }
+        }
+        return getEntityBounds(entityData.components);
     }
 
     constructor(container: HTMLElement, store: EditorStore, options?: SceneViewPanelOptions) {
@@ -199,6 +216,7 @@ export class SceneViewPanel {
     }
 
     dispose(): void {
+        this.continuousRender_ = false;
         if (this.animationId_ !== null) {
             cancelAnimationFrame(this.animationId_);
             this.animationId_ = null;
@@ -274,7 +292,7 @@ export class SceneViewPanel {
             }
 
             await this.syncSceneToRenderer();
-            this.requestRender();
+            this.startContinuousRender();
         } else {
             console.warn('WebGL init failed, falling back to Canvas 2D');
             this.sceneRenderer_ = null;
@@ -513,7 +531,7 @@ export class SceneViewPanel {
                             this.rectDragStartSize_ = { x: size.x, y: size.y };
                             this.rectDragOriginalSize_ = { x: size.x, y: size.y };
                         } else {
-                            const bounds = getEntityBounds(entityData.components);
+                            const bounds = this.getEntityBoundsWithSpine(entityData);
                             this.rectDragStartSize_ = { x: bounds.width, y: bounds.height };
                             this.rectDragOriginalSize_ = { x: bounds.width, y: bounds.height };
                         }
@@ -911,16 +929,18 @@ export class SceneViewPanel {
         if (!pos) return 'none';
 
         const worldTransform = this.store_.getWorldTransform(entityData.id);
-        const bounds = getEntityBounds(entityData.components);
+        const bounds = this.getEntityBoundsWithSpine(entityData);
 
         const w = bounds.width * Math.abs(worldTransform.scale.x);
         const h = bounds.height * Math.abs(worldTransform.scale.y);
+        const offsetX = (bounds.offsetX ?? 0) * worldTransform.scale.x;
+        const offsetY = (bounds.offsetY ?? 0) * worldTransform.scale.y;
         const halfW = w / 2;
         const halfH = h / 2;
 
         const handleSize = GIZMO_HANDLE_SIZE / this.zoom_;
-        const dx = worldX - pos.x;
-        const dy = worldY - pos.y;
+        const dx = worldX - pos.x - offsetX;
+        const dy = worldY - pos.y - offsetY;
 
         const handles: { x: number; y: number; key: RectHandle }[] = [
             { x: -halfW, y: halfH, key: 'tl' },
@@ -1032,18 +1052,22 @@ export class SceneViewPanel {
             const pos = worldTransform.position;
             const scale = worldTransform.scale;
 
-            const bounds = getEntityBounds(entity.components);
+            const bounds = this.getEntityBoundsWithSpine(entity);
             const w = bounds.width * Math.abs(scale.x);
             const h = bounds.height * Math.abs(scale.y);
+            const offsetX = (bounds.offsetX ?? 0) * scale.x;
+            const offsetY = (bounds.offsetY ?? 0) * scale.y;
 
+            const centerX = pos.x + offsetX;
+            const centerY = pos.y + offsetY;
             const halfW = w / 2;
             const halfH = h / 2;
 
             if (
-                worldX >= pos.x - halfW &&
-                worldX <= pos.x + halfW &&
-                worldY >= pos.y - halfH &&
-                worldY <= pos.y + halfH
+                worldX >= centerX - halfW &&
+                worldX <= centerX + halfW &&
+                worldY >= centerY - halfH &&
+                worldY <= centerY + halfH
             ) {
                 return entity.id as Entity;
             }
@@ -1065,7 +1089,21 @@ export class SceneViewPanel {
         this.animationId_ = requestAnimationFrame(() => {
             this.animationId_ = null;
             this.render();
+            if (this.continuousRender_) {
+                this.requestRender();
+            }
         });
+    }
+
+    startContinuousRender(): void {
+        if (!this.continuousRender_) {
+            this.continuousRender_ = true;
+            this.requestRender();
+        }
+    }
+
+    stopContinuousRender(): void {
+        this.continuousRender_ = false;
     }
 
     private render(): void {
@@ -1128,12 +1166,14 @@ export class SceneViewPanel {
         const pos = worldTransform.position;
         const scale = worldTransform.scale;
 
-        const bounds = getEntityBounds(entityData.components);
+        const bounds = this.getEntityBoundsWithSpine(entityData);
         const w = bounds.width * Math.abs(scale.x);
         const h = bounds.height * Math.abs(scale.y);
+        const offsetX = (bounds.offsetX ?? 0) * scale.x;
+        const offsetY = (bounds.offsetY ?? 0) * scale.y;
 
         ctx.save();
-        ctx.translate(pos.x, -pos.y);
+        ctx.translate(pos.x + offsetX, -pos.y - offsetY);
 
         ctx.strokeStyle = '#00aaff';
         ctx.lineWidth = 2 / this.zoom_;
@@ -1358,7 +1398,7 @@ export class SceneViewPanel {
         if (!entityData) return;
 
         const worldTransform = this.store_.getWorldTransform(entityData.id);
-        const bounds = getEntityBounds(entityData.components);
+        const bounds = this.getEntityBoundsWithSpine(entityData);
 
         const w = bounds.width * Math.abs(worldTransform.scale.x);
         const h = bounds.height * Math.abs(worldTransform.scale.y);

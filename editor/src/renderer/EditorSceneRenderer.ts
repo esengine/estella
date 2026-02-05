@@ -13,6 +13,7 @@ import {
     createIdentityTransform,
 } from '../math/Transform';
 import { EditorTextRenderer } from './EditorTextRenderer';
+import { AssetPathResolver, AssetLoader } from '../asset';
 
 // =============================================================================
 // EditorSceneRenderer
@@ -25,7 +26,8 @@ export class EditorSceneRenderer {
     private textRenderer_: EditorTextRenderer | null = null;
     private camera_: EditorCamera;
     private initialized_ = false;
-    private projectDir_ = '';
+    private pathResolver_: AssetPathResolver;
+    private assetLoader_: AssetLoader | null = null;
 
     /** Map scene entity IDs to runtime entities */
     private entityMap_: Map<number, Entity> = new Map();
@@ -42,6 +44,7 @@ export class EditorSceneRenderer {
 
     constructor() {
         this.camera_ = new EditorCamera();
+        this.pathResolver_ = new AssetPathResolver();
     }
 
     /**
@@ -60,8 +63,9 @@ export class EditorSceneRenderer {
         }
 
         this.registry_ = new module.Registry();
-        this.textureManager_ = new EditorTextureManager(module);
+        this.textureManager_ = new EditorTextureManager(module, this.pathResolver_);
         this.textRenderer_ = new EditorTextRenderer(module);
+        this.assetLoader_ = new AssetLoader(module, this.pathResolver_);
         this.initialized_ = true;
 
         return true;
@@ -71,7 +75,14 @@ export class EditorSceneRenderer {
      * @brief Set project directory for texture loading
      */
     setProjectDir(projectDir: string): void {
-        this.projectDir_ = projectDir.replace(/\\/g, '/');
+        this.pathResolver_.setProjectDir(projectDir);
+    }
+
+    /**
+     * @brief Get path resolver for external use
+     */
+    get pathResolver(): AssetPathResolver {
+        return this.pathResolver_;
     }
 
     /**
@@ -184,6 +195,22 @@ export class EditorSceneRenderer {
     }
 
     /**
+     * @brief Get spine bounds for an entity
+     * @returns bounds object with x, y, width, height, or null if not found
+     */
+    getSpineBounds(sceneEntityId: number): { x: number; y: number; width: number; height: number } | null {
+        if (!this.module_ || !this.registry_) return null;
+
+        const entity = this.entityMap_.get(sceneEntityId);
+        if (entity === undefined) return null;
+
+        const bounds = this.module_.getSpineBounds(this.registry_, entity);
+        if (!bounds.valid) return null;
+
+        return { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height };
+    }
+
+    /**
      * @brief Render a frame
      */
     render(width: number, height: number): void {
@@ -266,6 +293,10 @@ export class EditorSceneRenderer {
 
             case 'Text':
                 this.syncText(entity, comp.data, entityId);
+                break;
+
+            case 'SpineAnimation':
+                await this.syncSpineAnimation(entity, comp.data);
                 break;
         }
     }
@@ -394,11 +425,8 @@ export class EditorSceneRenderer {
         let textureHandle = 0;
 
         const texturePath = data.texture;
-        if (texturePath && this.projectDir_) {
-            textureHandle = await this.textureManager_.loadTexture(
-                this.projectDir_,
-                texturePath
-            );
+        if (texturePath) {
+            textureHandle = await this.textureManager_.loadTexture(texturePath);
         }
 
         if (this.registry_.hasSprite(entity)) {
@@ -458,6 +486,43 @@ export class EditorSceneRenderer {
             layer: 25,
             flipX: false,
             flipY: false,
+        });
+    }
+
+    private async syncSpineAnimation(entity: Entity, data: any): Promise<void> {
+        if (!this.registry_ || !this.assetLoader_) return;
+
+        const skeletonPath = data.skeletonPath ?? '';
+        const atlasPath = data.atlasPath ?? '';
+
+        if (!skeletonPath || !atlasPath) {
+            console.warn('[EditorSceneRenderer] SpineAnimation missing skeleton or atlas path');
+            return;
+        }
+
+        const result = await this.assetLoader_.loadSpine(skeletonPath, atlasPath);
+        if (!result.success) {
+            console.warn(`[EditorSceneRenderer] Failed to load Spine: ${result.error}`);
+            return;
+        }
+
+        if (this.registry_.hasSpineAnimation(entity)) {
+            this.registry_.removeSpineAnimation(entity);
+        }
+
+        this.registry_.addSpineAnimation(entity, {
+            skeletonPath,
+            atlasPath,
+            skin: data.skin ?? 'default',
+            animation: data.animation ?? '',
+            timeScale: data.timeScale ?? 1,
+            loop: data.loop ?? true,
+            playing: data.playing ?? true,
+            flipX: data.flipX ?? false,
+            flipY: data.flipY ?? false,
+            color: data.color ?? { x: 1, y: 1, z: 1, w: 1 },
+            layer: data.layer ?? 0,
+            skeletonScale: data.skeletonScale ?? 1,
         });
     }
 }

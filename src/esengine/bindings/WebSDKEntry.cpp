@@ -25,6 +25,9 @@
 #include "../ecs/TransformSystem.hpp"
 #include "../ecs/components/Camera.hpp"
 #include "../ecs/components/Transform.hpp"
+#include "../spine/SpineResourceManager.hpp"
+#include "../spine/SpineSystem.hpp"
+#include "../spine/SpineRenderer.hpp"
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -35,6 +38,9 @@ static Unique<RenderContext> g_renderContext;
 static Unique<RenderPipeline> g_renderPipeline;
 static Unique<ecs::TransformSystem> g_transformSystem;
 static Unique<resource::ResourceManager> g_resourceManager;
+static Unique<spine::SpineResourceManager> g_spineResourceManager;
+static Unique<spine::SpineSystem> g_spineSystem;
+static Unique<spine::SpineRenderer> g_spineRenderer;
 static EMSCRIPTEN_WEBGL_CONTEXT_HANDLE g_webglContext = 0;
 static bool g_initialized = false;
 
@@ -76,6 +82,14 @@ bool initRendererInternal(const char* canvasSelector) {
 
     g_renderPipeline = makeUnique<RenderPipeline>(*g_renderContext, *g_resourceManager);
     g_transformSystem = makeUnique<ecs::TransformSystem>();
+
+    g_spineResourceManager = makeUnique<spine::SpineResourceManager>(*g_resourceManager);
+    g_spineResourceManager->init();
+
+    g_spineSystem = makeUnique<spine::SpineSystem>(*g_spineResourceManager);
+
+    g_spineRenderer = makeUnique<spine::SpineRenderer>(*g_renderContext, *g_resourceManager, *g_spineSystem);
+    g_spineRenderer->init();
 
     g_initialized = true;
 
@@ -120,6 +134,14 @@ bool initRendererWithContext(int contextHandle) {
     g_renderPipeline = makeUnique<RenderPipeline>(*g_renderContext, *g_resourceManager);
     g_transformSystem = makeUnique<ecs::TransformSystem>();
 
+    g_spineResourceManager = makeUnique<spine::SpineResourceManager>(*g_resourceManager);
+    g_spineResourceManager->init();
+
+    g_spineSystem = makeUnique<spine::SpineSystem>(*g_spineResourceManager);
+
+    g_spineRenderer = makeUnique<spine::SpineRenderer>(*g_renderContext, *g_resourceManager, *g_spineSystem);
+    g_spineRenderer->init();
+
     g_initialized = true;
 
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
@@ -130,6 +152,12 @@ bool initRendererWithContext(int contextHandle) {
 
 void shutdownRenderer() {
     if (!g_initialized) return;
+
+    g_spineRenderer->shutdown();
+    g_spineRenderer.reset();
+    g_spineSystem.reset();
+    g_spineResourceManager->shutdown();
+    g_spineResourceManager.reset();
 
     g_transformSystem.reset();
     g_renderPipeline.reset();
@@ -173,6 +201,10 @@ void rm_releaseTexture(resource::ResourceManager& rm, u32 handleId) {
     rm.releaseTexture(resource::TextureHandle(handleId));
 }
 
+void rm_registerTextureWithPath(resource::ResourceManager& rm, u32 handleId, const std::string& path) {
+    rm.registerTextureWithPath(resource::TextureHandle(handleId), path);
+}
+
 void rm_releaseShader(resource::ResourceManager& rm, u32 handleId) {
     rm.releaseShader(resource::ShaderHandle(handleId));
 }
@@ -192,6 +224,10 @@ void renderFrame(ecs::Registry& registry, i32 viewportWidth, i32 viewportHeight)
 
     if (g_transformSystem) {
         g_transformSystem->update(registry, 0.0f);
+    }
+
+    if (g_spineSystem) {
+        g_spineSystem->update(registry, 0.016f);
     }
 
     glViewport(0, 0, viewportWidth, viewportHeight);
@@ -232,6 +268,12 @@ void renderFrame(ecs::Registry& registry, i32 viewportWidth, i32 viewportHeight)
     g_renderPipeline->begin(viewProjection);
     g_renderPipeline->submit(registry);
     g_renderPipeline->end();
+
+    if (g_spineRenderer) {
+        g_spineRenderer->begin(viewProjection);
+        g_spineRenderer->submit(registry);
+        g_spineRenderer->end();
+    }
 }
 
 void renderFrameWithMatrix(ecs::Registry& registry, i32 viewportWidth, i32 viewportHeight,
@@ -240,6 +282,10 @@ void renderFrameWithMatrix(ecs::Registry& registry, i32 viewportWidth, i32 viewp
 
     if (g_transformSystem) {
         g_transformSystem->update(registry, 0.0f);
+    }
+
+    if (g_spineSystem) {
+        g_spineSystem->update(registry, 0.016f);
     }
 
     glViewport(0, 0, viewportWidth, viewportHeight);
@@ -252,6 +298,31 @@ void renderFrameWithMatrix(ecs::Registry& registry, i32 viewportWidth, i32 viewp
     g_renderPipeline->begin(viewProjection);
     g_renderPipeline->submit(registry);
     g_renderPipeline->end();
+
+    if (g_spineRenderer) {
+        g_spineRenderer->begin(viewProjection);
+        g_spineRenderer->submit(registry);
+        g_spineRenderer->end();
+    }
+}
+
+struct SpineBounds {
+    f32 x = 0;
+    f32 y = 0;
+    f32 width = 0;
+    f32 height = 0;
+    bool valid = false;
+};
+
+SpineBounds getSpineBounds(ecs::Registry& registry, Entity entity) {
+    SpineBounds bounds;
+    if (!g_spineSystem) return bounds;
+
+    if (g_spineSystem->getSkeletonBounds(entity, bounds.x, bounds.y,
+                                          bounds.width, bounds.height)) {
+        bounds.valid = true;
+    }
+    return bounds;
 }
 
 }  // namespace esengine
@@ -270,7 +341,17 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
         .function("createShader", &esengine::rm_createShader)
         .function("releaseTexture", &esengine::rm_releaseTexture)
         .function("releaseShader", &esengine::rm_releaseShader)
-        .function("setTextureMetadata", &esengine::rm_setTextureMetadata);
+        .function("setTextureMetadata", &esengine::rm_setTextureMetadata)
+        .function("registerTextureWithPath", &esengine::rm_registerTextureWithPath);
+
+    emscripten::value_object<esengine::SpineBounds>("SpineBounds")
+        .field("x", &esengine::SpineBounds::x)
+        .field("y", &esengine::SpineBounds::y)
+        .field("width", &esengine::SpineBounds::width)
+        .field("height", &esengine::SpineBounds::height)
+        .field("valid", &esengine::SpineBounds::valid);
+
+    emscripten::function("getSpineBounds", &esengine::getSpineBounds);
 }
 
 int main() {

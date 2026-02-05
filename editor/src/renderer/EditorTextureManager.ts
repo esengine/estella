@@ -5,6 +5,7 @@
 
 import type { ESEngineModule } from 'esengine';
 import { parseTextureMetadata, getMetaFilePath } from '../types/TextureMetadata';
+import type { AssetPathResolver } from '../asset';
 
 // =============================================================================
 // Types
@@ -27,21 +28,22 @@ interface TextureEntry {
 
 export class EditorTextureManager {
     private module_: ESEngineModule;
+    private pathResolver_: AssetPathResolver;
     private pathToEntry_: Map<string, TextureEntry> = new Map();
     private pendingLoads_: Map<string, Promise<number>> = new Map();
 
-    constructor(module: ESEngineModule) {
+    constructor(module: ESEngineModule, pathResolver: AssetPathResolver) {
         this.module_ = module;
+        this.pathResolver_ = pathResolver;
     }
 
     /**
      * @brief Load texture from file and create GPU texture
-     * @param projectDir Project root directory
-     * @param texturePath Relative texture path (e.g., "assets/textures/bg.png")
+     * @param texturePath Relative or absolute texture path
      * @returns Texture handle ID, or 0 if failed
      */
-    async loadTexture(projectDir: string, texturePath: string): Promise<number> {
-        const fullPath = this.resolvePath(projectDir, texturePath);
+    async loadTexture(texturePath: string): Promise<number> {
+        const fullPath = this.pathResolver_.toAbsolutePath(texturePath);
 
         const existing = this.pathToEntry_.get(fullPath);
         if (existing) {
@@ -53,7 +55,7 @@ export class EditorTextureManager {
             return pending;
         }
 
-        const loadPromise = this.loadTextureInternal(projectDir, fullPath);
+        const loadPromise = this.loadTextureInternal(fullPath);
         this.pendingLoads_.set(fullPath, loadPromise);
 
         try {
@@ -68,8 +70,8 @@ export class EditorTextureManager {
      * @brief Get cached texture handle
      * @returns Handle ID or null if not loaded
      */
-    getHandle(projectDir: string, texturePath: string): number | null {
-        const fullPath = this.resolvePath(projectDir, texturePath);
+    getHandle(texturePath: string): number | null {
+        const fullPath = this.pathResolver_.toAbsolutePath(texturePath);
         const entry = this.pathToEntry_.get(fullPath);
         return entry?.handle ?? null;
     }
@@ -77,8 +79,8 @@ export class EditorTextureManager {
     /**
      * @brief Get texture dimensions
      */
-    getSize(projectDir: string, texturePath: string): { width: number; height: number } | null {
-        const fullPath = this.resolvePath(projectDir, texturePath);
+    getSize(texturePath: string): { width: number; height: number } | null {
+        const fullPath = this.pathResolver_.toAbsolutePath(texturePath);
         const entry = this.pathToEntry_.get(fullPath);
         if (!entry) return null;
         return { width: entry.width, height: entry.height };
@@ -98,8 +100,8 @@ export class EditorTextureManager {
     /**
      * @brief Release a specific texture
      */
-    release(projectDir: string, texturePath: string): void {
-        const fullPath = this.resolvePath(projectDir, texturePath);
+    release(texturePath: string): void {
+        const fullPath = this.pathResolver_.toAbsolutePath(texturePath);
         const entry = this.pathToEntry_.get(fullPath);
         if (entry) {
             const rm = this.module_.getResourceManager();
@@ -112,15 +114,7 @@ export class EditorTextureManager {
     // Private Methods
     // =========================================================================
 
-    private resolvePath(projectDir: string, texturePath: string): string {
-        const normalized = texturePath.replace(/\\/g, '/');
-        if (normalized.startsWith('/') || normalized.includes(':')) {
-            return normalized;
-        }
-        return `${projectDir.replace(/\\/g, '/')}/${normalized}`;
-    }
-
-    private async loadTextureInternal(projectDir: string, fullPath: string): Promise<number> {
+    private async loadTextureInternal(fullPath: string): Promise<number> {
         const fs = this.getNativeFS();
         if (!fs) {
             console.warn('[EditorTextureManager] NativeFS not available');
@@ -140,7 +134,7 @@ export class EditorTextureManager {
 
         this.pathToEntry_.set(fullPath, { handle, width, height });
 
-        await this.loadAndApplyMetadata(projectDir, fullPath, handle);
+        await this.loadAndApplyMetadata(fullPath, handle);
 
         return handle;
     }
@@ -191,7 +185,7 @@ export class EditorTextureManager {
         }
     }
 
-    private async loadAndApplyMetadata(_projectDir: string, texturePath: string, handle: number): Promise<void> {
+    private async loadAndApplyMetadata(texturePath: string, handle: number): Promise<void> {
         const fs = this.getNativeFS();
         if (!fs) return;
 

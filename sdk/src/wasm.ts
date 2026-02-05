@@ -55,9 +55,14 @@ export interface CppRegistry {
     hasChildren(entity: Entity): boolean;
     removeChildren(entity: Entity): void;
 
+    addSpineAnimation(entity: Entity, data: unknown): void;
+    getSpineAnimation(entity: Entity): unknown;
+    hasSpineAnimation(entity: Entity): boolean;
+    removeSpineAnimation(entity: Entity): void;
+
     setParent(child: Entity, parent: Entity): void;
 
-    [key: string]: unknown;
+    [key: string]: any;
 }
 
 // =============================================================================
@@ -70,16 +75,39 @@ export interface CppResourceManager {
     releaseTexture(handle: number): void;
     releaseShader(handle: number): void;
     setTextureMetadata(handle: number, left: number, right: number, top: number, bottom: number): void;
+    registerTextureWithPath(handle: number, path: string): void;
 }
 
 // =============================================================================
 // WASM Module Interface
 // =============================================================================
 
+export interface EmscriptenFS {
+    writeFile(path: string, data: string | Uint8Array): void;
+    readFile(path: string, opts?: { encoding?: string }): string | Uint8Array;
+    mkdir(path: string): void;
+    mkdirTree(path: string): void;
+    unlink(path: string): void;
+    stat(path: string): { mode: number; size: number };
+    isFile(mode: number): boolean;
+    isDir(mode: number): boolean;
+    analyzePath(path: string): { exists: boolean; parentExists: boolean };
+}
+
+export interface SpineBounds {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    valid: boolean;
+}
+
 export interface ESEngineModule {
     Registry: new () => CppRegistry;
     HEAPU8: Uint8Array;
     HEAPF32: Float32Array;
+
+    FS: EmscriptenFS;
 
     initRenderer(): void;
     initRendererWithCanvas(canvasSelector: string): boolean;
@@ -96,6 +124,7 @@ export interface ESEngineModule {
     renderFrame(registry: CppRegistry, width: number, height: number): void;
     renderFrameWithMatrix(registry: CppRegistry, width: number, height: number, matrixPtr: number): void;
     getResourceManager(): CppResourceManager;
+    getSpineBounds(registry: CppRegistry, entity: number): SpineBounds;
 
     _malloc(size: number): number;
     _free(ptr: number): void;
