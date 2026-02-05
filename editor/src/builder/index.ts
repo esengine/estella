@@ -10,6 +10,7 @@ export { WeChatBuilder } from './WeChatBuilder';
 
 export { BuildCache, type BuildCacheData, type FileHash, type FileChangeResult } from './BuildCache';
 export { BuildProgressReporter, formatDuration, formatSize, type BuildProgress, type BuildLogEntry, type BuildPhase, type LogLevel } from './BuildProgress';
+export { BuildProgressPanel, getBuildProgressPanel, showBuildProgress, hideBuildProgress, type CancelCallback } from './BuildProgressPanel';
 export { BuildConfigService, getBuildConfigService, initBuildConfigService, type BuildSettingsFile } from './BuildConfigService';
 export { BuildPipeline, createTask, createPlayableTasks, type BuildTask, type TaskResult, type PipelineResult } from './BuildPipeline';
 export { BuildConfigIO, downloadConfigsAsFile, uploadConfigsFromFile, type ExportedConfig, type ImportResult } from './BuildConfigIO';

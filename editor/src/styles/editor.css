@@ -3468,3 +3468,194 @@ svg {
     font-size: 11px;
     color: var(--es-text-secondary);
 }
+
+/* =============================================================================
+ * Build Progress Panel
+ * ============================================================================= */
+
+.build-progress-panel {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 420px;
+    max-height: 400px;
+    background: var(--es-bg-secondary);
+    border: 1px solid var(--es-border);
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    display: none;
+    flex-direction: column;
+    z-index: 10000;
+    overflow: hidden;
+}
+
+.build-progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: var(--es-bg-tertiary);
+    border-bottom: 1px solid var(--es-border);
+}
+
+.build-progress-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--es-text-primary);
+}
+
+.build-progress-close {
+    background: none;
+    border: none;
+    color: var(--es-text-secondary);
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 4px;
+}
+
+.build-progress-close:hover {
+    color: var(--es-text-primary);
+}
+
+.build-progress-phase-section {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px 8px;
+}
+
+.build-progress-phase {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--es-accent);
+}
+
+.build-progress-phase.build-progress-success {
+    color: var(--es-success);
+}
+
+.build-progress-phase.build-progress-error {
+    color: var(--es-danger);
+}
+
+.build-progress-time {
+    font-size: 11px;
+    color: var(--es-text-secondary);
+}
+
+.build-progress-bar-section {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 16px 8px;
+}
+
+.build-progress-bar-track {
+    flex: 1;
+    height: 6px;
+    background: var(--es-bg-tertiary);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.build-progress-bar-fill {
+    height: 100%;
+    background: var(--es-accent);
+    border-radius: 3px;
+    transition: width 0.2s ease;
+    width: 0%;
+}
+
+.build-progress-bar-fill.build-progress-bar-error {
+    background: var(--es-danger);
+}
+
+.build-progress-percent {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--es-text-primary);
+    min-width: 36px;
+    text-align: right;
+}
+
+.build-progress-task {
+    padding: 0 16px 12px;
+    font-size: 11px;
+    color: var(--es-text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.build-progress-logs {
+    flex: 1;
+    min-height: 120px;
+    max-height: 180px;
+    overflow-y: auto;
+    background: var(--es-bg-primary);
+    margin: 0 12px;
+    border-radius: 4px;
+    font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+.build-progress-log-line {
+    padding: 2px 8px;
+    color: var(--es-text-secondary);
+    border-bottom: 1px solid var(--es-bg-secondary);
+}
+
+.build-progress-log-line:last-child {
+    border-bottom: none;
+}
+
+.build-progress-log-line .log-time {
+    color: var(--es-text-secondary);
+    opacity: 0.6;
+    margin-right: 4px;
+}
+
+.build-progress-log-line.progress-log-info {
+    color: var(--es-text-primary);
+}
+
+.build-progress-log-line.progress-log-warn {
+    color: #e6a700;
+}
+
+.build-progress-log-line.progress-log-error {
+    color: var(--es-danger);
+}
+
+.build-progress-log-line.progress-log-debug {
+    color: var(--es-text-secondary);
+    opacity: 0.7;
+}
+
+.build-progress-footer {
+    display: flex;
+    justify-content: flex-end;
+    padding: 12px 16px;
+    border-top: 1px solid var(--es-border);
+}
+
+.build-progress-cancel-btn {
+    padding: 6px 16px;
+    background: var(--es-bg-tertiary);
+    border: 1px solid var(--es-border);
+    border-radius: 4px;
+    color: var(--es-text-primary);
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.build-progress-cancel-btn:hover:not(:disabled) {
+    background: var(--es-bg-hover);
+}
+
+.build-progress-cancel-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
