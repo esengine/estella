@@ -3208,3 +3208,263 @@ svg {
 .es-output-success {
     color: var(--es-success);
 }
+
+/* =============================================================================
+ * Build Settings Dialog - Three Column Layout
+ * ============================================================================= */
+
+.es-build-dialog-wide {
+    max-width: 1000px;
+}
+
+.es-build-body-three-col {
+    display: flex;
+    flex: 1;
+    min-height: 450px;
+    max-height: 65vh;
+    overflow: hidden;
+}
+
+.es-build-body-three-col .es-build-sidebar {
+    width: 180px;
+    min-width: 160px;
+}
+
+.es-build-body-three-col .es-build-detail {
+    flex: 1;
+    min-width: 300px;
+    border-right: 1px solid var(--es-border);
+}
+
+.es-build-body-three-col .es-build-output {
+    width: 220px;
+    min-width: 180px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--es-bg-primary);
+    padding: 12px;
+    overflow-y: auto;
+}
+
+.es-build-toolbar-left,
+.es-build-toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.es-build-toolbar-left {
+    flex: 1;
+}
+
+.es-build-output-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.es-build-output-latest {
+    background: var(--es-bg-secondary);
+    border: 1px solid var(--es-border);
+    border-radius: 4px;
+    padding: 12px;
+    margin-bottom: 16px;
+}
+
+.es-build-output-empty {
+    text-align: center;
+    color: var(--es-text-secondary);
+    font-size: 12px;
+    padding: 24px 8px;
+    background: var(--es-bg-secondary);
+    border: 1px solid var(--es-border);
+    border-radius: 4px;
+}
+
+.es-build-output-stat {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    font-size: 12px;
+}
+
+.es-build-output-stat:last-child {
+    margin-bottom: 0;
+}
+
+.es-build-output-label {
+    color: var(--es-text-secondary);
+}
+
+.es-build-output-value {
+    color: var(--es-text-primary);
+    font-weight: 500;
+}
+
+.es-build-output-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--es-border);
+}
+
+.es-btn-small {
+    padding: 4px 8px;
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* Build Status Indicators */
+.es-build-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.es-build-status-dot.es-build-status-success {
+    background: var(--es-success);
+}
+
+.es-build-status-dot.es-build-status-failed {
+    background: var(--es-danger);
+}
+
+.es-build-status-dot.es-build-status-cancelled {
+    background: var(--es-text-secondary);
+}
+
+.es-build-status-success {
+    color: var(--es-success);
+}
+
+.es-build-status-failed {
+    color: var(--es-danger);
+}
+
+.es-build-status-cancelled {
+    color: var(--es-text-secondary);
+}
+
+/* Build History */
+.es-build-history {
+    margin-top: 8px;
+}
+
+.es-build-history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 8px;
+}
+
+.es-build-history-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    background: var(--es-bg-secondary);
+    border-radius: 3px;
+    font-size: 11px;
+}
+
+.es-build-history-icon {
+    font-size: 12px;
+}
+
+.es-build-history-time {
+    flex: 1;
+    color: var(--es-text-primary);
+}
+
+.es-build-history-duration {
+    color: var(--es-text-secondary);
+}
+
+/* Config Name Input */
+.es-build-name-input {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--es-text-primary);
+    font-size: 16px;
+    font-weight: 600;
+    padding: 4px 8px;
+    border-radius: 3px;
+    width: 200px;
+}
+
+.es-build-name-input:hover {
+    background: var(--es-bg-tertiary);
+}
+
+.es-build-name-input:focus {
+    outline: none;
+    background: var(--es-bg-primary);
+    border-color: var(--es-accent);
+}
+
+/* Collapse Count Badge */
+.es-build-collapse-count {
+    margin-left: auto;
+    font-size: 10px;
+    background: var(--es-bg-hover);
+    color: var(--es-text-secondary);
+    padding: 2px 6px;
+    border-radius: 10px;
+}
+
+/* Build Templates */
+.es-build-templates-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.es-build-template-item {
+    padding: 12px;
+    background: var(--es-bg-primary);
+    border: 1px solid var(--es-border);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.es-build-template-item:hover {
+    border-color: var(--es-accent);
+    background: var(--es-bg-tertiary);
+}
+
+.es-build-template-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.es-build-template-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--es-text-primary);
+}
+
+.es-build-template-platform {
+    font-size: 10px;
+    padding: 2px 6px;
+    background: var(--es-bg-tertiary);
+    color: var(--es-text-secondary);
+    border-radius: 3px;
+    text-transform: uppercase;
+}
+
+.es-build-template-desc {
+    font-size: 11px;
+    color: var(--es-text-secondary);
+}

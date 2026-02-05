@@ -5,6 +5,8 @@
 
 import * as esbuild from 'esbuild-wasm/esm/browser';
 import type { BuildResult, BuildContext } from './BuildService';
+import { BuildProgressReporter } from './BuildProgress';
+import { BuildCache } from './BuildCache';
 
 // =============================================================================
 // Types
@@ -59,11 +61,15 @@ export class WeChatBuilder {
     private context_: BuildContext;
     private fs_: NativeFS | null;
     private projectDir_: string;
+    private progress_: BuildProgressReporter;
+    private cache_: BuildCache | null;
 
     constructor(context: BuildContext) {
         this.context_ = context;
         this.fs_ = (window as any).__esengine_fs ?? null;
         this.projectDir_ = getProjectDir(context.projectPath);
+        this.progress_ = context.progress || new BuildProgressReporter();
+        this.cache_ = context.cache || null;
     }
 
     async build(): Promise<BuildResult> {
@@ -76,7 +82,8 @@ export class WeChatBuilder {
             return { success: false, error: 'WeChat settings not configured' };
         }
 
-        console.log('[WeChatBuilder] Starting build...');
+        this.progress_.setPhase('preparing');
+        this.progress_.log('info', 'Starting WeChat MiniGame build...');
 
         try {
             const outputDir = joinPath(this.projectDir_, settings.outputDir);
@@ -85,29 +92,41 @@ export class WeChatBuilder {
             await this.fs_.createDirectory(outputDir);
 
             // 1. Generate project.config.json
+            this.progress_.setCurrentTask('Generating project.config.json...', 10);
             await this.generateProjectConfig(outputDir, settings);
-            console.log('[WeChatBuilder] Generated project.config.json');
+            this.progress_.log('info', 'Generated project.config.json');
 
             // 2. Generate game.json
+            this.progress_.setCurrentTask('Generating game.json...', 20);
             await this.generateGameJson(outputDir);
-            console.log('[WeChatBuilder] Generated game.json');
+            this.progress_.log('info', 'Generated game.json');
 
             // 3. Compile and generate game.js
+            this.progress_.setPhase('compiling');
+            this.progress_.setCurrentTask('Compiling scripts...', 0);
             await this.generateGameJs(outputDir);
-            console.log('[WeChatBuilder] Generated game.js');
+            this.progress_.log('info', 'Generated game.js');
 
             // 4. Copy scenes
+            this.progress_.setPhase('processing_assets');
+            this.progress_.setCurrentTask('Copying scenes...', 0);
             await this.copyScenes(outputDir);
-            console.log('[WeChatBuilder] Copied scenes');
+            this.progress_.log('info', 'Copied scenes');
 
             // 5. Copy assets
+            this.progress_.setCurrentTask('Copying assets...', 50);
             await this.copyAssets(outputDir);
-            console.log('[WeChatBuilder] Copied assets');
+            this.progress_.log('info', 'Copied assets');
 
-            console.log(`[WeChatBuilder] Build successful: ${outputDir}`);
+            // 6. Write output
+            this.progress_.setPhase('writing');
+            this.progress_.setCurrentTask('Finalizing...', 0);
+
+            this.progress_.log('info', `Build successful: ${outputDir}`);
             return { success: true, outputPath: outputDir };
         } catch (err) {
             console.error('[WeChatBuilder] Build error:', err);
+            this.progress_.fail(String(err));
             return { success: false, error: String(err) };
         }
     }

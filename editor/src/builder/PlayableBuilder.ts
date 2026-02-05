@@ -12,6 +12,8 @@
 
 import * as esbuild from 'esbuild-wasm/esm/browser';
 import type { BuildResult, BuildContext } from './BuildService';
+import { BuildProgressReporter } from './BuildProgress';
+import { BuildCache, type BuildCacheData } from './BuildCache';
 
 // =============================================================================
 // Types
@@ -143,6 +145,8 @@ export class PlayableBuilder {
         this.context_ = context;
         this.fs_ = (window as any).__esengine_fs ?? null;
         this.projectDir_ = getProjectDir(context.projectPath);
+        this.progress_ = context.progress || new BuildProgressReporter();
+        this.cache_ = context.cache || null;
     }
 
     // =========================================================================
@@ -164,10 +168,18 @@ export class PlayableBuilder {
             return { success: false, error: 'No startup scene configured. Add a scene to the build or set a startup scene.' };
         }
 
-        console.log('[PlayableBuilder] Starting build...');
+        this.progress_.setPhase('preparing');
+        this.progress_.log('info', 'Starting Playable build...');
 
         try {
+            // Check cache for compiled scripts
+            let cachedData: BuildCacheData | null = null;
+            if (this.cache_) {
+                cachedData = await this.cache_.loadCache(this.context_.config.id);
+            }
+
             // 1. Load SDK
+            this.progress_.setCurrentTask('Loading SDK...', 0);
             const wasmSdk = await this.loadSdk();
             if (!wasmSdk) {
                 return {
@@ -175,32 +187,58 @@ export class PlayableBuilder {
                     error: "SDK not found. Please run 'scripts/build-web-single.bat' first.",
                 };
             }
-            console.log(`[PlayableBuilder] SDK loaded: ${wasmSdk.length} bytes`);
+            this.progress_.log('info', `SDK loaded: ${wasmSdk.length} bytes`);
 
             // 2. Compile user scripts
-            const gameCode = await this.compileUserScripts();
-            console.log(`[PlayableBuilder] Scripts compiled: ${gameCode.length} bytes`);
+            this.progress_.setPhase('compiling');
+            this.progress_.setCurrentTask('Compiling scripts...', 0);
+
+            let gameCode: string;
+            const scriptsPath = joinPath(this.projectDir_, 'assets/scripts');
+            const scriptFiles = await this.getScriptFiles(scriptsPath);
+
+            if (cachedData?.compiledScripts && this.cache_) {
+                const changes = await this.cache_.getChangedFiles(scriptFiles, cachedData);
+                if (!this.cache_.hasChanges(changes)) {
+                    gameCode = cachedData.compiledScripts;
+                    this.progress_.log('info', 'Using cached compiled scripts');
+                } else {
+                    gameCode = await this.compileUserScripts();
+                    this.progress_.log('info', `Scripts compiled: ${gameCode.length} bytes`);
+                }
+            } else {
+                gameCode = await this.compileUserScripts();
+                this.progress_.log('info', `Scripts compiled: ${gameCode.length} bytes`);
+            }
 
             // 3. Read startup scene
+            this.progress_.setCurrentTask('Loading scene...', 50);
             const scenePath = this.resolveScenePath(startupScene);
             const sceneContent = await this.fs_.readFile(scenePath);
             if (!sceneContent) {
                 return { success: false, error: `Startup scene not found: ${scenePath}` };
             }
-            console.log(`[PlayableBuilder] Scene loaded: ${scenePath}`);
+            this.progress_.log('info', `Scene loaded: ${scenePath}`);
 
             // 4. Collect and inline assets
+            this.progress_.setPhase('processing_assets');
+            this.progress_.setCurrentTask('Collecting assets...', 0);
             const assets = await this.collectAssets();
-            console.log(`[PlayableBuilder] Collected ${assets.size} assets`);
+            this.progress_.log('info', `Collected ${assets.size} assets`);
 
+            this.progress_.setCurrentTask('Inlining assets...', 50);
             const gameCodeWithAssets = this.inlineAssets(gameCode, assets);
             const sceneDataWithAssets = this.inlineAssets(sceneContent, assets);
 
             // 5. Assemble HTML
+            this.progress_.setPhase('assembling');
+            this.progress_.setCurrentTask('Assembling HTML...', 0);
             const html = this.assembleHTML(wasmSdk, gameCodeWithAssets, sceneDataWithAssets);
-            console.log(`[PlayableBuilder] HTML assembled: ${html.length} bytes`);
+            this.progress_.log('info', `HTML assembled: ${html.length} bytes`);
 
             // 6. Write output
+            this.progress_.setPhase('writing');
+            this.progress_.setCurrentTask('Writing output...', 0);
             const outputPath = this.resolveOutputPath(settings.outputPath);
             const outputDir = getDir(outputPath);
 
@@ -208,15 +246,41 @@ export class PlayableBuilder {
             const success = await this.fs_.writeFile(outputPath, html);
 
             if (success) {
-                console.log(`[PlayableBuilder] Build successful: ${outputPath}`);
-                return { success: true, outputPath };
+                // Save cache
+                if (this.cache_) {
+                    const cacheData = await this.cache_.createCacheData(
+                        this.context_.config.id,
+                        scriptFiles,
+                        gameCode
+                    );
+                    await this.cache_.saveCache(cacheData);
+                }
+
+                this.progress_.log('info', `Build successful: ${outputPath}`);
+                return {
+                    success: true,
+                    outputPath,
+                    outputSize: new TextEncoder().encode(html).length,
+                };
             } else {
                 return { success: false, error: 'Failed to write output file' };
             }
         } catch (err) {
             console.error('[PlayableBuilder] Build error:', err);
+            this.progress_.fail(String(err));
             return { success: false, error: String(err) };
         }
+    }
+
+    private async getScriptFiles(scriptsPath: string): Promise<string[]> {
+        if (!await this.fs_!.exists(scriptsPath)) {
+            return [];
+        }
+
+        const entries = await this.fs_!.listDirectoryDetailed(scriptsPath);
+        return entries
+            .filter(e => !e.isDirectory && e.name.endsWith('.ts'))
+            .map(e => joinPath(scriptsPath, e.name));
     }
 
     // =========================================================================
@@ -479,4 +543,6 @@ ${imports}
     private context_: BuildContext;
     private fs_: NativeFS | null;
     private projectDir_: string;
+    private progress_: BuildProgressReporter;
+    private cache_: BuildCache | null;
 }

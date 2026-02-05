@@ -45,6 +45,9 @@ import {
     Play,
     Square,
     Grid3X3,
+    Upload,
+    Download,
+    LayoutTemplate,
 } from 'lucide';
 
 // =============================================================================
@@ -141,6 +144,9 @@ export const icons = {
     stop: (size?: number) => renderIcon(Square as IconNode, size),
     grid: (size?: number) => renderIcon(Grid3X3 as IconNode, size),
     rect: (size?: number) => renderIcon(Square as IconNode, size),
+    upload: (size?: number) => renderIcon(Upload as IconNode, size),
+    download: (size?: number) => renderIcon(Download as IconNode, size),
+    template: (size?: number) => renderIcon(LayoutTemplate as IconNode, size),
 };
 
 export type IconName = keyof typeof icons;

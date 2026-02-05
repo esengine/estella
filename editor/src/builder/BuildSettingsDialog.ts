@@ -1,6 +1,6 @@
 /**
  * @file    BuildSettingsDialog.ts
- * @brief   Build settings dialog UI component
+ * @brief   Build settings dialog UI component with three-column layout
  */
 
 import { icons } from '../utils/icons';
@@ -14,6 +14,12 @@ import {
 } from '../types/BuildTypes';
 import { type BuildResult } from './BuildService';
 import { showProgressToast, dismissToast, showToast } from '../ui/Toast';
+import { BuildHistory, formatBuildTime, formatBuildDuration, getBuildStatusIcon, type BuildHistoryEntry } from './BuildHistory';
+import { BuildConfigService, initBuildConfigService } from './BuildConfigService';
+import { downloadConfigsAsFile, uploadConfigsFromFile } from './BuildConfigIO';
+import { BUILD_TEMPLATES, createConfigFromTemplate, type BuildTemplate } from './BuildTemplates';
+import { BatchBuilder } from './BatchBuilder';
+import { formatSize } from './BuildProgress';
 
 // =============================================================================
 // Types
@@ -26,7 +32,7 @@ export interface BuildSettingsDialogOptions {
 }
 
 // =============================================================================
-// Storage
+// Storage (Legacy - for migration)
 // =============================================================================
 
 const BUILD_SETTINGS_KEY = 'esengine_build_settings';
@@ -56,6 +62,22 @@ export class BuildSettingsDialog {
         this.options_ = options;
         this.settings_ = loadBuildSettings();
 
+        const projectDir = this.getProjectDir();
+        this.configService_ = initBuildConfigService(projectDir);
+        this.history_ = new BuildHistory(projectDir);
+        this.batchBuilder_ = new BatchBuilder(projectDir, this.history_);
+
+        this.initAsync();
+    }
+
+    private async initAsync(): Promise<void> {
+        await Promise.all([
+            this.configService_.load(),
+            this.history_.load(),
+        ]);
+
+        this.settings_ = this.configService_.getSettings();
+
         if (!this.settings_.activeConfigId && this.settings_.configs.length > 0) {
             this.settings_.activeConfigId = this.settings_.configs[0].id;
         }
@@ -69,11 +91,16 @@ export class BuildSettingsDialog {
     }
 
     dispose(): void {
-        saveBuildSettings(this.settings_);
+        this.saveSettings();
         if (this.keyHandler_) {
             document.removeEventListener('keydown', this.keyHandler_);
         }
-        this.overlay_.remove();
+        this.overlay_?.remove();
+    }
+
+    private async saveSettings(): Promise<void> {
+        saveBuildSettings(this.settings_);
+        await this.configService_.save();
     }
 
     private getActiveConfig(): BuildConfig | null {
@@ -81,25 +108,49 @@ export class BuildSettingsDialog {
     }
 
     private render(): void {
+        if (!this.overlay_) return;
+
         const config = this.getActiveConfig();
 
         this.overlay_.innerHTML = `
-            <div class="es-build-dialog">
+            <div class="es-build-dialog es-build-dialog-wide">
                 <div class="es-dialog-header">
                     <span class="es-dialog-title">${icons.cog(16)} Build Settings</span>
                     <button class="es-dialog-close" data-action="close">&times;</button>
                 </div>
                 <div class="es-build-toolbar">
-                    <button class="es-btn es-btn-icon" data-action="add-config" title="Add Build Config">
-                        ${icons.plus(14)} Add Config
-                    </button>
+                    <div class="es-build-toolbar-left">
+                        <button class="es-btn es-btn-icon" data-action="add-config" title="Add Build Config">
+                            ${icons.plus(14)} Add
+                        </button>
+                        <button class="es-btn es-btn-icon" data-action="import-configs" title="Import Configs">
+                            ${icons.upload(14)} Import
+                        </button>
+                        <button class="es-btn es-btn-icon" data-action="export-configs" title="Export Configs">
+                            ${icons.download(14)} Export
+                        </button>
+                        <button class="es-btn es-btn-icon" data-action="show-templates" title="Templates">
+                            ${icons.template(14)} Templates
+                        </button>
+                    </div>
+                    <div class="es-build-toolbar-right">
+                        <button class="es-btn" data-action="build-all" title="Build All Configs">
+                            Build All
+                        </button>
+                        <button class="es-btn es-btn-primary" data-action="build" ${!config ? 'disabled' : ''}>
+                            ${icons.play(14)} Build
+                        </button>
+                    </div>
                 </div>
-                <div class="es-build-body">
+                <div class="es-build-body es-build-body-three-col">
                     <div class="es-build-sidebar">
                         ${this.renderSidebar()}
                     </div>
                     <div class="es-build-detail">
                         ${config ? this.renderDetail(config) : this.renderNoConfig()}
+                    </div>
+                    <div class="es-build-output">
+                        ${config ? this.renderOutputPanel(config) : ''}
                     </div>
                 </div>
             </div>
@@ -131,8 +182,14 @@ export class BuildSettingsDialog {
 
     private renderConfigItem(config: BuildConfig): string {
         const isActive = this.settings_.activeConfigId === config.id;
+        const latestBuild = this.history_.getLatest(config.id);
+        const statusIndicator = latestBuild
+            ? `<span class="es-build-status-dot es-build-status-${latestBuild.status}"></span>`
+            : '';
+
         return `
             <div class="es-build-config-item ${isActive ? 'es-active' : ''}" data-config="${config.id}">
+                ${statusIndicator}
                 <span class="es-build-config-name">${config.name}</span>
                 <button class="es-btn-icon es-build-config-delete" data-action="delete-config" data-config="${config.id}" title="Delete">
                     ${icons.x(10)}
@@ -154,26 +211,101 @@ export class BuildSettingsDialog {
         return `
             <div class="es-build-detail-header">
                 <div class="es-build-detail-title">
-                    <h3>${config.name}</h3>
+                    <input type="text" class="es-build-name-input" id="config-name-input"
+                           value="${config.name}" placeholder="Config Name">
                     <span class="es-build-detail-platform">${this.getPlatformName(config.platform)}</span>
                 </div>
                 <div class="es-build-detail-actions">
-                    <button class="es-btn" data-action="switch-config">Switch</button>
-                    <button class="es-btn es-btn-primary" data-action="build">
-                        ${icons.play(14)} Build
+                    <button class="es-btn es-btn-icon" data-action="duplicate-config" title="Duplicate">
+                        ${icons.copy(14)}
                     </button>
                 </div>
             </div>
             <div class="es-build-detail-content">
                 <div class="es-build-data-section">
-                    <h4>Build Data</h4>
                     ${this.renderScenesSection(config)}
                     ${this.renderDefinesSection(config)}
                 </div>
                 <div class="es-build-settings-section">
-                    <h4>Platform Settings</h4>
                     ${this.renderPlatformSettings(config)}
                 </div>
+            </div>
+        `;
+    }
+
+    private renderOutputPanel(config: BuildConfig): string {
+        const latestBuild = this.history_.getLatest(config.id);
+        const recentBuilds = this.history_.getEntries(config.id).slice(0, 5);
+
+        const latestSection = latestBuild ? `
+            <div class="es-build-output-latest">
+                <div class="es-build-output-stat">
+                    <span class="es-build-output-label">Last Build</span>
+                    <span class="es-build-output-value">${formatBuildTime(latestBuild.timestamp)}</span>
+                </div>
+                <div class="es-build-output-stat">
+                    <span class="es-build-output-label">Status</span>
+                    <span class="es-build-output-value es-build-status-${latestBuild.status}">
+                        ${getBuildStatusIcon(latestBuild.status)} ${latestBuild.status}
+                    </span>
+                </div>
+                ${latestBuild.outputSize ? `
+                <div class="es-build-output-stat">
+                    <span class="es-build-output-label">Size</span>
+                    <span class="es-build-output-value">${formatSize(latestBuild.outputSize)}</span>
+                </div>
+                ` : ''}
+                <div class="es-build-output-stat">
+                    <span class="es-build-output-label">Duration</span>
+                    <span class="es-build-output-value">${formatBuildDuration(latestBuild.duration)}</span>
+                </div>
+                ${latestBuild.outputPath ? `
+                <div class="es-build-output-actions">
+                    <button class="es-btn es-btn-small" data-action="open-output" data-path="${latestBuild.outputPath}">
+                        ${icons.folder(12)} Open
+                    </button>
+                    <button class="es-btn es-btn-small" data-action="preview-output" data-path="${latestBuild.outputPath}">
+                        ${icons.play(12)} Preview
+                    </button>
+                </div>
+                ` : ''}
+            </div>
+        ` : `
+            <div class="es-build-output-empty">
+                No builds yet
+            </div>
+        `;
+
+        const historySection = recentBuilds.length > 0 ? `
+            <div class="es-build-history">
+                <div class="es-build-section-title">Build History</div>
+                <div class="es-build-history-list">
+                    ${recentBuilds.map(entry => this.renderHistoryEntry(entry)).join('')}
+                </div>
+            </div>
+        ` : '';
+
+        return `
+            <div class="es-build-output-header">
+                <span class="es-build-section-title">Build Output</span>
+                ${recentBuilds.length > 0 ? `
+                <button class="es-btn-icon" data-action="clear-history" title="Clear History">
+                    ${icons.trash(12)}
+                </button>
+                ` : ''}
+            </div>
+            ${latestSection}
+            ${historySection}
+        `;
+    }
+
+    private renderHistoryEntry(entry: BuildHistoryEntry): string {
+        const time = new Date(entry.timestamp).toLocaleTimeString();
+        return `
+            <div class="es-build-history-item es-build-status-${entry.status}">
+                <span class="es-build-history-icon">${getBuildStatusIcon(entry.status)}</span>
+                <span class="es-build-history-time">${time}</span>
+                <span class="es-build-history-duration">${formatBuildDuration(entry.duration)}</span>
             </div>
         `;
     }
@@ -197,13 +329,14 @@ export class BuildSettingsDialog {
                 <div class="es-build-collapse-header">
                     ${isExpanded ? icons.chevronDown(12) : icons.chevronRight(12)}
                     <span>Scenes</span>
+                    <span class="es-build-collapse-count">${config.scenes.length}</span>
                 </div>
                 <div class="es-build-collapse-content">
                     <div class="es-build-scene-list">
                         ${scenesHtml}
                     </div>
                     <button class="es-btn es-btn-link" data-action="add-current-scene">
-                        Add Current Scene
+                        ${icons.plus(12)} Add Current Scene
                     </button>
                 </div>
             </div>
@@ -228,6 +361,7 @@ export class BuildSettingsDialog {
                 <div class="es-build-collapse-header">
                     ${isExpanded ? icons.chevronDown(12) : icons.chevronRight(12)}
                     <span>Script Defines</span>
+                    <span class="es-build-collapse-count">${config.defines.length}</span>
                 </div>
                 <div class="es-build-collapse-content">
                     <div class="es-build-define-list">
@@ -335,7 +469,7 @@ export class BuildSettingsDialog {
             <div class="es-build-collapse ${isExpanded ? 'es-expanded' : ''}" data-section="platform">
                 <div class="es-build-collapse-header">
                     ${isExpanded ? icons.chevronDown(12) : icons.chevronRight(12)}
-                    <span>${platformName}设置</span>
+                    <span>${platformName} Settings</span>
                 </div>
                 <div class="es-build-collapse-content">
                     ${settingsHtml}
@@ -354,6 +488,8 @@ export class BuildSettingsDialog {
     }
 
     private setupEvents(): void {
+        if (!this.overlay_) return;
+
         this.overlay_.addEventListener('click', (e) => {
             const target = e.target as HTMLElement;
 
@@ -411,15 +547,52 @@ export class BuildSettingsDialog {
             this.handleInputChange(target);
         });
 
+        this.overlay_.addEventListener('input', (e) => {
+            const target = e.target as HTMLInputElement;
+            if (target.id === 'config-name-input') {
+                const config = this.getActiveConfig();
+                if (config) {
+                    config.name = target.value;
+                    this.saveSettings();
+                }
+            }
+        });
+
         this.keyHandler_ = (e: KeyboardEvent) => {
             if (e.key === 'Escape') {
                 this.close();
+            }
+
+            if ((e.metaKey || e.ctrlKey) && e.key === 'b') {
+                e.preventDefault();
+                const config = this.getActiveConfig();
+                if (config) {
+                    this.handleBuild(config);
+                }
+            }
+
+            if ((e.metaKey || e.ctrlKey) && e.key === 'd') {
+                e.preventDefault();
+                const config = this.getActiveConfig();
+                if (config) {
+                    this.duplicateConfig(config);
+                }
+            }
+
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                const target = e.target as HTMLElement;
+                if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') {
+                    const config = this.getActiveConfig();
+                    if (config) {
+                        this.deleteConfig(config.id);
+                    }
+                }
             }
         };
         document.addEventListener('keydown', this.keyHandler_);
     }
 
-    private handleAction(action: string | undefined, element: HTMLElement): void {
+    private async handleAction(action: string | undefined, element: HTMLElement): Promise<void> {
         const config = this.getActiveConfig();
 
         switch (action) {
@@ -435,6 +608,12 @@ export class BuildSettingsDialog {
                 break;
             }
 
+            case 'duplicate-config':
+                if (config) {
+                    this.duplicateConfig(config);
+                }
+                break;
+
             case 'add-current-scene':
                 if (config) {
                     const editor = (window as any).__esengine_editor;
@@ -443,7 +622,7 @@ export class BuildSettingsDialog {
                         const relativePath = this.toRelativePath(scenePath);
                         if (!config.scenes.includes(relativePath)) {
                             config.scenes.push(relativePath);
-                            saveBuildSettings(this.settings_);
+                            await this.saveSettings();
                             this.render();
                         }
                     }
@@ -454,7 +633,7 @@ export class BuildSettingsDialog {
                 const index = parseInt(element.dataset.index ?? '-1', 10);
                 if (config && index >= 0) {
                     config.scenes.splice(index, 1);
-                    saveBuildSettings(this.settings_);
+                    await this.saveSettings();
                     this.render();
                 }
                 break;
@@ -465,7 +644,7 @@ export class BuildSettingsDialog {
                 const value = input?.value.trim();
                 if (config && value && !config.defines.includes(value)) {
                     config.defines.push(value);
-                    saveBuildSettings(this.settings_);
+                    await this.saveSettings();
                     this.render();
                 }
                 break;
@@ -475,7 +654,7 @@ export class BuildSettingsDialog {
                 const index = parseInt(element.dataset.index ?? '-1', 10);
                 if (config && index >= 0) {
                     config.defines.splice(index, 1);
-                    saveBuildSettings(this.settings_);
+                    await this.saveSettings();
                     this.render();
                 }
                 break;
@@ -487,16 +666,42 @@ export class BuildSettingsDialog {
                 }
                 break;
 
-            case 'switch-config':
-                // Cycle to next config of same platform
+            case 'build-all':
+                this.handleBuildAll();
+                break;
+
+            case 'import-configs':
+                this.handleImportConfigs();
+                break;
+
+            case 'export-configs':
+                downloadConfigsAsFile(this.settings_.configs);
+                break;
+
+            case 'show-templates':
+                this.showTemplatesDialog();
+                break;
+
+            case 'open-output': {
+                const path = element.dataset.path;
+                if (path) {
+                    this.openOutputFolder(path);
+                }
+                break;
+            }
+
+            case 'preview-output': {
+                const path = element.dataset.path;
+                if (path) {
+                    this.previewOutput(path);
+                }
+                break;
+            }
+
+            case 'clear-history':
                 if (config) {
-                    const platformConfigs = this.settings_.configs.filter(
-                        c => c.platform === config.platform
-                    );
-                    const idx = platformConfigs.findIndex(c => c.id === config.id);
-                    const nextIdx = (idx + 1) % platformConfigs.length;
-                    this.settings_.activeConfigId = platformConfigs[nextIdx].id;
-                    saveBuildSettings(this.settings_);
+                    this.history_.clearHistory(config.id);
+                    await this.history_.save();
                     this.render();
                 }
                 break;
@@ -507,6 +712,10 @@ export class BuildSettingsDialog {
 
             case 'browse-output':
                 this.browseFile('playable-output', 'HTML File', ['html']);
+                break;
+
+            case 'browse-sdk':
+                this.browseFile('wechat-sdk', 'SDK File', ['js', 'cjs']);
                 break;
         }
     }
@@ -535,7 +744,6 @@ export class BuildSettingsDialog {
 
         const id = target.id;
 
-        // Playable settings
         if (config.playableSettings) {
             if (id === 'playable-startup-scene') {
                 config.playableSettings.startupScene = target.value;
@@ -550,7 +758,6 @@ export class BuildSettingsDialog {
             }
         }
 
-        // WeChat settings
         if (config.wechatSettings) {
             if (id === 'wechat-appid') {
                 config.wechatSettings.appId = target.value;
@@ -567,7 +774,7 @@ export class BuildSettingsDialog {
             }
         }
 
-        saveBuildSettings(this.settings_);
+        this.saveSettings();
     }
 
     private showAddConfigDialog(): void {
@@ -603,7 +810,7 @@ export class BuildSettingsDialog {
         const close = () => dialog.remove();
 
         dialog.querySelector('[data-action="cancel"]')?.addEventListener('click', close);
-        dialog.querySelector('[data-action="confirm"]')?.addEventListener('click', () => {
+        dialog.querySelector('[data-action="confirm"]')?.addEventListener('click', async () => {
             const nameInput = dialog.querySelector('#config-name') as HTMLInputElement;
             const platformSelect = dialog.querySelector('#config-platform') as HTMLSelectElement;
             const name = nameInput.value.trim() || 'New Config';
@@ -612,11 +819,103 @@ export class BuildSettingsDialog {
             const newConfig = createDefaultBuildConfig(platform, name);
             this.settings_.configs.push(newConfig);
             this.settings_.activeConfigId = newConfig.id;
-            saveBuildSettings(this.settings_);
+            await this.saveSettings();
 
             close();
             this.render();
         });
+    }
+
+    private showTemplatesDialog(): void {
+        const dialog = document.createElement('div');
+        dialog.className = 'es-build-add-dialog';
+
+        const templatesHtml = BUILD_TEMPLATES.map(t => `
+            <div class="es-build-template-item" data-template="${t.id}">
+                <div class="es-build-template-header">
+                    <span class="es-build-template-name">${t.name}</span>
+                    <span class="es-build-template-platform">${t.platform}</span>
+                </div>
+                <div class="es-build-template-desc">${t.description}</div>
+            </div>
+        `).join('');
+
+        dialog.innerHTML = `
+            <div class="es-dialog" style="max-width: 400px;">
+                <div class="es-dialog-header">
+                    <span class="es-dialog-title">Build Templates</span>
+                    <button class="es-dialog-close" data-action="cancel">&times;</button>
+                </div>
+                <div class="es-dialog-body">
+                    <div class="es-build-templates-list">
+                        ${templatesHtml}
+                    </div>
+                </div>
+                <div class="es-dialog-footer">
+                    <button class="es-dialog-btn" data-action="cancel">Cancel</button>
+                </div>
+            </div>
+        `;
+
+        this.overlay_.appendChild(dialog);
+
+        const close = () => dialog.remove();
+
+        dialog.querySelector('[data-action="cancel"]')?.addEventListener('click', close);
+
+        dialog.querySelectorAll('.es-build-template-item').forEach(item => {
+            item.addEventListener('click', async () => {
+                const templateId = (item as HTMLElement).dataset.template;
+                const template = BUILD_TEMPLATES.find(t => t.id === templateId);
+                if (template) {
+                    const newConfig = createConfigFromTemplate(template);
+                    this.settings_.configs.push(newConfig);
+                    this.settings_.activeConfigId = newConfig.id;
+                    await this.saveSettings();
+                    close();
+                    this.render();
+                }
+            });
+        });
+    }
+
+    private async handleImportConfigs(): Promise<void> {
+        const result = await uploadConfigsFromFile();
+
+        if (result.success && result.configs.length > 0) {
+            for (const config of result.configs) {
+                this.settings_.configs.push(config);
+            }
+            await this.saveSettings();
+            this.render();
+
+            showToast({
+                type: 'success',
+                title: 'Import Successful',
+                message: `Imported ${result.configs.length} config(s)`,
+                duration: 3000,
+            });
+        } else if (result.errors.length > 0) {
+            showToast({
+                type: 'error',
+                title: 'Import Failed',
+                message: result.errors[0],
+                duration: 5000,
+            });
+        }
+    }
+
+    private duplicateConfig(config: BuildConfig): void {
+        const newConfig: BuildConfig = {
+            ...JSON.parse(JSON.stringify(config)),
+            id: `${config.platform}-${Date.now()}`,
+            name: `${config.name} (Copy)`,
+        };
+
+        this.settings_.configs.push(newConfig);
+        this.settings_.activeConfigId = newConfig.id;
+        this.saveSettings();
+        this.render();
     }
 
     private deleteConfig(configId: string): void {
@@ -626,25 +925,23 @@ export class BuildSettingsDialog {
             if (this.settings_.activeConfigId === configId) {
                 this.settings_.activeConfigId = this.settings_.configs[0]?.id ?? '';
             }
-            saveBuildSettings(this.settings_);
+            this.saveSettings();
             this.render();
         }
     }
 
     private async handleBuild(config: BuildConfig): Promise<void> {
         const buildBtn = this.overlay_.querySelector('[data-action="build"]') as HTMLButtonElement;
-        const switchBtn = this.overlay_.querySelector('[data-action="switch-config"]') as HTMLButtonElement;
+        const buildAllBtn = this.overlay_.querySelector('[data-action="build-all"]') as HTMLButtonElement;
 
-        // Disable buttons
         if (buildBtn) {
             buildBtn.disabled = true;
             buildBtn.innerHTML = `${icons.refresh(14)} Building...`;
         }
-        if (switchBtn) {
-            switchBtn.disabled = true;
+        if (buildAllBtn) {
+            buildAllBtn.disabled = true;
         }
 
-        // Show progress toast
         const platformName = this.getPlatformName(config.platform);
         const toastId = showProgressToast(
             `Building ${config.name}`,
@@ -657,7 +954,18 @@ export class BuildSettingsDialog {
             dismissToast(toastId);
 
             if (result.success && result.outputPath) {
-                // Show success toast with action to open folder
+                this.history_.addEntry({
+                    configId: config.id,
+                    configName: config.name,
+                    platform: config.platform,
+                    timestamp: Date.now(),
+                    duration: result.duration || 0,
+                    status: 'success',
+                    outputPath: result.outputPath,
+                    outputSize: result.outputSize,
+                });
+                await this.history_.save();
+
                 showToast({
                     type: 'success',
                     title: 'Build Completed',
@@ -676,6 +984,17 @@ export class BuildSettingsDialog {
                     ],
                 });
             } else if (!result.success) {
+                this.history_.addEntry({
+                    configId: config.id,
+                    configName: config.name,
+                    platform: config.platform,
+                    timestamp: Date.now(),
+                    duration: result.duration || 0,
+                    status: 'failed',
+                    error: result.error,
+                });
+                await this.history_.save();
+
                 showToast({
                     type: 'error',
                     title: 'Build Failed',
@@ -683,6 +1002,8 @@ export class BuildSettingsDialog {
                     duration: 5000,
                 });
             }
+
+            this.render();
         } catch (err) {
             dismissToast(toastId);
             showToast({
@@ -692,13 +1013,66 @@ export class BuildSettingsDialog {
                 duration: 5000,
             });
         } finally {
-            // Re-enable buttons
             if (buildBtn) {
                 buildBtn.disabled = false;
                 buildBtn.innerHTML = `${icons.play(14)} Build`;
             }
-            if (switchBtn) {
-                switchBtn.disabled = false;
+            if (buildAllBtn) {
+                buildAllBtn.disabled = false;
+            }
+        }
+    }
+
+    private async handleBuildAll(): Promise<void> {
+        const buildBtn = this.overlay_.querySelector('[data-action="build"]') as HTMLButtonElement;
+        const buildAllBtn = this.overlay_.querySelector('[data-action="build-all"]') as HTMLButtonElement;
+
+        if (buildBtn) buildBtn.disabled = true;
+        if (buildAllBtn) {
+            buildAllBtn.disabled = true;
+            buildAllBtn.textContent = 'Building...';
+        }
+
+        const toastId = showProgressToast(
+            'Building All Configs',
+            `0 / ${this.settings_.configs.length} completed`
+        );
+
+        try {
+            const result = await this.batchBuilder_.buildAll(this.settings_.configs);
+
+            dismissToast(toastId);
+
+            if (result.success) {
+                showToast({
+                    type: 'success',
+                    title: 'Build All Completed',
+                    message: `${result.successCount} succeeded, ${result.failureCount} failed`,
+                    duration: 5000,
+                });
+            } else {
+                showToast({
+                    type: 'error',
+                    title: 'Build All Completed with Errors',
+                    message: `${result.successCount} succeeded, ${result.failureCount} failed`,
+                    duration: 5000,
+                });
+            }
+
+            this.render();
+        } catch (err) {
+            dismissToast(toastId);
+            showToast({
+                type: 'error',
+                title: 'Build All Failed',
+                message: String(err),
+                duration: 5000,
+            });
+        } finally {
+            if (buildBtn) buildBtn.disabled = false;
+            if (buildAllBtn) {
+                buildAllBtn.disabled = false;
+                buildAllBtn.textContent = 'Build All';
             }
         }
     }
@@ -725,15 +1099,24 @@ export class BuildSettingsDialog {
 
     private async openOutputFolder(outputPath: string): Promise<void> {
         try {
-            // Get directory from output path
             const dirPath = outputPath.replace(/\\/g, '/').split('/').slice(0, -1).join('/');
-
             const fs = (window as any).__esengine_fs;
             if (fs?.openFolder) {
                 await fs.openFolder(dirPath);
             }
         } catch (err) {
             console.error('Failed to open folder:', err);
+        }
+    }
+
+    private async previewOutput(outputPath: string): Promise<void> {
+        try {
+            const fs = (window as any).__esengine_fs;
+            if (fs?.openFile) {
+                await fs.openFile(outputPath);
+            }
+        } catch (err) {
+            console.error('Failed to preview output:', err);
         }
     }
 
@@ -744,6 +1127,9 @@ export class BuildSettingsDialog {
     private overlay_!: HTMLElement;
     private options_!: BuildSettingsDialogOptions;
     private settings_!: BuildSettings;
+    private configService_!: BuildConfigService;
+    private history_!: BuildHistory;
+    private batchBuilder_!: BatchBuilder;
     private expandedSections_: Set<string> = new Set(['scenes', 'defines', 'platform']);
     private keyHandler_: ((e: KeyboardEvent) => void) | null = null;
 }
