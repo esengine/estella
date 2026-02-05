@@ -250,6 +250,20 @@ const Parent = defineBuiltin('Parent', {
 const Children = defineBuiltin('Children', {
     entities: []
 });
+const SpineAnimation = defineBuiltin('SpineAnimation', {
+    skeletonPath: '',
+    atlasPath: '',
+    skin: '',
+    animation: '',
+    timeScale: 1.0,
+    loop: true,
+    playing: true,
+    flipX: false,
+    flipY: false,
+    color: { x: 1, y: 1, z: 1, w: 1 },
+    layer: 0,
+    skeletonScale: 1.0
+});
 
 /**
  * @file    resource.ts
@@ -1109,6 +1123,19 @@ class TextRenderer {
 }
 
 /**
+ * @file    UIRect.ts
+ * @brief   UIRect component for UI layout with anchor and pivot
+ */
+// =============================================================================
+// UIRect Component Definition
+// =============================================================================
+const UIRect = defineComponent('UIRect', {
+    size: { x: 100, y: 100 },
+    anchor: { x: 0.5, y: 0.5 },
+    pivot: { x: 0.5, y: 0.5 },
+});
+
+/**
  * @file    TextPlugin.ts
  * @brief   Plugin that automatically syncs Text components to Sprite textures
  */
@@ -1139,7 +1166,10 @@ class TextPlugin {
                         flip: { x: false, y: false }
                     });
                 }
-                const result = renderer.renderForEntity(entity, text);
+                const uiRect = world.has(entity, UIRect)
+                    ? world.get(entity, UIRect)
+                    : null;
+                const result = renderer.renderForEntity(entity, text, uiRect);
                 const sprite = world.get(entity, Sprite);
                 sprite.texture = result.textureHandle;
                 sprite.size = { x: result.width, y: result.height };
@@ -1314,19 +1344,6 @@ function createWebApp(module, options) {
 }
 
 /**
- * @file    UIRect.ts
- * @brief   UIRect component for UI layout with anchor and pivot
- */
-// =============================================================================
-// UIRect Component Definition
-// =============================================================================
-const UIRect = defineComponent('UIRect', {
-    size: { x: 100, y: 100 },
-    anchor: { x: 0.5, y: 0.5 },
-    pivot: { x: 0.5, y: 0.5 },
-});
-
-/**
  * @file    AssetServer.ts
  * @brief   Asset loading and caching system
  */
@@ -1337,6 +1354,8 @@ class AssetServer {
     constructor(module) {
         this.cache_ = new Map();
         this.pending_ = new Map();
+        this.loadedSpines_ = new Map();
+        this.virtualFSPaths_ = new Set();
         this.module_ = module;
         if (typeof OffscreenCanvas !== 'undefined') {
             this.canvas_ = new OffscreenCanvas(512, 512);
@@ -1352,38 +1371,35 @@ class AssetServer {
     // =========================================================================
     // Public API
     // =========================================================================
+    /**
+     * Load texture with vertical flip (for Sprite/UI).
+     * OpenGL UV origin is bottom-left, so standard images need flipping.
+     */
     async loadTexture(source) {
-        const cached = this.cache_.get(source);
-        if (cached) {
-            return cached;
-        }
-        const pending = this.pending_.get(source);
-        if (pending) {
-            return pending;
-        }
-        const promise = this.loadTextureInternal(source);
-        this.pending_.set(source, promise);
-        try {
-            const result = await promise;
-            this.cache_.set(source, result);
-            return result;
-        }
-        finally {
-            this.pending_.delete(source);
-        }
+        return this.loadTextureWithFlip(source, true);
+    }
+    /**
+     * Load texture without flip (for Spine).
+     * Spine runtime handles UV coordinates internally.
+     */
+    async loadTextureRaw(source) {
+        return this.loadTextureWithFlip(source, false);
     }
     getTexture(source) {
-        return this.cache_.get(source);
+        return this.cache_.get(this.getCacheKey(source, true));
     }
     hasTexture(source) {
-        return this.cache_.has(source);
+        return this.cache_.has(this.getCacheKey(source, true));
     }
     releaseTexture(source) {
-        const info = this.cache_.get(source);
-        if (info) {
-            const rm = this.module_.getResourceManager();
-            rm.releaseTexture(info.handle);
-            this.cache_.delete(source);
+        const rm = this.module_.getResourceManager();
+        for (const flip of [true, false]) {
+            const key = this.getCacheKey(source, flip);
+            const info = this.cache_.get(key);
+            if (info) {
+                rm.releaseTexture(info.handle);
+                this.cache_.delete(key);
+            }
         }
     }
     releaseAll() {
@@ -1398,19 +1414,100 @@ class AssetServer {
         rm.setTextureMetadata(handle, border.left, border.right, border.top, border.bottom);
     }
     setTextureMetadataByPath(source, border) {
-        const info = this.cache_.get(source);
+        const info = this.cache_.get(this.getCacheKey(source, true));
         if (info) {
             this.setTextureMetadata(info.handle, border);
             return true;
         }
         return false;
     }
+    async loadSpine(skeletonPath, atlasPath, baseUrl) {
+        const cacheKey = `${skeletonPath}:${atlasPath}`;
+        if (this.loadedSpines_.get(cacheKey)) {
+            return { success: true };
+        }
+        const resolveUrl = (path) => {
+            if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('/')) {
+                return path;
+            }
+            return baseUrl ? `${baseUrl}/${path}` : `/${path}`;
+        };
+        try {
+            const atlasUrl = resolveUrl(atlasPath);
+            const atlasResponse = await fetch(atlasUrl);
+            if (!atlasResponse.ok) {
+                return { success: false, error: `Failed to fetch atlas: ${atlasUrl}` };
+            }
+            const atlasContent = await atlasResponse.text();
+            if (!this.writeToVirtualFS(atlasPath, atlasContent)) {
+                return { success: false, error: `Failed to write atlas to virtual FS: ${atlasPath}` };
+            }
+            const atlasDir = atlasPath.substring(0, atlasPath.lastIndexOf('/'));
+            const textureNames = this.parseAtlasTextures(atlasContent);
+            for (const texName of textureNames) {
+                const texPath = atlasDir ? `${atlasDir}/${texName}` : texName;
+                const texUrl = resolveUrl(texPath);
+                try {
+                    const info = await this.loadTextureRaw(texUrl);
+                    const rm = this.module_.getResourceManager();
+                    rm.registerTextureWithPath(info.handle, texPath);
+                }
+                catch (err) {
+                    console.warn(`[AssetServer] Failed to load Spine texture: ${texPath}`, err);
+                }
+            }
+            const skelUrl = resolveUrl(skeletonPath);
+            const skelResponse = await fetch(skelUrl);
+            if (!skelResponse.ok) {
+                return { success: false, error: `Failed to fetch skeleton: ${skelUrl}` };
+            }
+            const isBinary = skeletonPath.endsWith('.skel');
+            const skelData = isBinary
+                ? new Uint8Array(await skelResponse.arrayBuffer())
+                : await skelResponse.text();
+            if (!this.writeToVirtualFS(skeletonPath, skelData)) {
+                return { success: false, error: `Failed to write skeleton to virtual FS: ${skeletonPath}` };
+            }
+            this.loadedSpines_.set(cacheKey, true);
+            return { success: true };
+        }
+        catch (err) {
+            return { success: false, error: String(err) };
+        }
+    }
+    isSpineLoaded(skeletonPath, atlasPath) {
+        return this.loadedSpines_.get(`${skeletonPath}:${atlasPath}`) ?? false;
+    }
     // =========================================================================
     // Private Methods
     // =========================================================================
-    async loadTextureInternal(source) {
+    getCacheKey(source, flip) {
+        return `${source}:${flip ? 'f' : 'n'}`;
+    }
+    async loadTextureWithFlip(source, flip) {
+        const cacheKey = this.getCacheKey(source, flip);
+        const cached = this.cache_.get(cacheKey);
+        if (cached) {
+            return cached;
+        }
+        const pending = this.pending_.get(cacheKey);
+        if (pending) {
+            return pending;
+        }
+        const promise = this.loadTextureInternal(source, flip);
+        this.pending_.set(cacheKey, promise);
+        try {
+            const result = await promise;
+            this.cache_.set(cacheKey, result);
+            return result;
+        }
+        finally {
+            this.pending_.delete(cacheKey);
+        }
+    }
+    async loadTextureInternal(source, flip) {
         const img = await this.loadImage(source);
-        return this.createTextureFromImage(img);
+        return this.createTextureFromImage(img, flip);
     }
     async loadImage(source) {
         return new Promise((resolve, reject) => {
@@ -1436,24 +1533,27 @@ class AssetServer {
             img.src = source;
         });
     }
-    createTextureFromImage(img) {
+    createTextureFromImage(img, flip) {
         const { width, height } = img;
         if (this.canvas_.width < width || this.canvas_.height < height) {
             this.canvas_.width = Math.max(this.canvas_.width, this.nextPowerOf2(width));
             this.canvas_.height = Math.max(this.canvas_.height, this.nextPowerOf2(height));
         }
         this.ctx_.clearRect(0, 0, this.canvas_.width, this.canvas_.height);
-        this.ctx_.globalCompositeOperation = 'copy';
+        this.ctx_.save();
+        if (flip) {
+            this.ctx_.translate(0, height);
+            this.ctx_.scale(1, -1);
+        }
         this.ctx_.drawImage(img, 0, 0);
-        this.ctx_.globalCompositeOperation = 'source-over';
+        this.ctx_.restore();
         const imageData = this.ctx_.getImageData(0, 0, width, height);
         const pixels = new Uint8Array(imageData.data.buffer);
         this.unpremultiplyAlpha(pixels);
-        const flipped = this.flipVertically(pixels, width, height);
         const rm = this.module_.getResourceManager();
-        const ptr = this.module_._malloc(flipped.length);
-        this.module_.HEAPU8.set(flipped, ptr);
-        const handle = rm.createTexture(width, height, ptr, flipped.length, 1);
+        const ptr = this.module_._malloc(pixels.length);
+        this.module_.HEAPU8.set(pixels, ptr);
+        const handle = rm.createTexture(width, height, ptr, pixels.length, 1);
         this.module_._free(ptr);
         return { handle, width, height };
     }
@@ -1468,21 +1568,69 @@ class AssetServer {
             }
         }
     }
-    flipVertically(pixels, width, height) {
-        const rowSize = width * 4;
-        const flipped = new Uint8Array(pixels.length);
-        for (let y = 0; y < height; y++) {
-            const srcOffset = y * rowSize;
-            const dstOffset = (height - 1 - y) * rowSize;
-            flipped.set(pixels.subarray(srcOffset, srcOffset + rowSize), dstOffset);
-        }
-        return flipped;
-    }
     nextPowerOf2(n) {
         let p = 1;
         while (p < n)
             p *= 2;
         return p;
+    }
+    writeToVirtualFS(virtualPath, data) {
+        if (this.virtualFSPaths_.has(virtualPath)) {
+            return true;
+        }
+        const fs = this.module_.FS;
+        if (!fs) {
+            return false;
+        }
+        try {
+            this.ensureVirtualDir(virtualPath);
+            fs.writeFile(virtualPath, data);
+            this.virtualFSPaths_.add(virtualPath);
+            return true;
+        }
+        catch (e) {
+            console.error(`[AssetServer] Failed to write to virtual FS: ${virtualPath}`, e);
+            return false;
+        }
+    }
+    ensureVirtualDir(virtualPath) {
+        const fs = this.module_.FS;
+        if (!fs)
+            return;
+        const dir = virtualPath.substring(0, virtualPath.lastIndexOf('/'));
+        if (!dir)
+            return;
+        const parts = dir.split('/').filter(p => p);
+        let currentPath = '';
+        for (const part of parts) {
+            currentPath = currentPath ? `${currentPath}/${part}` : part;
+            try {
+                const analysis = fs.analyzePath(currentPath);
+                if (!analysis.exists) {
+                    fs.mkdir(currentPath);
+                }
+            }
+            catch {
+                try {
+                    fs.mkdir(currentPath);
+                }
+                catch {
+                    // Directory might already exist
+                }
+            }
+        }
+    }
+    parseAtlasTextures(atlasContent) {
+        const textures = [];
+        const lines = atlasContent.split('\n');
+        for (const line of lines) {
+            const trimmed = line.trim();
+            if (trimmed && !trimmed.includes(':') &&
+                (trimmed.endsWith('.png') || trimmed.endsWith('.jpg'))) {
+                textures.push(trimmed);
+            }
+        }
+        return textures;
     }
 }
 
@@ -1564,6 +1712,17 @@ async function loadSceneWithAssets(world, sceneData, options) {
                     }
                 }
             }
+            if (compData.type === 'SpineAnimation' && assetServer) {
+                const data = compData.data;
+                const skeletonPath = data.skeletonPath;
+                const atlasPath = data.atlasPath;
+                if (skeletonPath && atlasPath) {
+                    const result = await assetServer.loadSpine(skeletonPath, atlasPath, options?.assetBaseUrl);
+                    if (!result.success) {
+                        console.warn(`Failed to load Spine: ${result.error}`);
+                    }
+                }
+            }
             loadComponent(world, entity, compData);
         }
     }
@@ -1603,6 +1762,9 @@ function loadComponent(world, entity, compData) {
             break;
         case 'Text':
             world.insert(entity, Text, data);
+            break;
+        case 'SpineAnimation':
+            world.insert(entity, SpineAnimation, data);
             break;
         default:
             console.warn(`Unknown component type: ${compData.type}`);
@@ -1704,10 +1866,313 @@ class PreviewPlugin {
 }
 
 /**
+ * @file    spine.ts
+ * @brief   Spine animation control API
+ */
+// =============================================================================
+// SpineController
+// =============================================================================
+/**
+ * Controller for Spine skeletal animations
+ *
+ * @example
+ * ```typescript
+ * const spine = new SpineController(wasmModule);
+ *
+ * // Play animation
+ * spine.play(entity, 'run', true);
+ *
+ * // Queue next animation
+ * spine.addAnimation(entity, 'idle', true, 0.2);
+ *
+ * // Change skin
+ * spine.setSkin(entity, 'warrior');
+ *
+ * // Get bone position for effects
+ * const pos = spine.getBonePosition(entity, 'weapon');
+ * if (pos) {
+ *     spawnEffect(pos.x, pos.y);
+ * }
+ *
+ * // Listen for events
+ * spine.on(entity, 'event', (e) => {
+ *     if (e.eventName === 'footstep') {
+ *         playSound('footstep');
+ *     }
+ * });
+ * ```
+ */
+class SpineController {
+    constructor(wasmModule) {
+        this.module_ = wasmModule;
+        this.listeners_ = new Map();
+        this.setupEventBridge();
+    }
+    // =========================================================================
+    // Animation Control
+    // =========================================================================
+    /**
+     * Plays an animation, replacing any current animation on the track
+     * @param entity Target entity
+     * @param animation Animation name
+     * @param loop Whether to loop the animation
+     * @param track Animation track (default 0)
+     * @returns True if animation was set
+     */
+    play(entity, animation, loop = true, track = 0) {
+        if (!this.module_.spinePlayAnimation)
+            return false;
+        return this.module_.spinePlayAnimation(entity, animation, loop, track);
+    }
+    /**
+     * Adds an animation to the queue
+     * @param entity Target entity
+     * @param animation Animation name
+     * @param loop Whether to loop
+     * @param delay Delay before starting (seconds)
+     * @param track Animation track (default 0)
+     * @returns True if animation was queued
+     */
+    addAnimation(entity, animation, loop = true, delay = 0, track = 0) {
+        if (!this.module_.spineAddAnimation)
+            return false;
+        return this.module_.spineAddAnimation(entity, animation, loop, delay, track);
+    }
+    /**
+     * Sets an empty animation to mix out the current animation
+     * @param entity Target entity
+     * @param mixDuration Duration of the mix out
+     * @param track Animation track (default 0)
+     */
+    setEmptyAnimation(entity, mixDuration = 0.2, track = 0) {
+        if (!this.module_.spineSetEmptyAnimation)
+            return;
+        this.module_.spineSetEmptyAnimation(entity, mixDuration, track);
+    }
+    /**
+     * Clears all animations on a track
+     * @param entity Target entity
+     * @param track Animation track (default 0)
+     */
+    clearTrack(entity, track = 0) {
+        if (!this.module_.spineClearTrack)
+            return;
+        this.module_.spineClearTrack(entity, track);
+    }
+    /**
+     * Clears all tracks
+     * @param entity Target entity
+     */
+    clearTracks(entity) {
+        if (!this.module_.spineClearTracks)
+            return;
+        this.module_.spineClearTracks(entity);
+    }
+    // =========================================================================
+    // Skin Control
+    // =========================================================================
+    /**
+     * Sets the current skin
+     * @param entity Target entity
+     * @param skinName Skin name
+     * @returns True if skin was set
+     */
+    setSkin(entity, skinName) {
+        if (!this.module_.spineSetSkin)
+            return false;
+        return this.module_.spineSetSkin(entity, skinName);
+    }
+    /**
+     * Gets available skin names
+     * @param entity Target entity
+     * @returns Array of skin names
+     */
+    getSkins(entity) {
+        if (!this.module_.spineGetSkins)
+            return [];
+        return this.module_.spineGetSkins(entity) || [];
+    }
+    // =========================================================================
+    // Queries
+    // =========================================================================
+    /**
+     * Gets available animation names
+     * @param entity Target entity
+     * @returns Array of animation names
+     */
+    getAnimations(entity) {
+        if (!this.module_.spineGetAnimations)
+            return [];
+        return this.module_.spineGetAnimations(entity) || [];
+    }
+    /**
+     * Gets the current animation on a track
+     * @param entity Target entity
+     * @param track Animation track (default 0)
+     * @returns Animation name or null
+     */
+    getCurrentAnimation(entity, track = 0) {
+        if (!this.module_.spineGetCurrentAnimation)
+            return null;
+        return this.module_.spineGetCurrentAnimation(entity, track);
+    }
+    /**
+     * Gets the duration of an animation
+     * @param entity Target entity
+     * @param animation Animation name
+     * @returns Duration in seconds, or 0 if not found
+     */
+    getAnimationDuration(entity, animation) {
+        if (!this.module_.spineGetAnimationDuration)
+            return 0;
+        return this.module_.spineGetAnimationDuration(entity, animation);
+    }
+    /**
+     * Gets detailed track entry info
+     * @param entity Target entity
+     * @param track Animation track (default 0)
+     * @returns Track entry info or null
+     */
+    getTrackEntry(entity, track = 0) {
+        if (!this.module_.spineGetTrackEntry)
+            return null;
+        return this.module_.spineGetTrackEntry(entity, track);
+    }
+    // =========================================================================
+    // Bone/Slot Access
+    // =========================================================================
+    /**
+     * Gets world position of a bone
+     * @param entity Target entity
+     * @param boneName Bone name
+     * @returns Position or null if not found
+     */
+    getBonePosition(entity, boneName) {
+        if (!this.module_.spineGetBonePosition)
+            return null;
+        const result = this.module_.spineGetBonePosition(entity, boneName);
+        if (!result)
+            return null;
+        return { x: result.x, y: result.y };
+    }
+    /**
+     * Gets world rotation of a bone in degrees
+     * @param entity Target entity
+     * @param boneName Bone name
+     * @returns Rotation in degrees or null
+     */
+    getBoneRotation(entity, boneName) {
+        if (!this.module_.spineGetBoneRotation)
+            return null;
+        return this.module_.spineGetBoneRotation(entity, boneName);
+    }
+    /**
+     * Sets the attachment for a slot
+     * @param entity Target entity
+     * @param slotName Slot name
+     * @param attachmentName Attachment name (null to clear)
+     */
+    setAttachment(entity, slotName, attachmentName) {
+        if (!this.module_.spineSetAttachment)
+            return;
+        this.module_.spineSetAttachment(entity, slotName, attachmentName || '');
+    }
+    // =========================================================================
+    // Events
+    // =========================================================================
+    /**
+     * Registers an event callback
+     * @param entity Target entity
+     * @param type Event type
+     * @param callback Callback function
+     */
+    on(entity, type, callback) {
+        if (!this.listeners_.has(entity)) {
+            this.listeners_.set(entity, new Map());
+        }
+        const entityListeners = this.listeners_.get(entity);
+        if (!entityListeners.has(type)) {
+            entityListeners.set(type, new Set());
+        }
+        entityListeners.get(type).add(callback);
+    }
+    /**
+     * Unregisters an event callback
+     * @param entity Target entity
+     * @param type Event type
+     * @param callback Callback function
+     */
+    off(entity, type, callback) {
+        const entityListeners = this.listeners_.get(entity);
+        if (!entityListeners)
+            return;
+        const typeListeners = entityListeners.get(type);
+        if (!typeListeners)
+            return;
+        typeListeners.delete(callback);
+    }
+    /**
+     * Removes all event listeners for an entity
+     * @param entity Target entity
+     */
+    removeAllListeners(entity) {
+        this.listeners_.delete(entity);
+    }
+    // =========================================================================
+    // Private
+    // =========================================================================
+    setupEventBridge() {
+        if (typeof window !== 'undefined') {
+            window.__esengine_spineEvent = (entity, eventData) => {
+                this.dispatchEvent(entity, eventData);
+            };
+        }
+    }
+    dispatchEvent(entity, eventData) {
+        const entityListeners = this.listeners_.get(entity);
+        if (!entityListeners)
+            return;
+        const event = {
+            type: eventData.type,
+            entity,
+            track: eventData.track ?? 0,
+            animation: eventData.animation ?? null,
+            eventName: eventData.eventName,
+            intValue: eventData.intValue,
+            floatValue: eventData.floatValue,
+            stringValue: eventData.stringValue,
+        };
+        const typeListeners = entityListeners.get(event.type);
+        if (typeListeners) {
+            typeListeners.forEach(callback => {
+                try {
+                    callback(event);
+                }
+                catch (e) {
+                    console.error('Error in Spine event callback:', e);
+                }
+            });
+        }
+    }
+}
+// =============================================================================
+// Factory Function
+// =============================================================================
+/**
+ * Creates a SpineController instance
+ * @param wasmModule The ESEngine WASM module
+ * @returns SpineController instance
+ */
+function createSpineController(wasmModule) {
+    return new SpineController(wasmModule);
+}
+
+/**
  * @file    index.ts
  * @brief   ESEngine SDK - Web entry point (auto-initializes Web platform)
  */
 // Initialize Web platform
 setPlatform(webAdapter);
 
-export { App, AssetPlugin, AssetServer, Assets, Camera, Canvas, Children, Commands, CommandsInstance, EntityCommands, INVALID_ENTITY, INVALID_TEXTURE, Input, LocalTransform, Mut, Parent, PreviewPlugin, Query, QueryInstance, Res, ResMut, Schedule, Sprite, SystemRunner, Text, TextAlign, TextOverflow, TextPlugin, TextRenderer, TextVerticalAlign, Time, UIRect, Velocity, World, WorldTransform, assetPlugin, color, createWebApp, defineComponent, defineResource, defineSystem, defineTag, getPlatform, getPlatformType, isBuiltinComponent, isPlatformInitialized, isWeChat, isWeb, loadSceneData, loadSceneWithAssets, platformFetch, platformFileExists, platformInstantiateWasm, platformReadFile, platformReadTextFile, quat, textPlugin, updateCameraAspectRatio, vec2, vec3, vec4 };
+export { App, AssetPlugin, AssetServer, Assets, Camera, Canvas, Children, Commands, CommandsInstance, EntityCommands, INVALID_ENTITY, INVALID_TEXTURE, Input, LocalTransform, Mut, Parent, PreviewPlugin, Query, QueryInstance, Res, ResMut, Schedule, SpineAnimation, SpineController, Sprite, SystemRunner, Text, TextAlign, TextOverflow, TextPlugin, TextRenderer, TextVerticalAlign, Time, UIRect, Velocity, World, WorldTransform, assetPlugin, color, createSpineController, createWebApp, defineComponent, defineResource, defineSystem, defineTag, getPlatform, getPlatformType, isBuiltinComponent, isPlatformInitialized, isWeChat, isWeb, loadSceneData, loadSceneWithAssets, platformFetch, platformFileExists, platformInstantiateWasm, platformReadFile, platformReadTextFile, quat, textPlugin, updateCameraAspectRatio, vec2, vec3, vec4 };
+//# sourceMappingURL=index.js.map
