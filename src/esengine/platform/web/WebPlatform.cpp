@@ -38,47 +38,60 @@ public:
         running_ = true;
 
 #ifdef ES_PLATFORM_WEB
-        // Create WebGL context
-        EmscriptenWebGLContextAttributes attrs;
-        emscripten_webgl_init_context_attributes(&attrs);
-        attrs.majorVersion = 2;
-        attrs.minorVersion = 0;
-        attrs.alpha = false;
-        attrs.depth = true;
-        attrs.stencil = false;
-        attrs.antialias = true;
-        attrs.premultipliedAlpha = true;
-        attrs.preserveDrawingBuffer = false;
+        context_ = EM_ASM_INT({
+            var canvas = Module.canvas;
+            if (!canvas) {
+                console.error('[ESEngine] Module.canvas not set');
+                return 0;
+            }
+            var ctx = canvas.getContext('webgl2', {
+                alpha: false,
+                depth: true,
+                stencil: false,
+                antialias: true,
+                premultipliedAlpha: true,
+                preserveDrawingBuffer: false
+            });
+            if (!ctx) {
+                ctx = canvas.getContext('webgl', {
+                    alpha: false,
+                    depth: true,
+                    stencil: false,
+                    antialias: true,
+                    premultipliedAlpha: true,
+                    preserveDrawingBuffer: false
+                });
+            }
+            if (!ctx) {
+                console.error('[ESEngine] Failed to create WebGL context');
+                return 0;
+            }
+            var handle = GL.registerContext(ctx, {
+                majorVersion: ctx.getParameter(0x1F02).indexOf('WebGL 2') === 0 ? 2 : 1,
+                minorVersion: 0,
+                enableExtensionsByDefault: true
+            });
+            return handle;
+        });
 
-        // Create WebGL context for canvas with id="canvas"
-        context_ = emscripten_webgl_create_context("#canvas", &attrs);
         ES_LOG_INFO("WebGL context creation result: {}", context_);
         if (context_ <= 0) {
-            ES_LOG_ERROR("Failed to create WebGL context, error: {}", context_);
+            ES_LOG_ERROR("Failed to create WebGL context");
             return false;
         }
 
         EMSCRIPTEN_RESULT res = emscripten_webgl_make_context_current(context_);
-        ES_LOG_INFO("Make context current result: {}", res);
         if (res != EMSCRIPTEN_RESULT_SUCCESS) {
             ES_LOG_ERROR("Failed to make WebGL context current, error: {}", res);
             return false;
         }
 
-        // Set canvas size
-        emscripten_set_canvas_element_size("#canvas", width, height);
+        devicePixelRatio_ = EM_ASM_DOUBLE({
+            return Module.canvas ? (window.devicePixelRatio || 1) : 1;
+        });
 
-        // Get device pixel ratio
-        devicePixelRatio_ = static_cast<f32>(emscripten_get_device_pixel_ratio());
-
-        // Get actual canvas size
-        f64 cssWidth, cssHeight;
-        emscripten_get_element_css_size("#canvas", &cssWidth, &cssHeight);
-        width_ = static_cast<u32>(cssWidth * devicePixelRatio_);
-        height_ = static_cast<u32>(cssHeight * devicePixelRatio_);
-
-        // Register event callbacks
-        setupEventCallbacks();
+        width_ = width;
+        height_ = height;
 
         ES_LOG_INFO("WebPlatform initialized ({}x{}, DPR: {})", width_, height_, devicePixelRatio_);
 #endif
@@ -169,15 +182,15 @@ private:
         instance_ = this;
 
         // Touch events
-        emscripten_set_touchstart_callback("#canvas", this, true, touchCallback);
-        emscripten_set_touchmove_callback("#canvas", this, true, touchCallback);
-        emscripten_set_touchend_callback("#canvas", this, true, touchCallback);
-        emscripten_set_touchcancel_callback("#canvas", this, true, touchCallback);
+        emscripten_set_touchstart_callback("", this, true, touchCallback);
+        emscripten_set_touchmove_callback("", this, true, touchCallback);
+        emscripten_set_touchend_callback("", this, true, touchCallback);
+        emscripten_set_touchcancel_callback("", this, true, touchCallback);
 
         // Mouse events (simulate touch)
-        emscripten_set_mousedown_callback("#canvas", this, true, mouseCallback);
-        emscripten_set_mousemove_callback("#canvas", this, true, mouseCallback);
-        emscripten_set_mouseup_callback("#canvas", this, true, mouseCallback);
+        emscripten_set_mousedown_callback("", this, true, mouseCallback);
+        emscripten_set_mousemove_callback("", this, true, mouseCallback);
+        emscripten_set_mouseup_callback("", this, true, mouseCallback);
 
         // Keyboard events
         emscripten_set_keydown_callback(EMSCRIPTEN_EVENT_TARGET_DOCUMENT, this, true, keyCallback);
@@ -263,12 +276,12 @@ private:
         auto* platform = static_cast<WebPlatform*>(userData);
 
         f64 cssWidth, cssHeight;
-        emscripten_get_element_css_size("#canvas", &cssWidth, &cssHeight);
+        emscripten_get_element_css_size("", &cssWidth, &cssHeight);
 
         platform->width_ = static_cast<u32>(cssWidth * platform->devicePixelRatio_);
         platform->height_ = static_cast<u32>(cssHeight * platform->devicePixelRatio_);
 
-        emscripten_set_canvas_element_size("#canvas", platform->width_, platform->height_);
+        emscripten_set_canvas_element_size("", platform->width_, platform->height_);
 
         if (platform->resizeCallback_) {
             platform->resizeCallback_(platform->width_, platform->height_);

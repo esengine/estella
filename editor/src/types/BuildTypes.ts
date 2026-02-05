@@ -32,12 +32,22 @@ export interface PlayableSettings {
     outputPath: string;
 }
 
+export interface WeChatSubpackage {
+    name: string;
+    root: string;
+    independent?: boolean;
+}
+
 export interface WeChatSettings {
     appId: string;
     version: string;
     bundleMode: 'subpackage' | 'single' | 'singleFile';
     outputDir: string;
     sdkPath: string;
+    orientation?: 'portrait' | 'landscape';
+    subpackages?: WeChatSubpackage[];
+    workers?: string;
+    openDataContext?: string;
 }
 
 // =============================================================================
@@ -81,6 +91,7 @@ export function createDefaultWeChatSettings(): WeChatSettings {
         bundleMode: 'subpackage',
         outputDir: 'build/wechat',
         sdkPath: '',
+        orientation: 'portrait',
     };
 }
 
@@ -151,6 +162,7 @@ export function createDefaultBuildSettings(): BuildSettings {
                     bundleMode: 'subpackage',
                     outputDir: 'build/wechat-dev',
                     sdkPath: '',
+                    orientation: 'portrait',
                 },
             },
             {
@@ -165,6 +177,7 @@ export function createDefaultBuildSettings(): BuildSettings {
                     bundleMode: 'subpackage',
                     outputDir: 'build/wechat',
                     sdkPath: '',
+                    orientation: 'portrait',
                 },
             },
         ],

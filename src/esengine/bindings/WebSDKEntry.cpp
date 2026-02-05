@@ -93,6 +93,41 @@ bool initRendererWithCanvas(const std::string& canvasSelector) {
     return initRendererInternal(canvasSelector.c_str());
 }
 
+// Initialize renderer with an externally created WebGL context (for WeChat MiniGame)
+bool initRendererWithContext(int contextHandle) {
+    if (g_initialized) return true;
+    if (contextHandle <= 0) {
+        ES_LOG_ERROR("Invalid WebGL context handle: {}", contextHandle);
+        return false;
+    }
+
+    g_webglContext = contextHandle;
+
+    EMSCRIPTEN_RESULT result = emscripten_webgl_make_context_current(g_webglContext);
+    if (result != EMSCRIPTEN_RESULT_SUCCESS) {
+        ES_LOG_ERROR("Failed to make WebGL context current: {}", result);
+        return false;
+    }
+
+    ES_LOG_INFO("WebGL context set from external handle: {}", contextHandle);
+
+    g_resourceManager = makeUnique<resource::ResourceManager>();
+    g_resourceManager->init();
+
+    g_renderContext = makeUnique<RenderContext>();
+    g_renderContext->init();
+
+    g_renderPipeline = makeUnique<RenderPipeline>(*g_renderContext, *g_resourceManager);
+    g_transformSystem = makeUnique<ecs::TransformSystem>();
+
+    g_initialized = true;
+
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    return true;
+}
+
 void shutdownRenderer() {
     if (!g_initialized) return;
 
@@ -224,6 +259,7 @@ void renderFrameWithMatrix(ecs::Registry& registry, i32 viewportWidth, i32 viewp
 EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("initRenderer", &esengine::initRenderer);
     emscripten::function("initRendererWithCanvas", &esengine::initRendererWithCanvas);
+    emscripten::function("initRendererWithContext", &esengine::initRendererWithContext);
     emscripten::function("shutdownRenderer", &esengine::shutdownRenderer);
     emscripten::function("renderFrame", &esengine::renderFrame);
     emscripten::function("renderFrameWithMatrix", &esengine::renderFrameWithMatrix);

@@ -16,6 +16,7 @@ import {
     copyFile,
 } from '@tauri-apps/plugin-fs';
 import { invoke } from '@tauri-apps/api/core';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { resourceDir } from '@tauri-apps/api/path';
 
 export interface DirectoryEntry {
@@ -59,6 +60,12 @@ export interface NativeFS {
     ): Promise<UnwatchFn>;
     openFolder(path: string): Promise<boolean>;
     getResourcePath(): Promise<string>;
+    getEngineJs(): Promise<string>;
+    getEngineWasm(): Promise<Uint8Array>;
+    getEngineSingleJs(): Promise<string>;
+    getEngineWxgameJs(): Promise<string>;
+    getEngineWxgameWasm(): Promise<Uint8Array>;
+    getSdkWechatJs(): Promise<string>;
 }
 
 export function injectNativeFS(): void {
@@ -251,11 +258,73 @@ export function injectNativeFS(): void {
             try {
                 return await resourceDir();
             } catch {
-                // Fallback for development mode
                 return '';
             }
+        },
+
+        async getEngineJs() {
+            const data = await invoke<number[]>('get_engine_js');
+            return new TextDecoder().decode(new Uint8Array(data));
+        },
+
+        async getEngineWasm() {
+            const data = await invoke<number[]>('get_engine_wasm');
+            return new Uint8Array(data);
+        },
+
+        async getEngineSingleJs() {
+            const data = await invoke<number[]>('get_engine_single_js');
+            return new TextDecoder().decode(new Uint8Array(data));
+        },
+
+        async getEngineWxgameJs() {
+            const data = await invoke<number[]>('get_engine_wxgame_js');
+            return new TextDecoder().decode(new Uint8Array(data));
+        },
+
+        async getEngineWxgameWasm() {
+            const data = await invoke<number[]>('get_engine_wxgame_wasm');
+            return new Uint8Array(data);
+        },
+
+        async getSdkWechatJs() {
+            const data = await invoke<number[]>('get_sdk_wechat_js');
+            return new TextDecoder().decode(new Uint8Array(data));
         },
     };
 
     (window as any).__esengine_fs = nativeFS;
+
+    const nativeShell = {
+        async execute(
+            cmd: string,
+            args: string[],
+            cwd: string,
+            onOutput?: (stream: 'stdout' | 'stderr', data: string) => void
+        ): Promise<{ code: number }> {
+            let unlisten: UnlistenFn | null = null;
+
+            try {
+                if (onOutput) {
+                    unlisten = await listen<{ stream: string; data: string }>(
+                        'command-output',
+                        (event) => {
+                            onOutput(event.payload.stream as 'stdout' | 'stderr', event.payload.data);
+                        }
+                    );
+                }
+
+                const result = await invoke<{ code: number }>('execute_command', { cmd, args, cwd });
+                return result;
+            } catch (err) {
+                return { code: 1 };
+            } finally {
+                if (unlisten) {
+                    unlisten();
+                }
+            }
+        },
+    };
+
+    (window as any).__esengine_shell = nativeShell;
 }

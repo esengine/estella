@@ -297,6 +297,13 @@ export class BuildSettingsDialog {
                     <input type="text" class="es-input" id="wechat-version" value="${s.version}">
                 </div>
                 <div class="es-build-field">
+                    <label class="es-build-label">Screen Orientation</label>
+                    <select class="es-select" id="wechat-orientation">
+                        <option value="portrait" ${(s.orientation || 'portrait') === 'portrait' ? 'selected' : ''}>Portrait</option>
+                        <option value="landscape" ${s.orientation === 'landscape' ? 'selected' : ''}>Landscape</option>
+                    </select>
+                </div>
+                <div class="es-build-field">
                     <label class="es-build-label">Bundle Mode</label>
                     <select class="es-select" id="wechat-bundle">
                         <option value="subpackage" ${s.bundleMode === 'subpackage' ? 'selected' : ''}>Subpackage (Recommended)</option>
@@ -546,6 +553,8 @@ export class BuildSettingsDialog {
                 config.wechatSettings.appId = target.value;
             } else if (id === 'wechat-version') {
                 config.wechatSettings.version = target.value;
+            } else if (id === 'wechat-orientation') {
+                config.wechatSettings.orientation = target.value as 'portrait' | 'landscape';
             } else if (id === 'wechat-bundle') {
                 config.wechatSettings.bundleMode = target.value as 'subpackage' | 'single' | 'singleFile';
             } else if (id === 'wechat-output') {

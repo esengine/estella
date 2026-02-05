@@ -7,6 +7,7 @@ import type { App, Plugin } from '../app';
 import { Assets, assetPlugin } from '../asset';
 import { loadSceneWithAssets, type SceneData } from '../scene';
 import { LocalTransform, Camera, type LocalTransformData, type CameraData } from '../component';
+import { platformFetch } from '../platform';
 
 // =============================================================================
 // PreviewPlugin
@@ -44,11 +45,11 @@ export class PreviewPlugin implements Plugin {
         if (!this.app_) return;
 
         try {
-            const response = await fetch(this.sceneUrl_);
+            const response = await platformFetch(this.sceneUrl_);
             if (!response.ok) {
                 throw new Error(`Failed to fetch scene: ${response.status}`);
             }
-            const sceneData = await response.json() as SceneData;
+            const sceneData = await response.json<SceneData>();
 
             const assets = this.app_.getResource(Assets);
             await loadSceneWithAssets(this.app_.world, sceneData, {

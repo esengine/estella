@@ -273,6 +273,18 @@ html,body{width:100%;height:100%;overflow:hidden;background:#1a1a1a}
 </html>
 ]=])
     endif()
+
+    # WeChat MiniGame SDK (CommonJS compatible)
+    if(ES_BUILD_WXGAME)
+        add_executable(esengine_wxgame src/esengine/bindings/WebSDKEntry.cpp)
+        target_link_libraries(esengine_wxgame PRIVATE -Wl,--whole-archive esengine -Wl,--no-whole-archive)
+        es_apply_wxgame_sdk_settings(esengine_wxgame)
+
+        set_target_properties(esengine_wxgame PROPERTIES
+            OUTPUT_NAME "esengine.wxgame"
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/sdk"
+        )
+    endif()
 endif()
 
 if(ES_BUILD_TESTS)

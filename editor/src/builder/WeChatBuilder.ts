@@ -19,6 +19,9 @@ interface NativeFS {
     copyFile(src: string, dest: string): Promise<boolean>;
     listDirectoryDetailed(path: string): Promise<Array<{ name: string; isDirectory: boolean }>>;
     createDirectory(path: string): Promise<boolean>;
+    getEngineWxgameJs(): Promise<string>;
+    getEngineWxgameWasm(): Promise<Uint8Array>;
+    getSdkWechatJs(): Promise<string>;
 }
 
 // =============================================================================
@@ -140,7 +143,7 @@ export class WeChatBuilder {
                     outputPath: '',
                 },
             },
-            compileType: 'game',
+            compileType: 'minigame',
             libVersion: '3.0.0',
             appid: settings.appId || 'touristappid',
             projectname: 'ESEngineGame',
@@ -158,17 +161,29 @@ export class WeChatBuilder {
     }
 
     private async generateGameJson(outputDir: string): Promise<void> {
-        const gameJson = {
-            deviceOrientation: 'portrait',
-            showStatusBar: false,
+        const settings = this.context_.config.wechatSettings;
+
+        const gameJson: Record<string, unknown> = {
+            deviceOrientation: settings?.orientation || 'portrait',
             networkTimeout: {
                 request: 10000,
                 connectSocket: 10000,
                 uploadFile: 10000,
                 downloadFile: 10000,
             },
-            subpackages: [],
         };
+
+        if (settings?.subpackages && settings.subpackages.length > 0) {
+            gameJson.subpackages = settings.subpackages;
+        }
+
+        if (settings?.workers) {
+            gameJson.workers = settings.workers;
+        }
+
+        if (settings?.openDataContext) {
+            gameJson.openDataContext = settings.openDataContext;
+        }
 
         await this.fs_!.writeFile(
             joinPath(outputDir, 'game.json'),
@@ -191,43 +206,101 @@ export class WeChatBuilder {
             }
         }
 
+        const firstScene = this.context_.config.scenes[0];
+        const firstSceneName = firstScene ? firstScene.replace(/.*\//, '').replace('.esscene', '') : '';
+
         const gameJs = `
 // ESEngine WeChat Mini Game Entry
-require('./esengine/index.js');
+var ESEngineModule = require('./esengine.js');
+var SDK = require('./sdk.js');
 
-// Load scenes
-const scenes = [];
-${this.context_.config.scenes.map((s, i) => {
-    const name = s.replace(/.*\//, '').replace('.esscene', '');
-    return `scenes.push({ name: '${name}', path: 'scenes/${name}.json' });`;
-}).join('\n')}
-
-// Initialize game
 (async function() {
-    const canvas = wx.createCanvas();
+    var canvas = wx.createCanvas();
+    var info = wx.getSystemInfoSync();
+    canvas.width = info.windowWidth * info.pixelRatio;
+    canvas.height = info.windowHeight * info.pixelRatio;
+
+    var module = await ESEngineModule({
+        canvas: canvas,
+        instantiateWasm: function(imports, successCallback) {
+            WXWebAssembly.instantiate('esengine.wasm', imports).then(function(result) {
+                successCallback(result.instance, result.module);
+            });
+            return {};
+        }
+    });
+
+    // Create WebGL context in JS and register with Emscripten
+    var gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+    if (!gl) {
+        console.error('[ESEngine] Failed to create WebGL context');
+        return;
+    }
+    var glHandle = module.GL.registerContext(gl, {
+        majorVersion: gl.getParameter(gl.VERSION).indexOf('WebGL 2') === 0 ? 2 : 1,
+        minorVersion: 0,
+        enableExtensionsByDefault: true
+    });
+
+    var app = SDK.createWebApp(module, {
+        glContextHandle: glHandle,
+        getViewportSize: function() {
+            return { width: canvas.width, height: canvas.height };
+        }
+    });
+
+    // Load scene
+    ${firstSceneName ? `
+    try {
+        var sceneJson = wx.getFileSystemManager().readFileSync('scenes/${firstSceneName}.json', 'utf-8');
+        var sceneData = JSON.parse(sceneJson);
+        SDK.loadSceneData(app.world, sceneData);
+        console.log('[ESEngine] Scene loaded: ${firstSceneName}');
+    } catch (err) {
+        console.error('[ESEngine] Failed to load scene:', err);
+    }
+    ` : '// No scene configured'}
 
     // User scripts
     ${userCode}
 
-    // Start engine
-    if (typeof ESEngine !== 'undefined' && ESEngine.init) {
-        await ESEngine.init({
-            canvas: canvas,
-            platform: 'wechat',
-            scenes: scenes,
-        });
-    }
+    // Start game loop
+    app.run();
+    console.log('[ESEngine] Game started');
 })();
 `;
 
         await this.fs_!.writeFile(joinPath(outputDir, 'game.js'), gameJs);
 
-        // Create esengine directory and placeholder
-        await this.fs_!.createDirectory(joinPath(outputDir, 'esengine'));
-        await this.fs_!.writeFile(
-            joinPath(outputDir, 'esengine/index.js'),
-            '// ESEngine runtime for WeChat Mini Game\nmodule.exports = {};\n'
+        await this.copyWeChatSdk(outputDir);
+    }
+
+    private async copyWeChatSdk(outputDir: string): Promise<void> {
+        const engineJs = await this.fs_!.getEngineWxgameJs();
+        const engineWasm = await this.fs_!.getEngineWxgameWasm();
+
+        if (!engineJs || engineJs.length === 0) {
+            throw new Error(
+                'WeChat engine not found. Please run: scripts/build-wxgame.sh'
+            );
+        }
+
+        await this.fs_!.writeFile(joinPath(outputDir, 'esengine.js'), engineJs);
+        await this.fs_!.writeBinaryFile(joinPath(outputDir, 'esengine.wasm'), engineWasm);
+        console.log(`[WeChatBuilder] Copied WeChat engine files`);
+
+        let sdkJs = await this.fs_!.readFile(
+            joinPath(this.projectDir_, 'node_modules/esengine/dist/index.wechat.js')
         );
+
+        if (!sdkJs) {
+            sdkJs = await this.fs_!.getSdkWechatJs();
+        }
+
+        if (sdkJs) {
+            await this.fs_!.writeFile(joinPath(outputDir, 'sdk.js'), sdkJs);
+            console.log(`[WeChatBuilder] Copied SDK`);
+        }
     }
 
     private async compileScripts(scripts: string[]): Promise<string> {

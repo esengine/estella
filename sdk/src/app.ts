@@ -202,6 +202,7 @@ export class App {
 
 export interface WebAppOptions {
     getViewportSize?: () => { width: number; height: number };
+    glContextHandle?: number;
 }
 
 export function createWebApp(module: ESEngineModule, options?: WebAppOptions): App {
@@ -210,7 +211,11 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
 
     app.connectCpp(cppRegistry, module);
 
-    module.initRenderer();
+    if (options?.glContextHandle) {
+        module.initRendererWithContext(options.glContextHandle);
+    } else {
+        module.initRenderer();
+    }
 
     const getViewportSize = options?.getViewportSize ?? (() => ({
         width: window.innerWidth * (window.devicePixelRatio || 1),

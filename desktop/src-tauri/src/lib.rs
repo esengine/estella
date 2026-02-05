@@ -4,8 +4,18 @@ mod preview_server;
 
 use preview_server::PreviewServer;
 use std::path::PathBuf;
+use std::process::Stdio;
 use std::sync::Mutex;
-use tauri::State;
+use tauri::{AppHandle, Emitter, State};
+use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::process::Command;
+
+const ENGINE_JS: &[u8] = include_bytes!("../../public/wasm/esengine.js");
+const ENGINE_WASM: &[u8] = include_bytes!("../../public/wasm/esengine.wasm");
+const ENGINE_SINGLE_JS: &[u8] = include_bytes!("../../public/wasm/esengine.single.js");
+const ENGINE_WXGAME_JS: &[u8] = include_bytes!("../../public/wasm/esengine.wxgame.js");
+const ENGINE_WXGAME_WASM: &[u8] = include_bytes!("../../public/wasm/esengine.wxgame.wasm");
+const SDK_WECHAT_JS: &[u8] = include_bytes!("../../public/sdk/cjs/esengine.wechat.js");
 
 // =============================================================================
 // State
@@ -59,6 +69,98 @@ fn open_folder(path: String) -> Result<(), String> {
     open::that(&path).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+fn get_engine_js() -> Vec<u8> {
+    ENGINE_JS.to_vec()
+}
+
+#[tauri::command]
+fn get_engine_wasm() -> Vec<u8> {
+    ENGINE_WASM.to_vec()
+}
+
+#[tauri::command]
+fn get_engine_single_js() -> Vec<u8> {
+    ENGINE_SINGLE_JS.to_vec()
+}
+
+#[tauri::command]
+fn get_engine_wxgame_js() -> Vec<u8> {
+    ENGINE_WXGAME_JS.to_vec()
+}
+
+#[tauri::command]
+fn get_engine_wxgame_wasm() -> Vec<u8> {
+    ENGINE_WXGAME_WASM.to_vec()
+}
+
+#[tauri::command]
+fn get_sdk_wechat_js() -> Vec<u8> {
+    SDK_WECHAT_JS.to_vec()
+}
+
+#[derive(Clone, serde::Serialize)]
+struct CommandOutput {
+    stream: String,
+    data: String,
+}
+
+#[derive(serde::Serialize)]
+struct CommandResult {
+    code: i32,
+}
+
+#[tauri::command]
+async fn execute_command(
+    app: AppHandle,
+    cmd: String,
+    args: Vec<String>,
+    cwd: String,
+) -> Result<CommandResult, String> {
+    let mut child = Command::new(&cmd)
+        .args(&args)
+        .current_dir(&cwd)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| e.to_string())?;
+
+    let stdout = child.stdout.take().ok_or("Failed to capture stdout")?;
+    let stderr = child.stderr.take().ok_or("Failed to capture stderr")?;
+
+    let app_stdout = app.clone();
+    let stdout_handle = tokio::spawn(async move {
+        let reader = BufReader::new(stdout);
+        let mut lines = reader.lines();
+        while let Ok(Some(line)) = lines.next_line().await {
+            let _ = app_stdout.emit("command-output", CommandOutput {
+                stream: "stdout".to_string(),
+                data: line,
+            });
+        }
+    });
+
+    let app_stderr = app.clone();
+    let stderr_handle = tokio::spawn(async move {
+        let reader = BufReader::new(stderr);
+        let mut lines = reader.lines();
+        while let Ok(Some(line)) = lines.next_line().await {
+            let _ = app_stderr.emit("command-output", CommandOutput {
+                stream: "stderr".to_string(),
+                data: line,
+            });
+        }
+    });
+
+    let _ = tokio::join!(stdout_handle, stderr_handle);
+
+    let status = child.wait().await.map_err(|e| e.to_string())?;
+
+    Ok(CommandResult {
+        code: status.code().unwrap_or(-1),
+    })
+}
+
 // =============================================================================
 // Entry Point
 // =============================================================================
@@ -77,6 +179,13 @@ pub fn run() {
             stop_preview_server,
             open_preview_in_browser,
             open_folder,
+            execute_command,
+            get_engine_js,
+            get_engine_wasm,
+            get_engine_single_js,
+            get_engine_wxgame_js,
+            get_engine_wxgame_wasm,
+            get_sdk_wechat_js,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
