@@ -1,0 +1,8 @@
+{
+  "name": "esengine-build-tools",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "ESEngine build pipeline tools",
+  "main": "cli.js"
+}

@@ -1,12 +1,15 @@
 # Build directories
 build/
 build-*/
+!build-tools/
 build_*/
 out/
 dist/
 
 # Node.js
 node_modules/
+package-lock.json
+pnpm-lock.yaml
 pnpm-debug.log*
 
 # Rust/Tauri

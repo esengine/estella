@@ -7,7 +7,6 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(ES_BUILD_WEB "Build for Web/Emscripten" OFF)
 option(ES_BUILD_WXGAME "Build for WeChat MiniGame" OFF)
-option(ES_BUILD_MODULAR "Build modular WASM (side modules)" OFF)
 option(ES_BUILD_TESTS "Build tests" ON)
 option(ES_BUILD_SINGLE_FILE "Build single-file SDK (WASM inlined)" OFF)
 
@@ -16,9 +15,6 @@ include(ESEngineConfig)
 
 if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
     include(Emscripten)
-    if(ES_BUILD_MODULAR)
-        include(ModularBuild)
-    endif()
 endif()
 
 add_subdirectory(third_party)
@@ -152,7 +148,6 @@ endif()
 target_include_directories(esengine
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb>
         $<INSTALL_INTERFACE:include>
     PRIVATE
