@@ -113,7 +113,7 @@ export const TextSchema: ComponentSchema = {
             ],
         },
         {
-            name: 'baseline',
+            name: 'verticalAlign',
             type: 'enum',
             options: [
                 { label: 'Top', value: 0 },
@@ -121,8 +121,27 @@ export const TextSchema: ComponentSchema = {
                 { label: 'Bottom', value: 2 },
             ],
         },
-        { name: 'maxWidth', type: 'number', min: 0 },
+        { name: 'wordWrap', type: 'boolean' },
+        {
+            name: 'overflow',
+            type: 'enum',
+            options: [
+                { label: 'Visible', value: 0 },
+                { label: 'Clip', value: 1 },
+                { label: 'Ellipsis', value: 2 },
+            ],
+        },
         { name: 'lineHeight', type: 'number', min: 0.5, max: 3, step: 0.1 },
+    ],
+};
+
+export const UIRectSchema: ComponentSchema = {
+    name: 'UIRect',
+    category: 'builtin',
+    properties: [
+        { name: 'size', type: 'vec2' },
+        { name: 'anchor', type: 'vec2' },
+        { name: 'pivot', type: 'vec2' },
     ],
 };
 
@@ -209,5 +228,6 @@ export function registerBuiltinSchemas(): void {
     registerComponentSchema(SpriteSchema);
     registerComponentSchema(CameraSchema);
     registerComponentSchema(TextSchema);
+    registerComponentSchema(UIRectSchema);
     exposeRegistrationAPI();
 }

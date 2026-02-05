@@ -680,6 +680,337 @@ class World {
 }
 
 /**
+ * @file    text.ts
+ * @brief   Text component definition for UI text rendering
+ */
+// =============================================================================
+// Text Alignment Enums
+// =============================================================================
+var TextAlign;
+(function (TextAlign) {
+    TextAlign[TextAlign["Left"] = 0] = "Left";
+    TextAlign[TextAlign["Center"] = 1] = "Center";
+    TextAlign[TextAlign["Right"] = 2] = "Right";
+})(TextAlign || (TextAlign = {}));
+var TextVerticalAlign;
+(function (TextVerticalAlign) {
+    TextVerticalAlign[TextVerticalAlign["Top"] = 0] = "Top";
+    TextVerticalAlign[TextVerticalAlign["Middle"] = 1] = "Middle";
+    TextVerticalAlign[TextVerticalAlign["Bottom"] = 2] = "Bottom";
+})(TextVerticalAlign || (TextVerticalAlign = {}));
+var TextOverflow;
+(function (TextOverflow) {
+    TextOverflow[TextOverflow["Visible"] = 0] = "Visible";
+    TextOverflow[TextOverflow["Clip"] = 1] = "Clip";
+    TextOverflow[TextOverflow["Ellipsis"] = 2] = "Ellipsis";
+})(TextOverflow || (TextOverflow = {}));
+// =============================================================================
+// Text Component Definition
+// =============================================================================
+const Text = defineComponent('Text', {
+    content: '',
+    fontFamily: 'Arial',
+    fontSize: 24,
+    color: { x: 1, y: 1, z: 1, w: 1 },
+    align: TextAlign.Left,
+    verticalAlign: TextVerticalAlign.Top,
+    wordWrap: true,
+    overflow: TextOverflow.Visible,
+    lineHeight: 1.2,
+    dirty: true,
+});
+
+/**
+ * @file    TextRenderer.ts
+ * @brief   Renders text to GPU textures using Canvas 2D API
+ */
+// =============================================================================
+// Text Renderer
+// =============================================================================
+class TextRenderer {
+    constructor(module) {
+        this.cache = new Map();
+        this.module = module;
+        if (typeof OffscreenCanvas !== 'undefined') {
+            this.canvas = new OffscreenCanvas(512, 512);
+            this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
+        }
+        else {
+            this.canvas = document.createElement('canvas');
+            this.canvas.width = 512;
+            this.canvas.height = 512;
+            this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
+        }
+    }
+    /**
+     * Renders text to a texture and returns the handle
+     */
+    renderText(text, uiRect) {
+        const ctx = this.ctx;
+        const canvas = this.canvas;
+        ctx.font = `${text.fontSize}px ${text.fontFamily}`;
+        const hasContainer = uiRect && uiRect.size.x > 0 && uiRect.size.y > 0;
+        const containerWidth = hasContainer ? uiRect.size.x : 0;
+        const containerHeight = hasContainer ? uiRect.size.y : 0;
+        const shouldWrap = text.wordWrap && hasContainer;
+        let lines = this.wrapText(text.content, shouldWrap ? containerWidth : 0);
+        const lineHeightPx = Math.ceil(text.fontSize * text.lineHeight);
+        const padding = Math.ceil(text.fontSize * 0.2);
+        const measuredWidth = Math.ceil(this.measureWidth(lines));
+        const measuredHeight = Math.ceil(lines.length * lineHeightPx);
+        const width = hasContainer ? Math.ceil(containerWidth) : measuredWidth + padding * 2;
+        const height = hasContainer ? Math.ceil(containerHeight) : measuredHeight + padding * 2;
+        // Handle overflow ellipsis
+        if (hasContainer && text.overflow === TextOverflow.Ellipsis && measuredHeight > containerHeight) {
+            const maxLines = Math.floor(containerHeight / lineHeightPx);
+            if (maxLines > 0 && lines.length > maxLines) {
+                lines = lines.slice(0, maxLines);
+                const lastLine = lines[maxLines - 1];
+                lines[maxLines - 1] = this.truncateWithEllipsis(lastLine, containerWidth);
+            }
+        }
+        if (canvas.width < width || canvas.height < height) {
+            const newWidth = Math.max(canvas.width, this.nextPowerOf2(width));
+            const newHeight = Math.max(canvas.height, this.nextPowerOf2(height));
+            canvas.width = newWidth;
+            canvas.height = newHeight;
+        }
+        const r = Math.round(text.color.x * 255);
+        const g = Math.round(text.color.y * 255);
+        const b = Math.round(text.color.z * 255);
+        const a = text.color.w;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.font = `${text.fontSize}px ${text.fontFamily}`;
+        ctx.textAlign = this.mapAlign(text.align);
+        ctx.textBaseline = 'top';
+        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${a})`;
+        // Handle overflow clip
+        if (hasContainer && text.overflow === TextOverflow.Clip) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(0, 0, width, height);
+            ctx.clip();
+        }
+        const textBlockHeight = lines.length * lineHeightPx;
+        let startY;
+        if (hasContainer) {
+            switch (text.verticalAlign) {
+                case TextVerticalAlign.Top:
+                    startY = padding;
+                    break;
+                case TextVerticalAlign.Middle:
+                    startY = (height - textBlockHeight) / 2;
+                    break;
+                case TextVerticalAlign.Bottom:
+                    startY = height - textBlockHeight - padding;
+                    break;
+                default: startY = padding;
+            }
+        }
+        else {
+            startY = padding;
+        }
+        let y = startY;
+        for (const line of lines) {
+            let x;
+            switch (text.align) {
+                case TextAlign.Left:
+                    x = padding;
+                    break;
+                case TextAlign.Center:
+                    x = width / 2;
+                    break;
+                case TextAlign.Right:
+                    x = width - padding;
+                    break;
+                default:
+                    x = padding;
+            }
+            ctx.fillText(line, x, y);
+            y += lineHeightPx;
+        }
+        if (hasContainer && text.overflow === TextOverflow.Clip) {
+            ctx.restore();
+        }
+        const imageData = ctx.getImageData(0, 0, width, height);
+        const pixels = new Uint8Array(imageData.data.buffer);
+        const flipped = this.flipVertically(pixels, width, height);
+        const rm = this.module.getResourceManager();
+        const ptr = this.module._malloc(flipped.length);
+        this.module.HEAPU8.set(flipped, ptr);
+        const textureHandle = rm.createTexture(width, height, ptr, flipped.length, 1);
+        this.module._free(ptr);
+        return { textureHandle, width, height };
+    }
+    truncateWithEllipsis(text, maxWidth) {
+        const ellipsis = '...';
+        if (this.ctx.measureText(text).width <= maxWidth) {
+            return text;
+        }
+        let truncated = text;
+        while (truncated.length > 0 && this.ctx.measureText(truncated + ellipsis).width > maxWidth) {
+            truncated = truncated.slice(0, -1);
+        }
+        return truncated + ellipsis;
+    }
+    /**
+     * Renders text for an entity and caches the result
+     */
+    renderForEntity(entity, text, uiRect) {
+        const existing = this.cache.get(entity);
+        if (existing) {
+            const rm = this.module.getResourceManager();
+            rm.releaseTexture(existing.textureHandle);
+        }
+        const result = this.renderText(text, uiRect);
+        this.cache.set(entity, result);
+        return result;
+    }
+    /**
+     * Gets cached render result for entity
+     */
+    getCached(entity) {
+        return this.cache.get(entity);
+    }
+    /**
+     * Releases texture for entity
+     */
+    release(entity) {
+        const cached = this.cache.get(entity);
+        if (cached) {
+            const rm = this.module.getResourceManager();
+            rm.releaseTexture(cached.textureHandle);
+            this.cache.delete(entity);
+        }
+    }
+    /**
+     * Releases all cached textures
+     */
+    releaseAll() {
+        const rm = this.module.getResourceManager();
+        for (const result of this.cache.values()) {
+            rm.releaseTexture(result.textureHandle);
+        }
+        this.cache.clear();
+    }
+    // =========================================================================
+    // Private Methods
+    // =========================================================================
+    wrapText(text, maxWidth) {
+        if (!text)
+            return [''];
+        if (maxWidth <= 0)
+            return text.split('\n');
+        const paragraphs = text.split('\n');
+        const lines = [];
+        for (const paragraph of paragraphs) {
+            if (!paragraph) {
+                lines.push('');
+                continue;
+            }
+            let currentLine = '';
+            for (const char of paragraph) {
+                const testLine = currentLine + char;
+                const metrics = this.ctx.measureText(testLine);
+                if (metrics.width > maxWidth && currentLine) {
+                    lines.push(currentLine);
+                    currentLine = char;
+                }
+                else {
+                    currentLine = testLine;
+                }
+            }
+            if (currentLine) {
+                lines.push(currentLine);
+            }
+        }
+        return lines.length > 0 ? lines : [''];
+    }
+    measureWidth(lines) {
+        let maxWidth = 0;
+        for (const line of lines) {
+            const metrics = this.ctx.measureText(line);
+            const width = metrics.actualBoundingBoxLeft !== undefined
+                ? metrics.actualBoundingBoxLeft + metrics.actualBoundingBoxRight
+                : metrics.width;
+            maxWidth = Math.max(maxWidth, width);
+        }
+        return maxWidth;
+    }
+    mapAlign(align) {
+        switch (align) {
+            case TextAlign.Left:
+                return 'left';
+            case TextAlign.Center:
+                return 'center';
+            case TextAlign.Right:
+                return 'right';
+        }
+    }
+    nextPowerOf2(n) {
+        let p = 1;
+        while (p < n)
+            p *= 2;
+        return p;
+    }
+    flipVertically(pixels, width, height) {
+        const rowSize = width * 4;
+        const flipped = new Uint8Array(pixels.length);
+        for (let y = 0; y < height; y++) {
+            const srcOffset = y * rowSize;
+            const dstOffset = (height - 1 - y) * rowSize;
+            flipped.set(pixels.subarray(srcOffset, srcOffset + rowSize), dstOffset);
+        }
+        return flipped;
+    }
+}
+
+/**
+ * @file    TextPlugin.ts
+ * @brief   Plugin that automatically syncs Text components to Sprite textures
+ */
+// =============================================================================
+// Text Plugin
+// =============================================================================
+class TextPlugin {
+    build(app) {
+        const module = app.wasmModule;
+        if (!module) {
+            console.warn('TextPlugin: No WASM module available');
+            return;
+        }
+        const renderer = new TextRenderer(module);
+        const world = app.world;
+        app.addSystemToSchedule(Schedule.PreUpdate, defineSystem([], () => {
+            const entities = world.getEntitiesWithComponents([Text]);
+            for (const entity of entities) {
+                const text = world.get(entity, Text);
+                if (!text.dirty)
+                    continue;
+                if (!world.has(entity, Sprite)) {
+                    world.insert(entity, Sprite, {
+                        texture: 0,
+                        size: { x: 0, y: 0 },
+                        color: { x: 1, y: 1, z: 1, w: 1 },
+                        anchor: { x: 0.5, y: 0.5 },
+                        flip: { x: false, y: false }
+                    });
+                }
+                const result = renderer.renderForEntity(entity, text);
+                const sprite = world.get(entity, Sprite);
+                sprite.texture = result.textureHandle;
+                sprite.size = { x: result.width, y: result.height };
+                sprite.uvOffset = { x: 0, y: 0 };
+                sprite.uvScale = { x: 1, y: 1 };
+                world.insert(entity, Sprite, sprite);
+                text.dirty = false;
+            }
+        }));
+    }
+}
+const textPlugin = new TextPlugin();
+
+/**
  * @file    app.ts
  * @brief   Application builder and web platform integration
  */
@@ -830,271 +1161,22 @@ function createWebApp(module, options) {
         }
     };
     app.addSystemToSchedule(Schedule.Last, renderSystem);
+    app.addPlugin(textPlugin);
     return app;
 }
 
 /**
- * @file    text.ts
- * @brief   Text component definition for UI text rendering
+ * @file    UIRect.ts
+ * @brief   UIRect component for UI layout with anchor and pivot
  */
 // =============================================================================
-// Text Alignment Enums
+// UIRect Component Definition
 // =============================================================================
-var TextAlign;
-(function (TextAlign) {
-    TextAlign[TextAlign["Left"] = 0] = "Left";
-    TextAlign[TextAlign["Center"] = 1] = "Center";
-    TextAlign[TextAlign["Right"] = 2] = "Right";
-})(TextAlign || (TextAlign = {}));
-var TextBaseline;
-(function (TextBaseline) {
-    TextBaseline[TextBaseline["Top"] = 0] = "Top";
-    TextBaseline[TextBaseline["Middle"] = 1] = "Middle";
-    TextBaseline[TextBaseline["Bottom"] = 2] = "Bottom";
-})(TextBaseline || (TextBaseline = {}));
-// =============================================================================
-// Text Component Definition
-// =============================================================================
-const Text = defineComponent('Text', {
-    content: '',
-    fontFamily: 'Arial',
-    fontSize: 24,
-    color: { x: 1, y: 1, z: 1, w: 1 },
-    align: TextAlign.Left,
-    baseline: TextBaseline.Top,
-    maxWidth: 0,
-    lineHeight: 1.2,
-    dirty: true,
+const UIRect = defineComponent('UIRect', {
+    size: { x: 100, y: 100 },
+    anchor: { x: 0.5, y: 0.5 },
+    pivot: { x: 0.5, y: 0.5 },
 });
-
-/**
- * @file    TextRenderer.ts
- * @brief   Renders text to GPU textures using Canvas 2D API
- */
-// =============================================================================
-// Text Renderer
-// =============================================================================
-class TextRenderer {
-    constructor(module) {
-        this.cache = new Map();
-        this.module = module;
-        if (typeof OffscreenCanvas !== 'undefined') {
-            this.canvas = new OffscreenCanvas(512, 512);
-            this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
-        }
-        else {
-            this.canvas = document.createElement('canvas');
-            this.canvas.width = 512;
-            this.canvas.height = 512;
-            this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
-        }
-    }
-    /**
-     * Renders text to a texture and returns the handle
-     */
-    renderText(text) {
-        const ctx = this.ctx;
-        const canvas = this.canvas;
-        ctx.font = `${text.fontSize}px ${text.fontFamily}`;
-        const lines = this.wrapText(text.content, text.maxWidth);
-        const lineHeight = Math.ceil(text.fontSize * text.lineHeight);
-        const padding = Math.ceil(text.fontSize * 0.2);
-        const width = Math.ceil(this.measureWidth(lines)) + padding * 2;
-        const height = Math.ceil(lines.length * lineHeight) + padding * 2;
-        if (canvas.width < width || canvas.height < height) {
-            const newWidth = Math.max(canvas.width, this.nextPowerOf2(width));
-            const newHeight = Math.max(canvas.height, this.nextPowerOf2(height));
-            canvas.width = newWidth;
-            canvas.height = newHeight;
-        }
-        const r = Math.round(text.color.x * 255);
-        const g = Math.round(text.color.y * 255);
-        const b = Math.round(text.color.z * 255);
-        const a = text.color.w;
-        // Clear with text color but alpha=0 to avoid black fringing
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.font = `${text.fontSize}px ${text.fontFamily}`;
-        ctx.textAlign = this.mapAlign(text.align);
-        ctx.textBaseline = 'top';
-        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${a})`;
-        let y = padding;
-        for (const line of lines) {
-            let x;
-            switch (text.align) {
-                case TextAlign.Left:
-                    x = padding;
-                    break;
-                case TextAlign.Center:
-                    x = width / 2;
-                    break;
-                case TextAlign.Right:
-                    x = width - padding;
-                    break;
-            }
-            ctx.fillText(line, x, y);
-            y += lineHeight;
-        }
-        const imageData = ctx.getImageData(0, 0, width, height);
-        const pixels = new Uint8Array(imageData.data.buffer);
-        const flipped = this.flipVertically(pixels, width, height);
-        const rm = this.module.getResourceManager();
-        const ptr = this.module._malloc(flipped.length);
-        this.module.HEAPU8.set(flipped, ptr);
-        const textureHandle = rm.createTexture(width, height, ptr, flipped.length, 1);
-        this.module._free(ptr);
-        return { textureHandle, width, height };
-    }
-    /**
-     * Renders text for an entity and caches the result
-     */
-    renderForEntity(entity, text) {
-        const existing = this.cache.get(entity);
-        if (existing) {
-            const rm = this.module.getResourceManager();
-            rm.releaseTexture(existing.textureHandle);
-        }
-        const result = this.renderText(text);
-        this.cache.set(entity, result);
-        return result;
-    }
-    /**
-     * Gets cached render result for entity
-     */
-    getCached(entity) {
-        return this.cache.get(entity);
-    }
-    /**
-     * Releases texture for entity
-     */
-    release(entity) {
-        const cached = this.cache.get(entity);
-        if (cached) {
-            const rm = this.module.getResourceManager();
-            rm.releaseTexture(cached.textureHandle);
-            this.cache.delete(entity);
-        }
-    }
-    /**
-     * Releases all cached textures
-     */
-    releaseAll() {
-        const rm = this.module.getResourceManager();
-        for (const result of this.cache.values()) {
-            rm.releaseTexture(result.textureHandle);
-        }
-        this.cache.clear();
-    }
-    // =========================================================================
-    // Private Methods
-    // =========================================================================
-    wrapText(text, maxWidth) {
-        if (!text)
-            return [''];
-        if (maxWidth <= 0)
-            return text.split('\n');
-        const paragraphs = text.split('\n');
-        const lines = [];
-        for (const paragraph of paragraphs) {
-            const words = paragraph.split(' ');
-            let currentLine = '';
-            for (const word of words) {
-                const testLine = currentLine ? `${currentLine} ${word}` : word;
-                const metrics = this.ctx.measureText(testLine);
-                if (metrics.width > maxWidth && currentLine) {
-                    lines.push(currentLine);
-                    currentLine = word;
-                }
-                else {
-                    currentLine = testLine;
-                }
-            }
-            lines.push(currentLine);
-        }
-        return lines;
-    }
-    measureWidth(lines) {
-        let maxWidth = 0;
-        for (const line of lines) {
-            const metrics = this.ctx.measureText(line);
-            const width = metrics.actualBoundingBoxLeft !== undefined
-                ? metrics.actualBoundingBoxLeft + metrics.actualBoundingBoxRight
-                : metrics.width;
-            maxWidth = Math.max(maxWidth, width);
-        }
-        return maxWidth;
-    }
-    mapAlign(align) {
-        switch (align) {
-            case TextAlign.Left:
-                return 'left';
-            case TextAlign.Center:
-                return 'center';
-            case TextAlign.Right:
-                return 'right';
-        }
-    }
-    nextPowerOf2(n) {
-        let p = 1;
-        while (p < n)
-            p *= 2;
-        return p;
-    }
-    flipVertically(pixels, width, height) {
-        const rowSize = width * 4;
-        const flipped = new Uint8Array(pixels.length);
-        for (let y = 0; y < height; y++) {
-            const srcOffset = y * rowSize;
-            const dstOffset = (height - 1 - y) * rowSize;
-            flipped.set(pixels.subarray(srcOffset, srcOffset + rowSize), dstOffset);
-        }
-        return flipped;
-    }
-}
-
-/**
- * @file    TextPlugin.ts
- * @brief   Plugin that automatically syncs Text components to Sprite textures
- */
-// =============================================================================
-// Text Plugin
-// =============================================================================
-class TextPlugin {
-    build(app) {
-        const module = app.wasmModule;
-        if (!module) {
-            console.warn('TextPlugin: No WASM module available');
-            return;
-        }
-        const renderer = new TextRenderer(module);
-        const world = app.world;
-        app.addSystemToSchedule(Schedule.PreUpdate, defineSystem([], () => {
-            const entities = world.getEntitiesWithComponents([Text]);
-            for (const entity of entities) {
-                const text = world.get(entity, Text);
-                if (!text.dirty)
-                    continue;
-                if (!world.has(entity, Sprite)) {
-                    world.insert(entity, Sprite, {
-                        texture: 0,
-                        size: { x: 0, y: 0 },
-                        color: { x: 1, y: 1, z: 1, w: 1 },
-                        anchor: { x: 0.5, y: 0.5 },
-                        flip: { x: false, y: false }
-                    });
-                }
-                const result = renderer.renderForEntity(entity, text);
-                const sprite = world.get(entity, Sprite);
-                sprite.texture = result.textureHandle;
-                sprite.size = { x: result.width, y: result.height };
-                sprite.uvOffset = { x: 0, y: 0 };
-                sprite.uvScale = { x: 1, y: 1 };
-                world.insert(entity, Sprite, sprite);
-                text.dirty = false;
-            }
-        }));
-    }
-}
-const textPlugin = new TextPlugin();
 
 /**
  * @file    AssetServer.ts
@@ -1307,9 +1389,12 @@ async function loadSceneWithAssets(world, sceneData, options) {
                 const data = compData.data;
                 if (typeof data.texture === 'string' && data.texture) {
                     const texturePath = data.texture;
-                    const url = options?.assetBaseUrl
-                        ? `${options.assetBaseUrl}/${texturePath}`
-                        : `/${texturePath}`;
+                    const isDataUrl = texturePath.startsWith('data:');
+                    const url = isDataUrl
+                        ? texturePath
+                        : options?.assetBaseUrl
+                            ? `${options.assetBaseUrl}/${texturePath}`
+                            : `/${texturePath}`;
                     try {
                         const info = await assetServer.loadTexture(url);
                         data.texture = info.handle;
@@ -1450,4 +1535,4 @@ class PreviewPlugin {
     }
 }
 
-export { App, AssetPlugin, AssetServer, Assets, Camera, Canvas, Children, Commands, CommandsInstance, EntityCommands, INVALID_ENTITY, INVALID_TEXTURE, Input, LocalTransform, Mut, Parent, PreviewPlugin, Query, QueryInstance, Res, ResMut, Schedule, Sprite, SystemRunner, Text, TextAlign, TextBaseline, TextPlugin, TextRenderer, Time, Velocity, World, WorldTransform, assetPlugin, color, createWebApp, defineComponent, defineResource, defineSystem, defineTag, isBuiltinComponent, loadSceneData, loadSceneWithAssets, quat, textPlugin, vec2, vec3, vec4 };
+export { App, AssetPlugin, AssetServer, Assets, Camera, Canvas, Children, Commands, CommandsInstance, EntityCommands, INVALID_ENTITY, INVALID_TEXTURE, Input, LocalTransform, Mut, Parent, PreviewPlugin, Query, QueryInstance, Res, ResMut, Schedule, Sprite, SystemRunner, Text, TextAlign, TextOverflow, TextPlugin, TextRenderer, TextVerticalAlign, Time, UIRect, Velocity, World, WorldTransform, assetPlugin, color, createWebApp, defineComponent, defineResource, defineSystem, defineTag, isBuiltinComponent, loadSceneData, loadSceneWithAssets, quat, textPlugin, vec2, vec3, vec4 };

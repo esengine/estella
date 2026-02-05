@@ -101,6 +101,9 @@ export class EditorSceneRenderer {
             this.entityMap_.set(entityData.id, entity);
         }
 
+        // Update entityDataMap_ with latest data
+        this.entityDataMap_.set(entityData.id, entityData);
+
         for (const comp of entityData.components) {
             await this.syncComponent(entity, comp, entityData.id);
         }
@@ -114,6 +117,12 @@ export class EditorSceneRenderer {
 
         const entity = this.entityMap_.get(entityId);
         if (!entity) return;
+
+        // Update entityDataMap_ with latest components
+        const existingData = this.entityDataMap_.get(entityId);
+        if (existingData) {
+            existingData.components = components;
+        }
 
         for (const comp of components) {
             await this.syncComponent(entity, comp, entityId);
@@ -248,13 +257,35 @@ export class EditorSceneRenderer {
         }
 
         const localTransform = this.getLocalTransform(entityData);
+        const uiRect = this.getUIRect(entityData);
+        const entitySize = this.getEntitySize(entityData);
+
+        let adjustedPosition = { ...localTransform.position };
+
+        if (uiRect) {
+            const parentSize = this.getParentSize(entityData);
+
+            // anchor offset (relative to parent center)
+            adjustedPosition.x += (uiRect.anchor.x - 0.5) * parentSize.x;
+            adjustedPosition.y += (uiRect.anchor.y - 0.5) * parentSize.y;
+
+            // pivot offset (renderer uses center pivot)
+            adjustedPosition.x += (0.5 - uiRect.pivot.x) * entitySize.x;
+            adjustedPosition.y += (0.5 - uiRect.pivot.y) * entitySize.y;
+        }
+
+        const adjustedLocal: Transform = {
+            position: adjustedPosition,
+            rotation: localTransform.rotation,
+            scale: localTransform.scale,
+        };
 
         if (entityData.parent === null) {
-            return localTransform;
+            return adjustedLocal;
         }
 
         const parentWorld = this.computeWorldTransform(entityData.parent);
-        return composeTransforms(parentWorld, localTransform);
+        return composeTransforms(parentWorld, adjustedLocal);
     }
 
     private getLocalTransform(entity: EntityData): Transform {
@@ -268,6 +299,57 @@ export class EditorSceneRenderer {
             rotation: (comp.data.rotation as any) ?? { x: 0, y: 0, z: 0, w: 1 },
             scale: (comp.data.scale as any) ?? { x: 1, y: 1, z: 1 },
         };
+    }
+
+    private getUIRect(entity: EntityData): { size: { x: number; y: number }; anchor: { x: number; y: number }; pivot: { x: number; y: number } } | null {
+        const comp = entity.components.find(c => c.type === 'UIRect');
+        if (!comp) return null;
+
+        return {
+            size: (comp.data as any).size ?? { x: 100, y: 100 },
+            anchor: (comp.data as any).anchor ?? { x: 0.5, y: 0.5 },
+            pivot: (comp.data as any).pivot ?? { x: 0.5, y: 0.5 },
+        };
+    }
+
+    private getEntitySize(entity: EntityData): { x: number; y: number } {
+        const uiRect = this.getUIRect(entity);
+        if (uiRect?.size) {
+            return uiRect.size;
+        }
+
+        const sprite = entity.components.find(c => c.type === 'Sprite');
+        if (sprite?.data?.size) {
+            return (sprite.data as any).size;
+        }
+
+        return { x: 100, y: 100 };
+    }
+
+    private getParentSize(entity: EntityData): { x: number; y: number } {
+        if (entity.parent !== null) {
+            const parentData = this.entityDataMap_.get(entity.parent);
+            if (parentData) {
+                return this.getEntitySize(parentData);
+            }
+        }
+
+        return this.getCanvasSize();
+    }
+
+    private getCanvasSize(): { x: number; y: number } {
+        if (this.sceneData_) {
+            for (const entity of this.sceneData_.entities) {
+                const canvas = entity.components.find(c => c.type === 'Canvas');
+                if (canvas?.data) {
+                    const resolution = (canvas.data as any).designResolution;
+                    if (resolution) {
+                        return { x: resolution.x, y: resolution.y };
+                    }
+                }
+            }
+        }
+        return { x: 1920, y: 1080 };
     }
 
     private async syncSprite(entity: Entity, data: any): Promise<void> {
@@ -321,7 +403,10 @@ export class EditorSceneRenderer {
     private syncText(entity: Entity, data: any, entityId: number): void {
         if (!this.registry_ || !this.textRenderer_) return;
 
-        const result = this.textRenderer_.renderText(entityId, data);
+        const entityData = this.entityDataMap_.get(entityId);
+        const uiRect = entityData ? this.getUIRect(entityData) : null;
+
+        const result = this.textRenderer_.renderText(entityId, data, uiRect);
         if (!result) return;
 
         if (this.registry_.hasSprite(entity)) {

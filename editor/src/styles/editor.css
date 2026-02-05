@@ -535,9 +535,25 @@ svg {
 }
 
 .es-entity-name-input {
-    width: 100%;
-    font-size: 14px;
+    flex: 1;
+    min-width: 0;
+    padding: 2px 4px;
+    font-size: 12px;
     font-weight: 600;
+    color: #d19a66;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 2px;
+    outline: none;
+}
+
+.es-entity-name-input:hover {
+    background: var(--es-bg-primary);
+}
+
+.es-entity-name-input:focus {
+    background: var(--es-bg-primary);
+    border-color: var(--es-accent);
 }
 
 .es-component-section {
@@ -1217,6 +1233,12 @@ svg {
 .es-context-menu-item:hover {
     background: var(--es-accent);
     color: white;
+}
+
+.es-context-menu-separator {
+    height: 1px;
+    margin: 4px 0;
+    background: var(--es-border);
 }
 
 /* =============================================================================

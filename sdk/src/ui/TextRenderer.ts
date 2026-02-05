@@ -3,9 +3,10 @@
  * @brief   Renders text to GPU textures using Canvas 2D API
  */
 
-import type { Entity } from '../types';
+import type { Entity, Vec2 } from '../types';
 import type { ESEngineModule, CppResourceManager } from '../wasm';
-import { TextAlign, TextBaseline, type TextData } from './text';
+import { TextAlign, TextVerticalAlign, TextOverflow, type TextData } from './text';
+import type { UIRectData } from './UIRect';
 
 // =============================================================================
 // Text Render Result
@@ -44,17 +45,36 @@ export class TextRenderer {
     /**
      * Renders text to a texture and returns the handle
      */
-    renderText(text: TextData): TextRenderResult {
+    renderText(text: TextData, uiRect?: UIRectData | null): TextRenderResult {
         const ctx = this.ctx;
         const canvas = this.canvas;
 
         ctx.font = `${text.fontSize}px ${text.fontFamily}`;
 
-        const lines = this.wrapText(text.content, text.maxWidth);
-        const lineHeight = Math.ceil(text.fontSize * text.lineHeight);
+        const hasContainer = uiRect && uiRect.size.x > 0 && uiRect.size.y > 0;
+        const containerWidth = hasContainer ? uiRect!.size.x : 0;
+        const containerHeight = hasContainer ? uiRect!.size.y : 0;
+
+        const shouldWrap = text.wordWrap && hasContainer;
+        let lines = this.wrapText(text.content, shouldWrap ? containerWidth : 0);
+        const lineHeightPx = Math.ceil(text.fontSize * text.lineHeight);
         const padding = Math.ceil(text.fontSize * 0.2);
-        const width = Math.ceil(this.measureWidth(lines)) + padding * 2;
-        const height = Math.ceil(lines.length * lineHeight) + padding * 2;
+
+        const measuredWidth = Math.ceil(this.measureWidth(lines));
+        const measuredHeight = Math.ceil(lines.length * lineHeightPx);
+
+        const width = hasContainer ? Math.ceil(containerWidth) : measuredWidth + padding * 2;
+        const height = hasContainer ? Math.ceil(containerHeight) : measuredHeight + padding * 2;
+
+        // Handle overflow ellipsis
+        if (hasContainer && text.overflow === TextOverflow.Ellipsis && measuredHeight > containerHeight) {
+            const maxLines = Math.floor(containerHeight / lineHeightPx);
+            if (maxLines > 0 && lines.length > maxLines) {
+                lines = lines.slice(0, maxLines);
+                const lastLine = lines[maxLines - 1];
+                lines[maxLines - 1] = this.truncateWithEllipsis(lastLine, containerWidth);
+            }
+        }
 
         if (canvas.width < width || canvas.height < height) {
             const newWidth = Math.max(canvas.width, this.nextPowerOf2(width));
@@ -68,15 +88,34 @@ export class TextRenderer {
         const b = Math.round(text.color.z * 255);
         const a = text.color.w;
 
-        // Clear with text color but alpha=0 to avoid black fringing
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-
         ctx.font = `${text.fontSize}px ${text.fontFamily}`;
         ctx.textAlign = this.mapAlign(text.align);
         ctx.textBaseline = 'top';
         ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${a})`;
 
-        let y = padding;
+        // Handle overflow clip
+        if (hasContainer && text.overflow === TextOverflow.Clip) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(0, 0, width, height);
+            ctx.clip();
+        }
+
+        const textBlockHeight = lines.length * lineHeightPx;
+        let startY: number;
+        if (hasContainer) {
+            switch (text.verticalAlign) {
+                case TextVerticalAlign.Top: startY = padding; break;
+                case TextVerticalAlign.Middle: startY = (height - textBlockHeight) / 2; break;
+                case TextVerticalAlign.Bottom: startY = height - textBlockHeight - padding; break;
+                default: startY = padding;
+            }
+        } else {
+            startY = padding;
+        }
+
+        let y = startY;
         for (const line of lines) {
             let x: number;
             switch (text.align) {
@@ -89,9 +128,15 @@ export class TextRenderer {
                 case TextAlign.Right:
                     x = width - padding;
                     break;
+                default:
+                    x = padding;
             }
             ctx.fillText(line, x, y);
-            y += lineHeight;
+            y += lineHeightPx;
+        }
+
+        if (hasContainer && text.overflow === TextOverflow.Clip) {
+            ctx.restore();
         }
 
         const imageData = ctx.getImageData(0, 0, width, height);
@@ -109,17 +154,32 @@ export class TextRenderer {
         return { textureHandle, width, height };
     }
 
+    private truncateWithEllipsis(text: string, maxWidth: number): string {
+        const ellipsis = '...';
+
+        if (this.ctx.measureText(text).width <= maxWidth) {
+            return text;
+        }
+
+        let truncated = text;
+        while (truncated.length > 0 && this.ctx.measureText(truncated + ellipsis).width > maxWidth) {
+            truncated = truncated.slice(0, -1);
+        }
+
+        return truncated + ellipsis;
+    }
+
     /**
      * Renders text for an entity and caches the result
      */
-    renderForEntity(entity: Entity, text: TextData): TextRenderResult {
+    renderForEntity(entity: Entity, text: TextData, uiRect?: UIRectData | null): TextRenderResult {
         const existing = this.cache.get(entity);
         if (existing) {
             const rm = this.module.getResourceManager();
             rm.releaseTexture(existing.textureHandle);
         }
 
-        const result = this.renderText(text);
+        const result = this.renderText(text, uiRect);
         this.cache.set(entity, result);
         return result;
     }
@@ -166,24 +226,30 @@ export class TextRenderer {
         const lines: string[] = [];
 
         for (const paragraph of paragraphs) {
-            const words = paragraph.split(' ');
+            if (!paragraph) {
+                lines.push('');
+                continue;
+            }
+
             let currentLine = '';
 
-            for (const word of words) {
-                const testLine = currentLine ? `${currentLine} ${word}` : word;
+            for (const char of paragraph) {
+                const testLine = currentLine + char;
                 const metrics = this.ctx.measureText(testLine);
 
                 if (metrics.width > maxWidth && currentLine) {
                     lines.push(currentLine);
-                    currentLine = word;
+                    currentLine = char;
                 } else {
                     currentLine = testLine;
                 }
             }
-            lines.push(currentLine);
+            if (currentLine) {
+                lines.push(currentLine);
+            }
         }
 
-        return lines;
+        return lines.length > 0 ? lines : [''];
     }
 
     private measureWidth(lines: string[]): number {

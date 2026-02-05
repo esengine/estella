@@ -9,8 +9,10 @@ export * from './BoundsRegistry';
 import { registerBoundsProvider } from './BoundsRegistry';
 import { spriteBoundsProvider } from './SpriteBoundsProvider';
 import { textBoundsProvider } from './TextBoundsProvider';
+import { uiRectBoundsProvider } from './UIRectBoundsProvider';
 
 export function initBoundsProviders(): void {
+    registerBoundsProvider('UIRect', uiRectBoundsProvider);
     registerBoundsProvider('Sprite', spriteBoundsProvider);
     registerBoundsProvider('Text', textBoundsProvider);
 }

@@ -285,9 +285,26 @@ export class InspectorPanel {
         header.className = 'es-inspector-entity-header';
         header.innerHTML = `
             <span class="es-entity-icon">${icons.box(16)}</span>
-            <span class="es-entity-name">${this.escapeHtml(name)}</span>
+            <input type="text" class="es-entity-name-input" value="${this.escapeHtml(name)}">
             <span class="es-entity-id">ID:${entity}</span>
         `;
+
+        const input = header.querySelector('.es-entity-name-input') as HTMLInputElement;
+        input.addEventListener('change', () => {
+            const newName = input.value.trim();
+            if (newName && newName !== name) {
+                this.store_.renameEntity(entity, newName);
+            }
+        });
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                input.blur();
+            } else if (e.key === 'Escape') {
+                input.value = name;
+                input.blur();
+            }
+        });
+
         this.contentContainer_.appendChild(header);
     }
 

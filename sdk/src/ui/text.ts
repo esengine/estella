@@ -16,10 +16,16 @@ export enum TextAlign {
     Right = 2,
 }
 
-export enum TextBaseline {
+export enum TextVerticalAlign {
     Top = 0,
     Middle = 1,
     Bottom = 2,
+}
+
+export enum TextOverflow {
+    Visible = 0,
+    Clip = 1,
+    Ellipsis = 2,
 }
 
 // =============================================================================
@@ -32,8 +38,9 @@ export interface TextData {
     fontSize: number;
     color: Vec4;
     align: TextAlign;
-    baseline: TextBaseline;
-    maxWidth: number;
+    verticalAlign: TextVerticalAlign;
+    wordWrap: boolean;
+    overflow: TextOverflow;
     lineHeight: number;
     dirty: boolean;
 }
@@ -48,8 +55,9 @@ export const Text = defineComponent<TextData>('Text', {
     fontSize: 24,
     color: { x: 1, y: 1, z: 1, w: 1 },
     align: TextAlign.Left,
-    baseline: TextBaseline.Top,
-    maxWidth: 0,
+    verticalAlign: TextVerticalAlign.Top,
+    wordWrap: true,
+    overflow: TextOverflow.Visible,
     lineHeight: 1.2,
     dirty: true,
 });

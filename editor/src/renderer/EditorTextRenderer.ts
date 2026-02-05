@@ -39,14 +39,14 @@ export class EditorTextRenderer {
         }
     }
 
-    renderText(entityId: number, data: any): TextRenderResult | null {
+    renderText(entityId: number, data: any, uiRect?: { size: { x: number; y: number } } | null): TextRenderResult | null {
         const existing = this.cache_.get(entityId);
         if (existing) {
             const rm = this.module_.getResourceManager();
             rm.releaseTexture(existing.textureHandle);
         }
 
-        const result = this.renderTextInternal(data);
+        const result = this.renderTextInternal(data, uiRect);
         if (result) {
             this.cache_.set(entityId, result);
         }
@@ -65,7 +65,7 @@ export class EditorTextRenderer {
     // Private Methods
     // =========================================================================
 
-    private renderTextInternal(data: any): TextRenderResult | null {
+    private renderTextInternal(data: any, uiRect?: { size: { x: number; y: number } } | null): TextRenderResult | null {
         const content = data.content ?? '';
         if (!content) return null;
 
@@ -73,7 +73,9 @@ export class EditorTextRenderer {
         const fontSize = data.fontSize ?? 24;
         const color = data.color ?? { x: 1, y: 1, z: 1, w: 1 };
         const align = data.align ?? 0;
-        const maxWidth = data.maxWidth ?? 0;
+        const verticalAlign = data.verticalAlign ?? 0;
+        const wordWrap = data.wordWrap ?? true;
+        const overflow = data.overflow ?? 0;
         const lineHeight = data.lineHeight ?? 1.2;
 
         const ctx = this.ctx_;
@@ -81,11 +83,30 @@ export class EditorTextRenderer {
 
         ctx.font = `${fontSize}px ${fontFamily}`;
 
-        const lines = this.wrapText(content, maxWidth);
+        const hasContainer = uiRect && uiRect.size.x > 0 && uiRect.size.y > 0;
+        const containerWidth = hasContainer ? uiRect!.size.x : 0;
+        const containerHeight = hasContainer ? uiRect!.size.y : 0;
+
+        const shouldWrap = wordWrap && hasContainer;
+        let lines = this.wrapText(content, shouldWrap ? containerWidth : 0);
         const lineHeightPx = Math.ceil(fontSize * lineHeight);
         const padding = Math.ceil(fontSize * 0.2);
-        const width = Math.ceil(this.measureWidth(lines)) + padding * 2;
-        const height = Math.ceil(lines.length * lineHeightPx) + padding * 2;
+
+        const measuredWidth = Math.ceil(this.measureWidth(lines));
+        const measuredHeight = Math.ceil(lines.length * lineHeightPx);
+
+        const width = hasContainer ? Math.ceil(containerWidth) : measuredWidth + padding * 2;
+        const height = hasContainer ? Math.ceil(containerHeight) : measuredHeight + padding * 2;
+
+        // Handle overflow ellipsis
+        if (hasContainer && overflow === 2 && measuredHeight > containerHeight) {
+            const maxLines = Math.floor(containerHeight / lineHeightPx);
+            if (maxLines > 0 && lines.length > maxLines) {
+                lines = lines.slice(0, maxLines);
+                const lastLine = lines[maxLines - 1];
+                lines[maxLines - 1] = this.truncateWithEllipsis(lastLine, containerWidth);
+            }
+        }
 
         if (canvas.width < width || canvas.height < height) {
             const newWidth = Math.max(canvas.width, this.nextPowerOf2(width));
@@ -105,17 +126,51 @@ export class EditorTextRenderer {
         ctx.textBaseline = 'top';
         ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${a})`;
 
-        let y = padding;
+        // Handle overflow clip
+        if (hasContainer && overflow === 1) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(0, 0, width, height);
+            ctx.clip();
+        }
+
+        const textBlockHeight = lines.length * lineHeightPx;
+        let startY: number;
+        if (hasContainer) {
+            switch (verticalAlign) {
+                case 0: startY = padding; break;
+                case 1: startY = (height - textBlockHeight) / 2; break;
+                case 2: startY = height - textBlockHeight - padding; break;
+                default: startY = padding;
+            }
+        } else {
+            startY = padding;
+        }
+
+        let y = startY;
         for (const line of lines) {
             let x: number;
-            switch (align) {
-                case 0: x = padding; break;
-                case 1: x = width / 2; break;
-                case 2: x = width - padding; break;
-                default: x = padding;
+            if (hasContainer) {
+                switch (align) {
+                    case 0: x = padding; break;
+                    case 1: x = width / 2; break;
+                    case 2: x = width - padding; break;
+                    default: x = padding;
+                }
+            } else {
+                switch (align) {
+                    case 0: x = padding; break;
+                    case 1: x = width / 2; break;
+                    case 2: x = width - padding; break;
+                    default: x = padding;
+                }
             }
             ctx.fillText(line, x, y);
             y += lineHeightPx;
+        }
+
+        if (hasContainer && overflow === 1) {
+            ctx.restore();
         }
 
         const imageData = ctx.getImageData(0, 0, width, height);
@@ -133,6 +188,22 @@ export class EditorTextRenderer {
         return { textureHandle, width, height };
     }
 
+    private truncateWithEllipsis(text: string, maxWidth: number): string {
+        const ellipsis = '...';
+        const ellipsisWidth = this.ctx_.measureText(ellipsis).width;
+
+        if (this.ctx_.measureText(text).width <= maxWidth) {
+            return text;
+        }
+
+        let truncated = text;
+        while (truncated.length > 0 && this.ctx_.measureText(truncated + ellipsis).width > maxWidth) {
+            truncated = truncated.slice(0, -1);
+        }
+
+        return truncated + ellipsis;
+    }
+
     private wrapText(text: string, maxWidth: number): string[] {
         if (!text) return [''];
         if (maxWidth <= 0) return text.split('\n');
@@ -141,24 +212,30 @@ export class EditorTextRenderer {
         const lines: string[] = [];
 
         for (const paragraph of paragraphs) {
-            const words = paragraph.split(' ');
+            if (!paragraph) {
+                lines.push('');
+                continue;
+            }
+
             let currentLine = '';
 
-            for (const word of words) {
-                const testLine = currentLine ? `${currentLine} ${word}` : word;
+            for (const char of paragraph) {
+                const testLine = currentLine + char;
                 const metrics = this.ctx_.measureText(testLine);
 
                 if (metrics.width > maxWidth && currentLine) {
                     lines.push(currentLine);
-                    currentLine = word;
+                    currentLine = char;
                 } else {
                     currentLine = testLine;
                 }
             }
-            lines.push(currentLine);
+            if (currentLine) {
+                lines.push(currentLine);
+            }
         }
 
-        return lines;
+        return lines.length > 0 ? lines : [''];
     }
 
     private measureWidth(lines: string[]): number {

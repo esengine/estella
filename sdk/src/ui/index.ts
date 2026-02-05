@@ -7,9 +7,16 @@
 export {
     Text,
     TextAlign,
-    TextBaseline,
+    TextVerticalAlign,
+    TextOverflow,
     type TextData,
 } from './text';
+
+// UIRect Component
+export {
+    UIRect,
+    type UIRectData,
+} from './UIRect';
 
 // Text Renderer
 export {

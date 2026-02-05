@@ -144,11 +144,14 @@ export type {
 export {
     Text,
     TextAlign,
-    TextBaseline,
+    TextVerticalAlign,
+    TextOverflow,
+    UIRect,
     TextRenderer,
     TextPlugin,
     textPlugin,
     type TextData,
+    type UIRectData,
     type TextRenderResult,
 } from './ui';
 

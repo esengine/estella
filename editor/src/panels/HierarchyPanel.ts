@@ -227,8 +227,11 @@ export class HierarchyPanel {
         menu.style.left = `${x}px`;
         menu.style.top = `${y}px`;
 
-        const items: { label: string; action: () => void }[] = [
+        const items: { label: string; action: () => void; separator?: boolean }[] = [
             { label: 'Create Entity', action: () => this.store_.createEntity(undefined, entity) },
+            { label: 'Create Sprite', action: () => this.createEntityWithComponent('Sprite', entity) },
+            { label: 'Create Text', action: () => this.createEntityWithComponent('Text', entity) },
+            { label: 'Create Camera', action: () => this.createEntityWithComponent('Camera', entity), separator: true },
         ];
 
         if (entity !== null) {
@@ -239,7 +242,8 @@ export class HierarchyPanel {
         }
 
         menu.innerHTML = items.map(item =>
-            `<div class="es-context-menu-item">${item.label}</div>`
+            `<div class="es-context-menu-item">${item.label}</div>` +
+            (item.separator ? '<div class="es-context-menu-separator"></div>' : '')
         ).join('');
 
         menu.querySelectorAll('.es-context-menu-item').forEach((el, i) => {
@@ -258,6 +262,68 @@ export class HierarchyPanel {
             }
         };
         setTimeout(() => document.addEventListener('click', closeMenu), 0);
+    }
+
+    private createEntityWithComponent(componentType: string, parent: Entity | null): void {
+        const newEntity = this.store_.createEntity(componentType, parent);
+
+        this.store_.addComponent(newEntity, 'LocalTransform', {
+            position: { x: 0, y: 0, z: 0 },
+            rotation: { x: 0, y: 0, z: 0, w: 1 },
+            scale: { x: 1, y: 1, z: 1 },
+        });
+
+        if (componentType === 'Text' || componentType === 'Sprite') {
+            this.store_.addComponent(newEntity, 'UIRect', this.getDefaultComponentData('UIRect'));
+        }
+
+        const defaultData = this.getDefaultComponentData(componentType);
+        this.store_.addComponent(newEntity, componentType, defaultData);
+    }
+
+    private getDefaultComponentData(componentType: string): Record<string, unknown> {
+        switch (componentType) {
+            case 'Sprite':
+                return {
+                    texture: '',
+                    color: { x: 1, y: 1, z: 1, w: 1 },
+                    size: { x: 100, y: 100 },
+                    uvOffset: { x: 0, y: 0 },
+                    uvScale: { x: 1, y: 1 },
+                    layer: 0,
+                    flipX: false,
+                    flipY: false,
+                };
+            case 'Text':
+                return {
+                    content: 'Text',
+                    fontFamily: 'Arial',
+                    fontSize: 24,
+                    color: { x: 1, y: 1, z: 1, w: 1 },
+                    align: 0,
+                    verticalAlign: 0,
+                    wordWrap: true,
+                    overflow: 0,
+                    lineHeight: 1.2,
+                };
+            case 'Camera':
+                return {
+                    isActive: true,
+                    projectionType: 0,
+                    fov: 60,
+                    orthoSize: 5,
+                    nearPlane: 0.1,
+                    farPlane: 1000,
+                };
+            case 'UIRect':
+                return {
+                    size: { x: 100, y: 100 },
+                    anchor: { x: 0.5, y: 0.5 },
+                    pivot: { x: 0.5, y: 0.5 },
+                };
+            default:
+                return {};
+        }
     }
 
     private duplicateEntity(entity: Entity): void {
