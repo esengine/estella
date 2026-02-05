@@ -16,8 +16,8 @@ export interface PlatformInfo {
 }
 
 export const PLATFORMS: PlatformInfo[] = [
-    { id: 'playable', name: '试玩平台', icon: 'play' },
-    { id: 'wechat', name: '微信小游戏', icon: 'box' },
+    { id: 'playable', name: 'Playable', icon: 'play' },
+    { id: 'wechat', name: 'WeChat MiniGame', icon: 'box' },
 ];
 
 // =============================================================================
