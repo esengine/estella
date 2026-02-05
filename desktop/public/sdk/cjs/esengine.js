@@ -1,6 +1,149 @@
 'use strict';
 
 /**
+ * @file    base.ts
+ * @brief   Base platform adapter - no platform-specific code
+ */
+// =============================================================================
+// Platform Instance (set by entry point)
+// =============================================================================
+let currentPlatform = null;
+/**
+ * Set the platform adapter (called by entry point)
+ */
+function setPlatform(adapter) {
+    currentPlatform = adapter;
+    console.log(`[ESEngine] Platform: ${adapter.name}`);
+}
+/**
+ * Get the current platform adapter
+ * @throws Error if platform not initialized
+ */
+function getPlatform() {
+    if (!currentPlatform) {
+        throw new Error('[ESEngine] Platform not initialized. ' +
+            'Import from "esengine" (web) or "esengine/wechat" (WeChat) instead of direct imports.');
+    }
+    return currentPlatform;
+}
+/**
+ * Check if platform is initialized
+ */
+function isPlatformInitialized() {
+    return currentPlatform !== null;
+}
+/**
+ * Get platform type
+ */
+function getPlatformType() {
+    return currentPlatform?.name ?? null;
+}
+/**
+ * Check if running on WeChat
+ */
+function isWeChat() {
+    return currentPlatform?.name === 'wechat';
+}
+/**
+ * Check if running on Web
+ */
+function isWeb() {
+    return currentPlatform?.name === 'web';
+}
+// =============================================================================
+// Convenience Functions
+// =============================================================================
+async function platformFetch(url, options) {
+    return getPlatform().fetch(url, options);
+}
+async function platformReadFile(path) {
+    return getPlatform().readFile(path);
+}
+async function platformReadTextFile(path) {
+    return getPlatform().readTextFile(path);
+}
+async function platformFileExists(path) {
+    return getPlatform().fileExists(path);
+}
+async function platformInstantiateWasm(pathOrBuffer, imports) {
+    return getPlatform().instantiateWasm(pathOrBuffer, imports);
+}
+
+/**
+ * @file    web.ts
+ * @brief   Web platform adapter implementation
+ */
+// =============================================================================
+// Web Platform Adapter
+// =============================================================================
+class WebPlatformAdapter {
+    constructor() {
+        this.name = 'web';
+    }
+    async fetch(url, options) {
+        const response = await globalThis.fetch(url, {
+            method: options?.method ?? 'GET',
+            headers: options?.headers,
+            body: options?.body,
+        });
+        const headers = {};
+        response.headers.forEach((value, key) => {
+            headers[key] = value;
+        });
+        return {
+            ok: response.ok,
+            status: response.status,
+            statusText: response.statusText,
+            headers,
+            json: () => response.json(),
+            text: () => response.text(),
+            arrayBuffer: () => response.arrayBuffer(),
+        };
+    }
+    async readFile(path) {
+        const response = await this.fetch(path);
+        if (!response.ok) {
+            throw new Error(`Failed to read file: ${path} (${response.status})`);
+        }
+        return response.arrayBuffer();
+    }
+    async readTextFile(path) {
+        const response = await this.fetch(path);
+        if (!response.ok) {
+            throw new Error(`Failed to read file: ${path} (${response.status})`);
+        }
+        return response.text();
+    }
+    async fileExists(path) {
+        try {
+            const response = await globalThis.fetch(path, { method: 'HEAD' });
+            return response.ok;
+        }
+        catch {
+            return false;
+        }
+    }
+    async instantiateWasm(pathOrBuffer, imports) {
+        let buffer;
+        if (typeof pathOrBuffer === 'string') {
+            buffer = await this.readFile(pathOrBuffer);
+        }
+        else {
+            buffer = pathOrBuffer;
+        }
+        const result = await WebAssembly.instantiate(buffer, imports);
+        return {
+            instance: result.instance,
+            module: result.module,
+        };
+    }
+}
+// =============================================================================
+// Export Singleton
+// =============================================================================
+const webAdapter = new WebPlatformAdapter();
+
+/**
  * @file    types.ts
  * @brief   Core type definitions for ESEngine SDK
  */
@@ -1148,7 +1291,12 @@ function createWebApp(module, options) {
     const app = App.new();
     const cppRegistry = new module.Registry();
     app.connectCpp(cppRegistry, module);
-    module.initRenderer();
+    if (options?.glContextHandle) {
+        module.initRendererWithContext(options.glContextHandle);
+    }
+    else {
+        module.initRenderer();
+    }
     const getViewportSize = options?.getViewportSize ?? (() => ({
         width: window.innerWidth * (window.devicePixelRatio || 1),
         height: window.innerHeight * (window.devicePixelRatio || 1)
@@ -1485,7 +1633,7 @@ class PreviewPlugin {
         if (!this.app_)
             return;
         try {
-            const response = await fetch(this.sceneUrl_);
+            const response = await platformFetch(this.sceneUrl_);
             if (!response.ok) {
                 throw new Error(`Failed to fetch scene: ${response.status}`);
             }
@@ -1537,6 +1685,13 @@ class PreviewPlugin {
     }
 }
 
+/**
+ * @file    index.ts
+ * @brief   ESEngine SDK - Web entry point (auto-initializes Web platform)
+ */
+// Initialize Web platform
+setPlatform(webAdapter);
+
 exports.App = App;
 exports.AssetPlugin = AssetPlugin;
 exports.AssetServer = AssetServer;
@@ -1575,9 +1730,19 @@ exports.defineComponent = defineComponent;
 exports.defineResource = defineResource;
 exports.defineSystem = defineSystem;
 exports.defineTag = defineTag;
+exports.getPlatform = getPlatform;
+exports.getPlatformType = getPlatformType;
 exports.isBuiltinComponent = isBuiltinComponent;
+exports.isPlatformInitialized = isPlatformInitialized;
+exports.isWeChat = isWeChat;
+exports.isWeb = isWeb;
 exports.loadSceneData = loadSceneData;
 exports.loadSceneWithAssets = loadSceneWithAssets;
+exports.platformFetch = platformFetch;
+exports.platformFileExists = platformFileExists;
+exports.platformInstantiateWasm = platformInstantiateWasm;
+exports.platformReadFile = platformReadFile;
+exports.platformReadTextFile = platformReadTextFile;
 exports.quat = quat;
 exports.textPlugin = textPlugin;
 exports.vec2 = vec2;

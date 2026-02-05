@@ -5,6 +5,7 @@
 
 import type { EditorStore, AssetType } from '../store/EditorStore';
 import { icons } from '../utils/icons';
+import { showContextMenu } from '../ui/ContextMenu';
 
 // =============================================================================
 // Types
@@ -28,6 +29,7 @@ interface NativeFS {
         callback: (event: FileChangeEvent) => void,
         options?: { recursive?: boolean }
     ): Promise<() => void>;
+    openFolder(path: string): Promise<boolean>;
 }
 
 interface FolderNode {
@@ -404,6 +406,97 @@ export class ContentBrowserPanel {
         const refreshBtn = this.container_.querySelector('.es-refresh-btn');
         refreshBtn?.addEventListener('click', () => {
             this.refresh();
+        });
+
+        this.gridContainer_?.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            const target = e.target as HTMLElement;
+            const item = target.closest('.es-asset-item') as HTMLElement;
+
+            if (item) {
+                const path = item.dataset.path;
+                const type = item.dataset.type;
+                if (path) {
+                    this.showAssetContextMenu(e, path, type as AssetItem['type']);
+                }
+            } else {
+                this.showFolderContextMenu(e, this.currentPath_);
+            }
+        });
+
+        this.treeContainer_?.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            const target = e.target as HTMLElement;
+            const item = target.closest('.es-folder-item') as HTMLElement;
+            const path = item?.dataset.path ?? this.currentPath_;
+            if (path) {
+                this.showFolderContextMenu(e, path);
+            }
+        });
+    }
+
+    private showAssetContextMenu(e: MouseEvent, path: string, type: AssetItem['type']): void {
+        const fs = getNativeFS();
+        const parentPath = getParentPath(path);
+
+        showContextMenu({
+            x: e.clientX,
+            y: e.clientY,
+            items: [
+                {
+                    label: 'Show in Folder',
+                    icon: icons.folderOpen(14),
+                    onClick: () => {
+                        fs?.openFolder(parentPath);
+                    },
+                },
+                {
+                    label: 'Copy Path',
+                    icon: icons.copy(14),
+                    onClick: () => {
+                        navigator.clipboard.writeText(path);
+                    },
+                },
+                { separator: true, label: '' },
+                {
+                    label: 'Delete',
+                    icon: icons.trash(14),
+                    disabled: true,
+                },
+            ],
+        });
+    }
+
+    private showFolderContextMenu(e: MouseEvent, path: string): void {
+        const fs = getNativeFS();
+
+        showContextMenu({
+            x: e.clientX,
+            y: e.clientY,
+            items: [
+                {
+                    label: 'Show in Folder',
+                    icon: icons.folderOpen(14),
+                    onClick: () => {
+                        fs?.openFolder(path);
+                    },
+                },
+                {
+                    label: 'Copy Path',
+                    icon: icons.copy(14),
+                    onClick: () => {
+                        navigator.clipboard.writeText(path);
+                    },
+                },
+                { separator: true, label: '' },
+                {
+                    label: 'Refresh',
+                    icon: icons.refresh(14),
+                    onClick: () => {
+                        this.refresh();
+                    },
+                },
+            ],
         });
     }
 

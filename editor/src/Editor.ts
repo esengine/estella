@@ -327,23 +327,35 @@ export class Editor {
             </div>
             <div class="es-editor-statusbar">
                 <div class="es-statusbar-left">
-                    <button class="es-btn-dropdown es-active" data-action="toggle-assets">
+                    <button class="es-statusbar-btn es-statusbar-btn-primary es-active" data-action="toggle-assets">
                         ${icons.folder(12)}
-                        <span>Assets</span>
+                        <span>Content Browser</span>
                         ${icons.chevronDown(10)}
                     </button>
-                    <button class="es-btn-tab" data-action="toggle-output">
+                    <button class="es-statusbar-btn" data-action="toggle-output">
                         ${icons.list(12)}
                         <span>Output</span>
                     </button>
+                    <div class="es-statusbar-divider"></div>
+                    <span class="es-cmd-prompt">&gt;</span>
+                    <input type="text" class="es-cmd-input" placeholder="pnpm install, npm run build..." />
                 </div>
                 <div class="es-statusbar-right">
+                    <button class="es-statusbar-btn" data-action="undo" title="Undo">
+                        <span>Undo</span>
+                    </button>
                     <div class="es-statusbar-icons">
-                        <button title="Grid">${icons.hash(12)}</button>
+                        <button title="Notifications">${icons.list(12)}</button>
+                        <button title="Extensions">${icons.grid(12)}</button>
+                        <button title="Settings">${icons.settings(12)}</button>
                     </div>
                     <span class="es-status-indicator es-status-saved">
                         ${icons.check(12)}
-                        <span>Saved</span>
+                        <span>All Saved</span>
+                    </span>
+                    <div class="es-statusbar-divider"></div>
+                    <span class="es-status-indicator">
+                        <span>Version Control</span>
                     </span>
                 </div>
             </div>
@@ -629,8 +641,92 @@ export class Editor {
                 this.toggleAssetsPanel();
             } else if (action === 'toggle-output') {
                 this.toggleOutputPanel();
+            } else if (action === 'undo') {
+                this.store_.undo();
             }
         });
+
+        const cmdInput = statusbar.querySelector('.es-cmd-input') as HTMLInputElement;
+
+        cmdInput?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                const command = cmdInput.value.trim();
+                if (command) {
+                    this.executeShellCommand(command);
+                    cmdInput.value = '';
+                }
+            }
+        });
+    }
+
+    private async executeShellCommand(fullCommand: string): Promise<void> {
+        if (!this.projectPath_) {
+            this.appendOutput('Error: No project loaded\n', 'error');
+            return;
+        }
+
+        const shell = (window as any).__esengine_shell;
+        if (!shell) {
+            this.appendOutput('Error: Shell not available\n', 'error');
+            return;
+        }
+
+        const projectDir = this.projectPath_.replace(/[/\\][^/\\]+$/, '');
+
+        this.outputPanelVisible_ = true;
+        this.assetsPanelVisible_ = false;
+        this.updateBottomPanelVisibility();
+
+        const parts = fullCommand.split(/\s+/);
+        const cmd = parts[0];
+        const args = parts.slice(1);
+
+        this.appendOutput(`> ${fullCommand}\n`, 'command');
+
+        try {
+            const result = await shell.execute(cmd, args, projectDir, (stream: string, data: string) => {
+                this.appendOutput(data + '\n', stream === 'stderr' ? 'stderr' : 'stdout');
+            });
+
+            if (result.code !== 0) {
+                this.appendOutput(`Process exited with code ${result.code}\n`, 'error');
+            } else {
+                this.appendOutput(`Done.\n`, 'success');
+            }
+        } catch (err) {
+            this.appendOutput(`Error: ${err}\n`, 'error');
+        }
+    }
+
+    private appendOutput(text: string, type: 'command' | 'stdout' | 'stderr' | 'error' | 'success'): void {
+        const outputContent = this.container_.querySelector('.es-output-content');
+        if (!outputContent) return;
+
+        const empty = outputContent.querySelector('.es-output-empty');
+        if (empty) empty.remove();
+
+        const line = document.createElement('div');
+        line.className = `es-output-line es-output-${type}`;
+        line.textContent = text;
+        outputContent.appendChild(line);
+        outputContent.scrollTop = outputContent.scrollHeight;
+    }
+
+    private updateBottomPanelVisibility(): void {
+        const assetsBtn = this.container_.querySelector('[data-action="toggle-assets"]');
+        const outputBtn = this.container_.querySelector('[data-action="toggle-output"]');
+        const contentBrowser = this.container_.querySelector('.es-content-browser-container') as HTMLElement;
+        const outputPanel = this.container_.querySelector('.es-output-container') as HTMLElement;
+        const bottomPanel = this.container_.querySelector('.es-editor-bottom') as HTMLElement;
+
+        assetsBtn?.classList.toggle('es-active', this.assetsPanelVisible_);
+        outputBtn?.classList.toggle('es-active', this.outputPanelVisible_);
+
+        if (contentBrowser) contentBrowser.style.display = this.assetsPanelVisible_ ? '' : 'none';
+        if (outputPanel) outputPanel.style.display = this.outputPanelVisible_ ? '' : 'none';
+        if (bottomPanel) bottomPanel.style.display = (this.assetsPanelVisible_ || this.outputPanelVisible_) ? '' : 'none';
+
+        requestAnimationFrame(() => this.sceneViewPanel_?.resize());
     }
 
     private toggleAssetsPanel(): void {

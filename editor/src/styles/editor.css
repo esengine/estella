@@ -3083,3 +3083,128 @@ svg {
     background: #3d9ee0;
     border-color: #3d9ee0;
 }
+
+/* =============================================================================
+ * Statusbar Command Input
+ * ============================================================================= */
+
+.es-statusbar-divider {
+    width: 1px;
+    height: 14px;
+    background: var(--es-border);
+    margin: 0 6px;
+}
+
+.es-statusbar-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 20px;
+    padding: 0 8px;
+    background: transparent;
+    border: none;
+    border-radius: 3px;
+    color: var(--es-text-secondary);
+    font-size: 11px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.es-statusbar-btn:hover {
+    background: var(--es-bg-hover);
+    color: var(--es-text-primary);
+}
+
+.es-statusbar-btn svg {
+    stroke: var(--es-text-secondary);
+}
+
+.es-statusbar-btn:hover svg {
+    stroke: var(--es-text-primary);
+}
+
+.es-statusbar-btn-primary {
+    background: var(--es-bg-tertiary);
+    border: 1px solid var(--es-border);
+    color: var(--es-text-primary);
+}
+
+.es-statusbar-btn-primary:hover {
+    background: var(--es-bg-hover);
+    border-color: var(--es-text-secondary);
+}
+
+.es-statusbar-btn-primary svg {
+    stroke: var(--es-text-primary);
+}
+
+.es-statusbar-btn.es-active {
+    color: var(--es-text-primary);
+}
+
+.es-statusbar-btn.es-active svg {
+    stroke: var(--es-text-primary);
+}
+
+.es-cmd-prompt {
+    color: var(--es-text-secondary);
+    font-size: 12px;
+    font-weight: 500;
+    margin: 0 4px;
+}
+
+.es-cmd-input {
+    flex: 1;
+    min-width: 150px;
+    max-width: 300px;
+    height: 20px;
+    padding: 0 8px;
+    background: var(--es-bg-primary);
+    border: 1px solid var(--es-border);
+    border-radius: 3px;
+    color: var(--es-text-primary);
+    font-size: 11px;
+    outline: none;
+}
+
+.es-cmd-input::placeholder {
+    color: var(--es-text-secondary);
+}
+
+.es-cmd-input:focus {
+    border-color: var(--es-accent);
+}
+
+/* =============================================================================
+ * Output Panel Lines
+ * ============================================================================= */
+
+.es-output-line {
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.es-output-command {
+    color: var(--es-accent);
+    font-weight: 500;
+    margin-top: 8px;
+}
+
+.es-output-stdout {
+    color: var(--es-text-primary);
+}
+
+.es-output-stderr {
+    color: #e5c07b;
+}
+
+.es-output-error {
+    color: var(--es-danger);
+}
+
+.es-output-success {
+    color: var(--es-success);
+}
