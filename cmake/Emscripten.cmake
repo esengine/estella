@@ -93,14 +93,25 @@ if(CMAKE_BUILD_TYPE STREQUAL "Release")
     )
 endif()
 
-# WeChat MiniGame specific settings
-if(ES_BUILD_WXGAME)
-    list(APPEND ES_EMSCRIPTEN_LINK_FLAGS
-        -sENVIRONMENT=web
-        -sMODULARIZE=1
-        "-sEXPORT_NAME='ESEngineModule'"
-    )
-endif()
+# WeChat MiniGame SDK link flags (CommonJS compatible, no ES6)
+set(ES_EMSCRIPTEN_WXGAME_SDK_FLAGS
+    --bind
+    -sWASM=1
+    -sUSE_WEBGL2=1
+    -sFULL_ES3=1
+    -sALLOW_MEMORY_GROWTH=1
+    -sNO_EXIT_RUNTIME=1
+    -sENVIRONMENT=web,node
+    -sEXPORT_ES6=0
+    -sMODULARIZE=1
+    -sNO_FILESYSTEM=1
+    -sDYNAMIC_EXECUTION=0
+    "-sEXPORT_NAME='ESEngineModule'"
+    "-sEXPORTED_FUNCTIONS=['_malloc','_free']"
+    "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32','GL']"
+    -O3
+    --closure=0
+)
 
 # Helper function to apply Emscripten settings to a target (monolithic build)
 function(es_apply_emscripten_settings TARGET_NAME)
@@ -202,6 +213,18 @@ function(es_apply_single_file_settings TARGET_NAME)
         target_compile_options(${TARGET_NAME} PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS} -flto)
 
         string(REPLACE ";" " " LINK_FLAGS_STR "${ES_EMSCRIPTEN_SINGLE_FILE_FLAGS}")
+        set_target_properties(${TARGET_NAME} PROPERTIES
+            SUFFIX ".js"
+            LINK_FLAGS "${LINK_FLAGS_STR}"
+        )
+    endif()
+endfunction()
+
+function(es_apply_wxgame_sdk_settings TARGET_NAME)
+    if(ES_BUILD_WXGAME)
+        target_compile_options(${TARGET_NAME} PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS})
+
+        string(REPLACE ";" " " LINK_FLAGS_STR "${ES_EMSCRIPTEN_WXGAME_SDK_FLAGS}")
         set_target_properties(${TARGET_NAME} PROPERTIES
             SUFFIX ".js"
             LINK_FLAGS "${LINK_FLAGS_STR}"

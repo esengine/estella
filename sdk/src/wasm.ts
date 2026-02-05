@@ -83,7 +83,16 @@ export interface ESEngineModule {
 
     initRenderer(): void;
     initRendererWithCanvas(canvasSelector: string): boolean;
+    initRendererWithContext(contextHandle: number): boolean;
     shutdownRenderer(): void;
+
+    GL: {
+        registerContext(ctx: WebGLRenderingContext | WebGL2RenderingContext, options: {
+            majorVersion: number;
+            minorVersion: number;
+            enableExtensionsByDefault?: boolean;
+        }): number;
+    };
     renderFrame(registry: CppRegistry, width: number, height: number): void;
     renderFrameWithMatrix(registry: CppRegistry, width: number, height: number, matrixPtr: number): void;
     getResourceManager(): CppResourceManager;
