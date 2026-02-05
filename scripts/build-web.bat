@@ -19,9 +19,10 @@ echo Build complete: %BUILD_DIR%\sdk\
 dir sdk\
 
 echo.
-echo Copying to desktop/public...
-copy /Y sdk\esengine.js ..\desktop\public\
-copy /Y sdk\esengine.wasm ..\desktop\public\
+echo Copying to desktop/public/wasm...
+if not exist "..\desktop\public\wasm" mkdir "..\desktop\public\wasm"
+copy /Y sdk\esengine.js "..\desktop\public\wasm\"
+copy /Y sdk\esengine.wasm "..\desktop\public\wasm\"
 echo Done!
 goto :end
 

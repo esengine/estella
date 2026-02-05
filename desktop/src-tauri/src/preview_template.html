@@ -7,7 +7,7 @@
     <script type="importmap">
     {
         "imports": {
-            "esengine": "/esengine-sdk.js"
+            "esengine": "/sdk/esm/esengine.js"
         }
     }
     </script>
@@ -75,18 +75,16 @@
         async function loadPreview() {
             try {
                 updateLoading('Loading WASM module...');
-                const ModuleLoader = await import('/esengine.js');
+                const ModuleLoader = await import('/wasm/esengine.js');
                 const Module = await ModuleLoader.default();
 
                 updateLoading('Loading SDK...');
-                const sdk = await import('/esengine-sdk.js');
+                const sdk = await import('/sdk/esm/esengine.js');
 
-                // Load user scripts to register custom components (but don't call main)
                 try {
                     await import('/.esengine/preview/user-scripts.js');
-                    console.log('User scripts loaded (components registered)');
                 } catch (e) {
-                    console.log('No user scripts found');
+                    // No user scripts
                 }
 
                 updateLoading('Loading scene...');

@@ -19,12 +19,13 @@ echo Single-file SDK built:
 dir sdk\esengine.single.js
 
 echo.
-echo Copying to desktop/public...
-copy /Y sdk\esengine.single.js "%~dp0\..\desktop\public\esengine.single.js"
+echo Copying to desktop/public/wasm...
+if not exist "%~dp0\..\desktop\public\wasm" mkdir "%~dp0\..\desktop\public\wasm"
+copy /Y sdk\esengine.single.js "%~dp0\..\desktop\public\wasm\"
 if errorlevel 1 goto :error
 
 echo.
-echo SDK copied to desktop/public/esengine.single.js
+echo SDK copied to desktop/public/wasm/esengine.single.js
 goto :end
 
 :error

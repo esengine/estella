@@ -37,6 +37,7 @@ export interface WeChatSettings {
     version: string;
     bundleMode: 'subpackage' | 'single' | 'singleFile';
     outputDir: string;
+    sdkPath: string;
 }
 
 // =============================================================================
@@ -79,6 +80,7 @@ export function createDefaultWeChatSettings(): WeChatSettings {
         version: '1.0.0',
         bundleMode: 'subpackage',
         outputDir: 'build/wechat',
+        sdkPath: '',
     };
 }
 
@@ -148,6 +150,7 @@ export function createDefaultBuildSettings(): BuildSettings {
                     version: '1.0.0',
                     bundleMode: 'subpackage',
                     outputDir: 'build/wechat-dev',
+                    sdkPath: '',
                 },
             },
             {
@@ -161,6 +164,7 @@ export function createDefaultBuildSettings(): BuildSettings {
                     version: '1.0.0',
                     bundleMode: 'subpackage',
                     outputDir: 'build/wechat',
+                    sdkPath: '',
                 },
             },
         ],

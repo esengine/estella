@@ -70,6 +70,9 @@ export class BuildSettingsDialog {
 
     dispose(): void {
         saveBuildSettings(this.settings_);
+        if (this.keyHandler_) {
+            document.removeEventListener('keydown', this.keyHandler_);
+        }
         this.overlay_.remove();
     }
 
@@ -308,6 +311,14 @@ export class BuildSettingsDialog {
                         <button class="es-btn" data-action="browse-output">...</button>
                     </div>
                 </div>
+                <div class="es-build-field">
+                    <label class="es-build-label">SDK Path</label>
+                    <div class="es-build-path-row">
+                        <input type="text" class="es-input" id="wechat-sdk" value="${s.sdkPath || ''}" placeholder="Path to esengine.cjs.js or folder">
+                        <button class="es-btn" data-action="browse-sdk">...</button>
+                    </div>
+                    <div class="es-build-hint">Leave empty to search in project root</div>
+                </div>
             `;
         }
 
@@ -336,14 +347,14 @@ export class BuildSettingsDialog {
     }
 
     private setupEvents(): void {
-        this.overlay_.querySelector('[data-action="close"]')?.addEventListener('click', () => {
-            this.close();
-        });
-
         this.overlay_.addEventListener('click', (e) => {
             const target = e.target as HTMLElement;
 
-            // Platform selection
+            if (target.closest('[data-action="close"]')) {
+                this.close();
+                return;
+            }
+
             const platformEl = target.closest('.es-build-platform') as HTMLElement;
             if (platformEl) {
                 const platform = platformEl.dataset.platform as BuildPlatform;
@@ -353,23 +364,19 @@ export class BuildSettingsDialog {
                     this.settings_.activeConfigId = firstConfig.id;
                 }
                 this.render();
-                this.setupEvents();
                 return;
             }
 
-            // Config selection
             const configEl = target.closest('.es-build-config-item') as HTMLElement;
             if (configEl && !target.closest('[data-action="delete-config"]')) {
                 const configId = configEl.dataset.config;
                 if (configId) {
                     this.settings_.activeConfigId = configId;
                     this.render();
-                    this.setupEvents();
                 }
                 return;
             }
 
-            // Collapse toggle
             const collapseHeader = target.closest('.es-build-collapse-header') as HTMLElement;
             if (collapseHeader) {
                 const collapse = collapseHeader.closest('.es-build-collapse') as HTMLElement;
@@ -381,12 +388,10 @@ export class BuildSettingsDialog {
                         this.expandedSections_.add(section);
                     }
                     this.render();
-                    this.setupEvents();
                 }
                 return;
             }
 
-            // Action buttons
             const actionEl = target.closest('[data-action]') as HTMLElement;
             if (actionEl) {
                 const action = actionEl.dataset.action;
@@ -394,20 +399,17 @@ export class BuildSettingsDialog {
             }
         });
 
-        // Input change events
         this.overlay_.addEventListener('change', (e) => {
             const target = e.target as HTMLInputElement | HTMLSelectElement;
             this.handleInputChange(target);
         });
 
-        // Escape key
-        const keyHandler = (e: KeyboardEvent) => {
+        this.keyHandler_ = (e: KeyboardEvent) => {
             if (e.key === 'Escape') {
                 this.close();
-                document.removeEventListener('keydown', keyHandler);
             }
         };
-        document.addEventListener('keydown', keyHandler);
+        document.addEventListener('keydown', this.keyHandler_);
     }
 
     private handleAction(action: string | undefined, element: HTMLElement): void {
@@ -434,7 +436,6 @@ export class BuildSettingsDialog {
                         config.scenes.push(scenePath);
                         saveBuildSettings(this.settings_);
                         this.render();
-                        this.setupEvents();
                     }
                 }
                 break;
@@ -445,7 +446,6 @@ export class BuildSettingsDialog {
                     config.scenes.splice(index, 1);
                     saveBuildSettings(this.settings_);
                     this.render();
-                    this.setupEvents();
                 }
                 break;
             }
@@ -457,7 +457,6 @@ export class BuildSettingsDialog {
                     config.defines.push(value);
                     saveBuildSettings(this.settings_);
                     this.render();
-                    this.setupEvents();
                 }
                 break;
             }
@@ -468,7 +467,6 @@ export class BuildSettingsDialog {
                     config.defines.splice(index, 1);
                     saveBuildSettings(this.settings_);
                     this.render();
-                    this.setupEvents();
                 }
                 break;
             }
@@ -490,7 +488,6 @@ export class BuildSettingsDialog {
                     this.settings_.activeConfigId = platformConfigs[nextIdx].id;
                     saveBuildSettings(this.settings_);
                     this.render();
-                    this.setupEvents();
                 }
                 break;
 
@@ -553,6 +550,8 @@ export class BuildSettingsDialog {
                 config.wechatSettings.bundleMode = target.value as 'subpackage' | 'single' | 'singleFile';
             } else if (id === 'wechat-output') {
                 config.wechatSettings.outputDir = target.value;
+            } else if (id === 'wechat-sdk') {
+                config.wechatSettings.sdkPath = target.value;
             }
         }
 
@@ -605,7 +604,6 @@ export class BuildSettingsDialog {
 
             close();
             this.render();
-            this.setupEvents();
         });
     }
 
@@ -618,7 +616,6 @@ export class BuildSettingsDialog {
             }
             saveBuildSettings(this.settings_);
             this.render();
-            this.setupEvents();
         }
     }
 
@@ -721,12 +718,26 @@ export class BuildSettingsDialog {
     private options_!: BuildSettingsDialogOptions;
     private settings_!: BuildSettings;
     private expandedSections_: Set<string> = new Set(['scenes', 'defines', 'platform']);
+    private keyHandler_: ((e: KeyboardEvent) => void) | null = null;
 }
 
 // =============================================================================
 // Helper Function
 // =============================================================================
 
+let activeDialog: BuildSettingsDialog | null = null;
+
 export function showBuildSettingsDialog(options: BuildSettingsDialogOptions): BuildSettingsDialog {
-    return new BuildSettingsDialog(options);
+    if (activeDialog) {
+        return activeDialog;
+    }
+
+    const originalOnClose = options.onClose;
+    options.onClose = () => {
+        activeDialog = null;
+        originalOnClose?.();
+    };
+
+    activeDialog = new BuildSettingsDialog(options);
+    return activeDialog;
 }

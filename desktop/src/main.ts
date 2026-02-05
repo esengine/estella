@@ -31,7 +31,7 @@ async function loadWasmModule(): Promise<ESEngineModule | null> {
     if (wasmModule) return wasmModule;
 
     try {
-        await loadScript('/esengine.js');
+        await loadScript('/wasm/esengine.js');
 
         await new Promise<void>((resolve, reject) => {
             if ((window as any).__ESEngineModule) {

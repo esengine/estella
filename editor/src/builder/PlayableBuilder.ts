@@ -225,7 +225,7 @@ export class PlayableBuilder {
 
     private async loadSdk(): Promise<string | null> {
         try {
-            const response = await fetch('/esengine.single.js');
+            const response = await fetch('/wasm/esengine.single.js');
             if (!response.ok) return null;
             return await response.text();
         } catch {

@@ -8,12 +8,15 @@ import {
     readTextFile,
     writeTextFile,
     readFile,
+    writeFile,
     mkdir,
     exists,
     readDir,
     stat,
+    copyFile,
 } from '@tauri-apps/plugin-fs';
 import { invoke } from '@tauri-apps/api/core';
+import { resourceDir } from '@tauri-apps/api/path';
 
 export interface DirectoryEntry {
     name: string;
@@ -41,8 +44,10 @@ export interface NativeFS {
     createDirectory(path: string): Promise<boolean>;
     exists(path: string): Promise<boolean>;
     writeFile(path: string, content: string): Promise<boolean>;
+    writeBinaryFile(path: string, data: Uint8Array): Promise<boolean>;
     readFile(path: string): Promise<string | null>;
     readBinaryFile(path: string): Promise<Uint8Array | null>;
+    copyFile(src: string, dest: string): Promise<boolean>;
     getFileStats(path: string): Promise<FileStats | null>;
     openProject(): Promise<string | null>;
     listDirectory(path: string): Promise<string[]>;
@@ -53,6 +58,7 @@ export interface NativeFS {
         options?: { recursive?: boolean }
     ): Promise<UnwatchFn>;
     openFolder(path: string): Promise<boolean>;
+    getResourcePath(): Promise<string>;
 }
 
 export function injectNativeFS(): void {
@@ -134,6 +140,16 @@ export function injectNativeFS(): void {
             }
         },
 
+        async writeBinaryFile(path: string, data: Uint8Array) {
+            try {
+                await writeFile(path, data);
+                return true;
+            } catch (err) {
+                console.error('Failed to write binary file:', err);
+                return false;
+            }
+        },
+
         async readFile(path: string) {
             try {
                 return await readTextFile(path);
@@ -149,6 +165,16 @@ export function injectNativeFS(): void {
             } catch (err) {
                 console.error('Failed to read binary file:', err);
                 return null;
+            }
+        },
+
+        async copyFile(src: string, dest: string) {
+            try {
+                await copyFile(src, dest);
+                return true;
+            } catch (err) {
+                console.error('Failed to copy file:', err);
+                return false;
             }
         },
 
@@ -218,6 +244,15 @@ export function injectNativeFS(): void {
             } catch (err) {
                 console.error('Failed to open folder:', err);
                 return false;
+            }
+        },
+
+        async getResourcePath() {
+            try {
+                return await resourceDir();
+            } catch {
+                // Fallback for development mode
+                return '';
             }
         },
     };
