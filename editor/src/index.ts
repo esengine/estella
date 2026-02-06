@@ -59,7 +59,64 @@ export {
     HierarchyPanel,
     InspectorPanel,
     SceneViewPanel,
+    OutputPanel,
 } from './panels';
+
+// =============================================================================
+// Panel Registry
+// =============================================================================
+
+export {
+    type PanelPosition,
+    type PanelDescriptor,
+    type PanelFactory,
+    type PanelInstance,
+    type Resizable,
+    type BridgeAware,
+    type AppAware,
+    type AssetServerProvider,
+    type AssetNavigable,
+    type OutputAppendable,
+    registerPanel,
+    getPanel,
+    getAllPanels,
+    isResizable,
+    isBridgeAware,
+    isAppAware,
+    isAssetServerProvider,
+    isAssetNavigable,
+    isOutputAppendable,
+} from './panels/PanelRegistry';
+
+// =============================================================================
+// Gizmo Registry
+// =============================================================================
+
+export {
+    type GizmoContext,
+    type GizmoDescriptor,
+    GizmoManager,
+    registerGizmo,
+    getGizmo,
+    getAllGizmos,
+} from './gizmos';
+
+// =============================================================================
+// Menu Registry
+// =============================================================================
+
+export {
+    type MenuDescriptor,
+    type MenuItemDescriptor,
+    type StatusbarItemDescriptor,
+    registerMenu,
+    registerMenuItem,
+    registerStatusbarItem,
+    getAllMenus,
+    getMenuItems,
+} from './menus/MenuRegistry';
+
+export { ShortcutManager } from './menus/ShortcutManager';
 
 // =============================================================================
 // Property Editors
@@ -91,6 +148,76 @@ export {
     getAllComponentSchemas,
     registerBuiltinSchemas,
 } from './schemas';
+
+// =============================================================================
+// Bounds
+// =============================================================================
+
+export {
+    type Bounds,
+    type BoundsProvider,
+    registerBoundsProvider,
+    getEntityBounds,
+} from './bounds';
+
+// =============================================================================
+// Events
+// =============================================================================
+
+export {
+    type AssetEvent,
+    type AssetCategory,
+    type AssetEventType,
+    type AssetEventListener,
+    AssetEventBus,
+    getAssetEventBus,
+} from './events/AssetEventBus';
+
+// =============================================================================
+// UI
+// =============================================================================
+
+export {
+    showContextMenu,
+    hideContextMenu,
+    type ContextMenuItem,
+    type ContextMenuOptions,
+} from './ui/ContextMenu';
+
+export {
+    showToast,
+    showSuccessToast,
+    showErrorToast,
+    showProgressToast,
+    updateToast,
+    dismissToast,
+    type ToastOptions,
+    type ToastAction,
+} from './ui/Toast';
+
+// =============================================================================
+// Utils
+// =============================================================================
+
+export { icons } from './utils/icons';
+
+// =============================================================================
+// Asset
+// =============================================================================
+
+export { AssetPathResolver, getGlobalPathResolver } from './asset';
+
+// =============================================================================
+// Math
+// =============================================================================
+
+export { quatToEuler, eulerToQuat, type Transform } from './math/Transform';
+
+// =============================================================================
+// Content Browser
+// =============================================================================
+
+export { ContentBrowserPanel } from './panels/ContentBrowserPanel';
 
 // =============================================================================
 // Bridge
@@ -178,3 +305,28 @@ export {
     type ConfirmDialogOptions,
     type AlertDialogOptions,
 } from './ui/dialog';
+
+// =============================================================================
+// Context
+// =============================================================================
+
+export {
+    setEditorContext,
+    getEditorContext,
+    setEditorInstance,
+    getEditorInstance,
+    type EditorContextConfig,
+    type NativeShell,
+} from './context/EditorContext';
+
+export type { NativeFS, DirectoryEntry } from './scripting/types';
+
+// =============================================================================
+// Extension
+// =============================================================================
+
+export {
+    ExtensionLoader,
+    EditorExportService,
+    type ExtensionLoaderOptions,
+} from './extension';

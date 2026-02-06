@@ -20,6 +20,7 @@ const SDK_ESM_JS: &[u8] = include_bytes!("../../public/sdk/esm/esengine.js");
 const SDK_ESM_DTS: &[u8] = include_bytes!("../../public/sdk/esm/esengine.d.ts");
 const SDK_WASM_JS: &[u8] = include_bytes!("../../public/sdk/esm/wasm.js");
 const SDK_WASM_DTS: &[u8] = include_bytes!("../../public/sdk/esm/wasm.d.ts");
+const EDITOR_DTS: &[u8] = include_bytes!("../../../editor/dist/index.d.ts");
 
 // =============================================================================
 // State
@@ -123,6 +124,11 @@ fn get_sdk_wasm_dts() -> Vec<u8> {
     SDK_WASM_DTS.to_vec()
 }
 
+#[tauri::command]
+fn get_editor_dts() -> Vec<u8> {
+    EDITOR_DTS.to_vec()
+}
+
 #[derive(Clone, serde::Serialize)]
 struct CommandOutput {
     stream: String,
@@ -214,6 +220,7 @@ pub fn run() {
             get_sdk_esm_dts,
             get_sdk_wasm_js,
             get_sdk_wasm_dts,
+            get_editor_dts,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

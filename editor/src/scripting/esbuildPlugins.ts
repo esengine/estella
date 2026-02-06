@@ -45,6 +45,37 @@ function resolvePath(from: string, to: string): string {
 }
 
 // =============================================================================
+// Editor Shim Plugin
+// =============================================================================
+
+const EDITOR_SHIM_EXPORTS = [
+    'registerPanel', 'registerMenuItem', 'registerMenu',
+    'registerGizmo', 'registerStatusbarItem', 'registerPropertyEditor',
+    'registerComponentSchema', 'registerBoundsProvider',
+    'icons', 'showToast', 'showSuccessToast', 'showErrorToast',
+    'showContextMenu', 'showConfirmDialog', 'showInputDialog',
+    'getEditorInstance', 'getEditorStore',
+] as const;
+
+const EDITOR_SHIM_CODE = EDITOR_SHIM_EXPORTS.map(
+    name => `export const ${name} = window.__ESENGINE_EDITOR__.${name};`
+).join('\n');
+
+export function editorShimPlugin(): esbuild.Plugin {
+    return {
+        name: 'editor-shim',
+        setup(build) {
+            build.onResolve({ filter: /^@esengine\/editor$/ }, () => {
+                return { path: '@esengine/editor', namespace: 'editor-shim' };
+            });
+            build.onLoad({ filter: /.*/, namespace: 'editor-shim' }, () => {
+                return { contents: EDITOR_SHIM_CODE, loader: 'js' };
+            });
+        },
+    };
+}
+
+// =============================================================================
 // Virtual FS Plugin
 // =============================================================================
 

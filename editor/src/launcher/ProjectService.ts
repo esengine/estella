@@ -10,6 +10,8 @@ import type {
 } from '../types/ProjectTypes';
 import { ENGINE_VERSION } from '../types/ProjectTypes';
 import { SdkExportService } from '../sdk';
+import { EditorExportService } from '../extension';
+import { getEditorContext } from '../context/EditorContext';
 
 // =============================================================================
 // Native FS Interface
@@ -25,7 +27,7 @@ interface NativeFS {
 }
 
 function getNativeFS(): NativeFS | null {
-    return (window as any).__esengine_fs ?? null;
+    return getEditorContext().fs ?? null;
 }
 
 // =============================================================================
@@ -116,6 +118,7 @@ export async function createProject(
     const directories = [
         projectDir,
         joinPath(projectDir, 'src'),
+        joinPath(projectDir, 'editor'),
         joinPath(projectDir, 'assets'),
         joinPath(projectDir, 'assets/scenes'),
         joinPath(projectDir, 'assets/textures'),
@@ -174,6 +177,10 @@ export async function createProject(
     const sdkService = new SdkExportService();
     await sdkService.exportToProject(projectDir);
 
+    // Export editor types to project
+    const editorExportService = new EditorExportService();
+    await editorExportService.exportToProject(projectDir);
+
     // Add to recent projects
     addRecentProject({
         name,
@@ -229,6 +236,12 @@ export async function openProject(
         const sdkService = new SdkExportService();
         if (await sdkService.needsUpdate(projectDir)) {
             await sdkService.exportToProject(projectDir);
+        }
+
+        // Update editor types if needed
+        const editorExportService = new EditorExportService();
+        if (await editorExportService.needsUpdate(projectDir)) {
+            await editorExportService.exportToProject(projectDir);
         }
 
         // Update recent projects
@@ -393,14 +406,15 @@ const TSCONFIG_TEMPLATE = JSON.stringify({
         forceConsistentCasingInFileNames: true,
         declaration: false,
         outDir: './dist',
-        rootDir: './src',
+        rootDir: '.',
         baseUrl: '.',
         paths: {
             'esengine': ['./.esengine/sdk/index.d.ts'],
             'esengine/wasm': ['./.esengine/sdk/wasm.d.ts'],
+            '@esengine/editor': ['./.esengine/editor/index.d.ts'],
         },
     },
-    include: ['src/**/*'],
+    include: ['src/**/*', 'editor/**/*'],
     exclude: ['node_modules'],
 }, null, 2);
 
