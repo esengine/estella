@@ -9,6 +9,7 @@ import {
     loadComponent,
     LocalTransform,
     Sprite,
+    INVALID_TEXTURE,
     TextRenderer,
     TextAlign,
     TextVerticalAlign,
@@ -343,21 +344,21 @@ export class EditorSceneManager {
     }
 
     private async syncSprite(entity: Entity, data: any, entityId: number): Promise<void> {
-        let textureHandle = 0;
+        let textureHandle = INVALID_TEXTURE as number;
         let materialHandle = 0;
 
         getDependencyGraph().clearEntity(entityId);
         this.assetServer_.releaseMaterialInstance(entityId);
 
         const texturePath = data.texture;
-        if (texturePath) {
+        if (texturePath && typeof texturePath === 'string') {
             const info = await this.assetServer_.loadTexture(texturePath);
             textureHandle = info.handle;
             getDependencyGraph().registerUsage(texturePath, entityId);
         }
 
         const materialPath = data.material;
-        if (materialPath) {
+        if (materialPath && typeof materialPath === 'string') {
             try {
                 const loaded = await this.assetServer_.loadMaterial(materialPath);
                 const overrides = data.materialOverrides;
@@ -451,7 +452,7 @@ export class EditorSceneManager {
 
         let materialHandle = 0;
         const materialPath = data.material;
-        if (materialPath) {
+        if (materialPath && typeof materialPath === 'string') {
             try {
                 const loaded = await this.assetServer_.loadMaterial(materialPath);
                 materialHandle = loaded.handle;

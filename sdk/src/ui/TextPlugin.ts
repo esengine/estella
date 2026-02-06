@@ -4,6 +4,7 @@
  */
 
 import type { App, Plugin } from '../app';
+import { INVALID_TEXTURE } from '../types';
 import { defineSystem, Schedule } from '../system';
 import { Sprite, type SpriteData } from '../component';
 import { Text, type TextData } from './text';
@@ -36,7 +37,7 @@ export class TextPlugin implements Plugin {
 
                     if (!world.has(entity, Sprite)) {
                         world.insert(entity, Sprite, {
-                            texture: 0,
+                            texture: INVALID_TEXTURE,
                             size: { x: 0, y: 0 },
                             color: { x: 1, y: 1, z: 1, w: 1 },
                             anchor: { x: 0.5, y: 0.5 },

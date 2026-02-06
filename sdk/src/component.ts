@@ -3,7 +3,7 @@
  * @brief   Component definition and builtin components
  */
 
-import { Entity, Vec2, Vec3, Vec4, Quat } from './types';
+import { Entity, Vec2, Vec3, Vec4, Quat, INVALID_TEXTURE } from './types';
 
 // =============================================================================
 // Component Definition
@@ -185,7 +185,7 @@ export const WorldTransform = defineBuiltin<WorldTransformData>('WorldTransform'
 });
 
 export const Sprite = defineBuiltin<SpriteData>('Sprite', {
-    texture: 0,
+    texture: INVALID_TEXTURE,
     color: { x: 1, y: 1, z: 1, w: 1 },
     size: { x: 32, y: 32 },
     uvOffset: { x: 0, y: 0 },
