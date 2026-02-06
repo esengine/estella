@@ -87,10 +87,10 @@ export class Editor {
             projectPath: this.projectPath_ ?? undefined,
             onOpenScene: (scenePath) => this.openSceneFromPath(scenePath),
         });
+        registerBuiltinMenus(this);
 
         this.setupLayout();
 
-        registerBuiltinMenus(this);
         registerBuiltinStatusbarItems(this);
         this.instantiateStatusbar();
         this.setupMenuShortcuts();
@@ -98,8 +98,7 @@ export class Editor {
 
         if (this.projectPath_) {
             this.setupEditorGlobals();
-            this.initializeExtensions();
-            this.initializeScripts();
+            this.initializeAllScripts();
             this.previewService_ = new PreviewService({ projectPath: this.projectPath_ });
         }
     }
@@ -283,6 +282,11 @@ export class Editor {
     // Script Operations
     // =========================================================================
 
+    private async initializeAllScripts(): Promise<void> {
+        await this.initializeExtensions();
+        await this.initializeScripts();
+    }
+
     private async initializeScripts(): Promise<void> {
         if (!this.projectPath_) return;
 
@@ -359,10 +363,57 @@ export class Editor {
             const compiled = await this.extensionLoader_.compile();
             if (compiled) {
                 await this.extensionLoader_.execute();
-                this.instantiateExtensionPanels();
+                this.applyExtensionUI();
             }
         } catch (err) {
             console.error('Failed to initialize extensions:', err);
+        }
+    }
+
+    private applyExtensionUI(): void {
+        this.instantiateExtensionPanels();
+        this.addExtensionBottomPanelToggles();
+        this.rebuildMenuBar();
+    }
+
+    private addExtensionBottomPanelToggles(): void {
+        const leftContainer = this.container_.querySelector('.es-statusbar-left');
+        if (!leftContainer) return;
+
+        for (const panel of getPanelsByPosition('bottom')) {
+            if (leftContainer.querySelector(`[data-statusbar-id="toggle-${panel.id}"]`)) continue;
+
+            const item = {
+                id: `toggle-${panel.id}`,
+                position: 'left' as const,
+                render: (container: HTMLElement) => {
+                    const btn = document.createElement('button');
+                    btn.className = 'es-statusbar-btn';
+                    btn.dataset.bottomPanel = panel.id;
+                    btn.innerHTML = `${panel.icon ?? ''}<span>${panel.title}</span>`;
+                    btn.addEventListener('click', () => this.toggleBottomPanel(panel.id));
+                    container.appendChild(btn);
+                    return {
+                        dispose() { btn.remove(); },
+                        update: () => {
+                            btn.classList.toggle('es-active', this.activeBottomPanelId_ === panel.id);
+                        },
+                    };
+                },
+            };
+
+            const span = document.createElement('span');
+            span.dataset.statusbarId = item.id;
+
+            const cmdInputItem = leftContainer.querySelector('[data-statusbar-id="cmd-input"]');
+            if (cmdInputItem) {
+                leftContainer.insertBefore(span, cmdInputItem);
+            } else {
+                leftContainer.appendChild(span);
+            }
+
+            const instance = item.render(span);
+            this.statusbarInstances_.push(instance);
         }
     }
 
@@ -395,45 +446,50 @@ export class Editor {
             if (this.bridge_ && isBridgeAware(instance)) instance.setBridge(this.bridge_);
             if (this.app_ && isAppAware(instance)) instance.setApp(this.app_);
         }
-
-        this.refreshBottomPanelStatusbar();
     }
 
-    private refreshBottomPanelStatusbar(): void {
-        const leftContainer = this.container_.querySelector('.es-statusbar-left');
-        if (!leftContainer) return;
+    private rebuildMenuBar(): void {
+        const menubar = this.container_.querySelector('.es-editor-menubar');
+        if (!menubar) return;
 
-        const bottomPanels = getPanelsByPosition('bottom');
-        for (const panel of bottomPanels) {
-            const existing = leftContainer.querySelector(`[data-statusbar-id="toggle-${panel.id}"]`);
-            if (existing) continue;
+        menubar.querySelectorAll('.es-menu').forEach(el => el.remove());
 
-            const cmdWrapper = leftContainer.querySelector('.es-statusbar-cmd-wrapper');
+        const spacer = menubar.querySelector('.es-menubar-spacer');
+        if (!spacer) return;
 
-            const span = document.createElement('span');
-            span.dataset.statusbarId = `toggle-${panel.id}`;
+        const fragment = document.createRange().createContextualFragment(this.buildMenuBarHTML());
+        menubar.insertBefore(fragment, spacer);
 
-            const btn = document.createElement('button');
-            btn.className = 'es-statusbar-btn';
-            btn.dataset.bottomPanel = panel.id;
-            btn.innerHTML = `${panel.icon ?? ''}<span>${panel.title}</span>`;
-            btn.addEventListener('click', () => this.toggleBottomPanel(panel.id));
-            span.appendChild(btn);
+        this.attachMenuTriggers();
+    }
 
-            if (cmdWrapper) {
-                leftContainer.insertBefore(span, cmdWrapper);
-            } else {
-                leftContainer.appendChild(span);
-            }
+    private attachMenuTriggers(): void {
+        const menubar = this.container_.querySelector('.es-editor-menubar');
+        if (!menubar) return;
 
-            this.statusbarInstances_.push({
-                dispose() { span.remove(); },
-                update: () => {
-                    const isActive = this.activeBottomPanelId_ === panel.id;
-                    btn.classList.toggle('es-active', isActive);
-                },
+        menubar.querySelectorAll('.es-menu-trigger').forEach(trigger => {
+            if ((trigger as any).__menuBound) return;
+            (trigger as any).__menuBound = true;
+
+            trigger.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const menu = (trigger as HTMLElement).parentElement!;
+                const isOpen = menu.classList.contains('es-open');
+                menubar.querySelectorAll('.es-menu').forEach(m => m.classList.remove('es-open'));
+                if (!isOpen) {
+                    menu.classList.add('es-open');
+                }
             });
-        }
+
+            trigger.addEventListener('mouseenter', () => {
+                const hasOpen = menubar.querySelector('.es-menu.es-open');
+                if (hasOpen && hasOpen !== trigger.parentElement) {
+                    menubar.querySelectorAll('.es-menu').forEach(m => m.classList.remove('es-open'));
+                    const menu = (trigger as HTMLElement).parentElement!;
+                    menu.classList.add('es-open');
+                }
+            });
+        });
     }
 
     async reloadExtensions(): Promise<boolean> {
@@ -447,7 +503,7 @@ export class Editor {
 
         const success = await this.extensionLoader_.reload();
         if (success) {
-            this.instantiateExtensionPanels();
+            this.applyExtensionUI();
         }
         return success;
     }

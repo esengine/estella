@@ -1664,6 +1664,19 @@ svg {
     align-items: center;
     gap: 2px;
     height: 100%;
+    flex-shrink: 0;
+}
+
+.es-statusbar-left {
+    flex-shrink: 1;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.es-statusbar-left > span,
+.es-statusbar-right > span,
+.es-statusbar-cmd-wrapper {
+    display: contents;
 }
 
 .es-btn-dropdown,

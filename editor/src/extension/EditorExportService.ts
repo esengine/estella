@@ -12,6 +12,7 @@ import { getEditorContext } from '../context/EditorContext';
 
 interface NativeFS {
     createDirectory(path: string): Promise<boolean>;
+    exists(path: string): Promise<boolean>;
     writeFile(path: string, content: string): Promise<boolean>;
     readFile(path: string): Promise<string | null>;
     getEditorDts(): Promise<string>;
@@ -52,6 +53,8 @@ export class EditorExportService {
         if (!this.fs_) return true;
 
         const versionPath = `${projectDir}/.esengine/editor/version.txt`;
+        if (!(await this.fs_.exists(versionPath))) return true;
+
         const content = await this.fs_.readFile(versionPath);
         if (!content) return true;
 

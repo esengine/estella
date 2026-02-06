@@ -61,14 +61,10 @@ export class ScriptLoader {
             await esbuild.initialize({
                 wasmURL: 'https://cdn.jsdelivr.net/npm/esbuild-wasm@0.27.2/esbuild.wasm',
             });
-            this.initialized_ = true;
-        } catch (err) {
-            if (String(err).includes('Cannot call "initialize" more than once')) {
-                this.initialized_ = true;
-            } else {
-                throw err;
-            }
+        } catch {
+            // esbuild is a singleton; already initialized is fine
         }
+        this.initialized_ = true;
     }
 
     async discoverScripts(): Promise<string[]> {

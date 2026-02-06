@@ -105,8 +105,7 @@ export function registerBuiltinStatusbarItems(editor: Editor): void {
         position: 'right',
         order: 100,
         render: (container) => {
-            const wrapper = document.createElement('span');
-            wrapper.innerHTML = `
+            container.innerHTML = `
                 <span class="es-status-indicator es-status-saved">
                     ${icons.check(12)}
                     <span>All Saved</span>
@@ -116,12 +115,11 @@ export function registerBuiltinStatusbarItems(editor: Editor): void {
                     <span>Version Control</span>
                 </span>
             `;
-            container.appendChild(wrapper);
 
             return {
-                dispose() { wrapper.remove(); },
+                dispose() { container.innerHTML = ''; },
                 update() {
-                    const saved = wrapper.querySelector('.es-status-saved');
+                    const saved = container.querySelector('.es-status-saved');
                     if (editor.store.isDirty) {
                         saved?.classList.add('es-hidden');
                     } else {
