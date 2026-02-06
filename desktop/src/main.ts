@@ -4,9 +4,9 @@
  */
 
 import '@esengine/editor/styles';
-import { createEditor, ProjectLauncher, setPlatformAdapter, type Editor } from '@esengine/editor';
+import { createEditor, ProjectLauncher, setPlatformAdapter, setEditorContext, type Editor } from '@esengine/editor';
 import { TauriPlatformAdapter } from './TauriPlatformAdapter';
-import { injectNativeFS } from './native-fs';
+import { nativeFS, nativeShell } from './native-fs';
 import { invoke } from '@tauri-apps/api/core';
 import type { App, ESEngineModule } from 'esengine';
 
@@ -88,8 +88,11 @@ async function openEditor(container: HTMLElement, projectPath: string): Promise<
 
 async function init(): Promise<void> {
     setPlatformAdapter(new TauriPlatformAdapter());
-    injectNativeFS();
-    (window as any).__esengine_invoke = invoke;
+    setEditorContext({
+        fs: nativeFS,
+        invoke,
+        shell: nativeShell,
+    });
 
     const container = document.getElementById('editor-root');
     if (!container) {
