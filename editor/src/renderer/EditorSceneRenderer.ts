@@ -4,9 +4,12 @@
  */
 
 import type { ESEngineModule } from 'esengine';
+import { initMaterialAPI, shutdownMaterialAPI } from 'esengine';
 import type { SceneData, ComponentData } from '../types/SceneTypes';
+import type { EditorStore } from '../store/EditorStore';
 import { EditorCamera } from './EditorCamera';
 import { EditorSceneManager } from '../scene/EditorSceneManager';
+import { RuntimeSyncService } from '../sync/RuntimeSyncService';
 import { AssetPathResolver } from '../asset';
 
 // =============================================================================
@@ -16,13 +19,20 @@ import { AssetPathResolver } from '../asset';
 export class EditorSceneRenderer {
     private module_: ESEngineModule | null = null;
     private sceneManager_: EditorSceneManager | null = null;
+    private syncService_: RuntimeSyncService | null = null;
     private camera_: EditorCamera;
     private pathResolver_: AssetPathResolver;
+    private store_: EditorStore | null = null;
     private initialized_ = false;
 
     constructor() {
         this.camera_ = new EditorCamera();
         this.pathResolver_ = new AssetPathResolver();
+    }
+
+    setStore(store: EditorStore): void {
+        this.store_ = store;
+        this.setupSyncService();
     }
 
     async init(module: ESEngineModule, canvasSelector: string): Promise<boolean> {
@@ -36,10 +46,21 @@ export class EditorSceneRenderer {
             return false;
         }
 
+        initMaterialAPI(module);
+
         this.sceneManager_ = new EditorSceneManager(module, this.pathResolver_);
         this.initialized_ = true;
 
+        this.setupSyncService();
+
         return true;
+    }
+
+    private setupSyncService(): void {
+        if (this.syncService_) return;
+        if (!this.store_ || !this.sceneManager_) return;
+
+        this.syncService_ = new RuntimeSyncService(this.store_, this.sceneManager_);
     }
 
     setProjectDir(projectDir: string): void {
@@ -79,6 +100,10 @@ export class EditorSceneRenderer {
         return this.sceneManager_?.assetServer.textureManager ?? null;
     }
 
+    get assetServer() {
+        return this.sceneManager_?.assetServer ?? null;
+    }
+
     getSpineBounds(sceneEntityId: number): { x: number; y: number; width: number; height: number } | null {
         if (!this.module_ || !this.sceneManager_) return null;
 
@@ -97,6 +122,7 @@ export class EditorSceneRenderer {
 
     render(width: number, height: number): void {
         if (!this.module_ || !this.sceneManager_ || !this.initialized_) return;
+        if (width <= 0 || height <= 0) return;
 
         const matrix = this.camera_.getViewProjection(width, height);
         const matrixPtr = this.module_._malloc(64);
@@ -112,12 +138,18 @@ export class EditorSceneRenderer {
     // =========================================================================
 
     dispose(): void {
+        if (this.syncService_) {
+            this.syncService_.dispose();
+            this.syncService_ = null;
+        }
+
         if (this.sceneManager_) {
             this.sceneManager_.dispose();
             this.sceneManager_ = null;
         }
 
         if (this.module_ && this.initialized_) {
+            shutdownMaterialAPI();
             this.module_.shutdownRenderer();
         }
 

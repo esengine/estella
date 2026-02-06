@@ -14,3 +14,4 @@ export {
 } from './PropertyEditor';
 
 export { registerBuiltinEditors } from './editors';
+export { registerMaterialEditors } from './materialEditors';

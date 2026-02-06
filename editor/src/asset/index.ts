@@ -11,6 +11,12 @@ export type { LoadResult } from './AssetLoader';
 
 export { EditorAssetServer } from './EditorAssetServer';
 
+export {
+    AssetDependencyGraph,
+    getDependencyGraph,
+    resetDependencyGraph,
+} from './AssetDependencyGraph';
+
 import { AssetPathResolver } from './AssetPathResolver';
 
 let globalPathResolver: AssetPathResolver | null = null;

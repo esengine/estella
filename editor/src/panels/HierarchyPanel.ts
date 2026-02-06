@@ -9,6 +9,7 @@ import type { EditorStore } from '../store/EditorStore';
 import { icons } from '../utils/icons';
 import { getGlobalPathResolver } from '../asset';
 import { getDefaultComponentData } from '../schemas/ComponentSchemas';
+import { showContextMenu } from '../ui/ContextMenu';
 
 // =============================================================================
 // HierarchyPanel
@@ -119,10 +120,10 @@ export class HierarchyPanel {
             if (item) {
                 const entityId = parseInt(item.dataset.entityId ?? '', 10);
                 if (!isNaN(entityId)) {
-                    this.showContextMenu(e.clientX, e.clientY, entityId as Entity);
+                    this.showEntityContextMenu(e.clientX, e.clientY, entityId as Entity);
                 }
             } else {
-                this.showContextMenu(e.clientX, e.clientY, null);
+                this.showEntityContextMenu(e.clientX, e.clientY, null);
             }
         });
 
@@ -381,51 +382,24 @@ export class HierarchyPanel {
         }).join('');
     }
 
-    private showContextMenu(x: number, y: number, entity: Entity | null): void {
-        const existingMenu = document.querySelector('.es-context-menu');
-        existingMenu?.remove();
-
-        const menu = document.createElement('div');
-        menu.className = 'es-context-menu';
-        menu.style.left = `${x}px`;
-        menu.style.top = `${y}px`;
-
-        const items: { label: string; action: () => void; separator?: boolean }[] = [
-            { label: 'Create Entity', action: () => this.store_.createEntity(undefined, entity) },
-            { label: 'Create Sprite', action: () => this.createEntityWithComponent('Sprite', entity) },
-            { label: 'Create Text', action: () => this.createEntityWithComponent('Text', entity) },
-            { label: 'Create Spine', action: () => this.createEntityWithComponent('SpineAnimation', entity) },
-            { label: 'Create Camera', action: () => this.createEntityWithComponent('Camera', entity), separator: true },
+    private showEntityContextMenu(x: number, y: number, entity: Entity | null): void {
+        const items = [
+            { label: 'Create Entity', icon: icons.plus(14), onClick: () => this.store_.createEntity(undefined, entity) },
+            { label: 'Create Sprite', icon: icons.image(14), onClick: () => this.createEntityWithComponent('Sprite', entity) },
+            { label: 'Create Text', icon: icons.type(14), onClick: () => this.createEntityWithComponent('Text', entity) },
+            { label: 'Create Spine', icon: icons.bone(14), onClick: () => this.createEntityWithComponent('SpineAnimation', entity) },
+            { label: 'Create Camera', icon: icons.camera(14), onClick: () => this.createEntityWithComponent('Camera', entity) },
+            { label: '', separator: true },
         ];
 
         if (entity !== null) {
             items.push(
-                { label: 'Duplicate', action: () => this.duplicateEntity(entity) },
-                { label: 'Delete', action: () => this.store_.deleteEntity(entity) }
+                { label: 'Duplicate', icon: icons.copy(14), onClick: () => this.duplicateEntity(entity) },
+                { label: 'Delete', icon: icons.trash(14), onClick: () => this.store_.deleteEntity(entity) }
             );
         }
 
-        menu.innerHTML = items.map(item =>
-            `<div class="es-context-menu-item">${item.label}</div>` +
-            (item.separator ? '<div class="es-context-menu-separator"></div>' : '')
-        ).join('');
-
-        menu.querySelectorAll('.es-context-menu-item').forEach((el, i) => {
-            el.addEventListener('click', () => {
-                items[i].action();
-                menu.remove();
-            });
-        });
-
-        document.body.appendChild(menu);
-
-        const closeMenu = (e: MouseEvent) => {
-            if (!menu.contains(e.target as Node)) {
-                menu.remove();
-                document.removeEventListener('click', closeMenu);
-            }
-        };
-        setTimeout(() => document.addEventListener('click', closeMenu), 0);
+        showContextMenu({ x, y, items });
     }
 
     private createEntityWithComponent(componentType: string, parent: Entity | null): void {

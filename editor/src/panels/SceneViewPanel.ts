@@ -280,6 +280,7 @@ export class SceneViewPanel {
         this.webglCanvas_.id = canvasId;
 
         this.sceneRenderer_ = new EditorSceneRenderer();
+        this.sceneRenderer_.setStore(this.store_);
         const success = await this.sceneRenderer_.init(this.app_.wasmModule, `#${canvasId}`);
 
         if (success) {
@@ -349,6 +350,10 @@ export class SceneViewPanel {
 
     get canvas(): HTMLCanvasElement {
         return this.canvas_;
+    }
+
+    get assetServer() {
+        return this.sceneRenderer_?.assetServer ?? null;
     }
 
     resize(): void {
@@ -1108,14 +1113,22 @@ export class SceneViewPanel {
 
     private render(): void {
         if (this.useWebGL_ && this.sceneRenderer_ && this.webglCanvas_) {
+            const w = this.webglCanvas_.width;
+            const h = this.webglCanvas_.height;
+            if (w === 0 || h === 0) return;
+
             this.sceneRenderer_.camera.panX = this.panX_;
             this.sceneRenderer_.camera.panY = this.panY_;
             this.sceneRenderer_.camera.zoom = this.zoom_;
 
-            this.sceneRenderer_.render(this.webglCanvas_.width, this.webglCanvas_.height);
+            this.sceneRenderer_.render(w, h);
             this.renderOverlay();
         } else if (this.bridge_) {
-            this.bridge_.render(this.canvas_.width, this.canvas_.height);
+            const w = this.canvas_.width;
+            const h = this.canvas_.height;
+            if (w === 0 || h === 0) return;
+
+            this.bridge_.render(w, h);
         } else {
             this.renderPreview();
         }

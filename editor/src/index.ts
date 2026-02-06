@@ -159,3 +159,22 @@ export {
     setPlatformAdapter,
     getPlatformAdapter,
 } from './platform/PlatformAdapter';
+
+// =============================================================================
+// Dialog
+// =============================================================================
+
+export {
+    Dialog,
+    showDialog,
+    showInputDialog,
+    showConfirmDialog,
+    showAlertDialog,
+    type DialogRole,
+    type DialogButton,
+    type DialogOptions,
+    type DialogResult,
+    type InputDialogOptions,
+    type ConfirmDialogOptions,
+    type AlertDialogOptions,
+} from './ui/dialog';

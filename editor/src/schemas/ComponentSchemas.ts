@@ -66,6 +66,7 @@ export const SpriteSchema: ComponentSchema = {
     category: 'builtin',
     properties: [
         { name: 'texture', type: 'texture' },
+        { name: 'material', type: 'material-file' },
         { name: 'color', type: 'color' },
         { name: 'size', type: 'vec2' },
         { name: 'uvOffset', type: 'vec2' },
@@ -152,6 +153,7 @@ export const SpineAnimationSchema: ComponentSchema = {
     properties: [
         { name: 'skeletonPath', type: 'spine-file', fileFilter: ['.json', '.skel'] },
         { name: 'atlasPath', type: 'spine-file', fileFilter: ['.atlas'] },
+        { name: 'material', type: 'material-file' },
         { name: 'skin', type: 'spine-skin', dependsOn: 'skeletonPath' },
         { name: 'animation', type: 'spine-animation', dependsOn: 'skeletonPath' },
         { name: 'timeScale', type: 'number', min: 0, max: 10, step: 0.1 },

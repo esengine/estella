@@ -9,4 +9,6 @@ export {
     resetEditorStore,
     type EditorState,
     type EditorListener,
+    type PropertyChangeEvent,
+    type PropertyChangeListener,
 } from './EditorStore';

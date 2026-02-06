@@ -43,6 +43,12 @@ export interface PlatformAdapter {
     /** Check if a file exists */
     exists(path: string): Promise<boolean>;
 
+    /** Create a directory */
+    mkdir(path: string): Promise<void>;
+
+    /** Remove a file or directory */
+    remove(path: string): Promise<void>;
+
     /** Join path segments */
     joinPath(...segments: string[]): string;
 }
@@ -76,6 +82,14 @@ export class WebPlatformAdapter implements PlatformAdapter {
 
     async exists(_path: string): Promise<boolean> {
         return false;
+    }
+
+    async mkdir(_path: string): Promise<void> {
+        throw new Error('Directory creation not available in web platform');
+    }
+
+    async remove(_path: string): Promise<void> {
+        throw new Error('File removal not available in web platform');
     }
 
     joinPath(...segments: string[]): string {

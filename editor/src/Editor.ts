@@ -11,6 +11,7 @@ import { InspectorPanel } from './panels/InspectorPanel';
 import { SceneViewPanel } from './panels/SceneViewPanel';
 import { ContentBrowserPanel, type ContentBrowserOptions } from './panels/ContentBrowserPanel';
 import { registerBuiltinEditors } from './property/editors';
+import { registerMaterialEditors } from './property/materialEditors';
 import { registerBuiltinSchemas } from './schemas/ComponentSchemas';
 import { initBoundsProviders } from './bounds';
 import { saveSceneToFile, saveSceneToPath, loadSceneFromFile, loadSceneFromPath, hasFileHandle, clearFileHandle } from './io/SceneSerializer';
@@ -54,6 +55,7 @@ export class Editor {
         this.projectPath_ = options?.projectPath ?? null;
 
         registerBuiltinEditors();
+        registerMaterialEditors();
         registerBuiltinSchemas();
         initBoundsProviders();
 
@@ -86,6 +88,10 @@ export class Editor {
 
     get store(): EditorStore {
         return this.store_;
+    }
+
+    get assetServer() {
+        return this.sceneViewPanel_?.assetServer ?? null;
     }
 
     // =========================================================================

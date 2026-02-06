@@ -66,6 +66,7 @@ export class EditorBridge {
 
     render(width: number, height: number): void {
         if (!this.module_ || !this.registry_) return;
+        if (width <= 0 || height <= 0) return;
 
         this.module_.renderFrame(this.registry_, width, height);
     }

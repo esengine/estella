@@ -14,6 +14,7 @@ import type { AssetPathResolver } from '../asset';
 interface NativeFS {
     readBinaryFile(path: string): Promise<Uint8Array | null>;
     readFile(path: string): Promise<string | null>;
+    exists(path: string): Promise<boolean>;
 }
 
 interface TextureEntry {
@@ -190,6 +191,8 @@ export class EditorTextureManager {
         if (!fs) return;
 
         const metaPath = getMetaFilePath(texturePath);
+        if (!await fs.exists(metaPath)) return;
+
         const metaContent = await fs.readFile(metaPath);
         if (!metaContent) return;
 

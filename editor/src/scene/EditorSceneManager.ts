@@ -19,6 +19,7 @@ import {
 import type { SceneData, EntityData, ComponentData } from '../types/SceneTypes';
 import { EditorAssetServer } from '../asset/EditorAssetServer';
 import { AssetPathResolver } from '../asset/AssetPathResolver';
+import { getDependencyGraph } from '../asset/AssetDependencyGraph';
 import {
     Transform,
     composeTransforms,
@@ -128,7 +129,7 @@ export class EditorSceneManager {
                 const entityData = this.entityDataMap_.get(entityId);
                 const hasText = entityData?.components.some(c => c.type === 'Text');
                 if (!hasText) {
-                    await this.syncSprite(entity, comp.data);
+                    await this.syncSprite(entity, comp.data, entityId);
                 }
                 break;
             }
@@ -138,7 +139,7 @@ export class EditorSceneManager {
                 break;
 
             case 'SpineAnimation':
-                await this.syncSpineAnimation(entity, comp.data);
+                await this.syncSpineAnimation(entity, comp.data, entityId);
                 break;
 
             default:
@@ -167,6 +168,7 @@ export class EditorSceneManager {
     removeEntity(entityId: number): void {
         const entity = this.entityMap_.get(entityId);
         if (entity) {
+            getDependencyGraph().clearEntity(entityId);
             this.world_.despawn(entity);
             this.entityMap_.delete(entityId);
             this.entityDataMap_.delete(entityId);
@@ -206,6 +208,9 @@ export class EditorSceneManager {
     // =========================================================================
 
     clear(): void {
+        for (const entityId of this.entityMap_.keys()) {
+            getDependencyGraph().clearEntity(entityId);
+        }
         for (const entity of this.entityMap_.values()) {
             this.world_.despawn(entity);
         }
@@ -302,13 +307,37 @@ export class EditorSceneManager {
         return { x: 1920, y: 1080 };
     }
 
-    private async syncSprite(entity: Entity, data: any): Promise<void> {
+    private async syncSprite(entity: Entity, data: any, entityId: number): Promise<void> {
         let textureHandle = 0;
+        let materialHandle = 0;
+
+        getDependencyGraph().clearEntity(entityId);
+        this.assetServer_.releaseMaterialInstance(entityId);
 
         const texturePath = data.texture;
         if (texturePath) {
             const info = await this.assetServer_.loadTexture(texturePath);
             textureHandle = info.handle;
+            getDependencyGraph().registerUsage(texturePath, entityId);
+        }
+
+        const materialPath = data.material;
+        if (materialPath) {
+            try {
+                const loaded = await this.assetServer_.loadMaterial(materialPath);
+                const overrides = data.materialOverrides;
+
+                if (overrides && Object.keys(overrides).length > 0) {
+                    materialHandle = this.assetServer_.createMaterialInstance(
+                        materialPath, entityId, overrides
+                    );
+                } else {
+                    materialHandle = loaded.handle;
+                }
+                getDependencyGraph().registerUsage(materialPath, entityId);
+            } catch (err) {
+                console.warn(`[EditorSceneManager] Failed to load material: ${materialPath}`, err);
+            }
         }
 
         if (this.world_.has(entity, Sprite)) {
@@ -324,6 +353,7 @@ export class EditorSceneManager {
             layer: data.layer ?? 0,
             flipX: data.flipX ?? false,
             flipY: data.flipY ?? false,
+            material: materialHandle,
         });
     }
 
@@ -364,7 +394,7 @@ export class EditorSceneManager {
         });
     }
 
-    private async syncSpineAnimation(entity: Entity, data: any): Promise<void> {
+    private async syncSpineAnimation(entity: Entity, data: any, entityId: number): Promise<void> {
         const skeletonPath = data.skeletonPath ?? '';
         const atlasPath = data.atlasPath ?? '';
 
@@ -373,10 +403,27 @@ export class EditorSceneManager {
             return;
         }
 
+        getDependencyGraph().clearEntity(entityId);
+
         const result = await this.assetServer_.loadSpine(skeletonPath, atlasPath);
         if (!result.success) {
             console.warn(`[EditorSceneManager] Failed to load Spine: ${result.error}`);
             return;
+        }
+
+        getDependencyGraph().registerUsage(skeletonPath, entityId);
+        getDependencyGraph().registerUsage(atlasPath, entityId);
+
+        let materialHandle = 0;
+        const materialPath = data.material;
+        if (materialPath) {
+            try {
+                const loaded = await this.assetServer_.loadMaterial(materialPath);
+                materialHandle = loaded.handle;
+                getDependencyGraph().registerUsage(materialPath, entityId);
+            } catch (err) {
+                console.warn(`[EditorSceneManager] Failed to load material: ${materialPath}`, err);
+            }
         }
 
         loadComponent(this.world_, entity, {
@@ -394,6 +441,7 @@ export class EditorSceneManager {
                 color: data.color ?? { x: 1, y: 1, z: 1, w: 1 },
                 layer: data.layer ?? 0,
                 skeletonScale: data.skeletonScale ?? 1,
+                material: materialHandle,
             },
         });
     }

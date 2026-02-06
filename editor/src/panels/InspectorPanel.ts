@@ -22,6 +22,19 @@ import {
     serializeTextureMetadata,
     createDefaultTextureMetadata,
 } from '../types/TextureMetadata';
+import {
+    type MaterialMetadata,
+    parseMaterialMetadata,
+    serializeMaterialMetadata,
+    createDefaultMaterialMetadata,
+    BLEND_MODE_OPTIONS,
+} from '../types/MaterialMetadata';
+import {
+    parseShaderProperties,
+    ShaderPropertyType,
+    getDefaultPropertyValue,
+    type ShaderProperty,
+} from '../shader/ShaderPropertyParser';
 
 // =============================================================================
 // Types
@@ -95,6 +108,8 @@ function getAssetIcon(type: AssetType, size: number = 16): string {
         case 'scene': return icons.layers(size);
         case 'audio': return icons.volume(size);
         case 'json': return icons.braces(size);
+        case 'material': return icons.settings(size);
+        case 'shader': return icons.code(size);
         case 'folder': return icons.folder(size);
         default: return icons.file(size);
     }
@@ -107,6 +122,8 @@ function getAssetTypeName(type: AssetType): string {
         case 'scene': return 'Scene';
         case 'audio': return 'Audio';
         case 'json': return 'JSON';
+        case 'material': return 'Material';
+        case 'shader': return 'Shader';
         case 'folder': return 'Folder';
         default: return 'File';
     }
@@ -131,6 +148,10 @@ export class InspectorPanel {
     private lockBtn_: HTMLElement | null = null;
     private locked_: boolean = false;
     private currentTextureMetadata_: TextureMetadata | null = null;
+    private currentMaterialMetadata_: MaterialMetadata | null = null;
+    private currentShaderProperties_: ShaderProperty[] = [];
+    private materialPreviewContainer_: HTMLElement | null = null;
+    private materialPreviewExpanded_: boolean = true;
 
     constructor(container: HTMLElement, store: EditorStore) {
         this.container_ = container;
@@ -147,16 +168,14 @@ export class InspectorPanel {
             </div>
             <div class="es-inspector-toolbar">
                 <button class="es-btn es-btn-icon es-lock-btn" title="Lock Inspector">${icons.lockOpen()}</button>
-                <button class="es-btn es-btn-icon" title="Debug">${icons.bug()}</button>
-                <div class="es-toolbar-spacer"></div>
-                <button class="es-btn es-btn-icon" title="Add Component">${icons.plus()}</button>
-                <button class="es-btn es-btn-icon" title="Settings">${icons.settings()}</button>
             </div>
             <div class="es-inspector-content"></div>
+            <div class="es-material-preview-panel es-expanded"></div>
             <div class="es-inspector-footer">No selection</div>
         `;
 
         this.contentContainer_ = this.container_.querySelector('.es-inspector-content')!;
+        this.materialPreviewContainer_ = this.container_.querySelector('.es-material-preview-panel')!;
         this.footerContainer_ = this.container_.querySelector('.es-inspector-footer');
         this.lockBtn_ = this.container_.querySelector('.es-lock-btn');
 
@@ -230,6 +249,7 @@ export class InspectorPanel {
         this.disposeEditors();
         this.cleanupImageUrl();
         this.contentContainer_.innerHTML = '<div class="es-inspector-empty">No selection</div>';
+        this.hideMaterialPreview();
         this.updateFooter('No selection');
     }
 
@@ -247,6 +267,10 @@ export class InspectorPanel {
 
         if (!entityChanged && !componentsChanged && !wasAsset) {
             this.updateEditors();
+            const entityData = this.store_.getSelectedEntityData();
+            if (entityData) {
+                this.renderMaterialPreview(entity, entityData.components);
+            }
             return;
         }
 
@@ -271,6 +295,7 @@ export class InspectorPanel {
         }
 
         this.renderAddComponentButton(entity, entityData.components);
+        this.renderMaterialPreview(entity, entityData.components);
         this.updateFooter(`${entityData.components.length + 1} components`);
     }
 
@@ -509,6 +534,311 @@ export class InspectorPanel {
     }
 
     // =========================================================================
+    // Material Preview Panel
+    // =========================================================================
+
+    private renderMaterialPreview(entity: Entity, components: ComponentData[]): void {
+        if (!this.materialPreviewContainer_) return;
+
+        const spriteComp = components.find(c => c.type === 'Sprite');
+        const materialPath = spriteComp?.data?.material as string | undefined;
+
+        if (!materialPath) {
+            this.renderEmptyMaterialPreview();
+            return;
+        }
+
+        this.renderMaterialPreviewContent(entity, spriteComp!, materialPath);
+    }
+
+    private renderEmptyMaterialPreview(): void {
+        if (!this.materialPreviewContainer_) return;
+
+        this.materialPreviewContainer_.innerHTML = `
+            <div class="es-material-preview-header">
+                <span class="es-material-preview-title">
+                    ${icons.chevronRight(12)} Material Preview
+                </span>
+            </div>
+            <div class="es-material-preview-content">
+                <div class="es-material-preview-empty">(No material selected)</div>
+            </div>
+        `;
+
+        if (this.materialPreviewExpanded_) {
+            this.materialPreviewContainer_.classList.add('es-expanded');
+        } else {
+            this.materialPreviewContainer_.classList.remove('es-expanded');
+        }
+
+        this.setupMaterialPreviewHeader();
+    }
+
+    private async renderMaterialPreviewContent(
+        entity: Entity,
+        spriteComp: ComponentData,
+        materialPath: string
+    ): Promise<void> {
+        if (!this.materialPreviewContainer_) return;
+
+        const fileName = materialPath.split('/').pop() ?? materialPath;
+
+        this.materialPreviewContainer_.innerHTML = `
+            <div class="es-material-preview-header">
+                <span class="es-material-preview-title">
+                    ${icons.chevronRight(12)} Material Preview
+                </span>
+                <button class="es-btn es-material-preview-open-btn">Open Material</button>
+            </div>
+            <div class="es-material-preview-content">
+                <div class="es-material-preview-name">${this.escapeHtml(fileName)}</div>
+                <div class="es-material-preview-properties"></div>
+                <div class="es-material-preview-status"></div>
+            </div>
+        `;
+
+        if (this.materialPreviewExpanded_) {
+            this.materialPreviewContainer_.classList.add('es-expanded');
+        } else {
+            this.materialPreviewContainer_.classList.remove('es-expanded');
+        }
+
+        this.setupMaterialPreviewHeader();
+
+        const openBtn = this.materialPreviewContainer_.querySelector('.es-material-preview-open-btn');
+        openBtn?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.navigateToAsset(materialPath);
+        });
+
+        const propsContainer = this.materialPreviewContainer_.querySelector('.es-material-preview-properties')!;
+        const statusContainer = this.materialPreviewContainer_.querySelector('.es-material-preview-status')!;
+
+        const shaderInfo = await this.loadShaderInfoForMaterial(materialPath);
+        if (!shaderInfo || !shaderInfo.valid || shaderInfo.properties.length === 0) {
+            propsContainer.innerHTML = '<div class="es-material-preview-empty">No shader properties</div>';
+            statusContainer.textContent = '';
+            return;
+        }
+
+        const materialDefaults = await this.loadMaterialDefaults(materialPath);
+        const currentOverrides = (spriteComp.data.materialOverrides as Record<string, unknown>) ?? {};
+
+        const editableProps = shaderInfo.properties.filter(p => p.type !== ShaderPropertyType.Texture);
+        let overrideCount = 0;
+
+        for (const prop of editableProps) {
+            const isOverridden = prop.name in currentOverrides;
+            const value = isOverridden
+                ? currentOverrides[prop.name]
+                : (materialDefaults[prop.name] ?? getDefaultPropertyValue(prop.type));
+
+            if (isOverridden) overrideCount++;
+
+            const row = document.createElement('div');
+            row.className = `es-material-preview-row${isOverridden ? ' es-overridden' : ''}`;
+
+            const label = document.createElement('label');
+            label.className = 'es-property-label';
+            label.textContent = prop.displayName;
+
+            const editorContainer = document.createElement('div');
+            editorContainer.className = 'es-property-editor';
+
+            this.createMaterialPreviewEditor(editorContainer, prop, value, (newValue) => {
+                this.handleMaterialOverrideChange(
+                    entity,
+                    prop.name,
+                    newValue,
+                    materialDefaults[prop.name] ?? getDefaultPropertyValue(prop.type),
+                    currentOverrides
+                );
+            });
+
+            row.appendChild(label);
+            row.appendChild(editorContainer);
+
+            if (isOverridden) {
+                const resetBtn = document.createElement('button');
+                resetBtn.className = 'es-btn es-btn-icon es-btn-reset-override';
+                resetBtn.title = 'Reset to material default';
+                resetBtn.innerHTML = icons.refresh(12);
+                resetBtn.addEventListener('click', () => {
+                    this.handleMaterialOverrideReset(entity, prop.name, currentOverrides);
+                });
+                row.appendChild(resetBtn);
+            }
+
+            propsContainer.appendChild(row);
+        }
+
+        if (overrideCount > 0) {
+            statusContainer.textContent = `${overrideCount} override${overrideCount > 1 ? 's' : ''} active`;
+        } else {
+            statusContainer.textContent = 'No overrides';
+        }
+    }
+
+    private setupMaterialPreviewHeader(): void {
+        const header = this.materialPreviewContainer_?.querySelector('.es-material-preview-header');
+        header?.addEventListener('click', (e) => {
+            if ((e.target as HTMLElement).closest('.es-material-preview-open-btn')) return;
+            this.materialPreviewExpanded_ = !this.materialPreviewExpanded_;
+            if (this.materialPreviewExpanded_) {
+                this.materialPreviewContainer_?.classList.add('es-expanded');
+            } else {
+                this.materialPreviewContainer_?.classList.remove('es-expanded');
+            }
+        });
+    }
+
+    private async loadShaderInfoForMaterial(materialPath: string): Promise<import('../shader/ShaderPropertyParser').ParsedShaderInfo | null> {
+        const fs = getNativeFS();
+        const projectDir = this.getProjectDir();
+        if (!fs || !projectDir) return null;
+
+        const materialFullPath = `${projectDir}/${materialPath}`;
+        const materialContent = await fs.readFile(materialFullPath);
+        if (!materialContent) return null;
+
+        try {
+            const material = JSON.parse(materialContent);
+            if (!material.shader) return null;
+
+            const shaderPath = material.shader.startsWith('/')
+                ? material.shader
+                : material.shader.startsWith('assets/')
+                    ? material.shader
+                    : `${materialPath.substring(0, materialPath.lastIndexOf('/'))}/${material.shader}`;
+
+            const shaderFullPath = `${projectDir}/${shaderPath}`;
+            const shaderContent = await fs.readFile(shaderFullPath);
+            if (!shaderContent) return null;
+
+            return parseShaderProperties(shaderContent);
+        } catch {
+            return null;
+        }
+    }
+
+    private async loadMaterialDefaults(materialPath: string): Promise<Record<string, unknown>> {
+        const fs = getNativeFS();
+        const projectDir = this.getProjectDir();
+        if (!fs || !projectDir) return {};
+
+        const materialFullPath = `${projectDir}/${materialPath}`;
+        const materialContent = await fs.readFile(materialFullPath);
+        if (!materialContent) return {};
+
+        try {
+            const material = JSON.parse(materialContent);
+            return material.properties ?? {};
+        } catch {
+            return {};
+        }
+    }
+
+    private createMaterialPreviewEditor(
+        container: HTMLElement,
+        prop: ShaderProperty,
+        value: unknown,
+        onChange: (value: unknown) => void
+    ): void {
+        switch (prop.type) {
+            case ShaderPropertyType.Float:
+                this.createFloatEditor(container, value as number, onChange, prop.min, prop.max, prop.step);
+                break;
+            case ShaderPropertyType.Int:
+                this.createIntEditor(container, value as number, onChange, prop.min, prop.max, prop.step);
+                break;
+            case ShaderPropertyType.Vec2:
+                this.createVec2Editor(container, value as { x: number; y: number }, onChange);
+                break;
+            case ShaderPropertyType.Vec3:
+                this.createVec3Editor(container, value as { x: number; y: number; z: number }, onChange);
+                break;
+            case ShaderPropertyType.Vec4:
+                this.createVec4Editor(container, value as { x: number; y: number; z: number; w: number }, onChange);
+                break;
+            case ShaderPropertyType.Color:
+                this.createColorEditor(container, value as { x: number; y: number; z: number; w: number }, onChange);
+                break;
+            default:
+                container.textContent = 'Unknown type';
+        }
+    }
+
+    private deepEqual(a: unknown, b: unknown): boolean {
+        if (a === b) return true;
+        if (typeof a !== typeof b) return false;
+        if (typeof a !== 'object' || a === null || b === null) return false;
+
+        const keysA = Object.keys(a as object);
+        const keysB = Object.keys(b as object);
+        if (keysA.length !== keysB.length) return false;
+
+        for (const key of keysA) {
+            if (!this.deepEqual((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key])) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private handleMaterialOverrideChange(
+        entity: Entity,
+        propName: string,
+        newValue: unknown,
+        defaultValue: unknown,
+        currentOverrides: Record<string, unknown>
+    ): void {
+        const newOverrides = { ...currentOverrides };
+
+        if (this.deepEqual(newValue, defaultValue)) {
+            delete newOverrides[propName];
+        } else {
+            newOverrides[propName] = newValue;
+        }
+
+        const oldOverrides = currentOverrides;
+        const finalOverrides = Object.keys(newOverrides).length > 0 ? newOverrides : undefined;
+
+        this.store_.updateProperty(
+            entity,
+            'Sprite',
+            'materialOverrides',
+            Object.keys(oldOverrides).length > 0 ? oldOverrides : undefined,
+            finalOverrides
+        );
+    }
+
+    private handleMaterialOverrideReset(
+        entity: Entity,
+        propName: string,
+        currentOverrides: Record<string, unknown>
+    ): void {
+        const newOverrides = { ...currentOverrides };
+        delete newOverrides[propName];
+
+        const oldOverrides = currentOverrides;
+        const finalOverrides = Object.keys(newOverrides).length > 0 ? newOverrides : undefined;
+
+        this.store_.updateProperty(
+            entity,
+            'Sprite',
+            'materialOverrides',
+            Object.keys(oldOverrides).length > 0 ? oldOverrides : undefined,
+            finalOverrides
+        );
+    }
+
+    private hideMaterialPreview(): void {
+        if (this.materialPreviewContainer_) {
+            this.materialPreviewContainer_.innerHTML = '';
+        }
+    }
+
+    // =========================================================================
     // Asset Inspector
     // =========================================================================
 
@@ -523,6 +853,7 @@ export class InspectorPanel {
         this.disposeEditors();
         this.cleanupImageUrl();
         this.contentContainer_.innerHTML = '';
+        this.hideMaterialPreview();
 
         this.renderAssetHeader(asset);
 
@@ -535,6 +866,9 @@ export class InspectorPanel {
                 break;
             case 'scene':
                 await this.renderSceneInspector(asset.path);
+                break;
+            case 'material':
+                await this.renderMaterialInspector(asset.path);
                 break;
             default:
                 await this.renderFileInspector(asset.path, asset.type);
@@ -965,6 +1299,812 @@ export class InspectorPanel {
         });
 
         this.contentContainer_.appendChild(actionsWrapper);
+    }
+
+    private async renderMaterialInspector(path: string): Promise<void> {
+        const fs = getNativeFS();
+        const platform = getPlatformAdapter();
+        if (!fs) {
+            this.renderError('File system not available');
+            return;
+        }
+
+        const content = await fs.readFile(path);
+        if (!content) {
+            this.renderError('Failed to load material file');
+            return;
+        }
+
+        const metadata = parseMaterialMetadata(content);
+        if (!metadata) {
+            this.renderError('Invalid material file');
+            return;
+        }
+
+        this.currentMaterialMetadata_ = metadata;
+        this.currentShaderProperties_ = [];
+
+        const saveMaterial = async () => {
+            if (!this.currentMaterialMetadata_) return;
+            try {
+                const json = serializeMaterialMetadata(this.currentMaterialMetadata_);
+                await platform.writeTextFile(path, json);
+            } catch (err) {
+                console.error('Failed to save material:', err);
+            }
+        };
+
+        const shaderSection = document.createElement('div');
+        shaderSection.className = 'es-component-section es-collapsible es-expanded';
+        shaderSection.innerHTML = `
+            <div class="es-component-header es-collapsible-header">
+                <span class="es-collapse-icon">${icons.chevronDown(12)}</span>
+                <span class="es-component-icon">${icons.code(14)}</span>
+                <span class="es-component-title">Shader</span>
+            </div>
+            <div class="es-component-properties es-collapsible-content">
+                <div class="es-property-row">
+                    <label class="es-property-label">Shader</label>
+                    <div class="es-property-editor es-shader-editor-container"></div>
+                </div>
+            </div>
+        `;
+
+        const shaderHeader = shaderSection.querySelector('.es-collapsible-header');
+        shaderHeader?.addEventListener('click', () => {
+            shaderSection.classList.toggle('es-expanded');
+        });
+
+        const shaderEditorContainer = shaderSection.querySelector('.es-shader-editor-container')!;
+        this.createShaderFileInput(shaderEditorContainer as HTMLElement, metadata.shader, async (newPath) => {
+            if (this.currentMaterialMetadata_) {
+                this.currentMaterialMetadata_.shader = newPath;
+                await saveMaterial();
+                await this.reloadShaderProperties(path);
+            }
+        });
+
+        this.contentContainer_.appendChild(shaderSection);
+
+        const renderSection = document.createElement('div');
+        renderSection.className = 'es-component-section es-collapsible es-expanded';
+        renderSection.innerHTML = `
+            <div class="es-component-header es-collapsible-header">
+                <span class="es-collapse-icon">${icons.chevronDown(12)}</span>
+                <span class="es-component-icon">${icons.settings(14)}</span>
+                <span class="es-component-title">Render Settings</span>
+            </div>
+            <div class="es-component-properties es-collapsible-content">
+                <div class="es-property-row">
+                    <label class="es-property-label">Blend Mode</label>
+                    <div class="es-property-editor es-blend-mode-container"></div>
+                </div>
+                <div class="es-property-row">
+                    <label class="es-property-label">Depth Test</label>
+                    <div class="es-property-editor es-depth-test-container"></div>
+                </div>
+            </div>
+        `;
+
+        const renderHeader = renderSection.querySelector('.es-collapsible-header');
+        renderHeader?.addEventListener('click', () => {
+            renderSection.classList.toggle('es-expanded');
+        });
+
+        const blendContainer = renderSection.querySelector('.es-blend-mode-container')!;
+        const blendSelect = document.createElement('select');
+        blendSelect.className = 'es-input es-input-select';
+        BLEND_MODE_OPTIONS.forEach(opt => {
+            const option = document.createElement('option');
+            option.value = String(opt.value);
+            option.textContent = opt.label;
+            if (opt.value === metadata.blendMode) {
+                option.selected = true;
+            }
+            blendSelect.appendChild(option);
+        });
+        blendSelect.addEventListener('change', async () => {
+            if (this.currentMaterialMetadata_) {
+                const newBlendMode = parseInt(blendSelect.value, 10);
+                this.currentMaterialMetadata_.blendMode = newBlendMode;
+                await saveMaterial();
+
+                const assetServer = this.getAssetServer();
+                if (assetServer) {
+                    const projectDir = this.getProjectDir();
+                    if (projectDir && path.startsWith(projectDir)) {
+                        const relativePath = path.substring(projectDir.length + 1);
+                        assetServer.updateMaterialBlendMode(relativePath, newBlendMode);
+                    }
+                }
+            }
+        });
+        blendContainer.appendChild(blendSelect);
+
+        const depthContainer = renderSection.querySelector('.es-depth-test-container')!;
+        const depthCheckbox = document.createElement('input');
+        depthCheckbox.type = 'checkbox';
+        depthCheckbox.className = 'es-input es-input-checkbox';
+        depthCheckbox.checked = metadata.depthTest;
+        depthCheckbox.addEventListener('change', async () => {
+            if (this.currentMaterialMetadata_) {
+                this.currentMaterialMetadata_.depthTest = depthCheckbox.checked;
+                await saveMaterial();
+            }
+        });
+        depthContainer.appendChild(depthCheckbox);
+
+        this.contentContainer_.appendChild(renderSection);
+
+        await this.renderMaterialProperties(path, metadata, saveMaterial);
+    }
+
+    private createShaderFileInput(
+        container: HTMLElement,
+        currentPath: string,
+        onChange: (path: string) => void
+    ): void {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'es-file-editor';
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'es-input es-input-file es-asset-link';
+        input.value = currentPath;
+        input.placeholder = 'None';
+        input.readOnly = true;
+
+        const browseBtn = document.createElement('button');
+        browseBtn.className = 'es-btn es-btn-icon es-btn-browse';
+        browseBtn.title = 'Browse';
+        browseBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2z"></path></svg>`;
+
+        input.addEventListener('click', () => {
+            if (input.value) {
+                this.navigateToAsset(input.value);
+            }
+        });
+
+        wrapper.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            const data = e.dataTransfer?.types.includes('application/esengine-asset');
+            if (data) {
+                wrapper.classList.add('es-drag-over');
+                e.dataTransfer!.dropEffect = 'copy';
+            } else {
+                e.dataTransfer!.dropEffect = 'none';
+            }
+        });
+
+        wrapper.addEventListener('dragleave', () => {
+            wrapper.classList.remove('es-drag-over');
+        });
+
+        wrapper.addEventListener('drop', (e) => {
+            e.preventDefault();
+            wrapper.classList.remove('es-drag-over');
+
+            const jsonData = e.dataTransfer?.getData('application/esengine-asset');
+            if (!jsonData) return;
+
+            try {
+                const assetData = JSON.parse(jsonData);
+                if (assetData.type === 'shader') {
+                    const projectDir = this.getProjectDir();
+                    if (projectDir && assetData.path.startsWith(projectDir)) {
+                        const relativePath = assetData.path.substring(projectDir.length + 1);
+                        input.value = relativePath;
+                        onChange(relativePath);
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to parse drop data:', err);
+            }
+        });
+
+        browseBtn.addEventListener('click', async () => {
+            const projectDir = this.getProjectDir();
+            if (!projectDir) return;
+
+            const assetsDir = `${projectDir}/assets`;
+
+            try {
+                const platform = getPlatformAdapter();
+                const result = await platform.openFileDialog({
+                    title: 'Select Shader',
+                    defaultPath: assetsDir,
+                    filters: [{ name: 'Shader Files', extensions: ['esshader'] }],
+                });
+                if (result) {
+                    const normalizedPath = result.replace(/\\/g, '/');
+                    const assetsIndex = normalizedPath.indexOf('/assets/');
+                    if (assetsIndex !== -1) {
+                        const relativePath = normalizedPath.substring(assetsIndex + 1);
+                        input.value = relativePath;
+                        onChange(relativePath);
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to open file dialog:', err);
+            }
+        });
+
+        wrapper.appendChild(input);
+        wrapper.appendChild(browseBtn);
+        container.appendChild(wrapper);
+    }
+
+    private getProjectDir(): string | null {
+        const editor = (window as any).__esengine_editor;
+        const projectPath = editor?.projectPath;
+        if (!projectPath) return null;
+        return projectPath.replace(/\\/g, '/').replace(/\/[^/]+$/, '');
+    }
+
+    private navigateToAsset(assetPath: string): void {
+        const editor = (window as any).__esengine_editor;
+        if (editor && typeof editor.navigateToAsset === 'function') {
+            editor.navigateToAsset(assetPath);
+        }
+    }
+
+    private getAssetServer(): import('../asset/EditorAssetServer').EditorAssetServer | null {
+        const editor = (window as any).__esengine_editor;
+        return editor?.assetServer ?? null;
+    }
+
+    private async reloadShaderProperties(materialPath: string): Promise<void> {
+        const propsSections = this.contentContainer_.querySelectorAll('.es-material-properties-section');
+        propsSections.forEach(s => s.remove());
+
+        if (this.currentMaterialMetadata_) {
+            await this.renderMaterialProperties(materialPath, this.currentMaterialMetadata_, async () => {
+                const platform = getPlatformAdapter();
+                if (this.currentMaterialMetadata_) {
+                    const json = serializeMaterialMetadata(this.currentMaterialMetadata_);
+                    await platform.writeTextFile(materialPath, json);
+                }
+            });
+        }
+    }
+
+    private async renderMaterialProperties(
+        materialPath: string,
+        metadata: MaterialMetadata,
+        saveMaterial: () => Promise<void>
+    ): Promise<void> {
+        if (!metadata.shader) {
+            this.currentShaderProperties_ = [];
+            return;
+        }
+
+        const fs = getNativeFS();
+        const projectDir = this.getProjectDir();
+        if (!fs || !projectDir) return;
+
+        const shaderFullPath = `${projectDir}/${metadata.shader}`;
+        const shaderContent = await fs.readFile(shaderFullPath);
+        if (!shaderContent) {
+            this.currentShaderProperties_ = [];
+            return;
+        }
+
+        const shaderInfo = parseShaderProperties(shaderContent);
+        if (!shaderInfo.valid || shaderInfo.properties.length === 0) {
+            this.currentShaderProperties_ = [];
+            return;
+        }
+
+        this.currentShaderProperties_ = shaderInfo.properties;
+
+        const groupedProps = new Map<string, ShaderProperty[]>();
+        const ungroupedProps: ShaderProperty[] = [];
+
+        for (const prop of shaderInfo.properties) {
+            if (prop.group) {
+                const group = groupedProps.get(prop.group) ?? [];
+                group.push(prop);
+                groupedProps.set(prop.group, group);
+            } else {
+                ungroupedProps.push(prop);
+            }
+        }
+
+        if (ungroupedProps.length > 0) {
+            this.renderPropertyGroup('Properties', ungroupedProps, metadata, saveMaterial, materialPath);
+        }
+
+        for (const [groupName, props] of groupedProps) {
+            this.renderPropertyGroup(groupName, props, metadata, saveMaterial, materialPath);
+        }
+    }
+
+    private renderPropertyGroup(
+        groupName: string,
+        properties: ShaderProperty[],
+        metadata: MaterialMetadata,
+        saveMaterial: () => Promise<void>,
+        materialPath: string
+    ): void {
+        const propsSection = document.createElement('div');
+        propsSection.className = 'es-component-section es-collapsible es-expanded es-material-properties-section';
+        propsSection.innerHTML = `
+            <div class="es-component-header es-collapsible-header">
+                <span class="es-collapse-icon">${icons.chevronDown(12)}</span>
+                <span class="es-component-icon">${icons.settings(14)}</span>
+                <span class="es-component-title">${this.escapeHtml(groupName)}</span>
+            </div>
+            <div class="es-component-properties es-collapsible-content"></div>
+        `;
+
+        const propsHeader = propsSection.querySelector('.es-collapsible-header');
+        propsHeader?.addEventListener('click', () => {
+            propsSection.classList.toggle('es-expanded');
+        });
+
+        const propsContainer = propsSection.querySelector('.es-component-properties')!;
+
+        for (const prop of properties) {
+            const row = document.createElement('div');
+            row.className = 'es-property-row';
+
+            const label = document.createElement('label');
+            label.className = 'es-property-label';
+            label.textContent = prop.displayName;
+
+            const editorContainer = document.createElement('div');
+            editorContainer.className = 'es-property-editor';
+
+            const currentValue = metadata.properties[prop.name] ?? getDefaultPropertyValue(prop.type);
+
+            this.createPropertyEditorForType(editorContainer, prop, currentValue, async (newValue) => {
+                if (this.currentMaterialMetadata_) {
+                    this.currentMaterialMetadata_.properties[prop.name] = newValue;
+                    await saveMaterial();
+
+                    const assetServer = this.getAssetServer();
+                    const projectDir = this.getProjectDir();
+                    if (assetServer && projectDir && materialPath.startsWith(projectDir)) {
+                        const relativePath = materialPath.substring(projectDir.length + 1);
+                        assetServer.updateMaterialUniform(relativePath, prop.name, newValue);
+                    }
+                }
+            });
+
+            row.appendChild(label);
+            row.appendChild(editorContainer);
+            propsContainer.appendChild(row);
+        }
+
+        this.contentContainer_.appendChild(propsSection);
+    }
+
+    private createPropertyEditorForType(
+        container: HTMLElement,
+        prop: ShaderProperty,
+        value: unknown,
+        onChange: (value: unknown) => void
+    ): void {
+        switch (prop.type) {
+            case ShaderPropertyType.Float:
+                this.createFloatEditor(container, value as number, onChange, prop.min, prop.max, prop.step);
+                break;
+            case ShaderPropertyType.Int:
+                this.createIntEditor(container, value as number, onChange, prop.min, prop.max, prop.step);
+                break;
+            case ShaderPropertyType.Vec2:
+                this.createVec2Editor(container, value as { x: number; y: number }, onChange);
+                break;
+            case ShaderPropertyType.Vec3:
+                this.createVec3Editor(container, value as { x: number; y: number; z: number }, onChange);
+                break;
+            case ShaderPropertyType.Vec4:
+                this.createVec4Editor(container, value as { x: number; y: number; z: number; w: number }, onChange);
+                break;
+            case ShaderPropertyType.Color:
+                this.createColorEditor(container, value as { x: number; y: number; z: number; w: number }, onChange);
+                break;
+            case ShaderPropertyType.Texture:
+                this.createTextureEditor(container, value as string, onChange);
+                break;
+            default:
+                container.textContent = 'Unknown type';
+        }
+    }
+
+    private setupDragLabel(
+        label: HTMLElement,
+        input: HTMLInputElement,
+        onChange: (value: number) => void,
+        step: number = 0.1,
+        min?: number,
+        max?: number
+    ): void {
+        let startX = 0;
+        let startValue = 0;
+        let isDragging = false;
+
+        const onMouseMove = (e: MouseEvent) => {
+            if (!isDragging) return;
+            const delta = (e.clientX - startX) * step;
+            let newValue = startValue + delta;
+            if (min !== undefined && newValue < min) newValue = min;
+            if (max !== undefined && newValue > max) newValue = max;
+            newValue = parseFloat(newValue.toFixed(4));
+            input.value = String(newValue);
+            onChange(newValue);
+        };
+
+        const onMouseUp = () => {
+            isDragging = false;
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+            document.body.style.cursor = '';
+        };
+
+        label.style.cursor = 'ew-resize';
+        label.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            isDragging = true;
+            startX = e.clientX;
+            startValue = parseFloat(input.value) || 0;
+            document.body.style.cursor = 'ew-resize';
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+        });
+    }
+
+    private createFloatEditor(
+        container: HTMLElement,
+        value: number,
+        onChange: (v: number) => void,
+        min?: number,
+        max?: number,
+        step?: number
+    ): void {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'es-number-editor';
+
+        const label = document.createElement('span');
+        label.className = 'es-number-drag-label';
+        label.innerHTML = '⋮⋮';
+        label.title = 'Drag to adjust value';
+
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.className = 'es-input es-input-number';
+        input.step = String(step ?? 0.01);
+        input.value = String(parseFloat((value ?? 0).toFixed(4)));
+        if (min !== undefined) input.min = String(min);
+        if (max !== undefined) input.max = String(max);
+        input.addEventListener('change', () => {
+            let val = parseFloat(input.value) || 0;
+            if (min !== undefined && val < min) val = min;
+            if (max !== undefined && val > max) val = max;
+            val = parseFloat(val.toFixed(4));
+            input.value = String(val);
+            onChange(val);
+        });
+
+        this.setupDragLabel(label, input, (v) => onChange(parseFloat(v.toFixed(4))), step ?? 0.01, min, max);
+
+        wrapper.appendChild(label);
+        wrapper.appendChild(input);
+        container.appendChild(wrapper);
+    }
+
+    private createIntEditor(
+        container: HTMLElement,
+        value: number,
+        onChange: (v: number) => void,
+        min?: number,
+        max?: number,
+        step?: number
+    ): void {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'es-number-editor';
+
+        const label = document.createElement('span');
+        label.className = 'es-number-drag-label';
+        label.innerHTML = '⋮⋮';
+        label.title = 'Drag to adjust value';
+
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.className = 'es-input es-input-number';
+        input.step = String(step ?? 1);
+        input.value = String(value ?? 0);
+        if (min !== undefined) input.min = String(min);
+        if (max !== undefined) input.max = String(max);
+        input.addEventListener('change', () => {
+            let val = parseInt(input.value, 10) || 0;
+            if (min !== undefined && val < min) val = min;
+            if (max !== undefined && val > max) val = max;
+            input.value = String(val);
+            onChange(val);
+        });
+
+        this.setupDragLabel(label, input, (v) => onChange(Math.round(v)), step ?? 1, min, max);
+
+        wrapper.appendChild(label);
+        wrapper.appendChild(input);
+        container.appendChild(wrapper);
+    }
+
+    private createVec2Editor(
+        container: HTMLElement,
+        value: { x: number; y: number },
+        onChange: (v: { x: number; y: number }) => void
+    ): void {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'es-vec-editor es-vec2-editor';
+
+        const val = value ?? { x: 0, y: 0 };
+        const keys: ('x' | 'y')[] = ['x', 'y'];
+        const labels = ['X', 'Y'];
+        const classes = ['es-vec-x', 'es-vec-y'];
+
+        keys.forEach((key, i) => {
+            const group = document.createElement('div');
+            group.className = `es-vec-field ${classes[i]}`;
+
+            const label = document.createElement('span');
+            label.className = 'es-vec-label';
+            label.textContent = labels[i];
+
+            const input = document.createElement('input');
+            input.type = 'number';
+            input.className = 'es-input es-input-number';
+            input.step = '0.01';
+            input.value = String(parseFloat(val[key].toFixed(4)));
+            input.addEventListener('change', () => {
+                val[key] = parseFloat((parseFloat(input.value) || 0).toFixed(4));
+                onChange({ ...val });
+            });
+
+            this.setupDragLabel(label, input, (v) => {
+                val[key] = parseFloat(v.toFixed(4));
+                onChange({ ...val });
+            });
+
+            group.appendChild(label);
+            group.appendChild(input);
+            wrapper.appendChild(group);
+        });
+
+        container.appendChild(wrapper);
+    }
+
+    private createVec3Editor(
+        container: HTMLElement,
+        value: { x: number; y: number; z: number },
+        onChange: (v: { x: number; y: number; z: number }) => void
+    ): void {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'es-vec-editor es-vec3-editor';
+
+        const val = value ?? { x: 0, y: 0, z: 0 };
+        const keys: ('x' | 'y' | 'z')[] = ['x', 'y', 'z'];
+        const labels = ['X', 'Y', 'Z'];
+        const classes = ['es-vec-x', 'es-vec-y', 'es-vec-z'];
+
+        keys.forEach((key, i) => {
+            const group = document.createElement('div');
+            group.className = `es-vec-field ${classes[i]}`;
+
+            const label = document.createElement('span');
+            label.className = 'es-vec-label';
+            label.textContent = labels[i];
+
+            const input = document.createElement('input');
+            input.type = 'number';
+            input.className = 'es-input es-input-number';
+            input.step = '0.01';
+            input.value = String(parseFloat(val[key].toFixed(4)));
+            input.addEventListener('change', () => {
+                val[key] = parseFloat((parseFloat(input.value) || 0).toFixed(4));
+                onChange({ ...val });
+            });
+
+            this.setupDragLabel(label, input, (v) => {
+                val[key] = parseFloat(v.toFixed(4));
+                onChange({ ...val });
+            });
+
+            group.appendChild(label);
+            group.appendChild(input);
+            wrapper.appendChild(group);
+        });
+
+        container.appendChild(wrapper);
+    }
+
+    private createVec4Editor(
+        container: HTMLElement,
+        value: { x: number; y: number; z: number; w: number },
+        onChange: (v: { x: number; y: number; z: number; w: number }) => void
+    ): void {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'es-vec-editor es-vec4-editor';
+
+        const val = value ?? { x: 0, y: 0, z: 0, w: 1 };
+        const keys: ('x' | 'y' | 'z' | 'w')[] = ['x', 'y', 'z', 'w'];
+        const labels = ['X', 'Y', 'Z', 'W'];
+        const classes = ['es-vec-x', 'es-vec-y', 'es-vec-z', 'es-vec-w'];
+
+        keys.forEach((key, i) => {
+            const group = document.createElement('div');
+            group.className = `es-vec-field ${classes[i]}`;
+
+            const label = document.createElement('span');
+            label.className = 'es-vec-label';
+            label.textContent = labels[i];
+
+            const input = document.createElement('input');
+            input.type = 'number';
+            input.className = 'es-input es-input-number';
+            input.step = '0.01';
+            input.value = String(parseFloat(val[key].toFixed(4)));
+            input.addEventListener('change', () => {
+                val[key] = parseFloat((parseFloat(input.value) || 0).toFixed(4));
+                onChange({ ...val });
+            });
+
+            this.setupDragLabel(label, input, (v) => {
+                val[key] = parseFloat(v.toFixed(4));
+                onChange({ ...val });
+            });
+
+            group.appendChild(label);
+            group.appendChild(input);
+            wrapper.appendChild(group);
+        });
+
+        container.appendChild(wrapper);
+    }
+
+    private createColorEditor(
+        container: HTMLElement,
+        value: { x: number; y: number; z: number; w: number },
+        onChange: (v: { x: number; y: number; z: number; w: number }) => void
+    ): void {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'es-color-editor';
+
+        const val = value ?? { x: 1, y: 1, z: 1, w: 1 };
+
+        const colorInput = document.createElement('input');
+        colorInput.type = 'color';
+        colorInput.className = 'es-input es-input-color';
+        colorInput.value = this.vec4ToHex(val);
+
+        const alphaInput = document.createElement('input');
+        alphaInput.type = 'number';
+        alphaInput.className = 'es-input es-input-number es-input-alpha';
+        alphaInput.min = '0';
+        alphaInput.max = '1';
+        alphaInput.step = '0.01';
+        alphaInput.value = String(val.w);
+
+        const update = () => {
+            const hex = colorInput.value;
+            const newColor = this.hexToVec4(hex);
+            newColor.w = parseFloat(alphaInput.value) || 1;
+            onChange(newColor);
+        };
+
+        colorInput.addEventListener('input', update);
+        colorInput.addEventListener('change', update);
+        alphaInput.addEventListener('change', update);
+
+        wrapper.appendChild(colorInput);
+        wrapper.appendChild(alphaInput);
+        container.appendChild(wrapper);
+    }
+
+    private vec4ToHex(color: { x: number; y: number; z: number; w: number }): string {
+        const r = Math.round(color.x * 255).toString(16).padStart(2, '0');
+        const g = Math.round(color.y * 255).toString(16).padStart(2, '0');
+        const b = Math.round(color.z * 255).toString(16).padStart(2, '0');
+        return `#${r}${g}${b}`;
+    }
+
+    private hexToVec4(hex: string): { x: number; y: number; z: number; w: number } {
+        const r = parseInt(hex.slice(1, 3), 16) / 255;
+        const g = parseInt(hex.slice(3, 5), 16) / 255;
+        const b = parseInt(hex.slice(5, 7), 16) / 255;
+        return { x: r, y: g, z: b, w: 1 };
+    }
+
+    private createTextureEditor(container: HTMLElement, value: string, onChange: (v: string) => void): void {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'es-file-editor';
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'es-input es-input-file es-asset-link';
+        input.value = value ?? '';
+        input.placeholder = 'None';
+        input.readOnly = true;
+
+        const browseBtn = document.createElement('button');
+        browseBtn.className = 'es-btn es-btn-icon es-btn-browse';
+        browseBtn.title = 'Browse';
+        browseBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2z"></path></svg>`;
+
+        input.addEventListener('click', () => {
+            if (input.value) {
+                this.navigateToAsset(input.value);
+            }
+        });
+
+        wrapper.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            const data = e.dataTransfer?.types.includes('application/esengine-asset');
+            if (data) {
+                wrapper.classList.add('es-drag-over');
+                e.dataTransfer!.dropEffect = 'copy';
+            } else {
+                e.dataTransfer!.dropEffect = 'none';
+            }
+        });
+
+        wrapper.addEventListener('dragleave', () => {
+            wrapper.classList.remove('es-drag-over');
+        });
+
+        wrapper.addEventListener('drop', (e) => {
+            e.preventDefault();
+            wrapper.classList.remove('es-drag-over');
+
+            const jsonData = e.dataTransfer?.getData('application/esengine-asset');
+            if (!jsonData) return;
+
+            try {
+                const assetData = JSON.parse(jsonData);
+                if (assetData.type === 'image') {
+                    const projectDir = this.getProjectDir();
+                    if (projectDir && assetData.path.startsWith(projectDir)) {
+                        const relativePath = assetData.path.substring(projectDir.length + 1);
+                        input.value = relativePath;
+                        onChange(relativePath);
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to parse drop data:', err);
+            }
+        });
+
+        browseBtn.addEventListener('click', async () => {
+            const projectDir = this.getProjectDir();
+            if (!projectDir) return;
+
+            const assetsDir = `${projectDir}/assets`;
+
+            try {
+                const platform = getPlatformAdapter();
+                const result = await platform.openFileDialog({
+                    title: 'Select Texture',
+                    defaultPath: assetsDir,
+                    filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp'] }],
+                });
+                if (result) {
+                    const normalizedPath = result.replace(/\\/g, '/');
+                    const assetsIndex = normalizedPath.indexOf('/assets/');
+                    if (assetsIndex !== -1) {
+                        const relativePath = normalizedPath.substring(assetsIndex + 1);
+                        input.value = relativePath;
+                        onChange(relativePath);
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to open file dialog:', err);
+            }
+        });
+
+        wrapper.appendChild(input);
+        wrapper.appendChild(browseBtn);
+        container.appendChild(wrapper);
     }
 
     private async renderFileInspector(path: string, type: AssetType): Promise<void> {

@@ -4,10 +4,30 @@
  */
 
 import type { ESEngineModule } from 'esengine';
-import type { TextureInfo, SliceBorder, SpineLoadResult } from 'esengine';
+import type { TextureInfo, SliceBorder, SpineLoadResult, MaterialHandle, ShaderHandle, MaterialAssetData } from 'esengine';
+import { Material } from 'esengine';
 import { EditorTextureManager } from '../renderer/EditorTextureManager';
 import { AssetLoader } from './AssetLoader';
 import type { AssetPathResolver } from './AssetPathResolver';
+import { parseShaderProperties, getShaderDefaultProperties } from '../shader/ShaderPropertyParser';
+import { getAssetEventBus } from '../events/AssetEventBus';
+
+interface NativeFS {
+    readFile(path: string): Promise<string | null>;
+    exists(path: string): Promise<boolean>;
+}
+
+interface LoadedMaterial {
+    handle: MaterialHandle;
+    shaderHandle: ShaderHandle;
+    path: string;
+}
+
+interface MaterialInstance {
+    handle: MaterialHandle;
+    basePath: string;
+    entityId: number;
+}
 
 // =============================================================================
 // EditorAssetServer
@@ -18,6 +38,10 @@ export class EditorAssetServer {
     private textureManager_: EditorTextureManager;
     private assetLoader_: AssetLoader;
     private pathResolver_: AssetPathResolver;
+    private materialCache_ = new Map<string, LoadedMaterial>();
+    private materialPending_ = new Map<string, Promise<LoadedMaterial>>();
+    private shaderCache_ = new Map<string, ShaderHandle>();
+    private materialInstances_ = new Map<string, MaterialInstance>();
 
     constructor(module: ESEngineModule, pathResolver: AssetPathResolver) {
         this.module_ = module;
@@ -103,6 +127,147 @@ export class EditorAssetServer {
         return this.assetLoader_.isSpineLoaded(skeletonPath, atlasPath);
     }
 
+    async loadMaterial(path: string): Promise<LoadedMaterial> {
+        const cached = this.materialCache_.get(path);
+        if (cached) return cached;
+
+        const pending = this.materialPending_.get(path);
+        if (pending) return pending;
+
+        const promise = this.loadMaterialInternal(path);
+        this.materialPending_.set(path, promise);
+
+        try {
+            const result = await promise;
+            this.materialCache_.set(path, result);
+            return result;
+        } finally {
+            this.materialPending_.delete(path);
+        }
+    }
+
+    getMaterial(path: string): LoadedMaterial | undefined {
+        return this.materialCache_.get(path);
+    }
+
+    hasMaterial(path: string): boolean {
+        return this.materialCache_.has(path);
+    }
+
+    private async loadMaterialInternal(path: string): Promise<LoadedMaterial> {
+        const fs = this.getNativeFS();
+        if (!fs) {
+            throw new Error('NativeFS not available');
+        }
+
+        const fullPath = this.pathResolver_.toAbsolutePath(path);
+        const exists = await fs.exists(fullPath);
+        if (!exists) {
+            throw new Error(`Material file not found: ${fullPath}`);
+        }
+
+        const content = await fs.readFile(fullPath);
+        if (!content) {
+            throw new Error(`Failed to read material file: ${fullPath}`);
+        }
+
+        const data = JSON.parse(content) as MaterialAssetData;
+        if (data.type !== 'material') {
+            throw new Error(`Invalid material file type: ${data.type}`);
+        }
+
+        const shaderPath = this.resolveShaderPath(path, data.shader);
+
+        const shaderDefaults = await this.getShaderDefaultProperties(shaderPath);
+        const mergedProperties = { ...shaderDefaults, ...data.properties };
+        const mergedData: MaterialAssetData = { ...data, properties: mergedProperties };
+
+        const shaderHandle = await this.loadShader(shaderPath);
+        const materialHandle = Material.createFromAsset(mergedData, shaderHandle);
+
+        return {
+            handle: materialHandle,
+            shaderHandle,
+            path,
+        };
+    }
+
+    private async getShaderDefaultProperties(shaderPath: string): Promise<Record<string, unknown>> {
+        const fs = this.getNativeFS();
+        if (!fs) return {};
+
+        const fullPath = this.pathResolver_.toAbsolutePath(shaderPath);
+        const exists = await fs.exists(fullPath);
+        if (!exists) return {};
+
+        const content = await fs.readFile(fullPath);
+        if (!content) return {};
+
+        const info = parseShaderProperties(content);
+        if (!info.valid) return {};
+
+        return getShaderDefaultProperties(info);
+    }
+
+    private async loadShader(path: string): Promise<ShaderHandle> {
+        const cached = this.shaderCache_.get(path);
+        if (cached) return cached;
+
+        const fs = this.getNativeFS();
+        if (!fs) {
+            throw new Error('NativeFS not available');
+        }
+
+        const fullPath = this.pathResolver_.toAbsolutePath(path);
+        const exists = await fs.exists(fullPath);
+        if (!exists) {
+            throw new Error(`Shader file not found: ${fullPath}`);
+        }
+
+        const content = await fs.readFile(fullPath);
+        if (!content) {
+            throw new Error(`Failed to read shader file: ${fullPath}`);
+        }
+
+        const { vertex, fragment } = this.parseEsShader(content);
+        if (!vertex || !fragment) {
+            throw new Error(`Invalid shader format: ${path}`);
+        }
+
+        const handle = Material.createShader(vertex, fragment);
+        this.shaderCache_.set(path, handle);
+        return handle;
+    }
+
+    private parseEsShader(content: string): { vertex: string | null; fragment: string | null } {
+        let vertex: string | null = null;
+        let fragment: string | null = null;
+
+        const vertexMatch = content.match(/#pragma\s+vertex\s*([\s\S]*?)#pragma\s+end/);
+        const fragmentMatch = content.match(/#pragma\s+fragment\s*([\s\S]*?)#pragma\s+end/);
+
+        if (vertexMatch) {
+            vertex = vertexMatch[1].trim();
+        }
+        if (fragmentMatch) {
+            fragment = fragmentMatch[1].trim();
+        }
+
+        return { vertex, fragment };
+    }
+
+    private resolveShaderPath(materialPath: string, shaderPath: string): string {
+        if (shaderPath.startsWith('/') || shaderPath.startsWith('assets/')) {
+            return shaderPath;
+        }
+        const dir = materialPath.substring(0, materialPath.lastIndexOf('/'));
+        return dir ? `${dir}/${shaderPath}` : shaderPath;
+    }
+
+    private getNativeFS(): NativeFS | null {
+        return (window as any).__esengine_fs ?? null;
+    }
+
     // =========================================================================
     // Editor-specific Methods
     // =========================================================================
@@ -113,5 +278,132 @@ export class EditorAssetServer {
 
     get assetLoader(): AssetLoader {
         return this.assetLoader_;
+    }
+
+    updateMaterialUniform(path: string, name: string, value: unknown): boolean {
+        const cached = this.materialCache_.get(path);
+        if (!cached) return false;
+
+        const uniformValue = this.convertToUniformValue(value);
+        if (uniformValue !== null) {
+            Material.setUniform(cached.handle, name, uniformValue);
+            getAssetEventBus().emit({
+                type: 'asset:modified',
+                category: 'material',
+                path,
+                handle: cached.handle,
+            });
+            return true;
+        }
+        return false;
+    }
+
+    updateMaterialBlendMode(path: string, blendMode: number): boolean {
+        const cached = this.materialCache_.get(path);
+        if (!cached) return false;
+
+        Material.setBlendMode(cached.handle, blendMode);
+        getAssetEventBus().emit({
+            type: 'asset:modified',
+            category: 'material',
+            path,
+            handle: cached.handle,
+        });
+        return true;
+    }
+
+    reloadMaterial(path: string): void {
+        this.materialCache_.delete(path);
+        getAssetEventBus().emit({
+            type: 'asset:modified',
+            category: 'material',
+            path,
+        });
+    }
+
+    createMaterialInstance(
+        basePath: string,
+        entityId: number,
+        overrides: Record<string, unknown>
+    ): MaterialHandle {
+        const key = `${basePath}:${entityId}`;
+        const existing = this.materialInstances_.get(key);
+        if (existing) {
+            this.applyOverrides(existing.handle, overrides);
+            return existing.handle;
+        }
+
+        const base = this.materialCache_.get(basePath);
+        if (!base) {
+            throw new Error(`Base material not loaded: ${basePath}`);
+        }
+
+        const instanceHandle = Material.createInstance(base.handle);
+        this.applyOverrides(instanceHandle, overrides);
+
+        this.materialInstances_.set(key, {
+            handle: instanceHandle,
+            basePath,
+            entityId,
+        });
+
+        return instanceHandle;
+    }
+
+    releaseMaterialInstance(entityId: number): void {
+        const keysToDelete: string[] = [];
+        for (const [key, instance] of this.materialInstances_) {
+            if (instance.entityId === entityId) {
+                Material.release(instance.handle);
+                keysToDelete.push(key);
+            }
+        }
+        for (const key of keysToDelete) {
+            this.materialInstances_.delete(key);
+        }
+    }
+
+    updateMaterialInstanceOverride(
+        basePath: string,
+        entityId: number,
+        name: string,
+        value: unknown
+    ): boolean {
+        const key = `${basePath}:${entityId}`;
+        const instance = this.materialInstances_.get(key);
+        if (!instance) return false;
+
+        const uniformValue = this.convertToUniformValue(value);
+        if (uniformValue !== null) {
+            Material.setUniform(instance.handle, name, uniformValue);
+            return true;
+        }
+        return false;
+    }
+
+    private applyOverrides(handle: MaterialHandle, overrides: Record<string, unknown>): void {
+        for (const [name, value] of Object.entries(overrides)) {
+            const uniformValue = this.convertToUniformValue(value);
+            if (uniformValue !== null) {
+                Material.setUniform(handle, name, uniformValue);
+            }
+        }
+    }
+
+    private convertToUniformValue(value: unknown): import('esengine').UniformValue | null {
+        if (typeof value === 'number') {
+            return value;
+        }
+        if (typeof value === 'object' && value !== null) {
+            const obj = value as Record<string, number>;
+            if ('w' in obj) {
+                return { x: obj.x ?? 0, y: obj.y ?? 0, z: obj.z ?? 0, w: obj.w ?? 0 };
+            } else if ('z' in obj) {
+                return { x: obj.x ?? 0, y: obj.y ?? 0, z: obj.z ?? 0 };
+            } else if ('y' in obj) {
+                return { x: obj.x ?? 0, y: obj.y ?? 0 };
+            }
+        }
+        return null;
     }
 }

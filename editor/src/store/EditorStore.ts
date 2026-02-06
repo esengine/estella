@@ -22,7 +22,7 @@ import type { Transform } from '../math/Transform';
 // Types
 // =============================================================================
 
-export type AssetType = 'image' | 'script' | 'scene' | 'audio' | 'json' | 'file' | 'folder';
+export type AssetType = 'image' | 'script' | 'scene' | 'audio' | 'json' | 'material' | 'shader' | 'file' | 'folder';
 
 export interface AssetSelection {
     path: string;
@@ -40,6 +40,16 @@ export interface EditorState {
 
 export type EditorListener = (state: EditorState) => void;
 
+export interface PropertyChangeEvent {
+    entity: number;
+    componentType: string;
+    propertyName: string;
+    oldValue: unknown;
+    newValue: unknown;
+}
+
+export type PropertyChangeListener = (event: PropertyChangeEvent) => void;
+
 // =============================================================================
 // EditorStore
 // =============================================================================
@@ -48,6 +58,7 @@ export class EditorStore {
     private state_: EditorState;
     private history_: CommandHistory;
     private listeners_: Set<EditorListener> = new Set();
+    private propertyListeners_: Set<PropertyChangeListener> = new Set();
     private nextEntityId_ = 1;
     private worldTransforms_ = new WorldTransformCache();
     private entityMap_ = new Map<number, EntityData>();
@@ -239,6 +250,13 @@ export class EditorStore {
             newValue
         );
         this.executeCommand(cmd);
+        this.notifyPropertyChange({
+            entity: entity as number,
+            componentType,
+            propertyName,
+            oldValue,
+            newValue,
+        });
     }
 
     getComponent(entity: Entity, type: string): ComponentData | null {
@@ -259,6 +277,7 @@ export class EditorStore {
         const component = entityData.components.find(c => c.type === componentType);
         if (!component) return;
 
+        const oldValue = component.data[propertyName];
         component.data[propertyName] = newValue;
         this.state_.isDirty = true;
 
@@ -268,6 +287,13 @@ export class EditorStore {
         }
 
         this.notify();
+        this.notifyPropertyChange({
+            entity: entity as number,
+            componentType,
+            propertyName,
+            oldValue,
+            newValue,
+        });
     }
 
     // =========================================================================
@@ -319,6 +345,11 @@ export class EditorStore {
         return () => this.listeners_.delete(listener);
     }
 
+    subscribeToPropertyChanges(listener: PropertyChangeListener): () => void {
+        this.propertyListeners_.add(listener);
+        return () => this.propertyListeners_.delete(listener);
+    }
+
     // =========================================================================
     // Private
     // =========================================================================
@@ -334,6 +365,12 @@ export class EditorStore {
     private notify(): void {
         for (const listener of this.listeners_) {
             listener(this.state_);
+        }
+    }
+
+    private notifyPropertyChange(event: PropertyChangeEvent): void {
+        for (const listener of this.propertyListeners_) {
+            listener(event);
         }
     }
 

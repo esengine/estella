@@ -6,6 +6,8 @@
 import type { EditorStore, AssetType } from '../store/EditorStore';
 import { icons } from '../utils/icons';
 import { showContextMenu } from '../ui/ContextMenu';
+import { getPlatformAdapter } from '../platform/PlatformAdapter';
+import { showInputDialog, showConfirmDialog } from '../ui/dialog';
 
 // =============================================================================
 // Types
@@ -32,6 +34,11 @@ interface NativeFS {
     openFolder(path: string): Promise<boolean>;
 }
 
+interface NativeShell {
+    openFile(path: string): Promise<void>;
+    openInEditor(projectPath: string, filePath: string): Promise<void>;
+}
+
 interface FolderNode {
     name: string;
     path: string;
@@ -43,7 +50,7 @@ interface FolderNode {
 interface AssetItem {
     name: string;
     path: string;
-    type: 'folder' | 'scene' | 'script' | 'image' | 'audio' | 'json' | 'spine' | 'file';
+    type: 'folder' | 'scene' | 'script' | 'image' | 'audio' | 'json' | 'material' | 'shader' | 'spine' | 'file';
 }
 
 export interface ContentBrowserOptions {
@@ -57,6 +64,10 @@ export interface ContentBrowserOptions {
 
 function getNativeFS(): NativeFS | null {
     return (window as any).__esengine_fs ?? null;
+}
+
+function getNativeShell(): NativeShell | null {
+    return (window as any).__esengine_shell ?? null;
 }
 
 function joinPath(...parts: string[]): string {
@@ -98,6 +109,10 @@ function getAssetType(entry: DirectoryEntry): AssetItem['type'] {
             return 'audio';
         case '.json':
             return 'json';
+        case '.esmaterial':
+            return 'material';
+        case '.esshader':
+            return 'shader';
         case '.skel':
         case '.atlas':
             return 'spine';
@@ -120,6 +135,10 @@ function getAssetIcon(type: AssetItem['type'], size: number = 32): string {
             return icons.volume(size);
         case 'json':
             return icons.braces(size);
+        case 'material':
+            return icons.settings(size);
+        case 'shader':
+            return icons.code(size);
         case 'spine':
             return icons.bone(size);
         default:
@@ -138,6 +157,7 @@ export class ContentBrowserPanel {
     private gridContainer_: HTMLElement | null = null;
     private footerContainer_: HTMLElement | null = null;
     private searchInput_: HTMLInputElement | null = null;
+    private breadcrumbContainer_: HTMLElement | null = null;
 
     private projectPath_: string | null = null;
     private rootFolder_: FolderNode | null = null;
@@ -170,6 +190,7 @@ export class ContentBrowserPanel {
                 <div class="es-content-browser-tree"></div>
                 <div class="es-content-browser-main">
                     <div class="es-content-browser-toolbar">
+                        <div class="es-content-breadcrumb"></div>
                         <input type="text" class="es-input es-content-search" placeholder="Search assets...">
                     </div>
                     <div class="es-content-browser-grid"></div>
@@ -182,6 +203,7 @@ export class ContentBrowserPanel {
         this.gridContainer_ = this.container_.querySelector('.es-content-browser-grid');
         this.footerContainer_ = this.container_.querySelector('.es-content-browser-footer');
         this.searchInput_ = this.container_.querySelector('.es-content-search');
+        this.breadcrumbContainer_ = this.container_.querySelector('.es-content-breadcrumb');
 
         this.setupEvents();
         this.initialize();
@@ -366,6 +388,17 @@ export class ContentBrowserPanel {
             this.renderGrid();
         });
 
+        this.breadcrumbContainer_?.addEventListener('click', (e) => {
+            const target = e.target as HTMLElement;
+            const item = target.closest('.es-breadcrumb-item') as HTMLElement;
+            if (!item) return;
+
+            const path = item.dataset.path;
+            if (path) {
+                this.selectFolder(path);
+            }
+        });
+
         this.treeContainer_?.addEventListener('click', async (e) => {
             const target = e.target as HTMLElement;
             const item = target.closest('.es-folder-item') as HTMLElement;
@@ -471,6 +504,7 @@ export class ContentBrowserPanel {
     private showAssetContextMenu(e: MouseEvent, path: string, type: AssetItem['type']): void {
         const fs = getNativeFS();
         const parentPath = getParentPath(path);
+        const fileName = path.split('/').pop() ?? path;
 
         showContextMenu({
             x: e.clientX,
@@ -494,10 +528,29 @@ export class ContentBrowserPanel {
                 {
                     label: 'Delete',
                     icon: icons.trash(14),
-                    disabled: true,
+                    onClick: () => this.deleteAsset(path, fileName),
                 },
             ],
         });
+    }
+
+    private async deleteAsset(path: string, name: string): Promise<void> {
+        const confirmed = await showConfirmDialog({
+            title: 'Delete Asset',
+            message: `Are you sure you want to delete "${name}"?`,
+            confirmText: 'Delete',
+            danger: true,
+        });
+
+        if (!confirmed) return;
+
+        try {
+            const platform = getPlatformAdapter();
+            await platform.remove(path);
+            this.refresh();
+        } catch (err) {
+            console.error('Failed to delete asset:', err);
+        }
     }
 
     private showFolderContextMenu(e: MouseEvent, path: string): void {
@@ -507,6 +560,39 @@ export class ContentBrowserPanel {
             x: e.clientX,
             y: e.clientY,
             items: [
+                {
+                    label: 'Create',
+                    icon: icons.plus(14),
+                    children: [
+                        {
+                            label: 'Folder',
+                            icon: icons.folder(14),
+                            onClick: () => this.createNewFolder(path),
+                        },
+                        { label: '', separator: true },
+                        {
+                            label: 'Script',
+                            icon: icons.code(14),
+                            onClick: () => this.createNewScript(path),
+                        },
+                        {
+                            label: 'Material',
+                            icon: icons.settings(14),
+                            onClick: () => this.createNewMaterial(path),
+                        },
+                        {
+                            label: 'Shader',
+                            icon: icons.code(14),
+                            onClick: () => this.createNewShader(path),
+                        },
+                        {
+                            label: 'Scene',
+                            icon: icons.layers(14),
+                            onClick: () => this.createNewScene(path),
+                        },
+                    ],
+                },
+                { label: '', separator: true },
                 {
                     label: 'Show in Folder',
                     icon: icons.folderOpen(14),
@@ -521,7 +607,7 @@ export class ContentBrowserPanel {
                         navigator.clipboard.writeText(path);
                     },
                 },
-                { separator: true, label: '' },
+                { label: '', separator: true },
                 {
                     label: 'Refresh',
                     icon: icons.refresh(14),
@@ -531,6 +617,164 @@ export class ContentBrowserPanel {
                 },
             ],
         });
+    }
+
+    private async createNewFolder(parentPath: string): Promise<void> {
+        const name = await this.promptFileName('New Folder');
+        if (!name) return;
+
+        const platform = getPlatformAdapter();
+        const folderPath = `${parentPath}/${name}`;
+
+        try {
+            await platform.mkdir(folderPath);
+            this.refresh();
+        } catch (err) {
+            console.error('Failed to create folder:', err);
+        }
+    }
+
+    private async createNewScript(parentPath: string): Promise<void> {
+        const name = await this.promptFileName('NewScript', '.ts');
+        if (!name) return;
+
+        const platform = getPlatformAdapter();
+        const filePath = `${parentPath}/${name}`;
+
+        const content = `import { defineSystem, Query, Mut, LocalTransform } from 'esengine';
+
+export const ${this.toClassName(name)}System = defineSystem({
+    name: '${this.toClassName(name)}',
+    query: Query(Mut(LocalTransform)),
+    run(query) {
+        for (const [transform] of query) {
+            // Update logic here
+        }
+    },
+});
+`;
+
+        try {
+            await platform.writeTextFile(filePath, content);
+            this.refresh();
+        } catch (err) {
+            console.error('Failed to create script:', err);
+        }
+    }
+
+    private async createNewMaterial(parentPath: string): Promise<void> {
+        const name = await this.promptFileName('NewMaterial', '.esmaterial');
+        if (!name) return;
+
+        const platform = getPlatformAdapter();
+        const filePath = `${parentPath}/${name}`;
+
+        const content = JSON.stringify({
+            version: '1.0',
+            type: 'material',
+            shader: '',
+            blendMode: 0,
+            depthTest: false,
+            properties: {},
+        }, null, 2);
+
+        try {
+            await platform.writeTextFile(filePath, content);
+            this.refresh();
+        } catch (err) {
+            console.error('Failed to create material:', err);
+        }
+    }
+
+    private async createNewScene(parentPath: string): Promise<void> {
+        const name = await this.promptFileName('NewScene', '.esscene');
+        if (!name) return;
+
+        const platform = getPlatformAdapter();
+        const filePath = `${parentPath}/${name}`;
+
+        const content = JSON.stringify({
+            version: '1.0',
+            name: name.replace('.esscene', ''),
+            entities: [],
+        }, null, 2);
+
+        try {
+            await platform.writeTextFile(filePath, content);
+            this.refresh();
+        } catch (err) {
+            console.error('Failed to create scene:', err);
+        }
+    }
+
+    private async createNewShader(parentPath: string): Promise<void> {
+        const name = await this.promptFileName('NewShader', '.esshader');
+        if (!name) return;
+
+        const platform = getPlatformAdapter();
+        const filePath = `${parentPath}/${name}`;
+        const shaderName = name.replace('.esshader', '');
+
+        const content = `#pragma shader "${shaderName}"
+
+#pragma vertex
+attribute vec2 a_position;
+attribute vec2 a_texCoord;
+
+uniform mat4 u_projection;
+uniform mat4 u_model;
+
+varying vec2 v_texCoord;
+
+void main() {
+    v_texCoord = a_texCoord;
+    gl_Position = u_projection * u_model * vec4(a_position, 0.0, 1.0);
+}
+#pragma end
+
+#pragma fragment
+precision mediump float;
+
+varying vec2 v_texCoord;
+
+void main() {
+    gl_FragColor = vec4(v_texCoord, 0.0, 1.0);
+}
+#pragma end
+`;
+
+        try {
+            await platform.writeTextFile(filePath, content);
+            this.refresh();
+        } catch (err) {
+            console.error('Failed to create shader:', err);
+        }
+    }
+
+    private async promptFileName(defaultName: string, extension: string = ''): Promise<string | null> {
+        const name = await showInputDialog({
+            title: 'Enter Name',
+            placeholder: 'Name',
+            defaultValue: defaultName,
+            confirmText: 'Create',
+            validator: (value) => {
+                if (!value.trim()) return 'Name is required';
+                return null;
+            },
+        });
+
+        if (!name) return null;
+
+        const trimmed = name.trim();
+        if (extension && !trimmed.endsWith(extension)) {
+            return trimmed + extension;
+        }
+        return trimmed;
+    }
+
+    private toClassName(filename: string): string {
+        const name = filename.replace(/\.(ts|js)$/, '');
+        return name.charAt(0).toUpperCase() + name.slice(1);
     }
 
     private selectAsset(path: string): void {
@@ -564,6 +808,19 @@ export class ContentBrowserPanel {
     private onAssetDoubleClick(path: string, type: AssetItem['type']): void {
         if (type === 'scene' && this.onOpenScene_) {
             this.onOpenScene_(path);
+            return;
+        }
+
+        const shell = getNativeShell();
+        if (!shell) return;
+
+        if (type === 'script') {
+            const projectDir = this.rootFolder_?.path;
+            if (projectDir) {
+                shell.openInEditor(projectDir, path);
+            }
+        } else if (type === 'shader' || type === 'json') {
+            shell.openFile(path);
         }
     }
 
@@ -596,6 +853,7 @@ export class ContentBrowserPanel {
     private selectFolder(path: string): void {
         this.currentPath_ = path;
         this.renderTree();
+        this.renderBreadcrumb();
         this.renderGrid();
     }
 
@@ -611,12 +869,43 @@ export class ContentBrowserPanel {
 
     private render(): void {
         this.renderTree();
+        this.renderBreadcrumb();
         this.renderGrid();
     }
 
     private renderTree(): void {
         if (!this.treeContainer_ || !this.rootFolder_) return;
         this.treeContainer_.innerHTML = this.renderFolderNode(this.rootFolder_, 0);
+    }
+
+    private renderBreadcrumb(): void {
+        if (!this.breadcrumbContainer_ || !this.rootFolder_) return;
+
+        const rootPath = this.rootFolder_.path;
+        const currentPath = this.currentPath_;
+
+        const crumbs: { name: string; path: string }[] = [];
+
+        crumbs.push({ name: this.rootFolder_.name, path: rootPath });
+
+        if (currentPath && currentPath !== rootPath && currentPath.startsWith(rootPath)) {
+            const relativePath = currentPath.substring(rootPath.length).replace(/^\//, '');
+            const parts = relativePath.split('/').filter(p => p);
+
+            let accumulatedPath = rootPath;
+            for (const part of parts) {
+                accumulatedPath = joinPath(accumulatedPath, part);
+                crumbs.push({ name: part, path: accumulatedPath });
+            }
+        }
+
+        this.breadcrumbContainer_.innerHTML = crumbs
+            .map((crumb, index) => {
+                const isLast = index === crumbs.length - 1;
+                const separator = isLast ? '' : `<span class="es-breadcrumb-separator">${icons.chevronRight(10)}</span>`;
+                return `<span class="es-breadcrumb-item${isLast ? ' es-active' : ''}" data-path="${crumb.path}">${crumb.name}</span>${separator}`;
+            })
+            .join('');
     }
 
     private renderFolderNode(node: FolderNode, depth: number): string {
@@ -656,8 +945,7 @@ export class ContentBrowserPanel {
             );
         }
 
-        const isDraggable = (type: AssetItem['type']) =>
-            type === 'spine' || type === 'image' || type === 'json';
+        const isDraggable = (type: AssetItem['type']) => type !== 'folder';
 
         this.gridContainer_.innerHTML = filteredItems
             .map(
