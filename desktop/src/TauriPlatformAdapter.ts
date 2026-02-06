@@ -5,7 +5,7 @@
 
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { open, save } from '@tauri-apps/plugin-dialog';
-import { readTextFile, writeTextFile, exists } from '@tauri-apps/plugin-fs';
+import { readTextFile, writeTextFile, exists, mkdir, remove } from '@tauri-apps/plugin-fs';
 import { join } from '@tauri-apps/api/path';
 import type { PlatformAdapter, FileDialogOptions, SaveDialogOptions } from '@esengine/editor';
 
@@ -48,6 +48,14 @@ export class TauriPlatformAdapter implements PlatformAdapter {
 
     async exists(path: string): Promise<boolean> {
         return await exists(path);
+    }
+
+    async mkdir(path: string): Promise<void> {
+        await mkdir(path, { recursive: true });
+    }
+
+    async remove(path: string): Promise<void> {
+        await remove(path, { recursive: true });
     }
 
     joinPath(...segments: string[]): string {

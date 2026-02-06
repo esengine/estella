@@ -221,7 +221,8 @@ const Sprite = defineBuiltin('Sprite', {
     uvScale: { x: 1, y: 1 },
     layer: 0,
     flipX: false,
-    flipY: false
+    flipY: false,
+    material: 0
 });
 const Camera = defineBuiltin('Camera', {
     projectionType: 0,
@@ -262,7 +263,8 @@ const SpineAnimation = defineBuiltin('SpineAnimation', {
     flipY: false,
     color: { x: 1, y: 1, z: 1, w: 1 },
     layer: 0,
-    skeletonScale: 1.0
+    skeletonScale: 1.0,
+    material: 0
 });
 // =============================================================================
 // Component Defaults Registry
@@ -1222,6 +1224,10 @@ var BlendMode;
  * @brief   Material and Shader API for custom rendering
  * @details Provides shader creation and material management for custom visual effects.
  */
+// =============================================================================
+// Internal State
+// =============================================================================
+let module$5 = null;
 let resourceManager = null;
 let nextMaterialId = 1;
 const materials = new Map();
@@ -1229,12 +1235,20 @@ const materials = new Map();
 // Initialization
 // =============================================================================
 function initMaterialAPI(wasmModule) {
+    module$5 = wasmModule;
     resourceManager = wasmModule.getResourceManager();
+    registerMaterialCallback();
 }
 function shutdownMaterialAPI() {
+    if (uniformBuffer$1 !== 0 && module$5) {
+        module$5._free(uniformBuffer$1);
+        uniformBuffer$1 = 0;
+    }
     materials.clear();
     nextMaterialId = 1;
+    materialCallbackRegistered = false;
     resourceManager = null;
+    module$5 = null;
 }
 // =============================================================================
 // Shader API
@@ -1370,7 +1384,182 @@ const Material = {
     isValid(material) {
         return materials.has(material);
     },
+    /**
+     * Creates a material from asset data.
+     * @param data Material asset data (properties object)
+     * @param shaderHandle Pre-loaded shader handle
+     * @returns Material handle
+     */
+    createFromAsset(data, shaderHandle) {
+        const uniforms = {};
+        for (const [key, value] of Object.entries(data.properties)) {
+            if (typeof value === 'number') {
+                uniforms[key] = value;
+            }
+            else if (typeof value === 'object' && value !== null) {
+                const obj = value;
+                if ('w' in obj) {
+                    uniforms[key] = { x: obj.x ?? 0, y: obj.y ?? 0, z: obj.z ?? 0, w: obj.w ?? 0 };
+                }
+                else if ('z' in obj) {
+                    uniforms[key] = { x: obj.x ?? 0, y: obj.y ?? 0, z: obj.z ?? 0 };
+                }
+                else if ('y' in obj) {
+                    uniforms[key] = { x: obj.x ?? 0, y: obj.y ?? 0 };
+                }
+            }
+        }
+        return this.create({
+            shader: shaderHandle,
+            uniforms,
+            blendMode: data.blendMode ?? BlendMode.Normal,
+            depthTest: data.depthTest ?? false,
+        });
+    },
+    /**
+     * Creates a material instance that shares the shader with source.
+     * @param source Source material handle
+     * @returns New material handle with copied settings
+     */
+    createInstance(source) {
+        const sourceData = materials.get(source);
+        if (!sourceData) {
+            throw new Error(`Invalid source material: ${source}`);
+        }
+        const handle = nextMaterialId++;
+        const data = {
+            shader: sourceData.shader,
+            uniforms: new Map(sourceData.uniforms),
+            blendMode: sourceData.blendMode,
+            depthTest: sourceData.depthTest,
+        };
+        materials.set(handle, data);
+        return handle;
+    },
+    /**
+     * Exports material to serializable asset data.
+     * @param material Material handle
+     * @param shaderPath Shader file path for asset reference
+     * @returns Material asset data
+     */
+    toAssetData(material, shaderPath) {
+        const data = materials.get(material);
+        if (!data)
+            return null;
+        const properties = {};
+        for (const [key, value] of data.uniforms) {
+            properties[key] = value;
+        }
+        return {
+            version: '1.0',
+            type: 'material',
+            shader: shaderPath,
+            blendMode: data.blendMode,
+            depthTest: data.depthTest,
+            properties,
+        };
+    },
+    /**
+     * Gets all uniforms from a material.
+     * @param material Material handle
+     * @returns Map of uniform names to values
+     */
+    getUniforms(material) {
+        const data = materials.get(material);
+        return data ? new Map(data.uniforms) : new Map();
+    },
 };
+// =============================================================================
+// Material Callback Registration
+// =============================================================================
+let materialCallbackRegistered = false;
+let uniformBuffer$1 = 0;
+const UNIFORM_BUFFER_SIZE = 4096;
+function ensureUniformBuffer() {
+    if (uniformBuffer$1 === 0 && module$5) {
+        uniformBuffer$1 = module$5._malloc(UNIFORM_BUFFER_SIZE);
+    }
+    return uniformBuffer$1;
+}
+function serializeUniforms(uniforms) {
+    const bufferPtr = ensureUniformBuffer();
+    if (bufferPtr === 0 || !module$5)
+        return { ptr: 0, count: 0 };
+    let offset = 0;
+    let count = 0;
+    const heap8 = module$5.HEAPU8;
+    const heap32 = module$5.HEAPU32;
+    const heapF32 = module$5.HEAPF32;
+    for (const [name, value] of uniforms) {
+        if (offset + 128 > UNIFORM_BUFFER_SIZE)
+            break;
+        const nameBytes = new TextEncoder().encode(name);
+        const nameLen = nameBytes.length;
+        const namePadded = Math.ceil(nameLen / 4) * 4;
+        heap32[(bufferPtr + offset) >> 2] = nameLen;
+        offset += 4;
+        heap8.set(nameBytes, bufferPtr + offset);
+        offset += namePadded;
+        let type = 0;
+        let values = [0, 0, 0, 0];
+        if (typeof value === 'number') {
+            type = 0;
+            values[0] = value;
+        }
+        else if (Array.isArray(value)) {
+            type = Math.min(value.length - 1, 3);
+            for (let i = 0; i < Math.min(value.length, 4); i++) {
+                values[i] = value[i];
+            }
+        }
+        else if ('w' in value) {
+            type = 3;
+            values = [value.x, value.y, value.z, value.w];
+        }
+        else if ('z' in value) {
+            type = 2;
+            values = [value.x, value.y, value.z, 0];
+        }
+        else if ('y' in value) {
+            type = 1;
+            values = [value.x, value.y, 0, 0];
+        }
+        heap32[(bufferPtr + offset) >> 2] = type;
+        offset += 4;
+        for (let i = 0; i < 4; i++) {
+            heapF32[(bufferPtr + offset) >> 2] = values[i];
+            offset += 4;
+        }
+        count++;
+    }
+    return { ptr: bufferPtr, count };
+}
+function registerMaterialCallback() {
+    if (!module$5 || materialCallbackRegistered)
+        return;
+    if (!module$5.addFunction || !module$5.setMaterialCallback) {
+        console.warn('[Material] Callback registration not available (requires -sALLOW_TABLE_GROWTH)');
+        return;
+    }
+    const callback = (materialId, outShaderIdPtr, outBlendModePtr, outUniformBufferPtr, outUniformCountPtr) => {
+        const data = materials.get(materialId);
+        if (!data) {
+            module$5.HEAPU32[outShaderIdPtr >> 2] = 0;
+            module$5.HEAPU32[outBlendModePtr >> 2] = 0;
+            module$5.HEAPU32[outUniformBufferPtr >> 2] = 0;
+            module$5.HEAPU32[outUniformCountPtr >> 2] = 0;
+            return;
+        }
+        module$5.HEAPU32[outShaderIdPtr >> 2] = data.shader;
+        module$5.HEAPU32[outBlendModePtr >> 2] = data.blendMode;
+        const { ptr, count } = serializeUniforms(data.uniforms);
+        module$5.HEAPU32[outUniformBufferPtr >> 2] = ptr;
+        module$5.HEAPU32[outUniformCountPtr >> 2] = count;
+    };
+    const callbackPtr = module$5.addFunction(callback, 'viiiii');
+    module$5.setMaterialCallback(callbackPtr);
+    materialCallbackRegistered = true;
+}
 // =============================================================================
 // Built-in Shader Sources
 // =============================================================================
@@ -2380,6 +2569,97 @@ function createWebApp(module, options) {
 }
 
 /**
+ * @file    MaterialLoader.ts
+ * @brief   Material asset loading and caching
+ */
+// =============================================================================
+// MaterialLoader
+// =============================================================================
+class MaterialLoader {
+    constructor(shaderLoader, basePath = '') {
+        this.cache_ = new Map();
+        this.pending_ = new Map();
+        this.shaderLoader_ = shaderLoader;
+        this.basePath_ = basePath;
+    }
+    async load(path) {
+        const cached = this.cache_.get(path);
+        if (cached) {
+            return cached;
+        }
+        const pending = this.pending_.get(path);
+        if (pending) {
+            return pending;
+        }
+        const promise = this.loadInternal(path);
+        this.pending_.set(path, promise);
+        try {
+            const result = await promise;
+            this.cache_.set(path, result);
+            return result;
+        }
+        finally {
+            this.pending_.delete(path);
+        }
+    }
+    get(path) {
+        return this.cache_.get(path);
+    }
+    has(path) {
+        return this.cache_.has(path);
+    }
+    release(path) {
+        const loaded = this.cache_.get(path);
+        if (loaded) {
+            Material.release(loaded.handle);
+            this.cache_.delete(path);
+        }
+    }
+    releaseAll() {
+        for (const loaded of this.cache_.values()) {
+            Material.release(loaded.handle);
+        }
+        this.cache_.clear();
+    }
+    async loadInternal(path) {
+        const fullPath = this.resolvePath(path);
+        const exists = await platformFileExists(fullPath);
+        if (!exists) {
+            throw new Error(`Material file not found: ${fullPath}`);
+        }
+        const content = await platformReadTextFile(fullPath);
+        if (!content) {
+            throw new Error(`Failed to read material file: ${fullPath}`);
+        }
+        const data = JSON.parse(content);
+        if (data.type !== 'material') {
+            throw new Error(`Invalid material file type: ${data.type}`);
+        }
+        const shaderPath = this.resolveShaderPath(path, data.shader);
+        const shaderHandle = await this.shaderLoader_.load(shaderPath);
+        const materialHandle = Material.createFromAsset(data, shaderHandle);
+        return {
+            handle: materialHandle,
+            shaderHandle,
+            path,
+        };
+    }
+    resolvePath(path) {
+        if (path.startsWith('/') || path.startsWith('http')) {
+            return path;
+        }
+        return this.basePath_ ? `${this.basePath_}/${path}` : path;
+    }
+    resolveShaderPath(materialPath, shaderPath) {
+        if (shaderPath.startsWith('/') || shaderPath.startsWith('http') || shaderPath.startsWith('assets/')) {
+            return shaderPath;
+        }
+        const dir = materialPath.substring(0, materialPath.lastIndexOf('/'));
+        return dir ? `${dir}/${shaderPath}` : shaderPath;
+    }
+}
+
+/**
  * @file    AssetServer.ts
  * @brief   Asset loading and caching system
  */
@@ -2392,6 +2672,9 @@ class AssetServer {
         this.pending_ = new Map();
         this.loadedSpines_ = new Map();
         this.virtualFSPaths_ = new Set();
+        this.materialLoader_ = null;
+        this.shaderCache_ = new Map();
+        this.shaderPending_ = new Map();
         this.module_ = module;
         if (typeof OffscreenCanvas !== 'undefined') {
             this.canvas_ = new OffscreenCanvas(512, 512);
@@ -2403,6 +2686,11 @@ class AssetServer {
             this.canvas_.height = 512;
             this.ctx_ = this.canvas_.getContext('2d', { willReadFrequently: true });
         }
+        const shaderLoader = {
+            load: (path) => this.loadShader(path),
+            get: (path) => this.shaderCache_.get(path),
+        };
+        this.materialLoader_ = new MaterialLoader(shaderLoader);
     }
     // =========================================================================
     // Public API
@@ -2513,6 +2801,77 @@ class AssetServer {
     }
     isSpineLoaded(skeletonPath, atlasPath) {
         return this.loadedSpines_.get(`${skeletonPath}:${atlasPath}`) ?? false;
+    }
+    async loadMaterial(path, baseUrl) {
+        if (!this.materialLoader_) {
+            throw new Error('MaterialLoader not initialized');
+        }
+        const fullPath = this.resolveAssetPath(path, baseUrl);
+        return this.materialLoader_.load(fullPath);
+    }
+    getMaterial(path, baseUrl) {
+        if (!this.materialLoader_)
+            return undefined;
+        const fullPath = this.resolveAssetPath(path, baseUrl);
+        return this.materialLoader_.get(fullPath);
+    }
+    hasMaterial(path, baseUrl) {
+        if (!this.materialLoader_)
+            return false;
+        const fullPath = this.resolveAssetPath(path, baseUrl);
+        return this.materialLoader_.has(fullPath);
+    }
+    async loadShader(path) {
+        const cached = this.shaderCache_.get(path);
+        if (cached)
+            return cached;
+        const pending = this.shaderPending_.get(path);
+        if (pending)
+            return pending;
+        const promise = this.loadShaderInternal(path);
+        this.shaderPending_.set(path, promise);
+        try {
+            const handle = await promise;
+            this.shaderCache_.set(path, handle);
+            return handle;
+        }
+        finally {
+            this.shaderPending_.delete(path);
+        }
+    }
+    async loadShaderInternal(path) {
+        const exists = await platformFileExists(path);
+        if (!exists) {
+            throw new Error(`Shader file not found: ${path}`);
+        }
+        const content = await platformReadTextFile(path);
+        if (!content) {
+            throw new Error(`Failed to read shader file: ${path}`);
+        }
+        const { vertex, fragment } = this.parseEsShader(content);
+        if (!vertex || !fragment) {
+            throw new Error(`Invalid shader format: ${path}`);
+        }
+        return Material.createShader(vertex, fragment);
+    }
+    parseEsShader(content) {
+        let vertex = null;
+        let fragment = null;
+        const vertexMatch = content.match(/#pragma\s+vertex\s*([\s\S]*?)#pragma\s+end/);
+        const fragmentMatch = content.match(/#pragma\s+fragment\s*([\s\S]*?)#pragma\s+end/);
+        if (vertexMatch) {
+            vertex = vertexMatch[1].trim();
+        }
+        if (fragmentMatch) {
+            fragment = fragmentMatch[1].trim();
+        }
+        return { vertex, fragment };
+    }
+    resolveAssetPath(path, baseUrl) {
+        if (path.startsWith('/') || path.startsWith('http')) {
+            return path;
+        }
+        return baseUrl ? `${baseUrl}/${path}` : `/${path}`;
     }
     // =========================================================================
     // Private Methods
@@ -2747,6 +3106,16 @@ async function loadSceneWithAssets(world, sceneData, options) {
                         data.texture = 0;
                     }
                 }
+                if (typeof data.material === 'string' && data.material) {
+                    try {
+                        const loaded = await assetServer.loadMaterial(data.material, options?.assetBaseUrl);
+                        data.material = loaded.handle;
+                    }
+                    catch (err) {
+                        console.warn(`Failed to load material: ${data.material}`, err);
+                        data.material = 0;
+                    }
+                }
             }
             if (compData.type === 'SpineAnimation' && assetServer) {
                 const data = compData.data;
@@ -2756,6 +3125,16 @@ async function loadSceneWithAssets(world, sceneData, options) {
                     const result = await assetServer.loadSpine(skeletonPath, atlasPath, options?.assetBaseUrl);
                     if (!result.success) {
                         console.warn(`Failed to load Spine: ${result.error}`);
+                    }
+                }
+                if (typeof data.material === 'string' && data.material) {
+                    try {
+                        const loaded = await assetServer.loadMaterial(data.material, options?.assetBaseUrl);
+                        data.material = loaded.handle;
+                    }
+                    catch (err) {
+                        console.warn(`Failed to load material: ${data.material}`, err);
+                        data.material = 0;
                     }
                 }
             }
@@ -3210,5 +3589,5 @@ function createSpineController(wasmModule) {
 // Initialize Web platform
 setPlatform(webAdapter);
 
-export { App, AssetPlugin, AssetServer, Assets, BlendMode, Camera, Canvas, Children, Commands, CommandsInstance, DataType, Draw, EntityCommands, Geometry, INVALID_ENTITY, INVALID_TEXTURE, Input, LocalTransform, Material, Mut, Parent, PostProcess, PreviewPlugin, Query, QueryInstance, RenderStage, Renderer, Res, ResMut, Schedule, ShaderSources, SpineAnimation, SpineController, Sprite, SystemRunner, Text, TextAlign, TextOverflow, TextPlugin, TextRenderer, TextVerticalAlign, Time, UIRect, Velocity, World, WorldTransform, assetPlugin, color, createSpineController, createWebApp, defineComponent, defineResource, defineSystem, defineTag, getComponentDefaults, getPlatform, getPlatformType, initDrawAPI, initGeometryAPI, initMaterialAPI, initPostProcessAPI, initRendererAPI, isBuiltinComponent, isPlatformInitialized, isWeChat, isWeb, loadComponent, loadSceneData, loadSceneWithAssets, platformFetch, platformFileExists, platformInstantiateWasm, platformReadFile, platformReadTextFile, quat, shutdownDrawAPI, shutdownGeometryAPI, shutdownMaterialAPI, shutdownPostProcessAPI, shutdownRendererAPI, textPlugin, updateCameraAspectRatio, vec2, vec3, vec4 };
+export { App, AssetPlugin, AssetServer, Assets, BlendMode, Camera, Canvas, Children, Commands, CommandsInstance, DataType, Draw, EntityCommands, Geometry, INVALID_ENTITY, INVALID_TEXTURE, Input, LocalTransform, Material, MaterialLoader, Mut, Parent, PostProcess, PreviewPlugin, Query, QueryInstance, RenderStage, Renderer, Res, ResMut, Schedule, ShaderSources, SpineAnimation, SpineController, Sprite, SystemRunner, Text, TextAlign, TextOverflow, TextPlugin, TextRenderer, TextVerticalAlign, Time, UIRect, Velocity, World, WorldTransform, assetPlugin, color, createSpineController, createWebApp, defineComponent, defineResource, defineSystem, defineTag, getComponentDefaults, getPlatform, getPlatformType, initDrawAPI, initGeometryAPI, initMaterialAPI, initPostProcessAPI, initRendererAPI, isBuiltinComponent, isPlatformInitialized, isWeChat, isWeb, loadComponent, loadSceneData, loadSceneWithAssets, platformFetch, platformFileExists, platformInstantiateWasm, platformReadFile, platformReadTextFile, quat, registerMaterialCallback, shutdownDrawAPI, shutdownGeometryAPI, shutdownMaterialAPI, shutdownPostProcessAPI, shutdownRendererAPI, textPlugin, updateCameraAspectRatio, vec2, vec3, vec4 };
 //# sourceMappingURL=index.js.map

@@ -59,6 +59,7 @@ desktop.ini
 
 # Claude Code
 CLAUDE.md
+.claude/
 
 # Third party (if using git submodules, keep this)
 # third_party/

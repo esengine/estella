@@ -320,6 +320,22 @@ export function injectNativeFS(): void {
     (window as any).__esengine_fs = nativeFS;
 
     const nativeShell = {
+        async openFile(path: string): Promise<void> {
+            await invoke('execute_command', {
+                cmd: 'open',
+                args: [path],
+                cwd: '/',
+            });
+        },
+
+        async openInEditor(projectPath: string, filePath: string): Promise<void> {
+            await invoke('execute_command', {
+                cmd: 'open',
+                args: ['-a', 'Visual Studio Code', projectPath, filePath],
+                cwd: projectPath,
+            });
+        },
+
         async execute(
             cmd: string,
             args: string[],
