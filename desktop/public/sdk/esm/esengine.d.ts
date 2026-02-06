@@ -822,84 +822,6 @@ declare class MaterialLoader {
 }
 
 /**
- * @file    AssetServer.ts
- * @brief   Asset loading and caching system
- */
-
-interface TextureInfo {
-    handle: TextureHandle;
-    width: number;
-    height: number;
-}
-interface SliceBorder$1 {
-    left: number;
-    right: number;
-    top: number;
-    bottom: number;
-}
-interface SpineLoadResult {
-    success: boolean;
-    error?: string;
-}
-declare class AssetServer {
-    private module_;
-    private cache_;
-    private pending_;
-    private canvas_;
-    private ctx_;
-    private loadedSpines_;
-    private virtualFSPaths_;
-    private materialLoader_;
-    private shaderCache_;
-    private shaderPending_;
-    constructor(module: ESEngineModule);
-    /**
-     * Load texture with vertical flip (for Sprite/UI).
-     * OpenGL UV origin is bottom-left, so standard images need flipping.
-     */
-    loadTexture(source: string): Promise<TextureInfo>;
-    /**
-     * Load texture without flip (for Spine).
-     * Spine runtime handles UV coordinates internally.
-     */
-    loadTextureRaw(source: string): Promise<TextureInfo>;
-    getTexture(source: string): TextureInfo | undefined;
-    hasTexture(source: string): boolean;
-    releaseTexture(source: string): void;
-    releaseAll(): void;
-    setTextureMetadata(handle: TextureHandle, border: SliceBorder$1): void;
-    setTextureMetadataByPath(source: string, border: SliceBorder$1): boolean;
-    loadSpine(skeletonPath: string, atlasPath: string, baseUrl?: string): Promise<SpineLoadResult>;
-    isSpineLoaded(skeletonPath: string, atlasPath: string): boolean;
-    loadMaterial(path: string, baseUrl?: string): Promise<LoadedMaterial>;
-    getMaterial(path: string, baseUrl?: string): LoadedMaterial | undefined;
-    hasMaterial(path: string, baseUrl?: string): boolean;
-    loadShader(path: string): Promise<ShaderHandle>;
-    private loadShaderInternal;
-    private parseEsShader;
-    private resolveAssetPath;
-    private getCacheKey;
-    private loadTextureWithFlip;
-    private loadTextureInternal;
-    private loadImage;
-    private createTextureFromImage;
-    private unpremultiplyAlpha;
-    private nextPowerOf2;
-    private writeToVirtualFS;
-    private ensureVirtualDir;
-    private parseAtlasTextures;
-}
-
-interface AssetsData {
-    server: AssetServer;
-}
-declare const Assets: ResourceDef<AssetsData>;
-declare class AssetPlugin implements Plugin {
-    build(app: App): void;
-}
-declare const assetPlugin: AssetPlugin;
-
-/**
  * @file    scene.ts
  * @brief   Scene loading utilities
  */
@@ -915,7 +837,7 @@ interface SceneComponentData {
     type: string;
     data: Record<string, unknown>;
 }
-interface SliceBorder {
+interface SliceBorder$1 {
     left: number;
     right: number;
     top: number;
@@ -924,7 +846,7 @@ interface SliceBorder {
 interface TextureMetadata {
     version: string;
     type: 'texture';
-    sliceBorder: SliceBorder;
+    sliceBorder: SliceBorder$1;
 }
 interface SceneData {
     version: string;
@@ -940,6 +862,129 @@ declare function loadSceneData(world: World, sceneData: SceneData): Map<number, 
 declare function loadSceneWithAssets(world: World, sceneData: SceneData, options?: SceneLoadOptions): Promise<Map<number, Entity>>;
 declare function loadComponent(world: World, entity: Entity, compData: SceneComponentData): void;
 declare function updateCameraAspectRatio(world: World, aspectRatio: number): void;
+
+/**
+ * @file    AssetServer.ts
+ * @brief   Asset loading and caching system
+ */
+
+interface TextureInfo {
+    handle: TextureHandle;
+    width: number;
+    height: number;
+}
+interface SliceBorder {
+    left: number;
+    right: number;
+    top: number;
+    bottom: number;
+}
+interface SpineLoadResult {
+    success: boolean;
+    error?: string;
+}
+interface SpineDescriptor {
+    skeleton: string;
+    atlas: string;
+    baseUrl?: string;
+}
+interface FileLoadOptions {
+    baseUrl?: string;
+    noCache?: boolean;
+}
+interface AssetManifest {
+    textures?: string[];
+    materials?: string[];
+    spine?: SpineDescriptor[];
+    json?: string[];
+    text?: string[];
+    binary?: string[];
+}
+interface AssetBundle {
+    textures: Map<string, TextureInfo>;
+    materials: Map<string, LoadedMaterial>;
+    spine: Map<string, SpineLoadResult>;
+    json: Map<string, unknown>;
+    text: Map<string, string>;
+    binary: Map<string, ArrayBuffer>;
+}
+declare class AssetServer {
+    baseUrl?: string;
+    private module_;
+    private textureCache_;
+    private shaderCache_;
+    private jsonCache_;
+    private textCache_;
+    private binaryCache_;
+    private loadedSpines_;
+    private virtualFSPaths_;
+    private materialLoader_;
+    private canvas_;
+    private ctx_;
+    constructor(module: ESEngineModule);
+    /**
+     * Load texture with vertical flip (for Sprite/UI).
+     * OpenGL UV origin is bottom-left, so standard images need flipping.
+     */
+    loadTexture(source: string): Promise<TextureInfo>;
+    /**
+     * Load texture without flip (for Spine).
+     * Spine runtime handles UV coordinates internally.
+     */
+    loadTextureRaw(source: string): Promise<TextureInfo>;
+    getTexture(source: string): TextureInfo | undefined;
+    hasTexture(source: string): boolean;
+    releaseTexture(source: string): void;
+    releaseAll(): void;
+    setTextureMetadata(handle: TextureHandle, border: SliceBorder): void;
+    setTextureMetadataByPath(source: string, border: SliceBorder): boolean;
+    loadSpine(skeletonPath: string, atlasPath: string, baseUrl?: string): Promise<SpineLoadResult>;
+    isSpineLoaded(skeletonPath: string, atlasPath: string): boolean;
+    loadMaterial(path: string, baseUrl?: string): Promise<LoadedMaterial>;
+    getMaterial(path: string, baseUrl?: string): LoadedMaterial | undefined;
+    hasMaterial(path: string, baseUrl?: string): boolean;
+    loadShader(path: string): Promise<ShaderHandle>;
+    loadJson<T = unknown>(path: string, options?: FileLoadOptions): Promise<T>;
+    loadText(path: string, options?: FileLoadOptions): Promise<string>;
+    loadBinary(path: string, options?: FileLoadOptions): Promise<ArrayBuffer>;
+    loadScene(world: World, sceneData: SceneData): Promise<Map<number, Entity>>;
+    loadAll(manifest: AssetManifest): Promise<AssetBundle>;
+    private textureCacheKey;
+    private loadTextureWithFlip;
+    private loadTextureInternal;
+    private loadImage;
+    private createTextureFromImage;
+    private unpremultiplyAlpha;
+    private loadShaderInternal;
+    private parseEsShader;
+    private fetchJson;
+    private fetchText;
+    private fetchBinary;
+    private writeToVirtualFS;
+    private ensureVirtualDir;
+    private resolveUrl;
+    private createCanvas;
+    private nextPowerOf2;
+    private parseAtlasTextures;
+}
+
+declare class AsyncCache<T> {
+    private cache_;
+    private pending_;
+    getOrLoad(key: string, loader: () => Promise<T>): Promise<T>;
+    get(key: string): T | undefined;
+    has(key: string): boolean;
+    delete(key: string): boolean;
+    clear(): void;
+    values(): IterableIterator<T>;
+}
+
+type AssetsData = AssetServer;
+declare const Assets: ResourceDef<AssetServer>;
+declare class AssetPlugin implements Plugin {
+    build(app: App): void;
+}
+declare const assetPlugin: AssetPlugin;
 
 /**
  * @file    PreviewPlugin.ts
@@ -1597,5 +1642,5 @@ declare const Renderer: {
     getStats(): RenderStats;
 };
 
-export { App, AssetPlugin, AssetServer, Assets, BlendMode, Camera, Canvas, Children, Commands, CommandsInstance, DataType, Draw, EntityCommands, Geometry, INVALID_ENTITY, INVALID_TEXTURE, Input, LocalTransform, Material, MaterialLoader, Mut, Parent, PostProcess, PreviewPlugin, Query, QueryInstance, RenderStage, Renderer, Res, ResMut, ResMutInstance, Schedule, ShaderSources, SpineAnimation, SpineController, Sprite, SystemRunner, Text, TextAlign, TextOverflow, TextPlugin, TextRenderer, TextVerticalAlign, Time, UIRect, Velocity, World, WorldTransform, assetPlugin, color, createSpineController, createWebApp, defineComponent, defineResource, defineSystem, defineTag, getComponentDefaults, getPlatform, getPlatformType, initDrawAPI, initGeometryAPI, initMaterialAPI, initPostProcessAPI, initRendererAPI, isBuiltinComponent, isPlatformInitialized, isWeChat, isWeb, loadComponent, loadSceneData, loadSceneWithAssets, platformFetch, platformFileExists, platformInstantiateWasm, platformReadFile, platformReadTextFile, quat, registerMaterialCallback, shutdownDrawAPI, shutdownGeometryAPI, shutdownMaterialAPI, shutdownPostProcessAPI, shutdownRendererAPI, textPlugin, updateCameraAspectRatio, vec2, vec3, vec4 };
-export type { AnyComponentDef, AssetsData, BuiltinComponentDef, CameraData, CanvasData, ChildrenData, Color, CommandsDescriptor, ComponentData, ComponentDef, CppRegistry, CppResourceManager, DrawAPI, ESEngineModule, Entity, GeometryHandle, GeometryOptions, InferParam, InferParams, InputState, LoadedMaterial, LocalTransformData, MaterialAssetData, MaterialHandle, MaterialOptions, MutWrapper, ParentData, PlatformAdapter, PlatformRequestOptions, PlatformResponse, PlatformType, Plugin, Quat, QueryDescriptor, QueryResult, RenderStats, RenderTargetHandle, ResDescriptor, ResMutDescriptor, ResourceDef, SceneComponentData, SceneData, SceneEntityData, SceneLoadOptions, ShaderHandle, ShaderLoader, SliceBorder$1 as SliceBorder, SpineAnimationData, SpineEvent, SpineEventCallback, SpineEventType, SpineLoadResult, SpriteData, SystemDef, SystemParam, TextData, TextRenderResult, TextureHandle, TextureInfo, TimeData, TrackEntryInfo, UIRectData, UniformValue, Vec2, Vec3, Vec4, VelocityData, VertexAttributeDescriptor, WebAppOptions, WorldTransformData };
+export { App, AssetPlugin, AssetServer, Assets, AsyncCache, BlendMode, Camera, Canvas, Children, Commands, CommandsInstance, DataType, Draw, EntityCommands, Geometry, INVALID_ENTITY, INVALID_TEXTURE, Input, LocalTransform, Material, MaterialLoader, Mut, Parent, PostProcess, PreviewPlugin, Query, QueryInstance, RenderStage, Renderer, Res, ResMut, ResMutInstance, Schedule, ShaderSources, SpineAnimation, SpineController, Sprite, SystemRunner, Text, TextAlign, TextOverflow, TextPlugin, TextRenderer, TextVerticalAlign, Time, UIRect, Velocity, World, WorldTransform, assetPlugin, color, createSpineController, createWebApp, defineComponent, defineResource, defineSystem, defineTag, getComponentDefaults, getPlatform, getPlatformType, initDrawAPI, initGeometryAPI, initMaterialAPI, initPostProcessAPI, initRendererAPI, isBuiltinComponent, isPlatformInitialized, isWeChat, isWeb, loadComponent, loadSceneData, loadSceneWithAssets, platformFetch, platformFileExists, platformInstantiateWasm, platformReadFile, platformReadTextFile, quat, registerMaterialCallback, shutdownDrawAPI, shutdownGeometryAPI, shutdownMaterialAPI, shutdownPostProcessAPI, shutdownRendererAPI, textPlugin, updateCameraAspectRatio, vec2, vec3, vec4 };
+export type { AnyComponentDef, AssetBundle, AssetManifest, AssetsData, BuiltinComponentDef, CameraData, CanvasData, ChildrenData, Color, CommandsDescriptor, ComponentData, ComponentDef, CppRegistry, CppResourceManager, DrawAPI, ESEngineModule, Entity, FileLoadOptions, GeometryHandle, GeometryOptions, InferParam, InferParams, InputState, LoadedMaterial, LocalTransformData, MaterialAssetData, MaterialHandle, MaterialOptions, MutWrapper, ParentData, PlatformAdapter, PlatformRequestOptions, PlatformResponse, PlatformType, Plugin, Quat, QueryDescriptor, QueryResult, RenderStats, RenderTargetHandle, ResDescriptor, ResMutDescriptor, ResourceDef, SceneComponentData, SceneData, SceneEntityData, SceneLoadOptions, ShaderHandle, ShaderLoader, SliceBorder, SpineAnimationData, SpineDescriptor, SpineEvent, SpineEventCallback, SpineEventType, SpineLoadResult, SpriteData, SystemDef, SystemParam, TextData, TextRenderResult, TextureHandle, TextureInfo, TimeData, TrackEntryInfo, UIRectData, UniformValue, Vec2, Vec3, Vec4, VelocityData, VertexAttributeDescriptor, WebAppOptions, WorldTransformData };

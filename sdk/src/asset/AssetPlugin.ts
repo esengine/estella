@@ -11,12 +11,10 @@ import { AssetServer } from './AssetServer';
 // Assets Resource
 // =============================================================================
 
-export interface AssetsData {
-    server: AssetServer;
-}
+export type AssetsData = AssetServer;
 
 export const Assets = defineResource<AssetsData>(
-    { server: null! },
+    null!,
     'Assets'
 );
 
@@ -32,8 +30,7 @@ export class AssetPlugin implements Plugin {
             return;
         }
 
-        const server = new AssetServer(module);
-        app.insertResource(Assets, { server });
+        app.insertResource(Assets, new AssetServer(module));
     }
 }
 

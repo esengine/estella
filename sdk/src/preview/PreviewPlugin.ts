@@ -5,7 +5,7 @@
 
 import type { App, Plugin } from '../app';
 import { Assets, assetPlugin } from '../asset';
-import { loadSceneWithAssets, type SceneData } from '../scene';
+import type { SceneData } from '../scene';
 import { LocalTransform, Camera, type LocalTransformData, type CameraData } from '../component';
 import { platformFetch } from '../platform';
 
@@ -52,9 +52,7 @@ export class PreviewPlugin implements Plugin {
             const sceneData = await response.json<SceneData>();
 
             const assets = this.app_.getResource(Assets);
-            await loadSceneWithAssets(this.app_.world, sceneData, {
-                assetServer: assets.server
-            });
+            await assets.loadScene(this.app_.world, sceneData);
 
             this.ensureCamera();
         } catch (err) {
