@@ -3686,6 +3686,17 @@ function createSpineController(wasmModule) {
     return new SpineController(wasmModule);
 }
 
+let editorMode = false;
+function setEditorMode(active) {
+    editorMode = active;
+}
+function isEditor() {
+    return editorMode;
+}
+function isRuntime() {
+    return !editorMode;
+}
+
 /**
  * @file    index.ts
  * @brief   ESEngine SDK - Web entry point (auto-initializes Web platform)
@@ -3693,5 +3704,5 @@ function createSpineController(wasmModule) {
 // Initialize Web platform
 setPlatform(webAdapter);
 
-export { App, AssetPlugin, AssetServer, Assets, AsyncCache, BlendMode, Camera, Canvas, Children, Commands, CommandsInstance, DataType, Draw, EntityCommands, Geometry, INVALID_ENTITY, INVALID_TEXTURE, Input, LocalTransform, Material, MaterialLoader, Mut, Parent, PostProcess, PreviewPlugin, Query, QueryInstance, RenderStage, Renderer, Res, ResMut, Schedule, ShaderSources, SpineAnimation, SpineController, Sprite, SystemRunner, Text, TextAlign, TextOverflow, TextPlugin, TextRenderer, TextVerticalAlign, Time, UIRect, Velocity, World, WorldTransform, assetPlugin, color, createSpineController, createWebApp, defineComponent, defineResource, defineSystem, defineTag, getComponentDefaults, getPlatform, getPlatformType, initDrawAPI, initGeometryAPI, initMaterialAPI, initPostProcessAPI, initRendererAPI, isBuiltinComponent, isPlatformInitialized, isWeChat, isWeb, loadComponent, loadSceneData, loadSceneWithAssets, platformFetch, platformFileExists, platformInstantiateWasm, platformReadFile, platformReadTextFile, quat, registerMaterialCallback, shutdownDrawAPI, shutdownGeometryAPI, shutdownMaterialAPI, shutdownPostProcessAPI, shutdownRendererAPI, textPlugin, updateCameraAspectRatio, vec2, vec3, vec4 };
+export { App, AssetPlugin, AssetServer, Assets, AsyncCache, BlendMode, Camera, Canvas, Children, Commands, CommandsInstance, DataType, Draw, EntityCommands, Geometry, INVALID_ENTITY, INVALID_TEXTURE, Input, LocalTransform, Material, MaterialLoader, Mut, Parent, PostProcess, PreviewPlugin, Query, QueryInstance, RenderStage, Renderer, Res, ResMut, Schedule, ShaderSources, SpineAnimation, SpineController, Sprite, SystemRunner, Text, TextAlign, TextOverflow, TextPlugin, TextRenderer, TextVerticalAlign, Time, UIRect, Velocity, World, WorldTransform, assetPlugin, color, createSpineController, createWebApp, defineComponent, defineResource, defineSystem, defineTag, getComponentDefaults, getPlatform, getPlatformType, initDrawAPI, initGeometryAPI, initMaterialAPI, initPostProcessAPI, initRendererAPI, isBuiltinComponent, isEditor, isPlatformInitialized, isRuntime, isWeChat, isWeb, loadComponent, loadSceneData, loadSceneWithAssets, platformFetch, platformFileExists, platformInstantiateWasm, platformReadFile, platformReadTextFile, quat, registerMaterialCallback, setEditorMode, shutdownDrawAPI, shutdownGeometryAPI, shutdownMaterialAPI, shutdownPostProcessAPI, shutdownRendererAPI, textPlugin, updateCameraAspectRatio, vec2, vec3, vec4 };
 //# sourceMappingURL=index.js.map
