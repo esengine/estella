@@ -15,6 +15,7 @@
 #include "../ecs/components/Camera.hpp"
 #include "../ecs/components/Canvas.hpp"
 #include "../ecs/components/Hierarchy.hpp"
+#include "../ecs/components/SpineAnimation.hpp"
 #include "../ecs/components/Sprite.hpp"
 #include "../ecs/components/Transform.hpp"
 #include "../ecs/components/Velocity.hpp"
@@ -59,10 +60,6 @@ EMSCRIPTEN_BINDINGS(esengine_math) {
 // =============================================================================
 
 EMSCRIPTEN_BINDINGS(esengine_enums) {
-    enum_<esengine::ecs::ProjectionType>("ProjectionType")
-        .value("Perspective", esengine::ecs::ProjectionType::Perspective)
-        .value("Orthographic", esengine::ecs::ProjectionType::Orthographic);
-
     enum_<esengine::ecs::CanvasScaleMode>("CanvasScaleMode")
         .value("FixedWidth", esengine::ecs::CanvasScaleMode::FixedWidth)
         .value("FixedHeight", esengine::ecs::CanvasScaleMode::FixedHeight)
@@ -70,76 +67,15 @@ EMSCRIPTEN_BINDINGS(esengine_enums) {
         .value("Shrink", esengine::ecs::CanvasScaleMode::Shrink)
         .value("Match", esengine::ecs::CanvasScaleMode::Match);
 
+    enum_<esengine::ecs::ProjectionType>("ProjectionType")
+        .value("Perspective", esengine::ecs::ProjectionType::Perspective)
+        .value("Orthographic", esengine::ecs::ProjectionType::Orthographic);
+
 }
 
 // =============================================================================
 // Components
 // =============================================================================
-
-struct CameraJS {
-    i32 projectionType;
-    f32 fov;
-    f32 orthoSize;
-    f32 nearPlane;
-    f32 farPlane;
-    f32 aspectRatio;
-    bool isActive;
-    i32 priority;
-};
-
-esengine::ecs::Camera cameraFromJS(const CameraJS& js) {
-    esengine::ecs::Camera c;
-    c.projectionType = static_cast<ProjectionType>(js.projectionType);
-    c.fov = js.fov;
-    c.orthoSize = js.orthoSize;
-    c.nearPlane = js.nearPlane;
-    c.farPlane = js.farPlane;
-    c.aspectRatio = js.aspectRatio;
-    c.isActive = js.isActive;
-    c.priority = js.priority;
-    return c;
-}
-
-CameraJS cameraToJS(const esengine::ecs::Camera& c) {
-    CameraJS js;
-    js.projectionType = static_cast<i32>(c.projectionType);
-    js.fov = c.fov;
-    js.orthoSize = c.orthoSize;
-    js.nearPlane = c.nearPlane;
-    js.farPlane = c.farPlane;
-    js.aspectRatio = c.aspectRatio;
-    js.isActive = c.isActive;
-    js.priority = c.priority;
-    return js;
-}
-
-struct CanvasJS {
-    glm::uvec2 designResolution;
-    f32 pixelsPerUnit;
-    i32 scaleMode;
-    f32 matchWidthOrHeight;
-    glm::vec4 backgroundColor;
-};
-
-esengine::ecs::Canvas canvasFromJS(const CanvasJS& js) {
-    esengine::ecs::Canvas c;
-    c.designResolution = js.designResolution;
-    c.pixelsPerUnit = js.pixelsPerUnit;
-    c.scaleMode = static_cast<CanvasScaleMode>(js.scaleMode);
-    c.matchWidthOrHeight = js.matchWidthOrHeight;
-    c.backgroundColor = js.backgroundColor;
-    return c;
-}
-
-CanvasJS canvasToJS(const esengine::ecs::Canvas& c) {
-    CanvasJS js;
-    js.designResolution = c.designResolution;
-    js.pixelsPerUnit = c.pixelsPerUnit;
-    js.scaleMode = static_cast<i32>(c.scaleMode);
-    js.matchWidthOrHeight = c.matchWidthOrHeight;
-    js.backgroundColor = c.backgroundColor;
-    return js;
-}
 
 struct SpriteJS {
     u32 texture;
@@ -178,39 +114,72 @@ SpriteJS spriteToJS(const esengine::ecs::Sprite& c) {
     return js;
 }
 
+struct CanvasJS {
+    glm::uvec2 designResolution;
+    f32 pixelsPerUnit;
+    i32 scaleMode;
+    f32 matchWidthOrHeight;
+    glm::vec4 backgroundColor;
+};
+
+esengine::ecs::Canvas canvasFromJS(const CanvasJS& js) {
+    esengine::ecs::Canvas c;
+    c.designResolution = js.designResolution;
+    c.pixelsPerUnit = js.pixelsPerUnit;
+    c.scaleMode = static_cast<CanvasScaleMode>(js.scaleMode);
+    c.matchWidthOrHeight = js.matchWidthOrHeight;
+    c.backgroundColor = js.backgroundColor;
+    return c;
+}
+
+CanvasJS canvasToJS(const esengine::ecs::Canvas& c) {
+    CanvasJS js;
+    js.designResolution = c.designResolution;
+    js.pixelsPerUnit = c.pixelsPerUnit;
+    js.scaleMode = static_cast<i32>(c.scaleMode);
+    js.matchWidthOrHeight = c.matchWidthOrHeight;
+    js.backgroundColor = c.backgroundColor;
+    return js;
+}
+
+struct CameraJS {
+    i32 projectionType;
+    f32 fov;
+    f32 orthoSize;
+    f32 nearPlane;
+    f32 farPlane;
+    f32 aspectRatio;
+    bool isActive;
+    i32 priority;
+};
+
+esengine::ecs::Camera cameraFromJS(const CameraJS& js) {
+    esengine::ecs::Camera c;
+    c.projectionType = static_cast<ProjectionType>(js.projectionType);
+    c.fov = js.fov;
+    c.orthoSize = js.orthoSize;
+    c.nearPlane = js.nearPlane;
+    c.farPlane = js.farPlane;
+    c.aspectRatio = js.aspectRatio;
+    c.isActive = js.isActive;
+    c.priority = js.priority;
+    return c;
+}
+
+CameraJS cameraToJS(const esengine::ecs::Camera& c) {
+    CameraJS js;
+    js.projectionType = static_cast<i32>(c.projectionType);
+    js.fov = c.fov;
+    js.orthoSize = c.orthoSize;
+    js.nearPlane = c.nearPlane;
+    js.farPlane = c.farPlane;
+    js.aspectRatio = c.aspectRatio;
+    js.isActive = c.isActive;
+    js.priority = c.priority;
+    return js;
+}
+
 EMSCRIPTEN_BINDINGS(esengine_components) {
-    value_object<CameraJS>("Camera")
-        .field("projectionType", &CameraJS::projectionType)
-        .field("fov", &CameraJS::fov)
-        .field("orthoSize", &CameraJS::orthoSize)
-        .field("nearPlane", &CameraJS::nearPlane)
-        .field("farPlane", &CameraJS::farPlane)
-        .field("aspectRatio", &CameraJS::aspectRatio)
-        .field("isActive", &CameraJS::isActive)
-        .field("priority", &CameraJS::priority);
-
-    value_object<CanvasJS>("Canvas")
-        .field("designResolution", &CanvasJS::designResolution)
-        .field("pixelsPerUnit", &CanvasJS::pixelsPerUnit)
-        .field("scaleMode", &CanvasJS::scaleMode)
-        .field("matchWidthOrHeight", &CanvasJS::matchWidthOrHeight)
-        .field("backgroundColor", &CanvasJS::backgroundColor);
-
-    value_object<esengine::ecs::Parent>("Parent")
-        .field("entity", &esengine::ecs::Parent::entity);
-
-    value_object<esengine::ecs::Children>("Children");
-
-    value_object<SpriteJS>("Sprite")
-        .field("texture", &SpriteJS::texture)
-        .field("color", &SpriteJS::color)
-        .field("size", &SpriteJS::size)
-        .field("uvOffset", &SpriteJS::uvOffset)
-        .field("uvScale", &SpriteJS::uvScale)
-        .field("layer", &SpriteJS::layer)
-        .field("flipX", &SpriteJS::flipX)
-        .field("flipY", &SpriteJS::flipY);
-
     value_object<esengine::ecs::LocalTransform>("LocalTransform")
         .field("position", &esengine::ecs::LocalTransform::position)
         .field("rotation", &esengine::ecs::LocalTransform::rotation)
@@ -224,6 +193,52 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
     value_object<esengine::ecs::Velocity>("Velocity")
         .field("linear", &esengine::ecs::Velocity::linear)
         .field("angular", &esengine::ecs::Velocity::angular);
+
+    value_object<esengine::ecs::SpineAnimation>("SpineAnimation")
+        .field("skeletonPath", &esengine::ecs::SpineAnimation::skeletonPath)
+        .field("atlasPath", &esengine::ecs::SpineAnimation::atlasPath)
+        .field("skin", &esengine::ecs::SpineAnimation::skin)
+        .field("animation", &esengine::ecs::SpineAnimation::animation)
+        .field("timeScale", &esengine::ecs::SpineAnimation::timeScale)
+        .field("loop", &esengine::ecs::SpineAnimation::loop)
+        .field("playing", &esengine::ecs::SpineAnimation::playing)
+        .field("flipX", &esengine::ecs::SpineAnimation::flipX)
+        .field("flipY", &esengine::ecs::SpineAnimation::flipY)
+        .field("color", &esengine::ecs::SpineAnimation::color)
+        .field("layer", &esengine::ecs::SpineAnimation::layer)
+        .field("skeletonScale", &esengine::ecs::SpineAnimation::skeletonScale);
+
+    value_object<SpriteJS>("Sprite")
+        .field("texture", &SpriteJS::texture)
+        .field("color", &SpriteJS::color)
+        .field("size", &SpriteJS::size)
+        .field("uvOffset", &SpriteJS::uvOffset)
+        .field("uvScale", &SpriteJS::uvScale)
+        .field("layer", &SpriteJS::layer)
+        .field("flipX", &SpriteJS::flipX)
+        .field("flipY", &SpriteJS::flipY);
+
+    value_object<esengine::ecs::Parent>("Parent")
+        .field("entity", &esengine::ecs::Parent::entity);
+
+    value_object<esengine::ecs::Children>("Children");
+
+    value_object<CanvasJS>("Canvas")
+        .field("designResolution", &CanvasJS::designResolution)
+        .field("pixelsPerUnit", &CanvasJS::pixelsPerUnit)
+        .field("scaleMode", &CanvasJS::scaleMode)
+        .field("matchWidthOrHeight", &CanvasJS::matchWidthOrHeight)
+        .field("backgroundColor", &CanvasJS::backgroundColor);
+
+    value_object<CameraJS>("Camera")
+        .field("projectionType", &CameraJS::projectionType)
+        .field("fov", &CameraJS::fov)
+        .field("orthoSize", &CameraJS::orthoSize)
+        .field("nearPlane", &CameraJS::nearPlane)
+        .field("farPlane", &CameraJS::farPlane)
+        .field("aspectRatio", &CameraJS::aspectRatio)
+        .field("isActive", &CameraJS::isActive)
+        .field("priority", &CameraJS::priority);
 
 }
 
@@ -244,76 +259,6 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             return r.valid(static_cast<Entity>(e));
         }))
         .function("entityCount", &Registry::entityCount)
-
-        // Camera
-        .function("hasCamera", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::Camera>(static_cast<Entity>(e));
-        }))
-        .function("getCamera", optional_override([](Registry& r, u32 e) {
-            return cameraToJS(r.get<esengine::ecs::Camera>(static_cast<Entity>(e)));
-        }))
-        .function("addCamera", optional_override([](Registry& r, u32 e, const CameraJS& js) {
-            r.emplaceOrReplace<esengine::ecs::Camera>(static_cast<Entity>(e), cameraFromJS(js));
-        }))
-        .function("removeCamera", optional_override([](Registry& r, u32 e) {
-            r.remove<esengine::ecs::Camera>(static_cast<Entity>(e));
-        }))
-
-        // Canvas
-        .function("hasCanvas", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::Canvas>(static_cast<Entity>(e));
-        }))
-        .function("getCanvas", optional_override([](Registry& r, u32 e) {
-            return canvasToJS(r.get<esengine::ecs::Canvas>(static_cast<Entity>(e)));
-        }))
-        .function("addCanvas", optional_override([](Registry& r, u32 e, const CanvasJS& js) {
-            r.emplaceOrReplace<esengine::ecs::Canvas>(static_cast<Entity>(e), canvasFromJS(js));
-        }))
-        .function("removeCanvas", optional_override([](Registry& r, u32 e) {
-            r.remove<esengine::ecs::Canvas>(static_cast<Entity>(e));
-        }))
-
-        // Parent
-        .function("hasParent", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::Parent>(static_cast<Entity>(e));
-        }))
-        .function("getParent", optional_override([](Registry& r, u32 e) -> esengine::ecs::Parent& {
-            return r.get<esengine::ecs::Parent>(static_cast<Entity>(e));
-        }), allow_raw_pointers())
-        .function("addParent", optional_override([](Registry& r, u32 e, const esengine::ecs::Parent& c) {
-            r.emplaceOrReplace<esengine::ecs::Parent>(static_cast<Entity>(e), c);
-        }))
-        .function("removeParent", optional_override([](Registry& r, u32 e) {
-            r.remove<esengine::ecs::Parent>(static_cast<Entity>(e));
-        }))
-
-        // Children
-        .function("hasChildren", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::Children>(static_cast<Entity>(e));
-        }))
-        .function("getChildren", optional_override([](Registry& r, u32 e) -> esengine::ecs::Children& {
-            return r.get<esengine::ecs::Children>(static_cast<Entity>(e));
-        }), allow_raw_pointers())
-        .function("addChildren", optional_override([](Registry& r, u32 e, const esengine::ecs::Children& c) {
-            r.emplaceOrReplace<esengine::ecs::Children>(static_cast<Entity>(e), c);
-        }))
-        .function("removeChildren", optional_override([](Registry& r, u32 e) {
-            r.remove<esengine::ecs::Children>(static_cast<Entity>(e));
-        }))
-
-        // Sprite
-        .function("hasSprite", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::Sprite>(static_cast<Entity>(e));
-        }))
-        .function("getSprite", optional_override([](Registry& r, u32 e) {
-            return spriteToJS(r.get<esengine::ecs::Sprite>(static_cast<Entity>(e)));
-        }))
-        .function("addSprite", optional_override([](Registry& r, u32 e, const SpriteJS& js) {
-            r.emplaceOrReplace<esengine::ecs::Sprite>(static_cast<Entity>(e), spriteFromJS(js));
-        }))
-        .function("removeSprite", optional_override([](Registry& r, u32 e) {
-            r.remove<esengine::ecs::Sprite>(static_cast<Entity>(e));
-        }))
 
         // LocalTransform
         .function("hasLocalTransform", optional_override([](Registry& r, u32 e) {
@@ -355,6 +300,90 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         }))
         .function("removeVelocity", optional_override([](Registry& r, u32 e) {
             r.remove<esengine::ecs::Velocity>(static_cast<Entity>(e));
+        }))
+
+        // SpineAnimation
+        .function("hasSpineAnimation", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::SpineAnimation>(static_cast<Entity>(e));
+        }))
+        .function("getSpineAnimation", optional_override([](Registry& r, u32 e) -> esengine::ecs::SpineAnimation& {
+            return r.get<esengine::ecs::SpineAnimation>(static_cast<Entity>(e));
+        }), allow_raw_pointers())
+        .function("addSpineAnimation", optional_override([](Registry& r, u32 e, const esengine::ecs::SpineAnimation& c) {
+            r.emplaceOrReplace<esengine::ecs::SpineAnimation>(static_cast<Entity>(e), c);
+        }))
+        .function("removeSpineAnimation", optional_override([](Registry& r, u32 e) {
+            r.remove<esengine::ecs::SpineAnimation>(static_cast<Entity>(e));
+        }))
+
+        // Sprite
+        .function("hasSprite", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::Sprite>(static_cast<Entity>(e));
+        }))
+        .function("getSprite", optional_override([](Registry& r, u32 e) {
+            return spriteToJS(r.get<esengine::ecs::Sprite>(static_cast<Entity>(e)));
+        }))
+        .function("addSprite", optional_override([](Registry& r, u32 e, const SpriteJS& js) {
+            r.emplaceOrReplace<esengine::ecs::Sprite>(static_cast<Entity>(e), spriteFromJS(js));
+        }))
+        .function("removeSprite", optional_override([](Registry& r, u32 e) {
+            r.remove<esengine::ecs::Sprite>(static_cast<Entity>(e));
+        }))
+
+        // Parent
+        .function("hasParent", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::Parent>(static_cast<Entity>(e));
+        }))
+        .function("getParent", optional_override([](Registry& r, u32 e) -> esengine::ecs::Parent& {
+            return r.get<esengine::ecs::Parent>(static_cast<Entity>(e));
+        }), allow_raw_pointers())
+        .function("addParent", optional_override([](Registry& r, u32 e, const esengine::ecs::Parent& c) {
+            r.emplaceOrReplace<esengine::ecs::Parent>(static_cast<Entity>(e), c);
+        }))
+        .function("removeParent", optional_override([](Registry& r, u32 e) {
+            r.remove<esengine::ecs::Parent>(static_cast<Entity>(e));
+        }))
+
+        // Children
+        .function("hasChildren", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::Children>(static_cast<Entity>(e));
+        }))
+        .function("getChildren", optional_override([](Registry& r, u32 e) -> esengine::ecs::Children& {
+            return r.get<esengine::ecs::Children>(static_cast<Entity>(e));
+        }), allow_raw_pointers())
+        .function("addChildren", optional_override([](Registry& r, u32 e, const esengine::ecs::Children& c) {
+            r.emplaceOrReplace<esengine::ecs::Children>(static_cast<Entity>(e), c);
+        }))
+        .function("removeChildren", optional_override([](Registry& r, u32 e) {
+            r.remove<esengine::ecs::Children>(static_cast<Entity>(e));
+        }))
+
+        // Canvas
+        .function("hasCanvas", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::Canvas>(static_cast<Entity>(e));
+        }))
+        .function("getCanvas", optional_override([](Registry& r, u32 e) {
+            return canvasToJS(r.get<esengine::ecs::Canvas>(static_cast<Entity>(e)));
+        }))
+        .function("addCanvas", optional_override([](Registry& r, u32 e, const CanvasJS& js) {
+            r.emplaceOrReplace<esengine::ecs::Canvas>(static_cast<Entity>(e), canvasFromJS(js));
+        }))
+        .function("removeCanvas", optional_override([](Registry& r, u32 e) {
+            r.remove<esengine::ecs::Canvas>(static_cast<Entity>(e));
+        }))
+
+        // Camera
+        .function("hasCamera", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::Camera>(static_cast<Entity>(e));
+        }))
+        .function("getCamera", optional_override([](Registry& r, u32 e) {
+            return cameraToJS(r.get<esengine::ecs::Camera>(static_cast<Entity>(e)));
+        }))
+        .function("addCamera", optional_override([](Registry& r, u32 e, const CameraJS& js) {
+            r.emplaceOrReplace<esengine::ecs::Camera>(static_cast<Entity>(e), cameraFromJS(js));
+        }))
+        .function("removeCamera", optional_override([](Registry& r, u32 e) {
+            r.remove<esengine::ecs::Camera>(static_cast<Entity>(e));
         }))
 
         // Hierarchy Utilities

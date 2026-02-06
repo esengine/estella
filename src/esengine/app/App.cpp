@@ -11,7 +11,6 @@
 
 #include "App.hpp"
 #include "../core/Log.hpp"
-#include "../renderer/RenderPipeline.hpp"
 
 #ifdef ES_PLATFORM_WEB
 #include <emscripten.h>
