@@ -10,7 +10,7 @@
                 "${workspaceFolder}/third_party/glad/include",
                 "${workspaceFolder}/third_party/stb",
                 "${workspaceFolder}/third_party/spine-runtimes/spine-cpp/spine-cpp/include",
-                "${workspaceFolder}/third_party/json/single_include",
+                "${workspaceFolder}/third_party/nlohmann",
                 "${workspaceFolder}/build/quickjs_headers"
             ],
             "defines": [
@@ -21,8 +21,7 @@
             ],
             "cStandard": "c17",
             "cppStandard": "c++20",
-            "intelliSenseMode": "macos-clang-arm64",
-            "compileCommands": "${workspaceFolder}/build/compile_commands.json"
+            "intelliSenseMode": "macos-clang-arm64"
         },
         {
             "name": "Win32",
@@ -34,7 +33,7 @@
                 "${workspaceFolder}/third_party/glad/include",
                 "${workspaceFolder}/third_party/stb",
                 "${workspaceFolder}/third_party/spine-runtimes/spine-cpp/spine-cpp/include",
-                "${workspaceFolder}/third_party/json/single_include",
+                "${workspaceFolder}/third_party/nlohmann",
                 "${workspaceFolder}/build/quickjs_headers"
             ],
             "defines": [
@@ -46,8 +45,26 @@
             ],
             "cStandard": "c17",
             "cppStandard": "c++20",
-            "intelliSenseMode": "windows-gcc-x64",
-            "compileCommands": "${workspaceFolder}/build/compile_commands.json"
+            "intelliSenseMode": "windows-gcc-x64"
+        },
+        {
+            "name": "Web",
+            "includePath": [
+                "${workspaceFolder}/src",
+                "${workspaceFolder}/include",
+                "${workspaceFolder}/third_party/glm",
+                "${workspaceFolder}/third_party/stb",
+                "${workspaceFolder}/third_party/spine-runtimes/spine-cpp/spine-cpp/include",
+                "${workspaceFolder}/third_party/nlohmann"
+            ],
+            "defines": [
+                "ES_PLATFORM_WEB",
+                "__EMSCRIPTEN__"
+            ],
+            "cStandard": "c17",
+            "cppStandard": "c++20",
+            "intelliSenseMode": "clang-x64",
+            "compileCommands": "${workspaceFolder}/build-web/compile_commands.json"
         }
     ],
     "version": 4

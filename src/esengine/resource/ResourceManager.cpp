@@ -14,6 +14,7 @@
 #include "loaders/ShaderLoader.hpp"
 #include <json.hpp>
 #include <fstream>
+#include <stb_image.h>
 #endif
 #include "../core/Log.hpp"
 #include "../platform/PathResolver.hpp"
@@ -28,6 +29,10 @@ void ResourceManager::init() {
         ES_LOG_WARN("ResourceManager already initialized");
         return;
     }
+
+#ifndef ES_PLATFORM_WEB
+    stbi_set_flip_vertically_on_load(true);
+#endif
 
     stats_ = {};
     initialized_ = true;

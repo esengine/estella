@@ -68,13 +68,15 @@ export function wxGetImagePixels(img: WechatMinigame.Image, flipY = true): Image
     const { ctx } = getOffscreenCanvas(width, height);
 
     ctx.clearRect(0, 0, width, height);
+    ctx.save();
+    if (flipY) {
+        ctx.translate(0, height);
+        ctx.scale(1, -1);
+    }
     ctx.drawImage(img as unknown as CanvasImageSource, 0, 0);
+    ctx.restore();
     const imageData = ctx.getImageData(0, 0, width, height);
     const pixels = new Uint8Array(imageData.data.buffer);
-
-    if (flipY) {
-        return { width, height, pixels: flipVertically(pixels, width, height) };
-    }
 
     return { width, height, pixels };
 }
@@ -89,19 +91,3 @@ export async function wxLoadImagePixels(path: string, flipY = true): Promise<Ima
     return wxGetImagePixels(img, flipY);
 }
 
-// =============================================================================
-// Utility Functions
-// =============================================================================
-
-function flipVertically(pixels: Uint8Array, width: number, height: number): Uint8Array {
-    const rowSize = width * 4;
-    const flipped = new Uint8Array(pixels.length);
-
-    for (let y = 0; y < height; y++) {
-        const srcOffset = y * rowSize;
-        const dstOffset = (height - 1 - y) * rowSize;
-        flipped.set(pixels.subarray(srcOffset, srcOffset + rowSize), dstOffset);
-    }
-
-    return flipped;
-}
