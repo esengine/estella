@@ -68,78 +68,398 @@ async function platformInstantiateWasm(pathOrBuffer, imports) {
 }
 
 /**
- * @file    web.ts
- * @brief   Web platform adapter implementation
+ * @file    fetch.ts
+ * @brief   Fetch polyfill for WeChat MiniGame using wx.request
  */
 // =============================================================================
-// Web Platform Adapter
+// WeChat Fetch Implementation
 // =============================================================================
-class WebPlatformAdapter {
-    constructor() {
-        this.name = 'web';
-    }
-    async fetch(url, options) {
-        const response = await globalThis.fetch(url, {
-            method: options?.method ?? 'GET',
-            headers: options?.headers,
-            body: options?.body,
+function wxFetch(url, options) {
+    return new Promise((resolve, reject) => {
+        const responseType = options?.responseType ?? 'text';
+        wx.request({
+            url,
+            method: (options?.method ?? 'GET'),
+            data: options?.body,
+            header: options?.headers,
+            responseType: responseType === 'arraybuffer' ? 'arraybuffer' : 'text',
+            timeout: options?.timeout,
+            success: (res) => {
+                const ok = res.statusCode >= 200 && res.statusCode < 300;
+                const headers = {};
+                if (res.header) {
+                    for (const key of Object.keys(res.header)) {
+                        headers[key.toLowerCase()] = res.header[key];
+                    }
+                }
+                resolve({
+                    ok,
+                    status: res.statusCode,
+                    statusText: ok ? 'OK' : 'Error',
+                    headers,
+                    json: () => {
+                        if (typeof res.data === 'string') {
+                            return Promise.resolve(JSON.parse(res.data));
+                        }
+                        return Promise.resolve(res.data);
+                    },
+                    text: () => {
+                        if (typeof res.data === 'string') {
+                            return Promise.resolve(res.data);
+                        }
+                        return Promise.resolve(JSON.stringify(res.data));
+                    },
+                    arrayBuffer: () => {
+                        if (res.data instanceof ArrayBuffer) {
+                            return Promise.resolve(res.data);
+                        }
+                        // Convert string to ArrayBuffer
+                        const encoder = new TextEncoder();
+                        const data = typeof res.data === 'string' ? res.data : JSON.stringify(res.data);
+                        return Promise.resolve(encoder.encode(data).buffer);
+                    },
+                });
+            },
+            fail: (err) => {
+                reject(new Error(`wx.request failed: ${err.errMsg}`));
+            },
         });
-        const headers = {};
-        response.headers.forEach((value, key) => {
-            headers[key] = value;
-        });
-        return {
-            ok: response.ok,
-            status: response.status,
-            statusText: response.statusText,
-            headers,
-            json: () => response.json(),
-            text: () => response.text(),
-            arrayBuffer: () => response.arrayBuffer(),
-        };
-    }
-    async readFile(path) {
-        const response = await this.fetch(path);
-        if (!response.ok) {
-            throw new Error(`Failed to read file: ${path} (${response.status})`);
-        }
-        return response.arrayBuffer();
-    }
-    async readTextFile(path) {
-        const response = await this.fetch(path);
-        if (!response.ok) {
-            throw new Error(`Failed to read file: ${path} (${response.status})`);
-        }
-        return response.text();
-    }
-    async fileExists(path) {
-        try {
-            const response = await globalThis.fetch(path, { method: 'HEAD' });
-            return response.ok;
-        }
-        catch {
-            return false;
-        }
-    }
-    async instantiateWasm(pathOrBuffer, imports) {
-        let buffer;
-        if (typeof pathOrBuffer === 'string') {
-            buffer = await this.readFile(pathOrBuffer);
-        }
-        else {
-            buffer = pathOrBuffer;
-        }
-        const result = await WebAssembly.instantiate(buffer, imports);
-        return {
-            instance: result.instance,
-            module: result.module,
+    });
+}
+// =============================================================================
+// Global Fetch Polyfill
+// =============================================================================
+function polyfillFetch() {
+    if (typeof globalThis.fetch === 'undefined') {
+        globalThis.fetch = async (input, init) => {
+            const url = typeof input === 'string' ? input : input.toString();
+            const options = {
+                method: init?.method ?? 'GET',
+                headers: init?.headers,
+                body: init?.body,
+            };
+            const response = await wxFetch(url, options);
+            // Return a Response-like object
+            return {
+                ok: response.ok,
+                status: response.status,
+                statusText: response.statusText,
+                headers: new Headers(response.headers),
+                json: () => response.json(),
+                text: () => response.text(),
+                arrayBuffer: () => response.arrayBuffer(),
+                blob: () => Promise.reject(new Error('Blob not supported in WeChat')),
+                formData: () => Promise.reject(new Error('FormData not supported in WeChat')),
+                clone: () => { throw new Error('clone not supported'); },
+                body: null,
+                bodyUsed: false,
+                redirected: false,
+                type: 'basic',
+                url,
+            };
         };
     }
 }
+
+/**
+ * @file    wasm.ts
+ * @brief   WebAssembly adapter for WeChat MiniGame using WXWebAssembly
+ */
 // =============================================================================
-// Export Singleton
+// WeChat WASM Implementation
 // =============================================================================
-const webAdapter = new WebPlatformAdapter();
+/**
+ * Instantiate WASM using WXWebAssembly
+ * Note: WeChat requires path to be a string (package-relative path), not ArrayBuffer
+ */
+async function wxInstantiateWasm(path, imports) {
+    if (typeof WXWebAssembly === 'undefined') {
+        throw new Error('WXWebAssembly is not available. Requires WeChat base library >= 2.13.0');
+    }
+    // WeChat requires the path to be a package-relative path string
+    // e.g., "esengine.wasm" not "/esengine.wasm" or ArrayBuffer
+    const normalizedPath = path.startsWith('/') ? path.slice(1) : path;
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const result = await WXWebAssembly.instantiate(normalizedPath, imports);
+        return {
+            // WXWebAssembly.instantiate returns { instance, module } but types are slightly different
+            instance: result.instance ?? result,
+            module: result.module,
+        };
+    }
+    catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        throw new Error(`WXWebAssembly.instantiate failed for "${normalizedPath}": ${message}`);
+    }
+}
+// =============================================================================
+// Global WebAssembly Polyfill
+// =============================================================================
+/**
+ * Polyfill global WebAssembly with WXWebAssembly
+ * This allows existing code using WebAssembly.instantiate to work on WeChat
+ */
+function polyfillWebAssembly() {
+    if (typeof WXWebAssembly !== 'undefined' && typeof WebAssembly === 'undefined') {
+        globalThis.WebAssembly = {
+            instantiate: async (bufferOrPath, imports) => {
+                if (typeof bufferOrPath !== 'string') {
+                    throw new Error('WeChat WXWebAssembly requires a file path string, not ArrayBuffer. ' +
+                        'Use platform adapter instead of direct WebAssembly.instantiate.');
+                }
+                return wxInstantiateWasm(bufferOrPath, imports ?? {});
+            },
+            compile: () => {
+                throw new Error('WebAssembly.compile is not supported in WeChat MiniGame');
+            },
+            compileStreaming: () => {
+                throw new Error('WebAssembly.compileStreaming is not supported in WeChat MiniGame');
+            },
+            instantiateStreaming: () => {
+                throw new Error('WebAssembly.instantiateStreaming is not supported in WeChat MiniGame');
+            },
+            validate: () => {
+                throw new Error('WebAssembly.validate is not supported in WeChat MiniGame');
+            },
+            Module: class {
+            },
+            Instance: class {
+            },
+            Memory: class {
+            },
+            Table: class {
+            },
+            Global: class {
+            },
+            CompileError: Error,
+            LinkError: Error,
+            RuntimeError: Error,
+        };
+    }
+}
+
+/**
+ * @file    fs.ts
+ * @brief   File system adapter for WeChat MiniGame
+ */
+/// <reference types="minigame-api-typings" />
+// =============================================================================
+// WeChat File System
+// =============================================================================
+let fsManager = null;
+function getFileSystemManager() {
+    if (!fsManager) {
+        fsManager = wx.getFileSystemManager();
+    }
+    return fsManager;
+}
+/**
+ * Read file as ArrayBuffer (async)
+ */
+function wxReadFile(path) {
+    return new Promise((resolve, reject) => {
+        const fs = getFileSystemManager();
+        fs.readFile({
+            filePath: path,
+            success: (res) => {
+                resolve(res.data);
+            },
+            fail: (err) => {
+                reject(new Error(`Failed to read file "${path}": ${err.errMsg}`));
+            },
+        });
+    });
+}
+/**
+ * Read file as string (async)
+ */
+function wxReadTextFile(path, encoding = 'utf-8') {
+    return new Promise((resolve, reject) => {
+        const fs = getFileSystemManager();
+        fs.readFile({
+            filePath: path,
+            encoding,
+            success: (res) => {
+                resolve(res.data);
+            },
+            fail: (err) => {
+                reject(new Error(`Failed to read file "${path}": ${err.errMsg}`));
+            },
+        });
+    });
+}
+/**
+ * Check if file exists
+ */
+function wxFileExists(path) {
+    return new Promise((resolve) => {
+        const fs = getFileSystemManager();
+        fs.access({
+            path,
+            success: () => resolve(true),
+            fail: () => resolve(false),
+        });
+    });
+}
+/**
+ * Check if file exists (sync)
+ */
+function wxFileExistsSync(path) {
+    const fs = getFileSystemManager();
+    try {
+        fs.accessSync(path);
+        return true;
+    }
+    catch {
+        return false;
+    }
+}
+/**
+ * Write file
+ */
+function wxWriteFile(path, data) {
+    return new Promise((resolve, reject) => {
+        const fs = getFileSystemManager();
+        fs.writeFile({
+            filePath: path,
+            data,
+            success: () => resolve(),
+            fail: (err) => {
+                reject(new Error(`Failed to write file "${path}": ${err.errMsg}`));
+            },
+        });
+    });
+}
+
+/**
+ * @file    image.ts
+ * @brief   WeChat MiniGame image loading utilities
+ */
+/// <reference types="minigame-api-typings" />
+// =============================================================================
+// Canvas Management
+// =============================================================================
+let offscreenCanvas = null;
+let offscreenCtx = null;
+function getOffscreenCanvas(width, height) {
+    if (!offscreenCanvas) {
+        offscreenCanvas = wx.createCanvas();
+        offscreenCanvas.width = width;
+        offscreenCanvas.height = height;
+        offscreenCtx = offscreenCanvas.getContext('2d');
+    }
+    if (offscreenCanvas.width < width || offscreenCanvas.height < height) {
+        offscreenCanvas.width = Math.max(offscreenCanvas.width, width);
+        offscreenCanvas.height = Math.max(offscreenCanvas.height, height);
+    }
+    return { canvas: offscreenCanvas, ctx: offscreenCtx };
+}
+// =============================================================================
+// Image Loading
+// =============================================================================
+/**
+ * Load an image from a file path
+ * @param path - File path relative to game root
+ */
+function wxLoadImage(path) {
+    return new Promise((resolve, reject) => {
+        const img = wx.createImage();
+        img.onload = () => resolve(img);
+        img.onerror = (err) => reject(new Error(`Failed to load image: ${path}, ${err}`));
+        img.src = path;
+    });
+}
+/**
+ * Extract pixel data from an image
+ * @param img - Loaded image object
+ * @param flipY - Whether to flip the image vertically (default: true for OpenGL)
+ */
+function wxGetImagePixels(img, flipY = true) {
+    const { width, height } = img;
+    const { ctx } = getOffscreenCanvas(width, height);
+    ctx.clearRect(0, 0, width, height);
+    ctx.drawImage(img, 0, 0);
+    const imageData = ctx.getImageData(0, 0, width, height);
+    const pixels = new Uint8Array(imageData.data.buffer);
+    if (flipY) {
+        return { width, height, pixels: flipVertically(pixels, width, height) };
+    }
+    return { width, height, pixels };
+}
+/**
+ * Load image and get pixel data in one call
+ * @param path - File path relative to game root
+ * @param flipY - Whether to flip the image vertically (default: true for OpenGL)
+ */
+async function wxLoadImagePixels(path, flipY = true) {
+    const img = await wxLoadImage(path);
+    return wxGetImagePixels(img, flipY);
+}
+// =============================================================================
+// Utility Functions
+// =============================================================================
+function flipVertically(pixels, width, height) {
+    const rowSize = width * 4;
+    const flipped = new Uint8Array(pixels.length);
+    for (let y = 0; y < height; y++) {
+        const srcOffset = y * rowSize;
+        const dstOffset = (height - 1 - y) * rowSize;
+        flipped.set(pixels.subarray(srcOffset, srcOffset + rowSize), dstOffset);
+    }
+    return flipped;
+}
+
+/**
+ * @file    index.ts
+ * @brief   WeChat MiniGame platform adapter
+ */
+// =============================================================================
+// WeChat Platform Adapter
+// =============================================================================
+class WeChatPlatformAdapter {
+    constructor() {
+        this.name = 'wechat';
+    }
+    async fetch(url, options) {
+        return wxFetch(url, options);
+    }
+    async readFile(path) {
+        return wxReadFile(path);
+    }
+    async readTextFile(path) {
+        return wxReadTextFile(path);
+    }
+    async fileExists(path) {
+        return wxFileExists(path);
+    }
+    async instantiateWasm(pathOrBuffer, imports) {
+        if (typeof pathOrBuffer !== 'string') {
+            throw new Error('WeChat WXWebAssembly requires a file path string, not ArrayBuffer');
+        }
+        return wxInstantiateWasm(pathOrBuffer, imports);
+    }
+}
+// =============================================================================
+// Initialization
+// =============================================================================
+let initialized = false;
+/**
+ * Initialize WeChat platform polyfills
+ * Call this at the entry point of your game
+ */
+function initWeChatPlatform() {
+    if (initialized)
+        return;
+    initialized = true;
+    polyfillFetch();
+    polyfillWebAssembly();
+    console.log('[ESEngine] WeChat platform initialized');
+}
+// =============================================================================
+// Export
+// =============================================================================
+const wechatAdapter = new WeChatPlatformAdapter();
 
 /**
  * @file    types.ts
@@ -3204,11 +3524,12 @@ function createSpineController(wasmModule) {
 }
 
 /**
- * @file    index.ts
- * @brief   ESEngine SDK - Web entry point (auto-initializes Web platform)
+ * @file    index.wechat.ts
+ * @brief   ESEngine SDK - WeChat MiniGame entry point
  */
-// Initialize Web platform
-setPlatform(webAdapter);
+// Initialize WeChat platform
+initWeChatPlatform();
+setPlatform(wechatAdapter);
 
-export { App, AssetPlugin, AssetServer, Assets, BlendMode, Camera, Canvas, Children, Commands, CommandsInstance, DataType, Draw, EntityCommands, Geometry, INVALID_ENTITY, INVALID_TEXTURE, Input, LocalTransform, Material, Mut, Parent, PostProcess, PreviewPlugin, Query, QueryInstance, RenderStage, Renderer, Res, ResMut, Schedule, ShaderSources, SpineAnimation, SpineController, Sprite, SystemRunner, Text, TextAlign, TextOverflow, TextPlugin, TextRenderer, TextVerticalAlign, Time, UIRect, Velocity, World, WorldTransform, assetPlugin, color, createSpineController, createWebApp, defineComponent, defineResource, defineSystem, defineTag, getComponentDefaults, getPlatform, getPlatformType, initDrawAPI, initGeometryAPI, initMaterialAPI, initPostProcessAPI, initRendererAPI, isBuiltinComponent, isPlatformInitialized, isWeChat, isWeb, loadComponent, loadSceneData, loadSceneWithAssets, platformFetch, platformFileExists, platformInstantiateWasm, platformReadFile, platformReadTextFile, quat, shutdownDrawAPI, shutdownGeometryAPI, shutdownMaterialAPI, shutdownPostProcessAPI, shutdownRendererAPI, textPlugin, updateCameraAspectRatio, vec2, vec3, vec4 };
-//# sourceMappingURL=index.js.map
+export { App, AssetPlugin, AssetServer, Assets, BlendMode, Camera, Canvas, Children, Commands, CommandsInstance, DataType, Draw, EntityCommands, Geometry, INVALID_ENTITY, INVALID_TEXTURE, Input, LocalTransform, Material, Mut, Parent, PostProcess, PreviewPlugin, Query, QueryInstance, RenderStage, Renderer, Res, ResMut, Schedule, ShaderSources, SpineAnimation, SpineController, Sprite, SystemRunner, Text, TextAlign, TextOverflow, TextPlugin, TextRenderer, TextVerticalAlign, Time, UIRect, Velocity, World, WorldTransform, assetPlugin, color, createSpineController, createWebApp, defineComponent, defineResource, defineSystem, defineTag, getComponentDefaults, getPlatform, getPlatformType, initDrawAPI, initGeometryAPI, initMaterialAPI, initPostProcessAPI, initRendererAPI, isBuiltinComponent, isPlatformInitialized, isWeChat, isWeb, loadComponent, loadSceneData, loadSceneWithAssets, platformFetch, platformFileExists, platformInstantiateWasm, platformReadFile, platformReadTextFile, quat, shutdownDrawAPI, shutdownGeometryAPI, shutdownMaterialAPI, shutdownPostProcessAPI, shutdownRendererAPI, textPlugin, updateCameraAspectRatio, vec2, vec3, vec4, wxFileExists, wxFileExistsSync, wxGetImagePixels, wxLoadImage, wxLoadImagePixels, wxReadFile, wxReadTextFile, wxWriteFile };
+//# sourceMappingURL=index.wechat.js.map

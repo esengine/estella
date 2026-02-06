@@ -21,10 +21,10 @@
         {
             "label": "build-sdk",
             "type": "shell",
-            "command": "pnpm",
-            "args": ["build"],
+            "command": "npm",
+            "args": ["run", "build:sdk"],
             "options": {
-                "cwd": "${workspaceFolder}/sdk"
+                "cwd": "${workspaceFolder}"
             },
             "problemMatcher": ["$tsc"]
         },

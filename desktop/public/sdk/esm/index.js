@@ -264,27 +264,6 @@ const SpineAnimation = defineBuiltin('SpineAnimation', {
     layer: 0,
     skeletonScale: 1.0
 });
-// =============================================================================
-// Component Defaults Registry
-// =============================================================================
-const builtinComponents = {
-    LocalTransform,
-    WorldTransform,
-    Sprite,
-    Camera,
-    Canvas,
-    Velocity,
-    Parent,
-    Children,
-    SpineAnimation,
-};
-function getComponentDefaults(typeName) {
-    const component = builtinComponents[typeName];
-    if (component) {
-        return { ...component._default };
-    }
-    return null;
-}
 
 /**
  * @file    resource.ts
@@ -1205,1011 +1184,6 @@ class TextPlugin {
 const textPlugin = new TextPlugin();
 
 /**
- * @file    blend.ts
- * @brief   Blend mode definitions for rendering
- */
-var BlendMode;
-(function (BlendMode) {
-    BlendMode[BlendMode["Normal"] = 0] = "Normal";
-    BlendMode[BlendMode["Additive"] = 1] = "Additive";
-    BlendMode[BlendMode["Multiply"] = 2] = "Multiply";
-    BlendMode[BlendMode["Screen"] = 3] = "Screen";
-    BlendMode[BlendMode["PremultipliedAlpha"] = 4] = "PremultipliedAlpha";
-})(BlendMode || (BlendMode = {}));
-
-/**
- * @file    material.ts
- * @brief   Material and Shader API for custom rendering
- * @details Provides shader creation and material management for custom visual effects.
- */
-let resourceManager = null;
-let nextMaterialId = 1;
-const materials = new Map();
-// =============================================================================
-// Initialization
-// =============================================================================
-function initMaterialAPI(wasmModule) {
-    resourceManager = wasmModule.getResourceManager();
-}
-function shutdownMaterialAPI() {
-    materials.clear();
-    nextMaterialId = 1;
-    resourceManager = null;
-}
-// =============================================================================
-// Shader API
-// =============================================================================
-function getResourceManager() {
-    if (!resourceManager) {
-        throw new Error('Material API not initialized. Call initMaterialAPI() first.');
-    }
-    return resourceManager;
-}
-const Material = {
-    /**
-     * Creates a shader from vertex and fragment source code.
-     * @param vertexSrc GLSL vertex shader source
-     * @param fragmentSrc GLSL fragment shader source
-     * @returns Shader handle, or 0 on failure
-     */
-    createShader(vertexSrc, fragmentSrc) {
-        return getResourceManager().createShader(vertexSrc, fragmentSrc);
-    },
-    /**
-     * Releases a shader.
-     * @param shader Shader handle to release
-     */
-    releaseShader(shader) {
-        if (shader > 0) {
-            getResourceManager().releaseShader(shader);
-        }
-    },
-    /**
-     * Creates a material with a shader and optional settings.
-     * @param options Material creation options
-     * @returns Material handle
-     */
-    create(options) {
-        const handle = nextMaterialId++;
-        const data = {
-            shader: options.shader,
-            uniforms: new Map(),
-            blendMode: options.blendMode ?? BlendMode.Normal,
-            depthTest: options.depthTest ?? false,
-        };
-        if (options.uniforms) {
-            for (const [key, value] of Object.entries(options.uniforms)) {
-                data.uniforms.set(key, value);
-            }
-        }
-        materials.set(handle, data);
-        return handle;
-    },
-    /**
-     * Gets material data by handle.
-     * @param material Material handle
-     * @returns Material data or undefined
-     */
-    get(material) {
-        return materials.get(material);
-    },
-    /**
-     * Sets a uniform value on a material.
-     * @param material Material handle
-     * @param name Uniform name
-     * @param value Uniform value
-     */
-    setUniform(material, name, value) {
-        const data = materials.get(material);
-        if (data) {
-            data.uniforms.set(name, value);
-        }
-    },
-    /**
-     * Gets a uniform value from a material.
-     * @param material Material handle
-     * @param name Uniform name
-     * @returns Uniform value or undefined
-     */
-    getUniform(material, name) {
-        const data = materials.get(material);
-        return data?.uniforms.get(name);
-    },
-    /**
-     * Sets the blend mode for a material.
-     * @param material Material handle
-     * @param mode Blend mode
-     */
-    setBlendMode(material, mode) {
-        const data = materials.get(material);
-        if (data) {
-            data.blendMode = mode;
-        }
-    },
-    /**
-     * Gets the blend mode of a material.
-     * @param material Material handle
-     * @returns Blend mode
-     */
-    getBlendMode(material) {
-        const data = materials.get(material);
-        return data?.blendMode ?? BlendMode.Normal;
-    },
-    /**
-     * Sets depth test enabled for a material.
-     * @param material Material handle
-     * @param enabled Whether depth test is enabled
-     */
-    setDepthTest(material, enabled) {
-        const data = materials.get(material);
-        if (data) {
-            data.depthTest = enabled;
-        }
-    },
-    /**
-     * Gets the shader handle for a material.
-     * @param material Material handle
-     * @returns Shader handle
-     */
-    getShader(material) {
-        const data = materials.get(material);
-        return data?.shader ?? 0;
-    },
-    /**
-     * Releases a material (does not release the shader).
-     * @param material Material handle
-     */
-    release(material) {
-        materials.delete(material);
-    },
-    /**
-     * Checks if a material exists.
-     * @param material Material handle
-     * @returns True if material exists
-     */
-    isValid(material) {
-        return materials.has(material);
-    },
-};
-// =============================================================================
-// Built-in Shader Sources
-// =============================================================================
-const ShaderSources = {
-    SPRITE_VERTEX: `#version 300 es
-precision highp float;
-
-layout(location = 0) in vec3 a_position;
-layout(location = 1) in vec4 a_color;
-layout(location = 2) in vec2 a_texCoord;
-
-uniform mat4 u_projection;
-uniform mat4 u_model;
-
-out vec4 v_color;
-out vec2 v_texCoord;
-
-void main() {
-    v_color = a_color;
-    v_texCoord = a_texCoord;
-    gl_Position = u_projection * u_model * vec4(a_position, 1.0);
-}
-`,
-    SPRITE_FRAGMENT: `#version 300 es
-precision highp float;
-
-in vec4 v_color;
-in vec2 v_texCoord;
-
-uniform sampler2D u_texture;
-
-out vec4 fragColor;
-
-void main() {
-    fragColor = texture(u_texture, v_texCoord) * v_color;
-}
-`,
-    COLOR_VERTEX: `#version 300 es
-precision highp float;
-
-layout(location = 0) in vec3 a_position;
-layout(location = 1) in vec4 a_color;
-
-uniform mat4 u_projection;
-uniform mat4 u_model;
-
-out vec4 v_color;
-
-void main() {
-    v_color = a_color;
-    gl_Position = u_projection * u_model * vec4(a_position, 1.0);
-}
-`,
-    COLOR_FRAGMENT: `#version 300 es
-precision highp float;
-
-in vec4 v_color;
-
-out vec4 fragColor;
-
-void main() {
-    fragColor = v_color;
-}
-`,
-};
-
-/**
- * @file    draw.ts
- * @brief   Immediate mode 2D drawing API
- * @details Provides simple drawing primitives (lines, rectangles, circles)
- *          with automatic batching. All draw commands are cleared each frame.
- */
-// =============================================================================
-// Internal State
-// =============================================================================
-let module$4 = null;
-let viewProjectionPtr$1 = 0;
-let transformPtr = 0;
-let uniformsPtr = 0;
-const UNIFORMS_BUFFER_SIZE = 256;
-const uniformBuffer = new Float32Array(UNIFORMS_BUFFER_SIZE);
-// =============================================================================
-// Initialization
-// =============================================================================
-function initDrawAPI(wasmModule) {
-    module$4 = wasmModule;
-    viewProjectionPtr$1 = module$4._malloc(16 * 4);
-    transformPtr = module$4._malloc(16 * 4);
-    uniformsPtr = module$4._malloc(UNIFORMS_BUFFER_SIZE * 4);
-}
-function shutdownDrawAPI() {
-    if (module$4) {
-        if (viewProjectionPtr$1) {
-            module$4._free(viewProjectionPtr$1);
-            viewProjectionPtr$1 = 0;
-        }
-        if (transformPtr) {
-            module$4._free(transformPtr);
-            transformPtr = 0;
-        }
-        if (uniformsPtr) {
-            module$4._free(uniformsPtr);
-            uniformsPtr = 0;
-        }
-    }
-    module$4 = null;
-}
-// =============================================================================
-// Draw Implementation
-// =============================================================================
-function getModule$2() {
-    if (!module$4) {
-        throw new Error('Draw API not initialized. Call initDrawAPI() first.');
-    }
-    return module$4;
-}
-const WHITE = { x: 1, y: 1, z: 1, w: 1 };
-const Draw = {
-    begin(viewProjection) {
-        const m = getModule$2();
-        m.HEAPF32.set(viewProjection, viewProjectionPtr$1 / 4);
-        m.draw_begin(viewProjectionPtr$1);
-    },
-    end() {
-        getModule$2().draw_end();
-    },
-    line(from, to, color, thickness = 1) {
-        getModule$2().draw_line(from.x, from.y, to.x, to.y, color.x, color.y, color.z, color.w, thickness);
-    },
-    rect(position, size, color, filled = true) {
-        getModule$2().draw_rect(position.x, position.y, size.x, size.y, color.x, color.y, color.z, color.w, filled);
-    },
-    rectOutline(position, size, color, thickness = 1) {
-        getModule$2().draw_rectOutline(position.x, position.y, size.x, size.y, color.x, color.y, color.z, color.w, thickness);
-    },
-    circle(center, radius, color, filled = true, segments = 32) {
-        getModule$2().draw_circle(center.x, center.y, radius, color.x, color.y, color.z, color.w, filled, segments);
-    },
-    circleOutline(center, radius, color, thickness = 1, segments = 32) {
-        getModule$2().draw_circleOutline(center.x, center.y, radius, color.x, color.y, color.z, color.w, thickness, segments);
-    },
-    texture(position, size, textureHandle, tint = WHITE) {
-        getModule$2().draw_texture(position.x, position.y, size.x, size.y, textureHandle, tint.x, tint.y, tint.z, tint.w);
-    },
-    textureRotated(position, size, rotation, textureHandle, tint = WHITE) {
-        getModule$2().draw_textureRotated(position.x, position.y, size.x, size.y, rotation, textureHandle, tint.x, tint.y, tint.z, tint.w);
-    },
-    setLayer(layer) {
-        getModule$2().draw_setLayer(layer);
-    },
-    setDepth(depth) {
-        getModule$2().draw_setDepth(depth);
-    },
-    getDrawCallCount() {
-        if (!module$4)
-            return 0;
-        return module$4.draw_getDrawCallCount();
-    },
-    getPrimitiveCount() {
-        if (!module$4)
-            return 0;
-        return module$4.draw_getPrimitiveCount();
-    },
-    setBlendMode(mode) {
-        getModule$2().draw_setBlendMode(mode);
-    },
-    setDepthTest(enabled) {
-        getModule$2().draw_setDepthTest(enabled);
-    },
-    drawMesh(geometry, shader, transform) {
-        const m = getModule$2();
-        m.HEAPF32.set(transform, transformPtr / 4);
-        m.draw_mesh(geometry, shader, transformPtr);
-    },
-    drawMeshWithMaterial(geometry, material, transform) {
-        const m = getModule$2();
-        const matData = Material.get(material);
-        if (!matData)
-            return;
-        Draw.setBlendMode(matData.blendMode);
-        Draw.setDepthTest(matData.depthTest);
-        if (matData.uniforms.size === 0) {
-            Draw.drawMesh(geometry, matData.shader, transform);
-            return;
-        }
-        m.HEAPF32.set(transform, transformPtr / 4);
-        let idx = 0;
-        for (const [name, value] of matData.uniforms) {
-            const nameId = getUniformNameId(name);
-            if (nameId < 0)
-                continue;
-            if (typeof value === 'number') {
-                uniformBuffer[idx++] = 1;
-                uniformBuffer[idx++] = nameId;
-                uniformBuffer[idx++] = value;
-            }
-            else if (Array.isArray(value)) {
-                uniformBuffer[idx++] = value.length;
-                uniformBuffer[idx++] = nameId;
-                for (let i = 0; i < value.length; i++) {
-                    uniformBuffer[idx++] = value[i];
-                }
-            }
-            else if ('w' in value) {
-                uniformBuffer[idx++] = 4;
-                uniformBuffer[idx++] = nameId;
-                uniformBuffer[idx++] = value.x;
-                uniformBuffer[idx++] = value.y;
-                uniformBuffer[idx++] = value.z;
-                uniformBuffer[idx++] = value.w;
-            }
-            else if ('z' in value) {
-                uniformBuffer[idx++] = 3;
-                uniformBuffer[idx++] = nameId;
-                uniformBuffer[idx++] = value.x;
-                uniformBuffer[idx++] = value.y;
-                uniformBuffer[idx++] = value.z;
-            }
-            else {
-                uniformBuffer[idx++] = 2;
-                uniformBuffer[idx++] = nameId;
-                uniformBuffer[idx++] = value.x;
-                uniformBuffer[idx++] = value.y;
-            }
-            if (idx > UNIFORMS_BUFFER_SIZE - 6) {
-                console.warn('Uniform buffer overflow, some uniforms will be ignored');
-                break;
-            }
-        }
-        if (idx === 0) {
-            m.draw_mesh(geometry, matData.shader, transformPtr);
-            return;
-        }
-        m.HEAPF32.set(uniformBuffer.subarray(0, idx), uniformsPtr / 4);
-        m.draw_meshWithUniforms(geometry, matData.shader, transformPtr, uniformsPtr, idx);
-    },
-};
-const UNIFORM_NAME_MAP = {
-    'u_time': 0,
-    'u_color': 1,
-    'u_intensity': 2,
-    'u_scale': 3,
-    'u_offset': 4,
-    'u_param0': 5,
-    'u_param1': 6,
-    'u_param2': 7,
-    'u_param3': 8,
-    'u_param4': 9,
-    'u_vec0': 10,
-    'u_vec1': 11,
-    'u_vec2': 12,
-    'u_vec3': 13,
-    'u_texture0': 14,
-    'u_texture1': 15,
-    'u_texture2': 16,
-    'u_texture3': 17,
-};
-function getUniformNameId(name) {
-    return UNIFORM_NAME_MAP[name] ?? -1;
-}
-
-/**
- * @file    geometry.ts
- * @brief   Geometry API for custom mesh rendering
- * @details Provides geometry creation and management for custom shapes,
- *          particles, trails, and other procedural meshes.
- */
-var DataType;
-(function (DataType) {
-    DataType[DataType["Float"] = 1] = "Float";
-    DataType[DataType["Float2"] = 2] = "Float2";
-    DataType[DataType["Float3"] = 3] = "Float3";
-    DataType[DataType["Float4"] = 4] = "Float4";
-    DataType[DataType["Int"] = 5] = "Int";
-    DataType[DataType["Int2"] = 6] = "Int2";
-    DataType[DataType["Int3"] = 7] = "Int3";
-    DataType[DataType["Int4"] = 8] = "Int4";
-})(DataType || (DataType = {}));
-// =============================================================================
-// Internal State
-// =============================================================================
-let module$3 = null;
-let vertexPtr = 0;
-let indexPtr = 0;
-let layoutPtr = 0;
-const VERTEX_BUFFER_SIZE = 64 * 1024;
-const INDEX_BUFFER_SIZE = 16 * 1024;
-const LAYOUT_BUFFER_SIZE = 64;
-// =============================================================================
-// Initialization
-// =============================================================================
-function initGeometryAPI(wasmModule) {
-    module$3 = wasmModule;
-    vertexPtr = module$3._malloc(VERTEX_BUFFER_SIZE * 4);
-    indexPtr = module$3._malloc(INDEX_BUFFER_SIZE * 4);
-    layoutPtr = module$3._malloc(LAYOUT_BUFFER_SIZE * 4);
-}
-function shutdownGeometryAPI() {
-    if (module$3) {
-        if (vertexPtr)
-            module$3._free(vertexPtr);
-        if (indexPtr)
-            module$3._free(indexPtr);
-        if (layoutPtr)
-            module$3._free(layoutPtr);
-        vertexPtr = 0;
-        indexPtr = 0;
-        layoutPtr = 0;
-    }
-    module$3 = null;
-}
-// =============================================================================
-// Geometry API
-// =============================================================================
-function getModule$1() {
-    if (!module$3) {
-        throw new Error('Geometry API not initialized. Call initGeometryAPI() first.');
-    }
-    return module$3;
-}
-const Geometry = {
-    /**
-     * Creates a new geometry with vertices and optional indices.
-     * @param options Geometry creation options
-     * @returns Geometry handle
-     */
-    create(options) {
-        const m = getModule$1();
-        const handle = m.geometry_create();
-        if (handle === 0) {
-            throw new Error('Failed to create geometry');
-        }
-        const vertexCount = options.vertices.length;
-        if (vertexCount * 4 > VERTEX_BUFFER_SIZE * 4) {
-            throw new Error(`Vertex data too large: ${vertexCount} floats (max ${VERTEX_BUFFER_SIZE})`);
-        }
-        m.HEAPF32.set(options.vertices, vertexPtr / 4);
-        const layoutCount = options.layout.length;
-        const layoutArray = new Int32Array(layoutCount);
-        for (let i = 0; i < layoutCount; i++) {
-            layoutArray[i] = options.layout[i].type;
-        }
-        const heap32 = new Int32Array(m.HEAPU8.buffer, layoutPtr, layoutCount);
-        heap32.set(layoutArray);
-        m.geometry_init(handle, vertexPtr, vertexCount, layoutPtr, layoutCount, options.dynamic ?? false);
-        if (options.indices) {
-            const indexCount = options.indices.length;
-            if (indexCount * 4 > INDEX_BUFFER_SIZE * 4) {
-                throw new Error(`Index data too large: ${indexCount} indices (max ${INDEX_BUFFER_SIZE})`);
-            }
-            if (options.indices instanceof Uint16Array) {
-                const heap16 = new Uint16Array(m.HEAPU8.buffer, indexPtr, indexCount);
-                heap16.set(options.indices);
-                m.geometry_setIndices16(handle, indexPtr, indexCount);
-            }
-            else {
-                const heap32 = new Uint32Array(m.HEAPU8.buffer, indexPtr, indexCount);
-                heap32.set(options.indices);
-                m.geometry_setIndices32(handle, indexPtr, indexCount);
-            }
-        }
-        return handle;
-    },
-    /**
-     * Updates vertices of a dynamic geometry.
-     * @param handle Geometry handle
-     * @param vertices New vertex data
-     * @param offset Offset in floats
-     */
-    updateVertices(handle, vertices, offset = 0) {
-        const m = getModule$1();
-        const vertexCount = vertices.length;
-        if (vertexCount * 4 > VERTEX_BUFFER_SIZE * 4) {
-            throw new Error(`Vertex data too large: ${vertexCount} floats (max ${VERTEX_BUFFER_SIZE})`);
-        }
-        m.HEAPF32.set(vertices, vertexPtr / 4);
-        m.geometry_updateVertices(handle, vertexPtr, vertexCount, offset);
-    },
-    /**
-     * Releases a geometry.
-     * @param handle Geometry handle
-     */
-    release(handle) {
-        if (handle > 0) {
-            getModule$1().geometry_release(handle);
-        }
-    },
-    /**
-     * Checks if a geometry handle is valid.
-     * @param handle Geometry handle
-     * @returns True if valid
-     */
-    isValid(handle) {
-        if (!module$3 || handle <= 0)
-            return false;
-        return module$3.geometry_isValid(handle);
-    },
-    // =========================================================================
-    // Helper Functions
-    // =========================================================================
-    /**
-     * Creates a unit quad geometry (1x1, centered at origin).
-     * @returns Geometry handle
-     */
-    createQuad(width = 1, height = 1) {
-        const hw = width / 2;
-        const hh = height / 2;
-        return Geometry.create({
-            vertices: new Float32Array([
-                // x, y, u, v
-                -hw, -hh, 0, 0,
-                hw, -hh, 1, 0,
-                hw, hh, 1, 1,
-                -hw, hh, 0, 1,
-            ]),
-            layout: [
-                { name: 'a_position', type: DataType.Float2 },
-                { name: 'a_texCoord', type: DataType.Float2 },
-            ],
-            indices: new Uint16Array([0, 1, 2, 2, 3, 0]),
-        });
-    },
-    /**
-     * Creates a circle geometry.
-     * @param radius Circle radius
-     * @param segments Number of segments
-     * @returns Geometry handle
-     */
-    createCircle(radius = 1, segments = 32) {
-        const vertices = [];
-        const indices = [];
-        vertices.push(0, 0, 0.5, 0.5);
-        for (let i = 0; i <= segments; i++) {
-            const angle = (i / segments) * Math.PI * 2;
-            const x = Math.cos(angle) * radius;
-            const y = Math.sin(angle) * radius;
-            const u = (Math.cos(angle) + 1) / 2;
-            const v = (Math.sin(angle) + 1) / 2;
-            vertices.push(x, y, u, v);
-        }
-        for (let i = 1; i <= segments; i++) {
-            indices.push(0, i, i + 1);
-        }
-        return Geometry.create({
-            vertices: new Float32Array(vertices),
-            layout: [
-                { name: 'a_position', type: DataType.Float2 },
-                { name: 'a_texCoord', type: DataType.Float2 },
-            ],
-            indices: new Uint16Array(indices),
-        });
-    },
-    /**
-     * Creates a polygon geometry from vertices.
-     * @param points Array of {x, y} points
-     * @returns Geometry handle
-     */
-    createPolygon(points) {
-        if (points.length < 3) {
-            throw new Error('Polygon must have at least 3 points');
-        }
-        let minX = Infinity, minY = Infinity;
-        let maxX = -Infinity, maxY = -Infinity;
-        for (const p of points) {
-            minX = Math.min(minX, p.x);
-            minY = Math.min(minY, p.y);
-            maxX = Math.max(maxX, p.x);
-            maxY = Math.max(maxY, p.y);
-        }
-        const vertices = [];
-        for (const p of points) {
-            const u = (p.x - minX) / (maxX - minX);
-            const v = (p.y - minY) / (maxY - minY);
-            vertices.push(p.x, p.y, u, v);
-        }
-        const indices = [];
-        for (let i = 1; i < points.length - 1; i++) {
-            indices.push(0, i, i + 1);
-        }
-        return Geometry.create({
-            vertices: new Float32Array(vertices),
-            layout: [
-                { name: 'a_position', type: DataType.Float2 },
-                { name: 'a_texCoord', type: DataType.Float2 },
-            ],
-            indices: new Uint16Array(indices),
-        });
-    },
-};
-
-/**
- * @file    postprocess.ts
- * @brief   Post-processing effects API
- * @details Provides full-screen post-processing effects like blur, vignette, etc.
- */
-// =============================================================================
-// Internal State
-// =============================================================================
-let module$2 = null;
-// =============================================================================
-// Initialization
-// =============================================================================
-function initPostProcessAPI(wasmModule) {
-    module$2 = wasmModule;
-}
-function shutdownPostProcessAPI() {
-    if (module$2 && PostProcess.isInitialized()) {
-        PostProcess.shutdown();
-    }
-    module$2 = null;
-}
-// =============================================================================
-// PostProcess API
-// =============================================================================
-function getModule() {
-    if (!module$2) {
-        throw new Error('PostProcess API not initialized. Call initPostProcessAPI() first.');
-    }
-    return module$2;
-}
-const PostProcess = {
-    /**
-     * Initializes the post-processing pipeline.
-     * @param width Framebuffer width
-     * @param height Framebuffer height
-     * @returns True on success
-     */
-    init(width, height) {
-        return getModule().postprocess_init(width, height);
-    },
-    /**
-     * Shuts down the post-processing pipeline.
-     */
-    shutdown() {
-        getModule().postprocess_shutdown();
-    },
-    /**
-     * Resizes the framebuffers.
-     * @param width New width
-     * @param height New height
-     */
-    resize(width, height) {
-        getModule().postprocess_resize(width, height);
-    },
-    /**
-     * Adds a post-processing pass.
-     * @param name Unique name for the pass
-     * @param shader Shader handle
-     * @returns Pass index
-     */
-    addPass(name, shader) {
-        return getModule().postprocess_addPass(name, shader);
-    },
-    /**
-     * Removes a pass by name.
-     * @param name Pass name
-     */
-    removePass(name) {
-        getModule().postprocess_removePass(name);
-    },
-    /**
-     * Enables or disables a pass.
-     * @param name Pass name
-     * @param enabled Whether to enable the pass
-     */
-    setEnabled(name, enabled) {
-        getModule().postprocess_setPassEnabled(name, enabled);
-    },
-    /**
-     * Checks if a pass is enabled.
-     * @param name Pass name
-     * @returns True if enabled
-     */
-    isEnabled(name) {
-        return getModule().postprocess_isPassEnabled(name);
-    },
-    /**
-     * Sets a float uniform on a pass.
-     * @param passName Pass name
-     * @param uniform Uniform name
-     * @param value Float value
-     */
-    setUniform(passName, uniform, value) {
-        getModule().postprocess_setUniformFloat(passName, uniform, value);
-    },
-    /**
-     * Sets a vec4 uniform on a pass.
-     * @param passName Pass name
-     * @param uniform Uniform name
-     * @param value Vec4 value
-     */
-    setUniformVec4(passName, uniform, value) {
-        getModule().postprocess_setUniformVec4(passName, uniform, value.x, value.y, value.z, value.w);
-    },
-    /**
-     * Begins rendering to the post-process pipeline.
-     * Call this before rendering your scene.
-     */
-    begin() {
-        getModule().postprocess_begin();
-    },
-    /**
-     * Ends and processes all passes.
-     * Call this after rendering your scene.
-     */
-    end() {
-        getModule().postprocess_end();
-    },
-    /**
-     * Gets the number of passes.
-     */
-    getPassCount() {
-        return getModule().postprocess_getPassCount();
-    },
-    /**
-     * Checks if the pipeline is initialized.
-     */
-    isInitialized() {
-        if (!module$2)
-            return false;
-        return module$2.postprocess_isInitialized();
-    },
-    /**
-     * Sets bypass mode to skip FBO rendering entirely.
-     * When bypassed, begin()/end() become no-ops and scene renders directly to screen.
-     * Use this when no post-processing passes are needed for maximum performance.
-     * @param bypass Whether to bypass the pipeline
-     */
-    setBypass(bypass) {
-        getModule().postprocess_setBypass(bypass);
-    },
-    /**
-     * Checks if bypass mode is enabled.
-     * @returns True if bypassed
-     */
-    isBypassed() {
-        if (!module$2)
-            return true;
-        return module$2.postprocess_isBypassed();
-    },
-    // =========================================================================
-    // Built-in Effects
-    // =========================================================================
-    /**
-     * Creates a blur effect shader.
-     * @returns Shader handle
-     */
-    createBlur() {
-        const fragmentSrc = `#version 300 es
-precision highp float;
-
-in vec2 v_texCoord;
-uniform sampler2D u_texture;
-uniform vec2 u_resolution;
-uniform float u_intensity;
-out vec4 fragColor;
-
-void main() {
-    vec2 texelSize = 1.0 / u_resolution;
-    float offset = u_intensity;
-
-    vec4 color = vec4(0.0);
-    color += texture(u_texture, v_texCoord + vec2(-offset, -offset) * texelSize) * 0.0625;
-    color += texture(u_texture, v_texCoord + vec2( 0.0,   -offset) * texelSize) * 0.125;
-    color += texture(u_texture, v_texCoord + vec2( offset, -offset) * texelSize) * 0.0625;
-    color += texture(u_texture, v_texCoord + vec2(-offset,  0.0)   * texelSize) * 0.125;
-    color += texture(u_texture, v_texCoord)                                     * 0.25;
-    color += texture(u_texture, v_texCoord + vec2( offset,  0.0)   * texelSize) * 0.125;
-    color += texture(u_texture, v_texCoord + vec2(-offset,  offset) * texelSize) * 0.0625;
-    color += texture(u_texture, v_texCoord + vec2( 0.0,    offset) * texelSize) * 0.125;
-    color += texture(u_texture, v_texCoord + vec2( offset,  offset) * texelSize) * 0.0625;
-
-    fragColor = color;
-}
-`;
-        return Material.createShader(POSTPROCESS_VERTEX, fragmentSrc);
-    },
-    /**
-     * Creates a vignette effect shader.
-     * @returns Shader handle
-     */
-    createVignette() {
-        const fragmentSrc = `#version 300 es
-precision highp float;
-
-in vec2 v_texCoord;
-uniform sampler2D u_texture;
-uniform float u_intensity;
-uniform float u_softness;
-out vec4 fragColor;
-
-void main() {
-    vec4 color = texture(u_texture, v_texCoord);
-    vec2 uv = v_texCoord * 2.0 - 1.0;
-    float dist = length(uv);
-    float vignette = smoothstep(u_intensity, u_intensity - u_softness, dist);
-    fragColor = vec4(color.rgb * vignette, color.a);
-}
-`;
-        return Material.createShader(POSTPROCESS_VERTEX, fragmentSrc);
-    },
-    /**
-     * Creates a grayscale effect shader.
-     * @returns Shader handle
-     */
-    createGrayscale() {
-        const fragmentSrc = `#version 300 es
-precision highp float;
-
-in vec2 v_texCoord;
-uniform sampler2D u_texture;
-uniform float u_intensity;
-out vec4 fragColor;
-
-void main() {
-    vec4 color = texture(u_texture, v_texCoord);
-    float gray = dot(color.rgb, vec3(0.299, 0.587, 0.114));
-    fragColor = vec4(mix(color.rgb, vec3(gray), u_intensity), color.a);
-}
-`;
-        return Material.createShader(POSTPROCESS_VERTEX, fragmentSrc);
-    },
-    /**
-     * Creates a chromatic aberration effect shader.
-     * @returns Shader handle
-     */
-    createChromaticAberration() {
-        const fragmentSrc = `#version 300 es
-precision highp float;
-
-in vec2 v_texCoord;
-uniform sampler2D u_texture;
-uniform vec2 u_resolution;
-uniform float u_intensity;
-out vec4 fragColor;
-
-void main() {
-    vec2 offset = u_intensity / u_resolution;
-    float r = texture(u_texture, v_texCoord + offset).r;
-    float g = texture(u_texture, v_texCoord).g;
-    float b = texture(u_texture, v_texCoord - offset).b;
-    float a = texture(u_texture, v_texCoord).a;
-    fragColor = vec4(r, g, b, a);
-}
-`;
-        return Material.createShader(POSTPROCESS_VERTEX, fragmentSrc);
-    },
-};
-// =============================================================================
-// Shared Vertex Shader
-// =============================================================================
-const POSTPROCESS_VERTEX = `#version 300 es
-precision highp float;
-
-layout(location = 0) in vec2 a_position;
-layout(location = 1) in vec2 a_texCoord;
-
-out vec2 v_texCoord;
-
-void main() {
-    v_texCoord = a_texCoord;
-    gl_Position = vec4(a_position, 0.0, 1.0);
-}
-`;
-
-var RenderStage;
-(function (RenderStage) {
-    RenderStage[RenderStage["Background"] = 0] = "Background";
-    RenderStage[RenderStage["Opaque"] = 1] = "Opaque";
-    RenderStage[RenderStage["Transparent"] = 2] = "Transparent";
-    RenderStage[RenderStage["Overlay"] = 3] = "Overlay";
-})(RenderStage || (RenderStage = {}));
-let module$1 = null;
-let viewProjectionPtr = 0;
-function initRendererAPI(wasmModule) {
-    module$1 = wasmModule;
-    viewProjectionPtr = module$1._malloc(16 * 4);
-}
-function shutdownRendererAPI() {
-    if (module$1 && viewProjectionPtr) {
-        module$1._free(viewProjectionPtr);
-        viewProjectionPtr = 0;
-    }
-    module$1 = null;
-}
-const Renderer = {
-    init(width, height) {
-        module$1?.renderer_init(width, height);
-    },
-    resize(width, height) {
-        module$1?.renderer_resize(width, height);
-    },
-    begin(viewProjection, target) {
-        if (!module$1 || !viewProjectionPtr)
-            return;
-        module$1.HEAPF32.set(viewProjection, viewProjectionPtr / 4);
-        module$1.renderer_begin(viewProjectionPtr, target ?? 0);
-    },
-    end() {
-        module$1?.renderer_end();
-    },
-    submitSprites(registry) {
-        if (!module$1)
-            return;
-        module$1.renderer_submitSprites(registry._cpp);
-    },
-    submitSpine(registry) {
-        if (!module$1)
-            return;
-        module$1.renderer_submitSpine(registry._cpp);
-    },
-    setStage(stage) {
-        module$1?.renderer_setStage(stage);
-    },
-    createRenderTarget(width, height) {
-        return module$1?.renderer_createTarget(width, height) ?? 0;
-    },
-    releaseRenderTarget(handle) {
-        module$1?.renderer_releaseTarget(handle);
-    },
-    getTargetTexture(handle) {
-        return module$1?.renderer_getTargetTexture(handle) ?? 0;
-    },
-    getStats() {
-        if (!module$1) {
-            return { drawCalls: 0, triangles: 0, sprites: 0, spine: 0, meshes: 0, culled: 0 };
-        }
-        return {
-            drawCalls: module$1.renderer_getDrawCalls(),
-            triangles: module$1.renderer_getTriangles(),
-            sprites: module$1.renderer_getSprites(),
-            spine: module$1.renderer_getSpine(),
-            meshes: module$1.renderer_getMeshes(),
-            culled: module$1.renderer_getCulled(),
-        };
-    },
-};
-
-/**
  * @file    app.ts
  * @brief   Application builder and web platform integration
  */
@@ -2318,11 +1292,6 @@ class App {
     }
     quit() {
         this.running_ = false;
-        shutdownRendererAPI();
-        shutdownPostProcessAPI();
-        shutdownGeometryAPI();
-        shutdownMaterialAPI();
-        shutdownDrawAPI();
     }
     // =========================================================================
     // Internal
@@ -2356,11 +1325,6 @@ function createWebApp(module, options) {
     else {
         module.initRenderer();
     }
-    initDrawAPI(module);
-    initMaterialAPI(module);
-    initGeometryAPI(module);
-    initPostProcessAPI(module);
-    initRendererAPI(module);
     const getViewportSize = options?.getViewportSize ?? (() => ({
         width: window.innerWidth * (window.devicePixelRatio || 1),
         height: window.innerHeight * (window.devicePixelRatio || 1)
@@ -2390,8 +1354,6 @@ class AssetServer {
     constructor(module) {
         this.cache_ = new Map();
         this.pending_ = new Map();
-        this.loadedSpines_ = new Map();
-        this.virtualFSPaths_ = new Set();
         this.module_ = module;
         if (typeof OffscreenCanvas !== 'undefined') {
             this.canvas_ = new OffscreenCanvas(512, 512);
@@ -2407,35 +1369,38 @@ class AssetServer {
     // =========================================================================
     // Public API
     // =========================================================================
-    /**
-     * Load texture with vertical flip (for Sprite/UI).
-     * OpenGL UV origin is bottom-left, so standard images need flipping.
-     */
     async loadTexture(source) {
-        return this.loadTextureWithFlip(source, true);
-    }
-    /**
-     * Load texture without flip (for Spine).
-     * Spine runtime handles UV coordinates internally.
-     */
-    async loadTextureRaw(source) {
-        return this.loadTextureWithFlip(source, false);
+        const cached = this.cache_.get(source);
+        if (cached) {
+            return cached;
+        }
+        const pending = this.pending_.get(source);
+        if (pending) {
+            return pending;
+        }
+        const promise = this.loadTextureInternal(source);
+        this.pending_.set(source, promise);
+        try {
+            const result = await promise;
+            this.cache_.set(source, result);
+            return result;
+        }
+        finally {
+            this.pending_.delete(source);
+        }
     }
     getTexture(source) {
-        return this.cache_.get(this.getCacheKey(source, true));
+        return this.cache_.get(source);
     }
     hasTexture(source) {
-        return this.cache_.has(this.getCacheKey(source, true));
+        return this.cache_.has(source);
     }
     releaseTexture(source) {
-        const rm = this.module_.getResourceManager();
-        for (const flip of [true, false]) {
-            const key = this.getCacheKey(source, flip);
-            const info = this.cache_.get(key);
-            if (info) {
-                rm.releaseTexture(info.handle);
-                this.cache_.delete(key);
-            }
+        const info = this.cache_.get(source);
+        if (info) {
+            const rm = this.module_.getResourceManager();
+            rm.releaseTexture(info.handle);
+            this.cache_.delete(source);
         }
     }
     releaseAll() {
@@ -2450,100 +1415,19 @@ class AssetServer {
         rm.setTextureMetadata(handle, border.left, border.right, border.top, border.bottom);
     }
     setTextureMetadataByPath(source, border) {
-        const info = this.cache_.get(this.getCacheKey(source, true));
+        const info = this.cache_.get(source);
         if (info) {
             this.setTextureMetadata(info.handle, border);
             return true;
         }
         return false;
     }
-    async loadSpine(skeletonPath, atlasPath, baseUrl) {
-        const cacheKey = `${skeletonPath}:${atlasPath}`;
-        if (this.loadedSpines_.get(cacheKey)) {
-            return { success: true };
-        }
-        const resolveUrl = (path) => {
-            if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('/')) {
-                return path;
-            }
-            return baseUrl ? `${baseUrl}/${path}` : `/${path}`;
-        };
-        try {
-            const atlasUrl = resolveUrl(atlasPath);
-            const atlasResponse = await fetch(atlasUrl);
-            if (!atlasResponse.ok) {
-                return { success: false, error: `Failed to fetch atlas: ${atlasUrl}` };
-            }
-            const atlasContent = await atlasResponse.text();
-            if (!this.writeToVirtualFS(atlasPath, atlasContent)) {
-                return { success: false, error: `Failed to write atlas to virtual FS: ${atlasPath}` };
-            }
-            const atlasDir = atlasPath.substring(0, atlasPath.lastIndexOf('/'));
-            const textureNames = this.parseAtlasTextures(atlasContent);
-            for (const texName of textureNames) {
-                const texPath = atlasDir ? `${atlasDir}/${texName}` : texName;
-                const texUrl = resolveUrl(texPath);
-                try {
-                    const info = await this.loadTextureRaw(texUrl);
-                    const rm = this.module_.getResourceManager();
-                    rm.registerTextureWithPath(info.handle, texPath);
-                }
-                catch (err) {
-                    console.warn(`[AssetServer] Failed to load Spine texture: ${texPath}`, err);
-                }
-            }
-            const skelUrl = resolveUrl(skeletonPath);
-            const skelResponse = await fetch(skelUrl);
-            if (!skelResponse.ok) {
-                return { success: false, error: `Failed to fetch skeleton: ${skelUrl}` };
-            }
-            const isBinary = skeletonPath.endsWith('.skel');
-            const skelData = isBinary
-                ? new Uint8Array(await skelResponse.arrayBuffer())
-                : await skelResponse.text();
-            if (!this.writeToVirtualFS(skeletonPath, skelData)) {
-                return { success: false, error: `Failed to write skeleton to virtual FS: ${skeletonPath}` };
-            }
-            this.loadedSpines_.set(cacheKey, true);
-            return { success: true };
-        }
-        catch (err) {
-            return { success: false, error: String(err) };
-        }
-    }
-    isSpineLoaded(skeletonPath, atlasPath) {
-        return this.loadedSpines_.get(`${skeletonPath}:${atlasPath}`) ?? false;
-    }
     // =========================================================================
     // Private Methods
     // =========================================================================
-    getCacheKey(source, flip) {
-        return `${source}:${flip ? 'f' : 'n'}`;
-    }
-    async loadTextureWithFlip(source, flip) {
-        const cacheKey = this.getCacheKey(source, flip);
-        const cached = this.cache_.get(cacheKey);
-        if (cached) {
-            return cached;
-        }
-        const pending = this.pending_.get(cacheKey);
-        if (pending) {
-            return pending;
-        }
-        const promise = this.loadTextureInternal(source, flip);
-        this.pending_.set(cacheKey, promise);
-        try {
-            const result = await promise;
-            this.cache_.set(cacheKey, result);
-            return result;
-        }
-        finally {
-            this.pending_.delete(cacheKey);
-        }
-    }
-    async loadTextureInternal(source, flip) {
+    async loadTextureInternal(source) {
         const img = await this.loadImage(source);
-        return this.createTextureFromImage(img, flip);
+        return this.createTextureFromImage(img);
     }
     async loadImage(source) {
         return new Promise((resolve, reject) => {
@@ -2569,27 +1453,24 @@ class AssetServer {
             img.src = source;
         });
     }
-    createTextureFromImage(img, flip) {
+    createTextureFromImage(img) {
         const { width, height } = img;
         if (this.canvas_.width < width || this.canvas_.height < height) {
             this.canvas_.width = Math.max(this.canvas_.width, this.nextPowerOf2(width));
             this.canvas_.height = Math.max(this.canvas_.height, this.nextPowerOf2(height));
         }
         this.ctx_.clearRect(0, 0, this.canvas_.width, this.canvas_.height);
-        this.ctx_.save();
-        if (flip) {
-            this.ctx_.translate(0, height);
-            this.ctx_.scale(1, -1);
-        }
+        this.ctx_.globalCompositeOperation = 'copy';
         this.ctx_.drawImage(img, 0, 0);
-        this.ctx_.restore();
+        this.ctx_.globalCompositeOperation = 'source-over';
         const imageData = this.ctx_.getImageData(0, 0, width, height);
         const pixels = new Uint8Array(imageData.data.buffer);
         this.unpremultiplyAlpha(pixels);
+        const flipped = this.flipVertically(pixels, width, height);
         const rm = this.module_.getResourceManager();
-        const ptr = this.module_._malloc(pixels.length);
-        this.module_.HEAPU8.set(pixels, ptr);
-        const handle = rm.createTexture(width, height, ptr, pixels.length, 1);
+        const ptr = this.module_._malloc(flipped.length);
+        this.module_.HEAPU8.set(flipped, ptr);
+        const handle = rm.createTexture(width, height, ptr, flipped.length, 1);
         this.module_._free(ptr);
         return { handle, width, height };
     }
@@ -2604,69 +1485,21 @@ class AssetServer {
             }
         }
     }
+    flipVertically(pixels, width, height) {
+        const rowSize = width * 4;
+        const flipped = new Uint8Array(pixels.length);
+        for (let y = 0; y < height; y++) {
+            const srcOffset = y * rowSize;
+            const dstOffset = (height - 1 - y) * rowSize;
+            flipped.set(pixels.subarray(srcOffset, srcOffset + rowSize), dstOffset);
+        }
+        return flipped;
+    }
     nextPowerOf2(n) {
         let p = 1;
         while (p < n)
             p *= 2;
         return p;
-    }
-    writeToVirtualFS(virtualPath, data) {
-        if (this.virtualFSPaths_.has(virtualPath)) {
-            return true;
-        }
-        const fs = this.module_.FS;
-        if (!fs) {
-            return false;
-        }
-        try {
-            this.ensureVirtualDir(virtualPath);
-            fs.writeFile(virtualPath, data);
-            this.virtualFSPaths_.add(virtualPath);
-            return true;
-        }
-        catch (e) {
-            console.error(`[AssetServer] Failed to write to virtual FS: ${virtualPath}`, e);
-            return false;
-        }
-    }
-    ensureVirtualDir(virtualPath) {
-        const fs = this.module_.FS;
-        if (!fs)
-            return;
-        const dir = virtualPath.substring(0, virtualPath.lastIndexOf('/'));
-        if (!dir)
-            return;
-        const parts = dir.split('/').filter(p => p);
-        let currentPath = '';
-        for (const part of parts) {
-            currentPath = currentPath ? `${currentPath}/${part}` : part;
-            try {
-                const analysis = fs.analyzePath(currentPath);
-                if (!analysis.exists) {
-                    fs.mkdir(currentPath);
-                }
-            }
-            catch {
-                try {
-                    fs.mkdir(currentPath);
-                }
-                catch {
-                    // Directory might already exist
-                }
-            }
-        }
-    }
-    parseAtlasTextures(atlasContent) {
-        const textures = [];
-        const lines = atlasContent.split('\n');
-        for (const line of lines) {
-            const trimmed = line.trim();
-            if (trimmed && !trimmed.includes(':') &&
-                (trimmed.endsWith('.png') || trimmed.endsWith('.jpg'))) {
-                textures.push(trimmed);
-            }
-        }
-        return textures;
     }
 }
 
@@ -2748,17 +1581,6 @@ async function loadSceneWithAssets(world, sceneData, options) {
                     }
                 }
             }
-            if (compData.type === 'SpineAnimation' && assetServer) {
-                const data = compData.data;
-                const skeletonPath = data.skeletonPath;
-                const atlasPath = data.atlasPath;
-                if (skeletonPath && atlasPath) {
-                    const result = await assetServer.loadSpine(skeletonPath, atlasPath, options?.assetBaseUrl);
-                    if (!result.success) {
-                        console.warn(`Failed to load Spine: ${result.error}`);
-                    }
-                }
-            }
             loadComponent(world, entity, compData);
         }
     }
@@ -2798,9 +1620,6 @@ function loadComponent(world, entity, compData) {
             break;
         case 'Text':
             world.insert(entity, Text, data);
-            break;
-        case 'SpineAnimation':
-            world.insert(entity, SpineAnimation, data);
             break;
         default:
             console.warn(`Unknown component type: ${compData.type}`);
@@ -3210,5 +2029,5 @@ function createSpineController(wasmModule) {
 // Initialize Web platform
 setPlatform(webAdapter);
 
-export { App, AssetPlugin, AssetServer, Assets, BlendMode, Camera, Canvas, Children, Commands, CommandsInstance, DataType, Draw, EntityCommands, Geometry, INVALID_ENTITY, INVALID_TEXTURE, Input, LocalTransform, Material, Mut, Parent, PostProcess, PreviewPlugin, Query, QueryInstance, RenderStage, Renderer, Res, ResMut, Schedule, ShaderSources, SpineAnimation, SpineController, Sprite, SystemRunner, Text, TextAlign, TextOverflow, TextPlugin, TextRenderer, TextVerticalAlign, Time, UIRect, Velocity, World, WorldTransform, assetPlugin, color, createSpineController, createWebApp, defineComponent, defineResource, defineSystem, defineTag, getComponentDefaults, getPlatform, getPlatformType, initDrawAPI, initGeometryAPI, initMaterialAPI, initPostProcessAPI, initRendererAPI, isBuiltinComponent, isPlatformInitialized, isWeChat, isWeb, loadComponent, loadSceneData, loadSceneWithAssets, platformFetch, platformFileExists, platformInstantiateWasm, platformReadFile, platformReadTextFile, quat, shutdownDrawAPI, shutdownGeometryAPI, shutdownMaterialAPI, shutdownPostProcessAPI, shutdownRendererAPI, textPlugin, updateCameraAspectRatio, vec2, vec3, vec4 };
+export { App, AssetPlugin, AssetServer, Assets, Camera, Canvas, Children, Commands, CommandsInstance, EntityCommands, INVALID_ENTITY, INVALID_TEXTURE, Input, LocalTransform, Mut, Parent, PreviewPlugin, Query, QueryInstance, Res, ResMut, Schedule, SpineAnimation, SpineController, Sprite, SystemRunner, Text, TextAlign, TextOverflow, TextPlugin, TextRenderer, TextVerticalAlign, Time, UIRect, Velocity, World, WorldTransform, assetPlugin, color, createSpineController, createWebApp, defineComponent, defineResource, defineSystem, defineTag, getPlatform, getPlatformType, isBuiltinComponent, isPlatformInitialized, isWeChat, isWeb, loadSceneData, loadSceneWithAssets, platformFetch, platformFileExists, platformInstantiateWasm, platformReadFile, platformReadTextFile, quat, textPlugin, updateCameraAspectRatio, vec2, vec3, vec4 };
 //# sourceMappingURL=index.js.map
