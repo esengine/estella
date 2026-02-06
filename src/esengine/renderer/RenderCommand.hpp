@@ -19,6 +19,7 @@
 // Project includes
 #include "../core/Types.hpp"
 #include "../math/Math.hpp"
+#include "BlendMode.hpp"
 
 namespace esengine {
 
@@ -148,6 +149,12 @@ public:
      * @details Uses SrcAlpha and OneMinusSrcAlpha factors.
      */
     static void setBlendFunc();
+
+    /**
+     * @brief Sets the blend mode to a predefined mode
+     * @param mode The blend mode to use
+     */
+    static void setBlendMode(BlendMode mode);
 
     // =========================================================================
     // Face Culling

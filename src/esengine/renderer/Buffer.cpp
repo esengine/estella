@@ -125,6 +125,17 @@ void VertexBuffer::setDataRaw(const void* data, u32 sizeBytes) {
 #endif
 }
 
+void VertexBuffer::setSubDataRaw(const void* data, u32 sizeBytes, u32 offsetBytes) {
+#if defined(ES_PLATFORM_WEB) || defined(ES_PLATFORM_NATIVE)
+    glBindBuffer(GL_ARRAY_BUFFER, bufferId_);
+    glBufferSubData(GL_ARRAY_BUFFER, offsetBytes, sizeBytes, data);
+#else
+    (void)data;
+    (void)sizeBytes;
+    (void)offsetBytes;
+#endif
+}
+
 // ========================================
 // IndexBuffer
 // ========================================

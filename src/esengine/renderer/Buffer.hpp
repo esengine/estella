@@ -326,6 +326,14 @@ public:
      */
     void setDataRaw(const void* data, u32 sizeBytes);
 
+    /**
+     * @brief Updates a portion of buffer data with offset (internal use)
+     * @param data Pointer to new data
+     * @param sizeBytes Size of data in bytes
+     * @param offsetBytes Offset in bytes from buffer start
+     */
+    void setSubDataRaw(const void* data, u32 sizeBytes, u32 offsetBytes);
+
 private:
     u32 bufferId_ = 0;
     VertexLayout layout_;

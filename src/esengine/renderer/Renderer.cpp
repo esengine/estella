@@ -99,6 +99,26 @@ void RenderCommand::setBlendFunc() {
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 }
 
+void RenderCommand::setBlendMode(BlendMode mode) {
+    switch (mode) {
+        case BlendMode::Normal:
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+            break;
+        case BlendMode::Additive:
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+            break;
+        case BlendMode::Multiply:
+            glBlendFunc(GL_DST_COLOR, GL_ONE_MINUS_SRC_ALPHA);
+            break;
+        case BlendMode::Screen:
+            glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_COLOR);
+            break;
+        case BlendMode::PremultipliedAlpha:
+            glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+            break;
+    }
+}
+
 void RenderCommand::setCulling(bool enabled) {
     if (enabled) {
         glEnable(GL_CULL_FACE);

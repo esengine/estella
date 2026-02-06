@@ -91,6 +91,10 @@ namespace esengine {
     class IndexBuffer;
 }
 
+namespace esengine::spine {
+    struct SpineSkeletonData;
+}
+
 // =============================================================================
 // Handle Type Aliases
 // =============================================================================
@@ -108,6 +112,9 @@ using VertexBufferHandle = Handle<esengine::VertexBuffer>;
 
 /** @brief Handle to an index buffer resource */
 using IndexBufferHandle = Handle<esengine::IndexBuffer>;
+
+/** @brief Handle to a Spine skeleton data resource */
+using SpineDataHandle = Handle<esengine::spine::SpineSkeletonData>;
 
 }  // namespace esengine::resource
 
