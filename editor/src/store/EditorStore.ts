@@ -50,6 +50,7 @@ export class EditorStore {
     private listeners_: Set<EditorListener> = new Set();
     private nextEntityId_ = 1;
     private worldTransforms_ = new WorldTransformCache();
+    private entityMap_ = new Map<number, EntityData>();
 
     constructor() {
         this.state_ = {
@@ -110,6 +111,7 @@ export class EditorStore {
         this.state_.filePath = null;
         this.history_.clear();
         this.nextEntityId_ = 1;
+        this.rebuildEntityMap();
         this.worldTransforms_.setScene(this.state_.scene);
         this.notify();
     }
@@ -125,6 +127,7 @@ export class EditorStore {
         const maxId = scene.entities.reduce((max, e) => Math.max(max, e.id), 0);
         this.nextEntityId_ = maxId + 1;
 
+        this.rebuildEntityMap();
         this.worldTransforms_.setScene(scene);
         this.notify();
     }
@@ -157,9 +160,11 @@ export class EditorStore {
 
     getSelectedEntityData(): EntityData | null {
         if (this.state_.selectedEntity === null) return null;
-        return this.state_.scene.entities.find(
-            e => e.id === this.state_.selectedEntity
-        ) ?? null;
+        return this.entityMap_.get(this.state_.selectedEntity as number) ?? null;
+    }
+
+    getEntityData(entityId: number): EntityData | null {
+        return this.entityMap_.get(entityId) ?? null;
     }
 
     // =========================================================================
@@ -196,7 +201,7 @@ export class EditorStore {
     }
 
     renameEntity(entity: Entity, name: string): void {
-        const entityData = this.state_.scene.entities.find(e => e.id === entity);
+        const entityData = this.entityMap_.get(entity as number);
         if (entityData) {
             entityData.name = name;
             this.state_.isDirty = true;
@@ -237,7 +242,7 @@ export class EditorStore {
     }
 
     getComponent(entity: Entity, type: string): ComponentData | null {
-        const entityData = this.state_.scene.entities.find(e => e.id === entity);
+        const entityData = this.entityMap_.get(entity as number);
         if (!entityData) return null;
         return entityData.components.find(c => c.type === type) ?? null;
     }
@@ -248,7 +253,7 @@ export class EditorStore {
         propertyName: string,
         newValue: unknown
     ): void {
-        const entityData = this.state_.scene.entities.find(e => e.id === entity);
+        const entityData = this.entityMap_.get(entity as number);
         if (!entityData) return;
 
         const component = entityData.components.find(c => c.type === componentType);
@@ -290,6 +295,7 @@ export class EditorStore {
     undo(): void {
         if (this.history_.undo()) {
             this.state_.isDirty = true;
+            this.rebuildEntityMap();
             this.worldTransforms_.invalidateAll();
             this.notify();
         }
@@ -298,6 +304,7 @@ export class EditorStore {
     redo(): void {
         if (this.history_.redo()) {
             this.state_.isDirty = true;
+            this.rebuildEntityMap();
             this.worldTransforms_.invalidateAll();
             this.notify();
         }
@@ -319,6 +326,7 @@ export class EditorStore {
     private executeCommand(cmd: import('../commands').Command): void {
         this.history_.execute(cmd);
         this.state_.isDirty = true;
+        this.rebuildEntityMap();
         this.worldTransforms_.invalidateAll();
         this.notify();
     }
@@ -326,6 +334,13 @@ export class EditorStore {
     private notify(): void {
         for (const listener of this.listeners_) {
             listener(this.state_);
+        }
+    }
+
+    private rebuildEntityMap(): void {
+        this.entityMap_.clear();
+        for (const entity of this.state_.scene.entities) {
+            this.entityMap_.set(entity.id, entity);
         }
     }
 }
