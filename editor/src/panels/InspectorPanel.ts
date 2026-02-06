@@ -10,7 +10,7 @@ import {
     createPropertyEditor,
     type PropertyEditorInstance,
 } from '../property/PropertyEditor';
-import { getComponentSchema } from '../schemas/ComponentSchemas';
+import { getComponentSchema, getDefaultComponentData } from '../schemas/ComponentSchemas';
 import { icons } from '../utils/icons';
 import { showAddComponentPopup } from './AddComponentPopup';
 import { getPlatformAdapter } from '../platform/PlatformAdapter';
@@ -427,6 +427,8 @@ export class InspectorPanel {
                             newValue
                         );
                     },
+                    componentData: component.data,
+                    getComponentValue: (name: string) => component.data[name],
                 });
 
                 if (editor) {
@@ -483,39 +485,7 @@ export class InspectorPanel {
     }
 
     private createDefaultComponentData(type: string): Record<string, unknown> {
-        const schema = getComponentSchema(type);
-        if (!schema) return {};
-
-        const data: Record<string, unknown> = {};
-        for (const prop of schema.properties) {
-            switch (prop.type) {
-                case 'number':
-                    data[prop.name] = 0;
-                    break;
-                case 'string':
-                    data[prop.name] = '';
-                    break;
-                case 'boolean':
-                    data[prop.name] = false;
-                    break;
-                case 'vec2':
-                    data[prop.name] = { x: 0, y: 0 };
-                    break;
-                case 'vec3':
-                    data[prop.name] = { x: 0, y: 0, z: 0 };
-                    break;
-                case 'vec4':
-                    data[prop.name] = { x: 0, y: 0, z: 0, w: 1 };
-                    break;
-                case 'color':
-                    data[prop.name] = { x: 1, y: 1, z: 1, w: 1 };
-                    break;
-                case 'enum':
-                    data[prop.name] = prop.options?.[0]?.value ?? 0;
-                    break;
-            }
-        }
-        return data;
+        return getDefaultComponentData(type);
     }
 
     private updateEditors(): void {

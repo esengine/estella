@@ -52,7 +52,7 @@ export class EditorBridge {
     updateEntityInRuntime(entity: Entity): void {
         if (!this.registry_) return;
 
-        const entityData = this.store_.scene.entities.find(e => e.id === entity);
+        const entityData = this.store_.getEntityData(entity as number);
         if (!entityData) return;
 
         for (const comp of entityData.components) {
@@ -139,6 +139,23 @@ export class EditorBridge {
                     farPlane: comp.data.farPlane ?? 1000,
                 });
                 break;
+
+            case 'SpineAnimation':
+                this.registry_.addSpineAnimation(entity, {
+                    skeletonPath: comp.data.skeletonPath ?? '',
+                    atlasPath: comp.data.atlasPath ?? '',
+                    skin: comp.data.skin ?? 'default',
+                    animation: comp.data.animation ?? '',
+                    timeScale: comp.data.timeScale ?? 1,
+                    loop: comp.data.loop ?? true,
+                    playing: comp.data.playing ?? true,
+                    flipX: comp.data.flipX ?? false,
+                    flipY: comp.data.flipY ?? false,
+                    color: comp.data.color ?? { x: 1, y: 1, z: 1, w: 1 },
+                    layer: comp.data.layer ?? 0,
+                    skeletonScale: comp.data.skeletonScale ?? 1,
+                });
+                break;
         }
     }
 
@@ -163,6 +180,13 @@ export class EditorBridge {
             case 'Camera':
                 if (this.registry_.hasCamera(entity)) {
                     this.registry_.removeCamera(entity);
+                }
+                this.addComponentToRuntime(entity, comp);
+                break;
+
+            case 'SpineAnimation':
+                if (this.registry_.hasSpineAnimation(entity)) {
+                    this.registry_.removeSpineAnimation(entity);
                 }
                 this.addComponentToRuntime(entity, comp);
                 break;

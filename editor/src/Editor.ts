@@ -18,6 +18,7 @@ import { icons } from './utils/icons';
 import { ScriptLoader } from './scripting';
 import { PreviewService } from './preview';
 import { showBuildSettingsDialog, BuildService } from './builder';
+import { getGlobalPathResolver } from './asset';
 
 // =============================================================================
 // Types
@@ -377,6 +378,12 @@ export class Editor {
         });
 
         (window as any).__esengine_editor = this;
+        (window as any).__esengine_projectPath = this.projectPath_;
+
+        if (this.projectPath_) {
+            const projectDir = this.projectPath_.replace(/[/\\][^/\\]+$/, '');
+            getGlobalPathResolver().setProjectDir(projectDir);
+        }
 
         this.setupToolbarEvents();
         this.setupStatusbarEvents();
@@ -515,7 +522,7 @@ export class Editor {
         const entity = this.store_.selectedEntity;
         if (entity === null) return;
 
-        const entityData = this.store_.scene.entities.find(e => e.id === entity);
+        const entityData = this.store_.getEntityData(entity as number);
         if (!entityData) return;
 
         const newEntity = this.store_.createEntity(

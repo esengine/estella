@@ -8,6 +8,7 @@ import type { EntityData, SceneData } from '../types/SceneTypes';
 import type { EditorStore } from '../store/EditorStore';
 import { icons } from '../utils/icons';
 import { getGlobalPathResolver } from '../asset';
+import { getDefaultComponentData } from '../schemas/ComponentSchemas';
 
 // =============================================================================
 // HierarchyPanel
@@ -210,50 +211,21 @@ export class HierarchyPanel {
 
             const newEntity = this.store_.createEntity(baseName, parent);
 
-            this.store_.addComponent(newEntity, 'LocalTransform', {
-                position: { x: 0, y: 0, z: 0 },
-                rotation: { x: 0, y: 0, z: 0, w: 1 },
-                scale: { x: 1, y: 1, z: 1 },
-            });
+            this.store_.addComponent(newEntity, 'LocalTransform', getDefaultComponentData('LocalTransform'));
 
             this.store_.addComponent(newEntity, 'SpineAnimation', {
+                ...getDefaultComponentData('SpineAnimation'),
                 skeletonPath,
                 atlasPath,
-                skin: 'default',
-                animation: '',
-                timeScale: 1,
-                loop: true,
-                playing: true,
-                flipX: false,
-                flipY: false,
-                color: { x: 1, y: 1, z: 1, w: 1 },
-                layer: 0,
-                skeletonScale: 1,
             });
         } else if (asset.type === 'image') {
             const newEntity = this.store_.createEntity(baseName, parent);
 
-            this.store_.addComponent(newEntity, 'LocalTransform', {
-                position: { x: 0, y: 0, z: 0 },
-                rotation: { x: 0, y: 0, z: 0, w: 1 },
-                scale: { x: 1, y: 1, z: 1 },
-            });
-
-            this.store_.addComponent(newEntity, 'UIRect', {
-                size: { x: 100, y: 100 },
-                anchor: { x: 0.5, y: 0.5 },
-                pivot: { x: 0.5, y: 0.5 },
-            });
+            this.store_.addComponent(newEntity, 'LocalTransform', getDefaultComponentData('LocalTransform'));
 
             this.store_.addComponent(newEntity, 'Sprite', {
+                ...getDefaultComponentData('Sprite'),
                 texture: this.toRelativePath(asset.path),
-                color: { x: 1, y: 1, z: 1, w: 1 },
-                size: { x: 100, y: 100 },
-                uvOffset: { x: 0, y: 0 },
-                uvScale: { x: 1, y: 1 },
-                layer: 0,
-                flipX: false,
-                flipY: false,
             });
         }
     }
@@ -459,82 +431,17 @@ export class HierarchyPanel {
     private createEntityWithComponent(componentType: string, parent: Entity | null): void {
         const newEntity = this.store_.createEntity(componentType, parent);
 
-        this.store_.addComponent(newEntity, 'LocalTransform', {
-            position: { x: 0, y: 0, z: 0 },
-            rotation: { x: 0, y: 0, z: 0, w: 1 },
-            scale: { x: 1, y: 1, z: 1 },
-        });
+        this.store_.addComponent(newEntity, 'LocalTransform', getDefaultComponentData('LocalTransform'));
 
-        if (componentType === 'Text' || componentType === 'Sprite') {
-            this.store_.addComponent(newEntity, 'UIRect', this.getDefaultComponentData('UIRect'));
+        if (componentType === 'Text') {
+            this.store_.addComponent(newEntity, 'UIRect', getDefaultComponentData('UIRect'));
         }
 
-        const defaultData = this.getDefaultComponentData(componentType);
-        this.store_.addComponent(newEntity, componentType, defaultData);
-    }
-
-    private getDefaultComponentData(componentType: string): Record<string, unknown> {
-        switch (componentType) {
-            case 'Sprite':
-                return {
-                    texture: '',
-                    color: { x: 1, y: 1, z: 1, w: 1 },
-                    size: { x: 100, y: 100 },
-                    uvOffset: { x: 0, y: 0 },
-                    uvScale: { x: 1, y: 1 },
-                    layer: 0,
-                    flipX: false,
-                    flipY: false,
-                };
-            case 'Text':
-                return {
-                    content: 'Text',
-                    fontFamily: 'Arial',
-                    fontSize: 24,
-                    color: { x: 1, y: 1, z: 1, w: 1 },
-                    align: 0,
-                    verticalAlign: 0,
-                    wordWrap: true,
-                    overflow: 0,
-                    lineHeight: 1.2,
-                };
-            case 'Camera':
-                return {
-                    isActive: true,
-                    projectionType: 0,
-                    fov: 60,
-                    orthoSize: 5,
-                    nearPlane: 0.1,
-                    farPlane: 1000,
-                };
-            case 'UIRect':
-                return {
-                    size: { x: 100, y: 100 },
-                    anchor: { x: 0.5, y: 0.5 },
-                    pivot: { x: 0.5, y: 0.5 },
-                };
-            case 'SpineAnimation':
-                return {
-                    skeletonPath: '',
-                    atlasPath: '',
-                    skin: 'default',
-                    animation: '',
-                    timeScale: 1,
-                    loop: true,
-                    playing: true,
-                    flipX: false,
-                    flipY: false,
-                    color: { x: 1, y: 1, z: 1, w: 1 },
-                    layer: 0,
-                    skeletonScale: 1,
-                };
-            default:
-                return {};
-        }
+        this.store_.addComponent(newEntity, componentType, getDefaultComponentData(componentType));
     }
 
     private duplicateEntity(entity: Entity): void {
-        const entityData = this.store_.scene.entities.find(e => e.id === entity);
+        const entityData = this.store_.getEntityData(entity as number);
         if (!entityData) return;
 
         const newEntity = this.store_.createEntity(

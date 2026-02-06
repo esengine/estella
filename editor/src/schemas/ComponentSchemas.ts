@@ -4,6 +4,7 @@
  */
 
 import type { PropertyMeta } from '../property/PropertyEditor';
+import { getComponentDefaults } from 'esengine';
 
 // =============================================================================
 // Types
@@ -145,6 +146,25 @@ export const UIRectSchema: ComponentSchema = {
     ],
 };
 
+export const SpineAnimationSchema: ComponentSchema = {
+    name: 'SpineAnimation',
+    category: 'builtin',
+    properties: [
+        { name: 'skeletonPath', type: 'spine-file', fileFilter: ['.json', '.skel'] },
+        { name: 'atlasPath', type: 'spine-file', fileFilter: ['.atlas'] },
+        { name: 'skin', type: 'spine-skin', dependsOn: 'skeletonPath' },
+        { name: 'animation', type: 'spine-animation', dependsOn: 'skeletonPath' },
+        { name: 'timeScale', type: 'number', min: 0, max: 10, step: 0.1 },
+        { name: 'loop', type: 'boolean' },
+        { name: 'playing', type: 'boolean' },
+        { name: 'flipX', type: 'boolean' },
+        { name: 'flipY', type: 'boolean' },
+        { name: 'color', type: 'color' },
+        { name: 'layer', type: 'number', min: -1000, max: 1000 },
+        { name: 'skeletonScale', type: 'number', min: 0.01, max: 100, step: 0.01 },
+    ],
+};
+
 // =============================================================================
 // Registry
 // =============================================================================
@@ -229,5 +249,43 @@ export function registerBuiltinSchemas(): void {
     registerComponentSchema(CameraSchema);
     registerComponentSchema(TextSchema);
     registerComponentSchema(UIRectSchema);
+    registerComponentSchema(SpineAnimationSchema);
     exposeRegistrationAPI();
+}
+
+// =============================================================================
+// Default Component Data
+// =============================================================================
+
+const editorOnlyDefaults: Record<string, Record<string, unknown>> = {
+    UIRect: {
+        size: { x: 100, y: 100 },
+        anchor: { x: 0.5, y: 0.5 },
+        pivot: { x: 0.5, y: 0.5 },
+    },
+    Text: {
+        content: 'Text',
+        fontFamily: 'Arial',
+        fontSize: 24,
+        color: { x: 1, y: 1, z: 1, w: 1 },
+        align: 0,
+        verticalAlign: 0,
+        wordWrap: true,
+        overflow: 0,
+        lineHeight: 1.2,
+    },
+};
+
+export function getDefaultComponentData(typeName: string): Record<string, unknown> {
+    const sdkDefaults = getComponentDefaults(typeName);
+    if (sdkDefaults) {
+        return sdkDefaults;
+    }
+
+    const editorDefaults = editorOnlyDefaults[typeName];
+    if (editorDefaults) {
+        return { ...editorDefaults };
+    }
+
+    return {};
 }
