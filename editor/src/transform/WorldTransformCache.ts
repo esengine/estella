@@ -8,6 +8,7 @@ import {
     Transform,
     composeTransforms,
     createIdentityTransform,
+    getLocalTransformFromEntity,
 } from '../math/Transform';
 
 // =============================================================================
@@ -125,7 +126,7 @@ export class WorldTransformCache {
             return createIdentityTransform();
         }
 
-        const localTransform = this.getLocalTransform(entity);
+        const localTransform = getLocalTransformFromEntity(entity);
 
         if (entity.parent === null) {
             return localTransform;
@@ -133,18 +134,5 @@ export class WorldTransformCache {
 
         const parentWorld = this.getWorldTransform(entity.parent);
         return composeTransforms(parentWorld, localTransform);
-    }
-
-    private getLocalTransform(entity: EntityData): Transform {
-        const comp = entity.components.find(c => c.type === 'LocalTransform');
-        if (!comp) {
-            return createIdentityTransform();
-        }
-
-        return {
-            position: (comp.data.position as any) ?? { x: 0, y: 0, z: 0 },
-            rotation: (comp.data.rotation as any) ?? { x: 0, y: 0, z: 0, w: 1 },
-            scale: (comp.data.scale as any) ?? { x: 1, y: 1, z: 1 },
-        };
     }
 }

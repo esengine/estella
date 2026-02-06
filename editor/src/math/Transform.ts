@@ -169,3 +169,63 @@ export function cloneTransform(t: Transform): Transform {
         scale: { ...t.scale },
     };
 }
+
+// =============================================================================
+// Entity Data Helpers
+// =============================================================================
+
+export interface EntityDataLike {
+    components: Array<{ type: string; data: Record<string, unknown> }>;
+    parent: number | null;
+    children: number[];
+}
+
+export function getLocalTransformFromEntity(entity: EntityDataLike): Transform {
+    const comp = entity.components.find(c => c.type === 'LocalTransform');
+    if (!comp) {
+        return createIdentityTransform();
+    }
+
+    return {
+        position: (comp.data.position as Vec3) ?? IDENTITY_TRANSFORM.position,
+        rotation: (comp.data.rotation as Quat) ?? IDENTITY_TRANSFORM.rotation,
+        scale: (comp.data.scale as Vec3) ?? IDENTITY_TRANSFORM.scale,
+    };
+}
+
+export interface UIRectLike {
+    size: { x: number; y: number };
+    anchor: { x: number; y: number };
+    pivot: { x: number; y: number };
+}
+
+const DEFAULT_UIRECT: UIRectLike = {
+    size: { x: 100, y: 100 },
+    anchor: { x: 0.5, y: 0.5 },
+    pivot: { x: 0.5, y: 0.5 },
+};
+
+export function getUIRectFromEntity(entity: EntityDataLike): UIRectLike | null {
+    const comp = entity.components.find(c => c.type === 'UIRect');
+    if (!comp) return null;
+
+    return {
+        size: (comp.data.size as { x: number; y: number }) ?? DEFAULT_UIRECT.size,
+        anchor: (comp.data.anchor as { x: number; y: number }) ?? DEFAULT_UIRECT.anchor,
+        pivot: (comp.data.pivot as { x: number; y: number }) ?? DEFAULT_UIRECT.pivot,
+    };
+}
+
+export function getEntitySize(entity: EntityDataLike): { x: number; y: number } {
+    const uiRect = getUIRectFromEntity(entity);
+    if (uiRect?.size) {
+        return uiRect.size;
+    }
+
+    const sprite = entity.components.find(c => c.type === 'Sprite');
+    if (sprite?.data?.size) {
+        return sprite.data.size as { x: number; y: number };
+    }
+
+    return { x: 100, y: 100 };
+}
