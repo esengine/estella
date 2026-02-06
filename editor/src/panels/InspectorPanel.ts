@@ -526,7 +526,7 @@ export class InspectorPanel {
         const materialPath = spriteComp?.data?.material as string | undefined;
 
         if (!materialPath) {
-            this.renderEmptyMaterialPreview();
+            this.hideMaterialPreview();
             return;
         }
 
