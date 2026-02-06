@@ -105,9 +105,13 @@ export interface SpineBounds {
 export interface ESEngineModule {
     Registry: new () => CppRegistry;
     HEAPU8: Uint8Array;
+    HEAPU32: Uint32Array;
     HEAPF32: Float32Array;
 
     FS: EmscriptenFS;
+
+    addFunction(func: (...args: any[]) => any, signature: string): number;
+    setMaterialCallback(callbackPtr: number): void;
 
     initRenderer(): void;
     initRendererWithCanvas(canvasSelector: string): boolean;

@@ -5,6 +5,10 @@
 
 import type { TextureHandle } from '../types';
 import type { ESEngineModule } from '../wasm';
+import type { MaterialHandle, ShaderHandle } from '../material';
+import { Material } from '../material';
+import { MaterialLoader, type LoadedMaterial, type ShaderLoader } from './MaterialLoader';
+import { platformReadTextFile, platformFileExists } from '../platform';
 
 // =============================================================================
 // Types
@@ -40,6 +44,9 @@ export class AssetServer {
     private ctx_: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
     private loadedSpines_ = new Map<string, boolean>();
     private virtualFSPaths_ = new Set<string>();
+    private materialLoader_: MaterialLoader | null = null;
+    private shaderCache_ = new Map<string, ShaderHandle>();
+    private shaderPending_ = new Map<string, Promise<ShaderHandle>>();
 
     constructor(module: ESEngineModule) {
         this.module_ = module;
@@ -53,6 +60,12 @@ export class AssetServer {
             this.canvas_.height = 512;
             this.ctx_ = this.canvas_.getContext('2d', { willReadFrequently: true })!;
         }
+
+        const shaderLoader: ShaderLoader = {
+            load: (path: string) => this.loadShader(path),
+            get: (path: string) => this.shaderCache_.get(path),
+        };
+        this.materialLoader_ = new MaterialLoader(shaderLoader);
     }
 
     // =========================================================================
@@ -186,6 +199,88 @@ export class AssetServer {
 
     isSpineLoaded(skeletonPath: string, atlasPath: string): boolean {
         return this.loadedSpines_.get(`${skeletonPath}:${atlasPath}`) ?? false;
+    }
+
+    async loadMaterial(path: string, baseUrl?: string): Promise<LoadedMaterial> {
+        if (!this.materialLoader_) {
+            throw new Error('MaterialLoader not initialized');
+        }
+        const fullPath = this.resolveAssetPath(path, baseUrl);
+        return this.materialLoader_.load(fullPath);
+    }
+
+    getMaterial(path: string, baseUrl?: string): LoadedMaterial | undefined {
+        if (!this.materialLoader_) return undefined;
+        const fullPath = this.resolveAssetPath(path, baseUrl);
+        return this.materialLoader_.get(fullPath);
+    }
+
+    hasMaterial(path: string, baseUrl?: string): boolean {
+        if (!this.materialLoader_) return false;
+        const fullPath = this.resolveAssetPath(path, baseUrl);
+        return this.materialLoader_.has(fullPath);
+    }
+
+    async loadShader(path: string): Promise<ShaderHandle> {
+        const cached = this.shaderCache_.get(path);
+        if (cached) return cached;
+
+        const pending = this.shaderPending_.get(path);
+        if (pending) return pending;
+
+        const promise = this.loadShaderInternal(path);
+        this.shaderPending_.set(path, promise);
+
+        try {
+            const handle = await promise;
+            this.shaderCache_.set(path, handle);
+            return handle;
+        } finally {
+            this.shaderPending_.delete(path);
+        }
+    }
+
+    private async loadShaderInternal(path: string): Promise<ShaderHandle> {
+        const exists = await platformFileExists(path);
+        if (!exists) {
+            throw new Error(`Shader file not found: ${path}`);
+        }
+
+        const content = await platformReadTextFile(path);
+        if (!content) {
+            throw new Error(`Failed to read shader file: ${path}`);
+        }
+
+        const { vertex, fragment } = this.parseEsShader(content);
+        if (!vertex || !fragment) {
+            throw new Error(`Invalid shader format: ${path}`);
+        }
+
+        return Material.createShader(vertex, fragment);
+    }
+
+    private parseEsShader(content: string): { vertex: string | null; fragment: string | null } {
+        let vertex: string | null = null;
+        let fragment: string | null = null;
+
+        const vertexMatch = content.match(/#pragma\s+vertex\s*([\s\S]*?)#pragma\s+end/);
+        const fragmentMatch = content.match(/#pragma\s+fragment\s*([\s\S]*?)#pragma\s+end/);
+
+        if (vertexMatch) {
+            vertex = vertexMatch[1].trim();
+        }
+        if (fragmentMatch) {
+            fragment = fragmentMatch[1].trim();
+        }
+
+        return { vertex, fragment };
+    }
+
+    private resolveAssetPath(path: string, baseUrl?: string): string {
+        if (path.startsWith('/') || path.startsWith('http')) {
+            return path;
+        }
+        return baseUrl ? `${baseUrl}/${path}` : `/${path}`;
     }
 
     // =========================================================================

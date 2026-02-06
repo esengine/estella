@@ -125,6 +125,18 @@ export async function loadSceneWithAssets(
                         data.texture = 0;
                     }
                 }
+                if (typeof data.material === 'string' && data.material) {
+                    try {
+                        const loaded = await assetServer.loadMaterial(
+                            data.material,
+                            options?.assetBaseUrl
+                        );
+                        data.material = loaded.handle;
+                    } catch (err) {
+                        console.warn(`Failed to load material: ${data.material}`, err);
+                        data.material = 0;
+                    }
+                }
             }
 
             if (compData.type === 'SpineAnimation' && assetServer) {
@@ -139,6 +151,18 @@ export async function loadSceneWithAssets(
                     );
                     if (!result.success) {
                         console.warn(`Failed to load Spine: ${result.error}`);
+                    }
+                }
+                if (typeof data.material === 'string' && data.material) {
+                    try {
+                        const loaded = await assetServer.loadMaterial(
+                            data.material,
+                            options?.assetBaseUrl
+                        );
+                        data.material = loaded.handle;
+                    } catch (err) {
+                        console.warn(`Failed to load material: ${data.material}`, err);
+                        data.material = 0;
                     }
                 }
             }

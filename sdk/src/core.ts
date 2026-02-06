@@ -167,10 +167,13 @@ export {
     Assets,
     AssetPlugin,
     assetPlugin,
+    MaterialLoader,
     type TextureInfo,
     type SliceBorder,
     type SpineLoadResult,
     type AssetsData,
+    type LoadedMaterial,
+    type ShaderLoader,
 } from './asset';
 
 // =============================================================================
@@ -249,9 +252,11 @@ export {
     ShaderSources,
     initMaterialAPI,
     shutdownMaterialAPI,
+    registerMaterialCallback,
     type ShaderHandle,
     type MaterialHandle,
     type MaterialOptions,
+    type MaterialAssetData,
     type UniformValue,
 } from './material';
 

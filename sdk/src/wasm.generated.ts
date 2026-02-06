@@ -57,6 +57,7 @@ export interface SpineAnimation {
     color: Vec4;
     layer: number;
     skeletonScale: number;
+    material: number;
 }
 
 export interface Sprite {
@@ -68,6 +69,7 @@ export interface Sprite {
     layer: number;
     flipX: boolean;
     flipY: boolean;
+    material: number;
 }
 
 export interface Parent {

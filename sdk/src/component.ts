@@ -117,6 +117,7 @@ export interface SpriteData {
     layer: number;
     flipX: boolean;
     flipY: boolean;
+    material: number;
 }
 
 export interface CameraData {
@@ -164,6 +165,7 @@ export interface SpineAnimationData {
     color: Vec4;
     layer: number;
     skeletonScale: number;
+    material: number;
 }
 
 // =============================================================================
@@ -190,7 +192,8 @@ export const Sprite = defineBuiltin<SpriteData>('Sprite', {
     uvScale: { x: 1, y: 1 },
     layer: 0,
     flipX: false,
-    flipY: false
+    flipY: false,
+    material: 0
 });
 
 export const Camera = defineBuiltin<CameraData>('Camera', {
@@ -237,7 +240,8 @@ export const SpineAnimation = defineBuiltin<SpineAnimationData>('SpineAnimation'
     flipY: false,
     color: { x: 1, y: 1, z: 1, w: 1 },
     layer: 0,
-    skeletonScale: 1.0
+    skeletonScale: 1.0,
+    material: 0
 });
 
 // =============================================================================
