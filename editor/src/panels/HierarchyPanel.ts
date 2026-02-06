@@ -10,6 +10,7 @@ import { icons } from '../utils/icons';
 import { getGlobalPathResolver } from '../asset';
 import { getDefaultComponentData } from '../schemas/ComponentSchemas';
 import { showContextMenu } from '../ui/ContextMenu';
+import { getEditorContext } from '../context/EditorContext';
 
 // =============================================================================
 // HierarchyPanel
@@ -247,17 +248,16 @@ export class HierarchyPanel {
         const dir = skeletonPath.substring(0, skeletonPath.lastIndexOf('/'));
         const absoluteDir = pathResolver.toAbsolutePath(dir);
 
-        const fs = (window as any).__esengine_fs;
-        if (!fs?.listDirectoryDetailed) {
+        const fs = getEditorContext().fs;
+        if (!fs) {
             return null;
         }
 
         try {
             const entries = await fs.listDirectoryDetailed(absoluteDir);
             const atlasFiles = entries
-                .filter((e: { name: string; isFile: boolean }) =>
-                    e.isFile && e.name.endsWith('.atlas'))
-                .map((e: { name: string }) => e.name);
+                .filter(e => e.name.endsWith('.atlas'))
+                .map(e => e.name);
 
             if (atlasFiles.length === 1) {
                 return dir ? `${dir}/${atlasFiles[0]}` : atlasFiles[0];

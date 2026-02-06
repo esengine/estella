@@ -4,6 +4,7 @@
  */
 
 import { BuildConfig, BuildPlatform } from '../types/BuildTypes';
+import { getEditorContext } from '../context/EditorContext';
 
 // =============================================================================
 // Types
@@ -32,10 +33,10 @@ const EXPORT_VERSION = '1.0';
 // =============================================================================
 
 export class BuildConfigIO {
-    private fs_: NativeFileSystem | null;
+    private fs_: import('../scripting/types').NativeFS | null;
 
     constructor() {
-        this.fs_ = window.__esengine_fs ?? null;
+        this.fs_ = getEditorContext().fs ?? null;
     }
 
     async exportConfigs(configs: BuildConfig[], outputPath: string): Promise<void> {
@@ -49,9 +50,7 @@ export class BuildConfigIO {
             configs: configs.map(config => this.sanitizeConfigForExport(config)),
         };
 
-        const jsonStr = JSON.stringify(exportData, null, 2);
-        const encoder = new TextEncoder();
-        await this.fs_.writeFile(outputPath, encoder.encode(jsonStr));
+        await this.fs_.writeFile(outputPath, JSON.stringify(exportData, null, 2));
     }
 
     async importConfigs(filePath: string): Promise<ImportResult> {
@@ -68,9 +67,8 @@ export class BuildConfigIO {
 
         try {
             const content = await this.fs_.readFile(filePath);
-            const decoder = new TextDecoder();
-            const jsonStr = decoder.decode(content);
-            const data = JSON.parse(jsonStr);
+            if (!content) throw new Error('Empty file');
+            const data = JSON.parse(content);
 
             if (!this.isValidExportFormat(data)) {
                 result.errors.push('Invalid export file format');

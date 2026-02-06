@@ -10,20 +10,21 @@ import {
 } from './PropertyEditor';
 import { BLEND_MODE_OPTIONS } from '../types/MaterialMetadata';
 import { getPlatformAdapter } from '../platform/PlatformAdapter';
+import { getEditorContext, getEditorInstance } from '../context/EditorContext';
 
 // =============================================================================
 // Helpers
 // =============================================================================
 
 function getProjectDir(): string | null {
-    const editor = (window as any).__esengine_editor;
+    const editor = getEditorInstance();
     const projectPath = editor?.projectPath;
     if (!projectPath) return null;
     return projectPath.replace(/\\/g, '/').replace(/\/[^/]+$/, '');
 }
 
 function navigateToAsset(assetPath: string): void {
-    const editor = (window as any).__esengine_editor;
+    const editor = getEditorInstance();
     if (editor && typeof editor.navigateToAsset === 'function') {
         editor.navigateToAsset(assetPath);
     }
@@ -187,7 +188,7 @@ interface NativeFS {
 }
 
 function getNativeFS(): NativeFS | null {
-    return (window as any).__esengine_fs ?? null;
+    return getEditorContext().fs ?? null;
 }
 
 function getMimeType(path: string): string {

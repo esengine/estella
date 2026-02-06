@@ -7,6 +7,7 @@ import * as esbuild from 'esbuild-wasm/esm/browser';
 import type { BuildResult, BuildContext } from './BuildService';
 import { BuildProgressReporter } from './BuildProgress';
 import { BuildCache } from './BuildCache';
+import { getEditorContext } from '../context/EditorContext';
 
 // =============================================================================
 // Types
@@ -66,7 +67,7 @@ export class WeChatBuilder {
 
     constructor(context: BuildContext) {
         this.context_ = context;
-        this.fs_ = (window as any).__esengine_fs ?? null;
+        this.fs_ = getEditorContext().fs ?? null;
         this.projectDir_ = getProjectDir(context.projectPath);
         this.progress_ = context.progress || new BuildProgressReporter();
         this.cache_ = context.cache || null;

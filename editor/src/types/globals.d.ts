@@ -41,12 +41,3 @@ interface NativeFileSystem {
     getEngineWxgameWasm(): Promise<Uint8Array>;
     getSdkWechatJs(): Promise<string>;
 }
-
-interface EditorGlobals {
-    currentScenePath?: string;
-}
-
-interface Window {
-    __esengine_fs?: NativeFileSystem;
-    __esengine_editor?: EditorGlobals;
-}

@@ -10,6 +10,7 @@ import {
     createDefaultBuildSettings,
     createDefaultBuildConfig,
 } from '../types/BuildTypes';
+import { getEditorContext } from '../context/EditorContext';
 
 // =============================================================================
 // Types
@@ -40,14 +41,14 @@ const LEGACY_STORAGE_KEY = 'esengine_build_settings';
 export class BuildConfigService {
     private projectDir_: string;
     private settings_: BuildSettings;
-    private fs_: NativeFileSystem | null;
+    private fs_: import('../scripting/types').NativeFS | null;
     private listeners_: Set<ConfigChangeListener>;
     private loaded_: boolean;
 
     constructor(projectDir: string) {
         this.projectDir_ = projectDir;
         this.settings_ = createDefaultBuildSettings();
-        this.fs_ = window.__esengine_fs ?? null;
+        this.fs_ = getEditorContext().fs ?? null;
         this.listeners_ = new Set();
         this.loaded_ = false;
     }
@@ -85,9 +86,8 @@ export class BuildConfigService {
 
         try {
             const content = await this.fs_.readFile(configPath);
-            const decoder = new TextDecoder();
-            const jsonStr = decoder.decode(content);
-            const file = JSON.parse(jsonStr) as BuildSettingsFile;
+            if (!content) throw new Error('Empty config');
+            const file = JSON.parse(content) as BuildSettingsFile;
 
             if (file.version === CONFIG_VERSION) {
                 this.settings_ = {
@@ -119,11 +119,7 @@ export class BuildConfigService {
         const configDir = this.getConfigDir();
         const configPath = this.getConfigPath();
 
-        try {
-            await this.fs_.mkdir(configDir, { recursive: true });
-        } catch {
-            // Directory may already exist
-        }
+        await this.fs_.createDirectory(configDir);
 
         const file: BuildSettingsFile = {
             version: CONFIG_VERSION,
@@ -132,9 +128,7 @@ export class BuildConfigService {
             configs: this.settings_.configs,
         };
 
-        const jsonStr = JSON.stringify(file, null, 2);
-        const encoder = new TextEncoder();
-        await this.fs_.writeFile(configPath, encoder.encode(jsonStr));
+        await this.fs_.writeFile(configPath, JSON.stringify(file, null, 2));
     }
 
     async migrateFromLocalStorage(): Promise<boolean> {

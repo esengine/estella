@@ -8,6 +8,7 @@ import {
     type PropertyEditorContext,
     type PropertyEditorInstance,
 } from './PropertyEditor';
+import { getEditorContext, getEditorInstance } from '../context/EditorContext';
 import { getPlatformAdapter } from '../platform/PlatformAdapter';
 
 // =============================================================================
@@ -658,11 +659,11 @@ interface NativeFS {
 }
 
 function getNativeFS(): NativeFS | null {
-    return (window as any).__esengine_fs ?? null;
+    return getEditorContext().fs ?? null;
 }
 
 function getProjectDir(): string | null {
-    const editor = (window as any).__esengine_editor;
+    const editor = getEditorInstance();
     const projectPath = editor?.projectPath;
     if (!projectPath) return null;
     return projectPath.replace(/\\/g, '/').replace(/\/[^/]+$/, '');
@@ -755,7 +756,7 @@ function createTextureEditor(
         const texturePath = input.value;
         if (!texturePath) return;
 
-        const editor = (window as any).__esengine_editor;
+        const editor = getEditorInstance();
         if (editor?.navigateToAsset) {
             await editor.navigateToAsset(texturePath);
         }
@@ -1256,7 +1257,7 @@ function createSpineSkinEditor(
 // =============================================================================
 
 function navigateToAsset(assetPath: string): void {
-    const editor = (window as any).__esengine_editor;
+    const editor = getEditorInstance();
     if (editor && typeof editor.navigateToAsset === 'function') {
         editor.navigateToAsset(assetPath);
     }

@@ -7,6 +7,7 @@ import type { SceneData } from '../types/SceneTypes';
 import type { NativeFS } from '../scripting/types';
 import type { TextureMetadata } from '../types/TextureMetadata';
 import { getMetaFilePath, parseTextureMetadata } from '../types/TextureMetadata';
+import { getEditorContext } from '../context/EditorContext';
 
 // =============================================================================
 // Types
@@ -147,10 +148,10 @@ export class PreviewService {
     }
 
     private getNativeFS(): NativeFS | null {
-        return (window as any).__esengine_fs ?? null;
+        return getEditorContext().fs ?? null;
     }
 
     private getTauriInvoke(): TauriInvoke | null {
-        return (window as any).__esengine_invoke ?? null;
+        return getEditorContext().invoke ?? null;
     }
 }

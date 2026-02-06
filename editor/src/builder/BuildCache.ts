@@ -3,6 +3,9 @@
  * @brief   Incremental build cache for file change detection
  */
 
+import type { NativeFS } from '../scripting/types';
+import { getEditorContext } from '../context/EditorContext';
+
 // =============================================================================
 // Types
 // =============================================================================
@@ -51,17 +54,19 @@ async function computeHash(content: string | Uint8Array): Promise<string> {
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-async function computeFileHash(fs: NativeFileSystem, filePath: string): Promise<FileHash | null> {
+async function computeFileHash(fs: NativeFS, filePath: string): Promise<FileHash | null> {
     try {
         const content = await fs.readFile(filePath);
-        const stats = await fs.stat(filePath);
+        if (!content) return null;
+
+        const stats = await fs.getFileStats(filePath);
         const hash = await computeHash(content);
 
         return {
             path: filePath,
             hash,
-            lastModified: stats.mtimeMs,
-            size: stats.size,
+            lastModified: stats?.modified?.getTime() ?? 0,
+            size: stats?.size ?? 0,
         };
     } catch {
         return null;
@@ -74,14 +79,14 @@ async function computeFileHash(fs: NativeFileSystem, filePath: string): Promise<
 
 export class BuildCache {
     private projectDir_: string;
-    private fs_: NativeFileSystem | null;
+    private fs_: NativeFS | null;
 
     constructor(projectDir: string) {
         this.projectDir_ = projectDir;
-        this.fs_ = window.__esengine_fs ?? null;
+        this.fs_ = getEditorContext().fs ?? null;
     }
 
-    private getFs(): NativeFileSystem {
+    private getFs(): NativeFS {
         if (!this.fs_) {
             throw new Error('Native file system not available');
         }
@@ -103,9 +108,9 @@ export class BuildCache {
 
         try {
             const content = await this.fs_.readFile(cachePath);
-            const decoder = new TextDecoder();
-            const jsonStr = decoder.decode(content);
-            const data = JSON.parse(jsonStr) as BuildCacheData;
+            if (!content) return null;
+
+            const data = JSON.parse(content) as BuildCacheData;
 
             if (data.version !== CACHE_VERSION) {
                 return null;
@@ -122,15 +127,8 @@ export class BuildCache {
         const cacheDir = this.getCacheDir();
         const cachePath = this.getCachePath(data.configId);
 
-        try {
-            await fs.mkdir(cacheDir, { recursive: true });
-        } catch {
-            // Directory may already exist
-        }
-
-        const jsonStr = JSON.stringify(data, null, 2);
-        const encoder = new TextEncoder();
-        await fs.writeFile(cachePath, encoder.encode(jsonStr));
+        await fs.createDirectory(cacheDir);
+        await fs.writeFile(cachePath, JSON.stringify(data, null, 2));
     }
 
     async invalidateCache(configId: string): Promise<void> {
@@ -139,7 +137,7 @@ export class BuildCache {
         const cachePath = this.getCachePath(configId);
 
         try {
-            await this.fs_.unlink(cachePath);
+            await this.fs_.writeFile(cachePath, '');
         } catch {
             // Cache may not exist
         }
@@ -244,10 +242,10 @@ export class BuildCache {
         const cacheDir = this.getCacheDir();
 
         try {
-            const entries = await this.fs_.readdir(cacheDir);
+            const entries = await this.fs_.listDirectory(cacheDir);
             for (const entry of entries) {
                 if (entry.endsWith('.json')) {
-                    await this.fs_.unlink(`${cacheDir}/${entry}`);
+                    await this.fs_.writeFile(`${cacheDir}/${entry}`, '');
                 }
             }
         } catch {

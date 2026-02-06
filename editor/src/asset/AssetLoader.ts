@@ -5,6 +5,7 @@
 
 import type { ESEngineModule } from 'esengine';
 import type { AssetPathResolver } from './AssetPathResolver';
+import { getEditorContext } from '../context/EditorContext';
 
 interface DecodedImage {
     width: number;
@@ -241,7 +242,7 @@ export class AssetLoader {
     }
 
     private getNativeFS(): NativeFS | null {
-        return (window as any).__esengine_fs ?? null;
+        return getEditorContext().fs ?? null;
     }
 
     private getEmscriptenFS(): any {

@@ -13,21 +13,12 @@ import { icons } from '../utils/icons';
 import { EditorSceneRenderer } from '../renderer/EditorSceneRenderer';
 import { quatToEuler, eulerToQuat } from '../math/Transform';
 import { getEntityBounds } from '../bounds';
+import { GizmoManager, getAllGizmos } from '../gizmos';
+import type { GizmoContext } from '../gizmos';
 
 // =============================================================================
 // Types
 // =============================================================================
-
-type GizmoMode = 'select' | 'move' | 'rotate' | 'scale' | 'rect';
-type DragAxis = 'none' | 'x' | 'y' | 'xy';
-type RectHandle = 'none' | 'tl' | 'tr' | 'bl' | 'br' | 't' | 'b' | 'l' | 'r';
-
-interface GizmoColors {
-    x: string;
-    y: string;
-    xy: string;
-    hover: string;
-}
 
 interface GizmoSettings {
     showGrid: boolean;
@@ -36,16 +27,6 @@ interface GizmoSettings {
     showGizmos: boolean;
     showSelectionBox: boolean;
 }
-
-const GIZMO_COLORS: GizmoColors = {
-    x: '#e74c3c',
-    y: '#2ecc71',
-    xy: '#f1c40f',
-    hover: '#ffffff',
-};
-
-const GIZMO_SIZE = 80;
-const GIZMO_HANDLE_SIZE = 10;
 
 const DEFAULT_GIZMO_SETTINGS: GizmoSettings = {
     showGrid: true,
@@ -90,21 +71,7 @@ export class SceneViewPanel {
     private lastMouseX_ = 0;
     private lastMouseY_ = 0;
 
-    private gizmoMode_: GizmoMode = 'move';
-    private dragAxis_: DragAxis = 'none';
-    private hoveredAxis_: DragAxis = 'none';
-    private rectHandle_: RectHandle = 'none';
-    private hoveredRectHandle_: RectHandle = 'none';
-    private isGizmoDragging_ = false;
-    private gizmoDragStartX_ = 0;
-    private gizmoDragStartY_ = 0;
-    private gizmoDragStartValue_: { x: number; y: number; z: number } = { x: 0, y: 0, z: 0 };
-    private gizmoDragOriginalValue_: unknown = null;
-    private gizmoDragPropertyName_: string = '';
-    private rectDragStartSize_: { x: number; y: number } = { x: 0, y: 0 };
-    private rectDragStartPos_: { x: number; y: number } = { x: 0, y: 0 };
-    private rectDragOriginalSize_: { x: number; y: number } | null = null;
-    private rectDragOriginalPos_: { x: number; y: number; z: number } | null = null;
+    private gizmoManager_: GizmoManager;
     private keydownHandler_: ((e: KeyboardEvent) => void) | null = null;
     private skipNextClick_ = false;
     private boundOnDocumentMouseMove_: ((e: MouseEvent) => void) | null = null;
@@ -117,12 +84,6 @@ export class SceneViewPanel {
     private gizmoSettings_: GizmoSettings = { ...DEFAULT_GIZMO_SETTINGS };
     private settingsDropdown_: HTMLElement | null = null;
     private settingsDropdownClickHandler_: ((e: MouseEvent) => void) | null = null;
-
-    private getSizeComponentType(entityData: import('../types/SceneTypes').EntityData): 'UIRect' | 'Sprite' | null {
-        if (entityData.components.some(c => c.type === 'UIRect')) return 'UIRect';
-        if (entityData.components.some(c => c.type === 'Sprite')) return 'Sprite';
-        return null;
-    }
 
     private getEntityBoundsWithSpine(entityData: import('../types/SceneTypes').EntityData): { width: number; height: number; offsetX?: number; offsetY?: number } {
         const hasSpine = entityData.components.some(c => c.type === 'SpineAnimation');
@@ -145,6 +106,7 @@ export class SceneViewPanel {
         this.store_ = store;
         this.projectPath_ = options?.projectPath ?? null;
         this.app_ = options?.app ?? null;
+        this.gizmoManager_ = new GizmoManager();
 
         this.container_.className = 'es-sceneview-panel';
         this.container_.innerHTML = `
@@ -152,11 +114,7 @@ export class SceneViewPanel {
                 <span class="es-panel-title">Scene</span>
                 <div class="es-sceneview-tools">
                     <div class="es-gizmo-toolbar">
-                        <button class="es-btn es-btn-icon es-gizmo-btn" data-mode="select" title="Select (Q)">${icons.pointer(14)}</button>
-                        <button class="es-btn es-btn-icon es-gizmo-btn es-active" data-mode="move" title="Move (W)">${icons.move(14)}</button>
-                        <button class="es-btn es-btn-icon es-gizmo-btn" data-mode="rotate" title="Rotate (E)">${icons.rotateCw(14)}</button>
-                        <button class="es-btn es-btn-icon es-gizmo-btn" data-mode="scale" title="Scale (R)">${icons.maximize(14)}</button>
-                        <button class="es-btn es-btn-icon es-gizmo-btn" data-mode="rect" title="Rect (T)">${icons.rect(14)}</button>
+                        ${this.buildGizmoToolbarHTML()}
                     </div>
                     <div class="es-toolbar-divider"></div>
                     <button class="es-btn es-btn-icon" data-action="reset-view" title="Reset View">${icons.refresh(14)}</button>
@@ -213,6 +171,15 @@ export class SceneViewPanel {
         if (this.app_?.wasmModule) {
             this.initWebGLRenderer();
         }
+    }
+
+    private buildGizmoToolbarHTML(): string {
+        const gizmos = getAllGizmos();
+        return gizmos.map(g => {
+            const isActive = g.id === this.gizmoManager_.getActiveId();
+            const shortcutLabel = g.shortcut ? ` (${g.shortcut.toUpperCase()})` : '';
+            return `<button class="es-btn es-btn-icon es-gizmo-btn${isActive ? ' es-active' : ''}" data-mode="${g.id}" title="${g.name}${shortcutLabel}">${g.icon}</button>`;
+        }).join('');
     }
 
     dispose(): void {
@@ -385,6 +352,18 @@ export class SceneViewPanel {
         this.requestRender();
     }
 
+    private createGizmoContext(ctx: CanvasRenderingContext2D): GizmoContext {
+        return {
+            store: this.store_,
+            ctx,
+            zoom: this.zoom_,
+            screenToWorld: (clientX, clientY) => this.screenToWorld(clientX, clientY),
+            getWorldTransform: (entityId) => this.store_.getWorldTransform(entityId),
+            getEntityBounds: (entityData) => this.getEntityBoundsWithSpine(entityData),
+            requestRender: () => this.requestRender(),
+        };
+    }
+
     private setupEvents(): void {
         const resetBtn = this.container_.querySelector('[data-action="reset-view"]');
         resetBtn?.addEventListener('click', () => {
@@ -400,7 +379,7 @@ export class SceneViewPanel {
         const gizmoButtons = this.container_.querySelectorAll('.es-gizmo-btn');
         gizmoButtons.forEach(btn => {
             btn.addEventListener('click', () => {
-                const mode = (btn as HTMLElement).dataset.mode as GizmoMode;
+                const mode = (btn as HTMLElement).dataset.mode;
                 if (mode) this.setGizmoMode(mode);
             });
         });
@@ -409,22 +388,12 @@ export class SceneViewPanel {
             if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
                 return;
             }
-            switch (e.key.toLowerCase()) {
-                case 'q':
-                    this.setGizmoMode('select');
-                    break;
-                case 'w':
-                    this.setGizmoMode('move');
-                    break;
-                case 'e':
-                    this.setGizmoMode('rotate');
-                    break;
-                case 'r':
-                    this.setGizmoMode('scale');
-                    break;
-                case 't':
-                    this.setGizmoMode('rect');
-                    break;
+            const gizmos = getAllGizmos();
+            for (const g of gizmos) {
+                if (g.shortcut && e.key.toLowerCase() === g.shortcut) {
+                    this.setGizmoMode(g.id);
+                    return;
+                }
             }
         };
         document.addEventListener('keydown', this.keydownHandler_);
@@ -445,8 +414,8 @@ export class SceneViewPanel {
         }
     }
 
-    private setGizmoMode(mode: GizmoMode): void {
-        this.gizmoMode_ = mode;
+    private setGizmoMode(mode: string): void {
+        this.gizmoManager_.setActive(mode);
         const buttons = this.container_.querySelectorAll('.es-gizmo-btn');
         buttons.forEach(btn => {
             const btnMode = (btn as HTMLElement).dataset.mode;
@@ -499,6 +468,13 @@ export class SceneViewPanel {
         });
     }
 
+    private updateGizmoContext(): void {
+        const ctx = this.overlayCanvas_?.getContext('2d') ?? this.canvas_.getContext('2d');
+        if (ctx) {
+            this.gizmoManager_.setContext(this.createGizmoContext(ctx));
+        }
+    }
+
     private onMouseDown(e: MouseEvent): void {
         if (e.button === 1 || (e.button === 0 && e.altKey)) {
             this.isDragging_ = true;
@@ -513,64 +489,11 @@ export class SceneViewPanel {
 
         const { worldX, worldY } = this.screenToWorld(e.clientX, e.clientY);
 
-        if (this.gizmoMode_ !== 'select' && this.store_.selectedEntity !== null) {
-            if (this.gizmoMode_ === 'rect') {
-                const handle = this.hitTestRectGizmo(worldX, worldY);
-                if (handle !== 'none') {
-                    this.isGizmoDragging_ = true;
-                    this.rectHandle_ = handle;
-                    this.gizmoDragStartX_ = worldX;
-                    this.gizmoDragStartY_ = worldY;
-
-                    const entityData = this.store_.getSelectedEntityData();
-                    if (entityData) {
-                        const transform = entityData.components.find(c => c.type === 'LocalTransform');
-                        const sprite = entityData.components.find(c => c.type === 'Sprite');
-
-                        const pos = transform?.data.position as { x: number; y: number; z: number } ?? { x: 0, y: 0, z: 0 };
-                        this.rectDragStartPos_ = { x: pos.x, y: pos.y };
-                        this.rectDragOriginalPos_ = { ...pos };
-
-                        if (sprite?.data.size) {
-                            const size = sprite.data.size as { x: number; y: number };
-                            this.rectDragStartSize_ = { x: size.x, y: size.y };
-                            this.rectDragOriginalSize_ = { x: size.x, y: size.y };
-                        } else {
-                            const bounds = this.getEntityBoundsWithSpine(entityData);
-                            this.rectDragStartSize_ = { x: bounds.width, y: bounds.height };
-                            this.rectDragOriginalSize_ = { x: bounds.width, y: bounds.height };
-                        }
-                    }
-                    this.startDocumentDrag();
-                    return;
-                }
-            } else {
-                const axis = this.hitTestGizmo(worldX, worldY);
-                if (axis !== 'none') {
-                    this.isGizmoDragging_ = true;
-                    this.dragAxis_ = axis;
-                    this.gizmoDragStartX_ = worldX;
-                    this.gizmoDragStartY_ = worldY;
-
-                    const entityData = this.store_.getSelectedEntityData();
-                    const transform = entityData?.components.find(c => c.type === 'LocalTransform');
-                    if (transform) {
-                        if (this.gizmoMode_ === 'rotate') {
-                            const quat = transform.data.rotation as { x: number; y: number; z: number; w: number };
-                            this.gizmoDragStartValue_ = quatToEuler(quat ?? { x: 0, y: 0, z: 0, w: 1 });
-                            this.gizmoDragPropertyName_ = 'rotation';
-                            this.gizmoDragOriginalValue_ = quat ? { ...quat } : { x: 0, y: 0, z: 0, w: 1 };
-                        } else {
-                            const prop = this.gizmoMode_ === 'scale' ? 'scale' : 'position';
-                            const value = transform.data[prop] as { x: number; y: number; z: number };
-                            this.gizmoDragStartValue_ = { ...value };
-                            this.gizmoDragPropertyName_ = prop;
-                            this.gizmoDragOriginalValue_ = { ...value };
-                        }
-                    }
-                    this.startDocumentDrag();
-                    return;
-                }
+        if (this.gizmoManager_.getActiveId() !== 'select' && this.store_.selectedEntity !== null) {
+            this.updateGizmoContext();
+            if (this.gizmoManager_.onMouseDown(worldX, worldY)) {
+                this.startDocumentDrag();
+                return;
             }
         }
 
@@ -621,50 +544,16 @@ export class SceneViewPanel {
             return;
         }
 
-        if (this.isGizmoDragging_) {
-            if (this.gizmoMode_ === 'rect') {
-                this.handleRectGizmoDrag(worldX, worldY);
-            } else {
-                this.handleGizmoDrag(worldX, worldY);
-            }
+        if (this.gizmoManager_.isDragging()) {
+            this.updateGizmoContext();
+            this.gizmoManager_.onMouseMove(worldX, worldY);
             return;
         }
 
-        if (this.gizmoMode_ !== 'select' && this.store_.selectedEntity !== null) {
-            if (this.gizmoMode_ === 'rect') {
-                const handle = this.hitTestRectGizmo(worldX, worldY);
-                if (handle !== this.hoveredRectHandle_) {
-                    this.hoveredRectHandle_ = handle;
-                    this.canvas_.style.cursor = this.getRectHandleCursor(handle);
-                    this.requestRender();
-                }
-            } else {
-                const axis = this.hitTestGizmo(worldX, worldY);
-                if (axis !== this.hoveredAxis_) {
-                    this.hoveredAxis_ = axis;
-                    this.canvas_.style.cursor = axis !== 'none' ? 'pointer' : 'default';
-                    this.requestRender();
-                }
-            }
-        }
-    }
-
-    private getRectHandleCursor(handle: RectHandle): string {
-        switch (handle) {
-            case 'tl':
-            case 'br':
-                return 'nwse-resize';
-            case 'tr':
-            case 'bl':
-                return 'nesw-resize';
-            case 't':
-            case 'b':
-                return 'ns-resize';
-            case 'l':
-            case 'r':
-                return 'ew-resize';
-            default:
-                return 'default';
+        if (this.gizmoManager_.getActiveId() !== 'select' && this.store_.selectedEntity !== null) {
+            this.updateGizmoContext();
+            this.gizmoManager_.onMouseMove(worldX, worldY);
+            this.canvas_.style.cursor = this.gizmoManager_.getCursor();
         }
     }
 
@@ -675,184 +564,19 @@ export class SceneViewPanel {
             this.skipNextClick_ = true;
         }
 
-        if (this.isGizmoDragging_) {
-            if (this.gizmoMode_ === 'rect') {
-                this.commitRectGizmoDrag();
-            } else {
-                this.commitGizmoDrag();
-            }
-            this.isGizmoDragging_ = false;
-            this.dragAxis_ = 'none';
-            this.rectHandle_ = 'none';
+        if (this.gizmoManager_.isDragging()) {
+            const { worldX, worldY } = this.screenToWorld(_e.clientX, _e.clientY);
+            this.updateGizmoContext();
+            this.gizmoManager_.onMouseUp(worldX, worldY);
             this.skipNextClick_ = true;
         }
     }
 
-    private commitGizmoDrag(): void {
-        const entity = this.store_.selectedEntity;
-        if (entity === null || !this.gizmoDragPropertyName_ || this.gizmoDragOriginalValue_ === null) {
-            return;
-        }
-
-        const entityData = this.store_.getSelectedEntityData();
-        const transform = entityData?.components.find(c => c.type === 'LocalTransform');
-        if (!transform) return;
-
-        const currentValue = transform.data[this.gizmoDragPropertyName_];
-        if (!currentValue) return;
-
-        const oldValue = this.gizmoDragOriginalValue_;
-        const newValue = this.deepClone(currentValue);
-
-        if (this.valuesEqual(oldValue, newValue)) {
-            return;
-        }
-
-        this.store_.updateProperty(
-            entity,
-            'LocalTransform',
-            this.gizmoDragPropertyName_,
-            oldValue,
-            newValue
-        );
-
-        this.gizmoDragOriginalValue_ = null;
-        this.gizmoDragPropertyName_ = '';
-    }
-
-    private handleRectGizmoDrag(worldX: number, worldY: number): void {
-        const entity = this.store_.selectedEntity;
-        if (entity === null) return;
-
-        const entityData = this.store_.getSelectedEntityData();
-        if (!entityData) return;
-
-        const dx = worldX - this.gizmoDragStartX_;
-        const dy = worldY - this.gizmoDragStartY_;
-
-        let newWidth = this.rectDragStartSize_.x;
-        let newHeight = this.rectDragStartSize_.y;
-        let newPosX = this.rectDragStartPos_.x;
-        let newPosY = this.rectDragStartPos_.y;
-
-        switch (this.rectHandle_) {
-            case 'r':
-                newWidth += dx;
-                newPosX += dx / 2;
-                break;
-            case 'l':
-                newWidth -= dx;
-                newPosX += dx / 2;
-                break;
-            case 't':
-                newHeight += dy;
-                newPosY += dy / 2;
-                break;
-            case 'b':
-                newHeight -= dy;
-                newPosY += dy / 2;
-                break;
-            case 'tr':
-                newWidth += dx;
-                newHeight += dy;
-                newPosX += dx / 2;
-                newPosY += dy / 2;
-                break;
-            case 'tl':
-                newWidth -= dx;
-                newHeight += dy;
-                newPosX += dx / 2;
-                newPosY += dy / 2;
-                break;
-            case 'br':
-                newWidth += dx;
-                newHeight -= dy;
-                newPosX += dx / 2;
-                newPosY += dy / 2;
-                break;
-            case 'bl':
-                newWidth -= dx;
-                newHeight -= dy;
-                newPosX += dx / 2;
-                newPosY += dy / 2;
-                break;
-        }
-
-        newWidth = Math.max(1, newWidth);
-        newHeight = Math.max(1, newHeight);
-
-        const sizeType = this.getSizeComponentType(entityData);
-        if (sizeType) {
-            this.store_.updatePropertyDirect(entity, sizeType, 'size', { x: newWidth, y: newHeight });
-        }
-
-        const transform = entityData.components.find(c => c.type === 'LocalTransform');
-        if (transform) {
-            const pos = transform.data.position as { x: number; y: number; z: number };
-            this.store_.updatePropertyDirect(entity, 'LocalTransform', 'position', {
-                x: newPosX,
-                y: newPosY,
-                z: pos?.z ?? 0,
-            });
-        }
-
-        this.requestRender();
-    }
-
-    private commitRectGizmoDrag(): void {
-        const entity = this.store_.selectedEntity;
-        if (entity === null) return;
-
-        const entityData = this.store_.getSelectedEntityData();
-        if (!entityData) return;
-
-        const sizeType = this.getSizeComponentType(entityData);
-        if (sizeType && this.rectDragOriginalSize_) {
-            const comp = entityData.components.find(c => c.type === sizeType)!;
-            const currentSize = comp.data.size as { x: number; y: number };
-            if (currentSize && !this.valuesEqual(this.rectDragOriginalSize_, currentSize)) {
-                this.store_.updateProperty(
-                    entity,
-                    sizeType,
-                    'size',
-                    { ...this.rectDragOriginalSize_ },
-                    { ...currentSize }
-                );
-            }
-        }
-
-        const transform = entityData.components.find(c => c.type === 'LocalTransform');
-        if (transform && this.rectDragOriginalPos_) {
-            const currentPos = transform.data.position as { x: number; y: number; z: number };
-            if (currentPos && !this.valuesEqual(this.rectDragOriginalPos_, currentPos)) {
-                this.store_.updateProperty(
-                    entity,
-                    'LocalTransform',
-                    'position',
-                    { ...this.rectDragOriginalPos_ },
-                    { ...currentPos }
-                );
-            }
-        }
-
-        this.rectDragOriginalSize_ = null;
-        this.rectDragOriginalPos_ = null;
-    }
-
-    private deepClone<T>(obj: T): T {
-        if (obj === null || typeof obj !== 'object') return obj;
-        return JSON.parse(JSON.stringify(obj));
-    }
-
-    private valuesEqual(a: unknown, b: unknown): boolean {
-        return JSON.stringify(a) === JSON.stringify(b);
-    }
-
     private onMouseLeave(_e: MouseEvent): void {
-        if (this.isDragging_ || this.isGizmoDragging_) {
+        if (this.isDragging_ || this.gizmoManager_.isDragging()) {
             return;
         }
-        this.hoveredAxis_ = 'none';
+        this.gizmoManager_.resetHover();
         this.requestRender();
     }
 
@@ -862,13 +586,14 @@ export class SceneViewPanel {
             return;
         }
 
-        if (this.isDragging_ || this.isGizmoDragging_) return;
+        if (this.isDragging_ || this.gizmoManager_.isDragging()) return;
 
         const { worldX, worldY } = this.screenToWorld(e.clientX, e.clientY);
 
-        if (this.gizmoMode_ !== 'select' && this.store_.selectedEntity !== null) {
-            const axis = this.hitTestGizmo(worldX, worldY);
-            if (axis !== 'none') return;
+        if (this.gizmoManager_.getActiveId() !== 'select' && this.store_.selectedEntity !== null) {
+            this.updateGizmoContext();
+            const result = this.gizmoManager_.hitTest(worldX, worldY);
+            if (result.hit) return;
         }
 
         const entity = this.findEntityAtPosition(worldX, worldY);
@@ -887,139 +612,6 @@ export class SceneViewPanel {
             worldX: (x - w / 2) / this.zoom_ - this.panX_,
             worldY: -(y - h / 2) / this.zoom_ + this.panY_,
         };
-    }
-
-    private getSelectedEntityPosition(): { x: number; y: number; z: number } | null {
-        const entityData = this.store_.getSelectedEntityData();
-        if (!entityData) return null;
-
-        return this.store_.getWorldTransform(entityData.id).position;
-    }
-
-    private hitTestGizmo(worldX: number, worldY: number): DragAxis {
-        const pos = this.getSelectedEntityPosition();
-        if (!pos) return 'none';
-
-        const gizmoScale = GIZMO_SIZE / this.zoom_;
-        const handleSize = GIZMO_HANDLE_SIZE / this.zoom_;
-
-        const dx = worldX - pos.x;
-        const dy = worldY - pos.y;
-
-        if (this.gizmoMode_ === 'move' || this.gizmoMode_ === 'scale') {
-            if (Math.abs(dx) < handleSize * 2 && Math.abs(dy) < handleSize * 2) {
-                return 'xy';
-            }
-            if (dx > 0 && dx < gizmoScale && Math.abs(dy) < handleSize) {
-                return 'x';
-            }
-            if (dy > 0 && dy < gizmoScale && Math.abs(dx) < handleSize) {
-                return 'y';
-            }
-        } else if (this.gizmoMode_ === 'rotate') {
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            if (Math.abs(dist - gizmoScale * 0.8) < handleSize * 2) {
-                return 'xy';
-            }
-        }
-
-        return 'none';
-    }
-
-    private hitTestRectGizmo(worldX: number, worldY: number): RectHandle {
-        const entityData = this.store_.getSelectedEntityData();
-        if (!entityData) return 'none';
-
-        const pos = this.getSelectedEntityPosition();
-        if (!pos) return 'none';
-
-        const worldTransform = this.store_.getWorldTransform(entityData.id);
-        const bounds = this.getEntityBoundsWithSpine(entityData);
-
-        const w = bounds.width * Math.abs(worldTransform.scale.x);
-        const h = bounds.height * Math.abs(worldTransform.scale.y);
-        const offsetX = (bounds.offsetX ?? 0) * worldTransform.scale.x;
-        const offsetY = (bounds.offsetY ?? 0) * worldTransform.scale.y;
-        const halfW = w / 2;
-        const halfH = h / 2;
-
-        const handleSize = GIZMO_HANDLE_SIZE / this.zoom_;
-        const dx = worldX - pos.x - offsetX;
-        const dy = worldY - pos.y - offsetY;
-
-        const handles: { x: number; y: number; key: RectHandle }[] = [
-            { x: -halfW, y: halfH, key: 'tl' },
-            { x: halfW, y: halfH, key: 'tr' },
-            { x: -halfW, y: -halfH, key: 'bl' },
-            { x: halfW, y: -halfH, key: 'br' },
-            { x: 0, y: halfH, key: 't' },
-            { x: 0, y: -halfH, key: 'b' },
-            { x: -halfW, y: 0, key: 'l' },
-            { x: halfW, y: 0, key: 'r' },
-        ];
-
-        for (const handle of handles) {
-            if (Math.abs(dx - handle.x) < handleSize * 1.5 &&
-                Math.abs(dy - handle.y) < handleSize * 1.5) {
-                return handle.key;
-            }
-        }
-
-        return 'none';
-    }
-
-    private handleGizmoDrag(worldX: number, worldY: number): void {
-        const entity = this.store_.selectedEntity;
-        if (entity === null) return;
-
-        const dx = worldX - this.gizmoDragStartX_;
-        const dy = worldY - this.gizmoDragStartY_;
-
-        if (this.gizmoMode_ === 'move') {
-            let newX = this.gizmoDragStartValue_.x;
-            let newY = this.gizmoDragStartValue_.y;
-
-            if (this.dragAxis_ === 'x' || this.dragAxis_ === 'xy') {
-                newX += dx;
-            }
-            if (this.dragAxis_ === 'y' || this.dragAxis_ === 'xy') {
-                newY += dy;
-            }
-
-            const newPos = { x: newX, y: newY, z: this.gizmoDragStartValue_.z };
-            this.store_.updatePropertyDirect(entity, 'LocalTransform', 'position', newPos);
-        } else if (this.gizmoMode_ === 'scale') {
-            const scaleFactor = 0.01;
-            let newX = this.gizmoDragStartValue_.x;
-            let newY = this.gizmoDragStartValue_.y;
-
-            if (this.dragAxis_ === 'x' || this.dragAxis_ === 'xy') {
-                newX += dx * scaleFactor;
-            }
-            if (this.dragAxis_ === 'y' || this.dragAxis_ === 'xy') {
-                newY += dy * scaleFactor;
-            }
-
-            const newScale = { x: Math.max(0.01, newX), y: Math.max(0.01, newY), z: this.gizmoDragStartValue_.z };
-            this.store_.updatePropertyDirect(entity, 'LocalTransform', 'scale', newScale);
-        } else if (this.gizmoMode_ === 'rotate') {
-            const pos = this.getSelectedEntityPosition();
-            if (!pos) return;
-
-            const startAngle = Math.atan2(
-                this.gizmoDragStartY_ - pos.y,
-                this.gizmoDragStartX_ - pos.x
-            );
-            const currentAngle = Math.atan2(worldY - pos.y, worldX - pos.x);
-            const deltaAngle = (currentAngle - startAngle) * (180 / Math.PI);
-
-            const newRotZ = this.gizmoDragStartValue_.z + deltaAngle;
-            const euler = { x: 0, y: 0, z: newRotZ };
-            const quat = eulerToQuat(euler);
-            this.store_.updatePropertyDirect(entity, 'LocalTransform', 'rotation', quat);
-        }
-
-        this.requestRender();
     }
 
     private onWheel(e: WheelEvent): void {
@@ -1160,8 +752,9 @@ export class SceneViewPanel {
 
             this.drawCameraFrustum(ctx);
 
-            if (this.gizmoMode_ !== 'select' && this.gizmoSettings_.showGizmos) {
-                this.drawGizmo(ctx);
+            if (this.gizmoManager_.getActiveId() !== 'select' && this.gizmoSettings_.showGizmos) {
+                this.gizmoManager_.setContext(this.createGizmoContext(ctx));
+                this.gizmoManager_.draw();
             }
         }
 
@@ -1239,7 +832,7 @@ export class SceneViewPanel {
         ctx.save();
         ctx.translate(pos.x, -pos.y);
 
-        if (projectionType === 1) {  // 1 = Orthographic
+        if (projectionType === 1) {
             const halfHeight = orthoSize;
             const halfWidth = halfHeight * aspectRatio;
 
@@ -1292,170 +885,13 @@ export class SceneViewPanel {
         if (selectedEntity !== null) {
             this.drawCameraFrustum(ctx);
 
-            if (this.gizmoMode_ !== 'select' && this.gizmoSettings_.showGizmos) {
-                this.drawGizmo(ctx);
+            if (this.gizmoManager_.getActiveId() !== 'select' && this.gizmoSettings_.showGizmos) {
+                this.gizmoManager_.setContext(this.createGizmoContext(ctx));
+                this.gizmoManager_.draw();
             }
         }
 
         ctx.restore();
-    }
-
-    private drawGizmo(ctx: CanvasRenderingContext2D): void {
-        const pos = this.getSelectedEntityPosition();
-        if (!pos) return;
-
-        ctx.save();
-        ctx.translate(pos.x, -pos.y);
-
-        const size = GIZMO_SIZE / this.zoom_;
-        const lineWidth = 2 / this.zoom_;
-        const handleSize = GIZMO_HANDLE_SIZE / this.zoom_;
-        const arrowSize = 8 / this.zoom_;
-
-        if (this.gizmoMode_ === 'move') {
-            ctx.fillStyle = this.hoveredAxis_ === 'xy' ? GIZMO_COLORS.hover : GIZMO_COLORS.xy;
-            ctx.fillRect(-handleSize, -handleSize, handleSize * 2, handleSize * 2);
-
-            ctx.strokeStyle = this.hoveredAxis_ === 'x' ? GIZMO_COLORS.hover : GIZMO_COLORS.x;
-            ctx.lineWidth = lineWidth;
-            ctx.beginPath();
-            ctx.moveTo(0, 0);
-            ctx.lineTo(size, 0);
-            ctx.stroke();
-
-            ctx.fillStyle = this.hoveredAxis_ === 'x' ? GIZMO_COLORS.hover : GIZMO_COLORS.x;
-            ctx.beginPath();
-            ctx.moveTo(size, 0);
-            ctx.lineTo(size - arrowSize, -arrowSize / 2);
-            ctx.lineTo(size - arrowSize, arrowSize / 2);
-            ctx.closePath();
-            ctx.fill();
-
-            ctx.strokeStyle = this.hoveredAxis_ === 'y' ? GIZMO_COLORS.hover : GIZMO_COLORS.y;
-            ctx.beginPath();
-            ctx.moveTo(0, 0);
-            ctx.lineTo(0, -size);
-            ctx.stroke();
-
-            ctx.fillStyle = this.hoveredAxis_ === 'y' ? GIZMO_COLORS.hover : GIZMO_COLORS.y;
-            ctx.beginPath();
-            ctx.moveTo(0, -size);
-            ctx.lineTo(-arrowSize / 2, -size + arrowSize);
-            ctx.lineTo(arrowSize / 2, -size + arrowSize);
-            ctx.closePath();
-            ctx.fill();
-        } else if (this.gizmoMode_ === 'rotate') {
-            const radius = size * 0.8;
-
-            const entityData = this.store_.getSelectedEntityData();
-            const transform = entityData?.components.find(c => c.type === 'LocalTransform');
-            const quat = transform?.data.rotation as { x: number; y: number; z: number; w: number } ?? { x: 0, y: 0, z: 0, w: 1 };
-            const euler = quatToEuler(quat);
-            const angleRad = -euler.z * Math.PI / 180;
-
-            ctx.strokeStyle = 'rgba(100, 100, 100, 0.5)';
-            ctx.lineWidth = lineWidth;
-            ctx.beginPath();
-            ctx.moveTo(0, 0);
-            ctx.lineTo(radius, 0);
-            ctx.stroke();
-
-            ctx.strokeStyle = this.hoveredAxis_ === 'xy' ? GIZMO_COLORS.hover : GIZMO_COLORS.xy;
-            ctx.lineWidth = lineWidth * 1.5;
-            ctx.beginPath();
-            ctx.arc(0, 0, radius, 0, Math.PI * 2);
-            ctx.stroke();
-
-            ctx.strokeStyle = '#00aaff';
-            ctx.lineWidth = lineWidth * 2;
-            ctx.beginPath();
-            ctx.moveTo(0, 0);
-            ctx.lineTo(Math.cos(angleRad) * radius, Math.sin(angleRad) * radius);
-            ctx.stroke();
-
-            ctx.fillStyle = '#00aaff';
-            ctx.beginPath();
-            ctx.arc(Math.cos(angleRad) * radius, Math.sin(angleRad) * radius, handleSize, 0, Math.PI * 2);
-            ctx.fill();
-        } else if (this.gizmoMode_ === 'scale') {
-            ctx.fillStyle = this.hoveredAxis_ === 'xy' ? GIZMO_COLORS.hover : GIZMO_COLORS.xy;
-            ctx.fillRect(-handleSize, -handleSize, handleSize * 2, handleSize * 2);
-
-            ctx.strokeStyle = this.hoveredAxis_ === 'x' ? GIZMO_COLORS.hover : GIZMO_COLORS.x;
-            ctx.lineWidth = lineWidth;
-            ctx.beginPath();
-            ctx.moveTo(0, 0);
-            ctx.lineTo(size, 0);
-            ctx.stroke();
-
-            ctx.fillStyle = this.hoveredAxis_ === 'x' ? GIZMO_COLORS.hover : GIZMO_COLORS.x;
-            ctx.fillRect(size - handleSize, -handleSize, handleSize * 2, handleSize * 2);
-
-            ctx.strokeStyle = this.hoveredAxis_ === 'y' ? GIZMO_COLORS.hover : GIZMO_COLORS.y;
-            ctx.beginPath();
-            ctx.moveTo(0, 0);
-            ctx.lineTo(0, -size);
-            ctx.stroke();
-
-            ctx.fillStyle = this.hoveredAxis_ === 'y' ? GIZMO_COLORS.hover : GIZMO_COLORS.y;
-            ctx.fillRect(-handleSize, -size - handleSize, handleSize * 2, handleSize * 2);
-        } else if (this.gizmoMode_ === 'rect') {
-            this.drawRectGizmo(ctx, handleSize, lineWidth);
-        }
-
-        ctx.restore();
-    }
-
-    private drawRectGizmo(ctx: CanvasRenderingContext2D, handleSize: number, lineWidth: number): void {
-        const entityData = this.store_.getSelectedEntityData();
-        if (!entityData) return;
-
-        const worldTransform = this.store_.getWorldTransform(entityData.id);
-        const bounds = this.getEntityBoundsWithSpine(entityData);
-
-        const w = bounds.width * Math.abs(worldTransform.scale.x);
-        const h = bounds.height * Math.abs(worldTransform.scale.y);
-        const halfW = w / 2;
-        const halfH = h / 2;
-
-        ctx.strokeStyle = GIZMO_COLORS.xy;
-        ctx.lineWidth = lineWidth;
-        ctx.setLineDash([5 / this.zoom_, 5 / this.zoom_]);
-        ctx.strokeRect(-halfW, -halfH, w, h);
-        ctx.setLineDash([]);
-
-        const handles: { x: number; y: number; key: RectHandle }[] = [
-            { x: -halfW, y: -halfH, key: 'tl' },
-            { x: halfW, y: -halfH, key: 'tr' },
-            { x: -halfW, y: halfH, key: 'bl' },
-            { x: halfW, y: halfH, key: 'br' },
-            { x: 0, y: -halfH, key: 't' },
-            { x: 0, y: halfH, key: 'b' },
-            { x: -halfW, y: 0, key: 'l' },
-            { x: halfW, y: 0, key: 'r' },
-        ];
-
-        for (const handle of handles) {
-            const isHovered = this.hoveredRectHandle_ === handle.key;
-            const isCorner = ['tl', 'tr', 'bl', 'br'].includes(handle.key);
-
-            ctx.fillStyle = isHovered ? GIZMO_COLORS.hover : (isCorner ? GIZMO_COLORS.xy : GIZMO_COLORS.x);
-            ctx.fillRect(
-                handle.x - handleSize,
-                handle.y - handleSize,
-                handleSize * 2,
-                handleSize * 2
-            );
-
-            ctx.strokeStyle = '#000';
-            ctx.lineWidth = 1 / this.zoom_;
-            ctx.strokeRect(
-                handle.x - handleSize,
-                handle.y - handleSize,
-                handleSize * 2,
-                handleSize * 2
-            );
-        }
     }
 
     private drawGrid(ctx: CanvasRenderingContext2D, w: number, h: number): void {

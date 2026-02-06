@@ -3,6 +3,8 @@
  * @brief   Build history tracking and management
  */
 
+import { getEditorContext } from '../context/EditorContext';
+
 // =============================================================================
 // Types
 // =============================================================================
@@ -44,13 +46,13 @@ const MAX_ENTRIES_PER_CONFIG = 20;
 export class BuildHistory {
     private projectDir_: string;
     private entries_: BuildHistoryEntry[];
-    private fs_: NativeFileSystem | null;
+    private fs_: import('../scripting/types').NativeFS | null;
     private loaded_: boolean;
 
     constructor(projectDir: string) {
         this.projectDir_ = projectDir;
         this.entries_ = [];
-        this.fs_ = window.__esengine_fs ?? null;
+        this.fs_ = getEditorContext().fs ?? null;
         this.loaded_ = false;
     }
 
@@ -72,9 +74,8 @@ export class BuildHistory {
 
         try {
             const content = await this.fs_.readFile(historyPath);
-            const decoder = new TextDecoder();
-            const jsonStr = decoder.decode(content);
-            const data = JSON.parse(jsonStr) as BuildHistoryData;
+            if (!content) throw new Error('Empty history');
+            const data = JSON.parse(content) as BuildHistoryData;
 
             if (data.version === HISTORY_VERSION) {
                 this.entries_ = data.entries;
@@ -92,20 +93,14 @@ export class BuildHistory {
         const historyDir = this.getHistoryDir();
         const historyPath = this.getHistoryPath();
 
-        try {
-            await this.fs_.mkdir(historyDir, { recursive: true });
-        } catch {
-            // Directory may already exist
-        }
+        await this.fs_.createDirectory(historyDir);
 
         const data: BuildHistoryData = {
             version: HISTORY_VERSION,
             entries: this.entries_,
         };
 
-        const jsonStr = JSON.stringify(data, null, 2);
-        const encoder = new TextEncoder();
-        await this.fs_.writeFile(historyPath, encoder.encode(jsonStr));
+        await this.fs_.writeFile(historyPath, JSON.stringify(data, null, 2));
     }
 
     addEntry(entry: Omit<BuildHistoryEntry, 'id'>): BuildHistoryEntry {

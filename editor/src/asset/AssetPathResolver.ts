@@ -3,6 +3,8 @@
  * @brief   Unified path resolution for editor assets
  */
 
+import { getEditorContext } from '../context/EditorContext';
+
 interface NativeFS {
     exists(path: string): Promise<boolean>;
     readFile(path: string): Promise<string | null>;
@@ -84,6 +86,6 @@ export class AssetPathResolver {
     }
 
     private getNativeFS(): NativeFS | null {
-        return (window as any).__esengine_fs ?? null;
+        return getEditorContext().fs ?? null;
     }
 }

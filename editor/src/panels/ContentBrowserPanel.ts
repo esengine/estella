@@ -8,6 +8,7 @@ import { icons } from '../utils/icons';
 import { showContextMenu } from '../ui/ContextMenu';
 import { getPlatformAdapter } from '../platform/PlatformAdapter';
 import { showInputDialog, showConfirmDialog } from '../ui/dialog';
+import { getEditorContext } from '../context/EditorContext';
 
 // =============================================================================
 // Types
@@ -63,11 +64,11 @@ export interface ContentBrowserOptions {
 // =============================================================================
 
 function getNativeFS(): NativeFS | null {
-    return (window as any).__esengine_fs ?? null;
+    return getEditorContext().fs ?? null;
 }
 
 function getNativeShell(): NativeShell | null {
-    return (window as any).__esengine_shell ?? null;
+    return getEditorContext().shell ?? null;
 }
 
 function joinPath(...parts: string[]): string {

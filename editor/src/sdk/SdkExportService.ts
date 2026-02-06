@@ -4,6 +4,7 @@
  */
 
 import { SDK_VERSION } from '../types/ProjectTypes';
+import { getEditorContext } from '../context/EditorContext';
 
 // =============================================================================
 // Native FS Interface
@@ -21,7 +22,7 @@ interface NativeFS {
 }
 
 function getNativeFS(): NativeFS | null {
-    return (window as any).__esengine_fs ?? null;
+    return getEditorContext().fs ?? null;
 }
 
 // =============================================================================

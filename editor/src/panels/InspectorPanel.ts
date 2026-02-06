@@ -35,6 +35,7 @@ import {
     getDefaultPropertyValue,
     type ShaderProperty,
 } from '../shader/ShaderPropertyParser';
+import { getEditorContext, getEditorInstance } from '../context/EditorContext';
 
 // =============================================================================
 // Types
@@ -63,7 +64,7 @@ interface NativeFS {
 // =============================================================================
 
 function getNativeFS(): NativeFS | null {
-    return (window as any).__esengine_fs ?? null;
+    return getEditorContext().fs ?? null;
 }
 
 function getFileName(path: string): string {
@@ -1292,7 +1293,7 @@ export class InspectorPanel {
 
         const openBtn = actionsWrapper.querySelector('.es-btn-open-scene');
         openBtn?.addEventListener('click', () => {
-            const editor = (window as any).__esengine_editor;
+            const editor = getEditorInstance();
             if (editor && typeof editor.openSceneFromPath === 'function') {
                 editor.openSceneFromPath(path);
             }
@@ -1535,21 +1536,21 @@ export class InspectorPanel {
     }
 
     private getProjectDir(): string | null {
-        const editor = (window as any).__esengine_editor;
+        const editor = getEditorInstance();
         const projectPath = editor?.projectPath;
         if (!projectPath) return null;
         return projectPath.replace(/\\/g, '/').replace(/\/[^/]+$/, '');
     }
 
     private navigateToAsset(assetPath: string): void {
-        const editor = (window as any).__esengine_editor;
+        const editor = getEditorInstance();
         if (editor && typeof editor.navigateToAsset === 'function') {
             editor.navigateToAsset(assetPath);
         }
     }
 
     private getAssetServer(): import('../asset/EditorAssetServer').EditorAssetServer | null {
-        const editor = (window as any).__esengine_editor;
+        const editor = getEditorInstance();
         return editor?.assetServer ?? null;
     }
 

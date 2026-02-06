@@ -6,6 +6,7 @@
 import * as esbuild from 'esbuild-wasm/esm/browser';
 import { virtualFsPlugin } from './esbuildPlugins';
 import type { NativeFS, ScriptLoaderOptions, CompileError } from './types';
+import { getEditorContext } from '../context/EditorContext';
 
 // =============================================================================
 // Path Utilities
@@ -30,7 +31,7 @@ function getProjectDir(projectPath: string): string {
 // =============================================================================
 
 function getNativeFS(): NativeFS | null {
-    return (window as any).__esengine_fs ?? null;
+    return getEditorContext().fs ?? null;
 }
 
 // =============================================================================

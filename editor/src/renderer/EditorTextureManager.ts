@@ -6,6 +6,7 @@
 import type { ESEngineModule } from 'esengine';
 import { parseTextureMetadata, getMetaFilePath } from '../types/TextureMetadata';
 import type { AssetPathResolver } from '../asset';
+import { getEditorContext } from '../context/EditorContext';
 
 // =============================================================================
 // Types
@@ -214,6 +215,6 @@ export class EditorTextureManager {
     }
 
     private getNativeFS(): NativeFS | null {
-        return (window as any).__esengine_fs ?? null;
+        return getEditorContext().fs ?? null;
     }
 }

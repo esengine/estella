@@ -12,6 +12,7 @@ import {
     createDefaultBuildConfig,
     createDefaultBuildSettings,
 } from '../types/BuildTypes';
+import { getEditorContext, getEditorInstance } from '../context/EditorContext';
 import { type BuildResult } from './BuildService';
 import { showProgressToast, dismissToast, showToast } from '../ui/Toast';
 import { BuildHistory, formatBuildTime, formatBuildDuration, getBuildStatusIcon, type BuildHistoryEntry } from './BuildHistory';
@@ -608,7 +609,7 @@ export class BuildSettingsDialog {
 
             case 'add-current-scene':
                 if (config) {
-                    const editor = (window as any).__esengine_editor;
+                    const editor = getEditorInstance();
                     const scenePath = editor?.currentScenePath;
                     if (scenePath) {
                         const relativePath = this.toRelativePath(scenePath);
@@ -709,7 +710,7 @@ export class BuildSettingsDialog {
     }
 
     private async browseFile(inputId: string, title: string, extensions: string[]): Promise<void> {
-        const fs = (window as any).__esengine_fs;
+        const fs = getEditorContext().fs;
         if (!fs?.showOpenDialog) return;
 
         const result = await fs.showOpenDialog({
@@ -1086,8 +1087,8 @@ export class BuildSettingsDialog {
     private async openOutputFolder(outputPath: string): Promise<void> {
         try {
             const dirPath = outputPath.replace(/\\/g, '/').split('/').slice(0, -1).join('/');
-            const fs = (window as any).__esengine_fs;
-            if (fs?.openFolder) {
+            const fs = getEditorContext().fs;
+            if (fs) {
                 await fs.openFolder(dirPath);
             }
         } catch (err) {
@@ -1097,7 +1098,7 @@ export class BuildSettingsDialog {
 
     private async previewOutput(outputPath: string): Promise<void> {
         try {
-            const fs = (window as any).__esengine_fs;
+            const fs = getEditorContext().fs;
             if (fs?.openFile) {
                 await fs.openFile(outputPath);
             }

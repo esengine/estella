@@ -11,6 +11,7 @@ import { AssetLoader } from './AssetLoader';
 import type { AssetPathResolver } from './AssetPathResolver';
 import { parseShaderProperties, getShaderDefaultProperties } from '../shader/ShaderPropertyParser';
 import { getAssetEventBus } from '../events/AssetEventBus';
+import { getEditorContext } from '../context/EditorContext';
 
 interface NativeFS {
     readFile(path: string): Promise<string | null>;
@@ -265,7 +266,7 @@ export class EditorAssetServer {
     }
 
     private getNativeFS(): NativeFS | null {
-        return (window as any).__esengine_fs ?? null;
+        return getEditorContext().fs ?? null;
     }
 
     // =========================================================================

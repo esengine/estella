@@ -4,6 +4,7 @@
  */
 
 import type { SceneData, EntityData, ComponentData } from '../types/SceneTypes';
+import { getEditorContext } from '../context/EditorContext';
 
 // =============================================================================
 // SceneSerializer
@@ -77,7 +78,7 @@ interface NativeFS {
 }
 
 function getNativeFS(): NativeFS | null {
-    return (window as any).__esengine_fs ?? null;
+    return getEditorContext().fs ?? null;
 }
 
 function isNativeApp(): boolean {

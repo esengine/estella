@@ -14,6 +14,7 @@ import * as esbuild from 'esbuild-wasm/esm/browser';
 import type { BuildResult, BuildContext } from './BuildService';
 import { BuildProgressReporter } from './BuildProgress';
 import { BuildCache, type BuildCacheData } from './BuildCache';
+import { getEditorContext } from '../context/EditorContext';
 
 // =============================================================================
 // Types
@@ -143,7 +144,7 @@ var __STARTUP_SCENE__={{SCENE_DATA}};
 export class PlayableBuilder {
     constructor(context: BuildContext) {
         this.context_ = context;
-        this.fs_ = (window as any).__esengine_fs ?? null;
+        this.fs_ = getEditorContext().fs ?? null;
         this.projectDir_ = getProjectDir(context.projectPath);
         this.progress_ = context.progress || new BuildProgressReporter();
         this.cache_ = context.cache || null;
