@@ -12,11 +12,6 @@ export type Mat4 = number[];
 
 // Enums
 
-export enum ProjectionType {
-    Perspective = 0,
-    Orthographic = 1,
-}
-
 export enum CanvasScaleMode {
     FixedWidth = 0,
     FixedHeight = 1,
@@ -25,44 +20,12 @@ export enum CanvasScaleMode {
     Match = 4,
 }
 
+export enum ProjectionType {
+    Perspective = 0,
+    Orthographic = 1,
+}
+
 // Components
-
-export interface Camera {
-    projectionType: number;
-    fov: number;
-    orthoSize: number;
-    nearPlane: number;
-    farPlane: number;
-    aspectRatio: number;
-    isActive: boolean;
-    priority: number;
-}
-
-export interface Canvas {
-    designResolution: UVec2;
-    pixelsPerUnit: number;
-    scaleMode: number;
-    matchWidthOrHeight: number;
-    backgroundColor: Vec4;
-}
-
-export interface Parent {
-    entity: number;
-}
-
-export interface Children {
-}
-
-export interface Sprite {
-    texture: number;
-    color: Vec4;
-    size: Vec2;
-    uvOffset: Vec2;
-    uvScale: Vec2;
-    layer: number;
-    flipX: boolean;
-    flipY: boolean;
-}
 
 export interface LocalTransform {
     position: Vec3;
@@ -81,6 +44,58 @@ export interface Velocity {
     angular: Vec3;
 }
 
+export interface SpineAnimation {
+    skeletonPath: string;
+    atlasPath: string;
+    skin: string;
+    animation: string;
+    timeScale: number;
+    loop: boolean;
+    playing: boolean;
+    flipX: boolean;
+    flipY: boolean;
+    color: Vec4;
+    layer: number;
+    skeletonScale: number;
+}
+
+export interface Sprite {
+    texture: number;
+    color: Vec4;
+    size: Vec2;
+    uvOffset: Vec2;
+    uvScale: Vec2;
+    layer: number;
+    flipX: boolean;
+    flipY: boolean;
+}
+
+export interface Parent {
+    entity: number;
+}
+
+export interface Children {
+}
+
+export interface Canvas {
+    designResolution: UVec2;
+    pixelsPerUnit: number;
+    scaleMode: number;
+    matchWidthOrHeight: number;
+    backgroundColor: Vec4;
+}
+
+export interface Camera {
+    projectionType: number;
+    fov: number;
+    orthoSize: number;
+    nearPlane: number;
+    farPlane: number;
+    aspectRatio: number;
+    isActive: boolean;
+    priority: number;
+}
+
 // Registry
 export interface Registry {
     create(): Entity;
@@ -88,26 +103,6 @@ export interface Registry {
     valid(entity: Entity): boolean;
     entityCount(): number;
 
-    hasCamera(entity: Entity): boolean;
-    getCamera(entity: Entity): Camera;
-    addCamera(entity: Entity, component: Camera): void;
-    removeCamera(entity: Entity): void;
-    hasCanvas(entity: Entity): boolean;
-    getCanvas(entity: Entity): Canvas;
-    addCanvas(entity: Entity, component: Canvas): void;
-    removeCanvas(entity: Entity): void;
-    hasParent(entity: Entity): boolean;
-    getParent(entity: Entity): Parent;
-    addParent(entity: Entity, component: Parent): void;
-    removeParent(entity: Entity): void;
-    hasChildren(entity: Entity): boolean;
-    getChildren(entity: Entity): Children;
-    addChildren(entity: Entity, component: Children): void;
-    removeChildren(entity: Entity): void;
-    hasSprite(entity: Entity): boolean;
-    getSprite(entity: Entity): Sprite;
-    addSprite(entity: Entity, component: Sprite): void;
-    removeSprite(entity: Entity): void;
     hasLocalTransform(entity: Entity): boolean;
     getLocalTransform(entity: Entity): LocalTransform;
     addLocalTransform(entity: Entity, component: LocalTransform): void;
@@ -120,17 +115,45 @@ export interface Registry {
     getVelocity(entity: Entity): Velocity;
     addVelocity(entity: Entity, component: Velocity): void;
     removeVelocity(entity: Entity): void;
+    hasSpineAnimation(entity: Entity): boolean;
+    getSpineAnimation(entity: Entity): SpineAnimation;
+    addSpineAnimation(entity: Entity, component: SpineAnimation): void;
+    removeSpineAnimation(entity: Entity): void;
+    hasSprite(entity: Entity): boolean;
+    getSprite(entity: Entity): Sprite;
+    addSprite(entity: Entity, component: Sprite): void;
+    removeSprite(entity: Entity): void;
+    hasParent(entity: Entity): boolean;
+    getParent(entity: Entity): Parent;
+    addParent(entity: Entity, component: Parent): void;
+    removeParent(entity: Entity): void;
+    hasChildren(entity: Entity): boolean;
+    getChildren(entity: Entity): Children;
+    addChildren(entity: Entity, component: Children): void;
+    removeChildren(entity: Entity): void;
+    hasCanvas(entity: Entity): boolean;
+    getCanvas(entity: Entity): Canvas;
+    addCanvas(entity: Entity, component: Canvas): void;
+    removeCanvas(entity: Entity): void;
+    hasCamera(entity: Entity): boolean;
+    getCamera(entity: Entity): Camera;
+    addCamera(entity: Entity, component: Camera): void;
+    removeCamera(entity: Entity): void;
+
+    // Hierarchy Utilities
+    setParent(child: Entity, parent: Entity): void;
 }
 
 // Module
 export interface ESEngineModule {
     Registry: new () => Registry;
-    Camera: new () => Camera;
-    Canvas: new () => Canvas;
-    Parent: new () => Parent;
-    Children: new () => Children;
-    Sprite: new () => Sprite;
     LocalTransform: new () => LocalTransform;
     WorldTransform: new () => WorldTransform;
     Velocity: new () => Velocity;
+    SpineAnimation: new () => SpineAnimation;
+    Sprite: new () => Sprite;
+    Parent: new () => Parent;
+    Children: new () => Children;
+    Canvas: new () => Canvas;
+    Camera: new () => Camera;
 }

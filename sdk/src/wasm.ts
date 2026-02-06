@@ -126,6 +126,78 @@ export interface ESEngineModule {
     getResourceManager(): CppResourceManager;
     getSpineBounds(registry: CppRegistry, entity: number): SpineBounds;
 
+    // ImmediateDraw API
+    draw_begin(matrixPtr: number): void;
+    draw_end(): void;
+    draw_line(fromX: number, fromY: number, toX: number, toY: number,
+              r: number, g: number, b: number, a: number, thickness: number): void;
+    draw_rect(x: number, y: number, width: number, height: number,
+              r: number, g: number, b: number, a: number, filled: boolean): void;
+    draw_rectOutline(x: number, y: number, width: number, height: number,
+                     r: number, g: number, b: number, a: number, thickness: number): void;
+    draw_circle(centerX: number, centerY: number, radius: number,
+                r: number, g: number, b: number, a: number, filled: boolean, segments: number): void;
+    draw_circleOutline(centerX: number, centerY: number, radius: number,
+                       r: number, g: number, b: number, a: number, thickness: number, segments: number): void;
+    draw_texture(x: number, y: number, width: number, height: number, textureId: number,
+                 r: number, g: number, b: number, a: number): void;
+    draw_textureRotated(x: number, y: number, width: number, height: number, rotation: number,
+                        textureId: number, r: number, g: number, b: number, a: number): void;
+    draw_setLayer(layer: number): void;
+    draw_setDepth(depth: number): void;
+    draw_getDrawCallCount(): number;
+    draw_getPrimitiveCount(): number;
+    draw_setBlendMode(mode: number): void;
+    draw_setDepthTest(enabled: boolean): void;
+    draw_mesh(geometryHandle: number, shaderHandle: number, transformPtr: number): void;
+    draw_meshWithUniforms(geometryHandle: number, shaderHandle: number, transformPtr: number,
+                          uniformsPtr: number, uniformCount: number): void;
+
+    // Geometry API
+    geometry_create(): number;
+    geometry_init(handle: number, verticesPtr: number, vertexCount: number,
+                  layoutPtr: number, layoutCount: number, dynamic: boolean): void;
+    geometry_setIndices16(handle: number, indicesPtr: number, indexCount: number): void;
+    geometry_setIndices32(handle: number, indicesPtr: number, indexCount: number): void;
+    geometry_updateVertices(handle: number, verticesPtr: number, vertexCount: number, offset: number): void;
+    geometry_release(handle: number): void;
+    geometry_isValid(handle: number): boolean;
+
+    // PostProcess API
+    postprocess_init(width: number, height: number): boolean;
+    postprocess_shutdown(): void;
+    postprocess_resize(width: number, height: number): void;
+    postprocess_addPass(name: string, shaderHandle: number): number;
+    postprocess_removePass(name: string): void;
+    postprocess_setPassEnabled(name: string, enabled: boolean): void;
+    postprocess_isPassEnabled(name: string): boolean;
+    postprocess_setUniformFloat(passName: string, uniform: string, value: number): void;
+    postprocess_setUniformVec4(passName: string, uniform: string, x: number, y: number, z: number, w: number): void;
+    postprocess_begin(): void;
+    postprocess_end(): void;
+    postprocess_getPassCount(): number;
+    postprocess_isInitialized(): boolean;
+    postprocess_setBypass(bypass: boolean): void;
+    postprocess_isBypassed(): boolean;
+
+    // Renderer API (RenderFrame)
+    renderer_init(width: number, height: number): void;
+    renderer_resize(width: number, height: number): void;
+    renderer_begin(matrixPtr: number, targetHandle: number): void;
+    renderer_end(): void;
+    renderer_submitSprites(registry: CppRegistry): void;
+    renderer_submitSpine(registry: CppRegistry): void;
+    renderer_setStage(stage: number): void;
+    renderer_createTarget(width: number, height: number): number;
+    renderer_releaseTarget(handle: number): void;
+    renderer_getTargetTexture(handle: number): number;
+    renderer_getDrawCalls(): number;
+    renderer_getTriangles(): number;
+    renderer_getSprites(): number;
+    renderer_getSpine(): number;
+    renderer_getMeshes(): number;
+    renderer_getCulled(): number;
+
     _malloc(size: number): number;
     _free(ptr: number): void;
 }

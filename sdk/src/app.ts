@@ -8,6 +8,11 @@ import { Schedule, SystemDef, SystemRunner } from './system';
 import { ResourceStorage, Time, TimeData, type ResourceDef } from './resource';
 import type { ESEngineModule, CppRegistry } from './wasm';
 import { textPlugin } from './ui/TextPlugin';
+import { initDrawAPI, shutdownDrawAPI } from './draw';
+import { initMaterialAPI, shutdownMaterialAPI } from './material';
+import { initGeometryAPI, shutdownGeometryAPI } from './geometry';
+import { initPostProcessAPI, shutdownPostProcessAPI } from './postprocess';
+import { initRendererAPI, shutdownRendererAPI } from './renderer';
 
 // =============================================================================
 // Plugin Interface
@@ -168,6 +173,11 @@ export class App {
 
     quit(): void {
         this.running_ = false;
+        shutdownRendererAPI();
+        shutdownPostProcessAPI();
+        shutdownGeometryAPI();
+        shutdownMaterialAPI();
+        shutdownDrawAPI();
     }
 
     // =========================================================================
@@ -216,6 +226,12 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
     } else {
         module.initRenderer();
     }
+
+    initDrawAPI(module);
+    initMaterialAPI(module);
+    initGeometryAPI(module);
+    initPostProcessAPI(module);
+    initRendererAPI(module);
 
     const getViewportSize = options?.getViewportSize ?? (() => ({
         width: window.innerWidth * (window.devicePixelRatio || 1),

@@ -32,6 +32,7 @@ export {
     defineComponent,
     defineTag,
     isBuiltinComponent,
+    getComponentDefaults,
     type ComponentDef,
     type BuiltinComponentDef,
     type AnyComponentDef,
@@ -44,6 +45,7 @@ export {
     Velocity,
     Parent,
     Children,
+    SpineAnimation,
     type LocalTransformData,
     type WorldTransformData,
     type SpriteData,
@@ -52,6 +54,7 @@ export {
     type VelocityData,
     type ParentData,
     type ChildrenData,
+    type SpineAnimationData,
 } from './component';
 
 // =============================================================================
@@ -165,6 +168,8 @@ export {
     AssetPlugin,
     assetPlugin,
     type TextureInfo,
+    type SliceBorder,
+    type SpineLoadResult,
     type AssetsData,
 } from './asset';
 
@@ -175,6 +180,7 @@ export {
 export {
     loadSceneData,
     loadSceneWithAssets,
+    loadComponent,
     updateCameraAspectRatio,
     type SceneData,
     type SceneEntityData,
@@ -208,3 +214,80 @@ export {
     type PlatformRequestOptions,
     type PlatformResponse,
 } from './platform';
+
+// =============================================================================
+// Spine Animation
+// =============================================================================
+
+export {
+    SpineController,
+    createSpineController,
+    type SpineEventType,
+    type SpineEventCallback,
+    type SpineEvent,
+    type TrackEntryInfo,
+} from './spine';
+
+// =============================================================================
+// Draw API
+// =============================================================================
+
+export {
+    Draw,
+    BlendMode,
+    initDrawAPI,
+    shutdownDrawAPI,
+    type DrawAPI,
+} from './draw';
+
+// =============================================================================
+// Material API
+// =============================================================================
+
+export {
+    Material,
+    ShaderSources,
+    initMaterialAPI,
+    shutdownMaterialAPI,
+    type ShaderHandle,
+    type MaterialHandle,
+    type MaterialOptions,
+    type UniformValue,
+} from './material';
+
+// =============================================================================
+// Geometry API
+// =============================================================================
+
+export {
+    Geometry,
+    DataType,
+    initGeometryAPI,
+    shutdownGeometryAPI,
+    type GeometryHandle,
+    type GeometryOptions,
+    type VertexAttributeDescriptor,
+} from './geometry';
+
+// =============================================================================
+// PostProcess API
+// =============================================================================
+
+export {
+    PostProcess,
+    initPostProcessAPI,
+    shutdownPostProcessAPI,
+} from './postprocess';
+
+// =============================================================================
+// Renderer API
+// =============================================================================
+
+export {
+    Renderer,
+    RenderStage,
+    initRendererAPI,
+    shutdownRendererAPI,
+    type RenderTargetHandle,
+    type RenderStats,
+} from './renderer';

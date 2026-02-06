@@ -8,6 +8,7 @@ import { defineSystem, Schedule } from '../system';
 import { Sprite, type SpriteData } from '../component';
 import { Text, type TextData } from './text';
 import { TextRenderer } from './TextRenderer';
+import { UIRect, type UIRectData } from './UIRect';
 
 // =============================================================================
 // Text Plugin
@@ -43,7 +44,10 @@ export class TextPlugin implements Plugin {
                         });
                     }
 
-                    const result = renderer.renderForEntity(entity, text);
+                    const uiRect = world.has(entity, UIRect)
+                        ? world.get(entity, UIRect) as UIRectData
+                        : null;
+                    const result = renderer.renderForEntity(entity, text, uiRect);
 
                     const sprite = world.get(entity, Sprite) as SpriteData;
                     sprite.texture = result.textureHandle;
