@@ -13,6 +13,9 @@ const PREVIEW_HTML: &str = include_str!("preview_template.html");
 const ENGINE_JS: &[u8] = include_bytes!("../../public/wasm/esengine.js");
 const ENGINE_WASM: &[u8] = include_bytes!("../../public/wasm/esengine.wasm");
 const SDK_JS: &[u8] = include_bytes!("../../public/sdk/esm/esengine.js");
+const SDK_JS_MAP: &[u8] = include_bytes!("../../public/sdk/esm/index.js.map");
+const SDK_WASM_JS: &[u8] = include_bytes!("../../public/sdk/esm/wasm.js");
+const SDK_WASM_JS_MAP: &[u8] = include_bytes!("../../public/sdk/esm/wasm.js.map");
 
 // =============================================================================
 // Preview Server
@@ -54,7 +57,10 @@ impl PreviewServer {
                     "" | "index.html" => serve_html(),
                     "wasm/esengine.js" => serve_embedded(ENGINE_JS, "application/javascript"),
                     "wasm/esengine.wasm" => serve_embedded(ENGINE_WASM, "application/wasm"),
-                    "sdk/esm/esengine.js" => serve_embedded(SDK_JS, "application/javascript"),
+                    "sdk/index.js" => serve_embedded(SDK_JS, "application/javascript"),
+                    "sdk/index.js.map" => serve_embedded(SDK_JS_MAP, "application/json"),
+                    "sdk/wasm.js" => serve_embedded(SDK_WASM_JS, "application/javascript"),
+                    "sdk/wasm.js.map" => serve_embedded(SDK_WASM_JS_MAP, "application/json"),
                     _ => serve_project_file(&project_dir, path),
                 };
 

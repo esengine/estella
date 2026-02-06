@@ -4,6 +4,7 @@
  */
 
 import type { RecentProject } from '../types/ProjectTypes';
+import { ENGINE_VERSION, SDK_VERSION } from '../types/ProjectTypes';
 import {
     getRecentProjects,
     removeRecentProject,
@@ -76,7 +77,7 @@ export class ProjectLauncher {
                 </div>
 
                 <div class="es-launcher-footer">
-                    <span>v0.1.0</span>
+                    <span>Editor v${ENGINE_VERSION} | SDK v${SDK_VERSION}</span>
                 </div>
             </div>
         `;

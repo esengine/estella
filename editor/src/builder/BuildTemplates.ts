@@ -167,7 +167,6 @@ export function createConfigFromTemplate(
             version: '1.0.0',
             bundleMode: template.wechatSettings?.bundleMode ?? 'subpackage',
             outputDir: template.wechatSettings?.outputDir ?? 'build/wechat',
-            sdkPath: '',
             orientation: template.wechatSettings?.orientation ?? 'portrait',
         };
     }

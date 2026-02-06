@@ -172,17 +172,12 @@ TextureHandle ResourceManager::createTexture(u32 width, u32 height, ConstSpan<u8
 }
 
 TextureHandle ResourceManager::loadTexture(const std::string& path) {
-    ES_LOG_INFO("ResourceManager::loadTexture looking for: {}", path);
-
     auto cached = textures_.findByPath(path);
     if (cached.isValid()) {
         textures_.addRef(cached);
         stats_.cacheHits++;
-        ES_LOG_INFO("ResourceManager::loadTexture found in cache: handle={}", cached.id());
         return cached;
     }
-
-    ES_LOG_WARN("ResourceManager::loadTexture NOT found in cache: {}", path);
 
 #ifdef ES_PLATFORM_WEB
     ES_LOG_ERROR("loadTexture from file not supported on Web, use createTexture with pixel data");
@@ -239,7 +234,6 @@ void ResourceManager::releaseTexture(TextureHandle handle) {
 
 void ResourceManager::registerTextureWithPath(TextureHandle handle, const std::string& path) {
     if (handle.isValid() && !path.empty()) {
-        ES_LOG_INFO("ResourceManager::registerTextureWithPath handle={} path={}", handle.id(), path);
         textures_.setPath(handle, path);
     }
 }

@@ -378,14 +378,7 @@ function applyTextureMetadata(module, sceneData, textureCache) {
         await this.fs_!.writeBinaryFile(joinPath(outputDir, 'esengine.wasm'), engineWasm);
         console.log(`[WeChatBuilder] Copied WeChat engine files`);
 
-        let sdkJs = await this.fs_!.readFile(
-            joinPath(this.projectDir_, 'node_modules/esengine/dist/index.wechat.js')
-        );
-
-        if (!sdkJs) {
-            sdkJs = await this.fs_!.getSdkWechatJs();
-        }
-
+        const sdkJs = await this.fs_!.getSdkWechatJs();
         if (sdkJs) {
             await this.fs_!.writeFile(joinPath(outputDir, 'sdk.js'), sdkJs);
             console.log(`[WeChatBuilder] Copied SDK`);
@@ -479,12 +472,18 @@ function applyTextureMetadata(module, sceneData, textureCache) {
                         const baseDir = args.importer ? getDir(args.importer) : args.resolveDir;
                         resolvedPath = joinPath(baseDir, args.path);
                     } else {
-                        // Bare module specifier - resolve from node_modules
-                        const pkgEntry = await resolvePackageEntry(args.path);
-                        if (pkgEntry) {
-                            resolvedPath = pkgEntry;
+                        // Bare module specifier
+                        if (args.path === 'esengine') {
+                            resolvedPath = joinPath(projectDir, '.esengine/sdk/index.js');
+                        } else if (args.path === 'esengine/wasm') {
+                            resolvedPath = joinPath(projectDir, '.esengine/sdk/wasm.js');
                         } else {
-                            resolvedPath = joinPath(projectDir, 'node_modules', args.path);
+                            const pkgEntry = await resolvePackageEntry(args.path);
+                            if (pkgEntry) {
+                                resolvedPath = pkgEntry;
+                            } else {
+                                throw new Error(`Module not found: ${args.path}. Please install it with npm.`);
+                            }
                         }
                     }
 

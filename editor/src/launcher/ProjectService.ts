@@ -9,6 +9,7 @@ import type {
     ProjectTemplate,
 } from '../types/ProjectTypes';
 import { ENGINE_VERSION } from '../types/ProjectTypes';
+import { SdkExportService } from '../sdk';
 
 // =============================================================================
 // Native FS Interface
@@ -169,6 +170,10 @@ export async function createProject(
         }
     }
 
+    // Export SDK to project
+    const sdkService = new SdkExportService();
+    await sdkService.exportToProject(projectDir);
+
     // Add to recent projects
     addRecentProject({
         name,
@@ -217,6 +222,13 @@ export async function openProject(
         const config = JSON.parse(content) as ProjectConfig;
         if (!config.name || !config.version) {
             return { success: false, error: 'Invalid project file format' };
+        }
+
+        // Update SDK if needed
+        const projectDir = projectPath.replace(/\/[^/]+\.esproject$/, '');
+        const sdkService = new SdkExportService();
+        if (await sdkService.needsUpdate(projectDir)) {
+            await sdkService.exportToProject(projectDir);
         }
 
         // Update recent projects
@@ -367,9 +379,6 @@ function createPackageJson(projectName: string): string {
             rollup: '^4.18.0',
             typescript: '^5.4.5',
         },
-        dependencies: {
-            esengine: '^0.1.0',
-        },
     }, null, 2);
 }
 
@@ -385,6 +394,11 @@ const TSCONFIG_TEMPLATE = JSON.stringify({
         declaration: false,
         outDir: './dist',
         rootDir: './src',
+        baseUrl: '.',
+        paths: {
+            'esengine': ['./.esengine/sdk/index.d.ts'],
+            'esengine/wasm': ['./.esengine/sdk/wasm.d.ts'],
+        },
     },
     include: ['src/**/*'],
     exclude: ['node_modules'],

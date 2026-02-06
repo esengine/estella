@@ -30,15 +30,11 @@ ESEngineTextureLoader::ESEngineTextureLoader(resource::ResourceManager& resource
 void ESEngineTextureLoader::load(::spine::AtlasPage& page, const ::spine::String& path) {
     std::string pathStr(path.buffer(), path.length());
 
-    ES_LOG_INFO("SpineTextureLoader: trying to load texture: {}", pathStr);
-
     auto handle = resource_manager_.loadTexture(pathStr);
     if (!handle.isValid()) {
         ES_LOG_ERROR("Failed to load Spine texture: {}", pathStr);
         return;
     }
-
-    ES_LOG_INFO("SpineTextureLoader: loaded texture handle: {}", handle.id());
 
     auto* texture = resource_manager_.getTexture(handle);
     if (texture) {

@@ -16,6 +16,10 @@ const ENGINE_SINGLE_JS: &[u8] = include_bytes!("../../public/wasm/esengine.singl
 const ENGINE_WXGAME_JS: &[u8] = include_bytes!("../../public/wasm/esengine.wxgame.js");
 const ENGINE_WXGAME_WASM: &[u8] = include_bytes!("../../public/wasm/esengine.wxgame.wasm");
 const SDK_WECHAT_JS: &[u8] = include_bytes!("../../public/sdk/cjs/esengine.wechat.js");
+const SDK_ESM_JS: &[u8] = include_bytes!("../../public/sdk/esm/esengine.js");
+const SDK_ESM_DTS: &[u8] = include_bytes!("../../public/sdk/esm/esengine.d.ts");
+const SDK_WASM_JS: &[u8] = include_bytes!("../../public/sdk/esm/wasm.js");
+const SDK_WASM_DTS: &[u8] = include_bytes!("../../public/sdk/esm/wasm.d.ts");
 
 // =============================================================================
 // State
@@ -97,6 +101,26 @@ fn get_engine_wxgame_wasm() -> Vec<u8> {
 #[tauri::command]
 fn get_sdk_wechat_js() -> Vec<u8> {
     SDK_WECHAT_JS.to_vec()
+}
+
+#[tauri::command]
+fn get_sdk_esm_js() -> Vec<u8> {
+    SDK_ESM_JS.to_vec()
+}
+
+#[tauri::command]
+fn get_sdk_esm_dts() -> Vec<u8> {
+    SDK_ESM_DTS.to_vec()
+}
+
+#[tauri::command]
+fn get_sdk_wasm_js() -> Vec<u8> {
+    SDK_WASM_JS.to_vec()
+}
+
+#[tauri::command]
+fn get_sdk_wasm_dts() -> Vec<u8> {
+    SDK_WASM_DTS.to_vec()
 }
 
 #[derive(Clone, serde::Serialize)]
@@ -186,6 +210,10 @@ pub fn run() {
             get_engine_wxgame_js,
             get_engine_wxgame_wasm,
             get_sdk_wechat_js,
+            get_sdk_esm_js,
+            get_sdk_esm_dts,
+            get_sdk_wasm_js,
+            get_sdk_wasm_dts,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -73,6 +73,14 @@ export function virtualFsPlugin(options: VirtualFsPluginOptions): esbuild.Plugin
             build.onResolve({ filter: /^[^./]/ }, async (args) => {
                 if (/^[A-Za-z]:/.test(args.path)) return undefined;
 
+                // Handle esengine SDK from editor
+                if (args.path === 'esengine') {
+                    return { path: joinPath(projectDir, '.esengine/sdk/index.js'), namespace: NS };
+                }
+                if (args.path === 'esengine/wasm') {
+                    return { path: joinPath(projectDir, '.esengine/sdk/wasm.js'), namespace: NS };
+                }
+
                 const pkgName = args.path.startsWith('@')
                     ? args.path.split('/').slice(0, 2).join('/')
                     : args.path.split('/')[0];
@@ -86,7 +94,7 @@ export function virtualFsPlugin(options: VirtualFsPluginOptions): esbuild.Plugin
                 try {
                     const pkgJsonContent = await fs.readFile(pkgJsonPath);
                     if (!pkgJsonContent) {
-                        return { errors: [{ text: `Package not found: ${pkgName}` }] };
+                        return { errors: [{ text: `Package not found: ${pkgName}. Please install it with npm.` }] };
                     }
 
                     const pkgJson = JSON.parse(pkgJsonContent);

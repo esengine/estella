@@ -452,14 +452,6 @@ export class BuildSettingsDialog {
                         <button class="es-btn" data-action="browse-output">...</button>
                     </div>
                 </div>
-                <div class="es-build-field">
-                    <label class="es-build-label">SDK Path</label>
-                    <div class="es-build-path-row">
-                        <input type="text" class="es-input" id="wechat-sdk" value="${s.sdkPath || ''}" placeholder="Path to esengine.cjs.js or folder">
-                        <button class="es-btn" data-action="browse-sdk">...</button>
-                    </div>
-                    <div class="es-build-hint">Leave empty to search in project root</div>
-                </div>
             `;
         }
 
@@ -713,10 +705,6 @@ export class BuildSettingsDialog {
             case 'browse-output':
                 this.browseFile('playable-output', 'HTML File', ['html']);
                 break;
-
-            case 'browse-sdk':
-                this.browseFile('wechat-sdk', 'SDK File', ['js', 'cjs']);
-                break;
         }
     }
 
@@ -769,8 +757,6 @@ export class BuildSettingsDialog {
                 config.wechatSettings.bundleMode = target.value as 'subpackage' | 'single' | 'singleFile';
             } else if (id === 'wechat-output') {
                 config.wechatSettings.outputDir = target.value;
-            } else if (id === 'wechat-sdk') {
-                config.wechatSettings.sdkPath = target.value;
             }
         }
 

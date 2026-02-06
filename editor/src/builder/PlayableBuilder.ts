@@ -407,28 +407,35 @@ ${imports}
                         const baseDir = args.importer ? getDir(args.importer) : args.resolveDir;
                         resolvedPath = joinPath(baseDir, args.path);
                     } else {
-                        const pkgPath = joinPath(projectDir, 'node_modules', args.path, 'package.json');
-                        const pkgContent = await fs.readFile(pkgPath);
-                        if (pkgContent) {
-                            try {
-                                const pkg = JSON.parse(pkgContent);
-                                let entry = pkg.module || pkg.main || 'index.js';
-                                if (pkg.exports) {
-                                    const root = pkg.exports['.'];
-                                    if (typeof root === 'string') {
-                                        entry = root;
-                                    } else if (root?.import) {
-                                        entry = root.import;
-                                    } else if (root?.default) {
-                                        entry = root.default;
-                                    }
-                                }
-                                resolvedPath = joinPath(projectDir, 'node_modules', args.path, entry);
-                            } catch {
-                                resolvedPath = joinPath(projectDir, 'node_modules', args.path, 'index.js');
-                            }
+                        // Bare module specifier
+                        if (args.path === 'esengine') {
+                            resolvedPath = joinPath(projectDir, '.esengine/sdk/index.js');
+                        } else if (args.path === 'esengine/wasm') {
+                            resolvedPath = joinPath(projectDir, '.esengine/sdk/wasm.js');
                         } else {
-                            resolvedPath = joinPath(projectDir, 'node_modules', args.path);
+                            const pkgPath = joinPath(projectDir, 'node_modules', args.path, 'package.json');
+                            const pkgContent = await fs.readFile(pkgPath);
+                            if (pkgContent) {
+                                try {
+                                    const pkg = JSON.parse(pkgContent);
+                                    let entry = pkg.module || pkg.main || 'index.js';
+                                    if (pkg.exports) {
+                                        const root = pkg.exports['.'];
+                                        if (typeof root === 'string') {
+                                            entry = root;
+                                        } else if (root?.import) {
+                                            entry = root.import;
+                                        } else if (root?.default) {
+                                            entry = root.default;
+                                        }
+                                    }
+                                    resolvedPath = joinPath(projectDir, 'node_modules', args.path, entry);
+                                } catch {
+                                    throw new Error(`Failed to parse package.json for: ${args.path}`);
+                                }
+                            } else {
+                                throw new Error(`Module not found: ${args.path}. Please install it with npm.`);
+                            }
                         }
                     }
 

@@ -7,7 +7,8 @@
     <script type="importmap">
     {
         "imports": {
-            "esengine": "/sdk/esm/esengine.js"
+            "esengine": "/sdk/index.js",
+            "esengine/wasm": "/sdk/wasm.js"
         }
     }
     </script>
@@ -79,7 +80,7 @@
                 const Module = await ModuleLoader.default();
 
                 updateLoading('Loading SDK...');
-                const sdk = await import('/sdk/esm/esengine.js');
+                const sdk = await import('/sdk/index.js');
 
                 try {
                     await import('/.esengine/preview/user-scripts.js');

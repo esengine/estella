@@ -131,7 +131,6 @@ bool Framebuffer::initialize() {
     }
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    ES_LOG_INFO("Framebuffer created: {}x{}", spec_.width, spec_.height);
     return true;
 }
 

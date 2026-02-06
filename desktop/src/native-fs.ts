@@ -66,6 +66,10 @@ export interface NativeFS {
     getEngineWxgameJs(): Promise<string>;
     getEngineWxgameWasm(): Promise<Uint8Array>;
     getSdkWechatJs(): Promise<string>;
+    getSdkEsmJs(): Promise<string>;
+    getSdkEsmDts(): Promise<string>;
+    getSdkWasmJs(): Promise<string>;
+    getSdkWasmDts(): Promise<string>;
 }
 
 export function injectNativeFS(): void {
@@ -289,6 +293,26 @@ export function injectNativeFS(): void {
 
         async getSdkWechatJs() {
             const data = await invoke<number[]>('get_sdk_wechat_js');
+            return new TextDecoder().decode(new Uint8Array(data));
+        },
+
+        async getSdkEsmJs() {
+            const data = await invoke<number[]>('get_sdk_esm_js');
+            return new TextDecoder().decode(new Uint8Array(data));
+        },
+
+        async getSdkEsmDts() {
+            const data = await invoke<number[]>('get_sdk_esm_dts');
+            return new TextDecoder().decode(new Uint8Array(data));
+        },
+
+        async getSdkWasmJs() {
+            const data = await invoke<number[]>('get_sdk_wasm_js');
+            return new TextDecoder().decode(new Uint8Array(data));
+        },
+
+        async getSdkWasmDts() {
+            const data = await invoke<number[]>('get_sdk_wasm_dts');
             return new TextDecoder().decode(new Uint8Array(data));
         },
     };
