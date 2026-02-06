@@ -3,12 +3,15 @@
  * @brief   Asset loading and caching system
  */
 
-import type { TextureHandle } from '../types';
+import type { Entity, TextureHandle } from '../types';
 import type { ESEngineModule } from '../wasm';
-import type { MaterialHandle, ShaderHandle } from '../material';
+import type { ShaderHandle } from '../material';
 import { Material } from '../material';
 import { MaterialLoader, type LoadedMaterial, type ShaderLoader } from './MaterialLoader';
-import { platformReadTextFile, platformFileExists } from '../platform';
+import { platformReadTextFile, platformFileExists, platformFetch } from '../platform';
+import type { World } from '../world';
+import { loadSceneWithAssets, type SceneData } from '../scene';
+import { AsyncCache } from './AsyncCache';
 
 // =============================================================================
 // Types
@@ -32,34 +35,58 @@ export interface SpineLoadResult {
     error?: string;
 }
 
+export interface SpineDescriptor {
+    skeleton: string;
+    atlas: string;
+    baseUrl?: string;
+}
+
+export interface FileLoadOptions {
+    baseUrl?: string;
+    noCache?: boolean;
+}
+
+export interface AssetManifest {
+    textures?: string[];
+    materials?: string[];
+    spine?: SpineDescriptor[];
+    json?: string[];
+    text?: string[];
+    binary?: string[];
+}
+
+export interface AssetBundle {
+    textures: Map<string, TextureInfo>;
+    materials: Map<string, LoadedMaterial>;
+    spine: Map<string, SpineLoadResult>;
+    json: Map<string, unknown>;
+    text: Map<string, string>;
+    binary: Map<string, ArrayBuffer>;
+}
+
 // =============================================================================
 // AssetServer
 // =============================================================================
 
 export class AssetServer {
+    baseUrl?: string;
+
     private module_: ESEngineModule;
-    private cache_ = new Map<string, TextureInfo>();
-    private pending_ = new Map<string, Promise<TextureInfo>>();
-    private canvas_: OffscreenCanvas | HTMLCanvasElement;
-    private ctx_: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
-    private loadedSpines_ = new Map<string, boolean>();
+    private textureCache_ = new AsyncCache<TextureInfo>();
+    private shaderCache_ = new AsyncCache<ShaderHandle>();
+    private jsonCache_ = new AsyncCache<unknown>();
+    private textCache_ = new AsyncCache<string>();
+    private binaryCache_ = new AsyncCache<ArrayBuffer>();
+    private loadedSpines_ = new Set<string>();
     private virtualFSPaths_ = new Set<string>();
-    private materialLoader_: MaterialLoader | null = null;
-    private shaderCache_ = new Map<string, ShaderHandle>();
-    private shaderPending_ = new Map<string, Promise<ShaderHandle>>();
+    private materialLoader_: MaterialLoader;
+    private canvas_: HTMLCanvasElement;
+    private ctx_: CanvasRenderingContext2D;
 
     constructor(module: ESEngineModule) {
         this.module_ = module;
-
-        if (typeof OffscreenCanvas !== 'undefined') {
-            this.canvas_ = new OffscreenCanvas(512, 512);
-            this.ctx_ = this.canvas_.getContext('2d', { willReadFrequently: true })!;
-        } else {
-            this.canvas_ = document.createElement('canvas');
-            this.canvas_.width = 512;
-            this.canvas_.height = 512;
-            this.ctx_ = this.canvas_.getContext('2d', { willReadFrequently: true })!;
-        }
+        this.canvas_ = this.createCanvas(512, 512);
+        this.ctx_ = this.canvas_.getContext('2d', { willReadFrequently: true })!;
 
         const shaderLoader: ShaderLoader = {
             load: (path: string) => this.loadShader(path),
@@ -69,7 +96,7 @@ export class AssetServer {
     }
 
     // =========================================================================
-    // Public API
+    // Texture
     // =========================================================================
 
     /**
@@ -89,31 +116,34 @@ export class AssetServer {
     }
 
     getTexture(source: string): TextureInfo | undefined {
-        return this.cache_.get(this.getCacheKey(source, true));
+        return this.textureCache_.get(this.textureCacheKey(source, true));
     }
 
     hasTexture(source: string): boolean {
-        return this.cache_.has(this.getCacheKey(source, true));
+        return this.textureCache_.has(this.textureCacheKey(source, true));
     }
 
     releaseTexture(source: string): void {
         const rm = this.module_.getResourceManager();
         for (const flip of [true, false]) {
-            const key = this.getCacheKey(source, flip);
-            const info = this.cache_.get(key);
+            const key = this.textureCacheKey(source, flip);
+            const info = this.textureCache_.get(key);
             if (info) {
                 rm.releaseTexture(info.handle);
-                this.cache_.delete(key);
+                this.textureCache_.delete(key);
             }
         }
     }
 
     releaseAll(): void {
         const rm = this.module_.getResourceManager();
-        for (const info of this.cache_.values()) {
+        for (const info of this.textureCache_.values()) {
             rm.releaseTexture(info.handle);
         }
-        this.cache_.clear();
+        this.textureCache_.clear();
+        this.jsonCache_.clear();
+        this.textCache_.clear();
+        this.binaryCache_.clear();
     }
 
     setTextureMetadata(handle: TextureHandle, border: SliceBorder): void {
@@ -122,7 +152,7 @@ export class AssetServer {
     }
 
     setTextureMetadataByPath(source: string, border: SliceBorder): boolean {
-        const info = this.cache_.get(this.getCacheKey(source, true));
+        const info = this.textureCache_.get(this.textureCacheKey(source, true));
         if (info) {
             this.setTextureMetadata(info.handle, border);
             return true;
@@ -130,25 +160,22 @@ export class AssetServer {
         return false;
     }
 
+    // =========================================================================
+    // Spine
+    // =========================================================================
+
     async loadSpine(
         skeletonPath: string,
         atlasPath: string,
         baseUrl?: string
     ): Promise<SpineLoadResult> {
         const cacheKey = `${skeletonPath}:${atlasPath}`;
-        if (this.loadedSpines_.get(cacheKey)) {
+        if (this.loadedSpines_.has(cacheKey)) {
             return { success: true };
         }
 
-        const resolveUrl = (path: string) => {
-            if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('/')) {
-                return path;
-            }
-            return baseUrl ? `${baseUrl}/${path}` : `/${path}`;
-        };
-
         try {
-            const atlasUrl = resolveUrl(atlasPath);
+            const atlasUrl = this.resolveUrl(atlasPath, baseUrl);
             const atlasResponse = await fetch(atlasUrl);
             if (!atlasResponse.ok) {
                 return { success: false, error: `Failed to fetch atlas: ${atlasUrl}` };
@@ -164,7 +191,7 @@ export class AssetServer {
 
             for (const texName of textureNames) {
                 const texPath = atlasDir ? `${atlasDir}/${texName}` : texName;
-                const texUrl = resolveUrl(texPath);
+                const texUrl = this.resolveUrl(texPath, baseUrl);
 
                 try {
                     const info = await this.loadTextureRaw(texUrl);
@@ -175,7 +202,7 @@ export class AssetServer {
                 }
             }
 
-            const skelUrl = resolveUrl(skeletonPath);
+            const skelUrl = this.resolveUrl(skeletonPath, baseUrl);
             const skelResponse = await fetch(skelUrl);
             if (!skelResponse.ok) {
                 return { success: false, error: `Failed to fetch skeleton: ${skelUrl}` };
@@ -190,7 +217,7 @@ export class AssetServer {
                 return { success: false, error: `Failed to write skeleton to virtual FS: ${skeletonPath}` };
             }
 
-            this.loadedSpines_.set(cacheKey, true);
+            this.loadedSpines_.add(cacheKey);
             return { success: true };
         } catch (err) {
             return { success: false, error: String(err) };
@@ -198,122 +225,143 @@ export class AssetServer {
     }
 
     isSpineLoaded(skeletonPath: string, atlasPath: string): boolean {
-        return this.loadedSpines_.get(`${skeletonPath}:${atlasPath}`) ?? false;
+        return this.loadedSpines_.has(`${skeletonPath}:${atlasPath}`);
     }
 
+    // =========================================================================
+    // Material & Shader
+    // =========================================================================
+
     async loadMaterial(path: string, baseUrl?: string): Promise<LoadedMaterial> {
-        if (!this.materialLoader_) {
-            throw new Error('MaterialLoader not initialized');
-        }
-        const fullPath = this.resolveAssetPath(path, baseUrl);
-        return this.materialLoader_.load(fullPath);
+        return this.materialLoader_.load(this.resolveUrl(path, baseUrl));
     }
 
     getMaterial(path: string, baseUrl?: string): LoadedMaterial | undefined {
-        if (!this.materialLoader_) return undefined;
-        const fullPath = this.resolveAssetPath(path, baseUrl);
-        return this.materialLoader_.get(fullPath);
+        return this.materialLoader_.get(this.resolveUrl(path, baseUrl));
     }
 
     hasMaterial(path: string, baseUrl?: string): boolean {
-        if (!this.materialLoader_) return false;
-        const fullPath = this.resolveAssetPath(path, baseUrl);
-        return this.materialLoader_.has(fullPath);
+        return this.materialLoader_.has(this.resolveUrl(path, baseUrl));
     }
 
     async loadShader(path: string): Promise<ShaderHandle> {
-        const cached = this.shaderCache_.get(path);
-        if (cached) return cached;
-
-        const pending = this.shaderPending_.get(path);
-        if (pending) return pending;
-
-        const promise = this.loadShaderInternal(path);
-        this.shaderPending_.set(path, promise);
-
-        try {
-            const handle = await promise;
-            this.shaderCache_.set(path, handle);
-            return handle;
-        } finally {
-            this.shaderPending_.delete(path);
-        }
-    }
-
-    private async loadShaderInternal(path: string): Promise<ShaderHandle> {
-        const exists = await platformFileExists(path);
-        if (!exists) {
-            throw new Error(`Shader file not found: ${path}`);
-        }
-
-        const content = await platformReadTextFile(path);
-        if (!content) {
-            throw new Error(`Failed to read shader file: ${path}`);
-        }
-
-        const { vertex, fragment } = this.parseEsShader(content);
-        if (!vertex || !fragment) {
-            throw new Error(`Invalid shader format: ${path}`);
-        }
-
-        return Material.createShader(vertex, fragment);
-    }
-
-    private parseEsShader(content: string): { vertex: string | null; fragment: string | null } {
-        let vertex: string | null = null;
-        let fragment: string | null = null;
-
-        const vertexMatch = content.match(/#pragma\s+vertex\s*([\s\S]*?)#pragma\s+end/);
-        const fragmentMatch = content.match(/#pragma\s+fragment\s*([\s\S]*?)#pragma\s+end/);
-
-        if (vertexMatch) {
-            vertex = vertexMatch[1].trim();
-        }
-        if (fragmentMatch) {
-            fragment = fragmentMatch[1].trim();
-        }
-
-        return { vertex, fragment };
-    }
-
-    private resolveAssetPath(path: string, baseUrl?: string): string {
-        if (path.startsWith('/') || path.startsWith('http')) {
-            return path;
-        }
-        return baseUrl ? `${baseUrl}/${path}` : `/${path}`;
+        return this.shaderCache_.getOrLoad(path, () => this.loadShaderInternal(path));
     }
 
     // =========================================================================
-    // Private Methods
+    // Generic File Loading
     // =========================================================================
 
-    private getCacheKey(source: string, flip: boolean): string {
+    async loadJson<T = unknown>(path: string, options?: FileLoadOptions): Promise<T> {
+        const url = this.resolveUrl(path, options?.baseUrl);
+        if (options?.noCache) {
+            return this.fetchJson(url) as Promise<T>;
+        }
+        return this.jsonCache_.getOrLoad(url, () => this.fetchJson(url)) as Promise<T>;
+    }
+
+    async loadText(path: string, options?: FileLoadOptions): Promise<string> {
+        const url = this.resolveUrl(path, options?.baseUrl);
+        if (options?.noCache) {
+            return this.fetchText(url);
+        }
+        return this.textCache_.getOrLoad(url, () => this.fetchText(url));
+    }
+
+    async loadBinary(path: string, options?: FileLoadOptions): Promise<ArrayBuffer> {
+        const url = this.resolveUrl(path, options?.baseUrl);
+        if (options?.noCache) {
+            return this.fetchBinary(url);
+        }
+        return this.binaryCache_.getOrLoad(url, () => this.fetchBinary(url));
+    }
+
+    // =========================================================================
+    // Scene & Batch
+    // =========================================================================
+
+    async loadScene(world: World, sceneData: SceneData): Promise<Map<number, Entity>> {
+        return loadSceneWithAssets(world, sceneData, { assetServer: this });
+    }
+
+    async loadAll(manifest: AssetManifest): Promise<AssetBundle> {
+        const bundle: AssetBundle = {
+            textures: new Map(),
+            materials: new Map(),
+            spine: new Map(),
+            json: new Map(),
+            text: new Map(),
+            binary: new Map(),
+        };
+
+        const promises: Promise<void>[] = [];
+
+        if (manifest.textures) {
+            for (const path of manifest.textures) {
+                promises.push(
+                    this.loadTexture(path).then(info => { bundle.textures.set(path, info); })
+                );
+            }
+        }
+
+        if (manifest.materials) {
+            for (const path of manifest.materials) {
+                promises.push(
+                    this.loadMaterial(path).then(mat => { bundle.materials.set(path, mat); })
+                );
+            }
+        }
+
+        if (manifest.spine) {
+            for (const desc of manifest.spine) {
+                const key = `${desc.skeleton}:${desc.atlas}`;
+                promises.push(
+                    this.loadSpine(desc.skeleton, desc.atlas, desc.baseUrl).then(result => {
+                        bundle.spine.set(key, result);
+                    })
+                );
+            }
+        }
+
+        if (manifest.json) {
+            for (const path of manifest.json) {
+                promises.push(
+                    this.loadJson(path).then(data => { bundle.json.set(path, data); })
+                );
+            }
+        }
+
+        if (manifest.text) {
+            for (const path of manifest.text) {
+                promises.push(
+                    this.loadText(path).then(data => { bundle.text.set(path, data); })
+                );
+            }
+        }
+
+        if (manifest.binary) {
+            for (const path of manifest.binary) {
+                promises.push(
+                    this.loadBinary(path).then(data => { bundle.binary.set(path, data); })
+                );
+            }
+        }
+
+        await Promise.all(promises);
+        return bundle;
+    }
+
+    // =========================================================================
+    // Private - Texture
+    // =========================================================================
+
+    private textureCacheKey(source: string, flip: boolean): string {
         return `${source}:${flip ? 'f' : 'n'}`;
     }
 
     private async loadTextureWithFlip(source: string, flip: boolean): Promise<TextureInfo> {
-        const cacheKey = this.getCacheKey(source, flip);
-
-        const cached = this.cache_.get(cacheKey);
-        if (cached) {
-            return cached;
-        }
-
-        const pending = this.pending_.get(cacheKey);
-        if (pending) {
-            return pending;
-        }
-
-        const promise = this.loadTextureInternal(source, flip);
-        this.pending_.set(cacheKey, promise);
-
-        try {
-            const result = await promise;
-            this.cache_.set(cacheKey, result);
-            return result;
-        } finally {
-            this.pending_.delete(cacheKey);
-        }
+        const cacheKey = this.textureCacheKey(source, flip);
+        return this.textureCache_.getOrLoad(cacheKey, () => this.loadTextureInternal(source, flip));
     }
 
     private async loadTextureInternal(source: string, flip: boolean): Promise<TextureInfo> {
@@ -387,11 +435,69 @@ export class AssetServer {
         }
     }
 
-    private nextPowerOf2(n: number): number {
-        let p = 1;
-        while (p < n) p *= 2;
-        return p;
+    // =========================================================================
+    // Private - Shader
+    // =========================================================================
+
+    private async loadShaderInternal(path: string): Promise<ShaderHandle> {
+        const exists = await platformFileExists(path);
+        if (!exists) {
+            throw new Error(`Shader file not found: ${path}`);
+        }
+
+        const content = await platformReadTextFile(path);
+        if (!content) {
+            throw new Error(`Failed to read shader file: ${path}`);
+        }
+
+        const { vertex, fragment } = this.parseEsShader(content);
+        if (!vertex || !fragment) {
+            throw new Error(`Invalid shader format: ${path}`);
+        }
+
+        return Material.createShader(vertex, fragment);
     }
+
+    private parseEsShader(content: string): { vertex: string | null; fragment: string | null } {
+        const vertexMatch = content.match(/#pragma\s+vertex\s*([\s\S]*?)#pragma\s+end/);
+        const fragmentMatch = content.match(/#pragma\s+fragment\s*([\s\S]*?)#pragma\s+end/);
+        return {
+            vertex: vertexMatch?.[1].trim() ?? null,
+            fragment: fragmentMatch?.[1].trim() ?? null,
+        };
+    }
+
+    // =========================================================================
+    // Private - Generic Fetch
+    // =========================================================================
+
+    private async fetchJson(url: string): Promise<unknown> {
+        const response = await platformFetch(url);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch JSON: ${url} (${response.status})`);
+        }
+        return response.json();
+    }
+
+    private async fetchText(url: string): Promise<string> {
+        const response = await platformFetch(url);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch text: ${url} (${response.status})`);
+        }
+        return response.text();
+    }
+
+    private async fetchBinary(url: string): Promise<ArrayBuffer> {
+        const response = await platformFetch(url);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch binary: ${url} (${response.status})`);
+        }
+        return response.arrayBuffer();
+    }
+
+    // =========================================================================
+    // Private - Virtual FS
+    // =========================================================================
 
     private writeToVirtualFS(virtualPath: string, data: string | Uint8Array): boolean {
         if (this.virtualFSPaths_.has(virtualPath)) {
@@ -441,18 +547,42 @@ export class AssetServer {
         }
     }
 
+    // =========================================================================
+    // Private - Utilities
+    // =========================================================================
+
+    private resolveUrl(path: string, baseUrl?: string): string {
+        if (path.startsWith('/') || path.startsWith('http://') || path.startsWith('https://')) {
+            return path;
+        }
+        const base = baseUrl ?? this.baseUrl;
+        return base ? `${base}/${path}` : `/${path}`;
+    }
+
+    private createCanvas(width: number, height: number): HTMLCanvasElement {
+        const canvas = typeof OffscreenCanvas !== 'undefined'
+            ? new OffscreenCanvas(width, height) as unknown as HTMLCanvasElement
+            : document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        return canvas;
+    }
+
+    private nextPowerOf2(n: number): number {
+        let p = 1;
+        while (p < n) p *= 2;
+        return p;
+    }
+
     private parseAtlasTextures(atlasContent: string): string[] {
         const textures: string[] = [];
-        const lines = atlasContent.split('\n');
-
-        for (const line of lines) {
+        for (const line of atlasContent.split('\n')) {
             const trimmed = line.trim();
             if (trimmed && !trimmed.includes(':') &&
                 (trimmed.endsWith('.png') || trimmed.endsWith('.jpg'))) {
                 textures.push(trimmed);
             }
         }
-
         return textures;
     }
 }

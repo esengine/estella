@@ -164,6 +164,7 @@ export {
 
 export {
     AssetServer,
+    AsyncCache,
     Assets,
     AssetPlugin,
     assetPlugin,
@@ -171,6 +172,10 @@ export {
     type TextureInfo,
     type SliceBorder,
     type SpineLoadResult,
+    type SpineDescriptor,
+    type FileLoadOptions,
+    type AssetManifest,
+    type AssetBundle,
     type AssetsData,
     type LoadedMaterial,
     type ShaderLoader,
