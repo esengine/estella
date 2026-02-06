@@ -10,10 +10,12 @@ import {
     Sprite,
     Camera,
     Canvas,
+    SpineAnimation,
     type LocalTransformData,
     type SpriteData,
     type CameraData,
     type CanvasData,
+    type SpineAnimationData,
 } from './component';
 import { Text, type TextData } from './ui/text';
 import type { AssetServer } from './asset/AssetServer';
@@ -125,6 +127,22 @@ export async function loadSceneWithAssets(
                 }
             }
 
+            if (compData.type === 'SpineAnimation' && assetServer) {
+                const data = compData.data as Record<string, unknown>;
+                const skeletonPath = data.skeletonPath as string;
+                const atlasPath = data.atlasPath as string;
+                if (skeletonPath && atlasPath) {
+                    const result = await assetServer.loadSpine(
+                        skeletonPath,
+                        atlasPath,
+                        options?.assetBaseUrl
+                    );
+                    if (!result.success) {
+                        console.warn(`Failed to load Spine: ${result.error}`);
+                    }
+                }
+            }
+
             loadComponent(world, entity, compData);
         }
     }
@@ -151,7 +169,7 @@ export async function loadSceneWithAssets(
     return entityMap;
 }
 
-function loadComponent(world: World, entity: Entity, compData: SceneComponentData): void {
+export function loadComponent(world: World, entity: Entity, compData: SceneComponentData): void {
     const data = compData.data as unknown;
     switch (compData.type) {
         case 'LocalTransform':
@@ -168,6 +186,9 @@ function loadComponent(world: World, entity: Entity, compData: SceneComponentDat
             break;
         case 'Text':
             world.insert(entity, Text, data as TextData);
+            break;
+        case 'SpineAnimation':
+            world.insert(entity, SpineAnimation, data as SpineAnimationData);
             break;
         default:
             console.warn(`Unknown component type: ${compData.type}`);

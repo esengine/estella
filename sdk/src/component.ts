@@ -151,6 +151,21 @@ export interface ChildrenData {
     entities: Entity[];
 }
 
+export interface SpineAnimationData {
+    skeletonPath: string;
+    atlasPath: string;
+    skin: string;
+    animation: string;
+    timeScale: number;
+    loop: boolean;
+    playing: boolean;
+    flipX: boolean;
+    flipY: boolean;
+    color: Vec4;
+    layer: number;
+    skeletonScale: number;
+}
+
 // =============================================================================
 // Builtin Component Instances
 // =============================================================================
@@ -210,6 +225,21 @@ export const Children = defineBuiltin<ChildrenData>('Children', {
     entities: []
 });
 
+export const SpineAnimation = defineBuiltin<SpineAnimationData>('SpineAnimation', {
+    skeletonPath: '',
+    atlasPath: '',
+    skin: '',
+    animation: '',
+    timeScale: 1.0,
+    loop: true,
+    playing: true,
+    flipX: false,
+    flipY: false,
+    color: { x: 1, y: 1, z: 1, w: 1 },
+    layer: 0,
+    skeletonScale: 1.0
+});
+
 // =============================================================================
 // Type Helpers
 // =============================================================================
@@ -218,3 +248,27 @@ export type ComponentData<C> =
     C extends BuiltinComponentDef<infer T> ? T :
     C extends ComponentDef<infer T> ? T :
     never;
+
+// =============================================================================
+// Component Defaults Registry
+// =============================================================================
+
+const builtinComponents: Record<string, BuiltinComponentDef<any>> = {
+    LocalTransform,
+    WorldTransform,
+    Sprite,
+    Camera,
+    Canvas,
+    Velocity,
+    Parent,
+    Children,
+    SpineAnimation,
+};
+
+export function getComponentDefaults(typeName: string): Record<string, unknown> | null {
+    const component = builtinComponents[typeName];
+    if (component) {
+        return { ...component._default };
+    }
+    return null;
+}
