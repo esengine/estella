@@ -227,7 +227,7 @@ function createMaterialTextureEditor(
     const input = document.createElement('input');
     input.type = 'text';
     input.className = 'es-input es-input-texture es-asset-link';
-    input.value = String(value ?? '');
+    input.value = (value && typeof value === 'string') ? value : '';
     input.placeholder = 'None';
     input.readOnly = true;
 
@@ -267,7 +267,7 @@ function createMaterialTextureEditor(
         preview.classList.remove('es-has-preview');
     };
 
-    updatePreview(String(value ?? ''));
+    updatePreview((value && typeof value === 'string') ? value : '');
 
     input.addEventListener('click', () => {
         if (input.value) {
