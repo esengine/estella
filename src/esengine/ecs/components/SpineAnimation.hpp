@@ -94,6 +94,10 @@ struct SpineAnimation {
     ES_PROPERTY()
     f32 skeletonScale{1.0f};
 
+    /** @brief Custom material ID (0 = use default batch shader) */
+    ES_PROPERTY()
+    u32 material{0};
+
     /** @brief Handle to cached skeleton data (runtime, not serialized) */
     resource::SpineDataHandle skeletonData;
 

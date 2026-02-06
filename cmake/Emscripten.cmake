@@ -166,13 +166,14 @@ set(ES_EMSCRIPTEN_SDK_LINK_FLAGS
     -sUSE_WEBGL2=1
     -sFULL_ES3=1
     -sALLOW_MEMORY_GROWTH=1
+    -sALLOW_TABLE_GROWTH=1
     -sNO_EXIT_RUNTIME=1
     -sEXPORT_ES6=1
     -sMODULARIZE=1
     -sFORCE_FILESYSTEM=1
     "-sEXPORT_NAME='ESEngineModule'"
     "-sEXPORTED_FUNCTIONS=['_malloc','_free']"
-    "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32','FS']"
+    "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32','FS','addFunction']"
     -O3
     --closure=1
 )

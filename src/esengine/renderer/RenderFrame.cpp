@@ -23,8 +23,30 @@
 #endif
 
 #include <algorithm>
+#include <vector>
+#include <cstring>
 
 namespace esengine {
+
+struct UniformData {
+    std::string name;
+    u32 type;
+    f32 values[4];
+};
+
+#ifdef ES_PLATFORM_WEB
+extern bool getMaterialData(u32 materialId, u32& shaderId, u32& blendMode);
+extern bool getMaterialDataWithUniforms(u32 materialId, u32& shaderId, u32& blendMode,
+                                        std::vector<UniformData>& uniforms);
+#else
+bool getMaterialData(u32 /*materialId*/, u32& /*shaderId*/, u32& /*blendMode*/) {
+    return false;
+}
+bool getMaterialDataWithUniforms(u32 /*materialId*/, u32& /*shaderId*/, u32& /*blendMode*/,
+                                 std::vector<UniformData>& /*uniforms*/) {
+    return false;
+}
+#endif
 
 RenderFrame::RenderFrame(RenderContext& context, resource::ResourceManager& resource_manager)
     : context_(context)
@@ -192,6 +214,8 @@ void RenderFrame::submitSprites(ecs::Registry& registry) {
             }
         }
 
+        item.material_id = sprite.material;
+
         items_.push_back(item);
         stats_.sprites++;
     }
@@ -236,6 +260,7 @@ void RenderFrame::submitSpine(ecs::Registry& registry, spine::SpineSystem& spine
         item.depth = position.z;
         item.skeleton = instance->skeleton.get();
         item.tint_color = comp.color;
+        item.material_id = comp.material;
 
         items_.push_back(item);
         stats_.spine++;
@@ -310,6 +335,12 @@ void RenderFrame::renderSprites(const std::vector<RenderItem*>& items) {
     batcher_->beginBatch();
 
     for (auto* item : items) {
+        if (item->material_id != 0) {
+            batcher_->flush();
+            renderSpriteWithMaterial(item);
+            continue;
+        }
+
         glm::vec3 position = glm::vec3(item->transform[3]);
         glm::vec3 scale = glm::vec3(
             glm::length(glm::vec3(item->transform[0])),
@@ -441,7 +472,7 @@ void RenderFrame::renderSpine(const std::vector<RenderItem*>& items) {
 
                 u32 baseIndex = static_cast<u32>(spine_vertices_.size());
 
-                for (int j = 0; j < 4; ++j) {
+                for (size_t j = 0; j < 4; ++j) {
                     glm::vec4 pos(spine_world_vertices_[j * 2], spine_world_vertices_[j * 2 + 1], 0.0f, 1.0f);
                     pos = item->transform * pos;
 
@@ -585,6 +616,123 @@ void RenderFrame::renderMeshes(const std::vector<RenderItem*>& items) {
         if (!item->geometry || !item->shader) continue;
         stats_.draw_calls++;
     }
+}
+
+void RenderFrame::renderSpriteWithMaterial(RenderItem* item) {
+    u32 shaderId = 0;
+    u32 blendMode = 0;
+    std::vector<UniformData> uniforms;
+
+    if (!getMaterialDataWithUniforms(item->material_id, shaderId, blendMode, uniforms)) {
+        return;
+    }
+
+    Shader* shader = resource_manager_.getShader(resource::ShaderHandle(shaderId));
+    if (!shader) return;
+
+    shader->bind();
+    shader->setUniform("u_projection", view_projection_);
+    shader->setUniform("u_model", item->transform);
+    shader->setUniform("u_color", item->color);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, item->texture_id);
+    shader->setUniform("u_texture", 0);
+
+    for (const auto& ud : uniforms) {
+        switch (ud.type) {
+            case 0:
+                shader->setUniform(ud.name, ud.values[0]);
+                break;
+            case 1:
+                shader->setUniform(ud.name, glm::vec2(ud.values[0], ud.values[1]));
+                break;
+            case 2:
+                shader->setUniform(ud.name, glm::vec3(ud.values[0], ud.values[1], ud.values[2]));
+                break;
+            case 3:
+                shader->setUniform(ud.name, glm::vec4(ud.values[0], ud.values[1], ud.values[2], ud.values[3]));
+                break;
+        }
+    }
+
+    RenderCommand::setBlendMode(static_cast<BlendMode>(blendMode));
+
+    glm::vec2 halfSize = item->size * 0.5f;
+
+    f32 positions[] = {
+        -halfSize.x, -halfSize.y,
+         halfSize.x, -halfSize.y,
+         halfSize.x,  halfSize.y,
+        -halfSize.x,  halfSize.y,
+    };
+
+    f32 texCoords[] = {
+        0.0f, 1.0f,
+        1.0f, 1.0f,
+        1.0f, 0.0f,
+        0.0f, 0.0f,
+    };
+
+    f32 colors[] = {
+        item->color.r, item->color.g, item->color.b, item->color.a,
+        item->color.r, item->color.g, item->color.b, item->color.a,
+        item->color.r, item->color.g, item->color.b, item->color.a,
+        item->color.r, item->color.g, item->color.b, item->color.a,
+    };
+
+    u32 indices[] = { 0, 1, 2, 2, 3, 0 };
+
+    u32 vao, vbo_pos, vbo_tex, vbo_color, ebo;
+    glGenVertexArrays(1, &vao);
+    glGenBuffers(1, &vbo_pos);
+    glGenBuffers(1, &vbo_tex);
+    glGenBuffers(1, &vbo_color);
+    glGenBuffers(1, &ebo);
+
+    glBindVertexArray(vao);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STREAM_DRAW);
+
+    GLint locPos = shader->getAttribLocation("a_position");
+    if (locPos >= 0) {
+        glBindBuffer(GL_ARRAY_BUFFER, vbo_pos);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(positions), positions, GL_STREAM_DRAW);
+        glEnableVertexAttribArray(locPos);
+        glVertexAttribPointer(locPos, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
+    }
+
+    GLint locTex = shader->getAttribLocation("a_texCoord");
+    if (locTex >= 0) {
+        glBindBuffer(GL_ARRAY_BUFFER, vbo_tex);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(texCoords), texCoords, GL_STREAM_DRAW);
+        glEnableVertexAttribArray(locTex);
+        glVertexAttribPointer(locTex, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
+    }
+
+    GLint locColor = shader->getAttribLocation("a_color");
+    if (locColor >= 0) {
+        glBindBuffer(GL_ARRAY_BUFFER, vbo_color);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(colors), colors, GL_STREAM_DRAW);
+        glEnableVertexAttribArray(locColor);
+        glVertexAttribPointer(locColor, 4, GL_FLOAT, GL_FALSE, 0, nullptr);
+    }
+
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
+
+    if (locPos >= 0) glDisableVertexAttribArray(locPos);
+    if (locTex >= 0) glDisableVertexAttribArray(locTex);
+    if (locColor >= 0) glDisableVertexAttribArray(locColor);
+
+    glDeleteBuffers(1, &ebo);
+    glDeleteBuffers(1, &vbo_color);
+    glDeleteBuffers(1, &vbo_tex);
+    glDeleteBuffers(1, &vbo_pos);
+    glDeleteVertexArrays(1, &vao);
+
+    stats_.draw_calls++;
+    stats_.triangles += 2;
 }
 
 }  // namespace esengine

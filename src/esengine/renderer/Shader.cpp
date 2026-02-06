@@ -181,9 +181,6 @@ i32 Shader::getUniformLocation(const std::string& name) const {
 
     i32 location = glGetUniformLocation(programId_, name.c_str());
     uniformCache_[name] = location;
-    if (location == -1) {
-        ES_LOG_WARN("Uniform '{}' not found in shader", name);
-    }
     return location;
 }
 
@@ -213,6 +210,10 @@ void Shader::setUniform(const std::string& name, const glm::mat3& value) const {
 
 void Shader::setUniform(const std::string& name, const glm::mat4& value) const {
     glUniformMatrix4fv(getUniformLocation(name), 1, GL_FALSE, glm::value_ptr(value));
+}
+
+i32 Shader::getAttribLocation(const std::string& name) const {
+    return glGetAttribLocation(programId_, name.c_str());
 }
 
 }  // namespace esengine

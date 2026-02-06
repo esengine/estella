@@ -59,6 +59,7 @@ private:
     void sortItems();
     void executeStage(RenderStage stage);
     void renderSprites(const std::vector<RenderItem*>& items);
+    void renderSpriteWithMaterial(RenderItem* item);
     void renderSpine(const std::vector<RenderItem*>& items);
     void renderMeshes(const std::vector<RenderItem*>& items);
     void flushSpineBatch();

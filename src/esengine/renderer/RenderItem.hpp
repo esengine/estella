@@ -41,6 +41,8 @@ struct RenderItem {
     void* geometry = nullptr;
     void* shader = nullptr;
 
+    u32 material_id = 0;
+
     u64 sortKey() const {
         u64 stageKey = static_cast<u64>(stage) << 60;
 

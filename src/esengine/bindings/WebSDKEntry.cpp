@@ -54,6 +54,67 @@ static bool g_immediateDrawActive = false;
 static u32 g_viewportWidth = 1280;
 static u32 g_viewportHeight = 720;
 
+using GetMaterialCallback = void (*)(u32 materialId, u32* outShaderId, u32* outBlendMode,
+                                     u32* outUniformBufferPtr, u32* outUniformCount);
+static GetMaterialCallback g_getMaterialCallback = nullptr;
+
+void setMaterialCallback(uintptr_t callback) {
+    g_getMaterialCallback = reinterpret_cast<GetMaterialCallback>(callback);
+}
+
+bool getMaterialData(u32 materialId, u32& shaderId, u32& blendMode) {
+    if (!g_getMaterialCallback || materialId == 0) {
+        return false;
+    }
+    u32 uniformBufferPtr = 0;
+    u32 uniformCount = 0;
+    g_getMaterialCallback(materialId, &shaderId, &blendMode, &uniformBufferPtr, &uniformCount);
+    return shaderId != 0;
+}
+
+struct UniformData {
+    std::string name;
+    u32 type;  // 0=float, 1=vec2, 2=vec3, 3=vec4
+    f32 values[4];
+};
+
+bool getMaterialDataWithUniforms(u32 materialId, u32& shaderId, u32& blendMode,
+                                  std::vector<UniformData>& uniforms) {
+    if (!g_getMaterialCallback || materialId == 0) {
+        return false;
+    }
+
+    u32 uniformBufferPtr = 0;
+    u32 uniformCount = 0;
+    g_getMaterialCallback(materialId, &shaderId, &blendMode, &uniformBufferPtr, &uniformCount);
+
+    if (shaderId == 0) return false;
+
+    if (uniformCount > 0 && uniformBufferPtr != 0) {
+        const u8* ptr = reinterpret_cast<const u8*>(uniformBufferPtr);
+
+        for (u32 i = 0; i < uniformCount; ++i) {
+            UniformData ud;
+
+            u32 nameLen = *reinterpret_cast<const u32*>(ptr);
+            ptr += 4;
+
+            ud.name = std::string(reinterpret_cast<const char*>(ptr), nameLen);
+            ptr += ((nameLen + 3) / 4) * 4;
+
+            ud.type = *reinterpret_cast<const u32*>(ptr);
+            ptr += 4;
+
+            std::memcpy(ud.values, ptr, 16);
+            ptr += 16;
+
+            uniforms.push_back(ud);
+        }
+    }
+
+    return true;
+}
+
 bool initRendererInternal(const char* canvasSelector) {
     if (g_initialized) return true;
 
@@ -891,6 +952,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderFrame", &esengine::renderFrame);
     emscripten::function("renderFrameWithMatrix", &esengine::renderFrameWithMatrix);
     emscripten::function("getResourceManager", &esengine::getResourceManager, emscripten::allow_raw_pointers());
+    emscripten::function("setMaterialCallback", &esengine::setMaterialCallback);
 
     emscripten::class_<esengine::resource::ResourceManager>("ResourceManager")
         .function("createTexture", &esengine::rm_createTexture)

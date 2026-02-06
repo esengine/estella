@@ -86,6 +86,7 @@ struct SpriteJS {
     i32 layer;
     bool flipX;
     bool flipY;
+    u32 material;
 };
 
 esengine::ecs::Sprite spriteFromJS(const SpriteJS& js) {
@@ -98,6 +99,7 @@ esengine::ecs::Sprite spriteFromJS(const SpriteJS& js) {
     c.layer = js.layer;
     c.flipX = js.flipX;
     c.flipY = js.flipY;
+    c.material = js.material;
     return c;
 }
 
@@ -111,6 +113,7 @@ SpriteJS spriteToJS(const esengine::ecs::Sprite& c) {
     js.layer = c.layer;
     js.flipX = c.flipX;
     js.flipY = c.flipY;
+    js.material = c.material;
     return js;
 }
 
@@ -206,7 +209,8 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("flipY", &esengine::ecs::SpineAnimation::flipY)
         .field("color", &esengine::ecs::SpineAnimation::color)
         .field("layer", &esengine::ecs::SpineAnimation::layer)
-        .field("skeletonScale", &esengine::ecs::SpineAnimation::skeletonScale);
+        .field("skeletonScale", &esengine::ecs::SpineAnimation::skeletonScale)
+        .field("material", &esengine::ecs::SpineAnimation::material);
 
     value_object<SpriteJS>("Sprite")
         .field("texture", &SpriteJS::texture)
@@ -216,7 +220,8 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("uvScale", &SpriteJS::uvScale)
         .field("layer", &SpriteJS::layer)
         .field("flipX", &SpriteJS::flipX)
-        .field("flipY", &SpriteJS::flipY);
+        .field("flipY", &SpriteJS::flipY)
+        .field("material", &SpriteJS::material);
 
     value_object<esengine::ecs::Parent>("Parent")
         .field("entity", &esengine::ecs::Parent::entity);

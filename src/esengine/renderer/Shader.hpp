@@ -141,6 +141,17 @@ public:
     void setUniform(const std::string& name, const glm::mat4& value) const;
 
     // =========================================================================
+    // Attributes
+    // =========================================================================
+
+    /**
+     * @brief Gets the location of a vertex attribute
+     * @param name Attribute name in shader
+     * @return Location, or -1 if not found
+     */
+    i32 getAttribLocation(const std::string& name) const;
+
+    // =========================================================================
     // State
     // =========================================================================
 

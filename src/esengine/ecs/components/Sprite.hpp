@@ -75,6 +75,10 @@ struct Sprite {
     ES_PROPERTY()
     bool flipY{false};
 
+    /** @brief Custom material ID (0 = use default batch shader) */
+    ES_PROPERTY()
+    u32 material{0};
+
     /** @brief Default constructor (white, no texture) */
     Sprite() = default;
 
