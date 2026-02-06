@@ -15,6 +15,7 @@
 #include "Shader.hpp"
 #include "../resource/ResourceManager.hpp"
 #include "../core/Log.hpp"
+#include <algorithm>
 
 #ifdef ES_PLATFORM_WEB
     #include <GLES3/gl3.h>
