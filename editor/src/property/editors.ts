@@ -652,6 +652,7 @@ function createEnumEditor(
 // =============================================================================
 
 interface NativeFS {
+    readFile(path: string): Promise<string | null>;
     readBinaryFile(path: string): Promise<Uint8Array | null>;
 }
 
@@ -912,6 +913,294 @@ function createFontEditor(
 }
 
 // =============================================================================
+// Spine File Editor
+// =============================================================================
+
+function createSpineFileEditor(
+    container: HTMLElement,
+    ctx: PropertyEditorContext
+): PropertyEditorInstance {
+    const { value, meta, onChange } = ctx;
+    const fileFilter = meta.fileFilter ?? ['.json', '.skel'];
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'es-file-editor';
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'es-input es-input-file';
+    input.value = String(value ?? '');
+    input.placeholder = 'None';
+
+    const browseBtn = document.createElement('button');
+    browseBtn.className = 'es-btn es-btn-icon es-btn-browse';
+    browseBtn.title = 'Browse';
+    browseBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2z"></path></svg>`;
+
+    input.addEventListener('change', () => {
+        onChange(input.value || '');
+    });
+
+    browseBtn.addEventListener('click', async () => {
+        const projectDir = getProjectDir();
+        if (!projectDir) return;
+
+        const assetsDir = `${projectDir}/assets`;
+
+        try {
+            const platform = getPlatformAdapter();
+            const extensions = fileFilter.map(f => f.replace('.', ''));
+            const result = await platform.openFileDialog({
+                title: 'Select File',
+                defaultPath: assetsDir,
+                filters: [{ name: 'Spine Files', extensions }],
+            });
+            if (result) {
+                const normalizedPath = result.replace(/\\/g, '/');
+                const assetsIndex = normalizedPath.indexOf('/assets/');
+                if (assetsIndex !== -1) {
+                    const relativePath = normalizedPath.substring(assetsIndex + 1);
+                    input.value = relativePath;
+                    onChange(relativePath);
+                }
+            }
+        } catch (err) {
+            console.error('Failed to open file dialog:', err);
+        }
+    });
+
+    wrapper.appendChild(input);
+    wrapper.appendChild(browseBtn);
+    container.appendChild(wrapper);
+
+    return {
+        update(v: unknown) {
+            input.value = String(v ?? '');
+        },
+        dispose() {
+            wrapper.remove();
+        },
+    };
+}
+
+// =============================================================================
+// Spine Animation Editor (dynamic dropdown from skeleton file)
+// =============================================================================
+
+interface SpineSkeletonData {
+    animations?: Record<string, unknown>;
+    skins?: Array<{ name: string }> | Record<string, unknown>;
+}
+
+async function loadSpineSkeletonData(skeletonPath: string): Promise<SpineSkeletonData | null> {
+    if (!skeletonPath) return null;
+
+    const projectDir = getProjectDir();
+    const fs = getNativeFS();
+    if (!projectDir || !fs) return null;
+
+    const fullPath = `${projectDir}/${skeletonPath}`;
+
+    try {
+        const content = await fs.readFile(fullPath);
+        if (!content) return null;
+        return JSON.parse(content) as SpineSkeletonData;
+    } catch (err) {
+        console.warn('Failed to load spine skeleton:', err);
+        return null;
+    }
+}
+
+function getAnimationNames(data: SpineSkeletonData): string[] {
+    if (!data.animations) return [];
+    return Object.keys(data.animations);
+}
+
+function getSkinNames(data: SpineSkeletonData): string[] {
+    if (!data.skins) return [];
+    if (Array.isArray(data.skins)) {
+        return data.skins.map(s => s.name);
+    }
+    return Object.keys(data.skins);
+}
+
+function createSpineAnimationEditor(
+    container: HTMLElement,
+    ctx: PropertyEditorContext
+): PropertyEditorInstance {
+    const { value, onChange, getComponentValue } = ctx;
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'es-spine-animation-editor';
+
+    const select = document.createElement('select');
+    select.className = 'es-input es-input-select';
+
+    const refreshBtn = document.createElement('button');
+    refreshBtn.className = 'es-btn es-btn-icon es-btn-refresh';
+    refreshBtn.title = 'Refresh animations';
+    refreshBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"></path></svg>`;
+
+    let currentAnimations: string[] = [];
+
+    const updateOptions = (animations: string[], currentValue: string) => {
+        select.innerHTML = '';
+
+        const emptyOption = document.createElement('option');
+        emptyOption.value = '';
+        emptyOption.textContent = '(None)';
+        select.appendChild(emptyOption);
+
+        for (const anim of animations) {
+            const option = document.createElement('option');
+            option.value = anim;
+            option.textContent = anim;
+            if (anim === currentValue) {
+                option.selected = true;
+            }
+            select.appendChild(option);
+        }
+
+        currentAnimations = animations;
+    };
+
+    const loadAnimations = async () => {
+        const skeletonPath = getComponentValue?.('skeletonPath') as string;
+        if (!skeletonPath) {
+            updateOptions([], String(value ?? ''));
+            return;
+        }
+
+        const data = await loadSpineSkeletonData(skeletonPath);
+        if (data) {
+            const animations = getAnimationNames(data);
+            updateOptions(animations, String(value ?? ''));
+        } else {
+            updateOptions([], String(value ?? ''));
+        }
+    };
+
+    select.addEventListener('change', () => {
+        onChange(select.value);
+    });
+
+    refreshBtn.addEventListener('click', () => {
+        loadAnimations();
+    });
+
+    wrapper.appendChild(select);
+    wrapper.appendChild(refreshBtn);
+    container.appendChild(wrapper);
+
+    loadAnimations();
+
+    return {
+        update(v: unknown) {
+            const newValue = String(v ?? '');
+            if (currentAnimations.includes(newValue) || newValue === '') {
+                select.value = newValue;
+            } else {
+                loadAnimations();
+            }
+        },
+        dispose() {
+            wrapper.remove();
+        },
+    };
+}
+
+// =============================================================================
+// Spine Skin Editor (dynamic dropdown from skeleton file)
+// =============================================================================
+
+function createSpineSkinEditor(
+    container: HTMLElement,
+    ctx: PropertyEditorContext
+): PropertyEditorInstance {
+    const { value, onChange, getComponentValue } = ctx;
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'es-spine-skin-editor';
+
+    const select = document.createElement('select');
+    select.className = 'es-input es-input-select';
+
+    const refreshBtn = document.createElement('button');
+    refreshBtn.className = 'es-btn es-btn-icon es-btn-refresh';
+    refreshBtn.title = 'Refresh skins';
+    refreshBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"></path></svg>`;
+
+    let currentSkins: string[] = [];
+
+    const updateOptions = (skins: string[], currentValue: string) => {
+        select.innerHTML = '';
+
+        for (const skin of skins) {
+            const option = document.createElement('option');
+            option.value = skin;
+            option.textContent = skin;
+            if (skin === currentValue) {
+                option.selected = true;
+            }
+            select.appendChild(option);
+        }
+
+        if (skins.length === 0) {
+            const defaultOption = document.createElement('option');
+            defaultOption.value = 'default';
+            defaultOption.textContent = 'default';
+            select.appendChild(defaultOption);
+        }
+
+        currentSkins = skins;
+    };
+
+    const loadSkins = async () => {
+        const skeletonPath = getComponentValue?.('skeletonPath') as string;
+        if (!skeletonPath) {
+            updateOptions(['default'], String(value ?? 'default'));
+            return;
+        }
+
+        const data = await loadSpineSkeletonData(skeletonPath);
+        if (data) {
+            const skins = getSkinNames(data);
+            updateOptions(skins.length > 0 ? skins : ['default'], String(value ?? 'default'));
+        } else {
+            updateOptions(['default'], String(value ?? 'default'));
+        }
+    };
+
+    select.addEventListener('change', () => {
+        onChange(select.value);
+    });
+
+    refreshBtn.addEventListener('click', () => {
+        loadSkins();
+    });
+
+    wrapper.appendChild(select);
+    wrapper.appendChild(refreshBtn);
+    container.appendChild(wrapper);
+
+    loadSkins();
+
+    return {
+        update(v: unknown) {
+            const newValue = String(v ?? 'default');
+            if (currentSkins.includes(newValue)) {
+                select.value = newValue;
+            } else {
+                loadSkins();
+            }
+        },
+        dispose() {
+            wrapper.remove();
+        },
+    };
+}
+
+// =============================================================================
 // Register All Editors
 // =============================================================================
 
@@ -927,4 +1216,7 @@ export function registerBuiltinEditors(): void {
     registerPropertyEditor('euler', createEulerEditor);
     registerPropertyEditor('texture', createTextureEditor);
     registerPropertyEditor('font', createFontEditor);
+    registerPropertyEditor('spine-file', createSpineFileEditor);
+    registerPropertyEditor('spine-animation', createSpineAnimationEditor);
+    registerPropertyEditor('spine-skin', createSpineSkinEditor);
 }

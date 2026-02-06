@@ -43,7 +43,7 @@ interface FolderNode {
 interface AssetItem {
     name: string;
     path: string;
-    type: 'folder' | 'scene' | 'script' | 'image' | 'audio' | 'json' | 'file';
+    type: 'folder' | 'scene' | 'script' | 'image' | 'audio' | 'json' | 'spine' | 'file';
 }
 
 export interface ContentBrowserOptions {
@@ -98,6 +98,9 @@ function getAssetType(entry: DirectoryEntry): AssetItem['type'] {
             return 'audio';
         case '.json':
             return 'json';
+        case '.skel':
+        case '.atlas':
+            return 'spine';
         default:
             return 'file';
     }
@@ -117,6 +120,8 @@ function getAssetIcon(type: AssetItem['type'], size: number = 32): string {
             return icons.volume(size);
         case 'json':
             return icons.braces(size);
+        case 'spine':
+            return icons.bone(size);
         default:
             return icons.file(size);
     }
@@ -433,6 +438,34 @@ export class ContentBrowserPanel {
                 this.showFolderContextMenu(e, path);
             }
         });
+
+        this.gridContainer_?.addEventListener('dragstart', (e) => {
+            const target = e.target as HTMLElement;
+            const item = target.closest('.es-asset-item') as HTMLElement;
+            if (!item) return;
+
+            const path = item.dataset.path;
+            const type = item.dataset.type;
+            if (!path || !type) return;
+
+            const assetData = this.currentItems_.find(i => i.path === path);
+            if (!assetData) return;
+
+            e.dataTransfer?.setData('application/esengine-asset', JSON.stringify({
+                type: type,
+                path: path,
+                name: assetData.name,
+            }));
+            e.dataTransfer!.effectAllowed = 'copy';
+
+            item.classList.add('es-dragging');
+        });
+
+        this.gridContainer_?.addEventListener('dragend', (e) => {
+            const target = e.target as HTMLElement;
+            const item = target.closest('.es-asset-item') as HTMLElement;
+            item?.classList.remove('es-dragging');
+        });
     }
 
     private showAssetContextMenu(e: MouseEvent, path: string, type: AssetItem['type']): void {
@@ -623,10 +656,16 @@ export class ContentBrowserPanel {
             );
         }
 
+        const isDraggable = (type: AssetItem['type']) =>
+            type === 'spine' || type === 'image' || type === 'json';
+
         this.gridContainer_.innerHTML = filteredItems
             .map(
                 (item) => `
-                <div class="es-asset-item${item.path === this.selectedAssetPath_ ? ' es-selected' : ''}" data-path="${item.path}" data-type="${item.type}">
+                <div class="es-asset-item${item.path === this.selectedAssetPath_ ? ' es-selected' : ''}"
+                     data-path="${item.path}"
+                     data-type="${item.type}"
+                     ${isDraggable(item.type) ? 'draggable="true"' : ''}>
                     <div class="es-asset-icon">${getAssetIcon(item.type)}</div>
                     <div class="es-asset-name">${item.name}</div>
                 </div>

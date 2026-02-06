@@ -394,6 +394,17 @@ svg {
     color: #d19a66;
 }
 
+.es-hierarchy-item.es-drag-over > .es-hierarchy-row {
+    background: rgba(97, 175, 239, 0.3);
+    border-left-color: #61afef;
+}
+
+.es-hierarchy-tree.es-drag-over {
+    background: rgba(97, 175, 239, 0.1);
+    outline: 1px dashed #61afef;
+    outline-offset: -2px;
+}
+
 .es-hierarchy-visibility {
     width: 16px;
     display: inline-flex;
@@ -1491,6 +1502,18 @@ svg {
     background: rgba(209, 154, 102, 0.2);
 }
 
+.es-asset-item.es-dragging {
+    opacity: 0.5;
+}
+
+.es-asset-item[draggable="true"] {
+    cursor: grab;
+}
+
+.es-asset-item[draggable="true"]:active {
+    cursor: grabbing;
+}
+
 .es-asset-icon {
     display: flex;
     align-items: center;
@@ -2439,6 +2462,48 @@ svg {
 
 .es-btn-locate {
     flex-shrink: 0;
+}
+
+/* =============================================================================
+ * Spine File Editor
+ * ============================================================================= */
+
+.es-file-editor {
+    display: flex;
+    gap: 4px;
+}
+
+.es-file-editor .es-input-file {
+    flex: 1;
+    min-width: 0;
+}
+
+.es-file-editor .es-btn-browse {
+    flex-shrink: 0;
+}
+
+/* =============================================================================
+ * Spine Animation/Skin Editor
+ * ============================================================================= */
+
+.es-spine-animation-editor,
+.es-spine-skin-editor {
+    display: flex;
+    gap: 4px;
+}
+
+.es-spine-animation-editor .es-input-select,
+.es-spine-skin-editor .es-input-select {
+    flex: 1;
+    min-width: 0;
+}
+
+.es-btn-refresh {
+    flex-shrink: 0;
+}
+
+.es-btn-refresh:hover {
+    color: var(--es-accent);
 }
 
 /* =============================================================================

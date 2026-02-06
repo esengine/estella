@@ -14,12 +14,16 @@ export interface PropertyMeta {
     max?: number;
     step?: number;
     options?: { label: string; value: unknown }[];
+    fileFilter?: string[];
+    dependsOn?: string;
 }
 
 export interface PropertyEditorContext {
     value: unknown;
     meta: PropertyMeta;
     onChange: (value: unknown) => void;
+    componentData?: Record<string, unknown>;
+    getComponentValue?: (name: string) => unknown;
 }
 
 export type PropertyEditorFactory = (

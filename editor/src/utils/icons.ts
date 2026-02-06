@@ -48,6 +48,7 @@ import {
     Upload,
     Download,
     LayoutTemplate,
+    Bone,
 } from 'lucide';
 
 // =============================================================================
@@ -147,6 +148,7 @@ export const icons = {
     upload: (size?: number) => renderIcon(Upload as IconNode, size),
     download: (size?: number) => renderIcon(Download as IconNode, size),
     template: (size?: number) => renderIcon(LayoutTemplate as IconNode, size),
+    bone: (size?: number) => renderIcon(Bone as IconNode, size),
 };
 
 export type IconName = keyof typeof icons;

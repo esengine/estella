@@ -9,6 +9,8 @@ export type { PathValidationResult } from './AssetPathResolver';
 export { AssetLoader } from './AssetLoader';
 export type { LoadResult } from './AssetLoader';
 
+export { EditorAssetServer } from './EditorAssetServer';
+
 import { AssetPathResolver } from './AssetPathResolver';
 
 let globalPathResolver: AssetPathResolver | null = null;
