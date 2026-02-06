@@ -301,3 +301,13 @@ export {
     type RenderTargetHandle,
     type RenderStats,
 } from './renderer';
+
+// =============================================================================
+// Environment
+// =============================================================================
+
+export {
+    setEditorMode,
+    isEditor,
+    isRuntime,
+} from './env';
