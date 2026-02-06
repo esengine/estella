@@ -36,8 +36,8 @@ async function copyDistOutputs(sdkDir, outputDir) {
     await mkdir(cjsDir, { recursive: true });
 
     const files = [
-        { src: 'index.js', dest: path.join(esmDir, 'index.js') },
-        { src: 'index.d.ts', dest: path.join(esmDir, 'index.d.ts') },
+        { src: 'index.js', dest: path.join(esmDir, 'esengine.js') },
+        { src: 'index.d.ts', dest: path.join(esmDir, 'esengine.d.ts') },
         { src: 'wasm.js', dest: path.join(esmDir, 'wasm.js') },
         { src: 'wasm.d.ts', dest: path.join(esmDir, 'wasm.d.ts') },
         { src: 'index.wechat.js', dest: path.join(cjsDir, 'index.wechat.js') },

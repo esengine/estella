@@ -35,9 +35,17 @@ set(ESENGINE_SOURCES
     src/esengine/renderer/Buffer.cpp
     src/esengine/renderer/Texture.cpp
     src/esengine/renderer/Framebuffer.cpp
-    src/esengine/renderer/RenderPipeline.cpp
+    src/esengine/renderer/RenderFrame.cpp
+    src/esengine/renderer/RenderTarget.cpp
+    src/esengine/renderer/ImmediateDraw.cpp
+    src/esengine/renderer/CustomGeometry.cpp
+    src/esengine/renderer/PostProcessPipeline.cpp
     src/esengine/platform/input/Input.cpp
     src/esengine/platform/PathResolver.cpp
+    src/esengine/spine/SpineExtension.cpp
+    src/esengine/spine/SpineResourceManager.cpp
+    src/esengine/spine/SpineSystem.cpp
+    src/esengine/spine/SpineRenderer.cpp
 )
 
 set(ESENGINE_HEADERS
@@ -60,6 +68,11 @@ set(ESENGINE_HEADERS
     src/esengine/ecs/components/Camera.hpp
     src/esengine/ecs/components/Velocity.hpp
     src/esengine/ecs/components/Common.hpp
+    src/esengine/ecs/components/SpineAnimation.hpp
+    src/esengine/spine/SpineExtension.hpp
+    src/esengine/spine/SpineResourceManager.hpp
+    src/esengine/spine/SpineSystem.hpp
+    src/esengine/spine/SpineRenderer.hpp
     src/esengine/math/Math.hpp
     src/esengine/resource/Handle.hpp
     src/esengine/resource/ResourcePool.hpp
@@ -72,7 +85,14 @@ set(ESENGINE_HEADERS
     src/esengine/renderer/Texture.hpp
     src/esengine/renderer/Framebuffer.hpp
     src/esengine/renderer/RenderCommand.hpp
-    src/esengine/renderer/RenderPipeline.hpp
+    src/esengine/renderer/RenderStage.hpp
+    src/esengine/renderer/RenderItem.hpp
+    src/esengine/renderer/RenderTarget.hpp
+    src/esengine/renderer/RenderFrame.hpp
+    src/esengine/renderer/ImmediateDraw.hpp
+    src/esengine/renderer/BlendMode.hpp
+    src/esengine/renderer/CustomGeometry.hpp
+    src/esengine/renderer/PostProcessPipeline.hpp
     src/esengine/platform/Platform.hpp
     src/esengine/platform/FileSystem.hpp
     src/esengine/platform/input/Input.hpp
@@ -155,7 +175,7 @@ target_include_directories(esengine
         ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb
 )
 
-target_link_libraries(esengine PUBLIC glm)
+target_link_libraries(esengine PUBLIC glm spine-cpp)
 
 if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
     target_compile_definitions(esengine PUBLIC ES_PLATFORM_WEB)

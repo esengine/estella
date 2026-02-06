@@ -6,6 +6,23 @@ add_library(nlohmann_json INTERFACE)
 target_include_directories(nlohmann_json INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/nlohmann)
 
 # =============================================================================
+# Spine Runtime - 2D Skeletal Animation
+# =============================================================================
+
+set(SPINE_SET_COMPILER_FLAGS OFF CACHE BOOL "" FORCE)
+file(GLOB_RECURSE SPINE_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/spine-runtimes/spine-cpp/spine-cpp/src/spine/*.cpp"
+)
+add_library(spine-cpp STATIC ${SPINE_SOURCES})
+target_include_directories(spine-cpp PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/spine-runtimes/spine-cpp/spine-cpp/include
+)
+target_compile_definitions(spine-cpp PUBLIC SPINE_SHORT_NAMES)
+if(NOT MSVC)
+    target_compile_options(spine-cpp PRIVATE -Wno-unused-parameter -Wno-shadow)
+endif()
+
+# =============================================================================
 # GLM - OpenGL Mathematics Library
 # =============================================================================
 

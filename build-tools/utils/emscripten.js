@@ -4,7 +4,7 @@ import * as logger from './logger.js';
 
 export async function checkEmscripten() {
     try {
-        await runCommand('emcmake', ['--version'], { silent: true });
+        await runCommand('emcc', ['--version'], { silent: true });
         return true;
     } catch {
         return false;

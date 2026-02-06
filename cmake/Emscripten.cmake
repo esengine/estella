@@ -169,9 +169,10 @@ set(ES_EMSCRIPTEN_SDK_LINK_FLAGS
     -sNO_EXIT_RUNTIME=1
     -sEXPORT_ES6=1
     -sMODULARIZE=1
+    -sFORCE_FILESYSTEM=1
     "-sEXPORT_NAME='ESEngineModule'"
     "-sEXPORTED_FUNCTIONS=['_malloc','_free']"
-    "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32']"
+    "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32','FS']"
     -O3
     --closure=1
 )
