@@ -12,11 +12,13 @@ import {
     CreateEntityCommand,
     DeleteEntityCommand,
     ReparentCommand,
+    MoveEntityCommand,
     AddComponentCommand,
     RemoveComponentCommand,
 } from '../commands';
 import { WorldTransformCache } from '../transform/WorldTransformCache';
 import type { Transform } from '../math/Transform';
+import { isComponentRemovable } from '../schemas/ComponentSchemas';
 
 // =============================================================================
 // Types
@@ -50,6 +52,13 @@ export interface PropertyChangeEvent {
 
 export type PropertyChangeListener = (event: PropertyChangeEvent) => void;
 
+export interface HierarchyChangeEvent {
+    entity: number;
+    newParent: number | null;
+}
+
+export type HierarchyChangeListener = (event: HierarchyChangeEvent) => void;
+
 // =============================================================================
 // EditorStore
 // =============================================================================
@@ -59,6 +68,8 @@ export class EditorStore {
     private history_: CommandHistory;
     private listeners_: Set<EditorListener> = new Set();
     private propertyListeners_: Set<PropertyChangeListener> = new Set();
+    private hierarchyListeners_: Set<HierarchyChangeListener> = new Set();
+    private focusListeners_: Set<(entityId: number) => void> = new Set();
     private nextEntityId_ = 1;
     private worldTransforms_ = new WorldTransformCache();
     private entityMap_ = new Map<number, EntityData>();
@@ -178,6 +189,17 @@ export class EditorStore {
         return this.entityMap_.get(entityId) ?? null;
     }
 
+    focusEntity(entityId: number): void {
+        for (const listener of this.focusListeners_) {
+            listener(entityId);
+        }
+    }
+
+    onFocusEntity(listener: (entityId: number) => void): () => void {
+        this.focusListeners_.add(listener);
+        return () => this.focusListeners_.delete(listener);
+    }
+
     // =========================================================================
     // Entity Operations
     // =========================================================================
@@ -209,6 +231,19 @@ export class EditorStore {
     reparentEntity(entity: Entity, newParent: Entity | null): void {
         const cmd = new ReparentCommand(this.state_.scene, entity, newParent);
         this.executeCommand(cmd);
+        this.notifyHierarchyChange({
+            entity: entity as number,
+            newParent: newParent as number | null,
+        });
+    }
+
+    moveEntity(entity: Entity, newParent: Entity | null, index: number): void {
+        const cmd = new MoveEntityCommand(this.state_.scene, entity, newParent, index);
+        this.executeCommand(cmd);
+        this.notifyHierarchyChange({
+            entity: entity as number,
+            newParent: newParent as number | null,
+        });
     }
 
     renameEntity(entity: Entity, name: string): void {
@@ -230,6 +265,7 @@ export class EditorStore {
     }
 
     removeComponent(entity: Entity, type: string): void {
+        if (!isComponentRemovable(type)) return;
         const cmd = new RemoveComponentCommand(this.state_.scene, entity, type);
         this.executeCommand(cmd);
     }
@@ -350,6 +386,11 @@ export class EditorStore {
         return () => this.propertyListeners_.delete(listener);
     }
 
+    subscribeToHierarchyChanges(listener: HierarchyChangeListener): () => void {
+        this.hierarchyListeners_.add(listener);
+        return () => this.hierarchyListeners_.delete(listener);
+    }
+
     // =========================================================================
     // Private
     // =========================================================================
@@ -370,6 +411,12 @@ export class EditorStore {
 
     private notifyPropertyChange(event: PropertyChangeEvent): void {
         for (const listener of this.propertyListeners_) {
+            listener(event);
+        }
+    }
+
+    private notifyHierarchyChange(event: HierarchyChangeEvent): void {
+        for (const listener of this.hierarchyListeners_) {
             listener(event);
         }
     }

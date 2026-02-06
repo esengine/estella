@@ -1049,6 +1049,11 @@ class World {
             this.cppRegistry_.setParent(child, parent);
         }
     }
+    removeParent(entity) {
+        if (this.cppRegistry_) {
+            this.cppRegistry_.removeParent(entity);
+        }
+    }
     // =========================================================================
     // Component Management
     // =========================================================================
@@ -3099,6 +3104,9 @@ function loadComponent(world, entity, compData) {
             break;
         case 'SpineAnimation':
             world.insert(entity, SpineAnimation, data);
+            break;
+        case 'UIRect':
+            world.insert(entity, UIRect, data);
             break;
         default:
             console.warn(`Unknown component type: ${compData.type}`);

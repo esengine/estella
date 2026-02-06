@@ -73,6 +73,12 @@ export class World {
         }
     }
 
+    removeParent(entity: Entity): void {
+        if (this.cppRegistry_) {
+            this.cppRegistry_.removeParent(entity);
+        }
+    }
+
     // =========================================================================
     // Component Management
     // =========================================================================

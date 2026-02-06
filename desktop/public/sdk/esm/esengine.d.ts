@@ -367,6 +367,7 @@ declare class World {
     entityCount(): number;
     getAllEntities(): Entity[];
     setParent(child: Entity, parent: Entity): void;
+    removeParent(entity: Entity): void;
     insert(entity: Entity, component: AnyComponentDef, data?: unknown): unknown;
     get(entity: Entity, component: AnyComponentDef): unknown;
     has(entity: Entity, component: AnyComponentDef): boolean;

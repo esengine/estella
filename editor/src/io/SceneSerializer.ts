@@ -5,6 +5,7 @@
 
 import type { SceneData, EntityData, ComponentData } from '../types/SceneTypes';
 import { getEditorContext } from '../context/EditorContext';
+import { getDefaultComponentData } from '../schemas/ComponentSchemas';
 
 // =============================================================================
 // SceneSerializer
@@ -49,6 +50,13 @@ export class SceneSerializer {
         }
         if (!Array.isArray(entity.components)) {
             entity.components = [];
+        }
+
+        if (!entity.components.some(c => c.type === 'LocalTransform')) {
+            entity.components.unshift({
+                type: 'LocalTransform',
+                data: getDefaultComponentData('LocalTransform'),
+            });
         }
 
         for (const component of entity.components) {

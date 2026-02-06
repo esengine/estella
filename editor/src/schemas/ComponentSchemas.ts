@@ -16,6 +16,7 @@ export interface ComponentSchema {
     name: string;
     category: ComponentCategory;
     properties: PropertyMeta[];
+    removable?: boolean;
 }
 
 // =============================================================================
@@ -54,6 +55,7 @@ function inferPropertyType(value: unknown): string {
 export const LocalTransformSchema: ComponentSchema = {
     name: 'LocalTransform',
     category: 'builtin',
+    removable: false,
     properties: [
         { name: 'position', type: 'vec3' },
         { name: 'rotation', type: 'euler' },
@@ -183,6 +185,11 @@ export function getComponentSchema(name: string): ComponentSchema | undefined {
 
 export function getAllComponentSchemas(): ComponentSchema[] {
     return Array.from(schemaRegistry.values());
+}
+
+export function isComponentRemovable(name: string): boolean {
+    const schema = schemaRegistry.get(name);
+    return schema?.removable !== false;
 }
 
 export interface ComponentsByCategory {

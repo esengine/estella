@@ -18,6 +18,7 @@ import {
     type SpineAnimationData,
 } from './component';
 import { Text, type TextData } from './ui/text';
+import { UIRect, type UIRectData } from './ui/UIRect';
 import type { AssetServer } from './asset/AssetServer';
 
 // =============================================================================
@@ -213,6 +214,9 @@ export function loadComponent(world: World, entity: Entity, compData: SceneCompo
             break;
         case 'SpineAnimation':
             world.insert(entity, SpineAnimation, data as SpineAnimationData);
+            break;
+        case 'UIRect':
+            world.insert(entity, UIRect, data as UIRectData);
             break;
         default:
             console.warn(`Unknown component type: ${compData.type}`);

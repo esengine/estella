@@ -12,6 +12,8 @@ import { getDefaultComponentData } from '../schemas/ComponentSchemas';
 import { showContextMenu } from '../ui/ContextMenu';
 import { getEditorContext } from '../context/EditorContext';
 
+type DropPosition = 'before' | 'after' | 'inside';
+
 // =============================================================================
 // HierarchyPanel
 // =============================================================================
@@ -75,7 +77,8 @@ export class HierarchyPanel {
     private setupEvents(): void {
         const addBtn = this.container_.querySelector('[data-action="add"]');
         addBtn?.addEventListener('click', () => {
-            this.store_.createEntity();
+            const entity = this.store_.createEntity();
+            this.store_.addComponent(entity, 'LocalTransform', getDefaultComponentData('LocalTransform'));
         });
 
         this.searchInput_?.addEventListener('input', () => {
@@ -113,6 +116,17 @@ export class HierarchyPanel {
             this.store_.selectEntity(entityId as Entity);
         });
 
+        this.treeContainer_.addEventListener('dblclick', (e) => {
+            const target = e.target as HTMLElement;
+            const item = target.closest('.es-hierarchy-item') as HTMLElement;
+            if (!item) return;
+
+            const entityId = parseInt(item.dataset.entityId ?? '', 10);
+            if (!isNaN(entityId)) {
+                this.store_.focusEntity(entityId);
+            }
+        });
+
         this.treeContainer_.addEventListener('contextmenu', (e) => {
             e.preventDefault();
             const target = e.target as HTMLElement;
@@ -132,64 +146,167 @@ export class HierarchyPanel {
     }
 
     private setupDragAndDrop(): void {
+        this.treeContainer_.addEventListener('dragstart', (e) => {
+            const target = e.target as HTMLElement;
+            const row = target.closest('.es-hierarchy-row') as HTMLElement;
+            const item = row?.parentElement as HTMLElement;
+            if (!item?.classList.contains('es-hierarchy-item')) return;
+
+            const entityId = item.dataset.entityId;
+            if (!entityId) return;
+
+            e.dataTransfer!.setData('application/esengine-entity', entityId);
+            e.dataTransfer!.effectAllowed = 'move';
+            item.classList.add('es-dragging');
+        });
+
+        this.treeContainer_.addEventListener('dragend', () => {
+            this.treeContainer_.querySelectorAll('.es-dragging').forEach(el => {
+                el.classList.remove('es-dragging');
+            });
+            this.clearDropIndicators();
+        });
+
         this.treeContainer_.addEventListener('dragover', (e) => {
             const types = e.dataTransfer?.types ?? [];
             const hasAssetData = Array.from(types).includes('application/esengine-asset');
-            if (!hasAssetData) return;
+            const hasEntityData = Array.from(types).includes('application/esengine-entity');
+
+            if (!hasAssetData && !hasEntityData) return;
 
             e.preventDefault();
-            e.dataTransfer!.dropEffect = 'copy';
 
+            if (hasAssetData) {
+                e.dataTransfer!.dropEffect = 'copy';
+                this.clearDropIndicators();
+                const target = e.target as HTMLElement;
+                const item = target.closest('.es-hierarchy-item') as HTMLElement;
+                if (item) {
+                    item.classList.add('es-drag-over');
+                } else {
+                    this.treeContainer_.classList.add('es-drag-over');
+                }
+                return;
+            }
+
+            e.dataTransfer!.dropEffect = 'move';
             const target = e.target as HTMLElement;
             const item = target.closest('.es-hierarchy-item') as HTMLElement;
+            this.clearDropIndicators();
 
-            this.treeContainer_.querySelectorAll('.es-drag-over').forEach(el => {
-                el.classList.remove('es-drag-over');
-            });
-
-            if (item) {
-                item.classList.add('es-drag-over');
-            } else {
+            if (!item) {
                 this.treeContainer_.classList.add('es-drag-over');
+                return;
             }
+
+            const position = this.getDropPosition(e, item);
+            item.classList.add(`es-drop-${position}`);
         });
 
         this.treeContainer_.addEventListener('dragleave', (e) => {
             const relatedTarget = e.relatedTarget as HTMLElement;
             if (this.treeContainer_.contains(relatedTarget)) return;
-
-            this.treeContainer_.querySelectorAll('.es-drag-over').forEach(el => {
-                el.classList.remove('es-drag-over');
-            });
-            this.treeContainer_.classList.remove('es-drag-over');
+            this.clearDropIndicators();
         });
 
         this.treeContainer_.addEventListener('drop', (e) => {
             e.preventDefault();
-
-            this.treeContainer_.querySelectorAll('.es-drag-over').forEach(el => {
-                el.classList.remove('es-drag-over');
-            });
-            this.treeContainer_.classList.remove('es-drag-over');
+            this.clearDropIndicators();
 
             const assetDataStr = e.dataTransfer?.getData('application/esengine-asset');
-            if (!assetDataStr) return;
-
-            let assetData: { type: string; path: string; name: string };
-            try {
-                assetData = JSON.parse(assetDataStr);
-            } catch {
+            if (assetDataStr) {
+                let assetData: { type: string; path: string; name: string };
+                try {
+                    assetData = JSON.parse(assetDataStr);
+                } catch {
+                    return;
+                }
+                const target = e.target as HTMLElement;
+                const item = target.closest('.es-hierarchy-item') as HTMLElement;
+                const parentEntity = item
+                    ? parseInt(item.dataset.entityId ?? '', 10) as Entity
+                    : null;
+                this.createEntityFromAsset(assetData, parentEntity);
                 return;
             }
 
+            const entityIdStr = e.dataTransfer?.getData('application/esengine-entity');
+            if (!entityIdStr) return;
+
+            const draggedId = parseInt(entityIdStr, 10);
+            if (isNaN(draggedId)) return;
+
             const target = e.target as HTMLElement;
             const item = target.closest('.es-hierarchy-item') as HTMLElement;
-            const parentEntity = item
-                ? parseInt(item.dataset.entityId ?? '', 10) as Entity
-                : null;
 
-            this.createEntityFromAsset(assetData, parentEntity);
+            if (!item) {
+                const scene = this.store_.scene;
+                const roots = scene.entities.filter(e => e.parent === null);
+                this.store_.moveEntity(draggedId as Entity, null, roots.length);
+                return;
+            }
+
+            const targetId = parseInt(item.dataset.entityId ?? '', 10);
+            if (isNaN(targetId) || targetId === draggedId) return;
+
+            if (this.isDescendantOf(draggedId, targetId)) return;
+
+            const position = this.getDropPosition(e, item);
+            const scene = this.store_.scene;
+            const targetEntity = scene.entities.find(en => en.id === targetId);
+            if (!targetEntity) return;
+
+            if (position === 'inside') {
+                this.store_.moveEntity(draggedId as Entity, targetId as Entity, targetEntity.children.length);
+                this.expandedIds_.add(targetId);
+            } else {
+                const parentId = targetEntity.parent;
+                if (parentId !== null) {
+                    const parent = scene.entities.find(en => en.id === parentId);
+                    if (!parent) return;
+                    let idx = parent.children.indexOf(targetId);
+                    if (position === 'after') idx++;
+                    const draggedIdx = parent.children.indexOf(draggedId);
+                    if (draggedIdx !== -1 && draggedIdx < idx) idx--;
+                    this.store_.moveEntity(draggedId as Entity, parentId as Entity, idx);
+                } else {
+                    const roots = scene.entities.filter(en => en.parent === null);
+                    let idx = roots.findIndex(en => en.id === targetId);
+                    if (position === 'after') idx++;
+                    const draggedIdx = roots.findIndex(en => en.id === draggedId);
+                    if (draggedIdx !== -1 && draggedIdx < idx) idx--;
+                    this.store_.moveEntity(draggedId as Entity, null, idx);
+                }
+            }
         });
+    }
+
+    private getDropPosition(e: DragEvent, item: HTMLElement): DropPosition {
+        const row = item.querySelector('.es-hierarchy-row') as HTMLElement;
+        const rect = row.getBoundingClientRect();
+        const y = e.clientY - rect.top;
+        const ratio = y / rect.height;
+        if (ratio < 0.25) return 'before';
+        if (ratio > 0.75) return 'after';
+        return 'inside';
+    }
+
+    private clearDropIndicators(): void {
+        this.treeContainer_.querySelectorAll('.es-drag-over, .es-drop-before, .es-drop-after, .es-drop-inside').forEach(el => {
+            el.classList.remove('es-drag-over', 'es-drop-before', 'es-drop-after', 'es-drop-inside');
+        });
+        this.treeContainer_.classList.remove('es-drag-over');
+    }
+
+    private isDescendantOf(entityId: number, ancestorId: number): boolean {
+        const scene = this.store_.scene;
+        let current: number | null = entityId;
+        while (current !== null) {
+            if (current === ancestorId) return true;
+            const entity = scene.entities.find(e => e.id === current);
+            current = entity?.parent ?? null;
+        }
+        return false;
     }
 
     private async createEntityFromAsset(
@@ -358,7 +475,9 @@ export class HierarchyPanel {
         return entities.map(entity => {
             const children = this.searchFilter_
                 ? []
-                : scene.entities.filter(e => e.parent === entity.id);
+                : entity.children
+                    .map(id => scene.entities.find(e => e.id === id))
+                    .filter((e): e is EntityData => e !== undefined);
             const hasChildren = children.length > 0;
             const isSelected = entity.id === selectedEntity;
             const isExpanded = this.expandedIds_.has(entity.id);
@@ -369,7 +488,7 @@ export class HierarchyPanel {
             return `
                 <div class="es-hierarchy-item ${isSelected ? 'es-selected' : ''} ${hasChildren ? 'es-has-children' : ''} ${isExpanded ? 'es-expanded' : ''}"
                      data-entity-id="${entity.id}">
-                    <div class="es-hierarchy-row">
+                    <div class="es-hierarchy-row" draggable="true">
                         <span class="es-hierarchy-visibility">${icons.eye(10)}</span>
                         ${hasChildren ? `<span class="es-hierarchy-expand">${expandIcon}</span>` : '<span class="es-hierarchy-spacer"></span>'}
                         <span class="es-hierarchy-icon">${icon}</span>
@@ -384,7 +503,10 @@ export class HierarchyPanel {
 
     private showEntityContextMenu(x: number, y: number, entity: Entity | null): void {
         const items = [
-            { label: 'Create Entity', icon: icons.plus(14), onClick: () => this.store_.createEntity(undefined, entity) },
+            { label: 'Create Entity', icon: icons.plus(14), onClick: () => {
+                const newEntity = this.store_.createEntity(undefined, entity);
+                this.store_.addComponent(newEntity, 'LocalTransform', getDefaultComponentData('LocalTransform'));
+            } },
             { label: 'Create Sprite', icon: icons.image(14), onClick: () => this.createEntityWithComponent('Sprite', entity) },
             { label: 'Create Text', icon: icons.type(14), onClick: () => this.createEntityWithComponent('Text', entity) },
             { label: 'Create Spine', icon: icons.bone(14), onClick: () => this.createEntityWithComponent('SpineAnimation', entity) },

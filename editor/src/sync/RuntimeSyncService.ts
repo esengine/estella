@@ -3,7 +3,7 @@
  * @brief   Syncs editor state changes to runtime rendering
  */
 
-import type { EditorStore, PropertyChangeEvent } from '../store/EditorStore';
+import type { EditorStore, PropertyChangeEvent, HierarchyChangeEvent } from '../store/EditorStore';
 import type { EditorSceneManager } from '../scene/EditorSceneManager';
 import { getAssetEventBus, type AssetEvent } from '../events/AssetEventBus';
 import { getDependencyGraph } from '../asset/AssetDependencyGraph';
@@ -27,6 +27,12 @@ export class RuntimeSyncService {
         );
 
         this.unsubscribes_.push(
+            this.store_.subscribeToHierarchyChanges((event) => {
+                this.onHierarchyChange(event);
+            })
+        );
+
+        this.unsubscribes_.push(
             getAssetEventBus().on('material', (event) => {
                 if (event.type === 'asset:modified') {
                     this.onMaterialModified(event.path);
@@ -45,6 +51,10 @@ export class RuntimeSyncService {
 
     private onPropertyChange(event: PropertyChangeEvent): void {
         this.scheduleEntityUpdate(event.entity);
+    }
+
+    private onHierarchyChange(event: HierarchyChangeEvent): void {
+        this.sceneManager_.reparentEntity(event.entity, event.newParent);
     }
 
     private onMaterialModified(path: string): void {

@@ -22,7 +22,6 @@ import { AssetPathResolver } from '../asset/AssetPathResolver';
 import { getDependencyGraph } from '../asset/AssetDependencyGraph';
 import {
     Transform,
-    composeTransforms,
     createIdentityTransform,
     getLocalTransformFromEntity,
     getUIRectFromEntity,
@@ -165,6 +164,28 @@ export class EditorSceneManager {
         }
     }
 
+    reparentEntity(entityId: number, newParentId: number | null): void {
+        const entity = this.entityMap_.get(entityId);
+        if (entity === undefined) return;
+
+        if (newParentId !== null) {
+            const parentEntity = this.entityMap_.get(newParentId);
+            if (parentEntity !== undefined) {
+                this.world_.setParent(entity, parentEntity);
+            }
+        } else {
+            this.world_.removeParent(entity);
+        }
+
+        const entityData = this.entityDataMap_.get(entityId);
+        if (entityData) {
+            const transformComp = entityData.components.find(c => c.type === 'LocalTransform');
+            if (transformComp) {
+                this.syncTransform(entity, transformComp.data, entityId);
+            }
+        }
+    }
+
     removeEntity(entityId: number): void {
         const entity = this.entityMap_.get(entityId);
         if (entity) {
@@ -236,16 +257,16 @@ export class EditorSceneManager {
             this.world_.remove(entity, LocalTransform);
         }
 
-        const worldTransform = this.computeWorldTransform(entityId);
+        const adjustedLocal = this.computeAdjustedLocalTransform(entityId);
 
         this.world_.insert(entity, LocalTransform, {
-            position: worldTransform.position,
-            rotation: worldTransform.rotation,
-            scale: worldTransform.scale,
+            position: adjustedLocal.position,
+            rotation: adjustedLocal.rotation,
+            scale: adjustedLocal.scale,
         });
     }
 
-    private computeWorldTransform(entityId: number): Transform {
+    private computeAdjustedLocalTransform(entityId: number): Transform {
         const entityData = this.entityDataMap_.get(entityId);
         if (!entityData) {
             return createIdentityTransform();
@@ -267,18 +288,11 @@ export class EditorSceneManager {
             adjustedPosition.y += (0.5 - uiRect.pivot.y) * size.y;
         }
 
-        const adjustedLocal: Transform = {
+        return {
             position: adjustedPosition,
             rotation: localTransform.rotation,
             scale: localTransform.scale,
         };
-
-        if (entityData.parent === null) {
-            return adjustedLocal;
-        }
-
-        const parentWorld = this.computeWorldTransform(entityData.parent);
-        return composeTransforms(parentWorld, adjustedLocal);
     }
 
     private getParentSize(entity: EntityData): { x: number; y: number } {

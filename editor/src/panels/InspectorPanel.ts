@@ -10,7 +10,7 @@ import {
     createPropertyEditor,
     type PropertyEditorInstance,
 } from '../property/PropertyEditor';
-import { getComponentSchema, getDefaultComponentData } from '../schemas/ComponentSchemas';
+import { getComponentSchema, getDefaultComponentData, isComponentRemovable } from '../schemas/ComponentSchemas';
 import { icons } from '../utils/icons';
 import { showAddComponentPopup } from './AddComponentPopup';
 import { getPlatformAdapter } from '../platform/PlatformAdapter';
@@ -402,6 +402,7 @@ export class InspectorPanel {
         section.className = 'es-component-section es-collapsible es-expanded';
 
         const icon = this.getComponentIcon(component.type);
+        const removable = isComponentRemovable(component.type);
 
         const header = document.createElement('div');
         header.className = 'es-component-header es-collapsible-header';
@@ -409,13 +410,15 @@ export class InspectorPanel {
             <span class="es-collapse-icon">${icons.chevronDown(12)}</span>
             <span class="es-component-icon">${icon}</span>
             <span class="es-component-title">${component.type}</span>
-            <button class="es-btn es-btn-icon es-btn-remove">${icons.x(12)}</button>
+            ${removable ? `<button class="es-btn es-btn-icon es-btn-remove">${icons.x(12)}</button>` : ''}
         `;
 
-        const removeBtn = header.querySelector('.es-btn-remove');
-        removeBtn?.addEventListener('click', () => {
-            this.store_.removeComponent(entity, component.type);
-        });
+        if (removable) {
+            const removeBtn = header.querySelector('.es-btn-remove');
+            removeBtn?.addEventListener('click', () => {
+                this.store_.removeComponent(entity, component.type);
+            });
+        }
 
         header.addEventListener('click', (e) => {
             if ((e.target as HTMLElement).closest('.es-btn-remove')) return;
