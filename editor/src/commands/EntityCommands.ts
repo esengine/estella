@@ -185,6 +185,80 @@ export class ReparentCommand extends BaseCommand {
 }
 
 // =============================================================================
+// MoveEntityCommand
+// =============================================================================
+
+export class MoveEntityCommand extends BaseCommand {
+    readonly type = 'move_entity';
+    readonly description: string;
+    private oldParent_: number | null;
+    private oldIndex_: number;
+
+    constructor(
+        private scene_: SceneData,
+        private entityId_: number,
+        private newParent_: number | null,
+        private newIndex_: number
+    ) {
+        super();
+        const entity = scene_.entities.find(e => e.id === entityId_);
+        this.oldParent_ = entity?.parent ?? null;
+        this.oldIndex_ = this.computeIndex(this.oldParent_);
+        this.description = `Move entity "${entity?.name ?? entityId_}"`;
+    }
+
+    execute(): void {
+        this.applyMove(this.newParent_, this.newIndex_);
+    }
+
+    undo(): void {
+        this.applyMove(this.oldParent_, this.oldIndex_);
+    }
+
+    private computeIndex(parent: number | null): number {
+        if (parent !== null) {
+            const parentData = this.scene_.entities.find(e => e.id === parent);
+            return parentData?.children.indexOf(this.entityId_) ?? 0;
+        }
+        const roots = this.scene_.entities.filter(e => e.parent === null);
+        return roots.findIndex(e => e.id === this.entityId_);
+    }
+
+    private applyMove(targetParent: number | null, targetIndex: number): void {
+        const entity = this.scene_.entities.find(e => e.id === this.entityId_);
+        if (!entity) return;
+
+        if (entity.parent !== null) {
+            const parent = this.scene_.entities.find(e => e.id === entity.parent);
+            if (parent) {
+                const idx = parent.children.indexOf(this.entityId_);
+                if (idx !== -1) parent.children.splice(idx, 1);
+            }
+        }
+
+        entity.parent = targetParent;
+
+        if (targetParent !== null) {
+            const parent = this.scene_.entities.find(e => e.id === targetParent);
+            if (parent) {
+                const i = Math.min(targetIndex, parent.children.length);
+                parent.children.splice(i, 0, this.entityId_);
+            }
+        } else {
+            const arrIdx = this.scene_.entities.indexOf(entity);
+            this.scene_.entities.splice(arrIdx, 1);
+            const roots = this.scene_.entities.filter(e => e.parent === null);
+            if (targetIndex >= roots.length) {
+                this.scene_.entities.push(entity);
+            } else {
+                const refIdx = this.scene_.entities.indexOf(roots[targetIndex]);
+                this.scene_.entities.splice(refIdx, 0, entity);
+            }
+        }
+    }
+}
+
+// =============================================================================
 // AddComponentCommand
 // =============================================================================
 

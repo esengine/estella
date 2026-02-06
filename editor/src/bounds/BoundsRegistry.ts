@@ -19,5 +19,5 @@ export function getEntityBounds(components: { type: string; data: any }[]): Boun
             if (bounds) return bounds;
         }
     }
-    return { width: 50, height: 50 };
+    return { width: 0, height: 0 };
 }

@@ -109,6 +109,8 @@ export class EditorSceneManager {
         const entity = this.world_.spawn();
         this.entityMap_.set(entityData.id, entity);
 
+        if (entityData.visible === false) return;
+
         for (const comp of entityData.components) {
             await this.loadComponentWithEditorLogic(entity, comp, entityData.id);
         }
@@ -194,6 +196,25 @@ export class EditorSceneManager {
             this.entityMap_.delete(entityId);
             this.entityDataMap_.delete(entityId);
         }
+    }
+
+    // =========================================================================
+    // Visibility
+    // =========================================================================
+
+    hideEntity(entityId: number): void {
+        const entity = this.entityMap_.get(entityId);
+        if (entity === undefined) return;
+
+        if (this.world_.has(entity, Sprite)) {
+            this.world_.remove(entity, Sprite);
+        }
+    }
+
+    async showEntity(entityId: number): Promise<void> {
+        const entityData = this.entityDataMap_.get(entityId);
+        if (!entityData) return;
+        await this.updateEntity(entityId, entityData.components);
     }
 
     // =========================================================================

@@ -53,6 +53,7 @@ export class SceneViewPanel {
     private webglCanvas_: HTMLCanvasElement | null = null;
     private overlayCanvas_: HTMLCanvasElement | null = null;
     private unsubscribe_: (() => void) | null = null;
+    private unsubscribeFocus_: (() => void) | null = null;
     private animationId_: number | null = null;
     private continuousRender_ = false;
     private resizeObserver_: ResizeObserver | null = null;
@@ -166,6 +167,7 @@ export class SceneViewPanel {
 
         this.setupEvents();
         this.unsubscribe_ = store.subscribe(() => this.onSceneChanged());
+        this.unsubscribeFocus_ = store.onFocusEntity((entityId) => this.focusOnEntity(entityId));
         this.resize();
 
         if (this.app_?.wasmModule) {
@@ -191,6 +193,10 @@ export class SceneViewPanel {
         if (this.unsubscribe_) {
             this.unsubscribe_();
             this.unsubscribe_ = null;
+        }
+        if (this.unsubscribeFocus_) {
+            this.unsubscribeFocus_();
+            this.unsubscribeFocus_ = null;
         }
         if (this.resizeObserver_) {
             this.resizeObserver_.disconnect();
@@ -489,7 +495,8 @@ export class SceneViewPanel {
 
         const { worldX, worldY } = this.screenToWorld(e.clientX, e.clientY);
 
-        if (this.gizmoManager_.getActiveId() !== 'select' && this.store_.selectedEntity !== null) {
+        if (this.gizmoManager_.getActiveId() !== 'select' && this.store_.selectedEntity !== null &&
+            this.store_.isEntityVisible(this.store_.selectedEntity as number)) {
             this.updateGizmoContext();
             if (this.gizmoManager_.onMouseDown(worldX, worldY)) {
                 this.startDocumentDrag();
@@ -600,6 +607,14 @@ export class SceneViewPanel {
         this.store_.selectEntity(entity);
     }
 
+    private focusOnEntity(entityId: number): void {
+        const worldTransform = this.store_.getWorldTransform(entityId);
+        this.panX_ = -worldTransform.position.x;
+        this.panY_ = worldTransform.position.y;
+        this.updateZoomDisplay();
+        this.requestRender();
+    }
+
     private screenToWorld(clientX: number, clientY: number): { worldX: number; worldY: number } {
         const rect = this.canvas_.getBoundingClientRect();
         const dpr = window.devicePixelRatio || 1;
@@ -641,6 +656,8 @@ export class SceneViewPanel {
 
         for (let i = scene.entities.length - 1; i >= 0; i--) {
             const entity = scene.entities[i];
+            if (!this.store_.isEntityVisible(entity.id)) continue;
+
             const transform = entity.components.find(c => c.type === 'LocalTransform');
 
             if (!transform) continue;
@@ -745,7 +762,7 @@ export class SceneViewPanel {
 
         const selectedEntity = this.store_.selectedEntity;
 
-        if (selectedEntity !== null) {
+        if (selectedEntity !== null && this.store_.isEntityVisible(selectedEntity as number)) {
             if (this.gizmoSettings_.showSelectionBox) {
                 this.drawSelectionBox(ctx);
             }
@@ -879,10 +896,11 @@ export class SceneViewPanel {
         const selectedEntity = this.store_.selectedEntity;
 
         for (const entity of scene.entities) {
+            if (!this.store_.isEntityVisible(entity.id)) continue;
             this.drawEntity(ctx, entity, entity.id === selectedEntity);
         }
 
-        if (selectedEntity !== null) {
+        if (selectedEntity !== null && this.store_.isEntityVisible(selectedEntity as number)) {
             this.drawCameraFrustum(ctx);
 
             if (this.gizmoManager_.getActiveId() !== 'select' && this.gizmoSettings_.showGizmos) {

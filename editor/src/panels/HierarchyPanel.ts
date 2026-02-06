@@ -89,6 +89,17 @@ export class HierarchyPanel {
         this.treeContainer_.addEventListener('click', (e) => {
             const target = e.target as HTMLElement;
 
+            const visibilityBtn = target.closest('.es-hierarchy-visibility') as HTMLElement;
+            if (visibilityBtn) {
+                e.stopPropagation();
+                const item = visibilityBtn.closest('.es-hierarchy-item') as HTMLElement;
+                const entityId = parseInt(item?.dataset.entityId ?? '', 10);
+                if (!isNaN(entityId)) {
+                    this.store_.toggleVisibility(entityId);
+                }
+                return;
+            }
+
             const expandBtn = target.closest('.es-hierarchy-expand') as HTMLElement;
             if (expandBtn) {
                 e.stopPropagation();
@@ -419,7 +430,7 @@ export class HierarchyPanel {
             );
         }
 
-        this.treeContainer_.innerHTML = this.renderEntities(rootEntities, scene, selectedEntity);
+        this.treeContainer_.innerHTML = this.renderEntities(rootEntities, scene, selectedEntity, 0);
 
         if (this.footerContainer_) {
             const count = scene.entities.length;
@@ -470,7 +481,8 @@ export class HierarchyPanel {
     private renderEntities(
         entities: EntityData[],
         scene: SceneData,
-        selectedEntity: Entity | null
+        selectedEntity: Entity | null,
+        depth: number = 0
     ): string {
         return entities.map(entity => {
             const children = this.searchFilter_
@@ -484,18 +496,21 @@ export class HierarchyPanel {
             const icon = this.getEntityIcon(entity);
             const type = this.getEntityType(entity);
             const expandIcon = isExpanded ? icons.chevronDown(10) : icons.chevronRight(10);
+            const isVisible = this.store_.isEntityVisible(entity.id);
+            const visibilityIcon = isVisible ? icons.eye(10) : icons.eyeOff(10);
+            const hiddenClass = isVisible ? '' : ' es-entity-hidden';
 
             return `
-                <div class="es-hierarchy-item ${isSelected ? 'es-selected' : ''} ${hasChildren ? 'es-has-children' : ''} ${isExpanded ? 'es-expanded' : ''}"
-                     data-entity-id="${entity.id}">
-                    <div class="es-hierarchy-row" draggable="true">
-                        <span class="es-hierarchy-visibility">${icons.eye(10)}</span>
+                <div class="es-hierarchy-item ${isSelected ? 'es-selected' : ''}${hiddenClass} ${hasChildren ? 'es-has-children' : ''} ${isExpanded ? 'es-expanded' : ''}"
+                     data-entity-id="${entity.id}" style="--depth: ${depth}">
+                    <div class="es-hierarchy-row" draggable="true" style="padding-left: ${8 + depth * 16}px">
                         ${hasChildren ? `<span class="es-hierarchy-expand">${expandIcon}</span>` : '<span class="es-hierarchy-spacer"></span>'}
+                        <span class="es-hierarchy-visibility">${visibilityIcon}</span>
                         <span class="es-hierarchy-icon">${icon}</span>
                         <span class="es-hierarchy-name">${this.escapeHtml(entity.name)}</span>
                         <span class="es-hierarchy-type">${type}</span>
                     </div>
-                    ${hasChildren && isExpanded ? `<div class="es-hierarchy-children">${this.renderEntities(children, scene, selectedEntity)}</div>` : ''}
+                    ${hasChildren && isExpanded ? `<div class="es-hierarchy-children">${this.renderEntities(children, scene, selectedEntity, depth + 1)}</div>` : ''}
                 </div>
             `;
         }).join('');

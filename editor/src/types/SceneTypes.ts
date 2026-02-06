@@ -23,6 +23,7 @@ export interface EntityData {
     parent: number | null;
     children: number[];
     components: ComponentData[];
+    visible: boolean;
 }
 
 export interface ComponentData {
@@ -70,5 +71,6 @@ export function createEntityData(
         parent,
         children: [],
         components: [],
+        visible: true,
     };
 }

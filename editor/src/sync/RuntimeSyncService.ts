@@ -3,7 +3,7 @@
  * @brief   Syncs editor state changes to runtime rendering
  */
 
-import type { EditorStore, PropertyChangeEvent, HierarchyChangeEvent } from '../store/EditorStore';
+import type { EditorStore, PropertyChangeEvent, HierarchyChangeEvent, VisibilityChangeEvent } from '../store/EditorStore';
 import type { EditorSceneManager } from '../scene/EditorSceneManager';
 import { getAssetEventBus, type AssetEvent } from '../events/AssetEventBus';
 import { getDependencyGraph } from '../asset/AssetDependencyGraph';
@@ -33,6 +33,12 @@ export class RuntimeSyncService {
         );
 
         this.unsubscribes_.push(
+            this.store_.subscribeToVisibilityChanges((event) => {
+                this.onVisibilityChange(event);
+            })
+        );
+
+        this.unsubscribes_.push(
             getAssetEventBus().on('material', (event) => {
                 if (event.type === 'asset:modified') {
                     this.onMaterialModified(event.path);
@@ -47,6 +53,14 @@ export class RuntimeSyncService {
                 }
             })
         );
+    }
+
+    private onVisibilityChange(event: VisibilityChangeEvent): void {
+        if (event.visible) {
+            this.sceneManager_.showEntity(event.entity);
+        } else {
+            this.sceneManager_.hideEntity(event.entity);
+        }
     }
 
     private onPropertyChange(event: PropertyChangeEvent): void {
@@ -86,10 +100,10 @@ export class RuntimeSyncService {
     }
 
     private async syncEntity(entityId: number): Promise<void> {
+        if (!this.store_.isEntityVisible(entityId)) return;
         const entityData = this.store_.getEntityData(entityId);
-        if (entityData) {
-            await this.sceneManager_.updateEntity(entityId, entityData.components);
-        }
+        if (!entityData) return;
+        await this.sceneManager_.updateEntity(entityId, entityData.components);
     }
 
     dispose(): void {

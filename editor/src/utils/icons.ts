@@ -49,6 +49,7 @@ import {
     Download,
     LayoutTemplate,
     Bone,
+    EyeOff,
 } from 'lucide';
 
 // =============================================================================
@@ -106,6 +107,7 @@ export const icons = {
     copy: (size?: number) => renderIcon(Copy as IconNode, size),
     settings: (size?: number) => renderIcon(Settings as IconNode, size),
     eye: (size?: number) => renderIcon(Eye as IconNode, size),
+    eyeOff: (size?: number) => renderIcon(EyeOff as IconNode, size),
     star: (size?: number) => renderIcon(Star as IconNode, size),
     chevronRight: (size?: number) => renderIcon(ChevronRight as IconNode, size),
     chevronDown: (size?: number) => renderIcon(ChevronDown as IconNode, size),

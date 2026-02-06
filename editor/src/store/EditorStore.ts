@@ -59,6 +59,13 @@ export interface HierarchyChangeEvent {
 
 export type HierarchyChangeListener = (event: HierarchyChangeEvent) => void;
 
+export interface VisibilityChangeEvent {
+    entity: number;
+    visible: boolean;
+}
+
+export type VisibilityChangeListener = (event: VisibilityChangeEvent) => void;
+
 // =============================================================================
 // EditorStore
 // =============================================================================
@@ -70,6 +77,7 @@ export class EditorStore {
     private propertyListeners_: Set<PropertyChangeListener> = new Set();
     private hierarchyListeners_: Set<HierarchyChangeListener> = new Set();
     private focusListeners_: Set<(entityId: number) => void> = new Set();
+    private visibilityListeners_: Set<VisibilityChangeListener> = new Set();
     private nextEntityId_ = 1;
     private worldTransforms_ = new WorldTransformCache();
     private entityMap_ = new Map<number, EntityData>();
@@ -201,6 +209,79 @@ export class EditorStore {
     }
 
     // =========================================================================
+    // Visibility
+    // =========================================================================
+
+    toggleVisibility(entityId: number): void {
+        const entityData = this.entityMap_.get(entityId);
+        if (!entityData) return;
+
+        if (!entityData.visible) {
+            const parentId = entityData.parent;
+            if (parentId !== null) {
+                const parentData = this.entityMap_.get(parentId);
+                if (parentData && !parentData.visible) return;
+            }
+            this.showEntityTree(entityId);
+        } else {
+            this.hideEntityTree(entityId);
+        }
+        this.state_.isDirty = true;
+        this.notify();
+    }
+
+    isEntityVisible(entityId: number): boolean {
+        const entityData = this.entityMap_.get(entityId);
+        return entityData?.visible !== false;
+    }
+
+    isEntityDirectlyHidden(entityId: number): boolean {
+        const entityData = this.entityMap_.get(entityId);
+        if (!entityData || entityData.visible !== false) return false;
+        const parentId = entityData.parent;
+        if (parentId === null) return true;
+        const parentData = this.entityMap_.get(parentId);
+        return parentData?.visible !== false;
+    }
+
+    subscribeToVisibilityChanges(listener: VisibilityChangeListener): () => void {
+        this.visibilityListeners_.add(listener);
+        return () => this.visibilityListeners_.delete(listener);
+    }
+
+    private hideEntityTree(entityId: number): void {
+        const entityData = this.entityMap_.get(entityId);
+        if (!entityData) return;
+        entityData.visible = false;
+        this.notifyVisibilityChange({ entity: entityId, visible: false });
+        for (const childId of entityData.children) {
+            const childData = this.entityMap_.get(childId);
+            if (childData && childData.visible !== false) {
+                this.hideEntityTree(childId);
+            }
+        }
+    }
+
+    private showEntityTree(entityId: number): void {
+        const entityData = this.entityMap_.get(entityId);
+        if (!entityData) return;
+        entityData.visible = true;
+        this.notifyVisibilityChange({ entity: entityId, visible: true });
+        for (const childId of entityData.children) {
+            const childData = this.entityMap_.get(childId);
+            if (childData && childData.visible === false) {
+                this.showEntityTree(childId);
+            }
+        }
+    }
+
+    private notifyVisibilityChange(event: VisibilityChangeEvent): void {
+        for (const listener of this.visibilityListeners_) {
+            listener(event);
+        }
+    }
+
+    // =========================================================================
     // Entity Operations
     // =========================================================================
 
@@ -215,6 +296,19 @@ export class EditorStore {
             parent
         );
         this.executeCommand(cmd);
+
+        if (parent !== null) {
+            const parentData = this.entityMap_.get(parent as number);
+            if (parentData && !parentData.visible) {
+                const newEntityData = this.entityMap_.get(id);
+                if (newEntityData) {
+                    newEntityData.visible = false;
+                    this.notifyVisibilityChange({ entity: id, visible: false });
+                }
+            }
+        }
+
+        this.selectEntity(id as Entity);
 
         return id as Entity;
     }

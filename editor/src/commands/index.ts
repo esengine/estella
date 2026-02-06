@@ -9,6 +9,7 @@ export {
     CreateEntityCommand,
     DeleteEntityCommand,
     ReparentCommand,
+    MoveEntityCommand,
     AddComponentCommand,
     RemoveComponentCommand,
 } from './EntityCommands';

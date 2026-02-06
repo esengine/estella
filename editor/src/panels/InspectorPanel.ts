@@ -268,6 +268,7 @@ export class InspectorPanel {
 
         if (!entityChanged && !componentsChanged && !wasAsset) {
             this.updateEditors();
+            this.updateVisibilityIcon();
             const entityData = this.store_.getSelectedEntityData();
             if (entityData) {
                 this.renderMaterialPreview(entity, entityData.components);
@@ -289,7 +290,6 @@ export class InspectorPanel {
         }
 
         this.renderEntityHeader(entityData.name, entity);
-        this.renderTagsSection(entity);
 
         for (const component of entityData.components) {
             this.renderComponent(entity, component);
@@ -307,11 +307,15 @@ export class InspectorPanel {
     }
 
     private renderEntityHeader(name: string, entity: Entity): void {
+        const isVisible = this.store_.isEntityVisible(entity as number);
+        const visibilityIcon = isVisible ? icons.eye(14) : icons.eyeOff(14);
+
         const header = document.createElement('div');
         header.className = 'es-inspector-entity-header';
         header.innerHTML = `
             <span class="es-entity-icon">${icons.box(16)}</span>
             <input type="text" class="es-entity-name-input" value="${this.escapeHtml(name)}">
+            <span class="es-entity-visibility">${visibilityIcon}</span>
             <span class="es-entity-id">ID:${entity}</span>
         `;
 
@@ -331,48 +335,22 @@ export class InspectorPanel {
             }
         });
 
+        const visBtn = header.querySelector('.es-entity-visibility');
+        visBtn?.addEventListener('click', () => {
+            this.store_.toggleVisibility(entity as number);
+        });
+
         this.contentContainer_.appendChild(header);
     }
 
-    private renderTagsSection(_entity: Entity): void {
-        const section = document.createElement('div');
-        section.className = 'es-component-section es-collapsible es-expanded';
-        section.innerHTML = `
-            <div class="es-component-header es-collapsible-header">
-                <span class="es-collapse-icon">${icons.chevronDown(12)}</span>
-                <span class="es-component-icon">${icons.check(14)}</span>
-                <span class="es-component-title">Tags</span>
-                <button class="es-btn es-btn-icon es-btn-remove">${icons.x(12)}</button>
-            </div>
-            <div class="es-component-properties es-collapsible-content">
-                <div class="es-property-row">
-                    <label class="es-property-label">active</label>
-                    <div class="es-property-editor">
-                        <input type="checkbox" class="es-input-checkbox" checked>
-                    </div>
-                </div>
-                <div class="es-property-row">
-                    <label class="es-property-label">visible</label>
-                    <div class="es-property-editor">
-                        <input type="checkbox" class="es-input-checkbox" checked>
-                    </div>
-                </div>
-                <div class="es-property-row">
-                    <label class="es-property-label">static</label>
-                    <div class="es-property-editor">
-                        <input type="checkbox" class="es-input-checkbox">
-                    </div>
-                </div>
-            </div>
-        `;
-
-        const header = section.querySelector('.es-collapsible-header');
-        header?.addEventListener('click', (e) => {
-            if ((e.target as HTMLElement).closest('.es-btn-remove')) return;
-            section.classList.toggle('es-expanded');
-        });
-
-        this.contentContainer_.appendChild(section);
+    private updateVisibilityIcon(): void {
+        const entityData = this.store_.getSelectedEntityData();
+        if (!entityData) return;
+        const visBtn = this.contentContainer_.querySelector('.es-entity-visibility');
+        if (visBtn) {
+            const isVisible = entityData.visible !== false;
+            visBtn.innerHTML = isVisible ? icons.eye(14) : icons.eyeOff(14);
+        }
     }
 
     private escapeHtml(text: string): string {
