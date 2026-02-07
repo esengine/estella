@@ -1581,6 +1581,9 @@ exports.BlendMode = void 0;
  * @brief   Material and Shader API for custom rendering
  * @details Provides shader creation and material management for custom visual effects.
  */
+function isTextureRef(v) {
+    return typeof v === 'object' && v !== null && '__textureRef' in v;
+}
 // =============================================================================
 // Internal State
 // =============================================================================
@@ -1824,6 +1827,9 @@ const Material = {
     getUniforms(material) {
         const data = materials.get(material);
         return data ? new Map(data.uniforms) : new Map();
+    },
+    tex(textureId, slot) {
+        return { __textureRef: true, textureId, slot };
     },
 };
 // =============================================================================
@@ -2099,11 +2105,18 @@ const Draw = {
         }
         m.HEAPF32.set(transform, transformPtr / 4);
         let idx = 0;
+        let autoTextureSlot = 0;
         for (const [name, value] of matData.uniforms) {
             const nameId = getUniformNameId(name);
             if (nameId < 0)
                 continue;
-            if (typeof value === 'number') {
+            if (isTextureRef(value)) {
+                uniformBuffer[idx++] = 10;
+                uniformBuffer[idx++] = nameId;
+                uniformBuffer[idx++] = value.slot ?? autoTextureSlot++;
+                uniformBuffer[idx++] = value.textureId;
+            }
+            else if (typeof value === 'number') {
                 uniformBuffer[idx++] = 1;
                 uniformBuffer[idx++] = nameId;
                 uniformBuffer[idx++] = value;
@@ -2726,14 +2739,17 @@ const Renderer = {
     setStage(stage) {
         module$1?.renderer_setStage(stage);
     },
-    createRenderTarget(width, height) {
-        return module$1?.renderer_createTarget(width, height) ?? 0;
+    createRenderTarget(width, height, flags = 1) {
+        return module$1?.renderer_createTarget(width, height, flags) ?? 0;
     },
     releaseRenderTarget(handle) {
         module$1?.renderer_releaseTarget(handle);
     },
     getTargetTexture(handle) {
         return module$1?.renderer_getTargetTexture(handle) ?? 0;
+    },
+    getTargetDepthTexture(handle) {
+        return module$1?.renderer_getTargetDepthTexture(handle) ?? 0;
     },
     setClearColor(r, g, b, a) {
         module$1?.renderer_setClearColor?.(r, g, b, a);
@@ -3027,7 +3043,7 @@ function computeViewProjection(registry, width, height) {
         if (camera.projectionType === 1) {
             const halfH = camera.orthoSize;
             const halfW = halfH * aspect;
-            projection = ortho(-halfW, halfW, -halfH, halfH, camera.nearPlane, camera.farPlane);
+            projection = ortho(-halfW, halfW, -halfH, halfH, -camera.farPlane, camera.farPlane);
         }
         else {
             projection = perspective(camera.fov * Math.PI / 180, aspect, camera.nearPlane, camera.farPlane);
@@ -4216,6 +4232,38 @@ function createSpineController(wasmModule) {
     return new SpineController(wasmModule);
 }
 
+const RenderTexture = {
+    create(options) {
+        const depth = options.depth ?? true;
+        const linear = options.filter === 'linear';
+        const flags = (depth ? 1 : 0) | (linear ? 2 : 0);
+        const handle = Renderer.createRenderTarget(options.width, options.height, flags);
+        const textureId = Renderer.getTargetTexture(handle);
+        return {
+            _handle: handle,
+            textureId,
+            width: options.width,
+            height: options.height,
+        };
+    },
+    release(rt) {
+        Renderer.releaseRenderTarget(rt._handle);
+    },
+    resize(rt, width, height) {
+        Renderer.releaseRenderTarget(rt._handle);
+        return RenderTexture.create({ width, height, depth: true });
+    },
+    begin(rt, viewProjection) {
+        Renderer.begin(viewProjection, rt._handle);
+    },
+    end() {
+        Renderer.end();
+    },
+    getDepthTexture(rt) {
+        return Renderer.getTargetDepthTexture(rt._handle);
+    },
+};
+
 let editorMode = false;
 function setEditorMode(active) {
     editorMode = active;
@@ -4261,6 +4309,7 @@ exports.PreviewPlugin = PreviewPlugin;
 exports.Query = Query;
 exports.QueryInstance = QueryInstance;
 exports.RenderPipeline = RenderPipeline;
+exports.RenderTexture = RenderTexture;
 exports.Renderer = Renderer;
 exports.Res = Res;
 exports.ResMut = ResMut;
@@ -4304,6 +4353,7 @@ exports.isBuiltinComponent = isBuiltinComponent;
 exports.isEditor = isEditor;
 exports.isPlatformInitialized = isPlatformInitialized;
 exports.isRuntime = isRuntime;
+exports.isTextureRef = isTextureRef;
 exports.isWeChat = isWeChat;
 exports.isWeb = isWeb;
 exports.loadComponent = loadComponent;
