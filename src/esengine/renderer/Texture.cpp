@@ -171,6 +171,15 @@ Unique<Texture> Texture::createFromFile(const std::string& path) {
 }
 #endif
 
+Unique<Texture> Texture::createFromExternalId(u32 glTextureId, u32 width, u32 height, TextureFormat format) {
+    auto texture = makeUnique<Texture>();
+    texture->textureId_ = glTextureId;
+    texture->width_ = width;
+    texture->height_ = height;
+    texture->format_ = format;
+    return texture;
+}
+
 bool Texture::initialize(const TextureSpecification& spec) {
     width_ = spec.width;
     height_ = spec.height;

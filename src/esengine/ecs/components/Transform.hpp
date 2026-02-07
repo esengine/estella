@@ -134,4 +134,13 @@ struct WorldTransform {
  */
 struct TransformDirty {};
 
+/**
+ * @brief Tag component for static transforms that rarely change
+ *
+ * @details Entities with this tag are skipped by TransformSystem unless
+ *          they also have TransformDirty. Use for background scenery,
+ *          static UI elements, etc. that don't move every frame.
+ */
+struct TransformStatic {};
+
 }  // namespace esengine::ecs

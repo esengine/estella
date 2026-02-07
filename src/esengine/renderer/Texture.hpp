@@ -246,6 +246,17 @@ public:
                                       TextureFormat format = TextureFormat::RGBA8);
 
     /**
+     * @brief Wraps an existing GL texture ID
+     * @param glTextureId The OpenGL texture ID created externally
+     * @param width Texture width in pixels
+     * @param height Texture height in pixels
+     * @param format Pixel format
+     * @return Unique pointer to the texture wrapper
+     */
+    static Unique<Texture> createFromExternalId(u32 glTextureId, u32 width, u32 height,
+                                                 TextureFormat format = TextureFormat::RGBA8);
+
+    /**
      * @brief Updates texture pixel data from raw pointer (internal use)
      * @param data Pointer to pixel data
      * @param sizeBytes Size of data in bytes

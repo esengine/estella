@@ -1,4 +1,5 @@
 import typescript from '@rollup/plugin-typescript';
+import terser from '@rollup/plugin-terser';
 import dts from 'rollup-plugin-dts';
 
 const tsPlugin = typescript({
@@ -14,25 +15,25 @@ const esmBuilds = [
     {
         input: 'src/index.ts',
         output: { file: 'dist/index.js', format: 'esm', sourcemap: true },
-        plugins: [tsPlugin],
+        plugins: [tsPlugin, terser()],
         treeshake,
     },
     {
         input: 'src/index.wechat.ts',
         output: { file: 'dist/index.wechat.js', format: 'esm', sourcemap: true },
-        plugins: [typescript({ tsconfig: './tsconfig.json', declaration: false })],
+        plugins: [typescript({ tsconfig: './tsconfig.json', declaration: false }), terser()],
         treeshake,
     },
     {
         input: 'src/index.wechat.ts',
         output: { file: 'dist/index.wechat.cjs.js', format: 'cjs', sourcemap: true },
-        plugins: [typescript({ tsconfig: './tsconfig.json', declaration: false })],
+        plugins: [typescript({ tsconfig: './tsconfig.json', declaration: false }), terser()],
         treeshake,
     },
     {
         input: 'src/wasm.ts',
         output: { file: 'dist/wasm.js', format: 'esm', sourcemap: true },
-        plugins: [typescript({ tsconfig: './tsconfig.json', declaration: false })],
+        plugins: [typescript({ tsconfig: './tsconfig.json', declaration: false }), terser()],
         treeshake,
     },
 ];

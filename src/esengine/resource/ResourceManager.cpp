@@ -237,6 +237,15 @@ void ResourceManager::releaseTexture(TextureHandle handle) {
     }
 }
 
+TextureHandle ResourceManager::registerExternalTexture(u32 glTextureId, u32 width, u32 height) {
+    auto texture = Texture::createFromExternalId(glTextureId, width, height, TextureFormat::RGBA8);
+    if (!texture) {
+        ES_LOG_ERROR("Failed to register external texture (GL ID: {})", glTextureId);
+        return TextureHandle();
+    }
+    return textures_.add(std::move(texture));
+}
+
 void ResourceManager::registerTextureWithPath(TextureHandle handle, const std::string& path) {
     if (handle.isValid() && !path.empty()) {
         textures_.setPath(handle, path);

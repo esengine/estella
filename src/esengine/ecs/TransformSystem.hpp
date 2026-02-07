@@ -65,70 +65,69 @@ public:
 
     void update(Registry& registry, f32 deltaTime) override {
         (void)deltaTime;
-
-        // Collect all entities that need updating
         updateDirtyTransforms(registry);
     }
 
 private:
-    /**
-     * @brief Updates all transforms respecting hierarchy
-     */
     void updateDirtyTransforms(Registry& registry) {
-        // Strategy: Process all root entities (no Parent), then recurse to children
-        // This ensures parents are always processed before children
-
-        // First, ensure all entities with LocalTransform have WorldTransform
         registry.each<LocalTransform>([&registry](Entity entity, LocalTransform&) {
             if (!registry.has<WorldTransform>(entity)) {
                 registry.emplace<WorldTransform>(entity);
             }
         });
 
-        // Process root entities (those without Parent component)
         registry.each<LocalTransform>([&registry, this](Entity entity, LocalTransform& local) {
             if (!registry.has<Parent>(entity)) {
-                // Root entity - world transform equals local transform
-                updateEntityTransform(registry, entity, local, glm::mat4(1.0f));
+                bool isStatic = registry.has<TransformStatic>(entity);
+                bool isDirty = registry.has<TransformDirty>(entity);
+
+                if (isStatic && !isDirty) {
+                    return;
+                }
+
+                updateEntityTransform(registry, entity, local, glm::mat4(1.0f), true);
             }
         });
     }
 
-    /**
-     * @brief Recursively updates an entity and its children
-     * @param registry The ECS registry
-     * @param entity The entity to update
-     * @param local The entity's local transform
-     * @param parentWorldMatrix The parent's world matrix (identity for roots)
-     */
     void updateEntityTransform(Registry& registry, Entity entity,
                                 const LocalTransform& local,
-                                const glm::mat4& parentWorldMatrix) {
-        // Compute local matrix from LocalTransform
-        glm::mat4 localMatrix = math::compose(local.position, local.rotation, local.scale);
+                                const glm::mat4& parentWorldMatrix,
+                                bool parentDirty) {
+        bool isDirty = parentDirty || registry.has<TransformDirty>(entity);
+        bool isStatic = registry.has<TransformStatic>(entity);
 
-        // Compute world matrix
+        if (isStatic && !isDirty) {
+            if (registry.has<Children>(entity)) {
+                const auto& world = registry.get<WorldTransform>(entity);
+                const auto& children = registry.get<Children>(entity);
+                for (Entity child : children.entities) {
+                    if (registry.valid(child) && registry.has<LocalTransform>(child)) {
+                        const auto& childLocal = registry.get<LocalTransform>(child);
+                        updateEntityTransform(registry, child, childLocal, world.matrix, false);
+                    }
+                }
+            }
+            return;
+        }
+
+        glm::mat4 localMatrix = math::compose(local.position, local.rotation, local.scale);
         glm::mat4 worldMatrix = parentWorldMatrix * localMatrix;
 
-        // Update WorldTransform component
         auto& world = registry.get<WorldTransform>(entity);
         world.matrix = worldMatrix;
-
-        // Extract world-space components for convenience
         math::decompose(worldMatrix, world.position, world.rotation, world.scale);
 
-        // Remove dirty flag if present
         if (registry.has<TransformDirty>(entity)) {
             registry.remove<TransformDirty>(entity);
         }
 
-        // Recursively update children
         if (registry.has<Children>(entity)) {
             const auto& children = registry.get<Children>(entity);
             for (Entity child : children.entities) {
                 if (registry.valid(child) && registry.has<LocalTransform>(child)) {
                     const auto& childLocal = registry.get<LocalTransform>(child);
-                    updateEntityTransform(registry, child, childLocal, worldMatrix);
+                    updateEntityTransform(registry, child, childLocal, worldMatrix, isDirty);
                 }
             }
         }

@@ -9,6 +9,7 @@
 #include "../resource/ResourceManager.hpp"
 
 #include <glm/glm.hpp>
+#include <array>
 #include <vector>
 
 namespace esengine {
@@ -55,13 +56,15 @@ public:
 
     const Stats& stats() const { return stats_; }
 
+    static constexpr u32 STAGE_COUNT = 4;
+
 private:
-    void sortItems();
+    void sortAndBucket();
     void executeStage(RenderStage stage);
-    void renderSprites(const std::vector<RenderItem*>& items);
+    void renderSprites(u32 begin, u32 end);
     void renderSpriteWithMaterial(RenderItem* item);
-    void renderSpine(const std::vector<RenderItem*>& items);
-    void renderMeshes(const std::vector<RenderItem*>& items);
+    void renderSpine(u32 begin, u32 end);
+    void renderMeshes(u32 begin, u32 end);
     void flushSpineBatch();
 
     RenderContext& context_;
@@ -81,6 +84,12 @@ private:
     u32 width_ = 0;
     u32 height_ = 0;
 
+    struct StageBoundary {
+        u32 begin = 0;
+        u32 end = 0;
+    };
+    std::array<StageBoundary, STAGE_COUNT> stage_boundaries_{};
+
     std::vector<f32> spine_world_vertices_;
     struct SpineVertex {
         glm::vec2 position;
@@ -91,6 +100,17 @@ private:
     std::vector<u32> spine_indices_;
     u32 spine_current_texture_ = 0;
     BlendMode spine_current_blend_ = BlendMode::Normal;
+
+    u32 spine_vao_ = 0;
+    u32 spine_vbo_ = 0;
+    u32 spine_ebo_ = 0;
+    u32 spine_vbo_capacity_ = 0;
+    u32 spine_ebo_capacity_ = 0;
+
+    u32 mat_sprite_vao_ = 0;
+    u32 mat_sprite_vbo_ = 0;
+    u32 mat_sprite_ebo_ = 0;
+    bool mat_sprite_ebo_initialized_ = false;
 };
 
 }  // namespace esengine

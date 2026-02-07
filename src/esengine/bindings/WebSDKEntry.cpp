@@ -297,6 +297,12 @@ u32 rm_createShader(resource::ResourceManager& rm,
     return handle.id();
 }
 
+u32 rm_registerExternalTexture(resource::ResourceManager& rm, u32 glTextureId,
+                                u32 width, u32 height) {
+    auto handle = rm.registerExternalTexture(glTextureId, width, height);
+    return handle.id();
+}
+
 void rm_releaseTexture(resource::ResourceManager& rm, u32 handleId) {
     rm.releaseTexture(resource::TextureHandle(handleId));
 }
@@ -982,6 +988,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::class_<esengine::resource::ResourceManager>("ResourceManager")
         .function("createTexture", &esengine::rm_createTexture)
         .function("createShader", &esengine::rm_createShader)
+        .function("registerExternalTexture", &esengine::rm_registerExternalTexture)
         .function("releaseTexture", &esengine::rm_releaseTexture)
         .function("releaseShader", &esengine::rm_releaseShader)
         .function("setTextureMetadata", &esengine::rm_setTextureMetadata)

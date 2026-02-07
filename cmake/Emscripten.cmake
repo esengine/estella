@@ -168,6 +168,7 @@ set(ES_EMSCRIPTEN_SDK_LINK_FLAGS
     -sALLOW_MEMORY_GROWTH=1
     -sALLOW_TABLE_GROWTH=1
     -sNO_EXIT_RUNTIME=1
+    -sASSERTIONS=0
     -sEXPORT_ES6=1
     -sMODULARIZE=1
     -sFORCE_FILESYSTEM=1
@@ -175,6 +176,7 @@ set(ES_EMSCRIPTEN_SDK_LINK_FLAGS
     "-sEXPORTED_FUNCTIONS=['_malloc','_free']"
     "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32','FS','addFunction']"
     -O3
+    -flto
     --closure=1
 )
 
@@ -200,7 +202,7 @@ set(ES_EMSCRIPTEN_SINGLE_FILE_FLAGS
 
 function(es_apply_sdk_settings TARGET_NAME)
     if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
-        target_compile_options(${TARGET_NAME} PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS})
+        target_compile_options(${TARGET_NAME} PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS} -flto)
 
         string(REPLACE ";" " " LINK_FLAGS_STR "${ES_EMSCRIPTEN_SDK_LINK_FLAGS}")
         set_target_properties(${TARGET_NAME} PROPERTIES

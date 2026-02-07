@@ -72,6 +72,33 @@ void RenderFrame::init(u32 width, u32 height) {
     spine_indices_.reserve(2048);
     spine_world_vertices_.reserve(1024);
 
+    glGenVertexArrays(1, &spine_vao_);
+    glGenBuffers(1, &spine_vbo_);
+    glGenBuffers(1, &spine_ebo_);
+
+    glBindVertexArray(spine_vao_);
+    glBindBuffer(GL_ARRAY_BUFFER, spine_vbo_);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, spine_ebo_);
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(SpineVertex),
+                          reinterpret_cast<void*>(offsetof(SpineVertex, position)));
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(SpineVertex),
+                          reinterpret_cast<void*>(offsetof(SpineVertex, uv)));
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(SpineVertex),
+                          reinterpret_cast<void*>(offsetof(SpineVertex, color)));
+
+    glBindVertexArray(0);
+    spine_vbo_capacity_ = 0;
+    spine_ebo_capacity_ = 0;
+
+    glGenVertexArrays(1, &mat_sprite_vao_);
+    glGenBuffers(1, &mat_sprite_vbo_);
+    glGenBuffers(1, &mat_sprite_ebo_);
+    mat_sprite_ebo_initialized_ = false;
+
     ES_LOG_INFO("RenderFrame initialized ({}x{})", width, height);
 }
 
@@ -85,6 +112,17 @@ void RenderFrame::shutdown() {
         post_process_->shutdown();
         post_process_.reset();
     }
+
+    if (spine_ebo_) { glDeleteBuffers(1, &spine_ebo_); spine_ebo_ = 0; }
+    if (spine_vbo_) { glDeleteBuffers(1, &spine_vbo_); spine_vbo_ = 0; }
+    if (spine_vao_) { glDeleteVertexArrays(1, &spine_vao_); spine_vao_ = 0; }
+    spine_vbo_capacity_ = 0;
+    spine_ebo_capacity_ = 0;
+
+    if (mat_sprite_ebo_) { glDeleteBuffers(1, &mat_sprite_ebo_); mat_sprite_ebo_ = 0; }
+    if (mat_sprite_vbo_) { glDeleteBuffers(1, &mat_sprite_vbo_); mat_sprite_vbo_ = 0; }
+    if (mat_sprite_vao_) { glDeleteVertexArrays(1, &mat_sprite_vao_); mat_sprite_vao_ = 0; }
+    mat_sprite_ebo_initialized_ = false;
 
     items_.clear();
     ES_LOG_INFO("RenderFrame shutdown");
@@ -124,7 +162,7 @@ void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::H
 void RenderFrame::end() {
     if (!in_frame_) return;
 
-    sortItems();
+    sortAndBucket();
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -177,10 +215,18 @@ void RenderFrame::submitSprites(ecs::Registry& registry) {
         item.type = RenderType::Sprite;
         item.stage = current_stage_;
 
-        item.transform = glm::mat4(1.0f);
-        item.transform = glm::translate(item.transform, position);
-        item.transform *= glm::mat4_cast(rotation);
-        item.transform = glm::scale(item.transform, scale);
+        item.world_position = position;
+        item.world_scale = glm::vec2(scale);
+        f32 sinHalfAngle = rotation.z;
+        f32 cosHalfAngle = rotation.w;
+        item.world_angle = 2.0f * std::atan2(sinHalfAngle, cosHalfAngle);
+
+        if (sprite.material != 0) {
+            item.transform = glm::mat4(1.0f);
+            item.transform = glm::translate(item.transform, position);
+            item.transform *= glm::mat4_cast(rotation);
+            item.transform = glm::scale(item.transform, scale);
+        }
 
         item.layer = sprite.layer;
         item.depth = position.z;
@@ -256,6 +302,9 @@ void RenderFrame::submitSpine(ecs::Registry& registry, spine::SpineSystem& spine
         item.transform *= glm::mat4_cast(rotation);
         item.transform = glm::scale(item.transform, scale);
 
+        item.world_position = position;
+        item.world_scale = glm::vec2(scale);
+
         item.layer = comp.layer;
         item.depth = position.z;
         item.skeleton = instance->skeleton.get();
@@ -281,84 +330,87 @@ void RenderFrame::submit(const RenderItem& item) {
     }
 }
 
-void RenderFrame::sortItems() {
+void RenderFrame::sortAndBucket() {
     std::sort(items_.begin(), items_.end(),
         [](const RenderItem& a, const RenderItem& b) {
             return a.sortKey() < b.sortKey();
         });
+
+    for (auto& sb : stage_boundaries_) {
+        sb.begin = 0;
+        sb.end = 0;
+    }
+
+    if (items_.empty()) return;
+
+    u32 n = static_cast<u32>(items_.size());
+    u32 i = 0;
+    while (i < n) {
+        auto stage = items_[i].stage;
+        u32 stageIdx = static_cast<u32>(stage);
+        if (stageIdx < STAGE_COUNT) {
+            stage_boundaries_[stageIdx].begin = i;
+            while (i < n && items_[i].stage == stage) {
+                ++i;
+            }
+            stage_boundaries_[stageIdx].end = i;
+        } else {
+            ++i;
+        }
+    }
 }
 
 void RenderFrame::executeStage(RenderStage stage) {
-    std::vector<RenderItem*> stageItems;
+    u32 stageIdx = static_cast<u32>(stage);
+    if (stageIdx >= STAGE_COUNT) return;
 
-    for (auto& item : items_) {
-        if (item.stage == stage) {
-            stageItems.push_back(&item);
-        }
-    }
+    auto& sb = stage_boundaries_[stageIdx];
+    if (sb.begin >= sb.end) return;
 
-    if (stageItems.empty()) return;
+    u32 batchStart = sb.begin;
+    RenderType currentType = items_[batchStart].type;
 
-    std::vector<RenderItem*> currentBatch;
-    RenderType currentType = stageItems[0]->type;
-
-    auto flushCurrentBatch = [&]() {
-        if (currentBatch.empty()) return;
-
+    auto flushBatch = [&](u32 begin, u32 end) {
         switch (currentType) {
             case RenderType::Sprite:
-                renderSprites(currentBatch);
+                renderSprites(begin, end);
                 break;
             case RenderType::Spine:
-                renderSpine(currentBatch);
+                renderSpine(begin, end);
                 break;
             case RenderType::Mesh:
-                renderMeshes(currentBatch);
+                renderMeshes(begin, end);
                 break;
         }
-        currentBatch.clear();
     };
 
-    for (auto* item : stageItems) {
-        if (item->type != currentType) {
-            flushCurrentBatch();
-            currentType = item->type;
+    for (u32 i = sb.begin; i < sb.end; ++i) {
+        if (items_[i].type != currentType) {
+            flushBatch(batchStart, i);
+            batchStart = i;
+            currentType = items_[i].type;
         }
-        currentBatch.push_back(item);
     }
 
-    flushCurrentBatch();
+    flushBatch(batchStart, sb.end);
 }
 
-void RenderFrame::renderSprites(const std::vector<RenderItem*>& items) {
+void RenderFrame::renderSprites(u32 begin, u32 end) {
     batcher_->setProjection(view_projection_);
     batcher_->beginBatch();
 
-    for (auto* item : items) {
+    for (u32 i = begin; i < end; ++i) {
+        auto* item = &items_[i];
+
         if (item->material_id != 0) {
             batcher_->flush();
             renderSpriteWithMaterial(item);
             continue;
         }
 
-        glm::vec3 position = glm::vec3(item->transform[3]);
-        glm::vec3 scale = glm::vec3(
-            glm::length(glm::vec3(item->transform[0])),
-            glm::length(glm::vec3(item->transform[1])),
-            glm::length(glm::vec3(item->transform[2]))
-        );
-
-        glm::vec2 finalSize = item->size * glm::vec2(scale);
-
-        glm::mat3 rotMat = glm::mat3(item->transform);
-        rotMat[0] /= scale.x;
-        rotMat[1] /= scale.y;
-        rotMat[2] /= scale.z;
-        glm::quat rotation = glm::quat_cast(rotMat);
-
-        f32 angle = glm::angle(rotation);
-        glm::vec3 axis = glm::axis(rotation);
-        if (axis.z < 0) angle = -angle;
+        glm::vec2 position(item->world_position);
+        glm::vec2 finalSize = item->size * item->world_scale;
+        f32 angle = item->world_angle;
 
         if (item->use_nine_slice) {
             resource::SliceBorder border;
@@ -368,7 +420,7 @@ void RenderFrame::renderSprites(const std::vector<RenderItem*>& items) {
             border.bottom = item->slice_border.w;
 
             batcher_->drawNineSlice(
-                glm::vec2(position),
+                position,
                 finalSize,
                 item->texture_id,
                 item->texture_size,
@@ -380,7 +432,7 @@ void RenderFrame::renderSprites(const std::vector<RenderItem*>& items) {
             );
         } else if (std::abs(angle) > 0.001f) {
             batcher_->drawRotatedQuad(
-                glm::vec2(position),
+                position,
                 finalSize,
                 angle,
                 item->texture_id,
@@ -405,14 +457,15 @@ void RenderFrame::renderSprites(const std::vector<RenderItem*>& items) {
     stats_.triangles += batcher_->getQuadCount() * 2;
 }
 
-void RenderFrame::renderSpine(const std::vector<RenderItem*>& items) {
+void RenderFrame::renderSpine(u32 begin, u32 end) {
     spine_vertices_.clear();
     spine_indices_.clear();
     spine_current_texture_ = 0;
 
     static ::spine::SkeletonClipping clipper;
 
-    for (auto* item : items) {
+    for (u32 idx = begin; idx < end; ++idx) {
+        auto* item = &items_[idx];
         auto* skeleton = static_cast<::spine::Skeleton*>(item->skeleton);
         if (!skeleton) continue;
 
@@ -574,51 +627,39 @@ void RenderFrame::flushSpineBatch() {
     glBindTexture(GL_TEXTURE_2D, spine_current_texture_);
     shader->setUniform("u_texture", 0);
 
-    u32 vao, vbo, ebo;
-    glGenVertexArrays(1, &vao);
-    glGenBuffers(1, &vbo);
-    glGenBuffers(1, &ebo);
+    glBindVertexArray(spine_vao_);
 
-    glBindVertexArray(vao);
+    auto vboBytes = static_cast<GLsizeiptr>(spine_vertices_.size() * sizeof(SpineVertex));
+    glBindBuffer(GL_ARRAY_BUFFER, spine_vbo_);
+    if (static_cast<u32>(vboBytes) > spine_vbo_capacity_) {
+        spine_vbo_capacity_ = static_cast<u32>(vboBytes) * 2;
+        glBufferData(GL_ARRAY_BUFFER, spine_vbo_capacity_, nullptr, GL_STREAM_DRAW);
+    }
+    glBufferSubData(GL_ARRAY_BUFFER, 0, vboBytes, spine_vertices_.data());
 
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER,
-                 static_cast<GLsizeiptr>(spine_vertices_.size() * sizeof(SpineVertex)),
-                 spine_vertices_.data(), GL_STREAM_DRAW);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER,
-                 static_cast<GLsizeiptr>(spine_indices_.size() * sizeof(u32)),
-                 spine_indices_.data(), GL_STREAM_DRAW);
-
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(SpineVertex),
-                          reinterpret_cast<void*>(offsetof(SpineVertex, position)));
-
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(SpineVertex),
-                          reinterpret_cast<void*>(offsetof(SpineVertex, uv)));
-
-    glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(SpineVertex),
-                          reinterpret_cast<void*>(offsetof(SpineVertex, color)));
+    auto eboBytes = static_cast<GLsizeiptr>(spine_indices_.size() * sizeof(u32));
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, spine_ebo_);
+    if (static_cast<u32>(eboBytes) > spine_ebo_capacity_) {
+        spine_ebo_capacity_ = static_cast<u32>(eboBytes) * 2;
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, spine_ebo_capacity_, nullptr, GL_STREAM_DRAW);
+    }
+    glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, eboBytes, spine_indices_.data());
 
     glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(spine_indices_.size()),
                    GL_UNSIGNED_INT, nullptr);
 
+    glBindVertexArray(0);
+
     stats_.triangles += static_cast<u32>(spine_indices_.size() / 3);
     stats_.draw_calls++;
-
-    glDeleteBuffers(1, &ebo);
-    glDeleteBuffers(1, &vbo);
-    glDeleteVertexArrays(1, &vao);
 
     spine_vertices_.clear();
     spine_indices_.clear();
 }
 
-void RenderFrame::renderMeshes(const std::vector<RenderItem*>& items) {
-    for (auto* item : items) {
+void RenderFrame::renderMeshes(u32 begin, u32 end) {
+    for (u32 i = begin; i < end; ++i) {
+        auto* item = &items_[i];
         if (!item->geometry || !item->shader) continue;
         stats_.draw_calls++;
     }
@@ -666,63 +707,52 @@ void RenderFrame::renderSpriteWithMaterial(RenderItem* item) {
 
     glm::vec2 halfSize = item->size * 0.5f;
 
-    f32 positions[] = {
-        -halfSize.x, -halfSize.y,
-         halfSize.x, -halfSize.y,
-         halfSize.x,  halfSize.y,
-        -halfSize.x,  halfSize.y,
+    struct MatSpriteVertex {
+        f32 px, py;
+        f32 tx, ty;
+        f32 cr, cg, cb, ca;
     };
 
-    f32 texCoords[] = {
-        0.0f, 1.0f,
-        1.0f, 1.0f,
-        1.0f, 0.0f,
-        0.0f, 0.0f,
+    MatSpriteVertex vertices[4] = {
+        { -halfSize.x, -halfSize.y, 0.0f, 1.0f, item->color.r, item->color.g, item->color.b, item->color.a },
+        {  halfSize.x, -halfSize.y, 1.0f, 1.0f, item->color.r, item->color.g, item->color.b, item->color.a },
+        {  halfSize.x,  halfSize.y, 1.0f, 0.0f, item->color.r, item->color.g, item->color.b, item->color.a },
+        { -halfSize.x,  halfSize.y, 0.0f, 0.0f, item->color.r, item->color.g, item->color.b, item->color.a },
     };
 
-    f32 colors[] = {
-        item->color.r, item->color.g, item->color.b, item->color.a,
-        item->color.r, item->color.g, item->color.b, item->color.a,
-        item->color.r, item->color.g, item->color.b, item->color.a,
-        item->color.r, item->color.g, item->color.b, item->color.a,
-    };
+    glBindVertexArray(mat_sprite_vao_);
 
-    u32 indices[] = { 0, 1, 2, 2, 3, 0 };
-
-    u32 vao, vbo_pos, vbo_tex, vbo_color, ebo;
-    glGenVertexArrays(1, &vao);
-    glGenBuffers(1, &vbo_pos);
-    glGenBuffers(1, &vbo_tex);
-    glGenBuffers(1, &vbo_color);
-    glGenBuffers(1, &ebo);
-
-    glBindVertexArray(vao);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STREAM_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, mat_sprite_vbo_);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STREAM_DRAW);
 
     GLint locPos = shader->getAttribLocation("a_position");
     if (locPos >= 0) {
-        glBindBuffer(GL_ARRAY_BUFFER, vbo_pos);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(positions), positions, GL_STREAM_DRAW);
         glEnableVertexAttribArray(locPos);
-        glVertexAttribPointer(locPos, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
+        glVertexAttribPointer(locPos, 2, GL_FLOAT, GL_FALSE, sizeof(MatSpriteVertex),
+                              reinterpret_cast<void*>(0));
     }
 
     GLint locTex = shader->getAttribLocation("a_texCoord");
     if (locTex >= 0) {
-        glBindBuffer(GL_ARRAY_BUFFER, vbo_tex);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(texCoords), texCoords, GL_STREAM_DRAW);
         glEnableVertexAttribArray(locTex);
-        glVertexAttribPointer(locTex, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
+        glVertexAttribPointer(locTex, 2, GL_FLOAT, GL_FALSE, sizeof(MatSpriteVertex),
+                              reinterpret_cast<void*>(2 * sizeof(f32)));
     }
 
     GLint locColor = shader->getAttribLocation("a_color");
     if (locColor >= 0) {
-        glBindBuffer(GL_ARRAY_BUFFER, vbo_color);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(colors), colors, GL_STREAM_DRAW);
         glEnableVertexAttribArray(locColor);
-        glVertexAttribPointer(locColor, 4, GL_FLOAT, GL_FALSE, 0, nullptr);
+        glVertexAttribPointer(locColor, 4, GL_FLOAT, GL_FALSE, sizeof(MatSpriteVertex),
+                              reinterpret_cast<void*>(4 * sizeof(f32)));
+    }
+
+    if (!mat_sprite_ebo_initialized_) {
+        u32 indices[] = { 0, 1, 2, 2, 3, 0 };
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mat_sprite_ebo_);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+        mat_sprite_ebo_initialized_ = true;
+    } else {
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mat_sprite_ebo_);
     }
 
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
@@ -731,11 +761,7 @@ void RenderFrame::renderSpriteWithMaterial(RenderItem* item) {
     if (locTex >= 0) glDisableVertexAttribArray(locTex);
     if (locColor >= 0) glDisableVertexAttribArray(locColor);
 
-    glDeleteBuffers(1, &ebo);
-    glDeleteBuffers(1, &vbo_color);
-    glDeleteBuffers(1, &vbo_tex);
-    glDeleteBuffers(1, &vbo_pos);
-    glDeleteVertexArrays(1, &vao);
+    glBindVertexArray(0);
 
     stats_.draw_calls++;
     stats_.triangles += 2;

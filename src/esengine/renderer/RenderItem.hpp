@@ -20,6 +20,10 @@ struct RenderItem {
     RenderStage stage = RenderStage::Transparent;
 
     glm::mat4 transform{1.0f};
+    glm::vec3 world_position{0.0f};
+    f32 world_angle = 0.0f;
+    glm::vec2 world_scale{1.0f};
+
     i32 layer = 0;
     f32 depth = 0.0f;
     u32 texture_id = 0;

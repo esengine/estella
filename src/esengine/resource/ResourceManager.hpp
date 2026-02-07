@@ -214,6 +214,15 @@ public:
     void releaseTexture(TextureHandle handle);
 
     /**
+     * @brief Registers an externally-created GL texture
+     * @param glTextureId The OpenGL texture ID
+     * @param width Texture width in pixels
+     * @param height Texture height in pixels
+     * @return Handle to the registered texture
+     */
+    TextureHandle registerExternalTexture(u32 glTextureId, u32 width, u32 height);
+
+    /**
      * @brief Registers a texture with a path for cache lookup
      * @param handle The texture handle
      * @param path The path to associate (used by loadTexture cache)

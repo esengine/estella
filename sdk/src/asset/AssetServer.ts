@@ -395,7 +395,69 @@ export class AssetServer {
 
     private createTextureFromImage(img: HTMLImageElement | ImageBitmap, flip: boolean): TextureInfo {
         const { width, height } = img;
+        const gl = this.getWebGL2Context();
 
+        if (gl) {
+            return this.createTextureWebGL2(gl, img, width, height, flip);
+        }
+
+        return this.createTextureFallback(img, width, height, flip);
+    }
+
+    private getWebGL2Context(): WebGL2RenderingContext | null {
+        try {
+            const glObj = (this.module_ as any).GL;
+            if (glObj && glObj.currentContext && glObj.currentContext.GLctx) {
+                const ctx = glObj.currentContext.GLctx;
+                if (ctx instanceof WebGL2RenderingContext) {
+                    return ctx;
+                }
+            }
+        } catch {
+            // Fall through to fallback
+        }
+        return null;
+    }
+
+    private createTextureWebGL2(
+        gl: WebGL2RenderingContext,
+        img: HTMLImageElement | ImageBitmap,
+        width: number,
+        height: number,
+        flip: boolean,
+    ): TextureInfo {
+        const texture = gl.createTexture()!;
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, flip ? 1 : 0);
+        gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0);
+
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img as any);
+
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+        gl.generateMipmap(gl.TEXTURE_2D);
+
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 0);
+
+        const glObj = (this.module_ as any).GL;
+        const glTextureId = glObj.getNewId(glObj.textures);
+        glObj.textures[glTextureId] = texture;
+
+        const rm = this.module_.getResourceManager();
+        const handle = rm.registerExternalTexture(glTextureId, width, height);
+
+        return { handle, width, height };
+    }
+
+    private createTextureFallback(
+        img: HTMLImageElement | ImageBitmap,
+        width: number,
+        height: number,
+        flip: boolean,
+    ): TextureInfo {
         if (this.canvas_.width < width || this.canvas_.height < height) {
             this.canvas_.width = Math.max(this.canvas_.width, this.nextPowerOf2(width));
             this.canvas_.height = Math.max(this.canvas_.height, this.nextPowerOf2(height));

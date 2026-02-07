@@ -44,6 +44,7 @@
   "author": "ESEngine Team",
   "license": "MIT",
   "devDependencies": {
+    "@rollup/plugin-terser": "^0.4.4",
     "@rollup/plugin-typescript": "^11.1.5",
     "minigame-api-typings": "^3.8.16",
     "rimraf": "^5.0.5",
