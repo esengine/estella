@@ -335,6 +335,10 @@ function applyTextureMetadata(module, sceneData, textureCache) {
         }
     });
 
+    ${userCode}
+
+    SDK.flushPendingSystems(app);
+
     ${firstSceneName ? `
     try {
         var sceneJson = wx.getFileSystemManager().readFileSync('scenes/${firstSceneName}.json', 'utf-8');
@@ -351,10 +355,6 @@ function applyTextureMetadata(module, sceneData, textureCache) {
         console.error('[ESEngine] Failed to load scene:', err);
     }
     ` : ''}
-
-    ${userCode}
-
-    SDK.flushPendingSystems(app);
     app.run();
 })();
 `;
