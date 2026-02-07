@@ -239,6 +239,7 @@ interface CppRegistry {
 interface CppResourceManager {
     createTexture(width: number, height: number, pixels: number, pixelsLen: number, format: number): number;
     createShader(vertSrc: string, fragSrc: string): number;
+    registerExternalTexture(glTextureId: number, width: number, height: number): number;
     releaseTexture(handle: number): void;
     releaseShader(handle: number): void;
     setTextureMetadata(handle: number, left: number, right: number, top: number, bottom: number): void;
@@ -969,6 +970,9 @@ declare class AssetServer {
     private loadTextureInternal;
     private loadImage;
     private createTextureFromImage;
+    private getWebGL2Context;
+    private createTextureWebGL2;
+    private createTextureFallback;
     private unpremultiplyAlpha;
     private loadShaderInternal;
     private parseEsShader;
