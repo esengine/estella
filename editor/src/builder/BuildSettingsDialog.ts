@@ -33,35 +33,13 @@ export interface BuildSettingsDialogOptions {
 }
 
 // =============================================================================
-// Storage (Legacy - for migration)
-// =============================================================================
-
-const BUILD_SETTINGS_KEY = 'esengine_build_settings';
-
-function loadBuildSettings(): BuildSettings {
-    try {
-        const data = localStorage.getItem(BUILD_SETTINGS_KEY);
-        if (data) {
-            return JSON.parse(data) as BuildSettings;
-        }
-    } catch {
-        // Ignore parse errors
-    }
-    return createDefaultBuildSettings();
-}
-
-function saveBuildSettings(settings: BuildSettings): void {
-    localStorage.setItem(BUILD_SETTINGS_KEY, JSON.stringify(settings));
-}
-
-// =============================================================================
 // BuildSettingsDialog
 // =============================================================================
 
 export class BuildSettingsDialog {
     constructor(options: BuildSettingsDialogOptions) {
         this.options_ = options;
-        this.settings_ = loadBuildSettings();
+        this.settings_ = createDefaultBuildSettings();
 
         const projectDir = this.getProjectDir();
         this.configService_ = initBuildConfigService(projectDir);
@@ -100,7 +78,6 @@ export class BuildSettingsDialog {
     }
 
     private async saveSettings(): Promise<void> {
-        saveBuildSettings(this.settings_);
         await this.configService_.save();
     }
 
