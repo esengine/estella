@@ -18,7 +18,7 @@ public:
     RenderTarget(RenderTarget&&) = default;
     RenderTarget& operator=(RenderTarget&&) = default;
 
-    void init(u32 width, u32 height, bool depth = true);
+    void init(u32 width, u32 height, bool depth = true, bool linearFilter = false);
     void shutdown();
 
     void bind();
@@ -26,6 +26,7 @@ public:
     void resize(u32 width, u32 height);
 
     u32 getColorTexture() const;
+    u32 getDepthTexture() const;
     glm::uvec2 getSize() const { return { width_, height_ }; }
     u32 getWidth() const { return width_; }
     u32 getHeight() const { return height_; }
@@ -37,6 +38,7 @@ private:
     u32 width_ = 0;
     u32 height_ = 0;
     bool has_depth_ = true;
+    bool linear_filter_ = false;
 };
 
 class RenderTargetManager {
@@ -47,7 +49,7 @@ public:
     RenderTargetManager() = default;
     ~RenderTargetManager() = default;
 
-    Handle create(u32 width, u32 height, bool depth = true);
+    Handle create(u32 width, u32 height, bool depth = true, bool linearFilter = false);
     RenderTarget* get(Handle handle);
     void release(Handle handle);
     bool isValid(Handle handle) const;

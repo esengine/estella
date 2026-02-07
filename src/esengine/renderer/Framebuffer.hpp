@@ -48,6 +48,8 @@ struct FramebufferSpec {
     u32 samples = 1;
     /** @brief Whether to create depth/stencil attachment */
     bool depthStencil = true;
+    /** @brief Texture filter mode: false=GL_NEAREST, true=GL_LINEAR */
+    bool linearFilter = false;
 };
 
 // =============================================================================

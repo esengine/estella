@@ -2,15 +2,17 @@
 
 namespace esengine {
 
-void RenderTarget::init(u32 width, u32 height, bool depth) {
+void RenderTarget::init(u32 width, u32 height, bool depth, bool linearFilter) {
     width_ = width;
     height_ = height;
     has_depth_ = depth;
+    linear_filter_ = linearFilter;
 
     FramebufferSpec spec;
     spec.width = width;
     spec.height = height;
     spec.depthStencil = depth;
+    spec.linearFilter = linearFilter;
 
     framebuffer_ = Framebuffer::create(spec);
 }
@@ -48,7 +50,11 @@ u32 RenderTarget::getColorTexture() const {
     return framebuffer_ ? framebuffer_->getColorAttachment() : 0;
 }
 
-RenderTargetManager::Handle RenderTargetManager::create(u32 width, u32 height, bool depth) {
+u32 RenderTarget::getDepthTexture() const {
+    return framebuffer_ ? framebuffer_->getDepthAttachment() : 0;
+}
+
+RenderTargetManager::Handle RenderTargetManager::create(u32 width, u32 height, bool depth, bool linearFilter) {
     Handle handle;
 
     if (!free_list_.empty()) {
@@ -60,7 +66,7 @@ RenderTargetManager::Handle RenderTargetManager::create(u32 width, u32 height, b
     }
 
     auto target = makeUnique<RenderTarget>();
-    target->init(width, height, depth);
+    target->init(width, height, depth, linearFilter);
 
     usize index = handle - 1;
     if (index < targets_.size()) {

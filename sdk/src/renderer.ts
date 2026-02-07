@@ -67,8 +67,8 @@ export const Renderer = {
         module?.renderer_setStage(stage);
     },
 
-    createRenderTarget(width: number, height: number): RenderTargetHandle {
-        return module?.renderer_createTarget(width, height) ?? 0;
+    createRenderTarget(width: number, height: number, flags: number = 1): RenderTargetHandle {
+        return module?.renderer_createTarget(width, height, flags) ?? 0;
     },
 
     releaseRenderTarget(handle: RenderTargetHandle): void {
@@ -77,6 +77,10 @@ export const Renderer = {
 
     getTargetTexture(handle: RenderTargetHandle): number {
         return module?.renderer_getTargetTexture(handle) ?? 0;
+    },
+
+    getTargetDepthTexture(handle: RenderTargetHandle): number {
+        return module?.renderer_getTargetDepthTexture(handle) ?? 0;
     },
 
     setClearColor(r: number, g: number, b: number, a: number): void {

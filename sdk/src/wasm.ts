@@ -191,9 +191,10 @@ export interface ESEngineModule {
     renderer_submitSprites(registry: CppRegistry): void;
     renderer_submitSpine(registry: CppRegistry): void;
     renderer_setStage(stage: number): void;
-    renderer_createTarget(width: number, height: number): number;
+    renderer_createTarget(width: number, height: number, flags: number): number;
     renderer_releaseTarget(handle: number): void;
     renderer_getTargetTexture(handle: number): number;
+    renderer_getTargetDepthTexture(handle: number): number;
     renderer_getDrawCalls(): number;
     renderer_getTriangles(): number;
     renderer_getSprites(): number;

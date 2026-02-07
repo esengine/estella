@@ -264,11 +264,13 @@ export {
     initMaterialAPI,
     shutdownMaterialAPI,
     registerMaterialCallback,
+    isTextureRef,
     type ShaderHandle,
     type MaterialHandle,
     type MaterialOptions,
     type MaterialAssetData,
     type UniformValue,
+    type TextureRef,
 } from './material';
 
 // =============================================================================
@@ -307,6 +309,16 @@ export {
     type RenderTargetHandle,
     type RenderStats,
 } from './renderer';
+
+// =============================================================================
+// RenderTexture API
+// =============================================================================
+
+export {
+    RenderTexture,
+    type RenderTextureHandle,
+    type RenderTextureOptions,
+} from './renderTexture';
 
 // =============================================================================
 // Render Pipeline

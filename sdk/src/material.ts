@@ -17,7 +17,17 @@ export type { Vec2, Vec3, Vec4 } from './types';
 export type ShaderHandle = number;
 export type MaterialHandle = number;
 
-export type UniformValue = number | Vec2 | Vec3 | Vec4 | number[];
+export interface TextureRef {
+    __textureRef: true;
+    textureId: number;
+    slot?: number;
+}
+
+export type UniformValue = number | Vec2 | Vec3 | Vec4 | number[] | TextureRef;
+
+export function isTextureRef(v: UniformValue): v is TextureRef {
+    return typeof v === 'object' && v !== null && '__textureRef' in v;
+}
 
 export interface MaterialOptions {
     shader: ShaderHandle;
@@ -311,6 +321,10 @@ export const Material = {
     getUniforms(material: MaterialHandle): Map<string, UniformValue> {
         const data = materials.get(material);
         return data ? new Map(data.uniforms) : new Map();
+    },
+
+    tex(textureId: number, slot?: number): TextureRef {
+        return { __textureRef: true, textureId, slot };
     },
 };
 

@@ -909,9 +909,17 @@ void renderer_setStage(i32 stage) {
     g_renderFrame->setStage(static_cast<RenderStage>(stage));
 }
 
-u32 renderer_createTarget(u32 width, u32 height) {
+u32 renderer_createTarget(u32 width, u32 height, i32 flags) {
     if (!g_renderFrame) return 0;
-    return g_renderFrame->targetManager().create(width, height);
+    bool depth = (flags & 1) != 0;
+    bool linear = (flags & 2) != 0;
+    return g_renderFrame->targetManager().create(width, height, depth, linear);
+}
+
+u32 renderer_getTargetDepthTexture(u32 handle) {
+    if (!g_renderFrame) return 0;
+    auto* target = g_renderFrame->targetManager().get(handle);
+    return target ? target->getDepthTexture() : 0;
 }
 
 void renderer_releaseTarget(u32 handle) {
@@ -1044,6 +1052,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_createTarget", &esengine::renderer_createTarget);
     emscripten::function("renderer_releaseTarget", &esengine::renderer_releaseTarget);
     emscripten::function("renderer_getTargetTexture", &esengine::renderer_getTargetTexture);
+    emscripten::function("renderer_getTargetDepthTexture", &esengine::renderer_getTargetDepthTexture);
     emscripten::function("renderer_getDrawCalls", &esengine::renderer_getDrawCalls);
     emscripten::function("renderer_getTriangles", &esengine::renderer_getTriangles);
     emscripten::function("renderer_getSprites", &esengine::renderer_getSprites);

@@ -9,7 +9,7 @@ import type { ESEngineModule } from './wasm';
 import type { Vec2, Color } from './types';
 import type { GeometryHandle } from './geometry';
 import type { ShaderHandle, MaterialHandle } from './material';
-import { Material } from './material';
+import { Material, isTextureRef } from './material';
 import { BlendMode } from './blend';
 
 export { BlendMode } from './blend';
@@ -327,11 +327,17 @@ export const Draw: DrawAPI = {
         m.HEAPF32.set(transform, transformPtr / 4);
 
         let idx = 0;
+        let autoTextureSlot = 0;
         for (const [name, value] of matData.uniforms) {
             const nameId = getUniformNameId(name);
             if (nameId < 0) continue;
 
-            if (typeof value === 'number') {
+            if (isTextureRef(value)) {
+                uniformBuffer[idx++] = 10;
+                uniformBuffer[idx++] = nameId;
+                uniformBuffer[idx++] = value.slot ?? autoTextureSlot++;
+                uniformBuffer[idx++] = value.textureId;
+            } else if (typeof value === 'number') {
                 uniformBuffer[idx++] = 1;
                 uniformBuffer[idx++] = nameId;
                 uniformBuffer[idx++] = value;
