@@ -483,15 +483,36 @@ function createComponentDef(name, defaults) {
         }
     };
 }
+function getComponentRegistry() {
+    if (typeof window === 'undefined')
+        return new Map();
+    return (window.__esengine_componentRegistry ?? (window.__esengine_componentRegistry = new Map()));
+}
 function defineComponent(name, defaults) {
+    const registry = getComponentRegistry();
+    const existing = registry.get(name);
+    if (existing)
+        return existing;
     const def = createComponentDef(name, defaults);
+    registry.set(name, def);
     registerToEditor(name, defaults, false);
     return def;
 }
 function defineTag(name) {
+    const registry = getComponentRegistry();
+    const existing = registry.get(name);
+    if (existing)
+        return existing;
     const def = createComponentDef(name, {});
+    registry.set(name, def);
     registerToEditor(name, {}, true);
     return def;
+}
+function getUserComponent(name) {
+    return getComponentRegistry().get(name);
+}
+function clearUserComponents() {
+    getComponentRegistry().clear();
 }
 function registerToEditor(name, defaults, isTag) {
     if (typeof window !== 'undefined' && window.__esengine_registerComponent) {
@@ -591,10 +612,12 @@ const builtinComponents = {
     SpineAnimation,
 };
 function getComponentDefaults(typeName) {
-    const component = builtinComponents[typeName];
-    if (component) {
-        return { ...component._default };
-    }
+    const builtin = builtinComponents[typeName];
+    if (builtin)
+        return { ...builtin._default };
+    const userComp = getUserComponent(typeName);
+    if (userComp)
+        return { ...userComp._default };
     return null;
 }
 
@@ -956,6 +979,23 @@ function defineSystem(params, fn, options) {
         _fn: fn,
         _name: options?.name ?? `System_${id}`
     };
+}
+// =============================================================================
+// Global System Registration
+// =============================================================================
+function getPendingSystems() {
+    if (typeof window === 'undefined')
+        return [];
+    return (window.__esengine_pendingSystems ?? (window.__esengine_pendingSystems = []));
+}
+function addSystem(system) {
+    getPendingSystems().push({ schedule: Schedule.Update, system });
+}
+function addStartupSystem(system) {
+    getPendingSystems().push({ schedule: Schedule.Startup, system });
+}
+function addSystemToSchedule(schedule, system) {
+    getPendingSystems().push({ schedule, system });
 }
 // =============================================================================
 // System Runner
@@ -2954,6 +2994,17 @@ function createWebApp(module, options) {
     app.addPlugin(textPlugin);
     return app;
 }
+function flushPendingSystems(app) {
+    if (typeof window === 'undefined')
+        return;
+    const pending = window.__esengine_pendingSystems;
+    if (!pending || pending.length === 0)
+        return;
+    for (const entry of pending) {
+        app.addSystemToSchedule(entry.schedule, entry.system);
+    }
+    pending.length = 0;
+}
 // =============================================================================
 // View-Projection Computation
 // =============================================================================
@@ -3264,8 +3315,16 @@ function loadComponent(world, entity, compData) {
         case 'UIRect':
             world.insert(entity, UIRect, data);
             break;
-        default:
-            console.warn(`Unknown component type: ${compData.type}`);
+        default: {
+            const userComp = getUserComponent(compData.type);
+            if (userComp) {
+                world.insert(entity, userComp, data);
+            }
+            else {
+                console.warn(`Unknown component type: ${compData.type}`);
+            }
+            break;
+        }
     }
 }
 function updateCameraAspectRatio(world, aspectRatio) {
@@ -4179,5 +4238,5 @@ function isRuntime() {
 initWeChatPlatform();
 setPlatform(wechatAdapter);
 
-export { App, AssetPlugin, AssetServer, Assets, AsyncCache, BlendMode, Camera, Canvas, Children, Commands, CommandsInstance, DataType, Draw, EntityCommands, Geometry, INVALID_ENTITY, INVALID_TEXTURE, Input, LocalTransform, Material, MaterialLoader, Mut, Parent, PostProcess, PreviewPlugin, Query, QueryInstance, RenderPipeline, RenderStage, Renderer, Res, ResMut, Schedule, ShaderSources, SpineAnimation, SpineController, Sprite, SystemRunner, Text, TextAlign, TextOverflow, TextPlugin, TextRenderer, TextVerticalAlign, Time, UIRect, Velocity, World, WorldTransform, assetPlugin, clearDrawCallbacks, color, createSpineController, createWebApp, defineComponent, defineResource, defineSystem, defineTag, getComponentDefaults, getPlatform, getPlatformType, initDrawAPI, initGeometryAPI, initMaterialAPI, initPostProcessAPI, initRendererAPI, isBuiltinComponent, isEditor, isPlatformInitialized, isRuntime, isWeChat, isWeb, loadComponent, loadSceneData, loadSceneWithAssets, platformFetch, platformFileExists, platformInstantiateWasm, platformReadFile, platformReadTextFile, quat, registerDrawCallback, registerMaterialCallback, setEditorMode, shutdownDrawAPI, shutdownGeometryAPI, shutdownMaterialAPI, shutdownPostProcessAPI, shutdownRendererAPI, textPlugin, unregisterDrawCallback, updateCameraAspectRatio, vec2, vec3, vec4, wxFileExists, wxFileExistsSync, wxGetImagePixels, wxLoadImage, wxLoadImagePixels, wxReadFile, wxReadTextFile, wxWriteFile };
+export { App, AssetPlugin, AssetServer, Assets, AsyncCache, BlendMode, Camera, Canvas, Children, Commands, CommandsInstance, DataType, Draw, EntityCommands, Geometry, INVALID_ENTITY, INVALID_TEXTURE, Input, LocalTransform, Material, MaterialLoader, Mut, Parent, PostProcess, PreviewPlugin, Query, QueryInstance, RenderPipeline, RenderStage, Renderer, Res, ResMut, Schedule, ShaderSources, SpineAnimation, SpineController, Sprite, SystemRunner, Text, TextAlign, TextOverflow, TextPlugin, TextRenderer, TextVerticalAlign, Time, UIRect, Velocity, World, WorldTransform, addStartupSystem, addSystem, addSystemToSchedule, assetPlugin, clearDrawCallbacks, clearUserComponents, color, createSpineController, createWebApp, defineComponent, defineResource, defineSystem, defineTag, flushPendingSystems, getComponentDefaults, getPlatform, getPlatformType, getUserComponent, initDrawAPI, initGeometryAPI, initMaterialAPI, initPostProcessAPI, initRendererAPI, isBuiltinComponent, isEditor, isPlatformInitialized, isRuntime, isWeChat, isWeb, loadComponent, loadSceneData, loadSceneWithAssets, platformFetch, platformFileExists, platformInstantiateWasm, platformReadFile, platformReadTextFile, quat, registerDrawCallback, registerMaterialCallback, setEditorMode, shutdownDrawAPI, shutdownGeometryAPI, shutdownMaterialAPI, shutdownPostProcessAPI, shutdownRendererAPI, textPlugin, unregisterDrawCallback, updateCameraAspectRatio, vec2, vec3, vec4, wxFileExists, wxFileExistsSync, wxGetImagePixels, wxLoadImage, wxLoadImagePixels, wxReadFile, wxReadTextFile, wxWriteFile };
 //# sourceMappingURL=index.wechat.js.map
