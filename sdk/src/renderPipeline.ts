@@ -7,7 +7,7 @@ import type { CppRegistry } from './wasm';
 import { Renderer } from './renderer';
 import { PostProcess } from './postprocess';
 import { Draw } from './draw';
-import { getDrawCallbacks } from './customDraw';
+import { getDrawCallbacks, unregisterDrawCallback } from './customDraw';
 
 export interface RenderParams {
     registry: { _cpp: CppRegistry };
@@ -40,14 +40,19 @@ export class RenderPipeline {
         const cbs = getDrawCallbacks();
         if (cbs.size > 0) {
             Draw.begin(viewProjection);
-            for (const fn of cbs.values()) {
+            const failed: string[] = [];
+            for (const [id, fn] of cbs.entries()) {
                 try {
                     fn(elapsed);
                 } catch (e) {
-                    console.warn('[CustomDraw]', e);
+                    console.error(`[CustomDraw] callback '${id}' error:`, e);
+                    failed.push(id);
                 }
             }
             Draw.end();
+            for (const id of failed) {
+                unregisterDrawCallback(id);
+            }
         }
 
         if (usePostProcess) {

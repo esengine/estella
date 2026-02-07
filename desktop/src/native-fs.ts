@@ -14,8 +14,9 @@ import {
     readDir,
     stat,
     copyFile,
+    watch as tauriWatch,
 } from '@tauri-apps/plugin-fs';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke, convertFileSrc } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { resourceDir } from '@tauri-apps/api/path';
 import type { NativeShell } from '@esengine/editor';
@@ -72,6 +73,7 @@ export interface NativeFS {
     getSdkWasmJs(): Promise<string>;
     getSdkWasmDts(): Promise<string>;
     getEditorDts(): Promise<string>;
+    toAssetUrl?(path: string): string;
 }
 
 export const nativeFS: NativeFS = {
@@ -241,11 +243,26 @@ export const nativeFS: NativeFS = {
     },
 
     async watchDirectory(
-        _path: string,
-        _callback: (event: FileChangeEvent) => void,
-        _options?: { recursive?: boolean }
+        path: string,
+        callback: (event: FileChangeEvent) => void,
+        options?: { recursive?: boolean }
     ) {
-        return () => {};
+        const unwatch = await tauriWatch(path, (event) => {
+            const kind = event.type;
+            let type: FileChangeEvent['type'] = 'any';
+            if (typeof kind === 'object') {
+                if ('create' in kind) type = 'create';
+                else if ('modify' in kind) type = 'modify';
+                else if ('remove' in kind) type = 'remove';
+            }
+            callback({ type, paths: event.paths });
+        }, { recursive: options?.recursive ?? false, delayMs: 200 });
+
+        return () => { unwatch(); };
+    },
+
+    toAssetUrl(path: string) {
+        return convertFileSrc(path);
     },
 
     async openFolder(path: string) {

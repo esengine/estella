@@ -2699,7 +2699,7 @@ const Renderer = {
         return module$1?.renderer_getTargetTexture(handle) ?? 0;
     },
     setClearColor(r, g, b, a) {
-        module$1?.renderer_setClearColor(r, g, b, a);
+        module$1?.renderer_setClearColor?.(r, g, b, a);
     },
     getStats() {
         if (!module$1) {
@@ -2756,15 +2756,20 @@ class RenderPipeline {
         const cbs = getDrawCallbacks();
         if (cbs.size > 0) {
             Draw.begin(viewProjection);
-            for (const fn of cbs.values()) {
+            const failed = [];
+            for (const [id, fn] of cbs.entries()) {
                 try {
                     fn(elapsed);
                 }
                 catch (e) {
-                    console.warn('[CustomDraw]', e);
+                    console.error(`[CustomDraw] callback '${id}' error:`, e);
+                    failed.push(id);
                 }
             }
             Draw.end();
+            for (const id of failed) {
+                unregisterDrawCallback(id);
+            }
         }
         if (usePostProcess) {
             PostProcess.end();
