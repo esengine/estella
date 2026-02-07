@@ -1582,10 +1582,6 @@ function serializeUniforms(uniforms) {
 function registerMaterialCallback() {
     if (!module$5 || materialCallbackRegistered)
         return;
-    if (!module$5.addFunction || !module$5.setMaterialCallback) {
-        console.warn('[Material] Callback registration not available (requires -sALLOW_TABLE_GROWTH)');
-        return;
-    }
     const callback = (materialId, outShaderIdPtr, outBlendModePtr, outUniformBufferPtr, outUniformCountPtr) => {
         const data = materials.get(materialId);
         if (!data) {
@@ -1601,8 +1597,7 @@ function registerMaterialCallback() {
         module$5.HEAPU32[outUniformBufferPtr >> 2] = ptr;
         module$5.HEAPU32[outUniformCountPtr >> 2] = count;
     };
-    const callbackPtr = module$5.addFunction(callback, 'viiiii');
-    module$5.setMaterialCallback(callbackPtr);
+    module$5.materialDataProvider = callback;
     materialCallbackRegistered = true;
 }
 // =============================================================================
