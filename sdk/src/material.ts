@@ -391,11 +391,6 @@ function serializeUniforms(uniforms: Map<string, UniformValue>): { ptr: number; 
 export function registerMaterialCallback(): void {
     if (!module || materialCallbackRegistered) return;
 
-    if (!module.addFunction || !module.setMaterialCallback) {
-        console.warn('[Material] Callback registration not available (requires -sALLOW_TABLE_GROWTH)');
-        return;
-    }
-
     const callback = (
         materialId: number,
         outShaderIdPtr: number,
@@ -420,8 +415,7 @@ export function registerMaterialCallback(): void {
         module!.HEAPU32[outUniformCountPtr >> 2] = count;
     };
 
-    const callbackPtr = module.addFunction(callback, 'viiiii');
-    module.setMaterialCallback(callbackPtr);
+    module.materialDataProvider = callback;
     materialCallbackRegistered = true;
 }
 

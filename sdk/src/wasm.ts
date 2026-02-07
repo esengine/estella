@@ -110,8 +110,7 @@ export interface ESEngineModule {
 
     FS: EmscriptenFS;
 
-    addFunction(func: (...args: any[]) => any, signature: string): number;
-    setMaterialCallback(callbackPtr: number): void;
+    materialDataProvider?: (materialId: number, outShaderIdPtr: number, outBlendModePtr: number, outUniformBufferPtr: number, outUniformCountPtr: number) => void;
 
     initRenderer(): void;
     initRendererWithCanvas(canvasSelector: string): boolean;

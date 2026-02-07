@@ -55,21 +55,29 @@ static u32 g_viewportWidth = 1280;
 static u32 g_viewportHeight = 720;
 static glm::vec4 g_clearColor{0.0f, 0.0f, 0.0f, 1.0f};
 
-using GetMaterialCallback = void (*)(u32 materialId, u32* outShaderId, u32* outBlendMode,
-                                     u32* outUniformBufferPtr, u32* outUniformCount);
-static GetMaterialCallback g_getMaterialCallback = nullptr;
-
-void setMaterialCallback(uintptr_t callback) {
-    g_getMaterialCallback = reinterpret_cast<GetMaterialCallback>(callback);
-}
+EM_JS(void, callMaterialProvider, (int materialId, int outShaderIdPtr, int outBlendModePtr, int outUniformBufPtr, int outUniformCountPtr), {
+    var fn = Module['materialDataProvider'];
+    if (fn) {
+        fn(materialId, outShaderIdPtr, outBlendModePtr, outUniformBufPtr, outUniformCountPtr);
+    } else {
+        HEAPU32[outShaderIdPtr >> 2] = 0;
+        HEAPU32[outBlendModePtr >> 2] = 0;
+        HEAPU32[outUniformBufPtr >> 2] = 0;
+        HEAPU32[outUniformCountPtr >> 2] = 0;
+    }
+});
 
 bool getMaterialData(u32 materialId, u32& shaderId, u32& blendMode) {
-    if (!g_getMaterialCallback || materialId == 0) {
+    if (materialId == 0) {
         return false;
     }
     u32 uniformBufferPtr = 0;
     u32 uniformCount = 0;
-    g_getMaterialCallback(materialId, &shaderId, &blendMode, &uniformBufferPtr, &uniformCount);
+    callMaterialProvider(materialId,
+        (int)(uintptr_t)&shaderId,
+        (int)(uintptr_t)&blendMode,
+        (int)(uintptr_t)&uniformBufferPtr,
+        (int)(uintptr_t)&uniformCount);
     return shaderId != 0;
 }
 
@@ -81,13 +89,17 @@ struct UniformData {
 
 bool getMaterialDataWithUniforms(u32 materialId, u32& shaderId, u32& blendMode,
                                   std::vector<UniformData>& uniforms) {
-    if (!g_getMaterialCallback || materialId == 0) {
+    if (materialId == 0) {
         return false;
     }
 
     u32 uniformBufferPtr = 0;
     u32 uniformCount = 0;
-    g_getMaterialCallback(materialId, &shaderId, &blendMode, &uniformBufferPtr, &uniformCount);
+    callMaterialProvider(materialId,
+        (int)(uintptr_t)&shaderId,
+        (int)(uintptr_t)&blendMode,
+        (int)(uintptr_t)&uniformBufferPtr,
+        (int)(uintptr_t)&uniformCount);
 
     if (shaderId == 0) return false;
 
@@ -957,7 +969,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderFrame", &esengine::renderFrame);
     emscripten::function("renderFrameWithMatrix", &esengine::renderFrameWithMatrix);
     emscripten::function("getResourceManager", &esengine::getResourceManager, emscripten::allow_raw_pointers());
-    emscripten::function("setMaterialCallback", &esengine::setMaterialCallback);
+
 
     emscripten::class_<esengine::resource::ResourceManager>("ResourceManager")
         .function("createTexture", &esengine::rm_createTexture)
