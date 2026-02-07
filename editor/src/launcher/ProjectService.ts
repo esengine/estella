@@ -12,19 +12,7 @@ import { ENGINE_VERSION } from '../types/ProjectTypes';
 import { SdkExportService } from '../sdk';
 import { EditorExportService } from '../extension';
 import { getEditorContext } from '../context/EditorContext';
-
-// =============================================================================
-// Native FS Interface
-// =============================================================================
-
-interface NativeFS {
-    selectDirectory(): Promise<string | null>;
-    createDirectory(path: string): Promise<boolean>;
-    exists(path: string): Promise<boolean>;
-    writeFile(path: string, content: string): Promise<boolean>;
-    readFile(path: string): Promise<string | null>;
-    openProject(): Promise<string | null>;
-}
+import type { NativeFS } from '../types/NativeFS';
 
 function getNativeFS(): NativeFS | null {
     return getEditorContext().fs ?? null;
@@ -81,9 +69,7 @@ export interface ProjectServiceResult<T = void> {
     error?: string;
 }
 
-function joinPath(...parts: string[]): string {
-    return parts.join('/').replace(/\\/g, '/').replace(/\/+/g, '/');
-}
+import { joinPath } from '../utils/path';
 
 function getProjectDir(location: string, name: string): string {
     return joinPath(location, name);

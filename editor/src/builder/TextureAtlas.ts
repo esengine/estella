@@ -4,6 +4,8 @@
  */
 
 import { type AssetLibrary, isUUID } from '../asset/AssetLibrary';
+import { joinPath } from '../utils/path';
+import type { NativeFS } from '../types/NativeFS';
 
 // =============================================================================
 // Types
@@ -38,11 +40,6 @@ interface Rect {
 
 interface RectWithId extends Rect {
     id: string;
-}
-
-interface NativeFS {
-    readFile(path: string): Promise<string | null>;
-    readBinaryFile(path: string): Promise<Uint8Array | null>;
 }
 
 // =============================================================================
@@ -213,7 +210,7 @@ export class TextureAtlasPacker {
         for (const relPath of eligiblePaths) {
             if (spineTextures.has(relPath) || nineSliceTextures.has(relPath)) continue;
 
-            const fullPath = this.joinPath(this.projectDir_, relPath);
+            const fullPath = joinPath(this.projectDir_, relPath);
             const data = await this.fs_.readBinaryFile(fullPath);
             if (!data) continue;
 
@@ -372,7 +369,7 @@ export class TextureAtlasPacker {
 
         const result = new Set<string>();
         for (const atlasRelPath of atlasPaths) {
-            const fullPath = this.joinPath(this.projectDir_, atlasRelPath);
+            const fullPath = joinPath(this.projectDir_, atlasRelPath);
             const content = await this.fs_.readFile(fullPath);
             if (!content) continue;
 
@@ -452,7 +449,4 @@ export class TextureAtlasPacker {
         return null;
     }
 
-    private joinPath(...parts: string[]): string {
-        return parts.join('/').replace(/\/+/g, '/').replace(/\\/g, '/');
-    }
 }

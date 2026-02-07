@@ -5,6 +5,9 @@
 
 import type { SceneData } from '../types/SceneTypes';
 import type { TextureMetadata } from '../types/TextureMetadata';
+import { joinPath, getFileExtension } from '../utils/path';
+import type { NativeFS } from '../types/NativeFS';
+import { ASSET_EXTENSIONS, getAssetType } from './AssetTypes';
 
 // =============================================================================
 // Types
@@ -15,59 +18,6 @@ interface AssetMeta {
     version: string;
     type: string;
     sliceBorder?: { left: number; right: number; top: number; bottom: number };
-}
-
-interface NativeFS {
-    exists(path: string): Promise<boolean>;
-    readFile(path: string): Promise<string | null>;
-    writeFile(path: string, content: string): Promise<boolean>;
-    listDirectoryDetailed(path: string): Promise<Array<{ name: string; isDirectory: boolean }>>;
-}
-
-// =============================================================================
-// Path Utilities
-// =============================================================================
-
-function normalizePath(path: string): string {
-    return path.replace(/\\/g, '/');
-}
-
-function joinPath(...parts: string[]): string {
-    return normalizePath(parts.join('/').replace(/\/+/g, '/'));
-}
-
-function getFileExtension(path: string): string {
-    const lastDot = path.lastIndexOf('.');
-    return lastDot > 0 ? path.substring(lastDot + 1).toLowerCase() : '';
-}
-
-const ASSET_EXTENSIONS = new Set([
-    'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg',
-    'mp3', 'wav', 'ogg',
-    'atlas', 'skel', 'json',
-    'esmaterial', 'esshader',
-]);
-
-function getAssetType(path: string): string {
-    const ext = getFileExtension(path);
-    switch (ext) {
-        case 'png': case 'jpg': case 'jpeg': case 'gif': case 'webp': case 'svg':
-            return 'texture';
-        case 'esmaterial':
-            return 'material';
-        case 'esshader':
-            return 'shader';
-        case 'atlas':
-            return 'spine-atlas';
-        case 'skel':
-            return 'spine-skeleton';
-        case 'json':
-            return 'json';
-        case 'mp3': case 'wav': case 'ogg':
-            return 'audio';
-        default:
-            return 'unknown';
-    }
 }
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

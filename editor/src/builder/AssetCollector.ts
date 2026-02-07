@@ -5,6 +5,9 @@
 
 import type { BuildConfig } from '../types/BuildTypes';
 import { type AssetLibrary, isUUID } from '../asset/AssetLibrary';
+import { normalizePath, joinPath, isAbsolutePath, getFileExtension, getDirName } from '../utils/path';
+import type { NativeFS } from '../types/NativeFS';
+import { ASSET_EXTENSIONS, looksLikeAssetPath } from '../asset/AssetTypes';
 
 // =============================================================================
 // Types
@@ -15,54 +18,6 @@ export type FolderExportMode = 'auto' | 'always' | 'exclude';
 export interface AssetExportConfig {
     version: '1.0';
     folders: Record<string, FolderExportMode>;
-}
-
-interface NativeFS {
-    exists(path: string): Promise<boolean>;
-    readFile(path: string): Promise<string | null>;
-    writeFile(path: string, content: string): Promise<boolean>;
-    createDirectory(path: string): Promise<boolean>;
-    listDirectoryDetailed(path: string): Promise<Array<{ name: string; isDirectory: boolean }>>;
-}
-
-// =============================================================================
-// Path Utilities
-// =============================================================================
-
-function normalizePath(path: string): string {
-    return path.replace(/\\/g, '/');
-}
-
-function joinPath(...parts: string[]): string {
-    return normalizePath(parts.join('/').replace(/\/+/g, '/'));
-}
-
-function isAbsolutePath(path: string): boolean {
-    return path.startsWith('/') || /^[a-zA-Z]:/.test(path);
-}
-
-function getFileExtension(path: string): string {
-    const lastDot = path.lastIndexOf('.');
-    return lastDot > 0 ? path.substring(lastDot + 1).toLowerCase() : '';
-}
-
-function getDirName(path: string): string {
-    const lastSlash = path.lastIndexOf('/');
-    return lastSlash > 0 ? path.substring(0, lastSlash) : '';
-}
-
-const ASSET_EXTENSIONS = new Set([
-    'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg',
-    'mp3', 'wav', 'ogg',
-    'atlas', 'skel', 'json',
-    'esmaterial', 'esshader',
-]);
-
-function looksLikeAssetPath(value: unknown): value is string {
-    if (typeof value !== 'string') return false;
-    if (!value.includes('/')) return false;
-    const ext = getFileExtension(value);
-    return ASSET_EXTENSIONS.has(ext);
 }
 
 // =============================================================================

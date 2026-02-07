@@ -20,57 +20,9 @@ import { findTsFiles, EDITOR_ONLY_DIRS } from '../scripting/ScriptLoader';
 import { BuildAssetCollector, AssetExportConfigService } from './AssetCollector';
 import { TextureAtlasPacker, type AtlasResult } from './TextureAtlas';
 import { AssetLibrary, isUUID } from '../asset/AssetLibrary';
-
-// =============================================================================
-// Types
-// =============================================================================
-
-interface NativeFS {
-    exists(path: string): Promise<boolean>;
-    readFile(path: string): Promise<string | null>;
-    readBinaryFile(path: string): Promise<Uint8Array | null>;
-    writeFile(path: string, content: string): Promise<boolean>;
-    listDirectoryDetailed(path: string): Promise<Array<{ name: string; isDirectory: boolean }>>;
-    createDirectory(path: string): Promise<boolean>;
-}
-
-// =============================================================================
-// Path Utilities
-// =============================================================================
-
-function normalizePath(path: string): string {
-    return path.replace(/\\/g, '/');
-}
-
-function joinPath(...parts: string[]): string {
-    return normalizePath(parts.join('/').replace(/\/+/g, '/'));
-}
-
-function getProjectDir(projectPath: string): string {
-    const normalized = normalizePath(projectPath);
-    const lastSlash = normalized.lastIndexOf('/');
-    return lastSlash > 0 ? normalized.substring(0, lastSlash) : normalized;
-}
-
-function getFileExtension(path: string): string {
-    const lastDot = path.lastIndexOf('.');
-    return lastDot > 0 ? path.substring(lastDot + 1).toLowerCase() : '';
-}
-
-function isAbsolutePath(path: string): boolean {
-    return path.startsWith('/') || /^[a-zA-Z]:/.test(path);
-}
-
-function getDir(filePath: string): string {
-    const normalized = normalizePath(filePath);
-    const lastSlash = normalized.lastIndexOf('/');
-    return lastSlash > 0 ? normalized.substring(0, lastSlash) : normalized;
-}
-
-function getDirName(path: string): string {
-    const lastSlash = path.lastIndexOf('/');
-    return lastSlash > 0 ? path.substring(0, lastSlash) : '';
-}
+import { normalizePath, joinPath, getProjectDir, getFileExtension, isAbsolutePath, getParentDir } from '../utils/path';
+import { compileMaterials } from './MaterialCompiler';
+import type { NativeFS } from '../types/NativeFS';
 
 // =============================================================================
 // MIME Types
@@ -446,7 +398,7 @@ export class PlayableBuilder {
 
             // 6. Compile materials
             this.progress_.setCurrentTask('Compiling materials...', 20);
-            const compiledMaterials = await this.compileMaterials();
+            const compiledMaterials = await this.compileMaterials_();
             this.progress_.log('info', `Compiled ${compiledMaterials.size} material(s)`);
 
             // 7. Collect assets (keyed by UUID, excluding packed textures, adding atlas pages)
@@ -468,7 +420,7 @@ export class PlayableBuilder {
             this.progress_.setPhase('writing');
             this.progress_.setCurrentTask('Writing output...', 0);
             const outputPath = this.resolveOutputPath(settings.outputPath);
-            const outputDir = getDir(outputPath);
+            const outputDir = getParentDir(outputPath);
 
             await this.fs_.createDirectory(outputDir);
             const success = await this.fs_.writeFile(outputPath, html);
@@ -622,7 +574,7 @@ ${imports}
                     if (isAbsolutePath(args.path)) {
                         resolvedPath = normalizePath(args.path);
                     } else if (args.path.startsWith('.')) {
-                        const baseDir = args.importer ? getDir(args.importer) : args.resolveDir;
+                        const baseDir = args.importer ? getParentDir(args.importer) : args.resolveDir;
                         resolvedPath = joinPath(baseDir, args.path);
                     } else {
                         if (args.path === 'esengine') {
@@ -685,66 +637,19 @@ ${imports}
         };
     }
 
-    private parseEsShader(content: string): { vertex: string | null; fragment: string | null } {
-        const vm = content.match(/#pragma\s+vertex\s*([\s\S]*?)#pragma\s+end/);
-        const fm = content.match(/#pragma\s+fragment\s*([\s\S]*?)#pragma\s+end/);
-        return { vertex: vm ? vm[1].trim() : null, fragment: fm ? fm[1].trim() : null };
-    }
 
-    private resolveShaderPath(materialPath: string, shaderPath: string): string {
-        if (shaderPath.startsWith('/') || shaderPath.startsWith('assets/')) return shaderPath;
-        const dir = getDirName(materialPath);
-        return dir ? `${dir}/${shaderPath}` : shaderPath;
-    }
-
-    private async compileMaterials(): Promise<Map<string, { uuid: string; compiledJson: string }>> {
-        const result = new Map<string, { uuid: string; compiledJson: string }>();
+    private async compileMaterials_(): Promise<Map<string, { uuid: string; compiledJson: string }>> {
         const configService = new AssetExportConfigService(this.projectDir_, this.fs_!);
         const exportConfig = await configService.load();
+        const compiled = await compileMaterials(this.fs_!, this.projectDir_, this.assetLibrary_, this.context_.config, exportConfig);
 
-        const collector = new BuildAssetCollector(this.fs_!, this.projectDir_, this.assetLibrary_);
-        const assetPaths = await collector.collect(this.context_.config, exportConfig);
-
-        for (const relativePath of assetPaths) {
-            if (!relativePath.endsWith('.esmaterial')) continue;
-
-            const uuid = this.assetLibrary_.getUuid(relativePath);
-            if (!uuid) continue;
-
-            const fullPath = joinPath(this.projectDir_, relativePath);
-            const content = await this.fs_!.readFile(fullPath);
-            if (!content) continue;
-
-            try {
-                const matData = JSON.parse(content);
-                if (matData.type !== 'material' || !matData.shader) continue;
-
-                const shaderRelPath = this.resolveShaderPath(relativePath, matData.shader);
-                const shaderFullPath = joinPath(this.projectDir_, shaderRelPath);
-                const shaderContent = await this.fs_!.readFile(shaderFullPath);
-                if (!shaderContent) continue;
-
-                const parsed = this.parseEsShader(shaderContent);
-                if (!parsed.vertex || !parsed.fragment) continue;
-
-                const compiled = {
-                    type: 'material',
-                    vertexSource: parsed.vertex,
-                    fragmentSource: parsed.fragment,
-                    blendMode: matData.blendMode ?? 0,
-                    depthTest: matData.depthTest ?? false,
-                    properties: matData.properties ?? {},
-                };
-
-                result.set(relativePath, {
-                    uuid,
-                    compiledJson: JSON.stringify(compiled),
-                });
-            } catch {
-                console.warn(`[PlayableBuilder] Failed to compile material: ${relativePath}`);
-            }
+        const result = new Map<string, { uuid: string; compiledJson: string }>();
+        for (const mat of compiled) {
+            result.set(mat.relativePath, {
+                uuid: mat.uuid,
+                compiledJson: mat.json,
+            });
         }
-
         return result;
     }
 

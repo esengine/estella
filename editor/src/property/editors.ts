@@ -11,6 +11,7 @@ import {
 import { getEditorContext, getEditorInstance } from '../context/EditorContext';
 import { getPlatformAdapter } from '../platform/PlatformAdapter';
 import { getAssetLibrary, isUUID } from '../asset/AssetLibrary';
+import type { NativeFS } from '../types/NativeFS';
 
 // =============================================================================
 // Drag Helper
@@ -653,11 +654,6 @@ function createEnumEditor(
 // =============================================================================
 // Texture Editor
 // =============================================================================
-
-interface NativeFS {
-    readFile(path: string): Promise<string | null>;
-    readBinaryFile(path: string): Promise<Uint8Array | null>;
-}
 
 function getNativeFS(): NativeFS | null {
     return getEditorContext().fs ?? null;

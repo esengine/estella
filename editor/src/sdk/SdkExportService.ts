@@ -5,21 +5,7 @@
 
 import { SDK_VERSION } from '../types/ProjectTypes';
 import { getEditorContext } from '../context/EditorContext';
-
-// =============================================================================
-// Native FS Interface
-// =============================================================================
-
-interface NativeFS {
-    createDirectory(path: string): Promise<boolean>;
-    writeFile(path: string, content: string): Promise<boolean>;
-    readFile(path: string): Promise<string | null>;
-    getSdkEsmJs(): Promise<string>;
-    getSdkEsmDts(): Promise<string>;
-    getSdkWasmJs(): Promise<string>;
-    getSdkWasmDts(): Promise<string>;
-    getSdkWechatJs(): Promise<string>;
-}
+import type { NativeFS } from '../types/NativeFS';
 
 function getNativeFS(): NativeFS | null {
     return getEditorContext().fs ?? null;

@@ -36,6 +36,8 @@ import {
     type ShaderProperty,
 } from '../shader/ShaderPropertyParser';
 import { getEditorContext, getEditorInstance } from '../context/EditorContext';
+import { AssetExportConfigService, type FolderExportMode } from '../builder/AssetCollector';
+import type { NativeFS } from '../types/NativeFS';
 
 // =============================================================================
 // Types
@@ -45,18 +47,6 @@ interface EditorInfo {
     editor: PropertyEditorInstance;
     componentType: string;
     propertyName: string;
-}
-
-interface FileStats {
-    size: number;
-    modified: Date | null;
-    created: Date | null;
-}
-
-interface NativeFS {
-    readFile(path: string): Promise<string | null>;
-    readBinaryFile(path: string): Promise<Uint8Array | null>;
-    getFileStats(path: string): Promise<FileStats | null>;
 }
 
 // =============================================================================
@@ -893,6 +883,9 @@ export class InspectorPanel {
                 break;
             case 'material':
                 await this.renderMaterialInspector(asset.path);
+                break;
+            case 'folder':
+                await this.renderFolderInspector(asset.path);
                 break;
             default:
                 await this.renderFileInspector(asset.path, asset.type);
@@ -2129,6 +2122,104 @@ export class InspectorPanel {
         wrapper.appendChild(input);
         wrapper.appendChild(browseBtn);
         container.appendChild(wrapper);
+    }
+
+    private async renderFolderInspector(path: string): Promise<void> {
+        const fs = getNativeFS();
+        const projectDir = this.getProjectDir();
+        if (!projectDir) return;
+
+        const relativePath = path.startsWith(projectDir)
+            ? path.substring(projectDir.length + 1)
+            : path;
+
+        const configService = new AssetExportConfigService(projectDir, fs as any);
+        const exportConfig = await configService.load();
+        const currentMode: FolderExportMode = exportConfig.folders[relativePath] || 'auto';
+
+        const descriptions: Record<FolderExportMode, string> = {
+            auto: 'Included only if referenced by build scenes',
+            always: 'Always included in all builds',
+            exclude: 'Never included in builds',
+        };
+
+        const exportSection = document.createElement('div');
+        exportSection.className = 'es-component-section es-collapsible es-expanded';
+        exportSection.innerHTML = `
+            <div class="es-component-header es-collapsible-header">
+                <span class="es-collapse-icon">${icons.chevronDown(12)}</span>
+                <span class="es-component-icon">${icons.settings(14)}</span>
+                <span class="es-component-title">Export Settings</span>
+            </div>
+            <div class="es-component-properties es-collapsible-content">
+                <div class="es-property-row">
+                    <label class="es-property-label">Export Mode</label>
+                    <div class="es-property-editor">
+                        <select class="es-input es-folder-export-mode">
+                            <option value="auto"${currentMode === 'auto' ? ' selected' : ''}>Auto</option>
+                            <option value="always"${currentMode === 'always' ? ' selected' : ''}>Always Include</option>
+                            <option value="exclude"${currentMode === 'exclude' ? ' selected' : ''}>Exclude</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="es-property-row">
+                    <label class="es-property-label"></label>
+                    <div class="es-property-value es-folder-export-desc" style="color: var(--text-muted); font-size: 11px;">${descriptions[currentMode]}</div>
+                </div>
+            </div>
+        `;
+
+        const header = exportSection.querySelector('.es-collapsible-header');
+        header?.addEventListener('click', () => {
+            exportSection.classList.toggle('es-expanded');
+        });
+
+        const select = exportSection.querySelector('.es-folder-export-mode') as HTMLSelectElement;
+        const descEl = exportSection.querySelector('.es-folder-export-desc') as HTMLElement;
+        select?.addEventListener('change', async () => {
+            const mode = select.value as FolderExportMode;
+            descEl.textContent = descriptions[mode];
+            await configService.setMode(relativePath, mode);
+        });
+
+        this.contentContainer_.appendChild(exportSection);
+
+        let itemCount = 0;
+        if (fs) {
+            try {
+                const entries = await (fs as any).listDirectoryDetailed(path);
+                itemCount = entries?.length ?? 0;
+            } catch {
+                // Ignore
+            }
+        }
+
+        const propsSection = document.createElement('div');
+        propsSection.className = 'es-component-section es-collapsible es-expanded';
+        propsSection.innerHTML = `
+            <div class="es-component-header es-collapsible-header">
+                <span class="es-collapse-icon">${icons.chevronDown(12)}</span>
+                <span class="es-component-icon">${icons.settings(14)}</span>
+                <span class="es-component-title">Properties</span>
+            </div>
+            <div class="es-component-properties es-collapsible-content">
+                <div class="es-property-row">
+                    <label class="es-property-label">Items</label>
+                    <div class="es-property-value">${itemCount}</div>
+                </div>
+                <div class="es-property-row">
+                    <label class="es-property-label">Path</label>
+                    <div class="es-property-value">${this.escapeHtml(relativePath)}</div>
+                </div>
+            </div>
+        `;
+
+        const propsHeader = propsSection.querySelector('.es-collapsible-header');
+        propsHeader?.addEventListener('click', () => {
+            propsSection.classList.toggle('es-expanded');
+        });
+
+        this.contentContainer_.appendChild(propsSection);
     }
 
     private async renderFileInspector(path: string, type: AssetType): Promise<void> {

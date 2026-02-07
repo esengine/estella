@@ -10,24 +10,7 @@ import type { NativeFS, CompileError } from '../scripting/types';
 import { getEditorContext } from '../context/EditorContext';
 import { ExtensionContext } from './ExtensionContext';
 import { setEditorAPI } from './editorAPI';
-
-// =============================================================================
-// Path Utilities
-// =============================================================================
-
-function normalizePath(path: string): string {
-    return path.replace(/\\/g, '/');
-}
-
-function joinPath(...parts: string[]): string {
-    return normalizePath(parts.join('/').replace(/\/+/g, '/'));
-}
-
-function getProjectDir(projectPath: string): string {
-    const normalized = normalizePath(projectPath);
-    const lastSlash = normalized.lastIndexOf('/');
-    return lastSlash > 0 ? normalized.substring(0, lastSlash) : normalized;
-}
+import { normalizePath, joinPath, getProjectDir } from '../utils/path';
 
 // =============================================================================
 // Native FS Access

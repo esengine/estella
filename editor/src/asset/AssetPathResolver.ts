@@ -4,12 +4,7 @@
  */
 
 import { getEditorContext } from '../context/EditorContext';
-
-interface NativeFS {
-    exists(path: string): Promise<boolean>;
-    readFile(path: string): Promise<string | null>;
-    readBinaryFile(path: string): Promise<Uint8Array | null>;
-}
+import type { NativeFS } from '../types/NativeFS';
 
 export interface PathValidationResult {
     exists: boolean;

@@ -9,6 +9,7 @@ import type { TextureMetadata } from '../types/TextureMetadata';
 import { getMetaFilePath, parseTextureMetadata } from '../types/TextureMetadata';
 import { getEditorContext } from '../context/EditorContext';
 import { getAssetLibrary } from '../asset/AssetLibrary';
+import { getProjectDir } from '../utils/path';
 
 // =============================================================================
 // Types
@@ -21,20 +22,6 @@ interface TauriInvoke {
 interface PreviewConfig {
     projectPath: string;
     port?: number;
-}
-
-// =============================================================================
-// Path Utilities
-// =============================================================================
-
-function normalizePath(path: string): string {
-    return path.replace(/\\/g, '/');
-}
-
-function getProjectDir(projectPath: string): string {
-    const normalized = normalizePath(projectPath);
-    const lastSlash = normalized.lastIndexOf('/');
-    return lastSlash > 0 ? normalized.substring(0, lastSlash) : normalized;
 }
 
 // =============================================================================

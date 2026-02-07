@@ -6,6 +6,7 @@
 import type { SceneData, EntityData, ComponentData } from '../types/SceneTypes';
 import { getEditorContext } from '../context/EditorContext';
 import { getDefaultComponentData } from '../schemas/ComponentSchemas';
+import type { NativeFS } from '../types/NativeFS';
 
 // =============================================================================
 // SceneSerializer
@@ -80,13 +81,6 @@ export class SceneSerializer {
 // =============================================================================
 // Native File System Interface (for Tauri)
 // =============================================================================
-
-interface NativeFS {
-    saveFile(content: string, defaultPath?: string): Promise<string | null>;
-    loadFile(): Promise<{ path: string; content: string } | null>;
-    readFile(path: string): Promise<string | null>;
-    writeFile?(path: string, content: string): Promise<boolean>;
-}
 
 function getNativeFS(): NativeFS | null {
     return getEditorContext().fs ?? null;

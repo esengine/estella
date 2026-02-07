@@ -7,16 +7,11 @@ import type { ESEngineModule } from 'esengine';
 import { parseTextureMetadata, getMetaFilePath } from '../types/TextureMetadata';
 import type { AssetPathResolver } from '../asset';
 import { getEditorContext } from '../context/EditorContext';
+import type { NativeFS } from '../types/NativeFS';
 
 // =============================================================================
 // Types
 // =============================================================================
-
-interface NativeFS {
-    readBinaryFile(path: string): Promise<Uint8Array | null>;
-    readFile(path: string): Promise<string | null>;
-    exists(path: string): Promise<boolean>;
-}
 
 interface TextureEntry {
     handle: number;

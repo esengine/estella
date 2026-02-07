@@ -9,24 +9,7 @@ import { virtualFsPlugin } from './esbuildPlugins';
 import type { NativeFS, ScriptLoaderOptions, CompileError } from './types';
 import { clearScriptComponents } from '../schemas/ComponentSchemas';
 import { getEditorContext } from '../context/EditorContext';
-
-// =============================================================================
-// Path Utilities
-// =============================================================================
-
-function normalizePath(path: string): string {
-    return path.replace(/\\/g, '/');
-}
-
-function joinPath(...parts: string[]): string {
-    return normalizePath(parts.join('/').replace(/\/+/g, '/'));
-}
-
-function getProjectDir(projectPath: string): string {
-    const normalized = normalizePath(projectPath);
-    const lastSlash = normalized.lastIndexOf('/');
-    return lastSlash > 0 ? normalized.substring(0, lastSlash) : normalized;
-}
+import { normalizePath, joinPath, getProjectDir } from '../utils/path';
 
 // =============================================================================
 // Native FS Access

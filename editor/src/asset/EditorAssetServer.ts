@@ -12,11 +12,8 @@ import type { AssetPathResolver } from './AssetPathResolver';
 import { parseShaderProperties, getShaderDefaultProperties } from '../shader/ShaderPropertyParser';
 import { getAssetEventBus } from '../events/AssetEventBus';
 import { getEditorContext } from '../context/EditorContext';
-
-interface NativeFS {
-    readFile(path: string): Promise<string | null>;
-    exists(path: string): Promise<boolean>;
-}
+import type { NativeFS } from '../types/NativeFS';
+import { parseEsShader, resolveShaderPath } from '../utils/shader';
 
 interface LoadedMaterial {
     handle: MaterialHandle;
@@ -177,7 +174,7 @@ export class EditorAssetServer {
             throw new Error(`Invalid material file type: ${data.type}`);
         }
 
-        const shaderPath = this.resolveShaderPath(path, data.shader);
+        const shaderPath = resolveShaderPath(path, data.shader);
 
         const shaderDefaults = await this.getShaderDefaultProperties(shaderPath);
         const mergedProperties = { ...shaderDefaults, ...data.properties };
@@ -230,7 +227,7 @@ export class EditorAssetServer {
             throw new Error(`Failed to read shader file: ${fullPath}`);
         }
 
-        const { vertex, fragment } = this.parseEsShader(content);
+        const { vertex, fragment } = parseEsShader(content);
         if (!vertex || !fragment) {
             throw new Error(`Invalid shader format: ${path}`);
         }
@@ -240,30 +237,6 @@ export class EditorAssetServer {
         return handle;
     }
 
-    private parseEsShader(content: string): { vertex: string | null; fragment: string | null } {
-        let vertex: string | null = null;
-        let fragment: string | null = null;
-
-        const vertexMatch = content.match(/#pragma\s+vertex\s*([\s\S]*?)#pragma\s+end/);
-        const fragmentMatch = content.match(/#pragma\s+fragment\s*([\s\S]*?)#pragma\s+end/);
-
-        if (vertexMatch) {
-            vertex = vertexMatch[1].trim();
-        }
-        if (fragmentMatch) {
-            fragment = fragmentMatch[1].trim();
-        }
-
-        return { vertex, fragment };
-    }
-
-    private resolveShaderPath(materialPath: string, shaderPath: string): string {
-        if (shaderPath.startsWith('/') || shaderPath.startsWith('assets/')) {
-            return shaderPath;
-        }
-        const dir = materialPath.substring(0, materialPath.lastIndexOf('/'));
-        return dir ? `${dir}/${shaderPath}` : shaderPath;
-    }
 
     private getNativeFS(): NativeFS | null {
         return getEditorContext().fs ?? null;

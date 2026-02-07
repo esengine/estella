@@ -11,6 +11,7 @@ import {
 import { BLEND_MODE_OPTIONS } from '../types/MaterialMetadata';
 import { getPlatformAdapter } from '../platform/PlatformAdapter';
 import { getEditorContext, getEditorInstance } from '../context/EditorContext';
+import type { NativeFS } from '../types/NativeFS';
 
 // =============================================================================
 // Helpers
@@ -181,11 +182,6 @@ function createShaderFileEditor(
 // =============================================================================
 // Material Texture Editor
 // =============================================================================
-
-interface NativeFS {
-    readFile(path: string): Promise<string | null>;
-    readBinaryFile(path: string): Promise<Uint8Array | null>;
-}
 
 function getNativeFS(): NativeFS | null {
     return getEditorContext().fs ?? null;

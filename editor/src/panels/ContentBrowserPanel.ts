@@ -9,31 +9,12 @@ import { showContextMenu } from '../ui/ContextMenu';
 import { getPlatformAdapter } from '../platform/PlatformAdapter';
 import { showInputDialog, showConfirmDialog } from '../ui/dialog';
 import { getEditorContext } from '../context/EditorContext';
+import { joinPath, getParentDir } from '../utils/path';
+import type { NativeFS, DirectoryEntry } from '../types/NativeFS';
 
 // =============================================================================
 // Types
 // =============================================================================
-
-interface DirectoryEntry {
-    name: string;
-    isDirectory: boolean;
-    isFile: boolean;
-}
-
-interface FileChangeEvent {
-    type: 'create' | 'modify' | 'remove' | 'rename' | 'any';
-    paths: string[];
-}
-
-interface NativeFS {
-    listDirectoryDetailed(path: string): Promise<DirectoryEntry[]>;
-    watchDirectory(
-        path: string,
-        callback: (event: FileChangeEvent) => void,
-        options?: { recursive?: boolean }
-    ): Promise<() => void>;
-    openFolder(path: string): Promise<boolean>;
-}
 
 interface NativeShell {
     openFile(path: string): Promise<void>;
@@ -69,16 +50,6 @@ function getNativeFS(): NativeFS | null {
 
 function getNativeShell(): NativeShell | null {
     return getEditorContext().shell ?? null;
-}
-
-function joinPath(...parts: string[]): string {
-    return parts.join('/').replace(/\\/g, '/').replace(/\/+/g, '/');
-}
-
-function getParentPath(path: string): string {
-    const normalized = path.replace(/\\/g, '/');
-    const lastSlash = normalized.lastIndexOf('/');
-    return lastSlash > 0 ? normalized.substring(0, lastSlash) : normalized;
 }
 
 function getFileExtension(filename: string): string {
@@ -176,7 +147,7 @@ export class ContentBrowserPanel {
         this.onOpenScene_ = options?.onOpenScene ?? null;
 
         if (this.projectPath_) {
-            this.currentPath_ = getParentPath(this.projectPath_);
+            this.currentPath_ = getParentDir(this.projectPath_);
         }
 
         this.container_.classList.add('es-content-browser');
@@ -276,7 +247,7 @@ export class ContentBrowserPanel {
     }
 
     private async loadProjectDirectory(): Promise<void> {
-        const projectDir = getParentPath(this.projectPath_!);
+        const projectDir = getParentDir(this.projectPath_!);
         this.currentPath_ = projectDir;
 
         this.rootFolder_ = {
@@ -326,7 +297,7 @@ export class ContentBrowserPanel {
         const fs = getNativeFS();
         if (!fs || !this.projectPath_) return;
 
-        const projectDir = getParentPath(this.projectPath_);
+        const projectDir = getParentDir(this.projectPath_);
 
         try {
             this.unwatchFn_ = await fs.watchDirectory(
@@ -504,7 +475,7 @@ export class ContentBrowserPanel {
 
     private showAssetContextMenu(e: MouseEvent, path: string, type: AssetItem['type']): void {
         const fs = getNativeFS();
-        const parentPath = getParentPath(path);
+        const parentPath = getParentDir(path);
         const fileName = path.split('/').pop() ?? path;
 
         showContextMenu({

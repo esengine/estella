@@ -6,16 +6,12 @@
 import type { ESEngineModule } from 'esengine';
 import type { AssetPathResolver } from './AssetPathResolver';
 import { getEditorContext } from '../context/EditorContext';
+import type { NativeFS } from '../types/NativeFS';
 
 interface DecodedImage {
     width: number;
     height: number;
     data: Uint8Array;
-}
-
-interface NativeFS {
-    readFile(path: string): Promise<string | null>;
-    readBinaryFile(path: string): Promise<Uint8Array | null>;
 }
 
 export interface LoadResult {

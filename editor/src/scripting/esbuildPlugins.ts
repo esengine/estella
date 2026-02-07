@@ -5,31 +5,18 @@
 
 import type * as esbuild from 'esbuild-wasm';
 import type { NativeFS } from './types';
+import { normalizePath, joinPath, getParentDir } from '../utils/path';
 
 // =============================================================================
 // Path Utilities
 // =============================================================================
-
-function normalizePath(path: string): string {
-    return path.replace(/\\/g, '/');
-}
-
-function joinPath(...parts: string[]): string {
-    return normalizePath(parts.join('/').replace(/\/+/g, '/'));
-}
-
-function dirname(path: string): string {
-    const normalized = normalizePath(path);
-    const lastSlash = normalized.lastIndexOf('/');
-    return lastSlash > 0 ? normalized.substring(0, lastSlash) : normalized;
-}
 
 function resolvePath(from: string, to: string): string {
     if (!to.startsWith('.')) {
         return to;
     }
 
-    const fromDir = dirname(from);
+    const fromDir = getParentDir(from);
     const parts = fromDir.split('/');
     const toParts = to.split('/');
 
@@ -208,7 +195,7 @@ export function virtualFsPlugin(options: VirtualFsPluginOptions): esbuild.Plugin
                 return {
                     contents: content,
                     loader,
-                    resolveDir: dirname(args.path),
+                    resolveDir: getParentDir(args.path),
                 };
             });
         },
