@@ -293,7 +293,9 @@ public:
      * @param color Color tint (defaults to white)
      */
     void drawQuad(const glm::vec2& position, const glm::vec2& size,
-                  u32 textureId, const glm::vec4& color = glm::vec4(1.0f));
+                  u32 textureId, const glm::vec4& color = glm::vec4(1.0f),
+                  const glm::vec2& uvOffset = glm::vec2(0.0f),
+                  const glm::vec2& uvScale = glm::vec2(1.0f));
 
     /**
      * @brief Draws a textured quad at a 3D position
@@ -301,9 +303,13 @@ public:
      * @param size Width and height
      * @param textureId GPU texture handle
      * @param color Color tint (defaults to white)
+     * @param uvOffset UV offset for atlas mapping
+     * @param uvScale UV scale for atlas mapping
      */
     void drawQuad(const glm::vec3& position, const glm::vec2& size,
-                  u32 textureId, const glm::vec4& color = glm::vec4(1.0f));
+                  u32 textureId, const glm::vec4& color = glm::vec4(1.0f),
+                  const glm::vec2& uvOffset = glm::vec2(0.0f),
+                  const glm::vec2& uvScale = glm::vec2(1.0f));
 
     // =========================================================================
     // Colored Quads
@@ -342,7 +348,9 @@ public:
      */
     void drawRotatedQuad(const glm::vec2& position, const glm::vec2& size,
                          f32 rotation, u32 textureId,
-                         const glm::vec4& tintColor = glm::vec4(1.0f));
+                         const glm::vec4& tintColor = glm::vec4(1.0f),
+                         const glm::vec2& uvOffset = glm::vec2(0.0f),
+                         const glm::vec2& uvScale = glm::vec2(1.0f));
 
     // =========================================================================
     // Nine-Slice Rendering
@@ -362,7 +370,9 @@ public:
                        u32 textureId, const glm::vec2& texSize,
                        const resource::SliceBorder& border,
                        const glm::vec4& color = glm::vec4(1.0f),
-                       f32 rotation = 0.0f);
+                       f32 rotation = 0.0f,
+                       const glm::vec2& uvOffset = glm::vec2(0.0f),
+                       const glm::vec2& uvScale = glm::vec2(1.0f));
 
     // =========================================================================
     // Configuration

@@ -374,7 +374,9 @@ void RenderFrame::renderSprites(const std::vector<RenderItem*>& items) {
                 item->texture_size,
                 border,
                 item->color,
-                angle
+                angle,
+                item->uv_offset,
+                item->uv_scale
             );
         } else if (std::abs(angle) > 0.001f) {
             batcher_->drawRotatedQuad(
@@ -382,14 +384,18 @@ void RenderFrame::renderSprites(const std::vector<RenderItem*>& items) {
                 finalSize,
                 angle,
                 item->texture_id,
-                item->color
+                item->color,
+                item->uv_offset,
+                item->uv_scale
             );
         } else {
             batcher_->drawQuad(
                 glm::vec3(position.x, position.y, item->depth),
                 finalSize,
                 item->texture_id,
-                item->color
+                item->color,
+                item->uv_offset,
+                item->uv_scale
             );
         }
     }

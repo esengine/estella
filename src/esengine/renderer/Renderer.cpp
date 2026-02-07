@@ -402,9 +402,9 @@ void BatchRenderer2D::flush() {
         static_cast<u32>(data_->vertices.size() * sizeof(BatchVertex))
     );
 
-    for (u32 i = 0; i < data_->textureSlotIndex; ++i) {
+    for (u32 i = 0; i < MAX_TEXTURE_SLOTS; ++i) {
         glActiveTexture(GL_TEXTURE0 + i);
-        glBindTexture(GL_TEXTURE_2D, data_->textureSlots[i]);
+        glBindTexture(GL_TEXTURE_2D, i < data_->textureSlotIndex ? data_->textureSlots[i] : data_->textureSlots[0]);
     }
 
     shader->bind();
@@ -424,18 +424,18 @@ void BatchRenderer2D::flush() {
 }
 
 void BatchRenderer2D::drawQuad(const glm::vec2& position, const glm::vec2& size,
-                                u32 textureId, const glm::vec4& color) {
-    drawQuad(glm::vec3(position, 0.0f), size, textureId, color);
+                                u32 textureId, const glm::vec4& color,
+                                const glm::vec2& uvOffset, const glm::vec2& uvScale) {
+    drawQuad(glm::vec3(position, 0.0f), size, textureId, color, uvOffset, uvScale);
 }
 
 void BatchRenderer2D::drawQuad(const glm::vec3& position, const glm::vec2& size,
-                                u32 textureId, const glm::vec4& color) {
-    // Check if batch is full
+                                u32 textureId, const glm::vec4& color,
+                                const glm::vec2& uvOffset, const glm::vec2& uvScale) {
     if (data_->vertices.size() >= MAX_VERTICES) {
         flush();
     }
 
-    // Find or add texture slot
     f32 texIndex = 0.0f;
     if (textureId != 0) {
         bool found = false;
@@ -456,16 +456,14 @@ void BatchRenderer2D::drawQuad(const glm::vec3& position, const glm::vec2& size,
         }
     }
 
-    // Calculate transform
     glm::mat4 transform = glm::translate(glm::mat4(1.0f), position);
     transform = glm::scale(transform, glm::vec3(size, 1.0f));
 
-    // Add 4 vertices for quad
     for (u32 i = 0; i < 4; ++i) {
         BatchVertex vertex;
         vertex.position = glm::vec3(transform * QUAD_POSITIONS[i]);
         vertex.color = color;
-        vertex.texCoord = QUAD_TEX_COORDS[i];
+        vertex.texCoord = QUAD_TEX_COORDS[i] * uvScale + uvOffset;
         vertex.texIndex = texIndex;
         data_->vertices.push_back(vertex);
     }
@@ -485,13 +483,12 @@ void BatchRenderer2D::drawRotatedQuad(const glm::vec2& position, const glm::vec2
 }
 
 void BatchRenderer2D::drawRotatedQuad(const glm::vec2& position, const glm::vec2& size,
-                                       f32 rotation, u32 textureId, const glm::vec4& tintColor) {
-    // Check if batch is full
+                                       f32 rotation, u32 textureId, const glm::vec4& tintColor,
+                                       const glm::vec2& uvOffset, const glm::vec2& uvScale) {
     if (data_->vertices.size() >= MAX_VERTICES) {
         flush();
     }
 
-    // Find or add texture slot
     f32 texIndex = 0.0f;
     if (textureId != 0) {
         bool found = false;
@@ -512,17 +509,15 @@ void BatchRenderer2D::drawRotatedQuad(const glm::vec2& position, const glm::vec2
         }
     }
 
-    // Calculate transform with rotation
     glm::mat4 transform = glm::translate(glm::mat4(1.0f), glm::vec3(position, 0.0f));
     transform = glm::rotate(transform, rotation, glm::vec3(0.0f, 0.0f, 1.0f));
     transform = glm::scale(transform, glm::vec3(size, 1.0f));
 
-    // Add 4 vertices for quad
     for (u32 i = 0; i < 4; ++i) {
         BatchVertex vertex;
         vertex.position = glm::vec3(transform * QUAD_POSITIONS[i]);
         vertex.color = tintColor;
-        vertex.texCoord = QUAD_TEX_COORDS[i];
+        vertex.texCoord = QUAD_TEX_COORDS[i] * uvScale + uvOffset;
         vertex.texIndex = texIndex;
         data_->vertices.push_back(vertex);
     }
@@ -539,15 +534,13 @@ void BatchRenderer2D::drawNineSlice(const glm::vec2& position, const glm::vec2& 
                                      u32 textureId, const glm::vec2& texSize,
                                      const resource::SliceBorder& border,
                                      const glm::vec4& color,
-                                     f32 rotation) {
-    // Extract border values
+                                     f32 rotation,
+                                     const glm::vec2& uvOffset, const glm::vec2& uvScale) {
     f32 L = border.left;
     f32 R = border.right;
     f32 T = border.top;
     f32 B = border.bottom;
 
-    // Calculate position splits (from left edge of sprite)
-    // Sprite is centered at position, so left edge is at position.x - size.x/2
     f32 baseX = position.x - size.x * 0.5f;
     f32 baseY = position.y - size.y * 0.5f;
 
@@ -561,16 +554,15 @@ void BatchRenderer2D::drawNineSlice(const glm::vec2& position, const glm::vec2& 
     f32 y2 = baseY + size.y - T;
     f32 y3 = baseY + size.y;
 
-    // Calculate UV splits
-    f32 u0 = 0.0f;
-    f32 u1 = L / texSize.x;
-    f32 u2 = 1.0f - R / texSize.x;
-    f32 u3 = 1.0f;
+    f32 u0 = uvOffset.x;
+    f32 u1 = uvOffset.x + (L / texSize.x) * uvScale.x;
+    f32 u2 = uvOffset.x + (1.0f - R / texSize.x) * uvScale.x;
+    f32 u3 = uvOffset.x + uvScale.x;
 
-    f32 v0 = 0.0f;
-    f32 v1 = B / texSize.y;
-    f32 v2 = 1.0f - T / texSize.y;
-    f32 v3 = 1.0f;
+    f32 v0 = uvOffset.y;
+    f32 v1 = uvOffset.y + (B / texSize.y) * uvScale.y;
+    f32 v2 = uvOffset.y + (1.0f - T / texSize.y) * uvScale.y;
+    f32 v3 = uvOffset.y + uvScale.y;
 
     // Precompute rotation sin/cos
     f32 cosR = std::cos(rotation);
