@@ -11,6 +11,18 @@ export function registerBoundsProvider(componentType: string, provider: BoundsPr
     providers.set(componentType, provider);
 }
 
+const builtinProviderTypes = new Set<string>();
+
+export function lockBuiltinBoundsProviders(): void {
+    for (const type of providers.keys()) builtinProviderTypes.add(type);
+}
+
+export function clearExtensionBoundsProviders(): void {
+    for (const type of providers.keys()) {
+        if (!builtinProviderTypes.has(type)) providers.delete(type);
+    }
+}
+
 export function getEntityBounds(components: { type: string; data: any }[]): Bounds {
     for (const comp of components) {
         const provider = providers.get(comp.type);

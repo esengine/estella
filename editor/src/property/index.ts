@@ -11,6 +11,8 @@ export {
     registerPropertyEditor,
     getPropertyEditor,
     createPropertyEditor,
+    lockBuiltinPropertyEditors,
+    clearExtensionPropertyEditors,
 } from './PropertyEditor';
 
 export { registerBuiltinEditors } from './editors';

@@ -209,6 +209,18 @@ export function getComponentsByCategory(): ComponentsByCategory {
     return result;
 }
 
+const builtinSchemaNames = new Set<string>();
+
+export function lockBuiltinComponentSchemas(): void {
+    for (const name of schemaRegistry.keys()) builtinSchemaNames.add(name);
+}
+
+export function clearExtensionComponentSchemas(): void {
+    for (const name of schemaRegistry.keys()) {
+        if (!builtinSchemaNames.has(name)) schemaRegistry.delete(name);
+    }
+}
+
 export function clearScriptComponents(): void {
     for (const [name, schema] of schemaRegistry.entries()) {
         if (schema.category === 'script' || schema.category === 'tag') {
@@ -244,7 +256,7 @@ function registerUserComponent(
 
 function exposeRegistrationAPI(): void {
     if (typeof window !== 'undefined') {
-        (window as any).__esengine_registerComponent = registerUserComponent;
+        window.__esengine_registerComponent = registerUserComponent;
     }
 }
 

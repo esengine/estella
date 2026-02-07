@@ -50,6 +50,18 @@ export function getPropertyEditor(type: string): PropertyEditorFactory | undefin
     return editorRegistry.get(type);
 }
 
+const builtinEditorTypes = new Set<string>();
+
+export function lockBuiltinPropertyEditors(): void {
+    for (const type of editorRegistry.keys()) builtinEditorTypes.add(type);
+}
+
+export function clearExtensionPropertyEditors(): void {
+    for (const type of editorRegistry.keys()) {
+        if (!builtinEditorTypes.has(type)) editorRegistry.delete(type);
+    }
+}
+
 export function createPropertyEditor(
     container: HTMLElement,
     ctx: PropertyEditorContext

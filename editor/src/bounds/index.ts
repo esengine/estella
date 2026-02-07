@@ -4,7 +4,7 @@
  */
 
 export * from './BoundsProvider';
-export * from './BoundsRegistry';
+export { registerBoundsProvider, getEntityBounds, lockBuiltinBoundsProviders, clearExtensionBoundsProviders } from './BoundsRegistry';
 
 import { registerBoundsProvider } from './BoundsRegistry';
 import { spriteBoundsProvider } from './SpriteBoundsProvider';

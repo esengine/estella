@@ -72,9 +72,24 @@ export function isOutputAppendable(p: PanelInstance): p is PanelInstance & Outpu
 }
 
 const panels = new Map<string, PanelDescriptor>();
+const builtinPanelIds = new Set<string>();
 
 export function registerPanel(descriptor: PanelDescriptor): void {
     panels.set(descriptor.id, descriptor);
+}
+
+export function lockBuiltinPanels(): void {
+    for (const id of panels.keys()) builtinPanelIds.add(id);
+}
+
+export function clearExtensionPanels(): void {
+    for (const id of panels.keys()) {
+        if (!builtinPanelIds.has(id)) panels.delete(id);
+    }
+}
+
+export function isBuiltinPanel(id: string): boolean {
+    return builtinPanelIds.has(id);
 }
 
 export function getPanel(id: string): PanelDescriptor | undefined {

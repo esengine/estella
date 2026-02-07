@@ -57,7 +57,8 @@ const EDITOR_SHIM_EXPORTS = [
     'getEditorInstance', 'getEditorStore',
     'Draw', 'Geometry', 'Material', 'BlendMode', 'DataType', 'ShaderSources',
     'PostProcess', 'Renderer', 'RenderStage',
-    'registerDrawCallback', 'unregisterDrawCallback', 'clearDrawCallbacks',
+    'registerDrawCallback', 'unregisterDrawCallback',
+    'onDispose',
 ] as const;
 
 const EDITOR_SHIM_CODE = EDITOR_SHIM_EXPORTS.map(

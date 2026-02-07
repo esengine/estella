@@ -13,4 +13,6 @@ export {
     getComponentSchema,
     getAllComponentSchemas,
     registerBuiltinSchemas,
+    lockBuiltinComponentSchemas,
+    clearExtensionComponentSchemas,
 } from './ComponentSchemas';

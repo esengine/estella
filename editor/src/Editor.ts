@@ -22,12 +22,16 @@ import {
     isAssetServerProvider,
     isAssetNavigable,
     isOutputAppendable,
+    lockBuiltinPanels,
+    clearExtensionPanels,
+    isBuiltinPanel,
 } from './panels/PanelRegistry';
 import { registerBuiltinPanels } from './panels/builtinPanels';
 import { registerBuiltinEditors } from './property/editors';
 import { registerMaterialEditors } from './property/materialEditors';
-import { registerBuiltinSchemas } from './schemas/ComponentSchemas';
-import { initBoundsProviders, registerBoundsProvider } from './bounds';
+import { lockBuiltinPropertyEditors, clearExtensionPropertyEditors } from './property/PropertyEditor';
+import { registerBuiltinSchemas, lockBuiltinComponentSchemas, clearExtensionComponentSchemas } from './schemas/ComponentSchemas';
+import { initBoundsProviders, registerBoundsProvider, lockBuiltinBoundsProviders, clearExtensionBoundsProviders } from './bounds';
 import { saveSceneToFile, saveSceneToPath, loadSceneFromFile, loadSceneFromPath, hasFileHandle, clearFileHandle } from './io/SceneSerializer';
 import { icons } from './utils/icons';
 import { ScriptLoader } from './scripting';
@@ -38,10 +42,11 @@ import type { EditorAssetServer } from './asset/EditorAssetServer';
 import { setEditorInstance, getEditorContext, getEditorInstance } from './context/EditorContext';
 import { getAllMenus, getMenuItems, getAllStatusbarItems, registerBuiltinMenus } from './menus';
 import { ShortcutManager } from './menus/ShortcutManager';
-import { registerBuiltinGizmos, registerGizmo } from './gizmos';
+import { registerBuiltinGizmos, registerGizmo, lockBuiltinGizmos, clearExtensionGizmos } from './gizmos';
 import { registerBuiltinStatusbarItems } from './menus/builtinStatusbar';
 import { ExtensionLoader } from './extension';
-import { registerMenu, registerMenuItem, registerStatusbarItem } from './menus/MenuRegistry';
+import { setEditorAPI, clearEditorAPI } from './extension/editorAPI';
+import { registerMenu, registerMenuItem, registerStatusbarItem, lockBuiltinMenus, clearExtensionMenus } from './menus/MenuRegistry';
 import { registerPropertyEditor } from './property';
 import { registerComponentSchema } from './schemas';
 import { showToast, showSuccessToast, showErrorToast } from './ui/Toast';
@@ -70,6 +75,7 @@ export class Editor {
 
     private panelInstances_ = new Map<string, PanelInstance>();
     private statusbarInstances_: Array<{ dispose(): void; update?(): void }> = [];
+    private baseAPI_: Record<string, unknown> | null = null;
     private scriptLoader_: ScriptLoader | null = null;
     private extensionLoader_: ExtensionLoader | null = null;
     private previewService_: PreviewService | null = null;
@@ -93,6 +99,12 @@ export class Editor {
             onOpenScene: (scenePath) => this.openSceneFromPath(scenePath),
         });
         registerBuiltinMenus(this);
+        lockBuiltinPanels();
+        lockBuiltinMenus();
+        lockBuiltinGizmos();
+        lockBuiltinPropertyEditors();
+        lockBuiltinComponentSchemas();
+        lockBuiltinBoundsProviders();
 
         this.setupLayout();
 
@@ -329,7 +341,7 @@ export class Editor {
     // =========================================================================
 
     private setupEditorGlobals(): void {
-        (window as any).__ESENGINE_EDITOR__ = {
+        this.baseAPI_ = {
             registerPanel,
             registerMenuItem,
             registerMenu,
@@ -360,31 +372,55 @@ export class Editor {
             unregisterDrawCallback,
             clearDrawCallbacks,
         };
+        setEditorAPI(this.baseAPI_);
     }
 
     private async initializeExtensions(): Promise<void> {
-        if (!this.projectPath_) return;
+        if (!this.projectPath_ || !this.baseAPI_) return;
 
         this.extensionLoader_ = new ExtensionLoader({
             projectPath: this.projectPath_,
+            baseAPI: this.baseAPI_,
             onCompileError: (errors) => {
                 console.error('Extension compilation errors:', errors);
+                const msg = errors.map(e => `${e.file}:${e.line} - ${e.message}`).join('\n');
+                showErrorToast(`Extension compile failed:\n${msg}`);
             },
             onCompileSuccess: () => {
                 console.log('Extensions compiled successfully');
             },
+            onCleanup: () => this.cleanupExtensionUI(),
+            onAfterReload: () => this.applyExtensionUI(),
         });
 
         try {
             await this.extensionLoader_.initialize();
-            const compiled = await this.extensionLoader_.compile();
-            if (compiled) {
-                await this.extensionLoader_.execute();
-                this.applyExtensionUI();
-            }
+            await this.extensionLoader_.reload();
+            await this.extensionLoader_.watch();
         } catch (err) {
             console.error('Failed to initialize extensions:', err);
         }
+    }
+
+    private cleanupExtensionUI(): void {
+        for (const [id, instance] of this.panelInstances_) {
+            if (isBuiltinPanel(id)) continue;
+            instance.dispose();
+            this.panelInstances_.delete(id);
+            this.container_.querySelector(`[data-panel-id="${id}"]`)?.remove();
+        }
+
+        this.container_.querySelectorAll('[data-statusbar-id^="toggle-"]').forEach(el => {
+            const panelId = el.getAttribute('data-statusbar-id')?.replace('toggle-', '');
+            if (panelId && !isBuiltinPanel(panelId)) el.remove();
+        });
+
+        clearExtensionPanels();
+        clearExtensionMenus();
+        clearExtensionGizmos();
+        clearExtensionPropertyEditors();
+        clearExtensionComponentSchemas();
+        clearExtensionBoundsProviders();
     }
 
     private applyExtensionUI(): void {
@@ -518,11 +554,7 @@ export class Editor {
             return false;
         }
 
-        const success = await this.extensionLoader_.reload();
-        if (success) {
-            this.applyExtensionUI();
-        }
-        return success;
+        return this.extensionLoader_.reload();
     }
 
     // =========================================================================
@@ -610,17 +642,48 @@ export class Editor {
             error: console.error.bind(console),
         };
 
-        const forward = (type: 'stdout' | 'stderr' | 'error', args: unknown[]) => {
-            const text = args.map(a =>
-                typeof a === 'string' ? a : JSON.stringify(a, null, 2) ?? String(a)
-            ).join(' ');
+        const formatArg = (a: unknown): string => {
+            if (typeof a === 'string') return a;
+            if (a instanceof Error) return `${a.name}: ${a.message}`;
+            return JSON.stringify(a, null, 2) ?? String(a);
+        };
+        const formatArgs = (args: unknown[]) => args.map(formatArg).join(' ');
+
+        const cleanStack = (raw: string | undefined): string => {
+            if (!raw) return '';
+            return raw.split('\n')
+                .filter(line => {
+                    const t = line.trim();
+                    if (!t || t === 'Error') return false;
+                    if (t.includes('/editor/dist/')) return false;
+                    return true;
+                })
+                .map(line => line
+                    .replace(/https?:\/\/[^/]+\/@fs/g, '')
+                    .replace(/blob:https?:\/\/[^/]+\/[a-f0-9-]+/g, '<extension>')
+                )
+                .join('\n');
+        };
+
+        const INTERNAL_PREFIXES = [
+            '[TAURI]', '[INFO]', 'File change:',
+        ];
+
+        const forward = (type: 'stdout' | 'stderr' | 'error', args: unknown[], stack?: string) => {
+            const first = typeof args[0] === 'string' ? args[0] : '';
+            if (INTERNAL_PREFIXES.some(p => first.startsWith(p))) return;
+
+            let text = formatArgs(args);
+            if (stack) {
+                text += '\n' + stack;
+            }
             this.appendOutput(text + '\n', type);
         };
 
         console.log = (...args) => { original.log(...args); forward('stdout', args); };
         console.info = (...args) => { original.info(...args); forward('stdout', args); };
-        console.warn = (...args) => { original.warn(...args); forward('stderr', args); };
-        console.error = (...args) => { original.error(...args); forward('error', args); };
+        console.warn = (...args) => { original.warn(...args); forward('stderr', args, cleanStack(new Error().stack)); };
+        console.error = (...args) => { original.error(...args); forward('error', args, cleanStack(new Error().stack)); };
     }
 
     private appendOutput(text: string, type: 'command' | 'stdout' | 'stderr' | 'error' | 'success'): void {
@@ -898,7 +961,7 @@ export class Editor {
             panel.dispose();
         }
         this.panelInstances_.clear();
-        delete (window as any).__ESENGINE_EDITOR__;
+        clearEditorAPI();
     }
 }
 
