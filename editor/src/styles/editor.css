@@ -1488,6 +1488,11 @@ svg {
     background: var(--es-bg-primary);
 }
 
+.es-editor-bottom > .es-panel-container {
+    flex: 1;
+    overflow: hidden;
+}
+
 .es-content-browser-container,
 .es-output-container {
     flex: 1;
@@ -1897,6 +1902,8 @@ svg {
     padding: 8px;
     font-family: 'Consolas', 'Monaco', monospace;
     font-size: 12px;
+    user-select: text;
+    cursor: text;
 }
 
 .es-output-empty {

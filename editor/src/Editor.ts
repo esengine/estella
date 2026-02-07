@@ -602,6 +602,27 @@ export class Editor {
         }
     }
 
+    private installConsoleCapture(): void {
+        const original = {
+            log: console.log.bind(console),
+            info: console.info.bind(console),
+            warn: console.warn.bind(console),
+            error: console.error.bind(console),
+        };
+
+        const forward = (type: 'stdout' | 'stderr' | 'error', args: unknown[]) => {
+            const text = args.map(a =>
+                typeof a === 'string' ? a : JSON.stringify(a, null, 2) ?? String(a)
+            ).join(' ');
+            this.appendOutput(text + '\n', type);
+        };
+
+        console.log = (...args) => { original.log(...args); forward('stdout', args); };
+        console.info = (...args) => { original.info(...args); forward('stdout', args); };
+        console.warn = (...args) => { original.warn(...args); forward('stderr', args); };
+        console.error = (...args) => { original.error(...args); forward('error', args); };
+    }
+
     private appendOutput(text: string, type: 'command' | 'stdout' | 'stderr' | 'error' | 'success'): void {
         const outputPanel = this.panelInstances_.get('output');
         if (outputPanel && isOutputAppendable(outputPanel)) {
@@ -646,6 +667,7 @@ export class Editor {
         this.setupToolbarEvents();
         this.store_.subscribe(() => this.updateToolbarState());
         this.store_.subscribe(() => this.updateStatusbar());
+        this.installConsoleCapture();
     }
 
     private buildTabBarHTML(): string {
