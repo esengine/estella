@@ -8,6 +8,7 @@ dist/
 src/**/*.js
 src/**/*.js.map
 src/**/*.d.ts
+!src/globals.d.ts
 
 # Example build outputs (keep esengine.js and wasm for demo)
 examples/**/*.js

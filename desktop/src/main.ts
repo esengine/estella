@@ -34,7 +34,7 @@ async function loadWasmModule(): Promise<ESEngineModule | null> {
         await loadScript('/wasm/esengine.js');
 
         await new Promise<void>((resolve, reject) => {
-            if ((window as any).__ESEngineModule) {
+            if (window.__ESEngineModule) {
                 resolve();
                 return;
             }
@@ -49,7 +49,7 @@ async function loadWasmModule(): Promise<ESEngineModule | null> {
             }, { once: true });
         });
 
-        const createModule = (window as any).__ESEngineModule;
+        const createModule = window.__ESEngineModule;
         if (typeof createModule !== 'function') {
             console.warn('WebGL preview disabled: ESEngineModule not available');
             return null;

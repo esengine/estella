@@ -318,7 +318,7 @@ export class SpineController {
 
     private setupEventBridge(): void {
         if (typeof window !== 'undefined') {
-            (window as any).__esengine_spineEvent = (entity: Entity, eventData: any) => {
+            window.__esengine_spineEvent = (entity: Entity, eventData: any) => {
                 this.dispatchEvent(entity, eventData);
             };
         }

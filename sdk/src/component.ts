@@ -55,8 +55,8 @@ function registerToEditor(
     defaults: Record<string, unknown>,
     isTag: boolean
 ): void {
-    if (typeof window !== 'undefined' && (window as any).__esengine_registerComponent) {
-        (window as any).__esengine_registerComponent(name, defaults, isTag);
+    if (typeof window !== 'undefined' && window.__esengine_registerComponent) {
+        window.__esengine_registerComponent(name, defaults, isTag);
     }
 }
 
