@@ -524,7 +524,7 @@ const WorldTransform = defineBuiltin('WorldTransform', {
     scale: { x: 1, y: 1, z: 1 }
 });
 const Sprite = defineBuiltin('Sprite', {
-    texture: 0,
+    texture: INVALID_TEXTURE,
     color: { x: 1, y: 1, z: 1, w: 1 },
     size: { x: 32, y: 32 },
     uvOffset: { x: 0, y: 0 },
@@ -1497,7 +1497,7 @@ class TextPlugin {
                     continue;
                 if (!world.has(entity, Sprite)) {
                     world.insert(entity, Sprite, {
-                        texture: 0,
+                        texture: INVALID_TEXTURE,
                         size: { x: 0, y: 0 },
                         color: { x: 1, y: 1, z: 1, w: 1 },
                         anchor: { x: 0.5, y: 0.5 },
@@ -2698,6 +2698,9 @@ const Renderer = {
     getTargetTexture(handle) {
         return module$1?.renderer_getTargetTexture(handle) ?? 0;
     },
+    setClearColor(r, g, b, a) {
+        module$1?.renderer_setClearColor(r, g, b, a);
+    },
     getStats() {
         if (!module$1) {
             return { drawCalls: 0, triangles: 0, sprites: 0, spine: 0, meshes: 0, culled: 0 };
@@ -2712,6 +2715,62 @@ const Renderer = {
         };
     },
 };
+
+/**
+ * @file    customDraw.ts
+ * @brief   Custom draw callback registration for the render pipeline
+ */
+const callbacks = new Map();
+function registerDrawCallback(id, fn) {
+    callbacks.set(id, fn);
+}
+function unregisterDrawCallback(id) {
+    callbacks.delete(id);
+}
+function clearDrawCallbacks() {
+    callbacks.clear();
+}
+function getDrawCallbacks() {
+    return callbacks;
+}
+
+/**
+ * @file    renderPipeline.ts
+ * @brief   Unified render pipeline for runtime and editor
+ */
+class RenderPipeline {
+    render(params) {
+        const { registry, viewProjection, width, height, elapsed } = params;
+        Renderer.resize(width, height);
+        const usePostProcess = PostProcess.isInitialized()
+            && PostProcess.getPassCount() > 0
+            && !PostProcess.isBypassed();
+        if (usePostProcess) {
+            PostProcess.resize(width, height);
+            PostProcess.begin();
+        }
+        Renderer.begin(viewProjection);
+        Renderer.submitSprites(registry);
+        Renderer.submitSpine(registry);
+        Renderer.end();
+        const cbs = getDrawCallbacks();
+        if (cbs.size > 0) {
+            Draw.begin(viewProjection);
+            for (const fn of cbs.values()) {
+                try {
+                    fn(elapsed);
+                }
+                catch (e) {
+                    console.warn('[CustomDraw]', e);
+                }
+            }
+            Draw.end();
+        }
+        if (usePostProcess) {
+            PostProcess.end();
+        }
+    }
+}
 
 /**
  * @file    app.ts
@@ -2865,6 +2924,8 @@ function createWebApp(module, options) {
     initGeometryAPI(module);
     initPostProcessAPI(module);
     initRendererAPI(module);
+    const pipeline = new RenderPipeline();
+    let startTime = performance.now();
     const getViewportSize = options?.getViewportSize ?? (() => ({
         width: window.innerWidth * (window.devicePixelRatio || 1),
         height: window.innerHeight * (window.devicePixelRatio || 1)
@@ -2875,12 +2936,102 @@ function createWebApp(module, options) {
         _params: [],
         _fn: () => {
             const { width, height } = getViewportSize();
-            module.renderFrame(cppRegistry, width, height);
+            const vp = computeViewProjection(cppRegistry, width, height);
+            const elapsed = (performance.now() - startTime) / 1000;
+            pipeline.render({
+                registry: { _cpp: cppRegistry },
+                viewProjection: vp,
+                width, height, elapsed,
+            });
         }
     };
     app.addSystemToSchedule(Schedule.Last, renderSystem);
     app.addPlugin(textPlugin);
     return app;
+}
+// =============================================================================
+// View-Projection Computation
+// =============================================================================
+const IDENTITY = new Float32Array([
+    1, 0, 0, 0,
+    0, 1, 0, 0,
+    0, 0, 1, 0,
+    0, 0, 0, 1,
+]);
+function computeViewProjection(registry, width, height) {
+    const count = registry.entityCount();
+    const scanLimit = count + 1000;
+    for (let e = 0; e < scanLimit; e++) {
+        if (!registry.valid(e) || !registry.hasCamera(e) || !registry.hasLocalTransform(e)) {
+            continue;
+        }
+        const camera = registry.getCamera(e);
+        if (!camera.isActive)
+            continue;
+        const transform = registry.getLocalTransform(e);
+        const aspect = width / height;
+        let projection;
+        if (camera.projectionType === 1) {
+            const halfH = camera.orthoSize;
+            const halfW = halfH * aspect;
+            projection = ortho(-halfW, halfW, -halfH, halfH, camera.nearPlane, camera.farPlane);
+        }
+        else {
+            projection = perspective(camera.fov * Math.PI / 180, aspect, camera.nearPlane, camera.farPlane);
+        }
+        const view = invertTranslation(transform.position.x, transform.position.y, transform.position.z);
+        return multiply(projection, view);
+    }
+    return IDENTITY;
+}
+function ortho(left, right, bottom, top, near, far) {
+    const m = new Float32Array(16);
+    const rl = right - left;
+    const tb = top - bottom;
+    const fn = far - near;
+    m[0] = 2 / rl;
+    m[5] = 2 / tb;
+    m[10] = -2 / fn;
+    m[12] = -(right + left) / rl;
+    m[13] = -(top + bottom) / tb;
+    m[14] = -(far + near) / fn;
+    m[15] = 1;
+    return m;
+}
+function perspective(fovRad, aspect, near, far) {
+    const m = new Float32Array(16);
+    const f = 1.0 / Math.tan(fovRad / 2);
+    const nf = near - far;
+    m[0] = f / aspect;
+    m[5] = f;
+    m[10] = (far + near) / nf;
+    m[11] = -1;
+    m[14] = (2 * far * near) / nf;
+    return m;
+}
+function invertTranslation(x, y, z) {
+    const m = new Float32Array(16);
+    m[0] = 1;
+    m[5] = 1;
+    m[10] = 1;
+    m[15] = 1;
+    m[12] = -x;
+    m[13] = -y;
+    m[14] = -z;
+    return m;
+}
+function multiply(a, b) {
+    const m = new Float32Array(16);
+    for (let i = 0; i < 4; i++) {
+        for (let j = 0; j < 4; j++) {
+            m[j * 4 + i] =
+                a[0 * 4 + i] * b[j * 4 + 0] +
+                    a[1 * 4 + i] * b[j * 4 + 1] +
+                    a[2 * 4 + i] * b[j * 4 + 2] +
+                    a[3 * 4 + i] * b[j * 4 + 3];
+        }
+    }
+    return m;
 }
 
 /**
@@ -4023,5 +4174,5 @@ function isRuntime() {
 initWeChatPlatform();
 setPlatform(wechatAdapter);
 
-export { App, AssetPlugin, AssetServer, Assets, AsyncCache, BlendMode, Camera, Canvas, Children, Commands, CommandsInstance, DataType, Draw, EntityCommands, Geometry, INVALID_ENTITY, INVALID_TEXTURE, Input, LocalTransform, Material, MaterialLoader, Mut, Parent, PostProcess, PreviewPlugin, Query, QueryInstance, RenderStage, Renderer, Res, ResMut, Schedule, ShaderSources, SpineAnimation, SpineController, Sprite, SystemRunner, Text, TextAlign, TextOverflow, TextPlugin, TextRenderer, TextVerticalAlign, Time, UIRect, Velocity, World, WorldTransform, assetPlugin, color, createSpineController, createWebApp, defineComponent, defineResource, defineSystem, defineTag, getComponentDefaults, getPlatform, getPlatformType, initDrawAPI, initGeometryAPI, initMaterialAPI, initPostProcessAPI, initRendererAPI, isBuiltinComponent, isEditor, isPlatformInitialized, isRuntime, isWeChat, isWeb, loadComponent, loadSceneData, loadSceneWithAssets, platformFetch, platformFileExists, platformInstantiateWasm, platformReadFile, platformReadTextFile, quat, registerMaterialCallback, setEditorMode, shutdownDrawAPI, shutdownGeometryAPI, shutdownMaterialAPI, shutdownPostProcessAPI, shutdownRendererAPI, textPlugin, updateCameraAspectRatio, vec2, vec3, vec4, wxFileExists, wxFileExistsSync, wxGetImagePixels, wxLoadImage, wxLoadImagePixels, wxReadFile, wxReadTextFile, wxWriteFile };
+export { App, AssetPlugin, AssetServer, Assets, AsyncCache, BlendMode, Camera, Canvas, Children, Commands, CommandsInstance, DataType, Draw, EntityCommands, Geometry, INVALID_ENTITY, INVALID_TEXTURE, Input, LocalTransform, Material, MaterialLoader, Mut, Parent, PostProcess, PreviewPlugin, Query, QueryInstance, RenderPipeline, RenderStage, Renderer, Res, ResMut, Schedule, ShaderSources, SpineAnimation, SpineController, Sprite, SystemRunner, Text, TextAlign, TextOverflow, TextPlugin, TextRenderer, TextVerticalAlign, Time, UIRect, Velocity, World, WorldTransform, assetPlugin, clearDrawCallbacks, color, createSpineController, createWebApp, defineComponent, defineResource, defineSystem, defineTag, getComponentDefaults, getPlatform, getPlatformType, initDrawAPI, initGeometryAPI, initMaterialAPI, initPostProcessAPI, initRendererAPI, isBuiltinComponent, isEditor, isPlatformInitialized, isRuntime, isWeChat, isWeb, loadComponent, loadSceneData, loadSceneWithAssets, platformFetch, platformFileExists, platformInstantiateWasm, platformReadFile, platformReadTextFile, quat, registerDrawCallback, registerMaterialCallback, setEditorMode, shutdownDrawAPI, shutdownGeometryAPI, shutdownMaterialAPI, shutdownPostProcessAPI, shutdownRendererAPI, textPlugin, unregisterDrawCallback, updateCameraAspectRatio, vec2, vec3, vec4, wxFileExists, wxFileExistsSync, wxGetImagePixels, wxLoadImage, wxLoadImagePixels, wxReadFile, wxReadTextFile, wxWriteFile };
 //# sourceMappingURL=index.wechat.js.map
