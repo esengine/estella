@@ -53,6 +53,7 @@ static bool g_initialized = false;
 static bool g_immediateDrawActive = false;
 static u32 g_viewportWidth = 1280;
 static u32 g_viewportHeight = 720;
+static glm::vec4 g_clearColor{0.0f, 0.0f, 0.0f, 1.0f};
 
 using GetMaterialCallback = void (*)(u32 materialId, u32* outShaderId, u32* outBlendMode,
                                      u32* outUniformBufferPtr, u32* outUniformCount);
@@ -868,7 +869,7 @@ void renderer_begin(uintptr_t matrixPtr, u32 targetHandle) {
     glm::mat4 viewProjection = glm::make_mat4(matrixData);
 
     glViewport(0, 0, g_viewportWidth, g_viewportHeight);
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClearColor(g_clearColor.r, g_clearColor.g, g_clearColor.b, g_clearColor.a);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     g_renderFrame->begin(viewProjection, targetHandle);
@@ -940,6 +941,10 @@ u32 renderer_getMeshes() {
 u32 renderer_getCulled() {
     if (!g_renderFrame) return 0;
     return g_renderFrame->stats().culled;
+}
+
+void renderer_setClearColor(f32 r, f32 g, f32 b, f32 a) {
+    g_clearColor = glm::vec4(r, g, b, a);
 }
 
 }  // namespace esengine
@@ -1033,6 +1038,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_getSpine", &esengine::renderer_getSpine);
     emscripten::function("renderer_getMeshes", &esengine::renderer_getMeshes);
     emscripten::function("renderer_getCulled", &esengine::renderer_getCulled);
+    emscripten::function("renderer_setClearColor", &esengine::renderer_setClearColor);
 }
 
 int main() {

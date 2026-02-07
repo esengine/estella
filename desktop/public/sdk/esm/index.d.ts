@@ -76,6 +76,7 @@ interface SpriteData {
     layer: number;
     flipX: boolean;
     flipY: boolean;
+    material: number;
 }
 interface CameraData {
     projectionType: number;
@@ -117,6 +118,7 @@ interface SpineAnimationData {
     color: Vec4;
     layer: number;
     skeletonScale: number;
+    material: number;
 }
 declare const LocalTransform: BuiltinComponentDef<LocalTransformData>;
 declare const WorldTransform: BuiltinComponentDef<WorldTransformData>;
@@ -128,6 +130,7 @@ declare const Parent: BuiltinComponentDef<ParentData>;
 declare const Children: BuiltinComponentDef<ChildrenData>;
 declare const SpineAnimation: BuiltinComponentDef<SpineAnimationData>;
 type ComponentData<C> = C extends BuiltinComponentDef<infer T> ? T : C extends ComponentDef<infer T> ? T : never;
+declare function getComponentDefaults(typeName: string): Record<string, unknown> | null;
 
 /**
  * @file    resource.ts
@@ -268,8 +271,11 @@ interface SpineBounds {
 interface ESEngineModule {
     Registry: new () => CppRegistry;
     HEAPU8: Uint8Array;
+    HEAPU32: Uint32Array;
     HEAPF32: Float32Array;
     FS: EmscriptenFS;
+    addFunction(func: (...args: any[]) => any, signature: string): number;
+    setMaterialCallback(callbackPtr: number): void;
     initRenderer(): void;
     initRendererWithCanvas(canvasSelector: string): boolean;
     initRendererWithContext(contextHandle: number): boolean;
@@ -285,6 +291,62 @@ interface ESEngineModule {
     renderFrameWithMatrix(registry: CppRegistry, width: number, height: number, matrixPtr: number): void;
     getResourceManager(): CppResourceManager;
     getSpineBounds(registry: CppRegistry, entity: number): SpineBounds;
+    draw_begin(matrixPtr: number): void;
+    draw_end(): void;
+    draw_line(fromX: number, fromY: number, toX: number, toY: number, r: number, g: number, b: number, a: number, thickness: number): void;
+    draw_rect(x: number, y: number, width: number, height: number, r: number, g: number, b: number, a: number, filled: boolean): void;
+    draw_rectOutline(x: number, y: number, width: number, height: number, r: number, g: number, b: number, a: number, thickness: number): void;
+    draw_circle(centerX: number, centerY: number, radius: number, r: number, g: number, b: number, a: number, filled: boolean, segments: number): void;
+    draw_circleOutline(centerX: number, centerY: number, radius: number, r: number, g: number, b: number, a: number, thickness: number, segments: number): void;
+    draw_texture(x: number, y: number, width: number, height: number, textureId: number, r: number, g: number, b: number, a: number): void;
+    draw_textureRotated(x: number, y: number, width: number, height: number, rotation: number, textureId: number, r: number, g: number, b: number, a: number): void;
+    draw_setLayer(layer: number): void;
+    draw_setDepth(depth: number): void;
+    draw_getDrawCallCount(): number;
+    draw_getPrimitiveCount(): number;
+    draw_setBlendMode(mode: number): void;
+    draw_setDepthTest(enabled: boolean): void;
+    draw_mesh(geometryHandle: number, shaderHandle: number, transformPtr: number): void;
+    draw_meshWithUniforms(geometryHandle: number, shaderHandle: number, transformPtr: number, uniformsPtr: number, uniformCount: number): void;
+    geometry_create(): number;
+    geometry_init(handle: number, verticesPtr: number, vertexCount: number, layoutPtr: number, layoutCount: number, dynamic: boolean): void;
+    geometry_setIndices16(handle: number, indicesPtr: number, indexCount: number): void;
+    geometry_setIndices32(handle: number, indicesPtr: number, indexCount: number): void;
+    geometry_updateVertices(handle: number, verticesPtr: number, vertexCount: number, offset: number): void;
+    geometry_release(handle: number): void;
+    geometry_isValid(handle: number): boolean;
+    postprocess_init(width: number, height: number): boolean;
+    postprocess_shutdown(): void;
+    postprocess_resize(width: number, height: number): void;
+    postprocess_addPass(name: string, shaderHandle: number): number;
+    postprocess_removePass(name: string): void;
+    postprocess_setPassEnabled(name: string, enabled: boolean): void;
+    postprocess_isPassEnabled(name: string): boolean;
+    postprocess_setUniformFloat(passName: string, uniform: string, value: number): void;
+    postprocess_setUniformVec4(passName: string, uniform: string, x: number, y: number, z: number, w: number): void;
+    postprocess_begin(): void;
+    postprocess_end(): void;
+    postprocess_getPassCount(): number;
+    postprocess_isInitialized(): boolean;
+    postprocess_setBypass(bypass: boolean): void;
+    postprocess_isBypassed(): boolean;
+    renderer_init(width: number, height: number): void;
+    renderer_resize(width: number, height: number): void;
+    renderer_begin(matrixPtr: number, targetHandle: number): void;
+    renderer_end(): void;
+    renderer_submitSprites(registry: CppRegistry): void;
+    renderer_submitSpine(registry: CppRegistry): void;
+    renderer_setStage(stage: number): void;
+    renderer_createTarget(width: number, height: number): number;
+    renderer_releaseTarget(handle: number): void;
+    renderer_getTargetTexture(handle: number): number;
+    renderer_getDrawCalls(): number;
+    renderer_getTriangles(): number;
+    renderer_getSprites(): number;
+    renderer_getSpine(): number;
+    renderer_getMeshes(): number;
+    renderer_getCulled(): number;
+    renderer_setClearColor(r: number, g: number, b: number, a: number): void;
     _malloc(size: number): number;
     _free(ptr: number): void;
 }
@@ -306,6 +368,7 @@ declare class World {
     entityCount(): number;
     getAllEntities(): Entity[];
     setParent(child: Entity, parent: Entity): void;
+    removeParent(entity: Entity): void;
     insert(entity: Entity, component: AnyComponentDef, data?: unknown): unknown;
     get(entity: Entity, component: AnyComponentDef): unknown;
     has(entity: Entity, component: AnyComponentDef): boolean;
@@ -579,51 +642,186 @@ declare class TextPlugin implements Plugin {
 declare const textPlugin: TextPlugin;
 
 /**
- * @file    AssetServer.ts
- * @brief   Asset loading and caching system
+ * @file    blend.ts
+ * @brief   Blend mode definitions for rendering
+ */
+declare enum BlendMode {
+    Normal = 0,
+    Additive = 1,
+    Multiply = 2,
+    Screen = 3,
+    PremultipliedAlpha = 4
+}
+
+/**
+ * @file    material.ts
+ * @brief   Material and Shader API for custom rendering
+ * @details Provides shader creation and material management for custom visual effects.
  */
 
-interface TextureInfo {
-    handle: TextureHandle;
-    width: number;
-    height: number;
+type ShaderHandle = number;
+type MaterialHandle = number;
+type UniformValue = number | Vec2 | Vec3 | Vec4 | number[];
+interface MaterialOptions {
+    shader: ShaderHandle;
+    uniforms?: Record<string, UniformValue>;
+    blendMode?: BlendMode;
+    depthTest?: boolean;
 }
-interface SliceBorder$1 {
-    left: number;
-    right: number;
-    top: number;
-    bottom: number;
+interface MaterialAssetData {
+    version: string;
+    type: 'material';
+    shader: string;
+    blendMode: number;
+    depthTest: boolean;
+    properties: Record<string, unknown>;
 }
-declare class AssetServer {
-    private module_;
+interface MaterialData {
+    shader: ShaderHandle;
+    uniforms: Map<string, UniformValue>;
+    blendMode: BlendMode;
+    depthTest: boolean;
+}
+declare function initMaterialAPI(wasmModule: ESEngineModule): void;
+declare function shutdownMaterialAPI(): void;
+declare const Material: {
+    /**
+     * Creates a shader from vertex and fragment source code.
+     * @param vertexSrc GLSL vertex shader source
+     * @param fragmentSrc GLSL fragment shader source
+     * @returns Shader handle, or 0 on failure
+     */
+    createShader(vertexSrc: string, fragmentSrc: string): ShaderHandle;
+    /**
+     * Releases a shader.
+     * @param shader Shader handle to release
+     */
+    releaseShader(shader: ShaderHandle): void;
+    /**
+     * Creates a material with a shader and optional settings.
+     * @param options Material creation options
+     * @returns Material handle
+     */
+    create(options: MaterialOptions): MaterialHandle;
+    /**
+     * Gets material data by handle.
+     * @param material Material handle
+     * @returns Material data or undefined
+     */
+    get(material: MaterialHandle): MaterialData | undefined;
+    /**
+     * Sets a uniform value on a material.
+     * @param material Material handle
+     * @param name Uniform name
+     * @param value Uniform value
+     */
+    setUniform(material: MaterialHandle, name: string, value: UniformValue): void;
+    /**
+     * Gets a uniform value from a material.
+     * @param material Material handle
+     * @param name Uniform name
+     * @returns Uniform value or undefined
+     */
+    getUniform(material: MaterialHandle, name: string): UniformValue | undefined;
+    /**
+     * Sets the blend mode for a material.
+     * @param material Material handle
+     * @param mode Blend mode
+     */
+    setBlendMode(material: MaterialHandle, mode: BlendMode): void;
+    /**
+     * Gets the blend mode of a material.
+     * @param material Material handle
+     * @returns Blend mode
+     */
+    getBlendMode(material: MaterialHandle): BlendMode;
+    /**
+     * Sets depth test enabled for a material.
+     * @param material Material handle
+     * @param enabled Whether depth test is enabled
+     */
+    setDepthTest(material: MaterialHandle, enabled: boolean): void;
+    /**
+     * Gets the shader handle for a material.
+     * @param material Material handle
+     * @returns Shader handle
+     */
+    getShader(material: MaterialHandle): ShaderHandle;
+    /**
+     * Releases a material (does not release the shader).
+     * @param material Material handle
+     */
+    release(material: MaterialHandle): void;
+    /**
+     * Checks if a material exists.
+     * @param material Material handle
+     * @returns True if material exists
+     */
+    isValid(material: MaterialHandle): boolean;
+    /**
+     * Creates a material from asset data.
+     * @param data Material asset data (properties object)
+     * @param shaderHandle Pre-loaded shader handle
+     * @returns Material handle
+     */
+    createFromAsset(data: MaterialAssetData, shaderHandle: ShaderHandle): MaterialHandle;
+    /**
+     * Creates a material instance that shares the shader with source.
+     * @param source Source material handle
+     * @returns New material handle with copied settings
+     */
+    createInstance(source: MaterialHandle): MaterialHandle;
+    /**
+     * Exports material to serializable asset data.
+     * @param material Material handle
+     * @param shaderPath Shader file path for asset reference
+     * @returns Material asset data
+     */
+    toAssetData(material: MaterialHandle, shaderPath: string): MaterialAssetData | null;
+    /**
+     * Gets all uniforms from a material.
+     * @param material Material handle
+     * @returns Map of uniform names to values
+     */
+    getUniforms(material: MaterialHandle): Map<string, UniformValue>;
+};
+declare function registerMaterialCallback(): void;
+declare const ShaderSources: {
+    SPRITE_VERTEX: string;
+    SPRITE_FRAGMENT: string;
+    COLOR_VERTEX: string;
+    COLOR_FRAGMENT: string;
+};
+
+/**
+ * @file    MaterialLoader.ts
+ * @brief   Material asset loading and caching
+ */
+
+interface LoadedMaterial {
+    handle: MaterialHandle;
+    shaderHandle: ShaderHandle;
+    path: string;
+}
+interface ShaderLoader {
+    load(path: string): Promise<ShaderHandle>;
+    get(path: string): ShaderHandle | undefined;
+}
+declare class MaterialLoader {
     private cache_;
     private pending_;
-    private canvas_;
-    private ctx_;
-    constructor(module: ESEngineModule);
-    loadTexture(source: string): Promise<TextureInfo>;
-    getTexture(source: string): TextureInfo | undefined;
-    hasTexture(source: string): boolean;
-    releaseTexture(source: string): void;
+    private shaderLoader_;
+    private basePath_;
+    constructor(shaderLoader: ShaderLoader, basePath?: string);
+    load(path: string): Promise<LoadedMaterial>;
+    get(path: string): LoadedMaterial | undefined;
+    has(path: string): boolean;
+    release(path: string): void;
     releaseAll(): void;
-    setTextureMetadata(handle: TextureHandle, border: SliceBorder$1): void;
-    setTextureMetadataByPath(source: string, border: SliceBorder$1): boolean;
-    private loadTextureInternal;
-    private loadImage;
-    private createTextureFromImage;
-    private unpremultiplyAlpha;
-    private flipVertically;
-    private nextPowerOf2;
+    private loadInternal;
+    private resolvePath;
+    private resolveShaderPath;
 }
-
-interface AssetsData {
-    server: AssetServer;
-}
-declare const Assets: ResourceDef<AssetsData>;
-declare class AssetPlugin implements Plugin {
-    build(app: App): void;
-}
-declare const assetPlugin: AssetPlugin;
 
 /**
  * @file    scene.ts
@@ -641,7 +839,7 @@ interface SceneComponentData {
     type: string;
     data: Record<string, unknown>;
 }
-interface SliceBorder {
+interface SliceBorder$1 {
     left: number;
     right: number;
     top: number;
@@ -650,7 +848,7 @@ interface SliceBorder {
 interface TextureMetadata {
     version: string;
     type: 'texture';
-    sliceBorder: SliceBorder;
+    sliceBorder: SliceBorder$1;
 }
 interface SceneData {
     version: string;
@@ -664,7 +862,131 @@ interface SceneLoadOptions {
 }
 declare function loadSceneData(world: World, sceneData: SceneData): Map<number, Entity>;
 declare function loadSceneWithAssets(world: World, sceneData: SceneData, options?: SceneLoadOptions): Promise<Map<number, Entity>>;
+declare function loadComponent(world: World, entity: Entity, compData: SceneComponentData): void;
 declare function updateCameraAspectRatio(world: World, aspectRatio: number): void;
+
+/**
+ * @file    AssetServer.ts
+ * @brief   Asset loading and caching system
+ */
+
+interface TextureInfo {
+    handle: TextureHandle;
+    width: number;
+    height: number;
+}
+interface SliceBorder {
+    left: number;
+    right: number;
+    top: number;
+    bottom: number;
+}
+interface SpineLoadResult {
+    success: boolean;
+    error?: string;
+}
+interface SpineDescriptor {
+    skeleton: string;
+    atlas: string;
+    baseUrl?: string;
+}
+interface FileLoadOptions {
+    baseUrl?: string;
+    noCache?: boolean;
+}
+interface AssetManifest {
+    textures?: string[];
+    materials?: string[];
+    spine?: SpineDescriptor[];
+    json?: string[];
+    text?: string[];
+    binary?: string[];
+}
+interface AssetBundle {
+    textures: Map<string, TextureInfo>;
+    materials: Map<string, LoadedMaterial>;
+    spine: Map<string, SpineLoadResult>;
+    json: Map<string, unknown>;
+    text: Map<string, string>;
+    binary: Map<string, ArrayBuffer>;
+}
+declare class AssetServer {
+    baseUrl?: string;
+    private module_;
+    private textureCache_;
+    private shaderCache_;
+    private jsonCache_;
+    private textCache_;
+    private binaryCache_;
+    private loadedSpines_;
+    private virtualFSPaths_;
+    private materialLoader_;
+    private canvas_;
+    private ctx_;
+    constructor(module: ESEngineModule);
+    /**
+     * Load texture with vertical flip (for Sprite/UI).
+     * OpenGL UV origin is bottom-left, so standard images need flipping.
+     */
+    loadTexture(source: string): Promise<TextureInfo>;
+    /**
+     * Load texture without flip (for Spine).
+     * Spine runtime handles UV coordinates internally.
+     */
+    loadTextureRaw(source: string): Promise<TextureInfo>;
+    getTexture(source: string): TextureInfo | undefined;
+    hasTexture(source: string): boolean;
+    releaseTexture(source: string): void;
+    releaseAll(): void;
+    setTextureMetadata(handle: TextureHandle, border: SliceBorder): void;
+    setTextureMetadataByPath(source: string, border: SliceBorder): boolean;
+    loadSpine(skeletonPath: string, atlasPath: string, baseUrl?: string): Promise<SpineLoadResult>;
+    isSpineLoaded(skeletonPath: string, atlasPath: string): boolean;
+    loadMaterial(path: string, baseUrl?: string): Promise<LoadedMaterial>;
+    getMaterial(path: string, baseUrl?: string): LoadedMaterial | undefined;
+    hasMaterial(path: string, baseUrl?: string): boolean;
+    loadShader(path: string): Promise<ShaderHandle>;
+    loadJson<T = unknown>(path: string, options?: FileLoadOptions): Promise<T>;
+    loadText(path: string, options?: FileLoadOptions): Promise<string>;
+    loadBinary(path: string, options?: FileLoadOptions): Promise<ArrayBuffer>;
+    loadScene(world: World, sceneData: SceneData): Promise<Map<number, Entity>>;
+    loadAll(manifest: AssetManifest): Promise<AssetBundle>;
+    private textureCacheKey;
+    private loadTextureWithFlip;
+    private loadTextureInternal;
+    private loadImage;
+    private createTextureFromImage;
+    private unpremultiplyAlpha;
+    private loadShaderInternal;
+    private parseEsShader;
+    private fetchJson;
+    private fetchText;
+    private fetchBinary;
+    private writeToVirtualFS;
+    private ensureVirtualDir;
+    private resolveUrl;
+    private createCanvas;
+    private nextPowerOf2;
+    private parseAtlasTextures;
+}
+
+declare class AsyncCache<T> {
+    private cache_;
+    private pending_;
+    getOrLoad(key: string, loader: () => Promise<T>): Promise<T>;
+    get(key: string): T | undefined;
+    has(key: string): boolean;
+    delete(key: string): boolean;
+    clear(): void;
+    values(): IterableIterator<T>;
+}
+
+type AssetsData = AssetServer;
+declare const Assets: ResourceDef<AssetServer>;
+declare class AssetPlugin implements Plugin {
+    build(app: App): void;
+}
+declare const assetPlugin: AssetPlugin;
 
 /**
  * @file    PreviewPlugin.ts
@@ -969,5 +1291,390 @@ declare class SpineController {
  */
 declare function createSpineController(wasmModule: any): SpineController;
 
-export { App, AssetPlugin, AssetServer, Assets, Camera, Canvas, Children, Commands, CommandsInstance, EntityCommands, INVALID_ENTITY, INVALID_TEXTURE, Input, LocalTransform, Mut, Parent, PreviewPlugin, Query, QueryInstance, Res, ResMut, ResMutInstance, Schedule, SpineAnimation, SpineController, Sprite, SystemRunner, Text, TextAlign, TextOverflow, TextPlugin, TextRenderer, TextVerticalAlign, Time, UIRect, Velocity, World, WorldTransform, assetPlugin, color, createSpineController, createWebApp, defineComponent, defineResource, defineSystem, defineTag, getPlatform, getPlatformType, isBuiltinComponent, isPlatformInitialized, isWeChat, isWeb, loadSceneData, loadSceneWithAssets, platformFetch, platformFileExists, platformInstantiateWasm, platformReadFile, platformReadTextFile, quat, textPlugin, updateCameraAspectRatio, vec2, vec3, vec4 };
-export type { AnyComponentDef, AssetsData, BuiltinComponentDef, CameraData, CanvasData, ChildrenData, Color, CommandsDescriptor, ComponentData, ComponentDef, CppRegistry, CppResourceManager, ESEngineModule, Entity, InferParam, InferParams, InputState, LocalTransformData, MutWrapper, ParentData, PlatformAdapter, PlatformRequestOptions, PlatformResponse, PlatformType, Plugin, Quat, QueryDescriptor, QueryResult, ResDescriptor, ResMutDescriptor, ResourceDef, SceneComponentData, SceneData, SceneEntityData, SceneLoadOptions, SpineAnimationData, SpineEvent, SpineEventCallback, SpineEventType, SpriteData, SystemDef, SystemParam, TextData, TextRenderResult, TextureHandle, TextureInfo, TimeData, TrackEntryInfo, UIRectData, Vec2, Vec3, Vec4, VelocityData, WebAppOptions, WorldTransformData };
+/**
+ * @file    geometry.ts
+ * @brief   Geometry API for custom mesh rendering
+ * @details Provides geometry creation and management for custom shapes,
+ *          particles, trails, and other procedural meshes.
+ */
+
+type GeometryHandle = number;
+declare enum DataType {
+    Float = 1,
+    Float2 = 2,
+    Float3 = 3,
+    Float4 = 4,
+    Int = 5,
+    Int2 = 6,
+    Int3 = 7,
+    Int4 = 8
+}
+interface VertexAttributeDescriptor {
+    name: string;
+    type: DataType;
+}
+interface GeometryOptions {
+    vertices: Float32Array;
+    layout: VertexAttributeDescriptor[];
+    indices?: Uint16Array | Uint32Array;
+    dynamic?: boolean;
+}
+declare function initGeometryAPI(wasmModule: ESEngineModule): void;
+declare function shutdownGeometryAPI(): void;
+declare const Geometry: {
+    /**
+     * Creates a new geometry with vertices and optional indices.
+     * @param options Geometry creation options
+     * @returns Geometry handle
+     */
+    create(options: GeometryOptions): GeometryHandle;
+    /**
+     * Updates vertices of a dynamic geometry.
+     * @param handle Geometry handle
+     * @param vertices New vertex data
+     * @param offset Offset in floats
+     */
+    updateVertices(handle: GeometryHandle, vertices: Float32Array, offset?: number): void;
+    /**
+     * Releases a geometry.
+     * @param handle Geometry handle
+     */
+    release(handle: GeometryHandle): void;
+    /**
+     * Checks if a geometry handle is valid.
+     * @param handle Geometry handle
+     * @returns True if valid
+     */
+    isValid(handle: GeometryHandle): boolean;
+    /**
+     * Creates a unit quad geometry (1x1, centered at origin).
+     * @returns Geometry handle
+     */
+    createQuad(width?: number, height?: number): GeometryHandle;
+    /**
+     * Creates a circle geometry.
+     * @param radius Circle radius
+     * @param segments Number of segments
+     * @returns Geometry handle
+     */
+    createCircle(radius?: number, segments?: number): GeometryHandle;
+    /**
+     * Creates a polygon geometry from vertices.
+     * @param points Array of {x, y} points
+     * @returns Geometry handle
+     */
+    createPolygon(points: Array<{
+        x: number;
+        y: number;
+    }>): GeometryHandle;
+};
+
+/**
+ * @file    draw.ts
+ * @brief   Immediate mode 2D drawing API
+ * @details Provides simple drawing primitives (lines, rectangles, circles)
+ *          with automatic batching. All draw commands are cleared each frame.
+ */
+
+declare function initDrawAPI(wasmModule: ESEngineModule): void;
+declare function shutdownDrawAPI(): void;
+interface DrawAPI {
+    /**
+     * Begins a new draw frame with the given view-projection matrix.
+     * Must be called before any draw commands.
+     */
+    begin(viewProjection: Float32Array): void;
+    /**
+     * Ends the current draw frame and submits all commands.
+     * Must be called after all draw commands.
+     */
+    end(): void;
+    /**
+     * Draws a line between two points.
+     * @param from Start point
+     * @param to End point
+     * @param color RGBA color
+     * @param thickness Line thickness in pixels (default: 1)
+     */
+    line(from: Vec2, to: Vec2, color: Color, thickness?: number): void;
+    /**
+     * Draws a filled or outlined rectangle.
+     * @param position Center position
+     * @param size Width and height
+     * @param color RGBA color
+     * @param filled If true draws filled, if false draws outline (default: true)
+     */
+    rect(position: Vec2, size: Vec2, color: Color, filled?: boolean): void;
+    /**
+     * Draws a rectangle outline.
+     * @param position Center position
+     * @param size Width and height
+     * @param color RGBA color
+     * @param thickness Line thickness in pixels (default: 1)
+     */
+    rectOutline(position: Vec2, size: Vec2, color: Color, thickness?: number): void;
+    /**
+     * Draws a filled or outlined circle.
+     * @param center Center position
+     * @param radius Circle radius
+     * @param color RGBA color
+     * @param filled If true draws filled, if false draws outline (default: true)
+     * @param segments Number of segments for approximation (default: 32)
+     */
+    circle(center: Vec2, radius: number, color: Color, filled?: boolean, segments?: number): void;
+    /**
+     * Draws a circle outline.
+     * @param center Center position
+     * @param radius Circle radius
+     * @param color RGBA color
+     * @param thickness Line thickness in pixels (default: 1)
+     * @param segments Number of segments for approximation (default: 32)
+     */
+    circleOutline(center: Vec2, radius: number, color: Color, thickness?: number, segments?: number): void;
+    /**
+     * Draws a textured quad.
+     * @param position Center position
+     * @param size Width and height
+     * @param textureHandle GPU texture handle
+     * @param tint Color tint (default: white)
+     */
+    texture(position: Vec2, size: Vec2, textureHandle: number, tint?: Color): void;
+    /**
+     * Draws a rotated textured quad.
+     * @param position Center position
+     * @param size Width and height
+     * @param rotation Rotation angle in radians
+     * @param textureHandle GPU texture handle
+     * @param tint Color tint (default: white)
+     */
+    textureRotated(position: Vec2, size: Vec2, rotation: number, textureHandle: number, tint?: Color): void;
+    /**
+     * Sets the current render layer.
+     * @param layer Layer index (higher layers render on top)
+     */
+    setLayer(layer: number): void;
+    /**
+     * Sets the current depth for sorting within a layer.
+     * @param depth Z depth value
+     */
+    setDepth(depth: number): void;
+    /**
+     * Gets the number of draw calls in the current/last frame.
+     */
+    getDrawCallCount(): number;
+    /**
+     * Gets the number of primitives drawn in the current/last frame.
+     */
+    getPrimitiveCount(): number;
+    /**
+     * Sets the blend mode for subsequent draw operations.
+     * @param mode The blend mode to use
+     */
+    setBlendMode(mode: BlendMode): void;
+    /**
+     * Enables or disables depth testing.
+     * @param enabled True to enable depth testing
+     */
+    setDepthTest(enabled: boolean): void;
+    /**
+     * Draws a custom mesh with a shader.
+     * @param geometry Geometry handle
+     * @param shader Shader handle
+     * @param transform Transform matrix (4x4, column-major)
+     */
+    drawMesh(geometry: GeometryHandle, shader: ShaderHandle, transform: Float32Array): void;
+    /**
+     * Draws a custom mesh with a material.
+     * @param geometry Geometry handle
+     * @param material Material handle
+     * @param transform Transform matrix (4x4, column-major)
+     */
+    drawMeshWithMaterial(geometry: GeometryHandle, material: MaterialHandle, transform: Float32Array): void;
+}
+declare const Draw: DrawAPI;
+
+/**
+ * @file    postprocess.ts
+ * @brief   Post-processing effects API
+ * @details Provides full-screen post-processing effects like blur, vignette, etc.
+ */
+
+declare function initPostProcessAPI(wasmModule: ESEngineModule): void;
+declare function shutdownPostProcessAPI(): void;
+declare const PostProcess: {
+    /**
+     * Initializes the post-processing pipeline.
+     * @param width Framebuffer width
+     * @param height Framebuffer height
+     * @returns True on success
+     */
+    init(width: number, height: number): boolean;
+    /**
+     * Shuts down the post-processing pipeline.
+     */
+    shutdown(): void;
+    /**
+     * Resizes the framebuffers.
+     * @param width New width
+     * @param height New height
+     */
+    resize(width: number, height: number): void;
+    /**
+     * Adds a post-processing pass.
+     * @param name Unique name for the pass
+     * @param shader Shader handle
+     * @returns Pass index
+     */
+    addPass(name: string, shader: ShaderHandle): number;
+    /**
+     * Removes a pass by name.
+     * @param name Pass name
+     */
+    removePass(name: string): void;
+    /**
+     * Enables or disables a pass.
+     * @param name Pass name
+     * @param enabled Whether to enable the pass
+     */
+    setEnabled(name: string, enabled: boolean): void;
+    /**
+     * Checks if a pass is enabled.
+     * @param name Pass name
+     * @returns True if enabled
+     */
+    isEnabled(name: string): boolean;
+    /**
+     * Sets a float uniform on a pass.
+     * @param passName Pass name
+     * @param uniform Uniform name
+     * @param value Float value
+     */
+    setUniform(passName: string, uniform: string, value: number): void;
+    /**
+     * Sets a vec4 uniform on a pass.
+     * @param passName Pass name
+     * @param uniform Uniform name
+     * @param value Vec4 value
+     */
+    setUniformVec4(passName: string, uniform: string, value: Vec4): void;
+    /**
+     * Begins rendering to the post-process pipeline.
+     * Call this before rendering your scene.
+     */
+    begin(): void;
+    /**
+     * Ends and processes all passes.
+     * Call this after rendering your scene.
+     */
+    end(): void;
+    /**
+     * Gets the number of passes.
+     */
+    getPassCount(): number;
+    /**
+     * Checks if the pipeline is initialized.
+     */
+    isInitialized(): boolean;
+    /**
+     * Sets bypass mode to skip FBO rendering entirely.
+     * When bypassed, begin()/end() become no-ops and scene renders directly to screen.
+     * Use this when no post-processing passes are needed for maximum performance.
+     * @param bypass Whether to bypass the pipeline
+     */
+    setBypass(bypass: boolean): void;
+    /**
+     * Checks if bypass mode is enabled.
+     * @returns True if bypassed
+     */
+    isBypassed(): boolean;
+    /**
+     * Creates a blur effect shader.
+     * @returns Shader handle
+     */
+    createBlur(): ShaderHandle;
+    /**
+     * Creates a vignette effect shader.
+     * @returns Shader handle
+     */
+    createVignette(): ShaderHandle;
+    /**
+     * Creates a grayscale effect shader.
+     * @returns Shader handle
+     */
+    createGrayscale(): ShaderHandle;
+    /**
+     * Creates a chromatic aberration effect shader.
+     * @returns Shader handle
+     */
+    createChromaticAberration(): ShaderHandle;
+};
+
+declare enum RenderStage {
+    Background = 0,
+    Opaque = 1,
+    Transparent = 2,
+    Overlay = 3
+}
+type RenderTargetHandle = number;
+interface RenderStats {
+    drawCalls: number;
+    triangles: number;
+    sprites: number;
+    spine: number;
+    meshes: number;
+    culled: number;
+}
+declare function initRendererAPI(wasmModule: ESEngineModule): void;
+declare function shutdownRendererAPI(): void;
+declare const Renderer: {
+    init(width: number, height: number): void;
+    resize(width: number, height: number): void;
+    begin(viewProjection: Float32Array, target?: RenderTargetHandle): void;
+    end(): void;
+    submitSprites(registry: {
+        _cpp: CppRegistry;
+    }): void;
+    submitSpine(registry: {
+        _cpp: CppRegistry;
+    }): void;
+    setStage(stage: RenderStage): void;
+    createRenderTarget(width: number, height: number): RenderTargetHandle;
+    releaseRenderTarget(handle: RenderTargetHandle): void;
+    getTargetTexture(handle: RenderTargetHandle): number;
+    setClearColor(r: number, g: number, b: number, a: number): void;
+    getStats(): RenderStats;
+};
+
+/**
+ * @file    renderPipeline.ts
+ * @brief   Unified render pipeline for runtime and editor
+ */
+
+interface RenderParams {
+    registry: {
+        _cpp: CppRegistry;
+    };
+    viewProjection: Float32Array;
+    width: number;
+    height: number;
+    elapsed: number;
+}
+declare class RenderPipeline {
+    render(params: RenderParams): void;
+}
+
+/**
+ * @file    customDraw.ts
+ * @brief   Custom draw callback registration for the render pipeline
+ */
+type DrawCallback = (elapsed: number) => void;
+declare function registerDrawCallback(id: string, fn: DrawCallback): void;
+declare function unregisterDrawCallback(id: string): void;
+declare function clearDrawCallbacks(): void;
+
+declare function setEditorMode(active: boolean): void;
+declare function isEditor(): boolean;
+declare function isRuntime(): boolean;
+
+export { App, AssetPlugin, AssetServer, Assets, AsyncCache, BlendMode, Camera, Canvas, Children, Commands, CommandsInstance, DataType, Draw, EntityCommands, Geometry, INVALID_ENTITY, INVALID_TEXTURE, Input, LocalTransform, Material, MaterialLoader, Mut, Parent, PostProcess, PreviewPlugin, Query, QueryInstance, RenderPipeline, RenderStage, Renderer, Res, ResMut, ResMutInstance, Schedule, ShaderSources, SpineAnimation, SpineController, Sprite, SystemRunner, Text, TextAlign, TextOverflow, TextPlugin, TextRenderer, TextVerticalAlign, Time, UIRect, Velocity, World, WorldTransform, assetPlugin, clearDrawCallbacks, color, createSpineController, createWebApp, defineComponent, defineResource, defineSystem, defineTag, getComponentDefaults, getPlatform, getPlatformType, initDrawAPI, initGeometryAPI, initMaterialAPI, initPostProcessAPI, initRendererAPI, isBuiltinComponent, isEditor, isPlatformInitialized, isRuntime, isWeChat, isWeb, loadComponent, loadSceneData, loadSceneWithAssets, platformFetch, platformFileExists, platformInstantiateWasm, platformReadFile, platformReadTextFile, quat, registerDrawCallback, registerMaterialCallback, setEditorMode, shutdownDrawAPI, shutdownGeometryAPI, shutdownMaterialAPI, shutdownPostProcessAPI, shutdownRendererAPI, textPlugin, unregisterDrawCallback, updateCameraAspectRatio, vec2, vec3, vec4 };
+export type { AnyComponentDef, AssetBundle, AssetManifest, AssetsData, BuiltinComponentDef, CameraData, CanvasData, ChildrenData, Color, CommandsDescriptor, ComponentData, ComponentDef, CppRegistry, CppResourceManager, DrawAPI, DrawCallback, ESEngineModule, Entity, FileLoadOptions, GeometryHandle, GeometryOptions, InferParam, InferParams, InputState, LoadedMaterial, LocalTransformData, MaterialAssetData, MaterialHandle, MaterialOptions, MutWrapper, ParentData, PlatformAdapter, PlatformRequestOptions, PlatformResponse, PlatformType, Plugin, Quat, QueryDescriptor, QueryResult, RenderParams, RenderStats, RenderTargetHandle, ResDescriptor, ResMutDescriptor, ResourceDef, SceneComponentData, SceneData, SceneEntityData, SceneLoadOptions, ShaderHandle, ShaderLoader, SliceBorder, SpineAnimationData, SpineDescriptor, SpineEvent, SpineEventCallback, SpineEventType, SpineLoadResult, SpriteData, SystemDef, SystemParam, TextData, TextRenderResult, TextureHandle, TextureInfo, TimeData, TrackEntryInfo, UIRectData, UniformValue, Vec2, Vec3, Vec4, VelocityData, VertexAttributeDescriptor, WebAppOptions, WorldTransformData };

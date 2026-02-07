@@ -13,6 +13,7 @@ import { initMaterialAPI, shutdownMaterialAPI } from './material';
 import { initGeometryAPI, shutdownGeometryAPI } from './geometry';
 import { initPostProcessAPI, shutdownPostProcessAPI } from './postprocess';
 import { initRendererAPI, shutdownRendererAPI } from './renderer';
+import { RenderPipeline } from './renderPipeline';
 
 // =============================================================================
 // Plugin Interface
@@ -233,6 +234,9 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
     initPostProcessAPI(module);
     initRendererAPI(module);
 
+    const pipeline = new RenderPipeline();
+    let startTime = performance.now();
+
     const getViewportSize = options?.getViewportSize ?? (() => ({
         width: window.innerWidth * (window.devicePixelRatio || 1),
         height: window.innerHeight * (window.devicePixelRatio || 1)
@@ -244,7 +248,13 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
         _params: [],
         _fn: () => {
             const { width, height } = getViewportSize();
-            module.renderFrame(cppRegistry, width, height);
+            const vp = computeViewProjection(cppRegistry, width, height);
+            const elapsed = (performance.now() - startTime) / 1000;
+            pipeline.render({
+                registry: { _cpp: cppRegistry },
+                viewProjection: vp,
+                width, height, elapsed,
+            });
         }
     };
 
@@ -253,4 +263,114 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
     app.addPlugin(textPlugin);
 
     return app;
+}
+
+// =============================================================================
+// View-Projection Computation
+// =============================================================================
+
+const IDENTITY = new Float32Array([
+    1, 0, 0, 0,
+    0, 1, 0, 0,
+    0, 0, 1, 0,
+    0, 0, 0, 1,
+]);
+
+function computeViewProjection(registry: CppRegistry, width: number, height: number): Float32Array {
+    const count = registry.entityCount();
+    const scanLimit = count + 1000;
+
+    for (let e = 0; e < scanLimit; e++) {
+        if (!registry.valid(e) || !registry.hasCamera(e) || !registry.hasLocalTransform(e)) {
+            continue;
+        }
+
+        const camera = registry.getCamera(e) as {
+            projectionType: number;
+            fov: number;
+            orthoSize: number;
+            nearPlane: number;
+            farPlane: number;
+            isActive: boolean;
+        };
+        if (!camera.isActive) continue;
+
+        const transform = registry.getLocalTransform(e) as {
+            position: { x: number; y: number; z: number };
+        };
+
+        const aspect = width / height;
+        let projection: Float32Array;
+
+        if (camera.projectionType === 1) {
+            const halfH = camera.orthoSize;
+            const halfW = halfH * aspect;
+            projection = ortho(-halfW, halfW, -halfH, halfH, camera.nearPlane, camera.farPlane);
+        } else {
+            projection = perspective(
+                camera.fov * Math.PI / 180,
+                aspect,
+                camera.nearPlane,
+                camera.farPlane,
+            );
+        }
+
+        const view = invertTranslation(transform.position.x, transform.position.y, transform.position.z);
+        return multiply(projection, view);
+    }
+
+    return IDENTITY;
+}
+
+function ortho(left: number, right: number, bottom: number, top: number, near: number, far: number): Float32Array {
+    const m = new Float32Array(16);
+    const rl = right - left;
+    const tb = top - bottom;
+    const fn = far - near;
+    m[0]  = 2 / rl;
+    m[5]  = 2 / tb;
+    m[10] = -2 / fn;
+    m[12] = -(right + left) / rl;
+    m[13] = -(top + bottom) / tb;
+    m[14] = -(far + near) / fn;
+    m[15] = 1;
+    return m;
+}
+
+function perspective(fovRad: number, aspect: number, near: number, far: number): Float32Array {
+    const m = new Float32Array(16);
+    const f = 1.0 / Math.tan(fovRad / 2);
+    const nf = near - far;
+    m[0]  = f / aspect;
+    m[5]  = f;
+    m[10] = (far + near) / nf;
+    m[11] = -1;
+    m[14] = (2 * far * near) / nf;
+    return m;
+}
+
+function invertTranslation(x: number, y: number, z: number): Float32Array {
+    const m = new Float32Array(16);
+    m[0]  = 1;
+    m[5]  = 1;
+    m[10] = 1;
+    m[15] = 1;
+    m[12] = -x;
+    m[13] = -y;
+    m[14] = -z;
+    return m;
+}
+
+function multiply(a: Float32Array, b: Float32Array): Float32Array {
+    const m = new Float32Array(16);
+    for (let i = 0; i < 4; i++) {
+        for (let j = 0; j < 4; j++) {
+            m[j * 4 + i] =
+                a[0 * 4 + i] * b[j * 4 + 0] +
+                a[1 * 4 + i] * b[j * 4 + 1] +
+                a[2 * 4 + i] * b[j * 4 + 2] +
+                a[3 * 4 + i] * b[j * 4 + 3];
+        }
+    }
+    return m;
 }

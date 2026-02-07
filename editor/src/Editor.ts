@@ -4,6 +4,11 @@
  */
 
 import type { App, Entity } from 'esengine';
+import {
+    Draw, Geometry, Material, BlendMode, DataType, ShaderSources,
+    PostProcess, Renderer, RenderStage,
+    registerDrawCallback, unregisterDrawCallback, clearDrawCallbacks,
+} from 'esengine';
 import { EditorStore } from './store/EditorStore';
 import { EditorBridge } from './bridge/EditorBridge';
 import type { PanelInstance, PanelPosition } from './panels/PanelRegistry';
@@ -342,6 +347,18 @@ export class Editor {
             showInputDialog,
             getEditorInstance,
             getEditorStore,
+            Draw,
+            Geometry,
+            Material,
+            BlendMode,
+            DataType,
+            ShaderSources,
+            PostProcess,
+            Renderer,
+            RenderStage,
+            registerDrawCallback,
+            unregisterDrawCallback,
+            clearDrawCallbacks,
         };
     }
 

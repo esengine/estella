@@ -4,7 +4,20 @@
  */
 
 import type { ESEngineModule } from 'esengine';
-import { initMaterialAPI, shutdownMaterialAPI } from 'esengine';
+import {
+    RenderPipeline,
+    Renderer,
+    initDrawAPI,
+    shutdownDrawAPI,
+    initGeometryAPI,
+    shutdownGeometryAPI,
+    initMaterialAPI,
+    shutdownMaterialAPI,
+    initPostProcessAPI,
+    shutdownPostProcessAPI,
+    initRendererAPI,
+    shutdownRendererAPI,
+} from 'esengine';
 import type { SceneData, ComponentData } from '../types/SceneTypes';
 import type { EditorStore } from '../store/EditorStore';
 import { EditorCamera } from './EditorCamera';
@@ -20,10 +33,12 @@ export class EditorSceneRenderer {
     private module_: ESEngineModule | null = null;
     private sceneManager_: EditorSceneManager | null = null;
     private syncService_: RuntimeSyncService | null = null;
+    private pipeline_: RenderPipeline | null = null;
     private camera_: EditorCamera;
     private pathResolver_: AssetPathResolver;
     private store_: EditorStore | null = null;
     private initialized_ = false;
+    private startTime_ = 0;
 
     constructor() {
         this.camera_ = new EditorCamera();
@@ -46,7 +61,15 @@ export class EditorSceneRenderer {
             return false;
         }
 
+        initDrawAPI(module);
+        initGeometryAPI(module);
         initMaterialAPI(module);
+        initPostProcessAPI(module);
+        initRendererAPI(module);
+
+        this.pipeline_ = new RenderPipeline();
+        Renderer.setClearColor(0.1, 0.1, 0.1, 1.0);
+        this.startTime_ = performance.now();
 
         this.sceneManager_ = new EditorSceneManager(module, this.pathResolver_);
         this.initialized_ = true;
@@ -121,16 +144,17 @@ export class EditorSceneRenderer {
     // =========================================================================
 
     render(width: number, height: number): void {
-        if (!this.module_ || !this.sceneManager_ || !this.initialized_) return;
+        if (!this.pipeline_ || !this.sceneManager_ || !this.initialized_) return;
         if (width <= 0 || height <= 0) return;
 
         const matrix = this.camera_.getViewProjection(width, height);
-        const matrixPtr = this.module_._malloc(64);
-        this.module_.HEAPF32.set(matrix, matrixPtr / 4);
+        const elapsed = (performance.now() - this.startTime_) / 1000;
 
-        this.module_.renderFrameWithMatrix(this.sceneManager_.registry, width, height, matrixPtr);
-
-        this.module_._free(matrixPtr);
+        this.pipeline_.render({
+            registry: { _cpp: this.sceneManager_.registry },
+            viewProjection: matrix,
+            width, height, elapsed,
+        });
     }
 
     // =========================================================================
@@ -149,10 +173,15 @@ export class EditorSceneRenderer {
         }
 
         if (this.module_ && this.initialized_) {
+            shutdownDrawAPI();
+            shutdownGeometryAPI();
             shutdownMaterialAPI();
+            shutdownPostProcessAPI();
+            shutdownRendererAPI();
             this.module_.shutdownRenderer();
         }
 
+        this.pipeline_ = null;
         this.initialized_ = false;
         this.module_ = null;
     }

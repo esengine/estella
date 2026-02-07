@@ -201,6 +201,7 @@ export interface ESEngineModule {
     renderer_getSpine(): number;
     renderer_getMeshes(): number;
     renderer_getCulled(): number;
+    renderer_setClearColor(r: number, g: number, b: number, a: number): void;
 
     _malloc(size: number): number;
     _free(ptr: number): void;

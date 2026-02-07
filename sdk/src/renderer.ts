@@ -79,6 +79,10 @@ export const Renderer = {
         return module?.renderer_getTargetTexture(handle) ?? 0;
     },
 
+    setClearColor(r: number, g: number, b: number, a: number): void {
+        module?.renderer_setClearColor?.(r, g, b, a);
+    },
+
     getStats(): RenderStats {
         if (!module) {
             return { drawCalls: 0, triangles: 0, sprites: 0, spine: 0, meshes: 0, culled: 0 };
