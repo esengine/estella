@@ -24,6 +24,12 @@ const esmBuilds = [
         treeshake,
     },
     {
+        input: 'src/index.wechat.ts',
+        output: { file: 'dist/index.wechat.cjs.js', format: 'cjs', sourcemap: true },
+        plugins: [typescript({ tsconfig: './tsconfig.json', declaration: false })],
+        treeshake,
+    },
+    {
         input: 'src/wasm.ts',
         output: { file: 'dist/wasm.js', format: 'esm', sourcemap: true },
         plugins: [typescript({ tsconfig: './tsconfig.json', declaration: false })],

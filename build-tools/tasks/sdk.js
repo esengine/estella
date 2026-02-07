@@ -41,6 +41,7 @@ async function copyDistOutputs(sdkDir, outputDir) {
         { src: 'wasm.js', dest: path.join(esmDir, 'wasm.js') },
         { src: 'wasm.d.ts', dest: path.join(esmDir, 'wasm.d.ts') },
         { src: 'index.wechat.js', dest: path.join(cjsDir, 'index.wechat.js') },
+        { src: 'index.wechat.cjs.js', dest: path.join(cjsDir, 'esengine.wechat.js') },
     ];
 
     for (const { src, dest } of files) {
