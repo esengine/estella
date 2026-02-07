@@ -8,6 +8,7 @@ import type { NativeFS } from '../scripting/types';
 import type { TextureMetadata } from '../types/TextureMetadata';
 import { getMetaFilePath, parseTextureMetadata } from '../types/TextureMetadata';
 import { getEditorContext } from '../context/EditorContext';
+import { getAssetLibrary } from '../asset/AssetLibrary';
 
 // =============================================================================
 // Types
@@ -86,10 +87,12 @@ export class PreviewService {
     ): Promise<void> {
         await this.ensureDirectory(fs, this.previewDir_);
 
-        // Collect texture metadata
-        const textureMetadata = await this.collectTextureMetadata(fs, scene);
+        const resolvedScene = JSON.parse(JSON.stringify(scene));
+        getAssetLibrary().resolveSceneAssetPaths(resolvedScene);
+
+        const textureMetadata = await this.collectTextureMetadata(fs, resolvedScene);
         const sceneWithMetadata: SceneData = {
-            ...scene,
+            ...resolvedScene,
             textureMetadata: Object.keys(textureMetadata).length > 0 ? textureMetadata : undefined,
         };
 

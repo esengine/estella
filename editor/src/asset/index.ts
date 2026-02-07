@@ -17,6 +17,13 @@ export {
     resetDependencyGraph,
 } from './AssetDependencyGraph';
 
+export {
+    AssetLibrary,
+    getAssetLibrary,
+    resetAssetLibrary,
+    isUUID,
+} from './AssetLibrary';
+
 import { AssetPathResolver } from './AssetPathResolver';
 
 let globalPathResolver: AssetPathResolver | null = null;

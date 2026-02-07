@@ -26,6 +26,9 @@ export class SceneSerializer {
         if (!scene.version) {
             scene.version = '1.0';
         }
+        if (scene.version !== '1.0' && scene.version !== '2.0') {
+            scene.version = '1.0';
+        }
         if (!scene.name) {
             scene.name = 'Untitled';
         }

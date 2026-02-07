@@ -27,6 +27,7 @@ export function hasSlicing(border: SliceBorder): boolean {
 // =============================================================================
 
 export interface TextureMetadata {
+    uuid?: string;
     version: string;
     type: 'texture';
     sliceBorder: SliceBorder;
@@ -52,7 +53,7 @@ export function parseTextureMetadata(json: string): TextureMetadata | null {
     try {
         const data = JSON.parse(json);
         if (data.type !== 'texture') return null;
-        return {
+        const result: TextureMetadata = {
             version: data.version ?? '1.0',
             type: 'texture',
             sliceBorder: {
@@ -62,6 +63,10 @@ export function parseTextureMetadata(json: string): TextureMetadata | null {
                 bottom: data.sliceBorder?.bottom ?? 0
             }
         };
+        if (data.uuid) {
+            result.uuid = data.uuid;
+        }
+        return result;
     } catch {
         return null;
     }

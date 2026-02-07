@@ -17,3 +17,6 @@ export { BuildConfigIO, downloadConfigsAsFile, uploadConfigsFromFile, type Expor
 export { BuildHistory, formatBuildTime, formatBuildDuration, getBuildStatusIcon, getBuildStatusClass, type BuildHistoryEntry, type BuildStatus } from './BuildHistory';
 export { BUILD_TEMPLATES, getTemplates, getTemplatesByPlatform, getTemplate, createConfigFromTemplate, applyTemplateToConfig, getTemplateIconSvg, type BuildTemplate } from './BuildTemplates';
 export { BatchBuilder, ParallelBatchBuilder, type BatchBuildResult, type ConfigBuildResult, type BatchBuildProgress } from './BatchBuilder';
+export { AssetExportConfigService, AssetReferenceCollector, BuildAssetCollector, type FolderExportMode, type AssetExportConfig } from './AssetCollector';
+export { TextureAtlasPacker, type AtlasFrame, type AtlasPage, type AtlasResult } from './TextureAtlas';
+export { AssetLibrary, getAssetLibrary, resetAssetLibrary, isUUID } from '../asset/AssetLibrary';

@@ -21,6 +21,7 @@ import type { SceneData, EntityData, ComponentData } from '../types/SceneTypes';
 import { EditorAssetServer } from '../asset/EditorAssetServer';
 import { AssetPathResolver } from '../asset/AssetPathResolver';
 import { getDependencyGraph } from '../asset/AssetDependencyGraph';
+import { getAssetLibrary, isUUID } from '../asset/AssetLibrary';
 import {
     Transform,
     createIdentityTransform,
@@ -343,6 +344,13 @@ export class EditorSceneManager {
         return { x: 1920, y: 1080 };
     }
 
+    private resolveAssetRef(ref: string): string {
+        if (isUUID(ref)) {
+            return getAssetLibrary().getPath(ref) ?? ref;
+        }
+        return ref;
+    }
+
     private async syncSprite(entity: Entity, data: any, entityId: number): Promise<void> {
         let textureHandle = INVALID_TEXTURE as number;
         let materialHandle = 0;
@@ -350,15 +358,17 @@ export class EditorSceneManager {
         getDependencyGraph().clearEntity(entityId);
         this.assetServer_.releaseMaterialInstance(entityId);
 
-        const texturePath = data.texture;
-        if (texturePath && typeof texturePath === 'string') {
+        const textureRef = data.texture;
+        if (textureRef && typeof textureRef === 'string') {
+            const texturePath = this.resolveAssetRef(textureRef);
             const info = await this.assetServer_.loadTexture(texturePath);
             textureHandle = info.handle;
-            getDependencyGraph().registerUsage(texturePath, entityId);
+            getDependencyGraph().registerUsage(textureRef, entityId);
         }
 
-        const materialPath = data.material;
-        if (materialPath && typeof materialPath === 'string') {
+        const materialRef = data.material;
+        if (materialRef && typeof materialRef === 'string') {
+            const materialPath = this.resolveAssetRef(materialRef);
             try {
                 const loaded = await this.assetServer_.loadMaterial(materialPath);
                 const overrides = data.materialOverrides;
@@ -370,7 +380,7 @@ export class EditorSceneManager {
                 } else {
                     materialHandle = loaded.handle;
                 }
-                getDependencyGraph().registerUsage(materialPath, entityId);
+                getDependencyGraph().registerUsage(materialRef, entityId);
             } catch (err) {
                 console.warn(`[EditorSceneManager] Failed to load material: ${materialPath}`, err);
             }
@@ -431,13 +441,16 @@ export class EditorSceneManager {
     }
 
     private async syncSpineAnimation(entity: Entity, data: any, entityId: number): Promise<void> {
-        const skeletonPath = data.skeletonPath ?? '';
-        const atlasPath = data.atlasPath ?? '';
+        const skeletonRef = data.skeletonPath ?? '';
+        const atlasRef = data.atlasPath ?? '';
 
-        if (!skeletonPath || !atlasPath) {
+        if (!skeletonRef || !atlasRef) {
             console.warn('[EditorSceneManager] SpineAnimation missing skeleton or atlas path');
             return;
         }
+
+        const skeletonPath = this.resolveAssetRef(skeletonRef);
+        const atlasPath = this.resolveAssetRef(atlasRef);
 
         getDependencyGraph().clearEntity(entityId);
 
@@ -447,16 +460,17 @@ export class EditorSceneManager {
             return;
         }
 
-        getDependencyGraph().registerUsage(skeletonPath, entityId);
-        getDependencyGraph().registerUsage(atlasPath, entityId);
+        getDependencyGraph().registerUsage(skeletonRef, entityId);
+        getDependencyGraph().registerUsage(atlasRef, entityId);
 
         let materialHandle = 0;
-        const materialPath = data.material;
-        if (materialPath && typeof materialPath === 'string') {
+        const materialRef = data.material;
+        if (materialRef && typeof materialRef === 'string') {
+            const materialPath = this.resolveAssetRef(materialRef);
             try {
                 const loaded = await this.assetServer_.loadMaterial(materialPath);
                 materialHandle = loaded.handle;
-                getDependencyGraph().registerUsage(materialPath, entityId);
+                getDependencyGraph().registerUsage(materialRef, entityId);
             } catch (err) {
                 console.warn(`[EditorSceneManager] Failed to load material: ${materialPath}`, err);
             }

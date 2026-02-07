@@ -972,7 +972,7 @@ void main() {
             const entries = await fs.listDirectoryDetailed(this.currentPath_);
 
             return entries
-                .filter(e => !e.name.startsWith('.'))
+                .filter(e => !e.name.startsWith('.') && !e.name.endsWith('.meta'))
                 .sort((a, b) => {
                     if (a.isDirectory !== b.isDirectory) {
                         return a.isDirectory ? -1 : 1;

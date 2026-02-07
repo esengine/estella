@@ -9,6 +9,9 @@ import { BuildProgressReporter } from './BuildProgress';
 import { BuildCache } from './BuildCache';
 import { getEditorContext } from '../context/EditorContext';
 import { findTsFiles, EDITOR_ONLY_DIRS } from '../scripting/ScriptLoader';
+import { BuildAssetCollector, AssetExportConfigService } from './AssetCollector';
+import { TextureAtlasPacker, type AtlasResult } from './TextureAtlas';
+import { AssetLibrary } from '../asset/AssetLibrary';
 
 // =============================================================================
 // Types
@@ -26,6 +29,11 @@ interface NativeFS {
     getEngineWxgameJs(): Promise<string>;
     getEngineWxgameWasm(): Promise<Uint8Array>;
     getSdkWechatJs(): Promise<string>;
+}
+
+interface AssetManifestEntry {
+    path: string;
+    type: string;
 }
 
 // =============================================================================
@@ -46,13 +54,18 @@ function getProjectDir(projectPath: string): string {
     return lastSlash > 0 ? normalized.substring(0, lastSlash) : normalized;
 }
 
+function isAbsolutePath(path: string): boolean {
+    return path.startsWith('/') || /^[a-zA-Z]:/.test(path);
+}
+
 function getFileExtension(path: string): string {
     const lastDot = path.lastIndexOf('.');
     return lastDot > 0 ? path.substring(lastDot + 1).toLowerCase() : '';
 }
 
-function isAbsolutePath(path: string): boolean {
-    return path.startsWith('/') || /^[a-zA-Z]:/.test(path);
+function getDirName(path: string): string {
+    const lastSlash = path.lastIndexOf('/');
+    return lastSlash > 0 ? path.substring(0, lastSlash) : '';
 }
 
 // =============================================================================
@@ -65,6 +78,7 @@ export class WeChatBuilder {
     private projectDir_: string;
     private progress_: BuildProgressReporter;
     private cache_: BuildCache | null;
+    private assetLibrary_: AssetLibrary;
 
     constructor(context: BuildContext) {
         this.context_ = context;
@@ -72,6 +86,7 @@ export class WeChatBuilder {
         this.projectDir_ = getProjectDir(context.projectPath);
         this.progress_ = context.progress || new BuildProgressReporter();
         this.cache_ = context.cache || null;
+        this.assetLibrary_ = new AssetLibrary();
     }
 
     async build(): Promise<BuildResult> {
@@ -88,9 +103,10 @@ export class WeChatBuilder {
         this.progress_.log('info', 'Starting WeChat MiniGame build...');
 
         try {
-            const outputDir = joinPath(this.projectDir_, settings.outputDir);
+            await this.assetLibrary_.initialize(this.projectDir_, this.fs_);
+            this.progress_.log('info', 'Asset library initialized');
 
-            // Create output directory
+            const outputDir = joinPath(this.projectDir_, settings.outputDir);
             await this.fs_.createDirectory(outputDir);
 
             // 1. Generate project.config.json
@@ -109,18 +125,35 @@ export class WeChatBuilder {
             await this.generateGameJs(outputDir);
             this.progress_.log('info', 'Generated game.js');
 
-            // 4. Copy scenes
+            // 4. Collect assets and pack atlas
             this.progress_.setPhase('processing_assets');
-            this.progress_.setCurrentTask('Copying scenes...', 0);
-            await this.copyScenes(outputDir);
+            this.progress_.setCurrentTask('Packing texture atlas...', 0);
+            const { atlasResult, packedPaths } = await this.packTextureAtlas(outputDir);
+            if (atlasResult.pages.length > 0) {
+                this.progress_.log('info', `Packed ${atlasResult.frameMap.size} textures into ${atlasResult.pages.length} atlas page(s)`);
+            }
+
+            // 5. Compile materials
+            this.progress_.setCurrentTask('Compiling materials...', 20);
+            const compiledMaterials = await this.compileMaterials();
+            this.progress_.log('info', `Compiled ${compiledMaterials.size} material(s)`);
+
+            // 6. Copy scenes (with atlas rewriting, UUID preserved)
+            this.progress_.setCurrentTask('Copying scenes...', 30);
+            await this.copyScenes(outputDir, atlasResult);
             this.progress_.log('info', 'Copied scenes');
 
-            // 5. Copy assets
+            // 7. Copy assets (excluding packed textures, .esmaterial, .esshader)
             this.progress_.setCurrentTask('Copying assets...', 50);
-            await this.copyAssets(outputDir);
+            await this.copyAssets(outputDir, packedPaths, compiledMaterials);
             this.progress_.log('info', 'Copied assets');
 
-            // 6. Write output
+            // 8. Generate asset-manifest.json
+            this.progress_.setCurrentTask('Generating asset manifest...', 70);
+            await this.generateAssetManifest(outputDir, packedPaths, compiledMaterials, atlasResult);
+            this.progress_.log('info', 'Generated asset-manifest.json');
+
+            // 9. Write output
             this.progress_.setPhase('writing');
             this.progress_.setCurrentTask('Finalizing...', 0);
 
@@ -236,6 +269,12 @@ var ESEngineModule = require('./esengine.js');
 var SDK = require('./sdk.js');
 globalThis.__esengine_sdk = SDK;
 
+var manifest = JSON.parse(wx.getFileSystemManager().readFileSync('asset-manifest.json', 'utf-8'));
+
+function resolveAsset(uuid) {
+    return manifest[uuid] || null;
+}
+
 function createTextureFromPixels(module, result) {
     var rm = module.getResourceManager();
     var ptr = module._malloc(result.pixels.length);
@@ -252,14 +291,16 @@ async function loadSceneTextures(module, sceneData) {
         for (var j = 0; j < entity.components.length; j++) {
             var comp = entity.components[j];
             if (comp.type === 'Sprite' && comp.data.texture && typeof comp.data.texture === 'string') {
-                var texturePath = comp.data.texture;
-                if (!textureCache[texturePath]) {
+                var textureRef = comp.data.texture;
+                if (!textureCache[textureRef]) {
+                    var entry = resolveAsset(textureRef);
+                    var texturePath = entry ? entry.path : textureRef;
                     try {
                         var result = await SDK.wxLoadImagePixels(texturePath);
-                        textureCache[texturePath] = createTextureFromPixels(module, result);
+                        textureCache[textureRef] = createTextureFromPixels(module, result);
                     } catch (err) {
                         console.warn('Failed to load texture:', texturePath, err);
-                        textureCache[texturePath] = 0;
+                        textureCache[textureRef] = 0;
                     }
                 }
             }
@@ -290,13 +331,130 @@ function updateSpriteTextures(world, sceneData, textureCache, entityMap) {
 function applyTextureMetadata(module, sceneData, textureCache) {
     if (!sceneData.textureMetadata) return;
     var rm = module.getResourceManager();
-    for (var texturePath in sceneData.textureMetadata) {
-        var handle = textureCache[texturePath];
+    for (var textureRef in sceneData.textureMetadata) {
+        var handle = textureCache[textureRef];
         if (handle && handle > 0) {
-            var metadata = sceneData.textureMetadata[texturePath];
+            var metadata = sceneData.textureMetadata[textureRef];
             if (metadata && metadata.sliceBorder) {
                 var border = metadata.sliceBorder;
                 rm.setTextureMetadata(handle, border.left, border.right, border.top, border.bottom);
+            }
+        }
+    }
+}
+
+function ensureFSDir(module, path) {
+    var parts = path.split('/');
+    var cur = '';
+    for (var i = 0; i < parts.length - 1; i++) {
+        cur += (cur ? '/' : '') + parts[i];
+        try { module.FS.mkdir(cur); } catch(e) {}
+    }
+}
+
+function parseAtlasTextures(content) {
+    var textures = [];
+    var lines = content.split('\\n');
+    for (var i = 0; i < lines.length; i++) {
+        var line = lines[i].trim();
+        if (line && line.indexOf(':') === -1 && (/\\.png$/i.test(line) || /\\.jpg$/i.test(line)))
+            textures.push(line);
+    }
+    return textures;
+}
+
+async function loadSpineAssets(module, sceneData) {
+    var rm = module.getResourceManager();
+    var wxfs = wx.getFileSystemManager();
+    for (var i = 0; i < sceneData.entities.length; i++) {
+        var entity = sceneData.entities[i];
+        for (var j = 0; j < entity.components.length; j++) {
+            var comp = entity.components[j];
+            if (comp.type !== 'SpineAnimation' || !comp.data) continue;
+            var skelRef = comp.data.skeletonPath;
+            var atlasRef = comp.data.atlasPath;
+            if (!skelRef || !atlasRef) continue;
+            var skelEntry = resolveAsset(skelRef);
+            var atlasEntry = resolveAsset(atlasRef);
+            var skelPath = skelEntry ? skelEntry.path : skelRef;
+            var atlasPath = atlasEntry ? atlasEntry.path : atlasRef;
+            comp.data.skeletonPath = skelPath;
+            comp.data.atlasPath = atlasPath;
+            try {
+                var atlasContent = wxfs.readFileSync(atlasPath, 'utf-8');
+                ensureFSDir(module, atlasPath);
+                module.FS.writeFile(atlasPath, atlasContent);
+                var texNames = parseAtlasTextures(atlasContent);
+                var atlasDir = atlasPath.substring(0, atlasPath.lastIndexOf('/'));
+                for (var k = 0; k < texNames.length; k++) {
+                    var texPath = atlasDir + '/' + texNames[k];
+                    try {
+                        var result = await SDK.wxLoadImagePixels(texPath, false);
+                        var handle = createTextureFromPixels(module, result);
+                        rm.registerTextureWithPath(handle, texPath);
+                    } catch(e) { console.warn('Failed to load spine texture:', texPath, e); }
+                }
+                ensureFSDir(module, skelPath);
+                if (skelPath.endsWith('.skel')) {
+                    module.FS.writeFile(skelPath, new Uint8Array(wxfs.readFileSync(skelPath)));
+                } else {
+                    module.FS.writeFile(skelPath, wxfs.readFileSync(skelPath, 'utf-8'));
+                }
+            } catch(e) { console.warn('Failed to load spine:', skelPath, e); }
+        }
+    }
+}
+
+function loadMaterials(sceneData) {
+    var wxfs = wx.getFileSystemManager();
+    var materialCache = {};
+    var shaderCache = {};
+    for (var i = 0; i < sceneData.entities.length; i++) {
+        var entity = sceneData.entities[i];
+        for (var j = 0; j < entity.components.length; j++) {
+            var comp = entity.components[j];
+            if (!comp.data || typeof comp.data.material !== 'string' || !comp.data.material) continue;
+            if (comp.type !== 'Sprite' && comp.type !== 'SpineAnimation') continue;
+            var matRef = comp.data.material;
+            if (materialCache[matRef] !== undefined) continue;
+            try {
+                var entry = resolveAsset(matRef);
+                if (!entry) { materialCache[matRef] = 0; continue; }
+                var matJson = wxfs.readFileSync(entry.path, 'utf-8');
+                var matData = JSON.parse(matJson);
+                if (!matData.vertexSource || !matData.fragmentSource) { materialCache[matRef] = 0; continue; }
+                var shaderKey = matData.vertexSource + matData.fragmentSource;
+                var shaderHandle = shaderCache[shaderKey];
+                if (!shaderHandle) {
+                    shaderHandle = SDK.Material.createShader(matData.vertexSource, matData.fragmentSource);
+                    shaderCache[shaderKey] = shaderHandle;
+                }
+                materialCache[matRef] = SDK.Material.createFromAsset(matData, shaderHandle);
+            } catch (e) {
+                console.warn('Failed to load material:', matRef, e);
+                materialCache[matRef] = 0;
+            }
+        }
+    }
+    return materialCache;
+}
+
+function updateMaterials(world, sceneData, materialCache, entityMap) {
+    for (var i = 0; i < sceneData.entities.length; i++) {
+        var entityData = sceneData.entities[i];
+        var entity = entityMap.get(entityData.id);
+        if (entity === undefined) continue;
+        for (var j = 0; j < entityData.components.length; j++) {
+            var comp = entityData.components[j];
+            if (!comp.data || typeof comp.data.material !== 'string' || !comp.data.material) continue;
+            var handle = materialCache[comp.data.material] || 0;
+            if (!handle) continue;
+            if (comp.type === 'Sprite') {
+                var sprite = world.get(entity, SDK.Sprite);
+                if (sprite) { sprite.material = handle; world.insert(entity, SDK.Sprite, sprite); }
+            } else if (comp.type === 'SpineAnimation') {
+                var spine = world.get(entity, SDK.SpineAnimation);
+                if (spine) { spine.material = handle; world.insert(entity, SDK.SpineAnimation, spine); }
             }
         }
     }
@@ -347,8 +505,11 @@ function applyTextureMetadata(module, sceneData, textureCache) {
 
         var textureCache = await loadSceneTextures(module, sceneData);
         applyTextureMetadata(module, sceneData, textureCache);
+        await loadSpineAssets(module, sceneData);
+        var materialCache = loadMaterials(sceneData);
         var entityMap = SDK.loadSceneData(app.world, sceneData);
         updateSpriteTextures(app.world, sceneData, textureCache, entityMap);
+        updateMaterials(app.world, sceneData, materialCache, entityMap);
 
         var screenAspect = canvas.width / canvas.height;
         SDK.updateCameraAspectRatio(app.world, screenAspect);
@@ -493,7 +654,6 @@ function applyTextureMetadata(module, sceneData, textureCache) {
                         }
                     }
 
-                    // Add extension if missing
                     if (!resolvedPath.endsWith('.ts') && !resolvedPath.endsWith('.js')) {
                         if (await fs.exists(resolvedPath + '.ts')) {
                             resolvedPath += '.ts';
@@ -521,9 +681,114 @@ function applyTextureMetadata(module, sceneData, textureCache) {
         };
     }
 
-    private async copyScenes(outputDir: string): Promise<void> {
+    private async compileMaterials(): Promise<Map<string, { uuid: string; outputPath: string; json: string }>> {
+        const result = new Map<string, { uuid: string; outputPath: string; json: string }>();
+        const configService = new AssetExportConfigService(this.projectDir_, this.fs_!);
+        const exportConfig = await configService.load();
+
+        const collector = new BuildAssetCollector(this.fs_!, this.projectDir_, this.assetLibrary_);
+        const assetPaths = await collector.collect(this.context_.config, exportConfig);
+
+        for (const relativePath of assetPaths) {
+            if (!relativePath.endsWith('.esmaterial')) continue;
+
+            const uuid = this.assetLibrary_.getUuid(relativePath);
+            if (!uuid) continue;
+
+            const fullPath = joinPath(this.projectDir_, relativePath);
+            const content = await this.fs_!.readFile(fullPath);
+            if (!content) continue;
+
+            try {
+                const matData = JSON.parse(content);
+                if (matData.type !== 'material' || !matData.shader) continue;
+
+                const shaderRelPath = this.resolveShaderPath(relativePath, matData.shader);
+                const shaderFullPath = joinPath(this.projectDir_, shaderRelPath);
+                const shaderContent = await this.fs_!.readFile(shaderFullPath);
+                if (!shaderContent) continue;
+
+                const parsed = this.parseEsShader(shaderContent);
+                if (!parsed.vertex || !parsed.fragment) continue;
+
+                const compiled = {
+                    type: 'material',
+                    vertexSource: parsed.vertex,
+                    fragmentSource: parsed.fragment,
+                    blendMode: matData.blendMode ?? 0,
+                    depthTest: matData.depthTest ?? false,
+                    properties: matData.properties ?? {},
+                };
+
+                const outputRelPath = relativePath.replace(/\.esmaterial$/, '.json');
+                result.set(relativePath, {
+                    uuid,
+                    outputPath: outputRelPath,
+                    json: JSON.stringify(compiled, null, 2),
+                });
+            } catch {
+                console.warn(`[WeChatBuilder] Failed to compile material: ${relativePath}`);
+            }
+        }
+
+        return result;
+    }
+
+    private parseEsShader(content: string): { vertex: string | null; fragment: string | null } {
+        const vm = content.match(/#pragma\s+vertex\s*([\s\S]*?)#pragma\s+end/);
+        const fm = content.match(/#pragma\s+fragment\s*([\s\S]*?)#pragma\s+end/);
+        return { vertex: vm ? vm[1].trim() : null, fragment: fm ? fm[1].trim() : null };
+    }
+
+    private resolveShaderPath(materialPath: string, shaderPath: string): string {
+        if (shaderPath.startsWith('/') || shaderPath.startsWith('assets/')) return shaderPath;
+        const dir = getDirName(materialPath);
+        return dir ? `${dir}/${shaderPath}` : shaderPath;
+    }
+
+    private async packTextureAtlas(
+        outputDir: string
+    ): Promise<{ atlasResult: AtlasResult; packedPaths: Set<string> }> {
+        const configService = new AssetExportConfigService(this.projectDir_, this.fs_!);
+        const exportConfig = await configService.load();
+
+        const collector = new BuildAssetCollector(this.fs_!, this.projectDir_, this.assetLibrary_);
+        const assetPaths = await collector.collect(this.context_.config, exportConfig);
+
+        const imagePaths = [...assetPaths].filter(p => {
+            const ext = p.split('.').pop()?.toLowerCase() ?? '';
+            return ext === 'png' || ext === 'jpg' || ext === 'jpeg';
+        });
+
+        const sceneDataList: Array<{ name: string; data: Record<string, unknown> }> = [];
+        for (const scenePath of this.context_.config.scenes) {
+            const fullPath = isAbsolutePath(scenePath)
+                ? normalizePath(scenePath)
+                : joinPath(this.projectDir_, scenePath);
+            const content = await this.fs_!.readFile(fullPath);
+            if (content) {
+                const name = scenePath.replace(/.*\//, '').replace('.esscene', '');
+                sceneDataList.push({ name, data: JSON.parse(content) });
+            }
+        }
+
+        const packer = new TextureAtlasPacker(this.fs_!, this.projectDir_, this.assetLibrary_);
+        const atlasResult = await packer.pack(imagePaths, sceneDataList);
+
+        for (let i = 0; i < atlasResult.pages.length; i++) {
+            const atlasPath = joinPath(outputDir, `atlas_${i}.png`);
+            await this.fs_!.writeBinaryFile(atlasPath, atlasResult.pages[i].imageData);
+        }
+
+        const packedPaths = new Set<string>(atlasResult.frameMap.keys());
+        return { atlasResult, packedPaths };
+    }
+
+    private async copyScenes(outputDir: string, atlasResult: AtlasResult): Promise<void> {
         const scenesDir = joinPath(outputDir, 'scenes');
         await this.fs_!.createDirectory(scenesDir);
+
+        const packer = new TextureAtlasPacker(this.fs_!, this.projectDir_, this.assetLibrary_);
 
         for (const scenePath of this.context_.config.scenes) {
             const fullPath = isAbsolutePath(scenePath)
@@ -533,97 +798,128 @@ function applyTextureMetadata(module, sceneData, textureCache) {
             const content = await this.fs_!.readFile(fullPath);
             if (content) {
                 const name = scenePath.replace(/.*\//, '').replace('.esscene', '');
-                const encodedContent = this.encodeTexturePathsInScene(content);
-                await this.fs_!.writeFile(joinPath(scenesDir, `${name}.json`), encodedContent);
+                const sceneData = JSON.parse(content);
+                packer.rewriteSceneData(sceneData, atlasResult, '');
+                await this.fs_!.writeFile(joinPath(scenesDir, `${name}.json`), JSON.stringify(sceneData, null, 2));
             }
         }
     }
 
-    private encodeTexturePathsInScene(sceneJson: string): string {
-        try {
-            const scene = JSON.parse(sceneJson);
-            for (const entity of scene.entities || []) {
-                for (const comp of entity.components || []) {
-                    if (comp.type === 'Sprite' && comp.data?.texture) {
-                        comp.data.texture = this.encodeAssetPath(comp.data.texture);
+    private async copyAssets(
+        outputDir: string,
+        packedPaths: Set<string>,
+        compiledMaterials: Map<string, { uuid: string; outputPath: string; json: string }>
+    ): Promise<void> {
+        const configService = new AssetExportConfigService(this.projectDir_, this.fs_!);
+        const exportConfig = await configService.load();
+
+        const collector = new BuildAssetCollector(this.fs_!, this.projectDir_, this.assetLibrary_);
+        const assetPaths = await collector.collect(this.context_.config, exportConfig);
+
+        const compiledMaterialPaths = new Set<string>();
+        const compiledShaderPaths = new Set<string>();
+        for (const [matPath, compiled] of compiledMaterials) {
+            compiledMaterialPaths.add(matPath);
+            const fullPath = joinPath(this.projectDir_, matPath);
+            const content = await this.fs_!.readFile(fullPath);
+            if (content) {
+                try {
+                    const matData = JSON.parse(content);
+                    if (matData.shader) {
+                        compiledShaderPaths.add(this.resolveShaderPath(matPath, matData.shader));
                     }
-                }
-            }
-            if (scene.textureMetadata) {
-                const encodedMetadata: Record<string, unknown> = {};
-                for (const [path, metadata] of Object.entries(scene.textureMetadata)) {
-                    encodedMetadata[this.encodeAssetPath(path)] = metadata;
-                }
-                scene.textureMetadata = encodedMetadata;
-            }
-            return JSON.stringify(scene, null, 2);
-        } catch {
-            return sceneJson;
-        }
-    }
-
-    private encodeAssetPath(path: string): string {
-        if (!path || typeof path !== 'string') return path;
-        const parts = path.split('/');
-        const encodedParts = parts.map(part => {
-            const dotIndex = part.lastIndexOf('.');
-            if (dotIndex > 0) {
-                const name = part.substring(0, dotIndex);
-                const ext = part.substring(dotIndex);
-                return encodeURIComponent(name) + ext;
-            }
-            return encodeURIComponent(part);
-        });
-        return encodedParts.join('/');
-    }
-
-    private async copyAssets(outputDir: string): Promise<void> {
-        const srcTexturesPath = joinPath(this.projectDir_, 'assets/textures');
-        const destTexturesPath = joinPath(outputDir, 'assets/textures');
-
-        if (await this.fs_!.exists(srcTexturesPath)) {
-            await this.copyDirectoryRecursive(srcTexturesPath, destTexturesPath);
-        }
-
-        const srcAudioPath = joinPath(this.projectDir_, 'assets/audio');
-        const destAudioPath = joinPath(outputDir, 'assets/audio');
-
-        if (await this.fs_!.exists(srcAudioPath)) {
-            await this.copyDirectoryRecursive(srcAudioPath, destAudioPath);
-        }
-    }
-
-    private async copyDirectoryRecursive(srcDir: string, destDir: string): Promise<void> {
-        await this.fs_!.createDirectory(destDir);
-
-        const entries = await this.fs_!.listDirectoryDetailed(srcDir);
-
-        for (const entry of entries) {
-            const srcPath = joinPath(srcDir, entry.name);
-            const encodedName = this.encodeFileName(entry.name);
-            const destPath = joinPath(destDir, encodedName);
-
-            if (entry.isDirectory) {
-                await this.copyDirectoryRecursive(srcPath, destPath);
-            } else {
-                const ext = getFileExtension(entry.name);
-                if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'mp3', 'wav', 'ogg'].includes(ext)) {
-                    const data = await this.fs_!.readBinaryFile(srcPath);
-                    if (data) {
-                        await this.fs_!.writeBinaryFile(destPath, data);
-                    }
+                } catch {
+                    // ignore
                 }
             }
         }
+
+        for (const relativePath of assetPaths) {
+            if (packedPaths.has(relativePath)) continue;
+            if (compiledMaterialPaths.has(relativePath)) continue;
+            if (compiledShaderPaths.has(relativePath)) continue;
+            if (relativePath.endsWith('.esshader')) continue;
+
+            const srcPath = joinPath(this.projectDir_, relativePath);
+            const destPath = joinPath(outputDir, relativePath);
+
+            const destDir = destPath.substring(0, destPath.lastIndexOf('/'));
+            await this.fs_!.createDirectory(destDir);
+
+            const data = await this.fs_!.readBinaryFile(srcPath);
+            if (data) {
+                await this.fs_!.writeBinaryFile(destPath, data);
+            }
+        }
+
+        for (const [, compiled] of compiledMaterials) {
+            const destPath = joinPath(outputDir, compiled.outputPath);
+            const destDir = destPath.substring(0, destPath.lastIndexOf('/'));
+            await this.fs_!.createDirectory(destDir);
+            await this.fs_!.writeFile(destPath, compiled.json);
+        }
     }
 
-    private encodeFileName(name: string): string {
-        const dotIndex = name.lastIndexOf('.');
-        if (dotIndex > 0) {
-            const baseName = name.substring(0, dotIndex);
-            const ext = name.substring(dotIndex);
-            return encodeURIComponent(baseName) + ext;
+    private async generateAssetManifest(
+        outputDir: string,
+        packedPaths: Set<string>,
+        compiledMaterials: Map<string, { uuid: string; outputPath: string; json: string }>,
+        atlasResult: AtlasResult
+    ): Promise<void> {
+        const manifest: Record<string, AssetManifestEntry> = {};
+
+        const configService = new AssetExportConfigService(this.projectDir_, this.fs_!);
+        const exportConfig = await configService.load();
+        const collector = new BuildAssetCollector(this.fs_!, this.projectDir_, this.assetLibrary_);
+        const assetPaths = await collector.collect(this.context_.config, exportConfig);
+
+        for (const relativePath of assetPaths) {
+            if (relativePath.endsWith('.esshader')) continue;
+
+            const uuid = this.assetLibrary_.getUuid(relativePath);
+            if (!uuid) continue;
+
+            if (packedPaths.has(relativePath)) {
+                const entry = atlasResult.frameMap.get(relativePath);
+                if (entry) {
+                    manifest[uuid] = {
+                        path: `atlas_${entry.page}.png`,
+                        type: 'texture',
+                    };
+                }
+                continue;
+            }
+
+            const compiled = compiledMaterials.get(relativePath);
+            if (compiled) {
+                manifest[uuid] = {
+                    path: compiled.outputPath,
+                    type: 'material',
+                };
+                continue;
+            }
+
+            const ext = getFileExtension(relativePath);
+            let type = 'unknown';
+            switch (ext) {
+                case 'png': case 'jpg': case 'jpeg': case 'gif': case 'webp': case 'svg':
+                    type = 'texture'; break;
+                case 'atlas': type = 'spine-atlas'; break;
+                case 'skel': type = 'spine-skeleton'; break;
+                case 'json': type = 'json'; break;
+                case 'mp3': case 'wav': case 'ogg': type = 'audio'; break;
+            }
+
+            manifest[uuid] = {
+                path: relativePath,
+                type,
+            };
         }
-        return encodeURIComponent(name);
+
+        await this.fs_!.writeFile(
+            joinPath(outputDir, 'asset-manifest.json'),
+            JSON.stringify(manifest, null, 2)
+        );
     }
+
 }

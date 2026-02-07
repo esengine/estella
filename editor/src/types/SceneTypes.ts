@@ -54,7 +54,7 @@ export interface ViewportState {
 
 export function createEmptyScene(name: string = 'Untitled'): SceneData {
     return {
-        version: '1.0',
+        version: '2.0',
         name,
         entities: [],
     };

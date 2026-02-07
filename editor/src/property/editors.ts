@@ -10,6 +10,7 @@ import {
 } from './PropertyEditor';
 import { getEditorContext, getEditorInstance } from '../context/EditorContext';
 import { getPlatformAdapter } from '../platform/PlatformAdapter';
+import { getAssetLibrary, isUUID } from '../asset/AssetLibrary';
 
 // =============================================================================
 // Drag Helper
@@ -682,6 +683,23 @@ function getMimeType(path: string): string {
     }
 }
 
+function resolveDisplayName(ref: string): string {
+    if (!ref) return '';
+    if (isUUID(ref)) {
+        const path = getAssetLibrary().getPath(ref);
+        return path ?? ref;
+    }
+    return ref;
+}
+
+function resolveToPath(ref: string): string {
+    if (!ref) return '';
+    if (isUUID(ref)) {
+        return getAssetLibrary().getPath(ref) ?? ref;
+    }
+    return ref;
+}
+
 function createTextureEditor(
     container: HTMLElement,
     ctx: PropertyEditorContext
@@ -706,7 +724,7 @@ function createTextureEditor(
     const input = document.createElement('input');
     input.type = 'text';
     input.className = 'es-input es-input-texture es-asset-link';
-    input.value = (value && typeof value === 'string') ? value : '';
+    input.value = (value && typeof value === 'string') ? resolveDisplayName(value) : '';
     input.placeholder = 'None';
     input.readOnly = true;
 
@@ -720,7 +738,7 @@ function createTextureEditor(
     clearBtn.title = 'Clear';
     clearBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
 
-    const updatePreview = async (texturePath: string) => {
+    const updatePreview = async (textureRef: string) => {
         if (currentBlobUrl) {
             URL.revokeObjectURL(currentBlobUrl);
             currentBlobUrl = null;
@@ -728,6 +746,7 @@ function createTextureEditor(
 
         const projectDir = getProjectDir();
         const fs = getNativeFS();
+        const texturePath = resolveToPath(textureRef);
 
         if (texturePath && projectDir && fs) {
             const fullPath = `${projectDir}/${texturePath}`;
@@ -753,12 +772,12 @@ function createTextureEditor(
 
     const navigateToAssetPath = async (e: Event) => {
         e.stopPropagation();
-        const texturePath = input.value;
-        if (!texturePath) return;
+        const displayPath = input.value;
+        if (!displayPath) return;
 
         const editor = getEditorInstance();
         if (editor?.navigateToAsset) {
-            await editor.navigateToAsset(texturePath);
+            await editor.navigateToAsset(displayPath);
         }
     };
 
@@ -795,9 +814,11 @@ function createTextureEditor(
                 const projectDir = getProjectDir();
                 if (projectDir && assetData.path.startsWith(projectDir)) {
                     const relativePath = assetData.path.substring(projectDir.length + 1);
+                    const uuid = getAssetLibrary().getUuid(relativePath);
+                    const ref = uuid ?? relativePath;
                     input.value = relativePath;
-                    onChange(relativePath);
-                    updatePreview(relativePath);
+                    onChange(ref);
+                    updatePreview(ref);
                 }
             }
         } catch (err) {
@@ -823,9 +844,11 @@ function createTextureEditor(
                 const assetsIndex = normalizedPath.indexOf('/assets/');
                 if (assetsIndex !== -1) {
                     const relativePath = normalizedPath.substring(assetsIndex + 1);
+                    const uuid = getAssetLibrary().getUuid(relativePath);
+                    const ref = uuid ?? relativePath;
                     input.value = relativePath;
-                    onChange(relativePath);
-                    updatePreview(relativePath);
+                    onChange(ref);
+                    updatePreview(ref);
                 }
             }
         } catch (err) {
@@ -849,7 +872,7 @@ function createTextureEditor(
     return {
         update(v: unknown) {
             const newValue = String(v ?? '');
-            input.value = newValue;
+            input.value = resolveDisplayName(newValue);
             updatePreview(newValue);
         },
         dispose() {
@@ -970,7 +993,7 @@ function createSpineFileEditor(
     const input = document.createElement('input');
     input.type = 'text';
     input.className = 'es-input es-input-file';
-    input.value = String(value ?? '');
+    input.value = resolveDisplayName(String(value ?? ''));
     input.placeholder = 'None';
 
     const browseBtn = document.createElement('button');
@@ -1006,8 +1029,10 @@ function createSpineFileEditor(
                 const assetsIndex = normalizedPath.indexOf('/assets/');
                 if (assetsIndex !== -1) {
                     const relativePath = normalizedPath.substring(assetsIndex + 1);
+                    const uuid = getAssetLibrary().getUuid(relativePath);
+                    const ref = uuid ?? relativePath;
                     input.value = relativePath;
-                    onChange(relativePath);
+                    onChange(ref);
                 }
             }
         } catch (err) {
@@ -1027,7 +1052,7 @@ function createSpineFileEditor(
 
     return {
         update(v: unknown) {
-            input.value = String(v ?? '');
+            input.value = resolveDisplayName(String(v ?? ''));
         },
         dispose() {
             wrapper.remove();
@@ -1117,7 +1142,8 @@ function createSpineAnimationEditor(
     };
 
     const loadAnimations = async () => {
-        const skeletonPath = getComponentValue?.('skeletonPath') as string;
+        const skeletonRef = getComponentValue?.('skeletonPath') as string;
+        const skeletonPath = skeletonRef ? resolveToPath(skeletonRef) : '';
         if (!skeletonPath) {
             updateOptions([], String(value ?? ''));
             return;
@@ -1208,7 +1234,8 @@ function createSpineSkinEditor(
     };
 
     const loadSkins = async () => {
-        const skeletonPath = getComponentValue?.('skeletonPath') as string;
+        const skeletonRef = getComponentValue?.('skeletonPath') as string;
+        const skeletonPath = skeletonRef ? resolveToPath(skeletonRef) : '';
         if (!skeletonPath) {
             updateOptions(['default'], String(value ?? 'default'));
             return;
@@ -1275,7 +1302,7 @@ function createMaterialFileEditor(
     const input = document.createElement('input');
     input.type = 'text';
     input.className = 'es-input es-input-file es-asset-link';
-    input.value = String(value ?? '');
+    input.value = resolveDisplayName(String(value ?? ''));
     input.placeholder = 'None';
     input.readOnly = true;
 
@@ -1323,8 +1350,10 @@ function createMaterialFileEditor(
                 const projectDir = getProjectDir();
                 if (projectDir && assetData.path.startsWith(projectDir)) {
                     const relativePath = assetData.path.substring(projectDir.length + 1);
+                    const uuid = getAssetLibrary().getUuid(relativePath);
+                    const ref = uuid ?? relativePath;
                     input.value = relativePath;
-                    onChange(relativePath);
+                    onChange(ref);
                 }
             }
         } catch (err) {
@@ -1350,8 +1379,10 @@ function createMaterialFileEditor(
                 const assetsIndex = normalizedPath.indexOf('/assets/');
                 if (assetsIndex !== -1) {
                     const relativePath = normalizedPath.substring(assetsIndex + 1);
+                    const uuid = getAssetLibrary().getUuid(relativePath);
+                    const ref = uuid ?? relativePath;
                     input.value = relativePath;
-                    onChange(relativePath);
+                    onChange(ref);
                 }
             }
         } catch (err) {
@@ -1371,7 +1402,7 @@ function createMaterialFileEditor(
 
     return {
         update(v: unknown) {
-            input.value = String(v ?? '');
+            input.value = resolveDisplayName(String(v ?? ''));
         },
         dispose() {
             wrapper.remove();

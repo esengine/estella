@@ -6,8 +6,9 @@
  * 1. Load pre-built esengine.single.js (WASM module loader)
  * 2. Compile user scripts to IIFE format (with esengine bundled)
  * 3. Read startup scene JSON
- * 4. Collect and inline assets as base64 data URLs
- * 5. Assemble final HTML using scene-driven template
+ * 4. Compile materials (.esmaterial + .esshader → single JSON)
+ * 5. Collect and inline assets as base64 data URLs (keyed by UUID)
+ * 6. Assemble final HTML using scene-driven template
  */
 
 import * as esbuild from 'esbuild-wasm/esm/browser';
@@ -16,6 +17,9 @@ import { BuildProgressReporter } from './BuildProgress';
 import { BuildCache, type BuildCacheData } from './BuildCache';
 import { getEditorContext } from '../context/EditorContext';
 import { findTsFiles, EDITOR_ONLY_DIRS } from '../scripting/ScriptLoader';
+import { BuildAssetCollector, AssetExportConfigService } from './AssetCollector';
+import { TextureAtlasPacker, type AtlasResult } from './TextureAtlas';
+import { AssetLibrary, isUUID } from '../asset/AssetLibrary';
 
 // =============================================================================
 // Types
@@ -61,6 +65,11 @@ function getDir(filePath: string): string {
     const normalized = normalizePath(filePath);
     const lastSlash = normalized.lastIndexOf('/');
     return lastSlash > 0 ? normalized.substring(0, lastSlash) : normalized;
+}
+
+function getDirName(path: string): string {
+    const lastSlash = path.lastIndexOf('/');
+    return lastSlash > 0 ? path.substring(0, lastSlash) : '';
 }
 
 // =============================================================================
@@ -167,13 +176,13 @@ async function loadSceneTextures(mod,scene){
     for(var j=0;j<ent.components.length;j++){
       var comp=ent.components[j];
       if(comp.type==='Sprite'&&comp.data.texture&&typeof comp.data.texture==='string'){
-        var tp=comp.data.texture;
-        if(!cache[tp]){
-          var d=__PA__[tp];
+        var ref=comp.data.texture;
+        if(!cache[ref]){
+          var d=__PA__[ref];
           if(d){
-            try{cache[tp]=createTextureFromPixels(mod,await loadImagePixels(d))}
-            catch(e){console.warn('Failed to load texture:',tp,e);cache[tp]=0}
-          }else{cache[tp]=0}
+            try{cache[ref]=createTextureFromPixels(mod,await loadImagePixels(d))}
+            catch(e){console.warn('Failed to load texture:',ref,e);cache[ref]=0}
+          }else{cache[ref]=0}
         }
       }
     }
@@ -188,11 +197,12 @@ async function loadSpineAssets(mod,scene){
     for(var j=0;j<ent.components.length;j++){
       var comp=ent.components[j];
       if(comp.type!=='SpineAnimation'||!comp.data)continue;
-      var skelPath=comp.data.skeletonPath,atlasPath=comp.data.atlasPath;
-      if(!skelPath||!atlasPath)continue;
-      var atlasData=__PA__[atlasPath];
+      var skelRef=comp.data.skeletonPath,atlasRef=comp.data.atlasPath;
+      if(!skelRef||!atlasRef)continue;
+      var atlasData=__PA__[atlasRef];
       if(atlasData){
         var atlasContent=decodeText(atlasData);
+        var atlasPath=atlasRef;
         ensureFSDir(mod,atlasPath);
         mod.FS.writeFile(atlasPath,atlasContent);
         var texNames=parseAtlasTextures(atlasContent);
@@ -208,11 +218,64 @@ async function loadSpineAssets(mod,scene){
           }
         }
       }
-      var skelData=__PA__[skelPath];
+      var skelData=__PA__[skelRef];
       if(skelData){
+        var skelPath=skelRef;
         ensureFSDir(mod,skelPath);
         if(skelPath.endsWith('.skel'))mod.FS.writeFile(skelPath,decodeBinary(skelData));
         else mod.FS.writeFile(skelPath,decodeText(skelData));
+      }
+    }
+  }
+}
+
+function loadMaterials(scene){
+  var es=window.esengine;
+  var materialCache={};
+  var shaderCache={};
+  for(var i=0;i<scene.entities.length;i++){
+    var ent=scene.entities[i];
+    for(var j=0;j<ent.components.length;j++){
+      var comp=ent.components[j];
+      if(!comp.data||typeof comp.data.material!=='string'||!comp.data.material)continue;
+      if(comp.type!=='Sprite'&&comp.type!=='SpineAnimation')continue;
+      var matRef=comp.data.material;
+      if(materialCache[matRef]!==undefined)continue;
+      try{
+        var matDataUrl=__PA__[matRef];
+        if(!matDataUrl){materialCache[matRef]=0;continue}
+        var matData=JSON.parse(decodeText(matDataUrl));
+        if(!matData.vertexSource||!matData.fragmentSource){materialCache[matRef]=0;continue}
+        var shaderKey=matData.vertexSource+matData.fragmentSource;
+        var shaderHandle=shaderCache[shaderKey];
+        if(!shaderHandle){
+          shaderHandle=es.Material.createShader(matData.vertexSource,matData.fragmentSource);
+          shaderCache[shaderKey]=shaderHandle;
+        }
+        materialCache[matRef]=es.Material.createFromAsset(matData,shaderHandle);
+      }catch(e){console.warn('Failed to load material:',matRef,e);materialCache[matRef]=0}
+    }
+  }
+  return materialCache;
+}
+
+function updateMaterials(world,scene,materialCache,entityMap){
+  var es=window.esengine;
+  for(var i=0;i<scene.entities.length;i++){
+    var ed=scene.entities[i];
+    var entity=entityMap.get(ed.id);
+    if(entity===undefined)continue;
+    for(var j=0;j<ed.components.length;j++){
+      var comp=ed.components[j];
+      if(!comp.data||typeof comp.data.material!=='string'||!comp.data.material)continue;
+      var h=materialCache[comp.data.material]||0;
+      if(!h)continue;
+      if(comp.type==='Sprite'){
+        var sprite=world.get(entity,es.Sprite);
+        if(sprite){sprite.material=h;world.insert(entity,es.Sprite,sprite)}
+      }else if(comp.type==='SpineAnimation'){
+        var spine=world.get(entity,es.SpineAnimation);
+        if(spine){spine.material=h;world.insert(entity,es.SpineAnimation,spine)}
       }
     }
   }
@@ -237,10 +300,10 @@ function updateSpriteTextures(world,scene,cache,entityMap){
 function applyTextureMetadata(mod,scene,cache){
   if(!scene.textureMetadata)return;
   var rm=mod.getResourceManager();
-  for(var tp in scene.textureMetadata){
-    var h=cache[tp];
+  for(var ref in scene.textureMetadata){
+    var h=cache[ref];
     if(h&&h>0){
-      var m=scene.textureMetadata[tp];
+      var m=scene.textureMetadata[ref];
       if(m&&m.sliceBorder){
         var b=m.sliceBorder;
         rm.setTextureMetadata(h,b.left,b.right,b.top,b.bottom);
@@ -265,8 +328,10 @@ function applyTextureMetadata(mod,scene,cache){
   var textureCache=await loadSceneTextures(Module,__SCENE__);
   applyTextureMetadata(Module,__SCENE__,textureCache);
   await loadSpineAssets(Module,__SCENE__);
+  var materialCache=loadMaterials(__SCENE__);
   var entityMap=es.loadSceneData(app.world,__SCENE__);
   updateSpriteTextures(app.world,__SCENE__,textureCache,entityMap);
+  updateMaterials(app.world,__SCENE__,materialCache,entityMap);
 
   var screenAspect=c.width/c.height;
   es.updateCameraAspectRatio(app.world,screenAspect);
@@ -288,6 +353,7 @@ export class PlayableBuilder {
         this.projectDir_ = getProjectDir(context.projectPath);
         this.progress_ = context.progress || new BuildProgressReporter();
         this.cache_ = context.cache || null;
+        this.assetLibrary_ = new AssetLibrary();
     }
 
     // =========================================================================
@@ -313,7 +379,9 @@ export class PlayableBuilder {
         this.progress_.log('info', 'Starting Playable build...');
 
         try {
-            // Check cache for compiled scripts
+            await this.assetLibrary_.initialize(this.projectDir_, this.fs_);
+            this.progress_.log('info', 'Asset library initialized');
+
             let cachedData: BuildCacheData | null = null;
             if (this.cache_) {
                 cachedData = await this.cache_.loadCache(this.context_.config.id);
@@ -361,19 +429,42 @@ export class PlayableBuilder {
             }
             this.progress_.log('info', `Scene loaded: ${scenePath}`);
 
-            // 4. Collect assets
+            // 4. Pack texture atlas
             this.progress_.setPhase('processing_assets');
-            this.progress_.setCurrentTask('Collecting assets...', 0);
-            const assets = await this.collectAssets();
+            this.progress_.setCurrentTask('Packing texture atlas...', 0);
+            const { atlasResult, packedPaths } = await this.packTextureAtlas();
+            if (atlasResult.pages.length > 0) {
+                this.progress_.log('info', `Packed ${atlasResult.frameMap.size} textures into ${atlasResult.pages.length} atlas page(s)`);
+            }
+
+            // 5. Rewrite scene data with atlas UVs, then resolve all UUID refs to paths
+            const sceneData = JSON.parse(sceneContent);
+            const packer = new TextureAtlasPacker(this.fs_!, this.projectDir_, this.assetLibrary_);
+            packer.rewriteSceneData(sceneData, atlasResult, '');
+            this.resolveSceneUUIDs(sceneData);
+            const rewrittenScene = JSON.stringify(sceneData);
+
+            // 6. Compile materials
+            this.progress_.setCurrentTask('Compiling materials...', 20);
+            const compiledMaterials = await this.compileMaterials();
+            this.progress_.log('info', `Compiled ${compiledMaterials.size} material(s)`);
+
+            // 7. Collect assets (keyed by UUID, excluding packed textures, adding atlas pages)
+            this.progress_.setCurrentTask('Collecting assets...', 30);
+            const assets = await this.collectAssets(packedPaths, compiledMaterials);
+            for (let i = 0; i < atlasResult.pages.length; i++) {
+                const base64 = this.arrayBufferToBase64(atlasResult.pages[i].imageData);
+                assets.set(`atlas_${i}.png`, `data:image/png;base64,${base64}`);
+            }
             this.progress_.log('info', `Collected ${assets.size} assets`);
 
-            // 5. Assemble HTML
+            // 8. Assemble HTML
             this.progress_.setPhase('assembling');
             this.progress_.setCurrentTask('Assembling HTML...', 0);
-            const html = this.assembleHTML(wasmSdk, gameCode, sceneContent, assets);
+            const html = this.assembleHTML(wasmSdk, gameCode, rewrittenScene, assets);
             this.progress_.log('info', `HTML assembled: ${html.length} bytes`);
 
-            // 6. Write output
+            // 9. Write output
             this.progress_.setPhase('writing');
             this.progress_.setCurrentTask('Writing output...', 0);
             const outputPath = this.resolveOutputPath(settings.outputPath);
@@ -383,7 +474,6 @@ export class PlayableBuilder {
             const success = await this.fs_.writeFile(outputPath, html);
 
             if (success) {
-                // Save cache
                 if (this.cache_) {
                     const cacheData = await this.cache_.createCacheData(
                         this.context_.config.id,
@@ -457,9 +547,6 @@ export class PlayableBuilder {
             return this.createMinimalGameCode();
         }
 
-        // Generate entry content that:
-        // 1. Imports esengine and exposes it globally
-        // 2. Imports all user scripts (to register components)
         const imports = scripts.map(p => `import "${p}";`).join('\n');
         const entryContent = `
 import * as esengine from 'esengine';
@@ -502,7 +589,6 @@ ${imports}
         return `
 (function(){
   var esengine = window.esengine || {};
-  // Minimal esengine stub if no user scripts
 })();
 `;
     }
@@ -539,7 +625,6 @@ ${imports}
                         const baseDir = args.importer ? getDir(args.importer) : args.resolveDir;
                         resolvedPath = joinPath(baseDir, args.path);
                     } else {
-                        // Bare module specifier
                         if (args.path === 'esengine') {
                             resolvedPath = joinPath(projectDir, '.esengine/sdk/index.js');
                         } else if (args.path === 'esengine/wasm') {
@@ -600,43 +685,185 @@ ${imports}
         };
     }
 
-    private async collectAssets(): Promise<Map<string, string>> {
-        const assets = new Map<string, string>();
-        const assetsPath = joinPath(this.projectDir_, 'assets');
+    private parseEsShader(content: string): { vertex: string | null; fragment: string | null } {
+        const vm = content.match(/#pragma\s+vertex\s*([\s\S]*?)#pragma\s+end/);
+        const fm = content.match(/#pragma\s+fragment\s*([\s\S]*?)#pragma\s+end/);
+        return { vertex: vm ? vm[1].trim() : null, fragment: fm ? fm[1].trim() : null };
+    }
 
-        if (await this.fs_!.exists(assetsPath)) {
-            await this.collectAssetsRecursive(assetsPath, 'assets', assets);
+    private resolveShaderPath(materialPath: string, shaderPath: string): string {
+        if (shaderPath.startsWith('/') || shaderPath.startsWith('assets/')) return shaderPath;
+        const dir = getDirName(materialPath);
+        return dir ? `${dir}/${shaderPath}` : shaderPath;
+    }
+
+    private async compileMaterials(): Promise<Map<string, { uuid: string; compiledJson: string }>> {
+        const result = new Map<string, { uuid: string; compiledJson: string }>();
+        const configService = new AssetExportConfigService(this.projectDir_, this.fs_!);
+        const exportConfig = await configService.load();
+
+        const collector = new BuildAssetCollector(this.fs_!, this.projectDir_, this.assetLibrary_);
+        const assetPaths = await collector.collect(this.context_.config, exportConfig);
+
+        for (const relativePath of assetPaths) {
+            if (!relativePath.endsWith('.esmaterial')) continue;
+
+            const uuid = this.assetLibrary_.getUuid(relativePath);
+            if (!uuid) continue;
+
+            const fullPath = joinPath(this.projectDir_, relativePath);
+            const content = await this.fs_!.readFile(fullPath);
+            if (!content) continue;
+
+            try {
+                const matData = JSON.parse(content);
+                if (matData.type !== 'material' || !matData.shader) continue;
+
+                const shaderRelPath = this.resolveShaderPath(relativePath, matData.shader);
+                const shaderFullPath = joinPath(this.projectDir_, shaderRelPath);
+                const shaderContent = await this.fs_!.readFile(shaderFullPath);
+                if (!shaderContent) continue;
+
+                const parsed = this.parseEsShader(shaderContent);
+                if (!parsed.vertex || !parsed.fragment) continue;
+
+                const compiled = {
+                    type: 'material',
+                    vertexSource: parsed.vertex,
+                    fragmentSource: parsed.fragment,
+                    blendMode: matData.blendMode ?? 0,
+                    depthTest: matData.depthTest ?? false,
+                    properties: matData.properties ?? {},
+                };
+
+                result.set(relativePath, {
+                    uuid,
+                    compiledJson: JSON.stringify(compiled),
+                });
+            } catch {
+                console.warn(`[PlayableBuilder] Failed to compile material: ${relativePath}`);
+            }
+        }
+
+        return result;
+    }
+
+    private async packTextureAtlas(): Promise<{ atlasResult: AtlasResult; packedPaths: Set<string> }> {
+        const configService = new AssetExportConfigService(this.projectDir_, this.fs_!);
+        const exportConfig = await configService.load();
+
+        const collector = new BuildAssetCollector(this.fs_!, this.projectDir_, this.assetLibrary_);
+        const assetPaths = await collector.collect(this.context_.config, exportConfig);
+
+        const imagePaths = [...assetPaths].filter(p => {
+            const ext = p.split('.').pop()?.toLowerCase() ?? '';
+            return ext === 'png' || ext === 'jpg' || ext === 'jpeg';
+        });
+
+        const sceneDataList: Array<{ name: string; data: Record<string, unknown> }> = [];
+        for (const scenePath of this.context_.config.scenes) {
+            const fullPath = this.resolveScenePath(scenePath);
+            const content = await this.fs_!.readFile(fullPath);
+            if (content) {
+                const name = scenePath.replace(/.*\//, '').replace('.esscene', '');
+                sceneDataList.push({ name, data: JSON.parse(content) });
+            }
+        }
+
+        const packer = new TextureAtlasPacker(this.fs_!, this.projectDir_, this.assetLibrary_);
+        const atlasResult = await packer.pack(imagePaths, sceneDataList);
+
+        const packedPaths = new Set<string>(atlasResult.frameMap.keys());
+        return { atlasResult, packedPaths };
+    }
+
+    private async collectAssets(
+        packedPaths: Set<string>,
+        compiledMaterials: Map<string, { uuid: string; compiledJson: string }>
+    ): Promise<Map<string, string>> {
+        const assets = new Map<string, string>();
+
+        const configService = new AssetExportConfigService(this.projectDir_, this.fs_!);
+        const exportConfig = await configService.load();
+
+        const collector = new BuildAssetCollector(this.fs_!, this.projectDir_, this.assetLibrary_);
+        const assetPaths = await collector.collect(this.context_.config, exportConfig);
+
+        const compiledMaterialPaths = new Set<string>(compiledMaterials.keys());
+
+        for (const relativePath of assetPaths) {
+            if (packedPaths.has(relativePath)) continue;
+            if (relativePath.endsWith('.esshader')) continue;
+
+            if (compiledMaterialPaths.has(relativePath)) {
+                const compiled = compiledMaterials.get(relativePath)!;
+                const base64 = btoa(compiled.compiledJson);
+                assets.set(relativePath, `data:application/json;base64,${base64}`);
+                continue;
+            }
+
+            const ext = getFileExtension(relativePath);
+            const mimeType = MIME_TYPES[ext];
+            if (!mimeType) continue;
+
+            const fullPath = joinPath(this.projectDir_, relativePath);
+            const binary = await this.fs_!.readBinaryFile(fullPath);
+            if (binary) {
+                const base64 = this.arrayBufferToBase64(binary);
+                assets.set(relativePath, `data:${mimeType};base64,${base64}`);
+            }
         }
 
         return assets;
     }
 
-    private async collectAssetsRecursive(
-        dirPath: string,
-        relativePath: string,
-        assets: Map<string, string>
-    ): Promise<void> {
-        const entries = await this.fs_!.listDirectoryDetailed(dirPath);
+    private resolveSceneUUIDs(sceneData: Record<string, unknown>): void {
+        const entities = sceneData.entities as Array<{
+            components: Array<{ type: string; data: Record<string, unknown> }>;
+        }> | undefined;
+        if (!entities) return;
 
-        for (const entry of entries) {
-            const fullPath = joinPath(dirPath, entry.name);
-            const entryRelativePath = relativePath ? `${relativePath}/${entry.name}` : entry.name;
-
-            if (entry.isDirectory) {
-                await this.collectAssetsRecursive(fullPath, entryRelativePath, assets);
-            } else {
-                const ext = getFileExtension(entry.name);
-                const mimeType = MIME_TYPES[ext];
-
-                if (mimeType) {
-                    const binary = await this.fs_!.readBinaryFile(fullPath);
-                    if (binary) {
-                        const base64 = this.arrayBufferToBase64(binary);
-                        const dataUrl = `data:${mimeType};base64,${base64}`;
-                        assets.set(entryRelativePath, dataUrl);
+        for (const entity of entities) {
+            for (const comp of entity.components || []) {
+                if (comp.type === 'Sprite' && comp.data) {
+                    if (typeof comp.data.texture === 'string' && isUUID(comp.data.texture)) {
+                        const path = this.assetLibrary_.getPath(comp.data.texture);
+                        if (path) comp.data.texture = path;
+                    }
+                    if (typeof comp.data.material === 'string' && isUUID(comp.data.material)) {
+                        const path = this.assetLibrary_.getPath(comp.data.material);
+                        if (path) comp.data.material = path;
+                    }
+                }
+                if (comp.type === 'SpineAnimation' && comp.data) {
+                    if (typeof comp.data.skeletonPath === 'string' && isUUID(comp.data.skeletonPath)) {
+                        const path = this.assetLibrary_.getPath(comp.data.skeletonPath);
+                        if (path) comp.data.skeletonPath = path;
+                    }
+                    if (typeof comp.data.atlasPath === 'string' && isUUID(comp.data.atlasPath)) {
+                        const path = this.assetLibrary_.getPath(comp.data.atlasPath);
+                        if (path) comp.data.atlasPath = path;
+                    }
+                    if (typeof comp.data.material === 'string' && isUUID(comp.data.material)) {
+                        const path = this.assetLibrary_.getPath(comp.data.material);
+                        if (path) comp.data.material = path;
                     }
                 }
             }
+        }
+
+        const textureMetadata = sceneData.textureMetadata as Record<string, unknown> | undefined;
+        if (textureMetadata) {
+            const resolved: Record<string, unknown> = {};
+            for (const [key, value] of Object.entries(textureMetadata)) {
+                if (isUUID(key)) {
+                    const path = this.assetLibrary_.getPath(key);
+                    resolved[path ?? key] = value;
+                } else {
+                    resolved[key] = value;
+                }
+            }
+            sceneData.textureMetadata = resolved;
         }
     }
 
@@ -670,4 +897,5 @@ ${imports}
     private projectDir_: string;
     private progress_: BuildProgressReporter;
     private cache_: BuildCache | null;
+    private assetLibrary_: AssetLibrary;
 }

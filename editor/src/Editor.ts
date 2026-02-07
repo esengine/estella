@@ -40,6 +40,7 @@ import { PreviewService } from './preview';
 import { showBuildSettingsDialog, BuildService } from './builder';
 import { getGlobalPathResolver } from './asset';
 import type { EditorAssetServer } from './asset/EditorAssetServer';
+import { getAssetLibrary } from './asset/AssetLibrary';
 import { setEditorInstance, getEditorContext, getEditorInstance } from './context/EditorContext';
 import { getAllMenus, getMenuItems, getAllStatusbarItems, registerBuiltinMenus } from './menus';
 import { ShortcutManager } from './menus/ShortcutManager';
@@ -116,6 +117,7 @@ export class Editor {
 
         if (this.projectPath_) {
             this.setupEditorGlobals();
+            this.initializeAssetLibrary();
             this.initializeAllScripts();
             this.previewService_ = new PreviewService({ projectPath: this.projectPath_ });
         }
@@ -218,6 +220,7 @@ export class Editor {
     async loadScene(): Promise<void> {
         const scene = await loadSceneFromFile();
         if (scene) {
+            await getAssetLibrary().migrateScene(scene);
             this.store_.loadScene(scene);
         }
     }
@@ -225,6 +228,10 @@ export class Editor {
     async openSceneFromPath(scenePath: string): Promise<void> {
         const scene = await loadSceneFromPath(scenePath);
         if (scene) {
+            const migrated = await getAssetLibrary().migrateScene(scene);
+            if (migrated) {
+                await saveSceneToPath(scene, scenePath);
+            }
             this.store_.loadScene(scene, scenePath);
             console.log('Scene loaded:', scenePath);
         }
@@ -299,6 +306,20 @@ export class Editor {
     // =========================================================================
     // Script Operations
     // =========================================================================
+
+    private async initializeAssetLibrary(): Promise<void> {
+        if (!this.projectPath_) return;
+
+        const fs = getEditorContext().fs;
+        if (!fs) return;
+
+        const projectDir = this.projectPath_.replace(/[/\\][^/\\]+$/, '');
+        try {
+            await getAssetLibrary().initialize(projectDir, fs);
+        } catch (err) {
+            console.error('Failed to initialize AssetLibrary:', err);
+        }
+    }
 
     private async initializeAllScripts(): Promise<void> {
         await this.initializeExtensions();
