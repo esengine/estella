@@ -265,6 +265,17 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
     return app;
 }
 
+export function flushPendingSystems(app: App): void {
+    if (typeof window === 'undefined') return;
+    const pending = window.__esengine_pendingSystems;
+    if (!pending || pending.length === 0) return;
+
+    for (const entry of pending) {
+        app.addSystemToSchedule(entry.schedule as Schedule, entry.system as SystemDef);
+    }
+    pending.length = 0;
+}
+
 // =============================================================================
 // View-Projection Computation
 // =============================================================================

@@ -33,6 +33,8 @@ export {
     defineTag,
     isBuiltinComponent,
     getComponentDefaults,
+    getUserComponent,
+    clearUserComponents,
     type ComponentDef,
     type BuiltinComponentDef,
     type AnyComponentDef,
@@ -106,6 +108,9 @@ export {
 export {
     Schedule,
     defineSystem,
+    addSystem,
+    addStartupSystem,
+    addSystemToSchedule,
     SystemRunner,
     type SystemDef,
     type SystemParam,
@@ -126,6 +131,7 @@ export { World } from './world';
 export {
     App,
     createWebApp,
+    flushPendingSystems,
     type Plugin,
     type WebAppOptions,
 } from './app';

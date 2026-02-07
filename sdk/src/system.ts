@@ -81,6 +81,27 @@ export function defineSystem<P extends readonly SystemParam[]>(
 }
 
 // =============================================================================
+// Global System Registration
+// =============================================================================
+
+function getPendingSystems(): Array<{ schedule: number; system: unknown }> {
+    if (typeof window === 'undefined') return [];
+    return (window.__esengine_pendingSystems ??= []);
+}
+
+export function addSystem(system: SystemDef): void {
+    getPendingSystems().push({ schedule: Schedule.Update, system });
+}
+
+export function addStartupSystem(system: SystemDef): void {
+    getPendingSystems().push({ schedule: Schedule.Startup, system });
+}
+
+export function addSystemToSchedule(schedule: Schedule, system: SystemDef): void {
+    getPendingSystems().push({ schedule, system });
+}
+
+// =============================================================================
 // System Runner
 // =============================================================================
 

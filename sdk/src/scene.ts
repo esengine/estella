@@ -11,6 +11,7 @@ import {
     Camera,
     Canvas,
     SpineAnimation,
+    getUserComponent,
     type LocalTransformData,
     type SpriteData,
     type CameraData,
@@ -218,8 +219,15 @@ export function loadComponent(world: World, entity: Entity, compData: SceneCompo
         case 'UIRect':
             world.insert(entity, UIRect, data as UIRectData);
             break;
-        default:
-            console.warn(`Unknown component type: ${compData.type}`);
+        default: {
+            const userComp = getUserComponent(compData.type);
+            if (userComp) {
+                world.insert(entity, userComp, data);
+            } else {
+                console.warn(`Unknown component type: ${compData.type}`);
+            }
+            break;
+        }
     }
 }
 

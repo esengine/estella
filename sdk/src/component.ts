@@ -35,19 +35,42 @@ function createComponentDef<T extends object>(
     };
 }
 
+function getComponentRegistry(): Map<string, ComponentDef<any>> {
+    if (typeof window === 'undefined') return new Map();
+    return (window.__esengine_componentRegistry ??= new Map());
+}
+
 export function defineComponent<T extends object>(
     name: string,
     defaults: T
 ): ComponentDef<T> {
+    const registry = getComponentRegistry();
+    const existing = registry.get(name);
+    if (existing) return existing as ComponentDef<T>;
+
     const def = createComponentDef(name, defaults);
+    registry.set(name, def);
     registerToEditor(name, defaults as Record<string, unknown>, false);
     return def;
 }
 
 export function defineTag(name: string): ComponentDef<{}> {
+    const registry = getComponentRegistry();
+    const existing = registry.get(name);
+    if (existing) return existing as ComponentDef<{}>;
+
     const def = createComponentDef(name, {});
+    registry.set(name, def);
     registerToEditor(name, {}, true);
     return def;
+}
+
+export function getUserComponent(name: string): ComponentDef<any> | undefined {
+    return getComponentRegistry().get(name);
+}
+
+export function clearUserComponents(): void {
+    getComponentRegistry().clear();
 }
 
 function registerToEditor(
@@ -270,9 +293,11 @@ const builtinComponents: Record<string, BuiltinComponentDef<any>> = {
 };
 
 export function getComponentDefaults(typeName: string): Record<string, unknown> | null {
-    const component = builtinComponents[typeName];
-    if (component) {
-        return { ...component._default };
-    }
+    const builtin = builtinComponents[typeName];
+    if (builtin) return { ...builtin._default };
+
+    const userComp = getUserComponent(typeName);
+    if (userComp) return { ...userComp._default };
+
     return null;
 }
