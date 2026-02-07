@@ -4,8 +4,10 @@
  */
 
 import * as esbuild from 'esbuild-wasm/esm/browser';
+import { defineComponent, defineTag, clearUserComponents } from 'esengine';
 import { virtualFsPlugin } from './esbuildPlugins';
 import type { NativeFS, ScriptLoaderOptions, CompileError } from './types';
+import { clearScriptComponents } from '../schemas/ComponentSchemas';
 import { getEditorContext } from '../context/EditorContext';
 
 // =============================================================================
@@ -74,18 +76,11 @@ export class ScriptLoader {
             return [];
         }
 
-        const scriptsPath = joinPath(this.projectDir_, 'assets/scripts');
+        const srcPath = joinPath(this.projectDir_, 'src');
 
         try {
-            const exists = await fs.exists(scriptsPath);
-            if (!exists) {
-                return [];
-            }
-
-            const entries = await fs.listDirectoryDetailed(scriptsPath);
-            return entries
-                .filter(e => !e.isDirectory && e.name.endsWith('.ts'))
-                .map(e => joinPath(scriptsPath, e.name));
+            if (!await fs.exists(srcPath)) return [];
+            return await findTsFiles(fs, srcPath);
         } catch (err) {
             console.error('ScriptLoader: Failed to discover scripts:', err);
             return [];
@@ -98,6 +93,9 @@ export class ScriptLoader {
             console.warn('ScriptLoader: NativeFS not available');
             return false;
         }
+
+        clearUserComponents();
+        clearScriptComponents();
 
         const scripts = await this.discoverScripts();
         if (scripts.length === 0) {
@@ -117,7 +115,7 @@ export class ScriptLoader {
                 stdin: {
                     contents: entryContent,
                     loader: 'ts',
-                    resolveDir: joinPath(this.projectDir_, 'assets/scripts'),
+                    resolveDir: joinPath(this.projectDir_, 'src'),
                 },
                 bundle: true,
                 format: 'esm',
@@ -147,6 +145,7 @@ export class ScriptLoader {
             }
 
             this.lastCompiled_ = result.outputFiles?.[0]?.text ?? null;
+            await this.registerDiscoveredComponents(fs, scripts);
             console.log('ScriptLoader: Scripts compiled successfully');
             this.onCompileSuccess_?.();
             return true;
@@ -170,6 +169,70 @@ export class ScriptLoader {
         return this.compile();
     }
 
+    async watch(): Promise<void> {
+        const fs = getNativeFS();
+        if (!fs) return;
+
+        this.unwatch();
+
+        const srcPath = joinPath(this.projectDir_, 'src');
+        this.unwatchFn_ = await fs.watchDirectory(
+            srcPath,
+            (event) => {
+                const hasTsChange = event.paths.some(p =>
+                    normalizePath(p).endsWith('.ts')
+                );
+                if (!hasTsChange) return;
+
+                if (this.recompileTimer_ !== null) {
+                    clearTimeout(this.recompileTimer_);
+                }
+                this.recompileTimer_ = window.setTimeout(() => {
+                    this.recompileTimer_ = null;
+                    this.compile();
+                }, 300);
+            },
+            { recursive: true },
+        );
+    }
+
+    unwatch(): void {
+        if (this.recompileTimer_ !== null) {
+            clearTimeout(this.recompileTimer_);
+            this.recompileTimer_ = null;
+        }
+        this.unwatchFn_?.();
+        this.unwatchFn_ = null;
+    }
+
+    dispose(): void {
+        this.unwatch();
+    }
+
+    // =========================================================================
+    // Component Discovery
+    // =========================================================================
+
+    private async registerDiscoveredComponents(
+        fs: { readFile(path: string): Promise<string | null> },
+        scripts: string[]
+    ): Promise<void> {
+        const sourceMap = new Map<string, string>();
+
+        for (const scriptPath of scripts) {
+            const content = await fs.readFile(scriptPath);
+            if (!content) continue;
+            const names = extractAndRegisterComponents(content);
+            for (const name of names) {
+                sourceMap.set(name, scriptPath);
+            }
+        }
+
+        if (typeof window !== 'undefined') {
+            window.__esengine_componentSourceMap = sourceMap;
+        }
+    }
+
     // =========================================================================
     // Member Variables
     // =========================================================================
@@ -178,6 +241,100 @@ export class ScriptLoader {
     private projectDir_: string;
     private initialized_ = false;
     private lastCompiled_: string | null = null;
+    private unwatchFn_: (() => void) | null = null;
+    private recompileTimer_: number | null = null;
     private onCompileError_?: (errors: CompileError[]) => void;
     private onCompileSuccess_?: () => void;
+}
+
+// =============================================================================
+// Script Discovery
+// =============================================================================
+
+const IGNORED_SCRIPT_DIRS = new Set(['editor', 'node_modules', 'dist', 'build']);
+
+interface DirListable {
+    listDirectoryDetailed(path: string): Promise<{ name: string; isDirectory: boolean }[]>;
+}
+
+async function findTsFiles(fs: DirListable, dir: string): Promise<string[]> {
+    const results: string[] = [];
+    const entries = await fs.listDirectoryDetailed(dir);
+    for (const e of entries) {
+        if (e.isDirectory) {
+            if (!IGNORED_SCRIPT_DIRS.has(e.name) && !e.name.startsWith('.')) {
+                results.push(...await findTsFiles(fs, joinPath(dir, e.name)));
+            }
+        } else if (e.name.endsWith('.ts')) {
+            results.push(joinPath(dir, e.name));
+        }
+    }
+    return results;
+}
+
+export { findTsFiles, IGNORED_SCRIPT_DIRS };
+
+// =============================================================================
+// Component Extraction
+// =============================================================================
+
+const DEFINE_COMPONENT_RE = /defineComponent\s*(?:<[^>]*>\s*)?\(\s*['"]([^'"]+)['"]\s*,/g;
+const DEFINE_TAG_RE = /defineTag\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
+
+function extractAndRegisterComponents(source: string): string[] {
+    const names: string[] = [];
+
+    DEFINE_COMPONENT_RE.lastIndex = 0;
+    let match;
+    while ((match = DEFINE_COMPONENT_RE.exec(source)) !== null) {
+        const name = match[1];
+        const rest = source.substring(match.index + match[0].length);
+        const objStr = extractObjectLiteral(rest);
+        if (!objStr) continue;
+        try {
+            const defaults = new Function(`return ${objStr}`)() as Record<string, unknown>;
+            defineComponent(name, defaults);
+            names.push(name);
+        } catch { /* skip complex expressions */ }
+    }
+
+    DEFINE_TAG_RE.lastIndex = 0;
+    while ((match = DEFINE_TAG_RE.exec(source)) !== null) {
+        defineTag(match[1]);
+        names.push(match[1]);
+    }
+
+    return names;
+}
+
+function extractObjectLiteral(source: string): string | null {
+    const trimmed = source.trimStart();
+    if (trimmed[0] !== '{') return null;
+
+    let depth = 0;
+    let inString = false;
+    let quote = '';
+
+    for (let i = 0; i < trimmed.length; i++) {
+        const ch = trimmed[i];
+
+        if (inString) {
+            if (ch === quote && trimmed[i - 1] !== '\\') inString = false;
+            continue;
+        }
+
+        if (ch === '"' || ch === "'" || ch === '`') {
+            inString = true;
+            quote = ch;
+            continue;
+        }
+
+        if (ch === '{') depth++;
+        else if (ch === '}') {
+            depth--;
+            if (depth === 0) return trimmed.substring(0, i + 1);
+        }
+    }
+
+    return null;
 }

@@ -167,7 +167,7 @@ export function virtualFsPlugin(options: VirtualFsPluginOptions): esbuild.Plugin
             });
 
             build.onLoad({ filter: /.*/, namespace: NS }, async (args) => {
-                const content = await fs.readFile(args.path);
+                let content = await fs.readFile(args.path);
                 if (content === null) {
                     return { errors: [{ text: `File not found: ${args.path}` }] };
                 }
@@ -181,6 +181,10 @@ export function virtualFsPlugin(options: VirtualFsPluginOptions): esbuild.Plugin
                     loader = 'jsx';
                 } else if (args.path.endsWith('.css')) {
                     loader = 'css';
+                }
+
+                if (loader === 'js') {
+                    content = content.replace(/\/\/# sourceMappingURL=.*$/m, '');
                 }
 
                 return {
