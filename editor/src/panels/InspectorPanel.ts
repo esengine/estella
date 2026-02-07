@@ -376,6 +376,12 @@ export class InspectorPanel {
     }
 
     private renderComponent(entity: Entity, component: ComponentData): void {
+        const schema = getComponentSchema(component.type);
+        if (schema?.category === 'tag') {
+            this.renderTagComponent(entity, component);
+            return;
+        }
+
         const section = document.createElement('div');
         section.className = 'es-component-section es-collapsible es-expanded';
 
@@ -403,9 +409,20 @@ export class InspectorPanel {
             section.classList.toggle('es-expanded');
         });
 
+        if (schema?.category === 'script') {
+            header.addEventListener('dblclick', () => {
+                const sourceMap = window.__esengine_componentSourceMap;
+                const scriptPath = sourceMap?.get(component.type);
+                if (!scriptPath) return;
+                const projectDir = this.getProjectDir();
+                if (projectDir) {
+                    getEditorContext().shell?.openInEditor(projectDir, scriptPath);
+                }
+            });
+        }
+
         section.appendChild(header);
 
-        const schema = getComponentSchema(component.type);
         if (schema) {
             const propsContainer = document.createElement('div');
             propsContainer.className = 'es-component-properties es-collapsible-content';
@@ -421,7 +438,11 @@ export class InspectorPanel {
                 const editorContainer = document.createElement('div');
                 editorContainer.className = 'es-property-editor';
 
-                const currentValue = component.data[propMeta.name];
+                let currentValue = component.data[propMeta.name];
+                if (currentValue === undefined) {
+                    const defaults = getDefaultComponentData(component.type);
+                    currentValue = defaults[propMeta.name];
+                }
                 const editor = createPropertyEditor(editorContainer, {
                     value: currentValue,
                     meta: propMeta,
@@ -460,6 +481,23 @@ export class InspectorPanel {
         }
 
         this.contentContainer_.appendChild(section);
+    }
+
+    private renderTagComponent(entity: Entity, component: ComponentData): void {
+        const row = document.createElement('div');
+        row.className = 'es-component-section es-component-tag-row';
+        row.innerHTML = `
+            <span class="es-component-icon">${icons.tag(14)}</span>
+            <span class="es-component-title">${component.type}</span>
+            <button class="es-btn es-btn-icon es-btn-remove">${icons.x(12)}</button>
+        `;
+
+        const removeBtn = row.querySelector('.es-btn-remove');
+        removeBtn?.addEventListener('click', () => {
+            this.store_.removeComponent(entity, component.type);
+        });
+
+        this.contentContainer_.appendChild(row);
     }
 
     private renderAddComponentButton(entity: Entity, existingComponents: ComponentData[]): void {
@@ -502,7 +540,11 @@ export class InspectorPanel {
         for (const info of this.editors_) {
             const component = entityData.components.find(c => c.type === info.componentType);
             if (component) {
-                const value = component.data[info.propertyName];
+                let value = component.data[info.propertyName];
+                if (value === undefined) {
+                    const defaults = getDefaultComponentData(component.type);
+                    value = defaults[info.propertyName];
+                }
                 info.editor.update(value);
             }
         }

@@ -660,6 +660,22 @@ svg {
     border: 1px solid var(--es-border);
 }
 
+.es-component-tag-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    background: var(--es-bg-tertiary);
+}
+
+.es-component-tag-row .es-component-title {
+    flex: 1;
+}
+
+.es-component-tag-row:hover {
+    background: var(--es-bg-hover);
+}
+
 .es-component-header {
     display: flex;
     align-items: center;
