@@ -8,6 +8,7 @@ import type { BuildResult, BuildContext } from './BuildService';
 import { BuildProgressReporter } from './BuildProgress';
 import { BuildCache } from './BuildCache';
 import { getEditorContext } from '../context/EditorContext';
+import { findTsFiles } from '../scripting/ScriptLoader';
 
 // =============================================================================
 // Types
@@ -216,14 +217,11 @@ export class WeChatBuilder {
     }
 
     private async generateGameJs(outputDir: string): Promise<void> {
-        const scriptsPath = joinPath(this.projectDir_, 'assets/scripts');
+        const scriptsPath = joinPath(this.projectDir_, 'src');
 
         let userCode = '';
         if (await this.fs_!.exists(scriptsPath)) {
-            const entries = await this.fs_!.listDirectoryDetailed(scriptsPath);
-            const scripts = entries
-                .filter(e => !e.isDirectory && e.name.endsWith('.ts'))
-                .map(e => joinPath(scriptsPath, e.name));
+            const scripts = await findTsFiles(this.fs_!, scriptsPath);
 
             if (scripts.length > 0) {
                 userCode = await this.compileScripts(scripts);
@@ -356,6 +354,7 @@ function applyTextureMetadata(module, sceneData, textureCache) {
 
     ${userCode}
 
+    SDK.flushPendingSystems(app);
     app.run();
 })();
 `;
@@ -408,7 +407,7 @@ function applyTextureMetadata(module, sceneData, textureCache) {
             stdin: {
                 contents: entryContent,
                 loader: 'ts',
-                resolveDir: joinPath(this.projectDir_, 'assets/scripts'),
+                resolveDir: joinPath(this.projectDir_, 'src'),
             },
             bundle: true,
             format: 'iife',

@@ -15,6 +15,7 @@ import type { BuildResult, BuildContext } from './BuildService';
 import { BuildProgressReporter } from './BuildProgress';
 import { BuildCache, type BuildCacheData } from './BuildCache';
 import { getEditorContext } from '../context/EditorContext';
+import { findTsFiles } from '../scripting/ScriptLoader';
 
 // =============================================================================
 // Types
@@ -123,6 +124,7 @@ var __STARTUP_SCENE__={{SCENE_DATA}};
       return;
     }
     var app=es.createWebApp(Module);
+    es.flushPendingSystems(app);
     var assetServer=new es.AssetServer(Module);
     es.loadSceneWithAssets(app.world,__STARTUP_SCENE__,{assetServer:assetServer}).then(function(){
       app.run();
@@ -195,7 +197,7 @@ export class PlayableBuilder {
             this.progress_.setCurrentTask('Compiling scripts...', 0);
 
             let gameCode: string;
-            const scriptsPath = joinPath(this.projectDir_, 'assets/scripts');
+            const scriptsPath = joinPath(this.projectDir_, 'src');
             const scriptFiles = await this.getScriptFiles(scriptsPath);
 
             if (cachedData?.compiledScripts && this.cache_) {
@@ -273,15 +275,11 @@ export class PlayableBuilder {
         }
     }
 
-    private async getScriptFiles(scriptsPath: string): Promise<string[]> {
-        if (!await this.fs_!.exists(scriptsPath)) {
+    private async getScriptFiles(srcPath: string): Promise<string[]> {
+        if (!await this.fs_!.exists(srcPath)) {
             return [];
         }
-
-        const entries = await this.fs_!.listDirectoryDetailed(scriptsPath);
-        return entries
-            .filter(e => !e.isDirectory && e.name.endsWith('.ts'))
-            .map(e => joinPath(scriptsPath, e.name));
+        return findTsFiles(this.fs_!, srcPath);
     }
 
     // =========================================================================
@@ -313,16 +311,13 @@ export class PlayableBuilder {
     }
 
     private async compileUserScripts(): Promise<string> {
-        const scriptsPath = joinPath(this.projectDir_, 'assets/scripts');
+        const scriptsPath = joinPath(this.projectDir_, 'src');
 
         if (!await this.fs_!.exists(scriptsPath)) {
             return this.createMinimalGameCode();
         }
 
-        const entries = await this.fs_!.listDirectoryDetailed(scriptsPath);
-        const scripts = entries
-            .filter(e => !e.isDirectory && e.name.endsWith('.ts'))
-            .map(e => joinPath(scriptsPath, e.name));
+        const scripts = await findTsFiles(this.fs_!, scriptsPath);
 
         if (scripts.length === 0) {
             return this.createMinimalGameCode();

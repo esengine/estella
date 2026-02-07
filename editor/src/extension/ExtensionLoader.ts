@@ -274,6 +274,7 @@ export class ExtensionLoader {
 
     private static readonly IGNORED_DIRS = new Set([
         'node_modules', '.git', '.esengine', 'dist', 'build', '.next', '.cache',
+        'assets', 'public', 'vendor',
     ]);
 
     private async findEditorDirs(fs: NativeFS, dir: string): Promise<string[]> {

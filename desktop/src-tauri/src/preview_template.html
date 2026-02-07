@@ -97,6 +97,7 @@
                 const app = sdk.createWebApp(Module, {
                     getViewportSize: getCanvasViewportSize
                 });
+                sdk.flushPendingSystems(app);
                 app.addPlugin(sdk.assetPlugin);
                 app.addPlugin(previewPlugin);
 

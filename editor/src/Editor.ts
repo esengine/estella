@@ -314,12 +314,14 @@ export class Editor {
             },
             onCompileSuccess: () => {
                 console.log('Scripts compiled successfully');
+                this.store_.notifyChange();
             },
         });
 
         try {
             await this.scriptLoader_.initialize();
             await this.scriptLoader_.compile();
+            await this.scriptLoader_.watch();
         } catch (err) {
             console.error('Failed to initialize scripts:', err);
         }
@@ -952,6 +954,7 @@ export class Editor {
 
     dispose(): void {
         this.shortcutManager_.detach();
+        this.scriptLoader_?.dispose();
         this.extensionLoader_?.dispose();
         for (const instance of this.statusbarInstances_) {
             instance.dispose();

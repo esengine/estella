@@ -642,16 +642,11 @@ export class ContentBrowserPanel {
         const platform = getPlatformAdapter();
         const filePath = `${parentPath}/${name}`;
 
-        const content = `import { defineSystem, Query, Mut, LocalTransform } from 'esengine';
+        const className = this.toClassName(name);
+        const content = `import { defineComponent } from 'esengine';
 
-export const ${this.toClassName(name)}System = defineSystem({
-    name: '${this.toClassName(name)}',
-    query: Query(Mut(LocalTransform)),
-    run(query) {
-        for (const [transform] of query) {
-            // Update logic here
-        }
-    },
+export const ${className} = defineComponent('${className}', {
+    value: 0,
 });
 `;
 

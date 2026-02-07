@@ -470,6 +470,10 @@ export class EditorStore {
     // Subscription
     // =========================================================================
 
+    notifyChange(): void {
+        this.notify();
+    }
+
     subscribe(listener: EditorListener): () => void {
         this.listeners_.add(listener);
         return () => this.listeners_.delete(listener);

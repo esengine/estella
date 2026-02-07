@@ -118,7 +118,6 @@ export async function createProject(
     const directories = [
         projectDir,
         joinPath(projectDir, 'src'),
-        joinPath(projectDir, 'editor'),
         joinPath(projectDir, 'assets'),
         joinPath(projectDir, 'assets/scenes'),
         joinPath(projectDir, 'assets/textures'),
@@ -164,9 +163,8 @@ export async function createProject(
     const settingsPath = joinPath(projectDir, '.esengine/settings.json');
     await fs.writeFile(settingsPath, JSON.stringify(editorSettings, null, 2));
 
-    // Create script files
-    const scriptFiles = createProjectScripts(name, template);
-    for (const [filePath, content] of Object.entries(scriptFiles)) {
+    const projectFiles = createProjectFiles(name, template);
+    for (const [filePath, content] of Object.entries(projectFiles)) {
         const fullPath = joinPath(projectDir, filePath);
         if (!(await fs.writeFile(fullPath, content))) {
             console.warn(`Failed to write script file: ${filePath}`);
@@ -268,126 +266,8 @@ export async function loadProjectConfig(
 }
 
 // =============================================================================
-// Script Templates
+// Project File Templates
 // =============================================================================
-
-const MAIN_TS_TEMPLATE = `/**
- * ESEngine Project Entry Point
- *
- * This file is the main entry point for your game logic.
- * Press F5 in the editor to run, or use Web Preview for browser testing.
- */
-import {
-    type ESEngineModule,
-    App,
-    createWebApp,
-    defineSystem,
-    Schedule,
-    Commands,
-    LocalTransform,
-    Sprite,
-    Camera,
-    Canvas,
-    Res,
-    Time,
-    Query,
-    Mut,
-    type Entity
-} from 'esengine';
-
-// =============================================================================
-// Main Entry Point
-// =============================================================================
-
-export async function main(Module: ESEngineModule): Promise<void> {
-    console.log('ESEngine starting...');
-
-    // Create the app with WASM module (handles renderer init + render loop)
-    const app = createWebApp(Module);
-
-    // Add startup system - runs once at beginning
-    app.addSystemToSchedule(Schedule.Startup, defineSystem(
-        [Commands()],
-        (cmds) => {
-            console.log('Startup: Creating entities...');
-
-            // Create camera
-            const camera = cmds.spawn()
-                .insert(Camera, {
-                    projectionType: 1, // Orthographic
-                    fov: 60,
-                    orthoSize: 400,
-                    nearPlane: 0.1,
-                    farPlane: 1000,
-                    aspectRatio: 1,
-                    isActive: true,
-                    priority: 0
-                })
-                .insert(LocalTransform, {
-                    position: { x: 0, y: 0, z: 10 },
-                    rotation: { w: 1, x: 0, y: 0, z: 0 },
-                    scale: { x: 1, y: 1, z: 1 }
-                })
-                .id();
-
-            // Create a test sprite
-            const sprite = cmds.spawn()
-                .insert(Sprite, {
-                    texture: 0,
-                    color: { x: 1, y: 0.5, z: 0.2, w: 1 },
-                    size: { x: 100, y: 100 },
-                    uvOffset: { x: 0, y: 0 },
-                    uvScale: { x: 1, y: 1 },
-                    layer: 0,
-                    flipX: false,
-                    flipY: false
-                })
-                .insert(LocalTransform, {
-                    position: { x: 0, y: 0, z: 0 },
-                    rotation: { w: 1, x: 0, y: 0, z: 0 },
-                    scale: { x: 1, y: 1, z: 1 }
-                })
-                .id();
-
-            console.log(\`Created camera: \${camera}, sprite: \${sprite}\`);
-        }
-    ));
-
-    // Add update system - runs every frame
-    app.addSystemToSchedule(Schedule.Update, defineSystem(
-        [Res(Time), Query(LocalTransform, Sprite)],
-        (time, query) => {
-            for (const [entity, transform, sprite] of query) {
-                // Move the sprite in a circle
-                transform.position.x = Math.sin(time.elapsed) * 100;
-                transform.position.y = Math.cos(time.elapsed) * 100;
-            }
-        }
-    ));
-
-    // Start the game loop
-    console.log('Starting game loop...');
-    app.run();
-}
-`;
-
-function createPackageJson(projectName: string): string {
-    return JSON.stringify({
-        name: projectName.toLowerCase().replace(/\s+/g, '-'),
-        version: '0.1.0',
-        type: 'module',
-        scripts: {
-            build: 'rollup -c',
-            watch: 'rollup -c -w',
-        },
-        devDependencies: {
-            '@rollup/plugin-node-resolve': '^15.2.3',
-            '@rollup/plugin-typescript': '^11.1.6',
-            rollup: '^4.18.0',
-            typescript: '^5.4.5',
-        },
-    }, null, 2);
-}
 
 const TSCONFIG_TEMPLATE = JSON.stringify({
     compilerOptions: {
@@ -408,55 +288,25 @@ const TSCONFIG_TEMPLATE = JSON.stringify({
             '@esengine/editor': ['./.esengine/editor/index.d.ts'],
         },
     },
-    include: ['src/**/*', 'editor/**/*'],
+    include: ['src/**/*'],
     exclude: ['node_modules'],
 }, null, 2);
 
-const ROLLUP_CONFIG_TEMPLATE = `import resolve from '@rollup/plugin-node-resolve';
-import typescript from '@rollup/plugin-typescript';
-
-export default {
-    input: 'src/main.ts',
-    output: {
-        file: 'dist/bundle.js',
-        format: 'es',
-        sourcemap: true
-    },
-    plugins: [
-        resolve(),
-        typescript()
-    ],
-    external: ['esengine']
-};
-`;
-
-const GITIGNORE_TEMPLATE = `# Dependencies
-node_modules/
-
-# Build outputs
+const GITIGNORE_TEMPLATE = `node_modules/
 dist/
-
-# IDE
 .vscode/
 .idea/
-
-# OS
 .DS_Store
 Thumbs.db
-
-# Editor cache
 .esengine/cache/
 `;
 
-function createProjectScripts(
-    name: string,
+function createProjectFiles(
+    _name: string,
     _template: ProjectTemplate
 ): Record<string, string> {
     return {
-        'src/main.ts': MAIN_TS_TEMPLATE,
-        'package.json': createPackageJson(name),
         'tsconfig.json': TSCONFIG_TEMPLATE,
-        'rollup.config.js': ROLLUP_CONFIG_TEMPLATE,
         '.gitignore': GITIGNORE_TEMPLATE,
     };
 }
