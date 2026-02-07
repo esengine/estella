@@ -104,11 +104,11 @@ set(ES_EMSCRIPTEN_WXGAME_SDK_FLAGS
     -sENVIRONMENT=web,node
     -sEXPORT_ES6=0
     -sMODULARIZE=1
-    -sNO_FILESYSTEM=1
+    -sFORCE_FILESYSTEM=1
     -sDYNAMIC_EXECUTION=0
     "-sEXPORT_NAME='ESEngineModule'"
     "-sEXPORTED_FUNCTIONS=['_malloc','_free']"
-    "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32','GL']"
+    "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32','GL','FS']"
     -O3
     --closure=0
 )
