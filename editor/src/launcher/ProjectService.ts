@@ -231,18 +231,12 @@ export async function openProject(
             return { success: false, error: 'Invalid project file format' };
         }
 
-        // Update SDK if needed
         const projectDir = projectPath.replace(/\/[^/]+\.esproject$/, '');
         const sdkService = new SdkExportService();
-        if (await sdkService.needsUpdate(projectDir)) {
-            await sdkService.exportToProject(projectDir);
-        }
+        await sdkService.exportToProject(projectDir);
 
-        // Update editor types if needed
         const editorExportService = new EditorExportService();
-        if (await editorExportService.needsUpdate(projectDir)) {
-            await editorExportService.exportToProject(projectDir);
-        }
+        await editorExportService.exportToProject(projectDir);
 
         // Update recent projects
         addRecentProject({

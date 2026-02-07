@@ -67,4 +67,4 @@ export const PROJECT_TEMPLATES: ProjectTemplateInfo[] = [
 export const PROJECT_FILE_EXTENSION = '.esproject';
 export const SCENE_FILE_EXTENSION = '.esscene';
 export const ENGINE_VERSION = '0.1.0';
-export const SDK_VERSION = '0.3.0';
+export const SDK_VERSION = '0.4.0';

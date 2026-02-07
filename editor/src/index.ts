@@ -330,3 +330,35 @@ export {
     EditorExportService,
     type ExtensionLoaderOptions,
 } from './extension';
+
+// =============================================================================
+// SDK Re-exports (for @esengine/editor shim)
+// =============================================================================
+
+export {
+    Draw,
+    BlendMode,
+    type DrawAPI,
+    Geometry,
+    DataType,
+    type GeometryHandle,
+    type GeometryOptions,
+    type VertexAttributeDescriptor,
+    Material,
+    ShaderSources,
+    type ShaderHandle,
+    type MaterialHandle,
+    type MaterialOptions,
+    type UniformValue,
+    PostProcess,
+    Renderer,
+    RenderStage,
+    type RenderTargetHandle,
+    type RenderStats,
+    RenderPipeline,
+    type RenderParams,
+    registerDrawCallback,
+    unregisterDrawCallback,
+    clearDrawCallbacks,
+    type DrawCallback,
+} from 'esengine';

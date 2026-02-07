@@ -29,9 +29,20 @@ export interface GizmoDescriptor {
 }
 
 const gizmos = new Map<string, GizmoDescriptor>();
+const builtinGizmoIds = new Set<string>();
 
 export function registerGizmo(descriptor: GizmoDescriptor): void {
     gizmos.set(descriptor.id, descriptor);
+}
+
+export function lockBuiltinGizmos(): void {
+    for (const id of gizmos.keys()) builtinGizmoIds.add(id);
+}
+
+export function clearExtensionGizmos(): void {
+    for (const id of gizmos.keys()) {
+        if (!builtinGizmoIds.has(id)) gizmos.delete(id);
+    }
 }
 
 export function getGizmo(id: string): GizmoDescriptor | undefined {

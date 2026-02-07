@@ -3508,6 +3508,23 @@ svg {
     word-break: break-all;
 }
 
+.es-output-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 16px;
+    padding: 0 5px;
+    margin-right: 6px;
+    border-radius: 8px;
+    background: var(--es-accent);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1;
+    vertical-align: middle;
+}
+
 .es-output-command {
     color: var(--es-accent);
     font-weight: 500;

@@ -54,6 +54,7 @@ export interface NativeFS {
     getSdkWasmJs(): Promise<string>;
     getSdkWasmDts(): Promise<string>;
     getEditorDts(): Promise<string>;
+    toAssetUrl?(path: string): string;
 }
 
 // =============================================================================

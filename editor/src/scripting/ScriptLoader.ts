@@ -122,6 +122,7 @@ export class ScriptLoader {
                 bundle: true,
                 format: 'esm',
                 write: false,
+                sourcemap: 'inline',
                 platform: 'browser',
                 target: 'es2020',
                 external: ['esengine'],
@@ -149,14 +150,17 @@ export class ScriptLoader {
             console.log('ScriptLoader: Scripts compiled successfully');
             this.onCompileSuccess_?.();
             return true;
-        } catch (err) {
+        } catch (err: any) {
             console.error('ScriptLoader: Compilation failed:', err);
-            const errors: CompileError[] = [{
-                file: 'unknown',
-                line: 0,
-                column: 0,
-                message: String(err),
-            }];
+            const esbuildErrors = err?.errors as esbuild.Message[] | undefined;
+            const errors: CompileError[] = esbuildErrors?.length
+                ? esbuildErrors.map(e => ({
+                    file: e.location?.file || 'unknown',
+                    line: e.location?.line || 0,
+                    column: e.location?.column || 0,
+                    message: e.text,
+                }))
+                : [{ file: 'unknown', line: 0, column: 0, message: String(err) }];
             this.onCompileError_?.(errors);
             return false;
         }
