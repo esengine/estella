@@ -191,11 +191,11 @@ set(ES_EMSCRIPTEN_SINGLE_FILE_FLAGS
     -sENVIRONMENT=web
     -sMODULARIZE=1
     "-sEXPORT_NAME='ESEngineModule'"
+    -sFORCE_FILESYSTEM=1
     "-sEXPORTED_FUNCTIONS=['_malloc','_free']"
-    "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32']"
+    "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32','FS']"
     -Oz
     -flto
-    --closure=1
 )
 
 function(es_apply_sdk_settings TARGET_NAME)

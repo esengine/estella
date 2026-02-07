@@ -4,6 +4,7 @@
  */
 
 import type { App, Entity } from 'esengine';
+import * as esengine from 'esengine';
 import {
     Draw, Geometry, Material, BlendMode, DataType, ShaderSources,
     PostProcess, Renderer, RenderStage,
@@ -344,6 +345,7 @@ export class Editor {
 
     private setupEditorGlobals(): void {
         this.baseAPI_ = {
+            ...esengine,
             registerPanel,
             registerMenuItem,
             registerMenu,
@@ -570,6 +572,9 @@ export class Editor {
         }
 
         try {
+            if (this.scriptLoader_) {
+                await this.scriptLoader_.compile();
+            }
             const compiledScript = this.scriptLoader_?.getCompiledCode() ?? undefined;
             await this.previewService_.startPreview(this.store_.scene, compiledScript);
         } catch (err) {

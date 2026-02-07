@@ -15,7 +15,7 @@ import type { BuildResult, BuildContext } from './BuildService';
 import { BuildProgressReporter } from './BuildProgress';
 import { BuildCache, type BuildCacheData } from './BuildCache';
 import { getEditorContext } from '../context/EditorContext';
-import { findTsFiles } from '../scripting/ScriptLoader';
+import { findTsFiles, EDITOR_ONLY_DIRS } from '../scripting/ScriptLoader';
 
 // =============================================================================
 // Types
@@ -74,6 +74,9 @@ const MIME_TYPES: Record<string, string> = {
     gif: 'image/gif',
     webp: 'image/webp',
     svg: 'image/svg+xml',
+    atlas: 'text/plain',
+    json: 'application/json',
+    skel: 'application/octet-stream',
 };
 
 // =============================================================================
@@ -102,38 +105,173 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000}
 {{GAME_CODE}}
 </script>
 <script>
-var __STARTUP_SCENE__={{SCENE_DATA}};
-(function(){
-  var c=document.getElementById('canvas');
-  function resize(){
-    var dpr=window.devicePixelRatio||1;
-    c.width=window.innerWidth*dpr;
-    c.height=window.innerHeight*dpr;
+var __PA__={{ASSETS_MAP}};
+var __SCENE__={{SCENE_DATA}};
+
+function loadImagePixels(dataUrl){
+  return new Promise(function(resolve,reject){
+    var img=new Image();
+    img.onload=function(){
+      var cv=document.createElement('canvas');
+      cv.width=img.width;cv.height=img.height;
+      var ctx=cv.getContext('2d');
+      ctx.drawImage(img,0,0);
+      var id=ctx.getImageData(0,0,img.width,img.height);
+      resolve({width:img.width,height:img.height,pixels:new Uint8Array(id.data.buffer)});
+    };
+    img.onerror=reject;
+    img.src=dataUrl;
+  });
+}
+
+function createTextureFromPixels(mod,r){
+  var rm=mod.getResourceManager();
+  var ptr=mod._malloc(r.pixels.length);
+  mod.HEAPU8.set(r.pixels,ptr);
+  var h=rm.createTexture(r.width,r.height,ptr,r.pixels.length,1);
+  mod._free(ptr);
+  return h;
+}
+
+function decodeText(dataUrl){return atob(dataUrl.split(',')[1])}
+
+function decodeBinary(dataUrl){
+  var b=atob(dataUrl.split(',')[1]);
+  var a=new Uint8Array(b.length);
+  for(var i=0;i<b.length;i++)a[i]=b.charCodeAt(i);
+  return a;
+}
+
+function ensureFSDir(mod,path){
+  var parts=path.split('/');var cur='';
+  for(var i=0;i<parts.length-1;i++){
+    cur+=(cur?'/':'')+parts[i];
+    try{mod.FS.mkdir(cur)}catch(e){}
   }
+}
+
+function parseAtlasTextures(content){
+  var textures=[];var lines=content.split('\\n');
+  for(var i=0;i<lines.length;i++){
+    var line=lines[i].trim();
+    if(line&&line.indexOf(':')===-1&&(/\\.png$/i.test(line)||/\\.jpg$/i.test(line)))
+      textures.push(line);
+  }
+  return textures;
+}
+
+async function loadSceneTextures(mod,scene){
+  var cache={};
+  for(var i=0;i<scene.entities.length;i++){
+    var ent=scene.entities[i];
+    for(var j=0;j<ent.components.length;j++){
+      var comp=ent.components[j];
+      if(comp.type==='Sprite'&&comp.data.texture&&typeof comp.data.texture==='string'){
+        var tp=comp.data.texture;
+        if(!cache[tp]){
+          var d=__PA__[tp];
+          if(d){
+            try{cache[tp]=createTextureFromPixels(mod,await loadImagePixels(d))}
+            catch(e){console.warn('Failed to load texture:',tp,e);cache[tp]=0}
+          }else{cache[tp]=0}
+        }
+      }
+    }
+  }
+  return cache;
+}
+
+async function loadSpineAssets(mod,scene){
+  var rm=mod.getResourceManager();
+  for(var i=0;i<scene.entities.length;i++){
+    var ent=scene.entities[i];
+    for(var j=0;j<ent.components.length;j++){
+      var comp=ent.components[j];
+      if(comp.type!=='SpineAnimation'||!comp.data)continue;
+      var skelPath=comp.data.skeletonPath,atlasPath=comp.data.atlasPath;
+      if(!skelPath||!atlasPath)continue;
+      var atlasData=__PA__[atlasPath];
+      if(atlasData){
+        var atlasContent=decodeText(atlasData);
+        ensureFSDir(mod,atlasPath);
+        mod.FS.writeFile(atlasPath,atlasContent);
+        var texNames=parseAtlasTextures(atlasContent);
+        var atlasDir=atlasPath.substring(0,atlasPath.lastIndexOf('/'));
+        for(var k=0;k<texNames.length;k++){
+          var texPath=atlasDir+'/'+texNames[k];
+          var texData=__PA__[texPath];
+          if(texData){
+            try{
+              var h=createTextureFromPixels(mod,await loadImagePixels(texData));
+              rm.registerTextureWithPath(h,texPath);
+            }catch(e){console.warn('Failed to load spine texture:',texPath,e)}
+          }
+        }
+      }
+      var skelData=__PA__[skelPath];
+      if(skelData){
+        ensureFSDir(mod,skelPath);
+        if(skelPath.endsWith('.skel'))mod.FS.writeFile(skelPath,decodeBinary(skelData));
+        else mod.FS.writeFile(skelPath,decodeText(skelData));
+      }
+    }
+  }
+}
+
+function updateSpriteTextures(world,scene,cache,entityMap){
+  var es=window.esengine;
+  for(var i=0;i<scene.entities.length;i++){
+    var ed=scene.entities[i];
+    var entity=entityMap.get(ed.id);
+    if(entity===undefined)continue;
+    for(var j=0;j<ed.components.length;j++){
+      var comp=ed.components[j];
+      if(comp.type==='Sprite'&&comp.data.texture&&typeof comp.data.texture==='string'){
+        var sprite=world.get(entity,es.Sprite);
+        if(sprite){sprite.texture=cache[comp.data.texture]||0;world.insert(entity,es.Sprite,sprite)}
+      }
+    }
+  }
+}
+
+function applyTextureMetadata(mod,scene,cache){
+  if(!scene.textureMetadata)return;
+  var rm=mod.getResourceManager();
+  for(var tp in scene.textureMetadata){
+    var h=cache[tp];
+    if(h&&h>0){
+      var m=scene.textureMetadata[tp];
+      if(m&&m.sliceBorder){
+        var b=m.sliceBorder;
+        rm.setTextureMetadata(h,b.left,b.right,b.top,b.bottom);
+      }
+    }
+  }
+}
+
+(async function(){
+  var c=document.getElementById('canvas');
+  function resize(){var dpr=window.devicePixelRatio||1;c.width=window.innerWidth*dpr;c.height=window.innerHeight*dpr}
   window.addEventListener('resize',resize);
   resize();
 
-  ESEngineModule({
-    canvas:c,
-    print:function(t){console.log(t)},
-    printErr:function(t){console.error(t)}
-  }).then(function(Module){
-    var es=window.esengine;
-    if(!es||!es.createWebApp){
-      console.error('esengine not found');
-      return;
-    }
-    var app=es.createWebApp(Module);
-    es.flushPendingSystems(app);
-    var assetServer=new es.AssetServer(Module);
-    es.loadSceneWithAssets(app.world,__STARTUP_SCENE__,{assetServer:assetServer}).then(function(){
-      app.run();
-    });
-  }).catch(function(e){
-    if(e!=='unwind'&&(!e.message||!e.message.includes('unwind'))){
-      console.error('Failed:',e);
-    }
-  });
+  var Module=await ESEngineModule({canvas:c,print:function(t){console.log(t)},printErr:function(t){console.error(t)}});
+  var es=window.esengine;
+  if(!es||!es.createWebApp){console.error('esengine not found');return}
+
+  var app=es.createWebApp(Module);
+  es.flushPendingSystems(app);
+
+  var textureCache=await loadSceneTextures(Module,__SCENE__);
+  applyTextureMetadata(Module,__SCENE__,textureCache);
+  await loadSpineAssets(Module,__SCENE__);
+  var entityMap=es.loadSceneData(app.world,__SCENE__);
+  updateSpriteTextures(app.world,__SCENE__,textureCache,entityMap);
+
+  var screenAspect=c.width/c.height;
+  es.updateCameraAspectRatio(app.world,screenAspect);
+
+  app.run();
 })();
 </script>
 </body>
@@ -223,20 +361,16 @@ export class PlayableBuilder {
             }
             this.progress_.log('info', `Scene loaded: ${scenePath}`);
 
-            // 4. Collect and inline assets
+            // 4. Collect assets
             this.progress_.setPhase('processing_assets');
             this.progress_.setCurrentTask('Collecting assets...', 0);
             const assets = await this.collectAssets();
             this.progress_.log('info', `Collected ${assets.size} assets`);
 
-            this.progress_.setCurrentTask('Inlining assets...', 50);
-            const gameCodeWithAssets = this.inlineAssets(gameCode, assets);
-            const sceneDataWithAssets = this.inlineAssets(sceneContent, assets);
-
             // 5. Assemble HTML
             this.progress_.setPhase('assembling');
             this.progress_.setCurrentTask('Assembling HTML...', 0);
-            const html = this.assembleHTML(wasmSdk, gameCodeWithAssets, sceneDataWithAssets);
+            const html = this.assembleHTML(wasmSdk, gameCode, sceneContent, assets);
             this.progress_.log('info', `HTML assembled: ${html.length} bytes`);
 
             // 6. Write output
@@ -279,7 +413,7 @@ export class PlayableBuilder {
         if (!await this.fs_!.exists(srcPath)) {
             return [];
         }
-        return findTsFiles(this.fs_!, srcPath);
+        return findTsFiles(this.fs_!, srcPath, EDITOR_ONLY_DIRS);
     }
 
     // =========================================================================
@@ -317,7 +451,7 @@ export class PlayableBuilder {
             return this.createMinimalGameCode();
         }
 
-        const scripts = await findTsFiles(this.fs_!, scriptsPath);
+        const scripts = await findTsFiles(this.fs_!, scriptsPath, EDITOR_ONLY_DIRS);
 
         if (scripts.length === 0) {
             return this.createMinimalGameCode();
@@ -336,7 +470,9 @@ ${imports}
         console.log('[PlayableBuilder] Compiling scripts...');
 
         const settings = this.context_.config.playableSettings!;
-        const defines: Record<string, string> = {};
+        const defines: Record<string, string> = {
+            'process.env.EDITOR': 'false',
+        };
         for (const def of this.context_.config.defines) {
             defines[`process.env.${def}`] = 'true';
         }
@@ -466,10 +602,10 @@ ${imports}
 
     private async collectAssets(): Promise<Map<string, string>> {
         const assets = new Map<string, string>();
-        const texturesPath = joinPath(this.projectDir_, 'assets/textures');
+        const assetsPath = joinPath(this.projectDir_, 'assets');
 
-        if (await this.fs_!.exists(texturesPath)) {
-            await this.collectAssetsRecursive(texturesPath, '', assets);
+        if (await this.fs_!.exists(assetsPath)) {
+            await this.collectAssetsRecursive(assetsPath, 'assets', assets);
         }
 
         return assets;
@@ -504,29 +640,15 @@ ${imports}
         }
     }
 
-    private inlineAssets(code: string, assets: Map<string, string>): string {
-        let result = code;
-
-        for (const [relativePath, dataUrl] of assets) {
-            const pathVariants = [
-                `assets/textures/${relativePath}`,
-                `assets/${relativePath}`,
-                relativePath,
-            ];
-
-            for (const pathVariant of pathVariants) {
-                result = result.split(`'${pathVariant}'`).join(`'${dataUrl}'`);
-                result = result.split(`"${pathVariant}"`).join(`"${dataUrl}"`);
-            }
+    private assembleHTML(wasmSdk: string, gameCode: string, sceneData: string, assets: Map<string, string>): string {
+        const entries: string[] = [];
+        for (const [path, dataUrl] of assets) {
+            entries.push(`"${path}":"${dataUrl}"`);
         }
-
-        return result;
-    }
-
-    private assembleHTML(wasmSdk: string, gameCode: string, sceneData: string): string {
         return HTML_TEMPLATE
             .replace('{{WASM_SDK}}', wasmSdk)
             .replace('{{GAME_CODE}}', gameCode)
+            .replace('{{ASSETS_MAP}}', `{${entries.join(',')}}`)
             .replace('{{SCENE_DATA}}', sceneData);
     }
 

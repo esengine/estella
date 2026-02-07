@@ -8,7 +8,7 @@ import type { BuildResult, BuildContext } from './BuildService';
 import { BuildProgressReporter } from './BuildProgress';
 import { BuildCache } from './BuildCache';
 import { getEditorContext } from '../context/EditorContext';
-import { findTsFiles } from '../scripting/ScriptLoader';
+import { findTsFiles, EDITOR_ONLY_DIRS } from '../scripting/ScriptLoader';
 
 // =============================================================================
 // Types
@@ -221,7 +221,7 @@ export class WeChatBuilder {
 
         let userCode = '';
         if (await this.fs_!.exists(scriptsPath)) {
-            const scripts = await findTsFiles(this.fs_!, scriptsPath);
+            const scripts = await findTsFiles(this.fs_!, scriptsPath, EDITOR_ONLY_DIRS);
 
             if (scripts.length > 0) {
                 userCode = await this.compileScripts(scripts);
@@ -234,6 +234,7 @@ export class WeChatBuilder {
         const gameJs = `
 var ESEngineModule = require('./esengine.js');
 var SDK = require('./sdk.js');
+globalThis.__esengine_sdk = SDK;
 
 function createTextureFromPixels(module, result) {
     var rm = module.getResourceManager();
@@ -388,7 +389,9 @@ function applyTextureMetadata(module, sceneData, textureCache) {
     private async compileScripts(scripts: string[]): Promise<string> {
         const entryContent = scripts.map(p => `import "${p}";`).join('\n');
 
-        const defines: Record<string, string> = {};
+        const defines: Record<string, string> = {
+            'process.env.EDITOR': 'false',
+        };
         for (const def of this.context_.config.defines) {
             defines[`process.env.${def}`] = 'true';
         }
@@ -459,6 +462,16 @@ function applyTextureMetadata(module, sceneData, textureCache) {
         return {
             name: 'virtual-fs',
             setup(build) {
+                build.onResolve({ filter: /^esengine(\/wasm)?$/ }, (args) => ({
+                    path: args.path,
+                    namespace: 'sdk-shim',
+                }));
+
+                build.onLoad({ filter: /.*/, namespace: 'sdk-shim' }, () => ({
+                    contents: 'module.exports = globalThis.__esengine_sdk;',
+                    loader: 'js',
+                }));
+
                 build.onResolve({ filter: /.*/ }, async (args) => {
                     if (args.kind === 'entry-point') {
                         return { path: args.path, namespace: 'virtual' };
@@ -472,18 +485,11 @@ function applyTextureMetadata(module, sceneData, textureCache) {
                         const baseDir = args.importer ? getDir(args.importer) : args.resolveDir;
                         resolvedPath = joinPath(baseDir, args.path);
                     } else {
-                        // Bare module specifier
-                        if (args.path === 'esengine') {
-                            resolvedPath = joinPath(projectDir, '.esengine/sdk/index.js');
-                        } else if (args.path === 'esengine/wasm') {
-                            resolvedPath = joinPath(projectDir, '.esengine/sdk/wasm.js');
+                        const pkgEntry = await resolvePackageEntry(args.path);
+                        if (pkgEntry) {
+                            resolvedPath = pkgEntry;
                         } else {
-                            const pkgEntry = await resolvePackageEntry(args.path);
-                            if (pkgEntry) {
-                                resolvedPath = pkgEntry;
-                            } else {
-                                throw new Error(`Module not found: ${args.path}. Please install it with npm.`);
-                            }
+                            throw new Error(`Module not found: ${args.path}. Please install it with npm.`);
                         }
                     }
 

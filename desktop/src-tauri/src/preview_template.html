@@ -85,7 +85,7 @@
                 try {
                     await import('/.esengine/preview/user-scripts.js');
                 } catch (e) {
-                    // No user scripts
+                    console.warn('User scripts load skipped:', e);
                 }
 
                 updateLoading('Loading scene...');

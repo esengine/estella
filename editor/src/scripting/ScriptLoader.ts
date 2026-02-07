@@ -80,7 +80,7 @@ export class ScriptLoader {
 
         try {
             if (!await fs.exists(srcPath)) return [];
-            return await findTsFiles(fs, srcPath);
+            return await findTsFiles(fs, srcPath, EDITOR_ONLY_DIRS);
         } catch (err) {
             console.error('ScriptLoader: Failed to discover scripts:', err);
             return [];
@@ -251,19 +251,25 @@ export class ScriptLoader {
 // Script Discovery
 // =============================================================================
 
-const IGNORED_SCRIPT_DIRS = new Set(['editor', 'node_modules', 'dist', 'build']);
+const IGNORED_SCRIPT_DIRS = new Set(['node_modules', 'dist', 'build']);
+const EDITOR_ONLY_DIRS = new Set(['editor']);
 
 interface DirListable {
     listDirectoryDetailed(path: string): Promise<{ name: string; isDirectory: boolean }[]>;
 }
 
-async function findTsFiles(fs: DirListable, dir: string): Promise<string[]> {
+async function findTsFiles(
+    fs: DirListable,
+    dir: string,
+    excludeDirs?: Set<string>,
+): Promise<string[]> {
     const results: string[] = [];
     const entries = await fs.listDirectoryDetailed(dir);
     for (const e of entries) {
         if (e.isDirectory) {
-            if (!IGNORED_SCRIPT_DIRS.has(e.name) && !e.name.startsWith('.')) {
-                results.push(...await findTsFiles(fs, joinPath(dir, e.name)));
+            if (!IGNORED_SCRIPT_DIRS.has(e.name) && !e.name.startsWith('.')
+                && !(excludeDirs?.has(e.name))) {
+                results.push(...await findTsFiles(fs, joinPath(dir, e.name), excludeDirs));
             }
         } else if (e.name.endsWith('.ts')) {
             results.push(joinPath(dir, e.name));
@@ -272,7 +278,7 @@ async function findTsFiles(fs: DirListable, dir: string): Promise<string[]> {
     return results;
 }
 
-export { findTsFiles, IGNORED_SCRIPT_DIRS };
+export { findTsFiles, IGNORED_SCRIPT_DIRS, EDITOR_ONLY_DIRS };
 
 // =============================================================================
 // Component Extraction

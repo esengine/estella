@@ -45,36 +45,58 @@ function resolvePath(from: string, to: string): string {
 }
 
 // =============================================================================
-// Editor Shim Plugin
+// Shim Code Generation
 // =============================================================================
 
-const EDITOR_SHIM_EXPORTS = [
-    'registerPanel', 'registerMenuItem', 'registerMenu',
-    'registerGizmo', 'registerStatusbarItem', 'registerPropertyEditor',
-    'registerComponentSchema', 'registerBoundsProvider',
-    'icons', 'showToast', 'showSuccessToast', 'showErrorToast',
-    'showContextMenu', 'showConfirmDialog', 'showInputDialog',
-    'getEditorInstance', 'getEditorStore',
-    'Draw', 'Geometry', 'Material', 'BlendMode', 'DataType', 'ShaderSources',
-    'PostProcess', 'Renderer', 'RenderStage',
-    'registerDrawCallback', 'unregisterDrawCallback',
-    'onDispose',
-] as const;
+const JS_RESERVED = new Set([
+    'break', 'case', 'catch', 'continue', 'debugger', 'default', 'delete',
+    'do', 'else', 'finally', 'for', 'function', 'if', 'in', 'instanceof',
+    'new', 'return', 'switch', 'this', 'throw', 'try', 'typeof', 'var',
+    'void', 'while', 'with', 'class', 'const', 'enum', 'export', 'extends',
+    'import', 'super', 'implements', 'interface', 'let', 'package', 'private',
+    'protected', 'public', 'static', 'yield',
+]);
 
-const EDITOR_SHIM_CODE = EDITOR_SHIM_EXPORTS.map(
-    name => `export const ${name} = window.__ESENGINE_EDITOR__.${name};`
-).join('\n');
+function generateShimCode(): string {
+    const api = (window as any).__ESENGINE_EDITOR__ || {};
+    return Object.keys(api)
+        .filter(key => /^[a-zA-Z_$]/.test(key) && !JS_RESERVED.has(key))
+        .map(key => `export var ${key} = window.__ESENGINE_EDITOR__["${key}"];`)
+        .join('\n');
+}
+
+// =============================================================================
+// Editor Shim Plugin
+// =============================================================================
 
 export function editorShimPlugin(): esbuild.Plugin {
     return {
         name: 'editor-shim',
         setup(build) {
-            build.onResolve({ filter: /^@esengine\/editor$/ }, () => {
-                return { path: '@esengine/editor', namespace: 'editor-shim' };
-            });
-            build.onLoad({ filter: /.*/, namespace: 'editor-shim' }, () => {
-                return { contents: EDITOR_SHIM_CODE, loader: 'js' };
-            });
+            build.onResolve({ filter: /^@esengine\/editor$/ }, () => ({
+                path: '@esengine/editor', namespace: 'editor-shim',
+            }));
+            build.onLoad({ filter: /.*/, namespace: 'editor-shim' }, () => ({
+                contents: generateShimCode(), loader: 'js',
+            }));
+        },
+    };
+}
+
+// =============================================================================
+// ESEngine Shim Plugin
+// =============================================================================
+
+export function esengineShimPlugin(): esbuild.Plugin {
+    return {
+        name: 'esengine-shim',
+        setup(build) {
+            build.onResolve({ filter: /^esengine$/ }, () => ({
+                path: 'esengine', namespace: 'esengine-shim',
+            }));
+            build.onLoad({ filter: /.*/, namespace: 'esengine-shim' }, () => ({
+                contents: generateShimCode(), loader: 'js',
+            }));
         },
     };
 }
@@ -108,12 +130,8 @@ export function virtualFsPlugin(options: VirtualFsPluginOptions): esbuild.Plugin
             build.onResolve({ filter: /^[^./]/ }, async (args) => {
                 if (/^[A-Za-z]:/.test(args.path)) return undefined;
 
-                // Handle esengine SDK from editor
-                if (args.path === 'esengine') {
-                    return { path: joinPath(projectDir, '.esengine/sdk/index.js'), namespace: NS };
-                }
-                if (args.path === 'esengine/wasm') {
-                    return { path: joinPath(projectDir, '.esengine/sdk/wasm.js'), namespace: NS };
+                if (args.path === 'esengine' || args.path === 'esengine/wasm') {
+                    return { path: args.path, external: true };
                 }
 
                 const pkgName = args.path.startsWith('@')

@@ -4,7 +4,8 @@
  */
 
 import * as esbuild from 'esbuild-wasm/esm/browser';
-import { editorShimPlugin, virtualFsPlugin } from '../scripting/esbuildPlugins';
+import { editorShimPlugin, esengineShimPlugin, virtualFsPlugin } from '../scripting/esbuildPlugins';
+import { findTsFiles } from '../scripting/ScriptLoader';
 import type { NativeFS, CompileError } from '../scripting/types';
 import { getEditorContext } from '../context/EditorContext';
 import { ExtensionContext } from './ExtensionContext';
@@ -81,22 +82,10 @@ export class ExtensionLoader {
         const fs = getNativeFS();
         if (!fs) return [];
 
+        const srcPath = joinPath(this.projectDir_, 'src');
         try {
-            const editorDirs = await this.findEditorDirs(fs, this.projectDir_);
-            const results: string[] = [];
-
-            for (const dir of editorDirs) {
-                if (!await fs.exists(dir)) continue;
-                const entries = await fs.listDirectoryDetailed(dir);
-                for (const e of entries) {
-                    if (!e.isDirectory && e.name.endsWith('.ts')) {
-                        results.push(joinPath(dir, e.name));
-                    }
-                }
-            }
-
-            this.lastEditorDir_ = editorDirs[0] ?? null;
-            return results;
+            if (!await fs.exists(srcPath)) return [];
+            return await findTsFiles(fs, srcPath);
         } catch (err) {
             console.error('ExtensionLoader: Failed to discover extensions:', err);
             return [];
@@ -124,7 +113,7 @@ export class ExtensionLoader {
                 stdin: {
                     contents: entryContent,
                     loader: 'ts',
-                    resolveDir: this.lastEditorDir_ ?? this.projectDir_,
+                    resolveDir: joinPath(this.projectDir_, 'src'),
                 },
                 bundle: true,
                 format: 'esm',
@@ -132,9 +121,12 @@ export class ExtensionLoader {
                 sourcemap: true,
                 platform: 'browser',
                 target: 'es2020',
-                external: ['esengine'],
+                define: {
+                    'process.env.EDITOR': 'true',
+                },
                 plugins: [
                     editorShimPlugin(),
+                    esengineShimPlugin(),
                     virtualFsPlugin({ fs, projectDir: this.projectDir_ }),
                 ],
             });
@@ -231,14 +223,14 @@ export class ExtensionLoader {
 
         this.unwatch();
 
+        const srcPath = joinPath(this.projectDir_, 'src');
         this.unwatchFn_ = await fs.watchDirectory(
-            this.projectDir_,
+            srcPath,
             (event) => {
-                const hasEditorTs = event.paths.some(p => {
-                    const normalized = normalizePath(p);
-                    return /\/editor\/[^/]+\.ts$/.test(normalized);
-                });
-                if (!hasEditorTs) return;
+                const hasTsChange = event.paths.some(p =>
+                    normalizePath(p).endsWith('.ts')
+                );
+                if (!hasTsChange) return;
 
                 if (this.recompileTimer_ !== null) {
                     clearTimeout(this.recompileTimer_);
@@ -272,31 +264,6 @@ export class ExtensionLoader {
     // Private Methods
     // =========================================================================
 
-    private static readonly IGNORED_DIRS = new Set([
-        'node_modules', '.git', '.esengine', 'dist', 'build', '.next', '.cache',
-        'assets', 'public', 'vendor',
-    ]);
-
-    private async findEditorDirs(fs: NativeFS, dir: string): Promise<string[]> {
-        const results: string[] = [];
-        const entries = await fs.listDirectoryDetailed(dir);
-
-        for (const e of entries) {
-            if (!e.isDirectory) continue;
-            if (ExtensionLoader.IGNORED_DIRS.has(e.name)) continue;
-
-            const fullPath = joinPath(dir, e.name);
-            if (e.name === 'editor') {
-                results.push(fullPath);
-            } else {
-                const nested = await this.findEditorDirs(fs, fullPath);
-                results.push(...nested);
-            }
-        }
-
-        return results;
-    }
-
     private disposeCurrentUrl(): void {
         if (this.currentBlobUrl_) {
             URL.revokeObjectURL(this.currentBlobUrl_);
@@ -313,7 +280,6 @@ export class ExtensionLoader {
     private baseAPI_: Record<string, unknown>;
     private initialized_ = false;
     private isReloading_ = false;
-    private lastEditorDir_: string | null = null;
     private lastCompiled_: string | null = null;
     private lastSourcemap_: string | null = null;
     private currentBlobUrl_: string | null = null;

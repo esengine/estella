@@ -316,7 +316,7 @@ function computeViewProjection(registry: CppRegistry, width: number, height: num
         if (camera.projectionType === 1) {
             const halfH = camera.orthoSize;
             const halfW = halfH * aspect;
-            projection = ortho(-halfW, halfW, -halfH, halfH, camera.nearPlane, camera.farPlane);
+            projection = ortho(-halfW, halfW, -halfH, halfH, -camera.farPlane, camera.farPlane);
         } else {
             projection = perspective(
                 camera.fov * Math.PI / 180,
