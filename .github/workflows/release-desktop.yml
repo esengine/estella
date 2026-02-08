@@ -39,8 +39,16 @@ jobs:
         if: matrix.platform == 'macos-latest'
         run: rustup target add x86_64-apple-darwin
 
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: latest
+
       - name: Install dependencies
         run: pnpm install
+
+      - name: Build engine and sync to desktop
+        run: node build-tools/cli.js build -t all
 
       - name: Build workspace packages
         run: pnpm --filter esengine build && pnpm --filter @esengine/editor build
