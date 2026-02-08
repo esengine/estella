@@ -7,7 +7,7 @@ import * as esbuild from 'esbuild-wasm/esm/browser';
 import { editorShimPlugin, esengineShimPlugin, virtualFsPlugin } from '../scripting/esbuildPlugins';
 import { findTsFiles } from '../scripting/ScriptLoader';
 import type { NativeFS, CompileError } from '../scripting/types';
-import { getEditorContext } from '../context/EditorContext';
+import { getEditorContext, getEsbuildWasmURL } from '../context/EditorContext';
 import { ExtensionContext } from './ExtensionContext';
 import { setEditorAPI } from './editorAPI';
 import { normalizePath, joinPath, getProjectDir } from '../utils/path';
@@ -53,7 +53,7 @@ export class ExtensionLoader {
 
         try {
             await esbuild.initialize({
-                wasmURL: 'https://cdn.jsdelivr.net/npm/esbuild-wasm@0.27.2/esbuild.wasm',
+                wasmURL: getEsbuildWasmURL(),
             });
         } catch {
             // esbuild is a singleton; already initialized by ScriptLoader is fine

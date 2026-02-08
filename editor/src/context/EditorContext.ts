@@ -16,6 +16,7 @@ export interface EditorContextConfig {
     fs?: NativeFS;
     invoke?: (cmd: string, args?: Record<string, unknown>) => Promise<unknown>;
     shell?: NativeShell;
+    esbuildWasmURL?: string;
 }
 
 let ctx: EditorContextConfig = {};
@@ -35,4 +36,10 @@ export function setEditorInstance(editor: Editor): void {
 
 export function getEditorInstance(): Editor | null {
     return editorInstance;
+}
+
+const ESBUILD_WASM_CDN = 'https://cdn.jsdelivr.net/npm/esbuild-wasm@0.27.2/esbuild.wasm';
+
+export function getEsbuildWasmURL(): string {
+    return ctx.esbuildWasmURL ?? ESBUILD_WASM_CDN;
 }

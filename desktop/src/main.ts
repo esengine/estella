@@ -13,17 +13,20 @@ import type { App, ESEngineModule } from 'esengine';
 let currentLauncher: ProjectLauncher | null = null;
 let wasmModule: ESEngineModule | null = null;
 
-function loadScript(src: string): Promise<void> {
-    return new Promise((resolve) => {
+function loadWasmScript(): Promise<void> {
+    return new Promise((resolve, reject) => {
+        if (window.__ESEngineModule) {
+            resolve();
+            return;
+        }
+
         const script = document.createElement('script');
         script.type = 'module';
-        script.innerHTML = `
-            import createModule from '${src}';
-            window.__ESEngineModule = createModule;
-            window.dispatchEvent(new Event('esengine-loaded'));
-        `;
+        script.src = '/wasm/wasm-loader.js';
+        script.onerror = () => reject(new Error('Failed to load WASM loader script'));
         document.head.appendChild(script);
-        resolve();
+
+        window.addEventListener('esengine-loaded', () => resolve(), { once: true });
     });
 }
 
@@ -31,23 +34,7 @@ async function loadWasmModule(): Promise<ESEngineModule | null> {
     if (wasmModule) return wasmModule;
 
     try {
-        await loadScript('/wasm/esengine.js');
-
-        await new Promise<void>((resolve, reject) => {
-            if (window.__ESEngineModule) {
-                resolve();
-                return;
-            }
-
-            const timeout = setTimeout(() => {
-                reject(new Error('WASM module load timeout'));
-            }, 10000);
-
-            window.addEventListener('esengine-loaded', () => {
-                clearTimeout(timeout);
-                resolve();
-            }, { once: true });
-        });
+        await loadWasmScript();
 
         const createModule = window.__ESEngineModule;
         if (typeof createModule !== 'function') {
@@ -92,6 +79,7 @@ async function init(): Promise<void> {
         fs: nativeFS,
         invoke,
         shell: nativeShell,
+        esbuildWasmURL: '/esbuild.wasm',
     });
 
     const container = document.getElementById('editor-root');

@@ -7,7 +7,7 @@ import * as esbuild from 'esbuild-wasm/esm/browser';
 import type { BuildResult, BuildContext } from './BuildService';
 import { BuildProgressReporter } from './BuildProgress';
 import { BuildCache } from './BuildCache';
-import { getEditorContext } from '../context/EditorContext';
+import { getEditorContext, getEsbuildWasmURL } from '../context/EditorContext';
 import { findTsFiles, EDITOR_ONLY_DIRS } from '../scripting/ScriptLoader';
 import { BuildAssetCollector, AssetExportConfigService } from './AssetCollector';
 import { TextureAtlasPacker, type AtlasResult } from './TextureAtlas';
@@ -518,7 +518,7 @@ function updateMaterials(world, sceneData, materialCache, entityMap) {
 
         try {
             await esbuild.initialize({
-                wasmURL: 'https://cdn.jsdelivr.net/npm/esbuild-wasm@0.27.2/esbuild.wasm',
+                wasmURL: getEsbuildWasmURL(),
             });
         } catch (err) {
             if (!String(err).includes('Cannot call "initialize" more than once')) {

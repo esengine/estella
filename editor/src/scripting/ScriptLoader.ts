@@ -8,7 +8,7 @@ import { defineComponent, defineTag, clearUserComponents } from 'esengine';
 import { virtualFsPlugin } from './esbuildPlugins';
 import type { NativeFS, ScriptLoaderOptions, CompileError } from './types';
 import { clearScriptComponents } from '../schemas/ComponentSchemas';
-import { getEditorContext } from '../context/EditorContext';
+import { getEditorContext, getEsbuildWasmURL } from '../context/EditorContext';
 import { normalizePath, joinPath, getProjectDir } from '../utils/path';
 
 // =============================================================================
@@ -44,7 +44,7 @@ export class ScriptLoader {
 
         try {
             await esbuild.initialize({
-                wasmURL: 'https://cdn.jsdelivr.net/npm/esbuild-wasm@0.27.2/esbuild.wasm',
+                wasmURL: getEsbuildWasmURL(),
             });
         } catch {
             // esbuild is a singleton; already initialized is fine
