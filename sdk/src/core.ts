@@ -349,3 +349,13 @@ export {
     isEditor,
     isRuntime,
 } from './env';
+
+// =============================================================================
+// GL Debug
+// =============================================================================
+
+export {
+    GLDebug,
+    initGLDebugAPI,
+    shutdownGLDebugAPI,
+} from './glDebug';

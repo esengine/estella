@@ -335,6 +335,7 @@ interface ESEngineModule {
     renderer_init(width: number, height: number): void;
     renderer_resize(width: number, height: number): void;
     renderer_begin(matrixPtr: number, targetHandle: number): void;
+    renderer_flush(): void;
     renderer_end(): void;
     renderer_submitSprites(registry: CppRegistry): void;
     renderer_submitSpine(registry: CppRegistry): void;
@@ -350,6 +351,9 @@ interface ESEngineModule {
     renderer_getMeshes(): number;
     renderer_getCulled(): number;
     renderer_setClearColor(r: number, g: number, b: number, a: number): void;
+    gl_enableErrorCheck(enabled: boolean): void;
+    gl_checkErrors(context: string): number;
+    renderer_diagnose(): void;
     _malloc(size: number): number;
     _free(ptr: number): void;
 }
@@ -982,7 +986,6 @@ declare class AssetServer {
     private writeToVirtualFS;
     private ensureVirtualDir;
     private resolveUrl;
-    private createCanvas;
     private nextPowerOf2;
     private parseAtlasTextures;
 }
@@ -1078,6 +1081,14 @@ interface PlatformAdapter {
      * @param imports - Import object
      */
     instantiateWasm(pathOrBuffer: string | ArrayBuffer, imports: WebAssembly.Imports): Promise<WasmInstantiateResult>;
+    /**
+     * Create a 2D canvas for offscreen rendering
+     */
+    createCanvas(width: number, height: number): HTMLCanvasElement | OffscreenCanvas;
+    /**
+     * High-resolution timestamp in milliseconds
+     */
+    now(): number;
 }
 type PlatformType = 'web' | 'wechat';
 
@@ -1647,6 +1658,7 @@ declare const Renderer: {
     init(width: number, height: number): void;
     resize(width: number, height: number): void;
     begin(viewProjection: Float32Array, target?: RenderTargetHandle): void;
+    flush(): void;
     end(): void;
     submitSprites(registry: {
         _cpp: CppRegistry;
@@ -1715,5 +1727,19 @@ declare function setEditorMode(active: boolean): void;
 declare function isEditor(): boolean;
 declare function isRuntime(): boolean;
 
-export { App, AssetPlugin, AssetServer, Assets, AsyncCache, BlendMode, Camera, Canvas, Children, Commands, CommandsInstance, DataType, Draw, EntityCommands, Geometry, INVALID_ENTITY, INVALID_TEXTURE, Input, LocalTransform, Material, MaterialLoader, Mut, Parent, PostProcess, PreviewPlugin, Query, QueryInstance, RenderPipeline, RenderStage, RenderTexture, Renderer, Res, ResMut, ResMutInstance, Schedule, ShaderSources, SpineAnimation, SpineController, Sprite, SystemRunner, Text, TextAlign, TextOverflow, TextPlugin, TextRenderer, TextVerticalAlign, Time, UIRect, Velocity, World, WorldTransform, addStartupSystem, addSystem, addSystemToSchedule, assetPlugin, clearDrawCallbacks, clearUserComponents, color, createSpineController, createWebApp, defineComponent, defineResource, defineSystem, defineTag, flushPendingSystems, getComponentDefaults, getPlatform, getPlatformType, getUserComponent, initDrawAPI, initGeometryAPI, initMaterialAPI, initPostProcessAPI, initRendererAPI, isBuiltinComponent, isEditor, isPlatformInitialized, isRuntime, isTextureRef, isWeChat, isWeb, loadComponent, loadSceneData, loadSceneWithAssets, platformFetch, platformFileExists, platformInstantiateWasm, platformReadFile, platformReadTextFile, quat, registerDrawCallback, registerMaterialCallback, setEditorMode, shutdownDrawAPI, shutdownGeometryAPI, shutdownMaterialAPI, shutdownPostProcessAPI, shutdownRendererAPI, textPlugin, unregisterDrawCallback, updateCameraAspectRatio, vec2, vec3, vec4 };
+/**
+ * @file    glDebug.ts
+ * @brief   GL error checking API for debugging rendering issues
+ */
+
+declare function initGLDebugAPI(wasmModule: ESEngineModule): void;
+declare function shutdownGLDebugAPI(): void;
+declare const GLDebug: {
+    enable(): void;
+    disable(): void;
+    check(context: string): number;
+    diagnose(): void;
+};
+
+export { App, AssetPlugin, AssetServer, Assets, AsyncCache, BlendMode, Camera, Canvas, Children, Commands, CommandsInstance, DataType, Draw, EntityCommands, GLDebug, Geometry, INVALID_ENTITY, INVALID_TEXTURE, Input, LocalTransform, Material, MaterialLoader, Mut, Parent, PostProcess, PreviewPlugin, Query, QueryInstance, RenderPipeline, RenderStage, RenderTexture, Renderer, Res, ResMut, ResMutInstance, Schedule, ShaderSources, SpineAnimation, SpineController, Sprite, SystemRunner, Text, TextAlign, TextOverflow, TextPlugin, TextRenderer, TextVerticalAlign, Time, UIRect, Velocity, World, WorldTransform, addStartupSystem, addSystem, addSystemToSchedule, assetPlugin, clearDrawCallbacks, clearUserComponents, color, createSpineController, createWebApp, defineComponent, defineResource, defineSystem, defineTag, flushPendingSystems, getComponentDefaults, getPlatform, getPlatformType, getUserComponent, initDrawAPI, initGLDebugAPI, initGeometryAPI, initMaterialAPI, initPostProcessAPI, initRendererAPI, isBuiltinComponent, isEditor, isPlatformInitialized, isRuntime, isTextureRef, isWeChat, isWeb, loadComponent, loadSceneData, loadSceneWithAssets, platformFetch, platformFileExists, platformInstantiateWasm, platformReadFile, platformReadTextFile, quat, registerDrawCallback, registerMaterialCallback, setEditorMode, shutdownDrawAPI, shutdownGLDebugAPI, shutdownGeometryAPI, shutdownMaterialAPI, shutdownPostProcessAPI, shutdownRendererAPI, textPlugin, unregisterDrawCallback, updateCameraAspectRatio, vec2, vec3, vec4 };
 export type { AnyComponentDef, AssetBundle, AssetManifest, AssetsData, BuiltinComponentDef, CameraData, CanvasData, ChildrenData, Color, CommandsDescriptor, ComponentData, ComponentDef, CppRegistry, CppResourceManager, DrawAPI, DrawCallback, ESEngineModule, Entity, FileLoadOptions, GeometryHandle, GeometryOptions, InferParam, InferParams, InputState, LoadedMaterial, LocalTransformData, MaterialAssetData, MaterialHandle, MaterialOptions, MutWrapper, ParentData, PlatformAdapter, PlatformRequestOptions, PlatformResponse, PlatformType, Plugin, Quat, QueryDescriptor, QueryResult, RenderParams, RenderStats, RenderTargetHandle, RenderTextureHandle, RenderTextureOptions, ResDescriptor, ResMutDescriptor, ResourceDef, SceneComponentData, SceneData, SceneEntityData, SceneLoadOptions, ShaderHandle, ShaderLoader, SliceBorder, SpineAnimationData, SpineDescriptor, SpineEvent, SpineEventCallback, SpineEventType, SpineLoadResult, SpriteData, SystemDef, SystemParam, TextData, TextRenderResult, TextureHandle, TextureInfo, TextureRef, TimeData, TrackEntryInfo, UIRectData, UniformValue, Vec2, Vec3, Vec4, VelocityData, VertexAttributeDescriptor, WebAppOptions, WorldTransformData };

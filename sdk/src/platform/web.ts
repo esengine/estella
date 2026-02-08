@@ -84,6 +84,21 @@ class WebPlatformAdapter implements PlatformAdapter {
             module: result.module,
         };
     }
+    createCanvas(width: number, height: number): HTMLCanvasElement | OffscreenCanvas {
+        let canvas: HTMLCanvasElement | OffscreenCanvas;
+        if (typeof OffscreenCanvas !== 'undefined') {
+            canvas = new OffscreenCanvas(width, height);
+        } else {
+            canvas = document.createElement('canvas');
+        }
+        canvas.width = width;
+        canvas.height = height;
+        return canvas;
+    }
+
+    now(): number {
+        return performance.now();
+    }
 }
 
 // =============================================================================

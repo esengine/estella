@@ -7,6 +7,7 @@ import type { Entity, Vec2 } from '../types';
 import type { ESEngineModule, CppResourceManager } from '../wasm';
 import { TextAlign, TextVerticalAlign, TextOverflow, type TextData } from './text';
 import type { UIRectData } from './UIRect';
+import { platformCreateCanvas } from '../platform';
 
 // =============================================================================
 // Text Render Result
@@ -30,16 +31,8 @@ export class TextRenderer {
 
     constructor(module: ESEngineModule) {
         this.module = module;
-
-        if (typeof OffscreenCanvas !== 'undefined') {
-            this.canvas = new OffscreenCanvas(512, 512);
-            this.ctx = this.canvas.getContext('2d', { willReadFrequently: true })!;
-        } else {
-            this.canvas = document.createElement('canvas');
-            this.canvas.width = 512;
-            this.canvas.height = 512;
-            this.ctx = this.canvas.getContext('2d', { willReadFrequently: true })!;
-        }
+        this.canvas = platformCreateCanvas(512, 512);
+        this.ctx = this.canvas.getContext('2d', { willReadFrequently: true })! as CanvasRenderingContext2D;
     }
 
     /**

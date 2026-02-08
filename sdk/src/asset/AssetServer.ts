@@ -8,7 +8,7 @@ import type { ESEngineModule } from '../wasm';
 import type { ShaderHandle } from '../material';
 import { Material } from '../material';
 import { MaterialLoader, type LoadedMaterial, type ShaderLoader } from './MaterialLoader';
-import { platformReadTextFile, platformFileExists, platformFetch } from '../platform';
+import { platformReadTextFile, platformFileExists, platformFetch, platformCreateCanvas } from '../platform';
 import type { World } from '../world';
 import { loadSceneWithAssets, type SceneData } from '../scene';
 import { AsyncCache } from './AsyncCache';
@@ -85,7 +85,7 @@ export class AssetServer {
 
     constructor(module: ESEngineModule) {
         this.module_ = module;
-        this.canvas_ = this.createCanvas(512, 512);
+        this.canvas_ = platformCreateCanvas(512, 512) as HTMLCanvasElement;
         this.ctx_ = this.canvas_.getContext('2d', { willReadFrequently: true })!;
 
         const shaderLoader: ShaderLoader = {
@@ -619,15 +619,6 @@ export class AssetServer {
         }
         const base = baseUrl ?? this.baseUrl;
         return base ? `${base}/${path}` : `/${path}`;
-    }
-
-    private createCanvas(width: number, height: number): HTMLCanvasElement {
-        const canvas = typeof OffscreenCanvas !== 'undefined'
-            ? new OffscreenCanvas(width, height) as unknown as HTMLCanvasElement
-            : document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        return canvas;
     }
 
     private nextPowerOf2(n: number): number {

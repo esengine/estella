@@ -80,6 +80,16 @@ export interface PlatformAdapter {
         pathOrBuffer: string | ArrayBuffer,
         imports: WebAssembly.Imports
     ): Promise<WasmInstantiateResult>;
+
+    /**
+     * Create a 2D canvas for offscreen rendering
+     */
+    createCanvas(width: number, height: number): HTMLCanvasElement | OffscreenCanvas;
+
+    /**
+     * High-resolution timestamp in milliseconds
+     */
+    now(): number;
 }
 
 // =============================================================================

@@ -188,6 +188,7 @@ export interface ESEngineModule {
     renderer_init(width: number, height: number): void;
     renderer_resize(width: number, height: number): void;
     renderer_begin(matrixPtr: number, targetHandle: number): void;
+    renderer_flush(): void;
     renderer_end(): void;
     renderer_submitSprites(registry: CppRegistry): void;
     renderer_submitSpine(registry: CppRegistry): void;
@@ -203,6 +204,11 @@ export interface ESEngineModule {
     renderer_getMeshes(): number;
     renderer_getCulled(): number;
     renderer_setClearColor(r: number, g: number, b: number, a: number): void;
+
+    // GL Debug API
+    gl_enableErrorCheck(enabled: boolean): void;
+    gl_checkErrors(context: string): number;
+    renderer_diagnose(): void;
 
     _malloc(size: number): number;
     _free(ptr: number): void;

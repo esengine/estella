@@ -49,6 +49,10 @@ export const Renderer = {
         module.renderer_begin(viewProjectionPtr, target ?? 0);
     },
 
+    flush(): void {
+        module?.renderer_flush();
+    },
+
     end(): void {
         module?.renderer_end();
     },

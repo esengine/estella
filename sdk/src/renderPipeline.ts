@@ -23,19 +23,14 @@ export class RenderPipeline {
 
         Renderer.resize(width, height);
 
-        const usePostProcess = PostProcess.isInitialized()
-            && PostProcess.getPassCount() > 0
-            && !PostProcess.isBypassed();
-
-        if (usePostProcess) {
+        if (PostProcess.isInitialized() && PostProcess.getPassCount() > 0 && !PostProcess.isBypassed()) {
             PostProcess.resize(width, height);
-            PostProcess.begin();
         }
 
         Renderer.begin(viewProjection);
         Renderer.submitSprites(registry);
         Renderer.submitSpine(registry);
-        Renderer.end();
+        Renderer.flush();
 
         const cbs = getDrawCallbacks();
         if (cbs.size > 0) {
@@ -55,8 +50,6 @@ export class RenderPipeline {
             }
         }
 
-        if (usePostProcess) {
-            PostProcess.end();
-        }
+        Renderer.end();
     }
 }

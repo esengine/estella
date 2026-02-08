@@ -25,6 +25,8 @@ export {
     platformReadTextFile,
     platformFileExists,
     platformInstantiateWasm,
+    platformCreateCanvas,
+    platformNow,
 } from './base';
 
 // Note: webAdapter is exported here for initialization

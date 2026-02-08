@@ -13,6 +13,8 @@ import { initMaterialAPI, shutdownMaterialAPI } from './material';
 import { initGeometryAPI, shutdownGeometryAPI } from './geometry';
 import { initPostProcessAPI, shutdownPostProcessAPI } from './postprocess';
 import { initRendererAPI, shutdownRendererAPI } from './renderer';
+import { initGLDebugAPI, shutdownGLDebugAPI } from './glDebug';
+import { platformNow } from './platform';
 import { RenderPipeline } from './renderPipeline';
 
 // =============================================================================
@@ -146,7 +148,7 @@ export class App {
 
         this.runSchedule(Schedule.Startup);
 
-        this.lastTime_ = performance.now();
+        this.lastTime_ = platformNow();
         this.mainLoop();
     }
 
@@ -155,9 +157,9 @@ export class App {
             return;
         }
 
-        const now = performance.now();
-        const deltaMs = now - this.lastTime_;
-        this.lastTime_ = now;
+        const currentTime = platformNow();
+        const deltaMs = currentTime - this.lastTime_;
+        this.lastTime_ = currentTime;
 
         const delta = deltaMs / 1000;
 
@@ -174,6 +176,7 @@ export class App {
 
     quit(): void {
         this.running_ = false;
+        shutdownGLDebugAPI();
         shutdownRendererAPI();
         shutdownPostProcessAPI();
         shutdownGeometryAPI();
@@ -233,9 +236,10 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
     initGeometryAPI(module);
     initPostProcessAPI(module);
     initRendererAPI(module);
+    initGLDebugAPI(module);
 
     const pipeline = new RenderPipeline();
-    let startTime = performance.now();
+    let startTime = platformNow();
 
     const getViewportSize = options?.getViewportSize ?? (() => ({
         width: window.innerWidth * (window.devicePixelRatio || 1),
@@ -249,7 +253,7 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
         _fn: () => {
             const { width, height } = getViewportSize();
             const vp = computeViewProjection(cppRegistry, width, height);
-            const elapsed = (performance.now() - startTime) / 1000;
+            const elapsed = (platformNow() - startTime) / 1000;
             pipeline.render({
                 registry: { _cpp: cppRegistry },
                 viewProjection: vp,

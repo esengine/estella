@@ -90,3 +90,11 @@ export async function platformInstantiateWasm(
 ): Promise<import('./types').WasmInstantiateResult> {
     return getPlatform().instantiateWasm(pathOrBuffer, imports);
 }
+
+export function platformCreateCanvas(width: number, height: number): HTMLCanvasElement | OffscreenCanvas {
+    return getPlatform().createCanvas(width, height);
+}
+
+export function platformNow(): number {
+    return getPlatform().now();
+}
