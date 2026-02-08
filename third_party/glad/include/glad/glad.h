@@ -323,6 +323,7 @@ typedef void (APIENTRYP PFNGLGETPROGRAMIVPROC)(GLuint program, GLenum pname, GLi
 typedef void (APIENTRYP PFNGLGETPROGRAMINFOLOGPROC)(GLuint program, GLsizei bufSize, GLsizei* length, GLchar* infoLog);
 typedef GLint (APIENTRYP PFNGLGETUNIFORMLOCATIONPROC)(GLuint program, const GLchar* name);
 typedef GLint (APIENTRYP PFNGLGETATTRIBLOCATIONPROC)(GLuint program, const GLchar* name);
+typedef void (APIENTRYP PFNGLBINDATTRIBLOCATIONPROC)(GLuint program, GLuint index, const GLchar* name);
 typedef void (APIENTRYP PFNGLUNIFORM1IPROC)(GLint location, GLint v0);
 typedef void (APIENTRYP PFNGLUNIFORM1FPROC)(GLint location, GLfloat v0);
 typedef void (APIENTRYP PFNGLUNIFORM2FPROC)(GLint location, GLfloat v0, GLfloat v1);
@@ -422,6 +423,7 @@ GLAPI PFNGLGETPROGRAMIVPROC glad_glGetProgramiv;
 GLAPI PFNGLGETPROGRAMINFOLOGPROC glad_glGetProgramInfoLog;
 GLAPI PFNGLGETUNIFORMLOCATIONPROC glad_glGetUniformLocation;
 GLAPI PFNGLGETATTRIBLOCATIONPROC glad_glGetAttribLocation;
+GLAPI PFNGLBINDATTRIBLOCATIONPROC glad_glBindAttribLocation;
 GLAPI PFNGLUNIFORM1IPROC glad_glUniform1i;
 GLAPI PFNGLUNIFORM1FPROC glad_glUniform1f;
 GLAPI PFNGLUNIFORM2FPROC glad_glUniform2f;
@@ -516,6 +518,7 @@ GLAPI PFNGLBLITFRAMEBUFFERPROC glad_glBlitFramebuffer;
 #define glGetProgramInfoLog glad_glGetProgramInfoLog
 #define glGetUniformLocation glad_glGetUniformLocation
 #define glGetAttribLocation glad_glGetAttribLocation
+#define glBindAttribLocation glad_glBindAttribLocation
 #define glUniform1i glad_glUniform1i
 #define glUniform1f glad_glUniform1f
 #define glUniform2f glad_glUniform2f

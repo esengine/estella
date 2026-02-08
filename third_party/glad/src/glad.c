@@ -89,6 +89,7 @@ PFNGLGETPROGRAMIVPROC glad_glGetProgramiv = NULL;
 PFNGLGETPROGRAMINFOLOGPROC glad_glGetProgramInfoLog = NULL;
 PFNGLGETUNIFORMLOCATIONPROC glad_glGetUniformLocation = NULL;
 PFNGLGETATTRIBLOCATIONPROC glad_glGetAttribLocation = NULL;
+PFNGLBINDATTRIBLOCATIONPROC glad_glBindAttribLocation = NULL;
 PFNGLUNIFORM1IPROC glad_glUniform1i = NULL;
 PFNGLUNIFORM1FPROC glad_glUniform1f = NULL;
 PFNGLUNIFORM2FPROC glad_glUniform2f = NULL;
@@ -197,6 +198,7 @@ int gladLoadGLLoader(GLADloadproc load) {
     glad_glGetProgramInfoLog = (PFNGLGETPROGRAMINFOLOGPROC)load("glGetProgramInfoLog");
     glad_glGetUniformLocation = (PFNGLGETUNIFORMLOCATIONPROC)load("glGetUniformLocation");
     glad_glGetAttribLocation = (PFNGLGETATTRIBLOCATIONPROC)load("glGetAttribLocation");
+    glad_glBindAttribLocation = (PFNGLBINDATTRIBLOCATIONPROC)load("glBindAttribLocation");
     glad_glUniform1i = (PFNGLUNIFORM1IPROC)load("glUniform1i");
     glad_glUniform1f = (PFNGLUNIFORM1FPROC)load("glUniform1f");
     glad_glUniform2f = (PFNGLUNIFORM2FPROC)load("glUniform2f");
