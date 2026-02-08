@@ -83,6 +83,13 @@ public:
      */
     void end();
 
+    /**
+     * @brief Flushes pending draw commands without ending the frame
+     * @details Use this before operations that change GL state (e.g. custom geometry draws)
+     *          to ensure accumulated primitives are rendered with the correct state.
+     */
+    void flush();
+
     // =========================================================================
     // Line Drawing
     // =========================================================================

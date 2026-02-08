@@ -42,6 +42,7 @@ public:
     void resize(u32 width, u32 height);
 
     void begin(const glm::mat4& view_projection, RenderTargetManager::Handle target = 0);
+    void flush();
     void end();
 
     void submitSprites(ecs::Registry& registry);
@@ -81,6 +82,7 @@ private:
 
     Stats stats_;
     bool in_frame_ = false;
+    bool flushed_ = false;
     u32 width_ = 0;
     u32 height_ = 0;
 
@@ -97,7 +99,7 @@ private:
         glm::vec4 color;
     };
     std::vector<SpineVertex> spine_vertices_;
-    std::vector<u32> spine_indices_;
+    std::vector<u16> spine_indices_;
     u32 spine_current_texture_ = 0;
     BlendMode spine_current_blend_ = BlendMode::Normal;
 

@@ -159,8 +159,10 @@ void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::H
     }
 }
 
-void RenderFrame::end() {
-    if (!in_frame_) return;
+void RenderFrame::flush() {
+    if (!in_frame_ || flushed_) return;
+
+    flushed_ = true;
 
     sortAndBucket();
 
@@ -172,6 +174,14 @@ void RenderFrame::end() {
     executeStage(RenderStage::Opaque);
     executeStage(RenderStage::Transparent);
     executeStage(RenderStage::Overlay);
+}
+
+void RenderFrame::end() {
+    if (!in_frame_) return;
+
+    if (!flushed_) {
+        flush();
+    }
 
     bool usePostProcess = post_process_ && post_process_->isInitialized() &&
                           !post_process_->isBypassed() && post_process_->getPassCount() > 0;
@@ -186,6 +196,7 @@ void RenderFrame::end() {
     }
 
     in_frame_ = false;
+    flushed_ = false;
 }
 
 void RenderFrame::submitSprites(ecs::Registry& registry) {
@@ -529,7 +540,7 @@ void RenderFrame::renderSpine(u32 begin, u32 end) {
                 f32 b = skelColor.b * slotColor.b * attachColor.b * item->tint_color.b;
                 f32 a = skelColor.a * slotColor.a * attachColor.a * item->tint_color.a;
 
-                u32 baseIndex = static_cast<u32>(spine_vertices_.size());
+                u16 baseIndex = static_cast<u16>(spine_vertices_.size());
 
                 for (size_t j = 0; j < 4; ++j) {
                     glm::vec4 pos(spine_world_vertices_[j * 2], spine_world_vertices_[j * 2 + 1], 0.0f, 1.0f);
@@ -581,7 +592,7 @@ void RenderFrame::renderSpine(u32 begin, u32 end) {
                 f32 b = skelColor.b * slotColor.b * attachColor.b * item->tint_color.b;
                 f32 a = skelColor.a * slotColor.a * attachColor.a * item->tint_color.a;
 
-                u32 baseIndex = static_cast<u32>(spine_vertices_.size());
+                u16 baseIndex = static_cast<u16>(spine_vertices_.size());
 
                 for (size_t j = 0; j < vertexCount; ++j) {
                     glm::vec4 pos(spine_world_vertices_[j * 2], spine_world_vertices_[j * 2 + 1], 0.0f, 1.0f);
@@ -595,7 +606,7 @@ void RenderFrame::renderSpine(u32 begin, u32 end) {
                 }
 
                 for (size_t j = 0; j < triangles.size(); ++j) {
-                    spine_indices_.push_back(baseIndex + triangles[j]);
+                    spine_indices_.push_back(static_cast<u16>(baseIndex + triangles[j]));
                 }
             }
 
@@ -637,7 +648,7 @@ void RenderFrame::flushSpineBatch() {
     }
     glBufferSubData(GL_ARRAY_BUFFER, 0, vboBytes, spine_vertices_.data());
 
-    auto eboBytes = static_cast<GLsizeiptr>(spine_indices_.size() * sizeof(u32));
+    auto eboBytes = static_cast<GLsizeiptr>(spine_indices_.size() * sizeof(u16));
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, spine_ebo_);
     if (static_cast<u32>(eboBytes) > spine_ebo_capacity_) {
         spine_ebo_capacity_ = static_cast<u32>(eboBytes) * 2;
@@ -646,7 +657,7 @@ void RenderFrame::flushSpineBatch() {
     glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, eboBytes, spine_indices_.data());
 
     glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(spine_indices_.size()),
-                   GL_UNSIGNED_INT, nullptr);
+                   GL_UNSIGNED_SHORT, nullptr);
 
     glBindVertexArray(0);
 
@@ -747,7 +758,7 @@ void RenderFrame::renderSpriteWithMaterial(RenderItem* item) {
     }
 
     if (!mat_sprite_ebo_initialized_) {
-        u32 indices[] = { 0, 1, 2, 2, 3, 0 };
+        u16 indices[] = { 0, 1, 2, 2, 3, 0 };
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mat_sprite_ebo_);
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
         mat_sprite_ebo_initialized_ = true;
@@ -755,7 +766,7 @@ void RenderFrame::renderSpriteWithMaterial(RenderItem* item) {
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mat_sprite_ebo_);
     }
 
-    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, nullptr);
 
     if (locPos >= 0) glDisableVertexAttribArray(locPos);
     if (locTex >= 0) glDisableVertexAttribArray(locTex);

@@ -335,8 +335,8 @@ void BatchRenderer2D::init() {
 
     data_->vao->addVertexBuffer(data_->vbo);
 
-    std::vector<u32> indices(MAX_INDICES);
-    u32 offset = 0;
+    std::vector<u16> indices(MAX_INDICES);
+    u16 offset = 0;
     for (u32 i = 0; i < MAX_INDICES; i += 6) {
         indices[i + 0] = offset + 0;
         indices[i + 1] = offset + 1;
@@ -360,13 +360,51 @@ void BatchRenderer2D::init() {
         );
     }
 
+    Shader* batchShader = resource_manager_.getShader(data_->shader_handle);
+
+    if (!batchShader || !batchShader->isValid()) {
+        ES_LOG_WARN("GLSL ES 3.0 batch shader failed, trying GLSL ES 1.0 fallback");
+        data_->shader_handle = resource_manager_.createShader(
+            ShaderSources::BATCH_VERTEX_COMPAT,
+            ShaderSources::BATCH_FRAGMENT_COMPAT
+        );
+        batchShader = resource_manager_.getShader(data_->shader_handle);
+    }
+
+    if (batchShader && batchShader->isValid()) {
+        GLuint prog = batchShader->getProgramId();
+        glBindAttribLocation(prog, 0, "a_position");
+        glBindAttribLocation(prog, 1, "a_color");
+        glBindAttribLocation(prog, 2, "a_texCoord");
+        glBindAttribLocation(prog, 3, "a_texIndex");
+        glLinkProgram(prog);
+
+        GLint linkStatus;
+        glGetProgramiv(prog, GL_LINK_STATUS, &linkStatus);
+        if (linkStatus) {
+            ES_LOG_INFO("Batch shader ready (program ID: {})", prog);
+            batchShader->bind();
+            GLint baseLoc = glGetUniformLocation(prog, "u_textures[0]");
+            if (baseLoc >= 0) {
+                for (i32 i = 0; i < static_cast<i32>(MAX_TEXTURE_SLOTS); ++i) {
+                    glUniform1i(baseLoc + i, i);
+                }
+            }
+        } else {
+            ES_LOG_ERROR("Batch shader re-link failed after attribute binding");
+        }
+    } else {
+        ES_LOG_ERROR("All batch shader variants FAILED!");
+    }
+
     data_->textureSlots[0] = context_.getWhiteTextureId();
     for (u32 i = 1; i < MAX_TEXTURE_SLOTS; ++i) {
         data_->textureSlots[i] = 0;
     }
 
     data_->initialized = true;
-    ES_LOG_INFO("BatchRenderer2D initialized (max {} quads per batch)", MAX_QUADS);
+    ES_LOG_INFO("BatchRenderer2D initialized (max {} quads per batch, {} texture slots)",
+        MAX_QUADS, MAX_TEXTURE_SLOTS);
 }
 
 void BatchRenderer2D::shutdown() {
@@ -402,22 +440,30 @@ void BatchRenderer2D::flush() {
         static_cast<u32>(data_->vertices.size() * sizeof(BatchVertex))
     );
 
-    for (u32 i = 0; i < MAX_TEXTURE_SLOTS; ++i) {
+    for (u32 i = 0; i < data_->textureSlotIndex; ++i) {
         glActiveTexture(GL_TEXTURE0 + i);
-        glBindTexture(GL_TEXTURE_2D, i < data_->textureSlotIndex ? data_->textureSlots[i] : data_->textureSlots[0]);
+        glBindTexture(GL_TEXTURE_2D, data_->textureSlots[i]);
     }
 
     shader->bind();
     shader->setUniform("u_projection", data_->projection);
 
-    i32 samplers[MAX_TEXTURE_SLOTS] = { 0, 1, 2, 3, 4, 5, 6, 7 };
-    glUniform1iv(glGetUniformLocation(shader->getProgramId(), "u_textures"),
-                 MAX_TEXTURE_SLOTS, samplers);
+    data_->vao->bind();
+    data_->vbo->bind();
+    constexpr u32 STRIDE = sizeof(BatchVertex);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, STRIDE, reinterpret_cast<void*>(0));
+    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, STRIDE, reinterpret_cast<void*>(12));
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, STRIDE, reinterpret_cast<void*>(28));
+    glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, STRIDE, reinterpret_cast<void*>(36));
 
-    RenderCommand::drawIndexed(*data_->vao, data_->indexCount);
+    auto ib = data_->vao->getIndexBuffer();
+    if (ib) {
+        ib->bind();
+        GLenum type = ib->is16Bit() ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT;
+        glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(data_->indexCount), type, nullptr);
+    }
 
     data_->drawCallCount++;
-
     data_->vertices.clear();
     data_->indexCount = 0;
     data_->textureSlotIndex = 1;

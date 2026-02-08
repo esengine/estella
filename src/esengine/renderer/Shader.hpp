@@ -325,35 +325,96 @@ inline const char* BATCH_FRAGMENT = R"(#version 300 es
     in vec2 v_texCoord;
     in float v_texIndex;
 
-    uniform sampler2D u_textures[16];
+    uniform sampler2D u_textures[8];
 
     out vec4 fragColor;
 
     void main() {
-        int index = int(v_texIndex);
-        vec4 texColor = vec4(1.0);
+        int index = int(v_texIndex + 0.5);
+        vec4 texColor;
 
-        // WebGL2 requires constant index for sampler arrays
-        switch(index) {
-            case 0:  texColor = texture(u_textures[0], v_texCoord); break;
-            case 1:  texColor = texture(u_textures[1], v_texCoord); break;
-            case 2:  texColor = texture(u_textures[2], v_texCoord); break;
-            case 3:  texColor = texture(u_textures[3], v_texCoord); break;
-            case 4:  texColor = texture(u_textures[4], v_texCoord); break;
-            case 5:  texColor = texture(u_textures[5], v_texCoord); break;
-            case 6:  texColor = texture(u_textures[6], v_texCoord); break;
-            case 7:  texColor = texture(u_textures[7], v_texCoord); break;
-            case 8:  texColor = texture(u_textures[8], v_texCoord); break;
-            case 9:  texColor = texture(u_textures[9], v_texCoord); break;
-            case 10: texColor = texture(u_textures[10], v_texCoord); break;
-            case 11: texColor = texture(u_textures[11], v_texCoord); break;
-            case 12: texColor = texture(u_textures[12], v_texCoord); break;
-            case 13: texColor = texture(u_textures[13], v_texCoord); break;
-            case 14: texColor = texture(u_textures[14], v_texCoord); break;
-            case 15: texColor = texture(u_textures[15], v_texCoord); break;
+        if (index <= 0) {
+            texColor = vec4(1.0);
+        } else if (index == 1) {
+            texColor = texture(u_textures[1], v_texCoord);
+        } else if (index == 2) {
+            texColor = texture(u_textures[2], v_texCoord);
+        } else if (index == 3) {
+            texColor = texture(u_textures[3], v_texCoord);
+        } else if (index == 4) {
+            texColor = texture(u_textures[4], v_texCoord);
+        } else if (index == 5) {
+            texColor = texture(u_textures[5], v_texCoord);
+        } else if (index == 6) {
+            texColor = texture(u_textures[6], v_texCoord);
+        } else {
+            texColor = texture(u_textures[7], v_texCoord);
         }
 
         fragColor = texColor * v_color;
+    }
+)";
+
+/**
+ * @brief GLSL ES 1.0 fallback vertex shader for batched sprite rendering
+ * @details Used when #version 300 es is not supported by the GPU driver.
+ *          Requires glBindAttribLocation before linking for correct attribute mapping.
+ */
+inline const char* BATCH_VERTEX_COMPAT = R"(
+    attribute vec3 a_position;
+    attribute vec4 a_color;
+    attribute vec2 a_texCoord;
+    attribute float a_texIndex;
+
+    uniform mat4 u_projection;
+
+    varying vec4 v_color;
+    varying vec2 v_texCoord;
+    varying float v_texIndex;
+
+    void main() {
+        gl_Position = u_projection * vec4(a_position, 1.0);
+        v_color = a_color;
+        v_texCoord = a_texCoord;
+        v_texIndex = a_texIndex;
+    }
+)";
+
+/**
+ * @brief GLSL ES 1.0 fallback fragment shader for batched sprite rendering
+ */
+inline const char* BATCH_FRAGMENT_COMPAT = R"(
+    precision mediump float;
+
+    varying vec4 v_color;
+    varying vec2 v_texCoord;
+    varying float v_texIndex;
+
+    uniform sampler2D u_textures[8];
+
+    void main() {
+        int index = int(v_texIndex + 0.5);
+        vec4 texColor;
+
+        if (index <= 0) {
+            texColor = vec4(1.0);
+        } else if (index == 1) {
+            texColor = texture2D(u_textures[1], v_texCoord);
+        } else if (index == 2) {
+            texColor = texture2D(u_textures[2], v_texCoord);
+        } else if (index == 3) {
+            texColor = texture2D(u_textures[3], v_texCoord);
+        } else if (index == 4) {
+            texColor = texture2D(u_textures[4], v_texCoord);
+        } else if (index == 5) {
+            texColor = texture2D(u_textures[5], v_texCoord);
+        } else if (index == 6) {
+            texColor = texture2D(u_textures[6], v_texCoord);
+        } else {
+            texColor = texture2D(u_textures[7], v_texCoord);
+        }
+
+        gl_FragColor = texColor * v_color;
     }
 )";
 

@@ -15,6 +15,15 @@
 #include "../resource/ResourceManager.hpp"
 #include "../core/Log.hpp"
 
+#ifdef ES_PLATFORM_WEB
+    #include <GLES3/gl3.h>
+#else
+    #ifdef _WIN32
+        #include <windows.h>
+    #endif
+    #include <glad/glad.h>
+#endif
+
 #include <glm/gtc/constants.hpp>
 #include <cmath>
 
@@ -63,6 +72,10 @@ void ImmediateDraw::shutdown() {
 void ImmediateDraw::begin(const glm::mat4& viewProjection) {
     if (!initialized_) return;
 
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glDisable(GL_DEPTH_TEST);
+
     impl_->viewProjection = viewProjection;
     impl_->batcher->setProjection(viewProjection);
     impl_->batcher->beginBatch();
@@ -76,6 +89,12 @@ void ImmediateDraw::end() {
 
     impl_->batcher->endBatch();
     inFrame_ = false;
+}
+
+void ImmediateDraw::flush() {
+    if (!initialized_ || !inFrame_) return;
+
+    impl_->batcher->flush();
 }
 
 void ImmediateDraw::line(const glm::vec2& from, const glm::vec2& to,

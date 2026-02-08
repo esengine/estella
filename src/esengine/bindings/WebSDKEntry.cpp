@@ -51,9 +51,43 @@ static Unique<PostProcessPipeline> g_postProcessPipeline;
 static EMSCRIPTEN_WEBGL_CONTEXT_HANDLE g_webglContext = 0;
 static bool g_initialized = false;
 static bool g_immediateDrawActive = false;
+static bool g_glErrorCheckEnabled = false;
 static u32 g_viewportWidth = 1280;
 static u32 g_viewportHeight = 720;
 static glm::vec4 g_clearColor{0.0f, 0.0f, 0.0f, 1.0f};
+static u32 checkGLErrors(const char* context) {
+    if (!g_glErrorCheckEnabled) return 0;
+    u32 errorCount = 0;
+    GLenum err;
+    while ((err = glGetError()) != GL_NO_ERROR) {
+        const char* errStr = "UNKNOWN";
+        switch (err) {
+            case GL_INVALID_ENUM: errStr = "INVALID_ENUM"; break;
+            case GL_INVALID_VALUE: errStr = "INVALID_VALUE"; break;
+            case GL_INVALID_OPERATION: errStr = "INVALID_OPERATION"; break;
+            case GL_INVALID_FRAMEBUFFER_OPERATION: errStr = "INVALID_FRAMEBUFFER_OPERATION"; break;
+            case GL_OUT_OF_MEMORY: errStr = "OUT_OF_MEMORY"; break;
+        }
+        ES_LOG_ERROR("[GL Error] {} at: {}", errStr, context);
+        errorCount++;
+    }
+    return errorCount;
+}
+
+static void flushImmediateDrawIfActive() {
+    if (g_immediateDrawActive && g_immediateDraw) {
+        g_immediateDraw->flush();
+    }
+}
+
+static void restoreImmediateDrawState() {
+    if (g_immediateDrawActive) {
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glEnable(GL_BLEND);
+        glDisable(GL_DEPTH_TEST);
+        glActiveTexture(GL_TEXTURE0);
+    }
+}
 
 EM_JS(void, callMaterialProvider, (int materialId, int outShaderIdPtr, int outBlendModePtr, int outUniformBufPtr, int outUniformCountPtr), {
     var fn = Module['materialDataProvider'];
@@ -438,6 +472,8 @@ static glm::mat4 g_currentViewProjection{1.0f};
 void draw_begin(uintptr_t matrixPtr) {
     if (!g_initialized || !g_immediateDraw) return;
 
+    glViewport(0, 0, g_viewportWidth, g_viewportHeight);
+
     const f32* matrixData = reinterpret_cast<const f32*>(matrixPtr);
     g_currentViewProjection = glm::make_mat4(matrixData);
     g_immediateDraw->begin(g_currentViewProjection);
@@ -449,6 +485,7 @@ void draw_end() {
 
     g_immediateDraw->end();
     g_immediateDrawActive = false;
+    checkGLErrors("draw_end");
 }
 
 void draw_line(f32 fromX, f32 fromY, f32 toX, f32 toY,
@@ -559,10 +596,12 @@ u32 draw_getPrimitiveCount() {
 }
 
 void draw_setBlendMode(i32 mode) {
+    flushImmediateDrawIfActive();
     RenderCommand::setBlendMode(static_cast<BlendMode>(mode));
 }
 
 void draw_setDepthTest(bool enabled) {
+    flushImmediateDrawIfActive();
     RenderCommand::setDepthTest(enabled);
 }
 
@@ -660,6 +699,8 @@ void draw_mesh(u32 geometryHandle, u32 shaderHandle, uintptr_t transformPtr) {
     Shader* shader = g_resourceManager->getShader(resource::ShaderHandle(shaderHandle));
     if (!shader) return;
 
+    flushImmediateDrawIfActive();
+
     const f32* transformData = reinterpret_cast<const f32*>(transformPtr);
     glm::mat4 transform = glm::make_mat4(transformData);
 
@@ -670,15 +711,18 @@ void draw_mesh(u32 geometryHandle, u32 shaderHandle, uintptr_t transformPtr) {
     geom->bind();
 
     if (geom->hasIndices()) {
-        auto* vao = geom->getVAO();
-        if (vao) {
-            RenderCommand::drawIndexed(*vao, geom->getIndexCount());
+        auto* ib = geom->getVAO() ? geom->getVAO()->getIndexBuffer().get() : nullptr;
+        if (ib) {
+            GLenum type = ib->is16Bit() ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT;
+            glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(geom->getIndexCount()), type, nullptr);
         }
     } else {
-        RenderCommand::drawArrays(geom->getVertexCount());
+        glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(geom->getVertexCount()));
     }
 
     geom->unbind();
+    checkGLErrors("draw_mesh");
+    restoreImmediateDrawState();
 }
 
 void draw_meshWithUniforms(u32 geometryHandle, u32 shaderHandle, uintptr_t transformPtr,
@@ -690,6 +734,8 @@ void draw_meshWithUniforms(u32 geometryHandle, u32 shaderHandle, uintptr_t trans
 
     Shader* shader = g_resourceManager->getShader(resource::ShaderHandle(shaderHandle));
     if (!shader) return;
+
+    flushImmediateDrawIfActive();
 
     const f32* transformData = reinterpret_cast<const f32*>(transformPtr);
     glm::mat4 transform = glm::make_mat4(transformData);
@@ -757,15 +803,18 @@ void draw_meshWithUniforms(u32 geometryHandle, u32 shaderHandle, uintptr_t trans
     geom->bind();
 
     if (geom->hasIndices()) {
-        auto* vao = geom->getVAO();
-        if (vao) {
-            RenderCommand::drawIndexed(*vao, geom->getIndexCount());
+        auto* ib = geom->getVAO() ? geom->getVAO()->getIndexBuffer().get() : nullptr;
+        if (ib) {
+            GLenum type = ib->is16Bit() ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT;
+            glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(geom->getIndexCount()), type, nullptr);
         }
     } else {
-        RenderCommand::drawArrays(geom->getVertexCount());
+        glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(geom->getVertexCount()));
     }
 
     geom->unbind();
+    checkGLErrors("draw_meshWithUniforms");
+    restoreImmediateDrawState();
 }
 
 // =============================================================================
@@ -780,6 +829,8 @@ bool postprocess_init(u32 width, u32 height) {
     }
 
     g_postProcessPipeline->init(width, height);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
     return g_postProcessPipeline->isInitialized();
 }
 
@@ -893,9 +944,16 @@ void renderer_begin(uintptr_t matrixPtr, u32 targetHandle) {
     g_renderFrame->begin(viewProjection, targetHandle);
 }
 
+void renderer_flush() {
+    if (!g_renderFrame) return;
+    g_renderFrame->flush();
+    checkGLErrors("renderer_flush");
+}
+
 void renderer_end() {
     if (!g_renderFrame) return;
     g_renderFrame->end();
+    checkGLErrors("renderer_end");
 }
 
 void renderer_submitSprites(ecs::Registry& registry) {
@@ -908,6 +966,7 @@ void renderer_submitSpine(ecs::Registry& registry) {
     if (!g_renderFrame || !g_spineSystem) return;
     g_spineSystem->update(registry, 0.016f);
     g_renderFrame->submitSpine(registry, *g_spineSystem);
+    checkGLErrors("renderer_submitSpine");
 }
 
 void renderer_setStage(i32 stage) {
@@ -971,6 +1030,57 @@ u32 renderer_getCulled() {
 
 void renderer_setClearColor(f32 r, f32 g, f32 b, f32 a) {
     g_clearColor = glm::vec4(r, g, b, a);
+}
+
+void renderer_diagnose() {
+    if (!g_initialized) {
+        ES_LOG_ERROR("[Diagnose] Renderer not initialized");
+        return;
+    }
+
+    const char* version = reinterpret_cast<const char*>(glGetString(GL_VERSION));
+    const char* rendererStr = reinterpret_cast<const char*>(glGetString(GL_RENDERER));
+    const char* vendor = reinterpret_cast<const char*>(glGetString(GL_VENDOR));
+    const char* slVersion = reinterpret_cast<const char*>(glGetString(GL_SHADING_LANGUAGE_VERSION));
+    ES_LOG_INFO("[Diagnose] GL Version: {}", version ? version : "null");
+    ES_LOG_INFO("[Diagnose] GL Renderer: {}", rendererStr ? rendererStr : "null");
+    ES_LOG_INFO("[Diagnose] GL Vendor: {}", vendor ? vendor : "null");
+    ES_LOG_INFO("[Diagnose] GLSL Version: {}", slVersion ? slVersion : "null");
+
+    GLint viewport[4];
+    glGetIntegerv(GL_VIEWPORT, viewport);
+    ES_LOG_INFO("[Diagnose] GL Viewport: {}x{} at ({},{})", viewport[2], viewport[3], viewport[0], viewport[1]);
+    ES_LOG_INFO("[Diagnose] Stored viewport: {}x{}", g_viewportWidth, g_viewportHeight);
+
+    GLint maxTextureUnits;
+    glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &maxTextureUnits);
+    ES_LOG_INFO("[Diagnose] Max texture units: {}", maxTextureUnits);
+
+    GLint maxAttribs;
+    glGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &maxAttribs);
+    ES_LOG_INFO("[Diagnose] Max vertex attribs: {}", maxAttribs);
+
+    while (glGetError() != GL_NO_ERROR) {}
+    ES_LOG_INFO("[Diagnose] No pending GL errors (cleared)");
+}
+
+void gl_enableErrorCheck(bool enabled) {
+    g_glErrorCheckEnabled = enabled;
+    if (enabled) {
+        while (glGetError() != GL_NO_ERROR) {}
+        ES_LOG_INFO("[GL] Error checking enabled");
+    }
+}
+
+u32 gl_checkErrors(const std::string& context) {
+    bool prev = g_glErrorCheckEnabled;
+    g_glErrorCheckEnabled = true;
+    u32 count = checkGLErrors(context.c_str());
+    g_glErrorCheckEnabled = prev;
+    if (count == 0 && prev) {
+        ES_LOG_INFO("[GL] No errors at: {}", context);
+    }
+    return count;
 }
 
 }  // namespace esengine
@@ -1052,6 +1162,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_init", &esengine::renderer_init);
     emscripten::function("renderer_resize", &esengine::renderer_resize);
     emscripten::function("renderer_begin", &esengine::renderer_begin);
+    emscripten::function("renderer_flush", &esengine::renderer_flush);
     emscripten::function("renderer_end", &esengine::renderer_end);
     emscripten::function("renderer_submitSprites", &esengine::renderer_submitSprites);
     emscripten::function("renderer_submitSpine", &esengine::renderer_submitSpine);
@@ -1067,6 +1178,11 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_getMeshes", &esengine::renderer_getMeshes);
     emscripten::function("renderer_getCulled", &esengine::renderer_getCulled);
     emscripten::function("renderer_setClearColor", &esengine::renderer_setClearColor);
+
+    // GL Debug API
+    emscripten::function("gl_enableErrorCheck", &esengine::gl_enableErrorCheck);
+    emscripten::function("gl_checkErrors", &esengine::gl_checkErrors);
+    emscripten::function("renderer_diagnose", &esengine::renderer_diagnose);
 }
 
 int main() {

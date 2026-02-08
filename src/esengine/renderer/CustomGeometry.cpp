@@ -10,6 +10,8 @@
  */
 
 #include "CustomGeometry.hpp"
+
+#include "OpenGLHeaders.hpp"
 #include "../core/Log.hpp"
 
 namespace esengine {
@@ -66,8 +68,46 @@ void CustomGeometry::updateVertices(const f32* vertices, u32 vertexCount, u32 of
 }
 
 void CustomGeometry::bind() const {
-    if (vao_) {
-        vao_->bind();
+    if (!vao_) return;
+
+    vao_->bind();
+
+    // Explicitly rebind VBO + attribute pointers + IBO to work around
+    // WeChat WebGL VAO state restoration bug
+    if (vbo_) {
+        vbo_->bind();
+        const auto& layout = vbo_->getLayout();
+        u32 index = 0;
+        for (const auto& attr : layout) {
+            GLenum glType = GL_FLOAT;
+            switch (attr.type) {
+            case ShaderDataType::Int:
+            case ShaderDataType::Int2:
+            case ShaderDataType::Int3:
+            case ShaderDataType::Int4:
+                glType = GL_INT;
+                break;
+            case ShaderDataType::Bool:
+                glType = GL_UNSIGNED_BYTE;
+                break;
+            default:
+                glType = GL_FLOAT;
+                break;
+            }
+            glEnableVertexAttribArray(index);
+            glVertexAttribPointer(
+                index,
+                static_cast<GLint>(shaderDataTypeComponentCount(attr.type)),
+                glType,
+                attr.normalized ? GL_TRUE : GL_FALSE,
+                static_cast<GLsizei>(layout.getStride()),
+                reinterpret_cast<const void*>(static_cast<uintptr_t>(attr.offset))
+            );
+            ++index;
+        }
+    }
+    if (ibo_) {
+        ibo_->bind();
     }
 }
 
