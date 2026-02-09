@@ -46,6 +46,8 @@ export class App {
 
     private running_ = false;
     private lastTime_ = 0;
+    private fixedTimestep_ = 1 / 60;
+    private fixedAccumulator_ = 0;
 
     private module_: ESEngineModule | null = null;
 
@@ -167,6 +169,15 @@ export class App {
         this.updateTime(delta);
 
         this.runSchedule(Schedule.First);
+
+        this.fixedAccumulator_ += delta;
+        while (this.fixedAccumulator_ >= this.fixedTimestep_) {
+            this.fixedAccumulator_ -= this.fixedTimestep_;
+            this.runSchedule(Schedule.FixedPreUpdate);
+            this.runSchedule(Schedule.FixedUpdate);
+            this.runSchedule(Schedule.FixedPostUpdate);
+        }
+
         this.runSchedule(Schedule.PreUpdate);
         this.runSchedule(Schedule.Update);
         this.runSchedule(Schedule.PostUpdate);

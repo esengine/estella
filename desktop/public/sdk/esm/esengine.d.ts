@@ -524,6 +524,8 @@ declare class App {
     private runner_;
     private running_;
     private lastTime_;
+    private fixedTimestep_;
+    private fixedAccumulator_;
     private module_;
     private constructor();
     static new(): App;
