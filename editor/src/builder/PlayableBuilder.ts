@@ -464,6 +464,9 @@ export class PlayableBuilder {
 
     private async loadSdk(): Promise<string | null> {
         try {
+            if (this.fs_?.getEngineSingleJs) {
+                return await this.fs_.getEngineSingleJs();
+            }
             const response = await fetch('/wasm/esengine.single.js');
             if (!response.ok) return null;
             return await response.text();
@@ -488,18 +491,14 @@ export class PlayableBuilder {
 
     private async compileUserScripts(): Promise<string> {
         const scriptsPath = joinPath(this.projectDir_, 'src');
+        const hasSrcDir = await this.fs_!.exists(scriptsPath);
 
-        if (!await this.fs_!.exists(scriptsPath)) {
-            return this.createMinimalGameCode();
+        let imports = '';
+        if (hasSrcDir) {
+            const scripts = await findTsFiles(this.fs_!, scriptsPath, EDITOR_ONLY_DIRS);
+            imports = scripts.map(p => `import "${p}";`).join('\n');
         }
 
-        const scripts = await findTsFiles(this.fs_!, scriptsPath, EDITOR_ONLY_DIRS);
-
-        if (scripts.length === 0) {
-            return this.createMinimalGameCode();
-        }
-
-        const imports = scripts.map(p => `import "${p}";`).join('\n');
         const entryContent = `
 import * as esengine from 'esengine';
 (window as any).esengine = esengine;
@@ -522,7 +521,7 @@ ${imports}
             stdin: {
                 contents: entryContent,
                 loader: 'ts',
-                resolveDir: scriptsPath,
+                resolveDir: hasSrcDir ? scriptsPath : this.projectDir_,
             },
             bundle: true,
             format: 'iife',
@@ -534,15 +533,11 @@ ${imports}
             plugins: [this.createVirtualFsPlugin()],
         });
 
-        return result.outputFiles?.[0]?.text ?? this.createMinimalGameCode();
-    }
-
-    private createMinimalGameCode(): string {
-        return `
-(function(){
-  var esengine = window.esengine || {};
-})();
-`;
+        const output = result.outputFiles?.[0]?.text;
+        if (!output) {
+            throw new Error('esbuild produced no output');
+        }
+        return output;
     }
 
     private async initializeEsbuild(): Promise<void> {
@@ -569,6 +564,13 @@ ${imports}
                         return { path: args.path, namespace: 'virtual' };
                     }
 
+                    if (args.path === 'esengine') {
+                        return { path: 'esengine', namespace: 'esengine-sdk' };
+                    }
+                    if (args.path === 'esengine/wasm') {
+                        return { path: 'esengine/wasm', namespace: 'esengine-sdk' };
+                    }
+
                     let resolvedPath = args.path;
 
                     if (isAbsolutePath(args.path)) {
@@ -577,34 +579,28 @@ ${imports}
                         const baseDir = args.importer ? getParentDir(args.importer) : args.resolveDir;
                         resolvedPath = joinPath(baseDir, args.path);
                     } else {
-                        if (args.path === 'esengine') {
-                            resolvedPath = joinPath(projectDir, '.esengine/sdk/index.js');
-                        } else if (args.path === 'esengine/wasm') {
-                            resolvedPath = joinPath(projectDir, '.esengine/sdk/wasm.js');
-                        } else {
-                            const pkgPath = joinPath(projectDir, 'node_modules', args.path, 'package.json');
-                            const pkgContent = await fs.readFile(pkgPath);
-                            if (pkgContent) {
-                                try {
-                                    const pkg = JSON.parse(pkgContent);
-                                    let entry = pkg.module || pkg.main || 'index.js';
-                                    if (pkg.exports) {
-                                        const root = pkg.exports['.'];
-                                        if (typeof root === 'string') {
-                                            entry = root;
-                                        } else if (root?.import) {
-                                            entry = root.import;
-                                        } else if (root?.default) {
-                                            entry = root.default;
-                                        }
+                        const pkgPath = joinPath(projectDir, 'node_modules', args.path, 'package.json');
+                        const pkgContent = await fs.readFile(pkgPath);
+                        if (pkgContent) {
+                            try {
+                                const pkg = JSON.parse(pkgContent);
+                                let entry = pkg.module || pkg.main || 'index.js';
+                                if (pkg.exports) {
+                                    const root = pkg.exports['.'];
+                                    if (typeof root === 'string') {
+                                        entry = root;
+                                    } else if (root?.import) {
+                                        entry = root.import;
+                                    } else if (root?.default) {
+                                        entry = root.default;
                                     }
-                                    resolvedPath = joinPath(projectDir, 'node_modules', args.path, entry);
-                                } catch {
-                                    throw new Error(`Failed to parse package.json for: ${args.path}`);
                                 }
-                            } else {
-                                throw new Error(`Module not found: ${args.path}. Please install it with npm.`);
+                                resolvedPath = joinPath(projectDir, 'node_modules', args.path, entry);
+                            } catch {
+                                throw new Error(`Failed to parse package.json for: ${args.path}`);
                             }
+                        } else {
+                            throw new Error(`Module not found: ${args.path}. Please install it with npm.`);
                         }
                     }
 
@@ -623,6 +619,16 @@ ${imports}
                     }
 
                     return { path: resolvedPath, namespace: 'virtual' };
+                });
+
+                build.onLoad({ filter: /.*/, namespace: 'esengine-sdk' }, async (args) => {
+                    if (args.path === 'esengine') {
+                        return { contents: await fs.getSdkEsmJs(), loader: 'js' };
+                    }
+                    if (args.path === 'esengine/wasm') {
+                        return { contents: await fs.getSdkWasmJs(), loader: 'js' };
+                    }
+                    return { contents: '', loader: 'js' };
                 });
 
                 build.onLoad({ filter: /.*/, namespace: 'virtual' }, async (args) => {

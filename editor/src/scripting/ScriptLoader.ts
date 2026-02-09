@@ -159,6 +159,8 @@ export class ScriptLoader {
         this.unwatch();
 
         const srcPath = joinPath(this.projectDir_, 'src');
+        if (!await fs.exists(srcPath)) return;
+
         this.unwatchFn_ = await fs.watchDirectory(
             srcPath,
             (event) => {

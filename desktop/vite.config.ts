@@ -2,19 +2,29 @@ import { defineConfig, type Plugin } from 'vite';
 
 const host = process.env.TAURI_DEV_HOST;
 
-function removeCrossorigin(): Plugin {
+function tauriHtmlFixes(): Plugin {
   return {
-    name: 'remove-crossorigin',
+    name: 'tauri-html-fixes',
     enforce: 'post',
     transformIndexHtml(html) {
-      return html.replace(/ crossorigin/g, '');
+      let result = html.replace(/ crossorigin/g, '');
+
+      const linkMatch = result.match(/<link rel="stylesheet"[^>]*>/);
+      const scriptMatch = result.match(/<script type="module"[^>]*><\/script>/);
+      if (linkMatch && scriptMatch) {
+        const linkTag = linkMatch[0];
+        const scriptTag = scriptMatch[0];
+        result = result.replace(linkTag, '').replace(scriptTag, `${linkTag}\n  ${scriptTag}`);
+      }
+
+      return result;
     },
   };
 }
 
 export default defineConfig({
   clearScreen: false,
-  plugins: [removeCrossorigin()],
+  plugins: [tauriHtmlFixes()],
   server: {
     port: 5173,
     strictPort: true,

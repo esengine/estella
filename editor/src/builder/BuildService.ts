@@ -9,6 +9,7 @@ import { WeChatBuilder } from './WeChatBuilder';
 import { BuildCache } from './BuildCache';
 import { BuildProgressReporter, formatDuration } from './BuildProgress';
 import { BuildHistory } from './BuildHistory';
+import { getProjectDir } from '../utils/path';
 
 // =============================================================================
 // Types
@@ -46,7 +47,7 @@ export class BuildService {
 
     constructor(projectPath: string, history?: BuildHistory) {
         this.projectPath_ = projectPath;
-        this.cache_ = new BuildCache(projectPath);
+        this.cache_ = new BuildCache(getProjectDir(projectPath));
         this.history_ = history || null;
     }
 

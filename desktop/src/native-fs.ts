@@ -130,8 +130,7 @@ export const nativeFS: NativeFS = {
         try {
             await mkdir(path, { recursive: true });
             return true;
-        } catch (err) {
-            console.error('Failed to create directory:', err);
+        } catch {
             return false;
         }
     },
@@ -167,8 +166,7 @@ export const nativeFS: NativeFS = {
     async readFile(path: string) {
         try {
             return await readTextFile(path);
-        } catch (err) {
-            console.error('Failed to read file:', err);
+        } catch {
             return null;
         }
     },
@@ -176,8 +174,7 @@ export const nativeFS: NativeFS = {
     async readBinaryFile(path: string) {
         try {
             return await readFile(path);
-        } catch (err) {
-            console.error('Failed to read binary file:', err);
+        } catch {
             return null;
         }
     },

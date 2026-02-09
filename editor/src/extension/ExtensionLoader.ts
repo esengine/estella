@@ -188,6 +188,7 @@ export class ExtensionLoader {
                 this.onCleanup_?.();
             }
             if (!compiled) return false;
+            if (!this.lastCompiled_) return true;
             this.currentContext_ = new ExtensionContext();
             setEditorAPI(this.currentContext_.createAPI(this.baseAPI_));
             const executed = await this.execute();
@@ -207,6 +208,8 @@ export class ExtensionLoader {
         this.unwatch();
 
         const srcPath = joinPath(this.projectDir_, 'src');
+        if (!await fs.exists(srcPath)) return;
+
         this.unwatchFn_ = await fs.watchDirectory(
             srcPath,
             (event) => {

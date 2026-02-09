@@ -11,6 +11,7 @@ import { showInputDialog, showConfirmDialog } from '../ui/dialog';
 import { getEditorContext } from '../context/EditorContext';
 import { joinPath, getParentDir } from '../utils/path';
 import type { NativeFS, DirectoryEntry } from '../types/NativeFS';
+import { getAssetLibrary } from '../asset/AssetLibrary';
 
 // =============================================================================
 // Types
@@ -519,6 +520,18 @@ export class ContentBrowserPanel {
         try {
             const platform = getPlatformAdapter();
             await platform.remove(path);
+
+            const metaPath = `${path}.meta`;
+            try { await platform.remove(metaPath); } catch { /* no .meta file */ }
+
+            if (this.rootFolder_) {
+                const projectDir = this.rootFolder_.path;
+                const prefix = projectDir.endsWith('/') ? projectDir : projectDir + '/';
+                if (path.startsWith(prefix)) {
+                    getAssetLibrary().unregister(path.substring(prefix.length));
+                }
+            }
+
             this.refresh();
         } catch (err) {
             console.error('Failed to delete asset:', err);

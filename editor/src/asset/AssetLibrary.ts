@@ -223,6 +223,14 @@ export class AssetLibrary {
         }
     }
 
+    unregister(relativePath: string): void {
+        const uuid = this.pathToUuid_.get(relativePath);
+        if (uuid) {
+            this.uuidToPath_.delete(uuid);
+        }
+        this.pathToUuid_.delete(relativePath);
+    }
+
     private register(uuid: string, relativePath: string): void {
         this.uuidToPath_.set(uuid, relativePath);
         this.pathToUuid_.set(relativePath, uuid);

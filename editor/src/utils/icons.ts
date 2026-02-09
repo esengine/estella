@@ -64,24 +64,29 @@ type IconNode = [string, Record<string, string | number>][];
 
 const DEFAULT_SIZE = 14;
 
-const ES_LOGO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+let logoIdCounter = 0;
+
+function createLogoSvg(size = 64): string {
+    const uid = `es-logo-${++logoIdCounter}`;
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="${size}" height="${size}">
   <defs>
-    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#2d2d2d"/>
-      <stop offset="100%" style="stop-color:#1a1a1a"/>
+    <linearGradient id="${uid}-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2d2d2d"/>
+      <stop offset="100%" stop-color="#1a1a1a"/>
     </linearGradient>
-    <linearGradient id="textGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" style="stop-color:#e5c07b"/>
-      <stop offset="100%" style="stop-color:#d19a66"/>
+    <linearGradient id="${uid}-text" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#e5c07b"/>
+      <stop offset="100%" stop-color="#d19a66"/>
     </linearGradient>
   </defs>
-  <rect width="512" height="512" rx="64" fill="url(#bgGrad)"/>
+  <rect width="512" height="512" rx="64" fill="url(#${uid}-bg)"/>
   <g>
-    <polygon points="72,120 72,392 240,392 240,340 140,340 140,282 220,282 220,230 140,230 140,172 240,172 240,120" fill="url(#textGrad)"/>
-    <path d="M 280 172 Q 280 120 340 120 L 420 120 Q 450 120 450 160 L 450 186 L 398 186 L 398 168 Q 398 158 384 158 L 350 158 Q 320 158 320 188 Q 320 218 350 218 L 400 218 Q 450 218 450 274 L 450 332 Q 450 392 390 392 L 310 392 Q 270 392 270 340 L 270 314 L 322 314 L 322 340 Q 322 354 340 354 L 384 354 Q 404 354 404 324 L 404 290 Q 404 260 380 260 L 330 260 Q 280 260 280 208 Z" fill="url(#textGrad)"/>
+    <polygon points="72,120 72,392 240,392 240,340 140,340 140,282 220,282 220,230 140,230 140,172 240,172 240,120" fill="url(#${uid}-text)"/>
+    <path d="M 280 172 Q 280 120 340 120 L 420 120 Q 450 120 450 160 L 450 186 L 398 186 L 398 168 Q 398 158 384 158 L 350 158 Q 320 158 320 188 Q 320 218 350 218 L 400 218 Q 450 218 450 274 L 450 332 Q 450 392 390 392 L 310 392 Q 270 392 270 340 L 270 314 L 322 314 L 322 340 Q 322 354 340 354 L 384 354 Q 404 354 404 324 L 404 290 Q 404 260 380 260 L 330 260 Q 280 260 280 208 Z" fill="url(#${uid}-text)"/>
   </g>
   <rect x="72" y="424" width="368" height="4" fill="#d19a66" opacity="0.6"/>
 </svg>`;
+}
 
 function renderIcon(iconNode: IconNode, size = DEFAULT_SIZE): string {
     const children = iconNode
@@ -101,7 +106,7 @@ function renderIcon(iconNode: IconNode, size = DEFAULT_SIZE): string {
 // =============================================================================
 
 export const icons = {
-    logo: (size = 64) => ES_LOGO_SVG.replace('viewBox="0 0 512 512"', `viewBox="0 0 512 512" width="${size}" height="${size}"`),
+    logo: (size = 64) => createLogoSvg(size),
     menu: (size?: number) => renderIcon(Menu as IconNode, size),
     plus: (size?: number) => renderIcon(Plus as IconNode, size),
     copy: (size?: number) => renderIcon(Copy as IconNode, size),

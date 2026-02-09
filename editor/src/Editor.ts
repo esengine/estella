@@ -768,6 +768,7 @@ export class Editor {
         `;
 
         this.instantiatePanels();
+        this.updateBottomPanelVisibility();
 
         setEditorInstance(this);
 
@@ -807,10 +808,9 @@ export class Editor {
 
     private buildBottomPanelsHTML(): string {
         const panels = getPanelsByPosition('bottom');
-        return panels.map(p => {
-            const display = p.id === this.activeBottomPanelId_ ? '' : 'display: none;';
-            return `<div class="es-panel-container" data-panel-id="${p.id}" style="${display}"></div>`;
-        }).join('');
+        return panels.map(p =>
+            `<div class="es-panel-container" data-panel-id="${p.id}" style="display: none;"></div>`
+        ).join('');
     }
 
     private buildStatusBarHTML(): string {
