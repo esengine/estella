@@ -15,40 +15,7 @@ import { quatToEuler, eulerToQuat } from '../math/Transform';
 import { getEntityBounds } from '../bounds';
 import { GizmoManager, getAllGizmos } from '../gizmos';
 import type { GizmoContext } from '../gizmos';
-
-// =============================================================================
-// Types
-// =============================================================================
-
-interface GizmoSettings {
-    showGrid: boolean;
-    gridColor: string;
-    gridOpacity: number;
-    showGizmos: boolean;
-    showSelectionBox: boolean;
-}
-
-const DEFAULT_GIZMO_SETTINGS: GizmoSettings = {
-    showGrid: true,
-    gridColor: '#333333',
-    gridOpacity: 1.0,
-    showGizmos: true,
-    showSelectionBox: true,
-};
-
-const GIZMO_SETTINGS_KEY = 'esengine_gizmo_settings';
-
-function loadGizmoSettings(): GizmoSettings {
-    try {
-        const raw = localStorage.getItem(GIZMO_SETTINGS_KEY);
-        if (raw) return { ...DEFAULT_GIZMO_SETTINGS, ...JSON.parse(raw) };
-    } catch { /* ignore */ }
-    return { ...DEFAULT_GIZMO_SETTINGS };
-}
-
-function saveGizmoSettings(settings: GizmoSettings): void {
-    localStorage.setItem(GIZMO_SETTINGS_KEY, JSON.stringify(settings));
-}
+import { getSettingsValue, setSettingsValue, onSettingsChange } from '../settings/SettingsRegistry';
 
 // =============================================================================
 // SceneViewPanel
@@ -96,9 +63,9 @@ export class SceneViewPanel {
     private metadataCache_: Map<string, SliceBorder | null> = new Map();
     private loadingTextures_: Set<string> = new Set();
 
-    private gizmoSettings_: GizmoSettings = loadGizmoSettings();
     private settingsDropdown_: HTMLElement | null = null;
     private settingsDropdownClickHandler_: ((e: MouseEvent) => void) | null = null;
+    private unsubscribeSettings_: (() => void) | null = null;
 
     private getEntityBoundsWithSpine(entityData: import('../types/SceneTypes').EntityData): { width: number; height: number; offsetX?: number; offsetY?: number } {
         const hasSpine = entityData.components.some(c => c.type === 'SpineAnimation');
@@ -140,28 +107,28 @@ export class SceneViewPanel {
                         <div class="es-gizmo-settings-dropdown" style="display: none;">
                             <div class="es-settings-row">
                                 <label class="es-settings-checkbox">
-                                    <input type="checkbox" data-setting="showGrid" ${this.gizmoSettings_.showGrid ? 'checked' : ''}>
+                                    <input type="checkbox" data-setting="scene.showGrid" ${getSettingsValue<boolean>('scene.showGrid') ? 'checked' : ''}>
                                     <span>Show Grid</span>
                                 </label>
                             </div>
                             <div class="es-settings-row">
                                 <label class="es-settings-label">Grid Color</label>
-                                <input type="color" data-setting="gridColor" value="${this.gizmoSettings_.gridColor}" class="es-color-input">
+                                <input type="color" data-setting="scene.gridColor" value="${getSettingsValue<string>('scene.gridColor')}" class="es-color-input">
                             </div>
                             <div class="es-settings-row">
                                 <label class="es-settings-label">Grid Opacity</label>
-                                <input type="range" data-setting="gridOpacity" min="0" max="1" step="0.1" value="${this.gizmoSettings_.gridOpacity}" class="es-slider-input">
+                                <input type="range" data-setting="scene.gridOpacity" min="0" max="1" step="0.1" value="${getSettingsValue<number>('scene.gridOpacity')}" class="es-slider-input">
                             </div>
                             <div class="es-settings-divider"></div>
                             <div class="es-settings-row">
                                 <label class="es-settings-checkbox">
-                                    <input type="checkbox" data-setting="showGizmos" ${this.gizmoSettings_.showGizmos ? 'checked' : ''}>
+                                    <input type="checkbox" data-setting="scene.showGizmos" ${getSettingsValue<boolean>('scene.showGizmos') ? 'checked' : ''}>
                                     <span>Show Gizmos</span>
                                 </label>
                             </div>
                             <div class="es-settings-row">
                                 <label class="es-settings-checkbox">
-                                    <input type="checkbox" data-setting="showSelectionBox" ${this.gizmoSettings_.showSelectionBox ? 'checked' : ''}>
+                                    <input type="checkbox" data-setting="scene.showSelectionBox" ${getSettingsValue<boolean>('scene.showSelectionBox') ? 'checked' : ''}>
                                     <span>Show Selection Box</span>
                                 </label>
                             </div>
@@ -223,6 +190,10 @@ export class SceneViewPanel {
         if (this.settingsDropdownClickHandler_) {
             document.removeEventListener('click', this.settingsDropdownClickHandler_);
             this.settingsDropdownClickHandler_ = null;
+        }
+        if (this.unsubscribeSettings_) {
+            this.unsubscribeSettings_();
+            this.unsubscribeSettings_ = null;
         }
         if (this.sceneRenderer_) {
             this.sceneRenderer_.dispose();
@@ -465,27 +436,38 @@ export class SceneViewPanel {
         document.addEventListener('click', this.settingsDropdownClickHandler_);
 
         this.settingsDropdown_.querySelectorAll('input').forEach(input => {
-            const setting = input.dataset.setting as keyof GizmoSettings;
-            if (!setting) return;
+            const settingId = input.dataset.setting;
+            if (!settingId) return;
 
             input.addEventListener('change', () => {
                 if (input.type === 'checkbox') {
-                    (this.gizmoSettings_ as any)[setting] = input.checked;
+                    setSettingsValue(settingId, input.checked);
                 } else if (input.type === 'range') {
-                    (this.gizmoSettings_ as any)[setting] = parseFloat(input.value);
+                    setSettingsValue(settingId, parseFloat(input.value));
                 } else if (input.type === 'color') {
-                    (this.gizmoSettings_ as any)[setting] = input.value;
+                    setSettingsValue(settingId, input.value);
                 }
-                saveGizmoSettings(this.gizmoSettings_);
                 this.requestRender();
             });
 
             if (input.type === 'range') {
                 input.addEventListener('input', () => {
-                    (this.gizmoSettings_ as any)[setting] = parseFloat(input.value);
+                    setSettingsValue(settingId, parseFloat(input.value));
                     this.requestRender();
                 });
             }
+        });
+
+        this.unsubscribeSettings_ = onSettingsChange((id, value) => {
+            if (!id.startsWith('scene.')) return;
+            const input = this.settingsDropdown_?.querySelector(`[data-setting="${id}"]`) as HTMLInputElement | null;
+            if (!input) return;
+            if (input.type === 'checkbox') {
+                input.checked = value as boolean;
+            } else {
+                input.value = String(value);
+            }
+            this.requestRender();
         });
     }
 
@@ -778,13 +760,13 @@ export class SceneViewPanel {
         const selectedEntity = this.store_.selectedEntity;
 
         if (selectedEntity !== null && this.store_.isEntityVisible(selectedEntity as number)) {
-            if (this.gizmoSettings_.showSelectionBox) {
+            if (getSettingsValue<boolean>('scene.showSelectionBox')) {
                 this.drawSelectionBox(ctx);
             }
 
             this.drawCameraFrustum(ctx);
 
-            if (this.gizmoManager_.getActiveId() !== 'select' && this.gizmoSettings_.showGizmos) {
+            if (this.gizmoManager_.getActiveId() !== 'select' && getSettingsValue<boolean>('scene.showGizmos')) {
                 this.gizmoManager_.setContext(this.createGizmoContext(ctx));
                 this.gizmoManager_.draw();
             }
@@ -918,7 +900,7 @@ export class SceneViewPanel {
         if (selectedEntity !== null && this.store_.isEntityVisible(selectedEntity as number)) {
             this.drawCameraFrustum(ctx);
 
-            if (this.gizmoManager_.getActiveId() !== 'select' && this.gizmoSettings_.showGizmos) {
+            if (this.gizmoManager_.getActiveId() !== 'select' && getSettingsValue<boolean>('scene.showGizmos')) {
                 this.gizmoManager_.setContext(this.createGizmoContext(ctx));
                 this.gizmoManager_.draw();
             }
@@ -928,7 +910,7 @@ export class SceneViewPanel {
     }
 
     private drawGrid(ctx: CanvasRenderingContext2D, w: number, h: number): void {
-        if (!this.gizmoSettings_.showGrid) return;
+        if (!getSettingsValue<boolean>('scene.showGrid')) return;
 
         const gridSize = 50;
         const halfW = w / 2 / this.zoom_;
@@ -939,8 +921,8 @@ export class SceneViewPanel {
         const startY = Math.floor((-halfH - this.panY_) / gridSize) * gridSize;
         const endY = Math.ceil((halfH - this.panY_) / gridSize) * gridSize;
 
-        ctx.globalAlpha = this.gizmoSettings_.gridOpacity;
-        ctx.strokeStyle = this.gizmoSettings_.gridColor;
+        ctx.globalAlpha = getSettingsValue<number>('scene.gridOpacity');
+        ctx.strokeStyle = getSettingsValue<string>('scene.gridColor');
         ctx.lineWidth = 1 / this.zoom_;
 
         for (let x = startX; x <= endX; x += gridSize) {
@@ -959,7 +941,7 @@ export class SceneViewPanel {
             ctx.stroke();
         }
 
-        ctx.strokeStyle = this.lightenColor(this.gizmoSettings_.gridColor, 30);
+        ctx.strokeStyle = this.lightenColor(getSettingsValue<string>('scene.gridColor'), 30);
         ctx.lineWidth = 2 / this.zoom_;
         ctx.beginPath();
         ctx.moveTo(startX, 0);

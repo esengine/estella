@@ -2384,6 +2384,156 @@ svg {
 }
 
 /* =============================================================================
+ * Settings Dialog
+ * ============================================================================= */
+
+.es-settings-dialog {
+    max-width: 640px !important;
+}
+
+.es-settings-dialog .es-dialog-body {
+    padding: 0;
+}
+
+.es-settings-dialog-body {
+    display: flex;
+    min-height: 400px;
+}
+
+.es-settings-nav {
+    width: 180px;
+    min-width: 180px;
+    background: var(--es-bg-primary);
+    border-right: 1px solid var(--es-border);
+    padding: 8px 0;
+    overflow-y: auto;
+}
+
+.es-settings-nav-item {
+    display: block;
+    width: 100%;
+    padding: 8px 16px;
+    background: transparent;
+    border: none;
+    color: var(--es-text-secondary);
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.es-settings-nav-item:hover {
+    color: var(--es-text-primary);
+    background: var(--es-bg-hover);
+}
+
+.es-settings-nav-item.es-active {
+    color: var(--es-text-primary);
+    background: var(--es-bg-tertiary);
+    border-left: 2px solid #d19a66;
+    padding-left: 14px;
+}
+
+.es-settings-content {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+}
+
+.es-settings-section-title {
+    margin: 0 0 16px;
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--es-text-primary);
+}
+
+.es-settings-item {
+    margin-bottom: 14px;
+}
+
+.es-settings-item:last-child {
+    margin-bottom: 0;
+}
+
+.es-settings-label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 13px;
+    color: var(--es-text-secondary);
+}
+
+.es-settings-checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--es-text-primary);
+}
+
+.es-settings-checkbox-row input[type="checkbox"] {
+    margin: 0;
+}
+
+.es-settings-input {
+    width: 100%;
+    padding: 6px 10px;
+    background: var(--es-bg-primary);
+    border: 1px solid var(--es-border);
+    color: var(--es-text-primary);
+    font-size: 13px;
+    box-sizing: border-box;
+}
+
+.es-settings-input:focus {
+    outline: none;
+    border-color: var(--es-accent);
+}
+
+.es-settings-select {
+    width: 100%;
+    padding: 6px 10px;
+    background: var(--es-bg-primary);
+    border: 1px solid var(--es-border);
+    color: var(--es-text-primary);
+    font-size: 13px;
+    box-sizing: border-box;
+}
+
+.es-settings-select:focus {
+    outline: none;
+    border-color: var(--es-accent);
+}
+
+.es-settings-color-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.es-settings-color-row .es-color-input {
+    width: 60px;
+    height: 28px;
+    padding: 2px;
+    border: 1px solid var(--es-border);
+    background: var(--es-bg-primary);
+    cursor: pointer;
+}
+
+.es-settings-range-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.es-settings-range-value {
+    font-size: 12px;
+    color: var(--es-text-secondary);
+    min-width: 32px;
+    text-align: right;
+}
+
+/* =============================================================================
  * Add Component Popup
  * ============================================================================= */
 

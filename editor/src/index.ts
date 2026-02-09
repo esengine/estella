@@ -332,6 +332,24 @@ export {
 } from './extension';
 
 // =============================================================================
+// Settings
+// =============================================================================
+
+export {
+    type SettingsItemType,
+    type SettingsSectionDescriptor,
+    type SettingsItemDescriptor,
+    registerSettingsSection,
+    registerSettingsItem,
+    getSettingsValue,
+    setSettingsValue,
+    onSettingsChange,
+    getAllSections,
+    getSectionItems,
+    showSettingsDialog,
+} from './settings';
+
+// =============================================================================
 // SDK Re-exports
 // =============================================================================
 

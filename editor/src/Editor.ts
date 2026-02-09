@@ -55,6 +55,16 @@ import { showToast, showSuccessToast, showErrorToast } from './ui/Toast';
 import { showContextMenu } from './ui/ContextMenu';
 import { showConfirmDialog, showInputDialog } from './ui/dialog';
 import { getEditorStore } from './store';
+import {
+    registerBuiltinSettings,
+    lockBuiltinSettings,
+    clearExtensionSettings,
+    showSettingsDialog,
+    registerSettingsSection,
+    registerSettingsItem,
+    getSettingsValue,
+    setSettingsValue,
+} from './settings';
 
 // =============================================================================
 // Types
@@ -95,6 +105,7 @@ export class Editor {
         registerBuiltinSchemas();
         initBoundsProviders();
         registerBuiltinGizmos();
+        registerBuiltinSettings();
 
         registerBuiltinPanels({
             projectPath: this.projectPath_ ?? undefined,
@@ -107,6 +118,7 @@ export class Editor {
         lockBuiltinPropertyEditors();
         lockBuiltinComponentSchemas();
         lockBuiltinBoundsProviders();
+        lockBuiltinSettings();
 
         this.setupLayout();
 
@@ -303,6 +315,10 @@ export class Editor {
         document.body.appendChild(overlay);
     }
 
+    showSettings(): void {
+        showSettingsDialog();
+    }
+
     // =========================================================================
     // Script Operations
     // =========================================================================
@@ -396,6 +412,10 @@ export class Editor {
             registerDrawCallback,
             unregisterDrawCallback,
             clearDrawCallbacks,
+            registerSettingsSection,
+            registerSettingsItem,
+            getSettingsValue,
+            setSettingsValue,
         };
         setEditorAPI(this.baseAPI_);
     }
@@ -446,6 +466,7 @@ export class Editor {
         clearExtensionPropertyEditors();
         clearExtensionComponentSchemas();
         clearExtensionBoundsProviders();
+        clearExtensionSettings();
     }
 
     private applyExtensionUI(): void {

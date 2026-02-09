@@ -60,6 +60,11 @@ export function registerBuiltinMenus(editor: Editor): void {
         enabled: () => editor.store.selectedEntity !== null,
         action: () => editor.duplicateSelected(),
     });
+    registerMenuItem({
+        id: 'edit.preferences', menu: 'edit', label: 'Preferences...',
+        shortcut: 'Ctrl+,', order: 10, separator: true,
+        action: () => editor.showSettings(),
+    });
 
     registerMenuItem({
         id: 'view.hierarchy', menu: 'view', label: 'Hierarchy', order: 0,
