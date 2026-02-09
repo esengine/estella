@@ -15,6 +15,7 @@ export default defineConfig({
     starlight({
       title: 'ESEngine',
       description: 'A lightweight 2D game engine for web and WeChat MiniGames',
+      favicon: '/favicon.svg',
       logo: {
         light: './src/assets/logo-light.svg',
         dark: './src/assets/logo-dark.svg',

@@ -10,7 +10,8 @@
     </linearGradient>
   </defs>
 
-  <rect width="512" height="512" rx="64" fill="url(#bgGrad)"/>
+  <rect width="512" height="512" fill="url(#bgGrad)"/>
+  <rect x="1" y="1" width="510" height="510" fill="none" stroke="#3d3d3d" stroke-width="2"/>
 
   <g>
     <polygon points="72,120 72,392 240,392 240,340 140,340 140,282 220,282 220,230 140,230 140,172 240,172 240,120"
