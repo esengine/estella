@@ -11,6 +11,7 @@ import { getGlobalPathResolver } from '../asset';
 import { getDefaultComponentData } from '../schemas/ComponentSchemas';
 import { showContextMenu } from '../ui/ContextMenu';
 import { getEditorContext } from '../context/EditorContext';
+import { getPlatformAdapter } from '../platform/PlatformAdapter';
 
 type DropPosition = 'before' | 'after' | 'inside';
 
@@ -357,6 +358,12 @@ export class HierarchyPanel {
                 ...getDefaultComponentData('Sprite'),
                 texture: this.toRelativePath(asset.path),
             });
+
+            this.loadImageSize(asset.path).then(size => {
+                if (size) {
+                    this.store_.updateProperty(newEntity, 'Sprite', 'size', { x: 32, y: 32 }, size);
+                }
+            });
         }
     }
 
@@ -411,6 +418,15 @@ export class HierarchyPanel {
         }
 
         return null;
+    }
+
+    private loadImageSize(absolutePath: string): Promise<{ x: number; y: number } | null> {
+        return new Promise((resolve) => {
+            const img = new Image();
+            img.onload = () => resolve({ x: img.naturalWidth, y: img.naturalHeight });
+            img.onerror = () => resolve(null);
+            img.src = getPlatformAdapter().convertFilePathToUrl(absolutePath);
+        });
     }
 
     private render(): void {

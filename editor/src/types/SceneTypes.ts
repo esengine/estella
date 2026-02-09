@@ -56,7 +56,36 @@ export function createEmptyScene(name: string = 'Untitled'): SceneData {
     return {
         version: '2.0',
         name,
-        entities: [],
+        entities: [
+            {
+                id: 1,
+                name: 'Camera',
+                parent: null,
+                children: [],
+                components: [
+                    {
+                        type: 'LocalTransform',
+                        data: {
+                            position: { x: 0, y: 0, z: 10 },
+                            rotation: { x: 0, y: 0, z: 0, w: 1 },
+                            scale: { x: 1, y: 1, z: 1 },
+                        },
+                    },
+                    {
+                        type: 'Camera',
+                        data: {
+                            isActive: true,
+                            projectionType: 1,
+                            orthoSize: 400,
+                            fov: 60,
+                            nearPlane: 0.1,
+                            farPlane: 1000,
+                        },
+                    },
+                ],
+                visible: true,
+            },
+        ],
     };
 }
 

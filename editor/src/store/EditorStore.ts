@@ -78,7 +78,7 @@ export class EditorStore {
     private hierarchyListeners_: Set<HierarchyChangeListener> = new Set();
     private focusListeners_: Set<(entityId: number) => void> = new Set();
     private visibilityListeners_: Set<VisibilityChangeListener> = new Set();
-    private nextEntityId_ = 1;
+    private nextEntityId_ = 2;
     private worldTransforms_ = new WorldTransformCache();
     private entityMap_ = new Map<number, EntityData>();
 
@@ -140,7 +140,7 @@ export class EditorStore {
         this.state_.isDirty = false;
         this.state_.filePath = null;
         this.history_.clear();
-        this.nextEntityId_ = 1;
+        this.nextEntityId_ = 2;
         this.rebuildEntityMap();
         this.worldTransforms_.setScene(this.state_.scene);
         this.notify();

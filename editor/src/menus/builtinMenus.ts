@@ -28,8 +28,13 @@ export function registerBuiltinMenus(editor: Editor): void {
         action: () => editor.saveSceneAs(),
     });
     registerMenuItem({
+        id: 'file.preview', menu: 'file', label: 'Preview',
+        shortcut: 'F5', order: 4, separator: true,
+        action: () => editor.startPreview(),
+    });
+    registerMenuItem({
         id: 'file.build-settings', menu: 'file', label: 'Build Settings...',
-        shortcut: 'Ctrl+Shift+B', order: 4, separator: true,
+        shortcut: 'Ctrl+Shift+B', order: 5, separator: true,
         action: () => editor.showBuildSettings(),
     });
 

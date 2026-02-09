@@ -9,6 +9,8 @@ import type { EditorBridge } from '../bridge/EditorBridge';
 import type { SliceBorder } from '../types/TextureMetadata';
 import { getPlatformAdapter } from '../platform/PlatformAdapter';
 import { hasSlicing, parseTextureMetadata } from '../types/TextureMetadata';
+import { getDefaultComponentData } from '../schemas/ComponentSchemas';
+import { getGlobalPathResolver } from '../asset';
 import { icons } from '../utils/icons';
 import { EditorSceneRenderer } from '../renderer/EditorSceneRenderer';
 import { quatToEuler, eulerToQuat } from '../math/Transform';
@@ -403,6 +405,31 @@ export class SceneViewPanel {
             });
             this.resizeObserver_.observe(viewport);
         }
+
+        this.canvas_.addEventListener('dragover', (e) => {
+            const types = e.dataTransfer?.types ?? [];
+            if (!Array.from(types).includes('application/esengine-asset')) return;
+            e.preventDefault();
+            e.dataTransfer!.dropEffect = 'copy';
+        });
+
+        this.canvas_.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const assetDataStr = e.dataTransfer?.getData('application/esengine-asset');
+            if (!assetDataStr) return;
+
+            let assetData: { type: string; path: string; name: string };
+            try {
+                assetData = JSON.parse(assetDataStr);
+            } catch {
+                return;
+            }
+
+            if (assetData.type !== 'image') return;
+
+            const { worldX, worldY } = this.screenToWorld(e.clientX, e.clientY);
+            this.createSpriteFromDrop(assetData, worldX, worldY);
+        });
     }
 
     private setGizmoMode(mode: string): void {
@@ -961,6 +988,40 @@ export class SceneViewPanel {
         const g = Math.min(255, ((num >> 8) & 0xff) + Math.round(255 * percent / 100));
         const b = Math.min(255, (num & 0xff) + Math.round(255 * percent / 100));
         return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
+    }
+
+    private createSpriteFromDrop(
+        asset: { type: string; path: string; name: string },
+        worldX: number,
+        worldY: number
+    ): void {
+        const baseName = asset.name.replace(/\.[^.]+$/, '');
+        const newEntity = this.store_.createEntity(baseName);
+
+        const transformData = getDefaultComponentData('LocalTransform');
+        transformData.position = { x: worldX, y: worldY, z: 0 };
+        this.store_.addComponent(newEntity, 'LocalTransform', transformData);
+
+        const relativePath = getGlobalPathResolver().toRelativePath(asset.path);
+        this.store_.addComponent(newEntity, 'Sprite', {
+            ...getDefaultComponentData('Sprite'),
+            texture: relativePath,
+        });
+
+        this.loadImageSize(asset.path).then(size => {
+            if (size) {
+                this.store_.updateProperty(newEntity, 'Sprite', 'size', { x: 32, y: 32 }, size);
+            }
+        });
+    }
+
+    private loadImageSize(absolutePath: string): Promise<{ x: number; y: number } | null> {
+        return new Promise((resolve) => {
+            const img = new Image();
+            img.onload = () => resolve({ x: img.naturalWidth, y: img.naturalHeight });
+            img.onerror = () => resolve(null);
+            img.src = getPlatformAdapter().convertFilePathToUrl(absolutePath);
+        });
     }
 
     private drawEntity(
