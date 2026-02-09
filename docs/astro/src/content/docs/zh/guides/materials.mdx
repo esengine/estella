@@ -119,7 +119,7 @@ const instance = Material.createInstance(sourceMat);
 Material.setUniform(instance, 'u_tint', { x: 0, y: 1, z: 0, w: 1 });
 ```
 
-## 着色器文件格式（.shader）
+## 着色器文件格式（.esshader）
 
 着色器文件使用 `#pragma` 指令分隔顶点和片段部分：
 
@@ -165,10 +165,10 @@ void main() {
 通过资源服务器加载着色器文件：
 
 ```typescript
-const shader = await assets.loadShader('assets/effects/glow.shader');
+const shader = await assets.loadShader('assets/effects/glow.esshader');
 ```
 
-## 材质文件格式（.material）
+## 材质文件格式（.esmaterial）
 
 材质可以定义为 JSON 文件，通过资源服务器加载：
 
@@ -176,7 +176,7 @@ const shader = await assets.loadShader('assets/effects/glow.shader');
 {
     "version": "1.0",
     "type": "material",
-    "shader": "effects/glow.shader",
+    "shader": "effects/glow.esshader",
     "blendMode": 1,
     "depthTest": false,
     "properties": {
@@ -190,13 +190,13 @@ const shader = await assets.loadShader('assets/effects/glow.shader');
 |------|------|------|
 | `version` | string | 格式版本（`"1.0"`） |
 | `type` | string | 必须为 `"material"` |
-| `shader` | string | .shader 文件路径（相对于材质文件或绝对路径） |
+| `shader` | string | .esshader 文件路径（相对于材质文件或绝对路径） |
 | `blendMode` | number | BlendMode 枚举值 |
 | `depthTest` | boolean | 启用深度测试 |
 | `properties` | object | uniform 名称/值对 |
 
 ```typescript
-const loaded = await assets.loadMaterial('assets/effects/glow.material');
+const loaded = await assets.loadMaterial('assets/effects/glow.esmaterial');
 sprite.material = loaded.handle;
 ```
 
@@ -245,7 +245,7 @@ addSystem(defineSystem(
 | `Material.releaseShader(shader)` | 释放着色器 |
 | `Material.create(options)` | 创建材质 |
 | `Material.createInstance(source)` | 创建共享着色器的材质实例 |
-| `Material.createFromAsset(data, shader)` | 从解析的 .material 文件创建 |
+| `Material.createFromAsset(data, shader)` | 从解析的 .esmaterial 文件创建 |
 | `Material.setUniform(mat, name, value)` | 设置 uniform 值 |
 | `Material.getUniform(mat, name)` | 获取 uniform 值 |
 | `Material.getUniforms(mat)` | 获取所有 uniform（Map） |

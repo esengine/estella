@@ -1,0 +1,205 @@
+---
+title: 自定义绘制
+description: ESEngine 即时模式 2D 绘图 API，用于调试可视化和动态图形
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Draw API 提供即时模式 2D 绘图图元。所有绘制命令每帧清空，适用于调试可视化、自定义 UI 叠加层和动态图形。
+
+## 绘制回调
+
+注册绘制回调，引擎会在渲染阶段自动调用你的函数：
+
+```typescript
+import { registerDrawCallback, Draw } from 'esengine';
+
+registerDrawCallback('my-debug', (elapsed) => {
+    Draw.line({ x: 0, y: 0 }, { x: 100, y: 100 }, { x: 1, y: 0, z: 0, w: 1 }, 2);
+});
+```
+
+不再需要时移除回调：
+
+```typescript
+import { unregisterDrawCallback, clearDrawCallbacks } from 'esengine';
+
+unregisterDrawCallback('my-debug');
+clearDrawCallbacks();
+```
+
+<Aside type="caution">
+  `Draw.begin()` 和 `Draw.end()` 由引擎内部调用。只在注册的回调中使用 Draw API。
+</Aside>
+
+## 绘制图元
+
+### 线段
+
+```typescript
+Draw.line(
+    { x: 0, y: 0 },      // 起点
+    { x: 200, y: 150 },   // 终点
+    { x: 1, y: 1, z: 0, w: 1 },  // 黄色
+    2                      // 线宽
+);
+```
+
+### 矩形
+
+```typescript
+Draw.rect(
+    { x: 100, y: 100 },   // 中心位置
+    { x: 80, y: 60 },     // 尺寸
+    { x: 0, y: 0.5, z: 1, w: 0.5 },  // 半透明蓝色
+    true                   // 填充（默认）
+);
+
+Draw.rectOutline(
+    { x: 100, y: 100 },
+    { x: 80, y: 60 },
+    { x: 1, y: 0, z: 0, w: 1 },  // 红色
+    2                      // 线宽
+);
+```
+
+### 圆形
+
+```typescript
+Draw.circle(
+    { x: 200, y: 200 },   // 中心
+    50,                    // 半径
+    { x: 0, y: 1, z: 0, w: 1 },  // 绿色
+    true,                  // 填充
+    32                     // 段数
+);
+
+Draw.circleOutline(
+    { x: 200, y: 200 },
+    50,
+    { x: 1, y: 1, z: 1, w: 1 },  // 白色
+    1,                     // 线宽
+    32                     // 段数
+);
+```
+
+### 纹理
+
+```typescript
+Draw.texture(
+    { x: 300, y: 200 },   // 位置
+    { x: 64, y: 64 },     // 尺寸
+    textureHandle,
+    { x: 1, y: 1, z: 1, w: 1 }   // 着色（默认白色）
+);
+
+Draw.textureRotated(
+    { x: 300, y: 200 },
+    { x: 64, y: 64 },
+    Math.PI / 4,           // 旋转弧度
+    textureHandle,
+    { x: 1, y: 1, z: 1, w: 1 }
+);
+```
+
+## 图元参考
+
+| 方法 | 参数 | 说明 |
+|------|------|------|
+| `line(from, to, color, thickness?)` | Vec2, Vec2, Color, number=1 | 线段 |
+| `rect(position, size, color, filled?)` | Vec2, Vec2, Color, bool=true | 矩形 |
+| `rectOutline(position, size, color, thickness?)` | Vec2, Vec2, Color, number=1 | 矩形边框 |
+| `circle(center, radius, color, filled?, segments?)` | Vec2, number, Color, bool=true, number=32 | 圆形 |
+| `circleOutline(center, radius, color, thickness?, segments?)` | Vec2, number, Color, number=1, number=32 | 圆形边框 |
+| `texture(position, size, textureHandle, tint?)` | Vec2, Vec2, number, Color=白色 | 纹理四边形 |
+| `textureRotated(position, size, rotation, textureHandle, tint?)` | Vec2, Vec2, number, number, Color=白色 | 旋转纹理四边形 |
+
+## 渲染状态
+
+控制后续图元的渲染方式：
+
+```typescript
+Draw.setLayer(5);                    // 渲染层级（越大越在上）
+Draw.setDepth(0.5);                  // 层内深度排序
+Draw.setBlendMode(BlendMode.Additive);  // 混合模式
+Draw.setDepthTest(true);             // 启用深度测试
+```
+
+| 方法 | 说明 |
+|------|------|
+| `setLayer(layer)` | 设置渲染层级 |
+| `setDepth(depth)` | 设置深度排序值 |
+| `setBlendMode(mode)` | 设置混合模式（Normal、Additive、Multiply、Screen、PremultipliedAlpha） |
+| `setDepthTest(enabled)` | 启用或禁用深度测试 |
+
+## 自定义网格绘制
+
+使用着色器或材质绘制自定义几何体：
+
+```typescript
+import { Geometry, Draw, Material } from 'esengine';
+
+const quad = Geometry.createQuad(100, 100);
+const transform = new Float32Array([
+    1, 0, 0, 0,
+    0, 1, 0, 0,
+    0, 0, 1, 0,
+    0, 0, 0, 1,
+]);
+
+Draw.drawMesh(quad, shaderHandle, transform);
+Draw.drawMeshWithMaterial(quad, materialHandle, transform);
+```
+
+`drawMeshWithMaterial` 会自动应用材质的混合模式、深度测试和 uniform。
+
+参见[几何体与网格](/microes/zh/guides/geometry/)了解自定义网格创建，以及[材质与着色器](/microes/zh/guides/materials/)了解着色器设置。
+
+## 性能统计
+
+```typescript
+const drawCalls = Draw.getDrawCallCount();
+const primitives = Draw.getPrimitiveCount();
+```
+
+## 示例：调试碰撞框
+
+```typescript
+import { registerDrawCallback, Draw } from 'esengine';
+import { defineSystem, addSystem, Query, LocalTransform, Collider } from 'esengine';
+
+const colliders: Array<{ x: number; y: number; w: number; h: number }> = [];
+
+addSystem(defineSystem(
+    [Query(LocalTransform, Collider)],
+    (query) => {
+        colliders.length = 0;
+        for (const [entity, transform, collider] of query) {
+            colliders.push({
+                x: transform.position.x,
+                y: transform.position.y,
+                w: collider.width,
+                h: collider.height,
+            });
+        }
+    }
+));
+
+registerDrawCallback('debug-colliders', () => {
+    const green = { x: 0, y: 1, z: 0, w: 0.5 };
+    for (const c of colliders) {
+        Draw.rectOutline(
+            { x: c.x, y: c.y },
+            { x: c.w, y: c.h },
+            green,
+            1
+        );
+    }
+});
+```
+
+## 下一步
+
+- [后处理效果](/microes/zh/guides/post-processing/) — 全屏效果管线
+- [几何体与网格](/microes/zh/guides/geometry/) — 自定义网格创建
+- [材质与着色器](/microes/zh/guides/materials/) — 着色器和材质管理

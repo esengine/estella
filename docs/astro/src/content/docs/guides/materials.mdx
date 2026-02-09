@@ -119,7 +119,7 @@ const instance = Material.createInstance(sourceMat);
 Material.setUniform(instance, 'u_tint', { x: 0, y: 1, z: 0, w: 1 });
 ```
 
-## Shader File Format (.shader)
+## Shader File Format (.esshader)
 
 Shader files use `#pragma` directives to separate vertex and fragment sections:
 
@@ -165,10 +165,10 @@ void main() {
 Load shader files via the asset server:
 
 ```typescript
-const shader = await assets.loadShader('assets/effects/glow.shader');
+const shader = await assets.loadShader('assets/effects/glow.esshader');
 ```
 
-## Material File Format (.material)
+## Material File Format (.esmaterial)
 
 Materials can be defined as JSON files and loaded via the asset server:
 
@@ -176,7 +176,7 @@ Materials can be defined as JSON files and loaded via the asset server:
 {
     "version": "1.0",
     "type": "material",
-    "shader": "effects/glow.shader",
+    "shader": "effects/glow.esshader",
     "blendMode": 1,
     "depthTest": false,
     "properties": {
@@ -190,13 +190,13 @@ Materials can be defined as JSON files and loaded via the asset server:
 |-------|------|-------------|
 | `version` | string | Format version (`"1.0"`) |
 | `type` | string | Must be `"material"` |
-| `shader` | string | Path to .shader file (relative to material or absolute) |
+| `shader` | string | Path to .esshader file (relative to material or absolute) |
 | `blendMode` | number | BlendMode enum value |
 | `depthTest` | boolean | Enable depth testing |
 | `properties` | object | Uniform name/value pairs |
 
 ```typescript
-const loaded = await assets.loadMaterial('assets/effects/glow.material');
+const loaded = await assets.loadMaterial('assets/effects/glow.esmaterial');
 sprite.material = loaded.handle;
 ```
 
@@ -245,7 +245,7 @@ addSystem(defineSystem(
 | `Material.releaseShader(shader)` | Release a shader |
 | `Material.create(options)` | Create a material |
 | `Material.createInstance(source)` | Create a material instance sharing the shader |
-| `Material.createFromAsset(data, shader)` | Create from a parsed .material file |
+| `Material.createFromAsset(data, shader)` | Create from a parsed .esmaterial file |
 | `Material.setUniform(mat, name, value)` | Set a uniform value |
 | `Material.getUniform(mat, name)` | Get a uniform value |
 | `Material.getUniforms(mat)` | Get all uniforms as a Map |

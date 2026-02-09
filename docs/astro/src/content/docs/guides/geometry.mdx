@@ -1,0 +1,216 @@
+---
+title: Geometry & Meshes
+description: Custom mesh creation and management in ESEngine
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The Geometry API creates custom meshes for use with `Draw.drawMesh()` and `Draw.drawMeshWithMaterial()`. Build quads, circles, polygons, or fully custom vertex data for particles, trails, and procedural effects.
+
+## Creating a Mesh
+
+Define vertices in interleaved format with a layout describing each attribute:
+
+```typescript
+import { Geometry, DataType } from 'esengine';
+
+const triangle = Geometry.create({
+    vertices: new Float32Array([
+        // x,    y,    u,   v
+           0,   50,  0.5,  1,
+         -50,  -50,    0,  0,
+          50,  -50,    1,  0,
+    ]),
+    layout: [
+        { name: 'a_position', type: DataType.Float2 },
+        { name: 'a_texCoord', type: DataType.Float2 },
+    ],
+    indices: new Uint16Array([0, 1, 2]),
+});
+```
+
+Returns a `GeometryHandle` (number). Pass it to `Draw.drawMesh()` or `Draw.drawMeshWithMaterial()` inside a draw callback.
+
+## DataType
+
+| Value | Name | Components |
+|-------|------|------------|
+| 1 | `Float` | 1 float |
+| 2 | `Float2` | 2 floats |
+| 3 | `Float3` | 3 floats |
+| 4 | `Float4` | 4 floats |
+| 5 | `Int` | 1 int |
+| 6 | `Int2` | 2 ints |
+| 7 | `Int3` | 3 ints |
+| 8 | `Int4` | 4 ints |
+
+## GeometryOptions
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `vertices` | Float32Array | Yes | Vertex data in interleaved format |
+| `layout` | VertexAttributeDescriptor[] | Yes | Attribute layout describing the vertex format |
+| `indices` | Uint16Array \| Uint32Array | No | Index data for indexed drawing |
+| `dynamic` | boolean | No | Set to `true` for frequently updated meshes (default: `false`) |
+
+<Aside type="note">
+  Buffer limits: 64K floats for vertices, 16K for indices. Both `Uint16Array` and `Uint32Array` index formats are supported.
+</Aside>
+
+## Helper Functions
+
+### createQuad
+
+Creates a centered quad with texture coordinates:
+
+```typescript
+const quad = Geometry.createQuad(100, 80);  // width, height
+```
+
+Layout: `a_position` (Float2) + `a_texCoord` (Float2). Default size is 1x1.
+
+### createCircle
+
+Creates a circle mesh using a center vertex and radial segments:
+
+```typescript
+const circle = Geometry.createCircle(50, 64);  // radius, segments
+```
+
+Layout: `a_position` (Float2) + `a_texCoord` (Float2). Default radius is 1, segments is 32.
+
+### createPolygon
+
+Creates a polygon from an array of points with auto-generated texture coordinates and fan triangulation:
+
+```typescript
+const hex = Geometry.createPolygon([
+    { x:  50, y:   0 },
+    { x:  25, y:  43 },
+    { x: -25, y:  43 },
+    { x: -50, y:   0 },
+    { x: -25, y: -43 },
+    { x:  25, y: -43 },
+]);
+```
+
+Requires at least 3 points. Layout: `a_position` (Float2) + `a_texCoord` (Float2).
+
+## Drawing with Geometry
+
+Use geometry inside a draw callback:
+
+```typescript
+import { registerDrawCallback, Draw, Geometry, Material, BlendMode } from 'esengine';
+
+const quad = Geometry.createQuad(100, 100);
+const mat = Material.create({
+    shader: myShader,
+    uniforms: { u_color: { x: 1, y: 0, z: 0, w: 1 } },
+    blendMode: BlendMode.Normal,
+});
+
+const identity = new Float32Array([
+    1, 0, 0, 0,
+    0, 1, 0, 0,
+    0, 0, 1, 0,
+    0, 0, 0, 1,
+]);
+
+registerDrawCallback('custom-mesh', () => {
+    Draw.drawMeshWithMaterial(quad, mat, identity);
+});
+```
+
+See [Custom Draw](/microes/guides/custom-draw/) for the full Draw API and [Materials & Shaders](/microes/guides/materials/) for creating shaders and materials.
+
+## Dynamic Updates
+
+For meshes that change every frame (particles, trails), create with `dynamic: true` and call `updateVertices`:
+
+```typescript
+const mesh = Geometry.create({
+    vertices: initialVertices,
+    layout: [
+        { name: 'a_position', type: DataType.Float2 },
+        { name: 'a_texCoord', type: DataType.Float2 },
+    ],
+    indices,
+    dynamic: true,
+});
+
+// Update each frame
+Geometry.updateVertices(mesh, newVertices);
+Geometry.updateVertices(mesh, partialData, offsetInFloats);
+```
+
+## Resource Management
+
+Release geometry when no longer needed:
+
+```typescript
+Geometry.release(handle);
+const valid = Geometry.isValid(handle);
+```
+
+## Example: Particle Trail
+
+A dynamic mesh updated every frame to render a trail behind a moving object:
+
+```typescript
+import { registerDrawCallback, Draw, Geometry, DataType, Material } from 'esengine';
+
+const MAX_POINTS = 64;
+const FLOATS_PER_VERTEX = 4;  // x, y, u, v
+const vertices = new Float32Array(MAX_POINTS * 2 * FLOATS_PER_VERTEX);
+const indices = new Uint16Array((MAX_POINTS - 1) * 6);
+
+for (let i = 0; i < MAX_POINTS - 1; i++) {
+    const base = i * 2;
+    const idx = i * 6;
+    indices[idx]     = base;
+    indices[idx + 1] = base + 1;
+    indices[idx + 2] = base + 2;
+    indices[idx + 3] = base + 2;
+    indices[idx + 4] = base + 1;
+    indices[idx + 5] = base + 3;
+}
+
+const trail = Geometry.create({
+    vertices,
+    layout: [
+        { name: 'a_position', type: DataType.Float2 },
+        { name: 'a_texCoord', type: DataType.Float2 },
+    ],
+    indices,
+    dynamic: true,
+});
+
+const transform = new Float32Array([
+    1, 0, 0, 0,  0, 1, 0, 0,  0, 0, 1, 0,  0, 0, 0, 1,
+]);
+
+registerDrawCallback('trail', () => {
+    // update vertices with trail point positions...
+    Geometry.updateVertices(trail, vertices);
+    Draw.drawMeshWithMaterial(trail, trailMaterial, transform);
+});
+```
+
+## Full API Reference
+
+| Method | Description |
+|--------|-------------|
+| `Geometry.create(options)` | Create geometry from vertices, layout, and optional indices |
+| `Geometry.updateVertices(handle, vertices, offset?)` | Update vertex data of a dynamic geometry |
+| `Geometry.release(handle)` | Release a geometry |
+| `Geometry.isValid(handle)` | Check if a handle is valid |
+| `Geometry.createQuad(width?, height?)` | Create a centered quad with UVs |
+| `Geometry.createCircle(radius?, segments?)` | Create a circle mesh |
+| `Geometry.createPolygon(points)` | Create a polygon from point array |
+
+## Next Steps
+
+- [Custom Draw](/microes/guides/custom-draw/) — drawing meshes and primitives
+- [Materials & Shaders](/microes/guides/materials/) — shaders and materials for meshes
+- [Post-Processing](/microes/guides/post-processing/) — full-screen effects

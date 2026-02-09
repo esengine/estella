@@ -116,7 +116,7 @@ const config = bundle.json.get('assets/config.json');
 | Field | Type | Description |
 |-------|------|-------------|
 | `textures` | string[] | Texture image paths |
-| `materials` | string[] | Material file paths (.material) |
+| `materials` | string[] | Material file paths (.esmaterial) |
 | `spine` | SpineDescriptor[] | Spine skeleton/atlas pairs |
 | `json` | string[] | JSON file paths |
 | `text` | string[] | Text file paths |
@@ -138,11 +138,11 @@ The returned `AssetBundle` contains Maps keyed by path:
 ## Material Loading
 
 ```typescript
-const loaded = await assets.loadMaterial('assets/effects/glow.material');
+const loaded = await assets.loadMaterial('assets/effects/glow.esmaterial');
 sprite.material = loaded.handle;
 ```
 
-See [Materials & Shaders](/microes/guides/materials/) for the full material API and `.material` file format.
+See [Materials & Shaders](/microes/guides/materials/) for the full material API and `.esmaterial` file format.
 
 ## Caching
 

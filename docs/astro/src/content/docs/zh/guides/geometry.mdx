@@ -1,0 +1,216 @@
+---
+title: 几何体与网格
+description: ESEngine 自定义网格创建与管理
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Geometry API 创建自定义网格，用于 `Draw.drawMesh()` 和 `Draw.drawMeshWithMaterial()`。可以构建四边形、圆形、多边形，或完全自定义的顶点数据来实现粒子、拖尾等程序化效果。
+
+## 创建网格
+
+以交错格式定义顶点，并用 layout 描述每个属性：
+
+```typescript
+import { Geometry, DataType } from 'esengine';
+
+const triangle = Geometry.create({
+    vertices: new Float32Array([
+        // x,    y,    u,   v
+           0,   50,  0.5,  1,
+         -50,  -50,    0,  0,
+          50,  -50,    1,  0,
+    ]),
+    layout: [
+        { name: 'a_position', type: DataType.Float2 },
+        { name: 'a_texCoord', type: DataType.Float2 },
+    ],
+    indices: new Uint16Array([0, 1, 2]),
+});
+```
+
+返回 `GeometryHandle`（number 类型）。将其传递给绘制回调中的 `Draw.drawMesh()` 或 `Draw.drawMeshWithMaterial()`。
+
+## DataType
+
+| 值 | 名称 | 分量数 |
+|----|------|--------|
+| 1 | `Float` | 1 float |
+| 2 | `Float2` | 2 floats |
+| 3 | `Float3` | 3 floats |
+| 4 | `Float4` | 4 floats |
+| 5 | `Int` | 1 int |
+| 6 | `Int2` | 2 ints |
+| 7 | `Int3` | 3 ints |
+| 8 | `Int4` | 4 ints |
+
+## GeometryOptions
+
+| 字段 | 类型 | 必需 | 说明 |
+|------|------|------|------|
+| `vertices` | Float32Array | 是 | 交错格式的顶点数据 |
+| `layout` | VertexAttributeDescriptor[] | 是 | 描述顶点格式的属性布局 |
+| `indices` | Uint16Array \| Uint32Array | 否 | 索引数据 |
+| `dynamic` | boolean | 否 | 设为 `true` 以支持频繁更新（默认 `false`） |
+
+<Aside type="note">
+  缓冲区限制：顶点最多 64K floats，索引最多 16K。支持 `Uint16Array` 和 `Uint32Array` 两种索引格式。
+</Aside>
+
+## 辅助函数
+
+### createQuad
+
+创建居中的带纹理坐标的四边形：
+
+```typescript
+const quad = Geometry.createQuad(100, 80);  // 宽, 高
+```
+
+布局：`a_position` (Float2) + `a_texCoord` (Float2)。默认尺寸 1x1。
+
+### createCircle
+
+使用中心顶点和径向段创建圆形网格：
+
+```typescript
+const circle = Geometry.createCircle(50, 64);  // 半径, 段数
+```
+
+布局：`a_position` (Float2) + `a_texCoord` (Float2)。默认半径 1，段数 32。
+
+### createPolygon
+
+从点数组创建多边形，自动生成纹理坐标并进行扇形三角化：
+
+```typescript
+const hex = Geometry.createPolygon([
+    { x:  50, y:   0 },
+    { x:  25, y:  43 },
+    { x: -25, y:  43 },
+    { x: -50, y:   0 },
+    { x: -25, y: -43 },
+    { x:  25, y: -43 },
+]);
+```
+
+至少需要 3 个点。布局：`a_position` (Float2) + `a_texCoord` (Float2)。
+
+## 使用 Geometry 绘制
+
+在绘制回调中使用几何体：
+
+```typescript
+import { registerDrawCallback, Draw, Geometry, Material, BlendMode } from 'esengine';
+
+const quad = Geometry.createQuad(100, 100);
+const mat = Material.create({
+    shader: myShader,
+    uniforms: { u_color: { x: 1, y: 0, z: 0, w: 1 } },
+    blendMode: BlendMode.Normal,
+});
+
+const identity = new Float32Array([
+    1, 0, 0, 0,
+    0, 1, 0, 0,
+    0, 0, 1, 0,
+    0, 0, 0, 1,
+]);
+
+registerDrawCallback('custom-mesh', () => {
+    Draw.drawMeshWithMaterial(quad, mat, identity);
+});
+```
+
+参见[自定义绘制](/microes/zh/guides/custom-draw/)了解完整 Draw API，以及[材质与着色器](/microes/zh/guides/materials/)了解着色器和材质创建。
+
+## 动态更新
+
+对于每帧变化的网格（粒子、拖尾），创建时设置 `dynamic: true` 并调用 `updateVertices`：
+
+```typescript
+const mesh = Geometry.create({
+    vertices: initialVertices,
+    layout: [
+        { name: 'a_position', type: DataType.Float2 },
+        { name: 'a_texCoord', type: DataType.Float2 },
+    ],
+    indices,
+    dynamic: true,
+});
+
+// 每帧更新
+Geometry.updateVertices(mesh, newVertices);
+Geometry.updateVertices(mesh, partialData, offsetInFloats);
+```
+
+## 资源管理
+
+不再需要时释放几何体：
+
+```typescript
+Geometry.release(handle);
+const valid = Geometry.isValid(handle);
+```
+
+## 示例：粒子拖尾
+
+每帧更新动态网格以渲染运动对象后面的拖尾：
+
+```typescript
+import { registerDrawCallback, Draw, Geometry, DataType, Material } from 'esengine';
+
+const MAX_POINTS = 64;
+const FLOATS_PER_VERTEX = 4;  // x, y, u, v
+const vertices = new Float32Array(MAX_POINTS * 2 * FLOATS_PER_VERTEX);
+const indices = new Uint16Array((MAX_POINTS - 1) * 6);
+
+for (let i = 0; i < MAX_POINTS - 1; i++) {
+    const base = i * 2;
+    const idx = i * 6;
+    indices[idx]     = base;
+    indices[idx + 1] = base + 1;
+    indices[idx + 2] = base + 2;
+    indices[idx + 3] = base + 2;
+    indices[idx + 4] = base + 1;
+    indices[idx + 5] = base + 3;
+}
+
+const trail = Geometry.create({
+    vertices,
+    layout: [
+        { name: 'a_position', type: DataType.Float2 },
+        { name: 'a_texCoord', type: DataType.Float2 },
+    ],
+    indices,
+    dynamic: true,
+});
+
+const transform = new Float32Array([
+    1, 0, 0, 0,  0, 1, 0, 0,  0, 0, 1, 0,  0, 0, 0, 1,
+]);
+
+registerDrawCallback('trail', () => {
+    // 用拖尾点位置更新顶点数据...
+    Geometry.updateVertices(trail, vertices);
+    Draw.drawMeshWithMaterial(trail, trailMaterial, transform);
+});
+```
+
+## 完整 API 参考
+
+| 方法 | 说明 |
+|------|------|
+| `Geometry.create(options)` | 从顶点、布局和可选索引创建几何体 |
+| `Geometry.updateVertices(handle, vertices, offset?)` | 更新动态几何体的顶点数据 |
+| `Geometry.release(handle)` | 释放几何体 |
+| `Geometry.isValid(handle)` | 检查句柄是否有效 |
+| `Geometry.createQuad(width?, height?)` | 创建居中四边形（带 UV） |
+| `Geometry.createCircle(radius?, segments?)` | 创建圆形网格 |
+| `Geometry.createPolygon(points)` | 从点数组创建多边形 |
+
+## 下一步
+
+- [自定义绘制](/microes/zh/guides/custom-draw/) — 绘制网格和图元
+- [材质与着色器](/microes/zh/guides/materials/) — 网格的着色器和材质
+- [后处理效果](/microes/zh/guides/post-processing/) — 全屏效果

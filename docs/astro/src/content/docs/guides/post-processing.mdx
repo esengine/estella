@@ -1,0 +1,213 @@
+---
+title: Post-Processing
+description: Full-screen post-processing effects pipeline in ESEngine
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The PostProcess API applies full-screen shader effects after the scene is rendered. Chain multiple passes to create blur, vignette, grayscale, chromatic aberration, or custom effects.
+
+## Initialization
+
+Initialize the pipeline with your canvas dimensions:
+
+```typescript
+import { PostProcess } from 'esengine';
+
+PostProcess.init(canvas.width, canvas.height);
+```
+
+<Aside type="note">
+  `PostProcess.begin()` and `PostProcess.end()` are called by the engine internally. You only need to configure passes and uniforms.
+</Aside>
+
+## Adding Passes
+
+Create a built-in effect shader and add it as a named pass:
+
+```typescript
+const blurShader = PostProcess.createBlur();
+PostProcess.addPass('blur', blurShader);
+PostProcess.setUniform('blur', 'u_intensity', 2.0);
+```
+
+Passes execute in the order they are added. Each pass reads the output of the previous pass as `u_texture`.
+
+## Built-in Effects
+
+| Method | Effect | Uniforms |
+|--------|--------|----------|
+| `createBlur()` | Gaussian blur | `u_intensity` (float) — blur spread, `u_resolution` (vec2) — auto |
+| `createVignette()` | Darkened edges | `u_intensity` (float) — radius, `u_softness` (float) — falloff |
+| `createGrayscale()` | Desaturation | `u_intensity` (float, 0–1) — blend ratio |
+| `createChromaticAberration()` | RGB channel offset | `u_intensity` (float) — offset amount, `u_resolution` (vec2) — auto |
+
+<Aside type="tip">
+  `u_resolution` is set automatically by the engine. You only need to set the other uniforms.
+</Aside>
+
+### Blur
+
+9-tap Gaussian blur. Higher `u_intensity` increases the blur spread:
+
+```typescript
+const blur = PostProcess.createBlur();
+PostProcess.addPass('blur', blur);
+PostProcess.setUniform('blur', 'u_intensity', 3.0);
+```
+
+### Vignette
+
+Darkens the screen edges. `u_intensity` controls the radius, `u_softness` controls the falloff:
+
+```typescript
+const vignette = PostProcess.createVignette();
+PostProcess.addPass('vignette', vignette);
+PostProcess.setUniform('vignette', 'u_intensity', 0.8);
+PostProcess.setUniform('vignette', 'u_softness', 0.4);
+```
+
+### Grayscale
+
+Blends between the original color and grayscale. `u_intensity` of `1.0` is fully gray:
+
+```typescript
+const gray = PostProcess.createGrayscale();
+PostProcess.addPass('grayscale', gray);
+PostProcess.setUniform('grayscale', 'u_intensity', 1.0);
+```
+
+### Chromatic Aberration
+
+Offsets the R and B channels for a lens distortion look:
+
+```typescript
+const ca = PostProcess.createChromaticAberration();
+PostProcess.addPass('chromatic', ca);
+PostProcess.setUniform('chromatic', 'u_intensity', 2.0);
+```
+
+## Pass Management
+
+```typescript
+PostProcess.setEnabled('blur', false);     // disable a pass
+PostProcess.setEnabled('blur', true);      // re-enable
+PostProcess.removePass('blur');            // remove entirely
+const count = PostProcess.getPassCount();  // number of passes
+```
+
+## Setting Uniforms
+
+```typescript
+PostProcess.setUniform('blur', 'u_intensity', 5.0);
+PostProcess.setUniformVec4('custom', 'u_tint', { x: 1, y: 0.8, z: 0.6, w: 1 });
+```
+
+## Bypass Mode
+
+When no passes are active, bypass the pipeline to skip FBO overhead:
+
+```typescript
+PostProcess.setBypass(true);   // render directly to screen
+PostProcess.setBypass(false);  // use the pipeline
+
+const bypassed = PostProcess.isBypassed();
+```
+
+## Window Resize
+
+Update framebuffer dimensions when the canvas resizes:
+
+```typescript
+window.addEventListener('resize', () => {
+    PostProcess.resize(canvas.width, canvas.height);
+});
+```
+
+## Custom Pass
+
+Write a custom fragment shader and add it as a pass. The vertex shader is a fixed full-screen quad — you only write the fragment shader:
+
+```typescript
+import { Material, PostProcess } from 'esengine';
+
+const invertShader = Material.createShader(
+    // vertex shader is provided internally for post-process,
+    // but createShader needs both — use the same pattern:
+    `#version 300 es
+    precision highp float;
+    layout(location = 0) in vec2 a_position;
+    layout(location = 1) in vec2 a_texCoord;
+    out vec2 v_texCoord;
+    void main() {
+        v_texCoord = a_texCoord;
+        gl_Position = vec4(a_position, 0.0, 1.0);
+    }`,
+    `#version 300 es
+    precision highp float;
+    in vec2 v_texCoord;
+    uniform sampler2D u_texture;
+    uniform float u_intensity;
+    out vec4 fragColor;
+    void main() {
+        vec4 color = texture(u_texture, v_texCoord);
+        vec3 inverted = mix(color.rgb, 1.0 - color.rgb, u_intensity);
+        fragColor = vec4(inverted, color.a);
+    }`
+);
+
+PostProcess.addPass('invert', invertShader);
+PostProcess.setUniform('invert', 'u_intensity', 1.0);
+```
+
+See [Materials & Shaders](/microes/guides/materials/) for more on writing shaders.
+
+## Example: Pause Menu Blur
+
+Enable blur and grayscale when the game is paused:
+
+```typescript
+import { PostProcess } from 'esengine';
+
+const blurShader = PostProcess.createBlur();
+const grayShader = PostProcess.createGrayscale();
+PostProcess.addPass('pause-blur', blurShader);
+PostProcess.addPass('pause-gray', grayShader);
+PostProcess.setEnabled('pause-blur', false);
+PostProcess.setEnabled('pause-gray', false);
+
+function setPaused(paused: boolean) {
+    PostProcess.setEnabled('pause-blur', paused);
+    PostProcess.setEnabled('pause-gray', paused);
+    PostProcess.setUniform('pause-blur', 'u_intensity', 4.0);
+    PostProcess.setUniform('pause-gray', 'u_intensity', 0.6);
+}
+```
+
+## Full API Reference
+
+| Method | Description |
+|--------|-------------|
+| `PostProcess.init(width, height)` | Initialize the pipeline |
+| `PostProcess.shutdown()` | Shut down the pipeline |
+| `PostProcess.resize(width, height)` | Update framebuffer size |
+| `PostProcess.addPass(name, shader)` | Add a named pass |
+| `PostProcess.removePass(name)` | Remove a pass |
+| `PostProcess.setEnabled(name, enabled)` | Enable or disable a pass |
+| `PostProcess.isEnabled(name)` | Check if a pass is enabled |
+| `PostProcess.setUniform(pass, name, value)` | Set a float uniform |
+| `PostProcess.setUniformVec4(pass, name, value)` | Set a vec4 uniform |
+| `PostProcess.getPassCount()` | Get the number of passes |
+| `PostProcess.isInitialized()` | Check if the pipeline is active |
+| `PostProcess.setBypass(bypass)` | Enable or disable bypass mode |
+| `PostProcess.isBypassed()` | Check bypass state |
+| `PostProcess.createBlur()` | Create a blur effect shader |
+| `PostProcess.createVignette()` | Create a vignette effect shader |
+| `PostProcess.createGrayscale()` | Create a grayscale effect shader |
+| `PostProcess.createChromaticAberration()` | Create a chromatic aberration shader |
+
+## Next Steps
+
+- [Custom Draw](/microes/guides/custom-draw/) — immediate-mode drawing primitives
+- [Materials & Shaders](/microes/guides/materials/) — shader creation and uniforms
+- [Rendering Overview](/microes/guides/rendering/) — camera, transform, render order

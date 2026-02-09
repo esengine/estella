@@ -1,0 +1,575 @@
+---
+title: Editor Extensions
+description: Extend the ESEngine editor with custom menus, panels, gizmos, and settings
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The editor provides a registry-based extension system. Place TypeScript files in your project's `src/editor/` directory and the editor automatically compiles and loads them. Extensions can register menus, panels, gizmos, statusbar items, settings, and more.
+
+## Getting Started
+
+Create a TypeScript file in `src/editor/`:
+
+```
+my-project/
+├── src/
+│   ├── game.ts              ← game script (bundled into runtime)
+│   └── editor/
+│       └── my-extension.ts  ← editor extension (NOT bundled into runtime)
+├── assets/
+└── scenes/
+```
+
+The `src/editor/` directory is excluded from runtime bundling — only the editor loads these files. All `.ts` files under `src/` are compiled by the editor, but only files outside `editor/` are included in the game build. File changes trigger automatic hot-reload.
+
+### Accessing the API
+
+Import from `@esengine/editor` to access all editor and SDK APIs. The editor's build system shims this module automatically:
+
+```typescript
+import {
+    // Registry APIs
+    registerMenu,
+    registerMenuItem,
+    registerPanel,
+    registerGizmo,
+    registerStatusbarItem,
+    registerSettingsSection,
+    registerSettingsItem,
+    getSettingsValue,
+    setSettingsValue,
+    registerPropertyEditor,
+    registerComponentSchema,
+    registerBoundsProvider,
+
+    // UI utilities
+    showToast,
+    showSuccessToast,
+    showErrorToast,
+    showContextMenu,
+    showConfirmDialog,
+    showInputDialog,
+    icons,
+
+    // Editor access
+    getEditorInstance,
+    getEditorStore,
+
+    // Drawing and rendering (same as esengine SDK)
+    Draw,
+    Geometry,
+    Material,
+    BlendMode,
+    DataType,
+    ShaderSources,
+    PostProcess,
+    registerDrawCallback,
+    unregisterDrawCallback,
+
+    // Cleanup
+    onDispose,
+} from '@esengine/editor';
+```
+
+You can also import from `esengine` — both modules expose the same combined API in the editor context.
+
+<Aside type="tip">
+  Use `onDispose(fn)` to register cleanup callbacks. The editor calls them automatically when your extension is reloaded.
+</Aside>
+
+## Menus
+
+### Register a Menu
+
+Add a new top-level menu to the menu bar:
+
+```typescript
+registerMenu({
+    id: 'tools',
+    label: 'Tools',
+    order: 10,
+});
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | string | Yes | Unique menu identifier |
+| `label` | string | Yes | Display text |
+| `order` | number | No | Sort order (lower = further left) |
+
+### Register a Menu Item
+
+Add items to existing or custom menus:
+
+```typescript
+registerMenuItem({
+    id: 'tools.export-png',
+    menu: 'tools',
+    label: 'Export as PNG',
+    shortcut: 'Ctrl+Shift+E',
+    order: 0,
+    action: () => {
+        showSuccessToast('Exported!');
+    },
+});
+
+registerMenuItem({
+    id: 'tools.clear-cache',
+    menu: 'tools',
+    label: 'Clear Cache',
+    order: 1,
+    separator: true,
+    enabled: () => cacheSize > 0,
+    action: () => clearCache(),
+});
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | string | Yes | Unique item identifier |
+| `menu` | string | Yes | Parent menu ID (`file`, `edit`, `view`, `help`, or custom) |
+| `label` | string | Yes | Display text |
+| `icon` | string | No | SVG icon string |
+| `shortcut` | string | No | Keyboard shortcut display text |
+| `separator` | boolean | No | Show a separator line above this item |
+| `order` | number | No | Sort order within the menu |
+| `enabled` | () => boolean | No | Dynamic enable/disable |
+| `action` | () => void | Yes | Click handler |
+
+Built-in menus: `file`, `edit`, `view`, `help`.
+
+## Panels
+
+Register custom panels that appear in the editor layout:
+
+```typescript
+registerPanel({
+    id: 'my-debug-panel',
+    title: 'Debug Info',
+    icon: icons.settings(14),
+    position: 'right',
+    order: 10,
+    defaultVisible: false,
+    factory: (container, store) => {
+        const div = document.createElement('div');
+        div.style.padding = '8px';
+        div.textContent = 'Entity count: ' + store.entities.length;
+        container.appendChild(div);
+
+        const interval = setInterval(() => {
+            div.textContent = 'Entity count: ' + store.entities.length;
+        }, 1000);
+
+        return {
+            dispose() {
+                clearInterval(interval);
+                container.innerHTML = '';
+            },
+            onShow() {},
+            onHide() {},
+        };
+    },
+});
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | string | Yes | Unique panel identifier |
+| `title` | string | Yes | Panel tab title |
+| `icon` | string | No | SVG icon string |
+| `position` | `'left' \| 'right' \| 'center' \| 'bottom'` | Yes | Layout position |
+| `defaultVisible` | boolean | No | Show on first load (default: false) |
+| `order` | number | No | Tab order within position |
+| `factory` | (container, store) => PanelInstance | Yes | Creates the panel UI |
+
+### PanelInstance
+
+The factory must return an object with at least a `dispose` method:
+
+```typescript
+interface PanelInstance {
+    dispose(): void;
+    onShow?(): void;
+    onHide?(): void;
+}
+```
+
+Optionally implement `resize()` to handle layout changes.
+
+## Gizmos
+
+Register custom scene view gizmos for visual editing tools:
+
+```typescript
+registerGizmo({
+    id: 'my-anchor-gizmo',
+    name: 'Anchor',
+    icon: icons.circle(16),
+    shortcut: 'A',
+    order: 20,
+
+    draw(ctx) {
+        const { store, ctx: canvas, zoom } = ctx;
+        const selected = store.selectedEntity;
+        if (selected === null) return;
+
+        const transform = ctx.getWorldTransform(selected);
+        canvas.beginPath();
+        canvas.arc(transform.x, transform.y, 8 / zoom, 0, Math.PI * 2);
+        canvas.strokeStyle = '#ff0';
+        canvas.lineWidth = 2 / zoom;
+        canvas.stroke();
+    },
+
+    hitTest(worldX, worldY, ctx) {
+        const selected = ctx.store.selectedEntity;
+        if (selected === null) return { hit: false };
+
+        const transform = ctx.getWorldTransform(selected);
+        const dx = worldX - transform.x;
+        const dy = worldY - transform.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        return { hit: dist < 10 / ctx.zoom, data: { entityId: selected } };
+    },
+
+    onDragStart(worldX, worldY, hitData, ctx) {},
+    onDrag(worldX, worldY, hitData, ctx) {},
+    onDragEnd(worldX, worldY, hitData, ctx) {},
+    getCursor(hitData) { return 'crosshair'; },
+});
+```
+
+### GizmoDescriptor
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | string | Yes | Unique gizmo identifier |
+| `name` | string | Yes | Display name in toolbar |
+| `icon` | string | Yes | SVG icon string |
+| `shortcut` | string | No | Keyboard shortcut |
+| `order` | number | No | Toolbar order |
+| `draw(ctx)` | function | Yes | Render the gizmo overlay |
+| `hitTest(worldX, worldY, ctx)` | function | Yes | Test if mouse hits the gizmo |
+| `onDragStart(worldX, worldY, hitData, ctx)` | function | No | Drag start handler |
+| `onDrag(worldX, worldY, hitData, ctx)` | function | No | Drag move handler |
+| `onDragEnd(worldX, worldY, hitData, ctx)` | function | No | Drag end handler |
+| `onHover(worldX, worldY, hitData, ctx)` | function | No | Mouse hover handler |
+| `getCursor(hitData)` | function | No | Custom cursor for hover |
+
+### GizmoContext
+
+The `ctx` parameter provides editor state and utilities:
+
+| Property / Method | Description |
+|-------------------|-------------|
+| `store` | Editor store (entities, selection, etc.) |
+| `ctx` | Canvas 2D rendering context for drawing overlays |
+| `zoom` | Current viewport zoom level |
+| `screenToWorld(clientX, clientY)` | Convert screen coordinates to world |
+| `getWorldTransform(entityId)` | Get entity's world transform |
+| `getEntityBounds(entityData)` | Get entity's visual bounds |
+| `requestRender()` | Request a scene redraw |
+
+Since `ctx.ctx` is a standard Canvas 2D context, you can use `fillText()` to draw viewport text directly inside `draw()`:
+
+```typescript
+draw(ctx) {
+    const { ctx: canvas, zoom } = ctx;
+    canvas.font = `${12 / zoom}px sans-serif`;
+    canvas.fillStyle = '#fff';
+    canvas.fillText('Label', worldX, worldY);
+},
+```
+
+## Settings
+
+### Register a Settings Section
+
+```typescript
+registerSettingsSection({
+    id: 'my-extension',
+    title: 'My Extension',
+    order: 10,
+});
+```
+
+### Register Settings Items
+
+```typescript
+registerSettingsItem({
+    id: 'my-extension.showOverlay',
+    section: 'my-extension',
+    label: 'Show Overlay',
+    type: 'boolean',
+    defaultValue: true,
+    order: 0,
+    onChange: (value) => {
+        // React to changes
+    },
+});
+
+registerSettingsItem({
+    id: 'my-extension.opacity',
+    section: 'my-extension',
+    label: 'Overlay Opacity',
+    type: 'range',
+    defaultValue: 0.8,
+    min: 0,
+    max: 1,
+    step: 0.1,
+    order: 1,
+});
+
+registerSettingsItem({
+    id: 'my-extension.theme',
+    section: 'my-extension',
+    label: 'Theme',
+    type: 'select',
+    defaultValue: 'dark',
+    options: [
+        { label: 'Dark', value: 'dark' },
+        { label: 'Light', value: 'light' },
+    ],
+    order: 2,
+});
+```
+
+### Settings Item Types
+
+| Type | Description | Extra fields |
+|------|-------------|-------------|
+| `boolean` | Toggle switch | — |
+| `number` | Number input | `min`, `max`, `step` |
+| `string` | Text input | — |
+| `color` | Color picker | — |
+| `select` | Dropdown | `options: [{ label, value }]` |
+| `range` | Slider | `min`, `max`, `step` |
+
+### Reading and Writing Settings
+
+```typescript
+const show = getSettingsValue<boolean>('my-extension.showOverlay');
+setSettingsValue('my-extension.opacity', 0.5);
+```
+
+Settings are persisted to `localStorage` automatically.
+
+## Statusbar Items
+
+Add widgets to the bottom status bar:
+
+```typescript
+registerStatusbarItem({
+    id: 'my-fps-counter',
+    position: 'right',
+    order: 0,
+    render: (container) => {
+        const span = document.createElement('span');
+        span.style.fontSize = '11px';
+        container.appendChild(span);
+
+        let lastTime = performance.now();
+        let frameCount = 0;
+
+        const tick = () => {
+            frameCount++;
+            const now = performance.now();
+            const elapsed = now - lastTime;
+            if (elapsed >= 1000) {
+                span.textContent = `FPS: ${Math.round(frameCount * 1000 / elapsed)}`;
+                frameCount = 0;
+                lastTime = now;
+            }
+            handle = requestAnimationFrame(tick);
+        };
+        let handle = requestAnimationFrame(tick);
+
+        return {
+            dispose() { cancelAnimationFrame(handle); },
+            update() {},
+        };
+    },
+});
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | string | Yes | Unique identifier |
+| `position` | `'left' \| 'right'` | Yes | Bar position |
+| `order` | number | No | Sort order |
+| `render` | (container) => \{ dispose, update? \} | Yes | Create the widget |
+
+## UI Utilities
+
+### Toast Notifications
+
+```typescript
+showToast({ title: 'Hello', message: 'World', type: 'info', duration: 3000 });
+showSuccessToast('Done!', 'Build completed');
+showErrorToast('Error', 'Failed to compile');
+```
+
+### Dialogs
+
+```typescript
+const name = await showInputDialog({
+    title: 'Rename Entity',
+    label: 'New name:',
+    defaultValue: 'Entity',
+});
+
+const confirmed = await showConfirmDialog({
+    title: 'Delete Entity',
+    message: 'Are you sure?',
+});
+```
+
+### Context Menu
+
+```typescript
+showContextMenu({
+    x: event.clientX,
+    y: event.clientY,
+    items: [
+        { label: 'Copy', action: () => copy() },
+        { label: 'Paste', action: () => paste() },
+        { separator: true },
+        { label: 'Delete', action: () => del() },
+    ],
+});
+```
+
+## Component Schemas
+
+Register custom component schemas for the inspector panel:
+
+```typescript
+registerComponentSchema({
+    name: 'Health',
+    category: 'script',
+    properties: [
+        { name: 'current', type: 'number', min: 0, max: 1000 },
+        { name: 'max', type: 'number', min: 1, max: 1000 },
+        { name: 'regenRate', type: 'number', min: 0, step: 0.1 },
+    ],
+});
+```
+
+<Aside type="note">
+  Components defined with `defineComponent()` in game scripts are registered automatically. Use `registerComponentSchema` only when you need to customize property metadata (min/max, step, enum options, etc.).
+</Aside>
+
+## Property Editors
+
+Register custom inspector widgets for property types:
+
+```typescript
+registerPropertyEditor('my-gradient', (container, ctx) => {
+    const input = document.createElement('input');
+    input.type = 'color';
+    input.value = ctx.value as string;
+    input.addEventListener('input', () => ctx.onChange(input.value));
+    container.appendChild(input);
+
+    return {
+        update(value) { input.value = value as string; },
+        dispose() { container.innerHTML = ''; },
+    };
+});
+```
+
+Then reference the type in a component schema:
+
+```typescript
+registerComponentSchema({
+    name: 'Gradient',
+    category: 'script',
+    properties: [
+        { name: 'startColor', type: 'my-gradient' },
+        { name: 'endColor', type: 'my-gradient' },
+    ],
+});
+```
+
+## Bounds Providers
+
+Register custom bounds calculation for gizmo display:
+
+```typescript
+registerBoundsProvider('CircleCollider', {
+    getBounds(data: any) {
+        const r = data.radius ?? 50;
+        return { width: r * 2, height: r * 2 };
+    },
+});
+```
+
+## Resource Cleanup
+
+The editor automatically cleans up extension-registered menus, panels, gizmos, and settings on reload. For custom resources (timers, event listeners, GPU resources), use `onDispose`:
+
+```typescript
+const interval = setInterval(tick, 100);
+onDispose(() => clearInterval(interval));
+
+const shader = Material.createShader(vertSrc, fragSrc);
+// Shaders created through the extension API are auto-cleaned
+
+registerDrawCallback('my-overlay', drawFn);
+// Draw callbacks registered through the extension API are auto-cleaned
+```
+
+Resources tracked automatically:
+- Draw callbacks (`registerDrawCallback`)
+- Post-process passes (`PostProcess.addPass`)
+- Shaders (`Material.createShader`)
+
+## Example: Origin Crosshair
+
+A complete extension that draws a crosshair at the world origin with a settings toggle:
+
+```typescript
+import {
+    registerSettingsSection,
+    registerSettingsItem,
+    getSettingsValue,
+    registerDrawCallback,
+    Draw,
+} from '@esengine/editor';
+
+registerSettingsSection({ id: 'debug-overlay', title: 'Debug Overlay', order: 20 });
+registerSettingsItem({
+    id: 'debug-overlay.showOrigin',
+    section: 'debug-overlay',
+    label: 'Show Origin Crosshair',
+    type: 'boolean',
+    defaultValue: true,
+});
+registerSettingsItem({
+    id: 'debug-overlay.size',
+    section: 'debug-overlay',
+    label: 'Crosshair Size',
+    type: 'range',
+    defaultValue: 50,
+    min: 10,
+    max: 200,
+    step: 10,
+});
+
+registerDrawCallback('origin-crosshair', () => {
+    if (!getSettingsValue('debug-overlay.showOrigin')) return;
+    const size = getSettingsValue<number>('debug-overlay.size');
+    const red = { x: 1, y: 0, z: 0, w: 1 };
+    const green = { x: 0, y: 1, z: 0, w: 1 };
+    Draw.line({ x: 0, y: 0 }, { x: size, y: 0 }, red, 2);
+    Draw.line({ x: 0, y: 0 }, { x: 0, y: size }, green, 2);
+    Draw.circleOutline({ x: 0, y: 0 }, 4, { x: 1, y: 1, z: 1, w: 1 }, 1);
+});
+```
+
+## Next Steps
+
+- [Custom Draw](/microes/guides/custom-draw/) — Draw API for extension overlays
+- [Materials & Shaders](/microes/guides/materials/) — shader creation for custom gizmos
+- [Post-Processing](/microes/guides/post-processing/) — post-process passes from extensions

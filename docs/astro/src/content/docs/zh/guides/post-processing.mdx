@@ -1,0 +1,211 @@
+---
+title: 后处理效果
+description: ESEngine 全屏后处理效果管线
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+PostProcess API 在场景渲染完成后应用全屏着色器效果。可以链式添加多个 pass 来实现模糊、暗角、灰度、色差等效果。
+
+## 初始化
+
+使用画布尺寸初始化管线：
+
+```typescript
+import { PostProcess } from 'esengine';
+
+PostProcess.init(canvas.width, canvas.height);
+```
+
+<Aside type="note">
+  `PostProcess.begin()` 和 `PostProcess.end()` 由引擎内部调用。你只需配置 pass 和 uniform。
+</Aside>
+
+## 添加 Pass
+
+创建内置效果着色器并添加为命名 pass：
+
+```typescript
+const blurShader = PostProcess.createBlur();
+PostProcess.addPass('blur', blurShader);
+PostProcess.setUniform('blur', 'u_intensity', 2.0);
+```
+
+Pass 按添加顺序执行。每个 pass 读取前一个 pass 的输出作为 `u_texture`。
+
+## 内置效果
+
+| 方法 | 效果 | Uniform |
+|------|------|---------|
+| `createBlur()` | 高斯模糊 | `u_intensity` (float) — 模糊扩散, `u_resolution` (vec2) — 自动 |
+| `createVignette()` | 暗角 | `u_intensity` (float) — 半径, `u_softness` (float) — 衰减 |
+| `createGrayscale()` | 灰度 | `u_intensity` (float, 0–1) — 混合比例 |
+| `createChromaticAberration()` | 色差 | `u_intensity` (float) — 偏移量, `u_resolution` (vec2) — 自动 |
+
+<Aside type="tip">
+  `u_resolution` 由引擎自动设置，你只需设置其他 uniform。
+</Aside>
+
+### 模糊
+
+9 次采样高斯模糊。`u_intensity` 越大模糊越强：
+
+```typescript
+const blur = PostProcess.createBlur();
+PostProcess.addPass('blur', blur);
+PostProcess.setUniform('blur', 'u_intensity', 3.0);
+```
+
+### 暗角
+
+使屏幕边缘变暗。`u_intensity` 控制半径，`u_softness` 控制衰减：
+
+```typescript
+const vignette = PostProcess.createVignette();
+PostProcess.addPass('vignette', vignette);
+PostProcess.setUniform('vignette', 'u_intensity', 0.8);
+PostProcess.setUniform('vignette', 'u_softness', 0.4);
+```
+
+### 灰度
+
+在原色和灰度之间混合。`u_intensity` 为 `1.0` 时完全灰度：
+
+```typescript
+const gray = PostProcess.createGrayscale();
+PostProcess.addPass('grayscale', gray);
+PostProcess.setUniform('grayscale', 'u_intensity', 1.0);
+```
+
+### 色差
+
+偏移 R 和 B 通道以产生镜头畸变效果：
+
+```typescript
+const ca = PostProcess.createChromaticAberration();
+PostProcess.addPass('chromatic', ca);
+PostProcess.setUniform('chromatic', 'u_intensity', 2.0);
+```
+
+## Pass 管理
+
+```typescript
+PostProcess.setEnabled('blur', false);     // 禁用 pass
+PostProcess.setEnabled('blur', true);      // 重新启用
+PostProcess.removePass('blur');            // 完全移除
+const count = PostProcess.getPassCount();  // pass 数量
+```
+
+## 设置 Uniform
+
+```typescript
+PostProcess.setUniform('blur', 'u_intensity', 5.0);
+PostProcess.setUniformVec4('custom', 'u_tint', { x: 1, y: 0.8, z: 0.6, w: 1 });
+```
+
+## 旁路模式
+
+没有活跃 pass 时，启用旁路模式跳过 FBO 开销：
+
+```typescript
+PostProcess.setBypass(true);   // 直接渲染到屏幕
+PostProcess.setBypass(false);  // 使用管线
+
+const bypassed = PostProcess.isBypassed();
+```
+
+## 窗口缩放
+
+画布尺寸变化时更新帧缓冲尺寸：
+
+```typescript
+window.addEventListener('resize', () => {
+    PostProcess.resize(canvas.width, canvas.height);
+});
+```
+
+## 自定义 Pass
+
+编写自定义片段着色器并添加为 pass。顶点着色器是固定的全屏四边形，你只需编写片段着色器：
+
+```typescript
+import { Material, PostProcess } from 'esengine';
+
+const invertShader = Material.createShader(
+    `#version 300 es
+    precision highp float;
+    layout(location = 0) in vec2 a_position;
+    layout(location = 1) in vec2 a_texCoord;
+    out vec2 v_texCoord;
+    void main() {
+        v_texCoord = a_texCoord;
+        gl_Position = vec4(a_position, 0.0, 1.0);
+    }`,
+    `#version 300 es
+    precision highp float;
+    in vec2 v_texCoord;
+    uniform sampler2D u_texture;
+    uniform float u_intensity;
+    out vec4 fragColor;
+    void main() {
+        vec4 color = texture(u_texture, v_texCoord);
+        vec3 inverted = mix(color.rgb, 1.0 - color.rgb, u_intensity);
+        fragColor = vec4(inverted, color.a);
+    }`
+);
+
+PostProcess.addPass('invert', invertShader);
+PostProcess.setUniform('invert', 'u_intensity', 1.0);
+```
+
+参见[材质与着色器](/microes/zh/guides/materials/)了解更多着色器编写方法。
+
+## 示例：暂停菜单模糊
+
+游戏暂停时启用模糊和灰度效果：
+
+```typescript
+import { PostProcess } from 'esengine';
+
+const blurShader = PostProcess.createBlur();
+const grayShader = PostProcess.createGrayscale();
+PostProcess.addPass('pause-blur', blurShader);
+PostProcess.addPass('pause-gray', grayShader);
+PostProcess.setEnabled('pause-blur', false);
+PostProcess.setEnabled('pause-gray', false);
+
+function setPaused(paused: boolean) {
+    PostProcess.setEnabled('pause-blur', paused);
+    PostProcess.setEnabled('pause-gray', paused);
+    PostProcess.setUniform('pause-blur', 'u_intensity', 4.0);
+    PostProcess.setUniform('pause-gray', 'u_intensity', 0.6);
+}
+```
+
+## 完整 API 参考
+
+| 方法 | 说明 |
+|------|------|
+| `PostProcess.init(width, height)` | 初始化管线 |
+| `PostProcess.shutdown()` | 关闭管线 |
+| `PostProcess.resize(width, height)` | 更新帧缓冲尺寸 |
+| `PostProcess.addPass(name, shader)` | 添加命名 pass |
+| `PostProcess.removePass(name)` | 移除 pass |
+| `PostProcess.setEnabled(name, enabled)` | 启用或禁用 pass |
+| `PostProcess.isEnabled(name)` | 检查 pass 是否启用 |
+| `PostProcess.setUniform(pass, name, value)` | 设置 float uniform |
+| `PostProcess.setUniformVec4(pass, name, value)` | 设置 vec4 uniform |
+| `PostProcess.getPassCount()` | 获取 pass 数量 |
+| `PostProcess.isInitialized()` | 检查管线是否活跃 |
+| `PostProcess.setBypass(bypass)` | 启用或禁用旁路模式 |
+| `PostProcess.isBypassed()` | 检查旁路状态 |
+| `PostProcess.createBlur()` | 创建模糊效果着色器 |
+| `PostProcess.createVignette()` | 创建暗角效果着色器 |
+| `PostProcess.createGrayscale()` | 创建灰度效果着色器 |
+| `PostProcess.createChromaticAberration()` | 创建色差效果着色器 |
+
+## 下一步
+
+- [自定义绘制](/microes/zh/guides/custom-draw/) — 即时模式绘图图元
+- [材质与着色器](/microes/zh/guides/materials/) — 着色器创建和 uniform
+- [渲染概览](/microes/zh/guides/rendering/) — 相机、变换、渲染顺序

@@ -116,7 +116,7 @@ const config = bundle.json.get('assets/config.json');
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | `textures` | string[] | 纹理图片路径 |
-| `materials` | string[] | 材质文件路径（.material） |
+| `materials` | string[] | 材质文件路径（.esmaterial） |
 | `spine` | SpineDescriptor[] | Spine 骨骼/图集对 |
 | `json` | string[] | JSON 文件路径 |
 | `text` | string[] | 文本文件路径 |
@@ -138,11 +138,11 @@ const config = bundle.json.get('assets/config.json');
 ## 材质加载
 
 ```typescript
-const loaded = await assets.loadMaterial('assets/effects/glow.material');
+const loaded = await assets.loadMaterial('assets/effects/glow.esmaterial');
 sprite.material = loaded.handle;
 ```
 
-详见[材质与着色器](/microes/zh/guides/materials/)了解完整的材质 API 和 `.material` 文件格式。
+详见[材质与着色器](/microes/zh/guides/materials/)了解完整的材质 API 和 `.esmaterial` 文件格式。
 
 ## 缓存机制
 

@@ -1,0 +1,575 @@
+---
+title: 编辑器扩展
+description: 通过自定义菜单、面板、Gizmo 和设置扩展 ESEngine 编辑器
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+编辑器提供基于注册表的扩展系统。将 TypeScript 文件放在项目的 `src/editor/` 目录中，编辑器会自动编译并加载。扩展可以注册菜单、面板、Gizmo、状态栏项、设置等。
+
+## 快速开始
+
+在 `src/editor/` 下创建 TypeScript 文件：
+
+```
+my-project/
+├── src/
+│   ├── game.ts              ← 游戏脚本（打包进运行时）
+│   └── editor/
+│       └── my-extension.ts  ← 编辑器扩展（不打包进运行时）
+├── assets/
+└── scenes/
+```
+
+`src/editor/` 目录会被运行时构建排除——只有编辑器会加载这些文件。`src/` 下所有 `.ts` 文件都会被编辑器编译，但只有 `editor/` 之外的文件会包含在游戏构建中。文件变更会触发自动热重载。
+
+### 访问 API
+
+从 `@esengine/editor` 导入所有编辑器和 SDK API。编辑器构建系统会自动处理模块解析：
+
+```typescript
+import {
+    // 注册 API
+    registerMenu,
+    registerMenuItem,
+    registerPanel,
+    registerGizmo,
+    registerStatusbarItem,
+    registerSettingsSection,
+    registerSettingsItem,
+    getSettingsValue,
+    setSettingsValue,
+    registerPropertyEditor,
+    registerComponentSchema,
+    registerBoundsProvider,
+
+    // UI 工具
+    showToast,
+    showSuccessToast,
+    showErrorToast,
+    showContextMenu,
+    showConfirmDialog,
+    showInputDialog,
+    icons,
+
+    // 编辑器访问
+    getEditorInstance,
+    getEditorStore,
+
+    // 绘制和渲染（与 esengine SDK 相同）
+    Draw,
+    Geometry,
+    Material,
+    BlendMode,
+    DataType,
+    ShaderSources,
+    PostProcess,
+    registerDrawCallback,
+    unregisterDrawCallback,
+
+    // 清理
+    onDispose,
+} from '@esengine/editor';
+```
+
+也可以从 `esengine` 导入——在编辑器上下文中两个模块暴露相同的合并 API。
+
+<Aside type="tip">
+  使用 `onDispose(fn)` 注册清理回调。扩展重载时编辑器会自动调用它们。
+</Aside>
+
+## 菜单
+
+### 注册菜单
+
+在菜单栏添加新的顶级菜单：
+
+```typescript
+registerMenu({
+    id: 'tools',
+    label: 'Tools',
+    order: 10,
+});
+```
+
+| 字段 | 类型 | 必需 | 说明 |
+|------|------|------|------|
+| `id` | string | 是 | 唯一标识 |
+| `label` | string | 是 | 显示文本 |
+| `order` | number | 否 | 排序（越小越靠左） |
+
+### 注册菜单项
+
+向已有或自定义菜单添加项目：
+
+```typescript
+registerMenuItem({
+    id: 'tools.export-png',
+    menu: 'tools',
+    label: 'Export as PNG',
+    shortcut: 'Ctrl+Shift+E',
+    order: 0,
+    action: () => {
+        showSuccessToast('Exported!');
+    },
+});
+
+registerMenuItem({
+    id: 'tools.clear-cache',
+    menu: 'tools',
+    label: 'Clear Cache',
+    order: 1,
+    separator: true,
+    enabled: () => cacheSize > 0,
+    action: () => clearCache(),
+});
+```
+
+| 字段 | 类型 | 必需 | 说明 |
+|------|------|------|------|
+| `id` | string | 是 | 唯一标识 |
+| `menu` | string | 是 | 父菜单 ID（`file`、`edit`、`view`、`help` 或自定义） |
+| `label` | string | 是 | 显示文本 |
+| `icon` | string | 否 | SVG 图标字符串 |
+| `shortcut` | string | 否 | 快捷键显示文本 |
+| `separator` | boolean | 否 | 在此项上方显示分隔线 |
+| `order` | number | 否 | 菜单内排序 |
+| `enabled` | () => boolean | 否 | 动态启用/禁用 |
+| `action` | () => void | 是 | 点击处理函数 |
+
+内置菜单：`file`、`edit`、`view`、`help`。
+
+## 面板
+
+注册出现在编辑器布局中的自定义面板：
+
+```typescript
+registerPanel({
+    id: 'my-debug-panel',
+    title: 'Debug Info',
+    icon: icons.settings(14),
+    position: 'right',
+    order: 10,
+    defaultVisible: false,
+    factory: (container, store) => {
+        const div = document.createElement('div');
+        div.style.padding = '8px';
+        div.textContent = 'Entity count: ' + store.entities.length;
+        container.appendChild(div);
+
+        const interval = setInterval(() => {
+            div.textContent = 'Entity count: ' + store.entities.length;
+        }, 1000);
+
+        return {
+            dispose() {
+                clearInterval(interval);
+                container.innerHTML = '';
+            },
+            onShow() {},
+            onHide() {},
+        };
+    },
+});
+```
+
+| 字段 | 类型 | 必需 | 说明 |
+|------|------|------|------|
+| `id` | string | 是 | 唯一标识 |
+| `title` | string | 是 | 面板标签标题 |
+| `icon` | string | 否 | SVG 图标字符串 |
+| `position` | `'left' \| 'right' \| 'center' \| 'bottom'` | 是 | 布局位置 |
+| `defaultVisible` | boolean | 否 | 首次加载时显示（默认 false） |
+| `order` | number | 否 | 同位置内的标签排序 |
+| `factory` | (container, store) => PanelInstance | 是 | 创建面板 UI |
+
+### PanelInstance
+
+factory 必须返回至少包含 `dispose` 方法的对象：
+
+```typescript
+interface PanelInstance {
+    dispose(): void;
+    onShow?(): void;
+    onHide?(): void;
+}
+```
+
+可选实现 `resize()` 以处理布局变化。
+
+## Gizmo
+
+注册自定义场景视图 Gizmo 用于可视化编辑工具：
+
+```typescript
+registerGizmo({
+    id: 'my-anchor-gizmo',
+    name: 'Anchor',
+    icon: icons.circle(16),
+    shortcut: 'A',
+    order: 20,
+
+    draw(ctx) {
+        const { store, ctx: canvas, zoom } = ctx;
+        const selected = store.selectedEntity;
+        if (selected === null) return;
+
+        const transform = ctx.getWorldTransform(selected);
+        canvas.beginPath();
+        canvas.arc(transform.x, transform.y, 8 / zoom, 0, Math.PI * 2);
+        canvas.strokeStyle = '#ff0';
+        canvas.lineWidth = 2 / zoom;
+        canvas.stroke();
+    },
+
+    hitTest(worldX, worldY, ctx) {
+        const selected = ctx.store.selectedEntity;
+        if (selected === null) return { hit: false };
+
+        const transform = ctx.getWorldTransform(selected);
+        const dx = worldX - transform.x;
+        const dy = worldY - transform.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        return { hit: dist < 10 / ctx.zoom, data: { entityId: selected } };
+    },
+
+    onDragStart(worldX, worldY, hitData, ctx) {},
+    onDrag(worldX, worldY, hitData, ctx) {},
+    onDragEnd(worldX, worldY, hitData, ctx) {},
+    getCursor(hitData) { return 'crosshair'; },
+});
+```
+
+### GizmoDescriptor
+
+| 字段 | 类型 | 必需 | 说明 |
+|------|------|------|------|
+| `id` | string | 是 | 唯一标识 |
+| `name` | string | 是 | 工具栏显示名称 |
+| `icon` | string | 是 | SVG 图标字符串 |
+| `shortcut` | string | 否 | 快捷键 |
+| `order` | number | 否 | 工具栏排序 |
+| `draw(ctx)` | function | 是 | 渲染 Gizmo 叠加层 |
+| `hitTest(worldX, worldY, ctx)` | function | 是 | 检测鼠标是否命中 Gizmo |
+| `onDragStart(worldX, worldY, hitData, ctx)` | function | 否 | 拖拽开始 |
+| `onDrag(worldX, worldY, hitData, ctx)` | function | 否 | 拖拽中 |
+| `onDragEnd(worldX, worldY, hitData, ctx)` | function | 否 | 拖拽结束 |
+| `onHover(worldX, worldY, hitData, ctx)` | function | 否 | 鼠标悬停 |
+| `getCursor(hitData)` | function | 否 | 自定义悬停光标 |
+
+### GizmoContext
+
+`ctx` 参数提供编辑器状态和工具方法：
+
+| 属性 / 方法 | 说明 |
+|-------------|------|
+| `store` | 编辑器状态（实体、选择等） |
+| `ctx` | Canvas 2D 渲染上下文，用于绘制叠加层 |
+| `zoom` | 当前视口缩放级别 |
+| `screenToWorld(clientX, clientY)` | 屏幕坐标转世界坐标 |
+| `getWorldTransform(entityId)` | 获取实体的世界变换 |
+| `getEntityBounds(entityData)` | 获取实体的可视边界 |
+| `requestRender()` | 请求场景重绘 |
+
+`ctx.ctx` 是标准的 Canvas 2D 上下文，可以在 `draw()` 中直接使用 `fillText()` 绘制视口文本：
+
+```typescript
+draw(ctx) {
+    const { ctx: canvas, zoom } = ctx;
+    canvas.font = `${12 / zoom}px sans-serif`;
+    canvas.fillStyle = '#fff';
+    canvas.fillText('Label', worldX, worldY);
+},
+```
+
+## 设置
+
+### 注册设置分区
+
+```typescript
+registerSettingsSection({
+    id: 'my-extension',
+    title: 'My Extension',
+    order: 10,
+});
+```
+
+### 注册设置项
+
+```typescript
+registerSettingsItem({
+    id: 'my-extension.showOverlay',
+    section: 'my-extension',
+    label: 'Show Overlay',
+    type: 'boolean',
+    defaultValue: true,
+    order: 0,
+    onChange: (value) => {
+        // 响应变更
+    },
+});
+
+registerSettingsItem({
+    id: 'my-extension.opacity',
+    section: 'my-extension',
+    label: 'Overlay Opacity',
+    type: 'range',
+    defaultValue: 0.8,
+    min: 0,
+    max: 1,
+    step: 0.1,
+    order: 1,
+});
+
+registerSettingsItem({
+    id: 'my-extension.theme',
+    section: 'my-extension',
+    label: 'Theme',
+    type: 'select',
+    defaultValue: 'dark',
+    options: [
+        { label: 'Dark', value: 'dark' },
+        { label: 'Light', value: 'light' },
+    ],
+    order: 2,
+});
+```
+
+### 设置项类型
+
+| 类型 | 说明 | 额外字段 |
+|------|------|----------|
+| `boolean` | 开关 | — |
+| `number` | 数字输入 | `min`、`max`、`step` |
+| `string` | 文本输入 | — |
+| `color` | 颜色选择器 | — |
+| `select` | 下拉菜单 | `options: [{ label, value }]` |
+| `range` | 滑块 | `min`、`max`、`step` |
+
+### 读写设置
+
+```typescript
+const show = getSettingsValue<boolean>('my-extension.showOverlay');
+setSettingsValue('my-extension.opacity', 0.5);
+```
+
+设置自动持久化到 `localStorage`。
+
+## 状态栏项
+
+在底部状态栏添加自定义控件：
+
+```typescript
+registerStatusbarItem({
+    id: 'my-fps-counter',
+    position: 'right',
+    order: 0,
+    render: (container) => {
+        const span = document.createElement('span');
+        span.style.fontSize = '11px';
+        container.appendChild(span);
+
+        let lastTime = performance.now();
+        let frameCount = 0;
+
+        const tick = () => {
+            frameCount++;
+            const now = performance.now();
+            const elapsed = now - lastTime;
+            if (elapsed >= 1000) {
+                span.textContent = `FPS: ${Math.round(frameCount * 1000 / elapsed)}`;
+                frameCount = 0;
+                lastTime = now;
+            }
+            handle = requestAnimationFrame(tick);
+        };
+        let handle = requestAnimationFrame(tick);
+
+        return {
+            dispose() { cancelAnimationFrame(handle); },
+            update() {},
+        };
+    },
+});
+```
+
+| 字段 | 类型 | 必需 | 说明 |
+|------|------|------|------|
+| `id` | string | 是 | 唯一标识 |
+| `position` | `'left' \| 'right'` | 是 | 状态栏位置 |
+| `order` | number | 否 | 排序 |
+| `render` | (container) => \{ dispose, update? \} | 是 | 创建控件 |
+
+## UI 工具
+
+### Toast 通知
+
+```typescript
+showToast({ title: 'Hello', message: 'World', type: 'info', duration: 3000 });
+showSuccessToast('Done!', 'Build completed');
+showErrorToast('Error', 'Failed to compile');
+```
+
+### 对话框
+
+```typescript
+const name = await showInputDialog({
+    title: 'Rename Entity',
+    label: 'New name:',
+    defaultValue: 'Entity',
+});
+
+const confirmed = await showConfirmDialog({
+    title: 'Delete Entity',
+    message: 'Are you sure?',
+});
+```
+
+### 右键菜单
+
+```typescript
+showContextMenu({
+    x: event.clientX,
+    y: event.clientY,
+    items: [
+        { label: 'Copy', action: () => copy() },
+        { label: 'Paste', action: () => paste() },
+        { separator: true },
+        { label: 'Delete', action: () => del() },
+    ],
+});
+```
+
+## 组件 Schema
+
+为检查器面板注册自定义组件 Schema：
+
+```typescript
+registerComponentSchema({
+    name: 'Health',
+    category: 'script',
+    properties: [
+        { name: 'current', type: 'number', min: 0, max: 1000 },
+        { name: 'max', type: 'number', min: 1, max: 1000 },
+        { name: 'regenRate', type: 'number', min: 0, step: 0.1 },
+    ],
+});
+```
+
+<Aside type="note">
+  使用 `defineComponent()` 定义的游戏脚本组件会自动注册。仅在需要自定义属性元数据（min/max、step、枚举选项等）时使用 `registerComponentSchema`。
+</Aside>
+
+## 属性编辑器
+
+为属性类型注册自定义检查器控件：
+
+```typescript
+registerPropertyEditor('my-gradient', (container, ctx) => {
+    const input = document.createElement('input');
+    input.type = 'color';
+    input.value = ctx.value as string;
+    input.addEventListener('input', () => ctx.onChange(input.value));
+    container.appendChild(input);
+
+    return {
+        update(value) { input.value = value as string; },
+        dispose() { container.innerHTML = ''; },
+    };
+});
+```
+
+然后在组件 Schema 中引用该类型：
+
+```typescript
+registerComponentSchema({
+    name: 'Gradient',
+    category: 'script',
+    properties: [
+        { name: 'startColor', type: 'my-gradient' },
+        { name: 'endColor', type: 'my-gradient' },
+    ],
+});
+```
+
+## Bounds Provider
+
+注册自定义边界计算用于 Gizmo 显示：
+
+```typescript
+registerBoundsProvider('CircleCollider', {
+    getBounds(data: any) {
+        const r = data.radius ?? 50;
+        return { width: r * 2, height: r * 2 };
+    },
+});
+```
+
+## 资源清理
+
+编辑器在重载时会自动清理扩展注册的菜单、面板、Gizmo 和设置。对于自定义资源（定时器、事件监听器、GPU 资源），使用 `onDispose`：
+
+```typescript
+const interval = setInterval(tick, 100);
+onDispose(() => clearInterval(interval));
+
+const shader = Material.createShader(vertSrc, fragSrc);
+// 通过扩展 API 创建的着色器会自动清理
+
+registerDrawCallback('my-overlay', drawFn);
+// 通过扩展 API 注册的绘制回调会自动清理
+```
+
+自动跟踪的资源：
+- 绘制回调（`registerDrawCallback`）
+- 后处理 Pass（`PostProcess.addPass`）
+- 着色器（`Material.createShader`）
+
+## 示例：原点十字准星
+
+一个完整的扩展示例，在世界原点绘制十字准星并提供设置开关：
+
+```typescript
+import {
+    registerSettingsSection,
+    registerSettingsItem,
+    getSettingsValue,
+    registerDrawCallback,
+    Draw,
+} from '@esengine/editor';
+
+registerSettingsSection({ id: 'debug-overlay', title: 'Debug Overlay', order: 20 });
+registerSettingsItem({
+    id: 'debug-overlay.showOrigin',
+    section: 'debug-overlay',
+    label: 'Show Origin Crosshair',
+    type: 'boolean',
+    defaultValue: true,
+});
+registerSettingsItem({
+    id: 'debug-overlay.size',
+    section: 'debug-overlay',
+    label: 'Crosshair Size',
+    type: 'range',
+    defaultValue: 50,
+    min: 10,
+    max: 200,
+    step: 10,
+});
+
+registerDrawCallback('origin-crosshair', () => {
+    if (!getSettingsValue('debug-overlay.showOrigin')) return;
+    const size = getSettingsValue<number>('debug-overlay.size');
+    const red = { x: 1, y: 0, z: 0, w: 1 };
+    const green = { x: 0, y: 1, z: 0, w: 1 };
+    Draw.line({ x: 0, y: 0 }, { x: size, y: 0 }, red, 2);
+    Draw.line({ x: 0, y: 0 }, { x: 0, y: size }, green, 2);
+    Draw.circleOutline({ x: 0, y: 0 }, 4, { x: 1, y: 1, z: 1, w: 1 }, 1);
+});
+```
+
+## 下一步
+
+- [自定义绘制](/microes/zh/guides/custom-draw/) — 扩展叠加层的 Draw API
+- [材质与着色器](/microes/zh/guides/materials/) — 自定义 Gizmo 的着色器创建
+- [后处理效果](/microes/zh/guides/post-processing/) — 从扩展添加后处理 Pass
