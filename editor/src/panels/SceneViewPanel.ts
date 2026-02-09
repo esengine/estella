@@ -36,6 +36,20 @@ const DEFAULT_GIZMO_SETTINGS: GizmoSettings = {
     showSelectionBox: true,
 };
 
+const GIZMO_SETTINGS_KEY = 'esengine_gizmo_settings';
+
+function loadGizmoSettings(): GizmoSettings {
+    try {
+        const raw = localStorage.getItem(GIZMO_SETTINGS_KEY);
+        if (raw) return { ...DEFAULT_GIZMO_SETTINGS, ...JSON.parse(raw) };
+    } catch { /* ignore */ }
+    return { ...DEFAULT_GIZMO_SETTINGS };
+}
+
+function saveGizmoSettings(settings: GizmoSettings): void {
+    localStorage.setItem(GIZMO_SETTINGS_KEY, JSON.stringify(settings));
+}
+
 // =============================================================================
 // SceneViewPanel
 // =============================================================================
@@ -82,7 +96,7 @@ export class SceneViewPanel {
     private metadataCache_: Map<string, SliceBorder | null> = new Map();
     private loadingTextures_: Set<string> = new Set();
 
-    private gizmoSettings_: GizmoSettings = { ...DEFAULT_GIZMO_SETTINGS };
+    private gizmoSettings_: GizmoSettings = loadGizmoSettings();
     private settingsDropdown_: HTMLElement | null = null;
     private settingsDropdownClickHandler_: ((e: MouseEvent) => void) | null = null;
 
@@ -126,28 +140,28 @@ export class SceneViewPanel {
                         <div class="es-gizmo-settings-dropdown" style="display: none;">
                             <div class="es-settings-row">
                                 <label class="es-settings-checkbox">
-                                    <input type="checkbox" data-setting="showGrid" checked>
+                                    <input type="checkbox" data-setting="showGrid" ${this.gizmoSettings_.showGrid ? 'checked' : ''}>
                                     <span>Show Grid</span>
                                 </label>
                             </div>
                             <div class="es-settings-row">
                                 <label class="es-settings-label">Grid Color</label>
-                                <input type="color" data-setting="gridColor" value="#333333" class="es-color-input">
+                                <input type="color" data-setting="gridColor" value="${this.gizmoSettings_.gridColor}" class="es-color-input">
                             </div>
                             <div class="es-settings-row">
                                 <label class="es-settings-label">Grid Opacity</label>
-                                <input type="range" data-setting="gridOpacity" min="0" max="1" step="0.1" value="1" class="es-slider-input">
+                                <input type="range" data-setting="gridOpacity" min="0" max="1" step="0.1" value="${this.gizmoSettings_.gridOpacity}" class="es-slider-input">
                             </div>
                             <div class="es-settings-divider"></div>
                             <div class="es-settings-row">
                                 <label class="es-settings-checkbox">
-                                    <input type="checkbox" data-setting="showGizmos" checked>
+                                    <input type="checkbox" data-setting="showGizmos" ${this.gizmoSettings_.showGizmos ? 'checked' : ''}>
                                     <span>Show Gizmos</span>
                                 </label>
                             </div>
                             <div class="es-settings-row">
                                 <label class="es-settings-checkbox">
-                                    <input type="checkbox" data-setting="showSelectionBox" checked>
+                                    <input type="checkbox" data-setting="showSelectionBox" ${this.gizmoSettings_.showSelectionBox ? 'checked' : ''}>
                                     <span>Show Selection Box</span>
                                 </label>
                             </div>
@@ -462,6 +476,7 @@ export class SceneViewPanel {
                 } else if (input.type === 'color') {
                     (this.gizmoSettings_ as any)[setting] = input.value;
                 }
+                saveGizmoSettings(this.gizmoSettings_);
                 this.requestRender();
             });
 
