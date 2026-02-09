@@ -8,6 +8,9 @@ import { createEditor, ProjectLauncher, setPlatformAdapter, setEditorContext, ty
 import { TauriPlatformAdapter } from './TauriPlatformAdapter';
 import { nativeFS, nativeShell } from './native-fs';
 import { invoke } from '@tauri-apps/api/core';
+import { check } from '@tauri-apps/plugin-updater';
+import { relaunch } from '@tauri-apps/plugin-process';
+import { ask } from '@tauri-apps/plugin-dialog';
 import type { App, ESEngineModule } from 'esengine';
 
 let currentLauncher: ProjectLauncher | null = null;
@@ -73,6 +76,24 @@ async function openEditor(container: HTMLElement, projectPath: string): Promise<
     }
 }
 
+async function checkForUpdate(): Promise<void> {
+    try {
+        const update = await check();
+        if (!update) return;
+
+        const yes = await ask(
+            `New version ${update.version} is available. Update now?`,
+            { title: 'Update Available', kind: 'info', okLabel: 'Update', cancelLabel: 'Later' }
+        );
+        if (!yes) return;
+
+        await update.downloadAndInstall();
+        await relaunch();
+    } catch (e) {
+        console.warn('Update check failed:', e);
+    }
+}
+
 async function init(): Promise<void> {
     setPlatformAdapter(new TauriPlatformAdapter());
     setEditorContext({
@@ -89,6 +110,7 @@ async function init(): Promise<void> {
     }
 
     showLauncher(container);
+    checkForUpdate();
 }
 
 init().catch(console.error);

@@ -60,6 +60,8 @@
     },
     {
       "identifier": "fs:allow-unwatch"
-    }
+    },
+    "updater:default",
+    "process:allow-restart"
   ]
 }
