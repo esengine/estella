@@ -1,0 +1,138 @@
+---
+title: Spine 动画
+description: ESEngine 中的 Spine 骨骼动画
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`SpineAnimation` 组件播放 [Spine](http://esotericsoftware.com/) 骨骼动画。在场景编辑器中将它和 `LocalTransform` 一起添加到实体上。
+
+## 属性
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `skeletonPath` | string | `''` | 骨骼 JSON 文件路径 |
+| `atlasPath` | string | `''` | 图集文件路径 |
+| `skin` | string | `''` | 当前皮肤名 |
+| `animation` | string | `''` | 当前动画名 |
+| `timeScale` | number | `1.0` | 播放速度倍率 |
+| `loop` | boolean | `true` | 是否循环 |
+| `playing` | boolean | `true` | 是否正在播放 |
+| `flipX` | boolean | `false` | 水平翻转 |
+| `flipY` | boolean | `false` | 垂直翻转 |
+| `color` | Vec4 | `{1, 1, 1, 1}` | 着色 RGBA |
+| `layer` | number | `0` | 渲染顺序 |
+| `skeletonScale` | number | `1.0` | 骨骼缩放因子 |
+| `material` | number | `0` | 材质 ID |
+
+## 设置步骤
+
+1. 将 Spine 导出文件（`.json` + `.atlas` + 图片）放到项目的 `assets/` 文件夹
+2. 在场景编辑器中：创建实体 → 添加 `LocalTransform` 和 `SpineAnimation`
+3. 设置 `skeletonPath` 和 `atlasPath` 指向 Spine 文件
+4. 设置 `animation` 为要播放的动画名
+
+## 控制动画
+
+在系统中查询 `SpineAnimation` 组件来运行时切换动画：
+
+```typescript
+import { defineSystem, addSystem, Res, Input, Query, Mut, SpineAnimation } from 'esengine';
+import { Player } from './components';
+
+addSystem(defineSystem(
+    [Res(Input), Query(Mut(SpineAnimation), Player)],
+    (input, query) => {
+        for (const [entity, spine] of query) {
+            if (input.isKeyPressed('Space')) {
+                spine.animation = 'jump';
+                spine.loop = false;
+            } else if (input.isKeyDown('KeyD') || input.isKeyDown('KeyA')) {
+                spine.animation = 'run';
+                spine.loop = true;
+            } else {
+                spine.animation = 'idle';
+                spine.loop = true;
+            }
+        }
+    }
+));
+```
+
+## 皮肤
+
+切换皮肤改变角色外观：
+
+```typescript
+spine.skin = 'warrior';
+```
+
+## 播放控制
+
+```typescript
+spine.playing = false;   // 暂停
+spine.playing = true;    // 恢复
+spine.timeScale = 2.0;   // 两倍速
+spine.timeScale = 0.5;   // 半速
+```
+
+## 翻转
+
+```typescript
+spine.flipX = true;    // 面朝左
+spine.flipX = false;   // 面朝右（默认）
+```
+
+## 颜色着色
+
+```typescript
+spine.color = { x: 1, y: 0, z: 0, w: 1 };    // 红色
+spine.color = { x: 1, y: 1, z: 1, w: 0.5 };   // 50% 透明
+```
+
+## 示例：角色控制器
+
+定义 `CharacterState` 组件，在编辑器中与 `SpineAnimation` 一起挂载到实体上：
+
+```typescript
+import {
+    defineComponent, defineSystem, addSystem,
+    Res, Input, Time, Query, Mut, LocalTransform, SpineAnimation
+} from 'esengine';
+
+const CharacterState = defineComponent('CharacterState', {
+    speed: 200,
+    currentAnim: 'idle'
+});
+
+addSystem(defineSystem(
+    [Res(Input), Res(Time), Query(Mut(LocalTransform), Mut(SpineAnimation), CharacterState)],
+    (input, time, query) => {
+        for (const [entity, transform, spine, state] of query) {
+            let moving = false;
+
+            if (input.isKeyDown('KeyD')) {
+                transform.position.x += state.speed * time.delta;
+                spine.flipX = false;
+                moving = true;
+            }
+            if (input.isKeyDown('KeyA')) {
+                transform.position.x -= state.speed * time.delta;
+                spine.flipX = true;
+                moving = true;
+            }
+
+            const newAnim = moving ? 'run' : 'idle';
+            if (state.currentAnim !== newAnim) {
+                state.currentAnim = newAnim;
+                spine.animation = newAnim;
+                spine.loop = true;
+            }
+        }
+    }
+));
+```
+
+<Aside type="tip">
+  Spine 渲染由 C++ 后端处理。TypeScript 只负责设置组件数据 — 引擎自动处理加载、混合和绘制。
+</Aside>

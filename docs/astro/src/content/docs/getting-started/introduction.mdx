@@ -3,46 +3,36 @@ title: Introduction
 description: Learn what ESEngine is and why you might want to use it
 ---
 
-ESEngine is a lightweight 2D game engine with a **TypeScript SDK** powered by a **C++/WebAssembly** backend. Build games that run in web browsers and WeChat MiniGames with excellent performance.
+ESEngine is a lightweight 2D game engine with a **TypeScript SDK** powered by a **C++/WebAssembly** backend. It comes with a visual editor for scene editing and project management, and outputs games that run in web browsers and WeChat MiniGames.
 
 ## Why ESEngine?
 
-### TypeScript-First Development
+### Visual Editor + TypeScript Scripting
 
-Write your game logic in TypeScript with a modern, type-safe ECS API:
+Use the editor to create projects, place entities in scenes, and attach components visually. Write game logic in TypeScript — define custom components and systems that operate on scene entities:
 
 ```typescript
-import { createWebApp, defineSystem, Schedule, Commands, Query, Res, Time, LocalTransform, Sprite } from 'esengine';
+import { defineComponent, defineSystem, addSystem, Query, Mut, Res, Time, LocalTransform } from 'esengine';
 
-const app = createWebApp(Module);
+const Speed = defineComponent('Speed', { value: 200 });
 
-app.addSystemToSchedule(Schedule.Update, defineSystem(
-    [Res(Time), Query(LocalTransform, Sprite)],
+addSystem(defineSystem(
+    [Res(Time), Query(Mut(LocalTransform), Speed)],
     (time, query) => {
-        for (const [entity, transform, sprite] of query) {
-            transform.position.x = Math.sin(time.elapsed) * 100;
+        for (const [entity, transform, speed] of query) {
+            transform.position.x += speed.value * time.delta;
         }
     }
 ));
-
-app.run();
 ```
 
-### High Performance C++ Backend
+### High Performance
 
-The rendering and core ECS are implemented in C++ and compiled to WebAssembly:
+Rendering and core systems are implemented in C++ and compiled to WebAssembly, delivering native-level performance with small binary sizes and fast load times.
 
-- **Small binary size** - Optimized for fast initial load times
-- **Native performance** - C++ rendering pipeline
-- **Type-safe bridge** - TypeScript types match C++ components
+### Cross-Platform
 
-### WeChat MiniGame Support
-
-First-class support for WeChat MiniGames platform:
-
-- Optimized touch input handling
-- WeChat-specific APIs (share, ad, payment)
-- Tested on real devices
+Single codebase targeting web browsers and WeChat MiniGames with platform-specific adapters.
 
 ## When to Use ESEngine
 
@@ -58,27 +48,8 @@ ESEngine may not be the best choice for:
 - 3D games (2D only)
 - Desktop-only games (use a native engine)
 
-## Architecture Overview
-
-```
-┌─────────────────────────────────────────────────────┐
-│                 Your Game (TypeScript)              │
-│  Systems │ Components │ Queries │ Resources         │
-├─────────────────────────────────────────────────────┤
-│                  ESEngine SDK                       │
-│  App │ World │ Commands │ defineSystem              │
-├─────────────────────────────────────────────────────┤
-│               C++ WASM Backend                      │
-│  Registry │ Renderer │ Input │ ResourceManager      │
-├─────────────────────────────────────────────────────┤
-│              Emscripten / WebGL                     │
-└─────────────────────────────────────────────────────┘
-```
-
 ## Next Steps
 
-Ready to get started?
-
-1. [Install the prerequisites](/microes/getting-started/installation/)
+1. [Install the editor](/microes/getting-started/installation/)
 2. [Create your first game](/microes/getting-started/quick-start/)
-3. [Learn about ECS](/microes/guides/ecs/)
+3. [Learn about ECS](/microes/core-concepts/ecs/)

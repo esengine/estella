@@ -1,0 +1,141 @@
+---
+title: ECS Architecture
+description: Understanding the Entity-Component-System pattern in ESEngine
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+ESEngine uses an Entity-Component-System (ECS) architecture for game object management. ECS separates **identity** (Entity), **data** (Component), and **behavior** (System).
+
+## What is ECS?
+
+| Concept | Role | Example |
+|---------|------|---------|
+| **Entity** | A unique identifier (just a number) | Player, Enemy, Bullet |
+| **Component** | Data attached to an entity | LocalTransform, Sprite, Health |
+| **System** | Logic that operates on entities with specific components | MovementSystem, RenderSystem |
+
+<Aside type="tip">
+  ECS favors **composition over inheritance**. Instead of a deep class hierarchy, you build game objects by combining small, reusable components.
+</Aside>
+
+## Why ECS?
+
+Traditional OOP approach:
+
+```
+GameObject
+├── Player extends GameObject
+│   ├── FlyingPlayer extends Player
+│   └── SwimmingPlayer extends Player
+└── Enemy extends GameObject
+    └── FlyingEnemy extends Enemy
+```
+
+ECS approach — compose behaviors freely:
+
+```
+Player  = Entity + LocalTransform + Sprite + Health + PlayerInput
+Enemy   = Entity + LocalTransform + Sprite + Health + AI
+Bullet  = Entity + LocalTransform + Sprite + Velocity + Damage
+```
+
+Benefits:
+
+- **Composition** — mix and match components without rigid hierarchies
+- **Data locality** — components of the same type are stored contiguously, improving cache performance
+- **Separation of concerns** — systems contain logic, components hold data
+- **Flexibility** — add or remove components at runtime to change behavior
+
+## Entities
+
+An entity is just a number (ID). In ESEngine, entities are typically created in the **scene editor** — you place them visually, add components, and configure their properties.
+
+Entities can also be spawned at runtime with `Commands` (e.g. bullets, particles):
+
+```typescript
+import { defineSystem, addStartupSystem, Commands, type Entity } from 'esengine';
+
+addStartupSystem(defineSystem([Commands()], (cmds) => {
+    const bullet: Entity = cmds.spawn().id();
+    cmds.despawn(bullet);
+}));
+```
+
+## Components
+
+Components are data attached to entities. You **define** components in code, then **attach** them to entities in the scene editor.
+
+- **Builtin components** — LocalTransform, Sprite, Camera, etc. (always available in the editor)
+- **Custom components** — defined with `defineComponent` / `defineTag` (appear in the editor after saving)
+
+```typescript
+import { defineComponent, defineTag } from 'esengine';
+
+const Health = defineComponent('Health', { current: 100, max: 100 });
+const Player = defineTag('Player');
+```
+
+After defining these, open the editor, select an entity, and add `Health` or `Player` from the "Add Component" menu.
+
+See [Components](/microes/core-concepts/components/) for the full API.
+
+## Systems
+
+Systems are functions that query entities with specific components and operate on them. They run automatically on all matching entities in the scene.
+
+```typescript
+import { defineSystem, addSystem, Res, Time, Query, Mut, LocalTransform } from 'esengine';
+import { Health } from './components';
+
+addSystem(defineSystem(
+    [Res(Time), Query(Mut(LocalTransform), Health)],
+    (time, query) => {
+        for (const [entity, transform, health] of query) {
+            if (health.current <= 0) {
+                transform.position.y -= 100 * time.delta;
+            }
+        }
+    }
+));
+```
+
+See [Systems](/microes/core-concepts/systems/) for the full API.
+
+## ECS Flow
+
+```
+ ┌──────────────────────┐
+ │  Editor: Scene Setup  │  Place entities, attach components
+ └──────────┬───────────┘
+            ▼
+ ┌──────────────────────┐
+ │  Scripts: Define      │  defineComponent + defineSystem + addSystem
+ └──────────┬───────────┘
+            ▼
+ ┌──────────┐
+ │ Startup  │  Startup systems run once
+ └────┬─────┘
+      ▼
+ ┌──────────┐
+ │  Update  │◄─┐  Systems query scene entities every frame
+ └────┬─────┘  │
+      ▼        │
+ ┌──────────┐  │
+ │  Render  │  │  C++ backend draws all Sprites/Cameras
+ └────┬─────┘  │
+      └────────┘
+```
+
+1. **Scene setup** — place entities and attach components in the editor
+2. **Scripts** — define custom components and register systems
+3. **Startup** — startup systems run once
+4. **Update loop** — systems query and process scene entities every frame
+5. **Render** — the C++ backend automatically renders all entities with `Sprite` and `Camera` components
+
+## Next Steps
+
+- [Components](/microes/core-concepts/components/) — builtin and custom components
+- [Systems](/microes/core-concepts/systems/) — defining and scheduling systems
+- [Queries](/microes/core-concepts/queries/) — querying entities
+- [Resources](/microes/core-concepts/resources/) — global singleton data

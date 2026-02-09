@@ -1,0 +1,171 @@
+---
+title: Asset Loading
+description: Loading textures, Spine data, and other assets in ESEngine
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+ESEngine provides the `Assets` resource (an `AssetServer` instance) for loading textures, Spine animations, materials, and generic files. Access it in any system via `Res(Assets)`.
+
+## Accessing Assets
+
+```typescript
+import { defineSystem, addStartupSystem, Res } from 'esengine';
+import { Assets } from 'esengine';
+
+addStartupSystem(defineSystem(
+    [Res(Assets)],
+    async (assets) => {
+        const tex = await assets.loadTexture('assets/player.png');
+        console.log(`Loaded ${tex.width}x${tex.height}, handle: ${tex.handle}`);
+    }
+));
+```
+
+## Texture Loading
+
+### loadTexture(path)
+
+Loads an image and returns a `TextureInfo` object. The image is automatically flipped vertically for OpenGL UV conventions.
+
+```typescript
+const tex = await assets.loadTexture('assets/player.png');
+sprite.texture = tex.handle;
+```
+
+**Returns:** `TextureInfo { handle: TextureHandle, width: number, height: number }`
+
+### Other Texture Methods
+
+| Method | Description |
+|--------|-------------|
+| `getTexture(path)` | Returns cached `TextureInfo` if already loaded, `undefined` otherwise |
+| `hasTexture(path)` | Returns `true` if the texture is cached |
+| `releaseTexture(path)` | Releases the texture from GPU memory and cache |
+| `releaseAll()` | Releases all cached assets |
+
+### 9-Slice Metadata
+
+For 9-slice sprites, set border metadata after loading:
+
+```typescript
+const tex = await assets.loadTexture('assets/panel.png');
+assets.setTextureMetadata(tex.handle, {
+    left: 10, right: 10, top: 10, bottom: 10
+});
+```
+
+## Spine Loading
+
+```typescript
+const result = await assets.loadSpine('assets/hero.json', 'assets/hero.atlas');
+if (!result.success) {
+    console.error(result.error);
+}
+```
+
+`loadSpine` automatically:
+1. Fetches the atlas file and writes it to the virtual filesystem
+2. Parses the atlas for texture filenames and loads each texture
+3. Fetches the skeleton file (`.json` or `.skel` binary) and writes it to the virtual filesystem
+
+| Method | Description |
+|--------|-------------|
+| `loadSpine(skeleton, atlas, baseUrl?)` | Load Spine skeleton and atlas |
+| `isSpineLoaded(skeleton, atlas)` | Check if a Spine asset pair is already loaded |
+
+## Generic File Loading
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `loadJson<T>(path, options?)` | `Promise<T>` | Load and parse a JSON file |
+| `loadText(path, options?)` | `Promise<string>` | Load a text file |
+| `loadBinary(path, options?)` | `Promise<ArrayBuffer>` | Load a binary file |
+
+```typescript
+const config = await assets.loadJson<GameConfig>('assets/config.json');
+const csv = await assets.loadText('assets/levels.csv');
+const data = await assets.loadBinary('assets/tilemap.bin');
+```
+
+### FileLoadOptions
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `baseUrl` | string | Override the base URL for this request |
+| `noCache` | boolean | Skip cache — always fetch from network |
+
+## Batch Loading
+
+Load multiple assets in parallel with `loadAll`:
+
+```typescript
+const bundle = await assets.loadAll({
+    textures: ['assets/bg.png', 'assets/player.png'],
+    spine: [{ skeleton: 'assets/hero.json', atlas: 'assets/hero.atlas' }],
+    json: ['assets/config.json'],
+});
+
+// Access loaded assets from the bundle
+const bgTex = bundle.textures.get('assets/bg.png');
+const config = bundle.json.get('assets/config.json');
+```
+
+### AssetManifest
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `textures` | string[] | Texture image paths |
+| `materials` | string[] | Material file paths (.material) |
+| `spine` | SpineDescriptor[] | Spine skeleton/atlas pairs |
+| `json` | string[] | JSON file paths |
+| `text` | string[] | Text file paths |
+| `binary` | string[] | Binary file paths |
+
+### AssetBundle
+
+The returned `AssetBundle` contains Maps keyed by path:
+
+| Field | Type |
+|-------|------|
+| `textures` | `Map<string, TextureInfo>` |
+| `materials` | `Map<string, LoadedMaterial>` |
+| `spine` | `Map<string, SpineLoadResult>` |
+| `json` | `Map<string, unknown>` |
+| `text` | `Map<string, string>` |
+| `binary` | `Map<string, ArrayBuffer>` |
+
+## Material Loading
+
+```typescript
+const loaded = await assets.loadMaterial('assets/effects/glow.material');
+sprite.material = loaded.handle;
+```
+
+See [Materials & Shaders](/microes/guides/materials/) for the full material API and `.material` file format.
+
+## Caching
+
+All load methods cache by path. Loading the same path twice returns the cached result without a network request. Use the `noCache` option on generic file loaders to bypass caching:
+
+```typescript
+const fresh = await assets.loadJson('assets/config.json', { noCache: true });
+```
+
+## Base URL
+
+Set `assets.baseUrl` to prefix all relative paths:
+
+```typescript
+assets.baseUrl = 'https://cdn.example.com/game';
+const tex = await assets.loadTexture('sprites/player.png');
+// fetches https://cdn.example.com/game/sprites/player.png
+```
+
+Absolute paths and full URLs are not affected by `baseUrl`.
+
+## Next Steps
+
+- [Materials & Shaders](/microes/guides/materials/) — custom shaders and blend modes
+- [Sprite](/microes/guides/sprite/) — using textures with sprites
+- [Spine Animation](/microes/guides/spine/) — Spine skeletal animation

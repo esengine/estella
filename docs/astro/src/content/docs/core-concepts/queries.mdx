@@ -1,0 +1,153 @@
+---
+title: Queries
+description: Querying entities by component in ESEngine
+---
+
+Queries let you iterate over entities that have specific components. They are the primary way systems access entity data from the scene.
+
+## Basic Query
+
+A query matches all entities in the scene that have **all** the listed components:
+
+```typescript
+import { defineSystem, addSystem, Query, Mut, LocalTransform, Sprite } from 'esengine';
+
+addSystem(defineSystem([Query(Mut(LocalTransform), Sprite)], (query) => {
+    for (const [entity, transform, sprite] of query) {
+        transform.position.x += 1;
+    }
+}));
+```
+
+The `for...of` loop yields tuples of `[entity, ...components]` in the same order as the query parameters.
+
+## Mutable Queries
+
+By default, query results are read-only. Use `Mut()` to get mutable access to specific components:
+
+```typescript
+import { Query, Mut, LocalTransform, Sprite } from 'esengine';
+
+defineSystem(
+    [Query(Mut(LocalTransform), Sprite)],
+    (query) => {
+        for (const [entity, transform, sprite] of query) {
+            transform.position.x += 1;   // writable
+            // sprite is read-only
+        }
+    }
+);
+```
+
+## Iteration Methods
+
+### for...of
+
+```typescript
+for (const [entity, transform, sprite] of query) {
+    transform.position.x += 1;
+}
+```
+
+### forEach
+
+```typescript
+query.forEach((entity, transform, sprite) => {
+    transform.position.x += 1;
+});
+```
+
+### single
+
+Get the one and only matching entity. Returns `null` if there are zero or more than one matches.
+
+```typescript
+const result = query.single();
+if (result) {
+    const [entity, transform, sprite] = result;
+    // ...
+}
+```
+
+### Utility Methods
+
+```typescript
+query.isEmpty();   // true if no entities match
+query.count();     // number of matching entities
+query.toArray();   // collect all results into an array
+```
+
+## Multiple Queries
+
+A system can have multiple queries to cross-reference different entity types:
+
+```typescript
+import { defineTag } from 'esengine';
+
+const Player = defineTag('Player');
+const Enemy = defineTag('Enemy');
+
+defineSystem(
+    [Query(LocalTransform, Player), Query(LocalTransform, Enemy)],
+    (players, enemies) => {
+        for (const [_, playerTransform] of players) {
+            for (const [_, enemyTransform] of enemies) {
+                // Check distance between player and each enemy
+            }
+        }
+    }
+);
+```
+
+## Combining with Resources
+
+Queries are often used together with resources:
+
+```typescript
+import { Res, Time, Input, Query, Mut, LocalTransform } from 'esengine';
+
+defineSystem(
+    [Res(Time), Res(Input), Query(Mut(LocalTransform), Player)],
+    (time, input, query) => {
+        for (const [entity, transform] of query) {
+            if (input.isKeyDown('KeyD')) {
+                transform.position.x += 200 * time.delta;
+            }
+        }
+    }
+);
+```
+
+## Example: Collision Detection
+
+Define `Hitbox`, `Player`, and `Enemy` components, attach them to entities in the scene editor, then query:
+
+```typescript
+import { defineSystem, defineComponent, defineTag, addSystem, Query, LocalTransform } from 'esengine';
+
+const Hitbox = defineComponent('Hitbox', { width: 50, height: 50 });
+const Player = defineTag('Player');
+const Enemy = defineTag('Enemy');
+
+addSystem(defineSystem(
+    [Query(LocalTransform, Hitbox, Player), Query(LocalTransform, Hitbox, Enemy)],
+    (players, enemies) => {
+        for (const [_, pPos, pBox] of players) {
+            for (const [_, ePos, eBox] of enemies) {
+                const dx = Math.abs(pPos.position.x - ePos.position.x);
+                const dy = Math.abs(pPos.position.y - ePos.position.y);
+
+                if (dx < (pBox.width + eBox.width) / 2 &&
+                    dy < (pBox.height + eBox.height) / 2) {
+                    // Collision!
+                }
+            }
+        }
+    }
+));
+```
+
+## Next Steps
+
+- [Resources](/microes/core-concepts/resources/) — global singleton data like Time and Input
+- [Components](/microes/core-concepts/components/) — all builtin and custom component types

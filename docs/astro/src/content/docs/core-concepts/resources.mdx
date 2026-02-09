@@ -1,0 +1,167 @@
+---
+title: Resources
+description: Global singleton data in ESEngine
+---
+
+Resources are global singletons — they exist once in the entire app, not attached to any entity. Use them for shared state like time, input, and game configuration.
+
+## Accessing Resources
+
+### Res (read-only)
+
+```typescript
+import { defineSystem, Res, Time } from 'esengine';
+
+defineSystem([Res(Time)], (time) => {
+    console.log(`Delta: ${time.delta}s, Elapsed: ${time.elapsed}s`);
+});
+```
+
+### ResMut (mutable)
+
+```typescript
+import { defineSystem, ResMut } from 'esengine';
+
+defineSystem([ResMut(GameState)], (state) => {
+    state.value.score += 10;
+});
+```
+
+`ResMut` wraps the resource value. Access the data with `.value`, or use `.modify()`:
+
+```typescript
+defineSystem([ResMut(GameState)], (state) => {
+    state.modify((s) => {
+        s.score += 10;
+        s.level = Math.floor(s.score / 100) + 1;
+    });
+});
+```
+
+## Builtin Resources
+
+### Time
+
+Frame timing information. Available automatically.
+
+```typescript
+import { Res, Time } from 'esengine';
+
+defineSystem([Res(Time)], (time) => {
+    time.delta;       // Seconds since last frame
+    time.elapsed;     // Total elapsed seconds
+    time.frameCount;  // Total frames rendered
+});
+```
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `delta` | number | Seconds since last frame |
+| `elapsed` | number | Total elapsed seconds |
+| `frameCount` | number | Total frames rendered |
+
+### Input
+
+Keyboard and mouse state. Available automatically.
+
+```typescript
+import { Res, Input } from 'esengine';
+
+defineSystem([Res(Input)], (input) => {
+    if (input.isKeyDown('Space')) {
+        // Space is held
+    }
+    if (input.isKeyPressed('KeyE')) {
+        // E was just pressed this frame
+    }
+});
+```
+
+| Method | Description |
+|--------|-------------|
+| `isKeyDown(code)` | Key is currently held |
+| `isKeyPressed(code)` | Key was pressed this frame |
+| `isKeyReleased(code)` | Key was released this frame |
+| `getMousePosition()` | Returns `{ x, y }` |
+| `isMouseButtonDown(button)` | Mouse button held (0=left, 2=right) |
+
+## Custom Resources
+
+### defineResource
+
+```typescript
+import { defineResource } from 'esengine';
+
+const GameState = defineResource({
+    score: 0,
+    level: 1,
+    paused: false
+});
+```
+
+### Inserting Resources
+
+Insert a resource via `Commands` in a startup system:
+
+```typescript
+import { addStartupSystem, defineSystem, Commands } from 'esengine';
+
+addStartupSystem(defineSystem([Commands()], (cmds) => {
+    cmds.insertResource(GameState, { score: 0, level: 1, paused: false });
+}));
+```
+
+### Reading and Writing
+
+```typescript
+// Read-only
+defineSystem([Res(GameState)], (state) => {
+    console.log(`Score: ${state.score}`);
+});
+
+// Mutable
+defineSystem([ResMut(GameState)], (state) => {
+    state.value.score += 10;
+});
+```
+
+## Example: Score Tracking
+
+Define a `Coin` tag, attach it to coin entities in the scene, and track score with a resource:
+
+```typescript
+import {
+    defineSystem, defineResource, defineTag,
+    addStartupSystem, addSystem, Commands, Query, ResMut,
+    LocalTransform
+} from 'esengine';
+
+const Score = defineResource({ value: 0 });
+const Coin = defineTag('Coin');
+const Player = defineTag('Player');
+
+addStartupSystem(defineSystem([Commands()], (cmds) => {
+    cmds.insertResource(Score, { value: 0 });
+}));
+
+addSystem(defineSystem(
+    [Commands(), ResMut(Score), Query(LocalTransform, Player), Query(LocalTransform, Coin)],
+    (cmds, score, players, coins) => {
+        for (const [_, pPos] of players) {
+            for (const [coinEntity, cPos] of coins) {
+                const dx = pPos.position.x - cPos.position.x;
+                const dy = pPos.position.y - cPos.position.y;
+                if (Math.sqrt(dx * dx + dy * dy) < 30) {
+                    cmds.despawn(coinEntity);
+                    score.value.value += 1;
+                }
+            }
+        }
+    }
+));
+```
+
+## Next Steps
+
+- [Systems](/microes/core-concepts/systems/) — how systems use resources and queries
+- [Components](/microes/core-concepts/components/) — data attached to entities

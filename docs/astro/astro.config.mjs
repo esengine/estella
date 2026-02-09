@@ -14,7 +14,7 @@ export default defineConfig({
   integrations: [
     starlight({
       title: 'ESEngine',
-      description: 'A lightweight C++17 game engine for WebAssembly and WeChat MiniGames',
+      description: 'A lightweight 2D game engine for web and WeChat MiniGames',
       logo: {
         light: './src/assets/logo-light.svg',
         dark: './src/assets/logo-dark.svg',
@@ -29,35 +29,49 @@ export default defineConfig({
       customCss: [
         './src/styles/custom.css',
       ],
+      defaultLocale: 'root',
+      locales: {
+        root: { label: 'English', lang: 'en' },
+        zh: { label: '简体中文', lang: 'zh-CN' },
+      },
       sidebar: [
         {
           label: 'Getting Started',
+          translations: { 'zh-CN': '快速上手' },
           items: [
-            { label: 'Introduction', slug: 'getting-started/introduction' },
-            { label: 'Installation', slug: 'getting-started/installation' },
-            { label: 'Quick Start', slug: 'getting-started/quick-start' },
+            { label: 'Introduction', translations: { 'zh-CN': '简介' }, slug: 'getting-started/introduction' },
+            { label: 'Installation', translations: { 'zh-CN': '安装' }, slug: 'getting-started/installation' },
+            { label: 'Quick Start', translations: { 'zh-CN': '快速开始' }, slug: 'getting-started/quick-start' },
+          ],
+        },
+        {
+          label: 'Core Concepts',
+          translations: { 'zh-CN': '核心概念' },
+          items: [
+            { label: 'ECS Architecture', translations: { 'zh-CN': 'ECS 架构' }, slug: 'core-concepts/ecs' },
+            { label: 'Components', translations: { 'zh-CN': '组件' }, slug: 'core-concepts/components' },
+            { label: 'Systems', translations: { 'zh-CN': '系统' }, slug: 'core-concepts/systems' },
+            { label: 'Queries', translations: { 'zh-CN': '查询' }, slug: 'core-concepts/queries' },
+            { label: 'Resources', translations: { 'zh-CN': '资源' }, slug: 'core-concepts/resources' },
           ],
         },
         {
           label: 'Guides',
+          translations: { 'zh-CN': '指南' },
           items: [
-            { label: 'Project Structure', slug: 'guides/project-structure' },
-            { label: 'ECS Architecture', slug: 'guides/ecs' },
-            { label: 'Rendering', slug: 'guides/rendering' },
-            { label: 'Input Handling', slug: 'guides/input' },
-          ],
-        },
-        {
-          label: 'Platforms',
-          items: [
-            { label: 'Web (Emscripten)', slug: 'platforms/web' },
-            { label: 'WeChat MiniGame', slug: 'platforms/wechat' },
-          ],
-        },
-        {
-          label: 'API Reference',
-          items: [
-            { label: 'Overview', slug: 'api/overview' },
+            {
+              label: 'Rendering',
+              translations: { 'zh-CN': '渲染' },
+              items: [
+                { label: 'Overview', translations: { 'zh-CN': '概览' }, slug: 'guides/rendering' },
+                { label: 'Sprite', translations: { 'zh-CN': '精灵' }, slug: 'guides/sprite' },
+                { label: 'Spine Animation', translations: { 'zh-CN': 'Spine 动画' }, slug: 'guides/spine' },
+              ],
+            },
+            { label: 'Input Handling', translations: { 'zh-CN': '输入处理' }, slug: 'guides/input' },
+            { label: 'UI & Text', translations: { 'zh-CN': 'UI 与文本' }, slug: 'guides/ui' },
+            { label: 'Asset Loading', translations: { 'zh-CN': '资源加载' }, slug: 'guides/assets' },
+            { label: 'Materials & Shaders', translations: { 'zh-CN': '材质与着色器' }, slug: 'guides/materials' },
           ],
         },
       ],

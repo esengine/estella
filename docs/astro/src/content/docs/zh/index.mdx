@@ -1,0 +1,73 @@
+---
+title: ESEngine
+description: 轻量级 2D 游戏引擎，适用于 Web 和微信小游戏
+template: splash
+hero:
+  tagline: 使用 TypeScript 和 WebAssembly 构建 2D 游戏
+  image:
+    file: ../../../assets/hero.svg
+  actions:
+    - text: 快速上手
+      link: /microes/zh/getting-started/introduction/
+      icon: right-arrow
+      variant: primary
+    - text: 在 GitHub 上查看
+      link: https://github.com/esengine/microes
+      icon: external
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## 特性
+
+<CardGrid stagger>
+  <Card title="ECS 架构" icon="puzzle">
+    面向数据的实体-组件-系统设计。通过可复用的组件组合游戏对象，用系统驱动行为。
+  </Card>
+  <Card title="WebGL 渲染" icon="laptop">
+    C++ 渲染管线编译为 WebAssembly。开箱即用的精灵、相机、Spine 动画和自定义着色器。
+  </Card>
+  <Card title="跨平台" icon="rocket">
+    一套代码同时运行在 Web 浏览器和微信小游戏，通过平台适配器实现。
+  </Card>
+  <Card title="TypeScript SDK" icon="seti:typescript">
+    类型安全的 API：`defineSystem`、`defineComponent`、`Query` — 用地道的 TypeScript 编写游戏逻辑。
+  </Card>
+</CardGrid>
+
+## 快速示例
+
+定义自定义组件，在场景编辑器中挂到实体上，然后编写系统：
+
+```typescript
+import {
+    defineComponent, defineSystem, addSystem,
+    Query, Res, Time, Mut, LocalTransform
+} from 'esengine';
+
+const Speed = defineComponent('Speed', { value: 200 });
+
+addSystem(defineSystem(
+    [Res(Time), Query(Mut(LocalTransform), Speed)],
+    (time, query) => {
+        for (const [entity, transform, speed] of query) {
+            transform.position.x += speed.value * time.delta;
+        }
+    }
+));
+```
+
+## 下一步
+
+<CardGrid>
+  <Card title="简介" icon="open-book">
+    了解 ESEngine 是什么以及它如何工作。
+
+    [阅读更多 →](/microes/zh/getting-started/introduction/)
+  </Card>
+  <Card title="快速开始" icon="rocket">
+    几分钟内创建你的第一个游戏。
+
+    [开始 →](/microes/zh/getting-started/quick-start/)
+  </Card>
+</CardGrid>

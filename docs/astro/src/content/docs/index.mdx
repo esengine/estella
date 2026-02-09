@@ -1,9 +1,9 @@
 ---
-title: ESEngine Documentation
-description: A lightweight C++17 game engine for WebAssembly and WeChat MiniGames
+title: ESEngine
+description: A lightweight 2D game engine for web and WeChat MiniGames
 template: splash
 hero:
-  tagline: Build high-performance games for the web with modern C++
+  tagline: Build 2D games for the web with TypeScript and WebAssembly
   image:
     file: ../../assets/hero.svg
   actions:
@@ -22,52 +22,52 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
 
 <CardGrid stagger>
   <Card title="ECS Architecture" icon="puzzle">
-    Data-oriented Entity-Component-System design for cache-friendly, high-performance game logic.
+    Data-oriented Entity-Component-System design. Compose game objects from reusable components and drive behavior with systems.
   </Card>
   <Card title="WebGL Rendering" icon="laptop">
-    OpenGL ES 2.0/3.0 compatible graphics pipeline optimized for WebAssembly.
+    C++ rendering pipeline compiled to WebAssembly. Sprites, cameras, Spine animations, and custom shaders out of the box.
   </Card>
   <Card title="Cross-Platform" icon="rocket">
-    Single codebase targeting Web browsers and WeChat MiniGames.
+    Single codebase targeting web browsers and WeChat MiniGames with platform-specific adapters.
   </Card>
-  <Card title="Lightweight" icon="seti:todo">
-    Minimal dependencies with optimized binary size for fast loading.
+  <Card title="TypeScript SDK" icon="seti:typescript">
+    Type-safe API with `defineSystem`, `defineComponent`, and `Query` — write game logic in idiomatic TypeScript.
   </Card>
 </CardGrid>
 
 ## Quick Example
 
-```cpp
-#include <esengine/ESEngine.hpp>
+Define a custom component, attach it to entities in the scene editor, then write a system:
 
-class MyGame : public esengine::Application {
-protected:
-    void onInit() override {
-        auto player = getRegistry().create();
-        getRegistry().emplace<Position>(player, 0.0f, 0.0f);
-    }
+```typescript
+import {
+    defineComponent, defineSystem, addSystem,
+    Query, Mut, Res, Time, LocalTransform
+} from 'esengine';
 
-    void onUpdate(float dt) override {
-        for (auto [e, pos] : getRegistry().view<Position>().each()) {
-            pos.x += 100.0f * dt;
+const Speed = defineComponent('Speed', { value: 200 });
+
+addSystem(defineSystem(
+    [Res(Time), Query(Mut(LocalTransform), Speed)],
+    (time, query) => {
+        for (const [entity, transform, speed] of query) {
+            transform.position.x += speed.value * time.delta;
         }
     }
-};
-
-ES_MAIN(MyGame)
+));
 ```
 
 ## Next Steps
 
 <CardGrid>
-  <Card title="Installation" icon="setting">
-    Set up your development environment with CMake and Emscripten.
+  <Card title="Introduction" icon="open-book">
+    Learn what ESEngine is and how it works.
 
-    [Read the guide →](/microes/getting-started/installation/)
+    [Read more →](/microes/getting-started/introduction/)
   </Card>
-  <Card title="API Reference" icon="open-book">
-    Explore the complete API documentation generated from source.
+  <Card title="Quick Start" icon="rocket">
+    Create your first game in minutes.
 
-    [Browse API →](/microes/api/overview/)
+    [Get started →](/microes/getting-started/quick-start/)
   </Card>
 </CardGrid>

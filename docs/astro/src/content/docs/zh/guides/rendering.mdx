@@ -1,0 +1,100 @@
+---
+title: 渲染
+description: ESEngine 中的相机、变换和渲染顺序
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+ESEngine 使用基于组件的渲染系统。在场景编辑器中为实体添加渲染组件，C++ 后端自动处理绘制。
+
+各渲染组件的详细指南参见[精灵](/microes/zh/guides/sprite/)和 [Spine 动画](/microes/zh/guides/spine/)。
+
+## 相机
+
+需要 `Camera` 组件才能看到内容。编辑器的默认场景已包含一个。
+
+### Camera 属性
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `projectionType` | number | 0 = 透视，1 = 正交 |
+| `fov` | number | 视角角度（仅透视） |
+| `orthoSize` | number | 半高世界单位（仅正交） |
+| `nearPlane` | number | 近裁剪面 |
+| `farPlane` | number | 远裁剪面 |
+| `isActive` | boolean | 是否用于渲染 |
+| `priority` | number | 高优先级相机优先 |
+
+### 正交相机
+
+2D 游戏最佳选择。`orthoSize` 决定可见的世界范围。在检查器中将 `projectionType` 设为 `1`。
+
+### 移动相机
+
+查询相机实体并修改其 transform：
+
+```typescript
+import { defineSystem, addSystem, Res, Input, Query, Mut, LocalTransform, Camera } from 'esengine';
+
+addSystem(defineSystem(
+    [Res(Input), Query(Mut(LocalTransform), Camera)],
+    (input, query) => {
+        for (const [entity, transform, camera] of query) {
+            if (input.isKeyDown('ArrowLeft')) {
+                transform.position.x -= 5;
+            }
+            if (input.isKeyDown('ArrowRight')) {
+                transform.position.x += 5;
+            }
+        }
+    }
+));
+```
+
+## Transform
+
+每个可见实体都需要 `LocalTransform`。在场景编辑器中添加并在检查器中配置位置、旋转和缩放。
+
+### 旋转
+
+旋转使用四元数。绕 Z 轴的 2D 旋转：
+
+```typescript
+import { defineSystem, addSystem, Res, Time, Query, Mut, LocalTransform, Sprite } from 'esengine';
+
+addSystem(defineSystem(
+    [Res(Time), Query(Mut(LocalTransform), Sprite)],
+    (time, query) => {
+        for (const [entity, transform, sprite] of query) {
+            const angle = time.elapsed;
+            const halfAngle = angle / 2;
+            transform.rotation = {
+                w: Math.cos(halfAngle),
+                x: 0,
+                y: 0,
+                z: Math.sin(halfAngle)
+            };
+        }
+    }
+));
+```
+
+### 缩放
+
+```typescript
+transform.scale = { x: 2, y: 2, z: 1 };   // 放大两倍
+transform.scale = { x: -1, y: 1, z: 1 };  // 水平翻转
+```
+
+## 渲染顺序
+
+精灵按以下顺序绘制：
+
+1. **Z 坐标** (`transform.position.z`) — Z 值越小越先绘制（在后面）
+2. **Layer** (`sprite.layer`) — layer 值越大越在上面
+
+在检查器中设置或运行时修改。
+
+<Aside type="tip">
+  C++ 后端负责所有 WebGL 渲染。你只需设置组件数据，引擎每帧自动绘制一切。
+</Aside>

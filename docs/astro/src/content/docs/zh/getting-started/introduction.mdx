@@ -1,0 +1,55 @@
+---
+title: 简介
+description: 了解 ESEngine 是什么以及为什么选择它
+---
+
+ESEngine 是一个轻量级 2D 游戏引擎，提供 **TypeScript SDK**，后端由 **C++/WebAssembly** 驱动。它附带可视化编辑器用于场景编辑和项目管理，输出可运行在 Web 浏览器和微信小游戏上的游戏。
+
+## 为什么选择 ESEngine？
+
+### 可视化编辑器 + TypeScript 脚本
+
+使用编辑器创建项目、在场景中放置实体、可视化地挂载组件。在 TypeScript 中编写游戏逻辑 — 定义自定义组件和操作场景实体的系统：
+
+```typescript
+import { defineComponent, defineSystem, addSystem, Query, Res, Time, Mut, LocalTransform } from 'esengine';
+
+const Speed = defineComponent('Speed', { value: 200 });
+
+addSystem(defineSystem(
+    [Res(Time), Query(Mut(LocalTransform), Speed)],
+    (time, query) => {
+        for (const [entity, transform, speed] of query) {
+            transform.position.x += speed.value * time.delta;
+        }
+    }
+));
+```
+
+### 高性能
+
+渲染和核心系统由 C++ 实现并编译为 WebAssembly，提供原生级别的性能，同时保持小包体和快速加载。
+
+### 跨平台
+
+一套代码同时运行在 Web 浏览器和微信小游戏，通过平台适配器实现。
+
+## 适用场景
+
+ESEngine 适合：
+
+- 面向 Web 浏览器的 2D 游戏
+- 微信小游戏
+- 需要小下载体积的项目
+- 希望使用 ECS 架构的 TypeScript 开发者
+
+ESEngine 可能不适合：
+
+- 3D 游戏（仅支持 2D）
+- 仅桌面端的游戏（建议使用原生引擎）
+
+## 下一步
+
+1. [安装编辑器](/microes/zh/getting-started/installation/)
+2. [创建你的第一个游戏](/microes/zh/getting-started/quick-start/)
+3. [了解 ECS](/microes/zh/core-concepts/ecs/)

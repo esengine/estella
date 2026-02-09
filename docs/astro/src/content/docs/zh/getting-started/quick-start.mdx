@@ -1,0 +1,127 @@
+---
+title: 快速开始
+description: 几分钟内创建你的第一个 ESEngine 游戏
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+让我们创建一个显示移动精灵的简单游戏，介绍 ESEngine 的核心概念。
+
+## 创建项目
+
+<Steps>
+
+1. **打开编辑器**，点击 **New Project**
+
+2. **命名项目**（如 "my-first-game"），点击 **Create**
+
+   编辑器会创建一个包含默认 Camera 实体的场景。
+
+3. **在编辑器中添加 Sprite 实体**
+
+   在 Hierarchy 面板中创建新实体，添加 `LocalTransform` 和 `Sprite` 组件。设置 Sprite 尺寸为 `100 x 100`，选择一个颜色。
+
+4. **创建 `src/main.ts`**，填入以下代码：
+
+   ```typescript
+   import {
+       defineSystem,
+       addSystem,
+       Query,
+       Res,
+       Time,
+       Mut,
+       LocalTransform,
+       Sprite,
+   } from 'esengine';
+
+   addSystem(defineSystem(
+       [Res(Time), Query(Mut(LocalTransform), Sprite)],
+       (time, query) => {
+           for (const [entity, transform, sprite] of query) {
+               transform.position.x = Math.sin(time.elapsed) * 100;
+               transform.position.y = Math.cos(time.elapsed) * 100;
+           }
+       }
+   ));
+   ```
+
+5. **在编辑器中按 F5** 预览 — 精灵做圆周运动
+
+</Steps>
+
+## 理解代码
+
+### 组件在场景中挂载
+
+在 ESEngine 中，实体和组件在**场景编辑器**中创建。你的代码不创建它们 — 而是定义**系统**来查询和操作场景中的实体。
+
+第 3 步放置的精灵已经有 `LocalTransform` 和 `Sprite` 组件。第 4 步的系统通过 `Query(Mut(LocalTransform), Sprite)` 找到它并执行动画。
+
+### 自定义组件
+
+你可以在代码中定义自定义组件，然后在编辑器中挂到实体上：
+
+```typescript
+// src/components/Speed.ts
+import { defineComponent } from 'esengine';
+
+export const Speed = defineComponent('Speed', { value: 200 });
+```
+
+保存后，`Speed` 组件会出现在编辑器的"Add Component"菜单中。将它挂到实体上，然后编写查询它的系统：
+
+```typescript
+// src/systems/movement.ts
+import { defineSystem, addSystem, Res, Time, Query, Mut, LocalTransform } from 'esengine';
+import { Speed } from '../components/Speed';
+
+addSystem(defineSystem(
+    [Res(Time), Query(Mut(LocalTransform), Speed)],
+    (time, query) => {
+        for (const [entity, transform, speed] of query) {
+            transform.position.x += speed.value * time.delta;
+        }
+    }
+));
+```
+
+### 注册系统
+
+```typescript
+import { addSystem, addStartupSystem, addSystemToSchedule, Schedule } from 'esengine';
+
+addStartupSystem(system);                          // 启动时运行一次
+addSystem(system);                                 // 每帧运行 (Update)
+addSystemToSchedule(Schedule.FixedUpdate, system);  // 固定间隔运行
+```
+
+### Schedule 类型
+
+| Schedule | 运行时机 |
+|----------|----------|
+| `Startup` | 启动时运行一次 |
+| `Update` | 每帧运行 |
+| `PostUpdate` | 每帧 Update 之后 |
+| `FixedUpdate` | 固定时间间隔运行 |
+
+### 运行时创建实体
+
+需要在运行时创建实体时（如子弹、粒子），使用 `Commands`：
+
+```typescript
+addStartupSystem(defineSystem(
+    [Commands()],
+    (cmds) => {
+        cmds.spawn()
+            .insert(Sprite, { size: { x: 10, y: 10 } })
+            .insert(LocalTransform, { position: { x: 0, y: 0, z: 0 } });
+    }
+));
+```
+
+## 下一步
+
+- [理解 ECS 模式](/microes/zh/core-concepts/ecs/)
+- [了解组件](/microes/zh/core-concepts/components/)
+- [编写系统](/microes/zh/core-concepts/systems/)

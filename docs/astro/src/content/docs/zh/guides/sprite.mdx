@@ -1,0 +1,127 @@
+---
+title: 精灵
+description: ESEngine 中的 2D 精灵渲染
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`Sprite` 组件是显示 2D 图形的主要方式。在场景编辑器中将它和 `LocalTransform` 一起添加到实体上即可显示。
+
+## 属性
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `texture` | number | `INVALID_TEXTURE` | 纹理句柄，无纹理 = 纯色 |
+| `color` | Vec4 | `{1, 1, 1, 1}` | 着色 RGBA（0–1） |
+| `size` | Vec2 | `{32, 32}` | 宽高（像素） |
+| `uvOffset` | Vec2 | `{0, 0}` | 纹理坐标偏移 |
+| `uvScale` | Vec2 | `{1, 1}` | 纹理坐标缩放 |
+| `layer` | number | `0` | 渲染顺序（越大越靠前） |
+| `flipX` | boolean | `false` | 水平翻转 |
+| `flipY` | boolean | `false` | 垂直翻转 |
+| `material` | number | `0` | 材质 ID |
+
+## 基本用法
+
+在场景编辑器中：创建实体 → 添加 `LocalTransform` 和 `Sprite` → 在检查器中设置尺寸和颜色。
+
+在系统中操作精灵：
+
+```typescript
+import { defineSystem, addSystem, Res, Time, Query, Mut, LocalTransform, Sprite } from 'esengine';
+
+addSystem(defineSystem(
+    [Res(Time), Query(Mut(LocalTransform), Sprite)],
+    (time, query) => {
+        for (const [entity, transform, sprite] of query) {
+            transform.position.x = Math.sin(time.elapsed) * 100;
+        }
+    }
+));
+```
+
+## 纯色矩形
+
+不设置纹理（默认值）时，精灵按 `color` 和 `size` 渲染为纯色矩形。
+
+## 颜色着色
+
+`color` 属性对精灵着色。有纹理时，纹理颜色会与着色相乘。
+
+```typescript
+sprite.color = { x: 1, y: 0, z: 0, w: 1 };   // 红色
+sprite.color = { x: 1, y: 1, z: 1, w: 0.5 };  // 50% 透明
+```
+
+## 翻转
+
+```typescript
+sprite.flipX = true;   // 水平镜像
+sprite.flipY = true;   // 垂直镜像
+```
+
+## 序列帧动画
+
+使用 `uvOffset` 和 `uvScale` 显示纹理的一部分。定义 `Animation` 组件，在编辑器中与 `Sprite` 一起挂载到实体上：
+
+```typescript
+import { defineComponent, defineSystem, addSystem, Res, Time, Query, Mut, Sprite } from 'esengine';
+
+const Animation = defineComponent('Animation', {
+    frames: 4,
+    currentFrame: 0,
+    frameTime: 0.1,
+    elapsed: 0
+});
+
+addSystem(defineSystem(
+    [Res(Time), Query(Mut(Sprite), Animation)],
+    (time, query) => {
+        for (const [entity, sprite, anim] of query) {
+            anim.elapsed += time.delta;
+
+            if (anim.elapsed >= anim.frameTime) {
+                anim.elapsed = 0;
+                anim.currentFrame = (anim.currentFrame + 1) % anim.frames;
+                sprite.uvOffset.x = anim.currentFrame / anim.frames;
+                sprite.uvScale.x = 1 / anim.frames;
+            }
+        }
+    }
+));
+```
+
+## 渲染顺序
+
+精灵按以下顺序绘制：
+
+1. **Z 坐标** (`transform.position.z`) — Z 值越小越先绘制（在后面）
+2. **Layer** (`sprite.layer`) — layer 值越大越在上面
+
+在检查器中设置或运行时修改。
+
+## 运行时创建
+
+运行时创建精灵（子弹、粒子等）：
+
+```typescript
+import { defineSystem, addSystem, Commands, Sprite, LocalTransform } from 'esengine';
+
+addSystem(defineSystem(
+    [Commands()],
+    (cmds) => {
+        cmds.spawn()
+            .insert(Sprite, {
+                size: { x: 10, y: 10 },
+                color: { x: 1, y: 1, z: 0, w: 1 }
+            })
+            .insert(LocalTransform, {
+                position: { x: 0, y: 0, z: 0 }
+            });
+    }
+));
+```
+
+<Aside type="tip">
+  C++ 后端负责所有 WebGL 渲染。你只需设置组件数据，引擎每帧自动绘制一切。
+</Aside>

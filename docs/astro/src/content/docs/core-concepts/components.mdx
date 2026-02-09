@@ -1,0 +1,189 @@
+---
+title: Components
+description: Builtin and custom components in ESEngine
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Components are data attached to entities. In ESEngine, you **define** components in code and **attach** them to entities in the scene editor.
+
+## Builtin Components
+
+Builtin components are always available in the editor. They are backed by the C++ backend.
+
+### LocalTransform
+
+Position, rotation, and scale of an entity.
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `position` | Vec3 | World position `{ x, y, z }` |
+| `rotation` | Quat | Quaternion `{ w, x, y, z }` |
+| `scale` | Vec3 | Scale factor `{ x, y, z }` |
+
+### Sprite
+
+2D sprite rendering. Requires `LocalTransform` to be visible. See [Sprite guide](/microes/guides/sprite/) for full details.
+
+### Camera
+
+View settings. At least one active camera is required to see anything. The editor's default scene includes one.
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `projectionType` | number | 0 = Perspective, 1 = Orthographic |
+| `fov` | number | Field of view in degrees (perspective only) |
+| `orthoSize` | number | Half-height in world units (orthographic only) |
+| `nearPlane` | number | Near clipping plane |
+| `farPlane` | number | Far clipping plane |
+| `isActive` | boolean | Whether this camera is used for rendering |
+| `priority` | number | Higher priority camera takes precedence |
+
+### Canvas
+
+Display settings for the rendering surface.
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `designResolution` | Vec2 | Design resolution `{ x, y }` |
+| `pixelsPerUnit` | number | Pixels per world unit |
+| `scaleMode` | number | How the canvas scales |
+| `matchWidthOrHeight` | number | Balance between width/height matching |
+| `backgroundColor` | Vec4 | Clear color RGBA |
+
+### Velocity
+
+Movement velocity.
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `linear` | Vec3 | Linear velocity |
+| `angular` | Vec3 | Angular velocity |
+
+### Parent / Children
+
+Entity hierarchy for scene graphs.
+
+| Component | Property | Type | Description |
+|-----------|----------|------|-------------|
+| `Parent` | `entity` | Entity | Parent entity ID |
+| `Children` | `entities` | Entity[] | List of child entity IDs |
+
+### SpineAnimation
+
+Spine skeletal animation playback. Requires `LocalTransform`. See [Spine Animation guide](/microes/guides/spine/) for full details.
+
+### Text
+
+UI text rendering. Works with `UIRect` and `Sprite` to display text. See [UI & Text guide](/microes/guides/ui/) for full details.
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `content` | string | Text content |
+| `fontFamily` | string | Font family |
+| `fontSize` | number | Font size in pixels |
+| `color` | Vec4 | Text color RGBA |
+| `align` | TextAlign | Horizontal alignment |
+| `verticalAlign` | TextVerticalAlign | Vertical alignment |
+
+### UIRect
+
+UI layout rectangle. Defines size, anchor, and pivot for UI elements.
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `size` | Vec2 | Width and height |
+| `anchor` | Vec2 | Anchor point (0–1) |
+| `pivot` | Vec2 | Pivot point for rotation |
+
+## Custom Components
+
+### defineComponent
+
+Define a data component in code. After saving, it appears in the editor's "Add Component" menu.
+
+```typescript
+import { defineComponent } from 'esengine';
+
+export const Health = defineComponent('Health', {
+    current: 100,
+    max: 100
+});
+```
+
+Then in the editor: select an entity → Add Component → Health → set values in the inspector.
+
+Systems query entities with this component:
+
+```typescript
+import { defineSystem, addSystem, Query } from 'esengine';
+import { Health } from './components/Health';
+
+addSystem(defineSystem(
+    [Query(Health)],
+    (query) => {
+        for (const [entity, health] of query) {
+            if (health.current <= 0) {
+                // handle death
+            }
+        }
+    }
+));
+```
+
+### defineTag
+
+A tag component has no data — it's used purely for filtering entities.
+
+```typescript
+import { defineTag } from 'esengine';
+
+export const Player = defineTag('Player');
+export const Enemy = defineTag('Enemy');
+```
+
+Attach `Player` to an entity in the editor, then query it:
+
+```typescript
+addSystem(defineSystem(
+    [Query(LocalTransform, Player)],
+    (query) => {
+        for (const [entity, transform] of query) {
+            // only processes entities with the Player tag
+        }
+    }
+));
+```
+
+<Aside type="caution">
+  Custom components are stored in TypeScript only. Builtin components are synced with the C++ backend for rendering.
+</Aside>
+
+## Runtime Entity Spawning
+
+For entities created at runtime (bullets, particles, effects), use `Commands`:
+
+```typescript
+import { addStartupSystem, defineSystem, Commands, Sprite, LocalTransform } from 'esengine';
+
+addStartupSystem(defineSystem(
+    [Commands()],
+    (cmds) => {
+        const entity = cmds.spawn()
+            .insert(Sprite, { size: { x: 10, y: 10 } })
+            .insert(LocalTransform, { position: { x: 0, y: 0, z: 0 } })
+            .id();
+    }
+));
+```
+
+### Removing Components at Runtime
+
+```typescript
+cmds.entity(entity).remove(Velocity);
+```
+
+## Next Steps
+
+- [Systems](/microes/core-concepts/systems/) — logic that operates on components
+- [Queries](/microes/core-concepts/queries/) — finding entities by component

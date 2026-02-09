@@ -1,180 +1,62 @@
 ---
 title: Installation
-description: Set up your development environment for ESEngine
+description: Install the ESEngine editor and create your first project
 ---
 
-import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
+import { Steps, Aside } from '@astrojs/starlight/components';
 
-This guide will help you set up your development environment for building games with ESEngine.
+## Install the Editor
 
-## Quick Start (SDK Only)
+Download the ESEngine editor from the [releases page](https://github.com/esengine/microes/releases) and install it.
 
-For most users, just install the TypeScript SDK:
+## Create a Project
 
-```bash
-npm install esengine
+<Steps>
+
+1. **Open the editor** and click **New Project**
+
+2. **Enter project name** and select a location on disk
+
+3. **Choose a template** (Empty Project) and click **Create**
+
+</Steps>
+
+The editor creates a project with the following structure:
+
 ```
-
-You'll also need the WASM files. Download them from the [releases page](https://github.com/esengine/microes/releases) or build them yourself (see below).
+my-game/
+├── project.esproject       # Project manifest
+├── tsconfig.json           # TypeScript config
+├── src/                    # Your game scripts
+├── assets/
+│   ├── scenes/
+│   │   └── main.esscene   # Default scene
+│   ├── textures/
+│   └── audio/
+└── .esengine/
+    ├── settings.json       # Editor settings
+    └── sdk/                # SDK (auto-exported by editor)
+        ├── index.js
+        ├── index.d.ts
+        └── wasm.d.ts
+```
 
 <Aside type="tip">
-  If you're just getting started, skip to [Quick Start](/microes/getting-started/quick-start/) after installing the SDK.
+  The editor automatically exports the SDK to `.esengine/sdk/`. You don't need to install it manually.
 </Aside>
 
-## Project Setup
+## Development Workflow
 
 <Steps>
 
-1. **Create your project**
+1. **Edit scenes** visually in the editor — add entities, attach components, arrange sprites
 
-   ```bash
-   mkdir my-game
-   cd my-game
-   npm init -y
-   ```
+2. **Write scripts** in `src/` using TypeScript — define systems, custom components, and game logic
 
-2. **Install dependencies**
-
-   ```bash
-   npm install esengine
-   npm install -D esbuild typescript
-   ```
-
-3. **Create tsconfig.json**
-
-   ```json
-   {
-     "compilerOptions": {
-       "target": "ES2020",
-       "module": "ESNext",
-       "moduleResolution": "bundler",
-       "strict": true,
-       "esModuleInterop": true
-     },
-     "include": ["src"]
-   }
-   ```
-
-4. **Add build scripts to package.json**
-
-   ```json
-   {
-     "type": "module",
-     "scripts": {
-       "build": "esbuild src/main.ts --bundle --format=esm --outfile=build/main.js",
-       "dev": "esbuild src/main.ts --bundle --format=esm --outfile=build/main.js --watch"
-     }
-   }
-   ```
+3. **Press F5** to preview your game in the browser
 
 </Steps>
-
-## Building WASM (Advanced)
-
-If you need to build the C++ WASM backend yourself:
-
-### Prerequisites
-
-| Tool | Version | Purpose |
-|------|---------|---------|
-| CMake | 3.16+ | Build system |
-| C++ Compiler | C++17 support | GCC 8+, Clang 7+, MSVC 2019+ |
-| Emscripten | 3.1+ | WebAssembly compilation |
-| Node.js | 18+ | SDK build |
-
-### Installing Emscripten
-
-<Tabs>
-  <TabItem label="Linux/macOS">
-    ```bash
-    # Clone emsdk
-    git clone https://github.com/emscripten-core/emsdk.git
-    cd emsdk
-
-    # Install and activate latest version
-    ./emsdk install latest
-    ./emsdk activate latest
-
-    # Add to your shell profile
-    echo 'source "/path/to/emsdk/emsdk_env.sh"' >> ~/.bashrc
-    ```
-  </TabItem>
-  <TabItem label="Windows">
-    ```powershell
-    # Clone emsdk
-    git clone https://github.com/emscripten-core/emsdk.git
-    cd emsdk
-
-    # Install and activate latest version
-    .\emsdk.bat install latest
-    .\emsdk.bat activate latest
-
-    # Activate in current terminal
-    .\emsdk_env.bat
-    ```
-  </TabItem>
-</Tabs>
-
-Verify the installation:
-
-```bash
-emcc --version
-# emcc (Emscripten gcc/clang-like replacement) 3.x.x
-```
-
-### Building
-
-<Steps>
-
-1. **Clone the repository**
-
-   ```bash
-   git clone https://github.com/esengine/microes.git
-   cd microes
-   ```
-
-2. **Build WASM**
-
-   ```bash
-   # Web build
-   emcmake cmake -B build_web -DES_BUILD_WEB=ON
-   cmake --build build_web
-
-   # WeChat MiniGame build
-   emcmake cmake -B build_wxgame -DES_BUILD_WXGAME=ON
-   cmake --build build_wxgame
-   ```
-
-3. **Build SDK**
-
-   ```bash
-   cd sdk
-   npm install
-   npm run build
-   ```
-
-</Steps>
-
-### CMake Options
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `ES_BUILD_WEB` | OFF | Build for web browsers |
-| `ES_BUILD_WXGAME` | OFF | Build for WeChat MiniGames |
-| `ES_BUILD_TESTS` | OFF | Build unit tests |
-
-## IDE Setup
-
-### Visual Studio Code
-
-Recommended extensions:
-- ESLint
-- TypeScript
-
-For C++ development:
-- C/C++ (Microsoft)
-- CMake Tools
 
 ## Next Steps
 
-Now that you have ESEngine set up, [create your first game](/microes/getting-started/quick-start/).
+Now that your project is ready, [create your first game](/microes/getting-started/quick-start/).

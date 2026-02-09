@@ -1,0 +1,265 @@
+---
+title: Materials & Shaders
+description: Custom shaders, blend modes, and material management in ESEngine
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The `Material` API manages custom shaders and rendering effects. Assign a material to a `Sprite` or `SpineAnimation` component via the `material` field.
+
+## Creating a Shader
+
+```typescript
+import { Material } from 'esengine';
+
+const shader = Material.createShader(vertexSrc, fragmentSrc);
+```
+
+Returns a `ShaderHandle` (number). A return value of `0` indicates failure.
+
+### Built-in Vertex Attributes
+
+All shaders share these fixed vertex attribute locations:
+
+| Location | Name | Type | Description |
+|----------|------|------|-------------|
+| 0 | `a_position` | vec3 | Vertex position |
+| 1 | `a_color` | vec4 | Vertex color |
+| 2 | `a_texCoord` | vec2 | Texture coordinates |
+
+### Built-in Shader Sources
+
+`ShaderSources` provides the default sprite and color shaders as reference:
+
+| Constant | Description |
+|----------|-------------|
+| `ShaderSources.SPRITE_VERTEX` | Default sprite vertex shader |
+| `ShaderSources.SPRITE_FRAGMENT` | Default sprite fragment shader |
+| `ShaderSources.COLOR_VERTEX` | Vertex shader for untextured geometry |
+| `ShaderSources.COLOR_FRAGMENT` | Fragment shader for untextured geometry |
+
+## Creating a Material
+
+```typescript
+import { Material, BlendMode } from 'esengine';
+
+const mat = Material.create({
+    shader,
+    uniforms: {
+        u_time: 0,
+        u_tint: { x: 1, y: 0, z: 0, w: 1 },
+    },
+    blendMode: BlendMode.Additive,
+});
+
+sprite.material = mat;
+```
+
+### MaterialOptions
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `shader` | ShaderHandle | — | Required. Shader to use |
+| `uniforms` | Record&lt;string, UniformValue&gt; | `{}` | Initial uniform values |
+| `blendMode` | BlendMode | `Normal` | Blend mode |
+| `depthTest` | boolean | `false` | Enable depth testing |
+
+## Uniforms
+
+### Setting and Getting
+
+```typescript
+Material.setUniform(mat, 'u_time', elapsed);
+Material.setUniform(mat, 'u_tint', { x: 1, y: 0.5, z: 0, w: 1 });
+
+const time = Material.getUniform(mat, 'u_time');
+```
+
+### Uniform Types
+
+| Type | Example |
+|------|---------|
+| number | `1.5` |
+| Vec2 | `{ x: 0.5, y: 1.0 }` |
+| Vec3 | `{ x: 1, y: 0, z: 0 }` |
+| Vec4 | `{ x: 1, y: 1, z: 1, w: 1 }` |
+| number[] | `[1, 2, 3, 4]` |
+| TextureRef | `Material.tex(textureId, slot?)` |
+
+### Texture Uniforms
+
+Use `Material.tex()` to create a texture reference for sampler uniforms:
+
+```typescript
+const tex = await assets.loadTexture('assets/noise.png');
+Material.setUniform(mat, 'u_noiseTex', Material.tex(tex.handle, 1));
+```
+
+## BlendMode
+
+| Value | Name | Description |
+|-------|------|-------------|
+| 0 | `Normal` | Standard alpha blending |
+| 1 | `Additive` | Additive blending (glow effects) |
+| 2 | `Multiply` | Multiply blending (darken) |
+| 3 | `Screen` | Screen blending (lighten) |
+| 4 | `PremultipliedAlpha` | Premultiplied alpha blending |
+
+```typescript
+Material.setBlendMode(mat, BlendMode.Screen);
+const mode = Material.getBlendMode(mat);
+```
+
+## Material Instances
+
+Create an instance that shares the same shader but has independent uniforms:
+
+```typescript
+const instance = Material.createInstance(sourceMat);
+Material.setUniform(instance, 'u_tint', { x: 0, y: 1, z: 0, w: 1 });
+```
+
+## Shader File Format (.shader)
+
+Shader files use `#pragma` directives to separate vertex and fragment sections:
+
+```glsl
+#pragma vertex
+#version 300 es
+precision highp float;
+
+layout(location = 0) in vec3 a_position;
+layout(location = 1) in vec4 a_color;
+layout(location = 2) in vec2 a_texCoord;
+
+uniform mat4 u_projection;
+uniform mat4 u_model;
+
+out vec4 v_color;
+out vec2 v_texCoord;
+
+void main() {
+    v_color = a_color;
+    v_texCoord = a_texCoord;
+    gl_Position = u_projection * u_model * vec4(a_position, 1.0);
+}
+#pragma end
+
+#pragma fragment
+#version 300 es
+precision highp float;
+
+in vec4 v_color;
+in vec2 v_texCoord;
+
+uniform sampler2D u_texture;
+
+out vec4 fragColor;
+
+void main() {
+    fragColor = texture(u_texture, v_texCoord) * v_color;
+}
+#pragma end
+```
+
+Load shader files via the asset server:
+
+```typescript
+const shader = await assets.loadShader('assets/effects/glow.shader');
+```
+
+## Material File Format (.material)
+
+Materials can be defined as JSON files and loaded via the asset server:
+
+```json
+{
+    "version": "1.0",
+    "type": "material",
+    "shader": "effects/glow.shader",
+    "blendMode": 1,
+    "depthTest": false,
+    "properties": {
+        "u_intensity": 1.5,
+        "u_color": { "x": 1, "y": 0.5, "z": 0, "w": 1 }
+    }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `version` | string | Format version (`"1.0"`) |
+| `type` | string | Must be `"material"` |
+| `shader` | string | Path to .shader file (relative to material or absolute) |
+| `blendMode` | number | BlendMode enum value |
+| `depthTest` | boolean | Enable depth testing |
+| `properties` | object | Uniform name/value pairs |
+
+```typescript
+const loaded = await assets.loadMaterial('assets/effects/glow.material');
+sprite.material = loaded.handle;
+```
+
+## Example: Flashing Effect
+
+Animate a uniform in a system to create a flashing effect:
+
+```typescript
+import { defineSystem, addSystem, Query, Mut, Res } from 'esengine';
+import { Sprite, Material, BlendMode, Time } from 'esengine';
+
+const flashShader = Material.createShader(
+    ShaderSources.SPRITE_VERTEX,
+    `#version 300 es
+    precision highp float;
+    in vec4 v_color;
+    in vec2 v_texCoord;
+    uniform sampler2D u_texture;
+    uniform float u_flash;
+    out vec4 fragColor;
+    void main() {
+        vec4 tex = texture(u_texture, v_texCoord) * v_color;
+        fragColor = mix(tex, vec4(1.0), u_flash * step(0.5, tex.a));
+    }`
+);
+
+const flashMat = Material.create({
+    shader: flashShader,
+    uniforms: { u_flash: 0.0 },
+});
+
+addSystem(defineSystem(
+    [Res(Time)],
+    (time) => {
+        const flash = Math.abs(Math.sin(time.elapsed * 5.0));
+        Material.setUniform(flashMat, 'u_flash', flash);
+    }
+));
+```
+
+## Full API Reference
+
+| Method | Description |
+|--------|-------------|
+| `Material.createShader(vertex, fragment)` | Create a shader program |
+| `Material.releaseShader(shader)` | Release a shader |
+| `Material.create(options)` | Create a material |
+| `Material.createInstance(source)` | Create a material instance sharing the shader |
+| `Material.createFromAsset(data, shader)` | Create from a parsed .material file |
+| `Material.setUniform(mat, name, value)` | Set a uniform value |
+| `Material.getUniform(mat, name)` | Get a uniform value |
+| `Material.getUniforms(mat)` | Get all uniforms as a Map |
+| `Material.setBlendMode(mat, mode)` | Set blend mode |
+| `Material.getBlendMode(mat)` | Get blend mode |
+| `Material.setDepthTest(mat, enabled)` | Set depth testing |
+| `Material.getShader(mat)` | Get the shader handle |
+| `Material.release(mat)` | Release a material |
+| `Material.isValid(mat)` | Check if a material exists |
+| `Material.toAssetData(mat, shaderPath)` | Export to serializable format |
+| `Material.tex(textureId, slot?)` | Create a texture uniform reference |
+
+## Next Steps
+
+- [Asset Loading](/microes/guides/assets/) — loading materials and shaders from files
+- [Sprite](/microes/guides/sprite/) — assigning materials to sprites
+- [Rendering Overview](/microes/guides/rendering/) — rendering pipeline

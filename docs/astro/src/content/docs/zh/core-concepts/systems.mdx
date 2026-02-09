@@ -1,0 +1,157 @@
+---
+title: 系统
+description: 在 ESEngine 中定义和调度系统
+---
+
+系统包含游戏逻辑。它们通过参数声明需要的数据，ESEngine 自动注入。系统自动操作**场景中所有匹配的实体**。
+
+## 定义系统
+
+```typescript
+import { defineSystem, Res, Time, Query, Mut, LocalTransform, Velocity } from 'esengine';
+
+const movementSystem = defineSystem(
+    [Res(Time), Query(Mut(LocalTransform), Velocity)],
+    (time, query) => {
+        for (const [entity, transform, velocity] of query) {
+            transform.position.x += velocity.linear.x * time.delta;
+            transform.position.y += velocity.linear.y * time.delta;
+        }
+    }
+);
+```
+
+此系统自动处理场景中所有同时拥有 `LocalTransform` 和 `Velocity` 组件的实体。
+
+`defineSystem` 接受两个参数：
+
+1. **参数列表** — `Query`、`Res`、`ResMut` 或 `Commands` 描述符的数组
+2. **函数** — 按相同顺序接收解析后的参数
+
+## 注册系统
+
+使用顶层函数注册系统：
+
+```typescript
+import { addSystem, addStartupSystem, addSystemToSchedule, Schedule } from 'esengine';
+
+addStartupSystem(setupSystem);   // Schedule.Startup
+addSystem(movementSystem);       // Schedule.Update
+addSystemToSchedule(Schedule.FixedUpdate, physicsSystem);
+```
+
+### Schedule 类型
+
+| Schedule | 运行时机 |
+|----------|----------|
+| `Startup` | 启动时运行一次 |
+| `First` | 每帧最先运行 |
+| `PreUpdate` | 每帧 Update 之前 |
+| `Update` | 每帧运行（主要游戏逻辑） |
+| `PostUpdate` | 每帧 Update 之后 |
+| `Last` | 每帧最后运行 |
+| `FixedPreUpdate` | 固定间隔，FixedUpdate 之前 |
+| `FixedUpdate` | 固定间隔（物理） |
+| `FixedPostUpdate` | 固定间隔，FixedUpdate 之后 |
+
+## 系统参数
+
+### Commands
+
+在运行时创建和销毁实体：
+
+```typescript
+import { Commands } from 'esengine';
+
+defineSystem([Commands()], (cmds) => {
+    cmds.spawn()
+        .insert(Sprite, { size: { x: 50, y: 50 } })
+        .insert(LocalTransform, { position: { x: 0, y: 0, z: 0 } });
+
+    cmds.despawn(entity);
+});
+```
+
+### Query
+
+遍历具有特定组件的实体：
+
+```typescript
+import { Query, Mut, LocalTransform, Sprite } from 'esengine';
+
+defineSystem([Query(Mut(LocalTransform), Sprite)], (query) => {
+    for (const [entity, transform, sprite] of query) {
+        transform.position.x += 1;
+    }
+});
+```
+
+详见[查询](/microes/zh/core-concepts/queries/)。
+
+### Res（只读资源）
+
+```typescript
+import { Res, Time } from 'esengine';
+
+defineSystem([Res(Time)], (time) => {
+    console.log(`Delta: ${time.delta}s`);
+});
+```
+
+### ResMut（可变资源）
+
+```typescript
+import { ResMut } from 'esengine';
+
+defineSystem([ResMut(GameState)], (state) => {
+    state.value.score += 10;
+});
+```
+
+详见[资源](/microes/zh/core-concepts/resources/)。
+
+### 组合参数
+
+```typescript
+defineSystem(
+    [Commands(), Res(Time), Res(Input), Query(Mut(LocalTransform), Velocity)],
+    (cmds, time, input, query) => {
+        // 所有参数都可用
+    }
+);
+```
+
+## 示例：玩家移动
+
+定义 `Speed` 组件，在编辑器中挂载到玩家实体上，然后编写系统：
+
+```typescript
+// src/components/Speed.ts
+import { defineComponent } from 'esengine';
+export const Speed = defineComponent('Speed', { value: 200 });
+```
+
+```typescript
+// src/systems/movement.ts
+import { defineSystem, addSystem, Res, Time, Input, Query, Mut, LocalTransform } from 'esengine';
+import { Speed } from '../components/Speed';
+
+addSystem(defineSystem(
+    [Res(Time), Res(Input), Query(Mut(LocalTransform), Speed)],
+    (time, input, query) => {
+        for (const [entity, transform, speed] of query) {
+            if (input.isKeyDown('KeyD')) {
+                transform.position.x += speed.value * time.delta;
+            }
+            if (input.isKeyDown('KeyA')) {
+                transform.position.x -= speed.value * time.delta;
+            }
+        }
+    }
+));
+```
+
+## 下一步
+
+- [查询](/microes/zh/core-concepts/queries/) — 查询过滤器和迭代方法
+- [资源](/microes/zh/core-concepts/resources/) — 全局单例数据

@@ -1,0 +1,167 @@
+---
+title: 资源
+description: ESEngine 中的全局单例数据
+---
+
+资源是全局单例 — 在整个应用中只存在一份，不附加在任何实体上。用于共享状态如时间、输入和游戏配置。
+
+## 访问资源
+
+### Res（只读）
+
+```typescript
+import { defineSystem, Res, Time } from 'esengine';
+
+defineSystem([Res(Time)], (time) => {
+    console.log(`Delta: ${time.delta}s, Elapsed: ${time.elapsed}s`);
+});
+```
+
+### ResMut（可变）
+
+```typescript
+import { defineSystem, ResMut } from 'esengine';
+
+defineSystem([ResMut(GameState)], (state) => {
+    state.value.score += 10;
+});
+```
+
+`ResMut` 包装了资源值。用 `.value` 访问数据，或使用 `.modify()`：
+
+```typescript
+defineSystem([ResMut(GameState)], (state) => {
+    state.modify((s) => {
+        s.score += 10;
+        s.level = Math.floor(s.score / 100) + 1;
+    });
+});
+```
+
+## 内置资源
+
+### Time
+
+帧计时信息，自动可用。
+
+```typescript
+import { Res, Time } from 'esengine';
+
+defineSystem([Res(Time)], (time) => {
+    time.delta;       // 距上帧的秒数
+    time.elapsed;     // 总运行秒数
+    time.frameCount;  // 总渲染帧数
+});
+```
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `delta` | number | 距上帧的秒数 |
+| `elapsed` | number | 总运行秒数 |
+| `frameCount` | number | 总渲染帧数 |
+
+### Input
+
+键盘和鼠标状态，自动可用。
+
+```typescript
+import { Res, Input } from 'esengine';
+
+defineSystem([Res(Input)], (input) => {
+    if (input.isKeyDown('Space')) {
+        // Space 被按住
+    }
+    if (input.isKeyPressed('KeyE')) {
+        // E 在这帧被按下
+    }
+});
+```
+
+| 方法 | 说明 |
+|------|------|
+| `isKeyDown(code)` | 按键当前被按住 |
+| `isKeyPressed(code)` | 按键在这帧被按下 |
+| `isKeyReleased(code)` | 按键在这帧被释放 |
+| `getMousePosition()` | 返回 `{ x, y }` |
+| `isMouseButtonDown(button)` | 鼠标按钮被按住（0=左键，2=右键） |
+
+## 自定义资源
+
+### defineResource
+
+```typescript
+import { defineResource } from 'esengine';
+
+const GameState = defineResource({
+    score: 0,
+    level: 1,
+    paused: false
+});
+```
+
+### 插入资源
+
+通过 `Commands` 在启动系统中插入资源：
+
+```typescript
+import { addStartupSystem, defineSystem, Commands } from 'esengine';
+
+addStartupSystem(defineSystem([Commands()], (cmds) => {
+    cmds.insertResource(GameState, { score: 0, level: 1, paused: false });
+}));
+```
+
+### 读取和写入
+
+```typescript
+// 只读
+defineSystem([Res(GameState)], (state) => {
+    console.log(`Score: ${state.score}`);
+});
+
+// 可变
+defineSystem([ResMut(GameState)], (state) => {
+    state.value.score += 10;
+});
+```
+
+## 示例：分数追踪
+
+定义 `Coin` 标签，在场景中挂载到金币实体上，用资源追踪分数：
+
+```typescript
+import {
+    defineSystem, defineResource, defineTag,
+    addStartupSystem, addSystem, Commands, Query, ResMut,
+    LocalTransform
+} from 'esengine';
+
+const Score = defineResource({ value: 0 });
+const Coin = defineTag('Coin');
+const Player = defineTag('Player');
+
+addStartupSystem(defineSystem([Commands()], (cmds) => {
+    cmds.insertResource(Score, { value: 0 });
+}));
+
+addSystem(defineSystem(
+    [Commands(), ResMut(Score), Query(LocalTransform, Player), Query(LocalTransform, Coin)],
+    (cmds, score, players, coins) => {
+        for (const [_, pPos] of players) {
+            for (const [coinEntity, cPos] of coins) {
+                const dx = pPos.position.x - cPos.position.x;
+                const dy = pPos.position.y - cPos.position.y;
+                if (Math.sqrt(dx * dx + dy * dy) < 30) {
+                    cmds.despawn(coinEntity);
+                    score.value.value += 1;
+                }
+            }
+        }
+    }
+));
+```
+
+## 下一步
+
+- [系统](/microes/zh/core-concepts/systems/) — 系统如何使用资源和查询
+- [组件](/microes/zh/core-concepts/components/) — 附加在实体上的数据

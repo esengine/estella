@@ -1,0 +1,171 @@
+---
+title: 资源加载
+description: 在 ESEngine 中加载纹理、Spine 数据和其他资源
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+ESEngine 提供 `Assets` 资源（`AssetServer` 实例）来加载纹理、Spine 动画、材质和通用文件。在任何系统中通过 `Res(Assets)` 访问。
+
+## 访问 Assets
+
+```typescript
+import { defineSystem, addStartupSystem, Res } from 'esengine';
+import { Assets } from 'esengine';
+
+addStartupSystem(defineSystem(
+    [Res(Assets)],
+    async (assets) => {
+        const tex = await assets.loadTexture('assets/player.png');
+        console.log(`加载完成 ${tex.width}x${tex.height}，handle: ${tex.handle}`);
+    }
+));
+```
+
+## 纹理加载
+
+### loadTexture(path)
+
+加载图片并返回 `TextureInfo` 对象。图片会自动垂直翻转以适配 OpenGL UV 坐标。
+
+```typescript
+const tex = await assets.loadTexture('assets/player.png');
+sprite.texture = tex.handle;
+```
+
+**返回值：** `TextureInfo { handle: TextureHandle, width: number, height: number }`
+
+### 其他纹理方法
+
+| 方法 | 说明 |
+|------|------|
+| `getTexture(path)` | 返回已缓存的 `TextureInfo`，未加载则返回 `undefined` |
+| `hasTexture(path)` | 判断纹理是否已缓存 |
+| `releaseTexture(path)` | 从 GPU 内存和缓存中释放纹理 |
+| `releaseAll()` | 释放所有已缓存的资源 |
+
+### 九宫格元数据
+
+对于九宫格精灵，加载后设置边框元数据：
+
+```typescript
+const tex = await assets.loadTexture('assets/panel.png');
+assets.setTextureMetadata(tex.handle, {
+    left: 10, right: 10, top: 10, bottom: 10
+});
+```
+
+## Spine 加载
+
+```typescript
+const result = await assets.loadSpine('assets/hero.json', 'assets/hero.atlas');
+if (!result.success) {
+    console.error(result.error);
+}
+```
+
+`loadSpine` 自动完成以下步骤：
+1. 获取 atlas 文件并写入虚拟文件系统
+2. 解析 atlas 中的纹理文件名并逐一加载
+3. 获取骨骼文件（`.json` 或 `.skel` 二进制）并写入虚拟文件系统
+
+| 方法 | 说明 |
+|------|------|
+| `loadSpine(skeleton, atlas, baseUrl?)` | 加载 Spine 骨骼和图集 |
+| `isSpineLoaded(skeleton, atlas)` | 检查 Spine 资源对是否已加载 |
+
+## 通用文件加载
+
+| 方法 | 返回值 | 说明 |
+|------|--------|------|
+| `loadJson<T>(path, options?)` | `Promise<T>` | 加载并解析 JSON 文件 |
+| `loadText(path, options?)` | `Promise<string>` | 加载文本文件 |
+| `loadBinary(path, options?)` | `Promise<ArrayBuffer>` | 加载二进制文件 |
+
+```typescript
+const config = await assets.loadJson<GameConfig>('assets/config.json');
+const csv = await assets.loadText('assets/levels.csv');
+const data = await assets.loadBinary('assets/tilemap.bin');
+```
+
+### FileLoadOptions
+
+| 选项 | 类型 | 说明 |
+|------|------|------|
+| `baseUrl` | string | 覆盖此请求的基础 URL |
+| `noCache` | boolean | 跳过缓存，始终从网络获取 |
+
+## 批量加载
+
+使用 `loadAll` 并行加载多种资源：
+
+```typescript
+const bundle = await assets.loadAll({
+    textures: ['assets/bg.png', 'assets/player.png'],
+    spine: [{ skeleton: 'assets/hero.json', atlas: 'assets/hero.atlas' }],
+    json: ['assets/config.json'],
+});
+
+// 从 bundle 中访问已加载的资源
+const bgTex = bundle.textures.get('assets/bg.png');
+const config = bundle.json.get('assets/config.json');
+```
+
+### AssetManifest
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `textures` | string[] | 纹理图片路径 |
+| `materials` | string[] | 材质文件路径（.material） |
+| `spine` | SpineDescriptor[] | Spine 骨骼/图集对 |
+| `json` | string[] | JSON 文件路径 |
+| `text` | string[] | 文本文件路径 |
+| `binary` | string[] | 二进制文件路径 |
+
+### AssetBundle
+
+返回的 `AssetBundle` 包含以路径为键的 Map：
+
+| 字段 | 类型 |
+|------|------|
+| `textures` | `Map<string, TextureInfo>` |
+| `materials` | `Map<string, LoadedMaterial>` |
+| `spine` | `Map<string, SpineLoadResult>` |
+| `json` | `Map<string, unknown>` |
+| `text` | `Map<string, string>` |
+| `binary` | `Map<string, ArrayBuffer>` |
+
+## 材质加载
+
+```typescript
+const loaded = await assets.loadMaterial('assets/effects/glow.material');
+sprite.material = loaded.handle;
+```
+
+详见[材质与着色器](/microes/zh/guides/materials/)了解完整的材质 API 和 `.material` 文件格式。
+
+## 缓存机制
+
+所有加载方法按路径缓存。同一路径加载两次会直接返回缓存结果，不会再次发起网络请求。使用 `noCache` 选项跳过缓存：
+
+```typescript
+const fresh = await assets.loadJson('assets/config.json', { noCache: true });
+```
+
+## 基础 URL
+
+设置 `assets.baseUrl` 为所有相对路径添加前缀：
+
+```typescript
+assets.baseUrl = 'https://cdn.example.com/game';
+const tex = await assets.loadTexture('sprites/player.png');
+// 请求 https://cdn.example.com/game/sprites/player.png
+```
+
+绝对路径和完整 URL 不受 `baseUrl` 影响。
+
+## 下一步
+
+- [材质与着色器](/microes/zh/guides/materials/) — 自定义着色器和混合模式
+- [精灵](/microes/zh/guides/sprite/) — 纹理与精灵的使用
+- [Spine 动画](/microes/zh/guides/spine/) — Spine 骨骼动画

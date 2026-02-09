@@ -1,0 +1,153 @@
+---
+title: 查询
+description: 在 ESEngine 中按组件查询实体
+---
+
+查询让你遍历具有特定组件的实体，是系统访问场景中实体数据的主要方式。
+
+## 基本查询
+
+查询匹配场景中所有拥有**全部**列出组件的实体：
+
+```typescript
+import { defineSystem, addSystem, Query, Mut, LocalTransform, Sprite } from 'esengine';
+
+addSystem(defineSystem([Query(Mut(LocalTransform), Sprite)], (query) => {
+    for (const [entity, transform, sprite] of query) {
+        transform.position.x += 1;
+    }
+}));
+```
+
+`for...of` 循环按查询参数的顺序返回 `[entity, ...components]` 元组。
+
+## 可变查询
+
+默认情况下，查询结果是只读的。使用 `Mut()` 获取特定组件的可变访问：
+
+```typescript
+import { Query, Mut, LocalTransform, Sprite } from 'esengine';
+
+defineSystem(
+    [Query(Mut(LocalTransform), Sprite)],
+    (query) => {
+        for (const [entity, transform, sprite] of query) {
+            transform.position.x += 1;   // 可写
+            // sprite 是只读的
+        }
+    }
+);
+```
+
+## 迭代方式
+
+### for...of
+
+```typescript
+for (const [entity, transform, sprite] of query) {
+    transform.position.x += 1;
+}
+```
+
+### forEach
+
+```typescript
+query.forEach((entity, transform, sprite) => {
+    transform.position.x += 1;
+});
+```
+
+### single
+
+获取唯一匹配的实体。如果有零个或多个匹配则返回 `null`。
+
+```typescript
+const result = query.single();
+if (result) {
+    const [entity, transform, sprite] = result;
+    // ...
+}
+```
+
+### 工具方法
+
+```typescript
+query.isEmpty();   // 没有实体匹配时返回 true
+query.count();     // 匹配的实体数量
+query.toArray();   // 将所有结果收集到数组中
+```
+
+## 多个查询
+
+一个系统可以有多个查询来交叉引用不同类型的实体：
+
+```typescript
+import { defineTag } from 'esengine';
+
+const Player = defineTag('Player');
+const Enemy = defineTag('Enemy');
+
+defineSystem(
+    [Query(LocalTransform, Player), Query(LocalTransform, Enemy)],
+    (players, enemies) => {
+        for (const [_, playerTransform] of players) {
+            for (const [_, enemyTransform] of enemies) {
+                // 检查玩家和每个敌人之间的距离
+            }
+        }
+    }
+);
+```
+
+## 与资源结合
+
+查询经常与资源一起使用：
+
+```typescript
+import { Res, Time, Input, Query, Mut, LocalTransform } from 'esengine';
+
+defineSystem(
+    [Res(Time), Res(Input), Query(Mut(LocalTransform), Player)],
+    (time, input, query) => {
+        for (const [entity, transform] of query) {
+            if (input.isKeyDown('KeyD')) {
+                transform.position.x += 200 * time.delta;
+            }
+        }
+    }
+);
+```
+
+## 示例：碰撞检测
+
+定义 `Hitbox`、`Player` 和 `Enemy` 组件，在场景编辑器中挂载到实体上，然后查询：
+
+```typescript
+import { defineSystem, defineComponent, defineTag, addSystem, Query, LocalTransform } from 'esengine';
+
+const Hitbox = defineComponent('Hitbox', { width: 50, height: 50 });
+const Player = defineTag('Player');
+const Enemy = defineTag('Enemy');
+
+addSystem(defineSystem(
+    [Query(LocalTransform, Hitbox, Player), Query(LocalTransform, Hitbox, Enemy)],
+    (players, enemies) => {
+        for (const [_, pPos, pBox] of players) {
+            for (const [_, ePos, eBox] of enemies) {
+                const dx = Math.abs(pPos.position.x - ePos.position.x);
+                const dy = Math.abs(pPos.position.y - ePos.position.y);
+
+                if (dx < (pBox.width + eBox.width) / 2 &&
+                    dy < (pBox.height + eBox.height) / 2) {
+                    // 碰撞！
+                }
+            }
+        }
+    }
+));
+```
+
+## 下一步
+
+- [资源](/microes/zh/core-concepts/resources/) — 全局单例数据如 Time 和 Input
+- [组件](/microes/zh/core-concepts/components/) — 所有内置和自定义组件类型

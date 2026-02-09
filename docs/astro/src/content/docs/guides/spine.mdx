@@ -1,0 +1,138 @@
+---
+title: Spine Animation
+description: Spine skeletal animation in ESEngine
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The `SpineAnimation` component plays [Spine](http://esotericsoftware.com/) skeletal animations. Add it to an entity in the scene editor along with `LocalTransform`.
+
+## Properties
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `skeletonPath` | string | `''` | Path to skeleton JSON file |
+| `atlasPath` | string | `''` | Path to atlas file |
+| `skin` | string | `''` | Active skin name |
+| `animation` | string | `''` | Current animation name |
+| `timeScale` | number | `1.0` | Playback speed multiplier |
+| `loop` | boolean | `true` | Whether to loop the animation |
+| `playing` | boolean | `true` | Whether currently playing |
+| `flipX` | boolean | `false` | Flip horizontally |
+| `flipY` | boolean | `false` | Flip vertically |
+| `color` | Vec4 | `{1, 1, 1, 1}` | Tint color RGBA |
+| `layer` | number | `0` | Render order |
+| `skeletonScale` | number | `1.0` | Skeleton scale factor |
+| `material` | number | `0` | Material ID |
+
+## Setup
+
+1. Place Spine export files (`.json` + `.atlas` + images) in your project's `assets/` folder
+2. In the scene editor: create an entity → add `LocalTransform` and `SpineAnimation`
+3. Set `skeletonPath` and `atlasPath` to point to your Spine files
+4. Set `animation` to the name of the animation to play
+
+## Controlling Animations
+
+Query the `SpineAnimation` component in a system to change animations at runtime:
+
+```typescript
+import { defineSystem, addSystem, Res, Input, Query, Mut, SpineAnimation } from 'esengine';
+import { Player } from './components';
+
+addSystem(defineSystem(
+    [Res(Input), Query(Mut(SpineAnimation), Player)],
+    (input, query) => {
+        for (const [entity, spine] of query) {
+            if (input.isKeyPressed('Space')) {
+                spine.animation = 'jump';
+                spine.loop = false;
+            } else if (input.isKeyDown('KeyD') || input.isKeyDown('KeyA')) {
+                spine.animation = 'run';
+                spine.loop = true;
+            } else {
+                spine.animation = 'idle';
+                spine.loop = true;
+            }
+        }
+    }
+));
+```
+
+## Skins
+
+Switch skins to change the character's appearance:
+
+```typescript
+spine.skin = 'warrior';
+```
+
+## Playback Control
+
+```typescript
+spine.playing = false;   // Pause
+spine.playing = true;    // Resume
+spine.timeScale = 2.0;   // Double speed
+spine.timeScale = 0.5;   // Half speed
+```
+
+## Flipping
+
+```typescript
+spine.flipX = true;    // Face left
+spine.flipX = false;   // Face right (default)
+```
+
+## Color Tinting
+
+```typescript
+spine.color = { x: 1, y: 0, z: 0, w: 1 };    // Red tint
+spine.color = { x: 1, y: 1, z: 1, w: 0.5 };   // 50% transparent
+```
+
+## Example: Character Controller
+
+Define a `CharacterState` component, attach it with `SpineAnimation` on the entity in the editor:
+
+```typescript
+import {
+    defineComponent, defineSystem, addSystem,
+    Res, Input, Time, Query, Mut, LocalTransform, SpineAnimation
+} from 'esengine';
+
+const CharacterState = defineComponent('CharacterState', {
+    speed: 200,
+    currentAnim: 'idle'
+});
+
+addSystem(defineSystem(
+    [Res(Input), Res(Time), Query(Mut(LocalTransform), Mut(SpineAnimation), CharacterState)],
+    (input, time, query) => {
+        for (const [entity, transform, spine, state] of query) {
+            let moving = false;
+
+            if (input.isKeyDown('KeyD')) {
+                transform.position.x += state.speed * time.delta;
+                spine.flipX = false;
+                moving = true;
+            }
+            if (input.isKeyDown('KeyA')) {
+                transform.position.x -= state.speed * time.delta;
+                spine.flipX = true;
+                moving = true;
+            }
+
+            const newAnim = moving ? 'run' : 'idle';
+            if (state.currentAnim !== newAnim) {
+                state.currentAnim = newAnim;
+                spine.animation = newAnim;
+                spine.loop = true;
+            }
+        }
+    }
+));
+```
+
+<Aside type="tip">
+  Spine rendering is handled by the C++ backend. The TypeScript side only sets component data — the engine handles loading, blending, and drawing automatically.
+</Aside>

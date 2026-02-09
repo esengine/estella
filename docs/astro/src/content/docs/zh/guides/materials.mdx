@@ -1,0 +1,265 @@
+---
+title: 材质与着色器
+description: ESEngine 中的自定义着色器、混合模式和材质管理
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`Material` API 管理自定义着色器和渲染效果。通过 `Sprite` 或 `SpineAnimation` 组件的 `material` 字段赋值材质。
+
+## 创建着色器
+
+```typescript
+import { Material } from 'esengine';
+
+const shader = Material.createShader(vertexSrc, fragmentSrc);
+```
+
+返回 `ShaderHandle`（number 类型），返回 `0` 表示创建失败。
+
+### 内置顶点属性
+
+所有着色器共享固定的顶点属性位置：
+
+| Location | 名称 | 类型 | 说明 |
+|----------|------|------|------|
+| 0 | `a_position` | vec3 | 顶点位置 |
+| 1 | `a_color` | vec4 | 顶点颜色 |
+| 2 | `a_texCoord` | vec2 | 纹理坐标 |
+
+### 内置着色器源码
+
+`ShaderSources` 提供默认的精灵和颜色着色器作为参考：
+
+| 常量 | 说明 |
+|------|------|
+| `ShaderSources.SPRITE_VERTEX` | 默认精灵顶点着色器 |
+| `ShaderSources.SPRITE_FRAGMENT` | 默认精灵片段着色器 |
+| `ShaderSources.COLOR_VERTEX` | 无纹理几何体的顶点着色器 |
+| `ShaderSources.COLOR_FRAGMENT` | 无纹理几何体的片段着色器 |
+
+## 创建材质
+
+```typescript
+import { Material, BlendMode } from 'esengine';
+
+const mat = Material.create({
+    shader,
+    uniforms: {
+        u_time: 0,
+        u_tint: { x: 1, y: 0, z: 0, w: 1 },
+    },
+    blendMode: BlendMode.Additive,
+});
+
+sprite.material = mat;
+```
+
+### MaterialOptions
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `shader` | ShaderHandle | — | 必需。使用的着色器 |
+| `uniforms` | Record&lt;string, UniformValue&gt; | `{}` | 初始 uniform 值 |
+| `blendMode` | BlendMode | `Normal` | 混合模式 |
+| `depthTest` | boolean | `false` | 启用深度测试 |
+
+## Uniform
+
+### 设置和获取
+
+```typescript
+Material.setUniform(mat, 'u_time', elapsed);
+Material.setUniform(mat, 'u_tint', { x: 1, y: 0.5, z: 0, w: 1 });
+
+const time = Material.getUniform(mat, 'u_time');
+```
+
+### Uniform 类型
+
+| 类型 | 示例 |
+|------|------|
+| number | `1.5` |
+| Vec2 | `{ x: 0.5, y: 1.0 }` |
+| Vec3 | `{ x: 1, y: 0, z: 0 }` |
+| Vec4 | `{ x: 1, y: 1, z: 1, w: 1 }` |
+| number[] | `[1, 2, 3, 4]` |
+| TextureRef | `Material.tex(textureId, slot?)` |
+
+### 纹理 Uniform
+
+使用 `Material.tex()` 创建纹理引用用于采样器 uniform：
+
+```typescript
+const tex = await assets.loadTexture('assets/noise.png');
+Material.setUniform(mat, 'u_noiseTex', Material.tex(tex.handle, 1));
+```
+
+## BlendMode
+
+| 值 | 名称 | 说明 |
+|----|------|------|
+| 0 | `Normal` | 标准 alpha 混合 |
+| 1 | `Additive` | 加法混合（发光效果） |
+| 2 | `Multiply` | 乘法混合（变暗） |
+| 3 | `Screen` | 滤色混合（变亮） |
+| 4 | `PremultipliedAlpha` | 预乘 alpha 混合 |
+
+```typescript
+Material.setBlendMode(mat, BlendMode.Screen);
+const mode = Material.getBlendMode(mat);
+```
+
+## 材质实例
+
+创建共享着色器但拥有独立 uniform 的实例：
+
+```typescript
+const instance = Material.createInstance(sourceMat);
+Material.setUniform(instance, 'u_tint', { x: 0, y: 1, z: 0, w: 1 });
+```
+
+## 着色器文件格式（.shader）
+
+着色器文件使用 `#pragma` 指令分隔顶点和片段部分：
+
+```glsl
+#pragma vertex
+#version 300 es
+precision highp float;
+
+layout(location = 0) in vec3 a_position;
+layout(location = 1) in vec4 a_color;
+layout(location = 2) in vec2 a_texCoord;
+
+uniform mat4 u_projection;
+uniform mat4 u_model;
+
+out vec4 v_color;
+out vec2 v_texCoord;
+
+void main() {
+    v_color = a_color;
+    v_texCoord = a_texCoord;
+    gl_Position = u_projection * u_model * vec4(a_position, 1.0);
+}
+#pragma end
+
+#pragma fragment
+#version 300 es
+precision highp float;
+
+in vec4 v_color;
+in vec2 v_texCoord;
+
+uniform sampler2D u_texture;
+
+out vec4 fragColor;
+
+void main() {
+    fragColor = texture(u_texture, v_texCoord) * v_color;
+}
+#pragma end
+```
+
+通过资源服务器加载着色器文件：
+
+```typescript
+const shader = await assets.loadShader('assets/effects/glow.shader');
+```
+
+## 材质文件格式（.material）
+
+材质可以定义为 JSON 文件，通过资源服务器加载：
+
+```json
+{
+    "version": "1.0",
+    "type": "material",
+    "shader": "effects/glow.shader",
+    "blendMode": 1,
+    "depthTest": false,
+    "properties": {
+        "u_intensity": 1.5,
+        "u_color": { "x": 1, "y": 0.5, "z": 0, "w": 1 }
+    }
+}
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `version` | string | 格式版本（`"1.0"`） |
+| `type` | string | 必须为 `"material"` |
+| `shader` | string | .shader 文件路径（相对于材质文件或绝对路径） |
+| `blendMode` | number | BlendMode 枚举值 |
+| `depthTest` | boolean | 启用深度测试 |
+| `properties` | object | uniform 名称/值对 |
+
+```typescript
+const loaded = await assets.loadMaterial('assets/effects/glow.material');
+sprite.material = loaded.handle;
+```
+
+## 示例：闪烁效果
+
+在系统中动态更新 uniform 实现闪烁效果：
+
+```typescript
+import { defineSystem, addSystem, Query, Mut, Res } from 'esengine';
+import { Sprite, Material, BlendMode, Time } from 'esengine';
+
+const flashShader = Material.createShader(
+    ShaderSources.SPRITE_VERTEX,
+    `#version 300 es
+    precision highp float;
+    in vec4 v_color;
+    in vec2 v_texCoord;
+    uniform sampler2D u_texture;
+    uniform float u_flash;
+    out vec4 fragColor;
+    void main() {
+        vec4 tex = texture(u_texture, v_texCoord) * v_color;
+        fragColor = mix(tex, vec4(1.0), u_flash * step(0.5, tex.a));
+    }`
+);
+
+const flashMat = Material.create({
+    shader: flashShader,
+    uniforms: { u_flash: 0.0 },
+});
+
+addSystem(defineSystem(
+    [Res(Time)],
+    (time) => {
+        const flash = Math.abs(Math.sin(time.elapsed * 5.0));
+        Material.setUniform(flashMat, 'u_flash', flash);
+    }
+));
+```
+
+## 完整 API 参考
+
+| 方法 | 说明 |
+|------|------|
+| `Material.createShader(vertex, fragment)` | 创建着色器程序 |
+| `Material.releaseShader(shader)` | 释放着色器 |
+| `Material.create(options)` | 创建材质 |
+| `Material.createInstance(source)` | 创建共享着色器的材质实例 |
+| `Material.createFromAsset(data, shader)` | 从解析的 .material 文件创建 |
+| `Material.setUniform(mat, name, value)` | 设置 uniform 值 |
+| `Material.getUniform(mat, name)` | 获取 uniform 值 |
+| `Material.getUniforms(mat)` | 获取所有 uniform（Map） |
+| `Material.setBlendMode(mat, mode)` | 设置混合模式 |
+| `Material.getBlendMode(mat)` | 获取混合模式 |
+| `Material.setDepthTest(mat, enabled)` | 设置深度测试 |
+| `Material.getShader(mat)` | 获取着色器句柄 |
+| `Material.release(mat)` | 释放材质 |
+| `Material.isValid(mat)` | 检查材质是否存在 |
+| `Material.toAssetData(mat, shaderPath)` | 导出为可序列化格式 |
+| `Material.tex(textureId, slot?)` | 创建纹理 uniform 引用 |
+
+## 下一步
+
+- [资源加载](/microes/zh/guides/assets/) — 从文件加载材质和着色器
+- [精灵](/microes/zh/guides/sprite/) — 为精灵分配材质
+- [渲染概览](/microes/zh/guides/rendering/) — 渲染管线

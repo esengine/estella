@@ -1,15 +1,15 @@
 ---
-title: Input Handling
-description: Keyboard, mouse, and touch input in ESEngine
+title: 输入处理
+description: ESEngine 中的键盘、鼠标和触摸输入
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-ESEngine provides input handling through the `Input` resource.
+ESEngine 通过 `Input` 资源提供输入处理。
 
-## Using Input in Systems
+## 在系统中使用输入
 
-Access input state through the `Res(Input)` system parameter:
+通过 `Res(Input)` 系统参数访问输入状态：
 
 ```typescript
 import { defineSystem, addSystem, Res, Input, Query, Mut, LocalTransform } from 'esengine';
@@ -35,63 +35,63 @@ addSystem(defineSystem(
 ));
 ```
 
-## Keyboard Input
+## 键盘输入
 
-### Key State
+### 按键状态
 
 ```typescript
 if (input.isKeyDown('Space')) {
-    // Space is currently held
+    // Space 当前被按住
 }
 
 if (input.isKeyPressed('Space')) {
-    // Space was just pressed this frame
+    // Space 在这帧刚被按下
 }
 
 if (input.isKeyReleased('Space')) {
-    // Space was just released this frame
+    // Space 在这帧刚被释放
 }
 ```
 
-### Key Codes
+### 按键码
 
-Use standard DOM key codes:
+使用标准 DOM 按键码：
 
 ```typescript
-// Letters
+// 字母
 'KeyA', 'KeyB', ... 'KeyZ'
 
-// Numbers
+// 数字
 'Digit0', 'Digit1', ... 'Digit9'
 
-// Special keys
+// 特殊键
 'Space', 'Enter', 'Escape', 'Tab'
 'ShiftLeft', 'ShiftRight', 'ControlLeft', 'ControlRight'
 
-// Arrow keys
+// 方向键
 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'
 
-// Function keys
+// 功能键
 'F1', 'F2', ... 'F12'
 ```
 
-## Mouse Input
+## 鼠标输入
 
 ```typescript
 const mousePos = input.getMousePosition();
-console.log(`Mouse at: ${mousePos.x}, ${mousePos.y}`);
+console.log(`鼠标位置: ${mousePos.x}, ${mousePos.y}`);
 
-if (input.isMouseButtonDown(0)) {  // Left button
-    // handle click
+if (input.isMouseButtonDown(0)) {  // 左键
+    // 处理点击
 }
-if (input.isMouseButtonDown(2)) {  // Right button
-    // handle right click
+if (input.isMouseButtonDown(2)) {  // 右键
+    // 处理右键点击
 }
 ```
 
-## Touch Input
+## 触摸输入
 
-Touch input is unified with mouse input for cross-platform support:
+触摸输入与鼠标输入统一处理，实现跨平台支持：
 
 ```typescript
 if (input.isMouseButtonDown(0)) {
@@ -101,12 +101,12 @@ if (input.isMouseButtonDown(0)) {
 ```
 
 <Aside type="tip">
-  Design your input handling to work with both mouse and touch. The Input resource provides a unified interface.
+  设计输入处理时应同时兼容鼠标和触摸。Input 资源提供了统一的接口。
 </Aside>
 
-## Example: Player Movement
+## 示例：玩家移动
 
-Define `Player` and `MoveSpeed` components, attach them to an entity in the scene editor, then write a movement system:
+定义 `Player` 和 `MoveSpeed` 组件，在场景编辑器中挂载到实体上，然后编写移动系统：
 
 ```typescript
 import {

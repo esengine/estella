@@ -1,0 +1,141 @@
+---
+title: ECS 架构
+description: 理解 ESEngine 中的实体-组件-系统模式
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+ESEngine 使用实体-组件-系统（ECS）架构管理游戏对象。ECS 将**身份**（Entity）、**数据**（Component）和**行为**（System）分离。
+
+## 什么是 ECS？
+
+| 概念 | 角色 | 示例 |
+|------|------|------|
+| **实体 (Entity)** | 唯一标识符（只是一个数字） | 玩家、敌人、子弹 |
+| **组件 (Component)** | 附加在实体上的数据 | LocalTransform、Sprite、Health |
+| **系统 (System)** | 操作具有特定组件的实体的逻辑 | 移动系统、渲染系统 |
+
+<Aside type="tip">
+  ECS 倡导**组合优于继承**。不需要深层类继承结构，而是通过组合小型、可复用的组件来构建游戏对象。
+</Aside>
+
+## 为什么选择 ECS？
+
+传统 OOP 方式：
+
+```
+GameObject
+├── Player extends GameObject
+│   ├── FlyingPlayer extends Player
+│   └── SwimmingPlayer extends Player
+└── Enemy extends GameObject
+    └── FlyingEnemy extends Enemy
+```
+
+ECS 方式 — 自由组合行为：
+
+```
+Player  = Entity + LocalTransform + Sprite + Health + PlayerInput
+Enemy   = Entity + LocalTransform + Sprite + Health + AI
+Bullet  = Entity + LocalTransform + Sprite + Velocity + Damage
+```
+
+优势：
+
+- **组合** — 自由搭配组件，无需僵化的继承层级
+- **数据局部性** — 同类型组件连续存储，提升缓存性能
+- **关注点分离** — 系统包含逻辑，组件持有数据
+- **灵活性** — 运行时添加或移除组件来改变行为
+
+## 实体
+
+实体只是一个数字（ID）。在 ESEngine 中，实体通常在**场景编辑器**中创建 — 可视化地放置、添加组件、配置属性。
+
+运行时也可以通过 `Commands` 创建实体（如子弹、粒子）：
+
+```typescript
+import { defineSystem, addStartupSystem, Commands, type Entity } from 'esengine';
+
+addStartupSystem(defineSystem([Commands()], (cmds) => {
+    const bullet: Entity = cmds.spawn().id();
+    cmds.despawn(bullet);
+}));
+```
+
+## 组件
+
+组件是附加在实体上的数据。在代码中**定义**组件，然后在场景编辑器中**挂载**到实体上。
+
+- **内置组件** — LocalTransform、Sprite、Camera 等（编辑器中始终可用）
+- **自定义组件** — 用 `defineComponent` / `defineTag` 定义（保存后出现在编辑器中）
+
+```typescript
+import { defineComponent, defineTag } from 'esengine';
+
+const Health = defineComponent('Health', { current: 100, max: 100 });
+const Player = defineTag('Player');
+```
+
+定义后，在编辑器中选择实体 → 添加组件 → 从菜单中选择 `Health` 或 `Player`。
+
+详见[组件](/microes/zh/core-concepts/components/)。
+
+## 系统
+
+系统是查询具有特定组件的实体并操作它们的函数。它们自动运行在场景中所有匹配的实体上。
+
+```typescript
+import { defineSystem, addSystem, Res, Time, Query, Mut, LocalTransform } from 'esengine';
+import { Health } from './components';
+
+addSystem(defineSystem(
+    [Res(Time), Query(Mut(LocalTransform), Health)],
+    (time, query) => {
+        for (const [entity, transform, health] of query) {
+            if (health.current <= 0) {
+                transform.position.y -= 100 * time.delta;
+            }
+        }
+    }
+));
+```
+
+详见[系统](/microes/zh/core-concepts/systems/)。
+
+## ECS 流程
+
+```
+ ┌──────────────────────┐
+ │  编辑器：场景搭建     │  放置实体，挂载组件
+ └──────────┬───────────┘
+            ▼
+ ┌──────────────────────┐
+ │  脚本：定义           │  defineComponent + defineSystem + addSystem
+ └──────────┬───────────┘
+            ▼
+ ┌──────────┐
+ │  启动    │  启动系统运行一次
+ └────┬─────┘
+      ▼
+ ┌──────────┐
+ │  更新    │◄─┐  系统每帧查询场景中的实体
+ └────┬─────┘  │
+      ▼        │
+ ┌──────────┐  │
+ │  渲染    │  │  C++ 后端绘制所有 Sprite/Camera
+ └────┬─────┘  │
+      └────────┘
+```
+
+1. **场景搭建** — 在编辑器中放置实体并挂载组件
+2. **脚本** — 定义自定义组件并注册系统
+3. **启动** — 启动系统运行一次
+4. **更新循环** — 系统每帧查询和处理场景中的实体
+5. **渲染** — C++ 后端自动渲染所有拥有 `Sprite` 和 `Camera` 组件的实体
+
+## 下一步
+
+- [组件](/microes/zh/core-concepts/components/) — 内置和自定义组件
+- [系统](/microes/zh/core-concepts/systems/) — 定义和调度系统
+- [查询](/microes/zh/core-concepts/queries/) — 查询实体
+- [资源](/microes/zh/core-concepts/resources/) — 全局单例数据

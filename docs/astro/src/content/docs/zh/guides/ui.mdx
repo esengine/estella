@@ -1,0 +1,127 @@
+---
+title: UI 与文本
+description: ESEngine 中的文本渲染和 UI 布局组件
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`Text` 和 `UIRect` 组件配合 `Sprite` 实现游戏中的文本渲染。`TextPlugin` 会在每帧自动将文本内容转换为纹理。
+
+## 设置步骤
+
+在场景编辑器中：创建实体 → 添加 `LocalTransform`、`Sprite`、`Text` 和 `UIRect` 组件。
+
+- **Text** — 定义文本内容和样式（字体、大小、颜色、对齐）
+- **UIRect** — 定义布局矩形（尺寸、锚点、旋转中心）
+- **Sprite** — 文本系统内部使用，用于显示渲染后的纹理
+
+<Aside type="note">
+  无需手动配置 Sprite 组件。`TextPlugin` 会自动根据 Text 内容创建和更新精灵纹理。
+</Aside>
+
+## Text 属性
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `content` | string | `''` | 显示的文本内容 |
+| `fontFamily` | string | `'Arial'` | 字体名称 |
+| `fontSize` | number | `24` | 字号（像素） |
+| `color` | Vec4 | `{1, 1, 1, 1}` | 文本颜色 RGBA（0–1） |
+| `align` | TextAlign | `Left` | 水平对齐方式 |
+| `verticalAlign` | TextVerticalAlign | `Top` | 垂直对齐方式 |
+| `wordWrap` | boolean | `true` | 启用自动换行 |
+| `overflow` | TextOverflow | `Visible` | 溢出处理模式 |
+| `lineHeight` | number | `1.2` | 行高倍率 |
+
+## UIRect 属性
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `size` | Vec2 | `{100, 100}` | UI 矩形的宽高 |
+| `anchor` | Vec2 | `{0.5, 0.5}` | 锚点（0–1 范围） |
+| `pivot` | Vec2 | `{0.5, 0.5}` | 旋转和缩放的中心点 |
+
+## 枚举类型
+
+### TextAlign
+
+| 值 | 名称 | 说明 |
+|----|------|------|
+| 0 | `Left` | 左对齐 |
+| 1 | `Center` | 居中对齐 |
+| 2 | `Right` | 右对齐 |
+
+### TextVerticalAlign
+
+| 值 | 名称 | 说明 |
+|----|------|------|
+| 0 | `Top` | 顶部对齐 |
+| 1 | `Middle` | 垂直居中 |
+| 2 | `Bottom` | 底部对齐 |
+
+### TextOverflow
+
+| 值 | 名称 | 说明 |
+|----|------|------|
+| 0 | `Visible` | 文本溢出矩形边界 |
+| 1 | `Clip` | 在边界处裁剪 |
+| 2 | `Ellipsis` | 截断处显示省略号 |
+
+## 运行时修改文本
+
+在系统中通过 `Mut()` 查询 `Text` 组件来更新文本内容或样式：
+
+```typescript
+import { defineSystem, addSystem, Query, Mut } from 'esengine';
+import { Text } from 'esengine';
+
+addSystem(defineSystem(
+    [Query(Mut(Text))],
+    (query) => {
+        for (const [entity, text] of query) {
+            text.content = '已更新！';
+            text.fontSize = 32;
+        }
+    }
+));
+```
+
+<Aside type="caution">
+  修改文本属性时必须使用 `Mut(Text)`。不使用 `Mut()` 时组件为只读。
+</Aside>
+
+## 示例：动态计分板
+
+一种常见模式是在数值变化时更新分数显示：
+
+```typescript
+import { defineComponent, defineTag, defineSystem, addSystem, Query, Mut } from 'esengine';
+import { Text } from 'esengine';
+
+const ScoreDisplay = defineTag('ScoreDisplay');
+
+const GameState = defineComponent('GameState', {
+    score: 0,
+});
+
+addSystem(defineSystem(
+    [Query(Mut(Text), ScoreDisplay), Query(GameState)],
+    (displayQuery, stateQuery) => {
+        let score = 0;
+        for (const [, state] of stateQuery) {
+            score = state.score;
+        }
+        for (const [, text] of displayQuery) {
+            text.content = `分数：${score}`;
+        }
+    }
+));
+```
+
+在编辑器中：创建一个文本实体，添加 `Text`、`UIRect`、`Sprite`、`LocalTransform` 和 `ScoreDisplay` 标签。
+
+## 下一步
+
+- [组件](/microes/zh/core-concepts/components/) — 所有内置组件
+- [精灵](/microes/zh/guides/sprite/) — 精灵渲染详解
+- [资源加载](/microes/zh/guides/assets/) — 加载纹理和其他资源

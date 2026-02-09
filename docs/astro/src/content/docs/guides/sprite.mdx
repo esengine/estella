@@ -1,0 +1,127 @@
+---
+title: Sprite
+description: 2D sprite rendering in ESEngine
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The `Sprite` component is the primary way to display 2D graphics. Add it to an entity in the scene editor along with `LocalTransform` to make the entity visible.
+
+## Properties
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `texture` | number | `INVALID_TEXTURE` | Texture handle. No texture = solid color |
+| `color` | Vec4 | `{1, 1, 1, 1}` | Tint color RGBA (0–1) |
+| `size` | Vec2 | `{32, 32}` | Width and height in pixels |
+| `uvOffset` | Vec2 | `{0, 0}` | Texture coordinate offset |
+| `uvScale` | Vec2 | `{1, 1}` | Texture coordinate scale |
+| `layer` | number | `0` | Render order (higher = on top) |
+| `flipX` | boolean | `false` | Flip horizontally |
+| `flipY` | boolean | `false` | Flip vertically |
+| `material` | number | `0` | Material ID |
+
+## Basic Usage
+
+In the scene editor: create an entity → add `LocalTransform` and `Sprite` → set size and color in the inspector.
+
+To modify sprites at runtime, query them in a system:
+
+```typescript
+import { defineSystem, addSystem, Res, Time, Query, Mut, LocalTransform, Sprite } from 'esengine';
+
+addSystem(defineSystem(
+    [Res(Time), Query(Mut(LocalTransform), Sprite)],
+    (time, query) => {
+        for (const [entity, transform, sprite] of query) {
+            transform.position.x = Math.sin(time.elapsed) * 100;
+        }
+    }
+));
+```
+
+## Solid Color Rectangle
+
+Without a texture (default), the sprite renders as a solid rectangle using its `color` and `size`.
+
+## Color Tinting
+
+The `color` property tints the sprite. With a texture, the texture color is multiplied by the tint.
+
+```typescript
+sprite.color = { x: 1, y: 0, z: 0, w: 1 };   // Red tint
+sprite.color = { x: 1, y: 1, z: 1, w: 0.5 };  // 50% transparent
+```
+
+## Flipping
+
+```typescript
+sprite.flipX = true;   // Mirror horizontally
+sprite.flipY = true;   // Mirror vertically
+```
+
+## Sprite Sheet Animation
+
+Use `uvOffset` and `uvScale` to display a portion of a texture. Define a custom `Animation` component, attach it alongside `Sprite` on the entity in the editor:
+
+```typescript
+import { defineComponent, defineSystem, addSystem, Res, Time, Query, Mut, Sprite } from 'esengine';
+
+const Animation = defineComponent('Animation', {
+    frames: 4,
+    currentFrame: 0,
+    frameTime: 0.1,
+    elapsed: 0
+});
+
+addSystem(defineSystem(
+    [Res(Time), Query(Mut(Sprite), Animation)],
+    (time, query) => {
+        for (const [entity, sprite, anim] of query) {
+            anim.elapsed += time.delta;
+
+            if (anim.elapsed >= anim.frameTime) {
+                anim.elapsed = 0;
+                anim.currentFrame = (anim.currentFrame + 1) % anim.frames;
+                sprite.uvOffset.x = anim.currentFrame / anim.frames;
+                sprite.uvScale.x = 1 / anim.frames;
+            }
+        }
+    }
+));
+```
+
+## Render Order
+
+Sprites are drawn by:
+
+1. **Z position** (`transform.position.z`) — lower Z draws first (behind)
+2. **Layer** (`sprite.layer`) — higher layer draws on top
+
+Set these in the inspector or modify at runtime.
+
+## Runtime Spawning
+
+For sprites created at runtime (bullets, particles):
+
+```typescript
+import { defineSystem, addSystem, Commands, Sprite, LocalTransform } from 'esengine';
+
+addSystem(defineSystem(
+    [Commands()],
+    (cmds) => {
+        cmds.spawn()
+            .insert(Sprite, {
+                size: { x: 10, y: 10 },
+                color: { x: 1, y: 1, z: 0, w: 1 }
+            })
+            .insert(LocalTransform, {
+                position: { x: 0, y: 0, z: 0 }
+            });
+    }
+));
+```
+
+<Aside type="tip">
+  The C++ backend handles all WebGL rendering. You just set component data and the engine draws everything automatically each frame.
+</Aside>

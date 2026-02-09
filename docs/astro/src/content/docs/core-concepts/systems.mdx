@@ -1,0 +1,157 @@
+---
+title: Systems
+description: Defining systems and scheduling them in ESEngine
+---
+
+Systems contain game logic. They declare what data they need via parameters, and ESEngine injects the data automatically. Systems operate on **all entities in the scene** that match the query.
+
+## Defining Systems
+
+```typescript
+import { defineSystem, Res, Time, Query, Mut, LocalTransform, Velocity } from 'esengine';
+
+const movementSystem = defineSystem(
+    [Res(Time), Query(Mut(LocalTransform), Velocity)],
+    (time, query) => {
+        for (const [entity, transform, velocity] of query) {
+            transform.position.x += velocity.linear.x * time.delta;
+            transform.position.y += velocity.linear.y * time.delta;
+        }
+    }
+);
+```
+
+This system automatically processes every entity in the scene that has both `LocalTransform` and `Velocity` components.
+
+`defineSystem` takes two arguments:
+
+1. **Parameters** — an array of `Query`, `Res`, `ResMut`, or `Commands` descriptors
+2. **Function** — receives the resolved parameters in the same order
+
+## Registering Systems
+
+Register systems with top-level functions:
+
+```typescript
+import { addSystem, addStartupSystem, addSystemToSchedule, Schedule } from 'esengine';
+
+addStartupSystem(setupSystem);   // Schedule.Startup
+addSystem(movementSystem);       // Schedule.Update
+addSystemToSchedule(Schedule.FixedUpdate, physicsSystem);
+```
+
+### Schedule Types
+
+| Schedule | When it runs |
+|----------|--------------|
+| `Startup` | Once at the beginning |
+| `First` | Every frame, before PreUpdate |
+| `PreUpdate` | Every frame, before Update |
+| `Update` | Every frame (main game logic) |
+| `PostUpdate` | Every frame, after Update |
+| `Last` | Every frame, after PostUpdate |
+| `FixedPreUpdate` | At fixed intervals, before FixedUpdate |
+| `FixedUpdate` | At fixed intervals (physics) |
+| `FixedPostUpdate` | At fixed intervals, after FixedUpdate |
+
+## System Parameters
+
+### Commands
+
+Spawn and despawn entities at runtime:
+
+```typescript
+import { Commands } from 'esengine';
+
+defineSystem([Commands()], (cmds) => {
+    cmds.spawn()
+        .insert(Sprite, { size: { x: 50, y: 50 } })
+        .insert(LocalTransform, { position: { x: 0, y: 0, z: 0 } });
+
+    cmds.despawn(entity);
+});
+```
+
+### Query
+
+Iterate entities with specific components:
+
+```typescript
+import { Query, Mut, LocalTransform, Sprite } from 'esengine';
+
+defineSystem([Query(Mut(LocalTransform), Sprite)], (query) => {
+    for (const [entity, transform, sprite] of query) {
+        transform.position.x += 1;
+    }
+});
+```
+
+See [Queries](/microes/core-concepts/queries/) for the full API.
+
+### Res (read-only resource)
+
+```typescript
+import { Res, Time } from 'esengine';
+
+defineSystem([Res(Time)], (time) => {
+    console.log(`Delta: ${time.delta}s`);
+});
+```
+
+### ResMut (mutable resource)
+
+```typescript
+import { ResMut } from 'esengine';
+
+defineSystem([ResMut(GameState)], (state) => {
+    state.value.score += 10;
+});
+```
+
+See [Resources](/microes/core-concepts/resources/) for the full API.
+
+### Combining Parameters
+
+```typescript
+defineSystem(
+    [Commands(), Res(Time), Res(Input), Query(Mut(LocalTransform), Velocity)],
+    (cmds, time, input, query) => {
+        // All parameters available
+    }
+);
+```
+
+## Example: Player Movement
+
+Define a `Speed` component and attach it to the player entity in the editor. Then write a system:
+
+```typescript
+// src/components/Speed.ts
+import { defineComponent } from 'esengine';
+export const Speed = defineComponent('Speed', { value: 200 });
+```
+
+```typescript
+// src/systems/movement.ts
+import { defineSystem, addSystem, Res, Time, Input, Query, Mut, LocalTransform } from 'esengine';
+import { Speed } from '../components/Speed';
+
+addSystem(defineSystem(
+    [Res(Time), Res(Input), Query(Mut(LocalTransform), Speed)],
+    (time, input, query) => {
+        for (const [entity, transform, speed] of query) {
+            if (input.isKeyDown('KeyD')) {
+                transform.position.x += speed.value * time.delta;
+            }
+            if (input.isKeyDown('KeyA')) {
+                transform.position.x -= speed.value * time.delta;
+            }
+        }
+    }
+));
+```
+
+## Next Steps
+
+- [Queries](/microes/core-concepts/queries/) — query filters and iteration methods
+- [Resources](/microes/core-concepts/resources/) — global singleton data

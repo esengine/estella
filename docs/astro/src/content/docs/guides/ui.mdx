@@ -1,0 +1,127 @@
+---
+title: UI & Text
+description: Text rendering and UI layout components in ESEngine
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The `Text` and `UIRect` components work together with `Sprite` to render text in your game. The `TextPlugin` automatically converts text content into textures each frame.
+
+## Setup
+
+In the scene editor: create an entity → add `LocalTransform`, `Sprite`, `Text`, and `UIRect` components.
+
+- **Text** — defines the text content and style (font, size, color, alignment)
+- **UIRect** — defines the layout rectangle (size, anchor, pivot)
+- **Sprite** — used internally by the text system to display the rendered texture
+
+<Aside type="note">
+  You don't need to configure the Sprite component manually. The `TextPlugin` automatically creates and updates the sprite texture from the Text content.
+</Aside>
+
+## Text Properties
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `content` | string | `''` | Text content to display |
+| `fontFamily` | string | `'Arial'` | Font family name |
+| `fontSize` | number | `24` | Font size in pixels |
+| `color` | Vec4 | `{1, 1, 1, 1}` | Text color RGBA (0–1) |
+| `align` | TextAlign | `Left` | Horizontal alignment |
+| `verticalAlign` | TextVerticalAlign | `Top` | Vertical alignment |
+| `wordWrap` | boolean | `true` | Enable automatic word wrapping |
+| `overflow` | TextOverflow | `Visible` | Overflow handling mode |
+| `lineHeight` | number | `1.2` | Line height multiplier |
+
+## UIRect Properties
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `size` | Vec2 | `{100, 100}` | Width and height of the UI rectangle |
+| `anchor` | Vec2 | `{0.5, 0.5}` | Anchor point (0–1 range) |
+| `pivot` | Vec2 | `{0.5, 0.5}` | Pivot point for rotation and scaling |
+
+## Enums
+
+### TextAlign
+
+| Value | Name | Description |
+|-------|------|-------------|
+| 0 | `Left` | Align text to the left edge |
+| 1 | `Center` | Center text horizontally |
+| 2 | `Right` | Align text to the right edge |
+
+### TextVerticalAlign
+
+| Value | Name | Description |
+|-------|------|-------------|
+| 0 | `Top` | Align text to the top |
+| 1 | `Middle` | Center text vertically |
+| 2 | `Bottom` | Align text to the bottom |
+
+### TextOverflow
+
+| Value | Name | Description |
+|-------|------|-------------|
+| 0 | `Visible` | Text overflows the rectangle boundary |
+| 1 | `Clip` | Text is clipped at the boundary |
+| 2 | `Ellipsis` | Truncated text shows "..." |
+
+## Modifying Text at Runtime
+
+To update text content or style during gameplay, query the `Text` component with `Mut()`:
+
+```typescript
+import { defineSystem, addSystem, Query, Mut } from 'esengine';
+import { Text } from 'esengine';
+
+addSystem(defineSystem(
+    [Query(Mut(Text))],
+    (query) => {
+        for (const [entity, text] of query) {
+            text.content = 'Updated!';
+            text.fontSize = 32;
+        }
+    }
+));
+```
+
+<Aside type="caution">
+  Always use `Mut(Text)` when modifying text properties. Without `Mut()`, the component is read-only.
+</Aside>
+
+## Example: Dynamic Scoreboard
+
+A common pattern is a score display that updates when a value changes:
+
+```typescript
+import { defineComponent, defineTag, defineSystem, addSystem, Query, Mut } from 'esengine';
+import { Text } from 'esengine';
+
+const ScoreDisplay = defineTag('ScoreDisplay');
+
+const GameState = defineComponent('GameState', {
+    score: 0,
+});
+
+addSystem(defineSystem(
+    [Query(Mut(Text), ScoreDisplay), Query(GameState)],
+    (displayQuery, stateQuery) => {
+        let score = 0;
+        for (const [, state] of stateQuery) {
+            score = state.score;
+        }
+        for (const [, text] of displayQuery) {
+            text.content = `Score: ${score}`;
+        }
+    }
+));
+```
+
+In the editor: create a text entity with `Text`, `UIRect`, `Sprite`, `LocalTransform`, and the `ScoreDisplay` tag.
+
+## Next Steps
+
+- [Components](/microes/core-concepts/components/) — all builtin components
+- [Sprite](/microes/guides/sprite/) — sprite rendering details
+- [Asset Loading](/microes/guides/assets/) — loading textures and other assets

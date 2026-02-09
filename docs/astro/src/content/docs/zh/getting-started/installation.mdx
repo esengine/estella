@@ -1,0 +1,62 @@
+---
+title: 安装
+description: 安装 ESEngine 编辑器并创建你的第一个项目
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+## 安装编辑器
+
+从 [releases 页面](https://github.com/esengine/microes/releases) 下载 ESEngine 编辑器并安装。
+
+## 创建项目
+
+<Steps>
+
+1. **打开编辑器**，点击 **New Project**
+
+2. **输入项目名称**，选择保存位置
+
+3. **选择模板**（Empty Project），点击 **Create**
+
+</Steps>
+
+编辑器会创建如下项目结构：
+
+```
+my-game/
+├── project.esproject       # 项目配置
+├── tsconfig.json           # TypeScript 配置
+├── src/                    # 游戏脚本
+├── assets/
+│   ├── scenes/
+│   │   └── main.esscene   # 默认场景
+│   ├── textures/
+│   └── audio/
+└── .esengine/
+    ├── settings.json       # 编辑器设置
+    └── sdk/                # SDK（编辑器自动导出）
+        ├── index.js
+        ├── index.d.ts
+        └── wasm.d.ts
+```
+
+<Aside type="tip">
+  编辑器会自动将 SDK 导出到 `.esengine/sdk/`，无需手动安装。
+</Aside>
+
+## 开发流程
+
+<Steps>
+
+1. **编辑场景** — 在编辑器中可视化地添加实体、附加组件、排列精灵
+
+2. **编写脚本** — 在 `src/` 中使用 TypeScript 定义系统、自定义组件和游戏逻辑
+
+3. **按 F5** 在浏览器中预览游戏
+
+</Steps>
+
+## 下一步
+
+项目准备好后，[创建你的第一个游戏](/microes/zh/getting-started/quick-start/)。

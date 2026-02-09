@@ -1,0 +1,189 @@
+---
+title: 组件
+description: ESEngine 中的内置和自定义组件
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+组件是附加在实体上的数据。在 ESEngine 中，你在代码中**定义**组件，然后在场景编辑器中**挂载**到实体上。
+
+## 内置组件
+
+内置组件在编辑器中始终可用，由 C++ 后端支持。
+
+### LocalTransform
+
+实体的位置、旋转和缩放。
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `position` | Vec3 | 世界坐标 `{ x, y, z }` |
+| `rotation` | Quat | 四元数 `{ w, x, y, z }` |
+| `scale` | Vec3 | 缩放因子 `{ x, y, z }` |
+
+### Sprite
+
+2D 精灵渲染。需要 `LocalTransform` 才能显示。详见[精灵指南](/microes/zh/guides/sprite/)。
+
+### Camera
+
+视图设置。至少需要一个激活的相机才能看到内容。编辑器的默认场景已包含一个。
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `projectionType` | number | 0 = 透视，1 = 正交 |
+| `fov` | number | 视角角度（仅透视） |
+| `orthoSize` | number | 半高世界单位（仅正交） |
+| `nearPlane` | number | 近裁剪面 |
+| `farPlane` | number | 远裁剪面 |
+| `isActive` | boolean | 是否用于渲染 |
+| `priority` | number | 高优先级相机优先 |
+
+### Canvas
+
+渲染表面的显示设置。
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `designResolution` | Vec2 | 设计分辨率 `{ x, y }` |
+| `pixelsPerUnit` | number | 每世界单位像素数 |
+| `scaleMode` | number | 画布缩放模式 |
+| `matchWidthOrHeight` | number | 宽高匹配平衡 |
+| `backgroundColor` | Vec4 | 清屏颜色 RGBA |
+
+### Velocity
+
+运动速度。
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `linear` | Vec3 | 线速度 |
+| `angular` | Vec3 | 角速度 |
+
+### Parent / Children
+
+场景图的实体层级关系。
+
+| 组件 | 属性 | 类型 | 说明 |
+|------|------|------|------|
+| `Parent` | `entity` | Entity | 父实体 ID |
+| `Children` | `entities` | Entity[] | 子实体 ID 列表 |
+
+### SpineAnimation
+
+Spine 骨骼动画播放。需要 `LocalTransform`。详见 [Spine 动画指南](/microes/zh/guides/spine/)。
+
+### Text
+
+UI 文本渲染。配合 `UIRect` 和 `Sprite` 组件显示文本。详见 [UI 与文本指南](/microes/zh/guides/ui/)。
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `content` | string | 文本内容 |
+| `fontFamily` | string | 字体名称 |
+| `fontSize` | number | 字号（像素） |
+| `color` | Vec4 | 文本颜色 RGBA |
+| `align` | TextAlign | 水平对齐方式 |
+| `verticalAlign` | TextVerticalAlign | 垂直对齐方式 |
+
+### UIRect
+
+UI 布局矩形。定义 UI 元素的尺寸、锚点和旋转中心。
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `size` | Vec2 | 宽高 |
+| `anchor` | Vec2 | 锚点（0–1） |
+| `pivot` | Vec2 | 旋转中心点 |
+
+## 自定义组件
+
+### defineComponent
+
+在代码中定义数据组件。保存后会出现在编辑器的"添加组件"菜单中。
+
+```typescript
+import { defineComponent } from 'esengine';
+
+export const Health = defineComponent('Health', {
+    current: 100,
+    max: 100
+});
+```
+
+在编辑器中：选择实体 → 添加组件 → Health → 在检查器中设置值。
+
+系统查询拥有该组件的实体：
+
+```typescript
+import { defineSystem, addSystem, Query } from 'esengine';
+import { Health } from './components/Health';
+
+addSystem(defineSystem(
+    [Query(Health)],
+    (query) => {
+        for (const [entity, health] of query) {
+            if (health.current <= 0) {
+                // 处理死亡
+            }
+        }
+    }
+));
+```
+
+### defineTag
+
+标签组件没有数据 — 纯粹用于筛选实体。
+
+```typescript
+import { defineTag } from 'esengine';
+
+export const Player = defineTag('Player');
+export const Enemy = defineTag('Enemy');
+```
+
+在编辑器中将 `Player` 挂载到实体上，然后查询它：
+
+```typescript
+addSystem(defineSystem(
+    [Query(LocalTransform, Player)],
+    (query) => {
+        for (const [entity, transform] of query) {
+            // 只处理带有 Player 标签的实体
+        }
+    }
+));
+```
+
+<Aside type="caution">
+  自定义组件仅存储在 TypeScript 中。内置组件与 C++ 后端同步用于渲染。
+</Aside>
+
+## 运行时创建实体
+
+需要在运行时创建实体时（如子弹、粒子、特效），使用 `Commands`：
+
+```typescript
+import { addStartupSystem, defineSystem, Commands, Sprite, LocalTransform } from 'esengine';
+
+addStartupSystem(defineSystem(
+    [Commands()],
+    (cmds) => {
+        const entity = cmds.spawn()
+            .insert(Sprite, { size: { x: 10, y: 10 } })
+            .insert(LocalTransform, { position: { x: 0, y: 0, z: 0 } })
+            .id();
+    }
+));
+```
+
+### 运行时移除组件
+
+```typescript
+cmds.entity(entity).remove(Velocity);
+```
+
+## 下一步
+
+- [系统](/microes/zh/core-concepts/systems/) — 操作组件的逻辑
+- [查询](/microes/zh/core-concepts/queries/) — 按组件查找实体

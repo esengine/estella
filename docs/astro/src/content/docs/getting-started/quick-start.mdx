@@ -5,132 +5,95 @@ description: Create your first ESEngine game in minutes
 
 import { Steps, Aside } from '@astrojs/starlight/components';
 
-Let's create a simple game that displays a moving sprite. This will introduce you to the core concepts of ESEngine.
+Let's create a simple game that animates a sprite. This will introduce you to the core concepts of ESEngine.
 
-## Create a New Project
+## Create a Project
 
 <Steps>
 
-1. **Create your project directory**
+1. **Open the editor** and click **New Project**
 
-   ```bash
-   mkdir my-game
-   cd my-game
-   npm init -y
-   ```
+2. **Name your project** (e.g. "my-first-game") and click **Create**
 
-2. **Install dependencies**
+   The editor creates a project with a default scene containing a Camera entity.
 
-   ```bash
-   npm install esengine
-   npm install -D esbuild typescript
-   ```
+3. **Add a Sprite entity** in the editor
 
-3. **Create src/main.ts**
+   In the Hierarchy panel, create a new entity and add `LocalTransform` and `Sprite` components to it. Set the Sprite size to `100 x 100` and pick a color.
+
+4. **Create `src/main.ts`** with the following code:
 
    ```typescript
    import {
-       type ESEngineModule,
-       createWebApp,
        defineSystem,
-       Schedule,
-       Commands,
+       addSystem,
        Query,
+       Mut,
        Res,
        Time,
        LocalTransform,
        Sprite,
-       Camera
    } from 'esengine';
 
-   export async function main(Module: ESEngineModule): Promise<void> {
-       const app = createWebApp(Module);
-
-       // Startup system - runs once at the beginning
-       app.addSystemToSchedule(Schedule.Startup, defineSystem(
-           [Commands()],
-           (cmds) => {
-               // Create camera
-               cmds.spawn()
-                   .insert(Camera, {
-                       projectionType: 1,
-                       orthoSize: 400,
-                       isActive: true
-                   })
-                   .insert(LocalTransform, {
-                       position: { x: 0, y: 0, z: 10 }
-                   });
-
-               // Create a sprite
-               cmds.spawn()
-                   .insert(Sprite, {
-                       color: { x: 1, y: 0.5, z: 0.2, w: 1 },
-                       size: { x: 100, y: 100 }
-                   })
-                   .insert(LocalTransform, {
-                       position: { x: 0, y: 0, z: 0 }
-                   });
+   addSystem(defineSystem(
+       [Res(Time), Query(Mut(LocalTransform), Sprite)],
+       (time, query) => {
+           for (const [entity, transform, sprite] of query) {
+               transform.position.x = Math.sin(time.elapsed) * 100;
+               transform.position.y = Math.cos(time.elapsed) * 100;
            }
-       ));
-
-       // Update system - runs every frame
-       app.addSystemToSchedule(Schedule.Update, defineSystem(
-           [Res(Time), Query(LocalTransform, Sprite)],
-           (time, query) => {
-               for (const [entity, transform, sprite] of query) {
-                   // Move sprite in a circle
-                   transform.position.x = Math.sin(time.elapsed) * 100;
-                   transform.position.y = Math.cos(time.elapsed) * 100;
-               }
-           }
-       ));
-
-       app.run();
-   }
+       }
+   ));
    ```
 
-4. **Add build script to package.json**
-
-   ```json
-   {
-     "scripts": {
-       "build": "esbuild src/main.ts --bundle --format=esm --outfile=build/main.js"
-     }
-   }
-   ```
-
-5. **Build your game**
-
-   ```bash
-   npm run build
-   ```
+5. **Press F5** in the editor to preview — the sprite moves in a circle
 
 </Steps>
 
-<Aside type="tip">
-  You also need the ESEngine WASM files. See [Installation](/microes/getting-started/installation/) for how to build them.
-</Aside>
-
 ## Understanding the Code
 
-### App and Systems
+### Components Live in the Scene
 
-ESEngine uses a system-based architecture. Systems are functions that run at specific points in the game loop:
+In ESEngine, entities and their components are created in the **scene editor**. Your code doesn't create them — it defines **systems** that query and operate on scene entities.
+
+The sprite you placed in step 3 already has `LocalTransform` and `Sprite` components. The system in step 4 finds it via `Query(Mut(LocalTransform), Sprite)` and animates it.
+
+### Custom Components
+
+You can define custom components in code, then attach them to entities in the editor:
 
 ```typescript
-// Create the app with WASM module
-const app = createWebApp(Module);
+// src/components/Speed.ts
+import { defineComponent } from 'esengine';
 
-// Add a system to a schedule
-app.addSystemToSchedule(Schedule.Update, defineSystem(
-    [/* parameters */],
-    (/* injected params */) => {
-        // Game logic here
+export const Speed = defineComponent('Speed', { value: 200 });
+```
+
+After saving, the `Speed` component appears in the editor's "Add Component" menu. Attach it to an entity, then write a system that queries it:
+
+```typescript
+// src/systems/movement.ts
+import { defineSystem, addSystem, Res, Time, Query, Mut, LocalTransform } from 'esengine';
+import { Speed } from '../components/Speed';
+
+addSystem(defineSystem(
+    [Res(Time), Query(Mut(LocalTransform), Speed)],
+    (time, query) => {
+        for (const [entity, transform, speed] of query) {
+            transform.position.x += speed.value * time.delta;
+        }
     }
 ));
+```
 
-// Start the game loop
-app.run();
+### Registering Systems
+
+```typescript
+import { addSystem, addStartupSystem, addSystemToSchedule, Schedule } from 'esengine';
+
+addStartupSystem(system);                          // runs once at start
+addSystem(system);                                 // runs every frame (Update)
+addSystemToSchedule(Schedule.FixedUpdate, system);  // runs at fixed intervals
 ```
 
 ### Schedule Types
@@ -142,55 +105,23 @@ app.run();
 | `PostUpdate` | After Update, every frame |
 | `FixedUpdate` | At fixed time intervals |
 
-### System Parameters
+### Runtime Spawning
 
-Systems declare what data they need, and it gets injected automatically:
+Use `Commands` when you need to create entities at runtime (e.g. bullets, particles):
 
 ```typescript
-defineSystem(
-    [Commands(), Res(Time), Query(LocalTransform, Sprite)],
-    (cmds, time, query) => {
-        // cmds: spawn/despawn entities
-        // time: elapsed time, delta time
-        // query: iterate entities with components
+addStartupSystem(defineSystem(
+    [Commands()],
+    (cmds) => {
+        cmds.spawn()
+            .insert(Sprite, { size: { x: 10, y: 10 } })
+            .insert(LocalTransform, { position: { x: 0, y: 0, z: 0 } });
     }
-)
-```
-
-### Components
-
-Components are data attached to entities. ESEngine provides builtin components:
-
-| Component | Description |
-|-----------|-------------|
-| `LocalTransform` | Position, rotation, scale |
-| `Sprite` | 2D sprite rendering |
-| `Camera` | Camera settings |
-| `Velocity` | Movement velocity |
-
-### Creating Entities
-
-Use `Commands` to spawn entities and attach components:
-
-```typescript
-cmds.spawn()
-    .insert(Sprite, { color: { x: 1, y: 0, z: 0, w: 1 } })
-    .insert(LocalTransform, { position: { x: 100, y: 100, z: 0 } })
-    .id();  // Returns the entity ID
-```
-
-### Querying Entities
-
-Use `Query` to iterate entities with specific components:
-
-```typescript
-for (const [entity, transform, sprite] of query) {
-    transform.position.x += 1;
-}
+));
 ```
 
 ## Next Steps
 
-- [Learn ECS in depth](/microes/guides/ecs/)
-- [Handle input](/microes/guides/input/)
-- [Add sprites and textures](/microes/guides/rendering/)
+- [Understand the ECS pattern](/microes/core-concepts/ecs/)
+- [Learn about components](/microes/core-concepts/components/)
+- [Write systems](/microes/core-concepts/systems/)
