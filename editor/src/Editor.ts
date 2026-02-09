@@ -294,7 +294,7 @@ export class Editor {
                 <div class="es-dialog-body" style="text-align: center; padding: 24px;">
                     <div style="margin-bottom: 16px;">${icons.logo(64)}</div>
                     <h3 style="margin: 0 0 8px; color: var(--es-text-primary);">ESEngine Editor</h3>
-                    <p style="margin: 0 0 16px; color: var(--es-text-secondary);">Version 0.1.0</p>
+                    <p style="margin: 0 0 16px; color: var(--es-text-secondary);">Version ${getEditorContext().version ?? '0.0.0'}</p>
                     <p style="margin: 0; font-size: 12px; color: var(--es-text-secondary);">
                         A lightweight 2D game engine<br>for web and mini-programs.
                     </p>

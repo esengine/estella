@@ -8,6 +8,7 @@ import { createEditor, ProjectLauncher, setPlatformAdapter, setEditorContext, ty
 import { TauriPlatformAdapter } from './TauriPlatformAdapter';
 import { nativeFS, nativeShell } from './native-fs';
 import { invoke } from '@tauri-apps/api/core';
+import { getVersion } from '@tauri-apps/api/app';
 import { check } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { ask } from '@tauri-apps/plugin-dialog';
@@ -95,12 +96,14 @@ async function checkForUpdate(): Promise<void> {
 }
 
 async function init(): Promise<void> {
+    const version = await getVersion();
     setPlatformAdapter(new TauriPlatformAdapter());
     setEditorContext({
         fs: nativeFS,
         invoke,
         shell: nativeShell,
         esbuildWasmURL: '/esbuild.wasm',
+        version,
     });
 
     const container = document.getElementById('editor-root');

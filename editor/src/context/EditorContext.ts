@@ -17,6 +17,7 @@ export interface EditorContextConfig {
     invoke?: (cmd: string, args?: Record<string, unknown>) => Promise<unknown>;
     shell?: NativeShell;
     esbuildWasmURL?: string;
+    version?: string;
 }
 
 let ctx: EditorContextConfig = {};
