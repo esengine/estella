@@ -5,7 +5,7 @@ description: ESEngine 中的键盘、鼠标和触摸输入
 
 import { Aside } from '@astrojs/starlight/components';
 
-ESEngine 通过 `Input` 资源提供输入处理。
+ESEngine 通过 `Input` 资源提供输入处理。`InputPlugin` 由 `createWebApp()` 自动注册，绑定 DOM 键盘、鼠标、触摸和滚轮事件。
 
 ## 在系统中使用输入
 
@@ -40,18 +40,25 @@ addSystem(defineSystem(
 ### 按键状态
 
 ```typescript
+// 当前被按住（按住期间每帧为 true）
 if (input.isKeyDown('Space')) {
-    // Space 当前被按住
+    charge();
 }
 
+// 这帧刚被按下（仅一帧为 true）
 if (input.isKeyPressed('Space')) {
-    // Space 在这帧刚被按下
+    jump();
 }
 
+// 这帧刚被释放（仅一帧为 true）
 if (input.isKeyReleased('Space')) {
-    // Space 在这帧刚被释放
+    releaseCharge();
 }
 ```
+
+<Aside type="tip">
+  一次性动作（跳跃、射击）使用 `isKeyPressed`，持续性动作（移动、蓄力）使用 `isKeyDown`。
+</Aside>
 
 ### 按键码
 
@@ -86,6 +93,23 @@ if (input.isMouseButtonDown(0)) {  // 左键
 }
 if (input.isMouseButtonDown(2)) {  // 右键
     // 处理右键点击
+}
+
+// 这帧刚按下 / 释放
+if (input.isMouseButtonPressed(0)) {
+    onClickStart();
+}
+if (input.isMouseButtonReleased(0)) {
+    onClickEnd();
+}
+```
+
+## 滚轮输入
+
+```typescript
+const scroll = input.getScrollDelta();
+if (scroll.y !== 0) {
+    zoomCamera(scroll.y);
 }
 ```
 

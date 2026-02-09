@@ -128,20 +128,3 @@ export const Time = defineResource<TimeData>({
     frameCount: 0
 }, 'Time');
 
-export interface InputState {
-    keysDown: Set<string>;
-    keysPressed: Set<string>;
-    keysReleased: Set<string>;
-    mouseX: number;
-    mouseY: number;
-    mouseButtons: Set<number>;
-}
-
-export const Input = defineResource<InputState>({
-    keysDown: new Set(),
-    keysPressed: new Set(),
-    keysReleased: new Set(),
-    mouseX: 0,
-    mouseY: 0,
-    mouseButtons: new Set()
-}, 'Input');

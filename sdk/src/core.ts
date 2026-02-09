@@ -68,14 +68,19 @@ export {
     Res,
     ResMut,
     Time,
-    Input,
     type ResourceDef,
     type ResDescriptor,
     type ResMutDescriptor,
     type ResMutInstance,
     type TimeData,
-    type InputState,
 } from './resource';
+
+export {
+    Input,
+    InputState,
+    InputPlugin,
+    inputPlugin,
+} from './input';
 
 // =============================================================================
 // Query

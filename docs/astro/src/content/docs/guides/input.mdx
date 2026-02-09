@@ -5,7 +5,7 @@ description: Keyboard, mouse, and touch input in ESEngine
 
 import { Aside } from '@astrojs/starlight/components';
 
-ESEngine provides input handling through the `Input` resource.
+ESEngine provides input handling through the `Input` resource. The `InputPlugin` is automatically registered by `createWebApp()`, binding DOM keyboard, mouse, touch, and scroll events.
 
 ## Using Input in Systems
 
@@ -40,18 +40,25 @@ addSystem(defineSystem(
 ### Key State
 
 ```typescript
+// Currently held down (true every frame while held)
 if (input.isKeyDown('Space')) {
-    // Space is currently held
+    charge();
 }
 
+// Just pressed this frame (true for one frame only)
 if (input.isKeyPressed('Space')) {
-    // Space was just pressed this frame
+    jump();
 }
 
+// Just released this frame (true for one frame only)
 if (input.isKeyReleased('Space')) {
-    // Space was just released this frame
+    releaseCharge();
 }
 ```
+
+<Aside type="tip">
+  Use `isKeyPressed` for one-shot actions (jump, shoot) and `isKeyDown` for continuous actions (movement, charging).
+</Aside>
 
 ### Key Codes
 
@@ -86,6 +93,23 @@ if (input.isMouseButtonDown(0)) {  // Left button
 }
 if (input.isMouseButtonDown(2)) {  // Right button
     // handle right click
+}
+
+// Just pressed / released this frame
+if (input.isMouseButtonPressed(0)) {
+    onClickStart();
+}
+if (input.isMouseButtonReleased(0)) {
+    onClickEnd();
+}
+```
+
+## Scroll Input
+
+```typescript
+const scroll = input.getScrollDelta();
+if (scroll.y !== 0) {
+    zoomCamera(scroll.y);
 }
 ```
 

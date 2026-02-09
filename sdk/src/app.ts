@@ -8,6 +8,7 @@ import { Schedule, SystemDef, SystemRunner } from './system';
 import { ResourceStorage, Time, TimeData, type ResourceDef } from './resource';
 import type { ESEngineModule, CppRegistry } from './wasm';
 import { textPlugin } from './ui/TextPlugin';
+import { inputPlugin } from './input';
 import { initDrawAPI, shutdownDrawAPI } from './draw';
 import { initMaterialAPI, shutdownMaterialAPI } from './material';
 import { initGeometryAPI, shutdownGeometryAPI } from './geometry';
@@ -264,6 +265,7 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
 
     app.addSystemToSchedule(Schedule.Last, renderSystem);
 
+    app.addPlugin(inputPlugin);
     app.addPlugin(textPlugin);
 
     return app;
