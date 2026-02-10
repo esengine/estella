@@ -70,7 +70,6 @@ export class EditorSceneRenderer {
         initRendererAPI(module);
 
         this.pipeline_ = new RenderPipeline();
-        Renderer.setClearColor(0.1, 0.1, 0.1, 1.0);
         this.startTime_ = performance.now();
 
         this.sceneManager_ = new EditorSceneManager(module, this.pathResolver_);
@@ -167,6 +166,9 @@ export class EditorSceneRenderer {
         if (!this.pipeline_ || !this.sceneManager_ || !this.initialized_) return;
         if (width <= 0 || height <= 0) return;
 
+        const bg = this.findCanvasBackgroundColor();
+        Renderer.setClearColor(bg.x, bg.y, bg.z, bg.w);
+
         const matrix = this.camera_.getViewProjection(width, height);
         const elapsed = (performance.now() - this.startTime_) / 1000;
 
@@ -175,6 +177,19 @@ export class EditorSceneRenderer {
             viewProjection: matrix,
             width, height, elapsed,
         });
+    }
+
+    private findCanvasBackgroundColor(): { x: number; y: number; z: number; w: number } {
+        if (this.store_) {
+            for (const entity of this.store_.scene.entities) {
+                for (const comp of entity.components) {
+                    if (comp.type === 'Canvas' && comp.data?.backgroundColor) {
+                        return comp.data.backgroundColor as { x: number; y: number; z: number; w: number };
+                    }
+                }
+            }
+        }
+        return { x: 0.1, y: 0.1, z: 0.1, w: 1.0 };
     }
 
     // =========================================================================

@@ -18,6 +18,7 @@ import { initRendererAPI, shutdownRendererAPI } from './renderer';
 import { initGLDebugAPI, shutdownGLDebugAPI } from './glDebug';
 import { platformNow } from './platform';
 import { RenderPipeline, type SpineRendererFn } from './renderPipeline';
+import { Renderer } from './renderer';
 
 // =============================================================================
 // Plugin Interface
@@ -271,6 +272,13 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
         _params: [],
         _fn: () => {
             const { width, height } = getViewportSize();
+            const count = cppRegistry.entityCount();
+            const scanLimit = count + 1000;
+            const canvas = findCanvasData(cppRegistry, scanLimit);
+            if (canvas) {
+                const bg = canvas.backgroundColor;
+                Renderer.setClearColor(bg.x, bg.y, bg.z, bg.w);
+            }
             const vp = computeViewProjection(cppRegistry, width, height);
             const elapsed = (platformNow() - startTime) / 1000;
             pipeline.render({
@@ -316,6 +324,7 @@ function findCanvasData(registry: CppRegistry, scanLimit: number): {
     designResolution: { x: number; y: number };
     scaleMode: number;
     matchWidthOrHeight: number;
+    backgroundColor: { x: number; y: number; z: number; w: number };
 } | null {
     for (let e = 0; e < scanLimit; e++) {
         if (!registry.valid(e) || !registry.hasCanvas(e)) continue;
@@ -323,6 +332,7 @@ function findCanvasData(registry: CppRegistry, scanLimit: number): {
             designResolution: { x: number; y: number };
             scaleMode: number;
             matchWidthOrHeight: number;
+            backgroundColor: { x: number; y: number; z: number; w: number };
         };
         return canvas;
     }

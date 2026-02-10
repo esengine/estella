@@ -14,6 +14,7 @@
 #include "Log.hpp"
 #include "../platform/input/Input.hpp"
 #include "../platform/FileSystem.hpp"
+#include "../ecs/components/Canvas.hpp"
 
 #ifdef ES_PLATFORM_WEB
     #include <emscripten.h>
@@ -145,6 +146,12 @@ void Application::mainLoop() {
     onUpdate(static_cast<f32>(deltaTime_));
 
     // Render
+    auto canvasView = registry_.view<ecs::Canvas>();
+    if (!canvasView.empty()) {
+        auto entity = *canvasView.begin();
+        auto& canvas = registry_.get<ecs::Canvas>(entity);
+        renderer_->setClearColor(canvas.backgroundColor);
+    }
     renderer_->beginFrame();
     renderer_->clear();
 

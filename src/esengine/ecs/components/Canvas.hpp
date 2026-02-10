@@ -92,7 +92,7 @@ struct Canvas {
      * @return Half-height in world units for orthographic projection
      */
     f32 getOrthoSize() const {
-        return (designResolution.y * 0.5f) / pixelsPerUnit;
+        return (static_cast<f32>(designResolution.y) * 0.5f) / pixelsPerUnit;
     }
 
     /**
