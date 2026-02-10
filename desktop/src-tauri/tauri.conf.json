@@ -41,7 +41,7 @@
       "endpoints": [
         "https://github.com/esengine/microes/releases/latest/download/latest.json"
       ],
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDg3NzU1MENDQjkzRDhGQzcKUldUSGp6MjV6RkIxaDduNXIyOStLaW5MVlVKNWZaR3ZFMFYzT25qUW1hMHJTcVVpbEhnS0tKeGkK"
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEQyOERCMjkxNUVFQjNBNzkKUldSNU91dGVrYktOMG4waTZqalNZVkQzUmJ6TWlsSXlhdm9PSkdYbTdESFRUS1JhTGZFUkxxSWcK"
     }
   },
   "bundle": {
