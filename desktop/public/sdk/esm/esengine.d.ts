@@ -89,6 +89,7 @@ interface CameraData {
     aspectRatio: number;
     isActive: boolean;
     priority: number;
+    showFrustum: boolean;
 }
 interface CanvasData {
     designResolution: Vec2;
@@ -611,7 +612,7 @@ declare class InputState {
 declare const Input: ResourceDef<InputState>;
 declare class InputPlugin implements Plugin {
     private target_;
-    constructor(target?: HTMLElement);
+    constructor(target?: unknown);
     build(app: App): void;
 }
 declare const inputPlugin: InputPlugin;
@@ -1112,6 +1113,11 @@ interface RuntimeAssetProvider {
         height: number;
         pixels: Uint8Array;
     }>;
+    loadPixelsRaw?(ref: string): Promise<{
+        width: number;
+        height: number;
+        pixels: Uint8Array;
+    }>;
     readText(ref: string): string;
     readBinary(ref: string): Uint8Array;
     resolvePath(ref: string): string;
@@ -1161,6 +1167,14 @@ interface WasmInstantiateResult {
     instance: WebAssembly.Instance;
     module: WebAssembly.Module;
 }
+interface InputEventCallbacks {
+    onKeyDown(code: string): void;
+    onKeyUp(code: string): void;
+    onPointerMove(x: number, y: number): void;
+    onPointerDown(button: number, x: number, y: number): void;
+    onPointerUp(button: number): void;
+    onWheel(deltaX: number, deltaY: number): void;
+}
 interface PlatformAdapter {
     /**
      * Platform name identifier
@@ -1199,6 +1213,12 @@ interface PlatformAdapter {
      * High-resolution timestamp in milliseconds
      */
     now(): number;
+    /**
+     * Bind input events (keyboard, pointer, wheel)
+     * @param callbacks - Event callbacks
+     * @param target - Optional event target (canvas element)
+     */
+    bindInputEvents(callbacks: InputEventCallbacks, target?: unknown): void;
 }
 type PlatformType = 'web' | 'wechat';
 

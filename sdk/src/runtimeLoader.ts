@@ -16,6 +16,7 @@ import type { App } from './app';
 
 export interface RuntimeAssetProvider {
     loadPixels(ref: string): Promise<{ width: number; height: number; pixels: Uint8Array }>;
+    loadPixelsRaw?(ref: string): Promise<{ width: number; height: number; pixels: Uint8Array }>;
     readText(ref: string): string;
     readBinary(ref: string): Uint8Array;
     resolvePath(ref: string): string;
@@ -160,7 +161,8 @@ async function loadSpineAssets(
                 for (let k = 0; k < texNames.length; k++) {
                     const texPath = atlasDir + '/' + texNames[k];
                     try {
-                        const result = await provider.loadPixels(texPath);
+                        const loadFn = provider.loadPixelsRaw ?? provider.loadPixels;
+                        const result = await loadFn(texPath);
                         const handle = createTextureFromPixels(module, result);
                         const rm = module.getResourceManager();
                         const glId = rm.getTextureGLId(handle);

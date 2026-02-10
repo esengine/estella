@@ -440,9 +440,10 @@ void BatchRenderer2D::flush() {
         static_cast<u32>(data_->vertices.size() * sizeof(BatchVertex))
     );
 
-    for (u32 i = 0; i < data_->textureSlotIndex; ++i) {
+    u32 whiteTexture = data_->textureSlots[0];
+    for (u32 i = 0; i < MAX_TEXTURE_SLOTS; ++i) {
         glActiveTexture(GL_TEXTURE0 + i);
-        glBindTexture(GL_TEXTURE_2D, data_->textureSlots[i]);
+        glBindTexture(GL_TEXTURE_2D, i < data_->textureSlotIndex ? data_->textureSlots[i] : whiteTexture);
     }
 
     shader->bind();
