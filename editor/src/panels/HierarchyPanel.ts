@@ -542,6 +542,7 @@ export class HierarchyPanel {
             { label: 'Create Text', icon: icons.type(14), onClick: () => this.createEntityWithComponent('Text', entity) },
             { label: 'Create Spine', icon: icons.bone(14), onClick: () => this.createEntityWithComponent('SpineAnimation', entity) },
             { label: 'Create Camera', icon: icons.camera(14), onClick: () => this.createEntityWithComponent('Camera', entity) },
+            { label: 'Create Canvas', icon: icons.template(14), onClick: () => this.createEntityWithComponent('Canvas', entity) },
             { label: '', separator: true },
         ];
 

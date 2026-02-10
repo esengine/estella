@@ -805,6 +805,14 @@ export class SceneViewPanel {
         }
 
         ctx.restore();
+
+        if (!this.store_.scene.entities.some(
+            e => e.components.some(c => c.type === 'Camera'))) {
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+            ctx.font = '14px system-ui, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('No Camera in Scene', w / 2, h / 2);
+        }
     }
 
     private drawSelectionBox(ctx: CanvasRenderingContext2D): void {
