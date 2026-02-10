@@ -95,6 +95,10 @@ export function platformCreateCanvas(width: number, height: number): HTMLCanvasE
     return getPlatform().createCanvas(width, height);
 }
 
+export function platformCreateImage(): HTMLImageElement {
+    return getPlatform().createImage();
+}
+
 export function platformNow(): number {
     return getPlatform().now();
 }

@@ -105,6 +105,11 @@ export interface PlatformAdapter {
     now(): number;
 
     /**
+     * Create an Image element for loading textures
+     */
+    createImage(): HTMLImageElement;
+
+    /**
      * Bind input events (keyboard, pointer, wheel)
      * @param callbacks - Event callbacks
      * @param target - Optional event target (canvas element)

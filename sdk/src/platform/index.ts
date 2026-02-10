@@ -26,6 +26,7 @@ export {
     platformFileExists,
     platformInstantiateWasm,
     platformCreateCanvas,
+    platformCreateImage,
     platformNow,
 } from './base';
 

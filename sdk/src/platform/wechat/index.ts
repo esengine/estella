@@ -51,6 +51,10 @@ class WeChatPlatformAdapter implements PlatformAdapter {
         return wxInstantiateWasm(pathOrBuffer, imports);
     }
 
+    createImage(): HTMLImageElement {
+        return wx.createImage() as unknown as HTMLImageElement;
+    }
+
     createCanvas(width: number, height: number): HTMLCanvasElement | OffscreenCanvas {
         const canvas = wx.createCanvas() as unknown as HTMLCanvasElement;
         canvas.width = width;
