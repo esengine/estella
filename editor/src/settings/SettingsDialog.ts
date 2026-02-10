@@ -208,7 +208,7 @@ export function showSettingsDialog(): void {
     });
 
     const dialog = new Dialog({
-        title: 'Preferences',
+        title: 'Settings',
         content: body,
         width: 640,
         showCloseButton: true,

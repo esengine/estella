@@ -20,6 +20,33 @@ export function registerBuiltinSettings(): void {
     });
 
     registerSettingsItem({
+        id: 'project.name',
+        section: 'project',
+        label: 'Project Name',
+        type: 'string',
+        defaultValue: '',
+        order: 1,
+    });
+
+    registerSettingsItem({
+        id: 'project.version',
+        section: 'project',
+        label: 'Version',
+        type: 'string',
+        defaultValue: '',
+        order: 2,
+    });
+
+    registerSettingsItem({
+        id: 'project.defaultScene',
+        section: 'project',
+        label: 'Default Scene',
+        type: 'string',
+        defaultValue: '',
+        order: 3,
+    });
+
+    registerSettingsItem({
         id: 'project.spineVersion',
         section: 'project',
         label: 'Spine Version',
@@ -30,6 +57,28 @@ export function registerBuiltinSettings(): void {
             { label: 'Spine 4.2', value: '4.2' },
             { label: 'Spine 3.8', value: '3.8' },
         ],
+    });
+
+    registerSettingsItem({
+        id: 'project.designWidth',
+        section: 'project',
+        label: 'Design Width',
+        type: 'number',
+        defaultValue: 1920,
+        min: 1,
+        step: 1,
+        order: 4,
+    });
+
+    registerSettingsItem({
+        id: 'project.designHeight',
+        section: 'project',
+        label: 'Design Height',
+        type: 'number',
+        defaultValue: 1080,
+        min: 1,
+        step: 1,
+        order: 5,
     });
 
     registerSettingsItem({

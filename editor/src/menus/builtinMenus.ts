@@ -33,13 +33,8 @@ export function registerBuiltinMenus(editor: Editor): void {
         action: () => editor.startPreview(),
     });
     registerMenuItem({
-        id: 'file.project-settings', menu: 'file', label: 'Project Settings...',
-        order: 5, separator: true,
-        action: () => editor.showProjectSettings(),
-    });
-    registerMenuItem({
         id: 'file.build-settings', menu: 'file', label: 'Build Settings...',
-        shortcut: 'Ctrl+Shift+B', order: 6,
+        shortcut: 'Ctrl+Shift+B', order: 6, separator: true,
         action: () => editor.showBuildSettings(),
     });
 
@@ -71,7 +66,7 @@ export function registerBuiltinMenus(editor: Editor): void {
         action: () => editor.duplicateSelected(),
     });
     registerMenuItem({
-        id: 'edit.preferences', menu: 'edit', label: 'Preferences...',
+        id: 'edit.preferences', menu: 'edit', label: 'Settings...',
         shortcut: 'Ctrl+,', order: 10, separator: true,
         action: () => editor.showSettings(),
     });

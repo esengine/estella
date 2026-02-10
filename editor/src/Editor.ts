@@ -40,7 +40,6 @@ import { icons } from './utils/icons';
 import { ScriptLoader } from './scripting';
 import { PreviewService } from './preview';
 import { showBuildSettingsDialog, BuildService } from './builder';
-import { showProjectSettingsDialog } from './launcher/ProjectSettingsDialog';
 import { getGlobalPathResolver } from './asset';
 import type { EditorAssetServer } from './asset/EditorAssetServer';
 import { getAssetLibrary } from './asset/AssetLibrary';
@@ -236,7 +235,9 @@ export class Editor {
     // =========================================================================
 
     newScene(): void {
-        this.store_.newScene();
+        const w = getSettingsValue<number>('project.designWidth');
+        const h = getSettingsValue<number>('project.designHeight');
+        this.store_.newScene('Untitled', { width: w, height: h });
         clearFileHandle();
     }
 
@@ -351,38 +352,43 @@ export class Editor {
         document.body.appendChild(overlay);
     }
 
-    showProjectSettings(): void {
-        if (!this.projectPath_) return;
-        showProjectSettingsDialog({
-            projectPath: this.projectPath_,
-            onConfigChanged: (config) => {
-                if (config.spineVersion) {
-                    setSettingsValue('project.spineVersion', config.spineVersion);
-                }
-            },
-        });
-    }
-
     private async syncProjectSettings(): Promise<void> {
         if (!this.projectPath_) return;
         const config = await loadProjectConfig(this.projectPath_);
-        if (config?.spineVersion) {
-            setSettingsValue('project.spineVersion', config.spineVersion);
+        if (config) {
+            setSettingsValue('project.name', config.name);
+            setSettingsValue('project.version', config.version);
+            setSettingsValue('project.defaultScene', config.defaultScene);
+            if (config.spineVersion) {
+                setSettingsValue('project.spineVersion', config.spineVersion);
+            }
+            const resolution = config.designResolution ?? { width: 1920, height: 1080 };
+            setSettingsValue('project.designWidth', resolution.width);
+            setSettingsValue('project.designHeight', resolution.height);
         }
 
         const projectPath = this.projectPath_;
         onSettingsChange((id, value) => {
-            if (id === 'project.spineVersion') {
-                this.saveSpineVersionToProject(projectPath, value as SpineVersion);
-                this.spineVersionChangeHandler_?.(value as string);
+            if (id.startsWith('project.')) {
+                this.saveProjectField(projectPath);
+                if (id === 'project.spineVersion') {
+                    this.spineVersionChangeHandler_?.(value as string);
+                }
             }
         });
     }
 
-    private async saveSpineVersionToProject(projectPath: string, version: SpineVersion): Promise<void> {
+    private async saveProjectField(projectPath: string): Promise<void> {
         const config = await loadProjectConfig(projectPath);
         if (!config) return;
-        config.spineVersion = version;
+        config.name = getSettingsValue<string>('project.name') || config.name;
+        config.version = getSettingsValue<string>('project.version') || config.version;
+        config.defaultScene = getSettingsValue<string>('project.defaultScene') || config.defaultScene;
+        config.spineVersion = getSettingsValue<string>('project.spineVersion') as SpineVersion;
+        config.designResolution = {
+            width: getSettingsValue<number>('project.designWidth') || 1920,
+            height: getSettingsValue<number>('project.designHeight') || 1080,
+        };
         config.modified = new Date().toISOString();
         const fs = getEditorContext().fs;
         if (fs) {

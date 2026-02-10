@@ -22,5 +22,3 @@ export {
 } from './ProjectService';
 export type { CreateProjectOptions, ProjectServiceResult } from './ProjectService';
 
-export { showProjectSettingsDialog } from './ProjectSettingsDialog';
-export type { ProjectSettingsDialogOptions } from './ProjectSettingsDialog';
