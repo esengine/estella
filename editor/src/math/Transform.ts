@@ -217,6 +217,12 @@ export function getUIRectFromEntity(entity: EntityDataLike): UIRectLike | null {
 }
 
 export function getEntitySize(entity: EntityDataLike): { x: number; y: number } {
+    const canvas = entity.components.find(c => c.type === 'Canvas');
+    if (canvas?.data?.designResolution) {
+        const res = canvas.data.designResolution as { x: number; y: number };
+        return { x: res.x, y: res.y };
+    }
+
     const uiRect = getUIRectFromEntity(entity);
     if (uiRect?.size) {
         return uiRect.size;

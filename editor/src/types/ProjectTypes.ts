@@ -17,6 +17,7 @@ export interface ProjectConfig {
     created: string;
     modified: string;
     spineVersion?: SpineVersion;
+    designResolution?: { width: number; height: number };
 }
 
 // =============================================================================

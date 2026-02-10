@@ -439,22 +439,22 @@ export class EditorSceneManager {
             }
         }
 
-        return this.getCanvasSize();
+        return this.findCanvasAncestorSize(entity);
     }
 
-    private getCanvasSize(): { x: number; y: number } {
-        if (this.sceneData_) {
-            for (const entity of this.sceneData_.entities) {
-                const canvas = entity.components.find(c => c.type === 'Canvas');
-                if (canvas?.data) {
-                    const resolution = (canvas.data as any).designResolution;
-                    if (resolution) {
-                        return { x: resolution.x, y: resolution.y };
-                    }
-                }
+    private findCanvasAncestorSize(entity: EntityData): { x: number; y: number } {
+        let current = entity;
+        while (current.parent !== null) {
+            const parent = this.entityDataMap_.get(current.parent);
+            if (!parent) break;
+            const canvas = parent.components.find(c => c.type === 'Canvas');
+            if (canvas?.data?.designResolution) {
+                const res = canvas.data.designResolution as { x: number; y: number };
+                return { x: res.x, y: res.y };
             }
+            current = parent;
         }
-        return { x: 1920, y: 1080 };
+        return { x: 0, y: 0 };
     }
 
     private resolveAssetRef(ref: string): string {

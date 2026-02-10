@@ -310,6 +310,46 @@ const IDENTITY = new Float32Array([
     0, 0, 0, 1,
 ]);
 
+function findCanvasData(registry: CppRegistry, scanLimit: number): {
+    designResolution: { x: number; y: number };
+    scaleMode: number;
+    matchWidthOrHeight: number;
+} | null {
+    for (let e = 0; e < scanLimit; e++) {
+        if (!registry.valid(e) || !registry.hasCanvas(e)) continue;
+        const canvas = registry.getCanvas(e) as {
+            designResolution: { x: number; y: number };
+            scaleMode: number;
+            matchWidthOrHeight: number;
+        };
+        return canvas;
+    }
+    return null;
+}
+
+function computeEffectiveOrthoSize(
+    baseOrthoSize: number,
+    designAspect: number,
+    actualAspect: number,
+    scaleMode: number,
+    matchWidthOrHeight: number,
+): number {
+    const orthoForWidth = baseOrthoSize * designAspect / actualAspect;
+    const orthoForHeight = baseOrthoSize;
+
+    switch (scaleMode) {
+        case 0: return orthoForWidth;
+        case 1: return orthoForHeight;
+        case 2: return Math.max(orthoForWidth, orthoForHeight);
+        case 3: return Math.min(orthoForWidth, orthoForHeight);
+        case 4: {
+            const t = matchWidthOrHeight;
+            return Math.pow(orthoForWidth, 1 - t) * Math.pow(orthoForHeight, t);
+        }
+        default: return orthoForHeight;
+    }
+}
+
 function computeViewProjection(registry: CppRegistry, width: number, height: number): Float32Array {
     const count = registry.entityCount();
     const scanLimit = count + 1000;
@@ -337,7 +377,18 @@ function computeViewProjection(registry: CppRegistry, width: number, height: num
         let projection: Float32Array;
 
         if (camera.projectionType === 1) {
-            const halfH = camera.orthoSize;
+            let halfH = camera.orthoSize;
+
+            const canvas = findCanvasData(registry, scanLimit);
+            if (canvas) {
+                const baseOrthoSize = canvas.designResolution.y / 2;
+                const designAspect = canvas.designResolution.x / canvas.designResolution.y;
+                halfH = computeEffectiveOrthoSize(
+                    baseOrthoSize, designAspect, aspect,
+                    canvas.scaleMode, canvas.matchWidthOrHeight,
+                );
+            }
+
             const halfW = halfH * aspect;
             projection = ortho(-halfW, halfW, -halfH, halfH, -camera.farPlane, camera.farPlane);
         } else {

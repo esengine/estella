@@ -65,6 +65,30 @@ export class RuntimeSyncService {
 
     private onPropertyChange(event: PropertyChangeEvent): void {
         this.scheduleEntityUpdate(event.entity);
+
+        if (event.componentType === 'Canvas') {
+            this.syncCanvasToCamera(event.entity);
+        }
+    }
+
+    private syncCanvasToCamera(canvasEntityId: number): void {
+        const canvasData = this.store_.getEntityData(canvasEntityId);
+        if (!canvasData) return;
+
+        const canvasComp = canvasData.components.find(c => c.type === 'Canvas');
+        const resolution = canvasComp?.data?.designResolution as { x: number; y: number } | undefined;
+        if (!resolution) return;
+
+        const orthoSize = resolution.y / 2;
+
+        for (const entity of this.store_.scene.entities) {
+            const cameraComp = entity.components.find(c => c.type === 'Camera');
+            if (!cameraComp) continue;
+
+            this.store_.updatePropertyDirect(entity.id, 'Camera', 'orthoSize', orthoSize);
+            this.scheduleEntityUpdate(entity.id);
+            break;
+        }
     }
 
     private onHierarchyChange(event: HierarchyChangeEvent): void {
