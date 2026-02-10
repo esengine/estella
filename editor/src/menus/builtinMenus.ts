@@ -1,5 +1,6 @@
 import { registerMenu, registerMenuItem } from './MenuRegistry';
 import type { Editor } from '../Editor';
+import { getEditorContext } from '../context/EditorContext';
 
 export function registerBuiltinMenus(editor: Editor): void {
     registerMenu({ id: 'file', label: 'File', order: 0 });
@@ -95,7 +96,14 @@ export function registerBuiltinMenus(editor: Editor): void {
 
     registerMenuItem({
         id: 'help.docs', menu: 'help', label: 'Documentation', order: 0,
-        action: () => window.open('https://esengine.github.io/microes/', '_blank'),
+        action: () => {
+            const shell = getEditorContext().shell;
+            if (shell) {
+                shell.openUrl('https://esengine.github.io/microes/');
+            } else {
+                window.open('https://esengine.github.io/microes/', '_blank');
+            }
+        },
     });
     registerMenuItem({
         id: 'help.about', menu: 'help', label: 'About ESEngine', order: 1, separator: true,

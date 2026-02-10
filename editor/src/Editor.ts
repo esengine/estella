@@ -320,6 +320,7 @@ export class Editor {
     }
 
     showAboutDialog(): void {
+        const hasUpdater = !!getEditorContext().onCheckUpdate;
         const overlay = document.createElement('div');
         overlay.className = 'es-dialog-overlay';
         overlay.innerHTML = `
@@ -336,7 +337,8 @@ export class Editor {
                         A lightweight 2D game engine<br>for web and mini-programs.
                     </p>
                 </div>
-                <div class="es-dialog-footer" style="justify-content: center;">
+                <div class="es-dialog-footer" style="justify-content: center; gap: 8px;">
+                    ${hasUpdater ? '<button class="es-dialog-btn" id="about-check-update">Check for Updates</button>' : ''}
                     <button class="es-dialog-btn es-dialog-btn-primary">OK</button>
                 </div>
             </div>
@@ -344,7 +346,11 @@ export class Editor {
 
         const close = () => overlay.remove();
         overlay.querySelector('.es-dialog-close')?.addEventListener('click', close);
-        overlay.querySelector('.es-dialog-btn')?.addEventListener('click', close);
+        overlay.querySelector('.es-dialog-btn-primary')?.addEventListener('click', close);
+        overlay.querySelector('#about-check-update')?.addEventListener('click', () => {
+            close();
+            getEditorContext().onCheckUpdate?.();
+        });
         overlay.addEventListener('click', (e) => {
             if (e.target === overlay) close();
         });

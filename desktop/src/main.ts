@@ -4,14 +4,13 @@
  */
 
 import '@esengine/editor/styles';
-import { createEditor, ProjectLauncher, setPlatformAdapter, setEditorContext, loadProjectConfig, type Editor } from '@esengine/editor';
+import { createEditor, ProjectLauncher, setPlatformAdapter, setEditorContext, loadProjectConfig, showToast, dismissToast, showProgressToast, updateToast, type Editor } from '@esengine/editor';
 import { TauriPlatformAdapter } from './TauriPlatformAdapter';
 import { nativeFS, nativeShell } from './native-fs';
 import { invoke } from '@tauri-apps/api/core';
 import { getVersion } from '@tauri-apps/api/app';
 import { check } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
-import { ask } from '@tauri-apps/plugin-dialog';
 import type { App, ESEngineModule } from 'esengine';
 
 let currentLauncher: ProjectLauncher | null = null;
@@ -110,21 +109,51 @@ function loadUmdModule(url: string, globalName: string): Promise<any> {
     });
 }
 
-async function checkForUpdate(): Promise<void> {
+async function checkForUpdate(manual = false): Promise<void> {
+    let tid: string | undefined;
+    if (manual) {
+        tid = showProgressToast('Checking for updates...');
+    }
+
     try {
         const update = await check();
-        if (!update) return;
+        if (!update) {
+            if (tid) {
+                updateToast(tid, { type: 'success', title: 'You\'re up to date', message: 'No updates available.' });
+                setTimeout(() => dismissToast(tid!), 3000);
+            }
+            return;
+        }
 
-        const yes = await ask(
-            `New version ${update.version} is available. Update now?`,
-            { title: 'Update Available', kind: 'info', okLabel: 'Update', cancelLabel: 'Later' }
-        );
-        if (!yes) return;
+        if (tid) dismissToast(tid);
 
-        await update.downloadAndInstall();
-        await relaunch();
+        showToast({
+            type: 'info',
+            title: 'Update Available',
+            message: `New version ${update.version} is ready to install.`,
+            duration: 0,
+            actions: [{
+                label: 'Update',
+                primary: true,
+                onClick: async () => {
+                    const dlTid = showProgressToast('Downloading update...');
+                    try {
+                        await update.downloadAndInstall();
+                        updateToast(dlTid, { type: 'success', title: 'Update complete', message: 'Restarting...' });
+                        setTimeout(() => relaunch(), 1000);
+                    } catch (e) {
+                        updateToast(dlTid, { type: 'error', title: 'Update failed', message: String(e) });
+                    }
+                },
+            }],
+        });
     } catch (e) {
-        console.warn('Update check failed:', e);
+        if (tid) {
+            updateToast(tid, { type: 'error', title: 'Update check failed', message: String(e) });
+            setTimeout(() => dismissToast(tid!), 5000);
+        } else {
+            console.warn('Update check failed:', e);
+        }
     }
 }
 
@@ -137,6 +166,7 @@ async function init(): Promise<void> {
         shell: nativeShell,
         esbuildWasmURL: '/esbuild.wasm',
         version,
+        onCheckUpdate: () => checkForUpdate(true),
     });
 
     const container = document.getElementById('editor-root');

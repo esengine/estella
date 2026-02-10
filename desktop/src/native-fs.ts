@@ -19,6 +19,7 @@ import {
 import { invoke, convertFileSrc } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { resourceDir } from '@tauri-apps/api/path';
+import { open as shellOpen } from '@tauri-apps/plugin-shell';
 import type { NativeShell } from '@esengine/editor';
 
 export interface DirectoryEntry {
@@ -357,6 +358,10 @@ export const nativeShell: NativeShell = {
             args: [path],
             cwd: '/',
         });
+    },
+
+    async openUrl(url: string): Promise<void> {
+        await shellOpen(url);
     },
 
     async openInEditor(projectPath: string, filePath: string): Promise<void> {

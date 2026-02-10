@@ -3,6 +3,7 @@ import type { Editor } from '../Editor';
 
 export interface NativeShell {
     openFile(path: string): Promise<void>;
+    openUrl(url: string): Promise<void>;
     openInEditor(projectPath: string, filePath: string): Promise<void>;
     execute(
         cmd: string,
@@ -18,6 +19,7 @@ export interface EditorContextConfig {
     shell?: NativeShell;
     esbuildWasmURL?: string;
     version?: string;
+    onCheckUpdate?: () => void;
 }
 
 let ctx: EditorContextConfig = {};
