@@ -14,7 +14,6 @@
 import * as esbuild from 'esbuild-wasm/esm/browser';
 import type { BuildResult, BuildContext } from './BuildService';
 import { BuildProgressReporter } from './BuildProgress';
-import { BuildCache, type BuildCacheData } from './BuildCache';
 import { getEditorContext, getEsbuildWasmURL } from '../context/EditorContext';
 import { findTsFiles, EDITOR_ONLY_DIRS } from '../scripting/ScriptLoader';
 import { BuildAssetCollector, AssetExportConfigService } from './AssetCollector';
@@ -106,6 +105,7 @@ function decodeBinary(dataUrl){
   if(!es||!es.createWebApp){console.error('esengine not found');return}
 
   var app=es.createWebApp(Module);
+  if(typeof __PA__!=='undefined')es.registerEmbeddedAssets(app,__PA__);
   es.flushPendingSystems(app);
 
   var spineModule=null;
@@ -151,7 +151,6 @@ export class PlayableBuilder {
         this.fs_ = getEditorContext().fs ?? null;
         this.projectDir_ = getProjectDir(context.projectPath);
         this.progress_ = context.progress || new BuildProgressReporter();
-        this.cache_ = context.cache || null;
         this.assetLibrary_ = new AssetLibrary();
     }
 
@@ -181,11 +180,6 @@ export class PlayableBuilder {
             await this.assetLibrary_.initialize(this.projectDir_, this.fs_);
             this.progress_.log('info', 'Asset library initialized');
 
-            let cachedData: BuildCacheData | null = null;
-            if (this.cache_) {
-                cachedData = await this.cache_.loadCache(this.context_.config.id);
-            }
-
             // 1. Load SDK
             this.progress_.setCurrentTask('Loading SDK...', 0);
             const wasmSdk = await this.loadSdk();
@@ -201,23 +195,8 @@ export class PlayableBuilder {
             this.progress_.setPhase('compiling');
             this.progress_.setCurrentTask('Compiling scripts...', 0);
 
-            let gameCode: string;
-            const scriptsPath = joinPath(this.projectDir_, 'src');
-            const scriptFiles = await this.getScriptFiles(scriptsPath);
-
-            if (cachedData?.compiledScripts && this.cache_) {
-                const changes = await this.cache_.getChangedFiles(scriptFiles, cachedData);
-                if (!this.cache_.hasChanges(changes)) {
-                    gameCode = cachedData.compiledScripts;
-                    this.progress_.log('info', 'Using cached compiled scripts');
-                } else {
-                    gameCode = await this.compileUserScripts();
-                    this.progress_.log('info', `Scripts compiled: ${gameCode.length} bytes`);
-                }
-            } else {
-                gameCode = await this.compileUserScripts();
-                this.progress_.log('info', `Scripts compiled: ${gameCode.length} bytes`);
-            }
+            const gameCode = await this.compileUserScripts();
+            this.progress_.log('info', `Scripts compiled: ${gameCode.length} bytes`);
 
             // 3. Read startup scene
             this.progress_.setCurrentTask('Loading scene...', 50);
@@ -288,15 +267,6 @@ export class PlayableBuilder {
             const success = await this.fs_.writeFile(outputPath, html);
 
             if (success) {
-                if (this.cache_) {
-                    const cacheData = await this.cache_.createCacheData(
-                        this.context_.config.id,
-                        scriptFiles,
-                        gameCode
-                    );
-                    await this.cache_.saveCache(cacheData);
-                }
-
                 this.progress_.log('info', `Build successful: ${outputPath}`);
                 return {
                     success: true,
@@ -311,13 +281,6 @@ export class PlayableBuilder {
             this.progress_.fail(String(err));
             return { success: false, error: String(err) };
         }
-    }
-
-    private async getScriptFiles(srcPath: string): Promise<string[]> {
-        if (!await this.fs_!.exists(srcPath)) {
-            return [];
-        }
-        return findTsFiles(this.fs_!, srcPath, EDITOR_ONLY_DIRS);
     }
 
     // =========================================================================
@@ -545,7 +508,7 @@ ${imports}
         }
 
         const packer = new TextureAtlasPacker(this.fs_!, this.projectDir_, this.assetLibrary_);
-        const atlasResult = await packer.pack(imagePaths, sceneDataList);
+        const atlasResult = await packer.pack(imagePaths, sceneDataList, 2048, [...assetPaths]);
 
         const packedPaths = new Set<string>(atlasResult.frameMap.keys());
         return { atlasResult, packedPaths };
@@ -683,6 +646,5 @@ ${imports}
     private fs_: NativeFS | null;
     private projectDir_: string;
     private progress_: BuildProgressReporter;
-    private cache_: BuildCache | null;
     private assetLibrary_: AssetLibrary;
 }

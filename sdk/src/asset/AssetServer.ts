@@ -8,7 +8,7 @@ import type { ESEngineModule } from '../wasm';
 import type { ShaderHandle } from '../material';
 import { Material } from '../material';
 import { MaterialLoader, type LoadedMaterial, type ShaderLoader } from './MaterialLoader';
-import { platformReadTextFile, platformFileExists, platformFetch, platformCreateCanvas } from '../platform';
+import { platformReadTextFile, platformReadFile, platformFileExists, platformFetch, platformCreateCanvas, platformCreateImage } from '../platform';
 import type { World } from '../world';
 import { loadSceneWithAssets, type SceneData } from '../scene';
 import { AsyncCache } from './AsyncCache';
@@ -82,6 +82,7 @@ export class AssetServer {
     private materialLoader_: MaterialLoader;
     private canvas_: HTMLCanvasElement;
     private ctx_: CanvasRenderingContext2D;
+    private embedded_ = new Map<string, string>();
 
     constructor(module: ESEngineModule) {
         this.module_ = module;
@@ -93,6 +94,16 @@ export class AssetServer {
             get: (path: string) => this.shaderCache_.get(path),
         };
         this.materialLoader_ = new MaterialLoader(shaderLoader);
+    }
+
+    // =========================================================================
+    // Embedded Assets
+    // =========================================================================
+
+    registerEmbeddedAssets(assets: Record<string, string>): void {
+        for (const [key, value] of Object.entries(assets)) {
+            this.embedded_.set(key, value);
+        }
     }
 
     // =========================================================================
@@ -176,11 +187,7 @@ export class AssetServer {
 
         try {
             const atlasUrl = this.resolveUrl(atlasPath, baseUrl);
-            const atlasResponse = await fetch(atlasUrl);
-            if (!atlasResponse.ok) {
-                return { success: false, error: `Failed to fetch atlas: ${atlasUrl}` };
-            }
-            const atlasContent = await atlasResponse.text();
+            const atlasContent = await this.fetchText(atlasUrl);
 
             if (!this.writeToVirtualFS(atlasPath, atlasContent)) {
                 return { success: false, error: `Failed to write atlas to virtual FS: ${atlasPath}` };
@@ -203,15 +210,10 @@ export class AssetServer {
             }
 
             const skelUrl = this.resolveUrl(skeletonPath, baseUrl);
-            const skelResponse = await fetch(skelUrl);
-            if (!skelResponse.ok) {
-                return { success: false, error: `Failed to fetch skeleton: ${skelUrl}` };
-            }
-
             const isBinary = skeletonPath.endsWith('.skel');
             const skelData = isBinary
-                ? new Uint8Array(await skelResponse.arrayBuffer())
-                : await skelResponse.text();
+                ? new Uint8Array(await this.fetchBinary(skelUrl))
+                : await this.fetchText(skelUrl);
 
             if (!this.writeToVirtualFS(skeletonPath, skelData)) {
                 return { success: false, error: `Failed to write skeleton to virtual FS: ${skeletonPath}` };
@@ -370,8 +372,11 @@ export class AssetServer {
     }
 
     private async loadImage(source: string): Promise<HTMLImageElement | ImageBitmap> {
+        const localPath = this.isLocalPath(source) ? this.toLocalPath(source) : source;
+        const embedded = this.embedded_.get(localPath);
+        const imgSrc = embedded ?? localPath;
         return new Promise((resolve, reject) => {
-            const img = new Image();
+            const img = platformCreateImage();
             img.crossOrigin = 'anonymous';
             img.onload = async () => {
                 if (typeof createImageBitmap !== 'undefined') {
@@ -389,7 +394,7 @@ export class AssetServer {
                 resolve(img);
             };
             img.onerror = () => reject(new Error(`Failed to load image: ${source}`));
-            img.src = source;
+            img.src = imgSrc;
         });
     }
 
@@ -502,12 +507,13 @@ export class AssetServer {
     // =========================================================================
 
     private async loadShaderInternal(path: string): Promise<ShaderHandle> {
-        const exists = await platformFileExists(path);
+        const localPath = this.isLocalPath(path) ? this.toLocalPath(path) : path;
+        const exists = await platformFileExists(localPath);
         if (!exists) {
             throw new Error(`Shader file not found: ${path}`);
         }
 
-        const content = await platformReadTextFile(path);
+        const content = await platformReadTextFile(localPath);
         if (!content) {
             throw new Error(`Failed to read shader file: ${path}`);
         }
@@ -533,7 +539,37 @@ export class AssetServer {
     // Private - Generic Fetch
     // =========================================================================
 
+    private decodeDataUrlText(dataUrl: string): string {
+        return atob(dataUrl.split(',')[1]);
+    }
+
+    private decodeDataUrlBinary(dataUrl: string): ArrayBuffer {
+        const raw = atob(dataUrl.split(',')[1]);
+        const bytes = new Uint8Array(raw.length);
+        for (let i = 0; i < raw.length; i++) {
+            bytes[i] = raw.charCodeAt(i);
+        }
+        return bytes.buffer;
+    }
+
+    private isLocalPath(url: string): boolean {
+        return !url.startsWith('http://') && !url.startsWith('https://');
+    }
+
+    private toLocalPath(url: string): string {
+        return url.startsWith('/') ? url.substring(1) : url;
+    }
+
     private async fetchJson(url: string): Promise<unknown> {
+        const localPath = this.isLocalPath(url) ? this.toLocalPath(url) : null;
+        if (localPath) {
+            const embedded = this.embedded_.get(localPath);
+            if (embedded) {
+                return JSON.parse(this.decodeDataUrlText(embedded));
+            }
+            const text = await platformReadTextFile(localPath);
+            return JSON.parse(text);
+        }
         const response = await platformFetch(url);
         if (!response.ok) {
             throw new Error(`Failed to fetch JSON: ${url} (${response.status})`);
@@ -542,6 +578,14 @@ export class AssetServer {
     }
 
     private async fetchText(url: string): Promise<string> {
+        const localPath = this.isLocalPath(url) ? this.toLocalPath(url) : null;
+        if (localPath) {
+            const embedded = this.embedded_.get(localPath);
+            if (embedded) {
+                return this.decodeDataUrlText(embedded);
+            }
+            return platformReadTextFile(localPath);
+        }
         const response = await platformFetch(url);
         if (!response.ok) {
             throw new Error(`Failed to fetch text: ${url} (${response.status})`);
@@ -550,6 +594,14 @@ export class AssetServer {
     }
 
     private async fetchBinary(url: string): Promise<ArrayBuffer> {
+        const localPath = this.isLocalPath(url) ? this.toLocalPath(url) : null;
+        if (localPath) {
+            const embedded = this.embedded_.get(localPath);
+            if (embedded) {
+                return this.decodeDataUrlBinary(embedded);
+            }
+            return platformReadFile(localPath);
+        }
         const response = await platformFetch(url);
         if (!response.ok) {
             throw new Error(`Failed to fetch binary: ${url} (${response.status})`);

@@ -180,6 +180,7 @@ export {
     AssetPlugin,
     assetPlugin,
     MaterialLoader,
+    registerEmbeddedAssets,
     type TextureInfo,
     type SliceBorder,
     type SpineLoadResult,
