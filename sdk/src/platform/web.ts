@@ -8,6 +8,7 @@ import type {
     PlatformRequestOptions,
     PlatformResponse,
     WasmInstantiateResult,
+    InputEventCallbacks,
 } from './types';
 
 // =============================================================================
@@ -98,6 +99,48 @@ class WebPlatformAdapter implements PlatformAdapter {
 
     now(): number {
         return performance.now();
+    }
+
+    bindInputEvents(callbacks: InputEventCallbacks, target?: unknown): void {
+        const el = (target as HTMLElement) ?? document.querySelector('canvas') ?? document.body;
+
+        document.addEventListener('keydown', (e) => callbacks.onKeyDown(e.code));
+        document.addEventListener('keyup', (e) => callbacks.onKeyUp(e.code));
+
+        el.addEventListener('mousemove', (e) => {
+            const me = e as MouseEvent;
+            callbacks.onPointerMove(me.offsetX, me.offsetY);
+        });
+        el.addEventListener('mousedown', (e) => {
+            const me = e as MouseEvent;
+            callbacks.onPointerDown(me.button, me.offsetX, me.offsetY);
+        });
+        el.addEventListener('mouseup', (e) => {
+            callbacks.onPointerUp((e as MouseEvent).button);
+        });
+
+        el.addEventListener('touchstart', (e) => {
+            const touch = (e as TouchEvent).touches[0];
+            if (touch) {
+                const rect = (el as HTMLElement).getBoundingClientRect();
+                callbacks.onPointerDown(0, touch.clientX - rect.left, touch.clientY - rect.top);
+            }
+        });
+        el.addEventListener('touchmove', (e) => {
+            const touch = (e as TouchEvent).touches[0];
+            if (touch) {
+                const rect = (el as HTMLElement).getBoundingClientRect();
+                callbacks.onPointerMove(touch.clientX - rect.left, touch.clientY - rect.top);
+            }
+        });
+        el.addEventListener('touchend', () => {
+            callbacks.onPointerUp(0);
+        });
+
+        el.addEventListener('wheel', (e) => {
+            const we = e as WheelEvent;
+            callbacks.onWheel(we.deltaX, we.deltaY);
+        });
     }
 }
 

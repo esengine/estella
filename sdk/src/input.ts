@@ -1,6 +1,7 @@
 import { defineResource } from './resource';
 import { defineSystem, Schedule } from './system';
 import type { App, Plugin } from './app';
+import { getPlatform } from './platform';
 
 export class InputState {
     keysDown = new Set<string>();
@@ -50,9 +51,9 @@ export class InputState {
 export const Input = defineResource<InputState>(new InputState(), 'Input');
 
 export class InputPlugin implements Plugin {
-    private target_: HTMLElement | null;
+    private target_: unknown;
 
-    constructor(target?: HTMLElement) {
+    constructor(target?: unknown) {
         this.target_ = target ?? null;
     }
 
@@ -60,61 +61,36 @@ export class InputPlugin implements Plugin {
         const state = new InputState();
         app.insertResource(Input, state);
 
-        const target = this.target_ ?? document.querySelector('canvas') ?? document.body;
-
-        document.addEventListener('keydown', (e) => {
-            if (!state.keysDown.has(e.code)) {
-                state.keysPressed.add(e.code);
-            }
-            state.keysDown.add(e.code);
-        });
-        document.addEventListener('keyup', (e) => {
-            state.keysDown.delete(e.code);
-            state.keysReleased.add(e.code);
-        });
-
-        target.addEventListener('mousemove', (e) => {
-            state.mouseX = (e as MouseEvent).offsetX;
-            state.mouseY = (e as MouseEvent).offsetY;
-        });
-        target.addEventListener('mousedown', (e) => {
-            const btn = (e as MouseEvent).button;
-            state.mouseButtons.add(btn);
-            state.mouseButtonsPressed.add(btn);
-        });
-        target.addEventListener('mouseup', (e) => {
-            const btn = (e as MouseEvent).button;
-            state.mouseButtons.delete(btn);
-            state.mouseButtonsReleased.add(btn);
-        });
-
-        target.addEventListener('touchstart', (e) => {
-            const touch = (e as TouchEvent).touches[0];
-            if (touch) {
-                const rect = (target as HTMLElement).getBoundingClientRect();
-                state.mouseX = touch.clientX - rect.left;
-                state.mouseY = touch.clientY - rect.top;
-                state.mouseButtons.add(0);
-                state.mouseButtonsPressed.add(0);
-            }
-        });
-        target.addEventListener('touchmove', (e) => {
-            const touch = (e as TouchEvent).touches[0];
-            if (touch) {
-                const rect = (target as HTMLElement).getBoundingClientRect();
-                state.mouseX = touch.clientX - rect.left;
-                state.mouseY = touch.clientY - rect.top;
-            }
-        });
-        target.addEventListener('touchend', () => {
-            state.mouseButtons.delete(0);
-            state.mouseButtonsReleased.add(0);
-        });
-
-        target.addEventListener('wheel', (e) => {
-            state.scrollDeltaX += (e as WheelEvent).deltaX;
-            state.scrollDeltaY += (e as WheelEvent).deltaY;
-        });
+        getPlatform().bindInputEvents({
+            onKeyDown(code) {
+                if (!state.keysDown.has(code)) {
+                    state.keysPressed.add(code);
+                }
+                state.keysDown.add(code);
+            },
+            onKeyUp(code) {
+                state.keysDown.delete(code);
+                state.keysReleased.add(code);
+            },
+            onPointerMove(x, y) {
+                state.mouseX = x;
+                state.mouseY = y;
+            },
+            onPointerDown(button, x, y) {
+                state.mouseX = x;
+                state.mouseY = y;
+                state.mouseButtons.add(button);
+                state.mouseButtonsPressed.add(button);
+            },
+            onPointerUp(button) {
+                state.mouseButtons.delete(button);
+                state.mouseButtonsReleased.add(button);
+            },
+            onWheel(deltaX, deltaY) {
+                state.scrollDeltaX += deltaX;
+                state.scrollDeltaY += deltaY;
+            },
+        }, this.target_ ?? undefined);
 
         app.addSystemToSchedule(Schedule.First, defineSystem([], () => {
             state.keysPressed.clear();

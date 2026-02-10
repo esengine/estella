@@ -39,6 +39,19 @@ export interface WasmInstantiateResult {
 }
 
 // =============================================================================
+// Input Event Types
+// =============================================================================
+
+export interface InputEventCallbacks {
+    onKeyDown(code: string): void;
+    onKeyUp(code: string): void;
+    onPointerMove(x: number, y: number): void;
+    onPointerDown(button: number, x: number, y: number): void;
+    onPointerUp(button: number): void;
+    onWheel(deltaX: number, deltaY: number): void;
+}
+
+// =============================================================================
 // Platform Adapter Interface
 // =============================================================================
 
@@ -90,6 +103,13 @@ export interface PlatformAdapter {
      * High-resolution timestamp in milliseconds
      */
     now(): number;
+
+    /**
+     * Bind input events (keyboard, pointer, wheel)
+     * @param callbacks - Event callbacks
+     * @param target - Optional event target (canvas element)
+     */
+    bindInputEvents(callbacks: InputEventCallbacks, target?: unknown): void;
 }
 
 // =============================================================================

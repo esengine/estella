@@ -10,6 +10,7 @@ import type {
     PlatformRequestOptions,
     PlatformResponse,
     WasmInstantiateResult,
+    InputEventCallbacks,
 } from '../types';
 import { wxFetch, polyfillFetch } from './fetch';
 import { wxInstantiateWasm, polyfillWebAssembly } from './wasm';
@@ -59,6 +60,24 @@ class WeChatPlatformAdapter implements PlatformAdapter {
 
     now(): number {
         return Date.now();
+    }
+
+    bindInputEvents(callbacks: InputEventCallbacks, _target?: unknown): void {
+        wx.onTouchStart((e: any) => {
+            const touch = e.touches[0];
+            if (touch) {
+                callbacks.onPointerDown(0, touch.clientX, touch.clientY);
+            }
+        });
+        wx.onTouchMove((e: any) => {
+            const touch = e.touches[0];
+            if (touch) {
+                callbacks.onPointerMove(touch.clientX, touch.clientY);
+            }
+        });
+        wx.onTouchEnd(() => {
+            callbacks.onPointerUp(0);
+        });
     }
 }
 
