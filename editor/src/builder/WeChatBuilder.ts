@@ -527,7 +527,7 @@ async function initSpineModule() {
         }
 
         const packer = new TextureAtlasPacker(this.fs_!, this.projectDir_, this.assetLibrary_);
-        const atlasResult = await packer.pack(imagePaths, sceneDataList);
+        const atlasResult = await packer.pack(imagePaths, sceneDataList, 2048, [...assetPaths]);
 
         for (let i = 0; i < atlasResult.pages.length; i++) {
             const atlasPath = joinPath(outputDir, `atlas_${i}.png`);

@@ -195,14 +195,15 @@ export class TextureAtlasPacker {
     async pack(
         imagePaths: string[],
         sceneDataList: Array<{ name: string; data: Record<string, unknown> }>,
-        maxSize: number = 2048
+        maxSize: number = 2048,
+        allAssetPaths?: string[]
     ): Promise<AtlasResult> {
         const result: AtlasResult = { pages: [], frameMap: new Map() };
 
         const eligiblePaths = imagePaths.filter(p => isPackableImage(p));
         if (eligiblePaths.length === 0) return result;
 
-        const spineTextures = await this.collectSpineTextures(sceneDataList);
+        const spineTextures = await this.collectSpineTextures(sceneDataList, allAssetPaths);
         const nineSliceTextures = this.collectNineSliceTextures(sceneDataList);
 
         const images: Array<{ path: string; width: number; height: number; data: Uint8Array }> = [];
@@ -347,9 +348,11 @@ export class TextureAtlasPacker {
     }
 
     private async collectSpineTextures(
-        sceneDataList: Array<{ name: string; data: Record<string, unknown> }>
+        sceneDataList: Array<{ name: string; data: Record<string, unknown> }>,
+        allAssetPaths?: string[]
     ): Promise<Set<string>> {
         const atlasPaths = new Set<string>();
+
         for (const { data } of sceneDataList) {
             const entities = data.entities as Array<{
                 components: Array<{ type: string; data: Record<string, unknown> }>;
@@ -363,6 +366,14 @@ export class TextureAtlasPacker {
                     if (typeof atlasPath === 'string') {
                         atlasPaths.add(this.resolveRef(atlasPath));
                     }
+                }
+            }
+        }
+
+        if (allAssetPaths) {
+            for (const p of allAssetPaths) {
+                if (/\.atlas$/i.test(p)) {
+                    atlasPaths.add(p);
                 }
             }
         }
