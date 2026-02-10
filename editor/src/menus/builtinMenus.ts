@@ -95,7 +95,7 @@ export function registerBuiltinMenus(editor: Editor): void {
 
     registerMenuItem({
         id: 'help.docs', menu: 'help', label: 'Documentation', order: 0,
-        action: () => window.open('https://github.com/nicholaswan/ESEngine', '_blank'),
+        action: () => window.open('https://esengine.github.io/microes/', '_blank'),
     });
     registerMenuItem({
         id: 'help.about', menu: 'help', label: 'About ESEngine', order: 1, separator: true,
