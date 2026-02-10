@@ -78,19 +78,28 @@ export class EditorStore {
     private hierarchyListeners_: Set<HierarchyChangeListener> = new Set();
     private focusListeners_: Set<(entityId: number) => void> = new Set();
     private visibilityListeners_: Set<VisibilityChangeListener> = new Set();
-    private nextEntityId_ = 2;
+    private nextEntityId_ = 1;
     private worldTransforms_ = new WorldTransformCache();
     private entityMap_ = new Map<number, EntityData>();
 
     constructor() {
+        const scene = createEmptyScene();
         this.state_ = {
-            scene: createEmptyScene(),
+            scene,
             selectedEntity: null,
             selectedAsset: null,
             isDirty: false,
             filePath: null,
         };
         this.history_ = new CommandHistory();
+        this.nextEntityId_ = this.computeNextEntityId(scene);
+        this.rebuildEntityMap();
+        this.worldTransforms_.setScene(scene);
+    }
+
+    private computeNextEntityId(scene: SceneData): number {
+        const maxId = scene.entities.reduce((max, e) => Math.max(max, e.id), 0);
+        return maxId + 1;
     }
 
     // =========================================================================
@@ -133,14 +142,14 @@ export class EditorStore {
     // Scene Operations
     // =========================================================================
 
-    newScene(name: string = 'Untitled'): void {
-        this.state_.scene = createEmptyScene(name);
+    newScene(name: string = 'Untitled', designResolution?: { width: number; height: number }): void {
+        this.state_.scene = createEmptyScene(name, designResolution);
         this.state_.selectedEntity = null;
         this.state_.selectedAsset = null;
         this.state_.isDirty = false;
         this.state_.filePath = null;
         this.history_.clear();
-        this.nextEntityId_ = 2;
+        this.nextEntityId_ = this.computeNextEntityId(this.state_.scene);
         this.rebuildEntityMap();
         this.worldTransforms_.setScene(this.state_.scene);
         this.notify();
@@ -154,8 +163,7 @@ export class EditorStore {
         this.state_.filePath = filePath;
         this.history_.clear();
 
-        const maxId = scene.entities.reduce((max, e) => Math.max(max, e.id), 0);
-        this.nextEntityId_ = maxId + 1;
+        this.nextEntityId_ = this.computeNextEntityId(scene);
 
         this.rebuildEntityMap();
         this.worldTransforms_.setScene(scene);
