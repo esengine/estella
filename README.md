@@ -2,13 +2,12 @@
 
 # ESEngine
 
-**A lightweight C++20 game engine for WebAssembly and WeChat MiniGames**
+**A lightweight 2D game engine for web and WeChat MiniGames**
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://isocpp.org/)
 [![Platform](https://img.shields.io/badge/Platform-Web%20%7C%20WeChat-green.svg)]()
 
-[Getting Started](#getting-started) • [Documentation](#documentation) • [Examples](examples/) • [Contributing](#contributing)
+[Getting Started](#getting-started) • [Documentation](#documentation)
 
 </div>
 
@@ -16,114 +15,62 @@
 
 ## Overview
 
-ESEngine is a minimal, high-performance game engine designed for WebAssembly deployment. It provides an EnTT-style ECS architecture, WebGL rendering, and first-class support for WeChat MiniGames.
+ESEngine is a lightweight 2D game engine with a **TypeScript SDK** powered by a **C++/WebAssembly** backend. It comes with a visual editor for scene editing and project management, and outputs games that run in web browsers and WeChat MiniGames.
 
 ## Features
 
 | Feature | Description |
 |---------|-------------|
-| **ECS Architecture** | Data-oriented Entity-Component-System for cache-friendly game logic |
-| **WebGL Renderer** | OpenGL ES 2.0/3.0 compatible graphics pipeline |
-| **TypeScript SDK** | Full TypeScript SDK with WASM bridge for web development |
-| **Cross-Platform** | Single codebase for Web browsers and WeChat MiniGames |
-| **Lightweight** | Minimal dependencies, optimized for small binary size |
+| **Visual Editor** | Scene editor with hierarchy, inspector, and asset management |
+| **ECS Architecture** | Data-oriented Entity-Component-System — compose entities from reusable components, drive behavior with systems |
+| **WebGL Rendering** | C++ rendering pipeline compiled to WebAssembly — sprites, cameras, Spine animations, custom shaders |
+| **TypeScript SDK** | Type-safe API with `defineSystem`, `defineComponent`, and `Query` |
+| **Cross-Platform** | Single codebase targeting web browsers and WeChat MiniGames |
 
 ## Getting Started
 
-### Prerequisites
+### Install
 
-- CMake 3.16+
-- C++20 compiler
-- [Emscripten SDK](https://emscripten.org/) (for web builds)
+Download the editor from the [releases page](https://github.com/esengine/microes/releases) and install it.
 
-### Build
+### Create a Project
 
-```bash
-# Native build
-cmake -B build && cmake --build build
+1. Open the editor and click **New Project**
+2. Enter a project name, select a location, and click **Create**
 
-# Web build
-emcmake cmake -B build_web -DES_BUILD_WEB=ON && cmake --build build_web
+The editor creates a project with a default scene containing a Camera entity.
 
-# WeChat MiniGame
-emcmake cmake -B build_wxgame -DES_BUILD_WXGAME=ON && cmake --build build_wxgame
-```
+### Write Game Logic
 
-### Quick Start
-
-The TypeScript SDK provides an ECS-style API for building games with ESEngine.
-
-```bash
-cd sdk && npm install && npm run build
-```
+Add entities and components in the scene editor, then write systems in TypeScript:
 
 ```typescript
 import {
-    App, createWebApp, defineSystem, Schedule,
-    Commands, Query, Res, Time,
-    LocalTransform, Sprite, Camera,
-    type ESEngineModule
+    defineComponent, defineSystem, addSystem,
+    Query, Mut, Res, Time, LocalTransform
 } from 'esengine';
 
-export async function main(Module: ESEngineModule): Promise<void> {
-    const app = createWebApp(Module);
+const Speed = defineComponent('Speed', { value: 200 });
 
-    // Startup system - runs once
-    app.addSystemToSchedule(Schedule.Startup, defineSystem(
-        [Commands()],
-        (cmds) => {
-            // Create camera
-            cmds.spawn()
-                .insert(Camera, { projectionType: 1, orthoSize: 400, isActive: true })
-                .insert(LocalTransform, { position: { x: 0, y: 0, z: 10 } });
-
-            // Create sprite
-            cmds.spawn()
-                .insert(Sprite, { color: { x: 1, y: 0.5, z: 0.2, w: 1 }, size: { x: 100, y: 100 } })
-                .insert(LocalTransform, { position: { x: 0, y: 0, z: 0 } });
+addSystem(defineSystem(
+    [Res(Time), Query(Mut(LocalTransform), Speed)],
+    (time, query) => {
+        for (const [entity, transform, speed] of query) {
+            transform.position.x += speed.value * time.delta;
         }
-    ));
-
-    // Update system - runs every frame
-    app.addSystemToSchedule(Schedule.Update, defineSystem(
-        [Res(Time), Query(LocalTransform, Sprite)],
-        (time, query) => {
-            for (const [entity, transform, sprite] of query) {
-                transform.position.x = Math.sin(time.elapsed) * 100;
-                transform.position.y = Math.cos(time.elapsed) * 100;
-            }
-        }
-    ));
-
-    app.run();
-}
+    }
+));
 ```
 
-See [sdk/examples/playground](sdk/examples/playground/) for a complete example.
+Press **F5** in the editor to preview.
 
 ## Documentation
 
-Full documentation is available at the [ESEngine Docs](https://esengine.github.io/microes/).
+Full documentation: [esengine.github.io/microes](https://esengine.github.io/microes/)
 
-**Guides:**
 - [Introduction](https://esengine.github.io/microes/getting-started/introduction/)
 - [Installation](https://esengine.github.io/microes/getting-started/installation/)
 - [Quick Start](https://esengine.github.io/microes/getting-started/quick-start/)
-- [ECS Architecture](https://esengine.github.io/microes/guides/ecs/)
-
-**API Reference:**
-- [Doxygen API Docs](https://esengine.github.io/microes/api/html/)
-
-Build docs locally:
-```bash
-cd docs && ./build.sh dev   # Linux/macOS
-cd docs && .\build.ps1 dev  # Windows
-```
-
-## Contributing
-
-Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) before submitting pull requests.
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+- [ECS Architecture](https://esengine.github.io/microes/core-concepts/ecs/)
+- [Components](https://esengine.github.io/microes/core-concepts/components/)
+- [Systems](https://esengine.github.io/microes/core-concepts/systems/)
