@@ -4,10 +4,11 @@
  */
 
 import type { App, Plugin } from '../app';
-import { Assets, assetPlugin } from '../asset';
 import type { SceneData } from '../scene';
+import { loadRuntimeScene } from '../runtimeLoader';
 import { LocalTransform, Camera, Canvas, type LocalTransformData, type CameraData, type CanvasData } from '../component';
 import { platformFetch } from '../platform';
+import { WebAssetProvider } from './WebAssetProvider';
 
 // =============================================================================
 // PreviewPlugin
@@ -15,19 +16,17 @@ import { platformFetch } from '../platform';
 
 export class PreviewPlugin implements Plugin {
     private sceneUrl_: string;
+    private baseUrl_: string;
     private app_: App | null = null;
     private loadPromise_: Promise<void> | null = null;
 
-    constructor(sceneUrl: string) {
+    constructor(sceneUrl: string, baseUrl?: string) {
         this.sceneUrl_ = sceneUrl;
+        this.baseUrl_ = baseUrl ?? '';
     }
 
     build(app: App): void {
         this.app_ = app;
-
-        if (!app.hasResource(Assets)) {
-            app.addPlugin(assetPlugin);
-        }
 
         this.loadPromise_ = this.loadScene();
     }
@@ -51,9 +50,17 @@ export class PreviewPlugin implements Plugin {
             }
             const sceneData = await response.json<SceneData>();
 
-            const assets = this.app_.getResource(Assets);
-            await assets.loadScene(this.app_.world, sceneData);
+            const provider = new WebAssetProvider(this.baseUrl_);
+            await provider.prefetch(sceneData);
 
+            let spineModule = null;
+            const spinePromise = (this.app_ as any).__spineInitPromise;
+            if (spinePromise) {
+                const result = await spinePromise;
+                spineModule = result.controller.module;
+            }
+
+            await loadRuntimeScene(this.app_, this.app_.wasmModule!, sceneData, provider, spineModule);
             this.ensureCamera();
         } catch (err) {
             console.error('[PreviewPlugin] Failed to load scene:', err);

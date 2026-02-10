@@ -8,7 +8,8 @@
     {
         "imports": {
             "esengine": "/sdk/index.js",
-            "esengine/wasm": "/sdk/wasm.js"
+            "esengine/wasm": "/sdk/wasm.js",
+            "esengine/spine": "/sdk/spine/index.js"
         }
     }
     </script>
@@ -73,6 +74,21 @@
             return { width: canvas.width, height: canvas.height };
         }
 
+        const SPINE_WASM_MAP = {
+            '3.8': '/wasm/spine38.js',
+            '4.2': '/wasm/spine42.js',
+        };
+
+        function loadUmdScript(url) {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = url;
+                script.onload = () => { resolve(); script.remove(); };
+                script.onerror = () => { reject(new Error('Failed to load ' + url)); script.remove(); };
+                document.head.appendChild(script);
+            });
+        }
+
         async function loadPreview() {
             try {
                 updateLoading('Loading WASM module...');
@@ -81,6 +97,23 @@
 
                 updateLoading('Loading SDK...');
                 const sdk = await import('/sdk/index.js');
+
+                let spinePlugin = null;
+                try {
+                    const configResp = await fetch('/.esengine/preview/config.json');
+                    if (configResp.ok) {
+                        const config = await configResp.json();
+                        const spineUrl = config.spineVersion && SPINE_WASM_MAP[config.spineVersion];
+                        if (spineUrl) {
+                            updateLoading('Loading Spine ' + config.spineVersion + '...');
+                            await loadUmdScript(spineUrl);
+                            const { SpinePlugin } = await import('esengine/spine');
+                            spinePlugin = new SpinePlugin(spineUrl, window.ESSpineModule);
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Spine module load skipped:', e);
+                }
 
                 try {
                     await import('/.esengine/preview/user-scripts.js');
@@ -92,13 +125,15 @@
                 setupCanvas();
                 window.addEventListener('resize', () => setupCanvas());
 
-                const previewPlugin = new sdk.PreviewPlugin('/.esengine/preview/scene.json');
+                const previewPlugin = new sdk.PreviewPlugin('/.esengine/preview/scene.json', '/');
 
                 const app = sdk.createWebApp(Module, {
                     getViewportSize: getCanvasViewportSize
                 });
                 sdk.flushPendingSystems(app);
-                app.addPlugin(sdk.assetPlugin);
+                if (spinePlugin) {
+                    app.addPlugin(spinePlugin);
+                }
                 app.addPlugin(previewPlugin);
 
                 await previewPlugin.waitForReady();

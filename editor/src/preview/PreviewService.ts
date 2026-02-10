@@ -39,7 +39,7 @@ export class PreviewService {
         this.previewDir_ = `${this.projectDir_}/.esengine/preview`;
     }
 
-    async startPreview(scene: SceneData, compiledScript?: string): Promise<void> {
+    async startPreview(scene: SceneData, compiledScript?: string, spineVersion?: string): Promise<void> {
         const fs = this.getNativeFS();
         const invoke = this.getTauriInvoke();
 
@@ -49,7 +49,7 @@ export class PreviewService {
         }
 
         console.log('PreviewService: Preparing files in', this.previewDir_);
-        await this.preparePreviewFiles(fs, scene, compiledScript);
+        await this.preparePreviewFiles(fs, scene, compiledScript, spineVersion);
         console.log('PreviewService: Files prepared');
 
         const port = await invoke('start_preview_server', {
@@ -70,7 +70,8 @@ export class PreviewService {
     private async preparePreviewFiles(
         fs: NativeFS,
         scene: SceneData,
-        compiledScript?: string
+        compiledScript?: string,
+        spineVersion?: string,
     ): Promise<void> {
         await this.ensureDirectory(fs, this.previewDir_);
 
@@ -85,6 +86,9 @@ export class PreviewService {
 
         const scenePath = `${this.previewDir_}/scene.json`;
         await fs.writeFile(scenePath, JSON.stringify(sceneWithMetadata, null, 2));
+
+        const configPath = `${this.previewDir_}/config.json`;
+        await fs.writeFile(configPath, JSON.stringify({ spineVersion: spineVersion || null }));
 
         if (compiledScript) {
             const scriptPath = `${this.previewDir_}/user-scripts.js`;

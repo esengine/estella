@@ -48,6 +48,8 @@ interface ComponentDef<T> {
 }
 declare function defineComponent<T extends object>(name: string, defaults: T): ComponentDef<T>;
 declare function defineTag(name: string): ComponentDef<{}>;
+declare function getUserComponent(name: string): ComponentDef<any> | undefined;
+declare function clearUserComponents(): void;
 interface BuiltinComponentDef<T> {
     readonly _id: symbol;
     readonly _name: string;
@@ -87,6 +89,7 @@ interface CameraData {
     aspectRatio: number;
     isActive: boolean;
     priority: number;
+    showFrustum: boolean;
 }
 interface CanvasData {
     designResolution: Vec2;
@@ -175,15 +178,6 @@ interface TimeData {
     frameCount: number;
 }
 declare const Time: ResourceDef<TimeData>;
-interface InputState {
-    keysDown: Set<string>;
-    keysPressed: Set<string>;
-    keysReleased: Set<string>;
-    mouseX: number;
-    mouseY: number;
-    mouseButtons: Set<number>;
-}
-declare const Input: ResourceDef<InputState>;
 
 /**
  * @file    wasm.ts
@@ -237,6 +231,8 @@ interface CppRegistry {
 interface CppResourceManager {
     createTexture(width: number, height: number, pixels: number, pixelsLen: number, format: number): number;
     createShader(vertSrc: string, fragSrc: string): number;
+    registerExternalTexture(glTextureId: number, width: number, height: number): number;
+    getTextureGLId(handle: number): number;
     releaseTexture(handle: number): void;
     releaseShader(handle: number): void;
     setTextureMetadata(handle: number, left: number, right: number, top: number, bottom: number): void;
@@ -274,8 +270,7 @@ interface ESEngineModule {
     HEAPU32: Uint32Array;
     HEAPF32: Float32Array;
     FS: EmscriptenFS;
-    addFunction(func: (...args: any[]) => any, signature: string): number;
-    setMaterialCallback(callbackPtr: number): void;
+    materialDataProvider?: (materialId: number, outShaderIdPtr: number, outBlendModePtr: number, outUniformBufferPtr: number, outUniformCountPtr: number) => void;
     initRenderer(): void;
     initRendererWithCanvas(canvasSelector: string): boolean;
     initRendererWithContext(contextHandle: number): boolean;
@@ -290,7 +285,7 @@ interface ESEngineModule {
     renderFrame(registry: CppRegistry, width: number, height: number): void;
     renderFrameWithMatrix(registry: CppRegistry, width: number, height: number, matrixPtr: number): void;
     getResourceManager(): CppResourceManager;
-    getSpineBounds(registry: CppRegistry, entity: number): SpineBounds;
+    getSpineBounds?(registry: CppRegistry, entity: number): SpineBounds;
     draw_begin(matrixPtr: number): void;
     draw_end(): void;
     draw_line(fromX: number, fromY: number, toX: number, toY: number, r: number, g: number, b: number, a: number, thickness: number): void;
@@ -333,20 +328,26 @@ interface ESEngineModule {
     renderer_init(width: number, height: number): void;
     renderer_resize(width: number, height: number): void;
     renderer_begin(matrixPtr: number, targetHandle: number): void;
+    renderer_flush(): void;
     renderer_end(): void;
     renderer_submitSprites(registry: CppRegistry): void;
-    renderer_submitSpine(registry: CppRegistry): void;
+    renderer_submitSpine?(registry: CppRegistry): void;
+    renderer_submitTriangles(verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, blendMode: number, transformPtr: number): void;
     renderer_setStage(stage: number): void;
-    renderer_createTarget(width: number, height: number): number;
+    renderer_createTarget(width: number, height: number, flags: number): number;
     renderer_releaseTarget(handle: number): void;
     renderer_getTargetTexture(handle: number): number;
+    renderer_getTargetDepthTexture(handle: number): number;
     renderer_getDrawCalls(): number;
     renderer_getTriangles(): number;
     renderer_getSprites(): number;
-    renderer_getSpine(): number;
+    renderer_getSpine?(): number;
     renderer_getMeshes(): number;
     renderer_getCulled(): number;
     renderer_setClearColor(r: number, g: number, b: number, a: number): void;
+    gl_enableErrorCheck(enabled: boolean): void;
+    gl_checkErrors(context: string): number;
+    renderer_diagnose(): void;
     _malloc(size: number): number;
     _free(ptr: number): void;
 }
@@ -500,12 +501,38 @@ interface SystemDef {
 declare function defineSystem<P extends readonly SystemParam[]>(params: [...P], fn: (...args: InferParams<P>) => void, options?: {
     name?: string;
 }): SystemDef;
+declare function addSystem(system: SystemDef): void;
+declare function addStartupSystem(system: SystemDef): void;
+declare function addSystemToSchedule(schedule: Schedule, system: SystemDef): void;
 declare class SystemRunner {
     private readonly world_;
     private readonly resources_;
     constructor(world: World, resources: ResourceStorage);
     run(system: SystemDef): void;
     private resolveParam;
+}
+
+/**
+ * @file    renderPipeline.ts
+ * @brief   Unified render pipeline for runtime and editor
+ */
+
+interface RenderParams {
+    registry: {
+        _cpp: CppRegistry;
+    };
+    viewProjection: Float32Array;
+    width: number;
+    height: number;
+    elapsed: number;
+}
+type SpineRendererFn = (registry: {
+    _cpp: CppRegistry;
+}, elapsed: number) => void;
+declare class RenderPipeline {
+    private spineRenderer_;
+    setSpineRenderer(fn: SpineRendererFn | null): void;
+    render(params: RenderParams): void;
 }
 
 /**
@@ -523,7 +550,10 @@ declare class App {
     private runner_;
     private running_;
     private lastTime_;
+    private fixedTimestep_;
+    private fixedAccumulator_;
     private module_;
+    private pipeline_;
     private constructor();
     static new(): App;
     addPlugin(plugin: Plugin): this;
@@ -532,6 +562,7 @@ declare class App {
     addStartupSystem(system: SystemDef): this;
     connectCpp(cppRegistry: CppRegistry, module?: ESEngineModule): this;
     get wasmModule(): ESEngineModule | null;
+    setSpineRenderer(fn: SpineRendererFn | null): void;
     get world(): World;
     insertResource<T>(resource: ResourceDef<T>, value: T): this;
     getResource<T>(resource: ResourceDef<T>): T;
@@ -550,6 +581,41 @@ interface WebAppOptions {
     glContextHandle?: number;
 }
 declare function createWebApp(module: ESEngineModule, options?: WebAppOptions): App;
+declare function flushPendingSystems(app: App): void;
+
+declare class InputState {
+    keysDown: Set<string>;
+    keysPressed: Set<string>;
+    keysReleased: Set<string>;
+    mouseX: number;
+    mouseY: number;
+    mouseButtons: Set<number>;
+    mouseButtonsPressed: Set<number>;
+    mouseButtonsReleased: Set<number>;
+    scrollDeltaX: number;
+    scrollDeltaY: number;
+    isKeyDown(key: string): boolean;
+    isKeyPressed(key: string): boolean;
+    isKeyReleased(key: string): boolean;
+    getMousePosition(): {
+        x: number;
+        y: number;
+    };
+    isMouseButtonDown(button: number): boolean;
+    isMouseButtonPressed(button: number): boolean;
+    isMouseButtonReleased(button: number): boolean;
+    getScrollDelta(): {
+        x: number;
+        y: number;
+    };
+}
+declare const Input: ResourceDef<InputState>;
+declare class InputPlugin implements Plugin {
+    private target_;
+    constructor(target?: unknown);
+    build(app: App): void;
+}
+declare const inputPlugin: InputPlugin;
 
 declare enum TextAlign {
     Left = 0,
@@ -661,7 +727,13 @@ declare enum BlendMode {
 
 type ShaderHandle = number;
 type MaterialHandle = number;
-type UniformValue = number | Vec2 | Vec3 | Vec4 | number[];
+interface TextureRef {
+    __textureRef: true;
+    textureId: number;
+    slot?: number;
+}
+type UniformValue = number | Vec2 | Vec3 | Vec4 | number[] | TextureRef;
+declare function isTextureRef(v: UniformValue): v is TextureRef;
 interface MaterialOptions {
     shader: ShaderHandle;
     uniforms?: Record<string, UniformValue>;
@@ -784,6 +856,7 @@ declare const Material: {
      * @returns Map of uniform names to values
      */
     getUniforms(material: MaterialHandle): Map<string, UniformValue>;
+    tex(textureId: number, slot?: number): TextureRef;
 };
 declare function registerMaterialCallback(): void;
 declare const ShaderSources: {
@@ -956,6 +1029,9 @@ declare class AssetServer {
     private loadTextureInternal;
     private loadImage;
     private createTextureFromImage;
+    private getWebGL2Context;
+    private createTextureWebGL2;
+    private createTextureFallback;
     private unpremultiplyAlpha;
     private loadShaderInternal;
     private parseEsShader;
@@ -965,7 +1041,6 @@ declare class AssetServer {
     private writeToVirtualFS;
     private ensureVirtualDir;
     private resolveUrl;
-    private createCanvas;
     private nextPowerOf2;
     private parseAtlasTextures;
 }
@@ -989,15 +1064,77 @@ declare class AssetPlugin implements Plugin {
 declare const assetPlugin: AssetPlugin;
 
 /**
+ * @file    SpineModuleLoader.ts
+ * @brief   Loads and initializes the standalone Spine WASM module
+ */
+interface SpineWasmModule {
+    spine_loadSkeleton(skelPath: string, atlasText: string, atlasLen: number, isBinary: boolean): number;
+    spine_unloadSkeleton(handle: number): void;
+    spine_getAtlasPageCount(handle: number): number;
+    spine_getAtlasPageTextureName(handle: number, pageIndex: number): string;
+    spine_setAtlasPageTexture(handle: number, pageIndex: number, textureId: number, width: number, height: number): void;
+    spine_createInstance(skeletonHandle: number): number;
+    spine_destroyInstance(instanceId: number): void;
+    spine_playAnimation(instanceId: number, name: string, loop: boolean, track: number): boolean;
+    spine_addAnimation(instanceId: number, name: string, loop: boolean, delay: number, track: number): boolean;
+    spine_setSkin(instanceId: number, name: string): void;
+    spine_update(instanceId: number, dt: number): void;
+    spine_getAnimations(instanceId: number): string;
+    spine_getSkins(instanceId: number): string;
+    spine_getBonePosition(instanceId: number, bone: string, outXPtr: number, outYPtr: number): boolean;
+    spine_getBoneRotation(instanceId: number, bone: string): number;
+    spine_getBounds(instanceId: number, outXPtr: number, outYPtr: number, outWPtr: number, outHPtr: number): void;
+    spine_getMeshBatchCount(instanceId: number): number;
+    spine_getMeshBatchVertexCount(instanceId: number, batchIndex: number): number;
+    spine_getMeshBatchIndexCount(instanceId: number, batchIndex: number): number;
+    spine_getMeshBatchData(instanceId: number, batchIndex: number, outVerticesPtr: number, outIndicesPtr: number, outTextureIdPtr: number, outBlendModePtr: number): void;
+    HEAPF32: Float32Array;
+    HEAPU8: Uint8Array;
+    HEAPU32: Uint32Array;
+    _malloc(size: number): number;
+    _free(ptr: number): void;
+    FS: {
+        writeFile(path: string, data: string | Uint8Array): void;
+        mkdirTree(path: string): void;
+        analyzePath(path: string): {
+            exists: boolean;
+        };
+    };
+}
+
+/**
+ * @file    runtimeLoader.ts
+ * @brief   Runtime scene loader for builder targets (WeChat, Playable, etc.)
+ */
+
+interface RuntimeAssetProvider {
+    loadPixels(ref: string): Promise<{
+        width: number;
+        height: number;
+        pixels: Uint8Array;
+    }>;
+    loadPixelsRaw?(ref: string): Promise<{
+        width: number;
+        height: number;
+        pixels: Uint8Array;
+    }>;
+    readText(ref: string): string;
+    readBinary(ref: string): Uint8Array;
+    resolvePath(ref: string): string;
+}
+declare function loadRuntimeScene(app: App, module: ESEngineModule, sceneData: SceneData, provider: RuntimeAssetProvider, spineModule?: SpineWasmModule | null): Promise<void>;
+
+/**
  * @file    PreviewPlugin.ts
  * @brief   Plugin for editor preview functionality
  */
 
 declare class PreviewPlugin implements Plugin {
     private sceneUrl_;
+    private baseUrl_;
     private app_;
     private loadPromise_;
-    constructor(sceneUrl: string);
+    constructor(sceneUrl: string, baseUrl?: string);
     build(app: App): void;
     /**
      * @brief Wait for scene loading to complete
@@ -1005,6 +1142,28 @@ declare class PreviewPlugin implements Plugin {
     waitForReady(): Promise<void>;
     private loadScene;
     private ensureCamera;
+}
+
+/**
+ * @file    WebAssetProvider.ts
+ * @brief   RuntimeAssetProvider for browser-based preview
+ */
+
+declare class WebAssetProvider implements RuntimeAssetProvider {
+    private textCache_;
+    private binaryCache_;
+    private baseUrl_;
+    constructor(baseUrl: string);
+    prefetch(sceneData: SceneData): Promise<void>;
+    readText(ref: string): string;
+    readBinary(ref: string): Uint8Array;
+    loadPixels(ref: string): Promise<{
+        width: number;
+        height: number;
+        pixels: Uint8Array;
+    }>;
+    resolvePath(ref: string): string;
+    private resolveUrl;
 }
 
 /**
@@ -1030,6 +1189,14 @@ interface PlatformRequestOptions {
 interface WasmInstantiateResult {
     instance: WebAssembly.Instance;
     module: WebAssembly.Module;
+}
+interface InputEventCallbacks {
+    onKeyDown(code: string): void;
+    onKeyUp(code: string): void;
+    onPointerMove(x: number, y: number): void;
+    onPointerDown(button: number, x: number, y: number): void;
+    onPointerUp(button: number): void;
+    onWheel(deltaX: number, deltaY: number): void;
 }
 interface PlatformAdapter {
     /**
@@ -1061,6 +1228,20 @@ interface PlatformAdapter {
      * @param imports - Import object
      */
     instantiateWasm(pathOrBuffer: string | ArrayBuffer, imports: WebAssembly.Imports): Promise<WasmInstantiateResult>;
+    /**
+     * Create a 2D canvas for offscreen rendering
+     */
+    createCanvas(width: number, height: number): HTMLCanvasElement | OffscreenCanvas;
+    /**
+     * High-resolution timestamp in milliseconds
+     */
+    now(): number;
+    /**
+     * Bind input events (keyboard, pointer, wheel)
+     * @param callbacks - Event callbacks
+     * @param target - Optional event target (canvas element)
+     */
+    bindInputEvents(callbacks: InputEventCallbacks, target?: unknown): void;
 }
 type PlatformType = 'web' | 'wechat';
 
@@ -1090,206 +1271,6 @@ declare function platformReadFile(path: string): Promise<ArrayBuffer>;
 declare function platformReadTextFile(path: string): Promise<string>;
 declare function platformFileExists(path: string): Promise<boolean>;
 declare function platformInstantiateWasm(pathOrBuffer: string | ArrayBuffer, imports: WebAssembly.Imports): Promise<WasmInstantiateResult>;
-
-/**
- * @file    spine.ts
- * @brief   Spine animation control API
- */
-
-/**
- * Spine event types
- */
-type SpineEventType = 'start' | 'interrupt' | 'end' | 'complete' | 'dispose' | 'event';
-/**
- * Spine event callback
- */
-type SpineEventCallback = (event: SpineEvent) => void;
-/**
- * Spine event data
- */
-interface SpineEvent {
-    type: SpineEventType;
-    entity: Entity;
-    track: number;
-    animation: string | null;
-    eventName?: string;
-    intValue?: number;
-    floatValue?: number;
-    stringValue?: string;
-}
-/**
- * Track entry info for animation queries
- */
-interface TrackEntryInfo {
-    animation: string;
-    track: number;
-    loop: boolean;
-    timeScale: number;
-    trackTime: number;
-    animationTime: number;
-    duration: number;
-    isComplete: boolean;
-}
-/**
- * Controller for Spine skeletal animations
- *
- * @example
- * ```typescript
- * const spine = new SpineController(wasmModule);
- *
- * // Play animation
- * spine.play(entity, 'run', true);
- *
- * // Queue next animation
- * spine.addAnimation(entity, 'idle', true, 0.2);
- *
- * // Change skin
- * spine.setSkin(entity, 'warrior');
- *
- * // Get bone position for effects
- * const pos = spine.getBonePosition(entity, 'weapon');
- * if (pos) {
- *     spawnEffect(pos.x, pos.y);
- * }
- *
- * // Listen for events
- * spine.on(entity, 'event', (e) => {
- *     if (e.eventName === 'footstep') {
- *         playSound('footstep');
- *     }
- * });
- * ```
- */
-declare class SpineController {
-    private module_;
-    private listeners_;
-    constructor(wasmModule: any);
-    /**
-     * Plays an animation, replacing any current animation on the track
-     * @param entity Target entity
-     * @param animation Animation name
-     * @param loop Whether to loop the animation
-     * @param track Animation track (default 0)
-     * @returns True if animation was set
-     */
-    play(entity: Entity, animation: string, loop?: boolean, track?: number): boolean;
-    /**
-     * Adds an animation to the queue
-     * @param entity Target entity
-     * @param animation Animation name
-     * @param loop Whether to loop
-     * @param delay Delay before starting (seconds)
-     * @param track Animation track (default 0)
-     * @returns True if animation was queued
-     */
-    addAnimation(entity: Entity, animation: string, loop?: boolean, delay?: number, track?: number): boolean;
-    /**
-     * Sets an empty animation to mix out the current animation
-     * @param entity Target entity
-     * @param mixDuration Duration of the mix out
-     * @param track Animation track (default 0)
-     */
-    setEmptyAnimation(entity: Entity, mixDuration?: number, track?: number): void;
-    /**
-     * Clears all animations on a track
-     * @param entity Target entity
-     * @param track Animation track (default 0)
-     */
-    clearTrack(entity: Entity, track?: number): void;
-    /**
-     * Clears all tracks
-     * @param entity Target entity
-     */
-    clearTracks(entity: Entity): void;
-    /**
-     * Sets the current skin
-     * @param entity Target entity
-     * @param skinName Skin name
-     * @returns True if skin was set
-     */
-    setSkin(entity: Entity, skinName: string): boolean;
-    /**
-     * Gets available skin names
-     * @param entity Target entity
-     * @returns Array of skin names
-     */
-    getSkins(entity: Entity): string[];
-    /**
-     * Gets available animation names
-     * @param entity Target entity
-     * @returns Array of animation names
-     */
-    getAnimations(entity: Entity): string[];
-    /**
-     * Gets the current animation on a track
-     * @param entity Target entity
-     * @param track Animation track (default 0)
-     * @returns Animation name or null
-     */
-    getCurrentAnimation(entity: Entity, track?: number): string | null;
-    /**
-     * Gets the duration of an animation
-     * @param entity Target entity
-     * @param animation Animation name
-     * @returns Duration in seconds, or 0 if not found
-     */
-    getAnimationDuration(entity: Entity, animation: string): number;
-    /**
-     * Gets detailed track entry info
-     * @param entity Target entity
-     * @param track Animation track (default 0)
-     * @returns Track entry info or null
-     */
-    getTrackEntry(entity: Entity, track?: number): TrackEntryInfo | null;
-    /**
-     * Gets world position of a bone
-     * @param entity Target entity
-     * @param boneName Bone name
-     * @returns Position or null if not found
-     */
-    getBonePosition(entity: Entity, boneName: string): Vec2 | null;
-    /**
-     * Gets world rotation of a bone in degrees
-     * @param entity Target entity
-     * @param boneName Bone name
-     * @returns Rotation in degrees or null
-     */
-    getBoneRotation(entity: Entity, boneName: string): number | null;
-    /**
-     * Sets the attachment for a slot
-     * @param entity Target entity
-     * @param slotName Slot name
-     * @param attachmentName Attachment name (null to clear)
-     */
-    setAttachment(entity: Entity, slotName: string, attachmentName: string | null): void;
-    /**
-     * Registers an event callback
-     * @param entity Target entity
-     * @param type Event type
-     * @param callback Callback function
-     */
-    on(entity: Entity, type: SpineEventType, callback: SpineEventCallback): void;
-    /**
-     * Unregisters an event callback
-     * @param entity Target entity
-     * @param type Event type
-     * @param callback Callback function
-     */
-    off(entity: Entity, type: SpineEventType, callback: SpineEventCallback): void;
-    /**
-     * Removes all event listeners for an entity
-     * @param entity Target entity
-     */
-    removeAllListeners(entity: Entity): void;
-    private setupEventBridge;
-    private dispatchEvent;
-}
-/**
- * Creates a SpineController instance
- * @param wasmModule The ESEngine WASM module
- * @returns SpineController instance
- */
-declare function createSpineController(wasmModule: any): SpineController;
 
 /**
  * @file    geometry.ts
@@ -1630,6 +1611,7 @@ declare const Renderer: {
     init(width: number, height: number): void;
     resize(width: number, height: number): void;
     begin(viewProjection: Float32Array, target?: RenderTargetHandle): void;
+    flush(): void;
     end(): void;
     submitSprites(registry: {
         _cpp: CppRegistry;
@@ -1638,30 +1620,34 @@ declare const Renderer: {
         _cpp: CppRegistry;
     }): void;
     setStage(stage: RenderStage): void;
-    createRenderTarget(width: number, height: number): RenderTargetHandle;
+    createRenderTarget(width: number, height: number, flags?: number): RenderTargetHandle;
     releaseRenderTarget(handle: RenderTargetHandle): void;
     getTargetTexture(handle: RenderTargetHandle): number;
+    getTargetDepthTexture(handle: RenderTargetHandle): number;
     setClearColor(r: number, g: number, b: number, a: number): void;
     getStats(): RenderStats;
 };
 
-/**
- * @file    renderPipeline.ts
- * @brief   Unified render pipeline for runtime and editor
- */
-
-interface RenderParams {
-    registry: {
-        _cpp: CppRegistry;
-    };
-    viewProjection: Float32Array;
+interface RenderTextureOptions {
     width: number;
     height: number;
-    elapsed: number;
+    depth?: boolean;
+    filter?: 'nearest' | 'linear';
 }
-declare class RenderPipeline {
-    render(params: RenderParams): void;
+interface RenderTextureHandle {
+    _handle: RenderTargetHandle;
+    textureId: number;
+    width: number;
+    height: number;
 }
+declare const RenderTexture: {
+    create(options: RenderTextureOptions): RenderTextureHandle;
+    release(rt: RenderTextureHandle): void;
+    resize(rt: RenderTextureHandle, width: number, height: number): RenderTextureHandle;
+    begin(rt: RenderTextureHandle, viewProjection: Float32Array): void;
+    end(): void;
+    getDepthTexture(rt: RenderTextureHandle): number;
+};
 
 /**
  * @file    customDraw.ts
@@ -1676,5 +1662,19 @@ declare function setEditorMode(active: boolean): void;
 declare function isEditor(): boolean;
 declare function isRuntime(): boolean;
 
-export { App, AssetPlugin, AssetServer, Assets, AsyncCache, BlendMode, Camera, Canvas, Children, Commands, CommandsInstance, DataType, Draw, EntityCommands, Geometry, INVALID_ENTITY, INVALID_TEXTURE, Input, LocalTransform, Material, MaterialLoader, Mut, Parent, PostProcess, PreviewPlugin, Query, QueryInstance, RenderPipeline, RenderStage, Renderer, Res, ResMut, ResMutInstance, Schedule, ShaderSources, SpineAnimation, SpineController, Sprite, SystemRunner, Text, TextAlign, TextOverflow, TextPlugin, TextRenderer, TextVerticalAlign, Time, UIRect, Velocity, World, WorldTransform, assetPlugin, clearDrawCallbacks, color, createSpineController, createWebApp, defineComponent, defineResource, defineSystem, defineTag, getComponentDefaults, getPlatform, getPlatformType, initDrawAPI, initGeometryAPI, initMaterialAPI, initPostProcessAPI, initRendererAPI, isBuiltinComponent, isEditor, isPlatformInitialized, isRuntime, isWeChat, isWeb, loadComponent, loadSceneData, loadSceneWithAssets, platformFetch, platformFileExists, platformInstantiateWasm, platformReadFile, platformReadTextFile, quat, registerDrawCallback, registerMaterialCallback, setEditorMode, shutdownDrawAPI, shutdownGeometryAPI, shutdownMaterialAPI, shutdownPostProcessAPI, shutdownRendererAPI, textPlugin, unregisterDrawCallback, updateCameraAspectRatio, vec2, vec3, vec4 };
-export type { AnyComponentDef, AssetBundle, AssetManifest, AssetsData, BuiltinComponentDef, CameraData, CanvasData, ChildrenData, Color, CommandsDescriptor, ComponentData, ComponentDef, CppRegistry, CppResourceManager, DrawAPI, DrawCallback, ESEngineModule, Entity, FileLoadOptions, GeometryHandle, GeometryOptions, InferParam, InferParams, InputState, LoadedMaterial, LocalTransformData, MaterialAssetData, MaterialHandle, MaterialOptions, MutWrapper, ParentData, PlatformAdapter, PlatformRequestOptions, PlatformResponse, PlatformType, Plugin, Quat, QueryDescriptor, QueryResult, RenderParams, RenderStats, RenderTargetHandle, ResDescriptor, ResMutDescriptor, ResourceDef, SceneComponentData, SceneData, SceneEntityData, SceneLoadOptions, ShaderHandle, ShaderLoader, SliceBorder, SpineAnimationData, SpineDescriptor, SpineEvent, SpineEventCallback, SpineEventType, SpineLoadResult, SpriteData, SystemDef, SystemParam, TextData, TextRenderResult, TextureHandle, TextureInfo, TimeData, TrackEntryInfo, UIRectData, UniformValue, Vec2, Vec3, Vec4, VelocityData, VertexAttributeDescriptor, WebAppOptions, WorldTransformData };
+/**
+ * @file    glDebug.ts
+ * @brief   GL error checking API for debugging rendering issues
+ */
+
+declare function initGLDebugAPI(wasmModule: ESEngineModule): void;
+declare function shutdownGLDebugAPI(): void;
+declare const GLDebug: {
+    enable(): void;
+    disable(): void;
+    check(context: string): number;
+    diagnose(): void;
+};
+
+export { App, AssetPlugin, AssetServer, Assets, AsyncCache, BlendMode, Camera, Canvas, Children, Commands, CommandsInstance, DataType, Draw, EntityCommands, GLDebug, Geometry, INVALID_ENTITY, INVALID_TEXTURE, Input, InputPlugin, InputState, LocalTransform, Material, MaterialLoader, Mut, Parent, PostProcess, PreviewPlugin, Query, QueryInstance, RenderPipeline, RenderStage, RenderTexture, Renderer, Res, ResMut, ResMutInstance, Schedule, ShaderSources, SpineAnimation, Sprite, SystemRunner, Text, TextAlign, TextOverflow, TextPlugin, TextRenderer, TextVerticalAlign, Time, UIRect, Velocity, WebAssetProvider, World, WorldTransform, addStartupSystem, addSystem, addSystemToSchedule, assetPlugin, clearDrawCallbacks, clearUserComponents, color, createWebApp, defineComponent, defineResource, defineSystem, defineTag, flushPendingSystems, getComponentDefaults, getPlatform, getPlatformType, getUserComponent, initDrawAPI, initGLDebugAPI, initGeometryAPI, initMaterialAPI, initPostProcessAPI, initRendererAPI, inputPlugin, isBuiltinComponent, isEditor, isPlatformInitialized, isRuntime, isTextureRef, isWeChat, isWeb, loadComponent, loadRuntimeScene, loadSceneData, loadSceneWithAssets, platformFetch, platformFileExists, platformInstantiateWasm, platformReadFile, platformReadTextFile, quat, registerDrawCallback, registerMaterialCallback, setEditorMode, shutdownDrawAPI, shutdownGLDebugAPI, shutdownGeometryAPI, shutdownMaterialAPI, shutdownPostProcessAPI, shutdownRendererAPI, textPlugin, unregisterDrawCallback, updateCameraAspectRatio, vec2, vec3, vec4 };
+export type { AnyComponentDef, AssetBundle, AssetManifest, AssetsData, BuiltinComponentDef, CameraData, CanvasData, ChildrenData, Color, CommandsDescriptor, ComponentData, ComponentDef, CppRegistry, CppResourceManager, DrawAPI, DrawCallback, ESEngineModule, Entity, FileLoadOptions, GeometryHandle, GeometryOptions, InferParam, InferParams, LoadedMaterial, LocalTransformData, MaterialAssetData, MaterialHandle, MaterialOptions, MutWrapper, ParentData, PlatformAdapter, PlatformRequestOptions, PlatformResponse, PlatformType, Plugin, Quat, QueryDescriptor, QueryResult, RenderParams, RenderStats, RenderTargetHandle, RenderTextureHandle, RenderTextureOptions, ResDescriptor, ResMutDescriptor, ResourceDef, RuntimeAssetProvider, SceneComponentData, SceneData, SceneEntityData, SceneLoadOptions, ShaderHandle, ShaderLoader, SliceBorder, SpineAnimationData, SpineDescriptor, SpineLoadResult, SpineRendererFn, SpriteData, SystemDef, SystemParam, TextData, TextRenderResult, TextureHandle, TextureInfo, TextureRef, TimeData, UIRectData, UniformValue, Vec2, Vec3, Vec4, VelocityData, VertexAttributeDescriptor, WebAppOptions, WorldTransformData };

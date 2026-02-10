@@ -699,7 +699,7 @@ export class Editor {
                 await this.scriptLoader_.compile();
             }
             const compiledScript = this.scriptLoader_?.getCompiledCode() ?? undefined;
-            await this.previewService_.startPreview(this.store_.scene, compiledScript);
+            await this.previewService_.startPreview(this.store_.scene, compiledScript, this.spineVersion_);
         } catch (err) {
             console.error('Failed to start preview:', err);
         }

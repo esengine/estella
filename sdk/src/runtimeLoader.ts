@@ -161,8 +161,9 @@ async function loadSpineAssets(
                 for (let k = 0; k < texNames.length; k++) {
                     const texPath = atlasDir + '/' + texNames[k];
                     try {
-                        const loadFn = provider.loadPixelsRaw ?? provider.loadPixels;
-                        const result = await loadFn(texPath);
+                        const result = provider.loadPixelsRaw
+                            ? await provider.loadPixelsRaw(texPath)
+                            : await provider.loadPixels(texPath);
                         const handle = createTextureFromPixels(module, result);
                         const rm = module.getResourceManager();
                         const glId = rm.getTextureGLId(handle);
@@ -214,8 +215,6 @@ function setupSpineRenderer(
     spineModule: SpineWasmModule,
     instances: Record<number, number>,
 ): void {
-    if (Object.keys(instances).length === 0) return;
-
     let lastElapsed = 0;
     app.setSpineRenderer((_registry: unknown, elapsed: number) => {
         let dt = elapsed - lastElapsed;

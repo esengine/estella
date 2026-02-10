@@ -220,7 +220,7 @@ export {
 // Preview
 // =============================================================================
 
-export { PreviewPlugin } from './preview';
+export { PreviewPlugin, WebAssetProvider } from './preview';
 
 // =============================================================================
 // Platform (base functions only)
