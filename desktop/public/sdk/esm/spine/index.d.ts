@@ -307,6 +307,15 @@ interface SystemDef {
 }
 
 /**
+ * @file    renderPipeline.ts
+ * @brief   Unified render pipeline for runtime and editor
+ */
+
+type SpineRendererFn = (registry: {
+    _cpp: CppRegistry;
+}, elapsed: number) => void;
+
+/**
  * @file    app.ts
  * @brief   Application builder and web platform integration
  */
@@ -324,6 +333,7 @@ declare class App {
     private fixedTimestep_;
     private fixedAccumulator_;
     private module_;
+    private pipeline_;
     private constructor();
     static new(): App;
     addPlugin(plugin: Plugin): this;
@@ -332,6 +342,7 @@ declare class App {
     addStartupSystem(system: SystemDef): this;
     connectCpp(cppRegistry: CppRegistry, module?: ESEngineModule): this;
     get wasmModule(): ESEngineModule | null;
+    setSpineRenderer(fn: SpineRendererFn | null): void;
     get world(): World;
     insertResource<T>(resource: ResourceDef<T>, value: T): this;
     getResource<T>(resource: ResourceDef<T>): T;

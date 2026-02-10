@@ -73,6 +73,8 @@ export interface NativeFS {
     getSdkWasmJs(): Promise<string>;
     getSdkWasmDts(): Promise<string>;
     getEditorDts(): Promise<string>;
+    getSpineJs(version: string): Promise<string>;
+    getSpineWasm(version: string): Promise<Uint8Array>;
     toAssetUrl?(path: string): string;
 }
 
@@ -333,6 +335,18 @@ export const nativeFS: NativeFS = {
     async getEditorDts() {
         const data = await invoke<number[]>('get_editor_dts');
         return new TextDecoder().decode(new Uint8Array(data));
+    },
+
+    async getSpineJs(version: string) {
+        const cmd = version === '3.8' ? 'get_spine38_js' : 'get_spine42_js';
+        const data = await invoke<number[]>(cmd);
+        return new TextDecoder().decode(new Uint8Array(data));
+    },
+
+    async getSpineWasm(version: string) {
+        const cmd = version === '3.8' ? 'get_spine38_wasm' : 'get_spine42_wasm';
+        const data = await invoke<number[]>(cmd);
+        return new Uint8Array(data);
     },
 };
 

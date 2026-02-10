@@ -45,5 +45,7 @@ export interface NativeFS {
     getSdkWasmJs(): Promise<string>;
     getSdkWasmDts(): Promise<string>;
     getEditorDts(): Promise<string>;
+    getSpineJs(version: string): Promise<string>;
+    getSpineWasm(version: string): Promise<Uint8Array>;
     toAssetUrl?(path: string): string;
 }

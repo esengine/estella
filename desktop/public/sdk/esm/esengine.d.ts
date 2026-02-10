@@ -512,6 +512,29 @@ declare class SystemRunner {
 }
 
 /**
+ * @file    renderPipeline.ts
+ * @brief   Unified render pipeline for runtime and editor
+ */
+
+interface RenderParams {
+    registry: {
+        _cpp: CppRegistry;
+    };
+    viewProjection: Float32Array;
+    width: number;
+    height: number;
+    elapsed: number;
+}
+type SpineRendererFn = (registry: {
+    _cpp: CppRegistry;
+}, elapsed: number) => void;
+declare class RenderPipeline {
+    private spineRenderer_;
+    setSpineRenderer(fn: SpineRendererFn | null): void;
+    render(params: RenderParams): void;
+}
+
+/**
  * @file    app.ts
  * @brief   Application builder and web platform integration
  */
@@ -529,6 +552,7 @@ declare class App {
     private fixedTimestep_;
     private fixedAccumulator_;
     private module_;
+    private pipeline_;
     private constructor();
     static new(): App;
     addPlugin(plugin: Plugin): this;
@@ -537,6 +561,7 @@ declare class App {
     addStartupSystem(system: SystemDef): this;
     connectCpp(cppRegistry: CppRegistry, module?: ESEngineModule): this;
     get wasmModule(): ESEngineModule | null;
+    setSpineRenderer(fn: SpineRendererFn | null): void;
     get world(): World;
     insertResource<T>(resource: ResourceDef<T>, value: T): this;
     getResource<T>(resource: ResourceDef<T>): T;
@@ -1038,6 +1063,62 @@ declare class AssetPlugin implements Plugin {
 declare const assetPlugin: AssetPlugin;
 
 /**
+ * @file    SpineModuleLoader.ts
+ * @brief   Loads and initializes the standalone Spine WASM module
+ */
+interface SpineWasmModule {
+    spine_loadSkeleton(skelPath: string, atlasText: string, atlasLen: number, isBinary: boolean): number;
+    spine_unloadSkeleton(handle: number): void;
+    spine_getAtlasPageCount(handle: number): number;
+    spine_getAtlasPageTextureName(handle: number, pageIndex: number): string;
+    spine_setAtlasPageTexture(handle: number, pageIndex: number, textureId: number, width: number, height: number): void;
+    spine_createInstance(skeletonHandle: number): number;
+    spine_destroyInstance(instanceId: number): void;
+    spine_playAnimation(instanceId: number, name: string, loop: boolean, track: number): boolean;
+    spine_addAnimation(instanceId: number, name: string, loop: boolean, delay: number, track: number): boolean;
+    spine_setSkin(instanceId: number, name: string): void;
+    spine_update(instanceId: number, dt: number): void;
+    spine_getAnimations(instanceId: number): string;
+    spine_getSkins(instanceId: number): string;
+    spine_getBonePosition(instanceId: number, bone: string, outXPtr: number, outYPtr: number): boolean;
+    spine_getBoneRotation(instanceId: number, bone: string): number;
+    spine_getBounds(instanceId: number, outXPtr: number, outYPtr: number, outWPtr: number, outHPtr: number): void;
+    spine_getMeshBatchCount(instanceId: number): number;
+    spine_getMeshBatchVertexCount(instanceId: number, batchIndex: number): number;
+    spine_getMeshBatchIndexCount(instanceId: number, batchIndex: number): number;
+    spine_getMeshBatchData(instanceId: number, batchIndex: number, outVerticesPtr: number, outIndicesPtr: number, outTextureIdPtr: number, outBlendModePtr: number): void;
+    HEAPF32: Float32Array;
+    HEAPU8: Uint8Array;
+    HEAPU32: Uint32Array;
+    _malloc(size: number): number;
+    _free(ptr: number): void;
+    FS: {
+        writeFile(path: string, data: string | Uint8Array): void;
+        mkdirTree(path: string): void;
+        analyzePath(path: string): {
+            exists: boolean;
+        };
+    };
+}
+
+/**
+ * @file    runtimeLoader.ts
+ * @brief   Runtime scene loader for builder targets (WeChat, Playable, etc.)
+ */
+
+interface RuntimeAssetProvider {
+    loadPixels(ref: string): Promise<{
+        width: number;
+        height: number;
+        pixels: Uint8Array;
+    }>;
+    readText(ref: string): string;
+    readBinary(ref: string): Uint8Array;
+    resolvePath(ref: string): string;
+}
+declare function loadRuntimeScene(app: App, module: ESEngineModule, sceneData: SceneData, provider: RuntimeAssetProvider, spineModule?: SpineWasmModule | null): Promise<void>;
+
+/**
  * @file    PreviewPlugin.ts
  * @brief   Plugin for editor preview functionality
  */
@@ -1526,29 +1607,6 @@ declare const RenderTexture: {
 };
 
 /**
- * @file    renderPipeline.ts
- * @brief   Unified render pipeline for runtime and editor
- */
-
-interface RenderParams {
-    registry: {
-        _cpp: CppRegistry;
-    };
-    viewProjection: Float32Array;
-    width: number;
-    height: number;
-    elapsed: number;
-}
-type SpineRendererFn = (registry: {
-    _cpp: CppRegistry;
-}, elapsed: number) => void;
-declare class RenderPipeline {
-    private spineRenderer_;
-    setSpineRenderer(fn: SpineRendererFn | null): void;
-    render(params: RenderParams): void;
-}
-
-/**
  * @file    customDraw.ts
  * @brief   Custom draw callback registration for the render pipeline
  */
@@ -1575,5 +1633,5 @@ declare const GLDebug: {
     diagnose(): void;
 };
 
-export { App, AssetPlugin, AssetServer, Assets, AsyncCache, BlendMode, Camera, Canvas, Children, Commands, CommandsInstance, DataType, Draw, EntityCommands, GLDebug, Geometry, INVALID_ENTITY, INVALID_TEXTURE, Input, InputPlugin, InputState, LocalTransform, Material, MaterialLoader, Mut, Parent, PostProcess, PreviewPlugin, Query, QueryInstance, RenderPipeline, RenderStage, RenderTexture, Renderer, Res, ResMut, ResMutInstance, Schedule, ShaderSources, SpineAnimation, Sprite, SystemRunner, Text, TextAlign, TextOverflow, TextPlugin, TextRenderer, TextVerticalAlign, Time, UIRect, Velocity, World, WorldTransform, addStartupSystem, addSystem, addSystemToSchedule, assetPlugin, clearDrawCallbacks, clearUserComponents, color, createWebApp, defineComponent, defineResource, defineSystem, defineTag, flushPendingSystems, getComponentDefaults, getPlatform, getPlatformType, getUserComponent, initDrawAPI, initGLDebugAPI, initGeometryAPI, initMaterialAPI, initPostProcessAPI, initRendererAPI, inputPlugin, isBuiltinComponent, isEditor, isPlatformInitialized, isRuntime, isTextureRef, isWeChat, isWeb, loadComponent, loadSceneData, loadSceneWithAssets, platformFetch, platformFileExists, platformInstantiateWasm, platformReadFile, platformReadTextFile, quat, registerDrawCallback, registerMaterialCallback, setEditorMode, shutdownDrawAPI, shutdownGLDebugAPI, shutdownGeometryAPI, shutdownMaterialAPI, shutdownPostProcessAPI, shutdownRendererAPI, textPlugin, unregisterDrawCallback, updateCameraAspectRatio, vec2, vec3, vec4 };
-export type { AnyComponentDef, AssetBundle, AssetManifest, AssetsData, BuiltinComponentDef, CameraData, CanvasData, ChildrenData, Color, CommandsDescriptor, ComponentData, ComponentDef, CppRegistry, CppResourceManager, DrawAPI, DrawCallback, ESEngineModule, Entity, FileLoadOptions, GeometryHandle, GeometryOptions, InferParam, InferParams, LoadedMaterial, LocalTransformData, MaterialAssetData, MaterialHandle, MaterialOptions, MutWrapper, ParentData, PlatformAdapter, PlatformRequestOptions, PlatformResponse, PlatformType, Plugin, Quat, QueryDescriptor, QueryResult, RenderParams, RenderStats, RenderTargetHandle, RenderTextureHandle, RenderTextureOptions, ResDescriptor, ResMutDescriptor, ResourceDef, SceneComponentData, SceneData, SceneEntityData, SceneLoadOptions, ShaderHandle, ShaderLoader, SliceBorder, SpineAnimationData, SpineDescriptor, SpineLoadResult, SpineRendererFn, SpriteData, SystemDef, SystemParam, TextData, TextRenderResult, TextureHandle, TextureInfo, TextureRef, TimeData, UIRectData, UniformValue, Vec2, Vec3, Vec4, VelocityData, VertexAttributeDescriptor, WebAppOptions, WorldTransformData };
+export { App, AssetPlugin, AssetServer, Assets, AsyncCache, BlendMode, Camera, Canvas, Children, Commands, CommandsInstance, DataType, Draw, EntityCommands, GLDebug, Geometry, INVALID_ENTITY, INVALID_TEXTURE, Input, InputPlugin, InputState, LocalTransform, Material, MaterialLoader, Mut, Parent, PostProcess, PreviewPlugin, Query, QueryInstance, RenderPipeline, RenderStage, RenderTexture, Renderer, Res, ResMut, ResMutInstance, Schedule, ShaderSources, SpineAnimation, Sprite, SystemRunner, Text, TextAlign, TextOverflow, TextPlugin, TextRenderer, TextVerticalAlign, Time, UIRect, Velocity, World, WorldTransform, addStartupSystem, addSystem, addSystemToSchedule, assetPlugin, clearDrawCallbacks, clearUserComponents, color, createWebApp, defineComponent, defineResource, defineSystem, defineTag, flushPendingSystems, getComponentDefaults, getPlatform, getPlatformType, getUserComponent, initDrawAPI, initGLDebugAPI, initGeometryAPI, initMaterialAPI, initPostProcessAPI, initRendererAPI, inputPlugin, isBuiltinComponent, isEditor, isPlatformInitialized, isRuntime, isTextureRef, isWeChat, isWeb, loadComponent, loadRuntimeScene, loadSceneData, loadSceneWithAssets, platformFetch, platformFileExists, platformInstantiateWasm, platformReadFile, platformReadTextFile, quat, registerDrawCallback, registerMaterialCallback, setEditorMode, shutdownDrawAPI, shutdownGLDebugAPI, shutdownGeometryAPI, shutdownMaterialAPI, shutdownPostProcessAPI, shutdownRendererAPI, textPlugin, unregisterDrawCallback, updateCameraAspectRatio, vec2, vec3, vec4 };
+export type { AnyComponentDef, AssetBundle, AssetManifest, AssetsData, BuiltinComponentDef, CameraData, CanvasData, ChildrenData, Color, CommandsDescriptor, ComponentData, ComponentDef, CppRegistry, CppResourceManager, DrawAPI, DrawCallback, ESEngineModule, Entity, FileLoadOptions, GeometryHandle, GeometryOptions, InferParam, InferParams, LoadedMaterial, LocalTransformData, MaterialAssetData, MaterialHandle, MaterialOptions, MutWrapper, ParentData, PlatformAdapter, PlatformRequestOptions, PlatformResponse, PlatformType, Plugin, Quat, QueryDescriptor, QueryResult, RenderParams, RenderStats, RenderTargetHandle, RenderTextureHandle, RenderTextureOptions, ResDescriptor, ResMutDescriptor, ResourceDef, RuntimeAssetProvider, SceneComponentData, SceneData, SceneEntityData, SceneLoadOptions, ShaderHandle, ShaderLoader, SliceBorder, SpineAnimationData, SpineDescriptor, SpineLoadResult, SpineRendererFn, SpriteData, SystemDef, SystemParam, TextData, TextRenderResult, TextureHandle, TextureInfo, TextureRef, TimeData, UIRectData, UniformValue, Vec2, Vec3, Vec4, VelocityData, VertexAttributeDescriptor, WebAppOptions, WorldTransformData };

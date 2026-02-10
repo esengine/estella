@@ -16,7 +16,7 @@ import { initPostProcessAPI, shutdownPostProcessAPI } from './postprocess';
 import { initRendererAPI, shutdownRendererAPI } from './renderer';
 import { initGLDebugAPI, shutdownGLDebugAPI } from './glDebug';
 import { platformNow } from './platform';
-import { RenderPipeline } from './renderPipeline';
+import { RenderPipeline, type SpineRendererFn } from './renderPipeline';
 
 // =============================================================================
 // Plugin Interface
@@ -50,6 +50,7 @@ export class App {
     private fixedAccumulator_ = 0;
 
     private module_: ESEngineModule | null = null;
+    private pipeline_: RenderPipeline | null = null;
 
     private constructor() {
         this.world_ = new World();
@@ -108,6 +109,10 @@ export class App {
 
     get wasmModule(): ESEngineModule | null {
         return this.module_;
+    }
+
+    setSpineRenderer(fn: SpineRendererFn | null): void {
+        this.pipeline_?.setSpineRenderer(fn);
     }
 
     // =========================================================================
@@ -251,6 +256,7 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
     initGLDebugAPI(module);
 
     const pipeline = new RenderPipeline();
+    (app as any).pipeline_ = pipeline;
     let startTime = platformNow();
 
     const getViewportSize = options?.getViewportSize ?? (() => ({

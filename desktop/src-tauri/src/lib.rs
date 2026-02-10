@@ -21,6 +21,10 @@ const SDK_ESM_DTS: &[u8] = include_bytes!("../../public/sdk/esm/esengine.d.ts");
 const SDK_WASM_JS: &[u8] = include_bytes!("../../public/sdk/esm/wasm.js");
 const SDK_WASM_DTS: &[u8] = include_bytes!("../../public/sdk/esm/wasm.d.ts");
 const EDITOR_DTS: &[u8] = include_bytes!("../../../editor/dist/index.d.ts");
+const SPINE38_JS: &[u8] = include_bytes!("../../public/wasm/spine38.js");
+const SPINE38_WASM: &[u8] = include_bytes!("../../public/wasm/spine38.wasm");
+const SPINE42_JS: &[u8] = include_bytes!("../../public/wasm/spine42.js");
+const SPINE42_WASM: &[u8] = include_bytes!("../../public/wasm/spine42.wasm");
 
 // =============================================================================
 // State
@@ -129,6 +133,26 @@ fn get_editor_dts() -> Vec<u8> {
     EDITOR_DTS.to_vec()
 }
 
+#[tauri::command]
+fn get_spine38_js() -> Vec<u8> {
+    SPINE38_JS.to_vec()
+}
+
+#[tauri::command]
+fn get_spine38_wasm() -> Vec<u8> {
+    SPINE38_WASM.to_vec()
+}
+
+#[tauri::command]
+fn get_spine42_js() -> Vec<u8> {
+    SPINE42_JS.to_vec()
+}
+
+#[tauri::command]
+fn get_spine42_wasm() -> Vec<u8> {
+    SPINE42_WASM.to_vec()
+}
+
 #[derive(Clone, serde::Serialize)]
 struct CommandOutput {
     stream: String,
@@ -223,6 +247,10 @@ pub fn run() {
             get_sdk_wasm_js,
             get_sdk_wasm_dts,
             get_editor_dts,
+            get_spine38_js,
+            get_spine38_wasm,
+            get_spine42_js,
+            get_spine42_wasm,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

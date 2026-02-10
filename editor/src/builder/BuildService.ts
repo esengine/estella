@@ -4,12 +4,14 @@
  */
 
 import type { BuildConfig } from '../types/BuildTypes';
+import type { SpineVersion } from '../types/ProjectTypes';
 import { PlayableBuilder } from './PlayableBuilder';
 import { WeChatBuilder } from './WeChatBuilder';
 import { BuildCache } from './BuildCache';
 import { BuildProgressReporter, formatDuration } from './BuildProgress';
 import { BuildHistory } from './BuildHistory';
 import { getProjectDir } from '../utils/path';
+import { loadProjectConfig } from '../launcher/ProjectService';
 
 // =============================================================================
 // Types
@@ -27,6 +29,7 @@ export interface BuildResult {
 export interface BuildContext {
     projectPath: string;
     config: BuildConfig;
+    spineVersion?: SpineVersion;
     progress?: BuildProgressReporter;
     cache?: BuildCache;
 }
@@ -63,9 +66,13 @@ export class BuildService {
         progress.setPhase('preparing');
         progress.log('info', `Building config: ${config.name}`);
 
+        const projectConfig = await loadProjectConfig(this.projectPath_);
+        const spineVersion = projectConfig?.spineVersion;
+
         const context: BuildContext = {
             projectPath: this.projectPath_,
             config,
+            spineVersion,
             progress,
             cache: useCache ? this.cache_ : undefined,
         };

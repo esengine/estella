@@ -62,6 +62,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000}
 <script>
 {{WASM_SDK}}
 </script>
+{{SPINE_SCRIPT}}
 <script>
 {{GAME_CODE}}
 </script>
@@ -85,15 +86,6 @@ function loadImagePixels(dataUrl){
   });
 }
 
-function createTextureFromPixels(mod,r){
-  var rm=mod.getResourceManager();
-  var ptr=mod._malloc(r.pixels.length);
-  mod.HEAPU8.set(r.pixels,ptr);
-  var h=rm.createTexture(r.width,r.height,ptr,r.pixels.length,1);
-  mod._free(ptr);
-  return h;
-}
-
 function decodeText(dataUrl){return atob(dataUrl.split(',')[1])}
 
 function decodeBinary(dataUrl){
@@ -101,167 +93,6 @@ function decodeBinary(dataUrl){
   var a=new Uint8Array(b.length);
   for(var i=0;i<b.length;i++)a[i]=b.charCodeAt(i);
   return a;
-}
-
-function ensureFSDir(mod,path){
-  var parts=path.split('/');var cur='';
-  for(var i=0;i<parts.length-1;i++){
-    cur+=(cur?'/':'')+parts[i];
-    try{mod.FS.mkdir(cur)}catch(e){}
-  }
-}
-
-function parseAtlasTextures(content){
-  var textures=[];var lines=content.split('\\n');
-  for(var i=0;i<lines.length;i++){
-    var line=lines[i].trim();
-    if(line&&line.indexOf(':')===-1&&(/\\.png$/i.test(line)||/\\.jpg$/i.test(line)))
-      textures.push(line);
-  }
-  return textures;
-}
-
-async function loadSceneTextures(mod,scene){
-  var cache={};
-  for(var i=0;i<scene.entities.length;i++){
-    var ent=scene.entities[i];
-    for(var j=0;j<ent.components.length;j++){
-      var comp=ent.components[j];
-      if(comp.type==='Sprite'&&comp.data.texture&&typeof comp.data.texture==='string'){
-        var ref=comp.data.texture;
-        if(!cache[ref]){
-          var d=__PA__[ref];
-          if(d){
-            try{cache[ref]=createTextureFromPixels(mod,await loadImagePixels(d))}
-            catch(e){console.warn('Failed to load texture:',ref,e);cache[ref]=0}
-          }else{cache[ref]=0}
-        }
-      }
-    }
-  }
-  return cache;
-}
-
-async function loadSpineAssets(mod,scene){
-  var rm=mod.getResourceManager();
-  for(var i=0;i<scene.entities.length;i++){
-    var ent=scene.entities[i];
-    for(var j=0;j<ent.components.length;j++){
-      var comp=ent.components[j];
-      if(comp.type!=='SpineAnimation'||!comp.data)continue;
-      var skelRef=comp.data.skeletonPath,atlasRef=comp.data.atlasPath;
-      if(!skelRef||!atlasRef)continue;
-      var atlasData=__PA__[atlasRef];
-      if(atlasData){
-        var atlasContent=decodeText(atlasData);
-        var atlasPath=atlasRef;
-        ensureFSDir(mod,atlasPath);
-        mod.FS.writeFile(atlasPath,atlasContent);
-        var texNames=parseAtlasTextures(atlasContent);
-        var atlasDir=atlasPath.substring(0,atlasPath.lastIndexOf('/'));
-        for(var k=0;k<texNames.length;k++){
-          var texPath=atlasDir+'/'+texNames[k];
-          var texData=__PA__[texPath];
-          if(texData){
-            try{
-              var h=createTextureFromPixels(mod,await loadImagePixels(texData));
-              rm.registerTextureWithPath(h,texPath);
-            }catch(e){console.warn('Failed to load spine texture:',texPath,e)}
-          }
-        }
-      }
-      var skelData=__PA__[skelRef];
-      if(skelData){
-        var skelPath=skelRef;
-        ensureFSDir(mod,skelPath);
-        if(skelPath.endsWith('.skel'))mod.FS.writeFile(skelPath,decodeBinary(skelData));
-        else mod.FS.writeFile(skelPath,decodeText(skelData));
-      }
-    }
-  }
-}
-
-function loadMaterials(scene){
-  var es=window.esengine;
-  var materialCache={};
-  var shaderCache={};
-  for(var i=0;i<scene.entities.length;i++){
-    var ent=scene.entities[i];
-    for(var j=0;j<ent.components.length;j++){
-      var comp=ent.components[j];
-      if(!comp.data||typeof comp.data.material!=='string'||!comp.data.material)continue;
-      if(comp.type!=='Sprite'&&comp.type!=='SpineAnimation')continue;
-      var matRef=comp.data.material;
-      if(materialCache[matRef]!==undefined)continue;
-      try{
-        var matDataUrl=__PA__[matRef];
-        if(!matDataUrl){materialCache[matRef]=0;continue}
-        var matData=JSON.parse(decodeText(matDataUrl));
-        if(!matData.vertexSource||!matData.fragmentSource){materialCache[matRef]=0;continue}
-        var shaderKey=matData.vertexSource+matData.fragmentSource;
-        var shaderHandle=shaderCache[shaderKey];
-        if(!shaderHandle){
-          shaderHandle=es.Material.createShader(matData.vertexSource,matData.fragmentSource);
-          shaderCache[shaderKey]=shaderHandle;
-        }
-        materialCache[matRef]=es.Material.createFromAsset(matData,shaderHandle);
-      }catch(e){console.warn('Failed to load material:',matRef,e);materialCache[matRef]=0}
-    }
-  }
-  return materialCache;
-}
-
-function updateMaterials(world,scene,materialCache,entityMap){
-  var es=window.esengine;
-  for(var i=0;i<scene.entities.length;i++){
-    var ed=scene.entities[i];
-    var entity=entityMap.get(ed.id);
-    if(entity===undefined)continue;
-    for(var j=0;j<ed.components.length;j++){
-      var comp=ed.components[j];
-      if(!comp.data||typeof comp.data.material!=='string'||!comp.data.material)continue;
-      var h=materialCache[comp.data.material]||0;
-      if(!h)continue;
-      if(comp.type==='Sprite'){
-        var sprite=world.get(entity,es.Sprite);
-        if(sprite){sprite.material=h;world.insert(entity,es.Sprite,sprite)}
-      }else if(comp.type==='SpineAnimation'){
-        var spine=world.get(entity,es.SpineAnimation);
-        if(spine){spine.material=h;world.insert(entity,es.SpineAnimation,spine)}
-      }
-    }
-  }
-}
-
-function updateSpriteTextures(world,scene,cache,entityMap){
-  var es=window.esengine;
-  for(var i=0;i<scene.entities.length;i++){
-    var ed=scene.entities[i];
-    var entity=entityMap.get(ed.id);
-    if(entity===undefined)continue;
-    for(var j=0;j<ed.components.length;j++){
-      var comp=ed.components[j];
-      if(comp.type==='Sprite'&&comp.data.texture&&typeof comp.data.texture==='string'){
-        var sprite=world.get(entity,es.Sprite);
-        if(sprite){sprite.texture=cache[comp.data.texture]||0;world.insert(entity,es.Sprite,sprite)}
-      }
-    }
-  }
-}
-
-function applyTextureMetadata(mod,scene,cache){
-  if(!scene.textureMetadata)return;
-  var rm=mod.getResourceManager();
-  for(var ref in scene.textureMetadata){
-    var h=cache[ref];
-    if(h&&h>0){
-      var m=scene.textureMetadata[ref];
-      if(m&&m.sliceBorder){
-        var b=m.sliceBorder;
-        rm.setTextureMetadata(h,b.left,b.right,b.top,b.bottom);
-      }
-    }
-  }
 }
 
 (async function(){
@@ -277,13 +108,29 @@ function applyTextureMetadata(mod,scene,cache){
   var app=es.createWebApp(Module);
   es.flushPendingSystems(app);
 
-  var textureCache=await loadSceneTextures(Module,__SCENE__);
-  applyTextureMetadata(Module,__SCENE__,textureCache);
-  await loadSpineAssets(Module,__SCENE__);
-  var materialCache=loadMaterials(__SCENE__);
-  var entityMap=es.loadSceneData(app.world,__SCENE__);
-  updateSpriteTextures(app.world,__SCENE__,textureCache,entityMap);
-  updateMaterials(app.world,__SCENE__,materialCache,entityMap);
+  var spineModule=null;
+  if(typeof ESSpineModule!=='undefined'){
+    try{
+      spineModule=await ESSpineModule({
+        instantiateWasm:function(imports,cb){
+          var b=atob(__SPINE_WASM_B64__);
+          var a=new Uint8Array(b.length);
+          for(var i=0;i<b.length;i++)a[i]=b.charCodeAt(i);
+          WebAssembly.instantiate(a,imports).then(function(r){cb(r.instance,r.module)});
+          return {};
+        }
+      });
+    }catch(e){console.warn('Spine module not available:',e)}
+  }
+
+  var provider={
+    loadPixels:function(ref){var d=__PA__[ref];if(!d)throw new Error('Asset not found: '+ref);return loadImagePixels(d)},
+    readText:function(ref){var d=__PA__[ref];if(!d)throw new Error('Asset not found: '+ref);return decodeText(d)},
+    readBinary:function(ref){var d=__PA__[ref];if(!d)throw new Error('Asset not found: '+ref);return decodeBinary(d)},
+    resolvePath:function(ref){return ref}
+  };
+
+  await es.loadRuntimeScene(app,Module,__SCENE__,provider,spineModule);
 
   var screenAspect=c.width/c.height;
   es.updateCameraAspectRatio(app.world,screenAspect);
@@ -401,7 +248,22 @@ export class PlayableBuilder {
             const compiledMaterials = await this.compileMaterials_();
             this.progress_.log('info', `Compiled ${compiledMaterials.size} material(s)`);
 
-            // 7. Collect assets (keyed by UUID, excluding packed textures, adding atlas pages)
+            // 7. Load spine module if needed
+            let spineJsSource = '';
+            let spineWasmBase64 = '';
+            const spineVersion = this.context_.spineVersion;
+            if (spineVersion && this.fs_?.getSpineJs) {
+                this.progress_.setCurrentTask('Loading spine module...', 25);
+                const spineJs = await this.fs_.getSpineJs(spineVersion);
+                const spineWasm = await this.fs_.getSpineWasm(spineVersion);
+                if (spineJs && spineWasm.length > 0) {
+                    spineJsSource = spineJs;
+                    spineWasmBase64 = this.arrayBufferToBase64(spineWasm);
+                    this.progress_.log('info', `Spine ${spineVersion} module loaded`);
+                }
+            }
+
+            // 8. Collect assets (keyed by UUID, excluding packed textures, adding atlas pages)
             this.progress_.setCurrentTask('Collecting assets...', 30);
             const assets = await this.collectAssets(packedPaths, compiledMaterials);
             for (let i = 0; i < atlasResult.pages.length; i++) {
@@ -410,13 +272,13 @@ export class PlayableBuilder {
             }
             this.progress_.log('info', `Collected ${assets.size} assets`);
 
-            // 8. Assemble HTML
+            // 9. Assemble HTML
             this.progress_.setPhase('assembling');
             this.progress_.setCurrentTask('Assembling HTML...', 0);
-            const html = this.assembleHTML(wasmSdk, gameCode, rewrittenScene, assets);
+            const html = this.assembleHTML(wasmSdk, gameCode, rewrittenScene, assets, spineJsSource, spineWasmBase64);
             this.progress_.log('info', `HTML assembled: ${html.length} bytes`);
 
-            // 9. Write output
+            // 10. Write output
             this.progress_.setPhase('writing');
             this.progress_.setCurrentTask('Writing output...', 0);
             const outputPath = this.resolveOutputPath(settings.outputPath);
@@ -528,6 +390,7 @@ ${imports}
             write: false,
             platform: 'browser',
             target: 'es2020',
+            treeShaking: false,
             minify: settings.minifyCode,
             define: defines,
             plugins: [this.createVirtualFsPlugin()],
@@ -778,16 +641,29 @@ ${imports}
         }
     }
 
-    private assembleHTML(wasmSdk: string, gameCode: string, sceneData: string, assets: Map<string, string>): string {
+    private assembleHTML(
+        wasmSdk: string, gameCode: string, sceneData: string,
+        assets: Map<string, string>,
+        spineJs?: string, spineWasmBase64?: string
+    ): string {
         const entries: string[] = [];
         for (const [path, dataUrl] of assets) {
             entries.push(`"${path}":"${dataUrl}"`);
         }
+
+        let spineScript = '';
+        if (spineJs && spineWasmBase64) {
+            spineScript = `<script>\nvar __SPINE_WASM_B64__="${spineWasmBase64}";\n${spineJs}\n</script>`;
+        } else {
+            spineScript = `<script>\nvar __SPINE_WASM_B64__="";\n</script>`;
+        }
+
         return HTML_TEMPLATE
-            .replace('{{WASM_SDK}}', wasmSdk)
-            .replace('{{GAME_CODE}}', gameCode)
-            .replace('{{ASSETS_MAP}}', `{${entries.join(',')}}`)
-            .replace('{{SCENE_DATA}}', sceneData);
+            .replace('{{WASM_SDK}}', () => wasmSdk)
+            .replace('{{SPINE_SCRIPT}}', () => spineScript)
+            .replace('{{GAME_CODE}}', () => gameCode)
+            .replace('{{ASSETS_MAP}}', () => `{${entries.join(',')}}`)
+            .replace('{{SCENE_DATA}}', () => sceneData);
     }
 
     private arrayBufferToBase64(buffer: Uint8Array): string {

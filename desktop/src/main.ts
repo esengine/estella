@@ -86,12 +86,28 @@ async function loadSpineModule(editor: Editor, version: string): Promise<void> {
     const url = SPINE_WASM_MAP[version];
     if (!url) return;
     try {
-        const factory = await loadESModule(url);
+        const factory = await loadUmdModule(url, 'ESSpineModule');
         const module = await factory();
         editor.setSpineModule(module, version);
     } catch (e) {
         console.warn(`Failed to load Spine ${version} module:`, e);
     }
+}
+
+function loadUmdModule(url: string, globalName: string): Promise<any> {
+    return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = url;
+        script.onload = () => {
+            resolve((window as any)[globalName]);
+            script.remove();
+        };
+        script.onerror = () => {
+            reject(new Error(`Failed to load ${url}`));
+            script.remove();
+        };
+        document.head.appendChild(script);
+    });
 }
 
 async function checkForUpdate(): Promise<void> {

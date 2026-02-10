@@ -230,193 +230,25 @@ globalThis.__esengine_sdk = SDK;
 
 var manifest = JSON.parse(wx.getFileSystemManager().readFileSync('asset-manifest.json', 'utf-8'));
 
-function resolveAsset(uuid) {
-    return manifest[uuid] || null;
+function resolvePath(ref) {
+    var entry = manifest[ref];
+    return entry ? entry.path : ref;
 }
 
-function createTextureFromPixels(module, result) {
-    var rm = module.getResourceManager();
-    var ptr = module._malloc(result.pixels.length);
-    module.HEAPU8.set(result.pixels, ptr);
-    var handle = rm.createTexture(result.width, result.height, ptr, result.pixels.length, 1);
-    module._free(ptr);
-    return handle;
-}
+var spineModule = null;
 
-async function loadSceneTextures(module, sceneData) {
-    var textureCache = {};
-    for (var i = 0; i < sceneData.entities.length; i++) {
-        var entity = sceneData.entities[i];
-        for (var j = 0; j < entity.components.length; j++) {
-            var comp = entity.components[j];
-            if (comp.type === 'Sprite' && comp.data.texture && typeof comp.data.texture === 'string') {
-                var textureRef = comp.data.texture;
-                if (!textureCache[textureRef]) {
-                    var entry = resolveAsset(textureRef);
-                    var texturePath = entry ? entry.path : textureRef;
-                    try {
-                        var result = await SDK.wxLoadImagePixels(texturePath);
-                        textureCache[textureRef] = createTextureFromPixels(module, result);
-                    } catch (err) {
-                        console.warn('Failed to load texture:', texturePath, err);
-                        textureCache[textureRef] = 0;
-                    }
-                }
+async function initSpineModule() {
+    try {
+        var SpineFactory = require('./spine.js');
+        spineModule = await SpineFactory({
+            instantiateWasm: function(imports, successCallback) {
+                WXWebAssembly.instantiate('spine.wasm', imports).then(function(result) {
+                    successCallback(result.instance, result.module);
+                });
+                return {};
             }
-        }
-    }
-    return textureCache;
-}
-
-function updateSpriteTextures(world, sceneData, textureCache, entityMap) {
-    for (var i = 0; i < sceneData.entities.length; i++) {
-        var entityData = sceneData.entities[i];
-        var entity = entityMap.get(entityData.id);
-        if (entity === undefined) continue;
-        for (var j = 0; j < entityData.components.length; j++) {
-            var comp = entityData.components[j];
-            if (comp.type === 'Sprite' && comp.data.texture && typeof comp.data.texture === 'string') {
-                var handle = textureCache[comp.data.texture] || 0;
-                var sprite = world.get(entity, SDK.Sprite);
-                if (sprite) {
-                    sprite.texture = handle;
-                    world.insert(entity, SDK.Sprite, sprite);
-                }
-            }
-        }
-    }
-}
-
-function applyTextureMetadata(module, sceneData, textureCache) {
-    if (!sceneData.textureMetadata) return;
-    var rm = module.getResourceManager();
-    for (var textureRef in sceneData.textureMetadata) {
-        var handle = textureCache[textureRef];
-        if (handle && handle > 0) {
-            var metadata = sceneData.textureMetadata[textureRef];
-            if (metadata && metadata.sliceBorder) {
-                var border = metadata.sliceBorder;
-                rm.setTextureMetadata(handle, border.left, border.right, border.top, border.bottom);
-            }
-        }
-    }
-}
-
-function ensureFSDir(module, path) {
-    var parts = path.split('/');
-    var cur = '';
-    for (var i = 0; i < parts.length - 1; i++) {
-        cur += (cur ? '/' : '') + parts[i];
-        try { module.FS.mkdir(cur); } catch(e) {}
-    }
-}
-
-function parseAtlasTextures(content) {
-    var textures = [];
-    var lines = content.split('\\n');
-    for (var i = 0; i < lines.length; i++) {
-        var line = lines[i].trim();
-        if (line && line.indexOf(':') === -1 && (/\\.png$/i.test(line) || /\\.jpg$/i.test(line)))
-            textures.push(line);
-    }
-    return textures;
-}
-
-async function loadSpineAssets(module, sceneData) {
-    var rm = module.getResourceManager();
-    var wxfs = wx.getFileSystemManager();
-    for (var i = 0; i < sceneData.entities.length; i++) {
-        var entity = sceneData.entities[i];
-        for (var j = 0; j < entity.components.length; j++) {
-            var comp = entity.components[j];
-            if (comp.type !== 'SpineAnimation' || !comp.data) continue;
-            var skelRef = comp.data.skeletonPath;
-            var atlasRef = comp.data.atlasPath;
-            if (!skelRef || !atlasRef) continue;
-            var skelEntry = resolveAsset(skelRef);
-            var atlasEntry = resolveAsset(atlasRef);
-            var skelPath = skelEntry ? skelEntry.path : skelRef;
-            var atlasPath = atlasEntry ? atlasEntry.path : atlasRef;
-            comp.data.skeletonPath = skelPath;
-            comp.data.atlasPath = atlasPath;
-            try {
-                var atlasContent = wxfs.readFileSync(atlasPath, 'utf-8');
-                ensureFSDir(module, atlasPath);
-                module.FS.writeFile(atlasPath, atlasContent);
-                var texNames = parseAtlasTextures(atlasContent);
-                var atlasDir = atlasPath.substring(0, atlasPath.lastIndexOf('/'));
-                for (var k = 0; k < texNames.length; k++) {
-                    var texPath = atlasDir + '/' + texNames[k];
-                    try {
-                        var result = await SDK.wxLoadImagePixels(texPath, false);
-                        var handle = createTextureFromPixels(module, result);
-                        rm.registerTextureWithPath(handle, texPath);
-                    } catch(e) { console.warn('Failed to load spine texture:', texPath, e); }
-                }
-                ensureFSDir(module, skelPath);
-                if (skelPath.endsWith('.skel')) {
-                    module.FS.writeFile(skelPath, new Uint8Array(wxfs.readFileSync(skelPath)));
-                } else {
-                    module.FS.writeFile(skelPath, wxfs.readFileSync(skelPath, 'utf-8'));
-                }
-            } catch(e) { console.warn('Failed to load spine:', skelPath, e); }
-        }
-    }
-}
-
-function loadMaterials(sceneData) {
-    var wxfs = wx.getFileSystemManager();
-    var materialCache = {};
-    var shaderCache = {};
-    for (var i = 0; i < sceneData.entities.length; i++) {
-        var entity = sceneData.entities[i];
-        for (var j = 0; j < entity.components.length; j++) {
-            var comp = entity.components[j];
-            if (!comp.data || typeof comp.data.material !== 'string' || !comp.data.material) continue;
-            if (comp.type !== 'Sprite' && comp.type !== 'SpineAnimation') continue;
-            var matRef = comp.data.material;
-            if (materialCache[matRef] !== undefined) continue;
-            try {
-                var entry = resolveAsset(matRef);
-                if (!entry) { materialCache[matRef] = 0; continue; }
-                var matJson = wxfs.readFileSync(entry.path, 'utf-8');
-                var matData = JSON.parse(matJson);
-                if (!matData.vertexSource || !matData.fragmentSource) { materialCache[matRef] = 0; continue; }
-                var shaderKey = matData.vertexSource + matData.fragmentSource;
-                var shaderHandle = shaderCache[shaderKey];
-                if (!shaderHandle) {
-                    shaderHandle = SDK.Material.createShader(matData.vertexSource, matData.fragmentSource);
-                    shaderCache[shaderKey] = shaderHandle;
-                }
-                materialCache[matRef] = SDK.Material.createFromAsset(matData, shaderHandle);
-            } catch (e) {
-                console.warn('Failed to load material:', matRef, e);
-                materialCache[matRef] = 0;
-            }
-        }
-    }
-    return materialCache;
-}
-
-function updateMaterials(world, sceneData, materialCache, entityMap) {
-    for (var i = 0; i < sceneData.entities.length; i++) {
-        var entityData = sceneData.entities[i];
-        var entity = entityMap.get(entityData.id);
-        if (entity === undefined) continue;
-        for (var j = 0; j < entityData.components.length; j++) {
-            var comp = entityData.components[j];
-            if (!comp.data || typeof comp.data.material !== 'string' || !comp.data.material) continue;
-            var handle = materialCache[comp.data.material] || 0;
-            if (!handle) continue;
-            if (comp.type === 'Sprite') {
-                var sprite = world.get(entity, SDK.Sprite);
-                if (sprite) { sprite.material = handle; world.insert(entity, SDK.Sprite, sprite); }
-            } else if (comp.type === 'SpineAnimation') {
-                var spine = world.get(entity, SDK.SpineAnimation);
-                if (spine) { spine.material = handle; world.insert(entity, SDK.SpineAnimation, spine); }
-            }
-        }
-    }
+        });
+    } catch(e) { console.warn('Spine module not available:', e); }
 }
 
 (async function() {
@@ -457,18 +289,22 @@ function updateMaterials(world, sceneData, materialCache, entityMap) {
 
     SDK.flushPendingSystems(app);
 
+    await initSpineModule();
+
     ${firstSceneName ? `
     try {
-        var sceneJson = wx.getFileSystemManager().readFileSync('scenes/${firstSceneName}.json', 'utf-8');
+        var wxfs = wx.getFileSystemManager();
+        var provider = {
+            loadPixels: function(ref) { return SDK.wxLoadImagePixels(resolvePath(ref)); },
+            readText: function(ref) { return wxfs.readFileSync(resolvePath(ref), 'utf-8'); },
+            readBinary: function(ref) { return new Uint8Array(wxfs.readFileSync(resolvePath(ref))); },
+            resolvePath: resolvePath
+        };
+
+        var sceneJson = wxfs.readFileSync('scenes/${firstSceneName}.json', 'utf-8');
         var sceneData = JSON.parse(sceneJson);
 
-        var textureCache = await loadSceneTextures(module, sceneData);
-        applyTextureMetadata(module, sceneData, textureCache);
-        await loadSpineAssets(module, sceneData);
-        var materialCache = loadMaterials(sceneData);
-        var entityMap = SDK.loadSceneData(app.world, sceneData);
-        updateSpriteTextures(app.world, sceneData, textureCache, entityMap);
-        updateMaterials(app.world, sceneData, materialCache, entityMap);
+        await SDK.loadRuntimeScene(app, module, sceneData, provider, spineModule);
 
         var screenAspect = canvas.width / canvas.height;
         SDK.updateCameraAspectRatio(app.world, screenAspect);
@@ -503,6 +339,17 @@ function updateMaterials(world, sceneData, materialCache, entityMap) {
         if (sdkJs) {
             await this.fs_!.writeFile(joinPath(outputDir, 'sdk.js'), sdkJs);
             console.log(`[WeChatBuilder] Copied SDK`);
+        }
+
+        const spineVersion = this.context_.spineVersion;
+        if (spineVersion) {
+            const spineJs = await this.fs_!.getSpineJs(spineVersion);
+            const spineWasm = await this.fs_!.getSpineWasm(spineVersion);
+            if (spineJs && spineWasm.length > 0) {
+                await this.fs_!.writeFile(joinPath(outputDir, 'spine.js'), spineJs);
+                await this.fs_!.writeBinaryFile(joinPath(outputDir, 'spine.wasm'), spineWasm);
+                console.log(`[WeChatBuilder] Copied Spine ${spineVersion} module`);
+            }
         }
     }
 
