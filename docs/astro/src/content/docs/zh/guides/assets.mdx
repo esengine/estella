@@ -171,13 +171,13 @@ const tex = await assets.loadTexture('sprites/player.png');
 ```typescript
 import { registerEmbeddedAssets } from 'esengine';
 
-registerEmbeddedAssets({
-    'assets/player.png': 'data:image/png;base64,iVBOR...',
-    'assets/config.json': '{"level":1}',
+registerEmbeddedAssets(app, {
+    'sprites/player.png': 'data:image/png;base64,iVBOR...',
+    'data/config.json': 'data:application/json;base64,eyJsZXZlbCI6MX0=',
 });
 ```
 
-注册后，所有 `assets.loadTexture()` / `assets.loadJson()` 调用将从嵌入数据解析，不再发起网络请求。
+第一个参数是 `App` 实例，资源值必须是 data URI。注册后，所有 `assets.loadTexture()` / `assets.loadJson()` 调用将从嵌入数据解析，不再发起网络请求。
 
 <Aside type="tip">
   编辑器的 Playable 构建流程会自动调用 `registerEmbeddedAssets`。仅在自定义构建流程中才需要手动调用。

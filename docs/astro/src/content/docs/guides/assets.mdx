@@ -171,13 +171,13 @@ For Playable Ad builds, assets can be embedded directly into the output bundle u
 ```typescript
 import { registerEmbeddedAssets } from 'esengine';
 
-registerEmbeddedAssets({
-    'assets/player.png': 'data:image/png;base64,iVBOR...',
-    'assets/config.json': '{"level":1}',
+registerEmbeddedAssets(app, {
+    'sprites/player.png': 'data:image/png;base64,iVBOR...',
+    'data/config.json': 'data:application/json;base64,eyJsZXZlbCI6MX0=',
 });
 ```
 
-Once registered, all `assets.loadTexture()` / `assets.loadJson()` calls resolve from the embedded data instead of fetching over the network.
+The first argument is the `App` instance. Asset values must be data URIs. Once registered, all `assets.loadTexture()` / `assets.loadJson()` calls resolve from the embedded data instead of fetching over the network.
 
 <Aside type="tip">
   The editor's Playable build pipeline calls `registerEmbeddedAssets` automatically. You only need to call it manually in custom build workflows.
