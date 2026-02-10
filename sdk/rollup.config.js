@@ -36,6 +36,12 @@ const esmBuilds = [
         plugins: [typescript({ tsconfig: './tsconfig.json', declaration: false }), terser()],
         treeshake,
     },
+    {
+        input: 'src/spine/index.ts',
+        output: { file: 'dist/spine/index.js', format: 'esm', sourcemap: true },
+        plugins: [typescript({ tsconfig: './tsconfig.json', declaration: false }), terser()],
+        treeshake,
+    },
 ];
 
 const dtsBuilds = [
@@ -47,6 +53,11 @@ const dtsBuilds = [
     {
         input: 'src/wasm.ts',
         output: { file: 'dist/wasm.d.ts', format: 'esm' },
+        plugins: [dts()],
+    },
+    {
+        input: 'src/spine/index.ts',
+        output: { file: 'dist/spine/index.d.ts', format: 'esm' },
         plugins: [dts()],
     },
 ];

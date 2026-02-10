@@ -264,14 +264,26 @@ function exposeRegistrationAPI(): void {
 // Initialization
 // =============================================================================
 
-export function registerBuiltinSchemas(): void {
+export interface BuiltinSchemaOptions {
+    enableSpine?: boolean;
+}
+
+export function registerBuiltinSchemas(options?: BuiltinSchemaOptions): void {
+    const enableSpine = options?.enableSpine ?? true;
+
     registerComponentSchema(LocalTransformSchema);
     registerComponentSchema(SpriteSchema);
     registerComponentSchema(CameraSchema);
     registerComponentSchema(TextSchema);
     registerComponentSchema(UIRectSchema);
-    registerComponentSchema(SpineAnimationSchema);
+    if (enableSpine) {
+        registerComponentSchema(SpineAnimationSchema);
+    }
     exposeRegistrationAPI();
+}
+
+export function registerSpineSchema(): void {
+    registerComponentSchema(SpineAnimationSchema);
 }
 
 // =============================================================================

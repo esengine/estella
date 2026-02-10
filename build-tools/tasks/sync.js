@@ -18,7 +18,7 @@ export async function syncToDesktop(options = {}) {
             const destPath = path.join(rootDir, dest);
 
             if (existsSync(srcPath)) {
-                synced += await copyDirectory(srcPath, destPath);
+                synced += await copyFiles(srcPath, destPath, ['.js', '.wasm']);
             }
         }
     }
@@ -41,6 +41,30 @@ export async function syncToDesktop(options = {}) {
     }
 
     return { synced };
+}
+
+async function copyFiles(srcDir, destDir, extensions) {
+    if (!existsSync(srcDir)) {
+        return 0;
+    }
+
+    await mkdir(destDir, { recursive: true });
+
+    let count = 0;
+    const entries = await readdir(srcDir, { withFileTypes: true });
+
+    for (const entry of entries) {
+        if (!entry.isFile()) continue;
+        if (extensions && !extensions.some(ext => entry.name.endsWith(ext))) continue;
+
+        const srcPath = path.join(srcDir, entry.name);
+        const destPath = path.join(destDir, entry.name);
+        await cp(srcPath, destPath);
+        logger.debug(`Synced ${entry.name}`);
+        count++;
+    }
+
+    return count;
 }
 
 async function copyDirectory(srcDir, destDir) {

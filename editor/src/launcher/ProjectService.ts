@@ -127,6 +127,7 @@ export async function createProject(
         defaultScene: 'assets/scenes/main.esscene',
         created: now,
         modified: now,
+        spineVersion: '4.2',
     };
 
     const projectFilePath = joinPath(projectDir, 'project.esproject');

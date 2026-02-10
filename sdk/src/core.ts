@@ -235,19 +235,6 @@ export {
 } from './platform';
 
 // =============================================================================
-// Spine Animation
-// =============================================================================
-
-export {
-    SpineController,
-    createSpineController,
-    type SpineEventType,
-    type SpineEventCallback,
-    type SpineEvent,
-    type TrackEntryInfo,
-} from './spine';
-
-// =============================================================================
 // Draw API
 // =============================================================================
 
@@ -332,6 +319,7 @@ export {
 export {
     RenderPipeline,
     type RenderParams,
+    type SpineRendererFn,
 } from './renderPipeline';
 
 // =============================================================================

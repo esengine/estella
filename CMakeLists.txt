@@ -9,6 +9,7 @@ option(ES_BUILD_WEB "Build for Web/Emscripten" OFF)
 option(ES_BUILD_WXGAME "Build for WeChat MiniGame" OFF)
 option(ES_BUILD_TESTS "Build tests" ON)
 option(ES_BUILD_SINGLE_FILE "Build single-file SDK (WASM inlined)" OFF)
+option(ES_ENABLE_SPINE "Enable Spine animation support" ON)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(ESEngineConfig)
@@ -42,11 +43,16 @@ set(ESENGINE_SOURCES
     src/esengine/renderer/PostProcessPipeline.cpp
     src/esengine/platform/input/Input.cpp
     src/esengine/platform/PathResolver.cpp
-    src/esengine/spine/SpineExtension.cpp
-    src/esengine/spine/SpineResourceManager.cpp
-    src/esengine/spine/SpineSystem.cpp
-    src/esengine/spine/SpineRenderer.cpp
 )
+
+if(ES_ENABLE_SPINE)
+    list(APPEND ESENGINE_SOURCES
+        src/esengine/spine/SpineExtension.cpp
+        src/esengine/spine/SpineResourceManager.cpp
+        src/esengine/spine/SpineSystem.cpp
+        src/esengine/spine/SpineRenderer.cpp
+    )
+endif()
 
 set(ESENGINE_HEADERS
     src/esengine/ESEngine.hpp
@@ -69,10 +75,6 @@ set(ESENGINE_HEADERS
     src/esengine/ecs/components/Velocity.hpp
     src/esengine/ecs/components/Common.hpp
     src/esengine/ecs/components/SpineAnimation.hpp
-    src/esengine/spine/SpineExtension.hpp
-    src/esengine/spine/SpineResourceManager.hpp
-    src/esengine/spine/SpineSystem.hpp
-    src/esengine/spine/SpineRenderer.hpp
     src/esengine/math/Math.hpp
     src/esengine/resource/Handle.hpp
     src/esengine/resource/ResourcePool.hpp
@@ -102,6 +104,15 @@ set(ESENGINE_HEADERS
     src/esengine/events/Sink.hpp
     src/esengine/events/Dispatcher.hpp
 )
+
+if(ES_ENABLE_SPINE)
+    list(APPEND ESENGINE_HEADERS
+        src/esengine/spine/SpineExtension.hpp
+        src/esengine/spine/SpineResourceManager.hpp
+        src/esengine/spine/SpineSystem.hpp
+        src/esengine/spine/SpineRenderer.hpp
+    )
+endif()
 
 set(GENERATED_WEB_BINDINGS "${CMAKE_CURRENT_SOURCE_DIR}/src/esengine/bindings/WebBindings.generated.cpp")
 set(GENERATED_TS_DEFINITIONS "${CMAKE_CURRENT_SOURCE_DIR}/sdk/src/wasm.generated.ts")
@@ -175,7 +186,12 @@ target_include_directories(esengine
         ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb
 )
 
-target_link_libraries(esengine PUBLIC glm spine-cpp)
+target_link_libraries(esengine PUBLIC glm)
+
+if(ES_ENABLE_SPINE)
+    target_link_libraries(esengine PUBLIC spine-cpp)
+    target_compile_definitions(esengine PUBLIC ES_ENABLE_SPINE)
+endif()
 
 if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
     target_compile_definitions(esengine PUBLIC ES_PLATFORM_WEB)
@@ -289,6 +305,13 @@ html,body{width:100%;height:100%;overflow:hidden;background:#1a1a1a}
 ]=])
     endif()
 
+    # Core-only SDK (no Spine, for modular builds)
+    if(NOT ES_ENABLE_SPINE)
+        set_target_properties(esengine_sdk PROPERTIES
+            OUTPUT_NAME "esengine-core"
+        )
+    endif()
+
     # WeChat MiniGame SDK (CommonJS compatible)
     if(ES_BUILD_WXGAME)
         add_executable(esengine_wxgame src/esengine/bindings/WebSDKEntry.cpp)
@@ -297,6 +320,47 @@ html,body{width:100%;height:100%;overflow:hidden;background:#1a1a1a}
 
         set_target_properties(esengine_wxgame PROPERTIES
             OUTPUT_NAME "esengine.wxgame"
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/sdk"
+        )
+    endif()
+
+    # Spine standalone WASM module
+    if(ES_ENABLE_SPINE)
+        file(GLOB_RECURSE SPINE_MODULE_SPINE_SOURCES
+            "${CMAKE_CURRENT_SOURCE_DIR}/third_party/spine-runtimes/spine-cpp/spine-cpp/src/spine/*.cpp"
+        )
+        add_executable(spine_module
+            src/esengine/bindings/SpineModuleEntry.cpp
+            ${SPINE_MODULE_SPINE_SOURCES}
+        )
+        target_include_directories(spine_module PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/third_party/spine-runtimes/spine-cpp/spine-cpp/include
+        )
+        target_compile_definitions(spine_module PRIVATE SPINE_SHORT_NAMES)
+        es_apply_spine_module_settings(spine_module)
+
+        set_target_properties(spine_module PROPERTIES
+            OUTPUT_NAME "spine42"
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/sdk"
+        )
+    endif()
+
+    # Spine 3.8 standalone module
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/spine-runtimes-3.8")
+        file(GLOB_RECURSE SPINE38_MODULE_SOURCES
+            "${CMAKE_CURRENT_SOURCE_DIR}/third_party/spine-runtimes-3.8/spine-cpp/spine-cpp/src/spine/*.cpp"
+        )
+        add_executable(spine_module_38
+            src/esengine/bindings/SpineModuleEntry.cpp
+            ${SPINE38_MODULE_SOURCES}
+        )
+        target_include_directories(spine_module_38 PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/third_party/spine-runtimes-3.8/spine-cpp/spine-cpp/include
+        )
+        target_compile_definitions(spine_module_38 PRIVATE SPINE_SHORT_NAMES ES_SPINE_38)
+        es_apply_spine_module_settings(spine_module_38)
+        set_target_properties(spine_module_38 PROPERTIES
+            OUTPUT_NAME "spine38"
             RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/sdk"
         )
     endif()

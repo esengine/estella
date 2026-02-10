@@ -4,6 +4,7 @@
  */
 
 import type { Entity, App } from 'esengine';
+import type { SpineModuleController } from 'esengine/spine';
 import type { EditorStore } from '../store/EditorStore';
 import type { EditorBridge } from '../bridge/EditorBridge';
 import type { SliceBorder } from '../types/TextureMetadata';
@@ -228,6 +229,10 @@ export class SceneViewPanel {
         if (app.wasmModule && !this.webglInitialized_ && !this.webglInitPending_) {
             this.initWebGLRenderer();
         }
+    }
+
+    setSpineController(controller: SpineModuleController | null): void {
+        this.sceneRenderer_?.setSpineController(controller);
     }
 
     private async initWebGLRenderer(): Promise<void> {

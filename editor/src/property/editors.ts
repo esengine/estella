@@ -1072,10 +1072,13 @@ async function loadSpineSkeletonData(skeletonPath: string): Promise<SpineSkeleto
     const fs = getNativeFS();
     if (!projectDir || !fs) return null;
 
-    const fullPath = `${projectDir}/${skeletonPath}`;
+    let jsonPath = `${projectDir}/${skeletonPath}`;
+    if (jsonPath.endsWith('.skel')) {
+        jsonPath = jsonPath.replace(/\.skel$/, '.json');
+    }
 
     try {
-        const content = await fs.readFile(fullPath);
+        const content = await fs.readFile(jsonPath);
         if (!content) return null;
         return JSON.parse(content) as SpineSkeletonData;
     } catch (err) {

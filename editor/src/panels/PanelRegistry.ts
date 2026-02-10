@@ -1,4 +1,5 @@
 import type { App } from 'esengine';
+import type { SpineModuleController } from 'esengine/spine';
 import type { EditorStore } from '../store/EditorStore';
 import type { EditorBridge } from '../bridge/EditorBridge';
 
@@ -47,6 +48,10 @@ export interface OutputAppendable {
     clear(): void;
 }
 
+export interface SpineControllerAware {
+    setSpineController(controller: SpineModuleController | null): void;
+}
+
 export function isResizable(p: PanelInstance): p is PanelInstance & Resizable {
     return typeof (p as any).resize === 'function';
 }
@@ -65,6 +70,10 @@ export function isAssetServerProvider(p: PanelInstance): p is PanelInstance & As
 
 export function isAssetNavigable(p: PanelInstance): p is PanelInstance & AssetNavigable {
     return typeof (p as any).navigateToAsset === 'function';
+}
+
+export function isSpineControllerAware(p: PanelInstance): p is PanelInstance & SpineControllerAware {
+    return typeof (p as any).setSpineController === 'function';
 }
 
 export function isOutputAppendable(p: PanelInstance): p is PanelInstance & OutputAppendable {

@@ -64,7 +64,7 @@ export const Renderer = {
 
     submitSpine(registry: { _cpp: CppRegistry }): void {
         if (!module) return;
-        module.renderer_submitSpine(registry._cpp);
+        module.renderer_submitSpine?.(registry._cpp);
     },
 
     setStage(stage: RenderStage): void {
@@ -99,7 +99,7 @@ export const Renderer = {
             drawCalls: module.renderer_getDrawCalls(),
             triangles: module.renderer_getTriangles(),
             sprites: module.renderer_getSprites(),
-            spine: module.renderer_getSpine(),
+            spine: module.renderer_getSpine?.() ?? 0,
             meshes: module.renderer_getMeshes(),
             culled: module.renderer_getCulled(),
         };

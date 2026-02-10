@@ -20,7 +20,7 @@ program
 program
     .command('build')
     .description('Build ESEngine')
-    .option('-t, --target <target>', 'Build target (web, wechat, playable, sdk, all)', 'web')
+    .option('-t, --target <target>', 'Build target (web, wechat, playable, spine, spine38, sdk, all)', 'web')
     .option('-d, --debug', 'Debug build', false)
     .option('-r, --release', 'Release build (default)', true)
     .option('-c, --clean', 'Clean before build', false)
@@ -40,7 +40,7 @@ program
 
             const isDebug = options.debug && !options.release;
             const targets = options.target === 'all'
-                ? ['web', 'wechat', 'playable']
+                ? ['web', 'wechat', 'playable', 'spine', 'spine38']
                 : [options.target];
 
             if (options.clean) {

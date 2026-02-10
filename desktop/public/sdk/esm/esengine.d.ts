@@ -231,6 +231,7 @@ interface CppResourceManager {
     createTexture(width: number, height: number, pixels: number, pixelsLen: number, format: number): number;
     createShader(vertSrc: string, fragSrc: string): number;
     registerExternalTexture(glTextureId: number, width: number, height: number): number;
+    getTextureGLId(handle: number): number;
     releaseTexture(handle: number): void;
     releaseShader(handle: number): void;
     setTextureMetadata(handle: number, left: number, right: number, top: number, bottom: number): void;
@@ -283,7 +284,7 @@ interface ESEngineModule {
     renderFrame(registry: CppRegistry, width: number, height: number): void;
     renderFrameWithMatrix(registry: CppRegistry, width: number, height: number, matrixPtr: number): void;
     getResourceManager(): CppResourceManager;
-    getSpineBounds(registry: CppRegistry, entity: number): SpineBounds;
+    getSpineBounds?(registry: CppRegistry, entity: number): SpineBounds;
     draw_begin(matrixPtr: number): void;
     draw_end(): void;
     draw_line(fromX: number, fromY: number, toX: number, toY: number, r: number, g: number, b: number, a: number, thickness: number): void;
@@ -329,7 +330,8 @@ interface ESEngineModule {
     renderer_flush(): void;
     renderer_end(): void;
     renderer_submitSprites(registry: CppRegistry): void;
-    renderer_submitSpine(registry: CppRegistry): void;
+    renderer_submitSpine?(registry: CppRegistry): void;
+    renderer_submitTriangles(verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, blendMode: number, transformPtr: number): void;
     renderer_setStage(stage: number): void;
     renderer_createTarget(width: number, height: number, flags: number): number;
     renderer_releaseTarget(handle: number): void;
@@ -338,7 +340,7 @@ interface ESEngineModule {
     renderer_getDrawCalls(): number;
     renderer_getTriangles(): number;
     renderer_getSprites(): number;
-    renderer_getSpine(): number;
+    renderer_getSpine?(): number;
     renderer_getMeshes(): number;
     renderer_getCulled(): number;
     renderer_setClearColor(r: number, g: number, b: number, a: number): void;
@@ -1147,206 +1149,6 @@ declare function platformFileExists(path: string): Promise<boolean>;
 declare function platformInstantiateWasm(pathOrBuffer: string | ArrayBuffer, imports: WebAssembly.Imports): Promise<WasmInstantiateResult>;
 
 /**
- * @file    spine.ts
- * @brief   Spine animation control API
- */
-
-/**
- * Spine event types
- */
-type SpineEventType = 'start' | 'interrupt' | 'end' | 'complete' | 'dispose' | 'event';
-/**
- * Spine event callback
- */
-type SpineEventCallback = (event: SpineEvent) => void;
-/**
- * Spine event data
- */
-interface SpineEvent {
-    type: SpineEventType;
-    entity: Entity;
-    track: number;
-    animation: string | null;
-    eventName?: string;
-    intValue?: number;
-    floatValue?: number;
-    stringValue?: string;
-}
-/**
- * Track entry info for animation queries
- */
-interface TrackEntryInfo {
-    animation: string;
-    track: number;
-    loop: boolean;
-    timeScale: number;
-    trackTime: number;
-    animationTime: number;
-    duration: number;
-    isComplete: boolean;
-}
-/**
- * Controller for Spine skeletal animations
- *
- * @example
- * ```typescript
- * const spine = new SpineController(wasmModule);
- *
- * // Play animation
- * spine.play(entity, 'run', true);
- *
- * // Queue next animation
- * spine.addAnimation(entity, 'idle', true, 0.2);
- *
- * // Change skin
- * spine.setSkin(entity, 'warrior');
- *
- * // Get bone position for effects
- * const pos = spine.getBonePosition(entity, 'weapon');
- * if (pos) {
- *     spawnEffect(pos.x, pos.y);
- * }
- *
- * // Listen for events
- * spine.on(entity, 'event', (e) => {
- *     if (e.eventName === 'footstep') {
- *         playSound('footstep');
- *     }
- * });
- * ```
- */
-declare class SpineController {
-    private module_;
-    private listeners_;
-    constructor(wasmModule: any);
-    /**
-     * Plays an animation, replacing any current animation on the track
-     * @param entity Target entity
-     * @param animation Animation name
-     * @param loop Whether to loop the animation
-     * @param track Animation track (default 0)
-     * @returns True if animation was set
-     */
-    play(entity: Entity, animation: string, loop?: boolean, track?: number): boolean;
-    /**
-     * Adds an animation to the queue
-     * @param entity Target entity
-     * @param animation Animation name
-     * @param loop Whether to loop
-     * @param delay Delay before starting (seconds)
-     * @param track Animation track (default 0)
-     * @returns True if animation was queued
-     */
-    addAnimation(entity: Entity, animation: string, loop?: boolean, delay?: number, track?: number): boolean;
-    /**
-     * Sets an empty animation to mix out the current animation
-     * @param entity Target entity
-     * @param mixDuration Duration of the mix out
-     * @param track Animation track (default 0)
-     */
-    setEmptyAnimation(entity: Entity, mixDuration?: number, track?: number): void;
-    /**
-     * Clears all animations on a track
-     * @param entity Target entity
-     * @param track Animation track (default 0)
-     */
-    clearTrack(entity: Entity, track?: number): void;
-    /**
-     * Clears all tracks
-     * @param entity Target entity
-     */
-    clearTracks(entity: Entity): void;
-    /**
-     * Sets the current skin
-     * @param entity Target entity
-     * @param skinName Skin name
-     * @returns True if skin was set
-     */
-    setSkin(entity: Entity, skinName: string): boolean;
-    /**
-     * Gets available skin names
-     * @param entity Target entity
-     * @returns Array of skin names
-     */
-    getSkins(entity: Entity): string[];
-    /**
-     * Gets available animation names
-     * @param entity Target entity
-     * @returns Array of animation names
-     */
-    getAnimations(entity: Entity): string[];
-    /**
-     * Gets the current animation on a track
-     * @param entity Target entity
-     * @param track Animation track (default 0)
-     * @returns Animation name or null
-     */
-    getCurrentAnimation(entity: Entity, track?: number): string | null;
-    /**
-     * Gets the duration of an animation
-     * @param entity Target entity
-     * @param animation Animation name
-     * @returns Duration in seconds, or 0 if not found
-     */
-    getAnimationDuration(entity: Entity, animation: string): number;
-    /**
-     * Gets detailed track entry info
-     * @param entity Target entity
-     * @param track Animation track (default 0)
-     * @returns Track entry info or null
-     */
-    getTrackEntry(entity: Entity, track?: number): TrackEntryInfo | null;
-    /**
-     * Gets world position of a bone
-     * @param entity Target entity
-     * @param boneName Bone name
-     * @returns Position or null if not found
-     */
-    getBonePosition(entity: Entity, boneName: string): Vec2 | null;
-    /**
-     * Gets world rotation of a bone in degrees
-     * @param entity Target entity
-     * @param boneName Bone name
-     * @returns Rotation in degrees or null
-     */
-    getBoneRotation(entity: Entity, boneName: string): number | null;
-    /**
-     * Sets the attachment for a slot
-     * @param entity Target entity
-     * @param slotName Slot name
-     * @param attachmentName Attachment name (null to clear)
-     */
-    setAttachment(entity: Entity, slotName: string, attachmentName: string | null): void;
-    /**
-     * Registers an event callback
-     * @param entity Target entity
-     * @param type Event type
-     * @param callback Callback function
-     */
-    on(entity: Entity, type: SpineEventType, callback: SpineEventCallback): void;
-    /**
-     * Unregisters an event callback
-     * @param entity Target entity
-     * @param type Event type
-     * @param callback Callback function
-     */
-    off(entity: Entity, type: SpineEventType, callback: SpineEventCallback): void;
-    /**
-     * Removes all event listeners for an entity
-     * @param entity Target entity
-     */
-    removeAllListeners(entity: Entity): void;
-    private setupEventBridge;
-    private dispatchEvent;
-}
-/**
- * Creates a SpineController instance
- * @param wasmModule The ESEngine WASM module
- * @returns SpineController instance
- */
-declare function createSpineController(wasmModule: any): SpineController;
-
-/**
  * @file    geometry.ts
  * @brief   Geometry API for custom mesh rendering
  * @details Provides geometry creation and management for custom shapes,
@@ -1737,7 +1539,12 @@ interface RenderParams {
     height: number;
     elapsed: number;
 }
+type SpineRendererFn = (registry: {
+    _cpp: CppRegistry;
+}, elapsed: number) => void;
 declare class RenderPipeline {
+    private spineRenderer_;
+    setSpineRenderer(fn: SpineRendererFn | null): void;
     render(params: RenderParams): void;
 }
 
@@ -1768,5 +1575,5 @@ declare const GLDebug: {
     diagnose(): void;
 };
 
-export { App, AssetPlugin, AssetServer, Assets, AsyncCache, BlendMode, Camera, Canvas, Children, Commands, CommandsInstance, DataType, Draw, EntityCommands, GLDebug, Geometry, INVALID_ENTITY, INVALID_TEXTURE, Input, InputPlugin, InputState, LocalTransform, Material, MaterialLoader, Mut, Parent, PostProcess, PreviewPlugin, Query, QueryInstance, RenderPipeline, RenderStage, RenderTexture, Renderer, Res, ResMut, ResMutInstance, Schedule, ShaderSources, SpineAnimation, SpineController, Sprite, SystemRunner, Text, TextAlign, TextOverflow, TextPlugin, TextRenderer, TextVerticalAlign, Time, UIRect, Velocity, World, WorldTransform, addStartupSystem, addSystem, addSystemToSchedule, assetPlugin, clearDrawCallbacks, clearUserComponents, color, createSpineController, createWebApp, defineComponent, defineResource, defineSystem, defineTag, flushPendingSystems, getComponentDefaults, getPlatform, getPlatformType, getUserComponent, initDrawAPI, initGLDebugAPI, initGeometryAPI, initMaterialAPI, initPostProcessAPI, initRendererAPI, inputPlugin, isBuiltinComponent, isEditor, isPlatformInitialized, isRuntime, isTextureRef, isWeChat, isWeb, loadComponent, loadSceneData, loadSceneWithAssets, platformFetch, platformFileExists, platformInstantiateWasm, platformReadFile, platformReadTextFile, quat, registerDrawCallback, registerMaterialCallback, setEditorMode, shutdownDrawAPI, shutdownGLDebugAPI, shutdownGeometryAPI, shutdownMaterialAPI, shutdownPostProcessAPI, shutdownRendererAPI, textPlugin, unregisterDrawCallback, updateCameraAspectRatio, vec2, vec3, vec4 };
-export type { AnyComponentDef, AssetBundle, AssetManifest, AssetsData, BuiltinComponentDef, CameraData, CanvasData, ChildrenData, Color, CommandsDescriptor, ComponentData, ComponentDef, CppRegistry, CppResourceManager, DrawAPI, DrawCallback, ESEngineModule, Entity, FileLoadOptions, GeometryHandle, GeometryOptions, InferParam, InferParams, LoadedMaterial, LocalTransformData, MaterialAssetData, MaterialHandle, MaterialOptions, MutWrapper, ParentData, PlatformAdapter, PlatformRequestOptions, PlatformResponse, PlatformType, Plugin, Quat, QueryDescriptor, QueryResult, RenderParams, RenderStats, RenderTargetHandle, RenderTextureHandle, RenderTextureOptions, ResDescriptor, ResMutDescriptor, ResourceDef, SceneComponentData, SceneData, SceneEntityData, SceneLoadOptions, ShaderHandle, ShaderLoader, SliceBorder, SpineAnimationData, SpineDescriptor, SpineEvent, SpineEventCallback, SpineEventType, SpineLoadResult, SpriteData, SystemDef, SystemParam, TextData, TextRenderResult, TextureHandle, TextureInfo, TextureRef, TimeData, TrackEntryInfo, UIRectData, UniformValue, Vec2, Vec3, Vec4, VelocityData, VertexAttributeDescriptor, WebAppOptions, WorldTransformData };
+export { App, AssetPlugin, AssetServer, Assets, AsyncCache, BlendMode, Camera, Canvas, Children, Commands, CommandsInstance, DataType, Draw, EntityCommands, GLDebug, Geometry, INVALID_ENTITY, INVALID_TEXTURE, Input, InputPlugin, InputState, LocalTransform, Material, MaterialLoader, Mut, Parent, PostProcess, PreviewPlugin, Query, QueryInstance, RenderPipeline, RenderStage, RenderTexture, Renderer, Res, ResMut, ResMutInstance, Schedule, ShaderSources, SpineAnimation, Sprite, SystemRunner, Text, TextAlign, TextOverflow, TextPlugin, TextRenderer, TextVerticalAlign, Time, UIRect, Velocity, World, WorldTransform, addStartupSystem, addSystem, addSystemToSchedule, assetPlugin, clearDrawCallbacks, clearUserComponents, color, createWebApp, defineComponent, defineResource, defineSystem, defineTag, flushPendingSystems, getComponentDefaults, getPlatform, getPlatformType, getUserComponent, initDrawAPI, initGLDebugAPI, initGeometryAPI, initMaterialAPI, initPostProcessAPI, initRendererAPI, inputPlugin, isBuiltinComponent, isEditor, isPlatformInitialized, isRuntime, isTextureRef, isWeChat, isWeb, loadComponent, loadSceneData, loadSceneWithAssets, platformFetch, platformFileExists, platformInstantiateWasm, platformReadFile, platformReadTextFile, quat, registerDrawCallback, registerMaterialCallback, setEditorMode, shutdownDrawAPI, shutdownGLDebugAPI, shutdownGeometryAPI, shutdownMaterialAPI, shutdownPostProcessAPI, shutdownRendererAPI, textPlugin, unregisterDrawCallback, updateCameraAspectRatio, vec2, vec3, vec4 };
+export type { AnyComponentDef, AssetBundle, AssetManifest, AssetsData, BuiltinComponentDef, CameraData, CanvasData, ChildrenData, Color, CommandsDescriptor, ComponentData, ComponentDef, CppRegistry, CppResourceManager, DrawAPI, DrawCallback, ESEngineModule, Entity, FileLoadOptions, GeometryHandle, GeometryOptions, InferParam, InferParams, LoadedMaterial, LocalTransformData, MaterialAssetData, MaterialHandle, MaterialOptions, MutWrapper, ParentData, PlatformAdapter, PlatformRequestOptions, PlatformResponse, PlatformType, Plugin, Quat, QueryDescriptor, QueryResult, RenderParams, RenderStats, RenderTargetHandle, RenderTextureHandle, RenderTextureOptions, ResDescriptor, ResMutDescriptor, ResourceDef, SceneComponentData, SceneData, SceneEntityData, SceneLoadOptions, ShaderHandle, ShaderLoader, SliceBorder, SpineAnimationData, SpineDescriptor, SpineLoadResult, SpineRendererFn, SpriteData, SystemDef, SystemParam, TextData, TextRenderResult, TextureHandle, TextureInfo, TextureRef, TimeData, UIRectData, UniformValue, Vec2, Vec3, Vec4, VelocityData, VertexAttributeDescriptor, WebAppOptions, WorldTransformData };

@@ -16,3 +16,7 @@
 [submodule "third_party/spine-runtimes"]
 	path = third_party/spine-runtimes
 	url = https://github.com/EsotericSoftware/spine-runtimes.git
+[submodule "third_party/spine-runtimes-3.8"]
+	path = third_party/spine-runtimes-3.8
+	url = https://github.com/EsotericSoftware/spine-runtimes.git
+	branch = 3.8

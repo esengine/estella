@@ -4,6 +4,7 @@
  */
 
 import type { ESEngineModule } from 'esengine';
+import type { SpineModuleController } from 'esengine/spine';
 import type { AssetPathResolver } from './AssetPathResolver';
 import { getEditorContext } from '../context/EditorContext';
 import type { NativeFS } from '../types/NativeFS';
@@ -25,10 +26,16 @@ interface SpineLoadState {
     textures: Map<string, number>;
 }
 
+interface TextureEntry {
+    handle: number;
+    width: number;
+    height: number;
+}
+
 export class AssetLoader {
     private module_: ESEngineModule;
     private pathResolver_: AssetPathResolver;
-    private loadedTextures_: Map<string, number> = new Map();
+    private loadedTextures_: Map<string, TextureEntry> = new Map();
     private loadedSpines_: Map<string, SpineLoadState> = new Map();
     private virtualFSPaths_: Set<string> = new Set();
 
@@ -37,10 +44,10 @@ export class AssetLoader {
         this.pathResolver_ = pathResolver;
     }
 
-    async loadTexture(relativePath: string): Promise<{ success: boolean; handle?: number; error?: string }> {
+    async loadTexture(relativePath: string): Promise<{ success: boolean; handle?: number; width?: number; height?: number; error?: string }> {
         const existing = this.loadedTextures_.get(relativePath);
         if (existing !== undefined) {
-            return { success: true, handle: existing };
+            return { success: true, handle: existing.handle, width: existing.width, height: existing.height };
         }
 
         const fs = this.getNativeFS();
@@ -76,9 +83,9 @@ export class AssetLoader {
         }
 
         rm.registerTextureWithPath(handleId, relativePath);
-        this.loadedTextures_.set(relativePath, handleId);
+        this.loadedTextures_.set(relativePath, { handle: handleId, width: decoded.width, height: decoded.height });
 
-        return { success: true, handle: handleId };
+        return { success: true, handle: handleId, width: decoded.width, height: decoded.height };
     }
 
     async loadSpine(skeletonPath: string, atlasPath: string): Promise<LoadResult> {
@@ -145,6 +152,77 @@ export class AssetLoader {
         return { success: true };
     }
 
+    async loadSpineToModule(
+        controller: SpineModuleController,
+        skeletonPath: string,
+        atlasPath: string
+    ): Promise<{ success: boolean; skeletonHandle?: number; error?: string }> {
+        const fs = this.getNativeFS();
+        if (!fs) {
+            return { success: false, error: 'Native filesystem not available' };
+        }
+
+        const atlasAbsPath = this.pathResolver_.toAbsolutePath(atlasPath);
+        const atlasContent = await fs.readFile(atlasAbsPath);
+        if (!atlasContent) {
+            return { success: false, error: `Failed to read atlas: ${atlasAbsPath}` };
+        }
+
+        const atlasDir = atlasPath.substring(0, atlasPath.lastIndexOf('/'));
+        const textureNames = this.parseAtlasTextures(atlasContent);
+        const textureResults: { path: string; handle: number; width: number; height: number }[] = [];
+
+        for (const texName of textureNames) {
+            const texPath = atlasDir ? `${atlasDir}/${texName}` : texName;
+            const result = await this.loadTexture(texPath);
+            if (result.success && result.handle !== undefined) {
+                textureResults.push({
+                    path: texPath,
+                    handle: result.handle,
+                    width: result.width!,
+                    height: result.height!,
+                });
+            } else {
+                console.error(`[AssetLoader] Failed to load Spine texture: ${texPath} - ${result.error}`);
+            }
+        }
+
+        const skelAbsPath = this.pathResolver_.toAbsolutePath(skeletonPath);
+        const isBinary = skeletonPath.endsWith('.skel');
+        const skelData = isBinary
+            ? await fs.readBinaryFile(skelAbsPath)
+            : await fs.readFile(skelAbsPath);
+
+        if (!skelData) {
+            return { success: false, error: `Failed to read skeleton: ${skelAbsPath}` };
+        }
+
+        const spineFS = controller.module.FS;
+        const skelDir = skeletonPath.substring(0, skeletonPath.lastIndexOf('/'));
+        if (skelDir) {
+            spineFS.mkdirTree(skelDir);
+        }
+        spineFS.writeFile(skeletonPath, skelData instanceof Uint8Array ? skelData : new TextEncoder().encode(skelData));
+
+        const skeletonHandle = controller.loadSkeleton(skeletonPath, atlasContent, isBinary);
+        if (skeletonHandle < 0) {
+            return { success: false, error: `Failed to load skeleton in spine module: ${skeletonPath}` };
+        }
+
+        const rm = this.module_.getResourceManager();
+        const pageCount = controller.getAtlasPageCount(skeletonHandle);
+        for (let i = 0; i < pageCount; i++) {
+            const pageName = controller.getAtlasPageTextureName(skeletonHandle, i);
+            const tex = textureResults.find(t => t.path.endsWith(pageName));
+            if (tex) {
+                const glTexId = rm.getTextureGLId(tex.handle);
+                controller.setAtlasPageTexture(skeletonHandle, i, glTexId, tex.width, tex.height);
+            }
+        }
+
+        return { success: true, skeletonHandle };
+    }
+
     isTextureLoaded(path: string): boolean {
         return this.loadedTextures_.has(path);
     }
@@ -156,14 +234,20 @@ export class AssetLoader {
     }
 
     getTextureHandle(path: string): number | undefined {
-        return this.loadedTextures_.get(path);
+        return this.loadedTextures_.get(path)?.handle;
+    }
+
+    getTextureSize(path: string): { width: number; height: number } | undefined {
+        const entry = this.loadedTextures_.get(path);
+        if (!entry) return undefined;
+        return { width: entry.width, height: entry.height };
     }
 
     releaseTexture(path: string): void {
-        const handle = this.loadedTextures_.get(path);
-        if (handle !== undefined) {
+        const entry = this.loadedTextures_.get(path);
+        if (entry !== undefined) {
             const rm = this.module_.getResourceManager();
-            rm?.releaseTexture(handle);
+            rm?.releaseTexture(entry.handle);
             this.loadedTextures_.delete(path);
         }
     }

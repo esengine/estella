@@ -7,6 +7,8 @@
 // Project Configuration
 // =============================================================================
 
+export type SpineVersion = '3.8' | '4.2';
+
 export interface ProjectConfig {
     name: string;
     version: string;
@@ -14,6 +16,7 @@ export interface ProjectConfig {
     defaultScene: string;
     created: string;
     modified: string;
+    spineVersion?: SpineVersion;
 }
 
 // =============================================================================

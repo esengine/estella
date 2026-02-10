@@ -73,6 +73,7 @@ export interface CppResourceManager {
     createTexture(width: number, height: number, pixels: number, pixelsLen: number, format: number): number;
     createShader(vertSrc: string, fragSrc: string): number;
     registerExternalTexture(glTextureId: number, width: number, height: number): number;
+    getTextureGLId(handle: number): number;
     releaseTexture(handle: number): void;
     releaseShader(handle: number): void;
     setTextureMetadata(handle: number, left: number, right: number, top: number, bottom: number): void;
@@ -128,7 +129,7 @@ export interface ESEngineModule {
     renderFrame(registry: CppRegistry, width: number, height: number): void;
     renderFrameWithMatrix(registry: CppRegistry, width: number, height: number, matrixPtr: number): void;
     getResourceManager(): CppResourceManager;
-    getSpineBounds(registry: CppRegistry, entity: number): SpineBounds;
+    getSpineBounds?(registry: CppRegistry, entity: number): SpineBounds;
 
     // ImmediateDraw API
     draw_begin(matrixPtr: number): void;
@@ -191,7 +192,12 @@ export interface ESEngineModule {
     renderer_flush(): void;
     renderer_end(): void;
     renderer_submitSprites(registry: CppRegistry): void;
-    renderer_submitSpine(registry: CppRegistry): void;
+    renderer_submitSpine?(registry: CppRegistry): void;
+    renderer_submitTriangles(
+        verticesPtr: number, vertexCount: number,
+        indicesPtr: number, indexCount: number,
+        textureId: number, blendMode: number,
+        transformPtr: number): void;
     renderer_setStage(stage: number): void;
     renderer_createTarget(width: number, height: number, flags: number): number;
     renderer_releaseTarget(handle: number): void;
@@ -200,7 +206,7 @@ export interface ESEngineModule {
     renderer_getDrawCalls(): number;
     renderer_getTriangles(): number;
     renderer_getSprites(): number;
-    renderer_getSpine(): number;
+    renderer_getSpine?(): number;
     renderer_getMeshes(): number;
     renderer_getCulled(): number;
     renderer_setClearColor(r: number, g: number, b: number, a: number): void;

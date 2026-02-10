@@ -22,6 +22,10 @@
     "./assets": {
       "import": "./dist/assets/index.js",
       "types": "./dist/assets/index.d.ts"
+    },
+    "./spine": {
+      "import": "./dist/spine/index.js",
+      "types": "./dist/spine/index.d.ts"
     }
   },
   "files": [

@@ -4,7 +4,7 @@
  */
 
 import '@esengine/editor/styles';
-import { createEditor, ProjectLauncher, setPlatformAdapter, setEditorContext, type Editor } from '@esengine/editor';
+import { createEditor, ProjectLauncher, setPlatformAdapter, setEditorContext, loadProjectConfig, type Editor } from '@esengine/editor';
 import { TauriPlatformAdapter } from './TauriPlatformAdapter';
 import { nativeFS, nativeShell } from './native-fs';
 import { invoke } from '@tauri-apps/api/core';
@@ -17,20 +17,19 @@ import type { App, ESEngineModule } from 'esengine';
 let currentLauncher: ProjectLauncher | null = null;
 let wasmModule: ESEngineModule | null = null;
 
-function loadWasmScript(): Promise<void> {
+function loadESModule(url: string): Promise<any> {
     return new Promise((resolve, reject) => {
-        if (window.__ESEngineModule) {
-            resolve();
-            return;
-        }
-
+        const id = `__esm_${Date.now()}`;
         const script = document.createElement('script');
         script.type = 'module';
-        script.src = '/wasm/wasm-loader.js';
-        script.onerror = () => reject(new Error('Failed to load WASM loader script'));
+        script.textContent = `import m from '${url}'; window.${id}=m; window.dispatchEvent(new Event('${id}'));`;
+        window.addEventListener(id, () => {
+            resolve((window as any)[id]);
+            delete (window as any)[id];
+            script.remove();
+        }, { once: true });
+        script.onerror = reject;
         document.head.appendChild(script);
-
-        window.addEventListener('esengine-loaded', () => resolve(), { once: true });
     });
 }
 
@@ -38,14 +37,7 @@ async function loadWasmModule(): Promise<ESEngineModule | null> {
     if (wasmModule) return wasmModule;
 
     try {
-        await loadWasmScript();
-
-        const createModule = window.__ESEngineModule;
-        if (typeof createModule !== 'function') {
-            console.warn('WebGL preview disabled: ESEngineModule not available');
-            return null;
-        }
-
+        const createModule = await loadESModule('/wasm/esengine.js');
         wasmModule = await createModule();
         return wasmModule;
     } catch (e) {
@@ -64,6 +56,11 @@ async function showLauncher(container: HTMLElement): Promise<void> {
     });
 }
 
+const SPINE_WASM_MAP: Record<string, string> = {
+    '3.8': '/wasm/spine38.js',
+    '4.2': '/wasm/spine42.js',
+};
+
 async function openEditor(container: HTMLElement, projectPath: string): Promise<void> {
     const editor = createEditor(container, { projectPath });
     console.log('ESEngine Editor opened project:', projectPath);
@@ -74,6 +71,26 @@ async function openEditor(container: HTMLElement, projectPath: string): Promise<
             wasmModule: module,
         } as App;
         editor.setApp(app);
+    }
+
+    const config = await loadProjectConfig(projectPath);
+    const spineVersion = config?.spineVersion ?? '4.2';
+    await loadSpineModule(editor, spineVersion);
+
+    editor.onSpineVersionChange((version) => {
+        loadSpineModule(editor, version);
+    });
+}
+
+async function loadSpineModule(editor: Editor, version: string): Promise<void> {
+    const url = SPINE_WASM_MAP[version];
+    if (!url) return;
+    try {
+        const factory = await loadESModule(url);
+        const module = await factory();
+        editor.setSpineModule(module, version);
+    } catch (e) {
+        console.warn(`Failed to load Spine ${version} module:`, e);
     }
 }
 

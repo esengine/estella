@@ -1,7 +1,4 @@
-import type { ESEngineModule } from 'esengine';
-
-declare global {
-    interface Window {
-        __ESEngineModule?: (config?: unknown) => Promise<ESEngineModule>;
-    }
+declare module '/wasm/esengine.js' {
+    const factory: (config?: unknown) => Promise<import('esengine').ESEngineModule>;
+    export default factory;
 }

@@ -10,8 +10,11 @@ namespace esengine {
 
 enum class RenderType : u8 {
     Sprite = 0,
+#ifdef ES_ENABLE_SPINE
     Spine = 1,
+#endif
     Mesh = 2,
+    ExternalMesh = 3,
 };
 
 struct RenderItem {
@@ -39,13 +42,20 @@ struct RenderItem {
     glm::vec4 slice_border{0.0f};
     glm::vec2 texture_size{0.0f};
 
+#ifdef ES_ENABLE_SPINE
     void* skeleton = nullptr;
     glm::vec4 tint_color{1.0f};
+#endif
 
     void* geometry = nullptr;
     void* shader = nullptr;
 
     u32 material_id = 0;
+
+    const f32* ext_vertices = nullptr;
+    i32 ext_vertex_count = 0;
+    const u16* ext_indices = nullptr;
+    i32 ext_index_count = 0;
 
     u64 sortKey() const {
         u64 stageKey = static_cast<u64>(stage) << 60;

@@ -16,9 +16,11 @@ namespace esengine {
 
 class BatchRenderer2D;
 
+#ifdef ES_ENABLE_SPINE
 namespace spine {
     class SpineSystem;
 }
+#endif
 
 class RenderFrame {
 public:
@@ -26,7 +28,9 @@ public:
         u32 draw_calls = 0;
         u32 triangles = 0;
         u32 sprites = 0;
+#ifdef ES_ENABLE_SPINE
         u32 spine = 0;
+#endif
         u32 meshes = 0;
         u32 culled = 0;
     };
@@ -46,9 +50,16 @@ public:
     void end();
 
     void submitSprites(ecs::Registry& registry);
+#ifdef ES_ENABLE_SPINE
     void submitSpine(ecs::Registry& registry, spine::SpineSystem& spine_system);
+#endif
 
     void submit(const RenderItem& item);
+    void submitExternalTriangles(
+        const f32* vertices, i32 vertexCount,
+        const u16* indices, i32 indexCount,
+        u32 textureId, i32 blendMode,
+        const f32* transform16);
     void setStage(RenderStage stage) { current_stage_ = stage; }
     RenderStage getStage() const { return current_stage_; }
 
@@ -64,9 +75,12 @@ private:
     void executeStage(RenderStage stage);
     void renderSprites(u32 begin, u32 end);
     void renderSpriteWithMaterial(RenderItem* item);
+#ifdef ES_ENABLE_SPINE
     void renderSpine(u32 begin, u32 end);
-    void renderMeshes(u32 begin, u32 end);
     void flushSpineBatch();
+#endif
+    void renderMeshes(u32 begin, u32 end);
+    void renderExternalMeshes(u32 begin, u32 end);
 
     RenderContext& context_;
     resource::ResourceManager& resource_manager_;
@@ -92,6 +106,7 @@ private:
     };
     std::array<StageBoundary, STAGE_COUNT> stage_boundaries_{};
 
+#ifdef ES_ENABLE_SPINE
     std::vector<f32> spine_world_vertices_;
     struct SpineVertex {
         glm::vec2 position;
@@ -108,6 +123,16 @@ private:
     u32 spine_ebo_ = 0;
     u32 spine_vbo_capacity_ = 0;
     u32 spine_ebo_capacity_ = 0;
+#endif
+
+    u32 ext_mesh_vao_ = 0;
+    u32 ext_mesh_vbo_ = 0;
+    u32 ext_mesh_ebo_ = 0;
+    u32 ext_mesh_vbo_capacity_ = 0;
+    u32 ext_mesh_ebo_capacity_ = 0;
+
+    std::vector<std::vector<f32>> ext_vertex_storage_;
+    std::vector<std::vector<u16>> ext_index_storage_;
 
     u32 mat_sprite_vao_ = 0;
     u32 mat_sprite_vbo_ = 0;

@@ -23,10 +23,12 @@ import {
     isAssetServerProvider,
     isAssetNavigable,
     isOutputAppendable,
+    isSpineControllerAware,
     lockBuiltinPanels,
     clearExtensionPanels,
     isBuiltinPanel,
 } from './panels/PanelRegistry';
+import { SpineModuleController, type SpineWasmModule } from 'esengine/spine';
 import { registerBuiltinPanels } from './panels/builtinPanels';
 import { registerBuiltinEditors } from './property/editors';
 import { registerMaterialEditors } from './property/materialEditors';
@@ -38,6 +40,7 @@ import { icons } from './utils/icons';
 import { ScriptLoader } from './scripting';
 import { PreviewService } from './preview';
 import { showBuildSettingsDialog, BuildService } from './builder';
+import { showProjectSettingsDialog } from './launcher/ProjectSettingsDialog';
 import { getGlobalPathResolver } from './asset';
 import type { EditorAssetServer } from './asset/EditorAssetServer';
 import { getAssetLibrary } from './asset/AssetLibrary';
@@ -64,7 +67,10 @@ import {
     registerSettingsItem,
     getSettingsValue,
     setSettingsValue,
+    onSettingsChange,
 } from './settings';
+import { loadProjectConfig } from './launcher/ProjectService';
+import type { SpineVersion } from './types/ProjectTypes';
 
 // =============================================================================
 // Types
@@ -81,6 +87,9 @@ export interface EditorOptions {
 export class Editor {
     private container_: HTMLElement;
     private app_: App | null = null;
+    private spineModule_: unknown = null;
+    private spineVersion_: string = '4.2';
+    private spineVersionChangeHandler_: ((version: string) => void) | null = null;
     private store_: EditorStore;
     private bridge_: EditorBridge | null = null;
     private projectPath_: string | null = null;
@@ -131,6 +140,7 @@ export class Editor {
             this.setupEditorGlobals();
             this.initializeAssetLibrary();
             this.initializeAllScripts();
+            this.syncProjectSettings();
             this.previewService_ = new PreviewService({ projectPath: this.projectPath_ });
         }
     }
@@ -155,6 +165,32 @@ export class Editor {
             if (isBridgeAware(panel)) panel.setBridge(this.bridge_);
             if (isAppAware(panel)) panel.setApp(app);
         }
+    }
+
+    setSpineModule(module: unknown, version: string): void {
+        this.spineModule_ = module;
+        this.spineVersion_ = version;
+
+        const controller = module ? new SpineModuleController(module as SpineWasmModule) : null;
+        for (const panel of this.panelInstances_.values()) {
+            if (isSpineControllerAware(panel)) {
+                panel.setSpineController(controller);
+            }
+        }
+
+        this.store_.notifyChange();
+    }
+
+    onSpineVersionChange(handler: (version: string) => void): void {
+        this.spineVersionChangeHandler_ = handler;
+    }
+
+    get spineModule(): unknown {
+        return this.spineModule_;
+    }
+
+    get spineVersion(): string {
+        return this.spineVersion_;
     }
 
     get store(): EditorStore {
@@ -313,6 +349,45 @@ export class Editor {
         });
 
         document.body.appendChild(overlay);
+    }
+
+    showProjectSettings(): void {
+        if (!this.projectPath_) return;
+        showProjectSettingsDialog({
+            projectPath: this.projectPath_,
+            onConfigChanged: (config) => {
+                if (config.spineVersion) {
+                    setSettingsValue('project.spineVersion', config.spineVersion);
+                }
+            },
+        });
+    }
+
+    private async syncProjectSettings(): Promise<void> {
+        if (!this.projectPath_) return;
+        const config = await loadProjectConfig(this.projectPath_);
+        if (config?.spineVersion) {
+            setSettingsValue('project.spineVersion', config.spineVersion);
+        }
+
+        const projectPath = this.projectPath_;
+        onSettingsChange((id, value) => {
+            if (id === 'project.spineVersion') {
+                this.saveSpineVersionToProject(projectPath, value as SpineVersion);
+                this.spineVersionChangeHandler_?.(value as string);
+            }
+        });
+    }
+
+    private async saveSpineVersionToProject(projectPath: string, version: SpineVersion): Promise<void> {
+        const config = await loadProjectConfig(projectPath);
+        if (!config) return;
+        config.spineVersion = version;
+        config.modified = new Date().toISOString();
+        const fs = getEditorContext().fs;
+        if (fs) {
+            await fs.writeFile(projectPath, JSON.stringify(config, null, 2));
+        }
     }
 
     showSettings(): void {

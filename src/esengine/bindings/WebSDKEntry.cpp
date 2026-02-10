@@ -31,8 +31,10 @@
 #include "../ecs/TransformSystem.hpp"
 #include "../ecs/components/Camera.hpp"
 #include "../ecs/components/Transform.hpp"
+#ifdef ES_ENABLE_SPINE
 #include "../spine/SpineResourceManager.hpp"
 #include "../spine/SpineSystem.hpp"
+#endif
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -43,8 +45,10 @@ static Unique<RenderContext> g_renderContext;
 static Unique<RenderFrame> g_renderFrame;
 static Unique<ecs::TransformSystem> g_transformSystem;
 static Unique<resource::ResourceManager> g_resourceManager;
+#ifdef ES_ENABLE_SPINE
 static Unique<spine::SpineResourceManager> g_spineResourceManager;
 static Unique<spine::SpineSystem> g_spineSystem;
+#endif
 static Unique<ImmediateDraw> g_immediateDraw;
 static Unique<GeometryManager> g_geometryManager;
 static Unique<PostProcessPipeline> g_postProcessPipeline;
@@ -200,10 +204,11 @@ bool initRendererInternal(const char* canvasSelector) {
 
     g_transformSystem = makeUnique<ecs::TransformSystem>();
 
+#ifdef ES_ENABLE_SPINE
     g_spineResourceManager = makeUnique<spine::SpineResourceManager>(*g_resourceManager);
     g_spineResourceManager->init();
-
     g_spineSystem = makeUnique<spine::SpineSystem>(*g_spineResourceManager);
+#endif
 
     g_immediateDraw = makeUnique<ImmediateDraw>(*g_renderContext, *g_resourceManager);
     g_immediateDraw->init();
@@ -254,10 +259,11 @@ bool initRendererWithContext(int contextHandle) {
 
     g_transformSystem = makeUnique<ecs::TransformSystem>();
 
+#ifdef ES_ENABLE_SPINE
     g_spineResourceManager = makeUnique<spine::SpineResourceManager>(*g_resourceManager);
     g_spineResourceManager->init();
-
     g_spineSystem = makeUnique<spine::SpineSystem>(*g_spineResourceManager);
+#endif
 
     g_immediateDraw = makeUnique<ImmediateDraw>(*g_renderContext, *g_resourceManager);
     g_immediateDraw->init();
@@ -290,9 +296,13 @@ void shutdownRenderer() {
         g_immediateDraw.reset();
     }
 
+#ifdef ES_ENABLE_SPINE
     g_spineSystem.reset();
-    g_spineResourceManager->shutdown();
-    g_spineResourceManager.reset();
+    if (g_spineResourceManager) {
+        g_spineResourceManager->shutdown();
+        g_spineResourceManager.reset();
+    }
+#endif
 
     g_transformSystem.reset();
     g_renderContext->shutdown();
@@ -349,6 +359,11 @@ void rm_releaseShader(resource::ResourceManager& rm, u32 handleId) {
     rm.releaseShader(resource::ShaderHandle(handleId));
 }
 
+u32 rm_getTextureGLId(resource::ResourceManager& rm, u32 handleId) {
+    auto* tex = rm.getTexture(resource::TextureHandle(handleId));
+    return tex ? tex->getId() : 0;
+}
+
 void rm_setTextureMetadata(resource::ResourceManager& rm, u32 handleId,
                             f32 left, f32 right, f32 top, f32 bottom) {
     resource::TextureMetadata metadata;
@@ -366,9 +381,11 @@ void renderFrame(ecs::Registry& registry, i32 viewportWidth, i32 viewportHeight)
         g_transformSystem->update(registry, 0.0f);
     }
 
+#ifdef ES_ENABLE_SPINE
     if (g_spineSystem) {
         g_spineSystem->update(registry, 0.016f);
     }
+#endif
 
     g_viewportWidth = static_cast<u32>(viewportWidth);
     g_viewportHeight = static_cast<u32>(viewportHeight);
@@ -411,7 +428,11 @@ void renderFrame(ecs::Registry& registry, i32 viewportWidth, i32 viewportHeight)
 
     g_renderFrame->begin(viewProjection);
     g_renderFrame->submitSprites(registry);
-    g_renderFrame->submitSpine(registry, *g_spineSystem);
+#ifdef ES_ENABLE_SPINE
+    if (g_spineSystem) {
+        g_renderFrame->submitSpine(registry, *g_spineSystem);
+    }
+#endif
     g_renderFrame->end();
 }
 
@@ -423,9 +444,11 @@ void renderFrameWithMatrix(ecs::Registry& registry, i32 viewportWidth, i32 viewp
         g_transformSystem->update(registry, 0.0f);
     }
 
+#ifdef ES_ENABLE_SPINE
     if (g_spineSystem) {
         g_spineSystem->update(registry, 0.016f);
     }
+#endif
 
     g_viewportWidth = static_cast<u32>(viewportWidth);
     g_viewportHeight = static_cast<u32>(viewportHeight);
@@ -440,10 +463,15 @@ void renderFrameWithMatrix(ecs::Registry& registry, i32 viewportWidth, i32 viewp
 
     g_renderFrame->begin(viewProjection);
     g_renderFrame->submitSprites(registry);
-    g_renderFrame->submitSpine(registry, *g_spineSystem);
+#ifdef ES_ENABLE_SPINE
+    if (g_spineSystem) {
+        g_renderFrame->submitSpine(registry, *g_spineSystem);
+    }
+#endif
     g_renderFrame->end();
 }
 
+#ifdef ES_ENABLE_SPINE
 struct SpineBounds {
     f32 x = 0;
     f32 y = 0;
@@ -462,6 +490,7 @@ SpineBounds getSpineBounds(ecs::Registry& registry, Entity entity) {
     }
     return bounds;
 }
+#endif
 
 // =============================================================================
 // ImmediateDraw API
@@ -962,11 +991,31 @@ void renderer_submitSprites(ecs::Registry& registry) {
     g_renderFrame->submitSprites(registry);
 }
 
+#ifdef ES_ENABLE_SPINE
 void renderer_submitSpine(ecs::Registry& registry) {
     if (!g_renderFrame || !g_spineSystem) return;
     g_spineSystem->update(registry, 0.016f);
     g_renderFrame->submitSpine(registry, *g_spineSystem);
     checkGLErrors("renderer_submitSpine");
+}
+#endif
+
+void renderer_submitTriangles(
+    uintptr_t verticesPtr, i32 vertexCount,
+    uintptr_t indicesPtr, i32 indexCount,
+    u32 textureId, i32 blendMode,
+    uintptr_t transformPtr) {
+    if (!g_renderFrame) return;
+
+    const f32* vertices = reinterpret_cast<const f32*>(verticesPtr);
+    const u16* indices = reinterpret_cast<const u16*>(indicesPtr);
+    const f32* transform = transformPtr ? reinterpret_cast<const f32*>(transformPtr) : nullptr;
+
+    g_renderFrame->submitExternalTriangles(
+        vertices, vertexCount,
+        indices, indexCount,
+        textureId, blendMode,
+        transform);
 }
 
 void renderer_setStage(i32 stage) {
@@ -1013,10 +1062,12 @@ u32 renderer_getSprites() {
     return g_renderFrame->stats().sprites;
 }
 
+#ifdef ES_ENABLE_SPINE
 u32 renderer_getSpine() {
     if (!g_renderFrame) return 0;
     return g_renderFrame->stats().spine;
 }
+#endif
 
 u32 renderer_getMeshes() {
     if (!g_renderFrame) return 0;
@@ -1101,9 +1152,11 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
         .function("registerExternalTexture", &esengine::rm_registerExternalTexture)
         .function("releaseTexture", &esengine::rm_releaseTexture)
         .function("releaseShader", &esengine::rm_releaseShader)
+        .function("getTextureGLId", &esengine::rm_getTextureGLId)
         .function("setTextureMetadata", &esengine::rm_setTextureMetadata)
         .function("registerTextureWithPath", &esengine::rm_registerTextureWithPath);
 
+#ifdef ES_ENABLE_SPINE
     emscripten::value_object<esengine::SpineBounds>("SpineBounds")
         .field("x", &esengine::SpineBounds::x)
         .field("y", &esengine::SpineBounds::y)
@@ -1112,6 +1165,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
         .field("valid", &esengine::SpineBounds::valid);
 
     emscripten::function("getSpineBounds", &esengine::getSpineBounds);
+#endif
 
     // ImmediateDraw API
     emscripten::function("draw_begin", &esengine::draw_begin);
@@ -1165,7 +1219,10 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_flush", &esengine::renderer_flush);
     emscripten::function("renderer_end", &esengine::renderer_end);
     emscripten::function("renderer_submitSprites", &esengine::renderer_submitSprites);
+#ifdef ES_ENABLE_SPINE
     emscripten::function("renderer_submitSpine", &esengine::renderer_submitSpine);
+#endif
+    emscripten::function("renderer_submitTriangles", &esengine::renderer_submitTriangles);
     emscripten::function("renderer_setStage", &esengine::renderer_setStage);
     emscripten::function("renderer_createTarget", &esengine::renderer_createTarget);
     emscripten::function("renderer_releaseTarget", &esengine::renderer_releaseTarget);
@@ -1174,7 +1231,9 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_getDrawCalls", &esengine::renderer_getDrawCalls);
     emscripten::function("renderer_getTriangles", &esengine::renderer_getTriangles);
     emscripten::function("renderer_getSprites", &esengine::renderer_getSprites);
+#ifdef ES_ENABLE_SPINE
     emscripten::function("renderer_getSpine", &esengine::renderer_getSpine);
+#endif
     emscripten::function("renderer_getMeshes", &esengine::renderer_getMeshes);
     emscripten::function("renderer_getCulled", &esengine::renderer_getCulled);
     emscripten::function("renderer_setClearColor", &esengine::renderer_setClearColor);

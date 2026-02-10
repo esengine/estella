@@ -17,7 +17,15 @@ export interface RenderParams {
     elapsed: number;
 }
 
+export type SpineRendererFn = (registry: { _cpp: CppRegistry }, elapsed: number) => void;
+
 export class RenderPipeline {
+    private spineRenderer_: SpineRendererFn | null = null;
+
+    setSpineRenderer(fn: SpineRendererFn | null): void {
+        this.spineRenderer_ = fn;
+    }
+
     render(params: RenderParams): void {
         const { registry, viewProjection, width, height, elapsed } = params;
 
@@ -29,7 +37,11 @@ export class RenderPipeline {
 
         Renderer.begin(viewProjection);
         Renderer.submitSprites(registry);
-        Renderer.submitSpine(registry);
+        if (this.spineRenderer_) {
+            this.spineRenderer_(registry, elapsed);
+        } else {
+            Renderer.submitSpine(registry);
+        }
         Renderer.flush();
 
         const cbs = getDrawCallbacks();

@@ -13,6 +13,25 @@ export function registerBuiltinSettings(): void {
         order: 1,
     });
 
+    registerSettingsSection({
+        id: 'project',
+        title: 'Project',
+        order: 2,
+    });
+
+    registerSettingsItem({
+        id: 'project.spineVersion',
+        section: 'project',
+        label: 'Spine Version',
+        type: 'select',
+        defaultValue: '4.2',
+        order: 0,
+        options: [
+            { label: 'Spine 4.2', value: '4.2' },
+            { label: 'Spine 3.8', value: '3.8' },
+        ],
+    });
+
     registerSettingsItem({
         id: 'general.language',
         section: 'general',

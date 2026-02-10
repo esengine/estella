@@ -33,8 +33,13 @@ export function registerBuiltinMenus(editor: Editor): void {
         action: () => editor.startPreview(),
     });
     registerMenuItem({
+        id: 'file.project-settings', menu: 'file', label: 'Project Settings...',
+        order: 5, separator: true,
+        action: () => editor.showProjectSettings(),
+    });
+    registerMenuItem({
         id: 'file.build-settings', menu: 'file', label: 'Build Settings...',
-        shortcut: 'Ctrl+Shift+B', order: 5, separator: true,
+        shortcut: 'Ctrl+Shift+B', order: 6,
         action: () => editor.showBuildSettings(),
     });
 

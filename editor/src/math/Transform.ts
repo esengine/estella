@@ -229,3 +229,36 @@ export function getEntitySize(entity: EntityDataLike): { x: number; y: number } 
 
     return { x: 100, y: 100 };
 }
+
+// =============================================================================
+// Matrix Conversion
+// =============================================================================
+
+export function transformToMatrix4x4(t: Transform): Float32Array {
+    const { x: qx, y: qy, z: qz, w: qw } = t.rotation;
+    const { x: sx, y: sy, z: sz } = t.scale;
+    const { x: tx, y: ty, z: tz } = t.position;
+
+    const xx = qx * qx, yy = qy * qy, zz = qz * qz;
+    const xy = qx * qy, xz = qx * qz, yz = qy * qz;
+    const wx = qw * qx, wy = qw * qy, wz = qw * qz;
+
+    const m = new Float32Array(16);
+    m[0]  = (1 - 2 * (yy + zz)) * sx;
+    m[1]  = (2 * (xy + wz)) * sx;
+    m[2]  = (2 * (xz - wy)) * sx;
+    m[3]  = 0;
+    m[4]  = (2 * (xy - wz)) * sy;
+    m[5]  = (1 - 2 * (xx + zz)) * sy;
+    m[6]  = (2 * (yz + wx)) * sy;
+    m[7]  = 0;
+    m[8]  = (2 * (xz + wy)) * sz;
+    m[9]  = (2 * (yz - wx)) * sz;
+    m[10] = (1 - 2 * (xx + yy)) * sz;
+    m[11] = 0;
+    m[12] = tx;
+    m[13] = ty;
+    m[14] = tz;
+    m[15] = 1;
+    return m;
+}

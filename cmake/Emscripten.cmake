@@ -236,6 +236,37 @@ function(es_apply_wxgame_sdk_settings TARGET_NAME)
     endif()
 endfunction()
 
+# =============================================================================
+# Spine Module (standalone WASM, no GL)
+# =============================================================================
+
+set(ES_EMSCRIPTEN_SPINE_MODULE_FLAGS
+    --bind
+    -sWASM=1
+    -sALLOW_MEMORY_GROWTH=1
+    -sNO_EXIT_RUNTIME=1
+    -sEXPORT_ES6=1
+    -sMODULARIZE=1
+    -sFORCE_FILESYSTEM=1
+    "-sEXPORT_NAME='ESSpineModule'"
+    "-sEXPORTED_FUNCTIONS=['_malloc','_free']"
+    "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32','FS']"
+    -O3
+    -flto
+)
+
+function(es_apply_spine_module_settings TARGET_NAME)
+    if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
+        target_compile_options(${TARGET_NAME} PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS} -flto)
+
+        string(REPLACE ";" " " LINK_FLAGS_STR "${ES_EMSCRIPTEN_SPINE_MODULE_FLAGS}")
+        set_target_properties(${TARGET_NAME} PROPERTIES
+            SUFFIX ".js"
+            LINK_FLAGS "${LINK_FLAGS_STR}"
+        )
+    endif()
+endfunction()
+
 message(STATUS "Emscripten configuration loaded")
 if(ES_BUILD_MODULAR)
     message(STATUS "Modular build enabled: MAIN_MODULE + SIDE_MODULE architecture")

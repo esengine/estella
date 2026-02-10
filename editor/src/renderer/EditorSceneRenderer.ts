@@ -18,6 +18,7 @@ import {
     initRendererAPI,
     shutdownRendererAPI,
 } from 'esengine';
+import type { SpineModuleController } from 'esengine/spine';
 import type { SceneData, ComponentData } from '../types/SceneTypes';
 import type { EditorStore } from '../store/EditorStore';
 import { EditorCamera } from './EditorCamera';
@@ -39,6 +40,7 @@ export class EditorSceneRenderer {
     private store_: EditorStore | null = null;
     private initialized_ = false;
     private startTime_ = 0;
+    private lastElapsed_ = 0;
 
     constructor() {
         this.camera_ = new EditorCamera();
@@ -91,6 +93,21 @@ export class EditorSceneRenderer {
         this.sceneManager_?.setProjectDir(projectDir);
     }
 
+    setSpineController(controller: SpineModuleController | null): void {
+        this.sceneManager_?.setSpineController(controller);
+
+        if (controller && this.pipeline_ && this.module_) {
+            const module = this.module_;
+            this.pipeline_.setSpineRenderer((_registry, elapsed) => {
+                const dt = elapsed - this.lastElapsed_;
+                this.lastElapsed_ = elapsed;
+                this.sceneManager_?.updateAndSubmitSpine(module, dt);
+            });
+        } else {
+            this.pipeline_?.setSpineRenderer(null);
+        }
+    }
+
     get pathResolver(): AssetPathResolver {
         return this.pathResolver_;
     }
@@ -130,11 +147,14 @@ export class EditorSceneRenderer {
     getSpineBounds(sceneEntityId: number): { x: number; y: number; width: number; height: number } | null {
         if (!this.module_ || !this.sceneManager_) return null;
 
+        const moduleBounds = this.sceneManager_.getSpineBoundsFromModule(sceneEntityId);
+        if (moduleBounds) return moduleBounds;
+
         const entity = this.sceneManager_.getEntityMap().get(sceneEntityId);
         if (entity === undefined) return null;
 
-        const bounds = this.module_.getSpineBounds(this.sceneManager_.registry, entity);
-        if (!bounds.valid) return null;
+        const bounds = this.module_.getSpineBounds?.(this.sceneManager_.registry, entity);
+        if (!bounds?.valid) return null;
 
         return { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height };
     }

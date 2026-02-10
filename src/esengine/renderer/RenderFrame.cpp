@@ -5,13 +5,14 @@
 #include "../core/Log.hpp"
 #include "../ecs/components/Transform.hpp"
 #include "../ecs/components/Sprite.hpp"
+#ifdef ES_ENABLE_SPINE
 #include "../ecs/components/SpineAnimation.hpp"
 #include "../spine/SpineSystem.hpp"
-
 #include <spine/spine.h>
 #include <spine/RegionAttachment.h>
 #include <spine/MeshAttachment.h>
 #include <spine/ClippingAttachment.h>
+#endif
 
 #ifdef ES_PLATFORM_WEB
     #include <GLES3/gl3.h>
@@ -68,6 +69,8 @@ void RenderFrame::init(u32 width, u32 height) {
     post_process_->init(width, height);
 
     items_.reserve(1024);
+
+#ifdef ES_ENABLE_SPINE
     spine_vertices_.reserve(1024);
     spine_indices_.reserve(2048);
     spine_world_vertices_.reserve(1024);
@@ -93,6 +96,29 @@ void RenderFrame::init(u32 width, u32 height) {
     glBindVertexArray(0);
     spine_vbo_capacity_ = 0;
     spine_ebo_capacity_ = 0;
+#endif
+
+    glGenVertexArrays(1, &ext_mesh_vao_);
+    glGenBuffers(1, &ext_mesh_vbo_);
+    glGenBuffers(1, &ext_mesh_ebo_);
+
+    glBindVertexArray(ext_mesh_vao_);
+    glBindBuffer(GL_ARRAY_BUFFER, ext_mesh_vbo_);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ext_mesh_ebo_);
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(f32),
+                          reinterpret_cast<void*>(0));
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(f32),
+                          reinterpret_cast<void*>(2 * sizeof(f32)));
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, 8 * sizeof(f32),
+                          reinterpret_cast<void*>(4 * sizeof(f32)));
+
+    glBindVertexArray(0);
+    ext_mesh_vbo_capacity_ = 0;
+    ext_mesh_ebo_capacity_ = 0;
 
     glGenVertexArrays(1, &mat_sprite_vao_);
     glGenBuffers(1, &mat_sprite_vbo_);
@@ -113,11 +139,19 @@ void RenderFrame::shutdown() {
         post_process_.reset();
     }
 
+#ifdef ES_ENABLE_SPINE
     if (spine_ebo_) { glDeleteBuffers(1, &spine_ebo_); spine_ebo_ = 0; }
     if (spine_vbo_) { glDeleteBuffers(1, &spine_vbo_); spine_vbo_ = 0; }
     if (spine_vao_) { glDeleteVertexArrays(1, &spine_vao_); spine_vao_ = 0; }
     spine_vbo_capacity_ = 0;
     spine_ebo_capacity_ = 0;
+#endif
+
+    if (ext_mesh_ebo_) { glDeleteBuffers(1, &ext_mesh_ebo_); ext_mesh_ebo_ = 0; }
+    if (ext_mesh_vbo_) { glDeleteBuffers(1, &ext_mesh_vbo_); ext_mesh_vbo_ = 0; }
+    if (ext_mesh_vao_) { glDeleteVertexArrays(1, &ext_mesh_vao_); ext_mesh_vao_ = 0; }
+    ext_mesh_vbo_capacity_ = 0;
+    ext_mesh_ebo_capacity_ = 0;
 
     if (mat_sprite_ebo_) { glDeleteBuffers(1, &mat_sprite_ebo_); mat_sprite_ebo_ = 0; }
     if (mat_sprite_vbo_) { glDeleteBuffers(1, &mat_sprite_vbo_); mat_sprite_vbo_ = 0; }
@@ -144,6 +178,8 @@ void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::H
     in_frame_ = true;
 
     items_.clear();
+    ext_vertex_storage_.clear();
+    ext_index_storage_.clear();
     stats_ = Stats{};
 
     bool usePostProcess = post_process_ && post_process_->isInitialized() &&
@@ -278,6 +314,7 @@ void RenderFrame::submitSprites(ecs::Registry& registry) {
     }
 }
 
+#ifdef ES_ENABLE_SPINE
 void RenderFrame::submitSpine(ecs::Registry& registry, spine::SpineSystem& spine_system) {
     auto view = registry.view<ecs::SpineAnimation>();
 
@@ -326,6 +363,7 @@ void RenderFrame::submitSpine(ecs::Registry& registry, spine::SpineSystem& spine
         stats_.spine++;
     }
 }
+#endif
 
 void RenderFrame::submit(const RenderItem& item) {
     RenderItem copy = item;
@@ -336,9 +374,39 @@ void RenderFrame::submit(const RenderItem& item) {
 
     switch (copy.type) {
         case RenderType::Sprite: stats_.sprites++; break;
+#ifdef ES_ENABLE_SPINE
         case RenderType::Spine: stats_.spine++; break;
+#endif
         case RenderType::Mesh: stats_.meshes++; break;
+        default: break;
     }
+}
+
+void RenderFrame::submitExternalTriangles(
+    const f32* vertices, i32 vertexCount,
+    const u16* indices, i32 indexCount,
+    u32 textureId, i32 blendMode,
+    const f32* transform16) {
+
+    i32 floatCount = vertexCount * 8;
+    ext_vertex_storage_.emplace_back(vertices, vertices + floatCount);
+    ext_index_storage_.emplace_back(indices, indices + indexCount);
+
+    RenderItem item;
+    item.type = RenderType::ExternalMesh;
+    item.stage = current_stage_;
+    item.texture_id = textureId;
+    item.blend_mode = static_cast<BlendMode>(blendMode);
+    item.ext_vertices = ext_vertex_storage_.back().data();
+    item.ext_vertex_count = vertexCount;
+    item.ext_indices = ext_index_storage_.back().data();
+    item.ext_index_count = indexCount;
+
+    if (transform16) {
+        item.transform = glm::make_mat4(transform16);
+    }
+
+    items_.push_back(item);
 }
 
 void RenderFrame::sortAndBucket() {
@@ -386,11 +454,18 @@ void RenderFrame::executeStage(RenderStage stage) {
             case RenderType::Sprite:
                 renderSprites(begin, end);
                 break;
+#ifdef ES_ENABLE_SPINE
             case RenderType::Spine:
                 renderSpine(begin, end);
                 break;
+#endif
             case RenderType::Mesh:
                 renderMeshes(begin, end);
+                break;
+            case RenderType::ExternalMesh:
+                renderExternalMeshes(begin, end);
+                break;
+            default:
                 break;
         }
     };
@@ -468,6 +543,7 @@ void RenderFrame::renderSprites(u32 begin, u32 end) {
     stats_.triangles += batcher_->getQuadCount() * 2;
 }
 
+#ifdef ES_ENABLE_SPINE
 void RenderFrame::renderSpine(u32 begin, u32 end) {
     spine_vertices_.clear();
     spine_indices_.clear();
@@ -666,6 +742,61 @@ void RenderFrame::flushSpineBatch() {
 
     spine_vertices_.clear();
     spine_indices_.clear();
+}
+#endif
+
+void RenderFrame::renderExternalMeshes(u32 begin, u32 end) {
+    auto* shader = context_.getTextureShader();
+    if (!shader) return;
+
+    for (u32 idx = begin; idx < end; ++idx) {
+        auto* item = &items_[idx];
+        if (!item->ext_vertices || !item->ext_indices ||
+            item->ext_vertex_count <= 0 || item->ext_index_count <= 0) {
+            continue;
+        }
+
+        RenderCommand::setBlendMode(item->blend_mode);
+
+        shader->bind();
+        shader->setUniform("u_projection", view_projection_);
+        shader->setUniform("u_model", item->transform);
+        shader->setUniform("u_color", glm::vec4(1.0f));
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, item->texture_id);
+        shader->setUniform("u_texture", 0);
+
+        glBindVertexArray(ext_mesh_vao_);
+
+        auto vboBytes = static_cast<GLsizeiptr>(
+            item->ext_vertex_count * 8 * sizeof(f32));
+        glBindBuffer(GL_ARRAY_BUFFER, ext_mesh_vbo_);
+        if (static_cast<u32>(vboBytes) > ext_mesh_vbo_capacity_) {
+            ext_mesh_vbo_capacity_ = static_cast<u32>(vboBytes) * 2;
+            glBufferData(GL_ARRAY_BUFFER, ext_mesh_vbo_capacity_,
+                         nullptr, GL_STREAM_DRAW);
+        }
+        glBufferSubData(GL_ARRAY_BUFFER, 0, vboBytes, item->ext_vertices);
+
+        auto eboBytes = static_cast<GLsizeiptr>(
+            item->ext_index_count * sizeof(u16));
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ext_mesh_ebo_);
+        if (static_cast<u32>(eboBytes) > ext_mesh_ebo_capacity_) {
+            ext_mesh_ebo_capacity_ = static_cast<u32>(eboBytes) * 2;
+            glBufferData(GL_ELEMENT_ARRAY_BUFFER, ext_mesh_ebo_capacity_,
+                         nullptr, GL_STREAM_DRAW);
+        }
+        glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, eboBytes, item->ext_indices);
+
+        glDrawElements(GL_TRIANGLES, item->ext_index_count,
+                       GL_UNSIGNED_SHORT, nullptr);
+
+        glBindVertexArray(0);
+
+        stats_.triangles += static_cast<u32>(item->ext_index_count / 3);
+        stats_.draw_calls++;
+    }
 }
 
 void RenderFrame::renderMeshes(u32 begin, u32 end) {

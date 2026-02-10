@@ -39,6 +39,24 @@ export default {
                 'sdk/esengine.single.js': 'wasm/playable/esengine.single.js',
             },
         },
+        spine: {
+            buildDir: 'build-web',
+            cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF'],
+            targets: ['spine_module'],
+            outputs: {
+                'sdk/spine42.js': 'wasm/web/spine42.js',
+                'sdk/spine42.wasm': 'wasm/web/spine42.wasm',
+            },
+        },
+        spine38: {
+            buildDir: 'build-web',
+            cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF'],
+            targets: ['spine_module_38'],
+            outputs: {
+                'sdk/spine38.js': 'wasm/web/spine38.js',
+                'sdk/spine38.wasm': 'wasm/web/spine38.wasm',
+            },
+        },
     },
 
     sdk: {

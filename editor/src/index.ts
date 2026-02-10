@@ -86,6 +86,7 @@ export {
     isAssetServerProvider,
     isAssetNavigable,
     isOutputAppendable,
+    isSpineControllerAware,
 } from './panels/PanelRegistry';
 
 // =============================================================================
@@ -249,9 +250,11 @@ export {
     selectProjectLocation,
     getRecentProjects,
     loadProjectConfig,
+    showProjectSettingsDialog,
     type ProjectLauncherOptions,
     type CreateProjectOptions,
     type ProjectServiceResult,
+    type ProjectSettingsDialogOptions,
 } from './launcher';
 
 // =============================================================================
@@ -260,6 +263,7 @@ export {
 
 export {
     type ProjectConfig,
+    type SpineVersion,
     type RecentProject,
     type ProjectTemplate,
     PROJECT_TEMPLATES,
