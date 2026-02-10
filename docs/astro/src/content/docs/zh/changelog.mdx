@@ -1,0 +1,46 @@
+---
+title: v0.3.0
+description: ESEngine v0.3.0 更新日志
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## Canvas 与相机缩放
+
+- 新增 `Canvas` 组件，支持 5 种缩放模式：FixedWidth、FixedHeight、Expand、Shrink、Match
+- `designResolution` 和 `pixelsPerUnit` 实现像素级 2D 布局
+- `matchWidthOrHeight` 混合系数用于 Match 缩放模式
+- `backgroundColor` 用于黑边填充颜色
+- 新增 `Camera.showFrustum` 属性，在编辑器中可视化相机视锥
+
+## 固定时间步
+
+- Fixed 系列调度（`FixedPreUpdate`、`FixedUpdate`、`FixedPostUpdate`）现在以 1/60s 累加器执行
+- 单帧内可能触发零次或多次固定步，确保物理模拟不受帧率影响
+
+## 模块化 Spine 运行时
+
+- Spine 运行时不再内置于引擎核心
+- 独立 WASM 模块 `spine38` 和 `spine42` 通过 `SpinePlugin` 按需加载
+- 选择与 Spine 编辑器导出版本匹配的运行时（`3.8` 或 `4.2`）
+
+## 嵌入式资源（Playable 构建）
+
+- 新增 `registerEmbeddedAssets()` API，将资源内联为 data URI
+- 编辑器的 Playable 构建流程自动使用此功能生成单文件输出
+
+## 统一设置对话框
+
+- 合并 Project Settings 和 Preferences 为单一设置对话框
+
+## Help 菜单与更新
+
+- 改进 Help 菜单，包含文档和问题跟踪链接
+- 新版本可用时显示 toast 通知
+
+## Bug 修复
+
+- 修复微信小游戏平台 Spine 渲染问题
+- 修复纹理打包遗漏部分精灵
+- 修复新场景未创建默认相机
+- 修复部分配置下 F5 预览无法启动

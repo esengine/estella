@@ -3,6 +3,8 @@ title: Systems
 description: Defining systems and scheduling them in ESEngine
 ---
 
+import { Aside } from '@astrojs/starlight/components';
+
 Systems contain game logic. They declare what data they need via parameters, and ESEngine injects the data automatically. Systems operate on **all entities in the scene** that match the query.
 
 ## Defining Systems
@@ -53,6 +55,10 @@ addSystemToSchedule(Schedule.FixedUpdate, physicsSystem);
 | `FixedPreUpdate` | At fixed intervals, before FixedUpdate |
 | `FixedUpdate` | At fixed intervals (physics) |
 | `FixedPostUpdate` | At fixed intervals, after FixedUpdate |
+
+<Aside type="note">
+  The Fixed schedules (`FixedPreUpdate`, `FixedUpdate`, `FixedPostUpdate`) run at a fixed timestep of 1/60s using an accumulator. In a single frame they may execute zero or multiple times depending on the frame duration. Use them for physics and other deterministic logic that requires consistent time steps.
+</Aside>
 
 ## System Parameters
 

@@ -3,6 +3,8 @@ title: 系统
 description: 在 ESEngine 中定义和调度系统
 ---
 
+import { Aside } from '@astrojs/starlight/components';
+
 系统包含游戏逻辑。它们通过参数声明需要的数据，ESEngine 自动注入。系统自动操作**场景中所有匹配的实体**。
 
 ## 定义系统
@@ -53,6 +55,10 @@ addSystemToSchedule(Schedule.FixedUpdate, physicsSystem);
 | `FixedPreUpdate` | 固定间隔，FixedUpdate 之前 |
 | `FixedUpdate` | 固定间隔（物理） |
 | `FixedPostUpdate` | 固定间隔，FixedUpdate 之后 |
+
+<Aside type="note">
+  Fixed 系列调度（`FixedPreUpdate`、`FixedUpdate`、`FixedPostUpdate`）以 1/60s 固定步长运行，使用累加器驱动。一帧内可能执行零次或多次，取决于帧时长。适用于物理等需要一致时间步的确定性逻辑。
+</Aside>
 
 ## 系统参数
 

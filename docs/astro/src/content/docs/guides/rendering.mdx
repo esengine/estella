@@ -24,10 +24,15 @@ A `Camera` component is required to see anything. The editor's default scene alr
 | `farPlane` | number | Far clipping plane |
 | `isActive` | boolean | Whether this camera is used for rendering |
 | `priority` | number | Higher priority camera takes precedence |
+| `showFrustum` | boolean | Draw the camera frustum wireframe in the editor |
 
 ### Orthographic Camera
 
 Best for 2D games. The `orthoSize` determines how much of the world is visible. Set `projectionType` to `1` in the inspector.
+
+### Canvas Integration
+
+For screen adaptation and resolution scaling, attach a `Canvas` component to the camera entity. See [Canvas & Resolution](/microes/guides/canvas/) for setup and scale modes.
 
 ### Moving the Camera
 
@@ -101,6 +106,7 @@ Set these values in the inspector when placing entities, or modify them at runti
 
 ## Next Steps
 
+- [Canvas & Resolution](/microes/guides/canvas/) — screen adaptation and scale modes
 - [Sprite](/microes/guides/sprite/) — sprite rendering and animation
 - [Spine Animation](/microes/guides/spine/) — skeletal animation
 - [Custom Draw](/microes/guides/custom-draw/) — immediate-mode drawing for debug visualization and dynamic graphics

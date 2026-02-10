@@ -7,6 +7,22 @@ import { Aside } from '@astrojs/starlight/components';
 
 The `SpineAnimation` component plays [Spine](http://esotericsoftware.com/) skeletal animations. Add it to an entity in the scene editor along with `LocalTransform`.
 
+<Aside type="note">
+  Since v0.3.0, Spine uses standalone WASM modules (`spine38` / `spine42`) instead of being bundled into the engine core. You must register a Spine plugin before using Spine components.
+</Aside>
+
+## Spine Plugin Setup
+
+Initialize the Spine plugin at startup to load the appropriate runtime version:
+
+```typescript
+import { addPlugin, SpinePlugin } from 'esengine';
+
+addPlugin(SpinePlugin({ version: '4.2' }));
+```
+
+`SpinePlugin` accepts `'3.8'` or `'4.2'` to match your Spine editor export version. The plugin downloads the corresponding WASM module on first use.
+
 ## Properties
 
 | Property | Type | Default | Description |

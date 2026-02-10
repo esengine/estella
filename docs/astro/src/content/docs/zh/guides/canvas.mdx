@@ -1,0 +1,86 @@
+---
+title: Canvas 与分辨率
+description: ESEngine 中使用 Canvas 组件进行屏幕适配
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`Canvas` 组件控制游戏如何适配不同屏幕尺寸。它定义了一个**设计分辨率**和一个**缩放模式**，决定实际屏幕尺寸不匹配时内容如何缩放。
+
+## 设置
+
+在编辑器中，使用 **Edit → Create Canvas** 向场景添加 Canvas 实体。这会创建一个带有 `Canvas` 组件的实体并关联当前激活的相机。
+
+也可以手动将 `Canvas` 组件添加到任何拥有 `Camera` 的实体上。
+
+## 属性
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `designResolution` | Vec2 | `{x: 1280, y: 720}` | 游戏设计基准分辨率 |
+| `pixelsPerUnit` | number | `100` | 多少像素等于一个世界单位 |
+| `scaleMode` | number | `0` | 缩放策略（见下文） |
+| `matchWidthOrHeight` | number | `0.5` | Match 模式的混合系数（0 = 宽度，1 = 高度） |
+| `backgroundColor` | Vec4 | `{x: 0, y: 0, z: 0, w: 1}` | 黑边填充颜色 |
+
+## Pixels Per Unit
+
+`pixelsPerUnit` 定义像素坐标与世界单位的映射关系。默认值 `100` 时，一个 200×200 像素的精灵占据 2×2 世界单位。
+
+改变此值会影响所有基于像素的尺寸到世界坐标的转换。值越大，精灵在世界空间中越小。
+
+## 缩放模式
+
+### FixedWidth (0)
+
+保持设计宽度不变，可见高度根据屏幕宽高比调整。
+
+- 更宽的屏幕能看到更多垂直内容
+- 适合横向滚动游戏
+
+### FixedHeight (1)
+
+保持设计高度不变，可见宽度根据屏幕宽高比调整。
+
+- 更宽的屏幕能看到更多水平内容
+- 适合纵向滚动游戏
+
+### Expand (2)
+
+扩展视口使设计宽高都完全可见。可能会在设计区域外显示额外内容。
+
+- 不会裁剪任何内容
+- 宽屏玩家能看到更多世界
+
+### Shrink (3)
+
+收缩视口使两个维度都不超过设计分辨率。设计区域外的内容被裁剪。
+
+- 所有玩家最多看到相同的区域
+- 非匹配宽高比时可能裁剪
+
+### Match (4)
+
+根据 `matchWidthOrHeight` 混合 FixedWidth 和 FixedHeight。`0` 表现如 FixedWidth，`1` 如 FixedHeight，`0.5` 则平衡两者。
+
+## TypeScript 访问
+
+在系统中查询 `Canvas` 组件：
+
+```typescript
+import { defineSystem, addSystem, Query, Mut, Canvas } from 'esengine';
+
+addSystem(defineSystem(
+    [Query(Mut(Canvas))],
+    (query) => {
+        for (const [entity, canvas] of query) {
+            canvas.scaleMode = 4;
+            canvas.matchWidthOrHeight = 0.5;
+        }
+    }
+));
+```
+
+<Aside type="tip">
+  对于大多数 2D 游戏，横屏从 **FixedHeight** 开始，竖屏从 **FixedWidth** 开始，需要更精细的双轴控制时切换到 **Match**。
+</Aside>

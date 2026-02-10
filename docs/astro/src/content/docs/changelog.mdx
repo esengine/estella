@@ -1,0 +1,46 @@
+---
+title: v0.3.0
+description: ESEngine v0.3.0 release notes
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## Canvas & Camera Scaling
+
+- Added `Canvas` component with 5 scale modes: FixedWidth, FixedHeight, Expand, Shrink, Match
+- `designResolution` and `pixelsPerUnit` for pixel-perfect 2D layout
+- `matchWidthOrHeight` blending factor for the Match scale mode
+- `backgroundColor` for letterbox / pillarbox fill
+- Added `Camera.showFrustum` property to visualize the camera frustum in the editor
+
+## Fixed Timestep
+
+- Fixed schedules (`FixedPreUpdate`, `FixedUpdate`, `FixedPostUpdate`) now execute with a 1/60s accumulator
+- A single frame may trigger zero or multiple fixed steps, ensuring deterministic physics regardless of frame rate
+
+## Modular Spine Runtime
+
+- Spine runtime is no longer bundled in the engine core
+- Standalone WASM modules `spine38` and `spine42` are loaded on demand via `SpinePlugin`
+- Choose the runtime version matching your Spine editor export (`3.8` or `4.2`)
+
+## Embedded Assets (Playable Builds)
+
+- Added `registerEmbeddedAssets()` API to inline assets as data URIs
+- The editor's Playable build pipeline uses this automatically to produce single-file output
+
+## Unified Settings Dialog
+
+- Merged Project Settings and Preferences into a single settings dialog
+
+## Help Menu & Updates
+
+- Improved Help menu with links to documentation and issue tracker
+- Toast notification when a new editor version is available
+
+## Bug Fixes
+
+- Fixed Spine rendering on WeChat MiniGame platform
+- Fixed texture packer omitting certain sprites
+- Fixed default camera not being created in new scenes
+- Fixed F5 preview not launching in some configurations

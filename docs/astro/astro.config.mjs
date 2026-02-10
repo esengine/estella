@@ -65,6 +65,7 @@ export default defineConfig({
               translations: { 'zh-CN': '渲染' },
               items: [
                 { label: 'Overview', translations: { 'zh-CN': '概览' }, slug: 'guides/rendering' },
+                { label: 'Canvas & Resolution', translations: { 'zh-CN': 'Canvas 与分辨率' }, slug: 'guides/canvas' },
                 { label: 'Sprite', translations: { 'zh-CN': '精灵' }, slug: 'guides/sprite' },
                 { label: 'Spine Animation', translations: { 'zh-CN': 'Spine 动画' }, slug: 'guides/spine' },
                 { label: 'Custom Draw', translations: { 'zh-CN': '自定义绘制' }, slug: 'guides/custom-draw' },
@@ -77,6 +78,13 @@ export default defineConfig({
             { label: 'Materials & Shaders', translations: { 'zh-CN': '材质与着色器' }, slug: 'guides/materials' },
             { label: 'Geometry & Meshes', translations: { 'zh-CN': '几何体与网格' }, slug: 'guides/geometry' },
             { label: 'Editor Extensions', translations: { 'zh-CN': '编辑器扩展' }, slug: 'guides/editor-extensions' },
+          ],
+        },
+        {
+          label: 'Changelog',
+          translations: { 'zh-CN': '更新日志' },
+          items: [
+            { label: 'v0.3.0', slug: 'changelog' },
           ],
         },
       ],

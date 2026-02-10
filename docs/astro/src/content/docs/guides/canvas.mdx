@@ -1,0 +1,86 @@
+---
+title: Canvas & Resolution
+description: Screen adaptation with Canvas component in ESEngine
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The `Canvas` component controls how your game adapts to different screen sizes. It defines a **design resolution** and a **scale mode** that determines how content scales when the actual screen doesn't match.
+
+## Setup
+
+In the editor, use **Edit → Create Canvas** to add a Canvas entity to your scene. This creates an entity with a `Canvas` component and attaches the active camera.
+
+You can also add the `Canvas` component manually to any entity that has a `Camera`.
+
+## Properties
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `designResolution` | Vec2 | `{x: 1280, y: 720}` | The reference resolution you design your game for |
+| `pixelsPerUnit` | number | `100` | How many pixels equal one world unit |
+| `scaleMode` | number | `0` | Scale strategy (see below) |
+| `matchWidthOrHeight` | number | `0.5` | Blend factor for Match mode (0 = width, 1 = height) |
+| `backgroundColor` | Vec4 | `{x: 0, y: 0, z: 0, w: 1}` | Letterbox/pillarbox fill color |
+
+## Pixels Per Unit
+
+`pixelsPerUnit` defines the mapping between pixel coordinates and world units. With the default value of `100`, a 200×200 pixel sprite occupies 2×2 world units.
+
+Changing this value affects how all pixel-based sizes translate to the world. A higher value means sprites appear smaller in world space.
+
+## Scale Modes
+
+### FixedWidth (0)
+
+Keeps the design width fixed. The visible height adjusts based on aspect ratio.
+
+- Wider screens see more vertical content
+- Good for horizontal scrolling games
+
+### FixedHeight (1)
+
+Keeps the design height fixed. The visible width adjusts based on aspect ratio.
+
+- Wider screens see more horizontal content
+- Good for vertical scrolling games
+
+### Expand (2)
+
+Expands the viewport so both design width and height are always fully visible. May show extra content beyond the design area.
+
+- No content is cropped
+- Players on wider screens see more of the world
+
+### Shrink (3)
+
+Shrinks the viewport so neither dimension exceeds the design resolution. Content outside the design area is cropped.
+
+- All players see the same area at most
+- May crop on non-matching aspect ratios
+
+### Match (4)
+
+Blends between FixedWidth and FixedHeight based on `matchWidthOrHeight`. A value of `0` behaves like FixedWidth, `1` like FixedHeight, and `0.5` balances both.
+
+## TypeScript Access
+
+Query the `Canvas` component in a system:
+
+```typescript
+import { defineSystem, addSystem, Query, Mut, Canvas } from 'esengine';
+
+addSystem(defineSystem(
+    [Query(Mut(Canvas))],
+    (query) => {
+        for (const [entity, canvas] of query) {
+            canvas.scaleMode = 4;
+            canvas.matchWidthOrHeight = 0.5;
+        }
+    }
+));
+```
+
+<Aside type="tip">
+  For most 2D games, start with **FixedHeight** (landscape) or **FixedWidth** (portrait), then switch to **Match** if you need finer control over both axes.
+</Aside>

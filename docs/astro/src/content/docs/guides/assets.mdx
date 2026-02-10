@@ -164,6 +164,25 @@ const tex = await assets.loadTexture('sprites/player.png');
 
 Absolute paths and full URLs are not affected by `baseUrl`.
 
+## Embedded Assets
+
+For Playable Ad builds, assets can be embedded directly into the output bundle using `registerEmbeddedAssets`. This eliminates network requests at runtime:
+
+```typescript
+import { registerEmbeddedAssets } from 'esengine';
+
+registerEmbeddedAssets({
+    'assets/player.png': 'data:image/png;base64,iVBOR...',
+    'assets/config.json': '{"level":1}',
+});
+```
+
+Once registered, all `assets.loadTexture()` / `assets.loadJson()` calls resolve from the embedded data instead of fetching over the network.
+
+<Aside type="tip">
+  The editor's Playable build pipeline calls `registerEmbeddedAssets` automatically. You only need to call it manually in custom build workflows.
+</Aside>
+
 ## Next Steps
 
 - [Materials & Shaders](/microes/guides/materials/) — custom shaders and blend modes
