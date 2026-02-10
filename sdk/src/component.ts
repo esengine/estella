@@ -152,6 +152,7 @@ export interface CameraData {
     aspectRatio: number;
     isActive: boolean;
     priority: number;
+    showFrustum: boolean;
 }
 
 export interface CanvasData {
@@ -227,13 +228,14 @@ export const Camera = defineBuiltin<CameraData>('Camera', {
     farPlane: 1000,
     aspectRatio: 1.77,
     isActive: true,
-    priority: 0
+    priority: 0,
+    showFrustum: true
 });
 
 export const Canvas = defineBuiltin<CanvasData>('Canvas', {
     designResolution: { x: 1920, y: 1080 },
     pixelsPerUnit: 100,
-    scaleMode: 0,
+    scaleMode: 1,
     matchWidthOrHeight: 0.5,
     backgroundColor: { x: 0, y: 0, z: 0, w: 1 }
 });

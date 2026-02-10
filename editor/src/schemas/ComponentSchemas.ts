@@ -96,6 +96,7 @@ export const CameraSchema: ComponentSchema = {
         { name: 'orthoSize', type: 'number', min: 0.1 },
         { name: 'nearPlane', type: 'number', step: 0.1 },
         { name: 'farPlane', type: 'number', step: 1 },
+        { name: 'showFrustum', type: 'boolean' },
     ],
 };
 
@@ -146,6 +147,28 @@ export const UIRectSchema: ComponentSchema = {
         { name: 'size', type: 'vec2' },
         { name: 'anchor', type: 'vec2' },
         { name: 'pivot', type: 'vec2' },
+    ],
+};
+
+export const CanvasSchema: ComponentSchema = {
+    name: 'Canvas',
+    category: 'builtin',
+    properties: [
+        { name: 'designResolution', type: 'vec2' },
+        { name: 'pixelsPerUnit', type: 'number', min: 1, step: 1 },
+        {
+            name: 'scaleMode',
+            type: 'enum',
+            options: [
+                { label: 'FixedWidth', value: 0 },
+                { label: 'FixedHeight', value: 1 },
+                { label: 'Expand', value: 2 },
+                { label: 'Shrink', value: 3 },
+                { label: 'Match', value: 4 },
+            ],
+        },
+        { name: 'matchWidthOrHeight', type: 'number', min: 0, max: 1, step: 0.1 },
+        { name: 'backgroundColor', type: 'color' },
     ],
 };
 
@@ -276,6 +299,7 @@ export function registerBuiltinSchemas(options?: BuiltinSchemaOptions): void {
     registerComponentSchema(CameraSchema);
     registerComponentSchema(TextSchema);
     registerComponentSchema(UIRectSchema);
+    registerComponentSchema(CanvasSchema);
     if (enableSpine) {
         registerComponentSchema(SpineAnimationSchema);
     }

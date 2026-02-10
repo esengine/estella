@@ -789,14 +789,14 @@ export class SceneViewPanel {
 
         this.drawGrid(ctx, w, h);
 
+        this.drawCameraFrustums(ctx);
+
         const selectedEntity = this.store_.selectedEntity;
 
         if (selectedEntity !== null && this.store_.isEntityVisible(selectedEntity as number)) {
             if (getSettingsValue<boolean>('scene.showSelectionBox')) {
                 this.drawSelectionBox(ctx);
             }
-
-            this.drawCameraFrustum(ctx);
 
             if (this.gizmoManager_.getActiveId() !== 'select' && getSettingsValue<boolean>('scene.showGizmos')) {
                 this.gizmoManager_.setContext(this.createGizmoContext(ctx));
@@ -847,21 +847,8 @@ export class SceneViewPanel {
         ctx.restore();
     }
 
-    private drawCameraFrustum(ctx: CanvasRenderingContext2D): void {
-        const entityData = this.store_.getSelectedEntityData();
-        if (!entityData) return;
-
-        const camera = entityData.components.find(c => c.type === 'Camera');
-        if (!camera) return;
-
-        const transform = entityData.components.find(c => c.type === 'LocalTransform');
-        if (!transform) return;
-
-        const worldTransform = this.store_.getWorldTransform(entityData.id);
-        const pos = worldTransform.position;
-
-        const orthoSize = (camera.data.orthoSize as number) ?? 400;
-        const projectionType = (camera.data.projectionType as number) ?? 0;
+    private drawCameraFrustums(ctx: CanvasRenderingContext2D): void {
+        const selectedEntity = this.store_.selectedEntity;
 
         let aspectRatio = 750 / 1650;
         const canvasEntity = this.store_.scene.entities.find(
@@ -875,34 +862,61 @@ export class SceneViewPanel {
             }
         }
 
-        ctx.save();
-        ctx.translate(pos.x, -pos.y);
+        for (const entity of this.store_.scene.entities) {
+            const camera = entity.components.find(c => c.type === 'Camera');
+            if (!camera) continue;
 
-        if (projectionType === 1) {
-            const halfHeight = orthoSize;
-            const halfWidth = halfHeight * aspectRatio;
+            const transform = entity.components.find(c => c.type === 'LocalTransform');
+            if (!transform) continue;
 
-            ctx.strokeStyle = '#ffaa00';
-            ctx.lineWidth = 2 / this.zoom_;
-            ctx.setLineDash([8 / this.zoom_, 4 / this.zoom_]);
+            const isSelected = entity.id === selectedEntity;
+            const showFrustum = (camera.data.showFrustum as boolean) ?? true;
 
-            ctx.strokeRect(-halfWidth, -halfHeight, halfWidth * 2, halfHeight * 2);
+            if (!showFrustum && !isSelected) continue;
 
-            ctx.fillStyle = 'rgba(255, 170, 0, 0.1)';
-            ctx.fillRect(-halfWidth, -halfHeight, halfWidth * 2, halfHeight * 2);
+            const worldTransform = this.store_.getWorldTransform(entity.id);
+            const pos = worldTransform.position;
 
-            ctx.setLineDash([]);
-            ctx.strokeStyle = '#ffaa00';
-            ctx.lineWidth = 1 / this.zoom_;
-            ctx.beginPath();
-            ctx.moveTo(-halfWidth * 0.1, 0);
-            ctx.lineTo(halfWidth * 0.1, 0);
-            ctx.moveTo(0, -halfHeight * 0.1);
-            ctx.lineTo(0, halfHeight * 0.1);
-            ctx.stroke();
+            const orthoSize = (camera.data.orthoSize as number) ?? 400;
+            const projectionType = (camera.data.projectionType as number) ?? 0;
+
+            ctx.save();
+            ctx.translate(pos.x, -pos.y);
+
+            if (projectionType === 1) {
+                const halfHeight = orthoSize;
+                const halfWidth = halfHeight * aspectRatio;
+
+                ctx.strokeStyle = '#ffaa00';
+                ctx.lineWidth = 2 / this.zoom_;
+
+                if (isSelected) {
+                    ctx.globalAlpha = 1;
+                    ctx.setLineDash([]);
+                } else {
+                    ctx.globalAlpha = 0.5;
+                    ctx.setLineDash([8 / this.zoom_, 4 / this.zoom_]);
+                }
+
+                ctx.strokeRect(-halfWidth, -halfHeight, halfWidth * 2, halfHeight * 2);
+
+                ctx.fillStyle = isSelected ? 'rgba(255, 170, 0, 0.1)' : 'rgba(255, 170, 0, 0.05)';
+                ctx.fillRect(-halfWidth, -halfHeight, halfWidth * 2, halfHeight * 2);
+
+                ctx.setLineDash([]);
+                ctx.strokeStyle = '#ffaa00';
+                ctx.lineWidth = 1 / this.zoom_;
+                ctx.beginPath();
+                ctx.moveTo(-halfWidth * 0.1, 0);
+                ctx.lineTo(halfWidth * 0.1, 0);
+                ctx.moveTo(0, -halfHeight * 0.1);
+                ctx.lineTo(0, halfHeight * 0.1);
+                ctx.stroke();
+            }
+
+            ctx.globalAlpha = 1;
+            ctx.restore();
         }
-
-        ctx.restore();
     }
 
     private renderPreview(): void {
@@ -929,9 +943,9 @@ export class SceneViewPanel {
             this.drawEntity(ctx, entity, entity.id === selectedEntity);
         }
 
-        if (selectedEntity !== null && this.store_.isEntityVisible(selectedEntity as number)) {
-            this.drawCameraFrustum(ctx);
+        this.drawCameraFrustums(ctx);
 
+        if (selectedEntity !== null && this.store_.isEntityVisible(selectedEntity as number)) {
             if (this.gizmoManager_.getActiveId() !== 'select' && getSettingsValue<boolean>('scene.showGizmos')) {
                 this.gizmoManager_.setContext(this.createGizmoContext(ctx));
                 this.gizmoManager_.draw();

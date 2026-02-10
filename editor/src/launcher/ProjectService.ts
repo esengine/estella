@@ -128,6 +128,7 @@ export async function createProject(
         created: now,
         modified: now,
         spineVersion: '4.2',
+        designResolution: { width: 1920, height: 1080 },
     };
 
     const projectFilePath = joinPath(projectDir, 'project.esproject');
@@ -137,7 +138,7 @@ export async function createProject(
     }
 
     // Create default scene based on template
-    const defaultScene = createDefaultScene(name, template);
+    const defaultScene = createDefaultScene(name, template, config.designResolution!);
     const sceneFilePath = joinPath(projectDir, 'assets/scenes/main.esscene');
     if (!(await fs.writeFile(sceneFilePath, JSON.stringify(defaultScene, null, 2)))) {
         return { success: false, error: 'Failed to write default scene' };
@@ -302,7 +303,14 @@ function createProjectFiles(
 // Default Scene Creation
 // =============================================================================
 
-function createDefaultScene(projectName: string, _template: ProjectTemplate) {
+function createDefaultScene(
+    projectName: string,
+    _template: ProjectTemplate,
+    designResolution: { width: number; height: number },
+) {
+    const pixelsPerUnit = 100;
+    const orthoSize = designResolution.height / 2;
+
     return {
         version: '1.0',
         name: 'Main',
@@ -327,9 +335,36 @@ function createDefaultScene(projectName: string, _template: ProjectTemplate) {
                             isActive: true,
                             projectionType: 1,
                             fov: 60,
-                            orthoSize: 400,
+                            orthoSize,
                             nearPlane: 0.1,
                             farPlane: 1000,
+                            showFrustum: true,
+                        },
+                    },
+                ],
+            },
+            {
+                id: 2,
+                name: 'Canvas',
+                parent: null,
+                children: [],
+                components: [
+                    {
+                        type: 'LocalTransform',
+                        data: {
+                            position: { x: 0, y: 0, z: 0 },
+                            rotation: { x: 0, y: 0, z: 0, w: 1 },
+                            scale: { x: 1, y: 1, z: 1 },
+                        },
+                    },
+                    {
+                        type: 'Canvas',
+                        data: {
+                            designResolution: { x: designResolution.width, y: designResolution.height },
+                            pixelsPerUnit,
+                            scaleMode: 1,
+                            matchWidthOrHeight: 0.5,
+                            backgroundColor: { x: 0, y: 0, z: 0, w: 1 },
                         },
                     },
                 ],

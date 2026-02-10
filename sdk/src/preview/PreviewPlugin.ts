@@ -6,7 +6,7 @@
 import type { App, Plugin } from '../app';
 import { Assets, assetPlugin } from '../asset';
 import type { SceneData } from '../scene';
-import { LocalTransform, Camera, type LocalTransformData, type CameraData } from '../component';
+import { LocalTransform, Camera, Canvas, type LocalTransformData, type CameraData, type CanvasData } from '../component';
 import { platformFetch } from '../platform';
 
 // =============================================================================
@@ -77,6 +77,21 @@ export class PreviewPlugin implements Plugin {
 
         if (!hasActiveCamera) {
             console.warn('[PreviewPlugin] No active camera found, creating default camera');
+
+            let orthoSize = 540;
+            let aspectRatio = 1920 / 1080;
+
+            const canvasEntities = world.getEntitiesWithComponents([Canvas]);
+            for (const entity of canvasEntities) {
+                const canvas = world.get(entity, Canvas) as CanvasData;
+                if (canvas.designResolution) {
+                    const ppu = canvas.pixelsPerUnit || 100;
+                    orthoSize = (canvas.designResolution.y / 2) / ppu;
+                    aspectRatio = canvas.designResolution.x / canvas.designResolution.y;
+                    break;
+                }
+            }
+
             const cameraEntity = world.spawn();
 
             const transformData: LocalTransformData = {
@@ -90,11 +105,12 @@ export class PreviewPlugin implements Plugin {
                 isActive: true,
                 projectionType: 0,
                 fov: 60,
-                orthoSize: 540,
+                orthoSize,
                 nearPlane: 0.1,
                 farPlane: 1000,
-                aspectRatio: 1.77,
+                aspectRatio,
                 priority: 0,
+                showFrustum: true,
             };
             world.insert(cameraEntity, Camera, cameraData);
         }
