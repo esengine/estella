@@ -11,6 +11,8 @@ option(ES_BUILD_TESTS "Build tests" ON)
 option(ES_BUILD_SINGLE_FILE "Build single-file SDK (WASM inlined)" OFF)
 option(ES_ENABLE_SPINE "Enable Spine animation support" ON)
 option(ES_ENABLE_BOX2D "Enable Box2D physics support" OFF)
+option(ES_BUILD_MAIN_MODULE "Build as MAIN_MODULE for dynamic linking" OFF)
+option(ES_BUILD_SIDE_MODULE "Build side modules for dynamic linking" OFF)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(ESEngineConfig)
@@ -330,19 +332,18 @@ html,body{width:100%;height:100%;overflow:hidden;background:#1a1a1a}
         )
     endif()
 
-    # Spine standalone WASM module
+    # Spine standalone WASM module (spine-c)
     if(ES_ENABLE_SPINE)
         file(GLOB_RECURSE SPINE_MODULE_SPINE_SOURCES
-            "${CMAKE_CURRENT_SOURCE_DIR}/third_party/spine-runtimes/spine-cpp/spine-cpp/src/spine/*.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/third_party/spine-runtimes/spine-c/spine-c/src/spine/*.c"
         )
         add_executable(spine_module
             src/esengine/bindings/SpineModuleEntry.cpp
             ${SPINE_MODULE_SPINE_SOURCES}
         )
         target_include_directories(spine_module PRIVATE
-            ${CMAKE_CURRENT_SOURCE_DIR}/third_party/spine-runtimes/spine-cpp/spine-cpp/include
+            ${CMAKE_CURRENT_SOURCE_DIR}/third_party/spine-runtimes/spine-c/spine-c/include
         )
-        target_compile_definitions(spine_module PRIVATE SPINE_SHORT_NAMES)
         es_apply_spine_module_settings(spine_module)
 
         set_target_properties(spine_module PROPERTIES
@@ -351,19 +352,19 @@ html,body{width:100%;height:100%;overflow:hidden;background:#1a1a1a}
         )
     endif()
 
-    # Spine 3.8 standalone module
+    # Spine 3.8 standalone module (spine-c)
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/spine-runtimes-3.8")
         file(GLOB_RECURSE SPINE38_MODULE_SOURCES
-            "${CMAKE_CURRENT_SOURCE_DIR}/third_party/spine-runtimes-3.8/spine-cpp/spine-cpp/src/spine/*.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/third_party/spine-runtimes-3.8/spine-c/spine-c/src/spine/*.c"
         )
         add_executable(spine_module_38
             src/esengine/bindings/SpineModuleEntry.cpp
             ${SPINE38_MODULE_SOURCES}
         )
         target_include_directories(spine_module_38 PRIVATE
-            ${CMAKE_CURRENT_SOURCE_DIR}/third_party/spine-runtimes-3.8/spine-cpp/spine-cpp/include
+            ${CMAKE_CURRENT_SOURCE_DIR}/third_party/spine-runtimes-3.8/spine-c/spine-c/include
         )
-        target_compile_definitions(spine_module_38 PRIVATE SPINE_SHORT_NAMES ES_SPINE_38)
+        target_compile_definitions(spine_module_38 PRIVATE ES_SPINE_38)
         es_apply_spine_module_settings(spine_module_38)
         set_target_properties(spine_module_38 PROPERTIES
             OUTPUT_NAME "spine38"
@@ -383,6 +384,43 @@ html,body{width:100%;height:100%;overflow:hidden;background:#1a1a1a}
         es_apply_physics_module_settings(physics_module)
 
         set_target_properties(physics_module PROPERTIES
+            OUTPUT_NAME "physics"
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/sdk"
+        )
+    endif()
+
+    # Main module SDK (MAIN_MODULE=2, supports loading side modules)
+    if(ES_BUILD_MAIN_MODULE)
+        add_executable(esengine_sdk_main src/esengine/bindings/WebSDKEntry.cpp)
+        target_link_libraries(esengine_sdk_main PRIVATE -Wl,--whole-archive esengine -Wl,--no-whole-archive)
+        es_apply_main_module_settings(esengine_sdk_main)
+        set_target_properties(esengine_sdk_main PROPERTIES
+            OUTPUT_NAME "esengine"
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/sdk"
+        )
+
+        if(ES_BUILD_WXGAME)
+            add_executable(esengine_wxgame_main src/esengine/bindings/WebSDKEntry.cpp)
+            target_link_libraries(esengine_wxgame_main PRIVATE -Wl,--whole-archive esengine -Wl,--no-whole-archive)
+            es_apply_wxgame_main_module_settings(esengine_wxgame_main)
+            set_target_properties(esengine_wxgame_main PROPERTIES
+                OUTPUT_NAME "esengine.wxgame"
+                RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/sdk"
+            )
+        endif()
+    endif()
+
+    # Physics side module (SIDE_MODULE=2, pure .wasm, no JS glue)
+    if(ES_ENABLE_BOX2D AND ES_BUILD_SIDE_MODULE)
+        add_executable(physics_side_module
+            src/esengine/bindings/PhysicsModuleEntry.cpp
+        )
+        target_link_libraries(physics_side_module PRIVATE box2d)
+        target_include_directories(physics_side_module PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/third_party/box2d/include
+        )
+        es_apply_physics_side_module_settings(physics_side_module)
+        set_target_properties(physics_side_module PROPERTIES
             OUTPUT_NAME "physics"
             RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/sdk"
         )

@@ -60,6 +60,15 @@ export function registerBuiltinSettings(): void {
     });
 
     registerSettingsItem({
+        id: 'project.enablePhysics',
+        section: 'project',
+        label: 'Enable Physics',
+        type: 'boolean',
+        defaultValue: false,
+        order: 0.5,
+    });
+
+    registerSettingsItem({
         id: 'project.designWidth',
         section: 'project',
         label: 'Design Width',

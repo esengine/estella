@@ -21,8 +21,10 @@ export {
 
 export {
     loadPhysicsModule,
+    loadPhysicsSideModule,
     type PhysicsWasmModule,
     type PhysicsModuleFactory,
+    type ESEngineMainModule,
 } from './PhysicsModuleLoader';
 
 export {

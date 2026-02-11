@@ -40,35 +40,56 @@ set(ES_EMSCRIPTEN_LINK_FLAGS
 # Modular Build (Dynamic Linking) Configuration
 # =============================================================================
 
-# Main module link flags (for dynamic linking)
+# Main module link flags (MAIN_MODULE=2, supports loading side modules)
 set(ES_EMSCRIPTEN_MAIN_MODULE_FLAGS
-    -sMAIN_MODULE=2                 # Main module with minimal stdlib exports
+    --bind
+    -sMAIN_MODULE=2
     -sWASM=1
     -sUSE_WEBGL2=1
     -sFULL_ES3=1
     -sALLOW_MEMORY_GROWTH=1
+    -sALLOW_TABLE_GROWTH=1
     -sNO_EXIT_RUNTIME=1
-    -sASSERTIONS=1
+    -sASSERTIONS=0
     -sEXPORT_ES6=1
     -sMODULARIZE=1
-    "-sEXPORT_NAME='ESEngineCore'"
-    "-sEXPORTED_FUNCTIONS=['_malloc','_free','_es_app_init','_dlopen','_dlsym','_dlclose']"
-    "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32','loadDynamicLibrary']"
-    # Embed minimal assets for core
-    "--embed-file=${CMAKE_SOURCE_DIR}/assets/shaders@/assets/shaders"
+    -sFORCE_FILESYSTEM=1
+    "-sEXPORT_NAME='ESEngineModule'"
+    "-sEXPORTED_FUNCTIONS=['_malloc','_free']"
+    "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32','FS','addFunction','loadDynamicLibrary']"
+    -O3
+    -flto
 )
 
-# Side module compile flags (position independent code)
-set(ES_EMSCRIPTEN_SIDE_MODULE_COMPILE_FLAGS
-    -fPIC
-    -sRELOCATABLE=1
+# WeChat MAIN_MODULE variant
+set(ES_EMSCRIPTEN_WXGAME_MAIN_MODULE_FLAGS
+    --bind
+    -sMAIN_MODULE=2
+    -sWASM=1
+    -sUSE_WEBGL2=1
+    -sFULL_ES3=1
+    -sALLOW_MEMORY_GROWTH=1
+    -sALLOW_TABLE_GROWTH=1
+    -sNO_EXIT_RUNTIME=1
+    -sENVIRONMENT=web,node
+    -sEXPORT_ES6=0
+    -sMODULARIZE=1
+    -sFORCE_FILESYSTEM=1
+    -sDYNAMIC_EXECUTION=0
+    "-sEXPORT_NAME='ESEngineModule'"
+    "-sEXPORTED_FUNCTIONS=['_malloc','_free']"
+    "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32','GL','FS','loadDynamicLibrary']"
+    -O3
+    --closure=0
 )
 
-# Side module link flags
-set(ES_EMSCRIPTEN_SIDE_MODULE_FLAGS
-    -sSIDE_MODULE=2                 # Side module (dynamic library)
+# Physics side module flags (SIDE_MODULE=2, pure .wasm, no JS glue)
+set(ES_EMSCRIPTEN_PHYSICS_SIDE_MODULE_FLAGS
+    -sSIDE_MODULE=2
     -sWASM=1
     -sRELOCATABLE=1
+    -O3
+    -flto
 )
 
 # Debug-specific flags
@@ -126,36 +147,41 @@ function(es_apply_emscripten_settings TARGET_NAME)
     endif()
 endfunction()
 
-# Helper function to apply MAIN_MODULE settings (modular build)
+# Helper function to apply MAIN_MODULE settings
 function(es_apply_main_module_settings TARGET_NAME)
-    if(ES_BUILD_WEB AND ES_BUILD_MODULAR)
-        target_compile_options(${TARGET_NAME} PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS})
+    target_compile_options(${TARGET_NAME} PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS} -flto)
 
-        string(REPLACE ";" " " LINK_FLAGS_STR "${ES_EMSCRIPTEN_MAIN_MODULE_FLAGS}")
-        set_target_properties(${TARGET_NAME} PROPERTIES
-            SUFFIX ".js"
-            LINK_FLAGS "${LINK_FLAGS_STR}"
-        )
-        message(STATUS "Configured ${TARGET_NAME} as MAIN_MODULE")
-    endif()
+    string(REPLACE ";" " " LINK_FLAGS_STR "${ES_EMSCRIPTEN_MAIN_MODULE_FLAGS}")
+    set_target_properties(${TARGET_NAME} PROPERTIES
+        SUFFIX ".js"
+        LINK_FLAGS "${LINK_FLAGS_STR}"
+    )
+    message(STATUS "Configured ${TARGET_NAME} as MAIN_MODULE")
 endfunction()
 
-# Helper function to apply SIDE_MODULE settings (modular build)
-function(es_apply_side_module_settings TARGET_NAME)
-    if(ES_BUILD_WEB AND ES_BUILD_MODULAR)
-        target_compile_options(${TARGET_NAME} PRIVATE
-            ${ES_EMSCRIPTEN_COMPILE_FLAGS}
-            ${ES_EMSCRIPTEN_SIDE_MODULE_COMPILE_FLAGS}
-        )
+# Helper function to apply WeChat MAIN_MODULE settings
+function(es_apply_wxgame_main_module_settings TARGET_NAME)
+    target_compile_options(${TARGET_NAME} PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS})
 
-        string(REPLACE ";" " " LINK_FLAGS_STR "${ES_EMSCRIPTEN_SIDE_MODULE_FLAGS}")
-        set_target_properties(${TARGET_NAME} PROPERTIES
-            PREFIX ""
-            SUFFIX ".wasm"
-            LINK_FLAGS "${LINK_FLAGS_STR}"
-        )
-        message(STATUS "Configured ${TARGET_NAME} as SIDE_MODULE")
-    endif()
+    string(REPLACE ";" " " LINK_FLAGS_STR "${ES_EMSCRIPTEN_WXGAME_MAIN_MODULE_FLAGS}")
+    set_target_properties(${TARGET_NAME} PROPERTIES
+        SUFFIX ".js"
+        LINK_FLAGS "${LINK_FLAGS_STR}"
+    )
+    message(STATUS "Configured ${TARGET_NAME} as WXGAME MAIN_MODULE")
+endfunction()
+
+# Helper function to apply physics SIDE_MODULE settings
+function(es_apply_physics_side_module_settings TARGET_NAME)
+    target_compile_options(${TARGET_NAME} PRIVATE -fPIC -sRELOCATABLE=1 -flto)
+
+    string(REPLACE ";" " " LINK_FLAGS_STR "${ES_EMSCRIPTEN_PHYSICS_SIDE_MODULE_FLAGS}")
+    set_target_properties(${TARGET_NAME} PROPERTIES
+        PREFIX ""
+        SUFFIX ".wasm"
+        LINK_FLAGS "${LINK_FLAGS_STR}"
+    )
+    message(STATUS "Configured ${TARGET_NAME} as SIDE_MODULE")
 endfunction()
 
 # SDK-specific link flags (library only, no app entry)
@@ -241,24 +267,25 @@ endfunction()
 # =============================================================================
 
 set(ES_EMSCRIPTEN_SPINE_MODULE_FLAGS
-    --bind
     -sWASM=1
     -sALLOW_MEMORY_GROWTH=1
     -sNO_EXIT_RUNTIME=1
     -sEXPORT_ES6=0
     -sMODULARIZE=1
     -sDYNAMIC_EXECUTION=0
-    -sFORCE_FILESYSTEM=1
+    -sFILESYSTEM=0
     "-sEXPORT_NAME='ESSpineModule'"
     "-sEXPORTED_FUNCTIONS=['_malloc','_free']"
-    "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32','FS']"
+    "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','UTF8ToString','stringToNewUTF8','HEAPF32','HEAPU8','HEAPU32']"
     -O3
     -flto
+    -fno-exceptions
+    -fno-rtti
 )
 
 function(es_apply_spine_module_settings TARGET_NAME)
     if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
-        target_compile_options(${TARGET_NAME} PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS} -flto)
+        target_compile_options(${TARGET_NAME} PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS} -flto -fno-exceptions -fno-rtti)
 
         string(REPLACE ";" " " LINK_FLAGS_STR "${ES_EMSCRIPTEN_SPINE_MODULE_FLAGS}")
         set_target_properties(${TARGET_NAME} PROPERTIES
@@ -273,7 +300,6 @@ endfunction()
 # =============================================================================
 
 set(ES_EMSCRIPTEN_PHYSICS_MODULE_FLAGS
-    --bind
     -sWASM=1
     -sALLOW_MEMORY_GROWTH=1
     -sNO_EXIT_RUNTIME=1
@@ -300,6 +326,6 @@ function(es_apply_physics_module_settings TARGET_NAME)
 endfunction()
 
 message(STATUS "Emscripten configuration loaded")
-if(ES_BUILD_MODULAR)
-    message(STATUS "Modular build enabled: MAIN_MODULE + SIDE_MODULE architecture")
+if(ES_BUILD_MAIN_MODULE)
+    message(STATUS "MAIN_MODULE build enabled: supports loading SIDE_MODULE")
 endif()

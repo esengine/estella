@@ -251,6 +251,22 @@ async function initSpineModule() {
     } catch(e) { console.warn('Spine module not available:', e); }
 }
 
+var physicsModule = null;
+
+async function initPhysicsModule() {
+    try {
+        var PhysicsFactory = require('./physics.js');
+        physicsModule = await PhysicsFactory({
+            instantiateWasm: function(imports, successCallback) {
+                WXWebAssembly.instantiate('physics.wasm', imports).then(function(result) {
+                    successCallback(result.instance, result.module);
+                });
+                return {};
+            }
+        });
+    } catch(e) { console.warn('Physics module not available:', e); }
+}
+
 (async function() {
     var canvas = wx.createCanvas();
     var info = wx.getSystemInfoSync();
@@ -290,6 +306,7 @@ async function initSpineModule() {
     SDK.flushPendingSystems(app);
 
     await initSpineModule();
+    await initPhysicsModule();
 
     ${firstSceneName ? `
     try {
@@ -305,7 +322,7 @@ async function initSpineModule() {
         var sceneJson = wxfs.readFileSync('scenes/${firstSceneName}.json', 'utf-8');
         var sceneData = JSON.parse(sceneJson);
 
-        await SDK.loadRuntimeScene(app, module, sceneData, provider, spineModule);
+        await SDK.loadRuntimeScene(app, module, sceneData, provider, spineModule, physicsModule);
 
         var screenAspect = canvas.width / canvas.height;
         SDK.updateCameraAspectRatio(app.world, screenAspect);
@@ -350,6 +367,16 @@ async function initSpineModule() {
                 await this.fs_!.writeFile(joinPath(outputDir, 'spine.js'), spineJs);
                 await this.fs_!.writeBinaryFile(joinPath(outputDir, 'spine.wasm'), spineWasm);
                 console.log(`[WeChatBuilder] Copied Spine ${spineVersion} module`);
+            }
+        }
+
+        if (this.context_.enablePhysics) {
+            const physicsJs = await this.fs_!.getPhysicsJs();
+            const physicsWasm = await this.fs_!.getPhysicsWasm();
+            if (physicsJs && physicsWasm.length > 0) {
+                await this.fs_!.writeFile(joinPath(outputDir, 'physics.js'), physicsJs);
+                await this.fs_!.writeBinaryFile(joinPath(outputDir, 'physics.wasm'), physicsWasm);
+                console.log(`[WeChatBuilder] Copied Physics module`);
             }
         }
     }

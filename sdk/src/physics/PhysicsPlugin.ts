@@ -13,8 +13,6 @@ import {
     loadPhysicsModule,
     type PhysicsWasmModule,
     type PhysicsModuleFactory,
-    type CollisionEventRaw,
-    type SensorEventRaw,
 } from './PhysicsModuleLoader';
 import type { RigidBodyData } from './PhysicsComponents';
 import { BodyType } from './PhysicsComponents';
@@ -105,7 +103,7 @@ export class PhysicsPlugin implements Plugin {
 
         const initPromise = loadPhysicsModule(this.wasmUrl_, this.factory_).then(
             (module: PhysicsWasmModule) => {
-                module.physics_init(
+                module._physics_init(
                     this.config_.gravity.x,
                     this.config_.gravity.y,
                     this.config_.fixedTimestep,
@@ -132,11 +130,11 @@ export class PhysicsPlugin implements Plugin {
 
                                     const angle = quatToAngleZ(transform.rotation);
 
-                                    module.physics_createBody(
+                                    module._physics_createBody(
                                         entity, rb.bodyType,
                                         transform.position.x, transform.position.y, angle,
                                         rb.gravityScale, rb.linearDamping, rb.angularDamping,
-                                        rb.fixedRotation, rb.bullet
+                                        rb.fixedRotation ? 1 : 0, rb.bullet ? 1 : 0
                                     );
 
                                     addShapeForEntity(app, module, entity);
@@ -145,7 +143,7 @@ export class PhysicsPlugin implements Plugin {
 
                                 if (rb.bodyType === BodyType.Kinematic) {
                                     const angle = quatToAngleZ(transform.rotation);
-                                    module.physics_setBodyTransform(
+                                    module._physics_setBodyTransform(
                                         entity,
                                         transform.position.x, transform.position.y,
                                         angle
@@ -155,12 +153,12 @@ export class PhysicsPlugin implements Plugin {
 
                             for (const entity of trackedEntities) {
                                 if (!currentEntities.has(entity)) {
-                                    module.physics_destroyBody(entity);
+                                    module._physics_destroyBody(entity);
                                     trackedEntities.delete(entity);
                                 }
                             }
 
-                            module.physics_step(time.delta);
+                            module._physics_step(time.delta);
 
                             syncDynamicTransforms(app, module);
                             collectEvents(app, module);
@@ -186,39 +184,39 @@ function addShapeForEntity(app: App, module: PhysicsWasmModule, entity: Entity):
 
     if (world.has(entity, BoxCollider)) {
         const box = world.get(entity, BoxCollider) as { halfExtents: Vec2; offset: Vec2; density: number; friction: number; restitution: number; isSensor: boolean };
-        module.physics_addBoxShape(
+        module._physics_addBoxShape(
             entity, box.halfExtents.x, box.halfExtents.y,
             box.offset.x, box.offset.y,
-            box.density, box.friction, box.restitution, box.isSensor
+            box.density, box.friction, box.restitution, box.isSensor ? 1 : 0
         );
         return;
     }
 
     if (world.has(entity, CircleCollider)) {
         const circle = world.get(entity, CircleCollider) as { radius: number; offset: Vec2; density: number; friction: number; restitution: number; isSensor: boolean };
-        module.physics_addCircleShape(
+        module._physics_addCircleShape(
             entity, circle.radius,
             circle.offset.x, circle.offset.y,
-            circle.density, circle.friction, circle.restitution, circle.isSensor
+            circle.density, circle.friction, circle.restitution, circle.isSensor ? 1 : 0
         );
         return;
     }
 
     if (world.has(entity, CapsuleCollider)) {
         const capsule = world.get(entity, CapsuleCollider) as { radius: number; halfHeight: number; offset: Vec2; density: number; friction: number; restitution: number; isSensor: boolean };
-        module.physics_addCapsuleShape(
+        module._physics_addCapsuleShape(
             entity, capsule.radius, capsule.halfHeight,
             capsule.offset.x, capsule.offset.y,
-            capsule.density, capsule.friction, capsule.restitution, capsule.isSensor
+            capsule.density, capsule.friction, capsule.restitution, capsule.isSensor ? 1 : 0
         );
     }
 }
 
 function syncDynamicTransforms(app: App, module: PhysicsWasmModule): void {
-    const count = module.physics_getDynamicBodyCount();
+    const count = module._physics_getDynamicBodyCount();
     if (count === 0) return;
 
-    const ptr = module.physics_getDynamicBodyTransforms();
+    const ptr = module._physics_getDynamicBodyTransforms();
     const baseU32 = ptr >> 2;
 
     for (let i = 0; i < count; i++) {
@@ -244,28 +242,62 @@ function syncDynamicTransforms(app: App, module: PhysicsWasmModule): void {
 }
 
 function collectEvents(app: App, module: PhysicsWasmModule): void {
-    const raw = module.physics_getCollisionEvents();
+    module._physics_collectEvents();
 
     const collisionEnters: CollisionEnterEvent[] = [];
-    for (let i = 0; i < raw.enters.size(); i++) {
-        const e = raw.enters.get(i) as CollisionEventRaw;
-        collisionEnters.push(e);
+    const enterCount = module._physics_getCollisionEnterCount();
+    if (enterCount > 0) {
+        const enterPtr = module._physics_getCollisionEnterBuffer() >> 2;
+        for (let i = 0; i < enterCount; i++) {
+            const base = enterPtr + i * 6;
+            collisionEnters.push({
+                entityA: module.HEAPU32[base] as Entity,
+                entityB: module.HEAPU32[base + 1] as Entity,
+                normalX: module.HEAPF32[base + 2],
+                normalY: module.HEAPF32[base + 3],
+                contactX: module.HEAPF32[base + 4],
+                contactY: module.HEAPF32[base + 5],
+            });
+        }
     }
 
     const collisionExits: Array<{ entityA: Entity; entityB: Entity }> = [];
-    for (let i = 0; i < raw.exits.size(); i++) {
-        const e = raw.exits.get(i) as CollisionEventRaw;
-        collisionExits.push({ entityA: e.entityA as Entity, entityB: e.entityB as Entity });
+    const exitCount = module._physics_getCollisionExitCount();
+    if (exitCount > 0) {
+        const exitPtr = module._physics_getCollisionExitBuffer() >> 2;
+        for (let i = 0; i < exitCount; i++) {
+            const base = exitPtr + i * 2;
+            collisionExits.push({
+                entityA: module.HEAPU32[base] as Entity,
+                entityB: module.HEAPU32[base + 1] as Entity,
+            });
+        }
     }
 
     const sensorEnters: SensorEvent[] = [];
-    for (let i = 0; i < raw.sensorEnters.size(); i++) {
-        sensorEnters.push(raw.sensorEnters.get(i) as SensorEventRaw);
+    const sensorEnterCount = module._physics_getSensorEnterCount();
+    if (sensorEnterCount > 0) {
+        const sensorEnterPtr = module._physics_getSensorEnterBuffer() >> 2;
+        for (let i = 0; i < sensorEnterCount; i++) {
+            const base = sensorEnterPtr + i * 2;
+            sensorEnters.push({
+                sensorEntity: module.HEAPU32[base] as Entity,
+                visitorEntity: module.HEAPU32[base + 1] as Entity,
+            });
+        }
     }
 
     const sensorExits: SensorEvent[] = [];
-    for (let i = 0; i < raw.sensorExits.size(); i++) {
-        sensorExits.push(raw.sensorExits.get(i) as SensorEventRaw);
+    const sensorExitCount = module._physics_getSensorExitCount();
+    if (sensorExitCount > 0) {
+        const sensorExitPtr = module._physics_getSensorExitBuffer() >> 2;
+        for (let i = 0; i < sensorExitCount; i++) {
+            const base = sensorExitPtr + i * 2;
+            sensorExits.push({
+                sensorEntity: module.HEAPU32[base] as Entity,
+                visitorEntity: module.HEAPU32[base + 1] as Entity,
+            });
+        }
     }
 
     app.insertResource(PhysicsEvents, {
@@ -274,11 +306,6 @@ function collectEvents(app: App, module: PhysicsWasmModule): void {
         sensorEnters,
         sensorExits
     });
-
-    raw.enters.delete();
-    raw.exits.delete();
-    raw.sensorEnters.delete();
-    raw.sensorExits.delete();
 }
 
 // =============================================================================
@@ -296,18 +323,20 @@ export class Physics {
     }
 
     applyForce(entity: Entity, force: Vec2): void {
-        this.module_.physics_applyForce(entity, force.x, force.y);
+        this.module_._physics_applyForce(entity, force.x, force.y);
     }
 
     applyImpulse(entity: Entity, impulse: Vec2): void {
-        this.module_.physics_applyImpulse(entity, impulse.x, impulse.y);
+        this.module_._physics_applyImpulse(entity, impulse.x, impulse.y);
     }
 
     setLinearVelocity(entity: Entity, velocity: Vec2): void {
-        this.module_.physics_setLinearVelocity(entity, velocity.x, velocity.y);
+        this.module_._physics_setLinearVelocity(entity, velocity.x, velocity.y);
     }
 
     getLinearVelocity(entity: Entity): Vec2 {
-        return this.module_.physics_getLinearVelocity(entity);
+        const ptr = this.module_._physics_getLinearVelocity(entity);
+        const base = ptr >> 2;
+        return { x: this.module_.HEAPF32[base], y: this.module_.HEAPF32[base + 1] };
     }
 }

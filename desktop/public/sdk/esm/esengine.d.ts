@@ -1148,38 +1148,34 @@ declare function registerEmbeddedAssets(app: App, assets: Record<string, string>
  * @brief   Loads and initializes the standalone Spine WASM module
  */
 interface SpineWasmModule {
-    spine_loadSkeleton(skelPath: string, atlasText: string, atlasLen: number, isBinary: boolean): number;
-    spine_unloadSkeleton(handle: number): void;
-    spine_getAtlasPageCount(handle: number): number;
-    spine_getAtlasPageTextureName(handle: number, pageIndex: number): string;
-    spine_setAtlasPageTexture(handle: number, pageIndex: number, textureId: number, width: number, height: number): void;
-    spine_createInstance(skeletonHandle: number): number;
-    spine_destroyInstance(instanceId: number): void;
-    spine_playAnimation(instanceId: number, name: string, loop: boolean, track: number): boolean;
-    spine_addAnimation(instanceId: number, name: string, loop: boolean, delay: number, track: number): boolean;
-    spine_setSkin(instanceId: number, name: string): void;
-    spine_update(instanceId: number, dt: number): void;
-    spine_getAnimations(instanceId: number): string;
-    spine_getSkins(instanceId: number): string;
-    spine_getBonePosition(instanceId: number, bone: string, outXPtr: number, outYPtr: number): boolean;
-    spine_getBoneRotation(instanceId: number, bone: string): number;
-    spine_getBounds(instanceId: number, outXPtr: number, outYPtr: number, outWPtr: number, outHPtr: number): void;
-    spine_getMeshBatchCount(instanceId: number): number;
-    spine_getMeshBatchVertexCount(instanceId: number, batchIndex: number): number;
-    spine_getMeshBatchIndexCount(instanceId: number, batchIndex: number): number;
-    spine_getMeshBatchData(instanceId: number, batchIndex: number, outVerticesPtr: number, outIndicesPtr: number, outTextureIdPtr: number, outBlendModePtr: number): void;
+    _spine_loadSkeleton(skelDataPtr: number, skelDataLen: number, atlasText: number, atlasLen: number, isBinary: number): number;
+    _spine_unloadSkeleton(handle: number): void;
+    _spine_getAtlasPageCount(handle: number): number;
+    _spine_getAtlasPageTextureName(handle: number, pageIndex: number): number;
+    _spine_setAtlasPageTexture(handle: number, pageIndex: number, textureId: number, width: number, height: number): void;
+    _spine_createInstance(skeletonHandle: number): number;
+    _spine_destroyInstance(instanceId: number): void;
+    _spine_playAnimation(instanceId: number, name: number, loop: number, track: number): number;
+    _spine_addAnimation(instanceId: number, name: number, loop: number, delay: number, track: number): number;
+    _spine_setSkin(instanceId: number, name: number): void;
+    _spine_update(instanceId: number, dt: number): void;
+    _spine_getAnimations(instanceId: number): number;
+    _spine_getSkins(instanceId: number): number;
+    _spine_getBonePosition(instanceId: number, bone: number, outXPtr: number, outYPtr: number): number;
+    _spine_getBoneRotation(instanceId: number, bone: number): number;
+    _spine_getBounds(instanceId: number, outXPtr: number, outYPtr: number, outWPtr: number, outHPtr: number): void;
+    _spine_getMeshBatchCount(instanceId: number): number;
+    _spine_getMeshBatchVertexCount(instanceId: number, batchIndex: number): number;
+    _spine_getMeshBatchIndexCount(instanceId: number, batchIndex: number): number;
+    _spine_getMeshBatchData(instanceId: number, batchIndex: number, outVerticesPtr: number, outIndicesPtr: number, outTextureIdPtr: number, outBlendModePtr: number): void;
+    cwrap(ident: string, returnType: string | null, argTypes: string[]): (...args: unknown[]) => unknown;
+    UTF8ToString(ptr: number): string;
+    stringToNewUTF8(str: string): number;
     HEAPF32: Float32Array;
     HEAPU8: Uint8Array;
     HEAPU32: Uint32Array;
     _malloc(size: number): number;
     _free(ptr: number): void;
-    FS: {
-        writeFile(path: string, data: string | Uint8Array): void;
-        mkdirTree(path: string): void;
-        analyzePath(path: string): {
-            exists: boolean;
-        };
-    };
 }
 
 /**
@@ -1748,57 +1744,39 @@ declare function isRuntime(): boolean;
 
 /**
  * @file    PhysicsModuleLoader.ts
- * @brief   Loads and initializes the standalone Physics WASM module
+ * @brief   Loads and initializes the Physics WASM module (standalone or side module)
  */
 interface PhysicsWasmModule {
-    physics_init(gx: number, gy: number, timestep: number, substeps: number): void;
-    physics_shutdown(): void;
-    physics_createBody(entityId: number, bodyType: number, x: number, y: number, angle: number, gravityScale: number, linearDamping: number, angularDamping: number, fixedRotation: boolean, bullet: boolean): void;
-    physics_destroyBody(entityId: number): void;
-    physics_hasBody(entityId: number): boolean;
-    physics_addBoxShape(entityId: number, halfW: number, halfH: number, offX: number, offY: number, density: number, friction: number, restitution: number, isSensor: boolean): void;
-    physics_addCircleShape(entityId: number, radius: number, offX: number, offY: number, density: number, friction: number, restitution: number, isSensor: boolean): void;
-    physics_addCapsuleShape(entityId: number, radius: number, halfHeight: number, offX: number, offY: number, density: number, friction: number, restitution: number, isSensor: boolean): void;
-    physics_step(dt: number): void;
-    physics_setBodyTransform(entityId: number, x: number, y: number, angle: number): void;
-    physics_getDynamicBodyCount(): number;
-    physics_getDynamicBodyTransforms(): number;
-    physics_getCollisionEvents(): CollisionEventsRaw;
-    physics_applyForce(entityId: number, forceX: number, forceY: number): void;
-    physics_applyImpulse(entityId: number, impulseX: number, impulseY: number): void;
-    physics_setLinearVelocity(entityId: number, vx: number, vy: number): void;
-    physics_getLinearVelocity(entityId: number): {
-        x: number;
-        y: number;
-    };
+    _physics_init(gx: number, gy: number, timestep: number, substeps: number): void;
+    _physics_shutdown(): void;
+    _physics_createBody(entityId: number, bodyType: number, x: number, y: number, angle: number, gravityScale: number, linearDamping: number, angularDamping: number, fixedRotation: number, bullet: number): void;
+    _physics_destroyBody(entityId: number): void;
+    _physics_hasBody(entityId: number): number;
+    _physics_addBoxShape(entityId: number, halfW: number, halfH: number, offX: number, offY: number, density: number, friction: number, restitution: number, isSensor: number): void;
+    _physics_addCircleShape(entityId: number, radius: number, offX: number, offY: number, density: number, friction: number, restitution: number, isSensor: number): void;
+    _physics_addCapsuleShape(entityId: number, radius: number, halfHeight: number, offX: number, offY: number, density: number, friction: number, restitution: number, isSensor: number): void;
+    _physics_step(dt: number): void;
+    _physics_setBodyTransform(entityId: number, x: number, y: number, angle: number): void;
+    _physics_getDynamicBodyCount(): number;
+    _physics_getDynamicBodyTransforms(): number;
+    _physics_collectEvents(): void;
+    _physics_getCollisionEnterCount(): number;
+    _physics_getCollisionEnterBuffer(): number;
+    _physics_getCollisionExitCount(): number;
+    _physics_getCollisionExitBuffer(): number;
+    _physics_getSensorEnterCount(): number;
+    _physics_getSensorEnterBuffer(): number;
+    _physics_getSensorExitCount(): number;
+    _physics_getSensorExitBuffer(): number;
+    _physics_applyForce(entityId: number, forceX: number, forceY: number): void;
+    _physics_applyImpulse(entityId: number, impulseX: number, impulseY: number): void;
+    _physics_setLinearVelocity(entityId: number, vx: number, vy: number): void;
+    _physics_getLinearVelocity(entityId: number): number;
     HEAPF32: Float32Array;
     HEAPU8: Uint8Array;
     HEAPU32: Uint32Array;
     _malloc(size: number): number;
     _free(ptr: number): void;
-}
-interface EmscriptenVector<T> {
-    size(): number;
-    get(index: number): T;
-    delete(): void;
-}
-interface CollisionEventRaw {
-    entityA: number;
-    entityB: number;
-    normalX: number;
-    normalY: number;
-    contactX: number;
-    contactY: number;
-}
-interface SensorEventRaw {
-    sensorEntity: number;
-    visitorEntity: number;
-}
-interface CollisionEventsRaw {
-    enters: EmscriptenVector<CollisionEventRaw>;
-    exits: EmscriptenVector<CollisionEventRaw>;
-    sensorEnters: EmscriptenVector<SensorEventRaw>;
-    sensorExits: EmscriptenVector<SensorEventRaw>;
 }
 type PhysicsModuleFactory = (config?: Record<string, unknown>) => Promise<PhysicsWasmModule>;
 declare function loadPhysicsModule(wasmUrl: string, factory?: PhysicsModuleFactory): Promise<PhysicsWasmModule>;

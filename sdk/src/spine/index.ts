@@ -18,6 +18,8 @@ export {
 } from './SpineController';
 export {
     loadSpineModule,
+    wrapSpineModule,
     type SpineWasmModule,
+    type SpineWrappedAPI,
     type SpineModuleFactory,
 } from './SpineModuleLoader';

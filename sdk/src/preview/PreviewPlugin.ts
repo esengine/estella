@@ -57,7 +57,7 @@ export class PreviewPlugin implements Plugin {
             const spinePromise = (this.app_ as any).__spineInitPromise;
             if (spinePromise) {
                 const result = await spinePromise;
-                spineModule = result.controller.module;
+                spineModule = result.controller.raw;
             }
 
             await loadRuntimeScene(this.app_, this.app_.wasmModule!, sceneData, provider, spineModule);

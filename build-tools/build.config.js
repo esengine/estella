@@ -48,6 +48,32 @@ export default {
                 'sdk/physics.wasm': 'wasm/web/physics.wasm',
             },
         },
+        'web-main': {
+            buildDir: 'build-web-main',
+            cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_BUILD_MAIN_MODULE=ON'],
+            targets: ['esengine_sdk_main'],
+            outputs: {
+                'sdk/esengine.js': 'wasm/web/esengine.js',
+                'sdk/esengine.wasm': 'wasm/web/esengine.wasm',
+            },
+        },
+        'wechat-main': {
+            buildDir: 'build-wxgame-main',
+            cmakeFlags: ['-DES_BUILD_WXGAME=ON', '-DES_BUILD_TESTS=OFF', '-DES_BUILD_MAIN_MODULE=ON'],
+            targets: ['esengine_wxgame_main'],
+            outputs: {
+                'sdk/esengine.wxgame.js': 'wasm/wechat/esengine.wxgame.js',
+                'sdk/esengine.wxgame.wasm': 'wasm/wechat/esengine.wxgame.wasm',
+            },
+        },
+        'physics-side': {
+            buildDir: 'build-web-main',
+            cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_BOX2D=ON', '-DES_BUILD_SIDE_MODULE=ON'],
+            targets: ['physics_side_module'],
+            outputs: {
+                'sdk/physics.wasm': 'wasm/web/physics.wasm',
+            },
+        },
         spine: {
             buildDir: 'build-web',
             cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF'],

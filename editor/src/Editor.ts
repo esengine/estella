@@ -28,7 +28,7 @@ import {
     clearExtensionPanels,
     isBuiltinPanel,
 } from './panels/PanelRegistry';
-import { SpineModuleController, type SpineWasmModule } from 'esengine/spine';
+import { SpineModuleController, wrapSpineModule, type SpineWasmModule } from 'esengine/spine';
 import { registerBuiltinPanels } from './panels/builtinPanels';
 import { registerBuiltinEditors } from './property/editors';
 import { registerMaterialEditors } from './property/materialEditors';
@@ -170,7 +170,8 @@ export class Editor {
         this.spineModule_ = module;
         this.spineVersion_ = version;
 
-        const controller = module ? new SpineModuleController(module as SpineWasmModule) : null;
+        const raw = module as SpineWasmModule;
+        const controller = module ? new SpineModuleController(raw, wrapSpineModule(raw)) : null;
         for (const panel of this.panelInstances_.values()) {
             if (isSpineControllerAware(panel)) {
                 panel.setSpineController(controller);
@@ -368,6 +369,7 @@ export class Editor {
             if (config.spineVersion) {
                 setSettingsValue('project.spineVersion', config.spineVersion);
             }
+            setSettingsValue('project.enablePhysics', config.enablePhysics ?? false);
             const resolution = config.designResolution ?? { width: 1920, height: 1080 };
             setSettingsValue('project.designWidth', resolution.width);
             setSettingsValue('project.designHeight', resolution.height);
@@ -391,6 +393,7 @@ export class Editor {
         config.version = getSettingsValue<string>('project.version') || config.version;
         config.defaultScene = getSettingsValue<string>('project.defaultScene') || config.defaultScene;
         config.spineVersion = getSettingsValue<string>('project.spineVersion') as SpineVersion;
+        config.enablePhysics = getSettingsValue<boolean>('project.enablePhysics') ?? false;
         config.designResolution = {
             width: getSettingsValue<number>('project.designWidth') || 1920,
             height: getSettingsValue<number>('project.designHeight') || 1080,

@@ -30,6 +30,7 @@ export interface BuildContext {
     projectPath: string;
     config: BuildConfig;
     spineVersion?: SpineVersion;
+    enablePhysics?: boolean;
     progress?: BuildProgressReporter;
     cache?: BuildCache;
 }
@@ -68,11 +69,13 @@ export class BuildService {
 
         const projectConfig = await loadProjectConfig(this.projectPath_);
         const spineVersion = projectConfig?.spineVersion;
+        const enablePhysics = projectConfig?.enablePhysics ?? false;
 
         const context: BuildContext = {
             projectPath: this.projectPath_,
             config,
             spineVersion,
+            enablePhysics,
             progress,
             cache: useCache ? this.cache_ : undefined,
         };

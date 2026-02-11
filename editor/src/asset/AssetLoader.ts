@@ -197,14 +197,9 @@ export class AssetLoader {
             return { success: false, error: `Failed to read skeleton: ${skelAbsPath}` };
         }
 
-        const spineFS = controller.module.FS;
-        const skelDir = skeletonPath.substring(0, skeletonPath.lastIndexOf('/'));
-        if (skelDir) {
-            spineFS.mkdirTree(skelDir);
-        }
-        spineFS.writeFile(skeletonPath, skelData instanceof Uint8Array ? skelData : new TextEncoder().encode(skelData));
-
-        const skeletonHandle = controller.loadSkeleton(skeletonPath, atlasContent, isBinary);
+        const skeletonHandle = controller.loadSkeleton(
+            skelData instanceof Uint8Array ? skelData : skelData as string,
+            atlasContent, isBinary);
         if (skeletonHandle < 0) {
             return { success: false, error: `Failed to load skeleton in spine module: ${skeletonPath}` };
         }

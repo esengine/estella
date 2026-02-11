@@ -375,41 +375,63 @@ declare class App {
  * @brief   Loads and initializes the standalone Spine WASM module
  */
 interface SpineWasmModule {
-    spine_loadSkeleton(skelPath: string, atlasText: string, atlasLen: number, isBinary: boolean): number;
-    spine_unloadSkeleton(handle: number): void;
-    spine_getAtlasPageCount(handle: number): number;
-    spine_getAtlasPageTextureName(handle: number, pageIndex: number): string;
-    spine_setAtlasPageTexture(handle: number, pageIndex: number, textureId: number, width: number, height: number): void;
-    spine_createInstance(skeletonHandle: number): number;
-    spine_destroyInstance(instanceId: number): void;
-    spine_playAnimation(instanceId: number, name: string, loop: boolean, track: number): boolean;
-    spine_addAnimation(instanceId: number, name: string, loop: boolean, delay: number, track: number): boolean;
-    spine_setSkin(instanceId: number, name: string): void;
-    spine_update(instanceId: number, dt: number): void;
-    spine_getAnimations(instanceId: number): string;
-    spine_getSkins(instanceId: number): string;
-    spine_getBonePosition(instanceId: number, bone: string, outXPtr: number, outYPtr: number): boolean;
-    spine_getBoneRotation(instanceId: number, bone: string): number;
-    spine_getBounds(instanceId: number, outXPtr: number, outYPtr: number, outWPtr: number, outHPtr: number): void;
-    spine_getMeshBatchCount(instanceId: number): number;
-    spine_getMeshBatchVertexCount(instanceId: number, batchIndex: number): number;
-    spine_getMeshBatchIndexCount(instanceId: number, batchIndex: number): number;
-    spine_getMeshBatchData(instanceId: number, batchIndex: number, outVerticesPtr: number, outIndicesPtr: number, outTextureIdPtr: number, outBlendModePtr: number): void;
+    _spine_loadSkeleton(skelDataPtr: number, skelDataLen: number, atlasText: number, atlasLen: number, isBinary: number): number;
+    _spine_unloadSkeleton(handle: number): void;
+    _spine_getAtlasPageCount(handle: number): number;
+    _spine_getAtlasPageTextureName(handle: number, pageIndex: number): number;
+    _spine_setAtlasPageTexture(handle: number, pageIndex: number, textureId: number, width: number, height: number): void;
+    _spine_createInstance(skeletonHandle: number): number;
+    _spine_destroyInstance(instanceId: number): void;
+    _spine_playAnimation(instanceId: number, name: number, loop: number, track: number): number;
+    _spine_addAnimation(instanceId: number, name: number, loop: number, delay: number, track: number): number;
+    _spine_setSkin(instanceId: number, name: number): void;
+    _spine_update(instanceId: number, dt: number): void;
+    _spine_getAnimations(instanceId: number): number;
+    _spine_getSkins(instanceId: number): number;
+    _spine_getBonePosition(instanceId: number, bone: number, outXPtr: number, outYPtr: number): number;
+    _spine_getBoneRotation(instanceId: number, bone: number): number;
+    _spine_getBounds(instanceId: number, outXPtr: number, outYPtr: number, outWPtr: number, outHPtr: number): void;
+    _spine_getMeshBatchCount(instanceId: number): number;
+    _spine_getMeshBatchVertexCount(instanceId: number, batchIndex: number): number;
+    _spine_getMeshBatchIndexCount(instanceId: number, batchIndex: number): number;
+    _spine_getMeshBatchData(instanceId: number, batchIndex: number, outVerticesPtr: number, outIndicesPtr: number, outTextureIdPtr: number, outBlendModePtr: number): void;
+    cwrap(ident: string, returnType: string | null, argTypes: string[]): (...args: unknown[]) => unknown;
+    UTF8ToString(ptr: number): string;
+    stringToNewUTF8(str: string): number;
     HEAPF32: Float32Array;
     HEAPU8: Uint8Array;
     HEAPU32: Uint32Array;
     _malloc(size: number): number;
     _free(ptr: number): void;
-    FS: {
-        writeFile(path: string, data: string | Uint8Array): void;
-        mkdirTree(path: string): void;
-        analyzePath(path: string): {
-            exists: boolean;
-        };
-    };
 }
+interface SpineWrappedAPI {
+    loadSkeleton(skelDataPtr: number, skelDataLen: number, atlasText: string, atlasLen: number, isBinary: boolean): number;
+    unloadSkeleton(handle: number): void;
+    getAtlasPageCount(handle: number): number;
+    getAtlasPageTextureName(handle: number, pageIndex: number): string;
+    setAtlasPageTexture(handle: number, pageIndex: number, textureId: number, width: number, height: number): void;
+    createInstance(skeletonHandle: number): number;
+    destroyInstance(instanceId: number): void;
+    playAnimation(instanceId: number, name: string, loop: boolean, track: number): boolean;
+    addAnimation(instanceId: number, name: string, loop: boolean, delay: number, track: number): boolean;
+    setSkin(instanceId: number, name: string): void;
+    update(instanceId: number, dt: number): void;
+    getAnimations(instanceId: number): string;
+    getSkins(instanceId: number): string;
+    getBonePosition(instanceId: number, bone: string, outXPtr: number, outYPtr: number): boolean;
+    getBoneRotation(instanceId: number, bone: string): number;
+    getBounds(instanceId: number, outXPtr: number, outYPtr: number, outWPtr: number, outHPtr: number): void;
+    getMeshBatchCount(instanceId: number): number;
+    getMeshBatchVertexCount(instanceId: number, batchIndex: number): number;
+    getMeshBatchIndexCount(instanceId: number, batchIndex: number): number;
+    getMeshBatchData(instanceId: number, batchIndex: number, outVerticesPtr: number, outIndicesPtr: number, outTextureIdPtr: number, outBlendModePtr: number): void;
+}
+declare function wrapSpineModule(raw: SpineWasmModule): SpineWrappedAPI;
 type SpineModuleFactory = (config?: Record<string, unknown>) => Promise<SpineWasmModule>;
-declare function loadSpineModule(wasmUrl: string, factory?: SpineModuleFactory): Promise<SpineWasmModule>;
+declare function loadSpineModule(wasmUrl: string, factory?: SpineModuleFactory): Promise<{
+    raw: SpineWasmModule;
+    api: SpineWrappedAPI;
+}>;
 
 /**
  * @file    SpineController.ts
@@ -429,11 +451,12 @@ interface SpineEvent {
     stringValue?: string;
 }
 declare class SpineModuleController {
-    private module_;
+    private raw_;
+    private api_;
     private listeners_;
-    constructor(spineModule: SpineWasmModule);
-    get module(): SpineWasmModule;
-    loadSkeleton(skelPath: string, atlasText: string, isBinary: boolean): number;
+    constructor(raw: SpineWasmModule, api: SpineWrappedAPI);
+    get raw(): SpineWasmModule;
+    loadSkeleton(skelData: Uint8Array | string, atlasText: string, isBinary: boolean): number;
     unloadSkeleton(handle: number): void;
     getAtlasPageCount(handle: number): number;
     getAtlasPageTextureName(handle: number, pageIndex: number): string;
@@ -474,5 +497,5 @@ declare class SpinePlugin implements Plugin {
 }
 declare function submitSpineMeshesToCore(coreModule: ESEngineModule, controller: SpineModuleController, instanceId: number, transform?: Float32Array): void;
 
-export { SpineModuleController, SpinePlugin, SpineResource, loadSpineModule, submitSpineMeshesToCore };
-export type { SpineEvent, SpineEventCallback, SpineEventType, SpineModuleFactory, SpineWasmModule };
+export { SpineModuleController, SpinePlugin, SpineResource, loadSpineModule, submitSpineMeshesToCore, wrapSpineModule };
+export type { SpineEvent, SpineEventCallback, SpineEventType, SpineModuleFactory, SpineWasmModule, SpineWrappedAPI };

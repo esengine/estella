@@ -7,7 +7,7 @@ import type { Plugin } from '../app';
 import type { App } from '../app';
 import type { ESEngineModule } from '../wasm';
 import { defineResource } from '../resource';
-import { loadSpineModule, type SpineWasmModule, type SpineModuleFactory } from './SpineModuleLoader';
+import { loadSpineModule, type SpineModuleFactory } from './SpineModuleLoader';
 import { SpineModuleController } from './SpineController';
 
 export const SpineResource = defineResource<SpineModuleController | null>(null, 'SpineController');
@@ -25,8 +25,8 @@ export class SpinePlugin implements Plugin {
         const coreModule = app.wasmModule!;
 
         const initPromise = loadSpineModule(this.wasmUrl_, this.factory_).then(
-            (spineModule: SpineWasmModule) => {
-                const controller = new SpineModuleController(spineModule);
+            ({ raw, api }) => {
+                const controller = new SpineModuleController(raw, api);
                 app.insertResource(SpineResource, controller);
                 return { controller, coreModule };
             }

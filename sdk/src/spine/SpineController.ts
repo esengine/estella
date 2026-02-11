@@ -4,7 +4,7 @@
  */
 
 import type { Entity, Vec2 } from '../types';
-import type { SpineWasmModule } from './SpineModuleLoader';
+import type { SpineWasmModule, SpineWrappedAPI } from './SpineModuleLoader';
 
 export type SpineEventType = 'start' | 'interrupt' | 'end' | 'complete' | 'dispose' | 'event';
 
@@ -22,41 +22,59 @@ export interface SpineEvent {
 }
 
 export class SpineModuleController {
-    private module_: SpineWasmModule;
+    private raw_: SpineWasmModule;
+    private api_: SpineWrappedAPI;
     private listeners_: Map<Entity, Map<SpineEventType, Set<SpineEventCallback>>>;
 
-    constructor(spineModule: SpineWasmModule) {
-        this.module_ = spineModule;
+    constructor(raw: SpineWasmModule, api: SpineWrappedAPI) {
+        this.raw_ = raw;
+        this.api_ = api;
         this.listeners_ = new Map();
     }
 
-    get module(): SpineWasmModule {
-        return this.module_;
+    get raw(): SpineWasmModule {
+        return this.raw_;
     }
 
     // =========================================================================
     // Skeleton Management
     // =========================================================================
 
-    loadSkeleton(skelPath: string, atlasText: string, isBinary: boolean): number {
-        return this.module_.spine_loadSkeleton(skelPath, atlasText, atlasText.length, isBinary);
+    loadSkeleton(skelData: Uint8Array | string, atlasText: string, isBinary: boolean): number {
+        let ptr: number;
+        let len: number;
+        if (typeof skelData === 'string') {
+            const encoder = new TextEncoder();
+            const bytes = encoder.encode(skelData);
+            len = bytes.length;
+            ptr = this.raw_._malloc(len + 1);
+            this.raw_.HEAPU8.set(bytes, ptr);
+            this.raw_.HEAPU8[ptr + len] = 0;
+        } else {
+            len = skelData.length;
+            ptr = this.raw_._malloc(len);
+            this.raw_.HEAPU8.set(skelData, ptr);
+        }
+        const result = this.api_.loadSkeleton(ptr, len, atlasText, atlasText.length, isBinary);
+        this.raw_._free(ptr);
+        return result;
     }
 
     unloadSkeleton(handle: number): void {
-        this.module_.spine_unloadSkeleton(handle);
+        this.api_.unloadSkeleton(handle);
     }
 
     getAtlasPageCount(handle: number): number {
-        return this.module_.spine_getAtlasPageCount(handle);
+        return this.api_.getAtlasPageCount(handle);
     }
 
     getAtlasPageTextureName(handle: number, pageIndex: number): string {
-        return this.module_.spine_getAtlasPageTextureName(handle, pageIndex);
+        return this.api_.getAtlasPageTextureName(handle, pageIndex);
     }
 
     setAtlasPageTexture(handle: number, pageIndex: number,
                          textureId: number, width: number, height: number): void {
-        this.module_.spine_setAtlasPageTexture(handle, pageIndex, textureId, width, height);
+        this.api_.setAtlasPageTexture(handle, pageIndex, textureId, width, height);
     }
 
     // =========================================================================
@@ -64,11 +82,11 @@ export class SpineModuleController {
     // =========================================================================
 
     createInstance(skeletonHandle: number): number {
-        return this.module_.spine_createInstance(skeletonHandle);
+        return this.api_.createInstance(skeletonHandle);
     }
 
     destroyInstance(instanceId: number): void {
-        this.module_.spine_destroyInstance(instanceId);
+        this.api_.destroyInstance(instanceId);
         this.listeners_.delete(instanceId as Entity);
     }
 
@@ -77,20 +95,20 @@ export class SpineModuleController {
     // =========================================================================
 
     play(instanceId: number, animation: string, loop: boolean = true, track: number = 0): boolean {
-        return this.module_.spine_playAnimation(instanceId, animation, loop, track);
+        return !!this.api_.playAnimation(instanceId, animation, loop, track);
     }
 
     addAnimation(instanceId: number, animation: string,
                   loop: boolean = true, delay: number = 0, track: number = 0): boolean {
-        return this.module_.spine_addAnimation(instanceId, animation, loop, delay, track);
+        return !!this.api_.addAnimation(instanceId, animation, loop, delay, track);
     }
 
     setSkin(instanceId: number, skinName: string): void {
-        this.module_.spine_setSkin(instanceId, skinName);
+        this.api_.setSkin(instanceId, skinName);
     }
 
     update(instanceId: number, dt: number): void {
-        this.module_.spine_update(instanceId, dt);
+        this.api_.update(instanceId, dt);
     }
 
     // =========================================================================
@@ -98,7 +116,7 @@ export class SpineModuleController {
     // =========================================================================
 
     getAnimations(instanceId: number): string[] {
-        const json = this.module_.spine_getAnimations(instanceId);
+        const json = this.api_.getAnimations(instanceId);
         try {
             return JSON.parse(json);
         } catch {
@@ -107,7 +125,7 @@ export class SpineModuleController {
     }
 
     getSkins(instanceId: number): string[] {
-        const json = this.module_.spine_getSkins(instanceId);
+        const json = this.api_.getSkins(instanceId);
         try {
             return JSON.parse(json);
         } catch {
@@ -116,33 +134,33 @@ export class SpineModuleController {
     }
 
     getBonePosition(instanceId: number, boneName: string): Vec2 | null {
-        const xPtr = this.module_._malloc(4);
-        const yPtr = this.module_._malloc(4);
+        const xPtr = this.raw_._malloc(4);
+        const yPtr = this.raw_._malloc(4);
 
-        const found = this.module_.spine_getBonePosition(instanceId, boneName, xPtr, yPtr);
+        const found = this.api_.getBonePosition(instanceId, boneName, xPtr, yPtr);
 
         if (!found) {
-            this.module_._free(xPtr);
-            this.module_._free(yPtr);
+            this.raw_._free(xPtr);
+            this.raw_._free(yPtr);
             return null;
         }
 
-        const x = this.module_.HEAPF32[xPtr >> 2];
-        const y = this.module_.HEAPF32[yPtr >> 2];
-        this.module_._free(xPtr);
-        this.module_._free(yPtr);
+        const x = this.raw_.HEAPF32[xPtr >> 2];
+        const y = this.raw_.HEAPF32[yPtr >> 2];
+        this.raw_._free(xPtr);
+        this.raw_._free(yPtr);
         return { x, y };
     }
 
     getBoneRotation(instanceId: number, boneName: string): number {
-        return this.module_.spine_getBoneRotation(instanceId, boneName);
+        return this.api_.getBoneRotation(instanceId, boneName);
     }
 
     getBounds(instanceId: number): { x: number; y: number; width: number; height: number } {
-        const ptr = this.module_._malloc(16);
-        this.module_.spine_getBounds(instanceId, ptr, ptr + 4, ptr + 8, ptr + 12);
+        const ptr = this.raw_._malloc(16);
+        this.api_.getBounds(instanceId, ptr, ptr + 4, ptr + 8, ptr + 12);
 
-        const f32 = this.module_.HEAPF32;
+        const f32 = this.raw_.HEAPF32;
         const base = ptr >> 2;
         const result = {
             x: f32[base],
@@ -150,7 +168,7 @@ export class SpineModuleController {
             width: f32[base + 2],
             height: f32[base + 3],
         };
-        this.module_._free(ptr);
+        this.raw_._free(ptr);
         return result;
     }
 
@@ -164,7 +182,7 @@ export class SpineModuleController {
         textureId: number;
         blendMode: number;
     }[] {
-        const batchCount = this.module_.spine_getMeshBatchCount(instanceId);
+        const batchCount = this.api_.getMeshBatchCount(instanceId);
         const batches: {
             vertices: Float32Array;
             indices: Uint16Array;
@@ -172,40 +190,40 @@ export class SpineModuleController {
             blendMode: number;
         }[] = [];
 
-        const metaPtr = this.module_._malloc(8);
+        const metaPtr = this.raw_._malloc(8);
         const texIdPtr = metaPtr;
         const blendPtr = metaPtr + 4;
 
         for (let i = 0; i < batchCount; i++) {
-            const vertexCount = this.module_.spine_getMeshBatchVertexCount(instanceId, i);
-            const indexCount = this.module_.spine_getMeshBatchIndexCount(instanceId, i);
+            const vertexCount = this.api_.getMeshBatchVertexCount(instanceId, i);
+            const indexCount = this.api_.getMeshBatchIndexCount(instanceId, i);
             if (vertexCount <= 0 || indexCount <= 0) continue;
 
             const vertBytes = vertexCount * 8 * 4;
             const idxBytes = indexCount * 2;
-            const vertPtr = this.module_._malloc(vertBytes);
-            const idxPtr = this.module_._malloc(idxBytes);
+            const vertPtr = this.raw_._malloc(vertBytes);
+            const idxPtr = this.raw_._malloc(idxBytes);
 
-            this.module_.spine_getMeshBatchData(
+            this.api_.getMeshBatchData(
                 instanceId, i, vertPtr, idxPtr, texIdPtr, blendPtr);
 
             const vertices = new Float32Array(
-                this.module_.HEAPF32.buffer, vertPtr, vertexCount * 8);
+                this.raw_.HEAPF32.buffer, vertPtr, vertexCount * 8);
             const indices = new Uint16Array(
-                this.module_.HEAPU8.buffer, idxPtr, indexCount);
+                this.raw_.HEAPU8.buffer, idxPtr, indexCount);
 
             batches.push({
                 vertices: new Float32Array(vertices),
                 indices: new Uint16Array(indices),
-                textureId: this.module_.HEAPU32[texIdPtr >> 2],
-                blendMode: this.module_.HEAPU32[blendPtr >> 2],
+                textureId: this.raw_.HEAPU32[texIdPtr >> 2],
+                blendMode: this.raw_.HEAPU32[blendPtr >> 2],
             });
 
-            this.module_._free(vertPtr);
-            this.module_._free(idxPtr);
+            this.raw_._free(vertPtr);
+            this.raw_._free(idxPtr);
         }
 
-        this.module_._free(metaPtr);
+        this.raw_._free(metaPtr);
         return batches;
     }
 

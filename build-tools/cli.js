@@ -20,7 +20,7 @@ program
 program
     .command('build')
     .description('Build ESEngine')
-    .option('-t, --target <target>', 'Build target (web, wechat, playable, spine, spine38, physics, sdk, all)', 'web')
+    .option('-t, --target <target>', 'Build target (web, wechat, playable, spine, spine38, physics, web-main, wechat-main, physics-side, sdk, all)', 'web')
     .option('-d, --debug', 'Debug build', false)
     .option('-r, --release', 'Release build (default)', true)
     .option('-c, --clean', 'Clean before build', false)

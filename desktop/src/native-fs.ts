@@ -76,6 +76,8 @@ export interface NativeFS {
     getEditorDts(): Promise<string>;
     getSpineJs(version: string): Promise<string>;
     getSpineWasm(version: string): Promise<Uint8Array>;
+    getPhysicsJs(): Promise<string>;
+    getPhysicsWasm(): Promise<Uint8Array>;
     toAssetUrl?(path: string): string;
 }
 
@@ -347,6 +349,16 @@ export const nativeFS: NativeFS = {
     async getSpineWasm(version: string) {
         const cmd = version === '3.8' ? 'get_spine38_wasm' : 'get_spine42_wasm';
         const data = await invoke<number[]>(cmd);
+        return new Uint8Array(data);
+    },
+
+    async getPhysicsJs() {
+        const data = await invoke<number[]>('get_physics_js');
+        return new TextDecoder().decode(new Uint8Array(data));
+    },
+
+    async getPhysicsWasm() {
+        const data = await invoke<number[]>('get_physics_wasm');
         return new Uint8Array(data);
     },
 };

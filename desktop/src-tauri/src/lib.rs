@@ -25,6 +25,8 @@ const SPINE38_JS: &[u8] = include_bytes!("../../public/wasm/spine38.js");
 const SPINE38_WASM: &[u8] = include_bytes!("../../public/wasm/spine38.wasm");
 const SPINE42_JS: &[u8] = include_bytes!("../../public/wasm/spine42.js");
 const SPINE42_WASM: &[u8] = include_bytes!("../../public/wasm/spine42.wasm");
+const PHYSICS_JS: &[u8] = include_bytes!("../../public/wasm/physics.js");
+const PHYSICS_WASM: &[u8] = include_bytes!("../../public/wasm/physics.wasm");
 
 // =============================================================================
 // State
@@ -153,6 +155,16 @@ fn get_spine42_wasm() -> Vec<u8> {
     SPINE42_WASM.to_vec()
 }
 
+#[tauri::command]
+fn get_physics_js() -> Vec<u8> {
+    PHYSICS_JS.to_vec()
+}
+
+#[tauri::command]
+fn get_physics_wasm() -> Vec<u8> {
+    PHYSICS_WASM.to_vec()
+}
+
 #[derive(Clone, serde::Serialize)]
 struct CommandOutput {
     stream: String,
@@ -251,6 +263,8 @@ pub fn run() {
             get_spine38_wasm,
             get_spine42_js,
             get_spine42_wasm,
+            get_physics_js,
+            get_physics_wasm,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

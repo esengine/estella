@@ -62,6 +62,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000}
 {{WASM_SDK}}
 </script>
 {{SPINE_SCRIPT}}
+{{PHYSICS_SCRIPT}}
 <script>
 {{GAME_CODE}}
 </script>
@@ -123,6 +124,21 @@ function decodeBinary(dataUrl){
     }catch(e){console.warn('Spine module not available:',e)}
   }
 
+  var physicsModule=null;
+  if(typeof ESPhysicsModule!=='undefined'){
+    try{
+      physicsModule=await ESPhysicsModule({
+        instantiateWasm:function(imports,cb){
+          var b=atob(__PHYSICS_WASM_B64__);
+          var a=new Uint8Array(b.length);
+          for(var i=0;i<b.length;i++)a[i]=b.charCodeAt(i);
+          WebAssembly.instantiate(a,imports).then(function(r){cb(r.instance,r.module)});
+          return {};
+        }
+      });
+    }catch(e){console.warn('Physics module not available:',e)}
+  }
+
   var provider={
     loadPixels:function(ref){var d=__PA__[ref];if(!d)throw new Error('Asset not found: '+ref);return loadImagePixels(d)},
     readText:function(ref){var d=__PA__[ref];if(!d)throw new Error('Asset not found: '+ref);return decodeText(d)},
@@ -130,7 +146,7 @@ function decodeBinary(dataUrl){
     resolvePath:function(ref){return ref}
   };
 
-  await es.loadRuntimeScene(app,Module,__SCENE__,provider,spineModule);
+  await es.loadRuntimeScene(app,Module,__SCENE__,provider,spineModule,physicsModule);
 
   var screenAspect=c.width/c.height;
   es.updateCameraAspectRatio(app.world,screenAspect);
@@ -242,6 +258,20 @@ export class PlayableBuilder {
                 }
             }
 
+            // 7.5. Load physics module if needed
+            let physicsJsSource = '';
+            let physicsWasmBase64 = '';
+            if (this.context_.enablePhysics && this.fs_?.getPhysicsJs) {
+                this.progress_.setCurrentTask('Loading physics module...', 27);
+                const physicsJs = await this.fs_.getPhysicsJs();
+                const physicsWasm = await this.fs_.getPhysicsWasm();
+                if (physicsJs && physicsWasm.length > 0) {
+                    physicsJsSource = physicsJs;
+                    physicsWasmBase64 = this.arrayBufferToBase64(physicsWasm);
+                    this.progress_.log('info', 'Physics module loaded');
+                }
+            }
+
             // 8. Collect assets (keyed by UUID, excluding packed textures, adding atlas pages)
             this.progress_.setCurrentTask('Collecting assets...', 30);
             const assets = await this.collectAssets(packedPaths, compiledMaterials);
@@ -254,7 +284,7 @@ export class PlayableBuilder {
             // 9. Assemble HTML
             this.progress_.setPhase('assembling');
             this.progress_.setCurrentTask('Assembling HTML...', 0);
-            const html = this.assembleHTML(wasmSdk, gameCode, rewrittenScene, assets, spineJsSource, spineWasmBase64);
+            const html = this.assembleHTML(wasmSdk, gameCode, rewrittenScene, assets, spineJsSource, spineWasmBase64, physicsJsSource, physicsWasmBase64);
             this.progress_.log('info', `HTML assembled: ${html.length} bytes`);
 
             // 10. Write output
@@ -607,7 +637,8 @@ ${imports}
     private assembleHTML(
         wasmSdk: string, gameCode: string, sceneData: string,
         assets: Map<string, string>,
-        spineJs?: string, spineWasmBase64?: string
+        spineJs?: string, spineWasmBase64?: string,
+        physicsJs?: string, physicsWasmBase64?: string,
     ): string {
         const entries: string[] = [];
         for (const [path, dataUrl] of assets) {
@@ -621,9 +652,17 @@ ${imports}
             spineScript = `<script>\nvar __SPINE_WASM_B64__="";\n</script>`;
         }
 
+        let physicsScript = '';
+        if (physicsJs && physicsWasmBase64) {
+            physicsScript = `<script>\nvar __PHYSICS_WASM_B64__="${physicsWasmBase64}";\n${physicsJs}\n</script>`;
+        } else {
+            physicsScript = `<script>\nvar __PHYSICS_WASM_B64__="";\n</script>`;
+        }
+
         return HTML_TEMPLATE
             .replace('{{WASM_SDK}}', () => wasmSdk)
             .replace('{{SPINE_SCRIPT}}', () => spineScript)
+            .replace('{{PHYSICS_SCRIPT}}', () => physicsScript)
             .replace('{{GAME_CODE}}', () => gameCode)
             .replace('{{ASSETS_MAP}}', () => `{${entries.join(',')}}`)
             .replace('{{SCENE_DATA}}', () => sceneData);
