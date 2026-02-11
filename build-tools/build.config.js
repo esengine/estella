@@ -92,6 +92,15 @@ export default {
                 'sdk/spine38.wasm': 'wasm/web/spine38.wasm',
             },
         },
+        spine41: {
+            buildDir: 'build-web',
+            cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF'],
+            targets: ['spine_module_41'],
+            outputs: {
+                'sdk/spine41.js': 'wasm/web/spine41.js',
+                'sdk/spine41.wasm': 'wasm/web/spine41.wasm',
+            },
+        },
     },
 
     sdk: {

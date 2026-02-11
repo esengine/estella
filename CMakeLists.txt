@@ -352,6 +352,26 @@ html,body{width:100%;height:100%;overflow:hidden;background:#1a1a1a}
         )
     endif()
 
+    # Spine 4.1 standalone module (spine-c)
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/spine-runtimes-4.1")
+        file(GLOB_RECURSE SPINE41_MODULE_SOURCES
+            "${CMAKE_CURRENT_SOURCE_DIR}/third_party/spine-runtimes-4.1/spine-c/spine-c/src/spine/*.c"
+        )
+        add_executable(spine_module_41
+            src/esengine/bindings/SpineModuleEntry.cpp
+            ${SPINE41_MODULE_SOURCES}
+        )
+        target_include_directories(spine_module_41 PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/third_party/spine-runtimes-4.1/spine-c/spine-c/include
+        )
+        target_compile_definitions(spine_module_41 PRIVATE ES_SPINE_41)
+        es_apply_spine_module_settings(spine_module_41)
+        set_target_properties(spine_module_41 PROPERTIES
+            OUTPUT_NAME "spine41"
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/sdk"
+        )
+    endif()
+
     # Spine 3.8 standalone module (spine-c)
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/spine-runtimes-3.8")
         file(GLOB_RECURSE SPINE38_MODULE_SOURCES
