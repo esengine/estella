@@ -52,6 +52,10 @@ export interface SpineControllerAware {
     setSpineController(controller: SpineModuleController | null): void;
 }
 
+export interface SpineInfoProvider {
+    getSpineSkeletonInfo(entityId: number): { animations: string[]; skins: string[] } | null;
+}
+
 export function isResizable(p: PanelInstance): p is PanelInstance & Resizable {
     return typeof (p as any).resize === 'function';
 }
@@ -78,6 +82,10 @@ export function isSpineControllerAware(p: PanelInstance): p is PanelInstance & S
 
 export function isOutputAppendable(p: PanelInstance): p is PanelInstance & OutputAppendable {
     return typeof (p as any).appendOutput === 'function';
+}
+
+export function isSpineInfoProvider(p: PanelInstance): p is PanelInstance & SpineInfoProvider {
+    return typeof (p as any).getSpineSkeletonInfo === 'function';
 }
 
 const panels = new Map<string, PanelDescriptor>();

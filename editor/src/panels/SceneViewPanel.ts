@@ -244,6 +244,10 @@ export class SceneViewPanel {
         this.sceneRenderer_?.setSpineController(controller);
     }
 
+    getSpineSkeletonInfo(entityId: number): { animations: string[]; skins: string[] } | null {
+        return this.sceneRenderer_?.getSpineSkeletonInfo(entityId) ?? null;
+    }
+
     private async initWebGLRenderer(): Promise<void> {
         if (this.webglInitPending_ || this.webglInitialized_) return;
         if (!this.app_?.wasmModule || !this.webglCanvas_) return;
@@ -281,9 +285,15 @@ export class SceneViewPanel {
         await this.sceneRenderer_.syncScene(this.store_.scene);
     }
 
+    private lastSceneEntityIds_: string = '';
+
     private async onSceneChanged(): Promise<void> {
         if (this.sceneRenderer_ && this.useWebGL_) {
-            await this.syncSceneToRenderer();
+            const ids = this.store_.scene.entities.map(e => e.id).join(',');
+            if (ids !== this.lastSceneEntityIds_) {
+                this.lastSceneEntityIds_ = ids;
+                await this.syncSceneToRenderer();
+            }
         }
         this.requestRender();
     }

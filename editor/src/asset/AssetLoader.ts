@@ -208,12 +208,16 @@ export class AssetLoader {
 
         const rm = this.module_.getResourceManager();
         const pageCount = controller.getAtlasPageCount(skeletonHandle);
+        console.log(`[AssetLoader] Spine atlas: ${pageCount} pages, ${textureResults.length} textures loaded`);
         for (let i = 0; i < pageCount; i++) {
             const pageName = controller.getAtlasPageTextureName(skeletonHandle, i);
             const tex = textureResults.find(t => t.path.endsWith(pageName));
             if (tex) {
                 const glTexId = rm.getTextureGLId(tex.handle);
+                console.log(`[AssetLoader]   page[${i}] "${pageName}" → handle=${tex.handle} glTex=${glTexId} ${tex.width}x${tex.height}`);
                 controller.setAtlasPageTexture(skeletonHandle, i, glTexId, tex.width, tex.height);
+            } else {
+                console.warn(`[AssetLoader] Atlas page ${i} texture not found: "${pageName}". Available: ${textureResults.map(t => t.path).join(', ')}`);
             }
         }
 

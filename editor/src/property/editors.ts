@@ -13,6 +13,7 @@ import { getPlatformAdapter } from '../platform/PlatformAdapter';
 import { getAssetLibrary, isUUID } from '../asset/AssetLibrary';
 import type { NativeFS } from '../types/NativeFS';
 
+
 // =============================================================================
 // Drag Helper
 // =============================================================================
@@ -1065,26 +1066,44 @@ interface SpineSkeletonData {
     skins?: Array<{ name: string }> | Record<string, unknown>;
 }
 
-async function loadSpineSkeletonData(skeletonPath: string): Promise<SpineSkeletonData | null> {
+async function loadSpineSkeletonData(skeletonPath: string, atlasPath?: string): Promise<SpineSkeletonData | null> {
     if (!skeletonPath) return null;
+
+    const editor = getEditorInstance();
+    if (editor) {
+        const entityId = editor.store.selectedEntity as number | null;
+        if (entityId !== null) {
+            const info = editor.getSpineSkeletonInfo(entityId);
+            if (info) {
+                const animRecord: Record<string, unknown> = {};
+                for (const name of info.animations) {
+                    animRecord[name] = {};
+                }
+                return {
+                    animations: animRecord,
+                    skins: info.skins.map(name => ({ name })),
+                };
+            }
+        }
+    }
 
     const projectDir = getProjectDir();
     const fs = getNativeFS();
     if (!projectDir || !fs) return null;
 
-    let jsonPath = `${projectDir}/${skeletonPath}`;
-    if (jsonPath.endsWith('.skel')) {
-        jsonPath = jsonPath.replace(/\.skel$/, '.json');
+    if (!skeletonPath.endsWith('.skel')) {
+        let jsonPath = `${projectDir}/${skeletonPath}`;
+        try {
+            const content = await fs.readFile(jsonPath);
+            if (!content) return null;
+            return JSON.parse(content) as SpineSkeletonData;
+        } catch (err) {
+            console.warn('Failed to load spine skeleton:', err);
+            return null;
+        }
     }
 
-    try {
-        const content = await fs.readFile(jsonPath);
-        if (!content) return null;
-        return JSON.parse(content) as SpineSkeletonData;
-    } catch (err) {
-        console.warn('Failed to load spine skeleton:', err);
-        return null;
-    }
+    return null;
 }
 
 function getAnimationNames(data: SpineSkeletonData): string[] {
@@ -1118,6 +1137,7 @@ function createSpineAnimationEditor(
     refreshBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"></path></svg>`;
 
     let currentAnimations: string[] = [];
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
     const updateOptions = (animations: string[], currentValue: string) => {
         select.innerHTML = '';
@@ -1140,6 +1160,8 @@ function createSpineAnimationEditor(
         currentAnimations = animations;
     };
 
+    let retryCount = 0;
+
     const loadAnimations = async () => {
         const skeletonRef = getComponentValue?.('skeletonPath') as string;
         const skeletonPath = skeletonRef ? resolveToPath(skeletonRef) : '';
@@ -1148,12 +1170,19 @@ function createSpineAnimationEditor(
             return;
         }
 
-        const data = await loadSpineSkeletonData(skeletonPath);
+        const atlasRef = getComponentValue?.('atlasPath') as string;
+        const atlasPath = atlasRef ? resolveToPath(atlasRef) : undefined;
+        const data = await loadSpineSkeletonData(skeletonPath, atlasPath);
         if (data) {
             const animations = getAnimationNames(data);
             updateOptions(animations, String(value ?? ''));
+            retryCount = 0;
         } else {
             updateOptions([], String(value ?? ''));
+            if (skeletonPath.endsWith('.skel') && retryCount < 3) {
+                retryCount++;
+                retryTimer = setTimeout(loadAnimations, 500 * retryCount);
+            }
         }
     };
 
@@ -1181,6 +1210,7 @@ function createSpineAnimationEditor(
             }
         },
         dispose() {
+            if (retryTimer) clearTimeout(retryTimer);
             wrapper.remove();
         },
     };
@@ -1208,6 +1238,8 @@ function createSpineSkinEditor(
     refreshBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"></path></svg>`;
 
     let currentSkins: string[] = [];
+    let skinRetryTimer: ReturnType<typeof setTimeout> | null = null;
+    let skinRetryCount = 0;
 
     const updateOptions = (skins: string[], currentValue: string) => {
         select.innerHTML = '';
@@ -1240,12 +1272,19 @@ function createSpineSkinEditor(
             return;
         }
 
-        const data = await loadSpineSkeletonData(skeletonPath);
+        const atlasRef = getComponentValue?.('atlasPath') as string;
+        const atlasPath = atlasRef ? resolveToPath(atlasRef) : undefined;
+        const data = await loadSpineSkeletonData(skeletonPath, atlasPath);
         if (data) {
             const skins = getSkinNames(data);
             updateOptions(skins.length > 0 ? skins : ['default'], String(value ?? 'default'));
+            skinRetryCount = 0;
         } else {
             updateOptions(['default'], String(value ?? 'default'));
+            if (skeletonPath.endsWith('.skel') && skinRetryCount < 3) {
+                skinRetryCount++;
+                skinRetryTimer = setTimeout(loadSkins, 500 * skinRetryCount);
+            }
         }
     };
 
@@ -1273,6 +1312,7 @@ function createSpineSkinEditor(
             }
         },
         dispose() {
+            if (skinRetryTimer) clearTimeout(skinRetryTimer);
             wrapper.remove();
         },
     };

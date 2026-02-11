@@ -24,6 +24,7 @@ import {
     isAssetNavigable,
     isOutputAppendable,
     isSpineControllerAware,
+    isSpineInfoProvider,
     lockBuiltinPanels,
     clearExtensionPanels,
     isBuiltinPanel,
@@ -200,6 +201,15 @@ export class Editor {
     get assetServer(): EditorAssetServer | null {
         for (const panel of this.panelInstances_.values()) {
             if (isAssetServerProvider(panel)) return panel.assetServer as EditorAssetServer;
+        }
+        return null;
+    }
+
+    getSpineSkeletonInfo(entityId: number): { animations: string[]; skins: string[] } | null {
+        for (const panel of this.panelInstances_.values()) {
+            if (isSpineInfoProvider(panel)) {
+                return panel.getSpineSkeletonInfo(entityId);
+            }
         }
         return null;
     }

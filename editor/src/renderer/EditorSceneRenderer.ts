@@ -158,6 +158,10 @@ export class EditorSceneRenderer {
         return { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height };
     }
 
+    getSpineSkeletonInfo(entityId: number): { animations: string[]; skins: string[] } | null {
+        return this.sceneManager_?.getSpineSkeletonInfo(entityId) ?? null;
+    }
+
     // =========================================================================
     // Rendering
     // =========================================================================
