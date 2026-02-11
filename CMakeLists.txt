@@ -335,14 +335,14 @@ html,body{width:100%;height:100%;overflow:hidden;background:#1a1a1a}
     # Spine standalone WASM module (spine-c)
     if(ES_ENABLE_SPINE)
         file(GLOB_RECURSE SPINE_MODULE_SPINE_SOURCES
-            "${CMAKE_CURRENT_SOURCE_DIR}/third_party/spine-runtimes/spine-c/spine-c/src/spine/*.c"
+            "${CMAKE_CURRENT_SOURCE_DIR}/third_party/spine-runtimes-4.2/spine-c/spine-c/src/spine/*.c"
         )
         add_executable(spine_module
             src/esengine/bindings/SpineModuleEntry.cpp
             ${SPINE_MODULE_SPINE_SOURCES}
         )
         target_include_directories(spine_module PRIVATE
-            ${CMAKE_CURRENT_SOURCE_DIR}/third_party/spine-runtimes/spine-c/spine-c/include
+            ${CMAKE_CURRENT_SOURCE_DIR}/third_party/spine-runtimes-4.2/spine-c/spine-c/include
         )
         es_apply_spine_module_settings(spine_module)
 

@@ -13,9 +13,6 @@
 [submodule "third_party/msdfgen"]
 	path = third_party/msdfgen
 	url = https://github.com/Chlumsky/msdfgen.git
-[submodule "third_party/spine-runtimes"]
-	path = third_party/spine-runtimes
-	url = https://github.com/EsotericSoftware/spine-runtimes.git
 [submodule "third_party/spine-runtimes-3.8"]
 	path = third_party/spine-runtimes-3.8
 	url = https://github.com/EsotericSoftware/spine-runtimes.git
@@ -27,3 +24,7 @@
 	path = third_party/spine-runtimes-4.1
 	url = https://github.com/EsotericSoftware/spine-runtimes.git
 	branch = 4.1
+[submodule "third_party/spine-runtimes-4.2"]
+	path = third_party/spine-runtimes-4.2
+	url = https://github.com/EsotericSoftware/spine-runtimes.git
+	branch = 4.2

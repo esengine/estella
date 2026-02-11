@@ -9,7 +9,7 @@
                 "${workspaceFolder}/third_party/glfw/include",
                 "${workspaceFolder}/third_party/glad/include",
                 "${workspaceFolder}/third_party/stb",
-                "${workspaceFolder}/third_party/spine-runtimes/spine-c/spine-c/include",
+                "${workspaceFolder}/third_party/spine-runtimes-4.2/spine-c/spine-c/include",
                 "${workspaceFolder}/third_party/nlohmann",
                 "${workspaceFolder}/third_party/box2d/include",
                 "${workspaceFolder}/build/quickjs_headers"
@@ -33,7 +33,7 @@
                 "${workspaceFolder}/third_party/glfw/include",
                 "${workspaceFolder}/third_party/glad/include",
                 "${workspaceFolder}/third_party/stb",
-                "${workspaceFolder}/third_party/spine-runtimes/spine-c/spine-c/include",
+                "${workspaceFolder}/third_party/spine-runtimes-4.2/spine-c/spine-c/include",
                 "${workspaceFolder}/third_party/nlohmann",
                 "${workspaceFolder}/third_party/box2d/include",
                 "${workspaceFolder}/build/quickjs_headers"
@@ -56,7 +56,7 @@
                 "${workspaceFolder}/include",
                 "${workspaceFolder}/third_party/glm",
                 "${workspaceFolder}/third_party/stb",
-                "${workspaceFolder}/third_party/spine-runtimes/spine-c/spine-c/include",
+                "${workspaceFolder}/third_party/spine-runtimes-4.2/spine-c/spine-c/include",
                 "${workspaceFolder}/third_party/nlohmann",
                 "${workspaceFolder}/third_party/box2d/include"
             ],
