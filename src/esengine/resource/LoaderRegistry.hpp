@@ -18,7 +18,6 @@
 #include "../core/Types.hpp"
 #include "ResourceLoader.hpp"
 
-#include <typeindex>
 #include <unordered_map>
 
 namespace esengine::resource {
@@ -62,7 +61,7 @@ public:
     template<typename T>
     void registerLoader(Unique<ResourceLoader<T>> loader) {
         auto wrapper = makeUnique<LoaderWrapper<T>>(std::move(loader));
-        loaders_[std::type_index(typeid(T))] = std::move(wrapper);
+        loaders_[getTypeId<T>()] = std::move(wrapper);
     }
 
     /**
@@ -72,7 +71,7 @@ public:
      */
     template<typename T>
     ResourceLoader<T>* getLoader() {
-        auto it = loaders_.find(std::type_index(typeid(T)));
+        auto it = loaders_.find(getTypeId<T>());
         if (it == loaders_.end()) {
             return nullptr;
         }
@@ -87,7 +86,7 @@ public:
      */
     template<typename T>
     const ResourceLoader<T>* getLoader() const {
-        auto it = loaders_.find(std::type_index(typeid(T)));
+        auto it = loaders_.find(getTypeId<T>());
         if (it == loaders_.end()) {
             return nullptr;
         }
@@ -102,7 +101,7 @@ public:
      */
     template<typename T>
     bool hasLoader() const {
-        return loaders_.find(std::type_index(typeid(T))) != loaders_.end();
+        return loaders_.find(getTypeId<T>()) != loaders_.end();
     }
 
     /**
@@ -111,7 +110,7 @@ public:
      */
     template<typename T>
     void removeLoader() {
-        loaders_.erase(std::type_index(typeid(T)));
+        loaders_.erase(getTypeId<T>());
     }
 
     /**
@@ -130,7 +129,7 @@ public:
     }
 
 private:
-    std::unordered_map<std::type_index, Unique<ILoaderBase>> loaders_;
+    std::unordered_map<TypeId, Unique<ILoaderBase>> loaders_;
 };
 
 }  // namespace esengine::resource

@@ -13,7 +13,11 @@ endif()
 
 # Emscripten-specific compiler flags
 set(ES_EMSCRIPTEN_COMPILE_FLAGS
-    # Compile flags only
+    -ffunction-sections
+    -fdata-sections
+    -fno-rtti
+    -fno-exceptions
+    -DEMSCRIPTEN_HAS_UNBOUND_TYPE_NAMES=0
 )
 
 # Standard (monolithic) link flags
@@ -59,6 +63,7 @@ set(ES_EMSCRIPTEN_MAIN_MODULE_FLAGS
     "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32','FS','addFunction','loadDynamicLibrary']"
     -O3
     -flto
+    -Wl,--gc-sections
 )
 
 # WeChat MAIN_MODULE variant
@@ -80,6 +85,7 @@ set(ES_EMSCRIPTEN_WXGAME_MAIN_MODULE_FLAGS
     "-sEXPORTED_FUNCTIONS=['_malloc','_free']"
     "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32','GL','FS','loadDynamicLibrary']"
     -O3
+    -Wl,--gc-sections
     --closure=0
 )
 
@@ -131,6 +137,7 @@ set(ES_EMSCRIPTEN_WXGAME_SDK_FLAGS
     "-sEXPORTED_FUNCTIONS=['_malloc','_free']"
     "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32','GL','FS']"
     -O3
+    -Wl,--gc-sections
     --closure=0
 )
 
@@ -149,7 +156,7 @@ endfunction()
 
 # Helper function to apply MAIN_MODULE settings
 function(es_apply_main_module_settings TARGET_NAME)
-    target_compile_options(${TARGET_NAME} PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS} -flto)
+    target_compile_options(${TARGET_NAME} PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS} -flto -fno-rtti -fno-exceptions)
 
     string(REPLACE ";" " " LINK_FLAGS_STR "${ES_EMSCRIPTEN_MAIN_MODULE_FLAGS}")
     set_target_properties(${TARGET_NAME} PROPERTIES
@@ -161,7 +168,7 @@ endfunction()
 
 # Helper function to apply WeChat MAIN_MODULE settings
 function(es_apply_wxgame_main_module_settings TARGET_NAME)
-    target_compile_options(${TARGET_NAME} PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS})
+    target_compile_options(${TARGET_NAME} PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS} -fno-rtti -fno-exceptions)
 
     string(REPLACE ";" " " LINK_FLAGS_STR "${ES_EMSCRIPTEN_WXGAME_MAIN_MODULE_FLAGS}")
     set_target_properties(${TARGET_NAME} PROPERTIES
@@ -203,6 +210,7 @@ set(ES_EMSCRIPTEN_SDK_LINK_FLAGS
     "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32','FS','addFunction']"
     -O3
     -flto
+    -Wl,--gc-sections
     --closure=1
 )
 
@@ -224,11 +232,12 @@ set(ES_EMSCRIPTEN_SINGLE_FILE_FLAGS
     "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32','FS']"
     -Oz
     -flto
+    -Wl,--gc-sections
 )
 
 function(es_apply_sdk_settings TARGET_NAME)
     if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
-        target_compile_options(${TARGET_NAME} PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS} -flto)
+        target_compile_options(${TARGET_NAME} PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS} -flto -fno-rtti -fno-exceptions)
 
         string(REPLACE ";" " " LINK_FLAGS_STR "${ES_EMSCRIPTEN_SDK_LINK_FLAGS}")
         set_target_properties(${TARGET_NAME} PROPERTIES
@@ -240,7 +249,7 @@ endfunction()
 
 function(es_apply_single_file_settings TARGET_NAME)
     if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
-        target_compile_options(${TARGET_NAME} PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS} -flto)
+        target_compile_options(${TARGET_NAME} PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS} -flto -fno-rtti -fno-exceptions)
 
         string(REPLACE ";" " " LINK_FLAGS_STR "${ES_EMSCRIPTEN_SINGLE_FILE_FLAGS}")
         set_target_properties(${TARGET_NAME} PROPERTIES
@@ -252,7 +261,7 @@ endfunction()
 
 function(es_apply_wxgame_sdk_settings TARGET_NAME)
     if(ES_BUILD_WXGAME)
-        target_compile_options(${TARGET_NAME} PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS})
+        target_compile_options(${TARGET_NAME} PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS} -fno-rtti -fno-exceptions)
 
         string(REPLACE ";" " " LINK_FLAGS_STR "${ES_EMSCRIPTEN_WXGAME_SDK_FLAGS}")
         set_target_properties(${TARGET_NAME} PROPERTIES
@@ -311,11 +320,14 @@ set(ES_EMSCRIPTEN_PHYSICS_MODULE_FLAGS
     "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32']"
     -O3
     -flto
+    -Wl,--gc-sections
+    -fno-rtti
+    -fno-exceptions
 )
 
 function(es_apply_physics_module_settings TARGET_NAME)
     if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
-        target_compile_options(${TARGET_NAME} PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS} -flto)
+        target_compile_options(${TARGET_NAME} PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS} -flto -fno-rtti -fno-exceptions)
 
         string(REPLACE ";" " " LINK_FLAGS_STR "${ES_EMSCRIPTEN_PHYSICS_MODULE_FLAGS}")
         set_target_properties(${TARGET_NAME} PROPERTIES

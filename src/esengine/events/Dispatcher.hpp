@@ -23,11 +23,9 @@
 #include "Sink.hpp"
 #include "../core/Types.hpp"
 
-#include <any>
 #include <functional>
 #include <memory>
 #include <queue>
-#include <typeindex>
 #include <unordered_map>
 
 namespace esengine {
@@ -127,9 +125,10 @@ public:
      */
     template<typename Event>
     void enqueue(const Event& event) {
-        assure<Event>();
-        auto typeId = std::type_index(typeid(Event));
-        eventQueue_.push({typeId, std::any(event)});
+        auto* signal = &assure<Event>();
+        eventQueue_.push({[signal, event]() {
+            signal->publish(event);
+        }});
     }
 
     /**
@@ -152,13 +151,7 @@ public:
      */
     void update() {
         while (!eventQueue_.empty()) {
-            auto& [typeId, eventData] = eventQueue_.front();
-
-            auto handlerIt = queueHandlers_.find(typeId);
-            if (handlerIt != queueHandlers_.end()) {
-                handlerIt->second(eventData);
-            }
-
+            eventQueue_.front().dispatch();
             eventQueue_.pop();
         }
     }
@@ -192,7 +185,6 @@ public:
      */
     void clear() {
         signals_.clear();
-        queueHandlers_.clear();
         clearQueue();
     }
 
@@ -221,11 +213,8 @@ public:
     }
 
 private:
-    using QueueHandler = std::function<void(const std::any&)>;
-
     struct QueuedEvent {
-        std::type_index typeId;
-        std::any data;
+        std::function<void()> dispatch;
     };
 
     struct SignalWrapperBase {
@@ -239,19 +228,13 @@ private:
 
     template<typename Event>
     Signal<void(const Event&)>& assure() {
-        auto typeId = std::type_index(typeid(Event));
+        auto typeId = getTypeId<Event>();
         auto it = signals_.find(typeId);
 
         if (it == signals_.end()) {
             auto wrapper = makeUnique<SignalWrapperTyped<Event>>();
             auto* ptr = &wrapper->signal;
-
             signals_.emplace(typeId, std::move(wrapper));
-
-            queueHandlers_.emplace(typeId, [ptr](const std::any& data) {
-                ptr->publish(std::any_cast<const Event&>(data));
-            });
-
             return *ptr;
         }
 
@@ -260,7 +243,7 @@ private:
 
     template<typename Event>
     Signal<void(const Event&)>* find() {
-        auto typeId = std::type_index(typeid(Event));
+        auto typeId = getTypeId<Event>();
         auto it = signals_.find(typeId);
         if (it != signals_.end()) {
             return &static_cast<SignalWrapperTyped<Event>*>(it->second.get())->signal;
@@ -270,7 +253,7 @@ private:
 
     template<typename Event>
     const Signal<void(const Event&)>* find() const {
-        auto typeId = std::type_index(typeid(Event));
+        auto typeId = getTypeId<Event>();
         auto it = signals_.find(typeId);
         if (it != signals_.end()) {
             return &static_cast<const SignalWrapperTyped<Event>*>(it->second.get())->signal;
@@ -278,8 +261,7 @@ private:
         return nullptr;
     }
 
-    std::unordered_map<std::type_index, Unique<SignalWrapperBase>> signals_;
-    std::unordered_map<std::type_index, QueueHandler> queueHandlers_;
+    std::unordered_map<TypeId, Unique<SignalWrapperBase>> signals_;
     std::queue<QueuedEvent> eventQueue_;
 };
 

@@ -202,20 +202,17 @@ TextureHandle ResourceManager::loadTexture(const std::string& path) {
     std::string metaPath = path + ".meta";
     std::ifstream metaFile(metaPath);
     if (metaFile.is_open()) {
-        try {
-            nlohmann::json j;
-            metaFile >> j;
-            if (j.contains("sliceBorder")) {
-                TextureMetadata metadata;
-                auto& sb = j["sliceBorder"];
-                metadata.sliceBorder.left = sb.value("left", 0.0f);
-                metadata.sliceBorder.right = sb.value("right", 0.0f);
-                metadata.sliceBorder.top = sb.value("top", 0.0f);
-                metadata.sliceBorder.bottom = sb.value("bottom", 0.0f);
-                setTextureMetadata(handle, metadata);
-            }
-        } catch (const std::exception& e) {
-            ES_LOG_WARN("Failed to parse texture metadata {}: {}", metaPath, e.what());
+        std::string content((std::istreambuf_iterator<char>(metaFile)),
+                            std::istreambuf_iterator<char>());
+        auto j = nlohmann::json::parse(content, nullptr, false);
+        if (!j.is_discarded() && j.contains("sliceBorder")) {
+            TextureMetadata metadata;
+            auto& sb = j["sliceBorder"];
+            metadata.sliceBorder.left = sb.value("left", 0.0f);
+            metadata.sliceBorder.right = sb.value("right", 0.0f);
+            metadata.sliceBorder.top = sb.value("top", 0.0f);
+            metadata.sliceBorder.bottom = sb.value("bottom", 0.0f);
+            setTextureMetadata(handle, metadata);
         }
     }
 

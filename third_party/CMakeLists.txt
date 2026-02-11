@@ -22,6 +22,9 @@ if(ES_ENABLE_SPINE)
     if(NOT MSVC)
         target_compile_options(spine-cpp PRIVATE -Wno-unused-parameter -Wno-shadow)
     endif()
+    if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
+        target_compile_options(spine-cpp PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS})
+    endif()
 endif()
 
 # =============================================================================

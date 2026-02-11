@@ -129,7 +129,6 @@ if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
     list(APPEND ESENGINE_SOURCES
         src/esengine/platform/web/WebPlatform.cpp
         src/esengine/platform/web/WebFileSystem.cpp
-        ${GENERATED_WEB_BINDINGS}
     )
 else()
     list(APPEND ESENGINE_SOURCES
@@ -202,6 +201,7 @@ if(ES_ENABLE_SPINE)
 endif()
 
 if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
+    target_compile_options(esengine PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS})
     target_compile_definitions(esengine PUBLIC ES_PLATFORM_WEB)
     if(ES_BUILD_WXGAME)
         target_compile_definitions(esengine PUBLIC ES_PLATFORM_WXGAME)
@@ -223,8 +223,8 @@ esengine_set_strict_warnings(esengine)
 # =============================================================================
 
 if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
-    add_executable(esengine_sdk src/esengine/bindings/WebSDKEntry.cpp)
-    target_link_libraries(esengine_sdk PRIVATE -Wl,--whole-archive esengine -Wl,--no-whole-archive)
+    add_executable(esengine_sdk src/esengine/bindings/WebSDKEntry.cpp ${GENERATED_WEB_BINDINGS})
+    target_link_libraries(esengine_sdk PRIVATE esengine)
     es_apply_sdk_settings(esengine_sdk)
 
     set_target_properties(esengine_sdk PROPERTIES
@@ -234,8 +234,8 @@ if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
 
     # Single-file SDK (WASM inlined as Base64, for playable ads)
     if(ES_BUILD_SINGLE_FILE)
-        add_executable(esengine_single src/esengine/bindings/WebSDKEntry.cpp)
-        target_link_libraries(esengine_single PRIVATE -Wl,--whole-archive esengine -Wl,--no-whole-archive)
+        add_executable(esengine_single src/esengine/bindings/WebSDKEntry.cpp ${GENERATED_WEB_BINDINGS})
+        target_link_libraries(esengine_single PRIVATE esengine)
         es_apply_single_file_settings(esengine_single)
 
         set_target_properties(esengine_single PROPERTIES
@@ -322,8 +322,8 @@ html,body{width:100%;height:100%;overflow:hidden;background:#1a1a1a}
 
     # WeChat MiniGame SDK (CommonJS compatible)
     if(ES_BUILD_WXGAME)
-        add_executable(esengine_wxgame src/esengine/bindings/WebSDKEntry.cpp)
-        target_link_libraries(esengine_wxgame PRIVATE -Wl,--whole-archive esengine -Wl,--no-whole-archive)
+        add_executable(esengine_wxgame src/esengine/bindings/WebSDKEntry.cpp ${GENERATED_WEB_BINDINGS})
+        target_link_libraries(esengine_wxgame PRIVATE esengine)
         es_apply_wxgame_sdk_settings(esengine_wxgame)
 
         set_target_properties(esengine_wxgame PROPERTIES
@@ -391,8 +391,8 @@ html,body{width:100%;height:100%;overflow:hidden;background:#1a1a1a}
 
     # Main module SDK (MAIN_MODULE=2, supports loading side modules)
     if(ES_BUILD_MAIN_MODULE)
-        add_executable(esengine_sdk_main src/esengine/bindings/WebSDKEntry.cpp)
-        target_link_libraries(esengine_sdk_main PRIVATE -Wl,--whole-archive esengine -Wl,--no-whole-archive)
+        add_executable(esengine_sdk_main src/esengine/bindings/WebSDKEntry.cpp ${GENERATED_WEB_BINDINGS})
+        target_link_libraries(esengine_sdk_main PRIVATE esengine)
         es_apply_main_module_settings(esengine_sdk_main)
         set_target_properties(esengine_sdk_main PROPERTIES
             OUTPUT_NAME "esengine"
@@ -400,8 +400,8 @@ html,body{width:100%;height:100%;overflow:hidden;background:#1a1a1a}
         )
 
         if(ES_BUILD_WXGAME)
-            add_executable(esengine_wxgame_main src/esengine/bindings/WebSDKEntry.cpp)
-            target_link_libraries(esengine_wxgame_main PRIVATE -Wl,--whole-archive esengine -Wl,--no-whole-archive)
+            add_executable(esengine_wxgame_main src/esengine/bindings/WebSDKEntry.cpp ${GENERATED_WEB_BINDINGS})
+            target_link_libraries(esengine_wxgame_main PRIVATE esengine)
             es_apply_wxgame_main_module_settings(esengine_wxgame_main)
             set_target_properties(esengine_wxgame_main PROPERTIES
                 OUTPUT_NAME "esengine.wxgame"
