@@ -156,7 +156,8 @@ public:
      * @return Unique pointer to the texture
      */
     static Unique<Texture> create(u32 width, u32 height, std::span<const u8> pixels,
-                                   TextureFormat format = TextureFormat::RGBA8);
+                                   TextureFormat format = TextureFormat::RGBA8,
+                                   bool flipY = false);
 
     /**
      * @brief Creates a texture from pixel vector
@@ -164,10 +165,12 @@ public:
      * @param height Texture height in pixels
      * @param pixels Pixel data (size must match width*height*channels)
      * @param format Pixel format (default RGBA8)
+     * @param flipY Flip vertically on upload (for web image data)
      * @return Unique pointer to the texture
      */
     static Unique<Texture> create(u32 width, u32 height, const std::vector<u8>& pixels,
-                                   TextureFormat format = TextureFormat::RGBA8);
+                                   TextureFormat format = TextureFormat::RGBA8,
+                                   bool flipY = false);
 
     /**
      * @brief Creates a texture from an image file
@@ -243,7 +246,8 @@ public:
      * @return Unique pointer to the texture
      */
     static Unique<Texture> createRaw(u32 width, u32 height, const void* data,
-                                      TextureFormat format = TextureFormat::RGBA8);
+                                      TextureFormat format = TextureFormat::RGBA8,
+                                      bool flipY = false);
 
     /**
      * @brief Wraps an existing GL texture ID
@@ -261,7 +265,7 @@ public:
      * @param data Pointer to pixel data
      * @param sizeBytes Size of data in bytes
      */
-    void setDataRaw(const void* data, u32 sizeBytes);
+    void setDataRaw(const void* data, u32 sizeBytes, bool flipY = false);
 
 private:
     /**

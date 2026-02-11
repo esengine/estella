@@ -323,7 +323,7 @@ resource::ResourceManager* getResourceManager() {
 }
 
 u32 rm_createTexture(resource::ResourceManager& rm, u32 width, u32 height,
-                      uintptr_t pixelsPtr, u32 pixelsLen, i32 format) {
+                      uintptr_t pixelsPtr, u32 pixelsLen, i32 format, bool flipY) {
     const u8* pixels = reinterpret_cast<const u8*>(pixelsPtr);
     ConstSpan<u8> pixelSpan(pixels, pixelsLen);
 
@@ -331,7 +331,7 @@ u32 rm_createTexture(resource::ResourceManager& rm, u32 width, u32 height,
     if (format == 0) texFormat = TextureFormat::RGB8;
     else if (format == 1) texFormat = TextureFormat::RGBA8;
 
-    auto handle = rm.createTexture(width, height, pixelSpan, texFormat);
+    auto handle = rm.createTexture(width, height, pixelSpan, texFormat, flipY);
     return handle.id();
 }
 

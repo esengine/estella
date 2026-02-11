@@ -184,7 +184,7 @@ public:
      * @return Handle to the texture, or invalid handle on failure
      */
     TextureHandle createTexture(u32 width, u32 height, ConstSpan<u8> pixels,
-                                 TextureFormat format);
+                                 TextureFormat format, bool flipY = false);
 
     /**
      * @brief Loads a texture from file (with caching)

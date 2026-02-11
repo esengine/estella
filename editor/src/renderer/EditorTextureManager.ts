@@ -151,10 +151,6 @@ export class EditorTextureManager {
                 return { handle: 0, width: 0, height: 0 };
             }
 
-            // Flip Y-axis to match OpenGL texture coordinates (bottom-to-top)
-            // This mirrors stbi_set_flip_vertically_on_load(true) in Desktop C++
-            ctx.translate(0, bitmap.height);
-            ctx.scale(1, -1);
             ctx.drawImage(bitmap, 0, 0);
 
             const imageData = ctx.getImageData(0, 0, bitmap.width, bitmap.height);
@@ -170,7 +166,8 @@ export class EditorTextureManager {
                 imageData.height,
                 pixelsPtr,
                 pixels.length,
-                1  // RGBA8
+                1,
+                true
             );
 
             this.module_._free(pixelsPtr);

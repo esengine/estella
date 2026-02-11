@@ -105,17 +105,20 @@ Unique<Texture> Texture::create(const TextureSpecification& spec) {
     return texture;
 }
 
-Unique<Texture> Texture::create(u32 width, u32 height, std::span<const u8> pixels, TextureFormat format) {
+Unique<Texture> Texture::create(u32 width, u32 height, std::span<const u8> pixels,
+                                 TextureFormat format, bool flipY) {
     [[maybe_unused]] u32 expectedSize = width * height * (format == TextureFormat::RGBA8 ? 4 : 3);
     ES_ASSERT(pixels.size() == expectedSize, "Pixel data size mismatch");
-    return createRaw(width, height, pixels.data(), format);
+    return createRaw(width, height, pixels.data(), format, flipY);
 }
 
-Unique<Texture> Texture::create(u32 width, u32 height, const std::vector<u8>& pixels, TextureFormat format) {
-    return create(width, height, std::span<const u8>(pixels), format);
+Unique<Texture> Texture::create(u32 width, u32 height, const std::vector<u8>& pixels,
+                                 TextureFormat format, bool flipY) {
+    return create(width, height, std::span<const u8>(pixels), format, flipY);
 }
 
-Unique<Texture> Texture::createRaw(u32 width, u32 height, const void* data, TextureFormat format) {
+Unique<Texture> Texture::createRaw(u32 width, u32 height, const void* data,
+                                    TextureFormat format, bool flipY) {
     TextureSpecification spec;
     spec.width = width;
     spec.height = height;
@@ -130,7 +133,7 @@ Unique<Texture> Texture::createRaw(u32 width, u32 height, const void* data, Text
     }
 
     if (data) {
-        texture->setDataRaw(data, width * height * (format == TextureFormat::RGBA8 ? 4 : 3));
+        texture->setDataRaw(data, width * height * (format == TextureFormat::RGBA8 ? 4 : 3), flipY);
     }
 
     return texture;
@@ -248,13 +251,16 @@ void Texture::setData(const std::vector<u8>& pixels) {
     setData(std::span<const u8>(pixels));
 }
 
-void Texture::setDataRaw(const void* data, u32 sizeBytes) {
+void Texture::setDataRaw(const void* data, u32 sizeBytes, bool flipY) {
 #ifdef ES_PLATFORM_WEB
     [[maybe_unused]] u32 bpp = (format_ == TextureFormat::RGBA8) ? 4 : 3;
     ES_ASSERT(sizeBytes == width_ * height_ * bpp, "Data size mismatch");
-    (void)sizeBytes;  // Used only for assertion
+    (void)sizeBytes;
 
     glBindTexture(GL_TEXTURE_2D, textureId_);
+    if (flipY) {
+        glPixelStorei(0x9240 /* GL_UNPACK_FLIP_Y_WEBGL */, GL_TRUE);
+    }
     glTexSubImage2D(
         GL_TEXTURE_2D,
         0,
@@ -264,9 +270,13 @@ void Texture::setDataRaw(const void* data, u32 sizeBytes) {
         GL_UNSIGNED_BYTE,
         data
     );
+    if (flipY) {
+        glPixelStorei(0x9240, GL_FALSE);
+    }
 #else
     (void)data;
     (void)sizeBytes;
+    (void)flipY;
 #endif
 }
 

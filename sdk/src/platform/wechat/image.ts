@@ -61,20 +61,13 @@ export function wxLoadImage(path: string): Promise<WechatMinigame.Image> {
 /**
  * Extract pixel data from an image
  * @param img - Loaded image object
- * @param flipY - Whether to flip the image vertically (default: true for OpenGL)
  */
-export function wxGetImagePixels(img: WechatMinigame.Image, flipY = true): ImageLoadResult {
+export function wxGetImagePixels(img: WechatMinigame.Image): ImageLoadResult {
     const { width, height } = img;
     const { ctx } = getOffscreenCanvas(width, height);
 
     ctx.clearRect(0, 0, width, height);
-    ctx.save();
-    if (flipY) {
-        ctx.translate(0, height);
-        ctx.scale(1, -1);
-    }
     ctx.drawImage(img as unknown as CanvasImageSource, 0, 0);
-    ctx.restore();
     const imageData = ctx.getImageData(0, 0, width, height);
     const pixels = new Uint8Array(imageData.data.buffer);
 
@@ -84,10 +77,9 @@ export function wxGetImagePixels(img: WechatMinigame.Image, flipY = true): Image
 /**
  * Load image and get pixel data in one call
  * @param path - File path relative to game root
- * @param flipY - Whether to flip the image vertically (default: true for OpenGL)
  */
-export async function wxLoadImagePixels(path: string, flipY = true): Promise<ImageLoadResult> {
+export async function wxLoadImagePixels(path: string): Promise<ImageLoadResult> {
     const img = await wxLoadImage(path);
-    return wxGetImagePixels(img, flipY);
+    return wxGetImagePixels(img);
 }
 

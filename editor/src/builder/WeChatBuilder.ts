@@ -313,7 +313,7 @@ async function initPhysicsModule() {
         var wxfs = wx.getFileSystemManager();
         var provider = {
             loadPixels: function(ref) { return SDK.wxLoadImagePixels(resolvePath(ref)); },
-            loadPixelsRaw: function(ref) { return SDK.wxLoadImagePixels(resolvePath(ref), false); },
+            loadPixelsRaw: function(ref) { return SDK.wxLoadImagePixels(resolvePath(ref)); },
             readText: function(ref) { return wxfs.readFileSync(resolvePath(ref), 'utf-8'); },
             readBinary: function(ref) { return new Uint8Array(wxfs.readFileSync(resolvePath(ref))); },
             resolvePath: resolvePath

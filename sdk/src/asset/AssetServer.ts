@@ -469,13 +469,7 @@ export class AssetServer {
         }
 
         this.ctx_.clearRect(0, 0, this.canvas_.width, this.canvas_.height);
-        this.ctx_.save();
-        if (flip) {
-            this.ctx_.translate(0, height);
-            this.ctx_.scale(1, -1);
-        }
         this.ctx_.drawImage(img, 0, 0);
-        this.ctx_.restore();
 
         const imageData = this.ctx_.getImageData(0, 0, width, height);
         const pixels = new Uint8Array(imageData.data.buffer);
@@ -484,7 +478,7 @@ export class AssetServer {
         const rm = this.module_.getResourceManager();
         const ptr = this.module_._malloc(pixels.length);
         this.module_.HEAPU8.set(pixels, ptr);
-        const handle = rm.createTexture(width, height, ptr, pixels.length, 1);
+        const handle = rm.createTexture(width, height, ptr, pixels.length, 1, flip);
         this.module_._free(ptr);
 
         return { handle, width, height };

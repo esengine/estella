@@ -134,13 +134,12 @@ export class TextRenderer {
 
         const imageData = ctx.getImageData(0, 0, width, height);
         const pixels = new Uint8Array(imageData.data.buffer);
-        const flipped = this.flipVertically(pixels, width, height);
 
         const rm = this.module.getResourceManager();
-        const ptr = this.module._malloc(flipped.length);
-        this.module.HEAPU8.set(flipped, ptr);
+        const ptr = this.module._malloc(pixels.length);
+        this.module.HEAPU8.set(pixels, ptr);
 
-        const textureHandle = rm.createTexture(width, height, ptr, flipped.length, 1);
+        const textureHandle = rm.createTexture(width, height, ptr, pixels.length, 1, true);
 
         this.module._free(ptr);
 
@@ -274,16 +273,4 @@ export class TextRenderer {
         return p;
     }
 
-    private flipVertically(pixels: Uint8Array, width: number, height: number): Uint8Array {
-        const rowSize = width * 4;
-        const flipped = new Uint8Array(pixels.length);
-
-        for (let y = 0; y < height; y++) {
-            const srcOffset = y * rowSize;
-            const dstOffset = (height - 1 - y) * rowSize;
-            flipped.set(pixels.subarray(srcOffset, srcOffset + rowSize), dstOffset);
-        }
-
-        return flipped;
-    }
 }

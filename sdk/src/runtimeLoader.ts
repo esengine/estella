@@ -32,11 +32,12 @@ export interface RuntimeAssetProvider {
 function createTextureFromPixels(
     module: ESEngineModule,
     result: { width: number; height: number; pixels: Uint8Array },
+    flipY: boolean = true,
 ): number {
     const rm = module.getResourceManager();
     const ptr = module._malloc(result.pixels.length);
     module.HEAPU8.set(result.pixels, ptr);
-    const handle = rm.createTexture(result.width, result.height, ptr, result.pixels.length, 1);
+    const handle = rm.createTexture(result.width, result.height, ptr, result.pixels.length, 1, flipY);
     module._free(ptr);
     return handle;
 }
@@ -172,7 +173,7 @@ async function loadSpineAssets(
                         const result = provider.loadPixelsRaw
                             ? await provider.loadPixelsRaw(texPath)
                             : await provider.loadPixels(texPath);
-                        const handle = createTextureFromPixels(module, result);
+                        const handle = createTextureFromPixels(module, result, false);
                         const rm = module.getResourceManager();
                         const glId = rm.getTextureGLId(handle);
                         spineAPI.setAtlasPageTexture(skelHandle, k, glId, result.width, result.height);

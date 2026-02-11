@@ -74,7 +74,7 @@ export class AssetLoader {
         const pixelPtr = this.module_._malloc(decoded.data.length);
         this.module_.HEAPU8.set(decoded.data, pixelPtr);
 
-        const handleId = rm.createTexture(decoded.width, decoded.height, pixelPtr, decoded.data.length, 1);
+        const handleId = rm.createTexture(decoded.width, decoded.height, pixelPtr, decoded.data.length, 1, false);
         this.module_._free(pixelPtr);
 
         const INVALID_HANDLE = 0xFFFFFFFF;

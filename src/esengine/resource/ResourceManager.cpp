@@ -166,9 +166,9 @@ TextureHandle ResourceManager::createTexture(const TextureSpecification& spec) {
 }
 
 TextureHandle ResourceManager::createTexture(u32 width, u32 height, ConstSpan<u8> pixels,
-                                              TextureFormat format) {
+                                              TextureFormat format, bool flipY) {
     std::vector<u8> pixelVec(pixels.begin(), pixels.end());
-    auto texture = Texture::create(width, height, pixelVec, format);
+    auto texture = Texture::create(width, height, pixelVec, format, flipY);
     if (!texture) {
         ES_LOG_ERROR("Failed to create texture from pixels");
         return TextureHandle();
