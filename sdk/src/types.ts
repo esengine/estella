@@ -42,7 +42,12 @@ export interface Quat {
     z: number;
 }
 
-export type Color = Vec4;
+export interface Color {
+    r: number;
+    g: number;
+    b: number;
+    a: number;
+}
 
 // =============================================================================
 // Factory Functions
@@ -51,5 +56,5 @@ export type Color = Vec4;
 export const vec2 = (x = 0, y = 0): Vec2 => ({ x, y });
 export const vec3 = (x = 0, y = 0, z = 0): Vec3 => ({ x, y, z });
 export const vec4 = (x = 0, y = 0, z = 0, w = 1): Vec4 => ({ x, y, z, w });
-export const color = (r = 1, g = 1, b = 1, a = 1): Color => ({ x: r, y: g, z: b, w: a });
+export const color = (r = 1, g = 1, b = 1, a = 1): Color => ({ r, g, b, a });
 export const quat = (w = 1, x = 0, y = 0, z = 0): Quat => ({ w, x, y, z });

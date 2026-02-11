@@ -3,7 +3,7 @@
  * @brief   Component definition and builtin components
  */
 
-import { Entity, Vec2, Vec3, Vec4, Quat, INVALID_TEXTURE } from './types';
+import { Entity, Vec2, Vec3, Color, Quat, INVALID_TEXTURE } from './types';
 import {
     RigidBody, BoxCollider, CircleCollider, CapsuleCollider,
     type RigidBodyData, type BoxColliderData, type CircleColliderData, type CapsuleColliderData,
@@ -137,7 +137,7 @@ export interface WorldTransformData {
 
 export interface SpriteData {
     texture: number;
-    color: Vec4;
+    color: Color;
     size: Vec2;
     uvOffset: Vec2;
     uvScale: Vec2;
@@ -164,7 +164,7 @@ export interface CanvasData {
     pixelsPerUnit: number;
     scaleMode: number;
     matchWidthOrHeight: number;
-    backgroundColor: Vec4;
+    backgroundColor: Color;
 }
 
 export interface VelocityData {
@@ -190,7 +190,7 @@ export interface SpineAnimationData {
     playing: boolean;
     flipX: boolean;
     flipY: boolean;
-    color: Vec4;
+    color: Color;
     layer: number;
     skeletonScale: number;
     material: number;
@@ -214,7 +214,7 @@ export const WorldTransform = defineBuiltin<WorldTransformData>('WorldTransform'
 
 export const Sprite = defineBuiltin<SpriteData>('Sprite', {
     texture: INVALID_TEXTURE,
-    color: { x: 1, y: 1, z: 1, w: 1 },
+    color: { r: 1, g: 1, b: 1, a: 1 },
     size: { x: 32, y: 32 },
     uvOffset: { x: 0, y: 0 },
     uvScale: { x: 1, y: 1 },
@@ -241,7 +241,7 @@ export const Canvas = defineBuiltin<CanvasData>('Canvas', {
     pixelsPerUnit: 100,
     scaleMode: 1,
     matchWidthOrHeight: 0.5,
-    backgroundColor: { x: 0, y: 0, z: 0, w: 1 }
+    backgroundColor: { r: 0, g: 0, b: 0, a: 1 }
 });
 
 export const Velocity = defineBuiltin<VelocityData>('Velocity', {
@@ -267,7 +267,7 @@ export const SpineAnimation = defineBuiltin<SpineAnimationData>('SpineAnimation'
     playing: true,
     flipX: false,
     flipY: false,
-    color: { x: 1, y: 1, z: 1, w: 1 },
+    color: { r: 1, g: 1, b: 1, a: 1 },
     layer: 0,
     skeletonScale: 1.0,
     material: 0

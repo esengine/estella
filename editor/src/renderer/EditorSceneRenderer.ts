@@ -171,7 +171,7 @@ export class EditorSceneRenderer {
         if (width <= 0 || height <= 0) return;
 
         const bg = this.findCanvasBackgroundColor();
-        Renderer.setClearColor(bg.x, bg.y, bg.z, bg.w);
+        Renderer.setClearColor(bg.r, bg.g, bg.b, bg.a);
 
         const matrix = this.camera_.getViewProjection(width, height);
         const elapsed = (performance.now() - this.startTime_) / 1000;
@@ -183,17 +183,17 @@ export class EditorSceneRenderer {
         });
     }
 
-    private findCanvasBackgroundColor(): { x: number; y: number; z: number; w: number } {
+    private findCanvasBackgroundColor(): { r: number; g: number; b: number; a: number } {
         if (this.store_) {
             for (const entity of this.store_.scene.entities) {
                 for (const comp of entity.components) {
                     if (comp.type === 'Canvas' && comp.data?.backgroundColor) {
-                        return comp.data.backgroundColor as { x: number; y: number; z: number; w: number };
+                        return comp.data.backgroundColor as { r: number; g: number; b: number; a: number };
                     }
                 }
             }
         }
-        return { x: 0.1, y: 0.1, z: 0.1, w: 1.0 };
+        return { r: 0.1, g: 0.1, b: 0.1, a: 1.0 };
     }
 
     // =========================================================================

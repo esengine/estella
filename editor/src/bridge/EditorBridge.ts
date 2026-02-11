@@ -120,7 +120,7 @@ export class EditorBridge {
             case 'Sprite':
                 this.registry_.addSprite(entity, {
                     texture: comp.data.texture ?? 0,
-                    color: comp.data.color ?? { x: 1, y: 1, z: 1, w: 1 },
+                    color: comp.data.color ?? { r: 1, g: 1, b: 1, a: 1 },
                     size: comp.data.size ?? { x: 100, y: 100 },
                     uvOffset: comp.data.uvOffset ?? { x: 0, y: 0 },
                     uvScale: comp.data.uvScale ?? { x: 1, y: 1 },
@@ -152,7 +152,7 @@ export class EditorBridge {
                     playing: comp.data.playing ?? true,
                     flipX: comp.data.flipX ?? false,
                     flipY: comp.data.flipY ?? false,
-                    color: comp.data.color ?? { x: 1, y: 1, z: 1, w: 1 },
+                    color: comp.data.color ?? { r: 1, g: 1, b: 1, a: 1 },
                     layer: comp.data.layer ?? 0,
                     skeletonScale: comp.data.skeletonScale ?? 1,
                 });

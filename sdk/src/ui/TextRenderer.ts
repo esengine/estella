@@ -76,10 +76,10 @@ export class TextRenderer {
             canvas.height = newHeight;
         }
 
-        const r = Math.round(text.color.x * 255);
-        const g = Math.round(text.color.y * 255);
-        const b = Math.round(text.color.z * 255);
-        const a = text.color.w;
+        const r = Math.round(text.color.r * 255);
+        const g = Math.round(text.color.g * 255);
+        const b = Math.round(text.color.b * 255);
+        const a = text.color.a;
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.font = `${text.fontSize}px ${text.fontFamily}`;

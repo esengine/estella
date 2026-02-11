@@ -4,7 +4,7 @@
  */
 
 import { defineComponent } from '../component';
-import type { Vec4 } from '../types';
+import type { Color } from '../types';
 
 // =============================================================================
 // Text Alignment Enums
@@ -36,7 +36,7 @@ export interface TextData {
     content: string;
     fontFamily: string;
     fontSize: number;
-    color: Vec4;
+    color: Color;
     align: TextAlign;
     verticalAlign: TextVerticalAlign;
     wordWrap: boolean;
@@ -53,7 +53,7 @@ export const Text = defineComponent<TextData>('Text', {
     content: '',
     fontFamily: 'Arial',
     fontSize: 24,
-    color: { x: 1, y: 1, z: 1, w: 1 },
+    color: { r: 1, g: 1, b: 1, a: 1 },
     align: TextAlign.Left,
     verticalAlign: TextVerticalAlign.Top,
     wordWrap: true,

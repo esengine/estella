@@ -297,7 +297,7 @@ export class EditorSceneManager {
             const flipY = (spineData?.flipY as boolean) ?? false;
             const playing = spineData?.playing !== false;
             const timeScale = (spineData?.timeScale as number) ?? 1;
-            const color = spineData?.color as { x: number; y: number; z: number; w: number } | undefined;
+            const color = spineData?.color as { r: number; g: number; b: number; a: number } | undefined;
 
             if (playing) {
                 this.spineController_.update(instanceId, dt * timeScale);
@@ -525,7 +525,7 @@ export class EditorSceneManager {
 
         this.world_.insert(entity, Sprite, {
             texture: textureHandle,
-            color: data.color ?? { x: 1, y: 1, z: 1, w: 1 },
+            color: data.color ?? { r: 1, g: 1, b: 1, a: 1 },
             size: data.size ?? { x: 100, y: 100 },
             uvOffset: data.uvOffset ?? { x: 0, y: 0 },
             uvScale: data.uvScale ?? { x: 1, y: 1 },
@@ -544,7 +544,7 @@ export class EditorSceneManager {
             content: data.content ?? '',
             fontFamily: data.fontFamily ?? 'Arial',
             fontSize: data.fontSize ?? 24,
-            color: data.color ?? { x: 1, y: 1, z: 1, w: 1 },
+            color: data.color ?? { r: 1, g: 1, b: 1, a: 1 },
             align: data.align ?? TextAlign.Left,
             verticalAlign: data.verticalAlign ?? TextVerticalAlign.Top,
             wordWrap: data.wordWrap ?? true,
@@ -563,7 +563,7 @@ export class EditorSceneManager {
 
         this.world_.insert(entity, Sprite, {
             texture: result.textureHandle,
-            color: { x: 1, y: 1, z: 1, w: 1 },
+            color: { r: 1, g: 1, b: 1, a: 1 },
             size: { x: result.width, y: result.height },
             uvOffset: { x: 0, y: 0 },
             uvScale: { x: 1, y: 1 },
@@ -685,7 +685,7 @@ export class EditorSceneManager {
                 playing: data.playing ?? true,
                 flipX: data.flipX ?? false,
                 flipY: data.flipY ?? false,
-                color: data.color ?? { x: 1, y: 1, z: 1, w: 1 },
+                color: data.color ?? { r: 1, g: 1, b: 1, a: 1 },
                 layer: data.layer ?? 0,
                 skeletonScale: data.skeletonScale ?? 1,
                 material: materialHandle,

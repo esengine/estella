@@ -775,7 +775,7 @@ export class InspectorPanel {
                 this.createVec4Editor(container, value as { x: number; y: number; z: number; w: number }, onChange);
                 break;
             case ShaderPropertyType.Color:
-                this.createColorEditor(container, value as { x: number; y: number; z: number; w: number }, onChange);
+                this.createColorEditor(container, value as { r: number; g: number; b: number; a: number }, onChange);
                 break;
             default:
                 container.textContent = 'Unknown type';
@@ -1719,7 +1719,7 @@ export class InspectorPanel {
                 this.createVec4Editor(container, value as { x: number; y: number; z: number; w: number }, onChange);
                 break;
             case ShaderPropertyType.Color:
-                this.createColorEditor(container, value as { x: number; y: number; z: number; w: number }, onChange);
+                this.createColorEditor(container, value as { r: number; g: number; b: number; a: number }, onChange);
                 break;
             case ShaderPropertyType.Texture:
                 this.createTextureEditor(container, value as string, onChange);
@@ -1982,18 +1982,18 @@ export class InspectorPanel {
 
     private createColorEditor(
         container: HTMLElement,
-        value: { x: number; y: number; z: number; w: number },
-        onChange: (v: { x: number; y: number; z: number; w: number }) => void
+        value: { r: number; g: number; b: number; a: number },
+        onChange: (v: { r: number; g: number; b: number; a: number }) => void
     ): void {
         const wrapper = document.createElement('div');
         wrapper.className = 'es-color-editor';
 
-        const val = value ?? { x: 1, y: 1, z: 1, w: 1 };
+        const val = value ?? { r: 1, g: 1, b: 1, a: 1 };
 
         const colorInput = document.createElement('input');
         colorInput.type = 'color';
         colorInput.className = 'es-input es-input-color';
-        colorInput.value = this.vec4ToHex(val);
+        colorInput.value = this.colorToHex(val);
 
         const alphaInput = document.createElement('input');
         alphaInput.type = 'number';
@@ -2001,12 +2001,12 @@ export class InspectorPanel {
         alphaInput.min = '0';
         alphaInput.max = '1';
         alphaInput.step = '0.01';
-        alphaInput.value = String(val.w);
+        alphaInput.value = String(val.a);
 
         const update = () => {
             const hex = colorInput.value;
-            const newColor = this.hexToVec4(hex);
-            newColor.w = parseFloat(alphaInput.value) || 1;
+            const newColor = this.hexToColor(hex);
+            newColor.a = parseFloat(alphaInput.value) || 1;
             onChange(newColor);
         };
 
@@ -2019,18 +2019,18 @@ export class InspectorPanel {
         container.appendChild(wrapper);
     }
 
-    private vec4ToHex(color: { x: number; y: number; z: number; w: number }): string {
-        const r = Math.round(color.x * 255).toString(16).padStart(2, '0');
-        const g = Math.round(color.y * 255).toString(16).padStart(2, '0');
-        const b = Math.round(color.z * 255).toString(16).padStart(2, '0');
+    private colorToHex(color: { r: number; g: number; b: number; a: number }): string {
+        const r = Math.round(color.r * 255).toString(16).padStart(2, '0');
+        const g = Math.round(color.g * 255).toString(16).padStart(2, '0');
+        const b = Math.round(color.b * 255).toString(16).padStart(2, '0');
         return `#${r}${g}${b}`;
     }
 
-    private hexToVec4(hex: string): { x: number; y: number; z: number; w: number } {
+    private hexToColor(hex: string): { r: number; g: number; b: number; a: number } {
         const r = parseInt(hex.slice(1, 3), 16) / 255;
         const g = parseInt(hex.slice(3, 5), 16) / 255;
         const b = parseInt(hex.slice(5, 7), 16) / 255;
-        return { x: r, y: g, z: b, w: 1 };
+        return { r, g, b, a: 1 };
     }
 
     private createTextureEditor(container: HTMLElement, value: string, onChange: (v: string) => void): void {

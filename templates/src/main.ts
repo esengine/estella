@@ -61,7 +61,7 @@ export async function main(Module: ESEngineModule): Promise<void> {
             const sprite = cmds.spawn()
                 .insert(Sprite, {
                     texture: 0,
-                    color: { x: 1, y: 0.5, z: 0.2, w: 1 },
+                    color: { r: 1, g: 0.5, b: 0.2, a: 1 },
                     size: { x: 100, y: 100 },
                     uvOffset: { x: 0, y: 0 },
                     uvScale: { x: 1, y: 1 },

@@ -39,7 +39,7 @@ export class TextPlugin implements Plugin {
                         world.insert(entity, Sprite, {
                             texture: INVALID_TEXTURE,
                             size: { x: 0, y: 0 },
-                            color: { x: 1, y: 1, z: 1, w: 1 },
+                            color: { r: 1, g: 1, b: 1, a: 1 },
                             anchor: { x: 0.5, y: 0.5 },
                             flip: { x: false, y: false }
                         });

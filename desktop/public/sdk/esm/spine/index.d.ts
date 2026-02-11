@@ -498,10 +498,10 @@ declare class SpinePlugin implements Plugin {
     build(app: App): void;
 }
 declare function submitSpineMeshesToCore(coreModule: ESEngineModule, controller: SpineModuleController, instanceId: number, transform?: Float32Array, color?: {
-    x: number;
-    y: number;
-    z: number;
-    w: number;
+    r: number;
+    g: number;
+    b: number;
+    a: number;
 }): void;
 
 export { SpineModuleController, SpinePlugin, SpineResource, loadSpineModule, submitSpineMeshesToCore, wrapSpineModule };

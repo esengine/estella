@@ -416,7 +416,7 @@ function createColorEditor(
     ctx: PropertyEditorContext
 ): PropertyEditorInstance {
     const { value, onChange } = ctx;
-    const color = (value as Vec4) ?? { x: 1, y: 1, z: 1, w: 1 };
+    const color = (value as { r: number; g: number; b: number; a: number }) ?? { r: 1, g: 1, b: 1, a: 1 };
 
     const wrapper = document.createElement('div');
     wrapper.className = 'es-color-editor';
@@ -424,7 +424,7 @@ function createColorEditor(
     const colorInput = document.createElement('input');
     colorInput.type = 'color';
     colorInput.className = 'es-input es-input-color';
-    colorInput.value = vec4ToHex(color);
+    colorInput.value = colorToHex(color);
 
     const alphaInput = document.createElement('input');
     alphaInput.type = 'number';
@@ -432,12 +432,12 @@ function createColorEditor(
     alphaInput.min = '0';
     alphaInput.max = '1';
     alphaInput.step = '0.01';
-    alphaInput.value = String(color.w);
+    alphaInput.value = String(color.a);
 
     const updateColor = () => {
         const hex = colorInput.value;
-        const newColor = hexToVec4(hex);
-        newColor.w = parseFloat(alphaInput.value) || 1;
+        const newColor = hexToColor(hex);
+        newColor.a = parseFloat(alphaInput.value) || 1;
         onChange(newColor);
     };
 
@@ -450,9 +450,9 @@ function createColorEditor(
 
     return {
         update(v: unknown) {
-            const newColor = (v as Vec4) ?? { x: 1, y: 1, z: 1, w: 1 };
-            colorInput.value = vec4ToHex(newColor);
-            alphaInput.value = String(newColor.w);
+            const newColor = (v as { r: number; g: number; b: number; a: number }) ?? { r: 1, g: 1, b: 1, a: 1 };
+            colorInput.value = colorToHex(newColor);
+            alphaInput.value = String(newColor.a);
         },
         dispose() {
             wrapper.remove();
@@ -460,18 +460,18 @@ function createColorEditor(
     };
 }
 
-function vec4ToHex(color: Vec4): string {
-    const r = Math.round(color.x * 255).toString(16).padStart(2, '0');
-    const g = Math.round(color.y * 255).toString(16).padStart(2, '0');
-    const b = Math.round(color.z * 255).toString(16).padStart(2, '0');
+function colorToHex(color: { r: number; g: number; b: number; a: number }): string {
+    const r = Math.round(color.r * 255).toString(16).padStart(2, '0');
+    const g = Math.round(color.g * 255).toString(16).padStart(2, '0');
+    const b = Math.round(color.b * 255).toString(16).padStart(2, '0');
     return `#${r}${g}${b}`;
 }
 
-function hexToVec4(hex: string): Vec4 {
+function hexToColor(hex: string): { r: number; g: number; b: number; a: number } {
     const r = parseInt(hex.slice(1, 3), 16) / 255;
     const g = parseInt(hex.slice(3, 5), 16) / 255;
     const b = parseInt(hex.slice(5, 7), 16) / 255;
-    return { x: r, y: g, z: b, w: 1 };
+    return { r, g, b, a: 1 };
 }
 
 // =============================================================================

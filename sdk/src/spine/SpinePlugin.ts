@@ -43,7 +43,7 @@ export function submitSpineMeshesToCore(
     controller: SpineModuleController,
     instanceId: number,
     transform?: Float32Array,
-    color?: { x: number; y: number; z: number; w: number },
+    color?: { r: number; g: number; b: number; a: number },
 ): void {
     const batches = controller.extractMeshBatches(instanceId);
 
@@ -53,17 +53,17 @@ export function submitSpineMeshesToCore(
         coreModule.HEAPF32.set(transform, transformPtr >> 2);
     }
 
-    const needsTint = color && (color.x !== 1 || color.y !== 1 || color.z !== 1 || color.w !== 1);
+    const needsTint = color && (color.r !== 1 || color.g !== 1 || color.b !== 1 || color.a !== 1);
 
     for (const batch of batches) {
         let vertices = batch.vertices;
         if (needsTint) {
             vertices = new Float32Array(vertices);
             for (let i = 0; i < vertices.length; i += 8) {
-                vertices[i + 4] *= color.x;
-                vertices[i + 5] *= color.y;
-                vertices[i + 6] *= color.z;
-                vertices[i + 7] *= color.w;
+                vertices[i + 4] *= color.r;
+                vertices[i + 5] *= color.g;
+                vertices[i + 6] *= color.b;
+                vertices[i + 7] *= color.a;
             }
         }
 

@@ -1136,7 +1136,7 @@ export class SceneViewPanel {
 
         let w = 50;
         let h = 50;
-        let color: { x: number; y: number; z: number; w: number } | null = null;
+        let color: { r: number; g: number; b: number; a: number } | null = null;
         const hasSprite = !!sprite;
         let textureImg: HTMLImageElement | null = null;
         let flipX = false;
@@ -1144,7 +1144,7 @@ export class SceneViewPanel {
 
         if (sprite) {
             const size = sprite.data.size as { x: number; y: number };
-            const col = sprite.data.color as { x: number; y: number; z: number; w: number };
+            const col = sprite.data.color as { r: number; g: number; b: number; a: number };
             const texturePath = sprite.data.texture;
 
             if (size) {
@@ -1172,24 +1172,24 @@ export class SceneViewPanel {
 
         if (hasSprite) {
             if (textureImg) {
-                ctx.globalAlpha = color?.w ?? 1;
+                ctx.globalAlpha = color?.a ?? 1;
                 ctx.drawImage(textureImg, -w / 2, -h / 2, w, h);
 
-                if (color && (color.x !== 1 || color.y !== 1 || color.z !== 1)) {
+                if (color && (color.r !== 1 || color.g !== 1 || color.b !== 1)) {
                     ctx.globalCompositeOperation = 'multiply';
-                    const r = Math.round(color.x * 255);
-                    const g = Math.round(color.y * 255);
-                    const b = Math.round(color.z * 255);
+                    const r = Math.round(color.r * 255);
+                    const g = Math.round(color.g * 255);
+                    const b = Math.round(color.b * 255);
                     ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
                     ctx.fillRect(-w / 2, -h / 2, w, h);
                     ctx.globalCompositeOperation = 'source-over';
                 }
                 ctx.globalAlpha = 1;
             } else {
-                const r = Math.round((color?.x ?? 0.4) * 255);
-                const g = Math.round((color?.y ?? 0.4) * 255);
-                const b = Math.round((color?.z ?? 0.8) * 255);
-                const a = color?.w ?? 0.5;
+                const r = Math.round((color?.r ?? 0.4) * 255);
+                const g = Math.round((color?.g ?? 0.4) * 255);
+                const b = Math.round((color?.b ?? 0.8) * 255);
+                const a = color?.a ?? 0.5;
                 ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${a})`;
                 ctx.fillRect(-w / 2, -h / 2, w, h);
             }

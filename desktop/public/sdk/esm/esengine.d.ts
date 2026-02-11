@@ -27,7 +27,12 @@ interface Quat {
     y: number;
     z: number;
 }
-type Color = Vec4;
+interface Color {
+    r: number;
+    g: number;
+    b: number;
+    a: number;
+}
 declare const vec2: (x?: number, y?: number) => Vec2;
 declare const vec3: (x?: number, y?: number, z?: number) => Vec3;
 declare const vec4: (x?: number, y?: number, z?: number, w?: number) => Vec4;
@@ -121,7 +126,7 @@ interface WorldTransformData {
 }
 interface SpriteData {
     texture: number;
-    color: Vec4;
+    color: Color;
     size: Vec2;
     uvOffset: Vec2;
     uvScale: Vec2;
@@ -146,7 +151,7 @@ interface CanvasData {
     pixelsPerUnit: number;
     scaleMode: number;
     matchWidthOrHeight: number;
-    backgroundColor: Vec4;
+    backgroundColor: Color;
 }
 interface VelocityData {
     linear: Vec3;
@@ -168,7 +173,7 @@ interface SpineAnimationData {
     playing: boolean;
     flipX: boolean;
     flipY: boolean;
-    color: Vec4;
+    color: Color;
     layer: number;
     skeletonScale: number;
     material: number;
@@ -704,7 +709,7 @@ interface TextData {
     content: string;
     fontFamily: string;
     fontSize: number;
-    color: Vec4;
+    color: Color;
     align: TextAlign;
     verticalAlign: TextVerticalAlign;
     wordWrap: boolean;

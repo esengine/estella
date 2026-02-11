@@ -200,7 +200,7 @@ function getModule(): ESEngineModule {
     return module;
 }
 
-const WHITE: Color = { x: 1, y: 1, z: 1, w: 1 };
+const WHITE: Color = { r: 1, g: 1, b: 1, a: 1 };
 
 export const Draw: DrawAPI = {
     begin(viewProjection: Float32Array): void {
@@ -217,7 +217,7 @@ export const Draw: DrawAPI = {
         getModule().draw_line(
             from.x, from.y,
             to.x, to.y,
-            color.x, color.y, color.z, color.w,
+            color.r, color.g, color.b, color.a,
             thickness
         );
     },
@@ -226,7 +226,7 @@ export const Draw: DrawAPI = {
         getModule().draw_rect(
             position.x, position.y,
             size.x, size.y,
-            color.x, color.y, color.z, color.w,
+            color.r, color.g, color.b, color.a,
             filled
         );
     },
@@ -235,7 +235,7 @@ export const Draw: DrawAPI = {
         getModule().draw_rectOutline(
             position.x, position.y,
             size.x, size.y,
-            color.x, color.y, color.z, color.w,
+            color.r, color.g, color.b, color.a,
             thickness
         );
     },
@@ -244,7 +244,7 @@ export const Draw: DrawAPI = {
         getModule().draw_circle(
             center.x, center.y,
             radius,
-            color.x, color.y, color.z, color.w,
+            color.r, color.g, color.b, color.a,
             filled,
             segments
         );
@@ -254,7 +254,7 @@ export const Draw: DrawAPI = {
         getModule().draw_circleOutline(
             center.x, center.y,
             radius,
-            color.x, color.y, color.z, color.w,
+            color.r, color.g, color.b, color.a,
             thickness,
             segments
         );
@@ -265,7 +265,7 @@ export const Draw: DrawAPI = {
             position.x, position.y,
             size.x, size.y,
             textureHandle,
-            tint.x, tint.y, tint.z, tint.w
+            tint.r, tint.g, tint.b, tint.a
         );
     },
 
@@ -275,7 +275,7 @@ export const Draw: DrawAPI = {
             size.x, size.y,
             rotation,
             textureHandle,
-            tint.x, tint.y, tint.z, tint.w
+            tint.r, tint.g, tint.b, tint.a
         );
     },
 

@@ -277,7 +277,7 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
             const canvas = findCanvasData(cppRegistry, scanLimit);
             if (canvas) {
                 const bg = canvas.backgroundColor;
-                Renderer.setClearColor(bg.x, bg.y, bg.z, bg.w);
+                Renderer.setClearColor(bg.r, bg.g, bg.b, bg.a);
             }
             const vp = computeViewProjection(cppRegistry, width, height);
             const elapsed = (platformNow() - startTime) / 1000;
@@ -324,7 +324,7 @@ function findCanvasData(registry: CppRegistry, scanLimit: number): {
     designResolution: { x: number; y: number };
     scaleMode: number;
     matchWidthOrHeight: number;
-    backgroundColor: { x: number; y: number; z: number; w: number };
+    backgroundColor: { r: number; g: number; b: number; a: number };
 } | null {
     for (let e = 0; e < scanLimit; e++) {
         if (!registry.valid(e) || !registry.hasCanvas(e)) continue;
@@ -332,7 +332,7 @@ function findCanvasData(registry: CppRegistry, scanLimit: number): {
             designResolution: { x: number; y: number };
             scaleMode: number;
             matchWidthOrHeight: number;
-            backgroundColor: { x: number; y: number; z: number; w: number };
+            backgroundColor: { r: number; g: number; b: number; a: number };
         };
         return canvas;
     }

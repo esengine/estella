@@ -370,7 +370,9 @@ export class EditorAssetServer {
         }
         if (typeof value === 'object' && value !== null) {
             const obj = value as Record<string, number>;
-            if ('w' in obj) {
+            if ('a' in obj) {
+                return { x: obj.r ?? 0, y: obj.g ?? 0, z: obj.b ?? 0, w: obj.a ?? 0 };
+            } else if ('w' in obj) {
                 return { x: obj.x ?? 0, y: obj.y ?? 0, z: obj.z ?? 0, w: obj.w ?? 0 };
             } else if ('z' in obj) {
                 return { x: obj.x ?? 0, y: obj.y ?? 0, z: obj.z ?? 0 };

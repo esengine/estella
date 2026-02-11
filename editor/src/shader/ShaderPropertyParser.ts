@@ -239,8 +239,9 @@ export function getDefaultPropertyValue(type: ShaderPropertyType): unknown {
         case ShaderPropertyType.Vec3:
             return { x: 0, y: 0, z: 0 };
         case ShaderPropertyType.Vec4:
+            return { x: 0, y: 0, z: 0, w: 1 };
         case ShaderPropertyType.Color:
-            return { x: 1, y: 1, z: 1, w: 1 };
+            return { r: 1, g: 1, b: 1, a: 1 };
         case ShaderPropertyType.Texture:
             return '';
         default:
