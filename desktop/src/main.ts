@@ -57,6 +57,7 @@ async function showLauncher(container: HTMLElement): Promise<void> {
 
 const SPINE_WASM_MAP: Record<string, string> = {
     '3.8': '/wasm/spine38.js',
+    '4.1': '/wasm/spine41.js',
     '4.2': '/wasm/spine42.js',
 };
 

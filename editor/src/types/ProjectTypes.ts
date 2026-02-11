@@ -7,7 +7,7 @@
 // Project Configuration
 // =============================================================================
 
-export type SpineVersion = '3.8' | '4.2';
+export type SpineVersion = '3.8' | '4.1' | '4.2';
 
 export interface ProjectConfig {
     name: string;

@@ -20,6 +20,8 @@ const SDK_SPINE_JS: &[u8] = include_bytes!("../../public/sdk/esm/spine/index.js"
 const SDK_SPINE_JS_MAP: &[u8] = include_bytes!("../../public/sdk/esm/spine/index.js.map");
 const SPINE38_JS: &[u8] = include_bytes!("../../public/wasm/spine38.js");
 const SPINE38_WASM: &[u8] = include_bytes!("../../public/wasm/spine38.wasm");
+const SPINE41_JS: &[u8] = include_bytes!("../../public/wasm/spine41.js");
+const SPINE41_WASM: &[u8] = include_bytes!("../../public/wasm/spine41.wasm");
 const SPINE42_JS: &[u8] = include_bytes!("../../public/wasm/spine42.js");
 const SPINE42_WASM: &[u8] = include_bytes!("../../public/wasm/spine42.wasm");
 const PHYSICS_JS: &[u8] = include_bytes!("../../public/wasm/physics.js");
@@ -73,6 +75,8 @@ impl PreviewServer {
                     "sdk/spine/index.js.map" => serve_embedded(SDK_SPINE_JS_MAP, "application/json"),
                     "wasm/spine38.js" => serve_embedded(SPINE38_JS, "application/javascript"),
                     "wasm/spine38.wasm" => serve_embedded(SPINE38_WASM, "application/wasm"),
+                    "wasm/spine41.js" => serve_embedded(SPINE41_JS, "application/javascript"),
+                    "wasm/spine41.wasm" => serve_embedded(SPINE41_WASM, "application/wasm"),
                     "wasm/spine42.js" => serve_embedded(SPINE42_JS, "application/javascript"),
                     "wasm/spine42.wasm" => serve_embedded(SPINE42_WASM, "application/wasm"),
                     "wasm/physics.js" => serve_embedded(PHYSICS_JS, "application/javascript"),

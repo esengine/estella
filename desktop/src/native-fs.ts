@@ -341,13 +341,23 @@ export const nativeFS: NativeFS = {
     },
 
     async getSpineJs(version: string) {
-        const cmd = version === '3.8' ? 'get_spine38_js' : 'get_spine42_js';
+        const cmdMap: Record<string, string> = {
+            '3.8': 'get_spine38_js',
+            '4.1': 'get_spine41_js',
+            '4.2': 'get_spine42_js',
+        };
+        const cmd = cmdMap[version] ?? 'get_spine42_js';
         const data = await invoke<number[]>(cmd);
         return new TextDecoder().decode(new Uint8Array(data));
     },
 
     async getSpineWasm(version: string) {
-        const cmd = version === '3.8' ? 'get_spine38_wasm' : 'get_spine42_wasm';
+        const cmdMap: Record<string, string> = {
+            '3.8': 'get_spine38_wasm',
+            '4.1': 'get_spine41_wasm',
+            '4.2': 'get_spine42_wasm',
+        };
+        const cmd = cmdMap[version] ?? 'get_spine42_wasm';
         const data = await invoke<number[]>(cmd);
         return new Uint8Array(data);
     },

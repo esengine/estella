@@ -23,6 +23,8 @@ const SDK_WASM_DTS: &[u8] = include_bytes!("../../public/sdk/esm/wasm.d.ts");
 const EDITOR_DTS: &[u8] = include_bytes!("../../../editor/dist/index.d.ts");
 const SPINE38_JS: &[u8] = include_bytes!("../../public/wasm/spine38.js");
 const SPINE38_WASM: &[u8] = include_bytes!("../../public/wasm/spine38.wasm");
+const SPINE41_JS: &[u8] = include_bytes!("../../public/wasm/spine41.js");
+const SPINE41_WASM: &[u8] = include_bytes!("../../public/wasm/spine41.wasm");
 const SPINE42_JS: &[u8] = include_bytes!("../../public/wasm/spine42.js");
 const SPINE42_WASM: &[u8] = include_bytes!("../../public/wasm/spine42.wasm");
 const PHYSICS_JS: &[u8] = include_bytes!("../../public/wasm/physics.js");
@@ -146,6 +148,16 @@ fn get_spine38_wasm() -> Vec<u8> {
 }
 
 #[tauri::command]
+fn get_spine41_js() -> Vec<u8> {
+    SPINE41_JS.to_vec()
+}
+
+#[tauri::command]
+fn get_spine41_wasm() -> Vec<u8> {
+    SPINE41_WASM.to_vec()
+}
+
+#[tauri::command]
 fn get_spine42_js() -> Vec<u8> {
     SPINE42_JS.to_vec()
 }
@@ -261,6 +273,8 @@ pub fn run() {
             get_editor_dts,
             get_spine38_js,
             get_spine38_wasm,
+            get_spine41_js,
+            get_spine41_wasm,
             get_spine42_js,
             get_spine42_wasm,
             get_physics_js,

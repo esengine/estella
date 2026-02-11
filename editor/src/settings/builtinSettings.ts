@@ -61,6 +61,7 @@ export function registerBuiltinSettings(): void {
         order: 0,
         options: [
             { label: 'Spine 4.2', value: '4.2' },
+            { label: 'Spine 4.1', value: '4.1' },
             { label: 'Spine 3.8', value: '3.8' },
         ],
     });
