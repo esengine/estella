@@ -263,7 +263,7 @@ int spine_createInstance(int skeletonHandle) {
     inst.skeleton = spSkeleton_create(it->second.skeletonData);
     inst.state = spAnimationState_create(it->second.stateData);
     spSkeleton_setToSetupPose(inst.skeleton);
-#ifdef ES_SPINE_38
+#if defined(ES_SPINE_38) || defined(ES_SPINE_41)
     spSkeleton_updateWorldTransform(inst.skeleton);
 #else
     spSkeleton_updateWorldTransform(inst.skeleton, SP_PHYSICS_UPDATE);
@@ -324,7 +324,7 @@ void spine_update(int instanceId, float dt) {
 
     spAnimationState_update(it->second.state, dt);
     spAnimationState_apply(it->second.state, it->second.skeleton);
-#ifdef ES_SPINE_38
+#if defined(ES_SPINE_38) || defined(ES_SPINE_41)
     spSkeleton_updateWorldTransform(it->second.skeleton);
 #else
     spSkeleton_update(it->second.skeleton, dt);
@@ -491,7 +491,7 @@ static void extractMeshBatches(int instanceId) {
 
         spAttachment* attachment = slot->attachment;
         if (!attachment) continue;
-#ifndef ES_SPINE_38
+#if !defined(ES_SPINE_38) && !defined(ES_SPINE_41)
         if (!slot->data->visible) continue;
 #endif
 
@@ -512,24 +512,40 @@ static void extractMeshBatches(int instanceId) {
         if (attachment->type == SP_ATTACHMENT_REGION) {
             auto* region = reinterpret_cast<spRegionAttachment*>(attachment);
 
-            uint32_t texId = getRegionTextureId(region);
-            if (!texId) continue;
-
-            if (!currentBatch || texId != currentTexture || blendMode != currentBlend) {
-                g_meshBatches.emplace_back();
-                currentBatch = &g_meshBatches.back();
-                currentBatch->textureId = texId;
-                currentBatch->blendMode = blendMode;
-                currentTexture = texId;
-                currentBlend = blendMode;
-            }
-
             g_worldVertices.resize(8);
 #ifdef ES_SPINE_38
             spRegionAttachment_computeWorldVertices(region, slot->bone, g_worldVertices.data(), 0, 2);
 #else
             spRegionAttachment_computeWorldVertices(region, slot, g_worldVertices.data(), 0, 2);
 #endif
+
+            uint32_t texId = getRegionTextureId(region);
+            if (!texId) continue;
+
+            int effectiveBlend = blendMode;
+#ifndef ES_SPINE_38
+            if (region->region) {
+                auto* atlasReg = reinterpret_cast<spAtlasRegion*>(region->region);
+                if (atlasReg->page && atlasReg->page->pma) {
+                    if (effectiveBlend == 0) effectiveBlend = 4;
+                    else if (effectiveBlend == 1) effectiveBlend = 5;
+                }
+            }
+#endif
+
+            bool needNewBatch = !currentBatch || texId != currentTexture || effectiveBlend != currentBlend;
+            if (!needNewBatch && currentBatch->vertices.size() / 8 + 4 > 65535) {
+                needNewBatch = true;
+            }
+
+            if (needNewBatch) {
+                g_meshBatches.emplace_back();
+                currentBatch = &g_meshBatches.back();
+                currentBatch->textureId = texId;
+                currentBatch->blendMode = effectiveBlend;
+                currentTexture = texId;
+                currentBlend = effectiveBlend;
+            }
 
             float* uvs = region->uvs;
             spColor& attachColor = region->color;
@@ -563,23 +579,40 @@ static void extractMeshBatches(int instanceId) {
         } else if (attachment->type == SP_ATTACHMENT_MESH) {
             auto* mesh = reinterpret_cast<spMeshAttachment*>(attachment);
 
-            uint32_t texId = getMeshTextureId(mesh);
-            if (!texId) continue;
-
-            if (!currentBatch || texId != currentTexture || blendMode != currentBlend) {
-                g_meshBatches.emplace_back();
-                currentBatch = &g_meshBatches.back();
-                currentBatch->textureId = texId;
-                currentBatch->blendMode = blendMode;
-                currentTexture = texId;
-                currentBlend = blendMode;
-            }
-
             int worldVerticesLength = SUPER(mesh)->worldVerticesLength;
             int vertexCount = worldVerticesLength / 2;
+
             g_worldVertices.resize(worldVerticesLength);
             spVertexAttachment_computeWorldVertices(SUPER(mesh), slot, 0,
                 worldVerticesLength, g_worldVertices.data(), 0, 2);
+
+            uint32_t texId = getMeshTextureId(mesh);
+            if (!texId) continue;
+
+            int effectiveBlend = blendMode;
+#ifndef ES_SPINE_38
+            if (mesh->region) {
+                auto* atlasReg = reinterpret_cast<spAtlasRegion*>(mesh->region);
+                if (atlasReg->page && atlasReg->page->pma) {
+                    if (effectiveBlend == 0) effectiveBlend = 4;
+                    else if (effectiveBlend == 1) effectiveBlend = 5;
+                }
+            }
+#endif
+
+            bool needNewBatch = !currentBatch || texId != currentTexture || effectiveBlend != currentBlend;
+            if (!needNewBatch && currentBatch->vertices.size() / 8 + vertexCount > 65535) {
+                needNewBatch = true;
+            }
+
+            if (needNewBatch) {
+                g_meshBatches.emplace_back();
+                currentBatch = &g_meshBatches.back();
+                currentBatch->textureId = texId;
+                currentBatch->blendMode = effectiveBlend;
+                currentTexture = texId;
+                currentBlend = effectiveBlend;
+            }
 
             float* uvs = mesh->uvs;
             spColor& attachColor = mesh->color;

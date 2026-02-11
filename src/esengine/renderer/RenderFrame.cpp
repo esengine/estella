@@ -12,6 +12,7 @@
 #include <spine/RegionAttachment.h>
 #include <spine/MeshAttachment.h>
 #include <spine/ClippingAttachment.h>
+#include <spine/Atlas.h>
 #endif
 
 #ifdef ES_PLATFORM_WEB
@@ -180,6 +181,7 @@ void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::H
     items_.clear();
     ext_vertex_storage_.clear();
     ext_index_storage_.clear();
+    ext_submit_order_ = 0;
     stats_ = Stats{};
 
     bool usePostProcess = post_process_ && post_process_->isInitialized() &&
@@ -395,7 +397,9 @@ void RenderFrame::submitExternalTriangles(
     RenderItem item;
     item.type = RenderType::ExternalMesh;
     item.stage = current_stage_;
-    item.texture_id = textureId;
+    item.ext_bind_texture = textureId;
+    item.texture_id = 0;
+    item.depth = 1.0f - static_cast<f32>(ext_submit_order_++) * 0.0001f;
     item.blend_mode = static_cast<BlendMode>(blendMode);
     item.ext_vertices = ext_vertex_storage_.back().data();
     item.ext_vertex_count = vertexCount;
@@ -589,6 +593,10 @@ void RenderFrame::renderSpine(u32 begin, u32 end) {
 
             if (attachment->getRTTI().isExactly(::spine::RegionAttachment::rtti)) {
                 auto* region = static_cast<::spine::RegionAttachment*>(attachment);
+
+                spine_world_vertices_.resize(8);
+                region->computeWorldVertices(*slot, spine_world_vertices_.data(), 0, 2);
+
                 auto* regionData = region->getRegion();
                 if (!regionData) continue;
 
@@ -598,15 +606,23 @@ void RenderFrame::renderSpine(u32 begin, u32 end) {
                     if (tex) textureId = tex->getId();
                 }
 
-                if (textureId != spine_current_texture_ || blendMode != spine_current_blend_) {
+                auto* atlasRegion = static_cast<::spine::AtlasRegion*>(regionData);
+                if (atlasRegion->page && atlasRegion->page->pma) {
+                    if (blendMode == BlendMode::Normal) blendMode = BlendMode::PremultipliedAlpha;
+                    else if (blendMode == BlendMode::Additive) blendMode = BlendMode::PmaAdditive;
+                }
+
+                bool needFlush = textureId != spine_current_texture_ || blendMode != spine_current_blend_;
+                if (!needFlush && spine_vertices_.size() + 4 > 65535) {
+                    needFlush = true;
+                }
+
+                if (needFlush) {
                     flushSpineBatch();
                     spine_current_texture_ = textureId;
                     spine_current_blend_ = blendMode;
                     RenderCommand::setBlendMode(blendMode);
                 }
-
-                spine_world_vertices_.resize(8);
-                region->computeWorldVertices(*slot, spine_world_vertices_.data(), 0, 2);
 
                 auto& uvs = region->getUVs();
                 auto& attachColor = region->getColor();
@@ -638,6 +654,12 @@ void RenderFrame::renderSpine(u32 begin, u32 end) {
 
             } else if (attachment->getRTTI().isExactly(::spine::MeshAttachment::rtti)) {
                 auto* mesh = static_cast<::spine::MeshAttachment*>(attachment);
+
+                size_t vertexCount = mesh->getWorldVerticesLength() / 2;
+                spine_world_vertices_.resize(mesh->getWorldVerticesLength());
+                mesh->computeWorldVertices(*slot, 0, mesh->getWorldVerticesLength(),
+                                           spine_world_vertices_.data(), 0, 2);
+
                 auto* regionData = mesh->getRegion();
                 if (!regionData) continue;
 
@@ -647,17 +669,23 @@ void RenderFrame::renderSpine(u32 begin, u32 end) {
                     if (tex) textureId = tex->getId();
                 }
 
-                if (textureId != spine_current_texture_ || blendMode != spine_current_blend_) {
+                auto* atlasRegion = static_cast<::spine::AtlasRegion*>(regionData);
+                if (atlasRegion->page && atlasRegion->page->pma) {
+                    if (blendMode == BlendMode::Normal) blendMode = BlendMode::PremultipliedAlpha;
+                    else if (blendMode == BlendMode::Additive) blendMode = BlendMode::PmaAdditive;
+                }
+
+                bool needFlush = textureId != spine_current_texture_ || blendMode != spine_current_blend_;
+                if (!needFlush && spine_vertices_.size() + vertexCount > 65535) {
+                    needFlush = true;
+                }
+
+                if (needFlush) {
                     flushSpineBatch();
                     spine_current_texture_ = textureId;
                     spine_current_blend_ = blendMode;
                     RenderCommand::setBlendMode(blendMode);
                 }
-
-                size_t vertexCount = mesh->getWorldVerticesLength() / 2;
-                spine_world_vertices_.resize(mesh->getWorldVerticesLength());
-                mesh->computeWorldVertices(*slot, 0, mesh->getWorldVerticesLength(),
-                                           spine_world_vertices_.data(), 0, 2);
 
                 auto& uvs = mesh->getUVs();
                 auto& triangles = mesh->getTriangles();
@@ -746,7 +774,8 @@ void RenderFrame::flushSpineBatch() {
 #endif
 
 void RenderFrame::renderExternalMeshes(u32 begin, u32 end) {
-    auto* shader = context_.getTextureShader();
+    auto* shader = context_.getExtMeshShader();
+    if (!shader) shader = context_.getTextureShader();
     if (!shader) return;
 
     for (u32 idx = begin; idx < end; ++idx) {
@@ -761,10 +790,9 @@ void RenderFrame::renderExternalMeshes(u32 begin, u32 end) {
         shader->bind();
         shader->setUniform("u_projection", view_projection_);
         shader->setUniform("u_model", item->transform);
-        shader->setUniform("u_color", glm::vec4(1.0f));
 
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, item->texture_id);
+        glBindTexture(GL_TEXTURE_2D, item->ext_bind_texture);
         shader->setUniform("u_texture", 0);
 
         glBindVertexArray(ext_mesh_vao_);
