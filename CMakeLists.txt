@@ -10,6 +10,7 @@ option(ES_BUILD_WXGAME "Build for WeChat MiniGame" OFF)
 option(ES_BUILD_TESTS "Build tests" ON)
 option(ES_BUILD_SINGLE_FILE "Build single-file SDK (WASM inlined)" OFF)
 option(ES_ENABLE_SPINE "Enable Spine animation support" ON)
+option(ES_ENABLE_BOX2D "Enable Box2D physics support" OFF)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(ESEngineConfig)
@@ -113,6 +114,11 @@ if(ES_ENABLE_SPINE)
         src/esengine/spine/SpineRenderer.hpp
     )
 endif()
+
+list(APPEND ESENGINE_HEADERS
+    src/esengine/ecs/components/RigidBody.hpp
+    src/esengine/ecs/components/Collider.hpp
+)
 
 set(GENERATED_WEB_BINDINGS "${CMAKE_CURRENT_SOURCE_DIR}/src/esengine/bindings/WebBindings.generated.cpp")
 set(GENERATED_TS_DEFINITIONS "${CMAKE_CURRENT_SOURCE_DIR}/sdk/src/wasm.generated.ts")
@@ -361,6 +367,23 @@ html,body{width:100%;height:100%;overflow:hidden;background:#1a1a1a}
         es_apply_spine_module_settings(spine_module_38)
         set_target_properties(spine_module_38 PROPERTIES
             OUTPUT_NAME "spine38"
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/sdk"
+        )
+    endif()
+
+    # Physics standalone WASM module
+    if(ES_ENABLE_BOX2D)
+        add_executable(physics_module
+            src/esengine/bindings/PhysicsModuleEntry.cpp
+        )
+        target_link_libraries(physics_module PRIVATE box2d)
+        target_include_directories(physics_module PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/third_party/box2d/include
+        )
+        es_apply_physics_module_settings(physics_module)
+
+        set_target_properties(physics_module PROPERTIES
+            OUTPUT_NAME "physics"
             RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/sdk"
         )
     endif()

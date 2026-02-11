@@ -57,6 +57,14 @@ export {
     type ParentData,
     type ChildrenData,
     type SpineAnimationData,
+    RigidBody,
+    BoxCollider,
+    CircleCollider,
+    CapsuleCollider,
+    type RigidBodyData,
+    type BoxColliderData,
+    type CircleColliderData,
+    type CapsuleColliderData,
 } from './component';
 
 // =============================================================================
@@ -352,6 +360,24 @@ export {
     isEditor,
     isRuntime,
 } from './env';
+
+// =============================================================================
+// Physics
+// =============================================================================
+
+export {
+    PhysicsPlugin,
+    PhysicsEvents,
+    Physics,
+    BodyType,
+    loadPhysicsModule,
+    type PhysicsWasmModule,
+    type PhysicsModuleFactory,
+    type PhysicsPluginConfig,
+    type PhysicsEventsData,
+    type CollisionEnterEvent,
+    type SensorEvent,
+} from './physics';
 
 // =============================================================================
 // GL Debug

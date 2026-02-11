@@ -20,3 +20,6 @@
 	path = third_party/spine-runtimes-3.8
 	url = https://github.com/EsotericSoftware/spine-runtimes.git
 	branch = 3.8
+[submodule "third_party/box2d"]
+	path = third_party/box2d
+	url = https://github.com/erincatto/box2d.git

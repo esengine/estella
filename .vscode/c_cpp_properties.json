@@ -11,6 +11,7 @@
                 "${workspaceFolder}/third_party/stb",
                 "${workspaceFolder}/third_party/spine-runtimes/spine-cpp/spine-cpp/include",
                 "${workspaceFolder}/third_party/nlohmann",
+                "${workspaceFolder}/third_party/box2d/include",
                 "${workspaceFolder}/build/quickjs_headers"
             ],
             "defines": [
@@ -34,6 +35,7 @@
                 "${workspaceFolder}/third_party/stb",
                 "${workspaceFolder}/third_party/spine-runtimes/spine-cpp/spine-cpp/include",
                 "${workspaceFolder}/third_party/nlohmann",
+                "${workspaceFolder}/third_party/box2d/include",
                 "${workspaceFolder}/build/quickjs_headers"
             ],
             "defines": [
@@ -55,7 +57,8 @@
                 "${workspaceFolder}/third_party/glm",
                 "${workspaceFolder}/third_party/stb",
                 "${workspaceFolder}/third_party/spine-runtimes/spine-cpp/spine-cpp/include",
-                "${workspaceFolder}/third_party/nlohmann"
+                "${workspaceFolder}/third_party/nlohmann",
+                "${workspaceFolder}/third_party/box2d/include"
             ],
             "defines": [
                 "ES_PLATFORM_WEB",

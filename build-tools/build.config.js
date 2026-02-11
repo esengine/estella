@@ -39,6 +39,15 @@ export default {
                 'sdk/esengine.single.js': 'wasm/playable/esengine.single.js',
             },
         },
+        physics: {
+            buildDir: 'build-web',
+            cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_BOX2D=ON'],
+            targets: ['physics_module'],
+            outputs: {
+                'sdk/physics.js': 'wasm/web/physics.js',
+                'sdk/physics.wasm': 'wasm/web/physics.wasm',
+            },
+        },
         spine: {
             buildDir: 'build-web',
             cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF'],

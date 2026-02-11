@@ -60,6 +60,26 @@ export interface CppRegistry {
     hasSpineAnimation(entity: Entity): boolean;
     removeSpineAnimation(entity: Entity): void;
 
+    addRigidBody?(entity: Entity, data: unknown): void;
+    getRigidBody?(entity: Entity): unknown;
+    hasRigidBody?(entity: Entity): boolean;
+    removeRigidBody?(entity: Entity): void;
+
+    addBoxCollider?(entity: Entity, data: unknown): void;
+    getBoxCollider?(entity: Entity): unknown;
+    hasBoxCollider?(entity: Entity): boolean;
+    removeBoxCollider?(entity: Entity): void;
+
+    addCircleCollider?(entity: Entity, data: unknown): void;
+    getCircleCollider?(entity: Entity): unknown;
+    hasCircleCollider?(entity: Entity): boolean;
+    removeCircleCollider?(entity: Entity): void;
+
+    addCapsuleCollider?(entity: Entity, data: unknown): void;
+    getCapsuleCollider?(entity: Entity): unknown;
+    hasCapsuleCollider?(entity: Entity): boolean;
+    removeCapsuleCollider?(entity: Entity): void;
+
     setParent(child: Entity, parent: Entity): void;
 
     [key: string]: any;
@@ -218,4 +238,5 @@ export interface ESEngineModule {
 
     _malloc(size: number): number;
     _free(ptr: number): void;
+
 }
