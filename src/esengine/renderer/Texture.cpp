@@ -120,6 +120,9 @@ Unique<Texture> Texture::createRaw(u32 width, u32 height, const void* data, Text
     spec.width = width;
     spec.height = height;
     spec.format = format;
+    spec.wrapS = TextureWrap::ClampToEdge;
+    spec.wrapT = TextureWrap::ClampToEdge;
+    spec.generateMips = false;
 
     auto texture = makeUnique<Texture>();
     if (!texture->initialize(spec)) {

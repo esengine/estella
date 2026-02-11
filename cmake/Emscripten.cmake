@@ -100,6 +100,8 @@ set(ES_EMSCRIPTEN_PHYSICS_SIDE_MODULE_FLAGS
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     list(APPEND ES_EMSCRIPTEN_COMPILE_FLAGS
         -g
+    )
+    list(APPEND ES_EMSCRIPTEN_LINK_FLAGS
         -sASSERTIONS=2
         -sSAFE_HEAP=1
         -sSTACK_OVERFLOW_CHECK=2
@@ -110,10 +112,10 @@ endif()
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
     list(APPEND ES_EMSCRIPTEN_COMPILE_FLAGS
         -O3
-        -sASSERTIONS=0
     )
     list(APPEND ES_EMSCRIPTEN_LINK_FLAGS
         -O3
+        -sASSERTIONS=0
         --closure=1
     )
 endif()

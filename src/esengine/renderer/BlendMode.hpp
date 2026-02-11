@@ -21,8 +21,9 @@ enum class BlendMode : u8 {
     Normal = 0,     // SrcAlpha, OneMinusSrcAlpha (default alpha blending)
     Additive = 1,   // SrcAlpha, One (glow, particles)
     Multiply = 2,   // DstColor, OneMinusSrcAlpha (shadows, multiply)
-    Screen = 3,     // One, OneMinusSrcAlpha (lighten)
+    Screen = 3,     // One, OneMinusSrcColor (lighten)
     PremultipliedAlpha = 4,  // One, OneMinusSrcAlpha (premultiplied alpha)
+    PmaAdditive = 5, // One, One (additive with premultiplied alpha source)
 };
 
 }  // namespace esengine

@@ -116,6 +116,9 @@ void RenderCommand::setBlendMode(BlendMode mode) {
         case BlendMode::PremultipliedAlpha:
             glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
             break;
+        case BlendMode::PmaAdditive:
+            glBlendFunc(GL_ONE, GL_ONE);
+            break;
     }
 }
 

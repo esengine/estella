@@ -50,6 +50,7 @@ void RenderContext::shutdown() {
     quadVAO_.reset();
     colorShader_.reset();
     textureShader_.reset();
+    extMeshShader_.reset();
 
     RenderCommand::shutdown();
     initialized_ = false;
@@ -96,6 +97,18 @@ void RenderContext::initShaders() {
         ShaderSources::SPRITE_VERTEX,
         ShaderSources::SPRITE_FRAGMENT
     );
+
+    extMeshShader_ = Shader::create(
+        ShaderSources::EXT_MESH_VERTEX,
+        ShaderSources::EXT_MESH_FRAGMENT
+    );
+    if (extMeshShader_ && extMeshShader_->isValid()) {
+        GLuint prog = extMeshShader_->getProgramId();
+        glBindAttribLocation(prog, 0, "a_position");
+        glBindAttribLocation(prog, 1, "a_texCoord");
+        glBindAttribLocation(prog, 2, "a_color");
+        glLinkProgram(prog);
+    }
 
     ES_LOG_DEBUG("Shaders initialized");
 }

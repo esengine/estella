@@ -147,6 +147,8 @@ public:
      */
     Shader* getTextureShader() { return textureShader_.get(); }
 
+    Shader* getExtMeshShader() { return extMeshShader_.get(); }
+
     /**
      * @brief Gets the white texture ID (for untextured quads)
      * @return GPU texture handle
@@ -164,6 +166,7 @@ private:
     Unique<VertexArray> quadVAO_;
     Unique<Shader> colorShader_;
     Unique<Shader> textureShader_;
+    Unique<Shader> extMeshShader_;
     u32 whiteTextureId_ = 0;
 
     bool initialized_ = false;

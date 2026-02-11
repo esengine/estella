@@ -56,6 +56,7 @@ struct RenderItem {
     i32 ext_vertex_count = 0;
     const u16* ext_indices = nullptr;
     i32 ext_index_count = 0;
+    u32 ext_bind_texture = 0;
 
     u64 sortKey() const {
         u64 stageKey = static_cast<u64>(stage) << 60;

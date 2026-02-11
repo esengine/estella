@@ -255,16 +255,38 @@ inline const char* SPRITE_FRAGMENT = R"(
     }
 )";
 
-/**
- * @brief Vertex shader for solid color shapes
- *
- * @details Uniforms:
- * - u_projection: Projection matrix
- * - u_model: Model transform matrix
- *
- * Attributes:
- * - a_position: Vertex position (vec2)
- */
+inline const char* EXT_MESH_VERTEX = R"(
+    attribute vec2 a_position;
+    attribute vec2 a_texCoord;
+    attribute vec4 a_color;
+
+    uniform mat4 u_projection;
+    uniform mat4 u_model;
+
+    varying vec2 v_texCoord;
+    varying vec4 v_color;
+
+    void main() {
+        gl_Position = u_projection * u_model * vec4(a_position, 0.0, 1.0);
+        v_texCoord = a_texCoord;
+        v_color = a_color;
+    }
+)";
+
+inline const char* EXT_MESH_FRAGMENT = R"(
+    precision mediump float;
+
+    uniform sampler2D u_texture;
+
+    varying vec2 v_texCoord;
+    varying vec4 v_color;
+
+    void main() {
+        vec4 texColor = texture2D(u_texture, v_texCoord);
+        gl_FragColor = texColor * v_color;
+    }
+)";
+
 inline const char* COLOR_VERTEX = R"(
     attribute vec2 a_position;
 
