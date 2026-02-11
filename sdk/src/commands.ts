@@ -120,7 +120,7 @@ export class EntityCommands {
         return this.entityRef_.entity;
     }
 
-    private finalize(): void {
+    finalize(): void {
         if (this.isNew_) {
             this.commands_.spawnImmediate(this.components_, this.entityRef_);
             this.isNew_ = false;
@@ -136,6 +136,7 @@ export class CommandsInstance {
     private readonly world_: World;
     private readonly resources_: ResourceStorage;
     private pending_: Command[] = [];
+    private spawned_: EntityCommands[] = [];
 
     constructor(world: World, resources: ResourceStorage) {
         this.world_ = world;
@@ -143,7 +144,9 @@ export class CommandsInstance {
     }
 
     spawn(): EntityCommands {
-        return new EntityCommands(this, null);
+        const ec = new EntityCommands(this, null);
+        this.spawned_.push(ec);
+        return ec;
     }
 
     entity(entity: Entity): EntityCommands {
@@ -182,6 +185,11 @@ export class CommandsInstance {
     }
 
     flush(): void {
+        for (const ec of this.spawned_) {
+            ec.finalize();
+        }
+        this.spawned_ = [];
+
         for (const cmd of this.pending_) {
             this.executeCommand(cmd);
         }
