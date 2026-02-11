@@ -14,7 +14,9 @@
 #include "../ecs/TransformSystem.hpp"
 #include "../ecs/components/Camera.hpp"
 #include "../ecs/components/Canvas.hpp"
+#include "../ecs/components/Collider.hpp"
 #include "../ecs/components/Hierarchy.hpp"
+#include "../ecs/components/RigidBody.hpp"
 #include "../ecs/components/SpineAnimation.hpp"
 #include "../ecs/components/Sprite.hpp"
 #include "../ecs/components/Transform.hpp"
@@ -60,6 +62,11 @@ EMSCRIPTEN_BINDINGS(esengine_math) {
 // =============================================================================
 
 EMSCRIPTEN_BINDINGS(esengine_enums) {
+    enum_<esengine::ecs::BodyType>("BodyType")
+        .value("Static", esengine::ecs::BodyType::Static)
+        .value("Kinematic", esengine::ecs::BodyType::Kinematic)
+        .value("Dynamic", esengine::ecs::BodyType::Dynamic);
+
     enum_<esengine::ecs::CanvasScaleMode>("CanvasScaleMode")
         .value("FixedWidth", esengine::ecs::CanvasScaleMode::FixedWidth)
         .value("FixedHeight", esengine::ecs::CanvasScaleMode::FixedHeight)
@@ -76,6 +83,40 @@ EMSCRIPTEN_BINDINGS(esengine_enums) {
 // =============================================================================
 // Components
 // =============================================================================
+
+struct RigidBodyJS {
+    i32 bodyType;
+    f32 gravityScale;
+    f32 linearDamping;
+    f32 angularDamping;
+    bool fixedRotation;
+    bool bullet;
+    bool enabled;
+};
+
+esengine::ecs::RigidBody rigidbodyFromJS(const RigidBodyJS& js) {
+    esengine::ecs::RigidBody c;
+    c.bodyType = static_cast<BodyType>(js.bodyType);
+    c.gravityScale = js.gravityScale;
+    c.linearDamping = js.linearDamping;
+    c.angularDamping = js.angularDamping;
+    c.fixedRotation = js.fixedRotation;
+    c.bullet = js.bullet;
+    c.enabled = js.enabled;
+    return c;
+}
+
+RigidBodyJS rigidbodyToJS(const esengine::ecs::RigidBody& c) {
+    RigidBodyJS js;
+    js.bodyType = static_cast<i32>(c.bodyType);
+    js.gravityScale = c.gravityScale;
+    js.linearDamping = c.linearDamping;
+    js.angularDamping = c.angularDamping;
+    js.fixedRotation = c.fixedRotation;
+    js.bullet = c.bullet;
+    js.enabled = c.enabled;
+    return js;
+}
 
 struct SpriteJS {
     u32 texture;
@@ -183,6 +224,31 @@ CameraJS cameraToJS(const esengine::ecs::Camera& c) {
 }
 
 EMSCRIPTEN_BINDINGS(esengine_components) {
+    value_object<esengine::ecs::BoxCollider>("BoxCollider")
+        .field("halfExtents", &esengine::ecs::BoxCollider::halfExtents)
+        .field("offset", &esengine::ecs::BoxCollider::offset)
+        .field("density", &esengine::ecs::BoxCollider::density)
+        .field("friction", &esengine::ecs::BoxCollider::friction)
+        .field("restitution", &esengine::ecs::BoxCollider::restitution)
+        .field("isSensor", &esengine::ecs::BoxCollider::isSensor);
+
+    value_object<esengine::ecs::CircleCollider>("CircleCollider")
+        .field("radius", &esengine::ecs::CircleCollider::radius)
+        .field("offset", &esengine::ecs::CircleCollider::offset)
+        .field("density", &esengine::ecs::CircleCollider::density)
+        .field("friction", &esengine::ecs::CircleCollider::friction)
+        .field("restitution", &esengine::ecs::CircleCollider::restitution)
+        .field("isSensor", &esengine::ecs::CircleCollider::isSensor);
+
+    value_object<esengine::ecs::CapsuleCollider>("CapsuleCollider")
+        .field("radius", &esengine::ecs::CapsuleCollider::radius)
+        .field("halfHeight", &esengine::ecs::CapsuleCollider::halfHeight)
+        .field("offset", &esengine::ecs::CapsuleCollider::offset)
+        .field("density", &esengine::ecs::CapsuleCollider::density)
+        .field("friction", &esengine::ecs::CapsuleCollider::friction)
+        .field("restitution", &esengine::ecs::CapsuleCollider::restitution)
+        .field("isSensor", &esengine::ecs::CapsuleCollider::isSensor);
+
     value_object<esengine::ecs::LocalTransform>("LocalTransform")
         .field("position", &esengine::ecs::LocalTransform::position)
         .field("rotation", &esengine::ecs::LocalTransform::rotation)
@@ -211,6 +277,15 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("layer", &esengine::ecs::SpineAnimation::layer)
         .field("skeletonScale", &esengine::ecs::SpineAnimation::skeletonScale)
         .field("material", &esengine::ecs::SpineAnimation::material);
+
+    value_object<RigidBodyJS>("RigidBody")
+        .field("bodyType", &RigidBodyJS::bodyType)
+        .field("gravityScale", &RigidBodyJS::gravityScale)
+        .field("linearDamping", &RigidBodyJS::linearDamping)
+        .field("angularDamping", &RigidBodyJS::angularDamping)
+        .field("fixedRotation", &RigidBodyJS::fixedRotation)
+        .field("bullet", &RigidBodyJS::bullet)
+        .field("enabled", &RigidBodyJS::enabled);
 
     value_object<SpriteJS>("Sprite")
         .field("texture", &SpriteJS::texture)
@@ -264,6 +339,48 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             return r.valid(static_cast<Entity>(e));
         }))
         .function("entityCount", &Registry::entityCount)
+
+        // BoxCollider
+        .function("hasBoxCollider", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::BoxCollider>(static_cast<Entity>(e));
+        }))
+        .function("getBoxCollider", optional_override([](Registry& r, u32 e) -> esengine::ecs::BoxCollider& {
+            return r.get<esengine::ecs::BoxCollider>(static_cast<Entity>(e));
+        }), allow_raw_pointers())
+        .function("addBoxCollider", optional_override([](Registry& r, u32 e, const esengine::ecs::BoxCollider& c) {
+            r.emplaceOrReplace<esengine::ecs::BoxCollider>(static_cast<Entity>(e), c);
+        }))
+        .function("removeBoxCollider", optional_override([](Registry& r, u32 e) {
+            r.remove<esengine::ecs::BoxCollider>(static_cast<Entity>(e));
+        }))
+
+        // CircleCollider
+        .function("hasCircleCollider", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::CircleCollider>(static_cast<Entity>(e));
+        }))
+        .function("getCircleCollider", optional_override([](Registry& r, u32 e) -> esengine::ecs::CircleCollider& {
+            return r.get<esengine::ecs::CircleCollider>(static_cast<Entity>(e));
+        }), allow_raw_pointers())
+        .function("addCircleCollider", optional_override([](Registry& r, u32 e, const esengine::ecs::CircleCollider& c) {
+            r.emplaceOrReplace<esengine::ecs::CircleCollider>(static_cast<Entity>(e), c);
+        }))
+        .function("removeCircleCollider", optional_override([](Registry& r, u32 e) {
+            r.remove<esengine::ecs::CircleCollider>(static_cast<Entity>(e));
+        }))
+
+        // CapsuleCollider
+        .function("hasCapsuleCollider", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::CapsuleCollider>(static_cast<Entity>(e));
+        }))
+        .function("getCapsuleCollider", optional_override([](Registry& r, u32 e) -> esengine::ecs::CapsuleCollider& {
+            return r.get<esengine::ecs::CapsuleCollider>(static_cast<Entity>(e));
+        }), allow_raw_pointers())
+        .function("addCapsuleCollider", optional_override([](Registry& r, u32 e, const esengine::ecs::CapsuleCollider& c) {
+            r.emplaceOrReplace<esengine::ecs::CapsuleCollider>(static_cast<Entity>(e), c);
+        }))
+        .function("removeCapsuleCollider", optional_override([](Registry& r, u32 e) {
+            r.remove<esengine::ecs::CapsuleCollider>(static_cast<Entity>(e));
+        }))
 
         // LocalTransform
         .function("hasLocalTransform", optional_override([](Registry& r, u32 e) {
@@ -319,6 +436,20 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         }))
         .function("removeSpineAnimation", optional_override([](Registry& r, u32 e) {
             r.remove<esengine::ecs::SpineAnimation>(static_cast<Entity>(e));
+        }))
+
+        // RigidBody
+        .function("hasRigidBody", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::RigidBody>(static_cast<Entity>(e));
+        }))
+        .function("getRigidBody", optional_override([](Registry& r, u32 e) {
+            return rigidbodyToJS(r.get<esengine::ecs::RigidBody>(static_cast<Entity>(e)));
+        }))
+        .function("addRigidBody", optional_override([](Registry& r, u32 e, const RigidBodyJS& js) {
+            r.emplaceOrReplace<esengine::ecs::RigidBody>(static_cast<Entity>(e), rigidbodyFromJS(js));
+        }))
+        .function("removeRigidBody", optional_override([](Registry& r, u32 e) {
+            r.remove<esengine::ecs::RigidBody>(static_cast<Entity>(e));
         }))
 
         // Sprite

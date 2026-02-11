@@ -12,6 +12,12 @@ export type Mat4 = number[];
 
 // Enums
 
+export enum BodyType {
+    Static = 0,
+    Kinematic = 1,
+    Dynamic = 2,
+}
+
 export enum CanvasScaleMode {
     FixedWidth = 0,
     FixedHeight = 1,
@@ -26,6 +32,34 @@ export enum ProjectionType {
 }
 
 // Components
+
+export interface BoxCollider {
+    halfExtents: Vec2;
+    offset: Vec2;
+    density: number;
+    friction: number;
+    restitution: number;
+    isSensor: boolean;
+}
+
+export interface CircleCollider {
+    radius: number;
+    offset: Vec2;
+    density: number;
+    friction: number;
+    restitution: number;
+    isSensor: boolean;
+}
+
+export interface CapsuleCollider {
+    radius: number;
+    halfHeight: number;
+    offset: Vec2;
+    density: number;
+    friction: number;
+    restitution: number;
+    isSensor: boolean;
+}
 
 export interface LocalTransform {
     position: Vec3;
@@ -58,6 +92,16 @@ export interface SpineAnimation {
     layer: number;
     skeletonScale: number;
     material: number;
+}
+
+export interface RigidBody {
+    bodyType: number;
+    gravityScale: number;
+    linearDamping: number;
+    angularDamping: number;
+    fixedRotation: boolean;
+    bullet: boolean;
+    enabled: boolean;
 }
 
 export interface Sprite {
@@ -105,6 +149,18 @@ export interface Registry {
     valid(entity: Entity): boolean;
     entityCount(): number;
 
+    hasBoxCollider(entity: Entity): boolean;
+    getBoxCollider(entity: Entity): BoxCollider;
+    addBoxCollider(entity: Entity, component: BoxCollider): void;
+    removeBoxCollider(entity: Entity): void;
+    hasCircleCollider(entity: Entity): boolean;
+    getCircleCollider(entity: Entity): CircleCollider;
+    addCircleCollider(entity: Entity, component: CircleCollider): void;
+    removeCircleCollider(entity: Entity): void;
+    hasCapsuleCollider(entity: Entity): boolean;
+    getCapsuleCollider(entity: Entity): CapsuleCollider;
+    addCapsuleCollider(entity: Entity, component: CapsuleCollider): void;
+    removeCapsuleCollider(entity: Entity): void;
     hasLocalTransform(entity: Entity): boolean;
     getLocalTransform(entity: Entity): LocalTransform;
     addLocalTransform(entity: Entity, component: LocalTransform): void;
@@ -121,6 +177,10 @@ export interface Registry {
     getSpineAnimation(entity: Entity): SpineAnimation;
     addSpineAnimation(entity: Entity, component: SpineAnimation): void;
     removeSpineAnimation(entity: Entity): void;
+    hasRigidBody(entity: Entity): boolean;
+    getRigidBody(entity: Entity): RigidBody;
+    addRigidBody(entity: Entity, component: RigidBody): void;
+    removeRigidBody(entity: Entity): void;
     hasSprite(entity: Entity): boolean;
     getSprite(entity: Entity): Sprite;
     addSprite(entity: Entity, component: Sprite): void;
@@ -149,10 +209,14 @@ export interface Registry {
 // Module
 export interface ESEngineModule {
     Registry: new () => Registry;
+    BoxCollider: new () => BoxCollider;
+    CircleCollider: new () => CircleCollider;
+    CapsuleCollider: new () => CapsuleCollider;
     LocalTransform: new () => LocalTransform;
     WorldTransform: new () => WorldTransform;
     Velocity: new () => Velocity;
     SpineAnimation: new () => SpineAnimation;
+    RigidBody: new () => RigidBody;
     Sprite: new () => Sprite;
     Parent: new () => Parent;
     Children: new () => Children;

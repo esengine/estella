@@ -4,6 +4,10 @@
  */
 
 import { Entity, Vec2, Vec3, Vec4, Quat, INVALID_TEXTURE } from './types';
+import {
+    RigidBody, BoxCollider, CircleCollider, CapsuleCollider,
+    type RigidBodyData, type BoxColliderData, type CircleColliderData, type CapsuleColliderData,
+} from './physics/PhysicsComponents';
 
 // =============================================================================
 // Component Definition
@@ -269,6 +273,11 @@ export const SpineAnimation = defineBuiltin<SpineAnimationData>('SpineAnimation'
     material: 0
 });
 
+export {
+    RigidBody, BoxCollider, CircleCollider, CapsuleCollider,
+    type RigidBodyData, type BoxColliderData, type CircleColliderData, type CapsuleColliderData,
+};
+
 // =============================================================================
 // Type Helpers
 // =============================================================================
@@ -292,6 +301,10 @@ const builtinComponents: Record<string, BuiltinComponentDef<any>> = {
     Parent,
     Children,
     SpineAnimation,
+    RigidBody,
+    BoxCollider,
+    CircleCollider,
+    CapsuleCollider,
 };
 
 export function getComponentDefaults(typeName: string): Record<string, unknown> | null {
