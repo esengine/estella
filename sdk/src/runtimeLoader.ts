@@ -3,7 +3,7 @@
  * @brief   Runtime scene loader for builder targets (WeChat, Playable, etc.)
  */
 
-import { Sprite, SpineAnimation } from './component';
+import { Sprite, SpineAnimation, WorldTransform, type SpineAnimationData, type WorldTransformData } from './component';
 import { Material } from './material';
 import { loadSceneData, type SceneData } from './scene';
 import type { ESEngineModule } from './wasm';
@@ -11,7 +11,7 @@ import { wrapSpineModule, type SpineWasmModule, type SpineWrappedAPI } from './s
 import type { PhysicsWasmModule } from './physics/PhysicsModuleLoader';
 import { PhysicsPlugin, type PhysicsPluginConfig } from './physics/PhysicsPlugin';
 import type { App } from './app';
-import type { Vec2 } from './types';
+import type { Entity, Vec2 } from './types';
 
 // =============================================================================
 // Public Interface
@@ -217,6 +217,28 @@ function createSpineInstances(
     return instances;
 }
 
+function buildTransformMatrix(
+    wt: WorldTransformData,
+    skeletonScale: number,
+    flipX: boolean,
+    flipY: boolean,
+): Float32Array {
+    const sx = wt.scale.x * skeletonScale * (flipX ? -1 : 1);
+    const sy = wt.scale.y * skeletonScale * (flipY ? -1 : 1);
+    const sz = wt.scale.z;
+    const qx = wt.rotation.x, qy = wt.rotation.y, qz = wt.rotation.z, qw = wt.rotation.w;
+    const x2 = qx + qx, y2 = qy + qy, z2 = qz + qz;
+    const xx = qx * x2, xy = qx * y2, xz = qx * z2;
+    const yy = qy * y2, yz = qy * z2, zz = qz * z2;
+    const wx = qw * x2, wy = qw * y2, wz = qw * z2;
+    return new Float32Array([
+        (1 - (yy + zz)) * sx, (xy + wz) * sx, (xz - wy) * sx, 0,
+        (xy - wz) * sy, (1 - (xx + zz)) * sy, (yz + wx) * sy, 0,
+        (xz + wy) * sz, (yz - wx) * sz, (1 - (xx + yy)) * sz, 0,
+        wt.position.x, wt.position.y, wt.position.z, 1,
+    ]);
+}
+
 function setupSpineRenderer(
     app: App,
     module: ESEngineModule,
@@ -230,9 +252,32 @@ function setupSpineRenderer(
         lastElapsed = elapsed;
         if (dt <= 0 || dt > 0.5) dt = 1 / 60;
 
+        const world = app.world;
+
         for (const entity in instances) {
+            const entityId = Number(entity) as Entity;
             const instanceId = instances[entity];
-            spineAPI.update(instanceId, dt);
+
+            const spineData = world.has(entityId, SpineAnimation)
+                ? world.get(entityId, SpineAnimation) as SpineAnimationData
+                : null;
+
+            const playing = spineData?.playing !== false;
+            const timeScale = spineData?.timeScale ?? 1;
+            if (playing) {
+                spineAPI.update(instanceId, dt * timeScale);
+            }
+
+            let transformPtr = 0;
+            if (world.has(entityId, WorldTransform)) {
+                const wt = world.get(entityId, WorldTransform) as WorldTransformData;
+                const skeletonScale = spineData?.skeletonScale ?? 1;
+                const flipX = spineData?.flipX ?? false;
+                const flipY = spineData?.flipY ?? false;
+                const mat = buildTransformMatrix(wt, skeletonScale, flipX, flipY);
+                transformPtr = module._malloc(64);
+                module.HEAPF32.set(mat, transformPtr >> 2);
+            }
 
             const batchCount = spineAPI.getMeshBatchCount(instanceId);
             for (let b = 0; b < batchCount; b++) {
@@ -260,7 +305,7 @@ function setupSpineRenderer(
 
                 module.renderer_submitTriangles(
                     coreVertPtr, vertCount, coreIdxPtr, idxCount,
-                    texId, blendMode, 0);
+                    texId, blendMode, transformPtr);
 
                 module._free(coreVertPtr);
                 module._free(coreIdxPtr);
@@ -269,6 +314,8 @@ function setupSpineRenderer(
                 spineModule._free(texIdPtr);
                 spineModule._free(blendPtr);
             }
+
+            if (transformPtr) module._free(transformPtr);
         }
     });
 }

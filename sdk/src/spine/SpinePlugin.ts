@@ -42,7 +42,8 @@ export function submitSpineMeshesToCore(
     coreModule: ESEngineModule,
     controller: SpineModuleController,
     instanceId: number,
-    transform?: Float32Array
+    transform?: Float32Array,
+    color?: { x: number; y: number; z: number; w: number },
 ): void {
     const batches = controller.extractMeshBatches(instanceId);
 
@@ -52,19 +53,32 @@ export function submitSpineMeshesToCore(
         coreModule.HEAPF32.set(transform, transformPtr >> 2);
     }
 
+    const needsTint = color && (color.x !== 1 || color.y !== 1 || color.z !== 1 || color.w !== 1);
+
     for (const batch of batches) {
-        const vertBytes = batch.vertices.byteLength;
+        let vertices = batch.vertices;
+        if (needsTint) {
+            vertices = new Float32Array(vertices);
+            for (let i = 0; i < vertices.length; i += 8) {
+                vertices[i + 4] *= color.x;
+                vertices[i + 5] *= color.y;
+                vertices[i + 6] *= color.z;
+                vertices[i + 7] *= color.w;
+            }
+        }
+
+        const vertBytes = vertices.byteLength;
         const idxBytes = batch.indices.byteLength;
 
         const vertPtr = coreModule._malloc(vertBytes);
         const idxPtr = coreModule._malloc(idxBytes);
 
-        coreModule.HEAPF32.set(batch.vertices, vertPtr >> 2);
+        coreModule.HEAPF32.set(vertices, vertPtr >> 2);
         new Uint16Array(coreModule.HEAPU8.buffer, idxPtr, batch.indices.length)
             .set(batch.indices);
 
         coreModule.renderer_submitTriangles(
-            vertPtr, batch.vertices.length / 8,
+            vertPtr, vertices.length / 8,
             idxPtr, batch.indices.length,
             batch.textureId, batch.blendMode,
             transformPtr
