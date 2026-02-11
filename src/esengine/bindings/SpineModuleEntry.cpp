@@ -103,6 +103,7 @@ static std::vector<MeshBatch> g_meshBatches;
 static std::vector<float> g_worldVertices;
 
 static std::string g_stringBuffer;
+static std::string g_lastError;
 
 static void destroyInstance(SpineInstance& inst) {
     if (inst.state) spAnimationState_dispose(inst.state);
@@ -124,11 +125,14 @@ extern "C" {
 EMSCRIPTEN_KEEPALIVE
 int spine_loadSkeleton(uintptr_t skelDataPtr, int skelDataLen,
                        const char* atlasText, int atlasLen, int isBinary) {
+    g_lastError.clear();
+
     int id = g_nextSkeletonId;
     auto& handle = g_skeletons[id];
 
     handle.atlas = spAtlas_create(atlasText, atlasLen, "", nullptr);
     if (!handle.atlas || !handle.atlas->pages) {
+        g_lastError = "Failed to create atlas (invalid atlas text or no pages)";
         g_skeletons.erase(id);
         return -1;
     }
@@ -138,12 +142,18 @@ int spine_loadSkeleton(uintptr_t skelDataPtr, int skelDataLen,
         binary->scale = 1.0f;
         handle.skeletonData = spSkeletonBinary_readSkeletonData(
             binary, reinterpret_cast<const unsigned char*>(skelDataPtr), skelDataLen);
+        if (!handle.skeletonData && binary->error) {
+            g_lastError = binary->error;
+        }
         spSkeletonBinary_dispose(binary);
     } else {
         spSkeletonJson* json = spSkeletonJson_create(handle.atlas);
         json->scale = 1.0f;
         handle.skeletonData = spSkeletonJson_readSkeletonData(
             json, reinterpret_cast<const char*>(skelDataPtr));
+        if (!handle.skeletonData && json->error) {
+            g_lastError = json->error;
+        }
         spSkeletonJson_dispose(json);
     }
 
@@ -158,6 +168,11 @@ int spine_loadSkeleton(uintptr_t skelDataPtr, int skelDataLen,
 
     g_nextSkeletonId++;
     return id;
+}
+
+EMSCRIPTEN_KEEPALIVE
+const char* spine_getLastError() {
+    return g_lastError.c_str();
 }
 
 EMSCRIPTEN_KEEPALIVE

@@ -322,7 +322,11 @@ async function initPhysicsModule() {
         var sceneJson = wxfs.readFileSync('scenes/${firstSceneName}.json', 'utf-8');
         var sceneData = JSON.parse(sceneJson);
 
-        await SDK.loadRuntimeScene(app, module, sceneData, provider, spineModule, physicsModule);
+        await SDK.loadRuntimeScene(app, module, sceneData, provider, spineModule, physicsModule, ${JSON.stringify({
+            gravity: this.context_.physicsGravity ?? { x: 0, y: -9.81 },
+            fixedTimestep: this.context_.physicsFixedTimestep ?? 1 / 60,
+            subStepCount: this.context_.physicsSubStepCount ?? 4,
+        })});
 
         var screenAspect = canvas.width / canvas.height;
         SDK.updateCameraAspectRatio(app.world, screenAspect);

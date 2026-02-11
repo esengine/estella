@@ -146,7 +146,7 @@ function decodeBinary(dataUrl){
     resolvePath:function(ref){return ref}
   };
 
-  await es.loadRuntimeScene(app,Module,__SCENE__,provider,spineModule,physicsModule);
+  await es.loadRuntimeScene(app,Module,__SCENE__,provider,spineModule,physicsModule,{{PHYSICS_CONFIG}});
 
   var screenAspect=c.width/c.height;
   es.updateCameraAspectRatio(app.world,screenAspect);
@@ -659,13 +659,20 @@ ${imports}
             physicsScript = `<script>\nvar __PHYSICS_WASM_B64__="";\n</script>`;
         }
 
+        const physicsConfig = JSON.stringify({
+            gravity: this.context_.physicsGravity ?? { x: 0, y: -9.81 },
+            fixedTimestep: this.context_.physicsFixedTimestep ?? 1 / 60,
+            subStepCount: this.context_.physicsSubStepCount ?? 4,
+        });
+
         return HTML_TEMPLATE
             .replace('{{WASM_SDK}}', () => wasmSdk)
             .replace('{{SPINE_SCRIPT}}', () => spineScript)
             .replace('{{PHYSICS_SCRIPT}}', () => physicsScript)
             .replace('{{GAME_CODE}}', () => gameCode)
             .replace('{{ASSETS_MAP}}', () => `{${entries.join(',')}}`)
-            .replace('{{SCENE_DATA}}', () => sceneData);
+            .replace('{{SCENE_DATA}}', () => sceneData)
+            .replace('{{PHYSICS_CONFIG}}', () => physicsConfig);
     }
 
     private arrayBufferToBase64(buffer: Uint8Array): string {

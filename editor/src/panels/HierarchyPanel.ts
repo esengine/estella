@@ -533,6 +533,25 @@ export class HierarchyPanel {
     }
 
     private showEntityContextMenu(x: number, y: number, entity: Entity | null): void {
+        const entityData = entity !== null ? this.store_.getEntityData(entity as number) : null;
+        const has = (type: string) => entityData?.components.some(c => c.type === type) ?? false;
+
+        const physicsChildren: ContextMenuItem[] = [];
+        if (entity !== null) {
+            physicsChildren.push(
+                { label: 'Add RigidBody', disabled: has('RigidBody'), onClick: () => this.addComponentToEntity(entity, 'RigidBody') },
+                { label: 'Add BoxCollider', disabled: has('BoxCollider'), onClick: () => this.addComponentToEntity(entity, 'BoxCollider') },
+                { label: 'Add CircleCollider', disabled: has('CircleCollider'), onClick: () => this.addComponentToEntity(entity, 'CircleCollider') },
+                { label: 'Add CapsuleCollider', disabled: has('CapsuleCollider'), onClick: () => this.addComponentToEntity(entity, 'CapsuleCollider') },
+                { label: '', separator: true },
+            );
+        }
+        physicsChildren.push(
+            { label: 'New Box Collider', onClick: () => this.createPhysicsEntity('BoxCollider', entity) },
+            { label: 'New Circle Collider', onClick: () => this.createPhysicsEntity('CircleCollider', entity) },
+            { label: 'New Capsule Collider', onClick: () => this.createPhysicsEntity('CapsuleCollider', entity) },
+        );
+
         const items: ContextMenuItem[] = [
             { label: 'Create Entity', icon: icons.plus(14), onClick: () => {
                 const newEntity = this.store_.createEntity(undefined, entity);
@@ -543,26 +562,12 @@ export class HierarchyPanel {
             { label: 'Create Spine', icon: icons.bone(14), onClick: () => this.createEntityWithComponent('SpineAnimation', entity) },
             { label: 'Create Camera', icon: icons.camera(14), onClick: () => this.createEntityWithComponent('Camera', entity) },
             { label: 'Create Canvas', icon: icons.template(14), onClick: () => this.createEntityWithComponent('Canvas', entity) },
-            { label: 'Physics', icon: icons.circle(14), children: [
-                { label: 'Box Collider', onClick: () => this.createPhysicsEntity('BoxCollider', entity) },
-                { label: 'Circle Collider', onClick: () => this.createPhysicsEntity('CircleCollider', entity) },
-                { label: 'Capsule Collider', onClick: () => this.createPhysicsEntity('CapsuleCollider', entity) },
-            ]},
+            { label: 'Physics', icon: icons.circle(14), children: physicsChildren },
             { label: '', separator: true },
         ];
 
         if (entity !== null) {
-            const entityData = this.store_.getEntityData(entity as number);
-            const has = (type: string) => entityData?.components.some(c => c.type === type) ?? false;
-
             items.push(
-                { label: 'Add Physics', icon: icons.circle(14), children: [
-                    { label: 'RigidBody', disabled: has('RigidBody'), onClick: () => this.addComponentToEntity(entity, 'RigidBody') },
-                    { label: 'Box Collider', disabled: has('BoxCollider'), onClick: () => this.addComponentToEntity(entity, 'BoxCollider') },
-                    { label: 'Circle Collider', disabled: has('CircleCollider'), onClick: () => this.addComponentToEntity(entity, 'CircleCollider') },
-                    { label: 'Capsule Collider', disabled: has('CapsuleCollider'), onClick: () => this.addComponentToEntity(entity, 'CapsuleCollider') },
-                ]},
-                { label: '', separator: true },
                 { label: 'Duplicate', icon: icons.copy(14), onClick: () => this.duplicateEntity(entity) },
                 { label: 'Delete', icon: icons.trash(14), onClick: () => this.store_.deleteEntity(entity) }
             );

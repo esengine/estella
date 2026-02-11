@@ -31,6 +31,9 @@ export interface BuildContext {
     config: BuildConfig;
     spineVersion?: SpineVersion;
     enablePhysics?: boolean;
+    physicsGravity?: { x: number; y: number };
+    physicsFixedTimestep?: number;
+    physicsSubStepCount?: number;
     progress?: BuildProgressReporter;
     cache?: BuildCache;
 }
@@ -76,6 +79,12 @@ export class BuildService {
             config,
             spineVersion,
             enablePhysics,
+            physicsGravity: {
+                x: projectConfig?.physicsGravityX ?? 0,
+                y: projectConfig?.physicsGravityY ?? -9.81,
+            },
+            physicsFixedTimestep: projectConfig?.physicsFixedTimestep ?? 1 / 60,
+            physicsSubStepCount: projectConfig?.physicsSubStepCount ?? 4,
             progress,
             cache: useCache ? this.cache_ : undefined,
         };

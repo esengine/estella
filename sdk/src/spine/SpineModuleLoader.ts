@@ -44,6 +44,7 @@ export interface SpineWasmModule {
 
 export interface SpineWrappedAPI {
     loadSkeleton(skelDataPtr: number, skelDataLen: number, atlasText: string, atlasLen: number, isBinary: boolean): number;
+    getLastError(): string;
     unloadSkeleton(handle: number): void;
     getAtlasPageCount(handle: number): number;
     getAtlasPageTextureName(handle: number, pageIndex: number): string;
@@ -71,6 +72,7 @@ export function wrapSpineModule(raw: SpineWasmModule): SpineWrappedAPI {
     const cw = raw.cwrap.bind(raw);
     return {
         loadSkeleton: cw('spine_loadSkeleton', 'number', ['number', 'number', 'string', 'number', 'number']) as SpineWrappedAPI['loadSkeleton'],
+        getLastError: cw('spine_getLastError', 'string', []) as SpineWrappedAPI['getLastError'],
         unloadSkeleton: cw('spine_unloadSkeleton', null, ['number']) as SpineWrappedAPI['unloadSkeleton'],
         getAtlasPageCount: cw('spine_getAtlasPageCount', 'number', ['number']) as SpineWrappedAPI['getAtlasPageCount'],
         getAtlasPageTextureName: cw('spine_getAtlasPageTextureName', 'string', ['number', 'number']) as SpineWrappedAPI['getAtlasPageTextureName'],

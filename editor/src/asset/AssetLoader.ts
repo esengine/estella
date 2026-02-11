@@ -201,7 +201,9 @@ export class AssetLoader {
             skelData instanceof Uint8Array ? skelData : skelData as string,
             atlasContent, isBinary);
         if (skeletonHandle < 0) {
-            return { success: false, error: `Failed to load skeleton in spine module: ${skeletonPath}` };
+            let detail = '';
+            try { detail = controller.getLastError(); } catch { /* not available before WASM rebuild */ }
+            return { success: false, error: `Failed to load skeleton in spine module: ${skeletonPath}${detail ? ' (' + detail + ')' : ''}` };
         }
 
         const rm = this.module_.getResourceManager();

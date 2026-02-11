@@ -44,6 +44,18 @@ export interface PhysicsWasmModule {
     _physics_setLinearVelocity(entityId: number, vx: number, vy: number): void;
     _physics_getLinearVelocity(entityId: number): number;
 
+    _physics_setGravity(gx: number, gy: number): void;
+    _physics_getGravity(): number;
+
+    _physics_setAngularVelocity(entityId: number, omega: number): void;
+    _physics_getAngularVelocity(entityId: number): number;
+    _physics_applyTorque(entityId: number, torque: number): void;
+    _physics_applyAngularImpulse(entityId: number, impulse: number): void;
+
+    _physics_updateBodyProperties(entityId: number, bodyType: number,
+        gravityScale: number, linearDamping: number, angularDamping: number,
+        fixedRotation: number, bullet: number): void;
+
     HEAPF32: Float32Array;
     HEAPU8: Uint8Array;
     HEAPU32: Uint32Array;
@@ -118,6 +130,16 @@ export async function loadPhysicsSideModule(
         _physics_applyImpulse: cwrap('physics_applyImpulse', null, ['number', 'number', 'number']) as PhysicsWasmModule['_physics_applyImpulse'],
         _physics_setLinearVelocity: cwrap('physics_setLinearVelocity', null, ['number', 'number', 'number']) as PhysicsWasmModule['_physics_setLinearVelocity'],
         _physics_getLinearVelocity: cwrap('physics_getLinearVelocity', 'number', ['number']) as PhysicsWasmModule['_physics_getLinearVelocity'],
+
+        _physics_setGravity: cwrap('physics_setGravity', null, ['number', 'number']) as PhysicsWasmModule['_physics_setGravity'],
+        _physics_getGravity: cwrap('physics_getGravity', 'number', []) as PhysicsWasmModule['_physics_getGravity'],
+
+        _physics_setAngularVelocity: cwrap('physics_setAngularVelocity', null, ['number', 'number']) as PhysicsWasmModule['_physics_setAngularVelocity'],
+        _physics_getAngularVelocity: cwrap('physics_getAngularVelocity', 'number', ['number']) as PhysicsWasmModule['_physics_getAngularVelocity'],
+        _physics_applyTorque: cwrap('physics_applyTorque', null, ['number', 'number']) as PhysicsWasmModule['_physics_applyTorque'],
+        _physics_applyAngularImpulse: cwrap('physics_applyAngularImpulse', null, ['number', 'number']) as PhysicsWasmModule['_physics_applyAngularImpulse'],
+
+        _physics_updateBodyProperties: cwrap('physics_updateBodyProperties', null, ['number', 'number', 'number', 'number', 'number', 'number', 'number']) as PhysicsWasmModule['_physics_updateBodyProperties'],
 
         get HEAPF32() { return mainModule.HEAPF32; },
         get HEAPU8() { return mainModule.HEAPU8; },

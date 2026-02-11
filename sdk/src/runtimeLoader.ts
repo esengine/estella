@@ -8,7 +8,10 @@ import { Material } from './material';
 import { loadSceneData, type SceneData } from './scene';
 import type { ESEngineModule } from './wasm';
 import { wrapSpineModule, type SpineWasmModule, type SpineWrappedAPI } from './spine/SpineModuleLoader';
+import type { PhysicsWasmModule } from './physics/PhysicsModuleLoader';
+import { PhysicsPlugin, type PhysicsPluginConfig } from './physics/PhysicsPlugin';
 import type { App } from './app';
+import type { Vec2 } from './types';
 
 // =============================================================================
 // Public Interface
@@ -347,6 +350,8 @@ export async function loadRuntimeScene(
     sceneData: SceneData,
     provider: RuntimeAssetProvider,
     spineModule?: SpineWasmModule | null,
+    physicsModule?: PhysicsWasmModule | null,
+    physicsConfig?: { gravity?: Vec2; fixedTimestep?: number; subStepCount?: number },
 ): Promise<void> {
     const textureCache = await loadTextures(module, sceneData, provider);
     applyTextureMetadata(module, sceneData, textureCache);
@@ -356,6 +361,16 @@ export async function loadRuntimeScene(
     if (spineModule) {
         spineAPI = wrapSpineModule(spineModule);
         spineSkeletons = await loadSpineAssets(module, spineModule, spineAPI, sceneData, provider);
+    }
+
+    if (physicsModule) {
+        const config: PhysicsPluginConfig = {
+            gravity: physicsConfig?.gravity ?? { x: 0, y: -9.81 },
+            fixedTimestep: physicsConfig?.fixedTimestep ?? 1 / 60,
+            subStepCount: physicsConfig?.subStepCount ?? 4,
+        };
+        const physicsPlugin = new PhysicsPlugin('', config, () => Promise.resolve(physicsModule));
+        physicsPlugin.build(app);
     }
 
     const materialCache = loadMaterials(sceneData, provider);

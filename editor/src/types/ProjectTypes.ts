@@ -18,6 +18,10 @@ export interface ProjectConfig {
     modified: string;
     spineVersion?: SpineVersion;
     enablePhysics?: boolean;
+    physicsGravityX?: number;
+    physicsGravityY?: number;
+    physicsFixedTimestep?: number;
+    physicsSubStepCount?: number;
     designResolution?: { width: number; height: number };
 }
 

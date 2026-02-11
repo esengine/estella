@@ -60,6 +60,10 @@ export class SpineModuleController {
         return result;
     }
 
+    getLastError(): string {
+        return this.api_.getLastError();
+    }
+
     unloadSkeleton(handle: number): void {
         this.api_.unloadSkeleton(handle);
     }

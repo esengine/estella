@@ -370,6 +370,10 @@ export class Editor {
                 setSettingsValue('project.spineVersion', config.spineVersion);
             }
             setSettingsValue('project.enablePhysics', config.enablePhysics ?? false);
+            setSettingsValue('physics.gravityX', config.physicsGravityX ?? 0);
+            setSettingsValue('physics.gravityY', config.physicsGravityY ?? -9.81);
+            setSettingsValue('physics.fixedTimestep', config.physicsFixedTimestep ?? 1 / 60);
+            setSettingsValue('physics.subStepCount', config.physicsSubStepCount ?? 4);
             const resolution = config.designResolution ?? { width: 1920, height: 1080 };
             setSettingsValue('project.designWidth', resolution.width);
             setSettingsValue('project.designHeight', resolution.height);
@@ -377,7 +381,7 @@ export class Editor {
 
         const projectPath = this.projectPath_;
         onSettingsChange((id, value) => {
-            if (id.startsWith('project.')) {
+            if (id.startsWith('project.') || id.startsWith('physics.')) {
                 this.saveProjectField(projectPath);
                 if (id === 'project.spineVersion') {
                     this.spineVersionChangeHandler_?.(value as string);
@@ -394,6 +398,10 @@ export class Editor {
         config.defaultScene = getSettingsValue<string>('project.defaultScene') || config.defaultScene;
         config.spineVersion = getSettingsValue<string>('project.spineVersion') as SpineVersion;
         config.enablePhysics = getSettingsValue<boolean>('project.enablePhysics') ?? false;
+        config.physicsGravityX = getSettingsValue<number>('physics.gravityX') ?? 0;
+        config.physicsGravityY = getSettingsValue<number>('physics.gravityY') ?? -9.81;
+        config.physicsFixedTimestep = getSettingsValue<number>('physics.fixedTimestep') ?? 1 / 60;
+        config.physicsSubStepCount = getSettingsValue<number>('physics.subStepCount') ?? 4;
         config.designResolution = {
             width: getSettingsValue<number>('project.designWidth') || 1920,
             height: getSettingsValue<number>('project.designHeight') || 1080,

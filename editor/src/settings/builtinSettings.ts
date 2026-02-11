@@ -19,6 +19,12 @@ export function registerBuiltinSettings(): void {
         order: 2,
     });
 
+    registerSettingsSection({
+        id: 'physics',
+        title: 'Physics',
+        order: 3,
+    });
+
     registerSettingsItem({
         id: 'project.name',
         section: 'project',
@@ -61,11 +67,54 @@ export function registerBuiltinSettings(): void {
 
     registerSettingsItem({
         id: 'project.enablePhysics',
-        section: 'project',
+        section: 'physics',
         label: 'Enable Physics',
         type: 'boolean',
         defaultValue: false,
-        order: 0.5,
+        order: 0,
+    });
+
+    registerSettingsItem({
+        id: 'physics.gravityX',
+        section: 'physics',
+        label: 'Gravity X',
+        type: 'number',
+        defaultValue: 0,
+        step: 0.1,
+        order: 1,
+    });
+
+    registerSettingsItem({
+        id: 'physics.gravityY',
+        section: 'physics',
+        label: 'Gravity Y',
+        type: 'number',
+        defaultValue: -9.81,
+        step: 0.1,
+        order: 2,
+    });
+
+    registerSettingsItem({
+        id: 'physics.fixedTimestep',
+        section: 'physics',
+        label: 'Fixed Timestep',
+        type: 'number',
+        defaultValue: 1 / 60,
+        step: 0.001,
+        min: 0.001,
+        order: 3,
+    });
+
+    registerSettingsItem({
+        id: 'physics.subStepCount',
+        section: 'physics',
+        label: 'Sub-Step Count',
+        type: 'number',
+        defaultValue: 4,
+        step: 1,
+        min: 1,
+        max: 16,
+        order: 4,
     });
 
     registerSettingsItem({

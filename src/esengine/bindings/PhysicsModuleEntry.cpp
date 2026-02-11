@@ -41,6 +41,7 @@ static std::vector<float> g_sensorEnterBuffer;
 static std::vector<float> g_sensorExitBuffer;
 
 static float g_velocityBuffer[2];
+static float g_gravityBuffer[2];
 
 // =============================================================================
 // Helper: Entity ID from body user data
@@ -295,10 +296,21 @@ void physics_collectEvents() {
 
         pushEntityBits(g_collisionEnterBuffer, entityA);
         pushEntityBits(g_collisionEnterBuffer, entityB);
-        g_collisionEnterBuffer.push_back(0);
-        g_collisionEnterBuffer.push_back(0);
-        g_collisionEnterBuffer.push_back(0);
-        g_collisionEnterBuffer.push_back(0);
+
+        float nx = 0, ny = 0, cx = 0, cy = 0;
+        if (b2Contact_IsValid(evt.contactId)) {
+            b2ContactData cd = b2Contact_GetData(evt.contactId);
+            nx = cd.manifold.normal.x;
+            ny = cd.manifold.normal.y;
+            if (cd.manifold.pointCount > 0) {
+                cx = cd.manifold.points[0].point.x;
+                cy = cd.manifold.points[0].point.y;
+            }
+        }
+        g_collisionEnterBuffer.push_back(nx);
+        g_collisionEnterBuffer.push_back(ny);
+        g_collisionEnterBuffer.push_back(cx);
+        g_collisionEnterBuffer.push_back(cy);
     }
 
     for (int i = 0; i < contactEvents.endCount; ++i) {
@@ -427,6 +439,88 @@ uintptr_t physics_getLinearVelocity(uint32_t entityId) {
     g_velocityBuffer[0] = v.x;
     g_velocityBuffer[1] = v.y;
     return reinterpret_cast<uintptr_t>(g_velocityBuffer);
+}
+
+// Gravity
+
+EMSCRIPTEN_KEEPALIVE
+void physics_setGravity(float gx, float gy) {
+    if (!b2World_IsValid(g_worldId)) return;
+    b2World_SetGravity(g_worldId, {gx, gy});
+}
+
+EMSCRIPTEN_KEEPALIVE
+uintptr_t physics_getGravity() {
+    if (!b2World_IsValid(g_worldId)) {
+        g_gravityBuffer[0] = 0;
+        g_gravityBuffer[1] = 0;
+        return reinterpret_cast<uintptr_t>(g_gravityBuffer);
+    }
+    b2Vec2 g = b2World_GetGravity(g_worldId);
+    g_gravityBuffer[0] = g.x;
+    g_gravityBuffer[1] = g.y;
+    return reinterpret_cast<uintptr_t>(g_gravityBuffer);
+}
+
+// Angular Velocity / Torque
+
+EMSCRIPTEN_KEEPALIVE
+void physics_setAngularVelocity(uint32_t entityId, float omega) {
+    auto it = g_entityToBody.find(entityId);
+    if (it == g_entityToBody.end()) return;
+    if (!b2Body_IsValid(it->second)) return;
+    b2Body_SetAngularVelocity(it->second, omega);
+}
+
+EMSCRIPTEN_KEEPALIVE
+float physics_getAngularVelocity(uint32_t entityId) {
+    auto it = g_entityToBody.find(entityId);
+    if (it == g_entityToBody.end()) return 0;
+    if (!b2Body_IsValid(it->second)) return 0;
+    return b2Body_GetAngularVelocity(it->second);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics_applyTorque(uint32_t entityId, float torque) {
+    auto it = g_entityToBody.find(entityId);
+    if (it == g_entityToBody.end()) return;
+    if (!b2Body_IsValid(it->second)) return;
+    b2Body_ApplyTorque(it->second, torque, true);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics_applyAngularImpulse(uint32_t entityId, float impulse) {
+    auto it = g_entityToBody.find(entityId);
+    if (it == g_entityToBody.end()) return;
+    if (!b2Body_IsValid(it->second)) return;
+    b2Body_ApplyAngularImpulse(it->second, impulse, true);
+}
+
+// Runtime Body Property Update
+
+EMSCRIPTEN_KEEPALIVE
+void physics_updateBodyProperties(uint32_t entityId, int bodyType,
+                                  float gravityScale, float linearDamping, float angularDamping,
+                                  int fixedRotation, int bullet) {
+    auto it = g_entityToBody.find(entityId);
+    if (it == g_entityToBody.end()) return;
+    if (!b2Body_IsValid(it->second)) return;
+
+    b2BodyType type;
+    switch (bodyType) {
+        case 0: type = b2_staticBody; break;
+        case 1: type = b2_kinematicBody; break;
+        default: type = b2_dynamicBody; break;
+    }
+    b2Body_SetType(it->second, type);
+    b2Body_SetGravityScale(it->second, gravityScale);
+    b2Body_SetLinearDamping(it->second, linearDamping);
+    b2Body_SetAngularDamping(it->second, angularDamping);
+    b2Body_SetBullet(it->second, bullet != 0);
+
+    b2MotionLocks locks = b2Body_GetMotionLocks(it->second);
+    locks.angularZ = fixedRotation != 0;
+    b2Body_SetMotionLocks(it->second, locks);
 }
 
 } // extern "C"

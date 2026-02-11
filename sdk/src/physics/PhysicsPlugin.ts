@@ -5,8 +5,8 @@
 
 import type { Plugin, App } from '../app';
 import type { Entity, Vec2 } from '../types';
-import type { LocalTransformData } from '../component';
-import { LocalTransform, RigidBody, BoxCollider, CircleCollider, CapsuleCollider } from '../component';
+import type { LocalTransformData, WorldTransformData, ParentData } from '../component';
+import { LocalTransform, WorldTransform, Parent, RigidBody, BoxCollider, CircleCollider, CapsuleCollider } from '../component';
 import { defineResource, Res, Time, type TimeData } from '../resource';
 import { Schedule, defineSystem } from '../system';
 import {
@@ -100,6 +100,7 @@ export class PhysicsPlugin implements Plugin {
         });
 
         const trackedEntities = new Set<Entity>();
+        const cachedProps = new Map<Entity, { bodyType: number; gravityScale: number; linearDamping: number; angularDamping: number; fixedRotation: boolean; bullet: boolean }>();
 
         const initPromise = loadPhysicsModule(this.wasmUrl_, this.factory_).then(
             (module: PhysicsWasmModule) => {
@@ -117,35 +118,64 @@ export class PhysicsPlugin implements Plugin {
                     defineSystem(
                         [Res(Time)],
                         (time: TimeData) => {
-                            const entities = world.getEntitiesWithComponents([RigidBody, LocalTransform]);
+                            const entities = world.getEntitiesWithComponents([RigidBody, LocalTransform, WorldTransform]);
                             const currentEntities = new Set<Entity>();
 
                             for (const entity of entities) {
                                 currentEntities.add(entity);
                                 const rb = world.get(entity, RigidBody) as RigidBodyData;
-                                const transform = world.get(entity, LocalTransform) as LocalTransformData;
+                                const wt = world.get(entity, WorldTransform) as WorldTransformData;
 
                                 if (!trackedEntities.has(entity)) {
                                     if (!rb.enabled) continue;
 
-                                    const angle = quatToAngleZ(transform.rotation);
+                                    const angle = quatToAngleZ(wt.rotation);
 
                                     module._physics_createBody(
                                         entity, rb.bodyType,
-                                        transform.position.x, transform.position.y, angle,
+                                        wt.position.x, wt.position.y, angle,
                                         rb.gravityScale, rb.linearDamping, rb.angularDamping,
                                         rb.fixedRotation ? 1 : 0, rb.bullet ? 1 : 0
                                     );
 
                                     addShapeForEntity(app, module, entity);
                                     trackedEntities.add(entity);
+                                    cachedProps.set(entity, {
+                                        bodyType: rb.bodyType,
+                                        gravityScale: rb.gravityScale,
+                                        linearDamping: rb.linearDamping,
+                                        angularDamping: rb.angularDamping,
+                                        fixedRotation: rb.fixedRotation,
+                                        bullet: rb.bullet,
+                                    });
+                                } else {
+                                    const prev = cachedProps.get(entity);
+                                    if (prev &&
+                                        (prev.bodyType !== rb.bodyType ||
+                                         prev.gravityScale !== rb.gravityScale ||
+                                         prev.linearDamping !== rb.linearDamping ||
+                                         prev.angularDamping !== rb.angularDamping ||
+                                         prev.fixedRotation !== rb.fixedRotation ||
+                                         prev.bullet !== rb.bullet)) {
+                                        module._physics_updateBodyProperties(
+                                            entity, rb.bodyType,
+                                            rb.gravityScale, rb.linearDamping, rb.angularDamping,
+                                            rb.fixedRotation ? 1 : 0, rb.bullet ? 1 : 0
+                                        );
+                                        prev.bodyType = rb.bodyType;
+                                        prev.gravityScale = rb.gravityScale;
+                                        prev.linearDamping = rb.linearDamping;
+                                        prev.angularDamping = rb.angularDamping;
+                                        prev.fixedRotation = rb.fixedRotation;
+                                        prev.bullet = rb.bullet;
+                                    }
                                 }
 
                                 if (rb.bodyType === BodyType.Kinematic) {
-                                    const angle = quatToAngleZ(transform.rotation);
+                                    const angle = quatToAngleZ(wt.rotation);
                                     module._physics_setBodyTransform(
                                         entity,
-                                        transform.position.x, transform.position.y,
+                                        wt.position.x, wt.position.y,
                                         angle
                                     );
                                 }
@@ -155,6 +185,7 @@ export class PhysicsPlugin implements Plugin {
                                 if (!currentEntities.has(entity)) {
                                     module._physics_destroyBody(entity);
                                     trackedEntities.delete(entity);
+                                    cachedProps.delete(entity);
                                 }
                             }
 
@@ -222,18 +253,39 @@ function syncDynamicTransforms(app: App, module: PhysicsWasmModule): void {
     for (let i = 0; i < count; i++) {
         const offset = baseU32 + i * 4;
         const entityId = module.HEAPU32[offset] as Entity;
-        const x = module.HEAPF32[offset + 1];
-        const y = module.HEAPF32[offset + 2];
-        const angle = module.HEAPF32[offset + 3];
+        const worldX = module.HEAPF32[offset + 1];
+        const worldY = module.HEAPF32[offset + 2];
+        const worldAngle = module.HEAPF32[offset + 3];
 
         if (!app.world.valid(entityId)) continue;
 
         const transform = app.world.get(entityId, LocalTransform) as LocalTransformData;
         if (!transform) continue;
 
-        transform.position.x = x;
-        transform.position.y = y;
-        const q = angleZToQuat(angle);
+        let localX = worldX;
+        let localY = worldY;
+        let localAngle = worldAngle;
+
+        if (app.world.has(entityId, Parent)) {
+            const parentData = app.world.get(entityId, Parent) as ParentData;
+            if (parentData && app.world.valid(parentData.entity) && app.world.has(parentData.entity, WorldTransform)) {
+                const pwt = app.world.get(parentData.entity, WorldTransform) as WorldTransformData;
+                const parentAngle = quatToAngleZ(pwt.rotation);
+                const dx = worldX - pwt.position.x;
+                const dy = worldY - pwt.position.y;
+                const cos = Math.cos(-parentAngle);
+                const sin = Math.sin(-parentAngle);
+                const sx = pwt.scale.x !== 0 ? pwt.scale.x : 1;
+                const sy = pwt.scale.y !== 0 ? pwt.scale.y : 1;
+                localX = (dx * cos - dy * sin) / sx;
+                localY = (dx * sin + dy * cos) / sy;
+                localAngle = worldAngle - parentAngle;
+            }
+        }
+
+        transform.position.x = localX;
+        transform.position.y = localY;
+        const q = angleZToQuat(localAngle);
         transform.rotation.w = q.w;
         transform.rotation.x = q.x;
         transform.rotation.y = q.y;
@@ -340,5 +392,31 @@ export class Physics {
         const ptr = this.module_._physics_getLinearVelocity(entity);
         const base = ptr >> 2;
         return { x: this.module_.HEAPF32[base], y: this.module_.HEAPF32[base + 1] };
+    }
+
+    setGravity(gravity: Vec2): void {
+        this.module_._physics_setGravity(gravity.x, gravity.y);
+    }
+
+    getGravity(): Vec2 {
+        const ptr = this.module_._physics_getGravity();
+        const base = ptr >> 2;
+        return { x: this.module_.HEAPF32[base], y: this.module_.HEAPF32[base + 1] };
+    }
+
+    setAngularVelocity(entity: Entity, omega: number): void {
+        this.module_._physics_setAngularVelocity(entity, omega);
+    }
+
+    getAngularVelocity(entity: Entity): number {
+        return this.module_._physics_getAngularVelocity(entity);
+    }
+
+    applyTorque(entity: Entity, torque: number): void {
+        this.module_._physics_applyTorque(entity, torque);
+    }
+
+    applyAngularImpulse(entity: Entity, impulse: number): void {
+        this.module_._physics_applyAngularImpulse(entity, impulse);
     }
 }
