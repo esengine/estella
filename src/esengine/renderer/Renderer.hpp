@@ -353,6 +353,13 @@ public:
                          const glm::vec2& uvScale = glm::vec2(1.0f));
 
     // =========================================================================
+    // Triangle Drawing
+    // =========================================================================
+
+    void drawTriangle(const glm::vec2& p0, const glm::vec2& p1, const glm::vec2& p2,
+                      const glm::vec4& color);
+
+    // =========================================================================
     // Nine-Slice Rendering
     // =========================================================================
 
@@ -393,6 +400,9 @@ public:
 
     /** @brief Gets the number of quads rendered in the current/last frame */
     u32 getQuadCount() const;
+
+    /** @brief Gets the number of triangles rendered in the current/last frame */
+    u32 getTriangleCount() const;
 
 private:
     struct BatchData;

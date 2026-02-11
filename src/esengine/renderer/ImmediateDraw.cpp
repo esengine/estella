@@ -170,16 +170,7 @@ void ImmediateDraw::circle(const glm::vec2& center, f32 radius,
             glm::vec2 p1 = center + glm::vec2(std::cos(angle1), std::sin(angle1)) * radius;
             glm::vec2 p2 = center + glm::vec2(std::cos(angle2), std::sin(angle2)) * radius;
 
-            glm::vec2 edge = p2 - p1;
-            f32 baseLen = glm::length(edge);
-            glm::vec2 toCenter = center - (p1 + p2) * 0.5f;
-            f32 height = glm::length(toCenter);
-
-            f32 angle = std::atan2(edge.y, edge.x);
-            glm::vec2 midBase = (p1 + p2) * 0.5f;
-            glm::vec2 triangleCenter = midBase + glm::normalize(toCenter) * (height / 3.0f);
-
-            impl_->batcher->drawRotatedQuad(triangleCenter, glm::vec2(baseLen, height), angle - glm::half_pi<f32>(), color);
+            impl_->batcher->drawTriangle(center, p1, p2, color);
             primitiveCount_++;
         }
     } else {
@@ -206,29 +197,8 @@ void ImmediateDraw::polygon(std::span<const glm::vec2> vertices,
                             const glm::vec4& color) {
     if (!inFrame_ || vertices.size() < 3) return;
 
-    glm::vec2 center(0.0f);
-    for (const auto& v : vertices) {
-        center += v;
-    }
-    center /= static_cast<f32>(vertices.size());
-
-    for (size_t i = 0; i < vertices.size(); ++i) {
-        const glm::vec2& p1 = vertices[i];
-        const glm::vec2& p2 = vertices[(i + 1) % vertices.size()];
-
-        glm::vec2 edge = p2 - p1;
-        f32 baseLen = glm::length(edge);
-        if (baseLen < 0.0001f) continue;
-
-        glm::vec2 midBase = (p1 + p2) * 0.5f;
-        glm::vec2 toCenter = center - midBase;
-        f32 height = glm::length(toCenter);
-        if (height < 0.0001f) continue;
-
-        f32 angle = std::atan2(edge.y, edge.x);
-        glm::vec2 triangleCenter = midBase + glm::normalize(toCenter) * (height / 3.0f);
-
-        impl_->batcher->drawRotatedQuad(triangleCenter, glm::vec2(baseLen, height), angle - glm::half_pi<f32>(), color);
+    for (size_t i = 1; i + 1 < vertices.size(); ++i) {
+        impl_->batcher->drawTriangle(vertices[0], vertices[i], vertices[i + 1], color);
         primitiveCount_++;
     }
 }

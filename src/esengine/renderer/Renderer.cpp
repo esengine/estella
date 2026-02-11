@@ -293,7 +293,9 @@ struct BatchRenderer2D::BatchData {
     resource::ShaderHandle shader_handle;
 
     std::vector<BatchVertex> vertices;
+    std::vector<BatchVertex> triVertices;
     u32 indexCount = 0;
+    u32 triangleCount = 0;
 
     std::array<u32, MAX_TEXTURE_SLOTS> textureSlots;
     u32 textureSlotIndex = 1;
@@ -321,6 +323,7 @@ BatchRenderer2D::~BatchRenderer2D() {
 
 void BatchRenderer2D::init() {
     data_->vertices.reserve(MAX_VERTICES);
+    data_->triVertices.reserve(MAX_VERTICES);
 
     data_->vao = VertexArray::create();
 
@@ -419,7 +422,9 @@ void BatchRenderer2D::shutdown() {
 
 void BatchRenderer2D::beginBatch() {
     data_->vertices.clear();
+    data_->triVertices.clear();
     data_->indexCount = 0;
+    data_->triangleCount = 0;
     data_->textureSlotIndex = 1;
     data_->drawCallCount = 0;
     data_->quadCount = 0;
@@ -430,15 +435,24 @@ void BatchRenderer2D::endBatch() {
 }
 
 void BatchRenderer2D::flush() {
-    if (data_->vertices.empty()) return;
+    bool hasQuads = !data_->vertices.empty();
+    bool hasTris = !data_->triVertices.empty();
+    if (!hasQuads && !hasTris) return;
 
     Shader* shader = resource_manager_.getShader(data_->shader_handle);
     if (!shader) return;
 
-    data_->vbo->setDataRaw(
-        data_->vertices.data(),
-        static_cast<u32>(data_->vertices.size() * sizeof(BatchVertex))
-    );
+    u32 quadBytes = static_cast<u32>(data_->vertices.size() * sizeof(BatchVertex));
+    u32 triBytes = static_cast<u32>(data_->triVertices.size() * sizeof(BatchVertex));
+
+    if (hasQuads) {
+        data_->vbo->setDataRaw(data_->vertices.data(), quadBytes);
+        if (hasTris) {
+            data_->vbo->setSubDataRaw(data_->triVertices.data(), triBytes, quadBytes);
+        }
+    } else {
+        data_->vbo->setDataRaw(data_->triVertices.data(), triBytes);
+    }
 
     u32 whiteTexture = data_->textureSlots[0];
     for (u32 i = 0; i < MAX_TEXTURE_SLOTS; ++i) {
@@ -457,16 +471,27 @@ void BatchRenderer2D::flush() {
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, STRIDE, reinterpret_cast<void*>(28));
     glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, STRIDE, reinterpret_cast<void*>(36));
 
-    auto ib = data_->vao->getIndexBuffer();
-    if (ib) {
-        ib->bind();
-        GLenum type = ib->is16Bit() ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT;
-        glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(data_->indexCount), type, nullptr);
+    if (hasQuads) {
+        auto ib = data_->vao->getIndexBuffer();
+        if (ib) {
+            ib->bind();
+            GLenum type = ib->is16Bit() ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT;
+            glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(data_->indexCount), type, nullptr);
+        }
+        data_->drawCallCount++;
     }
 
-    data_->drawCallCount++;
+    if (hasTris) {
+        glDrawArrays(GL_TRIANGLES,
+                     static_cast<GLint>(data_->vertices.size()),
+                     static_cast<GLsizei>(data_->triVertices.size()));
+        data_->drawCallCount++;
+    }
+
     data_->vertices.clear();
+    data_->triVertices.clear();
     data_->indexCount = 0;
+    data_->triangleCount = 0;
     data_->textureSlotIndex = 1;
 }
 
@@ -479,7 +504,7 @@ void BatchRenderer2D::drawQuad(const glm::vec2& position, const glm::vec2& size,
 void BatchRenderer2D::drawQuad(const glm::vec3& position, const glm::vec2& size,
                                 u32 textureId, const glm::vec4& color,
                                 const glm::vec2& uvOffset, const glm::vec2& uvScale) {
-    if (data_->vertices.size() >= MAX_VERTICES) {
+    if (data_->vertices.size() + data_->triVertices.size() + 4 > MAX_VERTICES) {
         flush();
     }
 
@@ -524,6 +549,27 @@ void BatchRenderer2D::drawQuad(const glm::vec2& position, const glm::vec2& size,
     drawQuad(glm::vec3(position, 0.0f), size, 0, color);
 }
 
+void BatchRenderer2D::drawTriangle(const glm::vec2& p0, const glm::vec2& p1,
+                                    const glm::vec2& p2, const glm::vec4& color) {
+    if (data_->vertices.size() + data_->triVertices.size() + 3 > MAX_VERTICES) {
+        flush();
+    }
+
+    BatchVertex v;
+    v.color = color;
+    v.texCoord = { 0.0f, 0.0f };
+    v.texIndex = 0.0f;
+
+    v.position = glm::vec3(p0, 0.0f);
+    data_->triVertices.push_back(v);
+    v.position = glm::vec3(p1, 0.0f);
+    data_->triVertices.push_back(v);
+    v.position = glm::vec3(p2, 0.0f);
+    data_->triVertices.push_back(v);
+
+    data_->triangleCount++;
+}
+
 void BatchRenderer2D::drawRotatedQuad(const glm::vec2& position, const glm::vec2& size,
                                        f32 rotation, const glm::vec4& color) {
     drawRotatedQuad(position, size, rotation, 0, color);
@@ -532,7 +578,7 @@ void BatchRenderer2D::drawRotatedQuad(const glm::vec2& position, const glm::vec2
 void BatchRenderer2D::drawRotatedQuad(const glm::vec2& position, const glm::vec2& size,
                                        f32 rotation, u32 textureId, const glm::vec4& tintColor,
                                        const glm::vec2& uvOffset, const glm::vec2& uvScale) {
-    if (data_->vertices.size() >= MAX_VERTICES) {
+    if (data_->vertices.size() + data_->triVertices.size() + 4 > MAX_VERTICES) {
         flush();
     }
 
@@ -632,8 +678,7 @@ void BatchRenderer2D::drawNineSlice(const glm::vec2& position, const glm::vec2& 
 
         if (pw <= 0 || ph <= 0) return;
 
-        // Check if batch is full
-        if (data_->vertices.size() >= MAX_VERTICES) {
+        if (data_->vertices.size() + data_->triVertices.size() + 4 > MAX_VERTICES) {
             flush();
         }
 
@@ -720,6 +765,10 @@ u32 BatchRenderer2D::getDrawCallCount() const {
 
 u32 BatchRenderer2D::getQuadCount() const {
     return data_ ? data_->quadCount : 0;
+}
+
+u32 BatchRenderer2D::getTriangleCount() const {
+    return data_ ? data_->triangleCount : 0;
 }
 
 }  // namespace esengine
