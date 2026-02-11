@@ -42,6 +42,12 @@ const esmBuilds = [
         plugins: [typescript({ tsconfig: './tsconfig.json', declaration: false }), terser()],
         treeshake,
     },
+    {
+        input: 'src/physics/index.ts',
+        output: { file: 'dist/physics/index.js', format: 'esm', sourcemap: true },
+        plugins: [typescript({ tsconfig: './tsconfig.json', declaration: false }), terser()],
+        treeshake,
+    },
 ];
 
 const dtsBuilds = [
@@ -58,6 +64,11 @@ const dtsBuilds = [
     {
         input: 'src/spine/index.ts',
         output: { file: 'dist/spine/index.d.ts', format: 'esm' },
+        plugins: [dts()],
+    },
+    {
+        input: 'src/physics/index.ts',
+        output: { file: 'dist/physics/index.d.ts', format: 'esm' },
         plugins: [dts()],
     },
 ];

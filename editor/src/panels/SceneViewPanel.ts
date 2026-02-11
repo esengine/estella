@@ -18,6 +18,7 @@ import { quatToEuler, eulerToQuat } from '../math/Transform';
 import { getEntityBounds } from '../bounds';
 import { GizmoManager, getAllGizmos } from '../gizmos';
 import type { GizmoContext } from '../gizmos';
+import { ColliderOverlay } from '../gizmos/ColliderOverlay';
 import { getSettingsValue, setSettingsValue, onSettingsChange } from '../settings/SettingsRegistry';
 
 // =============================================================================
@@ -57,6 +58,7 @@ export class SceneViewPanel {
     private lastMouseY_ = 0;
 
     private gizmoManager_: GizmoManager;
+    private colliderOverlay_: ColliderOverlay;
     private keydownHandler_: ((e: KeyboardEvent) => void) | null = null;
     private skipNextClick_ = false;
     private boundOnDocumentMouseMove_: ((e: MouseEvent) => void) | null = null;
@@ -92,6 +94,7 @@ export class SceneViewPanel {
         this.projectPath_ = options?.projectPath ?? null;
         this.app_ = options?.app ?? null;
         this.gizmoManager_ = new GizmoManager();
+        this.colliderOverlay_ = new ColliderOverlay();
 
         this.container_.className = 'es-sceneview-panel';
         this.container_.innerHTML = `
@@ -133,6 +136,12 @@ export class SceneViewPanel {
                                 <label class="es-settings-checkbox">
                                     <input type="checkbox" data-setting="scene.showSelectionBox" ${getSettingsValue<boolean>('scene.showSelectionBox') ? 'checked' : ''}>
                                     <span>Show Selection Box</span>
+                                </label>
+                            </div>
+                            <div class="es-settings-row">
+                                <label class="es-settings-checkbox">
+                                    <input type="checkbox" data-setting="scene.showColliders" ${getSettingsValue<boolean>('scene.showColliders') ? 'checked' : ''}>
+                                    <span>Show Colliders</span>
                                 </label>
                             </div>
                         </div>
@@ -510,6 +519,12 @@ export class SceneViewPanel {
         }
     }
 
+    private createOverlayContext(): import('../gizmos/ColliderOverlay').OverlayContext | null {
+        const ctx = this.overlayCanvas_?.getContext('2d') ?? this.canvas_.getContext('2d');
+        if (!ctx) return null;
+        return { ctx, zoom: this.zoom_, store: this.store_ };
+    }
+
     private onMouseDown(e: MouseEvent): void {
         if (e.button === 1 || (e.button === 0 && e.altKey)) {
             this.isDragging_ = true;
@@ -528,6 +543,14 @@ export class SceneViewPanel {
             this.store_.isEntityVisible(this.store_.selectedEntity as number)) {
             this.updateGizmoContext();
             if (this.gizmoManager_.onMouseDown(worldX, worldY)) {
+                this.startDocumentDrag();
+                return;
+            }
+        }
+
+        if (getSettingsValue<boolean>('scene.showColliders') && this.store_.selectedEntity !== null) {
+            const octx = this.createOverlayContext();
+            if (octx && this.colliderOverlay_.onDragStart(worldX, worldY, octx)) {
                 this.startDocumentDrag();
                 return;
             }
@@ -586,10 +609,30 @@ export class SceneViewPanel {
             return;
         }
 
+        if (this.colliderOverlay_.isDragging()) {
+            const octx = this.createOverlayContext();
+            if (octx) {
+                this.colliderOverlay_.onDrag(worldX, worldY, octx);
+                this.requestRender();
+            }
+            return;
+        }
+
         if (this.gizmoManager_.getActiveId() !== 'select' && this.store_.selectedEntity !== null) {
             this.updateGizmoContext();
             this.gizmoManager_.onMouseMove(worldX, worldY);
             this.canvas_.style.cursor = this.gizmoManager_.getCursor();
+        }
+
+        if (getSettingsValue<boolean>('scene.showColliders') && this.store_.selectedEntity !== null) {
+            const octx = this.createOverlayContext();
+            if (octx) {
+                this.colliderOverlay_.hitTest(worldX, worldY, octx);
+                const colliderCursor = this.colliderOverlay_.getCursor();
+                if (colliderCursor) {
+                    this.canvas_.style.cursor = colliderCursor;
+                }
+            }
         }
     }
 
@@ -606,10 +649,18 @@ export class SceneViewPanel {
             this.gizmoManager_.onMouseUp(worldX, worldY);
             this.skipNextClick_ = true;
         }
+
+        if (this.colliderOverlay_.isDragging()) {
+            const octx = this.createOverlayContext();
+            if (octx) {
+                this.colliderOverlay_.onDragEnd(octx);
+            }
+            this.skipNextClick_ = true;
+        }
     }
 
     private onMouseLeave(_e: MouseEvent): void {
-        if (this.isDragging_ || this.gizmoManager_.isDragging()) {
+        if (this.isDragging_ || this.gizmoManager_.isDragging() || this.colliderOverlay_.isDragging()) {
             return;
         }
         this.gizmoManager_.resetHover();
@@ -790,6 +841,14 @@ export class SceneViewPanel {
         this.drawGrid(ctx, w, h);
 
         this.drawCameraFrustums(ctx);
+
+        if (getSettingsValue<boolean>('scene.showColliders')) {
+            this.colliderOverlay_.drawAll({
+                ctx,
+                zoom: this.zoom_,
+                store: this.store_,
+            });
+        }
 
         const selectedEntity = this.store_.selectedEntity;
 

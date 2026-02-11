@@ -238,6 +238,8 @@ function syncDynamicTransforms(app: App, module: PhysicsWasmModule): void {
         transform.rotation.x = q.x;
         transform.rotation.y = q.y;
         transform.rotation.z = q.z;
+
+        app.world.insert(entityId, LocalTransform, transform);
     }
 }
 

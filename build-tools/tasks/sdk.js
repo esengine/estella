@@ -36,7 +36,9 @@ async function copyDistOutputs(sdkDir, outputDir) {
     await mkdir(cjsDir, { recursive: true });
 
     const spineDir = path.join(esmDir, 'spine');
+    const physicsDir = path.join(esmDir, 'physics');
     await mkdir(spineDir, { recursive: true });
+    await mkdir(physicsDir, { recursive: true });
 
     const files = [
         { src: 'index.js', dest: path.join(esmDir, 'esengine.js') },
@@ -45,6 +47,8 @@ async function copyDistOutputs(sdkDir, outputDir) {
         { src: 'wasm.d.ts', dest: path.join(esmDir, 'wasm.d.ts') },
         { src: 'spine/index.js', dest: path.join(spineDir, 'index.js') },
         { src: 'spine/index.d.ts', dest: path.join(spineDir, 'index.d.ts') },
+        { src: 'physics/index.js', dest: path.join(physicsDir, 'index.js') },
+        { src: 'physics/index.d.ts', dest: path.join(physicsDir, 'index.d.ts') },
         { src: 'index.wechat.js', dest: path.join(cjsDir, 'index.wechat.js') },
         { src: 'index.wechat.cjs.js', dest: path.join(cjsDir, 'esengine.wechat.js') },
     ];

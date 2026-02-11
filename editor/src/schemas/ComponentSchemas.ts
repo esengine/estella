@@ -10,7 +10,7 @@ import { getComponentDefaults } from 'esengine';
 // Types
 // =============================================================================
 
-export type ComponentCategory = 'builtin' | 'script' | 'tag';
+export type ComponentCategory = 'builtin' | 'physics' | 'script' | 'tag';
 
 export interface ComponentSchema {
     name: string;
@@ -192,6 +192,64 @@ export const SpineAnimationSchema: ComponentSchema = {
     ],
 };
 
+export const RigidBodySchema: ComponentSchema = {
+    name: 'RigidBody',
+    category: 'physics',
+    properties: [
+        { name: 'bodyType', type: 'enum', options: [
+            { label: 'Static', value: 0 },
+            { label: 'Kinematic', value: 1 },
+            { label: 'Dynamic', value: 2 },
+        ]},
+        { name: 'gravityScale', type: 'number', step: 0.1 },
+        { name: 'linearDamping', type: 'number', min: 0, step: 0.1 },
+        { name: 'angularDamping', type: 'number', min: 0, step: 0.1 },
+        { name: 'fixedRotation', type: 'boolean' },
+        { name: 'bullet', type: 'boolean' },
+        { name: 'enabled', type: 'boolean' },
+    ],
+};
+
+export const BoxColliderSchema: ComponentSchema = {
+    name: 'BoxCollider',
+    category: 'physics',
+    properties: [
+        { name: 'halfExtents', type: 'vec2' },
+        { name: 'offset', type: 'vec2' },
+        { name: 'density', type: 'number', min: 0, step: 0.1 },
+        { name: 'friction', type: 'number', min: 0, max: 1, step: 0.01 },
+        { name: 'restitution', type: 'number', min: 0, max: 1, step: 0.01 },
+        { name: 'isSensor', type: 'boolean' },
+    ],
+};
+
+export const CircleColliderSchema: ComponentSchema = {
+    name: 'CircleCollider',
+    category: 'physics',
+    properties: [
+        { name: 'radius', type: 'number', min: 0, step: 0.01 },
+        { name: 'offset', type: 'vec2' },
+        { name: 'density', type: 'number', min: 0, step: 0.1 },
+        { name: 'friction', type: 'number', min: 0, max: 1, step: 0.01 },
+        { name: 'restitution', type: 'number', min: 0, max: 1, step: 0.01 },
+        { name: 'isSensor', type: 'boolean' },
+    ],
+};
+
+export const CapsuleColliderSchema: ComponentSchema = {
+    name: 'CapsuleCollider',
+    category: 'physics',
+    properties: [
+        { name: 'radius', type: 'number', min: 0, step: 0.01 },
+        { name: 'halfHeight', type: 'number', min: 0, step: 0.01 },
+        { name: 'offset', type: 'vec2' },
+        { name: 'density', type: 'number', min: 0, step: 0.1 },
+        { name: 'friction', type: 'number', min: 0, max: 1, step: 0.01 },
+        { name: 'restitution', type: 'number', min: 0, max: 1, step: 0.01 },
+        { name: 'isSensor', type: 'boolean' },
+    ],
+};
+
 // =============================================================================
 // Registry
 // =============================================================================
@@ -217,16 +275,18 @@ export function isComponentRemovable(name: string): boolean {
 
 export interface ComponentsByCategory {
     builtin: ComponentSchema[];
+    physics: ComponentSchema[];
     script: ComponentSchema[];
     tag: ComponentSchema[];
 }
 
 export function getComponentsByCategory(): ComponentsByCategory {
-    const result: ComponentsByCategory = { builtin: [], script: [], tag: [] };
+    const result: ComponentsByCategory = { builtin: [], physics: [], script: [], tag: [] };
     for (const schema of schemaRegistry.values()) {
         result[schema.category].push(schema);
     }
     result.builtin.sort((a, b) => a.name.localeCompare(b.name));
+    result.physics.sort((a, b) => a.name.localeCompare(b.name));
     result.script.sort((a, b) => a.name.localeCompare(b.name));
     result.tag.sort((a, b) => a.name.localeCompare(b.name));
     return result;
@@ -300,6 +360,10 @@ export function registerBuiltinSchemas(options?: BuiltinSchemaOptions): void {
     registerComponentSchema(TextSchema);
     registerComponentSchema(UIRectSchema);
     registerComponentSchema(CanvasSchema);
+    registerComponentSchema(RigidBodySchema);
+    registerComponentSchema(BoxColliderSchema);
+    registerComponentSchema(CircleColliderSchema);
+    registerComponentSchema(CapsuleColliderSchema);
     if (enableSpine) {
         registerComponentSchema(SpineAnimationSchema);
     }

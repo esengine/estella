@@ -149,4 +149,13 @@ export function registerBuiltinSettings(): void {
         defaultValue: true,
         order: 4,
     });
+
+    registerSettingsItem({
+        id: 'scene.showColliders',
+        section: 'scene-view',
+        label: 'Show Colliders',
+        type: 'boolean',
+        defaultValue: true,
+        order: 5,
+    });
 }

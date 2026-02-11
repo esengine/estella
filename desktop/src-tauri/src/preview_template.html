@@ -99,10 +99,12 @@
                 const sdk = await import('/sdk/index.js');
 
                 let spinePlugin = null;
+                let physicsPlugin = null;
+                let config = {};
                 try {
                     const configResp = await fetch('/.esengine/preview/config.json');
                     if (configResp.ok) {
-                        const config = await configResp.json();
+                        config = await configResp.json();
                         const spineUrl = config.spineVersion && SPINE_WASM_MAP[config.spineVersion];
                         if (spineUrl) {
                             updateLoading('Loading Spine ' + config.spineVersion + '...');
@@ -113,6 +115,16 @@
                     }
                 } catch (e) {
                     console.warn('Spine module load skipped:', e);
+                }
+
+                if (config.enablePhysics) {
+                    try {
+                        updateLoading('Loading Physics...');
+                        await loadUmdScript('/wasm/physics.js');
+                        physicsPlugin = new sdk.PhysicsPlugin('/wasm/physics.js', {}, window.ESPhysicsModule);
+                    } catch (e) {
+                        console.warn('Physics module load skipped:', e);
+                    }
                 }
 
                 try {
@@ -134,9 +146,15 @@
                 if (spinePlugin) {
                     app.addPlugin(spinePlugin);
                 }
+                if (physicsPlugin) {
+                    app.addPlugin(physicsPlugin);
+                }
                 app.addPlugin(previewPlugin);
 
                 await previewPlugin.waitForReady();
+                if (app.__physicsInitPromise) {
+                    await app.__physicsInitPromise;
+                }
 
                 loading.style.display = 'none';
                 app.run();

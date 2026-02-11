@@ -9,7 +9,7 @@ import type { EditorStore } from '../store/EditorStore';
 import { icons } from '../utils/icons';
 import { getGlobalPathResolver } from '../asset';
 import { getDefaultComponentData } from '../schemas/ComponentSchemas';
-import { showContextMenu } from '../ui/ContextMenu';
+import { showContextMenu, type ContextMenuItem } from '../ui/ContextMenu';
 import { getEditorContext } from '../context/EditorContext';
 import { getPlatformAdapter } from '../platform/PlatformAdapter';
 
@@ -533,7 +533,7 @@ export class HierarchyPanel {
     }
 
     private showEntityContextMenu(x: number, y: number, entity: Entity | null): void {
-        const items = [
+        const items: ContextMenuItem[] = [
             { label: 'Create Entity', icon: icons.plus(14), onClick: () => {
                 const newEntity = this.store_.createEntity(undefined, entity);
                 this.store_.addComponent(newEntity, 'LocalTransform', getDefaultComponentData('LocalTransform'));
@@ -543,11 +543,26 @@ export class HierarchyPanel {
             { label: 'Create Spine', icon: icons.bone(14), onClick: () => this.createEntityWithComponent('SpineAnimation', entity) },
             { label: 'Create Camera', icon: icons.camera(14), onClick: () => this.createEntityWithComponent('Camera', entity) },
             { label: 'Create Canvas', icon: icons.template(14), onClick: () => this.createEntityWithComponent('Canvas', entity) },
+            { label: 'Physics', icon: icons.circle(14), children: [
+                { label: 'Box Collider', onClick: () => this.createPhysicsEntity('BoxCollider', entity) },
+                { label: 'Circle Collider', onClick: () => this.createPhysicsEntity('CircleCollider', entity) },
+                { label: 'Capsule Collider', onClick: () => this.createPhysicsEntity('CapsuleCollider', entity) },
+            ]},
             { label: '', separator: true },
         ];
 
         if (entity !== null) {
+            const entityData = this.store_.getEntityData(entity as number);
+            const has = (type: string) => entityData?.components.some(c => c.type === type) ?? false;
+
             items.push(
+                { label: 'Add Physics', icon: icons.circle(14), children: [
+                    { label: 'RigidBody', disabled: has('RigidBody'), onClick: () => this.addComponentToEntity(entity, 'RigidBody') },
+                    { label: 'Box Collider', disabled: has('BoxCollider'), onClick: () => this.addComponentToEntity(entity, 'BoxCollider') },
+                    { label: 'Circle Collider', disabled: has('CircleCollider'), onClick: () => this.addComponentToEntity(entity, 'CircleCollider') },
+                    { label: 'Capsule Collider', disabled: has('CapsuleCollider'), onClick: () => this.addComponentToEntity(entity, 'CapsuleCollider') },
+                ]},
+                { label: '', separator: true },
                 { label: 'Duplicate', icon: icons.copy(14), onClick: () => this.duplicateEntity(entity) },
                 { label: 'Delete', icon: icons.trash(14), onClick: () => this.store_.deleteEntity(entity) }
             );
@@ -566,6 +581,17 @@ export class HierarchyPanel {
         }
 
         this.store_.addComponent(newEntity, componentType, getDefaultComponentData(componentType));
+    }
+
+    private addComponentToEntity(entity: Entity, componentType: string): void {
+        this.store_.addComponent(entity, componentType, getDefaultComponentData(componentType));
+    }
+
+    private createPhysicsEntity(colliderType: string, parent: Entity | null): void {
+        const newEntity = this.store_.createEntity(colliderType, parent);
+        this.store_.addComponent(newEntity, 'LocalTransform', getDefaultComponentData('LocalTransform'));
+        this.store_.addComponent(newEntity, 'RigidBody', getDefaultComponentData('RigidBody'));
+        this.store_.addComponent(newEntity, colliderType, getDefaultComponentData(colliderType));
     }
 
     private duplicateEntity(entity: Entity): void {

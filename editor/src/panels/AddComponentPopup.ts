@@ -35,6 +35,7 @@ export class AddComponentPopup {
     private listContainer_: HTMLElement | null = null;
     private categoryStates_: Map<ComponentCategory, CategoryState> = new Map([
         ['builtin', { expanded: true }],
+        ['physics', { expanded: true }],
         ['script', { expanded: true }],
         ['tag', { expanded: true }],
     ]);
@@ -122,6 +123,7 @@ export class AddComponentPopup {
         };
 
         html += renderCategory('builtin', 'Built-in', components.builtin, () => icons.box(14));
+        html += renderCategory('physics', 'Physics', components.physics, () => icons.circle(14));
         html += renderCategory('script', 'Scripts', components.script, () => icons.cog(14));
         html += renderCategory('tag', 'Tags', components.tag, () => icons.tag(14));
 

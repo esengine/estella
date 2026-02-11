@@ -11,12 +11,20 @@ import {
     Camera,
     Canvas,
     SpineAnimation,
+    RigidBody,
+    BoxCollider,
+    CircleCollider,
+    CapsuleCollider,
     getUserComponent,
     type LocalTransformData,
     type SpriteData,
     type CameraData,
     type CanvasData,
     type SpineAnimationData,
+    type RigidBodyData,
+    type BoxColliderData,
+    type CircleColliderData,
+    type CapsuleColliderData,
 } from './component';
 import { Text, type TextData } from './ui/text';
 import { UIRect, type UIRectData } from './ui/UIRect';
@@ -218,6 +226,18 @@ export function loadComponent(world: World, entity: Entity, compData: SceneCompo
             break;
         case 'UIRect':
             world.insert(entity, UIRect, data as UIRectData);
+            break;
+        case 'RigidBody':
+            world.insert(entity, RigidBody, data as RigidBodyData);
+            break;
+        case 'BoxCollider':
+            world.insert(entity, BoxCollider, data as BoxColliderData);
+            break;
+        case 'CircleCollider':
+            world.insert(entity, CircleCollider, data as CircleColliderData);
+            break;
+        case 'CapsuleCollider':
+            world.insert(entity, CapsuleCollider, data as CapsuleColliderData);
             break;
         default: {
             const userComp = getUserComponent(compData.type);
