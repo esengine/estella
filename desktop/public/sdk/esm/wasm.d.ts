@@ -70,7 +70,7 @@ interface CppRegistry {
     [key: string]: any;
 }
 interface CppResourceManager {
-    createTexture(width: number, height: number, pixels: number, pixelsLen: number, format: number): number;
+    createTexture(width: number, height: number, pixels: number, pixelsLen: number, format: number, flipY: boolean): number;
     createShader(vertSrc: string, fragSrc: string): number;
     registerExternalTexture(glTextureId: number, width: number, height: number): number;
     getTextureGLId(handle: number): number;
