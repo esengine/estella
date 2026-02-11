@@ -517,12 +517,13 @@ declare class EntityCommands {
     insert<T extends object>(component: AnyComponentDef, data?: Partial<T>): this;
     remove(component: AnyComponentDef): this;
     id(): Entity;
-    private finalize;
+    finalize(): void;
 }
 declare class CommandsInstance {
     private readonly world_;
     private readonly resources_;
     private pending_;
+    private spawned_;
     constructor(world: World, resources: ResourceStorage);
     spawn(): EntityCommands;
     entity(entity: Entity): EntityCommands;
@@ -1179,6 +1180,52 @@ interface SpineWasmModule {
 }
 
 /**
+ * @file    PhysicsModuleLoader.ts
+ * @brief   Loads and initializes the Physics WASM module (standalone or side module)
+ */
+interface PhysicsWasmModule {
+    _physics_init(gx: number, gy: number, timestep: number, substeps: number): void;
+    _physics_shutdown(): void;
+    _physics_createBody(entityId: number, bodyType: number, x: number, y: number, angle: number, gravityScale: number, linearDamping: number, angularDamping: number, fixedRotation: number, bullet: number): void;
+    _physics_destroyBody(entityId: number): void;
+    _physics_hasBody(entityId: number): number;
+    _physics_addBoxShape(entityId: number, halfW: number, halfH: number, offX: number, offY: number, density: number, friction: number, restitution: number, isSensor: number): void;
+    _physics_addCircleShape(entityId: number, radius: number, offX: number, offY: number, density: number, friction: number, restitution: number, isSensor: number): void;
+    _physics_addCapsuleShape(entityId: number, radius: number, halfHeight: number, offX: number, offY: number, density: number, friction: number, restitution: number, isSensor: number): void;
+    _physics_step(dt: number): void;
+    _physics_setBodyTransform(entityId: number, x: number, y: number, angle: number): void;
+    _physics_getDynamicBodyCount(): number;
+    _physics_getDynamicBodyTransforms(): number;
+    _physics_collectEvents(): void;
+    _physics_getCollisionEnterCount(): number;
+    _physics_getCollisionEnterBuffer(): number;
+    _physics_getCollisionExitCount(): number;
+    _physics_getCollisionExitBuffer(): number;
+    _physics_getSensorEnterCount(): number;
+    _physics_getSensorEnterBuffer(): number;
+    _physics_getSensorExitCount(): number;
+    _physics_getSensorExitBuffer(): number;
+    _physics_applyForce(entityId: number, forceX: number, forceY: number): void;
+    _physics_applyImpulse(entityId: number, impulseX: number, impulseY: number): void;
+    _physics_setLinearVelocity(entityId: number, vx: number, vy: number): void;
+    _physics_getLinearVelocity(entityId: number): number;
+    _physics_setGravity(gx: number, gy: number): void;
+    _physics_getGravity(): number;
+    _physics_setAngularVelocity(entityId: number, omega: number): void;
+    _physics_getAngularVelocity(entityId: number): number;
+    _physics_applyTorque(entityId: number, torque: number): void;
+    _physics_applyAngularImpulse(entityId: number, impulse: number): void;
+    _physics_updateBodyProperties(entityId: number, bodyType: number, gravityScale: number, linearDamping: number, angularDamping: number, fixedRotation: number, bullet: number): void;
+    HEAPF32: Float32Array;
+    HEAPU8: Uint8Array;
+    HEAPU32: Uint32Array;
+    _malloc(size: number): number;
+    _free(ptr: number): void;
+}
+type PhysicsModuleFactory = (config?: Record<string, unknown>) => Promise<PhysicsWasmModule>;
+declare function loadPhysicsModule(wasmUrl: string, factory?: PhysicsModuleFactory): Promise<PhysicsWasmModule>;
+
+/**
  * @file    runtimeLoader.ts
  * @brief   Runtime scene loader for builder targets (WeChat, Playable, etc.)
  */
@@ -1198,7 +1245,11 @@ interface RuntimeAssetProvider {
     readBinary(ref: string): Uint8Array;
     resolvePath(ref: string): string;
 }
-declare function loadRuntimeScene(app: App, module: ESEngineModule, sceneData: SceneData, provider: RuntimeAssetProvider, spineModule?: SpineWasmModule | null): Promise<void>;
+declare function loadRuntimeScene(app: App, module: ESEngineModule, sceneData: SceneData, provider: RuntimeAssetProvider, spineModule?: SpineWasmModule | null, physicsModule?: PhysicsWasmModule | null, physicsConfig?: {
+    gravity?: Vec2;
+    fixedTimestep?: number;
+    subStepCount?: number;
+}): Promise<void>;
 
 /**
  * @file    PreviewPlugin.ts
@@ -1742,45 +1793,6 @@ declare function setEditorMode(active: boolean): void;
 declare function isEditor(): boolean;
 declare function isRuntime(): boolean;
 
-/**
- * @file    PhysicsModuleLoader.ts
- * @brief   Loads and initializes the Physics WASM module (standalone or side module)
- */
-interface PhysicsWasmModule {
-    _physics_init(gx: number, gy: number, timestep: number, substeps: number): void;
-    _physics_shutdown(): void;
-    _physics_createBody(entityId: number, bodyType: number, x: number, y: number, angle: number, gravityScale: number, linearDamping: number, angularDamping: number, fixedRotation: number, bullet: number): void;
-    _physics_destroyBody(entityId: number): void;
-    _physics_hasBody(entityId: number): number;
-    _physics_addBoxShape(entityId: number, halfW: number, halfH: number, offX: number, offY: number, density: number, friction: number, restitution: number, isSensor: number): void;
-    _physics_addCircleShape(entityId: number, radius: number, offX: number, offY: number, density: number, friction: number, restitution: number, isSensor: number): void;
-    _physics_addCapsuleShape(entityId: number, radius: number, halfHeight: number, offX: number, offY: number, density: number, friction: number, restitution: number, isSensor: number): void;
-    _physics_step(dt: number): void;
-    _physics_setBodyTransform(entityId: number, x: number, y: number, angle: number): void;
-    _physics_getDynamicBodyCount(): number;
-    _physics_getDynamicBodyTransforms(): number;
-    _physics_collectEvents(): void;
-    _physics_getCollisionEnterCount(): number;
-    _physics_getCollisionEnterBuffer(): number;
-    _physics_getCollisionExitCount(): number;
-    _physics_getCollisionExitBuffer(): number;
-    _physics_getSensorEnterCount(): number;
-    _physics_getSensorEnterBuffer(): number;
-    _physics_getSensorExitCount(): number;
-    _physics_getSensorExitBuffer(): number;
-    _physics_applyForce(entityId: number, forceX: number, forceY: number): void;
-    _physics_applyImpulse(entityId: number, impulseX: number, impulseY: number): void;
-    _physics_setLinearVelocity(entityId: number, vx: number, vy: number): void;
-    _physics_getLinearVelocity(entityId: number): number;
-    HEAPF32: Float32Array;
-    HEAPU8: Uint8Array;
-    HEAPU32: Uint32Array;
-    _malloc(size: number): number;
-    _free(ptr: number): void;
-}
-type PhysicsModuleFactory = (config?: Record<string, unknown>) => Promise<PhysicsWasmModule>;
-declare function loadPhysicsModule(wasmUrl: string, factory?: PhysicsModuleFactory): Promise<PhysicsWasmModule>;
-
 interface PhysicsPluginConfig {
     gravity?: Vec2;
     fixedTimestep?: number;
@@ -1822,6 +1834,12 @@ declare class Physics {
     applyImpulse(entity: Entity, impulse: Vec2): void;
     setLinearVelocity(entity: Entity, velocity: Vec2): void;
     getLinearVelocity(entity: Entity): Vec2;
+    setGravity(gravity: Vec2): void;
+    getGravity(): Vec2;
+    setAngularVelocity(entity: Entity, omega: number): void;
+    getAngularVelocity(entity: Entity): number;
+    applyTorque(entity: Entity, torque: number): void;
+    applyAngularImpulse(entity: Entity, impulse: number): void;
 }
 
 /**

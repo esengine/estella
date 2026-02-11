@@ -450,6 +450,13 @@ interface PhysicsWasmModule {
     _physics_applyImpulse(entityId: number, impulseX: number, impulseY: number): void;
     _physics_setLinearVelocity(entityId: number, vx: number, vy: number): void;
     _physics_getLinearVelocity(entityId: number): number;
+    _physics_setGravity(gx: number, gy: number): void;
+    _physics_getGravity(): number;
+    _physics_setAngularVelocity(entityId: number, omega: number): void;
+    _physics_getAngularVelocity(entityId: number): number;
+    _physics_applyTorque(entityId: number, torque: number): void;
+    _physics_applyAngularImpulse(entityId: number, impulse: number): void;
+    _physics_updateBodyProperties(entityId: number, bodyType: number, gravityScale: number, linearDamping: number, angularDamping: number, fixedRotation: number, bullet: number): void;
     HEAPF32: Float32Array;
     HEAPU8: Uint8Array;
     HEAPU32: Uint32Array;
@@ -513,6 +520,12 @@ declare class Physics {
     applyImpulse(entity: Entity, impulse: Vec2): void;
     setLinearVelocity(entity: Entity, velocity: Vec2): void;
     getLinearVelocity(entity: Entity): Vec2;
+    setGravity(gravity: Vec2): void;
+    getGravity(): Vec2;
+    setAngularVelocity(entity: Entity, omega: number): void;
+    getAngularVelocity(entity: Entity): number;
+    applyTorque(entity: Entity, torque: number): void;
+    applyAngularImpulse(entity: Entity, impulse: number): void;
 }
 
 export { BodyType, BoxCollider, CapsuleCollider, CircleCollider, Physics, PhysicsEvents, PhysicsPlugin, RigidBody, loadPhysicsModule, loadPhysicsSideModule };

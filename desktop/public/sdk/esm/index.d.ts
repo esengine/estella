@@ -35,6 +35,56 @@ declare const color: (r?: number, g?: number, b?: number, a?: number) => Color;
 declare const quat: (w?: number, x?: number, y?: number, z?: number) => Quat;
 
 /**
+ * @file    PhysicsComponents.ts
+ * @brief   Physics component definitions for TypeScript SDK
+ */
+
+interface RigidBodyData {
+    bodyType: number;
+    gravityScale: number;
+    linearDamping: number;
+    angularDamping: number;
+    fixedRotation: boolean;
+    bullet: boolean;
+    enabled: boolean;
+}
+interface BoxColliderData {
+    halfExtents: Vec2;
+    offset: Vec2;
+    density: number;
+    friction: number;
+    restitution: number;
+    isSensor: boolean;
+}
+interface CircleColliderData {
+    radius: number;
+    offset: Vec2;
+    density: number;
+    friction: number;
+    restitution: number;
+    isSensor: boolean;
+}
+interface CapsuleColliderData {
+    radius: number;
+    halfHeight: number;
+    offset: Vec2;
+    density: number;
+    friction: number;
+    restitution: number;
+    isSensor: boolean;
+}
+declare const RigidBody: BuiltinComponentDef<RigidBodyData>;
+declare const BoxCollider: BuiltinComponentDef<BoxColliderData>;
+declare const CircleCollider: BuiltinComponentDef<CircleColliderData>;
+declare const CapsuleCollider: BuiltinComponentDef<CapsuleColliderData>;
+declare const BodyType: {
+    readonly Static: 0;
+    readonly Kinematic: 1;
+    readonly Dynamic: 2;
+};
+type BodyType = (typeof BodyType)[keyof typeof BodyType];
+
+/**
  * @file    component.ts
  * @brief   Component definition and builtin components
  */
@@ -132,6 +182,7 @@ declare const Velocity: BuiltinComponentDef<VelocityData>;
 declare const Parent: BuiltinComponentDef<ParentData>;
 declare const Children: BuiltinComponentDef<ChildrenData>;
 declare const SpineAnimation: BuiltinComponentDef<SpineAnimationData>;
+
 type ComponentData<C> = C extends BuiltinComponentDef<infer T> ? T : C extends ComponentDef<infer T> ? T : never;
 declare function getComponentDefaults(typeName: string): Record<string, unknown> | null;
 
@@ -225,6 +276,22 @@ interface CppRegistry {
     getSpineAnimation(entity: Entity): unknown;
     hasSpineAnimation(entity: Entity): boolean;
     removeSpineAnimation(entity: Entity): void;
+    addRigidBody?(entity: Entity, data: unknown): void;
+    getRigidBody?(entity: Entity): unknown;
+    hasRigidBody?(entity: Entity): boolean;
+    removeRigidBody?(entity: Entity): void;
+    addBoxCollider?(entity: Entity, data: unknown): void;
+    getBoxCollider?(entity: Entity): unknown;
+    hasBoxCollider?(entity: Entity): boolean;
+    removeBoxCollider?(entity: Entity): void;
+    addCircleCollider?(entity: Entity, data: unknown): void;
+    getCircleCollider?(entity: Entity): unknown;
+    hasCircleCollider?(entity: Entity): boolean;
+    removeCircleCollider?(entity: Entity): void;
+    addCapsuleCollider?(entity: Entity, data: unknown): void;
+    getCapsuleCollider?(entity: Entity): unknown;
+    hasCapsuleCollider?(entity: Entity): boolean;
+    removeCapsuleCollider?(entity: Entity): void;
     setParent(child: Entity, parent: Entity): void;
     [key: string]: any;
 }
@@ -450,12 +517,13 @@ declare class EntityCommands {
     insert<T extends object>(component: AnyComponentDef, data?: Partial<T>): this;
     remove(component: AnyComponentDef): this;
     id(): Entity;
-    private finalize;
+    finalize(): void;
 }
 declare class CommandsInstance {
     private readonly world_;
     private readonly resources_;
     private pending_;
+    private spawned_;
     constructor(world: World, resources: ResourceStorage);
     spawn(): EntityCommands;
     entity(entity: Entity): EntityCommands;
@@ -996,7 +1064,9 @@ declare class AssetServer {
     private materialLoader_;
     private canvas_;
     private ctx_;
+    private embedded_;
     constructor(module: ESEngineModule);
+    registerEmbeddedAssets(assets: Record<string, string>): void;
     /**
      * Load texture with vertical flip (for Sprite/UI).
      * OpenGL UV origin is bottom-left, so standard images need flipping.
@@ -1035,6 +1105,10 @@ declare class AssetServer {
     private unpremultiplyAlpha;
     private loadShaderInternal;
     private parseEsShader;
+    private decodeDataUrlText;
+    private decodeDataUrlBinary;
+    private isLocalPath;
+    private toLocalPath;
     private fetchJson;
     private fetchText;
     private fetchBinary;
@@ -1064,43 +1138,92 @@ declare class AssetPlugin implements Plugin {
 declare const assetPlugin: AssetPlugin;
 
 /**
+ * @file    index.ts
+ * @brief   Asset module exports
+ */
+
+declare function registerEmbeddedAssets(app: App, assets: Record<string, string>): void;
+
+/**
  * @file    SpineModuleLoader.ts
  * @brief   Loads and initializes the standalone Spine WASM module
  */
 interface SpineWasmModule {
-    spine_loadSkeleton(skelPath: string, atlasText: string, atlasLen: number, isBinary: boolean): number;
-    spine_unloadSkeleton(handle: number): void;
-    spine_getAtlasPageCount(handle: number): number;
-    spine_getAtlasPageTextureName(handle: number, pageIndex: number): string;
-    spine_setAtlasPageTexture(handle: number, pageIndex: number, textureId: number, width: number, height: number): void;
-    spine_createInstance(skeletonHandle: number): number;
-    spine_destroyInstance(instanceId: number): void;
-    spine_playAnimation(instanceId: number, name: string, loop: boolean, track: number): boolean;
-    spine_addAnimation(instanceId: number, name: string, loop: boolean, delay: number, track: number): boolean;
-    spine_setSkin(instanceId: number, name: string): void;
-    spine_update(instanceId: number, dt: number): void;
-    spine_getAnimations(instanceId: number): string;
-    spine_getSkins(instanceId: number): string;
-    spine_getBonePosition(instanceId: number, bone: string, outXPtr: number, outYPtr: number): boolean;
-    spine_getBoneRotation(instanceId: number, bone: string): number;
-    spine_getBounds(instanceId: number, outXPtr: number, outYPtr: number, outWPtr: number, outHPtr: number): void;
-    spine_getMeshBatchCount(instanceId: number): number;
-    spine_getMeshBatchVertexCount(instanceId: number, batchIndex: number): number;
-    spine_getMeshBatchIndexCount(instanceId: number, batchIndex: number): number;
-    spine_getMeshBatchData(instanceId: number, batchIndex: number, outVerticesPtr: number, outIndicesPtr: number, outTextureIdPtr: number, outBlendModePtr: number): void;
+    _spine_loadSkeleton(skelDataPtr: number, skelDataLen: number, atlasText: number, atlasLen: number, isBinary: number): number;
+    _spine_unloadSkeleton(handle: number): void;
+    _spine_getAtlasPageCount(handle: number): number;
+    _spine_getAtlasPageTextureName(handle: number, pageIndex: number): number;
+    _spine_setAtlasPageTexture(handle: number, pageIndex: number, textureId: number, width: number, height: number): void;
+    _spine_createInstance(skeletonHandle: number): number;
+    _spine_destroyInstance(instanceId: number): void;
+    _spine_playAnimation(instanceId: number, name: number, loop: number, track: number): number;
+    _spine_addAnimation(instanceId: number, name: number, loop: number, delay: number, track: number): number;
+    _spine_setSkin(instanceId: number, name: number): void;
+    _spine_update(instanceId: number, dt: number): void;
+    _spine_getAnimations(instanceId: number): number;
+    _spine_getSkins(instanceId: number): number;
+    _spine_getBonePosition(instanceId: number, bone: number, outXPtr: number, outYPtr: number): number;
+    _spine_getBoneRotation(instanceId: number, bone: number): number;
+    _spine_getBounds(instanceId: number, outXPtr: number, outYPtr: number, outWPtr: number, outHPtr: number): void;
+    _spine_getMeshBatchCount(instanceId: number): number;
+    _spine_getMeshBatchVertexCount(instanceId: number, batchIndex: number): number;
+    _spine_getMeshBatchIndexCount(instanceId: number, batchIndex: number): number;
+    _spine_getMeshBatchData(instanceId: number, batchIndex: number, outVerticesPtr: number, outIndicesPtr: number, outTextureIdPtr: number, outBlendModePtr: number): void;
+    cwrap(ident: string, returnType: string | null, argTypes: string[]): (...args: unknown[]) => unknown;
+    UTF8ToString(ptr: number): string;
+    stringToNewUTF8(str: string): number;
     HEAPF32: Float32Array;
     HEAPU8: Uint8Array;
     HEAPU32: Uint32Array;
     _malloc(size: number): number;
     _free(ptr: number): void;
-    FS: {
-        writeFile(path: string, data: string | Uint8Array): void;
-        mkdirTree(path: string): void;
-        analyzePath(path: string): {
-            exists: boolean;
-        };
-    };
 }
+
+/**
+ * @file    PhysicsModuleLoader.ts
+ * @brief   Loads and initializes the Physics WASM module (standalone or side module)
+ */
+interface PhysicsWasmModule {
+    _physics_init(gx: number, gy: number, timestep: number, substeps: number): void;
+    _physics_shutdown(): void;
+    _physics_createBody(entityId: number, bodyType: number, x: number, y: number, angle: number, gravityScale: number, linearDamping: number, angularDamping: number, fixedRotation: number, bullet: number): void;
+    _physics_destroyBody(entityId: number): void;
+    _physics_hasBody(entityId: number): number;
+    _physics_addBoxShape(entityId: number, halfW: number, halfH: number, offX: number, offY: number, density: number, friction: number, restitution: number, isSensor: number): void;
+    _physics_addCircleShape(entityId: number, radius: number, offX: number, offY: number, density: number, friction: number, restitution: number, isSensor: number): void;
+    _physics_addCapsuleShape(entityId: number, radius: number, halfHeight: number, offX: number, offY: number, density: number, friction: number, restitution: number, isSensor: number): void;
+    _physics_step(dt: number): void;
+    _physics_setBodyTransform(entityId: number, x: number, y: number, angle: number): void;
+    _physics_getDynamicBodyCount(): number;
+    _physics_getDynamicBodyTransforms(): number;
+    _physics_collectEvents(): void;
+    _physics_getCollisionEnterCount(): number;
+    _physics_getCollisionEnterBuffer(): number;
+    _physics_getCollisionExitCount(): number;
+    _physics_getCollisionExitBuffer(): number;
+    _physics_getSensorEnterCount(): number;
+    _physics_getSensorEnterBuffer(): number;
+    _physics_getSensorExitCount(): number;
+    _physics_getSensorExitBuffer(): number;
+    _physics_applyForce(entityId: number, forceX: number, forceY: number): void;
+    _physics_applyImpulse(entityId: number, impulseX: number, impulseY: number): void;
+    _physics_setLinearVelocity(entityId: number, vx: number, vy: number): void;
+    _physics_getLinearVelocity(entityId: number): number;
+    _physics_setGravity(gx: number, gy: number): void;
+    _physics_getGravity(): number;
+    _physics_setAngularVelocity(entityId: number, omega: number): void;
+    _physics_getAngularVelocity(entityId: number): number;
+    _physics_applyTorque(entityId: number, torque: number): void;
+    _physics_applyAngularImpulse(entityId: number, impulse: number): void;
+    _physics_updateBodyProperties(entityId: number, bodyType: number, gravityScale: number, linearDamping: number, angularDamping: number, fixedRotation: number, bullet: number): void;
+    HEAPF32: Float32Array;
+    HEAPU8: Uint8Array;
+    HEAPU32: Uint32Array;
+    _malloc(size: number): number;
+    _free(ptr: number): void;
+}
+type PhysicsModuleFactory = (config?: Record<string, unknown>) => Promise<PhysicsWasmModule>;
+declare function loadPhysicsModule(wasmUrl: string, factory?: PhysicsModuleFactory): Promise<PhysicsWasmModule>;
 
 /**
  * @file    runtimeLoader.ts
@@ -1122,7 +1245,11 @@ interface RuntimeAssetProvider {
     readBinary(ref: string): Uint8Array;
     resolvePath(ref: string): string;
 }
-declare function loadRuntimeScene(app: App, module: ESEngineModule, sceneData: SceneData, provider: RuntimeAssetProvider, spineModule?: SpineWasmModule | null): Promise<void>;
+declare function loadRuntimeScene(app: App, module: ESEngineModule, sceneData: SceneData, provider: RuntimeAssetProvider, spineModule?: SpineWasmModule | null, physicsModule?: PhysicsWasmModule | null, physicsConfig?: {
+    gravity?: Vec2;
+    fixedTimestep?: number;
+    subStepCount?: number;
+}): Promise<void>;
 
 /**
  * @file    PreviewPlugin.ts
@@ -1236,6 +1363,10 @@ interface PlatformAdapter {
      * High-resolution timestamp in milliseconds
      */
     now(): number;
+    /**
+     * Create an Image element for loading textures
+     */
+    createImage(): HTMLImageElement;
     /**
      * Bind input events (keyboard, pointer, wheel)
      * @param callbacks - Event callbacks
@@ -1662,6 +1793,55 @@ declare function setEditorMode(active: boolean): void;
 declare function isEditor(): boolean;
 declare function isRuntime(): boolean;
 
+interface PhysicsPluginConfig {
+    gravity?: Vec2;
+    fixedTimestep?: number;
+    subStepCount?: number;
+}
+interface CollisionEnterEvent {
+    entityA: Entity;
+    entityB: Entity;
+    normalX: number;
+    normalY: number;
+    contactX: number;
+    contactY: number;
+}
+interface SensorEvent {
+    sensorEntity: Entity;
+    visitorEntity: Entity;
+}
+interface PhysicsEventsData {
+    collisionEnters: CollisionEnterEvent[];
+    collisionExits: Array<{
+        entityA: Entity;
+        entityB: Entity;
+    }>;
+    sensorEnters: SensorEvent[];
+    sensorExits: SensorEvent[];
+}
+declare const PhysicsEvents: ResourceDef<PhysicsEventsData>;
+declare class PhysicsPlugin implements Plugin {
+    private config_;
+    private wasmUrl_;
+    private factory_?;
+    constructor(wasmUrl: string, config?: PhysicsPluginConfig, factory?: PhysicsModuleFactory);
+    build(app: App): void;
+}
+declare class Physics {
+    private module_;
+    constructor(app: App);
+    applyForce(entity: Entity, force: Vec2): void;
+    applyImpulse(entity: Entity, impulse: Vec2): void;
+    setLinearVelocity(entity: Entity, velocity: Vec2): void;
+    getLinearVelocity(entity: Entity): Vec2;
+    setGravity(gravity: Vec2): void;
+    getGravity(): Vec2;
+    setAngularVelocity(entity: Entity, omega: number): void;
+    getAngularVelocity(entity: Entity): number;
+    applyTorque(entity: Entity, torque: number): void;
+    applyAngularImpulse(entity: Entity, impulse: number): void;
+}
+
 /**
  * @file    glDebug.ts
  * @brief   GL error checking API for debugging rendering issues
@@ -1676,5 +1856,5 @@ declare const GLDebug: {
     diagnose(): void;
 };
 
-export { App, AssetPlugin, AssetServer, Assets, AsyncCache, BlendMode, Camera, Canvas, Children, Commands, CommandsInstance, DataType, Draw, EntityCommands, GLDebug, Geometry, INVALID_ENTITY, INVALID_TEXTURE, Input, InputPlugin, InputState, LocalTransform, Material, MaterialLoader, Mut, Parent, PostProcess, PreviewPlugin, Query, QueryInstance, RenderPipeline, RenderStage, RenderTexture, Renderer, Res, ResMut, ResMutInstance, Schedule, ShaderSources, SpineAnimation, Sprite, SystemRunner, Text, TextAlign, TextOverflow, TextPlugin, TextRenderer, TextVerticalAlign, Time, UIRect, Velocity, WebAssetProvider, World, WorldTransform, addStartupSystem, addSystem, addSystemToSchedule, assetPlugin, clearDrawCallbacks, clearUserComponents, color, createWebApp, defineComponent, defineResource, defineSystem, defineTag, flushPendingSystems, getComponentDefaults, getPlatform, getPlatformType, getUserComponent, initDrawAPI, initGLDebugAPI, initGeometryAPI, initMaterialAPI, initPostProcessAPI, initRendererAPI, inputPlugin, isBuiltinComponent, isEditor, isPlatformInitialized, isRuntime, isTextureRef, isWeChat, isWeb, loadComponent, loadRuntimeScene, loadSceneData, loadSceneWithAssets, platformFetch, platformFileExists, platformInstantiateWasm, platformReadFile, platformReadTextFile, quat, registerDrawCallback, registerMaterialCallback, setEditorMode, shutdownDrawAPI, shutdownGLDebugAPI, shutdownGeometryAPI, shutdownMaterialAPI, shutdownPostProcessAPI, shutdownRendererAPI, textPlugin, unregisterDrawCallback, updateCameraAspectRatio, vec2, vec3, vec4 };
-export type { AnyComponentDef, AssetBundle, AssetManifest, AssetsData, BuiltinComponentDef, CameraData, CanvasData, ChildrenData, Color, CommandsDescriptor, ComponentData, ComponentDef, CppRegistry, CppResourceManager, DrawAPI, DrawCallback, ESEngineModule, Entity, FileLoadOptions, GeometryHandle, GeometryOptions, InferParam, InferParams, LoadedMaterial, LocalTransformData, MaterialAssetData, MaterialHandle, MaterialOptions, MutWrapper, ParentData, PlatformAdapter, PlatformRequestOptions, PlatformResponse, PlatformType, Plugin, Quat, QueryDescriptor, QueryResult, RenderParams, RenderStats, RenderTargetHandle, RenderTextureHandle, RenderTextureOptions, ResDescriptor, ResMutDescriptor, ResourceDef, RuntimeAssetProvider, SceneComponentData, SceneData, SceneEntityData, SceneLoadOptions, ShaderHandle, ShaderLoader, SliceBorder, SpineAnimationData, SpineDescriptor, SpineLoadResult, SpineRendererFn, SpriteData, SystemDef, SystemParam, TextData, TextRenderResult, TextureHandle, TextureInfo, TextureRef, TimeData, UIRectData, UniformValue, Vec2, Vec3, Vec4, VelocityData, VertexAttributeDescriptor, WebAppOptions, WorldTransformData };
+export { App, AssetPlugin, AssetServer, Assets, AsyncCache, BlendMode, BodyType, BoxCollider, Camera, Canvas, CapsuleCollider, Children, CircleCollider, Commands, CommandsInstance, DataType, Draw, EntityCommands, GLDebug, Geometry, INVALID_ENTITY, INVALID_TEXTURE, Input, InputPlugin, InputState, LocalTransform, Material, MaterialLoader, Mut, Parent, Physics, PhysicsEvents, PhysicsPlugin, PostProcess, PreviewPlugin, Query, QueryInstance, RenderPipeline, RenderStage, RenderTexture, Renderer, Res, ResMut, ResMutInstance, RigidBody, Schedule, ShaderSources, SpineAnimation, Sprite, SystemRunner, Text, TextAlign, TextOverflow, TextPlugin, TextRenderer, TextVerticalAlign, Time, UIRect, Velocity, WebAssetProvider, World, WorldTransform, addStartupSystem, addSystem, addSystemToSchedule, assetPlugin, clearDrawCallbacks, clearUserComponents, color, createWebApp, defineComponent, defineResource, defineSystem, defineTag, flushPendingSystems, getComponentDefaults, getPlatform, getPlatformType, getUserComponent, initDrawAPI, initGLDebugAPI, initGeometryAPI, initMaterialAPI, initPostProcessAPI, initRendererAPI, inputPlugin, isBuiltinComponent, isEditor, isPlatformInitialized, isRuntime, isTextureRef, isWeChat, isWeb, loadComponent, loadPhysicsModule, loadRuntimeScene, loadSceneData, loadSceneWithAssets, platformFetch, platformFileExists, platformInstantiateWasm, platformReadFile, platformReadTextFile, quat, registerDrawCallback, registerEmbeddedAssets, registerMaterialCallback, setEditorMode, shutdownDrawAPI, shutdownGLDebugAPI, shutdownGeometryAPI, shutdownMaterialAPI, shutdownPostProcessAPI, shutdownRendererAPI, textPlugin, unregisterDrawCallback, updateCameraAspectRatio, vec2, vec3, vec4 };
+export type { AnyComponentDef, AssetBundle, AssetManifest, AssetsData, BoxColliderData, BuiltinComponentDef, CameraData, CanvasData, CapsuleColliderData, ChildrenData, CircleColliderData, CollisionEnterEvent, Color, CommandsDescriptor, ComponentData, ComponentDef, CppRegistry, CppResourceManager, DrawAPI, DrawCallback, ESEngineModule, Entity, FileLoadOptions, GeometryHandle, GeometryOptions, InferParam, InferParams, LoadedMaterial, LocalTransformData, MaterialAssetData, MaterialHandle, MaterialOptions, MutWrapper, ParentData, PhysicsEventsData, PhysicsModuleFactory, PhysicsPluginConfig, PhysicsWasmModule, PlatformAdapter, PlatformRequestOptions, PlatformResponse, PlatformType, Plugin, Quat, QueryDescriptor, QueryResult, RenderParams, RenderStats, RenderTargetHandle, RenderTextureHandle, RenderTextureOptions, ResDescriptor, ResMutDescriptor, ResourceDef, RigidBodyData, RuntimeAssetProvider, SceneComponentData, SceneData, SceneEntityData, SceneLoadOptions, SensorEvent, ShaderHandle, ShaderLoader, SliceBorder, SpineAnimationData, SpineDescriptor, SpineLoadResult, SpineRendererFn, SpriteData, SystemDef, SystemParam, TextData, TextRenderResult, TextureHandle, TextureInfo, TextureRef, TimeData, UIRectData, UniformValue, Vec2, Vec3, Vec4, VelocityData, VertexAttributeDescriptor, WebAppOptions, WorldTransformData };

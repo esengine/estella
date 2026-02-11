@@ -406,6 +406,7 @@ interface SpineWasmModule {
 }
 interface SpineWrappedAPI {
     loadSkeleton(skelDataPtr: number, skelDataLen: number, atlasText: string, atlasLen: number, isBinary: boolean): number;
+    getLastError(): string;
     unloadSkeleton(handle: number): void;
     getAtlasPageCount(handle: number): number;
     getAtlasPageTextureName(handle: number, pageIndex: number): string;
@@ -457,6 +458,7 @@ declare class SpineModuleController {
     constructor(raw: SpineWasmModule, api: SpineWrappedAPI);
     get raw(): SpineWasmModule;
     loadSkeleton(skelData: Uint8Array | string, atlasText: string, isBinary: boolean): number;
+    getLastError(): string;
     unloadSkeleton(handle: number): void;
     getAtlasPageCount(handle: number): number;
     getAtlasPageTextureName(handle: number, pageIndex: number): string;
@@ -495,7 +497,12 @@ declare class SpinePlugin implements Plugin {
     constructor(wasmUrl: string, factory?: SpineModuleFactory);
     build(app: App): void;
 }
-declare function submitSpineMeshesToCore(coreModule: ESEngineModule, controller: SpineModuleController, instanceId: number, transform?: Float32Array): void;
+declare function submitSpineMeshesToCore(coreModule: ESEngineModule, controller: SpineModuleController, instanceId: number, transform?: Float32Array, color?: {
+    x: number;
+    y: number;
+    z: number;
+    w: number;
+}): void;
 
 export { SpineModuleController, SpinePlugin, SpineResource, loadSpineModule, submitSpineMeshesToCore, wrapSpineModule };
 export type { SpineEvent, SpineEventCallback, SpineEventType, SpineModuleFactory, SpineWasmModule, SpineWrappedAPI };
