@@ -95,6 +95,10 @@ namespace esengine::spine {
     struct SpineSkeletonData;
 }
 
+namespace esengine::text {
+    class BitmapFont;
+}
+
 // =============================================================================
 // Handle Type Aliases
 // =============================================================================
@@ -115,6 +119,9 @@ using IndexBufferHandle = Handle<esengine::IndexBuffer>;
 
 /** @brief Handle to a Spine skeleton data resource */
 using SpineDataHandle = Handle<esengine::spine::SpineSkeletonData>;
+
+/** @brief Handle to a bitmap font resource */
+using BitmapFontHandle = Handle<esengine::text::BitmapFont>;
 
 }  // namespace esengine::resource
 

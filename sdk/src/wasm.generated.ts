@@ -18,6 +18,12 @@ export enum BodyType {
     Dynamic = 2,
 }
 
+export enum TextAlign {
+    Left = 0,
+    Center = 1,
+    Right = 2,
+}
+
 export enum CanvasScaleMode {
     FixedWidth = 0,
     FixedHeight = 1,
@@ -104,6 +110,16 @@ export interface RigidBody {
     enabled: boolean;
 }
 
+export interface BitmapText {
+    text: string;
+    color: Vec4;
+    fontSize: number;
+    align: number;
+    spacing: number;
+    layer: number;
+    font: number;
+}
+
 export interface Sprite {
     texture: number;
     color: Vec4;
@@ -186,6 +202,10 @@ export interface Registry {
     getRigidBody(entity: Entity): RigidBody;
     addRigidBody(entity: Entity, component: RigidBody): void;
     removeRigidBody(entity: Entity): void;
+    hasBitmapText(entity: Entity): boolean;
+    getBitmapText(entity: Entity): BitmapText;
+    addBitmapText(entity: Entity, component: BitmapText): void;
+    removeBitmapText(entity: Entity): void;
     hasSprite(entity: Entity): boolean;
     getSprite(entity: Entity): Sprite;
     addSprite(entity: Entity, component: Sprite): void;
@@ -222,6 +242,7 @@ export interface ESEngineModule {
     Velocity: new () => Velocity;
     SpineAnimation: new () => SpineAnimation;
     RigidBody: new () => RigidBody;
+    BitmapText: new () => BitmapText;
     Sprite: new () => Sprite;
     Parent: new () => Parent;
     Children: new () => Children;

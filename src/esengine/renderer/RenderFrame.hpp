@@ -32,6 +32,7 @@ public:
         u32 spine = 0;
 #endif
         u32 meshes = 0;
+        u32 text = 0;
         u32 culled = 0;
     };
 
@@ -50,6 +51,7 @@ public:
     void end();
 
     void submitSprites(ecs::Registry& registry);
+    void submitBitmapText(ecs::Registry& registry);
 #ifdef ES_ENABLE_SPINE
     void submitSpine(ecs::Registry& registry, spine::SpineSystem& spine_system);
 #endif
@@ -81,6 +83,7 @@ private:
 #endif
     void renderMeshes(u32 begin, u32 end);
     void renderExternalMeshes(u32 begin, u32 end);
+    void renderText(u32 begin, u32 end);
 
     RenderContext& context_;
     resource::ResourceManager& resource_manager_;

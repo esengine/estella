@@ -12,6 +12,7 @@
 #include "../ecs/Registry.hpp"
 #include "../math/Math.hpp"
 #include "../ecs/TransformSystem.hpp"
+#include "../ecs/components/BitmapText.hpp"
 #include "../ecs/components/Camera.hpp"
 #include "../ecs/components/Canvas.hpp"
 #include "../ecs/components/Collider.hpp"
@@ -67,6 +68,11 @@ EMSCRIPTEN_BINDINGS(esengine_enums) {
         .value("Kinematic", esengine::ecs::BodyType::Kinematic)
         .value("Dynamic", esengine::ecs::BodyType::Dynamic);
 
+    enum_<esengine::ecs::TextAlign>("TextAlign")
+        .value("Left", esengine::ecs::TextAlign::Left)
+        .value("Center", esengine::ecs::TextAlign::Center)
+        .value("Right", esengine::ecs::TextAlign::Right);
+
     enum_<esengine::ecs::CanvasScaleMode>("CanvasScaleMode")
         .value("FixedWidth", esengine::ecs::CanvasScaleMode::FixedWidth)
         .value("FixedHeight", esengine::ecs::CanvasScaleMode::FixedHeight)
@@ -115,6 +121,40 @@ RigidBodyJS rigidbodyToJS(const esengine::ecs::RigidBody& c) {
     js.fixedRotation = c.fixedRotation;
     js.bullet = c.bullet;
     js.enabled = c.enabled;
+    return js;
+}
+
+struct BitmapTextJS {
+    std::string text;
+    glm::vec4 color;
+    f32 fontSize;
+    i32 align;
+    f32 spacing;
+    i32 layer;
+    u32 font;
+};
+
+esengine::ecs::BitmapText bitmaptextFromJS(const BitmapTextJS& js) {
+    esengine::ecs::BitmapText c;
+    c.text = js.text;
+    c.color = js.color;
+    c.fontSize = js.fontSize;
+    c.align = static_cast<TextAlign>(js.align);
+    c.spacing = js.spacing;
+    c.layer = js.layer;
+    c.font = resource::BitmapFontHandle(js.font);
+    return c;
+}
+
+BitmapTextJS bitmaptextToJS(const esengine::ecs::BitmapText& c) {
+    BitmapTextJS js;
+    js.text = c.text;
+    js.color = c.color;
+    js.fontSize = c.fontSize;
+    js.align = static_cast<i32>(c.align);
+    js.spacing = c.spacing;
+    js.layer = c.layer;
+    js.font = c.font.id();
     return js;
 }
 
@@ -302,6 +342,15 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("bullet", &RigidBodyJS::bullet)
         .field("enabled", &RigidBodyJS::enabled);
 
+    value_object<BitmapTextJS>("BitmapText")
+        .field("text", &BitmapTextJS::text)
+        .field("color", &BitmapTextJS::color)
+        .field("fontSize", &BitmapTextJS::fontSize)
+        .field("align", &BitmapTextJS::align)
+        .field("spacing", &BitmapTextJS::spacing)
+        .field("layer", &BitmapTextJS::layer)
+        .field("font", &BitmapTextJS::font);
+
     value_object<SpriteJS>("Sprite")
         .field("texture", &SpriteJS::texture)
         .field("color", &SpriteJS::color)
@@ -470,6 +519,20 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         }))
         .function("removeRigidBody", optional_override([](Registry& r, u32 e) {
             r.remove<esengine::ecs::RigidBody>(static_cast<Entity>(e));
+        }))
+
+        // BitmapText
+        .function("hasBitmapText", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::BitmapText>(static_cast<Entity>(e));
+        }))
+        .function("getBitmapText", optional_override([](Registry& r, u32 e) {
+            return bitmaptextToJS(r.get<esengine::ecs::BitmapText>(static_cast<Entity>(e)));
+        }))
+        .function("addBitmapText", optional_override([](Registry& r, u32 e, const BitmapTextJS& js) {
+            r.emplaceOrReplace<esengine::ecs::BitmapText>(static_cast<Entity>(e), bitmaptextFromJS(js));
+        }))
+        .function("removeBitmapText", optional_override([](Registry& r, u32 e) {
+            r.remove<esengine::ecs::BitmapText>(static_cast<Entity>(e));
         }))
 
         // Sprite

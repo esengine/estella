@@ -5,6 +5,8 @@
 #include "../core/Log.hpp"
 #include "../ecs/components/Transform.hpp"
 #include "../ecs/components/Sprite.hpp"
+#include "../ecs/components/BitmapText.hpp"
+#include "../text/BitmapFont.hpp"
 #ifdef ES_ENABLE_SPINE
 #include "../ecs/components/SpineAnimation.hpp"
 #include "../spine/SpineSystem.hpp"
@@ -315,6 +317,62 @@ void RenderFrame::submitSprites(ecs::Registry& registry) {
     }
 }
 
+void RenderFrame::submitBitmapText(ecs::Registry& registry) {
+    auto textView = registry.view<ecs::LocalTransform, ecs::BitmapText>();
+
+    for (auto entity : textView) {
+        const auto& bt = textView.get<ecs::BitmapText>(entity);
+        if (bt.text.empty() || !bt.font.isValid()) {
+            continue;
+        }
+
+        auto* font = resource_manager_.getBitmapFont(bt.font);
+        if (!font) {
+            continue;
+        }
+
+        auto* tex = resource_manager_.getTexture(font->getTexture());
+        if (!tex) {
+            continue;
+        }
+
+        glm::vec3 position;
+        glm::vec3 scale{1.0f};
+
+        if (registry.has<ecs::WorldTransform>(entity)) {
+            const auto& world = registry.get<ecs::WorldTransform>(entity);
+            position = world.position;
+            scale = world.scale;
+        } else {
+            const auto& local = textView.get<ecs::LocalTransform>(entity);
+            position = local.position;
+            scale = local.scale;
+        }
+
+        RenderItem item;
+        item.entity = entity;
+        item.type = RenderType::Text;
+        item.stage = current_stage_;
+
+        item.world_position = position;
+        item.world_scale = glm::vec2(scale);
+        item.layer = bt.layer;
+        item.depth = position.z;
+        item.color = bt.color;
+        item.texture_id = tex->getId();
+
+        item.font_data = font;
+        item.text_data = bt.text.c_str();
+        item.text_length = static_cast<u16>(bt.text.size());
+        item.font_size = bt.fontSize;
+        item.text_align = static_cast<u8>(bt.align);
+        item.text_spacing = bt.spacing;
+
+        items_.push_back(item);
+        stats_.text++;
+    }
+}
+
 #ifdef ES_ENABLE_SPINE
 void RenderFrame::submitSpine(ecs::Registry& registry, spine::SpineSystem& spine_system) {
     auto view = registry.view<ecs::SpineAnimation>();
@@ -379,6 +437,7 @@ void RenderFrame::submit(const RenderItem& item) {
         case RenderType::Spine: stats_.spine++; break;
 #endif
         case RenderType::Mesh: stats_.meshes++; break;
+        case RenderType::Text: stats_.text++; break;
         default: break;
     }
 }
@@ -477,6 +536,9 @@ void RenderFrame::executeStage(RenderStage stage) {
                 break;
             case RenderType::ExternalMesh:
                 renderExternalMeshes(begin, end);
+                break;
+            case RenderType::Text:
+                renderText(begin, end);
                 break;
             default:
                 break;
@@ -842,6 +904,102 @@ void RenderFrame::renderMeshes(u32 begin, u32 end) {
         if (!item->geometry || !item->shader) continue;
         stats_.draw_calls++;
     }
+}
+
+void RenderFrame::renderText(u32 begin, u32 end) {
+    batcher_->setProjection(view_projection_);
+    batcher_->beginBatch();
+
+    for (u32 i = begin; i < end; ++i) {
+        auto* item = &items_[i];
+        auto* font = static_cast<const text::BitmapFont*>(item->font_data);
+        if (!font || !item->text_data || item->text_length == 0) {
+            continue;
+        }
+
+        f32 texW = static_cast<f32>(font->getTexWidth());
+        f32 texH = static_cast<f32>(font->getTexHeight());
+        if (texW == 0 || texH == 0) {
+            continue;
+        }
+
+        auto* tex = resource_manager_.getTexture(font->getTexture());
+        u32 textureId = tex ? tex->getId() : 0;
+        if (textureId == 0) {
+            continue;
+        }
+
+        f32 scale = item->font_size * item->world_scale.x;
+        f32 spacing = item->text_spacing;
+        f32 fontBase = font->getBase();
+
+        f32 totalWidth = 0;
+        if (item->text_align != 0) {
+            u32 prevChar = 0;
+            for (u16 j = 0; j < item->text_length; ++j) {
+                u32 charCode = static_cast<u8>(item->text_data[j]);
+                auto* glyph = font->getGlyph(charCode);
+                if (!glyph) {
+                    continue;
+                }
+                if (prevChar) {
+                    totalWidth += font->getKerning(prevChar, charCode) * scale;
+                }
+                totalWidth += (glyph->xAdvance + spacing) * scale;
+                prevChar = charCode;
+            }
+        }
+
+        f32 alignOffset = 0;
+        if (item->text_align == 1) {
+            alignOffset = -totalWidth * 0.5f;
+        } else if (item->text_align == 2) {
+            alignOffset = -totalWidth;
+        }
+
+        f32 cursorX = item->world_position.x + alignOffset;
+        f32 baseY = item->world_position.y;
+
+        u32 prevChar = 0;
+        for (u16 j = 0; j < item->text_length; ++j) {
+            u32 charCode = static_cast<u8>(item->text_data[j]);
+            auto* glyph = font->getGlyph(charCode);
+            if (!glyph) {
+                continue;
+            }
+
+            if (prevChar) {
+                cursorX += font->getKerning(prevChar, charCode) * scale;
+            }
+
+            if (glyph->width > 0 && glyph->height > 0) {
+                f32 glyphW = glyph->width * scale;
+                f32 glyphH = glyph->height * scale;
+
+                f32 posX = cursorX + (glyph->xOffset + glyph->width * 0.5f) * scale;
+                f32 posY = baseY + (fontBase - glyph->yOffset - glyph->height * 0.5f) * scale;
+
+                glm::vec2 uvOffset(glyph->x / texW, glyph->y / texH);
+                glm::vec2 uvScale(glyph->width / texW, glyph->height / texH);
+
+                batcher_->drawQuad(
+                    glm::vec2(posX, posY),
+                    glm::vec2(glyphW, glyphH),
+                    textureId,
+                    item->color,
+                    uvOffset,
+                    uvScale
+                );
+            }
+
+            cursorX += (glyph->xAdvance + spacing) * scale;
+            prevChar = charCode;
+        }
+    }
+
+    batcher_->endBatch();
+    stats_.draw_calls += batcher_->getDrawCallCount();
+    stats_.triangles += batcher_->getQuadCount() * 2;
 }
 
 void RenderFrame::renderSpriteWithMaterial(RenderItem* item) {

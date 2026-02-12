@@ -44,6 +44,7 @@ set(ESENGINE_SOURCES
     src/esengine/renderer/ImmediateDraw.cpp
     src/esengine/renderer/CustomGeometry.cpp
     src/esengine/renderer/PostProcessPipeline.cpp
+    src/esengine/text/BitmapFont.cpp
     src/esengine/platform/input/Input.cpp
     src/esengine/platform/PathResolver.cpp
 )
@@ -78,6 +79,8 @@ set(ESENGINE_HEADERS
     src/esengine/ecs/components/Velocity.hpp
     src/esengine/ecs/components/Common.hpp
     src/esengine/ecs/components/SpineAnimation.hpp
+    src/esengine/ecs/components/BitmapText.hpp
+    src/esengine/text/BitmapFont.hpp
     src/esengine/math/Math.hpp
     src/esengine/resource/Handle.hpp
     src/esengine/resource/ResourcePool.hpp

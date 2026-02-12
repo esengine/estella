@@ -25,6 +25,7 @@
 #include "../renderer/Shader.hpp"
 #include "../renderer/Texture.hpp"
 #include "../renderer/Buffer.hpp"
+#include "../text/BitmapFont.hpp"
 
 // Standard library
 #include <string>
@@ -367,6 +368,25 @@ public:
     void releaseIndexBuffer(IndexBufferHandle handle);
 
     // =========================================================================
+    // Bitmap Font Resources
+    // =========================================================================
+
+    BitmapFontHandle loadBitmapFont(const std::string& fntPath);
+
+    BitmapFontHandle createBitmapFont(const std::string& fntContent,
+                                       TextureHandle texture,
+                                       u32 texWidth, u32 texHeight);
+
+    BitmapFontHandle createLabelAtlasFont(TextureHandle texture,
+                                           u32 texWidth, u32 texHeight,
+                                           const std::string& chars,
+                                           u32 charWidth, u32 charHeight);
+
+    text::BitmapFont* getBitmapFont(BitmapFontHandle handle);
+    const text::BitmapFont* getBitmapFont(BitmapFontHandle handle) const;
+    void releaseBitmapFont(BitmapFontHandle handle);
+
+    // =========================================================================
     // Statistics
     // =========================================================================
 
@@ -420,6 +440,7 @@ private:
     ResourcePool<Texture> textures_;
     ResourcePool<VertexBuffer> vertexBuffers_;
     ResourcePool<IndexBuffer> indexBuffers_;
+    ResourcePool<text::BitmapFont> fonts_;
     std::unordered_map<std::string, TextureHandle> guidToTexture_;
     std::unordered_map<TextureHandle::IdType, TextureMetadata> textureMetadata_;
     LoaderRegistry loaderRegistry_;

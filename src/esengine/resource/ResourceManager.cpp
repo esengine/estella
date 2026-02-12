@@ -10,6 +10,7 @@
  */
 
 #include "ResourceManager.hpp"
+#include "../text/BitmapFont.hpp"
 #ifndef ES_PLATFORM_WEB
 #include "loaders/ShaderLoader.hpp"
 #include <json.hpp>
@@ -44,11 +45,12 @@ void ResourceManager::shutdown() {
         return;
     }
 
-    ES_LOG_INFO("ResourceManager shutting down (shaders: {}, textures: {}, vbos: {}, ibos: {})",
-                shaders_.size(), textures_.size(), vertexBuffers_.size(), indexBuffers_.size());
+    ES_LOG_INFO("ResourceManager shutting down (shaders: {}, textures: {}, vbos: {}, ibos: {}, fonts: {})",
+                shaders_.size(), textures_.size(), vertexBuffers_.size(), indexBuffers_.size(), fonts_.size());
 
     guidToTexture_.clear();
     textureMetadata_.clear();
+    fonts_.clear();
     shaders_.clear();
     textures_.clear();
     vertexBuffers_.clear();
@@ -374,6 +376,83 @@ const IndexBuffer* ResourceManager::getIndexBuffer(IndexBufferHandle handle) con
 void ResourceManager::releaseIndexBuffer(IndexBufferHandle handle) {
     if (handle.isValid()) {
         indexBuffers_.release(handle.id());
+    }
+}
+
+// =============================================================================
+// Bitmap Font Resources
+// =============================================================================
+
+BitmapFontHandle ResourceManager::loadBitmapFont(const std::string& fntPath) {
+    auto cached = fonts_.findByPath(fntPath);
+    if (cached.isValid()) {
+        fonts_.addRef(cached);
+        stats_.cacheHits++;
+        return cached;
+    }
+
+#ifdef ES_PLATFORM_WEB
+    ES_LOG_ERROR("loadBitmapFont from file not supported on Web");
+    stats_.cacheMisses++;
+    return BitmapFontHandle();
+#else
+    std::ifstream fntFile(fntPath);
+    if (!fntFile.is_open()) {
+        ES_LOG_ERROR("Failed to open BMFont file: {}", fntPath);
+        stats_.cacheMisses++;
+        return BitmapFontHandle();
+    }
+
+    std::string content((std::istreambuf_iterator<char>(fntFile)),
+                         std::istreambuf_iterator<char>());
+
+    auto font = makeUnique<text::BitmapFont>();
+    std::string basePath;
+    auto lastSlash = fntPath.find_last_of("/\\");
+    if (lastSlash != std::string::npos) {
+        basePath = fntPath.substr(0, lastSlash);
+    }
+
+    if (!font->loadFromFntText(content, basePath, *this)) {
+        stats_.cacheMisses++;
+        return BitmapFontHandle();
+    }
+
+    stats_.cacheMisses++;
+    return fonts_.add(std::move(font), fntPath);
+#endif
+}
+
+BitmapFontHandle ResourceManager::createBitmapFont(const std::string& fntContent,
+                                                     TextureHandle texture,
+                                                     u32 texWidth, u32 texHeight) {
+    auto font = makeUnique<text::BitmapFont>();
+    if (!font->loadFromFntText(fntContent, texture, texWidth, texHeight)) {
+        return BitmapFontHandle();
+    }
+    return fonts_.add(std::move(font));
+}
+
+BitmapFontHandle ResourceManager::createLabelAtlasFont(TextureHandle texture,
+                                                         u32 texWidth, u32 texHeight,
+                                                         const std::string& chars,
+                                                         u32 charWidth, u32 charHeight) {
+    auto font = makeUnique<text::BitmapFont>();
+    font->createLabelAtlas(texture, texWidth, texHeight, chars, charWidth, charHeight);
+    return fonts_.add(std::move(font));
+}
+
+text::BitmapFont* ResourceManager::getBitmapFont(BitmapFontHandle handle) {
+    return fonts_.get(handle);
+}
+
+const text::BitmapFont* ResourceManager::getBitmapFont(BitmapFontHandle handle) const {
+    return fonts_.get(handle);
+}
+
+void ResourceManager::releaseBitmapFont(BitmapFontHandle handle) {
+    if (handle.isValid()) {
+        fonts_.release(handle.id());
     }
 }
 

@@ -594,6 +594,7 @@ declare function addSystemToSchedule(schedule: Schedule, system: SystemDef): voi
 declare class SystemRunner {
     private readonly world_;
     private readonly resources_;
+    private readonly argsCache_;
     constructor(world: World, resources: ResourceStorage);
     run(system: SystemDef): void;
     private resolveParam;

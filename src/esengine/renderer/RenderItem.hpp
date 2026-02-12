@@ -15,6 +15,7 @@ enum class RenderType : u8 {
 #endif
     Mesh = 2,
     ExternalMesh = 3,
+    Text = 4,
 };
 
 struct RenderItem {
@@ -51,6 +52,13 @@ struct RenderItem {
     void* shader = nullptr;
 
     u32 material_id = 0;
+
+    const void* font_data = nullptr;
+    const char* text_data = nullptr;
+    u16 text_length = 0;
+    f32 font_size = 1.0f;
+    u8 text_align = 0;
+    f32 text_spacing = 0.0f;
 
     const f32* ext_vertices = nullptr;
     i32 ext_vertex_count = 0;

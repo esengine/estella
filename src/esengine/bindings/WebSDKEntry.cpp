@@ -32,6 +32,8 @@
 #include "../ecs/components/Camera.hpp"
 #include "../ecs/components/Canvas.hpp"
 #include "../ecs/components/Transform.hpp"
+#include "../ecs/components/BitmapText.hpp"
+#include "../text/BitmapFont.hpp"
 #ifdef ES_ENABLE_SPINE
 #include "../spine/SpineResourceManager.hpp"
 #include "../spine/SpineSystem.hpp"
@@ -365,6 +367,26 @@ u32 rm_getTextureGLId(resource::ResourceManager& rm, u32 handleId) {
     return tex ? tex->getId() : 0;
 }
 
+u32 rm_loadBitmapFont(resource::ResourceManager& rm, const std::string& fntContent,
+                       u32 textureHandle, u32 texWidth, u32 texHeight) {
+    auto handle = rm.createBitmapFont(fntContent,
+        resource::TextureHandle(textureHandle), texWidth, texHeight);
+    return handle.id();
+}
+
+u32 rm_createLabelAtlasFont(resource::ResourceManager& rm, u32 textureHandle,
+                              u32 texWidth, u32 texHeight, const std::string& chars,
+                              u32 charWidth, u32 charHeight) {
+    auto handle = rm.createLabelAtlasFont(
+        resource::TextureHandle(textureHandle), texWidth, texHeight,
+        chars, charWidth, charHeight);
+    return handle.id();
+}
+
+void rm_releaseBitmapFont(resource::ResourceManager& rm, u32 handleId) {
+    rm.releaseBitmapFont(resource::BitmapFontHandle(handleId));
+}
+
 void rm_setTextureMetadata(resource::ResourceManager& rm, u32 handleId,
                             f32 left, f32 right, f32 top, f32 bottom) {
     resource::TextureMetadata metadata;
@@ -429,6 +451,7 @@ void renderFrame(ecs::Registry& registry, i32 viewportWidth, i32 viewportHeight)
 
     g_renderFrame->begin(viewProjection);
     g_renderFrame->submitSprites(registry);
+    g_renderFrame->submitBitmapText(registry);
 #ifdef ES_ENABLE_SPINE
     if (g_spineSystem) {
         g_renderFrame->submitSpine(registry, *g_spineSystem);
@@ -464,6 +487,7 @@ void renderFrameWithMatrix(ecs::Registry& registry, i32 viewportWidth, i32 viewp
 
     g_renderFrame->begin(viewProjection);
     g_renderFrame->submitSprites(registry);
+    g_renderFrame->submitBitmapText(registry);
 #ifdef ES_ENABLE_SPINE
     if (g_spineSystem) {
         g_renderFrame->submitSpine(registry, *g_spineSystem);
@@ -988,6 +1012,12 @@ void renderer_submitSprites(ecs::Registry& registry) {
     g_renderFrame->submitSprites(registry);
 }
 
+void renderer_submitBitmapText(ecs::Registry& registry) {
+    if (!g_renderFrame || !g_transformSystem) return;
+    g_transformSystem->update(registry, 0.0f);
+    g_renderFrame->submitBitmapText(registry);
+}
+
 #ifdef ES_ENABLE_SPINE
 void renderer_submitSpine(ecs::Registry& registry) {
     if (!g_renderFrame || !g_spineSystem) return;
@@ -1065,6 +1095,11 @@ u32 renderer_getSpine() {
     return g_renderFrame->stats().spine;
 }
 #endif
+
+u32 renderer_getText() {
+    if (!g_renderFrame) return 0;
+    return g_renderFrame->stats().text;
+}
 
 u32 renderer_getMeshes() {
     if (!g_renderFrame) return 0;
@@ -1192,7 +1227,10 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
         .function("releaseShader", &esengine::rm_releaseShader)
         .function("getTextureGLId", &esengine::rm_getTextureGLId)
         .function("setTextureMetadata", &esengine::rm_setTextureMetadata)
-        .function("registerTextureWithPath", &esengine::rm_registerTextureWithPath);
+        .function("registerTextureWithPath", &esengine::rm_registerTextureWithPath)
+        .function("loadBitmapFont", &esengine::rm_loadBitmapFont)
+        .function("createLabelAtlasFont", &esengine::rm_createLabelAtlasFont)
+        .function("releaseBitmapFont", &esengine::rm_releaseBitmapFont);
 
 #ifdef ES_ENABLE_SPINE
     emscripten::value_object<esengine::SpineBounds>("SpineBounds")
@@ -1257,6 +1295,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_flush", &esengine::renderer_flush);
     emscripten::function("renderer_end", &esengine::renderer_end);
     emscripten::function("renderer_submitSprites", &esengine::renderer_submitSprites);
+    emscripten::function("renderer_submitBitmapText", &esengine::renderer_submitBitmapText);
 #ifdef ES_ENABLE_SPINE
     emscripten::function("renderer_submitSpine", &esengine::renderer_submitSpine);
 #endif
@@ -1272,6 +1311,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
 #ifdef ES_ENABLE_SPINE
     emscripten::function("renderer_getSpine", &esengine::renderer_getSpine);
 #endif
+    emscripten::function("renderer_getText", &esengine::renderer_getText);
     emscripten::function("renderer_getMeshes", &esengine::renderer_getMeshes);
     emscripten::function("renderer_getCulled", &esengine::renderer_getCulled);
     emscripten::function("renderer_setClearColor", &esengine::renderer_setClearColor);
