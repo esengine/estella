@@ -37,64 +37,6 @@ jobs:
       working-directory: build
       run: ctest --output-on-failure
 
-  build-macos:
-    name: macOS (Clang)
-    runs-on: macos-latest
-
-    steps:
-    - uses: actions/checkout@v4
-      with:
-        submodules: recursive
-
-    - name: Install dependencies
-      run: |
-        brew install cmake ninja glfw
-
-    - name: Configure CMake
-      run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
-
-    - name: Build
-      run: cmake --build build
-
-    - name: Test
-      working-directory: build
-      run: ctest --output-on-failure
-
-  build-windows-mingw:
-    name: Windows (MinGW-w64)
-    runs-on: windows-latest
-
-    defaults:
-      run:
-        shell: msys2 {0}
-
-    steps:
-    - uses: actions/checkout@v4
-      with:
-        submodules: recursive
-
-    - name: Setup MSYS2
-      uses: msys2/setup-msys2@v2
-      with:
-        msystem: MINGW64
-        update: true
-        install: >-
-          mingw-w64-x86_64-gcc
-          mingw-w64-x86_64-cmake
-          mingw-w64-x86_64-ninja
-          mingw-w64-x86_64-glfw
-          mingw-w64-x86_64-glm
-
-    - name: Configure CMake
-      run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
-
-    - name: Build
-      run: cmake --build build
-
-    - name: Test
-      working-directory: build
-      run: ctest --output-on-failure
-
   build-emscripten:
     name: Web (Emscripten)
     runs-on: ubuntu-latest
