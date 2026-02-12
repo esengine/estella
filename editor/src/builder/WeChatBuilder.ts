@@ -236,7 +236,7 @@ function resolvePath(ref) {
 }
 
 var spineModule = null;
-
+${this.context_.spineVersion ? `
 async function initSpineModule() {
     try {
         var SpineFactory = require('./spine.js');
@@ -249,10 +249,10 @@ async function initSpineModule() {
             }
         });
     } catch(e) { console.warn('Spine module not available:', e); }
-}
+}` : ''}
 
 var physicsModule = null;
-
+${this.context_.enablePhysics ? `
 async function initPhysicsModule() {
     try {
         var PhysicsFactory = require('./physics.js');
@@ -265,7 +265,7 @@ async function initPhysicsModule() {
             }
         });
     } catch(e) { console.warn('Physics module not available:', e); }
-}
+}` : ''}
 
 (async function() {
     var canvas = wx.createCanvas();
@@ -305,8 +305,8 @@ async function initPhysicsModule() {
 
     SDK.flushPendingSystems(app);
 
-    await initSpineModule();
-    await initPhysicsModule();
+    ${this.context_.spineVersion ? 'await initSpineModule();' : ''}
+    ${this.context_.enablePhysics ? 'await initPhysicsModule();' : ''}
 
     ${firstSceneName ? `
     try {

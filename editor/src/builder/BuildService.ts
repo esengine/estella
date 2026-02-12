@@ -71,7 +71,7 @@ export class BuildService {
         progress.log('info', `Building config: ${config.name}`);
 
         const projectConfig = await loadProjectConfig(this.projectPath_);
-        const spineVersion = projectConfig?.spineVersion;
+        const spineVersion = projectConfig?.spineVersion === 'none' ? undefined : projectConfig?.spineVersion;
         const enablePhysics = projectConfig?.enablePhysics ?? false;
 
         const context: BuildContext = {

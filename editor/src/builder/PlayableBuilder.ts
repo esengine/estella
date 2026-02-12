@@ -648,15 +648,11 @@ ${imports}
         let spineScript = '';
         if (spineJs && spineWasmBase64) {
             spineScript = `<script>\nvar __SPINE_WASM_B64__="${spineWasmBase64}";\n${spineJs}\n</script>`;
-        } else {
-            spineScript = `<script>\nvar __SPINE_WASM_B64__="";\n</script>`;
         }
 
         let physicsScript = '';
         if (physicsJs && physicsWasmBase64) {
             physicsScript = `<script>\nvar __PHYSICS_WASM_B64__="${physicsWasmBase64}";\n${physicsJs}\n</script>`;
-        } else {
-            physicsScript = `<script>\nvar __PHYSICS_WASM_B64__="";\n</script>`;
         }
 
         const physicsConfig = JSON.stringify({

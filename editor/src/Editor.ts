@@ -88,7 +88,7 @@ export class Editor {
     private container_: HTMLElement;
     private app_: App | null = null;
     private spineModule_: unknown = null;
-    private spineVersion_: string = '4.2';
+    private spineVersion_: string = 'none';
     private spineVersionChangeHandler_: ((version: string) => void) | null = null;
     private store_: EditorStore;
     private bridge_: EditorBridge | null = null;
@@ -376,9 +376,7 @@ export class Editor {
             setSettingsValue('project.name', config.name);
             setSettingsValue('project.version', config.version);
             setSettingsValue('project.defaultScene', config.defaultScene);
-            if (config.spineVersion) {
-                setSettingsValue('project.spineVersion', config.spineVersion);
-            }
+            setSettingsValue('project.spineVersion', config.spineVersion ?? 'none');
             setSettingsValue('project.enablePhysics', config.enablePhysics ?? false);
             setSettingsValue('physics.gravityX', config.physicsGravityX ?? 0);
             setSettingsValue('physics.gravityY', config.physicsGravityY ?? -9.81);
@@ -737,7 +735,8 @@ export class Editor {
                 fixedTimestep: getSettingsValue<number>('physics.fixedTimestep') ?? 1 / 60,
                 subStepCount: getSettingsValue<number>('physics.subStepCount') ?? 4,
             } : undefined;
-            await this.previewService_.startPreview(this.store_.scene, compiledScript, this.spineVersion_, enablePhysics, physicsConfig);
+            const previewSpineVersion = this.spineVersion_ === 'none' ? undefined : this.spineVersion_;
+            await this.previewService_.startPreview(this.store_.scene, compiledScript, previewSpineVersion, enablePhysics, physicsConfig);
         } catch (err) {
             console.error('Failed to start preview:', err);
         }

@@ -57,9 +57,10 @@ export function registerBuiltinSettings(): void {
         section: 'project',
         label: 'Spine Version',
         type: 'select',
-        defaultValue: '4.2',
+        defaultValue: 'none',
         order: 0,
         options: [
+            { label: 'None', value: 'none' },
             { label: 'Spine 4.2', value: '4.2' },
             { label: 'Spine 4.1', value: '4.1' },
             { label: 'Spine 3.8', value: '3.8' },
