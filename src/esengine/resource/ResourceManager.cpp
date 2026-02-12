@@ -37,7 +37,6 @@ void ResourceManager::init() {
 
     stats_ = {};
     initialized_ = true;
-    ES_LOG_INFO("ResourceManager initialized");
 }
 
 void ResourceManager::shutdown() {

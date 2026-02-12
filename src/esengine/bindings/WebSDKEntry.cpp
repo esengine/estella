@@ -33,6 +33,7 @@
 #include "../ecs/components/Canvas.hpp"
 #include "../ecs/components/Transform.hpp"
 #include "../ecs/components/BitmapText.hpp"
+#include "../ecs/components/Hierarchy.hpp"
 #include "../text/BitmapFont.hpp"
 #ifdef ES_ENABLE_SPINE
 #include "../spine/SpineResourceManager.hpp"
@@ -1207,6 +1208,37 @@ emscripten::val registry_getCameraEntities(ecs::Registry& registry) {
     return result;
 }
 
+void renderer_setEntityClipRect(u32 entity, i32 x, i32 y, i32 w, i32 h) {
+    if (g_renderFrame) {
+        g_renderFrame->setEntityClipRect(entity, x, y, w, h);
+    }
+}
+
+void renderer_clearEntityClipRect(u32 entity) {
+    if (g_renderFrame) {
+        g_renderFrame->clearEntityClipRect(entity);
+    }
+}
+
+void renderer_clearAllClipRects() {
+    if (g_renderFrame) {
+        g_renderFrame->clearAllClipRects();
+    }
+}
+
+emscripten::val getChildEntities(ecs::Registry& registry, u32 entity) {
+    auto result = emscripten::val::array();
+    if (!registry.has<ecs::Children>(static_cast<Entity>(entity))) {
+        return result;
+    }
+    const auto& children = registry.get<ecs::Children>(static_cast<Entity>(entity));
+    u32 idx = 0;
+    for (auto child : children.entities) {
+        result.set(idx++, static_cast<u32>(child));
+    }
+    return result;
+}
+
 }  // namespace esengine
 
 EMSCRIPTEN_BINDINGS(esengine_renderer) {
@@ -1319,9 +1351,15 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_setScissor", &esengine::renderer_setScissor);
     emscripten::function("renderer_clearBuffers", &esengine::renderer_clearBuffers);
 
+    // Clip Rect API
+    emscripten::function("renderer_setEntityClipRect", &esengine::renderer_setEntityClipRect);
+    emscripten::function("renderer_clearEntityClipRect", &esengine::renderer_clearEntityClipRect);
+    emscripten::function("renderer_clearAllClipRects", &esengine::renderer_clearAllClipRects);
+
     // ECS Query API
     emscripten::function("registry_getCanvasEntity", &esengine::registry_getCanvasEntity);
     emscripten::function("registry_getCameraEntities", &esengine::registry_getCameraEntities);
+    emscripten::function("getChildEntities", &esengine::getChildEntities);
 
     // GL Debug API
     emscripten::function("gl_enableErrorCheck", &esengine::gl_enableErrorCheck);

@@ -8,6 +8,14 @@
 
 namespace esengine {
 
+struct ScissorRect {
+    i32 x = 0, y = 0, w = 0, h = 0;
+    bool operator==(const ScissorRect& o) const {
+        return x == o.x && y == o.y && w == o.w && h == o.h;
+    }
+    bool operator!=(const ScissorRect& o) const { return !(*this == o); }
+};
+
 enum class RenderType : u8 {
     Sprite = 0,
 #ifdef ES_ENABLE_SPINE
@@ -65,6 +73,9 @@ struct RenderItem {
     const u16* ext_indices = nullptr;
     i32 ext_index_count = 0;
     u32 ext_bind_texture = 0;
+
+    bool scissor_enabled = false;
+    ScissorRect scissor;
 
     u64 sortKey() const {
         u64 stageKey = static_cast<u64>(stage) << 60;

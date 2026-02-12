@@ -74,8 +74,6 @@ void SpineResourceManager::init() {
     initSpineExtension();
     texture_loader_ = makeUnique<ESEngineTextureLoader>(resource_manager_);
     initialized_ = true;
-
-    ES_LOG_INFO("SpineResourceManager initialized");
 }
 
 void SpineResourceManager::shutdown() {

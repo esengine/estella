@@ -128,7 +128,6 @@ void RenderFrame::init(u32 width, u32 height) {
     glGenBuffers(1, &mat_sprite_ebo_);
     mat_sprite_ebo_initialized_ = false;
 
-    ES_LOG_INFO("RenderFrame initialized ({}x{})", width, height);
 }
 
 void RenderFrame::shutdown() {
@@ -238,6 +237,18 @@ void RenderFrame::end() {
     flushed_ = false;
 }
 
+void RenderFrame::setEntityClipRect(u32 entity, i32 x, i32 y, i32 w, i32 h) {
+    clip_rects_[entity] = ScissorRect{x, y, w, h};
+}
+
+void RenderFrame::clearEntityClipRect(u32 entity) {
+    clip_rects_.erase(entity);
+}
+
+void RenderFrame::clearAllClipRects() {
+    clip_rects_.clear();
+}
+
 void RenderFrame::submitSprites(ecs::Registry& registry) {
     auto spriteView = registry.view<ecs::LocalTransform, ecs::Sprite>();
 
@@ -312,6 +323,14 @@ void RenderFrame::submitSprites(ecs::Registry& registry) {
 
         item.material_id = sprite.material;
 
+        if (!clip_rects_.empty()) {
+            auto it = clip_rects_.find(static_cast<u32>(entity));
+            if (it != clip_rects_.end()) {
+                item.scissor_enabled = true;
+                item.scissor = it->second;
+            }
+        }
+
         items_.push_back(item);
         stats_.sprites++;
     }
@@ -367,6 +386,14 @@ void RenderFrame::submitBitmapText(ecs::Registry& registry) {
         item.font_size = bt.fontSize;
         item.text_align = static_cast<u8>(bt.align);
         item.text_spacing = bt.spacing;
+
+        if (!clip_rects_.empty()) {
+            auto it = clip_rects_.find(static_cast<u32>(entity));
+            if (it != clip_rects_.end()) {
+                item.scissor_enabled = true;
+                item.scissor = it->second;
+            }
+        }
 
         items_.push_back(item);
         stats_.text++;
@@ -560,8 +587,25 @@ void RenderFrame::renderSprites(u32 begin, u32 end) {
     batcher_->setProjection(view_projection_);
     batcher_->beginBatch();
 
+    bool curScissorOn = false;
+    ScissorRect curRect{};
+
     for (u32 i = begin; i < end; ++i) {
         auto* item = &items_[i];
+
+        if (item->scissor_enabled != curScissorOn ||
+            (item->scissor_enabled && item->scissor != curRect)) {
+            batcher_->flush();
+            if (item->scissor_enabled) {
+                glEnable(GL_SCISSOR_TEST);
+                glScissor(item->scissor.x, item->scissor.y,
+                          item->scissor.w, item->scissor.h);
+            } else {
+                glDisable(GL_SCISSOR_TEST);
+            }
+            curScissorOn = item->scissor_enabled;
+            curRect = item->scissor;
+        }
 
         if (item->material_id != 0) {
             batcher_->flush();
@@ -611,6 +655,11 @@ void RenderFrame::renderSprites(u32 begin, u32 end) {
                 item->uv_scale
             );
         }
+    }
+
+    if (curScissorOn) {
+        batcher_->flush();
+        glDisable(GL_SCISSOR_TEST);
     }
 
     batcher_->endBatch();
@@ -665,7 +714,9 @@ void RenderFrame::renderSpine(u32 begin, u32 end) {
             if (attachment->getRTTI().isExactly(::spine::RegionAttachment::rtti)) {
                 auto* region = static_cast<::spine::RegionAttachment*>(attachment);
 
-                spine_world_vertices_.resize(8);
+                if (spine_world_vertices_.size() < 8) {
+                    spine_world_vertices_.resize(8);
+                }
                 region->computeWorldVertices(*slot, spine_world_vertices_.data(), 0, 2);
 
                 auto* regionData = region->getRegion();
@@ -727,7 +778,10 @@ void RenderFrame::renderSpine(u32 begin, u32 end) {
                 auto* mesh = static_cast<::spine::MeshAttachment*>(attachment);
 
                 size_t vertexCount = mesh->getWorldVerticesLength() / 2;
-                spine_world_vertices_.resize(mesh->getWorldVerticesLength());
+                size_t worldVertLen = mesh->getWorldVerticesLength();
+                if (spine_world_vertices_.size() < worldVertLen) {
+                    spine_world_vertices_.resize(worldVertLen);
+                }
                 mesh->computeWorldVertices(*slot, 0, mesh->getWorldVerticesLength(),
                                            spine_world_vertices_.data(), 0, 2);
 
@@ -910,8 +964,26 @@ void RenderFrame::renderText(u32 begin, u32 end) {
     batcher_->setProjection(view_projection_);
     batcher_->beginBatch();
 
+    bool curScissorOn = false;
+    ScissorRect curRect{};
+
     for (u32 i = begin; i < end; ++i) {
         auto* item = &items_[i];
+
+        if (item->scissor_enabled != curScissorOn ||
+            (item->scissor_enabled && item->scissor != curRect)) {
+            batcher_->flush();
+            if (item->scissor_enabled) {
+                glEnable(GL_SCISSOR_TEST);
+                glScissor(item->scissor.x, item->scissor.y,
+                          item->scissor.w, item->scissor.h);
+            } else {
+                glDisable(GL_SCISSOR_TEST);
+            }
+            curScissorOn = item->scissor_enabled;
+            curRect = item->scissor;
+        }
+
         auto* font = static_cast<const text::BitmapFont*>(item->font_data);
         if (!font || !item->text_data || item->text_length == 0) {
             continue;
@@ -999,6 +1071,11 @@ void RenderFrame::renderText(u32 begin, u32 end) {
         }
     }
 
+    if (curScissorOn) {
+        batcher_->flush();
+        glDisable(GL_SCISSOR_TEST);
+    }
+
     batcher_->endBatch();
     stats_.draw_calls += batcher_->getDrawCallCount();
     stats_.triangles += batcher_->getQuadCount() * 2;
@@ -1007,7 +1084,8 @@ void RenderFrame::renderText(u32 begin, u32 end) {
 void RenderFrame::renderSpriteWithMaterial(RenderItem* item) {
     u32 shaderId = 0;
     u32 blendMode = 0;
-    std::vector<UniformData> uniforms;
+    static std::vector<UniformData> uniforms;
+    uniforms.clear();
 
     if (!getMaterialDataWithUniforms(item->material_id, shaderId, blendMode, uniforms)) {
         return;
@@ -1062,7 +1140,11 @@ void RenderFrame::renderSpriteWithMaterial(RenderItem* item) {
     glBindVertexArray(mat_sprite_vao_);
 
     glBindBuffer(GL_ARRAY_BUFFER, mat_sprite_vbo_);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STREAM_DRAW);
+    if (!mat_sprite_vbo_allocated_) {
+        glBufferData(GL_ARRAY_BUFFER, sizeof(MatSpriteVertex) * 4, nullptr, GL_STREAM_DRAW);
+        mat_sprite_vbo_allocated_ = true;
+    }
+    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices);
 
     GLint locPos = shader->getAttribLocation("a_position");
     if (locPos >= 0) {

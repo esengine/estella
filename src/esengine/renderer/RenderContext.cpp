@@ -34,7 +34,6 @@ void RenderContext::init() {
     initWhiteTexture();
 
     initialized_ = true;
-    ES_LOG_INFO("RenderContext initialized");
 }
 
 void RenderContext::shutdown() {

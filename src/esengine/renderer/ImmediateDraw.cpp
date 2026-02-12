@@ -54,7 +54,6 @@ void ImmediateDraw::init() {
     impl_->batcher->init();
 
     initialized_ = true;
-    ES_LOG_INFO("ImmediateDraw initialized");
 }
 
 void ImmediateDraw::shutdown() {

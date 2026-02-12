@@ -35,8 +35,6 @@ namespace esengine {
 // ========================================
 
 void RenderCommand::init() {
-    ES_LOG_INFO("RenderCommand initialized");
-
     // Enable depth testing by default
     glEnable(GL_DEPTH_TEST);
 
@@ -359,7 +357,6 @@ void BatchRenderer2D::init() {
     data_->shader_handle = resource_manager_.loadEngineShader("batch");
 #endif
     if (!data_->shader_handle.isValid()) {
-        ES_LOG_INFO("Using embedded batch shader");
         data_->shader_handle = resource_manager_.createShader(
             ShaderSources::BATCH_VERTEX,
             ShaderSources::BATCH_FRAGMENT
@@ -388,7 +385,6 @@ void BatchRenderer2D::init() {
         GLint linkStatus;
         glGetProgramiv(prog, GL_LINK_STATUS, &linkStatus);
         if (linkStatus) {
-            ES_LOG_INFO("Batch shader ready (program ID: {})", prog);
             batchShader->bind();
             GLint baseLoc = glGetUniformLocation(prog, "u_textures[0]");
             if (baseLoc >= 0) {
@@ -409,8 +405,6 @@ void BatchRenderer2D::init() {
     }
 
     data_->initialized = true;
-    ES_LOG_INFO("BatchRenderer2D initialized (max {} quads per batch, {} texture slots)",
-        MAX_QUADS, MAX_TEXTURE_SLOTS);
 }
 
 void BatchRenderer2D::shutdown() {

@@ -103,7 +103,6 @@ void PostProcessPipeline::init(u32 width, u32 height) {
     }
 
     initialized_ = true;
-    ES_LOG_INFO("PostProcessPipeline initialized ({}x{})", width, height);
 }
 
 void PostProcessPipeline::ensureFBOs() {

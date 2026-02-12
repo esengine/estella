@@ -11,6 +11,7 @@
 #include <glm/glm.hpp>
 #include <array>
 #include <vector>
+#include <unordered_map>
 
 namespace esengine {
 
@@ -55,6 +56,10 @@ public:
 #ifdef ES_ENABLE_SPINE
     void submitSpine(ecs::Registry& registry, spine::SpineSystem& spine_system);
 #endif
+
+    void setEntityClipRect(u32 entity, i32 x, i32 y, i32 w, i32 h);
+    void clearEntityClipRect(u32 entity);
+    void clearAllClipRects();
 
     void submit(const RenderItem& item);
     void submitExternalTriangles(
@@ -143,6 +148,9 @@ private:
     u32 mat_sprite_vbo_ = 0;
     u32 mat_sprite_ebo_ = 0;
     bool mat_sprite_ebo_initialized_ = false;
+    bool mat_sprite_vbo_allocated_ = false;
+
+    std::unordered_map<u32, ScissorRect> clip_rects_;
 };
 
 }  // namespace esengine
