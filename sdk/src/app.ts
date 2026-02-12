@@ -8,6 +8,7 @@ import { Schedule, SystemDef, SystemRunner } from './system';
 import { ResourceStorage, Time, TimeData, type ResourceDef } from './resource';
 import type { ESEngineModule, CppRegistry } from './wasm';
 import { textPlugin } from './ui/TextPlugin';
+import { uiMaskPlugin } from './ui/UIMaskPlugin';
 import { inputPlugin } from './input';
 import { assetPlugin } from './asset';
 import { initDrawAPI, shutdownDrawAPI } from './draw';
@@ -326,6 +327,7 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
     app.addPlugin(assetPlugin);
     app.addPlugin(inputPlugin);
     app.addPlugin(textPlugin);
+    app.addPlugin(uiMaskPlugin);
 
     return app;
 }
@@ -521,8 +523,10 @@ function computeViewProjection(module: ESEngineModule, registry: CppRegistry, wi
     return multiply(projection, view);
 }
 
+const _orthoM = new Float32Array(16);
 function ortho(left: number, right: number, bottom: number, top: number, near: number, far: number): Float32Array {
-    const m = new Float32Array(16);
+    const m = _orthoM;
+    m.fill(0);
     const rl = right - left;
     const tb = top - bottom;
     const fn = far - near;
@@ -536,8 +540,10 @@ function ortho(left: number, right: number, bottom: number, top: number, near: n
     return m;
 }
 
+const _perspM = new Float32Array(16);
 function perspective(fovRad: number, aspect: number, near: number, far: number): Float32Array {
-    const m = new Float32Array(16);
+    const m = _perspM;
+    m.fill(0);
     const f = 1.0 / Math.tan(fovRad / 2);
     const nf = near - far;
     m[0]  = f / aspect;
@@ -548,15 +554,13 @@ function perspective(fovRad: number, aspect: number, near: number, far: number):
     return m;
 }
 
+const _invTransM = new Float32Array(16);
 function invertTranslation(x: number, y: number, z: number): Float32Array {
-    const m = new Float32Array(16);
-    m[0]  = 1;
-    m[5]  = 1;
-    m[10] = 1;
-    m[15] = 1;
-    m[12] = -x;
-    m[13] = -y;
-    m[14] = -z;
+    const m = _invTransM;
+    m[0]  = 1; m[1] = 0; m[2] = 0; m[3] = 0;
+    m[4]  = 0; m[5] = 1; m[6] = 0; m[7] = 0;
+    m[8]  = 0; m[9] = 0; m[10] = 1; m[11] = 0;
+    m[12] = -x; m[13] = -y; m[14] = -z; m[15] = 1;
     return m;
 }
 

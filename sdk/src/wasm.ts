@@ -244,9 +244,15 @@ export interface ESEngineModule {
     renderer_setScissor(x: number, y: number, w: number, h: number, enable: boolean): void;
     renderer_clearBuffers(flags: number): void;
 
+    // Clip Rect API
+    renderer_setEntityClipRect(entity: number, x: number, y: number, w: number, h: number): void;
+    renderer_clearEntityClipRect(entity: number): void;
+    renderer_clearAllClipRects(): void;
+
     // ECS Query API
     registry_getCanvasEntity(registry: CppRegistry): number;
     registry_getCameraEntities(registry: CppRegistry): number[];
+    getChildEntities(registry: CppRegistry, entity: number): number[];
 
     // GL Debug API
     gl_enableErrorCheck(enabled: boolean): void;

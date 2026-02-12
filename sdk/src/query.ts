@@ -114,6 +114,7 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
         const compCount = actualComponents.length;
         const hasMut = _mutIndices.length > 0;
         const hasWithout = _without.length > 0;
+        const result = new Array(compCount + 1);
 
         let prevEntity: Entity | null = null;
         let prevMutData: Array<{ component: AnyComponentDef; data: unknown }> = [];
@@ -139,7 +140,6 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
                     if (excluded) continue;
                 }
 
-                const result = new Array(compCount + 1);
                 result[0] = entity;
                 for (let i = 0; i < compCount; i++) {
                     result[i + 1] = this.world_.get(entity, actualComponents[i]);
@@ -194,6 +194,10 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
     }
 
     toArray(): QueryResult<C>[] {
-        return [...this];
+        const arr: QueryResult<C>[] = [];
+        for (const row of this) {
+            arr.push([...row] as QueryResult<C>);
+        }
+        return arr;
     }
 }

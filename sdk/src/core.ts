@@ -175,11 +175,16 @@ export {
     TextVerticalAlign,
     TextOverflow,
     UIRect,
+    UIMask,
+    UIMaskPlugin,
+    uiMaskPlugin,
+    createMaskProcessor,
     TextRenderer,
     TextPlugin,
     textPlugin,
     type TextData,
     type UIRectData,
+    type UIMaskData,
     type TextRenderResult,
 } from './ui';
 
@@ -345,6 +350,7 @@ export {
     RenderPipeline,
     type RenderParams,
     type CameraRenderParams,
+    type MaskProcessorFn,
     type SpineRendererFn,
 } from './renderPipeline';
 

@@ -27,13 +27,25 @@ export interface CameraRenderParams {
 
 export type SpineRendererFn = (registry: { _cpp: CppRegistry }, elapsed: number) => void;
 
+export type MaskProcessorFn = (
+    registry: CppRegistry,
+    vp: Float32Array,
+    viewportX: number, viewportY: number,
+    viewportW: number, viewportH: number
+) => void;
+
 export class RenderPipeline {
     private spineRenderer_: SpineRendererFn | null = null;
+    private maskProcessor_: MaskProcessorFn | null = null;
     private lastWidth_ = 0;
     private lastHeight_ = 0;
 
     setSpineRenderer(fn: SpineRendererFn | null): void {
         this.spineRenderer_ = fn;
+    }
+
+    setMaskProcessor(fn: MaskProcessorFn | null): void {
+        this.maskProcessor_ = fn;
     }
 
     render(params: RenderParams): void {
@@ -51,6 +63,9 @@ export class RenderPipeline {
         Renderer.setViewport(0, 0, width, height);
         Renderer.clearBuffers(3);
         Renderer.begin(viewProjection);
+        if (this.maskProcessor_) {
+            this.maskProcessor_(registry._cpp, viewProjection, 0, 0, width, height);
+        }
         Renderer.submitSprites(registry);
         Renderer.submitBitmapText(registry);
         if (this.spineRenderer_) {
@@ -74,6 +89,9 @@ export class RenderPipeline {
         Renderer.setScissor(0, 0, 0, 0, false);
 
         Renderer.begin(viewProjection);
+        if (this.maskProcessor_) {
+            this.maskProcessor_(registry._cpp, viewProjection, vp.x, vp.y, vp.w, vp.h);
+        }
         Renderer.submitSprites(registry);
         Renderer.submitBitmapText(registry);
         if (this.spineRenderer_) {

@@ -16,7 +16,6 @@ let currentPlatform: PlatformAdapter | null = null;
  */
 export function setPlatform(adapter: PlatformAdapter): void {
     currentPlatform = adapter;
-    console.log(`[ESEngine] Platform: ${adapter.name}`);
 }
 
 /**
