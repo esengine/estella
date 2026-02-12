@@ -78,7 +78,10 @@ export class EditorStore {
     private hierarchyListeners_: Set<HierarchyChangeListener> = new Set();
     private focusListeners_: Set<(entityId: number) => void> = new Set();
     private visibilityListeners_: Set<VisibilityChangeListener> = new Set();
+    private pendingNotify_ = false;
     private nextEntityId_ = 1;
+    private sceneVersion_ = 0;
+    private sceneLoadVersion_ = 0;
     private worldTransforms_ = new WorldTransformCache();
     private entityMap_ = new Map<number, EntityData>();
 
@@ -112,6 +115,14 @@ export class EditorStore {
 
     get scene(): SceneData {
         return this.state_.scene;
+    }
+
+    get sceneVersion(): number {
+        return this.sceneVersion_;
+    }
+
+    get sceneLoadVersion(): number {
+        return this.sceneLoadVersion_;
     }
 
     get selectedEntity(): Entity | null {
@@ -152,6 +163,7 @@ export class EditorStore {
         this.nextEntityId_ = this.computeNextEntityId(this.state_.scene);
         this.rebuildEntityMap();
         this.worldTransforms_.setScene(this.state_.scene);
+        this.sceneLoadVersion_++;
         this.notify();
     }
 
@@ -167,6 +179,7 @@ export class EditorStore {
 
         this.rebuildEntityMap();
         this.worldTransforms_.setScene(scene);
+        this.sceneLoadVersion_++;
         this.notify();
     }
 
@@ -424,7 +437,6 @@ export class EditorStore {
             this.worldTransforms_.markDirty(entity as number);
         }
 
-        this.notify();
         this.notifyPropertyChange({
             entity: entity as number,
             componentType,
@@ -461,6 +473,7 @@ export class EditorStore {
             this.state_.isDirty = true;
             this.rebuildEntityMap();
             this.worldTransforms_.invalidateAll();
+            this.sceneLoadVersion_++;
             this.notify();
         }
     }
@@ -470,6 +483,7 @@ export class EditorStore {
             this.state_.isDirty = true;
             this.rebuildEntityMap();
             this.worldTransforms_.invalidateAll();
+            this.sceneLoadVersion_++;
             this.notify();
         }
     }
@@ -510,9 +524,15 @@ export class EditorStore {
     }
 
     private notify(): void {
-        for (const listener of this.listeners_) {
-            listener(this.state_);
-        }
+        if (this.pendingNotify_) return;
+        this.pendingNotify_ = true;
+        this.sceneVersion_++;
+        requestAnimationFrame(() => {
+            this.pendingNotify_ = false;
+            for (const listener of this.listeners_) {
+                listener(this.state_);
+            }
+        });
     }
 
     private notifyPropertyChange(event: PropertyChangeEvent): void {

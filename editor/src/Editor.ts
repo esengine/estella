@@ -541,9 +541,7 @@ export class Editor {
                 const msg = errors.map(e => `${e.file}:${e.line} - ${e.message}`).join('\n');
                 showErrorToast(`Extension compile failed:\n${msg}`);
             },
-            onCompileSuccess: () => {
-                console.log('Extensions compiled successfully');
-            },
+            onCompileSuccess: () => {},
             onCleanup: () => this.cleanupExtensionUI(),
             onAfterReload: () => this.applyExtensionUI(),
         });

@@ -8,25 +8,14 @@
 // =============================================================================
 
 export class EditorCamera {
-    /** Pan offset in world units */
     panX: number = 0;
     panY: number = 0;
-
-    /** Zoom level (1.0 = 100%, 2.0 = 200%, 0.5 = 50%) */
     zoom: number = 1;
-
-    /** Minimum zoom level */
     minZoom: number = 0.1;
-
-    /** Maximum zoom level */
     maxZoom: number = 10;
 
-    /**
-     * @brief Get view-projection matrix for orthographic rendering
-     * @param viewportWidth Viewport width in pixels
-     * @param viewportHeight Viewport height in pixels
-     * @returns Column-major 4x4 matrix as Float32Array
-     */
+    private matrix_ = new Float32Array(16);
+
     getViewProjection(viewportWidth: number, viewportHeight: number): Float32Array {
         const halfWidth = (viewportWidth / 2) / this.zoom;
         const halfHeight = (viewportHeight / 2) / this.zoom;
@@ -38,30 +27,26 @@ export class EditorCamera {
 
         const near = -1000;
         const far = 1000;
+        const m = this.matrix_;
 
-        const matrix = new Float32Array(16);
+        m[0] = 2 / (right - left);
+        m[1] = 0;
+        m[2] = 0;
+        m[3] = 0;
+        m[4] = 0;
+        m[5] = 2 / (top - bottom);
+        m[6] = 0;
+        m[7] = 0;
+        m[8] = 0;
+        m[9] = 0;
+        m[10] = -2 / (far - near);
+        m[11] = 0;
+        m[12] = -(right + left) / (right - left);
+        m[13] = -(top + bottom) / (top - bottom);
+        m[14] = -(far + near) / (far - near);
+        m[15] = 1;
 
-        matrix[0] = 2 / (right - left);
-        matrix[1] = 0;
-        matrix[2] = 0;
-        matrix[3] = 0;
-
-        matrix[4] = 0;
-        matrix[5] = 2 / (top - bottom);
-        matrix[6] = 0;
-        matrix[7] = 0;
-
-        matrix[8] = 0;
-        matrix[9] = 0;
-        matrix[10] = -2 / (far - near);
-        matrix[11] = 0;
-
-        matrix[12] = -(right + left) / (right - left);
-        matrix[13] = -(top + bottom) / (top - bottom);
-        matrix[14] = -(far + near) / (far - near);
-        matrix[15] = 1;
-
-        return matrix;
+        return m;
     }
 
     /**

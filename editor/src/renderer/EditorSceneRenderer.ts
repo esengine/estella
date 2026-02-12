@@ -7,6 +7,7 @@ import type { ESEngineModule } from 'esengine';
 import {
     RenderPipeline,
     Renderer,
+    createMaskProcessor,
     initDrawAPI,
     shutdownDrawAPI,
     initGeometryAPI,
@@ -73,6 +74,9 @@ export class EditorSceneRenderer {
         this.startTime_ = performance.now();
 
         this.sceneManager_ = new EditorSceneManager(module, this.pathResolver_);
+        this.pipeline_.setMaskProcessor(
+            createMaskProcessor(module, this.sceneManager_.world)
+        );
         this.initialized_ = true;
 
         this.setupSyncService();
@@ -176,11 +180,19 @@ export class EditorSceneRenderer {
         const matrix = this.camera_.getViewProjection(width, height);
         const elapsed = (performance.now() - this.startTime_) / 1000;
 
-        this.pipeline_.render({
-            registry: { _cpp: this.sceneManager_.registry },
-            viewProjection: matrix,
-            width, height, elapsed,
-        });
+        try {
+            this.pipeline_.render({
+                registry: { _cpp: this.sceneManager_.registry },
+                viewProjection: matrix,
+                width, height, elapsed,
+            });
+        } catch (e) {
+            if (e instanceof WebAssembly.RuntimeError) {
+                console.warn('[EditorSceneRenderer] WASM error during render, skipping frame');
+            } else {
+                throw e;
+            }
+        }
     }
 
     private findCanvasBackgroundColor(): { r: number; g: number; b: number; a: number } {

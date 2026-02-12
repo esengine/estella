@@ -237,6 +237,62 @@ export function getEntitySize(entity: EntityDataLike): { x: number; y: number } 
 }
 
 // =============================================================================
+// UIRect-Adjusted Transform
+// =============================================================================
+
+export function getParentSizeForEntity(
+    entity: EntityDataLike,
+    getParentEntity: (id: number) => EntityDataLike | undefined
+): { x: number; y: number } {
+    if (entity.parent !== null) {
+        const parentData = getParentEntity(entity.parent);
+        if (parentData) {
+            return getEntitySize(parentData);
+        }
+    }
+
+    let current = entity;
+    while (current.parent !== null) {
+        const parent = getParentEntity(current.parent);
+        if (!parent) break;
+        const canvas = parent.components.find(c => c.type === 'Canvas');
+        if (canvas?.data?.designResolution) {
+            const res = canvas.data.designResolution as { x: number; y: number };
+            return { x: res.x, y: res.y };
+        }
+        current = parent;
+    }
+    return { x: 0, y: 0 };
+}
+
+export function computeAdjustedLocalTransform(
+    entity: EntityDataLike,
+    getParentEntity: (id: number) => EntityDataLike | undefined
+): Transform {
+    const localTransform = getLocalTransformFromEntity(entity);
+    const uiRect = getUIRectFromEntity(entity);
+    const size = getEntitySize(entity);
+
+    let adjustedPosition = { ...localTransform.position };
+
+    if (uiRect) {
+        const parentSize = getParentSizeForEntity(entity, getParentEntity);
+
+        adjustedPosition.x += (uiRect.anchor.x - 0.5) * parentSize.x;
+        adjustedPosition.y += (uiRect.anchor.y - 0.5) * parentSize.y;
+
+        adjustedPosition.x += (0.5 - uiRect.pivot.x) * size.x;
+        adjustedPosition.y += (0.5 - uiRect.pivot.y) * size.y;
+    }
+
+    return {
+        position: adjustedPosition,
+        rotation: localTransform.rotation,
+        scale: localTransform.scale,
+    };
+}
+
+// =============================================================================
 // Matrix Conversion
 // =============================================================================
 

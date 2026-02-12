@@ -210,6 +210,14 @@ export const BitmapTextSchema: ComponentSchema = {
     ],
 };
 
+export const UIMaskSchema: ComponentSchema = {
+    name: 'UIMask',
+    category: 'builtin',
+    properties: [
+        { name: 'enabled', type: 'boolean' },
+    ],
+};
+
 export const SpineAnimationSchema: ComponentSchema = {
     name: 'SpineAnimation',
     category: 'builtin',
@@ -399,6 +407,7 @@ export function registerBuiltinSchemas(options?: BuiltinSchemaOptions): void {
     registerComponentSchema(UIRectSchema);
     registerComponentSchema(CanvasSchema);
     registerComponentSchema(BitmapTextSchema);
+    registerComponentSchema(UIMaskSchema);
     registerComponentSchema(RigidBodySchema);
     registerComponentSchema(BoxColliderSchema);
     registerComponentSchema(CircleColliderSchema);
@@ -431,6 +440,9 @@ const editorOnlyDefaults: Record<string, Record<string, unknown>> = {
         size: { x: 100, y: 100 },
         anchor: { x: 0.5, y: 0.5 },
         pivot: { x: 0.5, y: 0.5 },
+    },
+    UIMask: {
+        enabled: true,
     },
     Text: {
         content: 'Text',

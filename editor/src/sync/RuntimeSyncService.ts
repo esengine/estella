@@ -10,7 +10,8 @@ import { getDependencyGraph } from '../asset/AssetDependencyGraph';
 
 export class RuntimeSyncService {
     private unsubscribes_: (() => void)[] = [];
-    private pendingUpdates_ = new Map<number, ReturnType<typeof setTimeout>>();
+    private dirtyEntities_ = new Set<number>();
+    private rafId_: number | null = null;
 
     constructor(
         private store_: EditorStore,
@@ -64,6 +65,10 @@ export class RuntimeSyncService {
     }
 
     private onPropertyChange(event: PropertyChangeEvent): void {
+        if (event.componentType === 'LocalTransform') {
+            this.sceneManager_.syncEntityTransform(event.entity);
+        }
+
         this.scheduleEntityUpdate(event.entity);
 
         if (event.componentType === 'Canvas') {
@@ -110,17 +115,20 @@ export class RuntimeSyncService {
     }
 
     private scheduleEntityUpdate(entityId: number): void {
-        const existing = this.pendingUpdates_.get(entityId);
-        if (existing) {
-            clearTimeout(existing);
-        }
+        this.dirtyEntities_.add(entityId);
+        if (this.rafId_ !== null) return;
+        this.rafId_ = requestAnimationFrame(() => {
+            this.rafId_ = null;
+            this.flushDirtyEntities();
+        });
+    }
 
-        const timeout = setTimeout(() => {
-            this.pendingUpdates_.delete(entityId);
+    private flushDirtyEntities(): void {
+        const entities = [...this.dirtyEntities_];
+        this.dirtyEntities_.clear();
+        for (const entityId of entities) {
             this.syncEntity(entityId);
-        }, 16);
-
-        this.pendingUpdates_.set(entityId, timeout);
+        }
     }
 
     private async syncEntity(entityId: number): Promise<void> {
@@ -131,10 +139,11 @@ export class RuntimeSyncService {
     }
 
     dispose(): void {
-        for (const timeout of this.pendingUpdates_.values()) {
-            clearTimeout(timeout);
+        if (this.rafId_ !== null) {
+            cancelAnimationFrame(this.rafId_);
+            this.rafId_ = null;
         }
-        this.pendingUpdates_.clear();
+        this.dirtyEntities_.clear();
 
         for (const unsubscribe of this.unsubscribes_) {
             unsubscribe();

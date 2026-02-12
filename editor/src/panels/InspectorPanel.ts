@@ -131,6 +131,7 @@ export class InspectorPanel {
     private store_: EditorStore;
     private contentContainer_: HTMLElement;
     private unsubscribe_: (() => void) | null = null;
+    private unsubPropertyChange_: (() => void) | null = null;
     private editors_: EditorInfo[] = [];
     private currentEntity_: Entity | null = null;
     private currentAssetPath_: string | null = null;
@@ -174,6 +175,7 @@ export class InspectorPanel {
 
         this.setupLockButton();
         this.unsubscribe_ = store.subscribe(() => this.render());
+        this.unsubPropertyChange_ = store.subscribeToPropertyChanges(() => this.updateEditors());
         this.render();
     }
 
@@ -204,6 +206,10 @@ export class InspectorPanel {
         if (this.unsubscribe_) {
             this.unsubscribe_();
             this.unsubscribe_ = null;
+        }
+        if (this.unsubPropertyChange_) {
+            this.unsubPropertyChange_();
+            this.unsubPropertyChange_ = null;
         }
     }
 

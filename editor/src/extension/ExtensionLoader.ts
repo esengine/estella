@@ -85,8 +85,6 @@ export class ExtensionLoader {
             return true;
         }
 
-        console.log('ExtensionLoader: Compiling extensions:', scripts);
-
         try {
             const entryContent = scripts
                 .map(p => `import "${p}";`)
@@ -131,7 +129,6 @@ export class ExtensionLoader {
             const jsFile = outputFiles.find(f => !f.path.endsWith('.map'));
             this.lastCompiled_ = jsFile?.text ?? null;
             this.lastSourcemap_ = mapFile?.text ?? null;
-            console.log('ExtensionLoader: Extensions compiled successfully');
             this.onCompileSuccess_?.();
             return true;
         } catch (err: any) {
@@ -168,7 +165,6 @@ export class ExtensionLoader {
             const blob = new Blob([code], { type: 'application/javascript' });
             this.currentBlobUrl_ = URL.createObjectURL(blob);
             await import(/* @vite-ignore */ this.currentBlobUrl_);
-            console.log('ExtensionLoader: Extensions executed successfully');
             return true;
         } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);

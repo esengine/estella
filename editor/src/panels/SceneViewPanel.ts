@@ -295,13 +295,14 @@ export class SceneViewPanel {
         await this.sceneRenderer_.syncScene(this.store_.scene);
     }
 
-    private lastSceneEntityIds_: string = '';
+    private lastEntityCount_ = -1;
+    private lastLoadVersion_ = -1;
 
     private async onSceneChanged(): Promise<void> {
         if (this.sceneRenderer_ && this.useWebGL_) {
-            const ids = this.store_.scene.entities.map(e => e.id).join(',');
-            if (ids !== this.lastSceneEntityIds_) {
-                this.lastSceneEntityIds_ = ids;
+            const loadVersion = this.store_.sceneLoadVersion ?? 0;
+            if (loadVersion !== this.lastLoadVersion_) {
+                this.lastLoadVersion_ = loadVersion;
                 await this.syncSceneToRenderer();
             }
         }

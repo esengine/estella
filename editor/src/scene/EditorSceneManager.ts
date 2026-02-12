@@ -31,10 +31,8 @@ import { getDependencyGraph } from '../asset/AssetDependencyGraph';
 import { getAssetLibrary, isUUID } from '../asset/AssetLibrary';
 import {
     type Transform,
-    createIdentityTransform,
-    getLocalTransformFromEntity,
     getUIRectFromEntity,
-    getEntitySize,
+    computeAdjustedLocalTransform,
     transformToMatrix4x4,
 } from '../math/Transform';
 
@@ -205,6 +203,12 @@ export class EditorSceneManager {
         for (const comp of components) {
             await this.loadComponentWithEditorLogic(entity, comp, entityId);
         }
+    }
+
+    syncEntityTransform(entityId: number): void {
+        const entity = this.entityMap_.get(entityId);
+        if (entity === undefined) return;
+        this.syncTransform(entity, null, entityId);
     }
 
     reparentEntity(entityId: number, newParentId: number | null): void {
@@ -423,68 +427,18 @@ export class EditorSceneManager {
             this.world_.remove(entity, LocalTransform);
         }
 
-        const adjustedLocal = this.computeAdjustedLocalTransform(entityId);
+        const entityData = this.entityDataMap_.get(entityId);
+        if (!entityData) return;
+
+        const adjustedLocal = computeAdjustedLocalTransform(
+            entityData, (id) => this.entityDataMap_.get(id)
+        );
 
         this.world_.insert(entity, LocalTransform, {
             position: adjustedLocal.position,
             rotation: adjustedLocal.rotation,
             scale: adjustedLocal.scale,
         });
-    }
-
-    private computeAdjustedLocalTransform(entityId: number): Transform {
-        const entityData = this.entityDataMap_.get(entityId);
-        if (!entityData) {
-            return createIdentityTransform();
-        }
-
-        const localTransform = getLocalTransformFromEntity(entityData);
-        const uiRect = getUIRectFromEntity(entityData);
-        const size = getEntitySize(entityData);
-
-        let adjustedPosition = { ...localTransform.position };
-
-        if (uiRect) {
-            const parentSize = this.getParentSize(entityData);
-
-            adjustedPosition.x += (uiRect.anchor.x - 0.5) * parentSize.x;
-            adjustedPosition.y += (uiRect.anchor.y - 0.5) * parentSize.y;
-
-            adjustedPosition.x += (0.5 - uiRect.pivot.x) * size.x;
-            adjustedPosition.y += (0.5 - uiRect.pivot.y) * size.y;
-        }
-
-        return {
-            position: adjustedPosition,
-            rotation: localTransform.rotation,
-            scale: localTransform.scale,
-        };
-    }
-
-    private getParentSize(entity: EntityData): { x: number; y: number } {
-        if (entity.parent !== null) {
-            const parentData = this.entityDataMap_.get(entity.parent);
-            if (parentData) {
-                return getEntitySize(parentData);
-            }
-        }
-
-        return this.findCanvasAncestorSize(entity);
-    }
-
-    private findCanvasAncestorSize(entity: EntityData): { x: number; y: number } {
-        let current = entity;
-        while (current.parent !== null) {
-            const parent = this.entityDataMap_.get(current.parent);
-            if (!parent) break;
-            const canvas = parent.components.find(c => c.type === 'Canvas');
-            if (canvas?.data?.designResolution) {
-                const res = canvas.data.designResolution as { x: number; y: number };
-                return { x: res.x, y: res.y };
-            }
-            current = parent;
-        }
-        return { x: 0, y: 0 };
     }
 
     private resolveAssetRef(ref: string): string {

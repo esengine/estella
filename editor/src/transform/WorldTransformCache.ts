@@ -8,7 +8,7 @@ import {
     Transform,
     composeTransforms,
     createIdentityTransform,
-    getLocalTransformFromEntity,
+    computeAdjustedLocalTransform,
 } from '../math/Transform';
 
 // =============================================================================
@@ -126,7 +126,7 @@ export class WorldTransformCache {
             return createIdentityTransform();
         }
 
-        const localTransform = getLocalTransformFromEntity(entity);
+        const localTransform = computeAdjustedLocalTransform(entity, (id) => this.entityMap_.get(id));
 
         if (entity.parent === null) {
             return localTransform;

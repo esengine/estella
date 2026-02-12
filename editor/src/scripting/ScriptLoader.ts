@@ -82,12 +82,9 @@ export class ScriptLoader {
 
         const scripts = await this.discoverScripts();
         if (scripts.length === 0) {
-            console.log('ScriptLoader: No scripts found');
             this.lastCompiled_ = null;
             return true;
         }
-
-        console.log('ScriptLoader: Compiling scripts:', scripts);
 
         try {
             const entryContent = scripts
@@ -129,7 +126,6 @@ export class ScriptLoader {
 
             this.lastCompiled_ = result.outputFiles?.[0]?.text ?? null;
             await this.registerDiscoveredComponents(fs, scripts);
-            console.log('ScriptLoader: Scripts compiled successfully');
             this.onCompileSuccess_?.();
             return true;
         } catch (err: any) {
