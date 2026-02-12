@@ -457,10 +457,9 @@ void BatchRenderer2D::flush() {
         data_->vbo->setDataRaw(data_->triVertices.data(), triBytes);
     }
 
-    u32 whiteTexture = data_->textureSlots[0];
-    for (u32 i = 0; i < MAX_TEXTURE_SLOTS; ++i) {
+    for (u32 i = 0; i < data_->textureSlotIndex; ++i) {
         glActiveTexture(GL_TEXTURE0 + i);
-        glBindTexture(GL_TEXTURE_2D, i < data_->textureSlotIndex ? data_->textureSlots[i] : whiteTexture);
+        glBindTexture(GL_TEXTURE_2D, data_->textureSlots[i]);
     }
 
     shader->bind();
@@ -674,8 +673,23 @@ void BatchRenderer2D::drawNineSlice(const glm::vec2& position, const glm::vec2& 
         );
     };
 
-    // Helper to draw a single slice quad with rotation
-    auto drawSlice = [this, textureId, &color, &rotatePoint, rotation](
+    auto resolveTextureSlot = [this, textureId]() -> f32 {
+        if (textureId == 0) return 0.0f;
+        for (u32 i = 0; i < data_->textureSlotIndex; ++i) {
+            if (data_->textureSlots[i] == textureId) {
+                return static_cast<f32>(i);
+            }
+        }
+        if (data_->textureSlotIndex >= MAX_TEXTURE_SLOTS) {
+            flush();
+        }
+        data_->textureSlots[data_->textureSlotIndex] = textureId;
+        return static_cast<f32>(data_->textureSlotIndex++);
+    };
+
+    f32 cachedTexIndex = resolveTextureSlot();
+
+    auto drawSlice = [this, &color, &rotatePoint, &cachedTexIndex, &resolveTextureSlot](
         f32 px, f32 py, f32 pw, f32 ph,
         f32 uvX, f32 uvY, f32 uvW, f32 uvH) {
 
@@ -683,28 +697,10 @@ void BatchRenderer2D::drawNineSlice(const glm::vec2& position, const glm::vec2& 
 
         if (data_->vertices.size() + data_->triVertices.size() + 4 > MAX_VERTICES) {
             flush();
+            cachedTexIndex = resolveTextureSlot();
         }
 
-        // Find or add texture slot
-        f32 texIndex = 0.0f;
-        if (textureId != 0) {
-            bool found = false;
-            for (u32 i = 0; i < data_->textureSlotIndex; ++i) {
-                if (data_->textureSlots[i] == textureId) {
-                    texIndex = static_cast<f32>(i);
-                    found = true;
-                    break;
-                }
-            }
-            if (!found) {
-                if (data_->textureSlotIndex >= MAX_TEXTURE_SLOTS) {
-                    flush();
-                }
-                data_->textureSlots[data_->textureSlotIndex] = textureId;
-                texIndex = static_cast<f32>(data_->textureSlotIndex);
-                data_->textureSlotIndex++;
-            }
-        }
+        f32 texIndex = cachedTexIndex;
 
         // Vertices for this slice (bottom-left origin)
         // 0: bottom-left, 1: bottom-right, 2: top-right, 3: top-left

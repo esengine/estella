@@ -230,12 +230,9 @@ export class App {
 
     private updateTime(delta: number): void {
         const time = this.resources_.get(Time);
-        const newTime: TimeData = {
-            delta,
-            elapsed: time.elapsed + delta,
-            frameCount: time.frameCount + 1
-        };
-        this.resources_.set(Time, newTime);
+        time.delta = delta;
+        time.elapsed += delta;
+        time.frameCount++;
     }
 }
 

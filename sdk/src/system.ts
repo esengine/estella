@@ -108,6 +108,7 @@ export function addSystemToSchedule(schedule: Schedule, system: SystemDef): void
 export class SystemRunner {
     private readonly world_: World;
     private readonly resources_: ResourceStorage;
+    private readonly argsCache_ = new Map<symbol, unknown[]>();
 
     constructor(world: World, resources: ResourceStorage) {
         this.world_ = world;
@@ -115,13 +116,21 @@ export class SystemRunner {
     }
 
     run(system: SystemDef): void {
-        const args = system._params.map(param => this.resolveParam(param));
+        let args = this.argsCache_.get(system._id);
+        if (!args) {
+            args = new Array(system._params.length);
+            this.argsCache_.set(system._id, args);
+        }
+
+        for (let i = 0; i < system._params.length; i++) {
+            args[i] = this.resolveParam(system._params[i]);
+        }
 
         system._fn(...args);
 
-        for (const arg of args) {
-            if (arg instanceof CommandsInstance) {
-                arg.flush();
+        for (let i = 0; i < args.length; i++) {
+            if (args[i] instanceof CommandsInstance) {
+                (args[i] as CommandsInstance).flush();
             }
         }
     }

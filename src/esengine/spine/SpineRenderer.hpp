@@ -154,6 +154,12 @@ private:
     u32 triangle_count_ = 0;
     u32 draw_call_count_ = 0;
     bool initialized_ = false;
+
+    u32 vao_ = 0;
+    u32 vbo_ = 0;
+    u32 ebo_ = 0;
+    u32 vbo_capacity_ = 0;
+    u32 ebo_capacity_ = 0;
 };
 
 }  // namespace esengine::spine

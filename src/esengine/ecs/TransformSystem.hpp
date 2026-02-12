@@ -70,13 +70,9 @@ public:
 
 private:
     void updateDirtyTransforms(Registry& registry) {
-        registry.each<LocalTransform>([&registry](Entity entity, LocalTransform&) {
-            if (!registry.has<WorldTransform>(entity)) {
-                registry.emplace<WorldTransform>(entity);
-            }
-        });
-
         registry.each<LocalTransform>([&registry, this](Entity entity, LocalTransform& local) {
+            registry.getOrEmplace<WorldTransform>(entity);
+
             if (!registry.has<Parent>(entity)) {
                 bool isStatic = registry.has<TransformStatic>(entity);
                 bool isDirty = registry.has<TransformDirty>(entity);
@@ -95,16 +91,17 @@ private:
                                 const glm::mat4& parentWorldMatrix,
                                 bool parentDirty) {
         bool isDirty = parentDirty || registry.has<TransformDirty>(entity);
-        bool isStatic = registry.has<TransformStatic>(entity);
 
-        if (isStatic && !isDirty) {
-            if (registry.has<Children>(entity)) {
+        if (registry.has<TransformStatic>(entity) && !isDirty) {
+            auto* children = registry.tryGet<Children>(entity);
+            if (children) {
                 const auto& world = registry.get<WorldTransform>(entity);
-                const auto& children = registry.get<Children>(entity);
-                for (Entity child : children.entities) {
-                    if (registry.valid(child) && registry.has<LocalTransform>(child)) {
-                        const auto& childLocal = registry.get<LocalTransform>(child);
-                        updateEntityTransform(registry, child, childLocal, world.matrix, false);
+                for (Entity child : children->entities) {
+                    if (registry.valid(child)) {
+                        auto* childLocal = registry.tryGet<LocalTransform>(child);
+                        if (childLocal) {
+                            updateEntityTransform(registry, child, *childLocal, world.matrix, false);
+                        }
                     }
                 }
             }
@@ -118,16 +115,18 @@ private:
         world.matrix = worldMatrix;
         math::decompose(worldMatrix, world.position, world.rotation, world.scale);
 
-        if (registry.has<TransformDirty>(entity)) {
+        if (isDirty && !parentDirty) {
             registry.remove<TransformDirty>(entity);
         }
 
-        if (registry.has<Children>(entity)) {
-            const auto& children = registry.get<Children>(entity);
-            for (Entity child : children.entities) {
-                if (registry.valid(child) && registry.has<LocalTransform>(child)) {
-                    const auto& childLocal = registry.get<LocalTransform>(child);
-                    updateEntityTransform(registry, child, childLocal, worldMatrix, isDirty);
+        auto* children = registry.tryGet<Children>(entity);
+        if (children) {
+            for (Entity child : children->entities) {
+                if (registry.valid(child)) {
+                    auto* childLocal = registry.tryGet<LocalTransform>(child);
+                    if (childLocal) {
+                        updateEntityTransform(registry, child, *childLocal, worldMatrix, isDirty);
+                    }
                 }
             }
         }

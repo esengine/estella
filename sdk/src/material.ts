@@ -337,6 +337,8 @@ export const Material = {
 let materialCallbackRegistered = false;
 let uniformBuffer: number = 0;
 const UNIFORM_BUFFER_SIZE = 4096;
+const encodedNameCache = new Map<string, Uint8Array>();
+const encoder = new TextEncoder();
 
 function ensureUniformBuffer(): number {
     if (uniformBuffer === 0 && module) {
@@ -358,7 +360,11 @@ function serializeUniforms(uniforms: Map<string, UniformValue>): { ptr: number; 
     for (const [name, value] of uniforms) {
         if (offset + 128 > UNIFORM_BUFFER_SIZE) break;
 
-        const nameBytes = new TextEncoder().encode(name);
+        let nameBytes = encodedNameCache.get(name);
+        if (!nameBytes) {
+            nameBytes = encoder.encode(name);
+            encodedNameCache.set(name, nameBytes);
+        }
         const nameLen = nameBytes.length;
         const namePadded = Math.ceil(nameLen / 4) * 4;
 

@@ -54,12 +54,38 @@ void SpineRenderer::init() {
     indices_.reserve(2048);
     world_vertices_.reserve(1024);
 
+    glGenVertexArrays(1, &vao_);
+    glGenBuffers(1, &vbo_);
+    glGenBuffers(1, &ebo_);
+
+    glBindVertexArray(vao_);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo_);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_);
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(SpineRenderVertex),
+                          reinterpret_cast<void*>(offsetof(SpineRenderVertex, position)));
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(SpineRenderVertex),
+                          reinterpret_cast<void*>(offsetof(SpineRenderVertex, uv)));
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(SpineRenderVertex),
+                          reinterpret_cast<void*>(offsetof(SpineRenderVertex, color)));
+
+    glBindVertexArray(0);
+
     initialized_ = true;
     ES_LOG_INFO("SpineRenderer initialized");
 }
 
 void SpineRenderer::shutdown() {
     if (!initialized_) return;
+
+    if (ebo_) { glDeleteBuffers(1, &ebo_); ebo_ = 0; }
+    if (vbo_) { glDeleteBuffers(1, &vbo_); vbo_ = 0; }
+    if (vao_) { glDeleteVertexArrays(1, &vao_); vao_ = 0; }
+    vbo_capacity_ = 0;
+    ebo_capacity_ = 0;
 
     vertices_.clear();
     indices_.clear();
@@ -336,34 +362,23 @@ void SpineRenderer::flushBatch() {
     glBindTexture(GL_TEXTURE_2D, current_texture_id_);
     shader->setUniform("u_texture", 0);
 
-    u32 vao, vbo, ebo;
-    glGenVertexArrays(1, &vao);
-    glGenBuffers(1, &vbo);
-    glGenBuffers(1, &ebo);
+    glBindVertexArray(vao_);
 
-    glBindVertexArray(vao);
+    auto vertexBytes = static_cast<GLsizeiptr>(vertices_.size() * sizeof(SpineRenderVertex));
+    glBindBuffer(GL_ARRAY_BUFFER, vbo_);
+    if (static_cast<u32>(vertexBytes) > vbo_capacity_) {
+        vbo_capacity_ = static_cast<u32>(vertexBytes) * 2;
+        glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(vbo_capacity_), nullptr, GL_STREAM_DRAW);
+    }
+    glBufferSubData(GL_ARRAY_BUFFER, 0, vertexBytes, vertices_.data());
 
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER,
-                 static_cast<GLsizeiptr>(vertices_.size() * sizeof(SpineRenderVertex)),
-                 vertices_.data(), GL_STREAM_DRAW);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER,
-                 static_cast<GLsizeiptr>(indices_.size() * sizeof(u32)),
-                 indices_.data(), GL_STREAM_DRAW);
-
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(SpineRenderVertex),
-                          reinterpret_cast<void*>(offsetof(SpineRenderVertex, position)));
-
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(SpineRenderVertex),
-                          reinterpret_cast<void*>(offsetof(SpineRenderVertex, uv)));
-
-    glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(SpineRenderVertex),
-                          reinterpret_cast<void*>(offsetof(SpineRenderVertex, color)));
+    auto indexBytes = static_cast<GLsizeiptr>(indices_.size() * sizeof(u32));
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_);
+    if (static_cast<u32>(indexBytes) > ebo_capacity_) {
+        ebo_capacity_ = static_cast<u32>(indexBytes) * 2;
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, static_cast<GLsizeiptr>(ebo_capacity_), nullptr, GL_STREAM_DRAW);
+    }
+    glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, indexBytes, indices_.data());
 
     glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(indices_.size()),
                    GL_UNSIGNED_INT, nullptr);
@@ -371,9 +386,7 @@ void SpineRenderer::flushBatch() {
     triangle_count_ += static_cast<u32>(indices_.size() / 3);
     draw_call_count_++;
 
-    glDeleteBuffers(1, &ebo);
-    glDeleteBuffers(1, &vbo);
-    glDeleteVertexArrays(1, &vao);
+    glBindVertexArray(0);
 
     vertices_.clear();
     indices_.clear();
