@@ -39,6 +39,10 @@ jobs:
         if: matrix.platform == 'macos-latest'
         run: rustup target add x86_64-apple-darwin
 
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri -> target
+
       - name: Setup Emscripten
         uses: mymindstorm/setup-emsdk@v14
         with:
