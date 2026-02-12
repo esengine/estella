@@ -8,7 +8,7 @@ import { Aside } from '@astrojs/starlight/components';
 `SpineAnimation` 组件播放 [Spine](http://esotericsoftware.com/) 骨骼动画。在场景编辑器中将它和 `LocalTransform` 一起添加到实体上。
 
 <Aside type="note">
-  从 v0.3.0 起，Spine 使用独立的 WASM 模块（`spine38` / `spine41` / `spine42`），不再内置于引擎核心。在编辑器中通过 **Settings → Project → Spine Version** 选择版本（`3.8`、`4.1` 或 `4.2`），编辑器会自动加载对应的运行时，无需编写代码。
+  从 v0.3.0 起，Spine 使用独立的 WASM 模块（`spine38` / `spine41` / `spine42`），不再内置于引擎核心。在编辑器中通过 **Settings → Project → Spine Version** 选择版本（`3.8`、`4.1` 或 `4.2`），编辑器会自动加载对应的运行时，无需编写代码。新项目默认为 **None**（不加载 Spine 运行时），需要使用 Spine 时必须显式选择版本。
 </Aside>
 
 ## 属性

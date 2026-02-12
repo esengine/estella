@@ -40,6 +40,33 @@ addSystem(defineSystem(
 ));
 ```
 
+## Loading a Texture
+
+The `texture` property expects a texture handle (number), not a file path. Load the image first with `assets.loadTexture()`, then assign the handle:
+
+```typescript
+import { defineSystem, addStartupSystem, Res, Query, Mut, Sprite } from 'esengine';
+import { Assets } from 'esengine';
+import { Player } from './components';
+
+addStartupSystem(defineSystem(
+    [Res(Assets), Query(Mut(Sprite), Player)],
+    async (assets, query) => {
+        const tex = await assets.loadTexture('assets/player.png');
+        for (const [entity, sprite] of query) {
+            sprite.texture = tex.handle;
+            sprite.size = { x: tex.width, y: tex.height };
+        }
+    }
+));
+```
+
+<Aside type="note">
+  When you assign a texture to a Sprite in the scene editor, the scene loader calls `loadTexture` and sets the handle automatically. You only need the code above when assigning textures at runtime.
+</Aside>
+
+See [Asset Loading](/microes/guides/assets/) for the full texture API (`getTexture`, `releaseTexture`, 9-slice metadata, etc.).
+
 ## Solid Color Rectangle
 
 Without a texture (default), the sprite renders as a solid rectangle using its `color` and `size`.

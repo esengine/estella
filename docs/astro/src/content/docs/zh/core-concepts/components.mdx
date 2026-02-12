@@ -37,7 +37,14 @@ import { Aside } from '@astrojs/starlight/components';
 | `nearPlane` | number | 近裁剪面 |
 | `farPlane` | number | 远裁剪面 |
 | `isActive` | boolean | 是否用于渲染 |
-| `priority` | number | 高优先级相机优先 |
+| `aspectRatio` | number | 相机宽高比 |
+| `priority` | number | 渲染顺序 — 低优先级先渲染，高优先级覆盖在上 |
+| `viewportX` | number | 视口左边缘（0–1）。默认：0 |
+| `viewportY` | number | 视口底边缘（0–1）。默认：0 |
+| `viewportW` | number | 视口宽度（0–1）。默认：1 |
+| `viewportH` | number | 视口高度（0–1）。默认：1 |
+| `clearFlags` | number | 缓冲区清除模式：0=无, 1=颜色, 2=深度, 3=两者 |
+| `showFrustum` | boolean | 在编辑器中显示相机视锥线框 |
 
 ### Canvas
 
@@ -73,6 +80,20 @@ import { Aside } from '@astrojs/starlight/components';
 
 Spine 骨骼动画播放。需要 `LocalTransform`。详见 [Spine 动画指南](/microes/zh/guides/spine/)。
 
+### BitmapText
+
+使用预烘焙位图字体图集（BMFont 格式）进行 GPU 渲染的文本。需要 `LocalTransform`。详见[位图文本指南](/microes/zh/guides/bitmap-text/)。
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `text` | string | 文本内容 |
+| `color` | Color | 着色 RGBA |
+| `fontSize` | number | 相对于字体原始大小的缩放因子 |
+| `align` | number | 水平对齐：0=左对齐，1=居中，2=右对齐 |
+| `spacing` | number | 字符间额外间距 |
+| `layer` | number | 渲染层级 |
+| `font` | number | `assets.loadBitmapFont()` 返回的字体句柄 |
+
 ### Text
 
 UI 文本渲染。配合 `UIRect` 和 `Sprite` 组件显示文本。详见 [UI 与文本指南](/microes/zh/guides/ui/)。
@@ -95,6 +116,22 @@ UI 布局矩形。定义 UI 元素的尺寸、锚点和旋转中心。
 | `size` | Vec2 | 宽高 |
 | `anchor` | Vec2 | 锚点（0–1） |
 | `pivot` | Vec2 | 旋转中心点 |
+
+### UIMask
+
+将子实体裁剪到父级 `UIRect` 边界内。需要在同一实体上同时挂载 `UIRect` 和 `LocalTransform`。详见 [UI 与文本指南](/microes/zh/guides/ui/)。
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `enabled` | boolean | `true` | 是否启用裁剪 |
+
+### Name
+
+实体的字符串标识符，用于在运行时按名称查找实体。
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `value` | string | `''` | 实体名称 |
 
 ### 物理
 

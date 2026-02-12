@@ -120,8 +120,56 @@ addSystem(defineSystem(
 
 In the editor: create a text entity with `Text`, `UIRect`, `Sprite`, `LocalTransform`, and the `ScoreDisplay` tag.
 
+## UIMask
+
+`UIMask` clips child entities to the parent entity's `UIRect` bounds. Any child that extends beyond the rectangle is visually cropped.
+
+**Setup:** Add `UIMask`, `UIRect`, and `LocalTransform` to the parent entity. All child entities (and their descendants) will be clipped to this rectangle.
+
+<Aside type="note">
+  `UIMaskPlugin` is registered automatically by `createWebApp()`. No manual setup is needed.
+</Aside>
+
+### UIMask Properties
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `enabled` | boolean | `true` | Whether clipping is active |
+
+### Nesting
+
+When a child entity also has `UIMask`, its clip rectangle is the intersection of its own `UIRect` and the parent's clip rect. This allows nested scroll areas or layered clipping.
+
+<Aside type="caution">
+  `UIMask` only clips **child** entities — the entity with UIMask itself is not clipped.
+</Aside>
+
+### Example: Scrollable List
+
+Create a mask container, then move child entities to scroll:
+
+```typescript
+import { defineSystem, addSystem, Res, Input, Query, Mut, LocalTransform, Children } from 'esengine';
+import { UIMask } from 'esengine';
+import { ScrollList } from './components';
+
+addSystem(defineSystem(
+    [Res(Input), Query(Children, UIMask, ScrollList), Query(Mut(LocalTransform))],
+    (input, maskQuery, childQuery) => {
+        for (const [entity, children, mask, scroll] of maskQuery) {
+            const scrollDelta = input.getScrollDelta();
+            for (const child of children.entities) {
+                const [, transform] = childQuery.get(child);
+                transform.position.y += scrollDelta * 20;
+            }
+        }
+    }
+));
+```
+
 ## Next Steps
 
 - [Components](/microes/core-concepts/components/) — all builtin components
 - [Sprite](/microes/guides/sprite/) — sprite rendering details
+- [Bitmap Text](/microes/guides/bitmap-text/) — GPU-rendered bitmap font text
 - [Asset Loading](/microes/guides/assets/) — loading textures and other assets

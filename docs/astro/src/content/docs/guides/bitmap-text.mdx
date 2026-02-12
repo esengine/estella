@@ -1,0 +1,149 @@
+---
+title: Bitmap Text
+description: Rendering text with pre-baked bitmap font atlases in ESEngine
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The `BitmapText` component renders text using pre-baked bitmap font atlases (BMFont format). Unlike the `Text` component which rasterizes fonts via Canvas 2D each frame, `BitmapText` draws directly from a pre-rendered glyph atlas on the GPU.
+
+<Aside type="tip">
+  **BitmapText vs Text** — `Text` uses Canvas 2D to rasterize dynamic fonts at runtime, supporting any system font. `BitmapText` uses a pre-rendered glyph atlas (BMFont), giving consistent pixel-perfect results and better performance for static text. Use `Text` when you need dynamic font features (e.g. system fonts, rich styling); use `BitmapText` when you need pixel-art fonts or high-performance HUD text.
+</Aside>
+
+## Properties
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `text` | string | `''` | Text content to display |
+| `color` | Color | `{r:1, g:1, b:1, a:1}` | Tint color RGBA (0–1) |
+| `fontSize` | number | `1.0` | Scale factor relative to the font's native size |
+| `align` | number | `0` | Horizontal alignment: 0=Left, 1=Center, 2=Right |
+| `spacing` | number | `0` | Extra spacing between characters (pixels) |
+| `layer` | number | `0` | Render layer for draw ordering |
+| `font` | number | `0` | Font handle returned by `assets.loadBitmapFont()` |
+
+## Font Formats
+
+BitmapText supports two font formats:
+
+**`.fnt` (BMFont text format)** — The standard BMFont text descriptor. Pair it with a `.png` atlas image:
+
+```
+assets/
+  my-font.fnt
+  my-font_0.png
+```
+
+**`.bmfont` (JSON metadata)** — A JSON file that references the `.fnt` and atlas paths:
+
+```json
+{
+  "font": "my-font.fnt",
+  "textures": ["my-font_0.png"]
+}
+```
+
+Both formats are loaded with the same `assets.loadBitmapFont()` call.
+
+## LabelAtlas
+
+LabelAtlas is a simplified font creation mode for **uniform-grid** glyph atlases — ideal for score counters, timers, and other displays that only need digits or a small set of symbols. All glyphs share the same cell size.
+
+### Editor Workflow
+
+1. In the Content Browser, right-click → **New → BitmapFont** to create a `.bmfont` file
+2. Select the font file in the Content Browser — the inspector shows the font editor
+3. Choose **LabelAtlas** as the type
+4. Map each character to an image file in the glyph list (e.g. `0` → `zero.png`, `1` → `one.png`)
+5. Click **Build Atlas** — the editor packs all glyph images into a single atlas PNG and generates a `.fnt` file automatically
+
+The generated font is loaded at runtime through the same `loadBitmapFont()` path as a standard BMFont.
+
+### .bmfont Format (LabelAtlas)
+
+```json
+{
+  "version": "1.0",
+  "type": "label-atlas",
+  "glyphs": {
+    "0": "digits/zero.png",
+    "1": "digits/one.png",
+    "2": "digits/two.png"
+  },
+  "generatedFnt": "my-digits.fnt"
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `type` | `"label-atlas"` — tells the editor to use the LabelAtlas workflow |
+| `glyphs` | Map of character → image path |
+| `generatedFnt` | Path to the auto-generated `.fnt` file (created by Build Atlas) |
+
+<Aside type="note">
+  At runtime, a LabelAtlas font is identical to a standard BMFont — the editor simply generates the `.fnt` and atlas for you. The `BitmapText` component works the same regardless of how the font was created.
+</Aside>
+
+## Loading a Bitmap Font
+
+Load the font in a startup system, then assign the handle to your `BitmapText` component:
+
+```typescript
+import { defineSystem, addStartupSystem, Res } from 'esengine';
+import { Assets } from 'esengine';
+
+addStartupSystem(defineSystem(
+    [Res(Assets)],
+    async (assets) => {
+        const font = await assets.loadBitmapFont('assets/my-font.fnt');
+        // font is the handle to use with BitmapText.font
+    }
+));
+```
+
+### Font Resource API
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `loadBitmapFont(path)` | `Promise<number>` | Load a `.fnt` or `.bmfont` file and its textures. Returns a font handle |
+| `getFont(path)` | `number \| undefined` | Get cached font handle, `undefined` if not loaded |
+| `releaseFont(path)` | `void` | Release the font and its textures from memory |
+
+<Aside type="note">
+  When a BitmapText entity references a font file in the scene editor, the scene loader calls `loadBitmapFont` automatically. You only need to call it manually when creating BitmapText entities at runtime.
+</Aside>
+
+## Modifying BitmapText at Runtime
+
+Query the `BitmapText` component with `Mut()` to change text or style during gameplay:
+
+```typescript
+import { defineSystem, addSystem, Query, Mut } from 'esengine';
+import { BitmapText } from 'esengine';
+
+addSystem(defineSystem(
+    [Query(Mut(BitmapText))],
+    (query) => {
+        for (const [entity, bitmapText] of query) {
+            bitmapText.text = 'Hello!';
+            bitmapText.fontSize = 2.0;
+            bitmapText.color = { r: 1, g: 0.8, b: 0, a: 1 };
+        }
+    }
+));
+```
+
+## Render Order
+
+BitmapText follows the same draw ordering as Sprite:
+
+1. **Z position** (`transform.position.z`) — lower Z draws first (behind)
+2. **Layer** (`bitmapText.layer`) — higher layer draws on top
+
+## Next Steps
+
+- [Asset Loading](/microes/guides/assets/) — loading bitmap fonts and other assets
+- [UI & Text](/microes/guides/ui/) — Canvas 2D text and UI layout
+- [Rendering](/microes/guides/rendering/) — camera, transform, and render order
+- [Components](/microes/core-concepts/components/) — all builtin components

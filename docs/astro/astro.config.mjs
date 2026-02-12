@@ -68,6 +68,7 @@ export default defineConfig({
                 { label: 'Canvas & Resolution', translations: { 'zh-CN': 'Canvas 与分辨率' }, slug: 'guides/canvas' },
                 { label: 'Sprite', translations: { 'zh-CN': '精灵' }, slug: 'guides/sprite' },
                 { label: 'Spine Animation', translations: { 'zh-CN': 'Spine 动画' }, slug: 'guides/spine' },
+                { label: 'Bitmap Text', translations: { 'zh-CN': '位图文本' }, slug: 'guides/bitmap-text' },
                 { label: 'Custom Draw', translations: { 'zh-CN': '自定义绘制' }, slug: 'guides/custom-draw' },
                 { label: 'Post-Processing', translations: { 'zh-CN': '后处理效果' }, slug: 'guides/post-processing' },
               ],

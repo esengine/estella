@@ -74,6 +74,24 @@ if (!result.success) {
 | `loadSpine(skeleton, atlas, baseUrl?)` | Load Spine skeleton and atlas |
 | `isSpineLoaded(skeleton, atlas)` | Check if a Spine asset pair is already loaded |
 
+## BitmapFont Loading
+
+```typescript
+const fontHandle = await assets.loadBitmapFont('assets/my-font.fnt');
+```
+
+Supports `.fnt` (BMFont text format) and `.bmfont` (JSON metadata) files. The loader automatically resolves and loads referenced texture atlases.
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `loadBitmapFont(path)` | `Promise<number>` | Load a bitmap font file and its textures. Returns a font handle |
+| `getFont(path)` | `number \| undefined` | Get cached font handle, `undefined` if not loaded |
+| `releaseFont(path)` | `void` | Release the font and its textures from memory |
+
+<Aside type="note">
+  `loadAll` does not currently support bitmap fonts. Load them separately with `loadBitmapFont`.
+</Aside>
+
 ## Generic File Loading
 
 | Method | Returns | Description |
@@ -166,25 +184,11 @@ Absolute paths and full URLs are not affected by `baseUrl`.
 
 ## Embedded Assets
 
-For Playable Ad builds, assets can be embedded directly into the output bundle using `registerEmbeddedAssets`. This eliminates network requests at runtime:
-
-```typescript
-import { registerEmbeddedAssets } from 'esengine';
-
-registerEmbeddedAssets(app, {
-    'sprites/player.png': 'data:image/png;base64,iVBOR...',
-    'data/config.json': 'data:application/json;base64,eyJsZXZlbCI6MX0=',
-});
-```
-
-The first argument is the `App` instance. Asset values must be data URIs. Once registered, all `assets.loadTexture()` / `assets.loadJson()` calls resolve from the embedded data instead of fetching over the network.
-
-<Aside type="tip">
-  The editor's Playable build pipeline calls `registerEmbeddedAssets` automatically. You only need to call it manually in custom build workflows.
-</Aside>
+For Playable Ad builds, the editor's build pipeline automatically embeds all referenced assets as data URIs into the output bundle. At runtime, `assets.loadTexture()` / `assets.loadJson()` and other load calls resolve from the embedded data instead of fetching over the network — no code changes are needed.
 
 ## Next Steps
 
 - [Materials & Shaders](/microes/guides/materials/) — custom shaders and blend modes
 - [Sprite](/microes/guides/sprite/) — using textures with sprites
+- [Bitmap Text](/microes/guides/bitmap-text/) — rendering text with bitmap fonts
 - [Spine Animation](/microes/guides/spine/) — Spine skeletal animation

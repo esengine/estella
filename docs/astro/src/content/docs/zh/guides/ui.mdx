@@ -120,8 +120,56 @@ addSystem(defineSystem(
 
 在编辑器中：创建一个文本实体，添加 `Text`、`UIRect`、`Sprite`、`LocalTransform` 和 `ScoreDisplay` 标签。
 
+## UIMask
+
+`UIMask` 将子实体裁剪到父实体的 `UIRect` 边界内。任何超出矩形的子实体部分会被视觉裁切。
+
+**设置：** 在父实体上添加 `UIMask`、`UIRect` 和 `LocalTransform`。所有子实体（及其后代）都会被裁剪到该矩形范围内。
+
+<Aside type="note">
+  `UIMaskPlugin` 由 `createWebApp()` 自动注册，无需手动设置。
+</Aside>
+
+### UIMask 属性
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `enabled` | boolean | `true` | 是否启用裁剪 |
+
+### 嵌套遮罩
+
+当子实体也拥有 `UIMask` 时，其裁剪矩形为自身 `UIRect` 与父级裁剪矩形的交集。这允许嵌套滚动区域或分层裁剪。
+
+<Aside type="caution">
+  `UIMask` 只裁剪**子实体** — 拥有 UIMask 的实体自身不会被裁剪。
+</Aside>
+
+### 示例：可滚动列表
+
+创建遮罩容器，然后移动子实体来实现滚动：
+
+```typescript
+import { defineSystem, addSystem, Res, Input, Query, Mut, LocalTransform, Children } from 'esengine';
+import { UIMask } from 'esengine';
+import { ScrollList } from './components';
+
+addSystem(defineSystem(
+    [Res(Input), Query(Children, UIMask, ScrollList), Query(Mut(LocalTransform))],
+    (input, maskQuery, childQuery) => {
+        for (const [entity, children, mask, scroll] of maskQuery) {
+            const scrollDelta = input.getScrollDelta();
+            for (const child of children.entities) {
+                const [, transform] = childQuery.get(child);
+                transform.position.y += scrollDelta * 20;
+            }
+        }
+    }
+));
+```
+
 ## 下一步
 
 - [组件](/microes/zh/core-concepts/components/) — 所有内置组件
 - [精灵](/microes/zh/guides/sprite/) — 精灵渲染详解
+- [位图文本](/microes/zh/guides/bitmap-text/) — GPU 渲染的位图字体文本
 - [资源加载](/microes/zh/guides/assets/) — 加载纹理和其他资源

@@ -40,6 +40,33 @@ addSystem(defineSystem(
 ));
 ```
 
+## 加载纹理
+
+`texture` 属性接受纹理句柄（number），而非文件路径。先用 `assets.loadTexture()` 加载图片，再将句柄赋值：
+
+```typescript
+import { defineSystem, addStartupSystem, Res, Query, Mut, Sprite } from 'esengine';
+import { Assets } from 'esengine';
+import { Player } from './components';
+
+addStartupSystem(defineSystem(
+    [Res(Assets), Query(Mut(Sprite), Player)],
+    async (assets, query) => {
+        const tex = await assets.loadTexture('assets/player.png');
+        for (const [entity, sprite] of query) {
+            sprite.texture = tex.handle;
+            sprite.size = { x: tex.width, y: tex.height };
+        }
+    }
+));
+```
+
+<Aside type="note">
+  在场景编辑器中为 Sprite 指定纹理时，场景加载器会自动调用 `loadTexture` 并设置句柄。仅在运行时赋值纹理时才需要上述代码。
+</Aside>
+
+完整纹理 API（`getTexture`、`releaseTexture`、九宫格元数据等）详见[资源加载](/microes/zh/guides/assets/)。
+
 ## 纯色矩形
 
 不设置纹理（默认值）时，精灵按 `color` 和 `size` 渲染为纯色矩形。

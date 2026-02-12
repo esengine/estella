@@ -74,6 +74,24 @@ if (!result.success) {
 | `loadSpine(skeleton, atlas, baseUrl?)` | 加载 Spine 骨骼和图集 |
 | `isSpineLoaded(skeleton, atlas)` | 检查 Spine 资源对是否已加载 |
 
+## 位图字体加载
+
+```typescript
+const fontHandle = await assets.loadBitmapFont('assets/my-font.fnt');
+```
+
+支持 `.fnt`（BMFont 文本格式）和 `.bmfont`（JSON 元数据）文件。加载器会自动解析并加载引用的纹理图集。
+
+| 方法 | 返回值 | 说明 |
+|------|--------|------|
+| `loadBitmapFont(path)` | `Promise<number>` | 加载位图字体文件及其纹理，返回字体句柄 |
+| `getFont(path)` | `number \| undefined` | 获取已缓存的字体句柄，未加载则返回 `undefined` |
+| `releaseFont(path)` | `void` | 从内存中释放字体及其纹理 |
+
+<Aside type="note">
+  `loadAll` 目前不支持位图字体，需要使用 `loadBitmapFont` 单独加载。
+</Aside>
+
 ## 通用文件加载
 
 | 方法 | 返回值 | 说明 |
@@ -166,25 +184,11 @@ const tex = await assets.loadTexture('sprites/player.png');
 
 ## 嵌入式资源
 
-对于 Playable Ad 构建，可以使用 `registerEmbeddedAssets` 将资源直接嵌入输出包中，避免运行时网络请求：
-
-```typescript
-import { registerEmbeddedAssets } from 'esengine';
-
-registerEmbeddedAssets(app, {
-    'sprites/player.png': 'data:image/png;base64,iVBOR...',
-    'data/config.json': 'data:application/json;base64,eyJsZXZlbCI6MX0=',
-});
-```
-
-第一个参数是 `App` 实例，资源值必须是 data URI。注册后，所有 `assets.loadTexture()` / `assets.loadJson()` 调用将从嵌入数据解析，不再发起网络请求。
-
-<Aside type="tip">
-  编辑器的 Playable 构建流程会自动调用 `registerEmbeddedAssets`。仅在自定义构建流程中才需要手动调用。
-</Aside>
+对于 Playable Ad 构建，编辑器的构建流程会自动将所有引用的资源以 data URI 形式嵌入输出包中。运行时 `assets.loadTexture()` / `assets.loadJson()` 等加载调用会直接从嵌入数据解析，无需网络请求，也无需修改任何代码。
 
 ## 下一步
 
 - [材质与着色器](/microes/zh/guides/materials/) — 自定义着色器和混合模式
 - [精灵](/microes/zh/guides/sprite/) — 纹理与精灵的使用
+- [位图文本](/microes/zh/guides/bitmap-text/) — 使用位图字体渲染文本
 - [Spine 动画](/microes/zh/guides/spine/) — Spine 骨骼动画

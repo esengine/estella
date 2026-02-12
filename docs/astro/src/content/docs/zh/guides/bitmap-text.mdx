@@ -1,0 +1,149 @@
+---
+title: 位图文本
+description: 在 ESEngine 中使用预烘焙位图字体图集渲染文字
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`BitmapText` 组件使用预烘焙的位图字体图集（BMFont 格式）渲染文本。与 `Text` 组件每帧通过 Canvas 2D 光栅化字体不同，`BitmapText` 直接从预渲染的字形图集在 GPU 上绘制。
+
+<Aside type="tip">
+  **BitmapText vs Text** — `Text` 使用 Canvas 2D 在运行时光栅化动态字体，支持任何系统字体。`BitmapText` 使用预渲染字形图集（BMFont），能获得一致的像素级精确结果和更好的性能。需要动态字体功能（如系统字体、富文本样式）时使用 `Text`；需要像素艺术字体或高性能 HUD 文本时使用 `BitmapText`。
+</Aside>
+
+## 属性
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `text` | string | `''` | 显示的文本内容 |
+| `color` | Color | `{r:1, g:1, b:1, a:1}` | 着色 RGBA（0–1） |
+| `fontSize` | number | `1.0` | 相对于字体原始大小的缩放因子 |
+| `align` | number | `0` | 水平对齐：0=左对齐，1=居中，2=右对齐 |
+| `spacing` | number | `0` | 字符间额外间距（像素） |
+| `layer` | number | `0` | 渲染层级，用于绘制排序 |
+| `font` | number | `0` | `assets.loadBitmapFont()` 返回的字体句柄 |
+
+## 字体格式
+
+BitmapText 支持两种字体格式：
+
+**`.fnt`（BMFont 文本格式）** — 标准 BMFont 文本描述文件，配合 `.png` 图集图片使用：
+
+```
+assets/
+  my-font.fnt
+  my-font_0.png
+```
+
+**`.bmfont`（JSON 元数据）** — 引用 `.fnt` 和图集路径的 JSON 文件：
+
+```json
+{
+  "font": "my-font.fnt",
+  "textures": ["my-font_0.png"]
+}
+```
+
+两种格式都使用相同的 `assets.loadBitmapFont()` 调用加载。
+
+## LabelAtlas
+
+LabelAtlas 是一种简化的字体创建模式，用于**等宽网格**字形图集——非常适合计分器、计时器等只需要数字或少量符号的显示场景。所有字形共享相同的单元格大小。
+
+### 编辑器工作流
+
+1. 在 Content Browser 中右键 → **New → BitmapFont** 创建 `.bmfont` 文件
+2. 在 Content Browser 中选中该字体文件，检查器显示字体编辑面板
+3. 选择 **LabelAtlas** 类型
+4. 在字形列表中将每个字符映射到图片文件（如 `0` → `zero.png`，`1` → `one.png`）
+5. 点击 **Build Atlas** — 编辑器将所有字形图片打包为单张图集 PNG 并自动生成 `.fnt` 文件
+
+生成的字体在运行时通过与标准 BMFont 相同的 `loadBitmapFont()` 路径加载。
+
+### .bmfont 格式（LabelAtlas）
+
+```json
+{
+  "version": "1.0",
+  "type": "label-atlas",
+  "glyphs": {
+    "0": "digits/zero.png",
+    "1": "digits/one.png",
+    "2": "digits/two.png"
+  },
+  "generatedFnt": "my-digits.fnt"
+}
+```
+
+| 字段 | 说明 |
+|------|------|
+| `type` | `"label-atlas"` — 告知编辑器使用 LabelAtlas 工作流 |
+| `glyphs` | 字符 → 图片路径的映射 |
+| `generatedFnt` | 自动生成的 `.fnt` 文件路径（由 Build Atlas 创建） |
+
+<Aside type="note">
+  在运行时，LabelAtlas 字体与标准 BMFont 完全相同——编辑器只是帮你生成了 `.fnt` 和图集。无论字体以何种方式创建，`BitmapText` 组件的工作方式都一样。
+</Aside>
+
+## 加载位图字体
+
+在启动系统中加载字体，然后将句柄赋给 `BitmapText` 组件：
+
+```typescript
+import { defineSystem, addStartupSystem, Res } from 'esengine';
+import { Assets } from 'esengine';
+
+addStartupSystem(defineSystem(
+    [Res(Assets)],
+    async (assets) => {
+        const font = await assets.loadBitmapFont('assets/my-font.fnt');
+        // font 是用于 BitmapText.font 的句柄
+    }
+));
+```
+
+### 字体资源 API
+
+| 方法 | 返回值 | 说明 |
+|------|--------|------|
+| `loadBitmapFont(path)` | `Promise<number>` | 加载 `.fnt` 或 `.bmfont` 文件及其纹理，返回字体句柄 |
+| `getFont(path)` | `number \| undefined` | 获取已缓存的字体句柄，未加载则返回 `undefined` |
+| `releaseFont(path)` | `void` | 从内存中释放字体及其纹理 |
+
+<Aside type="note">
+  当 BitmapText 实体在场景编辑器中引用了字体文件时，场景加载器会自动调用 `loadBitmapFont`。仅在运行时创建 BitmapText 实体时才需要手动调用。
+</Aside>
+
+## 运行时修改 BitmapText
+
+使用 `Mut()` 查询 `BitmapText` 组件，在游戏运行时修改文本或样式：
+
+```typescript
+import { defineSystem, addSystem, Query, Mut } from 'esengine';
+import { BitmapText } from 'esengine';
+
+addSystem(defineSystem(
+    [Query(Mut(BitmapText))],
+    (query) => {
+        for (const [entity, bitmapText] of query) {
+            bitmapText.text = '你好！';
+            bitmapText.fontSize = 2.0;
+            bitmapText.color = { r: 1, g: 0.8, b: 0, a: 1 };
+        }
+    }
+));
+```
+
+## 渲染顺序
+
+BitmapText 遵循与 Sprite 相同的绘制排序规则：
+
+1. **Z 坐标** (`transform.position.z`) — Z 值越小越先绘制（在后面）
+2. **Layer** (`bitmapText.layer`) — layer 值越大越在上面
+
+## 下一步
+
+- [资源加载](/microes/zh/guides/assets/) — 加载位图字体和其他资源
+- [UI 与文本](/microes/zh/guides/ui/) — Canvas 2D 文本和 UI 布局
+- [渲染](/microes/zh/guides/rendering/) — 相机、变换和渲染顺序
+- [组件](/microes/zh/core-concepts/components/) — 所有内置组件

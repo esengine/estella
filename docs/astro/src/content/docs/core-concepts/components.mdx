@@ -37,7 +37,14 @@ View settings. At least one active camera is required to see anything. The edito
 | `nearPlane` | number | Near clipping plane |
 | `farPlane` | number | Far clipping plane |
 | `isActive` | boolean | Whether this camera is used for rendering |
-| `priority` | number | Higher priority camera takes precedence |
+| `aspectRatio` | number | Camera aspect ratio |
+| `priority` | number | Render order — lower priority renders first, higher renders on top |
+| `viewportX` | number | Viewport left edge (0–1). Default: 0 |
+| `viewportY` | number | Viewport bottom edge (0–1). Default: 0 |
+| `viewportW` | number | Viewport width (0–1). Default: 1 |
+| `viewportH` | number | Viewport height (0–1). Default: 1 |
+| `clearFlags` | number | Buffer clear mode: 0=None, 1=Color, 2=Depth, 3=Both |
+| `showFrustum` | boolean | Draw the camera frustum wireframe in the editor |
 
 ### Canvas
 
@@ -73,6 +80,20 @@ Entity hierarchy for scene graphs.
 
 Spine skeletal animation playback. Requires `LocalTransform`. See [Spine Animation guide](/microes/guides/spine/) for full details.
 
+### BitmapText
+
+GPU-rendered text using pre-baked bitmap font atlases (BMFont format). Requires `LocalTransform`. See [Bitmap Text guide](/microes/guides/bitmap-text/) for full details.
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `text` | string | Text content |
+| `color` | Color | Tint color RGBA |
+| `fontSize` | number | Scale factor relative to the font's native size |
+| `align` | number | Horizontal alignment: 0=Left, 1=Center, 2=Right |
+| `spacing` | number | Extra spacing between characters |
+| `layer` | number | Render layer |
+| `font` | number | Font handle from `assets.loadBitmapFont()` |
+
 ### Text
 
 UI text rendering. Works with `UIRect` and `Sprite` to display text. See [UI & Text guide](/microes/guides/ui/) for full details.
@@ -95,6 +116,22 @@ UI layout rectangle. Defines size, anchor, and pivot for UI elements.
 | `size` | Vec2 | Width and height |
 | `anchor` | Vec2 | Anchor point (0–1) |
 | `pivot` | Vec2 | Pivot point for rotation |
+
+### UIMask
+
+Clips child entities to the parent's `UIRect` bounds. Requires `UIRect` and `LocalTransform` on the same entity. See [UI & Text guide](/microes/guides/ui/) for details.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `enabled` | boolean | `true` | Whether clipping is active |
+
+### Name
+
+A string identifier for the entity. Useful for finding entities by name at runtime.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `value` | string | `''` | Entity name |
 
 ### Physics
 
