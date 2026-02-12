@@ -49,6 +49,9 @@ export interface PlatformAdapter {
     /** Remove a file or directory */
     remove(path: string): Promise<void>;
 
+    /** Rename a file or directory */
+    rename(oldPath: string, newPath: string): Promise<void>;
+
     /** Join path segments */
     joinPath(...segments: string[]): string;
 }
@@ -90,6 +93,10 @@ export class WebPlatformAdapter implements PlatformAdapter {
 
     async remove(_path: string): Promise<void> {
         throw new Error('File removal not available in web platform');
+    }
+
+    async rename(_oldPath: string, _newPath: string): Promise<void> {
+        throw new Error('File renaming not available in web platform');
     }
 
     joinPath(...segments: string[]): string {

@@ -88,7 +88,8 @@ export class Dialog {
 
                 btn.addEventListener('click', async () => {
                     if (btnConfig.onClick) {
-                        await btnConfig.onClick();
+                        const result = await btnConfig.onClick();
+                        if (result === false) return;
                     }
                     this.close({ action: btnConfig.role ?? 'custom' });
                 });

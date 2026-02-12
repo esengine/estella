@@ -12,6 +12,7 @@ import { getEditorContext } from '../context/EditorContext';
 import { joinPath, getParentDir } from '../utils/path';
 import type { NativeFS, DirectoryEntry } from '../types/NativeFS';
 import { getAssetLibrary } from '../asset/AssetLibrary';
+import { showErrorToast } from '../ui/Toast';
 
 // =============================================================================
 // Types
@@ -501,6 +502,11 @@ export class ContentBrowserPanel {
                         navigator.clipboard.writeText(path);
                     },
                 },
+                {
+                    label: 'Rename',
+                    icon: icons.pencil(14),
+                    onClick: () => this.renameAsset(path, type),
+                },
                 { separator: true, label: '' },
                 {
                     label: 'Delete',
@@ -539,6 +545,69 @@ export class ContentBrowserPanel {
             this.refresh();
         } catch (err) {
             console.error('Failed to delete asset:', err);
+            showErrorToast('Failed to delete asset', String(err));
+        }
+    }
+
+    private async renameAsset(path: string, type: AssetItem['type']): Promise<void> {
+        const platform = getPlatformAdapter();
+        const parentPath = getParentDir(path);
+        const fileName = path.split('/').pop() ?? path;
+        const dotIndex = fileName.lastIndexOf('.');
+        const baseName = type === 'folder' || dotIndex <= 0 ? fileName : fileName.substring(0, dotIndex);
+        const extension = type === 'folder' || dotIndex <= 0 ? '' : fileName.substring(dotIndex);
+
+        const newName = await showInputDialog({
+            title: 'Rename',
+            placeholder: 'Name',
+            defaultValue: baseName,
+            confirmText: 'Rename',
+            validator: async (value) => {
+                if (!value.trim()) return 'Name is required';
+                if (/[<>:"/\\|?*\x00-\x1f]/.test(value.trim())) {
+                    return 'Name contains invalid characters';
+                }
+                const newFileName = extension ? value.trim() + extension : value.trim();
+                if (newFileName === fileName) return null;
+                const newPath = `${parentPath}/${newFileName}`;
+                if (await platform.exists(newPath)) {
+                    return 'A file with this name already exists';
+                }
+                return null;
+            },
+        });
+
+        if (!newName) return;
+
+        const trimmed = newName.trim();
+        const newFileName = extension ? trimmed + extension : trimmed;
+        if (newFileName === fileName) return;
+
+        const newPath = `${parentPath}/${newFileName}`;
+
+        try {
+            await platform.rename(path, newPath);
+
+            const metaPath = `${path}.meta`;
+            if (await platform.exists(metaPath)) {
+                await platform.rename(metaPath, `${newPath}.meta`);
+            }
+
+            if (this.rootFolder_) {
+                const projectDir = this.rootFolder_.path;
+                const prefix = projectDir.endsWith('/') ? projectDir : projectDir + '/';
+                if (path.startsWith(prefix)) {
+                    getAssetLibrary().updatePath(
+                        path.substring(prefix.length),
+                        newPath.substring(prefix.length)
+                    );
+                }
+            }
+
+            this.refresh();
+        } catch (err) {
+            console.error('Failed to rename asset:', err);
+            showErrorToast('Failed to rename asset', String(err));
         }
     }
 
@@ -614,7 +683,7 @@ export class ContentBrowserPanel {
     }
 
     private async createNewFolder(parentPath: string): Promise<void> {
-        const name = await this.promptFileName('New Folder');
+        const name = await this.promptFileName('New Folder', '', parentPath);
         if (!name) return;
 
         const platform = getPlatformAdapter();
@@ -625,11 +694,12 @@ export class ContentBrowserPanel {
             this.refresh();
         } catch (err) {
             console.error('Failed to create folder:', err);
+            showErrorToast('Failed to create folder', String(err));
         }
     }
 
     private async createNewScript(parentPath: string): Promise<void> {
-        const name = await this.promptFileName('NewScript', '.ts');
+        const name = await this.promptFileName('NewScript', '.ts', parentPath);
         if (!name) return;
 
         const platform = getPlatformAdapter();
@@ -648,11 +718,12 @@ export const ${className} = defineComponent('${className}', {
             this.refresh();
         } catch (err) {
             console.error('Failed to create script:', err);
+            showErrorToast('Failed to create script', String(err));
         }
     }
 
     private async createNewMaterial(parentPath: string): Promise<void> {
-        const name = await this.promptFileName('NewMaterial', '.esmaterial');
+        const name = await this.promptFileName('NewMaterial', '.esmaterial', parentPath);
         if (!name) return;
 
         const platform = getPlatformAdapter();
@@ -672,11 +743,12 @@ export const ${className} = defineComponent('${className}', {
             this.refresh();
         } catch (err) {
             console.error('Failed to create material:', err);
+            showErrorToast('Failed to create material', String(err));
         }
     }
 
     private async createNewScene(parentPath: string): Promise<void> {
-        const name = await this.promptFileName('NewScene', '.esscene');
+        const name = await this.promptFileName('NewScene', '.esscene', parentPath);
         if (!name) return;
 
         const platform = getPlatformAdapter();
@@ -693,11 +765,12 @@ export const ${className} = defineComponent('${className}', {
             this.refresh();
         } catch (err) {
             console.error('Failed to create scene:', err);
+            showErrorToast('Failed to create scene', String(err));
         }
     }
 
     private async createNewShader(parentPath: string): Promise<void> {
-        const name = await this.promptFileName('NewShader', '.esshader');
+        const name = await this.promptFileName('NewShader', '.esshader', parentPath);
         if (!name) return;
 
         const platform = getPlatformAdapter();
@@ -737,11 +810,12 @@ void main() {
             this.refresh();
         } catch (err) {
             console.error('Failed to create shader:', err);
+            showErrorToast('Failed to create shader', String(err));
         }
     }
 
     private async createNewBitmapFont(parentPath: string): Promise<void> {
-        const name = await this.promptFileName('NewFont', '.bmfont');
+        const name = await this.promptFileName('NewFont', '.bmfont', parentPath);
         if (!name) return;
 
         const platform = getPlatformAdapter();
@@ -758,17 +832,32 @@ void main() {
             this.refresh();
         } catch (err) {
             console.error('Failed to create bitmap font:', err);
+            showErrorToast('Failed to create bitmap font', String(err));
         }
     }
 
-    private async promptFileName(defaultName: string, extension: string = ''): Promise<string | null> {
+    private async promptFileName(defaultName: string, extension: string = '', parentPath?: string): Promise<string | null> {
+        const platform = getPlatformAdapter();
+
         const name = await showInputDialog({
             title: 'Enter Name',
             placeholder: 'Name',
             defaultValue: defaultName,
             confirmText: 'Create',
-            validator: (value) => {
+            validator: async (value) => {
                 if (!value.trim()) return 'Name is required';
+                if (/[<>:"/\\|?*\x00-\x1f]/.test(value.trim())) {
+                    return 'Name contains invalid characters';
+                }
+                if (parentPath) {
+                    const fileName = extension && !value.trim().endsWith(extension)
+                        ? value.trim() + extension
+                        : value.trim();
+                    const fullPath = `${parentPath}/${fileName}`;
+                    if (await platform.exists(fullPath)) {
+                        return 'A file with this name already exists';
+                    }
+                }
                 return null;
             },
         });

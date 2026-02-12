@@ -43,9 +43,9 @@ export function showInputDialog(options: InputDialogOptions): Promise<string | n
         let dialog: Dialog;
         let inputValue: string | null = null;
 
-        const validate = (): boolean => {
+        const validate = async (): Promise<boolean> => {
             if (options.validator) {
-                const error = options.validator(input.value.trim());
+                const error = await options.validator(input.value.trim());
                 if (error) {
                     errorEl.textContent = error;
                     errorEl.style.display = 'block';
@@ -56,10 +56,11 @@ export function showInputDialog(options: InputDialogOptions): Promise<string | n
             return true;
         };
 
-        const submit = () => {
-            if (!validate()) return;
+        const submit = async (): Promise<boolean> => {
+            if (!await validate()) return false;
             inputValue = input.value.trim() || null;
             dialog.close({ action: 'confirm', data: inputValue });
+            return true;
         };
 
         dialog = new Dialog({
@@ -67,7 +68,7 @@ export function showInputDialog(options: InputDialogOptions): Promise<string | n
             content,
             buttons: [
                 { label: options.cancelText ?? 'Cancel', role: 'cancel' },
-                { label: options.confirmText ?? 'Confirm', role: 'confirm', primary: true, onClick: submit },
+                { label: options.confirmText ?? 'Confirm', role: 'confirm', primary: true, onClick: () => submit() },
             ],
             closeOnOverlay: true,
             closeOnEscape: true,

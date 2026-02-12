@@ -58,6 +58,7 @@ import { showToast, showSuccessToast, showErrorToast } from './ui/Toast';
 import { showContextMenu } from './ui/ContextMenu';
 import { showConfirmDialog, showInputDialog } from './ui/dialog';
 import { getEditorStore } from './store';
+import { generateUniqueName } from './utils/naming';
 import {
     registerBuiltinSettings,
     lockBuiltinSettings,
@@ -304,8 +305,15 @@ export class Editor {
         const entityData = this.store_.getEntityData(entity as number);
         if (!entityData) return;
 
+        const scene = this.store_.scene;
+        const siblings = scene.entities
+            .filter(e => e.parent === entityData.parent)
+            .map(e => e.name);
+        const siblingNames = new Set(siblings);
+        const newName = generateUniqueName(entityData.name, siblingNames);
+
         const newEntity = this.store_.createEntity(
-            `${entityData.name}_copy`,
+            newName,
             entityData.parent as Entity | null
         );
 

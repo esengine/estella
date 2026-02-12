@@ -50,6 +50,7 @@ import {
     LayoutTemplate,
     Bone,
     EyeOff,
+    Pencil,
 } from 'lucide';
 
 // =============================================================================
@@ -156,6 +157,7 @@ export const icons = {
     download: (size?: number) => renderIcon(Download as IconNode, size),
     template: (size?: number) => renderIcon(LayoutTemplate as IconNode, size),
     bone: (size?: number) => renderIcon(Bone as IconNode, size),
+    pencil: (size?: number) => renderIcon(Pencil as IconNode, size),
 };
 
 export type IconName = keyof typeof icons;

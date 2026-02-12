@@ -10,7 +10,7 @@ export interface DialogButton {
     role?: DialogRole;
     primary?: boolean;
     disabled?: boolean;
-    onClick?: () => void | Promise<void>;
+    onClick?: () => void | boolean | Promise<void | boolean>;
 }
 
 export interface DialogOptions {
@@ -35,7 +35,7 @@ export interface InputDialogOptions {
     defaultValue?: string;
     confirmText?: string;
     cancelText?: string;
-    validator?: (value: string) => string | null;
+    validator?: (value: string) => string | null | Promise<string | null>;
 }
 
 export interface ConfirmDialogOptions {

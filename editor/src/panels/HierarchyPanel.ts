@@ -12,6 +12,7 @@ import { getDefaultComponentData } from '../schemas/ComponentSchemas';
 import { showContextMenu, type ContextMenuItem } from '../ui/ContextMenu';
 import { getEditorContext } from '../context/EditorContext';
 import { getPlatformAdapter } from '../platform/PlatformAdapter';
+import { generateUniqueName } from '../utils/naming';
 
 type DropPosition = 'before' | 'after' | 'inside';
 
@@ -605,8 +606,15 @@ export class HierarchyPanel {
         const entityData = this.store_.getEntityData(entity as number);
         if (!entityData) return;
 
+        const scene = this.store_.scene;
+        const siblings = scene.entities
+            .filter(e => e.parent === entityData.parent)
+            .map(e => e.name);
+        const siblingNames = new Set(siblings);
+        const newName = generateUniqueName(entityData.name, siblingNames);
+
         const newEntity = this.store_.createEntity(
-            `${entityData.name}_copy`,
+            newName,
             entityData.parent as Entity | null
         );
 

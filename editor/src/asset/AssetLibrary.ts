@@ -231,6 +231,17 @@ export class AssetLibrary {
         this.pathToUuid_.delete(relativePath);
     }
 
+    updatePath(oldRelativePath: string, newRelativePath: string): void {
+        const uuid = this.pathToUuid_.get(oldRelativePath);
+        if (uuid) {
+            this.uuidToPath_.set(uuid, newRelativePath);
+        }
+        this.pathToUuid_.delete(oldRelativePath);
+        if (uuid) {
+            this.pathToUuid_.set(newRelativePath, uuid);
+        }
+    }
+
     private register(uuid: string, relativePath: string): void {
         this.uuidToPath_.set(uuid, relativePath);
         this.pathToUuid_.set(relativePath, uuid);
