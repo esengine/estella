@@ -29,3 +29,16 @@ export {
     TextPlugin,
     textPlugin,
 } from './TextPlugin';
+
+// UIMask Component
+export {
+    UIMask,
+    type UIMaskData,
+} from './UIMask';
+
+// UIMask Plugin
+export {
+    UIMaskPlugin,
+    uiMaskPlugin,
+    createMaskProcessor,
+} from './UIMaskPlugin';
