@@ -12,6 +12,7 @@
 export {
     PhysicsPlugin,
     PhysicsEvents,
+    PhysicsAPI,
     Physics,
     type PhysicsPluginConfig,
     type PhysicsEventsData,

@@ -360,6 +360,7 @@ declare class App {
     get wasmModule(): ESEngineModule | null;
     setSpineRenderer(fn: SpineRendererFn | null): void;
     get world(): World;
+    setFixedTimestep(timestep: number): this;
     insertResource<T>(resource: ResourceDef<T>, value: T): this;
     getResource<T>(resource: ResourceDef<T>): T;
     hasResource<T>(resource: ResourceDef<T>): boolean;

@@ -39,7 +39,7 @@ export class PreviewService {
         this.previewDir_ = `${this.projectDir_}/.esengine/preview`;
     }
 
-    async startPreview(scene: SceneData, compiledScript?: string, spineVersion?: string, enablePhysics?: boolean): Promise<void> {
+    async startPreview(scene: SceneData, compiledScript?: string, spineVersion?: string, enablePhysics?: boolean, physicsConfig?: { gravityX: number; gravityY: number; fixedTimestep: number; subStepCount: number }): Promise<void> {
         const fs = this.getNativeFS();
         const invoke = this.getTauriInvoke();
 
@@ -49,7 +49,7 @@ export class PreviewService {
         }
 
         console.log('PreviewService: Preparing files in', this.previewDir_);
-        await this.preparePreviewFiles(fs, scene, compiledScript, spineVersion, enablePhysics);
+        await this.preparePreviewFiles(fs, scene, compiledScript, spineVersion, enablePhysics, physicsConfig);
         console.log('PreviewService: Files prepared');
 
         const port = await invoke('start_preview_server', {
@@ -73,6 +73,7 @@ export class PreviewService {
         compiledScript?: string,
         spineVersion?: string,
         enablePhysics?: boolean,
+        physicsConfig?: { gravityX: number; gravityY: number; fixedTimestep: number; subStepCount: number },
     ): Promise<void> {
         await this.ensureDirectory(fs, this.previewDir_);
 
@@ -92,6 +93,10 @@ export class PreviewService {
         await fs.writeFile(configPath, JSON.stringify({
             spineVersion: spineVersion || null,
             enablePhysics: enablePhysics || false,
+            physicsGravityX: physicsConfig?.gravityX ?? 0,
+            physicsGravityY: physicsConfig?.gravityY ?? -9.81,
+            physicsFixedTimestep: physicsConfig?.fixedTimestep ?? 1 / 60,
+            physicsSubStepCount: physicsConfig?.subStepCount ?? 4,
         }));
 
         if (compiledScript) {

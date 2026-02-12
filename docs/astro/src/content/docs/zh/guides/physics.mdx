@@ -1,0 +1,169 @@
+---
+title: 物理
+description: ESEngine 中使用 Box2D 的 2D 物理模拟
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+物理系统提供基于独立 Box2D WASM 模块的 2D 刚体模拟。编辑器和构建流程会自动处理模块加载——你只需在设置中启用物理并为实体添加组件。
+
+## 设置
+
+在编辑器中启用物理：**Settings → Physics → Enable Physics**。
+
+在同一面板中配置模拟参数：
+
+| 设置项 | 默认值 | 说明 |
+|--------|--------|------|
+| Gravity X | `0` | 水平重力 |
+| Gravity Y | `-9.81` | 垂直重力（负数 = 向下） |
+| Fixed Timestep | `1/60` | 物理步进间隔（秒） |
+| Sub-Step Count | `4` | 每次物理步进的子步数，用于提高精度 |
+
+<Aside type="note">
+  物理 WASM 模块由编辑器预览和构建流程自动加载，无需在游戏脚本中手动初始化插件。
+</Aside>
+
+## 组件
+
+在场景编辑器中将物理组件与 `LocalTransform` 一起添加到实体上。
+
+### RigidBody
+
+每个物理实体都需要 `RigidBody` 组件，定义刚体类型和物理属性。
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `bodyType` | number | `2`（Dynamic） | 0=静态，1=运动学，2=动态 |
+| `gravityScale` | number | `1.0` | 重力倍率 |
+| `linearDamping` | number | `0.0` | 线速度阻尼 |
+| `angularDamping` | number | `0.0` | 角速度阻尼 |
+| `fixedRotation` | boolean | `false` | 锁定旋转 |
+| `bullet` | boolean | `false` | 高速物体连续碰撞检测 |
+| `enabled` | boolean | `true` | 启用物理刚体 |
+
+### 碰撞体
+
+每个实体还需要一个碰撞体形状，选择其一：
+
+- **BoxCollider** — `halfExtents`（Vec2）、`offset`（Vec2）、`density`、`friction`、`restitution`、`isSensor`
+- **CircleCollider** — `radius`、`offset`（Vec2）、`density`、`friction`、`restitution`、`isSensor`
+- **CapsuleCollider** — `radius`、`halfHeight`、`offset`（Vec2）、`density`、`friction`、`restitution`、`isSensor`
+
+详见[组件](/microes/zh/core-concepts/components/#物理)完整属性表。
+
+## 刚体类型
+
+### Static（0）
+
+不移动。用于墙壁、地面和平台。
+
+```typescript
+rigidBody.bodyType = 0;
+```
+
+### Kinematic（1）
+
+通过代码（变换）移动，不受物理力影响。其他刚体会与之碰撞但不会推动它。用于移动平台和电梯。
+
+```typescript
+rigidBody.bodyType = 1;
+```
+
+### Dynamic（2）
+
+完全模拟。响应重力、力和碰撞。用于玩家、投射物和物理对象。
+
+```typescript
+rigidBody.bodyType = 2;
+```
+
+## 碰撞事件
+
+从 `PhysicsEvents` 资源读取碰撞和传感器事件：
+
+```typescript
+import { defineSystem, addSystem, Res } from 'esengine';
+import { PhysicsEvents } from 'esengine/physics';
+
+addSystem(defineSystem(
+    [Res(PhysicsEvents)],
+    (events) => {
+        for (const e of events.collisionEnters) {
+            // e.entityA, e.entityB, e.normalX, e.normalY, e.contactX, e.contactY
+        }
+        for (const e of events.collisionExits) {
+            // e.entityA, e.entityB
+        }
+        for (const e of events.sensorEnters) {
+            // e.sensorEntity, e.visitorEntity
+        }
+        for (const e of events.sensorExits) {
+            // e.sensorEntity, e.visitorEntity
+        }
+    }
+));
+```
+
+<Aside type="tip">
+  将碰撞体的 `isSensor` 设为 `true` 可创建触发区域，检测重叠但不产生物理响应。
+</Aside>
+
+## 示例：简单平台跳跃
+
+在编辑器中设置地面、玩家和金币传感器，然后用代码处理事件：
+
+```typescript
+import { defineSystem, addSystem, Res, Input, Query, Mut, LocalTransform } from 'esengine';
+import { RigidBody, PhysicsEvents } from 'esengine/physics';
+import { Player, Coin } from './components';
+
+addSystem(defineSystem(
+    [Res(PhysicsEvents)],
+    (events) => {
+        for (const e of events.sensorEnters) {
+            // 金币收集
+        }
+    }
+));
+```
+
+**编辑器设置：**
+- **地面**：`LocalTransform` + `RigidBody`（bodyType=0 Static）+ `BoxCollider`（halfExtents=`{x:10, y:0.5}`）+ `Sprite`
+- **玩家**：`LocalTransform` + `RigidBody`（bodyType=2 Dynamic，fixedRotation=true）+ `BoxCollider` + `Sprite` + `Player` 标签
+- **金币**：`LocalTransform` + `RigidBody`（bodyType=0 Static）+ `CircleCollider`（isSensor=true）+ `Sprite` + `Coin` 标签
+
+## Physics API（进阶）
+
+`Physics` 类提供运行时力/速度控制。物理插件加载完成后会自动注册 `PhysicsAPI` 资源，可在任何系统中通过 `Res(PhysicsAPI)` 访问：
+
+```typescript
+import { defineSystem, addSystem, Res } from 'esengine';
+import { PhysicsAPI } from 'esengine/physics';
+
+addSystem(defineSystem(
+    [Res(PhysicsAPI)],
+    (physics) => {
+        physics.applyForce(entity, { x: 0, y: 10 });
+    }
+));
+```
+
+| 方法 | 说明 |
+|------|------|
+| `applyForce(entity, force)` | 施加持续力（Vec2） |
+| `applyImpulse(entity, impulse)` | 施加瞬时冲量（Vec2） |
+| `setLinearVelocity(entity, velocity)` | 直接设置线速度 |
+| `getLinearVelocity(entity)` | 获取当前线速度（Vec2） |
+| `setAngularVelocity(entity, omega)` | 设置角速度（number） |
+| `getAngularVelocity(entity)` | 获取当前角速度 |
+| `applyTorque(entity, torque)` | 施加旋转扭矩 |
+| `applyAngularImpulse(entity, impulse)` | 施加瞬时角冲量 |
+| `setGravity(gravity)` | 运行时修改世界重力 |
+| `getGravity()` | 获取当前世界重力（Vec2） |
+
+## 下一步
+
+- [组件](/microes/zh/core-concepts/components/#物理) — 完整物理组件属性表
+- [系统](/microes/zh/core-concepts/systems/) — 创建系统处理物理逻辑
+- [自定义绘制](/microes/zh/guides/custom-draw/) — 碰撞体调试可视化

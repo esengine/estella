@@ -637,6 +637,7 @@ declare class App {
     get wasmModule(): ESEngineModule | null;
     setSpineRenderer(fn: SpineRendererFn | null): void;
     get world(): World;
+    setFixedTimestep(timestep: number): this;
     insertResource<T>(resource: ResourceDef<T>, value: T): this;
     getResource<T>(resource: ResourceDef<T>): T;
     hasResource<T>(resource: ResourceDef<T>): boolean;
@@ -1834,6 +1835,8 @@ declare class PhysicsPlugin implements Plugin {
 declare class Physics {
     private module_;
     constructor(app: App);
+    /** @internal */
+    static _fromModule(module: PhysicsWasmModule): Physics;
     applyForce(entity: Entity, force: Vec2): void;
     applyImpulse(entity: Entity, impulse: Vec2): void;
     setLinearVelocity(entity: Entity, velocity: Vec2): void;

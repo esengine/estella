@@ -59,6 +59,8 @@ export const PhysicsEvents = defineResource<PhysicsEventsData>({
     sensorExits: []
 }, 'PhysicsEvents');
 
+export const PhysicsAPI = defineResource<Physics>(null!, 'PhysicsAPI');
+
 // =============================================================================
 // Quaternion <-> angle helpers
 // =============================================================================
@@ -199,6 +201,8 @@ export class PhysicsPlugin implements Plugin {
                 );
 
                 (app as any).__physicsModule = module;
+                app.insertResource(PhysicsAPI, Physics._fromModule(module));
+                app.setFixedTimestep(this.config_.fixedTimestep);
             }
         );
 
@@ -374,6 +378,13 @@ export class Physics {
         if (!this.module_) {
             throw new Error('Physics module not loaded. Ensure PhysicsPlugin init is complete.');
         }
+    }
+
+    /** @internal */
+    static _fromModule(module: PhysicsWasmModule): Physics {
+        const instance = Object.create(Physics.prototype) as Physics;
+        instance.module_ = module;
+        return instance;
     }
 
     applyForce(entity: Entity, force: Vec2): void {

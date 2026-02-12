@@ -122,7 +122,11 @@
                     try {
                         updateLoading('Loading Physics...');
                         await loadUmdScript('/wasm/physics.js');
-                        physicsPlugin = new sdk.PhysicsPlugin('/wasm/physics.js', {}, window.ESPhysicsModule);
+                        physicsPlugin = new sdk.PhysicsPlugin('/wasm/physics.js', {
+                            gravity: { x: config.physicsGravityX ?? 0, y: config.physicsGravityY ?? -9.81 },
+                            fixedTimestep: config.physicsFixedTimestep ?? 1 / 60,
+                            subStepCount: config.physicsSubStepCount ?? 4,
+                        }, window.ESPhysicsModule);
                     } catch (e) {
                         console.warn('Physics module load skipped:', e);
                     }

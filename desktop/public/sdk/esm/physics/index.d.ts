@@ -410,6 +410,7 @@ declare class App {
     get wasmModule(): ESEngineModule | null;
     setSpineRenderer(fn: SpineRendererFn | null): void;
     get world(): World;
+    setFixedTimestep(timestep: number): this;
     insertResource<T>(resource: ResourceDef<T>, value: T): this;
     getResource<T>(resource: ResourceDef<T>): T;
     hasResource<T>(resource: ResourceDef<T>): boolean;
@@ -506,6 +507,7 @@ interface PhysicsEventsData {
     sensorExits: SensorEvent[];
 }
 declare const PhysicsEvents: ResourceDef<PhysicsEventsData>;
+declare const PhysicsAPI: ResourceDef<Physics>;
 declare class PhysicsPlugin implements Plugin {
     private config_;
     private wasmUrl_;
@@ -516,6 +518,8 @@ declare class PhysicsPlugin implements Plugin {
 declare class Physics {
     private module_;
     constructor(app: App);
+    /** @internal */
+    static _fromModule(module: PhysicsWasmModule): Physics;
     applyForce(entity: Entity, force: Vec2): void;
     applyImpulse(entity: Entity, impulse: Vec2): void;
     setLinearVelocity(entity: Entity, velocity: Vec2): void;
@@ -528,5 +532,5 @@ declare class Physics {
     applyAngularImpulse(entity: Entity, impulse: number): void;
 }
 
-export { BodyType, BoxCollider, CapsuleCollider, CircleCollider, Physics, PhysicsEvents, PhysicsPlugin, RigidBody, loadPhysicsModule, loadPhysicsSideModule };
+export { BodyType, BoxCollider, CapsuleCollider, CircleCollider, Physics, PhysicsAPI, PhysicsEvents, PhysicsPlugin, RigidBody, loadPhysicsModule, loadPhysicsSideModule };
 export type { BoxColliderData, CapsuleColliderData, CircleColliderData, CollisionEnterEvent, ESEngineMainModule, PhysicsEventsData, PhysicsModuleFactory, PhysicsPluginConfig, PhysicsWasmModule, RigidBodyData, SensorEvent };

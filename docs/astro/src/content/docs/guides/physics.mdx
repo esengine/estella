@@ -1,0 +1,169 @@
+---
+title: Physics
+description: 2D physics simulation with Box2D in ESEngine
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The physics system provides 2D rigid body simulation powered by a standalone Box2D WASM module. The editor and build pipeline handle loading automatically — you only need to enable it in settings and add components to entities.
+
+## Setup
+
+Enable physics in the editor: **Settings → Physics → Enable Physics**.
+
+Configure the simulation parameters in the same panel:
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| Gravity X | `0` | Horizontal gravity |
+| Gravity Y | `-9.81` | Vertical gravity (negative = downward) |
+| Fixed Timestep | `1/60` | Physics step interval in seconds |
+| Sub-Step Count | `4` | Sub-steps per physics step for accuracy |
+
+<Aside type="note">
+  The physics WASM module is loaded automatically by the editor preview and build pipeline. No manual plugin initialization is needed in your game scripts.
+</Aside>
+
+## Components
+
+Add physics components to entities in the scene editor alongside `LocalTransform`.
+
+### RigidBody
+
+Every physics entity needs a `RigidBody` component. It defines the body type and physical properties.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `bodyType` | number | `2` (Dynamic) | 0=Static, 1=Kinematic, 2=Dynamic |
+| `gravityScale` | number | `1.0` | Gravity multiplier |
+| `linearDamping` | number | `0.0` | Linear velocity damping |
+| `angularDamping` | number | `0.0` | Angular velocity damping |
+| `fixedRotation` | boolean | `false` | Lock rotation |
+| `bullet` | boolean | `false` | CCD for fast objects |
+| `enabled` | boolean | `true` | Enable physics body |
+
+### Colliders
+
+Each entity also needs a collider shape. Choose one:
+
+- **BoxCollider** — `halfExtents` (Vec2), `offset` (Vec2), `density`, `friction`, `restitution`, `isSensor`
+- **CircleCollider** — `radius`, `offset` (Vec2), `density`, `friction`, `restitution`, `isSensor`
+- **CapsuleCollider** — `radius`, `halfHeight`, `offset` (Vec2), `density`, `friction`, `restitution`, `isSensor`
+
+See [Components](/microes/core-concepts/components/#physics) for the full property tables.
+
+## Body Types
+
+### Static (0)
+
+Does not move. Used for walls, floors, and platforms.
+
+```typescript
+rigidBody.bodyType = 0;
+```
+
+### Kinematic (1)
+
+Moved by code (transform), not by physics forces. Other bodies collide with it but don't push it. Used for moving platforms and elevators.
+
+```typescript
+rigidBody.bodyType = 1;
+```
+
+### Dynamic (2)
+
+Fully simulated. Responds to gravity, forces, and collisions. Used for players, projectiles, and physics objects.
+
+```typescript
+rigidBody.bodyType = 2;
+```
+
+## Collision Events
+
+Read collision and sensor events from the `PhysicsEvents` resource:
+
+```typescript
+import { defineSystem, addSystem, Res } from 'esengine';
+import { PhysicsEvents } from 'esengine/physics';
+
+addSystem(defineSystem(
+    [Res(PhysicsEvents)],
+    (events) => {
+        for (const e of events.collisionEnters) {
+            // e.entityA, e.entityB, e.normalX, e.normalY, e.contactX, e.contactY
+        }
+        for (const e of events.collisionExits) {
+            // e.entityA, e.entityB
+        }
+        for (const e of events.sensorEnters) {
+            // e.sensorEntity, e.visitorEntity
+        }
+        for (const e of events.sensorExits) {
+            // e.sensorEntity, e.visitorEntity
+        }
+    }
+));
+```
+
+<Aside type="tip">
+  Set `isSensor = true` on a collider to create a trigger zone that detects overlaps without physical response.
+</Aside>
+
+## Example: Simple Platformer
+
+Set up a ground, player, and coin sensor in the editor, then handle events in code:
+
+```typescript
+import { defineSystem, addSystem, Res, Input, Query, Mut, LocalTransform } from 'esengine';
+import { RigidBody, PhysicsEvents } from 'esengine/physics';
+import { Player, Coin } from './components';
+
+addSystem(defineSystem(
+    [Res(PhysicsEvents)],
+    (events) => {
+        for (const e of events.sensorEnters) {
+            // Coin collected
+        }
+    }
+));
+```
+
+**Editor setup:**
+- **Ground**: `LocalTransform` + `RigidBody` (bodyType=0 Static) + `BoxCollider` (halfExtents=`{x:10, y:0.5}`) + `Sprite`
+- **Player**: `LocalTransform` + `RigidBody` (bodyType=2 Dynamic, fixedRotation=true) + `BoxCollider` + `Sprite` + `Player` tag
+- **Coin**: `LocalTransform` + `RigidBody` (bodyType=0 Static) + `CircleCollider` (isSensor=true) + `Sprite` + `Coin` tag
+
+## Physics API (Advanced)
+
+The `Physics` class provides runtime force/velocity control. It is automatically registered as a `PhysicsAPI` resource when the physics plugin loads, so you can access it from any system via `Res(PhysicsAPI)`:
+
+```typescript
+import { defineSystem, addSystem, Res } from 'esengine';
+import { PhysicsAPI } from 'esengine/physics';
+
+addSystem(defineSystem(
+    [Res(PhysicsAPI)],
+    (physics) => {
+        physics.applyForce(entity, { x: 0, y: 10 });
+    }
+));
+```
+
+| Method | Description |
+|--------|-------------|
+| `applyForce(entity, force)` | Apply a continuous force (Vec2) |
+| `applyImpulse(entity, impulse)` | Apply an instant impulse (Vec2) |
+| `setLinearVelocity(entity, velocity)` | Set linear velocity directly |
+| `getLinearVelocity(entity)` | Get current linear velocity (Vec2) |
+| `setAngularVelocity(entity, omega)` | Set angular velocity (number) |
+| `getAngularVelocity(entity)` | Get current angular velocity |
+| `applyTorque(entity, torque)` | Apply rotational torque |
+| `applyAngularImpulse(entity, impulse)` | Apply instant angular impulse |
+| `setGravity(gravity)` | Change world gravity at runtime |
+| `getGravity()` | Get current world gravity (Vec2) |
+
+## Next Steps
+
+- [Components](/microes/core-concepts/components/#physics) — full physics component property tables
+- [Systems](/microes/core-concepts/systems/) — creating systems to handle physics logic
+- [Custom Draw](/microes/guides/custom-draw/) — debug visualization of colliders

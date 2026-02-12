@@ -731,7 +731,13 @@ export class Editor {
             }
             const compiledScript = this.scriptLoader_?.getCompiledCode() ?? undefined;
             const enablePhysics = getSettingsValue<boolean>('project.enablePhysics') ?? false;
-            await this.previewService_.startPreview(this.store_.scene, compiledScript, this.spineVersion_, enablePhysics);
+            const physicsConfig = enablePhysics ? {
+                gravityX: getSettingsValue<number>('physics.gravityX') ?? 0,
+                gravityY: getSettingsValue<number>('physics.gravityY') ?? -9.81,
+                fixedTimestep: getSettingsValue<number>('physics.fixedTimestep') ?? 1 / 60,
+                subStepCount: getSettingsValue<number>('physics.subStepCount') ?? 4,
+            } : undefined;
+            await this.previewService_.startPreview(this.store_.scene, compiledScript, this.spineVersion_, enablePhysics, physicsConfig);
         } catch (err) {
             console.error('Failed to start preview:', err);
         }
