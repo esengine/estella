@@ -8,7 +8,7 @@ import { Aside } from '@astrojs/starlight/components';
 The `SpineAnimation` component plays [Spine](http://esotericsoftware.com/) skeletal animations. Add it to an entity in the scene editor along with `LocalTransform`.
 
 <Aside type="note">
-  Since v0.3.0, Spine uses standalone WASM modules (`spine38` / `spine42`) instead of being bundled into the engine core. Select the Spine version in the editor under **Settings → Project → Spine Version** (`3.8` or `4.2`). The editor loads the matching runtime automatically — no code is needed.
+  Since v0.3.0, Spine uses standalone WASM modules (`spine38` / `spine41` / `spine42`) instead of being bundled into the engine core. Select the Spine version in the editor under **Settings → Project → Spine Version** (`3.8`, `4.1`, or `4.2`). The editor loads the matching runtime automatically — no code is needed.
 </Aside>
 
 ## Properties
@@ -24,7 +24,7 @@ The `SpineAnimation` component plays [Spine](http://esotericsoftware.com/) skele
 | `playing` | boolean | `true` | Whether currently playing |
 | `flipX` | boolean | `false` | Flip horizontally |
 | `flipY` | boolean | `false` | Flip vertically |
-| `color` | Vec4 | `{1, 1, 1, 1}` | Tint color RGBA |
+| `color` | Color | `{r:1, g:1, b:1, a:1}` | Tint color RGBA |
 | `layer` | number | `0` | Render order |
 | `skeletonScale` | number | `1.0` | Skeleton scale factor |
 | `material` | number | `0` | Material ID |
@@ -90,8 +90,8 @@ spine.flipX = false;   // Face right (default)
 ## Color Tinting
 
 ```typescript
-spine.color = { x: 1, y: 0, z: 0, w: 1 };    // Red tint
-spine.color = { x: 1, y: 1, z: 1, w: 0.5 };   // 50% transparent
+spine.color = { r: 1, g: 0, b: 0, a: 1 };    // Red tint
+spine.color = { r: 1, g: 1, b: 1, a: 0.5 };   // 50% transparent
 ```
 
 ## Example: Character Controller

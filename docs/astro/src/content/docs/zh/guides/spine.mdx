@@ -8,7 +8,7 @@ import { Aside } from '@astrojs/starlight/components';
 `SpineAnimation` 组件播放 [Spine](http://esotericsoftware.com/) 骨骼动画。在场景编辑器中将它和 `LocalTransform` 一起添加到实体上。
 
 <Aside type="note">
-  从 v0.3.0 起，Spine 使用独立的 WASM 模块（`spine38` / `spine42`），不再内置于引擎核心。在编辑器中通过 **Settings → Project → Spine Version** 选择版本（`3.8` 或 `4.2`），编辑器会自动加载对应的运行时，无需编写代码。
+  从 v0.3.0 起，Spine 使用独立的 WASM 模块（`spine38` / `spine41` / `spine42`），不再内置于引擎核心。在编辑器中通过 **Settings → Project → Spine Version** 选择版本（`3.8`、`4.1` 或 `4.2`），编辑器会自动加载对应的运行时，无需编写代码。
 </Aside>
 
 ## 属性
@@ -24,7 +24,7 @@ import { Aside } from '@astrojs/starlight/components';
 | `playing` | boolean | `true` | 是否正在播放 |
 | `flipX` | boolean | `false` | 水平翻转 |
 | `flipY` | boolean | `false` | 垂直翻转 |
-| `color` | Vec4 | `{1, 1, 1, 1}` | 着色 RGBA |
+| `color` | Color | `{r:1, g:1, b:1, a:1}` | 着色 RGBA |
 | `layer` | number | `0` | 渲染顺序 |
 | `skeletonScale` | number | `1.0` | 骨骼缩放因子 |
 | `material` | number | `0` | 材质 ID |
@@ -90,8 +90,8 @@ spine.flipX = false;   // 面朝右（默认）
 ## 颜色着色
 
 ```typescript
-spine.color = { x: 1, y: 0, z: 0, w: 1 };    // 红色
-spine.color = { x: 1, y: 1, z: 1, w: 0.5 };   // 50% 透明
+spine.color = { r: 1, g: 0, b: 0, a: 1 };    // 红色
+spine.color = { r: 1, g: 1, b: 1, a: 0.5 };   // 50% 透明
 ```
 
 ## 示例：角色控制器

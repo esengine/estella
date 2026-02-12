@@ -49,7 +49,7 @@ Display settings for the rendering surface.
 | `pixelsPerUnit` | number | Pixels per world unit |
 | `scaleMode` | number | How the canvas scales |
 | `matchWidthOrHeight` | number | Balance between width/height matching |
-| `backgroundColor` | Vec4 | Clear color RGBA |
+| `backgroundColor` | Color | Clear color RGBA |
 
 ### Velocity
 
@@ -82,7 +82,7 @@ UI text rendering. Works with `UIRect` and `Sprite` to display text. See [UI & T
 | `content` | string | Text content |
 | `fontFamily` | string | Font family |
 | `fontSize` | number | Font size in pixels |
-| `color` | Vec4 | Text color RGBA |
+| `color` | Color | Text color RGBA |
 | `align` | TextAlign | Horizontal alignment |
 | `verticalAlign` | TextVerticalAlign | Vertical alignment |
 
@@ -95,6 +95,58 @@ UI layout rectangle. Defines size, anchor, and pivot for UI elements.
 | `size` | Vec2 | Width and height |
 | `anchor` | Vec2 | Anchor point (0–1) |
 | `pivot` | Vec2 | Pivot point for rotation |
+
+### Physics
+
+Physics components require the `PhysicsPlugin`. See [Physics guide](/microes/guides/physics/) for setup and usage.
+
+#### RigidBody
+
+Physics body attached to an entity. Requires `LocalTransform`.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `bodyType` | number | `2` (Dynamic) | 0=Static, 1=Kinematic, 2=Dynamic |
+| `gravityScale` | number | `1.0` | Gravity multiplier |
+| `linearDamping` | number | `0.0` | Linear velocity damping |
+| `angularDamping` | number | `0.0` | Angular velocity damping |
+| `fixedRotation` | boolean | `false` | Lock rotation |
+| `bullet` | boolean | `false` | Continuous collision detection for fast objects |
+| `enabled` | boolean | `true` | Enable physics body |
+
+#### BoxCollider
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `halfExtents` | Vec2 | `{x: 0.5, y: 0.5}` | Half size in meters |
+| `offset` | Vec2 | `{x: 0, y: 0}` | Local offset |
+| `density` | number | `1.0` | Mass density |
+| `friction` | number | `0.3` | Surface friction |
+| `restitution` | number | `0.0` | Bounciness |
+| `isSensor` | boolean | `false` | Trigger-only (no physical response) |
+
+#### CircleCollider
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `radius` | number | `0.5` | Circle radius in meters |
+| `offset` | Vec2 | `{x: 0, y: 0}` | Local offset |
+| `density` | number | `1.0` | Mass density |
+| `friction` | number | `0.3` | Surface friction |
+| `restitution` | number | `0.0` | Bounciness |
+| `isSensor` | boolean | `false` | Trigger-only (no physical response) |
+
+#### CapsuleCollider
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `radius` | number | `0.25` | Capsule radius |
+| `halfHeight` | number | `0.5` | Half height of the capsule body |
+| `offset` | Vec2 | `{x: 0, y: 0}` | Local offset |
+| `density` | number | `1.0` | Mass density |
+| `friction` | number | `0.3` | Surface friction |
+| `restitution` | number | `0.0` | Bounciness |
+| `isSensor` | boolean | `false` | Trigger-only (no physical response) |
 
 ## Custom Components
 

@@ -77,6 +77,7 @@ export default defineConfig({
             { label: 'Asset Loading', translations: { 'zh-CN': '资源加载' }, slug: 'guides/assets' },
             { label: 'Materials & Shaders', translations: { 'zh-CN': '材质与着色器' }, slug: 'guides/materials' },
             { label: 'Geometry & Meshes', translations: { 'zh-CN': '几何体与网格' }, slug: 'guides/geometry' },
+            { label: 'Physics', translations: { 'zh-CN': '物理' }, slug: 'guides/physics' },
             { label: 'Editor Extensions', translations: { 'zh-CN': '编辑器扩展' }, slug: 'guides/editor-extensions' },
           ],
         },
@@ -84,6 +85,7 @@ export default defineConfig({
           label: 'Changelog',
           translations: { 'zh-CN': '更新日志' },
           items: [
+            { label: 'v0.4.0', slug: 'changelog-v040' },
             { label: 'v0.3.0', slug: 'changelog' },
           ],
         },

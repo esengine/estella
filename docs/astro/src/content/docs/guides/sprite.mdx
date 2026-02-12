@@ -12,7 +12,7 @@ The `Sprite` component is the primary way to display 2D graphics. Add it to an e
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
 | `texture` | number | `INVALID_TEXTURE` | Texture handle. No texture = solid color |
-| `color` | Vec4 | `{1, 1, 1, 1}` | Tint color RGBA (0–1) |
+| `color` | Color | `{r:1, g:1, b:1, a:1}` | Tint color RGBA (0–1) |
 | `size` | Vec2 | `{32, 32}` | Width and height in pixels |
 | `uvOffset` | Vec2 | `{0, 0}` | Texture coordinate offset |
 | `uvScale` | Vec2 | `{1, 1}` | Texture coordinate scale |
@@ -49,8 +49,8 @@ Without a texture (default), the sprite renders as a solid rectangle using its `
 The `color` property tints the sprite. With a texture, the texture color is multiplied by the tint.
 
 ```typescript
-sprite.color = { x: 1, y: 0, z: 0, w: 1 };   // Red tint
-sprite.color = { x: 1, y: 1, z: 1, w: 0.5 };  // 50% transparent
+sprite.color = { r: 1, g: 0, b: 0, a: 1 };   // Red tint
+sprite.color = { r: 1, g: 1, b: 1, a: 0.5 };  // 50% transparent
 ```
 
 ## Flipping
@@ -113,7 +113,7 @@ addSystem(defineSystem(
         cmds.spawn()
             .insert(Sprite, {
                 size: { x: 10, y: 10 },
-                color: { x: 1, y: 1, z: 0, w: 1 }
+                color: { r: 1, g: 1, b: 0, a: 1 }
             })
             .insert(LocalTransform, {
                 position: { x: 0, y: 0, z: 0 }

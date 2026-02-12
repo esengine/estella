@@ -1,0 +1,51 @@
+---
+title: v0.4.0
+description: ESEngine v0.4.0 release notes
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## Physics System
+
+- Added standalone Box2D WASM physics module, loaded as a plugin via `PhysicsPlugin`
+- New components: `RigidBody`, `BoxCollider`, `CircleCollider`, `CapsuleCollider`
+- Three body types: Static, Kinematic, Dynamic
+- Collision and sensor events via `PhysicsEvents` resource (`collisionEnters`, `collisionExits`, `sensorEnters`, `sensorExits`)
+- `Physics` API helper for runtime force/impulse/velocity control
+- Editor collider overlay visualization for debugging
+
+## Spine 4.1 Support
+
+- Added `spine41` standalone WASM module alongside existing `spine38` and `spine42`
+- Select Spine version `3.8`, `4.1`, or `4.2` in **Settings → Project → Spine Version**
+
+## Color Type Refactored
+
+- Color properties now use `{ r, g, b, a }` format instead of `{ x, y, z, w }`
+- Affects `Sprite.color`, `SpineAnimation.color`, `Canvas.backgroundColor`, `Text.color`, and Draw API color parameters
+- Old scene files with `{ x, y, z, w }` color format are auto-migrated on load
+
+## Renderer Improvements
+
+- Added triangle drawing primitives
+- Texture Y-flip moved from JS to GPU via `GL_UNPACK_FLIP_Y_WEBGL`
+- Added premultiplied alpha (PMA) blend modes
+
+## Performance
+
+- Switched from embind to `extern "C"` for C++/JS interop
+- Removed RTTI and C++ exceptions from WASM builds
+- Dead code elimination for smaller binary size
+
+## Editor
+
+- Script compilation errors now shown via toast notifications and Output panel
+- Continuous Canvas 2D rendering mode for smoother editor viewport updates
+
+## Bug Fixes
+
+- Fixed Spine sequence texture flickering
+- Fixed entity spawn flush timing
+- Fixed collider overlay PPU scaling
+- Fixed scene color property migration
+- Fixed script error reporting in editor

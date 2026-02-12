@@ -49,7 +49,7 @@ import { Aside } from '@astrojs/starlight/components';
 | `pixelsPerUnit` | number | 每世界单位像素数 |
 | `scaleMode` | number | 画布缩放模式 |
 | `matchWidthOrHeight` | number | 宽高匹配平衡 |
-| `backgroundColor` | Vec4 | 清屏颜色 RGBA |
+| `backgroundColor` | Color | 清屏颜色 RGBA |
 
 ### Velocity
 
@@ -82,7 +82,7 @@ UI 文本渲染。配合 `UIRect` 和 `Sprite` 组件显示文本。详见 [UI �
 | `content` | string | 文本内容 |
 | `fontFamily` | string | 字体名称 |
 | `fontSize` | number | 字号（像素） |
-| `color` | Vec4 | 文本颜色 RGBA |
+| `color` | Color | 文本颜色 RGBA |
 | `align` | TextAlign | 水平对齐方式 |
 | `verticalAlign` | TextVerticalAlign | 垂直对齐方式 |
 
@@ -95,6 +95,58 @@ UI 布局矩形。定义 UI 元素的尺寸、锚点和旋转中心。
 | `size` | Vec2 | 宽高 |
 | `anchor` | Vec2 | 锚点（0–1） |
 | `pivot` | Vec2 | 旋转中心点 |
+
+### 物理
+
+物理组件需要 `PhysicsPlugin`。详见[物理指南](/microes/zh/guides/physics/)。
+
+#### RigidBody
+
+附加到实体的物理刚体。需要 `LocalTransform`。
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `bodyType` | number | `2`（Dynamic） | 0=静态，1=运动学，2=动态 |
+| `gravityScale` | number | `1.0` | 重力倍率 |
+| `linearDamping` | number | `0.0` | 线速度阻尼 |
+| `angularDamping` | number | `0.0` | 角速度阻尼 |
+| `fixedRotation` | boolean | `false` | 锁定旋转 |
+| `bullet` | boolean | `false` | 高速物体连续碰撞检测 |
+| `enabled` | boolean | `true` | 启用物理刚体 |
+
+#### BoxCollider
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `halfExtents` | Vec2 | `{x: 0.5, y: 0.5}` | 半尺寸（米） |
+| `offset` | Vec2 | `{x: 0, y: 0}` | 局部偏移 |
+| `density` | number | `1.0` | 质量密度 |
+| `friction` | number | `0.3` | 表面摩擦力 |
+| `restitution` | number | `0.0` | 弹性（弹力） |
+| `isSensor` | boolean | `false` | 仅触发（无物理响应） |
+
+#### CircleCollider
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `radius` | number | `0.5` | 圆形半径（米） |
+| `offset` | Vec2 | `{x: 0, y: 0}` | 局部偏移 |
+| `density` | number | `1.0` | 质量密度 |
+| `friction` | number | `0.3` | 表面摩擦力 |
+| `restitution` | number | `0.0` | 弹性（弹力） |
+| `isSensor` | boolean | `false` | 仅触发（无物理响应） |
+
+#### CapsuleCollider
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `radius` | number | `0.25` | 胶囊半径 |
+| `halfHeight` | number | `0.5` | 胶囊体半高 |
+| `offset` | Vec2 | `{x: 0, y: 0}` | 局部偏移 |
+| `density` | number | `1.0` | 质量密度 |
+| `friction` | number | `0.3` | 表面摩擦力 |
+| `restitution` | number | `0.0` | 弹性（弹力） |
+| `isSensor` | boolean | `false` | 仅触发（无物理响应） |
 
 ## 自定义组件
 

@@ -47,7 +47,7 @@ const mat = Material.create({
     shader,
     uniforms: {
         u_time: 0,
-        u_tint: { x: 1, y: 0, z: 0, w: 1 },
+        u_tint: { r: 1, g: 0, b: 0, a: 1 },
     },
     blendMode: BlendMode.Additive,
 });
@@ -70,7 +70,7 @@ sprite.material = mat;
 
 ```typescript
 Material.setUniform(mat, 'u_time', elapsed);
-Material.setUniform(mat, 'u_tint', { x: 1, y: 0.5, z: 0, w: 1 });
+Material.setUniform(mat, 'u_tint', { r: 1, g: 0.5, b: 0, a: 1 });
 
 const time = Material.getUniform(mat, 'u_time');
 ```
@@ -82,6 +82,7 @@ const time = Material.getUniform(mat, 'u_time');
 | number | `1.5` |
 | Vec2 | `{ x: 0.5, y: 1.0 }` |
 | Vec3 | `{ x: 1, y: 0, z: 0 }` |
+| Color | `{ r: 1, g: 1, b: 1, a: 1 }` |
 | Vec4 | `{ x: 1, y: 1, z: 1, w: 1 }` |
 | number[] | `[1, 2, 3, 4]` |
 | TextureRef | `Material.tex(textureId, slot?)` |
@@ -116,7 +117,7 @@ Create an instance that shares the same shader but has independent uniforms:
 
 ```typescript
 const instance = Material.createInstance(sourceMat);
-Material.setUniform(instance, 'u_tint', { x: 0, y: 1, z: 0, w: 1 });
+Material.setUniform(instance, 'u_tint', { r: 0, g: 1, b: 0, a: 1 });
 ```
 
 ## Shader File Format (.esshader)

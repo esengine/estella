@@ -12,7 +12,7 @@ import { Aside } from '@astrojs/starlight/components';
 | 属性 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
 | `texture` | number | `INVALID_TEXTURE` | 纹理句柄，无纹理 = 纯色 |
-| `color` | Vec4 | `{1, 1, 1, 1}` | 着色 RGBA（0–1） |
+| `color` | Color | `{r:1, g:1, b:1, a:1}` | 着色 RGBA（0–1） |
 | `size` | Vec2 | `{32, 32}` | 宽高（像素） |
 | `uvOffset` | Vec2 | `{0, 0}` | 纹理坐标偏移 |
 | `uvScale` | Vec2 | `{1, 1}` | 纹理坐标缩放 |
@@ -49,8 +49,8 @@ addSystem(defineSystem(
 `color` 属性对精灵着色。有纹理时，纹理颜色会与着色相乘。
 
 ```typescript
-sprite.color = { x: 1, y: 0, z: 0, w: 1 };   // 红色
-sprite.color = { x: 1, y: 1, z: 1, w: 0.5 };  // 50% 透明
+sprite.color = { r: 1, g: 0, b: 0, a: 1 };   // 红色
+sprite.color = { r: 1, g: 1, b: 1, a: 0.5 };  // 50% 透明
 ```
 
 ## 翻转
@@ -113,7 +113,7 @@ addSystem(defineSystem(
         cmds.spawn()
             .insert(Sprite, {
                 size: { x: 10, y: 10 },
-                color: { x: 1, y: 1, z: 0, w: 1 }
+                color: { r: 1, g: 1, b: 0, a: 1 }
             })
             .insert(LocalTransform, {
                 position: { x: 0, y: 0, z: 0 }

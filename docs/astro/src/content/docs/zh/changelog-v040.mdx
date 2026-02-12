@@ -1,0 +1,51 @@
+---
+title: v0.4.0
+description: ESEngine v0.4.0 更新日志
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## 物理系统
+
+- 新增独立 Box2D WASM 物理模块，通过 `PhysicsPlugin` 以插件形式加载
+- 新增组件：`RigidBody`、`BoxCollider`、`CircleCollider`、`CapsuleCollider`
+- 三种刚体类型：Static（静态）、Kinematic（运动学）、Dynamic（动态）
+- 通过 `PhysicsEvents` 资源获取碰撞和传感器事件（`collisionEnters`、`collisionExits`、`sensorEnters`、`sensorExits`）
+- `Physics` API 辅助类，用于运行时力/冲量/速度控制
+- 编辑器碰撞体叠加可视化用于调试
+
+## Spine 4.1 支持
+
+- 新增 `spine41` 独立 WASM 模块，与现有的 `spine38` 和 `spine42` 并存
+- 在 **Settings → Project → Spine Version** 中可选择 Spine 版本 `3.8`、`4.1` 或 `4.2`
+
+## Color 类型重构
+
+- 颜色属性现在使用 `{ r, g, b, a }` 格式替代 `{ x, y, z, w }`
+- 影响 `Sprite.color`、`SpineAnimation.color`、`Canvas.backgroundColor`、`Text.color` 以及 Draw API 颜色参数
+- 使用 `{ x, y, z, w }` 颜色格式的旧场景文件在加载时自动迁移
+
+## 渲染改进
+
+- 新增三角形绘制图元
+- 纹理 Y 翻转从 JS 移至 GPU，通过 `GL_UNPACK_FLIP_Y_WEBGL` 实现
+- 新增预乘 alpha（PMA）混合模式
+
+## 性能优化
+
+- C++/JS 互操作从 embind 切换到 `extern "C"`
+- 从 WASM 构建中移除 RTTI 和 C++ 异常
+- 死代码消除，减小二进制体积
+
+## 编辑器
+
+- 脚本编译错误现在通过 toast 通知和 Output 面板显示
+- 持续 Canvas 2D 渲染模式，编辑器视口更新更流畅
+
+## Bug 修复
+
+- 修复 Spine 序列纹理闪烁
+- 修复实体生成 flush 时序问题
+- 修复碰撞体叠加 PPU 缩放
+- 修复场景颜色属性迁移
+- 修复编辑器脚本错误上报

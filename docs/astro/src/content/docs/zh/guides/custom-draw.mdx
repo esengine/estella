@@ -15,7 +15,7 @@ Draw API 提供即时模式 2D 绘图图元。所有绘制命令每帧清空，�
 import { registerDrawCallback, Draw } from 'esengine';
 
 registerDrawCallback('my-debug', (elapsed) => {
-    Draw.line({ x: 0, y: 0 }, { x: 100, y: 100 }, { x: 1, y: 0, z: 0, w: 1 }, 2);
+    Draw.line({ x: 0, y: 0 }, { x: 100, y: 100 }, { r: 1, g: 0, b: 0, a: 1 }, 2);
 });
 ```
 
@@ -40,7 +40,7 @@ clearDrawCallbacks();
 Draw.line(
     { x: 0, y: 0 },      // 起点
     { x: 200, y: 150 },   // 终点
-    { x: 1, y: 1, z: 0, w: 1 },  // 黄色
+    { r: 1, g: 1, b: 0, a: 1 },  // 黄色
     2                      // 线宽
 );
 ```
@@ -51,14 +51,14 @@ Draw.line(
 Draw.rect(
     { x: 100, y: 100 },   // 中心位置
     { x: 80, y: 60 },     // 尺寸
-    { x: 0, y: 0.5, z: 1, w: 0.5 },  // 半透明蓝色
+    { r: 0, g: 0.5, b: 1, a: 0.5 },  // 半透明蓝色
     true                   // 填充（默认）
 );
 
 Draw.rectOutline(
     { x: 100, y: 100 },
     { x: 80, y: 60 },
-    { x: 1, y: 0, z: 0, w: 1 },  // 红色
+    { r: 1, g: 0, b: 0, a: 1 },  // 红色
     2                      // 线宽
 );
 ```
@@ -69,7 +69,7 @@ Draw.rectOutline(
 Draw.circle(
     { x: 200, y: 200 },   // 中心
     50,                    // 半径
-    { x: 0, y: 1, z: 0, w: 1 },  // 绿色
+    { r: 0, g: 1, b: 0, a: 1 },  // 绿色
     true,                  // 填充
     32                     // 段数
 );
@@ -77,7 +77,7 @@ Draw.circle(
 Draw.circleOutline(
     { x: 200, y: 200 },
     50,
-    { x: 1, y: 1, z: 1, w: 1 },  // 白色
+    { r: 1, g: 1, b: 1, a: 1 },  // 白色
     1,                     // 线宽
     32                     // 段数
 );
@@ -90,7 +90,7 @@ Draw.texture(
     { x: 300, y: 200 },   // 位置
     { x: 64, y: 64 },     // 尺寸
     textureHandle,
-    { x: 1, y: 1, z: 1, w: 1 }   // 着色（默认白色）
+    { r: 1, g: 1, b: 1, a: 1 }   // 着色（默认白色）
 );
 
 Draw.textureRotated(
@@ -98,7 +98,7 @@ Draw.textureRotated(
     { x: 64, y: 64 },
     Math.PI / 4,           // 旋转弧度
     textureHandle,
-    { x: 1, y: 1, z: 1, w: 1 }
+    { r: 1, g: 1, b: 1, a: 1 }
 );
 ```
 
@@ -186,7 +186,7 @@ addSystem(defineSystem(
 ));
 
 registerDrawCallback('debug-colliders', () => {
-    const green = { x: 0, y: 1, z: 0, w: 0.5 };
+    const green = { r: 0, g: 1, b: 0, a: 0.5 };
     for (const c of colliders) {
         Draw.rectOutline(
             { x: c.x, y: c.y },
