@@ -38,6 +38,10 @@ export class World {
         this.cppRegistry_ = cppRegistry;
     }
 
+    disconnectCpp(): void {
+        this.cppRegistry_ = null;
+    }
+
     get hasCpp(): boolean {
         return this.cppRegistry_ !== null;
     }

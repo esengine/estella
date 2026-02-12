@@ -415,6 +415,7 @@ export class EditorSceneManager {
         this.clear();
         this.assetServer_.releaseAll();
         const registry = this.registry;
+        this.world_.disconnectCpp();
         registry.delete();
     }
 

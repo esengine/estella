@@ -473,6 +473,7 @@ declare class World {
     private entities_;
     private tsStorage_;
     connectCpp(cppRegistry: CppRegistry): void;
+    disconnectCpp(): void;
     get hasCpp(): boolean;
     spawn(): Entity;
     despawn(entity: Entity): void;
