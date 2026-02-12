@@ -157,6 +157,7 @@ public:
 
 private:
     PostProcessPass* findPass(const std::string& name);
+    void ensureFBOs();
     void renderPass(const PostProcessPass& pass, u32 inputTexture);
     void blitToScreen(u32 texture);
 
@@ -172,6 +173,7 @@ private:
     u32 width_ = 0;
     u32 height_ = 0;
     bool initialized_ = false;
+    bool fbosCreated_ = false;
     bool inFrame_ = false;
     bool bypass_ = false;
     u32 currentFBO_ = 0;

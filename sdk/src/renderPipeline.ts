@@ -29,6 +29,8 @@ export type SpineRendererFn = (registry: { _cpp: CppRegistry }, elapsed: number)
 
 export class RenderPipeline {
     private spineRenderer_: SpineRendererFn | null = null;
+    private lastWidth_ = 0;
+    private lastHeight_ = 0;
 
     setSpineRenderer(fn: SpineRendererFn | null): void {
         this.spineRenderer_ = fn;
@@ -37,10 +39,13 @@ export class RenderPipeline {
     render(params: RenderParams): void {
         const { registry, viewProjection, width, height, elapsed } = params;
 
-        Renderer.resize(width, height);
-
-        if (PostProcess.isInitialized() && PostProcess.getPassCount() > 0 && !PostProcess.isBypassed()) {
-            PostProcess.resize(width, height);
+        if (width !== this.lastWidth_ || height !== this.lastHeight_) {
+            Renderer.resize(width, height);
+            if (PostProcess.isInitialized() && PostProcess.getPassCount() > 0) {
+                PostProcess.resize(width, height);
+            }
+            this.lastWidth_ = width;
+            this.lastHeight_ = height;
         }
 
         Renderer.setViewport(0, 0, width, height);

@@ -338,7 +338,7 @@ let materialCallbackRegistered = false;
 let uniformBuffer: number = 0;
 const UNIFORM_BUFFER_SIZE = 4096;
 const encodedNameCache = new Map<string, Uint8Array>();
-const encoder = new TextEncoder();
+let encoder: TextEncoder | null = null;
 
 function ensureUniformBuffer(): number {
     if (uniformBuffer === 0 && module) {
@@ -362,6 +362,7 @@ function serializeUniforms(uniforms: Map<string, UniformValue>): { ptr: number; 
 
         let nameBytes = encodedNameCache.get(name);
         if (!nameBytes) {
+            if (!encoder) encoder = new TextEncoder();
             nameBytes = encoder.encode(name);
             encodedNameCache.set(name, nameBytes);
         }

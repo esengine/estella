@@ -222,9 +222,24 @@ export class World {
             return this.getAllEntities();
         }
 
-        const entities: Entity[] = [];
+        let smallestPool: Map<Entity, unknown> | null = null;
+        let smallestSize = Infinity;
 
-        for (const entity of this.entities_) {
+        for (const comp of components) {
+            if (!isBuiltinComponent(comp)) {
+                const storage = this.tsStorage_.get(comp._id);
+                const size = storage ? storage.size : 0;
+                if (size < smallestSize) {
+                    smallestSize = size;
+                    smallestPool = storage ?? null;
+                }
+            }
+        }
+
+        const entities: Entity[] = [];
+        const candidates = smallestPool ? smallestPool.keys() : this.entities_;
+
+        for (const entity of candidates) {
             let hasAll = true;
             for (const comp of components) {
                 if (!this.has(entity, comp)) {

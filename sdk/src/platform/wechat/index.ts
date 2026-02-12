@@ -99,11 +99,24 @@ export function initWeChatPlatform(): void {
     if (initialized) return;
     initialized = true;
 
+    polyfillPerformance();
     polyfillFetch();
     polyfillWebAssembly();
     polyfillTextEncoder();
 
     console.log('[ESEngine] WeChat platform initialized');
+}
+
+function polyfillPerformance(): void {
+    const g = globalThis as any;
+    if (typeof g.performance === 'undefined') {
+        const start = Date.now();
+        g.performance = {
+            now(): number {
+                return Date.now() - start;
+            }
+        };
+    }
 }
 
 function polyfillTextEncoder(): void {

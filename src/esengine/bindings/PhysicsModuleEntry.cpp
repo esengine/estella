@@ -14,6 +14,7 @@
 
 #include <unordered_map>
 #include <vector>
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
 
@@ -28,6 +29,7 @@ static float g_accumulator = 0.0f;
 
 static std::unordered_map<uint32_t, b2BodyId> g_entityToBody;
 static std::unordered_map<uint32_t, b2ShapeId> g_entityToShape;
+static std::vector<uint32_t> g_dynamicBodyEntities;
 
 // [entityId_bits, x, y, angle, ...]
 static std::vector<float> g_dynamicTransformBuffer;
@@ -91,6 +93,7 @@ void physics_shutdown() {
 
     g_entityToBody.clear();
     g_entityToShape.clear();
+    g_dynamicBodyEntities.clear();
     g_dynamicTransformBuffer.clear();
     g_collisionEnterBuffer.clear();
     g_collisionExitBuffer.clear();
@@ -130,6 +133,9 @@ void physics_createBody(uint32_t entityId, int bodyType, float x, float y, float
     b2BodyId bodyId = b2CreateBody(g_worldId, &bodyDef);
     b2Body_SetUserData(bodyId, reinterpret_cast<void*>(static_cast<uintptr_t>(entityId)));
     g_entityToBody[entityId] = bodyId;
+    if (bodyDef.type == b2_dynamicBody) {
+        g_dynamicBodyEntities.push_back(entityId);
+    }
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -142,6 +148,11 @@ void physics_destroyBody(uint32_t entityId) {
     }
     g_entityToBody.erase(it);
     g_entityToShape.erase(entityId);
+    auto dit = std::find(g_dynamicBodyEntities.begin(), g_dynamicBodyEntities.end(), entityId);
+    if (dit != g_dynamicBodyEntities.end()) {
+        *dit = g_dynamicBodyEntities.back();
+        g_dynamicBodyEntities.pop_back();
+    }
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -245,26 +256,19 @@ void physics_setBodyTransform(uint32_t entityId, float x, float y, float angle) 
 
 EMSCRIPTEN_KEEPALIVE
 int physics_getDynamicBodyCount() {
-    int count = 0;
-    for (auto& [entityId, bodyId] : g_entityToBody) {
-        if (!b2Body_IsValid(bodyId)) continue;
-        if (b2Body_GetType(bodyId) == b2_dynamicBody) {
-            ++count;
-        }
-    }
-    return count;
+    return static_cast<int>(g_dynamicBodyEntities.size());
 }
 
 EMSCRIPTEN_KEEPALIVE
 uintptr_t physics_getDynamicBodyTransforms() {
     g_dynamicTransformBuffer.clear();
 
-    for (auto& [entityId, bodyId] : g_entityToBody) {
-        if (!b2Body_IsValid(bodyId)) continue;
-        if (b2Body_GetType(bodyId) != b2_dynamicBody) continue;
+    for (uint32_t entityId : g_dynamicBodyEntities) {
+        auto it = g_entityToBody.find(entityId);
+        if (it == g_entityToBody.end() || !b2Body_IsValid(it->second)) continue;
 
-        b2Vec2 pos = b2Body_GetPosition(bodyId);
-        float angle = b2Rot_GetAngle(b2Body_GetRotation(bodyId));
+        b2Vec2 pos = b2Body_GetPosition(it->second);
+        float angle = b2Rot_GetAngle(b2Body_GetRotation(it->second));
 
         pushEntityBits(g_dynamicTransformBuffer, entityId);
         g_dynamicTransformBuffer.push_back(pos.x);
@@ -512,7 +516,17 @@ void physics_updateBodyProperties(uint32_t entityId, int bodyType,
         case 1: type = b2_kinematicBody; break;
         default: type = b2_dynamicBody; break;
     }
+    b2BodyType oldType = b2Body_GetType(it->second);
     b2Body_SetType(it->second, type);
+    if (oldType != type) {
+        auto dit = std::find(g_dynamicBodyEntities.begin(), g_dynamicBodyEntities.end(), entityId);
+        if (type == b2_dynamicBody && dit == g_dynamicBodyEntities.end()) {
+            g_dynamicBodyEntities.push_back(entityId);
+        } else if (type != b2_dynamicBody && dit != g_dynamicBodyEntities.end()) {
+            *dit = g_dynamicBodyEntities.back();
+            g_dynamicBodyEntities.pop_back();
+        }
+    }
     b2Body_SetGravityScale(it->second, gravityScale);
     b2Body_SetLinearDamping(it->second, linearDamping);
     b2Body_SetAngularDamping(it->second, angularDamping);

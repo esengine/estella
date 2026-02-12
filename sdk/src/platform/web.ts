@@ -17,6 +17,7 @@ import type {
 
 class WebPlatformAdapter implements PlatformAdapter {
     readonly name = 'web' as const;
+    private inputCleanup_: (() => void) | null = null;
 
     async fetch(url: string, options?: PlatformRequestOptions): Promise<PlatformResponse> {
         const response = await globalThis.fetch(url, {
@@ -106,45 +107,76 @@ class WebPlatformAdapter implements PlatformAdapter {
     }
 
     bindInputEvents(callbacks: InputEventCallbacks, target?: unknown): void {
+        if (this.inputCleanup_) {
+            this.inputCleanup_();
+            this.inputCleanup_ = null;
+        }
+
         const el = (target as HTMLElement) ?? document.querySelector('canvas') ?? document.body;
 
-        document.addEventListener('keydown', (e) => callbacks.onKeyDown(e.code));
-        document.addEventListener('keyup', (e) => callbacks.onKeyUp(e.code));
-
-        el.addEventListener('mousemove', (e) => {
+        const onKeyDown = (e: Event) => callbacks.onKeyDown((e as KeyboardEvent).code);
+        const onKeyUp = (e: Event) => callbacks.onKeyUp((e as KeyboardEvent).code);
+        const onMouseMove = (e: Event) => {
             const me = e as MouseEvent;
             callbacks.onPointerMove(me.offsetX, me.offsetY);
-        });
-        el.addEventListener('mousedown', (e) => {
+        };
+        const onMouseDown = (e: Event) => {
             const me = e as MouseEvent;
             callbacks.onPointerDown(me.button, me.offsetX, me.offsetY);
-        });
-        el.addEventListener('mouseup', (e) => {
+        };
+        const onMouseUp = (e: Event) => {
             callbacks.onPointerUp((e as MouseEvent).button);
-        });
-
-        el.addEventListener('touchstart', (e) => {
+        };
+        const onTouchStart = (e: Event) => {
             const touch = (e as TouchEvent).touches[0];
             if (touch) {
                 const rect = (el as HTMLElement).getBoundingClientRect();
                 callbacks.onPointerDown(0, touch.clientX - rect.left, touch.clientY - rect.top);
             }
-        });
-        el.addEventListener('touchmove', (e) => {
+        };
+        const onTouchMove = (e: Event) => {
             const touch = (e as TouchEvent).touches[0];
             if (touch) {
                 const rect = (el as HTMLElement).getBoundingClientRect();
                 callbacks.onPointerMove(touch.clientX - rect.left, touch.clientY - rect.top);
             }
-        });
-        el.addEventListener('touchend', () => {
+        };
+        const onTouchEnd = () => {
             callbacks.onPointerUp(0);
-        });
-
-        el.addEventListener('wheel', (e) => {
+        };
+        const onWheel = (e: Event) => {
             const we = e as WheelEvent;
             callbacks.onWheel(we.deltaX, we.deltaY);
-        });
+        };
+
+        document.addEventListener('keydown', onKeyDown);
+        document.addEventListener('keyup', onKeyUp);
+        el.addEventListener('mousemove', onMouseMove);
+        el.addEventListener('mousedown', onMouseDown);
+        el.addEventListener('mouseup', onMouseUp);
+        el.addEventListener('touchstart', onTouchStart);
+        el.addEventListener('touchmove', onTouchMove);
+        el.addEventListener('touchend', onTouchEnd);
+        el.addEventListener('wheel', onWheel);
+
+        this.inputCleanup_ = () => {
+            document.removeEventListener('keydown', onKeyDown);
+            document.removeEventListener('keyup', onKeyUp);
+            el.removeEventListener('mousemove', onMouseMove);
+            el.removeEventListener('mousedown', onMouseDown);
+            el.removeEventListener('mouseup', onMouseUp);
+            el.removeEventListener('touchstart', onTouchStart);
+            el.removeEventListener('touchmove', onTouchMove);
+            el.removeEventListener('touchend', onTouchEnd);
+            el.removeEventListener('wheel', onWheel);
+        };
+    }
+
+    unbindInputEvents(): void {
+        if (this.inputCleanup_) {
+            this.inputCleanup_();
+            this.inputCleanup_ = null;
+        }
     }
 }
 

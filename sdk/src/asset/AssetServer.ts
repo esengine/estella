@@ -155,6 +155,21 @@ export class AssetServer {
         this.jsonCache_.clear();
         this.textCache_.clear();
         this.binaryCache_.clear();
+        this.loadedSpines_.clear();
+        this.cleanupVirtualFS();
+    }
+
+    private cleanupVirtualFS(): void {
+        const fs = this.module_.FS;
+        if (!fs) return;
+        for (const path of this.virtualFSPaths_) {
+            try {
+                fs.unlink(path);
+            } catch {
+                // File may already be removed
+            }
+        }
+        this.virtualFSPaths_.clear();
     }
 
     setTextureMetadata(handle: TextureHandle, border: SliceBorder): void {

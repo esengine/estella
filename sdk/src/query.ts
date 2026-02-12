@@ -95,72 +95,73 @@ interface PendingMutation {
 export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<QueryResult<C>> {
     private readonly world_: World;
     private readonly descriptor_: QueryDescriptor<C>;
-    private pendingMutations_: PendingMutation[] = [];
+    private readonly actualComponents_: AnyComponentDef[];
+    private readonly allRequired_: AnyComponentDef[];
 
     constructor(world: World, descriptor: QueryDescriptor<C>) {
         this.world_ = world;
         this.descriptor_ = descriptor;
-    }
-
-    private getActualComponent(arg: QueryArg): AnyComponentDef {
-        return isMutWrapper(arg) ? arg._component : arg;
-    }
-
-    private commitPending(): void {
-        for (const mutation of this.pendingMutations_) {
-            this.world_.insert(mutation.entity, mutation.component, mutation.data);
-        }
-        this.pendingMutations_ = [];
+        this.actualComponents_ = descriptor._components.map(c =>
+            isMutWrapper(c) ? c._component : c
+        );
+        this.allRequired_ = this.actualComponents_.concat(descriptor._with);
     }
 
     *[Symbol.iterator](): Iterator<QueryResult<C>> {
-        const { _components, _mutIndices, _with, _without } = this.descriptor_;
-
-        const actualComponents = _components.map(c => this.getActualComponent(c));
-        const allRequired = [...actualComponents, ..._with];
-        const entities = this.world_.getEntitiesWithComponents(allRequired);
+        const { _mutIndices, _without } = this.descriptor_;
+        const actualComponents = this.actualComponents_;
+        const entities = this.world_.getEntitiesWithComponents(this.allRequired_);
+        const compCount = actualComponents.length;
+        const hasMut = _mutIndices.length > 0;
+        const hasWithout = _without.length > 0;
 
         let prevEntity: Entity | null = null;
         let prevMutData: Array<{ component: AnyComponentDef; data: unknown }> = [];
 
         try {
             for (const entity of entities) {
-                // Commit previous entity's mutations before moving to next
-                if (prevEntity !== null) {
-                    for (const mut of prevMutData) {
+                if (prevEntity !== null && hasMut) {
+                    for (let i = 0; i < prevMutData.length; i++) {
+                        const mut = prevMutData[i];
                         this.world_.insert(prevEntity, mut.component, mut.data);
                     }
+                    prevMutData.length = 0;
                 }
-                prevMutData = [];
 
-                let excluded = false;
-                for (const comp of _without) {
-                    if (this.world_.has(entity, comp)) {
-                        excluded = true;
-                        break;
+                if (hasWithout) {
+                    let excluded = false;
+                    for (let i = 0; i < _without.length; i++) {
+                        if (this.world_.has(entity, _without[i])) {
+                            excluded = true;
+                            break;
+                        }
                     }
+                    if (excluded) continue;
                 }
-                if (excluded) continue;
 
-                const components = actualComponents.map(comp =>
-                    this.world_.get(entity, comp)
-                ) as ComponentsData<C>;
-
-                // Track mutable components for write-back
-                for (const idx of _mutIndices) {
-                    prevMutData.push({
-                        component: actualComponents[idx],
-                        data: components[idx]
-                    });
+                const result = new Array(compCount + 1);
+                result[0] = entity;
+                for (let i = 0; i < compCount; i++) {
+                    result[i + 1] = this.world_.get(entity, actualComponents[i]);
                 }
-                prevEntity = entity;
 
-                yield [entity, ...components] as QueryResult<C>;
+                if (hasMut) {
+                    for (let i = 0; i < _mutIndices.length; i++) {
+                        const idx = _mutIndices[i];
+                        prevMutData.push({
+                            component: actualComponents[idx],
+                            data: result[idx + 1]
+                        });
+                    }
+                    prevEntity = entity;
+                }
+
+                yield result as QueryResult<C>;
             }
         } finally {
-            // Commit last entity's mutations
-            if (prevEntity !== null) {
-                for (const mut of prevMutData) {
+            if (prevEntity !== null && hasMut) {
+                for (let i = 0; i < prevMutData.length; i++) {
+                    const mut = prevMutData[i];
                     this.world_.insert(prevEntity, mut.component, mut.data);
                 }
             }

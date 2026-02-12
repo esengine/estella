@@ -156,10 +156,11 @@ inline void setParent(Registry& registry, Entity child, Entity newParent) {
         Entity oldParent = registry.get<Parent>(child).entity;
         if (registry.valid(oldParent) && registry.has<Children>(oldParent)) {
             auto& oldChildren = registry.get<Children>(oldParent);
-            auto it = std::find(oldChildren.entities.begin(),
-                               oldChildren.entities.end(), child);
-            if (it != oldChildren.entities.end()) {
-                oldChildren.entities.erase(it);
+            auto& vec = oldChildren.entities;
+            auto it = std::find(vec.begin(), vec.end(), child);
+            if (it != vec.end()) {
+                *it = vec.back();
+                vec.pop_back();
             }
         }
 
@@ -256,10 +257,11 @@ inline void destroyWithChildren(Registry& registry, Entity entity) {
         Entity parent = registry.get<Parent>(entity).entity;
         if (registry.valid(parent) && registry.has<Children>(parent)) {
             auto& parentChildren = registry.get<Children>(parent);
-            auto it = std::find(parentChildren.entities.begin(),
-                               parentChildren.entities.end(), entity);
-            if (it != parentChildren.entities.end()) {
-                parentChildren.entities.erase(it);
+            auto& vec = parentChildren.entities;
+            auto it = std::find(vec.begin(), vec.end(), entity);
+            if (it != vec.end()) {
+                *it = vec.back();
+                vec.pop_back();
             }
         }
     }

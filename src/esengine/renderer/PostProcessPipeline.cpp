@@ -72,19 +72,6 @@ void PostProcessPipeline::init(u32 width, u32 height) {
     width_ = width;
     height_ = height;
 
-    FramebufferSpec spec;
-    spec.width = width;
-    spec.height = height;
-    spec.depthStencil = false;
-
-    fboA_ = Framebuffer::create(spec);
-    fboB_ = Framebuffer::create(spec);
-
-    if (!fboA_ || !fboB_) {
-        ES_LOG_ERROR("PostProcessPipeline: Failed to create framebuffers");
-        return;
-    }
-
     f32 quadVertices[] = {
         // position     texCoord
         -1.0f, -1.0f,   0.0f, 0.0f,
@@ -119,6 +106,25 @@ void PostProcessPipeline::init(u32 width, u32 height) {
     ES_LOG_INFO("PostProcessPipeline initialized ({}x{})", width, height);
 }
 
+void PostProcessPipeline::ensureFBOs() {
+    if (fbosCreated_) return;
+
+    FramebufferSpec spec;
+    spec.width = width_;
+    spec.height = height_;
+    spec.depthStencil = false;
+
+    fboA_ = Framebuffer::create(spec);
+    fboB_ = Framebuffer::create(spec);
+
+    if (!fboA_ || !fboB_) {
+        ES_LOG_ERROR("PostProcessPipeline: Failed to create framebuffers");
+        return;
+    }
+
+    fbosCreated_ = true;
+}
+
 void PostProcessPipeline::shutdown() {
     if (!initialized_) return;
 
@@ -126,6 +132,7 @@ void PostProcessPipeline::shutdown() {
     screenQuadVAO_.reset();
     fboA_.reset();
     fboB_.reset();
+    fbosCreated_ = false;
 
     if (blitShader_.isValid()) {
         resourceManager_.releaseShader(blitShader_);
@@ -141,8 +148,10 @@ void PostProcessPipeline::resize(u32 width, u32 height) {
     width_ = width;
     height_ = height;
 
-    if (fboA_) fboA_->resize(width, height);
-    if (fboB_) fboB_->resize(width, height);
+    if (fbosCreated_) {
+        if (fboA_) fboA_->resize(width, height);
+        if (fboB_) fboB_->resize(width, height);
+    }
 }
 
 u32 PostProcessPipeline::addPass(const std::string& name, resource::ShaderHandle shader) {
@@ -219,6 +228,9 @@ PostProcessPass* PostProcessPipeline::findPass(const std::string& name) {
 
 void PostProcessPipeline::begin() {
     if (!initialized_ || inFrame_ || bypass_) return;
+
+    ensureFBOs();
+    if (!fbosCreated_) return;
 
     fboA_->bind();
     RenderCommand::setViewport(0, 0, width_, height_);

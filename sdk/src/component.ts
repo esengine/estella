@@ -34,7 +34,7 @@ function createComponentDef<T extends object>(
         _default: defaults,
         _builtin: false as const,
         create(data?: Partial<T>): T {
-            return { ...defaults, ...data };
+            return data ? { ...defaults, ...data } : { ...defaults };
         }
     };
 }
