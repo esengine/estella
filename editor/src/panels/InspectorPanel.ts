@@ -2364,7 +2364,27 @@ export class InspectorPanel {
         const listContainer = document.createElement('div');
         listContainer.className = 'es-bmfont-glyph-list';
 
+        const blobUrls: string[] = [];
+
+        const loadGlyphThumb = async (imgPath: string, dir: string, thumb: HTMLImageElement) => {
+            const fs = getNativeFS();
+            if (!fs) return;
+            const fullPath = `${dir}/${imgPath}`;
+            try {
+                const data = await fs.readBinaryFile(fullPath);
+                if (!data) return;
+                const ext = getFileExtension(imgPath);
+                const blob = new Blob([new Uint8Array(data).buffer], { type: getMimeType(ext) });
+                const url = URL.createObjectURL(blob);
+                blobUrls.push(url);
+                thumb.src = url;
+                thumb.style.display = 'block';
+            } catch {}
+        };
+
         const rebuildList = () => {
+            for (const url of blobUrls) URL.revokeObjectURL(url);
+            blobUrls.length = 0;
             listContainer.innerHTML = '';
             const currentGlyphs = (fontData.glyphs ?? {}) as Record<string, string>;
 
@@ -2398,6 +2418,15 @@ export class InspectorPanel {
                 removeBtn.title = 'Remove';
                 removeBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
 
+                const thumb = document.createElement('img');
+                thumb.className = 'es-bmfont-glyph-thumb';
+                thumb.style.cssText = 'width:24px;height:24px;object-fit:contain;border-radius:2px;background:#222;flex-shrink:0';
+                thumb.style.display = 'none';
+
+                if (imgPath) {
+                    loadGlyphThumb(imgPath, fontDir, thumb);
+                }
+
                 charInput.addEventListener('change', async () => {
                     const newChar = charInput.value;
                     if (newChar && newChar !== char) {
@@ -2406,6 +2435,30 @@ export class InspectorPanel {
                         g[newChar] = imgPath;
                         await save();
                         rebuildList();
+                    }
+                });
+
+                charInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Tab') {
+                        e.preventDefault();
+                        const inputs = listContainer.querySelectorAll('.es-bmfont-char-input');
+                        const arr = Array.from(inputs);
+                        const idx = arr.indexOf(charInput);
+                        const next = e.shiftKey ? arr[idx - 1] : arr[idx + 1];
+                        if (next) (next as HTMLInputElement).focus();
+                    }
+                });
+
+                fileInput.style.cursor = 'pointer';
+                fileInput.classList.add('es-asset-link');
+                fileInput.addEventListener('click', () => {
+                    if (!imgPath) return;
+                    const fullRelative = `${fontDir}/${imgPath}`;
+                    const projectDir = this.getProjectDir();
+                    if (projectDir && fullRelative.startsWith(projectDir + '/')) {
+                        this.openAssetInBrowser(fullRelative.substring(projectDir.length + 1));
+                    } else {
+                        this.openAssetInBrowser(fullRelative);
                     }
                 });
 
@@ -2422,6 +2475,7 @@ export class InspectorPanel {
                                 (fontData.glyphs as Record<string, string>)[char] = relativePath;
                                 fileInput.value = relativePath;
                                 await save();
+                                loadGlyphThumb(relativePath, fontDir, thumb);
                             }
                         }
                     } catch (err) {
@@ -2442,6 +2496,7 @@ export class InspectorPanel {
                 wrapper.style.alignItems = 'center';
                 wrapper.style.width = '100%';
                 wrapper.appendChild(charInput);
+                wrapper.appendChild(thumb);
                 wrapper.appendChild(fileInput);
                 wrapper.appendChild(browseBtn);
                 wrapper.appendChild(removeBtn);
