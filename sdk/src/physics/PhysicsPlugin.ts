@@ -5,8 +5,8 @@
 
 import type { Plugin, App } from '../app';
 import type { Entity, Vec2 } from '../types';
-import type { LocalTransformData, WorldTransformData, ParentData } from '../component';
-import { LocalTransform, WorldTransform, Parent, RigidBody, BoxCollider, CircleCollider, CapsuleCollider } from '../component';
+import type { LocalTransformData, WorldTransformData, ParentData, CanvasData } from '../component';
+import { LocalTransform, WorldTransform, Parent, RigidBody, BoxCollider, CircleCollider, CapsuleCollider, Canvas } from '../component';
 import { defineResource, Res, Time, type TimeData } from '../resource';
 import { Schedule, defineSystem } from '../system';
 import {
@@ -78,6 +78,17 @@ function angleZToQuat(angle: number): { w: number; x: number; y: number; z: numb
 // Physics Plugin
 // =============================================================================
 
+function readPixelsPerUnit(app: App): number {
+    const entities = app.world.getEntitiesWithComponents([Canvas]);
+    for (const entity of entities) {
+        const canvas = app.world.get(entity, Canvas) as CanvasData;
+        if (canvas && canvas.pixelsPerUnit) {
+            return canvas.pixelsPerUnit;
+        }
+    }
+    return 100;
+}
+
 export class PhysicsPlugin implements Plugin {
     private config_: Required<PhysicsPluginConfig>;
     private wasmUrl_: string;
@@ -113,6 +124,9 @@ export class PhysicsPlugin implements Plugin {
                     this.config_.subStepCount
                 );
 
+                const ppu = readPixelsPerUnit(app);
+                const invPpu = 1 / ppu;
+
                 const world = app.world;
 
                 app.addSystemToSchedule(
@@ -135,7 +149,7 @@ export class PhysicsPlugin implements Plugin {
 
                                     module._physics_createBody(
                                         entity, rb.bodyType,
-                                        wt.position.x, wt.position.y, angle,
+                                        wt.position.x * invPpu, wt.position.y * invPpu, angle,
                                         rb.gravityScale, rb.linearDamping, rb.angularDamping,
                                         rb.fixedRotation ? 1 : 0, rb.bullet ? 1 : 0
                                     );
@@ -177,7 +191,7 @@ export class PhysicsPlugin implements Plugin {
                                     const angle = quatToAngleZ(wt.rotation);
                                     module._physics_setBodyTransform(
                                         entity,
-                                        wt.position.x, wt.position.y,
+                                        wt.position.x * invPpu, wt.position.y * invPpu,
                                         angle
                                     );
                                 }
@@ -193,8 +207,8 @@ export class PhysicsPlugin implements Plugin {
 
                             module._physics_step(time.delta);
 
-                            syncDynamicTransforms(app, module);
-                            collectEvents(app, module);
+                            syncDynamicTransforms(app, module, ppu);
+                            collectEvents(app, module, ppu);
                         },
                         { name: 'PhysicsSystem' }
                     )
@@ -247,7 +261,7 @@ function addShapeForEntity(app: App, module: PhysicsWasmModule, entity: Entity):
     }
 }
 
-function syncDynamicTransforms(app: App, module: PhysicsWasmModule): void {
+function syncDynamicTransforms(app: App, module: PhysicsWasmModule, ppu: number): void {
     const count = module._physics_getDynamicBodyCount();
     if (count === 0) return;
 
@@ -257,8 +271,8 @@ function syncDynamicTransforms(app: App, module: PhysicsWasmModule): void {
     for (let i = 0; i < count; i++) {
         const offset = baseU32 + i * 4;
         const entityId = module.HEAPU32[offset] as Entity;
-        const worldX = module.HEAPF32[offset + 1];
-        const worldY = module.HEAPF32[offset + 2];
+        const worldX = module.HEAPF32[offset + 1] * ppu;
+        const worldY = module.HEAPF32[offset + 2] * ppu;
         const worldAngle = module.HEAPF32[offset + 3];
 
         if (!app.world.valid(entityId)) continue;
@@ -299,7 +313,7 @@ function syncDynamicTransforms(app: App, module: PhysicsWasmModule): void {
     }
 }
 
-function collectEvents(app: App, module: PhysicsWasmModule): void {
+function collectEvents(app: App, module: PhysicsWasmModule, ppu: number): void {
     module._physics_collectEvents();
 
     const collisionEnters: CollisionEnterEvent[] = [];
@@ -313,8 +327,8 @@ function collectEvents(app: App, module: PhysicsWasmModule): void {
                 entityB: module.HEAPU32[base + 1] as Entity,
                 normalX: module.HEAPF32[base + 2],
                 normalY: module.HEAPF32[base + 3],
-                contactX: module.HEAPF32[base + 4],
-                contactY: module.HEAPF32[base + 5],
+                contactX: module.HEAPF32[base + 4] * ppu,
+                contactY: module.HEAPF32[base + 5] * ppu,
             });
         }
     }

@@ -24,6 +24,12 @@ Configure the simulation parameters in the same panel:
   The physics WASM module is loaded automatically by the editor preview and build pipeline. No manual plugin initialization is needed in your game scripts.
 </Aside>
 
+### Coordinate Conversion (PPU)
+
+Collider dimensions (`halfExtents`, `radius`, `halfHeight`) are specified in **physics units (meters)**. The Canvas component's `pixelsPerUnit` (default `100`) determines the conversion ratio between pixel coordinates and physics coordinates.
+
+Position conversion is handled automatically — entity positions (in pixels) are divided by PPU when sent to Box2D, and multiplied by PPU when read back. Physics API values (`force`, `velocity`, `impulse`, `gravity`) also operate in physics units. You do not need to perform any manual conversion.
+
 ## Components
 
 Add physics components to entities in the scene editor alongside `LocalTransform`.

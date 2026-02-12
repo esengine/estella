@@ -24,6 +24,12 @@ import { Aside } from '@astrojs/starlight/components';
   物理 WASM 模块由编辑器预览和构建流程自动加载，无需在游戏脚本中手动初始化插件。
 </Aside>
 
+### 坐标转换 (PPU)
+
+碰撞体尺寸（`halfExtents`、`radius`、`halfHeight`）以**物理单位（米）**设定。Canvas 组件的 `pixelsPerUnit`（默认 `100`）决定像素坐标与物理坐标之间的换算比例。
+
+位置转换自动完成——实体位置（像素）在发送到 Box2D 时除以 PPU，读回时乘以 PPU。Physics API 的值（`force`、`velocity`、`impulse`、`gravity`）同样使用物理单位，无需手动换算。
+
 ## 组件
 
 在场景编辑器中将物理组件与 `LocalTransform` 一起添加到实体上。
