@@ -91,6 +91,18 @@ export const Renderer = {
         module?.renderer_setClearColor?.(r, g, b, a);
     },
 
+    setViewport(x: number, y: number, w: number, h: number): void {
+        module?.renderer_setViewport(x, y, w, h);
+    },
+
+    setScissor(x: number, y: number, w: number, h: number, enable: boolean): void {
+        module?.renderer_setScissor(x, y, w, h, enable);
+    },
+
+    clearBuffers(flags: number): void {
+        module?.renderer_clearBuffers(flags);
+    },
+
     getStats(): RenderStats {
         if (!module) {
             return { drawCalls: 0, triangles: 0, sprites: 0, spine: 0, meshes: 0, culled: 0 };

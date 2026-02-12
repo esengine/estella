@@ -24,7 +24,12 @@ ESEngine 使用基于组件的渲染系统。在场景编辑器中为实体添�
 | `farPlane` | number | 远裁剪面 |
 | `isActive` | boolean | 是否用于渲染 |
 | `aspectRatio` | number | 相机宽高比 |
-| `priority` | number | 高优先级相机优先 |
+| `priority` | number | 渲染顺序 — 低优先级先渲染，高优先级覆盖在上 |
+| `viewportX` | number | 视口左边缘（0–1）。默认：0 |
+| `viewportY` | number | 视口底边缘（0–1）。默认：0 |
+| `viewportW` | number | 视口宽度（0–1）。默认：1 |
+| `viewportH` | number | 视口高度（0–1）。默认：1 |
+| `clearFlags` | number | 缓冲区清除模式：0=无, 1=颜色, 2=深度, 3=两者 |
 | `showFrustum` | boolean | 在编辑器中显示相机视锥线框 |
 
 ### 正交相机
@@ -56,6 +61,29 @@ addSystem(defineSystem(
     }
 ));
 ```
+
+### 多相机渲染
+
+多个相机可以同时渲染到不同的视口区域。每个相机有独立的视口 (`viewportX/Y/W/H`) 和 `clearFlags`。
+
+**主相机 + 小地图：**
+
+创建两个 Camera 实体：
+- 主相机：视口 `(0, 0, 1, 1)`，`priority: 0`
+- 小地图相机：视口 `(0.75, 0.75, 0.25, 0.25)`，`priority: 1`，`clearFlags: 3`
+
+小地图在右上角渲染，覆盖在主视图之上。
+
+**分屏：**
+
+- 玩家 1：视口 `(0, 0, 0.5, 1)`，`priority: 0`
+- 玩家 2：视口 `(0.5, 0, 0.5, 1)`，`priority: 0`
+
+两个相机并排渲染。相同优先级的相机按实体顺序渲染。
+
+<Aside type="note">
+  相机按 `priority` 升序排序。低优先级相机先渲染，高优先级相机覆盖在上。
+</Aside>
 
 ## Transform
 

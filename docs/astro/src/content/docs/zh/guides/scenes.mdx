@@ -1,0 +1,144 @@
+---
+title: 场景
+description: 在 ESEngine 中创建、加载和查询场景
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+**场景**是实体、组件和父子关系的集合。你可以在 ESEngine 编辑器中可视化地创建场景，场景以 JSON 文件保存。运行时引擎会加载场景并生成所有实体及其配置的组件。
+
+## 场景结构
+
+场景文件包含：
+
+- **实体** — 每个实体都有唯一 ID 和名字
+- **组件** — 附加到实体上的数据（变换、精灵、碰撞体等）
+- **层级** — 实体之间的父子关系
+
+```json
+{
+  "version": "1.0",
+  "name": "Level1",
+  "entities": [
+    {
+      "id": 1,
+      "name": "Player",
+      "parent": null,
+      "children": [2],
+      "components": [
+        { "type": "LocalTransform", "data": { "position": { "x": 0, "y": 0, "z": 0 } } },
+        { "type": "Sprite", "data": { "texture": "player.png", "size": { "x": 32, "y": 32 } } }
+      ]
+    }
+  ]
+}
+```
+
+## 加载场景
+
+在编辑器中，场景会自动加载 — 你只需编写定义组件和系统的脚本。
+
+构建项目后，运行时加载器负责场景加载：
+
+```typescript
+import { loadSceneWithAssets, type SceneData } from 'esengine';
+
+const sceneData: SceneData = await fetch('/scene.json').then(r => r.json());
+const entityMap = await loadSceneWithAssets(world, sceneData, { assetServer });
+```
+
+<Aside type="tip">
+  `loadSceneWithAssets` 会自动加载场景中引用的纹理、材质和 Spine 资源。如果不需要资源加载，可以使用 `loadSceneData`。
+</Aside>
+
+## 查找实体
+
+### 按名字查找
+
+从场景加载的每个实体都会自动获得内置的 `Name` 组件，包含在编辑器中指定的名字。使用 `findEntityByName` 查找实体：
+
+```typescript
+import { findEntityByName } from 'esengine';
+
+const player = findEntityByName(world, 'Player');
+if (player !== null) {
+    const transform = world.get(player, LocalTransform);
+}
+```
+
+### 按组件或标签查找
+
+使用 `getEntitiesWithComponents` 或 `Query` 按组件查找实体：
+
+```typescript
+import { defineTag, Query, Mut, LocalTransform } from 'esengine';
+
+const Player = defineTag('Player');
+
+// 直接查找
+const players = world.getEntitiesWithComponents([Player]);
+
+// 在系统中
+addSystem(defineSystem(
+    [Query(Mut(LocalTransform), Player)],
+    (query) => {
+        for (const [entity, transform] of query) {
+            // 处理每个玩家
+        }
+    }
+));
+```
+
+### 遍历层级
+
+使用 `Parent` 和 `Children` 组件遍历实体树：
+
+```typescript
+import { Parent, Children } from 'esengine';
+
+const children = world.get(entity, Children);
+if (children) {
+    for (const child of children.entities) {
+        const childTransform = world.get(child, LocalTransform);
+    }
+}
+```
+
+## 实体层级
+
+场景实体可以通过父子关系形成树状结构。引擎会自动管理 `Parent` 和 `Children` 组件。
+
+```typescript
+// 设置父实体（给子实体添加 Parent 组件，更新父实体的 Children）
+world.setParent(child, parent);
+
+// 移除父实体（子实体变为根实体）
+world.removeParent(child);
+```
+
+当父实体的 `LocalTransform` 变化时，引擎会通过 `WorldTransform` 组件将变换传播到所有后代。
+
+## 动态实体
+
+你可以在运行时使用 `Commands` 生成和销毁实体：
+
+```typescript
+import { defineSystem, addSystem, Commands, LocalTransform, Sprite } from 'esengine';
+
+addSystem(defineSystem(
+    [Commands],
+    (commands) => {
+        // 生成一个带组件的新实体
+        commands.spawn()
+            .insert(LocalTransform, { position: { x: 100, y: 0, z: 0 }, rotation: { w: 1, x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } })
+            .insert(Sprite, { texture: bulletTexture, color: { r: 1, g: 1, b: 1, a: 1 }, size: { x: 8, y: 8 } });
+
+        // 销毁实体
+        commands.despawn(entity);
+    }
+));
+```
+
+<Aside type="note">
+  Commands 是缓冲的，在当前调度阶段结束时应用，不会立即生效。
+</Aside>

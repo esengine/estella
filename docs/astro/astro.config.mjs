@@ -72,6 +72,7 @@ export default defineConfig({
                 { label: 'Post-Processing', translations: { 'zh-CN': '后处理效果' }, slug: 'guides/post-processing' },
               ],
             },
+            { label: 'Scenes', translations: { 'zh-CN': '场景' }, slug: 'guides/scenes' },
             { label: 'Input Handling', translations: { 'zh-CN': '输入处理' }, slug: 'guides/input' },
             { label: 'UI & Text', translations: { 'zh-CN': 'UI 与文本' }, slug: 'guides/ui' },
             { label: 'Asset Loading', translations: { 'zh-CN': '资源加载' }, slug: 'guides/assets' },

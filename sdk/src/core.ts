@@ -61,10 +61,12 @@ export {
     BoxCollider,
     CircleCollider,
     CapsuleCollider,
+    Name,
     type RigidBodyData,
     type BoxColliderData,
     type CircleColliderData,
     type CapsuleColliderData,
+    type NameData,
 } from './component';
 
 // =============================================================================
@@ -210,6 +212,7 @@ export {
     loadSceneWithAssets,
     loadComponent,
     updateCameraAspectRatio,
+    findEntityByName,
     type SceneData,
     type SceneEntityData,
     type SceneComponentData,
@@ -337,6 +340,7 @@ export {
 export {
     RenderPipeline,
     type RenderParams,
+    type CameraRenderParams,
     type SpineRendererFn,
 } from './renderPipeline';
 

@@ -966,10 +966,6 @@ void renderer_begin(uintptr_t matrixPtr, u32 targetHandle) {
     const f32* matrixData = reinterpret_cast<const f32*>(matrixPtr);
     glm::mat4 viewProjection = glm::make_mat4(matrixData);
 
-    glViewport(0, 0, g_viewportWidth, g_viewportHeight);
-    glClearColor(g_clearColor.r, g_clearColor.g, g_clearColor.b, g_clearColor.a);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
     g_renderFrame->begin(viewProjection, targetHandle);
 }
 
@@ -1081,6 +1077,26 @@ u32 renderer_getCulled() {
 
 void renderer_setClearColor(f32 r, f32 g, f32 b, f32 a) {
     g_clearColor = glm::vec4(r, g, b, a);
+}
+
+void renderer_setViewport(i32 x, i32 y, i32 w, i32 h) {
+    glViewport(x, y, w, h);
+}
+
+void renderer_setScissor(i32 x, i32 y, i32 w, i32 h, bool enable) {
+    if (enable) {
+        glEnable(GL_SCISSOR_TEST);
+        glScissor(x, y, w, h);
+    } else {
+        glDisable(GL_SCISSOR_TEST);
+    }
+}
+
+void renderer_clearBuffers(i32 flags) {
+    GLbitfield mask = 0;
+    if (flags & 1) mask |= GL_COLOR_BUFFER_BIT;
+    if (flags & 2) mask |= GL_DEPTH_BUFFER_BIT;
+    if (mask) glClear(mask);
 }
 
 void renderer_diagnose() {
@@ -1237,6 +1253,9 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_getMeshes", &esengine::renderer_getMeshes);
     emscripten::function("renderer_getCulled", &esengine::renderer_getCulled);
     emscripten::function("renderer_setClearColor", &esengine::renderer_setClearColor);
+    emscripten::function("renderer_setViewport", &esengine::renderer_setViewport);
+    emscripten::function("renderer_setScissor", &esengine::renderer_setScissor);
+    emscripten::function("renderer_clearBuffers", &esengine::renderer_clearBuffers);
 
     // GL Debug API
     emscripten::function("gl_enableErrorCheck", &esengine::gl_enableErrorCheck);

@@ -145,6 +145,11 @@ interface CameraData {
     isActive: boolean;
     priority: number;
     showFrustum: boolean;
+    viewportX: number;
+    viewportY: number;
+    viewportW: number;
+    viewportH: number;
+    clearFlags: number;
 }
 interface CanvasData {
     designResolution: Vec2;
@@ -178,6 +183,9 @@ interface SpineAnimationData {
     skeletonScale: number;
     material: number;
 }
+interface NameData {
+    value: string;
+}
 declare const LocalTransform: BuiltinComponentDef<LocalTransformData>;
 declare const WorldTransform: BuiltinComponentDef<WorldTransformData>;
 declare const Sprite: BuiltinComponentDef<SpriteData>;
@@ -187,6 +195,7 @@ declare const Velocity: BuiltinComponentDef<VelocityData>;
 declare const Parent: BuiltinComponentDef<ParentData>;
 declare const Children: BuiltinComponentDef<ChildrenData>;
 declare const SpineAnimation: BuiltinComponentDef<SpineAnimationData>;
+declare const Name: ComponentDef<NameData>;
 
 type ComponentData<C> = C extends BuiltinComponentDef<infer T> ? T : C extends ComponentDef<infer T> ? T : never;
 declare function getComponentDefaults(typeName: string): Record<string, unknown> | null;
@@ -417,6 +426,9 @@ interface ESEngineModule {
     renderer_getMeshes(): number;
     renderer_getCulled(): number;
     renderer_setClearColor(r: number, g: number, b: number, a: number): void;
+    renderer_setViewport(x: number, y: number, w: number, h: number): void;
+    renderer_setScissor(x: number, y: number, w: number, h: number, enable: boolean): void;
+    renderer_clearBuffers(flags: number): void;
     gl_enableErrorCheck(enabled: boolean): void;
     gl_checkErrors(context: string): number;
     renderer_diagnose(): void;
@@ -599,6 +611,20 @@ interface RenderParams {
     height: number;
     elapsed: number;
 }
+interface CameraRenderParams {
+    registry: {
+        _cpp: CppRegistry;
+    };
+    viewProjection: Float32Array;
+    viewportPixels: {
+        x: number;
+        y: number;
+        w: number;
+        h: number;
+    };
+    clearFlags: number;
+    elapsed: number;
+}
 type SpineRendererFn = (registry: {
     _cpp: CppRegistry;
 }, elapsed: number) => void;
@@ -606,6 +632,8 @@ declare class RenderPipeline {
     private spineRenderer_;
     setSpineRenderer(fn: SpineRendererFn | null): void;
     render(params: RenderParams): void;
+    renderCamera(params: CameraRenderParams): void;
+    private executeDrawCallbacks;
 }
 
 /**
@@ -1010,6 +1038,7 @@ declare function loadSceneData(world: World, sceneData: SceneData): Map<number, 
 declare function loadSceneWithAssets(world: World, sceneData: SceneData, options?: SceneLoadOptions): Promise<Map<number, Entity>>;
 declare function loadComponent(world: World, entity: Entity, compData: SceneComponentData): void;
 declare function updateCameraAspectRatio(world: World, aspectRatio: number): void;
+declare function findEntityByName(world: World, name: string): Entity | null;
 
 /**
  * @file    AssetServer.ts
@@ -1761,6 +1790,9 @@ declare const Renderer: {
     getTargetTexture(handle: RenderTargetHandle): number;
     getTargetDepthTexture(handle: RenderTargetHandle): number;
     setClearColor(r: number, g: number, b: number, a: number): void;
+    setViewport(x: number, y: number, w: number, h: number): void;
+    setScissor(x: number, y: number, w: number, h: number, enable: boolean): void;
+    clearBuffers(flags: number): void;
     getStats(): RenderStats;
 };
 
@@ -1863,5 +1895,5 @@ declare const GLDebug: {
     diagnose(): void;
 };
 
-export { App, AssetPlugin, AssetServer, Assets, AsyncCache, BlendMode, BodyType, BoxCollider, Camera, Canvas, CapsuleCollider, Children, CircleCollider, Commands, CommandsInstance, DataType, Draw, EntityCommands, GLDebug, Geometry, INVALID_ENTITY, INVALID_TEXTURE, Input, InputPlugin, InputState, LocalTransform, Material, MaterialLoader, Mut, Parent, Physics, PhysicsEvents, PhysicsPlugin, PostProcess, PreviewPlugin, Query, QueryInstance, RenderPipeline, RenderStage, RenderTexture, Renderer, Res, ResMut, ResMutInstance, RigidBody, Schedule, ShaderSources, SpineAnimation, Sprite, SystemRunner, Text, TextAlign, TextOverflow, TextPlugin, TextRenderer, TextVerticalAlign, Time, UIRect, Velocity, WebAssetProvider, World, WorldTransform, addStartupSystem, addSystem, addSystemToSchedule, assetPlugin, clearDrawCallbacks, clearUserComponents, color, createWebApp, defineComponent, defineResource, defineSystem, defineTag, flushPendingSystems, getComponentDefaults, getPlatform, getPlatformType, getUserComponent, initDrawAPI, initGLDebugAPI, initGeometryAPI, initMaterialAPI, initPostProcessAPI, initRendererAPI, inputPlugin, isBuiltinComponent, isEditor, isPlatformInitialized, isRuntime, isTextureRef, isWeChat, isWeb, loadComponent, loadPhysicsModule, loadRuntimeScene, loadSceneData, loadSceneWithAssets, platformFetch, platformFileExists, platformInstantiateWasm, platformReadFile, platformReadTextFile, quat, registerDrawCallback, registerEmbeddedAssets, registerMaterialCallback, setEditorMode, shutdownDrawAPI, shutdownGLDebugAPI, shutdownGeometryAPI, shutdownMaterialAPI, shutdownPostProcessAPI, shutdownRendererAPI, textPlugin, unregisterDrawCallback, updateCameraAspectRatio, vec2, vec3, vec4 };
-export type { AnyComponentDef, AssetBundle, AssetManifest, AssetsData, BoxColliderData, BuiltinComponentDef, CameraData, CanvasData, CapsuleColliderData, ChildrenData, CircleColliderData, CollisionEnterEvent, Color, CommandsDescriptor, ComponentData, ComponentDef, CppRegistry, CppResourceManager, DrawAPI, DrawCallback, ESEngineModule, Entity, FileLoadOptions, GeometryHandle, GeometryOptions, InferParam, InferParams, LoadedMaterial, LocalTransformData, MaterialAssetData, MaterialHandle, MaterialOptions, MutWrapper, ParentData, PhysicsEventsData, PhysicsModuleFactory, PhysicsPluginConfig, PhysicsWasmModule, PlatformAdapter, PlatformRequestOptions, PlatformResponse, PlatformType, Plugin, Quat, QueryDescriptor, QueryResult, RenderParams, RenderStats, RenderTargetHandle, RenderTextureHandle, RenderTextureOptions, ResDescriptor, ResMutDescriptor, ResourceDef, RigidBodyData, RuntimeAssetProvider, SceneComponentData, SceneData, SceneEntityData, SceneLoadOptions, SensorEvent, ShaderHandle, ShaderLoader, SliceBorder, SpineAnimationData, SpineDescriptor, SpineLoadResult, SpineRendererFn, SpriteData, SystemDef, SystemParam, TextData, TextRenderResult, TextureHandle, TextureInfo, TextureRef, TimeData, UIRectData, UniformValue, Vec2, Vec3, Vec4, VelocityData, VertexAttributeDescriptor, WebAppOptions, WorldTransformData };
+export { App, AssetPlugin, AssetServer, Assets, AsyncCache, BlendMode, BodyType, BoxCollider, Camera, Canvas, CapsuleCollider, Children, CircleCollider, Commands, CommandsInstance, DataType, Draw, EntityCommands, GLDebug, Geometry, INVALID_ENTITY, INVALID_TEXTURE, Input, InputPlugin, InputState, LocalTransform, Material, MaterialLoader, Mut, Name, Parent, Physics, PhysicsEvents, PhysicsPlugin, PostProcess, PreviewPlugin, Query, QueryInstance, RenderPipeline, RenderStage, RenderTexture, Renderer, Res, ResMut, ResMutInstance, RigidBody, Schedule, ShaderSources, SpineAnimation, Sprite, SystemRunner, Text, TextAlign, TextOverflow, TextPlugin, TextRenderer, TextVerticalAlign, Time, UIRect, Velocity, WebAssetProvider, World, WorldTransform, addStartupSystem, addSystem, addSystemToSchedule, assetPlugin, clearDrawCallbacks, clearUserComponents, color, createWebApp, defineComponent, defineResource, defineSystem, defineTag, findEntityByName, flushPendingSystems, getComponentDefaults, getPlatform, getPlatformType, getUserComponent, initDrawAPI, initGLDebugAPI, initGeometryAPI, initMaterialAPI, initPostProcessAPI, initRendererAPI, inputPlugin, isBuiltinComponent, isEditor, isPlatformInitialized, isRuntime, isTextureRef, isWeChat, isWeb, loadComponent, loadPhysicsModule, loadRuntimeScene, loadSceneData, loadSceneWithAssets, platformFetch, platformFileExists, platformInstantiateWasm, platformReadFile, platformReadTextFile, quat, registerDrawCallback, registerEmbeddedAssets, registerMaterialCallback, setEditorMode, shutdownDrawAPI, shutdownGLDebugAPI, shutdownGeometryAPI, shutdownMaterialAPI, shutdownPostProcessAPI, shutdownRendererAPI, textPlugin, unregisterDrawCallback, updateCameraAspectRatio, vec2, vec3, vec4 };
+export type { AnyComponentDef, AssetBundle, AssetManifest, AssetsData, BoxColliderData, BuiltinComponentDef, CameraData, CameraRenderParams, CanvasData, CapsuleColliderData, ChildrenData, CircleColliderData, CollisionEnterEvent, Color, CommandsDescriptor, ComponentData, ComponentDef, CppRegistry, CppResourceManager, DrawAPI, DrawCallback, ESEngineModule, Entity, FileLoadOptions, GeometryHandle, GeometryOptions, InferParam, InferParams, LoadedMaterial, LocalTransformData, MaterialAssetData, MaterialHandle, MaterialOptions, MutWrapper, NameData, ParentData, PhysicsEventsData, PhysicsModuleFactory, PhysicsPluginConfig, PhysicsWasmModule, PlatformAdapter, PlatformRequestOptions, PlatformResponse, PlatformType, Plugin, Quat, QueryDescriptor, QueryResult, RenderParams, RenderStats, RenderTargetHandle, RenderTextureHandle, RenderTextureOptions, ResDescriptor, ResMutDescriptor, ResourceDef, RigidBodyData, RuntimeAssetProvider, SceneComponentData, SceneData, SceneEntityData, SceneLoadOptions, SensorEvent, ShaderHandle, ShaderLoader, SliceBorder, SpineAnimationData, SpineDescriptor, SpineLoadResult, SpineRendererFn, SpriteData, SystemDef, SystemParam, TextData, TextRenderResult, TextureHandle, TextureInfo, TextureRef, TimeData, UIRectData, UniformValue, Vec2, Vec3, Vec4, VelocityData, VertexAttributeDescriptor, WebAppOptions, WorldTransformData };

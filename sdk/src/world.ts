@@ -7,6 +7,24 @@ import { Entity } from './types';
 import { AnyComponentDef, ComponentDef, BuiltinComponentDef, isBuiltinComponent } from './component';
 import type { CppRegistry } from './wasm';
 
+function convertForWasm(obj: unknown): unknown {
+    if (obj === null || obj === undefined || typeof obj !== 'object' || Array.isArray(obj)) {
+        return obj;
+    }
+    const rec = obj as Record<string, unknown>;
+    if ('r' in rec && 'g' in rec && 'b' in rec && 'a' in rec && !('x' in rec)) {
+        return { x: rec.r, y: rec.g, z: rec.b, w: rec.a };
+    }
+    const result: Record<string, unknown> = {};
+    for (const key of Object.keys(rec)) {
+        const val = rec[key];
+        result[key] = (val !== null && val !== undefined && typeof val === 'object' && !Array.isArray(val))
+            ? convertForWasm(val)
+            : val;
+    }
+    return result;
+}
+
 // =============================================================================
 // World
 // =============================================================================
@@ -122,7 +140,7 @@ export class World {
         if (this.cppRegistry_) {
             const adder = `add${component._cppName}` as keyof CppRegistry;
             const fn = this.cppRegistry_[adder] as (e: Entity, d: unknown) => void;
-            fn.call(this.cppRegistry_, entity, merged);
+            fn.call(this.cppRegistry_, entity, convertForWasm(merged));
         }
 
         return merged;

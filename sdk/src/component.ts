@@ -157,6 +157,11 @@ export interface CameraData {
     isActive: boolean;
     priority: number;
     showFrustum: boolean;
+    viewportX: number;
+    viewportY: number;
+    viewportW: number;
+    viewportH: number;
+    clearFlags: number;
 }
 
 export interface CanvasData {
@@ -196,6 +201,10 @@ export interface SpineAnimationData {
     material: number;
 }
 
+export interface NameData {
+    value: string;
+}
+
 // =============================================================================
 // Builtin Component Instances
 // =============================================================================
@@ -233,7 +242,12 @@ export const Camera = defineBuiltin<CameraData>('Camera', {
     aspectRatio: 1.77,
     isActive: true,
     priority: 0,
-    showFrustum: true
+    showFrustum: true,
+    viewportX: 0,
+    viewportY: 0,
+    viewportW: 1,
+    viewportH: 1,
+    clearFlags: 3,
 });
 
 export const Canvas = defineBuiltin<CanvasData>('Canvas', {
@@ -272,6 +286,16 @@ export const SpineAnimation = defineBuiltin<SpineAnimationData>('SpineAnimation'
     skeletonScale: 1.0,
     material: 0
 });
+
+export const Name: ComponentDef<NameData> = {
+    _id: Symbol('Component_Name'),
+    _name: 'Name',
+    _default: { value: '' },
+    _builtin: false as const,
+    create(data?: Partial<NameData>): NameData {
+        return { value: '', ...data };
+    }
+};
 
 export {
     RigidBody, BoxCollider, CircleCollider, CapsuleCollider,

@@ -19,6 +19,7 @@ import { initGLDebugAPI, shutdownGLDebugAPI } from './glDebug';
 import { platformNow } from './platform';
 import { RenderPipeline, type SpineRendererFn } from './renderPipeline';
 import { Renderer } from './renderer';
+import { PostProcess } from './postprocess';
 
 // =============================================================================
 // Plugin Interface
@@ -288,13 +289,37 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
                 const bg = canvas.backgroundColor;
                 Renderer.setClearColor(bg.r, bg.g, bg.b, bg.a);
             }
-            const vp = computeViewProjection(cppRegistry, width, height);
             const elapsed = (platformNow() - startTime) / 1000;
-            pipeline.render({
-                registry: { _cpp: cppRegistry },
-                viewProjection: vp,
-                width, height, elapsed,
-            });
+
+            Renderer.resize(width, height);
+            if (PostProcess.isInitialized() && PostProcess.getPassCount() > 0 && !PostProcess.isBypassed()) {
+                PostProcess.resize(width, height);
+            }
+
+            const cameras = collectCameras(cppRegistry, width, height);
+            if (cameras.length === 0) {
+                pipeline.render({
+                    registry: { _cpp: cppRegistry },
+                    viewProjection: IDENTITY,
+                    width, height, elapsed,
+                });
+            } else {
+                for (const cam of cameras) {
+                    const vp = cam.viewportRect;
+                    const px = Math.round(vp.x * width);
+                    const py = Math.round((1 - vp.y - vp.h) * height);
+                    const pw = Math.round(vp.w * width);
+                    const ph = Math.round(vp.h * height);
+                    pipeline.renderCamera({
+                        registry: { _cpp: cppRegistry },
+                        viewProjection: cam.viewProjection,
+                        viewportPixels: { x: px, y: py, w: pw, h: ph },
+                        clearFlags: cam.clearFlags,
+                        elapsed,
+                    });
+                }
+                Renderer.setViewport(0, 0, width, height);
+            }
         }
     };
 
@@ -369,6 +394,91 @@ function computeEffectiveOrthoSize(
         }
         default: return orthoForHeight;
     }
+}
+
+interface CameraInfo {
+    entity: number;
+    viewProjection: Float32Array;
+    viewportRect: { x: number; y: number; w: number; h: number };
+    clearFlags: number;
+    priority: number;
+}
+
+function collectCameras(registry: CppRegistry, width: number, height: number): CameraInfo[] {
+    const count = registry.entityCount();
+    const scanLimit = count + 1000;
+    const cameras: CameraInfo[] = [];
+
+    for (let e = 0; e < scanLimit; e++) {
+        if (!registry.valid(e) || !registry.hasCamera(e) || !registry.hasLocalTransform(e)) {
+            continue;
+        }
+
+        const camera = registry.getCamera(e) as {
+            projectionType: number;
+            fov: number;
+            orthoSize: number;
+            nearPlane: number;
+            farPlane: number;
+            isActive: boolean;
+            priority: number;
+            viewportX: number;
+            viewportY: number;
+            viewportW: number;
+            viewportH: number;
+            clearFlags: number;
+        };
+        if (!camera.isActive) continue;
+
+        const transform = registry.getLocalTransform(e) as {
+            position: { x: number; y: number; z: number };
+        };
+
+        const vr = {
+            x: camera.viewportX,
+            y: camera.viewportY,
+            w: camera.viewportW,
+            h: camera.viewportH,
+        };
+        const aspect = (vr.w * width) / (vr.h * height);
+        let projection: Float32Array;
+
+        if (camera.projectionType === 1) {
+            let halfH = camera.orthoSize;
+
+            const canvas = findCanvasData(registry, scanLimit);
+            if (canvas) {
+                const baseOrthoSize = canvas.designResolution.y / 2;
+                const designAspect = canvas.designResolution.x / canvas.designResolution.y;
+                halfH = computeEffectiveOrthoSize(
+                    baseOrthoSize, designAspect, aspect,
+                    canvas.scaleMode, canvas.matchWidthOrHeight,
+                );
+            }
+
+            const halfW = halfH * aspect;
+            projection = ortho(-halfW, halfW, -halfH, halfH, -camera.farPlane, camera.farPlane);
+        } else {
+            projection = perspective(
+                camera.fov * Math.PI / 180,
+                aspect,
+                camera.nearPlane,
+                camera.farPlane,
+            );
+        }
+
+        const view = invertTranslation(transform.position.x, transform.position.y, transform.position.z);
+        cameras.push({
+            entity: e,
+            viewProjection: multiply(projection, view),
+            viewportRect: vr,
+            clearFlags: camera.clearFlags,
+            priority: camera.priority,
+        });
+    }
+
+    cameras.sort((a, b) => a.priority - b.priority);
+    return cameras;
 }
 
 function computeViewProjection(registry: CppRegistry, width: number, height: number): Float32Array {

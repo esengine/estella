@@ -229,6 +229,9 @@ interface ESEngineModule {
     renderer_getMeshes(): number;
     renderer_getCulled(): number;
     renderer_setClearColor(r: number, g: number, b: number, a: number): void;
+    renderer_setViewport(x: number, y: number, w: number, h: number): void;
+    renderer_setScissor(x: number, y: number, w: number, h: number, enable: boolean): void;
+    renderer_clearBuffers(flags: number): void;
     gl_enableErrorCheck(enabled: boolean): void;
     gl_checkErrors(context: string): number;
     renderer_diagnose(): void;

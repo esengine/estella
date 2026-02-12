@@ -15,6 +15,7 @@ import {
     BoxCollider,
     CircleCollider,
     CapsuleCollider,
+    Name,
     getUserComponent,
     type LocalTransformData,
     type SpriteData,
@@ -25,6 +26,7 @@ import {
     type BoxColliderData,
     type CircleColliderData,
     type CapsuleColliderData,
+    type NameData,
 } from './component';
 import { Text, type TextData } from './ui/text';
 import { UIRect, type UIRectData } from './ui/UIRect';
@@ -82,6 +84,7 @@ export function loadSceneData(world: World, sceneData: SceneData): Map<number, E
     for (const entityData of sceneData.entities) {
         const entity = world.spawn();
         entityMap.set(entityData.id, entity);
+        world.insert(entity, Name, { value: entityData.name });
 
         for (const compData of entityData.components) {
             loadComponent(world, entity, compData);
@@ -114,6 +117,7 @@ export async function loadSceneWithAssets(
     for (const entityData of sceneData.entities) {
         const entity = world.spawn();
         entityMap.set(entityData.id, entity);
+        world.insert(entity, Name, { value: entityData.name });
 
         for (const compData of entityData.components) {
             if (compData.type === 'Sprite' && assetServer) {
@@ -260,5 +264,16 @@ export function updateCameraAspectRatio(world: World, aspectRatio: number): void
             world.insert(entity, Camera, camera);
         }
     }
+}
+
+export function findEntityByName(world: World, name: string): Entity | null {
+    const entities = world.getEntitiesWithComponents([Name]);
+    for (const entity of entities) {
+        const data = world.get(entity, Name) as NameData;
+        if (data && data.value === name) {
+            return entity;
+        }
+    }
+    return null;
 }
 

@@ -118,6 +118,11 @@ export class PreviewPlugin implements Plugin {
                 aspectRatio,
                 priority: 0,
                 showFrustum: true,
+                viewportX: 0,
+                viewportY: 0,
+                viewportW: 1,
+                viewportH: 1,
+                clearFlags: 3,
             };
             world.insert(cameraEntity, Camera, cameraData);
         }

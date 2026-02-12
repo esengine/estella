@@ -17,6 +17,14 @@ export interface RenderParams {
     elapsed: number;
 }
 
+export interface CameraRenderParams {
+    registry: { _cpp: CppRegistry };
+    viewProjection: Float32Array;
+    viewportPixels: { x: number; y: number; w: number; h: number };
+    clearFlags: number;
+    elapsed: number;
+}
+
 export type SpineRendererFn = (registry: { _cpp: CppRegistry }, elapsed: number) => void;
 
 export class RenderPipeline {
@@ -35,6 +43,8 @@ export class RenderPipeline {
             PostProcess.resize(width, height);
         }
 
+        Renderer.setViewport(0, 0, width, height);
+        Renderer.clearBuffers(3);
         Renderer.begin(viewProjection);
         Renderer.submitSprites(registry);
         if (this.spineRenderer_) {
@@ -44,6 +54,34 @@ export class RenderPipeline {
         }
         Renderer.flush();
 
+        this.executeDrawCallbacks(viewProjection, elapsed);
+
+        Renderer.end();
+    }
+
+    renderCamera(params: CameraRenderParams): void {
+        const { registry, viewProjection, viewportPixels: vp, clearFlags, elapsed } = params;
+
+        Renderer.setViewport(vp.x, vp.y, vp.w, vp.h);
+        Renderer.setScissor(vp.x, vp.y, vp.w, vp.h, true);
+        Renderer.clearBuffers(clearFlags);
+        Renderer.setScissor(0, 0, 0, 0, false);
+
+        Renderer.begin(viewProjection);
+        Renderer.submitSprites(registry);
+        if (this.spineRenderer_) {
+            this.spineRenderer_(registry, elapsed);
+        } else {
+            Renderer.submitSpine(registry);
+        }
+        Renderer.flush();
+
+        this.executeDrawCallbacks(viewProjection, elapsed);
+
+        Renderer.end();
+    }
+
+    private executeDrawCallbacks(viewProjection: Float32Array, elapsed: number): void {
         const cbs = getDrawCallbacks();
         if (cbs.size > 0) {
             Draw.begin(viewProjection);
@@ -61,7 +99,5 @@ export class RenderPipeline {
                 unregisterDrawCallback(id);
             }
         }
-
-        Renderer.end();
     }
 }

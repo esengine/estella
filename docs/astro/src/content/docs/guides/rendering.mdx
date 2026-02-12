@@ -24,7 +24,12 @@ A `Camera` component is required to see anything. The editor's default scene alr
 | `farPlane` | number | Far clipping plane |
 | `isActive` | boolean | Whether this camera is used for rendering |
 | `aspectRatio` | number | Camera aspect ratio |
-| `priority` | number | Higher priority camera takes precedence |
+| `priority` | number | Render order — lower priority renders first, higher renders on top |
+| `viewportX` | number | Viewport left edge (0–1). Default: 0 |
+| `viewportY` | number | Viewport bottom edge (0–1). Default: 0 |
+| `viewportW` | number | Viewport width (0–1). Default: 1 |
+| `viewportH` | number | Viewport height (0–1). Default: 1 |
+| `clearFlags` | number | Buffer clear mode: 0=None, 1=Color, 2=Depth, 3=Both |
 | `showFrustum` | boolean | Draw the camera frustum wireframe in the editor |
 
 ### Orthographic Camera
@@ -56,6 +61,29 @@ addSystem(defineSystem(
     }
 ));
 ```
+
+### Multi-Camera Rendering
+
+Multiple cameras can render simultaneously to different viewport regions. Each camera has its own viewport (`viewportX/Y/W/H`) and `clearFlags`.
+
+**Main Camera + Minimap:**
+
+Create two Camera entities:
+- Main camera: viewport `(0, 0, 1, 1)`, `priority: 0`
+- Minimap camera: viewport `(0.75, 0.75, 0.25, 0.25)`, `priority: 1`, `clearFlags: 3`
+
+The minimap renders in the top-right corner on top of the main view.
+
+**Split Screen:**
+
+- Player 1: viewport `(0, 0, 0.5, 1)`, `priority: 0`
+- Player 2: viewport `(0.5, 0, 0.5, 1)`, `priority: 0`
+
+Both cameras render side by side. Cameras with the same priority render in entity order.
+
+<Aside type="note">
+  Cameras are sorted by `priority` (ascending). Lower priority cameras render first, higher priority cameras render on top.
+</Aside>
 
 ## Transform
 

@@ -97,6 +97,21 @@ export const CameraSchema: ComponentSchema = {
         { name: 'orthoSize', type: 'number', min: 0.1 },
         { name: 'nearPlane', type: 'number', step: 0.1 },
         { name: 'farPlane', type: 'number', step: 1 },
+        { name: 'priority', type: 'number', step: 1 },
+        { name: 'viewportX', type: 'number', min: 0, max: 1, step: 0.01 },
+        { name: 'viewportY', type: 'number', min: 0, max: 1, step: 0.01 },
+        { name: 'viewportW', type: 'number', min: 0, max: 1, step: 0.01 },
+        { name: 'viewportH', type: 'number', min: 0, max: 1, step: 0.01 },
+        {
+            name: 'clearFlags',
+            type: 'enum',
+            options: [
+                { label: 'None', value: 0 },
+                { label: 'Color Only', value: 1 },
+                { label: 'Depth Only', value: 2 },
+                { label: 'Color + Depth', value: 3 },
+            ],
+        },
         { name: 'showFrustum', type: 'boolean' },
     ],
 };

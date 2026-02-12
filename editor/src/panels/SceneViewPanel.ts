@@ -21,6 +21,13 @@ import type { GizmoContext } from '../gizmos';
 import { ColliderOverlay } from '../gizmos/ColliderOverlay';
 import { getSettingsValue, setSettingsValue, onSettingsChange } from '../settings/SettingsRegistry';
 
+const CAMERA_COLORS = [
+    '#ffaa00',
+    '#00ccff',
+    '#ff55aa',
+    '#55ff55',
+];
+
 // =============================================================================
 // SceneViewPanel
 // =============================================================================
@@ -878,6 +885,8 @@ export class SceneViewPanel {
 
         ctx.restore();
 
+        this.drawViewportPreview(ctx, w, h);
+
         if (!this.store_.scene.entities.some(
             e => e.components.some(c => c.type === 'Camera'))) {
             ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
@@ -942,23 +951,30 @@ export class SceneViewPanel {
             }
         }
 
+        let cameraIndex = 0;
         for (const entity of this.store_.scene.entities) {
             const camera = entity.components.find(c => c.type === 'Camera');
             if (!camera) continue;
 
             const transform = entity.components.find(c => c.type === 'LocalTransform');
-            if (!transform) continue;
+            if (!transform) { cameraIndex++; continue; }
 
             const isSelected = entity.id === selectedEntity;
             const showFrustum = (camera.data.showFrustum as boolean) ?? true;
 
-            if (!showFrustum && !isSelected) continue;
+            if (!showFrustum && !isSelected) { cameraIndex++; continue; }
 
+            const color = CAMERA_COLORS[cameraIndex % CAMERA_COLORS.length];
             const worldTransform = this.store_.getWorldTransform(entity.id);
             const pos = worldTransform.position;
 
             const orthoSize = (camera.data.orthoSize as number) ?? 400;
             const projectionType = (camera.data.projectionType as number) ?? 0;
+            const priority = (camera.data.priority as number) ?? 0;
+            const vpX = (camera.data.viewportX as number) ?? 0;
+            const vpY = (camera.data.viewportY as number) ?? 0;
+            const vpW = (camera.data.viewportW as number) ?? 1;
+            const vpH = (camera.data.viewportH as number) ?? 1;
 
             ctx.save();
             ctx.translate(pos.x, -pos.y);
@@ -967,7 +983,7 @@ export class SceneViewPanel {
                 const halfHeight = orthoSize;
                 const halfWidth = halfHeight * aspectRatio;
 
-                ctx.strokeStyle = '#ffaa00';
+                ctx.strokeStyle = color;
                 ctx.lineWidth = 2 / this.zoom_;
 
                 if (isSelected) {
@@ -980,22 +996,164 @@ export class SceneViewPanel {
 
                 ctx.strokeRect(-halfWidth, -halfHeight, halfWidth * 2, halfHeight * 2);
 
-                ctx.fillStyle = isSelected ? 'rgba(255, 170, 0, 0.1)' : 'rgba(255, 170, 0, 0.05)';
+                const [cr, cg, cb] = this.hexToRgb(color);
+                ctx.fillStyle = isSelected
+                    ? `rgba(${cr}, ${cg}, ${cb}, 0.1)`
+                    : `rgba(${cr}, ${cg}, ${cb}, 0.05)`;
                 ctx.fillRect(-halfWidth, -halfHeight, halfWidth * 2, halfHeight * 2);
 
                 ctx.setLineDash([]);
-                ctx.strokeStyle = '#ffaa00';
-                ctx.lineWidth = 1 / this.zoom_;
-                ctx.beginPath();
-                ctx.moveTo(-halfWidth * 0.1, 0);
-                ctx.lineTo(halfWidth * 0.1, 0);
-                ctx.moveTo(0, -halfHeight * 0.1);
-                ctx.lineTo(0, halfHeight * 0.1);
-                ctx.stroke();
+                ctx.globalAlpha = isSelected ? 1 : 0.5;
+
+                this.drawCameraIcon(ctx, color);
+
+                const fontSize = 12 / this.zoom_;
+                ctx.font = `bold ${fontSize}px system-ui, sans-serif`;
+                ctx.textBaseline = 'bottom';
+
+                ctx.textAlign = 'left';
+                const nameText = entity.name;
+                const nameMetrics = ctx.measureText(nameText);
+                const labelPad = 2 / this.zoom_;
+                const labelH = fontSize + labelPad * 2;
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                ctx.fillRect(
+                    -halfWidth,
+                    -halfHeight - labelH - labelPad,
+                    nameMetrics.width + labelPad * 2,
+                    labelH
+                );
+                ctx.fillStyle = color;
+                ctx.fillText(nameText, -halfWidth + labelPad, -halfHeight - labelPad * 2);
+
+                ctx.textAlign = 'right';
+                const prioText = `P${priority}`;
+                const prioMetrics = ctx.measureText(prioText);
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                ctx.fillRect(
+                    halfWidth - prioMetrics.width - labelPad * 2,
+                    -halfHeight - labelH - labelPad,
+                    prioMetrics.width + labelPad * 2,
+                    labelH
+                );
+                ctx.fillStyle = color;
+                ctx.fillText(prioText, halfWidth - labelPad, -halfHeight - labelPad * 2);
+
+                const isFullscreen = vpX === 0 && vpY === 0 && vpW === 1 && vpH === 1;
+                if (!isFullscreen) {
+                    ctx.textAlign = 'left';
+                    ctx.textBaseline = 'top';
+                    ctx.font = `${fontSize * 0.9}px system-ui, sans-serif`;
+                    const pctW = Math.round(vpW * 100);
+                    const pctH = Math.round(vpH * 100);
+                    const vpText = `viewport: ${vpX}, ${vpY}  ${pctW}%\u00d7${pctH}%`;
+                    const vpMetrics = ctx.measureText(vpText);
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                    ctx.fillRect(
+                        -halfWidth,
+                        halfHeight + labelPad,
+                        vpMetrics.width + labelPad * 2,
+                        labelH
+                    );
+                    ctx.fillStyle = color;
+                    ctx.fillText(vpText, -halfWidth + labelPad, halfHeight + labelPad * 2);
+                }
             }
 
             ctx.globalAlpha = 1;
             ctx.restore();
+            cameraIndex++;
+        }
+    }
+
+    private drawCameraIcon(ctx: CanvasRenderingContext2D, color: string): void {
+        const s = 1 / this.zoom_;
+        const bodyW = 16 * s;
+        const bodyH = 12 * s;
+        const lensW = 6 * s;
+        const lensH1 = 8 * s;
+        const lensH2 = 12 * s;
+
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+        ctx.lineWidth = 1.5 * s;
+
+        ctx.beginPath();
+        ctx.rect(-bodyW / 2, -bodyH / 2, bodyW, bodyH);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(bodyW / 2, -lensH1 / 2);
+        ctx.lineTo(bodyW / 2 + lensW, -lensH2 / 2);
+        ctx.lineTo(bodyW / 2 + lensW, lensH2 / 2);
+        ctx.lineTo(bodyW / 2, lensH1 / 2);
+        ctx.closePath();
+        ctx.stroke();
+
+        const dotR = 2 * s;
+        ctx.beginPath();
+        ctx.arc(-bodyW / 4, -bodyH / 2 - dotR - 1 * s, dotR, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    private hexToRgb(hex: string): [number, number, number] {
+        const num = parseInt(hex.replace('#', ''), 16);
+        return [(num >> 16) & 0xff, (num >> 8) & 0xff, num & 0xff];
+    }
+
+    private drawViewportPreview(ctx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number): void {
+        const cameraEntities: Array<{ name: string; color: string; vpX: number; vpY: number; vpW: number; vpH: number }> = [];
+
+        let idx = 0;
+        for (const entity of this.store_.scene.entities) {
+            const camera = entity.components.find(c => c.type === 'Camera');
+            if (!camera) continue;
+            cameraEntities.push({
+                name: entity.name,
+                color: CAMERA_COLORS[idx % CAMERA_COLORS.length],
+                vpX: (camera.data.viewportX as number) ?? 0,
+                vpY: (camera.data.viewportY as number) ?? 0,
+                vpW: (camera.data.viewportW as number) ?? 1,
+                vpH: (camera.data.viewportH as number) ?? 1,
+            });
+            idx++;
+        }
+
+        if (cameraEntities.length < 2) return;
+
+        const previewW = 160;
+        const previewH = 90;
+        const padding = 12;
+        const x0 = canvasWidth - previewW - padding;
+        const y0 = canvasHeight - previewH - padding;
+
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+        ctx.fillRect(x0 - 1, y0 - 1, previewW + 2, previewH + 2);
+
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([]);
+        ctx.strokeRect(x0, y0, previewW, previewH);
+
+        for (const cam of cameraEntities) {
+            const rx = x0 + cam.vpX * previewW;
+            const ry = y0 + cam.vpY * previewH;
+            const rw = cam.vpW * previewW;
+            const rh = cam.vpH * previewH;
+
+            const [cr, cg, cb] = this.hexToRgb(cam.color);
+            ctx.fillStyle = `rgba(${cr}, ${cg}, ${cb}, 0.25)`;
+            ctx.fillRect(rx, ry, rw, rh);
+
+            ctx.strokeStyle = cam.color;
+            ctx.lineWidth = 1;
+            ctx.strokeRect(rx, ry, rw, rh);
+
+            ctx.fillStyle = cam.color;
+            ctx.font = '9px system-ui, sans-serif';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'top';
+            ctx.fillText(cam.name, rx + 3, ry + 2, rw - 6);
         }
     }
 

@@ -118,16 +118,9 @@ RigidBodyJS rigidbodyToJS(const esengine::ecs::RigidBody& c) {
     return js;
 }
 
-struct ColorJS {
-    f32 r, g, b, a;
-};
-
-ColorJS colorToJS(const glm::vec4& c) { return {c.x, c.y, c.z, c.w}; }
-glm::vec4 colorFromJS(const ColorJS& c) { return {c.r, c.g, c.b, c.a}; }
-
 struct SpriteJS {
     u32 texture;
-    ColorJS color;
+    glm::vec4 color;
     glm::vec2 size;
     glm::vec2 uvOffset;
     glm::vec2 uvScale;
@@ -140,7 +133,7 @@ struct SpriteJS {
 esengine::ecs::Sprite spriteFromJS(const SpriteJS& js) {
     esengine::ecs::Sprite c;
     c.texture = resource::TextureHandle(js.texture);
-    c.color = colorFromJS(js.color);
+    c.color = js.color;
     c.size = js.size;
     c.uvOffset = js.uvOffset;
     c.uvScale = js.uvScale;
@@ -154,7 +147,7 @@ esengine::ecs::Sprite spriteFromJS(const SpriteJS& js) {
 SpriteJS spriteToJS(const esengine::ecs::Sprite& c) {
     SpriteJS js;
     js.texture = c.texture.id();
-    js.color = colorToJS(c.color);
+    js.color = c.color;
     js.size = c.size;
     js.uvOffset = c.uvOffset;
     js.uvScale = c.uvScale;
@@ -170,7 +163,7 @@ struct CanvasJS {
     f32 pixelsPerUnit;
     i32 scaleMode;
     f32 matchWidthOrHeight;
-    ColorJS backgroundColor;
+    glm::vec4 backgroundColor;
 };
 
 esengine::ecs::Canvas canvasFromJS(const CanvasJS& js) {
@@ -179,7 +172,7 @@ esengine::ecs::Canvas canvasFromJS(const CanvasJS& js) {
     c.pixelsPerUnit = js.pixelsPerUnit;
     c.scaleMode = static_cast<CanvasScaleMode>(js.scaleMode);
     c.matchWidthOrHeight = js.matchWidthOrHeight;
-    c.backgroundColor = colorFromJS(js.backgroundColor);
+    c.backgroundColor = js.backgroundColor;
     return c;
 }
 
@@ -189,59 +182,7 @@ CanvasJS canvasToJS(const esengine::ecs::Canvas& c) {
     js.pixelsPerUnit = c.pixelsPerUnit;
     js.scaleMode = static_cast<i32>(c.scaleMode);
     js.matchWidthOrHeight = c.matchWidthOrHeight;
-    js.backgroundColor = colorToJS(c.backgroundColor);
-    return js;
-}
-
-struct SpineAnimationJS {
-    std::string skeletonPath;
-    std::string atlasPath;
-    std::string skin;
-    std::string animation;
-    f32 timeScale;
-    bool loop;
-    bool playing;
-    bool flipX;
-    bool flipY;
-    ColorJS color;
-    i32 layer;
-    f32 skeletonScale;
-    u32 material;
-};
-
-esengine::ecs::SpineAnimation spineAnimationFromJS(const SpineAnimationJS& js) {
-    esengine::ecs::SpineAnimation c;
-    c.skeletonPath = js.skeletonPath;
-    c.atlasPath = js.atlasPath;
-    c.skin = js.skin;
-    c.animation = js.animation;
-    c.timeScale = js.timeScale;
-    c.loop = js.loop;
-    c.playing = js.playing;
-    c.flipX = js.flipX;
-    c.flipY = js.flipY;
-    c.color = colorFromJS(js.color);
-    c.layer = js.layer;
-    c.skeletonScale = js.skeletonScale;
-    c.material = js.material;
-    return c;
-}
-
-SpineAnimationJS spineAnimationToJS(const esengine::ecs::SpineAnimation& c) {
-    SpineAnimationJS js;
-    js.skeletonPath = c.skeletonPath;
-    js.atlasPath = c.atlasPath;
-    js.skin = c.skin;
-    js.animation = c.animation;
-    js.timeScale = c.timeScale;
-    js.loop = c.loop;
-    js.playing = c.playing;
-    js.flipX = c.flipX;
-    js.flipY = c.flipY;
-    js.color = colorToJS(c.color);
-    js.layer = c.layer;
-    js.skeletonScale = c.skeletonScale;
-    js.material = c.material;
+    js.backgroundColor = c.backgroundColor;
     return js;
 }
 
@@ -254,6 +195,11 @@ struct CameraJS {
     f32 aspectRatio;
     bool isActive;
     i32 priority;
+    f32 viewportX;
+    f32 viewportY;
+    f32 viewportW;
+    f32 viewportH;
+    i32 clearFlags;
 };
 
 esengine::ecs::Camera cameraFromJS(const CameraJS& js) {
@@ -266,6 +212,11 @@ esengine::ecs::Camera cameraFromJS(const CameraJS& js) {
     c.aspectRatio = js.aspectRatio;
     c.isActive = js.isActive;
     c.priority = js.priority;
+    c.viewportX = js.viewportX;
+    c.viewportY = js.viewportY;
+    c.viewportW = js.viewportW;
+    c.viewportH = js.viewportH;
+    c.clearFlags = js.clearFlags;
     return c;
 }
 
@@ -279,16 +230,15 @@ CameraJS cameraToJS(const esengine::ecs::Camera& c) {
     js.aspectRatio = c.aspectRatio;
     js.isActive = c.isActive;
     js.priority = c.priority;
+    js.viewportX = c.viewportX;
+    js.viewportY = c.viewportY;
+    js.viewportW = c.viewportW;
+    js.viewportH = c.viewportH;
+    js.clearFlags = c.clearFlags;
     return js;
 }
 
 EMSCRIPTEN_BINDINGS(esengine_components) {
-    value_object<ColorJS>("Color")
-        .field("r", &ColorJS::r)
-        .field("g", &ColorJS::g)
-        .field("b", &ColorJS::b)
-        .field("a", &ColorJS::a);
-
     value_object<esengine::ecs::BoxCollider>("BoxCollider")
         .field("halfExtents", &esengine::ecs::BoxCollider::halfExtents)
         .field("offset", &esengine::ecs::BoxCollider::offset)
@@ -328,20 +278,20 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("linear", &esengine::ecs::Velocity::linear)
         .field("angular", &esengine::ecs::Velocity::angular);
 
-    value_object<SpineAnimationJS>("SpineAnimation")
-        .field("skeletonPath", &SpineAnimationJS::skeletonPath)
-        .field("atlasPath", &SpineAnimationJS::atlasPath)
-        .field("skin", &SpineAnimationJS::skin)
-        .field("animation", &SpineAnimationJS::animation)
-        .field("timeScale", &SpineAnimationJS::timeScale)
-        .field("loop", &SpineAnimationJS::loop)
-        .field("playing", &SpineAnimationJS::playing)
-        .field("flipX", &SpineAnimationJS::flipX)
-        .field("flipY", &SpineAnimationJS::flipY)
-        .field("color", &SpineAnimationJS::color)
-        .field("layer", &SpineAnimationJS::layer)
-        .field("skeletonScale", &SpineAnimationJS::skeletonScale)
-        .field("material", &SpineAnimationJS::material);
+    value_object<esengine::ecs::SpineAnimation>("SpineAnimation")
+        .field("skeletonPath", &esengine::ecs::SpineAnimation::skeletonPath)
+        .field("atlasPath", &esengine::ecs::SpineAnimation::atlasPath)
+        .field("skin", &esengine::ecs::SpineAnimation::skin)
+        .field("animation", &esengine::ecs::SpineAnimation::animation)
+        .field("timeScale", &esengine::ecs::SpineAnimation::timeScale)
+        .field("loop", &esengine::ecs::SpineAnimation::loop)
+        .field("playing", &esengine::ecs::SpineAnimation::playing)
+        .field("flipX", &esengine::ecs::SpineAnimation::flipX)
+        .field("flipY", &esengine::ecs::SpineAnimation::flipY)
+        .field("color", &esengine::ecs::SpineAnimation::color)
+        .field("layer", &esengine::ecs::SpineAnimation::layer)
+        .field("skeletonScale", &esengine::ecs::SpineAnimation::skeletonScale)
+        .field("material", &esengine::ecs::SpineAnimation::material);
 
     value_object<RigidBodyJS>("RigidBody")
         .field("bodyType", &RigidBodyJS::bodyType)
@@ -383,7 +333,12 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("farPlane", &CameraJS::farPlane)
         .field("aspectRatio", &CameraJS::aspectRatio)
         .field("isActive", &CameraJS::isActive)
-        .field("priority", &CameraJS::priority);
+        .field("priority", &CameraJS::priority)
+        .field("viewportX", &CameraJS::viewportX)
+        .field("viewportY", &CameraJS::viewportY)
+        .field("viewportW", &CameraJS::viewportW)
+        .field("viewportH", &CameraJS::viewportH)
+        .field("clearFlags", &CameraJS::clearFlags);
 
 }
 
@@ -493,11 +448,11 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         .function("hasSpineAnimation", optional_override([](Registry& r, u32 e) {
             return r.has<esengine::ecs::SpineAnimation>(static_cast<Entity>(e));
         }))
-        .function("getSpineAnimation", optional_override([](Registry& r, u32 e) {
-            return spineAnimationToJS(r.get<esengine::ecs::SpineAnimation>(static_cast<Entity>(e)));
-        }))
-        .function("addSpineAnimation", optional_override([](Registry& r, u32 e, const SpineAnimationJS& js) {
-            r.emplaceOrReplace<esengine::ecs::SpineAnimation>(static_cast<Entity>(e), spineAnimationFromJS(js));
+        .function("getSpineAnimation", optional_override([](Registry& r, u32 e) -> esengine::ecs::SpineAnimation& {
+            return r.get<esengine::ecs::SpineAnimation>(static_cast<Entity>(e));
+        }), allow_raw_pointers())
+        .function("addSpineAnimation", optional_override([](Registry& r, u32 e, const esengine::ecs::SpineAnimation& c) {
+            r.emplaceOrReplace<esengine::ecs::SpineAnimation>(static_cast<Entity>(e), c);
         }))
         .function("removeSpineAnimation", optional_override([](Registry& r, u32 e) {
             r.remove<esengine::ecs::SpineAnimation>(static_cast<Entity>(e));

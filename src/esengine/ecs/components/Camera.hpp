@@ -86,6 +86,18 @@ struct Camera {
     ES_PROPERTY()
     i32 priority{0};
 
+    ES_PROPERTY()
+    f32 viewportX{0.0f};
+    ES_PROPERTY()
+    f32 viewportY{0.0f};
+    ES_PROPERTY()
+    f32 viewportW{1.0f};
+    ES_PROPERTY()
+    f32 viewportH{1.0f};
+
+    ES_PROPERTY()
+    i32 clearFlags{3};
+
     Camera() = default;
 };
 
