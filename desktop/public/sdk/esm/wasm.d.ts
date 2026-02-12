@@ -189,6 +189,8 @@ interface ESEngineModule {
     renderer_setViewport(x: number, y: number, w: number, h: number): void;
     renderer_setScissor(x: number, y: number, w: number, h: number, enable: boolean): void;
     renderer_clearBuffers(flags: number): void;
+    registry_getCanvasEntity(registry: CppRegistry): number;
+    registry_getCameraEntities(registry: CppRegistry): number[];
     gl_enableErrorCheck(enabled: boolean): void;
     gl_checkErrors(context: string): number;
     renderer_diagnose(): void;

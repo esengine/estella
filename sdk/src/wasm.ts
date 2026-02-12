@@ -234,6 +234,10 @@ export interface ESEngineModule {
     renderer_setScissor(x: number, y: number, w: number, h: number, enable: boolean): void;
     renderer_clearBuffers(flags: number): void;
 
+    // ECS Query API
+    registry_getCanvasEntity(registry: CppRegistry): number;
+    registry_getCameraEntities(registry: CppRegistry): number[];
+
     // GL Debug API
     gl_enableErrorCheck(enabled: boolean): void;
     gl_checkErrors(context: string): number;

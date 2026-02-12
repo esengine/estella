@@ -133,6 +133,7 @@ private:
 
     std::vector<std::vector<f32>> ext_vertex_storage_;
     std::vector<std::vector<u16>> ext_index_storage_;
+    u32 ext_storage_count_ = 0;
     u32 ext_submit_order_ = 0;
 
     u32 mat_sprite_vao_ = 0;

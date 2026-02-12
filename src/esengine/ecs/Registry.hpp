@@ -95,6 +95,7 @@ public:
             entityValid_.resize(entity + 1, false);
         }
         entityValid_[entity] = true;
+        ++entity_count_;
 
         ES_LOG_TRACE("Created entity {}", entity);
         return entity;
@@ -128,6 +129,7 @@ public:
             entityValid_.resize(entity + 1, false);
         }
         entityValid_[entity] = true;
+        ++entity_count_;
 
         if (entity >= nextEntity_) {
             nextEntity_ = entity + 1;
@@ -156,6 +158,7 @@ public:
         schemaRegistry_.removeAll(entity);
 
         entityValid_[entity] = false;
+        --entity_count_;
         recycled_.push(entity);
 
         ES_LOG_TRACE("Destroyed entity {}", entity);
@@ -175,11 +178,7 @@ public:
      * @return Count of valid entities
      */
     usize entityCount() const {
-        usize count = 0;
-        for (bool valid : entityValid_) {
-            if (valid) ++count;
-        }
-        return count;
+        return entity_count_;
     }
 
     /**
@@ -393,6 +392,7 @@ public:
         entityValid_.clear();
         while (!recycled_.empty()) recycled_.pop();
         nextEntity_ = 0;
+        entity_count_ = 0;
     }
 
     /**
@@ -426,22 +426,26 @@ public:
         auto* pool = getPool<T>();
         if (!pool) return;
 
-        // Selection sort
         auto& entities = pool->entities();
         auto& components = pool->components();
+        usize n = entities.size();
+        if (n <= 1) return;
 
-        for (usize i = 0; i < entities.size(); ++i) {
-            usize minIdx = i;
-            for (usize j = i + 1; j < entities.size(); ++j) {
-                if (compare(components[j], components[minIdx])) {
-                    minIdx = j;
-                }
-            }
-            if (minIdx != i) {
-                std::swap(entities[i], entities[minIdx]);
-                std::swap(components[i], components[minIdx]);
-            }
+        std::vector<usize> indices(n);
+        for (usize i = 0; i < n; ++i) indices[i] = i;
+
+        std::sort(indices.begin(), indices.end(), [&](usize a, usize b) {
+            return compare(components[a], components[b]);
+        });
+
+        std::vector<Entity> sortedEntities(n);
+        std::vector<T> sortedComponents(n);
+        for (usize i = 0; i < n; ++i) {
+            sortedEntities[i] = std::move(entities[indices[i]]);
+            sortedComponents[i] = std::move(components[indices[i]]);
         }
+        entities = std::move(sortedEntities);
+        components = std::move(sortedComponents);
     }
 
     // =========================================================================
@@ -552,6 +556,8 @@ private:
     std::queue<Entity> recycled_;
     /** @brief Next entity ID to allocate */
     Entity nextEntity_ = 0;
+    /** @brief Cached count of valid entities */
+    usize entity_count_ = 0;
 
     /** @brief Type-erased component pools indexed by TypeId */
     std::unordered_map<TypeId, Unique<SparseSetBase>> pools_;

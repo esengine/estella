@@ -179,8 +179,7 @@ void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::H
     in_frame_ = true;
 
     items_.clear();
-    ext_vertex_storage_.clear();
-    ext_index_storage_.clear();
+    ext_storage_count_ = 0;
     ext_submit_order_ = 0;
     stats_ = Stats{};
 
@@ -391,8 +390,18 @@ void RenderFrame::submitExternalTriangles(
     const f32* transform16) {
 
     i32 floatCount = vertexCount * 8;
-    ext_vertex_storage_.emplace_back(vertices, vertices + floatCount);
-    ext_index_storage_.emplace_back(indices, indices + indexCount);
+
+    if (ext_storage_count_ < ext_vertex_storage_.size()) {
+        auto& vbuf = ext_vertex_storage_[ext_storage_count_];
+        vbuf.assign(vertices, vertices + floatCount);
+        auto& ibuf = ext_index_storage_[ext_storage_count_];
+        ibuf.assign(indices, indices + indexCount);
+    } else {
+        ext_vertex_storage_.emplace_back(vertices, vertices + floatCount);
+        ext_index_storage_.emplace_back(indices, indices + indexCount);
+    }
+    u32 storageIdx = ext_storage_count_++;
+
 
     RenderItem item;
     item.type = RenderType::ExternalMesh;
@@ -401,9 +410,9 @@ void RenderFrame::submitExternalTriangles(
     item.texture_id = 0;
     item.depth = 1.0f - static_cast<f32>(ext_submit_order_++) * 0.0001f;
     item.blend_mode = static_cast<BlendMode>(blendMode);
-    item.ext_vertices = ext_vertex_storage_.back().data();
+    item.ext_vertices = ext_vertex_storage_[storageIdx].data();
     item.ext_vertex_count = vertexCount;
-    item.ext_indices = ext_index_storage_.back().data();
+    item.ext_indices = ext_index_storage_[storageIdx].data();
     item.ext_index_count = indexCount;
 
     if (transform16) {

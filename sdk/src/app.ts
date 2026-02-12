@@ -282,10 +282,11 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
         _params: [],
         _fn: () => {
             const { width, height } = getViewportSize();
-            const count = cppRegistry.entityCount();
-            const scanLimit = count + 1000;
-            const canvas = findCanvasData(cppRegistry, scanLimit);
-            if (canvas) {
+            const canvasEntity = module.registry_getCanvasEntity(cppRegistry);
+            if (canvasEntity >= 0) {
+                const canvas = cppRegistry.getCanvas(canvasEntity) as {
+                    backgroundColor: { r: number; g: number; b: number; a: number };
+                };
                 const bg = canvas.backgroundColor;
                 Renderer.setClearColor(bg.r, bg.g, bg.b, bg.a);
             }
@@ -296,7 +297,7 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
                 PostProcess.resize(width, height);
             }
 
-            const cameras = collectCameras(cppRegistry, width, height);
+            const cameras = collectCameras(module, cppRegistry, width, height);
             if (cameras.length === 0) {
                 pipeline.render({
                     registry: { _cpp: cppRegistry },
@@ -354,23 +355,20 @@ const IDENTITY = new Float32Array([
     0, 0, 0, 1,
 ]);
 
-function findCanvasData(registry: CppRegistry, scanLimit: number): {
+function findCanvasData(module: ESEngineModule, registry: CppRegistry): {
     designResolution: { x: number; y: number };
     scaleMode: number;
     matchWidthOrHeight: number;
     backgroundColor: { r: number; g: number; b: number; a: number };
 } | null {
-    for (let e = 0; e < scanLimit; e++) {
-        if (!registry.valid(e) || !registry.hasCanvas(e)) continue;
-        const canvas = registry.getCanvas(e) as {
-            designResolution: { x: number; y: number };
-            scaleMode: number;
-            matchWidthOrHeight: number;
-            backgroundColor: { r: number; g: number; b: number; a: number };
-        };
-        return canvas;
-    }
-    return null;
+    const entity = module.registry_getCanvasEntity(registry);
+    if (entity < 0) return null;
+    return registry.getCanvas(entity) as {
+        designResolution: { x: number; y: number };
+        scaleMode: number;
+        matchWidthOrHeight: number;
+        backgroundColor: { r: number; g: number; b: number; a: number };
+    };
 }
 
 function computeEffectiveOrthoSize(
@@ -404,16 +402,14 @@ interface CameraInfo {
     priority: number;
 }
 
-function collectCameras(registry: CppRegistry, width: number, height: number): CameraInfo[] {
-    const count = registry.entityCount();
-    const scanLimit = count + 1000;
+function collectCameras(module: ESEngineModule, registry: CppRegistry, width: number, height: number): CameraInfo[] {
+    const cameraEntities = module.registry_getCameraEntities(registry);
+    if (cameraEntities.length === 0) return [];
+
+    const canvas = findCanvasData(module, registry);
     const cameras: CameraInfo[] = [];
 
-    for (let e = 0; e < scanLimit; e++) {
-        if (!registry.valid(e) || !registry.hasCamera(e) || !registry.hasLocalTransform(e)) {
-            continue;
-        }
-
+    for (const e of cameraEntities) {
         const camera = registry.getCamera(e) as {
             projectionType: number;
             fov: number;
@@ -428,7 +424,6 @@ function collectCameras(registry: CppRegistry, width: number, height: number): C
             viewportH: number;
             clearFlags: number;
         };
-        if (!camera.isActive) continue;
 
         const transform = registry.getLocalTransform(e) as {
             position: { x: number; y: number; z: number };
@@ -446,7 +441,6 @@ function collectCameras(registry: CppRegistry, width: number, height: number): C
         if (camera.projectionType === 1) {
             let halfH = camera.orthoSize;
 
-            const canvas = findCanvasData(registry, scanLimit);
             if (canvas) {
                 const baseOrthoSize = canvas.designResolution.y / 2;
                 const designAspect = canvas.designResolution.x / canvas.designResolution.y;
@@ -481,61 +475,53 @@ function collectCameras(registry: CppRegistry, width: number, height: number): C
     return cameras;
 }
 
-function computeViewProjection(registry: CppRegistry, width: number, height: number): Float32Array {
-    const count = registry.entityCount();
-    const scanLimit = count + 1000;
+function computeViewProjection(module: ESEngineModule, registry: CppRegistry, width: number, height: number): Float32Array {
+    const cameraEntities = module.registry_getCameraEntities(registry);
+    if (cameraEntities.length === 0) return IDENTITY;
 
-    for (let e = 0; e < scanLimit; e++) {
-        if (!registry.valid(e) || !registry.hasCamera(e) || !registry.hasLocalTransform(e)) {
-            continue;
-        }
+    const e = cameraEntities[0];
+    const camera = registry.getCamera(e) as {
+        projectionType: number;
+        fov: number;
+        orthoSize: number;
+        nearPlane: number;
+        farPlane: number;
+        isActive: boolean;
+    };
 
-        const camera = registry.getCamera(e) as {
-            projectionType: number;
-            fov: number;
-            orthoSize: number;
-            nearPlane: number;
-            farPlane: number;
-            isActive: boolean;
-        };
-        if (!camera.isActive) continue;
+    const transform = registry.getLocalTransform(e) as {
+        position: { x: number; y: number; z: number };
+    };
 
-        const transform = registry.getLocalTransform(e) as {
-            position: { x: number; y: number; z: number };
-        };
+    const aspect = width / height;
+    let projection: Float32Array;
 
-        const aspect = width / height;
-        let projection: Float32Array;
+    if (camera.projectionType === 1) {
+        let halfH = camera.orthoSize;
 
-        if (camera.projectionType === 1) {
-            let halfH = camera.orthoSize;
-
-            const canvas = findCanvasData(registry, scanLimit);
-            if (canvas) {
-                const baseOrthoSize = canvas.designResolution.y / 2;
-                const designAspect = canvas.designResolution.x / canvas.designResolution.y;
-                halfH = computeEffectiveOrthoSize(
-                    baseOrthoSize, designAspect, aspect,
-                    canvas.scaleMode, canvas.matchWidthOrHeight,
-                );
-            }
-
-            const halfW = halfH * aspect;
-            projection = ortho(-halfW, halfW, -halfH, halfH, -camera.farPlane, camera.farPlane);
-        } else {
-            projection = perspective(
-                camera.fov * Math.PI / 180,
-                aspect,
-                camera.nearPlane,
-                camera.farPlane,
+        const canvas = findCanvasData(module, registry);
+        if (canvas) {
+            const baseOrthoSize = canvas.designResolution.y / 2;
+            const designAspect = canvas.designResolution.x / canvas.designResolution.y;
+            halfH = computeEffectiveOrthoSize(
+                baseOrthoSize, designAspect, aspect,
+                canvas.scaleMode, canvas.matchWidthOrHeight,
             );
         }
 
-        const view = invertTranslation(transform.position.x, transform.position.y, transform.position.z);
-        return multiply(projection, view);
+        const halfW = halfH * aspect;
+        projection = ortho(-halfW, halfW, -halfH, halfH, -camera.farPlane, camera.farPlane);
+    } else {
+        projection = perspective(
+            camera.fov * Math.PI / 180,
+            aspect,
+            camera.nearPlane,
+            camera.farPlane,
+        );
     }
 
-    return IDENTITY;
+    const view = invertTranslation(transform.position.x, transform.position.y, transform.position.z);
+    return multiply(projection, view);
 }
 
 function ortho(left: number, right: number, bottom: number, top: number, near: number, far: number): Float32Array {

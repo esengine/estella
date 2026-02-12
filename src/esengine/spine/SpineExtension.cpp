@@ -43,13 +43,9 @@ char* ESEngineSpineExtension::_readFile(const ::spine::String& path, int* length
 // Extension Initialization
 // =============================================================================
 
-static ESEngineSpineExtension* s_extension = nullptr;
-
 void initSpineExtension() {
-    if (s_extension == nullptr) {
-        s_extension = new ESEngineSpineExtension();
-        ::spine::SpineExtension::setInstance(s_extension);
-    }
+    static ESEngineSpineExtension s_extension;
+    ::spine::SpineExtension::setInstance(&s_extension);
 }
 
 }  // namespace esengine::spine
@@ -61,7 +57,8 @@ void initSpineExtension() {
 namespace spine {
 
 SpineExtension* getDefaultExtension() {
-    return new esengine::spine::ESEngineSpineExtension();
+    static esengine::spine::ESEngineSpineExtension s_defaultExtension;
+    return &s_defaultExtension;
 }
 
 }  // namespace spine

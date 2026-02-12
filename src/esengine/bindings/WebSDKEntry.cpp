@@ -30,6 +30,7 @@
 #include "../ecs/Registry.hpp"
 #include "../ecs/TransformSystem.hpp"
 #include "../ecs/components/Camera.hpp"
+#include "../ecs/components/Canvas.hpp"
 #include "../ecs/components/Transform.hpp"
 #ifdef ES_ENABLE_SPINE
 #include "../spine/SpineResourceManager.hpp"
@@ -1150,6 +1151,27 @@ u32 gl_checkErrors(const std::string& context) {
     return count;
 }
 
+i32 registry_getCanvasEntity(ecs::Registry& registry) {
+    auto view = registry.view<ecs::Canvas>();
+    for (auto entity : view) {
+        return static_cast<i32>(entity);
+    }
+    return -1;
+}
+
+emscripten::val registry_getCameraEntities(ecs::Registry& registry) {
+    auto cameraView = registry.view<ecs::Camera, ecs::LocalTransform>();
+    auto result = emscripten::val::array();
+    u32 idx = 0;
+    for (auto entity : cameraView) {
+        auto& camera = registry.get<ecs::Camera>(entity);
+        if (camera.isActive) {
+            result.set(idx++, static_cast<u32>(entity));
+        }
+    }
+    return result;
+}
+
 }  // namespace esengine
 
 EMSCRIPTEN_BINDINGS(esengine_renderer) {
@@ -1256,6 +1278,10 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_setViewport", &esengine::renderer_setViewport);
     emscripten::function("renderer_setScissor", &esengine::renderer_setScissor);
     emscripten::function("renderer_clearBuffers", &esengine::renderer_clearBuffers);
+
+    // ECS Query API
+    emscripten::function("registry_getCanvasEntity", &esengine::registry_getCanvasEntity);
+    emscripten::function("registry_getCameraEntities", &esengine::registry_getCameraEntities);
 
     // GL Debug API
     emscripten::function("gl_enableErrorCheck", &esengine::gl_enableErrorCheck);
