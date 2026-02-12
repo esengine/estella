@@ -33,7 +33,7 @@ interface FolderNode {
 interface AssetItem {
     name: string;
     path: string;
-    type: 'folder' | 'scene' | 'script' | 'image' | 'audio' | 'json' | 'material' | 'shader' | 'spine' | 'file';
+    type: 'folder' | 'scene' | 'script' | 'image' | 'audio' | 'json' | 'material' | 'shader' | 'spine' | 'font' | 'file';
 }
 
 export interface ContentBrowserOptions {
@@ -89,6 +89,8 @@ function getAssetType(entry: DirectoryEntry): AssetItem['type'] {
         case '.skel':
         case '.atlas':
             return 'spine';
+        case '.bmfont':
+            return 'font';
         default:
             return 'file';
     }
@@ -114,6 +116,8 @@ function getAssetIcon(type: AssetItem['type'], size: number = 32): string {
             return icons.code(size);
         case 'spine':
             return icons.bone(size);
+        case 'font':
+            return icons.type(size);
         default:
             return icons.file(size);
     }
@@ -571,6 +575,11 @@ export class ContentBrowserPanel {
                             onClick: () => this.createNewShader(path),
                         },
                         {
+                            label: 'BitmapFont',
+                            icon: icons.type(14),
+                            onClick: () => this.createNewBitmapFont(path),
+                        },
+                        {
                             label: 'Scene',
                             icon: icons.layers(14),
                             onClick: () => this.createNewScene(path),
@@ -728,6 +737,27 @@ void main() {
             this.refresh();
         } catch (err) {
             console.error('Failed to create shader:', err);
+        }
+    }
+
+    private async createNewBitmapFont(parentPath: string): Promise<void> {
+        const name = await this.promptFileName('NewFont', '.bmfont');
+        if (!name) return;
+
+        const platform = getPlatformAdapter();
+        const filePath = `${parentPath}/${name}`;
+
+        const content = JSON.stringify({
+            version: '1.0',
+            type: 'label-atlas',
+            glyphs: {},
+        }, null, 2);
+
+        try {
+            await platform.writeTextFile(filePath, content);
+            this.refresh();
+        } catch (err) {
+            console.error('Failed to create bitmap font:', err);
         }
     }
 

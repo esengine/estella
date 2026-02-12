@@ -5,6 +5,7 @@ export const ASSET_EXTENSIONS = new Set([
     'mp3', 'wav', 'ogg',
     'atlas', 'skel', 'json',
     'esmaterial', 'esshader',
+    'bmfont', 'fnt',
 ]);
 
 export function getAssetType(path: string): string {
@@ -22,6 +23,8 @@ export function getAssetType(path: string): string {
             return 'spine-skeleton';
         case 'json':
             return 'json';
+        case 'bmfont': case 'fnt':
+            return 'bitmap-font';
         case 'mp3': case 'wav': case 'ogg':
             return 'audio';
         default:

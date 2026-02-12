@@ -188,6 +188,28 @@ export const CanvasSchema: ComponentSchema = {
     ],
 };
 
+export const BitmapTextSchema: ComponentSchema = {
+    name: 'BitmapText',
+    category: 'builtin',
+    properties: [
+        { name: 'text', type: 'string' },
+        { name: 'font', type: 'bitmap-font-file' },
+        { name: 'color', type: 'color' },
+        { name: 'fontSize', type: 'number', min: 0.1, step: 0.1 },
+        {
+            name: 'align',
+            type: 'enum',
+            options: [
+                { label: 'Left', value: 0 },
+                { label: 'Center', value: 1 },
+                { label: 'Right', value: 2 },
+            ],
+        },
+        { name: 'spacing', type: 'number', step: 0.1 },
+        { name: 'layer', type: 'number', min: -1000, max: 1000 },
+    ],
+};
+
 export const SpineAnimationSchema: ComponentSchema = {
     name: 'SpineAnimation',
     category: 'builtin',
@@ -376,6 +398,7 @@ export function registerBuiltinSchemas(options?: BuiltinSchemaOptions): void {
     registerComponentSchema(TextSchema);
     registerComponentSchema(UIRectSchema);
     registerComponentSchema(CanvasSchema);
+    registerComponentSchema(BitmapTextSchema);
     registerComponentSchema(RigidBodySchema);
     registerComponentSchema(BoxColliderSchema);
     registerComponentSchema(CircleColliderSchema);
@@ -395,6 +418,15 @@ export function registerSpineSchema(): void {
 // =============================================================================
 
 const editorOnlyDefaults: Record<string, Record<string, unknown>> = {
+    BitmapText: {
+        text: 'BitmapText',
+        font: '',
+        color: { r: 1, g: 1, b: 1, a: 1 },
+        fontSize: 1.0,
+        align: 0,
+        spacing: 0,
+        layer: 0,
+    },
     UIRect: {
         size: { x: 100, y: 100 },
         anchor: { x: 0.5, y: 0.5 },
@@ -414,14 +446,14 @@ const editorOnlyDefaults: Record<string, Record<string, unknown>> = {
 };
 
 export function getDefaultComponentData(typeName: string): Record<string, unknown> {
-    const sdkDefaults = getComponentDefaults(typeName);
-    if (sdkDefaults) {
-        return sdkDefaults;
-    }
-
     const editorDefaults = editorOnlyDefaults[typeName];
     if (editorDefaults) {
         return { ...editorDefaults };
+    }
+
+    const sdkDefaults = getComponentDefaults(typeName);
+    if (sdkDefaults) {
+        return sdkDefaults;
     }
 
     return {};

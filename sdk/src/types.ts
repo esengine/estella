@@ -13,6 +13,9 @@ export const INVALID_ENTITY = 0 as Entity;
 export type TextureHandle = number;
 export const INVALID_TEXTURE = 0xFFFFFFFF as TextureHandle;
 
+export type FontHandle = number;
+export const INVALID_FONT = 0 as FontHandle;
+
 // =============================================================================
 // Math Types
 // =============================================================================

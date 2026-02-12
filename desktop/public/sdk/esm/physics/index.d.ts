@@ -159,6 +159,10 @@ interface CppRegistry {
     getCapsuleCollider?(entity: Entity): unknown;
     hasCapsuleCollider?(entity: Entity): boolean;
     removeCapsuleCollider?(entity: Entity): void;
+    addBitmapText(entity: Entity, data: unknown): void;
+    getBitmapText(entity: Entity): unknown;
+    hasBitmapText(entity: Entity): boolean;
+    removeBitmapText(entity: Entity): void;
     setParent(child: Entity, parent: Entity): void;
     [key: string]: any;
 }
@@ -171,6 +175,9 @@ interface CppResourceManager {
     releaseShader(handle: number): void;
     setTextureMetadata(handle: number, left: number, right: number, top: number, bottom: number): void;
     registerTextureWithPath(handle: number, path: string): void;
+    loadBitmapFont(fntContent: string, textureHandle: number, texWidth: number, texHeight: number): number;
+    createLabelAtlasFont(textureHandle: number, texWidth: number, texHeight: number, chars: string, charWidth: number, charHeight: number): number;
+    releaseBitmapFont(handle: number): void;
 }
 interface EmscriptenFS {
     writeFile(path: string, data: string | Uint8Array): void;
@@ -265,6 +272,7 @@ interface ESEngineModule {
     renderer_flush(): void;
     renderer_end(): void;
     renderer_submitSprites(registry: CppRegistry): void;
+    renderer_submitBitmapText(registry: CppRegistry): void;
     renderer_submitSpine?(registry: CppRegistry): void;
     renderer_submitTriangles(verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, blendMode: number, transformPtr: number): void;
     renderer_setStage(stage: number): void;
@@ -275,6 +283,7 @@ interface ESEngineModule {
     renderer_getDrawCalls(): number;
     renderer_getTriangles(): number;
     renderer_getSprites(): number;
+    renderer_getText(): number;
     renderer_getSpine?(): number;
     renderer_getMeshes(): number;
     renderer_getCulled(): number;

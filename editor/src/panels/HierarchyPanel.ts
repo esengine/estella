@@ -477,11 +477,12 @@ export class HierarchyPanel {
         const hasCamera = entity.components.some(c => c.type === 'Camera');
         const hasSprite = entity.components.some(c => c.type === 'Sprite');
         const hasText = entity.components.some(c => c.type === 'Text');
+        const hasBitmapText = entity.components.some(c => c.type === 'BitmapText');
         const hasSpine = entity.components.some(c => c.type === 'SpineAnimation');
 
         if (hasCamera) return icons.camera(12);
         if (hasSpine) return icons.bone(12);
-        if (hasText) return icons.type(12);
+        if (hasText || hasBitmapText) return icons.type(12);
         if (hasSprite) return icons.image(12);
         return icons.box(12);
     }
@@ -559,6 +560,7 @@ export class HierarchyPanel {
             } },
             { label: 'Create Sprite', icon: icons.image(14), onClick: () => this.createEntityWithComponent('Sprite', entity) },
             { label: 'Create Text', icon: icons.type(14), onClick: () => this.createEntityWithComponent('Text', entity) },
+            { label: 'Create BitmapText', icon: icons.type(14), onClick: () => this.createEntityWithComponent('BitmapText', entity) },
             { label: 'Create Spine', icon: icons.bone(14), onClick: () => this.createEntityWithComponent('SpineAnimation', entity) },
             { label: 'Create Camera', icon: icons.camera(14), onClick: () => this.createEntityWithComponent('Camera', entity) },
             { label: 'Create Canvas', icon: icons.template(14), onClick: () => this.createEntityWithComponent('Canvas', entity) },

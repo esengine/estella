@@ -1450,6 +1450,130 @@ function createMaterialFileEditor(
 }
 
 // =============================================================================
+// Bitmap Font File Editor
+// =============================================================================
+
+function createBitmapFontFileEditor(
+    container: HTMLElement,
+    ctx: PropertyEditorContext
+): PropertyEditorInstance {
+    const { value, onChange } = ctx;
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'es-file-editor';
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'es-input es-input-file es-asset-link';
+    input.value = resolveDisplayName(String(value ?? ''));
+    input.placeholder = 'None';
+    input.readOnly = true;
+
+    const browseBtn = document.createElement('button');
+    browseBtn.className = 'es-btn es-btn-icon es-btn-browse';
+    browseBtn.title = 'Browse';
+    browseBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2z"></path></svg>`;
+
+    const clearBtn = document.createElement('button');
+    clearBtn.className = 'es-btn es-btn-icon es-btn-clear';
+    clearBtn.title = 'Clear';
+    clearBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
+
+    input.addEventListener('click', () => {
+        if (input.value) {
+            navigateToAsset(input.value);
+        }
+    });
+
+    wrapper.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        const data = e.dataTransfer?.types.includes('application/esengine-asset');
+        if (data) {
+            wrapper.classList.add('es-drag-over');
+            e.dataTransfer!.dropEffect = 'copy';
+        } else {
+            e.dataTransfer!.dropEffect = 'none';
+        }
+    });
+
+    wrapper.addEventListener('dragleave', () => {
+        wrapper.classList.remove('es-drag-over');
+    });
+
+    wrapper.addEventListener('drop', (e) => {
+        e.preventDefault();
+        wrapper.classList.remove('es-drag-over');
+
+        const jsonData = e.dataTransfer?.getData('application/esengine-asset');
+        if (!jsonData) return;
+
+        try {
+            const assetData = JSON.parse(jsonData);
+            if (assetData.type === 'font') {
+                const projectDir = getProjectDir();
+                if (projectDir && assetData.path.startsWith(projectDir)) {
+                    const relativePath = assetData.path.substring(projectDir.length + 1);
+                    const uuid = getAssetLibrary().getUuid(relativePath);
+                    const ref = uuid ?? relativePath;
+                    input.value = relativePath;
+                    onChange(ref);
+                }
+            }
+        } catch (err) {
+            console.error('Failed to parse drop data:', err);
+        }
+    });
+
+    browseBtn.addEventListener('click', async () => {
+        const projectDir = getProjectDir();
+        if (!projectDir) return;
+
+        const assetsDir = `${projectDir}/assets`;
+
+        try {
+            const platform = getPlatformAdapter();
+            const result = await platform.openFileDialog({
+                title: 'Select BitmapFont',
+                defaultPath: assetsDir,
+                filters: [{ name: 'BitmapFont Files', extensions: ['bmfont'] }],
+            });
+            if (result) {
+                const normalizedPath = result.replace(/\\/g, '/');
+                const assetsIndex = normalizedPath.indexOf('/assets/');
+                if (assetsIndex !== -1) {
+                    const relativePath = normalizedPath.substring(assetsIndex + 1);
+                    const uuid = getAssetLibrary().getUuid(relativePath);
+                    const ref = uuid ?? relativePath;
+                    input.value = relativePath;
+                    onChange(ref);
+                }
+            }
+        } catch (err) {
+            console.error('Failed to open file dialog:', err);
+        }
+    });
+
+    clearBtn.addEventListener('click', () => {
+        input.value = '';
+        onChange('');
+    });
+
+    wrapper.appendChild(input);
+    wrapper.appendChild(browseBtn);
+    wrapper.appendChild(clearBtn);
+    container.appendChild(wrapper);
+
+    return {
+        update(v: unknown) {
+            input.value = resolveDisplayName(String(v ?? ''));
+        },
+        dispose() {
+            wrapper.remove();
+        },
+    };
+}
+
+// =============================================================================
 // Register All Editors
 // =============================================================================
 
@@ -1469,4 +1593,5 @@ export function registerBuiltinEditors(): void {
     registerPropertyEditor('spine-animation', createSpineAnimationEditor);
     registerPropertyEditor('spine-skin', createSpineSkinEditor);
     registerPropertyEditor('material-file', createMaterialFileEditor);
+    registerPropertyEditor('bitmap-font-file', createBitmapFontFileEditor);
 }

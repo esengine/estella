@@ -29,6 +29,7 @@ export class TextPlugin implements Plugin {
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
             [],
             () => {
+                renderer.cleanupOrphaned(e => world.valid(e) && world.has(e, Text));
                 const entities = world.getEntitiesWithComponents([Text]);
 
                 for (const entity of entities) {
@@ -52,9 +53,12 @@ export class TextPlugin implements Plugin {
 
                     const sprite = world.get(entity, Sprite) as SpriteData;
                     sprite.texture = result.textureHandle;
-                    sprite.size = { x: result.width, y: result.height };
-                    sprite.uvOffset = { x: 0, y: 0 };
-                    sprite.uvScale = { x: 1, y: 1 };
+                    sprite.size.x = result.width;
+                    sprite.size.y = result.height;
+                    sprite.uvOffset.x = 0;
+                    sprite.uvOffset.y = 0;
+                    sprite.uvScale.x = 1;
+                    sprite.uvScale.y = 1;
                     world.insert(entity, Sprite, sprite);
 
                     text.dirty = false;

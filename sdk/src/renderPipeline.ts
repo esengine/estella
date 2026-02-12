@@ -52,6 +52,7 @@ export class RenderPipeline {
         Renderer.clearBuffers(3);
         Renderer.begin(viewProjection);
         Renderer.submitSprites(registry);
+        Renderer.submitBitmapText(registry);
         if (this.spineRenderer_) {
             this.spineRenderer_(registry, elapsed);
         } else {
@@ -74,6 +75,7 @@ export class RenderPipeline {
 
         Renderer.begin(viewProjection);
         Renderer.submitSprites(registry);
+        Renderer.submitBitmapText(registry);
         if (this.spineRenderer_) {
             this.spineRenderer_(registry, elapsed);
         } else {

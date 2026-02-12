@@ -10,6 +10,7 @@ import {
     Sprite,
     Camera,
     Canvas,
+    BitmapText,
     SpineAnimation,
     RigidBody,
     BoxCollider,
@@ -21,6 +22,7 @@ import {
     type SpriteData,
     type CameraData,
     type CanvasData,
+    type BitmapTextData,
     type SpineAnimationData,
     type RigidBodyData,
     type BoxColliderData,
@@ -153,6 +155,22 @@ export async function loadSceneWithAssets(
                 }
             }
 
+            if (compData.type === 'BitmapText' && assetServer) {
+                const data = compData.data as Record<string, unknown>;
+                if (typeof data.font === 'string' && data.font) {
+                    try {
+                        const handle = await assetServer.loadBitmapFont(
+                            data.font,
+                            options?.assetBaseUrl
+                        );
+                        data.font = handle;
+                    } catch (err) {
+                        console.warn(`Failed to load bitmap font: ${data.font}`, err);
+                        data.font = 0;
+                    }
+                }
+            }
+
             if (compData.type === 'SpineAnimation' && assetServer) {
                 const data = compData.data as Record<string, unknown>;
                 const skeletonPath = data.skeletonPath as string;
@@ -224,6 +242,9 @@ export function loadComponent(world: World, entity: Entity, compData: SceneCompo
             break;
         case 'Text':
             world.insert(entity, Text, data as TextData);
+            break;
+        case 'BitmapText':
+            world.insert(entity, BitmapText, data as BitmapTextData);
             break;
         case 'SpineAnimation':
             world.insert(entity, SpineAnimation, data as SpineAnimationData);

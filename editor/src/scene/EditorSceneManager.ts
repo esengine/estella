@@ -9,13 +9,16 @@ import {
     loadComponent,
     LocalTransform,
     Sprite,
+    BitmapText,
     INVALID_TEXTURE,
+    INVALID_FONT,
     TextRenderer,
     TextAlign,
     TextVerticalAlign,
     TextOverflow,
     type SceneComponentData,
     type TextData,
+    type BitmapTextData,
     type LocalTransformData,
     type WorldTransformData,
 } from 'esengine';
@@ -173,6 +176,10 @@ export class EditorSceneManager {
                 this.syncText(entity, comp.data, entityId);
                 break;
 
+            case 'BitmapText':
+                await this.syncBitmapText(entity, comp.data, entityId);
+                break;
+
             case 'SpineAnimation':
                 await this.syncSpineAnimation(entity, comp.data, entityId);
                 break;
@@ -243,6 +250,9 @@ export class EditorSceneManager {
 
         if (this.world_.has(entity, Sprite)) {
             this.world_.remove(entity, Sprite);
+        }
+        if (this.world_.has(entity, BitmapText)) {
+            this.world_.remove(entity, BitmapText);
         }
     }
 
@@ -570,6 +580,34 @@ export class EditorSceneManager {
             layer: 25,
             flipX: false,
             flipY: false,
+        });
+    }
+
+    private async syncBitmapText(entity: Entity, data: any, _entityId: number): Promise<void> {
+        let fontHandle = INVALID_FONT as number;
+
+        const fontRef = data.font;
+        if (fontRef && typeof fontRef === 'string') {
+            try {
+                const fontPath = this.resolveAssetRef(fontRef);
+                fontHandle = await this.assetServer_.loadBitmapFont(fontPath);
+            } catch (err) {
+                console.warn(`[EditorSceneManager] Failed to load bitmap font: ${fontRef}`, err);
+            }
+        }
+
+        if (this.world_.has(entity, BitmapText)) {
+            this.world_.remove(entity, BitmapText);
+        }
+
+        this.world_.insert(entity, BitmapText, {
+            text: data.text ?? '',
+            color: data.color ?? { r: 1, g: 1, b: 1, a: 1 },
+            fontSize: data.fontSize ?? 1.0,
+            align: data.align ?? 0,
+            spacing: data.spacing ?? 0,
+            layer: data.layer ?? 0,
+            font: fontHandle,
         });
     }
 

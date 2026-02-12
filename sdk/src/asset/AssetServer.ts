@@ -3,7 +3,7 @@
  * @brief   Asset loading and caching system
  */
 
-import type { Entity, TextureHandle } from '../types';
+import type { Entity, TextureHandle, FontHandle } from '../types';
 import type { ESEngineModule } from '../wasm';
 import type { ShaderHandle } from '../material';
 import { Material } from '../material';
@@ -82,6 +82,7 @@ export class AssetServer {
     private materialLoader_: MaterialLoader;
     private canvas_: HTMLCanvasElement;
     private ctx_: CanvasRenderingContext2D;
+    private fontCache_ = new AsyncCache<FontHandle>();
     private embedded_ = new Map<string, string>();
 
     constructor(module: ESEngineModule) {
@@ -151,7 +152,11 @@ export class AssetServer {
         for (const info of this.textureCache_.values()) {
             rm.releaseTexture(info.handle);
         }
+        for (const handle of this.fontCache_.values()) {
+            rm.releaseBitmapFont(handle);
+        }
         this.textureCache_.clear();
+        this.fontCache_.clear();
         this.jsonCache_.clear();
         this.textCache_.clear();
         this.binaryCache_.clear();
@@ -243,6 +248,66 @@ export class AssetServer {
 
     isSpineLoaded(skeletonPath: string, atlasPath: string): boolean {
         return this.loadedSpines_.has(`${skeletonPath}:${atlasPath}`);
+    }
+
+    // =========================================================================
+    // BitmapFont
+    // =========================================================================
+
+    async loadBitmapFont(fontPath: string, baseUrl?: string): Promise<FontHandle> {
+        const url = this.resolveUrl(fontPath, baseUrl);
+        return this.fontCache_.getOrLoad(url, async () => {
+            if (fontPath.endsWith('.bmfont')) {
+                return this.loadBmfontAsset(url);
+            }
+            return this.loadFntFile(url);
+        });
+    }
+
+    getFont(fontPath: string): FontHandle | undefined {
+        return this.fontCache_.get(fontPath);
+    }
+
+    releaseFont(fontPath: string): void {
+        const handle = this.fontCache_.get(fontPath);
+        if (handle) {
+            const rm = this.module_.getResourceManager();
+            rm.releaseBitmapFont(handle);
+            this.fontCache_.delete(fontPath);
+        }
+    }
+
+    private async loadBmfontAsset(url: string): Promise<FontHandle> {
+        const json = await this.fetchJson(url) as {
+            type: string;
+            fntFile?: string;
+            generatedFnt?: string;
+        };
+        const dir = url.substring(0, url.lastIndexOf('/'));
+
+        const fntFile = json.type === 'label-atlas'
+            ? json.generatedFnt
+            : json.fntFile;
+
+        if (!fntFile) {
+            throw new Error(`Invalid bmfont asset: no fnt file specified`);
+        }
+        const fntUrl = dir ? `${dir}/${fntFile}` : fntFile;
+        return this.loadFntFile(fntUrl);
+    }
+
+    private async loadFntFile(url: string): Promise<FontHandle> {
+        const fntContent = await this.fetchText(url);
+        const pageMatch = fntContent.match(/file="([^"]+)"/);
+        if (!pageMatch) {
+            throw new Error(`No page texture found in .fnt file: ${url}`);
+        }
+        const texName = pageMatch[1];
+        const fntDir = url.substring(0, url.lastIndexOf('/'));
+        const texUrl = fntDir ? `${fntDir}/${texName}` : texName;
+        const texInfo = await this.loadTextureRaw(texUrl);
+        const rm = this.module_.getResourceManager();
+        return rm.loadBitmapFont(fntContent, texInfo.handle, texInfo.width, texInfo.height) as FontHandle;
     }
 
     // =========================================================================

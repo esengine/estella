@@ -13,6 +13,7 @@ export interface RenderStats {
     drawCalls: number;
     triangles: number;
     sprites: number;
+    text: number;
     spine: number;
     meshes: number;
     culled: number;
@@ -62,6 +63,11 @@ export const Renderer = {
         module.renderer_submitSprites(registry._cpp);
     },
 
+    submitBitmapText(registry: { _cpp: CppRegistry }): void {
+        if (!module) return;
+        module.renderer_submitBitmapText(registry._cpp);
+    },
+
     submitSpine(registry: { _cpp: CppRegistry }): void {
         if (!module) return;
         module.renderer_submitSpine?.(registry._cpp);
@@ -105,12 +111,13 @@ export const Renderer = {
 
     getStats(): RenderStats {
         if (!module) {
-            return { drawCalls: 0, triangles: 0, sprites: 0, spine: 0, meshes: 0, culled: 0 };
+            return { drawCalls: 0, triangles: 0, sprites: 0, text: 0, spine: 0, meshes: 0, culled: 0 };
         }
         return {
             drawCalls: module.renderer_getDrawCalls(),
             triangles: module.renderer_getTriangles(),
             sprites: module.renderer_getSprites(),
+            text: module.renderer_getText(),
             spine: module.renderer_getSpine?.() ?? 0,
             meshes: module.renderer_getMeshes(),
             culled: module.renderer_getCulled(),

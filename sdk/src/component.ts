@@ -3,7 +3,7 @@
  * @brief   Component definition and builtin components
  */
 
-import { Entity, Vec2, Vec3, Color, Quat, INVALID_TEXTURE } from './types';
+import { Entity, Vec2, Vec3, Color, Quat, INVALID_TEXTURE, INVALID_FONT } from './types';
 import {
     RigidBody, BoxCollider, CircleCollider, CapsuleCollider,
     type RigidBodyData, type BoxColliderData, type CircleColliderData, type CapsuleColliderData,
@@ -201,6 +201,16 @@ export interface SpineAnimationData {
     material: number;
 }
 
+export interface BitmapTextData {
+    text: string;
+    color: Color;
+    fontSize: number;
+    align: number;
+    spacing: number;
+    layer: number;
+    font: number;
+}
+
 export interface NameData {
     value: string;
 }
@@ -271,6 +281,16 @@ export const Children = defineBuiltin<ChildrenData>('Children', {
     entities: []
 });
 
+export const BitmapText = defineBuiltin<BitmapTextData>('BitmapText', {
+    text: '',
+    color: { r: 1, g: 1, b: 1, a: 1 },
+    fontSize: 1.0,
+    align: 0,
+    spacing: 0,
+    layer: 0,
+    font: INVALID_FONT,
+});
+
 export const SpineAnimation = defineBuiltin<SpineAnimationData>('SpineAnimation', {
     skeletonPath: '',
     atlasPath: '',
@@ -324,6 +344,7 @@ const builtinComponents: Record<string, BuiltinComponentDef<any>> = {
     Velocity,
     Parent,
     Children,
+    BitmapText,
     SpineAnimation,
     RigidBody,
     BoxCollider,

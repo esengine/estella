@@ -40,6 +40,8 @@ export class EditorAssetServer {
     private materialPending_ = new Map<string, Promise<LoadedMaterial>>();
     private shaderCache_ = new Map<string, ShaderHandle>();
     private materialInstances_ = new Map<string, MaterialInstance>();
+    private fontCache_ = new Map<string, number>();
+    private fontPending_ = new Map<string, Promise<number>>();
 
     constructor(module: ESEngineModule, pathResolver: AssetPathResolver) {
         this.module_ = module;
@@ -105,6 +107,73 @@ export class EditorAssetServer {
     releaseAll(): void {
         this.textureManager_.releaseAll();
         this.assetLoader_.clearCache();
+        const rm = this.module_.getResourceManager();
+        for (const handle of this.fontCache_.values()) {
+            rm.releaseBitmapFont(handle);
+        }
+        this.fontCache_.clear();
+    }
+
+    async loadBitmapFont(fontRef: string): Promise<number> {
+        const cached = this.fontCache_.get(fontRef);
+        if (cached !== undefined) return cached;
+
+        const pending = this.fontPending_.get(fontRef);
+        if (pending) return pending;
+
+        const promise = this.loadBitmapFontInternal(fontRef);
+        this.fontPending_.set(fontRef, promise);
+
+        try {
+            const handle = await promise;
+            this.fontCache_.set(fontRef, handle);
+            return handle;
+        } finally {
+            this.fontPending_.delete(fontRef);
+        }
+    }
+
+    private async loadBitmapFontInternal(fontRef: string): Promise<number> {
+        const fs = this.getNativeFS();
+        if (!fs) throw new Error('NativeFS not available');
+
+        const fullPath = this.pathResolver_.toAbsolutePath(fontRef);
+
+        let fntRelDir: string;
+        let fntFile: string;
+
+        if (fontRef.endsWith('.bmfont')) {
+            const content = await fs.readFile(fullPath);
+            if (!content) throw new Error(`Failed to read: ${fullPath}`);
+            const json = JSON.parse(content) as { type?: string; fntFile?: string; generatedFnt?: string };
+            const f = json.type === 'label-atlas' ? json.generatedFnt : json.fntFile;
+            if (!f) throw new Error(`No fnt file in: ${fontRef}`);
+            const refDir = fontRef.substring(0, fontRef.lastIndexOf('/'));
+            fntRelDir = refDir;
+            fntFile = f;
+        } else {
+            const lastSlash = fontRef.lastIndexOf('/');
+            fntRelDir = lastSlash > 0 ? fontRef.substring(0, lastSlash) : '';
+            fntFile = lastSlash > 0 ? fontRef.substring(lastSlash + 1) : fontRef;
+        }
+
+        const fntFullPath = fntRelDir ? `${this.pathResolver_.toAbsolutePath(fntRelDir)}/${fntFile}` : this.pathResolver_.toAbsolutePath(fntFile);
+        const fntContent = await fs.readFile(fntFullPath);
+        if (!fntContent) throw new Error(`Failed to read: ${fntFullPath}`);
+
+        const pageMatch = fntContent.match(/file="([^"]+)"/);
+        if (!pageMatch) throw new Error(`No page texture in: ${fntFullPath}`);
+
+        const texName = pageMatch[1];
+        const texRelPath = fntRelDir ? `${fntRelDir}/${texName}` : texName;
+
+        const texResult = await this.assetLoader_.loadTexture(texRelPath);
+        if (!texResult.success || texResult.handle === undefined) {
+            throw new Error(`Failed to load font texture: ${texRelPath}`);
+        }
+
+        const rm = this.module_.getResourceManager();
+        return rm.loadBitmapFont(fntContent, texResult.handle, texResult.width ?? 0, texResult.height ?? 0);
     }
 
     setTextureMetadata(handle: number, border: SliceBorder): void {

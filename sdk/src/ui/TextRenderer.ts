@@ -195,6 +195,16 @@ export class TextRenderer {
         }
     }
 
+    cleanupOrphaned(isAlive: (entity: Entity) => boolean): void {
+        const rm = this.module.getResourceManager();
+        for (const [entity, result] of this.cache) {
+            if (!isAlive(entity)) {
+                rm.releaseTexture(result.textureHandle);
+                this.cache.delete(entity);
+            }
+        }
+    }
+
     /**
      * Releases all cached textures
      */

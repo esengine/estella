@@ -979,8 +979,10 @@ void RenderFrame::renderText(u32 begin, u32 end) {
                 f32 posX = cursorX + (glyph->xOffset + glyph->width * 0.5f) * scale;
                 f32 posY = baseY + (fontBase - glyph->yOffset - glyph->height * 0.5f) * scale;
 
-                glm::vec2 uvOffset(glyph->x / texW, glyph->y / texH);
-                glm::vec2 uvScale(glyph->width / texW, glyph->height / texH);
+                f32 uvY = glyph->y / texH;
+                f32 uvH = glyph->height / texH;
+                glm::vec2 uvOffset(glyph->x / texW, uvY + uvH);
+                glm::vec2 uvScale(glyph->width / texW, -uvH);
 
                 batcher_->drawQuad(
                     glm::vec2(posX, posY),
