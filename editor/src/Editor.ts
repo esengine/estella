@@ -457,9 +457,13 @@ export class Editor {
             projectPath: this.projectPath_,
             onCompileError: (errors) => {
                 console.error('Script compilation errors:', errors);
+                const msg = errors.map(e => `${e.file}:${e.line} - ${e.message}`).join('\n');
+                showErrorToast('Script compile failed', msg);
+                for (const e of errors) {
+                    this.appendOutput(`${e.file}:${e.line}:${e.column} - ${e.message}`, 'error');
+                }
             },
             onCompileSuccess: () => {
-                console.log('Scripts compiled successfully');
                 this.store_.notifyChange();
             },
         });

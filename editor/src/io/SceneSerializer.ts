@@ -75,6 +75,26 @@ export class SceneSerializer {
         if (!component.data || typeof component.data !== 'object') {
             component.data = {};
         }
+        this.migrateColors(component);
+    }
+
+    private migrateColors(component: ComponentData): void {
+        const colorFields: Record<string, string[]> = {
+            Sprite: ['color'],
+            Canvas: ['backgroundColor'],
+            SpineAnimation: ['color'],
+            Text: ['color'],
+        };
+        const fields = colorFields[component.type];
+        if (!fields) return;
+
+        for (const field of fields) {
+            const v = component.data[field];
+            if (v && typeof v === 'object' && 'x' in v && !('r' in v)) {
+                const vec = v as { x: number; y: number; z: number; w: number };
+                component.data[field] = { r: vec.x, g: vec.y, b: vec.z, a: vec.w };
+            }
+        }
     }
 }
 

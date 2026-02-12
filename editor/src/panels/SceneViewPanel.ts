@@ -165,6 +165,8 @@ export class SceneViewPanel {
 
         if (this.app_?.wasmModule) {
             this.initWebGLRenderer();
+        } else {
+            this.startContinuousRender();
         }
     }
 
@@ -275,6 +277,7 @@ export class SceneViewPanel {
         } else {
             console.warn('WebGL init failed, falling back to Canvas 2D');
             this.sceneRenderer_ = null;
+            this.startContinuousRender();
         }
 
         this.webglInitPending_ = false;
@@ -1021,6 +1024,14 @@ export class SceneViewPanel {
         }
 
         this.drawCameraFrustums(ctx);
+
+        if (getSettingsValue<boolean>('scene.showColliders')) {
+            this.colliderOverlay_.drawAll({
+                ctx,
+                zoom: this.zoom_,
+                store: this.store_,
+            });
+        }
 
         if (selectedEntity !== null && this.store_.isEntityVisible(selectedEntity as number)) {
             if (this.gizmoManager_.getActiveId() !== 'select' && getSettingsValue<boolean>('scene.showGizmos')) {

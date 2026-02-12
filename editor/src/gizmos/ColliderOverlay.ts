@@ -85,6 +85,7 @@ export class ColliderOverlay {
         if (!this.dragState_) return;
 
         const { store } = octx;
+        const ppu = this.getPixelsPerUnit(store);
         const { entity, componentType, handleId, startWorldX, startWorldY } = this.dragState_;
         const comp = store.getComponent(entity, componentType);
         if (!comp) return;
@@ -105,13 +106,13 @@ export class ColliderOverlay {
             let newHe = { ...he };
 
             if (handleId === 'right') {
-                newHe = { x: Math.max(0.01, origHe.x + localDx / Math.abs(scale.x)), y: he.y };
+                newHe = { x: Math.max(0.01, origHe.x + localDx / (Math.abs(scale.x) * ppu)), y: he.y };
             } else if (handleId === 'left') {
-                newHe = { x: Math.max(0.01, origHe.x - localDx / Math.abs(scale.x)), y: he.y };
+                newHe = { x: Math.max(0.01, origHe.x - localDx / (Math.abs(scale.x) * ppu)), y: he.y };
             } else if (handleId === 'top') {
-                newHe = { x: he.x, y: Math.max(0.01, origHe.y + localDy / Math.abs(scale.y)) };
+                newHe = { x: he.x, y: Math.max(0.01, origHe.y + localDy / (Math.abs(scale.y) * ppu)) };
             } else if (handleId === 'bottom') {
-                newHe = { x: he.x, y: Math.max(0.01, origHe.y - localDy / Math.abs(scale.y)) };
+                newHe = { x: he.x, y: Math.max(0.01, origHe.y - localDy / (Math.abs(scale.y) * ppu)) };
             }
 
             store.updatePropertyDirect(entity, componentType, 'halfExtents', newHe);
@@ -121,16 +122,16 @@ export class ColliderOverlay {
             const sign = localDx >= 0 ? 1 : -1;
             const maxScale = Math.max(Math.abs(scale.x), Math.abs(scale.y));
             store.updatePropertyDirect(entity, componentType, 'radius',
-                Math.max(0.01, origRadius + sign * dist / maxScale));
+                Math.max(0.01, origRadius + sign * dist / (maxScale * ppu)));
         } else if (componentType === 'CapsuleCollider') {
             if (handleId === 'radius') {
                 const origRadius = this.dragState_.originalValue.radius as number;
                 store.updatePropertyDirect(entity, componentType, 'radius',
-                    Math.max(0.01, origRadius + localDx / Math.abs(scale.x)));
+                    Math.max(0.01, origRadius + localDx / (Math.abs(scale.x) * ppu)));
             } else if (handleId === 'halfHeight') {
                 const origHH = this.dragState_.originalValue.halfHeight as number;
                 store.updatePropertyDirect(entity, componentType, 'halfHeight',
-                    Math.max(0.01, origHH + localDy / Math.abs(scale.y)));
+                    Math.max(0.01, origHH + localDy / (Math.abs(scale.y) * ppu)));
             }
         }
     }
@@ -167,6 +168,7 @@ export class ColliderOverlay {
 
     private drawEntityColliders(octx: OverlayContext, entity: EntityData, isSelected: boolean): void {
         const { ctx, zoom, store } = octx;
+        const ppu = this.getPixelsPerUnit(store);
         const worldTransform = store.getWorldTransform(entity.id);
         const pos = worldTransform.position;
         const scale = worldTransform.scale;
@@ -177,11 +179,11 @@ export class ColliderOverlay {
 
         for (const comp of entity.components) {
             if (comp.type === 'BoxCollider') {
-                this.drawBox(ctx, pos, scale, rad, comp, color, lineWidth, zoom, isSelected);
+                this.drawBox(ctx, pos, scale, rad, comp, color, lineWidth, zoom, isSelected, ppu);
             } else if (comp.type === 'CircleCollider') {
-                this.drawCircle(ctx, pos, scale, rad, comp, color, lineWidth, zoom, isSelected);
+                this.drawCircle(ctx, pos, scale, rad, comp, color, lineWidth, zoom, isSelected, ppu);
             } else if (comp.type === 'CapsuleCollider') {
-                this.drawCapsule(ctx, pos, scale, rad, comp, color, lineWidth, zoom, isSelected);
+                this.drawCapsule(ctx, pos, scale, rad, comp, color, lineWidth, zoom, isSelected, ppu);
             }
         }
     }
@@ -195,16 +197,17 @@ export class ColliderOverlay {
         color: string,
         lineWidth: number,
         zoom: number,
-        isSelected: boolean
+        isSelected: boolean,
+        ppu: number
     ): void {
         const he = comp.data.halfExtents as { x: number; y: number } | undefined;
         const offset = comp.data.offset as { x: number; y: number } | undefined;
         if (!he) return;
 
-        const hx = he.x * Math.abs(scale.x);
-        const hy = he.y * Math.abs(scale.y);
-        const ox = (offset?.x ?? 0) * scale.x;
-        const oy = (offset?.y ?? 0) * scale.y;
+        const hx = he.x * ppu * Math.abs(scale.x);
+        const hy = he.y * ppu * Math.abs(scale.y);
+        const ox = (offset?.x ?? 0) * ppu * scale.x;
+        const oy = (offset?.y ?? 0) * ppu * scale.y;
 
         ctx.save();
         ctx.translate(pos.x, -pos.y);
@@ -235,16 +238,17 @@ export class ColliderOverlay {
         color: string,
         lineWidth: number,
         zoom: number,
-        isSelected: boolean
+        isSelected: boolean,
+        ppu: number
     ): void {
         const radius = comp.data.radius as number | undefined;
         const offset = comp.data.offset as { x: number; y: number } | undefined;
         if (radius === undefined) return;
 
         const maxScale = Math.max(Math.abs(scale.x), Math.abs(scale.y));
-        const r = radius * maxScale;
-        const ox = (offset?.x ?? 0) * scale.x;
-        const oy = (offset?.y ?? 0) * scale.y;
+        const r = radius * ppu * maxScale;
+        const ox = (offset?.x ?? 0) * ppu * scale.x;
+        const oy = (offset?.y ?? 0) * ppu * scale.y;
 
         ctx.save();
         ctx.translate(pos.x, -pos.y);
@@ -274,17 +278,18 @@ export class ColliderOverlay {
         color: string,
         lineWidth: number,
         zoom: number,
-        isSelected: boolean
+        isSelected: boolean,
+        ppu: number
     ): void {
         const radius = comp.data.radius as number | undefined;
         const halfHeight = comp.data.halfHeight as number | undefined;
         const offset = comp.data.offset as { x: number; y: number } | undefined;
         if (radius === undefined || halfHeight === undefined) return;
 
-        const r = radius * Math.abs(scale.x);
-        const hh = halfHeight * Math.abs(scale.y);
-        const ox = (offset?.x ?? 0) * scale.x;
-        const oy = (offset?.y ?? 0) * scale.y;
+        const r = radius * ppu * Math.abs(scale.x);
+        const hh = halfHeight * ppu * Math.abs(scale.y);
+        const ox = (offset?.x ?? 0) * ppu * scale.x;
+        const oy = (offset?.y ?? 0) * ppu * scale.y;
 
         ctx.save();
         ctx.translate(pos.x, -pos.y);
@@ -331,6 +336,7 @@ export class ColliderOverlay {
         entityData: EntityData
     ): { componentType: string; handleId: HandleId } | null {
         const { zoom, store } = octx;
+        const ppu = this.getPixelsPerUnit(store);
         const worldTransform = store.getWorldTransform(entityData.id);
         const pos = worldTransform.position;
         const scale = worldTransform.scale;
@@ -350,12 +356,12 @@ export class ColliderOverlay {
                 const offset = comp.data.offset as { x: number; y: number } | undefined;
                 if (!he) continue;
 
-                const ox = (offset?.x ?? 0) * scale.x;
-                const oy = (offset?.y ?? 0) * scale.y;
+                const ox = (offset?.x ?? 0) * ppu * scale.x;
+                const oy = (offset?.y ?? 0) * ppu * scale.y;
                 const lx = localX - ox;
                 const ly = localY - oy;
-                const hx = he.x * Math.abs(scale.x);
-                const hy = he.y * Math.abs(scale.y);
+                const hx = he.x * ppu * Math.abs(scale.x);
+                const hy = he.y * ppu * Math.abs(scale.y);
 
                 if (Math.abs(lx - hx) < hitRadius && Math.abs(ly) < hitRadius) {
                     return { componentType: 'BoxCollider', handleId: 'right' };
@@ -374,12 +380,12 @@ export class ColliderOverlay {
                 const offset = comp.data.offset as { x: number; y: number } | undefined;
                 if (radius === undefined) continue;
 
-                const ox = (offset?.x ?? 0) * scale.x;
-                const oy = (offset?.y ?? 0) * scale.y;
+                const ox = (offset?.x ?? 0) * ppu * scale.x;
+                const oy = (offset?.y ?? 0) * ppu * scale.y;
                 const lx = localX - ox;
                 const ly = localY - oy;
                 const maxScale = Math.max(Math.abs(scale.x), Math.abs(scale.y));
-                const r = radius * maxScale;
+                const r = radius * ppu * maxScale;
 
                 if (Math.abs(lx - r) < hitRadius && Math.abs(ly) < hitRadius) {
                     return { componentType: 'CircleCollider', handleId: 'radius' };
@@ -390,12 +396,12 @@ export class ColliderOverlay {
                 const offset = comp.data.offset as { x: number; y: number } | undefined;
                 if (radius === undefined || halfHeight === undefined) continue;
 
-                const ox = (offset?.x ?? 0) * scale.x;
-                const oy = (offset?.y ?? 0) * scale.y;
+                const ox = (offset?.x ?? 0) * ppu * scale.x;
+                const oy = (offset?.y ?? 0) * ppu * scale.y;
                 const lx = localX - ox;
                 const ly = localY - oy;
-                const r = radius * Math.abs(scale.x);
-                const hh = halfHeight * Math.abs(scale.y);
+                const r = radius * ppu * Math.abs(scale.x);
+                const hh = halfHeight * ppu * Math.abs(scale.y);
 
                 if (Math.abs(lx - r) < hitRadius && Math.abs(ly) < hitRadius) {
                     return { componentType: 'CapsuleCollider', handleId: 'radius' };
@@ -407,6 +413,17 @@ export class ColliderOverlay {
         }
 
         return null;
+    }
+
+    private getPixelsPerUnit(store: EditorStore): number {
+        for (const entity of store.scene.entities) {
+            for (const comp of entity.components) {
+                if (comp.type === 'Canvas') {
+                    return (comp.data.pixelsPerUnit as number) || 100;
+                }
+            }
+        }
+        return 100;
     }
 
     private cloneColliderData(comp: ComponentData): Record<string, unknown> {
