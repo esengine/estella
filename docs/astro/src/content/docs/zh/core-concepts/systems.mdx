@@ -64,19 +64,53 @@ addSystemToSchedule(Schedule.FixedUpdate, physicsSystem);
 
 ### Commands
 
-在运行时创建和销毁实体：
+在运行时创建、修改和销毁实体：
 
 ```typescript
-import { Commands } from 'esengine';
+import { Commands, Sprite, LocalTransform } from 'esengine';
 
 defineSystem([Commands()], (cmds) => {
-    cmds.spawn()
-        .insert(Sprite, { size: { x: 50, y: 50 } })
-        .insert(LocalTransform, { position: { x: 0, y: 0, z: 0 } });
+    // 创建新实体并添加组件（可链式调用）
+    const bullet = cmds.spawn()
+        .insert(LocalTransform, { position: { x: 0, y: 0, z: 0 } })
+        .insert(Sprite, { size: { x: 8, y: 8 } })
+        .id();
 
-    cmds.despawn(entity);
+    // 修改已有实体
+    cmds.entity(bullet)
+        .insert(Velocity, { linear: { x: 100, y: 0 } })
+        .remove(Sprite);
+
+    // 销毁实体
+    cmds.despawn(bullet);
+
+    // 插入资源
+    cmds.insertResource(Score, { value: 0 });
 });
 ```
+
+#### Commands API
+
+| 方法 | 返回值 | 说明 |
+|------|--------|------|
+| `cmds.spawn()` | `EntityCommands` | 创建新实体，返回构建器 |
+| `cmds.entity(entity)` | `EntityCommands` | 获取已有实体的构建器 |
+| `cmds.despawn(entity)` | `Commands` | 将实体加入销毁队列 |
+| `cmds.insertResource(res, value)` | `Commands` | 插入或覆盖资源 |
+
+#### EntityCommands API
+
+`spawn()` 和 `entity()` 返回 `EntityCommands` 构建器，所有方法可链式调用：
+
+| 方法 | 返回值 | 说明 |
+|------|--------|------|
+| `.insert(component, data?)` | `this` | 添加或更新组件 |
+| `.remove(component)` | `this` | 移除组件 |
+| `.id()` | `Entity` | 获取实体 ID |
+
+<Aside type="note">
+  Commands 是缓冲的，在当前调度阶段结束时才应用。例外是 `.id()` — 调用它会立即创建实体，使 ID 可以马上使用。
+</Aside>
 
 ### Query
 

@@ -133,6 +133,24 @@ addSystem(defineSystem(
 4. **更新循环** — 系统每帧查询和处理场景中的实体
 5. **渲染** — C++ 后端自动渲染所有拥有 `Sprite` 和 `Camera` 组件的实体
 
+## 如何与 ECS 交互
+
+`World` 存储所有实体和组件。在脚本中，通过系统参数与之交互：
+
+| 你想做什么 | 系统参数 |
+|-----------|---------|
+| 遍历具有特定组件的实体 | `Query(ComponentA, ComponentB)` |
+| 读取组件数据 | `Query(Component)` — 数据随迭代获取 |
+| 修改组件数据 | `Query(Mut(Component))` — 用 `Mut` 包裹 |
+| 创建新实体 | `Commands()` → `cmds.spawn()` |
+| 销毁实体 | `Commands()` → `cmds.despawn(entity)` |
+| 运行时添加组件 | `Commands()` → `cmds.entity(e).insert(Component, data)` |
+| 运行时移除组件 | `Commands()` → `cmds.entity(e).remove(Component)` |
+| 读取资源 | `Res(ResourceType)` |
+| 修改资源 | `ResMut(ResourceType)` |
+
+详见[系统](/microes/zh/core-concepts/systems/)和[查询](/microes/zh/core-concepts/queries/)。
+
 ## 下一步
 
 - [组件](/microes/zh/core-concepts/components/) — 内置和自定义组件

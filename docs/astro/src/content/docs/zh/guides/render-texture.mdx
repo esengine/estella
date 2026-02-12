@@ -1,0 +1,115 @@
+---
+title: 渲染纹理
+description: 在 ESEngine 中使用 RenderTexture 进行离屏渲染
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+**RenderTexture** 可以将场景（或部分场景）渲染到离屏纹理而非屏幕上。适用于小地图、镜像、传送门、后处理输入，以及任何需要捕获渲染输出的效果。
+
+## 创建 RenderTexture
+
+```typescript
+import { RenderTexture, type RenderTextureHandle } from 'esengine';
+
+const rt: RenderTextureHandle = RenderTexture.create({
+    width: 512,
+    height: 512,
+    depth: true,
+    filter: 'linear',
+});
+```
+
+### RenderTextureOptions
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `width` | `number` | — | 纹理宽度（像素） |
+| `height` | `number` | — | 纹理高度（像素） |
+| `depth` | `boolean` | `false` | 是否附加深度缓冲 |
+| `filter` | `'nearest' \| 'linear'` | `'nearest'` | 纹理过滤模式 |
+
+## 渲染到纹理
+
+在 `begin()` 和 `end()` 之间进行绘制调用。期间渲染的所有内容都会输出到纹理而非屏幕：
+
+```typescript
+import { RenderTexture, Draw } from 'esengine';
+
+RenderTexture.begin(rt, viewProjectionMatrix);
+
+Draw.rect(0, 0, 100, 100, { r: 1, g: 0, b: 0, a: 1 });
+
+RenderTexture.end();
+```
+
+`viewProjection` 参数是一个 `Float32Array`，包含 4x4 视图-投影矩阵，定义此离屏渲染通道的相机。
+
+<Aside type="note">
+  `begin()` 设置渲染目标和视口。`end()` 恢复之前的渲染目标。`begin()` 之后必须调用 `end()`。
+</Aside>
+
+## 使用渲染结果
+
+渲染完成后，`rt.textureId` 包含 GPU 纹理 ID。可以在任何需要纹理的地方使用：
+
+```typescript
+import { Draw, Sprite } from 'esengine';
+
+Draw.texture(rt.textureId, 0, 0, rt.width, rt.height);
+```
+
+也可以将其赋值给 Sprite 的 texture 用于基于实体的渲染。
+
+## 深度纹理
+
+如果创建 RenderTexture 时启用了 `depth: true`，可以获取深度纹理用于阴影映射等效果：
+
+```typescript
+const depthTextureId = RenderTexture.getDepthTexture(rt);
+```
+
+## 生命周期
+
+### 调整大小
+
+当目标分辨率变化时（如窗口调整），调整 RenderTexture 大小：
+
+```typescript
+const resized = RenderTexture.resize(rt, newWidth, newHeight);
+```
+
+`resize()` 返回新的 `RenderTextureHandle`，后续应使用返回的句柄。
+
+### 释放资源
+
+不再需要 RenderTexture 时释放 GPU 资源：
+
+```typescript
+RenderTexture.release(rt);
+```
+
+## API 参考
+
+| 方法 | 返回值 | 说明 |
+|------|--------|------|
+| `RenderTexture.create(options)` | `RenderTextureHandle` | 创建新的渲染纹理 |
+| `RenderTexture.begin(rt, viewProjection)` | `void` | 开始渲染到纹理 |
+| `RenderTexture.end()` | `void` | 结束渲染到纹理 |
+| `RenderTexture.getDepthTexture(rt)` | `number` | 获取深度纹理 ID |
+| `RenderTexture.resize(rt, width, height)` | `RenderTextureHandle` | 调整渲染纹理大小 |
+| `RenderTexture.release(rt)` | `void` | 释放 GPU 资源 |
+
+### RenderTextureHandle
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `textureId` | `number` | 颜色附件的 GPU 纹理 ID |
+| `width` | `number` | 当前宽度（像素） |
+| `height` | `number` | 当前高度（像素） |
+
+## 下一步
+
+- [自定义绘制](/microes/zh/guides/custom-draw/) — 即时模式绘制 API
+- [后处理效果](/microes/zh/guides/post-processing/) — 全屏效果
+- [材质与着色器](/microes/zh/guides/materials/) — 自定义着色器

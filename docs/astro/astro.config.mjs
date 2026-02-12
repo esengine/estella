@@ -71,6 +71,7 @@ export default defineConfig({
                 { label: 'Bitmap Text', translations: { 'zh-CN': '位图文本' }, slug: 'guides/bitmap-text' },
                 { label: 'Custom Draw', translations: { 'zh-CN': '自定义绘制' }, slug: 'guides/custom-draw' },
                 { label: 'Post-Processing', translations: { 'zh-CN': '后处理效果' }, slug: 'guides/post-processing' },
+                { label: 'Render Texture', translations: { 'zh-CN': '渲染纹理' }, slug: 'guides/render-texture' },
               ],
             },
             { label: 'Scenes', translations: { 'zh-CN': '场景' }, slug: 'guides/scenes' },
@@ -87,6 +88,7 @@ export default defineConfig({
           label: 'Changelog',
           translations: { 'zh-CN': '更新日志' },
           items: [
+            { label: 'v0.4.1', slug: 'changelog-v041' },
             { label: 'v0.4.0', slug: 'changelog-v040' },
             { label: 'v0.3.0', slug: 'changelog' },
           ],

@@ -133,6 +133,47 @@ transform.scale = { x: -1, y: 1, z: 1 };  // 水平翻转
   C++ 后端负责所有 WebGL 渲染。你只需设置组件数据，引擎每帧自动绘制一切。
 </Aside>
 
+## 渲染统计
+
+使用 `Renderer.getStats()` 获取每帧渲染统计数据，可用于性能分析和调试面板：
+
+```typescript
+import { Renderer, type RenderStats } from 'esengine';
+
+const stats: RenderStats = Renderer.getStats();
+console.log(`Draw calls: ${stats.drawCalls}, Triangles: ${stats.triangles}`);
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `drawCalls` | `number` | 本帧 WebGL draw call 总数 |
+| `triangles` | `number` | 渲染的三角形总数 |
+| `sprites` | `number` | 绘制的精灵数 |
+| `text` | `number` | 绘制的文本元素数 |
+| `spine` | `number` | 绘制的 Spine 骨骼数 |
+| `meshes` | `number` | 绘制的自定义网格数 |
+| `culled` | `number` | 被裁剪的对象数（未绘制） |
+
+## 渲染阶段
+
+渲染管线分为多个阶段，按顺序执行。每个阶段绘制一类对象：
+
+| 阶段 | 值 | 说明 |
+|------|-----|------|
+| `Background` | 0 | 背景层（天空盒、背景） |
+| `Opaque` | 1 | 不透明几何体（无透明度） |
+| `Transparent` | 2 | 透明/Alpha 混合对象 |
+| `Overlay` | 3 | UI 和覆盖元素（绘制在最上层） |
+
+使用[自定义绘制](/microes/zh/guides/custom-draw/)时，指定 `RenderStage` 来控制绘制命令相对于内置渲染的执行时机：
+
+```typescript
+import { Draw, RenderStage } from 'esengine';
+
+Draw.bindStage(RenderStage.Overlay);
+Draw.rect(0, 0, 100, 50, { r: 0, g: 0, b: 0, a: 0.5 });
+```
+
 ## 下一步
 
 - [Canvas 与分辨率](/microes/zh/guides/canvas/) — 屏幕适配与缩放模式
@@ -141,4 +182,5 @@ transform.scale = { x: -1, y: 1, z: 1 };  // 水平翻转
 - [位图文本](/microes/zh/guides/bitmap-text/) — GPU 渲染的位图字体文本
 - [自定义绘制](/microes/zh/guides/custom-draw/) — 即时模式绘图，用于调试可视化和动态图形
 - [后处理效果](/microes/zh/guides/post-processing/) — 全屏效果（模糊、暗角、灰度）
+- [渲染纹理](/microes/zh/guides/render-texture/) — 离屏渲染，用于小地图、镜像和特效
 - [几何体与网格](/microes/zh/guides/geometry/) — 自定义网格创建

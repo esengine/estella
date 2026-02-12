@@ -64,19 +64,53 @@ addSystemToSchedule(Schedule.FixedUpdate, physicsSystem);
 
 ### Commands
 
-Spawn and despawn entities at runtime:
+Create, modify, and destroy entities at runtime:
 
 ```typescript
-import { Commands } from 'esengine';
+import { Commands, Sprite, LocalTransform } from 'esengine';
 
 defineSystem([Commands()], (cmds) => {
-    cmds.spawn()
-        .insert(Sprite, { size: { x: 50, y: 50 } })
-        .insert(LocalTransform, { position: { x: 0, y: 0, z: 0 } });
+    // Spawn a new entity with components (chainable)
+    const bullet = cmds.spawn()
+        .insert(LocalTransform, { position: { x: 0, y: 0, z: 0 } })
+        .insert(Sprite, { size: { x: 8, y: 8 } })
+        .id();
 
-    cmds.despawn(entity);
+    // Modify an existing entity
+    cmds.entity(bullet)
+        .insert(Velocity, { linear: { x: 100, y: 0 } })
+        .remove(Sprite);
+
+    // Despawn an entity
+    cmds.despawn(bullet);
+
+    // Insert a resource
+    cmds.insertResource(Score, { value: 0 });
 });
 ```
+
+#### Commands API
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `cmds.spawn()` | `EntityCommands` | Create a new entity, returns a builder |
+| `cmds.entity(entity)` | `EntityCommands` | Get a builder for an existing entity |
+| `cmds.despawn(entity)` | `Commands` | Queue entity for destruction |
+| `cmds.insertResource(res, value)` | `Commands` | Insert or overwrite a resource |
+
+#### EntityCommands API
+
+`spawn()` and `entity()` return an `EntityCommands` builder. All methods are chainable:
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `.insert(component, data?)` | `this` | Add or update a component |
+| `.remove(component)` | `this` | Remove a component |
+| `.id()` | `Entity` | Get the entity ID |
+
+<Aside type="note">
+  Commands are buffered and applied at the end of the current schedule stage, not immediately. The exception is `.id()` — calling it triggers immediate entity creation so the ID is available right away.
+</Aside>
 
 ### Query
 

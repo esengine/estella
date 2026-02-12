@@ -1,0 +1,115 @@
+---
+title: Render Texture
+description: Off-screen rendering with RenderTexture in ESEngine
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+A **RenderTexture** lets you render a scene (or part of it) to an off-screen texture instead of the screen. This is useful for minimaps, mirrors, portals, post-processing inputs, and any effect that requires capturing rendered output.
+
+## Creating a RenderTexture
+
+```typescript
+import { RenderTexture, type RenderTextureHandle } from 'esengine';
+
+const rt: RenderTextureHandle = RenderTexture.create({
+    width: 512,
+    height: 512,
+    depth: true,
+    filter: 'linear',
+});
+```
+
+### RenderTextureOptions
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `width` | `number` | — | Texture width in pixels |
+| `height` | `number` | — | Texture height in pixels |
+| `depth` | `boolean` | `false` | Attach a depth buffer |
+| `filter` | `'nearest' \| 'linear'` | `'nearest'` | Texture filtering mode |
+
+## Rendering to Texture
+
+Wrap your draw calls between `begin()` and `end()`. Everything rendered in between goes to the texture instead of the screen:
+
+```typescript
+import { RenderTexture, Draw } from 'esengine';
+
+RenderTexture.begin(rt, viewProjectionMatrix);
+
+Draw.rect(0, 0, 100, 100, { r: 1, g: 0, b: 0, a: 1 });
+
+RenderTexture.end();
+```
+
+The `viewProjection` parameter is a `Float32Array` containing the 4x4 view-projection matrix that defines the camera for this off-screen render pass.
+
+<Aside type="note">
+  `begin()` sets the render target and viewport. `end()` restores the previous render target. Always call `end()` after `begin()`.
+</Aside>
+
+## Using the Result
+
+After rendering, `rt.textureId` holds the GPU texture ID. Use it anywhere a texture is expected:
+
+```typescript
+import { Draw, Sprite } from 'esengine';
+
+Draw.texture(rt.textureId, 0, 0, rt.width, rt.height);
+```
+
+You can also assign it to a Sprite's texture for entity-based rendering.
+
+## Depth Texture
+
+If the RenderTexture was created with `depth: true`, retrieve the depth texture for effects like shadow mapping:
+
+```typescript
+const depthTextureId = RenderTexture.getDepthTexture(rt);
+```
+
+## Lifecycle
+
+### Resizing
+
+When the target resolution changes (e.g. window resize), resize the RenderTexture:
+
+```typescript
+const resized = RenderTexture.resize(rt, newWidth, newHeight);
+```
+
+`resize()` returns a new `RenderTextureHandle`. Use the returned handle going forward.
+
+### Releasing
+
+Release GPU resources when the RenderTexture is no longer needed:
+
+```typescript
+RenderTexture.release(rt);
+```
+
+## API Reference
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `RenderTexture.create(options)` | `RenderTextureHandle` | Create a new render texture |
+| `RenderTexture.begin(rt, viewProjection)` | `void` | Begin rendering to texture |
+| `RenderTexture.end()` | `void` | End rendering to texture |
+| `RenderTexture.getDepthTexture(rt)` | `number` | Get depth texture ID |
+| `RenderTexture.resize(rt, width, height)` | `RenderTextureHandle` | Resize render texture |
+| `RenderTexture.release(rt)` | `void` | Release GPU resources |
+
+### RenderTextureHandle
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `textureId` | `number` | GPU texture ID for the color attachment |
+| `width` | `number` | Current width in pixels |
+| `height` | `number` | Current height in pixels |
+
+## Next Steps
+
+- [Custom Draw](/microes/guides/custom-draw/) — immediate-mode drawing API
+- [Post-Processing](/microes/guides/post-processing/) — full-screen effects
+- [Materials & Shaders](/microes/guides/materials/) — custom shaders

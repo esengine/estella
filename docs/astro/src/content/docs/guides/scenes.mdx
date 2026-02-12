@@ -38,47 +38,38 @@ A scene file contains:
 
 In the editor, scenes are loaded automatically — you only write scripts that define components and systems.
 
-After building your project, the runtime loader handles scene loading:
-
-```typescript
-import { loadSceneWithAssets, type SceneData } from 'esengine';
-
-const sceneData: SceneData = await fetch('/scene.json').then(r => r.json());
-const entityMap = await loadSceneWithAssets(world, sceneData, { assetServer });
-```
-
-<Aside type="tip">
-  `loadSceneWithAssets` automatically loads textures, materials, and Spine assets referenced in the scene. Use `loadSceneData` if you don't need asset loading.
-</Aside>
+After building your project, the engine automatically loads the scene, resolves all referenced assets (textures, materials, Spine), and creates a default camera if none exists. You don't need to handle scene loading manually.
 
 ## Finding Entities
 
 ### By Name
 
-Every entity loaded from a scene receives a built-in `Name` component with the name assigned in the editor. Use `findEntityByName` to look up entities:
+Every entity loaded from a scene receives a built-in `Name` component with the name assigned in the editor. Query `Name` to find entities:
 
 ```typescript
-import { findEntityByName } from 'esengine';
+import { defineSystem, addStartupSystem, Query, Name, LocalTransform } from 'esengine';
 
-const player = findEntityByName(world, 'Player');
-if (player !== null) {
-    const transform = world.get(player, LocalTransform);
-}
+addStartupSystem(defineSystem(
+    [Query(Name, LocalTransform)],
+    (query) => {
+        for (const [entity, name, transform] of query) {
+            if (name.value === 'Player') {
+                // found the player entity
+            }
+        }
+    }
+));
 ```
 
 ### By Component or Tag
 
-Use `getEntitiesWithComponents` or a `Query` to find entities by their components:
+Use a `Query` to find entities by their components:
 
 ```typescript
-import { defineTag, Query, Mut, LocalTransform } from 'esengine';
+import { defineSystem, addSystem, defineTag, Query, Mut, LocalTransform } from 'esengine';
 
 const Player = defineTag('Player');
 
-// Direct lookup
-const players = world.getEntitiesWithComponents([Player]);
-
-// In a system
 addSystem(defineSystem(
     [Query(Mut(LocalTransform), Player)],
     (query) => {
@@ -91,30 +82,24 @@ addSystem(defineSystem(
 
 ### Traversing the Hierarchy
 
-Use the `Parent` and `Children` components to walk the entity tree:
+Use the `Children` component to walk the entity tree:
 
 ```typescript
-import { Parent, Children } from 'esengine';
+import { defineSystem, addSystem, Query, Children, LocalTransform } from 'esengine';
 
-const children = world.get(entity, Children);
-if (children) {
-    for (const child of children.entities) {
-        const childTransform = world.get(child, LocalTransform);
+addSystem(defineSystem(
+    [Query(Children, LocalTransform)],
+    (query) => {
+        for (const [entity, children, transform] of query) {
+            // children.entities contains child entity IDs
+        }
     }
-}
+));
 ```
 
 ## Entity Hierarchy
 
-Scene entities can form a tree via parent-child relationships. The engine manages `Parent` and `Children` components automatically.
-
-```typescript
-// Set parent (adds Parent component to child, updates Children on parent)
-world.setParent(child, parent);
-
-// Remove parent (child becomes a root entity)
-world.removeParent(child);
-```
+Scene entities can form a tree via parent-child relationships. Set up parent-child relationships in the editor — the engine manages `Parent` and `Children` components automatically.
 
 When a parent's `LocalTransform` changes, the engine propagates the transform to all descendants via the `WorldTransform` component.
 
@@ -142,3 +127,11 @@ addSystem(defineSystem(
 <Aside type="note">
   Commands are buffered and applied at the end of the current schedule stage, not immediately.
 </Aside>
+
+## Scene Data Types
+
+| Type | Fields |
+|------|--------|
+| `SceneData` | `version: string, name: string, entities: SceneEntityData[], textureMetadata?: Record<string, TextureMetadata>` |
+| `SceneEntityData` | `id: number, name: string, parent: number \| null, children: number[], components: SceneComponentData[]` |
+| `SceneComponentData` | `type: string, data: Record<string, unknown>` |

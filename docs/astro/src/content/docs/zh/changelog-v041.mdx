@@ -1,0 +1,69 @@
+---
+title: v0.4.1
+description: ESEngine v0.4.1 更新日志
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## 多相机渲染
+
+- Camera 组件新增视口字段（`viewportX`、`viewportY`、`viewportW`、`viewportH`）和 `clearFlags`
+- 逐相机渲染管线，支持视口/裁剪用于分屏和小地图场景
+- 基于优先级的相机渲染排序
+- 编辑器场景视图新增逐相机颜色编码、相机图标、优先级标签和视口预览叠加
+
+## BitmapText 与 BMFont
+
+- 新增 `BitmapText` 组件，GPU 渲染位图字体文本，支持颜色、字号、对齐、间距和层级排序
+- BMFont 解析器（`.fnt` 文本格式）和 LabelAtlas 创建，通过批处理渲染器实现
+- 编辑器支持：字体加载、检查器 UI、缩略图预览、点击导航和 Tab 键在 BitmapFont 字形列表中导航
+
+## UIMask
+
+- 新增 `UIMask` 裁剪矩形组件，用于矩形 UI 裁剪
+- 裁剪矩形计算支持正确的层级传播
+
+## Spine 运行时可选
+
+- Spine 运行时现在是可选的 — 没有 Spine 资源时默认为 `none`
+- 减小不使用 Spine 动画的项目构建体积
+
+## Name 组件
+
+- 新增 `Name` 组件，从场景加载的实体自动赋值
+- 新增 `findEntityByName()` 工具函数，按名称查找实体
+
+## 编辑器改进
+
+- 支持文件重命名，自动处理 `.meta` 文件
+- 重复文件名和非法字符校验
+- 所有文件操作的错误 toast 通知
+- 改进实体复制命名，从 `_copy` 改为 `(N)` 模式
+
+## 性能优化
+
+- `entityCount()` 使用 O(1) 计数器缓存，替代 O(n) 扫描
+- Camera/Canvas 线性扫描替换为 C++ ECS 视图查询，消除每帧约 4000 次 WASM 桥调用
+- 复用 `ext_vertex_storage_` 缓冲区，避免每帧 clear+realloc
+- `Registry::sort()` 中的 O(n²) 选择排序替换为 `std::sort`
+- SpineRenderer：预分配 VAO/VBO/EBO，动态容量复用
+- BatchRenderer：仅绑定活跃纹理槽而非全部 8 个
+- 九宫格：将纹理槽查找提出循环外
+- TransformSystem：双次迭代合并为单次
+- SystemRunner：按系统缓存参数数组，避免每帧分配
+
+## 文档
+
+- 新增 Commands API 参考，包含完整的 `EntityCommands` 构建器 API
+- 新增 RenderTexture 离屏渲染指南
+- 渲染指南新增渲染统计和渲染阶段
+- 新增 ECS 交互指南 — 用户意图到系统参数的映射表
+- 新增 BitmapText、UIMask、Name、LabelAtlas 组件文档
+- 重写场景示例，使用正确的系统模式（`Query`、`Commands`）
+
+## Bug 修复
+
+- 修复 Registry 释放时 use-after-free，新增 `disconnectCpp`
+- 修复选择实体时不必要的场景重新加载
+- 修复缺失模块时的 WASM 错误处理
+- 修复 SpineExtension 内存泄漏，使用静态局部实例

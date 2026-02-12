@@ -1,0 +1,69 @@
+---
+title: v0.4.1
+description: ESEngine v0.4.1 release notes
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## Multi-Camera Rendering
+
+- Added viewport fields (`viewportX`, `viewportY`, `viewportW`, `viewportH`) and `clearFlags` to Camera component
+- Per-camera render pipeline with viewport/scissor support for split-screen and minimap use cases
+- Camera priority-based render ordering
+- Editor scene view with per-camera color coding, camera icons, priority labels, and viewport preview overlay
+
+## BitmapText & BMFont
+
+- Added `BitmapText` component for GPU-rendered bitmap font text with color, fontSize, alignment, spacing, and layer sorting
+- BMFont parser (`.fnt` text format) and LabelAtlas creation via the batch renderer
+- Editor support: font loading, inspector UI, thumbnail preview, click-to-navigate, and Tab navigation in BitmapFont glyph list
+
+## UIMask
+
+- Added `UIMask` clip rect component for rectangular UI clipping
+- Clip rect computation with proper hierarchy support
+
+## Spine Runtime Optional
+
+- Spine runtime is now optional — `none` is the default when no Spine assets are used
+- Reduces build size for projects that don't use Spine animation
+
+## Name Component
+
+- Added `Name` component, automatically assigned to entities loaded from scenes
+- Added `findEntityByName()` utility for entity lookup by name
+
+## Editor Improvements
+
+- File rename support with `.meta` file handling
+- Duplicate filename and illegal character validation
+- Error toast notifications for all file operations
+- Improved entity duplicate naming from `_copy` to `(N)` pattern
+
+## Performance
+
+- Cached `entityCount()` with O(1) counter instead of O(n) scan
+- Replaced Camera/Canvas linear scans with C++ ECS view queries, eliminating ~4000 WASM bridge calls per frame
+- Reuse `ext_vertex_storage_` buffers instead of clear+realloc each frame
+- Replaced O(n²) selection sort with `std::sort` in `Registry::sort()`
+- SpineRenderer: pre-allocate VAO/VBO/EBO, reuse with dynamic capacity
+- BatchRenderer: only bind active texture slots instead of all 8
+- Nine-slice: hoist texture slot lookup outside loop
+- TransformSystem: merge double iteration into single pass
+- SystemRunner: cache args array per system to avoid per-frame allocation
+
+## Documentation
+
+- Added Commands API reference with full `EntityCommands` builder API
+- Added RenderTexture off-screen rendering guide
+- Added Render Stats and Render Stages to the rendering guide
+- Added ECS interaction guide — mapping from user intent to system parameters
+- Added BitmapText, UIMask, Name, LabelAtlas component docs
+- Rewrote scene examples to use proper system patterns (`Query`, `Commands`)
+
+## Bug Fixes
+
+- Fixed use-after-free on registry disposal by adding `disconnectCpp`
+- Fixed unnecessary scene reloads on entity selection
+- Fixed WASM error handling for missing modules
+- Fixed SpineExtension memory leak by using static local instances

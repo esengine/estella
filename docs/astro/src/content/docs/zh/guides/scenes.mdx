@@ -38,47 +38,38 @@ import { Aside } from '@astrojs/starlight/components';
 
 在编辑器中，场景会自动加载 — 你只需编写定义组件和系统的脚本。
 
-构建项目后，运行时加载器负责场景加载：
-
-```typescript
-import { loadSceneWithAssets, type SceneData } from 'esengine';
-
-const sceneData: SceneData = await fetch('/scene.json').then(r => r.json());
-const entityMap = await loadSceneWithAssets(world, sceneData, { assetServer });
-```
-
-<Aside type="tip">
-  `loadSceneWithAssets` 会自动加载场景中引用的纹理、材质和 Spine 资源。如果不需要资源加载，可以使用 `loadSceneData`。
-</Aside>
+构建项目后，引擎会自动加载场景、解析所有引用的资源（纹理、材质、Spine），并在没有相机时创建默认相机。你不需要手动处理场景加载。
 
 ## 查找实体
 
 ### 按名字查找
 
-从场景加载的每个实体都会自动获得内置的 `Name` 组件，包含在编辑器中指定的名字。使用 `findEntityByName` 查找实体：
+从场景加载的每个实体都会自动获得内置的 `Name` 组件，包含在编辑器中指定的名字。通过查询 `Name` 来查找实体：
 
 ```typescript
-import { findEntityByName } from 'esengine';
+import { defineSystem, addStartupSystem, Query, Name, LocalTransform } from 'esengine';
 
-const player = findEntityByName(world, 'Player');
-if (player !== null) {
-    const transform = world.get(player, LocalTransform);
-}
+addStartupSystem(defineSystem(
+    [Query(Name, LocalTransform)],
+    (query) => {
+        for (const [entity, name, transform] of query) {
+            if (name.value === 'Player') {
+                // 找到了玩家实体
+            }
+        }
+    }
+));
 ```
 
 ### 按组件或标签查找
 
-使用 `getEntitiesWithComponents` 或 `Query` 按组件查找实体：
+使用 `Query` 按组件查找实体：
 
 ```typescript
-import { defineTag, Query, Mut, LocalTransform } from 'esengine';
+import { defineSystem, addSystem, defineTag, Query, Mut, LocalTransform } from 'esengine';
 
 const Player = defineTag('Player');
 
-// 直接查找
-const players = world.getEntitiesWithComponents([Player]);
-
-// 在系统中
 addSystem(defineSystem(
     [Query(Mut(LocalTransform), Player)],
     (query) => {
@@ -91,30 +82,24 @@ addSystem(defineSystem(
 
 ### 遍历层级
 
-使用 `Parent` 和 `Children` 组件遍历实体树：
+使用 `Children` 组件遍历实体树：
 
 ```typescript
-import { Parent, Children } from 'esengine';
+import { defineSystem, addSystem, Query, Children, LocalTransform } from 'esengine';
 
-const children = world.get(entity, Children);
-if (children) {
-    for (const child of children.entities) {
-        const childTransform = world.get(child, LocalTransform);
+addSystem(defineSystem(
+    [Query(Children, LocalTransform)],
+    (query) => {
+        for (const [entity, children, transform] of query) {
+            // children.entities 包含子实体 ID
+        }
     }
-}
+));
 ```
 
 ## 实体层级
 
-场景实体可以通过父子关系形成树状结构。引擎会自动管理 `Parent` 和 `Children` 组件。
-
-```typescript
-// 设置父实体（给子实体添加 Parent 组件，更新父实体的 Children）
-world.setParent(child, parent);
-
-// 移除父实体（子实体变为根实体）
-world.removeParent(child);
-```
+场景实体可以通过父子关系形成树状结构。在编辑器中设置父子关系 — 引擎会自动管理 `Parent` 和 `Children` 组件。
 
 当父实体的 `LocalTransform` 变化时，引擎会通过 `WorldTransform` 组件将变换传播到所有后代。
 
@@ -142,3 +127,11 @@ addSystem(defineSystem(
 <Aside type="note">
   Commands 是缓冲的，在当前调度阶段结束时应用，不会立即生效。
 </Aside>
+
+## 场景数据类型
+
+| 类型 | 字段 |
+|------|------|
+| `SceneData` | `version: string, name: string, entities: SceneEntityData[], textureMetadata?: Record<string, TextureMetadata>` |
+| `SceneEntityData` | `id: number, name: string, parent: number \| null, children: number[], components: SceneComponentData[]` |
+| `SceneComponentData` | `type: string, data: Record<string, unknown>` |

@@ -133,6 +133,24 @@ See [Systems](/microes/core-concepts/systems/) for the full API.
 4. **Update loop** — systems query and process scene entities every frame
 5. **Render** — the C++ backend automatically renders all entities with `Sprite` and `Camera` components
 
+## How You Interact with ECS
+
+The `World` stores all entities and components. In your scripts, you interact with it through system parameters:
+
+| What you want to do | System parameter |
+|---------------------|-----------------|
+| Iterate entities with specific components | `Query(ComponentA, ComponentB)` |
+| Read component data | `Query(Component)` — data comes with iteration |
+| Mutate component data | `Query(Mut(Component))` — wrap with `Mut` |
+| Spawn a new entity | `Commands()` → `cmds.spawn()` |
+| Despawn an entity | `Commands()` → `cmds.despawn(entity)` |
+| Add a component at runtime | `Commands()` → `cmds.entity(e).insert(Component, data)` |
+| Remove a component at runtime | `Commands()` → `cmds.entity(e).remove(Component)` |
+| Read a resource | `Res(ResourceType)` |
+| Mutate a resource | `ResMut(ResourceType)` |
+
+See [Systems](/microes/core-concepts/systems/) and [Queries](/microes/core-concepts/queries/) for detailed usage.
+
 ## Next Steps
 
 - [Components](/microes/core-concepts/components/) — builtin and custom components

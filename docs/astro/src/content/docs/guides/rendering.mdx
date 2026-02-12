@@ -133,6 +133,47 @@ Set these values in the inspector when placing entities, or modify them at runti
   The C++ backend handles all WebGL rendering. You just set component data and the engine draws everything automatically each frame.
 </Aside>
 
+## Render Stats
+
+Use `Renderer.getStats()` to get per-frame rendering statistics, useful for profiling and debug overlays:
+
+```typescript
+import { Renderer, type RenderStats } from 'esengine';
+
+const stats: RenderStats = Renderer.getStats();
+console.log(`Draw calls: ${stats.drawCalls}, Triangles: ${stats.triangles}`);
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `drawCalls` | `number` | Total WebGL draw calls this frame |
+| `triangles` | `number` | Total triangles rendered |
+| `sprites` | `number` | Sprites drawn |
+| `text` | `number` | Text elements drawn |
+| `spine` | `number` | Spine skeletons drawn |
+| `meshes` | `number` | Custom meshes drawn |
+| `culled` | `number` | Objects culled (not drawn) |
+
+## Render Stages
+
+The rendering pipeline is divided into stages that execute in order. Each stage draws a category of objects:
+
+| Stage | Value | Description |
+|-------|-------|-------------|
+| `Background` | 0 | Background layers (skyboxes, backgrounds) |
+| `Opaque` | 1 | Opaque geometry (no transparency) |
+| `Transparent` | 2 | Transparent/alpha-blended objects |
+| `Overlay` | 3 | UI and overlay elements (drawn on top) |
+
+When using [Custom Draw](/microes/guides/custom-draw/), specify a `RenderStage` to control when your draw commands execute relative to the built-in rendering:
+
+```typescript
+import { Draw, RenderStage } from 'esengine';
+
+Draw.bindStage(RenderStage.Overlay);
+Draw.rect(0, 0, 100, 50, { r: 0, g: 0, b: 0, a: 0.5 });
+```
+
 ## Next Steps
 
 - [Canvas & Resolution](/microes/guides/canvas/) — screen adaptation and scale modes
@@ -141,4 +182,5 @@ Set these values in the inspector when placing entities, or modify them at runti
 - [Bitmap Text](/microes/guides/bitmap-text/) — GPU-rendered bitmap font text
 - [Custom Draw](/microes/guides/custom-draw/) — immediate-mode drawing for debug visualization and dynamic graphics
 - [Post-Processing](/microes/guides/post-processing/) — full-screen effects (blur, vignette, grayscale)
+- [Render Texture](/microes/guides/render-texture/) — off-screen rendering for minimaps, mirrors, and effects
 - [Geometry & Meshes](/microes/guides/geometry/) — custom mesh creation for advanced rendering
