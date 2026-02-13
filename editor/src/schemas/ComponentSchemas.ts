@@ -10,7 +10,7 @@ import { getComponentDefaults } from 'esengine';
 // Types
 // =============================================================================
 
-export type ComponentCategory = 'builtin' | 'physics' | 'script' | 'tag';
+export type ComponentCategory = 'builtin' | 'ui' | 'physics' | 'script' | 'tag';
 
 export interface ComponentSchema {
     name: string;
@@ -118,7 +118,7 @@ export const CameraSchema: ComponentSchema = {
 
 export const TextSchema: ComponentSchema = {
     name: 'Text',
-    category: 'builtin',
+    category: 'ui',
     properties: [
         { name: 'content', type: 'string' },
         { name: 'fontFamily', type: 'font' },
@@ -158,7 +158,7 @@ export const TextSchema: ComponentSchema = {
 
 export const UIRectSchema: ComponentSchema = {
     name: 'UIRect',
-    category: 'builtin',
+    category: 'ui',
     properties: [
         { name: '*', type: 'uirect' },
     ],
@@ -188,7 +188,7 @@ export const CanvasSchema: ComponentSchema = {
 
 export const BitmapTextSchema: ComponentSchema = {
     name: 'BitmapText',
-    category: 'builtin',
+    category: 'ui',
     properties: [
         { name: 'text', type: 'string' },
         { name: 'font', type: 'bitmap-font-file' },
@@ -210,10 +210,41 @@ export const BitmapTextSchema: ComponentSchema = {
 
 export const UIMaskSchema: ComponentSchema = {
     name: 'UIMask',
-    category: 'builtin',
+    category: 'ui',
     properties: [
         { name: 'enabled', type: 'boolean' },
     ],
+};
+
+export const InteractableSchema: ComponentSchema = {
+    name: 'Interactable',
+    category: 'ui',
+    properties: [
+        { name: 'enabled', type: 'boolean' },
+    ],
+};
+
+export const ButtonSchema: ComponentSchema = {
+    name: 'Button',
+    category: 'ui',
+    properties: [
+        {
+            name: 'state',
+            type: 'enum',
+            options: [
+                { label: 'Normal', value: 0 },
+                { label: 'Hovered', value: 1 },
+                { label: 'Pressed', value: 2 },
+                { label: 'Disabled', value: 3 },
+            ],
+        },
+    ],
+};
+
+export const ScreenSpaceSchema: ComponentSchema = {
+    name: 'ScreenSpace',
+    category: 'ui',
+    properties: [],
 };
 
 export const SpineAnimationSchema: ComponentSchema = {
@@ -319,17 +350,19 @@ export function isComponentRemovable(name: string): boolean {
 
 export interface ComponentsByCategory {
     builtin: ComponentSchema[];
+    ui: ComponentSchema[];
     physics: ComponentSchema[];
     script: ComponentSchema[];
     tag: ComponentSchema[];
 }
 
 export function getComponentsByCategory(): ComponentsByCategory {
-    const result: ComponentsByCategory = { builtin: [], physics: [], script: [], tag: [] };
+    const result: ComponentsByCategory = { builtin: [], ui: [], physics: [], script: [], tag: [] };
     for (const schema of schemaRegistry.values()) {
         result[schema.category].push(schema);
     }
     result.builtin.sort((a, b) => a.name.localeCompare(b.name));
+    result.ui.sort((a, b) => a.name.localeCompare(b.name));
     result.physics.sort((a, b) => a.name.localeCompare(b.name));
     result.script.sort((a, b) => a.name.localeCompare(b.name));
     result.tag.sort((a, b) => a.name.localeCompare(b.name));
@@ -406,6 +439,9 @@ export function registerBuiltinSchemas(options?: BuiltinSchemaOptions): void {
     registerComponentSchema(CanvasSchema);
     registerComponentSchema(BitmapTextSchema);
     registerComponentSchema(UIMaskSchema);
+    registerComponentSchema(InteractableSchema);
+    registerComponentSchema(ButtonSchema);
+    registerComponentSchema(ScreenSpaceSchema);
     registerComponentSchema(RigidBodySchema);
     registerComponentSchema(BoxColliderSchema);
     registerComponentSchema(CircleColliderSchema);
@@ -444,6 +480,13 @@ const editorOnlyDefaults: Record<string, Record<string, unknown>> = {
     },
     UIMask: {
         enabled: true,
+    },
+    Interactable: {
+        enabled: true,
+    },
+    Button: {
+        state: 0,
+        transition: null,
     },
     Text: {
         content: 'Text',

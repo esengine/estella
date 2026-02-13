@@ -109,12 +109,15 @@ UI 文本渲染。配合 `UIRect` 和 `Sprite` 组件显示文本。详见 [UI �
 
 ### UIRect
 
-UI 布局矩形。定义 UI 元素的尺寸、锚点和旋转中心。
+UI 布局矩形。定义 UI 元素的锚点布局。
 
 | 属性 | 类型 | 说明 |
 |------|------|------|
+| `anchorMin` | Vec2 | 左下锚点（0–1） |
+| `anchorMax` | Vec2 | 右上锚点（0–1） |
+| `offsetMin` | Vec2 | 相对 anchorMin 的像素偏移 |
+| `offsetMax` | Vec2 | 相对 anchorMax 的像素偏移 |
 | `size` | Vec2 | 宽高 |
-| `anchor` | Vec2 | 锚点（0–1） |
 | `pivot` | Vec2 | 旋转中心点 |
 
 ### UIMask
@@ -124,6 +127,27 @@ UI 布局矩形。定义 UI 元素的尺寸、锚点和旋转中心。
 | 属性 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
 | `enabled` | boolean | `true` | 是否启用裁剪 |
+
+### Interactable
+
+将 UI 元素标记为可交互（接收指针事件）。需要 `UIRect`。
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `enabled` | boolean | `true` | 是否启用交互 |
+
+### Button
+
+UI 元素的按钮行为。需要 `Interactable` 和 `UIRect`。
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `state` | number | `0`（Normal） | 0=正常, 1=悬停, 2=按下, 3=禁用 |
+| `transition` | ButtonTransition \| null | `null` | 各状态的颜色过渡 |
+
+### ScreenSpace
+
+标签组件，将实体标记为屏幕空间 UI 根节点。ScreenSpace 实体的子级通过 `UIRect` 在屏幕坐标中布局。需要 `UIRect` 和 `LocalTransform`。
 
 ### Name
 

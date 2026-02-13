@@ -76,7 +76,13 @@ export default defineConfig({
             },
             { label: 'Scenes', translations: { 'zh-CN': '场景' }, slug: 'guides/scenes' },
             { label: 'Input Handling', translations: { 'zh-CN': '输入处理' }, slug: 'guides/input' },
-            { label: 'UI & Text', translations: { 'zh-CN': 'UI 与文本' }, slug: 'guides/ui' },
+            {
+              label: 'UI',
+              translations: { 'zh-CN': 'UI' },
+              items: [
+                { label: 'UI & Text', translations: { 'zh-CN': 'UI 与文本' }, slug: 'guides/ui' },
+              ],
+            },
             { label: 'Asset Loading', translations: { 'zh-CN': '资源加载' }, slug: 'guides/assets' },
             { label: 'Materials & Shaders', translations: { 'zh-CN': '材质与着色器' }, slug: 'guides/materials' },
             { label: 'Geometry & Meshes', translations: { 'zh-CN': '几何体与网格' }, slug: 'guides/geometry' },

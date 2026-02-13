@@ -109,12 +109,15 @@ UI text rendering. Works with `UIRect` and `Sprite` to display text. See [UI & T
 
 ### UIRect
 
-UI layout rectangle. Defines size, anchor, and pivot for UI elements.
+UI layout rectangle. Defines anchored layout for UI elements.
 
 | Property | Type | Description |
 |----------|------|-------------|
+| `anchorMin` | Vec2 | Lower-left anchor (0–1) |
+| `anchorMax` | Vec2 | Upper-right anchor (0–1) |
+| `offsetMin` | Vec2 | Pixel offset from anchorMin |
+| `offsetMax` | Vec2 | Pixel offset from anchorMax |
 | `size` | Vec2 | Width and height |
-| `anchor` | Vec2 | Anchor point (0–1) |
 | `pivot` | Vec2 | Pivot point for rotation |
 
 ### UIMask
@@ -124,6 +127,27 @@ Clips child entities to the parent's `UIRect` bounds. Requires `UIRect` and `Loc
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
 | `enabled` | boolean | `true` | Whether clipping is active |
+
+### Interactable
+
+Marks a UI element as interactive (receives pointer events). Requires `UIRect`.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `enabled` | boolean | `true` | Whether interaction is active |
+
+### Button
+
+Button behavior for UI elements. Requires `Interactable` and `UIRect`.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `state` | number | `0` (Normal) | 0=Normal, 1=Hovered, 2=Pressed, 3=Disabled |
+| `transition` | ButtonTransition \| null | `null` | Color transition for each state |
+
+### ScreenSpace
+
+Tag component that marks an entity as a screen-space UI root. Children of a ScreenSpace entity are laid out in screen coordinates via their `UIRect`. Requires `UIRect` and `LocalTransform`.
 
 ### Name
 

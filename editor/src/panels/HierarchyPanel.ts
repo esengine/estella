@@ -538,6 +538,21 @@ export class HierarchyPanel {
         const entityData = entity !== null ? this.store_.getEntityData(entity as number) : null;
         const has = (type: string) => entityData?.components.some(c => c.type === type) ?? false;
 
+        const uiChildren: ContextMenuItem[] = [];
+        if (entity !== null) {
+            uiChildren.push(
+                { label: 'Add Interactable', disabled: has('Interactable'), onClick: () => this.addComponentToEntity(entity, 'Interactable') },
+                { label: 'Add Button', disabled: has('Button'), onClick: () => this.addComponentToEntity(entity, 'Button') },
+                { label: 'Add ScreenSpace', disabled: has('ScreenSpace'), onClick: () => this.addComponentToEntity(entity, 'ScreenSpace') },
+                { label: '', separator: true },
+            );
+        }
+        uiChildren.push(
+            { label: 'New Button', onClick: () => this.createButtonEntity(entity) },
+            { label: 'New Panel', onClick: () => this.createPanelEntity(entity) },
+            { label: 'New ScreenSpace Root', onClick: () => this.createScreenSpaceRootEntity(entity) },
+        );
+
         const physicsChildren: ContextMenuItem[] = [];
         if (entity !== null) {
             physicsChildren.push(
@@ -565,6 +580,7 @@ export class HierarchyPanel {
             { label: 'Create Spine', icon: icons.bone(14), onClick: () => this.createEntityWithComponent('SpineAnimation', entity) },
             { label: 'Create Camera', icon: icons.camera(14), onClick: () => this.createEntityWithComponent('Camera', entity) },
             { label: 'Create Canvas', icon: icons.template(14), onClick: () => this.createEntityWithComponent('Canvas', entity) },
+            { label: 'UI', icon: icons.pointer(14), children: uiChildren },
             { label: 'Physics', icon: icons.circle(14), children: physicsChildren },
             { label: '', separator: true },
         ];
@@ -600,6 +616,34 @@ export class HierarchyPanel {
         this.store_.addComponent(newEntity, 'LocalTransform', getDefaultComponentData('LocalTransform'));
         this.store_.addComponent(newEntity, 'RigidBody', getDefaultComponentData('RigidBody'));
         this.store_.addComponent(newEntity, colliderType, getDefaultComponentData(colliderType));
+    }
+
+    private createButtonEntity(parent: Entity | null): void {
+        const newEntity = this.store_.createEntity('Button', parent);
+        this.store_.addComponent(newEntity, 'LocalTransform', getDefaultComponentData('LocalTransform'));
+        this.store_.addComponent(newEntity, 'Sprite', getDefaultComponentData('Sprite'));
+        this.store_.addComponent(newEntity, 'UIRect', getDefaultComponentData('UIRect'));
+        this.store_.addComponent(newEntity, 'Interactable', getDefaultComponentData('Interactable'));
+        this.store_.addComponent(newEntity, 'Button', getDefaultComponentData('Button'));
+    }
+
+    private createPanelEntity(parent: Entity | null): void {
+        const newEntity = this.store_.createEntity('Panel', parent);
+        this.store_.addComponent(newEntity, 'LocalTransform', getDefaultComponentData('LocalTransform'));
+        this.store_.addComponent(newEntity, 'Sprite', getDefaultComponentData('Sprite'));
+        this.store_.addComponent(newEntity, 'UIRect', getDefaultComponentData('UIRect'));
+        this.store_.addComponent(newEntity, 'UIMask', getDefaultComponentData('UIMask'));
+    }
+
+    private createScreenSpaceRootEntity(parent: Entity | null): void {
+        const newEntity = this.store_.createEntity('ScreenSpace Root', parent);
+        this.store_.addComponent(newEntity, 'LocalTransform', getDefaultComponentData('LocalTransform'));
+        this.store_.addComponent(newEntity, 'UIRect', {
+            ...getDefaultComponentData('UIRect'),
+            anchorMin: { x: 0, y: 0 },
+            anchorMax: { x: 1, y: 1 },
+        });
+        this.store_.addComponent(newEntity, 'ScreenSpace', {});
     }
 
     private duplicateEntity(entity: Entity): void {
