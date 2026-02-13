@@ -67,6 +67,18 @@ export function registerBuiltinMenus(editor: Editor): void {
         action: () => editor.duplicateSelected(),
     });
     registerMenuItem({
+        id: 'edit.copy', menu: 'edit', label: 'Copy',
+        shortcut: 'Ctrl+C', order: 4,
+        enabled: () => editor.store.selectedEntity !== null,
+        action: () => editor.copySelected(),
+    });
+    registerMenuItem({
+        id: 'edit.paste', menu: 'edit', label: 'Paste',
+        shortcut: 'Ctrl+V', order: 5,
+        enabled: () => editor.hasClipboard(),
+        action: () => editor.pasteEntity(),
+    });
+    registerMenuItem({
         id: 'edit.preferences', menu: 'edit', label: 'Settings...',
         shortcut: 'Ctrl+,', order: 10, separator: true,
         action: () => editor.showSettings(),
