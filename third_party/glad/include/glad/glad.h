@@ -264,6 +264,7 @@ typedef void (APIENTRYP PFNGLSCISSORPROC)(GLint x, GLint y, GLsizei width, GLsiz
 typedef void (APIENTRYP PFNGLENABLEPROC)(GLenum cap);
 typedef void (APIENTRYP PFNGLDISABLEPROC)(GLenum cap);
 typedef void (APIENTRYP PFNGLBLENDFUNCPROC)(GLenum sfactor, GLenum dfactor);
+typedef void (APIENTRYP PFNGLBLENDFUNCSEPARATEPROC)(GLenum sfactorRGB, GLenum dfactorRGB, GLenum sfactorAlpha, GLenum dfactorAlpha);
 typedef void (APIENTRYP PFNGLDEPTHFUNCPROC)(GLenum func);
 typedef void (APIENTRYP PFNGLCULLFACEPROC)(GLenum mode);
 typedef void (APIENTRYP PFNGLFRONTFACEPROC)(GLenum mode);
@@ -364,6 +365,7 @@ GLAPI PFNGLSCISSORPROC glad_glScissor;
 GLAPI PFNGLENABLEPROC glad_glEnable;
 GLAPI PFNGLDISABLEPROC glad_glDisable;
 GLAPI PFNGLBLENDFUNCPROC glad_glBlendFunc;
+GLAPI PFNGLBLENDFUNCSEPARATEPROC glad_glBlendFuncSeparate;
 GLAPI PFNGLDEPTHFUNCPROC glad_glDepthFunc;
 GLAPI PFNGLCULLFACEPROC glad_glCullFace;
 GLAPI PFNGLFRONTFACEPROC glad_glFrontFace;
@@ -463,6 +465,7 @@ GLAPI PFNGLBLITFRAMEBUFFERPROC glad_glBlitFramebuffer;
 #define glEnable glad_glEnable
 #define glDisable glad_glDisable
 #define glBlendFunc glad_glBlendFunc
+#define glBlendFuncSeparate glad_glBlendFuncSeparate
 #define glDepthFunc glad_glDepthFunc
 #define glCullFace glad_glCullFace
 #define glFrontFace glad_glFrontFace

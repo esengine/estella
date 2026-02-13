@@ -30,6 +30,7 @@ PFNGLSCISSORPROC glad_glScissor = NULL;
 PFNGLENABLEPROC glad_glEnable = NULL;
 PFNGLDISABLEPROC glad_glDisable = NULL;
 PFNGLBLENDFUNCPROC glad_glBlendFunc = NULL;
+PFNGLBLENDFUNCSEPARATEPROC glad_glBlendFuncSeparate = NULL;
 PFNGLDEPTHFUNCPROC glad_glDepthFunc = NULL;
 PFNGLCULLFACEPROC glad_glCullFace = NULL;
 PFNGLFRONTFACEPROC glad_glFrontFace = NULL;
@@ -139,6 +140,7 @@ int gladLoadGLLoader(GLADloadproc load) {
     glad_glEnable = (PFNGLENABLEPROC)load("glEnable");
     glad_glDisable = (PFNGLDISABLEPROC)load("glDisable");
     glad_glBlendFunc = (PFNGLBLENDFUNCPROC)load("glBlendFunc");
+    glad_glBlendFuncSeparate = (PFNGLBLENDFUNCSEPARATEPROC)load("glBlendFuncSeparate");
     glad_glDepthFunc = (PFNGLDEPTHFUNCPROC)load("glDepthFunc");
     glad_glCullFace = (PFNGLCULLFACEPROC)load("glCullFace");
     glad_glFrontFace = (PFNGLFRONTFACEPROC)load("glFrontFace");
