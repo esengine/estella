@@ -40,8 +40,16 @@ export class RenderPipeline {
     private lastWidth_ = 0;
     private lastHeight_ = 0;
 
+    get spineRenderer(): SpineRendererFn | null {
+        return this.spineRenderer_;
+    }
+
     setSpineRenderer(fn: SpineRendererFn | null): void {
         this.spineRenderer_ = fn;
+    }
+
+    get maskProcessor(): MaskProcessorFn | null {
+        return this.maskProcessor_;
     }
 
     setMaskProcessor(fn: MaskProcessorFn | null): void {
