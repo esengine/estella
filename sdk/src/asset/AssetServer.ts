@@ -64,6 +64,25 @@ export interface AssetBundle {
     binary: Map<string, ArrayBuffer>;
 }
 
+export interface AddressableManifestAsset {
+    path: string;
+    address?: string;
+    type: string;
+    size: number;
+    labels: string[];
+}
+
+export interface AddressableManifestGroup {
+    bundleMode: string;
+    labels: string[];
+    assets: Record<string, AddressableManifestAsset>;
+}
+
+export interface AddressableManifest {
+    version: '2.0';
+    groups: Record<string, AddressableManifestGroup>;
+}
+
 // =============================================================================
 // AssetServer
 // =============================================================================
@@ -84,6 +103,10 @@ export class AssetServer {
     private ctx_: CanvasRenderingContext2D;
     private fontCache_ = new AsyncCache<FontHandle>();
     private embedded_ = new Map<string, string>();
+    private addressableManifest_: AddressableManifest | null = null;
+    private addressIndex_ = new Map<string, AddressableManifestAsset>();
+    private labelIndex_ = new Map<string, AddressableManifestAsset[]>();
+    private groupAssets_ = new Map<string, AddressableManifestAsset[]>();
 
     constructor(module: ESEngineModule) {
         this.module_ = module;
@@ -426,6 +449,116 @@ export class AssetServer {
                 promises.push(
                     this.loadBinary(path).then(data => { bundle.binary.set(path, data); })
                 );
+            }
+        }
+
+        await Promise.all(promises);
+        return bundle;
+    }
+
+    // =========================================================================
+    // Addressable Assets
+    // =========================================================================
+
+    setAddressableManifest(manifest: AddressableManifest): void {
+        this.addressableManifest_ = manifest;
+        this.addressIndex_.clear();
+        this.labelIndex_.clear();
+        this.groupAssets_.clear();
+
+        for (const [groupName, group] of Object.entries(manifest.groups)) {
+            const groupList: AddressableManifestAsset[] = [];
+            for (const asset of Object.values(group.assets)) {
+                groupList.push(asset);
+                if (asset.address) {
+                    this.addressIndex_.set(asset.address, asset);
+                }
+                for (const label of asset.labels) {
+                    let list = this.labelIndex_.get(label);
+                    if (!list) {
+                        list = [];
+                        this.labelIndex_.set(label, list);
+                    }
+                    list.push(asset);
+                }
+            }
+            this.groupAssets_.set(groupName, groupList);
+        }
+    }
+
+    async loadByAddress(address: string): Promise<TextureInfo | LoadedMaterial | unknown> {
+        const asset = this.addressIndex_.get(address);
+        if (!asset) {
+            throw new Error(`No asset found with address: ${address}`);
+        }
+        return this.loadAddressableAsset(asset);
+    }
+
+    async loadByLabel(label: string): Promise<AssetBundle> {
+        const assets = this.labelIndex_.get(label) ?? [];
+        return this.loadAddressableAssets(assets);
+    }
+
+    async loadGroup(groupName: string): Promise<AssetBundle> {
+        const assets = this.groupAssets_.get(groupName) ?? [];
+        return this.loadAddressableAssets(assets);
+    }
+
+    private async loadAddressableAsset(asset: AddressableManifestAsset): Promise<TextureInfo | LoadedMaterial | unknown> {
+        switch (asset.type) {
+            case 'texture':
+                return this.loadTexture(asset.path);
+            case 'material':
+                return this.loadMaterial(asset.path);
+            case 'json':
+                return this.loadJson(asset.path);
+            case 'text':
+                return this.loadText(asset.path);
+            case 'binary':
+                return this.loadBinary(asset.path);
+            default:
+                return this.loadBinary(asset.path);
+        }
+    }
+
+    private async loadAddressableAssets(assets: AddressableManifestAsset[]): Promise<AssetBundle> {
+        const bundle: AssetBundle = {
+            textures: new Map(),
+            materials: new Map(),
+            spine: new Map(),
+            json: new Map(),
+            text: new Map(),
+            binary: new Map(),
+        };
+
+        const promises: Promise<void>[] = [];
+        for (const asset of assets) {
+            switch (asset.type) {
+                case 'texture':
+                    promises.push(
+                        this.loadTexture(asset.path).then(info => { bundle.textures.set(asset.path, info); })
+                    );
+                    break;
+                case 'material':
+                    promises.push(
+                        this.loadMaterial(asset.path).then(mat => { bundle.materials.set(asset.path, mat); })
+                    );
+                    break;
+                case 'json':
+                    promises.push(
+                        this.loadJson(asset.path).then(data => { bundle.json.set(asset.path, data); })
+                    );
+                    break;
+                case 'text':
+                    promises.push(
+                        this.loadText(asset.path).then(data => { bundle.text.set(asset.path, data); })
+                    );
+                    break;
+                default:
+                    promises.push(
+                        this.loadBinary(asset.path).then(data => { bundle.binary.set(asset.path, data); })
+                    );
+                    break;
             }
         }
 

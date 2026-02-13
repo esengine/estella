@@ -3,6 +3,8 @@
  * @brief   Math utilities for transform calculations
  */
 
+import { computeUIRectLayout, type LayoutRect } from 'esengine';
+
 // =============================================================================
 // Types
 // =============================================================================
@@ -194,14 +196,20 @@ export function getLocalTransformFromEntity(entity: EntityDataLike): Transform {
 }
 
 export interface UIRectLike {
+    anchorMin: { x: number; y: number };
+    anchorMax: { x: number; y: number };
+    offsetMin: { x: number; y: number };
+    offsetMax: { x: number; y: number };
     size: { x: number; y: number };
-    anchor: { x: number; y: number };
     pivot: { x: number; y: number };
 }
 
 const DEFAULT_UIRECT: UIRectLike = {
+    anchorMin: { x: 0.5, y: 0.5 },
+    anchorMax: { x: 0.5, y: 0.5 },
+    offsetMin: { x: 0, y: 0 },
+    offsetMax: { x: 0, y: 0 },
     size: { x: 100, y: 100 },
-    anchor: { x: 0.5, y: 0.5 },
     pivot: { x: 0.5, y: 0.5 },
 };
 
@@ -209,10 +217,21 @@ export function getUIRectFromEntity(entity: EntityDataLike): UIRectLike | null {
     const comp = entity.components.find(c => c.type === 'UIRect');
     if (!comp) return null;
 
+    const data = comp.data as Record<string, any>;
+    let anchorMin = data.anchorMin as { x: number; y: number } | undefined;
+    let anchorMax = data.anchorMax as { x: number; y: number } | undefined;
+    if (!anchorMin && data.anchor) {
+        anchorMin = data.anchor as { x: number; y: number };
+        anchorMax = { ...anchorMin };
+    }
+
     return {
-        size: (comp.data.size as { x: number; y: number }) ?? DEFAULT_UIRECT.size,
-        anchor: (comp.data.anchor as { x: number; y: number }) ?? DEFAULT_UIRECT.anchor,
-        pivot: (comp.data.pivot as { x: number; y: number }) ?? DEFAULT_UIRECT.pivot,
+        anchorMin: anchorMin ?? DEFAULT_UIRECT.anchorMin,
+        anchorMax: anchorMax ?? DEFAULT_UIRECT.anchorMax,
+        offsetMin: (data.offsetMin as { x: number; y: number }) ?? DEFAULT_UIRECT.offsetMin,
+        offsetMax: (data.offsetMax as { x: number; y: number }) ?? DEFAULT_UIRECT.offsetMax,
+        size: (data.size as { x: number; y: number }) ?? DEFAULT_UIRECT.size,
+        pivot: (data.pivot as { x: number; y: number }) ?? DEFAULT_UIRECT.pivot,
     };
 }
 
@@ -234,6 +253,116 @@ export function getEntitySize(entity: EntityDataLike): { x: number; y: number } 
     }
 
     return { x: 100, y: 100 };
+}
+
+// =============================================================================
+// ScreenSpace Layout Helpers
+// =============================================================================
+
+export function isInScreenSpaceHierarchy(
+    entity: EntityDataLike,
+    getParentEntity: (id: number) => EntityDataLike | undefined,
+): boolean {
+    if (entity.components.some(c => c.type === 'ScreenSpace')) return true;
+    let parentId = entity.parent;
+    while (parentId !== null) {
+        const parent = getParentEntity(parentId);
+        if (!parent) break;
+        if (parent.components.some(c => c.type === 'ScreenSpace')) return true;
+        parentId = parent.parent;
+    }
+    return false;
+}
+
+export function findCanvasWorldRect(allEntities: EntityDataLike[]): LayoutRect | null {
+    let designResolution: { x: number; y: number } | null = null;
+    let cameraPos = { x: 0, y: 0 };
+
+    for (const e of allEntities) {
+        const canvas = e.components.find(c => c.type === 'Canvas');
+        if (canvas?.data?.designResolution) {
+            designResolution = canvas.data.designResolution as { x: number; y: number };
+        }
+        const camera = e.components.find(c => c.type === 'Camera');
+        if (camera) {
+            const lt = e.components.find(c => c.type === 'LocalTransform');
+            if (lt?.data?.position) {
+                const pos = lt.data.position as { x: number; y: number };
+                cameraPos = { x: pos.x, y: pos.y };
+            }
+        }
+    }
+
+    if (!designResolution) return null;
+
+    const halfW = designResolution.x / 2;
+    const halfH = designResolution.y / 2;
+    return {
+        left: cameraPos.x - halfW,
+        bottom: cameraPos.y - halfH,
+        right: cameraPos.x + halfW,
+        top: cameraPos.y + halfH,
+    };
+}
+
+function computeScreenSpaceTransform(
+    entity: EntityDataLike,
+    getParentEntity: (id: number) => EntityDataLike | undefined,
+    canvasRect: LayoutRect,
+): Transform {
+    const localTransform = getLocalTransformFromEntity(entity);
+
+    const path: EntityDataLike[] = [];
+    let cur: EntityDataLike | undefined = entity;
+    while (cur) {
+        path.unshift(cur);
+        if (cur.components.some(c => c.type === 'ScreenSpace')) break;
+        if (cur.parent === null) break;
+        cur = getParentEntity(cur.parent);
+    }
+
+    let parentRect = canvasRect;
+    let parentCenterX = (canvasRect.left + canvasRect.right) * 0.5;
+    let parentCenterY = (canvasRect.bottom + canvasRect.top) * 0.5;
+
+    let resultX = 0;
+    let resultY = 0;
+
+    for (let i = 0; i < path.length; i++) {
+        const node = path[i];
+        const uiRect = getUIRectFromEntity(node);
+        if (!uiRect) {
+            const lt = getLocalTransformFromEntity(node);
+            resultX = lt.position.x;
+            resultY = lt.position.y;
+            continue;
+        }
+
+        const layout = computeUIRectLayout(
+            uiRect.anchorMin, uiRect.anchorMax,
+            uiRect.offsetMin, uiRect.offsetMax,
+            uiRect.size, parentRect,
+        );
+
+        const isRoot = i === 0;
+        if (isRoot) {
+            resultX = layout.centerX;
+            resultY = layout.centerY;
+        } else {
+            resultX = layout.centerX - parentCenterX;
+            resultY = layout.centerY - parentCenterY;
+        }
+
+        parentRect = layout.rect;
+        parentCenterX = layout.centerX;
+        parentCenterY = layout.centerY;
+    }
+
+    return {
+        position: { x: resultX, y: resultY, z: localTransform.position.z },
+        rotation: localTransform.rotation,
+        scale: localTransform.scale,
+    };
 }
 
 // =============================================================================
@@ -267,8 +396,16 @@ export function getParentSizeForEntity(
 
 export function computeAdjustedLocalTransform(
     entity: EntityDataLike,
-    getParentEntity: (id: number) => EntityDataLike | undefined
+    getParentEntity: (id: number) => EntityDataLike | undefined,
+    allEntities?: EntityDataLike[],
 ): Transform {
+    if (allEntities && isInScreenSpaceHierarchy(entity, getParentEntity)) {
+        const canvasRect = findCanvasWorldRect(allEntities);
+        if (canvasRect) {
+            return computeScreenSpaceTransform(entity, getParentEntity, canvasRect);
+        }
+    }
+
     const localTransform = getLocalTransformFromEntity(entity);
     const uiRect = getUIRectFromEntity(entity);
     const size = getEntitySize(entity);
@@ -277,9 +414,11 @@ export function computeAdjustedLocalTransform(
 
     if (uiRect) {
         const parentSize = getParentSizeForEntity(entity, getParentEntity);
+        const anchorX = (uiRect.anchorMin.x + uiRect.anchorMax.x) * 0.5;
+        const anchorY = (uiRect.anchorMin.y + uiRect.anchorMax.y) * 0.5;
 
-        adjustedPosition.x += (uiRect.anchor.x - 0.5) * parentSize.x;
-        adjustedPosition.y += (uiRect.anchor.y - 0.5) * parentSize.y;
+        adjustedPosition.x += (anchorX - 0.5) * parentSize.x;
+        adjustedPosition.y += (anchorY - 0.5) * parentSize.y;
 
         adjustedPosition.x += (0.5 - uiRect.pivot.x) * size.x;
         adjustedPosition.y += (0.5 - uiRect.pivot.y) * size.y;

@@ -42,3 +42,71 @@ export {
     uiMaskPlugin,
     createMaskProcessor,
 } from './UIMaskPlugin';
+
+// UI Math Utilities
+export {
+    worldRectToScreen,
+    intersectRects,
+    invertMatrix4,
+    screenToWorld,
+    pointInWorldRect,
+    type ScreenRect,
+} from './uiMath';
+
+// Interactable Component
+export {
+    Interactable,
+    type InteractableData,
+} from './Interactable';
+
+// UIInteraction Component
+export {
+    UIInteraction,
+    type UIInteractionData,
+} from './UIInteraction';
+
+// Button Component
+export {
+    Button,
+    ButtonState,
+    type ButtonTransition,
+    type ButtonData,
+} from './Button';
+
+// UI Events
+export {
+    UIEvents,
+    UIEventQueue,
+    type UIEvent,
+    type UIEventType,
+} from './UIEvents';
+
+// UI Camera Info Resource
+export {
+    UICameraInfo,
+    type UICameraData,
+} from './UICameraInfo';
+
+// ScreenSpace Tag
+export {
+    ScreenSpace,
+} from './ScreenSpace';
+
+// UI Layout Calculation
+export {
+    computeUIRectLayout,
+    type LayoutRect,
+    type LayoutResult,
+} from './uiLayout';
+
+// UI Layout Plugin
+export {
+    UILayoutPlugin,
+    uiLayoutPlugin,
+} from './UILayoutPlugin';
+
+// UI Interaction Plugin
+export {
+    UIInteractionPlugin,
+    uiInteractionPlugin,
+} from './UIInteractionPlugin';

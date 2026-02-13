@@ -5,8 +5,7 @@
 
 export { BuildSettingsDialog, showBuildSettingsDialog } from './BuildSettingsDialog';
 export { BuildService, type BuildResult, type BuildContext, type BuildOptions } from './BuildService';
-export { PlayableBuilder } from './PlayableBuilder';
-export { WeChatBuilder } from './WeChatBuilder';
+export { buildArtifact, initializeEsbuild, createBuildVirtualFsPlugin, type SdkModuleLoader } from './ArtifactBuilder';
 
 export { BuildCache, type BuildCacheData, type FileHash, type FileChangeResult } from './BuildCache';
 export { BuildProgressReporter, formatDuration, formatSize, type BuildProgress, type BuildLogEntry, type BuildPhase, type LogLevel } from './BuildProgress';
@@ -18,5 +17,9 @@ export { BuildHistory, formatBuildTime, formatBuildDuration, getBuildStatusIcon,
 export { BUILD_TEMPLATES, getTemplates, getTemplatesByPlatform, getTemplate, createConfigFromTemplate, applyTemplateToConfig, getTemplateIconSvg, type BuildTemplate } from './BuildTemplates';
 export { BatchBuilder, ParallelBatchBuilder, type BatchBuildResult, type ConfigBuildResult, type BatchBuildProgress } from './BatchBuilder';
 export { AssetExportConfigService, AssetReferenceCollector, BuildAssetCollector, type FolderExportMode, type AssetExportConfig } from './AssetCollector';
+export { AssetDependencyAnalyzer, collectReferencedAssets, registerRefScanner, type AssetRefScanner, type DependencyGraph } from '../asset/AssetDependencyAnalyzer';
+export { type PlatformEmitter, type BuildArtifact } from './PlatformEmitter';
+export { PlayableEmitter } from './PlayableEmitter';
+export { WeChatEmitter } from './WeChatEmitter';
 export { TextureAtlasPacker, type AtlasFrame, type AtlasPage, type AtlasResult } from './TextureAtlas';
-export { AssetLibrary, getAssetLibrary, resetAssetLibrary, isUUID } from '../asset/AssetLibrary';
+export { AssetDatabase, AssetDatabase as AssetLibrary, getAssetDatabase, getAssetDatabase as getAssetLibrary, resetAssetDatabase, resetAssetDatabase as resetAssetLibrary, isUUID } from '../asset/AssetDatabase';

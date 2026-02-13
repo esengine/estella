@@ -9,6 +9,9 @@ import { ResourceStorage, Time, TimeData, type ResourceDef } from './resource';
 import type { ESEngineModule, CppRegistry } from './wasm';
 import { textPlugin } from './ui/TextPlugin';
 import { uiMaskPlugin } from './ui/UIMaskPlugin';
+import { uiInteractionPlugin } from './ui/UIInteractionPlugin';
+import { uiLayoutPlugin } from './ui/UILayoutPlugin';
+import { UICameraInfo } from './ui/UICameraInfo';
 import { inputPlugin } from './input';
 import { assetPlugin } from './asset';
 import { initDrawAPI, shutdownDrawAPI } from './draw';
@@ -274,6 +277,14 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
         height: window.innerHeight * (window.devicePixelRatio || 1)
     }));
 
+    app.insertResource(UICameraInfo, {
+        viewProjection: new Float32Array(16),
+        vpX: 0, vpY: 0, vpW: 0, vpH: 0,
+        screenW: 0, screenH: 0,
+        worldLeft: 0, worldBottom: 0, worldRight: 0, worldTop: 0,
+        valid: false,
+    });
+
     const renderSystem: SystemDef = {
         _id: Symbol('RenderSystem'),
         _name: 'RenderSystem',
@@ -296,6 +307,27 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
             }
 
             const cameras = collectCameras(module, cppRegistry, width, height);
+
+            const uiCam = app.getResource(UICameraInfo);
+            if (cameras.length > 0) {
+                const cam = cameras[0];
+                const vr = cam.viewportRect;
+                uiCam.viewProjection.set(cam.viewProjection);
+                uiCam.vpX = Math.round(vr.x * width);
+                uiCam.vpY = Math.round((1 - vr.y - vr.h) * height);
+                uiCam.vpW = Math.round(vr.w * width);
+                uiCam.vpH = Math.round(vr.h * height);
+                uiCam.screenW = width;
+                uiCam.screenH = height;
+                uiCam.worldLeft = cam.cameraX - cam.halfW;
+                uiCam.worldRight = cam.cameraX + cam.halfW;
+                uiCam.worldBottom = cam.cameraY - cam.halfH;
+                uiCam.worldTop = cam.cameraY + cam.halfH;
+                uiCam.valid = true;
+            } else {
+                uiCam.valid = false;
+            }
+
             if (cameras.length === 0) {
                 pipeline.render({
                     registry: { _cpp: cppRegistry },
@@ -328,6 +360,8 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
     app.addPlugin(inputPlugin);
     app.addPlugin(textPlugin);
     app.addPlugin(uiMaskPlugin);
+    app.addPlugin(uiLayoutPlugin);
+    app.addPlugin(uiInteractionPlugin);
 
     return app;
 }
@@ -399,6 +433,10 @@ interface CameraInfo {
     viewportRect: { x: number; y: number; w: number; h: number };
     clearFlags: number;
     priority: number;
+    halfW: number;
+    halfH: number;
+    cameraX: number;
+    cameraY: number;
 }
 
 function collectCameras(module: ESEngineModule, registry: CppRegistry, width: number, height: number): CameraInfo[] {
@@ -436,21 +474,23 @@ function collectCameras(module: ESEngineModule, registry: CppRegistry, width: nu
         };
         const aspect = (vr.w * width) / (vr.h * height);
         let projection: Float32Array;
+        let camHalfW = 0;
+        let camHalfH = 0;
 
         if (camera.projectionType === 1) {
-            let halfH = camera.orthoSize;
+            camHalfH = camera.orthoSize;
 
             if (canvas) {
                 const baseOrthoSize = canvas.designResolution.y / 2;
                 const designAspect = canvas.designResolution.x / canvas.designResolution.y;
-                halfH = computeEffectiveOrthoSize(
+                camHalfH = computeEffectiveOrthoSize(
                     baseOrthoSize, designAspect, aspect,
                     canvas.scaleMode, canvas.matchWidthOrHeight,
                 );
             }
 
-            const halfW = halfH * aspect;
-            projection = ortho(-halfW, halfW, -halfH, halfH, -camera.farPlane, camera.farPlane);
+            camHalfW = camHalfH * aspect;
+            projection = ortho(-camHalfW, camHalfW, -camHalfH, camHalfH, -camera.farPlane, camera.farPlane);
         } else {
             projection = perspective(
                 camera.fov * Math.PI / 180,
@@ -467,6 +507,10 @@ function collectCameras(module: ESEngineModule, registry: CppRegistry, width: nu
             viewportRect: vr,
             clearFlags: camera.clearFlags,
             priority: camera.priority,
+            halfW: camHalfW,
+            halfH: camHalfH,
+            cameraX: transform.position.x,
+            cameraY: transform.position.y,
         });
     }
 

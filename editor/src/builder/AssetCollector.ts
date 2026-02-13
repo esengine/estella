@@ -4,10 +4,13 @@
  */
 
 import type { BuildConfig } from '../types/BuildTypes';
-import { type AssetLibrary, isUUID } from '../asset/AssetLibrary';
+import { type AssetDatabase, isUUID } from '../asset/AssetDatabase';
 import { normalizePath, joinPath, isAbsolutePath, getFileExtension, getDirName } from '../utils/path';
 import type { NativeFS } from '../types/NativeFS';
 import { ASSET_EXTENSIONS, looksLikeAssetPath } from '../asset/AssetTypes';
+import { getComponentRefFields } from '../asset/AssetDatabase';
+
+type AssetLibrary = AssetDatabase;
 
 // =============================================================================
 // Types
@@ -131,29 +134,24 @@ export class AssetReferenceCollector {
 
         for (const entity of entities) {
             for (const comp of entity.components || []) {
-                if (comp.type === 'Sprite' && comp.data) {
-                    if (typeof comp.data.texture === 'string') {
-                        refs.add(this.resolveRef(comp.data.texture));
-                    }
-                    if (typeof comp.data.material === 'string') {
-                        await this.collectMaterialRefs(this.resolveRef(comp.data.material), refs, visited);
-                    }
-                }
+                if (!comp.data) continue;
 
-                if (comp.type === 'SpineAnimation' && comp.data) {
-                    const skelPath = comp.data.skeletonPath;
-                    const atlasPath = comp.data.atlasPath;
+                const refFields = getComponentRefFields(comp.type);
+                if (refFields) {
+                    for (const field of refFields) {
+                        const value = comp.data[field];
+                        if (typeof value !== 'string') continue;
 
-                    if (typeof skelPath === 'string') {
-                        refs.add(this.resolveRef(skelPath));
-                    }
-                    if (typeof atlasPath === 'string') {
-                        const resolvedAtlas = this.resolveRef(atlasPath);
-                        refs.add(resolvedAtlas);
-                        await this.collectAtlasTextures(resolvedAtlas, refs);
-                    }
-                    if (typeof comp.data.material === 'string') {
-                        await this.collectMaterialRefs(this.resolveRef(comp.data.material), refs, visited);
+                        const resolved = this.resolveRef(value);
+
+                        if (resolved.endsWith('.esmaterial')) {
+                            await this.collectMaterialRefs(resolved, refs, visited);
+                        } else if (resolved.endsWith('.atlas')) {
+                            refs.add(resolved);
+                            await this.collectAtlasTextures(resolved, refs);
+                        } else {
+                            refs.add(resolved);
+                        }
                     }
                 }
             }

@@ -14,7 +14,7 @@ import { getDefaultComponentData } from '../schemas/ComponentSchemas';
 import { getGlobalPathResolver } from '../asset';
 import { icons } from '../utils/icons';
 import { EditorSceneRenderer } from '../renderer/EditorSceneRenderer';
-import { quatToEuler, eulerToQuat } from '../math/Transform';
+import { quatToEuler, eulerToQuat, findCanvasWorldRect } from '../math/Transform';
 import { getEntityBounds } from '../bounds';
 import { GizmoManager, getAllGizmos } from '../gizmos';
 import type { GizmoContext } from '../gizmos';
@@ -862,6 +862,7 @@ export class SceneViewPanel {
         this.drawGrid(ctx, w, h);
 
         this.drawCameraFrustums(ctx);
+        this.drawScreenSpaceBounds(ctx);
 
         if (getSettingsValue<boolean>('scene.showColliders')) {
             this.colliderOverlay_.drawAll({
@@ -1067,6 +1068,46 @@ export class SceneViewPanel {
         }
     }
 
+    private drawScreenSpaceBounds(ctx: CanvasRenderingContext2D): void {
+        const hasScreenSpace = this.store_.scene.entities.some(
+            e => e.components.some(c => c.type === 'ScreenSpace')
+        );
+        if (!hasScreenSpace) return;
+
+        const canvasRect = findCanvasWorldRect(this.store_.scene.entities);
+        if (!canvasRect) return;
+
+        const x = canvasRect.left;
+        const y = -(canvasRect.top);
+        const w = canvasRect.right - canvasRect.left;
+        const h = canvasRect.top - canvasRect.bottom;
+
+        ctx.save();
+
+        ctx.strokeStyle = '#ffb400';
+        ctx.lineWidth = 2 / this.zoom_;
+        ctx.setLineDash([6 / this.zoom_, 4 / this.zoom_]);
+        ctx.strokeRect(x, y, w, h);
+
+        ctx.fillStyle = 'rgba(255, 180, 0, 0.04)';
+        ctx.fillRect(x, y, w, h);
+
+        ctx.setLineDash([]);
+        const fontSize = 11 / this.zoom_;
+        ctx.font = `bold ${fontSize}px system-ui, sans-serif`;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'bottom';
+        const label = 'ScreenSpace';
+        const pad = 2 / this.zoom_;
+        const metrics = ctx.measureText(label);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.fillRect(x, y - fontSize - pad * 2, metrics.width + pad * 2, fontSize + pad * 2);
+        ctx.fillStyle = '#ffb400';
+        ctx.fillText(label, x + pad, y - pad);
+
+        ctx.restore();
+    }
+
     private drawCameraIcon(ctx: CanvasRenderingContext2D, color: string): void {
         const s = 1 / this.zoom_;
         const bodyW = 16 * s;
@@ -1183,6 +1224,7 @@ export class SceneViewPanel {
         }
 
         this.drawCameraFrustums(ctx);
+        this.drawScreenSpaceBounds(ctx);
 
         if (getSettingsValue<boolean>('scene.showColliders')) {
             this.colliderOverlay_.drawAll({

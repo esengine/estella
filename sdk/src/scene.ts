@@ -250,9 +250,16 @@ export function loadComponent(world: World, entity: Entity, compData: SceneCompo
         case 'SpineAnimation':
             world.insert(entity, SpineAnimation, data as SpineAnimationData);
             break;
-        case 'UIRect':
-            world.insert(entity, UIRect, data as UIRectData);
+        case 'UIRect': {
+            const rectData = data as Record<string, any>;
+            if (rectData.anchor && !rectData.anchorMin) {
+                rectData.anchorMin = { ...rectData.anchor };
+                rectData.anchorMax = { ...rectData.anchor };
+                delete rectData.anchor;
+            }
+            world.insert(entity, UIRect, rectData as UIRectData);
             break;
+        }
         case 'UIMask':
             world.insert(entity, UIMask, data as UIMaskData);
             break;

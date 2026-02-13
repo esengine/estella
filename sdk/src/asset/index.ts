@@ -12,6 +12,9 @@ export {
     type FileLoadOptions,
     type AssetManifest,
     type AssetBundle,
+    type AddressableManifest,
+    type AddressableManifestGroup,
+    type AddressableManifestAsset,
 } from './AssetServer';
 export { AsyncCache } from './AsyncCache';
 export { Assets, AssetPlugin, assetPlugin, type AssetsData } from './AssetPlugin';

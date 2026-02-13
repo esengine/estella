@@ -423,6 +423,15 @@ export class EditorSceneManager {
     // Component Sync (Editor-specific logic)
     // =========================================================================
 
+    syncScreenSpaceDescendants(entityId: number): void {
+        const entityData = this.entityDataMap_.get(entityId);
+        if (!entityData) return;
+        for (const childId of entityData.children) {
+            this.syncEntityTransform(childId);
+            this.syncScreenSpaceDescendants(childId);
+        }
+    }
+
     private syncTransform(entity: Entity, data: any, entityId: number): void {
         if (this.world_.has(entity, LocalTransform)) {
             this.world_.remove(entity, LocalTransform);
@@ -431,8 +440,9 @@ export class EditorSceneManager {
         const entityData = this.entityDataMap_.get(entityId);
         if (!entityData) return;
 
+        const allEntities = Array.from(this.entityDataMap_.values());
         const adjustedLocal = computeAdjustedLocalTransform(
-            entityData, (id) => this.entityDataMap_.get(id)
+            entityData, (id) => this.entityDataMap_.get(id), allEntities,
         );
 
         this.world_.insert(entity, LocalTransform, {

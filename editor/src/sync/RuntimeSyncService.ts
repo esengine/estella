@@ -69,6 +69,11 @@ export class RuntimeSyncService {
             this.sceneManager_.syncEntityTransform(event.entity);
         }
 
+        if (event.componentType === 'UIRect' || event.componentType === 'ScreenSpace') {
+            this.sceneManager_.syncEntityTransform(event.entity);
+            this.sceneManager_.syncScreenSpaceDescendants(event.entity);
+        }
+
         this.scheduleEntityUpdate(event.entity);
 
         if (event.componentType === 'Canvas') {

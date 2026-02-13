@@ -5,13 +5,16 @@
 
 import type { BuildConfig } from '../types/BuildTypes';
 import type { SpineVersion } from '../types/ProjectTypes';
-import { PlayableBuilder } from './PlayableBuilder';
-import { WeChatBuilder } from './WeChatBuilder';
+import type { PlatformEmitter } from './PlatformEmitter';
+import { buildArtifact } from './ArtifactBuilder';
+import { PlayableEmitter } from './PlayableEmitter';
+import { WeChatEmitter } from './WeChatEmitter';
 import { BuildCache } from './BuildCache';
 import { BuildProgressReporter, formatDuration } from './BuildProgress';
 import { BuildHistory } from './BuildHistory';
 import { getProjectDir } from '../utils/path';
 import { loadProjectConfig } from '../launcher/ProjectService';
+import { getEditorContext } from '../context/EditorContext';
 
 // =============================================================================
 // Types
@@ -90,14 +93,20 @@ export class BuildService {
         };
 
         try {
-            let result: BuildResult;
+            const fs = getEditorContext().fs;
+            if (!fs) {
+                progress.fail('Native file system not available');
+                return { success: false, error: 'Native file system not available' };
+            }
 
+            const projectDir = getProjectDir(this.projectPath_);
+            const artifact = await buildArtifact(fs, projectDir, config, progress);
+
+            let emitter: PlatformEmitter;
             if (config.platform === 'playable') {
-                const builder = new PlayableBuilder(context);
-                result = await builder.build();
+                emitter = new PlayableEmitter();
             } else if (config.platform === 'wechat') {
-                const builder = new WeChatBuilder(context);
-                result = await builder.build();
+                emitter = new WeChatEmitter();
             } else {
                 progress.fail(`Unknown platform: ${config.platform}`);
                 return {
@@ -105,6 +114,8 @@ export class BuildService {
                     error: `Unknown platform: ${config.platform}`,
                 };
             }
+
+            const result = await emitter.emit(artifact, context);
 
             const duration = Date.now() - startTime;
             result.duration = duration;

@@ -18,11 +18,52 @@ export {
 } from './AssetDependencyGraph';
 
 export {
-    AssetLibrary,
-    getAssetLibrary,
-    resetAssetLibrary,
+    AssetDatabase,
+    AssetDatabase as AssetLibrary,
+    getAssetDatabase,
+    getAssetDatabase as getAssetLibrary,
+    resetAssetDatabase,
+    resetAssetDatabase as resetAssetLibrary,
     isUUID,
-} from './AssetLibrary';
+    getComponentRefFields,
+    registerComponentRefFields,
+    type AssetEntry,
+} from './AssetDatabase';
+
+export {
+    AssetGroupService,
+    type AssetGroupDef,
+    type AssetGroupsConfig,
+    type BundleMode,
+} from './AssetGroup';
+
+export {
+    AssetDependencyAnalyzer,
+    collectReferencedAssets,
+    registerRefScanner,
+    type AssetRefScanner,
+    type DependencyGraph,
+} from './AssetDependencyAnalyzer';
+
+export {
+    getImporterRegistry,
+    type AssetImporter,
+    type ImporterField,
+    type ImporterFieldType,
+} from './ImporterRegistry';
+
+export {
+    type AssetMeta,
+    type TextureImporterSettings,
+    type AudioImporterSettings,
+    type ImporterSettings,
+    createDefaultMeta,
+    upgradeMeta,
+    serializeMeta,
+    getDefaultImporterForType,
+    createDefaultTextureImporter,
+    createDefaultAudioImporter,
+} from './ImporterTypes';
 
 import { AssetPathResolver } from './AssetPathResolver';
 

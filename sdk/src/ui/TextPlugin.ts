@@ -39,10 +39,14 @@ export class TextPlugin implements Plugin {
                     if (!world.has(entity, Sprite)) {
                         world.insert(entity, Sprite, {
                             texture: INVALID_TEXTURE,
-                            size: { x: 0, y: 0 },
                             color: { r: 1, g: 1, b: 1, a: 1 },
-                            anchor: { x: 0.5, y: 0.5 },
-                            flip: { x: false, y: false }
+                            size: { x: 0, y: 0 },
+                            uvOffset: { x: 0, y: 0 },
+                            uvScale: { x: 1, y: 1 },
+                            layer: 0,
+                            flipX: false,
+                            flipY: false,
+                            material: 0,
                         });
                     }
 
