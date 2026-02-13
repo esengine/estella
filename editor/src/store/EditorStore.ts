@@ -890,6 +890,14 @@ export class EditorStore {
             }
         }
 
+        if (event.componentType === 'UIRect' && event.propertyName === 'size') {
+            const entityData = this.entityMap_.get(event.entity);
+            const spriteComp = entityData?.components.find(c => c.type === 'Sprite');
+            if (spriteComp) {
+                spriteComp.data.size = event.newValue;
+            }
+        }
+
         for (const listener of this.propertyListeners_) {
             listener(event);
         }

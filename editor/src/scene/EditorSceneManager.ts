@@ -578,10 +578,17 @@ export class EditorSceneManager {
             this.world_.remove(entity, Sprite);
         }
 
+        let spriteSize = data.size ?? { x: 100, y: 100 };
+        const entityData = this.entityDataMap_.get(entityId);
+        const uiRect = entityData?.components.find(c => c.type === 'UIRect');
+        if (uiRect?.data?.size) {
+            spriteSize = uiRect.data.size;
+        }
+
         this.world_.insert(entity, Sprite, {
             texture: textureHandle,
             color: data.color ?? { r: 1, g: 1, b: 1, a: 1 },
-            size: data.size ?? { x: 100, y: 100 },
+            size: spriteSize,
             uvOffset: data.uvOffset ?? { x: 0, y: 0 },
             uvScale: data.uvScale ?? { x: 1, y: 1 },
             layer: data.layer ?? 0,
