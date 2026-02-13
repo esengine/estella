@@ -122,12 +122,17 @@ transform.scale = { x: -1, y: 1, z: 1 };  // 水平翻转
 
 ## 渲染顺序
 
-精灵按以下顺序绘制：
+精灵按以下优先级排序绘制（高优先级在前）：
 
-1. **Z 坐标** (`transform.position.z`) — Z 值越小越先绘制（在后面）
-2. **Layer** (`sprite.layer`) — layer 值越大越在上面
+1. **Layer** (`sprite.layer`) — 主要排序依据，值越大越在上面
+2. **Texture** — 同 layer 内按纹理分组批处理，减少 draw call
+3. **Z 坐标** (`transform.position.z`) — 同 layer、同纹理内，Z 值越小越先绘制（在后面）
 
 在检查器中设置或运行时修改。
+
+<Aside type="caution">
+  `position.z` 仅在同 layer、同纹理的精灵之间生效。如需可靠地控制不同纹理精灵的前后顺序，请使用 `sprite.layer`。
+</Aside>
 
 <Aside type="tip">
   C++ 后端负责所有 WebGL 渲染。你只需设置组件数据，引擎每帧自动绘制一切。

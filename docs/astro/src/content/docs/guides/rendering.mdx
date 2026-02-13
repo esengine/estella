@@ -122,12 +122,17 @@ transform.scale = { x: -1, y: 1, z: 1 };  // Flip horizontally
 
 ## Render Order
 
-Sprites are drawn in order by:
+Sprites are sorted by the following priority (highest first):
 
-1. **Z position** (`transform.position.z`) — lower Z draws first (behind)
-2. **Layer** (`sprite.layer`) — higher layer draws on top
+1. **Layer** (`sprite.layer`) — primary sort key, higher layer draws on top
+2. **Texture** — within the same layer, sprites are batched by texture to reduce draw calls
+3. **Z position** (`transform.position.z`) — within the same layer and texture, lower Z draws first (behind)
 
 Set these values in the inspector when placing entities, or modify them at runtime in systems.
+
+<Aside type="caution">
+  `position.z` only affects ordering among sprites with the same layer and texture. To reliably control draw order between sprites with different textures, use `sprite.layer`.
+</Aside>
 
 <Aside type="tip">
   The C++ backend handles all WebGL rendering. You just set component data and the engine draws everything automatically each frame.

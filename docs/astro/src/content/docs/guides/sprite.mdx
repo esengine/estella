@@ -120,12 +120,15 @@ addSystem(defineSystem(
 
 ## Render Order
 
-Sprites are drawn by:
+Sprites are sorted by the following priority (highest first):
 
-1. **Z position** (`transform.position.z`) — lower Z draws first (behind)
-2. **Layer** (`sprite.layer`) — higher layer draws on top
+1. **Layer** (`sprite.layer`) — primary sort key, higher layer draws on top
+2. **Texture** — within the same layer, sprites are batched by texture to reduce draw calls
+3. **Z position** (`transform.position.z`) — within the same layer and texture, lower Z draws first (behind)
 
-Set these in the inspector or modify at runtime.
+<Aside type="caution">
+  `position.z` only affects ordering among sprites with the same layer and texture. To reliably control draw order between sprites with different textures, use `sprite.layer`.
+</Aside>
 
 ## Runtime Spawning
 
