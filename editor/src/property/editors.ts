@@ -12,6 +12,7 @@ import { getEditorContext, getEditorInstance } from '../context/EditorContext';
 import { getPlatformAdapter } from '../platform/PlatformAdapter';
 import { getAssetLibrary, isUUID } from '../asset/AssetLibrary';
 import type { NativeFS } from '../types/NativeFS';
+import { createUIRectEditor } from './uiRectEditor';
 
 
 // =============================================================================
@@ -1594,4 +1595,5 @@ export function registerBuiltinEditors(): void {
     registerPropertyEditor('spine-skin', createSpineSkinEditor);
     registerPropertyEditor('material-file', createMaterialFileEditor);
     registerPropertyEditor('bitmap-font-file', createBitmapFontFileEditor);
+    registerPropertyEditor('uirect', createUIRectEditor);
 }

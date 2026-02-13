@@ -426,6 +426,36 @@ export class InspectorPanel {
             propsContainer.className = 'es-component-properties es-collapsible-content';
 
             for (const propMeta of schema.properties) {
+                if (propMeta.name === '*') {
+                    const editorContainer = document.createElement('div');
+                    editorContainer.className = 'es-property-editor es-property-editor-full';
+
+                    const defaults = getDefaultComponentData(component.type);
+                    const fullData = { ...defaults, ...component.data };
+
+                    const editor = createPropertyEditor(editorContainer, {
+                        value: fullData,
+                        meta: propMeta,
+                        onChange: (changes) => {
+                            const arr = changes as { property: string; oldValue: unknown; newValue: unknown }[];
+                            this.store_.updateProperties(entity, component.type, arr);
+                        },
+                        componentData: component.data,
+                        getComponentValue: (name: string) => component.data[name],
+                    });
+
+                    if (editor) {
+                        this.editors_.push({
+                            editor,
+                            componentType: component.type,
+                            propertyName: '*',
+                        });
+                    }
+
+                    propsContainer.appendChild(editorContainer);
+                    continue;
+                }
+
                 const row = document.createElement('div');
                 row.className = 'es-property-row';
 
@@ -538,12 +568,17 @@ export class InspectorPanel {
         for (const info of this.editors_) {
             const component = entityData.components.find(c => c.type === info.componentType);
             if (component) {
-                let value = component.data[info.propertyName];
-                if (value === undefined) {
+                if (info.propertyName === '*') {
                     const defaults = getDefaultComponentData(component.type);
-                    value = defaults[info.propertyName];
+                    info.editor.update({ ...defaults, ...component.data });
+                } else {
+                    let value = component.data[info.propertyName];
+                    if (value === undefined) {
+                        const defaults = getDefaultComponentData(component.type);
+                        value = defaults[info.propertyName];
+                    }
+                    info.editor.update(value);
                 }
-                info.editor.update(value);
             }
         }
     }

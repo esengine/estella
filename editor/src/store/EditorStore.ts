@@ -9,6 +9,7 @@ import { createEmptyScene, createEntityData } from '../types/SceneTypes';
 import {
     CommandHistory,
     PropertyCommand,
+    CompoundCommand,
     CreateEntityCommand,
     DeleteEntityCommand,
     ReparentCommand,
@@ -408,6 +409,32 @@ export class EditorStore {
             oldValue,
             newValue,
         });
+    }
+
+    updateProperties(
+        entity: Entity,
+        componentType: string,
+        changes: { property: string; oldValue: unknown; newValue: unknown }[]
+    ): void {
+        const commands = changes.map(c => new PropertyCommand(
+            this.state_.scene,
+            entity,
+            componentType,
+            c.property,
+            c.oldValue,
+            c.newValue
+        ));
+        const compound = new CompoundCommand(commands, `Change ${componentType} properties`);
+        this.executeCommand(compound);
+        for (const c of changes) {
+            this.notifyPropertyChange({
+                entity: entity as number,
+                componentType,
+                propertyName: c.property,
+                oldValue: c.oldValue,
+                newValue: c.newValue,
+            });
+        }
     }
 
     getComponent(entity: Entity, type: string): ComponentData | null {

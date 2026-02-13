@@ -13,4 +13,5 @@ export {
     AddComponentCommand,
     RemoveComponentCommand,
 } from './EntityCommands';
+export { CompoundCommand } from './CompoundCommand';
 export { CommandHistory } from './CommandHistory';

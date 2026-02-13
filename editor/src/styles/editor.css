@@ -4295,3 +4295,83 @@ svg {
     border-top: 1px solid var(--es-border);
     margin-top: 8px;
 }
+
+/* =========================================================================
+   UIRect Editor
+   ========================================================================= */
+
+.es-uirect-editor { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+
+.es-property-editor-full { width: 100%; }
+
+.es-anchor-section { display: flex; flex-direction: column; gap: 4px; }
+.es-anchor-title {
+    font-size: 11px;
+    color: var(--es-text-secondary);
+    letter-spacing: 0.02em;
+}
+.es-anchor-mode-label {
+    font-size: 10px;
+    color: var(--es-text-secondary);
+    min-height: 14px;
+}
+.es-anchor-presets {
+    display: flex; gap: 0; align-items: start;
+    padding: 5px;
+    background: var(--es-bg-secondary);
+    border-radius: 4px;
+    border: 1px solid var(--es-border);
+}
+.es-anchor-group {
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+}
+.es-anchor-group + .es-anchor-group {
+    margin-left: 6px;
+    padding-left: 6px;
+    border-left: 1px solid var(--es-border);
+}
+.es-anchor-caption {
+    font-size: 9px;
+    color: var(--es-text-secondary);
+    opacity: 0.6;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.es-anchor-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 28px);
+    gap: 2px;
+}
+.es-anchor-stretch {
+    display: flex; flex-direction: column; gap: 2px;
+}
+.es-anchor-cell {
+    width: 28px; height: 28px;
+    border: 1px solid transparent;
+    background: transparent;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 3px;
+    padding: 0;
+    color: var(--es-text-secondary);
+    transition: background 0.1s, border-color 0.1s, color 0.1s;
+}
+.es-anchor-cell:hover {
+    background: var(--es-bg-hover);
+    border-color: var(--es-border);
+    color: var(--es-text-primary);
+}
+.es-anchor-cell.es-active {
+    background: var(--es-accent);
+    border-color: var(--es-accent);
+    color: #fff;
+}
+.es-anchor-cell svg { width: 20px; height: 20px; }
+
+.es-uirect-fields { display: flex; flex-direction: column; gap: 4px; }
+.es-uirect-row { display: flex; align-items: center; min-height: 22px; }
+.es-uirect-label { width: 72px; flex-shrink: 0; color: var(--es-text-secondary); font-size: 11px; }
+.es-uirect-row .es-vec-editor { flex: 1; }
+.es-uirect-pair { display: flex; gap: 8px; flex: 1; }
+.es-uirect-pair-item { display: flex; align-items: center; flex: 1; gap: 4px; }
+.es-uirect-pair-label { color: var(--es-text-secondary); font-size: 10px; flex-shrink: 0; cursor: ew-resize; }

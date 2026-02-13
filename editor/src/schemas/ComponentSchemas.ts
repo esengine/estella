@@ -160,9 +160,7 @@ export const UIRectSchema: ComponentSchema = {
     name: 'UIRect',
     category: 'builtin',
     properties: [
-        { name: 'size', type: 'vec2' },
-        { name: 'anchor', type: 'vec2' },
-        { name: 'pivot', type: 'vec2' },
+        { name: '*', type: 'uirect' },
     ],
 };
 
@@ -437,8 +435,11 @@ const editorOnlyDefaults: Record<string, Record<string, unknown>> = {
         layer: 0,
     },
     UIRect: {
+        anchorMin: { x: 0.5, y: 0.5 },
+        anchorMax: { x: 0.5, y: 0.5 },
+        offsetMin: { x: 0, y: 0 },
+        offsetMax: { x: 0, y: 0 },
         size: { x: 100, y: 100 },
-        anchor: { x: 0.5, y: 0.5 },
         pivot: { x: 0.5, y: 0.5 },
     },
     UIMask: {
