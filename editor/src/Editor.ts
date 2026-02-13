@@ -4,6 +4,7 @@
  */
 
 import type { App, Entity } from 'esengine';
+import type { EntityData } from './types/SceneTypes';
 import * as esengine from 'esengine';
 import {
     Draw, Geometry, Material, BlendMode, DataType, ShaderSources,
@@ -111,6 +112,7 @@ export class Editor {
     private shortcutManager_: ShortcutManager;
     private activeBottomPanelId_: string | null = 'content-browser';
     private assetLibraryReady_: Promise<void> = Promise.resolve();
+    private clipboard_: EntityData[] | null = null;
 
     constructor(container: HTMLElement, options?: EditorOptions) {
         this.container_ = container;
@@ -281,6 +283,11 @@ export class Editor {
     }
 
     async saveScene(): Promise<void> {
+        if (this.store_.isEditingPrefab) {
+            await this.store_.savePrefabEditing();
+            return;
+        }
+
         const filePath = this.store_.filePath;
 
         if (filePath && hasFileHandle()) {
@@ -315,6 +322,10 @@ export class Editor {
     }
 
     async openSceneFromPath(scenePath: string): Promise<void> {
+        if (this.store_.isEditingPrefab) {
+            await this.store_.exitPrefabEditMode();
+        }
+
         await this.assetLibraryReady_;
         const scene = await loadSceneFromPath(scenePath);
         if (scene) {
@@ -348,8 +359,73 @@ export class Editor {
         );
 
         for (const comp of entityData.components) {
-            this.store_.addComponent(newEntity, comp.type, { ...comp.data });
+            this.store_.addComponent(newEntity, comp.type, JSON.parse(JSON.stringify(comp.data)));
         }
+    }
+
+    copySelected(): void {
+        const entity = this.store_.selectedEntity;
+        if (entity === null) return;
+
+        const tree = this.collectEntityTree_(entity as number);
+        if (tree.length === 0) return;
+
+        this.clipboard_ = JSON.parse(JSON.stringify(tree));
+        for (const e of this.clipboard_!) {
+            delete e.prefab;
+        }
+    }
+
+    pasteEntity(): void {
+        if (!this.clipboard_ || this.clipboard_.length === 0) return;
+
+        const cloned: EntityData[] = JSON.parse(JSON.stringify(this.clipboard_));
+        const parent = this.store_.selectedEntity;
+        const rootData = cloned[0];
+
+        const scene = this.store_.scene;
+        const siblings = scene.entities
+            .filter(e => e.parent === (parent as number | null))
+            .map(e => e.name);
+        const siblingNames = new Set(siblings);
+        const newName = generateUniqueName(rootData.name, siblingNames);
+
+        const oldIdToNewId = new Map<number, Entity>();
+
+        const newRoot = this.store_.createEntity(newName, parent);
+        oldIdToNewId.set(rootData.id, newRoot);
+        for (const comp of rootData.components) {
+            this.store_.addComponent(newRoot, comp.type, { ...comp.data });
+        }
+
+        for (let i = 1; i < cloned.length; i++) {
+            const entityData = cloned[i];
+            const newParent = oldIdToNewId.get(entityData.parent!);
+            if (newParent === undefined) continue;
+
+            const newEntity = this.store_.createEntity(entityData.name, newParent);
+            oldIdToNewId.set(entityData.id, newEntity);
+
+            for (const comp of entityData.components) {
+                this.store_.addComponent(newEntity, comp.type, { ...comp.data });
+            }
+        }
+
+        this.store_.selectEntity(newRoot);
+    }
+
+    hasClipboard(): boolean {
+        return this.clipboard_ !== null && this.clipboard_.length > 0;
+    }
+
+    private collectEntityTree_(entityId: number): EntityData[] {
+        const entity = this.store_.getEntityData(entityId);
+        if (!entity) return [];
+        const result: EntityData[] = [entity];
+        for (const childId of entity.children) {
+            result.push(...this.collectEntityTree_(childId));
+        }
+        return result;
     }
 
     showBuildSettings(): void {

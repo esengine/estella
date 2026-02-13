@@ -542,6 +542,62 @@ svg {
     opacity: 0.4;
 }
 
+.es-prefab-edit-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    background: rgba(79, 193, 255, 0.1);
+    border-bottom: 1px solid rgba(79, 193, 255, 0.25);
+    font-size: 11px;
+    color: #4fc1ff;
+}
+
+.es-prefab-back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    font-size: 11px;
+    color: var(--es-text-primary);
+    background: var(--es-bg-secondary);
+    border: 1px solid var(--es-border);
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.es-prefab-back-btn:hover {
+    background: var(--es-bg-hover);
+}
+
+.es-prefab-back-btn svg {
+    transform: rotate(180deg);
+}
+
+.es-prefab-edit-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 600;
+}
+
+.es-prefab-edit-name svg {
+    stroke: #4fc1ff;
+}
+
+.es-hierarchy-item.es-prefab-root > .es-hierarchy-row .es-hierarchy-name {
+    color: #4fc1ff;
+    font-weight: 600;
+}
+
+.es-hierarchy-item.es-prefab-root > .es-hierarchy-row .es-hierarchy-icon svg {
+    stroke: #4fc1ff;
+}
+
+.es-hierarchy-item.es-prefab-child > .es-hierarchy-row .es-hierarchy-name {
+    color: #87d7ff;
+}
+
 .es-hierarchy-footer {
     padding: 6px 12px;
     font-size: 11px;
@@ -651,6 +707,73 @@ svg {
 .es-entity-name-input:focus {
     background: var(--es-bg-primary);
     border-color: var(--es-accent);
+}
+
+.es-prefab-info-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    margin-bottom: 4px;
+    background: rgba(79, 193, 255, 0.08);
+    border: 1px solid rgba(79, 193, 255, 0.25);
+    border-radius: 3px;
+    font-size: 11px;
+    color: #4fc1ff;
+}
+
+.es-prefab-info-bar svg {
+    stroke: #4fc1ff;
+    flex-shrink: 0;
+}
+
+.es-prefab-info-path {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.es-prefab-info-link {
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-color: transparent;
+    transition: text-decoration-color 0.15s;
+}
+
+.es-prefab-info-link:hover {
+    text-decoration-color: #4fc1ff;
+}
+
+.es-prefab-info-bar .es-btn {
+    font-size: 10px;
+    padding: 1px 6px;
+    border: 1px solid rgba(79, 193, 255, 0.3);
+    color: #4fc1ff;
+    background: transparent;
+    cursor: pointer;
+    border-radius: 3px;
+}
+
+.es-prefab-info-bar .es-btn:hover {
+    background: rgba(79, 193, 255, 0.15);
+}
+
+.es-property-row.es-overridden .es-property-label {
+    font-weight: 700;
+    color: #4fc1ff;
+}
+
+.es-property-row.es-overridden .es-property-label::before {
+    content: '';
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #4fc1ff;
+    margin-right: 4px;
+    vertical-align: middle;
 }
 
 .es-component-section {

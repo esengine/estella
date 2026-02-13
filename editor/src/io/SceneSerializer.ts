@@ -66,6 +66,25 @@ export class SceneSerializer {
         for (const component of entity.components) {
             this.validateComponent(component);
         }
+
+        if (entity.prefab) {
+            this.validatePrefabInstance(entity.prefab);
+        }
+    }
+
+    private validatePrefabInstance(prefab: import('../types/PrefabTypes').PrefabInstanceData): void {
+        if (!prefab.prefabPath || typeof prefab.prefabPath !== 'string') {
+            throw new Error('PrefabInstanceData must have prefabPath');
+        }
+        if (typeof prefab.prefabEntityId !== 'number') {
+            throw new Error('PrefabInstanceData must have numeric prefabEntityId');
+        }
+        if (!prefab.instanceId) {
+            prefab.instanceId = `prefab_migrated_${Date.now()}`;
+        }
+        if (!Array.isArray(prefab.overrides)) {
+            prefab.overrides = [];
+        }
     }
 
     private validateComponent(component: ComponentData): void {

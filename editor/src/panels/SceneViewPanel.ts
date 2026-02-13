@@ -811,7 +811,11 @@ export class SceneViewPanel {
 
         this.animationId_ = requestAnimationFrame(() => {
             this.animationId_ = null;
-            this.render();
+            try {
+                this.render();
+            } catch (e) {
+                console.warn('[SceneViewPanel] Render error, skipping frame:', e);
+            }
             if (this.continuousRender_) {
                 this.requestRender();
             }

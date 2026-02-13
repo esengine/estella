@@ -11,9 +11,11 @@ import { getGlobalPathResolver } from '../asset';
 import { getDefaultComponentData } from '../schemas/ComponentSchemas';
 import { showContextMenu, type ContextMenuItem } from '../ui/ContextMenu';
 import { getContextMenuItems, type ContextMenuContext } from '../ui/ContextMenuRegistry';
-import { getEditorContext } from '../context/EditorContext';
+import { getEditorContext, getEditorInstance } from '../context/EditorContext';
 import { getPlatformAdapter } from '../platform/PlatformAdapter';
 import { generateUniqueName } from '../utils/naming';
+import { showInputDialog } from '../ui/dialog';
+import { joinPath, getParentDir } from '../utils/path';
 
 type DropPosition = 'before' | 'after' | 'inside';
 
@@ -27,6 +29,7 @@ export class HierarchyPanel {
     private treeContainer_: HTMLElement;
     private searchInput_: HTMLInputElement | null = null;
     private footerContainer_: HTMLElement | null = null;
+    private prefabEditBar_: HTMLElement | null = null;
     private unsubscribe_: (() => void) | null = null;
     private searchFilter_: string = '';
     private expandedIds_: Set<number> = new Set();
@@ -44,6 +47,10 @@ export class HierarchyPanel {
                     <button class="es-btn es-btn-icon" title="Minimize">${icons.chevronDown(12)}</button>
                     <button class="es-btn es-btn-icon" title="Close">${icons.x(12)}</button>
                 </div>
+            </div>
+            <div class="es-prefab-edit-bar" style="display: none;">
+                <button class="es-prefab-back-btn">${icons.chevronRight(12)} Back to Scene</button>
+                <span class="es-prefab-edit-name">${icons.package(12)} </span>
             </div>
             <div class="es-hierarchy-toolbar">
                 <input type="text" class="es-input es-hierarchy-search" placeholder="Search...">
@@ -64,6 +71,12 @@ export class HierarchyPanel {
         this.treeContainer_ = this.container_.querySelector('.es-hierarchy-tree')!;
         this.searchInput_ = this.container_.querySelector('.es-hierarchy-search');
         this.footerContainer_ = this.container_.querySelector('.es-hierarchy-footer');
+        this.prefabEditBar_ = this.container_.querySelector('.es-prefab-edit-bar');
+
+        const backBtn = this.container_.querySelector('.es-prefab-back-btn');
+        backBtn?.addEventListener('click', () => {
+            this.store_.exitPrefabEditMode();
+        });
 
         this.setupEvents();
         this.unsubscribe_ = store.subscribe(() => this.render());
@@ -327,6 +340,11 @@ export class HierarchyPanel {
         asset: { type: string; path: string; name: string },
         parent: Entity | null
     ): Promise<void> {
+        if (asset.type === 'prefab') {
+            await this.createEntityFromPrefab(asset.path, parent);
+            return;
+        }
+
         const baseName = asset.name.replace(/\.[^.]+$/, '');
 
         if (asset.type === 'spine' || asset.type === 'json') {
@@ -435,6 +453,20 @@ export class HierarchyPanel {
         const scene = this.store_.scene;
         const selectedEntity = this.store_.selectedEntity;
 
+        if (this.prefabEditBar_) {
+            if (this.store_.isEditingPrefab) {
+                this.prefabEditBar_.style.display = '';
+                const nameEl = this.prefabEditBar_.querySelector('.es-prefab-edit-name');
+                if (nameEl) {
+                    const path = this.store_.prefabEditingPath ?? '';
+                    const fileName = path.split('/').pop() ?? path;
+                    nameEl.innerHTML = `${icons.package(12)} ${this.escapeHtml(fileName)}`;
+                }
+            } else {
+                this.prefabEditBar_.style.display = 'none';
+            }
+        }
+
         if (selectedEntity !== null && selectedEntity !== this.lastSelectedEntity_) {
             this.expandAncestors(selectedEntity, scene);
         }
@@ -476,15 +508,18 @@ export class HierarchyPanel {
     }
 
     private getEntityIcon(entity: EntityData): string {
+        if (entity.prefab?.isRoot) return icons.package(12);
+
         const hasCamera = entity.components.some(c => c.type === 'Camera');
         const hasSprite = entity.components.some(c => c.type === 'Sprite');
         const hasText = entity.components.some(c => c.type === 'Text');
         const hasBitmapText = entity.components.some(c => c.type === 'BitmapText');
+        const hasTextInput = entity.components.some(c => c.type === 'TextInput');
         const hasSpine = entity.components.some(c => c.type === 'SpineAnimation');
 
         if (hasCamera) return icons.camera(12);
         if (hasSpine) return icons.bone(12);
-        if (hasText || hasBitmapText) return icons.type(12);
+        if (hasText || hasBitmapText || hasTextInput) return icons.type(12);
         if (hasSprite) return icons.image(12);
         return icons.box(12);
     }
@@ -518,9 +553,10 @@ export class HierarchyPanel {
             const isVisible = this.store_.isEntityVisible(entity.id);
             const visibilityIcon = isVisible ? icons.eye(10) : icons.eyeOff(10);
             const hiddenClass = isVisible ? '' : ' es-entity-hidden';
+            const prefabClass = entity.prefab?.isRoot ? ' es-prefab-root' : (entity.prefab ? ' es-prefab-child' : '');
 
             return `
-                <div class="es-hierarchy-item ${isSelected ? 'es-selected' : ''}${hiddenClass} ${hasChildren ? 'es-has-children' : ''} ${isExpanded ? 'es-expanded' : ''}"
+                <div class="es-hierarchy-item ${isSelected ? 'es-selected' : ''}${hiddenClass}${prefabClass} ${hasChildren ? 'es-has-children' : ''} ${isExpanded ? 'es-expanded' : ''}"
                      data-entity-id="${entity.id}" style="--depth: ${depth}">
                     <div class="es-hierarchy-row" draggable="true" style="padding-left: ${8 + depth * 16}px">
                         ${hasChildren ? `<span class="es-hierarchy-expand">${expandIcon}</span>` : '<span class="es-hierarchy-spacer"></span>'}
@@ -550,6 +586,7 @@ export class HierarchyPanel {
         }
         uiChildren.push(
             { label: 'New Button', onClick: () => this.createButtonEntity(entity) },
+            { label: 'New TextInput', onClick: () => this.createTextInputEntity(entity) },
             { label: 'New Panel', onClick: () => this.createPanelEntity(entity) },
             { label: 'New ScreenSpace Root', onClick: () => this.createScreenSpaceRootEntity(entity) },
         );
@@ -587,10 +624,44 @@ export class HierarchyPanel {
         ];
 
         if (entity !== null) {
+            const editor = getEditorInstance();
             items.push(
                 { label: 'Duplicate', icon: icons.copy(14), onClick: () => this.duplicateEntity(entity) },
+                { label: 'Copy', icon: icons.copy(14), onClick: () => { this.store_.selectEntity(entity); editor?.copySelected(); } },
+                { label: 'Paste', icon: icons.template(14), disabled: !editor?.hasClipboard(), onClick: () => { this.store_.selectEntity(entity); editor?.pasteEntity(); } },
                 { label: 'Delete', icon: icons.trash(14), onClick: () => this.store_.deleteEntity(entity) }
             );
+
+            items.push({ label: '', separator: true });
+            items.push({
+                label: 'Save as Prefab...',
+                icon: icons.package(14),
+                onClick: () => this.saveEntityAsPrefab(entity),
+            });
+
+            if (this.store_.isPrefabRoot(entity as number)) {
+                const instanceId = this.store_.getPrefabInstanceId(entity as number);
+                const prefabPath = this.store_.getPrefabPath(entity as number);
+                if (instanceId && prefabPath) {
+                    items.push(
+                        {
+                            label: 'Revert Prefab',
+                            icon: icons.rotateCw(14),
+                            onClick: () => this.store_.revertPrefabInstance(instanceId, prefabPath),
+                        },
+                        {
+                            label: 'Apply to Prefab',
+                            icon: icons.check(14),
+                            onClick: () => this.store_.applyPrefabOverrides(instanceId, prefabPath),
+                        },
+                        {
+                            label: 'Unpack Prefab',
+                            icon: icons.package(14),
+                            onClick: () => this.store_.unpackPrefab(instanceId),
+                        },
+                    );
+                }
+            }
         }
 
         const location = entity !== null ? 'hierarchy.entity' : 'hierarchy.background';
@@ -635,6 +706,18 @@ export class HierarchyPanel {
         this.store_.addComponent(newEntity, 'Button', getDefaultComponentData('Button'));
     }
 
+    private createTextInputEntity(parent: Entity | null): void {
+        const newEntity = this.store_.createEntity('TextInput', parent);
+        this.store_.addComponent(newEntity, 'LocalTransform', getDefaultComponentData('LocalTransform'));
+        this.store_.addComponent(newEntity, 'Sprite', getDefaultComponentData('Sprite'));
+        this.store_.addComponent(newEntity, 'UIRect', {
+            ...getDefaultComponentData('UIRect'),
+            size: { x: 200, y: 36 },
+        });
+        this.store_.addComponent(newEntity, 'Interactable', getDefaultComponentData('Interactable'));
+        this.store_.addComponent(newEntity, 'TextInput', getDefaultComponentData('TextInput'));
+    }
+
     private createPanelEntity(parent: Entity | null): void {
         const newEntity = this.store_.createEntity('Panel', parent);
         this.store_.addComponent(newEntity, 'LocalTransform', getDefaultComponentData('LocalTransform'));
@@ -671,8 +754,53 @@ export class HierarchyPanel {
         );
 
         for (const comp of entityData.components) {
-            this.store_.addComponent(newEntity, comp.type, { ...comp.data });
+            this.store_.addComponent(newEntity, comp.type, JSON.parse(JSON.stringify(comp.data)));
         }
+    }
+
+    private async saveEntityAsPrefab(entity: Entity): Promise<void> {
+        const entityData = this.store_.getEntityData(entity as number);
+        if (!entityData) return;
+
+        const projectPath = getEditorInstance()?.projectPath;
+        if (!projectPath) return;
+
+        const projectDir = getParentDir(projectPath);
+        const assetsDir = joinPath(projectDir, 'assets');
+
+        const name = await showInputDialog({
+            title: 'Save as Prefab',
+            placeholder: 'Prefab name',
+            defaultValue: entityData.name,
+            confirmText: 'Save',
+            validator: async (value) => {
+                if (!value.trim()) return 'Name is required';
+                if (/[<>:"/\\|?*\x00-\x1f]/.test(value.trim())) {
+                    return 'Name contains invalid characters';
+                }
+                return null;
+            },
+        });
+
+        if (!name) return;
+
+        const fileName = name.trim().endsWith('.esprefab')
+            ? name.trim()
+            : `${name.trim()}.esprefab`;
+        const filePath = joinPath(assetsDir, fileName);
+
+        const success = await this.store_.saveAsPrefab(entity as number, filePath);
+        if (!success) {
+            console.error('[HierarchyPanel] Failed to save prefab:', filePath);
+        }
+    }
+
+    private async createEntityFromPrefab(
+        prefabPath: string,
+        parent: Entity | null
+    ): Promise<void> {
+        const relativePath = this.toRelativePath(prefabPath);
+        await this.store_.instantiatePrefab(relativePath, parent);
     }
 
     private escapeHtml(text: string): string {

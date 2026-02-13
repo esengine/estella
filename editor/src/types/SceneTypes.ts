@@ -5,6 +5,7 @@
 
 import type { Entity } from 'esengine';
 import type { TextureMetadata } from './TextureMetadata';
+import type { PrefabInstanceData } from './PrefabTypes';
 
 // =============================================================================
 // Scene Data Types
@@ -24,6 +25,7 @@ export interface EntityData {
     children: number[];
     components: ComponentData[];
     visible: boolean;
+    prefab?: PrefabInstanceData;
 }
 
 export interface ComponentData {

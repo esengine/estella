@@ -33,6 +33,7 @@ export class InspectorPanel {
     private currentEntity_: Entity | null = null;
     private currentAssetPath_: string | null = null;
     private currentComponentCount_: number = 0;
+    private currentPrefabPath_: string | undefined = undefined;
     private imageUrlRef_: ImageUrlRef = { current: null };
 
     private footerContainer_: HTMLElement | null = null;
@@ -156,12 +157,14 @@ export class InspectorPanel {
     private renderEntityInspector(entity: Entity): void {
         const entityData = this.store_.getSelectedEntityData();
         const componentCount = entityData?.components.length ?? 0;
+        const prefabPath = entityData?.prefab?.prefabPath;
 
         const entityChanged = entity !== this.currentEntity_;
         const componentsChanged = componentCount !== this.currentComponentCount_;
+        const prefabChanged = prefabPath !== this.currentPrefabPath_;
         const wasAsset = this.currentAssetPath_ !== null;
 
-        if (!entityChanged && !componentsChanged && !wasAsset) {
+        if (!entityChanged && !componentsChanged && !prefabChanged && !wasAsset) {
             this.updateEditors();
             this.updateVisibilityIcon();
             if (entityData) {
@@ -173,6 +176,7 @@ export class InspectorPanel {
         this.currentEntity_ = entity;
         this.currentAssetPath_ = null;
         this.currentComponentCount_ = componentCount;
+        this.currentPrefabPath_ = prefabPath;
         this.disposeEditors();
         this.cleanupImageUrl();
         this.contentContainer_.innerHTML = '';

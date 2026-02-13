@@ -13,7 +13,10 @@ import { getEditorContext } from '../context/EditorContext';
 import { joinPath, getParentDir } from '../utils/path';
 import type { NativeFS, DirectoryEntry } from '../types/NativeFS';
 import { getAssetLibrary } from '../asset/AssetLibrary';
+import { getGlobalPathResolver } from '../asset';
 import { showErrorToast } from '../ui/Toast';
+import { createEmptyScene } from '../types/SceneTypes';
+import { getSettingsValue } from '../settings';
 
 // =============================================================================
 // Types
@@ -35,7 +38,7 @@ interface FolderNode {
 interface AssetItem {
     name: string;
     path: string;
-    type: 'folder' | 'scene' | 'script' | 'image' | 'audio' | 'json' | 'material' | 'shader' | 'spine' | 'font' | 'file';
+    type: 'folder' | 'scene' | 'script' | 'image' | 'audio' | 'json' | 'material' | 'shader' | 'spine' | 'font' | 'prefab' | 'file';
 }
 
 export interface ContentBrowserOptions {
@@ -65,6 +68,8 @@ function getAssetType(entry: DirectoryEntry): AssetItem['type'] {
 
     const ext = getFileExtension(entry.name);
     switch (ext) {
+        case '.esprefab':
+            return 'prefab';
         case '.esscene':
             return 'scene';
         case '.ts':
@@ -102,6 +107,8 @@ function getAssetIcon(type: AssetItem['type'], size: number = 32): string {
     switch (type) {
         case 'folder':
             return icons.folder(size);
+        case 'prefab':
+            return icons.package(size);
         case 'scene':
             return icons.layers(size);
         case 'script':
@@ -478,6 +485,33 @@ export class ContentBrowserPanel {
             const item = target.closest('.es-asset-item') as HTMLElement;
             item?.classList.remove('es-dragging');
         });
+
+        this.gridContainer_?.addEventListener('dragover', (e) => {
+            const types = e.dataTransfer?.types ?? [];
+            if (!Array.from(types).includes('application/esengine-entity')) return;
+            e.preventDefault();
+            e.dataTransfer!.dropEffect = 'copy';
+            this.gridContainer_?.classList.add('es-drag-over');
+        });
+
+        this.gridContainer_?.addEventListener('dragleave', (e) => {
+            const related = e.relatedTarget as HTMLElement;
+            if (this.gridContainer_?.contains(related)) return;
+            this.gridContainer_?.classList.remove('es-drag-over');
+        });
+
+        this.gridContainer_?.addEventListener('drop', (e) => {
+            this.gridContainer_?.classList.remove('es-drag-over');
+
+            const entityIdStr = e.dataTransfer?.getData('application/esengine-entity');
+            if (!entityIdStr) return;
+
+            e.preventDefault();
+            const entityId = parseInt(entityIdStr, 10);
+            if (isNaN(entityId)) return;
+
+            this.saveDroppedEntityAsPrefab(entityId);
+        });
     }
 
     private showAssetContextMenu(e: MouseEvent, path: string, type: AssetItem['type']): void {
@@ -763,11 +797,10 @@ export const ${className} = defineComponent('${className}', {
         const platform = getPlatformAdapter();
         const filePath = `${parentPath}/${name}`;
 
-        const content = JSON.stringify({
-            version: '1.0',
-            name: name.replace('.esscene', ''),
-            entities: [],
-        }, null, 2);
+        const w = getSettingsValue<number>('project.designWidth') || 1920;
+        const h = getSettingsValue<number>('project.designHeight') || 1080;
+        const scene = createEmptyScene(name.replace('.esscene', ''), { width: w, height: h });
+        const content = JSON.stringify(scene, null, 2);
 
         try {
             await platform.writeTextFile(filePath, content);
@@ -916,6 +949,13 @@ void main() {
     private onAssetDoubleClick(path: string, type: AssetItem['type']): void {
         if (type === 'scene' && this.onOpenScene_) {
             this.onOpenScene_(path);
+            return;
+        }
+
+        if (type === 'prefab') {
+            const resolver = getGlobalPathResolver();
+            const relativePath = resolver.toRelativePath(path);
+            this.store_.enterPrefabEditMode(relativePath);
             return;
         }
 
@@ -1111,5 +1151,50 @@ void main() {
             path: child.path,
             type: 'folder' as const,
         }));
+    }
+
+    private async saveDroppedEntityAsPrefab(entityId: number): Promise<void> {
+        const entityData = this.store_.getEntityData(entityId);
+        if (!entityData) return;
+
+        const targetDir = this.currentPath_;
+        if (!targetDir) return;
+
+        const platform = getPlatformAdapter();
+
+        const name = await showInputDialog({
+            title: 'Save as Prefab',
+            placeholder: 'Prefab name',
+            defaultValue: entityData.name,
+            confirmText: 'Save',
+            validator: async (value) => {
+                if (!value.trim()) return 'Name is required';
+                if (/[<>:"/\\|?*\x00-\x1f]/.test(value.trim())) {
+                    return 'Name contains invalid characters';
+                }
+                const fileName = value.trim().endsWith('.esprefab')
+                    ? value.trim()
+                    : `${value.trim()}.esprefab`;
+                const fullPath = joinPath(targetDir, fileName);
+                if (await platform.exists(fullPath)) {
+                    return 'A file with this name already exists';
+                }
+                return null;
+            },
+        });
+
+        if (!name) return;
+
+        const fileName = name.trim().endsWith('.esprefab')
+            ? name.trim()
+            : `${name.trim()}.esprefab`;
+        const filePath = joinPath(targetDir, fileName);
+
+        const success = await this.store_.saveAsPrefab(entityId, filePath);
+        if (success) {
+            this.refresh();
+        } else {
+            showErrorToast('Failed to save prefab', filePath);
+        }
     }
 }

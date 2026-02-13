@@ -51,6 +51,7 @@ export class EditorSceneManager {
     private sceneData_: SceneData | null = null;
     private syncing_ = false;
     private pendingScene_: SceneData | null = null;
+    private syncCompleteResolvers_: (() => void)[] = [];
     private spineController_: SpineModuleController | null = null;
     private spineInstances_ = new Map<number, number>();
     private spineSkeletons_ = new Map<string, number>();
@@ -100,7 +101,9 @@ export class EditorSceneManager {
     async loadScene(scene: SceneData): Promise<void> {
         if (this.syncing_) {
             this.pendingScene_ = scene;
-            return;
+            return new Promise<void>(resolve => {
+                this.syncCompleteResolvers_.push(resolve);
+            });
         }
 
         this.syncing_ = true;
@@ -108,13 +111,17 @@ export class EditorSceneManager {
         try {
             await this.loadSceneInternal(scene);
 
-            if (this.pendingScene_) {
+            while (this.pendingScene_) {
                 const latest = this.pendingScene_;
                 this.pendingScene_ = null;
                 await this.loadSceneInternal(latest);
             }
         } finally {
             this.syncing_ = false;
+            const resolvers = this.syncCompleteResolvers_.splice(0);
+            for (const resolve of resolvers) {
+                resolve();
+            }
         }
     }
 
@@ -183,6 +190,14 @@ export class EditorSceneManager {
                 await this.syncSpineAnimation(entity, comp.data, entityId);
                 break;
 
+            case 'UIRect':
+            case 'Interactable':
+            case 'Button':
+            case 'ScreenSpace':
+            case 'UIMask':
+            case 'TextInput':
+                break;
+
             default:
                 loadComponent(this.world_, entity, comp as SceneComponentData);
         }
@@ -246,7 +261,11 @@ export class EditorSceneManager {
         if (entity) {
             this.destroySpineInstance(entityId);
             getDependencyGraph().clearEntity(entityId);
-            this.world_.despawn(entity);
+            try {
+                this.world_.despawn(entity);
+            } catch (e) {
+                console.warn(`[EditorSceneManager] despawn failed for entity ${entityId}`, e);
+            }
             this.entityMap_.delete(entityId);
             this.entityDataMap_.delete(entityId);
         }
@@ -259,7 +278,11 @@ export class EditorSceneManager {
         if (parentId !== null) {
             const parentEntity = this.entityMap_.get(parentId);
             if (parentEntity !== undefined) {
-                this.world_.setParent(entity, parentEntity);
+                try {
+                    this.world_.setParent(entity, parentEntity);
+                } catch (e) {
+                    console.warn(`[EditorSceneManager] setParent failed for entity ${entityId} -> ${parentId}`, e);
+                }
             }
         }
     }
@@ -514,8 +537,9 @@ export class EditorSceneManager {
         getDependencyGraph().clearEntity(entityId);
         this.assetServer_.releaseMaterialInstance(entityId);
 
-        const textureRef = data.texture;
-        if (textureRef && typeof textureRef === 'string') {
+        const rawTexture = data.texture;
+        const textureRef = typeof rawTexture === 'string' ? rawTexture : '';
+        if (textureRef) {
             const texturePath = this.resolveAssetRef(textureRef);
             const info = await this.assetServer_.loadTexture(texturePath);
             textureHandle = info.handle;
@@ -607,6 +631,10 @@ export class EditorSceneManager {
             } catch (err) {
                 console.warn(`[EditorSceneManager] Failed to load bitmap font: ${fontRef}`, err);
             }
+        }
+
+        if (fontHandle === (INVALID_FONT as number)) {
+            return;
         }
 
         if (this.world_.has(entity, BitmapText)) {

@@ -13,5 +13,11 @@ export {
     AddComponentCommand,
     RemoveComponentCommand,
 } from './EntityCommands';
+export {
+    InstantiatePrefabCommand,
+    UnpackPrefabCommand,
+    RevertPrefabInstanceCommand,
+    ApplyPrefabOverridesCommand,
+} from './PrefabCommands';
 export { CompoundCommand } from './CompoundCommand';
 export { CommandHistory } from './CommandHistory';

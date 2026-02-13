@@ -16,7 +16,24 @@ import {
     MoveEntityCommand,
     AddComponentCommand,
     RemoveComponentCommand,
+    InstantiatePrefabCommand,
+    UnpackPrefabCommand,
+    RevertPrefabInstanceCommand,
+    ApplyPrefabOverridesCommand,
 } from '../commands';
+import type { PrefabData, PrefabInstanceData } from '../types/PrefabTypes';
+import {
+    entityTreeToPrefab,
+    savePrefabToPath,
+    loadPrefabFromPath,
+    prefabToSceneData,
+    sceneDataToPrefab,
+    instantiatePrefabRecursive,
+    recordPropertyOverride,
+    recordNameOverride,
+    recordVisibilityOverride,
+} from '../prefab';
+import { getGlobalPathResolver } from '../asset';
 import { WorldTransformCache } from '../transform/WorldTransformCache';
 import type { Transform } from '../math/Transform';
 import { isComponentRemovable } from '../schemas/ComponentSchemas';
@@ -104,6 +121,13 @@ export class EditorStore {
     private worldTransforms_ = new WorldTransformCache();
     private entityMap_ = new Map<number, EntityData>();
 
+    private prefabEditingPath_: string | null = null;
+    private savedSceneState_: {
+        scene: SceneData;
+        filePath: string | null;
+        isDirty: boolean;
+    } | null = null;
+
     constructor() {
         const scene = createEmptyScene();
         this.state_ = {
@@ -150,6 +174,14 @@ export class EditorStore {
 
     get selectedAsset(): AssetSelection | null {
         return this.state_.selectedAsset;
+    }
+
+    get prefabEditingPath(): string | null {
+        return this.prefabEditingPath_;
+    }
+
+    get isEditingPrefab(): boolean {
+        return this.prefabEditingPath_ !== null;
     }
 
     get canUndo(): boolean {
@@ -266,6 +298,11 @@ export class EditorStore {
         } else {
             this.hideEntityTree(entityId);
         }
+
+        if (entityData.prefab) {
+            recordVisibilityOverride(this.state_.scene, entityId, entityData.visible);
+        }
+
         this.state_.isDirty = true;
         this.notify();
     }
@@ -392,6 +429,9 @@ export class EditorStore {
         const entityData = this.entityMap_.get(entity as number);
         if (entityData) {
             entityData.name = name;
+            if (entityData.prefab) {
+                recordNameOverride(this.state_.scene, entity as number, name);
+            }
             this.state_.isDirty = true;
             this.notify();
         }
@@ -430,6 +470,17 @@ export class EditorStore {
             newValue
         );
         this.executeCommand(cmd);
+
+        if (this.isPrefabInstance(entity as number)) {
+            recordPropertyOverride(
+                this.state_.scene,
+                entity as number,
+                componentType,
+                propertyName,
+                newValue
+            );
+        }
+
         this.notifyPropertyChange({
             entity: entity as number,
             componentType,
@@ -520,6 +571,236 @@ export class EditorStore {
     }
 
     // =========================================================================
+    // Prefab Operations
+    // =========================================================================
+
+    async instantiatePrefab(
+        prefabPath: string,
+        parentEntity: Entity | null = null
+    ): Promise<Entity | null> {
+        const hasNested = await this.prefabHasNested(prefabPath);
+
+        if (hasNested) {
+            return this.instantiatePrefabNested(prefabPath, parentEntity);
+        }
+
+        const prefab = await loadPrefabFromPath(prefabPath);
+        if (!prefab) return null;
+
+        const cmd = new InstantiatePrefabCommand(
+            this.state_.scene,
+            prefab,
+            prefabPath,
+            parentEntity as number | null,
+            this.nextEntityId_
+        );
+        this.executeCommand(cmd);
+
+        const createdIds = cmd.createdEntityIds;
+        this.nextEntityId_ = Math.max(this.nextEntityId_, ...createdIds.map(id => id + 1));
+
+        for (const id of createdIds) {
+            this.notifyEntityLifecycle({ entity: id, type: 'created', parent: null });
+        }
+
+        const rootId = cmd.rootEntityId;
+        if (rootId !== -1) {
+            this.selectEntity(rootId as Entity);
+        }
+
+        return rootId as Entity;
+    }
+
+    private async instantiatePrefabNested(
+        prefabPath: string,
+        parentEntity: Entity | null
+    ): Promise<Entity | null> {
+        const result = await instantiatePrefabRecursive(
+            prefabPath,
+            this.state_.scene,
+            parentEntity as number | null,
+            this.nextEntityId_
+        );
+        if (!result) return null;
+
+        const snapshot = result.createdEntities.map(e => ({ ...e }));
+
+        for (const entity of result.createdEntities) {
+            this.state_.scene.entities.push(entity);
+        }
+
+        if (parentEntity !== null) {
+            const parent = this.entityMap_.get(parentEntity as number);
+            if (parent && !parent.children.includes(result.rootEntityId)) {
+                parent.children.push(result.rootEntityId);
+            }
+        }
+
+        this.nextEntityId_ = Math.max(
+            this.nextEntityId_,
+            ...result.createdEntities.map(e => e.id + 1)
+        );
+
+        this.state_.isDirty = true;
+        this.rebuildEntityMap();
+        this.worldTransforms_.invalidateAll();
+
+        for (const entity of result.createdEntities) {
+            this.notifyEntityLifecycle({ entity: entity.id, type: 'created', parent: entity.parent });
+        }
+
+        this.selectEntity(result.rootEntityId as Entity);
+        this.notify();
+
+        return result.rootEntityId as Entity;
+    }
+
+    private async prefabHasNested(prefabPath: string): Promise<boolean> {
+        const prefab = await loadPrefabFromPath(prefabPath);
+        if (!prefab) return false;
+        return prefab.entities.some(e => e.nestedPrefab !== undefined);
+    }
+
+    async saveAsPrefab(entityId: number, filePath: string): Promise<boolean> {
+        const entityData = this.entityMap_.get(entityId);
+        if (!entityData) return false;
+
+        const name = filePath.split('/').pop()?.replace('.esprefab', '') ?? entityData.name;
+        const entities = this.collectEntityTree(entityId);
+        const { prefab, idMapping } = entityTreeToPrefab(name, entityId, entities);
+
+        const saved = await savePrefabToPath(prefab, filePath);
+        if (!saved) return false;
+
+        const relativePath = getGlobalPathResolver().toRelativePath(filePath);
+        const instanceId = `prefab_${Date.now()}_${entityId}`;
+
+        for (const [sceneId, prefabEntityId] of idMapping) {
+            const entity = this.entityMap_.get(sceneId);
+            if (!entity) continue;
+
+            entity.prefab = {
+                prefabPath: relativePath,
+                prefabEntityId,
+                isRoot: sceneId === entityId,
+                instanceId,
+                overrides: [],
+            };
+        }
+
+        this.state_.isDirty = true;
+        this.notify();
+        return true;
+    }
+
+    async revertPrefabInstance(instanceId: string, prefabPath: string): Promise<void> {
+        const prefab = await loadPrefabFromPath(prefabPath);
+        if (!prefab) return;
+
+        const cmd = new RevertPrefabInstanceCommand(
+            this.state_.scene,
+            instanceId,
+            prefab,
+            prefabPath
+        );
+        this.executeCommand(cmd);
+    }
+
+    async applyPrefabOverrides(instanceId: string, prefabPath: string): Promise<void> {
+        const prefab = await loadPrefabFromPath(prefabPath);
+        if (!prefab) return;
+
+        const cmd = new ApplyPrefabOverridesCommand(
+            this.state_.scene,
+            instanceId,
+            prefab,
+            prefabPath,
+            async (p, path) => { await savePrefabToPath(p, path); }
+        );
+        this.executeCommand(cmd);
+    }
+
+    unpackPrefab(instanceId: string): void {
+        const cmd = new UnpackPrefabCommand(this.state_.scene, instanceId);
+        this.executeCommand(cmd);
+    }
+
+    isPrefabInstance(entityId: number): boolean {
+        const entity = this.entityMap_.get(entityId);
+        return entity?.prefab !== undefined;
+    }
+
+    isPrefabRoot(entityId: number): boolean {
+        const entity = this.entityMap_.get(entityId);
+        return entity?.prefab?.isRoot === true;
+    }
+
+    getPrefabInstanceId(entityId: number): string | undefined {
+        return this.entityMap_.get(entityId)?.prefab?.instanceId;
+    }
+
+    getPrefabPath(entityId: number): string | undefined {
+        return this.entityMap_.get(entityId)?.prefab?.prefabPath;
+    }
+
+    async enterPrefabEditMode(prefabPath: string): Promise<boolean> {
+        const prefab = await loadPrefabFromPath(prefabPath);
+        if (!prefab) return false;
+
+        this.savedSceneState_ = {
+            scene: JSON.parse(JSON.stringify(this.state_.scene)),
+            filePath: this.state_.filePath,
+            isDirty: this.state_.isDirty,
+        };
+
+        this.prefabEditingPath_ = prefabPath;
+        const scene = prefabToSceneData(prefab);
+        this.loadScene(scene, null);
+
+        return true;
+    }
+
+    async exitPrefabEditMode(): Promise<void> {
+        if (!this.savedSceneState_) return;
+
+        if (this.state_.isDirty) {
+            await this.savePrefabEditing();
+        }
+
+        const saved = this.savedSceneState_;
+        this.prefabEditingPath_ = null;
+        this.savedSceneState_ = null;
+
+        this.loadScene(saved.scene, saved.filePath);
+        this.state_.isDirty = saved.isDirty;
+        this.notify();
+    }
+
+    async savePrefabEditing(): Promise<boolean> {
+        if (!this.prefabEditingPath_) return false;
+
+        const prefab = sceneDataToPrefab(this.state_.scene);
+        const saved = await savePrefabToPath(prefab, this.prefabEditingPath_);
+        if (saved) {
+            this.state_.isDirty = false;
+            this.notify();
+        }
+        return saved;
+    }
+
+    private collectEntityTree(rootId: number): import('../types/SceneTypes').EntityData[] {
+        const result: import('../types/SceneTypes').EntityData[] = [];
+        const entity = this.entityMap_.get(rootId);
+        if (!entity) return result;
+
+        result.push(entity);
+        for (const childId of entity.children) {
+            result.push(...this.collectEntityTree(childId));
+        }
+        return result;
+    }
+
+    // =========================================================================
     // Undo/Redo
     // =========================================================================
 
@@ -527,7 +808,7 @@ export class EditorStore {
         if (this.history_.undo()) {
             this.state_.isDirty = true;
             this.rebuildEntityMap();
-            this.worldTransforms_.invalidateAll();
+            this.worldTransforms_.setScene(this.state_.scene);
             this.sceneLoadVersion_++;
             this.notify();
         }
@@ -537,7 +818,7 @@ export class EditorStore {
         if (this.history_.redo()) {
             this.state_.isDirty = true;
             this.rebuildEntityMap();
-            this.worldTransforms_.invalidateAll();
+            this.worldTransforms_.setScene(this.state_.scene);
             this.sceneLoadVersion_++;
             this.notify();
         }
@@ -584,7 +865,7 @@ export class EditorStore {
         this.history_.execute(cmd);
         this.state_.isDirty = true;
         this.rebuildEntityMap();
-        this.worldTransforms_.invalidateAll();
+        this.worldTransforms_.setScene(this.state_.scene);
         this.notify();
     }
 
