@@ -1,0 +1,48 @@
+---
+title: v0.4.3
+description: ESEngine v0.4.3 release notes
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## Context Menu Registry
+
+- Added `ContextMenuRegistry` for extension-contributed right-click menu items
+- Keyboard navigation, item grouping with separators, and nested sub-menus
+- Context filtering via `visible` and `enabled` callbacks
+- Built-in locations: `hierarchy.entity`, `hierarchy.background`, `content-browser.asset`, `content-browser.folder`, `inspector.component`
+- `registerContextMenuItem()` API for editor extensions
+
+## Inspector Refactoring
+
+- Refactored monolithic `InspectorPanel.ts` into focused sub-modules under `panels/inspector/`
+- Added `InspectorRegistry` for custom inspector sections and component inspectors
+- `registerInspectorSection()` — add collapsible sections to entity or asset inspector
+- `registerComponentInspector()` — replace the default property UI for a component type with a custom inspector
+
+## UI Component Schemas
+
+- Added editor schemas for `Interactable` and `Button` components with property editors
+- Button transition color editor with collapsible sub-section
+- Hierarchy panel "Add UI" submenu for quick creation of UI entities
+
+## Button Interaction Fixes
+
+- Fixed `invertMatrix4` singularity threshold that rejected valid orthographic projection matrices
+- Moved `InputClearSystem` from `Schedule.First` to `Schedule.Last` so pressed/released states persist for UI systems
+- Fixed `ensureCamera` fallback to use orthographic projection for 2D scenes
+- Added `UICameraSyncSystem` at `Schedule.First` for early camera info
+- Button transition color changes now sync to runtime sprite in the editor
+
+## Release Build Fixes
+
+- Fixed WASM module loading failure in release builds caused by Tauri v2 nonce-based CSP blocking inline scripts — uses blob URL approach instead
+- Fixed dynamic stylesheets blocked by CSP in release builds
+- Fixed textures showing as white in canvas 2D fallback renderer — UUID references are now resolved to file paths
+- Fixed race condition where scene could load before `AssetDatabase` finished initialization
+
+## Tooling
+
+- Added `build-tools/release.js` script for versioned releases with tag creation and push
+- CI auto-syncs version from git tag to `tauri.conf.json`
+- Resolved circular dependency in editor property modules

@@ -1,0 +1,48 @@
+---
+title: v0.4.3
+description: ESEngine v0.4.3 更新日志
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## 右键菜单注册系统
+
+- 新增 `ContextMenuRegistry`，支持扩展贡献的右键菜单项
+- 支持键盘导航、分组分隔线、嵌套子菜单
+- 通过 `visible` 和 `enabled` 回调进行上下文过滤
+- 内置位置：`hierarchy.entity`、`hierarchy.background`、`content-browser.asset`、`content-browser.folder`、`inspector.component`
+- 新增 `registerContextMenuItem()` 扩展 API
+
+## Inspector 重构
+
+- 将单体 `InspectorPanel.ts` 重构为 `panels/inspector/` 下的独立子模块
+- 新增 `InspectorRegistry`，支持自定义检查器区段和组件检查器
+- `registerInspectorSection()` — 向实体或资产检查器添加可折叠区段
+- `registerComponentInspector()` — 用自定义检查器替换组件的默认属性 UI
+
+## UI 组件 Schema
+
+- 为 `Interactable` 和 `Button` 组件添加编辑器 schema 和属性编辑器
+- Button 过渡颜色编辑器，支持可折叠子区段
+- Hierarchy 面板新增 "Add UI" 子菜单，快速创建 UI 实体
+
+## Button 交互修复
+
+- 修复 `invertMatrix4` 奇异性阈值导致正交投影矩阵被错误拒绝
+- 将 `InputClearSystem` 从 `Schedule.First` 移至 `Schedule.Last`，使 pressed/released 状态在 UI 系统中持续有效
+- 修复 `ensureCamera` 回退未使用正交投影的问题
+- 新增 `UICameraSyncSystem` 在 `Schedule.First` 提前同步相机信息
+- 编辑器中 Button 过渡颜色变更现在会同步到运行时 Sprite
+
+## 发布构建修复
+
+- 修复 Tauri v2 nonce CSP 阻止内联脚本导致 WASM 模块加载失败 — 改用 blob URL 方式
+- 修复发布构建中动态样式表被 CSP 阻止
+- 修复 Canvas 2D 回退渲染器中纹理显示为白色 — UUID 引用现已正确解析为文件路径
+- 修复场景加载与 `AssetDatabase` 初始化的竞态条件
+
+## 工具链
+
+- 新增 `build-tools/release.js` 发布脚本，自动创建版本标签并推送
+- CI 自动从 git tag 同步版本号到 `tauri.conf.json`
+- 解决编辑器属性模块的循环依赖
