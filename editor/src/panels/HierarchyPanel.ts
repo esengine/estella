@@ -709,7 +709,12 @@ export class HierarchyPanel {
     private createTextInputEntity(parent: Entity | null): void {
         const newEntity = this.store_.createEntity('TextInput', parent);
         this.store_.addComponent(newEntity, 'LocalTransform', getDefaultComponentData('LocalTransform'));
-        this.store_.addComponent(newEntity, 'Sprite', getDefaultComponentData('Sprite'));
+        const tiDefaults = getDefaultComponentData('TextInput');
+        this.store_.addComponent(newEntity, 'Sprite', {
+            ...getDefaultComponentData('Sprite'),
+            color: tiDefaults.backgroundColor,
+            size: { x: 200, y: 36 },
+        });
         this.store_.addComponent(newEntity, 'UIRect', {
             ...getDefaultComponentData('UIRect'),
             size: { x: 200, y: 36 },

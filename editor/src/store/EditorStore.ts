@@ -882,6 +882,14 @@ export class EditorStore {
     }
 
     private notifyPropertyChange(event: PropertyChangeEvent): void {
+        if (event.componentType === 'TextInput' && event.propertyName === 'backgroundColor') {
+            const entityData = this.entityMap_.get(event.entity);
+            const spriteComp = entityData?.components.find(c => c.type === 'Sprite');
+            if (spriteComp) {
+                spriteComp.data.color = event.newValue;
+            }
+        }
+
         for (const listener of this.propertyListeners_) {
             listener(event);
         }

@@ -16,11 +16,15 @@ import {
     TextAlign,
     TextVerticalAlign,
     TextOverflow,
+    UIRect,
+    UIMask,
     type SceneComponentData,
     type TextData,
     type BitmapTextData,
     type LocalTransformData,
     type WorldTransformData,
+    type UIRectData,
+    type UIMaskData,
 } from 'esengine';
 import type { SpineModuleController } from 'esengine/spine';
 import { submitSpineMeshesToCore } from 'esengine/spine';
@@ -191,10 +195,14 @@ export class EditorSceneManager {
                 break;
 
             case 'UIRect':
+                this.world_.insert(entity, UIRect, comp.data as unknown as UIRectData);
+                break;
+            case 'UIMask':
+                this.world_.insert(entity, UIMask, comp.data as unknown as UIMaskData);
+                break;
             case 'Interactable':
             case 'Button':
             case 'ScreenSpace':
-            case 'UIMask':
             case 'TextInput':
                 break;
 
