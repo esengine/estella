@@ -139,6 +139,7 @@ export function getComponentIcon(type: string): string {
         case 'Camera':
             return icons.camera(14);
         case 'Text':
+        case 'TextInput':
             return icons.type(14);
         default:
             return icons.settings(14);

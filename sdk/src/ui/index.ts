@@ -110,3 +110,15 @@ export {
     UIInteractionPlugin,
     uiInteractionPlugin,
 } from './UIInteractionPlugin';
+
+// TextInput Component
+export {
+    TextInput,
+    type TextInputData,
+} from './TextInput';
+
+// TextInput Plugin
+export {
+    TextInputPlugin,
+    textInputPlugin,
+} from './TextInputPlugin';

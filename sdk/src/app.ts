@@ -11,6 +11,7 @@ import { textPlugin } from './ui/TextPlugin';
 import { uiMaskPlugin } from './ui/UIMaskPlugin';
 import { uiInteractionPlugin } from './ui/UIInteractionPlugin';
 import { uiLayoutPlugin } from './ui/UILayoutPlugin';
+import { textInputPlugin } from './ui/TextInputPlugin';
 import { UICameraInfo } from './ui/UICameraInfo';
 import { inputPlugin } from './input';
 import { assetPlugin } from './asset';
@@ -378,6 +379,7 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
     app.addPlugin(uiMaskPlugin);
     app.addPlugin(uiLayoutPlugin);
     app.addPlugin(uiInteractionPlugin);
+    app.addPlugin(textInputPlugin);
 
     return app;
 }

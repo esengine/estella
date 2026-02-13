@@ -1,7 +1,7 @@
 import { defineResource } from '../resource';
 import type { Entity } from '../types';
 
-export type UIEventType = 'click' | 'press' | 'release' | 'hover_enter' | 'hover_exit';
+export type UIEventType = 'click' | 'press' | 'release' | 'hover_enter' | 'hover_exit' | 'submit' | 'change';
 
 export interface UIEvent {
     entity: Entity;

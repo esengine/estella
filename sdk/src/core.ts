@@ -200,6 +200,9 @@ export {
     uiLayoutPlugin,
     UIInteractionPlugin,
     uiInteractionPlugin,
+    TextInput,
+    TextInputPlugin,
+    textInputPlugin,
     type TextData,
     type UIRectData,
     type UIMaskData,
@@ -214,6 +217,7 @@ export {
     type UICameraData,
     type LayoutRect,
     type LayoutResult,
+    type TextInputData,
 } from './ui';
 
 // =============================================================================
