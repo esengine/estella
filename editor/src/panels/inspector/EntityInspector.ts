@@ -367,7 +367,7 @@ function createSpriteSizeResetButton(
 ): HTMLButtonElement {
     const btn = document.createElement('button');
     btn.className = 'es-btn es-btn-icon es-btn-reset-size';
-    btn.title = 'Reset to image size';
+    btn.title = 'Set to original image size';
     btn.innerHTML = icons.maximize(12);
 
     btn.addEventListener('click', () => {
