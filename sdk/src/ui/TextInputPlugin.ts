@@ -63,14 +63,22 @@ export class TextInputPlugin implements Plugin {
                 blurCurrent();
                 return;
             }
-        });
 
-        textarea.addEventListener('keyup', () => {
-            if (focusedEntity === null || !world.valid(focusedEntity)) return;
-            const ti = world.get(focusedEntity, TextInput) as TextInputData;
-            const pos = textarea.selectionStart ?? ti.value.length;
-            if (pos !== ti.cursorPos) {
-                ti.cursorPos = pos;
+            let newPos = ti.cursorPos;
+            if (e.key === 'ArrowLeft') {
+                newPos = Math.max(0, ti.cursorPos - 1);
+            } else if (e.key === 'ArrowRight') {
+                newPos = Math.min(ti.value.length, ti.cursorPos + 1);
+            } else if (e.key === 'Home') {
+                newPos = 0;
+            } else if (e.key === 'End') {
+                newPos = ti.value.length;
+            }
+
+            if (newPos !== ti.cursorPos) {
+                ti.cursorPos = newPos;
+                textarea.selectionStart = newPos;
+                textarea.selectionEnd = newPos;
                 ti.dirty = true;
                 resetCursorBlink();
             }
