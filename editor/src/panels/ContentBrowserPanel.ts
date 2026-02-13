@@ -488,7 +488,8 @@ export class ContentBrowserPanel {
 
         this.gridContainer_?.addEventListener('dragover', (e) => {
             const types = e.dataTransfer?.types ?? [];
-            if (!Array.from(types).includes('application/esengine-entity')) return;
+            const typesArr = Array.from(types);
+            if (!typesArr.includes('application/esengine-entity') && !typesArr.includes('Files')) return;
             e.preventDefault();
             e.dataTransfer!.dropEffect = 'copy';
             this.gridContainer_?.classList.add('es-drag-over');
@@ -502,6 +503,12 @@ export class ContentBrowserPanel {
 
         this.gridContainer_?.addEventListener('drop', (e) => {
             this.gridContainer_?.classList.remove('es-drag-over');
+
+            if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
+                e.preventDefault();
+                this.importDroppedFiles(e.dataTransfer.files);
+                return;
+            }
 
             const entityIdStr = e.dataTransfer?.getData('application/esengine-entity');
             if (!entityIdStr) return;
@@ -1154,6 +1161,27 @@ void main() {
             path: child.path,
             type: 'folder' as const,
         }));
+    }
+
+    private async importDroppedFiles(files: FileList): Promise<void> {
+        const fs = getNativeFS();
+        if (!fs || !this.currentPath_) return;
+
+        for (const file of Array.from(files)) {
+            const destPath = joinPath(this.currentPath_, file.name);
+            const exists = await fs.exists(destPath);
+            if (exists) {
+                const overwrite = await showConfirmDialog({
+                    title: 'File Exists',
+                    message: `"${file.name}" already exists. Overwrite?`,
+                    confirmText: 'Overwrite',
+                });
+                if (!overwrite) continue;
+            }
+
+            const buffer = await file.arrayBuffer();
+            await fs.writeBinaryFile(destPath, new Uint8Array(buffer));
+        }
     }
 
     private async saveDroppedEntityAsPrefab(entityId: number): Promise<void> {
