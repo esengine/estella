@@ -36,6 +36,22 @@ function getSizeComponentType(entityData: { components: { type: string; data: an
     return null;
 }
 
+function hitTestEntityBounds(worldX: number, worldY: number, gctx: GizmoContext): boolean {
+    const entityData = gctx.store.getSelectedEntityData();
+    if (!entityData) return false;
+    const pos = getSelectedEntityPosition(gctx);
+    if (!pos) return false;
+    const worldTransform = gctx.getWorldTransform(entityData.id);
+    const bounds = gctx.getEntityBounds(entityData);
+    const w = bounds.width * Math.abs(worldTransform.scale.x);
+    const h = bounds.height * Math.abs(worldTransform.scale.y);
+    const offsetX = (bounds.offsetX ?? 0) * worldTransform.scale.x;
+    const offsetY = (bounds.offsetY ?? 0) * worldTransform.scale.y;
+    const dx = worldX - pos.x - offsetX;
+    const dy = worldY - pos.y - offsetY;
+    return Math.abs(dx) < w / 2 && Math.abs(dy) < h / 2;
+}
+
 // =============================================================================
 // Select Gizmo
 // =============================================================================
@@ -92,6 +108,9 @@ export function createMoveGizmo(): GizmoDescriptor {
             }
             if (dy > 0 && dy < gizmoScale && Math.abs(dx) < handleSize) {
                 return { hit: true, data: 'y' as DragAxis };
+            }
+            if (hitTestEntityBounds(worldX, worldY, gctx)) {
+                return { hit: true, data: 'xy' as DragAxis };
             }
             return { hit: false };
         },
@@ -396,6 +415,9 @@ export function createScaleGizmo(): GizmoDescriptor {
             }
             if (dy > 0 && dy < gizmoScale && Math.abs(dx) < handleSize) {
                 return { hit: true, data: 'y' as DragAxis };
+            }
+            if (hitTestEntityBounds(worldX, worldY, gctx)) {
+                return { hit: true, data: 'xy' as DragAxis };
             }
             return { hit: false };
         },

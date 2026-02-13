@@ -374,7 +374,7 @@ function createSpriteSizeResetButton(
         const texture = component.data.texture;
         if (!texture) return;
 
-        const relativePath = resolveTexturePath(texture);
+        const relativePath = resolveTexturePath(texture as string);
         if (!relativePath) return;
 
         const projectDir = getProjectDir();
