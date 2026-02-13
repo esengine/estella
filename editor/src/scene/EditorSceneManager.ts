@@ -441,6 +441,10 @@ export class EditorSceneManager {
         return this.spineInstances_.has(entityId);
     }
 
+    get spineInstanceCount(): number {
+        return this.spineInstances_.size;
+    }
+
     onSpineInstanceReady(listener: (entityId: number) => void): () => void {
         this.spineReadyListeners_.add(listener);
         return () => this.spineReadyListeners_.delete(listener);

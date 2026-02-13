@@ -209,4 +209,13 @@ export function registerBuiltinSettings(): void {
         defaultValue: true,
         order: 5,
     });
+
+    registerSettingsItem({
+        id: 'scene.showStats',
+        section: 'scene-view',
+        label: 'Show Stats',
+        type: 'boolean',
+        defaultValue: false,
+        order: 6,
+    });
 }

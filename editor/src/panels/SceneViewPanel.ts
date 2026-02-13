@@ -4,6 +4,7 @@
  */
 
 import type { Entity, App } from 'esengine';
+import { Renderer } from 'esengine';
 import type { SpineModuleController } from 'esengine/spine';
 import type { EditorStore } from '../store/EditorStore';
 import type { EditorBridge } from '../bridge/EditorBridge';
@@ -150,6 +151,13 @@ export class SceneViewPanel {
                                 <label class="es-settings-checkbox">
                                     <input type="checkbox" data-setting="scene.showColliders" ${getSettingsValue<boolean>('scene.showColliders') ? 'checked' : ''}>
                                     <span>Show Colliders</span>
+                                </label>
+                            </div>
+                            <div class="es-settings-divider"></div>
+                            <div class="es-settings-row">
+                                <label class="es-settings-checkbox">
+                                    <input type="checkbox" data-setting="scene.showStats" ${getSettingsValue<boolean>('scene.showStats') ? 'checked' : ''}>
+                                    <span>Show Stats</span>
                                 </label>
                             </div>
                         </div>
@@ -899,6 +907,7 @@ export class SceneViewPanel {
 
         ctx.restore();
 
+        this.drawStats(ctx, w, h);
         this.drawViewportPreview(ctx, w, h);
 
         if (!this.store_.scene.entities.some(
@@ -1153,6 +1162,40 @@ export class SceneViewPanel {
     private hexToRgb(hex: string): [number, number, number] {
         const num = parseInt(hex.replace('#', ''), 16);
         return [(num >> 16) & 0xff, (num >> 8) & 0xff, num & 0xff];
+    }
+
+    private drawStats(ctx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number): void {
+        if (!getSettingsValue<boolean>('scene.showStats') || !this.useWebGL_) return;
+
+        const stats = Renderer.getStats();
+        const spineCount = this.sceneRenderer_?.spineInstanceCount ?? stats.spine;
+
+        const lines = [
+            `DC: ${stats.drawCalls}    Tri: ${stats.triangles}`,
+            `Sprite: ${stats.sprites}  Spine: ${spineCount}`,
+            `Text: ${stats.text}    Mesh: ${stats.meshes}`,
+            `Culled: ${stats.culled}`,
+        ];
+
+        const fontSize = 12;
+        const lineHeight = 18;
+        const padding = 8;
+        const panelW = 180;
+        const panelH = lines.length * lineHeight + padding * 2;
+        const x0 = 12;
+        const y0 = canvasHeight - panelH - 12;
+
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+        ctx.fillRect(x0, y0, panelW, panelH);
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `${fontSize}px monospace`;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+
+        for (let i = 0; i < lines.length; i++) {
+            ctx.fillText(lines[i], x0 + padding, y0 + padding + i * lineHeight);
+        }
     }
 
     private drawViewportPreview(ctx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number): void {

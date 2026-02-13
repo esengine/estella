@@ -147,6 +147,10 @@ export class EditorSceneRenderer {
         return this.sceneManager_?.assetServer ?? null;
     }
 
+    get spineInstanceCount(): number {
+        return this.sceneManager_?.spineInstanceCount ?? 0;
+    }
+
     getSpineBounds(sceneEntityId: number): { x: number; y: number; width: number; height: number } | null {
         if (!this.module_ || !this.sceneManager_) return null;
 
