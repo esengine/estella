@@ -67,6 +67,18 @@ export class PreviewService {
         }
     }
 
+    async updatePreviewFiles(
+        scene: SceneData,
+        compiledScript?: string,
+        spineVersion?: string,
+        enablePhysics?: boolean,
+        physicsConfig?: { gravityX: number; gravityY: number; fixedTimestep: number; subStepCount: number },
+    ): Promise<void> {
+        const fs = this.getNativeFS();
+        if (!fs) return;
+        await this.preparePreviewFiles(fs, scene, compiledScript, spineVersion, enablePhysics, physicsConfig);
+    }
+
     private async preparePreviewFiles(
         fs: NativeFS,
         scene: SceneData,

@@ -294,6 +294,7 @@ export class Editor {
             const success = await saveSceneToPath(this.store_.scene, filePath);
             if (success) {
                 this.store_.markSaved();
+                this.refreshPreviewFiles();
                 return;
             }
         }
@@ -301,6 +302,7 @@ export class Editor {
         const savedPath = await saveSceneToFile(this.store_.scene);
         if (savedPath) {
             this.store_.markSaved(savedPath);
+            this.refreshPreviewFiles();
         }
     }
 
@@ -882,6 +884,20 @@ export class Editor {
 
     async stopPreview(): Promise<void> {
         await this.previewService_?.stopPreview();
+    }
+
+    private refreshPreviewFiles(): void {
+        if (!this.previewService_) return;
+        const compiledScript = this.scriptLoader_?.getCompiledCode() ?? undefined;
+        const enablePhysics = getSettingsValue<boolean>('project.enablePhysics') ?? false;
+        const physicsConfig = enablePhysics ? {
+            gravityX: getSettingsValue<number>('physics.gravityX') ?? 0,
+            gravityY: getSettingsValue<number>('physics.gravityY') ?? -9.81,
+            fixedTimestep: getSettingsValue<number>('physics.fixedTimestep') ?? 1 / 60,
+            subStepCount: getSettingsValue<number>('physics.subStepCount') ?? 4,
+        } : undefined;
+        const spineVersion = this.spineVersion_ === 'none' ? undefined : this.spineVersion_;
+        this.previewService_.updatePreviewFiles(this.store_.scene, compiledScript, spineVersion, enablePhysics, physicsConfig);
     }
 
     async navigateToAsset(assetPath: string): Promise<void> {
