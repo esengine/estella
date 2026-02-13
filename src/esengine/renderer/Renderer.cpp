@@ -399,9 +399,8 @@ void BatchRenderer2D::init() {
         ES_LOG_ERROR("All batch shader variants FAILED!");
     }
 
-    data_->textureSlots[0] = context_.getWhiteTextureId();
-    for (u32 i = 1; i < MAX_TEXTURE_SLOTS; ++i) {
-        data_->textureSlots[i] = 0;
+    for (u32 i = 0; i < MAX_TEXTURE_SLOTS; ++i) {
+        data_->textureSlots[i] = context_.getWhiteTextureId();
     }
 
     data_->initialized = true;
@@ -451,7 +450,7 @@ void BatchRenderer2D::flush() {
         data_->vbo->setDataRaw(data_->triVertices.data(), triBytes);
     }
 
-    for (u32 i = 0; i < data_->textureSlotIndex; ++i) {
+    for (u32 i = 0; i < MAX_TEXTURE_SLOTS; ++i) {
         glActiveTexture(GL_TEXTURE0 + i);
         glBindTexture(GL_TEXTURE_2D, data_->textureSlots[i]);
     }
