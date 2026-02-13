@@ -378,6 +378,8 @@ export class TextureAtlasPacker {
             }
         }
 
+        await this.findAtlasFiles(joinPath(this.projectDir_, 'assets'), 'assets', atlasPaths);
+
         const result = new Set<string>();
         for (const atlasRelPath of atlasPaths) {
             const fullPath = joinPath(this.projectDir_, atlasRelPath);
@@ -395,6 +397,28 @@ export class TextureAtlasPacker {
             }
         }
         return result;
+    }
+
+    private async findAtlasFiles(
+        absolutePath: string,
+        relativePath: string,
+        result: Set<string>
+    ): Promise<void> {
+        let entries: Array<{ name: string; isDirectory: boolean }>;
+        try {
+            entries = await this.fs_.listDirectoryDetailed(absolutePath);
+        } catch {
+            return;
+        }
+        for (const entry of entries) {
+            const childAbsolute = joinPath(absolutePath, entry.name);
+            const childRelative = `${relativePath}/${entry.name}`;
+            if (entry.isDirectory) {
+                await this.findAtlasFiles(childAbsolute, childRelative, result);
+            } else if (/\.atlas$/i.test(entry.name)) {
+                result.add(childRelative);
+            }
+        }
     }
 
     private collectNineSliceTextures(

@@ -105,6 +105,7 @@ export class AssetServer {
     private fontCache_ = new AsyncCache<FontHandle>();
     private prefabCache_ = new AsyncCache<PrefabData>();
     private embedded_ = new Map<string, string>();
+    private embeddedOnly_ = false;
     private addressableManifest_: AddressableManifest | null = null;
     private addressIndex_ = new Map<string, AddressableManifestAsset>();
     private labelIndex_ = new Map<string, AddressableManifestAsset[]>();
@@ -130,6 +131,7 @@ export class AssetServer {
         for (const [key, value] of Object.entries(assets)) {
             this.embedded_.set(key, value);
         }
+        this.embeddedOnly_ = typeof location !== 'undefined' && location.protocol === 'file:';
     }
 
     // =========================================================================
@@ -601,6 +603,9 @@ export class AssetServer {
     private async loadImage(source: string): Promise<HTMLImageElement | ImageBitmap> {
         const localPath = this.isLocalPath(source) ? this.toLocalPath(source) : source;
         const embedded = this.embedded_.get(localPath);
+        if (this.embeddedOnly_ && !embedded) {
+            throw new Error(`Asset not embedded: ${source}`);
+        }
         const imgSrc = embedded ?? localPath;
         return new Promise((resolve, reject) => {
             const img = platformCreateImage();
@@ -729,6 +734,21 @@ export class AssetServer {
 
     private async loadShaderInternal(path: string): Promise<ShaderHandle> {
         const localPath = this.isLocalPath(path) ? this.toLocalPath(path) : path;
+
+        const embedded = this.embedded_.get(localPath);
+        if (embedded) {
+            const content = this.decodeDataUrlText(embedded);
+            const { vertex, fragment } = this.parseEsShader(content);
+            if (!vertex || !fragment) {
+                throw new Error(`Invalid shader format: ${path}`);
+            }
+            return Material.createShader(vertex, fragment);
+        }
+
+        if (this.embeddedOnly_) {
+            throw new Error(`Asset not embedded: ${path}`);
+        }
+
         const exists = await platformFileExists(localPath);
         if (!exists) {
             throw new Error(`Shader file not found: ${path}`);
@@ -788,8 +808,14 @@ export class AssetServer {
             if (embedded) {
                 return JSON.parse(this.decodeDataUrlText(embedded));
             }
+            if (this.embeddedOnly_) {
+                throw new Error(`Asset not embedded: ${url}`);
+            }
             const text = await platformReadTextFile(localPath);
             return JSON.parse(text);
+        }
+        if (this.embeddedOnly_) {
+            throw new Error(`Asset not embedded: ${url}`);
         }
         const response = await platformFetch(url);
         if (!response.ok) {
@@ -805,7 +831,13 @@ export class AssetServer {
             if (embedded) {
                 return this.decodeDataUrlText(embedded);
             }
+            if (this.embeddedOnly_) {
+                throw new Error(`Asset not embedded: ${url}`);
+            }
             return platformReadTextFile(localPath);
+        }
+        if (this.embeddedOnly_) {
+            throw new Error(`Asset not embedded: ${url}`);
         }
         const response = await platformFetch(url);
         if (!response.ok) {
@@ -821,7 +853,13 @@ export class AssetServer {
             if (embedded) {
                 return this.decodeDataUrlBinary(embedded);
             }
+            if (this.embeddedOnly_) {
+                throw new Error(`Asset not embedded: ${url}`);
+            }
             return platformReadFile(localPath);
+        }
+        if (this.embeddedOnly_) {
+            throw new Error(`Asset not embedded: ${url}`);
         }
         const response = await platformFetch(url);
         if (!response.ok) {

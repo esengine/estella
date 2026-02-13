@@ -289,7 +289,13 @@ ${imports}
         const assets = new Map<string, string>();
         const compiledMaterialPaths = new Set(artifact.compiledMaterials.map(m => m.relativePath));
 
-        for (const relativePath of artifact.assetPaths) {
+        const allFiles = new Set(artifact.assetPaths);
+        const assetsDir = joinPath(projectDir, 'assets');
+        if (await fs.exists(assetsDir)) {
+            await this.walkDirectory(fs, assetsDir, 'assets', allFiles);
+        }
+
+        for (const relativePath of allFiles) {
             if (artifact.packedPaths.has(relativePath)) continue;
             if (relativePath.endsWith('.esshader')) continue;
 
@@ -315,6 +321,24 @@ ${imports}
         }
 
         return assets;
+    }
+
+    private async walkDirectory(
+        fs: NativeFS,
+        absolutePath: string,
+        relativePath: string,
+        result: Set<string>
+    ): Promise<void> {
+        const entries = await fs.listDirectoryDetailed(absolutePath);
+        for (const entry of entries) {
+            const childAbsolute = joinPath(absolutePath, entry.name);
+            const childRelative = `${relativePath}/${entry.name}`;
+            if (entry.isDirectory) {
+                await this.walkDirectory(fs, childAbsolute, childRelative, result);
+            } else {
+                result.add(childRelative);
+            }
+        }
     }
 
     private assembleHTML(
