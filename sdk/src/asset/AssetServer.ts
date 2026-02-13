@@ -12,6 +12,7 @@ import { platformReadTextFile, platformReadFile, platformFileExists, platformFet
 import type { World } from '../world';
 import { loadSceneWithAssets, type SceneData } from '../scene';
 import { AsyncCache } from './AsyncCache';
+import type { PrefabData } from '../prefab';
 
 // =============================================================================
 // Types
@@ -102,6 +103,7 @@ export class AssetServer {
     private canvas_: HTMLCanvasElement;
     private ctx_: CanvasRenderingContext2D;
     private fontCache_ = new AsyncCache<FontHandle>();
+    private prefabCache_ = new AsyncCache<PrefabData>();
     private embedded_ = new Map<string, string>();
     private addressableManifest_: AddressableManifest | null = null;
     private addressIndex_ = new Map<string, AddressableManifestAsset>();
@@ -180,6 +182,7 @@ export class AssetServer {
         }
         this.textureCache_.clear();
         this.fontCache_.clear();
+        this.prefabCache_.clear();
         this.jsonCache_.clear();
         this.textCache_.clear();
         this.binaryCache_.clear();
@@ -331,6 +334,17 @@ export class AssetServer {
         const texInfo = await this.loadTextureRaw(texUrl);
         const rm = this.module_.getResourceManager();
         return rm.loadBitmapFont(fntContent, texInfo.handle, texInfo.width, texInfo.height) as FontHandle;
+    }
+
+    // =========================================================================
+    // Prefab
+    // =========================================================================
+
+    async loadPrefab(path: string, baseUrl?: string): Promise<PrefabData> {
+        const url = this.resolveUrl(path, baseUrl);
+        return this.prefabCache_.getOrLoad(url, () =>
+            this.fetchJson(url) as Promise<PrefabData>
+        );
     }
 
     // =========================================================================

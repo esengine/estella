@@ -264,6 +264,19 @@ export {
 } from './scene';
 
 // =============================================================================
+// Prefab
+// =============================================================================
+
+export {
+    instantiatePrefab,
+    type PrefabData,
+    type PrefabEntityData,
+    type PrefabOverride,
+    type InstantiatePrefabOptions,
+    type InstantiatePrefabResult,
+} from './prefab';
+
+// =============================================================================
 // Runtime Loader
 // =============================================================================
 
