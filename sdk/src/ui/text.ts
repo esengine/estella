@@ -42,7 +42,6 @@ export interface TextData {
     wordWrap: boolean;
     overflow: TextOverflow;
     lineHeight: number;
-    dirty: boolean;
 }
 
 // =============================================================================
@@ -59,5 +58,4 @@ export const Text = defineComponent<TextData>('Text', {
     wordWrap: true,
     overflow: TextOverflow.Visible,
     lineHeight: 1.2,
-    dirty: true,
 });

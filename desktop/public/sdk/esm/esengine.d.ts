@@ -909,7 +909,6 @@ interface TextData {
     wordWrap: boolean;
     overflow: TextOverflow;
     lineHeight: number;
-    dirty: boolean;
 }
 declare const Text: ComponentDef<TextData>;
 

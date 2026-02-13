@@ -4,12 +4,60 @@
  */
 
 import type { App, Plugin } from '../app';
+import type { Entity } from '../types';
 import { INVALID_TEXTURE } from '../types';
 import { defineSystem, Schedule } from '../system';
 import { Sprite, type SpriteData } from '../component';
 import { Text, type TextData } from './text';
 import { TextRenderer } from './TextRenderer';
 import { UIRect, type UIRectData } from './UIRect';
+
+interface TextSnapshot {
+    content: string;
+    fontFamily: string;
+    fontSize: number;
+    colorR: number;
+    colorG: number;
+    colorB: number;
+    colorA: number;
+    align: number;
+    verticalAlign: number;
+    wordWrap: boolean;
+    overflow: number;
+    lineHeight: number;
+}
+
+function takeSnapshot(text: TextData): TextSnapshot {
+    return {
+        content: text.content,
+        fontFamily: text.fontFamily,
+        fontSize: text.fontSize,
+        colorR: text.color.r,
+        colorG: text.color.g,
+        colorB: text.color.b,
+        colorA: text.color.a,
+        align: text.align,
+        verticalAlign: text.verticalAlign,
+        wordWrap: text.wordWrap,
+        overflow: text.overflow,
+        lineHeight: text.lineHeight,
+    };
+}
+
+function snapshotChanged(snap: TextSnapshot, text: TextData): boolean {
+    return snap.content !== text.content
+        || snap.fontFamily !== text.fontFamily
+        || snap.fontSize !== text.fontSize
+        || snap.colorR !== text.color.r
+        || snap.colorG !== text.color.g
+        || snap.colorB !== text.color.b
+        || snap.colorA !== text.color.a
+        || snap.align !== text.align
+        || snap.verticalAlign !== text.verticalAlign
+        || snap.wordWrap !== text.wordWrap
+        || snap.overflow !== text.overflow
+        || snap.lineHeight !== text.lineHeight;
+}
 
 // =============================================================================
 // Text Plugin
@@ -25,16 +73,26 @@ export class TextPlugin implements Plugin {
 
         const renderer = new TextRenderer(module);
         const world = app.world;
+        const snapshots = new Map<Entity, TextSnapshot>();
 
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
             [],
             () => {
                 renderer.cleanupOrphaned(e => world.valid(e) && world.has(e, Text));
+
+                for (const entity of snapshots.keys()) {
+                    if (!world.valid(entity) || !world.has(entity, Text)) {
+                        snapshots.delete(entity);
+                    }
+                }
+
                 const entities = world.getEntitiesWithComponents([Text]);
 
                 for (const entity of entities) {
                     const text = world.get(entity, Text) as TextData;
-                    if (!text.dirty) continue;
+                    const prev = snapshots.get(entity);
+
+                    if (prev && !snapshotChanged(prev, text)) continue;
 
                     if (!world.has(entity, Sprite)) {
                         world.insert(entity, Sprite, {
@@ -65,7 +123,7 @@ export class TextPlugin implements Plugin {
                     sprite.uvScale.y = 1;
                     world.insert(entity, Sprite, sprite);
 
-                    text.dirty = false;
+                    snapshots.set(entity, takeSnapshot(text));
                 }
             }
         ));

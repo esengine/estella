@@ -681,7 +681,6 @@ export class EditorSceneManager {
             wordWrap: data.wordWrap ?? true,
             overflow: data.overflow ?? TextOverflow.Visible,
             lineHeight: data.lineHeight ?? 1.2,
-            dirty: true,
         };
 
         if (!textData.content) return;
@@ -726,7 +725,6 @@ export class EditorSceneManager {
             wordWrap: false,
             overflow: TextOverflow.Clip,
             lineHeight: 1.2,
-            dirty: true,
         };
 
         const result = this.textRenderer_.renderForEntity(entity, textData, uiRectData);
