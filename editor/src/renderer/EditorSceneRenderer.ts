@@ -166,6 +166,10 @@ export class EditorSceneRenderer {
         return this.sceneManager_?.getSpineSkeletonInfo(entityId) ?? null;
     }
 
+    onSpineInstanceReady(listener: (entityId: number) => void): () => void {
+        return this.sceneManager_?.onSpineInstanceReady(listener) ?? (() => {});
+    }
+
     // =========================================================================
     // Rendering
     // =========================================================================

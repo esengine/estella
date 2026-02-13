@@ -14,6 +14,21 @@ import { showInputDialog, showConfirmDialog } from '../ui/dialog';
 import { showContextMenu } from '../ui/ContextMenu';
 import { showErrorToast, showSuccessToast } from '../ui/Toast';
 
+function getAssetTypeFromPath(path: string): AssetType {
+    const ext = path.substring(path.lastIndexOf('.')).toLowerCase();
+    switch (ext) {
+        case '.esscene': return 'scene';
+        case '.ts': case '.js': return 'script';
+        case '.png': case '.jpg': case '.jpeg': case '.gif': case '.webp': case '.bmp': return 'image';
+        case '.mp3': case '.wav': case '.ogg': case '.flac': return 'audio';
+        case '.json': return 'json';
+        case '.esmaterial': return 'material';
+        case '.esshader': return 'shader';
+        case '.bmfont': return 'font';
+        default: return 'file';
+    }
+}
+
 const LABEL_COLORS = [
     '#61afef', '#e06c75', '#98c379', '#d19a66',
     '#c678dd', '#56b6c2', '#e5c07b', '#be5046',
@@ -857,7 +872,7 @@ export class AddressablePanel implements PanelInstance {
         const name = entry.path.split('/').pop() || '';
         this.store_.selectAsset({
             path: fullPath,
-            type: entry.type as AssetType,
+            type: getAssetTypeFromPath(entry.path),
             name,
         });
     }

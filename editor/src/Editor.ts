@@ -215,6 +215,15 @@ export class Editor {
         return null;
     }
 
+    onSpineInstanceReady(listener: (entityId: number) => void): () => void {
+        for (const panel of this.panelInstances_.values()) {
+            if (isSpineInfoProvider(panel)) {
+                return panel.onSpineInstanceReady(listener);
+            }
+        }
+        return () => {};
+    }
+
     // =========================================================================
     // Panel Operations
     // =========================================================================

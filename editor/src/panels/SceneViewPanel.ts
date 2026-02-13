@@ -257,6 +257,10 @@ export class SceneViewPanel {
         return this.sceneRenderer_?.getSpineSkeletonInfo(entityId) ?? null;
     }
 
+    onSpineInstanceReady(listener: (entityId: number) => void): () => void {
+        return this.sceneRenderer_?.onSpineInstanceReady(listener) ?? (() => {});
+    }
+
     private async initWebGLRenderer(): Promise<void> {
         if (this.webglInitPending_ || this.webglInitialized_) return;
         if (!this.app_?.wasmModule || !this.webglCanvas_) return;
@@ -295,7 +299,6 @@ export class SceneViewPanel {
         await this.sceneRenderer_.syncScene(this.store_.scene);
     }
 
-    private lastEntityCount_ = -1;
     private lastLoadVersion_ = -1;
 
     private async onSceneChanged(): Promise<void> {

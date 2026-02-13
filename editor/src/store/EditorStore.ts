@@ -67,6 +67,22 @@ export interface VisibilityChangeEvent {
 
 export type VisibilityChangeListener = (event: VisibilityChangeEvent) => void;
 
+export interface EntityLifecycleEvent {
+    entity: number;
+    type: 'created' | 'deleted';
+    parent: number | null;
+}
+
+export type EntityLifecycleListener = (event: EntityLifecycleEvent) => void;
+
+export interface ComponentChangeEvent {
+    entity: number;
+    componentType: string;
+    action: 'added' | 'removed';
+}
+
+export type ComponentChangeListener = (event: ComponentChangeEvent) => void;
+
 // =============================================================================
 // EditorStore
 // =============================================================================
@@ -79,6 +95,8 @@ export class EditorStore {
     private hierarchyListeners_: Set<HierarchyChangeListener> = new Set();
     private focusListeners_: Set<(entityId: number) => void> = new Set();
     private visibilityListeners_: Set<VisibilityChangeListener> = new Set();
+    private entityLifecycleListeners_: Set<EntityLifecycleListener> = new Set();
+    private componentChangeListeners_: Set<ComponentChangeListener> = new Set();
     private pendingNotify_ = false;
     private nextEntityId_ = 1;
     private sceneVersion_ = 0;
@@ -319,6 +337,8 @@ export class EditorStore {
         );
         this.executeCommand(cmd);
 
+        this.notifyEntityLifecycle({ entity: id, type: 'created', parent: parent as number | null });
+
         if (parent !== null) {
             const parentData = this.entityMap_.get(parent as number);
             if (parentData && !parentData.visible) {
@@ -336,12 +356,18 @@ export class EditorStore {
     }
 
     deleteEntity(entity: Entity): void {
+        const descendants = this.collectDescendantIds(entity as number);
         const cmd = new DeleteEntityCommand(this.state_.scene, entity);
         this.executeCommand(cmd);
 
         if (this.state_.selectedEntity === entity) {
             this.state_.selectedEntity = null;
         }
+
+        for (const id of descendants) {
+            this.notifyEntityLifecycle({ entity: id, type: 'deleted', parent: null });
+        }
+        this.notifyEntityLifecycle({ entity: entity as number, type: 'deleted', parent: null });
     }
 
     reparentEntity(entity: Entity, newParent: Entity | null): void {
@@ -378,12 +404,14 @@ export class EditorStore {
     addComponent(entity: Entity, type: string, data: Record<string, unknown>): void {
         const cmd = new AddComponentCommand(this.state_.scene, entity, type, data);
         this.executeCommand(cmd);
+        this.notifyComponentChange({ entity: entity as number, componentType: type, action: 'added' });
     }
 
     removeComponent(entity: Entity, type: string): void {
         if (!isComponentRemovable(type)) return;
         const cmd = new RemoveComponentCommand(this.state_.scene, entity, type);
         this.executeCommand(cmd);
+        this.notifyComponentChange({ entity: entity as number, componentType: type, action: 'removed' });
     }
 
     updateProperty(
@@ -538,6 +566,16 @@ export class EditorStore {
         return () => this.hierarchyListeners_.delete(listener);
     }
 
+    subscribeToEntityLifecycle(listener: EntityLifecycleListener): () => void {
+        this.entityLifecycleListeners_.add(listener);
+        return () => this.entityLifecycleListeners_.delete(listener);
+    }
+
+    subscribeToComponentChanges(listener: ComponentChangeListener): () => void {
+        this.componentChangeListeners_.add(listener);
+        return () => this.componentChangeListeners_.delete(listener);
+    }
+
     // =========================================================================
     // Private
     // =========================================================================
@@ -572,6 +610,29 @@ export class EditorStore {
         for (const listener of this.hierarchyListeners_) {
             listener(event);
         }
+    }
+
+    private notifyEntityLifecycle(event: EntityLifecycleEvent): void {
+        for (const listener of this.entityLifecycleListeners_) {
+            listener(event);
+        }
+    }
+
+    private notifyComponentChange(event: ComponentChangeEvent): void {
+        for (const listener of this.componentChangeListeners_) {
+            listener(event);
+        }
+    }
+
+    private collectDescendantIds(entityId: number): number[] {
+        const result: number[] = [];
+        const entityData = this.entityMap_.get(entityId);
+        if (!entityData) return result;
+        for (const childId of entityData.children) {
+            result.push(...this.collectDescendantIds(childId));
+            result.push(childId);
+        }
+        return result;
     }
 
     private rebuildEntityMap(): void {

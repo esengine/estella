@@ -54,6 +54,7 @@ export interface SpineControllerAware {
 
 export interface SpineInfoProvider {
     getSpineSkeletonInfo(entityId: number): { animations: string[]; skins: string[] } | null;
+    onSpineInstanceReady(listener: (entityId: number) => void): () => void;
 }
 
 export function isResizable(p: PanelInstance): p is PanelInstance & Resizable {

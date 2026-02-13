@@ -56,6 +56,7 @@ export class EditorSceneManager {
     private spineSkeletons_ = new Map<string, number>();
     private spineInstanceKeys_ = new Map<number, string>();
     private spineCurrentState_ = new Map<number, { animation: string; skin: string; loop: boolean }>();
+    private spineReadyListeners_ = new Set<(entityId: number) => void>();
 
     constructor(module: ESEngineModule, pathResolver: AssetPathResolver) {
         this.module_ = module;
@@ -191,13 +192,20 @@ export class EditorSceneManager {
     // Incremental Updates
     // =========================================================================
 
-    async updateEntity(entityId: number, components: ComponentData[]): Promise<void> {
-        const entity = this.entityMap_.get(entityId);
-        if (!entity) return;
+    async updateEntity(entityId: number, components: ComponentData[], entityData?: EntityData): Promise<void> {
+        let entity = this.entityMap_.get(entityId);
+        if (!entity) {
+            entity = this.world_.spawn();
+            this.entityMap_.set(entityId, entity);
+        }
 
-        const existingData = this.entityDataMap_.get(entityId);
-        if (existingData) {
-            existingData.components = components;
+        if (entityData) {
+            this.entityDataMap_.set(entityId, entityData);
+        } else {
+            const existing = this.entityDataMap_.get(entityId);
+            if (existing) {
+                existing.components = components;
+            }
         }
 
         for (const comp of components) {
@@ -241,6 +249,41 @@ export class EditorSceneManager {
             this.world_.despawn(entity);
             this.entityMap_.delete(entityId);
             this.entityDataMap_.delete(entityId);
+        }
+    }
+
+    spawnEntity(entityId: number, parentId: number | null): void {
+        if (this.entityMap_.has(entityId)) return;
+        const entity = this.world_.spawn();
+        this.entityMap_.set(entityId, entity);
+        if (parentId !== null) {
+            const parentEntity = this.entityMap_.get(parentId);
+            if (parentEntity !== undefined) {
+                this.world_.setParent(entity, parentEntity);
+            }
+        }
+    }
+
+    hasEntity(entityId: number): boolean {
+        return this.entityMap_.has(entityId);
+    }
+
+    removeComponentFromEntity(entityId: number, componentType: string): void {
+        const entity = this.entityMap_.get(entityId);
+        if (entity === undefined) return;
+        switch (componentType) {
+            case 'LocalTransform':
+                if (this.world_.has(entity, LocalTransform)) this.world_.remove(entity, LocalTransform);
+                break;
+            case 'Sprite':
+                if (this.world_.has(entity, Sprite)) this.world_.remove(entity, Sprite);
+                break;
+            case 'BitmapText':
+                if (this.world_.has(entity, BitmapText)) this.world_.remove(entity, BitmapText);
+                break;
+            case 'SpineAnimation':
+                this.destroySpineInstance(entityId);
+                break;
         }
     }
 
@@ -355,6 +398,11 @@ export class EditorSceneManager {
 
     hasSpineInstance(entityId: number): boolean {
         return this.spineInstances_.has(entityId);
+    }
+
+    onSpineInstanceReady(listener: (entityId: number) => void): () => void {
+        this.spineReadyListeners_.add(listener);
+        return () => this.spineReadyListeners_.delete(listener);
     }
 
     getSpineSkeletonInfo(entityId: number): { animations: string[]; skins: string[] } | null {
@@ -631,6 +679,10 @@ export class EditorSceneManager {
             this.spineInstances_.set(entityId, instanceId);
             this.spineInstanceKeys_.set(entityId, cacheKey);
             this.spineCurrentState_.delete(entityId);
+
+            for (const cb of this.spineReadyListeners_) {
+                cb(entityId);
+            }
         }
 
         const skin = data.skin ?? 'default';

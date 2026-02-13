@@ -3,7 +3,7 @@
  * @brief   Syncs editor state changes to runtime rendering
  */
 
-import type { EditorStore, PropertyChangeEvent, HierarchyChangeEvent, VisibilityChangeEvent } from '../store/EditorStore';
+import type { EditorStore, PropertyChangeEvent, HierarchyChangeEvent, VisibilityChangeEvent, EntityLifecycleEvent, ComponentChangeEvent } from '../store/EditorStore';
 import type { EditorSceneManager } from '../scene/EditorSceneManager';
 import { getAssetEventBus, type AssetEvent } from '../events/AssetEventBus';
 import { getDependencyGraph } from '../asset/AssetDependencyGraph';
@@ -40,6 +40,18 @@ export class RuntimeSyncService {
         );
 
         this.unsubscribes_.push(
+            this.store_.subscribeToEntityLifecycle((event) => {
+                this.onEntityLifecycle(event);
+            })
+        );
+
+        this.unsubscribes_.push(
+            this.store_.subscribeToComponentChanges((event) => {
+                this.onComponentChange(event);
+            })
+        );
+
+        this.unsubscribes_.push(
             getAssetEventBus().on('material', (event) => {
                 if (event.type === 'asset:modified') {
                     this.onMaterialModified(event.path);
@@ -64,7 +76,25 @@ export class RuntimeSyncService {
         }
     }
 
+    private onEntityLifecycle(event: EntityLifecycleEvent): void {
+        if (event.type === 'created') {
+            this.sceneManager_.spawnEntity(event.entity, event.parent);
+        } else {
+            this.sceneManager_.removeEntity(event.entity);
+            this.dirtyEntities_.delete(event.entity);
+        }
+    }
+
+    private onComponentChange(event: ComponentChangeEvent): void {
+        if (event.action === 'removed') {
+            this.sceneManager_.removeComponentFromEntity(event.entity, event.componentType);
+        }
+        this.scheduleEntityUpdate(event.entity);
+    }
+
     private onPropertyChange(event: PropertyChangeEvent): void {
+        if (!this.sceneManager_.hasEntity(event.entity)) return;
+
         if (event.componentType === 'LocalTransform') {
             this.sceneManager_.syncEntityTransform(event.entity);
         }
@@ -140,7 +170,7 @@ export class RuntimeSyncService {
         if (!this.store_.isEntityVisible(entityId)) return;
         const entityData = this.store_.getEntityData(entityId);
         if (!entityData) return;
-        await this.sceneManager_.updateEntity(entityId, entityData.components);
+        await this.sceneManager_.updateEntity(entityId, entityData.components, entityData);
     }
 
     dispose(): void {
