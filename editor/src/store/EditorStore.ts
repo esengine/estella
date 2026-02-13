@@ -808,6 +808,7 @@ export class EditorStore {
         if (this.history_.undo()) {
             this.state_.isDirty = true;
             this.rebuildEntityMap();
+            this.syncDerivedProperties();
             this.worldTransforms_.setScene(this.state_.scene);
             this.sceneLoadVersion_++;
             this.notify();
@@ -818,6 +819,7 @@ export class EditorStore {
         if (this.history_.redo()) {
             this.state_.isDirty = true;
             this.rebuildEntityMap();
+            this.syncDerivedProperties();
             this.worldTransforms_.setScene(this.state_.scene);
             this.sceneLoadVersion_++;
             this.notify();
@@ -900,6 +902,20 @@ export class EditorStore {
 
         for (const listener of this.propertyListeners_) {
             listener(event);
+        }
+    }
+
+    private syncDerivedProperties(): void {
+        for (const entityData of this.entityMap_.values()) {
+            const uiRect = entityData.components.find(c => c.type === 'UIRect');
+            const sprite = entityData.components.find(c => c.type === 'Sprite');
+            if (uiRect && sprite) {
+                sprite.data.size = uiRect.data.size;
+            }
+            const textInput = entityData.components.find(c => c.type === 'TextInput');
+            if (textInput && sprite) {
+                sprite.data.color = textInput.data.backgroundColor;
+            }
         }
     }
 
