@@ -4,90 +4,17 @@
  */
 
 import { Entity } from './types';
+import type { Registry as GeneratedRegistry } from './wasm.generated';
 
 // =============================================================================
 // C++ Registry Interface
 // =============================================================================
 
-export interface CppRegistry {
-    create(): Entity;
-    destroy(entity: Entity): void;
-    valid(entity: Entity): boolean;
+export interface CppRegistry extends GeneratedRegistry {
     delete(): void;
-
-    addLocalTransform(entity: Entity, data: unknown): void;
-    getLocalTransform(entity: Entity): unknown;
-    hasLocalTransform(entity: Entity): boolean;
-    removeLocalTransform(entity: Entity): void;
-
-    addWorldTransform(entity: Entity, data: unknown): void;
-    getWorldTransform(entity: Entity): unknown;
-    hasWorldTransform(entity: Entity): boolean;
-    removeWorldTransform(entity: Entity): void;
-
-    addSprite(entity: Entity, data: unknown): void;
-    getSprite(entity: Entity): unknown;
-    hasSprite(entity: Entity): boolean;
-    removeSprite(entity: Entity): void;
-
-    addCamera(entity: Entity, data: unknown): void;
-    getCamera(entity: Entity): unknown;
-    hasCamera(entity: Entity): boolean;
-    removeCamera(entity: Entity): void;
-
-    addCanvas(entity: Entity, data: unknown): void;
-    getCanvas(entity: Entity): unknown;
-    hasCanvas(entity: Entity): boolean;
-    removeCanvas(entity: Entity): void;
-
-    addVelocity(entity: Entity, data: unknown): void;
-    getVelocity(entity: Entity): unknown;
-    hasVelocity(entity: Entity): boolean;
-    removeVelocity(entity: Entity): void;
-
-    addParent(entity: Entity, data: unknown): void;
-    getParent(entity: Entity): unknown;
-    hasParent(entity: Entity): boolean;
     removeParent(entity: Entity): void;
 
-    addChildren(entity: Entity, data: unknown): void;
-    getChildren(entity: Entity): unknown;
-    hasChildren(entity: Entity): boolean;
-    removeChildren(entity: Entity): void;
-
-    addSpineAnimation(entity: Entity, data: unknown): void;
-    getSpineAnimation(entity: Entity): unknown;
-    hasSpineAnimation(entity: Entity): boolean;
-    removeSpineAnimation(entity: Entity): void;
-
-    addRigidBody?(entity: Entity, data: unknown): void;
-    getRigidBody?(entity: Entity): unknown;
-    hasRigidBody?(entity: Entity): boolean;
-    removeRigidBody?(entity: Entity): void;
-
-    addBoxCollider?(entity: Entity, data: unknown): void;
-    getBoxCollider?(entity: Entity): unknown;
-    hasBoxCollider?(entity: Entity): boolean;
-    removeBoxCollider?(entity: Entity): void;
-
-    addCircleCollider?(entity: Entity, data: unknown): void;
-    getCircleCollider?(entity: Entity): unknown;
-    hasCircleCollider?(entity: Entity): boolean;
-    removeCircleCollider?(entity: Entity): void;
-
-    addCapsuleCollider?(entity: Entity, data: unknown): void;
-    getCapsuleCollider?(entity: Entity): unknown;
-    hasCapsuleCollider?(entity: Entity): boolean;
-    removeCapsuleCollider?(entity: Entity): void;
-
-    addBitmapText(entity: Entity, data: unknown): void;
-    getBitmapText(entity: Entity): unknown;
-    hasBitmapText(entity: Entity): boolean;
-    removeBitmapText(entity: Entity): void;
-
-    setParent(child: Entity, parent: Entity): void;
-
-    [key: string]: any;
+    [key: string]: Function | undefined;
 }
 
 // =============================================================================

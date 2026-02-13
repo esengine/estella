@@ -18,6 +18,7 @@ export class WebAssetProvider implements RuntimeAssetProvider {
     async prefetch(sceneData: SceneData): Promise<void> {
         const textRefs = new Set<string>();
         const binaryRefs = new Set<string>();
+        const bmfontRefs = new Set<string>();
 
         for (const entity of sceneData.entities) {
             for (const comp of entity.components) {
@@ -33,6 +34,10 @@ export class WebAssetProvider implements RuntimeAssetProvider {
                         }
                     }
                     if (atlasPath) textRefs.add(atlasPath);
+                }
+                if (comp.type === 'BitmapText' && typeof comp.data.font === 'string' && comp.data.font) {
+                    bmfontRefs.add(comp.data.font);
+                    textRefs.add(comp.data.font);
                 }
                 if (typeof comp.data.material === 'string' && comp.data.material) {
                     textRefs.add(comp.data.material);
@@ -61,6 +66,32 @@ export class WebAssetProvider implements RuntimeAssetProvider {
         }
 
         await Promise.all(fetches);
+
+        const fntFetches: Promise<void>[] = [];
+        for (const ref of bmfontRefs) {
+            if (!ref.endsWith('.bmfont')) continue;
+            const text = this.textCache_.get(ref);
+            if (!text) continue;
+            try {
+                const json = JSON.parse(text);
+                const fntFile = json.type === 'label-atlas' ? json.generatedFnt : json.fntFile;
+                if (fntFile) {
+                    const dir = ref.substring(0, ref.lastIndexOf('/'));
+                    const fntRef = dir ? `${dir}/${fntFile}` : fntFile;
+                    if (!this.textCache_.has(fntRef)) {
+                        fntFetches.push(
+                            fetch(this.resolveUrl(fntRef))
+                                .then(r => r.text())
+                                .then(t => { this.textCache_.set(fntRef, t); })
+                                .catch(() => {})
+                        );
+                    }
+                }
+            } catch { /* ignore parse errors */ }
+        }
+        if (fntFetches.length > 0) {
+            await Promise.all(fntFetches);
+        }
     }
 
     readText(ref: string): string {

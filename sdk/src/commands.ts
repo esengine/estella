@@ -26,7 +26,7 @@ export function Commands(): CommandsDescriptor {
 
 interface SpawnComponentEntry {
     component: AnyComponentDef;
-    data: unknown;
+    data: any;
 }
 
 interface SpawnCommand {
@@ -44,7 +44,7 @@ interface InsertCommand {
     type: 'insert';
     entity: Entity;
     component: AnyComponentDef;
-    data: unknown;
+    data: any;
 }
 
 interface RemoveCommand {

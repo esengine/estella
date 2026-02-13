@@ -4,23 +4,23 @@
  */
 
 import { Entity } from './types';
-import { AnyComponentDef, ComponentDef, BuiltinComponentDef, isBuiltinComponent } from './component';
+import { AnyComponentDef, ComponentDef, ComponentData, BuiltinComponentDef, isBuiltinComponent } from './component';
 import type { CppRegistry } from './wasm';
 
-function convertForWasm(obj: unknown): unknown {
-    if (obj === null || obj === undefined || typeof obj !== 'object' || Array.isArray(obj)) {
-        return obj;
-    }
-    const rec = obj as Record<string, unknown>;
-    if ('r' in rec && 'g' in rec && 'b' in rec && 'a' in rec && !('x' in rec)) {
-        return { x: rec.r, y: rec.g, z: rec.b, w: rec.a };
-    }
+function convertForWasm(obj: Record<string, unknown>): Record<string, unknown> {
     const result: Record<string, unknown> = {};
-    for (const key of Object.keys(rec)) {
-        const val = rec[key];
-        result[key] = (val !== null && val !== undefined && typeof val === 'object' && !Array.isArray(val))
-            ? convertForWasm(val)
-            : val;
+    for (const key of Object.keys(obj)) {
+        const val = obj[key];
+        if (val !== null && val !== undefined && typeof val === 'object' && !Array.isArray(val)) {
+            const rec = val as Record<string, unknown>;
+            if ('r' in rec && 'g' in rec && 'b' in rec && 'a' in rec && !('x' in rec)) {
+                result[key] = { x: rec.r, y: rec.g, z: rec.b, w: rec.a };
+            } else {
+                result[key] = convertForWasm(rec);
+            }
+        } else {
+            result[key] = val;
+        }
     }
     return result;
 }
@@ -105,18 +105,18 @@ export class World {
     // Component Management
     // =========================================================================
 
-    insert(entity: Entity, component: AnyComponentDef, data?: unknown): unknown {
+    insert<C extends AnyComponentDef>(entity: Entity, component: C, data?: Partial<ComponentData<C>>): ComponentData<C> {
         if (isBuiltinComponent(component)) {
-            return this.insertBuiltin(entity, component, data);
+            return this.insertBuiltin(entity, component, data) as ComponentData<C>;
         }
-        return this.insertScript(entity, component as ComponentDef<any>, data);
+        return this.insertScript(entity, component as ComponentDef<any>, data) as ComponentData<C>;
     }
 
-    get(entity: Entity, component: AnyComponentDef): unknown {
+    get<C extends AnyComponentDef>(entity: Entity, component: C): ComponentData<C> {
         if (isBuiltinComponent(component)) {
-            return this.getBuiltin(entity, component);
+            return this.getBuiltin(entity, component) as ComponentData<C>;
         }
-        return this.getScript(entity, component as ComponentDef<any>);
+        return this.getScript(entity, component as ComponentDef<any>) as ComponentData<C>;
     }
 
     has(entity: Entity, component: AnyComponentDef): boolean {
@@ -138,13 +138,21 @@ export class World {
     // Builtin Component Operations (C++ Registry)
     // =========================================================================
 
-    private insertBuiltin(entity: Entity, component: BuiltinComponentDef<any>, data?: unknown): unknown {
-        const merged = { ...component._default, ...(data as object) };
+    private insertBuiltin<T>(entity: Entity, component: BuiltinComponentDef<T>, data?: Partial<T>): T {
+        const filtered: Record<string, unknown> = {};
+        if (data !== null && data !== undefined && typeof data === 'object') {
+            for (const [k, v] of Object.entries(data as Record<string, unknown>)) {
+                if (v !== undefined) {
+                    filtered[k] = v;
+                }
+            }
+        }
+        const merged = { ...component._default, ...filtered } as T;
 
         if (this.cppRegistry_) {
-            const adder = `add${component._cppName}` as keyof CppRegistry;
-            const fn = this.cppRegistry_[adder] as (e: Entity, d: unknown) => void;
-            fn.call(this.cppRegistry_, entity, convertForWasm(merged));
+            const adder = `add${component._cppName}`;
+            const fn = this.cppRegistry_[adder] as ((e: Entity, d: unknown) => void) | undefined;
+            fn?.call(this.cppRegistry_, entity, convertForWasm(merged as Record<string, unknown>));
         }
 
         return merged;
@@ -155,9 +163,9 @@ export class World {
             throw new Error('C++ Registry not connected');
         }
 
-        const getter = `get${component._cppName}` as keyof CppRegistry;
-        const fn = this.cppRegistry_[getter] as (e: Entity) => T;
-        return fn.call(this.cppRegistry_, entity);
+        const getter = `get${component._cppName}`;
+        const fn = this.cppRegistry_[getter] as ((e: Entity) => T) | undefined;
+        return fn!.call(this.cppRegistry_, entity);
     }
 
     private hasBuiltin(entity: Entity, component: BuiltinComponentDef<any>): boolean {
@@ -165,9 +173,9 @@ export class World {
             return false;
         }
 
-        const checker = `has${component._cppName}` as keyof CppRegistry;
-        const fn = this.cppRegistry_[checker] as (e: Entity) => boolean;
-        return fn.call(this.cppRegistry_, entity);
+        const checker = `has${component._cppName}`;
+        const fn = this.cppRegistry_[checker] as ((e: Entity) => boolean) | undefined;
+        return fn!.call(this.cppRegistry_, entity);
     }
 
     private removeBuiltin(entity: Entity, component: BuiltinComponentDef<any>): void {
@@ -175,9 +183,9 @@ export class World {
             return;
         }
 
-        const remover = `remove${component._cppName}` as keyof CppRegistry;
-        const fn = this.cppRegistry_[remover] as (e: Entity) => void;
-        fn.call(this.cppRegistry_, entity);
+        const remover = `remove${component._cppName}`;
+        const fn = this.cppRegistry_[remover] as ((e: Entity) => void) | undefined;
+        fn!.call(this.cppRegistry_, entity);
     }
 
     // =========================================================================

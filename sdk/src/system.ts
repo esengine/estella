@@ -59,7 +59,7 @@ export type InferParams<P extends readonly SystemParam[]> = {
 export interface SystemDef {
     readonly _id: symbol;
     readonly _params: readonly SystemParam[];
-    readonly _fn: (...args: unknown[]) => void;
+    readonly _fn: (...args: never[]) => void;
     readonly _name: string;
 }
 
@@ -75,7 +75,7 @@ export function defineSystem<P extends readonly SystemParam[]>(
     return {
         _id: Symbol(`System_${id}_${options?.name ?? ''}`),
         _params: params,
-        _fn: fn as (...args: unknown[]) => void,
+        _fn: fn as (...args: never[]) => void,
         _name: options?.name ?? `System_${id}`
     };
 }
@@ -126,7 +126,7 @@ export class SystemRunner {
             args[i] = this.resolveParam(system._params[i]);
         }
 
-        system._fn(...args);
+        (system._fn as (...args: unknown[]) => void)(...args);
 
         for (let i = 0; i < args.length; i++) {
             if (args[i] instanceof CommandsInstance) {

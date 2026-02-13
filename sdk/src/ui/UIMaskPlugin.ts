@@ -1,6 +1,6 @@
 import type { App, Plugin } from '../app';
 import type { ESEngineModule, CppRegistry } from '../wasm';
-import type { MaskProcessorFn, RenderPipeline } from '../renderPipeline';
+import type { MaskProcessorFn } from '../renderPipeline';
 import type { Entity } from '../types';
 import type { World } from '../world';
 import { WorldTransform, Parent } from '../component';
@@ -109,7 +109,7 @@ function processMasks(
 export class UIMaskPlugin implements Plugin {
     build(app: App): void {
         if (!app.wasmModule) return;
-        const pipeline = (app as any).pipeline_ as RenderPipeline | null;
+        const pipeline = app.pipeline;
         if (!pipeline) return;
 
         pipeline.setMaskProcessor(createMaskProcessor(app.wasmModule, app.world));

@@ -229,59 +229,59 @@ export async function loadSceneWithAssets(
 }
 
 export function loadComponent(world: World, entity: Entity, compData: SceneComponentData): void {
-    const data = compData.data as unknown;
+    const data = compData.data;
     switch (compData.type) {
         case 'LocalTransform':
-            world.insert(entity, LocalTransform, data as LocalTransformData);
+            world.insert(entity, LocalTransform, data as Partial<LocalTransformData>);
             break;
         case 'Sprite':
-            world.insert(entity, Sprite, data as SpriteData);
+            world.insert(entity, Sprite, data as Partial<SpriteData>);
             break;
         case 'Camera':
-            world.insert(entity, Camera, data as CameraData);
+            world.insert(entity, Camera, data as Partial<CameraData>);
             break;
         case 'Canvas':
-            world.insert(entity, Canvas, data as CanvasData);
+            world.insert(entity, Canvas, data as Partial<CanvasData>);
             break;
         case 'Text':
-            world.insert(entity, Text, data as TextData);
+            world.insert(entity, Text, data as Partial<TextData>);
             break;
         case 'BitmapText':
-            world.insert(entity, BitmapText, data as BitmapTextData);
+            world.insert(entity, BitmapText, data as Partial<BitmapTextData>);
             break;
         case 'SpineAnimation':
-            world.insert(entity, SpineAnimation, data as SpineAnimationData);
+            world.insert(entity, SpineAnimation, data as Partial<SpineAnimationData>);
             break;
         case 'UIRect': {
-            const rectData = data as Record<string, any>;
+            const rectData = data as Record<string, unknown>;
             if (rectData.anchor && !rectData.anchorMin) {
-                rectData.anchorMin = { ...rectData.anchor };
-                rectData.anchorMax = { ...rectData.anchor };
+                rectData.anchorMin = { ...(rectData.anchor as Record<string, unknown>) };
+                rectData.anchorMax = { ...(rectData.anchor as Record<string, unknown>) };
                 delete rectData.anchor;
             }
-            world.insert(entity, UIRect, rectData as UIRectData);
+            world.insert(entity, UIRect, rectData as Partial<UIRectData>);
             break;
         }
         case 'UIMask':
-            world.insert(entity, UIMask, data as UIMaskData);
+            world.insert(entity, UIMask, data as Partial<UIMaskData>);
             break;
         case 'Interactable':
-            world.insert(entity, Interactable, data as InteractableData);
+            world.insert(entity, Interactable, data as Partial<InteractableData>);
             break;
         case 'Button':
-            world.insert(entity, Button, data as ButtonData);
+            world.insert(entity, Button, data as Partial<ButtonData>);
             break;
         case 'RigidBody':
-            world.insert(entity, RigidBody, data as RigidBodyData);
+            world.insert(entity, RigidBody, data as Partial<RigidBodyData>);
             break;
         case 'BoxCollider':
-            world.insert(entity, BoxCollider, data as BoxColliderData);
+            world.insert(entity, BoxCollider, data as Partial<BoxColliderData>);
             break;
         case 'CircleCollider':
-            world.insert(entity, CircleCollider, data as CircleColliderData);
+            world.insert(entity, CircleCollider, data as Partial<CircleColliderData>);
             break;
         case 'CapsuleCollider':
-            world.insert(entity, CapsuleCollider, data as CapsuleColliderData);
+            world.insert(entity, CapsuleCollider, data as Partial<CapsuleColliderData>);
             break;
         default: {
             const userComp = getUserComponent(compData.type);
@@ -298,7 +298,7 @@ export function loadComponent(world: World, entity: Entity, compData: SceneCompo
 export function updateCameraAspectRatio(world: World, aspectRatio: number): void {
     const cameraEntities = world.getEntitiesWithComponents([Camera]);
     for (const entity of cameraEntities) {
-        const camera = world.get(entity, Camera) as CameraData;
+        const camera = world.get(entity, Camera);
         if (camera) {
             camera.aspectRatio = aspectRatio;
             world.insert(entity, Camera, camera);
@@ -309,7 +309,7 @@ export function updateCameraAspectRatio(world: World, aspectRatio: number): void
 export function findEntityByName(world: World, name: string): Entity | null {
     const entities = world.getEntitiesWithComponents([Name]);
     for (const entity of entities) {
-        const data = world.get(entity, Name) as NameData;
+        const data = world.get(entity, Name);
         if (data && data.value === name) {
             return entity;
         }

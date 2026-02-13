@@ -21,7 +21,7 @@ export function Mut<T extends AnyComponentDef>(component: T): MutWrapper<T> {
 }
 
 export function isMutWrapper(value: unknown): value is MutWrapper<AnyComponentDef> {
-    return typeof value === 'object' && value !== null && (value as any)._type === 'mut';
+    return typeof value === 'object' && value !== null && '_type' in value && value._type === 'mut';
 }
 
 type UnwrapMut<T> = T extends MutWrapper<infer C> ? C : T;
@@ -89,7 +89,7 @@ export type QueryResult<C extends readonly QueryArg[]> = [
 interface PendingMutation {
     entity: Entity;
     component: AnyComponentDef;
-    data: unknown;
+    data: any;
 }
 
 export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<QueryResult<C>> {
@@ -117,7 +117,7 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
         const result = new Array(compCount + 1);
 
         let prevEntity: Entity | null = null;
-        let prevMutData: Array<{ component: AnyComponentDef; data: unknown }> = [];
+        let prevMutData: Array<{ component: AnyComponentDef; data: any }> = [];
 
         try {
             for (const entity of entities) {

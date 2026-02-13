@@ -119,6 +119,10 @@ export class App {
         return this.module_;
     }
 
+    get pipeline(): RenderPipeline | null {
+        return this.pipeline_;
+    }
+
     setSpineRenderer(fn: SpineRendererFn | null): void {
         this.pipeline_?.setSpineRenderer(fn);
     }
@@ -325,13 +329,12 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
         _params: [],
         _fn: () => {
             const { width, height } = getViewportSize();
+            if (width === 0 || height === 0) return;
             const canvasEntity = module.registry_getCanvasEntity(cppRegistry);
             if (canvasEntity >= 0) {
-                const canvas = cppRegistry.getCanvas(canvasEntity) as {
-                    backgroundColor: { r: number; g: number; b: number; a: number };
-                };
+                const canvas = cppRegistry.getCanvas(canvasEntity);
                 const bg = canvas.backgroundColor;
-                Renderer.setClearColor(bg.r, bg.g, bg.b, bg.a);
+                Renderer.setClearColor(bg.x, bg.y, bg.z, bg.w);
             }
             const elapsed = (platformNow() - startTime) / 1000;
 
@@ -406,20 +409,10 @@ const IDENTITY = new Float32Array([
     0, 0, 0, 1,
 ]);
 
-function findCanvasData(module: ESEngineModule, registry: CppRegistry): {
-    designResolution: { x: number; y: number };
-    scaleMode: number;
-    matchWidthOrHeight: number;
-    backgroundColor: { r: number; g: number; b: number; a: number };
-} | null {
+function findCanvasData(module: ESEngineModule, registry: CppRegistry) {
     const entity = module.registry_getCanvasEntity(registry);
     if (entity < 0) return null;
-    return registry.getCanvas(entity) as {
-        designResolution: { x: number; y: number };
-        scaleMode: number;
-        matchWidthOrHeight: number;
-        backgroundColor: { r: number; g: number; b: number; a: number };
-    };
+    return registry.getCanvas(entity);
 }
 
 function computeEffectiveOrthoSize(
@@ -458,6 +451,7 @@ interface CameraInfo {
 }
 
 function collectCameras(module: ESEngineModule, registry: CppRegistry, width: number, height: number): CameraInfo[] {
+    if (width === 0 || height === 0) return [];
     const cameraEntities = module.registry_getCameraEntities(registry);
     if (cameraEntities.length === 0) return [];
 
@@ -465,24 +459,8 @@ function collectCameras(module: ESEngineModule, registry: CppRegistry, width: nu
     const cameras: CameraInfo[] = [];
 
     for (const e of cameraEntities) {
-        const camera = registry.getCamera(e) as {
-            projectionType: number;
-            fov: number;
-            orthoSize: number;
-            nearPlane: number;
-            farPlane: number;
-            isActive: boolean;
-            priority: number;
-            viewportX: number;
-            viewportY: number;
-            viewportW: number;
-            viewportH: number;
-            clearFlags: number;
-        };
-
-        const transform = registry.getLocalTransform(e) as {
-            position: { x: number; y: number; z: number };
-        };
+        const camera = registry.getCamera(e);
+        const transform = registry.getLocalTransform(e);
 
         const vr = {
             x: camera.viewportX,
@@ -537,22 +515,13 @@ function collectCameras(module: ESEngineModule, registry: CppRegistry, width: nu
 }
 
 function computeViewProjection(module: ESEngineModule, registry: CppRegistry, width: number, height: number): Float32Array {
+    if (width === 0 || height === 0) return IDENTITY;
     const cameraEntities = module.registry_getCameraEntities(registry);
     if (cameraEntities.length === 0) return IDENTITY;
 
     const e = cameraEntities[0];
-    const camera = registry.getCamera(e) as {
-        projectionType: number;
-        fov: number;
-        orthoSize: number;
-        nearPlane: number;
-        farPlane: number;
-        isActive: boolean;
-    };
-
-    const transform = registry.getLocalTransform(e) as {
-        position: { x: number; y: number; z: number };
-    };
+    const camera = registry.getCamera(e);
+    const transform = registry.getLocalTransform(e);
 
     const aspect = width / height;
     let projection: Float32Array;

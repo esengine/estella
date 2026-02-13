@@ -3,7 +3,7 @@
  * @brief   Runtime scene loader for builder targets (WeChat, Playable, etc.)
  */
 
-import { Sprite, SpineAnimation, WorldTransform, type SpineAnimationData, type WorldTransformData } from './component';
+import { Sprite, SpineAnimation, BitmapText, WorldTransform, type SpineAnimationData, type WorldTransformData } from './component';
 import { Material } from './material';
 import { loadSceneData, type SceneData } from './scene';
 import type { ESEngineModule } from './wasm';
@@ -96,7 +96,7 @@ function updateSpriteTextures(
             if (comp.type === 'Sprite' && comp.data.texture && typeof comp.data.texture === 'string') {
                 const sprite = world.get(entity, Sprite);
                 if (sprite) {
-                    (sprite as Record<string, unknown>).texture = textureCache[comp.data.texture as string] || 0;
+                    sprite.texture = textureCache[comp.data.texture as string] || 0;
                     world.insert(entity, Sprite, sprite);
                 }
             }
@@ -322,6 +322,79 @@ function setupSpineRenderer(
 }
 
 // =============================================================================
+// BitmapFont Helpers
+// =============================================================================
+
+async function loadBitmapFonts(
+    module: ESEngineModule,
+    sceneData: SceneData,
+    provider: RuntimeAssetProvider,
+): Promise<Record<string, number>> {
+    const cache: Record<string, number> = {};
+    for (const entity of sceneData.entities) {
+        for (const comp of entity.components) {
+            if (comp.type !== 'BitmapText' || !comp.data.font || typeof comp.data.font !== 'string') continue;
+            const ref = comp.data.font as string;
+            if (cache[ref] !== undefined) continue;
+            try {
+                let fntContent: string;
+                let fntDir: string;
+
+                if (ref.endsWith('.bmfont')) {
+                    const json = JSON.parse(provider.readText(ref));
+                    const fntFile = json.type === 'label-atlas' ? json.generatedFnt : json.fntFile;
+                    if (!fntFile) { cache[ref] = 0; continue; }
+                    const dir = ref.substring(0, ref.lastIndexOf('/'));
+                    const fntRef = dir ? `${dir}/${fntFile}` : fntFile;
+                    fntContent = provider.readText(fntRef);
+                    fntDir = fntRef.substring(0, fntRef.lastIndexOf('/'));
+                } else {
+                    fntContent = provider.readText(ref);
+                    fntDir = ref.substring(0, ref.lastIndexOf('/'));
+                }
+
+                const pageMatch = fntContent.match(/file="([^"]+)"/);
+                if (!pageMatch) { cache[ref] = 0; continue; }
+
+                const texRef = fntDir ? `${fntDir}/${pageMatch[1]}` : pageMatch[1];
+                const pixels = provider.loadPixelsRaw
+                    ? await provider.loadPixelsRaw(texRef)
+                    : await provider.loadPixels(texRef);
+                const texHandle = createTextureFromPixels(module, pixels, false);
+
+                const rm = module.getResourceManager();
+                cache[ref] = rm.loadBitmapFont(fntContent, texHandle, pixels.width, pixels.height);
+            } catch {
+                cache[ref] = 0;
+            }
+        }
+    }
+    return cache;
+}
+
+function updateBitmapTextFonts(
+    world: App['world'],
+    sceneData: SceneData,
+    fontCache: Record<string, number>,
+    entityMap: Map<number, number>,
+): void {
+    for (const entityData of sceneData.entities) {
+        const entity = entityMap.get(entityData.id);
+        if (entity === undefined) continue;
+        for (const comp of entityData.components) {
+            if (comp.type !== 'BitmapText' || !comp.data.font || typeof comp.data.font !== 'string') continue;
+            const handle = fontCache[comp.data.font as string] || 0;
+            if (!handle) continue;
+            const bt = world.get(entity, BitmapText);
+            if (bt) {
+                bt.font = handle;
+                world.insert(entity, BitmapText, bt);
+            }
+        }
+    }
+}
+
+// =============================================================================
 // Material Helpers
 // =============================================================================
 
@@ -374,13 +447,13 @@ function updateMaterials(
             if (comp.type === 'Sprite') {
                 const sprite = world.get(entity, Sprite);
                 if (sprite) {
-                    (sprite as Record<string, unknown>).material = handle;
+                    sprite.material = handle;
                     world.insert(entity, Sprite, sprite);
                 }
             } else if (comp.type === 'SpineAnimation') {
                 const spine = world.get(entity, SpineAnimation);
                 if (spine) {
-                    (spine as Record<string, unknown>).material = handle;
+                    spine.material = handle;
                     world.insert(entity, SpineAnimation, spine);
                 }
             }
@@ -421,10 +494,12 @@ export async function loadRuntimeScene(
         physicsPlugin.build(app);
     }
 
+    const fontCache = await loadBitmapFonts(module, sceneData, provider);
     const materialCache = loadMaterials(sceneData, provider);
     const entityMap = loadSceneData(app.world, sceneData);
 
     updateSpriteTextures(app.world, sceneData, textureCache, entityMap);
+    updateBitmapTextFonts(app.world, sceneData, fontCache, entityMap);
     updateMaterials(app.world, sceneData, materialCache, entityMap);
 
     if (spineModule && spineAPI) {
