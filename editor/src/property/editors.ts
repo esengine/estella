@@ -12,6 +12,7 @@ import { getEditorContext, getEditorInstance } from '../context/EditorContext';
 import { getPlatformAdapter } from '../platform/PlatformAdapter';
 import { getAssetLibrary, isUUID } from '../asset/AssetLibrary';
 import type { NativeFS } from '../types/NativeFS';
+import { INVALID_TEXTURE } from 'esengine';
 import { createUIRectEditor } from './uiRectEditor';
 import { createButtonTransitionEditor } from './buttonTransitionEditor';
 import { setupDragLabel, colorToHex, hexToColor } from './editorUtils';
@@ -697,7 +698,7 @@ function createTextureEditor(
     const input = document.createElement('input');
     input.type = 'text';
     input.className = 'es-input es-input-texture es-asset-link';
-    input.value = (value && typeof value === 'string') ? resolveDisplayName(value) : '';
+    input.value = (value && typeof value === 'string' && value !== String(INVALID_TEXTURE)) ? resolveDisplayName(value) : '';
     input.placeholder = 'None';
     input.readOnly = true;
 
@@ -758,7 +759,7 @@ function createTextureEditor(
         }
     };
 
-    currentRef = (value && typeof value === 'string') ? value : '';
+    currentRef = (value && typeof value === 'string' && value !== String(INVALID_TEXTURE)) ? value : '';
     updatePreview(currentRef);
 
     input.addEventListener('click', navigateToAssetPath);
@@ -852,8 +853,9 @@ function createTextureEditor(
 
     return {
         update(v: unknown) {
-            const newValue = String(v ?? '');
-            input.value = resolveDisplayName(newValue);
+            const raw = String(v ?? '');
+            const newValue = raw === String(INVALID_TEXTURE) ? '' : raw;
+            input.value = newValue ? resolveDisplayName(newValue) : '';
             if (newValue !== currentRef) {
                 currentRef = newValue;
                 updatePreview(newValue);
