@@ -677,6 +677,8 @@ function createTextureEditor(
 ): PropertyEditorInstance {
     const { value, onChange } = ctx;
     let currentBlobUrl: string | null = null;
+    let currentRef = '';
+    let previewGeneration = 0;
 
     const wrapper = document.createElement('div');
     wrapper.className = 'es-texture-editor';
@@ -710,6 +712,8 @@ function createTextureEditor(
     clearBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
 
     const updatePreview = async (textureRef: string) => {
+        const gen = ++previewGeneration;
+
         if (currentBlobUrl) {
             URL.revokeObjectURL(currentBlobUrl);
             currentBlobUrl = null;
@@ -723,6 +727,7 @@ function createTextureEditor(
             const fullPath = `${projectDir}/${texturePath}`;
             try {
                 const data = await fs.readBinaryFile(fullPath);
+                if (gen !== previewGeneration) return;
                 if (data) {
                     const blob = new Blob([data.buffer as ArrayBuffer], { type: getMimeType(texturePath) });
                     currentBlobUrl = URL.createObjectURL(blob);
@@ -732,6 +737,7 @@ function createTextureEditor(
                     return;
                 }
             } catch (err) {
+                if (gen !== previewGeneration) return;
                 console.warn('Failed to load texture preview:', err);
             }
         }
@@ -752,7 +758,8 @@ function createTextureEditor(
         }
     };
 
-    updatePreview((value && typeof value === 'string') ? value : '');
+    currentRef = (value && typeof value === 'string') ? value : '';
+    updatePreview(currentRef);
 
     input.addEventListener('click', navigateToAssetPath);
     preview.addEventListener('click', navigateToAssetPath);
@@ -788,6 +795,7 @@ function createTextureEditor(
                     const uuid = getAssetLibrary().getUuid(relativePath);
                     const ref = uuid ?? relativePath;
                     input.value = relativePath;
+                    currentRef = ref;
                     onChange(ref);
                     updatePreview(ref);
                 }
@@ -818,6 +826,7 @@ function createTextureEditor(
                     const uuid = getAssetLibrary().getUuid(relativePath);
                     const ref = uuid ?? relativePath;
                     input.value = relativePath;
+                    currentRef = ref;
                     onChange(ref);
                     updatePreview(ref);
                 }
@@ -829,6 +838,7 @@ function createTextureEditor(
 
     clearBtn.addEventListener('click', () => {
         input.value = '';
+        currentRef = '';
         onChange('');
         updatePreview('');
     });
@@ -844,7 +854,10 @@ function createTextureEditor(
         update(v: unknown) {
             const newValue = String(v ?? '');
             input.value = resolveDisplayName(newValue);
-            updatePreview(newValue);
+            if (newValue !== currentRef) {
+                currentRef = newValue;
+                updatePreview(newValue);
+            }
         },
         dispose() {
             if (currentBlobUrl) {

@@ -206,6 +206,8 @@ function createMaterialTextureEditor(
 ): PropertyEditorInstance {
     const { value, onChange } = ctx;
     let currentBlobUrl: string | null = null;
+    let currentRef = '';
+    let previewGeneration = 0;
 
     const wrapper = document.createElement('div');
     wrapper.className = 'es-texture-editor es-material-texture-editor';
@@ -233,6 +235,8 @@ function createMaterialTextureEditor(
     browseBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2z"></path></svg>`;
 
     const updatePreview = async (texturePath: string) => {
+        const gen = ++previewGeneration;
+
         if (currentBlobUrl) {
             URL.revokeObjectURL(currentBlobUrl);
             currentBlobUrl = null;
@@ -245,6 +249,7 @@ function createMaterialTextureEditor(
             const fullPath = `${projectDir}/${texturePath}`;
             try {
                 const data = await fs.readBinaryFile(fullPath);
+                if (gen !== previewGeneration) return;
                 if (data) {
                     const blob = new Blob([data.buffer as ArrayBuffer], { type: getMimeType(texturePath) });
                     currentBlobUrl = URL.createObjectURL(blob);
@@ -254,6 +259,7 @@ function createMaterialTextureEditor(
                     return;
                 }
             } catch (err) {
+                if (gen !== previewGeneration) return;
                 console.warn('Failed to load texture preview:', err);
             }
         }
@@ -263,7 +269,8 @@ function createMaterialTextureEditor(
         preview.classList.remove('es-has-preview');
     };
 
-    updatePreview((value && typeof value === 'string') ? value : '');
+    currentRef = (value && typeof value === 'string') ? value : '';
+    updatePreview(currentRef);
 
     input.addEventListener('click', () => {
         if (input.value) {
@@ -300,6 +307,7 @@ function createMaterialTextureEditor(
                 if (projectDir && assetData.path.startsWith(projectDir)) {
                     const relativePath = assetData.path.substring(projectDir.length + 1);
                     input.value = relativePath;
+                    currentRef = relativePath;
                     onChange(relativePath);
                     updatePreview(relativePath);
                 }
@@ -328,6 +336,7 @@ function createMaterialTextureEditor(
                 if (assetsIndex !== -1) {
                     const relativePath = normalizedPath.substring(assetsIndex + 1);
                     input.value = relativePath;
+                    currentRef = relativePath;
                     onChange(relativePath);
                     updatePreview(relativePath);
                 }
@@ -347,7 +356,10 @@ function createMaterialTextureEditor(
         update(v: unknown) {
             const newValue = String(v ?? '');
             input.value = newValue;
-            updatePreview(newValue);
+            if (newValue !== currentRef) {
+                currentRef = newValue;
+                updatePreview(newValue);
+            }
         },
         dispose() {
             if (currentBlobUrl) {
