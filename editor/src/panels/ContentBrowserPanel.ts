@@ -805,6 +805,9 @@ export const ${className} = defineComponent('${className}', {
         try {
             await platform.writeTextFile(filePath, content);
             this.refresh();
+            if (this.onOpenScene_) {
+                this.onOpenScene_(filePath);
+            }
         } catch (err) {
             console.error('Failed to create scene:', err);
             showErrorToast('Failed to create scene', String(err));
