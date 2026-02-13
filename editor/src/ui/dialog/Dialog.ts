@@ -16,7 +16,7 @@ export class Dialog {
     constructor(options: DialogOptions) {
         this.options_ = {
             width: 480,
-            closeOnOverlay: true,
+            closeOnOverlay: false,
             closeOnEscape: true,
             showCloseButton: true,
             ...options,

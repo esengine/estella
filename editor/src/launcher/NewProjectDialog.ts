@@ -119,13 +119,6 @@ export class NewProjectDialog {
             });
         });
 
-        // Overlay click to close
-        this.overlay_.addEventListener('click', (e) => {
-            if (e.target === this.overlay_) {
-                this.options_.onClose();
-            }
-        });
-
         // Escape key to close
         const keyHandler = (e: KeyboardEvent) => {
             if (e.key === 'Escape') {

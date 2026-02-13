@@ -212,12 +212,6 @@ export function showAddComponentPopup(
         overlay.remove();
     };
 
-    overlay.addEventListener('click', (e) => {
-        if (e.target === overlay) {
-            close();
-        }
-    });
-
     const popup = new AddComponentPopup(container, {
         existingComponents,
         onSelect,
