@@ -95,6 +95,7 @@ export function createButtonTransitionEditor(
 
     interface ColorRowRef {
         colorInput: HTMLInputElement;
+        hexInput: HTMLInputElement;
         alphaInput: HTMLInputElement;
     }
 
@@ -115,6 +116,10 @@ export function createButtonTransitionEditor(
         colorInput.type = 'color';
         colorInput.className = 'es-input es-input-color';
 
+        const hexInput = document.createElement('input');
+        hexInput.type = 'text';
+        hexInput.className = 'es-input es-input-hex';
+
         const alphaInput = document.createElement('input');
         alphaInput.type = 'number';
         alphaInput.className = 'es-input es-input-number es-input-alpha';
@@ -126,6 +131,7 @@ export function createButtonTransitionEditor(
             if (!current) return;
             const newColor = hexToColor(colorInput.value);
             newColor.a = parseFloat(alphaInput.value) || 1;
+            hexInput.value = colorInput.value.toUpperCase();
             current = { ...current!, [field.key]: newColor };
             onChange(current);
         };
@@ -133,14 +139,31 @@ export function createButtonTransitionEditor(
         colorInput.addEventListener('change', onColorChange);
         alphaInput.addEventListener('change', onColorChange);
 
+        hexInput.addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter' || !current) return;
+            let hex = hexInput.value.trim();
+            if (!hex.startsWith('#')) hex = '#' + hex;
+            if (/^#[0-9a-fA-F]{6}$/.test(hex)) {
+                colorInput.value = hex;
+                hexInput.value = hex.toUpperCase();
+                const newColor = hexToColor(hex);
+                newColor.a = parseFloat(alphaInput.value) || 1;
+                current = { ...current!, [field.key]: newColor };
+                onChange(current);
+            } else {
+                hexInput.value = colorInput.value.toUpperCase();
+            }
+        });
+
         editorCell.appendChild(colorInput);
+        editorCell.appendChild(hexInput);
         editorCell.appendChild(alphaInput);
 
         row.appendChild(label);
         row.appendChild(editorCell);
         content.appendChild(row);
 
-        colorRefs.push({ colorInput, alphaInput });
+        colorRefs.push({ colorInput, hexInput, alphaInput });
     }
 
     section.appendChild(content);
@@ -153,6 +176,7 @@ export function createButtonTransitionEditor(
             for (let i = 0; i < COLOR_FIELDS.length; i++) {
                 const color = current![COLOR_FIELDS[i].key];
                 colorRefs[i].colorInput.value = colorToHex(color);
+                colorRefs[i].hexInput.value = colorToHex(color).toUpperCase();
                 colorRefs[i].alphaInput.value = String(color.a);
             }
         } else {

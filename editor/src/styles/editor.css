@@ -1468,6 +1468,14 @@ svg {
     border: none;
 }
 
+.es-input-hex {
+    flex: 2;
+    min-width: 60px;
+    font-family: monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+}
+
 .es-input-alpha {
     flex: 1;
     min-width: 40px;

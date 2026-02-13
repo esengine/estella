@@ -388,6 +388,11 @@ function createColorEditor(
     colorInput.className = 'es-input es-input-color';
     colorInput.value = colorToHex(color);
 
+    const hexInput = document.createElement('input');
+    hexInput.type = 'text';
+    hexInput.className = 'es-input es-input-hex';
+    hexInput.value = colorToHex(color).toUpperCase();
+
     const alphaInput = document.createElement('input');
     alphaInput.type = 'number';
     alphaInput.className = 'es-input es-input-number es-input-alpha';
@@ -396,17 +401,36 @@ function createColorEditor(
     alphaInput.step = '0.01';
     alphaInput.value = String(color.a);
 
-    const updateColor = () => {
-        const hex = colorInput.value;
+    const applyColor = (hex: string, alpha: number) => {
         const newColor = hexToColor(hex);
-        newColor.a = parseFloat(alphaInput.value) || 1;
+        newColor.a = alpha;
         onChange(newColor);
     };
 
-    colorInput.addEventListener('change', updateColor);
-    alphaInput.addEventListener('change', updateColor);
+    colorInput.addEventListener('change', () => {
+        hexInput.value = colorInput.value.toUpperCase();
+        applyColor(colorInput.value, parseFloat(alphaInput.value) || 1);
+    });
+
+    alphaInput.addEventListener('change', () => {
+        applyColor(colorInput.value, parseFloat(alphaInput.value) || 1);
+    });
+
+    hexInput.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        let hex = hexInput.value.trim();
+        if (!hex.startsWith('#')) hex = '#' + hex;
+        if (/^#[0-9a-fA-F]{6}$/.test(hex)) {
+            colorInput.value = hex;
+            hexInput.value = hex.toUpperCase();
+            applyColor(hex, parseFloat(alphaInput.value) || 1);
+        } else {
+            hexInput.value = colorInput.value.toUpperCase();
+        }
+    });
 
     wrapper.appendChild(colorInput);
+    wrapper.appendChild(hexInput);
     wrapper.appendChild(alphaInput);
     container.appendChild(wrapper);
 
@@ -414,6 +438,7 @@ function createColorEditor(
         update(v: unknown) {
             const newColor = (v as { r: number; g: number; b: number; a: number }) ?? { r: 1, g: 1, b: 1, a: 1 };
             colorInput.value = colorToHex(newColor);
+            hexInput.value = colorToHex(newColor).toUpperCase();
             alphaInput.value = String(newColor.a);
         },
         dispose() {
