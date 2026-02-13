@@ -906,6 +906,30 @@ svg {
     align-items: center;
 }
 
+.es-btn-reset-size {
+    flex-shrink: 0;
+    margin-left: 4px;
+    padding: 2px !important;
+    min-width: 18px !important;
+    background: transparent !important;
+    border: none !important;
+    opacity: 0;
+    transition: opacity 0.15s;
+    cursor: pointer;
+}
+
+.es-property-row:hover .es-btn-reset-size {
+    opacity: 0.6;
+}
+
+.es-btn-reset-size:hover {
+    opacity: 1 !important;
+}
+
+.es-btn-reset-size svg {
+    stroke: var(--es-text-secondary);
+}
+
 .es-add-component-wrapper {
     margin-top: 8px;
     padding: 0 4px;

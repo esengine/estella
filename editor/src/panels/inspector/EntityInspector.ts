@@ -15,6 +15,8 @@ import {
 import { icons } from '../../utils/icons';
 import { showAddComponentPopup } from '../AddComponentPopup';
 import { getEditorContext, getEditorInstance } from '../../context/EditorContext';
+import { getPlatformAdapter } from '../../platform/PlatformAdapter';
+import { getAssetLibrary, isUUID } from '../../asset/AssetLibrary';
 import {
     type EditorInfo,
     escapeHtml,
@@ -300,6 +302,12 @@ export function renderComponent(
 
             row.appendChild(label);
             row.appendChild(editorContainer);
+
+            if (component.type === 'Sprite' && propMeta.name === 'size') {
+                const resetBtn = createSpriteSizeResetButton(entity, component, store);
+                row.appendChild(resetBtn);
+            }
+
             propsContainer.appendChild(row);
         }
 
@@ -338,6 +346,51 @@ export function renderTagComponent(
     });
 
     container.appendChild(row);
+}
+
+// =============================================================================
+// Sprite Size Reset
+// =============================================================================
+
+function resolveTexturePath(ref: string): string {
+    if (!ref) return '';
+    if (isUUID(ref)) {
+        return getAssetLibrary().getPath(ref) ?? ref;
+    }
+    return ref;
+}
+
+function createSpriteSizeResetButton(
+    entity: Entity,
+    component: ComponentData,
+    store: EditorStore
+): HTMLButtonElement {
+    const btn = document.createElement('button');
+    btn.className = 'es-btn es-btn-icon es-btn-reset-size';
+    btn.title = 'Reset to image size';
+    btn.innerHTML = icons.maximize(12);
+
+    btn.addEventListener('click', () => {
+        const texture = component.data.texture;
+        if (!texture) return;
+
+        const relativePath = resolveTexturePath(texture);
+        if (!relativePath) return;
+
+        const projectDir = getProjectDir();
+        if (!projectDir) return;
+
+        const absolutePath = `${projectDir}/${relativePath}`;
+        const img = new window.Image();
+        img.onload = () => {
+            const oldSize = component.data.size ?? getDefaultComponentData('Sprite').size;
+            const newSize = { x: img.naturalWidth, y: img.naturalHeight };
+            store.updateProperty(entity, 'Sprite', 'size', oldSize, newSize);
+        };
+        img.src = getPlatformAdapter().convertFilePathToUrl(absolutePath);
+    });
+
+    return btn;
 }
 
 // =============================================================================

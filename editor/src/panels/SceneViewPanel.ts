@@ -1330,7 +1330,8 @@ export class SceneViewPanel {
 
         this.loadImageSize(asset.path).then(size => {
             if (size) {
-                this.store_.updateProperty(newEntity, 'Sprite', 'size', { x: 32, y: 32 }, size);
+                const defaultSize = getDefaultComponentData('Sprite').size;
+                this.store_.updateProperty(newEntity, 'Sprite', 'size', defaultSize, size);
             }
         });
     }
