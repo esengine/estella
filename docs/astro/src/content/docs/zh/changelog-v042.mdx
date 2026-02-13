@@ -1,0 +1,52 @@
+---
+title: v0.4.2
+description: ESEngine v0.4.2 更新日志
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## UI 交互系统
+
+- 新增 `Interactable` 组件，标记 UI 实体为可交互
+- 新增 `Button` 组件，包含状态机（Normal、Hovered、Pressed、Disabled）和颜色过渡
+- 新增 `UIInteraction` 组件，追踪悬停/按压状态（`hovered`、`pressed`、`justPressed`、`justReleased`）
+- 新增 `UIEvents` 资源和事件队列 — 支持 `click`、`press`、`release`、`hover_enter`、`hover_exit` 事件
+- 新增 `UIInteractionPlugin`，基于世界空间 `UIRect` 边界进行命中检测，支持层级排序
+- `createWebApp()` 自动注册交互插件
+
+## UIRect 锚点布局
+
+- 单一 `anchor` 字段替换为完整的锚点-偏移布局：`anchorMin`、`anchorMax`、`offsetMin`、`offsetMax`、`size`、`pivot`
+- 新增 `UILayoutPlugin`，从相机边界计算 `ScreenSpace` 根实体布局并向子实体传播
+- 新增 `ScreenSpace` 标签组件，用于标记相对相机布局的根 UI 实体
+- 现有场景自动迁移至新布局字段
+
+## Addressable 资产
+
+- 新增 `AddressableManifest` 格式，包含分组、地址、标签和资产元数据
+- `AssetServer.loadByAddress(address)` — 按地址加载单个资产
+- `AssetServer.loadByLabel(label)` — 按标签加载所有匹配资产，返回 `AssetBundle`
+- `AssetServer.loadGroup(groupName)` — 按分组加载所有资产，返回 `AssetBundle`
+- `AssetServer.setAddressableManifest(manifest)` — 设置清单并构建地址/标签/分组索引
+- 编辑器：新增 Addressable 面板，支持分组管理、标签编辑、拖拽移动和依赖分析
+
+## 资产导入管线
+
+- 新增 `ImporterRegistry`，支持按类型的导入设置
+- 新增 `TextureImporter` 和 `AudioImporter`
+- `.meta` 文件格式升级至 v2.0，自动从 v1 迁移
+
+## Builder 重构
+
+- 构建管线重构为两阶段架构：`ArtifactBuilder`（共享构建逻辑）+ `PlatformEmitter`（平台特定输出）
+- 所有目标共享构建流程，平台逻辑清晰分离
+
+## 编辑器改进
+
+- UIRect 锚点预设编辑器，包含 9 点网格和 3 种拉伸预设
+- 实体创建、删除和组件变更通过 Store-to-SceneManager 事件即时同步到运行中的场景
+- 批量属性变更支持组合命令
+
+## Bug 修复
+
+- 批处理渲染器现在为所有未使用的纹理槽绑定白色纹理，修复部分 GPU 上的渲染伪影

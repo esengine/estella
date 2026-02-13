@@ -37,9 +37,14 @@ In the scene editor: create an entity → add `LocalTransform`, `Sprite`, `Text`
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `size` | Vec2 | `{100, 100}` | Width and height of the UI rectangle |
-| `anchor` | Vec2 | `{0.5, 0.5}` | Anchor point (0–1 range) |
+| `anchorMin` | Vec2 | `{0.5, 0.5}` | Bottom-left anchor relative to parent (0–1 range) |
+| `anchorMax` | Vec2 | `{0.5, 0.5}` | Top-right anchor relative to parent (0–1 range) |
+| `offsetMin` | Vec2 | `{0, 0}` | Pixel offset from anchorMin |
+| `offsetMax` | Vec2 | `{0, 0}` | Pixel offset from anchorMax |
+| `size` | Vec2 | `{100, 100}` | Width and height (used when anchorMin equals anchorMax) |
 | `pivot` | Vec2 | `{0.5, 0.5}` | Pivot point for rotation and scaling |
+
+When `anchorMin` equals `anchorMax`, the element has a fixed `size` positioned at the anchor point. When they differ, the element stretches between the two anchors and `size` is computed automatically by `UILayoutPlugin`.
 
 ## Enums
 
@@ -166,6 +171,102 @@ addSystem(defineSystem(
     }
 ));
 ```
+
+## UI Interaction
+
+ESEngine provides a built-in UI interaction system for handling hover, press, and click events on UI elements.
+
+### Setup
+
+Add the `Interactable` component to any UI entity with `UIRect` and `LocalTransform`. The `UIInteractionPlugin` (registered automatically by `createWebApp()`) performs hit testing each frame and manages interaction state.
+
+### Interactable
+
+Marks an entity as interactive.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `enabled` | boolean | `true` | Whether interaction is enabled |
+
+### Button
+
+Adds a state machine on top of `Interactable` with optional color transitions.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `state` | ButtonState | `Normal` | Current button state (read-only at runtime) |
+| `transition` | ButtonTransition \| null | `null` | Color transition configuration |
+
+**ButtonState:** `Normal` (0), `Hovered` (1), `Pressed` (2), `Disabled` (3)
+
+When `transition` is set, the `Sprite` color is automatically updated on state change:
+
+```typescript
+import { Button, Interactable } from 'esengine';
+
+world.insert(entity, Button, {
+    state: 0,
+    transition: {
+        normalColor: { r: 1, g: 1, b: 1, a: 1 },
+        hoveredColor: { r: 0.9, g: 0.9, b: 0.9, a: 1 },
+        pressedColor: { r: 0.7, g: 0.7, b: 0.7, a: 1 },
+        disabledColor: { r: 0.5, g: 0.5, b: 0.5, a: 0.5 },
+    },
+});
+```
+
+### UIInteraction
+
+Automatically added by the plugin to entities with `Interactable`. Provides per-entity state:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `hovered` | boolean | Pointer is over this entity |
+| `pressed` | boolean | Entity is being pressed |
+| `justPressed` | boolean | Press started this frame |
+| `justReleased` | boolean | Press released this frame |
+
+### UIEvents
+
+The `UIEvents` resource collects interaction events each frame. Query it in systems:
+
+```typescript
+import { defineSystem, addSystem, Res } from 'esengine';
+import { UIEvents } from 'esengine';
+
+addSystem(defineSystem(
+    [Res(UIEvents)],
+    (events) => {
+        for (const e of events.query('click')) {
+            console.log('Clicked entity:', e.entity);
+        }
+    }
+));
+```
+
+**Event types:** `click`, `press`, `release`, `hover_enter`, `hover_exit`
+
+### ScreenSpace
+
+A tag component for root UI entities. Entities with `ScreenSpace`, `UIRect`, and `LocalTransform` are laid out relative to the camera bounds by `UILayoutPlugin`.
+
+```typescript
+import { ScreenSpace, UIRect, LocalTransform } from 'esengine';
+
+world.insert(entity, ScreenSpace);
+world.insert(entity, UIRect, {
+    anchorMin: { x: 0, y: 0 },
+    anchorMax: { x: 1, y: 1 },
+    offsetMin: { x: 0, y: 0 },
+    offsetMax: { x: 0, y: 0 },
+    size: { x: 100, y: 100 },
+    pivot: { x: 0.5, y: 0.5 },
+});
+```
+
+<Aside type="note">
+  Both `UILayoutPlugin` and `UIInteractionPlugin` are registered automatically by `createWebApp()`. No manual setup is needed.
+</Aside>
 
 ## Next Steps
 

@@ -37,9 +37,14 @@ import { Aside } from '@astrojs/starlight/components';
 
 | 属性 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| `size` | Vec2 | `{100, 100}` | UI 矩形的宽高 |
-| `anchor` | Vec2 | `{0.5, 0.5}` | 锚点（0–1 范围） |
+| `anchorMin` | Vec2 | `{0.5, 0.5}` | 相对于父级的左下角锚点（0–1 范围） |
+| `anchorMax` | Vec2 | `{0.5, 0.5}` | 相对于父级的右上角锚点（0–1 范围） |
+| `offsetMin` | Vec2 | `{0, 0}` | 从 anchorMin 的像素偏移 |
+| `offsetMax` | Vec2 | `{0, 0}` | 从 anchorMax 的像素偏移 |
+| `size` | Vec2 | `{100, 100}` | 宽高（anchorMin 等于 anchorMax 时使用） |
 | `pivot` | Vec2 | `{0.5, 0.5}` | 旋转和缩放的中心点 |
+
+当 `anchorMin` 等于 `anchorMax` 时，元素具有固定 `size`，定位在锚点位置。当两者不同时，元素在两个锚点之间拉伸，`size` 由 `UILayoutPlugin` 自动计算。
 
 ## 枚举类型
 
@@ -166,6 +171,102 @@ addSystem(defineSystem(
     }
 ));
 ```
+
+## UI 交互
+
+ESEngine 提供了内置的 UI 交互系统，用于处理 UI 元素的悬停、按压和点击事件。
+
+### 设置
+
+在任何拥有 `UIRect` 和 `LocalTransform` 的 UI 实体上添加 `Interactable` 组件。`UIInteractionPlugin`（由 `createWebApp()` 自动注册）每帧执行命中检测并管理交互状态。
+
+### Interactable
+
+标记实体为可交互。
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `enabled` | boolean | `true` | 是否启用交互 |
+
+### Button
+
+在 `Interactable` 基础上添加状态机，支持可选的颜色过渡。
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `state` | ButtonState | `Normal` | 当前按钮状态（运行时只读） |
+| `transition` | ButtonTransition \| null | `null` | 颜色过渡配置 |
+
+**ButtonState:** `Normal` (0)、`Hovered` (1)、`Pressed` (2)、`Disabled` (3)
+
+设置 `transition` 后，状态变化时 `Sprite` 颜色会自动更新：
+
+```typescript
+import { Button, Interactable } from 'esengine';
+
+world.insert(entity, Button, {
+    state: 0,
+    transition: {
+        normalColor: { r: 1, g: 1, b: 1, a: 1 },
+        hoveredColor: { r: 0.9, g: 0.9, b: 0.9, a: 1 },
+        pressedColor: { r: 0.7, g: 0.7, b: 0.7, a: 1 },
+        disabledColor: { r: 0.5, g: 0.5, b: 0.5, a: 0.5 },
+    },
+});
+```
+
+### UIInteraction
+
+由插件自动添加到拥有 `Interactable` 的实体上，提供逐实体状态：
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `hovered` | boolean | 指针悬停在该实体上 |
+| `pressed` | boolean | 实体正在被按压 |
+| `justPressed` | boolean | 本帧开始按压 |
+| `justReleased` | boolean | 本帧释放按压 |
+
+### UIEvents
+
+`UIEvents` 资源在每帧收集交互事件。在系统中查询：
+
+```typescript
+import { defineSystem, addSystem, Res } from 'esengine';
+import { UIEvents } from 'esengine';
+
+addSystem(defineSystem(
+    [Res(UIEvents)],
+    (events) => {
+        for (const e of events.query('click')) {
+            console.log('点击了实体：', e.entity);
+        }
+    }
+));
+```
+
+**事件类型：** `click`、`press`、`release`、`hover_enter`、`hover_exit`
+
+### ScreenSpace
+
+用于根 UI 实体的标签组件。拥有 `ScreenSpace`、`UIRect` 和 `LocalTransform` 的实体会由 `UILayoutPlugin` 相对于相机边界进行布局。
+
+```typescript
+import { ScreenSpace, UIRect, LocalTransform } from 'esengine';
+
+world.insert(entity, ScreenSpace);
+world.insert(entity, UIRect, {
+    anchorMin: { x: 0, y: 0 },
+    anchorMax: { x: 1, y: 1 },
+    offsetMin: { x: 0, y: 0 },
+    offsetMax: { x: 0, y: 0 },
+    size: { x: 100, y: 100 },
+    pivot: { x: 0.5, y: 0.5 },
+});
+```
+
+<Aside type="note">
+  `UILayoutPlugin` 和 `UIInteractionPlugin` 均由 `createWebApp()` 自动注册，无需手动设置。
+</Aside>
 
 ## 下一步
 

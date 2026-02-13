@@ -1,0 +1,52 @@
+---
+title: v0.4.2
+description: ESEngine v0.4.2 release notes
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## UI Interaction System
+
+- Added `Interactable` component to mark UI entities as interactive
+- Added `Button` component with state machine (Normal, Hovered, Pressed, Disabled) and color transitions
+- Added `UIInteraction` component tracking hover/press state (`hovered`, `pressed`, `justPressed`, `justReleased`)
+- Added `UIEvents` resource with event queue — supports `click`, `press`, `release`, `hover_enter`, `hover_exit` events
+- Added `UIInteractionPlugin` with hit testing against world-space `UIRect` bounds and layer-based ordering
+- `createWebApp()` automatically registers the interaction plugin
+
+## UIRect Anchor Layout
+
+- Replaced single `anchor` field with full anchor-offset layout: `anchorMin`, `anchorMax`, `offsetMin`, `offsetMax`, `size`, `pivot`
+- Added `UILayoutPlugin` that computes layout from camera bounds for `ScreenSpace` root entities and propagates through children
+- Added `ScreenSpace` tag component for root UI entities that should be laid out relative to the camera
+- Existing scenes automatically migrated to the new layout fields
+
+## Addressable Assets
+
+- Added `AddressableManifest` format with groups, addresses, labels, and asset metadata
+- `AssetServer.loadByAddress(address)` — load a single asset by its address
+- `AssetServer.loadByLabel(label)` — load all assets matching a label, returned as `AssetBundle`
+- `AssetServer.loadGroup(groupName)` — load all assets in a group, returned as `AssetBundle`
+- `AssetServer.setAddressableManifest(manifest)` — set the manifest and build address/label/group indexes
+- Editor: added Addressable panel with group management, label editing, drag-move, and dependency analysis
+
+## Asset Import Pipeline
+
+- Added `ImporterRegistry` with type-specific import settings
+- Added `TextureImporter` and `AudioImporter`
+- `.meta` file format upgraded to v2.0 with automatic migration from v1
+
+## Builder Refactoring
+
+- Refactored build pipeline into two-stage architecture: `ArtifactBuilder` (shared build logic) + `PlatformEmitter` (platform-specific output)
+- Shared build flow across all targets, platform logic cleanly separated
+
+## Editor Improvements
+
+- UIRect anchor preset editor with 9-point grid and 3 stretch presets
+- Entity creation, deletion, and component changes now instantly sync to the running scene via Store-to-SceneManager events
+- Compound commands for batched property changes
+
+## Bug Fixes
+
+- Batch renderer now binds white texture to all unused texture slots, fixing rendering artifacts on some GPUs

@@ -186,6 +186,50 @@ const tex = await assets.loadTexture('sprites/player.png');
 
 对于 Playable Ad 构建，编辑器的构建流程会自动将所有引用的资源以 data URI 形式嵌入输出包中。运行时 `assets.loadTexture()` / `assets.loadJson()` 等加载调用会直接从嵌入数据解析，无需网络请求，也无需修改任何代码。
 
+## Addressable 资产
+
+Addressable 资产允许通过逻辑地址、标签或分组加载资源，而非直接使用文件路径。编辑器在构建过程中生成 `AddressableManifest`，将地址和标签映射到资产路径。
+
+### 按地址加载
+
+```typescript
+const texture = await assets.loadByAddress('player-idle');
+```
+
+### 按标签加载
+
+加载标记了某个标签的所有资产，返回 `AssetBundle`：
+
+```typescript
+const bundle = await assets.loadByLabel('ui-sprites');
+for (const [path, tex] of bundle.textures) {
+    console.log(`已加载 ${path}: ${tex.width}x${tex.height}`);
+}
+```
+
+### 按分组加载
+
+加载某个命名分组中的所有资产：
+
+```typescript
+const bundle = await assets.loadGroup('level-1');
+```
+
+### 设置清单
+
+清单由编辑器在构建时生成。运行时在加载前设置：
+
+```typescript
+import { Assets } from 'esengine';
+
+const manifest = await assets.loadJson('assets/addressable-manifest.json');
+assets.setAddressableManifest(manifest);
+```
+
+<Aside type="note">
+  Addressable 的地址、标签和分组在编辑器的 Addressable 面板中配置。清单在构建时自动生成。
+</Aside>
+
 ## 下一步
 
 - [材质与着色器](/microes/zh/guides/materials/) — 自定义着色器和混合模式
