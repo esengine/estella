@@ -132,10 +132,29 @@ void BitmapFont::createLabelAtlas(resource::TextureHandle texture,
 
     u32 cols = texWidth / charWidth;
 
+    u32 glyphIndex = 0;
     for (usize i = 0; i < chars.size(); ++i) {
-        u32 charCode = static_cast<u8>(chars[i]);
-        u32 col = static_cast<u32>(i) % cols;
-        u32 row = static_cast<u32>(i) / cols;
+        u8 b0 = static_cast<u8>(chars[i]);
+        u32 charCode = b0;
+        if (b0 >= 0xF0 && i + 3 < chars.size()) {
+            charCode = ((b0 & 0x07) << 18) |
+                       ((static_cast<u8>(chars[i + 1]) & 0x3F) << 12) |
+                       ((static_cast<u8>(chars[i + 2]) & 0x3F) << 6) |
+                        (static_cast<u8>(chars[i + 3]) & 0x3F);
+            i += 3;
+        } else if (b0 >= 0xE0 && i + 2 < chars.size()) {
+            charCode = ((b0 & 0x0F) << 12) |
+                       ((static_cast<u8>(chars[i + 1]) & 0x3F) << 6) |
+                        (static_cast<u8>(chars[i + 2]) & 0x3F);
+            i += 2;
+        } else if (b0 >= 0xC0 && i + 1 < chars.size()) {
+            charCode = ((b0 & 0x1F) << 6) |
+                        (static_cast<u8>(chars[i + 1]) & 0x3F);
+            i += 1;
+        }
+
+        u32 col = glyphIndex % cols;
+        u32 row = glyphIndex / cols;
 
         Glyph glyph;
         glyph.id = charCode;
@@ -148,6 +167,7 @@ void BitmapFont::createLabelAtlas(resource::TextureHandle texture,
         glyph.xAdvance = static_cast<f32>(charWidth);
         glyph.page = 0;
         glyphs_[charCode] = glyph;
+        ++glyphIndex;
     }
 }
 

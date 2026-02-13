@@ -972,6 +972,35 @@ void RenderFrame::renderMeshes(u32 begin, u32 end) {
     }
 }
 
+static u32 decodeUtf8(const char* data, u16 length, u16& pos) {
+    u8 b0 = static_cast<u8>(data[pos]);
+    if (b0 < 0x80) {
+        return b0;
+    }
+    if ((b0 & 0xE0) == 0xC0 && pos + 1 < length) {
+        u32 cp = (b0 & 0x1F) << 6;
+        cp |= (static_cast<u8>(data[pos + 1]) & 0x3F);
+        pos += 1;
+        return cp;
+    }
+    if ((b0 & 0xF0) == 0xE0 && pos + 2 < length) {
+        u32 cp = (b0 & 0x0F) << 12;
+        cp |= (static_cast<u8>(data[pos + 1]) & 0x3F) << 6;
+        cp |= (static_cast<u8>(data[pos + 2]) & 0x3F);
+        pos += 2;
+        return cp;
+    }
+    if ((b0 & 0xF8) == 0xF0 && pos + 3 < length) {
+        u32 cp = (b0 & 0x07) << 18;
+        cp |= (static_cast<u8>(data[pos + 1]) & 0x3F) << 12;
+        cp |= (static_cast<u8>(data[pos + 2]) & 0x3F) << 6;
+        cp |= (static_cast<u8>(data[pos + 3]) & 0x3F);
+        pos += 3;
+        return cp;
+    }
+    return b0;
+}
+
 void RenderFrame::renderText(u32 begin, u32 end) {
     batcher_->setProjection(view_projection_);
     batcher_->beginBatch();
@@ -1021,7 +1050,7 @@ void RenderFrame::renderText(u32 begin, u32 end) {
         if (item->text_align != 0) {
             u32 prevChar = 0;
             for (u16 j = 0; j < item->text_length; ++j) {
-                u32 charCode = static_cast<u8>(item->text_data[j]);
+                u32 charCode = decodeUtf8(item->text_data, item->text_length, j);
                 auto* glyph = font->getGlyph(charCode);
                 if (!glyph) {
                     continue;
@@ -1046,7 +1075,7 @@ void RenderFrame::renderText(u32 begin, u32 end) {
 
         u32 prevChar = 0;
         for (u16 j = 0; j < item->text_length; ++j) {
-            u32 charCode = static_cast<u8>(item->text_data[j]);
+            u32 charCode = decodeUtf8(item->text_data, item->text_length, j);
             auto* glyph = font->getGlyph(charCode);
             if (!glyph) {
                 continue;
