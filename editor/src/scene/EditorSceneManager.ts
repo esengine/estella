@@ -202,10 +202,12 @@ export class EditorSceneManager {
             case 'UIMask':
                 this.world_.insert(entity, UIMask, comp.data as unknown as UIMaskData);
                 break;
+            case 'TextInput':
+                this.syncTextInput(entity, comp.data, entityId);
+                break;
             case 'Interactable':
             case 'Button':
             case 'ScreenSpace':
-            case 'TextInput':
                 break;
 
             default:
@@ -683,6 +685,49 @@ export class EditorSceneManager {
         };
 
         if (!textData.content) return;
+
+        const result = this.textRenderer_.renderForEntity(entity, textData, uiRectData);
+
+        if (this.world_.has(entity, Sprite)) {
+            this.world_.remove(entity, Sprite);
+        }
+
+        this.world_.insert(entity, Sprite, {
+            texture: result.textureHandle,
+            color: { r: 1, g: 1, b: 1, a: 1 },
+            size: { x: result.width, y: result.height },
+            uvOffset: { x: 0, y: 0 },
+            uvScale: { x: 1, y: 1 },
+            layer: 25,
+            flipX: false,
+            flipY: false,
+        });
+    }
+
+    private syncTextInput(entity: Entity, data: any, entityId: number): void {
+        const entityData = this.entityDataMap_.get(entityId);
+        const uiRectData = entityData ? getUIRectFromEntity(entityData) : null;
+
+        const value = data.value ?? '';
+        const placeholder = data.placeholder ?? '';
+        const isEmpty = value.length === 0;
+        const displayText = isEmpty ? placeholder : value;
+        if (!displayText) return;
+
+        const textData: TextData = {
+            content: displayText,
+            fontFamily: data.fontFamily ?? 'Arial',
+            fontSize: data.fontSize ?? 24,
+            color: isEmpty
+                ? (data.placeholderColor ?? { r: 0.6, g: 0.6, b: 0.6, a: 1 })
+                : (data.color ?? { r: 1, g: 1, b: 1, a: 1 }),
+            align: TextAlign.Left,
+            verticalAlign: TextVerticalAlign.Middle,
+            wordWrap: false,
+            overflow: TextOverflow.Clip,
+            lineHeight: 1.2,
+            dirty: true,
+        };
 
         const result = this.textRenderer_.renderForEntity(entity, textData, uiRectData);
 

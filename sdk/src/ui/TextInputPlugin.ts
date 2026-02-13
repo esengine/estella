@@ -65,6 +65,17 @@ export class TextInputPlugin implements Plugin {
             }
         });
 
+        textarea.addEventListener('keyup', () => {
+            if (focusedEntity === null || !world.valid(focusedEntity)) return;
+            const ti = world.get(focusedEntity, TextInput) as TextInputData;
+            const pos = textarea.selectionStart ?? ti.value.length;
+            if (pos !== ti.cursorPos) {
+                ti.cursorPos = pos;
+                ti.dirty = true;
+                resetCursorBlink();
+            }
+        });
+
         textarea.addEventListener('blur', () => {
             if (focusedEntity !== null && world.valid(focusedEntity) && world.has(focusedEntity, TextInput)) {
                 const ti = world.get(focusedEntity, TextInput) as TextInputData;
