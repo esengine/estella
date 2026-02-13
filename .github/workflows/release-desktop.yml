@@ -25,6 +25,18 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Sync version from tag to tauri.conf.json
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          node -e "
+            const fs = require('fs');
+            const p = 'desktop/src-tauri/tauri.conf.json';
+            const c = JSON.parse(fs.readFileSync(p, 'utf8'));
+            c.version = '${VERSION}';
+            fs.writeFileSync(p, JSON.stringify(c, null, 2) + '\n');
+          "
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
