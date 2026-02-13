@@ -129,6 +129,10 @@ export class Dialog {
     }
 
     close(result: DialogResult): void {
+        const active = document.activeElement;
+        if (active instanceof HTMLElement && this.overlay_.contains(active)) {
+            active.blur();
+        }
         this.overlay_.remove();
         if (this.resolvePromise_) {
             this.resolvePromise_(result);

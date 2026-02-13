@@ -98,8 +98,11 @@ export function showSettingsDialog(): void {
                 if (item.min !== undefined) input.min = String(item.min);
                 if (item.max !== undefined) input.max = String(item.max);
                 if (item.step !== undefined) input.step = String(item.step);
-                input.addEventListener('change', () => {
-                    setSettingsValue(item.id, parseFloat(input.value));
+                input.addEventListener('input', () => {
+                    const val = parseFloat(input.value);
+                    if (!isNaN(val)) {
+                        setSettingsValue(item.id, val);
+                    }
                 });
                 container.appendChild(input);
                 inputElements.set(item.id, input);
