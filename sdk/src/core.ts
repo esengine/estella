@@ -276,6 +276,8 @@ export {
     type InstantiatePrefabResult,
 } from './prefab';
 
+export { Prefabs, PrefabServer, PrefabsPlugin, prefabsPlugin } from './prefabServer';
+
 // =============================================================================
 // Runtime Loader
 // =============================================================================

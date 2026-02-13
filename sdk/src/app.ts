@@ -15,6 +15,7 @@ import { textInputPlugin } from './ui/TextInputPlugin';
 import { UICameraInfo } from './ui/UICameraInfo';
 import { inputPlugin } from './input';
 import { assetPlugin } from './asset';
+import { prefabsPlugin } from './prefabServer';
 import { initDrawAPI, shutdownDrawAPI } from './draw';
 import { initMaterialAPI, shutdownMaterialAPI } from './material';
 import { initGeometryAPI, shutdownGeometryAPI } from './geometry';
@@ -377,6 +378,7 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
     app.addSystemToSchedule(Schedule.Last, renderSystem);
 
     app.addPlugin(assetPlugin);
+    app.addPlugin(prefabsPlugin);
     app.addPlugin(inputPlugin);
     app.addPlugin(textPlugin);
     app.addPlugin(uiMaskPlugin);
