@@ -574,94 +574,83 @@ export class HierarchyPanel {
     private showEntityContextMenu(x: number, y: number, entity: Entity | null): void {
         const entityData = entity !== null ? this.store_.getEntityData(entity as number) : null;
         const has = (type: string) => entityData?.components.some(c => c.type === type) ?? false;
+        const editor = getEditorInstance();
 
-        const uiChildren: ContextMenuItem[] = [];
-        if (entity !== null) {
-            uiChildren.push(
-                { label: 'Add Interactable', disabled: has('Interactable'), onClick: () => this.addComponentToEntity(entity, 'Interactable') },
-                { label: 'Add Button', disabled: has('Button'), onClick: () => this.addComponentToEntity(entity, 'Button') },
-                { label: 'Add ScreenSpace', disabled: has('ScreenSpace'), onClick: () => this.addComponentToEntity(entity, 'ScreenSpace') },
-                { label: '', separator: true },
-            );
-        }
-        uiChildren.push(
-            { label: 'New Button', onClick: () => this.createButtonEntity(entity) },
-            { label: 'New TextInput', onClick: () => this.createTextInputEntity(entity) },
-            { label: 'New Panel', onClick: () => this.createPanelEntity(entity) },
-            { label: 'New ScreenSpace Root', onClick: () => this.createScreenSpaceRootEntity(entity) },
-        );
-
-        const physicsChildren: ContextMenuItem[] = [];
-        if (entity !== null) {
-            physicsChildren.push(
-                { label: 'Add RigidBody', disabled: has('RigidBody'), onClick: () => this.addComponentToEntity(entity, 'RigidBody') },
-                { label: 'Add BoxCollider', disabled: has('BoxCollider'), onClick: () => this.addComponentToEntity(entity, 'BoxCollider') },
-                { label: 'Add CircleCollider', disabled: has('CircleCollider'), onClick: () => this.addComponentToEntity(entity, 'CircleCollider') },
-                { label: 'Add CapsuleCollider', disabled: has('CapsuleCollider'), onClick: () => this.addComponentToEntity(entity, 'CapsuleCollider') },
-                { label: '', separator: true },
-            );
-        }
-        physicsChildren.push(
-            { label: 'New Box Collider', onClick: () => this.createPhysicsEntity('BoxCollider', entity) },
-            { label: 'New Circle Collider', onClick: () => this.createPhysicsEntity('CircleCollider', entity) },
-            { label: 'New Capsule Collider', onClick: () => this.createPhysicsEntity('CapsuleCollider', entity) },
-        );
-
-        const items: ContextMenuItem[] = [
-            { label: 'Create Entity', icon: icons.plus(14), onClick: () => {
+        const createChildren: ContextMenuItem[] = [
+            { label: 'Empty Entity', icon: icons.plus(14), onClick: () => {
                 const newEntity = this.store_.createEntity(undefined, entity);
                 this.store_.addComponent(newEntity, 'LocalTransform', getDefaultComponentData('LocalTransform'));
             } },
-            { label: 'Create Sprite', icon: icons.image(14), onClick: () => this.createEntityWithComponent('Sprite', entity) },
-            { label: 'Create Text', icon: icons.type(14), onClick: () => this.createEntityWithComponent('Text', entity) },
-            { label: 'Create BitmapText', icon: icons.type(14), onClick: () => this.createEntityWithComponent('BitmapText', entity) },
-            { label: 'Create Spine', icon: icons.bone(14), onClick: () => this.createEntityWithComponent('SpineAnimation', entity) },
-            { label: 'Create Camera', icon: icons.camera(14), onClick: () => this.createEntityWithComponent('Camera', entity) },
-            { label: 'Create Canvas', icon: icons.template(14), onClick: () => this.createEntityWithComponent('Canvas', entity) },
-            { label: 'UI', icon: icons.pointer(14), children: uiChildren },
-            { label: 'Physics', icon: icons.circle(14), children: physicsChildren },
+            { label: 'Sprite', icon: icons.image(14), onClick: () => this.createEntityWithComponent('Sprite', entity) },
+            { label: 'Text', icon: icons.type(14), onClick: () => this.createEntityWithComponent('Text', entity) },
+            { label: 'BitmapText', icon: icons.type(14), onClick: () => this.createEntityWithComponent('BitmapText', entity) },
+            { label: 'Spine', icon: icons.bone(14), onClick: () => this.createEntityWithComponent('SpineAnimation', entity) },
+            { label: 'Camera', icon: icons.camera(14), onClick: () => this.createEntityWithComponent('Camera', entity) },
+            { label: 'Canvas', icon: icons.template(14), onClick: () => this.createEntityWithComponent('Canvas', entity) },
             { label: '', separator: true },
+            { label: 'UI', icon: icons.pointer(14), children: [
+                { label: 'Button', onClick: () => this.createButtonEntity(entity) },
+                { label: 'TextInput', onClick: () => this.createTextInputEntity(entity) },
+                { label: 'Panel', onClick: () => this.createPanelEntity(entity) },
+                { label: 'ScreenSpace Root', onClick: () => this.createScreenSpaceRootEntity(entity) },
+            ] },
+            { label: 'Physics', icon: icons.circle(14), children: [
+                { label: 'Box Collider', onClick: () => this.createPhysicsEntity('BoxCollider', entity) },
+                { label: 'Circle Collider', onClick: () => this.createPhysicsEntity('CircleCollider', entity) },
+                { label: 'Capsule Collider', onClick: () => this.createPhysicsEntity('CapsuleCollider', entity) },
+            ] },
         ];
 
+        const items: ContextMenuItem[] = [];
+
         if (entity !== null) {
-            const editor = getEditorInstance();
             items.push(
                 { label: 'Duplicate', icon: icons.copy(14), onClick: () => this.duplicateEntity(entity) },
                 { label: 'Copy', icon: icons.copy(14), onClick: () => { this.store_.selectEntity(entity); editor?.copySelected(); } },
                 { label: 'Paste', icon: icons.template(14), disabled: !editor?.hasClipboard(), onClick: () => { this.store_.selectEntity(entity); editor?.pasteEntity(); } },
-                { label: 'Delete', icon: icons.trash(14), onClick: () => this.store_.deleteEntity(entity) }
+                { label: 'Delete', icon: icons.trash(14), onClick: () => this.store_.deleteEntity(entity) },
+                { label: '', separator: true },
             );
+        }
 
-            items.push({ label: '', separator: true });
+        items.push({ label: 'Create', icon: icons.plus(14), children: createChildren });
+
+        if (entity === null) {
+            items.push({ label: 'Paste', icon: icons.template(14), disabled: !editor?.hasClipboard(), onClick: () => { editor?.pasteEntity(); } });
+        }
+
+        if (entity !== null) {
             items.push({
-                label: 'Save as Prefab...',
-                icon: icons.package(14),
-                onClick: () => this.saveEntityAsPrefab(entity),
+                label: 'Add Component', children: [
+                    { label: 'Interactable', disabled: has('Interactable'), onClick: () => this.addComponentToEntity(entity, 'Interactable') },
+                    { label: 'Button', disabled: has('Button'), onClick: () => this.addComponentToEntity(entity, 'Button') },
+                    { label: 'ScreenSpace', disabled: has('ScreenSpace'), onClick: () => this.addComponentToEntity(entity, 'ScreenSpace') },
+                    { label: '', separator: true },
+                    { label: 'RigidBody', disabled: has('RigidBody'), onClick: () => this.addComponentToEntity(entity, 'RigidBody') },
+                    { label: 'BoxCollider', disabled: has('BoxCollider'), onClick: () => this.addComponentToEntity(entity, 'BoxCollider') },
+                    { label: 'CircleCollider', disabled: has('CircleCollider'), onClick: () => this.addComponentToEntity(entity, 'CircleCollider') },
+                    { label: 'CapsuleCollider', disabled: has('CapsuleCollider'), onClick: () => this.addComponentToEntity(entity, 'CapsuleCollider') },
+                ],
             });
 
+            items.push({ label: '', separator: true });
+
+            const prefabChildren: ContextMenuItem[] = [
+                { label: 'Save as Prefab...', icon: icons.package(14), onClick: () => this.saveEntityAsPrefab(entity) },
+            ];
             if (this.store_.isPrefabRoot(entity as number)) {
                 const instanceId = this.store_.getPrefabInstanceId(entity as number);
                 const prefabPath = this.store_.getPrefabPath(entity as number);
                 if (instanceId && prefabPath) {
-                    items.push(
-                        {
-                            label: 'Revert Prefab',
-                            icon: icons.rotateCw(14),
-                            onClick: () => this.store_.revertPrefabInstance(instanceId, prefabPath),
-                        },
-                        {
-                            label: 'Apply to Prefab',
-                            icon: icons.check(14),
-                            onClick: () => this.store_.applyPrefabOverrides(instanceId, prefabPath),
-                        },
-                        {
-                            label: 'Unpack Prefab',
-                            icon: icons.package(14),
-                            onClick: () => this.store_.unpackPrefab(instanceId),
-                        },
+                    prefabChildren.push(
+                        { label: '', separator: true },
+                        { label: 'Revert Prefab', icon: icons.rotateCw(14), onClick: () => this.store_.revertPrefabInstance(instanceId, prefabPath) },
+                        { label: 'Apply to Prefab', icon: icons.check(14), onClick: () => this.store_.applyPrefabOverrides(instanceId, prefabPath) },
+                        { label: 'Unpack Prefab', icon: icons.package(14), onClick: () => this.store_.unpackPrefab(instanceId) },
                     );
                 }
             }
+            items.push({ label: 'Prefab', icon: icons.package(14), children: prefabChildren });
         }
 
         const location = entity !== null ? 'hierarchy.entity' : 'hierarchy.background';
