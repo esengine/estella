@@ -10,6 +10,7 @@ import { icons } from '../utils/icons';
 import { getGlobalPathResolver } from '../asset';
 import { getDefaultComponentData } from '../schemas/ComponentSchemas';
 import { showContextMenu, type ContextMenuItem } from '../ui/ContextMenu';
+import { getContextMenuItems, type ContextMenuContext } from '../ui/ContextMenuRegistry';
 import { getEditorContext } from '../context/EditorContext';
 import { getPlatformAdapter } from '../platform/PlatformAdapter';
 import { generateUniqueName } from '../utils/naming';
@@ -590,6 +591,13 @@ export class HierarchyPanel {
                 { label: 'Duplicate', icon: icons.copy(14), onClick: () => this.duplicateEntity(entity) },
                 { label: 'Delete', icon: icons.trash(14), onClick: () => this.store_.deleteEntity(entity) }
             );
+        }
+
+        const location = entity !== null ? 'hierarchy.entity' : 'hierarchy.background';
+        const ctx: ContextMenuContext = { location, entity: entity ?? undefined, entityData: entityData ?? undefined };
+        const extensionItems = getContextMenuItems(location, ctx);
+        if (extensionItems.length > 0) {
+            items.push({ label: '', separator: true }, ...extensionItems);
         }
 
         showContextMenu({ x, y, items });

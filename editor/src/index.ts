@@ -186,6 +186,31 @@ export {
 } from './ui/ContextMenu';
 
 export {
+    registerContextMenuItem,
+    getContextMenuItems,
+    type ContextMenuLocation,
+    type ContextMenuContext,
+    type ContextMenuContribution,
+} from './ui/ContextMenuRegistry';
+
+// =============================================================================
+// Inspector Registry
+// =============================================================================
+
+export {
+    registerInspectorSection,
+    registerComponentInspector,
+    getInspectorSections,
+    getComponentInspector,
+    type InspectorContext,
+    type InspectorSectionDescriptor,
+    type InspectorSectionInstance,
+    type ComponentInspectorDescriptor,
+    type ComponentInspectorContext,
+    type ComponentInspectorInstance,
+} from './panels/inspector/InspectorRegistry';
+
+export {
     showToast,
     showSuccessToast,
     showErrorToast,

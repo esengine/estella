@@ -5,7 +5,8 @@
 
 import type { EditorStore, AssetType } from '../store/EditorStore';
 import { icons } from '../utils/icons';
-import { showContextMenu } from '../ui/ContextMenu';
+import { showContextMenu, type ContextMenuItem } from '../ui/ContextMenu';
+import { getContextMenuItems, type ContextMenuContext } from '../ui/ContextMenuRegistry';
 import { getPlatformAdapter } from '../platform/PlatformAdapter';
 import { showInputDialog, showConfirmDialog } from '../ui/dialog';
 import { getEditorContext } from '../context/EditorContext';
@@ -484,37 +485,41 @@ export class ContentBrowserPanel {
         const parentPath = getParentDir(path);
         const fileName = path.split('/').pop() ?? path;
 
-        showContextMenu({
-            x: e.clientX,
-            y: e.clientY,
-            items: [
-                {
-                    label: 'Show in Folder',
-                    icon: icons.folderOpen(14),
-                    onClick: () => {
-                        fs?.openFolder(parentPath);
-                    },
+        const items: ContextMenuItem[] = [
+            {
+                label: 'Show in Folder',
+                icon: icons.folderOpen(14),
+                onClick: () => {
+                    fs?.openFolder(parentPath);
                 },
-                {
-                    label: 'Copy Path',
-                    icon: icons.copy(14),
-                    onClick: () => {
-                        navigator.clipboard.writeText(path);
-                    },
+            },
+            {
+                label: 'Copy Path',
+                icon: icons.copy(14),
+                onClick: () => {
+                    navigator.clipboard.writeText(path);
                 },
-                {
-                    label: 'Rename',
-                    icon: icons.pencil(14),
-                    onClick: () => this.renameAsset(path, type),
-                },
-                { separator: true, label: '' },
-                {
-                    label: 'Delete',
-                    icon: icons.trash(14),
-                    onClick: () => this.deleteAsset(path, fileName),
-                },
-            ],
-        });
+            },
+            {
+                label: 'Rename',
+                icon: icons.pencil(14),
+                onClick: () => this.renameAsset(path, type),
+            },
+            { separator: true, label: '' },
+            {
+                label: 'Delete',
+                icon: icons.trash(14),
+                onClick: () => this.deleteAsset(path, fileName),
+            },
+        ];
+
+        const ctx: ContextMenuContext = { location: 'content-browser.asset', assetPath: path, assetType: type };
+        const extensionItems = getContextMenuItems('content-browser.asset', ctx);
+        if (extensionItems.length > 0) {
+            items.push({ label: '', separator: true }, ...extensionItems);
+        }
+
+        showContextMenu({ x: e.clientX, y: e.clientY, items });
     }
 
     private async deleteAsset(path: string, name: string): Promise<void> {
@@ -614,72 +619,76 @@ export class ContentBrowserPanel {
     private showFolderContextMenu(e: MouseEvent, path: string): void {
         const fs = getNativeFS();
 
-        showContextMenu({
-            x: e.clientX,
-            y: e.clientY,
-            items: [
-                {
-                    label: 'Create',
-                    icon: icons.plus(14),
-                    children: [
-                        {
-                            label: 'Folder',
-                            icon: icons.folder(14),
-                            onClick: () => this.createNewFolder(path),
-                        },
-                        { label: '', separator: true },
-                        {
-                            label: 'Script',
-                            icon: icons.code(14),
-                            onClick: () => this.createNewScript(path),
-                        },
-                        {
-                            label: 'Material',
-                            icon: icons.settings(14),
-                            onClick: () => this.createNewMaterial(path),
-                        },
-                        {
-                            label: 'Shader',
-                            icon: icons.code(14),
-                            onClick: () => this.createNewShader(path),
-                        },
-                        {
-                            label: 'BitmapFont',
-                            icon: icons.type(14),
-                            onClick: () => this.createNewBitmapFont(path),
-                        },
-                        {
-                            label: 'Scene',
-                            icon: icons.layers(14),
-                            onClick: () => this.createNewScene(path),
-                        },
-                    ],
-                },
-                { label: '', separator: true },
-                {
-                    label: 'Show in Folder',
-                    icon: icons.folderOpen(14),
-                    onClick: () => {
-                        fs?.openFolder(path);
+        const items: ContextMenuItem[] = [
+            {
+                label: 'Create',
+                icon: icons.plus(14),
+                children: [
+                    {
+                        label: 'Folder',
+                        icon: icons.folder(14),
+                        onClick: () => this.createNewFolder(path),
                     },
-                },
-                {
-                    label: 'Copy Path',
-                    icon: icons.copy(14),
-                    onClick: () => {
-                        navigator.clipboard.writeText(path);
+                    { label: '', separator: true },
+                    {
+                        label: 'Script',
+                        icon: icons.code(14),
+                        onClick: () => this.createNewScript(path),
                     },
-                },
-                { label: '', separator: true },
-                {
-                    label: 'Refresh',
-                    icon: icons.refresh(14),
-                    onClick: () => {
-                        this.refresh();
+                    {
+                        label: 'Material',
+                        icon: icons.settings(14),
+                        onClick: () => this.createNewMaterial(path),
                     },
+                    {
+                        label: 'Shader',
+                        icon: icons.code(14),
+                        onClick: () => this.createNewShader(path),
+                    },
+                    {
+                        label: 'BitmapFont',
+                        icon: icons.type(14),
+                        onClick: () => this.createNewBitmapFont(path),
+                    },
+                    {
+                        label: 'Scene',
+                        icon: icons.layers(14),
+                        onClick: () => this.createNewScene(path),
+                    },
+                ],
+            },
+            { label: '', separator: true },
+            {
+                label: 'Show in Folder',
+                icon: icons.folderOpen(14),
+                onClick: () => {
+                    fs?.openFolder(path);
                 },
-            ],
-        });
+            },
+            {
+                label: 'Copy Path',
+                icon: icons.copy(14),
+                onClick: () => {
+                    navigator.clipboard.writeText(path);
+                },
+            },
+            { label: '', separator: true },
+            {
+                label: 'Refresh',
+                icon: icons.refresh(14),
+                onClick: () => {
+                    this.refresh();
+                },
+            },
+        ];
+
+        const ctx: ContextMenuContext = { location: 'content-browser.folder', assetPath: path, assetType: 'folder' };
+        const extensionItems = getContextMenuItems('content-browser.folder', ctx);
+        if (extensionItems.length > 0) {
+            items.push({ label: '', separator: true }, ...extensionItems);
+        }
+
+        showContextMenu({ x: e.clientX, y: e.clientY, items });
     }
 
     private async createNewFolder(parentPath: string): Promise<void> {

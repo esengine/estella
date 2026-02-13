@@ -42,6 +42,9 @@ import {
     registerPropertyEditor,
     registerComponentSchema,
     registerBoundsProvider,
+    registerContextMenuItem,
+    registerInspectorSection,
+    registerComponentInspector,
 
     // UI 工具
     showToast,
@@ -504,6 +507,260 @@ registerBoundsProvider('CircleCollider', {
     },
 });
 ```
+
+## 右键菜单贡献
+
+向编辑器内置的右键菜单（层级面板、内容浏览器等）添加自定义项：
+
+```typescript
+registerContextMenuItem({
+    id: 'my-ext.log-entity',
+    location: 'hierarchy.entity',
+    label: 'Log Entity Info',
+    icon: icons.settings(14),
+    group: 'debug',
+    order: 0,
+    visible: (ctx) => ctx.entity !== undefined,
+    action: (ctx) => {
+        console.log('Entity:', ctx.entity, ctx.entityData);
+    },
+});
+```
+
+### ContextMenuContribution
+
+| 字段 | 类型 | 必需 | 说明 |
+|------|------|------|------|
+| `id` | string | 是 | 唯一标识 |
+| `location` | string | 是 | 菜单出现的位置（见下表） |
+| `label` | string | 是 | 显示文本 |
+| `icon` | string | 否 | SVG 图标字符串 |
+| `shortcut` | string | 否 | 快捷键显示文本 |
+| `group` | string | 否 | 分组名——不同分组之间自动插入分隔线 |
+| `order` | number | 否 | 组内排序 |
+| `visible` | (ctx) => boolean | 否 | 根据上下文显示/隐藏 |
+| `enabled` | (ctx) => boolean | 否 | 根据上下文启用/禁用 |
+| `action` | (ctx) => void | 是 | 点击处理函数 |
+| `children` | ContextMenuContribution[] | 否 | 子菜单项 |
+
+### 内置位置
+
+| 位置 | 触发方式 |
+|------|----------|
+| `hierarchy.entity` | 右键层级面板中的实体 |
+| `hierarchy.background` | 右键层级面板空白区域 |
+| `content-browser.asset` | 右键内容浏览器中的文件 |
+| `content-browser.folder` | 右键内容浏览器中的文件夹 |
+| `inspector.component` | 右键检查器中的组件头部 |
+
+也可以使用自定义位置字符串用于自己的面板。
+
+### ContextMenuContext
+
+传递给 `visible`、`enabled` 和 `action` 的 `ctx` 对象包含：
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `location` | string | 触发菜单的位置 |
+| `entity` | Entity | 实体 ID（层级面板位置） |
+| `entityData` | EntityData | 完整实体数据（层级面板位置） |
+| `assetPath` | string | 资产文件路径（内容浏览器位置） |
+| `assetType` | string | 资产类型如 `'image'`、`'script'`（内容浏览器位置） |
+| `componentType` | string | 组件类型名称（检查器位置） |
+
+### 子菜单
+
+使用 `children` 创建嵌套菜单：
+
+```typescript
+registerContextMenuItem({
+    id: 'my-ext.add-collider',
+    location: 'hierarchy.entity',
+    label: 'Add Collider',
+    group: 'components',
+    action: () => {},
+    children: [
+        {
+            id: 'my-ext.add-box-collider',
+            location: 'hierarchy.entity',
+            label: 'Box Collider',
+            action: (ctx) => {
+                const store = getEditorStore();
+                store.addComponent(ctx.entity!, 'BoxCollider', {});
+            },
+        },
+        {
+            id: 'my-ext.add-circle-collider',
+            location: 'hierarchy.entity',
+            label: 'Circle Collider',
+            action: (ctx) => {
+                const store = getEditorStore();
+                store.addComponent(ctx.entity!, 'CircleCollider', { radius: 50 });
+            },
+        },
+    ],
+});
+```
+
+## Inspector 自定义区域
+
+在实体或资产检查器中添加自定义可折叠区域：
+
+```typescript
+registerInspectorSection({
+    id: 'my-ext.entity-stats',
+    title: 'Entity Stats',
+    icon: icons.settings(14),
+    target: 'entity',
+    order: 100,
+    visible: (ctx) => ctx.entity !== undefined,
+    render: (container, ctx) => {
+        const div = document.createElement('div');
+        div.className = 'es-property-row';
+
+        function refresh() {
+            const data = ctx.store.getEntityData(ctx.entity!);
+            div.textContent = data
+                ? `Components: ${data.components.length}`
+                : '';
+        }
+
+        refresh();
+
+        return {
+            update() { refresh(); },
+            dispose() { container.innerHTML = ''; },
+        };
+    },
+});
+```
+
+### InspectorSectionDescriptor
+
+| 字段 | 类型 | 必需 | 说明 |
+|------|------|------|------|
+| `id` | string | 是 | 唯一标识 |
+| `title` | string | 是 | 区域头部文本 |
+| `icon` | string | 否 | 头部中的 SVG 图标 |
+| `order` | number | 否 | 排序（越大越靠下） |
+| `target` | `'entity' \| 'asset' \| 'both'` | 是 | 区域出现的位置 |
+| `visible` | (ctx) => boolean | 否 | 根据上下文显示/隐藏 |
+| `render` | (container, ctx) => InspectorSectionInstance | 是 | 创建区域 UI |
+
+### InspectorSectionInstance
+
+`render` 函数必须返回：
+
+```typescript
+interface InspectorSectionInstance {
+    dispose(): void;
+    update?(): void;  // 属性变更时调用
+}
+```
+
+### InspectorContext
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `store` | EditorStore | 编辑器状态 |
+| `entity` | Entity | 实体 ID（entity 目标） |
+| `assetPath` | string | 资产文件路径（asset 目标） |
+| `assetType` | string | 资产类型（asset 目标） |
+
+### 资产 Inspector 区域
+
+对于面向资产的区域，使用 `assetType` 字段过滤：
+
+```typescript
+registerInspectorSection({
+    id: 'my-ext.image-analysis',
+    title: 'Image Analysis',
+    target: 'asset',
+    order: 200,
+    visible: (ctx) => ctx.assetType === 'image',
+    render: (container, ctx) => {
+        const div = document.createElement('div');
+        div.textContent = `Analyzing: ${ctx.assetPath}`;
+        container.appendChild(div);
+
+        return { dispose() { container.innerHTML = ''; } };
+    },
+});
+```
+
+## 组件 Inspector
+
+用完全自定义的 Inspector 替换特定组件类型的默认属性编辑 UI：
+
+```typescript
+registerComponentInspector({
+    id: 'my-ext.health-inspector',
+    componentType: 'Health',
+    render: (container, ctx) => {
+        const bar = document.createElement('div');
+        bar.style.cssText = 'height:20px; background:#333; border-radius:4px; overflow:hidden;';
+
+        const fill = document.createElement('div');
+        fill.style.cssText = 'height:100%; background:#4caf50; transition:width 0.2s;';
+        bar.appendChild(fill);
+
+        const label = document.createElement('div');
+        label.style.cssText = 'font-size:11px; margin-top:4px; color:#aaa;';
+
+        container.appendChild(bar);
+        container.appendChild(label);
+
+        function refresh(data: Record<string, unknown>) {
+            const current = (data.current as number) ?? 0;
+            const max = (data.max as number) ?? 100;
+            const pct = max > 0 ? (current / max) * 100 : 0;
+            fill.style.width = `${pct}%`;
+            fill.style.background = pct > 50 ? '#4caf50' : pct > 25 ? '#ff9800' : '#f44336';
+            label.textContent = `${current} / ${max}`;
+        }
+
+        refresh(ctx.componentData);
+
+        return {
+            update(data) { refresh(data); },
+            dispose() { container.innerHTML = ''; },
+        };
+    },
+});
+```
+
+注册了 `ComponentInspector` 的组件类型会完全替换默认的属性行。自定义 Inspector 接收所有组件数据和用于修改的 `onChange` 回调。
+
+### ComponentInspectorDescriptor
+
+| 字段 | 类型 | 必需 | 说明 |
+|------|------|------|------|
+| `id` | string | 是 | 唯一标识 |
+| `componentType` | string | 是 | 要覆盖的组件类型 |
+| `render` | (container, ctx) => ComponentInspectorInstance | 是 | 创建 Inspector UI |
+
+### ComponentInspectorContext
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `store` | EditorStore | 编辑器状态 |
+| `entity` | Entity | 实体 ID |
+| `componentType` | string | 组件类型名称 |
+| `componentData` | Record\<string, unknown\> | 当前组件数据 |
+| `onChange` | (property, oldValue, newValue) => void | 报告属性变更 |
+
+### ComponentInspectorInstance
+
+```typescript
+interface ComponentInspectorInstance {
+    dispose(): void;
+    update?(data: Record<string, unknown>): void;  // 使用新数据调用
+}
+```
+
+<Aside type="tip">
+  当需要完全控制组件的 Inspector UI 时使用 `registerComponentInspector`。对于更简单的场景，可以考虑使用 `registerPropertyEditor` 来自定义单个属性控件。
+</Aside>
 
 ## 资源清理
 

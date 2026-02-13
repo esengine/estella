@@ -56,6 +56,13 @@ import { registerPropertyEditor } from './property';
 import { registerComponentSchema } from './schemas';
 import { showToast, showSuccessToast, showErrorToast } from './ui/Toast';
 import { showContextMenu } from './ui/ContextMenu';
+import { registerContextMenuItem, lockBuiltinContextMenuItems, clearExtensionContextMenuItems } from './ui/ContextMenuRegistry';
+import {
+    registerInspectorSection,
+    registerComponentInspector,
+    lockBuiltinInspectorExtensions,
+    clearExtensionInspectorExtensions,
+} from './panels/inspector/InspectorRegistry';
 import { showConfirmDialog, showInputDialog } from './ui/dialog';
 import { getEditorStore } from './store';
 import { generateUniqueName } from './utils/naming';
@@ -129,6 +136,8 @@ export class Editor {
         lockBuiltinComponentSchemas();
         lockBuiltinBoundsProviders();
         lockBuiltinSettings();
+        lockBuiltinContextMenuItems();
+        lockBuiltinInspectorExtensions();
 
         this.setupLayout();
 
@@ -530,6 +539,9 @@ export class Editor {
             showSuccessToast,
             showErrorToast,
             showContextMenu,
+            registerContextMenuItem,
+            registerInspectorSection,
+            registerComponentInspector,
             showConfirmDialog,
             showInputDialog,
             getEditorInstance,
@@ -599,6 +611,8 @@ export class Editor {
         clearExtensionComponentSchemas();
         clearExtensionBoundsProviders();
         clearExtensionSettings();
+        clearExtensionContextMenuItems();
+        clearExtensionInspectorExtensions();
     }
 
     private applyExtensionUI(): void {

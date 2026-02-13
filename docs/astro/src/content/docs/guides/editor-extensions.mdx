@@ -42,6 +42,9 @@ import {
     registerPropertyEditor,
     registerComponentSchema,
     registerBoundsProvider,
+    registerContextMenuItem,
+    registerInspectorSection,
+    registerComponentInspector,
 
     // UI utilities
     showToast,
@@ -504,6 +507,260 @@ registerBoundsProvider('CircleCollider', {
     },
 });
 ```
+
+## Context Menu Contributions
+
+Add items to the editor's built-in context menus (hierarchy, content browser, etc.):
+
+```typescript
+registerContextMenuItem({
+    id: 'my-ext.log-entity',
+    location: 'hierarchy.entity',
+    label: 'Log Entity Info',
+    icon: icons.settings(14),
+    group: 'debug',
+    order: 0,
+    visible: (ctx) => ctx.entity !== undefined,
+    action: (ctx) => {
+        console.log('Entity:', ctx.entity, ctx.entityData);
+    },
+});
+```
+
+### ContextMenuContribution
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | string | Yes | Unique identifier |
+| `location` | string | Yes | Where the item appears (see below) |
+| `label` | string | Yes | Display text |
+| `icon` | string | No | SVG icon string |
+| `shortcut` | string | No | Keyboard shortcut display text |
+| `group` | string | No | Group name — a separator is inserted between different groups |
+| `order` | number | No | Sort order within the group |
+| `visible` | (ctx) => boolean | No | Show/hide based on context |
+| `enabled` | (ctx) => boolean | No | Enable/disable based on context |
+| `action` | (ctx) => void | Yes | Click handler |
+| `children` | ContextMenuContribution[] | No | Sub-menu items |
+
+### Built-in Locations
+
+| Location | Trigger |
+|----------|---------|
+| `hierarchy.entity` | Right-click an entity in the hierarchy |
+| `hierarchy.background` | Right-click empty space in the hierarchy |
+| `content-browser.asset` | Right-click a file in the content browser |
+| `content-browser.folder` | Right-click a folder in the content browser |
+| `inspector.component` | Right-click a component header in the inspector |
+
+You can also use custom location strings for your own panels.
+
+### ContextMenuContext
+
+The `ctx` object passed to `visible`, `enabled`, and `action` contains:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `location` | string | The location that triggered the menu |
+| `entity` | Entity | Entity ID (hierarchy locations) |
+| `entityData` | EntityData | Full entity data (hierarchy locations) |
+| `assetPath` | string | Asset file path (content browser locations) |
+| `assetType` | string | Asset type like `'image'`, `'script'` (content browser locations) |
+| `componentType` | string | Component type name (inspector locations) |
+
+### Sub-menus
+
+Use `children` to create nested menus:
+
+```typescript
+registerContextMenuItem({
+    id: 'my-ext.add-collider',
+    location: 'hierarchy.entity',
+    label: 'Add Collider',
+    group: 'components',
+    action: () => {},
+    children: [
+        {
+            id: 'my-ext.add-box-collider',
+            location: 'hierarchy.entity',
+            label: 'Box Collider',
+            action: (ctx) => {
+                const store = getEditorStore();
+                store.addComponent(ctx.entity!, 'BoxCollider', {});
+            },
+        },
+        {
+            id: 'my-ext.add-circle-collider',
+            location: 'hierarchy.entity',
+            label: 'Circle Collider',
+            action: (ctx) => {
+                const store = getEditorStore();
+                store.addComponent(ctx.entity!, 'CircleCollider', { radius: 50 });
+            },
+        },
+    ],
+});
+```
+
+## Inspector Sections
+
+Add custom collapsible sections to the entity or asset inspector:
+
+```typescript
+registerInspectorSection({
+    id: 'my-ext.entity-stats',
+    title: 'Entity Stats',
+    icon: icons.settings(14),
+    target: 'entity',
+    order: 100,
+    visible: (ctx) => ctx.entity !== undefined,
+    render: (container, ctx) => {
+        const div = document.createElement('div');
+        div.className = 'es-property-row';
+
+        function refresh() {
+            const data = ctx.store.getEntityData(ctx.entity!);
+            div.textContent = data
+                ? `Components: ${data.components.length}`
+                : '';
+        }
+
+        refresh();
+
+        return {
+            update() { refresh(); },
+            dispose() { container.innerHTML = ''; },
+        };
+    },
+});
+```
+
+### InspectorSectionDescriptor
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | string | Yes | Unique identifier |
+| `title` | string | Yes | Section header text |
+| `icon` | string | No | SVG icon in the header |
+| `order` | number | No | Sort order (higher = further down) |
+| `target` | `'entity' \| 'asset' \| 'both'` | Yes | Where the section appears |
+| `visible` | (ctx) => boolean | No | Show/hide based on context |
+| `render` | (container, ctx) => InspectorSectionInstance | Yes | Create the section UI |
+
+### InspectorSectionInstance
+
+The `render` function must return:
+
+```typescript
+interface InspectorSectionInstance {
+    dispose(): void;
+    update?(): void;  // called when properties change
+}
+```
+
+### InspectorContext
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `store` | EditorStore | Editor store |
+| `entity` | Entity | Entity ID (entity target) |
+| `assetPath` | string | Asset file path (asset target) |
+| `assetType` | string | Asset type (asset target) |
+
+### Asset Inspector Section
+
+For asset-targeted sections, use the `assetType` field to filter:
+
+```typescript
+registerInspectorSection({
+    id: 'my-ext.image-analysis',
+    title: 'Image Analysis',
+    target: 'asset',
+    order: 200,
+    visible: (ctx) => ctx.assetType === 'image',
+    render: (container, ctx) => {
+        const div = document.createElement('div');
+        div.textContent = `Analyzing: ${ctx.assetPath}`;
+        container.appendChild(div);
+
+        return { dispose() { container.innerHTML = ''; } };
+    },
+});
+```
+
+## Component Inspectors
+
+Replace the default property editor UI for a specific component type with a fully custom inspector:
+
+```typescript
+registerComponentInspector({
+    id: 'my-ext.health-inspector',
+    componentType: 'Health',
+    render: (container, ctx) => {
+        const bar = document.createElement('div');
+        bar.style.cssText = 'height:20px; background:#333; border-radius:4px; overflow:hidden;';
+
+        const fill = document.createElement('div');
+        fill.style.cssText = 'height:100%; background:#4caf50; transition:width 0.2s;';
+        bar.appendChild(fill);
+
+        const label = document.createElement('div');
+        label.style.cssText = 'font-size:11px; margin-top:4px; color:#aaa;';
+
+        container.appendChild(bar);
+        container.appendChild(label);
+
+        function refresh(data: Record<string, unknown>) {
+            const current = (data.current as number) ?? 0;
+            const max = (data.max as number) ?? 100;
+            const pct = max > 0 ? (current / max) * 100 : 0;
+            fill.style.width = `${pct}%`;
+            fill.style.background = pct > 50 ? '#4caf50' : pct > 25 ? '#ff9800' : '#f44336';
+            label.textContent = `${current} / ${max}`;
+        }
+
+        refresh(ctx.componentData);
+
+        return {
+            update(data) { refresh(data); },
+            dispose() { container.innerHTML = ''; },
+        };
+    },
+});
+```
+
+When a `ComponentInspector` is registered for a component type, it completely replaces the default property rows. The custom inspector receives all component data and an `onChange` callback for modifications.
+
+### ComponentInspectorDescriptor
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | string | Yes | Unique identifier |
+| `componentType` | string | Yes | Component type to override |
+| `render` | (container, ctx) => ComponentInspectorInstance | Yes | Create the inspector UI |
+
+### ComponentInspectorContext
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `store` | EditorStore | Editor store |
+| `entity` | Entity | Entity ID |
+| `componentType` | string | Component type name |
+| `componentData` | Record\<string, unknown\> | Current component data |
+| `onChange` | (property, oldValue, newValue) => void | Report a property change |
+
+### ComponentInspectorInstance
+
+```typescript
+interface ComponentInspectorInstance {
+    dispose(): void;
+    update?(data: Record<string, unknown>): void;  // called with new data
+}
+```
+
+<Aside type="tip">
+  Use `registerComponentInspector` when you need full control over a component's inspector UI. For simpler cases, consider `registerPropertyEditor` to customize individual property widgets instead.
+</Aside>
 
 ## Resource Cleanup
 

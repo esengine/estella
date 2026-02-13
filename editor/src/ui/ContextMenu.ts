@@ -1,6 +1,6 @@
 /**
  * @file    ContextMenu.ts
- * @brief   Context menu component with submenu support
+ * @brief   Context menu component with submenu support and keyboard navigation
  */
 
 import { icons } from '../utils/icons';
@@ -34,6 +34,8 @@ class ContextMenuManager {
     private submenus_: HTMLElement[] = [];
     private closeHandler_: ((e: MouseEvent) => void) | null = null;
     private keyHandler_: ((e: KeyboardEvent) => void) | null = null;
+    private activeMenu_: HTMLElement | null = null;
+    private focusedIndex_: number = -1;
 
     show(options: ContextMenuOptions): void {
         this.hide();
@@ -43,6 +45,8 @@ class ContextMenuManager {
 
         this.root_ = this.createMenu(options.items, options.x, options.y, true);
         document.body.appendChild(this.root_);
+        this.activeMenu_ = this.root_;
+        this.focusedIndex_ = -1;
 
         this.closeHandler_ = (e: MouseEvent) => {
             const target = e.target as Node;
@@ -57,9 +61,7 @@ class ContextMenuManager {
         }, 0);
 
         this.keyHandler_ = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') {
-                this.hide();
-            }
+            this.handleKeyDown(e);
         };
         document.addEventListener('keydown', this.keyHandler_);
     }
@@ -73,6 +75,8 @@ class ContextMenuManager {
             sub.remove();
         }
         this.submenus_ = [];
+        this.activeMenu_ = null;
+        this.focusedIndex_ = -1;
         if (this.closeHandler_) {
             document.removeEventListener('mousedown', this.closeHandler_);
             this.closeHandler_ = null;
@@ -80,6 +84,118 @@ class ContextMenuManager {
         if (this.keyHandler_) {
             document.removeEventListener('keydown', this.keyHandler_);
             this.keyHandler_ = null;
+        }
+    }
+
+    private handleKeyDown(e: KeyboardEvent): void {
+        if (!this.activeMenu_) return;
+
+        const actionItems = this.getActionItems(this.activeMenu_);
+        if (actionItems.length === 0) return;
+
+        switch (e.key) {
+            case 'Escape': {
+                if (this.submenus_.length > 0 && this.activeMenu_ !== this.root_) {
+                    this.closeActiveSubmenu();
+                } else {
+                    this.hide();
+                }
+                e.preventDefault();
+                break;
+            }
+            case 'ArrowDown': {
+                this.focusedIndex_ = this.focusedIndex_ < actionItems.length - 1
+                    ? this.focusedIndex_ + 1
+                    : 0;
+                this.updateFocus(actionItems);
+                e.preventDefault();
+                break;
+            }
+            case 'ArrowUp': {
+                this.focusedIndex_ = this.focusedIndex_ > 0
+                    ? this.focusedIndex_ - 1
+                    : actionItems.length - 1;
+                this.updateFocus(actionItems);
+                e.preventDefault();
+                break;
+            }
+            case 'ArrowRight': {
+                const focused = actionItems[this.focusedIndex_];
+                if (focused?.classList.contains('es-has-submenu')) {
+                    focused.dispatchEvent(new MouseEvent('mouseenter'));
+                    setTimeout(() => {
+                        const lastSub = this.submenus_[this.submenus_.length - 1];
+                        if (lastSub) {
+                            this.activeMenu_ = lastSub;
+                            this.focusedIndex_ = 0;
+                            this.updateFocus(this.getActionItems(lastSub));
+                        }
+                    }, 0);
+                }
+                e.preventDefault();
+                break;
+            }
+            case 'ArrowLeft': {
+                if (this.submenus_.length > 0 && this.activeMenu_ !== this.root_) {
+                    this.closeActiveSubmenu();
+                }
+                e.preventDefault();
+                break;
+            }
+            case 'Enter': {
+                const focused = actionItems[this.focusedIndex_];
+                if (focused && !focused.classList.contains('es-disabled')) {
+                    if (focused.classList.contains('es-has-submenu')) {
+                        focused.dispatchEvent(new MouseEvent('mouseenter'));
+                        setTimeout(() => {
+                            const lastSub = this.submenus_[this.submenus_.length - 1];
+                            if (lastSub) {
+                                this.activeMenu_ = lastSub;
+                                this.focusedIndex_ = 0;
+                                this.updateFocus(this.getActionItems(lastSub));
+                            }
+                        }, 0);
+                    } else {
+                        focused.click();
+                    }
+                }
+                e.preventDefault();
+                break;
+            }
+        }
+    }
+
+    private getActionItems(menu: HTMLElement): HTMLElement[] {
+        return Array.from(menu.querySelectorAll(':scope > .es-context-menu-item'));
+    }
+
+    private updateFocus(items: HTMLElement[]): void {
+        if (!this.activeMenu_) return;
+        for (const el of items) {
+            el.classList.remove('es-focused');
+        }
+        const focused = items[this.focusedIndex_];
+        if (focused) {
+            focused.classList.add('es-focused');
+            focused.scrollIntoView({ block: 'nearest' });
+        }
+    }
+
+    private closeActiveSubmenu(): void {
+        const lastSub = this.submenus_.pop();
+        if (lastSub) {
+            lastSub.remove();
+        }
+        this.activeMenu_ = this.submenus_.length > 0
+            ? this.submenus_[this.submenus_.length - 1]
+            : this.root_;
+        this.focusedIndex_ = -1;
+        if (this.activeMenu_) {
+            const items = this.getActionItems(this.activeMenu_);
+            const active = this.activeMenu_.querySelector('.es-has-submenu.es-focused, .es-has-submenu:hover');
+            if (active) {
+                this.focusedIndex_ = items.indexOf(active as HTMLElement);
+            }
         }
     }
 
@@ -105,6 +221,15 @@ class ContextMenuManager {
             if (item.children && item.children.length > 0) {
                 el.classList.add('es-has-submenu');
             }
+
+            el.addEventListener('mouseenter', () => {
+                if (this.activeMenu_ === menu || this.activeMenu_ === null) {
+                    const actionItems = this.getActionItems(menu);
+                    this.activeMenu_ = menu;
+                    this.focusedIndex_ = actionItems.indexOf(el);
+                    this.updateFocus(actionItems);
+                }
+            });
 
             if (item.icon) {
                 const iconEl = document.createElement('span');

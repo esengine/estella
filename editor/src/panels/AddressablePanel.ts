@@ -11,7 +11,8 @@ import type { AssetGroupService, AssetGroupDef, BundleMode } from '../asset/Asse
 import { AssetDependencyAnalyzer } from '../asset/AssetDependencyAnalyzer';
 import { getEditorInstance, getEditorContext } from '../context/EditorContext';
 import { showInputDialog, showConfirmDialog } from '../ui/dialog';
-import { showContextMenu } from '../ui/ContextMenu';
+import { showContextMenu, type ContextMenuItem } from '../ui/ContextMenu';
+import { getContextMenuItems, type ContextMenuContext } from '../ui/ContextMenuRegistry';
 import { showErrorToast, showSuccessToast } from '../ui/Toast';
 
 function getAssetTypeFromPath(path: string): AssetType {
@@ -654,52 +655,56 @@ export class AddressablePanel implements PanelInstance {
     }
 
     private showGroupContextMenu(e: MouseEvent, group: AssetGroupDef): void {
-        showContextMenu({
-            x: e.clientX,
-            y: e.clientY,
-            items: [
-                {
-                    label: 'Rename',
-                    disabled: group.name === 'default',
-                    onClick: async () => {
-                        const newName = await showInputDialog({
-                            title: 'Rename Group',
-                            placeholder: 'New name',
-                            defaultValue: group.name,
-                        });
-                        if (!newName || newName === group.name) return;
-                        const gs = this.getGroupService();
-                        if (!gs) return;
-                        gs.renameGroup(group.name, newName);
-                        await gs.save();
-                        if (this.selectedGroup_ === group.name) {
-                            this.selectedGroup_ = newName;
-                        }
-                        this.render();
-                    },
+        const items: ContextMenuItem[] = [
+            {
+                label: 'Rename',
+                disabled: group.name === 'default',
+                onClick: async () => {
+                    const newName = await showInputDialog({
+                        title: 'Rename Group',
+                        placeholder: 'New name',
+                        defaultValue: group.name,
+                    });
+                    if (!newName || newName === group.name) return;
+                    const gs = this.getGroupService();
+                    if (!gs) return;
+                    gs.renameGroup(group.name, newName);
+                    await gs.save();
+                    if (this.selectedGroup_ === group.name) {
+                        this.selectedGroup_ = newName;
+                    }
+                    this.render();
                 },
-                {
-                    label: 'Delete',
-                    disabled: group.name === 'default',
-                    onClick: async () => {
-                        const confirmed = await showConfirmDialog({
-                            title: 'Delete Group',
-                            message: `Delete group "${group.name}"?`,
-                            danger: true,
-                        });
-                        if (!confirmed) return;
-                        const gs = this.getGroupService();
-                        if (!gs) return;
-                        gs.removeGroup(group.name);
-                        await gs.save();
-                        if (this.selectedGroup_ === group.name) {
-                            this.selectedGroup_ = 'default';
-                        }
-                        this.render();
-                    },
+            },
+            {
+                label: 'Delete',
+                disabled: group.name === 'default',
+                onClick: async () => {
+                    const confirmed = await showConfirmDialog({
+                        title: 'Delete Group',
+                        message: `Delete group "${group.name}"?`,
+                        danger: true,
+                    });
+                    if (!confirmed) return;
+                    const gs = this.getGroupService();
+                    if (!gs) return;
+                    gs.removeGroup(group.name);
+                    await gs.save();
+                    if (this.selectedGroup_ === group.name) {
+                        this.selectedGroup_ = 'default';
+                    }
+                    this.render();
                 },
-            ],
-        });
+            },
+        ];
+
+        const ctx: ContextMenuContext = { location: 'addressable.group', groupName: group.name };
+        const extensionItems = getContextMenuItems('addressable.group', ctx);
+        if (extensionItems.length > 0) {
+            items.push({ label: '', separator: true }, ...extensionItems);
+        }
+
+        showContextMenu({ x: e.clientX, y: e.clientY, items });
     }
 
     private showLabelContextMenu(e: MouseEvent, label: string): void {
