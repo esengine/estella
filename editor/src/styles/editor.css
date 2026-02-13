@@ -1342,6 +1342,52 @@ svg {
 }
 
 /* =============================================================================
+ * Button Transition Editor
+ * ============================================================================= */
+
+.es-btn-transition-section {
+    background: var(--es-bg-secondary);
+    border: 1px solid var(--es-border);
+    overflow: hidden;
+}
+
+.es-btn-transition-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    background: var(--es-bg-tertiary);
+    cursor: pointer;
+    border-bottom: 1px solid transparent;
+}
+
+.es-btn-transition-section.es-expanded .es-btn-transition-header {
+    border-bottom-color: var(--es-border);
+}
+
+.es-btn-transition-header:hover {
+    background: var(--es-bg-hover);
+}
+
+.es-btn-transition-title {
+    flex: 1;
+    font-weight: 500;
+    font-size: 11px;
+}
+
+.es-btn-transition-content {
+    padding: 6px 8px;
+}
+
+.es-btn-transition-content .es-property-row {
+    margin-bottom: 4px;
+}
+
+.es-btn-transition-content .es-property-row:last-child {
+    margin-bottom: 0;
+}
+
+/* =============================================================================
  * Context Menu
  * ============================================================================= */
 

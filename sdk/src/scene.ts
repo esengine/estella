@@ -33,6 +33,8 @@ import {
 import { Text, type TextData } from './ui/text';
 import { UIRect, type UIRectData } from './ui/UIRect';
 import { UIMask, type UIMaskData } from './ui/UIMask';
+import { Interactable, type InteractableData } from './ui/Interactable';
+import { Button, type ButtonData } from './ui/Button';
 import type { AssetServer } from './asset/AssetServer';
 
 // =============================================================================
@@ -262,6 +264,12 @@ export function loadComponent(world: World, entity: Entity, compData: SceneCompo
         }
         case 'UIMask':
             world.insert(entity, UIMask, data as UIMaskData);
+            break;
+        case 'Interactable':
+            world.insert(entity, Interactable, data as InteractableData);
+            break;
+        case 'Button':
+            world.insert(entity, Button, data as ButtonData);
             break;
         case 'RigidBody':
             world.insert(entity, RigidBody, data as RigidBodyData);

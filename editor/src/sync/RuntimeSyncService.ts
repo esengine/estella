@@ -109,6 +109,10 @@ export class RuntimeSyncService {
         if (event.componentType === 'Canvas') {
             this.syncCanvasToCamera(event.entity);
         }
+
+        if (event.componentType === 'Button') {
+            this.syncButtonTransitionColor(event.entity);
+        }
     }
 
     private syncCanvasToCamera(canvasEntityId: number): void {
@@ -129,6 +133,37 @@ export class RuntimeSyncService {
             this.scheduleEntityUpdate(entity.id);
             break;
         }
+    }
+
+    private syncButtonTransitionColor(entityId: number): void {
+        const entityData = this.store_.getEntityData(entityId);
+        if (!entityData) return;
+
+        const buttonComp = entityData.components.find(c => c.type === 'Button');
+        if (!buttonComp) return;
+
+        const transition = buttonComp.data.transition as {
+            normalColor: { r: number; g: number; b: number; a: number };
+            hoveredColor: { r: number; g: number; b: number; a: number };
+            pressedColor: { r: number; g: number; b: number; a: number };
+            disabledColor: { r: number; g: number; b: number; a: number };
+        } | null;
+        if (!transition) return;
+
+        const spriteComp = entityData.components.find(c => c.type === 'Sprite');
+        if (!spriteComp) return;
+
+        const state = (buttonComp.data.state as number) ?? 0;
+        const colorMap = [
+            transition.normalColor,
+            transition.hoveredColor,
+            transition.pressedColor,
+            transition.disabledColor,
+        ];
+        const color = colorMap[state] ?? transition.normalColor;
+
+        this.store_.updatePropertyDirect(entityId, 'Sprite', 'color', { ...color });
+        this.scheduleEntityUpdate(entityId);
     }
 
     private onHierarchyChange(event: HierarchyChangeEvent): void {

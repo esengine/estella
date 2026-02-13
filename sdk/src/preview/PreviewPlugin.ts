@@ -110,7 +110,7 @@ export class PreviewPlugin implements Plugin {
 
             const cameraData: CameraData = {
                 isActive: true,
-                projectionType: 0,
+                projectionType: 1,
                 fov: 60,
                 orthoSize,
                 nearPlane: 0.1,

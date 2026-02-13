@@ -238,6 +238,7 @@ export const ButtonSchema: ComponentSchema = {
                 { label: 'Disabled', value: 3 },
             ],
         },
+        { name: 'transition', type: 'button-transition' },
     ],
 };
 

@@ -13,48 +13,8 @@ import { getPlatformAdapter } from '../platform/PlatformAdapter';
 import { getAssetLibrary, isUUID } from '../asset/AssetLibrary';
 import type { NativeFS } from '../types/NativeFS';
 import { createUIRectEditor } from './uiRectEditor';
-
-
-// =============================================================================
-// Drag Helper
-// =============================================================================
-
-export function setupDragLabel(
-    label: HTMLElement,
-    input: HTMLInputElement,
-    onChange: (delta: number) => void,
-    step: number = 0.1
-): void {
-    let startX = 0;
-    let startValue = 0;
-    let isDragging = false;
-
-    const onMouseMove = (e: MouseEvent) => {
-        if (!isDragging) return;
-        const delta = (e.clientX - startX) * step;
-        const newValue = startValue + delta;
-        input.value = newValue.toFixed(2);
-        onChange(newValue);
-    };
-
-    const onMouseUp = () => {
-        isDragging = false;
-        document.removeEventListener('mousemove', onMouseMove);
-        document.removeEventListener('mouseup', onMouseUp);
-        document.body.style.cursor = '';
-    };
-
-    label.style.cursor = 'ew-resize';
-    label.addEventListener('mousedown', (e) => {
-        e.preventDefault();
-        isDragging = true;
-        startX = e.clientX;
-        startValue = parseFloat(input.value) || 0;
-        document.body.style.cursor = 'ew-resize';
-        document.addEventListener('mousemove', onMouseMove);
-        document.addEventListener('mouseup', onMouseUp);
-    });
-}
+import { createButtonTransitionEditor } from './buttonTransitionEditor';
+export { setupDragLabel, colorToHex, hexToColor } from './editorUtils';
 
 // =============================================================================
 // Number Editor
@@ -461,19 +421,6 @@ function createColorEditor(
     };
 }
 
-function colorToHex(color: { r: number; g: number; b: number; a: number }): string {
-    const r = Math.round(color.r * 255).toString(16).padStart(2, '0');
-    const g = Math.round(color.g * 255).toString(16).padStart(2, '0');
-    const b = Math.round(color.b * 255).toString(16).padStart(2, '0');
-    return `#${r}${g}${b}`;
-}
-
-function hexToColor(hex: string): { r: number; g: number; b: number; a: number } {
-    const r = parseInt(hex.slice(1, 3), 16) / 255;
-    const g = parseInt(hex.slice(3, 5), 16) / 255;
-    const b = parseInt(hex.slice(5, 7), 16) / 255;
-    return { r, g, b, a: 1 };
-}
 
 // =============================================================================
 // Euler Angle Editor (displays degrees, stores as quaternion)
@@ -1068,7 +1015,10 @@ interface SpineSkeletonData {
 }
 
 async function loadSpineSkeletonData(skeletonPath: string, atlasPath?: string): Promise<SpineSkeletonData | null> {
-    if (!skeletonPath) return null;
+    if (!skeletonPath) {
+        console.warn('[SpineEditor] skeletonPath is empty, cannot load skeleton data');
+        return null;
+    }
 
     const editor = getEditorInstance();
     if (editor) {
@@ -1076,6 +1026,7 @@ async function loadSpineSkeletonData(skeletonPath: string, atlasPath?: string): 
         if (entityId !== null) {
             const info = editor.getSpineSkeletonInfo(entityId);
             if (info) {
+                console.log(`[SpineEditor] Loaded from runtime: ${info.animations.length} animations, ${info.skins.length} skins`);
                 const animRecord: Record<string, unknown> = {};
                 for (const name of info.animations) {
                     animRecord[name] = {};
@@ -1085,26 +1036,41 @@ async function loadSpineSkeletonData(skeletonPath: string, atlasPath?: string): 
                     skins: info.skins.map(name => ({ name })),
                 };
             }
+            console.warn(`[SpineEditor] Runtime info not available for entity ${entityId}, falling back to file`);
+        } else {
+            console.warn('[SpineEditor] No entity selected');
         }
+    } else {
+        console.warn('[SpineEditor] Editor instance not available');
     }
 
     const projectDir = getProjectDir();
     const fs = getNativeFS();
-    if (!projectDir || !fs) return null;
-
-    if (!skeletonPath.endsWith('.skel')) {
-        let jsonPath = `${projectDir}/${skeletonPath}`;
-        try {
-            const content = await fs.readFile(jsonPath);
-            if (!content) return null;
-            return JSON.parse(content) as SpineSkeletonData;
-        } catch (err) {
-            console.warn('Failed to load spine skeleton:', err);
-            return null;
-        }
+    if (!projectDir || !fs) {
+        console.warn(`[SpineEditor] Cannot read file: projectDir=${projectDir}, fs=${!!fs}`);
+        return null;
     }
 
-    return null;
+    if (skeletonPath.endsWith('.skel')) {
+        console.warn(`[SpineEditor] Binary .skel format cannot be parsed as fallback, need runtime instance for: ${skeletonPath}`);
+        return null;
+    }
+
+    const jsonPath = `${projectDir}/${skeletonPath}`;
+    try {
+        const content = await fs.readFile(jsonPath);
+        if (!content) {
+            console.warn(`[SpineEditor] File is empty or not found: ${jsonPath}`);
+            return null;
+        }
+        const data = JSON.parse(content) as SpineSkeletonData;
+        const animCount = data.animations ? Object.keys(data.animations).length : 0;
+        console.log(`[SpineEditor] Loaded from file: ${animCount} animations from ${jsonPath}`);
+        return data;
+    } catch (err) {
+        console.warn(`[SpineEditor] Failed to load spine skeleton from ${jsonPath}:`, err);
+        return null;
+    }
 }
 
 function getAnimationNames(data: SpineSkeletonData): string[] {
@@ -1124,6 +1090,7 @@ function createSpineAnimationEditor(
     container: HTMLElement,
     ctx: PropertyEditorContext
 ): PropertyEditorInstance {
+    console.log(`[SpineEditor] createSpineAnimationEditor called, value="${ctx.value}"`);
     const { value, onChange, getComponentValue } = ctx;
 
     const wrapper = document.createElement('div');
@@ -1164,6 +1131,9 @@ function createSpineAnimationEditor(
         const skeletonRef = getComponentValue?.('skeletonPath') as string;
         const skeletonPath = skeletonRef ? resolveToPath(skeletonRef) : '';
         if (!skeletonPath) {
+            if (skeletonRef) {
+                console.warn(`[SpineEditor] skeletonRef="${skeletonRef}" resolved to empty path`);
+            }
             updateOptions([], String(value ?? ''));
             return;
         }
@@ -1175,6 +1145,7 @@ function createSpineAnimationEditor(
             const animations = getAnimationNames(data);
             updateOptions(animations, String(value ?? ''));
         } else {
+            console.warn(`[SpineEditor] No skeleton data loaded for: ${skeletonPath}`);
             updateOptions([], String(value ?? ''));
         }
     };
@@ -1183,6 +1154,7 @@ function createSpineAnimationEditor(
     const unsubSpineReady = editor?.onSpineInstanceReady((entityId) => {
         const selected = editor.store.selectedEntity as number | null;
         if (selected === entityId) {
+            console.log(`[SpineEditor] Spine instance ready for entity ${entityId}, reloading animations`);
             loadAnimations();
         }
     }) ?? null;
@@ -1580,6 +1552,7 @@ function createBitmapFontFileEditor(
 // =============================================================================
 
 export function registerBuiltinEditors(): void {
+    console.log('[PropertyEditor] registerBuiltinEditors called');
     registerPropertyEditor('number', createNumberEditor);
     registerPropertyEditor('string', createStringEditor);
     registerPropertyEditor('boolean', createBooleanEditor);
@@ -1597,4 +1570,5 @@ export function registerBuiltinEditors(): void {
     registerPropertyEditor('material-file', createMaterialFileEditor);
     registerPropertyEditor('bitmap-font-file', createBitmapFontFileEditor);
     registerPropertyEditor('uirect', createUIRectEditor);
+    registerPropertyEditor('button-transition', createButtonTransitionEditor);
 }

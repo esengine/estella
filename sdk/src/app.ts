@@ -285,6 +285,39 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
         valid: false,
     });
 
+    function syncUICameraInfo(width: number, height: number): void {
+        const cameras = collectCameras(module, cppRegistry, width, height);
+        const uiCam = app.getResource(UICameraInfo);
+        if (cameras.length > 0) {
+            const cam = cameras[0];
+            const vr = cam.viewportRect;
+            uiCam.viewProjection.set(cam.viewProjection);
+            uiCam.vpX = Math.round(vr.x * width);
+            uiCam.vpY = Math.round((1 - vr.y - vr.h) * height);
+            uiCam.vpW = Math.round(vr.w * width);
+            uiCam.vpH = Math.round(vr.h * height);
+            uiCam.screenW = width;
+            uiCam.screenH = height;
+            uiCam.worldLeft = cam.cameraX - cam.halfW;
+            uiCam.worldRight = cam.cameraX + cam.halfW;
+            uiCam.worldBottom = cam.cameraY - cam.halfH;
+            uiCam.worldTop = cam.cameraY + cam.halfH;
+            uiCam.valid = true;
+        } else {
+            uiCam.valid = false;
+        }
+    }
+
+    const uiCameraSyncSystem: SystemDef = {
+        _id: Symbol('UICameraSyncSystem'),
+        _name: 'UICameraSyncSystem',
+        _params: [],
+        _fn: () => {
+            const { width, height } = getViewportSize();
+            syncUICameraInfo(width, height);
+        },
+    };
+
     const renderSystem: SystemDef = {
         _id: Symbol('RenderSystem'),
         _name: 'RenderSystem',
@@ -308,25 +341,7 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
 
             const cameras = collectCameras(module, cppRegistry, width, height);
 
-            const uiCam = app.getResource(UICameraInfo);
-            if (cameras.length > 0) {
-                const cam = cameras[0];
-                const vr = cam.viewportRect;
-                uiCam.viewProjection.set(cam.viewProjection);
-                uiCam.vpX = Math.round(vr.x * width);
-                uiCam.vpY = Math.round((1 - vr.y - vr.h) * height);
-                uiCam.vpW = Math.round(vr.w * width);
-                uiCam.vpH = Math.round(vr.h * height);
-                uiCam.screenW = width;
-                uiCam.screenH = height;
-                uiCam.worldLeft = cam.cameraX - cam.halfW;
-                uiCam.worldRight = cam.cameraX + cam.halfW;
-                uiCam.worldBottom = cam.cameraY - cam.halfH;
-                uiCam.worldTop = cam.cameraY + cam.halfH;
-                uiCam.valid = true;
-            } else {
-                uiCam.valid = false;
-            }
+            syncUICameraInfo(width, height);
 
             if (cameras.length === 0) {
                 pipeline.render({
@@ -354,6 +369,7 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
         }
     };
 
+    app.addSystemToSchedule(Schedule.First, uiCameraSyncSystem);
     app.addSystemToSchedule(Schedule.Last, renderSystem);
 
     app.addPlugin(assetPlugin);

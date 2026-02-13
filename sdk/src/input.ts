@@ -92,7 +92,7 @@ export class InputPlugin implements Plugin {
             },
         }, this.target_ ?? undefined);
 
-        app.addSystemToSchedule(Schedule.First, defineSystem([], () => {
+        app.addSystemToSchedule(Schedule.Last, defineSystem([], () => {
             state.keysPressed.clear();
             state.keysReleased.clear();
             state.mouseButtonsPressed.clear();

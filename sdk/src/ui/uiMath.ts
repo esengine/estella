@@ -75,7 +75,7 @@ export function invertMatrix4(m: Float32Array, result?: Float32Array): Float32Ar
     const b11 = a22 * a33 - a23 * a32;
 
     let det = b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06;
-    if (Math.abs(det) < 1e-8) return out;
+    if (det === 0) return out;
     det = 1.0 / det;
 
     out[0] = (a11 * b11 - a12 * b10 + a13 * b09) * det;
