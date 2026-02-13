@@ -248,6 +248,25 @@ export const ScreenSpaceSchema: ComponentSchema = {
     properties: [],
 };
 
+export const TextInputSchema: ComponentSchema = {
+    name: 'TextInput',
+    category: 'ui',
+    properties: [
+        { name: 'value', type: 'string' },
+        { name: 'placeholder', type: 'string' },
+        { name: 'placeholderColor', type: 'color' },
+        { name: 'fontFamily', type: 'font' },
+        { name: 'fontSize', type: 'number', min: 8, max: 200 },
+        { name: 'color', type: 'color' },
+        { name: 'backgroundColor', type: 'color' },
+        { name: 'padding', type: 'number', min: 0, step: 1 },
+        { name: 'maxLength', type: 'number', min: 0, step: 1 },
+        { name: 'multiline', type: 'boolean' },
+        { name: 'password', type: 'boolean' },
+        { name: 'readOnly', type: 'boolean' },
+    ],
+};
+
 export const SpineAnimationSchema: ComponentSchema = {
     name: 'SpineAnimation',
     category: 'builtin',
@@ -443,6 +462,7 @@ export function registerBuiltinSchemas(options?: BuiltinSchemaOptions): void {
     registerComponentSchema(InteractableSchema);
     registerComponentSchema(ButtonSchema);
     registerComponentSchema(ScreenSpaceSchema);
+    registerComponentSchema(TextInputSchema);
     registerComponentSchema(RigidBodySchema);
     registerComponentSchema(BoxColliderSchema);
     registerComponentSchema(CircleColliderSchema);
@@ -462,6 +482,21 @@ export function registerSpineSchema(): void {
 // =============================================================================
 
 const editorOnlyDefaults: Record<string, Record<string, unknown>> = {
+    Camera: {
+        isActive: true,
+        projectionType: 1,
+        fov: 60,
+        orthoSize: 540,
+        nearPlane: 0.1,
+        farPlane: 1000,
+        priority: 0,
+        showFrustum: true,
+        viewportX: 0,
+        viewportY: 0,
+        viewportW: 1,
+        viewportH: 1,
+        clearFlags: 3,
+    },
     BitmapText: {
         text: 'BitmapText',
         font: '',
@@ -494,11 +529,25 @@ const editorOnlyDefaults: Record<string, Record<string, unknown>> = {
         fontFamily: 'Arial',
         fontSize: 24,
         color: { r: 1, g: 1, b: 1, a: 1 },
-        align: 0,
-        verticalAlign: 0,
+        align: 1,
+        verticalAlign: 1,
         wordWrap: true,
         overflow: 0,
         lineHeight: 1.2,
+    },
+    TextInput: {
+        value: '',
+        placeholder: 'Enter text...',
+        placeholderColor: { r: 0.6, g: 0.6, b: 0.6, a: 1 },
+        fontFamily: 'Arial',
+        fontSize: 16,
+        color: { r: 1, g: 1, b: 1, a: 1 },
+        backgroundColor: { r: 0.15, g: 0.15, b: 0.15, a: 1 },
+        padding: 6,
+        maxLength: 0,
+        multiline: false,
+        password: false,
+        readOnly: false,
     },
 };
 
