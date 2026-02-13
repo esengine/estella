@@ -117,14 +117,19 @@ private:
 #ifdef ES_ENABLE_SPINE
     std::vector<f32> spine_world_vertices_;
     struct SpineVertex {
-        glm::vec2 position;
-        glm::vec2 uv;
+        glm::vec3 position;
         glm::vec4 color;
+        glm::vec2 uv;
+        f32 texIndex;
     };
     std::vector<SpineVertex> spine_vertices_;
     std::vector<u16> spine_indices_;
-    u32 spine_current_texture_ = 0;
     BlendMode spine_current_blend_ = BlendMode::Normal;
+
+    static constexpr u32 SPINE_MAX_TEXTURE_SLOTS = 8;
+    std::array<u32, SPINE_MAX_TEXTURE_SLOTS> spine_texture_slots_{};
+    u32 spine_texture_slot_index_ = 1;
+    resource::ShaderHandle spine_shader_handle_;
 
     u32 spine_vao_ = 0;
     u32 spine_vbo_ = 0;

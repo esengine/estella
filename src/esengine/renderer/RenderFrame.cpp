@@ -87,18 +87,58 @@ void RenderFrame::init(u32 width, u32 height) {
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, spine_ebo_);
 
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(SpineVertex),
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(SpineVertex),
                           reinterpret_cast<void*>(offsetof(SpineVertex, position)));
     glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(SpineVertex),
-                          reinterpret_cast<void*>(offsetof(SpineVertex, uv)));
-    glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(SpineVertex),
+    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(SpineVertex),
                           reinterpret_cast<void*>(offsetof(SpineVertex, color)));
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(SpineVertex),
+                          reinterpret_cast<void*>(offsetof(SpineVertex, uv)));
+    glEnableVertexAttribArray(3);
+    glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, sizeof(SpineVertex),
+                          reinterpret_cast<void*>(offsetof(SpineVertex, texIndex)));
 
     glBindVertexArray(0);
     spine_vbo_capacity_ = 0;
     spine_ebo_capacity_ = 0;
+
+    spine_shader_handle_ = resource_manager_.createShader(
+        ShaderSources::BATCH_VERTEX,
+        ShaderSources::BATCH_FRAGMENT
+    );
+    Shader* spineShader = resource_manager_.getShader(spine_shader_handle_);
+    if (!spineShader || !spineShader->isValid()) {
+        spine_shader_handle_ = resource_manager_.createShader(
+            ShaderSources::BATCH_VERTEX_COMPAT,
+            ShaderSources::BATCH_FRAGMENT_COMPAT
+        );
+        spineShader = resource_manager_.getShader(spine_shader_handle_);
+    }
+    if (spineShader && spineShader->isValid()) {
+        GLuint prog = spineShader->getProgramId();
+        glBindAttribLocation(prog, 0, "a_position");
+        glBindAttribLocation(prog, 1, "a_color");
+        glBindAttribLocation(prog, 2, "a_texCoord");
+        glBindAttribLocation(prog, 3, "a_texIndex");
+        glLinkProgram(prog);
+
+        GLint linkStatus;
+        glGetProgramiv(prog, GL_LINK_STATUS, &linkStatus);
+        if (linkStatus) {
+            spineShader->bind();
+            GLint baseLoc = glGetUniformLocation(prog, "u_textures[0]");
+            if (baseLoc >= 0) {
+                for (i32 i = 0; i < static_cast<i32>(SPINE_MAX_TEXTURE_SLOTS); ++i) {
+                    glUniform1i(baseLoc + i, i);
+                }
+            }
+        }
+    }
+
+    for (u32 i = 0; i < SPINE_MAX_TEXTURE_SLOTS; ++i) {
+        spine_texture_slots_[i] = context_.getWhiteTextureId();
+    }
 #endif
 
     glGenVertexArrays(1, &ext_mesh_vao_);
@@ -671,7 +711,10 @@ void RenderFrame::renderSprites(u32 begin, u32 end) {
 void RenderFrame::renderSpine(u32 begin, u32 end) {
     spine_vertices_.clear();
     spine_indices_.clear();
-    spine_current_texture_ = 0;
+    spine_texture_slot_index_ = 1;
+    for (u32 i = 0; i < SPINE_MAX_TEXTURE_SLOTS; ++i) {
+        spine_texture_slots_[i] = context_.getWhiteTextureId();
+    }
 
     static ::spine::SkeletonClipping clipper;
 
@@ -734,16 +777,34 @@ void RenderFrame::renderSpine(u32 begin, u32 end) {
                     else if (blendMode == BlendMode::Additive) blendMode = BlendMode::PmaAdditive;
                 }
 
-                bool needFlush = textureId != spine_current_texture_ || blendMode != spine_current_blend_;
-                if (!needFlush && spine_vertices_.size() + 4 > 65535) {
-                    needFlush = true;
-                }
-
-                if (needFlush) {
+                if (blendMode != spine_current_blend_) {
                     flushSpineBatch();
-                    spine_current_texture_ = textureId;
                     spine_current_blend_ = blendMode;
                     RenderCommand::setBlendMode(blendMode);
+                }
+
+                f32 texIndex = 0.0f;
+                if (textureId != 0) {
+                    bool found = false;
+                    for (u32 s = 0; s < spine_texture_slot_index_; ++s) {
+                        if (spine_texture_slots_[s] == textureId) {
+                            texIndex = static_cast<f32>(s);
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) {
+                        if (spine_texture_slot_index_ >= SPINE_MAX_TEXTURE_SLOTS) {
+                            flushSpineBatch();
+                        }
+                        spine_texture_slots_[spine_texture_slot_index_] = textureId;
+                        texIndex = static_cast<f32>(spine_texture_slot_index_);
+                        spine_texture_slot_index_++;
+                    }
+                }
+
+                if (spine_vertices_.size() + 4 > 65535) {
+                    flushSpineBatch();
                 }
 
                 auto& uvs = region->getUVs();
@@ -767,9 +828,10 @@ void RenderFrame::renderSpine(u32 begin, u32 end) {
                     pos = item->transform * pos;
 
                     SpineVertex vertex;
-                    vertex.position = glm::vec2(pos.x, pos.y);
-                    vertex.uv = glm::vec2(uvs[j * 2], uvs[j * 2 + 1]);
+                    vertex.position = glm::vec3(pos.x, pos.y, item->depth);
                     vertex.color = glm::vec4(r, g, b, a);
+                    vertex.uv = glm::vec2(uvs[j * 2], uvs[j * 2 + 1]);
+                    vertex.texIndex = texIndex;
                     spine_vertices_.push_back(vertex);
                 }
 
@@ -806,16 +868,34 @@ void RenderFrame::renderSpine(u32 begin, u32 end) {
                     else if (blendMode == BlendMode::Additive) blendMode = BlendMode::PmaAdditive;
                 }
 
-                bool needFlush = textureId != spine_current_texture_ || blendMode != spine_current_blend_;
-                if (!needFlush && spine_vertices_.size() + vertexCount > 65535) {
-                    needFlush = true;
-                }
-
-                if (needFlush) {
+                if (blendMode != spine_current_blend_) {
                     flushSpineBatch();
-                    spine_current_texture_ = textureId;
                     spine_current_blend_ = blendMode;
                     RenderCommand::setBlendMode(blendMode);
+                }
+
+                f32 texIndex = 0.0f;
+                if (textureId != 0) {
+                    bool found = false;
+                    for (u32 s = 0; s < spine_texture_slot_index_; ++s) {
+                        if (spine_texture_slots_[s] == textureId) {
+                            texIndex = static_cast<f32>(s);
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) {
+                        if (spine_texture_slot_index_ >= SPINE_MAX_TEXTURE_SLOTS) {
+                            flushSpineBatch();
+                        }
+                        spine_texture_slots_[spine_texture_slot_index_] = textureId;
+                        texIndex = static_cast<f32>(spine_texture_slot_index_);
+                        spine_texture_slot_index_++;
+                    }
+                }
+
+                if (spine_vertices_.size() + vertexCount > 65535) {
+                    flushSpineBatch();
                 }
 
                 auto& uvs = mesh->getUVs();
@@ -840,9 +920,10 @@ void RenderFrame::renderSpine(u32 begin, u32 end) {
                     pos = item->transform * pos;
 
                     SpineVertex vertex;
-                    vertex.position = glm::vec2(pos.x, pos.y);
-                    vertex.uv = glm::vec2(uvs[j * 2], uvs[j * 2 + 1]);
+                    vertex.position = glm::vec3(pos.x, pos.y, item->depth);
                     vertex.color = glm::vec4(r, g, b, a);
+                    vertex.uv = glm::vec2(uvs[j * 2], uvs[j * 2 + 1]);
+                    vertex.texIndex = texIndex;
                     spine_vertices_.push_back(vertex);
                 }
 
@@ -863,21 +944,20 @@ void RenderFrame::renderSpine(u32 begin, u32 end) {
 void RenderFrame::flushSpineBatch() {
     if (spine_vertices_.empty() || spine_indices_.empty()) return;
 
-    auto* shader = context_.getTextureShader();
+    auto* shader = resource_manager_.getShader(spine_shader_handle_);
     if (!shader) {
         spine_vertices_.clear();
         spine_indices_.clear();
         return;
     }
 
+    for (u32 i = 0; i < SPINE_MAX_TEXTURE_SLOTS; ++i) {
+        glActiveTexture(GL_TEXTURE0 + i);
+        glBindTexture(GL_TEXTURE_2D, spine_texture_slots_[i]);
+    }
+
     shader->bind();
     shader->setUniform("u_projection", view_projection_);
-    shader->setUniform("u_model", glm::mat4(1.0f));
-    shader->setUniform("u_color", glm::vec4(1.0f));
-
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, spine_current_texture_);
-    shader->setUniform("u_texture", 0);
 
     glBindVertexArray(spine_vao_);
 
@@ -907,6 +987,10 @@ void RenderFrame::flushSpineBatch() {
 
     spine_vertices_.clear();
     spine_indices_.clear();
+    spine_texture_slot_index_ = 1;
+    for (u32 i = 0; i < SPINE_MAX_TEXTURE_SLOTS; ++i) {
+        spine_texture_slots_[i] = context_.getWhiteTextureId();
+    }
 }
 #endif
 
