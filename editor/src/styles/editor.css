@@ -138,6 +138,15 @@ svg {
 
 .es-menubar-spacer {
     flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.es-menubar-scene-name {
+    font-size: 12px;
+    color: var(--es-text-secondary);
+    opacity: 0.8;
 }
 
 .es-menu {

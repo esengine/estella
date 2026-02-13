@@ -1008,7 +1008,9 @@ export class Editor {
             <div class="es-editor-menubar">
                 <div class="es-menubar-logo">${icons.logo(24)}</div>
                 ${this.buildMenuBarHTML()}
-                <div class="es-menubar-spacer"></div>
+                <div class="es-menubar-spacer">
+                    <span class="es-menubar-scene-name"></span>
+                </div>
                 <button class="es-btn es-btn-preview" data-action="preview">${icons.play(14)} Preview</button>
             </div>
             <div class="es-editor-tabs">
@@ -1256,6 +1258,20 @@ export class Editor {
     private updateStatusbar(): void {
         for (const instance of this.statusbarInstances_) {
             instance.update?.();
+        }
+        this.updateSceneNameDisplay();
+    }
+
+    private updateSceneNameDisplay(): void {
+        const el = this.container_.querySelector('.es-menubar-scene-name');
+        if (!el) return;
+        const filePath = this.store_.filePath;
+        const dirty = this.store_.isDirty ? ' *' : '';
+        if (filePath) {
+            const fileName = filePath.replace(/^.*[/\\]/, '');
+            el.textContent = fileName + dirty;
+        } else {
+            el.textContent = this.store_.scene.name + dirty;
         }
     }
 
