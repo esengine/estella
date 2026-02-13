@@ -202,6 +202,7 @@ class ContextMenuManager {
     private createMenu(items: ContextMenuItem[], x: number, y: number, isRoot: boolean): HTMLElement {
         const menu = document.createElement('div');
         menu.className = 'es-context-menu';
+        menu.addEventListener('contextmenu', (e) => e.preventDefault());
 
         for (let i = 0; i < items.length; i++) {
             const item = items[i];

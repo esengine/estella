@@ -105,6 +105,19 @@ export function registerBuiltinMenus(editor: Editor): void {
         order: 10, separator: true,
         action: () => editor.reloadExtensions(),
     });
+    registerMenuItem({
+        id: 'view.reload', menu: 'view', label: 'Reload',
+        shortcut: 'Ctrl+R', order: 20, separator: true,
+        action: () => window.location.reload(),
+    });
+    registerMenuItem({
+        id: 'view.devtools', menu: 'view', label: 'Developer Tools',
+        shortcut: 'F12', order: 21,
+        action: () => {
+            const ctx = getEditorContext();
+            ctx.invoke?.('toggle_devtools');
+        },
+    });
 
     registerMenuItem({
         id: 'help.docs', menu: 'help', label: 'Documentation', order: 0,

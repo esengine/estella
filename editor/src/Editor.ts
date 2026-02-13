@@ -1033,6 +1033,10 @@ export class Editor {
             getGlobalPathResolver().setProjectDir(projectDir);
         }
 
+        this.container_.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+        });
+
         this.setupToolbarEvents();
         this.store_.subscribe(() => this.updateToolbarState());
         this.store_.subscribe(() => this.updateStatusbar());

@@ -6,7 +6,7 @@ use preview_server::PreviewServer;
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::Mutex;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
@@ -41,6 +41,17 @@ struct AppState {
 // =============================================================================
 // Commands
 // =============================================================================
+
+#[tauri::command]
+fn toggle_devtools(app: AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        if window.is_devtools_open() {
+            window.close_devtools();
+        } else {
+            window.open_devtools();
+        }
+    }
+}
 
 #[tauri::command]
 fn start_preview_server(
@@ -255,6 +266,7 @@ pub fn run() {
             preview_server: Mutex::new(None),
         })
         .invoke_handler(tauri::generate_handler![
+            toggle_devtools,
             start_preview_server,
             stop_preview_server,
             open_preview_in_browser,

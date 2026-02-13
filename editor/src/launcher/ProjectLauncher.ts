@@ -136,6 +136,10 @@ export class ProjectLauncher {
     }
 
     private setupEvents(): void {
+        this.container_.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+        });
+
         const newBtn = this.container_.querySelector('[data-action="new"]');
         const openBtn = this.container_.querySelector('[data-action="open"]');
 
