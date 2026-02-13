@@ -10,6 +10,7 @@ import {
     LocalTransform,
     Sprite,
     BitmapText,
+    Renderer,
     INVALID_TEXTURE,
     INVALID_FONT,
     TextRenderer,
@@ -62,6 +63,7 @@ export class EditorSceneManager {
     private spineInstanceKeys_ = new Map<number, string>();
     private spineCurrentState_ = new Map<number, { animation: string; skin: string; loop: boolean }>();
     private spineReadyListeners_ = new Set<(entityId: number) => void>();
+    private updatingEntities_ = new Map<number, Promise<void>>();
 
     constructor(module: ESEngineModule, pathResolver: AssetPathResolver) {
         this.module_ = module;
@@ -216,6 +218,23 @@ export class EditorSceneManager {
     // =========================================================================
 
     async updateEntity(entityId: number, components: ComponentData[], entityData?: EntityData): Promise<void> {
+        const prev = this.updatingEntities_.get(entityId);
+        if (prev) {
+            await prev;
+        }
+
+        const p = this.updateEntityInternal(entityId, components, entityData);
+        this.updatingEntities_.set(entityId, p);
+        try {
+            await p;
+        } finally {
+            if (this.updatingEntities_.get(entityId) === p) {
+                this.updatingEntities_.delete(entityId);
+            }
+        }
+    }
+
+    private async updateEntityInternal(entityId: number, components: ComponentData[], entityData?: EntityData): Promise<void> {
         let entity = this.entityMap_.get(entityId);
         if (!entity) {
             entity = this.world_.spawn();
@@ -370,6 +389,10 @@ export class EditorSceneManager {
         return registry;
     }
 
+    get isBusy(): boolean {
+        return this.syncing_ || this.updatingEntities_.size > 0;
+    }
+
     get assetServer(): EditorAssetServer {
         return this.assetServer_;
     }
@@ -387,7 +410,9 @@ export class EditorSceneManager {
 
         for (const [entityId, instanceId] of this.spineInstances_) {
             const entityData = this.entityDataMap_.get(entityId);
-            const spineComp = entityData?.components.find(c => c.type === 'SpineAnimation');
+            if (!entityData || entityData.visible === false) continue;
+
+            const spineComp = entityData.components.find(c => c.type === 'SpineAnimation');
             const spineData = spineComp?.data as Record<string, unknown> | undefined;
 
             const skeletonScale = (spineData?.skeletonScale as number) ?? 1;
@@ -437,12 +462,39 @@ export class EditorSceneManager {
         return this.spineController_.getBounds(instanceId);
     }
 
+    getBitmapTextBounds(entityId: number): { width: number; height: number; offsetX: number; offsetY: number } | null {
+        const entity = this.entityMap_.get(entityId);
+        if (entity === undefined) return null;
+
+        const registry = this.registry;
+        if (!registry.hasBitmapText(entity)) return null;
+
+        const bt = registry.getBitmapText(entity);
+        if (!bt.text || bt.font === (INVALID_FONT as number)) return null;
+
+        const metrics = Renderer.measureBitmapText(bt.font, bt.text, bt.fontSize, bt.spacing);
+
+        let offsetX = metrics.width / 2;
+        if (bt.align === 1) {
+            offsetX = 0;
+        } else if (bt.align === 2) {
+            offsetX = -metrics.width / 2;
+        }
+
+        return { width: metrics.width, height: metrics.height, offsetX, offsetY: metrics.height / 2 };
+    }
+
     hasSpineInstance(entityId: number): boolean {
         return this.spineInstances_.has(entityId);
     }
 
     get spineInstanceCount(): number {
-        return this.spineInstances_.size;
+        let count = 0;
+        for (const entityId of this.spineInstances_.keys()) {
+            const entityData = this.entityDataMap_.get(entityId);
+            if (entityData && entityData.visible !== false) count++;
+        }
+        return count;
     }
 
     onSpineInstanceReady(listener: (entityId: number) => void): () => void {
@@ -560,7 +612,8 @@ export class EditorSceneManager {
         this.assetServer_.releaseMaterialInstance(entityId);
 
         const rawTexture = data.texture;
-        const textureRef = typeof rawTexture === 'string' ? rawTexture : '';
+        const textureRef = typeof rawTexture === 'string' && rawTexture !== String(INVALID_TEXTURE)
+            ? rawTexture : '';
         if (textureRef) {
             const texturePath = this.resolveAssetRef(textureRef);
             const info = await this.assetServer_.loadTexture(texturePath);

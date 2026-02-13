@@ -35,6 +35,13 @@ public:
                           const std::string& chars,
                           u32 charWidth, u32 charHeight);
 
+    struct TextMetrics {
+        f32 width;
+        f32 height;
+    };
+
+    TextMetrics measureText(const std::string& text, f32 fontSize, f32 spacing) const;
+
     const Glyph* getGlyph(u32 charCode) const;
     f32 getKerning(u32 first, u32 second) const;
     resource::TextureHandle getTexture() const { return texture_; }

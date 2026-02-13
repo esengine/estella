@@ -109,6 +109,11 @@ export const Renderer = {
         module?.renderer_clearBuffers(flags);
     },
 
+    measureBitmapText(fontHandle: number, text: string, fontSize: number, spacing: number): { width: number; height: number } {
+        if (!module) return { width: 0, height: 0 };
+        return module.getResourceManager().measureBitmapText(fontHandle, text, fontSize, spacing);
+    },
+
     getStats(): RenderStats {
         if (!module) {
             return { drawCalls: 0, triangles: 0, sprites: 0, text: 0, spine: 0, meshes: 0, culled: 0 };

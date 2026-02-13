@@ -388,6 +388,22 @@ void rm_releaseBitmapFont(resource::ResourceManager& rm, u32 handleId) {
     rm.releaseBitmapFont(resource::BitmapFontHandle(handleId));
 }
 
+emscripten::val rm_measureBitmapText(resource::ResourceManager& rm, u32 fontHandle,
+                                      const std::string& text, f32 fontSize, f32 spacing) {
+    auto* font = rm.getBitmapFont(resource::BitmapFontHandle(fontHandle));
+    if (!font) {
+        auto result = emscripten::val::object();
+        result.set("width", 0);
+        result.set("height", 0);
+        return result;
+    }
+    auto metrics = font->measureText(text, fontSize, spacing);
+    auto result = emscripten::val::object();
+    result.set("width", metrics.width);
+    result.set("height", metrics.height);
+    return result;
+}
+
 void rm_setTextureMetadata(resource::ResourceManager& rm, u32 handleId,
                             f32 left, f32 right, f32 top, f32 bottom) {
     resource::TextureMetadata metadata;
@@ -1262,7 +1278,8 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
         .function("registerTextureWithPath", &esengine::rm_registerTextureWithPath)
         .function("loadBitmapFont", &esengine::rm_loadBitmapFont)
         .function("createLabelAtlasFont", &esengine::rm_createLabelAtlasFont)
-        .function("releaseBitmapFont", &esengine::rm_releaseBitmapFont);
+        .function("releaseBitmapFont", &esengine::rm_releaseBitmapFont)
+        .function("measureBitmapText", &esengine::rm_measureBitmapText);
 
 #ifdef ES_ENABLE_SPINE
     emscripten::value_object<esengine::SpineBounds>("SpineBounds")

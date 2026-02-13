@@ -70,6 +70,8 @@ export class SceneViewPanel {
     private colliderOverlay_: ColliderOverlay;
     private keydownHandler_: ((e: KeyboardEvent) => void) | null = null;
     private skipNextClick_ = false;
+    private mouseDownX_ = 0;
+    private mouseDownY_ = 0;
     private boundOnDocumentMouseMove_: ((e: MouseEvent) => void) | null = null;
     private boundOnDocumentMouseUp_: ((e: MouseEvent) => void) | null = null;
 
@@ -94,6 +96,20 @@ export class SceneViewPanel {
                 };
             }
         }
+
+        const hasBitmapText = entityData.components.some(c => c.type === 'BitmapText');
+        if (hasBitmapText && this.sceneRenderer_) {
+            const textBounds = this.sceneRenderer_.getBitmapTextBounds(entityData.id);
+            if (textBounds) {
+                return {
+                    width: textBounds.width,
+                    height: textBounds.height,
+                    offsetX: textBounds.offsetX,
+                    offsetY: textBounds.offsetY,
+                };
+            }
+        }
+
         return getEntityBounds(entityData.components);
     }
 
@@ -574,6 +590,9 @@ export class SceneViewPanel {
 
         if (e.button !== 0) return;
 
+        this.mouseDownX_ = e.clientX;
+        this.mouseDownY_ = e.clientY;
+
         const { worldX, worldY } = this.screenToWorld(e.clientX, e.clientY);
 
         if (this.gizmoManager_.getActiveId() !== 'select' && this.store_.selectedEntity !== null &&
@@ -674,6 +693,10 @@ export class SceneViewPanel {
     }
 
     private onMouseUp(_e: MouseEvent): void {
+        const dx = _e.clientX - this.mouseDownX_;
+        const dy = _e.clientY - this.mouseDownY_;
+        const didMove = dx * dx + dy * dy > 9;
+
         if (this.isDragging_) {
             this.isDragging_ = false;
             this.canvas_.style.cursor = 'default';
@@ -684,7 +707,7 @@ export class SceneViewPanel {
             const { worldX, worldY } = this.screenToWorld(_e.clientX, _e.clientY);
             this.updateGizmoContext();
             this.gizmoManager_.onMouseUp(worldX, worldY);
-            this.skipNextClick_ = true;
+            this.skipNextClick_ = didMove;
         }
 
         if (this.colliderOverlay_.isDragging()) {
@@ -692,7 +715,7 @@ export class SceneViewPanel {
             if (octx) {
                 this.colliderOverlay_.onDragEnd(octx);
             }
-            this.skipNextClick_ = true;
+            this.skipNextClick_ = didMove;
         }
     }
 
@@ -720,8 +743,16 @@ export class SceneViewPanel {
             if (result.hit) return;
         }
 
-        const entity = this.findEntityAtPosition(worldX, worldY);
-        this.store_.selectEntity(entity);
+        const hits = this.findEntitiesAtPosition(worldX, worldY);
+        if (hits.length === 0) {
+            this.store_.selectEntity(null);
+            return;
+        }
+
+        const current = this.store_.selectedEntity;
+        const idx = current !== null ? hits.indexOf(current as Entity) : -1;
+        const next = idx >= 0 ? hits[(idx + 1) % hits.length] : hits[0];
+        this.store_.selectEntity(next);
     }
 
     private focusOnEntity(entityId: number): void {
@@ -768,8 +799,9 @@ export class SceneViewPanel {
         this.requestRender();
     }
 
-    private findEntityAtPosition(worldX: number, worldY: number): Entity | null {
+    private findEntitiesAtPosition(worldX: number, worldY: number): Entity[] {
         const scene = this.store_.scene;
+        const result: Entity[] = [];
 
         for (let i = scene.entities.length - 1; i >= 0; i--) {
             const entity = scene.entities[i];
@@ -800,11 +832,11 @@ export class SceneViewPanel {
                 worldY >= centerY - halfH &&
                 worldY <= centerY + halfH
             ) {
-                return entity.id as Entity;
+                result.push(entity.id as Entity);
             }
         }
 
-        return null;
+        return result;
     }
 
     private updateZoomDisplay(): void {

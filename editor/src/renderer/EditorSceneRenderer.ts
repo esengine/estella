@@ -166,6 +166,10 @@ export class EditorSceneRenderer {
         return { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height };
     }
 
+    getBitmapTextBounds(entityId: number): { width: number; height: number; offsetX: number; offsetY: number } | null {
+        return this.sceneManager_?.getBitmapTextBounds(entityId) ?? null;
+    }
+
     getSpineSkeletonInfo(entityId: number): { animations: string[]; skins: string[] } | null {
         return this.sceneManager_?.getSpineSkeletonInfo(entityId) ?? null;
     }
@@ -181,6 +185,7 @@ export class EditorSceneRenderer {
     render(width: number, height: number): void {
         if (!this.pipeline_ || !this.sceneManager_ || !this.initialized_) return;
         if (width <= 0 || height <= 0) return;
+        if (this.sceneManager_.isBusy) return;
 
         const bg = this.findCanvasBackgroundColor();
         Renderer.setClearColor(bg.r, bg.g, bg.b, bg.a);
@@ -188,15 +193,28 @@ export class EditorSceneRenderer {
         const matrix = this.camera_.getViewProjection(width, height);
         const elapsed = (performance.now() - this.startTime_) / 1000;
 
+        const cppReg = this.sceneManager_.registry;
+        const registry = { _cpp: cppReg };
+
         try {
-            this.pipeline_.render({
-                registry: { _cpp: this.sceneManager_.registry },
-                viewProjection: matrix,
-                width, height, elapsed,
-            });
+            Renderer.setViewport(0, 0, width, height);
+            Renderer.clearBuffers(3);
+            Renderer.begin(matrix);
+            if (this.pipeline_.maskProcessor) {
+                this.pipeline_.maskProcessor(registry._cpp, matrix, 0, 0, width, height);
+            }
+            Renderer.submitSprites(registry);
+            Renderer.submitBitmapText(registry);
+            if (this.pipeline_.spineRenderer) {
+                this.pipeline_.spineRenderer(registry, elapsed);
+            } else {
+                Renderer.submitSpine(registry);
+            }
+            Renderer.flush();
+            Renderer.end();
         } catch (e) {
             if (e instanceof WebAssembly.RuntimeError) {
-                console.warn('[EditorSceneRenderer] WASM error during render, skipping frame');
+                console.warn('[EditorSceneRenderer] WASM error during render:', (e as Error).message);
             } else {
                 throw e;
             }

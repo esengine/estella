@@ -33,6 +33,7 @@ export interface CppResourceManager {
     loadBitmapFont(fntContent: string, textureHandle: number, texWidth: number, texHeight: number): number;
     createLabelAtlasFont(textureHandle: number, texWidth: number, texHeight: number, chars: string, charWidth: number, charHeight: number): number;
     releaseBitmapFont(handle: number): void;
+    measureBitmapText(fontHandle: number, text: string, fontSize: number, spacing: number): { width: number; height: number };
 }
 
 // =============================================================================
