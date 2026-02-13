@@ -4296,6 +4296,443 @@ svg {
     margin-top: 8px;
 }
 
+/* =============================================================================
+ * Addressable Panel
+ * ============================================================================= */
+
+.es-addressable-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: var(--es-bg-primary);
+}
+
+.es-addressable-body {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+}
+
+.es-addressable-sidebar {
+    width: 180px;
+    min-width: 140px;
+    background: var(--es-bg-secondary);
+    border-right: 1px solid var(--es-border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.es-addressable-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.es-addressable-sidebar-section {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.es-addressable-sidebar-section + .es-addressable-sidebar-section {
+    border-top: 1px solid var(--es-border);
+}
+
+.es-sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px;
+    font-size: 10px;
+    text-transform: uppercase;
+    color: var(--es-text-secondary);
+    user-select: none;
+}
+
+.es-sidebar-header .es-btn-icon {
+    padding: 0;
+    min-width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.es-addr-group-list,
+.es-addr-label-list {
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+}
+
+.es-addr-group-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 28px;
+    padding: 0 12px 0 8px;
+    cursor: pointer;
+    user-select: none;
+    font-size: 12px;
+    border-left: 2px solid transparent;
+}
+
+.es-addr-group-item:hover {
+    background: var(--es-bg-hover);
+}
+
+.es-addr-group-item.es-selected {
+    background: rgba(209, 154, 102, 0.25);
+    border-left-color: #d19a66;
+    color: #d19a66;
+}
+
+.es-addr-group-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--es-accent);
+    flex-shrink: 0;
+}
+
+.es-addr-group-item.es-selected .es-addr-group-dot {
+    background: #d19a66;
+}
+
+.es-addr-group-count {
+    margin-left: auto;
+    font-size: 10px;
+    color: var(--es-text-secondary);
+    background: var(--es-bg-tertiary);
+    padding: 1px 6px;
+    border-radius: 8px;
+}
+
+.es-addr-label-item {
+    height: 24px;
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+}
+
+.es-addr-label-item:hover {
+    background: var(--es-bg-hover);
+}
+
+.es-addr-label-check {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.es-addr-label-check input[type="checkbox"] {
+    accent-color: #d19a66;
+}
+
+.es-addressable-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px;
+    background: var(--es-bg-secondary);
+    border-bottom: 1px solid var(--es-border);
+}
+
+.es-addr-search {
+    flex: 1;
+}
+
+.es-addr-asset-table {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+}
+
+.es-addr-table-header {
+    display: flex;
+    align-items: center;
+    height: 28px;
+    padding: 0 12px 0 8px;
+    background: var(--es-bg-secondary);
+    border-bottom: 1px solid var(--es-border);
+    font-size: 11px;
+    color: var(--es-text-secondary);
+    user-select: none;
+}
+
+.es-addr-table-header [data-col] {
+    cursor: pointer;
+}
+
+.es-addr-table-header [data-col]:hover {
+    color: var(--es-text-primary);
+}
+
+.es-addr-table-header [data-col].es-sorted {
+    color: var(--es-text-primary);
+}
+
+.es-addr-table-body {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.es-addr-table-row {
+    display: flex;
+    align-items: center;
+    height: 28px;
+    padding: 0 12px 0 8px;
+    font-size: 12px;
+    cursor: default;
+}
+
+.es-addr-table-row:hover {
+    background: var(--es-bg-hover);
+}
+
+.es-addr-table-row:nth-child(even) {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.es-addr-table-row:nth-child(even):hover {
+    background: var(--es-bg-hover);
+}
+
+.es-addr-table-row.es-selected {
+    background: rgba(209, 154, 102, 0.2);
+}
+
+.es-addr-table-row.es-selected .es-addr-col-name {
+    color: #d19a66;
+}
+
+.es-addr-table-row:active {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.es-addr-col-name {
+    flex: 2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.es-addr-col-address {
+    flex: 2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.es-addr-col-labels {
+    flex: 1.5;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.es-addr-col-type {
+    width: 80px;
+    flex-shrink: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.es-addr-col-size {
+    width: 70px;
+    flex-shrink: 0;
+    text-align: right;
+}
+
+.es-addr-sort-icon {
+    margin-left: 2px;
+    font-size: 9px;
+}
+
+.es-addr-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    color: var(--es-text-secondary);
+    font-size: 12px;
+    padding: 24px;
+}
+
+.es-addr-tag {
+    display: inline-block;
+    padding: 0 5px;
+    margin-right: 3px;
+    border-radius: 3px;
+    font-size: 10px;
+    background: color-mix(in srgb, var(--tag-color) 20%, transparent);
+    color: var(--tag-color);
+    line-height: 16px;
+}
+
+.es-addr-label-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 6px;
+    margin: 1px 3px 1px 0;
+    border-radius: 3px;
+    font-size: 11px;
+    cursor: pointer;
+    user-select: none;
+    background: color-mix(in srgb, var(--tag-color) 10%, transparent);
+    color: var(--es-text-secondary);
+    transition: background 0.1s;
+}
+
+.es-addr-label-toggle:has(input:checked) {
+    background: color-mix(in srgb, var(--tag-color) 25%, transparent);
+    color: var(--tag-color);
+}
+
+.es-addr-label-toggle input[type="checkbox"] {
+    width: 12px;
+    height: 12px;
+    accent-color: var(--tag-color);
+}
+
+.es-addr-inspector-labels {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+}
+
+.es-property-row-top {
+    align-items: flex-start;
+}
+
+.es-addr-label-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+}
+
+.es-addr-table-row[draggable="true"] { cursor: grab; }
+.es-addr-table-row.es-dragging { opacity: 0.5; }
+
+.es-addr-group-item.es-drag-over {
+    background: rgba(97, 175, 239, 0.25);
+    border-left-color: #61afef;
+}
+
+.es-addr-config-toggle {
+    padding: 6px 8px;
+    font-size: 10px;
+    color: var(--es-text-secondary);
+    cursor: pointer;
+    user-select: none;
+    border-top: 1px solid var(--es-border);
+}
+
+.es-addr-config-toggle:hover {
+    color: var(--es-text-primary);
+}
+
+.es-addr-group-config-body {
+    padding: 4px 8px 8px;
+}
+
+.es-addr-config-field {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-bottom: 6px;
+}
+
+.es-addr-config-label {
+    color: var(--es-text-secondary);
+    font-size: 10px;
+    text-transform: uppercase;
+}
+
+.es-addr-config-field .es-input {
+    font-size: 11px;
+    height: 22px;
+}
+
+.es-addr-include-list {
+    font-size: 11px;
+}
+
+.es-addr-include-item {
+    padding: 2px 0;
+    color: var(--es-text-primary);
+    font-family: monospace;
+    font-size: 10px;
+}
+
+.es-addr-unreferenced {
+    border-top: 1px solid var(--es-border);
+    background: var(--es-bg-secondary);
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.es-addr-unreferenced-header {
+    padding: 6px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #e06c75;
+    border-bottom: 1px solid var(--es-border);
+}
+
+.es-addr-unreferenced-list {
+    padding: 0;
+}
+
+.es-addr-unreferenced-row {
+    display: flex;
+    align-items: center;
+    height: 24px;
+    padding: 0 12px 0 8px;
+    font-size: 11px;
+    cursor: default;
+}
+
+.es-addr-unreferenced-row:hover {
+    background: var(--es-bg-hover);
+}
+
+.es-addr-unreferenced-row .es-addr-col-name {
+    flex: 2;
+}
+
+.es-addr-unreferenced-row .es-addr-col-type {
+    width: 60px;
+}
+
+.es-addr-unreferenced-row .es-addr-col-size {
+    width: 60px;
+}
+
+.es-addressable-status {
+    padding: 6px 12px;
+    font-size: 11px;
+    color: var(--es-text-secondary);
+    background: var(--es-bg-secondary);
+    border-top: 1px solid var(--es-border);
+}
+
+.es-muted {
+    color: var(--es-text-secondary);
+    font-size: 11px;
+    padding: 8px;
+}
+
 /* =========================================================================
    UIRect Editor
    ========================================================================= */

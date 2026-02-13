@@ -234,12 +234,19 @@ export class Editor {
     }
 
     toggleBottomPanel(id: string): void {
-        if (this.activeBottomPanelId_ === id) {
+        const prev = this.activeBottomPanelId_;
+        if (prev === id) {
             this.activeBottomPanelId_ = null;
         } else {
             this.activeBottomPanelId_ = id;
         }
         this.updateBottomPanelVisibility();
+        if (prev && prev !== id) {
+            this.panelInstances_.get(prev)?.onHide?.();
+        }
+        if (this.activeBottomPanelId_) {
+            this.panelInstances_.get(this.activeBottomPanelId_)?.onShow?.();
+        }
     }
 
     // =========================================================================
