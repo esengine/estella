@@ -268,6 +268,56 @@ world.insert(entity, UIRect, {
   `UILayoutPlugin` 和 `UIInteractionPlugin` 均由 `createWebApp()` 自动注册，无需手动设置。
 </Aside>
 
+## TextInput
+
+`TextInput` 渲染一个可编辑文本输入框。`TextInputPlugin` 自动处理键盘输入、光标闪烁和纹理渲染。
+
+### 设置步骤
+
+在编辑器中：通过右键 → **Create** → **UI** → **TextInput** 创建实体，或手动添加 `LocalTransform`、`UIRect`、`Interactable` 和 `TextInput` 组件。
+
+<Aside type="note">
+  插件会在缺少 `Sprite` 组件时自动添加，无需手动设置。`TextInputPlugin` 由 `createWebApp()` 自动注册。
+</Aside>
+
+### TextInput 属性
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `value` | string | `''` | 当前文本内容 |
+| `placeholder` | string | `''` | 为空时显示的提示文本 |
+| `placeholderColor` | Color | `{r:0.6, g:0.6, b:0.6, a:1}` | 提示文本颜色 |
+| `fontFamily` | string | `'Arial'` | 字体名称 |
+| `fontSize` | number | `16` | 字号（像素） |
+| `color` | Color | `{r:1, g:1, b:1, a:1}` | 文本颜色 |
+| `backgroundColor` | Color | `{r:0.15, g:0.15, b:0.15, a:1}` | 背景填充颜色 |
+| `padding` | number | `6` | 内边距（像素） |
+| `maxLength` | number | `0` | 最大字符数（0 = 不限） |
+| `multiline` | boolean | `false` | 允许多行输入 |
+| `password` | boolean | `false` | 用圆点遮蔽文本 |
+| `readOnly` | boolean | `false` | 禁止用户输入 |
+
+`focused`、`cursorPos` 和 `dirty` 属性由插件内部管理。
+
+### 运行时读取输入
+
+```typescript
+import { defineSystem, addSystem, Query, Res } from 'esengine';
+import { TextInput, UIEvents } from 'esengine';
+
+addSystem(defineSystem(
+    [Query(TextInput), Res(UIEvents)],
+    (query, events) => {
+        for (const e of events.query('submit')) {
+            const [, input] = query.get(e.entity);
+            console.log('提交内容：', input.value);
+        }
+    }
+));
+```
+
+**TextInput 事件：** `change`（值变更）、`submit`（单行模式下按回车）
+
 ## 下一步
 
 - [组件](/microes/zh/core-concepts/components/) — 所有内置组件

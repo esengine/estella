@@ -1,0 +1,118 @@
+---
+title: Prefabs
+description: Reusable entity templates with override support in ESEngine
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+A **prefab** is a reusable entity template stored as a `.esprefab` file. You create prefabs from existing entities in the editor, then instantiate copies anywhere in your scene. Each instance can override individual properties while staying linked to the source prefab.
+
+## Editor Workflow
+
+### Creating a Prefab
+
+1. Set up an entity (or entity tree) in the hierarchy
+2. Right-click the root entity → **Prefab** → **Save as Prefab...**
+3. Choose a save location in the content browser
+
+Alternatively, drag an entity from the hierarchy into a content browser folder.
+
+The entity and its children become a **prefab instance** — linked to the saved `.esprefab` file.
+
+### Instantiating a Prefab
+
+Drag a `.esprefab` file from the content browser into the hierarchy panel. A new instance is created with all the original entities and components.
+
+### Editing a Prefab
+
+Double-click a `.esprefab` file in the content browser to enter **prefab edit mode**. The editor loads the prefab as a temporary scene where you can modify entities directly. Changes are saved back to the `.esprefab` file when you exit.
+
+### Overrides
+
+When you modify a property on a prefab instance, it becomes an **override**. Overridden properties are visually marked in the inspector.
+
+- **Apply to Prefab** — writes instance overrides back to the `.esprefab` file and updates all other instances
+- **Revert Prefab** — discards all overrides, restoring the instance to match the source prefab
+- **Unpack Prefab** — removes the prefab link, turning the instance into regular entities
+
+Access these via right-click → **Prefab** on a prefab root entity.
+
+## Runtime API
+
+Use the `Prefabs` resource to load and instantiate prefabs inside a system. It handles asset loading and entity creation in a single call:
+
+```typescript
+import { addStartupSystem, defineSystem, Res, Prefabs } from 'esengine';
+
+addStartupSystem(defineSystem(
+    [Res(Prefabs)],
+    async (prefabs) => {
+        const { root, entities } = await prefabs.instantiate('prefabs/Enemy.esprefab');
+    }
+));
+```
+
+### Options
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `baseUrl` | string | Base URL for resolving asset paths |
+| `parent` | Entity | Parent entity to attach the prefab root to |
+| `overrides` | PrefabOverride[] | Property overrides to apply on instantiation |
+
+### Applying Overrides
+
+Pass overrides to customize instances at spawn time:
+
+```typescript
+const { root } = await prefabs.instantiate('prefabs/Enemy.esprefab', {
+    parent: parentEntity,
+    overrides: [
+        {
+            prefabEntityId: 1,
+            type: 'property',
+            componentType: 'LocalTransform',
+            propertyName: 'position',
+            value: { x: 200, y: 100, z: 0 },
+        },
+    ],
+});
+```
+
+### PrefabOverride
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `prefabEntityId` | number | Target entity ID within the prefab |
+| `type` | string | `'property'` \| `'component_added'` \| `'component_removed'` \| `'name'` \| `'visibility'` |
+| `componentType` | string | Component to modify (for `property` and `component_removed`) |
+| `propertyName` | string | Property name (for `property`) |
+| `value` | unknown | New value (for `property`, `name`, `visibility`) |
+| `componentData` | object | Component type and data (for `component_added`) |
+
+### InstantiatePrefabResult
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `root` | Entity | The root entity of the instantiated prefab |
+| `entities` | Map\<number, Entity\> | Mapping from prefab entity IDs to world entities |
+
+### Nested Prefabs
+
+Prefabs can contain references to other prefabs. When instantiating, nested prefabs are automatically loaded and flattened. This requires an `assetServer` in the options:
+
+```typescript
+const result = await instantiatePrefab(world, prefab, {
+    assetServer: assets,
+});
+```
+
+<Aside type="note">
+  Prefab files are cached by the asset server. Loading the same `.esprefab` path multiple times returns the cached result.
+</Aside>
+
+## Next Steps
+
+- [Scenes](/microes/guides/scenes/) — scene structure and entity hierarchy
+- [Asset Loading](/microes/guides/assets/) — loading textures and other assets
+- [Components](/microes/core-concepts/components/) — all builtin components

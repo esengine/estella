@@ -92,6 +92,20 @@ Supports `.fnt` (BMFont text format) and `.bmfont` (JSON metadata) files. The lo
   `loadAll` does not currently support bitmap fonts. Load them separately with `loadBitmapFont`.
 </Aside>
 
+## Prefab Loading
+
+```typescript
+const prefab = await assets.loadPrefab('prefabs/Enemy.esprefab');
+```
+
+Loads and parses a `.esprefab` file. The result is a `PrefabData` object that can be passed to `instantiatePrefab()`.
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `loadPrefab(path, baseUrl?)` | `Promise<PrefabData>` | Load and cache a prefab file |
+
+See [Prefabs](/microes/guides/prefabs/) for the full prefab API.
+
 ## Generic File Loading
 
 | Method | Returns | Description |

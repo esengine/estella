@@ -1,0 +1,118 @@
+---
+title: 预制体
+description: ESEngine 中可复用的实体模板，支持属性覆盖
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+**预制体（Prefab）** 是存储为 `.esprefab` 文件的可复用实体模板。你可以在编辑器中从现有实体创建预制体，然后在场景中实例化多个副本。每个实例可以覆盖单独的属性，同时保持与源预制体的关联。
+
+## 编辑器工作流
+
+### 创建预制体
+
+1. 在层级面板中搭建好实体（或实体树）
+2. 右键点击根实体 → **Prefab** → **Save as Prefab...**
+3. 在内容浏览器中选择保存位置
+
+也可以直接将实体从层级面板拖拽到内容浏览器的文件夹中。
+
+该实体及其子实体会变为**预制体实例** — 关联到保存的 `.esprefab` 文件。
+
+### 实例化预制体
+
+将 `.esprefab` 文件从内容浏览器拖拽到层级面板中，即可创建包含所有原始实体和组件的新实例。
+
+### 编辑预制体
+
+在内容浏览器中双击 `.esprefab` 文件进入**预制体编辑模式**。编辑器会将预制体加载为临时场景，你可以直接修改实体。退出时更改会保存回 `.esprefab` 文件。
+
+### 属性覆盖
+
+当你修改预制体实例上的属性时，该属性成为**覆盖值（Override）**。被覆盖的属性在检查器中会有视觉标记。
+
+- **Apply to Prefab** — 将实例的覆盖值写回 `.esprefab` 文件，并更新所有其他实例
+- **Revert Prefab** — 丢弃所有覆盖值，将实例恢复为与源预制体一致
+- **Unpack Prefab** — 移除预制体关联，将实例转为普通实体
+
+通过右键点击预制体根实体 → **Prefab** 访问这些操作。
+
+## 运行时 API
+
+使用 `Prefabs` 资源在系统中加载和实例化预制体，一次调用完成资源加载和实体创建：
+
+```typescript
+import { addStartupSystem, defineSystem, Res, Prefabs } from 'esengine';
+
+addStartupSystem(defineSystem(
+    [Res(Prefabs)],
+    async (prefabs) => {
+        const { root, entities } = await prefabs.instantiate('prefabs/Enemy.esprefab');
+    }
+));
+```
+
+### 选项
+
+| 选项 | 类型 | 说明 |
+|------|------|------|
+| `baseUrl` | string | 解析资源路径的基础 URL |
+| `parent` | Entity | 预制体根实体要挂载到的父实体 |
+| `overrides` | PrefabOverride[] | 实例化时应用的属性覆盖 |
+
+### 应用覆盖值
+
+通过传入覆盖值在生成时自定义实例：
+
+```typescript
+const { root } = await prefabs.instantiate('prefabs/Enemy.esprefab', {
+    parent: parentEntity,
+    overrides: [
+        {
+            prefabEntityId: 1,
+            type: 'property',
+            componentType: 'LocalTransform',
+            propertyName: 'position',
+            value: { x: 200, y: 100, z: 0 },
+        },
+    ],
+});
+```
+
+### PrefabOverride
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `prefabEntityId` | number | 预制体内的目标实体 ID |
+| `type` | string | `'property'` \| `'component_added'` \| `'component_removed'` \| `'name'` \| `'visibility'` |
+| `componentType` | string | 要修改的组件（用于 `property` 和 `component_removed`） |
+| `propertyName` | string | 属性名（用于 `property`） |
+| `value` | unknown | 新值（用于 `property`、`name`、`visibility`） |
+| `componentData` | object | 组件类型和数据（用于 `component_added`） |
+
+### InstantiatePrefabResult
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `root` | Entity | 实例化后的预制体根实体 |
+| `entities` | Map\<number, Entity\> | 预制体实体 ID 到世界实体的映射 |
+
+### 嵌套预制体
+
+预制体可以包含对其他预制体的引用。实例化时，嵌套预制体会被自动加载并展开。这需要在选项中提供 `assetServer`：
+
+```typescript
+const result = await instantiatePrefab(world, prefab, {
+    assetServer: assets,
+});
+```
+
+<Aside type="note">
+  预制体文件由资源服务器缓存。多次加载同一 `.esprefab` 路径会返回缓存结果。
+</Aside>
+
+## 下一步
+
+- [场景](/microes/zh/guides/scenes/) — 场景结构和实体层级
+- [资源加载](/microes/zh/guides/assets/) — 加载纹理和其他资源
+- [组件](/microes/zh/core-concepts/components/) — 所有内置组件

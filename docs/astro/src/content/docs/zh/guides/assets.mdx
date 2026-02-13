@@ -92,6 +92,20 @@ const fontHandle = await assets.loadBitmapFont('assets/my-font.fnt');
   `loadAll` 目前不支持位图字体，需要使用 `loadBitmapFont` 单独加载。
 </Aside>
 
+## 预制体加载
+
+```typescript
+const prefab = await assets.loadPrefab('prefabs/Enemy.esprefab');
+```
+
+加载并解析 `.esprefab` 文件。返回的 `PrefabData` 对象可传入 `instantiatePrefab()` 使用。
+
+| 方法 | 返回值 | 说明 |
+|------|--------|------|
+| `loadPrefab(path, baseUrl?)` | `Promise<PrefabData>` | 加载并缓存预制体文件 |
+
+详见[预制体](/microes/zh/guides/prefabs/)了解完整的预制体 API。
+
 ## 通用文件加载
 
 | 方法 | 返回值 | 说明 |

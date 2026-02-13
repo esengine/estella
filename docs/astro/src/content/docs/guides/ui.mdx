@@ -268,6 +268,56 @@ world.insert(entity, UIRect, {
   Both `UILayoutPlugin` and `UIInteractionPlugin` are registered automatically by `createWebApp()`. No manual setup is needed.
 </Aside>
 
+## TextInput
+
+`TextInput` renders an editable text field. The `TextInputPlugin` handles keyboard input, cursor blinking, and texture rendering automatically.
+
+### Setup
+
+In the editor: create an entity via right-click → **Create** → **UI** → **TextInput**, or manually add `LocalTransform`, `UIRect`, `Interactable`, and `TextInput` components.
+
+<Aside type="note">
+  The plugin automatically adds a `Sprite` component if missing — no manual setup needed. `TextInputPlugin` is registered automatically by `createWebApp()`.
+</Aside>
+
+### TextInput Properties
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `value` | string | `''` | Current text content |
+| `placeholder` | string | `''` | Hint text shown when empty |
+| `placeholderColor` | Color | `{r:0.6, g:0.6, b:0.6, a:1}` | Placeholder text color |
+| `fontFamily` | string | `'Arial'` | Font family name |
+| `fontSize` | number | `16` | Font size in pixels |
+| `color` | Color | `{r:1, g:1, b:1, a:1}` | Text color |
+| `backgroundColor` | Color | `{r:0.15, g:0.15, b:0.15, a:1}` | Background fill color |
+| `padding` | number | `6` | Padding in pixels |
+| `maxLength` | number | `0` | Max characters (0 = unlimited) |
+| `multiline` | boolean | `false` | Allow multi-line input |
+| `password` | boolean | `false` | Mask text with bullets |
+| `readOnly` | boolean | `false` | Prevent user input |
+
+The `focused`, `cursorPos`, and `dirty` properties are managed internally by the plugin.
+
+### Reading Input at Runtime
+
+```typescript
+import { defineSystem, addSystem, Query, Res } from 'esengine';
+import { TextInput, UIEvents } from 'esengine';
+
+addSystem(defineSystem(
+    [Query(TextInput), Res(UIEvents)],
+    (query, events) => {
+        for (const e of events.query('submit')) {
+            const [, input] = query.get(e.entity);
+            console.log('Submitted:', input.value);
+        }
+    }
+));
+```
+
+**TextInput events:** `change` (value changed), `submit` (Enter pressed in single-line mode)
+
 ## Next Steps
 
 - [Components](/microes/core-concepts/components/) — all builtin components
