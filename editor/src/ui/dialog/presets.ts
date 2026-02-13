@@ -70,7 +70,6 @@ export function showInputDialog(options: InputDialogOptions): Promise<string | n
                 { label: options.cancelText ?? 'Cancel', role: 'cancel' },
                 { label: options.confirmText ?? 'Confirm', role: 'confirm', primary: true, onClick: () => submit() },
             ],
-            closeOnOverlay: true,
             closeOnEscape: true,
         });
 
