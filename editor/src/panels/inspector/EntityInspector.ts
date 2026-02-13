@@ -96,6 +96,9 @@ export function renderComponent(
     editors: EditorInfo[]
 ): void {
     const schema = getComponentSchema(component.type);
+    if (!schema) {
+        console.warn(`[Inspector] No schema found for component "${component.type}"`);
+    }
     if (schema?.category === 'tag') {
         renderTagComponent(container, entity, component, store);
         return;

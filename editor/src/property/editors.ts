@@ -14,7 +14,8 @@ import { getAssetLibrary, isUUID } from '../asset/AssetLibrary';
 import type { NativeFS } from '../types/NativeFS';
 import { createUIRectEditor } from './uiRectEditor';
 import { createButtonTransitionEditor } from './buttonTransitionEditor';
-export { setupDragLabel, colorToHex, hexToColor } from './editorUtils';
+import { setupDragLabel, colorToHex, hexToColor } from './editorUtils';
+export { setupDragLabel, colorToHex, hexToColor };
 
 // =============================================================================
 // Number Editor

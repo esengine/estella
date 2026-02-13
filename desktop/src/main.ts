@@ -19,15 +19,24 @@ let wasmModule: ESEngineModule | null = null;
 function loadESModule(url: string): Promise<any> {
     return new Promise((resolve, reject) => {
         const id = `__esm_${Date.now()}`;
+        const fullUrl = new URL(url, window.location.origin).href;
+        const code = `import m from '${fullUrl}'; window.${id}=m; window.dispatchEvent(new Event('${id}'));`;
+        const blob = new Blob([code], { type: 'application/javascript' });
+        const blobUrl = URL.createObjectURL(blob);
         const script = document.createElement('script');
         script.type = 'module';
-        script.textContent = `import m from '${url}'; window.${id}=m; window.dispatchEvent(new Event('${id}'));`;
+        script.src = blobUrl;
         window.addEventListener(id, () => {
             resolve((window as any)[id]);
             delete (window as any)[id];
             script.remove();
+            URL.revokeObjectURL(blobUrl);
         }, { once: true });
-        script.onerror = reject;
+        script.onerror = (e) => {
+            script.remove();
+            URL.revokeObjectURL(blobUrl);
+            reject(e);
+        };
         document.head.appendChild(script);
     });
 }

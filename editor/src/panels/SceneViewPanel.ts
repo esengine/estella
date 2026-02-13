@@ -12,6 +12,7 @@ import { getPlatformAdapter } from '../platform/PlatformAdapter';
 import { hasSlicing, parseTextureMetadata } from '../types/TextureMetadata';
 import { getDefaultComponentData } from '../schemas/ComponentSchemas';
 import { getGlobalPathResolver } from '../asset';
+import { isUUID, getAssetLibrary } from '../asset/AssetDatabase';
 import { icons } from '../utils/icons';
 import { EditorSceneRenderer } from '../renderer/EditorSceneRenderer';
 import { quatToEuler, eulerToQuat, findCanvasWorldRect } from '../math/Transform';
@@ -315,29 +316,33 @@ export class SceneViewPanel {
     private loadTexture(texturePath: string): HTMLImageElement | null {
         if (!this.projectPath_ || !texturePath) return null;
 
-        if (this.textureCache_.has(texturePath)) {
-            return this.textureCache_.get(texturePath) ?? null;
+        const resolved = isUUID(texturePath)
+            ? (getAssetLibrary().getPath(texturePath) ?? texturePath)
+            : texturePath;
+
+        if (this.textureCache_.has(resolved)) {
+            return this.textureCache_.get(resolved) ?? null;
         }
 
-        if (this.loadingTextures_.has(texturePath)) {
+        if (this.loadingTextures_.has(resolved)) {
             return null;
         }
 
-        this.loadingTextures_.add(texturePath);
+        this.loadingTextures_.add(resolved);
 
         const projectDir = this.projectPath_.replace(/\\/g, '/').replace(/\/[^/]+$/, '');
-        const fullPath = `${projectDir}/${texturePath}`;
+        const fullPath = `${projectDir}/${resolved}`;
         const img = new Image();
 
         img.onload = () => {
-            this.loadingTextures_.delete(texturePath);
-            this.textureCache_.set(texturePath, img);
+            this.loadingTextures_.delete(resolved);
+            this.textureCache_.set(resolved, img);
             this.requestRender();
         };
 
         img.onerror = () => {
-            this.loadingTextures_.delete(texturePath);
-            this.textureCache_.set(texturePath, null);
+            this.loadingTextures_.delete(resolved);
+            this.textureCache_.set(resolved, null);
             console.warn(`Failed to load texture: ${fullPath}`);
         };
 

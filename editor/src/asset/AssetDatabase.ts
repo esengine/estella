@@ -56,6 +56,7 @@ export class AssetDatabase {
     private groupService_: AssetGroupService | null = null;
 
     async initialize(projectDir: string, fs: NativeFS): Promise<void> {
+        console.log(`[AssetDatabase] initialize: projectDir="${projectDir}"`);
         this.fs_ = fs;
         this.projectDir_ = projectDir;
         this.uuidToEntry_.clear();
@@ -68,9 +69,12 @@ export class AssetDatabase {
         await this.groupService_.load();
 
         const assetsDir = joinPath(projectDir, 'assets');
-        if (await fs.exists(assetsDir)) {
+        const assetsDirExists = await fs.exists(assetsDir);
+        console.log(`[AssetDatabase] assetsDir="${assetsDir}", exists=${assetsDirExists}`);
+        if (assetsDirExists) {
             await this.scanDirectory(assetsDir, 'assets');
         }
+        console.log(`[AssetDatabase] initialized: ${this.uuidToEntry_.size} entries registered`);
     }
 
     // =========================================================================
@@ -78,7 +82,11 @@ export class AssetDatabase {
     // =========================================================================
 
     getPath(uuid: string): string | undefined {
-        return this.uuidToEntry_.get(uuid)?.path;
+        const path = this.uuidToEntry_.get(uuid)?.path;
+        if (!path) {
+            console.warn(`[AssetDatabase] getPath: UUID "${uuid}" not found (${this.uuidToEntry_.size} entries registered)`);
+        }
+        return path;
     }
 
     getUuid(path: string): string | undefined {

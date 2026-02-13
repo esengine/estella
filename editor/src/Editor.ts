@@ -110,6 +110,7 @@ export class Editor {
     private previewService_: PreviewService | null = null;
     private shortcutManager_: ShortcutManager;
     private activeBottomPanelId_: string | null = 'content-browser';
+    private assetLibraryReady_: Promise<void> = Promise.resolve();
 
     constructor(container: HTMLElement, options?: EditorOptions) {
         this.container_ = container;
@@ -148,7 +149,7 @@ export class Editor {
 
         if (this.projectPath_) {
             this.setupEditorGlobals();
-            this.initializeAssetLibrary();
+            this.assetLibraryReady_ = this.initializeAssetLibrary();
             this.initializeAllScripts();
             this.syncProjectSettings();
             this.previewService_ = new PreviewService({ projectPath: this.projectPath_ });
@@ -304,6 +305,7 @@ export class Editor {
     }
 
     async loadScene(): Promise<void> {
+        await this.assetLibraryReady_;
         const scene = await loadSceneFromFile();
         if (scene) {
             await getAssetLibrary().migrateScene(scene);
@@ -312,6 +314,7 @@ export class Editor {
     }
 
     async openSceneFromPath(scenePath: string): Promise<void> {
+        await this.assetLibraryReady_;
         const scene = await loadSceneFromPath(scenePath);
         if (scene) {
             const migrated = await getAssetLibrary().migrateScene(scene);
@@ -463,10 +466,17 @@ export class Editor {
     // =========================================================================
 
     private async initializeAssetLibrary(): Promise<void> {
-        if (!this.projectPath_) return;
+        console.log(`[Editor] initializeAssetLibrary: projectPath=${this.projectPath_}`);
+        if (!this.projectPath_) {
+            console.warn('[Editor] initializeAssetLibrary: no projectPath');
+            return;
+        }
 
         const fs = getEditorContext().fs;
-        if (!fs) return;
+        if (!fs) {
+            console.warn('[Editor] initializeAssetLibrary: no fs in context');
+            return;
+        }
 
         const projectDir = this.projectPath_.replace(/[/\\][^/\\]+$/, '');
         try {

@@ -4,7 +4,7 @@
  */
 
 import type { PropertyEditorContext, PropertyEditorInstance } from './PropertyEditor';
-import { setupDragLabel } from './editors';
+import { setupDragLabel } from './editorUtils';
 
 // =============================================================================
 // Types

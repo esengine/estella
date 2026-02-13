@@ -67,6 +67,9 @@ export function createPropertyEditor(
     ctx: PropertyEditorContext
 ): PropertyEditorInstance | null {
     const factory = editorRegistry.get(ctx.meta.type);
-    if (!factory) return null;
+    if (!factory) {
+        console.warn(`[PropertyEditor] No editor registered for type "${ctx.meta.type}"`);
+        return null;
+    }
     return factory(container, ctx);
 }

@@ -171,7 +171,8 @@ export const nativeFS: NativeFS = {
     async readFile(path: string) {
         try {
             return await readTextFile(path);
-        } catch {
+        } catch (err) {
+            console.error(`[NativeFS] readFile failed: ${path}`, err);
             return null;
         }
     },
@@ -179,7 +180,8 @@ export const nativeFS: NativeFS = {
     async readBinaryFile(path: string) {
         try {
             return await readFile(path);
-        } catch {
+        } catch (err) {
+            console.error(`[NativeFS] readBinaryFile failed: ${path}`, err);
             return null;
         }
     },
