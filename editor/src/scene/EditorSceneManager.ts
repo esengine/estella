@@ -242,6 +242,16 @@ export class EditorSceneManager {
         this.syncTransform(entity, null, entityId);
     }
 
+    syncTextForEntity(entityId: number): void {
+        const entity = this.entityMap_.get(entityId);
+        if (entity === undefined) return;
+        const entityData = this.entityDataMap_.get(entityId);
+        if (!entityData) return;
+        const textComp = entityData.components.find(c => c.type === 'Text');
+        if (!textComp) return;
+        this.syncText(entity, textComp.data, entityId);
+    }
+
     reparentEntity(entityId: number, newParentId: number | null): void {
         const entity = this.entityMap_.get(entityId);
         if (entity === undefined) return;

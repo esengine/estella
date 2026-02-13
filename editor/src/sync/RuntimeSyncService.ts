@@ -104,6 +104,10 @@ export class RuntimeSyncService {
             this.sceneManager_.syncScreenSpaceDescendants(event.entity);
         }
 
+        if (event.componentType === 'Text') {
+            this.sceneManager_.syncTextForEntity(event.entity);
+        }
+
         this.scheduleEntityUpdate(event.entity);
 
         if (event.componentType === 'Canvas') {
