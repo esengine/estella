@@ -550,10 +550,16 @@ static void extractMeshBatches(int instanceId) {
             float* uvs = region->uvs;
             spColor& attachColor = region->color;
 
+            float a = skelColor.a * slotColor.a * attachColor.a;
             float r = skelColor.r * slotColor.r * attachColor.r;
             float g = skelColor.g * slotColor.g * attachColor.g;
             float b = skelColor.b * slotColor.b * attachColor.b;
-            float a = skelColor.a * slotColor.a * attachColor.a;
+
+            if (effectiveBlend >= 4) {
+                r *= a;
+                g *= a;
+                b *= a;
+            }
 
             auto baseIndex = static_cast<uint16_t>(
                 currentBatch->vertices.size() / 8);
@@ -617,10 +623,16 @@ static void extractMeshBatches(int instanceId) {
             float* uvs = mesh->uvs;
             spColor& attachColor = mesh->color;
 
+            float a = skelColor.a * slotColor.a * attachColor.a;
             float r = skelColor.r * slotColor.r * attachColor.r;
             float g = skelColor.g * slotColor.g * attachColor.g;
             float b = skelColor.b * slotColor.b * attachColor.b;
-            float a = skelColor.a * slotColor.a * attachColor.a;
+
+            if (effectiveBlend >= 4) {
+                r *= a;
+                g *= a;
+                b *= a;
+            }
 
             auto baseIndex = static_cast<uint16_t>(
                 currentBatch->vertices.size() / 8);

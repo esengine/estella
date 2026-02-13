@@ -205,7 +205,7 @@ void RenderFrame::flush() {
     sortAndBucket();
 
     glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
     glDisable(GL_DEPTH_TEST);
 
     executeStage(RenderStage::Background);
@@ -749,10 +749,16 @@ void RenderFrame::renderSpine(u32 begin, u32 end) {
                 auto& uvs = region->getUVs();
                 auto& attachColor = region->getColor();
 
+                f32 a = skelColor.a * slotColor.a * attachColor.a * item->tint_color.a;
                 f32 r = skelColor.r * slotColor.r * attachColor.r * item->tint_color.r;
                 f32 g = skelColor.g * slotColor.g * attachColor.g * item->tint_color.g;
                 f32 b = skelColor.b * slotColor.b * attachColor.b * item->tint_color.b;
-                f32 a = skelColor.a * slotColor.a * attachColor.a * item->tint_color.a;
+
+                if (blendMode == BlendMode::PremultipliedAlpha || blendMode == BlendMode::PmaAdditive) {
+                    r *= a;
+                    g *= a;
+                    b *= a;
+                }
 
                 u16 baseIndex = static_cast<u16>(spine_vertices_.size());
 
@@ -816,10 +822,16 @@ void RenderFrame::renderSpine(u32 begin, u32 end) {
                 auto& triangles = mesh->getTriangles();
                 auto& attachColor = mesh->getColor();
 
+                f32 a = skelColor.a * slotColor.a * attachColor.a * item->tint_color.a;
                 f32 r = skelColor.r * slotColor.r * attachColor.r * item->tint_color.r;
                 f32 g = skelColor.g * slotColor.g * attachColor.g * item->tint_color.g;
                 f32 b = skelColor.b * slotColor.b * attachColor.b * item->tint_color.b;
-                f32 a = skelColor.a * slotColor.a * attachColor.a * item->tint_color.a;
+
+                if (blendMode == BlendMode::PremultipliedAlpha || blendMode == BlendMode::PmaAdditive) {
+                    r *= a;
+                    g *= a;
+                    b *= a;
+                }
 
                 u16 baseIndex = static_cast<u16>(spine_vertices_.size());
 
