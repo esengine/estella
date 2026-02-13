@@ -237,6 +237,41 @@ export async function openProject(
     }
 }
 
+export async function loadEditorLocalSettings(projectPath: string): Promise<Record<string, unknown> | null> {
+    const fs = getNativeFS();
+    if (!fs) return null;
+
+    const projectDir = projectPath.replace(/\/[^/]+\.esproject$/, '');
+    const settingsPath = joinPath(projectDir, '.esengine/settings.json');
+    const content = await fs.readFile(settingsPath);
+    if (!content) return null;
+
+    try {
+        return JSON.parse(content);
+    } catch {
+        return null;
+    }
+}
+
+export async function saveEditorLocalSetting(projectPath: string, key: string, value: unknown): Promise<void> {
+    const fs = getNativeFS();
+    if (!fs) return;
+
+    const projectDir = projectPath.replace(/\/[^/]+\.esproject$/, '');
+    const settingsPath = joinPath(projectDir, '.esengine/settings.json');
+
+    let settings: Record<string, unknown> = {};
+    const content = await fs.readFile(settingsPath);
+    if (content) {
+        try {
+            settings = JSON.parse(content);
+        } catch {}
+    }
+
+    settings[key] = value;
+    await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2));
+}
+
 export async function loadProjectConfig(
     projectPath: string
 ): Promise<ProjectConfig | null> {

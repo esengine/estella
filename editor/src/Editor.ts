@@ -77,7 +77,7 @@ import {
     setSettingsValue,
     onSettingsChange,
 } from './settings';
-import { loadProjectConfig } from './launcher/ProjectService';
+import { loadProjectConfig, loadEditorLocalSettings, saveEditorLocalSetting } from './launcher/ProjectService';
 import type { SpineVersion } from './types/ProjectTypes';
 
 // =============================================================================
@@ -153,6 +153,7 @@ export class Editor {
             this.initializeAllScripts();
             this.syncProjectSettings();
             this.previewService_ = new PreviewService({ projectPath: this.projectPath_ });
+            this.restoreLastScene();
         }
     }
 
@@ -322,6 +323,7 @@ export class Editor {
                 await saveSceneToPath(scene, scenePath);
             }
             this.store_.loadScene(scene, scenePath);
+            this.saveLastOpenedScene(scenePath);
             console.log('Scene loaded:', scenePath);
         }
     }
@@ -432,6 +434,20 @@ export class Editor {
                 }
             }
         });
+    }
+
+    private async restoreLastScene(): Promise<void> {
+        if (!this.projectPath_) return;
+        const settings = await loadEditorLocalSettings(this.projectPath_);
+        const lastScene = settings?.lastOpenedScene as string | undefined;
+        if (lastScene) {
+            await this.openSceneFromPath(lastScene);
+        }
+    }
+
+    private saveLastOpenedScene(scenePath: string): void {
+        if (!this.projectPath_) return;
+        saveEditorLocalSetting(this.projectPath_, 'lastOpenedScene', scenePath);
     }
 
     private async saveProjectField(projectPath: string): Promise<void> {
