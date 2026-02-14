@@ -138,8 +138,8 @@ addSystem(defineSystem(
 
 BitmapText follows the same draw ordering as Sprite:
 
-1. **Z position** (`transform.position.z`) — lower Z draws first (behind)
-2. **Layer** (`bitmapText.layer`) — higher layer draws on top
+1. **Layer** (`bitmapText.layer`) — primary sort key, higher layer draws on top
+2. **Z position** (`transform.position.z`) — within the same layer, lower Z draws first (behind)
 
 ## Next Steps
 

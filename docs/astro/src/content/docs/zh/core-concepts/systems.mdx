@@ -99,8 +99,8 @@ defineSystem([Commands()], (cmds) => {
 |------|--------|------|
 | `cmds.spawn()` | `EntityCommands` | 创建新实体，返回构建器 |
 | `cmds.entity(entity)` | `EntityCommands` | 获取已有实体的构建器 |
-| `cmds.despawn(entity)` | `Commands` | 将实体加入销毁队列 |
-| `cmds.insertResource(res, value)` | `Commands` | 插入或覆盖资源 |
+| `cmds.despawn(entity)` | `this` | 将实体加入销毁队列 |
+| `cmds.insertResource(res, value)` | `this` | 插入或覆盖资源 |
 
 #### EntityCommands API
 
@@ -113,7 +113,7 @@ defineSystem([Commands()], (cmds) => {
 | `.id()` | `Entity` | 获取实体 ID |
 
 <Aside type="note">
-  Commands 是缓冲的，在当前调度阶段结束时才应用。例外是 `.id()` — 调用它会立即创建实体，使 ID 可以马上使用。
+  Commands 是缓冲的，在系统函数返回后才统一应用，不会在执行过程中立即生效。例外是 `.id()` — 调用它会立即创建实体，使 ID 可以马上使用。
 </Aside>
 
 ### Query
@@ -148,7 +148,7 @@ defineSystem([Res(Time)], (time) => {
 import { ResMut } from 'esengine';
 
 defineSystem([ResMut(GameState)], (state) => {
-    state.value.score += 10;
+    state.get().score += 10;
 });
 ```
 

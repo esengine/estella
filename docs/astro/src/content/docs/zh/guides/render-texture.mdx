@@ -26,7 +26,7 @@ const rt: RenderTextureHandle = RenderTexture.create({
 |------|------|--------|------|
 | `width` | `number` | — | 纹理宽度（像素） |
 | `height` | `number` | — | 纹理高度（像素） |
-| `depth` | `boolean` | `false` | 是否附加深度缓冲 |
+| `depth` | `boolean` | `true` | 是否附加深度缓冲 |
 | `filter` | `'nearest' \| 'linear'` | `'nearest'` | 纹理过滤模式 |
 
 ## 渲染到纹理
@@ -34,11 +34,12 @@ const rt: RenderTextureHandle = RenderTexture.create({
 在 `begin()` 和 `end()` 之间进行绘制调用。期间渲染的所有内容都会输出到纹理而非屏幕：
 
 ```typescript
-import { RenderTexture, Draw } from 'esengine';
+import { RenderTexture, Renderer } from 'esengine';
 
 RenderTexture.begin(rt, viewProjectionMatrix);
 
-Draw.rect({ x: 0, y: 0 }, { x: 100, y: 100 }, { r: 1, g: 0, b: 0, a: 1 });
+Renderer.submitSprites(registry);
+Renderer.flush();
 
 RenderTexture.end();
 ```

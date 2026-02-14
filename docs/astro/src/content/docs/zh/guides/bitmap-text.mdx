@@ -138,8 +138,8 @@ addSystem(defineSystem(
 
 BitmapText 遵循与 Sprite 相同的绘制排序规则：
 
-1. **Z 坐标** (`transform.position.z`) — Z 值越小越先绘制（在后面）
-2. **Layer** (`bitmapText.layer`) — layer 值越大越在上面
+1. **Layer** (`bitmapText.layer`) — 主要排序依据，值越大越在上面
+2. **Z 坐标** (`transform.position.z`) — 同 layer 内，Z 值越小越先绘制（在后面）
 
 ## 下一步
 

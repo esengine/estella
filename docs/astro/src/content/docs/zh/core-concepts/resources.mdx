@@ -23,11 +23,11 @@ defineSystem([Res(Time)], (time) => {
 import { defineSystem, ResMut } from 'esengine';
 
 defineSystem([ResMut(GameState)], (state) => {
-    state.value.score += 10;
+    state.get().score += 10;
 });
 ```
 
-`ResMut` 包装了资源值。用 `.value` 访问数据，或使用 `.modify()`：
+`ResMut` 包装了资源值。用 `.get()` 访问数据，或使用 `.modify()`：
 
 ```typescript
 defineSystem([ResMut(GameState)], (state) => {
@@ -84,6 +84,9 @@ defineSystem([Res(Input)], (input) => {
 | `isKeyReleased(code)` | 按键在这帧被释放 |
 | `getMousePosition()` | 返回 `{ x, y }` |
 | `isMouseButtonDown(button)` | 鼠标按钮被按住（0=左键，2=右键） |
+| `isMouseButtonPressed(button)` | 鼠标按钮在这帧被按下 |
+| `isMouseButtonReleased(button)` | 鼠标按钮在这帧被释放 |
+| `getScrollDelta()` | 返回 `{ x, y }` 滚轮增量 |
 
 ## 自定义资源
 
@@ -121,7 +124,7 @@ defineSystem([Res(GameState)], (state) => {
 
 // 可变
 defineSystem([ResMut(GameState)], (state) => {
-    state.value.score += 10;
+    state.get().score += 10;
 });
 ```
 
@@ -153,7 +156,7 @@ addSystem(defineSystem(
                 const dy = pPos.position.y - cPos.position.y;
                 if (Math.sqrt(dx * dx + dy * dy) < 30) {
                     cmds.despawn(coinEntity);
-                    score.value.value += 1;
+                    score.get().value += 1;
                 }
             }
         }

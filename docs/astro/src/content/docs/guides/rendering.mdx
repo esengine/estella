@@ -170,13 +170,12 @@ The rendering pipeline is divided into stages that execute in order. Each stage 
 | `Transparent` | 2 | Transparent/alpha-blended objects |
 | `Overlay` | 3 | UI and overlay elements (drawn on top) |
 
-When using [Custom Draw](/microes/guides/custom-draw/), specify a `RenderStage` to control when your draw commands execute relative to the built-in rendering:
+Custom draw callbacks execute after the built-in sprite, text, and spine rendering within each camera pass. Use `Renderer.setStage()` in the render pipeline to control which stage is active:
 
 ```typescript
-import { Draw, RenderStage } from 'esengine';
+import { Renderer, RenderStage } from 'esengine';
 
-Draw.bindStage(RenderStage.Overlay);
-Draw.rect(0, 0, 100, 50, { r: 0, g: 0, b: 0, a: 0.5 });
+Renderer.setStage(RenderStage.Overlay);
 ```
 
 ## Next Steps

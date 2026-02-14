@@ -26,7 +26,7 @@ const rt: RenderTextureHandle = RenderTexture.create({
 |-------|------|---------|-------------|
 | `width` | `number` | — | Texture width in pixels |
 | `height` | `number` | — | Texture height in pixels |
-| `depth` | `boolean` | `false` | Attach a depth buffer |
+| `depth` | `boolean` | `true` | Attach a depth buffer |
 | `filter` | `'nearest' \| 'linear'` | `'nearest'` | Texture filtering mode |
 
 ## Rendering to Texture
@@ -34,11 +34,12 @@ const rt: RenderTextureHandle = RenderTexture.create({
 Wrap your draw calls between `begin()` and `end()`. Everything rendered in between goes to the texture instead of the screen:
 
 ```typescript
-import { RenderTexture, Draw } from 'esengine';
+import { RenderTexture, Renderer } from 'esengine';
 
 RenderTexture.begin(rt, viewProjectionMatrix);
 
-Draw.rect({ x: 0, y: 0 }, { x: 100, y: 100 }, { r: 1, g: 0, b: 0, a: 1 });
+Renderer.submitSprites(registry);
+Renderer.flush();
 
 RenderTexture.end();
 ```

@@ -23,11 +23,11 @@ defineSystem([Res(Time)], (time) => {
 import { defineSystem, ResMut } from 'esengine';
 
 defineSystem([ResMut(GameState)], (state) => {
-    state.value.score += 10;
+    state.get().score += 10;
 });
 ```
 
-`ResMut` wraps the resource value. Access the data with `.value`, or use `.modify()`:
+`ResMut` wraps the resource value. Access the data with `.get()`, or use `.modify()`:
 
 ```typescript
 defineSystem([ResMut(GameState)], (state) => {
@@ -84,6 +84,9 @@ defineSystem([Res(Input)], (input) => {
 | `isKeyReleased(code)` | Key was released this frame |
 | `getMousePosition()` | Returns `{ x, y }` |
 | `isMouseButtonDown(button)` | Mouse button held (0=left, 2=right) |
+| `isMouseButtonPressed(button)` | Mouse button was pressed this frame |
+| `isMouseButtonReleased(button)` | Mouse button was released this frame |
+| `getScrollDelta()` | Returns `{ x, y }` scroll delta |
 
 ## Custom Resources
 
@@ -121,7 +124,7 @@ defineSystem([Res(GameState)], (state) => {
 
 // Mutable
 defineSystem([ResMut(GameState)], (state) => {
-    state.value.score += 10;
+    state.get().score += 10;
 });
 ```
 
@@ -153,7 +156,7 @@ addSystem(defineSystem(
                 const dy = pPos.position.y - cPos.position.y;
                 if (Math.sqrt(dx * dx + dy * dy) < 30) {
                     cmds.despawn(coinEntity);
-                    score.value.value += 1;
+                    score.get().value += 1;
                 }
             }
         }

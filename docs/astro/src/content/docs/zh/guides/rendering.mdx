@@ -170,13 +170,12 @@ console.log(`Draw calls: ${stats.drawCalls}, Triangles: ${stats.triangles}`);
 | `Transparent` | 2 | 透明/Alpha 混合对象 |
 | `Overlay` | 3 | UI 和覆盖元素（绘制在最上层） |
 
-使用[自定义绘制](/microes/zh/guides/custom-draw/)时，指定 `RenderStage` 来控制绘制命令相对于内置渲染的执行时机：
+自定义绘制回调在每个相机 pass 中的内置精灵、文本和 Spine 渲染之后执行。使用 `Renderer.setStage()` 在渲染管线中控制当前活跃的阶段：
 
 ```typescript
-import { Draw, RenderStage } from 'esengine';
+import { Renderer, RenderStage } from 'esengine';
 
-Draw.bindStage(RenderStage.Overlay);
-Draw.rect(0, 0, 100, 50, { r: 0, g: 0, b: 0, a: 0.5 });
+Renderer.setStage(RenderStage.Overlay);
 ```
 
 ## 下一步

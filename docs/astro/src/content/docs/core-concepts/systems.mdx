@@ -99,8 +99,8 @@ defineSystem([Commands()], (cmds) => {
 |--------|---------|-------------|
 | `cmds.spawn()` | `EntityCommands` | Create a new entity, returns a builder |
 | `cmds.entity(entity)` | `EntityCommands` | Get a builder for an existing entity |
-| `cmds.despawn(entity)` | `Commands` | Queue entity for destruction |
-| `cmds.insertResource(res, value)` | `Commands` | Insert or overwrite a resource |
+| `cmds.despawn(entity)` | `this` | Queue entity for destruction |
+| `cmds.insertResource(res, value)` | `this` | Insert or overwrite a resource |
 
 #### EntityCommands API
 
@@ -113,7 +113,7 @@ defineSystem([Commands()], (cmds) => {
 | `.id()` | `Entity` | Get the entity ID |
 
 <Aside type="note">
-  Commands are buffered and applied at the end of the current schedule stage, not immediately. The exception is `.id()` — calling it triggers immediate entity creation so the ID is available right away.
+  Commands are buffered and flushed after the system function returns, not applied inline during execution. The exception is `.id()` — calling it triggers immediate entity creation so the ID is available right away.
 </Aside>
 
 ### Query
@@ -148,7 +148,7 @@ defineSystem([Res(Time)], (time) => {
 import { ResMut } from 'esengine';
 
 defineSystem([ResMut(GameState)], (state) => {
-    state.value.score += 10;
+    state.get().score += 10;
 });
 ```
 
