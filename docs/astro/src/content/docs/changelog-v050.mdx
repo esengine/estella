@@ -1,0 +1,154 @@
+---
+title: v0.5.0
+description: ESEngine v0.5.0 release notes
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip">
+v0.5.0 is a major update introducing a complete prefab system, TextInput component, modular SDK architecture, and numerous editor and runtime improvements.
+</Aside>
+
+## Prefab System
+
+- Added `.esprefab` file format with serializer and validator
+- Save entity trees as prefab from hierarchy context menu or drag to content browser
+- Instantiate prefabs by dragging from content browser to hierarchy
+- Per-property override tracking with visual indicators in inspector
+- Support Apply (push overrides to prefab source) and Revert (restore defaults)
+- Support Unpack to remove prefab association
+- Double-click `.esprefab` files to enter prefab edit mode
+- Clickable prefab path in inspector to navigate to source file
+- Support nested prefab references and recursive instantiation
+- Added `PrefabServer` and `prefabsPlugin` for runtime prefab loading and instantiation
+- Added runtime prefab loading API (`loadPrefab`, `instantiatePrefab`)
+- Build pipeline auto-collects prefab paths and converts UUID references
+
+## TextInput Component
+
+- Added `TextInput` component and `textInputPlugin` plugin
+- Cursor positioning, arrow key navigation, text selection
+- Placeholder rendering and visual styling in editor
+- `UIMask` clipping support enabled
+- Fixed arrow key cursor position and keydown event handling
+
+## Unified Asset Type Registry
+
+- Added `sdk/src/assetTypes.ts` as single source of truth for file format definitions
+- Covers MIME types, WeChat pack options, and transitive dependency flags
+- Migrated 22 files across SDK, editor panels, builders, and runtime loaders
+- Replaces all hardcoded file extension checks
+
+## Modular SDK Architecture
+
+- Added unified component registry (`registerComponent` / `getComponent`) replacing hardcoded switch in `scene.ts`
+- `defineBuiltin` auto-registers components, eliminating manual registration
+- `createWebApp` plugins configurable via `WebAppOptions.plugins`
+- UI plugins extracted to `uiPlugins.ts`, default-injected via `webAppFactory.ts`
+- Physics components decoupled from core imports (type-only in `component.ts`)
+- Each plugin self-registers its components in `build()`
+- `App.addPlugin` idempotency protection (`installed_plugins_` Set)
+- Playable builds now use esbuild tree-shaking
+
+## Spine Multi-Texture Batching
+
+- Renderer supports multi-texture batching for Spine multi-atlas setups
+- Added `spineRenderer` and `maskProcessor` getters to `RenderPipeline`
+- Fixed `glBlendFuncSeparate` for correct Spine multi-atlas alpha blending
+- Added `glBlendFuncSeparate` to GLAD loader for Linux builds
+
+## Editor UX Improvements
+
+- Virtual scrolling in hierarchy panel for large entity lists
+- Improved drag-and-drop experience with reduced DOM updates during drag-over
+- Added entity copy/paste menu items
+- Support drag-and-drop files from OS into content browser
+- Reorganized hierarchy context menu into grouped submenus
+- Added hex color text input to color editors
+- Display current scene name in menu bar
+- Added scene stats overlay with draw call and render statistics
+- Auto-update preview files on scene save for F5 refresh
+- Restore last opened scene per project on startup
+- Auto-open scene after creation in content browser
+- Move/Scale gizmo supports dragging entity by clicking within its bounds
+
+## Addressable Asset System
+
+- Added Addressable Groups as draggable floating window panel
+- Generate v2.0 addressable manifest with groups, labels, and metadata
+- Unified addressable asset loading API with typed results
+- Prefab asset refs converted during build (UUID to path)
+
+## Build Pipeline Improvements
+
+- Unified esbuild initialization into single shared function, eliminating 3 duplicate code paths
+- `ArtifactBuilder` resolves scene UUIDs to file paths after build
+- Cache scene data to avoid double disk read
+- Pass pre-collected assets to `MaterialCompiler`
+- Parallel WASM compilation by buildDir groups
+- `MaterialLoader` uses `AsyncCache`, physics gets own buildDir
+- Removed 440+ lines of duplicate code
+
+## 2D Engine Defaults and Constants
+
+- Camera defaults changed for 2D: orthographic projection, `orthoSize=540`
+- Fixed Camera `projectionType` labels swapped in editor inspector
+- Added `ProjectionType`, `ClearFlags`, `ScaleMode` enums replacing magic numbers
+- Extracted shared constants (design resolution, PPU, canvas size) to `sdk/src/defaults.ts`
+- Text component default alignment changed to center
+
+## WeChat MiniGame Fixes
+
+- Fixed touch coordinates not DPR-adjusted
+- Added multi-touch support
+- Fixed offscreen canvas memory leak
+- Converted `game.js` from sync to async file reads
+- Fixed manifest `resolvePath()` with path-based index in addition to UUID
+- Included spine `.atlas` files in addressable manifest
+
+## Playable Ads Improvements
+
+- CTA button now optional (disabled by default), settings exposed in build dialog
+- Fixed embedded asset loading and packaging
+- Added MRAID CTA integration to Playable Ads template
+- `PlayableEmitter` now respects export config instead of including all assets
+
+## Runtime Stability
+
+- Added try/catch error boundary per system in `runSchedule` — single system crash no longer kills game loop
+- Fixed component shallow copy bug with deep clone for nested defaults (Vec3, Color)
+- Cache World-to-C++ method references to eliminate per-call string concatenation
+- Delta time clamped to 250ms max to prevent physics explosion after tab switch
+- Fixed timestep capped to 8 iterations per frame to prevent spiral of death
+- `quit()` properly cleans up: try/catch each shutdown, despawn entities, null refs
+- Query iterator returns array copy to prevent shared-reference data corruption
+- `AsyncCache` tracks aborted flag to prevent timed-out loads from leaking into cache
+- `releaseAll()` clears pending loads and releases materials
+- Scene data cloned before `preloadSceneAssets` mutates it (enables scene reload)
+- Optimized per-frame allocations: reuse command buffers, pool `ResMutInstance`, static multiply buffer
+- Eliminated duplicate `collectCameras` call in render system
+
+## Other Improvements
+
+- Added `BitmapFont.measureText` API for precise editor bounds
+- Added entity visibility support to runtime scene loading
+- Split `WorldTransform` initialization from hierarchy update
+- Removed user-facing dirty flag from Text component
+- Sprite size reset button always visible
+- Added `RenameEntityCommand` and `ToggleVisibilityCommand` for undo support
+- Fixed Sprite size sync with UIRect when resizing UI elements
+- Fixed derived property sync on undo/redo for UIRect and Sprite
+- Text component changes sync immediately in editor
+- Replaced manual component mapping with `World` + `loadComponent` in `EditorBridge`
+- Replaced hand-written `CppRegistry` with generated types, eliminating type casts
+- SSE live reload for preview system
+- Added `-fno-rtti` to WASM compile flags
+- Fixed `INVALID_FONT` sentinel and added UTF-8 decoding for BitmapText
+- Fixed settings dialog number input values not saving on close
+- Fixed dialogs closing when clicking overlay background
+- Blocked browser context menu, added Reload/DevTools to View menu
+- Fixed redundant texture preview updates and race conditions
+- Fixed `INVALID_TEXTURE` display in texture property editor
+- Preview plugin error reporting with step context and stack traces
+- Prevented concurrent refresh and validated prefab save directory
+- Prevented orphaned entities and improved scene manager robustness

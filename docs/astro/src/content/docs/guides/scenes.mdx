@@ -128,10 +128,14 @@ addSystem(defineSystem(
   Commands are buffered and applied at the end of the current schedule stage, not immediately.
 </Aside>
 
+## Entity Visibility
+
+Entities have a `visible` property (default `true`). When set to `false` in the editor, the entity's components are skipped during scene loading — it exists in the hierarchy but has no runtime behaviour. Use this to keep reference entities in the scene file without spawning them.
+
 ## Scene Data Types
 
 | Type | Fields |
 |------|--------|
 | `SceneData` | `version: string, name: string, entities: SceneEntityData[], textureMetadata?: Record<string, TextureMetadata>` |
-| `SceneEntityData` | `id: number, name: string, parent: number \| null, children: number[], components: SceneComponentData[]` |
+| `SceneEntityData` | `id: number, name: string, parent: number \| null, children: number[], components: SceneComponentData[], visible?: boolean` |
 | `SceneComponentData` | `type: string, data: Record<string, unknown>` |

@@ -220,7 +220,7 @@ The engine uses a compatibility layer (`weapp-adapter.js`) to provide browser-li
 
 - [ ] Component groups for cache optimization
 - [ ] Event/signal system
-- [ ] Scene serialization
 - [ ] Audio system
-- [ ] Physics integration
-- [ ] UI system
+- [x] Scene serialization
+- [x] Physics integration
+- [x] UI system

@@ -128,10 +128,14 @@ addSystem(defineSystem(
   Commands 是缓冲的，在当前调度阶段结束时应用，不会立即生效。
 </Aside>
 
+## 实体可见性
+
+实体拥有 `visible` 属性（默认 `true`）。在编辑器中将其设为 `false` 时，场景加载会跳过该实体的组件 — 它在层级中存在但没有运行时行为。适合用于在场景文件中保留参考实体而不在运行时生成。
+
 ## 场景数据类型
 
 | 类型 | 字段 |
 |------|------|
 | `SceneData` | `version: string, name: string, entities: SceneEntityData[], textureMetadata?: Record<string, TextureMetadata>` |
-| `SceneEntityData` | `id: number, name: string, parent: number \| null, children: number[], components: SceneComponentData[]` |
+| `SceneEntityData` | `id: number, name: string, parent: number \| null, children: number[], components: SceneComponentData[], visible?: boolean` |
 | `SceneComponentData` | `type: string, data: Record<string, unknown>` |

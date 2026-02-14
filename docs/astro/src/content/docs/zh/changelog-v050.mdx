@@ -1,0 +1,155 @@
+---
+title: v0.5.0
+description: ESEngine v0.5.0 更新日志
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip">
+v0.5.0 是一个重大更新，引入了完整的预制体系统、TextInput 组件、模块化 SDK 架构，以及大量编辑器和运行时改进。
+</Aside>
+
+## Prefab 预制体系统
+
+- 新增 `.esprefab` 文件格式，支持序列化和校验
+- 在 Hierarchy 右键菜单或拖拽到 Content Browser 即可保存实体树为预制体
+- 从 Content Browser 拖拽预制体到 Hierarchy 即可实例化
+- 逐属性追踪覆盖（override），Inspector 中显示视觉指示器
+- 支持 Apply（推送覆盖到预制体源文件）和 Revert（恢复默认值）
+- 支持 Unpack 解除预制体关联
+- 双击 `.esprefab` 文件进入预制体编辑模式
+- Inspector 中显示可点击的预制体路径，快速导航到源文件
+- 支持嵌套预制体引用和递归实例化
+- 新增 `PrefabServer` 和 `prefabsPlugin`，支持运行时加载和实例化预制体
+- 新增运行时 Prefab 加载 API（`loadPrefab`、`instantiatePrefab`）
+- 构建管线自动收集预制体路径并转换 UUID 引用
+
+## TextInput 组件
+
+- 新增 `TextInput` 组件和 `textInputPlugin` 插件
+- 支持光标定位、方向键导航、文本选择
+- 编辑器中支持占位符渲染和视觉样式
+- 启用 `UIMask` 裁剪支持
+- 修复方向键光标位置和 keydown 事件处理
+
+## 统一资产类型注册表
+
+- 新增 `sdk/src/assetTypes.ts` 作为文件格式定义的唯一数据源
+- 涵盖 MIME 类型、微信打包选项、传递依赖标志
+- 迁移 SDK、编辑器面板、构建器、运行时加载器等 22 个文件
+- 替换所有硬编码的文件扩展名判断
+
+## 模块化 SDK 架构
+
+- 新增统一组件注册表（`registerComponent` / `getComponent`），替换 `scene.ts` 中的硬编码 switch
+- `defineBuiltin` 自动注册组件，消除手动注册
+- `createWebApp` 插件通过 `WebAppOptions.plugins` 可配置
+- UI 插件提取到 `uiPlugins.ts`，通过 `webAppFactory.ts` 默认注入
+- 物理组件与核心导入解耦（`component.ts` 中仅 type-only 引用）
+- 每个插件在 `build()` 时自注册其组件
+- `App.addPlugin` 增加幂等保护（`installed_plugins_` Set）
+- Playable 构建启用 esbuild tree-shaking
+
+## Spine 多纹理批处理
+
+- 渲染器支持 Spine 多图集的多纹理批处理
+- 新增 `spineRenderer` 和 `maskProcessor` 的 `RenderPipeline` getter
+- 修复 `glBlendFuncSeparate` 实现正确的 Spine 多图集 Alpha 混合
+- 添加 `glBlendFuncSeparate` 到 GLAD loader（Linux 构建）
+
+## 编辑器 UX 改进
+
+- Hierarchy 面板支持虚拟滚动，优化大量实体列表的性能
+- 改进 Hierarchy 面板拖拽体验，减少拖拽期间的 DOM 更新
+- 新增实体复制/粘贴菜单项
+- 支持从操作系统拖拽文件到 Content Browser
+- Hierarchy 右键菜单重组为分组子菜单
+- 新增十六进制颜色文本输入到颜色编辑器
+- 菜单栏显示当前场景名称
+- 新增场景统计叠加层，显示 Draw Call 和渲染统计
+- 保存场景时自动更新预览文件（F5 刷新）
+- 启动时恢复上次打开的场景
+- 新建场景后自动打开
+- Content Browser 中创建场景后自动打开
+- Move/Scale Gizmo 支持点击实体范围内拖拽
+
+## Addressable 资产系统
+
+- 新增 Addressable Groups 浮动窗口面板
+- 生成 v2.0 addressable manifest，包含 groups、labels 和 metadata
+- 统一 addressable 资产加载 API，支持类型化结果
+- 预制体资产引用在构建时转换（UUID 到路径）
+
+## 构建管线改进
+
+- 统一 esbuild 初始化为单一共享函数，消除 3 处重复初始化
+- `ArtifactBuilder` 构建后解析场景 UUID 到文件路径
+- 缓存场景数据避免重复磁盘读取
+- 预收集资产传递给 `MaterialCompiler`
+- 并行 WASM 编译（按 buildDir 分组）
+- `MaterialLoader` 使用 `AsyncCache`，物理模块独立 buildDir
+- 删除重复代码 440+ 行
+
+## 2D 引擎默认值与常量
+
+- Camera 默认改为 2D：正交投影、`orthoSize=540`
+- 修复 Camera `projectionType` 标签在编辑器中互换的问题
+- 新增 `ProjectionType`、`ClearFlags`、`ScaleMode` 枚举替换魔数
+- 提取共享常量（设计分辨率、PPU、Canvas 尺寸）到 `sdk/src/defaults.ts`
+- Text 组件默认对齐方式改为居中
+
+## 微信小游戏修复
+
+- 修复触摸坐标未按 DPR 调整
+- 新增多点触控支持
+- 修复离屏 Canvas 内存泄漏
+- `game.js` 从同步改为异步文件读取
+- 修复 manifest `resolvePath()` 增加基于路径的索引
+- 包含 spine `.atlas` 文件到 addressable manifest
+
+## Playable 广告改进
+
+- CTA 按钮改为可选（默认禁用），构建对话框中暴露设置
+- 修复嵌入式资产加载和打包
+- 新增 MRAID CTA 集成到 Playable Ads 模板
+- `PlayableEmitter` 尊重导出配置而非包含全部资产
+
+## 运行时稳定性
+
+- 系统调度增加 try/catch 错误边界，单个系统崩溃不会终止游戏循环
+- 修复组件浅拷贝 bug，嵌套默认值（Vec3、Color）改用深拷贝
+- 缓存 World-to-C++ 方法引用，消除逐帧字符串拼接
+- Delta time 限制为最大 250ms，防止切标签后物理爆炸
+- 固定时间步最多 8 次迭代，防止死循环
+- `quit()` 正确清理：逐个 try/catch 关闭、销毁实体、置空引用
+- 查询迭代器返回数组副本，防止共享引用导致的数据损坏
+- `AsyncCache` 追踪中止标志，防止超时加载泄漏到缓存
+- `releaseAll()` 清理挂起的加载并释放材质
+- 场景数据在 `preloadSceneAssets` 前深拷贝（允许场景重新加载）
+- 优化逐帧分配：复用命令缓冲、池化 `ResMutInstance`、静态乘法缓冲
+- 消除渲染系统中重复的 `collectCameras` 调用
+
+## 其他改进
+
+- 新增 `BitmapFont.measureText` API 用于编辑器精确边界计算
+- 新增实体可见性支持到运行时场景加载
+- `WorldTransform` 初始化与层级更新分离
+- 移除 Text 组件面向用户的 dirty 标志
+- Sprite 尺寸重置按钮始终可见
+- 新增 `RenameEntityCommand` 和 `ToggleVisibilityCommand` 支持撤销
+- 修复 Sprite 与 UIRect 尺寸同步
+- 修复撤销/重做时 UIRect 和 Sprite 的派生属性同步
+- 编辑器中 Text 组件变更立即同步到运行时
+- 用 `World` + `loadComponent` 替换 `EditorBridge` 中的手动组件映射
+- 用生成的类型替换手写的 `CppRegistry`，消除类型强转
+- SSE 实时重载支持预览系统
+- 修复 WASM 编译新增 `-fno-rtti` 优化
+- 修复 `INVALID_FONT` 哨兵值并添加 BitmapText 的 UTF-8 解码
+- 修复设置对话框关闭时数字输入值的保存
+- 修复对话框点击背景遮罩时意外关闭
+- 屏蔽浏览器右键菜单，View 菜单新增 Reload/DevTools
+- 修复纹理预览重复更新和竞态条件
+- 修复 `INVALID_TEXTURE` 在纹理属性编辑器中的显示
+- 预览插件错误报告增加步骤上下文和堆栈跟踪
+- 防止并发刷新并验证预制体保存目录
+- 防止孤立实体并改善场景管理器健壮性
