@@ -65,7 +65,7 @@ const Enemy = defineTag('Enemy');
 ```typescript
 import { defineSystem, addSystem, Schedule } from 'esengine';
 
-addSystem(defineSystem([], (world) => {
+addSystem(defineSystem([], () => {
     // 每帧在 Update 阶段执行
 }));
 ```
@@ -75,7 +75,7 @@ addSystem(defineSystem([], (world) => {
 ```typescript
 import { addSystemToSchedule, defineSystem, Schedule } from 'esengine';
 
-addSystemToSchedule(Schedule.FixedUpdate, defineSystem([], (world) => {
+addSystemToSchedule(Schedule.FixedUpdate, defineSystem([], () => {
     // 以固定时间步执行，适合物理逻辑
 }));
 ```
@@ -85,7 +85,7 @@ addSystemToSchedule(Schedule.FixedUpdate, defineSystem([], (world) => {
 ```typescript
 import { addStartupSystem, defineSystem } from 'esengine';
 
-addStartupSystem(defineSystem([], (world) => {
+addStartupSystem(defineSystem([], () => {
     // 游戏启动时执行一次
 }));
 ```
@@ -99,15 +99,15 @@ addStartupSystem(defineSystem([], (world) => {
 资源是可在系统间共享的全局单例数据：
 
 ```typescript
-import { defineResource, addStartupSystem, defineSystem } from 'esengine';
+import { defineResource, addStartupSystem, defineSystem, Commands } from 'esengine';
 
 const GameState = defineResource<{ score: number; level: number }>(
     { score: 0, level: 1 },
     'GameState'
 );
 
-addStartupSystem(defineSystem([], (world) => {
-    world.app.insertResource(GameState, { score: 0, level: 1 });
+addStartupSystem(defineSystem([Commands()], (cmds) => {
+    cmds.insertResource(GameState, { score: 0, level: 1 });
 }));
 ```
 
@@ -136,15 +136,15 @@ addStartupSystem(defineSystem([], (world) => {
 插件是实现了 `Plugin` 接口的对象：
 
 ```typescript
-import { type Plugin, type App, defineResource, defineSystem, Schedule, registerComponent } from 'esengine';
+import { type Plugin, type App, defineResource, defineComponent, defineSystem, Schedule } from 'esengine';
 
 const ScoreData = defineResource<{ value: number }>({ value: 0 }, 'Score');
+const Health = defineComponent('Health', { hp: 100, maxHp: 100 });
 
 const myPlugin: Plugin = {
     name: 'MyGamePlugin',
     build(app: App) {
         app.insertResource(ScoreData, { value: 0 });
-        registerComponent('Health', { hp: 100, maxHp: 100 });
         app.addSystemToSchedule(Schedule.Update, defineSystem([], () => {
             // 游戏逻辑
         }));

@@ -161,11 +161,14 @@ import { ScrollList } from './components';
 addSystem(defineSystem(
     [Res(Input), Query(Children, UIMask, ScrollList), Query(Mut(LocalTransform))],
     (input, maskQuery, childQuery) => {
-        for (const [entity, children, mask, scroll] of maskQuery) {
-            const scroll = input.getScrollDelta();
-            for (const child of children.entities) {
-                const [, transform] = childQuery.get(child);
-                transform.position.y += scroll.y * 20;
+        const scrollDelta = input.getScrollDelta();
+        if (scrollDelta.y === 0) return;
+
+        for (const [entity, children] of maskQuery) {
+            for (const [childEntity, transform] of childQuery) {
+                if (children.entities.includes(childEntity)) {
+                    transform.position.y += scrollDelta.y * 20;
+                }
             }
         }
     }
@@ -202,16 +205,18 @@ ESEngine 提供了内置的 UI 交互系统，用于处理 UI 元素的悬停、
 设置 `transition` 后，状态变化时 `Sprite` 颜色会自动更新：
 
 ```typescript
-import { Button, Interactable } from 'esengine';
+import { defineSystem, Commands, Button, Interactable } from 'esengine';
 
-world.insert(entity, Button, {
-    state: 0,
-    transition: {
-        normalColor: { r: 1, g: 1, b: 1, a: 1 },
-        hoveredColor: { r: 0.9, g: 0.9, b: 0.9, a: 1 },
-        pressedColor: { r: 0.7, g: 0.7, b: 0.7, a: 1 },
-        disabledColor: { r: 0.5, g: 0.5, b: 0.5, a: 0.5 },
-    },
+defineSystem([Commands()], (cmds) => {
+    cmds.entity(entity).insert(Button, {
+        state: 0,
+        transition: {
+            normalColor: { r: 1, g: 1, b: 1, a: 1 },
+            hoveredColor: { r: 0.9, g: 0.9, b: 0.9, a: 1 },
+            pressedColor: { r: 0.7, g: 0.7, b: 0.7, a: 1 },
+            disabledColor: { r: 0.5, g: 0.5, b: 0.5, a: 0.5 },
+        },
+    });
 });
 ```
 
@@ -251,16 +256,19 @@ addSystem(defineSystem(
 用于根 UI 实体的标签组件。拥有 `ScreenSpace`、`UIRect` 和 `LocalTransform` 的实体会由 `UILayoutPlugin` 相对于相机边界进行布局。
 
 ```typescript
-import { ScreenSpace, UIRect, LocalTransform } from 'esengine';
+import { defineSystem, Commands, ScreenSpace, UIRect, LocalTransform } from 'esengine';
 
-world.insert(entity, ScreenSpace);
-world.insert(entity, UIRect, {
-    anchorMin: { x: 0, y: 0 },
-    anchorMax: { x: 1, y: 1 },
-    offsetMin: { x: 0, y: 0 },
-    offsetMax: { x: 0, y: 0 },
-    size: { x: 100, y: 100 },
-    pivot: { x: 0.5, y: 0.5 },
+defineSystem([Commands()], (cmds) => {
+    cmds.entity(entity)
+        .insert(ScreenSpace)
+        .insert(UIRect, {
+            anchorMin: { x: 0, y: 0 },
+            anchorMax: { x: 1, y: 1 },
+            offsetMin: { x: 0, y: 0 },
+            offsetMax: { x: 0, y: 0 },
+            size: { x: 100, y: 100 },
+            pivot: { x: 0.5, y: 0.5 },
+        });
 });
 ```
 
@@ -309,8 +317,11 @@ addSystem(defineSystem(
     [Query(TextInput), Res(UIEvents)],
     (query, events) => {
         for (const e of events.query('submit')) {
-            const [, input] = query.get(e.entity);
-            console.log('提交内容：', input.value);
+            for (const [entity, input] of query) {
+                if (entity === e.entity) {
+                    console.log('提交内容：', input.value);
+                }
+            }
         }
     }
 ));

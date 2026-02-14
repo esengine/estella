@@ -102,7 +102,7 @@ const Animation = defineComponent('Animation', {
 });
 
 addSystem(defineSystem(
-    [Res(Time), Query(Mut(Sprite), Animation)],
+    [Res(Time), Query(Mut(Sprite), Mut(Animation))],
     (time, query) => {
         for (const [entity, sprite, anim] of query) {
             anim.elapsed += time.delta;

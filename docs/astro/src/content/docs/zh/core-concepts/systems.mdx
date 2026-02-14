@@ -71,7 +71,9 @@ addSystemToSchedule(Schedule.FixedUpdate, physicsSystem);
 在运行时创建、修改和销毁实体：
 
 ```typescript
-import { Commands, Sprite, LocalTransform } from 'esengine';
+import { Commands, Sprite, LocalTransform, Velocity, defineResource } from 'esengine';
+
+const Score = defineResource({ value: 0 });
 
 defineSystem([Commands()], (cmds) => {
     // 创建新实体并添加组件（可链式调用）

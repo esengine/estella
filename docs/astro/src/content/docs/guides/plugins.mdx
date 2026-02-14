@@ -65,7 +65,7 @@ Use `defineSystem()` and `addSystem()` to add game logic that runs every frame:
 ```typescript
 import { defineSystem, addSystem, Schedule } from 'esengine';
 
-addSystem(defineSystem([], (world) => {
+addSystem(defineSystem([], () => {
     // runs every frame during the Update phase
 }));
 ```
@@ -75,7 +75,7 @@ You can also target a specific schedule phase:
 ```typescript
 import { addSystemToSchedule, defineSystem, Schedule } from 'esengine';
 
-addSystemToSchedule(Schedule.FixedUpdate, defineSystem([], (world) => {
+addSystemToSchedule(Schedule.FixedUpdate, defineSystem([], () => {
     // runs at fixed timestep, ideal for physics logic
 }));
 ```
@@ -85,7 +85,7 @@ For one-time initialization, use `addStartupSystem()`:
 ```typescript
 import { addStartupSystem, defineSystem } from 'esengine';
 
-addStartupSystem(defineSystem([], (world) => {
+addStartupSystem(defineSystem([], () => {
     // runs once when the game starts
 }));
 ```
@@ -99,15 +99,15 @@ addStartupSystem(defineSystem([], (world) => {
 Resources are global singleton data that can be shared across systems:
 
 ```typescript
-import { defineResource, addStartupSystem, defineSystem } from 'esengine';
+import { defineResource, addStartupSystem, defineSystem, Commands } from 'esengine';
 
 const GameState = defineResource<{ score: number; level: number }>(
     { score: 0, level: 1 },
     'GameState'
 );
 
-addStartupSystem(defineSystem([], (world) => {
-    world.app.insertResource(GameState, { score: 0, level: 1 });
+addStartupSystem(defineSystem([Commands()], (cmds) => {
+    cmds.insertResource(GameState, { score: 0, level: 1 });
 }));
 ```
 
@@ -136,15 +136,15 @@ Systems run in a defined order each frame:
 A plugin is an object implementing the `Plugin` interface:
 
 ```typescript
-import { type Plugin, type App, defineResource, defineSystem, Schedule, registerComponent } from 'esengine';
+import { type Plugin, type App, defineResource, defineComponent, defineSystem, Schedule } from 'esengine';
 
 const ScoreData = defineResource<{ value: number }>({ value: 0 }, 'Score');
+const Health = defineComponent('Health', { hp: 100, maxHp: 100 });
 
 const myPlugin: Plugin = {
     name: 'MyGamePlugin',
     build(app: App) {
         app.insertResource(ScoreData, { value: 0 });
-        registerComponent('Health', { hp: 100, maxHp: 100 });
         app.addSystemToSchedule(Schedule.Update, defineSystem([], () => {
             // game logic
         }));

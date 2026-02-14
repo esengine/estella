@@ -110,7 +110,7 @@ const CharacterState = defineComponent('CharacterState', {
 });
 
 addSystem(defineSystem(
-    [Res(Input), Res(Time), Query(Mut(LocalTransform), Mut(SpineAnimation), CharacterState)],
+    [Res(Input), Res(Time), Query(Mut(LocalTransform), Mut(SpineAnimation), Mut(CharacterState))],
     (input, time, query) => {
         for (const [entity, transform, spine, state] of query) {
             let moving = false;

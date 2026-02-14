@@ -71,7 +71,9 @@ addSystemToSchedule(Schedule.FixedUpdate, physicsSystem);
 Create, modify, and destroy entities at runtime:
 
 ```typescript
-import { Commands, Sprite, LocalTransform } from 'esengine';
+import { Commands, Sprite, LocalTransform, Velocity, defineResource } from 'esengine';
+
+const Score = defineResource({ value: 0 });
 
 defineSystem([Commands()], (cmds) => {
     // Spawn a new entity with components (chainable)
