@@ -150,6 +150,8 @@ export class ContentBrowserPanel {
     private currentPath_: string = '';
     private searchFilter_: string = '';
     private unwatchFn_: (() => void) | null = null;
+    private refreshing_ = false;
+    private refreshPending_ = false;
     private currentItems_: AssetItem[] = [];
     private onOpenScene_: ((scenePath: string) => void) | null = null;
     private selectedAssetPath_: string | null = null;
@@ -316,10 +318,7 @@ export class ContentBrowserPanel {
         try {
             this.unwatchFn_ = await fs.watchDirectory(
                 projectDir,
-                (event) => {
-                    console.log('File change:', event);
-                    this.refresh();
-                },
+                () => { this.refresh(); },
                 { recursive: true }
             );
         } catch (err) {
@@ -328,19 +327,32 @@ export class ContentBrowserPanel {
     }
 
     async refresh(): Promise<void> {
-        if (this.rootFolder_ && this.projectPath_) {
-            this.rootFolder_.loaded = false;
-            await this.loadFolderChildren(this.rootFolder_);
+        if (this.refreshing_) {
+            this.refreshPending_ = true;
+            return;
+        }
+        this.refreshing_ = true;
+        try {
+            if (this.rootFolder_ && this.projectPath_) {
+                this.rootFolder_.loaded = false;
+                await this.loadFolderChildren(this.rootFolder_);
 
-            const expandedPaths = this.collectExpandedPaths(this.rootFolder_);
-            for (const path of expandedPaths) {
-                const folder = this.findFolder(this.rootFolder_, path);
-                if (folder && !folder.loaded) {
-                    await this.loadFolderChildren(folder);
+                const expandedPaths = this.collectExpandedPaths(this.rootFolder_);
+                for (const path of expandedPaths) {
+                    const folder = this.findFolder(this.rootFolder_, path);
+                    if (folder && !folder.loaded) {
+                        await this.loadFolderChildren(folder);
+                    }
                 }
-            }
 
-            this.render();
+                this.render();
+            }
+        } finally {
+            this.refreshing_ = false;
+            if (this.refreshPending_) {
+                this.refreshPending_ = false;
+                this.refresh();
+            }
         }
     }
 
@@ -1190,6 +1202,14 @@ void main() {
 
         const targetDir = this.currentPath_;
         if (!targetDir) return;
+
+        if (this.rootFolder_) {
+            const assetsDir = joinPath(this.rootFolder_.path, 'assets');
+            if (!targetDir.startsWith(assetsDir)) {
+                showErrorToast('Cannot save prefab outside assets directory', 'Please navigate to the assets folder first');
+                return;
+            }
+        }
 
         const platform = getPlatformAdapter();
 
