@@ -47,6 +47,7 @@ export class SceneViewPanel {
     private webglCanvas_: HTMLCanvasElement | null = null;
     private overlayCanvas_: HTMLCanvasElement | null = null;
     private unsubscribe_: (() => void) | null = null;
+    private unsubscribeSceneSync_: (() => void) | null = null;
     private unsubscribeFocus_: (() => void) | null = null;
     private animationId_: number | null = null;
     private continuousRender_ = false;
@@ -192,6 +193,7 @@ export class SceneViewPanel {
 
         this.setupEvents();
         this.unsubscribe_ = store.subscribe(() => this.onSceneChanged());
+        this.unsubscribeSceneSync_ = store.subscribeToSceneSync(() => this.onSceneSyncNeeded());
         this.unsubscribeFocus_ = store.onFocusEntity((entityId) => this.focusOnEntity(entityId));
         this.resize();
 
@@ -220,6 +222,10 @@ export class SceneViewPanel {
         if (this.unsubscribe_) {
             this.unsubscribe_();
             this.unsubscribe_ = null;
+        }
+        if (this.unsubscribeSceneSync_) {
+            this.unsubscribeSceneSync_();
+            this.unsubscribeSceneSync_ = null;
         }
         if (this.unsubscribeFocus_) {
             this.unsubscribeFocus_();
@@ -324,16 +330,17 @@ export class SceneViewPanel {
         await this.sceneRenderer_.syncScene(this.store_.scene);
     }
 
-    private lastLoadVersion_ = -1;
-
-    private async onSceneChanged(): Promise<void> {
-        if (this.sceneRenderer_ && this.useWebGL_) {
-            const loadVersion = this.store_.sceneLoadVersion ?? 0;
-            if (loadVersion !== this.lastLoadVersion_) {
-                this.lastLoadVersion_ = loadVersion;
+    private async onSceneSyncNeeded(): Promise<void> {
+        try {
+            if (this.sceneRenderer_ && this.useWebGL_) {
                 await this.syncSceneToRenderer();
             }
+        } catch (e) {
+            console.warn('[SceneViewPanel] Scene sync error:', e);
         }
+    }
+
+    private onSceneChanged(): void {
         this.requestRender();
     }
 
