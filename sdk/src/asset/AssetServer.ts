@@ -462,6 +462,10 @@ export class AssetServer {
         }
     }
 
+    resolveAddress(address: string): AddressableManifestAsset | undefined {
+        return this.addressIndex_.get(address);
+    }
+
     async load<T extends AddressableAssetType = AddressableAssetType>(
         address: string
     ): Promise<AddressableResultMap[T]> {

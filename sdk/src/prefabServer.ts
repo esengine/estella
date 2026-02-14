@@ -23,12 +23,14 @@ export class PrefabServer {
         this.assetServer_ = assetServer;
     }
 
-    async instantiate(path: string, options?: {
+    async instantiate(pathOrAddress: string, options?: {
         baseUrl?: string;
         parent?: Entity;
         overrides?: PrefabOverride[];
     }): Promise<InstantiatePrefabResult> {
-        const prefab = await this.assetServer_.loadPrefab(path, options?.baseUrl);
+        const resolved = this.assetServer_.resolveAddress(pathOrAddress);
+        const prefabPath = resolved ? resolved.path : pathOrAddress;
+        const prefab = await this.assetServer_.loadPrefab(prefabPath, options?.baseUrl);
         return instantiatePrefab(this.world_, prefab, {
             assetServer: this.assetServer_,
             assetBaseUrl: options?.baseUrl,

@@ -1541,6 +1541,7 @@ declare class AssetServer {
     loadScene(world: World, sceneData: SceneData): Promise<Map<number, Entity>>;
     loadAll(manifest: AddressableManifest): Promise<AssetBundle>;
     setAddressableManifest(manifest: AddressableManifest): void;
+    resolveAddress(address: string): AddressableManifestAsset | undefined;
     load<T extends AddressableAssetType = AddressableAssetType>(address: string): Promise<AddressableResultMap[T]>;
     loadByLabel(label: string): Promise<AssetBundle>;
     loadGroup(groupName: string): Promise<AssetBundle>;
@@ -1600,7 +1601,7 @@ declare class PrefabServer {
     private readonly world_;
     private readonly assetServer_;
     constructor(world: World, assetServer: AssetServer);
-    instantiate(path: string, options?: {
+    instantiate(pathOrAddress: string, options?: {
         baseUrl?: string;
         parent?: Entity;
         overrides?: PrefabOverride[];
