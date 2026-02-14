@@ -17,6 +17,7 @@ set(ES_EMSCRIPTEN_COMPILE_FLAGS
     -fdata-sections
     -fno-exceptions
     -fno-rtti
+    -DEMSCRIPTEN_HAS_UNBOUND_TYPE_NAMES=0
 )
 
 # Standard (monolithic) link flags
