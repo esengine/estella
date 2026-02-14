@@ -91,7 +91,7 @@ export class EditorSceneManager {
             const spineComp = entityData.components.find(c => c.type === 'SpineAnimation');
             if (!spineComp) continue;
             const entity = this.entityMap_.get(entityId);
-            if (!entity) continue;
+            if (entity === undefined) continue;
             await this.syncSpineAnimation(entity, spineComp.data, entityId);
         }
     }
@@ -155,8 +155,18 @@ export class EditorSceneManager {
     }
 
     private async loadEntity(entityData: EntityData): Promise<void> {
-        const entity = this.world_.spawn();
-        this.entityMap_.set(entityData.id, entity);
+        let entity = this.entityMap_.get(entityData.id);
+        if (entity !== undefined) {
+            if (this.world_.has(entity, Sprite)) {
+                this.world_.remove(entity, Sprite);
+            }
+            if (this.world_.has(entity, BitmapText)) {
+                this.world_.remove(entity, BitmapText);
+            }
+        } else {
+            entity = this.world_.spawn();
+            this.entityMap_.set(entityData.id, entity);
+        }
 
         if (entityData.visible === false) return;
 
@@ -178,7 +188,8 @@ export class EditorSceneManager {
             case 'Sprite': {
                 const entityData = this.entityDataMap_.get(entityId);
                 const hasText = entityData?.components.some(c => c.type === 'Text');
-                if (!hasText) {
+                const hasSpine = entityData?.components.some(c => c.type === 'SpineAnimation');
+                if (!hasText && !hasSpine) {
                     await this.syncSprite(entity, comp.data, entityId);
                 }
                 break;
@@ -220,6 +231,8 @@ export class EditorSceneManager {
     // =========================================================================
 
     async updateEntity(entityId: number, components: ComponentData[], entityData?: EntityData): Promise<void> {
+        if (this.syncing_) return;
+
         const prev = this.updatingEntities_.get(entityId);
         if (prev) {
             await prev;
@@ -238,7 +251,7 @@ export class EditorSceneManager {
 
     private async updateEntityInternal(entityId: number, components: ComponentData[], entityData?: EntityData): Promise<void> {
         let entity = this.entityMap_.get(entityId);
-        if (!entity) {
+        if (entity === undefined) {
             entity = this.world_.spawn();
             this.entityMap_.set(entityId, entity);
         }
@@ -297,7 +310,7 @@ export class EditorSceneManager {
 
     removeEntity(entityId: number): void {
         const entity = this.entityMap_.get(entityId);
-        if (entity) {
+        if (entity !== undefined) {
             this.destroySpineInstance(entityId);
             getDependencyGraph().clearEntity(entityId);
             try {
@@ -429,7 +442,7 @@ export class EditorSceneManager {
             }
 
             const entity = this.entityMap_.get(entityId);
-            if (!entity) continue;
+            if (entity === undefined) continue;
 
             const scaleX = skeletonScale * (flipX ? -1 : 1);
             const scaleY = skeletonScale * (flipY ? -1 : 1);
@@ -549,7 +562,7 @@ export class EditorSceneManager {
         for (const entityId of this.entityMap_.keys()) {
             getDependencyGraph().clearEntity(entityId);
         }
-        for (const entity of this.entityMap_.values()) {
+        for (const entity of this.world_.getAllEntities()) {
             this.world_.despawn(entity);
         }
         this.entityMap_.clear();
@@ -683,9 +696,19 @@ export class EditorSceneManager {
             lineHeight: data.lineHeight ?? 1.2,
         };
 
-        if (!textData.content) return;
+        if (!textData.content) {
+            if (this.world_.has(entity, Sprite)) {
+                this.world_.remove(entity, Sprite);
+            }
+            this.textRenderer_.release(entity);
+            return;
+        }
 
         const result = this.textRenderer_.renderForEntity(entity, textData, uiRectData);
+
+        if (result.textureHandle === (INVALID_TEXTURE as number)) {
+            return;
+        }
 
         if (this.world_.has(entity, Sprite)) {
             this.world_.remove(entity, Sprite);
@@ -728,6 +751,10 @@ export class EditorSceneManager {
         };
 
         const result = this.textRenderer_.renderForEntity(entity, textData, uiRectData);
+
+        if (result.textureHandle === (INVALID_TEXTURE as number)) {
+            return;
+        }
 
         if (this.world_.has(entity, Sprite)) {
             this.world_.remove(entity, Sprite);
@@ -781,10 +808,7 @@ export class EditorSceneManager {
         const skeletonRef = data.skeletonPath ?? '';
         const atlasRef = data.atlasPath ?? '';
 
-        if (!skeletonRef || !atlasRef) {
-            console.warn('[EditorSceneManager] SpineAnimation missing skeleton or atlas path');
-            return;
-        }
+        if (!skeletonRef || !atlasRef) return;
 
         const skeletonPath = this.resolveAssetRef(skeletonRef);
         const atlasPath = this.resolveAssetRef(atlasRef);
@@ -824,11 +848,17 @@ export class EditorSceneManager {
                     console.warn(`[EditorSceneManager] Failed to load Spine to module: ${result.error}`);
                     return;
                 }
+                if (this.spineController_ !== controller) return;
                 skeletonHandle = result.skeletonHandle;
                 this.spineSkeletons_.set(cacheKey, skeletonHandle);
             }
 
-            instanceId = controller.createInstance(skeletonHandle);
+            try {
+                instanceId = controller.createInstance(skeletonHandle);
+            } catch (e) {
+                console.warn(`[EditorSceneManager] Spine createInstance failed for entity ${entityId}:`, e);
+                return;
+            }
             this.spineInstances_.set(entityId, instanceId);
             this.spineInstanceKeys_.set(entityId, cacheKey);
             this.spineCurrentState_.delete(entityId);
@@ -843,13 +873,17 @@ export class EditorSceneManager {
         const loop = data.loop ?? true;
         const prev = this.spineCurrentState_.get(entityId);
 
-        if (!prev || prev.skin !== skin) {
-            controller.setSkin(instanceId, skin);
-        }
-        if (!prev || prev.animation !== animation || prev.loop !== loop) {
-            if (animation) {
-                controller.play(instanceId, animation, loop);
+        try {
+            if (!prev || prev.skin !== skin) {
+                controller.setSkin(instanceId, skin);
             }
+            if (!prev || prev.animation !== animation || prev.loop !== loop) {
+                if (animation) {
+                    controller.play(instanceId, animation, loop);
+                }
+            }
+        } catch (e) {
+            console.warn(`[EditorSceneManager] Spine state update failed for entity ${entityId}:`, e);
         }
 
         this.spineCurrentState_.set(entityId, { animation, skin, loop });
