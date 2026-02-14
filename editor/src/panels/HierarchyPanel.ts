@@ -4,7 +4,7 @@
  */
 
 import type { Entity } from 'esengine';
-import type { EntityData, SceneData } from '../types/SceneTypes';
+import type { EntityData } from '../types/SceneTypes';
 import type { EditorStore } from '../store/EditorStore';
 import { icons } from '../utils/icons';
 import { getGlobalPathResolver } from '../asset';
@@ -12,12 +12,24 @@ import { getDefaultComponentData } from '../schemas/ComponentSchemas';
 import { showContextMenu, type ContextMenuItem } from '../ui/ContextMenu';
 import { getContextMenuItems, type ContextMenuContext } from '../ui/ContextMenuRegistry';
 import { getEditorContext, getEditorInstance } from '../context/EditorContext';
+import { getAssetDatabase, isUUID } from '../asset/AssetDatabase';
 import { getPlatformAdapter } from '../platform/PlatformAdapter';
 import { generateUniqueName } from '../utils/naming';
 import { showInputDialog } from '../ui/dialog';
 import { joinPath, getParentDir } from '../utils/path';
+import { hasAnyOverrides } from '../prefab';
 
 type DropPosition = 'before' | 'after' | 'inside';
+
+const ROW_HEIGHT = 22;
+const OVERSCAN = 5;
+
+interface FlattenedRow {
+    entity: EntityData;
+    depth: number;
+    hasChildren: boolean;
+    isExpanded: boolean;
+}
 
 // =============================================================================
 // HierarchyPanel
@@ -34,6 +46,15 @@ export class HierarchyPanel {
     private searchFilter_: string = '';
     private expandedIds_: Set<number> = new Set();
     private lastSelectedEntity_: Entity | null = null;
+    private flatRows_: FlattenedRow[] = [];
+    private scrollContent_!: HTMLElement;
+    private visibleWindow_!: HTMLElement;
+    private scrollRafId_: number = 0;
+    private lastVisibleStart_: number = -1;
+    private lastVisibleEnd_: number = -1;
+    private dragOverEntityId_: number | null = null;
+    private dropPosition_: DropPosition | null = null;
+    private draggingEntityId_: number | null = null;
 
     constructor(container: HTMLElement, store: EditorStore) {
         this.container_ = container;
@@ -69,6 +90,13 @@ export class HierarchyPanel {
         `;
 
         this.treeContainer_ = this.container_.querySelector('.es-hierarchy-tree')!;
+        this.scrollContent_ = document.createElement('div');
+        this.scrollContent_.className = 'es-hierarchy-scroll-content';
+        this.visibleWindow_ = document.createElement('div');
+        this.visibleWindow_.className = 'es-hierarchy-visible-window';
+        this.scrollContent_.appendChild(this.visibleWindow_);
+        this.treeContainer_.appendChild(this.scrollContent_);
+        this.treeContainer_.addEventListener('scroll', () => this.onScroll());
         this.searchInput_ = this.container_.querySelector('.es-hierarchy-search');
         this.footerContainer_ = this.container_.querySelector('.es-hierarchy-footer');
         this.prefabEditBar_ = this.container_.querySelector('.es-prefab-edit-bar');
@@ -87,6 +115,10 @@ export class HierarchyPanel {
         if (this.unsubscribe_) {
             this.unsubscribe_();
             this.unsubscribe_ = null;
+        }
+        if (this.scrollRafId_) {
+            cancelAnimationFrame(this.scrollRafId_);
+            this.scrollRafId_ = 0;
         }
     }
 
@@ -184,14 +216,18 @@ export class HierarchyPanel {
 
             e.dataTransfer!.setData('application/esengine-entity', entityId);
             e.dataTransfer!.effectAllowed = 'move';
+            this.draggingEntityId_ = parseInt(entityId, 10);
             item.classList.add('es-dragging');
-        });
 
-        this.treeContainer_.addEventListener('dragend', () => {
-            this.treeContainer_.querySelectorAll('.es-dragging').forEach(el => {
-                el.classList.remove('es-dragging');
-            });
-            this.clearDropIndicators();
+            const onDragEnd = () => {
+                row.removeEventListener('dragend', onDragEnd);
+                this.draggingEntityId_ = null;
+                this.dragOverEntityId_ = null;
+                this.dropPosition_ = null;
+                this.treeContainer_.classList.remove('es-drag-over');
+                this.renderVisibleRows();
+            };
+            row.addEventListener('dragend', onDragEnd);
         });
 
         this.treeContainer_.addEventListener('dragover', (e) => {
@@ -203,44 +239,67 @@ export class HierarchyPanel {
 
             e.preventDefault();
 
+            const target = e.target as HTMLElement;
+            const item = target.closest('.es-hierarchy-item') as HTMLElement;
+            const entityId = item ? parseInt(item.dataset.entityId ?? '', 10) : NaN;
+            const newEntityId = isNaN(entityId) ? null : entityId;
+
             if (hasAssetData) {
                 e.dataTransfer!.dropEffect = 'copy';
-                this.clearDropIndicators();
-                const target = e.target as HTMLElement;
-                const item = target.closest('.es-hierarchy-item') as HTMLElement;
-                if (item) {
-                    item.classList.add('es-drag-over');
-                } else {
-                    this.treeContainer_.classList.add('es-drag-over');
+                if (newEntityId !== this.dragOverEntityId_ || this.dropPosition_ !== null) {
+                    this.dragOverEntityId_ = newEntityId;
+                    this.dropPosition_ = null;
+                    this.treeContainer_.classList.toggle('es-drag-over', !item);
+                    this.renderVisibleRows();
                 }
                 return;
             }
 
             e.dataTransfer!.dropEffect = 'move';
-            const target = e.target as HTMLElement;
-            const item = target.closest('.es-hierarchy-item') as HTMLElement;
-            this.clearDropIndicators();
 
             if (!item) {
+                if (this.dragOverEntityId_ !== null) {
+                    this.dragOverEntityId_ = null;
+                    this.dropPosition_ = null;
+                    this.renderVisibleRows();
+                }
                 this.treeContainer_.classList.add('es-drag-over');
                 return;
             }
 
+            this.treeContainer_.classList.remove('es-drag-over');
             const position = this.getDropPosition(e, item);
-            item.classList.add(`es-drop-${position}`);
+            if (newEntityId !== this.dragOverEntityId_ || position !== this.dropPosition_) {
+                this.dragOverEntityId_ = newEntityId;
+                this.dropPosition_ = position;
+                this.renderVisibleRows();
+            }
         });
 
         this.treeContainer_.addEventListener('dragleave', (e) => {
             const relatedTarget = e.relatedTarget as HTMLElement;
             if (this.treeContainer_.contains(relatedTarget)) return;
-            this.clearDropIndicators();
+            this.dragOverEntityId_ = null;
+            this.dropPosition_ = null;
+            this.treeContainer_.classList.remove('es-drag-over');
+            this.renderVisibleRows();
         });
 
         this.treeContainer_.addEventListener('drop', (e) => {
             e.preventDefault();
-            this.clearDropIndicators();
 
             const assetDataStr = e.dataTransfer?.getData('application/esengine-asset');
+            const entityIdStr = e.dataTransfer?.getData('application/esengine-entity');
+            const target = e.target as HTMLElement;
+            const dropItem = target.closest('.es-hierarchy-item') as HTMLElement;
+            const dropTargetId = dropItem ? parseInt(dropItem.dataset.entityId ?? '', 10) : NaN;
+            const dropPos = dropItem ? this.getDropPosition(e, dropItem) : null;
+
+            this.dragOverEntityId_ = null;
+            this.dropPosition_ = null;
+            this.draggingEntityId_ = null;
+            this.treeContainer_.classList.remove('es-drag-over');
+
             if (assetDataStr) {
                 let assetData: { type: string; path: string; name: string };
                 try {
@@ -248,58 +307,47 @@ export class HierarchyPanel {
                 } catch {
                     return;
                 }
-                const target = e.target as HTMLElement;
-                const item = target.closest('.es-hierarchy-item') as HTMLElement;
-                const parentEntity = item
-                    ? parseInt(item.dataset.entityId ?? '', 10) as Entity
-                    : null;
+                const parentEntity = !isNaN(dropTargetId) ? dropTargetId as Entity : null;
                 this.createEntityFromAsset(assetData, parentEntity);
                 return;
             }
 
-            const entityIdStr = e.dataTransfer?.getData('application/esengine-entity');
             if (!entityIdStr) return;
 
             const draggedId = parseInt(entityIdStr, 10);
             if (isNaN(draggedId)) return;
 
-            const target = e.target as HTMLElement;
-            const item = target.closest('.es-hierarchy-item') as HTMLElement;
-
-            if (!item) {
+            if (isNaN(dropTargetId)) {
                 const scene = this.store_.scene;
                 const roots = scene.entities.filter(e => e.parent === null);
                 this.store_.moveEntity(draggedId as Entity, null, roots.length);
                 return;
             }
 
-            const targetId = parseInt(item.dataset.entityId ?? '', 10);
-            if (isNaN(targetId) || targetId === draggedId) return;
+            if (dropTargetId === draggedId || !dropPos) return;
+            if (this.isDescendantOf(draggedId, dropTargetId)) return;
 
-            if (this.isDescendantOf(draggedId, targetId)) return;
-
-            const position = this.getDropPosition(e, item);
-            const scene = this.store_.scene;
-            const targetEntity = scene.entities.find(en => en.id === targetId);
+            const targetEntity = this.store_.getEntityData(dropTargetId);
             if (!targetEntity) return;
 
-            if (position === 'inside') {
-                this.store_.moveEntity(draggedId as Entity, targetId as Entity, targetEntity.children.length);
-                this.expandedIds_.add(targetId);
+            if (dropPos === 'inside') {
+                this.store_.moveEntity(draggedId as Entity, dropTargetId as Entity, targetEntity.children.length);
+                this.expandedIds_.add(dropTargetId);
             } else {
                 const parentId = targetEntity.parent;
                 if (parentId !== null) {
-                    const parent = scene.entities.find(en => en.id === parentId);
+                    const parent = this.store_.getEntityData(parentId);
                     if (!parent) return;
-                    let idx = parent.children.indexOf(targetId);
-                    if (position === 'after') idx++;
+                    let idx = parent.children.indexOf(dropTargetId);
+                    if (dropPos === 'after') idx++;
                     const draggedIdx = parent.children.indexOf(draggedId);
                     if (draggedIdx !== -1 && draggedIdx < idx) idx--;
                     this.store_.moveEntity(draggedId as Entity, parentId as Entity, idx);
                 } else {
+                    const scene = this.store_.scene;
                     const roots = scene.entities.filter(en => en.parent === null);
-                    let idx = roots.findIndex(en => en.id === targetId);
-                    if (position === 'after') idx++;
+                    let idx = roots.findIndex(en => en.id === dropTargetId);
+                    if (dropPos === 'after') idx++;
                     const draggedIdx = roots.findIndex(en => en.id === draggedId);
                     if (draggedIdx !== -1 && draggedIdx < idx) idx--;
                     this.store_.moveEntity(draggedId as Entity, null, idx);
@@ -318,19 +366,11 @@ export class HierarchyPanel {
         return 'inside';
     }
 
-    private clearDropIndicators(): void {
-        this.treeContainer_.querySelectorAll('.es-drag-over, .es-drop-before, .es-drop-after, .es-drop-inside').forEach(el => {
-            el.classList.remove('es-drag-over', 'es-drop-before', 'es-drop-after', 'es-drop-inside');
-        });
-        this.treeContainer_.classList.remove('es-drag-over');
-    }
-
     private isDescendantOf(entityId: number, ancestorId: number): boolean {
-        const scene = this.store_.scene;
         let current: number | null = entityId;
         while (current !== null) {
             if (current === ancestorId) return true;
-            const entity = scene.entities.find(e => e.id === current);
+            const entity = this.store_.getEntityData(current);
             current = entity?.parent ?? null;
         }
         return false;
@@ -458,7 +498,8 @@ export class HierarchyPanel {
                 this.prefabEditBar_.style.display = '';
                 const nameEl = this.prefabEditBar_.querySelector('.es-prefab-edit-name');
                 if (nameEl) {
-                    const path = this.store_.prefabEditingPath ?? '';
+                    const rawPath = this.store_.prefabEditingPath ?? '';
+                    const path = isUUID(rawPath) ? (getAssetDatabase().getPath(rawPath) ?? rawPath) : rawPath;
                     const fileName = path.split('/').pop() ?? path;
                     nameEl.innerHTML = `${icons.package(12)} ${this.escapeHtml(fileName)}`;
                 }
@@ -467,42 +508,36 @@ export class HierarchyPanel {
             }
         }
 
-        if (selectedEntity !== null && selectedEntity !== this.lastSelectedEntity_) {
-            this.expandAncestors(selectedEntity, scene);
+        const selectionChanged = selectedEntity !== null && selectedEntity !== this.lastSelectedEntity_;
+        if (selectionChanged) {
+            this.expandAncestors(selectedEntity);
         }
         this.lastSelectedEntity_ = selectedEntity;
 
-        let rootEntities = scene.entities.filter(e => e.parent === null);
-
-        if (this.searchFilter_) {
-            rootEntities = scene.entities.filter(e =>
-                e.name.toLowerCase().includes(this.searchFilter_)
-            );
-        }
-
-        this.treeContainer_.innerHTML = this.renderEntities(rootEntities, scene, selectedEntity, 0);
+        this.buildFlatRows();
+        this.scrollContent_.style.height = `${this.flatRows_.length * ROW_HEIGHT}px`;
+        this.lastVisibleStart_ = -1;
+        this.lastVisibleEnd_ = -1;
+        this.renderVisibleRows();
 
         if (this.footerContainer_) {
             const count = scene.entities.length;
             this.footerContainer_.textContent = `${count} ${count === 1 ? 'entity' : 'entities'}`;
         }
 
-        if (selectedEntity !== null) {
-            requestAnimationFrame(() => {
-                const selectedItem = this.treeContainer_.querySelector('.es-selected');
-                selectedItem?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            });
+        if (selectionChanged) {
+            this.scrollToEntity(selectedEntity as number);
         }
     }
 
-    private expandAncestors(entityId: Entity, scene: SceneData): void {
-        const entity = scene.entities.find(e => e.id === entityId);
+    private expandAncestors(entityId: Entity): void {
+        const entity = this.store_.getEntityData(entityId as number);
         if (!entity || entity.parent === null) return;
 
         let parentId: number | null = entity.parent;
         while (parentId !== null) {
             this.expandedIds_.add(parentId);
-            const parent = scene.entities.find(e => e.id === parentId);
+            const parent = this.store_.getEntityData(parentId);
             parentId = parent?.parent ?? null;
         }
     }
@@ -532,43 +567,126 @@ export class HierarchyPanel {
         return 'Entity';
     }
 
-    private renderEntities(
-        entities: EntityData[],
-        scene: SceneData,
-        selectedEntity: Entity | null,
-        depth: number = 0
-    ): string {
-        return entities.map(entity => {
-            const children = this.searchFilter_
-                ? []
-                : entity.children
-                    .map(id => scene.entities.find(e => e.id === id))
-                    .filter((e): e is EntityData => e !== undefined);
-            const hasChildren = children.length > 0;
-            const isSelected = entity.id === selectedEntity;
-            const isExpanded = this.expandedIds_.has(entity.id);
-            const icon = this.getEntityIcon(entity);
-            const type = this.getEntityType(entity);
-            const expandIcon = isExpanded ? icons.chevronDown(10) : icons.chevronRight(10);
-            const isVisible = this.store_.isEntityVisible(entity.id);
-            const visibilityIcon = isVisible ? icons.eye(10) : icons.eyeOff(10);
-            const hiddenClass = isVisible ? '' : ' es-entity-hidden';
-            const prefabClass = entity.prefab?.isRoot ? ' es-prefab-root' : (entity.prefab ? ' es-prefab-child' : '');
+    private buildFlatRows(): void {
+        this.flatRows_ = [];
+        const scene = this.store_.scene;
 
-            return `
-                <div class="es-hierarchy-item ${isSelected ? 'es-selected' : ''}${hiddenClass}${prefabClass} ${hasChildren ? 'es-has-children' : ''} ${isExpanded ? 'es-expanded' : ''}"
-                     data-entity-id="${entity.id}" style="--depth: ${depth}">
-                    <div class="es-hierarchy-row" draggable="true" style="padding-left: ${8 + depth * 16}px">
-                        ${hasChildren ? `<span class="es-hierarchy-expand">${expandIcon}</span>` : '<span class="es-hierarchy-spacer"></span>'}
-                        <span class="es-hierarchy-visibility">${visibilityIcon}</span>
-                        <span class="es-hierarchy-icon">${icon}</span>
-                        <span class="es-hierarchy-name">${this.escapeHtml(entity.name)}</span>
-                        <span class="es-hierarchy-type">${type}</span>
-                    </div>
-                    ${hasChildren && isExpanded ? `<div class="es-hierarchy-children">${this.renderEntities(children, scene, selectedEntity, depth + 1)}</div>` : ''}
-                </div>
-            `;
-        }).join('');
+        if (this.searchFilter_) {
+            for (const entity of scene.entities) {
+                if (entity.name.toLowerCase().includes(this.searchFilter_)) {
+                    this.flatRows_.push({ entity, depth: 0, hasChildren: false, isExpanded: false });
+                }
+            }
+            return;
+        }
+
+        const roots = scene.entities.filter(e => e.parent === null);
+        this.flattenDFS(roots, 0);
+    }
+
+    private flattenDFS(entities: EntityData[], depth: number): void {
+        for (const entity of entities) {
+            const children = entity.children
+                .map(id => this.store_.getEntityData(id))
+                .filter((e): e is EntityData => e !== null);
+            const hasChildren = children.length > 0;
+            const isExpanded = this.expandedIds_.has(entity.id);
+
+            this.flatRows_.push({ entity, depth, hasChildren, isExpanded });
+
+            if (hasChildren && isExpanded) {
+                this.flattenDFS(children, depth + 1);
+            }
+        }
+    }
+
+    private getVisibleRange(): { start: number; end: number } {
+        const scrollTop = this.treeContainer_.scrollTop;
+        const viewHeight = this.treeContainer_.clientHeight;
+        const totalRows = this.flatRows_.length;
+
+        let start = Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN;
+        let end = Math.ceil((scrollTop + viewHeight) / ROW_HEIGHT) + OVERSCAN;
+
+        return { start: Math.max(0, start), end: Math.min(totalRows, end) };
+    }
+
+    private renderVisibleRows(): void {
+        const { start, end } = this.getVisibleRange();
+        const selectedEntity = this.store_.selectedEntity;
+
+        this.visibleWindow_.style.transform = `translateY(${start * ROW_HEIGHT}px)`;
+
+        let html = '';
+        for (let i = start; i < end; i++) {
+            html += this.renderSingleRow(this.flatRows_[i], selectedEntity);
+        }
+        this.visibleWindow_.innerHTML = html;
+
+        this.lastVisibleStart_ = start;
+        this.lastVisibleEnd_ = end;
+    }
+
+    private renderSingleRow(row: FlattenedRow, selectedEntity: Entity | null): string {
+        const { entity, depth, hasChildren, isExpanded } = row;
+        const icon = this.getEntityIcon(entity);
+        const type = this.getEntityType(entity);
+        const expandIcon = isExpanded ? icons.chevronDown(10) : icons.chevronRight(10);
+        const isVisible = this.store_.isEntityVisible(entity.id);
+        const visibilityIcon = isVisible ? icons.eye(10) : icons.eyeOff(10);
+
+        let itemClass = 'es-hierarchy-item';
+        if (entity.id === selectedEntity) itemClass += ' es-selected';
+        if (!isVisible) itemClass += ' es-entity-hidden';
+        if (entity.prefab?.isRoot) itemClass += ' es-prefab-root';
+        else if (entity.prefab) itemClass += ' es-prefab-child';
+        if (hasChildren) itemClass += ' es-has-children';
+        if (isExpanded) itemClass += ' es-expanded';
+        if (entity.id === this.draggingEntityId_) itemClass += ' es-dragging';
+        if (entity.id === this.dragOverEntityId_) {
+            if (this.dropPosition_) {
+                itemClass += ` es-drop-${this.dropPosition_}`;
+            } else {
+                itemClass += ' es-drag-over';
+            }
+        }
+
+        return `<div class="${itemClass}" data-entity-id="${entity.id}">
+            <div class="es-hierarchy-row" draggable="true" style="padding-left: ${8 + depth * 16}px">
+                ${hasChildren ? `<span class="es-hierarchy-expand">${expandIcon}</span>` : '<span class="es-hierarchy-spacer"></span>'}
+                <span class="es-hierarchy-visibility">${visibilityIcon}</span>
+                <span class="es-hierarchy-icon">${icon}</span>
+                <span class="es-hierarchy-name">${this.escapeHtml(entity.name)}</span>
+                <span class="es-hierarchy-type">${type}</span>
+            </div>
+        </div>`;
+    }
+
+    private scrollToEntity(entityId: number): void {
+        const index = this.flatRows_.findIndex(r => r.entity.id === entityId);
+        if (index === -1) return;
+
+        const targetTop = index * ROW_HEIGHT;
+        const targetBottom = targetTop + ROW_HEIGHT;
+        const scrollTop = this.treeContainer_.scrollTop;
+        const viewHeight = this.treeContainer_.clientHeight;
+
+        if (targetTop < scrollTop) {
+            this.treeContainer_.scrollTop = targetTop;
+        } else if (targetBottom > scrollTop + viewHeight) {
+            this.treeContainer_.scrollTop = targetBottom - viewHeight;
+        }
+    }
+
+    private onScroll(): void {
+        if (this.scrollRafId_) return;
+        this.scrollRafId_ = requestAnimationFrame(() => {
+            this.scrollRafId_ = 0;
+            const { start, end } = this.getVisibleRange();
+            if (start !== this.lastVisibleStart_ || end !== this.lastVisibleEnd_) {
+                this.renderVisibleRows();
+            }
+        });
     }
 
     private showEntityContextMenu(x: number, y: number, entity: Entity | null): void {
@@ -642,10 +760,11 @@ export class HierarchyPanel {
                 const instanceId = this.store_.getPrefabInstanceId(entity as number);
                 const prefabPath = this.store_.getPrefabPath(entity as number);
                 if (instanceId && prefabPath) {
+                    const overridden = hasAnyOverrides(this.store_.scene, instanceId);
                     prefabChildren.push(
                         { label: '', separator: true },
-                        { label: 'Revert Prefab', icon: icons.rotateCw(14), onClick: () => this.store_.revertPrefabInstance(instanceId, prefabPath) },
-                        { label: 'Apply to Prefab', icon: icons.check(14), onClick: () => this.store_.applyPrefabOverrides(instanceId, prefabPath) },
+                        { label: 'Revert Prefab', icon: icons.rotateCw(14), disabled: !overridden, onClick: () => this.store_.revertPrefabInstance(instanceId, prefabPath) },
+                        { label: 'Apply to Prefab', icon: icons.check(14), disabled: !overridden, onClick: () => this.store_.applyPrefabOverrides(instanceId, prefabPath) },
                         { label: 'Unpack Prefab', icon: icons.package(14), onClick: () => this.store_.unpackPrefab(instanceId) },
                     );
                 }
@@ -794,7 +913,8 @@ export class HierarchyPanel {
         parent: Entity | null
     ): Promise<void> {
         const relativePath = this.toRelativePath(prefabPath);
-        await this.store_.instantiatePrefab(relativePath, parent);
+        const uuid = getAssetDatabase().getUuid(relativePath) ?? relativePath;
+        await this.store_.instantiatePrefab(uuid, parent);
     }
 
     private escapeHtml(text: string): string {
