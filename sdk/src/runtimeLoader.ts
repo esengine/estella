@@ -12,6 +12,8 @@ import type { PhysicsWasmModule } from './physics/PhysicsModuleLoader';
 import { PhysicsPlugin, type PhysicsPluginConfig } from './physics/PhysicsPlugin';
 import type { App } from './app';
 import type { Entity, Vec2 } from './types';
+import type { AddressableManifest } from './asset/AssetServer';
+import { Assets } from './asset/AssetPlugin';
 
 // =============================================================================
 // Public Interface
@@ -193,6 +195,7 @@ function createSpineInstances(
 ): Record<number, number> {
     const instances: Record<number, number> = {};
     for (const entityData of sceneData.entities) {
+        if (entityData.visible === false) continue;
         for (const comp of entityData.components) {
             if (comp.type !== 'SpineAnimation' || !comp.data) continue;
             const skelRef = comp.data.skeletonPath as string;
@@ -473,6 +476,7 @@ export async function loadRuntimeScene(
     spineModule?: SpineWasmModule | null,
     physicsModule?: PhysicsWasmModule | null,
     physicsConfig?: { gravity?: Vec2; fixedTimestep?: number; subStepCount?: number },
+    manifest?: AddressableManifest | null,
 ): Promise<void> {
     const textureCache = await loadTextures(module, sceneData, provider);
     applyTextureMetadata(module, sceneData, textureCache);
@@ -505,5 +509,12 @@ export async function loadRuntimeScene(
     if (spineModule && spineAPI) {
         const instances = createSpineInstances(spineAPI, sceneData, spineSkeletons, entityMap);
         setupSpineRenderer(app, module, spineModule, spineAPI, instances);
+    }
+
+    if (manifest) {
+        const assetServer = app.getResource(Assets);
+        if (assetServer) {
+            assetServer.setAddressableManifest(manifest);
+        }
     }
 }

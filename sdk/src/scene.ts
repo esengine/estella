@@ -47,6 +47,7 @@ export interface SceneEntityData {
     parent: number | null;
     children: number[];
     components: SceneComponentData[];
+    visible?: boolean;
 }
 
 export interface SceneComponentData {
@@ -91,8 +92,10 @@ export function loadSceneData(world: World, sceneData: SceneData): Map<number, E
         entityMap.set(entityData.id, entity);
         world.insert(entity, Name, { value: entityData.name });
 
-        for (const compData of entityData.components) {
-            loadComponent(world, entity, compData);
+        if (entityData.visible !== false) {
+            for (const compData of entityData.components) {
+                loadComponent(world, entity, compData);
+            }
         }
     }
 
@@ -123,6 +126,8 @@ export async function loadSceneWithAssets(
         const entity = world.spawn();
         entityMap.set(entityData.id, entity);
         world.insert(entity, Name, { value: entityData.name });
+
+        if (entityData.visible === false) continue;
 
         for (const compData of entityData.components) {
             if (compData.type === 'Sprite' && assetServer) {

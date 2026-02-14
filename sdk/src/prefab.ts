@@ -89,6 +89,7 @@ export async function instantiatePrefab(
             parent: e.parent,
             children: e.children,
             components: e.components,
+            visible: e.visible,
         })),
     };
 
