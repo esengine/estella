@@ -6,6 +6,7 @@
 import type { MaterialAssetData, MaterialHandle, ShaderHandle } from '../material';
 import { Material } from '../material';
 import { platformReadTextFile, platformFileExists } from '../platform';
+import { AsyncCache } from './AsyncCache';
 
 // =============================================================================
 // Types
@@ -27,8 +28,7 @@ export interface ShaderLoader {
 // =============================================================================
 
 export class MaterialLoader {
-    private cache_ = new Map<string, LoadedMaterial>();
-    private pending_ = new Map<string, Promise<LoadedMaterial>>();
+    private cache_ = new AsyncCache<LoadedMaterial>();
     private shaderLoader_: ShaderLoader;
     private basePath_: string;
 
@@ -38,26 +38,7 @@ export class MaterialLoader {
     }
 
     async load(path: string): Promise<LoadedMaterial> {
-        const cached = this.cache_.get(path);
-        if (cached) {
-            return cached;
-        }
-
-        const pending = this.pending_.get(path);
-        if (pending) {
-            return pending;
-        }
-
-        const promise = this.loadInternal(path);
-        this.pending_.set(path, promise);
-
-        try {
-            const result = await promise;
-            this.cache_.set(path, result);
-            return result;
-        } finally {
-            this.pending_.delete(path);
-        }
+        return this.cache_.getOrLoad(path, () => this.loadInternal(path), 0);
     }
 
     get(path: string): LoadedMaterial | undefined {

@@ -10,10 +10,9 @@ import { BuildProgressReporter } from './BuildProgress';
 import { getEditorContext } from '../context/EditorContext';
 import { findTsFiles, EDITOR_ONLY_DIRS } from '../scripting/ScriptLoader';
 import { joinPath, getFileExtension, isAbsolutePath, getParentDir, normalizePath, getProjectDir } from '../utils/path';
-import { isUUID } from '../asset/AssetLibrary';
-import { getAssetType, toAddressableType } from '../asset/AssetTypes';
-import { initializeEsbuild, createBuildVirtualFsPlugin } from './ArtifactBuilder';
-import { convertPrefabAssetRefs, deserializePrefab } from '../prefab';
+import { isUUID, getComponentRefFields } from '../asset/AssetLibrary';
+import { initializeEsbuild, createBuildVirtualFsPlugin, arrayBufferToBase64, generateAddressableManifest, convertPrefabWithResolvedRefs } from './ArtifactBuilder';
+import { PLAYABLE_HTML_TEMPLATE } from './templates';
 import type { NativeFS } from '../types/NativeFS';
 
 // =============================================================================
@@ -90,7 +89,7 @@ export class PlayableEmitter implements PlatformEmitter {
                 const spineWasm = await fs.getSpineWasm(context.spineVersion);
                 if (spineJs && spineWasm.length > 0) {
                     spineJsSource = spineJs;
-                    spineWasmBase64 = this.arrayBufferToBase64(spineWasm);
+                    spineWasmBase64 = arrayBufferToBase64(spineWasm);
                     progress.log('info', `Spine ${context.spineVersion} module loaded`);
                 }
             }
@@ -104,7 +103,7 @@ export class PlayableEmitter implements PlatformEmitter {
                 const physicsWasm = await fs.getPhysicsWasm();
                 if (physicsJs && physicsWasm.length > 0) {
                     physicsJsSource = physicsJs;
-                    physicsWasmBase64 = this.arrayBufferToBase64(physicsWasm);
+                    physicsWasmBase64 = arrayBufferToBase64(physicsWasm);
                     progress.log('info', 'Physics module loaded');
                 }
             }
@@ -114,13 +113,13 @@ export class PlayableEmitter implements PlatformEmitter {
             progress.setCurrentTask('Collecting assets...', 0);
             const assets = await this.collectInlineAssets(fs, projectDir, artifact);
             for (let i = 0; i < artifact.atlasResult.pages.length; i++) {
-                const base64 = this.arrayBufferToBase64(artifact.atlasResult.pages[i].imageData);
+                const base64 = arrayBufferToBase64(artifact.atlasResult.pages[i].imageData);
                 assets.set(`atlas_${i}.png`, `data:image/png;base64,${base64}`);
             }
             progress.log('info', `Collected ${assets.size} assets`);
 
             // 6.5 Generate addressable manifest
-            const manifestJson = this.generateAddressableManifest(artifact);
+            const manifestJson = JSON.stringify(generateAddressableManifest(artifact));
 
             // 7. Assemble HTML
             progress.setCurrentTask('Assembling HTML...', 50);
@@ -249,28 +248,13 @@ ${imports}
                 if (path) entity.prefab.prefabPath = path;
             }
             for (const comp of entity.components || []) {
-                if (comp.type === 'Sprite' && comp.data) {
-                    if (typeof comp.data.texture === 'string' && isUUID(comp.data.texture)) {
-                        const path = artifact.assetLibrary.getPath(comp.data.texture);
-                        if (path) comp.data.texture = path;
-                    }
-                    if (typeof comp.data.material === 'string' && isUUID(comp.data.material)) {
-                        const path = artifact.assetLibrary.getPath(comp.data.material);
-                        if (path) comp.data.material = path;
-                    }
-                }
-                if (comp.type === 'SpineAnimation' && comp.data) {
-                    if (typeof comp.data.skeletonPath === 'string' && isUUID(comp.data.skeletonPath)) {
-                        const path = artifact.assetLibrary.getPath(comp.data.skeletonPath);
-                        if (path) comp.data.skeletonPath = path;
-                    }
-                    if (typeof comp.data.atlasPath === 'string' && isUUID(comp.data.atlasPath)) {
-                        const path = artifact.assetLibrary.getPath(comp.data.atlasPath);
-                        if (path) comp.data.atlasPath = path;
-                    }
-                    if (typeof comp.data.material === 'string' && isUUID(comp.data.material)) {
-                        const path = artifact.assetLibrary.getPath(comp.data.material);
-                        if (path) comp.data.material = path;
+                const refFields = getComponentRefFields(comp.type);
+                if (!refFields || !comp.data) continue;
+                for (const field of refFields) {
+                    const value = comp.data[field];
+                    if (typeof value === 'string' && isUUID(value)) {
+                        const path = artifact.assetLibrary.getPath(value);
+                        if (path) comp.data[field] = path;
                     }
                 }
             }
@@ -322,14 +306,7 @@ ${imports}
                 const fullPath = joinPath(projectDir, relativePath);
                 const content = await fs.readFile(fullPath);
                 if (content) {
-                    const prefab = deserializePrefab(content);
-                    const converted = convertPrefabAssetRefs(prefab, (value) => {
-                        if (isUUID(value)) {
-                            return artifact.assetLibrary.getPath(value) ?? value;
-                        }
-                        return value;
-                    });
-                    const json = JSON.stringify(converted);
+                    const json = convertPrefabWithResolvedRefs(content, artifact);
                     const base64 = btoa(json);
                     assets.set(relativePath, `data:application/json;base64,${base64}`);
                 }
@@ -343,7 +320,7 @@ ${imports}
             const fullPath = joinPath(projectDir, relativePath);
             const binary = await fs.readBinaryFile(fullPath);
             if (binary) {
-                const base64 = this.arrayBufferToBase64(binary);
+                const base64 = arrayBufferToBase64(binary);
                 assets.set(relativePath, `data:${mimeType};base64,${base64}`);
             }
         }
@@ -397,7 +374,7 @@ ${imports}
             subStepCount: context.physicsSubStepCount ?? 4,
         });
 
-        return HTML_TEMPLATE
+        return PLAYABLE_HTML_TEMPLATE
             .replace('{{WASM_SDK}}', () => wasmSdk)
             .replace('{{SPINE_SCRIPT}}', () => spineScript)
             .replace('{{PHYSICS_SCRIPT}}', () => physicsScript)
@@ -408,214 +385,4 @@ ${imports}
             .replace('{{MANIFEST}}', () => manifestJson);
     }
 
-    private generateAddressableManifest(artifact: BuildArtifact): string {
-        const groupService = artifact.assetLibrary.getGroupService();
-        const groups: Record<string, { bundleMode: string; labels: string[]; assets: Record<string, unknown> }> = {};
-
-        const spineAtlasPaths = new Map<string, string>();
-        for (const relativePath of artifact.assetPaths) {
-            if (getAssetType(relativePath) === 'spine-atlas') {
-                const dir = relativePath.substring(0, relativePath.lastIndexOf('/'));
-                spineAtlasPaths.set(dir, relativePath);
-            }
-        }
-
-        for (const relativePath of artifact.assetPaths) {
-            if (relativePath.endsWith('.esshader')) continue;
-
-            const editorType = getAssetType(relativePath);
-            const addressableType = toAddressableType(editorType);
-            if (!addressableType) continue;
-
-            const uuid = artifact.assetLibrary.getUuid(relativePath);
-            if (!uuid) continue;
-
-            const entry = artifact.assetLibrary.getEntry(uuid);
-            const groupName = entry?.group ?? 'default';
-
-            if (!groups[groupName]) {
-                const groupDef = groupService?.getGroup(groupName);
-                groups[groupName] = {
-                    bundleMode: groupDef?.bundleMode ?? 'together',
-                    labels: groupDef?.labels ?? [],
-                    assets: {},
-                };
-            }
-
-            let path = relativePath;
-            const metadata: Record<string, unknown> = {};
-
-            if (artifact.packedPaths.has(relativePath)) {
-                const frame = artifact.atlasResult.frameMap.get(relativePath);
-                if (frame) {
-                    path = `atlas_${frame.page}.png`;
-                    metadata.atlasPage = frame.page;
-                    metadata.atlasFrame = {
-                        x: frame.frame.x,
-                        y: frame.frame.y,
-                        width: frame.frame.width,
-                        height: frame.frame.height,
-                    };
-                }
-            }
-
-            const compiledMat = artifact.compiledMaterials.find(m => m.relativePath === relativePath);
-            if (compiledMat) {
-                path = relativePath.replace(/\.esmaterial$/, '.json');
-            }
-
-            if (addressableType === 'spine') {
-                const dir = relativePath.substring(0, relativePath.lastIndexOf('/'));
-                const atlasPath = spineAtlasPaths.get(dir);
-                if (atlasPath) {
-                    metadata.atlas = atlasPath;
-                }
-            }
-
-            const asset: Record<string, unknown> = {
-                path,
-                type: addressableType,
-                size: entry?.fileSize ?? 0,
-                labels: entry ? [...entry.labels] : [],
-            };
-            if (entry?.address) {
-                asset.address = entry.address;
-            }
-            if (Object.keys(metadata).length > 0) {
-                asset.metadata = metadata;
-            }
-
-            groups[groupName].assets[uuid] = asset;
-        }
-
-        return JSON.stringify({ version: '2.0', groups });
-    }
-
-    private arrayBufferToBase64(buffer: Uint8Array): string {
-        let binary = '';
-        const bytes = new Uint8Array(buffer);
-        for (let i = 0; i < bytes.byteLength; i++) {
-            binary += String.fromCharCode(bytes[i]);
-        }
-        return btoa(binary);
-    }
 }
-
-// =============================================================================
-// HTML Template
-// =============================================================================
-
-const HTML_TEMPLATE = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
-<meta name="ad.size" content="width=320,height=480">
-<title>Playable</title>
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-html,body{width:100%;height:100%;overflow:hidden;background:#000}
-#canvas{display:block;width:100%;height:100%;touch-action:none}
-</style>
-</head>
-<body>
-<canvas id="canvas"></canvas>
-<script>
-{{WASM_SDK}}
-</script>
-{{SPINE_SCRIPT}}
-{{PHYSICS_SCRIPT}}
-<script>
-{{GAME_CODE}}
-</script>
-<script>
-var __PA__={{ASSETS_MAP}};
-var __SCENE__={{SCENE_DATA}};
-var __MANIFEST__={{MANIFEST}};
-
-function loadImagePixels(dataUrl){
-  return new Promise(function(resolve,reject){
-    var img=new Image();
-    img.onload=function(){
-      var cv=document.createElement('canvas');
-      cv.width=img.width;cv.height=img.height;
-      var ctx=cv.getContext('2d');
-      ctx.drawImage(img,0,0);
-      var id=ctx.getImageData(0,0,img.width,img.height);
-      resolve({width:img.width,height:img.height,pixels:new Uint8Array(id.data.buffer)});
-    };
-    img.onerror=reject;
-    img.src=dataUrl;
-  });
-}
-
-function decodeText(dataUrl){return atob(dataUrl.split(',')[1])}
-
-function decodeBinary(dataUrl){
-  var b=atob(dataUrl.split(',')[1]);
-  var a=new Uint8Array(b.length);
-  for(var i=0;i<b.length;i++)a[i]=b.charCodeAt(i);
-  return a;
-}
-
-(async function(){
-  var c=document.getElementById('canvas');
-  function resize(){var dpr=window.devicePixelRatio||1;c.width=window.innerWidth*dpr;c.height=window.innerHeight*dpr}
-  window.addEventListener('resize',resize);
-  resize();
-
-  var Module=await ESEngineModule({canvas:c,print:function(t){console.log(t)},printErr:function(t){console.error(t)}});
-  var es=window.esengine;
-  if(!es||!es.createWebApp){console.error('esengine not found');return}
-
-  var app=es.createWebApp(Module);
-  if(typeof __PA__!=='undefined')es.registerEmbeddedAssets(app,__PA__);
-  es.flushPendingSystems(app);
-
-  var spineModule=null;
-  if(typeof ESSpineModule!=='undefined'){
-    try{
-      spineModule=await ESSpineModule({
-        instantiateWasm:function(imports,cb){
-          var b=atob(__SPINE_WASM_B64__);
-          var a=new Uint8Array(b.length);
-          for(var i=0;i<b.length;i++)a[i]=b.charCodeAt(i);
-          WebAssembly.instantiate(a,imports).then(function(r){cb(r.instance,r.module)});
-          return {};
-        }
-      });
-    }catch(e){console.warn('Spine module not available:',e)}
-  }
-
-  var physicsModule=null;
-  if(typeof ESPhysicsModule!=='undefined'){
-    try{
-      physicsModule=await ESPhysicsModule({
-        instantiateWasm:function(imports,cb){
-          var b=atob(__PHYSICS_WASM_B64__);
-          var a=new Uint8Array(b.length);
-          for(var i=0;i<b.length;i++)a[i]=b.charCodeAt(i);
-          WebAssembly.instantiate(a,imports).then(function(r){cb(r.instance,r.module)});
-          return {};
-        }
-      });
-    }catch(e){console.warn('Physics module not available:',e)}
-  }
-
-  var provider={
-    loadPixels:function(ref){var d=__PA__[ref];if(!d)throw new Error('Asset not found: '+ref);return loadImagePixels(d)},
-    readText:function(ref){var d=__PA__[ref];if(!d)throw new Error('Asset not found: '+ref);return decodeText(d)},
-    readBinary:function(ref){var d=__PA__[ref];if(!d)throw new Error('Asset not found: '+ref);return decodeBinary(d)},
-    resolvePath:function(ref){return ref}
-  };
-
-  await es.loadRuntimeScene(app,Module,__SCENE__,provider,spineModule,physicsModule,{{PHYSICS_CONFIG}},__MANIFEST__);
-
-  var screenAspect=c.width/c.height;
-  es.updateCameraAspectRatio(app.world,screenAspect);
-
-  app.run();
-})();
-</script>
-</body>
-</html>`;

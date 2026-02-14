@@ -52,6 +52,54 @@ export interface SceneLoadOptions {
 }
 
 // =============================================================================
+// Component Asset Field Registry
+// =============================================================================
+
+type AssetFieldType = 'texture' | 'material' | 'font';
+
+interface AssetFieldDescriptor {
+    field: string;
+    type: AssetFieldType;
+}
+
+interface SpineFieldDescriptor {
+    skeletonField: string;
+    atlasField: string;
+}
+
+interface ComponentAssetFields {
+    fields?: AssetFieldDescriptor[];
+    spine?: SpineFieldDescriptor;
+}
+
+const COMPONENT_ASSET_FIELDS = new Map<string, ComponentAssetFields>([
+    ['Sprite', {
+        fields: [
+            { field: 'texture', type: 'texture' },
+            { field: 'material', type: 'material' },
+        ],
+    }],
+    ['SpineAnimation', {
+        spine: { skeletonField: 'skeletonPath', atlasField: 'atlasPath' },
+        fields: [
+            { field: 'material', type: 'material' },
+        ],
+    }],
+    ['BitmapText', {
+        fields: [
+            { field: 'font', type: 'font' },
+        ],
+    }],
+]);
+
+export function registerComponentAssetFields(
+    componentType: string,
+    config: ComponentAssetFields
+): void {
+    COMPONENT_ASSET_FIELDS.set(componentType, config);
+}
+
+// =============================================================================
 // Scene Loader
 // =============================================================================
 
@@ -91,7 +139,12 @@ export async function loadSceneWithAssets(
 ): Promise<Map<number, Entity>> {
     const entityMap = new Map<number, Entity>();
     const assetServer = options?.assetServer;
+    const baseUrl = options?.assetBaseUrl;
     const texturePathToUrl = new Map<string, string>();
+
+    if (assetServer) {
+        await preloadSceneAssets(sceneData, assetServer, baseUrl, texturePathToUrl);
+    }
 
     for (const entityData of sceneData.entities) {
         const entity = world.spawn();
@@ -101,83 +154,6 @@ export async function loadSceneWithAssets(
         if (entityData.visible === false) continue;
 
         for (const compData of entityData.components) {
-            if (compData.type === 'Sprite' && assetServer) {
-                const data = compData.data as Record<string, unknown>;
-                if (typeof data.texture === 'string' && data.texture) {
-                    const texturePath = data.texture;
-                    const isDataUrl = texturePath.startsWith('data:');
-                    const url = isDataUrl
-                        ? texturePath
-                        : options?.assetBaseUrl
-                            ? `${options.assetBaseUrl}/${texturePath}`
-                            : `/${texturePath}`;
-                    try {
-                        const info = await assetServer.loadTexture(url);
-                        data.texture = info.handle;
-                        texturePathToUrl.set(texturePath, url);
-                    } catch (err) {
-                        console.warn(`Failed to load texture: ${url}`, err);
-                        data.texture = 0;
-                    }
-                }
-                if (typeof data.material === 'string' && data.material) {
-                    try {
-                        const loaded = await assetServer.loadMaterial(
-                            data.material,
-                            options?.assetBaseUrl
-                        );
-                        data.material = loaded.handle;
-                    } catch (err) {
-                        console.warn(`Failed to load material: ${data.material}`, err);
-                        data.material = 0;
-                    }
-                }
-            }
-
-            if (compData.type === 'BitmapText' && assetServer) {
-                const data = compData.data as Record<string, unknown>;
-                if (typeof data.font === 'string' && data.font) {
-                    try {
-                        const handle = await assetServer.loadBitmapFont(
-                            data.font,
-                            options?.assetBaseUrl
-                        );
-                        data.font = handle;
-                    } catch (err) {
-                        console.warn(`Failed to load bitmap font: ${data.font}`, err);
-                        data.font = 0;
-                    }
-                }
-            }
-
-            if (compData.type === 'SpineAnimation' && assetServer) {
-                const data = compData.data as Record<string, unknown>;
-                const skeletonPath = data.skeletonPath as string;
-                const atlasPath = data.atlasPath as string;
-                if (skeletonPath && atlasPath) {
-                    const result = await assetServer.loadSpine(
-                        skeletonPath,
-                        atlasPath,
-                        options?.assetBaseUrl
-                    );
-                    if (!result.success) {
-                        console.warn(`Failed to load Spine: ${result.error}`);
-                    }
-                }
-                if (typeof data.material === 'string' && data.material) {
-                    try {
-                        const loaded = await assetServer.loadMaterial(
-                            data.material,
-                            options?.assetBaseUrl
-                        );
-                        data.material = loaded.handle;
-                    } catch (err) {
-                        console.warn(`Failed to load material: ${data.material}`, err);
-                        data.material = 0;
-                    }
-                }
-            }
-
             loadComponent(world, entity, compData);
         }
     }
@@ -202,6 +178,140 @@ export async function loadSceneWithAssets(
     }
 
     return entityMap;
+}
+
+async function preloadSceneAssets(
+    sceneData: SceneData,
+    assetServer: AssetServer,
+    baseUrl: string | undefined,
+    texturePathToUrl: Map<string, string>,
+): Promise<void> {
+    const textures = new Set<string>();
+    const materials = new Set<string>();
+    const fonts = new Set<string>();
+    const spines: { skeleton: string; atlas: string }[] = [];
+    const spineKeys = new Set<string>();
+
+    for (const entityData of sceneData.entities) {
+        if (entityData.visible === false) continue;
+
+        for (const compData of entityData.components) {
+            const config = COMPONENT_ASSET_FIELDS.get(compData.type);
+            if (!config) continue;
+
+            const data = compData.data as Record<string, unknown>;
+
+            if (config.spine) {
+                const skelPath = data[config.spine.skeletonField] as string;
+                const atlasPath = data[config.spine.atlasField] as string;
+                if (skelPath && atlasPath) {
+                    const key = `${skelPath}:${atlasPath}`;
+                    if (!spineKeys.has(key)) {
+                        spineKeys.add(key);
+                        spines.push({ skeleton: skelPath, atlas: atlasPath });
+                    }
+                }
+            }
+
+            if (config.fields) {
+                for (const desc of config.fields) {
+                    const value = data[desc.field];
+                    if (typeof value !== 'string' || !value) continue;
+
+                    switch (desc.type) {
+                        case 'texture': textures.add(value); break;
+                        case 'material': materials.add(value); break;
+                        case 'font': fonts.add(value); break;
+                    }
+                }
+            }
+        }
+    }
+
+    const textureHandles = new Map<string, number>();
+    const materialHandles = new Map<string, number>();
+    const fontHandles = new Map<string, number>();
+
+    const promises: Promise<void>[] = [];
+
+    for (const texturePath of textures) {
+        promises.push((async () => {
+            try {
+                const isDataUrl = texturePath.startsWith('data:');
+                const url = isDataUrl
+                    ? texturePath
+                    : baseUrl ? `${baseUrl}/${texturePath}` : `/${texturePath}`;
+                const info = await assetServer.loadTexture(url);
+                textureHandles.set(texturePath, info.handle);
+                texturePathToUrl.set(texturePath, url);
+            } catch (err) {
+                console.warn(`Failed to load texture: ${texturePath}`, err);
+                textureHandles.set(texturePath, 0);
+            }
+        })());
+    }
+
+    for (const materialPath of materials) {
+        promises.push((async () => {
+            try {
+                const loaded = await assetServer.loadMaterial(materialPath, baseUrl);
+                materialHandles.set(materialPath, loaded.handle);
+            } catch (err) {
+                console.warn(`Failed to load material: ${materialPath}`, err);
+                materialHandles.set(materialPath, 0);
+            }
+        })());
+    }
+
+    for (const fontPath of fonts) {
+        promises.push((async () => {
+            try {
+                const handle = await assetServer.loadBitmapFont(fontPath, baseUrl);
+                fontHandles.set(fontPath, handle);
+            } catch (err) {
+                console.warn(`Failed to load bitmap font: ${fontPath}`, err);
+                fontHandles.set(fontPath, 0);
+            }
+        })());
+    }
+
+    for (const spine of spines) {
+        promises.push((async () => {
+            const result = await assetServer.loadSpine(spine.skeleton, spine.atlas, baseUrl);
+            if (!result.success) {
+                console.warn(`Failed to load Spine: ${result.error}`);
+            }
+        })());
+    }
+
+    await Promise.all(promises);
+
+    for (const entityData of sceneData.entities) {
+        if (entityData.visible === false) continue;
+
+        for (const compData of entityData.components) {
+            const config = COMPONENT_ASSET_FIELDS.get(compData.type);
+            if (!config?.fields) continue;
+
+            const data = compData.data as Record<string, unknown>;
+            for (const desc of config.fields) {
+                const value = data[desc.field];
+                if (typeof value !== 'string' || !value) continue;
+
+                switch (desc.type) {
+                    case 'texture':
+                        data[desc.field] = textureHandles.get(value) ?? 0;
+                        break;
+                    case 'material':
+                        data[desc.field] = materialHandles.get(value) ?? 0;
+                        break;
+                    case 'font':
+                        data[desc.field] = fontHandles.get(value) ?? 0;
+                        break;
+                }
+            }
+        }
+    }
 }
 
 export function loadComponent(world: World, entity: Entity, compData: SceneComponentData): void {

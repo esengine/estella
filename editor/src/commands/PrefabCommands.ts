@@ -14,11 +14,14 @@ import { instantiatePrefab, computeNextEntityId } from '../prefab/PrefabInstanti
 
 export class InstantiatePrefabCommand extends BaseCommand {
     readonly type = 'instantiate_prefab';
+    readonly structural = true;
     readonly description: string;
     private createdEntityIds_: number[] = [];
+    private createdEntities_: EntityData[] = [];
 
     constructor(
         private scene_: SceneData,
+        private entityMap_: Map<number, EntityData>,
         private prefab_: PrefabData,
         private prefabPath_: string,
         private parentEntityId_: number | null,
@@ -42,12 +45,13 @@ export class InstantiatePrefabCommand extends BaseCommand {
         }
 
         if (this.parentEntityId_ !== null) {
-            const parent = this.scene_.entities.find(e => e.id === this.parentEntityId_);
+            const parent = this.entityMap_.get(this.parentEntityId_);
             if (parent && !parent.children.includes(result.rootEntityId)) {
                 parent.children.push(result.rootEntityId);
             }
         }
 
+        this.createdEntities_ = result.createdEntities;
         this.createdEntityIds_ = result.createdEntities.map(e => e.id);
     }
 
@@ -55,13 +59,25 @@ export class InstantiatePrefabCommand extends BaseCommand {
         const idsToRemove = new Set(this.createdEntityIds_);
 
         if (this.parentEntityId_ !== null) {
-            const parent = this.scene_.entities.find(e => e.id === this.parentEntityId_);
+            const parent = this.entityMap_.get(this.parentEntityId_);
             if (parent) {
                 parent.children = parent.children.filter(id => !idsToRemove.has(id));
             }
         }
 
         this.scene_.entities = this.scene_.entities.filter(e => !idsToRemove.has(e.id));
+    }
+
+    updateEntityMap(map: Map<number, EntityData>, isUndo: boolean): void {
+        if (isUndo) {
+            for (const id of this.createdEntityIds_) {
+                map.delete(id);
+            }
+        } else {
+            for (const entity of this.createdEntities_) {
+                map.set(entity.id, entity);
+            }
+        }
     }
 
     get rootEntityId(): number {
@@ -79,6 +95,7 @@ export class InstantiatePrefabCommand extends BaseCommand {
 
 export class UnpackPrefabCommand extends BaseCommand {
     readonly type = 'unpack_prefab';
+    readonly structural = true;
     readonly description: string;
     private savedPrefabData_: Map<number, EntityData['prefab']> = new Map();
 
@@ -116,6 +133,7 @@ export class UnpackPrefabCommand extends BaseCommand {
 
 export class RevertPrefabInstanceCommand extends BaseCommand {
     readonly type = 'revert_prefab';
+    readonly structural = true;
     readonly description: string;
     private savedSnapshot_: EntityData[] = [];
     private savedIndices_: Map<number, number> = new Map();
@@ -295,6 +313,7 @@ export class RevertPrefabInstanceCommand extends BaseCommand {
 
 export class ApplyPrefabOverridesCommand extends BaseCommand {
     readonly type = 'apply_prefab';
+    readonly structural = true;
     readonly description: string;
     private savedPrefab_: PrefabData | null = null;
     private savedOtherInstances_: Map<number, EntityData>[] = [];
@@ -437,10 +456,12 @@ export class ApplyPrefabOverridesCommand extends BaseCommand {
 
 export class InstantiateNestedPrefabCommand extends BaseCommand {
     readonly type = 'instantiate_nested_prefab';
+    readonly structural = true;
     readonly description: string;
 
     constructor(
         private scene_: SceneData,
+        private entityMap_: Map<number, EntityData>,
         private createdEntities_: EntityData[],
         private rootEntityId_: number,
         private parentEntityId_: number | null
@@ -455,7 +476,7 @@ export class InstantiateNestedPrefabCommand extends BaseCommand {
         }
 
         if (this.parentEntityId_ !== null) {
-            const parent = this.scene_.entities.find(e => e.id === this.parentEntityId_);
+            const parent = this.entityMap_.get(this.parentEntityId_);
             if (parent && !parent.children.includes(this.rootEntityId_)) {
                 parent.children.push(this.rootEntityId_);
             }
@@ -466,13 +487,25 @@ export class InstantiateNestedPrefabCommand extends BaseCommand {
         const idsToRemove = new Set(this.createdEntities_.map(e => e.id));
 
         if (this.parentEntityId_ !== null) {
-            const parent = this.scene_.entities.find(e => e.id === this.parentEntityId_);
+            const parent = this.entityMap_.get(this.parentEntityId_);
             if (parent) {
                 parent.children = parent.children.filter(id => !idsToRemove.has(id));
             }
         }
 
         this.scene_.entities = this.scene_.entities.filter(e => !idsToRemove.has(e.id));
+    }
+
+    updateEntityMap(map: Map<number, EntityData>, isUndo: boolean): void {
+        if (isUndo) {
+            for (const entity of this.createdEntities_) {
+                map.delete(entity.id);
+            }
+        } else {
+            for (const entity of this.createdEntities_) {
+                map.set(entity.id, entity);
+            }
+        }
     }
 
     get rootEntityId(): number {

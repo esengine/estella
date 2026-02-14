@@ -4,7 +4,7 @@
  */
 
 import type { AssetDatabase } from './AssetDatabase';
-import { isUUID } from './AssetDatabase';
+import { isUUID, getComponentRefFields } from './AssetDatabase';
 import { looksLikeAssetPath } from './AssetTypes';
 import { joinPath, isAbsolutePath, getDirName } from '../utils/path';
 import type { NativeFS } from '../types/NativeFS';
@@ -26,31 +26,8 @@ export interface DependencyGraph {
 }
 
 // =============================================================================
-// Builtin Scanners
+// Scanners
 // =============================================================================
-
-const builtinScanners: AssetRefScanner[] = [
-    {
-        componentType: 'Sprite',
-        extractRefs: (d) => [d.texture as string, d.material as string].filter(Boolean),
-    },
-    {
-        componentType: 'SpineAnimation',
-        extractRefs: (d) => [
-            d.skeletonPath as string,
-            d.atlasPath as string,
-            d.material as string,
-        ].filter(Boolean),
-    },
-    {
-        componentType: 'BitmapText',
-        extractRefs: (d) => [d.font as string].filter(Boolean),
-    },
-    {
-        componentType: 'UIMask',
-        extractRefs: (d) => [d.texture as string].filter(Boolean),
-    },
-];
 
 const customScanners: AssetRefScanner[] = [];
 
@@ -58,8 +35,15 @@ export function registerRefScanner(scanner: AssetRefScanner): void {
     customScanners.push(scanner);
 }
 
-function getAllScanners(): AssetRefScanner[] {
-    return [...builtinScanners, ...customScanners];
+function getScanner(componentType: string): AssetRefScanner | undefined {
+    const custom = customScanners.find(s => s.componentType === componentType);
+    if (custom) return custom;
+    const fields = getComponentRefFields(componentType);
+    if (!fields) return undefined;
+    return {
+        componentType,
+        extractRefs: (d) => fields.map(f => d[f] as string).filter(Boolean),
+    };
 }
 
 // =============================================================================
@@ -164,18 +148,12 @@ export class AssetDependencyAnalyzer {
 
         if (!entities) return refs;
 
-        const scanners = getAllScanners();
-        const scannerMap = new Map<string, AssetRefScanner>();
-        for (const s of scanners) {
-            scannerMap.set(s.componentType, s);
-        }
-
         for (const entity of entities) {
             if (entity.prefab?.prefabPath) {
                 refs.push(entity.prefab.prefabPath);
             }
             for (const comp of entity.components || []) {
-                const scanner = scannerMap.get(comp.type);
+                const scanner = getScanner(comp.type);
                 if (scanner && comp.data) {
                     refs.push(...scanner.extractRefs(comp.data));
                 }
@@ -334,12 +312,6 @@ export class AssetDependencyAnalyzer {
 
             if (!entities) return;
 
-            const scanners = getAllScanners();
-            const scannerMap = new Map<string, AssetRefScanner>();
-            for (const s of scanners) {
-                scannerMap.set(s.componentType, s);
-            }
-
             for (const entity of entities) {
                 if (entity.nestedPrefab?.prefabPath) {
                     const nestedRef = this.resolveRef(entity.nestedPrefab.prefabPath);
@@ -349,7 +321,7 @@ export class AssetDependencyAnalyzer {
                 }
 
                 for (const comp of entity.components || []) {
-                    const scanner = scannerMap.get(comp.type);
+                    const scanner = getScanner(comp.type);
                     if (scanner && comp.data) {
                         const refs = scanner.extractRefs(comp.data);
                         for (const ref of refs) {

@@ -77,6 +77,7 @@ export class PreviewService {
         const fs = this.getNativeFS();
         if (!fs) return;
         await this.preparePreviewFiles(fs, scene, compiledScript, spineVersion, enablePhysics, physicsConfig);
+        await this.notifyReload();
     }
 
     private async preparePreviewFiles(
@@ -126,29 +127,26 @@ export class PreviewService {
 
         for (const entity of scene.entities) {
             for (const component of entity.components) {
-                if (component.type === 'Sprite') {
-                    const texturePath = component.data.texture as string | undefined;
-                    if (texturePath && !processedPaths.has(texturePath)) {
-                        processedPaths.add(texturePath);
+                if (component.type !== 'Sprite' && component.type !== 'UIMask') continue;
+                const texturePath = component.data.texture as string | undefined;
+                if (!texturePath || processedPaths.has(texturePath)) continue;
+                processedPaths.add(texturePath);
 
-                        // Resolve texture path relative to project
-                        const fullPath = `${this.projectDir_}/${texturePath}`;
-                        const metaPath = getMetaFilePath(fullPath);
+                const fullPath = `${this.projectDir_}/${texturePath}`;
+                const metaPath = getMetaFilePath(fullPath);
 
-                        try {
-                            if (await fs.exists(metaPath)) {
-                                const content = await fs.readFile(metaPath);
-                                if (content) {
-                                    const metadata = parseTextureMetadata(content);
-                                    if (metadata) {
-                                        result[texturePath] = metadata;
-                                    }
-                                }
+                try {
+                    if (await fs.exists(metaPath)) {
+                        const content = await fs.readFile(metaPath);
+                        if (content) {
+                            const metadata = parseTextureMetadata(content);
+                            if (metadata) {
+                                result[texturePath] = metadata;
                             }
-                        } catch (err) {
-                            console.warn(`Failed to load texture metadata for ${texturePath}:`, err);
                         }
                     }
+                } catch (err) {
+                    console.warn(`Failed to load texture metadata for ${texturePath}:`, err);
                 }
             }
         }
@@ -168,5 +166,12 @@ export class PreviewService {
 
     private getTauriInvoke(): TauriInvoke | null {
         return getEditorContext().invoke ?? null;
+    }
+
+    private async notifyReload(): Promise<void> {
+        const invoke = this.getTauriInvoke();
+        if (invoke) {
+            await invoke('notify_preview_reload');
+        }
     }
 }

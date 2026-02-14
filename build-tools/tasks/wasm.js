@@ -91,13 +91,34 @@ async function copyOutputs(buildDir, outputDir, outputs) {
     }
 }
 
-export async function buildAllWasm(options = {}) {
-    const results = [];
-    for (const target of Object.keys(config.wasm)) {
-        const result = await buildWasm(target, options);
-        results.push(result);
+export async function buildWasmParallel(targets, options = {}) {
+    const groups = new Map();
+    for (const target of targets) {
+        const targetConfig = config.wasm[target];
+        if (!targetConfig) {
+            throw new Error(`Unknown target: ${target}. Available: ${Object.keys(config.wasm).join(', ')}`);
+        }
+        const dir = targetConfig.buildDir;
+        if (!groups.has(dir)) {
+            groups.set(dir, []);
+        }
+        groups.get(dir).push(target);
     }
-    return results;
+
+    const groupPromises = [];
+    for (const groupTargets of groups.values()) {
+        groupPromises.push((async () => {
+            for (const target of groupTargets) {
+                await buildWasm(target, options);
+            }
+        })());
+    }
+
+    await Promise.all(groupPromises);
+}
+
+export async function buildAllWasm(options = {}) {
+    await buildWasmParallel(Object.keys(config.wasm), options);
 }
 
 export async function cleanWasm(target = null) {

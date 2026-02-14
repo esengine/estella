@@ -367,6 +367,7 @@ export class EditorStore {
 
         const cmd = new CreateEntityCommand(
             this.state_.scene,
+            this.entityMap_,
             id,
             entityName,
             parent
@@ -393,7 +394,7 @@ export class EditorStore {
 
     deleteEntity(entity: Entity): void {
         const descendants = this.collectDescendantIds(entity as number);
-        const cmd = new DeleteEntityCommand(this.state_.scene, entity);
+        const cmd = new DeleteEntityCommand(this.state_.scene, this.entityMap_, entity);
         this.executeCommand(cmd);
 
         if (this.state_.selectedEntity === entity) {
@@ -407,7 +408,7 @@ export class EditorStore {
     }
 
     reparentEntity(entity: Entity, newParent: Entity | null): void {
-        const cmd = new ReparentCommand(this.state_.scene, entity, newParent);
+        const cmd = new ReparentCommand(this.state_.scene, this.entityMap_, entity, newParent);
         this.executeCommand(cmd);
         this.notifyHierarchyChange({
             entity: entity as number,
@@ -416,7 +417,7 @@ export class EditorStore {
     }
 
     moveEntity(entity: Entity, newParent: Entity | null, index: number): void {
-        const cmd = new MoveEntityCommand(this.state_.scene, entity, newParent, index);
+        const cmd = new MoveEntityCommand(this.state_.scene, this.entityMap_, entity, newParent, index);
         this.executeCommand(cmd);
         this.notifyHierarchyChange({
             entity: entity as number,
@@ -441,7 +442,7 @@ export class EditorStore {
     // =========================================================================
 
     addComponent(entity: Entity, type: string, data: Record<string, unknown>): void {
-        const cmd = new AddComponentCommand(this.state_.scene, entity, type, data);
+        const cmd = new AddComponentCommand(this.state_.scene, this.entityMap_, entity, type, data);
         this.executeCommand(cmd);
 
         if (this.isPrefabInstance(entity as number)) {
@@ -458,7 +459,7 @@ export class EditorStore {
             recordComponentRemovedOverride(this.state_.scene, entity as number, type);
         }
 
-        const cmd = new RemoveComponentCommand(this.state_.scene, entity, type);
+        const cmd = new RemoveComponentCommand(this.state_.scene, this.entityMap_, entity, type);
         this.executeCommand(cmd);
         this.notifyComponentChange({ entity: entity as number, componentType: type, action: 'removed' });
     }
@@ -472,6 +473,7 @@ export class EditorStore {
     ): void {
         const cmd = new PropertyCommand(
             this.state_.scene,
+            this.entityMap_,
             entity,
             componentType,
             propertyName,
@@ -506,6 +508,7 @@ export class EditorStore {
     ): void {
         const commands = changes.map(c => new PropertyCommand(
             this.state_.scene,
+            this.entityMap_,
             entity,
             componentType,
             c.property,
@@ -598,6 +601,7 @@ export class EditorStore {
 
         const cmd = new InstantiatePrefabCommand(
             this.state_.scene,
+            this.entityMap_,
             prefab,
             prefabPath,
             parentEntity as number | null,
@@ -634,6 +638,7 @@ export class EditorStore {
 
         const cmd = new InstantiateNestedPrefabCommand(
             this.state_.scene,
+            this.entityMap_,
             result.createdEntities,
             result.rootEntityId,
             parentEntity as number | null
@@ -820,24 +825,20 @@ export class EditorStore {
     // =========================================================================
 
     undo(): void {
+        const cmd = this.history_.peekUndo();
+        if (!cmd) return;
         if (this.history_.undo()) {
             this.state_.isDirty = true;
-            this.rebuildEntityMap();
-            this.syncDerivedProperties();
-            this.worldTransforms_.setScene(this.state_.scene);
-            this.notifySceneSync();
-            this.notify();
+            this.applyCommandSideEffects(cmd, true);
         }
     }
 
     redo(): void {
+        const cmd = this.history_.peekRedo();
+        if (!cmd) return;
         if (this.history_.redo()) {
             this.state_.isDirty = true;
-            this.rebuildEntityMap();
-            this.syncDerivedProperties();
-            this.worldTransforms_.setScene(this.state_.scene);
-            this.notifySceneSync();
-            this.notify();
+            this.applyCommandSideEffects(cmd, false);
         }
     }
 
@@ -886,8 +887,20 @@ export class EditorStore {
     private executeCommand(cmd: import('../commands').Command): void {
         this.history_.execute(cmd);
         this.state_.isDirty = true;
-        this.rebuildEntityMap();
-        this.worldTransforms_.setScene(this.state_.scene);
+        this.applyCommandSideEffects(cmd, false);
+    }
+
+    private applyCommandSideEffects(cmd: import('../commands').Command, isUndo: boolean): void {
+        cmd.updateEntityMap(this.entityMap_, isUndo);
+
+        if (cmd.structural) {
+            this.rebuildEntityMap();
+            this.worldTransforms_.setScene(this.state_.scene);
+        } else {
+            this.worldTransforms_.invalidateAll();
+        }
+
+        this.syncDerivedProperties();
         this.notifySceneSync();
         this.notify();
     }

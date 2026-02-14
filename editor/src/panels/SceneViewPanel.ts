@@ -11,7 +11,7 @@ import type { EditorBridge } from '../bridge/EditorBridge';
 import type { SliceBorder } from '../types/TextureMetadata';
 import { getPlatformAdapter } from '../platform/PlatformAdapter';
 import { hasSlicing, parseTextureMetadata } from '../types/TextureMetadata';
-import { getDefaultComponentData } from '../schemas/ComponentSchemas';
+import { getDefaultComponentData, getInitialComponentData } from '../schemas/ComponentSchemas';
 import { getGlobalPathResolver } from '../asset';
 import { isUUID, getAssetLibrary } from '../asset/AssetDatabase';
 import { icons } from '../utils/icons';
@@ -1400,13 +1400,13 @@ export class SceneViewPanel {
         const baseName = asset.name.replace(/\.[^.]+$/, '');
         const newEntity = this.store_.createEntity(baseName);
 
-        const transformData = getDefaultComponentData('LocalTransform');
+        const transformData = getInitialComponentData('LocalTransform');
         transformData.position = { x: worldX, y: worldY, z: 0 };
         this.store_.addComponent(newEntity, 'LocalTransform', transformData);
 
         const relativePath = getGlobalPathResolver().toRelativePath(asset.path);
         this.store_.addComponent(newEntity, 'Sprite', {
-            ...getDefaultComponentData('Sprite'),
+            ...getInitialComponentData('Sprite'),
             texture: relativePath,
         });
 

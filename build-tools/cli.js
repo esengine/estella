@@ -7,7 +7,7 @@ import config from './build.config.js';
 import * as logger from './utils/logger.js';
 import { checkEnvironment } from './utils/emscripten.js';
 import { runEht } from './tasks/eht.js';
-import { buildWasm, cleanWasm } from './tasks/wasm.js';
+import { buildWasm, buildWasmParallel, cleanWasm } from './tasks/wasm.js';
 import { buildSdk, cleanSdk } from './tasks/sdk.js';
 import { syncToDesktop } from './tasks/sync.js';
 import { startWatch } from './tasks/watch.js';
@@ -52,10 +52,7 @@ program
 
             if (wasmTargets.length > 0) {
                 await runEht({ noCache: !options.cache });
-
-                for (const target of wasmTargets) {
-                    await buildWasm(target, { debug: isDebug, clean: options.clean });
-                }
+                await buildWasmParallel(wasmTargets, { debug: isDebug, clean: options.clean });
             }
 
             if (buildSdkFlag) {

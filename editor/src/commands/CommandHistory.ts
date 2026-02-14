@@ -71,6 +71,16 @@ export class CommandHistory {
         return this.index_ < this.commands_.length - 1;
     }
 
+    peekUndo(): Command | null {
+        if (!this.canUndo()) return null;
+        return this.commands_[this.index_];
+    }
+
+    peekRedo(): Command | null {
+        if (!this.canRedo()) return null;
+        return this.commands_[this.index_ + 1];
+    }
+
     clear(): void {
         this.commands_ = [];
         this.index_ = -1;

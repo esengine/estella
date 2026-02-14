@@ -75,36 +75,6 @@ export class EditorBridge {
     }
 
     // =========================================================================
-    // Preview Mode
-    // =========================================================================
-
-    private savedScene_: SceneData | null = null;
-    private isPreviewMode_ = false;
-
-    enterPreviewMode(): void {
-        if (this.isPreviewMode_) return;
-
-        this.savedScene_ = JSON.parse(JSON.stringify(this.store_.scene));
-        this.isPreviewMode_ = true;
-        this.syncToRuntime();
-    }
-
-    exitPreviewMode(): void {
-        if (!this.isPreviewMode_) return;
-
-        if (this.savedScene_) {
-            this.store_.loadScene(this.savedScene_);
-            this.savedScene_ = null;
-        }
-
-        this.isPreviewMode_ = false;
-    }
-
-    get isPreviewMode(): boolean {
-        return this.isPreviewMode_;
-    }
-
-    // =========================================================================
     // Private Methods
     // =========================================================================
 

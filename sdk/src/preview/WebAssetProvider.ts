@@ -52,7 +52,7 @@ export class WebAssetProvider implements RuntimeAssetProvider {
                 fetch(this.resolveUrl(ref))
                     .then(r => r.text())
                     .then(text => { this.textCache_.set(ref, text); })
-                    .catch(() => {})
+                    .catch(err => { console.warn(`[WebAssetProvider] Failed to prefetch text "${ref}":`, err); })
             );
         }
 
@@ -61,7 +61,7 @@ export class WebAssetProvider implements RuntimeAssetProvider {
                 fetch(this.resolveUrl(ref))
                     .then(r => r.arrayBuffer())
                     .then(buf => { this.binaryCache_.set(ref, new Uint8Array(buf)); })
-                    .catch(() => {})
+                    .catch(err => { console.warn(`[WebAssetProvider] Failed to prefetch binary "${ref}":`, err); })
             );
         }
 
@@ -83,7 +83,7 @@ export class WebAssetProvider implements RuntimeAssetProvider {
                             fetch(this.resolveUrl(fntRef))
                                 .then(r => r.text())
                                 .then(t => { this.textCache_.set(fntRef, t); })
-                                .catch(() => {})
+                                .catch(err => { console.warn(`[WebAssetProvider] Failed to prefetch font "${fntRef}":`, err); })
                         );
                     }
                 }

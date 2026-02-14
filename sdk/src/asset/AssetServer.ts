@@ -148,7 +148,13 @@ export class AssetServer {
         for (const [key, value] of Object.entries(assets)) {
             this.embedded_.set(key, value);
         }
-        this.embeddedOnly_ = typeof location !== 'undefined' && location.protocol === 'file:';
+        if (!this.embeddedOnly_) {
+            this.embeddedOnly_ = typeof location !== 'undefined' && location.protocol === 'file:';
+        }
+    }
+
+    setEmbeddedOnly(value: boolean): void {
+        this.embeddedOnly_ = value;
     }
 
     // =========================================================================

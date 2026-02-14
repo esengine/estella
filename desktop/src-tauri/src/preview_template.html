@@ -195,7 +195,17 @@
             showError('[unhandled rejection] ' + (err?.message || String(err)), err);
         });
 
+        function connectLiveReload() {
+            const sse = new EventSource('/sse-reload');
+            sse.onmessage = () => location.reload();
+            sse.onerror = () => {
+                sse.close();
+                setTimeout(connectLiveReload, 2000);
+            };
+        }
+
         loadPreview();
+        connectLiveReload();
     </script>
 </body>
 </html>

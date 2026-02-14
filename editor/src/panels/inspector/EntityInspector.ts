@@ -10,6 +10,7 @@ import { createPropertyEditor } from '../../property/PropertyEditor';
 import {
     getComponentSchema,
     getDefaultComponentData,
+    getInitialComponentData,
     isComponentRemovable,
 } from '../../schemas/ComponentSchemas';
 import { icons } from '../../utils/icons';
@@ -420,7 +421,7 @@ export function renderAddComponentButton(
     btn.addEventListener('click', () => {
         const existingTypes = existingComponents.map(c => c.type);
         showAddComponentPopup(existingTypes, (componentName: string) => {
-            const defaultData = getDefaultComponentData(componentName);
+            const defaultData = getInitialComponentData(componentName);
             store.addComponent(entity, componentName, defaultData);
         });
     });

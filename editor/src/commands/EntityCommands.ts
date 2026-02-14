@@ -13,11 +13,13 @@ import { BaseCommand } from './Command';
 
 export class CreateEntityCommand extends BaseCommand {
     readonly type = 'create_entity';
+    readonly structural = true;
     readonly description: string;
     private entityData_: EntityData;
 
     constructor(
         private scene_: SceneData,
+        private entityMap_: Map<number, EntityData>,
         private entityId_: number,
         private name_: string,
         private parent_: number | null = null
@@ -31,7 +33,7 @@ export class CreateEntityCommand extends BaseCommand {
         this.scene_.entities.push(this.entityData_);
 
         if (this.parent_ !== null) {
-            const parentData = this.scene_.entities.find(e => e.id === this.parent_);
+            const parentData = this.entityMap_.get(this.parent_);
             if (parentData && !parentData.children.includes(this.entityId_)) {
                 parentData.children.push(this.entityId_);
             }
@@ -45,13 +47,21 @@ export class CreateEntityCommand extends BaseCommand {
         }
 
         if (this.parent_ !== null) {
-            const parentData = this.scene_.entities.find(e => e.id === this.parent_);
+            const parentData = this.entityMap_.get(this.parent_);
             if (parentData) {
                 const childIdx = parentData.children.indexOf(this.entityId_);
                 if (childIdx !== -1) {
                     parentData.children.splice(childIdx, 1);
                 }
             }
+        }
+    }
+
+    updateEntityMap(map: Map<number, EntityData>, isUndo: boolean): void {
+        if (isUndo) {
+            map.delete(this.entityId_);
+        } else {
+            map.set(this.entityId_, this.entityData_);
         }
     }
 
@@ -66,27 +76,29 @@ export class CreateEntityCommand extends BaseCommand {
 
 export class DeleteEntityCommand extends BaseCommand {
     readonly type = 'delete_entity';
+    readonly structural = true;
     readonly description: string;
     private deletedData_: EntityData | null = null;
     private deletedChildren_: EntityData[] = [];
 
     constructor(
         private scene_: SceneData,
+        private entityMap_: Map<number, EntityData>,
         private entityId_: number
     ) {
         super();
-        const entity = scene_.entities.find(e => e.id === entityId_);
+        const entity = entityMap_.get(entityId_);
         this.description = `Delete entity "${entity?.name ?? entityId_}"`;
     }
 
     execute(): void {
-        this.deletedData_ = this.scene_.entities.find(e => e.id === this.entityId_) ?? null;
+        this.deletedData_ = this.entityMap_.get(this.entityId_) ?? null;
         if (!this.deletedData_) return;
 
         this.deletedChildren_ = this.collectDescendants(this.entityId_);
 
         if (this.deletedData_.parent !== null) {
-            const parentData = this.scene_.entities.find(e => e.id === this.deletedData_!.parent);
+            const parentData = this.entityMap_.get(this.deletedData_.parent);
             if (parentData) {
                 const idx = parentData.children.indexOf(this.entityId_);
                 if (idx !== -1) {
@@ -106,20 +118,36 @@ export class DeleteEntityCommand extends BaseCommand {
         this.scene_.entities.push(...this.deletedChildren_);
 
         if (this.deletedData_.parent !== null) {
-            const parentData = this.scene_.entities.find(e => e.id === this.deletedData_!.parent);
+            const parentData = this.entityMap_.get(this.deletedData_.parent);
             if (parentData && !parentData.children.includes(this.entityId_)) {
                 parentData.children.push(this.entityId_);
             }
         }
     }
 
+    updateEntityMap(map: Map<number, EntityData>, isUndo: boolean): void {
+        if (isUndo) {
+            if (this.deletedData_) {
+                map.set(this.entityId_, this.deletedData_);
+            }
+            for (const child of this.deletedChildren_) {
+                map.set(child.id, child);
+            }
+        } else {
+            map.delete(this.entityId_);
+            for (const child of this.deletedChildren_) {
+                map.delete(child.id);
+            }
+        }
+    }
+
     private collectDescendants(entityId: number): EntityData[] {
         const result: EntityData[] = [];
-        const entity = this.scene_.entities.find(e => e.id === entityId);
+        const entity = this.entityMap_.get(entityId);
         if (!entity) return result;
 
         for (const childId of entity.children) {
-            const child = this.scene_.entities.find(e => e.id === childId);
+            const child = this.entityMap_.get(childId);
             if (child) {
                 result.push(child);
                 result.push(...this.collectDescendants(childId));
@@ -135,16 +163,18 @@ export class DeleteEntityCommand extends BaseCommand {
 
 export class ReparentCommand extends BaseCommand {
     readonly type = 'reparent';
+    readonly structural = true;
     readonly description: string;
     private oldParent_: number | null;
 
     constructor(
         private scene_: SceneData,
+        private entityMap_: Map<number, EntityData>,
         private entityId_: number,
         private newParent_: number | null
     ) {
         super();
-        const entity = scene_.entities.find(e => e.id === entityId_);
+        const entity = entityMap_.get(entityId_);
         this.oldParent_ = entity?.parent ?? null;
         this.description = `Reparent entity "${entity?.name ?? entityId_}"`;
     }
@@ -158,13 +188,13 @@ export class ReparentCommand extends BaseCommand {
     }
 
     private setParent(newParent: number | null): void {
-        const entity = this.scene_.entities.find(e => e.id === this.entityId_);
+        const entity = this.entityMap_.get(this.entityId_);
         if (!entity) return;
 
         const oldParent = entity.parent;
 
         if (oldParent !== null) {
-            const oldParentData = this.scene_.entities.find(e => e.id === oldParent);
+            const oldParentData = this.entityMap_.get(oldParent);
             if (oldParentData) {
                 const idx = oldParentData.children.indexOf(this.entityId_);
                 if (idx !== -1) {
@@ -176,7 +206,7 @@ export class ReparentCommand extends BaseCommand {
         entity.parent = newParent;
 
         if (newParent !== null) {
-            const newParentData = this.scene_.entities.find(e => e.id === newParent);
+            const newParentData = this.entityMap_.get(newParent);
             if (newParentData && !newParentData.children.includes(this.entityId_)) {
                 newParentData.children.push(this.entityId_);
             }
@@ -190,18 +220,20 @@ export class ReparentCommand extends BaseCommand {
 
 export class MoveEntityCommand extends BaseCommand {
     readonly type = 'move_entity';
+    readonly structural = true;
     readonly description: string;
     private oldParent_: number | null;
     private oldIndex_: number;
 
     constructor(
         private scene_: SceneData,
+        private entityMap_: Map<number, EntityData>,
         private entityId_: number,
         private newParent_: number | null,
         private newIndex_: number
     ) {
         super();
-        const entity = scene_.entities.find(e => e.id === entityId_);
+        const entity = entityMap_.get(entityId_);
         this.oldParent_ = entity?.parent ?? null;
         this.oldIndex_ = this.computeIndex(this.oldParent_);
         this.description = `Move entity "${entity?.name ?? entityId_}"`;
@@ -217,7 +249,7 @@ export class MoveEntityCommand extends BaseCommand {
 
     private computeIndex(parent: number | null): number {
         if (parent !== null) {
-            const parentData = this.scene_.entities.find(e => e.id === parent);
+            const parentData = this.entityMap_.get(parent);
             return parentData?.children.indexOf(this.entityId_) ?? 0;
         }
         const roots = this.scene_.entities.filter(e => e.parent === null);
@@ -225,11 +257,11 @@ export class MoveEntityCommand extends BaseCommand {
     }
 
     private applyMove(targetParent: number | null, targetIndex: number): void {
-        const entity = this.scene_.entities.find(e => e.id === this.entityId_);
+        const entity = this.entityMap_.get(this.entityId_);
         if (!entity) return;
 
         if (entity.parent !== null) {
-            const parent = this.scene_.entities.find(e => e.id === entity.parent);
+            const parent = this.entityMap_.get(entity.parent);
             if (parent) {
                 const idx = parent.children.indexOf(this.entityId_);
                 if (idx !== -1) parent.children.splice(idx, 1);
@@ -239,7 +271,7 @@ export class MoveEntityCommand extends BaseCommand {
         entity.parent = targetParent;
 
         if (targetParent !== null) {
-            const parent = this.scene_.entities.find(e => e.id === targetParent);
+            const parent = this.entityMap_.get(targetParent);
             if (parent) {
                 const i = Math.min(targetIndex, parent.children.length);
                 parent.children.splice(i, 0, this.entityId_);
@@ -268,6 +300,7 @@ export class AddComponentCommand extends BaseCommand {
 
     constructor(
         private scene_: SceneData,
+        private entityMap_: Map<number, EntityData>,
         private entityId_: number,
         private componentType_: string,
         private componentData_: Record<string, unknown>
@@ -277,7 +310,7 @@ export class AddComponentCommand extends BaseCommand {
     }
 
     execute(): void {
-        const entity = this.scene_.entities.find(e => e.id === this.entityId_);
+        const entity = this.entityMap_.get(this.entityId_);
         if (!entity) return;
 
         if (!entity.components.find(c => c.type === this.componentType_)) {
@@ -289,7 +322,7 @@ export class AddComponentCommand extends BaseCommand {
     }
 
     undo(): void {
-        const entity = this.scene_.entities.find(e => e.id === this.entityId_);
+        const entity = this.entityMap_.get(this.entityId_);
         if (!entity) return;
 
         const idx = entity.components.findIndex(c => c.type === this.componentType_);
@@ -310,6 +343,7 @@ export class RemoveComponentCommand extends BaseCommand {
 
     constructor(
         private scene_: SceneData,
+        private entityMap_: Map<number, EntityData>,
         private entityId_: number,
         private componentType_: string
     ) {
@@ -318,7 +352,7 @@ export class RemoveComponentCommand extends BaseCommand {
     }
 
     execute(): void {
-        const entity = this.scene_.entities.find(e => e.id === this.entityId_);
+        const entity = this.entityMap_.get(this.entityId_);
         if (!entity) return;
 
         const idx = entity.components.findIndex(c => c.type === this.componentType_);
@@ -331,7 +365,7 @@ export class RemoveComponentCommand extends BaseCommand {
     undo(): void {
         if (!this.removedData_) return;
 
-        const entity = this.scene_.entities.find(e => e.id === this.entityId_);
+        const entity = this.entityMap_.get(this.entityId_);
         if (!entity) return;
 
         entity.components.push({

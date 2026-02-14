@@ -23,6 +23,7 @@ export class PropertyCommand extends BaseCommand {
 
     constructor(
         private scene_: SceneData,
+        private entityMap_: Map<number, EntityData>,
         private entity_: Entity,
         private componentType_: string,
         private propertyName_: string,
@@ -53,6 +54,7 @@ export class PropertyCommand extends BaseCommand {
         const otherProp = other as PropertyCommand;
         return new PropertyCommand(
             this.scene_,
+            this.entityMap_,
             this.entity_,
             this.componentType_,
             this.propertyName_,
@@ -61,17 +63,17 @@ export class PropertyCommand extends BaseCommand {
         );
     }
 
+    get componentType(): string {
+        return this.componentType_;
+    }
+
     private setPropertyValue(value: unknown): void {
-        const entityData = this.findEntityData();
+        const entityData = this.entityMap_.get(this.entity_ as number);
         if (!entityData) return;
 
         const component = entityData.components.find(c => c.type === this.componentType_);
         if (component) {
             component.data[this.propertyName_] = value;
         }
-    }
-
-    private findEntityData(): EntityData | undefined {
-        return this.scene_.entities.find(e => e.id === this.entity_);
     }
 }

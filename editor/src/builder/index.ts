@@ -5,7 +5,8 @@
 
 export { BuildSettingsDialog, showBuildSettingsDialog } from './BuildSettingsDialog';
 export { BuildService, type BuildResult, type BuildContext, type BuildOptions } from './BuildService';
-export { buildArtifact, initializeEsbuild, createBuildVirtualFsPlugin, type SdkModuleLoader } from './ArtifactBuilder';
+export { buildArtifact, initializeEsbuild, createBuildVirtualFsPlugin, arrayBufferToBase64, generateAddressableManifest, convertPrefabWithResolvedRefs, type SdkModuleLoader } from './ArtifactBuilder';
+export { PLAYABLE_HTML_TEMPLATE, generateWeChatGameJs, type WeChatGameJsParams } from './templates';
 
 export { BuildCache, type BuildCacheData, type FileHash, type FileChangeResult } from './BuildCache';
 export { BuildProgressReporter, formatDuration, formatSize, type BuildProgress, type BuildLogEntry, type BuildPhase, type LogLevel } from './BuildProgress';

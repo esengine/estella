@@ -10,8 +10,10 @@ import type { NativeFS } from '../types/NativeFS';
 import { BuildProgressReporter } from './BuildProgress';
 import { AssetExportConfigService, BuildAssetCollector } from './AssetCollector';
 import { TextureAtlasPacker } from './TextureAtlas';
-import { AssetLibrary } from '../asset/AssetLibrary';
+import { AssetLibrary, isUUID } from '../asset/AssetLibrary';
+import { getAssetType, toAddressableType } from '../asset/AssetTypes';
 import { compileMaterials } from './MaterialCompiler';
+import { convertPrefabAssetRefs, deserializePrefab } from '../prefab';
 import { normalizePath, joinPath, isAbsolutePath, getParentDir } from '../utils/path';
 import { getEsbuildWasmURL } from '../context/EditorContext';
 
@@ -98,14 +100,124 @@ export async function buildArtifact(
 
 export type SdkModuleLoader = (path: string) => Promise<{ contents: string; loader: esbuild.Loader }>;
 
+let esbuildInitialized = false;
+
 export async function initializeEsbuild(): Promise<void> {
-    try {
-        await esbuild.initialize({ wasmURL: getEsbuildWasmURL() });
-    } catch (err) {
-        if (!String(err).includes('Cannot call "initialize" more than once')) {
-            throw err;
+    if (esbuildInitialized) return;
+    await esbuild.initialize({ wasmURL: getEsbuildWasmURL() });
+    esbuildInitialized = true;
+}
+
+// =============================================================================
+// Shared emitter utilities
+// =============================================================================
+
+export function arrayBufferToBase64(buffer: Uint8Array): string {
+    let binary = '';
+    const bytes = new Uint8Array(buffer);
+    for (let i = 0; i < bytes.byteLength; i++) {
+        binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+}
+
+export function generateAddressableManifest(
+    artifact: BuildArtifact
+): { version: string; groups: Record<string, { bundleMode: string; labels: string[]; assets: Record<string, unknown> }> } {
+    const groupService = artifact.assetLibrary.getGroupService();
+    const groups: Record<string, { bundleMode: string; labels: string[]; assets: Record<string, unknown> }> = {};
+
+    const spineAtlasPaths = new Map<string, string>();
+    for (const relativePath of artifact.assetPaths) {
+        if (getAssetType(relativePath) === 'spine-atlas') {
+            const dir = relativePath.substring(0, relativePath.lastIndexOf('/'));
+            spineAtlasPaths.set(dir, relativePath);
         }
     }
+
+    for (const relativePath of artifact.assetPaths) {
+        if (relativePath.endsWith('.esshader')) continue;
+
+        const editorType = getAssetType(relativePath);
+        const addressableType = toAddressableType(editorType);
+        if (!addressableType) continue;
+
+        const uuid = artifact.assetLibrary.getUuid(relativePath);
+        if (!uuid) continue;
+
+        const entry = artifact.assetLibrary.getEntry(uuid);
+        const groupName = entry?.group ?? 'default';
+
+        if (!groups[groupName]) {
+            const groupDef = groupService?.getGroup(groupName);
+            groups[groupName] = {
+                bundleMode: groupDef?.bundleMode ?? 'together',
+                labels: groupDef?.labels ?? [],
+                assets: {},
+            };
+        }
+
+        let path = relativePath;
+        const metadata: Record<string, unknown> = {};
+
+        if (artifact.packedPaths.has(relativePath)) {
+            const frame = artifact.atlasResult.frameMap.get(relativePath);
+            if (frame) {
+                path = `atlas_${frame.page}.png`;
+                metadata.atlasPage = frame.page;
+                metadata.atlasFrame = {
+                    x: frame.frame.x,
+                    y: frame.frame.y,
+                    width: frame.frame.width,
+                    height: frame.frame.height,
+                };
+            }
+        }
+
+        const compiledMat = artifact.compiledMaterials.find(m => m.relativePath === relativePath);
+        if (compiledMat) {
+            path = relativePath.replace(/\.esmaterial$/, '.json');
+        }
+
+        if (addressableType === 'spine') {
+            const dir = relativePath.substring(0, relativePath.lastIndexOf('/'));
+            const atlasPath = spineAtlasPaths.get(dir);
+            if (atlasPath) {
+                metadata.atlas = atlasPath;
+            }
+        }
+
+        const asset: Record<string, unknown> = {
+            path,
+            type: addressableType,
+            size: entry?.fileSize ?? 0,
+            labels: entry ? [...entry.labels] : [],
+        };
+        if (entry?.address) {
+            asset.address = entry.address;
+        }
+        if (Object.keys(metadata).length > 0) {
+            asset.metadata = metadata;
+        }
+
+        groups[groupName].assets[uuid] = asset;
+    }
+
+    return { version: '2.0', groups };
+}
+
+export function convertPrefabWithResolvedRefs(
+    prefabContent: string,
+    artifact: BuildArtifact
+): string {
+    const prefab = deserializePrefab(prefabContent);
+    const converted = convertPrefabAssetRefs(prefab, (value) => {
+        if (isUUID(value)) {
+            return artifact.assetLibrary.getPath(value) ?? value;
+        }
+        return value;
+    });
+    return JSON.stringify(converted);
 }
 
 export function createBuildVirtualFsPlugin(

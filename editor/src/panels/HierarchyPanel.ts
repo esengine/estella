@@ -8,7 +8,7 @@ import type { EntityData } from '../types/SceneTypes';
 import type { EditorStore } from '../store/EditorStore';
 import { icons } from '../utils/icons';
 import { getGlobalPathResolver } from '../asset';
-import { getDefaultComponentData } from '../schemas/ComponentSchemas';
+import { getInitialComponentData } from '../schemas/ComponentSchemas';
 import { showContextMenu, type ContextMenuItem } from '../ui/ContextMenu';
 import { getContextMenuItems, type ContextMenuContext } from '../ui/ContextMenuRegistry';
 import { getEditorContext, getEditorInstance } from '../context/EditorContext';
@@ -126,7 +126,7 @@ export class HierarchyPanel {
         const addBtn = this.container_.querySelector('[data-action="add"]');
         addBtn?.addEventListener('click', () => {
             const entity = this.store_.createEntity();
-            this.store_.addComponent(entity, 'LocalTransform', getDefaultComponentData('LocalTransform'));
+            this.store_.addComponent(entity, 'LocalTransform', getInitialComponentData('LocalTransform'));
         });
 
         this.searchInput_?.addEventListener('input', () => {
@@ -402,20 +402,20 @@ export class HierarchyPanel {
 
             const newEntity = this.store_.createEntity(baseName, parent);
 
-            this.store_.addComponent(newEntity, 'LocalTransform', getDefaultComponentData('LocalTransform'));
+            this.store_.addComponent(newEntity, 'LocalTransform', getInitialComponentData('LocalTransform'));
 
             this.store_.addComponent(newEntity, 'SpineAnimation', {
-                ...getDefaultComponentData('SpineAnimation'),
+                ...getInitialComponentData('SpineAnimation'),
                 skeletonPath,
                 atlasPath,
             });
         } else if (asset.type === 'image') {
             const newEntity = this.store_.createEntity(baseName, parent);
 
-            this.store_.addComponent(newEntity, 'LocalTransform', getDefaultComponentData('LocalTransform'));
+            this.store_.addComponent(newEntity, 'LocalTransform', getInitialComponentData('LocalTransform'));
 
             this.store_.addComponent(newEntity, 'Sprite', {
-                ...getDefaultComponentData('Sprite'),
+                ...getInitialComponentData('Sprite'),
                 texture: this.toRelativePath(asset.path),
             });
 
@@ -697,7 +697,7 @@ export class HierarchyPanel {
         const createChildren: ContextMenuItem[] = [
             { label: 'Empty Entity', icon: icons.plus(14), onClick: () => {
                 const newEntity = this.store_.createEntity(undefined, entity);
-                this.store_.addComponent(newEntity, 'LocalTransform', getDefaultComponentData('LocalTransform'));
+                this.store_.addComponent(newEntity, 'LocalTransform', getInitialComponentData('LocalTransform'));
             } },
             { label: 'Sprite', icon: icons.image(14), onClick: () => this.createEntityWithComponent('Sprite', entity) },
             { label: 'Text', icon: icons.type(14), onClick: () => this.createEntityWithComponent('Text', entity) },
@@ -785,65 +785,65 @@ export class HierarchyPanel {
     private createEntityWithComponent(componentType: string, parent: Entity | null): void {
         const newEntity = this.store_.createEntity(componentType, parent);
 
-        this.store_.addComponent(newEntity, 'LocalTransform', getDefaultComponentData('LocalTransform'));
+        this.store_.addComponent(newEntity, 'LocalTransform', getInitialComponentData('LocalTransform'));
 
         if (componentType === 'Text') {
-            this.store_.addComponent(newEntity, 'UIRect', getDefaultComponentData('UIRect'));
+            this.store_.addComponent(newEntity, 'UIRect', getInitialComponentData('UIRect'));
         }
 
-        this.store_.addComponent(newEntity, componentType, getDefaultComponentData(componentType));
+        this.store_.addComponent(newEntity, componentType, getInitialComponentData(componentType));
     }
 
     private addComponentToEntity(entity: Entity, componentType: string): void {
-        this.store_.addComponent(entity, componentType, getDefaultComponentData(componentType));
+        this.store_.addComponent(entity, componentType, getInitialComponentData(componentType));
     }
 
     private createPhysicsEntity(colliderType: string, parent: Entity | null): void {
         const newEntity = this.store_.createEntity(colliderType, parent);
-        this.store_.addComponent(newEntity, 'LocalTransform', getDefaultComponentData('LocalTransform'));
-        this.store_.addComponent(newEntity, 'RigidBody', getDefaultComponentData('RigidBody'));
-        this.store_.addComponent(newEntity, colliderType, getDefaultComponentData(colliderType));
+        this.store_.addComponent(newEntity, 'LocalTransform', getInitialComponentData('LocalTransform'));
+        this.store_.addComponent(newEntity, 'RigidBody', getInitialComponentData('RigidBody'));
+        this.store_.addComponent(newEntity, colliderType, getInitialComponentData(colliderType));
     }
 
     private createButtonEntity(parent: Entity | null): void {
         const newEntity = this.store_.createEntity('Button', parent);
-        this.store_.addComponent(newEntity, 'LocalTransform', getDefaultComponentData('LocalTransform'));
-        this.store_.addComponent(newEntity, 'Sprite', getDefaultComponentData('Sprite'));
-        this.store_.addComponent(newEntity, 'UIRect', getDefaultComponentData('UIRect'));
-        this.store_.addComponent(newEntity, 'Interactable', getDefaultComponentData('Interactable'));
-        this.store_.addComponent(newEntity, 'Button', getDefaultComponentData('Button'));
+        this.store_.addComponent(newEntity, 'LocalTransform', getInitialComponentData('LocalTransform'));
+        this.store_.addComponent(newEntity, 'Sprite', getInitialComponentData('Sprite'));
+        this.store_.addComponent(newEntity, 'UIRect', getInitialComponentData('UIRect'));
+        this.store_.addComponent(newEntity, 'Interactable', getInitialComponentData('Interactable'));
+        this.store_.addComponent(newEntity, 'Button', getInitialComponentData('Button'));
     }
 
     private createTextInputEntity(parent: Entity | null): void {
         const newEntity = this.store_.createEntity('TextInput', parent);
-        this.store_.addComponent(newEntity, 'LocalTransform', getDefaultComponentData('LocalTransform'));
-        const tiDefaults = getDefaultComponentData('TextInput');
+        this.store_.addComponent(newEntity, 'LocalTransform', getInitialComponentData('LocalTransform'));
+        const tiDefaults = getInitialComponentData('TextInput');
         this.store_.addComponent(newEntity, 'Sprite', {
-            ...getDefaultComponentData('Sprite'),
+            ...getInitialComponentData('Sprite'),
             color: tiDefaults.backgroundColor,
             size: { x: 200, y: 36 },
         });
         this.store_.addComponent(newEntity, 'UIRect', {
-            ...getDefaultComponentData('UIRect'),
+            ...getInitialComponentData('UIRect'),
             size: { x: 200, y: 36 },
         });
-        this.store_.addComponent(newEntity, 'Interactable', getDefaultComponentData('Interactable'));
-        this.store_.addComponent(newEntity, 'TextInput', getDefaultComponentData('TextInput'));
+        this.store_.addComponent(newEntity, 'Interactable', getInitialComponentData('Interactable'));
+        this.store_.addComponent(newEntity, 'TextInput', getInitialComponentData('TextInput'));
     }
 
     private createPanelEntity(parent: Entity | null): void {
         const newEntity = this.store_.createEntity('Panel', parent);
-        this.store_.addComponent(newEntity, 'LocalTransform', getDefaultComponentData('LocalTransform'));
-        this.store_.addComponent(newEntity, 'Sprite', getDefaultComponentData('Sprite'));
-        this.store_.addComponent(newEntity, 'UIRect', getDefaultComponentData('UIRect'));
-        this.store_.addComponent(newEntity, 'UIMask', getDefaultComponentData('UIMask'));
+        this.store_.addComponent(newEntity, 'LocalTransform', getInitialComponentData('LocalTransform'));
+        this.store_.addComponent(newEntity, 'Sprite', getInitialComponentData('Sprite'));
+        this.store_.addComponent(newEntity, 'UIRect', getInitialComponentData('UIRect'));
+        this.store_.addComponent(newEntity, 'UIMask', getInitialComponentData('UIMask'));
     }
 
     private createScreenSpaceRootEntity(parent: Entity | null): void {
         const newEntity = this.store_.createEntity('ScreenSpace Root', parent);
-        this.store_.addComponent(newEntity, 'LocalTransform', getDefaultComponentData('LocalTransform'));
+        this.store_.addComponent(newEntity, 'LocalTransform', getInitialComponentData('LocalTransform'));
         this.store_.addComponent(newEntity, 'UIRect', {
-            ...getDefaultComponentData('UIRect'),
+            ...getInitialComponentData('UIRect'),
             anchorMin: { x: 0, y: 0 },
             anchorMax: { x: 1, y: 1 },
         });

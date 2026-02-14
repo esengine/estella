@@ -253,6 +253,7 @@ export {
     loadComponent,
     updateCameraAspectRatio,
     findEntityByName,
+    registerComponentAssetFields,
     type SceneData,
     type SceneEntityData,
     type SceneComponentData,

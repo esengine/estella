@@ -40,7 +40,7 @@ export default {
             },
         },
         physics: {
-            buildDir: 'build-web',
+            buildDir: 'build-physics',
             cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_BOX2D=ON'],
             targets: ['physics_module'],
             outputs: {
