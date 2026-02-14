@@ -101,6 +101,11 @@ export function registerBuiltinMenus(editor: Editor): void {
         action: () => editor.toggleBottomPanel('output'),
     });
     registerMenuItem({
+        id: 'view.addressable', menu: 'view', label: 'Addressable Groups',
+        order: 4, separator: true,
+        action: () => editor.showAddressableWindow(),
+    });
+    registerMenuItem({
         id: 'view.reload-extensions', menu: 'view', label: 'Reload Extensions',
         order: 10, separator: true,
         action: () => editor.reloadExtensions(),

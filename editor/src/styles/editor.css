@@ -2413,6 +2413,9 @@ svg {
     align-items: center;
     justify-content: center;
     z-index: 1000;
+    color: var(--es-text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 13px;
 }
 
 .es-dialog {
@@ -5048,6 +5051,54 @@ svg {
     color: #fff;
 }
 .es-anchor-cell svg { width: 20px; height: 20px; }
+
+.es-floating-window {
+    position: fixed;
+    z-index: 1000;
+    background: var(--es-bg-secondary);
+    border: 1px solid var(--es-border);
+    border-radius: 6px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    color: var(--es-text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 13px;
+}
+.es-floating-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: var(--es-bg-tertiary);
+    border-bottom: 1px solid var(--es-border);
+    cursor: move;
+    user-select: none;
+    flex-shrink: 0;
+}
+.es-floating-title {
+    font-size: 13px;
+    font-weight: 500;
+}
+.es-floating-body {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+.es-addressable-window {
+    width: 900px;
+    height: 600px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    resize: both;
+    min-width: 600px;
+    min-height: 400px;
+}
+.es-addressable-window .es-addressable-panel > .es-panel-header {
+    display: none;
+}
 
 .es-uirect-fields { display: flex; flex-direction: column; gap: 4px; }
 .es-uirect-row { display: flex; align-items: center; min-height: 22px; }

@@ -6,7 +6,7 @@
 import type { SceneData } from '../types/SceneTypes';
 import type { TextureMetadata } from '../types/TextureMetadata';
 import { joinPath, getFileExtension } from '../utils/path';
-import type { NativeFS } from '../types/NativeFS';
+import type { NativeFS, FileStats } from '../types/NativeFS';
 import { ASSET_EXTENSIONS, getAssetType } from './AssetTypes';
 import {
     type AssetMeta,
@@ -364,7 +364,7 @@ export class AssetDatabase {
     // Private
     // =========================================================================
 
-    private registerEntry(meta: AssetMeta, relativePath: string): void {
+    private registerEntry(meta: AssetMeta, relativePath: string, stats?: FileStats | null): void {
         const group = this.groupService_
             ? this.groupService_.resolveGroup(relativePath, undefined)
             : 'default';
@@ -378,8 +378,8 @@ export class AssetDatabase {
             group,
             importer: meta.importer,
             platformOverrides: meta.platformOverrides,
-            fileSize: 0,
-            lastModified: 0,
+            fileSize: stats?.size ?? 0,
+            lastModified: stats?.modified?.getTime() ?? 0,
         };
 
         this.uuidToEntry_.set(meta.uuid, entry);
@@ -441,7 +441,9 @@ export class AssetDatabase {
                                 await this.fs_.writeFile(childAbsolute, serializeMeta(meta));
                             }
 
-                            this.registerEntry(meta, assetRelPath);
+                            const assetAbsolute = childAbsolute.replace(/\.meta$/, '');
+                            const stats = await this.fs_.getFileStats(assetAbsolute);
+                            this.registerEntry(meta, assetRelPath, stats);
                         }
                     } catch {
                         // Skip invalid meta files

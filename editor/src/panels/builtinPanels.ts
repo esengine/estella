@@ -4,7 +4,6 @@ import { InspectorPanel } from './InspectorPanel';
 import { SceneViewPanel } from './SceneViewPanel';
 import { ContentBrowserPanel } from './ContentBrowserPanel';
 import { OutputPanel } from './OutputPanel';
-import { AddressablePanel } from './AddressablePanel';
 import { icons } from '../utils/icons';
 
 export interface BuiltinPanelOptions {
@@ -65,13 +64,4 @@ export function registerBuiltinPanels(options: BuiltinPanelOptions): void {
         factory: (c) => new OutputPanel(c),
     });
 
-    registerPanel({
-        id: 'addressable',
-        title: 'Addressable',
-        icon: icons.layers(14),
-        position: 'bottom',
-        order: 2,
-        defaultVisible: true,
-        factory: (c, s) => new AddressablePanel(c, s),
-    });
 }

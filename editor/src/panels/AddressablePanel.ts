@@ -69,6 +69,7 @@ export class AddressablePanel implements PanelInstance {
 
     dispose(): void {
         this.container_.innerHTML = '';
+        this.container_.classList.remove('es-addressable-panel');
     }
 
     onShow(): void {
@@ -80,7 +81,7 @@ export class AddressablePanel implements PanelInstance {
     // =========================================================================
 
     private buildLayout(): void {
-        this.container_.className = 'es-addressable-panel';
+        this.container_.classList.add('es-addressable-panel');
         this.container_.innerHTML = `
             <div class="es-panel-header">
                 <span class="es-panel-title">${icons.layers(14)} Addressable Assets</span>
