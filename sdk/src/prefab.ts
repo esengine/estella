@@ -78,6 +78,8 @@ export async function instantiatePrefab(
         prefab,
         options?.overrides ?? [],
         options,
+        undefined,
+        new Set(),
     );
 
     const sceneData: SceneData = {
@@ -115,6 +117,7 @@ async function flattenPrefab(
     overrides: PrefabOverride[],
     options: InstantiatePrefabOptions | undefined,
     startId?: number,
+    visited?: Set<string>,
 ): Promise<FlattenResult> {
     const idMapping = new Map<number, number>();
     let nextId: number;
@@ -145,6 +148,13 @@ async function flattenPrefab(
                     `AssetServer required to load nested prefab: ${pe.nestedPrefab.prefabPath}`,
                 );
             }
+
+            if (visited?.has(pe.nestedPrefab.prefabPath)) {
+                console.error(`[Prefab] Cycle detected: ${pe.nestedPrefab.prefabPath}`);
+                continue;
+            }
+
+            visited?.add(pe.nestedPrefab.prefabPath);
             const nestedPrefab = await options.assetServer.loadPrefab(
                 pe.nestedPrefab.prefabPath,
                 options.assetBaseUrl,
@@ -155,6 +165,7 @@ async function flattenPrefab(
                 pe.nestedPrefab.overrides,
                 options,
                 nextId,
+                visited,
             );
 
             idMapping.set(pe.prefabEntityId, nested.rootId);

@@ -482,6 +482,40 @@ export function registerSpineSchema(): void {
 // =============================================================================
 
 const editorOnlyDefaults: Record<string, Record<string, unknown>> = {
+    RigidBody: {
+        bodyType: 2,
+        gravityScale: 1.0,
+        linearDamping: 0.0,
+        angularDamping: 0.0,
+        fixedRotation: false,
+        bullet: false,
+        enabled: true,
+    },
+    BoxCollider: {
+        halfExtents: { x: 0.5, y: 0.5 },
+        offset: { x: 0, y: 0 },
+        density: 1.0,
+        friction: 0.3,
+        restitution: 0.0,
+        isSensor: false,
+    },
+    CircleCollider: {
+        radius: 0.5,
+        offset: { x: 0, y: 0 },
+        density: 1.0,
+        friction: 0.3,
+        restitution: 0.0,
+        isSensor: false,
+    },
+    CapsuleCollider: {
+        radius: 0.25,
+        halfHeight: 0.5,
+        offset: { x: 0, y: 0 },
+        density: 1.0,
+        friction: 0.3,
+        restitution: 0.0,
+        isSensor: false,
+    },
     Camera: {
         isActive: true,
         projectionType: 1,

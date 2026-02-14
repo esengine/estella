@@ -37,6 +37,8 @@ export {
     getComponentDefaults,
     getUserComponent,
     clearUserComponents,
+    registerComponent,
+    getComponent,
     type ComponentDef,
     type BuiltinComponentDef,
     type AnyComponentDef,
@@ -51,6 +53,7 @@ export {
     Children,
     BitmapText,
     SpineAnimation,
+    Name,
     type LocalTransformData,
     type WorldTransformData,
     type SpriteData,
@@ -61,17 +64,20 @@ export {
     type ChildrenData,
     type BitmapTextData,
     type SpineAnimationData,
-    RigidBody,
-    BoxCollider,
-    CircleCollider,
-    CapsuleCollider,
-    Name,
     type RigidBodyData,
     type BoxColliderData,
     type CircleColliderData,
     type CapsuleColliderData,
     type NameData,
 } from './component';
+
+export {
+    RigidBody,
+    BoxCollider,
+    CircleCollider,
+    CapsuleCollider,
+    BodyType,
+} from './physics/PhysicsComponents';
 
 // =============================================================================
 // Resources
@@ -149,7 +155,6 @@ export { World } from './world';
 
 export {
     App,
-    createWebApp,
     flushPendingSystems,
     type Plugin,
     type WebAppOptions,
@@ -176,12 +181,8 @@ export {
     TextOverflow,
     UIRect,
     UIMask,
-    UIMaskPlugin,
-    uiMaskPlugin,
     createMaskProcessor,
     TextRenderer,
-    TextPlugin,
-    textPlugin,
     worldRectToScreen,
     intersectRects,
     invertMatrix4,
@@ -196,13 +197,7 @@ export {
     UICameraInfo,
     ScreenSpace,
     computeUIRectLayout,
-    UILayoutPlugin,
-    uiLayoutPlugin,
-    UIInteractionPlugin,
-    uiInteractionPlugin,
     TextInput,
-    TextInputPlugin,
-    textInputPlugin,
     type TextData,
     type UIRectData,
     type UIMaskData,
@@ -430,18 +425,13 @@ export {
 // Physics
 // =============================================================================
 
-export {
-    PhysicsPlugin,
-    PhysicsEvents,
-    Physics,
-    BodyType,
-    loadPhysicsModule,
-    type PhysicsWasmModule,
-    type PhysicsModuleFactory,
-    type PhysicsPluginConfig,
-    type PhysicsEventsData,
-    type CollisionEnterEvent,
-    type SensorEvent,
+export type {
+    PhysicsWasmModule,
+    PhysicsModuleFactory,
+    PhysicsPluginConfig,
+    PhysicsEventsData,
+    CollisionEnterEvent,
+    SensorEvent,
 } from './physics';
 
 // =============================================================================

@@ -5,36 +5,7 @@
 
 import { World } from './world';
 import { Entity } from './types';
-import {
-    LocalTransform,
-    Sprite,
-    Camera,
-    Canvas,
-    BitmapText,
-    SpineAnimation,
-    RigidBody,
-    BoxCollider,
-    CircleCollider,
-    CapsuleCollider,
-    Name,
-    getUserComponent,
-    type LocalTransformData,
-    type SpriteData,
-    type CameraData,
-    type CanvasData,
-    type BitmapTextData,
-    type SpineAnimationData,
-    type RigidBodyData,
-    type BoxColliderData,
-    type CircleColliderData,
-    type CapsuleColliderData,
-    type NameData,
-} from './component';
-import { Text, type TextData } from './ui/text';
-import { UIRect, type UIRectData } from './ui/UIRect';
-import { UIMask, type UIMaskData } from './ui/UIMask';
-import { Interactable, type InteractableData } from './ui/Interactable';
-import { Button, type ButtonData } from './ui/Button';
+import { getComponent, Name, Camera } from './component';
 import type { AssetServer } from './asset/AssetServer';
 
 // =============================================================================
@@ -234,69 +205,19 @@ export async function loadSceneWithAssets(
 }
 
 export function loadComponent(world: World, entity: Entity, compData: SceneComponentData): void {
-    const data = compData.data;
-    switch (compData.type) {
-        case 'LocalTransform':
-            world.insert(entity, LocalTransform, data as Partial<LocalTransformData>);
-            break;
-        case 'Sprite':
-            world.insert(entity, Sprite, data as Partial<SpriteData>);
-            break;
-        case 'Camera':
-            world.insert(entity, Camera, data as Partial<CameraData>);
-            break;
-        case 'Canvas':
-            world.insert(entity, Canvas, data as Partial<CanvasData>);
-            break;
-        case 'Text':
-            world.insert(entity, Text, data as Partial<TextData>);
-            break;
-        case 'BitmapText':
-            world.insert(entity, BitmapText, data as Partial<BitmapTextData>);
-            break;
-        case 'SpineAnimation':
-            world.insert(entity, SpineAnimation, data as Partial<SpineAnimationData>);
-            break;
-        case 'UIRect': {
-            const rectData = data as Record<string, unknown>;
-            if (rectData.anchor && !rectData.anchorMin) {
-                rectData.anchorMin = { ...(rectData.anchor as Record<string, unknown>) };
-                rectData.anchorMax = { ...(rectData.anchor as Record<string, unknown>) };
-                delete rectData.anchor;
-            }
-            world.insert(entity, UIRect, rectData as Partial<UIRectData>);
-            break;
+    if (compData.type === 'UIRect') {
+        const rectData = compData.data as Record<string, unknown>;
+        if (rectData.anchor && !rectData.anchorMin) {
+            rectData.anchorMin = { ...(rectData.anchor as Record<string, unknown>) };
+            rectData.anchorMax = { ...(rectData.anchor as Record<string, unknown>) };
+            delete rectData.anchor;
         }
-        case 'UIMask':
-            world.insert(entity, UIMask, data as Partial<UIMaskData>);
-            break;
-        case 'Interactable':
-            world.insert(entity, Interactable, data as Partial<InteractableData>);
-            break;
-        case 'Button':
-            world.insert(entity, Button, data as Partial<ButtonData>);
-            break;
-        case 'RigidBody':
-            world.insert(entity, RigidBody, data as Partial<RigidBodyData>);
-            break;
-        case 'BoxCollider':
-            world.insert(entity, BoxCollider, data as Partial<BoxColliderData>);
-            break;
-        case 'CircleCollider':
-            world.insert(entity, CircleCollider, data as Partial<CircleColliderData>);
-            break;
-        case 'CapsuleCollider':
-            world.insert(entity, CapsuleCollider, data as Partial<CapsuleColliderData>);
-            break;
-        default: {
-            const userComp = getUserComponent(compData.type);
-            if (userComp) {
-                world.insert(entity, userComp, data);
-            } else {
-                console.warn(`Unknown component type: ${compData.type}`);
-            }
-            break;
-        }
+    }
+    const comp = getComponent(compData.type);
+    if (comp) {
+        world.insert(entity, comp, compData.data);
+    } else {
+        console.warn(`Unknown component type: ${compData.type}`);
     }
 }
 

@@ -4,9 +4,8 @@
  */
 
 import { Entity, Vec2, Vec3, Color, Quat, INVALID_TEXTURE, INVALID_FONT } from './types';
-import {
-    RigidBody, BoxCollider, CircleCollider, CapsuleCollider,
-    type RigidBodyData, type BoxColliderData, type CircleColliderData, type CapsuleColliderData,
+import type {
+    RigidBodyData, BoxColliderData, CircleColliderData, CapsuleColliderData,
 } from './physics/PhysicsComponents';
 
 // =============================================================================
@@ -99,16 +98,6 @@ export interface BuiltinComponentDef<T> {
     readonly _default: T;
 }
 
-function defineBuiltin<T>(name: string, defaults: T): BuiltinComponentDef<T> {
-    return {
-        _id: Symbol(`Builtin_${name}`),
-        _name: name,
-        _cppName: name,
-        _builtin: true,
-        _default: defaults
-    };
-}
-
 // =============================================================================
 // Component Type Union
 // =============================================================================
@@ -117,6 +106,28 @@ export type AnyComponentDef = ComponentDef<any> | BuiltinComponentDef<any>;
 
 export function isBuiltinComponent(comp: AnyComponentDef): comp is BuiltinComponentDef<any> {
     return comp._builtin === true;
+}
+
+const componentRegistry = new Map<string, AnyComponentDef>();
+
+export function registerComponent(name: string, def: AnyComponentDef): void {
+    componentRegistry.set(name, def);
+}
+
+export function getComponent(name: string): AnyComponentDef | undefined {
+    return componentRegistry.get(name) ?? getUserComponent(name);
+}
+
+export function defineBuiltin<T>(name: string, defaults: T): BuiltinComponentDef<T> {
+    const def: BuiltinComponentDef<T> = {
+        _id: Symbol(`Builtin_${name}`),
+        _name: name,
+        _cppName: name,
+        _builtin: true,
+        _default: defaults
+    };
+    componentRegistry.set(name, def);
+    return def;
 }
 
 // =============================================================================
@@ -317,9 +328,8 @@ export const Name: ComponentDef<NameData> = {
     }
 };
 
-export {
-    RigidBody, BoxCollider, CircleCollider, CapsuleCollider,
-    type RigidBodyData, type BoxColliderData, type CircleColliderData, type CapsuleColliderData,
+export type {
+    RigidBodyData, BoxColliderData, CircleColliderData, CapsuleColliderData,
 };
 
 // =============================================================================
@@ -335,29 +345,10 @@ export type ComponentData<C> =
 // Component Defaults Registry
 // =============================================================================
 
-const builtinComponents: Record<string, BuiltinComponentDef<any>> = {
-    LocalTransform,
-    WorldTransform,
-    Sprite,
-    Camera,
-    Canvas,
-    Velocity,
-    Parent,
-    Children,
-    BitmapText,
-    SpineAnimation,
-    RigidBody,
-    BoxCollider,
-    CircleCollider,
-    CapsuleCollider,
-};
-
 export function getComponentDefaults(typeName: string): Record<string, unknown> | null {
-    const builtin = builtinComponents[typeName];
-    if (builtin) return { ...builtin._default };
-
-    const userComp = getUserComponent(typeName);
-    if (userComp) return { ...userComp._default };
-
+    const comp = getComponent(typeName);
+    if (comp) return { ...comp._default };
     return null;
 }
+
+registerComponent('Name', Name);

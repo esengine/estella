@@ -1,5 +1,5 @@
 import path from 'path';
-import { mkdir, cp, rm } from 'fs/promises';
+import { mkdir, cp, rm, stat } from 'fs/promises';
 import { existsSync } from 'fs';
 import config from '../build.config.js';
 import * as logger from '../utils/logger.js';
@@ -47,10 +47,32 @@ export async function buildWasm(target, options = {}) {
     logger.debug(`CMake build: cmake ${buildArgs.join(' ')}`);
     await runCommand('cmake', buildArgs, { cwd: buildDir });
 
+    await optimizeWasmFiles(buildDir, targetConfig.outputs);
     await copyOutputs(buildDir, outputDir, targetConfig.outputs);
 
     logger.success(`WASM ${target}: Build complete`);
     return { target, buildDir, outputDir };
+}
+
+async function optimizeWasmFiles(buildDir, outputs) {
+    const wasmFiles = Object.keys(outputs).filter(src => src.endsWith('.wasm'));
+    if (wasmFiles.length === 0) return;
+
+    for (const src of wasmFiles) {
+        const wasmPath = path.join(buildDir, src);
+        if (!existsSync(wasmPath)) continue;
+
+        try {
+            const before = (await stat(wasmPath)).size;
+            await runCommand('wasm-opt', ['-Oz', '-o', wasmPath, wasmPath], { silent: true });
+            const after = (await stat(wasmPath)).size;
+            const reduction = ((1 - after / before) * 100).toFixed(1);
+            logger.debug(`wasm-opt: ${src} ${(before / 1024).toFixed(0)}KB → ${(after / 1024).toFixed(0)}KB (-${reduction}%)`);
+        } catch {
+            logger.warn('wasm-opt not found or failed, skipping WASM optimization');
+            return;
+        }
+    }
 }
 
 async function copyOutputs(buildDir, outputDir, outputs) {

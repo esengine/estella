@@ -6,6 +6,7 @@
 import type { SceneData, EntityData, ComponentData } from '../types/SceneTypes';
 import { getEditorContext } from '../context/EditorContext';
 import { getDefaultComponentData } from '../schemas/ComponentSchemas';
+import { stripComponentDefaults, mergeComponentDefaults } from './sparse';
 import type { NativeFS } from '../types/NativeFS';
 
 // =============================================================================
@@ -14,7 +15,14 @@ import type { NativeFS } from '../types/NativeFS';
 
 export class SceneSerializer {
     serialize(scene: SceneData): string {
-        return JSON.stringify(scene, null, 2);
+        const sparse: SceneData = {
+            ...scene,
+            entities: scene.entities.map(e => ({
+                ...e,
+                components: stripComponentDefaults(e.components),
+            })),
+        };
+        return JSON.stringify(sparse, null, 2);
     }
 
     deserialize(json: string): SceneData {
@@ -94,6 +102,7 @@ export class SceneSerializer {
         if (!component.data || typeof component.data !== 'object') {
             component.data = {};
         }
+        mergeComponentDefaults(component);
         this.migrateColors(component);
     }
 

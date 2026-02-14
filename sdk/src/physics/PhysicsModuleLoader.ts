@@ -69,12 +69,13 @@ export async function loadPhysicsModule(
     wasmUrl: string,
     factory?: PhysicsModuleFactory
 ): Promise<PhysicsWasmModule> {
-    if (factory) {
-        return factory();
+    if (!factory) {
+        throw new Error(
+            'PhysicsModuleLoader: factory parameter is required. ' +
+            'Pass the Physics WASM factory function explicitly via loadPhysicsModule(url, factory).'
+        );
     }
-
-    const moduleFactory = (await import(/* webpackIgnore: true */ wasmUrl)).default as PhysicsModuleFactory;
-    return moduleFactory();
+    return factory();
 }
 
 export interface ESEngineMainModule {

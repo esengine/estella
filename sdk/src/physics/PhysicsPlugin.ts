@@ -6,7 +6,7 @@
 import type { Plugin, App } from '../app';
 import type { Entity, Vec2 } from '../types';
 import type { LocalTransformData, WorldTransformData, ParentData, CanvasData } from '../component';
-import { LocalTransform, WorldTransform, Parent, RigidBody, BoxCollider, CircleCollider, CapsuleCollider, Canvas } from '../component';
+import { LocalTransform, WorldTransform, Parent, Canvas } from '../component';
 import { defineResource, Res, Time, type TimeData } from '../resource';
 import { Schedule, defineSystem } from '../system';
 import {
@@ -14,8 +14,7 @@ import {
     type PhysicsWasmModule,
     type PhysicsModuleFactory,
 } from './PhysicsModuleLoader';
-import type { RigidBodyData } from './PhysicsComponents';
-import { BodyType } from './PhysicsComponents';
+import { RigidBody, BoxCollider, CircleCollider, CapsuleCollider, BodyType, type RigidBodyData } from './PhysicsComponents';
 
 // =============================================================================
 // Physics Config
@@ -214,13 +213,14 @@ export class PhysicsPlugin implements Plugin {
                     )
                 );
 
-                (app as any).__physicsModule = module;
+                app.physicsModule = module;
                 app.insertResource(PhysicsAPI, Physics._fromModule(module));
                 app.setFixedTimestep(this.config_.fixedTimestep);
             }
         );
 
-        (app as any).__physicsInitPromise = initPromise;
+        initPromise.catch(() => {});
+        app.physicsInitPromise = initPromise;
     }
 }
 
@@ -388,7 +388,7 @@ export class Physics {
     private module_: PhysicsWasmModule;
 
     constructor(app: App) {
-        this.module_ = (app as any).__physicsModule as PhysicsWasmModule;
+        this.module_ = app.physicsModule as PhysicsWasmModule;
         if (!this.module_) {
             throw new Error('Physics module not loaded. Ensure PhysicsPlugin init is complete.');
         }

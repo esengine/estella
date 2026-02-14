@@ -33,6 +33,11 @@ export class World {
     private cppRegistry_: CppRegistry | null = null;
     private entities_ = new Set<Entity>();
     private tsStorage_ = new Map<symbol, Map<Entity, unknown>>();
+    private entityComponents_ = new Map<Entity, symbol[]>();
+    private queryPool_: Entity[][] = [];
+    private queryPoolIdx_ = 0;
+    private worldVersion_ = 0;
+    private queryCache_ = new Map<string, { version: number; result: Entity[] }>();
 
     connectCpp(cppRegistry: CppRegistry): void {
         this.cppRegistry_ = cppRegistry;
@@ -68,9 +73,14 @@ export class World {
             this.cppRegistry_.destroy(entity);
         }
         this.entities_.delete(entity);
+        this.worldVersion_++;
 
-        for (const storage of this.tsStorage_.values()) {
-            storage.delete(entity);
+        const ids = this.entityComponents_.get(entity);
+        if (ids) {
+            for (const id of ids) {
+                this.tsStorage_.get(id)?.delete(entity);
+            }
+            this.entityComponents_.delete(entity);
         }
     }
 
@@ -83,6 +93,10 @@ export class World {
 
     entityCount(): number {
         return this.entities_.size;
+    }
+
+    getWorldVersion(): number {
+        return this.worldVersion_;
     }
 
     getAllEntities(): Entity[] {
@@ -124,6 +138,13 @@ export class World {
             return this.hasBuiltin(entity, component);
         }
         return this.hasScript(entity, component as ComponentDef<any>);
+    }
+
+    tryGet<C extends AnyComponentDef>(entity: Entity, component: C): ComponentData<C> | null {
+        if (!this.has(entity, component)) {
+            return null;
+        }
+        return this.get(entity, component);
     }
 
     remove(entity: Entity, component: AnyComponentDef): void {
@@ -195,6 +216,15 @@ export class World {
     private insertScript<T>(entity: Entity, component: ComponentDef<T>, data?: unknown): T {
         const value = component.create(data as Partial<T>);
         this.getStorage(component).set(entity, value);
+        this.worldVersion_++;
+        let ids = this.entityComponents_.get(entity);
+        if (!ids) {
+            ids = [];
+            this.entityComponents_.set(entity, ids);
+        }
+        if (ids.indexOf(component._id) === -1) {
+            ids.push(component._id);
+        }
         return value;
     }
 
@@ -214,6 +244,14 @@ export class World {
     private removeScript<T>(entity: Entity, component: ComponentDef<T>): void {
         const storage = this.tsStorage_.get(component._id);
         storage?.delete(entity);
+        this.worldVersion_++;
+        const ids = this.entityComponents_.get(entity);
+        if (ids) {
+            const idx = ids.indexOf(component._id);
+            if (idx !== -1) {
+                ids.splice(idx, 1);
+            }
+        }
     }
 
     private getStorage(component: ComponentDef<any>): Map<Entity, unknown> {
@@ -229,9 +267,20 @@ export class World {
     // Query Support
     // =========================================================================
 
+    resetQueryPool(): void {
+        this.queryPoolIdx_ = 0;
+        this.queryCache_.clear();
+    }
+
     getEntitiesWithComponents(components: AnyComponentDef[]): Entity[] {
         if (components.length === 0) {
             return this.getAllEntities();
+        }
+
+        const cacheKey = components.map(c => c._name).sort().join(',');
+        const cached = this.queryCache_.get(cacheKey);
+        if (cached && cached.version === this.worldVersion_) {
+            return cached.result;
         }
 
         let smallestPool: Map<Entity, unknown> | null = null;
@@ -248,7 +297,12 @@ export class World {
             }
         }
 
-        const entities: Entity[] = [];
+        if (this.queryPoolIdx_ >= this.queryPool_.length) {
+            this.queryPool_.push([]);
+        }
+        const entities = this.queryPool_[this.queryPoolIdx_++];
+        entities.length = 0;
+
         const candidates = smallestPool ? smallestPool.keys() : this.entities_;
 
         for (const entity of candidates) {
@@ -263,6 +317,8 @@ export class World {
                 entities.push(entity);
             }
         }
+
+        this.queryCache_.set(cacheKey, { version: this.worldVersion_, result: entities });
 
         return entities;
     }

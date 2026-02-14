@@ -3,17 +3,15 @@
  * @brief   ESEngine SDK - WeChat MiniGame entry point
  */
 
-// Initialize WeChat platform
 import { setPlatform } from './platform';
 import { wechatAdapter, initWeChatPlatform } from './platform/wechat';
 
 initWeChatPlatform();
 setPlatform(wechatAdapter);
 
-// Re-export everything from core
 export * from './core';
+export * from './webAppFactory';
 
-// Export WeChat-specific utilities
 export {
     wxReadFile,
     wxReadTextFile,

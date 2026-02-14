@@ -1,8 +1,10 @@
+const DEFAULT_TIMEOUT = 30000;
+
 export class AsyncCache<T> {
     private cache_ = new Map<string, T>();
     private pending_ = new Map<string, Promise<T>>();
 
-    async getOrLoad(key: string, loader: () => Promise<T>): Promise<T> {
+    async getOrLoad(key: string, loader: () => Promise<T>, timeout = DEFAULT_TIMEOUT): Promise<T> {
         const cached = this.cache_.get(key);
         if (cached !== undefined) {
             return cached;
@@ -17,9 +19,22 @@ export class AsyncCache<T> {
         this.pending_.set(key, promise);
 
         try {
-            const result = await promise;
+            const result = await (timeout > 0
+                ? Promise.race([
+                    promise,
+                    new Promise<never>((_, reject) =>
+                        setTimeout(() => reject(new Error(`AsyncCache timeout: ${key} (${timeout}ms)`)), timeout)
+                    ),
+                ])
+                : promise);
             this.cache_.set(key, result);
             return result;
+        } catch (err) {
+            this.pending_.delete(key);
+            if (err instanceof Error && err.message.startsWith('AsyncCache timeout:')) {
+                console.warn(`[AsyncCache] ${err.message}`);
+            }
+            throw err;
         } finally {
             this.pending_.delete(key);
         }

@@ -326,51 +326,63 @@ export const Draw: DrawAPI = {
 
         m.HEAPF32.set(transform, transformPtr / 4);
 
-        let idx = 0;
-        let autoTextureSlot = 0;
-        for (const [name, value] of matData.uniforms) {
-            const nameId = getUniformNameId(name);
-            if (nameId < 0) continue;
+        let idx: number;
+        if (!matData.dirty_ && matData.cachedBuffer_) {
+            idx = matData.cachedIdx_;
+        } else {
+            idx = 0;
+            let autoTextureSlot = 0;
+            for (const [name, value] of matData.uniforms) {
+                const nameId = getUniformNameId(name);
+                if (nameId < 0) continue;
 
-            if (isTextureRef(value)) {
-                uniformBuffer[idx++] = 10;
-                uniformBuffer[idx++] = nameId;
-                uniformBuffer[idx++] = value.slot ?? autoTextureSlot++;
-                uniformBuffer[idx++] = value.textureId;
-            } else if (typeof value === 'number') {
-                uniformBuffer[idx++] = 1;
-                uniformBuffer[idx++] = nameId;
-                uniformBuffer[idx++] = value;
-            } else if (Array.isArray(value)) {
-                uniformBuffer[idx++] = value.length;
-                uniformBuffer[idx++] = nameId;
-                for (let i = 0; i < value.length; i++) {
-                    uniformBuffer[idx++] = value[i];
+                if (isTextureRef(value)) {
+                    uniformBuffer[idx++] = 10;
+                    uniformBuffer[idx++] = nameId;
+                    uniformBuffer[idx++] = value.slot ?? autoTextureSlot++;
+                    uniformBuffer[idx++] = value.textureId;
+                } else if (typeof value === 'number') {
+                    uniformBuffer[idx++] = 1;
+                    uniformBuffer[idx++] = nameId;
+                    uniformBuffer[idx++] = value;
+                } else if (Array.isArray(value)) {
+                    uniformBuffer[idx++] = value.length;
+                    uniformBuffer[idx++] = nameId;
+                    for (let i = 0; i < value.length; i++) {
+                        uniformBuffer[idx++] = value[i];
+                    }
+                } else if ('w' in value) {
+                    uniformBuffer[idx++] = 4;
+                    uniformBuffer[idx++] = nameId;
+                    uniformBuffer[idx++] = value.x;
+                    uniformBuffer[idx++] = value.y;
+                    uniformBuffer[idx++] = value.z;
+                    uniformBuffer[idx++] = value.w;
+                } else if ('z' in value) {
+                    uniformBuffer[idx++] = 3;
+                    uniformBuffer[idx++] = nameId;
+                    uniformBuffer[idx++] = value.x;
+                    uniformBuffer[idx++] = value.y;
+                    uniformBuffer[idx++] = value.z;
+                } else {
+                    uniformBuffer[idx++] = 2;
+                    uniformBuffer[idx++] = nameId;
+                    uniformBuffer[idx++] = value.x;
+                    uniformBuffer[idx++] = value.y;
                 }
-            } else if ('w' in value) {
-                uniformBuffer[idx++] = 4;
-                uniformBuffer[idx++] = nameId;
-                uniformBuffer[idx++] = value.x;
-                uniformBuffer[idx++] = value.y;
-                uniformBuffer[idx++] = value.z;
-                uniformBuffer[idx++] = value.w;
-            } else if ('z' in value) {
-                uniformBuffer[idx++] = 3;
-                uniformBuffer[idx++] = nameId;
-                uniformBuffer[idx++] = value.x;
-                uniformBuffer[idx++] = value.y;
-                uniformBuffer[idx++] = value.z;
-            } else {
-                uniformBuffer[idx++] = 2;
-                uniformBuffer[idx++] = nameId;
-                uniformBuffer[idx++] = value.x;
-                uniformBuffer[idx++] = value.y;
+
+                if (idx > UNIFORMS_BUFFER_SIZE - 6) {
+                    console.warn('Uniform buffer overflow, some uniforms will be ignored');
+                    break;
+                }
             }
 
-            if (idx > UNIFORMS_BUFFER_SIZE - 6) {
-                console.warn('Uniform buffer overflow, some uniforms will be ignored');
-                break;
+            if (!matData.cachedBuffer_ || matData.cachedBuffer_.length < idx) {
+                matData.cachedBuffer_ = new Float32Array(idx);
             }
+            matData.cachedBuffer_.set(uniformBuffer.subarray(0, idx));
+            matData.cachedIdx_ = idx;
+            matData.dirty_ = false;
         }
 
         if (idx === 0) {
@@ -378,7 +390,7 @@ export const Draw: DrawAPI = {
             return;
         }
 
-        m.HEAPF32.set(uniformBuffer.subarray(0, idx), uniformsPtr / 4);
+        m.HEAPF32.set(matData.cachedBuffer_!.subarray(0, idx), uniformsPtr / 4);
         m.draw_meshWithUniforms(geometry, matData.shader, transformPtr, uniformsPtr, idx);
     },
 };

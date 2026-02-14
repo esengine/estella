@@ -223,7 +223,7 @@ ${imports}
             write: false,
             platform: 'browser',
             target: 'es2020',
-            treeShaking: false,
+            treeShaking: true,
             minify: settings.minifyCode,
             define: defines,
             plugins: [plugin],

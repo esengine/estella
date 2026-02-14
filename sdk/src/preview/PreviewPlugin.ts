@@ -57,10 +57,10 @@ export class PreviewPlugin implements Plugin {
             await provider.prefetch(sceneData);
 
             let spineModule = null;
-            const spinePromise = (this.app_ as any).__spineInitPromise;
+            const spinePromise = this.app_.spineInitPromise;
             if (spinePromise) {
                 step = 'init spine';
-                const result = await spinePromise;
+                const result = await spinePromise as { controller: { raw: any }; coreModule: unknown };
                 spineModule = result.controller.raw;
             }
 

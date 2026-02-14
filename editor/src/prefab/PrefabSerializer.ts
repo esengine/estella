@@ -8,13 +8,21 @@ import type { PrefabData, PrefabEntityData } from '../types/PrefabTypes';
 import { getEditorContext } from '../context/EditorContext';
 import type { NativeFS } from '../types/NativeFS';
 import { getGlobalPathResolver, getAssetDatabase, isUUID, getComponentRefFields } from '../asset';
+import { stripComponentDefaults, mergeComponentDefaults } from '../io/sparse';
 
 // =============================================================================
 // Serialization
 // =============================================================================
 
 export function serializePrefab(prefab: PrefabData): string {
-    return JSON.stringify(prefab, null, 2);
+    const sparse: PrefabData = {
+        ...prefab,
+        entities: prefab.entities.map(e => ({
+            ...e,
+            components: stripComponentDefaults(e.components),
+        })),
+    };
+    return JSON.stringify(sparse, null, 2);
 }
 
 export function deserializePrefab(json: string): PrefabData {
@@ -53,6 +61,9 @@ function validatePrefabEntity(entity: PrefabEntityData): void {
     }
     if (!Array.isArray(entity.components)) {
         entity.components = [];
+    }
+    for (const comp of entity.components) {
+        mergeComponentDefaults(comp);
     }
     if (entity.visible === undefined) {
         entity.visible = true;

@@ -4,17 +4,7 @@
  */
 
 import type { Vec2 } from '../types';
-import type { BuiltinComponentDef } from '../component';
-
-function defineBuiltin<T>(name: string, defaults: T): BuiltinComponentDef<T> {
-    return {
-        _id: Symbol(`Builtin_${name}`),
-        _name: name,
-        _cppName: name,
-        _builtin: true,
-        _default: defaults
-    };
-}
+import { defineBuiltin } from '../component';
 
 // =============================================================================
 // Component Data Interfaces

@@ -97,6 +97,8 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
     private readonly descriptor_: QueryDescriptor<C>;
     private readonly actualComponents_: AnyComponentDef[];
     private readonly allRequired_: AnyComponentDef[];
+    private readonly result_: any[];
+    private readonly mutData_: Array<{ component: AnyComponentDef; data: any }>;
 
     constructor(world: World, descriptor: QueryDescriptor<C>) {
         this.world_ = world;
@@ -105,6 +107,11 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
             isMutWrapper(c) ? c._component : c
         );
         this.allRequired_ = this.actualComponents_.concat(descriptor._with);
+        this.result_ = new Array(this.actualComponents_.length + 1);
+        this.mutData_ = descriptor._mutIndices.map(idx => ({
+            component: this.actualComponents_[idx],
+            data: null as any
+        }));
     }
 
     *[Symbol.iterator](): Iterator<QueryResult<C>> {
@@ -114,19 +121,19 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
         const compCount = actualComponents.length;
         const hasMut = _mutIndices.length > 0;
         const hasWithout = _without.length > 0;
-        const result = new Array(compCount + 1);
+        const result = this.result_;
+        const mutData = this.mutData_;
+        const mutCount = mutData.length;
 
         let prevEntity: Entity | null = null;
-        let prevMutData: Array<{ component: AnyComponentDef; data: any }> = [];
 
         try {
             for (const entity of entities) {
                 if (prevEntity !== null && hasMut) {
-                    for (let i = 0; i < prevMutData.length; i++) {
-                        const mut = prevMutData[i];
+                    for (let i = 0; i < mutCount; i++) {
+                        const mut = mutData[i];
                         this.world_.insert(prevEntity, mut.component, mut.data);
                     }
-                    prevMutData.length = 0;
                 }
 
                 if (hasWithout) {
@@ -146,12 +153,8 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
                 }
 
                 if (hasMut) {
-                    for (let i = 0; i < _mutIndices.length; i++) {
-                        const idx = _mutIndices[i];
-                        prevMutData.push({
-                            component: actualComponents[idx],
-                            data: result[idx + 1]
-                        });
+                    for (let i = 0; i < mutCount; i++) {
+                        mutData[i].data = result[_mutIndices[i] + 1];
                     }
                     prevEntity = entity;
                 }
@@ -160,8 +163,8 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
             }
         } finally {
             if (prevEntity !== null && hasMut) {
-                for (let i = 0; i < prevMutData.length; i++) {
-                    const mut = prevMutData[i];
+                for (let i = 0; i < mutCount; i++) {
+                    const mut = mutData[i];
                     this.world_.insert(prevEntity, mut.component, mut.data);
                 }
             }

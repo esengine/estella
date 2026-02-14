@@ -101,12 +101,12 @@ export async function loadSpineModule(
     wasmUrl: string,
     factory?: SpineModuleFactory
 ): Promise<{ raw: SpineWasmModule; api: SpineWrappedAPI }> {
-    let raw: SpineWasmModule;
-    if (factory) {
-        raw = await factory();
-    } else {
-        const moduleFactory = (await import(/* webpackIgnore: true */ wasmUrl)).default as SpineModuleFactory;
-        raw = await moduleFactory();
+    if (!factory) {
+        throw new Error(
+            'SpineModuleLoader: factory parameter is required. ' +
+            'Pass the Spine WASM factory function explicitly via loadSpineModule(url, factory).'
+        );
     }
+    const raw = await factory();
     return { raw, api: wrapSpineModule(raw) };
 }

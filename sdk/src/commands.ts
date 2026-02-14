@@ -208,14 +208,26 @@ export class CommandsInstance {
             }
 
             case 'despawn':
+                if (!this.world_.valid(cmd.entity)) {
+                    console.warn(`[Commands] despawn skipped: entity ${cmd.entity} is already invalid`);
+                    break;
+                }
                 this.world_.despawn(cmd.entity);
                 break;
 
             case 'insert':
+                if (!this.world_.valid(cmd.entity)) {
+                    console.warn(`[Commands] insert skipped: entity ${cmd.entity} is invalid`);
+                    break;
+                }
                 this.world_.insert(cmd.entity, cmd.component, cmd.data);
                 break;
 
             case 'remove':
+                if (!this.world_.valid(cmd.entity)) {
+                    console.warn(`[Commands] remove skipped: entity ${cmd.entity} is invalid`);
+                    break;
+                }
                 this.world_.remove(cmd.entity, cmd.component);
                 break;
 

@@ -7,7 +7,7 @@ import type { App, Plugin } from '../app';
 import type { Entity } from '../types';
 import { INVALID_TEXTURE } from '../types';
 import { defineSystem, Schedule } from '../system';
-import { Sprite, type SpriteData } from '../component';
+import { registerComponent, Sprite, type SpriteData } from '../component';
 import { Text, type TextData } from './text';
 import { TextRenderer } from './TextRenderer';
 import { UIRect, type UIRectData } from './UIRect';
@@ -25,9 +25,11 @@ interface TextSnapshot {
     wordWrap: boolean;
     overflow: number;
     lineHeight: number;
+    containerWidth: number;
+    containerHeight: number;
 }
 
-function takeSnapshot(text: TextData): TextSnapshot {
+function takeSnapshot(text: TextData, uiRect?: UIRectData | null): TextSnapshot {
     return {
         content: text.content,
         fontFamily: text.fontFamily,
@@ -41,10 +43,12 @@ function takeSnapshot(text: TextData): TextSnapshot {
         wordWrap: text.wordWrap,
         overflow: text.overflow,
         lineHeight: text.lineHeight,
+        containerWidth: uiRect ? uiRect.size.x : 0,
+        containerHeight: uiRect ? uiRect.size.y : 0,
     };
 }
 
-function snapshotChanged(snap: TextSnapshot, text: TextData): boolean {
+function snapshotChanged(snap: TextSnapshot, text: TextData, uiRect?: UIRectData | null): boolean {
     return snap.content !== text.content
         || snap.fontFamily !== text.fontFamily
         || snap.fontSize !== text.fontSize
@@ -56,7 +60,9 @@ function snapshotChanged(snap: TextSnapshot, text: TextData): boolean {
         || snap.verticalAlign !== text.verticalAlign
         || snap.wordWrap !== text.wordWrap
         || snap.overflow !== text.overflow
-        || snap.lineHeight !== text.lineHeight;
+        || snap.lineHeight !== text.lineHeight
+        || snap.containerWidth !== (uiRect ? uiRect.size.x : 0)
+        || snap.containerHeight !== (uiRect ? uiRect.size.y : 0);
 }
 
 // =============================================================================
@@ -65,6 +71,8 @@ function snapshotChanged(snap: TextSnapshot, text: TextData): boolean {
 
 export class TextPlugin implements Plugin {
     build(app: App): void {
+        registerComponent('Text', Text);
+
         const module = app.wasmModule;
         if (!module) {
             console.warn('TextPlugin: No WASM module available');
@@ -90,9 +98,12 @@ export class TextPlugin implements Plugin {
 
                 for (const entity of entities) {
                     const text = world.get(entity, Text) as TextData;
+                    const uiRect = world.has(entity, UIRect)
+                        ? world.get(entity, UIRect) as UIRectData
+                        : null;
                     const prev = snapshots.get(entity);
 
-                    if (prev && !snapshotChanged(prev, text)) continue;
+                    if (prev && !snapshotChanged(prev, text, uiRect)) continue;
 
                     if (!world.has(entity, Sprite)) {
                         world.insert(entity, Sprite, {
@@ -108,9 +119,6 @@ export class TextPlugin implements Plugin {
                         });
                     }
 
-                    const uiRect = world.has(entity, UIRect)
-                        ? world.get(entity, UIRect) as UIRectData
-                        : null;
                     const result = renderer.renderForEntity(entity, text, uiRect);
 
                     const sprite = world.get(entity, Sprite) as SpriteData;
@@ -123,7 +131,7 @@ export class TextPlugin implements Plugin {
                     sprite.uvScale.y = 1;
                     world.insert(entity, Sprite, sprite);
 
-                    snapshots.set(entity, takeSnapshot(text));
+                    snapshots.set(entity, takeSnapshot(text, uiRect));
                 }
             }
         ));

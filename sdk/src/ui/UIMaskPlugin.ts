@@ -3,7 +3,7 @@ import type { ESEngineModule, CppRegistry } from '../wasm';
 import type { MaskProcessorFn } from '../renderPipeline';
 import type { Entity } from '../types';
 import type { World } from '../world';
-import { WorldTransform, Parent } from '../component';
+import { registerComponent, WorldTransform, Parent } from '../component';
 import type { WorldTransformData, ParentData } from '../component';
 import { UIMask, type UIMaskData } from './UIMask';
 import { UIRect, type UIRectData } from './UIRect';
@@ -108,6 +108,8 @@ function processMasks(
 
 export class UIMaskPlugin implements Plugin {
     build(app: App): void {
+        registerComponent('UIMask', UIMask);
+
         if (!app.wasmModule) return;
         const pipeline = app.pipeline;
         if (!pipeline) return;

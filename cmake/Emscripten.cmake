@@ -83,6 +83,7 @@ set(ES_EMSCRIPTEN_WXGAME_MAIN_MODULE_FLAGS
     "-sEXPORTED_FUNCTIONS=['_malloc','_free']"
     "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32','GL','FS','loadDynamicLibrary']"
     -O3
+    -flto
     -Wl,--gc-sections
     --closure=0
 )
@@ -137,6 +138,7 @@ set(ES_EMSCRIPTEN_WXGAME_SDK_FLAGS
     "-sEXPORTED_FUNCTIONS=['_malloc','_free']"
     "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32','GL','FS']"
     -O3
+    -flto
     -Wl,--gc-sections
     --closure=0
 )
@@ -261,7 +263,7 @@ endfunction()
 
 function(es_apply_wxgame_sdk_settings TARGET_NAME)
     if(ES_BUILD_WXGAME)
-        target_compile_options(${TARGET_NAME} PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS} -fno-exceptions)
+        target_compile_options(${TARGET_NAME} PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS} -flto -fno-exceptions)
 
         string(REPLACE ";" " " LINK_FLAGS_STR "${ES_EMSCRIPTEN_WXGAME_SDK_FLAGS}")
         set_target_properties(${TARGET_NAME} PROPERTIES

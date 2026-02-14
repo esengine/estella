@@ -1,5 +1,5 @@
 import type { App, Plugin } from '../app';
-import { LocalTransform, Children } from '../component';
+import { registerComponent, LocalTransform, Children } from '../component';
 import type { LocalTransformData, ChildrenData } from '../component';
 import { defineSystem, Schedule } from '../system';
 import { Res } from '../resource';
@@ -59,6 +59,8 @@ function layoutEntity(
 
 export class UILayoutPlugin implements Plugin {
     build(app: App): void {
+        registerComponent('UIRect', UIRect);
+
         const world = app.world;
 
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(

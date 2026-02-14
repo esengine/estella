@@ -410,6 +410,11 @@ declare class World {
     private cppRegistry_;
     private entities_;
     private tsStorage_;
+    private entityComponents_;
+    private queryPool_;
+    private queryPoolIdx_;
+    private worldVersion_;
+    private queryCache_;
     connectCpp(cppRegistry: CppRegistry): void;
     disconnectCpp(): void;
     get hasCpp(): boolean;
@@ -417,12 +422,14 @@ declare class World {
     despawn(entity: Entity): void;
     valid(entity: Entity): boolean;
     entityCount(): number;
+    getWorldVersion(): number;
     getAllEntities(): Entity[];
     setParent(child: Entity, parent: Entity): void;
     removeParent(entity: Entity): void;
     insert<C extends AnyComponentDef>(entity: Entity, component: C, data?: Partial<ComponentData<C>>): ComponentData<C>;
     get<C extends AnyComponentDef>(entity: Entity, component: C): ComponentData<C>;
     has(entity: Entity, component: AnyComponentDef): boolean;
+    tryGet<C extends AnyComponentDef>(entity: Entity, component: C): ComponentData<C> | null;
     remove(entity: Entity, component: AnyComponentDef): void;
     private insertBuiltin;
     private getBuiltin;
@@ -433,6 +440,7 @@ declare class World {
     private hasScript;
     private removeScript;
     private getStorage;
+    resetQueryPool(): void;
     getEntitiesWithComponents(components: AnyComponentDef[]): Entity[];
 }
 
@@ -540,6 +548,8 @@ declare class RenderPipeline {
  */
 
 interface Plugin {
+    name?: string;
+    dependencies?: ResourceDef<any>[];
     build(app: App): void;
 }
 declare class App {
@@ -553,6 +563,10 @@ declare class App {
     private fixedAccumulator_;
     private module_;
     private pipeline_;
+    private spineInitPromise_?;
+    private physicsInitPromise_?;
+    private physicsModule_?;
+    private readonly installed_plugins_;
     private constructor();
     static new(): App;
     addPlugin(plugin: Plugin): this;
@@ -563,6 +577,12 @@ declare class App {
     get wasmModule(): ESEngineModule | null;
     get pipeline(): RenderPipeline | null;
     setSpineRenderer(fn: SpineRendererFn | null): void;
+    get spineInitPromise(): Promise<unknown> | undefined;
+    set spineInitPromise(p: Promise<unknown> | undefined);
+    get physicsInitPromise(): Promise<unknown> | undefined;
+    set physicsInitPromise(p: Promise<unknown> | undefined);
+    get physicsModule(): unknown;
+    set physicsModule(m: unknown);
     get world(): World;
     setFixedTimestep(timestep: number): this;
     insertResource<T>(resource: ResourceDef<T>, value: T): this;

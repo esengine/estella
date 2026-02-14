@@ -51,13 +51,11 @@ export const Prefabs = defineResource<PrefabServer>(null!, 'Prefabs');
 // =============================================================================
 
 export class PrefabsPlugin implements Plugin {
+    name = 'PrefabsPlugin';
+    dependencies = [Assets];
+
     build(app: App): void {
         const assetServer = app.getResource(Assets);
-        if (!assetServer) {
-            console.warn('PrefabsPlugin: Assets resource not available');
-            return;
-        }
-
         app.insertResource(Prefabs, new PrefabServer(app.world, assetServer));
     }
 }

@@ -13,6 +13,7 @@ import type { World } from '../world';
 import { loadSceneWithAssets, type SceneData } from '../scene';
 import { AsyncCache } from './AsyncCache';
 import type { PrefabData } from '../prefab';
+import type { SpineModuleController } from '../spine/SpineController';
 
 // =============================================================================
 // Types
@@ -124,6 +125,8 @@ export class AssetServer {
     private addressIndex_ = new Map<string, AddressableManifestAsset>();
     private labelIndex_ = new Map<string, AddressableManifestAsset[]>();
     private groupAssets_ = new Map<string, AddressableManifestAsset[]>();
+    private spineController_: SpineModuleController | null = null;
+    private spineSkeletons_ = new Map<string, number>();
 
     constructor(module: ESEngineModule) {
         this.module_ = module;
@@ -203,6 +206,12 @@ export class AssetServer {
         this.textCache_.clear();
         this.binaryCache_.clear();
         this.loadedSpines_.clear();
+        if (this.spineController_) {
+            for (const handle of this.spineSkeletons_.values()) {
+                this.spineController_.unloadSkeleton(handle);
+            }
+        }
+        this.spineSkeletons_.clear();
         this.cleanupVirtualFS();
     }
 
@@ -237,6 +246,14 @@ export class AssetServer {
     // Spine
     // =========================================================================
 
+    setSpineController(controller: SpineModuleController): void {
+        this.spineController_ = controller;
+    }
+
+    getSpineSkeletonHandle(skeletonPath: string, atlasPath: string): number | undefined {
+        return this.spineSkeletons_.get(`${skeletonPath}:${atlasPath}`);
+    }
+
     async loadSpine(
         skeletonPath: string,
         atlasPath: string,
@@ -257,6 +274,7 @@ export class AssetServer {
 
             const atlasDir = atlasPath.substring(0, atlasPath.lastIndexOf('/'));
             const textureNames = this.parseAtlasTextures(atlasContent);
+            const loadedTextures: { name: string; info: TextureInfo }[] = [];
 
             for (const texName of textureNames) {
                 const texPath = atlasDir ? `${atlasDir}/${texName}` : texName;
@@ -266,6 +284,7 @@ export class AssetServer {
                     const info = await this.loadTextureRaw(texUrl);
                     const rm = this.module_.getResourceManager();
                     rm.registerTextureWithPath(info.handle, texPath);
+                    loadedTextures.push({ name: texName, info });
                 } catch (err) {
                     console.warn(`[AssetServer] Failed to load Spine texture: ${texPath}`, err);
                 }
@@ -282,6 +301,26 @@ export class AssetServer {
             }
 
             this.loadedSpines_.add(cacheKey);
+
+            if (this.spineController_) {
+                const skelHandle = this.spineController_.loadSkeleton(skelData, atlasContent, isBinary);
+                if (skelHandle >= 0) {
+                    const rm = this.module_.getResourceManager();
+                    const pageCount = this.spineController_.getAtlasPageCount(skelHandle);
+                    for (let i = 0; i < pageCount; i++) {
+                        const pageName = this.spineController_.getAtlasPageTextureName(skelHandle, i);
+                        const tex = loadedTextures.find(t => t.name === pageName);
+                        if (tex) {
+                            const glId = rm.getTextureGLId(tex.info.handle);
+                            this.spineController_.setAtlasPageTexture(
+                                skelHandle, i, glId, tex.info.width, tex.info.height
+                            );
+                        }
+                    }
+                    this.spineSkeletons_.set(cacheKey, skelHandle);
+                }
+            }
+
             return { success: true };
         } catch (err) {
             return { success: false, error: String(err) };
@@ -583,7 +622,12 @@ export class AssetServer {
             }
         }
 
-        await Promise.all(promises);
+        const results = await Promise.allSettled(promises);
+        for (const result of results) {
+            if (result.status === 'rejected') {
+                console.warn('[AssetServer] Failed to load asset:', result.reason);
+            }
+        }
         return bundle;
     }
 

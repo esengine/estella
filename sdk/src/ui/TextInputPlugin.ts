@@ -2,7 +2,7 @@ import type { App, Plugin } from '../app';
 import type { Entity } from '../types';
 import { INVALID_TEXTURE } from '../types';
 import { defineSystem, Schedule } from '../system';
-import { Sprite, type SpriteData } from '../component';
+import { registerComponent, Sprite, type SpriteData } from '../component';
 import { TextInput, type TextInputData } from './TextInput';
 import { UIRect, type UIRectData } from './UIRect';
 import { Interactable } from './Interactable';
@@ -13,6 +13,8 @@ import { platformCreateCanvas } from '../platform';
 
 export class TextInputPlugin implements Plugin {
     build(app: App): void {
+        registerComponent('TextInput', TextInput);
+
         const module = app.wasmModule;
         if (!module) {
             console.warn('TextInputPlugin: No WASM module available');
@@ -31,7 +33,11 @@ export class TextInputPlugin implements Plugin {
         let cursorTimer = 0;
         let lastTime = 0;
 
-        const textarea = createHiddenTextarea();
+        const textareaOrNull = createHiddenTextarea();
+        if (!textareaOrNull) {
+            return;
+        }
+        const textarea = textareaOrNull;
 
         textarea.addEventListener('input', () => {
             if (composing || focusedEntity === null) return;
@@ -342,7 +348,10 @@ export class TextInputPlugin implements Plugin {
     }
 }
 
-function createHiddenTextarea(): HTMLTextAreaElement {
+function createHiddenTextarea(): HTMLTextAreaElement | null {
+    if (typeof document === 'undefined' || !document.body) {
+        return null;
+    }
     const textarea = document.createElement('textarea');
     textarea.style.position = 'fixed';
     textarea.style.left = '-9999px';

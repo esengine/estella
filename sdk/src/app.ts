@@ -7,11 +7,6 @@ import { World } from './world';
 import { Schedule, SystemDef, SystemRunner } from './system';
 import { ResourceStorage, Time, TimeData, type ResourceDef } from './resource';
 import type { ESEngineModule, CppRegistry } from './wasm';
-import { textPlugin } from './ui/TextPlugin';
-import { uiMaskPlugin } from './ui/UIMaskPlugin';
-import { uiInteractionPlugin } from './ui/UIInteractionPlugin';
-import { uiLayoutPlugin } from './ui/UILayoutPlugin';
-import { textInputPlugin } from './ui/TextInputPlugin';
 import { UICameraInfo } from './ui/UICameraInfo';
 import { inputPlugin } from './input';
 import { assetPlugin } from './asset';
@@ -32,6 +27,8 @@ import { PostProcess } from './postprocess';
 // =============================================================================
 
 export interface Plugin {
+    name?: string;
+    dependencies?: ResourceDef<any>[];
     build(app: App): void;
 }
 
@@ -60,6 +57,10 @@ export class App {
 
     private module_: ESEngineModule | null = null;
     private pipeline_: RenderPipeline | null = null;
+    private spineInitPromise_?: Promise<unknown>;
+    private physicsInitPromise_?: Promise<unknown>;
+    private physicsModule_?: unknown;
+    private readonly installed_plugins_ = new Set<Plugin>();
 
     private constructor() {
         this.world_ = new World();
@@ -81,6 +82,17 @@ export class App {
     // =========================================================================
 
     addPlugin(plugin: Plugin): this {
+        if (this.installed_plugins_.has(plugin)) return this;
+        if (plugin.dependencies) {
+            for (const dep of plugin.dependencies) {
+                if (!this.hasResource(dep)) {
+                    throw new Error(
+                        `Plugin "${plugin.name ?? 'unknown'}" requires resource "${dep._name}" which has not been registered`
+                    );
+                }
+            }
+        }
+        this.installed_plugins_.add(plugin);
         plugin.build(this);
         return this;
     }
@@ -126,6 +138,30 @@ export class App {
 
     setSpineRenderer(fn: SpineRendererFn | null): void {
         this.pipeline_?.setSpineRenderer(fn);
+    }
+
+    get spineInitPromise(): Promise<unknown> | undefined {
+        return this.spineInitPromise_;
+    }
+
+    set spineInitPromise(p: Promise<unknown> | undefined) {
+        this.spineInitPromise_ = p;
+    }
+
+    get physicsInitPromise(): Promise<unknown> | undefined {
+        return this.physicsInitPromise_;
+    }
+
+    set physicsInitPromise(p: Promise<unknown> | undefined) {
+        this.physicsInitPromise_ = p;
+    }
+
+    get physicsModule(): unknown {
+        return this.physicsModule_;
+    }
+
+    set physicsModule(m: unknown) {
+        this.physicsModule_ = m;
     }
 
     // =========================================================================
@@ -194,6 +230,7 @@ export class App {
         const delta = deltaMs / 1000;
 
         this.updateTime(delta);
+        this.world_.resetQueryPool();
 
         this.runSchedule(Schedule.First);
 
@@ -253,6 +290,7 @@ export class App {
 export interface WebAppOptions {
     getViewportSize?: () => { width: number; height: number };
     glContextHandle?: number;
+    plugins?: Plugin[];
 }
 
 export function createWebApp(module: ESEngineModule, options?: WebAppOptions): App {
@@ -380,11 +418,11 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
     app.addPlugin(assetPlugin);
     app.addPlugin(prefabsPlugin);
     app.addPlugin(inputPlugin);
-    app.addPlugin(textPlugin);
-    app.addPlugin(uiMaskPlugin);
-    app.addPlugin(uiLayoutPlugin);
-    app.addPlugin(uiInteractionPlugin);
-    app.addPlugin(textInputPlugin);
+    if (options?.plugins) {
+        for (const plugin of options.plugins) {
+            app.addPlugin(plugin);
+        }
+    }
 
     return app;
 }

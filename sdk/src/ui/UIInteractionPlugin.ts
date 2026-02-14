@@ -1,5 +1,5 @@
 import type { App, Plugin } from '../app';
-import { WorldTransform, Sprite } from '../component';
+import { registerComponent, WorldTransform, Sprite } from '../component';
 import type { WorldTransformData, SpriteData } from '../component';
 import { defineSystem, Schedule } from '../system';
 import { Res } from '../resource';
@@ -21,15 +21,36 @@ import type { UICameraData } from './UICameraInfo';
 import { invertMatrix4, screenToWorld, pointInWorldRect } from './uiMath';
 
 const _invVP = new Float32Array(16);
+const _cachedVP = new Float32Array(16);
+let _invVPDirty = true;
+let _cachedDpr = 1;
+
+function updateInvVPCache(vp: Float32Array): void {
+    let dirty = false;
+    for (let i = 0; i < 16; i++) {
+        if (_cachedVP[i] !== vp[i]) {
+            dirty = true;
+            break;
+        }
+    }
+    if (dirty) {
+        _cachedVP.set(vp);
+        _invVPDirty = true;
+    }
+}
 
 export class UIInteractionPlugin implements Plugin {
     build(app: App): void {
+        registerComponent('Interactable', Interactable);
+        registerComponent('Button', Button);
+
         const world = app.world;
         const events = new UIEventQueue();
         app.insertResource(UIEvents, events);
 
         let hoveredEntity: Entity | null = null;
         let pressedEntity: Entity | null = null;
+        _cachedDpr = typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1;
 
         // -----------------------------------------------------------------
         // PreUpdate: Hit Testing & Interaction State
@@ -48,11 +69,14 @@ export class UIInteractionPlugin implements Plugin {
 
                 if (!camera.valid) return;
 
-                const dpr = typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1;
-                const mouseGLX = input.mouseX * dpr;
-                const mouseGLY = camera.screenH - input.mouseY * dpr;
+                const mouseGLX = input.mouseX * _cachedDpr;
+                const mouseGLY = camera.screenH - input.mouseY * _cachedDpr;
 
-                invertMatrix4(camera.viewProjection, _invVP);
+                updateInvVPCache(camera.viewProjection);
+                if (_invVPDirty) {
+                    invertMatrix4(camera.viewProjection, _invVP);
+                    _invVPDirty = false;
+                }
                 const worldMouse = screenToWorld(
                     mouseGLX, mouseGLY, _invVP,
                     camera.vpX, camera.vpY, camera.vpW, camera.vpH,

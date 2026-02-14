@@ -45,11 +45,14 @@ export interface MaterialAssetData {
     properties: Record<string, unknown>;
 }
 
-interface MaterialData {
+export interface MaterialData {
     shader: ShaderHandle;
     uniforms: Map<string, UniformValue>;
     blendMode: BlendMode;
     depthTest: boolean;
+    dirty_: boolean;
+    cachedBuffer_: Float32Array | null;
+    cachedIdx_: number;
 }
 
 // =============================================================================
@@ -127,6 +130,9 @@ export const Material = {
             uniforms: new Map(),
             blendMode: options.blendMode ?? BlendMode.Normal,
             depthTest: options.depthTest ?? false,
+            dirty_: true,
+            cachedBuffer_: null,
+            cachedIdx_: 0,
         };
 
         if (options.uniforms) {
@@ -158,6 +164,7 @@ export const Material = {
         const data = materials.get(material);
         if (data) {
             data.uniforms.set(name, value);
+            data.dirty_ = true;
         }
     },
 
@@ -284,6 +291,9 @@ export const Material = {
             uniforms: new Map(sourceData.uniforms),
             blendMode: sourceData.blendMode,
             depthTest: sourceData.depthTest,
+            dirty_: true,
+            cachedBuffer_: null,
+            cachedIdx_: 0,
         };
 
         materials.set(handle, data);

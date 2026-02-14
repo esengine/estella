@@ -174,9 +174,9 @@
                 step = 'waitForReady (scene load)';
                 await previewPlugin.waitForReady();
 
-                if (app.__physicsInitPromise) {
+                if (app.physicsInitPromise) {
                     step = 'physics init';
-                    await app.__physicsInitPromise;
+                    await app.physicsInitPromise;
                 }
 
                 step = 'app.run';
