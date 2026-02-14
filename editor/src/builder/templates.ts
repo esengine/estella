@@ -234,15 +234,16 @@ ${physicsInit}
         });
     });
     var assetIndex = {};
+    var pathIndex = {};
     for (var gn in manifest.groups) {
         var g = manifest.groups[gn];
         for (var uuid in g.assets) {
             assetIndex[uuid] = g.assets[uuid];
+            pathIndex[g.assets[uuid].path] = g.assets[uuid];
         }
     }
     function resolvePath(ref) {
-        var entry = assetIndex[ref];
-        if (!entry) console.warn('[ESEngine] Asset not found in manifest:', ref);
+        var entry = assetIndex[ref] || pathIndex[ref];
         return entry ? entry.path : ref;
     }
 

@@ -54,6 +54,7 @@ export function toAddressableType(editorType: string): AddressableAssetType | nu
         case 'bitmap-font':
             return 'bitmap-font';
         case 'spine-atlas':
+            return 'binary';
         case 'shader':
             return null;
         default:
