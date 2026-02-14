@@ -14,22 +14,7 @@ import { isUUID, getComponentRefFields } from '../asset/AssetLibrary';
 import { initializeEsbuild, createBuildVirtualFsPlugin, arrayBufferToBase64, generateAddressableManifest, convertPrefabWithResolvedRefs } from './ArtifactBuilder';
 import { PLAYABLE_HTML_TEMPLATE } from './templates';
 import type { NativeFS } from '../types/NativeFS';
-
-// =============================================================================
-// MIME Types
-// =============================================================================
-
-const MIME_TYPES: Record<string, string> = {
-    png: 'image/png',
-    jpg: 'image/jpeg',
-    jpeg: 'image/jpeg',
-    gif: 'image/gif',
-    webp: 'image/webp',
-    svg: 'image/svg+xml',
-    atlas: 'text/plain',
-    json: 'application/json',
-    skel: 'application/octet-stream',
-};
+import { getAssetMimeType, getAssetTypeEntry } from 'esengine';
 
 // =============================================================================
 // PlayableEmitter
@@ -289,7 +274,8 @@ ${imports}
 
         for (const relativePath of allFiles) {
             if (artifact.packedPaths.has(relativePath)) continue;
-            if (relativePath.endsWith('.esshader')) continue;
+            const entry = getAssetTypeEntry(relativePath);
+            if (entry?.editorType === 'shader') continue;
 
             if (compiledMaterialPaths.has(relativePath)) {
                 const mat = artifact.compiledMaterials.find(m => m.relativePath === relativePath);
@@ -300,7 +286,7 @@ ${imports}
                 continue;
             }
 
-            if (relativePath.endsWith('.esprefab')) {
+            if (entry?.editorType === 'prefab') {
                 pending.push(
                     fs.readFile(joinPath(projectDir, relativePath)).then(content => {
                         if (content) {
@@ -313,7 +299,7 @@ ${imports}
             }
 
             const ext = getFileExtension(relativePath);
-            const mimeType = MIME_TYPES[ext];
+            const mimeType = getAssetMimeType(ext);
             if (!mimeType) continue;
 
             pending.push(

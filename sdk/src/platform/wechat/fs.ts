@@ -5,6 +5,8 @@
 
 /// <reference types="minigame-api-typings" />
 
+import { isCustomExtension } from '../../assetTypes';
+
 // =============================================================================
 // Types
 // =============================================================================
@@ -22,6 +24,23 @@ function getFileSystemManager(): WxFileSystemManager {
         fsManager = wx.getFileSystemManager();
     }
     return fsManager;
+}
+
+function formatReadError(path: string, errMsg: string): string {
+    const msg = errMsg.toLowerCase();
+    if (msg.includes('permission denied')) {
+        if (isCustomExtension(path)) {
+            const ext = path.substring(path.lastIndexOf('.'));
+            return `[ESEngine] Cannot read "${path}": WeChat blocked access to "${ext}" files. `
+                + `Add { type: "suffix", value: "${ext}" } to packOptions.include in project.config.json`;
+        }
+        return `[ESEngine] Cannot read "${path}": permission denied. Check file is included in WeChat package`;
+    }
+    if (msg.includes('no such file') || msg.includes('not found')) {
+        return `[ESEngine] File not found: "${path}". Ensure the asset is included in the build `
+            + `(referenced by a scene or added to an addressable group with export mode "always")`;
+    }
+    return `[ESEngine] Failed to read "${path}": ${errMsg}`;
 }
 
 /**
@@ -52,7 +71,7 @@ export function wxReadFile(path: string): Promise<ArrayBuffer> {
                 resolve(res.data as ArrayBuffer);
             },
             fail: (err) => {
-                reject(new Error(`Failed to read file "${path}": ${err.errMsg}`));
+                reject(new Error(formatReadError(path, err.errMsg)));
             },
         });
     });
@@ -71,7 +90,7 @@ export function wxReadTextFile(path: string, encoding: 'utf8' | 'utf-8' = 'utf-8
                 resolve(res.data as string);
             },
             fail: (err) => {
-                reject(new Error(`Failed to read file "${path}": ${err.errMsg}`));
+                reject(new Error(formatReadError(path, err.errMsg)));
             },
         });
     });

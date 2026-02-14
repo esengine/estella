@@ -14,6 +14,7 @@ import { resolveShaderPath } from '../utils/shader';
 import { initializeEsbuild, createBuildVirtualFsPlugin, generateAddressableManifest, convertPrefabWithResolvedRefs } from './ArtifactBuilder';
 import { generateWeChatGameJs } from './templates';
 import type { NativeFS } from '../types/NativeFS';
+import { getWeChatPackOptions, getAssetTypeEntry } from 'esengine';
 
 // =============================================================================
 // WeChatEmitter
@@ -127,7 +128,7 @@ export class WeChatEmitter implements PlatformEmitter {
             description: 'ESEngine Game',
             packOptions: {
                 ignore: [],
-                include: [],
+                include: getWeChatPackOptions(),
             },
             setting: {
                 urlCheck: false,
@@ -352,14 +353,15 @@ export class WeChatEmitter implements PlatformEmitter {
             if (artifact.packedPaths.has(relativePath)) continue;
             if (compiledMaterialPaths.has(relativePath)) continue;
             if (compiledShaderPaths.has(relativePath)) continue;
-            if (relativePath.endsWith('.esshader')) continue;
+            const entry = getAssetTypeEntry(relativePath);
+            if (entry?.editorType === 'shader') continue;
 
             const srcPath = joinPath(projectDir, relativePath);
             const destPath = joinPath(outputDir, relativePath);
             const destDir = destPath.substring(0, destPath.lastIndexOf('/'));
             await fs.createDirectory(destDir);
 
-            if (relativePath.endsWith('.esprefab')) {
+            if (entry?.editorType === 'prefab') {
                 const content = await fs.readFile(srcPath);
                 if (content) {
                     const json = convertPrefabWithResolvedRefs(content, artifact);

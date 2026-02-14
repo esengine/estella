@@ -7,6 +7,7 @@ import type { EditorStore, AssetType } from '../../store/EditorStore';
 import type { PropertyEditorInstance } from '../../property/PropertyEditor';
 import type { EditorAssetServer } from '../../asset/EditorAssetServer';
 import type { NativeFS } from '../../types/NativeFS';
+import { getAssetMimeType } from 'esengine';
 import { getEditorContext, getEditorInstance } from '../../context/EditorContext';
 import { icons } from '../../utils/icons';
 
@@ -51,16 +52,8 @@ export function getFileExtension(filename: string): string {
 }
 
 export function getMimeType(ext: string): string {
-    switch (ext) {
-        case '.png': return 'image/png';
-        case '.jpg':
-        case '.jpeg': return 'image/jpeg';
-        case '.gif': return 'image/gif';
-        case '.webp': return 'image/webp';
-        case '.bmp': return 'image/bmp';
-        case '.svg': return 'image/svg+xml';
-        default: return 'application/octet-stream';
-    }
+    const clean = ext.startsWith('.') ? ext.slice(1) : ext;
+    return getAssetMimeType(clean) ?? 'application/octet-stream';
 }
 
 export function formatFileSize(bytes: number): string {

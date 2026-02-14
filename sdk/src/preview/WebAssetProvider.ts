@@ -5,6 +5,7 @@
 
 import type { RuntimeAssetProvider } from '../runtimeLoader';
 import type { SceneData } from '../scene';
+import { getAssetTypeEntry } from '../assetTypes';
 
 export class WebAssetProvider implements RuntimeAssetProvider {
     private textCache_ = new Map<string, string>();
@@ -27,7 +28,7 @@ export class WebAssetProvider implements RuntimeAssetProvider {
                     const skelPath = comp.data.skeletonPath as string;
                     const atlasPath = comp.data.atlasPath as string;
                     if (skelPath) {
-                        if (skelPath.endsWith('.skel')) {
+                        if (getAssetTypeEntry(skelPath)?.contentType === 'binary') {
                             binaryRefs.add(skelPath);
                         } else {
                             textRefs.add(skelPath);
@@ -69,7 +70,8 @@ export class WebAssetProvider implements RuntimeAssetProvider {
 
         const fntFetches: Promise<void>[] = [];
         for (const ref of bmfontRefs) {
-            if (!ref.endsWith('.bmfont')) continue;
+            const fontEntry = getAssetTypeEntry(ref);
+            if (!(fontEntry?.editorType === 'bitmap-font' && fontEntry.contentType === 'json')) continue;
             const text = this.textCache_.get(ref);
             if (!text) continue;
             try {

@@ -9,6 +9,7 @@ import {
     type PropertyEditorInstance,
 } from './PropertyEditor';
 import { BLEND_MODE_OPTIONS } from '../types/MaterialMetadata';
+import { getAssetMimeType } from 'esengine';
 import { getPlatformAdapter } from '../platform/PlatformAdapter';
 import { getEditorContext, getEditorInstance } from '../context/EditorContext';
 import type { NativeFS } from '../types/NativeFS';
@@ -188,16 +189,8 @@ function getNativeFS(): NativeFS | null {
 }
 
 function getMimeType(path: string): string {
-    const ext = path.split('.').pop()?.toLowerCase();
-    switch (ext) {
-        case 'png': return 'image/png';
-        case 'jpg':
-        case 'jpeg': return 'image/jpeg';
-        case 'gif': return 'image/gif';
-        case 'webp': return 'image/webp';
-        case 'bmp': return 'image/bmp';
-        default: return 'image/png';
-    }
+    const ext = path.split('.').pop()?.toLowerCase() ?? '';
+    return getAssetMimeType(ext) ?? 'image/png';
 }
 
 function createMaterialTextureEditor(

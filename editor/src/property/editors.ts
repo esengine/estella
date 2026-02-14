@@ -12,7 +12,7 @@ import { getEditorContext, getEditorInstance } from '../context/EditorContext';
 import { getPlatformAdapter } from '../platform/PlatformAdapter';
 import { getAssetLibrary, isUUID } from '../asset/AssetLibrary';
 import type { NativeFS } from '../types/NativeFS';
-import { INVALID_TEXTURE } from 'esengine';
+import { INVALID_TEXTURE, getAssetMimeType, getAssetTypeEntry } from 'esengine';
 import { createUIRectEditor } from './uiRectEditor';
 import { createButtonTransitionEditor } from './buttonTransitionEditor';
 import { setupDragLabel, colorToHex, hexToColor } from './editorUtils';
@@ -643,16 +643,8 @@ function getProjectDir(): string | null {
 }
 
 function getMimeType(path: string): string {
-    const ext = path.split('.').pop()?.toLowerCase();
-    switch (ext) {
-        case 'png': return 'image/png';
-        case 'jpg':
-        case 'jpeg': return 'image/jpeg';
-        case 'gif': return 'image/gif';
-        case 'webp': return 'image/webp';
-        case 'bmp': return 'image/bmp';
-        default: return 'image/png';
-    }
+    const ext = path.split('.').pop()?.toLowerCase() ?? '';
+    return getAssetMimeType(ext) ?? 'image/png';
 }
 
 function resolveDisplayName(ref: string): string {
@@ -1094,7 +1086,7 @@ async function loadSpineSkeletonData(skeletonPath: string, atlasPath?: string): 
         }
     }
 
-    if (skeletonPath.endsWith('.skel')) {
+    if (getAssetTypeEntry(skeletonPath)?.contentType === 'binary') {
         return null;
     }
 

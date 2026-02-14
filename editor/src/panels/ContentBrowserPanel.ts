@@ -17,7 +17,7 @@ import { getGlobalPathResolver } from '../asset';
 import { showErrorToast } from '../ui/Toast';
 import { createEmptyScene } from '../types/SceneTypes';
 import { getSettingsValue } from '../settings';
-import { DEFAULT_DESIGN_WIDTH, DEFAULT_DESIGN_HEIGHT } from 'esengine';
+import { DEFAULT_DESIGN_WIDTH, DEFAULT_DESIGN_HEIGHT, getEditorType } from 'esengine';
 
 // =============================================================================
 // Types
@@ -64,44 +64,27 @@ function getFileExtension(filename: string): string {
     return dotIndex > 0 ? filename.substring(dotIndex).toLowerCase() : '';
 }
 
+const EDITOR_TYPE_TO_DISPLAY: Record<string, AssetItem['type']> = {
+    'texture': 'image',
+    'material': 'material',
+    'shader': 'shader',
+    'spine-atlas': 'spine',
+    'spine-skeleton': 'spine',
+    'bitmap-font': 'font',
+    'prefab': 'prefab',
+    'json': 'json',
+    'audio': 'audio',
+    'scene': 'scene',
+};
+
 function getAssetType(entry: DirectoryEntry): AssetItem['type'] {
     if (entry.isDirectory) return 'folder';
 
     const ext = getFileExtension(entry.name);
-    switch (ext) {
-        case '.esprefab':
-            return 'prefab';
-        case '.esscene':
-            return 'scene';
-        case '.ts':
-        case '.js':
-            return 'script';
-        case '.png':
-        case '.jpg':
-        case '.jpeg':
-        case '.gif':
-        case '.webp':
-        case '.bmp':
-            return 'image';
-        case '.mp3':
-        case '.wav':
-        case '.ogg':
-        case '.flac':
-            return 'audio';
-        case '.json':
-            return 'json';
-        case '.esmaterial':
-            return 'material';
-        case '.esshader':
-            return 'shader';
-        case '.skel':
-        case '.atlas':
-            return 'spine';
-        case '.bmfont':
-            return 'font';
-        default:
-            return 'file';
-    }
+    if (ext === '.ts' || ext === '.js') return 'script';
+
+    const editorType = getEditorType(entry.name);
+    return EDITOR_TYPE_TO_DISPLAY[editorType] ?? 'file';
 }
 
 function getAssetIcon(type: AssetItem['type'], size: number = 32): string {

@@ -5,7 +5,7 @@
 
 import type { ESEngineModule } from 'esengine';
 import type { TextureInfo, SliceBorder, SpineLoadResult, MaterialHandle, ShaderHandle, MaterialAssetData } from 'esengine';
-import { Material } from 'esengine';
+import { Material, getAssetTypeEntry } from 'esengine';
 import { EditorTextureManager } from '../renderer/EditorTextureManager';
 import { AssetLoader } from './AssetLoader';
 import type { AssetPathResolver } from './AssetPathResolver';
@@ -142,7 +142,8 @@ export class EditorAssetServer {
         let fntRelDir: string;
         let fntFile: string;
 
-        if (fontRef.endsWith('.bmfont')) {
+        const fontEntry = getAssetTypeEntry(fontRef);
+        if (fontEntry?.editorType === 'bitmap-font' && fontEntry.contentType === 'json') {
             const content = await fs.readFile(fullPath);
             if (!content) throw new Error(`Failed to read: ${fullPath}`);
             const json = JSON.parse(content) as { type?: string; fntFile?: string; generatedFnt?: string };

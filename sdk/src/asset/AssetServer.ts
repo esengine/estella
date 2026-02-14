@@ -15,6 +15,7 @@ import { loadSceneWithAssets, type SceneData } from '../scene';
 import { AsyncCache } from './AsyncCache';
 import type { PrefabData } from '../prefab';
 import type { SpineModuleController } from '../spine/SpineController';
+import { type AddressableAssetType, getAssetTypeEntry } from '../assetTypes';
 
 // =============================================================================
 // Types
@@ -49,9 +50,7 @@ export interface FileLoadOptions {
     noCache?: boolean;
 }
 
-export type AddressableAssetType =
-    | 'texture' | 'material' | 'spine' | 'bitmap-font'
-    | 'prefab' | 'json' | 'text' | 'binary' | 'audio';
+export type { AddressableAssetType };
 
 export interface AddressableResultMap {
     texture: TextureInfo;
@@ -301,7 +300,7 @@ export class AssetServer {
             }
 
             const skelUrl = this.resolveUrl(skeletonPath, baseUrl);
-            const isBinary = skeletonPath.endsWith('.skel');
+            const isBinary = getAssetTypeEntry(skeletonPath)?.contentType === 'binary';
             const skelData = isBinary
                 ? new Uint8Array(await this.fetchBinary(skelUrl))
                 : await this.fetchText(skelUrl);
@@ -348,7 +347,8 @@ export class AssetServer {
     async loadBitmapFont(fontPath: string, baseUrl?: string): Promise<FontHandle> {
         const url = this.resolveUrl(fontPath, baseUrl);
         return this.fontCache_.getOrLoad(url, async () => {
-            if (fontPath.endsWith('.bmfont')) {
+            const fontEntry = getAssetTypeEntry(fontPath);
+            if (fontEntry?.editorType === 'bitmap-font' && fontEntry.contentType === 'json') {
                 return this.loadBmfontAsset(url);
             }
             return this.loadFntFile(url);

@@ -3,7 +3,7 @@
  * @brief   Asset loading for editor with Emscripten virtual filesystem support
  */
 
-import type { ESEngineModule } from 'esengine';
+import { type ESEngineModule, getAssetTypeEntry } from 'esengine';
 import type { SpineModuleController } from 'esengine/spine';
 import type { AssetPathResolver } from './AssetPathResolver';
 import { getEditorContext } from '../context/EditorContext';
@@ -133,7 +133,7 @@ export class AssetLoader {
 
         if (!state.skeleton) {
             const skelAbsPath = this.pathResolver_.toAbsolutePath(skeletonPath);
-            const isBinary = skeletonPath.endsWith('.skel');
+            const isBinary = getAssetTypeEntry(skeletonPath)?.contentType === 'binary';
             const skelData = isBinary
                 ? await fs.readBinaryFile(skelAbsPath)
                 : await fs.readFile(skelAbsPath);
@@ -188,7 +188,7 @@ export class AssetLoader {
         }
 
         const skelAbsPath = this.pathResolver_.toAbsolutePath(skeletonPath);
-        const isBinary = skeletonPath.endsWith('.skel');
+        const isBinary = getAssetTypeEntry(skeletonPath)?.contentType === 'binary';
         const skelData = isBinary
             ? await fs.readBinaryFile(skelAbsPath)
             : await fs.readFile(skelAbsPath);

@@ -2,6 +2,7 @@ import type { NativeFS } from '../types/NativeFS';
 import type { AssetLibrary } from '../asset/AssetLibrary';
 import { joinPath } from '../utils/path';
 import { parseEsShader, resolveShaderPath } from '../utils/shader';
+import { getAssetTypeEntry } from 'esengine';
 
 export interface CompiledMaterial {
     relativePath: string;
@@ -18,7 +19,7 @@ export async function compileMaterials(
     const results: CompiledMaterial[] = [];
 
     for (const relativePath of assetPaths) {
-        if (!relativePath.endsWith('.esmaterial')) continue;
+        if (getAssetTypeEntry(relativePath)?.editorType !== 'material') continue;
 
         const uuid = assetLibrary.getUuid(relativePath);
         if (!uuid) continue;

@@ -14,6 +14,7 @@ import type { App } from './app';
 import type { Entity, Vec2 } from './types';
 import type { AddressableManifest } from './asset/AssetServer';
 import { Assets } from './asset/AssetPlugin';
+import { getAssetTypeEntry } from './assetTypes';
 
 // =============================================================================
 // Public Interface
@@ -141,7 +142,7 @@ async function loadSpineAssets(
 
             try {
                 const atlasContent = await provider.readText(atlasRef);
-                const isBinary = skelPath.endsWith('.skel');
+                const isBinary = getAssetTypeEntry(skelPath)?.contentType === 'binary';
 
                 let skelDataPtr: number;
                 let skelDataLen: number;
@@ -343,7 +344,8 @@ async function loadBitmapFonts(
                 let fntContent: string;
                 let fntDir: string;
 
-                if (ref.endsWith('.bmfont')) {
+                const fontEntry = getAssetTypeEntry(ref);
+                if (fontEntry?.editorType === 'bitmap-font' && fontEntry.contentType === 'json') {
                     const json = JSON.parse(await provider.readText(ref));
                     const fntFile = json.type === 'label-atlas' ? json.generatedFnt : json.fntFile;
                     if (!fntFile) { cache[ref] = 0; continue; }

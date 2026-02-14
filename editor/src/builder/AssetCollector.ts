@@ -7,8 +7,9 @@ import type { BuildConfig } from '../types/BuildTypes';
 import { type AssetDatabase, isUUID } from '../asset/AssetDatabase';
 import { normalizePath, joinPath, isAbsolutePath, getFileExtension, getDirName } from '../utils/path';
 import type { NativeFS } from '../types/NativeFS';
-import { ASSET_EXTENSIONS, looksLikeAssetPath } from '../asset/AssetTypes';
+import { looksLikeAssetPath } from '../asset/AssetTypes';
 import { getComponentRefFields } from '../asset/AssetDatabase';
+import { getAssetTypeEntry } from 'esengine';
 
 type AssetLibrary = AssetDatabase;
 
@@ -169,19 +170,25 @@ export class AssetReferenceCollector {
         refs: Set<string>,
         visited: Set<string>
     ): Promise<void> {
-        if (resolved.endsWith('.esmaterial')) {
-            await this.collectMaterialRefs(resolved, refs, visited);
-        } else if (resolved.endsWith('.atlas')) {
+        const entry = getAssetTypeEntry(resolved);
+        if (!entry?.hasTransitiveDeps) {
             refs.add(resolved);
-            await this.collectAtlasTextures(resolved, refs);
-        } else if (resolved.endsWith('.bmfont') || resolved.endsWith('.fnt')) {
-            refs.add(resolved);
-            await this.collectFontRefs(resolved, refs);
-        } else if (resolved.endsWith('.esprefab')) {
-            refs.add(resolved);
-            await this.collectPrefabRefs(resolved, refs, visited);
-        } else {
-            refs.add(resolved);
+            return;
+        }
+        refs.add(resolved);
+        switch (entry.editorType) {
+            case 'material':
+                await this.collectMaterialRefs(resolved, refs, visited);
+                break;
+            case 'spine-atlas':
+                await this.collectAtlasTextures(resolved, refs);
+                break;
+            case 'bitmap-font':
+                await this.collectFontRefs(resolved, refs);
+                break;
+            case 'prefab':
+                await this.collectPrefabRefs(resolved, refs, visited);
+                break;
         }
     }
 
@@ -246,17 +253,24 @@ export class AssetReferenceCollector {
         if (fontPath.endsWith('.bmfont')) {
             try {
                 const json = JSON.parse(content);
-                if (json.fntFile) {
-                    const fntPath = dir ? `${dir}/${json.fntFile}` : json.fntFile;
+                const fntFile = json.fntFile || json.generatedFnt;
+                if (fntFile) {
+                    const fntPath = dir ? `${dir}/${fntFile}` : fntFile;
                     refs.add(fntPath);
                     await this.collectFontRefs(fntPath, refs);
+                }
+                if (json.glyphs && typeof json.glyphs === 'object') {
+                    for (const texFile of Object.values(json.glyphs)) {
+                        if (typeof texFile === 'string') {
+                            refs.add(dir ? `${dir}/${texFile}` : texFile);
+                        }
+                    }
                 }
             } catch {
                 // Ignore parse errors
             }
         } else {
-            const pageMatch = content.match(/file="([^"]+)"/);
-            if (pageMatch) {
+            for (const pageMatch of content.matchAll(/file="([^"]+)"/g)) {
                 const texPath = dir ? `${dir}/${pageMatch[1]}` : pageMatch[1];
                 refs.add(texPath);
             }

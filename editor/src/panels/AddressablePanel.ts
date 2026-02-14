@@ -14,20 +14,26 @@ import { showInputDialog, showConfirmDialog } from '../ui/dialog';
 import { showContextMenu, type ContextMenuItem } from '../ui/ContextMenu';
 import { getContextMenuItems, type ContextMenuContext } from '../ui/ContextMenuRegistry';
 import { showErrorToast, showSuccessToast } from '../ui/Toast';
+import { getEditorType } from 'esengine';
+
+const EDITOR_TYPE_TO_ASSET_TYPE: Record<string, AssetType> = {
+    'texture': 'image',
+    'material': 'material',
+    'shader': 'shader',
+    'spine-atlas': 'file',
+    'spine-skeleton': 'file',
+    'bitmap-font': 'font',
+    'prefab': 'file',
+    'json': 'json',
+    'audio': 'audio',
+    'scene': 'scene',
+};
 
 function getAssetTypeFromPath(path: string): AssetType {
     const ext = path.substring(path.lastIndexOf('.')).toLowerCase();
-    switch (ext) {
-        case '.esscene': return 'scene';
-        case '.ts': case '.js': return 'script';
-        case '.png': case '.jpg': case '.jpeg': case '.gif': case '.webp': case '.bmp': return 'image';
-        case '.mp3': case '.wav': case '.ogg': case '.flac': return 'audio';
-        case '.json': return 'json';
-        case '.esmaterial': return 'material';
-        case '.esshader': return 'shader';
-        case '.bmfont': return 'font';
-        default: return 'file';
-    }
+    if (ext === '.ts' || ext === '.js') return 'script';
+    const editorType = getEditorType(path);
+    return EDITOR_TYPE_TO_ASSET_TYPE[editorType] ?? 'file';
 }
 
 const LABEL_COLORS = [

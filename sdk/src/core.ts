@@ -230,6 +230,28 @@ export {
 } from './ui';
 
 // =============================================================================
+// Asset Types Registry
+// =============================================================================
+
+export {
+    type AssetContentType,
+    type AddressableAssetType,
+    type EditorAssetType,
+    type AssetTypeEntry,
+    getAssetTypeEntry,
+    getEditorType,
+    getAddressableType,
+    getAddressableTypeByEditorType,
+    isKnownAssetExtension,
+    getAllAssetExtensions,
+    looksLikeAssetPath,
+    getCustomExtensions,
+    getWeChatPackOptions,
+    getAssetMimeType,
+    isCustomExtension,
+} from './assetTypes';
+
+// =============================================================================
 // Asset
 // =============================================================================
 
@@ -247,7 +269,6 @@ export {
     type SpineDescriptor,
     type FileLoadOptions,
     type AssetBundle,
-    type AddressableAssetType,
     type AddressableResultMap,
     type AddressableManifest,
     type AddressableManifestGroup,

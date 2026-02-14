@@ -8,6 +8,7 @@ import { isUUID, getComponentRefFields } from './AssetDatabase';
 import { looksLikeAssetPath } from './AssetTypes';
 import { joinPath, isAbsolutePath, getDirName } from '../utils/path';
 import type { NativeFS } from '../types/NativeFS';
+import { getAssetTypeEntry } from 'esengine';
 
 // =============================================================================
 // Types
@@ -182,14 +183,21 @@ export class AssetDependencyAnalyzer {
         if (visited.has(resolvedPath)) return;
         visited.add(resolvedPath);
 
-        if (resolvedPath.endsWith('.esmaterial')) {
-            await this.collectMaterialRefs(resolvedPath, uuid, dependencies, dependents, visited);
-        } else if (resolvedPath.endsWith('.atlas')) {
-            await this.collectAtlasRefs(resolvedPath, uuid, dependencies, dependents);
-        } else if (resolvedPath.endsWith('.bmfont') || resolvedPath.endsWith('.fnt')) {
-            await this.collectFontRefs(resolvedPath, uuid, dependencies, dependents);
-        } else if (resolvedPath.endsWith('.esprefab')) {
-            await this.collectPrefabRefs(resolvedPath, uuid, dependencies, dependents, visited);
+        const entry = getAssetTypeEntry(resolvedPath);
+        if (!entry?.hasTransitiveDeps) return;
+        switch (entry.editorType) {
+            case 'material':
+                await this.collectMaterialRefs(resolvedPath, uuid, dependencies, dependents, visited);
+                break;
+            case 'spine-atlas':
+                await this.collectAtlasRefs(resolvedPath, uuid, dependencies, dependents);
+                break;
+            case 'bitmap-font':
+                await this.collectFontRefs(resolvedPath, uuid, dependencies, dependents);
+                break;
+            case 'prefab':
+                await this.collectPrefabRefs(resolvedPath, uuid, dependencies, dependents, visited);
+                break;
         }
     }
 
