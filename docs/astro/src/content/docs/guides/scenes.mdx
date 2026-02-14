@@ -111,7 +111,7 @@ You can spawn and despawn entities at runtime using `Commands`:
 import { defineSystem, addSystem, Commands, LocalTransform, Sprite } from 'esengine';
 
 addSystem(defineSystem(
-    [Commands],
+    [Commands()],
     (commands) => {
         // Spawn a new entity with components
         commands.spawn()

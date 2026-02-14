@@ -110,6 +110,8 @@ addSystemToSchedule(Schedule.FixedUpdate, system);  // runs at fixed intervals
 Use `Commands` when you need to create entities at runtime (e.g. bullets, particles):
 
 ```typescript
+import { addStartupSystem, defineSystem, Commands, Sprite, LocalTransform } from 'esengine';
+
 addStartupSystem(defineSystem(
     [Commands()],
     (cmds) => {

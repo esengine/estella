@@ -19,7 +19,7 @@ You can also add the `Canvas` component manually to any entity that has a `Camer
 |----------|------|---------|-------------|
 | `designResolution` | Vec2 | `{x: 1920, y: 1080}` | The reference resolution you design your game for |
 | `pixelsPerUnit` | number | `100` | How many pixels equal one world unit |
-| `scaleMode` | number | `1` | Scale strategy (see below) |
+| `scaleMode` | ScaleMode | `FixedHeight` (1) | Scale strategy (see below). Import `ScaleMode` from `'esengine'` |
 | `matchWidthOrHeight` | number | `0.5` | Blend factor for Match mode (0 = width, 1 = height) |
 | `backgroundColor` | Color | `{r: 0, g: 0, b: 0, a: 1}` | Letterbox/pillarbox fill color |
 
@@ -68,13 +68,13 @@ Blends between FixedWidth and FixedHeight based on `matchWidthOrHeight`. A value
 Query the `Canvas` component in a system:
 
 ```typescript
-import { defineSystem, addSystem, Query, Mut, Canvas } from 'esengine';
+import { defineSystem, addSystem, Query, Mut, Canvas, ScaleMode } from 'esengine';
 
 addSystem(defineSystem(
     [Query(Mut(Canvas))],
     (query) => {
         for (const [entity, canvas] of query) {
-            canvas.scaleMode = 4;
+            canvas.scaleMode = ScaleMode.Match;
             canvas.matchWidthOrHeight = 0.5;
         }
     }

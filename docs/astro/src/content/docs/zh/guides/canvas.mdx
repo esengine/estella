@@ -19,7 +19,7 @@ import { Aside } from '@astrojs/starlight/components';
 |------|------|--------|------|
 | `designResolution` | Vec2 | `{x: 1920, y: 1080}` | 游戏设计基准分辨率 |
 | `pixelsPerUnit` | number | `100` | 多少像素等于一个世界单位 |
-| `scaleMode` | number | `1` | 缩放策略（见下文） |
+| `scaleMode` | ScaleMode | `FixedHeight` (1) | 缩放策略（见下文）。从 `'esengine'` 导入 `ScaleMode` |
 | `matchWidthOrHeight` | number | `0.5` | Match 模式的混合系数（0 = 宽度，1 = 高度） |
 | `backgroundColor` | Color | `{r: 0, g: 0, b: 0, a: 1}` | 黑边填充颜色 |
 
@@ -68,13 +68,13 @@ import { Aside } from '@astrojs/starlight/components';
 在系统中查询 `Canvas` 组件：
 
 ```typescript
-import { defineSystem, addSystem, Query, Mut, Canvas } from 'esengine';
+import { defineSystem, addSystem, Query, Mut, Canvas, ScaleMode } from 'esengine';
 
 addSystem(defineSystem(
     [Query(Mut(Canvas))],
     (query) => {
         for (const [entity, canvas] of query) {
-            canvas.scaleMode = 4;
+            canvas.scaleMode = ScaleMode.Match;
             canvas.matchWidthOrHeight = 0.5;
         }
     }

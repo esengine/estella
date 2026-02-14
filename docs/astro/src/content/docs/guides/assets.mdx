@@ -88,10 +88,6 @@ Supports `.fnt` (BMFont text format) and `.bmfont` (JSON metadata) files. The lo
 | `getFont(path)` | `number \| undefined` | Get cached font handle, `undefined` if not loaded |
 | `releaseFont(path)` | `void` | Release the font and its textures from memory |
 
-<Aside type="note">
-  `loadAll` does not currently support bitmap fonts. Load them separately with `loadBitmapFont`.
-</Aside>
-
 ## Prefab Loading
 
 ```typescript
@@ -129,40 +125,37 @@ const data = await assets.loadBinary('assets/tilemap.bin');
 
 ## Batch Loading
 
-Load multiple assets in parallel with `loadAll`:
+Load all assets from an `AddressableManifest` in parallel with `loadAll`:
 
 ```typescript
-const bundle = await assets.loadAll({
-    textures: ['assets/bg.png', 'assets/player.png'],
-    spine: [{ skeleton: 'assets/hero.json', atlas: 'assets/hero.atlas' }],
-    json: ['assets/config.json'],
-});
+const manifest = await assets.loadJson('assets/addressable-manifest.json');
+assets.setAddressableManifest(manifest);
+
+const bundle = await assets.loadAll(manifest);
 
 // Access loaded assets from the bundle
-const bgTex = bundle.textures.get('assets/bg.png');
-const config = bundle.json.get('assets/config.json');
+const bgTex = bundle.textures.get('bg');
+const config = bundle.json.get('game-config');
 ```
 
-### AssetManifest
+You can also load a subset of assets by label or group:
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `textures` | string[] | Texture image paths |
-| `materials` | string[] | Material file paths (.esmaterial) |
-| `spine` | SpineDescriptor[] | Spine skeleton/atlas pairs |
-| `json` | string[] | JSON file paths |
-| `text` | string[] | Text file paths |
-| `binary` | string[] | Binary file paths |
+```typescript
+const bundle = await assets.loadByLabel('ui-sprites');
+const levelBundle = await assets.loadGroup('level-1');
+```
 
 ### AssetBundle
 
-The returned `AssetBundle` contains Maps keyed by path:
+The returned `AssetBundle` contains Maps keyed by address (or path if no address is set):
 
 | Field | Type |
 |-------|------|
 | `textures` | `Map<string, TextureInfo>` |
 | `materials` | `Map<string, LoadedMaterial>` |
 | `spine` | `Map<string, SpineLoadResult>` |
+| `fonts` | `Map<string, FontHandle>` |
+| `prefabs` | `Map<string, PrefabData>` |
 | `json` | `Map<string, unknown>` |
 | `text` | `Map<string, string>` |
 | `binary` | `Map<string, ArrayBuffer>` |
@@ -207,7 +200,7 @@ Addressable assets let you load resources by logical address, label, or group in
 ### Loading by Address
 
 ```typescript
-const texture = await assets.loadByAddress('player-idle');
+const texture = await assets.load('player-idle');
 ```
 
 ### Loading by Label
@@ -239,6 +232,38 @@ import { Assets } from 'esengine';
 const manifest = await assets.loadJson('assets/addressable-manifest.json');
 assets.setAddressableManifest(manifest);
 ```
+
+### Manifest Format
+
+The `AddressableManifest` has the following structure:
+
+```typescript
+interface AddressableManifest {
+    version: '2.0';
+    groups: Record<string, AddressableManifestGroup>;
+}
+
+interface AddressableManifestGroup {
+    bundleMode: string;
+    labels: string[];
+    assets: Record<string, AddressableManifestAsset>;
+}
+
+interface AddressableManifestAsset {
+    path: string;
+    address?: string;
+    type: AddressableAssetType;
+    size: number;
+    labels: string[];
+    metadata?: {
+        atlas?: string;
+        atlasPage?: number;
+        atlasFrame?: { x: number; y: number; width: number; height: number };
+    };
+}
+```
+
+Each group contains assets with their paths, optional addresses, labels, and type-specific metadata. Asset types include `texture`, `material`, `spine`, `bitmap-font`, `prefab`, `json`, `text`, `binary`, and `audio`.
 
 <Aside type="note">
   Addressable addresses, labels, and groups are configured in the editor's Addressable panel. The manifest is generated automatically during build.

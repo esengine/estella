@@ -110,6 +110,8 @@ addSystemToSchedule(Schedule.FixedUpdate, system);  // 固定间隔运行
 需要在运行时创建实体时（如子弹、粒子），使用 `Commands`：
 
 ```typescript
+import { addStartupSystem, defineSystem, Commands, Sprite, LocalTransform } from 'esengine';
+
 addStartupSystem(defineSystem(
     [Commands()],
     (cmds) => {

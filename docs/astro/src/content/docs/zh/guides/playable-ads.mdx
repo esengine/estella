@@ -1,0 +1,155 @@
+---
+title: 可玩广告
+description: 使用 ESEngine 构建单文件 HTML 可玩广告
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+ESEngine 可以将游戏导出为单个自包含的 HTML 文件，适用于各种可玩广告网络（Facebook、Google、Unity Ads、IronSource、AppLovin 等）。
+
+## 构建可玩广告
+
+### 1. 打开构建面板
+
+从编辑器工具栏打开**构建**面板，选择或创建一个可玩广告配置。
+
+### 2. 配置设置
+
+| 设置 | 描述 |
+|------|------|
+| **启动场景** | 启动时加载的场景（默认为列表中的第一个场景） |
+| **开发构建** | 包含调试信息——便于测试，正式发布时应关闭 |
+| **代码压缩** | 压缩 JavaScript 以减小体积。正式构建时应启用。 |
+| **嵌入字体** | 将字体文件内联到 HTML 中 |
+| **输出路径** | 输出文件的写入位置（如 `build/playable.html`） |
+| **启用内置 CTA** | 显示内置的 "Install Now" 按钮 |
+| **CTA URL** | 点击 CTA 按钮时打开的 URL |
+
+### 3. 添加场景
+
+确保启动场景已列在场景列表中。只有构建中场景引用的资源才会嵌入到输出文件中。
+
+### 4. 点击构建
+
+点击**构建**或按 `Cmd/Ctrl + B`。编辑器将收集资源、打包纹理、编译脚本，并组装单个 HTML 文件。构建进度和输出大小会实时显示。
+
+## 工作原理
+
+可玩广告的构建流程：
+
+1. 将 WASM 引擎、SDK 和用户脚本打包为内联 `<script>` 标签
+2. 将所有引用的资源（纹理、Spine 数据、材质、预制体）编码为 base64 数据 URI 嵌入
+3. 嵌入启动场景 JSON 和可寻址资源清单
+4. 生成一个没有任何外部依赖的 `.html` 文件
+
+在运行时，资源加载调用会自动从嵌入数据中读取——与 Web 构建相比无需任何代码修改。
+
+## 测试输出
+
+构建完成后：
+
+1. 点击构建输出面板中的**打开文件夹**找到 HTML 文件
+2. 在浏览器中直接打开 `.html` 文件进行测试
+3. 使用浏览器开发者工具检查控制台输出和性能
+
+<Aside type="tip">
+  快速测试时，可以点击构建输出面板中的**预览**直接打开 HTML 文件。
+</Aside>
+
+你也可以使用广告网络的预览工具进行测试：
+- **Facebook**：[可玩广告预览工具](https://www.facebook.com/business/help/412951382532338)
+- **Google**：上传到 Google Ads 并使用预览功能
+- **Unity Ads**：Unity Ads 后台预览
+
+## CTA 按钮
+
+可选的内置 CTA（行动号召）按钮会以固定定位显示在屏幕底部的 "Install Now" 按钮。在构建设置中启用后：
+
+- 按钮在加载过程中隐藏，游戏启动后显示
+- 点击时通过 MRAID（`mraid.open()`）打开 CTA URL，如果 MRAID 不可用则使用 `window.open()`
+
+<Aside type="tip">
+  大多数广告网络会提供自己的 CTA 机制。你可以保持内置 CTA 关闭，在游戏脚本中直接使用广告网络的 SDK 或 MRAID API。
+</Aside>
+
+### MRAID 集成
+
+[MRAID](https://www.iab.com/guidelines/mraid/)（Mobile Rich-media Ad Interface Definitions）是广告 SDK 使用的标准 API。内置 CTA 在 MRAID 可用时会自动使用它。
+
+如果需要更深层次的 MRAID 集成（如响应 `viewableChange` 事件），可以在脚本中使用启动系统：
+
+```typescript
+import { addStartupSystem, defineSystem } from 'esengine';
+
+addStartupSystem(defineSystem([], () => {
+    const mraid = (window as any).mraid;
+    if (!mraid) return;
+
+    mraid.addEventListener('viewableChange', (viewable: boolean) => {
+        if (viewable) {
+            // 广告变为可见——开始游戏
+        }
+    });
+}));
+```
+
+## 资源嵌入
+
+启动场景引用的所有资源会被自动嵌入：
+
+- **纹理**：编码为 `data:image/png;base64,...`
+- **JSON 文件**（材质、预制体、配置）：编码为 `data:application/json;base64,...`
+- **Spine 数据**（图集、骨骼）：编码为 base64 数据 URI
+- **纹理图集**：图集页面嵌入为 PNG 数据 URI
+
+<Aside type="note">
+  未被启动场景引用的资源不会被包含。使用可寻址资源组并将导出模式设为 "always" 可以强制包含运行时动态加载的资源。
+</Aside>
+
+## Spine 与物理支持
+
+如果项目使用了 Spine 动画或 Box2D 物理，对应的 WASM 模块会被自动嵌入为 base64 并在运行时实例化。无需额外配置——构建会检测项目设置中是否启用了 Spine 或物理。
+
+## 体积优化
+
+可玩广告网络通常有文件大小限制（2-5 MB）。以下是减小输出体积的建议：
+
+1. **压缩纹理**：使用小尺寸、压缩过的 PNG/JPG 文件。图集打包器可以帮助合并纹理。
+2. **启用代码压缩**：在构建设置中开启**代码压缩**。
+3. **简化场景**：更少的实体和组件意味着更小的场景 JSON。
+4. **移除未使用的资源引用**：只有启动场景引用的资源会被嵌入，删除不需要的资源引用。
+5. **优化 Spine 数据**：使用二进制 `.skel` 文件而非 JSON 骨骼。减少骨骼和动画数量。
+6. **考虑禁用物理**：如果广告不需要物理效果，在项目设置中禁用物理可以排除物理 WASM 模块，显著减小体积。
+
+## 输出结构
+
+生成的 HTML 遵循以下结构：
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="ad.size" content="width=320,height=480">
+    <style>/* 全屏 canvas + 可选的 CTA 样式 */</style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <script>/* WASM 引擎 + SDK（内联） */</script>
+    <script>/* Spine 模块（如使用） */</script>
+    <script>/* 物理模块（如使用） */</script>
+    <script>/* 用户游戏代码（编译 + 打包） */</script>
+    <script>
+        var __PA__ = { /* 嵌入的资源数据 URI */ };
+        var __SCENE__ = { /* 启动场景 JSON */ };
+        var __MANIFEST__ = { /* 可寻址资源清单 */ };
+        // ... 初始化和场景加载
+    </script>
+</body>
+</html>
+```
+
+## 下一步
+
+- [构建与导出](/microes/zh/guides/building/) -- 构建流水线概览
+- [微信小游戏](/microes/zh/guides/wechat/) -- 微信小游戏构建
+- [资源加载](/microes/zh/guides/assets/) -- 资源加载 API

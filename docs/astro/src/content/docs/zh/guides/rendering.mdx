@@ -17,7 +17,7 @@ ESEngine 使用基于组件的渲染系统。在场景编辑器中为实体添�
 
 | 属性 | 类型 | 说明 |
 |------|------|------|
-| `projectionType` | number | 0 = 透视，1 = 正交 |
+| `projectionType` | ProjectionType | `ProjectionType.Perspective` (0)、`ProjectionType.Orthographic` (1) |
 | `fov` | number | 视角角度（仅透视） |
 | `orthoSize` | number | 半高世界单位（仅正交） |
 | `nearPlane` | number | 近裁剪面 |
@@ -29,12 +29,12 @@ ESEngine 使用基于组件的渲染系统。在场景编辑器中为实体添�
 | `viewportY` | number | 视口底边缘（0–1）。默认：0 |
 | `viewportW` | number | 视口宽度（0–1）。默认：1 |
 | `viewportH` | number | 视口高度（0–1）。默认：1 |
-| `clearFlags` | number | 缓冲区清除模式：0=无, 1=颜色, 2=深度, 3=两者 |
+| `clearFlags` | ClearFlags | `ClearFlags.None` (0)、`ColorOnly` (1)、`DepthOnly` (2)、`ColorAndDepth` (3) |
 | `showFrustum` | boolean | 在编辑器中显示相机视锥线框 |
 
 ### 正交相机
 
-2D 游戏最佳选择。`orthoSize` 决定可见的世界范围。在检查器中将 `projectionType` 设为 `1`。
+2D 游戏最佳选择。`orthoSize` 决定可见的世界范围（默认：`540`）。在检查器中将 `projectionType` 设为 `ProjectionType.Orthographic`。从 `'esengine'` 导入 `ProjectionType` 和 `ClearFlags`。
 
 ### Canvas 集成
 
@@ -70,7 +70,7 @@ addSystem(defineSystem(
 
 创建两个 Camera 实体：
 - 主相机：视口 `(0, 0, 1, 1)`，`priority: 0`
-- 小地图相机：视口 `(0.75, 0.75, 0.25, 0.25)`，`priority: 1`，`clearFlags: 3`
+- 小地图相机：视口 `(0.75, 0.75, 0.25, 0.25)`，`priority: 1`，`clearFlags: ClearFlags.ColorAndDepth`
 
 小地图在右上角渲染，覆盖在主视图之上。
 

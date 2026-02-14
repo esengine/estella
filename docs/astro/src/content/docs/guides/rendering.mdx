@@ -17,7 +17,7 @@ A `Camera` component is required to see anything. The editor's default scene alr
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `projectionType` | number | 0 = Perspective, 1 = Orthographic |
+| `projectionType` | ProjectionType | `ProjectionType.Perspective` (0), `ProjectionType.Orthographic` (1) |
 | `fov` | number | Field of view in degrees (perspective only) |
 | `orthoSize` | number | Half-height in world units (orthographic only) |
 | `nearPlane` | number | Near clipping plane |
@@ -29,12 +29,12 @@ A `Camera` component is required to see anything. The editor's default scene alr
 | `viewportY` | number | Viewport bottom edge (0–1). Default: 0 |
 | `viewportW` | number | Viewport width (0–1). Default: 1 |
 | `viewportH` | number | Viewport height (0–1). Default: 1 |
-| `clearFlags` | number | Buffer clear mode: 0=None, 1=Color, 2=Depth, 3=Both |
+| `clearFlags` | ClearFlags | `ClearFlags.None` (0), `ColorOnly` (1), `DepthOnly` (2), `ColorAndDepth` (3) |
 | `showFrustum` | boolean | Draw the camera frustum wireframe in the editor |
 
 ### Orthographic Camera
 
-Best for 2D games. The `orthoSize` determines how much of the world is visible. Set `projectionType` to `1` in the inspector.
+Best for 2D games. The `orthoSize` determines how much of the world is visible (default: `540`). Set `projectionType` to `ProjectionType.Orthographic` in the inspector. Import `ProjectionType` and `ClearFlags` from `'esengine'`.
 
 ### Canvas Integration
 
@@ -70,7 +70,7 @@ Multiple cameras can render simultaneously to different viewport regions. Each c
 
 Create two Camera entities:
 - Main camera: viewport `(0, 0, 1, 1)`, `priority: 0`
-- Minimap camera: viewport `(0.75, 0.75, 0.25, 0.25)`, `priority: 1`, `clearFlags: 3`
+- Minimap camera: viewport `(0.75, 0.75, 0.25, 0.25)`, `priority: 1`, `clearFlags: ClearFlags.ColorAndDepth`
 
 The minimap renders in the top-right corner on top of the main view.
 

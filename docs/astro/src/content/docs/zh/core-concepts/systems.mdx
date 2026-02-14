@@ -57,7 +57,11 @@ addSystemToSchedule(Schedule.FixedUpdate, physicsSystem);
 | `FixedPostUpdate` | 固定间隔，FixedUpdate 之后 |
 
 <Aside type="note">
-  Fixed 系列调度（`FixedPreUpdate`、`FixedUpdate`、`FixedPostUpdate`）以 1/60s 固定步长运行，使用累加器驱动。一帧内可能执行零次或多次，取决于帧时长。适用于物理等需要一致时间步的确定性逻辑。
+  Fixed 系列调度（`FixedPreUpdate`、`FixedUpdate`、`FixedPostUpdate`）以 1/60s 固定步长运行，使用累加器驱动。一帧内可能执行零次或多次，取决于帧时长，每帧最多执行 **8 次迭代**。适用于物理等需要一致时间步的确定性逻辑。
+</Aside>
+
+<Aside type="note">
+  Delta time 被限制为最大 **250ms**（0.25s）。如果一帧用时更长（例如标签页不活跃），多余的时间会被丢弃以防止模拟出现大跳变。
 </Aside>
 
 ## 系统参数
@@ -78,7 +82,7 @@ defineSystem([Commands()], (cmds) => {
 
     // 修改已有实体
     cmds.entity(bullet)
-        .insert(Velocity, { linear: { x: 100, y: 0 } })
+        .insert(Velocity, { linear: { x: 100, y: 0, z: 0 } })
         .remove(Sprite);
 
     // 销毁实体
@@ -190,6 +194,10 @@ addSystem(defineSystem(
     }
 ));
 ```
+
+## 错误处理
+
+每个系统在独立的 try/catch 边界内运行。如果系统抛出错误，会被捕获并输出到控制台，不会导致整个游戏循环崩溃。其他系统继续正常执行。
 
 ## 下一步
 

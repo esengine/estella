@@ -1,0 +1,181 @@
+---
+title: 插件系统
+description: 使用插件系统扩展 ESEngine
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+**插件系统**将引擎功能组织为可复用的模块。每个插件提供一组组件、系统和资源。ESEngine 内置了多个插件，它们会自动安装——你无需手动配置。
+
+## 内置插件
+
+在编辑器中创建项目时，所有内置插件默认处于激活状态。它们提供了你在检查器（Inspector）中看到的组件，以及驱动引擎每帧行为的系统。
+
+### 核心插件
+
+| 插件 | 提供的功能 |
+|------|-----------|
+| 资源加载 | `AssetServer`，用于在运行时加载纹理、Spine 数据、预制体等资源 |
+| 预制体 | `PrefabServer`，用于实例化预制体 |
+| 输入 | `InputState`，包含键盘、鼠标和触摸输入——每帧末尾清除 |
+
+### UI 插件
+
+| 插件 | 组件 |
+|------|------|
+| 文本 | `Text` — 每帧将文本内容渲染为精灵纹理 |
+| UI 遮罩 | `UIMask` — 基于模板测试的 UI 元素遮罩 |
+| UI 布局 | `UIRect`、`ScreenSpace` — 相对于相机的锚点 UI 布局 |
+| UI 交互 | `Interactable`、`Button`、`UIInteraction`、`UIEvents` — 指针命中测试和按钮状态 |
+| 文本输入 | `TextInput` — 可编辑的文本输入框，使用平台原生输入 |
+
+以上插件在每个项目中默认激活。你可以直接从编辑器的组件选择器中使用它们的组件——无需任何设置。
+
+## 用户脚本
+
+扩展游戏的主要方式是在项目的 `src/` 目录中编写 TypeScript 脚本。脚本会被自动编译并包含在构建产物中。
+
+### 自定义组件
+
+使用 `defineComponent()` 创建可在编辑器检查器中显示的组件：
+
+```typescript
+import { defineComponent } from 'esengine';
+
+const Health = defineComponent('Health', {
+    hp: 100,
+    maxHp: 100,
+});
+```
+
+定义后，`Health` 会出现在编辑器的**添加组件**菜单中。你可以像内置组件一样将其添加到实体并在检查器中编辑属性。
+
+使用 `defineTag()` 创建无数据的标记组件：
+
+```typescript
+import { defineTag } from 'esengine';
+
+const Enemy = defineTag('Enemy');
+```
+
+### 系统
+
+使用 `defineSystem()` 和 `addSystem()` 添加每帧执行的游戏逻辑：
+
+```typescript
+import { defineSystem, addSystem, Schedule } from 'esengine';
+
+addSystem(defineSystem([], (world) => {
+    // 每帧在 Update 阶段执行
+}));
+```
+
+你也可以指定特定的调度阶段：
+
+```typescript
+import { addSystemToSchedule, defineSystem, Schedule } from 'esengine';
+
+addSystemToSchedule(Schedule.FixedUpdate, defineSystem([], (world) => {
+    // 以固定时间步执行，适合物理逻辑
+}));
+```
+
+对于一次性初始化，使用 `addStartupSystem()`：
+
+```typescript
+import { addStartupSystem, defineSystem } from 'esengine';
+
+addStartupSystem(defineSystem([], (world) => {
+    // 游戏启动时执行一次
+}));
+```
+
+<Aside type="tip">
+  `src/` 目录中的脚本会被构建流水线自动发现。你无需在任何地方注册它们——只需创建 `.ts` 文件即可被自动包含。
+</Aside>
+
+### 资源
+
+资源是可在系统间共享的全局单例数据：
+
+```typescript
+import { defineResource, addStartupSystem, defineSystem } from 'esengine';
+
+const GameState = defineResource<{ score: number; level: number }>(
+    { score: 0, level: 1 },
+    'GameState'
+);
+
+addStartupSystem(defineSystem([], (world) => {
+    world.app.insertResource(GameState, { score: 0, level: 1 });
+}));
+```
+
+## 系统调度
+
+系统按照定义的顺序在每帧中执行：
+
+| 阶段 | 执行时机 |
+|------|---------|
+| `Startup` | 游戏启动时执行一次 |
+| `First` | 每帧开始 |
+| `FixedPreUpdate` | 固定时间步更新之前 |
+| `FixedUpdate` | 固定时间步更新（物理） |
+| `FixedPostUpdate` | 固定时间步更新之后 |
+| `PreUpdate` | 主更新之前 |
+| `Update` | 主更新（`addSystem` 的默认阶段） |
+| `PostUpdate` | 主更新之后 |
+| `Last` | 每帧结束 |
+
+## 进阶：插件接口
+
+<Aside type="note">
+  本节面向需要创建可复用插件包的高级用户。大多数用户只需按上述方式在 `src/` 中编写脚本即可。
+</Aside>
+
+插件是实现了 `Plugin` 接口的对象：
+
+```typescript
+import { type Plugin, type App, defineResource, defineSystem, Schedule, registerComponent } from 'esengine';
+
+const ScoreData = defineResource<{ value: number }>({ value: 0 }, 'Score');
+
+const myPlugin: Plugin = {
+    name: 'MyGamePlugin',
+    build(app: App) {
+        app.insertResource(ScoreData, { value: 0 });
+        registerComponent('Health', { hp: 100, maxHp: 100 });
+        app.addSystemToSchedule(Schedule.Update, defineSystem([], () => {
+            // 游戏逻辑
+        }));
+    },
+};
+```
+
+插件可以声明资源依赖：
+
+```typescript
+const analyticsPlugin: Plugin = {
+    name: 'AnalyticsPlugin',
+    dependencies: [Assets],
+    build(app: App) {
+        const assets = app.getResource(Assets);
+        // 使用资源服务器...
+    },
+};
+```
+
+### SDK 入口
+
+对于不使用编辑器的独立应用开发者，ESEngine 提供两种入口：
+
+- **`esengine`** — 完整 SDK，包含所有 UI 插件
+- **`esengine/core`** — 基础 SDK，不含 UI 插件，适用于不需要 UI 时减小包体积
+
+```typescript
+import { createWebApp } from 'esengine/core';
+
+const app = createWebApp(module, {
+    plugins: [textPlugin, uiLayoutPlugin],
+});
+```

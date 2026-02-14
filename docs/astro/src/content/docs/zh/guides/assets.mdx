@@ -88,10 +88,6 @@ const fontHandle = await assets.loadBitmapFont('assets/my-font.fnt');
 | `getFont(path)` | `number \| undefined` | 获取已缓存的字体句柄，未加载则返回 `undefined` |
 | `releaseFont(path)` | `void` | 从内存中释放字体及其纹理 |
 
-<Aside type="note">
-  `loadAll` 目前不支持位图字体，需要使用 `loadBitmapFont` 单独加载。
-</Aside>
-
 ## 预制体加载
 
 ```typescript
@@ -129,40 +125,37 @@ const data = await assets.loadBinary('assets/tilemap.bin');
 
 ## 批量加载
 
-使用 `loadAll` 并行加载多种资源：
+使用 `loadAll` 从 `AddressableManifest` 并行加载所有资源：
 
 ```typescript
-const bundle = await assets.loadAll({
-    textures: ['assets/bg.png', 'assets/player.png'],
-    spine: [{ skeleton: 'assets/hero.json', atlas: 'assets/hero.atlas' }],
-    json: ['assets/config.json'],
-});
+const manifest = await assets.loadJson('assets/addressable-manifest.json');
+assets.setAddressableManifest(manifest);
+
+const bundle = await assets.loadAll(manifest);
 
 // 从 bundle 中访问已加载的资源
-const bgTex = bundle.textures.get('assets/bg.png');
-const config = bundle.json.get('assets/config.json');
+const bgTex = bundle.textures.get('bg');
+const config = bundle.json.get('game-config');
 ```
 
-### AssetManifest
+也可以按标签或分组加载部分资源：
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `textures` | string[] | 纹理图片路径 |
-| `materials` | string[] | 材质文件路径（.esmaterial） |
-| `spine` | SpineDescriptor[] | Spine 骨骼/图集对 |
-| `json` | string[] | JSON 文件路径 |
-| `text` | string[] | 文本文件路径 |
-| `binary` | string[] | 二进制文件路径 |
+```typescript
+const bundle = await assets.loadByLabel('ui-sprites');
+const levelBundle = await assets.loadGroup('level-1');
+```
 
 ### AssetBundle
 
-返回的 `AssetBundle` 包含以路径为键的 Map：
+返回的 `AssetBundle` 包含以地址（无地址时以路径）为键的 Map：
 
 | 字段 | 类型 |
 |------|------|
 | `textures` | `Map<string, TextureInfo>` |
 | `materials` | `Map<string, LoadedMaterial>` |
 | `spine` | `Map<string, SpineLoadResult>` |
+| `fonts` | `Map<string, FontHandle>` |
+| `prefabs` | `Map<string, PrefabData>` |
 | `json` | `Map<string, unknown>` |
 | `text` | `Map<string, string>` |
 | `binary` | `Map<string, ArrayBuffer>` |
@@ -207,7 +200,7 @@ Addressable 资产允许通过逻辑地址、标签或分组加载资源，而�
 ### 按地址加载
 
 ```typescript
-const texture = await assets.loadByAddress('player-idle');
+const texture = await assets.load('player-idle');
 ```
 
 ### 按标签加载
@@ -239,6 +232,38 @@ import { Assets } from 'esengine';
 const manifest = await assets.loadJson('assets/addressable-manifest.json');
 assets.setAddressableManifest(manifest);
 ```
+
+### 清单格式
+
+`AddressableManifest` 的结构如下：
+
+```typescript
+interface AddressableManifest {
+    version: '2.0';
+    groups: Record<string, AddressableManifestGroup>;
+}
+
+interface AddressableManifestGroup {
+    bundleMode: string;
+    labels: string[];
+    assets: Record<string, AddressableManifestAsset>;
+}
+
+interface AddressableManifestAsset {
+    path: string;
+    address?: string;
+    type: AddressableAssetType;
+    size: number;
+    labels: string[];
+    metadata?: {
+        atlas?: string;
+        atlasPage?: number;
+        atlasFrame?: { x: number; y: number; width: number; height: number };
+    };
+}
+```
+
+每个分组包含资产及其路径、可选地址、标签和类型特定的元数据。资产类型包括 `texture`、`material`、`spine`、`bitmap-font`、`prefab`、`json`、`text`、`binary` 和 `audio`。
 
 <Aside type="note">
   Addressable 的地址、标签和分组在编辑器的 Addressable 面板中配置。清单在构建时自动生成。

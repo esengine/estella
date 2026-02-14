@@ -1,0 +1,155 @@
+---
+title: Playable Ads
+description: Building single-file HTML playable ads with ESEngine
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+ESEngine can export your game as a single self-contained HTML file suitable for playable ad networks (Facebook, Google, Unity Ads, IronSource, AppLovin, etc.).
+
+## Building a Playable Ad
+
+### 1. Open the Build Panel
+
+Open the **Build** panel from the editor toolbar. Select or create a Playable Ads configuration.
+
+### 2. Configure Settings
+
+| Setting | Description |
+|---------|-------------|
+| **Startup Scene** | Scene to load on startup (defaults to the first scene in the list) |
+| **Development Build** | Include debug info -- useful for testing, disable for production |
+| **Minify Code** | Minify JavaScript for smaller output. Enable for production builds. |
+| **Embed Fonts** | Inline font files into the HTML |
+| **Output Path** | Where to write the output file (e.g. `build/playable.html`) |
+| **Enable Built-in CTA** | Show a built-in "Install Now" button |
+| **CTA URL** | URL opened when the CTA button is clicked |
+
+### 3. Add Scenes
+
+Ensure your startup scene is listed in the Scenes section. Only assets referenced by scenes in the build are embedded in the output.
+
+### 4. Click Build
+
+Click **Build** or press `Cmd/Ctrl + B`. The editor will collect assets, pack textures, compile scripts, and assemble the single HTML file. Build progress and output size are shown in real time.
+
+## How It Works
+
+The playable ad build pipeline:
+
+1. Bundles the WASM engine, SDK, and user scripts into inline `<script>` tags
+2. Embeds all referenced assets (textures, Spine data, materials, prefabs) as base64 data URIs
+3. Embeds the startup scene JSON and the addressable asset manifest
+4. Produces a single `.html` file with zero external dependencies
+
+At runtime, asset loading calls automatically resolve from the embedded data -- no code changes are needed compared to the web build.
+
+## Testing the Output
+
+After building:
+
+1. Click **Open Folder** in the build output panel to find the HTML file
+2. Open the `.html` file directly in a browser to test
+3. Use browser DevTools to check console output and performance
+
+<Aside type="tip">
+  For a quick test, click **Preview** in the build output panel to open the HTML file directly.
+</Aside>
+
+You can also test with ad network preview tools:
+- **Facebook**: [Playable Preview Tool](https://www.facebook.com/business/help/412951382532338)
+- **Google**: Upload to Google Ads and use the preview function
+- **Unity Ads**: Unity Ads dashboard preview
+
+## CTA Button
+
+The optional built-in CTA (Call To Action) button appears as a fixed-position "Install Now" button at the bottom of the screen. When enabled in the build settings:
+
+- The button is hidden during loading and shown after the game starts
+- Clicking it opens the CTA URL via MRAID (`mraid.open()`) if available, otherwise `window.open()`
+
+<Aside type="tip">
+  Most ad networks provide their own CTA mechanism. You can leave the built-in CTA disabled and use the network's SDK or MRAID API directly in your game scripts.
+</Aside>
+
+### MRAID Integration
+
+[MRAID](https://www.iab.com/guidelines/mraid/) (Mobile Rich-media Ad Interface Definitions) is the standard API used by ad SDKs. The built-in CTA automatically uses MRAID when available.
+
+For deeper MRAID integration (e.g., responding to `viewableChange` events), use a startup system in your scripts:
+
+```typescript
+import { addStartupSystem, defineSystem } from 'esengine';
+
+addStartupSystem(defineSystem([], () => {
+    const mraid = (window as any).mraid;
+    if (!mraid) return;
+
+    mraid.addEventListener('viewableChange', (viewable: boolean) => {
+        if (viewable) {
+            // ad became visible -- start gameplay
+        }
+    });
+}));
+```
+
+## Asset Embedding
+
+All assets referenced by the startup scene are automatically embedded:
+
+- **Textures**: Encoded as `data:image/png;base64,...`
+- **JSON files** (materials, prefabs, config): Encoded as `data:application/json;base64,...`
+- **Spine data** (atlas, skeleton): Encoded as base64 data URIs
+- **Texture atlases**: Atlas pages are embedded as PNG data URIs
+
+<Aside type="note">
+  Assets not referenced by the startup scene are not included. Use addressable groups with export mode "always" to force-include assets that are loaded dynamically at runtime.
+</Aside>
+
+## Spine & Physics Support
+
+If your project uses Spine animations or Box2D physics, the respective WASM modules are automatically embedded as base64 and instantiated at runtime. No additional configuration is needed -- the build detects whether Spine or physics is enabled in your project settings.
+
+## Size Optimization
+
+Playable ad networks typically impose file size limits (2-5 MB). Tips for reducing output size:
+
+1. **Minimize textures**: Use small, compressed PNG/JPG files. The atlas packer helps consolidate textures.
+2. **Enable minification**: Turn on **Minify Code** in the build settings.
+3. **Reduce scene complexity**: Fewer entities and components means smaller scene JSON.
+4. **Remove unused asset references**: Only assets referenced by the startup scene are embedded. Remove references to assets you do not need.
+5. **Optimize Spine data**: Use binary `.skel` files instead of JSON skeletons. Reduce the number of bones and animations.
+6. **Consider disabling physics**: If your ad does not need physics, disabling it in project settings excludes the physics WASM module and saves significant size.
+
+## Output Structure
+
+The generated HTML follows this structure:
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="ad.size" content="width=320,height=480">
+    <style>/* fullscreen canvas + optional CTA styles */</style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <script>/* WASM engine + SDK (inline) */</script>
+    <script>/* Spine module (if used) */</script>
+    <script>/* Physics module (if used) */</script>
+    <script>/* User game code (compiled + bundled) */</script>
+    <script>
+        var __PA__ = { /* embedded assets as data URIs */ };
+        var __SCENE__ = { /* startup scene JSON */ };
+        var __MANIFEST__ = { /* addressable manifest */ };
+        // ... initialization and scene loading
+    </script>
+</body>
+</html>
+```
+
+## Next Steps
+
+- [Building & Exporting](/microes/guides/building/) -- build pipeline overview
+- [WeChat MiniGame](/microes/guides/wechat/) -- WeChat MiniGame builds
+- [Asset Loading](/microes/guides/assets/) -- asset loading API

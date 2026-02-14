@@ -89,6 +89,16 @@ export default defineConfig({
             { label: 'Geometry & Meshes', translations: { 'zh-CN': '几何体与网格' }, slug: 'guides/geometry' },
             { label: 'Physics', translations: { 'zh-CN': '物理' }, slug: 'guides/physics' },
             { label: 'Editor Extensions', translations: { 'zh-CN': '编辑器扩展' }, slug: 'guides/editor-extensions' },
+            { label: 'Plugins', translations: { 'zh-CN': '插件系统' }, slug: 'guides/plugins' },
+            { label: 'Building', translations: { 'zh-CN': '构建' }, slug: 'guides/building' },
+            {
+              label: 'Platforms',
+              translations: { 'zh-CN': '平台' },
+              items: [
+                { label: 'WeChat MiniGame', translations: { 'zh-CN': '微信小游戏' }, slug: 'guides/wechat' },
+                { label: 'Playable Ads', translations: { 'zh-CN': '可玩广告' }, slug: 'guides/playable-ads' },
+              ],
+            },
           ],
         },
         {

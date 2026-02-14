@@ -1,0 +1,181 @@
+---
+title: Plugins
+description: Extending ESEngine with the plugin system
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The **plugin system** organizes engine functionality into reusable modules. Each plugin provides a set of components, systems, and resources. ESEngine ships with several built-in plugins that are installed automatically -- you do not need to configure them.
+
+## Built-in Plugins
+
+When you create a project in the editor, all built-in plugins are active by default. They provide the components you see in the Inspector and the systems that drive engine behavior each frame.
+
+### Core Plugins
+
+| Plugin | What It Provides |
+|--------|-----------------|
+| Asset loading | `AssetServer` for loading textures, Spine data, prefabs, and other assets at runtime |
+| Prefabs | `PrefabServer` for instantiating prefabs |
+| Input | `InputState` with keyboard, mouse, and touch input -- cleared each frame |
+
+### UI Plugins
+
+| Plugin | Components |
+|--------|-----------|
+| Text | `Text` -- renders text content to sprite textures each frame |
+| UI Mask | `UIMask` -- stencil-based masking for UI elements |
+| UI Layout | `UIRect`, `ScreenSpace` -- anchored UI layout relative to camera |
+| UI Interaction | `Interactable`, `Button`, `UIInteraction`, `UIEvents` -- pointer hit-testing and button states |
+| Text Input | `TextInput` -- editable text fields with platform input |
+
+All of these are active by default in every project. You can use their components directly from the editor's component picker -- no setup required.
+
+## User Scripts
+
+The primary way to extend your game is by writing TypeScript scripts in your project's `src/` directory. Scripts are automatically compiled and included in builds.
+
+### Custom Components
+
+Use `defineComponent()` to create components that appear in the editor's Inspector:
+
+```typescript
+import { defineComponent } from 'esengine';
+
+const Health = defineComponent('Health', {
+    hp: 100,
+    maxHp: 100,
+});
+```
+
+Once defined, `Health` appears in the editor's **Add Component** menu. You can add it to entities and edit its properties in the Inspector just like built-in components.
+
+Use `defineTag()` for marker components with no data:
+
+```typescript
+import { defineTag } from 'esengine';
+
+const Enemy = defineTag('Enemy');
+```
+
+### Systems
+
+Use `defineSystem()` and `addSystem()` to add game logic that runs every frame:
+
+```typescript
+import { defineSystem, addSystem, Schedule } from 'esengine';
+
+addSystem(defineSystem([], (world) => {
+    // runs every frame during the Update phase
+}));
+```
+
+You can also target a specific schedule phase:
+
+```typescript
+import { addSystemToSchedule, defineSystem, Schedule } from 'esengine';
+
+addSystemToSchedule(Schedule.FixedUpdate, defineSystem([], (world) => {
+    // runs at fixed timestep, ideal for physics logic
+}));
+```
+
+For one-time initialization, use `addStartupSystem()`:
+
+```typescript
+import { addStartupSystem, defineSystem } from 'esengine';
+
+addStartupSystem(defineSystem([], (world) => {
+    // runs once when the game starts
+}));
+```
+
+<Aside type="tip">
+  Scripts in `src/` are automatically discovered by the build pipeline. You do not need to register them anywhere -- just create `.ts` files and they will be included.
+</Aside>
+
+### Resources
+
+Resources are global singleton data that can be shared across systems:
+
+```typescript
+import { defineResource, addStartupSystem, defineSystem } from 'esengine';
+
+const GameState = defineResource<{ score: number; level: number }>(
+    { score: 0, level: 1 },
+    'GameState'
+);
+
+addStartupSystem(defineSystem([], (world) => {
+    world.app.insertResource(GameState, { score: 0, level: 1 });
+}));
+```
+
+## System Schedule
+
+Systems run in a defined order each frame:
+
+| Phase | When |
+|-------|------|
+| `Startup` | Once, when the game starts |
+| `First` | Beginning of each frame |
+| `FixedPreUpdate` | Before fixed-timestep update |
+| `FixedUpdate` | Fixed-timestep update (physics) |
+| `FixedPostUpdate` | After fixed-timestep update |
+| `PreUpdate` | Before main update |
+| `Update` | Main update (default for `addSystem`) |
+| `PostUpdate` | After main update |
+| `Last` | End of each frame |
+
+## Advanced: Plugin Interface
+
+<Aside type="note">
+  This section is for advanced users who need to create reusable plugin packages. Most users can simply write scripts in `src/` as described above.
+</Aside>
+
+A plugin is an object implementing the `Plugin` interface:
+
+```typescript
+import { type Plugin, type App, defineResource, defineSystem, Schedule, registerComponent } from 'esengine';
+
+const ScoreData = defineResource<{ value: number }>({ value: 0 }, 'Score');
+
+const myPlugin: Plugin = {
+    name: 'MyGamePlugin',
+    build(app: App) {
+        app.insertResource(ScoreData, { value: 0 });
+        registerComponent('Health', { hp: 100, maxHp: 100 });
+        app.addSystemToSchedule(Schedule.Update, defineSystem([], () => {
+            // game logic
+        }));
+    },
+};
+```
+
+Plugins can declare resource dependencies:
+
+```typescript
+const analyticsPlugin: Plugin = {
+    name: 'AnalyticsPlugin',
+    dependencies: [Assets],
+    build(app: App) {
+        const assets = app.getResource(Assets);
+        // use asset server...
+    },
+};
+```
+
+### SDK Entry Points
+
+For users building standalone applications without the editor, ESEngine provides two entry points:
+
+- **`esengine`** -- full SDK with all UI plugins included
+- **`esengine/core`** -- base SDK without UI plugins, for smaller bundles when UI is not needed
+
+```typescript
+import { createWebApp } from 'esengine/core';
+
+const app = createWebApp(module, {
+    plugins: [textPlugin, uiLayoutPlugin],
+});
+```

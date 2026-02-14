@@ -25,7 +25,7 @@ Drag a `.esprefab` file from the content browser into the hierarchy panel. A new
 
 ### Editing a Prefab
 
-Double-click a `.esprefab` file in the content browser to enter **prefab edit mode**. The editor loads the prefab as a temporary scene where you can modify entities directly. Changes are saved back to the `.esprefab` file when you exit.
+Double-click a `.esprefab` file in the content browser to enter **prefab edit mode**. The editor loads the prefab as a temporary scene where you can modify entities directly. Changes are saved back to the `.esprefab` file when you exit, and all instances in the current scene are automatically synced with the updated prefab.
 
 ### Overrides
 
@@ -39,7 +39,11 @@ Access these via right-click → **Prefab** on a prefab root entity.
 
 ## Runtime API
 
-Use the `Prefabs` resource to load and instantiate prefabs inside a system. It handles asset loading and entity creation in a single call:
+Use the `Prefabs` resource to load and instantiate prefabs inside a system. It handles asset loading and entity creation in a single call.
+
+<Aside type="note">
+  The `Prefabs` resource is automatically available when using `createWebApp()` — the `PrefabsPlugin` is included by default.
+</Aside>
 
 ```typescript
 import { addStartupSystem, defineSystem, Res, Prefabs } from 'esengine';
@@ -47,6 +51,7 @@ import { addStartupSystem, defineSystem, Res, Prefabs } from 'esengine';
 addStartupSystem(defineSystem(
     [Res(Prefabs)],
     async (prefabs) => {
+        // Accepts file paths or addressable addresses
         const { root, entities } = await prefabs.instantiate('prefabs/Enemy.esprefab');
     }
 ));
@@ -99,13 +104,19 @@ const { root } = await prefabs.instantiate('prefabs/Enemy.esprefab', {
 
 ### Nested Prefabs
 
-Prefabs can contain references to other prefabs. When instantiating, nested prefabs are automatically loaded and flattened. This requires an `assetServer` in the options:
+Prefabs can contain references to other prefabs. The high-level `prefabs.instantiate()` API handles nested prefabs automatically — all referenced prefabs are recursively loaded and flattened into a single entity tree. For advanced use cases, the low-level `instantiatePrefab()` function is available:
 
 ```typescript
+import { instantiatePrefab } from 'esengine';
+
 const result = await instantiatePrefab(world, prefab, {
     assetServer: assets,
 });
 ```
+
+<Aside type="caution">
+  Circular prefab references are automatically detected and skipped with an error log, preventing infinite recursion.
+</Aside>
 
 <Aside type="note">
   Prefab files are cached by the asset server. Loading the same `.esprefab` path multiple times returns the cached result.

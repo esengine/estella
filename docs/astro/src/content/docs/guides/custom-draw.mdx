@@ -166,20 +166,21 @@ const primitives = Draw.getPrimitiveCount();
 
 ```typescript
 import { registerDrawCallback, Draw } from 'esengine';
-import { defineSystem, addSystem, Query, LocalTransform, Collider } from 'esengine';
+import { defineSystem, addSystem, Query, LocalTransform } from 'esengine';
+import { BoxCollider } from 'esengine/physics';
 
-const colliders: Array<{ x: number; y: number; w: number; h: number }> = [];
+const boxes: Array<{ x: number; y: number; w: number; h: number }> = [];
 
 addSystem(defineSystem(
-    [Query(LocalTransform, Collider)],
+    [Query(LocalTransform, BoxCollider)],
     (query) => {
-        colliders.length = 0;
+        boxes.length = 0;
         for (const [entity, transform, collider] of query) {
-            colliders.push({
-                x: transform.position.x,
-                y: transform.position.y,
-                w: collider.width,
-                h: collider.height,
+            boxes.push({
+                x: transform.position.x + collider.offset.x,
+                y: transform.position.y + collider.offset.y,
+                w: collider.halfExtents.x * 2,
+                h: collider.halfExtents.y * 2,
             });
         }
     }
@@ -187,7 +188,7 @@ addSystem(defineSystem(
 
 registerDrawCallback('debug-colliders', () => {
     const green = { r: 0, g: 1, b: 0, a: 0.5 };
-    for (const c of colliders) {
+    for (const c of boxes) {
         Draw.rectOutline(
             { x: c.x, y: c.y },
             { x: c.w, y: c.h },

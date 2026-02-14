@@ -57,7 +57,11 @@ addSystemToSchedule(Schedule.FixedUpdate, physicsSystem);
 | `FixedPostUpdate` | At fixed intervals, after FixedUpdate |
 
 <Aside type="note">
-  The Fixed schedules (`FixedPreUpdate`, `FixedUpdate`, `FixedPostUpdate`) run at a fixed timestep of 1/60s using an accumulator. In a single frame they may execute zero or multiple times depending on the frame duration. Use them for physics and other deterministic logic that requires consistent time steps.
+  The Fixed schedules (`FixedPreUpdate`, `FixedUpdate`, `FixedPostUpdate`) run at a fixed timestep of 1/60s using an accumulator. In a single frame they may execute zero or multiple times depending on the frame duration, up to a maximum of **8 iterations** per frame. Use them for physics and other deterministic logic that requires consistent time steps.
+</Aside>
+
+<Aside type="note">
+  Delta time is clamped to a maximum of **250ms** (0.25s). If a frame takes longer (e.g., due to a tab being inactive), the excess time is discarded to prevent large simulation jumps.
 </Aside>
 
 ## System Parameters
@@ -78,7 +82,7 @@ defineSystem([Commands()], (cmds) => {
 
     // Modify an existing entity
     cmds.entity(bullet)
-        .insert(Velocity, { linear: { x: 100, y: 0 } })
+        .insert(Velocity, { linear: { x: 100, y: 0, z: 0 } })
         .remove(Sprite);
 
     // Despawn an entity
@@ -190,6 +194,10 @@ addSystem(defineSystem(
     }
 ));
 ```
+
+## Error Handling
+
+Each system runs inside its own try/catch boundary. If a system throws an error, it is caught and logged to the console without crashing the entire game loop. Other systems continue to execute normally.
 
 ## Next Steps
 

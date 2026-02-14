@@ -137,6 +137,10 @@ addSystem(defineSystem(
 ));
 ```
 
+## 多纹理批处理
+
+使用多个图集页的 Spine 骨骼会被渲染器自动批处理。无需额外配置 — C++ 后端透明地处理多纹理情况，即使是复杂的多图集角色也能保持较低的 draw call。
+
 <Aside type="tip">
   Spine 渲染由 C++ 后端处理。TypeScript 只负责设置组件数据 — 引擎自动处理加载、混合和绘制。
 </Aside>

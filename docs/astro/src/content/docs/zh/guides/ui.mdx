@@ -27,8 +27,8 @@ import { Aside } from '@astrojs/starlight/components';
 | `fontFamily` | string | `'Arial'` | 字体名称 |
 | `fontSize` | number | `24` | 字号（像素） |
 | `color` | Color | `{r:1, g:1, b:1, a:1}` | 文本颜色 RGBA（0–1） |
-| `align` | TextAlign | `Left` | 水平对齐方式 |
-| `verticalAlign` | TextVerticalAlign | `Top` | 垂直对齐方式 |
+| `align` | TextAlign | `Left` | 水平对齐方式（编辑器默认为 `Center`） |
+| `verticalAlign` | TextVerticalAlign | `Top` | 垂直对齐方式（编辑器默认为 `Middle`） |
 | `wordWrap` | boolean | `true` | 启用自动换行 |
 | `overflow` | TextOverflow | `Visible` | 溢出处理模式 |
 | `lineHeight` | number | `1.2` | 行高倍率 |
@@ -162,10 +162,10 @@ addSystem(defineSystem(
     [Res(Input), Query(Children, UIMask, ScrollList), Query(Mut(LocalTransform))],
     (input, maskQuery, childQuery) => {
         for (const [entity, children, mask, scroll] of maskQuery) {
-            const scrollDelta = input.getScrollDelta();
+            const scroll = input.getScrollDelta();
             for (const child of children.entities) {
                 const [, transform] = childQuery.get(child);
-                transform.position.y += scrollDelta * 20;
+                transform.position.y += scroll.y * 20;
             }
         }
     }
@@ -244,7 +244,7 @@ addSystem(defineSystem(
 ));
 ```
 
-**事件类型：** `click`、`press`、`release`、`hover_enter`、`hover_exit`
+**事件类型：** `click`、`press`、`release`、`hover_enter`、`hover_exit`、`submit`、`change`
 
 ### ScreenSpace
 

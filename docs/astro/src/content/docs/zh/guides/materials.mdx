@@ -207,7 +207,7 @@ sprite.material = loaded.handle;
 
 ```typescript
 import { defineSystem, addSystem, Query, Mut, Res } from 'esengine';
-import { Sprite, Material, BlendMode, Time } from 'esengine';
+import { Sprite, Material, BlendMode, ShaderSources, Time } from 'esengine';
 
 const flashShader = Material.createShader(
     ShaderSources.SPRITE_VERTEX,

@@ -17,7 +17,7 @@ import { Aside } from '@astrojs/starlight/components';
 
 | 属性 | 类型 | 说明 |
 |------|------|------|
-| `position` | Vec3 | 世界坐标 `{ x, y, z }` |
+| `position` | Vec3 | 局部坐标 `{ x, y, z }` |
 | `rotation` | Quat | 四元数 `{ w, x, y, z }` |
 | `scale` | Vec3 | 缩放因子 `{ x, y, z }` |
 
@@ -31,9 +31,9 @@ import { Aside } from '@astrojs/starlight/components';
 
 | 属性 | 类型 | 说明 |
 |------|------|------|
-| `projectionType` | number | 0 = 透视，1 = 正交 |
+| `projectionType` | ProjectionType | `Orthographic` — 使用 `ProjectionType.Perspective` (0) 或 `ProjectionType.Orthographic` (1) |
 | `fov` | number | 视角角度（仅透视） |
-| `orthoSize` | number | 半高世界单位（仅正交） |
+| `orthoSize` | number | 半高世界单位（仅正交）。默认：`540` |
 | `nearPlane` | number | 近裁剪面 |
 | `farPlane` | number | 远裁剪面 |
 | `isActive` | boolean | 是否用于渲染 |
@@ -43,7 +43,7 @@ import { Aside } from '@astrojs/starlight/components';
 | `viewportY` | number | 视口底边缘（0–1）。默认：0 |
 | `viewportW` | number | 视口宽度（0–1）。默认：1 |
 | `viewportH` | number | 视口高度（0–1）。默认：1 |
-| `clearFlags` | number | 缓冲区清除模式：0=无, 1=颜色, 2=深度, 3=两者 |
+| `clearFlags` | ClearFlags | `ClearFlags.ColorAndDepth` (3) — `None` (0)、`ColorOnly` (1)、`DepthOnly` (2)、`ColorAndDepth` (3) |
 | `showFrustum` | boolean | 在编辑器中显示相机视锥线框 |
 
 ### Canvas
@@ -54,7 +54,7 @@ import { Aside } from '@astrojs/starlight/components';
 |------|------|------|
 | `designResolution` | Vec2 | 设计分辨率 `{ x, y }` |
 | `pixelsPerUnit` | number | 每世界单位像素数 |
-| `scaleMode` | number | 画布缩放模式 |
+| `scaleMode` | ScaleMode | `ScaleMode.FixedHeight` (1) — `FixedWidth` (0)、`FixedHeight` (1)、`Expand` (2)、`Shrink` (3)、`Match` (4) |
 | `matchWidthOrHeight` | number | 宽高匹配平衡 |
 | `backgroundColor` | Color | 清屏颜色 RGBA |
 

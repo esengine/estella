@@ -17,7 +17,7 @@ Position, rotation, and scale of an entity.
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `position` | Vec3 | World position `{ x, y, z }` |
+| `position` | Vec3 | Local position `{ x, y, z }` |
 | `rotation` | Quat | Quaternion `{ w, x, y, z }` |
 | `scale` | Vec3 | Scale factor `{ x, y, z }` |
 
@@ -31,9 +31,9 @@ View settings. At least one active camera is required to see anything. The edito
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `projectionType` | number | 0 = Perspective, 1 = Orthographic |
+| `projectionType` | ProjectionType | `Orthographic` — use `ProjectionType.Perspective` (0) or `ProjectionType.Orthographic` (1) |
 | `fov` | number | Field of view in degrees (perspective only) |
-| `orthoSize` | number | Half-height in world units (orthographic only) |
+| `orthoSize` | number | Half-height in world units (orthographic only). Default: `540` |
 | `nearPlane` | number | Near clipping plane |
 | `farPlane` | number | Far clipping plane |
 | `isActive` | boolean | Whether this camera is used for rendering |
@@ -43,7 +43,7 @@ View settings. At least one active camera is required to see anything. The edito
 | `viewportY` | number | Viewport bottom edge (0–1). Default: 0 |
 | `viewportW` | number | Viewport width (0–1). Default: 1 |
 | `viewportH` | number | Viewport height (0–1). Default: 1 |
-| `clearFlags` | number | Buffer clear mode: 0=None, 1=Color, 2=Depth, 3=Both |
+| `clearFlags` | ClearFlags | `ClearFlags.ColorAndDepth` (3) — `None` (0), `ColorOnly` (1), `DepthOnly` (2), `ColorAndDepth` (3) |
 | `showFrustum` | boolean | Draw the camera frustum wireframe in the editor |
 
 ### Canvas
@@ -54,7 +54,7 @@ Display settings for the rendering surface.
 |----------|------|-------------|
 | `designResolution` | Vec2 | Design resolution `{ x, y }` |
 | `pixelsPerUnit` | number | Pixels per world unit |
-| `scaleMode` | number | How the canvas scales |
+| `scaleMode` | ScaleMode | `ScaleMode.FixedHeight` (1) — `FixedWidth` (0), `FixedHeight` (1), `Expand` (2), `Shrink` (3), `Match` (4) |
 | `matchWidthOrHeight` | number | Balance between width/height matching |
 | `backgroundColor` | Color | Clear color RGBA |
 

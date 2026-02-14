@@ -13,9 +13,9 @@ import { Aside } from '@astrojs/starlight/components';
 |------|------|--------|------|
 | `texture` | number | `INVALID_TEXTURE` | 纹理句柄，无纹理 = 纯色 |
 | `color` | Color | `{r:1, g:1, b:1, a:1}` | 着色 RGBA（0–1） |
-| `size` | Vec2 | `{32, 32}` | 宽高（像素） |
-| `uvOffset` | Vec2 | `{0, 0}` | 纹理坐标偏移 |
-| `uvScale` | Vec2 | `{1, 1}` | 纹理坐标缩放 |
+| `size` | Vec2 | `{x: 32, y: 32}` | 宽高（像素） |
+| `uvOffset` | Vec2 | `{x: 0, y: 0}` | 纹理坐标偏移 |
+| `uvScale` | Vec2 | `{x: 1, y: 1}` | 纹理坐标缩放 |
 | `layer` | number | `0` | 渲染顺序（越大越靠前） |
 | `flipX` | boolean | `false` | 水平翻转 |
 | `flipY` | boolean | `false` | 垂直翻转 |

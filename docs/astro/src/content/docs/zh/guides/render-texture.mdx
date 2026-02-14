@@ -38,7 +38,7 @@ import { RenderTexture, Draw } from 'esengine';
 
 RenderTexture.begin(rt, viewProjectionMatrix);
 
-Draw.rect(0, 0, 100, 100, { r: 1, g: 0, b: 0, a: 1 });
+Draw.rect({ x: 0, y: 0 }, { x: 100, y: 100 }, { r: 1, g: 0, b: 0, a: 1 });
 
 RenderTexture.end();
 ```
@@ -56,7 +56,7 @@ RenderTexture.end();
 ```typescript
 import { Draw, Sprite } from 'esengine';
 
-Draw.texture(rt.textureId, 0, 0, rt.width, rt.height);
+Draw.texture({ x: 0, y: 0 }, { x: rt.width, y: rt.height }, rt.textureId);
 ```
 
 也可以将其赋值给 Sprite 的 texture 用于基于实体的渲染。

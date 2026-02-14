@@ -1,0 +1,199 @@
+---
+title: Building
+description: Building ESEngine projects for different platforms
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+ESEngine projects can be built for two target platforms from the editor: **Playable Ads** (a single self-contained HTML file) and **WeChat MiniGame** (a directory structure ready for WeChat DevTools).
+
+## Build Targets
+
+| Platform | Output | Description |
+|----------|--------|-------------|
+| Playable Ads | Single `.html` file | All assets, WASM, and scripts inlined into one file. Designed for ad networks that require a single-file deliverable. |
+| WeChat MiniGame | Directory | Contains `game.js`, `game.json`, `project.config.json`, scene files, and assets. Ready to open in WeChat DevTools. |
+
+## Using the Build Panel
+
+Open the **Build** panel from the editor toolbar. The panel has a three-column layout:
+
+1. **Left sidebar** -- lists platforms and build configurations. Click a platform to filter, then select a configuration.
+2. **Center detail** -- shows the selected configuration's settings: scenes, script defines, and platform-specific options.
+3. **Right output** -- displays build history, status, output size, and actions (Open Folder, Preview).
+
+### Creating a Build Configuration
+
+Click **Add** in the toolbar to create a new configuration. Choose a name and target platform. The editor also provides pre-built **Templates** (accessible via the Templates button) for common setups like "Playable Production" or "WeChat Development".
+
+### Running a Build
+
+1. Select a configuration from the sidebar
+2. Review the scenes list -- click **Add Current Scene** to include the scene currently open in the editor
+3. Adjust platform-specific settings as needed
+4. Click **Build** (or press `Cmd/Ctrl + B`)
+
+Build progress and logs are displayed in real time via a toast notification. When complete, you can click **Open Folder** to navigate to the output.
+
+<Aside type="tip">
+  Use **Build All** to build every configuration in sequence. This is useful for producing both development and production builds at once.
+</Aside>
+
+## Build Configuration
+
+Each configuration contains:
+
+| Setting | Purpose |
+|---------|---------|
+| **Name** | Human-readable label for this configuration |
+| **Platform** | Target platform: Playable Ads or WeChat MiniGame |
+| **Scenes** | List of `.esscene` files to include in the build |
+| **Script Defines** | Compile-time defines (e.g. `DEBUG`). Accessible in your scripts via `process.env.DEBUG`. |
+| **Platform Settings** | Platform-specific options (see below) |
+
+### Playable Ads Settings
+
+| Setting | Description |
+|---------|-------------|
+| **Startup Scene** | Scene to load on startup (defaults to the first scene in the list) |
+| **Development Build** | Include debug info in the output |
+| **Minify Code** | Minify bundled JavaScript for smaller output |
+| **Embed Fonts** | Inline font files into the HTML |
+| **Output Path** | Where to write the output `.html` file (e.g. `build/playable.html`) |
+| **Enable Built-in CTA** | Show a built-in "Install Now" call-to-action button |
+| **CTA URL** | Destination URL when the CTA button is clicked |
+
+<Aside type="note">
+  Playable ads embed everything into a single HTML file -- WASM binary, textures, scene data, and scripts are all base64-encoded and inlined.
+</Aside>
+
+### WeChat MiniGame Settings
+
+| Setting | Description |
+|---------|-------------|
+| **AppID** | WeChat MiniGame AppID. Use `touristappid` for testing without a registered app. |
+| **Version** | Version string (e.g. `1.0.0`) |
+| **Screen Orientation** | `Portrait` or `Landscape` |
+| **Bundle Mode** | `Subpackage` (recommended), `Single Package`, or `Single File` |
+| **Output Directory** | Where to write the output directory (e.g. `build/wechat`) |
+
+## Asset Export Configuration
+
+The build system determines which assets to include using three modes, configurable per folder in the editor:
+
+| Mode | Behavior |
+|------|----------|
+| `auto` (default) | Only include assets that are referenced by scenes or prefabs in the build |
+| `always` | Include all assets in the folder regardless of references |
+| `exclude` | Never include assets from this folder |
+
+Asset export modes are stored in `.esengine/asset-export.json`:
+
+```json
+{
+    "version": "1.0",
+    "folders": {
+        "assets/ui": "always",
+        "assets/debug": "exclude"
+    }
+}
+```
+
+Folders inherit their parent's mode. For example, if `assets/sprites` is set to `always`, all files under `assets/sprites/enemies/` are also included.
+
+## Build Pipeline
+
+When you click Build, the editor runs the following pipeline:
+
+### 1. Asset Collection
+
+The build scans scene files and recursively collects:
+
+- Textures referenced by `Sprite`, `SpineRenderer`, and other components
+- Materials and their shader dependencies
+- Spine atlas files and their texture pages
+- Bitmap font files and their glyph textures
+- Nested prefabs and their transitive asset references
+
+### 2. Atlas Packing
+
+Referenced images are packed into texture atlas pages (max 2048x2048 by default). Scene data is rewritten to use atlas coordinates, so sprites automatically reference the packed atlas at runtime.
+
+### 3. Material Compilation
+
+`.esmaterial` files are compiled to JSON, resolving shader references and inlining property values.
+
+### 4. Script Bundling
+
+User scripts from the `src/` directory are compiled and bundled with esbuild. The `esengine` SDK is treated as an external module -- on Playable it is inlined, on WeChat it is loaded from `sdk.js`.
+
+### 5. Platform Emission
+
+The final output is produced for the target platform:
+
+- **Playable Ads** -- assembles a single HTML file with all assets base64-encoded inline
+- **WeChat MiniGame** -- writes a directory with `game.js`, `game.json`, `project.config.json`, scenes, assets, and WASM files
+
+## Output Structure
+
+### Playable Ads
+
+```
+build/
+  playable.html          # single self-contained file
+```
+
+### WeChat MiniGame
+
+```
+build/wechat/
+  project.config.json    # WeChat DevTools project config
+  game.json              # MiniGame manifest
+  game.js                # entry point (engine init + user scripts)
+  esengine.js            # WASM engine loader
+  esengine.wasm          # engine WASM binary
+  sdk.js                 # SDK runtime
+  spine.js / spine.wasm  # Spine runtime (if Spine is enabled)
+  physics.js / physics.wasm  # physics engine (if physics is enabled)
+  atlas_0.png            # packed texture atlas pages
+  asset-manifest.json    # addressable asset manifest
+  scenes/
+    Level1.json          # exported scene data
+  assets/
+    ...                  # non-packed asset files
+```
+
+## Addressable Manifest
+
+Both platforms generate an `asset-manifest.json` that maps asset UUIDs to runtime paths. This enables the runtime to resolve assets by UUID or address and to reconstruct atlas frames from packed pages.
+
+```json
+{
+    "version": "2.0",
+    "groups": {
+        "default": {
+            "bundleMode": "together",
+            "labels": [],
+            "assets": {
+                "uuid-1": {
+                    "path": "assets/sprites/player.png",
+                    "type": "texture",
+                    "size": 1024,
+                    "labels": ["character"]
+                }
+            }
+        }
+    }
+}
+```
+
+## Project Settings
+
+Build behavior is also influenced by project-level settings:
+
+| Setting | Effect |
+|---------|--------|
+| Spine version | Includes Spine runtime WASM module in the build |
+| Enable physics | Includes physics WASM module and generates physics config |
+| Physics gravity | Sets the gravity vector in the physics config |
+| Physics timestep | Sets the fixed simulation timestep |

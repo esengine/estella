@@ -59,7 +59,7 @@ query.forEach((entity, transform, sprite) => {
 
 ### single
 
-获取唯一匹配的实体。如果有零个或多个匹配则返回 `null`。
+获取第一个匹配的实体。如果没有匹配的实体则返回 `null`。
 
 ```typescript
 const result = query.single();

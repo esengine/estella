@@ -27,8 +27,8 @@ In the scene editor: create an entity → add `LocalTransform`, `Sprite`, `Text`
 | `fontFamily` | string | `'Arial'` | Font family name |
 | `fontSize` | number | `24` | Font size in pixels |
 | `color` | Color | `{r:1, g:1, b:1, a:1}` | Text color RGBA (0–1) |
-| `align` | TextAlign | `Left` | Horizontal alignment |
-| `verticalAlign` | TextVerticalAlign | `Top` | Vertical alignment |
+| `align` | TextAlign | `Left` | Horizontal alignment (editor defaults to `Center`) |
+| `verticalAlign` | TextVerticalAlign | `Top` | Vertical alignment (editor defaults to `Middle`) |
 | `wordWrap` | boolean | `true` | Enable automatic word wrapping |
 | `overflow` | TextOverflow | `Visible` | Overflow handling mode |
 | `lineHeight` | number | `1.2` | Line height multiplier |
@@ -162,10 +162,10 @@ addSystem(defineSystem(
     [Res(Input), Query(Children, UIMask, ScrollList), Query(Mut(LocalTransform))],
     (input, maskQuery, childQuery) => {
         for (const [entity, children, mask, scroll] of maskQuery) {
-            const scrollDelta = input.getScrollDelta();
+            const scroll = input.getScrollDelta();
             for (const child of children.entities) {
                 const [, transform] = childQuery.get(child);
-                transform.position.y += scrollDelta * 20;
+                transform.position.y += scroll.y * 20;
             }
         }
     }
@@ -244,7 +244,7 @@ addSystem(defineSystem(
 ));
 ```
 
-**Event types:** `click`, `press`, `release`, `hover_enter`, `hover_exit`
+**Event types:** `click`, `press`, `release`, `hover_enter`, `hover_exit`, `submit`, `change`
 
 ### ScreenSpace
 

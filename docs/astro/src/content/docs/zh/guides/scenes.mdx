@@ -111,7 +111,7 @@ addSystem(defineSystem(
 import { defineSystem, addSystem, Commands, LocalTransform, Sprite } from 'esengine';
 
 addSystem(defineSystem(
-    [Commands],
+    [Commands()],
     (commands) => {
         // 生成一个带组件的新实体
         commands.spawn()

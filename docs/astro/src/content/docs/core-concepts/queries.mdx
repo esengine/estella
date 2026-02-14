@@ -59,7 +59,7 @@ query.forEach((entity, transform, sprite) => {
 
 ### single
 
-Get the one and only matching entity. Returns `null` if there are zero or more than one matches.
+Get the first matching entity. Returns `null` if no entities match.
 
 ```typescript
 const result = query.single();
