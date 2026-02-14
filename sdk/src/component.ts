@@ -4,6 +4,7 @@
  */
 
 import { Entity, Vec2, Vec3, Color, Quat, INVALID_TEXTURE, INVALID_FONT } from './types';
+import { DEFAULT_DESIGN_WIDTH, DEFAULT_DESIGN_HEIGHT, DEFAULT_PIXELS_PER_UNIT } from './defaults';
 import type {
     RigidBodyData, BoxColliderData, CircleColliderData, CapsuleColliderData,
 } from './physics/PhysicsComponents';
@@ -131,6 +132,36 @@ export function defineBuiltin<T>(name: string, defaults: T): BuiltinComponentDef
 }
 
 // =============================================================================
+// Camera / Canvas Enums
+// =============================================================================
+
+export const ProjectionType = {
+    Perspective: 0,
+    Orthographic: 1,
+} as const;
+
+export type ProjectionType = (typeof ProjectionType)[keyof typeof ProjectionType];
+
+export const ClearFlags = {
+    None: 0,
+    ColorOnly: 1,
+    DepthOnly: 2,
+    ColorAndDepth: 3,
+} as const;
+
+export type ClearFlags = (typeof ClearFlags)[keyof typeof ClearFlags];
+
+export const ScaleMode = {
+    FixedWidth: 0,
+    FixedHeight: 1,
+    Expand: 2,
+    Shrink: 3,
+    Match: 4,
+} as const;
+
+export type ScaleMode = (typeof ScaleMode)[keyof typeof ScaleMode];
+
+// =============================================================================
 // Builtin Component Types
 // =============================================================================
 
@@ -255,26 +286,26 @@ export const Sprite = defineBuiltin<SpriteData>('Sprite', {
 });
 
 export const Camera = defineBuiltin<CameraData>('Camera', {
-    projectionType: 0,
+    projectionType: ProjectionType.Orthographic,
     fov: 60,
-    orthoSize: 5,
+    orthoSize: 540,
     nearPlane: 0.1,
     farPlane: 1000,
     aspectRatio: 1.77,
     isActive: true,
     priority: 0,
-    showFrustum: true,
+    showFrustum: false,
     viewportX: 0,
     viewportY: 0,
     viewportW: 1,
     viewportH: 1,
-    clearFlags: 3,
+    clearFlags: ClearFlags.ColorAndDepth,
 });
 
 export const Canvas = defineBuiltin<CanvasData>('Canvas', {
-    designResolution: { x: 1920, y: 1080 },
-    pixelsPerUnit: 100,
-    scaleMode: 1,
+    designResolution: { x: DEFAULT_DESIGN_WIDTH, y: DEFAULT_DESIGN_HEIGHT },
+    pixelsPerUnit: DEFAULT_PIXELS_PER_UNIT,
+    scaleMode: ScaleMode.FixedHeight,
     matchWidthOrHeight: 0.5,
     backgroundColor: { r: 0, g: 0, b: 0, a: 1 }
 });

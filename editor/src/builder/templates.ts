@@ -18,10 +18,13 @@ export const PLAYABLE_HTML_TEMPLATE = `<!DOCTYPE html>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{width:100%;height:100%;overflow:hidden;background:#000}
 #canvas{display:block;width:100%;height:100%;touch-action:none}
+#cta{position:fixed;bottom:5%;left:50%;transform:translateX(-50%);padding:12px 32px;font-size:18px;font-weight:bold;color:#fff;background:#ff4444;border:none;border-radius:8px;cursor:pointer;z-index:999;text-transform:uppercase;box-shadow:0 2px 8px rgba(0,0,0,0.3)}
+#cta:active{transform:translateX(-50%) scale(0.95)}
 </style>
 </head>
 <body>
 <canvas id="canvas"></canvas>
+<button id="cta" style="display:none">Install Now</button>
 <script>
 {{WASM_SDK}}
 </script>
@@ -60,7 +63,14 @@ function decodeBinary(dataUrl){
   return a;
 }
 
+function installCTA(){
+  if(typeof mraid!=='undefined'&&mraid.open){mraid.open({{CTA_URL}})}
+  else{window.open({{CTA_URL}},'_blank')}
+}
+document.getElementById('cta').addEventListener('click',installCTA);
+
 (async function(){
+  try{
   var c=document.getElementById('canvas');
   function resize(){var dpr=window.devicePixelRatio||1;c.width=window.innerWidth*dpr;c.height=window.innerHeight*dpr}
   window.addEventListener('resize',resize);
@@ -116,7 +126,9 @@ function decodeBinary(dataUrl){
   var screenAspect=c.width/c.height;
   es.updateCameraAspectRatio(app.world,screenAspect);
 
+  document.getElementById('cta').style.display='block';
   app.run();
+  }catch(e){console.error('Playable init error:',e)}
 })();
 </script>
 </body>
@@ -169,17 +181,34 @@ async function initPhysicsModule() {
 
     const sceneLoading = firstSceneName ? `
     try {
-        var wxfs = wx.getFileSystemManager();
         var provider = {
             loadPixels: function(ref) { return SDK.wxLoadImagePixels(resolvePath(ref)); },
             loadPixelsRaw: function(ref) { return SDK.wxLoadImagePixels(resolvePath(ref)); },
-            readText: function(ref) { return wxfs.readFileSync(resolvePath(ref), 'utf-8'); },
-            readBinary: function(ref) { return new Uint8Array(wxfs.readFileSync(resolvePath(ref))); },
+            readText: function(ref) {
+                return new Promise(function(resolve, reject) {
+                    wxfs.readFile({ filePath: resolvePath(ref), encoding: 'utf-8',
+                        success: function(res) { resolve(res.data); },
+                        fail: function(err) { reject(new Error(err.errMsg)); }
+                    });
+                });
+            },
+            readBinary: function(ref) {
+                return new Promise(function(resolve, reject) {
+                    wxfs.readFile({ filePath: resolvePath(ref),
+                        success: function(res) { resolve(new Uint8Array(res.data)); },
+                        fail: function(err) { reject(new Error(err.errMsg)); }
+                    });
+                });
+            },
             resolvePath: resolvePath
         };
 
-        var sceneJson = wxfs.readFileSync('scenes/${firstSceneName}.json', 'utf-8');
-        var sceneData = JSON.parse(sceneJson);
+        var sceneData = await new Promise(function(resolve, reject) {
+            wxfs.readFile({ filePath: 'scenes/${firstSceneName}.json', encoding: 'utf-8',
+                success: function(res) { resolve(JSON.parse(res.data)); },
+                fail: function(err) { reject(new Error(err.errMsg)); }
+            });
+        });
 
         await SDK.loadRuntimeScene(app, module, sceneData, provider, spineModule, physicsModule, ${physicsConfig}, manifest);
 
@@ -195,19 +224,6 @@ var ESEngineModule = require('./esengine.js');
 var SDK = require('./sdk.js');
 globalThis.__esengine_sdk = SDK;
 
-var manifest = JSON.parse(wx.getFileSystemManager().readFileSync('asset-manifest.json', 'utf-8'));
-var assetIndex = {};
-for (var gn in manifest.groups) {
-    var g = manifest.groups[gn];
-    for (var uuid in g.assets) {
-        assetIndex[uuid] = g.assets[uuid];
-    }
-}
-function resolvePath(ref) {
-    var entry = assetIndex[ref];
-    return entry ? entry.path : ref;
-}
-
 var spineModule = null;
 ${spineInit}
 
@@ -215,6 +231,25 @@ var physicsModule = null;
 ${physicsInit}
 
 (async function() {
+    var wxfs = wx.getFileSystemManager();
+    var manifest = await new Promise(function(resolve, reject) {
+        wxfs.readFile({ filePath: 'asset-manifest.json', encoding: 'utf-8',
+            success: function(res) { resolve(JSON.parse(res.data)); },
+            fail: function(err) { reject(new Error(err.errMsg)); }
+        });
+    });
+    var assetIndex = {};
+    for (var gn in manifest.groups) {
+        var g = manifest.groups[gn];
+        for (var uuid in g.assets) {
+            assetIndex[uuid] = g.assets[uuid];
+        }
+    }
+    function resolvePath(ref) {
+        var entry = assetIndex[ref];
+        return entry ? entry.path : ref;
+    }
+
     var canvas = wx.createCanvas();
     var info = wx.getSystemInfoSync();
     canvas.width = info.windowWidth * info.pixelRatio;

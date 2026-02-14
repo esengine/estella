@@ -1,4 +1,5 @@
 import { registerSettingsSection, registerSettingsItem } from './SettingsRegistry';
+import { DEFAULT_DESIGN_WIDTH, DEFAULT_DESIGN_HEIGHT } from 'esengine';
 
 export function registerBuiltinSettings(): void {
     registerSettingsSection({
@@ -124,7 +125,7 @@ export function registerBuiltinSettings(): void {
         section: 'project',
         label: 'Design Width',
         type: 'number',
-        defaultValue: 1920,
+        defaultValue: DEFAULT_DESIGN_WIDTH,
         min: 1,
         step: 1,
         order: 4,
@@ -135,7 +136,7 @@ export function registerBuiltinSettings(): void {
         section: 'project',
         label: 'Design Height',
         type: 'number',
-        defaultValue: 1080,
+        defaultValue: DEFAULT_DESIGN_HEIGHT,
         min: 1,
         step: 1,
         order: 5,

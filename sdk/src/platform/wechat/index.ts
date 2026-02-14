@@ -67,20 +67,30 @@ class WeChatPlatformAdapter implements PlatformAdapter {
     }
 
     bindInputEvents(callbacks: InputEventCallbacks, _target?: unknown): void {
+        const { pixelRatio } = wx.getSystemInfoSync();
+
         wx.onTouchStart((e: any) => {
-            const touch = e.touches[0];
-            if (touch) {
-                callbacks.onPointerDown(0, touch.clientX, touch.clientY);
+            for (const touch of e.touches) {
+                callbacks.onPointerDown(
+                    touch.identifier,
+                    touch.clientX * pixelRatio,
+                    touch.clientY * pixelRatio
+                );
             }
         });
         wx.onTouchMove((e: any) => {
             const touch = e.touches[0];
             if (touch) {
-                callbacks.onPointerMove(touch.clientX, touch.clientY);
+                callbacks.onPointerMove(
+                    touch.clientX * pixelRatio,
+                    touch.clientY * pixelRatio
+                );
             }
         });
-        wx.onTouchEnd(() => {
-            callbacks.onPointerUp(0);
+        wx.onTouchEnd((e: any) => {
+            for (const touch of e.changedTouches) {
+                callbacks.onPointerUp(touch.identifier);
+            }
         });
     }
 }

@@ -19,26 +19,15 @@ export interface ImageLoadResult {
 // Canvas Management
 // =============================================================================
 
-let offscreenCanvas: WechatMinigame.Canvas | null = null;
-let offscreenCtx: CanvasRenderingContext2D | null = null;
-
 function getOffscreenCanvas(width: number, height: number): {
     canvas: WechatMinigame.Canvas;
     ctx: CanvasRenderingContext2D;
 } {
-    if (!offscreenCanvas) {
-        offscreenCanvas = wx.createCanvas();
-        offscreenCanvas.width = width;
-        offscreenCanvas.height = height;
-        offscreenCtx = offscreenCanvas.getContext('2d') as CanvasRenderingContext2D;
-    }
-
-    if (offscreenCanvas.width < width || offscreenCanvas.height < height) {
-        offscreenCanvas.width = Math.max(offscreenCanvas.width, width);
-        offscreenCanvas.height = Math.max(offscreenCanvas.height, height);
-    }
-
-    return { canvas: offscreenCanvas, ctx: offscreenCtx! };
+    const canvas = wx.createCanvas();
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
+    return { canvas, ctx };
 }
 
 // =============================================================================

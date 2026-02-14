@@ -1,6 +1,7 @@
 import type { App, Plugin } from '../app';
 import type { Entity } from '../types';
 import { INVALID_TEXTURE } from '../types';
+import { DEFAULT_TEXT_CANVAS_SIZE } from '../defaults';
 import { defineSystem, Schedule } from '../system';
 import { registerComponent, Sprite, type SpriteData } from '../component';
 import { TextInput, type TextInputData } from './TextInput';
@@ -23,7 +24,7 @@ export class TextInputPlugin implements Plugin {
 
         const world = app.world;
         const textureCache = new Map<Entity, number>();
-        const canvas = platformCreateCanvas(512, 64);
+        const canvas = platformCreateCanvas(DEFAULT_TEXT_CANVAS_SIZE, 64);
         const ctx = canvas.getContext('2d', { willReadFrequently: true })! as
             CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 

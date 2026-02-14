@@ -289,6 +289,8 @@ ${imports}
             await this.walkDirectory(fs, assetsDir, 'assets', allFiles);
         }
 
+        const pending: Array<Promise<void>> = [];
+
         for (const relativePath of allFiles) {
             if (artifact.packedPaths.has(relativePath)) continue;
             if (relativePath.endsWith('.esshader')) continue;
@@ -303,13 +305,14 @@ ${imports}
             }
 
             if (relativePath.endsWith('.esprefab')) {
-                const fullPath = joinPath(projectDir, relativePath);
-                const content = await fs.readFile(fullPath);
-                if (content) {
-                    const json = convertPrefabWithResolvedRefs(content, artifact);
-                    const base64 = btoa(json);
-                    assets.set(relativePath, `data:application/json;base64,${base64}`);
-                }
+                pending.push(
+                    fs.readFile(joinPath(projectDir, relativePath)).then(content => {
+                        if (content) {
+                            const json = convertPrefabWithResolvedRefs(content, artifact);
+                            assets.set(relativePath, `data:application/json;base64,${btoa(json)}`);
+                        }
+                    })
+                );
                 continue;
             }
 
@@ -317,14 +320,17 @@ ${imports}
             const mimeType = MIME_TYPES[ext];
             if (!mimeType) continue;
 
-            const fullPath = joinPath(projectDir, relativePath);
-            const binary = await fs.readBinaryFile(fullPath);
-            if (binary) {
-                const base64 = arrayBufferToBase64(binary);
-                assets.set(relativePath, `data:${mimeType};base64,${base64}`);
-            }
+            pending.push(
+                fs.readBinaryFile(joinPath(projectDir, relativePath)).then(binary => {
+                    if (binary) {
+                        const base64 = arrayBufferToBase64(binary);
+                        assets.set(relativePath, `data:${mimeType};base64,${base64}`);
+                    }
+                })
+            );
         }
 
+        await Promise.all(pending);
         return assets;
     }
 
@@ -374,6 +380,8 @@ ${imports}
             subStepCount: context.physicsSubStepCount ?? 4,
         });
 
+        const ctaUrl = JSON.stringify(context.config.playableSettings?.ctaUrl || '');
+
         return PLAYABLE_HTML_TEMPLATE
             .replace('{{WASM_SDK}}', () => wasmSdk)
             .replace('{{SPINE_SCRIPT}}', () => spineScript)
@@ -382,7 +390,8 @@ ${imports}
             .replace('{{ASSETS_MAP}}', () => `{${entries.join(',')}}`)
             .replace('{{SCENE_DATA}}', () => sceneData)
             .replace('{{PHYSICS_CONFIG}}', () => physicsConfig)
-            .replace('{{MANIFEST}}', () => manifestJson);
+            .replace('{{MANIFEST}}', () => manifestJson)
+            .replace(/\{\{CTA_URL\}\}/g, () => ctaUrl);
     }
 
 }

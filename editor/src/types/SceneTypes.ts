@@ -4,6 +4,7 @@
  */
 
 import type { Entity } from 'esengine';
+import { DEFAULT_DESIGN_WIDTH, DEFAULT_DESIGN_HEIGHT, DEFAULT_PIXELS_PER_UNIT } from 'esengine';
 import type { TextureMetadata } from './TextureMetadata';
 import type { PrefabInstanceData } from './PrefabTypes';
 
@@ -58,8 +59,8 @@ export function createEmptyScene(
     name: string = 'Untitled',
     designResolution?: { width: number; height: number },
 ): SceneData {
-    const res = designResolution ?? { width: 1920, height: 1080 };
-    const pixelsPerUnit = 100;
+    const res = designResolution ?? { width: DEFAULT_DESIGN_WIDTH, height: DEFAULT_DESIGN_HEIGHT };
+    const pixelsPerUnit = DEFAULT_PIXELS_PER_UNIT;
     const orthoSize = res.height / 2;
 
     return {

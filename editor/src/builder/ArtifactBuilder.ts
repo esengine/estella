@@ -113,12 +113,14 @@ export async function initializeEsbuild(): Promise<void> {
 // =============================================================================
 
 export function arrayBufferToBase64(buffer: Uint8Array): string {
-    let binary = '';
+    const CHUNK_SIZE = 0x2000;
     const bytes = new Uint8Array(buffer);
-    for (let i = 0; i < bytes.byteLength; i++) {
-        binary += String.fromCharCode(bytes[i]);
+    const chunks: string[] = [];
+    for (let i = 0; i < bytes.byteLength; i += CHUNK_SIZE) {
+        const slice = bytes.subarray(i, Math.min(i + CHUNK_SIZE, bytes.byteLength));
+        chunks.push(String.fromCharCode.apply(null, slice as unknown as number[]));
     }
-    return btoa(binary);
+    return btoa(chunks.join(''));
 }
 
 export function generateAddressableManifest(

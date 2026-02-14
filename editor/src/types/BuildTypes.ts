@@ -30,6 +30,7 @@ export interface PlayableSettings {
     minifyCode: boolean;
     embedFonts: boolean;
     outputPath: string;
+    ctaUrl: string;
 }
 
 export interface WeChatSubpackage {
@@ -80,6 +81,7 @@ export function createDefaultPlayableSettings(): PlayableSettings {
         minifyCode: false,
         embedFonts: true,
         outputPath: 'build/playable.html',
+        ctaUrl: '',
     };
 }
 
@@ -132,6 +134,7 @@ export function createDefaultBuildSettings(): BuildSettings {
                     minifyCode: false,
                     embedFonts: true,
                     outputPath: 'build/playable-dev.html',
+                    ctaUrl: '',
                 },
             },
             {
@@ -146,6 +149,7 @@ export function createDefaultBuildSettings(): BuildSettings {
                     minifyCode: true,
                     embedFonts: true,
                     outputPath: 'build/playable.html',
+                    ctaUrl: '',
                 },
             },
             {

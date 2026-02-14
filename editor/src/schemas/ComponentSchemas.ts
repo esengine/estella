@@ -89,8 +89,8 @@ export const CameraSchema: ComponentSchema = {
             name: 'projectionType',
             type: 'enum',
             options: [
-                { label: 'Orthographic', value: 0 },
-                { label: 'Perspective', value: 1 },
+                { label: 'Perspective', value: 0 },
+                { label: 'Orthographic', value: 1 },
             ],
         },
         { name: 'fov', type: 'number', min: 1, max: 179 },
@@ -486,10 +486,6 @@ export function getDefaultComponentData(typeName: string): Record<string, unknow
 }
 
 const editorInitialOverrides: Record<string, Record<string, unknown>> = {
-    Camera: {
-        projectionType: 1,
-        orthoSize: 540,
-    },
     BitmapText: {
         text: 'BitmapText',
         font: '',

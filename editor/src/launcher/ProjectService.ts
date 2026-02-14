@@ -9,6 +9,7 @@ import type {
     ProjectTemplate,
 } from '../types/ProjectTypes';
 import { ENGINE_VERSION } from '../types/ProjectTypes';
+import { DEFAULT_DESIGN_WIDTH, DEFAULT_DESIGN_HEIGHT, DEFAULT_PIXELS_PER_UNIT } from 'esengine';
 import { SdkExportService } from '../sdk';
 import { EditorExportService } from '../extension';
 import { getEditorContext } from '../context/EditorContext';
@@ -128,7 +129,7 @@ export async function createProject(
         created: now,
         modified: now,
         spineVersion: 'none',
-        designResolution: { width: 1920, height: 1080 },
+        designResolution: { width: DEFAULT_DESIGN_WIDTH, height: DEFAULT_DESIGN_HEIGHT },
     };
 
     const projectFilePath = joinPath(projectDir, 'project.esproject');
@@ -343,7 +344,7 @@ function createDefaultScene(
     _template: ProjectTemplate,
     designResolution: { width: number; height: number },
 ) {
-    const pixelsPerUnit = 100;
+    const pixelsPerUnit = DEFAULT_PIXELS_PER_UNIT;
     const orthoSize = designResolution.height / 2;
 
     return {

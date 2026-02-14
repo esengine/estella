@@ -17,6 +17,7 @@ import { getGlobalPathResolver } from '../asset';
 import { showErrorToast } from '../ui/Toast';
 import { createEmptyScene } from '../types/SceneTypes';
 import { getSettingsValue } from '../settings';
+import { DEFAULT_DESIGN_WIDTH, DEFAULT_DESIGN_HEIGHT } from 'esengine';
 
 // =============================================================================
 // Types
@@ -816,8 +817,8 @@ export const ${className} = defineComponent('${className}', {
         const platform = getPlatformAdapter();
         const filePath = `${parentPath}/${name}`;
 
-        const w = getSettingsValue<number>('project.designWidth') || 1920;
-        const h = getSettingsValue<number>('project.designHeight') || 1080;
+        const w = getSettingsValue<number>('project.designWidth') || DEFAULT_DESIGN_WIDTH;
+        const h = getSettingsValue<number>('project.designHeight') || DEFAULT_DESIGN_HEIGHT;
         const scene = createEmptyScene(name.replace('.esscene', ''), { width: w, height: h });
         const content = JSON.stringify(scene, null, 2);
 

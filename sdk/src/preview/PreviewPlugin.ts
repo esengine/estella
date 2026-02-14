@@ -6,7 +6,8 @@
 import type { App, Plugin } from '../app';
 import type { SceneData } from '../scene';
 import { loadRuntimeScene } from '../runtimeLoader';
-import { LocalTransform, Camera, Canvas, type LocalTransformData, type CameraData, type CanvasData } from '../component';
+import { LocalTransform, Camera, Canvas, ProjectionType, ClearFlags, type LocalTransformData, type CameraData, type CanvasData } from '../component';
+import { DEFAULT_DESIGN_WIDTH, DEFAULT_DESIGN_HEIGHT, DEFAULT_PIXELS_PER_UNIT } from '../defaults';
 import { platformFetch } from '../platform';
 import { WebAssetProvider } from './WebAssetProvider';
 
@@ -96,13 +97,13 @@ export class PreviewPlugin implements Plugin {
             console.warn('[PreviewPlugin] No active camera found, creating default camera');
 
             let orthoSize = 540;
-            let aspectRatio = 1920 / 1080;
+            let aspectRatio = DEFAULT_DESIGN_WIDTH / DEFAULT_DESIGN_HEIGHT;
 
             const canvasEntities = world.getEntitiesWithComponents([Canvas]);
             for (const entity of canvasEntities) {
                 const canvas = world.get(entity, Canvas) as CanvasData;
                 if (canvas.designResolution) {
-                    const ppu = canvas.pixelsPerUnit || 100;
+                    const ppu = canvas.pixelsPerUnit || DEFAULT_PIXELS_PER_UNIT;
                     orthoSize = (canvas.designResolution.y / 2) / ppu;
                     aspectRatio = canvas.designResolution.x / canvas.designResolution.y;
                     break;
@@ -120,19 +121,19 @@ export class PreviewPlugin implements Plugin {
 
             const cameraData: CameraData = {
                 isActive: true,
-                projectionType: 1,
+                projectionType: ProjectionType.Orthographic,
                 fov: 60,
                 orthoSize,
                 nearPlane: 0.1,
                 farPlane: 1000,
                 aspectRatio,
                 priority: 0,
-                showFrustum: true,
+                showFrustum: false,
                 viewportX: 0,
                 viewportY: 0,
                 viewportW: 1,
                 viewportH: 1,
-                clearFlags: 3,
+                clearFlags: ClearFlags.ColorAndDepth,
             };
             world.insert(cameraEntity, Camera, cameraData);
         }

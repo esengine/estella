@@ -4,6 +4,17 @@
  */
 
 // =============================================================================
+// Defaults
+// =============================================================================
+
+export {
+    DEFAULT_DESIGN_WIDTH,
+    DEFAULT_DESIGN_HEIGHT,
+    DEFAULT_PIXELS_PER_UNIT,
+    DEFAULT_TEXT_CANVAS_SIZE,
+} from './defaults';
+
+// =============================================================================
 // Types
 // =============================================================================
 
@@ -54,6 +65,9 @@ export {
     BitmapText,
     SpineAnimation,
     Name,
+    ProjectionType,
+    ClearFlags,
+    ScaleMode,
     type LocalTransformData,
     type WorldTransformData,
     type SpriteData,

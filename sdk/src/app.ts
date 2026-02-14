@@ -18,6 +18,7 @@ import { initPostProcessAPI, shutdownPostProcessAPI } from './postprocess';
 import { initRendererAPI, shutdownRendererAPI } from './renderer';
 import { initGLDebugAPI, shutdownGLDebugAPI } from './glDebug';
 import { platformNow } from './platform';
+import { ProjectionType, ScaleMode } from './component';
 import { RenderPipeline, type SpineRendererFn } from './renderPipeline';
 import { Renderer } from './renderer';
 import { PostProcess } from './postprocess';
@@ -466,11 +467,11 @@ function computeEffectiveOrthoSize(
     const orthoForHeight = baseOrthoSize;
 
     switch (scaleMode) {
-        case 0: return orthoForWidth;
-        case 1: return orthoForHeight;
-        case 2: return Math.max(orthoForWidth, orthoForHeight);
-        case 3: return Math.min(orthoForWidth, orthoForHeight);
-        case 4: {
+        case ScaleMode.FixedWidth: return orthoForWidth;
+        case ScaleMode.FixedHeight: return orthoForHeight;
+        case ScaleMode.Expand: return Math.max(orthoForWidth, orthoForHeight);
+        case ScaleMode.Shrink: return Math.min(orthoForWidth, orthoForHeight);
+        case ScaleMode.Match: {
             const t = matchWidthOrHeight;
             return Math.pow(orthoForWidth, 1 - t) * Math.pow(orthoForHeight, t);
         }
@@ -513,7 +514,7 @@ function collectCameras(module: ESEngineModule, registry: CppRegistry, width: nu
         let camHalfW = 0;
         let camHalfH = 0;
 
-        if (camera.projectionType === 1) {
+        if (camera.projectionType === ProjectionType.Orthographic) {
             camHalfH = camera.orthoSize;
 
             if (canvas) {
@@ -566,7 +567,7 @@ function computeViewProjection(module: ESEngineModule, registry: CppRegistry, wi
     const aspect = width / height;
     let projection: Float32Array;
 
-    if (camera.projectionType === 1) {
+    if (camera.projectionType === ProjectionType.Orthographic) {
         let halfH = camera.orthoSize;
 
         const canvas = findCanvasData(module, registry);

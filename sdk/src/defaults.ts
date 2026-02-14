@@ -1,0 +1,4 @@
+export const DEFAULT_DESIGN_WIDTH = 1920;
+export const DEFAULT_DESIGN_HEIGHT = 1080;
+export const DEFAULT_PIXELS_PER_UNIT = 100;
+export const DEFAULT_TEXT_CANVAS_SIZE = 512;

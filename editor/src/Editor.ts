@@ -10,6 +10,7 @@ import {
     Draw, Geometry, Material, BlendMode, DataType, ShaderSources,
     PostProcess, Renderer, RenderStage,
     registerDrawCallback, unregisterDrawCallback, clearDrawCallbacks,
+    DEFAULT_DESIGN_WIDTH, DEFAULT_DESIGN_HEIGHT,
 } from 'esengine';
 import { EditorStore } from './store/EditorStore';
 import { EditorBridge } from './bridge/EditorBridge';
@@ -562,7 +563,7 @@ export class Editor {
             setSettingsValue('physics.gravityY', config.physicsGravityY ?? -9.81);
             setSettingsValue('physics.fixedTimestep', config.physicsFixedTimestep ?? 1 / 60);
             setSettingsValue('physics.subStepCount', config.physicsSubStepCount ?? 4);
-            const resolution = config.designResolution ?? { width: 1920, height: 1080 };
+            const resolution = config.designResolution ?? { width: DEFAULT_DESIGN_WIDTH, height: DEFAULT_DESIGN_HEIGHT };
             setSettingsValue('project.designWidth', resolution.width);
             setSettingsValue('project.designHeight', resolution.height);
         }
@@ -605,8 +606,8 @@ export class Editor {
         config.physicsFixedTimestep = getSettingsValue<number>('physics.fixedTimestep') ?? 1 / 60;
         config.physicsSubStepCount = getSettingsValue<number>('physics.subStepCount') ?? 4;
         config.designResolution = {
-            width: getSettingsValue<number>('project.designWidth') || 1920,
-            height: getSettingsValue<number>('project.designHeight') || 1080,
+            width: getSettingsValue<number>('project.designWidth') || DEFAULT_DESIGN_WIDTH,
+            height: getSettingsValue<number>('project.designHeight') || DEFAULT_DESIGN_HEIGHT,
         };
         config.modified = new Date().toISOString();
         const fs = getEditorContext().fs;

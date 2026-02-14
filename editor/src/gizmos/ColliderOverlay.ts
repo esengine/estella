@@ -4,6 +4,7 @@
  */
 
 import type { Entity } from 'esengine';
+import { DEFAULT_PIXELS_PER_UNIT } from 'esengine';
 import type { EditorStore } from '../store/EditorStore';
 import type { EntityData, ComponentData } from '../types/SceneTypes';
 import { quatToEuler } from '../math/Transform';
@@ -419,11 +420,11 @@ export class ColliderOverlay {
         for (const entity of store.scene.entities) {
             for (const comp of entity.components) {
                 if (comp.type === 'Canvas') {
-                    return (comp.data.pixelsPerUnit as number) || 100;
+                    return (comp.data.pixelsPerUnit as number) || DEFAULT_PIXELS_PER_UNIT;
                 }
             }
         }
-        return 100;
+        return DEFAULT_PIXELS_PER_UNIT;
     }
 
     private cloneColliderData(comp: ComponentData): Record<string, unknown> {
