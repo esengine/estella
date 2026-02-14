@@ -23,6 +23,7 @@ export default defineConfig({
       },
       social: {
         github: 'https://github.com/esengine/microes',
+        discord: 'https://discord.gg/sAX6PXZ9',
       },
       editLink: {
         baseUrl: 'https://github.com/esengine/microes/edit/main/docs/astro/',
