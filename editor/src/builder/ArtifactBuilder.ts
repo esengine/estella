@@ -146,7 +146,7 @@ export async function initializeEsbuild(): Promise<void> {
     try {
         await esbuild.initialize({ wasmURL: getEsbuildWasmURL() });
     } catch (e) {
-        if (!String(e).includes('already')) {
+        if (!String(e).includes('initialize')) {
             throw e;
         }
     }

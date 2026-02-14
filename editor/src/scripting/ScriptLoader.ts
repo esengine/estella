@@ -8,7 +8,8 @@ import { defineComponent, defineTag, clearUserComponents } from 'esengine';
 import { virtualFsPlugin } from './esbuildPlugins';
 import type { NativeFS, ScriptLoaderOptions, CompileError } from './types';
 import { clearScriptComponents } from '../schemas/ComponentSchemas';
-import { getEditorContext, getEsbuildWasmURL } from '../context/EditorContext';
+import { getEditorContext } from '../context/EditorContext';
+import { initializeEsbuild } from '../builder/ArtifactBuilder';
 import { normalizePath, joinPath, getProjectDir } from '../utils/path';
 
 // =============================================================================
@@ -41,14 +42,7 @@ export class ScriptLoader {
 
     async initialize(): Promise<void> {
         if (this.initialized_) return;
-
-        try {
-            await esbuild.initialize({
-                wasmURL: getEsbuildWasmURL(),
-            });
-        } catch {
-            // esbuild is a singleton; already initialized is fine
-        }
+        await initializeEsbuild();
         this.initialized_ = true;
     }
 
