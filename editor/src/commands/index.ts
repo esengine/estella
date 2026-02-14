@@ -20,5 +20,7 @@ export {
     RevertPrefabInstanceCommand,
     ApplyPrefabOverridesCommand,
 } from './PrefabCommands';
+export { RenameEntityCommand } from './RenameEntityCommand';
+export { ToggleVisibilityCommand } from './ToggleVisibilityCommand';
 export { CompoundCommand } from './CompoundCommand';
 export { CommandHistory } from './CommandHistory';

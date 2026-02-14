@@ -16,6 +16,8 @@ import {
     MoveEntityCommand,
     AddComponentCommand,
     RemoveComponentCommand,
+    RenameEntityCommand,
+    ToggleVisibilityCommand,
     InstantiatePrefabCommand,
     InstantiateNestedPrefabCommand,
     UnpackPrefabCommand,
@@ -287,23 +289,17 @@ export class EditorStore {
         const entityData = this.entityMap_.get(entityId);
         if (!entityData) return;
 
-        if (!entityData.visible) {
-            const parentId = entityData.parent;
-            if (parentId !== null) {
-                const parentData = this.entityMap_.get(parentId);
-                if (parentData && !parentData.visible) return;
-            }
-            this.showEntityTree(entityId);
-        } else {
-            this.hideEntityTree(entityId);
-        }
+        const cmd = new ToggleVisibilityCommand(
+            this.state_.scene,
+            this.entityMap_,
+            entityId,
+            (id, visible) => this.notifyVisibilityChange({ entity: id, visible })
+        );
+        this.executeCommand(cmd);
 
         if (entityData.prefab) {
             recordVisibilityOverride(this.state_.scene, entityId, entityData.visible);
         }
-
-        this.state_.isDirty = true;
-        this.notify();
     }
 
     isEntityVisible(entityId: number): boolean {
@@ -323,32 +319,6 @@ export class EditorStore {
     subscribeToVisibilityChanges(listener: VisibilityChangeListener): () => void {
         this.visibilityListeners_.add(listener);
         return () => this.visibilityListeners_.delete(listener);
-    }
-
-    private hideEntityTree(entityId: number): void {
-        const entityData = this.entityMap_.get(entityId);
-        if (!entityData) return;
-        entityData.visible = false;
-        this.notifyVisibilityChange({ entity: entityId, visible: false });
-        for (const childId of entityData.children) {
-            const childData = this.entityMap_.get(childId);
-            if (childData && childData.visible !== false) {
-                this.hideEntityTree(childId);
-            }
-        }
-    }
-
-    private showEntityTree(entityId: number): void {
-        const entityData = this.entityMap_.get(entityId);
-        if (!entityData) return;
-        entityData.visible = true;
-        this.notifyVisibilityChange({ entity: entityId, visible: true });
-        for (const childId of entityData.children) {
-            const childData = this.entityMap_.get(childId);
-            if (childData && childData.visible === false) {
-                this.showEntityTree(childId);
-            }
-        }
     }
 
     private notifyVisibilityChange(event: VisibilityChangeEvent): void {
@@ -427,13 +397,20 @@ export class EditorStore {
 
     renameEntity(entity: Entity, name: string): void {
         const entityData = this.entityMap_.get(entity as number);
-        if (entityData) {
-            entityData.name = name;
-            if (entityData.prefab) {
-                recordNameOverride(this.state_.scene, entity as number, name);
-            }
-            this.state_.isDirty = true;
-            this.notify();
+        if (!entityData) return;
+
+        const oldName = entityData.name;
+        const cmd = new RenameEntityCommand(
+            this.state_.scene,
+            this.entityMap_,
+            entity,
+            oldName,
+            name
+        );
+        this.executeCommand(cmd);
+
+        if (entityData.prefab) {
+            recordNameOverride(this.state_.scene, entity as number, name);
         }
     }
 

@@ -30,6 +30,7 @@ export interface PlayableSettings {
     minifyCode: boolean;
     embedFonts: boolean;
     outputPath: string;
+    enableBuiltinCTA: boolean;
     ctaUrl: string;
 }
 
@@ -81,6 +82,7 @@ export function createDefaultPlayableSettings(): PlayableSettings {
         minifyCode: false,
         embedFonts: true,
         outputPath: 'build/playable.html',
+        enableBuiltinCTA: false,
         ctaUrl: '',
     };
 }
@@ -134,6 +136,7 @@ export function createDefaultBuildSettings(): BuildSettings {
                     minifyCode: false,
                     embedFonts: true,
                     outputPath: 'build/playable-dev.html',
+                    enableBuiltinCTA: false,
                     ctaUrl: '',
                 },
             },
@@ -149,6 +152,7 @@ export function createDefaultBuildSettings(): BuildSettings {
                     minifyCode: true,
                     embedFonts: true,
                     outputPath: 'build/playable.html',
+                    enableBuiltinCTA: false,
                     ctaUrl: '',
                 },
             },

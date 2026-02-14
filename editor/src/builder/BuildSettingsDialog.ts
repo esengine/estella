@@ -396,6 +396,19 @@ export class BuildSettingsDialog {
                         <button class="es-btn" data-action="browse-output">...</button>
                     </div>
                 </div>
+                <div class="es-build-field">
+                    <label>
+                        <input type="checkbox" id="playable-cta" ${s.enableBuiltinCTA ? 'checked' : ''}>
+                        Enable Built-in CTA
+                    </label>
+                </div>
+                ${s.enableBuiltinCTA ? `
+                <div class="es-build-field">
+                    <label class="es-build-label">CTA URL</label>
+                    <input type="text" class="es-input" id="playable-cta-url"
+                           value="${s.ctaUrl || ''}" placeholder="https://play.google.com/store/apps/...">
+                </div>
+                ` : ''}
             `;
         } else if (config.platform === 'wechat' && config.wechatSettings) {
             const s = config.wechatSettings;
@@ -721,6 +734,11 @@ export class BuildSettingsDialog {
                 config.playableSettings.embedFonts = (target as HTMLInputElement).checked;
             } else if (id === 'playable-output') {
                 config.playableSettings.outputPath = target.value;
+            } else if (id === 'playable-cta') {
+                config.playableSettings.enableBuiltinCTA = (target as HTMLInputElement).checked;
+                this.render();
+            } else if (id === 'playable-cta-url') {
+                config.playableSettings.ctaUrl = target.value;
             }
         }
 

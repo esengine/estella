@@ -380,7 +380,21 @@ ${imports}
             subStepCount: context.physicsSubStepCount ?? 4,
         });
 
+        const enableCTA = context.config.playableSettings?.enableBuiltinCTA ?? false;
         const ctaUrl = JSON.stringify(context.config.playableSettings?.ctaUrl || '');
+
+        const ctaStyle = enableCTA
+            ? '#cta{position:fixed;bottom:5%;left:50%;transform:translateX(-50%);padding:12px 32px;font-size:18px;font-weight:bold;color:#fff;background:#ff4444;border:none;border-radius:8px;cursor:pointer;z-index:999;text-transform:uppercase;box-shadow:0 2px 8px rgba(0,0,0,0.3)}\n#cta:active{transform:translateX(-50%) scale(0.95)}'
+            : '';
+        const ctaHtml = enableCTA
+            ? '<button id="cta" style="display:none">Install Now</button>'
+            : '';
+        const ctaScript = enableCTA
+            ? `function installCTA(){\n  if(typeof mraid!=='undefined'&&mraid.open){mraid.open(${ctaUrl})}\n  else{window.open(${ctaUrl},'_blank')}\n}\ndocument.getElementById('cta').addEventListener('click',installCTA);`
+            : '';
+        const ctaShow = enableCTA
+            ? "document.getElementById('cta').style.display='block';"
+            : '';
 
         return PLAYABLE_HTML_TEMPLATE
             .replace('{{WASM_SDK}}', () => wasmSdk)
@@ -391,7 +405,10 @@ ${imports}
             .replace('{{SCENE_DATA}}', () => sceneData)
             .replace('{{PHYSICS_CONFIG}}', () => physicsConfig)
             .replace('{{MANIFEST}}', () => manifestJson)
-            .replace(/\{\{CTA_URL\}\}/g, () => ctaUrl);
+            .replace('{{CTA_STYLE}}', () => ctaStyle)
+            .replace('{{CTA_HTML}}', () => ctaHtml)
+            .replace('{{CTA_SCRIPT}}', () => ctaScript)
+            .replace('{{CTA_SHOW}}', () => ctaShow);
     }
 
 }

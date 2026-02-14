@@ -80,6 +80,7 @@ export class ResMutInstance<T> {
 
 export class ResourceStorage {
     private resources_ = new Map<symbol, unknown>();
+    private resMutPool_ = new Map<symbol, ResMutInstance<unknown>>();
 
     insert<T>(resource: ResourceDef<T>, value: T): void {
         this.resources_.set(resource._id, value);
@@ -102,13 +103,21 @@ export class ResourceStorage {
 
     remove<T>(resource: ResourceDef<T>): void {
         this.resources_.delete(resource._id);
+        this.resMutPool_.delete(resource._id);
     }
 
     getResMut<T>(resource: ResourceDef<T>): ResMutInstance<T> {
-        return new ResMutInstance(
+        let instance = this.resMutPool_.get(resource._id) as ResMutInstance<T> | undefined;
+        if (instance) {
+            (instance as any).value_ = this.get(resource);
+            return instance;
+        }
+        instance = new ResMutInstance(
             this.get(resource),
             (v) => this.set(resource, v)
         );
+        this.resMutPool_.set(resource._id, instance as ResMutInstance<unknown>);
+        return instance;
     }
 }
 

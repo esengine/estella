@@ -188,12 +188,12 @@ export class CommandsInstance {
         for (const ec of this.spawned_) {
             ec.finalize();
         }
-        this.spawned_ = [];
+        this.spawned_.length = 0;
 
         for (const cmd of this.pending_) {
             this.executeCommand(cmd);
         }
-        this.pending_ = [];
+        this.pending_.length = 0;
     }
 
     private executeCommand(cmd: Command): void {

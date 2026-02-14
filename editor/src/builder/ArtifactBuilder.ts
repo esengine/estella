@@ -104,7 +104,10 @@ let esbuildInitialized = false;
 
 export async function initializeEsbuild(): Promise<void> {
     if (esbuildInitialized) return;
-    await esbuild.initialize({ wasmURL: getEsbuildWasmURL() });
+    try {
+        await esbuild.initialize({ wasmURL: getEsbuildWasmURL() });
+    } catch {
+    }
     esbuildInitialized = true;
 }
 

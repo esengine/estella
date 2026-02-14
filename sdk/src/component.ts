@@ -21,6 +21,20 @@ export interface ComponentDef<T> {
     create(data?: Partial<T>): T;
 }
 
+function deepClone<T>(value: T): T {
+    if (value === null || typeof value !== 'object') {
+        return value;
+    }
+    if (Array.isArray(value)) {
+        return value.map(deepClone) as T;
+    }
+    const result: Record<string, unknown> = {};
+    for (const key in value) {
+        result[key] = deepClone((value as Record<string, unknown>)[key]);
+    }
+    return result as T;
+}
+
 let componentCounter = 0;
 
 function createComponentDef<T extends object>(
@@ -34,7 +48,7 @@ function createComponentDef<T extends object>(
         _default: defaults,
         _builtin: false as const,
         create(data?: Partial<T>): T {
-            return data ? { ...defaults, ...data } : { ...defaults };
+            return data ? { ...deepClone(defaults), ...data } : deepClone(defaults);
         }
     };
 }
@@ -378,7 +392,7 @@ export type ComponentData<C> =
 
 export function getComponentDefaults(typeName: string): Record<string, unknown> | null {
     const comp = getComponent(typeName);
-    if (comp) return { ...comp._default };
+    if (comp) return deepClone(comp._default);
     return null;
 }
 

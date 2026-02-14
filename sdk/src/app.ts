@@ -62,6 +62,7 @@ export class App {
     private physicsInitPromise_?: Promise<unknown>;
     private physicsModule_?: unknown;
     private readonly installed_plugins_ = new Set<Plugin>();
+    private error_handler_: ((error: unknown, systemName: string) => void) | null = null;
 
     private constructor() {
         this.world_ = new World();
@@ -182,6 +183,11 @@ export class App {
         return this;
     }
 
+    onError(handler: (error: unknown, systemName: string) => void): this {
+        this.error_handler_ = handler;
+        return this;
+    }
+
     // =========================================================================
     // Resource Access
     // =========================================================================
@@ -272,7 +278,15 @@ export class App {
         }
 
         for (const entry of systems) {
-            this.runner_.run(entry.system);
+            try {
+                this.runner_.run(entry.system);
+            } catch (e) {
+                const name = entry.system._name;
+                console.error(`[ESEngine] System "${name}" threw an error:`, e);
+                if (this.error_handler_) {
+                    this.error_handler_(e, name);
+                }
+            }
         }
     }
 
@@ -330,8 +344,10 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
         valid: false,
     });
 
-    function syncUICameraInfo(width: number, height: number): void {
-        const cameras = collectCameras(module, cppRegistry, width, height);
+    function syncUICameraInfo(width: number, height: number, cameras?: CameraInfo[]): void {
+        if (!cameras) {
+            cameras = collectCameras(module, cppRegistry, width, height);
+        }
         const uiCam = app.getResource(UICameraInfo);
         if (cameras.length > 0) {
             const cam = cameras[0];
@@ -385,7 +401,7 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
 
             const cameras = collectCameras(module, cppRegistry, width, height);
 
-            syncUICameraInfo(width, height);
+            syncUICameraInfo(width, height, cameras);
 
             if (cameras.length === 0) {
                 pipeline.render({
@@ -540,7 +556,7 @@ function collectCameras(module: ESEngineModule, registry: CppRegistry, width: nu
         const view = invertTranslation(transform.position.x, transform.position.y, transform.position.z);
         cameras.push({
             entity: e,
-            viewProjection: multiply(projection, view),
+            viewProjection: new Float32Array(multiply(projection, view)),
             viewportRect: vr,
             clearFlags: camera.clearFlags,
             priority: camera.priority,
@@ -636,8 +652,9 @@ function invertTranslation(x: number, y: number, z: number): Float32Array {
     return m;
 }
 
+const _mulM = new Float32Array(16);
 function multiply(a: Float32Array, b: Float32Array): Float32Array {
-    const m = new Float32Array(16);
+    const m = _mulM;
     for (let i = 0; i < 4; i++) {
         for (let j = 0; j < 4; j++) {
             m[j * 4 + i] =

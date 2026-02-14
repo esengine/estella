@@ -460,6 +460,7 @@ declare class World {
     private queryPoolIdx_;
     private worldVersion_;
     private queryCache_;
+    private builtinMethodCache_;
     connectCpp(cppRegistry: CppRegistry): void;
     disconnectCpp(): void;
     get hasCpp(): boolean;
@@ -476,6 +477,7 @@ declare class World {
     has(entity: Entity, component: AnyComponentDef): boolean;
     tryGet<C extends AnyComponentDef>(entity: Entity, component: C): ComponentData<C> | null;
     remove(entity: Entity, component: AnyComponentDef): void;
+    private getBuiltinMethods;
     private insertBuiltin;
     private getBuiltin;
     private hasBuiltin;
@@ -612,6 +614,7 @@ declare class App {
     private physicsInitPromise_?;
     private physicsModule_?;
     private readonly installed_plugins_;
+    private error_handler_;
     private constructor();
     static new(): App;
     addPlugin(plugin: Plugin): this;
@@ -630,6 +633,7 @@ declare class App {
     set physicsModule(m: unknown);
     get world(): World;
     setFixedTimestep(timestep: number): this;
+    onError(handler: (error: unknown, systemName: string) => void): this;
     insertResource<T>(resource: ResourceDef<T>, value: T): this;
     getResource<T>(resource: ResourceDef<T>): T;
     hasResource<T>(resource: ResourceDef<T>): boolean;

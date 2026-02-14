@@ -29,6 +29,13 @@ function convertForWasm(obj: Record<string, unknown>): Record<string, unknown> {
 // World
 // =============================================================================
 
+interface BuiltinMethods {
+    add: (e: Entity, d: unknown) => void;
+    get: (e: Entity) => unknown;
+    has: (e: Entity) => boolean;
+    remove: (e: Entity) => void;
+}
+
 export class World {
     private cppRegistry_: CppRegistry | null = null;
     private entities_ = new Set<Entity>();
@@ -38,13 +45,16 @@ export class World {
     private queryPoolIdx_ = 0;
     private worldVersion_ = 0;
     private queryCache_ = new Map<string, { version: number; result: Entity[] }>();
+    private builtinMethodCache_ = new Map<string, BuiltinMethods>();
 
     connectCpp(cppRegistry: CppRegistry): void {
         this.cppRegistry_ = cppRegistry;
+        this.builtinMethodCache_.clear();
     }
 
     disconnectCpp(): void {
         this.cppRegistry_ = null;
+        this.builtinMethodCache_.clear();
     }
 
     get hasCpp(): boolean {
@@ -141,10 +151,14 @@ export class World {
     }
 
     tryGet<C extends AnyComponentDef>(entity: Entity, component: C): ComponentData<C> | null {
-        if (!this.has(entity, component)) {
-            return null;
+        if (isBuiltinComponent(component)) {
+            if (!this.cppRegistry_) return null;
+            const methods = this.getBuiltinMethods(component._cppName);
+            if (!methods.has(entity)) return null;
+            return methods.get(entity) as ComponentData<C>;
         }
-        return this.get(entity, component);
+        if (!this.hasScript(entity, component as ComponentDef<any>)) return null;
+        return this.getScript(entity, component as ComponentDef<any>) as ComponentData<C>;
     }
 
     remove(entity: Entity, component: AnyComponentDef): void {
@@ -159,6 +173,21 @@ export class World {
     // Builtin Component Operations (C++ Registry)
     // =========================================================================
 
+    private getBuiltinMethods(cppName: string): BuiltinMethods {
+        let methods = this.builtinMethodCache_.get(cppName);
+        if (methods) return methods;
+
+        const reg = this.cppRegistry_!;
+        methods = {
+            add: (reg[`add${cppName}`] as Function).bind(reg),
+            get: (reg[`get${cppName}`] as Function).bind(reg),
+            has: (reg[`has${cppName}`] as Function).bind(reg),
+            remove: (reg[`remove${cppName}`] as Function).bind(reg),
+        };
+        this.builtinMethodCache_.set(cppName, methods);
+        return methods;
+    }
+
     private insertBuiltin<T>(entity: Entity, component: BuiltinComponentDef<T>, data?: Partial<T>): T {
         const filtered: Record<string, unknown> = {};
         if (data !== null && data !== undefined && typeof data === 'object') {
@@ -171,9 +200,7 @@ export class World {
         const merged = { ...component._default, ...filtered } as T;
 
         if (this.cppRegistry_) {
-            const adder = `add${component._cppName}`;
-            const fn = this.cppRegistry_[adder] as ((e: Entity, d: unknown) => void) | undefined;
-            fn?.call(this.cppRegistry_, entity, convertForWasm(merged as Record<string, unknown>));
+            this.getBuiltinMethods(component._cppName).add(entity, convertForWasm(merged as Record<string, unknown>));
         }
 
         return merged;
@@ -183,30 +210,21 @@ export class World {
         if (!this.cppRegistry_) {
             throw new Error('C++ Registry not connected');
         }
-
-        const getter = `get${component._cppName}`;
-        const fn = this.cppRegistry_[getter] as ((e: Entity) => T) | undefined;
-        return fn!.call(this.cppRegistry_, entity);
+        return this.getBuiltinMethods(component._cppName).get(entity) as T;
     }
 
     private hasBuiltin(entity: Entity, component: BuiltinComponentDef<any>): boolean {
         if (!this.cppRegistry_) {
             return false;
         }
-
-        const checker = `has${component._cppName}`;
-        const fn = this.cppRegistry_[checker] as ((e: Entity) => boolean) | undefined;
-        return fn!.call(this.cppRegistry_, entity);
+        return this.getBuiltinMethods(component._cppName).has(entity);
     }
 
     private removeBuiltin(entity: Entity, component: BuiltinComponentDef<any>): void {
         if (!this.cppRegistry_) {
             return;
         }
-
-        const remover = `remove${component._cppName}`;
-        const fn = this.cppRegistry_[remover] as ((e: Entity) => void) | undefined;
-        fn!.call(this.cppRegistry_, entity);
+        this.getBuiltinMethods(component._cppName).remove(entity);
     }
 
     // =========================================================================

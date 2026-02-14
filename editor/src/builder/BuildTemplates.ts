@@ -160,6 +160,7 @@ export function createConfigFromTemplate(
             minifyCode: template.playableSettings?.minifyCode ?? false,
             embedFonts: template.playableSettings?.embedFonts ?? true,
             outputPath: template.playableSettings?.outputPath ?? 'build/playable.html',
+            enableBuiltinCTA: template.playableSettings?.enableBuiltinCTA ?? false,
             ctaUrl: template.playableSettings?.ctaUrl ?? '',
         };
     } else {

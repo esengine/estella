@@ -18,13 +18,12 @@ export const PLAYABLE_HTML_TEMPLATE = `<!DOCTYPE html>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{width:100%;height:100%;overflow:hidden;background:#000}
 #canvas{display:block;width:100%;height:100%;touch-action:none}
-#cta{position:fixed;bottom:5%;left:50%;transform:translateX(-50%);padding:12px 32px;font-size:18px;font-weight:bold;color:#fff;background:#ff4444;border:none;border-radius:8px;cursor:pointer;z-index:999;text-transform:uppercase;box-shadow:0 2px 8px rgba(0,0,0,0.3)}
-#cta:active{transform:translateX(-50%) scale(0.95)}
+{{CTA_STYLE}}
 </style>
 </head>
 <body>
 <canvas id="canvas"></canvas>
-<button id="cta" style="display:none">Install Now</button>
+{{CTA_HTML}}
 <script>
 {{WASM_SDK}}
 </script>
@@ -63,11 +62,7 @@ function decodeBinary(dataUrl){
   return a;
 }
 
-function installCTA(){
-  if(typeof mraid!=='undefined'&&mraid.open){mraid.open({{CTA_URL}})}
-  else{window.open({{CTA_URL}},'_blank')}
-}
-document.getElementById('cta').addEventListener('click',installCTA);
+{{CTA_SCRIPT}}
 
 (async function(){
   try{
@@ -126,7 +121,7 @@ document.getElementById('cta').addEventListener('click',installCTA);
   var screenAspect=c.width/c.height;
   es.updateCameraAspectRatio(app.world,screenAspect);
 
-  document.getElementById('cta').style.display='block';
+  {{CTA_SHOW}}
   app.run();
   }catch(e){console.error('Playable init error:',e)}
 })();
