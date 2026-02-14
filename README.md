@@ -4,6 +4,9 @@
 
 **A lightweight 2D game engine for web and WeChat MiniGames**
 
+[![CI](https://github.com/esengine/microes/actions/workflows/build.yml/badge.svg)](https://github.com/esengine/microes/actions/workflows/build.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![npm](https://img.shields.io/npm/v/esengine)](https://www.npmjs.com/package/esengine)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://isocpp.org/)
 [![Platform](https://img.shields.io/badge/Platform-Web%20%7C%20WeChat-green.svg)]()
 
@@ -74,3 +77,11 @@ Full documentation: [esengine.github.io/microes](https://esengine.github.io/micr
 - [ECS Architecture](https://esengine.github.io/microes/core-concepts/ecs/)
 - [Components](https://esengine.github.io/microes/core-concepts/components/)
 - [Systems](https://esengine.github.io/microes/core-concepts/systems/)
+
+## Contributing
+
+We welcome contributions! Please read the [Contributing Guide](CONTRIBUTING.md) before submitting a Pull Request.
+
+## License
+
+ESEngine is [MIT licensed](LICENSE).
