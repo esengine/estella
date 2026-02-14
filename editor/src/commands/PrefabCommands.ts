@@ -16,7 +16,6 @@ export class InstantiatePrefabCommand extends BaseCommand {
     readonly type = 'instantiate_prefab';
     readonly description: string;
     private createdEntityIds_: number[] = [];
-    private nextEntityIdBefore_: number;
 
     constructor(
         private scene_: SceneData,
@@ -27,7 +26,6 @@ export class InstantiatePrefabCommand extends BaseCommand {
     ) {
         super();
         this.description = `Instantiate prefab "${prefab_.name}"`;
-        this.nextEntityIdBefore_ = nextEntityId_;
     }
 
     execute(): void {
@@ -119,7 +117,9 @@ export class UnpackPrefabCommand extends BaseCommand {
 export class RevertPrefabInstanceCommand extends BaseCommand {
     readonly type = 'revert_prefab';
     readonly description: string;
-    private savedEntities_: Map<number, EntityData> = new Map();
+    private savedSnapshot_: EntityData[] = [];
+    private savedIndices_: Map<number, number> = new Map();
+    private addedEntityIds_: number[] = [];
 
     constructor(
         private scene_: SceneData,
@@ -132,36 +132,96 @@ export class RevertPrefabInstanceCommand extends BaseCommand {
     }
 
     execute(): void {
-        this.savedEntities_.clear();
-
         const instanceEntities = this.scene_.entities.filter(
             e => e.prefab?.instanceId === this.instanceId_
         );
         if (instanceEntities.length === 0) return;
 
-        for (const entity of instanceEntities) {
-            this.savedEntities_.set(entity.id, {
-                ...entity,
-                components: entity.components.map(c => ({ type: c.type, data: { ...c.data } })),
-                prefab: entity.prefab ? { ...entity.prefab, overrides: [...entity.prefab.overrides] } : undefined,
-            });
+        this.savedIndices_.clear();
+        for (const e of instanceEntities) {
+            this.savedIndices_.set(e.id, this.scene_.entities.indexOf(e));
         }
+
+        this.savedSnapshot_ = instanceEntities.map(e => ({
+            ...e,
+            children: [...e.children],
+            components: e.components.map(c => ({ type: c.type, data: JSON.parse(JSON.stringify(c.data)) })),
+            prefab: e.prefab ? { ...e.prefab, overrides: [...e.prefab.overrides] } : undefined,
+        }));
 
         const rootEntity = instanceEntities.find(e => e.prefab?.isRoot);
         if (!rootEntity) return;
+        const rootParent = rootEntity.parent;
 
-        const idMapping = new Map<number, number>();
+        const existingByPrefabId = new Map<number, EntityData>();
         for (const entity of instanceEntities) {
             if (entity.prefab) {
-                idMapping.set(entity.prefab.prefabEntityId, entity.id);
+                existingByPrefabId.set(entity.prefab.prefabEntityId, entity);
             }
         }
 
-        for (const pe of this.prefab_.entities) {
-            const sceneId = idMapping.get(pe.prefabEntityId);
-            if (sceneId === undefined) continue;
+        const prefabEntityIds = new Set(this.prefab_.entities.map(pe => pe.prefabEntityId));
 
-            const entity = this.scene_.entities.find(e => e.id === sceneId);
+        const removedEntities = instanceEntities.filter(
+            e => !prefabEntityIds.has(e.prefab!.prefabEntityId)
+        );
+        for (const removed of removedEntities) {
+            const idx = this.scene_.entities.indexOf(removed);
+            if (idx !== -1) this.scene_.entities.splice(idx, 1);
+            existingByPrefabId.delete(removed.prefab!.prefabEntityId);
+        }
+
+        let nextId = computeNextEntityId(this.scene_);
+        const newIdMapping = new Map<number, number>();
+        this.addedEntityIds_ = [];
+
+        const missingEntities = this.prefab_.entities.filter(
+            pe => !existingByPrefabId.has(pe.prefabEntityId)
+        );
+        for (const pe of missingEntities) {
+            newIdMapping.set(pe.prefabEntityId, nextId++);
+        }
+
+        for (const pe of missingEntities) {
+            const sceneId = newIdMapping.get(pe.prefabEntityId)!;
+            const isRoot = pe.prefabEntityId === this.prefab_.rootEntityId;
+
+            let parent: number | null;
+            if (isRoot) {
+                parent = rootParent;
+            } else if (pe.parent !== null) {
+                parent = existingByPrefabId.get(pe.parent)?.id
+                    ?? newIdMapping.get(pe.parent) ?? null;
+            } else {
+                parent = null;
+            }
+
+            const entity: EntityData = {
+                id: sceneId,
+                name: pe.name,
+                parent,
+                children: [],
+                components: pe.components.map(c => ({
+                    type: c.type,
+                    data: JSON.parse(JSON.stringify(c.data)),
+                })),
+                visible: pe.visible,
+                prefab: {
+                    prefabPath: this.prefabPath_,
+                    prefabEntityId: pe.prefabEntityId,
+                    isRoot: false,
+                    instanceId: this.instanceId_,
+                    overrides: [],
+                },
+            };
+
+            this.scene_.entities.push(entity);
+            existingByPrefabId.set(pe.prefabEntityId, entity);
+            this.addedEntityIds_.push(sceneId);
+        }
+
+        for (const pe of this.prefab_.entities) {
+            const entity = existingByPrefabId.get(pe.prefabEntityId);
             if (!entity) continue;
 
             entity.name = pe.name;
@@ -171,22 +231,59 @@ export class RevertPrefabInstanceCommand extends BaseCommand {
                 data: JSON.parse(JSON.stringify(c.data)),
             }));
 
+            entity.children = pe.children
+                .map(cid => existingByPrefabId.get(cid)?.id)
+                .filter((id): id is number => id !== undefined);
+
             if (entity.prefab) {
                 entity.prefab.overrides = [];
+            }
+        }
+
+        if (rootParent !== null) {
+            const parentEntity = this.scene_.entities.find(e => e.id === rootParent);
+            if (parentEntity) {
+                for (const removed of removedEntities) {
+                    parentEntity.children = parentEntity.children.filter(c => c !== removed.id);
+                }
             }
         }
     }
 
     undo(): void {
-        for (const [entityId, saved] of this.savedEntities_) {
-            const entity = this.scene_.entities.find(e => e.id === entityId);
-            if (!entity) continue;
+        for (const id of this.addedEntityIds_) {
+            const idx = this.scene_.entities.findIndex(e => e.id === id);
+            if (idx !== -1) this.scene_.entities.splice(idx, 1);
+        }
 
-            entity.name = saved.name;
-            entity.visible = saved.visible;
-            entity.components = saved.components;
-            if (saved.prefab) {
-                entity.prefab = saved.prefab;
+        const instanceEntities = this.scene_.entities.filter(
+            e => e.prefab?.instanceId === this.instanceId_
+        );
+        for (const entity of instanceEntities) {
+            const idx = this.scene_.entities.indexOf(entity);
+            if (idx !== -1) this.scene_.entities.splice(idx, 1);
+        }
+
+        const sorted = [...this.savedSnapshot_].sort(
+            (a, b) => (this.savedIndices_.get(a.id) ?? 0) - (this.savedIndices_.get(b.id) ?? 0)
+        );
+        for (const saved of sorted) {
+            const idx = this.savedIndices_.get(saved.id) ?? this.scene_.entities.length;
+            this.scene_.entities.splice(Math.min(idx, this.scene_.entities.length), 0, saved);
+        }
+
+        if (this.savedSnapshot_.length > 0) {
+            const root = this.savedSnapshot_.find(e => e.prefab?.isRoot);
+            if (root?.parent !== null && root?.parent !== undefined) {
+                const parentEntity = this.scene_.entities.find(e => e.id === root.parent);
+                if (parentEntity) {
+                    const childIds = this.savedSnapshot_.filter(e => e.parent === root.parent).map(e => e.id);
+                    for (const cid of childIds) {
+                        if (!parentEntity.children.includes(cid)) {
+                            parentEntity.children.push(cid);
+                        }
+                    }
+                }
             }
         }
     }
@@ -261,7 +358,7 @@ export class ApplyPrefabOverridesCommand extends BaseCommand {
         }
     }
 
-    private updateOtherInstances(sourceEntities: EntityData[]): void {
+    private updateOtherInstances(_sourceEntities: EntityData[]): void {
         const otherInstanceIds = new Set<string>();
         for (const entity of this.scene_.entities) {
             if (entity.prefab?.prefabPath === this.prefabPath_ &&
@@ -331,5 +428,58 @@ export class ApplyPrefabOverridesCommand extends BaseCommand {
                 }
                 break;
         }
+    }
+}
+
+// =============================================================================
+// InstantiateNestedPrefabCommand
+// =============================================================================
+
+export class InstantiateNestedPrefabCommand extends BaseCommand {
+    readonly type = 'instantiate_nested_prefab';
+    readonly description: string;
+
+    constructor(
+        private scene_: SceneData,
+        private createdEntities_: EntityData[],
+        private rootEntityId_: number,
+        private parentEntityId_: number | null
+    ) {
+        super();
+        this.description = 'Instantiate nested prefab';
+    }
+
+    execute(): void {
+        for (const entity of this.createdEntities_) {
+            this.scene_.entities.push(entity);
+        }
+
+        if (this.parentEntityId_ !== null) {
+            const parent = this.scene_.entities.find(e => e.id === this.parentEntityId_);
+            if (parent && !parent.children.includes(this.rootEntityId_)) {
+                parent.children.push(this.rootEntityId_);
+            }
+        }
+    }
+
+    undo(): void {
+        const idsToRemove = new Set(this.createdEntities_.map(e => e.id));
+
+        if (this.parentEntityId_ !== null) {
+            const parent = this.scene_.entities.find(e => e.id === this.parentEntityId_);
+            if (parent) {
+                parent.children = parent.children.filter(id => !idsToRemove.has(id));
+            }
+        }
+
+        this.scene_.entities = this.scene_.entities.filter(e => !idsToRemove.has(e.id));
+    }
+
+    get rootEntityId(): number {
+        return this.rootEntityId_;
+    }
+
+    get createdEntityIds(): number[] {
+        return this.createdEntities_.map(e => e.id);
     }
 }

@@ -7,7 +7,7 @@ import type { EntityData, ComponentData, SceneData } from '../types/SceneTypes';
 import type { PrefabData, PrefabEntityData } from '../types/PrefabTypes';
 import { getEditorContext } from '../context/EditorContext';
 import type { NativeFS } from '../types/NativeFS';
-import { getGlobalPathResolver } from '../asset';
+import { getGlobalPathResolver, getAssetDatabase, isUUID, getComponentRefFields } from '../asset';
 
 // =============================================================================
 // Serialization
@@ -164,6 +164,52 @@ function deepCloneComponents(components: ComponentData[]): ComponentData[] {
 }
 
 // =============================================================================
+// Asset Reference Conversion (UUID ↔ Path)
+// =============================================================================
+
+type AssetRefConverter = (value: string) => string;
+
+function convertAssetRefsInComponents(
+    components: ComponentData[],
+    converter: AssetRefConverter
+): ComponentData[] {
+    return components.map(c => {
+        const fields = getComponentRefFields(c.type);
+        if (!fields || !c.data) return { type: c.type, data: { ...c.data } };
+
+        const data = { ...c.data };
+        for (const field of fields) {
+            const value = data[field];
+            if (typeof value === 'string' && value) {
+                data[field] = converter(value);
+            }
+        }
+        return { type: c.type, data };
+    });
+}
+
+export function convertPrefabAssetRefs(
+    prefab: PrefabData,
+    converter: AssetRefConverter
+): PrefabData {
+    const entities: PrefabEntityData[] = prefab.entities.map(entity => {
+        const converted: PrefabEntityData = {
+            ...entity,
+            components: convertAssetRefsInComponents(entity.components, converter),
+        };
+        if (entity.nestedPrefab) {
+            converted.nestedPrefab = {
+                ...entity.nestedPrefab,
+                prefabPath: converter(entity.nestedPrefab.prefabPath),
+            };
+        }
+        return converted;
+    });
+
+    return { ...prefab, entities };
+}
+
+// =============================================================================
 // File I/O
 // =============================================================================
 
@@ -171,12 +217,27 @@ function getNativeFS(): NativeFS | null {
     return getEditorContext().fs ?? null;
 }
 
+function resolvePathOrUuid(filePathOrUuid: string): string {
+    if (isUUID(filePathOrUuid)) {
+        return getAssetDatabase().getPath(filePathOrUuid) ?? filePathOrUuid;
+    }
+    return filePathOrUuid;
+}
+
 export async function savePrefabToPath(prefab: PrefabData, filePath: string): Promise<boolean> {
     const fs = getNativeFS();
     if (!fs) return false;
 
-    const absolutePath = getGlobalPathResolver().toAbsolutePath(filePath);
-    const json = serializePrefab(prefab);
+    const resolved = resolvePathOrUuid(filePath);
+    const absolutePath = getGlobalPathResolver().toAbsolutePath(resolved);
+    const db = getAssetDatabase();
+    const converted = convertPrefabAssetRefs(prefab, (value) => {
+        if (isUUID(value)) {
+            return db.getPath(value) ?? value;
+        }
+        return value;
+    });
+    const json = serializePrefab(converted);
     return fs.writeFile(absolutePath, json);
 }
 
@@ -184,12 +245,20 @@ export async function loadPrefabFromPath(filePath: string): Promise<PrefabData |
     const fs = getNativeFS();
     if (!fs) return null;
 
-    const absolutePath = getGlobalPathResolver().toAbsolutePath(filePath);
+    const resolved = resolvePathOrUuid(filePath);
+    const absolutePath = getGlobalPathResolver().toAbsolutePath(resolved);
 
     try {
         const content = await fs.readFile(absolutePath);
         if (!content) return null;
-        return deserializePrefab(content);
+        const prefab = deserializePrefab(content);
+        const db = getAssetDatabase();
+        return convertPrefabAssetRefs(prefab, (value) => {
+            if (!isUUID(value)) {
+                return db.getUuid(value) ?? value;
+            }
+            return value;
+        });
     } catch (err) {
         console.error('Failed to load prefab:', absolutePath, err);
         return null;

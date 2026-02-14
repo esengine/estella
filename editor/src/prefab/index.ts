@@ -11,12 +11,14 @@ export {
     sceneDataToPrefab,
     savePrefabToPath,
     loadPrefabFromPath,
+    convertPrefabAssetRefs,
     type EntityTreeToPrefabResult,
 } from './PrefabSerializer';
 
 export {
     instantiatePrefab,
     instantiatePrefabRecursive,
+    syncPrefabInstances,
     computeNextEntityId,
     type InstantiateResult,
 } from './PrefabInstantiator';
@@ -28,5 +30,7 @@ export {
     recordPropertyOverride,
     recordNameOverride,
     recordVisibilityOverride,
+    recordComponentAddedOverride,
+    recordComponentRemovedOverride,
     removePropertyOverride,
 } from './PrefabOverrideTracker';

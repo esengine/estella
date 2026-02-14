@@ -145,6 +145,63 @@ export function recordVisibilityOverride(
     }
 }
 
+export function recordComponentAddedOverride(
+    scene: SceneData,
+    entityId: number,
+    componentType: string,
+    componentData: Record<string, unknown>
+): void {
+    const entity = scene.entities.find(e => e.id === entityId);
+    if (!entity?.prefab) return;
+
+    const root = findInstanceRoot(scene, entity.prefab.instanceId);
+    if (!root?.prefab) return;
+
+    const existing = root.prefab.overrides.findIndex(
+        o => o.prefabEntityId === entity.prefab!.prefabEntityId &&
+            o.type === 'component_added' &&
+            o.componentData?.type === componentType
+    );
+
+    const override: PrefabOverride = {
+        prefabEntityId: entity.prefab.prefabEntityId,
+        type: 'component_added',
+        componentData: { type: componentType, data: JSON.parse(JSON.stringify(componentData)) },
+    };
+
+    if (existing !== -1) {
+        root.prefab.overrides[existing] = override;
+    } else {
+        root.prefab.overrides.push(override);
+    }
+}
+
+export function recordComponentRemovedOverride(
+    scene: SceneData,
+    entityId: number,
+    componentType: string
+): void {
+    const entity = scene.entities.find(e => e.id === entityId);
+    if (!entity?.prefab) return;
+
+    const root = findInstanceRoot(scene, entity.prefab.instanceId);
+    if (!root?.prefab) return;
+
+    const existing = root.prefab.overrides.findIndex(
+        o => o.prefabEntityId === entity.prefab!.prefabEntityId &&
+            o.type === 'component_removed' &&
+            o.componentType === componentType
+    );
+
+    if (existing !== -1) return;
+
+    root.prefab.overrides.push({
+        prefabEntityId: entity.prefab.prefabEntityId,
+        type: 'component_removed',
+        componentType,
+    });
+}
+
 export function removePropertyOverride(
     scene: SceneData,
     entityId: number,

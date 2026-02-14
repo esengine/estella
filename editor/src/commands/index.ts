@@ -15,6 +15,7 @@ export {
 } from './EntityCommands';
 export {
     InstantiatePrefabCommand,
+    InstantiateNestedPrefabCommand,
     UnpackPrefabCommand,
     RevertPrefabInstanceCommand,
     ApplyPrefabOverridesCommand,
