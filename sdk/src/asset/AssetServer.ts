@@ -47,19 +47,28 @@ export interface FileLoadOptions {
     noCache?: boolean;
 }
 
-export interface AssetManifest {
-    textures?: string[];
-    materials?: string[];
-    spine?: SpineDescriptor[];
-    json?: string[];
-    text?: string[];
-    binary?: string[];
+export type AddressableAssetType =
+    | 'texture' | 'material' | 'spine' | 'bitmap-font'
+    | 'prefab' | 'json' | 'text' | 'binary' | 'audio';
+
+export interface AddressableResultMap {
+    texture: TextureInfo;
+    material: LoadedMaterial;
+    spine: SpineLoadResult;
+    'bitmap-font': FontHandle;
+    prefab: PrefabData;
+    json: unknown;
+    text: string;
+    binary: ArrayBuffer;
+    audio: ArrayBuffer;
 }
 
 export interface AssetBundle {
     textures: Map<string, TextureInfo>;
     materials: Map<string, LoadedMaterial>;
     spine: Map<string, SpineLoadResult>;
+    fonts: Map<string, FontHandle>;
+    prefabs: Map<string, PrefabData>;
     json: Map<string, unknown>;
     text: Map<string, string>;
     binary: Map<string, ArrayBuffer>;
@@ -68,9 +77,14 @@ export interface AssetBundle {
 export interface AddressableManifestAsset {
     path: string;
     address?: string;
-    type: string;
+    type: AddressableAssetType;
     size: number;
     labels: string[];
+    metadata?: {
+        atlas?: string;
+        atlasPage?: number;
+        atlasFrame?: { x: number; y: number; width: number; height: number };
+    };
 }
 
 export interface AddressableManifestGroup {
@@ -405,71 +419,17 @@ export class AssetServer {
         return loadSceneWithAssets(world, sceneData, { assetServer: this });
     }
 
-    async loadAll(manifest: AssetManifest): Promise<AssetBundle> {
-        const bundle: AssetBundle = {
-            textures: new Map(),
-            materials: new Map(),
-            spine: new Map(),
-            json: new Map(),
-            text: new Map(),
-            binary: new Map(),
-        };
-
-        const promises: Promise<void>[] = [];
-
-        if (manifest.textures) {
-            for (const path of manifest.textures) {
-                promises.push(
-                    this.loadTexture(path).then(info => { bundle.textures.set(path, info); })
-                );
+    async loadAll(manifest: AddressableManifest): Promise<AssetBundle> {
+        this.setAddressableManifest(manifest);
+        const allAssets: AddressableManifestAsset[] = [];
+        if (manifest.groups) {
+            for (const group of Object.values(manifest.groups)) {
+                if (group.assets) {
+                    allAssets.push(...Object.values(group.assets));
+                }
             }
         }
-
-        if (manifest.materials) {
-            for (const path of manifest.materials) {
-                promises.push(
-                    this.loadMaterial(path).then(mat => { bundle.materials.set(path, mat); })
-                );
-            }
-        }
-
-        if (manifest.spine) {
-            for (const desc of manifest.spine) {
-                const key = `${desc.skeleton}:${desc.atlas}`;
-                promises.push(
-                    this.loadSpine(desc.skeleton, desc.atlas, desc.baseUrl).then(result => {
-                        bundle.spine.set(key, result);
-                    })
-                );
-            }
-        }
-
-        if (manifest.json) {
-            for (const path of manifest.json) {
-                promises.push(
-                    this.loadJson(path).then(data => { bundle.json.set(path, data); })
-                );
-            }
-        }
-
-        if (manifest.text) {
-            for (const path of manifest.text) {
-                promises.push(
-                    this.loadText(path).then(data => { bundle.text.set(path, data); })
-                );
-            }
-        }
-
-        if (manifest.binary) {
-            for (const path of manifest.binary) {
-                promises.push(
-                    this.loadBinary(path).then(data => { bundle.binary.set(path, data); })
-                );
-            }
-        }
-
-        await Promise.all(promises);
-        return bundle;
+        return this.loadAddressableAssets(allAssets);
     }
 
     // =========================================================================
@@ -482,7 +442,7 @@ export class AssetServer {
         this.labelIndex_.clear();
         this.groupAssets_.clear();
 
-        for (const [groupName, group] of Object.entries(manifest.groups)) {
+        for (const [groupName, group] of Object.entries(manifest.groups || {})) {
             const groupList: AddressableManifestAsset[] = [];
             for (const asset of Object.values(group.assets)) {
                 groupList.push(asset);
@@ -502,12 +462,14 @@ export class AssetServer {
         }
     }
 
-    async loadByAddress(address: string): Promise<TextureInfo | LoadedMaterial | unknown> {
+    async load<T extends AddressableAssetType = AddressableAssetType>(
+        address: string
+    ): Promise<AddressableResultMap[T]> {
         const asset = this.addressIndex_.get(address);
         if (!asset) {
             throw new Error(`No asset found with address: ${address}`);
         }
-        return this.loadAddressableAsset(asset);
+        return this.loadAddressableAsset(asset) as Promise<AddressableResultMap[T]>;
     }
 
     async loadByLabel(label: string): Promise<AssetBundle> {
@@ -520,12 +482,23 @@ export class AssetServer {
         return this.loadAddressableAssets(assets);
     }
 
-    private async loadAddressableAsset(asset: AddressableManifestAsset): Promise<TextureInfo | LoadedMaterial | unknown> {
+    private async loadAddressableAsset(asset: AddressableManifestAsset): Promise<unknown> {
         switch (asset.type) {
             case 'texture':
                 return this.loadTexture(asset.path);
             case 'material':
                 return this.loadMaterial(asset.path);
+            case 'spine': {
+                const atlas = asset.metadata?.atlas;
+                if (!atlas) throw new Error(`Spine asset missing atlas metadata: ${asset.path}`);
+                return this.loadSpine(asset.path, atlas);
+            }
+            case 'bitmap-font':
+                return this.loadBitmapFont(asset.path);
+            case 'prefab':
+                return this.loadPrefab(asset.path);
+            case 'audio':
+                return this.loadBinary(asset.path);
             case 'json':
                 return this.loadJson(asset.path);
             case 'text':
@@ -542,6 +515,8 @@ export class AssetServer {
             textures: new Map(),
             materials: new Map(),
             spine: new Map(),
+            fonts: new Map(),
+            prefabs: new Map(),
             json: new Map(),
             text: new Map(),
             binary: new Map(),
@@ -549,30 +524,56 @@ export class AssetServer {
 
         const promises: Promise<void>[] = [];
         for (const asset of assets) {
+            const key = asset.address ?? asset.path;
             switch (asset.type) {
                 case 'texture':
                     promises.push(
-                        this.loadTexture(asset.path).then(info => { bundle.textures.set(asset.path, info); })
+                        this.loadTexture(asset.path).then(info => { bundle.textures.set(key, info); })
                     );
                     break;
                 case 'material':
                     promises.push(
-                        this.loadMaterial(asset.path).then(mat => { bundle.materials.set(asset.path, mat); })
+                        this.loadMaterial(asset.path).then(mat => { bundle.materials.set(key, mat); })
+                    );
+                    break;
+                case 'spine': {
+                    const atlas = asset.metadata?.atlas;
+                    if (atlas) {
+                        promises.push(
+                            this.loadSpine(asset.path, atlas).then(result => { bundle.spine.set(key, result); })
+                        );
+                    }
+                    break;
+                }
+                case 'bitmap-font':
+                    promises.push(
+                        this.loadBitmapFont(asset.path).then(handle => { bundle.fonts.set(key, handle); })
+                    );
+                    break;
+                case 'prefab':
+                    promises.push(
+                        this.loadPrefab(asset.path).then(data => { bundle.prefabs.set(key, data); })
+                    );
+                    break;
+                case 'audio':
+                    promises.push(
+                        this.loadBinary(asset.path).then(data => { bundle.binary.set(key, data); })
                     );
                     break;
                 case 'json':
                     promises.push(
-                        this.loadJson(asset.path).then(data => { bundle.json.set(asset.path, data); })
+                        this.loadJson(asset.path).then(data => { bundle.json.set(key, data); })
                     );
                     break;
                 case 'text':
                     promises.push(
-                        this.loadText(asset.path).then(data => { bundle.text.set(asset.path, data); })
+                        this.loadText(asset.path).then(data => { bundle.text.set(key, data); })
                     );
                     break;
+                case 'binary':
                 default:
                     promises.push(
-                        this.loadBinary(asset.path).then(data => { bundle.binary.set(asset.path, data); })
+                        this.loadBinary(asset.path).then(data => { bundle.binary.set(key, data); })
                     );
                     break;
             }
