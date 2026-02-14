@@ -1,0 +1,164 @@
+---
+title: 微信小游戏
+description: 构建和部署 ESEngine 游戏到微信小游戏平台
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+ESEngine 支持将游戏构建为微信小游戏。编辑器负责处理整个构建过程，生成可直接在微信开发者工具中打开的项目目录。
+
+## 前置条件
+
+构建微信小游戏前，请确保：
+
+1. 已安装**微信开发者工具**（[下载](https://developers.weixin.qq.com/miniprogram/dev/devtools/download.html)）
+2. 拥有**微信小游戏 AppID**（测试时可选——可以使用 `touristappid`）
+
+## 构建微信小游戏
+
+### 1. 打开构建面板
+
+从编辑器工具栏打开**构建**面板，选择或创建一个微信小游戏配置。
+
+### 2. 配置设置
+
+| 设置 | 描述 |
+|------|------|
+| **AppID** | 微信小游戏 AppID。测试时可使用 `touristappid`（无需注册应用）。 |
+| **版本** | 版本字符串（如 `1.0.0`） |
+| **屏幕方向** | `竖屏`（Portrait）或 `横屏`（Landscape） |
+| **打包模式** | `分包`（大多数游戏推荐）、`单包` 或 `单文件` |
+| **输出目录** | 构建产物的输出位置（如 `build/wechat`） |
+
+### 3. 添加场景
+
+确保要包含的场景已列在场景列表中。点击**添加当前场景**可将编辑器中当前打开的场景加入列表。
+
+### 4. 点击构建
+
+点击**构建**或按 `Cmd/Ctrl + B`。编辑器将会：
+
+1. 收集场景引用的所有资源
+2. 将纹理打包为图集页
+3. 编译材质和用户脚本
+4. 生成 `game.js`、`game.json` 和 `project.config.json`
+5. 复制引擎 WASM 文件和 SDK
+6. 将完整项目写入输出目录
+
+构建进度会实时显示。
+
+## 在微信开发者工具中打开
+
+构建成功后：
+
+1. 打开**微信开发者工具**
+2. 点击**导入项目**
+3. 导航到构建输出目录（如 `build/wechat`）
+4. AppID 会从 `project.config.json` 自动填充
+5. 点击**导入**
+
+你的游戏应该会在模拟器中加载并运行。
+
+<Aside type="tip">
+  构建完成后，点击编辑器构建输出面板中的**打开文件夹**可以快速导航到输出目录。
+</Aside>
+
+## 构建输出
+
+构建会生成以下目录结构：
+
+```
+build/wechat/
+  project.config.json   # 微信开发者工具项目配置
+  game.json             # 小游戏配置（屏幕方向、分包等）
+  game.js               # 入口文件（引擎初始化 + 用户脚本）
+  esengine.js           # WASM 引擎加载器
+  esengine.wasm         # 引擎 WASM 二进制
+  sdk.js                # ESEngine SDK 运行时
+  spine.js / spine.wasm # Spine 运行时（如果启用了 Spine）
+  physics.js / physics.wasm # 物理引擎（如果启用了物理）
+  asset-manifest.json   # 可寻址资源清单
+  atlas_0.png, ...      # 打包的纹理图集
+  scenes/               # 场景 JSON 文件
+  assets/               # 游戏资源（纹理、Spine 数据等）
+```
+
+### `game.js` 的作用
+
+生成的 `game.js` 是小游戏的入口文件。它自动处理所有平台特定的初始化：
+
+- 创建画布并设置正确的分辨率
+- 使用 `WXWebAssembly.instantiate()` 加载 WASM 引擎
+- 将 WebGL 上下文注册到引擎
+- 加载并运行用户脚本
+- 加载启动场景并开始游戏循环
+
+正常使用时无需修改 `game.js`。
+
+## 平台差异
+
+微信小游戏运行在自定义的 JavaScript 运行时中，与标准浏览器有以下差异：
+
+- **无 DOM**：没有 `document` 或 HTML 元素。画布由 `wx.createCanvas()` 提供。
+- **禁止动态执行**：`eval()` 和 `new Function()` 被禁用。构建会自动处理这一限制。
+- **仅触摸输入**：输入来自微信触摸 API。SDK 会将其转换为标准指针事件。
+- **自定义文件系统**：文件通过 `wx.getFileSystemManager()` 读取，而非 HTTP fetch。
+
+这些差异由构建产物透明处理。你的游戏脚本无论目标平台如何都以相同方式工作。
+
+## 自定义扩展名文件
+
+微信默认会阻止访问未识别扩展名的文件。构建会自动在 `project.config.json` 中为所有 ESEngine 文件类型（`.esmaterial`、`.esprefab`、`.atlas`、`.skel`、`.fnt`、`.bmfont`）生成正确的 `packOptions.include` 配置。
+
+<Aside type="caution">
+  如果你添加了使用非标准扩展名的自定义资源类型，可能需要在生成的 `project.config.json` 中手动将其添加到 `packOptions.include`。
+</Aside>
+
+## 常见问题
+
+### 读取文件时出现 "permission denied"
+
+当微信阻止访问未识别扩展名的文件时会出现此错误。构建会自动生成 `packOptions.include`，但如果手动添加了新的资源类型，请验证扩展名是否已列出：
+
+```json
+{
+    "packOptions": {
+        "include": [
+            { "type": "suffix", "value": ".yourextension" }
+        ]
+    }
+}
+```
+
+### "File not found" 文件未找到
+
+资源未被包含在构建中。请确保满足以下条件之一：
+- 被场景或预制体引用（会自动包含）
+- 所在文件夹的导出模式在资源导出配置中设为 `always`
+
+### WebGL 上下文错误
+
+如果出现 `Failed to create WebGL context`，请确保微信基础库版本支持 WebGL 2。构建默认将 `libVersion` 设为 `3.0.0`，但请在微信开发者工具的**项目设置 > 基础库版本**中验证。
+
+### 白屏
+
+- 检查微信开发者工具控制台的错误信息
+- 确保场景已列在构建配置中
+- 验证输出目录包含所有预期文件（特别是 `esengine.wasm` 和 `sdk.js`）
+
+## 进阶：自定义 `game.js`
+
+对于高级用例（如添加微信特定 API、数据分析或广告 SDK），可以在构建后修改生成的 `game.js`。关键扩展点：
+
+- **场景加载之前**：在 `SDK.flushPendingSystems(app)` 之后、场景加载之前添加初始化代码
+- **场景加载之后**：在 `SDK.loadRuntimeScene(...)` 之后、`app.run()` 之前添加代码
+
+<Aside type="caution">
+  每次构建都会覆盖 `game.js` 的修改。如果需要持久化的自定义内容，请保留副本并在重新构建后合并修改。
+</Aside>
+
+## 下一步
+
+- [构建与导出](/microes/zh/guides/building/) -- 构建流水线概览
+- [可玩广告](/microes/zh/guides/playable-ads/) -- 用于广告网络的单文件 HTML 构建
+- [资源加载](/microes/zh/guides/assets/) -- 资源加载 API
