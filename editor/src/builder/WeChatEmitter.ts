@@ -10,19 +10,12 @@ import { BuildProgressReporter } from './BuildProgress';
 import { getEditorContext } from '../context/EditorContext';
 import { findTsFiles, EDITOR_ONLY_DIRS } from '../scripting/ScriptLoader';
 import { joinPath, getProjectDir } from '../utils/path';
-import { getAssetType } from '../asset/AssetTypes';
+import { isUUID } from '../asset/AssetLibrary';
+import { getAssetType, toAddressableType } from '../asset/AssetTypes';
 import { resolveShaderPath } from '../utils/shader';
 import { initializeEsbuild, createBuildVirtualFsPlugin } from './ArtifactBuilder';
+import { convertPrefabAssetRefs, deserializePrefab } from '../prefab';
 import type { NativeFS } from '../types/NativeFS';
-
-// =============================================================================
-// Types
-// =============================================================================
-
-interface AssetManifestEntry {
-    path: string;
-    type: string;
-}
 
 // =============================================================================
 // WeChatEmitter
@@ -235,9 +228,15 @@ var SDK = require('./sdk.js');
 globalThis.__esengine_sdk = SDK;
 
 var manifest = JSON.parse(wx.getFileSystemManager().readFileSync('asset-manifest.json', 'utf-8'));
-
+var assetIndex = {};
+for (var gn in manifest.groups) {
+    var g = manifest.groups[gn];
+    for (var uuid in g.assets) {
+        assetIndex[uuid] = g.assets[uuid];
+    }
+}
 function resolvePath(ref) {
-    var entry = manifest[ref];
+    var entry = assetIndex[ref];
     return entry ? entry.path : ref;
 }
 
@@ -332,7 +331,7 @@ async function initPhysicsModule() {
             gravity: context.physicsGravity ?? { x: 0, y: -9.81 },
             fixedTimestep: context.physicsFixedTimestep ?? 1 / 60,
             subStepCount: context.physicsSubStepCount ?? 4,
-        })});
+        })}, manifest);
 
         var screenAspect = canvas.width / canvas.height;
         SDK.updateCameraAspectRatio(app.world, screenAspect);
@@ -466,6 +465,21 @@ async function initPhysicsModule() {
             const destDir = destPath.substring(0, destPath.lastIndexOf('/'));
             await fs.createDirectory(destDir);
 
+            if (relativePath.endsWith('.esprefab')) {
+                const content = await fs.readFile(srcPath);
+                if (content) {
+                    const prefab = deserializePrefab(content);
+                    const converted = convertPrefabAssetRefs(prefab, (value) => {
+                        if (isUUID(value)) {
+                            return artifact.assetLibrary.getPath(value) ?? value;
+                        }
+                        return value;
+                    });
+                    await fs.writeFile(destPath, JSON.stringify(converted, null, 2));
+                }
+                continue;
+            }
+
             const data = await fs.readBinaryFile(srcPath);
             if (data) {
                 await fs.writeBinaryFile(destPath, data);
@@ -478,40 +492,86 @@ async function initPhysicsModule() {
         outputDir: string,
         artifact: BuildArtifact
     ): Promise<void> {
-        const manifest: Record<string, AssetManifestEntry> = {};
+        const groupService = artifact.assetLibrary.getGroupService();
+        const groups: Record<string, { bundleMode: string; labels: string[]; assets: Record<string, unknown> }> = {};
+
+        const spineAtlasPaths = new Map<string, string>();
+        for (const relativePath of artifact.assetPaths) {
+            if (getAssetType(relativePath) === 'spine-atlas') {
+                const dir = relativePath.substring(0, relativePath.lastIndexOf('/'));
+                spineAtlasPaths.set(dir, relativePath);
+            }
+        }
 
         for (const relativePath of artifact.assetPaths) {
             if (relativePath.endsWith('.esshader')) continue;
 
+            const editorType = getAssetType(relativePath);
+            const addressableType = toAddressableType(editorType);
+            if (!addressableType) continue;
+
             const uuid = artifact.assetLibrary.getUuid(relativePath);
             if (!uuid) continue;
 
+            const entry = artifact.assetLibrary.getEntry(uuid);
+            const groupName = entry?.group ?? 'default';
+
+            if (!groups[groupName]) {
+                const groupDef = groupService?.getGroup(groupName);
+                groups[groupName] = {
+                    bundleMode: groupDef?.bundleMode ?? 'together',
+                    labels: groupDef?.labels ?? [],
+                    assets: {},
+                };
+            }
+
+            let path = relativePath;
+            const metadata: Record<string, unknown> = {};
+
             if (artifact.packedPaths.has(relativePath)) {
-                const entry = artifact.atlasResult.frameMap.get(relativePath);
-                if (entry) {
-                    manifest[uuid] = {
-                        path: `atlas_${entry.page}.png`,
-                        type: 'texture',
+                const frame = artifact.atlasResult.frameMap.get(relativePath);
+                if (frame) {
+                    path = `atlas_${frame.page}.png`;
+                    metadata.atlasPage = frame.page;
+                    metadata.atlasFrame = {
+                        x: frame.frame.x,
+                        y: frame.frame.y,
+                        width: frame.frame.width,
+                        height: frame.frame.height,
                     };
                 }
-                continue;
             }
 
             const compiledMat = artifact.compiledMaterials.find(m => m.relativePath === relativePath);
             if (compiledMat) {
-                manifest[uuid] = {
-                    path: relativePath.replace(/\.esmaterial$/, '.json'),
-                    type: 'material',
-                };
-                continue;
+                path = relativePath.replace(/\.esmaterial$/, '.json');
             }
 
-            manifest[uuid] = {
-                path: relativePath,
-                type: getAssetType(relativePath),
+            if (addressableType === 'spine') {
+                const dir = relativePath.substring(0, relativePath.lastIndexOf('/'));
+                const atlasPath = spineAtlasPaths.get(dir);
+                if (atlasPath) {
+                    metadata.atlas = atlasPath;
+                }
+            }
+
+            const asset: Record<string, unknown> = {
+                path,
+                type: addressableType,
+                size: entry?.fileSize ?? 0,
+                labels: entry ? [...entry.labels] : [],
             };
+            if (entry?.address) {
+                asset.address = entry.address;
+            }
+            if (Object.keys(metadata).length > 0) {
+                asset.metadata = metadata;
+            }
+
+            groups[groupName].assets[uuid] = asset;
         }
 
+        const manifest = { version: '2.0', groups };
         await fs.writeFile(
             joinPath(outputDir, 'asset-manifest.json'),
             JSON.stringify(manifest, null, 2)

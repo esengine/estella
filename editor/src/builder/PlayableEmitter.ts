@@ -11,7 +11,9 @@ import { getEditorContext } from '../context/EditorContext';
 import { findTsFiles, EDITOR_ONLY_DIRS } from '../scripting/ScriptLoader';
 import { joinPath, getFileExtension, isAbsolutePath, getParentDir, normalizePath, getProjectDir } from '../utils/path';
 import { isUUID } from '../asset/AssetLibrary';
+import { getAssetType, toAddressableType } from '../asset/AssetTypes';
 import { initializeEsbuild, createBuildVirtualFsPlugin } from './ArtifactBuilder';
+import { convertPrefabAssetRefs, deserializePrefab } from '../prefab';
 import type { NativeFS } from '../types/NativeFS';
 
 // =============================================================================
@@ -117,13 +119,16 @@ export class PlayableEmitter implements PlatformEmitter {
             }
             progress.log('info', `Collected ${assets.size} assets`);
 
+            // 6.5 Generate addressable manifest
+            const manifestJson = this.generateAddressableManifest(artifact);
+
             // 7. Assemble HTML
             progress.setCurrentTask('Assembling HTML...', 50);
             const html = this.assembleHTML(
                 wasmSdk, gameCode, rewrittenScene, assets,
                 spineJsSource, spineWasmBase64,
                 physicsJsSource, physicsWasmBase64,
-                context
+                context, manifestJson
             );
             progress.log('info', `HTML assembled: ${html.length} bytes`);
 
@@ -234,10 +239,15 @@ ${imports}
     private resolveSceneUUIDs(sceneData: Record<string, unknown>, artifact: BuildArtifact): void {
         const entities = sceneData.entities as Array<{
             components: Array<{ type: string; data: Record<string, unknown> }>;
+            prefab?: { prefabPath: string };
         }> | undefined;
         if (!entities) return;
 
         for (const entity of entities) {
+            if (entity.prefab && typeof entity.prefab.prefabPath === 'string' && isUUID(entity.prefab.prefabPath)) {
+                const path = artifact.assetLibrary.getPath(entity.prefab.prefabPath);
+                if (path) entity.prefab.prefabPath = path;
+            }
             for (const comp of entity.components || []) {
                 if (comp.type === 'Sprite' && comp.data) {
                     if (typeof comp.data.texture === 'string' && isUUID(comp.data.texture)) {
@@ -308,6 +318,24 @@ ${imports}
                 continue;
             }
 
+            if (relativePath.endsWith('.esprefab')) {
+                const fullPath = joinPath(projectDir, relativePath);
+                const content = await fs.readFile(fullPath);
+                if (content) {
+                    const prefab = deserializePrefab(content);
+                    const converted = convertPrefabAssetRefs(prefab, (value) => {
+                        if (isUUID(value)) {
+                            return artifact.assetLibrary.getPath(value) ?? value;
+                        }
+                        return value;
+                    });
+                    const json = JSON.stringify(converted);
+                    const base64 = btoa(json);
+                    assets.set(relativePath, `data:application/json;base64,${base64}`);
+                }
+                continue;
+            }
+
             const ext = getFileExtension(relativePath);
             const mimeType = MIME_TYPES[ext];
             if (!mimeType) continue;
@@ -346,7 +374,7 @@ ${imports}
         assets: Map<string, string>,
         spineJs: string, spineWasmBase64: string,
         physicsJs: string, physicsWasmBase64: string,
-        context: BuildContext
+        context: BuildContext, manifestJson: string
     ): string {
         const entries: string[] = [];
         for (const [path, dataUrl] of assets) {
@@ -376,7 +404,91 @@ ${imports}
             .replace('{{GAME_CODE}}', () => gameCode)
             .replace('{{ASSETS_MAP}}', () => `{${entries.join(',')}}`)
             .replace('{{SCENE_DATA}}', () => sceneData)
-            .replace('{{PHYSICS_CONFIG}}', () => physicsConfig);
+            .replace('{{PHYSICS_CONFIG}}', () => physicsConfig)
+            .replace('{{MANIFEST}}', () => manifestJson);
+    }
+
+    private generateAddressableManifest(artifact: BuildArtifact): string {
+        const groupService = artifact.assetLibrary.getGroupService();
+        const groups: Record<string, { bundleMode: string; labels: string[]; assets: Record<string, unknown> }> = {};
+
+        const spineAtlasPaths = new Map<string, string>();
+        for (const relativePath of artifact.assetPaths) {
+            if (getAssetType(relativePath) === 'spine-atlas') {
+                const dir = relativePath.substring(0, relativePath.lastIndexOf('/'));
+                spineAtlasPaths.set(dir, relativePath);
+            }
+        }
+
+        for (const relativePath of artifact.assetPaths) {
+            if (relativePath.endsWith('.esshader')) continue;
+
+            const editorType = getAssetType(relativePath);
+            const addressableType = toAddressableType(editorType);
+            if (!addressableType) continue;
+
+            const uuid = artifact.assetLibrary.getUuid(relativePath);
+            if (!uuid) continue;
+
+            const entry = artifact.assetLibrary.getEntry(uuid);
+            const groupName = entry?.group ?? 'default';
+
+            if (!groups[groupName]) {
+                const groupDef = groupService?.getGroup(groupName);
+                groups[groupName] = {
+                    bundleMode: groupDef?.bundleMode ?? 'together',
+                    labels: groupDef?.labels ?? [],
+                    assets: {},
+                };
+            }
+
+            let path = relativePath;
+            const metadata: Record<string, unknown> = {};
+
+            if (artifact.packedPaths.has(relativePath)) {
+                const frame = artifact.atlasResult.frameMap.get(relativePath);
+                if (frame) {
+                    path = `atlas_${frame.page}.png`;
+                    metadata.atlasPage = frame.page;
+                    metadata.atlasFrame = {
+                        x: frame.frame.x,
+                        y: frame.frame.y,
+                        width: frame.frame.width,
+                        height: frame.frame.height,
+                    };
+                }
+            }
+
+            const compiledMat = artifact.compiledMaterials.find(m => m.relativePath === relativePath);
+            if (compiledMat) {
+                path = relativePath.replace(/\.esmaterial$/, '.json');
+            }
+
+            if (addressableType === 'spine') {
+                const dir = relativePath.substring(0, relativePath.lastIndexOf('/'));
+                const atlasPath = spineAtlasPaths.get(dir);
+                if (atlasPath) {
+                    metadata.atlas = atlasPath;
+                }
+            }
+
+            const asset: Record<string, unknown> = {
+                path,
+                type: addressableType,
+                size: entry?.fileSize ?? 0,
+                labels: entry ? [...entry.labels] : [],
+            };
+            if (entry?.address) {
+                asset.address = entry.address;
+            }
+            if (Object.keys(metadata).length > 0) {
+                asset.metadata = metadata;
+            }
+
+            groups[groupName].assets[uuid] = asset;
+        }
+
+        return JSON.stringify({ version: '2.0', groups });
     }
 
     private arrayBufferToBase64(buffer: Uint8Array): string {
@@ -419,6 +531,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000}
 <script>
 var __PA__={{ASSETS_MAP}};
 var __SCENE__={{SCENE_DATA}};
+var __MANIFEST__={{MANIFEST}};
 
 function loadImagePixels(dataUrl){
   return new Promise(function(resolve,reject){
@@ -496,7 +609,7 @@ function decodeBinary(dataUrl){
     resolvePath:function(ref){return ref}
   };
 
-  await es.loadRuntimeScene(app,Module,__SCENE__,provider,spineModule,physicsModule,{{PHYSICS_CONFIG}});
+  await es.loadRuntimeScene(app,Module,__SCENE__,provider,spineModule,physicsModule,{{PHYSICS_CONFIG}},__MANIFEST__);
 
   var screenAspect=c.width/c.height;
   es.updateCameraAspectRatio(app.world,screenAspect);

@@ -53,11 +53,15 @@
             loading.textContent = message;
         }
 
-        function showError(msg) {
+        function showError(msg, err) {
             loading.style.display = 'none';
             errorDiv.style.display = 'block';
-            errorDiv.textContent = msg;
-            console.error('Preview Error:', msg);
+            let detail = msg;
+            if (err && err.stack) {
+                detail += '\n\n' + err.stack;
+            }
+            errorDiv.textContent = detail;
+            console.error('Preview Error:', msg, err || '');
         }
 
         function setupCanvas() {
@@ -91,11 +95,14 @@
         }
 
         async function loadPreview() {
+            let step = 'init';
             try {
+                step = 'load WASM module';
                 updateLoading('Loading WASM module...');
                 const ModuleLoader = await import('/wasm/esengine.js');
                 const Module = await ModuleLoader.default();
 
+                step = 'load SDK';
                 updateLoading('Loading SDK...');
                 const sdk = await import('/sdk/index.js');
 
@@ -108,6 +115,7 @@
                         config = await configResp.json();
                         const spineUrl = config.spineVersion && SPINE_WASM_MAP[config.spineVersion];
                         if (spineUrl) {
+                            step = 'load Spine ' + config.spineVersion;
                             updateLoading('Loading Spine ' + config.spineVersion + '...');
                             await loadUmdScript(spineUrl);
                             const { SpinePlugin } = await import('esengine/spine');
@@ -120,6 +128,7 @@
 
                 if (config.enablePhysics) {
                     try {
+                        step = 'load Physics';
                         updateLoading('Loading Physics...');
                         await loadUmdScript('/wasm/physics.js');
                         physicsPlugin = new sdk.PhysicsPlugin('/wasm/physics.js', {
@@ -138,16 +147,22 @@
                     console.warn('User scripts load skipped:', e);
                 }
 
+                step = 'setup canvas';
                 updateLoading('Loading scene...');
                 setupCanvas();
                 window.addEventListener('resize', () => setupCanvas());
 
+                step = 'create app';
                 const previewPlugin = new sdk.PreviewPlugin('/.esengine/preview/scene.json', '/');
 
                 const app = sdk.createWebApp(Module, {
                     getViewportSize: getCanvasViewportSize
                 });
+
+                step = 'flushPendingSystems';
                 sdk.flushPendingSystems(app);
+
+                step = 'add plugins';
                 if (spinePlugin) {
                     app.addPlugin(spinePlugin);
                 }
@@ -156,17 +171,29 @@
                 }
                 app.addPlugin(previewPlugin);
 
+                step = 'waitForReady (scene load)';
                 await previewPlugin.waitForReady();
+
                 if (app.__physicsInitPromise) {
+                    step = 'physics init';
                     await app.__physicsInitPromise;
                 }
 
+                step = 'app.run';
                 loading.style.display = 'none';
                 app.run();
             } catch (err) {
-                showError(err.message || String(err));
+                showError('[' + step + '] ' + (err.message || String(err)), err);
             }
         }
+
+        window.addEventListener('error', (e) => {
+            showError('[runtime error] ' + (e.message || String(e)), e.error);
+        });
+        window.addEventListener('unhandledrejection', (e) => {
+            const err = e.reason;
+            showError('[unhandled rejection] ' + (err?.message || String(err)), err);
+        });
 
         loadPreview();
     </script>
