@@ -260,6 +260,10 @@ export class AssetDatabase {
             for (const comp of entity.components || []) {
                 changed = await this.migrateComponentRefs(comp) || changed;
             }
+            if (entity.prefab?.prefabPath && !isUUID(entity.prefab.prefabPath)) {
+                entity.prefab.prefabPath = await this.ensureMeta(entity.prefab.prefabPath);
+                changed = true;
+            }
         }
 
         if (scene.textureMetadata) {
@@ -287,6 +291,12 @@ export class AssetDatabase {
         for (const entity of scene.entities) {
             for (const comp of entity.components || []) {
                 this.resolveComponentRefs(comp);
+            }
+            if (entity.prefab?.prefabPath && isUUID(entity.prefab.prefabPath)) {
+                const path = this.getPath(entity.prefab.prefabPath);
+                if (path) {
+                    entity.prefab.prefabPath = path;
+                }
             }
         }
 

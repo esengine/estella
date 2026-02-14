@@ -159,6 +159,7 @@ export class AssetDependencyAnalyzer {
         const refs: string[] = [];
         const entities = scene.entities as Array<{
             components: Array<{ type: string; data: Record<string, unknown> }>;
+            prefab?: { prefabPath: string };
         }> | undefined;
 
         if (!entities) return refs;
@@ -170,6 +171,9 @@ export class AssetDependencyAnalyzer {
         }
 
         for (const entity of entities) {
+            if (entity.prefab?.prefabPath) {
+                refs.push(entity.prefab.prefabPath);
+            }
             for (const comp of entity.components || []) {
                 const scanner = scannerMap.get(comp.type);
                 if (scanner && comp.data) {
@@ -206,6 +210,8 @@ export class AssetDependencyAnalyzer {
             await this.collectAtlasRefs(resolvedPath, uuid, dependencies, dependents);
         } else if (resolvedPath.endsWith('.bmfont') || resolvedPath.endsWith('.fnt')) {
             await this.collectFontRefs(resolvedPath, uuid, dependencies, dependents);
+        } else if (resolvedPath.endsWith('.esprefab')) {
+            await this.collectPrefabRefs(resolvedPath, uuid, dependencies, dependents, visited);
         }
     }
 
@@ -214,7 +220,7 @@ export class AssetDependencyAnalyzer {
         materialUuid: string,
         dependencies: Map<string, Set<string>>,
         dependents: Map<string, Set<string>>,
-        visited: Set<string>
+        _visited: Set<string>
     ): Promise<void> {
         const fullPath = isAbsolutePath(materialPath)
             ? materialPath
@@ -302,6 +308,61 @@ export class AssetDependencyAnalyzer {
                 const texUuid = this.assetDb_.getUuid(texPath) ?? texPath;
                 this.addEdge(dependencies, dependents, fontUuid, texUuid);
             }
+        }
+    }
+
+    private async collectPrefabRefs(
+        prefabPath: string,
+        prefabUuid: string,
+        dependencies: Map<string, Set<string>>,
+        dependents: Map<string, Set<string>>,
+        visited: Set<string>
+    ): Promise<void> {
+        const fullPath = isAbsolutePath(prefabPath)
+            ? prefabPath
+            : joinPath(this.projectDir_, prefabPath);
+
+        const content = await this.fs_.readFile(fullPath);
+        if (!content) return;
+
+        try {
+            const prefab = JSON.parse(content);
+            const entities = prefab.entities as Array<{
+                components: Array<{ type: string; data: Record<string, unknown> }>;
+                nestedPrefab?: { prefabPath: string };
+            }> | undefined;
+
+            if (!entities) return;
+
+            const scanners = getAllScanners();
+            const scannerMap = new Map<string, AssetRefScanner>();
+            for (const s of scanners) {
+                scannerMap.set(s.componentType, s);
+            }
+
+            for (const entity of entities) {
+                if (entity.nestedPrefab?.prefabPath) {
+                    const nestedRef = this.resolveRef(entity.nestedPrefab.prefabPath);
+                    const nestedUuid = this.assetDb_.getUuid(nestedRef) ?? nestedRef;
+                    this.addEdge(dependencies, dependents, prefabUuid, nestedUuid);
+                    await this.collectTransitiveRefs(nestedRef, nestedUuid, dependencies, dependents, visited);
+                }
+
+                for (const comp of entity.components || []) {
+                    const scanner = scannerMap.get(comp.type);
+                    if (scanner && comp.data) {
+                        const refs = scanner.extractRefs(comp.data);
+                        for (const ref of refs) {
+                            const resolvedRef = this.resolveRef(ref);
+                            const refUuid = this.assetDb_.getUuid(resolvedRef) ?? resolvedRef;
+                            this.addEdge(dependencies, dependents, prefabUuid, refUuid);
+                            await this.collectTransitiveRefs(resolvedRef, refUuid, dependencies, dependents, visited);
+                        }
+                    }
+                }
+            }
+        } catch {
+            // ignore
         }
     }
 

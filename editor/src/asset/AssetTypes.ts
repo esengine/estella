@@ -6,6 +6,7 @@ export const ASSET_EXTENSIONS = new Set([
     'atlas', 'skel', 'json',
     'esmaterial', 'esshader',
     'bmfont', 'fnt',
+    'esprefab',
 ]);
 
 export function getAssetType(path: string): string {
@@ -25,10 +26,38 @@ export function getAssetType(path: string): string {
             return 'json';
         case 'bmfont': case 'fnt':
             return 'bitmap-font';
+        case 'esprefab':
+            return 'prefab';
         case 'mp3': case 'wav': case 'ogg':
             return 'audio';
         default:
             return 'unknown';
+    }
+}
+
+export type AddressableAssetType =
+    | 'texture' | 'material' | 'spine' | 'bitmap-font'
+    | 'prefab' | 'json' | 'text' | 'binary' | 'audio';
+
+export function toAddressableType(editorType: string): AddressableAssetType | null {
+    switch (editorType) {
+        case 'texture':
+        case 'material':
+        case 'prefab':
+        case 'json':
+        case 'text':
+        case 'binary':
+        case 'audio':
+            return editorType;
+        case 'spine-skeleton':
+            return 'spine';
+        case 'bitmap-font':
+            return 'bitmap-font';
+        case 'spine-atlas':
+        case 'shader':
+            return null;
+        default:
+            return 'binary';
     }
 }
 
