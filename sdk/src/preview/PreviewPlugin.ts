@@ -43,27 +43,37 @@ export class PreviewPlugin implements Plugin {
     private async loadScene(): Promise<void> {
         if (!this.app_) return;
 
+        let step = 'fetch scene';
         try {
             const response = await platformFetch(this.sceneUrl_);
             if (!response.ok) {
                 throw new Error(`Failed to fetch scene: ${response.status}`);
             }
+            step = 'parse scene JSON';
             const sceneData = await response.json<SceneData>();
 
+            step = 'prefetch assets';
             const provider = new WebAssetProvider(this.baseUrl_);
             await provider.prefetch(sceneData);
 
             let spineModule = null;
             const spinePromise = (this.app_ as any).__spineInitPromise;
             if (spinePromise) {
+                step = 'init spine';
                 const result = await spinePromise;
                 spineModule = result.controller.raw;
             }
 
+            step = 'loadRuntimeScene';
             await loadRuntimeScene(this.app_, this.app_.wasmModule!, sceneData, provider, spineModule);
+
+            step = 'ensureCamera';
             this.ensureCamera();
         } catch (err) {
-            console.error('[PreviewPlugin] Failed to load scene:', err);
+            const msg = err instanceof Error ? err.message : String(err);
+            const stack = err instanceof Error ? err.stack : '';
+            console.error(`[PreviewPlugin] Failed at step "${step}": ${msg}\n${stack}`);
+            throw new Error(`[PreviewPlugin:${step}] ${msg}`);
         }
     }
 
