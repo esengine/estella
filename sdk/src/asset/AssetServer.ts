@@ -206,12 +206,15 @@ export class AssetServer {
         for (const handle of this.fontCache_.values()) {
             rm.releaseBitmapFont(handle);
         }
-        this.textureCache_.clear();
-        this.fontCache_.clear();
-        this.prefabCache_.clear();
-        this.jsonCache_.clear();
-        this.textCache_.clear();
-        this.binaryCache_.clear();
+        this.materialLoader_.releaseAll();
+        Material.releaseAll();
+        this.textureCache_.clearAll();
+        this.shaderCache_.clearAll();
+        this.fontCache_.clearAll();
+        this.prefabCache_.clearAll();
+        this.jsonCache_.clearAll();
+        this.textCache_.clearAll();
+        this.binaryCache_.clearAll();
         this.loadedSpines_.clear();
         if (this.spineController_) {
             for (const handle of this.spineSkeletons_.values()) {

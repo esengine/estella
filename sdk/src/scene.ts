@@ -186,6 +186,8 @@ async function preloadSceneAssets(
     baseUrl: string | undefined,
     texturePathToUrl: Map<string, string>,
 ): Promise<void> {
+    sceneData = JSON.parse(JSON.stringify(sceneData));
+
     const textures = new Set<string>();
     const materials = new Set<string>();
     const fonts = new Set<string>();

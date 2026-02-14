@@ -36,6 +36,9 @@ export class WeChatEmitter implements PlatformEmitter {
         const outputDir = joinPath(projectDir, settings.outputDir);
 
         try {
+            if (await fs.exists(outputDir)) {
+                await fs.removeDirectory(outputDir);
+            }
             await fs.createDirectory(outputDir);
 
             // 1. Generate project.config.json

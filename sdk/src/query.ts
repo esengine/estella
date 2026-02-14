@@ -159,7 +159,7 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
                     prevEntity = entity;
                 }
 
-                yield result as QueryResult<C>;
+                yield result.slice() as QueryResult<C>;
             }
         } finally {
             if (prevEntity !== null && hasMut) {

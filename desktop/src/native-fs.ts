@@ -14,6 +14,7 @@ import {
     readDir,
     stat,
     copyFile,
+    remove,
     watch as tauriWatch,
 } from '@tauri-apps/plugin-fs';
 import { invoke, convertFileSrc } from '@tauri-apps/api/core';
@@ -46,6 +47,7 @@ export interface NativeFS {
     loadFile(): Promise<{ path: string; content: string } | null>;
     selectDirectory(): Promise<string | null>;
     createDirectory(path: string): Promise<boolean>;
+    removeDirectory(path: string): Promise<boolean>;
     exists(path: string): Promise<boolean>;
     writeFile(path: string, content: string): Promise<boolean>;
     writeBinaryFile(path: string, data: Uint8Array): Promise<boolean>;
@@ -134,6 +136,15 @@ export const nativeFS: NativeFS = {
     async createDirectory(path: string) {
         try {
             await mkdir(path, { recursive: true });
+            return true;
+        } catch {
+            return false;
+        }
+    },
+
+    async removeDirectory(path: string) {
+        try {
+            await remove(path, { recursive: true });
             return true;
         } catch {
             return false;

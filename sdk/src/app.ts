@@ -234,7 +234,7 @@ export class App {
         const deltaMs = currentTime - this.lastTime_;
         this.lastTime_ = currentTime;
 
-        const delta = deltaMs / 1000;
+        const delta = Math.min(deltaMs / 1000, 0.25);
 
         this.updateTime(delta);
         this.world_.resetQueryPool();
@@ -242,11 +242,16 @@ export class App {
         this.runSchedule(Schedule.First);
 
         this.fixedAccumulator_ += delta;
-        while (this.fixedAccumulator_ >= this.fixedTimestep_) {
+        let fixedSteps = 0;
+        while (this.fixedAccumulator_ >= this.fixedTimestep_ && fixedSteps < 8) {
             this.fixedAccumulator_ -= this.fixedTimestep_;
             this.runSchedule(Schedule.FixedPreUpdate);
             this.runSchedule(Schedule.FixedUpdate);
             this.runSchedule(Schedule.FixedPostUpdate);
+            fixedSteps++;
+        }
+        if (fixedSteps >= 8) {
+            this.fixedAccumulator_ = 0;
         }
 
         this.runSchedule(Schedule.PreUpdate);
@@ -259,12 +264,29 @@ export class App {
 
     quit(): void {
         this.running_ = false;
-        shutdownGLDebugAPI();
-        shutdownRendererAPI();
-        shutdownPostProcessAPI();
-        shutdownGeometryAPI();
-        shutdownMaterialAPI();
-        shutdownDrawAPI();
+
+        const shutdowns = [
+            shutdownGLDebugAPI,
+            shutdownRendererAPI,
+            shutdownPostProcessAPI,
+            shutdownGeometryAPI,
+            shutdownMaterialAPI,
+            shutdownDrawAPI,
+        ];
+        for (const fn of shutdowns) {
+            try { fn(); } catch (e) {
+                console.error('[ESEngine] Shutdown error:', e);
+            }
+        }
+
+        for (const entity of this.world_.getAllEntities()) {
+            try { this.world_.despawn(entity); } catch (_) { /* ignore */ }
+        }
+        this.world_.disconnectCpp();
+
+        this.pipeline_ = null;
+        this.runner_ = null;
+        this.module_ = null;
     }
 
     // =========================================================================

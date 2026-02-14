@@ -1,8 +1,5 @@
 import type { NativeFS } from '../types/NativeFS';
 import type { AssetLibrary } from '../asset/AssetLibrary';
-import type { BuildConfig } from '../types/BuildTypes';
-import type { AssetExportConfig } from './AssetCollector';
-import { BuildAssetCollector, AssetExportConfigService } from './AssetCollector';
 import { joinPath } from '../utils/path';
 import { parseEsShader, resolveShaderPath } from '../utils/shader';
 
@@ -16,12 +13,9 @@ export async function compileMaterials(
     fs: NativeFS,
     projectDir: string,
     assetLibrary: AssetLibrary,
-    config: BuildConfig,
-    exportConfig: AssetExportConfig
+    assetPaths: Set<string>
 ): Promise<CompiledMaterial[]> {
     const results: CompiledMaterial[] = [];
-    const collector = new BuildAssetCollector(fs, projectDir, assetLibrary);
-    const assetPaths = await collector.collect(config, exportConfig);
 
     for (const relativePath of assetPaths) {
         if (!relativePath.endsWith('.esmaterial')) continue;

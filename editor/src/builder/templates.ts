@@ -242,6 +242,7 @@ ${physicsInit}
     }
     function resolvePath(ref) {
         var entry = assetIndex[ref];
+        if (!entry) console.warn('[ESEngine] Asset not found in manifest:', ref);
         return entry ? entry.path : ref;
     }
 

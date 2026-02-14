@@ -284,10 +284,6 @@ ${imports}
         const compiledMaterialPaths = new Set(artifact.compiledMaterials.map(m => m.relativePath));
 
         const allFiles = new Set(artifact.assetPaths);
-        const assetsDir = joinPath(projectDir, 'assets');
-        if (await fs.exists(assetsDir)) {
-            await this.walkDirectory(fs, assetsDir, 'assets', allFiles);
-        }
 
         const pending: Array<Promise<void>> = [];
 
@@ -332,24 +328,6 @@ ${imports}
 
         await Promise.all(pending);
         return assets;
-    }
-
-    private async walkDirectory(
-        fs: NativeFS,
-        absolutePath: string,
-        relativePath: string,
-        result: Set<string>
-    ): Promise<void> {
-        const entries = await fs.listDirectoryDetailed(absolutePath);
-        for (const entry of entries) {
-            const childAbsolute = joinPath(absolutePath, entry.name);
-            const childRelative = `${relativePath}/${entry.name}`;
-            if (entry.isDirectory) {
-                await this.walkDirectory(fs, childAbsolute, childRelative, result);
-            } else {
-                result.add(childRelative);
-            }
-        }
     }
 
     private assembleHTML(

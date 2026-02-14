@@ -10,7 +10,7 @@ import type { NativeFS } from '../types/NativeFS';
 import { BuildProgressReporter } from './BuildProgress';
 import { AssetExportConfigService, BuildAssetCollector } from './AssetCollector';
 import { TextureAtlasPacker } from './TextureAtlas';
-import { AssetLibrary, isUUID } from '../asset/AssetLibrary';
+import { AssetLibrary, isUUID, getComponentRefFields } from '../asset/AssetLibrary';
 import { getAssetType, toAddressableType } from '../asset/AssetTypes';
 import { compileMaterials } from './MaterialCompiler';
 import { convertPrefabAssetRefs, deserializePrefab } from '../prefab';
@@ -66,22 +66,15 @@ export async function buildArtifact(
     }
 
     progress.setCurrentTask('Compiling materials...', 20);
-    const compiledMaterials = await compileMaterials(fs, projectDir, assetLibrary, config, exportConfig);
+    const compiledMaterials = await compileMaterials(fs, projectDir, assetLibrary, assetPaths);
     progress.log('info', `Compiled ${compiledMaterials.length} material(s)`);
 
     progress.setCurrentTask('Processing scenes...', 40);
     const scenes = new Map<string, Record<string, unknown>>();
-    for (const scenePath of config.scenes) {
-        const fullPath = isAbsolutePath(scenePath)
-            ? normalizePath(scenePath)
-            : joinPath(projectDir, scenePath);
-        const content = await fs.readFile(fullPath);
-        if (content) {
-            const name = scenePath.replace(/.*\//, '').replace('.esscene', '');
-            const sceneData = JSON.parse(content);
-            packer.rewriteSceneData(sceneData, atlasResult, '');
-            scenes.set(name, sceneData);
-        }
+    for (const { name, data } of sceneDataList) {
+        packer.rewriteSceneData(data, atlasResult, '');
+        resolveSceneUUIDs(data, assetLibrary);
+        scenes.set(name, data);
     }
 
     return {
@@ -92,6 +85,52 @@ export async function buildArtifact(
         compiledMaterials,
         assetLibrary,
     };
+}
+
+function resolveSceneUUIDs(sceneData: Record<string, unknown>, assetLibrary: AssetLibrary): void {
+    const entities = sceneData.entities as Array<{
+        components: Array<{ type: string; data: Record<string, unknown> }>;
+        prefab?: { prefabPath?: string };
+    }> | undefined;
+
+    if (!entities) return;
+
+    for (const entity of entities) {
+        for (const comp of entity.components || []) {
+            if (!comp.data) continue;
+            const refFields = getComponentRefFields(comp.type);
+            if (!refFields) continue;
+            for (const field of refFields) {
+                const value = comp.data[field];
+                if (typeof value === 'string' && isUUID(value)) {
+                    const path = assetLibrary.getPath(value);
+                    if (path) {
+                        comp.data[field] = path;
+                    }
+                }
+            }
+        }
+        if (entity.prefab?.prefabPath && isUUID(entity.prefab.prefabPath)) {
+            const path = assetLibrary.getPath(entity.prefab.prefabPath);
+            if (path) {
+                entity.prefab.prefabPath = path;
+            }
+        }
+    }
+
+    const textureMetadata = sceneData.textureMetadata as Record<string, unknown> | undefined;
+    if (textureMetadata) {
+        const resolved: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(textureMetadata)) {
+            if (isUUID(key)) {
+                const path = assetLibrary.getPath(key);
+                resolved[path ?? key] = value;
+            } else {
+                resolved[key] = value;
+            }
+        }
+        sceneData.textureMetadata = resolved;
+    }
 }
 
 // =============================================================================
@@ -106,7 +145,10 @@ export async function initializeEsbuild(): Promise<void> {
     if (esbuildInitialized) return;
     try {
         await esbuild.initialize({ wasmURL: getEsbuildWasmURL() });
-    } catch {
+    } catch (e) {
+        if (!String(e).includes('already')) {
+            throw e;
+        }
     }
     esbuildInitialized = true;
 }

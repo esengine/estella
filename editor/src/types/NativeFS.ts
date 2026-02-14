@@ -15,6 +15,7 @@ export interface NativeFS {
     loadFile(): Promise<{ path: string; content: string } | null>;
     selectDirectory(): Promise<string | null>;
     createDirectory(path: string): Promise<boolean>;
+    removeDirectory(path: string): Promise<boolean>;
     exists(path: string): Promise<boolean>;
     writeFile(path: string, content: string): Promise<boolean>;
     writeBinaryFile(path: string, data: Uint8Array): Promise<boolean>;

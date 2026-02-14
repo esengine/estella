@@ -22,8 +22,8 @@ import { Assets } from './asset/AssetPlugin';
 export interface RuntimeAssetProvider {
     loadPixels(ref: string): Promise<{ width: number; height: number; pixels: Uint8Array }>;
     loadPixelsRaw?(ref: string): Promise<{ width: number; height: number; pixels: Uint8Array }>;
-    readText(ref: string): string;
-    readBinary(ref: string): Uint8Array;
+    readText(ref: string): string | Promise<string>;
+    readBinary(ref: string): Uint8Array | Promise<Uint8Array>;
     resolvePath(ref: string): string;
 }
 
@@ -140,18 +140,18 @@ async function loadSpineAssets(
             const atlasPath = provider.resolvePath(atlasRef);
 
             try {
-                const atlasContent = provider.readText(atlasRef);
+                const atlasContent = await provider.readText(atlasRef);
                 const isBinary = skelPath.endsWith('.skel');
 
                 let skelDataPtr: number;
                 let skelDataLen: number;
                 if (isBinary) {
-                    const bytes = provider.readBinary(skelRef);
+                    const bytes = await provider.readBinary(skelRef);
                     skelDataLen = bytes.length;
                     skelDataPtr = spineModule._malloc(skelDataLen);
                     spineModule.HEAPU8.set(bytes, skelDataPtr);
                 } else {
-                    const text = provider.readText(skelRef);
+                    const text = await provider.readText(skelRef);
                     const encoder = new TextEncoder();
                     const bytes = encoder.encode(text);
                     skelDataLen = bytes.length;
@@ -344,15 +344,15 @@ async function loadBitmapFonts(
                 let fntDir: string;
 
                 if (ref.endsWith('.bmfont')) {
-                    const json = JSON.parse(provider.readText(ref));
+                    const json = JSON.parse(await provider.readText(ref));
                     const fntFile = json.type === 'label-atlas' ? json.generatedFnt : json.fntFile;
                     if (!fntFile) { cache[ref] = 0; continue; }
                     const dir = ref.substring(0, ref.lastIndexOf('/'));
                     const fntRef = dir ? `${dir}/${fntFile}` : fntFile;
-                    fntContent = provider.readText(fntRef);
+                    fntContent = await provider.readText(fntRef);
                     fntDir = fntRef.substring(0, fntRef.lastIndexOf('/'));
                 } else {
-                    fntContent = provider.readText(ref);
+                    fntContent = await provider.readText(ref);
                     fntDir = ref.substring(0, ref.lastIndexOf('/'));
                 }
 
@@ -401,10 +401,10 @@ function updateBitmapTextFonts(
 // Material Helpers
 // =============================================================================
 
-function loadMaterials(
+async function loadMaterials(
     sceneData: SceneData,
     provider: RuntimeAssetProvider,
-): Record<string, number> {
+): Promise<Record<string, number>> {
     const materialCache: Record<string, number> = {};
     const shaderCache: Record<string, number> = {};
     for (const entity of sceneData.entities) {
@@ -414,7 +414,7 @@ function loadMaterials(
             const matRef = comp.data.material as string;
             if (materialCache[matRef] !== undefined) continue;
             try {
-                const matData = JSON.parse(provider.readText(matRef));
+                const matData = JSON.parse(await provider.readText(matRef));
                 if (!matData.vertexSource || !matData.fragmentSource) {
                     materialCache[matRef] = 0;
                     continue;
@@ -499,7 +499,7 @@ export async function loadRuntimeScene(
     }
 
     const fontCache = await loadBitmapFonts(module, sceneData, provider);
-    const materialCache = loadMaterials(sceneData, provider);
+    const materialCache = await loadMaterials(sceneData, provider);
     const entityMap = loadSceneData(app.world, sceneData);
 
     updateSpriteTextures(app.world, sceneData, textureCache, entityMap);

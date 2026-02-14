@@ -240,6 +240,10 @@ export const Material = {
         return materials.has(material);
     },
 
+    releaseAll(): void {
+        materials.clear();
+    },
+
     /**
      * Creates a material from asset data.
      * @param data Material asset data (properties object)

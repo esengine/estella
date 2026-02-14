@@ -128,11 +128,18 @@ export class AssetReferenceCollector {
     ): Promise<void> {
         const entities = scene.entities as Array<{
             components: Array<{ type: string; data: Record<string, unknown> }>;
+            prefab?: { prefabPath: string };
         }> | undefined;
 
         if (!entities) return;
 
         for (const entity of entities) {
+            if (entity.prefab?.prefabPath) {
+                const resolved = this.resolveRef(entity.prefab.prefabPath);
+                refs.add(resolved);
+                await this.collectPrefabRefs(resolved, refs, visited);
+            }
+
             for (const comp of entity.components || []) {
                 if (!comp.data) continue;
 
@@ -143,15 +150,7 @@ export class AssetReferenceCollector {
                         if (typeof value !== 'string') continue;
 
                         const resolved = this.resolveRef(value);
-
-                        if (resolved.endsWith('.esmaterial')) {
-                            await this.collectMaterialRefs(resolved, refs, visited);
-                        } else if (resolved.endsWith('.atlas')) {
-                            refs.add(resolved);
-                            await this.collectAtlasTextures(resolved, refs);
-                        } else {
-                            refs.add(resolved);
-                        }
+                        await this.collectAssetRef(resolved, refs, visited);
                     }
                 }
             }
@@ -161,6 +160,105 @@ export class AssetReferenceCollector {
         if (textureMetadata) {
             for (const key of Object.keys(textureMetadata)) {
                 refs.add(this.resolveRef(key));
+            }
+        }
+    }
+
+    private async collectAssetRef(
+        resolved: string,
+        refs: Set<string>,
+        visited: Set<string>
+    ): Promise<void> {
+        if (resolved.endsWith('.esmaterial')) {
+            await this.collectMaterialRefs(resolved, refs, visited);
+        } else if (resolved.endsWith('.atlas')) {
+            refs.add(resolved);
+            await this.collectAtlasTextures(resolved, refs);
+        } else if (resolved.endsWith('.bmfont') || resolved.endsWith('.fnt')) {
+            refs.add(resolved);
+            await this.collectFontRefs(resolved, refs);
+        } else if (resolved.endsWith('.esprefab')) {
+            refs.add(resolved);
+            await this.collectPrefabRefs(resolved, refs, visited);
+        } else {
+            refs.add(resolved);
+        }
+    }
+
+    private async collectPrefabRefs(
+        prefabPath: string,
+        refs: Set<string>,
+        visited: Set<string>
+    ): Promise<void> {
+        if (visited.has(prefabPath)) return;
+        visited.add(prefabPath);
+
+        const fullPath = isAbsolutePath(prefabPath)
+            ? prefabPath
+            : joinPath(this.projectDir_, prefabPath);
+
+        const content = await this.fs_.readFile(fullPath);
+        if (!content) return;
+
+        try {
+            const prefab = JSON.parse(content);
+            const entities = prefab.entities as Array<{
+                components: Array<{ type: string; data: Record<string, unknown> }>;
+                nestedPrefab?: { prefabPath: string };
+            }> | undefined;
+
+            if (!entities) return;
+
+            for (const entity of entities) {
+                if (entity.nestedPrefab?.prefabPath) {
+                    const resolved = this.resolveRef(entity.nestedPrefab.prefabPath);
+                    refs.add(resolved);
+                    await this.collectPrefabRefs(resolved, refs, visited);
+                }
+
+                for (const comp of entity.components || []) {
+                    if (!comp.data) continue;
+                    const refFields = getComponentRefFields(comp.type);
+                    if (!refFields) continue;
+                    for (const field of refFields) {
+                        const value = comp.data[field];
+                        if (typeof value !== 'string') continue;
+                        const resolved = this.resolveRef(value);
+                        await this.collectAssetRef(resolved, refs, visited);
+                    }
+                }
+            }
+        } catch {
+            // Ignore parse errors
+        }
+    }
+
+    private async collectFontRefs(fontPath: string, refs: Set<string>): Promise<void> {
+        const fullPath = isAbsolutePath(fontPath)
+            ? fontPath
+            : joinPath(this.projectDir_, fontPath);
+
+        const content = await this.fs_.readFile(fullPath);
+        if (!content) return;
+
+        const dir = getDirName(fontPath);
+
+        if (fontPath.endsWith('.bmfont')) {
+            try {
+                const json = JSON.parse(content);
+                if (json.fntFile) {
+                    const fntPath = dir ? `${dir}/${json.fntFile}` : json.fntFile;
+                    refs.add(fntPath);
+                    await this.collectFontRefs(fntPath, refs);
+                }
+            } catch {
+                // Ignore parse errors
+            }
+        } else {
+            const pageMatch = content.match(/file="([^"]+)"/);
+            if (pageMatch) {
+                const texPath = dir ? `${dir}/${pageMatch[1]}` : pageMatch[1];
+                refs.add(texPath);
             }
         }
     }
