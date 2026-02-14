@@ -23,7 +23,7 @@ import {
     getComponentIcon,
     getProjectDir,
 } from './InspectorHelpers';
-import { isPropertyOverridden } from '../../prefab';
+import { isPropertyOverridden, hasAnyOverrides } from '../../prefab';
 import {
     getComponentInspector,
     getInspectorSections,
@@ -101,24 +101,30 @@ function renderPrefabInfoBar(
     store: EditorStore
 ): void {
     const prefab = entityData.prefab!;
-    const pathDisplay = prefab.prefabPath.split('/').pop() ?? prefab.prefabPath;
+    const resolvedPath = isUUID(prefab.prefabPath)
+        ? (getAssetLibrary().getPath(prefab.prefabPath) ?? prefab.prefabPath)
+        : prefab.prefabPath;
+    const pathDisplay = resolvedPath.split('/').pop() ?? resolvedPath;
 
     const bar = document.createElement('div');
     bar.className = 'es-prefab-info-bar';
     bar.innerHTML = `
         ${icons.package(12)}
-        <span class="es-prefab-info-path es-prefab-info-link" title="${escapeHtml(prefab.prefabPath)}">${escapeHtml(pathDisplay)}</span>
+        <span class="es-prefab-info-path es-prefab-info-link" title="${escapeHtml(resolvedPath)}">${escapeHtml(pathDisplay)}</span>
     `;
 
     const pathEl = bar.querySelector('.es-prefab-info-link');
     pathEl?.addEventListener('click', () => {
-        getEditorInstance()?.navigateToAsset(prefab.prefabPath);
+        getEditorInstance()?.navigateToAsset(resolvedPath);
     });
 
     if (prefab.isRoot) {
+        const overridden = hasAnyOverrides(store.scene, prefab.instanceId);
+
         const revertBtn = document.createElement('button');
         revertBtn.className = 'es-btn';
         revertBtn.textContent = 'Revert';
+        revertBtn.disabled = !overridden;
         revertBtn.addEventListener('click', () => {
             store.revertPrefabInstance(prefab.instanceId, prefab.prefabPath);
         });
@@ -126,6 +132,7 @@ function renderPrefabInfoBar(
         const applyBtn = document.createElement('button');
         applyBtn.className = 'es-btn';
         applyBtn.textContent = 'Apply';
+        applyBtn.disabled = !overridden;
         applyBtn.addEventListener('click', () => {
             store.applyPrefabOverrides(prefab.instanceId, prefab.prefabPath);
         });

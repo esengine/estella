@@ -16,6 +16,19 @@ export function renderAssetHeader(container: HTMLElement, asset: AssetSelection)
         <span class="es-asset-header-name">${escapeHtml(asset.name)}</span>
     `;
     container.appendChild(header);
+
+    const entry = resolveAssetEntry(asset.path);
+    if (entry) {
+        const meta = document.createElement('div');
+        meta.className = 'es-asset-meta-info';
+        meta.innerHTML = `
+            <span class="es-asset-meta-uuid" title="Click to copy">${escapeHtml(entry.uuid)}</span>
+        `;
+        meta.querySelector('.es-asset-meta-uuid')?.addEventListener('click', () => {
+            navigator.clipboard.writeText(entry.uuid);
+        });
+        container.appendChild(meta);
+    }
 }
 
 export function resolveAssetEntry(assetPath: string) {

@@ -378,6 +378,18 @@ svg {
     padding: 4px 0;
 }
 
+.es-hierarchy-scroll-content {
+    position: relative;
+    min-height: 100%;
+}
+
+.es-hierarchy-visible-window {
+    position: absolute;
+    left: 0;
+    right: 0;
+    will-change: transform;
+}
+
 .es-hierarchy-item {
     user-select: none;
     position: relative;
@@ -391,6 +403,8 @@ svg {
     cursor: pointer;
     border-left: 2px solid transparent;
     position: relative;
+    height: 22px;
+    box-sizing: border-box;
 }
 
 .es-hierarchy-row:hover {
@@ -981,6 +995,27 @@ svg {
     font-size: 13px;
     color: var(--es-text-primary);
     word-break: break-all;
+}
+
+.es-asset-meta-info {
+    padding: 2px 10px 6px;
+    background: var(--es-bg-secondary);
+    border-left: 1px solid var(--es-border);
+    border-right: 1px solid var(--es-border);
+    border-bottom: 1px solid var(--es-border);
+    margin-top: -5px;
+    margin-bottom: 4px;
+}
+
+.es-asset-meta-uuid {
+    font-size: 11px;
+    color: var(--es-text-muted);
+    cursor: pointer;
+    user-select: all;
+}
+
+.es-asset-meta-uuid:hover {
+    color: var(--es-text-secondary);
 }
 
 .es-asset-preview-section {
@@ -3107,6 +3142,10 @@ svg {
 .es-asset-link:not(:placeholder-shown):hover {
     color: var(--es-accent);
     text-decoration: underline;
+}
+
+.es-missing-asset {
+    color: #ff6b6b !important;
 }
 
 /* =============================================================================

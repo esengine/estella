@@ -664,6 +664,19 @@ function resolveDisplayName(ref: string): string {
     return ref;
 }
 
+async function checkAssetMissing(ref: string, input: HTMLInputElement): Promise<void> {
+    if (!ref) {
+        input.classList.remove('es-missing-asset');
+        return;
+    }
+    const path = resolveToPath(ref);
+    const projectDir = getProjectDir();
+    const fs = getNativeFS();
+    if (!path || !projectDir || !fs) return;
+    const exists = await fs.exists(`${projectDir}/${path}`);
+    input.classList.toggle('es-missing-asset', !exists);
+}
+
 function resolveToPath(ref: string): string {
     if (!ref) return '';
     if (isUUID(ref)) {
@@ -761,6 +774,7 @@ function createTextureEditor(
 
     currentRef = (value && typeof value === 'string' && value !== String(INVALID_TEXTURE)) ? value : '';
     updatePreview(currentRef);
+    checkAssetMissing(currentRef, input);
 
     input.addEventListener('click', navigateToAssetPath);
     preview.addEventListener('click', navigateToAssetPath);
@@ -859,6 +873,7 @@ function createTextureEditor(
             if (newValue !== currentRef) {
                 currentRef = newValue;
                 updatePreview(newValue);
+                checkAssetMissing(newValue, input);
             }
         },
         dispose() {
@@ -981,6 +996,7 @@ function createSpineFileEditor(
     input.className = 'es-input es-input-file';
     input.value = resolveDisplayName(String(value ?? ''));
     input.placeholder = 'None';
+    checkAssetMissing(String(value ?? ''), input);
 
     const browseBtn = document.createElement('button');
     browseBtn.className = 'es-btn es-btn-icon es-btn-browse';
@@ -1038,7 +1054,9 @@ function createSpineFileEditor(
 
     return {
         update(v: unknown) {
-            input.value = resolveDisplayName(String(v ?? ''));
+            const ref = String(v ?? '');
+            input.value = resolveDisplayName(ref);
+            checkAssetMissing(ref, input);
         },
         dispose() {
             wrapper.remove();
@@ -1056,10 +1074,7 @@ interface SpineSkeletonData {
 }
 
 async function loadSpineSkeletonData(skeletonPath: string, atlasPath?: string): Promise<SpineSkeletonData | null> {
-    if (!skeletonPath) {
-        console.warn('[SpineEditor] skeletonPath is empty, cannot load skeleton data');
-        return null;
-    }
+    if (!skeletonPath) return null;
 
     const editor = getEditorInstance();
     if (editor) {
@@ -1067,7 +1082,6 @@ async function loadSpineSkeletonData(skeletonPath: string, atlasPath?: string): 
         if (entityId !== null) {
             const info = editor.getSpineSkeletonInfo(entityId);
             if (info) {
-                console.log(`[SpineEditor] Loaded from runtime: ${info.animations.length} animations, ${info.skins.length} skins`);
                 const animRecord: Record<string, unknown> = {};
                 for (const name of info.animations) {
                     animRecord[name] = {};
@@ -1077,39 +1091,23 @@ async function loadSpineSkeletonData(skeletonPath: string, atlasPath?: string): 
                     skins: info.skins.map(name => ({ name })),
                 };
             }
-            console.warn(`[SpineEditor] Runtime info not available for entity ${entityId}, falling back to file`);
-        } else {
-            console.warn('[SpineEditor] No entity selected');
         }
-    } else {
-        console.warn('[SpineEditor] Editor instance not available');
+    }
+
+    if (skeletonPath.endsWith('.skel')) {
+        return null;
     }
 
     const projectDir = getProjectDir();
     const fs = getNativeFS();
-    if (!projectDir || !fs) {
-        console.warn(`[SpineEditor] Cannot read file: projectDir=${projectDir}, fs=${!!fs}`);
-        return null;
-    }
-
-    if (skeletonPath.endsWith('.skel')) {
-        console.warn(`[SpineEditor] Binary .skel format cannot be parsed as fallback, need runtime instance for: ${skeletonPath}`);
-        return null;
-    }
+    if (!projectDir || !fs) return null;
 
     const jsonPath = `${projectDir}/${skeletonPath}`;
     try {
         const content = await fs.readFile(jsonPath);
-        if (!content) {
-            console.warn(`[SpineEditor] File is empty or not found: ${jsonPath}`);
-            return null;
-        }
-        const data = JSON.parse(content) as SpineSkeletonData;
-        const animCount = data.animations ? Object.keys(data.animations).length : 0;
-        console.log(`[SpineEditor] Loaded from file: ${animCount} animations from ${jsonPath}`);
-        return data;
-    } catch (err) {
-        console.warn(`[SpineEditor] Failed to load spine skeleton from ${jsonPath}:`, err);
+        if (!content) return null;
+        return JSON.parse(content) as SpineSkeletonData;
+    } catch {
         return null;
     }
 }
@@ -1131,7 +1129,6 @@ function createSpineAnimationEditor(
     container: HTMLElement,
     ctx: PropertyEditorContext
 ): PropertyEditorInstance {
-    console.log(`[SpineEditor] createSpineAnimationEditor called, value="${ctx.value}"`);
     const { value, onChange, getComponentValue } = ctx;
 
     const wrapper = document.createElement('div');
@@ -1172,9 +1169,6 @@ function createSpineAnimationEditor(
         const skeletonRef = getComponentValue?.('skeletonPath') as string;
         const skeletonPath = skeletonRef ? resolveToPath(skeletonRef) : '';
         if (!skeletonPath) {
-            if (skeletonRef) {
-                console.warn(`[SpineEditor] skeletonRef="${skeletonRef}" resolved to empty path`);
-            }
             updateOptions([], String(value ?? ''));
             return;
         }
@@ -1186,7 +1180,6 @@ function createSpineAnimationEditor(
             const animations = getAnimationNames(data);
             updateOptions(animations, String(value ?? ''));
         } else {
-            console.warn(`[SpineEditor] No skeleton data loaded for: ${skeletonPath}`);
             updateOptions([], String(value ?? ''));
         }
     };
@@ -1195,7 +1188,6 @@ function createSpineAnimationEditor(
     const unsubSpineReady = editor?.onSpineInstanceReady((entityId) => {
         const selected = editor.store.selectedEntity as number | null;
         if (selected === entityId) {
-            console.log(`[SpineEditor] Spine instance ready for entity ${entityId}, reloading animations`);
             loadAnimations();
         }
     }) ?? null;
@@ -1359,6 +1351,7 @@ function createMaterialFileEditor(
     input.value = resolveDisplayName(String(value ?? ''));
     input.placeholder = 'None';
     input.readOnly = true;
+    checkAssetMissing(String(value ?? ''), input);
 
     const browseBtn = document.createElement('button');
     browseBtn.className = 'es-btn es-btn-icon es-btn-browse';
@@ -1456,7 +1449,9 @@ function createMaterialFileEditor(
 
     return {
         update(v: unknown) {
-            input.value = resolveDisplayName(String(v ?? ''));
+            const ref = String(v ?? '');
+            input.value = resolveDisplayName(ref);
+            checkAssetMissing(ref, input);
         },
         dispose() {
             wrapper.remove();
@@ -1483,6 +1478,7 @@ function createBitmapFontFileEditor(
     input.value = resolveDisplayName(String(value ?? ''));
     input.placeholder = 'None';
     input.readOnly = true;
+    checkAssetMissing(String(value ?? ''), input);
 
     const browseBtn = document.createElement('button');
     browseBtn.className = 'es-btn es-btn-icon es-btn-browse';
@@ -1580,7 +1576,9 @@ function createBitmapFontFileEditor(
 
     return {
         update(v: unknown) {
-            input.value = resolveDisplayName(String(v ?? ''));
+            const ref = String(v ?? '');
+            input.value = resolveDisplayName(ref);
+            checkAssetMissing(ref, input);
         },
         dispose() {
             wrapper.remove();
