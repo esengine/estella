@@ -19,7 +19,7 @@
     "build": "rollup -c",
     "watch": "rollup -c -w",
     "clean": "rimraf dist",
-    "test": "vitest",
+    "test": "vitest run",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage"
   },
