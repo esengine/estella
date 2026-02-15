@@ -77,7 +77,6 @@ jobs:
 
     - name: Install build-tools dependencies
       run: npm install
-      working-directory: build-tools
 
     - name: Build SDK and generate manifest
       run: node build-tools/cli.js build -t all --manifest --no-sync

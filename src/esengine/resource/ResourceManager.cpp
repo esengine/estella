@@ -531,9 +531,9 @@ void ResourceManager::reloadShader(ShaderHandle handle, const std::string& path)
     event.path = path;
 
     if (!result.isOk()) {
-        ES_LOG_ERROR("HotReload: Failed to reload shader '{}': {}", path, result.error.message);
+        ES_LOG_ERROR("HotReload: Failed to reload shader '{}': {}", path, result.errorMessage);
         event.success = false;
-        event.errorMessage = result.error.message;
+        event.errorMessage = result.errorMessage;
         hotReloadManager_.onShaderReloaded.publish(event);
         return;
     }
