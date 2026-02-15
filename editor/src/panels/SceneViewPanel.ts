@@ -602,8 +602,9 @@ export class SceneViewPanel {
 
         const { worldX, worldY } = this.screenToWorld(e.clientX, e.clientY);
 
-        if (this.gizmoManager_.getActiveId() !== 'select' && this.store_.selectedEntity !== null &&
-            this.store_.isEntityVisible(this.store_.selectedEntity as number)) {
+        const hasSelection = this.store_.selectedEntities.size > 0;
+
+        if (this.gizmoManager_.getActiveId() !== 'select' && hasSelection) {
             this.updateGizmoContext();
             if (this.gizmoManager_.onMouseDown(worldX, worldY)) {
                 this.startDocumentDrag();
@@ -611,7 +612,7 @@ export class SceneViewPanel {
             }
         }
 
-        if (getSettingsValue<boolean>('scene.showColliders') && this.store_.selectedEntity !== null) {
+        if (getSettingsValue<boolean>('scene.showColliders') && hasSelection) {
             const octx = this.createOverlayContext();
             if (octx && this.colliderOverlay_.onDragStart(worldX, worldY, octx)) {
                 this.startDocumentDrag();
@@ -681,13 +682,15 @@ export class SceneViewPanel {
             return;
         }
 
-        if (this.gizmoManager_.getActiveId() !== 'select' && this.store_.selectedEntity !== null) {
+        const hasSelection = this.store_.selectedEntities.size > 0;
+
+        if (this.gizmoManager_.getActiveId() !== 'select' && hasSelection) {
             this.updateGizmoContext();
             this.gizmoManager_.onMouseMove(worldX, worldY);
             this.canvas_.style.cursor = this.gizmoManager_.getCursor();
         }
 
-        if (getSettingsValue<boolean>('scene.showColliders') && this.store_.selectedEntity !== null) {
+        if (getSettingsValue<boolean>('scene.showColliders') && hasSelection) {
             const octx = this.createOverlayContext();
             if (octx) {
                 this.colliderOverlay_.hitTest(worldX, worldY, octx);
@@ -744,7 +747,9 @@ export class SceneViewPanel {
 
         const { worldX, worldY } = this.screenToWorld(e.clientX, e.clientY);
 
-        if (this.gizmoManager_.getActiveId() !== 'select' && this.store_.selectedEntity !== null) {
+        const hasSelection = this.store_.selectedEntities.size > 0;
+
+        if (this.gizmoManager_.getActiveId() !== 'select' && hasSelection) {
             this.updateGizmoContext();
             const result = this.gizmoManager_.hitTest(worldX, worldY);
             if (result.hit) return;
@@ -931,9 +936,9 @@ export class SceneViewPanel {
             });
         }
 
-        const selectedEntity = this.store_.selectedEntity;
+        const hasSelection = this.store_.selectedEntities.size > 0;
 
-        if (selectedEntity !== null && this.store_.isEntityVisible(selectedEntity as number)) {
+        if (hasSelection) {
             if (getSettingsValue<boolean>('scene.showSelectionBox')) {
                 this.drawSelectionBox(ctx);
             }
@@ -959,43 +964,48 @@ export class SceneViewPanel {
     }
 
     private drawSelectionBox(ctx: CanvasRenderingContext2D): void {
-        const entityData = this.store_.getSelectedEntityData();
-        if (!entityData) return;
+        const selectedEntities = this.store_.getSelectedEntitiesData();
 
-        const transform = entityData.components.find(c => c.type === 'LocalTransform');
-        if (!transform) return;
+        for (const entityData of selectedEntities) {
+            if (!this.store_.isEntityVisible(entityData.id)) continue;
 
-        const worldTransform = this.store_.getWorldTransform(entityData.id);
-        const pos = worldTransform.position;
-        const scale = worldTransform.scale;
+            const transform = entityData.components.find(c => c.type === 'LocalTransform');
+            if (!transform) continue;
 
-        const bounds = this.getEntityBoundsWithSpine(entityData);
-        const w = bounds.width * Math.abs(scale.x);
-        const h = bounds.height * Math.abs(scale.y);
-        const offsetX = (bounds.offsetX ?? 0) * scale.x;
-        const offsetY = (bounds.offsetY ?? 0) * scale.y;
+            const worldTransform = this.store_.getWorldTransform(entityData.id);
+            const pos = worldTransform.position;
+            const scale = worldTransform.scale;
 
-        ctx.save();
-        ctx.translate(pos.x + offsetX, -pos.y - offsetY);
+            const bounds = this.getEntityBoundsWithSpine(entityData);
+            const w = bounds.width * Math.abs(scale.x);
+            const h = bounds.height * Math.abs(scale.y);
+            const offsetX = (bounds.offsetX ?? 0) * scale.x;
+            const offsetY = (bounds.offsetY ?? 0) * scale.y;
 
-        ctx.strokeStyle = '#00aaff';
-        ctx.lineWidth = 2 / this.zoom_;
-        ctx.setLineDash([]);
-        ctx.strokeRect(-w / 2, -h / 2, w, h);
+            ctx.save();
+            ctx.translate(pos.x + offsetX, -pos.y - offsetY);
 
-        ctx.fillStyle = '#00aaff';
-        const handleSize = 6 / this.zoom_;
-        const corners = [
-            [-w / 2, -h / 2],
-            [w / 2, -h / 2],
-            [-w / 2, h / 2],
-            [w / 2, h / 2],
-        ];
-        for (const [cx, cy] of corners) {
-            ctx.fillRect(cx - handleSize / 2, cy - handleSize / 2, handleSize, handleSize);
+            ctx.strokeStyle = '#00aaff';
+            ctx.lineWidth = 2 / this.zoom_;
+            ctx.setLineDash([]);
+            ctx.strokeRect(-w / 2, -h / 2, w, h);
+
+            if (selectedEntities.length === 1) {
+                ctx.fillStyle = '#00aaff';
+                const handleSize = 6 / this.zoom_;
+                const corners = [
+                    [-w / 2, -h / 2],
+                    [w / 2, -h / 2],
+                    [-w / 2, h / 2],
+                    [w / 2, h / 2],
+                ];
+                for (const [cx, cy] of corners) {
+                    ctx.fillRect(cx - handleSize / 2, cy - handleSize / 2, handleSize, handleSize);
+                }
+            }
+
+            ctx.restore();
         }
-
-        ctx.restore();
     }
 
     private drawCameraFrustums(ctx: CanvasRenderingContext2D): void {

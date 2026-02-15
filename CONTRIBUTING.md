@@ -8,14 +8,39 @@ Thank you for your interest in contributing to ESEngine! This guide will help yo
 
 - **Node.js** >= 18
 - **pnpm** >= 8
-- **Emscripten** >= 3.1 (for C++/WASM builds)
+- **Emscripten** 3.1.51 (for C++/WASM builds, exact version required for CI compatibility)
 - **Rust** >= 1.75 (for Tauri editor)
+- **ccache** (optional, recommended for faster C++ rebuilds)
 
 ### Setup
 
 ```bash
 git clone https://github.com/esengine/microes.git
 cd microes
+```
+
+### Optional: Install ccache for Faster Builds
+
+For significantly faster incremental C++ builds (10x speedup), install ccache:
+
+**macOS**:
+```bash
+brew install ccache
+```
+
+**Ubuntu/Debian**:
+```bash
+sudo apt-get install ccache
+```
+
+**Windows** (via Chocolatey):
+```bash
+choco install ccache
+```
+
+CMake will automatically detect and use ccache if available. To disable:
+```bash
+cmake -B build -DES_ENABLE_CCACHE=OFF
 ```
 
 ### Build Commands
@@ -88,9 +113,23 @@ We follow a strict commit message format:
 1. Fork the repository and create your branch from `master`
 2. Make your changes, following the code style guidelines
 3. Test your changes locally (build, run editor, preview)
-4. Push your branch and open a Pull Request
-5. Fill in the PR template with a clear description
-6. Wait for review — maintainers may request changes
+4. Check bundle sizes if you modified C++ or SDK code:
+   ```bash
+   node build-tools/cli.js build -t all --manifest
+   node build-tools/track-bundle-size.js check
+   ```
+5. Push your branch and open a Pull Request
+6. Fill in the PR template with a clear description
+7. CI will automatically post a bundle size report on your PR
+8. Wait for review — maintainers may request changes
+
+### Bundle Size Guidelines
+
+CI tracks WASM and SDK bundle sizes. If your PR exceeds thresholds:
+
+- **Explain why**: Add justification in PR description (new feature, dependencies, etc.)
+- **Optimize if possible**: Consider lazy loading, code splitting, or removing unused code
+- **Update baselines**: Maintainers will update baselines if the size increase is acceptable
 
 ## Reporting Issues
 

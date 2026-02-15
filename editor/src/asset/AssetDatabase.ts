@@ -501,19 +501,11 @@ export class AssetDatabase {
 // Component → Asset Reference Field Registry
 // =============================================================================
 
-const COMPONENT_REF_FIELDS = new Map<string, string[]>([
-    ['Sprite', ['texture', 'material']],
-    ['SpineAnimation', ['skeletonPath', 'atlasPath', 'material']],
-    ['BitmapText', ['font']],
-    ['UIMask', ['texture']],
-]);
+import { getComponentAssetFields } from 'esengine';
 
 export function getComponentRefFields(componentType: string): string[] | undefined {
-    return COMPONENT_REF_FIELDS.get(componentType);
-}
-
-export function registerComponentRefFields(componentType: string, fields: string[]): void {
-    COMPONENT_REF_FIELDS.set(componentType, fields);
+    const fields = getComponentAssetFields(componentType);
+    return fields.length > 0 ? fields : undefined;
 }
 
 // =============================================================================

@@ -1,6 +1,7 @@
 import { registerMenu, registerMenuItem } from './MenuRegistry';
 import type { Editor } from '../Editor';
 import { getEditorContext } from '../context/EditorContext';
+import type { Entity } from 'esengine';
 
 export function registerBuiltinMenus(editor: Editor): void {
     registerMenu({ id: 'file', label: 'File', order: 0 });
@@ -54,10 +55,14 @@ export function registerBuiltinMenus(editor: Editor): void {
     registerMenuItem({
         id: 'edit.delete', menu: 'edit', label: 'Delete',
         shortcut: 'Delete', order: 2, separator: true,
-        enabled: () => editor.store.selectedEntity !== null,
+        enabled: () => editor.store.selectedEntities.size > 0,
         action: () => {
-            const selected = editor.store.selectedEntity;
-            if (selected !== null) editor.store.deleteEntity(selected);
+            if (editor.store.selectedEntities.size === 1) {
+                const id = Array.from(editor.store.selectedEntities)[0];
+                editor.store.deleteEntity(id as Entity);
+            } else if (editor.store.selectedEntities.size > 1) {
+                editor.store.deleteSelectedEntities();
+            }
         },
     });
     registerMenuItem({

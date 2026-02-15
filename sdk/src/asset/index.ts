@@ -20,6 +20,7 @@ export {
 export { AsyncCache } from './AsyncCache';
 export { Assets, AssetPlugin, assetPlugin, type AssetsData } from './AssetPlugin';
 export { MaterialLoader, type LoadedMaterial, type ShaderLoader } from './MaterialLoader';
+export { AssetRefCounter, type AssetRefInfo } from './AssetRefCounter';
 
 import type { App } from '../app';
 import { Assets } from './AssetPlugin';

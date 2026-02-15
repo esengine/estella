@@ -16,6 +16,7 @@ import { INVALID_TEXTURE, getAssetMimeType, getAssetTypeEntry } from 'esengine';
 import { createUIRectEditor } from './uiRectEditor';
 import { createButtonTransitionEditor } from './buttonTransitionEditor';
 import { setupDragLabel, colorToHex, hexToColor } from './editorUtils';
+import { validateNumber, validateVec2, validateVec3, validateColor, showValidationError } from './validation';
 export { setupDragLabel, colorToHex, hexToColor };
 
 // =============================================================================
@@ -47,14 +48,21 @@ function createNumberEditor(
 
     const step = meta.step ?? 1;
 
-    input.addEventListener('change', () => {
-        onChange(parseFloat(input.value) || 0);
-    });
+    const handleChange = () => {
+        const result = validateNumber(input.value, meta);
+        if (!result.valid) {
+            showValidationError(input, result.error!);
+            input.value = String(result.value);
+        }
+        onChange(result.value);
+    };
+
+    input.addEventListener('change', handleChange);
 
     input.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
             input.blur();
-            onChange(parseFloat(input.value) || 0);
+            handleChange();
         }
     });
 
@@ -174,16 +182,25 @@ function createVec2Editor(
         input.step = '0.01';
         input.value = String(currentVec[keys[i]]);
 
-        input.addEventListener('change', () => {
-            currentVec = { ...currentVec, [keys[i]]: parseFloat(input.value) || 0 };
+        const handleChange = () => {
+            const updatedVec = { ...currentVec, [keys[i]]: parseFloat(input.value) || 0 };
+            const result = validateVec2(updatedVec, ctx.meta);
+            if (!result.valid) {
+                showValidationError(input, result.error!);
+                currentVec = result.value as Vec2;
+                input.value = String(currentVec[keys[i]]);
+            } else {
+                currentVec = updatedVec;
+            }
             onChange(currentVec);
-        });
+        };
+
+        input.addEventListener('change', handleChange);
 
         input.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 input.blur();
-                currentVec = { ...currentVec, [keys[i]]: parseFloat(input.value) || 0 };
-                onChange(currentVec);
+                handleChange();
             }
         });
 
@@ -251,16 +268,25 @@ function createVec3Editor(
         input.step = '0.01';
         input.value = String(currentVec[keys[i]]);
 
-        input.addEventListener('change', () => {
-            currentVec = { ...currentVec, [keys[i]]: parseFloat(input.value) || 0 };
+        const handleChange = () => {
+            const updatedVec = { ...currentVec, [keys[i]]: parseFloat(input.value) || 0 };
+            const result = validateVec3(updatedVec, ctx.meta);
+            if (!result.valid) {
+                showValidationError(input, result.error!);
+                currentVec = result.value as Vec3;
+                input.value = String(currentVec[keys[i]]);
+            } else {
+                currentVec = updatedVec;
+            }
             onChange(currentVec);
-        });
+        };
+
+        input.addEventListener('change', handleChange);
 
         input.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 input.blur();
-                currentVec = { ...currentVec, [keys[i]]: parseFloat(input.value) || 0 };
-                onChange(currentVec);
+                handleChange();
             }
         });
 

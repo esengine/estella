@@ -18,6 +18,7 @@ import { generateUniqueName } from '../utils/naming';
 import { showInputDialog } from '../ui/dialog';
 import { joinPath, getParentDir } from '../utils/path';
 import { hasAnyOverrides } from '../prefab';
+import { fuzzyFilter, type FuzzyMatch } from '../utils/fuzzy';
 
 type DropPosition = 'before' | 'after' | 'inside';
 
@@ -44,6 +45,8 @@ export class HierarchyPanel {
     private prefabEditBar_: HTMLElement | null = null;
     private unsubscribe_: (() => void) | null = null;
     private searchFilter_: string = '';
+    private searchResults_: Array<{ entity: EntityData; match: FuzzyMatch }> = [];
+    private selectedResultIndex_: number = -1;
     private expandedIds_: Set<number> = new Set();
     private lastSelectedEntity_: Entity | null = null;
     private flatRows_: FlattenedRow[] = [];
@@ -130,8 +133,24 @@ export class HierarchyPanel {
         });
 
         this.searchInput_?.addEventListener('input', () => {
-            this.searchFilter_ = this.searchInput_?.value.toLowerCase() ?? '';
+            this.searchFilter_ = this.searchInput_?.value ?? '';
+            this.performSearch();
             this.render();
+        });
+
+        this.searchInput_?.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                this.selectNextResult();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                this.selectPreviousResult();
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                this.focusSelectedResult();
+            } else if (e.key === 'Escape') {
+                this.clearSearch();
+            }
         });
 
         this.treeContainer_.addEventListener('click', (e) => {
@@ -172,7 +191,16 @@ export class HierarchyPanel {
             const entityId = parseInt(item.dataset.entityId ?? '', 10);
             if (isNaN(entityId)) return;
 
-            this.store_.selectEntity(entityId as Entity);
+            if (e.shiftKey && this.lastSelectedEntity_ !== null) {
+                this.store_.selectRange(this.lastSelectedEntity_ as number, entityId);
+                this.lastSelectedEntity_ = entityId as Entity;
+            } else if (e.ctrlKey || e.metaKey) {
+                this.store_.selectEntity(entityId as Entity, 'toggle');
+                this.lastSelectedEntity_ = entityId as Entity;
+            } else {
+                this.store_.selectEntity(entityId as Entity, 'replace');
+                this.lastSelectedEntity_ = entityId as Entity;
+            }
         });
 
         this.treeContainer_.addEventListener('dblclick', (e) => {
@@ -521,8 +549,13 @@ export class HierarchyPanel {
         this.renderVisibleRows();
 
         if (this.footerContainer_) {
-            const count = scene.entities.length;
-            this.footerContainer_.textContent = `${count} ${count === 1 ? 'entity' : 'entities'}`;
+            if (this.searchFilter_) {
+                const count = this.searchResults_.length;
+                this.footerContainer_.textContent = `${count} ${count === 1 ? 'match' : 'matches'}`;
+            } else {
+                const count = scene.entities.length;
+                this.footerContainer_.textContent = `${count} ${count === 1 ? 'entity' : 'entities'}`;
+            }
         }
 
         if (selectionChanged) {
@@ -567,15 +600,65 @@ export class HierarchyPanel {
         return 'Entity';
     }
 
+    private performSearch(): void {
+        if (!this.searchFilter_) {
+            this.searchResults_ = [];
+            this.selectedResultIndex_ = -1;
+            return;
+        }
+
+        const scene = this.store_.scene;
+        const results = fuzzyFilter(
+            scene.entities,
+            this.searchFilter_,
+            (entity) => entity.name
+        );
+
+        this.searchResults_ = results.map(r => ({ entity: r.item, match: r.match }));
+        this.selectedResultIndex_ = this.searchResults_.length > 0 ? 0 : -1;
+    }
+
+    private selectNextResult(): void {
+        if (this.searchResults_.length === 0) return;
+        this.selectedResultIndex_ = (this.selectedResultIndex_ + 1) % this.searchResults_.length;
+        this.render();
+    }
+
+    private selectPreviousResult(): void {
+        if (this.searchResults_.length === 0) return;
+        this.selectedResultIndex_ = (this.selectedResultIndex_ - 1 + this.searchResults_.length) % this.searchResults_.length;
+        this.render();
+    }
+
+    private focusSelectedResult(): void {
+        if (this.selectedResultIndex_ === -1 || this.selectedResultIndex_ >= this.searchResults_.length) return;
+        const result = this.searchResults_[this.selectedResultIndex_];
+        this.store_.selectEntity(result.entity.id as Entity);
+        this.scrollToEntity(result.entity.id);
+    }
+
+    private clearSearch(): void {
+        if (this.searchInput_) {
+            this.searchInput_.value = '';
+        }
+        this.searchFilter_ = '';
+        this.searchResults_ = [];
+        this.selectedResultIndex_ = -1;
+        this.render();
+    }
+
     private buildFlatRows(): void {
         this.flatRows_ = [];
         const scene = this.store_.scene;
 
         if (this.searchFilter_) {
-            for (const entity of scene.entities) {
-                if (entity.name.toLowerCase().includes(this.searchFilter_)) {
-                    this.flatRows_.push({ entity, depth: 0, hasChildren: false, isExpanded: false });
-                }
+            for (const result of this.searchResults_) {
+                this.flatRows_.push({
+                    entity: result.entity,
+                    depth: 0,
+                    hasChildren: false,
+                    isExpanded: false,
+                });
             }
             return;
         }
@@ -636,7 +719,7 @@ export class HierarchyPanel {
         const visibilityIcon = isVisible ? icons.eye(10) : icons.eyeOff(10);
 
         let itemClass = 'es-hierarchy-item';
-        if (entity.id === selectedEntity) itemClass += ' es-selected';
+        if (this.store_.selectedEntities.has(entity.id)) itemClass += ' es-selected';
         if (!isVisible) itemClass += ' es-entity-hidden';
         if (entity.prefab?.isRoot) itemClass += ' es-prefab-root';
         else if (entity.prefab) itemClass += ' es-prefab-child';
@@ -651,15 +734,41 @@ export class HierarchyPanel {
             }
         }
 
+        const match = this.searchFilter_ ? this.searchResults_.find(r => r.entity.id === entity.id)?.match : null;
+        if (this.searchFilter_ && match) {
+            const resultIdx = this.searchResults_.findIndex(r => r.entity.id === entity.id);
+            if (resultIdx === this.selectedResultIndex_) {
+                itemClass += ' es-search-selected';
+            }
+        }
+
+        const nameHtml = this.renderEntityName(entity.name, match);
+
         return `<div class="${itemClass}" data-entity-id="${entity.id}">
             <div class="es-hierarchy-row" draggable="true" style="padding-left: ${8 + depth * 16}px">
                 ${hasChildren ? `<span class="es-hierarchy-expand">${expandIcon}</span>` : '<span class="es-hierarchy-spacer"></span>'}
                 <span class="es-hierarchy-visibility">${visibilityIcon}</span>
                 <span class="es-hierarchy-icon">${icon}</span>
-                <span class="es-hierarchy-name">${this.escapeHtml(entity.name)}</span>
+                <span class="es-hierarchy-name">${nameHtml}</span>
                 <span class="es-hierarchy-type">${type}</span>
             </div>
         </div>`;
+    }
+
+    private renderEntityName(name: string, match: FuzzyMatch | null | undefined): string {
+        if (!match || match.matches.length === 0) {
+            return this.escapeHtml(name);
+        }
+
+        let html = '';
+        for (let i = 0; i < name.length; i++) {
+            if (match.matches.includes(i)) {
+                html += `<mark class="es-search-highlight">${this.escapeHtml(name[i])}</mark>`;
+            } else {
+                html += this.escapeHtml(name[i]);
+            }
+        }
+        return html;
     }
 
     private scrollToEntity(entityId: number): void {

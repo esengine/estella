@@ -37,6 +37,10 @@ cmake_install.cmake
 Makefile
 compile_commands.json
 
+# Compiler cache
+.ccache/
+.sccache/
+
 # Compiled files
 *.o
 *.obj

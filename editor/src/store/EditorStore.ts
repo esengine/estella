@@ -57,7 +57,7 @@ export interface AssetSelection {
 
 export interface EditorState {
     scene: SceneData;
-    selectedEntity: Entity | null;
+    selectedEntities: Set<number>;
     selectedAsset: AssetSelection | null;
     isDirty: boolean;
     filePath: string | null;
@@ -137,7 +137,7 @@ export class EditorStore {
         const scene = createEmptyScene();
         this.state_ = {
             scene,
-            selectedEntity: null,
+            selectedEntities: new Set(),
             selectedAsset: null,
             isDirty: false,
             filePath: null,
@@ -169,8 +169,13 @@ export class EditorStore {
         return this.sceneVersion_;
     }
 
+    get selectedEntities(): ReadonlySet<number> {
+        return this.state_.selectedEntities;
+    }
+
     get selectedEntity(): Entity | null {
-        return this.state_.selectedEntity;
+        const arr = Array.from(this.state_.selectedEntities);
+        return arr.length === 1 ? (arr[0] as Entity) : null;
     }
 
     get selectedAsset(): AssetSelection | null {
@@ -207,7 +212,7 @@ export class EditorStore {
 
     newScene(name: string = 'Untitled', designResolution?: { width: number; height: number }): void {
         this.state_.scene = createEmptyScene(name, designResolution);
-        this.state_.selectedEntity = null;
+        this.state_.selectedEntities.clear();
         this.state_.selectedAsset = null;
         this.state_.isDirty = false;
         this.state_.filePath = null;
@@ -221,7 +226,7 @@ export class EditorStore {
 
     loadScene(scene: SceneData, filePath: string | null = null): void {
         this.state_.scene = scene;
-        this.state_.selectedEntity = null;
+        this.state_.selectedEntities.clear();
         this.state_.selectedAsset = null;
         this.state_.isDirty = false;
         this.state_.filePath = filePath;
@@ -247,23 +252,104 @@ export class EditorStore {
     // Selection
     // =========================================================================
 
-    selectEntity(entity: Entity | null): void {
-        if (this.state_.selectedEntity !== entity) {
-            this.state_.selectedEntity = entity;
+    selectEntity(entity: Entity | null, mode: 'replace' | 'add' | 'toggle' = 'replace'): void {
+        const oldSelection = new Set(this.state_.selectedEntities);
+
+        if (entity === null) {
+            this.state_.selectedEntities.clear();
+        } else {
+            const id = entity as number;
+            if (mode === 'replace') {
+                this.state_.selectedEntities.clear();
+                this.state_.selectedEntities.add(id);
+            } else if (mode === 'add') {
+                this.state_.selectedEntities.add(id);
+            } else if (mode === 'toggle') {
+                if (this.state_.selectedEntities.has(id)) {
+                    this.state_.selectedEntities.delete(id);
+                } else {
+                    this.state_.selectedEntities.add(id);
+                }
+            }
+        }
+
+        if (!this.setsEqual(oldSelection, this.state_.selectedEntities)) {
             this.state_.selectedAsset = null;
             this.notify();
         }
     }
 
+    selectEntities(entities: number[]): void {
+        this.state_.selectedEntities.clear();
+        for (const id of entities) {
+            this.state_.selectedEntities.add(id);
+        }
+        this.state_.selectedAsset = null;
+        this.notify();
+    }
+
+    selectRange(fromEntity: number, toEntity: number): void {
+        const flatList: number[] = [];
+        const visited = new Set<number>();
+
+        const traverse = (entityId: number | null) => {
+            if (entityId === null) return;
+            const entity = this.entityMap_.get(entityId);
+            if (!entity || visited.has(entityId)) return;
+            visited.add(entityId);
+            flatList.push(entityId);
+            for (const childId of entity.children) {
+                traverse(childId);
+            }
+        };
+
+        for (const entity of this.state_.scene.entities) {
+            if (entity.parent === null) {
+                traverse(entity.id);
+            }
+        }
+
+        const fromIndex = flatList.indexOf(fromEntity);
+        const toIndex = flatList.indexOf(toEntity);
+
+        if (fromIndex === -1 || toIndex === -1) return;
+
+        const start = Math.min(fromIndex, toIndex);
+        const end = Math.max(fromIndex, toIndex);
+        const range = flatList.slice(start, end + 1);
+
+        this.selectEntities(range);
+    }
+
+    private setsEqual(a: Set<number>, b: Set<number>): boolean {
+        if (a.size !== b.size) return false;
+        for (const item of a) {
+            if (!b.has(item)) return false;
+        }
+        return true;
+    }
+
     selectAsset(asset: AssetSelection | null): void {
         this.state_.selectedAsset = asset;
-        this.state_.selectedEntity = null;
+        this.state_.selectedEntities.clear();
         this.notify();
     }
 
     getSelectedEntityData(): EntityData | null {
-        if (this.state_.selectedEntity === null) return null;
-        return this.entityMap_.get(this.state_.selectedEntity as number) ?? null;
+        const arr = Array.from(this.state_.selectedEntities);
+        if (arr.length !== 1) return null;
+        return this.entityMap_.get(arr[0]) ?? null;
+    }
+
+    getSelectedEntitiesData(): EntityData[] {
+        const result: EntityData[] = [];
+        for (const id of this.state_.selectedEntities) {
+            const entity = this.entityMap_.get(id);
+            if (entity) {
+                result.push(entity);
+            }
+        }
+        return result;
     }
 
     getEntityData(entityId: number): EntityData | null {
@@ -367,14 +453,32 @@ export class EditorStore {
         const cmd = new DeleteEntityCommand(this.state_.scene, this.entityMap_, entity);
         this.executeCommand(cmd);
 
-        if (this.state_.selectedEntity === entity) {
-            this.state_.selectedEntity = null;
+        this.state_.selectedEntities.delete(entity as number);
+        for (const id of descendants) {
+            this.state_.selectedEntities.delete(id);
         }
 
         for (const id of descendants) {
             this.notifyEntityLifecycle({ entity: id, type: 'deleted', parent: null });
         }
         this.notifyEntityLifecycle({ entity: entity as number, type: 'deleted', parent: null });
+    }
+
+    deleteSelectedEntities(): void {
+        const toDelete = Array.from(this.state_.selectedEntities);
+        const commands = toDelete.map(id => new DeleteEntityCommand(this.state_.scene, this.entityMap_, id as Entity));
+        const compound = new CompoundCommand(commands, 'Delete entities');
+        this.executeCommand(compound);
+
+        this.state_.selectedEntities.clear();
+
+        for (const id of toDelete) {
+            const descendants = this.collectDescendantIds(id);
+            for (const descId of descendants) {
+                this.notifyEntityLifecycle({ entity: descId, type: 'deleted', parent: null });
+            }
+            this.notifyEntityLifecycle({ entity: id, type: 'deleted', parent: null });
+        }
     }
 
     reparentEntity(entity: Entity, newParent: Entity | null): void {

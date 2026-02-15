@@ -23,6 +23,7 @@
 
 // Standard library
 #include <algorithm>
+#include <memory>
 #include <vector>
 
 namespace esengine::ecs {
@@ -89,17 +90,23 @@ public:
  *
  * @tparam T The component type to store
  *
- * @details The sparse set uses two arrays:
- *          - **Sparse array**: Maps entity IDs to dense array indices
+ * @details The sparse set uses a paged sparse array and dense arrays:
+ *          - **Paged sparse array**: Maps entity IDs to dense array indices
+ *            Divided into fixed-size pages (4096 entities each) allocated
+ *            on-demand to avoid unbounded memory growth for sparse entity IDs.
  *          - **Dense array**: Stores entities and components contiguously
  *
  *          This provides:
  *          - O(1) insertion, deletion, and lookup
  *          - Cache-friendly iteration over components
  *          - Stable component pointers during iteration
+ *          - Bounded memory usage even with sparse entity IDs
  *
  *          The "swap and pop" deletion strategy maintains density
  *          without gaps, at the cost of unstable ordering.
+ *
+ *          **Memory efficiency**: With paging, entity ID 1,000,000 only
+ *          allocates 244 pages (~16KB) instead of 4MB.
  *
  * @code
  * SparseSet<Position> positions;
@@ -125,6 +132,12 @@ public:
     /** @brief Iterator type for entity iteration */
     using Iterator = typename std::vector<Entity>::const_iterator;
 
+    /** @brief Page size for paged sparse array (entities per page) */
+    static constexpr usize SPARSE_PAGE_SIZE = 4096;
+
+    /** @brief Page type: array of entity indices */
+    using Page = std::array<Entity, SPARSE_PAGE_SIZE>;
+
     /** @brief Default constructor */
     SparseSet() = default;
 
@@ -147,11 +160,18 @@ public:
      * @return True if the entity has a component
      *
      * @details O(1) complexity. Validates the sparse-dense mapping.
+     *          Uses paged lookup to avoid unbounded memory growth.
      */
     bool contains(Entity entity) const override {
-        return entity < sparse_.size() &&
-               sparse_[entity] < dense_.size() &&
-               dense_[sparse_[entity]] == entity;
+        const auto pageIndex = entity / SPARSE_PAGE_SIZE;
+        const auto offset = entity % SPARSE_PAGE_SIZE;
+
+        if (pageIndex >= pages_.size() || !pages_[pageIndex]) {
+            return false;
+        }
+
+        const Entity denseIndex = (*pages_[pageIndex])[offset];
+        return denseIndex < dense_.size() && dense_[denseIndex] == entity;
     }
 
     /**
@@ -163,13 +183,17 @@ public:
      */
     T& get(Entity entity) {
         ES_ASSERT(contains(entity), "Entity does not have component");
-        return components_[sparse_[entity]];
+        const auto pageIndex = entity / SPARSE_PAGE_SIZE;
+        const auto offset = entity % SPARSE_PAGE_SIZE;
+        return components_[(*pages_[pageIndex])[offset]];
     }
 
     /** @copydoc get() */
     const T& get(Entity entity) const {
         ES_ASSERT(contains(entity), "Entity does not have component");
-        return components_[sparse_[entity]];
+        const auto pageIndex = entity / SPARSE_PAGE_SIZE;
+        const auto offset = entity % SPARSE_PAGE_SIZE;
+        return components_[(*pages_[pageIndex])[offset]];
     }
 
     /**
@@ -179,13 +203,17 @@ public:
      */
     T* tryGet(Entity entity) {
         if (!contains(entity)) return nullptr;
-        return &components_[sparse_[entity]];
+        const auto pageIndex = entity / SPARSE_PAGE_SIZE;
+        const auto offset = entity % SPARSE_PAGE_SIZE;
+        return &components_[(*pages_[pageIndex])[offset]];
     }
 
     /** @copydoc tryGet() */
     const T* tryGet(Entity entity) const {
         if (!contains(entity)) return nullptr;
-        return &components_[sparse_[entity]];
+        const auto pageIndex = entity / SPARSE_PAGE_SIZE;
+        const auto offset = entity % SPARSE_PAGE_SIZE;
+        return &components_[(*pages_[pageIndex])[offset]];
     }
 
     // =========================================================================
@@ -201,19 +229,27 @@ public:
      *
      * @note Asserts if the entity already has a component
      *
-     * @details O(1) amortized complexity. May resize the sparse array.
+     * @details O(1) amortized complexity. Allocates pages on-demand.
+     *          Memory usage is bounded: O(num_pages * SPARSE_PAGE_SIZE) where
+     *          num_pages = ceil(max_entity_id / SPARSE_PAGE_SIZE).
      */
     template<typename... Args>
     T& emplace(Entity entity, Args&&... args) {
         ES_ASSERT(!contains(entity), "Entity already has component");
 
-        // Ensure sparse array is large enough
-        if (entity >= sparse_.size()) {
-            sparse_.resize(entity + 1, INVALID_ENTITY);
+        const auto pageIndex = entity / SPARSE_PAGE_SIZE;
+        const auto offset = entity % SPARSE_PAGE_SIZE;
+
+        if (pageIndex >= pages_.size()) {
+            pages_.resize(pageIndex + 1);
         }
 
-        // Add to dense arrays
-        sparse_[entity] = static_cast<Entity>(dense_.size());
+        if (!pages_[pageIndex]) {
+            pages_[pageIndex] = std::make_unique<Page>();
+            std::fill(pages_[pageIndex]->begin(), pages_[pageIndex]->end(), INVALID_ENTITY);
+        }
+
+        (*pages_[pageIndex])[offset] = static_cast<Entity>(dense_.size());
         dense_.push_back(entity);
         components_.emplace_back(std::forward<Args>(args)...);
 
@@ -231,19 +267,21 @@ public:
     void remove(Entity entity) override {
         if (!contains(entity)) return;
 
-        // Swap and pop
+        const auto pageIndex = entity / SPARSE_PAGE_SIZE;
+        const auto offset = entity % SPARSE_PAGE_SIZE;
         const auto last = dense_.back();
-        const auto index = sparse_[entity];
+        const auto index = (*pages_[pageIndex])[offset];
 
-        // Move last element to removed position
         dense_[index] = last;
         components_[index] = std::move(components_.back());
-        sparse_[last] = index;
 
-        // Pop last element
+        const auto lastPageIndex = last / SPARSE_PAGE_SIZE;
+        const auto lastOffset = last % SPARSE_PAGE_SIZE;
+        (*pages_[lastPageIndex])[lastOffset] = index;
+
         dense_.pop_back();
         components_.pop_back();
-        sparse_[entity] = INVALID_ENTITY;
+        (*pages_[pageIndex])[offset] = INVALID_ENTITY;
     }
 
     // =========================================================================
@@ -266,7 +304,7 @@ public:
      * @brief Removes all components
      */
     void clear() override {
-        sparse_.clear();
+        pages_.clear();
         dense_.clear();
         components_.clear();
     }
@@ -324,7 +362,9 @@ public:
      */
     usize indexOf(Entity entity) const {
         ES_ASSERT(contains(entity), "Entity not in set");
-        return sparse_[entity];
+        const auto pageIndex = entity / SPARSE_PAGE_SIZE;
+        const auto offset = entity % SPARSE_PAGE_SIZE;
+        return (*pages_[pageIndex])[offset];
     }
 
 private:
@@ -333,11 +373,12 @@ private:
     // =========================================================================
 
     /**
-     * @brief Sparse array: maps Entity ID -> index in dense array
-     * @details Indexed directly by entity ID. Contains INVALID_ENTITY
-     *          for entities not in the set.
+     * @brief Paged sparse array: maps Entity ID -> index in dense array
+     * @details Pages are allocated on-demand. Each page holds SPARSE_PAGE_SIZE
+     *          entity mappings. pageIndex = entity / SPARSE_PAGE_SIZE,
+     *          offset = entity % SPARSE_PAGE_SIZE.
      */
-    std::vector<Entity> sparse_;
+    std::vector<std::unique_ptr<Page>> pages_;
 
     /**
      * @brief Dense array: stores entities contiguously

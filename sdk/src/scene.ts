@@ -99,6 +99,23 @@ export function registerComponentAssetFields(
     COMPONENT_ASSET_FIELDS.set(componentType, config);
 }
 
+export function getComponentAssetFields(componentType: string): string[] {
+    const config = COMPONENT_ASSET_FIELDS.get(componentType);
+    if (!config) return [];
+
+    const fields: string[] = [];
+    if (config.fields) {
+        for (const { field } of config.fields) {
+            fields.push(field);
+        }
+    }
+    if (config.spine) {
+        fields.push(config.spine.skeletonField);
+        fields.push(config.spine.atlasField);
+    }
+    return fields;
+}
+
 // =============================================================================
 // Scene Loader
 // =============================================================================

@@ -461,6 +461,7 @@ declare class World {
     private worldVersion_;
     private queryCache_;
     private builtinMethodCache_;
+    private iterationDepth_;
     connectCpp(cppRegistry: CppRegistry): void;
     disconnectCpp(): void;
     get hasCpp(): boolean;
@@ -469,6 +470,9 @@ declare class World {
     valid(entity: Entity): boolean;
     entityCount(): number;
     getWorldVersion(): number;
+    beginIteration(): void;
+    endIteration(): void;
+    isIterating(): boolean;
     getAllEntities(): Entity[];
     setParent(child: Entity, parent: Entity): void;
     removeParent(entity: Entity): void;
@@ -618,7 +622,10 @@ declare class App {
     private constructor();
     static new(): App;
     addPlugin(plugin: Plugin): this;
-    addSystemToSchedule(schedule: Schedule, system: SystemDef): this;
+    addSystemToSchedule(schedule: Schedule, system: SystemDef, options?: {
+        runBefore?: string[];
+        runAfter?: string[];
+    }): this;
     addSystem(system: SystemDef): this;
     addStartupSystem(system: SystemDef): this;
     connectCpp(cppRegistry: CppRegistry, module?: ESEngineModule): this;
@@ -640,6 +647,7 @@ declare class App {
     run(): void;
     private mainLoop;
     quit(): void;
+    private sortSystems;
     private runSchedule;
     private updateTime;
 }

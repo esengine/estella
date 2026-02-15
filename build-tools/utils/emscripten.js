@@ -4,7 +4,11 @@ import * as logger from './logger.js';
 
 export async function checkEmscripten() {
     try {
-        await runCommand('emcc', ['--version'], { silent: true });
+        const result = await runCommand('emcc', ['--version'], { silent: true });
+        const versionMatch = result.stdout.match(/(\d+\.\d+\.\d+)/);
+        if (versionMatch) {
+            logger.debug(`Emscripten version: ${versionMatch[1]}`);
+        }
         return true;
     } catch {
         return false;
@@ -28,7 +32,9 @@ export async function checkEnvironment() {
 
     if (!checks.emscripten) {
         logger.error('Emscripten not found. Please install and activate emsdk:');
-        logger.info('  source /path/to/emsdk/emsdk_env.sh');
+        logger.info('  Required version: 3.1.51');
+        logger.info('  Install: emsdk install 3.1.51 && emsdk activate 3.1.51');
+        logger.info('  Activate: source /path/to/emsdk/emsdk_env.sh');
         return false;
     }
 

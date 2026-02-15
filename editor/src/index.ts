@@ -10,6 +10,20 @@
 export { Editor, createEditor } from './Editor';
 
 // =============================================================================
+// Error Handling
+// =============================================================================
+
+export { ErrorBoundary, createErrorFallback, installGlobalErrorHandler } from './error';
+export type { ErrorBoundaryOptions } from './error';
+
+// =============================================================================
+// Logging
+// =============================================================================
+
+export { EditorLogger, createConsoleHandler, createToastHandler } from './logging';
+export type { LogLevel, LogEntry, LogHandler } from './logging';
+
+// =============================================================================
 // Types
 // =============================================================================
 

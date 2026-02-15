@@ -16,6 +16,7 @@ option(ES_BUILD_SIDE_MODULE "Build side modules for dynamic linking" OFF)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(ESEngineConfig)
+include(CompilerCache)
 
 if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
     include(Emscripten)
@@ -226,7 +227,15 @@ esengine_set_strict_warnings(esengine)
 # =============================================================================
 
 if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
-    add_executable(esengine_sdk src/esengine/bindings/WebSDKEntry.cpp ${GENERATED_WEB_BINDINGS})
+    add_executable(esengine_sdk
+        src/esengine/bindings/WebSDKEntry.cpp
+        src/esengine/bindings/EngineContext.cpp
+        src/esengine/bindings/ResourceManagerBindings.cpp
+        src/esengine/bindings/RendererBindings.cpp
+        src/esengine/bindings/ImmediateDrawBindings.cpp
+        src/esengine/bindings/GeometryBindings.cpp
+        src/esengine/bindings/PostProcessBindings.cpp
+        ${GENERATED_WEB_BINDINGS})
     target_link_libraries(esengine_sdk PRIVATE esengine)
     es_apply_sdk_settings(esengine_sdk)
 
@@ -237,7 +246,15 @@ if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
 
     # Single-file SDK (WASM inlined as Base64, for playable ads)
     if(ES_BUILD_SINGLE_FILE)
-        add_executable(esengine_single src/esengine/bindings/WebSDKEntry.cpp ${GENERATED_WEB_BINDINGS})
+        add_executable(esengine_single
+            src/esengine/bindings/WebSDKEntry.cpp
+            src/esengine/bindings/EngineContext.cpp
+            src/esengine/bindings/ResourceManagerBindings.cpp
+            src/esengine/bindings/RendererBindings.cpp
+            src/esengine/bindings/ImmediateDrawBindings.cpp
+            src/esengine/bindings/GeometryBindings.cpp
+            src/esengine/bindings/PostProcessBindings.cpp
+            ${GENERATED_WEB_BINDINGS})
         target_link_libraries(esengine_single PRIVATE esengine)
         es_apply_single_file_settings(esengine_single)
 
@@ -325,7 +342,15 @@ html,body{width:100%;height:100%;overflow:hidden;background:#1a1a1a}
 
     # WeChat MiniGame SDK (CommonJS compatible)
     if(ES_BUILD_WXGAME)
-        add_executable(esengine_wxgame src/esengine/bindings/WebSDKEntry.cpp ${GENERATED_WEB_BINDINGS})
+        add_executable(esengine_wxgame
+            src/esengine/bindings/WebSDKEntry.cpp
+            src/esengine/bindings/EngineContext.cpp
+            src/esengine/bindings/ResourceManagerBindings.cpp
+            src/esengine/bindings/RendererBindings.cpp
+            src/esengine/bindings/ImmediateDrawBindings.cpp
+            src/esengine/bindings/GeometryBindings.cpp
+            src/esengine/bindings/PostProcessBindings.cpp
+            ${GENERATED_WEB_BINDINGS})
         target_link_libraries(esengine_wxgame PRIVATE esengine)
         es_apply_wxgame_sdk_settings(esengine_wxgame)
 
@@ -414,7 +439,15 @@ html,body{width:100%;height:100%;overflow:hidden;background:#1a1a1a}
 
     # Main module SDK (MAIN_MODULE=2, supports loading side modules)
     if(ES_BUILD_MAIN_MODULE)
-        add_executable(esengine_sdk_main src/esengine/bindings/WebSDKEntry.cpp ${GENERATED_WEB_BINDINGS})
+        add_executable(esengine_sdk_main
+            src/esengine/bindings/WebSDKEntry.cpp
+            src/esengine/bindings/EngineContext.cpp
+            src/esengine/bindings/ResourceManagerBindings.cpp
+            src/esengine/bindings/RendererBindings.cpp
+            src/esengine/bindings/ImmediateDrawBindings.cpp
+            src/esengine/bindings/GeometryBindings.cpp
+            src/esengine/bindings/PostProcessBindings.cpp
+            ${GENERATED_WEB_BINDINGS})
         target_link_libraries(esengine_sdk_main PRIVATE esengine)
         es_apply_main_module_settings(esengine_sdk_main)
         set_target_properties(esengine_sdk_main PROPERTIES
@@ -423,7 +456,15 @@ html,body{width:100%;height:100%;overflow:hidden;background:#1a1a1a}
         )
 
         if(ES_BUILD_WXGAME)
-            add_executable(esengine_wxgame_main src/esengine/bindings/WebSDKEntry.cpp ${GENERATED_WEB_BINDINGS})
+            add_executable(esengine_wxgame_main
+                src/esengine/bindings/WebSDKEntry.cpp
+                src/esengine/bindings/EngineContext.cpp
+                src/esengine/bindings/ResourceManagerBindings.cpp
+                src/esengine/bindings/RendererBindings.cpp
+                src/esengine/bindings/ImmediateDrawBindings.cpp
+                src/esengine/bindings/GeometryBindings.cpp
+                src/esengine/bindings/PostProcessBindings.cpp
+                ${GENERATED_WEB_BINDINGS})
             target_link_libraries(esengine_wxgame_main PRIVATE esengine)
             es_apply_wxgame_main_module_settings(esengine_wxgame_main)
             set_target_properties(esengine_wxgame_main PROPERTIES

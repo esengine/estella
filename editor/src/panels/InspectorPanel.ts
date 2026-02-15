@@ -123,11 +123,13 @@ export class InspectorPanel {
             return;
         }
 
-        const entity = this.store_.selectedEntity;
+        const selectedEntities = Array.from(this.store_.selectedEntities);
         const asset = this.store_.selectedAsset;
 
-        if (entity !== null) {
-            this.renderEntityInspector(entity);
+        if (selectedEntities.length === 1) {
+            this.renderEntityInspector(selectedEntities[0] as Entity);
+        } else if (selectedEntities.length > 1) {
+            this.renderMultiEntityInspector(selectedEntities as Entity[]);
         } else if (asset !== null) {
             this.renderAssetInspector(asset);
         } else {
@@ -207,6 +209,25 @@ export class InspectorPanel {
             const isVisible = entityData.visible !== false;
             visBtn.innerHTML = isVisible ? icons.eye(14) : icons.eyeOff(14);
         }
+    }
+
+    private renderMultiEntityInspector(entities: Entity[]): void {
+        this.currentEntity_ = null;
+        this.currentAssetPath_ = null;
+        this.currentComponentCount_ = 0;
+        this.disposeEditors();
+        this.cleanupImageUrl();
+        this.contentContainer_.innerHTML = '';
+
+        const header = document.createElement('div');
+        header.className = 'es-inspector-multi-header';
+        header.innerHTML = `
+            <h3>${icons.layers(16)} Multi-Selection</h3>
+            <p>${entities.length} entities selected</p>
+        `;
+        this.contentContainer_.appendChild(header);
+
+        this.updateFooter(`${entities.length} entities selected`);
     }
 
     // =========================================================================

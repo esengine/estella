@@ -153,6 +153,7 @@ export {
     SystemRunner,
     type SystemDef,
     type SystemParam,
+    type SystemOptions,
     type InferParam,
     type InferParams,
 } from './system';
@@ -263,6 +264,7 @@ export {
     assetPlugin,
     MaterialLoader,
     registerEmbeddedAssets,
+    AssetRefCounter,
     type TextureInfo,
     type SliceBorder,
     type SpineLoadResult,
@@ -276,6 +278,7 @@ export {
     type AssetsData,
     type LoadedMaterial,
     type ShaderLoader,
+    type AssetRefInfo,
 } from './asset';
 
 // =============================================================================
@@ -289,6 +292,7 @@ export {
     updateCameraAspectRatio,
     findEntityByName,
     registerComponentAssetFields,
+    getComponentAssetFields,
     type SceneData,
     type SceneEntityData,
     type SceneComponentData,
@@ -469,6 +473,23 @@ export type {
     CollisionEnterEvent,
     SensorEvent,
 } from './physics';
+
+// =============================================================================
+// Logger
+// =============================================================================
+
+export {
+    Logger,
+    getLogger,
+    setLogLevel,
+    debug,
+    info,
+    warn,
+    error,
+    LogLevel,
+    type LogEntry,
+    type LogHandler,
+} from './logger';
 
 // =============================================================================
 // GL Debug

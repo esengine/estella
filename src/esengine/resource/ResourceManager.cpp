@@ -33,6 +33,7 @@ void ResourceManager::init() {
 
 #ifndef ES_PLATFORM_WEB
     stbi_set_flip_vertically_on_load(true);
+    hotReloadManager_.init(true);
 #endif
 
     stats_ = {};
@@ -47,6 +48,11 @@ void ResourceManager::shutdown() {
     ES_LOG_INFO("ResourceManager shutting down (shaders: {}, textures: {}, vbos: {}, ibos: {}, fonts: {})",
                 shaders_.size(), textures_.size(), vertexBuffers_.size(), indexBuffers_.size(), fonts_.size());
 
+#ifndef ES_PLATFORM_WEB
+    hotReloadManager_.shutdown();
+    shaderPaths_.clear();
+#endif
+
     guidToTexture_.clear();
     textureMetadata_.clear();
     fonts_.clear();
@@ -57,6 +63,14 @@ void ResourceManager::shutdown() {
 
     initialized_ = false;
     ES_LOG_INFO("ResourceManager shutdown complete");
+}
+
+void ResourceManager::update() {
+#ifndef ES_PLATFORM_WEB
+    if (initialized_) {
+        hotReloadManager_.update();
+    }
+#endif
 }
 
 // =============================================================================
@@ -112,7 +126,18 @@ ShaderHandle ResourceManager::loadShaderFile(const std::string& path, const std:
     }
 
     stats_.cacheMisses++;
-    return shaders_.add(std::move(result.resource), path);
+    auto handle = shaders_.add(std::move(result.resource), path);
+
+#ifndef ES_PLATFORM_WEB
+    if (handle.isValid()) {
+        shaderPaths_[handle.id()] = path;
+        hotReloadManager_.watch<Shader>(handle, path, [this, handle](const std::string& p) {
+            reloadShader(handle, p);
+        });
+    }
+#endif
+
+    return handle;
 }
 
 ShaderHandle ResourceManager::loadEngineShader(const std::string& name, const std::string& platform) {
@@ -151,6 +176,10 @@ void ResourceManager::releaseShader(ShaderHandle handle) {
     if (handle.isValid()) {
         shaders_.release(handle.id());
     }
+}
+
+u32 ResourceManager::getShaderRefCount(ShaderHandle handle) const {
+    return shaders_.getRefCount(handle);
 }
 
 // =============================================================================
@@ -233,6 +262,10 @@ void ResourceManager::releaseTexture(TextureHandle handle) {
     if (handle.isValid()) {
         textures_.release(handle.id());
     }
+}
+
+u32 ResourceManager::getTextureRefCount(TextureHandle handle) const {
+    return textures_.getRefCount(handle);
 }
 
 TextureHandle ResourceManager::registerExternalTexture(u32 glTextureId, u32 width, u32 height) {
@@ -455,6 +488,10 @@ void ResourceManager::releaseBitmapFont(BitmapFontHandle handle) {
     }
 }
 
+u32 ResourceManager::getBitmapFontRefCount(BitmapFontHandle handle) const {
+    return fonts_.getRefCount(handle);
+}
+
 // =============================================================================
 // Statistics
 // =============================================================================
@@ -471,5 +508,51 @@ void ResourceManager::resetCacheStats() {
     stats_.cacheHits = 0;
     stats_.cacheMisses = 0;
 }
+
+#ifndef ES_PLATFORM_WEB
+void ResourceManager::reloadShader(ShaderHandle handle, const std::string& path) {
+    if (!handle.isValid()) {
+        return;
+    }
+
+    auto it = shaderPaths_.find(handle.id());
+    if (it == shaderPaths_.end()) {
+        ES_LOG_ERROR("HotReload: Shader path not found for handle {}", handle.id());
+        return;
+    }
+
+    ES_LOG_INFO("HotReload: Reloading shader '{}'", path);
+
+    ShaderLoader loader;
+    auto result = loader.loadFromFile(path, "");
+
+    ReloadEvent<Shader> event;
+    event.handle = handle;
+    event.path = path;
+
+    if (!result.isOk()) {
+        ES_LOG_ERROR("HotReload: Failed to reload shader '{}': {}", path, result.error.message);
+        event.success = false;
+        event.errorMessage = result.error.message;
+        hotReloadManager_.onShaderReloaded.publish(event);
+        return;
+    }
+
+    Shader* oldShader = shaders_.get(handle);
+    if (!oldShader) {
+        ES_LOG_ERROR("HotReload: Shader handle {} is no longer valid", handle.id());
+        event.success = false;
+        event.errorMessage = "Shader handle no longer valid";
+        hotReloadManager_.onShaderReloaded.publish(event);
+        return;
+    }
+
+    *oldShader = std::move(*result.resource);
+
+    ES_LOG_INFO("HotReload: Successfully reloaded shader '{}'", path);
+    event.success = true;
+    hotReloadManager_.onShaderReloaded.publish(event);
+}
+#endif
 
 }  // namespace esengine::resource

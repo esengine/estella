@@ -6,52 +6,75 @@ import * as logger from '../utils/logger.js';
 import { runCommand, getCpuCount } from '../utils/emscripten.js';
 
 export async function buildWasm(target, options = {}) {
-    const { debug = false, clean = false } = options;
+    const { debug = false, clean = false, manifest = null } = options;
 
     const targetConfig = config.wasm[target];
     if (!targetConfig) {
         throw new Error(`Unknown target: ${target}. Available: ${Object.keys(config.wasm).join(', ')}`);
     }
 
-    logger.step(`Building WASM for ${target}...`);
-
-    const rootDir = config.paths.root;
-    const buildDir = path.join(rootDir, targetConfig.buildDir);
-    const outputDir = config.paths.output;
-
-    if (clean && existsSync(buildDir)) {
-        logger.debug(`Cleaning ${buildDir}`);
-        await rm(buildDir, { recursive: true, force: true });
+    if (manifest) {
+        manifest.startTarget(`wasm:${target}`);
     }
 
-    await mkdir(buildDir, { recursive: true });
+    try {
+        logger.step(`Building WASM for ${target}...`);
 
-    const buildType = debug ? 'Debug' : 'Release';
-    const cmakeArgs = [
-        'cmake',
-        ...targetConfig.cmakeFlags,
-        `-DCMAKE_BUILD_TYPE=${buildType}`,
-        rootDir,
-    ];
+        const rootDir = config.paths.root;
+        const buildDir = path.join(rootDir, targetConfig.buildDir);
+        const outputDir = config.paths.output;
 
-    logger.debug(`CMake configure: emcmake ${cmakeArgs.join(' ')}`);
-    await runCommand('emcmake', cmakeArgs, { cwd: buildDir });
+        if (clean && existsSync(buildDir)) {
+            logger.debug(`Cleaning ${buildDir}`);
+            await rm(buildDir, { recursive: true, force: true });
+        }
 
-    const cpuCount = getCpuCount();
-    const buildArgs = ['--build', '.', '-j', String(cpuCount)];
+        await mkdir(buildDir, { recursive: true });
 
-    if (targetConfig.targets && targetConfig.targets.length > 0) {
-        buildArgs.push('--target', ...targetConfig.targets);
+        const buildType = debug ? 'Debug' : 'Release';
+        const cmakeArgs = [
+            'cmake',
+            ...targetConfig.cmakeFlags,
+            `-DCMAKE_BUILD_TYPE=${buildType}`,
+            rootDir,
+        ];
+
+        logger.debug(`CMake configure: emcmake ${cmakeArgs.join(' ')}`);
+        await runCommand('emcmake', cmakeArgs, { cwd: buildDir });
+
+        const cpuCount = getCpuCount();
+        const buildArgs = ['--build', '.', '-j', String(cpuCount)];
+
+        if (targetConfig.targets && targetConfig.targets.length > 0) {
+            buildArgs.push('--target', ...targetConfig.targets);
+        }
+
+        logger.debug(`CMake build: cmake ${buildArgs.join(' ')}`);
+        await runCommand('cmake', buildArgs, { cwd: buildDir });
+
+        await optimizeWasmFiles(buildDir, targetConfig.outputs);
+        await copyOutputs(buildDir, outputDir, targetConfig.outputs);
+
+        logger.success(`WASM ${target}: Build complete`);
+
+        const result = {
+            target,
+            buildDir,
+            outputDir,
+            outputs: Object.values(targetConfig.outputs),
+        };
+
+        if (manifest) {
+            await manifest.endTarget(`wasm:${target}`, result);
+        }
+
+        return result;
+    } catch (error) {
+        if (manifest) {
+            manifest.markTargetFailed(`wasm:${target}`, error);
+        }
+        throw error;
     }
-
-    logger.debug(`CMake build: cmake ${buildArgs.join(' ')}`);
-    await runCommand('cmake', buildArgs, { cwd: buildDir });
-
-    await optimizeWasmFiles(buildDir, targetConfig.outputs);
-    await copyOutputs(buildDir, outputDir, targetConfig.outputs);
-
-    logger.success(`WASM ${target}: Build complete`);
-    return { target, buildDir, outputDir };
 }
 
 async function optimizeWasmFiles(buildDir, outputs) {
@@ -92,6 +115,8 @@ async function copyOutputs(buildDir, outputDir, outputs) {
 }
 
 export async function buildWasmParallel(targets, options = {}) {
+    const { manifest = null, continueOnError = false } = options;
+
     const groups = new Map();
     for (const target of targets) {
         const targetConfig = config.wasm[target];
@@ -108,13 +133,62 @@ export async function buildWasmParallel(targets, options = {}) {
     const groupPromises = [];
     for (const groupTargets of groups.values()) {
         groupPromises.push((async () => {
+            const results = [];
             for (const target of groupTargets) {
-                await buildWasm(target, options);
+                try {
+                    const result = await buildWasm(target, { ...options, manifest });
+                    results.push({ target, status: 'success', result });
+                } catch (error) {
+                    results.push({ target, status: 'failed', error });
+                    logger.error(`Build failed for ${target}: ${error.message}`);
+                }
             }
+            return results;
         })());
     }
 
-    await Promise.all(groupPromises);
+    const allResults = await Promise.allSettled(groupPromises);
+
+    const failures = [];
+    const successes = [];
+
+    for (const groupResult of allResults) {
+        if (groupResult.status === 'fulfilled') {
+            for (const targetResult of groupResult.value) {
+                if (targetResult.status === 'success') {
+                    successes.push(targetResult.target);
+                } else {
+                    failures.push({
+                        target: targetResult.target,
+                        error: targetResult.error,
+                    });
+                }
+            }
+        } else {
+            logger.error(`Group build failed: ${groupResult.reason.message}`);
+            failures.push({
+                target: 'unknown',
+                error: groupResult.reason,
+            });
+        }
+    }
+
+    if (successes.length > 0) {
+        logger.success(`Successfully built: ${successes.join(', ')}`);
+    }
+
+    if (failures.length > 0) {
+        logger.error(`\nBuild failures (${failures.length}):`);
+        for (const failure of failures) {
+            logger.error(`  - ${failure.target}: ${failure.error.message}`);
+        }
+
+        if (!continueOnError) {
+            throw new Error(`${failures.length} target(s) failed to build`);
+        } else {
+            logger.warn(`\n⚠️  ${failures.length} target(s) failed, continuing due to --continue-on-error`);
+        }
+    }
 }
 
 export async function buildAllWasm(options = {}) {

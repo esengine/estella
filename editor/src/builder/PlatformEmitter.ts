@@ -19,6 +19,7 @@ export interface BuildArtifact {
     packedPaths: Set<string>;
     compiledMaterials: CompiledMaterial[];
     assetLibrary: AssetDatabase;
+    atlasInputHash?: string;
 }
 
 export interface PlatformEmitter {

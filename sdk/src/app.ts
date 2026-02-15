@@ -39,6 +39,8 @@ export interface Plugin {
 
 interface SystemEntry {
     system: SystemDef;
+    runBefore?: string[];
+    runAfter?: string[];
 }
 
 // =============================================================================
@@ -103,8 +105,16 @@ export class App {
     // Systems
     // =========================================================================
 
-    addSystemToSchedule(schedule: Schedule, system: SystemDef): this {
-        this.systems_.get(schedule)!.push({ system });
+    addSystemToSchedule(
+        schedule: Schedule,
+        system: SystemDef,
+        options?: { runBefore?: string[]; runAfter?: string[] }
+    ): this {
+        this.systems_.get(schedule)!.push({
+            system,
+            runBefore: options?.runBefore,
+            runAfter: options?.runAfter,
+        });
         return this;
     }
 
@@ -293,10 +303,76 @@ export class App {
     // Internal
     // =========================================================================
 
+    private sortSystems(systems: SystemEntry[]): SystemEntry[] {
+        if (systems.length <= 1) {
+            return systems;
+        }
+
+        const nameToIndex = new Map<string, number>();
+        for (let i = 0; i < systems.length; i++) {
+            nameToIndex.set(systems[i].system._name, i);
+        }
+
+        for (const entry of systems) {
+            if (entry.runBefore) {
+                for (const targetName of entry.runBefore) {
+                    const targetIndex = nameToIndex.get(targetName);
+                    if (targetIndex !== undefined) {
+                        const targetEntry = systems[targetIndex];
+                        if (!targetEntry.runAfter) {
+                            targetEntry.runAfter = [];
+                        }
+                        if (!targetEntry.runAfter.includes(entry.system._name)) {
+                            targetEntry.runAfter.push(entry.system._name);
+                        }
+                    }
+                }
+            }
+        }
+
+        const sorted: SystemEntry[] = [];
+        const visited = new Set<number>();
+        const visiting = new Set<number>();
+
+        const visit = (index: number): void => {
+            if (visited.has(index)) return;
+            if (visiting.has(index)) {
+                const name = systems[index].system._name;
+                throw new Error(`Circular dependency detected involving system "${name}"`);
+            }
+
+            visiting.add(index);
+            const entry = systems[index];
+
+            if (entry.runAfter) {
+                for (const depName of entry.runAfter) {
+                    const depIndex = nameToIndex.get(depName);
+                    if (depIndex !== undefined) {
+                        visit(depIndex);
+                    }
+                }
+            }
+
+            visiting.delete(index);
+            visited.add(index);
+            sorted.push(entry);
+        };
+
+        for (let i = 0; i < systems.length; i++) {
+            visit(i);
+        }
+
+        return sorted;
+    }
+
     private runSchedule(schedule: Schedule): void {
-        const systems = this.systems_.get(schedule);
+        let systems = this.systems_.get(schedule);
         if (!systems || !this.runner_) {
             return;
+        }
+
+        if (systems.some(s => s.runBefore || s.runAfter)) {
+            systems = this.sortSystems(systems);
         }
 
         for (const entry of systems) {

@@ -60,6 +60,8 @@ import { registerComponentSchema } from './schemas';
 import { showToast, showSuccessToast, showErrorToast } from './ui/Toast';
 import { showContextMenu } from './ui/ContextMenu';
 import { registerContextMenuItem, lockBuiltinContextMenuItems, clearExtensionContextMenuItems } from './ui/ContextMenuRegistry';
+import { installGlobalErrorHandler } from './error/GlobalErrorHandler';
+import { EditorLogger, createConsoleHandler, createToastHandler } from './logging';
 import {
     registerInspectorSection,
     registerComponentInspector,
@@ -82,6 +84,7 @@ import {
 } from './settings';
 import { loadProjectConfig, loadEditorLocalSettings, saveEditorLocalSetting } from './launcher/ProjectService';
 import type { SpineVersion } from './types/ProjectTypes';
+import { Splitter } from './ui/Splitter';
 
 // =============================================================================
 // Types
@@ -110,6 +113,7 @@ export class Editor {
     private baseAPI_: Record<string, unknown> | null = null;
     private scriptLoader_: ScriptLoader | null = null;
     private extensionLoader_: ExtensionLoader | null = null;
+    private splitters_: Splitter[] = [];
     private previewService_: PreviewService | null = null;
     private shortcutManager_: ShortcutManager;
     private activeBottomPanelId_: string | null = 'content-browser';
@@ -122,6 +126,15 @@ export class Editor {
         this.store_ = new EditorStore();
         this.projectPath_ = options?.projectPath ?? null;
         this.shortcutManager_ = new ShortcutManager();
+
+        installGlobalErrorHandler();
+
+        EditorLogger.addHandler(createConsoleHandler());
+        EditorLogger.addHandler(createToastHandler((message, type) => {
+            if (type === 'error') showErrorToast(message);
+            else if (type === 'warning') showToast({ type: 'info', title: message });
+        }));
+        EditorLogger.setMinLevel('info');
 
         registerBuiltinEditors();
         registerMaterialEditors();
@@ -1108,6 +1121,7 @@ export class Editor {
 
         this.instantiatePanels();
         this.updateBottomPanelVisibility();
+        this.setupSplitters();
 
         setEditorInstance(this);
 
@@ -1124,6 +1138,56 @@ export class Editor {
         this.store_.subscribe(() => this.updateToolbarState());
         this.store_.subscribe(() => this.updateStatusbar());
         this.installConsoleCapture();
+    }
+
+    private setupSplitters(): void {
+        const main = this.container_.querySelector('.es-editor-main');
+        if (!main) return;
+
+        const leftPanel = main.querySelector('.es-editor-left') as HTMLElement;
+        const centerPanel = main.querySelector('.es-editor-center') as HTMLElement;
+        const rightPanel = main.querySelector('.es-editor-right') as HTMLElement;
+
+        if (leftPanel && centerPanel) {
+            const leftSize = this.loadPanelSize('panelSizeLeft', 250);
+            const leftSplitter = new Splitter({
+                direction: 'horizontal',
+                container: main as HTMLElement,
+                leftPanel,
+                rightPanel: centerPanel,
+                minSize: 200,
+                defaultPosition: leftSize,
+                onResize: (size) => {
+                    this.savePanelSize('panelSizeLeft', size);
+                },
+            });
+            this.splitters_.push(leftSplitter);
+        }
+
+        if (centerPanel && rightPanel) {
+            const rightSize = this.loadPanelSize('panelSizeRight', 300);
+            const rightSplitter = new Splitter({
+                direction: 'horizontal',
+                container: main as HTMLElement,
+                leftPanel: centerPanel,
+                rightPanel,
+                minSize: 250,
+                defaultPosition: rightSize,
+                onResize: (_, size) => {
+                    this.savePanelSize('panelSizeRight', size);
+                },
+            });
+            this.splitters_.push(rightSplitter);
+        }
+    }
+
+    private loadPanelSize(key: string, defaultValue: number): number {
+        const stored = localStorage.getItem(`esengine.editor.${key}`);
+        return stored ? parseInt(stored, 10) : defaultValue;
+    }
+
+    private savePanelSize(key: string, value: number): void {
+        localStorage.setItem(`esengine.editor.${key}`, String(value));
     }
 
     private buildTabBarHTML(): string {

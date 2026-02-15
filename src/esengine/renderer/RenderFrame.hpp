@@ -15,6 +15,18 @@
 
 namespace esengine {
 
+struct Plane {
+    glm::vec3 normal;
+    f32 distance;
+    f32 signedDistance(const glm::vec3& point) const;
+};
+
+struct Frustum {
+    Plane planes[6];
+    void extractFromMatrix(const glm::mat4& vp);
+    bool intersectsAABB(const glm::vec3& center, const glm::vec3& halfExtents) const;
+};
+
 class BatchRenderer2D;
 
 #ifdef ES_ENABLE_SPINE
@@ -99,6 +111,7 @@ private:
 
     std::vector<RenderItem> items_;
     glm::mat4 view_projection_{1.0f};
+    Frustum frustum_;
     RenderTargetManager::Handle current_target_ = 0;
     RenderStage current_stage_ = RenderStage::Transparent;
 

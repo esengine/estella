@@ -20,6 +20,8 @@ export class PreviewPlugin implements Plugin {
     private baseUrl_: string;
     private app_: App | null = null;
     private loadPromise_: Promise<void> | null = null;
+    private eventSource_: EventSource | null = null;
+    private currentScene_: SceneData | null = null;
 
     constructor(sceneUrl: string, baseUrl?: string) {
         this.sceneUrl_ = sceneUrl;
@@ -30,6 +32,7 @@ export class PreviewPlugin implements Plugin {
         this.app_ = app;
 
         this.loadPromise_ = this.loadScene();
+        this.setupHotReload();
     }
 
     /**
@@ -136,6 +139,54 @@ export class PreviewPlugin implements Plugin {
                 clearFlags: ClearFlags.ColorAndDepth,
             };
             world.insert(cameraEntity, Camera, cameraData);
+        }
+    }
+
+    private setupHotReload(): void {
+        const url = new URL(this.sceneUrl_, window.location.href);
+        const eventsUrl = `${url.protocol}//${url.host}/sse-reload`;
+
+        this.eventSource_ = new EventSource(eventsUrl);
+
+        this.eventSource_.addEventListener('message', async (event) => {
+            if (event.data === 'reload') {
+                console.log('[PreviewPlugin] Reload event received, updating scene...');
+                await this.reloadScene();
+            }
+        });
+
+        this.eventSource_.addEventListener('error', (err) => {
+            console.error('[PreviewPlugin] EventSource error:', err);
+        });
+    }
+
+    private async reloadScene(): Promise<void> {
+        if (!this.app_) return;
+
+        try {
+            const response = await platformFetch(this.sceneUrl_);
+            if (!response.ok) {
+                throw new Error(`Failed to fetch scene: ${response.status}`);
+            }
+            const sceneData = await response.json<SceneData>();
+
+            const provider = new WebAssetProvider(this.baseUrl_);
+            await provider.prefetch(sceneData);
+
+            let spineModule = null;
+            const spinePromise = this.app_.spineInitPromise;
+            if (spinePromise) {
+                const result = await spinePromise as { controller: { raw: any }; coreModule: unknown };
+                spineModule = result.controller.raw;
+            }
+
+            await loadRuntimeScene(this.app_, this.app_.wasmModule!, sceneData, provider, spineModule);
+
+            this.ensureCamera();
+            console.log('[PreviewPlugin] Scene reloaded successfully');
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            console.error(`[PreviewPlugin] Failed to reload scene: ${msg}`);
         }
     }
 }

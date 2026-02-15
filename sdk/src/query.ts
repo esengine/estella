@@ -127,6 +127,7 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
 
         let prevEntity: Entity | null = null;
 
+        this.world_.beginIteration();
         try {
             for (const entity of entities) {
                 if (prevEntity !== null && hasMut) {
@@ -162,6 +163,7 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
                 yield result.slice() as QueryResult<C>;
             }
         } finally {
+            this.world_.endIteration();
             if (prevEntity !== null && hasMut) {
                 for (let i = 0; i < mutCount; i++) {
                     const mut = mutData[i];

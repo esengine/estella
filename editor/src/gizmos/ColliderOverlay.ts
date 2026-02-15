@@ -38,19 +38,18 @@ export class ColliderOverlay {
 
     drawAll(octx: OverlayContext): void {
         const { ctx, store } = octx;
-        const selected = store.selectedEntity;
+        const selectedIds = store.selectedEntities;
 
         for (const entity of store.scene.entities) {
             if (!store.isEntityVisible(entity.id)) continue;
-            const isSelected = entity.id === selected;
+            const isSelected = selectedIds.has(entity.id);
             this.drawEntityColliders(octx, entity, isSelected);
         }
     }
 
     hitTest(worldX: number, worldY: number, octx: OverlayContext): boolean {
         const { store } = octx;
-        const selected = store.selectedEntity;
-        if (selected === null) return false;
+        if (store.selectedEntities.size === 0) return false;
 
         const entityData = store.getSelectedEntityData();
         if (!entityData) return false;

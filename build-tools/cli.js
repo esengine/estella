@@ -3,6 +3,7 @@
 import { program } from 'commander';
 import { rm, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
+import path from 'path';
 import config from './build.config.js';
 import * as logger from './utils/logger.js';
 import { checkEnvironment } from './utils/emscripten.js';
@@ -11,6 +12,8 @@ import { buildWasm, buildWasmParallel, cleanWasm } from './tasks/wasm.js';
 import { buildSdk, cleanSdk } from './tasks/sdk.js';
 import { syncToDesktop } from './tasks/sync.js';
 import { startWatch } from './tasks/watch.js';
+import { BuildManifest } from './manifest.js';
+import { handleBuildError } from './utils/errorHelp.js';
 
 program
     .name('esengine-build')
@@ -27,9 +30,13 @@ program
     .option('--no-cache', 'Disable EHT cache')
     .option('-v, --verbose', 'Verbose output', false)
     .option('--no-sync', 'Skip syncing to desktop/public')
+    .option('--manifest', 'Generate build manifest with timing and sizes', false)
+    .option('--continue-on-error', 'Continue building other targets if one fails (for CI)', false)
     .action(async (options) => {
         logger.setVerbose(options.verbose);
         const startTime = Date.now();
+
+        const manifest = options.manifest ? new BuildManifest() : null;
 
         try {
             logger.header('ESEngine Build');
@@ -52,24 +59,31 @@ program
 
             if (wasmTargets.length > 0) {
                 await runEht({ noCache: !options.cache });
-                await buildWasmParallel(wasmTargets, { debug: isDebug, clean: options.clean });
+                await buildWasmParallel(wasmTargets, {
+                    debug: isDebug,
+                    clean: options.clean,
+                    manifest,
+                    continueOnError: options.continueOnError,
+                });
             }
 
             if (buildSdkFlag) {
-                await buildSdk();
+                await buildSdk({ manifest });
             }
 
             if (options.sync) {
                 await syncToDesktop();
             }
 
+            if (manifest) {
+                manifest.printSummary();
+                const manifestPath = path.join(config.paths.output, 'manifest.json');
+                await manifest.save(manifestPath);
+            }
+
             logger.printTime(startTime);
         } catch (err) {
-            logger.error(err.message);
-            if (options.verbose) {
-                console.error(err);
-            }
-            process.exit(1);
+            handleBuildError(err, { verbose: options.verbose });
         }
     });
 
@@ -88,8 +102,7 @@ program
 
             await startWatch({ target: options.target });
         } catch (err) {
-            logger.error(err.message);
-            process.exit(1);
+            handleBuildError(err, { verbose: options.verbose });
         }
     });
 
@@ -98,7 +111,10 @@ program
     .description('Clean build outputs')
     .option('-a, --all', 'Clean all build directories', false)
     .option('-t, --target <target>', 'Clean specific target')
+    .option('-v, --verbose', 'Verbose output', false)
     .action(async (options) => {
+        logger.setVerbose(options.verbose);
+
         try {
             logger.header('Clean');
 
@@ -110,8 +126,7 @@ program
 
             logger.success('Clean complete');
         } catch (err) {
-            logger.error(err.message);
-            process.exit(1);
+            handleBuildError(err, { verbose: options.verbose });
         }
     });
 
@@ -126,8 +141,7 @@ program
         try {
             await runEht({ noCache: !options.cache });
         } catch (err) {
-            logger.error(err.message);
-            process.exit(1);
+            handleBuildError(err, { verbose: options.verbose });
         }
     });
 
@@ -142,20 +156,21 @@ program
             await buildSdk();
             await syncToDesktop({ wasm: false, sdk: true });
         } catch (err) {
-            logger.error(err.message);
-            process.exit(1);
+            handleBuildError(err, { verbose: options.verbose });
         }
     });
 
 program
     .command('sync')
     .description('Sync build outputs to desktop/public')
-    .action(async () => {
+    .option('-v, --verbose', 'Verbose output', false)
+    .action(async (options) => {
+        logger.setVerbose(options.verbose);
+
         try {
             await syncToDesktop();
         } catch (err) {
-            logger.error(err.message);
-            process.exit(1);
+            handleBuildError(err, { verbose: options.verbose });
         }
     });
 

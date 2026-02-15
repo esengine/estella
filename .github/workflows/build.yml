@@ -25,10 +25,17 @@ jobs:
           libglfw3-dev \
           libgl1-mesa-dev \
           xorg-dev \
-          libxkbcommon-dev
+          libxkbcommon-dev \
+          ccache
+
+    - name: Setup ccache
+      uses: hendrikmuhs/ccache-action@v1.2
+      with:
+        key: ${{ runner.os }}-build-linux
+        max-size: 500M
 
     - name: Configure CMake
-      run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+      run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DES_ENABLE_CCACHE=ON
 
     - name: Build
       run: cmake --build build
@@ -46,14 +53,58 @@ jobs:
       with:
         submodules: recursive
 
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
     - name: Setup Emscripten
       uses: mymindstorm/setup-emsdk@v14
       with:
-        version: latest
+        version: 3.1.51
+
+    - name: Setup ccache
+      uses: hendrikmuhs/ccache-action@v1.2
+      with:
+        key: ${{ runner.os }}-emscripten
+        max-size: 500M
 
     - name: Configure CMake
-      run: emcmake cmake -B build_web -G Ninja -DES_BUILD_WEB=ON
+      run: emcmake cmake -B build_web -G Ninja -DES_BUILD_WEB=ON -DES_ENABLE_CCACHE=ON
 
     - name: Build
       run: cmake --build build_web
+
+    - name: Install build-tools dependencies
+      run: npm install
+      working-directory: build-tools
+
+    - name: Build SDK and generate manifest
+      run: node build-tools/cli.js build -t all --manifest --no-sync
+
+    - name: Track bundle sizes
+      run: node build-tools/track-bundle-size.js check
+
+    - name: Upload bundle size report
+      if: github.event_name == 'pull_request'
+      uses: actions/upload-artifact@v4
+      with:
+        name: bundle-size-report
+        path: build/manifest.json
+
+    - name: Comment PR with bundle size
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const { execSync } = require('child_process');
+          const comment = execSync('node build-tools/track-bundle-size.js pr-comment', { encoding: 'utf-8' });
+
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+          });
 

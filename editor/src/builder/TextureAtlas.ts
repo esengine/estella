@@ -294,6 +294,22 @@ export class TextureAtlasPacker {
         return result;
     }
 
+    async packIncremental(
+        imagePaths: string[],
+        sceneDataList: Array<{ name: string; data: Record<string, unknown> }>,
+        cached: AtlasResult | null,
+        currentInputHash: string,
+        cachedInputHash: string | undefined,
+        maxSize: number = 2048,
+        allAssetPaths?: string[]
+    ): Promise<AtlasResult> {
+        if (cached && cachedInputHash && currentInputHash === cachedInputHash) {
+            return cached;
+        }
+
+        return this.pack(imagePaths, sceneDataList, maxSize, allAssetPaths);
+    }
+
     rewriteSceneData(
         sceneData: Record<string, unknown>,
         atlasResult: AtlasResult,

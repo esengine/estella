@@ -277,18 +277,62 @@ svg {
 .es-editor-left {
     width: 250px;
     min-width: 200px;
-    border-right: 1px solid var(--es-border);
+    display: flex;
+    flex-direction: column;
 }
 
 .es-editor-center {
     flex: 1;
     min-width: 300px;
+    display: flex;
+    flex-direction: column;
 }
 
 .es-editor-right {
     width: 300px;
     min-width: 250px;
-    border-left: 1px solid var(--es-border);
+    display: flex;
+    flex-direction: column;
+}
+
+.es-splitter {
+    background: var(--es-border);
+    flex-shrink: 0;
+    position: relative;
+    transition: background 0.15s;
+}
+
+.es-splitter:hover {
+    background: var(--es-accent);
+}
+
+.es-splitter-horizontal {
+    width: 4px;
+    cursor: col-resize;
+}
+
+.es-splitter-vertical {
+    height: 4px;
+    cursor: row-resize;
+}
+
+.es-splitter::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+}
+
+.es-splitter-horizontal::after {
+    left: -2px;
+    right: -2px;
+}
+
+.es-splitter-vertical::after {
+    top: -2px;
+    bottom: -2px;
 }
 
 /* =============================================================================
@@ -621,6 +665,22 @@ svg {
     color: #87d7ff;
 }
 
+.es-search-highlight {
+    background: rgba(229, 192, 123, 0.3);
+    color: #e5c07b;
+    font-weight: 600;
+    padding: 0 1px;
+    border-radius: 2px;
+}
+
+.es-hierarchy-item.es-search-selected {
+    background: rgba(97, 175, 239, 0.2);
+}
+
+.es-hierarchy-item.es-search-selected > .es-hierarchy-row {
+    border-left: 2px solid #61afef;
+}
+
 .es-hierarchy-footer {
     padding: 6px 12px;
     font-size: 11px;
@@ -659,6 +719,31 @@ svg {
     color: var(--es-text-secondary);
     text-align: center;
     padding: 20px;
+}
+
+.es-inspector-multi-header {
+    padding: 16px;
+    text-align: center;
+    background: var(--es-bg-secondary);
+    border: 1px solid var(--es-border);
+    margin-bottom: 8px;
+}
+
+.es-inspector-multi-header h3 {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin: 0 0 8px 0;
+    color: var(--es-text-primary);
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.es-inspector-multi-header p {
+    margin: 0;
+    color: var(--es-text-secondary);
+    font-size: 12px;
 }
 
 .es-inspector-entity-header {
@@ -1369,6 +1454,17 @@ svg {
 .es-input-number::-webkit-inner-spin-button {
     -webkit-appearance: none;
     margin: 0;
+}
+
+.es-validation-error {
+    border-color: var(--es-danger) !important;
+    animation: shake 0.3s;
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    75% { transform: translateX(4px); }
 }
 
 .es-number-editor {
@@ -5107,3 +5203,82 @@ svg {
 .es-uirect-pair { display: flex; gap: 8px; flex: 1; }
 .es-uirect-pair-item { display: flex; align-items: center; flex: 1; gap: 4px; }
 .es-uirect-pair-label { color: var(--es-text-secondary); font-size: 10px; flex-shrink: 0; cursor: ew-resize; }
+
+/* =============================================================================
+ * Error Boundaries
+ * ============================================================================= */
+
+.es-error-fallback {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  text-align: center;
+  background: rgba(224, 108, 117, 0.05);
+  border: 2px dashed rgba(224, 108, 117, 0.3);
+  border-radius: 8px;
+  margin: 20px;
+  min-height: 200px;
+}
+
+.es-error-fallback-icon {
+  color: #e06c75;
+  margin-bottom: 16px;
+}
+
+.es-error-fallback-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+  color: #e06c75;
+}
+
+.es-error-fallback-message {
+  font-size: 14px;
+  margin: 0 0 16px 0;
+  color: var(--es-text-secondary);
+  max-width: 600px;
+}
+
+.es-error-fallback-details {
+  margin: 16px 0;
+  width: 100%;
+  max-width: 700px;
+  text-align: left;
+}
+
+.es-error-fallback-details summary {
+  cursor: pointer;
+  padding: 8px 12px;
+  background: var(--es-bg-secondary);
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--es-text-secondary);
+  user-select: none;
+}
+
+.es-error-fallback-details summary:hover {
+  background: var(--es-bg-tertiary);
+}
+
+.es-error-fallback-stack {
+  background: var(--es-bg-tertiary);
+  padding: 12px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  overflow-x: auto;
+  max-height: 200px;
+  overflow-y: auto;
+  margin-top: 8px;
+  color: var(--es-text-primary);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.es-error-fallback-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}

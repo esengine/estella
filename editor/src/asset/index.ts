@@ -26,7 +26,6 @@ export {
     resetAssetDatabase as resetAssetLibrary,
     isUUID,
     getComponentRefFields,
-    registerComponentRefFields,
     type AssetEntry,
 } from './AssetDatabase';
 

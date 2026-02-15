@@ -11,6 +11,7 @@ import { BuildProgressReporter } from './BuildProgress';
 import { AssetExportConfigService, BuildAssetCollector } from './AssetCollector';
 import { TextureAtlasPacker } from './TextureAtlas';
 import { AssetLibrary, isUUID, getComponentRefFields } from '../asset/AssetLibrary';
+import { BuildCache } from './BuildCache';
 import { getAssetType, toAddressableType } from '../asset/AssetTypes';
 import { compileMaterials } from './MaterialCompiler';
 import { convertPrefabAssetRefs, deserializePrefab } from '../prefab';
@@ -25,7 +26,8 @@ export async function buildArtifact(
     fs: NativeFS,
     projectDir: string,
     config: BuildConfig,
-    progress: BuildProgressReporter
+    progress: BuildProgressReporter,
+    buildCache?: BuildCache
 ): Promise<BuildArtifact> {
     const assetLibrary = new AssetLibrary();
     await assetLibrary.initialize(projectDir, fs);
@@ -58,12 +60,51 @@ export async function buildArtifact(
     }
 
     const packer = new TextureAtlasPacker(fs, projectDir, assetLibrary);
-    const atlasResult = await packer.pack(imagePaths, sceneDataList, 2048, [...assetPaths]);
-    const packedPaths = new Set<string>(atlasResult.frameMap.keys());
 
-    if (atlasResult.pages.length > 0) {
-        progress.log('info', `Packed ${atlasResult.frameMap.size} textures into ${atlasResult.pages.length} atlas page(s)`);
+    let atlasResult;
+    let atlasInputHash: string | undefined;
+    if (buildCache) {
+        const cacheData = await buildCache.loadCache(config.id || 'default');
+        atlasInputHash = await buildCache.computeAtlasInputHash(imagePaths);
+
+        let cachedAtlas = null;
+        if (cacheData?.atlasPages) {
+            const deserializedPages = buildCache.deserializeAtlasPages(cacheData.atlasPages);
+            if (deserializedPages) {
+                const frameMap = new Map();
+                deserializedPages.forEach((page, pageIdx) => {
+                    page.frames.forEach((frame: any) => {
+                        frameMap.set(frame.path, { page: pageIdx, frame });
+                    });
+                });
+                cachedAtlas = { pages: deserializedPages, frameMap };
+            }
+        }
+
+        atlasResult = await packer.packIncremental(
+            imagePaths,
+            sceneDataList,
+            cachedAtlas,
+            atlasInputHash,
+            cacheData?.atlasInputHash,
+            2048,
+            [...assetPaths]
+        );
+
+        if (cachedAtlas && atlasInputHash === cacheData?.atlasInputHash) {
+            progress.log('info', `Reused cached atlas (${atlasResult.frameMap.size} textures)`);
+        } else {
+            progress.log('info', `Packed ${atlasResult.frameMap.size} textures into ${atlasResult.pages.length} atlas page(s)`);
+        }
+    } else {
+        atlasResult = await packer.pack(imagePaths, sceneDataList, 2048, [...assetPaths]);
+
+        if (atlasResult.pages.length > 0) {
+            progress.log('info', `Packed ${atlasResult.frameMap.size} textures into ${atlasResult.pages.length} atlas page(s)`);
+        }
     }
+
+    const packedPaths = new Set<string>(atlasResult.frameMap.keys());
 
     progress.setCurrentTask('Compiling materials...', 20);
     const compiledMaterials = await compileMaterials(fs, projectDir, assetLibrary, assetPaths);
@@ -84,6 +125,7 @@ export async function buildArtifact(
         packedPaths,
         compiledMaterials,
         assetLibrary,
+        atlasInputHash,
     };
 }
 

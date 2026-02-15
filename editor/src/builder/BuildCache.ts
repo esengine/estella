@@ -17,6 +17,19 @@ export interface FileHash {
     size: number;
 }
 
+export interface AtlasPageCache {
+    imageData: string;
+    width: number;
+    height: number;
+    frames: Array<{
+        path: string;
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+    }>;
+}
+
 export interface BuildCacheData {
     version: string;
     configId: string;
@@ -24,6 +37,8 @@ export interface BuildCacheData {
     files: Record<string, FileHash>;
     compiledScripts?: string;
     compiledScriptsHash?: string;
+    atlasPages?: AtlasPageCache[];
+    atlasInputHash?: string;
 }
 
 export interface FileChangeResult {
@@ -37,7 +52,7 @@ export interface FileChangeResult {
 // Constants
 // =============================================================================
 
-const CACHE_VERSION = '1.2';
+const CACHE_VERSION = '1.3';
 const CACHE_DIR = '.esengine/build-cache';
 
 // =============================================================================
@@ -250,6 +265,33 @@ export class BuildCache {
             }
         } catch {
             // Cache directory may not exist
+        }
+    }
+
+    async computeAtlasInputHash(imagePaths: string[]): Promise<string> {
+        const sorted = [...imagePaths].sort();
+        return computeHash(JSON.stringify(sorted));
+    }
+
+    serializeAtlasPages(pages: any[]): AtlasPageCache[] {
+        return pages.map(page => ({
+            imageData: Buffer.from(page.imageData).toString('base64'),
+            width: page.width,
+            height: page.height,
+            frames: page.frames,
+        }));
+    }
+
+    deserializeAtlasPages(cached: AtlasPageCache[] | undefined): any[] | null {
+        if (!cached) return null;
+
+        try {
+            return cached.map(p => ({
+                ...p,
+                imageData: Uint8Array.from(Buffer.from(p.imageData, 'base64')),
+            }));
+        } catch {
+            return null;
         }
     }
 }

@@ -22,6 +22,9 @@
 #include "ResourcePool.hpp"
 #include "LoaderRegistry.hpp"
 #include "TextureMetadata.hpp"
+#ifndef ES_PLATFORM_WEB
+#include "HotReloadManager.hpp"
+#endif
 #include "../renderer/Shader.hpp"
 #include "../renderer/Texture.hpp"
 #include "../renderer/Buffer.hpp"
@@ -107,6 +110,25 @@ public:
      */
     bool isInitialized() const { return initialized_; }
 
+    /**
+     * @brief Updates resource manager (processes hot reload, call once per frame)
+     */
+    void update();
+
+#ifndef ES_PLATFORM_WEB
+    /**
+     * @brief Gets the hot reload manager
+     * @return Reference to the hot reload manager
+     */
+    HotReloadManager& getHotReloadManager() { return hotReloadManager_; }
+
+    /**
+     * @brief Gets the hot reload manager (const)
+     * @return Const reference to the hot reload manager
+     */
+    const HotReloadManager& getHotReloadManager() const { return hotReloadManager_; }
+#endif
+
     // =========================================================================
     // Shader Resources
     // =========================================================================
@@ -165,6 +187,13 @@ public:
      */
     void releaseShader(ShaderHandle handle);
 
+    /**
+     * @brief Gets the current reference count for a shader
+     * @param handle The shader handle
+     * @return Reference count, or 0 if invalid
+     */
+    u32 getShaderRefCount(ShaderHandle handle) const;
+
     // =========================================================================
     // Texture Resources
     // =========================================================================
@@ -213,6 +242,13 @@ public:
      * @param handle The texture handle
      */
     void releaseTexture(TextureHandle handle);
+
+    /**
+     * @brief Gets the current reference count for a texture
+     * @param handle The texture handle
+     * @return Reference count, or 0 if invalid
+     */
+    u32 getTextureRefCount(TextureHandle handle) const;
 
     /**
      * @brief Registers an externally-created GL texture
@@ -386,6 +422,13 @@ public:
     const text::BitmapFont* getBitmapFont(BitmapFontHandle handle) const;
     void releaseBitmapFont(BitmapFontHandle handle);
 
+    /**
+     * @brief Gets the current reference count for a bitmap font
+     * @param handle The font handle
+     * @return Reference count, or 0 if invalid
+     */
+    u32 getBitmapFontRefCount(BitmapFontHandle handle) const;
+
     // =========================================================================
     // Statistics
     // =========================================================================
@@ -436,6 +479,10 @@ public:
     LoaderRegistry& getLoaderRegistry() { return loaderRegistry_; }
 
 private:
+#ifndef ES_PLATFORM_WEB
+    void reloadShader(ShaderHandle handle, const std::string& path);
+#endif
+
     ResourcePool<Shader> shaders_;
     ResourcePool<Texture> textures_;
     ResourcePool<VertexBuffer> vertexBuffers_;
@@ -443,6 +490,10 @@ private:
     ResourcePool<text::BitmapFont> fonts_;
     std::unordered_map<std::string, TextureHandle> guidToTexture_;
     std::unordered_map<TextureHandle::IdType, TextureMetadata> textureMetadata_;
+#ifndef ES_PLATFORM_WEB
+    std::unordered_map<ShaderHandle::IdType, std::string> shaderPaths_;
+    HotReloadManager hotReloadManager_;
+#endif
     LoaderRegistry loaderRegistry_;
     mutable ResourceStats stats_;
     bool initialized_ = false;

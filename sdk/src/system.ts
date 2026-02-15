@@ -65,10 +65,16 @@ export interface SystemDef {
 
 let systemCounter = 0;
 
+export interface SystemOptions {
+    name?: string;
+    runBefore?: string[];
+    runAfter?: string[];
+}
+
 export function defineSystem<P extends readonly SystemParam[]>(
     params: [...P],
     fn: (...args: InferParams<P>) => void,
-    options?: { name?: string }
+    options?: SystemOptions
 ): SystemDef {
     const id = ++systemCounter;
 

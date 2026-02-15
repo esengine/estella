@@ -100,7 +100,7 @@ export class BuildService {
             }
 
             const projectDir = getProjectDir(this.projectPath_);
-            const artifact = await buildArtifact(fs, projectDir, config, progress);
+            const artifact = await buildArtifact(fs, projectDir, config, progress, context.cache);
 
             let emitter: PlatformEmitter;
             if (config.platform === 'playable') {
@@ -123,6 +123,20 @@ export class BuildService {
             if (result.success) {
                 progress.complete();
                 progress.log('info', `Build completed in ${formatDuration(duration)}`);
+
+                if (useCache && artifact.atlasInputHash) {
+                    const cacheData = await this.cache_.loadCache(config.id || 'default') || {
+                        version: '1.3',
+                        configId: config.id || 'default',
+                        timestamp: Date.now(),
+                        files: {},
+                    };
+
+                    cacheData.atlasPages = this.cache_.serializeAtlasPages(artifact.atlasResult.pages);
+                    cacheData.atlasInputHash = artifact.atlasInputHash;
+
+                    await this.cache_.saveCache(cacheData);
+                }
 
                 if (this.history_) {
                     this.history_.addEntry({

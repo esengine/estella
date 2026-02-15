@@ -32,8 +32,55 @@
 
 namespace esengine {
 
+f32 Plane::signedDistance(const glm::vec3& point) const {
+    return glm::dot(normal, point) + distance;
+}
+
+void Frustum::extractFromMatrix(const glm::mat4& vp) {
+    const f32* m = glm::value_ptr(vp);
+
+    planes[0].normal = glm::vec3(m[3] + m[0], m[7] + m[4], m[11] + m[8]);
+    planes[0].distance = m[15] + m[12];
+
+    planes[1].normal = glm::vec3(m[3] - m[0], m[7] - m[4], m[11] - m[8]);
+    planes[1].distance = m[15] - m[12];
+
+    planes[2].normal = glm::vec3(m[3] + m[1], m[7] + m[5], m[11] + m[9]);
+    planes[2].distance = m[15] + m[13];
+
+    planes[3].normal = glm::vec3(m[3] - m[1], m[7] - m[5], m[11] - m[9]);
+    planes[3].distance = m[15] - m[13];
+
+    planes[4].normal = glm::vec3(m[3] + m[2], m[7] + m[6], m[11] + m[10]);
+    planes[4].distance = m[15] + m[14];
+
+    planes[5].normal = glm::vec3(m[3] - m[2], m[7] - m[6], m[11] - m[10]);
+    planes[5].distance = m[15] - m[14];
+
+    for (u32 i = 0; i < 6; ++i) {
+        f32 len = glm::length(planes[i].normal);
+        planes[i].normal /= len;
+        planes[i].distance /= len;
+    }
+}
+
+bool Frustum::intersectsAABB(const glm::vec3& center, const glm::vec3& halfExtents) const {
+    for (u32 i = 0; i < 6; ++i) {
+        f32 r = halfExtents.x * std::abs(planes[i].normal.x) +
+                halfExtents.y * std::abs(planes[i].normal.y) +
+                halfExtents.z * std::abs(planes[i].normal.z);
+
+        f32 dist = planes[i].signedDistance(center);
+
+        if (dist < -r) {
+            return false;
+        }
+    }
+    return true;
+}
+
 struct UniformData {
-    std::string name;
+    char name[32];
     u32 type;
     f32 values[4];
 };
@@ -215,6 +262,7 @@ void RenderFrame::resize(u32 width, u32 height) {
 
 void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::Handle target) {
     view_projection_ = view_projection;
+    frustum_.extractFromMatrix(view_projection);
     current_target_ = target;
     current_stage_ = RenderStage::Transparent;
     in_frame_ = true;
@@ -309,6 +357,12 @@ void RenderFrame::submitSprites(ecs::Registry& registry) {
             position = local.position;
             rotation = local.rotation;
             scale = local.scale;
+        }
+
+        glm::vec3 halfExtents = glm::vec3(sprite.size.x * scale.x, sprite.size.y * scale.y, 0.0f) * 0.5f;
+        if (!frustum_.intersectsAABB(position, halfExtents)) {
+            stats_.culled++;
+            continue;
         }
 
         RenderItem item;
@@ -406,6 +460,17 @@ void RenderFrame::submitBitmapText(ecs::Registry& registry) {
             const auto& local = textView.get<ecs::LocalTransform>(entity);
             position = local.position;
             scale = local.scale;
+        }
+
+        auto textMetrics = font->measureText(bt.text, bt.fontSize, bt.spacing);
+        glm::vec3 halfExtents = glm::vec3(
+            textMetrics.width * scale.x * 0.5f,
+            textMetrics.height * scale.y * 0.5f,
+            0.0f
+        );
+        if (!frustum_.intersectsAABB(position, halfExtents)) {
+            stats_.culled++;
+            continue;
         }
 
         RenderItem item;

@@ -1,0 +1,42 @@
+{
+  "wasm/web/esengine.js": {
+    "size": 63544,
+    "sizeKB": 62,
+    "sha256": "8b081a50947a742cd6285baf8f6a7bb04028df45f26e19001a1a98d2f5b82fa1"
+  },
+  "wasm/web/esengine.wasm": {
+    "size": 674052,
+    "sizeKB": 658,
+    "sha256": "8f8032bb10ad9a7cdfb7e8ef4f7ddb99a1ac573984fb3a16450747618606f5b6"
+  },
+  "wasm/web/physics.js": {
+    "size": 16795,
+    "sizeKB": 16,
+    "sha256": "b5f252c4dcbb8de720dd22dde078707b585a3f3e2ee9795e5456d6b2b892ab47"
+  },
+  "wasm/web/physics.wasm": {
+    "size": 162968,
+    "sizeKB": 159,
+    "sha256": "5a4202e8b1dac47ce64f39b313137380f9208eec271b1ca0978da9bac6bfc88b"
+  },
+  "sdk/esm/esengine.js": {
+    "size": 107062,
+    "sizeKB": 105,
+    "sha256": "84c082052b13799bfd608980d51fc177461b3fd49e4b58512092b4be5dea3285"
+  },
+  "sdk/esm/esengine.d.ts": {
+    "size": 87951,
+    "sizeKB": 86,
+    "sha256": "78a8310b68eec362044d0d2d8942c5ee2e4d0328fd06ba9ef346e375d7d518e2"
+  },
+  "sdk/esm/wasm.js": {
+    "size": 34,
+    "sizeKB": 0,
+    "sha256": "4ce8696ae2a3a575db7c6f1edef28600f8a7ccad554ad289ca8aa7a00164d705"
+  },
+  "sdk/esm/wasm.d.ts": {
+    "size": 13688,
+    "sizeKB": 13,
+    "sha256": "75e912de32f7a61f2a27937236c0bcdc5e4ac8421c667f0b985579bd7e848df5"
+  }
+}

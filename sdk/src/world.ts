@@ -6,6 +6,7 @@
 import { Entity } from './types';
 import { AnyComponentDef, ComponentDef, ComponentData, BuiltinComponentDef, isBuiltinComponent } from './component';
 import type { CppRegistry } from './wasm';
+import { validateComponentData, formatValidationErrors } from './validation';
 
 function convertForWasm(obj: Record<string, unknown>): Record<string, unknown> {
     const result: Record<string, unknown> = {};
@@ -46,6 +47,7 @@ export class World {
     private worldVersion_ = 0;
     private queryCache_ = new Map<string, { version: number; result: Entity[] }>();
     private builtinMethodCache_ = new Map<string, BuiltinMethods>();
+    private iterationDepth_ = 0;
 
     connectCpp(cppRegistry: CppRegistry): void {
         this.cppRegistry_ = cppRegistry;
@@ -66,6 +68,13 @@ export class World {
     // =========================================================================
 
     spawn(): Entity {
+        if (this.isIterating()) {
+            throw new Error(
+                'Cannot spawn entity during query iteration. ' +
+                'Use Commands to defer entity creation until after iteration completes.'
+            );
+        }
+
         let entity: Entity;
 
         if (this.cppRegistry_) {
@@ -79,6 +88,13 @@ export class World {
     }
 
     despawn(entity: Entity): void {
+        if (this.isIterating()) {
+            throw new Error(
+                'Cannot despawn entity during query iteration. ' +
+                'Use Commands to defer entity destruction until after iteration completes.'
+            );
+        }
+
         if (this.cppRegistry_) {
             this.cppRegistry_.destroy(entity);
         }
@@ -107,6 +123,21 @@ export class World {
 
     getWorldVersion(): number {
         return this.worldVersion_;
+    }
+
+    beginIteration(): void {
+        this.iterationDepth_++;
+    }
+
+    endIteration(): void {
+        this.iterationDepth_--;
+        if (this.iterationDepth_ < 0) {
+            this.iterationDepth_ = 0;
+        }
+    }
+
+    isIterating(): boolean {
+        return this.iterationDepth_ > 0;
     }
 
     getAllEntities(): Entity[] {
@@ -162,6 +193,13 @@ export class World {
     }
 
     remove(entity: Entity, component: AnyComponentDef): void {
+        if (this.isIterating()) {
+            throw new Error(
+                'Cannot remove component during query iteration. ' +
+                'Use Commands to defer component removal until after iteration completes.'
+            );
+        }
+
         if (isBuiltinComponent(component)) {
             this.removeBuiltin(entity, component);
         } else {
@@ -195,6 +233,15 @@ export class World {
                 if (v !== undefined) {
                     filtered[k] = v;
                 }
+            }
+
+            const errors = validateComponentData(
+                component._name,
+                component._default as Record<string, unknown>,
+                filtered
+            );
+            if (errors.length > 0) {
+                throw new Error(formatValidationErrors(component._name, errors));
             }
         }
         const merged = { ...component._default, ...filtered } as T;
@@ -232,7 +279,26 @@ export class World {
     // =========================================================================
 
     private insertScript<T>(entity: Entity, component: ComponentDef<T>, data?: unknown): T {
-        const value = component.create(data as Partial<T>);
+        let filtered: Partial<T> | undefined;
+        if (data !== null && data !== undefined && typeof data === 'object') {
+            const clean: Record<string, unknown> = {};
+            for (const [k, v] of Object.entries(data as Record<string, unknown>)) {
+                if (v !== undefined) {
+                    clean[k] = v;
+                }
+            }
+            const errors = validateComponentData(
+                component._name,
+                component._default as Record<string, unknown>,
+                clean
+            );
+            if (errors.length > 0) {
+                throw new Error(formatValidationErrors(component._name, errors));
+            }
+            filtered = clean as Partial<T>;
+        }
+
+        const value = component.create(filtered);
         this.getStorage(component).set(entity, value);
         this.worldVersion_++;
         let ids = this.entityComponents_.get(entity);
