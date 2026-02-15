@@ -1,6 +1,6 @@
 ---
 title: 场景
-description: 在 ESEngine 中创建、加载和查询场景
+description: 在 ESEngine 中创建、加载和管理场景
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -131,6 +131,210 @@ addSystem(defineSystem(
 ## 实体可见性
 
 实体拥有 `visible` 属性（默认 `true`）。在编辑器中将其设为 `false` 时，场景加载会跳过该实体的组件 — 它在层级中存在但没有运行时行为。适合用于在场景文件中保留参考实体而不在运行时生成。
+
+## 场景管理器
+
+SDK 提供了 `SceneManager` 资源和 `sceneManagerPlugin` 插件，用于管理多个场景的加载、切换和生命周期。使用 `createWebApp()` 时会自动包含该插件，无需手动注册。
+
+```typescript
+import { SceneManager } from 'esengine';
+
+const mgr = app.getResource(SceneManager);
+```
+
+## 注册场景
+
+在应用启动前，使用 `app.registerScene()` 注册所有场景。每个场景需要一个唯一名称和场景文件路径，还可以配置专属系统、setup 回调和 cleanup 回调：
+
+```typescript
+import { SceneManager, type SceneConfig, Schedule } from 'esengine';
+
+const app = createWebApp(module);
+
+app.registerScene({
+    name: 'menu',
+    path: '/scenes/menu.json',
+    systems: [
+        { schedule: Schedule.Update, system: menuUpdateSystem },
+    ],
+    setup: (ctx) => {
+        ctx.registerDrawCallback('menu-particles', drawParticles);
+    },
+    cleanup: (ctx) => {
+        // 场景卸载前调用
+    },
+});
+
+app.registerScene({ name: 'game', path: '/scenes/game.json' });
+app.setInitialScene('menu');
+app.run();
+```
+
+<Aside type="tip">
+  `systems` 中注册的系统会自动包装为场景作用域系统，仅在该场景状态为 `running` 时执行。
+</Aside>
+
+## 切换场景
+
+通过 `SceneManager` 的 `switchTo` 方法切换场景。切换会先卸载当前主场景，再加载目标场景：
+
+```typescript
+const mgr = app.getResource(SceneManager);
+
+// 简单切换（卸载旧场景，加载新场景）
+await mgr.switchTo('game');
+
+// 带淡入淡出过渡的切换
+await mgr.switchTo('game', { transition: 'fade', duration: 0.5 });
+```
+
+## 多场景（叠加加载）
+
+除了切换主场景，还可以使用叠加加载在当前场景之上加载额外场景。适合用于 HUD、暂停菜单等需要与主场景共存的 UI 层：
+
+```typescript
+const mgr = app.getResource(SceneManager);
+
+// 在当前场景上叠加加载
+await mgr.loadAdditive('hud');
+await mgr.loadAdditive('pause-menu');
+
+// 卸载叠加场景
+await mgr.unload('pause-menu');
+```
+
+<Aside type="note">
+  叠加场景与主场景独立运行，各自拥有独立的系统和生命周期。卸载叠加场景不会影响主场景。
+</Aside>
+
+## 场景生命周期
+
+每个已加载的场景都有自己的状态。你可以暂停、恢复、休眠和唤醒场景：
+
+```typescript
+const mgr = app.getResource(SceneManager);
+
+mgr.pause('game');    // 系统停止执行，实体保持可见
+mgr.resume('game');   // 恢复系统执行
+
+mgr.sleep('game');    // 系统停止执行，实体隐藏
+mgr.wake('game');     // 恢复系统执行并显示实体
+```
+
+| 方法 | 系统执行 | 实体可见 |
+|------|----------|----------|
+| `resume` / `wake` | 是 | 是 |
+| `pause` | 否 | 是 |
+| `sleep` | 否 | 否 |
+
+## 场景上下文
+
+场景加载时，`setup` 回调接收一个 `SceneContext` 对象，用于执行作用域为当前场景的操作：
+
+```typescript
+app.registerScene({
+    name: 'game',
+    path: '/scenes/game.json',
+    setup: (ctx) => {
+        // 生成属于此场景的实体
+        const e = ctx.spawn();
+
+        // 注册作用域为此场景的绘制回调
+        ctx.registerDrawCallback('game-debug', drawDebug);
+
+        // 添加作用域为此场景的后处理效果
+        ctx.addPostProcessPass('bloom', bloomShader);
+
+        // 标记实体为持久（场景卸载时不销毁）
+        ctx.setPersistent(e, true);
+    },
+});
+```
+
+通过 `ctx.spawn()` 生成的实体会自动获得 `SceneOwner` 组件，在场景卸载时会被一并销毁（除非标记为持久）。
+
+### SceneOwner 组件
+
+从场景文件加载的实体和通过 `ctx.spawn()` 生成的实体都会自动获得 `SceneOwner` 组件，用于标识实体所属的场景：
+
+```typescript
+import { SceneOwner } from 'esengine';
+
+// 检查实体属于哪个场景
+const owner = world.get(entity, SceneOwner);
+console.log(owner.scene);       // 'game'
+console.log(owner.persistent);  // false
+```
+
+### 场景作用域系统
+
+在 `registerScene` 中通过 `systems` 注册的系统会自动包装，仅在场景状态为 `running` 时执行：
+
+```typescript
+import { defineSystem, Query, Mut, LocalTransform, Schedule } from 'esengine';
+
+const mySystem = defineSystem(
+    [Query(Mut(LocalTransform))],
+    (query) => {
+        for (const [entity, transform] of query) {
+            // 更新变换
+        }
+    }
+);
+
+app.registerScene({
+    name: 'game',
+    path: '/scenes/game.json',
+    systems: [{ schedule: Schedule.Update, system: mySystem }],
+});
+```
+
+<Aside type="tip">
+  当场景处于 `paused` 或 `sleeping` 状态时，其作用域系统不会执行，无需手动判断场景状态。
+</Aside>
+
+## 场景过渡动画
+
+使用 `transitionTo` 函数实现带动画效果的场景切换：
+
+```typescript
+import { transitionTo } from 'esengine';
+
+// 淡出到黑色，切换场景，淡入
+await transitionTo(app, 'game', { type: 'fade', duration: 1.0 });
+
+// 交叉淡入淡出
+await transitionTo(app, 'game', { type: 'crossfade', duration: 0.5 });
+```
+
+`transitionTo` 会处理旧场景的淡出、场景切换以及新场景的淡入，整个过程是异步的。
+
+## 查询场景状态
+
+`SceneManager` 提供了一组方法用于查询当前场景的状态：
+
+```typescript
+const mgr = app.getResource(SceneManager);
+
+mgr.getActive();            // 当前主场景名，无主场景时返回 null
+mgr.getActiveScenes();      // 所有状态为 'running' 的场景名数组
+mgr.getLoaded();            // 所有已加载的场景名数组
+mgr.isLoaded('game');       // 场景是否已加载
+mgr.isPaused('game');       // 场景是否处于暂停状态
+mgr.isSleeping('game');     // 场景是否处于休眠状态
+mgr.getSceneStatus('game'); // 返回场景详细状态
+```
+
+`getSceneStatus` 的返回值类型为：
+
+| 状态 | 说明 |
+|------|------|
+| `'loading'` | 场景正在加载中 |
+| `'running'` | 场景正在运行 |
+| `'paused'` | 场景已暂停（系统停止，实体可见） |
+| `'sleeping'` | 场景已休眠（系统停止，实体隐藏） |
+| `'unloading'` | 场景正在卸载中 |
+| `null` | 场景未加载 |
 
 ## 场景数据类型
 

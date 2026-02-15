@@ -216,6 +216,38 @@ The engine uses a compatibility layer (`weapp-adapter.js`) to provide browser-li
 3. **Minimal Allocations**: Entity recycling, pool-based allocation
 4. **Batch Rendering**: BatchRenderer2D for efficient sprite rendering
 
+## Scene Management
+
+The SDK provides a first-class scene management system built on top of ECS resources.
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     SceneManager (Resource)                   │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │  Scene Registry                                        │   │
+│  │  configs_: Map<string, SceneConfig>                   │   │
+│  └──────────────────────────────────────────────────────┘   │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │  Active Scenes                                         │   │
+│  │  scenes_: Map<string, SceneInstance>                   │   │
+│  │  activeScene_ / additiveScenes_                        │   │
+│  └──────────────────────────────────────────────────────┘   │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │  Lifecycle: load → running → paused/sleeping → unload │   │
+│  └──────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Key Design Decisions
+
+- **Single World**: All scenes share one ECS World. Entities are tagged with `SceneOwner` component to track ownership.
+- **Camera Filtering**: The render system filters cameras by `SceneOwner`, only rendering cameras belonging to active scenes.
+- **Draw Callback Scoping**: Custom draw callbacks are associated with scene names and filtered during render.
+- **System Scoping**: Scene systems are wrapped to only execute when their scene status is 'running'.
+- **Automatic Plugin**: `sceneManagerPlugin` is included in `createWebApp()` and runs a transition update system each frame.
+
 ## Future Improvements
 
 - [ ] Component groups for cache optimization
@@ -224,3 +256,4 @@ The engine uses a compatibility layer (`weapp-adapter.js`) to provide browser-li
 - [x] Scene serialization
 - [x] Physics integration
 - [x] UI system
+- [x] Scene management

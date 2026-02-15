@@ -32,6 +32,32 @@ clearDrawCallbacks();
   `Draw.begin()` 和 `Draw.end()` 由引擎内部调用。只在注册的回调中使用 Draw API。
 </Aside>
 
+## 场景作用域回调
+
+使用[场景管理器](/microes/zh/guides/scenes/#场景管理器)时，通过 `SceneContext` 注册绘制回调，自动将其作用域限定到场景。回调仅在场景激活时执行，场景卸载时自动清理：
+
+```typescript
+app.registerScene({
+    name: 'game',
+    setup: (ctx) => {
+        ctx.registerDrawCallback('game-grid', (elapsed) => {
+            // 仅在 'game' 场景激活时运行
+            Draw.line({ x: -1000, y: 0 }, { x: 1000, y: 0 }, { r: 0.3, g: 0.3, b: 0.3, a: 1 }, 1);
+        });
+    },
+});
+```
+
+也可以直接向 `registerDrawCallback` 传递场景名：
+
+```typescript
+import { registerDrawCallback } from 'esengine';
+
+registerDrawCallback('my-callback', drawFn, 'game');
+```
+
+没有关联场景的回调始终执行，不受当前活跃场景影响。
+
 ## 绘制图元
 
 ### 线段

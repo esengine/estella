@@ -32,6 +32,32 @@ clearDrawCallbacks();
   `Draw.begin()` and `Draw.end()` are called internally by the engine. Only use the Draw API inside a registered callback.
 </Aside>
 
+## Scene-Scoped Callbacks
+
+When using the [Scene Manager](/microes/guides/scenes/#scene-manager), register draw callbacks through the `SceneContext` to automatically scope them to a scene. The callback is only executed when the scene is active and is automatically cleaned up when the scene unloads:
+
+```typescript
+app.registerScene({
+    name: 'game',
+    setup: (ctx) => {
+        ctx.registerDrawCallback('game-grid', (elapsed) => {
+            // only runs when 'game' scene is active
+            Draw.line({ x: -1000, y: 0 }, { x: 1000, y: 0 }, { r: 0.3, g: 0.3, b: 0.3, a: 1 }, 1);
+        });
+    },
+});
+```
+
+You can also pass a scene name directly to `registerDrawCallback`:
+
+```typescript
+import { registerDrawCallback } from 'esengine';
+
+registerDrawCallback('my-callback', drawFn, 'game');
+```
+
+Callbacks with no scene association always execute regardless of which scenes are active.
+
 ## Drawing Primitives
 
 ### Lines

@@ -132,6 +132,217 @@ addSystem(defineSystem(
 
 Entities have a `visible` property (default `true`). When set to `false` in the editor, the entity's components are skipped during scene loading — it exists in the hierarchy but has no runtime behaviour. Use this to keep reference entities in the scene file without spawning them.
 
+## Scene Manager
+
+The `SceneManager` resource provides full control over loading, unloading, and switching between multiple scenes at runtime. It is automatically available when using `createWebApp()` — the `sceneManagerPlugin` is included by default.
+
+<Aside type="note">
+  If you are building an `App` manually, add the `sceneManagerPlugin` to enable scene management.
+</Aside>
+
+## Registering Scenes
+
+Before the app starts, register each scene with a name, a path to its JSON file, and optional per-scene systems and lifecycle hooks:
+
+```typescript
+import { createWebApp, SceneManager, Schedule, type SceneConfig } from 'esengine';
+
+const app = createWebApp(module);
+
+app.registerScene({
+    name: 'menu',
+    path: '/scenes/menu.json',
+    systems: [
+        { schedule: Schedule.Update, system: menuUpdateSystem },
+    ],
+    setup: (ctx) => {
+        ctx.registerDrawCallback('menu-particles', drawParticles);
+    },
+    cleanup: (ctx) => {
+        // called before scene unload
+    },
+});
+
+app.registerScene({ name: 'game', path: '/scenes/game.json' });
+app.setInitialScene('menu');
+app.run();
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Unique identifier for the scene |
+| `path` | string | Path to the scene JSON file |
+| `systems` | Array | Systems to run while this scene is active |
+| `setup` | (ctx: SceneContext) => void | Called after the scene loads |
+| `cleanup` | (ctx: SceneContext) => void | Called before the scene unloads |
+
+## Switching Scenes
+
+Use `SceneManager` to switch between registered scenes. Switching unloads the current scene and loads the new one:
+
+```typescript
+const mgr = app.getResource(SceneManager);
+
+// Simple switch (unloads old, loads new)
+await mgr.switchTo('game');
+
+// Switch with fade transition
+await mgr.switchTo('game', { transition: 'fade', duration: 0.5 });
+```
+
+<Aside type="caution">
+  `switchTo` is async — the old scene is fully unloaded and the new scene fully loaded before the promise resolves. Avoid calling it multiple times concurrently.
+</Aside>
+
+## Multi-Scene (Additive Loading)
+
+Load additional scenes on top of the current primary scene. This is useful for HUDs, pause menus, or overlay layers:
+
+```typescript
+const mgr = app.getResource(SceneManager);
+
+// Load a scene on top of the current one
+await mgr.loadAdditive('hud');
+await mgr.loadAdditive('pause-menu');
+
+// Unload additive scene
+await mgr.unload('pause-menu');
+```
+
+Additive scenes run their systems alongside the primary scene. Each loaded scene maintains its own lifecycle independently.
+
+## Scene Lifecycle
+
+Control whether a loaded scene's systems and entities are active:
+
+```typescript
+const mgr = app.getResource(SceneManager);
+
+// Pause — systems stop, entities remain visible
+mgr.pause('game');
+mgr.resume('game');
+
+// Sleep — systems stop, entities hidden
+mgr.sleep('game');
+mgr.wake('game');
+```
+
+| Method | Systems | Entities Visible |
+|--------|---------|-----------------|
+| `resume` / `wake` | Running | Yes |
+| `pause` | Stopped | Yes |
+| `sleep` | Stopped | No |
+
+<Aside type="tip">
+  Use `pause` for a pause menu overlay — the game world stays visible behind it. Use `sleep` to fully deactivate a scene that should not render at all.
+</Aside>
+
+## Scene Context
+
+When a scene loads, its `setup` callback receives a `SceneContext` that provides scene-scoped operations:
+
+```typescript
+app.registerScene({
+    name: 'game',
+    path: '/scenes/game.json',
+    setup: (ctx) => {
+        // Spawn entities owned by this scene
+        const e = ctx.spawn();
+
+        // Register draw callbacks scoped to this scene
+        ctx.registerDrawCallback('game-debug', drawDebug);
+
+        // Add post-process effects scoped to this scene
+        ctx.addPostProcessPass('bloom', bloomShader);
+
+        // Mark entity as persistent (survives scene unload)
+        ctx.setPersistent(e, true);
+    },
+});
+```
+
+Entities spawned through `SceneContext` are automatically tagged with a `SceneOwner` component and cleaned up when the scene unloads — unless marked as persistent.
+
+### SceneOwner Component
+
+Entities loaded from a scene file automatically get a `SceneOwner` component. Use it to check which scene owns an entity:
+
+```typescript
+import { SceneOwner } from 'esengine';
+
+const owner = world.get(entity, SceneOwner);
+console.log(owner.scene);       // 'game'
+console.log(owner.persistent);  // false
+```
+
+### Scene-scoped Systems
+
+Systems registered in a scene config only run when that scene's status is `'running'`. They are automatically wrapped so they skip execution when the scene is paused or sleeping:
+
+```typescript
+import { defineSystem, Query, Mut, LocalTransform, Schedule } from 'esengine';
+
+const mySystem = defineSystem(
+    [Query(Mut(LocalTransform))],
+    (query) => {
+        for (const [entity, transform] of query) {
+            // runs only while 'game' scene is running
+        }
+    }
+);
+
+app.registerScene({
+    name: 'game',
+    path: '/scenes/game.json',
+    systems: [{ schedule: Schedule.Update, system: mySystem }],
+});
+```
+
+## Scene Transitions
+
+For built-in visual transitions between scenes, use the standalone `transitionTo` helper:
+
+```typescript
+import { transitionTo } from 'esengine';
+
+// Fade to black, switch, fade in
+await transitionTo(app, 'game', { type: 'fade', duration: 1.0 });
+
+// Crossfade between scenes
+await transitionTo(app, 'game', { type: 'crossfade', duration: 0.5 });
+```
+
+| Transition Type | Description |
+|----------------|-------------|
+| `fade` | Fades to black, switches scene, fades in |
+| `crossfade` | Blends the old and new scenes simultaneously |
+
+## Querying Scene State
+
+Inspect which scenes are loaded and their current status:
+
+```typescript
+const mgr = app.getResource(SceneManager);
+
+mgr.getActive();                // current primary scene name or null
+mgr.getActiveScenes();          // all scenes with 'running' status
+mgr.getLoaded();                // all loaded scene names
+mgr.isLoaded('game');           // boolean
+mgr.isPaused('game');           // boolean
+mgr.isSleeping('game');         // boolean
+mgr.getSceneStatus('game');     // 'loading' | 'running' | 'paused' | 'sleeping' | 'unloading' | null
+```
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `getActive()` | `string \| null` | Name of the current primary scene |
+| `getActiveScenes()` | `string[]` | All scenes with `'running'` status |
+| `getLoaded()` | `string[]` | All loaded scene names (any status) |
+| `isLoaded(name)` | `boolean` | Whether the scene is currently loaded |
+| `isPaused(name)` | `boolean` | Whether the scene is paused |
+| `isSleeping(name)` | `boolean` | Whether the scene is sleeping |
+| `getSceneStatus(name)` | `string \| null` | Current status, or `null` if not loaded |
+
 ## Scene Data Types
 
 | Type | Fields |
