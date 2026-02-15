@@ -20,6 +20,10 @@
 
 ESEngine is a lightweight 2D game engine with a **TypeScript SDK** powered by a **C++/WebAssembly** backend. It comes with a visual editor for scene editing and project management, and outputs games that run in web browsers and WeChat MiniGames.
 
+<div align="center">
+  <img src="docs/assets/editor-screenshot.png" alt="ESEngine Editor" width="800" />
+</div>
+
 ## Features
 
 | Feature | Description |
