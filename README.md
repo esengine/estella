@@ -6,7 +6,7 @@
 
 [![CI](https://github.com/esengine/microes/actions/workflows/build.yml/badge.svg)](https://github.com/esengine/microes/actions/workflows/build.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![npm](https://img.shields.io/npm/v/esengine)](https://www.npmjs.com/package/esengine)
+[![Release](https://img.shields.io/github/v/release/esengine/microes)](https://github.com/esengine/microes/releases)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://isocpp.org/)
 [![Platform](https://img.shields.io/badge/Platform-Web%20%7C%20WeChat-green.svg)]()
 
