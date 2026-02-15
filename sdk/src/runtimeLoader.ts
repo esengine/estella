@@ -3,7 +3,7 @@
  * @brief   Runtime scene loader for builder targets (WeChat, Playable, etc.)
  */
 
-import { Sprite, SpineAnimation, BitmapText, WorldTransform, type SpineAnimationData, type WorldTransformData } from './component';
+import { Sprite, SpineAnimation, BitmapText, WorldTransform, SceneOwner, type SpineAnimationData, type WorldTransformData } from './component';
 import { Material } from './material';
 import { loadSceneData, type SceneData } from './scene';
 import type { ESEngineModule } from './wasm';
@@ -15,6 +15,7 @@ import type { Entity, Vec2 } from './types';
 import type { AddressableManifest } from './asset/AssetServer';
 import { Assets } from './asset/AssetPlugin';
 import { getAssetTypeEntry } from './assetTypes';
+import { SceneManager, type SceneConfig } from './sceneManager';
 
 // =============================================================================
 // Public Interface
@@ -479,6 +480,7 @@ export async function loadRuntimeScene(
     physicsModule?: PhysicsWasmModule | null,
     physicsConfig?: { gravity?: Vec2; fixedTimestep?: number; subStepCount?: number },
     manifest?: AddressableManifest | null,
+    sceneName?: string,
 ): Promise<void> {
     const textureCache = await loadTextures(module, sceneData, provider);
     applyTextureMetadata(module, sceneData, textureCache);
@@ -504,6 +506,12 @@ export async function loadRuntimeScene(
     const materialCache = await loadMaterials(sceneData, provider);
     const entityMap = loadSceneData(app.world, sceneData);
 
+    if (sceneName && app.hasResource(SceneManager)) {
+        for (const entity of entityMap.values()) {
+            app.world.insert(entity, SceneOwner, { scene: sceneName, persistent: false });
+        }
+    }
+
     updateSpriteTextures(app.world, sceneData, textureCache, entityMap);
     updateBitmapTextFonts(app.world, sceneData, fontCache, entityMap);
     updateMaterials(app.world, sceneData, materialCache, entityMap);
@@ -519,4 +527,38 @@ export async function loadRuntimeScene(
             assetServer.setAddressableManifest(manifest);
         }
     }
+}
+
+export interface RuntimeSceneOptions {
+    app: App;
+    module: ESEngineModule;
+    provider: RuntimeAssetProvider;
+    spineModule?: SpineWasmModule | null;
+    physicsModule?: PhysicsWasmModule | null;
+    physicsConfig?: { gravity?: Vec2; fixedTimestep?: number; subStepCount?: number };
+    manifest?: AddressableManifest | null;
+}
+
+export function createRuntimeSceneConfig(
+    name: string,
+    sceneData: SceneData,
+    options: RuntimeSceneOptions,
+): SceneConfig {
+    return {
+        name,
+        data: sceneData,
+        async setup() {
+            await loadRuntimeScene(
+                options.app,
+                options.module,
+                sceneData,
+                options.provider,
+                options.spineModule,
+                options.physicsModule,
+                options.physicsConfig,
+                options.manifest,
+                name,
+            );
+        },
+    };
 }

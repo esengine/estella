@@ -539,73 +539,24 @@ declare class RenderPipeline {
     private maskProcessor_;
     private lastWidth_;
     private lastHeight_;
+    private activeScenes_;
     get spineRenderer(): SpineRendererFn | null;
     setSpineRenderer(fn: SpineRendererFn | null): void;
     get maskProcessor(): MaskProcessorFn | null;
     setMaskProcessor(fn: MaskProcessorFn | null): void;
+    setActiveScenes(scenes: Set<string> | null): void;
     render(params: RenderParams): void;
     renderCamera(params: CameraRenderParams): void;
     private executeDrawCallbacks;
 }
 
 /**
- * @file    app.ts
- * @brief   Application builder and web platform integration
+ * @file    material.ts
+ * @brief   Material and Shader API for custom rendering
+ * @details Provides shader creation and material management for custom visual effects.
  */
 
-interface Plugin {
-    name?: string;
-    dependencies?: ResourceDef<any>[];
-    build(app: App): void;
-}
-declare class App {
-    private readonly world_;
-    private readonly resources_;
-    private readonly systems_;
-    private runner_;
-    private running_;
-    private lastTime_;
-    private fixedTimestep_;
-    private fixedAccumulator_;
-    private module_;
-    private pipeline_;
-    private spineInitPromise_?;
-    private physicsInitPromise_?;
-    private physicsModule_?;
-    private readonly installed_plugins_;
-    private error_handler_;
-    private constructor();
-    static new(): App;
-    addPlugin(plugin: Plugin): this;
-    addSystemToSchedule(schedule: Schedule, system: SystemDef, options?: {
-        runBefore?: string[];
-        runAfter?: string[];
-    }): this;
-    addSystem(system: SystemDef): this;
-    addStartupSystem(system: SystemDef): this;
-    connectCpp(cppRegistry: CppRegistry, module?: ESEngineModule): this;
-    get wasmModule(): ESEngineModule | null;
-    get pipeline(): RenderPipeline | null;
-    setSpineRenderer(fn: SpineRendererFn | null): void;
-    get spineInitPromise(): Promise<unknown> | undefined;
-    set spineInitPromise(p: Promise<unknown> | undefined);
-    get physicsInitPromise(): Promise<unknown> | undefined;
-    set physicsInitPromise(p: Promise<unknown> | undefined);
-    get physicsModule(): unknown;
-    set physicsModule(m: unknown);
-    get world(): World;
-    setFixedTimestep(timestep: number): this;
-    onError(handler: (error: unknown, systemName: string) => void): this;
-    insertResource<T>(resource: ResourceDef<T>, value: T): this;
-    getResource<T>(resource: ResourceDef<T>): T;
-    hasResource<T>(resource: ResourceDef<T>): boolean;
-    run(): void;
-    private mainLoop;
-    quit(): void;
-    private sortSystems;
-    private runSchedule;
-    private updateTime;
-}
+type ShaderHandle = number;
 
 /**
  * @file    SpineModuleLoader.ts
@@ -725,6 +676,130 @@ declare class SpineModuleController {
     on(entity: Entity, type: SpineEventType, callback: SpineEventCallback): void;
     off(entity: Entity, type: SpineEventType, callback: SpineEventCallback): void;
     removeAllListeners(entity: Entity): void;
+}
+
+/**
+ * @file    scene.ts
+ * @brief   Scene loading utilities
+ */
+
+interface SceneEntityData {
+    id: number;
+    name: string;
+    parent: number | null;
+    children: number[];
+    components: SceneComponentData[];
+    visible?: boolean;
+}
+interface SceneComponentData {
+    type: string;
+    data: Record<string, unknown>;
+}
+interface SliceBorder {
+    left: number;
+    right: number;
+    top: number;
+    bottom: number;
+}
+interface TextureMetadata {
+    version: string;
+    type: 'texture';
+    sliceBorder: SliceBorder;
+}
+interface SceneData {
+    version: string;
+    name: string;
+    entities: SceneEntityData[];
+    textureMetadata?: Record<string, TextureMetadata>;
+}
+
+/**
+ * @file    customDraw.ts
+ * @brief   Custom draw callback registration for the render pipeline
+ */
+type DrawCallback = (elapsed: number) => void;
+
+interface SceneConfig {
+    name: string;
+    path?: string;
+    data?: SceneData;
+    systems?: Array<{
+        schedule: Schedule;
+        system: SystemDef;
+    }>;
+    setup?: (ctx: SceneContext) => void | Promise<void>;
+    cleanup?: (ctx: SceneContext) => void;
+}
+interface SceneContext {
+    readonly name: string;
+    readonly entities: ReadonlySet<Entity>;
+    spawn(): Entity;
+    despawn(entity: Entity): void;
+    registerDrawCallback(id: string, fn: DrawCallback): void;
+    addPostProcessPass(name: string, shader: ShaderHandle): number;
+    removePostProcessPass(name: string): void;
+    setPersistent(entity: Entity, persistent: boolean): void;
+}
+
+/**
+ * @file    app.ts
+ * @brief   Application builder and web platform integration
+ */
+
+interface Plugin {
+    name?: string;
+    dependencies?: ResourceDef<any>[];
+    build(app: App): void;
+}
+declare class App {
+    private readonly world_;
+    private readonly resources_;
+    private readonly systems_;
+    private runner_;
+    private running_;
+    private lastTime_;
+    private fixedTimestep_;
+    private fixedAccumulator_;
+    private module_;
+    private pipeline_;
+    private spineInitPromise_?;
+    private physicsInitPromise_?;
+    private physicsModule_?;
+    private readonly installed_plugins_;
+    private error_handler_;
+    private constructor();
+    static new(): App;
+    addPlugin(plugin: Plugin): this;
+    addSystemToSchedule(schedule: Schedule, system: SystemDef, options?: {
+        runBefore?: string[];
+        runAfter?: string[];
+    }): this;
+    addSystem(system: SystemDef): this;
+    addStartupSystem(system: SystemDef): this;
+    connectCpp(cppRegistry: CppRegistry, module?: ESEngineModule): this;
+    get wasmModule(): ESEngineModule | null;
+    get pipeline(): RenderPipeline | null;
+    setSpineRenderer(fn: SpineRendererFn | null): void;
+    get spineInitPromise(): Promise<unknown> | undefined;
+    set spineInitPromise(p: Promise<unknown> | undefined);
+    get physicsInitPromise(): Promise<unknown> | undefined;
+    set physicsInitPromise(p: Promise<unknown> | undefined);
+    get physicsModule(): unknown;
+    set physicsModule(m: unknown);
+    get world(): World;
+    setFixedTimestep(timestep: number): this;
+    onError(handler: (error: unknown, systemName: string) => void): this;
+    insertResource<T>(resource: ResourceDef<T>, value: T): this;
+    getResource<T>(resource: ResourceDef<T>): T;
+    hasResource<T>(resource: ResourceDef<T>): boolean;
+    registerScene(config: SceneConfig): this;
+    setInitialScene(name: string): this;
+    run(): void;
+    private mainLoop;
+    quit(): void;
+    private sortSystems;
+    private runSchedule;
+    private updateTime;
 }
 
 declare const SpineResource: ResourceDef<SpineModuleController | null>;

@@ -584,13 +584,86 @@ declare class RenderPipeline {
     private maskProcessor_;
     private lastWidth_;
     private lastHeight_;
+    private activeScenes_;
     get spineRenderer(): SpineRendererFn | null;
     setSpineRenderer(fn: SpineRendererFn | null): void;
     get maskProcessor(): MaskProcessorFn | null;
     setMaskProcessor(fn: MaskProcessorFn | null): void;
+    setActiveScenes(scenes: Set<string> | null): void;
     render(params: RenderParams): void;
     renderCamera(params: CameraRenderParams): void;
     private executeDrawCallbacks;
+}
+
+/**
+ * @file    material.ts
+ * @brief   Material and Shader API for custom rendering
+ * @details Provides shader creation and material management for custom visual effects.
+ */
+
+type ShaderHandle = number;
+
+/**
+ * @file    scene.ts
+ * @brief   Scene loading utilities
+ */
+
+interface SceneEntityData {
+    id: number;
+    name: string;
+    parent: number | null;
+    children: number[];
+    components: SceneComponentData[];
+    visible?: boolean;
+}
+interface SceneComponentData {
+    type: string;
+    data: Record<string, unknown>;
+}
+interface SliceBorder {
+    left: number;
+    right: number;
+    top: number;
+    bottom: number;
+}
+interface TextureMetadata {
+    version: string;
+    type: 'texture';
+    sliceBorder: SliceBorder;
+}
+interface SceneData {
+    version: string;
+    name: string;
+    entities: SceneEntityData[];
+    textureMetadata?: Record<string, TextureMetadata>;
+}
+
+/**
+ * @file    customDraw.ts
+ * @brief   Custom draw callback registration for the render pipeline
+ */
+type DrawCallback = (elapsed: number) => void;
+
+interface SceneConfig {
+    name: string;
+    path?: string;
+    data?: SceneData;
+    systems?: Array<{
+        schedule: Schedule;
+        system: SystemDef;
+    }>;
+    setup?: (ctx: SceneContext) => void | Promise<void>;
+    cleanup?: (ctx: SceneContext) => void;
+}
+interface SceneContext {
+    readonly name: string;
+    readonly entities: ReadonlySet<Entity>;
+    spawn(): Entity;
+    despawn(entity: Entity): void;
+    registerDrawCallback(id: string, fn: DrawCallback): void;
+    addPostProcessPass(name: string, shader: ShaderHandle): number;
+    removePostProcessPass(name: string): void;
+    setPersistent(entity: Entity, persistent: boolean): void;
 }
 
 /**
@@ -644,6 +717,8 @@ declare class App {
     insertResource<T>(resource: ResourceDef<T>, value: T): this;
     getResource<T>(resource: ResourceDef<T>): T;
     hasResource<T>(resource: ResourceDef<T>): boolean;
+    registerScene(config: SceneConfig): this;
+    setInitialScene(name: string): this;
     run(): void;
     private mainLoop;
     quit(): void;

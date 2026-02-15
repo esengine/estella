@@ -65,6 +65,7 @@ export {
     BitmapText,
     SpineAnimation,
     Name,
+    SceneOwner,
     ProjectionType,
     ClearFlags,
     ScaleMode,
@@ -83,6 +84,7 @@ export {
     type CircleColliderData,
     type CapsuleColliderData,
     type NameData,
+    type SceneOwnerData,
 } from './component';
 
 export {
@@ -300,6 +302,27 @@ export {
 } from './scene';
 
 // =============================================================================
+// Scene Manager
+// =============================================================================
+
+export {
+    SceneManager,
+    SceneManagerState,
+    wrapSceneSystem,
+    type SceneConfig,
+    type SceneContext,
+    type SceneStatus,
+    type TransitionOptions,
+} from './sceneManager';
+
+export { sceneManagerPlugin } from './scenePlugin';
+
+export {
+    transitionTo,
+    type TransitionConfig,
+} from './sceneTransition';
+
+// =============================================================================
 // Prefab
 // =============================================================================
 
@@ -320,7 +343,9 @@ export { Prefabs, PrefabServer, PrefabsPlugin, prefabsPlugin } from './prefabSer
 
 export {
     loadRuntimeScene,
+    createRuntimeSceneConfig,
     type RuntimeAssetProvider,
+    type RuntimeSceneOptions,
 } from './runtimeLoader';
 
 // =============================================================================

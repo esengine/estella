@@ -39,6 +39,7 @@ export class RenderPipeline {
     private maskProcessor_: MaskProcessorFn | null = null;
     private lastWidth_ = 0;
     private lastHeight_ = 0;
+    private activeScenes_: Set<string> | null = null;
 
     get spineRenderer(): SpineRendererFn | null {
         return this.spineRenderer_;
@@ -54,6 +55,10 @@ export class RenderPipeline {
 
     setMaskProcessor(fn: MaskProcessorFn | null): void {
         this.maskProcessor_ = fn;
+    }
+
+    setActiveScenes(scenes: Set<string> | null): void {
+        this.activeScenes_ = scenes;
     }
 
     render(params: RenderParams): void {
@@ -119,9 +124,10 @@ export class RenderPipeline {
         if (cbs.size > 0) {
             Draw.begin(viewProjection);
             const failed: string[] = [];
-            for (const [id, fn] of cbs.entries()) {
+            for (const [id, entry] of cbs.entries()) {
+                if (entry.scene && this.activeScenes_ && !this.activeScenes_.has(entry.scene)) continue;
                 try {
-                    fn(elapsed);
+                    entry.fn(elapsed);
                 } catch (e) {
                     console.error(`[CustomDraw] callback '${id}' error:`, e);
                     failed.push(id);

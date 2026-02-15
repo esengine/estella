@@ -18,10 +18,14 @@ import { initPostProcessAPI, shutdownPostProcessAPI } from './postprocess';
 import { initRendererAPI, shutdownRendererAPI } from './renderer';
 import { initGLDebugAPI, shutdownGLDebugAPI } from './glDebug';
 import { platformNow } from './platform';
-import { ProjectionType, ScaleMode } from './component';
+import { ProjectionType, ScaleMode, SceneOwner } from './component';
+import type { Entity } from './types';
 import { RenderPipeline, type SpineRendererFn } from './renderPipeline';
 import { Renderer } from './renderer';
 import { PostProcess } from './postprocess';
+import type { SceneConfig } from './sceneManager';
+import { SceneManager } from './sceneManager';
+import { sceneManagerPlugin } from './scenePlugin';
 
 // =============================================================================
 // Plugin Interface
@@ -213,6 +217,20 @@ export class App {
 
     hasResource<T>(resource: ResourceDef<T>): boolean {
         return this.resources_.has(resource);
+    }
+
+    // =========================================================================
+    // Scene Management
+    // =========================================================================
+
+    registerScene(config: SceneConfig): this {
+        this.getResource(SceneManager).register(config);
+        return this;
+    }
+
+    setInitialScene(name: string): this {
+        this.getResource(SceneManager).setInitial(name);
+        return this;
     }
 
     // =========================================================================
@@ -497,7 +515,17 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
                 PostProcess.resize(width, height);
             }
 
-            const cameras = collectCameras(module, cppRegistry, width, height);
+            let activeScenes: Set<string> | undefined;
+            if (app.hasResource(SceneManager)) {
+                const mgr = app.getResource(SceneManager);
+                const running = mgr.getActiveScenes();
+                if (running.length > 0) {
+                    activeScenes = new Set(running);
+                }
+            }
+
+            pipeline.setActiveScenes(activeScenes ?? null);
+            const cameras = collectCameras(module, cppRegistry, width, height, app.world, activeScenes);
 
             syncUICameraInfo(width, height, cameras);
 
@@ -533,6 +561,7 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
     app.addPlugin(assetPlugin);
     app.addPlugin(prefabsPlugin);
     app.addPlugin(inputPlugin);
+    app.addPlugin(sceneManagerPlugin);
     if (options?.plugins) {
         for (const plugin of options.plugins) {
             app.addPlugin(plugin);
@@ -605,15 +634,31 @@ interface CameraInfo {
     cameraY: number;
 }
 
-function collectCameras(module: ESEngineModule, registry: CppRegistry, width: number, height: number): CameraInfo[] {
+function collectCameras(
+    module: ESEngineModule,
+    registry: CppRegistry,
+    width: number,
+    height: number,
+    world?: World,
+    activeScenes?: Set<string>,
+): CameraInfo[] {
     if (width === 0 || height === 0) return [];
     const cameraEntities = module.registry_getCameraEntities(registry);
     if (cameraEntities.length === 0) return [];
 
+    const filtered = activeScenes && world
+        ? cameraEntities.filter((e: number) => {
+            const owner = world.tryGet(e as Entity, SceneOwner);
+            if (!owner || owner.scene === '') return true;
+            return activeScenes.has(owner.scene);
+        })
+        : cameraEntities;
+    if (filtered.length === 0) return [];
+
     const canvas = findCanvasData(module, registry);
     const cameras: CameraInfo[] = [];
 
-    for (const e of cameraEntities) {
+    for (const e of filtered) {
         const camera = registry.getCamera(e);
         const transform = registry.getLocalTransform(e);
 

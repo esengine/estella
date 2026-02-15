@@ -271,6 +271,11 @@ export interface NameData {
     value: string;
 }
 
+export interface SceneOwnerData {
+    scene: string;
+    persistent: boolean;
+}
+
 // =============================================================================
 // Builtin Component Instances
 // =============================================================================
@@ -372,6 +377,11 @@ export const Name: ComponentDef<NameData> = {
         return { value: '', ...data };
     }
 };
+
+export const SceneOwner = defineComponent<SceneOwnerData>('SceneOwner', {
+    scene: '',
+    persistent: false,
+});
 
 export type {
     RigidBodyData, BoxColliderData, CircleColliderData, CapsuleColliderData,
