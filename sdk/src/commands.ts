@@ -26,7 +26,7 @@ export function Commands(): CommandsDescriptor {
 
 interface SpawnComponentEntry {
     component: AnyComponentDef;
-    data: any;
+    data: unknown;
 }
 
 interface SpawnCommand {
@@ -44,7 +44,7 @@ interface InsertCommand {
     type: 'insert';
     entity: Entity;
     component: AnyComponentDef;
-    data: any;
+    data: unknown;
 }
 
 interface RemoveCommand {
@@ -180,7 +180,7 @@ export class CommandsInstance {
         entityRef.entity = entity;
 
         for (const entry of components) {
-            this.world_.insert(entity, entry.component, entry.data);
+            this.world_.insert(entity, entry.component, entry.data as Record<string, unknown>);
         }
     }
 
@@ -202,7 +202,7 @@ export class CommandsInstance {
                 const entity = this.world_.spawn();
                 cmd.entityRef.entity = entity;
                 for (const entry of cmd.components) {
-                    this.world_.insert(entity, entry.component, entry.data);
+                    this.world_.insert(entity, entry.component, entry.data as Record<string, unknown>);
                 }
                 break;
             }
@@ -220,7 +220,7 @@ export class CommandsInstance {
                     console.warn(`[Commands] insert skipped: entity ${cmd.entity} is invalid`);
                     break;
                 }
-                this.world_.insert(cmd.entity, cmd.component, cmd.data);
+                this.world_.insert(cmd.entity, cmd.component, cmd.data as Record<string, unknown>);
                 break;
 
             case 'remove':

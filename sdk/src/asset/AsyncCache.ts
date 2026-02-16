@@ -16,7 +16,7 @@ export class AsyncCache<T> {
         }
 
         const existing = this.pending_.get(key);
-        if (existing) {
+        if (existing && !existing.aborted) {
             return existing.promise;
         }
 

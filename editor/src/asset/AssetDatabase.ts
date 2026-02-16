@@ -82,11 +82,7 @@ export class AssetDatabase {
     // =========================================================================
 
     getPath(uuid: string): string | undefined {
-        const path = this.uuidToEntry_.get(uuid)?.path;
-        if (!path) {
-            console.warn(`[AssetDatabase] getPath: UUID "${uuid}" not found (${this.uuidToEntry_.size} entries registered)`);
-        }
-        return path;
+        return this.uuidToEntry_.get(uuid)?.path;
     }
 
     getUuid(path: string): string | undefined {

@@ -76,13 +76,7 @@ export class PanelManager {
             }
 
             parentEl.appendChild(panelContainer);
-            this.createPanelWithErrorBoundary(desc, panelContainer, store);
-
-            const instance = this.panelInstances_.get(desc.id);
-            if (instance) {
-                if (bridge && isBridgeAware(instance)) instance.setBridge(bridge);
-                if (app && isAppAware(instance)) instance.setApp(app);
-            }
+            this.createPanelWithErrorBoundary(desc, panelContainer, store, bridge, app);
         }
     }
 
@@ -90,9 +84,13 @@ export class PanelManager {
         desc: PanelDescriptor,
         container: HTMLElement,
         store: EditorStore,
+        bridge?: EditorBridge | null,
+        app?: App | null,
     ): void {
         try {
             const instance = desc.factory(container, store);
+            if (bridge && isBridgeAware(instance)) instance.setBridge(bridge);
+            if (app && isAppAware(instance)) instance.setApp(app);
             this.panelInstances_.set(desc.id, instance);
         } catch (err) {
             console.error(`Panel "${desc.id}" failed to initialize:`, err);

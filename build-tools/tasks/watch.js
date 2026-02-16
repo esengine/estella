@@ -17,8 +17,11 @@ export async function startWatch(options = {}) {
 
     const rootDir = config.paths.root;
 
+    const RETRY_DELAY_MS = 1000;
+
     let isBuilding = false;
     let pendingTypes = new Set();
+    let lastBuildFailed = false;
 
     async function rebuild(type, file) {
         if (isBuilding) {
@@ -33,13 +36,18 @@ export async function startWatch(options = {}) {
         try {
             await executeBuild(type);
             logger.success('Rebuild complete');
+            lastBuildFailed = false;
         } catch (err) {
             logger.error(`Build failed: ${err.message}`);
+            lastBuildFailed = true;
         } finally {
             isBuilding = false;
         }
 
         if (pendingTypes.size > 0) {
+            if (lastBuildFailed) {
+                await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
+            }
             const types = pendingTypes;
             pendingTypes = new Set();
             await executePendingBuild(types);
@@ -78,13 +86,18 @@ export async function startWatch(options = {}) {
             }
             await syncToDesktop();
             logger.success('Rebuild complete');
+            lastBuildFailed = false;
         } catch (err) {
             logger.error(`Build failed: ${err.message}`);
+            lastBuildFailed = true;
         } finally {
             isBuilding = false;
         }
 
         if (pendingTypes.size > 0) {
+            if (lastBuildFailed) {
+                await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
+            }
             const nextTypes = pendingTypes;
             pendingTypes = new Set();
             await executePendingBuild(nextTypes);

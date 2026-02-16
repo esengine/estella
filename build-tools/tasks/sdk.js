@@ -19,66 +19,51 @@ export async function buildSdk(options = {}) {
         const sdkDir = config.paths.sdk;
         const outputDir = path.join(config.paths.output, 'sdk');
 
+        const sdkOutputs = [
+            'esm/esengine.js',
+            'esm/esengine.d.ts',
+            'esm/wasm.js',
+            'esm/wasm.d.ts',
+            'esm/spine/index.js',
+            'esm/spine/index.d.ts',
+            'esm/physics/index.js',
+            'esm/physics/index.d.ts',
+            'cjs/esengine.wechat.js',
+            'cjs/index.wechat.js',
+        ];
+
+        let cache = null;
+        let currentHash = null;
+
         if (!noCache) {
-            const cache = new HashCache(config.paths.cache);
+            cache = new HashCache(config.paths.cache);
             await cache.load();
 
             const sdkSrcDir = path.join(sdkDir, 'src');
-            const currentHash = await hashDirectory(sdkSrcDir, /\.ts$/);
+            currentHash = await hashDirectory(sdkSrcDir, /\.ts$/);
 
             if (!await cache.isChanged('sdk', currentHash)) {
                 logger.success('SDK: No changes detected (cached)');
-                const result = {
-                    outputDir,
-                    outputs: [
-                        'esm/esengine.js',
-                        'esm/esengine.d.ts',
-                        'esm/wasm.js',
-                        'esm/wasm.d.ts',
-                        'esm/spine/index.js',
-                        'esm/spine/index.d.ts',
-                        'esm/physics/index.js',
-                        'esm/physics/index.d.ts',
-                        'cjs/esengine.wechat.js',
-                        'cjs/index.wechat.js',
-                    ],
-                    skipped: true,
-                };
+                const result = { outputDir, outputs: sdkOutputs, skipped: true };
                 if (manifest) {
                     await manifest.endTarget('sdk', result);
                 }
                 return result;
             }
+        }
 
-            await mkdir(outputDir, { recursive: true });
-            await runCommand('npm', ['run', 'build'], { cwd: sdkDir });
-            await copyDistOutputs(sdkDir, outputDir);
+        await mkdir(outputDir, { recursive: true });
+        await runCommand('npm', ['run', 'build'], { cwd: sdkDir });
+        await copyDistOutputs(sdkDir, outputDir);
 
+        if (cache) {
             cache.set('sdk', currentHash);
             await cache.save();
-        } else {
-            await mkdir(outputDir, { recursive: true });
-            await runCommand('npm', ['run', 'build'], { cwd: sdkDir });
-            await copyDistOutputs(sdkDir, outputDir);
         }
 
         logger.success('SDK: Build complete');
 
-        const result = {
-            outputDir,
-            outputs: [
-                'esm/esengine.js',
-                'esm/esengine.d.ts',
-                'esm/wasm.js',
-                'esm/wasm.d.ts',
-                'esm/spine/index.js',
-                'esm/spine/index.d.ts',
-                'esm/physics/index.js',
-                'esm/physics/index.d.ts',
-                'cjs/esengine.wechat.js',
-                'cjs/index.wechat.js',
-            ],
-        };
+        const result = { outputDir, outputs: sdkOutputs };
 
         if (manifest) {
             await manifest.endTarget('sdk', result);

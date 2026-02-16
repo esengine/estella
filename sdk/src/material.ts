@@ -82,6 +82,8 @@ export function shutdownMaterialAPI(): void {
     materials.clear();
     nextMaterialId = 1;
     materialCallbackRegistered = false;
+    encodedNameCache.clear();
+    encoder = null;
     resourceManager = null;
     module = null;
 }

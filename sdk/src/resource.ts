@@ -72,6 +72,11 @@ export class ResMutInstance<T> {
         fn(this.value_);
         this.setter_(this.value_);
     }
+
+    /** @internal */
+    updateValue(value: T): void {
+        this.value_ = value;
+    }
 }
 
 // =============================================================================
@@ -109,7 +114,7 @@ export class ResourceStorage {
     getResMut<T>(resource: ResourceDef<T>): ResMutInstance<T> {
         let instance = this.resMutPool_.get(resource._id) as ResMutInstance<T> | undefined;
         if (instance) {
-            (instance as any).value_ = this.get(resource);
+            instance.updateValue(this.get(resource));
             return instance;
         }
         instance = new ResMutInstance(

@@ -24,6 +24,8 @@ export class PreviewPlugin implements Plugin {
     private app_: App | null = null;
     private loadPromise_: Promise<void> | null = null;
     private eventSource_: EventSource | null = null;
+    private onMessage_: ((event: MessageEvent) => void) | null = null;
+    private onError_: ((event: Event) => void) | null = null;
 
     constructor(sceneUrl: string, baseUrl?: string) {
         this.sceneUrl_ = sceneUrl;
@@ -144,22 +146,41 @@ export class PreviewPlugin implements Plugin {
         }
     }
 
+    cleanup(): void {
+        if (this.eventSource_) {
+            if (this.onMessage_) {
+                this.eventSource_.removeEventListener('message', this.onMessage_ as EventListener);
+            }
+            if (this.onError_) {
+                this.eventSource_.removeEventListener('error', this.onError_);
+            }
+            this.eventSource_.close();
+            this.eventSource_ = null;
+        }
+        this.onMessage_ = null;
+        this.onError_ = null;
+        this.app_ = null;
+    }
+
     private setupHotReload(): void {
         const url = new URL(this.sceneUrl_, window.location.href);
         const eventsUrl = `${url.protocol}//${url.host}/sse-reload`;
 
         this.eventSource_ = new EventSource(eventsUrl);
 
-        this.eventSource_.addEventListener('message', async (event) => {
+        this.onMessage_ = async (event: MessageEvent) => {
             if (event.data === 'reload') {
                 console.log('[PreviewPlugin] Reload event received, updating scene...');
                 await this.reloadScene();
             }
-        });
+        };
 
-        this.eventSource_.addEventListener('error', (err) => {
+        this.onError_ = (err: Event) => {
             console.error('[PreviewPlugin] EventSource error:', err);
-        });
+        };
+
+        this.eventSource_.addEventListener('message', this.onMessage_ as EventListener);
+        this.eventSource_.addEventListener('error', this.onError_);
     }
 
     private async reloadScene(): Promise<void> {

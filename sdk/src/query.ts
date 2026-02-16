@@ -89,7 +89,7 @@ export type QueryResult<C extends readonly QueryArg[]> = [
 interface PendingMutation {
     entity: Entity;
     component: AnyComponentDef;
-    data: any;
+    data: Record<string, unknown>;
 }
 
 export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<QueryResult<C>> {
@@ -97,8 +97,8 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
     private readonly descriptor_: QueryDescriptor<C>;
     private readonly actualComponents_: AnyComponentDef[];
     private readonly allRequired_: AnyComponentDef[];
-    private readonly result_: any[];
-    private readonly mutData_: Array<{ component: AnyComponentDef; data: any }>;
+    private readonly result_: unknown[];
+    private readonly mutData_: Array<{ component: AnyComponentDef; data: Record<string, unknown> }>;
 
     constructor(world: World, descriptor: QueryDescriptor<C>) {
         this.world_ = world;
@@ -110,7 +110,7 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
         this.result_ = new Array(this.actualComponents_.length + 1);
         this.mutData_ = descriptor._mutIndices.map(idx => ({
             component: this.actualComponents_[idx],
-            data: null as any
+            data: null as unknown as Record<string, unknown>
         }));
     }
 
@@ -159,12 +159,12 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
 
                 if (hasMut) {
                     for (let i = 0; i < mutCount; i++) {
-                        mutData[i].data = result[_mutIndices[i] + 1];
+                        mutData[i].data = result[_mutIndices[i] + 1] as Record<string, unknown>;
                     }
                     prevEntity = entity;
                 }
 
-                yield result.slice() as QueryResult<C>;
+                yield result as QueryResult<C>;
             }
         } finally {
             this.world_.endIteration();

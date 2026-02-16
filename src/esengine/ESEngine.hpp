@@ -86,10 +86,9 @@
     #include <emscripten.h>
     #define ES_MAIN(AppClass)                                   \
         extern "C" {                                            \
-            static AppClass* g_app = nullptr;                   \
             EMSCRIPTEN_KEEPALIVE void es_app_init() {           \
-                g_app = new AppClass();                         \
-                g_app->run();                                   \
+                static AppClass app;                            \
+                app.run();                                      \
             }                                                   \
         }
 #else

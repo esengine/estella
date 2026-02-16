@@ -143,6 +143,7 @@ async function optimizeWasmFiles(buildDir, outputs, optLevel = '-O2') {
     const wasmFiles = Object.keys(outputs).filter(src => src.endsWith('.wasm'));
     if (wasmFiles.length === 0) return;
 
+    const warnings = [];
     for (const src of wasmFiles) {
         const wasmPath = path.join(buildDir, src);
         if (!existsSync(wasmPath)) continue;
@@ -154,25 +155,40 @@ async function optimizeWasmFiles(buildDir, outputs, optLevel = '-O2') {
             const reduction = ((1 - after / before) * 100).toFixed(1);
             logger.debug(`wasm-opt ${optLevel}: ${src} ${(before / 1024).toFixed(0)}KB → ${(after / 1024).toFixed(0)}KB (-${reduction}%)`);
         } catch {
-            logger.warn('wasm-opt not found or failed, skipping WASM optimization');
-            return;
+            const msg = `wasm-opt failed for ${src}, skipping optimization`;
+            logger.warn(msg);
+            warnings.push(msg);
         }
+    }
+
+    if (warnings.length > 0) {
+        logger.warn(`wasm-opt completed with ${warnings.length} warning(s)`);
     }
 }
 
 async function copyOutputs(buildDir, outputDir, outputs) {
+    const missing = [];
+
     for (const [src, dest] of Object.entries(outputs)) {
         const srcPath = path.join(buildDir, src);
         const destPath = path.join(outputDir, dest);
 
         if (!existsSync(srcPath)) {
-            logger.warn(`Output file not found: ${srcPath}`);
+            if (src.endsWith('.wasm') || src.endsWith('.js')) {
+                missing.push(src);
+            } else {
+                logger.warn(`Output file not found: ${srcPath}`);
+            }
             continue;
         }
 
         await mkdir(path.dirname(destPath), { recursive: true });
         await cp(srcPath, destPath);
         logger.debug(`Copied ${src} → ${dest}`);
+    }
+
+    if (missing.length > 0) {
+        throw new Error(`Critical output files missing after build: ${missing.join(', ')}`);
     }
 }
 

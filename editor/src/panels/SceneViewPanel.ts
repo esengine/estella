@@ -77,6 +77,7 @@ export class SceneViewPanel {
     private boundOnDocumentMouseMove_: ((e: MouseEvent) => void) | null = null;
     private boundOnDocumentMouseUp_: ((e: MouseEvent) => void) | null = null;
 
+    private static readonly MAX_CACHE_SIZE = 100;
     private textureCache_: Map<string, HTMLImageElement | null> = new Map();
     private metadataCache_: Map<string, SliceBorder | null> = new Map();
     private loadingTextures_: Set<string> = new Set();
@@ -368,12 +369,14 @@ export class SceneViewPanel {
 
         img.onload = () => {
             this.loadingTextures_.delete(resolved);
+            this.evictCache(this.textureCache_);
             this.textureCache_.set(resolved, img);
             this.requestRender();
         };
 
         img.onerror = () => {
             this.loadingTextures_.delete(resolved);
+            this.evictCache(this.textureCache_);
             this.textureCache_.set(resolved, null);
             console.warn(`Failed to load texture: ${fullPath}`);
         };
@@ -381,6 +384,15 @@ export class SceneViewPanel {
         img.src = getPlatformAdapter().convertFilePathToUrl(fullPath);
 
         return null;
+    }
+
+    private evictCache<T>(cache: Map<string, T>): void {
+        if (cache.size >= SceneViewPanel.MAX_CACHE_SIZE) {
+            const firstKey = cache.keys().next().value;
+            if (firstKey !== undefined) {
+                cache.delete(firstKey);
+            }
+        }
     }
 
     get canvas(): HTMLCanvasElement {

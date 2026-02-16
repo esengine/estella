@@ -112,13 +112,22 @@ export async function instantiatePrefab(
 // Flatten Nested Prefabs
 // =============================================================================
 
+const MAX_PREFAB_NESTING_DEPTH = 10;
+
 async function flattenPrefab(
     prefab: PrefabData,
     overrides: PrefabOverride[],
     options: InstantiatePrefabOptions | undefined,
     startId?: number,
     visited?: Set<string>,
+    depth: number = 0,
 ): Promise<FlattenResult> {
+    if (depth > MAX_PREFAB_NESTING_DEPTH) {
+        throw new Error(
+            `Prefab nesting depth exceeded ${MAX_PREFAB_NESTING_DEPTH}. ` +
+            `Check for deep or circular nesting in: ${prefab.name}`,
+        );
+    }
     const idMapping = new Map<number, number>();
     let nextId: number;
 
@@ -166,6 +175,7 @@ async function flattenPrefab(
                 options,
                 nextId,
                 visited,
+                depth + 1,
             );
 
             idMapping.set(pe.prefabEntityId, nested.rootId);

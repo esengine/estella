@@ -130,7 +130,7 @@ export function loadSceneData(world: World, sceneData: SceneData): Map<number, E
 
         if (entityData.visible !== false) {
             for (const compData of entityData.components) {
-                loadComponent(world, entity, compData);
+                loadComponent(world, entity, compData, entityData.name);
             }
         }
     }
@@ -171,7 +171,7 @@ export async function loadSceneWithAssets(
         if (entityData.visible === false) continue;
 
         for (const compData of entityData.components) {
-            loadComponent(world, entity, compData);
+            loadComponent(world, entity, compData, entityData.name);
         }
     }
 
@@ -333,7 +333,7 @@ async function preloadSceneAssets(
     }
 }
 
-export function loadComponent(world: World, entity: Entity, compData: SceneComponentData): void {
+export function loadComponent(world: World, entity: Entity, compData: SceneComponentData, entityName?: string): void {
     if (compData.type === 'UIRect') {
         const rectData = compData.data as Record<string, unknown>;
         if (rectData.anchor && !rectData.anchorMin) {
@@ -346,7 +346,8 @@ export function loadComponent(world: World, entity: Entity, compData: SceneCompo
     if (comp) {
         world.insert(entity, comp, compData.data);
     } else {
-        console.warn(`Unknown component type: ${compData.type}`);
+        const context = entityName ? ` on entity "${entityName}"` : '';
+        console.warn(`Unknown component type: ${compData.type}${context}`);
     }
 }
 

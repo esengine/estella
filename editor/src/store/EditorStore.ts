@@ -129,6 +129,7 @@ export class EditorStore {
     private worldTransforms_ = new WorldTransformCache();
     private entityMap_ = new Map<number, EntityData>();
 
+    private prefabLock_: Promise<void> | null = null;
     private prefabEditingPath_: string | null = null;
     private savedSceneState_: {
         scene: SceneData;
@@ -673,6 +674,25 @@ export class EditorStore {
     async instantiatePrefab(
         prefabPath: string,
         parentEntity: Entity | null = null
+    ): Promise<Entity | null> {
+        if (this.prefabLock_) {
+            await this.prefabLock_;
+        }
+
+        let resolve: () => void;
+        this.prefabLock_ = new Promise<void>(r => { resolve = r; });
+
+        try {
+            return await this.instantiatePrefabInner(prefabPath, parentEntity);
+        } finally {
+            this.prefabLock_ = null;
+            resolve!();
+        }
+    }
+
+    private async instantiatePrefabInner(
+        prefabPath: string,
+        parentEntity: Entity | null
     ): Promise<Entity | null> {
         const hasNested = await this.prefabHasNested(prefabPath);
 

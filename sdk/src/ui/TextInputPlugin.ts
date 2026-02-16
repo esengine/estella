@@ -13,6 +13,15 @@ import { Res } from '../resource';
 import { platformCreateCanvas } from '../platform';
 
 export class TextInputPlugin implements Plugin {
+    private cleanupListeners_: (() => void) | null = null;
+
+    cleanup(): void {
+        if (this.cleanupListeners_) {
+            this.cleanupListeners_();
+            this.cleanupListeners_ = null;
+        }
+    }
+
     build(app: App): void {
         registerComponent('TextInput', TextInput);
 
@@ -40,21 +49,21 @@ export class TextInputPlugin implements Plugin {
         }
         const textarea = textareaOrNull;
 
-        textarea.addEventListener('input', () => {
+        const onInput = () => {
             if (composing || focusedEntity === null) return;
             syncFromTextarea();
-        });
+        };
 
-        textarea.addEventListener('compositionstart', () => {
+        const onCompositionStart = () => {
             composing = true;
-        });
+        };
 
-        textarea.addEventListener('compositionend', () => {
+        const onCompositionEnd = () => {
             composing = false;
             syncFromTextarea();
-        });
+        };
 
-        textarea.addEventListener('keydown', (e: KeyboardEvent) => {
+        const onKeyDown = (e: KeyboardEvent) => {
             if (focusedEntity === null) return;
 
             if (e.key === 'Escape') {
@@ -89,16 +98,31 @@ export class TextInputPlugin implements Plugin {
                 ti.dirty = true;
                 resetCursorBlink();
             }
-        });
+        };
 
-        textarea.addEventListener('blur', () => {
+        const onBlur = () => {
             if (focusedEntity !== null && world.valid(focusedEntity) && world.has(focusedEntity, TextInput)) {
                 const ti = world.get(focusedEntity, TextInput) as TextInputData;
                 ti.focused = false;
                 ti.dirty = true;
             }
             focusedEntity = null;
-        });
+        };
+
+        textarea.addEventListener('input', onInput);
+        textarea.addEventListener('compositionstart', onCompositionStart);
+        textarea.addEventListener('compositionend', onCompositionEnd);
+        textarea.addEventListener('keydown', onKeyDown);
+        textarea.addEventListener('blur', onBlur);
+
+        this.cleanupListeners_ = () => {
+            textarea.removeEventListener('input', onInput);
+            textarea.removeEventListener('compositionstart', onCompositionStart);
+            textarea.removeEventListener('compositionend', onCompositionEnd);
+            textarea.removeEventListener('keydown', onKeyDown);
+            textarea.removeEventListener('blur', onBlur);
+            textarea.remove();
+        };
 
         function syncFromTextarea(): void {
             if (focusedEntity === null || !world.valid(focusedEntity)) return;

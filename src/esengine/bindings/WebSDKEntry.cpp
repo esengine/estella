@@ -38,6 +38,8 @@
 #include <glm/glm.hpp>
 #include <cstring>
 
+static_assert(sizeof(void*) == 4, "EM_JS pointer passing assumes wasm32 (4-byte pointers)");
+
 namespace esengine {
 
 static EngineContext& ctx() { return EngineContext::instance(); }
@@ -68,11 +70,12 @@ bool getMaterialData(u32 materialId, u32& shaderId, u32& blendMode) {
     }
     u32 uniformBufferPtr = 0;
     u32 uniformCount = 0;
+    auto toPtr = [](auto* p) { return static_cast<int>(reinterpret_cast<uintptr_t>(p)); };
     callMaterialProvider(materialId,
-        (int)(uintptr_t)&shaderId,
-        (int)(uintptr_t)&blendMode,
-        (int)(uintptr_t)&uniformBufferPtr,
-        (int)(uintptr_t)&uniformCount);
+        toPtr(&shaderId),
+        toPtr(&blendMode),
+        toPtr(&uniformBufferPtr),
+        toPtr(&uniformCount));
     return shaderId != 0;
 }
 
@@ -90,11 +93,12 @@ bool getMaterialDataWithUniforms(u32 materialId, u32& shaderId, u32& blendMode,
 
     u32 uniformBufferPtr = 0;
     u32 uniformCount = 0;
+    auto toPtr = [](auto* p) { return static_cast<int>(reinterpret_cast<uintptr_t>(p)); };
     callMaterialProvider(materialId,
-        (int)(uintptr_t)&shaderId,
-        (int)(uintptr_t)&blendMode,
-        (int)(uintptr_t)&uniformBufferPtr,
-        (int)(uintptr_t)&uniformCount);
+        toPtr(&shaderId),
+        toPtr(&blendMode),
+        toPtr(&uniformBufferPtr),
+        toPtr(&uniformCount));
 
     if (shaderId == 0) return false;
 

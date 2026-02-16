@@ -42,10 +42,20 @@ export async function buildArtifact(
     progress.setPhase('processing_assets');
     progress.setCurrentTask('Packing texture atlas...', 0);
 
-    const imagePaths = [...assetPaths].filter(p => {
+    const imagePathCandidates = [...assetPaths].filter(p => {
         const ext = p.split('.').pop()?.toLowerCase() ?? '';
         return ext === 'png' || ext === 'jpg' || ext === 'jpeg';
     });
+
+    const imagePaths: string[] = [];
+    for (const p of imagePathCandidates) {
+        const fullPath = isAbsolutePath(p) ? normalizePath(p) : joinPath(projectDir, p);
+        if (await fs.exists(fullPath)) {
+            imagePaths.push(p);
+        } else {
+            progress.log('warn', `Image not found, skipping: ${p}`);
+        }
+    }
 
     const sceneDataList: Array<{ name: string; data: Record<string, unknown> }> = [];
     for (const scenePath of config.scenes) {

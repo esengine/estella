@@ -6,6 +6,7 @@ import { icons } from './utils/icons';
 export class MenuManager {
     private statusbarInstances_: Array<{ dispose(): void; update?(): void }> = [];
     private shortcutManager_: ShortcutManager;
+    private documentClickHandler_: ((e: MouseEvent) => void) | null = null;
 
     constructor() {
         this.shortcutManager_ = new ShortcutManager();
@@ -135,34 +136,11 @@ export class MenuManager {
         const menubar = container.querySelector('.es-editor-menubar');
         if (!menubar) return;
 
-        let activeMenu: HTMLElement | null = null;
+        this.attachMenuTriggers(container);
 
         const closeAllMenus = () => {
             menubar.querySelectorAll('.es-menu').forEach(m => m.classList.remove('es-open'));
-            activeMenu = null;
         };
-
-        menubar.querySelectorAll('.es-menu-trigger').forEach(trigger => {
-            trigger.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const menu = (trigger as HTMLElement).parentElement!;
-                const isOpen = menu.classList.contains('es-open');
-                closeAllMenus();
-                if (!isOpen) {
-                    menu.classList.add('es-open');
-                    activeMenu = menu;
-                }
-            });
-
-            trigger.addEventListener('mouseenter', () => {
-                if (activeMenu && activeMenu !== trigger.parentElement) {
-                    closeAllMenus();
-                    const menu = (trigger as HTMLElement).parentElement!;
-                    menu.classList.add('es-open');
-                    activeMenu = menu;
-                }
-            });
-        });
 
         menubar.addEventListener('click', (e) => {
             const target = e.target as HTMLElement;
@@ -190,11 +168,20 @@ export class MenuManager {
         const previewBtn = menubar.querySelector('[data-action="preview"]');
         previewBtn?.addEventListener('click', () => onPreview());
 
-        document.addEventListener('click', (e) => {
+        this.removeDocumentClickHandler();
+        this.documentClickHandler_ = (e: MouseEvent) => {
             if (!menubar.contains(e.target as Node)) {
                 closeAllMenus();
             }
-        });
+        };
+        document.addEventListener('click', this.documentClickHandler_);
+    }
+
+    removeDocumentClickHandler(): void {
+        if (this.documentClickHandler_) {
+            document.removeEventListener('click', this.documentClickHandler_);
+            this.documentClickHandler_ = null;
+        }
     }
 
     updateToolbarState(container: HTMLElement): void {
@@ -263,6 +250,7 @@ export class MenuManager {
 
     dispose(): void {
         this.shortcutManager_.detach();
+        this.removeDocumentClickHandler();
         for (const instance of this.statusbarInstances_) {
             instance.dispose();
         }

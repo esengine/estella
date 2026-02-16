@@ -12,6 +12,7 @@ import { inputPlugin } from './input';
 import { assetPlugin } from './asset';
 import { prefabsPlugin } from './prefabServer';
 import { initDrawAPI, shutdownDrawAPI } from './draw';
+import { clearDrawCallbacks } from './customDraw';
 import { initMaterialAPI, shutdownMaterialAPI } from './material';
 import { initGeometryAPI, shutdownGeometryAPI } from './geometry';
 import { initPostProcessAPI, shutdownPostProcessAPI } from './postprocess';
@@ -300,6 +301,7 @@ export class App {
 
     quit(): void {
         this.running_ = false;
+        clearDrawCallbacks();
 
         const shutdowns = [
             shutdownGLDebugAPI,

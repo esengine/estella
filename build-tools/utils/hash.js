@@ -1,5 +1,5 @@
 import { createHash } from 'crypto';
-import { readFile, writeFile, mkdir, readdir, stat } from 'fs/promises';
+import { readFile, writeFile, mkdir, readdir, stat, rename } from 'fs/promises';
 import path from 'path';
 import * as logger from './logger.js';
 
@@ -98,7 +98,9 @@ export class HashCache {
     async save() {
         try {
             await mkdir(this.cacheDir, { recursive: true });
-            await writeFile(this.cacheFile, JSON.stringify(this.cache, null, 2));
+            const tmpFile = this.cacheFile + '.tmp';
+            await writeFile(tmpFile, JSON.stringify(this.cache, null, 2));
+            await rename(tmpFile, this.cacheFile);
             logger.debug('Cache saved');
         } catch (err) {
             logger.warn(`Failed to save cache: ${err.message}`);

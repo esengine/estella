@@ -8,7 +8,11 @@ const TAURI_CONF = 'desktop/src-tauri/tauri.conf.json';
 
 function run(cmd) {
     console.log(chalk.gray(`  $ ${cmd}`));
-    execSync(cmd, { stdio: 'inherit' });
+    try {
+        execSync(cmd, { stdio: 'inherit' });
+    } catch (e) {
+        die(`Command failed: ${cmd}`);
+    }
 }
 
 function die(msg) {
