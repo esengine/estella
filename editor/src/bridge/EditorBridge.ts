@@ -38,12 +38,24 @@ export class EditorBridge {
         if (!this.module_ || !this.world_) return;
 
         const scene = this.store_.scene;
+        const entityMap = new Map<number, Entity>();
 
         for (const entityData of scene.entities) {
             const entity = this.world_.spawn();
+            entityMap.set(entityData.id, entity);
 
             for (const comp of entityData.components) {
                 this.addComponentToRuntime(entity, comp);
+            }
+        }
+
+        for (const entityData of scene.entities) {
+            if (entityData.parent !== null) {
+                const entity = entityMap.get(entityData.id);
+                const parentEntity = entityMap.get(entityData.parent);
+                if (entity !== undefined && parentEntity !== undefined) {
+                    this.world_.setParent(entity, parentEntity);
+                }
             }
         }
     }

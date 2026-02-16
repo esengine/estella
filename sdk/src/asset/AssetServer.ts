@@ -127,6 +127,7 @@ export class AssetServer {
     private groupAssets_ = new Map<string, AddressableManifestAsset[]>();
     private spineController_: SpineModuleController | null = null;
     private spineSkeletons_ = new Map<string, number>();
+    private textureRefCounts_ = new Map<string, number>();
 
     constructor(module: ESEngineModule) {
         this.module_ = module;
@@ -185,14 +186,28 @@ export class AssetServer {
         return this.textureCache_.has(this.textureCacheKey(source, true));
     }
 
+    getTextureRefCount(source: string): number {
+        let total = 0;
+        for (const flip of [true, false]) {
+            total += this.textureRefCounts_.get(this.textureCacheKey(source, flip)) ?? 0;
+        }
+        return total;
+    }
+
     releaseTexture(source: string): void {
         const rm = this.module_.getResourceManager();
         for (const flip of [true, false]) {
             const key = this.textureCacheKey(source, flip);
             const info = this.textureCache_.get(key);
-            if (info) {
+            if (!info) continue;
+
+            const count = (this.textureRefCounts_.get(key) ?? 1) - 1;
+            if (count <= 0) {
                 rm.releaseTexture(info.handle);
                 this.textureCache_.delete(key);
+                this.textureRefCounts_.delete(key);
+            } else {
+                this.textureRefCounts_.set(key, count);
             }
         }
     }
@@ -208,6 +223,7 @@ export class AssetServer {
         this.materialLoader_.releaseAll();
         Material.releaseAll();
         this.textureCache_.clearAll();
+        this.textureRefCounts_.clear();
         this.shaderCache_.clearAll();
         this.fontCache_.clearAll();
         this.prefabCache_.clearAll();
@@ -651,7 +667,9 @@ export class AssetServer {
 
     private async loadTextureWithFlip(source: string, flip: boolean): Promise<TextureInfo> {
         const cacheKey = this.textureCacheKey(source, flip);
-        return this.textureCache_.getOrLoad(cacheKey, () => this.loadTextureInternal(source, flip));
+        const info = await this.textureCache_.getOrLoad(cacheKey, () => this.loadTextureInternal(source, flip));
+        this.textureRefCounts_.set(cacheKey, (this.textureRefCounts_.get(cacheKey) ?? 0) + 1);
+        return info;
     }
 
     private async loadTextureInternal(source: string, flip: boolean): Promise<TextureInfo> {

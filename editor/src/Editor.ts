@@ -1,8 +1,3 @@
-/**
- * @file    Editor.ts
- * @brief   Main editor component
- */
-
 import type { App, Entity } from 'esengine';
 import type { EntityData } from './types/SceneTypes';
 import * as esengine from 'esengine';
@@ -14,24 +9,14 @@ import {
 } from 'esengine';
 import { EditorStore } from './store/EditorStore';
 import { EditorBridge } from './bridge/EditorBridge';
-import type { PanelInstance, PanelPosition } from './panels/PanelRegistry';
+import { PanelManager } from './PanelManager';
+import { MenuManager } from './MenuManager';
+import { PreviewManager } from './PreviewManager';
 import {
     registerPanel,
-    getAllPanels,
     getPanelsByPosition,
-    isResizable,
-    isBridgeAware,
-    isAppAware,
-    isAssetServerProvider,
-    isAssetNavigable,
-    isOutputAppendable,
-    isSpineControllerAware,
-    isSpineInfoProvider,
-    lockBuiltinPanels,
-    clearExtensionPanels,
     isBuiltinPanel,
 } from './panels/PanelRegistry';
-import { SpineModuleController, wrapSpineModule, type SpineWasmModule } from 'esengine/spine';
 import { registerBuiltinPanels } from './panels/builtinPanels';
 import { registerBuiltinEditors } from './property/editors';
 import { registerMaterialEditors } from './property/materialEditors';
@@ -41,20 +26,21 @@ import { initBoundsProviders, registerBoundsProvider, lockBuiltinBoundsProviders
 import { saveSceneToFile, saveSceneToPath, loadSceneFromFile, loadSceneFromPath, hasFileHandle, clearFileHandle } from './io/SceneSerializer';
 import { icons } from './utils/icons';
 import { ScriptLoader } from './scripting';
-import { PreviewService } from './preview';
 import { showBuildSettingsDialog, BuildService } from './builder';
 import { AddressablePanel } from './panels/AddressablePanel';
 import { getGlobalPathResolver } from './asset';
 import type { EditorAssetServer } from './asset/EditorAssetServer';
 import { getAssetLibrary } from './asset/AssetLibrary';
 import { setEditorInstance, getEditorContext, getEditorInstance } from './context/EditorContext';
-import { getAllMenus, getMenuItems, getAllStatusbarItems, registerBuiltinMenus } from './menus';
-import { ShortcutManager } from './menus/ShortcutManager';
+import { registerBuiltinMenus } from './menus';
 import { registerBuiltinGizmos, registerGizmo, lockBuiltinGizmos, clearExtensionGizmos } from './gizmos';
 import { registerBuiltinStatusbarItems } from './menus/builtinStatusbar';
 import { ExtensionLoader } from './extension';
 import { setEditorAPI, clearEditorAPI } from './extension/editorAPI';
-import { registerMenu, registerMenuItem, registerStatusbarItem, lockBuiltinMenus, clearExtensionMenus } from './menus/MenuRegistry';
+import {
+    registerMenu, registerMenuItem, registerStatusbarItem,
+    lockBuiltinMenus, clearExtensionMenus,
+} from './menus/MenuRegistry';
 import { registerPropertyEditor } from './property';
 import { registerComponentSchema } from './schemas';
 import { showToast, showSuccessToast, showErrorToast } from './ui/Toast';
@@ -85,18 +71,13 @@ import {
 import { loadProjectConfig, loadEditorLocalSettings, saveEditorLocalSetting } from './launcher/ProjectService';
 import type { SpineVersion } from './types/ProjectTypes';
 import { Splitter } from './ui/Splitter';
-
-// =============================================================================
-// Types
-// =============================================================================
+import {
+    lockBuiltinPanels, clearExtensionPanels,
+} from './panels/PanelRegistry';
 
 export interface EditorOptions {
     projectPath?: string;
 }
-
-// =============================================================================
-// Editor
-// =============================================================================
 
 export class Editor {
     private container_: HTMLElement;
@@ -108,15 +89,14 @@ export class Editor {
     private bridge_: EditorBridge | null = null;
     private projectPath_: string | null = null;
 
-    private panelInstances_ = new Map<string, PanelInstance>();
-    private statusbarInstances_: Array<{ dispose(): void; update?(): void }> = [];
+    private panelManager_: PanelManager;
+    private menuManager_: MenuManager;
+    private previewManager_: PreviewManager;
+
     private baseAPI_: Record<string, unknown> | null = null;
     private scriptLoader_: ScriptLoader | null = null;
     private extensionLoader_: ExtensionLoader | null = null;
     private splitters_: Splitter[] = [];
-    private previewService_: PreviewService | null = null;
-    private shortcutManager_: ShortcutManager;
-    private activeBottomPanelId_: string | null = 'content-browser';
     private assetLibraryReady_: Promise<void> = Promise.resolve();
     private clipboard_: EntityData[] | null = null;
     private addressableWindow_: { element: HTMLElement; panel: AddressablePanel; keyHandler: (e: KeyboardEvent) => void } | null = null;
@@ -125,7 +105,10 @@ export class Editor {
         this.container_ = container;
         this.store_ = new EditorStore();
         this.projectPath_ = options?.projectPath ?? null;
-        this.shortcutManager_ = new ShortcutManager();
+
+        this.panelManager_ = new PanelManager();
+        this.menuManager_ = new MenuManager();
+        this.previewManager_ = new PreviewManager(this.projectPath_);
 
         installGlobalErrorHandler();
 
@@ -161,16 +144,15 @@ export class Editor {
         this.setupLayout();
 
         registerBuiltinStatusbarItems(this);
-        this.instantiateStatusbar();
-        this.setupMenuShortcuts();
-        this.shortcutManager_.attach();
+        this.menuManager_.instantiateStatusbar(this.container_);
+        this.menuManager_.setupMenuShortcuts();
+        this.menuManager_.attach();
 
         if (this.projectPath_) {
             this.setupEditorGlobals();
             this.assetLibraryReady_ = this.initializeAssetLibrary();
             this.initializeAllScripts();
             this.syncProjectSettings();
-            this.previewService_ = new PreviewService({ projectPath: this.projectPath_ });
             this.restoreLastScene();
         }
     }
@@ -184,31 +166,19 @@ export class Editor {
     }
 
     get activeBottomPanelId(): string | null {
-        return this.activeBottomPanelId_;
+        return this.panelManager_.activeBottomPanelId;
     }
 
     setApp(app: App): void {
         this.app_ = app;
         this.bridge_ = new EditorBridge(app, this.store_);
-
-        for (const panel of this.panelInstances_.values()) {
-            if (isBridgeAware(panel)) panel.setBridge(this.bridge_);
-            if (isAppAware(panel)) panel.setApp(app);
-        }
+        this.panelManager_.setApp(app, this.bridge_);
     }
 
     setSpineModule(module: unknown, version: string): void {
         this.spineModule_ = module;
         this.spineVersion_ = version;
-
-        const raw = module as SpineWasmModule;
-        const controller = module ? new SpineModuleController(raw, wrapSpineModule(raw)) : null;
-        for (const panel of this.panelInstances_.values()) {
-            if (isSpineControllerAware(panel)) {
-                panel.setSpineController(controller);
-            }
-        }
-
+        this.panelManager_.setSpineModule(module);
         this.store_.notifyChange();
     }
 
@@ -229,28 +199,15 @@ export class Editor {
     }
 
     get assetServer(): EditorAssetServer | null {
-        for (const panel of this.panelInstances_.values()) {
-            if (isAssetServerProvider(panel)) return panel.assetServer as EditorAssetServer;
-        }
-        return null;
+        return this.panelManager_.assetServer;
     }
 
     getSpineSkeletonInfo(entityId: number): { animations: string[]; skins: string[] } | null {
-        for (const panel of this.panelInstances_.values()) {
-            if (isSpineInfoProvider(panel)) {
-                return panel.getSpineSkeletonInfo(entityId);
-            }
-        }
-        return null;
+        return this.panelManager_.getSpineSkeletonInfo(entityId);
     }
 
     onSpineInstanceReady(listener: (entityId: number) => void): () => void {
-        for (const panel of this.panelInstances_.values()) {
-            if (isSpineInfoProvider(panel)) {
-                return panel.onSpineInstanceReady(listener);
-            }
-        }
-        return () => {};
+        return this.panelManager_.onSpineInstanceReady(listener);
     }
 
     // =========================================================================
@@ -258,33 +215,20 @@ export class Editor {
     // =========================================================================
 
     showPanel(id: string): void {
-        this.panelInstances_.get(id)?.onShow?.();
+        this.panelManager_.showPanel(id);
     }
 
     hidePanel(id: string): void {
-        this.panelInstances_.get(id)?.onHide?.();
+        this.panelManager_.hidePanel(id);
     }
 
     togglePanel(id: string): void {
-        const panel = this.panelInstances_.get(id);
-        if (!panel) return;
-        panel.onShow?.();
+        this.panelManager_.togglePanel(id);
     }
 
     toggleBottomPanel(id: string): void {
-        const prev = this.activeBottomPanelId_;
-        if (prev === id) {
-            this.activeBottomPanelId_ = null;
-        } else {
-            this.activeBottomPanelId_ = id;
-        }
-        this.updateBottomPanelVisibility();
-        if (prev && prev !== id) {
-            this.panelInstances_.get(prev)?.onHide?.();
-        }
-        if (this.activeBottomPanelId_) {
-            this.panelInstances_.get(this.activeBottomPanelId_)?.onShow?.();
-        }
+        this.panelManager_.toggleBottomPanel(id, this.container_);
+        this.menuManager_.updateStatusbar();
     }
 
     // =========================================================================
@@ -310,7 +254,7 @@ export class Editor {
             const success = await saveSceneToPath(this.store_.scene, filePath);
             if (success) {
                 this.store_.markSaved();
-                this.refreshPreviewFiles();
+                this.previewManager_.refreshFiles(this.store_.scene, this.scriptLoader_, this.spineVersion_);
                 return;
             }
         }
@@ -318,7 +262,7 @@ export class Editor {
         const savedPath = await saveSceneToFile(this.store_.scene);
         if (savedPath) {
             this.store_.markSaved(savedPath);
-            this.refreshPreviewFiles();
+            this.previewManager_.refreshFiles(this.store_.scene, this.scriptLoader_, this.spineVersion_);
         }
     }
 
@@ -673,7 +617,7 @@ export class Editor {
                 const msg = errors.map(e => `${e.file}:${e.line} - ${e.message}`).join('\n');
                 showErrorToast('Script compile failed', msg);
                 for (const e of errors) {
-                    this.appendOutput(`${e.file}:${e.line}:${e.column} - ${e.message}`, 'error');
+                    this.panelManager_.appendOutput(`${e.file}:${e.line}:${e.column} - ${e.message}`, 'error');
                 }
             },
             onCompileSuccess: () => {
@@ -774,12 +718,7 @@ export class Editor {
     }
 
     private cleanupExtensionUI(): void {
-        for (const [id, instance] of this.panelInstances_) {
-            if (isBuiltinPanel(id)) continue;
-            instance.dispose();
-            this.panelInstances_.delete(id);
-            this.container_.querySelector(`[data-panel-id="${id}"]`)?.remove();
-        }
+        this.panelManager_.cleanupExtensionPanels(this.container_);
 
         this.container_.querySelectorAll('[data-statusbar-id^="toggle-"]').forEach(el => {
             const panelId = el.getAttribute('data-statusbar-id')?.replace('toggle-', '');
@@ -798,125 +737,15 @@ export class Editor {
     }
 
     private applyExtensionUI(): void {
-        this.instantiateExtensionPanels();
-        this.addExtensionBottomPanelToggles();
-        this.rebuildMenuBar();
-    }
-
-    private addExtensionBottomPanelToggles(): void {
-        const leftContainer = this.container_.querySelector('.es-statusbar-left');
-        if (!leftContainer) return;
-
-        for (const panel of getPanelsByPosition('bottom')) {
-            if (leftContainer.querySelector(`[data-statusbar-id="toggle-${panel.id}"]`)) continue;
-
-            const item = {
-                id: `toggle-${panel.id}`,
-                position: 'left' as const,
-                render: (container: HTMLElement) => {
-                    const btn = document.createElement('button');
-                    btn.className = 'es-statusbar-btn';
-                    btn.dataset.bottomPanel = panel.id;
-                    btn.innerHTML = `${panel.icon ?? ''}<span>${panel.title}</span>`;
-                    btn.addEventListener('click', () => this.toggleBottomPanel(panel.id));
-                    container.appendChild(btn);
-                    return {
-                        dispose() { btn.remove(); },
-                        update: () => {
-                            btn.classList.toggle('es-active', this.activeBottomPanelId_ === panel.id);
-                        },
-                    };
-                },
-            };
-
-            const span = document.createElement('span');
-            span.dataset.statusbarId = item.id;
-
-            const cmdInputItem = leftContainer.querySelector('[data-statusbar-id="cmd-input"]');
-            if (cmdInputItem) {
-                leftContainer.insertBefore(span, cmdInputItem);
-            } else {
-                leftContainer.appendChild(span);
-            }
-
-            const instance = item.render(span);
-            this.statusbarInstances_.push(instance);
-        }
-    }
-
-    private instantiateExtensionPanels(): void {
-        for (const desc of getAllPanels()) {
-            if (this.panelInstances_.has(desc.id)) continue;
-
-            const position = desc.position ?? 'bottom';
-            let parentEl: HTMLElement | null = null;
-
-            if (position === 'bottom') {
-                parentEl = this.container_.querySelector('.es-editor-bottom');
-            } else {
-                parentEl = this.container_.querySelector(`.es-editor-${position}`);
-            }
-            if (!parentEl) continue;
-
-            const container = document.createElement('div');
-            container.className = 'es-panel-container';
-            container.dataset.panelId = desc.id;
-
-            if (position === 'bottom') {
-                container.style.display = 'none';
-            }
-
-            parentEl.appendChild(container);
-            const instance = desc.factory(container, this.store_);
-            this.panelInstances_.set(desc.id, instance);
-
-            if (this.bridge_ && isBridgeAware(instance)) instance.setBridge(this.bridge_);
-            if (this.app_ && isAppAware(instance)) instance.setApp(this.app_);
-        }
-    }
-
-    private rebuildMenuBar(): void {
-        const menubar = this.container_.querySelector('.es-editor-menubar');
-        if (!menubar) return;
-
-        menubar.querySelectorAll('.es-menu').forEach(el => el.remove());
-
-        const spacer = menubar.querySelector('.es-menubar-spacer');
-        if (!spacer) return;
-
-        const fragment = document.createRange().createContextualFragment(this.buildMenuBarHTML());
-        menubar.insertBefore(fragment, spacer);
-
-        this.attachMenuTriggers();
-    }
-
-    private attachMenuTriggers(): void {
-        const menubar = this.container_.querySelector('.es-editor-menubar');
-        if (!menubar) return;
-
-        menubar.querySelectorAll('.es-menu-trigger').forEach(trigger => {
-            if ((trigger as any).__menuBound) return;
-            (trigger as any).__menuBound = true;
-
-            trigger.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const menu = (trigger as HTMLElement).parentElement!;
-                const isOpen = menu.classList.contains('es-open');
-                menubar.querySelectorAll('.es-menu').forEach(m => m.classList.remove('es-open'));
-                if (!isOpen) {
-                    menu.classList.add('es-open');
-                }
-            });
-
-            trigger.addEventListener('mouseenter', () => {
-                const hasOpen = menubar.querySelector('.es-menu.es-open');
-                if (hasOpen && hasOpen !== trigger.parentElement) {
-                    menubar.querySelectorAll('.es-menu').forEach(m => m.classList.remove('es-open'));
-                    const menu = (trigger as HTMLElement).parentElement!;
-                    menu.classList.add('es-open');
-                }
-            });
-        });
+        this.panelManager_.instantiateExtensionPanels(
+            this.container_, this.store_, this.bridge_, this.app_,
+        );
+        this.menuManager_.addExtensionBottomPanelToggles(
+            this.container_,
+            this.panelManager_.activeBottomPanelId,
+            (id) => this.toggleBottomPanel(id),
+        );
+        this.menuManager_.rebuildMenuBar(this.container_);
     }
 
     async reloadExtensions(): Promise<boolean> {
@@ -936,55 +765,17 @@ export class Editor {
     // =========================================================================
 
     async startPreview(): Promise<void> {
-        if (!this.previewService_) {
-            console.warn('Preview not available: no project loaded');
-            return;
-        }
-
-        try {
-            if (this.scriptLoader_) {
-                await this.scriptLoader_.compile();
-            }
-            const compiledScript = this.scriptLoader_?.getCompiledCode() ?? undefined;
-            const enablePhysics = getSettingsValue<boolean>('project.enablePhysics') ?? false;
-            const physicsConfig = enablePhysics ? {
-                gravityX: getSettingsValue<number>('physics.gravityX') ?? 0,
-                gravityY: getSettingsValue<number>('physics.gravityY') ?? -9.81,
-                fixedTimestep: getSettingsValue<number>('physics.fixedTimestep') ?? 1 / 60,
-                subStepCount: getSettingsValue<number>('physics.subStepCount') ?? 4,
-            } : undefined;
-            const previewSpineVersion = this.spineVersion_ === 'none' ? undefined : this.spineVersion_;
-            await this.previewService_.startPreview(this.store_.scene, compiledScript, previewSpineVersion, enablePhysics, physicsConfig);
-        } catch (err) {
-            console.error('Failed to start preview:', err);
-        }
+        await this.previewManager_.startPreview(
+            this.store_.scene, this.scriptLoader_, this.spineVersion_,
+        );
     }
 
     async stopPreview(): Promise<void> {
-        await this.previewService_?.stopPreview();
-    }
-
-    private refreshPreviewFiles(): void {
-        if (!this.previewService_) return;
-        const compiledScript = this.scriptLoader_?.getCompiledCode() ?? undefined;
-        const enablePhysics = getSettingsValue<boolean>('project.enablePhysics') ?? false;
-        const physicsConfig = enablePhysics ? {
-            gravityX: getSettingsValue<number>('physics.gravityX') ?? 0,
-            gravityY: getSettingsValue<number>('physics.gravityY') ?? -9.81,
-            fixedTimestep: getSettingsValue<number>('physics.fixedTimestep') ?? 1 / 60,
-            subStepCount: getSettingsValue<number>('physics.subStepCount') ?? 4,
-        } : undefined;
-        const spineVersion = this.spineVersion_ === 'none' ? undefined : this.spineVersion_;
-        this.previewService_.updatePreviewFiles(this.store_.scene, compiledScript, spineVersion, enablePhysics, physicsConfig);
+        await this.previewManager_.stopPreview();
     }
 
     async navigateToAsset(assetPath: string): Promise<void> {
-        for (const panel of this.panelInstances_.values()) {
-            if (isAssetNavigable(panel)) {
-                await panel.navigateToAsset(assetPath);
-                return;
-            }
-        }
+        await this.panelManager_.navigateToAsset(assetPath);
     }
 
     // =========================================================================
@@ -997,39 +788,39 @@ export class Editor {
 
     private async executeShellCommand(fullCommand: string): Promise<void> {
         if (!this.projectPath_) {
-            this.appendOutput('Error: No project loaded\n', 'error');
+            this.panelManager_.appendOutput('Error: No project loaded\n', 'error');
             return;
         }
 
         const shell = getEditorContext().shell;
         if (!shell) {
-            this.appendOutput('Error: Shell not available\n', 'error');
+            this.panelManager_.appendOutput('Error: Shell not available\n', 'error');
             return;
         }
 
         const projectDir = this.projectPath_.replace(/[/\\][^/\\]+$/, '');
 
-        this.activeBottomPanelId_ = 'output';
-        this.updateBottomPanelVisibility();
+        this.panelManager_.showBottomPanel('output', this.container_);
+        this.menuManager_.updateStatusbar();
 
         const parts = fullCommand.split(/\s+/);
         const cmd = parts[0];
         const args = parts.slice(1);
 
-        this.appendOutput(`> ${fullCommand}\n`, 'command');
+        this.panelManager_.appendOutput(`> ${fullCommand}\n`, 'command');
 
         try {
             const result = await shell.execute(cmd, args, projectDir, (stream: string, data: string) => {
-                this.appendOutput(data + '\n', stream === 'stderr' ? 'stderr' : 'stdout');
+                this.panelManager_.appendOutput(data + '\n', stream === 'stderr' ? 'stderr' : 'stdout');
             });
 
             if (result.code !== 0) {
-                this.appendOutput(`Process exited with code ${result.code}\n`, 'error');
+                this.panelManager_.appendOutput(`Process exited with code ${result.code}\n`, 'error');
             } else {
-                this.appendOutput(`Done.\n`, 'success');
+                this.panelManager_.appendOutput(`Done.\n`, 'success');
             }
         } catch (err) {
-            this.appendOutput(`Error: ${err}\n`, 'error');
+            this.panelManager_.appendOutput(`Error: ${err}\n`, 'error');
         }
     }
 
@@ -1076,20 +867,13 @@ export class Editor {
             if (stack) {
                 text += '\n' + stack;
             }
-            this.appendOutput(text + '\n', type);
+            this.panelManager_.appendOutput(text + '\n', type);
         };
 
         console.log = (...args) => { original.log(...args); forward('stdout', args); };
         console.info = (...args) => { original.info(...args); forward('stdout', args); };
         console.warn = (...args) => { original.warn(...args); forward('stderr', args, cleanStack(new Error().stack)); };
         console.error = (...args) => { original.error(...args); forward('error', args, cleanStack(new Error().stack)); };
-    }
-
-    private appendOutput(text: string, type: 'command' | 'stdout' | 'stderr' | 'error' | 'success'): void {
-        const outputPanel = this.panelInstances_.get('output');
-        if (outputPanel && isOutputAppendable(outputPanel)) {
-            outputPanel.appendOutput(text, type);
-        }
     }
 
     // =========================================================================
@@ -1101,26 +885,26 @@ export class Editor {
         this.container_.innerHTML = `
             <div class="es-editor-menubar">
                 <div class="es-menubar-logo">${icons.logo(24)}</div>
-                ${this.buildMenuBarHTML()}
+                ${this.menuManager_.buildMenuBarHTML()}
                 <div class="es-menubar-spacer">
                     <span class="es-menubar-scene-name"></span>
                 </div>
                 <button class="es-btn es-btn-preview" data-action="preview">${icons.play(14)} Preview</button>
             </div>
             <div class="es-editor-tabs">
-                ${this.buildTabBarHTML()}
+                ${this.panelManager_.buildTabBarHTML()}
             </div>
             <div class="es-editor-body">
-                ${this.buildMainPanelsHTML()}
+                ${this.panelManager_.buildMainPanelsHTML()}
                 <div class="es-editor-bottom">
-                    ${this.buildBottomPanelsHTML()}
+                    ${this.panelManager_.buildBottomPanelsHTML()}
                 </div>
             </div>
-            ${this.buildStatusBarHTML()}
+            ${this.menuManager_.buildStatusBarHTML()}
         `;
 
-        this.instantiatePanels();
-        this.updateBottomPanelVisibility();
+        this.panelManager_.instantiatePanels(this.container_, this.store_);
+        this.panelManager_.updateBottomPanelVisibility(this.container_);
         this.setupSplitters();
 
         setEditorInstance(this);
@@ -1134,9 +918,12 @@ export class Editor {
             e.preventDefault();
         });
 
-        this.setupToolbarEvents();
-        this.store_.subscribe(() => this.updateToolbarState());
-        this.store_.subscribe(() => this.updateStatusbar());
+        this.menuManager_.setupToolbarEvents(this.container_, () => this.startPreview());
+        this.store_.subscribe(() => this.menuManager_.updateToolbarState(this.container_));
+        this.store_.subscribe(() => {
+            this.menuManager_.updateStatusbar();
+            this.updateSceneNameDisplay();
+        });
         this.installConsoleCapture();
     }
 
@@ -1190,223 +977,6 @@ export class Editor {
         localStorage.setItem(`esengine.editor.${key}`, String(value));
     }
 
-    private buildTabBarHTML(): string {
-        const positions: PanelPosition[] = ['left', 'center', 'right'];
-        return positions.flatMap(pos => getPanelsByPosition(pos))
-            .filter(p => p.defaultVisible)
-            .map(p => `
-                <div class="es-tab es-tab-active" data-panel="${p.id}">
-                    <span class="es-tab-label">${p.title}</span>
-                    <button class="es-tab-close">${icons.x(10)}</button>
-                </div>
-            `).join('');
-    }
-
-    private buildMainPanelsHTML(): string {
-        const sections = (['left', 'center', 'right'] as const).map(pos => {
-            const panels = getPanelsByPosition(pos).filter(p => p.defaultVisible);
-            const containers = panels.map(p =>
-                `<div class="es-panel-container" data-panel-id="${p.id}"></div>`
-            ).join('');
-            return `<div class="es-editor-${pos}">${containers}</div>`;
-        }).join('');
-        return `<div class="es-editor-main">${sections}</div>`;
-    }
-
-    private buildBottomPanelsHTML(): string {
-        const panels = getPanelsByPosition('bottom');
-        return panels.map(p =>
-            `<div class="es-panel-container" data-panel-id="${p.id}" style="display: none;"></div>`
-        ).join('');
-    }
-
-    private buildStatusBarHTML(): string {
-        return `
-            <div class="es-editor-statusbar">
-                <div class="es-statusbar-left"></div>
-                <div class="es-statusbar-right"></div>
-            </div>
-        `;
-    }
-
-    private buildMenuBarHTML(): string {
-        const menus = getAllMenus();
-        return menus.map(menu => {
-            const items = getMenuItems(menu.id);
-            const itemsHTML = items.map(item => {
-                const parts: string[] = [];
-                if (item.separator) {
-                    parts.push('<div class="es-menu-divider"></div>');
-                }
-                parts.push(`<div class="es-menu-item" data-action="${item.id}">`);
-                parts.push(`<span class="es-menu-item-text">${item.label}</span>`);
-                if (item.shortcut) {
-                    parts.push(`<span class="es-menu-item-shortcut">${item.shortcut}</span>`);
-                }
-                parts.push('</div>');
-                return parts.join('');
-            }).join('');
-
-            return `
-                <div class="es-menu" data-menu="${menu.id}">
-                    <div class="es-menu-trigger">${menu.label}</div>
-                    <div class="es-menu-dropdown">${itemsHTML}</div>
-                </div>
-            `;
-        }).join('');
-    }
-
-    private instantiatePanels(): void {
-        for (const desc of getAllPanels()) {
-            if (!desc.defaultVisible && desc.position !== 'bottom') continue;
-            const el = this.container_.querySelector(`[data-panel-id="${desc.id}"]`) as HTMLElement;
-            if (!el) continue;
-            const instance = desc.factory(el, this.store_);
-            this.panelInstances_.set(desc.id, instance);
-        }
-    }
-
-    private instantiateStatusbar(): void {
-        const items = getAllStatusbarItems();
-        const leftContainer = this.container_.querySelector('.es-statusbar-left');
-        const rightContainer = this.container_.querySelector('.es-statusbar-right');
-
-        for (const item of items) {
-            const container = item.position === 'left' ? leftContainer : rightContainer;
-            if (!container) continue;
-            const span = document.createElement('span');
-            span.dataset.statusbarId = item.id;
-            container.appendChild(span);
-            const instance = item.render(span);
-            this.statusbarInstances_.push(instance);
-        }
-    }
-
-    private setupMenuShortcuts(): void {
-        const menus = getAllMenus();
-        for (const menu of menus) {
-            const items = getMenuItems(menu.id);
-            for (const item of items) {
-                if (item.shortcut) {
-                    this.shortcutManager_.register(item.shortcut, item.action);
-                }
-            }
-        }
-    }
-
-    private setupToolbarEvents(): void {
-        const menubar = this.container_.querySelector('.es-editor-menubar');
-        if (!menubar) return;
-
-        let activeMenu: HTMLElement | null = null;
-
-        const closeAllMenus = () => {
-            menubar.querySelectorAll('.es-menu').forEach(m => m.classList.remove('es-open'));
-            activeMenu = null;
-        };
-
-        menubar.querySelectorAll('.es-menu-trigger').forEach(trigger => {
-            trigger.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const menu = (trigger as HTMLElement).parentElement!;
-                const isOpen = menu.classList.contains('es-open');
-                closeAllMenus();
-                if (!isOpen) {
-                    menu.classList.add('es-open');
-                    activeMenu = menu;
-                }
-            });
-
-            trigger.addEventListener('mouseenter', () => {
-                if (activeMenu && activeMenu !== trigger.parentElement) {
-                    closeAllMenus();
-                    const menu = (trigger as HTMLElement).parentElement!;
-                    menu.classList.add('es-open');
-                    activeMenu = menu;
-                }
-            });
-        });
-
-        menubar.addEventListener('click', (e) => {
-            const target = e.target as HTMLElement;
-            const menuItem = target.closest('.es-menu-item') as HTMLElement;
-            if (!menuItem) return;
-
-            if (menuItem.classList.contains('es-disabled')) return;
-
-            const actionId = menuItem.dataset.action;
-            if (!actionId) return;
-
-            closeAllMenus();
-
-            const allMenus = getAllMenus();
-            for (const menu of allMenus) {
-                const items = getMenuItems(menu.id);
-                const found = items.find(i => i.id === actionId);
-                if (found) {
-                    found.action();
-                    return;
-                }
-            }
-        });
-
-        const previewBtn = menubar.querySelector('[data-action="preview"]');
-        previewBtn?.addEventListener('click', () => this.startPreview());
-
-        document.addEventListener('click', (e) => {
-            if (!menubar.contains(e.target as Node)) {
-                closeAllMenus();
-            }
-        });
-    }
-
-    private updateToolbarState(): void {
-        const allMenus = getAllMenus();
-        for (const menu of allMenus) {
-            const items = getMenuItems(menu.id);
-            for (const item of items) {
-                if (item.enabled) {
-                    const el = this.container_.querySelector(`[data-action="${item.id}"]`);
-                    el?.classList.toggle('es-disabled', !item.enabled());
-                }
-            }
-        }
-    }
-
-    private updateBottomPanelVisibility(): void {
-        const bottomSection = this.container_.querySelector('.es-editor-bottom') as HTMLElement;
-        const bottomPanels = getPanelsByPosition('bottom');
-
-        for (const desc of bottomPanels) {
-            const el = this.container_.querySelector(`[data-panel-id="${desc.id}"]`) as HTMLElement;
-            if (el) {
-                el.style.display = desc.id === this.activeBottomPanelId_ ? '' : 'none';
-            }
-        }
-
-        if (bottomSection) {
-            bottomSection.style.display = this.activeBottomPanelId_ ? '' : 'none';
-        }
-
-        for (const instance of this.statusbarInstances_) {
-            instance.update?.();
-        }
-
-        for (const panel of this.panelInstances_.values()) {
-            if (isResizable(panel)) {
-                requestAnimationFrame(() => panel.resize());
-                break;
-            }
-        }
-    }
-
-    private updateStatusbar(): void {
-        for (const instance of this.statusbarInstances_) {
-            instance.update?.();
-        }
-        this.updateSceneNameDisplay();
-    }
-
     private updateSceneNameDisplay(): void {
         const el = this.container_.querySelector('.es-menubar-scene-name');
         if (!el) return;
@@ -1427,24 +997,14 @@ export class Editor {
             document.removeEventListener('keydown', this.addressableWindow_.keyHandler);
             this.addressableWindow_ = null;
         }
-        this.shortcutManager_.detach();
+        this.menuManager_.dispose();
         this.scriptLoader_?.dispose();
         this.extensionLoader_?.dispose();
-        for (const instance of this.statusbarInstances_) {
-            instance.dispose();
-        }
-        this.statusbarInstances_ = [];
-        for (const panel of this.panelInstances_.values()) {
-            panel.dispose();
-        }
-        this.panelInstances_.clear();
+        this.panelManager_.dispose();
+        this.previewManager_.dispose();
         clearEditorAPI();
     }
 }
-
-// =============================================================================
-// Factory Function
-// =============================================================================
 
 export function createEditor(container: HTMLElement, options?: EditorOptions): Editor {
     return new Editor(container, options);

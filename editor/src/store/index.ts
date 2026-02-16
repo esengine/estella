@@ -7,6 +7,7 @@ export {
     EditorStore,
     getEditorStore,
     resetEditorStore,
+    type DirtyFlag,
     type EditorState,
     type EditorListener,
     type PropertyChangeEvent,

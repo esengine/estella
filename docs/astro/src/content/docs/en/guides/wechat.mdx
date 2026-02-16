@@ -1,0 +1,164 @@
+---
+title: WeChat MiniGame
+description: Build and deploy ESEngine games to the WeChat MiniGame platform
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+ESEngine supports building games as WeChat MiniGames. The editor handles the entire build process, producing a project directory that can be opened directly in WeChat DevTools.
+
+## Prerequisites
+
+Before building for WeChat MiniGame, ensure you have:
+
+1. **WeChat DevTools** installed ([download](https://developers.weixin.qq.com/miniprogram/dev/devtools/download.html))
+2. A **WeChat MiniGame AppID** (optional for testing -- you can use `touristappid`)
+
+## Building a WeChat MiniGame
+
+### 1. Open the Build Panel
+
+Open the **Build** panel from the editor toolbar and select or create a WeChat MiniGame configuration.
+
+### 2. Configure Settings
+
+| Setting | Description |
+|---------|-------------|
+| **AppID** | WeChat MiniGame AppID. Use `touristappid` for testing without a registered app. |
+| **Version** | Version string (e.g. `1.0.0`) |
+| **Orientation** | `Portrait` or `Landscape` |
+| **Pack Mode** | `Subpackage` (recommended for most games), `Single` or `Single File` |
+| **Output Directory** | Where to write the build output (e.g. `build/wechat`) |
+
+### 3. Add Scenes
+
+Make sure the scenes you want to include are listed in the scene list. Click **Add Current Scene** to add the scene currently open in the editor.
+
+### 4. Click Build
+
+Click **Build** or press `Cmd/Ctrl + B`. The editor will:
+
+1. Collect all assets referenced by scenes
+2. Pack textures into atlas pages
+3. Compile materials and user scripts
+4. Generate `game.js`, `game.json` and `project.config.json`
+5. Copy the engine WASM files and SDK
+6. Write the complete project to the output directory
+
+Build progress is displayed in real time.
+
+## Opening in WeChat DevTools
+
+After a successful build:
+
+1. Open **WeChat DevTools**
+2. Click **Import Project**
+3. Navigate to the build output directory (e.g. `build/wechat`)
+4. The AppID will auto-fill from `project.config.json`
+5. Click **Import**
+
+Your game should load and run in the simulator.
+
+<Aside type="tip">
+  After the build completes, click **Open Folder** in the editor build output panel to quickly navigate to the output directory.
+</Aside>
+
+## Build Output
+
+The build produces the following directory structure:
+
+```
+build/wechat/
+  project.config.json   # WeChat DevTools project configuration
+  game.json             # MiniGame manifest (orientation, subpackages, etc.)
+  game.js               # Entry point (engine init + user scripts)
+  esengine.js           # WASM engine loader
+  esengine.wasm         # Engine WASM binary
+  sdk.js                # ESEngine SDK runtime
+  spine.js / spine.wasm # Spine runtime (if Spine is enabled)
+  physics.js / physics.wasm # Physics engine (if physics is enabled)
+  asset-manifest.json   # Addressable asset manifest
+  atlas_0.png, ...      # Packed texture atlas pages
+  scenes/               # Scene JSON files
+  assets/               # Game assets (textures, Spine data, etc.)
+```
+
+### What `game.js` Does
+
+The generated `game.js` is the MiniGame entry point. It automatically handles all platform-specific initialization:
+
+- Creates a canvas and sets the correct resolution
+- Loads the WASM engine using `WXWebAssembly.instantiate()`
+- Registers the WebGL context with the engine
+- Loads and runs user scripts
+- Loads the startup scene and starts the game loop
+
+You should not need to modify `game.js` under normal usage.
+
+## Platform Differences
+
+WeChat MiniGames run in a custom JavaScript runtime that differs from standard browsers:
+
+- **No DOM**: There is no `document` or HTML elements. The canvas is provided by `wx.createCanvas()`.
+- **No dynamic execution**: `eval()` and `new Function()` are disabled. The build handles this limitation automatically.
+- **Touch input only**: Input comes from the WeChat touch API. The SDK translates it to standard pointer events.
+- **Custom file system**: Files are read via `wx.getFileSystemManager()` rather than HTTP fetch.
+
+These differences are handled transparently by the build output. Your game scripts work the same way regardless of the target platform.
+
+## Custom Extension Files
+
+WeChat blocks access to files with unrecognized extensions by default. The build automatically generates the correct `packOptions.include` entries in `project.config.json` for all ESEngine file types (`.esmaterial`, `.esprefab`, `.atlas`, `.skel`, `.fnt`, `.bmfont`).
+
+<Aside type="caution">
+  If you add custom asset types with non-standard extensions, you may need to manually add them to `packOptions.include` in the generated `project.config.json`.
+</Aside>
+
+## Troubleshooting
+
+### "Permission denied" when reading files
+
+This occurs when WeChat blocks access to files with unrecognized extensions. The build automatically generates `packOptions.include`, but if you have manually added new asset types, verify the extension is listed:
+
+```json
+{
+    "packOptions": {
+        "include": [
+            { "type": "suffix", "value": ".yourextension" }
+        ]
+    }
+}
+```
+
+### "File not found"
+
+The asset was not included in the build. Ensure one of the following:
+- It is referenced by a scene or prefab (automatically included)
+- Its folder has export mode set to `always` in the asset export configuration
+
+### WebGL context errors
+
+If you see `Failed to create WebGL context`, make sure the WeChat base library version supports WebGL 2. The build defaults `libVersion` to `3.0.0`, but verify in WeChat DevTools under **Project Settings > Base Library Version**.
+
+### White screen
+
+- Check the WeChat DevTools console for error messages
+- Ensure scenes are listed in the build configuration
+- Verify the output directory contains all expected files (especially `esengine.wasm` and `sdk.js`)
+
+## Advanced: Customizing `game.js`
+
+For advanced use cases (adding WeChat-specific APIs, analytics, or ad SDKs), you can modify the generated `game.js` after building. Key extension points:
+
+- **Before scene load**: Add initialization code after `SDK.flushPendingSystems(app)` and before scene loading
+- **After scene load**: Add code after `SDK.loadRuntimeScene(...)` and before `app.run()`
+
+<Aside type="caution">
+  Each build will overwrite your `game.js` modifications. If you need persistent customizations, keep a copy and merge changes after rebuilding.
+</Aside>
+
+## Next Steps
+
+- [Building & Exporting](/microes/en/guides/building/) -- Build pipeline overview
+- [Playable Ads](/microes/en/guides/playable-ads/) -- Single-file HTML builds for ad networks
+- [Asset Loading](/microes/en/guides/assets/) -- Asset loading API

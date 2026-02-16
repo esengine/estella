@@ -1,0 +1,161 @@
+---
+title: Debugging
+description: Debug ESEngine games with source maps, WASM debugging, and performance profiling
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+This guide covers debugging techniques for ESEngine projects, including source maps, WASM debugging, performance profiling, and solutions to common errors.
+
+## Source Maps
+
+### Editor Preview
+
+When previewing in the editor, source maps are enabled by default. Open the browser DevTools in the preview window to set breakpoints and step through your TypeScript code.
+
+### Build Output
+
+For playable ad builds, enable **Dev Build** in the build configuration to include source maps. Production builds strip source maps for smaller file size.
+
+For WeChat MiniGame builds, source maps are generated alongside the output. Enable **Source Maps** in WeChat DevTools settings to use them.
+
+## WASM Debugging
+
+The engine core runs as WebAssembly. WASM debugging requires a debug build of the engine.
+
+### Debug Build
+
+Build the engine in debug mode:
+
+```bash
+node build-tools/cli.js build -t web -d
+```
+
+This produces an unoptimized WASM binary with DWARF debug info. The binary is significantly larger than a release build.
+
+### Chrome WASM Debugging
+
+1. Install the [C/C++ DevTools Support](https://chrome.google.com/webstore/detail/cc%2B%2B-devtools-support-dwa/pdcpmagijalfljmkmjngeonclgbbannb) Chrome extension
+2. Open Chrome DevTools
+3. Navigate to the **Sources** panel
+4. WASM source files appear under the `file://` tree
+5. Set breakpoints in C++ source files and step through code
+
+<Aside type="note">
+  WASM debugging is only available in Chromium-based browsers. Firefox and Safari do not support DWARF-based WASM debugging.
+</Aside>
+
+### Debug Logging
+
+The engine provides logging macros at different levels. In debug builds, all log levels are active. In release builds, only warnings and errors are emitted.
+
+From the SDK side, use the browser console. The engine forwards C++ log messages to `console.log` / `console.warn` / `console.error` automatically.
+
+## Performance Profiling
+
+### Frame Time
+
+Use the browser Performance panel to record a trace:
+
+1. Open DevTools and go to the **Performance** tab
+2. Click **Record**, interact with your game, then stop
+3. Examine the flame chart for long frames
+
+Look for:
+- **Long system execution** -- a single system taking too much time per frame
+- **Asset loading stalls** -- large textures or Spine data blocking the main thread
+- **GC pauses** -- frequent garbage collection from excessive allocations
+
+### Draw Call Count
+
+Use the Draw API to monitor render statistics:
+
+```typescript
+import { Draw } from 'esengine';
+
+console.log('Draw calls:', Draw.getDrawCallCount());
+console.log('Primitives:', Draw.getPrimitiveCount());
+```
+
+### ECS Query Performance
+
+If a system with a broad query runs slowly, narrow the query by adding more specific component filters. Queries with fewer matching entities run faster.
+
+```typescript
+const narrowSystem = defineSystem(
+    [Query(Mut(LocalTransform), Velocity, Player)],
+    (query) => {
+        for (const [entity, transform, velocity] of query) {
+            transform.position.x += velocity.linear.x;
+        }
+    }
+);
+```
+
+### Texture Atlas Efficiency
+
+Large numbers of individual textures cause more draw calls. Use the build panel to verify that textures are packed into atlases. Textures that exceed the atlas page size (default 2048x2048) remain as separate draw calls.
+
+## Common Errors
+
+### "WASM module failed to compile"
+
+**Cause**: The WASM binary is corrupted or incompatible with the current browser.
+
+**Fix**:
+- Rebuild the WASM binary: `node build-tools/cli.js build -t web -c`
+- Verify the Emscripten version matches what the project expects
+- Check that the browser supports WebAssembly
+
+### "Entity not found" / Invalid entity access
+
+**Cause**: Accessing an entity that has been despawned, or using a stale entity ID.
+
+**Fix**:
+- Check entity existence before access: `if (world.isAlive(entity)) { ... }`
+- Avoid storing entity IDs across frames without validation
+- Remember that `Commands` are deferred -- entities are not despawned until the end of the schedule stage
+
+### "Component not registered"
+
+**Cause**: Using a component type that has not been defined or imported.
+
+**Fix**:
+- Ensure `defineComponent()` or `defineBuiltin()` is called before using the component
+- Check that the component module is imported in your entry file
+- For builtin components, verify the SDK version matches the WASM binary version
+
+### "WebGL context lost"
+
+**Cause**: The GPU driver reset the WebGL context, usually due to resource exhaustion.
+
+**Fix**:
+- Reduce texture memory usage (smaller atlases, compressed textures)
+- Reduce the number of active render targets
+- On mobile devices, minimize background GPU usage
+
+### Blank or black screen in preview
+
+**Cause**: Multiple possible causes.
+
+**Checklist**:
+1. Check DevTools console for errors
+2. Verify the scene file exists and is valid JSON
+3. Ensure at least one camera entity exists in the scene
+4. Check that textures referenced by sprites are loaded (no 404s in Network tab)
+5. Verify the WASM binary loaded successfully
+
+### Build output does not match editor preview
+
+**Cause**: Build-time asset processing (atlas packing, material compilation) can surface issues not visible in preview.
+
+**Fix**:
+- Compare the DevTools console output between preview and build
+- Verify all assets are included (check `asset-manifest.json`)
+- For WeChat builds, check that custom file extensions are in `packOptions.include`
+
+## Next Steps
+
+- [Custom Draw](/microes/en/guides/custom-draw/) -- Debug visualization with the Draw API
+- [Building & Exporting](/microes/en/guides/building/) -- Build pipeline and configuration
+- [Scenes](/microes/en/guides/scenes/) -- Scene loading and management

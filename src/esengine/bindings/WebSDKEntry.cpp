@@ -98,6 +98,13 @@ bool getMaterialDataWithUniforms(u32 materialId, u32& shaderId, u32& blendMode,
 
     if (shaderId == 0) return false;
 
+    constexpr u32 MAX_UNIFORMS = 64;
+    if (uniformCount > MAX_UNIFORMS) {
+        ES_LOG_ERROR("Material {} has {} uniforms (max {}), clamping",
+                     materialId, uniformCount, MAX_UNIFORMS);
+        uniformCount = MAX_UNIFORMS;
+    }
+
     if (uniformCount > 0 && uniformBufferPtr != 0) {
         const u8* ptr = reinterpret_cast<const u8*>(uniformBufferPtr);
 

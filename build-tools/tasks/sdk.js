@@ -4,9 +4,10 @@ import { existsSync } from 'fs';
 import config from '../build.config.js';
 import * as logger from '../utils/logger.js';
 import { runCommand } from '../utils/emscripten.js';
+import { hashDirectory, HashCache } from '../utils/hash.js';
 
 export async function buildSdk(options = {}) {
-    const { manifest = null } = options;
+    const { manifest = null, noCache = false } = options;
 
     if (manifest) {
         manifest.startTarget('sdk');
@@ -18,11 +19,48 @@ export async function buildSdk(options = {}) {
         const sdkDir = config.paths.sdk;
         const outputDir = path.join(config.paths.output, 'sdk');
 
-        await mkdir(outputDir, { recursive: true });
+        if (!noCache) {
+            const cache = new HashCache(config.paths.cache);
+            await cache.load();
 
-        await runCommand('npm', ['run', 'build'], { cwd: sdkDir });
+            const sdkSrcDir = path.join(sdkDir, 'src');
+            const currentHash = await hashDirectory(sdkSrcDir, /\.ts$/);
 
-        await copyDistOutputs(sdkDir, outputDir);
+            if (!await cache.isChanged('sdk', currentHash)) {
+                logger.success('SDK: No changes detected (cached)');
+                const result = {
+                    outputDir,
+                    outputs: [
+                        'esm/esengine.js',
+                        'esm/esengine.d.ts',
+                        'esm/wasm.js',
+                        'esm/wasm.d.ts',
+                        'esm/spine/index.js',
+                        'esm/spine/index.d.ts',
+                        'esm/physics/index.js',
+                        'esm/physics/index.d.ts',
+                        'cjs/esengine.wechat.js',
+                        'cjs/index.wechat.js',
+                    ],
+                    skipped: true,
+                };
+                if (manifest) {
+                    await manifest.endTarget('sdk', result);
+                }
+                return result;
+            }
+
+            await mkdir(outputDir, { recursive: true });
+            await runCommand('npm', ['run', 'build'], { cwd: sdkDir });
+            await copyDistOutputs(sdkDir, outputDir);
+
+            cache.set('sdk', currentHash);
+            await cache.save();
+        } else {
+            await mkdir(outputDir, { recursive: true });
+            await runCommand('npm', ['run', 'build'], { cwd: sdkDir });
+            await copyDistOutputs(sdkDir, outputDir);
+        }
 
         logger.success('SDK: Build complete');
 

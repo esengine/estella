@@ -63,7 +63,9 @@ export interface EditorState {
     filePath: string | null;
 }
 
-export type EditorListener = (state: EditorState) => void;
+export type DirtyFlag = 'scene' | 'selection' | 'hierarchy' | 'property';
+
+export type EditorListener = (state: EditorState, dirtyFlags?: ReadonlySet<DirtyFlag>) => void;
 
 export interface PropertyChangeEvent {
     entity: number;
@@ -121,6 +123,7 @@ export class EditorStore {
     private componentChangeListeners_: Set<ComponentChangeListener> = new Set();
     private sceneSyncListeners_: Set<() => void> = new Set();
     private pendingNotify_ = false;
+    private dirtyFlags_: Set<DirtyFlag> = new Set();
     private nextEntityId_ = 1;
     private sceneVersion_ = 0;
     private worldTransforms_ = new WorldTransformCache();
@@ -221,7 +224,7 @@ export class EditorStore {
         this.rebuildEntityMap();
         this.worldTransforms_.setScene(this.state_.scene);
         this.notifySceneSync();
-        this.notify();
+        this.notify('scene');
     }
 
     loadScene(scene: SceneData, filePath: string | null = null): void {
@@ -237,7 +240,7 @@ export class EditorStore {
         this.rebuildEntityMap();
         this.worldTransforms_.setScene(scene);
         this.notifySceneSync();
-        this.notify();
+        this.notify('scene');
     }
 
     markSaved(filePath: string | null = null): void {
@@ -245,7 +248,7 @@ export class EditorStore {
         if (filePath) {
             this.state_.filePath = filePath;
         }
-        this.notify();
+        this.notify('scene');
     }
 
     // =========================================================================
@@ -275,7 +278,7 @@ export class EditorStore {
 
         if (!this.setsEqual(oldSelection, this.state_.selectedEntities)) {
             this.state_.selectedAsset = null;
-            this.notify();
+            this.notify('selection');
         }
     }
 
@@ -285,7 +288,7 @@ export class EditorStore {
             this.state_.selectedEntities.add(id);
         }
         this.state_.selectedAsset = null;
-        this.notify();
+        this.notify('selection');
     }
 
     selectRange(fromEntity: number, toEntity: number): void {
@@ -332,7 +335,7 @@ export class EditorStore {
     selectAsset(asset: AssetSelection | null): void {
         this.state_.selectedAsset = asset;
         this.state_.selectedEntities.clear();
-        this.notify();
+        this.notify('selection');
     }
 
     getSelectedEntityData(): EntityData | null {
@@ -775,7 +778,7 @@ export class EditorStore {
         }
 
         this.state_.isDirty = true;
-        this.notify();
+        this.notify('scene');
         return true;
     }
 
@@ -874,7 +877,7 @@ export class EditorStore {
         const synced = await syncPrefabInstances(saved.scene, editedPrefabPath);
         this.loadScene(saved.scene, saved.filePath);
         this.state_.isDirty = saved.isDirty || synced || saveFailed;
-        this.notify();
+        this.notify('scene');
     }
 
     async savePrefabEditing(): Promise<boolean> {
@@ -884,7 +887,7 @@ export class EditorStore {
         const saved = await savePrefabToPath(prefab, this.prefabEditingPath_);
         if (saved) {
             this.state_.isDirty = false;
-            this.notify();
+            this.notify('scene');
         }
         return saved;
     }
@@ -928,7 +931,10 @@ export class EditorStore {
     // =========================================================================
 
     notifyChange(): void {
-        this.notify();
+        this.notify('scene');
+        this.notify('selection');
+        this.notify('hierarchy');
+        this.notify('property');
     }
 
     subscribe(listener: EditorListener): () => void {
@@ -983,7 +989,7 @@ export class EditorStore {
 
         this.syncDerivedProperties();
         this.notifySceneSync();
-        this.notify();
+        this.notify(cmd.structural ? 'hierarchy' : 'scene');
     }
 
     private notifySceneSync(): void {
@@ -992,14 +998,17 @@ export class EditorStore {
         }
     }
 
-    private notify(): void {
+    private notify(flag: DirtyFlag = 'scene'): void {
+        this.dirtyFlags_.add(flag);
         if (this.pendingNotify_) return;
         this.pendingNotify_ = true;
         this.sceneVersion_++;
         requestAnimationFrame(() => {
             this.pendingNotify_ = false;
+            const flags = new Set(this.dirtyFlags_);
+            this.dirtyFlags_.clear();
             for (const listener of this.listeners_) {
-                listener(this.state_);
+                listener(this.state_, flags);
             }
         });
     }

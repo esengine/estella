@@ -127,7 +127,17 @@ export class InspectorPanel {
         const asset = this.store_.selectedAsset;
 
         if (selectedEntities.length === 1) {
-            this.renderEntityInspector(selectedEntities[0] as Entity);
+            const entity = selectedEntities[0] as Entity;
+            if (this.needsStructureRebuild(entity)) {
+                this.rebuildEntityStructure(entity);
+            } else if (this.currentEntity_ === entity) {
+                this.updateEditors();
+                this.updateVisibilityIcon();
+                const entityData = this.store_.getSelectedEntityData();
+                if (entityData) {
+                    renderMaterialPreview(this.materialPreviewState_, entity, entityData.components, this.store_);
+                }
+            }
         } else if (selectedEntities.length > 1) {
             this.renderMultiEntityInspector(selectedEntities as Entity[]);
         } else if (asset !== null) {
@@ -135,6 +145,17 @@ export class InspectorPanel {
         } else {
             this.renderEmptyState();
         }
+    }
+
+    private needsStructureRebuild(entity: Entity): boolean {
+        if (entity !== this.currentEntity_) return true;
+        if (this.currentAssetPath_ !== null) return true;
+
+        const entityData = this.store_.getSelectedEntityData();
+        const componentCount = entityData?.components.length ?? 0;
+        const prefabPath = entityData?.prefab?.prefabPath;
+
+        return componentCount !== this.currentComponentCount_ || prefabPath !== this.currentPrefabPath_;
     }
 
     private renderEmptyState(): void {
@@ -156,24 +177,10 @@ export class InspectorPanel {
     // Entity Inspector
     // =========================================================================
 
-    private renderEntityInspector(entity: Entity): void {
+    private rebuildEntityStructure(entity: Entity): void {
         const entityData = this.store_.getSelectedEntityData();
         const componentCount = entityData?.components.length ?? 0;
         const prefabPath = entityData?.prefab?.prefabPath;
-
-        const entityChanged = entity !== this.currentEntity_;
-        const componentsChanged = componentCount !== this.currentComponentCount_;
-        const prefabChanged = prefabPath !== this.currentPrefabPath_;
-        const wasAsset = this.currentAssetPath_ !== null;
-
-        if (!entityChanged && !componentsChanged && !prefabChanged && !wasAsset) {
-            this.updateEditors();
-            this.updateVisibilityIcon();
-            if (entityData) {
-                renderMaterialPreview(this.materialPreviewState_, entity, entityData.components, this.store_);
-            }
-            return;
-        }
 
         this.currentEntity_ = entity;
         this.currentAssetPath_ = null;

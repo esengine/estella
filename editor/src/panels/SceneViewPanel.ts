@@ -51,6 +51,7 @@ export class SceneViewPanel {
     private unsubscribeFocus_: (() => void) | null = null;
     private animationId_: number | null = null;
     private continuousRender_ = false;
+    private isDirty_ = true;
     private resizeObserver_: ResizeObserver | null = null;
     private projectPath_: string | null = null;
     private app_: App | null = null;
@@ -859,17 +860,39 @@ export class SceneViewPanel {
     }
 
     private requestRender(): void {
+        this.isDirty_ = true;
         if (this.animationId_ !== null) return;
 
         this.animationId_ = requestAnimationFrame(() => {
             this.animationId_ = null;
-            try {
-                this.render();
-            } catch (e) {
-                console.warn('[SceneViewPanel] Render error, skipping frame:', e);
+            if (this.isDirty_) {
+                this.isDirty_ = false;
+                try {
+                    this.render();
+                } catch (e) {
+                    console.warn('[SceneViewPanel] Render error, skipping frame:', e);
+                }
             }
             if (this.continuousRender_) {
-                this.requestRender();
+                this.scheduleNextFrame();
+            }
+        });
+    }
+
+    private scheduleNextFrame(): void {
+        if (this.animationId_ !== null) return;
+        this.animationId_ = requestAnimationFrame(() => {
+            this.animationId_ = null;
+            if (this.isDirty_) {
+                this.isDirty_ = false;
+                try {
+                    this.render();
+                } catch (e) {
+                    console.warn('[SceneViewPanel] Render error, skipping frame:', e);
+                }
+            }
+            if (this.continuousRender_) {
+                this.scheduleNextFrame();
             }
         });
     }

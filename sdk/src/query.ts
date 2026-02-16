@@ -117,7 +117,11 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
     *[Symbol.iterator](): Iterator<QueryResult<C>> {
         const { _mutIndices, _without } = this.descriptor_;
         const actualComponents = this.actualComponents_;
-        const entities = this.world_.getEntitiesWithComponents(this.allRequired_);
+        const entities = this.world_.getEntitiesWithComponents(
+            this.allRequired_,
+            this.descriptor_._with,
+            this.descriptor_._without
+        );
         const compCount = actualComponents.length;
         const hasMut = _mutIndices.length > 0;
         const hasWithout = _without.length > 0;

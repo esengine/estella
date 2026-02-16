@@ -2,13 +2,37 @@ import { spawn } from 'child_process';
 import os from 'os';
 import * as logger from './logger.js';
 
+const MIN_EMSCRIPTEN_VERSION = '3.1.51';
+
+function compareVersions(a, b) {
+    const pa = a.split('.').map(Number);
+    const pb = b.split('.').map(Number);
+    for (let i = 0; i < 3; i++) {
+        if (pa[i] > pb[i]) return 1;
+        if (pa[i] < pb[i]) return -1;
+    }
+    return 0;
+}
+
 export async function checkEmscripten() {
     try {
         const result = await runCommand('emcc', ['--version'], { silent: true });
         const versionMatch = result.stdout.match(/(\d+\.\d+\.\d+)/);
-        if (versionMatch) {
-            logger.debug(`Emscripten version: ${versionMatch[1]}`);
+        if (!versionMatch) {
+            logger.error('Could not determine Emscripten version.');
+            return false;
         }
+
+        const version = versionMatch[1];
+        logger.debug(`Emscripten version: ${version}`);
+
+        if (compareVersions(version, MIN_EMSCRIPTEN_VERSION) < 0) {
+            logger.error(`Emscripten ${version} is too old. Minimum required: ${MIN_EMSCRIPTEN_VERSION}`);
+            logger.info(`  Update: emsdk install ${MIN_EMSCRIPTEN_VERSION} && emsdk activate ${MIN_EMSCRIPTEN_VERSION}`);
+            logger.info('  Then: source /path/to/emsdk/emsdk_env.sh');
+            return false;
+        }
+
         return true;
     } catch {
         return false;

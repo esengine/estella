@@ -11,7 +11,7 @@ import { BaseCommand, type Command } from './Command';
 // Constants
 // =============================================================================
 
-const MERGE_WINDOW_MS = 500;
+const MERGE_WINDOW_MS = 1000;
 
 // =============================================================================
 // PropertyCommand

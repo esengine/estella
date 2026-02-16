@@ -130,11 +130,11 @@ jobs:
     - name: Install dependencies
       run: pnpm install
 
-    - name: Run SDK tests
-      run: pnpm --filter esengine test
+    - name: Run SDK tests with coverage
+      run: pnpm --filter esengine vitest run --coverage --coverage.thresholds.lines=60 --coverage.thresholds.functions=60 --coverage.thresholds.branches=60 --coverage.thresholds.statements=60
 
     - name: Build SDK
       run: pnpm --filter esengine build
 
-    - name: Run Editor tests
-      run: pnpm --filter @esengine/editor test
+    - name: Run Editor tests with coverage
+      run: pnpm --filter @esengine/editor vitest run --coverage --coverage.thresholds.lines=60 --coverage.thresholds.functions=60 --coverage.thresholds.branches=60 --coverage.thresholds.statements=60

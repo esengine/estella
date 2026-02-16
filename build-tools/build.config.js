@@ -12,6 +12,12 @@ export default {
         sdk: path.resolve(__dirname, '../sdk'),
     },
 
+    optimization: {
+        web: { cmakeOpt: '-O2', wasmOpt: '-O2' },
+        wechat: { cmakeOpt: '-O2', wasmOpt: '-O2' },
+        playable: { cmakeOpt: '-Oz', wasmOpt: '-Oz' },
+    },
+
     wasm: {
         web: {
             buildDir: 'build-web',

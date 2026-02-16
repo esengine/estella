@@ -1,0 +1,161 @@
+---
+title: 调试
+description: 使用 source maps、WASM 调试和性能分析调试 ESEngine 游戏
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+本指南介绍 ESEngine 项目的调试技巧，包括 source maps、WASM 调试、性能分析以及常见错误的解决方案。
+
+## Source Maps
+
+### 编辑器预览
+
+在编辑器中预览时，source maps 默认启用。在预览窗口中打开浏览器 DevTools 即可设置断点并逐步执行 TypeScript 代码。
+
+### 构建产物
+
+对于可玩广告构建，在构建配置中启用**开发构建**以包含 source maps。生产构建会移除 source maps 以减小文件体积。
+
+对于微信小游戏构建，source maps 会生成在输出目录中。在微信开发者工具设置中启用 **Source Maps** 即可使用。
+
+## WASM 调试
+
+引擎核心以 WebAssembly 运行。WASM 调试需要引擎的 debug 构建。
+
+### Debug 构建
+
+以 debug 模式构建引擎：
+
+```bash
+node build-tools/cli.js build -t web -d
+```
+
+这会生成一个包含 DWARF 调试信息的未优化 WASM 二进制文件。该文件会比 release 构建大很多。
+
+### Chrome WASM 调试
+
+1. 安装 [C/C++ DevTools Support](https://chrome.google.com/webstore/detail/cc%2B%2B-devtools-support-dwa/pdcpmagijalfljmkmjngeonclgbbannb) Chrome 扩展
+2. 打开 Chrome DevTools
+3. 导航到 **Sources** 面板
+4. WASM 源文件会出现在 `file://` 树下
+5. 在 C++ 源文件中设置断点并逐步执行代码
+
+<Aside type="note">
+  WASM 调试仅在基于 Chromium 的浏览器中可用。Firefox 和 Safari 不支持基于 DWARF 的 WASM 调试。
+</Aside>
+
+### 调试日志
+
+引擎提供了不同级别的日志宏。在 debug 构建中所有日志级别都会输出。在 release 构建中仅输出警告和错误。
+
+在 SDK 端，使用浏览器控制台。引擎会自动将 C++ 日志消息转发到 `console.log` / `console.warn` / `console.error`。
+
+## 性能分析
+
+### 帧时间
+
+使用浏览器 Performance 面板录制跟踪：
+
+1. 打开 DevTools 并转到 **Performance** 标签
+2. 点击 **Record**，与游戏交互，然后停止
+3. 检查火焰图中的长帧
+
+重点关注：
+- **系统执行时间过长** -- 单个系统每帧耗时过多
+- **资源加载阻塞** -- 大纹理或 Spine 数据阻塞主线程
+- **GC 暂停** -- 大量分配导致频繁垃圾回收
+
+### Draw Call 计数
+
+使用 Draw API 监控渲染统计：
+
+```typescript
+import { Draw } from 'esengine';
+
+console.log('Draw calls:', Draw.getDrawCallCount());
+console.log('Primitives:', Draw.getPrimitiveCount());
+```
+
+### ECS 查询性能
+
+如果一个查询范围较广的系统运行缓慢，通过添加更具体的组件过滤器来缩小查询范围。匹配实体更少的查询执行更快。
+
+```typescript
+const narrowSystem = defineSystem(
+    [Query(Mut(LocalTransform), Velocity, Player)],
+    (query) => {
+        for (const [entity, transform, velocity] of query) {
+            transform.position.x += velocity.linear.x;
+        }
+    }
+);
+```
+
+### 纹理图集效率
+
+大量独立纹理会导致更多 draw call。使用构建面板验证纹理是否被打包到图集中。超过图集页大小（默认 2048x2048）的纹理会作为单独的 draw call。
+
+## 常见错误
+
+### "WASM module failed to compile"
+
+**原因**: WASM 二进制文件损坏或与当前浏览器不兼容。
+
+**解决**:
+- 重新构建 WASM 二进制文件：`node build-tools/cli.js build -t web -c`
+- 验证 Emscripten 版本与项目预期一致
+- 检查浏览器是否支持 WebAssembly
+
+### "Entity not found" / 无效实体访问
+
+**原因**: 访问已被销毁的实体，或使用了过期的实体 ID。
+
+**解决**:
+- 访问前检查实体是否存在：`if (world.isAlive(entity)) { ... }`
+- 避免跨帧存储实体 ID 而不进行验证
+- 记住 `Commands` 是延迟执行的 -- 实体不会在调度阶段结束前被销毁
+
+### "Component not registered"
+
+**原因**: 使用了未定义或未导入的组件类型。
+
+**解决**:
+- 确保在使用组件前调用了 `defineComponent()` 或 `defineBuiltin()`
+- 检查组件模块是否在入口文件中导入
+- 对于内置组件，验证 SDK 版本与 WASM 二进制版本匹配
+
+### "WebGL context lost"
+
+**原因**: GPU 驱动重置了 WebGL 上下文，通常由资源耗尽引起。
+
+**解决**:
+- 减少纹理内存使用（更小的图集、压缩纹理）
+- 减少活跃的渲染目标数量
+- 在移动设备上，最小化后台 GPU 使用
+
+### 预览中显示空白或黑屏
+
+**原因**: 可能有多种原因。
+
+**排查清单**:
+1. 检查 DevTools 控制台的错误信息
+2. 验证场景文件存在且是有效的 JSON
+3. 确保场景中至少存在一个相机实体
+4. 检查精灵引用的纹理是否已加载（Network 标签中无 404）
+5. 验证 WASM 二进制文件已成功加载
+
+### 构建产物与编辑器预览不一致
+
+**原因**: 构建时的资源处理（图集打包、材质编译）可能暴露预览中不可见的问题。
+
+**解决**:
+- 对比预览和构建的 DevTools 控制台输出
+- 验证所有资源都已包含（检查 `asset-manifest.json`）
+- 对于微信构建，检查自定义文件扩展名是否在 `packOptions.include` 中
+
+## 下一步
+
+- [自定义绘制](/microes/zh/guides/custom-draw/) -- 使用 Draw API 进行调试可视化
+- [构建与导出](/microes/zh/guides/building/) -- 构建流水线和配置
+- [场景](/microes/zh/guides/scenes/) -- 场景加载和管理

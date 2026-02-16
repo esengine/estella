@@ -57,18 +57,21 @@ program
             const wasmTargets = targets.filter(t => t !== 'sdk');
             const buildSdkFlag = options.target === 'all' || options.target === 'sdk' || wasmTargets.length > 0;
 
+            const noCache = !options.cache;
+
             if (wasmTargets.length > 0) {
-                await runEht({ noCache: !options.cache });
+                await runEht({ noCache });
                 await buildWasmParallel(wasmTargets, {
                     debug: isDebug,
                     clean: options.clean,
                     manifest,
                     continueOnError: options.continueOnError,
+                    noCache,
                 });
             }
 
             if (buildSdkFlag) {
-                await buildSdk({ manifest });
+                await buildSdk({ manifest, noCache });
             }
 
             if (options.sync) {

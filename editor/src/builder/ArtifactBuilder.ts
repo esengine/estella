@@ -65,7 +65,14 @@ export async function buildArtifact(
     let atlasInputHash: string | undefined;
     if (buildCache) {
         const cacheData = await buildCache.loadCache(config.id || 'default');
-        atlasInputHash = await buildCache.computeAtlasInputHash(imagePaths);
+        const allTextureMetadata: Record<string, unknown> = {};
+        for (const { data } of sceneDataList) {
+            const meta = data.textureMetadata as Record<string, unknown> | undefined;
+            if (meta) {
+                Object.assign(allTextureMetadata, meta);
+            }
+        }
+        atlasInputHash = await buildCache.computeAtlasInputHash(imagePaths, allTextureMetadata);
 
         let cachedAtlas = null;
         if (cacheData?.atlasPages) {

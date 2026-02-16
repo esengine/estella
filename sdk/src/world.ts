@@ -136,6 +136,10 @@ export class World {
         }
     }
 
+    resetIterationDepth(): void {
+        this.iterationDepth_ = 0;
+    }
+
     isIterating(): boolean {
         return this.iterationDepth_ > 0;
     }
@@ -356,12 +360,22 @@ export class World {
         this.queryCache_.clear();
     }
 
-    getEntitiesWithComponents(components: AnyComponentDef[]): Entity[] {
-        if (components.length === 0) {
+    getEntitiesWithComponents(
+        components: AnyComponentDef[],
+        withFilters: AnyComponentDef[] = [],
+        withoutFilters: AnyComponentDef[] = []
+    ): Entity[] {
+        if (components.length === 0 && withFilters.length === 0 && withoutFilters.length === 0) {
             return this.getAllEntities();
         }
 
-        const cacheKey = components.map(c => c._name).sort().join(',');
+        let cacheKey = components.map(c => c._name).sort().join(',');
+        if (withFilters.length > 0) {
+            cacheKey += '|+' + withFilters.map(c => c._name).sort().join(',');
+        }
+        if (withoutFilters.length > 0) {
+            cacheKey += '|-' + withoutFilters.map(c => c._name).sort().join(',');
+        }
         const cached = this.queryCache_.get(cacheKey);
         if (cached && cached.version === this.worldVersion_) {
             return cached.result;

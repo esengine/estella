@@ -132,12 +132,16 @@ export class SystemRunner {
             args[i] = this.resolveParam(system._params[i]);
         }
 
-        (system._fn as (...args: unknown[]) => void)(...args);
+        try {
+            (system._fn as (...args: unknown[]) => void)(...args);
 
-        for (let i = 0; i < args.length; i++) {
-            if (args[i] instanceof CommandsInstance) {
-                (args[i] as CommandsInstance).flush();
+            for (let i = 0; i < args.length; i++) {
+                if (args[i] instanceof CommandsInstance) {
+                    (args[i] as CommandsInstance).flush();
+                }
             }
+        } finally {
+            this.world_.resetIterationDepth();
         }
     }
 

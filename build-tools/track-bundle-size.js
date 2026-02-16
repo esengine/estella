@@ -13,6 +13,8 @@ const THRESHOLDS = {
     'wasm/web/spine42.wasm': 300 * 1024,
     'wasm/web/spine38.wasm': 300 * 1024,
     'wasm/web/spine41.wasm': 300 * 1024,
+    'wasm/wechat/esengine.wxgame.wasm': 4 * 1024 * 1024,
+    'wasm/wechat/esengine.wxgame.js': 512 * 1024,
     'sdk/esm/esengine.js': 150 * 1024,
 };
 

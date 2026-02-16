@@ -69,6 +69,8 @@ export class App {
     private physicsModule_?: unknown;
     private readonly installed_plugins_ = new Set<Plugin>();
     private error_handler_: ((error: unknown, systemName: string) => void) | null = null;
+    private system_error_handler_: ((error: Error, systemName?: string) => 'continue' | 'pause') | null = null;
+    private frame_paused_ = false;
 
     private constructor() {
         this.world_ = new World();
@@ -202,6 +204,11 @@ export class App {
         return this;
     }
 
+    onSystemError(handler: (error: Error, systemName?: string) => 'continue' | 'pause'): this {
+        this.system_error_handler_ = handler;
+        return this;
+    }
+
     // =========================================================================
     // Resource Access
     // =========================================================================
@@ -266,6 +273,7 @@ export class App {
 
         this.updateTime(delta);
         this.world_.resetQueryPool();
+        this.frame_paused_ = false;
 
         this.runSchedule(Schedule.First);
 
@@ -385,7 +393,7 @@ export class App {
 
     private runSchedule(schedule: Schedule): void {
         let systems = this.systems_.get(schedule);
-        if (!systems || !this.runner_) {
+        if (!systems || !this.runner_ || this.frame_paused_) {
             return;
         }
 
@@ -401,6 +409,14 @@ export class App {
                 console.error(`[ESEngine] System "${name}" threw an error:`, e);
                 if (this.error_handler_) {
                     this.error_handler_(e, name);
+                }
+                if (this.system_error_handler_) {
+                    const err = e instanceof Error ? e : new Error(String(e));
+                    const action = this.system_error_handler_(err, name);
+                    if (action === 'pause') {
+                        this.frame_paused_ = true;
+                        return;
+                    }
                 }
             }
         }

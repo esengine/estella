@@ -268,9 +268,16 @@ export class BuildCache {
         }
     }
 
-    async computeAtlasInputHash(imagePaths: string[]): Promise<string> {
+    async computeAtlasInputHash(
+        imagePaths: string[],
+        textureMetadata?: Record<string, unknown>
+    ): Promise<string> {
         const sorted = [...imagePaths].sort();
-        return computeHash(JSON.stringify(sorted));
+        const hashInput: Record<string, unknown> = { paths: sorted };
+        if (textureMetadata && Object.keys(textureMetadata).length > 0) {
+            hashInput.textureMetadata = textureMetadata;
+        }
+        return computeHash(JSON.stringify(hashInput));
     }
 
     serializeAtlasPages(pages: any[]): AtlasPageCache[] {

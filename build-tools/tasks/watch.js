@@ -18,11 +18,11 @@ export async function startWatch(options = {}) {
     const rootDir = config.paths.root;
 
     let isBuilding = false;
-    let pendingBuild = null;
+    let pendingTypes = new Set();
 
     async function rebuild(type, file) {
         if (isBuilding) {
-            pendingBuild = { type, file };
+            pendingTypes.add(type);
             return;
         }
 
@@ -31,28 +31,63 @@ export async function startWatch(options = {}) {
         logger.info(`File changed: ${relFile}`);
 
         try {
-            if (type === 'component') {
+            await executeBuild(type);
+            logger.success('Rebuild complete');
+        } catch (err) {
+            logger.error(`Build failed: ${err.message}`);
+        } finally {
+            isBuilding = false;
+        }
+
+        if (pendingTypes.size > 0) {
+            const types = pendingTypes;
+            pendingTypes = new Set();
+            await executePendingBuild(types);
+        }
+    }
+
+    async function executeBuild(type) {
+        if (type === 'component') {
+            await runEht({ noCache: true });
+            await buildWasm(target, { debug: true });
+            await buildSdk();
+        } else if (type === 'cpp') {
+            await buildWasm(target, { debug: true });
+        } else if (type === 'ts') {
+            await buildSdk();
+        }
+        await syncToDesktop();
+    }
+
+    async function executePendingBuild(types) {
+        isBuilding = true;
+        logger.info(`Processing pending changes: ${[...types].join(', ')}`);
+
+        try {
+            if (types.has('component')) {
                 await runEht({ noCache: true });
                 await buildWasm(target, { debug: true });
                 await buildSdk();
-            } else if (type === 'cpp') {
-                await buildWasm(target, { debug: true });
-            } else if (type === 'ts') {
-                await buildSdk();
+            } else {
+                if (types.has('cpp')) {
+                    await buildWasm(target, { debug: true });
+                }
+                if (types.has('ts')) {
+                    await buildSdk();
+                }
             }
-
             await syncToDesktop();
             logger.success('Rebuild complete');
         } catch (err) {
             logger.error(`Build failed: ${err.message}`);
+        } finally {
+            isBuilding = false;
         }
 
-        isBuilding = false;
-
-        if (pendingBuild) {
-            const pending = pendingBuild;
-            pendingBuild = null;
-            await rebuild(pending.type, pending.file);
+        if (pendingTypes.size > 0) {
+            const nextTypes = pendingTypes;
+            pendingTypes = new Set();
+            await executePendingBuild(nextTypes);
         }
     }
 
