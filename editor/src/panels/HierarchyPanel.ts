@@ -5,7 +5,7 @@
 
 import type { Entity } from 'esengine';
 import type { EntityData } from '../types/SceneTypes';
-import type { EditorStore } from '../store/EditorStore';
+import type { EditorStore, DirtyFlag } from '../store/EditorStore';
 import { icons } from '../utils/icons';
 import { getGlobalPathResolver } from '../asset';
 import { getInitialComponentData } from '../schemas/ComponentSchemas';
@@ -24,6 +24,8 @@ type DropPosition = 'before' | 'after' | 'inside';
 
 const ROW_HEIGHT = 22;
 const OVERSCAN = 5;
+const SLOW_DOUBLE_CLICK_MIN = 300;
+const SLOW_DOUBLE_CLICK_MAX = 800;
 
 interface FlattenedRow {
     entity: EntityData;
@@ -59,7 +61,9 @@ export class HierarchyPanel {
     private dropPosition_: DropPosition | null = null;
     private draggingEntityId_: number | null = null;
     private boundOnScroll_: (() => void) | null = null;
-
+    private renamingEntityId_: number | null = null;
+    private lastClickEntityId_: number | null = null;
+    private lastClickTime_: number = 0;
     constructor(container: HTMLElement, store: EditorStore) {
         this.container_ = container;
         this.store_ = store;
@@ -68,10 +72,6 @@ export class HierarchyPanel {
         this.container_.innerHTML = `
             <div class="es-panel-header">
                 <span class="es-panel-title">${icons.list(14)} Hierarchy</span>
-                <div class="es-panel-actions">
-                    <button class="es-btn es-btn-icon" title="Minimize">${icons.chevronDown(12)}</button>
-                    <button class="es-btn es-btn-icon" title="Close">${icons.x(12)}</button>
-                </div>
             </div>
             <div class="es-prefab-edit-bar" style="display: none;">
                 <button class="es-prefab-back-btn">${icons.chevronRight(12)} Back to Scene</button>
@@ -80,8 +80,7 @@ export class HierarchyPanel {
             <div class="es-hierarchy-toolbar">
                 <input type="text" class="es-input es-hierarchy-search" placeholder="Search...">
                 <button class="es-btn es-btn-icon" data-action="add" title="Create Entity">${icons.plus()}</button>
-                <button class="es-btn es-btn-icon" title="Duplicate">${icons.copy()}</button>
-                <button class="es-btn es-btn-icon" title="Settings">${icons.settings()}</button>
+                <button class="es-btn es-btn-icon" data-action="duplicate" title="Duplicate">${icons.copy()}</button>
             </div>
             <div class="es-hierarchy-columns">
                 <span class="es-hierarchy-col-visibility">${icons.eye(12)}</span>
@@ -94,6 +93,7 @@ export class HierarchyPanel {
         `;
 
         this.treeContainer_ = this.container_.querySelector('.es-hierarchy-tree')!;
+        this.treeContainer_.tabIndex = 0;
         this.scrollContent_ = document.createElement('div');
         this.scrollContent_.className = 'es-hierarchy-scroll-content';
         this.visibleWindow_ = document.createElement('div');
@@ -112,7 +112,7 @@ export class HierarchyPanel {
         });
 
         this.setupEvents();
-        this.unsubscribe_ = store.subscribe(() => this.render());
+        this.unsubscribe_ = store.subscribe((_state, dirtyFlags) => this.onStoreNotify(dirtyFlags));
         this.render();
     }
 
@@ -131,11 +131,34 @@ export class HierarchyPanel {
         }
     }
 
+    private onStoreNotify(dirtyFlags?: ReadonlySet<DirtyFlag>): void {
+        if (dirtyFlags && !dirtyFlags.has('scene') && !dirtyFlags.has('hierarchy') && !dirtyFlags.has('selection')) {
+            return;
+        }
+
+        const needsRebuild = !dirtyFlags || dirtyFlags.has('scene') || dirtyFlags.has('hierarchy');
+
+        if (needsRebuild) {
+            this.render();
+        } else {
+            this.renderVisibleRows();
+            this.updateFooter();
+        }
+    }
+
     private setupEvents(): void {
         const addBtn = this.container_.querySelector('[data-action="add"]');
         addBtn?.addEventListener('click', () => {
             const entity = this.store_.createEntity();
             this.store_.addComponent(entity, 'LocalTransform', getInitialComponentData('LocalTransform'));
+        });
+
+        const dupBtn = this.container_.querySelector('[data-action="duplicate"]');
+        dupBtn?.addEventListener('click', () => {
+            const selected = this.store_.selectedEntity;
+            if (selected !== null) {
+                this.duplicateEntity(selected);
+            }
         });
 
         this.searchInput_?.addEventListener('input', () => {
@@ -161,6 +184,8 @@ export class HierarchyPanel {
 
         this.treeContainer_.addEventListener('click', (e) => {
             const target = e.target as HTMLElement;
+
+            if (target.closest('.es-hierarchy-rename-input')) return;
 
             const visibilityBtn = target.closest('.es-hierarchy-visibility') as HTMLElement;
             if (visibilityBtn) {
@@ -197,25 +222,42 @@ export class HierarchyPanel {
             const entityId = parseInt(item.dataset.entityId ?? '', 10);
             if (isNaN(entityId)) return;
 
+            const now = Date.now();
+            const timeSinceLastClick = now - this.lastClickTime_;
+            const sameEntity = this.lastClickEntityId_ === entityId;
+            const wasSelected = this.store_.selectedEntities.has(entityId);
+
             if (e.shiftKey && this.lastSelectedEntity_ !== null) {
-                this.store_.selectRange(this.lastSelectedEntity_ as number, entityId);
+                this.selectRangeFromFlatRows(this.lastSelectedEntity_ as number, entityId);
                 this.lastSelectedEntity_ = entityId as Entity;
             } else if (e.ctrlKey || e.metaKey) {
                 this.store_.selectEntity(entityId as Entity, 'toggle');
                 this.lastSelectedEntity_ = entityId as Entity;
             } else {
-                this.store_.selectEntity(entityId as Entity, 'replace');
-                this.lastSelectedEntity_ = entityId as Entity;
+                if (sameEntity && wasSelected && !e.shiftKey && !e.ctrlKey && !e.metaKey
+                    && timeSinceLastClick >= SLOW_DOUBLE_CLICK_MIN
+                    && timeSinceLastClick <= SLOW_DOUBLE_CLICK_MAX) {
+                    this.startInlineRename(entityId);
+                } else {
+                    this.store_.selectEntity(entityId as Entity, 'replace');
+                    this.lastSelectedEntity_ = entityId as Entity;
+                }
             }
+
+            this.lastClickEntityId_ = entityId;
+            this.lastClickTime_ = now;
         });
 
         this.treeContainer_.addEventListener('dblclick', (e) => {
             const target = e.target as HTMLElement;
+            if (target.closest('.es-hierarchy-rename-input')) return;
             const item = target.closest('.es-hierarchy-item') as HTMLElement;
             if (!item) return;
 
             const entityId = parseInt(item.dataset.entityId ?? '', 10);
             if (!isNaN(entityId)) {
+                this.lastClickEntityId_ = null;
+                this.lastClickTime_ = 0;
                 this.store_.focusEntity(entityId);
             }
         });
@@ -235,7 +277,184 @@ export class HierarchyPanel {
             }
         });
 
+        this.treeContainer_.addEventListener('keydown', (e) => {
+            if (this.renamingEntityId_ !== null) {
+                return;
+            }
+
+            if (e.key === 'F2') {
+                e.preventDefault();
+                const selected = this.store_.selectedEntity;
+                if (selected !== null) {
+                    this.startInlineRename(selected as number);
+                }
+                return;
+            }
+
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                e.preventDefault();
+                if (this.store_.selectedEntities.size > 1) {
+                    this.store_.deleteSelectedEntities();
+                } else {
+                    const selected = this.store_.selectedEntity;
+                    if (selected !== null) {
+                        this.store_.deleteEntity(selected);
+                    }
+                }
+                return;
+            }
+
+            const selected = this.store_.selectedEntity;
+            const selectedIndex = selected !== null
+                ? this.flatRows_.findIndex(r => r.entity.id === (selected as number))
+                : -1;
+
+            switch (e.key) {
+                case 'ArrowDown': {
+                    e.preventDefault();
+                    const nextIndex = selectedIndex + 1;
+                    if (nextIndex < this.flatRows_.length) {
+                        const nextEntity = this.flatRows_[nextIndex].entity;
+                        this.store_.selectEntity(nextEntity.id as Entity, 'replace');
+                        this.lastSelectedEntity_ = nextEntity.id as Entity;
+                        this.scrollToEntity(nextEntity.id);
+                    }
+                    break;
+                }
+                case 'ArrowUp': {
+                    e.preventDefault();
+                    const prevIndex = selectedIndex - 1;
+                    if (prevIndex >= 0) {
+                        const prevEntity = this.flatRows_[prevIndex].entity;
+                        this.store_.selectEntity(prevEntity.id as Entity, 'replace');
+                        this.lastSelectedEntity_ = prevEntity.id as Entity;
+                        this.scrollToEntity(prevEntity.id);
+                    }
+                    break;
+                }
+                case 'ArrowRight': {
+                    e.preventDefault();
+                    if (selectedIndex === -1) break;
+                    const row = this.flatRows_[selectedIndex];
+                    if (row.hasChildren && !row.isExpanded) {
+                        this.expandedIds_.add(row.entity.id);
+                        this.render();
+                    } else if (row.hasChildren && row.isExpanded) {
+                        const nextIndex = selectedIndex + 1;
+                        if (nextIndex < this.flatRows_.length) {
+                            const child = this.flatRows_[nextIndex].entity;
+                            this.store_.selectEntity(child.id as Entity, 'replace');
+                            this.lastSelectedEntity_ = child.id as Entity;
+                            this.scrollToEntity(child.id);
+                        }
+                    }
+                    break;
+                }
+                case 'ArrowLeft': {
+                    e.preventDefault();
+                    if (selectedIndex === -1) break;
+                    const row = this.flatRows_[selectedIndex];
+                    if (row.hasChildren && row.isExpanded) {
+                        this.expandedIds_.delete(row.entity.id);
+                        this.render();
+                    } else if (row.entity.parent !== null) {
+                        const parentIdx = this.flatRows_.findIndex(r => r.entity.id === row.entity.parent);
+                        if (parentIdx !== -1) {
+                            const parentEntity = this.flatRows_[parentIdx].entity;
+                            this.store_.selectEntity(parentEntity.id as Entity, 'replace');
+                            this.lastSelectedEntity_ = parentEntity.id as Entity;
+                            this.scrollToEntity(parentEntity.id);
+                        }
+                    }
+                    break;
+                }
+                case 'Home': {
+                    e.preventDefault();
+                    if (this.flatRows_.length > 0) {
+                        const first = this.flatRows_[0].entity;
+                        this.store_.selectEntity(first.id as Entity, 'replace');
+                        this.lastSelectedEntity_ = first.id as Entity;
+                        this.scrollToEntity(first.id);
+                    }
+                    break;
+                }
+                case 'End': {
+                    e.preventDefault();
+                    if (this.flatRows_.length > 0) {
+                        const last = this.flatRows_[this.flatRows_.length - 1].entity;
+                        this.store_.selectEntity(last.id as Entity, 'replace');
+                        this.lastSelectedEntity_ = last.id as Entity;
+                        this.scrollToEntity(last.id);
+                    }
+                    break;
+                }
+            }
+        });
+
         this.setupDragAndDrop();
+    }
+
+    private selectRangeFromFlatRows(fromEntity: number, toEntity: number): void {
+        const fromIndex = this.flatRows_.findIndex(r => r.entity.id === fromEntity);
+        const toIndex = this.flatRows_.findIndex(r => r.entity.id === toEntity);
+
+        if (fromIndex === -1 || toIndex === -1) return;
+
+        const start = Math.min(fromIndex, toIndex);
+        const end = Math.max(fromIndex, toIndex);
+        const ids = this.flatRows_.slice(start, end + 1).map(r => r.entity.id);
+        this.store_.selectEntities(ids);
+    }
+
+    private startInlineRename(entityId: number): void {
+        const entityData = this.store_.getEntityData(entityId);
+        if (!entityData) return;
+
+        this.renamingEntityId_ = entityId;
+
+        const item = this.visibleWindow_.querySelector(`[data-entity-id="${entityId}"]`);
+        if (!item) return;
+
+        const nameSpan = item.querySelector('.es-hierarchy-name') as HTMLElement;
+        if (!nameSpan) return;
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'es-hierarchy-rename-input';
+        input.value = entityData.name;
+        input.select();
+
+        const commitRename = () => {
+            const newName = input.value.trim();
+            if (newName && newName !== entityData.name) {
+                this.store_.renameEntity(entityId as Entity, newName);
+            }
+            this.renamingEntityId_ = null;
+            this.renderVisibleRows();
+        };
+
+        const cancelRename = () => {
+            this.renamingEntityId_ = null;
+            this.renderVisibleRows();
+        };
+
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                commitRename();
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                cancelRename();
+            }
+            e.stopPropagation();
+        });
+
+        input.addEventListener('blur', commitRename, { once: true });
+
+        nameSpan.textContent = '';
+        nameSpan.appendChild(input);
+        input.focus();
+        input.select();
     }
 
     private setupDragAndDrop(): void {
@@ -430,7 +649,7 @@ export class HierarchyPanel {
 
             if (!atlasPath) {
                 console.error(`[HierarchyPanel] No atlas file found for: ${skeletonPath}`);
-                alert(`无法找到 atlas 文件。\n请确保骨骼文件所在目录下有 .atlas 文件。`);
+                alert(`No atlas file found.\nPlease ensure there is an .atlas file in the same directory as the skeleton file.`);
                 return;
             }
 
@@ -554,18 +773,22 @@ export class HierarchyPanel {
         this.lastVisibleEnd_ = -1;
         this.renderVisibleRows();
 
-        if (this.footerContainer_) {
-            if (this.searchFilter_) {
-                const count = this.searchResults_.length;
-                this.footerContainer_.textContent = `${count} ${count === 1 ? 'match' : 'matches'}`;
-            } else {
-                const count = scene.entities.length;
-                this.footerContainer_.textContent = `${count} ${count === 1 ? 'entity' : 'entities'}`;
-            }
-        }
+        this.updateFooter();
 
         if (selectionChanged) {
             this.scrollToEntity(selectedEntity as number);
+        }
+    }
+
+    private updateFooter(): void {
+        if (!this.footerContainer_) return;
+
+        if (this.searchFilter_) {
+            const count = this.searchResults_.length;
+            this.footerContainer_.textContent = `${count} ${count === 1 ? 'match' : 'matches'}`;
+        } else {
+            const count = this.store_.scene.entities.length;
+            this.footerContainer_.textContent = `${count} ${count === 1 ? 'entity' : 'entities'}`;
         }
     }
 
@@ -714,6 +937,13 @@ export class HierarchyPanel {
 
         this.lastVisibleStart_ = start;
         this.lastVisibleEnd_ = end;
+
+        if (this.renamingEntityId_ !== null) {
+            const item = this.visibleWindow_.querySelector(`[data-entity-id="${this.renamingEntityId_}"]`);
+            if (item) {
+                this.startInlineRename(this.renamingEntityId_);
+            }
+        }
     }
 
     private renderSingleRow(row: FlattenedRow, selectedEntity: Entity | null): string {
@@ -808,6 +1038,7 @@ export class HierarchyPanel {
         const entityData = entity !== null ? this.store_.getEntityData(entity as number) : null;
         const has = (type: string) => entityData?.components.some(c => c.type === type) ?? false;
         const editor = getEditorInstance();
+        const multiSelected = this.store_.selectedEntities.size > 1;
 
         const createChildren: ContextMenuItem[] = [
             { label: 'Empty Entity', icon: icons.plus(14), onClick: () => {
@@ -838,10 +1069,34 @@ export class HierarchyPanel {
 
         if (entity !== null) {
             items.push(
-                { label: 'Duplicate', icon: icons.copy(14), onClick: () => this.duplicateEntity(entity) },
+                { label: 'Rename', icon: icons.pencil(14), onClick: () => this.startInlineRename(entity as number) },
+                { label: 'Duplicate', icon: icons.copy(14), onClick: () => {
+                    if (multiSelected) {
+                        for (const id of this.store_.selectedEntities) {
+                            this.duplicateEntity(id as Entity);
+                        }
+                    } else {
+                        this.duplicateEntity(entity);
+                    }
+                } },
                 { label: 'Copy', icon: icons.copy(14), onClick: () => { this.store_.selectEntity(entity); editor?.copySelected(); } },
+                { label: 'Cut', icon: icons.copy(14), onClick: () => {
+                    this.store_.selectEntity(entity);
+                    editor?.copySelected();
+                    if (multiSelected) {
+                        this.store_.deleteSelectedEntities();
+                    } else {
+                        this.store_.deleteEntity(entity);
+                    }
+                } },
                 { label: 'Paste', icon: icons.template(14), disabled: !editor?.hasClipboard(), onClick: () => { this.store_.selectEntity(entity); editor?.pasteEntity(); } },
-                { label: 'Delete', icon: icons.trash(14), onClick: () => this.store_.deleteEntity(entity) },
+                { label: 'Delete', icon: icons.trash(14), onClick: () => {
+                    if (multiSelected) {
+                        this.store_.deleteSelectedEntities();
+                    } else {
+                        this.store_.deleteEntity(entity);
+                    }
+                } },
                 { label: '', separator: true },
             );
         }
@@ -983,6 +1238,23 @@ export class HierarchyPanel {
 
         for (const comp of entityData.components) {
             this.store_.addComponent(newEntity, comp.type, JSON.parse(JSON.stringify(comp.data)));
+        }
+
+        this.duplicateChildren(entityData, newEntity);
+    }
+
+    private duplicateChildren(sourceEntity: EntityData, newParent: Entity): void {
+        for (const childId of sourceEntity.children) {
+            const childData = this.store_.getEntityData(childId);
+            if (!childData) continue;
+
+            const childEntity = this.store_.createEntity(childData.name, newParent);
+
+            for (const comp of childData.components) {
+                this.store_.addComponent(childEntity, comp.type, JSON.parse(JSON.stringify(comp.data)));
+            }
+
+            this.duplicateChildren(childData, childEntity);
         }
     }
 

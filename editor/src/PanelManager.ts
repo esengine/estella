@@ -23,6 +23,7 @@ import { icons } from './utils/icons';
 export class PanelManager {
     private panelInstances_ = new Map<string, PanelInstance>();
     private activeBottomPanelId_: string | null = 'content-browser';
+    private activeTabIds_ = new Map<string, string>();
 
     get activeBottomPanelId(): string | null {
         return this.activeBottomPanelId_;
@@ -305,14 +306,73 @@ export class PanelManager {
 
     buildTabBarHTML(): string {
         const positions: PanelPosition[] = ['left', 'center', 'right'];
-        return positions.flatMap(pos => getPanelsByPosition(pos))
-            .filter(p => p.defaultVisible)
-            .map(p => `
-                <div class="es-tab es-tab-active" data-panel="${p.id}">
+        const allPanels = positions.flatMap(pos => getPanelsByPosition(pos))
+            .filter(p => p.defaultVisible);
+
+        for (const p of allPanels) {
+            const pos = p.position ?? 'center';
+            if (!this.activeTabIds_.has(pos)) {
+                this.activeTabIds_.set(pos, p.id);
+            }
+        }
+
+        return allPanels.map(p => {
+            const pos = p.position ?? 'center';
+            const isActive = this.activeTabIds_.get(pos) === p.id;
+            return `
+                <div class="es-tab${isActive ? ' es-tab-active' : ''}" data-panel="${p.id}" data-position="${pos}">
                     <span class="es-tab-label">${p.title}</span>
                     <button class="es-tab-close">${icons.x(10)}</button>
                 </div>
-            `).join('');
+            `;
+        }).join('');
+    }
+
+    setupTabEvents(container: HTMLElement): void {
+        const tabBar = container.querySelector('.es-editor-tabs');
+        if (!tabBar) return;
+
+        tabBar.addEventListener('click', (e) => {
+            const target = e.target as HTMLElement;
+            const closeBtn = target.closest('.es-tab-close');
+            const tab = target.closest('.es-tab') as HTMLElement;
+            if (!tab) return;
+
+            const panelId = tab.dataset.panel;
+            if (!panelId) return;
+
+            if (closeBtn) {
+                const panelEl = container.querySelector(`[data-panel-id="${panelId}"]`) as HTMLElement;
+                if (panelEl) {
+                    panelEl.style.display = 'none';
+                }
+                tab.style.display = 'none';
+                this.hidePanel(panelId);
+                return;
+            }
+
+            const pos = tab.dataset.position;
+            if (pos) {
+                this.activeTabIds_.set(pos, panelId);
+            }
+
+            tabBar.querySelectorAll('.es-tab').forEach(t => {
+                const el = t as HTMLElement;
+                if (el.dataset.position === pos) {
+                    el.classList.toggle('es-tab-active', el.dataset.panel === panelId);
+                }
+            });
+
+            const panels = getPanelsByPosition(pos as PanelPosition);
+            for (const p of panels) {
+                const panelEl = container.querySelector(`[data-panel-id="${p.id}"]`) as HTMLElement;
+                if (panelEl) {
+                    panelEl.style.display = p.id === panelId ? '' : 'none';
+                }
+            }
+
+            this.showPanel(panelId);
+        });
     }
 
     dispose(): void {

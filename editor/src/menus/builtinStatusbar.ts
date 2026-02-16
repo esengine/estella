@@ -3,6 +3,19 @@ import { getPanelsByPosition } from '../panels/PanelRegistry';
 import { icons } from '../utils/icons';
 import type { Editor } from '../Editor';
 
+let statusMessageTimer_: ReturnType<typeof setTimeout> | null = null;
+let statusMessageEl_: HTMLElement | null = null;
+
+export function showStatusBarMessage(text: string, durationMs = 2000): void {
+    if (!statusMessageEl_) return;
+    statusMessageEl_.textContent = text;
+    statusMessageEl_.style.display = '';
+    if (statusMessageTimer_) clearTimeout(statusMessageTimer_);
+    statusMessageTimer_ = setTimeout(() => {
+        if (statusMessageEl_) statusMessageEl_.style.display = 'none';
+    }, durationMs);
+}
+
 export function registerBuiltinStatusbarItems(editor: Editor): void {
     const bottomPanels = getPanelsByPosition('bottom');
 
@@ -66,19 +79,60 @@ export function registerBuiltinStatusbarItems(editor: Editor): void {
     });
 
     registerStatusbarItem({
+        id: 'status-message',
+        position: 'right',
+        order: -10,
+        render: (container) => {
+            const el = document.createElement('span');
+            el.className = 'es-statusbar-message';
+            el.style.display = 'none';
+            container.appendChild(el);
+            statusMessageEl_ = el;
+            return { dispose() { el.remove(); statusMessageEl_ = null; } };
+        },
+    });
+
+    registerStatusbarItem({
         id: 'undo',
         position: 'right',
         order: 0,
         render: (container) => {
-            const btn = document.createElement('button');
-            btn.className = 'es-statusbar-btn';
-            btn.dataset.action = 'undo';
-            btn.title = 'Undo';
-            btn.innerHTML = '<span>Undo</span>';
-            btn.addEventListener('click', () => editor.store.undo());
-            container.appendChild(btn);
+            const wrapper = document.createElement('div');
+            wrapper.className = 'es-statusbar-icons';
 
-            return { dispose() { btn.remove(); } };
+            const undoBtn = document.createElement('button');
+            undoBtn.title = 'Undo';
+            undoBtn.innerHTML = '<span>Undo</span>';
+            undoBtn.addEventListener('click', () => {
+                const desc = editor.store.undoDescription;
+                editor.store.undo();
+                if (desc) showStatusBarMessage(`Undo: ${desc}`);
+            });
+
+            const redoBtn = document.createElement('button');
+            redoBtn.title = 'Redo';
+            redoBtn.innerHTML = '<span>Redo</span>';
+            redoBtn.addEventListener('click', () => {
+                const desc = editor.store.redoDescription;
+                editor.store.redo();
+                if (desc) showStatusBarMessage(`Redo: ${desc}`);
+            });
+
+            wrapper.appendChild(undoBtn);
+            wrapper.appendChild(redoBtn);
+            container.appendChild(wrapper);
+
+            return {
+                dispose() { wrapper.remove(); },
+                update() {
+                    const undoDesc = editor.store.undoDescription;
+                    const redoDesc = editor.store.redoDescription;
+                    undoBtn.title = undoDesc ? `Undo: ${undoDesc}` : 'Undo';
+                    redoBtn.title = redoDesc ? `Redo: ${redoDesc}` : 'Redo';
+                    undoBtn.disabled = !editor.store.canUndo;
+                    redoBtn.disabled = !editor.store.canRedo;
+                },
+            };
         },
     });
 
@@ -89,11 +143,19 @@ export function registerBuiltinStatusbarItems(editor: Editor): void {
         render: (container) => {
             const wrapper = document.createElement('div');
             wrapper.className = 'es-statusbar-icons';
-            wrapper.innerHTML = `
-                <button title="Notifications">${icons.list(12)}</button>
-                <button title="Extensions">${icons.grid(12)}</button>
-                <button title="Settings">${icons.settings(12)}</button>
-            `;
+
+            const notifBtn = document.createElement('button');
+            notifBtn.title = 'Notifications';
+            notifBtn.innerHTML = icons.list(12);
+            notifBtn.addEventListener('click', () => editor.toggleBottomPanel('output'));
+
+            const settingsBtn = document.createElement('button');
+            settingsBtn.title = 'Settings';
+            settingsBtn.innerHTML = icons.settings(12);
+            settingsBtn.addEventListener('click', () => editor.showSettings());
+
+            wrapper.appendChild(notifBtn);
+            wrapper.appendChild(settingsBtn);
             container.appendChild(wrapper);
 
             return { dispose() { wrapper.remove(); } };
@@ -110,20 +172,23 @@ export function registerBuiltinStatusbarItems(editor: Editor): void {
                     ${icons.check(12)}
                     <span>All Saved</span>
                 </span>
-                <div class="es-statusbar-divider"></div>
-                <span class="es-status-indicator">
-                    <span>Version Control</span>
+                <span class="es-status-indicator es-status-unsaved" style="display: none;">
+                    <span class="es-unsaved-dot"></span>
+                    <span>Unsaved Changes</span>
                 </span>
             `;
 
             return {
                 dispose() { container.innerHTML = ''; },
                 update() {
-                    const saved = container.querySelector('.es-status-saved');
+                    const saved = container.querySelector('.es-status-saved') as HTMLElement;
+                    const unsaved = container.querySelector('.es-status-unsaved') as HTMLElement;
                     if (editor.store.isDirty) {
-                        saved?.classList.add('es-hidden');
+                        if (saved) saved.style.display = 'none';
+                        if (unsaved) unsaved.style.display = '';
                     } else {
-                        saved?.classList.remove('es-hidden');
+                        if (saved) saved.style.display = '';
+                        if (unsaved) unsaved.style.display = 'none';
                     }
                 },
             };

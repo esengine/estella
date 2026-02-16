@@ -9,6 +9,7 @@ export {
     onSettingsChange,
     getAllSections,
     getSectionItems,
+    getItemDescriptor,
     lockBuiltinSettings,
     clearExtensionSettings,
 } from './SettingsRegistry';

@@ -7,52 +7,7 @@ import type { ShaderProperty } from '../../shader/ShaderPropertyParser';
 import { ShaderPropertyType, getDefaultPropertyValue } from '../../shader/ShaderPropertyParser';
 import { getPlatformAdapter } from '../../platform/PlatformAdapter';
 import { getProjectDir, openAssetInBrowser } from './InspectorHelpers';
-
-// =============================================================================
-// Drag Label
-// =============================================================================
-
-export function setupDragLabel(
-    label: HTMLElement,
-    input: HTMLInputElement,
-    onChange: (value: number) => void,
-    step: number = 0.1,
-    min?: number,
-    max?: number
-): void {
-    let startX = 0;
-    let startValue = 0;
-    let isDragging = false;
-
-    const onMouseMove = (e: MouseEvent) => {
-        if (!isDragging) return;
-        const delta = (e.clientX - startX) * step;
-        let newValue = startValue + delta;
-        if (min !== undefined && newValue < min) newValue = min;
-        if (max !== undefined && newValue > max) newValue = max;
-        newValue = parseFloat(newValue.toFixed(4));
-        input.value = String(newValue);
-        onChange(newValue);
-    };
-
-    const onMouseUp = () => {
-        isDragging = false;
-        document.removeEventListener('mousemove', onMouseMove);
-        document.removeEventListener('mouseup', onMouseUp);
-        document.body.style.cursor = '';
-    };
-
-    label.style.cursor = 'ew-resize';
-    label.addEventListener('mousedown', (e) => {
-        e.preventDefault();
-        isDragging = true;
-        startX = e.clientX;
-        startValue = parseFloat(input.value) || 0;
-        document.body.style.cursor = 'ew-resize';
-        document.addEventListener('mousemove', onMouseMove);
-        document.addEventListener('mouseup', onMouseUp);
-    });
-}
+import { setupDragLabel } from '../../property/editorUtils';
 
 // =============================================================================
 // Numeric Editors

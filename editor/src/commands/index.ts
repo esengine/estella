@@ -12,6 +12,7 @@ export {
     MoveEntityCommand,
     AddComponentCommand,
     RemoveComponentCommand,
+    ReorderComponentCommand,
 } from './EntityCommands';
 export {
     InstantiatePrefabCommand,

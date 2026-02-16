@@ -1,6 +1,7 @@
 import { registerGizmo, type GizmoContext, type GizmoDescriptor } from './GizmoRegistry';
 import { icons } from '../utils/icons';
 import { quatToEuler, eulerToQuat } from '../math/Transform';
+import { getSettingsValue } from '../settings/SettingsRegistry';
 
 const GIZMO_COLORS = {
     x: '#e74c3c',
@@ -178,7 +179,7 @@ export function createMoveGizmo(): GizmoDescriptor {
             }
         },
 
-        onDrag(worldX, worldY, _hitData, gctx) {
+        onDrag(worldX, worldY, _hitData, gctx, event) {
             const entity = gctx.store.selectedEntity;
             if (entity === null || !dragState) return;
 
@@ -190,6 +191,13 @@ export function createMoveGizmo(): GizmoDescriptor {
 
             if (dragAxis === 'x' || dragAxis === 'xy') newX += dx;
             if (dragAxis === 'y' || dragAxis === 'xy') newY += dy;
+
+            const snapActive = event && (event.ctrlKey || event.metaKey);
+            if (snapActive) {
+                const gridSize = getSettingsValue<number>('scene.gridSize') ?? 50;
+                newX = Math.round(newX / gridSize) * gridSize;
+                newY = Math.round(newY / gridSize) * gridSize;
+            }
 
             gctx.store.updatePropertyDirect(entity, 'LocalTransform', 'position', {
                 x: newX, y: newY, z: dragState.startValue.z,
@@ -326,7 +334,7 @@ export function createRotateGizmo(): GizmoDescriptor {
             }
         },
 
-        onDrag(worldX, worldY, _hitData, gctx) {
+        onDrag(worldX, worldY, _hitData, gctx, event) {
             const entity = gctx.store.selectedEntity;
             if (entity === null || !dragState) return;
 
@@ -338,7 +346,11 @@ export function createRotateGizmo(): GizmoDescriptor {
                 dragState.startWorldX - pos.x,
             );
             const currentAngle = Math.atan2(worldY - pos.y, worldX - pos.x);
-            const deltaAngle = (currentAngle - startAngle) * (180 / Math.PI);
+            let deltaAngle = (currentAngle - startAngle) * (180 / Math.PI);
+
+            if (event?.shiftKey) {
+                deltaAngle = Math.round(deltaAngle / 15) * 15;
+            }
 
             const newRotZ = dragState.startEuler.z + deltaAngle;
             const quat = eulerToQuat({ x: 0, y: 0, z: newRotZ });
@@ -551,33 +563,6 @@ export function createRectGizmo(): GizmoDescriptor {
     let hoveredHandle: RectHandle = 'none';
     let activeHandle: RectHandle = 'none';
     let dragState: RectGizmoDragState | null = null;
-
-    function getHandles(gctx: GizmoContext): { x: number; y: number; key: RectHandle }[] | null {
-        const entityData = gctx.store.getSelectedEntityData();
-        if (!entityData) return null;
-
-        const pos = getSelectedEntityPosition(gctx);
-        if (!pos) return null;
-
-        const worldTransform = gctx.getWorldTransform(entityData.id);
-        const bounds = gctx.getEntityBounds(entityData);
-
-        const w = bounds.width * Math.abs(worldTransform.scale.x);
-        const h = bounds.height * Math.abs(worldTransform.scale.y);
-        const halfW = w / 2;
-        const halfH = h / 2;
-
-        return [
-            { x: -halfW, y: halfH, key: 'tl' },
-            { x: halfW, y: halfH, key: 'tr' },
-            { x: -halfW, y: -halfH, key: 'bl' },
-            { x: halfW, y: -halfH, key: 'br' },
-            { x: 0, y: halfH, key: 't' },
-            { x: 0, y: -halfH, key: 'b' },
-            { x: -halfW, y: 0, key: 'l' },
-            { x: halfW, y: 0, key: 'r' },
-        ];
-    }
 
     return {
         id: 'rect',

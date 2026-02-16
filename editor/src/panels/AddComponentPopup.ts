@@ -33,6 +33,7 @@ export class AddComponentPopup {
     private options_: AddComponentPopupOptions;
     private searchInput_: HTMLInputElement | null = null;
     private listContainer_: HTMLElement | null = null;
+    private highlightIndex_: number = -1;
     private categoryStates_: Map<ComponentCategory, CategoryState> = new Map([
         ['builtin', { expanded: true }],
         ['ui', { expanded: true }],
@@ -70,8 +71,20 @@ export class AddComponentPopup {
         this.renderList();
     }
 
+    private highlightName(name: string, filter: string): string {
+        if (!filter) return name;
+        const idx = name.toLowerCase().indexOf(filter.toLowerCase());
+        if (idx < 0) return name;
+        const before = name.substring(0, idx);
+        const match = name.substring(idx, idx + filter.length);
+        const after = name.substring(idx + filter.length);
+        return `${before}<mark>${match}</mark>${after}`;
+    }
+
     private renderList(filter: string = ''): void {
         if (!this.listContainer_) return;
+
+        this.highlightIndex_ = -1;
 
         const components = getComponentsByCategory();
         const filterLower = filter.toLowerCase();
@@ -107,10 +120,11 @@ export class AddComponentPopup {
             `;
 
             for (const schema of filtered) {
+                const displayName = this.highlightName(schema.name, filter);
                 categoryHtml += `
                     <div class="es-component-item" data-component="${schema.name}">
                         <span class="es-component-icon">${iconFn()}</span>
-                        <span class="es-component-name">${schema.name}</span>
+                        <span class="es-component-name">${displayName}</span>
                     </div>
                 `;
             }
@@ -171,9 +185,54 @@ export class AddComponentPopup {
         setTimeout(() => this.searchInput_?.focus(), 0);
     }
 
+    private getVisibleItems(): HTMLElement[] {
+        if (!this.listContainer_) return [];
+        return Array.from(
+            this.listContainer_.querySelectorAll('.es-category-items:not(.es-hidden) > .es-component-item')
+        );
+    }
+
+    private updateHighlight(): void {
+        const items = this.getVisibleItems();
+        for (const el of items) {
+            el.classList.remove('es-highlighted');
+        }
+        if (this.highlightIndex_ >= 0 && this.highlightIndex_ < items.length) {
+            items[this.highlightIndex_].classList.add('es-highlighted');
+            items[this.highlightIndex_].scrollIntoView({ block: 'nearest' });
+        }
+    }
+
     private handleKeyDown = (e: KeyboardEvent): void => {
         if (e.key === 'Escape') {
             this.options_.onClose();
+            return;
+        }
+
+        const items = this.getVisibleItems();
+        if (items.length === 0) return;
+
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            this.highlightIndex_ = this.highlightIndex_ < items.length - 1
+                ? this.highlightIndex_ + 1
+                : 0;
+            this.updateHighlight();
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            this.highlightIndex_ = this.highlightIndex_ > 0
+                ? this.highlightIndex_ - 1
+                : items.length - 1;
+            this.updateHighlight();
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (this.highlightIndex_ >= 0 && this.highlightIndex_ < items.length) {
+                const name = items[this.highlightIndex_].dataset.component;
+                if (name) {
+                    this.options_.onSelect(name);
+                    this.options_.onClose();
+                }
+            }
         }
     };
 

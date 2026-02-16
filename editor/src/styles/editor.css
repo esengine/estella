@@ -18,6 +18,9 @@
     --es-accent-hover: #1084d8;
     --es-danger: #f44336;
     --es-success: #4caf50;
+    --es-input-bg: #2d2d2d;
+    --es-text-disabled: #555555;
+    --es-text-muted: #666666;
     --es-scrollbar-track: #1e1e1e;
     --es-scrollbar-thumb: #424242;
     --es-scrollbar-thumb-hover: #555555;
@@ -259,6 +262,14 @@ svg {
 
 .es-editor-menubar .es-btn-preview svg {
     stroke: white;
+}
+
+.es-editor-menubar .es-btn-preview.es-btn-danger {
+    background: var(--es-error, #d9534f);
+}
+
+.es-editor-menubar .es-btn-preview.es-btn-danger:hover {
+    background: #c9302c;
 }
 
 .es-editor-body {
@@ -571,38 +582,19 @@ svg {
     color: var(--es-text-secondary);
 }
 
-.es-hierarchy-children {
-    display: none;
-    position: relative;
-}
-
-.es-hierarchy-item.es-expanded > .es-hierarchy-children {
-    display: block;
-}
-
-.es-hierarchy-children > .es-hierarchy-item::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: calc(2px + var(--depth) * 16px);
-    bottom: 0;
-    border-left: 1px dotted var(--es-border);
-    pointer-events: none;
-}
-
-.es-hierarchy-children > .es-hierarchy-item:last-child::before {
-    bottom: auto;
-    height: 11px;
-}
-
-.es-hierarchy-children > .es-hierarchy-item::after {
-    content: '';
-    position: absolute;
-    top: 11px;
-    left: calc(2px + var(--depth) * 16px);
-    width: 8px;
-    border-top: 1px dotted var(--es-border);
-    pointer-events: none;
+.es-hierarchy-rename-input {
+    width: 100%;
+    height: 18px;
+    padding: 0 4px;
+    margin: 0;
+    border: 1px solid #d19a66;
+    border-radius: 2px;
+    background: var(--es-bg-primary);
+    color: var(--es-text-primary);
+    font-size: 12px;
+    font-family: inherit;
+    outline: none;
+    box-sizing: border-box;
 }
 
 .es-hierarchy-item.es-entity-hidden > .es-hierarchy-row {
@@ -990,13 +982,40 @@ svg {
 }
 
 .es-property-label {
-    width: 80px;
-    flex-shrink: 0;
+    width: 35%;
+    max-width: 80px;
+    flex-shrink: 1;
     padding-right: 8px;
     color: var(--es-text-secondary);
     font-size: 11px;
-    word-break: break-word;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
     line-height: 1.3;
+}
+
+.es-property-reset {
+    flex-shrink: 0;
+    margin-left: 2px;
+    padding: 0;
+    width: 16px;
+    height: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    opacity: 0;
+    cursor: pointer;
+    color: var(--es-text-secondary);
+}
+
+.es-property-row:hover .es-property-reset {
+    opacity: 0.5;
+}
+
+.es-property-reset:hover {
+    opacity: 1 !important;
 }
 
 .es-property-editor {
@@ -2086,6 +2105,132 @@ svg {
     width: 100%;
 }
 
+.es-asset-subpath {
+    font-size: 9px;
+    color: var(--es-text-muted);
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    width: 100%;
+}
+
+/* Thumbnail */
+.es-cb-thumbnail {
+    object-fit: contain;
+    border-radius: 2px;
+}
+
+.es-cb-thumb-loading {
+    opacity: 0.5;
+}
+
+/* Up Button */
+.es-cb-up-btn {
+    flex-shrink: 0;
+}
+
+/* View Toggle */
+.es-cb-view-toggle {
+    flex-shrink: 0;
+}
+
+/* List View */
+.es-cb-list-view {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 0;
+    padding: 4px 0;
+}
+
+.es-cb-list-row {
+    display: flex;
+    align-items: center;
+    height: 24px;
+    padding: 0 8px;
+    cursor: pointer;
+    user-select: none;
+    gap: 8px;
+}
+
+.es-cb-list-row:hover {
+    background: var(--es-bg-hover);
+}
+
+.es-cb-list-row.es-selected {
+    background: rgba(209, 154, 102, 0.2);
+}
+
+.es-cb-list-row[draggable="true"] {
+    cursor: grab;
+}
+
+.es-cb-list-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+}
+
+.es-cb-list-icon svg {
+    stroke: #e8c36a;
+}
+
+.es-cb-list-name {
+    flex: 1;
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+.es-cb-list-subpath {
+    color: var(--es-text-muted);
+    font-size: 10px;
+    margin-left: 6px;
+}
+
+.es-cb-list-type {
+    font-size: 10px;
+    color: var(--es-text-muted);
+    flex-shrink: 0;
+    width: 60px;
+    text-align: right;
+}
+
+/* Empty State */
+.es-cb-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    gap: 8px;
+    pointer-events: none;
+}
+
+.es-cb-empty-icon {
+    opacity: 0.3;
+}
+
+.es-cb-empty-icon svg {
+    stroke: var(--es-text-muted);
+}
+
+.es-cb-empty-text {
+    font-size: 12px;
+    color: var(--es-text-muted);
+}
+
+/* Grid focus */
+.es-content-browser-grid:focus {
+    outline: none;
+}
+
 /* =============================================================================
  * Status Bar
  * ============================================================================= */
@@ -2172,6 +2317,25 @@ svg {
 
 .es-status-saved svg {
     stroke: var(--es-text-secondary);
+}
+
+.es-status-unsaved {
+    color: var(--es-warning, #f0ad4e);
+}
+
+.es-unsaved-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--es-warning, #f0ad4e);
+}
+
+.es-statusbar-message {
+    padding: 0 8px;
+    font-size: 11px;
+    color: var(--es-text-secondary);
+    white-space: nowrap;
 }
 
 .es-statusbar-icons {
@@ -2872,6 +3036,44 @@ svg {
     text-align: right;
 }
 
+.es-settings-description {
+    font-size: 11px;
+    color: var(--es-text-secondary);
+    margin: 2px 0 6px;
+    opacity: 0.7;
+}
+
+.es-settings-item-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.es-settings-item-header .es-settings-label {
+    margin-bottom: 0;
+}
+
+.es-settings-reset-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    background: transparent;
+    border: 1px solid var(--es-border);
+    border-radius: 3px;
+    color: var(--es-text-secondary);
+    font-size: 12px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.es-settings-reset-btn:hover {
+    background: var(--es-bg-hover);
+    color: var(--es-text-primary);
+}
+
 /* =============================================================================
  * Add Component Popup
  * ============================================================================= */
@@ -3031,7 +3233,8 @@ svg {
     margin: 2px 8px;
 }
 
-.es-component-item:hover {
+.es-component-item:hover,
+.es-component-item.es-highlighted {
     background: var(--es-bg-hover);
 }
 
@@ -3039,8 +3242,16 @@ svg {
     stroke: var(--es-text-secondary);
 }
 
-.es-component-item:hover .es-component-icon svg {
+.es-component-item:hover .es-component-icon svg,
+.es-component-item.es-highlighted .es-component-icon svg {
     stroke: var(--es-accent);
+}
+
+.es-component-item mark {
+    background: var(--es-accent);
+    color: var(--es-bg-primary);
+    border-radius: 2px;
+    padding: 0 1px;
 }
 
 .es-component-name {

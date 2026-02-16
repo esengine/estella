@@ -128,12 +128,28 @@ export function getComponentIcon(type: string): string {
         case 'WorldTransform':
             return icons.move(14);
         case 'Sprite':
+        case 'NinePatch':
             return icons.image(14);
         case 'Camera':
             return icons.camera(14);
         case 'Text':
         case 'TextInput':
             return icons.type(14);
+        case 'RigidBody':
+        case 'BoxCollider':
+        case 'CircleCollider':
+        case 'CapsuleCollider':
+            return icons.zap(14);
+        case 'SpineAnimation':
+            return icons.film(14);
+        case 'Button':
+        case 'Canvas':
+        case 'UIRect':
+            return icons.scan(14);
+        case 'LayoutGroup':
+            return icons.layoutGrid(14);
+        case 'UIMask':
+            return icons.shield(14);
         default:
             return icons.settings(14);
     }

@@ -1,8 +1,10 @@
 export function setupDragLabel(
     label: HTMLElement,
     input: HTMLInputElement,
-    onChange: (delta: number) => void,
-    step: number = 0.1
+    onChange: (value: number) => void,
+    step: number = 0.1,
+    min?: number,
+    max?: number
 ): void {
     let startX = 0;
     let startValue = 0;
@@ -11,8 +13,11 @@ export function setupDragLabel(
     const onMouseMove = (e: MouseEvent) => {
         if (!isDragging) return;
         const delta = (e.clientX - startX) * step;
-        const newValue = startValue + delta;
-        input.value = newValue.toFixed(2);
+        let newValue = startValue + delta;
+        if (min !== undefined && newValue < min) newValue = min;
+        if (max !== undefined && newValue > max) newValue = max;
+        newValue = parseFloat(newValue.toFixed(4));
+        input.value = String(newValue);
         onChange(newValue);
     };
 

@@ -11,6 +11,7 @@ export interface SettingsItemDescriptor {
     id: string;
     section: string;
     label: string;
+    description?: string;
     type: SettingsItemType;
     defaultValue: unknown;
     order?: number;
@@ -19,6 +20,7 @@ export interface SettingsItemDescriptor {
     max?: number;
     step?: number;
     onChange?: (value: unknown) => void;
+    visibleWhen?: { settingId: string; value: unknown };
 }
 
 type SettingsChangeListener = (id: string, value: unknown) => void;
@@ -130,6 +132,10 @@ export function getSectionItems(sectionId: string): SettingsItemDescriptor[] {
     return [...items_.values()]
         .filter(item => item.section === sectionId)
         .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+}
+
+export function getItemDescriptor(id: string): SettingsItemDescriptor | undefined {
+    return items_.get(id);
 }
 
 export function lockBuiltinSettings(): void {

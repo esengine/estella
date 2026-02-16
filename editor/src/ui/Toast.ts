@@ -66,13 +66,17 @@ class ToastManager {
         toast.innerHTML = `
             <div class="es-toast-icon">${iconHtml}</div>
             <div class="es-toast-content">
-                <div class="es-toast-title">${options.title}</div>
-                ${options.message ? `<div class="es-toast-message">${options.message}</div>` : ''}
+                <div class="es-toast-title"></div>
+                ${options.message ? `<div class="es-toast-message"></div>` : ''}
                 ${progressHtml}
                 ${actionsHtml}
             </div>
             <button class="es-toast-close">${icons.x(12)}</button>
         `;
+        toast.querySelector('.es-toast-title')!.textContent = options.title;
+        if (options.message) {
+            toast.querySelector('.es-toast-message')!.textContent = options.message;
+        }
 
         // Event listeners
         toast.querySelector('.es-toast-close')?.addEventListener('click', () => {

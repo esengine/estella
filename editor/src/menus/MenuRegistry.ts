@@ -14,6 +14,7 @@ export interface MenuItemDescriptor {
     order?: number;
     enabled?: () => boolean;
     action: () => void;
+    hidden?: boolean;
 }
 
 export interface StatusbarItemDescriptor {

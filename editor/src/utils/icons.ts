@@ -52,6 +52,16 @@ import {
     EyeOff,
     Pencil,
     Package2,
+    ArrowUp,
+    ArrowDown,
+    LayoutGrid,
+    LayoutList,
+    Zap,
+    Film,
+    Scan,
+    Shield,
+    RotateCcw,
+    Clipboard,
 } from 'lucide';
 
 // =============================================================================
@@ -160,6 +170,16 @@ export const icons = {
     bone: (size?: number) => renderIcon(Bone as IconNode, size),
     pencil: (size?: number) => renderIcon(Pencil as IconNode, size),
     package: (size?: number) => renderIcon(Package2 as IconNode, size),
+    arrowUp: (size?: number) => renderIcon(ArrowUp as IconNode, size),
+    arrowDown: (size?: number) => renderIcon(ArrowDown as IconNode, size),
+    layoutGrid: (size?: number) => renderIcon(LayoutGrid as IconNode, size),
+    layoutList: (size?: number) => renderIcon(LayoutList as IconNode, size),
+    zap: (size?: number) => renderIcon(Zap as IconNode, size),
+    film: (size?: number) => renderIcon(Film as IconNode, size),
+    scan: (size?: number) => renderIcon(Scan as IconNode, size),
+    shield: (size?: number) => renderIcon(Shield as IconNode, size),
+    rotateCcw: (size?: number) => renderIcon(RotateCcw as IconNode, size),
+    clipboard: (size?: number) => renderIcon(Clipboard as IconNode, size),
 };
 
 export type IconName = keyof typeof icons;

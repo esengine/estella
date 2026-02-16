@@ -16,6 +16,7 @@ import {
     MoveEntityCommand,
     AddComponentCommand,
     RemoveComponentCommand,
+    ReorderComponentCommand,
     RenameEntityCommand,
     ToggleVisibilityCommand,
     InstantiatePrefabCommand,
@@ -200,6 +201,14 @@ export class EditorStore {
 
     get canRedo(): boolean {
         return this.history_.canRedo();
+    }
+
+    get undoDescription(): string | null {
+        return this.history_.undoDescription;
+    }
+
+    get redoDescription(): string | null {
+        return this.history_.redoDescription;
     }
 
     get isDirty(): boolean {
@@ -551,6 +560,14 @@ export class EditorStore {
         const cmd = new RemoveComponentCommand(this.state_.scene, this.entityMap_, entity, type);
         this.executeCommand(cmd);
         this.notifyComponentChange({ entity: entity as number, componentType: type, action: 'removed' });
+    }
+
+    reorderComponent(entity: Entity, fromIndex: number, toIndex: number): void {
+        const cmd = new ReorderComponentCommand(
+            this.state_.scene, this.entityMap_, entity as number, fromIndex, toIndex
+        );
+        this.executeCommand(cmd);
+        this.notify('selection');
     }
 
     updateProperty(

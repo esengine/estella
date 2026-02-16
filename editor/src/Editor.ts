@@ -54,7 +54,7 @@ import {
     lockBuiltinInspectorExtensions,
     clearExtensionInspectorExtensions,
 } from './panels/inspector/InspectorRegistry';
-import { showConfirmDialog, showInputDialog } from './ui/dialog';
+import { showConfirmDialog, showInputDialog, showDialog } from './ui/dialog';
 import { getEditorStore } from './store';
 import { generateUniqueName } from './utils/naming';
 import {
@@ -100,6 +100,8 @@ export class Editor {
     private assetLibraryReady_: Promise<void> = Promise.resolve();
     private clipboard_: EntityData[] | null = null;
     private addressableWindow_: { element: HTMLElement; panel: AddressablePanel; keyHandler: (e: KeyboardEvent) => void } | null = null;
+    private isPreviewRunning_ = false;
+    private escapeHandler_: ((e: KeyboardEvent) => void) | null = null;
 
     constructor(container: HTMLElement, options?: EditorOptions) {
         this.container_ = container;
@@ -108,6 +110,7 @@ export class Editor {
 
         this.panelManager_ = new PanelManager();
         this.menuManager_ = new MenuManager();
+        this.menuManager_.setStore(this.store_);
         this.previewManager_ = new PreviewManager(this.projectPath_);
 
         installGlobalErrorHandler();
@@ -235,7 +238,12 @@ export class Editor {
     // Scene Operations
     // =========================================================================
 
-    newScene(): void {
+    async newScene(): Promise<void> {
+        if (this.store_.isDirty) {
+            const result = await this.showUnsavedChangesPrompt();
+            if (result === 'cancel') return;
+            if (result === 'save') await this.saveScene();
+        }
         const w = getSettingsValue<number>('project.designWidth');
         const h = getSettingsValue<number>('project.designHeight');
         this.store_.newScene('Untitled', { width: w, height: h });
@@ -275,6 +283,11 @@ export class Editor {
     }
 
     async loadScene(): Promise<void> {
+        if (this.store_.isDirty) {
+            const result = await this.showUnsavedChangesPrompt();
+            if (result === 'cancel') return;
+            if (result === 'save') await this.saveScene();
+        }
         await this.assetLibraryReady_;
         const scene = await loadSceneFromFile();
         if (scene) {
@@ -788,10 +801,34 @@ export class Editor {
         await this.previewManager_.startPreview(
             this.store_.scene, this.scriptLoader_, this.spineVersion_,
         );
+        this.isPreviewRunning_ = true;
+        this.updatePreviewButton();
     }
 
     async stopPreview(): Promise<void> {
         await this.previewManager_.stopPreview();
+        this.isPreviewRunning_ = false;
+        this.updatePreviewButton();
+    }
+
+    async togglePreview(): Promise<void> {
+        if (this.isPreviewRunning_) {
+            await this.stopPreview();
+        } else {
+            await this.startPreview();
+        }
+    }
+
+    private updatePreviewButton(): void {
+        const btn = this.container_.querySelector('[data-action="preview"]') as HTMLElement;
+        if (!btn) return;
+        if (this.isPreviewRunning_) {
+            btn.innerHTML = `${icons.stop(14)} Stop`;
+            btn.classList.add('es-btn-danger');
+        } else {
+            btn.innerHTML = `${icons.play(14)} Preview`;
+            btn.classList.remove('es-btn-danger');
+        }
     }
 
     async navigateToAsset(assetPath: string): Promise<void> {
@@ -924,6 +961,7 @@ export class Editor {
         `;
 
         this.panelManager_.instantiatePanels(this.container_, this.store_);
+        this.panelManager_.setupTabEvents(this.container_);
         this.panelManager_.updateBottomPanelVisibility(this.container_);
         this.setupSplitters();
 
@@ -938,7 +976,8 @@ export class Editor {
             e.preventDefault();
         });
 
-        this.menuManager_.setupToolbarEvents(this.container_, () => this.startPreview());
+        this.menuManager_.setupToolbarEvents(this.container_, () => this.togglePreview());
+        this.setupEscapeHandler();
         this.store_.subscribe(() => this.menuManager_.updateToolbarState(this.container_));
         this.store_.subscribe(() => {
             this.menuManager_.updateStatusbar();
@@ -986,6 +1025,25 @@ export class Editor {
             });
             this.splitters_.push(rightSplitter);
         }
+
+        const body = this.container_.querySelector('.es-editor-body') as HTMLElement;
+        const bottomPanel = this.container_.querySelector('.es-editor-bottom') as HTMLElement;
+        if (body && main && bottomPanel) {
+            const bottomSize = this.loadPanelSize('panelSizeBottom', 250);
+            bottomPanel.style.height = `${bottomSize}px`;
+            (main as HTMLElement).style.flex = '1';
+            const bottomSplitter = new Splitter({
+                direction: 'vertical',
+                container: body,
+                leftPanel: main as HTMLElement,
+                rightPanel: bottomPanel,
+                minSize: 120,
+                onResize: (_, size) => {
+                    this.savePanelSize('panelSizeBottom', size);
+                },
+            });
+            this.splitters_.push(bottomSplitter);
+        }
     }
 
     private loadPanelSize(key: string, defaultValue: number): number {
@@ -1010,12 +1068,71 @@ export class Editor {
         }
     }
 
+    private async showUnsavedChangesPrompt(): Promise<'save' | 'discard' | 'cancel'> {
+        return new Promise((resolve) => {
+            let resolved = false;
+            showDialog({
+                title: 'Unsaved Changes',
+                content: 'You have unsaved changes. Save before continuing?',
+                buttons: [
+                    { label: 'Cancel', role: 'cancel' },
+                    {
+                        label: "Don't Save", role: 'custom',
+                        onClick: () => { resolved = true; resolve('discard'); },
+                    },
+                    {
+                        label: 'Save', role: 'confirm', primary: true,
+                        onClick: () => { resolved = true; resolve('save'); },
+                    },
+                ],
+                closeOnEscape: true,
+            }).then((result) => {
+                if (!resolved) {
+                    resolve(result.action === 'confirm' ? 'save' : 'cancel');
+                }
+            });
+        });
+    }
+
+    private setupEscapeHandler(): void {
+        this.escapeHandler_ = (e: KeyboardEvent) => {
+            if (e.key !== 'Escape') return;
+            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+            if (document.querySelector('.es-dialog-overlay')) return;
+            if (document.querySelector('.es-context-menu')) return;
+
+            const openMenu = this.container_.querySelector('.es-menu.es-open');
+            if (openMenu) {
+                openMenu.classList.remove('es-open');
+                return;
+            }
+
+            if (this.addressableWindow_) {
+                this.addressableWindow_.panel.dispose();
+                this.addressableWindow_.element.remove();
+                document.removeEventListener('keydown', this.addressableWindow_.keyHandler);
+                this.addressableWindow_ = null;
+                return;
+            }
+
+            if (this.store_.selectedEntities.size > 0) {
+                this.store_.selectEntity(null);
+            }
+        };
+        document.addEventListener('keydown', this.escapeHandler_);
+    }
+
     dispose(): void {
         if (this.addressableWindow_) {
             this.addressableWindow_.panel.dispose();
             this.addressableWindow_.element.remove();
             document.removeEventListener('keydown', this.addressableWindow_.keyHandler);
             this.addressableWindow_ = null;
+        }
+        if (this.escapeHandler_) {
+            document.removeEventListener('keydown', this.escapeHandler_);
+            this.escapeHandler_ = null;
         }
         this.menuManager_.dispose();
         this.scriptLoader_?.dispose();

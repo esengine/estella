@@ -2,14 +2,20 @@ import { getAllMenus, getMenuItems, getAllStatusbarItems } from './menus';
 import { ShortcutManager } from './menus/ShortcutManager';
 import { getPanelsByPosition } from './panels/PanelRegistry';
 import { icons } from './utils/icons';
+import type { EditorStore } from './store/EditorStore';
 
 export class MenuManager {
     private statusbarInstances_: Array<{ dispose(): void; update?(): void }> = [];
     private shortcutManager_: ShortcutManager;
     private documentClickHandler_: ((e: MouseEvent) => void) | null = null;
+    private store_: EditorStore | null = null;
 
     constructor() {
         this.shortcutManager_ = new ShortcutManager();
+    }
+
+    setStore(store: EditorStore): void {
+        this.store_ = store;
     }
 
     get statusbarInstances(): Array<{ dispose(): void; update?(): void }> {
@@ -55,7 +61,7 @@ export class MenuManager {
     buildMenuBarHTML(): string {
         const menus = getAllMenus();
         return menus.map(menu => {
-            const items = getMenuItems(menu.id);
+            const items = getMenuItems(menu.id).filter(i => !i.hidden);
             const itemsHTML = items.map(item => {
                 const parts: string[] = [];
                 if (item.separator) {
@@ -192,6 +198,19 @@ export class MenuManager {
                 if (item.enabled) {
                     const el = container.querySelector(`[data-action="${item.id}"]`);
                     el?.classList.toggle('es-disabled', !item.enabled());
+                }
+
+                if (this.store_ && (item.id === 'edit.undo' || item.id === 'edit.redo')) {
+                    const el = container.querySelector(`[data-action="${item.id}"] .es-menu-item-text`);
+                    if (el) {
+                        if (item.id === 'edit.undo') {
+                            const desc = this.store_.undoDescription;
+                            el.textContent = desc ? `Undo ${desc}` : 'Undo';
+                        } else {
+                            const desc = this.store_.redoDescription;
+                            el.textContent = desc ? `Redo ${desc}` : 'Redo';
+                        }
+                    }
                 }
             }
         }

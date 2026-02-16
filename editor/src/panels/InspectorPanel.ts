@@ -198,14 +198,17 @@ export class InspectorPanel {
 
         renderEntityHeader(this.contentContainer_, entityData.name, entity, this.store_);
 
-        for (const component of entityData.components) {
-            renderComponent(this.contentContainer_, entity, component, this.store_, this.editors_);
+        for (let i = 0; i < entityData.components.length; i++) {
+            renderComponent(
+                this.contentContainer_, entity, entityData.components[i],
+                this.store_, this.editors_, i, entityData.components.length
+            );
         }
 
         renderAddComponentButton(this.contentContainer_, entity, entityData.components, this.store_);
         this.extensionSections_ = renderEntityExtensionSections(this.contentContainer_, entity, this.store_);
         renderMaterialPreview(this.materialPreviewState_, entity, entityData.components, this.store_);
-        this.updateFooter(`${entityData.components.length + 1} components`);
+        this.updateFooter(`${entityData.components.length} components`);
     }
 
     private updateVisibilityIcon(): void {

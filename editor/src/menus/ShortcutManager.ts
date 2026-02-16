@@ -33,14 +33,15 @@ export class ShortcutManager {
     }
 
     handleKeyDown(e: KeyboardEvent): boolean {
-        if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-            return false;
-        }
-
         const ctrl = e.ctrlKey || e.metaKey;
         const shift = e.shiftKey;
         const alt = e.altKey;
         const key = e.key.toLowerCase();
+
+        const inTextInput = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
+        if (inTextInput && !ctrl && !alt) {
+            return false;
+        }
 
         for (const binding of this.bindings_) {
             if (binding.ctrl === ctrl &&

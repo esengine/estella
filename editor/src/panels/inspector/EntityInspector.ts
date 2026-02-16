@@ -24,6 +24,7 @@ import {
     getComponentIcon,
     getProjectDir,
 } from './InspectorHelpers';
+import { showContextMenu, type ContextMenuItem } from '../../ui/ContextMenu';
 import { isPropertyOverridden, hasAnyOverrides } from '../../prefab';
 import {
     getComponentInspector,
@@ -154,7 +155,9 @@ export function renderComponent(
     entity: Entity,
     component: ComponentData,
     store: EditorStore,
-    editors: EditorInfo[]
+    editors: EditorInfo[],
+    componentIndex: number = 0,
+    componentCount: number = 1
 ): void {
     const schema = getComponentSchema(component.type);
     if (!schema) {
@@ -190,6 +193,87 @@ export function renderComponent(
     header.addEventListener('click', (e) => {
         if ((e.target as HTMLElement).closest('.es-btn-remove')) return;
         section.classList.toggle('es-expanded');
+    });
+
+    header.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        const defaults = getDefaultComponentData(component.type);
+        const menuItems: ContextMenuItem[] = [
+            {
+                label: 'Reset to Default',
+                icon: icons.rotateCcw(14),
+                onClick: () => {
+                    const changes = Object.keys(defaults).map(key => ({
+                        property: key,
+                        oldValue: component.data[key] ?? defaults[key],
+                        newValue: defaults[key],
+                    }));
+                    if (changes.length > 0) {
+                        store.updateProperties(entity, component.type, changes);
+                    }
+                },
+            },
+            {
+                label: 'Copy Component',
+                icon: icons.copy(14),
+                onClick: () => {
+                    const payload = JSON.stringify({ type: component.type, data: component.data });
+                    navigator.clipboard.writeText(payload);
+                },
+            },
+            {
+                label: 'Paste Component Values',
+                icon: icons.clipboard(14),
+                onClick: async () => {
+                    try {
+                        const text = await navigator.clipboard.readText();
+                        const parsed = JSON.parse(text);
+                        if (parsed.type === component.type && parsed.data) {
+                            const changes = Object.keys(parsed.data).map(key => ({
+                                property: key,
+                                oldValue: component.data[key] ?? defaults[key],
+                                newValue: parsed.data[key],
+                            }));
+                            if (changes.length > 0) {
+                                store.updateProperties(entity, component.type, changes);
+                            }
+                        }
+                    } catch { /* ignore invalid clipboard data */ }
+                },
+            },
+            { label: '', separator: true },
+            {
+                label: 'Move Up',
+                icon: icons.arrowUp(14),
+                disabled: componentIndex <= 0,
+                onClick: () => {
+                    store.reorderComponent(entity, componentIndex, componentIndex - 1);
+                },
+            },
+            {
+                label: 'Move Down',
+                icon: icons.arrowDown(14),
+                disabled: componentIndex >= componentCount - 1,
+                onClick: () => {
+                    store.reorderComponent(entity, componentIndex, componentIndex + 1);
+                },
+            },
+        ];
+
+        if (removable) {
+            menuItems.push(
+                { label: '', separator: true },
+                {
+                    label: 'Remove',
+                    icon: icons.trash(14),
+                    onClick: () => {
+                        store.removeComponent(entity, component.type);
+                    },
+                }
+            );
+        }
+
+        showContextMenu({ items: menuItems, x: e.clientX, y: e.clientY });
     });
 
     if (schema?.category === 'script') {
@@ -288,11 +372,12 @@ export function renderComponent(
                 value: currentValue,
                 meta: propMeta,
                 onChange: (newValue) => {
+                    const oldValue = component.data[propMeta.name] ?? currentValue;
                     store.updateProperty(
                         entity,
                         component.type,
                         propMeta.name,
-                        currentValue,
+                        oldValue,
                         newValue
                     );
                 },
@@ -310,6 +395,26 @@ export function renderComponent(
 
             row.appendChild(label);
             row.appendChild(editorContainer);
+
+            const defaults = getDefaultComponentData(component.type);
+            const defaultValue = defaults[propMeta.name];
+            const isModified = currentValue !== undefined &&
+                JSON.stringify(currentValue) !== JSON.stringify(defaultValue);
+
+            if (isModified) {
+                const resetBtn = document.createElement('button');
+                resetBtn.className = 'es-property-reset';
+                resetBtn.title = `Reset to default`;
+                resetBtn.innerHTML = icons.rotateCcw(10);
+                resetBtn.addEventListener('click', () => {
+                    store.updateProperty(
+                        entity, component.type, propMeta.name,
+                        component.data[propMeta.name] ?? currentValue,
+                        defaultValue
+                    );
+                });
+                row.appendChild(resetBtn);
+            }
 
             if (component.type === 'Sprite' && propMeta.name === 'size') {
                 const resetBtn = createSpriteSizeResetButton(entity, component, store);

@@ -40,12 +40,21 @@ interface AssetItem {
     name: string;
     path: string;
     type: 'folder' | 'scene' | 'script' | 'image' | 'audio' | 'json' | 'material' | 'shader' | 'spine' | 'font' | 'prefab' | 'file';
+    relativePath?: string;
 }
+
+type ViewMode = 'grid' | 'list';
 
 export interface ContentBrowserOptions {
     projectPath?: string;
     onOpenScene?: (scenePath: string) => void;
 }
+
+const THUMBNAIL_CACHE_MAX = 200;
+const THUMBNAIL_SIZE = 48;
+const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp']);
+const SEARCH_RESULTS_LIMIT = 100;
+const VIEW_MODE_KEY = 'esengine.editor.contentBrowserView';
 
 // =============================================================================
 // Helpers
@@ -116,6 +125,79 @@ function getAssetIcon(type: AssetItem['type'], size: number = 32): string {
     }
 }
 
+function isImageFile(name: string): boolean {
+    return IMAGE_EXTENSIONS.has(getFileExtension(name));
+}
+
+// =============================================================================
+// ThumbnailCache
+// =============================================================================
+
+class ThumbnailCache {
+    private cache_ = new Map<string, string>();
+    private loading_ = new Set<string>();
+
+    get(path: string): string | undefined {
+        return this.cache_.get(path);
+    }
+
+    isLoading(path: string): boolean {
+        return this.loading_.has(path);
+    }
+
+    async load(path: string, onLoaded: () => void): Promise<void> {
+        if (this.cache_.has(path) || this.loading_.has(path)) return;
+
+        this.loading_.add(path);
+
+        try {
+            const fs = getNativeFS();
+            if (!fs) return;
+
+            const data = await fs.readBinaryFile(path);
+            if (!data) return;
+
+            const blob = new Blob([data.buffer as ArrayBuffer]);
+            const url = URL.createObjectURL(blob);
+
+            const img = new Image();
+            await new Promise<void>((resolve, reject) => {
+                img.onload = () => resolve();
+                img.onerror = () => reject();
+                img.src = url;
+            });
+
+            const canvas = document.createElement('canvas');
+            canvas.width = THUMBNAIL_SIZE;
+            canvas.height = THUMBNAIL_SIZE;
+            const ctx = canvas.getContext('2d')!;
+
+            const scale = Math.min(THUMBNAIL_SIZE / img.width, THUMBNAIL_SIZE / img.height);
+            const w = img.width * scale;
+            const h = img.height * scale;
+            const x = (THUMBNAIL_SIZE - w) / 2;
+            const y = (THUMBNAIL_SIZE - h) / 2;
+
+            ctx.drawImage(img, x, y, w, h);
+
+            const dataUrl = canvas.toDataURL('image/png');
+            URL.revokeObjectURL(url);
+
+            if (this.cache_.size >= THUMBNAIL_CACHE_MAX) {
+                const firstKey = this.cache_.keys().next().value;
+                if (firstKey) this.cache_.delete(firstKey);
+            }
+
+            this.cache_.set(path, dataUrl);
+            onLoaded();
+        } catch {
+            // ignore load failures
+        } finally {
+            this.loading_.delete(path);
+        }
+    }
+}
+
 // =============================================================================
 // ContentBrowserPanel
 // =============================================================================
@@ -137,14 +219,19 @@ export class ContentBrowserPanel {
     private refreshing_ = false;
     private refreshPending_ = false;
     private currentItems_: AssetItem[] = [];
+    private filteredItems_: AssetItem[] = [];
     private onOpenScene_: ((scenePath: string) => void) | null = null;
-    private selectedAssetPath_: string | null = null;
+    private selectedPaths_ = new Set<string>();
+    private lastSelectedPath_: string | null = null;
+    private thumbnailCache_ = new ThumbnailCache();
+    private viewMode_: ViewMode;
 
     constructor(container: HTMLElement, store: EditorStore, options?: ContentBrowserOptions) {
         this.container_ = container;
         this.store_ = store;
         this.projectPath_ = options?.projectPath ?? null;
         this.onOpenScene_ = options?.onOpenScene ?? null;
+        this.viewMode_ = (localStorage.getItem(VIEW_MODE_KEY) as ViewMode) || 'grid';
 
         if (this.projectPath_) {
             this.currentPath_ = getParentDir(this.projectPath_);
@@ -162,10 +249,12 @@ export class ContentBrowserPanel {
                 <div class="es-content-browser-tree"></div>
                 <div class="es-content-browser-main">
                     <div class="es-content-browser-toolbar">
+                        <button class="es-btn es-btn-icon es-cb-up-btn" title="Parent folder">${icons.arrowUp(14)}</button>
                         <div class="es-content-breadcrumb"></div>
                         <input type="text" class="es-input es-content-search" placeholder="Search assets...">
+                        <button class="es-btn es-btn-icon es-cb-view-toggle" title="Toggle view"></button>
                     </div>
-                    <div class="es-content-browser-grid"></div>
+                    <div class="es-content-browser-grid" tabindex="0"></div>
                 </div>
             </div>
             <div class="es-content-browser-footer">0 items</div>
@@ -177,6 +266,7 @@ export class ContentBrowserPanel {
         this.searchInput_ = this.container_.querySelector('.es-content-search');
         this.breadcrumbContainer_ = this.container_.querySelector('.es-content-breadcrumb');
 
+        this.updateViewToggleButton();
         this.setupEvents();
         this.initialize();
     }
@@ -225,7 +315,9 @@ export class ContentBrowserPanel {
 
         this.currentPath_ = targetFolderPath;
         const fullAssetPath = joinPath(projectDir, normalized);
-        this.selectedAssetPath_ = fullAssetPath;
+        this.selectedPaths_.clear();
+        this.selectedPaths_.add(fullAssetPath);
+        this.lastSelectedPath_ = fullAssetPath;
 
         this.renderTree();
         await this.renderGrid();
@@ -364,6 +456,13 @@ export class ContentBrowserPanel {
         };
     }
 
+    private updateViewToggleButton(): void {
+        const btn = this.container_.querySelector('.es-cb-view-toggle');
+        if (!btn) return;
+        btn.innerHTML = this.viewMode_ === 'grid' ? icons.layoutList(14) : icons.layoutGrid(14);
+        btn.setAttribute('title', this.viewMode_ === 'grid' ? 'Switch to list view' : 'Switch to grid view');
+    }
+
     private setupEvents(): void {
         this.searchInput_?.addEventListener('input', () => {
             this.searchFilter_ = this.searchInput_?.value.toLowerCase() ?? '';
@@ -379,6 +478,19 @@ export class ContentBrowserPanel {
             if (path) {
                 this.selectFolder(path);
             }
+        });
+
+        const upBtn = this.container_.querySelector('.es-cb-up-btn');
+        upBtn?.addEventListener('click', () => {
+            this.navigateToParent();
+        });
+
+        const viewToggle = this.container_.querySelector('.es-cb-view-toggle');
+        viewToggle?.addEventListener('click', () => {
+            this.viewMode_ = this.viewMode_ === 'grid' ? 'list' : 'grid';
+            localStorage.setItem(VIEW_MODE_KEY, this.viewMode_);
+            this.updateViewToggleButton();
+            this.renderGrid();
         });
 
         this.treeContainer_?.addEventListener('click', async (e) => {
@@ -398,18 +510,40 @@ export class ContentBrowserPanel {
 
         this.gridContainer_?.addEventListener('click', (e) => {
             const target = e.target as HTMLElement;
-            const item = target.closest('.es-asset-item') as HTMLElement;
-            if (!item) return;
+            const item = (target.closest('.es-asset-item') || target.closest('.es-cb-list-row')) as HTMLElement;
+
+            if (!item) {
+                this.selectedPaths_.clear();
+                this.lastSelectedPath_ = null;
+                this.updateAssetSelection();
+                return;
+            }
 
             const path = item.dataset.path;
-            if (path) {
-                this.selectAsset(path);
+            if (!path) return;
+
+            if (e.shiftKey && this.lastSelectedPath_) {
+                this.rangeSelect(this.lastSelectedPath_, path);
+            } else if (e.ctrlKey || e.metaKey) {
+                if (this.selectedPaths_.has(path)) {
+                    this.selectedPaths_.delete(path);
+                } else {
+                    this.selectedPaths_.add(path);
+                }
+                this.lastSelectedPath_ = path;
+            } else {
+                this.selectedPaths_.clear();
+                this.selectedPaths_.add(path);
+                this.lastSelectedPath_ = path;
             }
+
+            this.updateAssetSelection();
+            this.notifyStoreSelection();
         });
 
         this.gridContainer_?.addEventListener('dblclick', async (e) => {
             const target = e.target as HTMLElement;
-            const item = target.closest('.es-asset-item') as HTMLElement;
+            const item = (target.closest('.es-asset-item') || target.closest('.es-cb-list-row')) as HTMLElement;
             if (!item) return;
 
             const path = item.dataset.path;
@@ -431,13 +565,24 @@ export class ContentBrowserPanel {
         this.gridContainer_?.addEventListener('contextmenu', (e) => {
             e.preventDefault();
             const target = e.target as HTMLElement;
-            const item = target.closest('.es-asset-item') as HTMLElement;
+            const item = (target.closest('.es-asset-item') || target.closest('.es-cb-list-row')) as HTMLElement;
 
             if (item) {
                 const path = item.dataset.path;
                 const type = item.dataset.type;
                 if (path) {
-                    this.showAssetContextMenu(e, path, type as AssetItem['type']);
+                    if (!this.selectedPaths_.has(path)) {
+                        this.selectedPaths_.clear();
+                        this.selectedPaths_.add(path);
+                        this.lastSelectedPath_ = path;
+                        this.updateAssetSelection();
+                    }
+
+                    if (this.selectedPaths_.size > 1) {
+                        this.showMultiSelectContextMenu(e);
+                    } else {
+                        this.showAssetContextMenu(e, path, type as AssetItem['type']);
+                    }
                 }
             } else {
                 this.showFolderContextMenu(e, this.currentPath_);
@@ -456,21 +601,26 @@ export class ContentBrowserPanel {
 
         this.gridContainer_?.addEventListener('dragstart', (e) => {
             const target = e.target as HTMLElement;
-            const item = target.closest('.es-asset-item') as HTMLElement;
+            const item = (target.closest('.es-asset-item') || target.closest('.es-cb-list-row')) as HTMLElement;
             if (!item) return;
 
             const path = item.dataset.path;
             const type = item.dataset.type;
             if (!path || !type) return;
 
-            const assetData = this.currentItems_.find(i => i.path === path);
-            if (!assetData) return;
+            if (!this.selectedPaths_.has(path)) {
+                this.selectedPaths_.clear();
+                this.selectedPaths_.add(path);
+                this.lastSelectedPath_ = path;
+                this.updateAssetSelection();
+            }
 
-            e.dataTransfer?.setData('application/esengine-asset', JSON.stringify({
-                type: type,
-                path: path,
-                name: assetData.name,
-            }));
+            const dragItems = this.filteredItems_.filter(i => this.selectedPaths_.has(i.path));
+            const payload = dragItems.map(i => ({ type: i.type, path: i.path, name: i.name }));
+
+            e.dataTransfer?.setData('application/esengine-asset', JSON.stringify(
+                payload.length === 1 ? payload[0] : payload
+            ));
             e.dataTransfer!.effectAllowed = 'copy';
 
             item.classList.add('es-dragging');
@@ -478,7 +628,7 @@ export class ContentBrowserPanel {
 
         this.gridContainer_?.addEventListener('dragend', (e) => {
             const target = e.target as HTMLElement;
-            const item = target.closest('.es-asset-item') as HTMLElement;
+            const item = (target.closest('.es-asset-item') || target.closest('.es-cb-list-row')) as HTMLElement;
             item?.classList.remove('es-dragging');
         });
 
@@ -515,6 +665,187 @@ export class ContentBrowserPanel {
 
             this.saveDroppedEntityAsPrefab(entityId);
         });
+
+        this.gridContainer_?.addEventListener('keydown', (e) => {
+            this.handleKeyboardNavigation(e);
+        });
+    }
+
+    private navigateToParent(): void {
+        if (!this.rootFolder_) return;
+        if (this.currentPath_ === this.rootFolder_.path) return;
+
+        const parentPath = getParentDir(this.currentPath_);
+        if (parentPath) {
+            this.selectFolder(parentPath);
+        }
+    }
+
+    private rangeSelect(fromPath: string, toPath: string): void {
+        const fromIndex = this.filteredItems_.findIndex(i => i.path === fromPath);
+        const toIndex = this.filteredItems_.findIndex(i => i.path === toPath);
+        if (fromIndex < 0 || toIndex < 0) return;
+
+        const start = Math.min(fromIndex, toIndex);
+        const end = Math.max(fromIndex, toIndex);
+
+        this.selectedPaths_.clear();
+        for (let i = start; i <= end; i++) {
+            this.selectedPaths_.add(this.filteredItems_[i].path);
+        }
+    }
+
+    private notifyStoreSelection(): void {
+        if (this.selectedPaths_.size === 1) {
+            const path = this.selectedPaths_.values().next().value!;
+            const item = this.filteredItems_.find(i => i.path === path);
+            if (item) {
+                this.store_.selectAsset({
+                    path: item.path,
+                    type: item.type as AssetType,
+                    name: item.name,
+                });
+            }
+        }
+    }
+
+    private handleKeyboardNavigation(e: KeyboardEvent): void {
+        if (!this.gridContainer_ || this.filteredItems_.length === 0) return;
+
+        const isGrid = this.viewMode_ === 'grid';
+
+        switch (e.key) {
+            case 'ArrowRight':
+            case 'ArrowLeft':
+            case 'ArrowDown':
+            case 'ArrowUp': {
+                e.preventDefault();
+                const currentIndex = this.lastSelectedPath_
+                    ? this.filteredItems_.findIndex(i => i.path === this.lastSelectedPath_)
+                    : -1;
+
+                let cols = 1;
+                if (isGrid) {
+                    const containerWidth = this.gridContainer_.clientWidth - 24;
+                    cols = Math.max(1, Math.floor(containerWidth / 80));
+                }
+
+                let nextIndex = currentIndex;
+                if (e.key === 'ArrowRight') nextIndex = currentIndex + 1;
+                else if (e.key === 'ArrowLeft') nextIndex = currentIndex - 1;
+                else if (e.key === 'ArrowDown') nextIndex = currentIndex + cols;
+                else if (e.key === 'ArrowUp') nextIndex = currentIndex - cols;
+
+                if (nextIndex >= 0 && nextIndex < this.filteredItems_.length) {
+                    this.selectedPaths_.clear();
+                    this.selectedPaths_.add(this.filteredItems_[nextIndex].path);
+                    this.lastSelectedPath_ = this.filteredItems_[nextIndex].path;
+                    this.updateAssetSelection();
+                    this.notifyStoreSelection();
+
+                    const el = this.gridContainer_.children[nextIndex] as HTMLElement;
+                    el?.scrollIntoView({ block: 'nearest' });
+                }
+                break;
+            }
+            case 'Enter': {
+                e.preventDefault();
+                if (this.selectedPaths_.size !== 1) return;
+                const path = this.selectedPaths_.values().next().value!;
+                const item = this.filteredItems_.find(i => i.path === path);
+                if (!item) return;
+
+                if (item.type === 'folder') {
+                    this.selectFolder(item.path);
+                    this.expandFolder(item.path);
+                } else {
+                    this.onAssetDoubleClick(item.path, item.type);
+                }
+                break;
+            }
+            case 'Delete':
+            case 'Backspace': {
+                e.preventDefault();
+                if (this.selectedPaths_.size === 0) return;
+                this.deleteSelectedAssets();
+                break;
+            }
+            case 'F2': {
+                e.preventDefault();
+                if (this.selectedPaths_.size !== 1) return;
+                const path = this.selectedPaths_.values().next().value!;
+                const item = this.filteredItems_.find(i => i.path === path);
+                if (item) {
+                    this.renameAsset(item.path, item.type);
+                }
+                break;
+            }
+            case 'a': {
+                if (e.ctrlKey || e.metaKey) {
+                    e.preventDefault();
+                    this.selectedPaths_.clear();
+                    for (const item of this.filteredItems_) {
+                        this.selectedPaths_.add(item.path);
+                    }
+                    this.updateAssetSelection();
+                }
+                break;
+            }
+        }
+    }
+
+    private async deleteSelectedAssets(): Promise<void> {
+        const paths = Array.from(this.selectedPaths_);
+        const names = paths.map(p => p.split('/').pop() ?? p);
+        const message = paths.length === 1
+            ? `Are you sure you want to delete "${names[0]}"?`
+            : `Are you sure you want to delete ${paths.length} items?`;
+
+        const confirmed = await showConfirmDialog({
+            title: 'Delete Assets',
+            message,
+            confirmText: 'Delete',
+            danger: true,
+        });
+
+        if (!confirmed) return;
+
+        const platform = getPlatformAdapter();
+        for (const path of paths) {
+            try {
+                await platform.remove(path);
+                const metaPath = `${path}.meta`;
+                try { await platform.remove(metaPath); } catch { /* no .meta file */ }
+
+                if (this.rootFolder_) {
+                    const projectDir = this.rootFolder_.path;
+                    const prefix = projectDir.endsWith('/') ? projectDir : projectDir + '/';
+                    if (path.startsWith(prefix)) {
+                        getAssetLibrary().unregister(path.substring(prefix.length));
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to delete asset:', err);
+                showErrorToast('Failed to delete asset', String(err));
+            }
+        }
+
+        this.selectedPaths_.clear();
+        this.lastSelectedPath_ = null;
+        this.refresh();
+    }
+
+    private showMultiSelectContextMenu(e: MouseEvent): void {
+        const count = this.selectedPaths_.size;
+        const items: ContextMenuItem[] = [
+            {
+                label: `Delete ${count} items`,
+                icon: icons.trash(14),
+                onClick: () => this.deleteSelectedAssets(),
+            },
+        ];
+
+        showContextMenu({ x: e.clientX, y: e.clientY, items });
     }
 
     private showAssetContextMenu(e: MouseEvent, path: string, type: AssetItem['type']): void {
@@ -925,26 +1256,21 @@ void main() {
     }
 
     private selectAsset(path: string): void {
-        this.selectedAssetPath_ = path;
+        this.selectedPaths_.clear();
+        this.selectedPaths_.add(path);
+        this.lastSelectedPath_ = path;
         this.updateAssetSelection();
-
-        const item = this.currentItems_.find(i => i.path === path);
-        if (item) {
-            this.store_.selectAsset({
-                path: item.path,
-                type: item.type as AssetType,
-                name: item.name,
-            });
-        }
+        this.notifyStoreSelection();
     }
 
     private updateAssetSelection(): void {
         if (!this.gridContainer_) return;
 
-        const items = this.gridContainer_.querySelectorAll('.es-asset-item');
+        const selector = this.viewMode_ === 'list' ? '.es-cb-list-row' : '.es-asset-item';
+        const items = this.gridContainer_.querySelectorAll(selector);
         items.forEach((item) => {
             const el = item as HTMLElement;
-            if (el.dataset.path === this.selectedAssetPath_) {
+            if (this.selectedPaths_.has(el.dataset.path ?? '')) {
                 el.classList.add('es-selected');
             } else {
                 el.classList.remove('es-selected');
@@ -1006,6 +1332,8 @@ void main() {
 
     private selectFolder(path: string): void {
         this.currentPath_ = path;
+        this.selectedPaths_.clear();
+        this.lastSelectedPath_ = null;
         this.renderTree();
         this.renderBreadcrumb();
         this.renderGrid();
@@ -1089,35 +1417,186 @@ void main() {
     private async renderGrid(): Promise<void> {
         if (!this.gridContainer_) return;
 
-        const items = await this.loadCurrentFolderItems();
+        let items: AssetItem[];
+        if (this.searchFilter_) {
+            items = await this.searchRecursive(this.currentPath_, this.searchFilter_);
+        } else {
+            items = await this.loadCurrentFolderItems();
+        }
         this.currentItems_ = items;
 
         let filteredItems = items;
         if (this.searchFilter_) {
-            filteredItems = items.filter((item) =>
-                item.name.toLowerCase().includes(this.searchFilter_)
-            );
+            filteredItems = items.slice(0, SEARCH_RESULTS_LIMIT);
+        }
+        this.filteredItems_ = filteredItems;
+
+        if (filteredItems.length === 0) {
+            this.gridContainer_.innerHTML = this.renderEmptyState();
+            this.gridContainer_.classList.remove('es-cb-list-view');
+            if (this.footerContainer_) {
+                this.footerContainer_.textContent = '0 items';
+            }
+            return;
         }
 
         const isDraggable = (type: AssetItem['type']) => type !== 'folder';
 
-        this.gridContainer_.innerHTML = filteredItems
-            .map(
-                (item) => `
-                <div class="es-asset-item${item.path === this.selectedAssetPath_ ? ' es-selected' : ''}"
-                     data-path="${item.path}"
-                     data-type="${item.type}"
-                     ${isDraggable(item.type) ? 'draggable="true"' : ''}>
-                    <div class="es-asset-icon">${getAssetIcon(item.type)}</div>
-                    <div class="es-asset-name">${item.name}</div>
-                </div>
-            `
-            )
-            .join('');
+        if (this.viewMode_ === 'list') {
+            this.gridContainer_.classList.add('es-cb-list-view');
+            this.gridContainer_.innerHTML = filteredItems
+                .map((item) => {
+                    const iconHtml = this.getItemIconHtml(item, 24);
+                    const subtext = item.relativePath
+                        ? `<span class="es-cb-list-subpath">${item.relativePath}</span>`
+                        : '';
+                    return `
+                    <div class="es-cb-list-row${this.selectedPaths_.has(item.path) ? ' es-selected' : ''}"
+                         data-path="${item.path}"
+                         data-type="${item.type}"
+                         ${isDraggable(item.type) ? 'draggable="true"' : ''}>
+                        <span class="es-cb-list-icon">${iconHtml}</span>
+                        <span class="es-cb-list-name">${item.name}${subtext}</span>
+                        <span class="es-cb-list-type">${item.type}</span>
+                    </div>`;
+                })
+                .join('');
+        } else {
+            this.gridContainer_.classList.remove('es-cb-list-view');
+            this.gridContainer_.innerHTML = filteredItems
+                .map((item) => {
+                    const iconHtml = this.getItemIconHtml(item, 32);
+                    const subtext = item.relativePath
+                        ? `<div class="es-asset-subpath">${item.relativePath}</div>`
+                        : '';
+                    return `
+                    <div class="es-asset-item${this.selectedPaths_.has(item.path) ? ' es-selected' : ''}"
+                         data-path="${item.path}"
+                         data-type="${item.type}"
+                         ${isDraggable(item.type) ? 'draggable="true"' : ''}>
+                        <div class="es-asset-icon">${iconHtml}</div>
+                        <div class="es-asset-name">${item.name}</div>
+                        ${subtext}
+                    </div>`;
+                })
+                .join('');
+        }
+
+        for (const item of filteredItems) {
+            if (item.type === 'image' && isImageFile(item.name)) {
+                this.loadThumbnailFor(item.path);
+            }
+        }
 
         if (this.footerContainer_) {
-            this.footerContainer_.textContent = `${filteredItems.length} items`;
+            const suffix = this.searchFilter_ && items.length > SEARCH_RESULTS_LIMIT
+                ? ` (showing ${SEARCH_RESULTS_LIMIT} of ${items.length})`
+                : '';
+            this.footerContainer_.textContent = `${filteredItems.length} items${suffix}`;
         }
+    }
+
+    private getItemIconHtml(item: AssetItem, size: number): string {
+        if (item.type === 'image' && isImageFile(item.name)) {
+            const cached = this.thumbnailCache_.get(item.path);
+            if (cached) {
+                return `<img src="${cached}" width="${size}" height="${size}" class="es-cb-thumbnail" alt="">`;
+            }
+            if (this.thumbnailCache_.isLoading(item.path)) {
+                return `<span class="es-cb-thumb-loading">${getAssetIcon(item.type, size)}</span>`;
+            }
+        }
+        return getAssetIcon(item.type, size);
+    }
+
+    private loadThumbnailFor(path: string): void {
+        this.thumbnailCache_.load(path, () => {
+            this.updateThumbnailInDom(path);
+        });
+    }
+
+    private updateThumbnailInDom(path: string): void {
+        if (!this.gridContainer_) return;
+        const dataUrl = this.thumbnailCache_.get(path);
+        if (!dataUrl) return;
+
+        const selector = this.viewMode_ === 'list' ? '.es-cb-list-row' : '.es-asset-item';
+        const items = this.gridContainer_.querySelectorAll(selector);
+        for (const el of items) {
+            const htmlEl = el as HTMLElement;
+            if (htmlEl.dataset.path !== path) continue;
+
+            const iconContainer = this.viewMode_ === 'list'
+                ? htmlEl.querySelector('.es-cb-list-icon')
+                : htmlEl.querySelector('.es-asset-icon');
+            if (iconContainer) {
+                const size = this.viewMode_ === 'list' ? 24 : 32;
+                iconContainer.innerHTML = `<img src="${dataUrl}" width="${size}" height="${size}" class="es-cb-thumbnail" alt="">`;
+            }
+            break;
+        }
+    }
+
+    private renderEmptyState(): string {
+        if (this.searchFilter_) {
+            return `<div class="es-cb-empty-state">
+                <div class="es-cb-empty-icon">${icons.search(32)}</div>
+                <div class="es-cb-empty-text">No matching assets found</div>
+            </div>`;
+        }
+        return `<div class="es-cb-empty-state">
+            <div class="es-cb-empty-icon">${icons.folder(32)}</div>
+            <div class="es-cb-empty-text">This folder is empty</div>
+        </div>`;
+    }
+
+    private async searchRecursive(basePath: string, filter: string): Promise<AssetItem[]> {
+        const fs = getNativeFS();
+        if (!fs || !basePath) return [];
+
+        const results: AssetItem[] = [];
+        const stack = [basePath];
+
+        while (stack.length > 0 && results.length < SEARCH_RESULTS_LIMIT * 2) {
+            const dir = stack.pop()!;
+            try {
+                const entries = await fs.listDirectoryDetailed(dir);
+                for (const entry of entries) {
+                    if (entry.name.startsWith('.') || entry.name.endsWith('.meta')) continue;
+
+                    const entryPath = joinPath(dir, entry.name);
+
+                    if (entry.isDirectory) {
+                        stack.push(entryPath);
+                        if (entry.name.toLowerCase().includes(filter)) {
+                            const relative = entryPath.substring(basePath.length).replace(/^\//, '');
+                            results.push({
+                                name: entry.name,
+                                path: entryPath,
+                                type: 'folder',
+                                relativePath: relative,
+                            });
+                        }
+                    } else if (entry.name.toLowerCase().includes(filter)) {
+                        const relative = entryPath.substring(basePath.length).replace(/^\//, '');
+                        results.push({
+                            name: entry.name,
+                            path: entryPath,
+                            type: getAssetType(entry),
+                            relativePath: relative,
+                        });
+                    }
+                }
+            } catch {
+                // skip inaccessible directories
+            }
+        }
+
+        return results.sort((a, b) => {
+            if (a.type === 'folder' && b.type !== 'folder') return -1;
+            if (a.type !== 'folder' && b.type === 'folder') return 1;
+            return a.name.localeCompare(b.name);
+        });
     }
 
     private async loadCurrentFolderItems(): Promise<AssetItem[]> {

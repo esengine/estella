@@ -1,6 +1,7 @@
 import { registerMenu, registerMenuItem } from './MenuRegistry';
 import type { Editor } from '../Editor';
 import { getEditorContext } from '../context/EditorContext';
+import { showStatusBarMessage } from './builtinStatusbar';
 import type { Entity } from 'esengine';
 
 export function registerBuiltinMenus(editor: Editor): void {
@@ -32,7 +33,13 @@ export function registerBuiltinMenus(editor: Editor): void {
     registerMenuItem({
         id: 'file.preview', menu: 'file', label: 'Preview',
         shortcut: 'F5', order: 4, separator: true,
-        action: () => editor.startPreview(),
+        action: () => editor.togglePreview(),
+    });
+    registerMenuItem({
+        id: 'file.stop-preview', menu: 'file', label: 'Stop Preview',
+        shortcut: 'Shift+F5', order: 5,
+        action: () => editor.stopPreview(),
+        hidden: true,
     });
     registerMenuItem({
         id: 'file.build-settings', menu: 'file', label: 'Build Settings...',
@@ -44,13 +51,32 @@ export function registerBuiltinMenus(editor: Editor): void {
         id: 'edit.undo', menu: 'edit', label: 'Undo',
         shortcut: 'Ctrl+Z', order: 0,
         enabled: () => editor.store.canUndo,
-        action: () => editor.store.undo(),
+        action: () => {
+            const desc = editor.store.undoDescription;
+            editor.store.undo();
+            if (desc) showStatusBarMessage(`Undo: ${desc}`);
+        },
     });
     registerMenuItem({
         id: 'edit.redo', menu: 'edit', label: 'Redo',
         shortcut: 'Ctrl+Y', order: 1,
         enabled: () => editor.store.canRedo,
-        action: () => editor.store.redo(),
+        action: () => {
+            const desc = editor.store.redoDescription;
+            editor.store.redo();
+            if (desc) showStatusBarMessage(`Redo: ${desc}`);
+        },
+    });
+    registerMenuItem({
+        id: 'edit.redo-alt', menu: 'edit', label: 'Redo (Alt)',
+        shortcut: 'Ctrl+Shift+Z', order: 1,
+        enabled: () => editor.store.canRedo,
+        action: () => {
+            const desc = editor.store.redoDescription;
+            editor.store.redo();
+            if (desc) showStatusBarMessage(`Redo: ${desc}`);
+        },
+        hidden: true,
     });
     registerMenuItem({
         id: 'edit.delete', menu: 'edit', label: 'Delete',

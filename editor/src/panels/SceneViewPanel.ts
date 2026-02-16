@@ -8,9 +8,7 @@ import { Renderer } from 'esengine';
 import type { SpineModuleController } from 'esengine/spine';
 import type { EditorStore } from '../store/EditorStore';
 import type { EditorBridge } from '../bridge/EditorBridge';
-import type { SliceBorder } from '../types/TextureMetadata';
 import { getPlatformAdapter } from '../platform/PlatformAdapter';
-import { hasSlicing, parseTextureMetadata } from '../types/TextureMetadata';
 import { getDefaultComponentData, getInitialComponentData } from '../schemas/ComponentSchemas';
 import { getGlobalPathResolver } from '../asset';
 import { isUUID, getAssetLibrary } from '../asset/AssetDatabase';
@@ -22,6 +20,7 @@ import { GizmoManager, getAllGizmos } from '../gizmos';
 import type { GizmoContext } from '../gizmos';
 import { ColliderOverlay } from '../gizmos/ColliderOverlay';
 import { getSettingsValue, setSettingsValue, onSettingsChange } from '../settings/SettingsRegistry';
+import { getEditorInstance } from '../context/EditorContext';
 
 const CAMERA_COLORS = [
     '#ffaa00',
@@ -86,12 +85,20 @@ export class SceneViewPanel {
 
     private static readonly MAX_CACHE_SIZE = 100;
     private textureCache_: Map<string, HTMLImageElement | null> = new Map();
-    private metadataCache_: Map<string, SliceBorder | null> = new Map();
     private loadingTextures_: Set<string> = new Set();
 
     private settingsDropdown_: HTMLElement | null = null;
     private settingsDropdownClickHandler_: ((e: MouseEvent) => void) | null = null;
     private unsubscribeSettings_: (() => void) | null = null;
+
+    private spaceDown_ = false;
+    private keyupHandler_: ((e: KeyboardEvent) => void) | null = null;
+
+    private marqueeActive_ = false;
+    private marqueeStartX_ = 0;
+    private marqueeStartY_ = 0;
+    private marqueeEndX_ = 0;
+    private marqueeEndY_ = 0;
 
     private getEntityBoundsWithSpine(entityData: import('../types/SceneTypes').EntityData): { width: number; height: number; offsetX?: number; offsetY?: number } {
         const hasSpine = entityData.components.some(c => c.type === 'SpineAnimation');
@@ -142,6 +149,7 @@ export class SceneViewPanel {
                     <div class="es-toolbar-divider"></div>
                     <button class="es-btn es-btn-icon" data-action="reset-view" title="Reset View">${icons.refresh(14)}</button>
                     <span class="es-zoom-display">100%</span>
+                    <span class="es-snap-indicator" style="display: none;">SNAP</span>
                     <div class="es-toolbar-divider"></div>
                     <div class="es-gizmo-settings-wrapper">
                         <button class="es-btn es-btn-icon" data-action="gizmo-settings" title="Gizmo Settings">${icons.settings(14)}</button>
@@ -159,6 +167,10 @@ export class SceneViewPanel {
                             <div class="es-settings-row">
                                 <label class="es-settings-label">Grid Opacity</label>
                                 <input type="range" data-setting="scene.gridOpacity" min="0" max="1" step="0.1" value="${getSettingsValue<number>('scene.gridOpacity')}" class="es-slider-input">
+                            </div>
+                            <div class="es-settings-row">
+                                <label class="es-settings-label">Grid Size</label>
+                                <input type="number" data-setting="scene.gridSize" min="1" max="500" step="1" value="${getSettingsValue<number>('scene.gridSize') ?? 50}" class="es-number-input">
                             </div>
                             <div class="es-settings-divider"></div>
                             <div class="es-settings-row">
@@ -247,6 +259,10 @@ export class SceneViewPanel {
         if (this.keydownHandler_) {
             document.removeEventListener('keydown', this.keydownHandler_);
             this.keydownHandler_ = null;
+        }
+        if (this.keyupHandler_) {
+            document.removeEventListener('keyup', this.keyupHandler_);
+            this.keyupHandler_ = null;
         }
         if (this.settingsDropdownClickHandler_) {
             document.removeEventListener('click', this.settingsDropdownClickHandler_);
@@ -499,6 +515,16 @@ export class SceneViewPanel {
             if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
                 return;
             }
+
+            if (e.key === ' ' && !this.spaceDown_) {
+                this.spaceDown_ = true;
+                if (!this.isDragging_) {
+                    this.canvas_.style.cursor = 'grab';
+                }
+                e.preventDefault();
+                return;
+            }
+
             const gizmos = getAllGizmos();
             for (const g of gizmos) {
                 if (g.shortcut && e.key.toLowerCase() === g.shortcut) {
@@ -506,8 +532,65 @@ export class SceneViewPanel {
                     return;
                 }
             }
+
+            if (e.key === 'f' || e.key === 'F') {
+                const entity = this.store_.selectedEntity;
+                if (entity !== null) {
+                    this.focusOnEntity(entity as number);
+                }
+                return;
+            }
+
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                if (this.store_.selectedEntities.size > 0) {
+                    this.store_.deleteSelectedEntities();
+                }
+                return;
+            }
+
+            if ((e.key === 'd' || e.key === 'D') && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                getEditorInstance()?.duplicateSelected();
+                return;
+            }
+
+            if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+                this.nudgeSelection(e);
+                return;
+            }
+
+            if (e.key === '+' || e.key === '=') {
+                this.zoom_ = Math.min(10, this.zoom_ * 1.1);
+                this.updateZoomDisplay();
+                this.requestRender();
+                return;
+            }
+
+            if (e.key === '-') {
+                this.zoom_ = Math.max(0.1, this.zoom_ * 0.9);
+                this.updateZoomDisplay();
+                this.requestRender();
+                return;
+            }
+
+            if (e.key === 'Control' || e.key === 'Meta') {
+                this.updateSnapIndicator(true);
+            }
         };
         document.addEventListener('keydown', this.keydownHandler_);
+
+        this.keyupHandler_ = (e: KeyboardEvent) => {
+            if (e.key === ' ') {
+                this.spaceDown_ = false;
+                if (!this.isDragging_) {
+                    this.canvas_.style.cursor = 'default';
+                }
+            }
+            if (e.key === 'Control' || e.key === 'Meta') {
+                this.updateSnapIndicator(false);
+            }
+        };
+        document.addEventListener('keyup', this.keyupHandler_);
 
         this.boundOnMouseDown_ = this.onMouseDown.bind(this);
         this.boundOnMouseMove_ = this.onMouseMove.bind(this);
@@ -594,7 +677,7 @@ export class SceneViewPanel {
             input.addEventListener('change', () => {
                 if (input.type === 'checkbox') {
                     setSettingsValue(settingId, input.checked);
-                } else if (input.type === 'range') {
+                } else if (input.type === 'range' || input.type === 'number') {
                     setSettingsValue(settingId, parseFloat(input.value));
                 } else if (input.type === 'color') {
                     setSettingsValue(settingId, input.value);
@@ -637,7 +720,7 @@ export class SceneViewPanel {
     }
 
     private onMouseDown(e: MouseEvent): void {
-        if (e.button === 1 || (e.button === 0 && e.altKey)) {
+        if (e.button === 1 || (e.button === 0 && e.altKey) || (e.button === 0 && this.spaceDown_)) {
             this.isDragging_ = true;
             this.lastMouseX_ = e.clientX;
             this.lastMouseY_ = e.clientY;
@@ -666,6 +749,19 @@ export class SceneViewPanel {
         if (getSettingsValue<boolean>('scene.showColliders') && hasSelection) {
             const octx = this.createOverlayContext();
             if (octx && this.colliderOverlay_.onDragStart(worldX, worldY, octx)) {
+                this.startDocumentDrag();
+                return;
+            }
+        }
+
+        if (this.gizmoManager_.getActiveId() === 'select') {
+            const hits = this.findEntitiesAtPosition(worldX, worldY);
+            if (hits.length === 0) {
+                this.marqueeActive_ = true;
+                this.marqueeStartX_ = worldX;
+                this.marqueeStartY_ = worldY;
+                this.marqueeEndX_ = worldX;
+                this.marqueeEndY_ = worldY;
                 this.startDocumentDrag();
                 return;
             }
@@ -718,9 +814,16 @@ export class SceneViewPanel {
             return;
         }
 
+        if (this.marqueeActive_) {
+            this.marqueeEndX_ = worldX;
+            this.marqueeEndY_ = worldY;
+            this.requestRender();
+            return;
+        }
+
         if (this.gizmoManager_.isDragging()) {
             this.updateGizmoContext();
-            this.gizmoManager_.onMouseMove(worldX, worldY);
+            this.gizmoManager_.onMouseMove(worldX, worldY, e);
             return;
         }
 
@@ -737,7 +840,7 @@ export class SceneViewPanel {
 
         if (this.gizmoManager_.getActiveId() !== 'select' && hasSelection) {
             this.updateGizmoContext();
-            this.gizmoManager_.onMouseMove(worldX, worldY);
+            this.gizmoManager_.onMouseMove(worldX, worldY, e);
             this.canvas_.style.cursor = this.gizmoManager_.getCursor();
         }
 
@@ -760,8 +863,18 @@ export class SceneViewPanel {
 
         if (this.isDragging_) {
             this.isDragging_ = false;
-            this.canvas_.style.cursor = 'default';
+            this.canvas_.style.cursor = this.spaceDown_ ? 'grab' : 'default';
             this.skipNextClick_ = true;
+        }
+
+        if (this.marqueeActive_) {
+            this.marqueeActive_ = false;
+            const { worldX, worldY } = this.screenToWorld(_e.clientX, _e.clientY);
+            this.marqueeEndX_ = worldX;
+            this.marqueeEndY_ = worldY;
+            this.finishMarqueeSelection(_e.ctrlKey || _e.metaKey);
+            this.skipNextClick_ = true;
+            this.requestRender();
         }
 
         if (this.gizmoManager_.isDragging()) {
@@ -781,7 +894,7 @@ export class SceneViewPanel {
     }
 
     private onMouseLeave(_e: MouseEvent): void {
-        if (this.isDragging_ || this.gizmoManager_.isDragging() || this.colliderOverlay_.isDragging()) {
+        if (this.isDragging_ || this.gizmoManager_.isDragging() || this.colliderOverlay_.isDragging() || this.marqueeActive_) {
             return;
         }
         this.gizmoManager_.resetHover();
@@ -847,8 +960,9 @@ export class SceneViewPanel {
         const newZoom = Math.max(0.1, Math.min(10, this.zoom_ * zoomFactor));
 
         const rect = this.canvas_.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left;
-        const mouseY = e.clientY - rect.top;
+        const dpr = window.devicePixelRatio;
+        const mouseX = (e.clientX - rect.left) * dpr;
+        const mouseY = (e.clientY - rect.top) * dpr;
 
         const worldX = (mouseX - this.canvas_.width / 2) / this.zoom_ - this.panX_;
         const worldY = (mouseY - this.canvas_.height / 2) / this.zoom_ - this.panY_;
@@ -902,10 +1016,99 @@ export class SceneViewPanel {
         return result;
     }
 
+    private findEntitiesInRect(x1: number, y1: number, x2: number, y2: number): Entity[] {
+        const minX = Math.min(x1, x2);
+        const maxX = Math.max(x1, x2);
+        const minY = Math.min(y1, y2);
+        const maxY = Math.max(y1, y2);
+
+        const scene = this.store_.scene;
+        const result: Entity[] = [];
+
+        for (const entity of scene.entities) {
+            if (!this.store_.isEntityVisible(entity.id)) continue;
+            const transform = entity.components.find(c => c.type === 'LocalTransform');
+            if (!transform) continue;
+
+            const worldTransform = this.store_.getWorldTransform(entity.id);
+            const pos = worldTransform.position;
+            const scale = worldTransform.scale;
+            const bounds = this.getEntityBoundsWithSpine(entity);
+            const w = bounds.width * Math.abs(scale.x);
+            const h = bounds.height * Math.abs(scale.y);
+            const offsetX = (bounds.offsetX ?? 0) * scale.x;
+            const offsetY = (bounds.offsetY ?? 0) * scale.y;
+
+            const centerX = pos.x + offsetX;
+            const centerY = pos.y + offsetY;
+            const halfW = w / 2;
+            const halfH = h / 2;
+
+            if (centerX + halfW >= minX && centerX - halfW <= maxX &&
+                centerY + halfH >= minY && centerY - halfH <= maxY) {
+                result.push(entity.id as Entity);
+            }
+        }
+
+        return result;
+    }
+
+    private finishMarqueeSelection(addToExisting: boolean): void {
+        const hits = this.findEntitiesInRect(
+            this.marqueeStartX_, this.marqueeStartY_,
+            this.marqueeEndX_, this.marqueeEndY_,
+        );
+
+        if (addToExisting) {
+            const existing = Array.from(this.store_.selectedEntities);
+            const merged = new Set([...existing, ...hits.map(h => h as number)]);
+            this.store_.selectEntities(Array.from(merged));
+        } else {
+            this.store_.selectEntities(hits.map(h => h as number));
+        }
+    }
+
+    private nudgeSelection(e: KeyboardEvent): void {
+        const entity = this.store_.selectedEntity;
+        if (entity === null) return;
+
+        const entityData = this.store_.getEntityData(entity as number);
+        if (!entityData) return;
+
+        const transform = entityData.components.find(c => c.type === 'LocalTransform');
+        if (!transform) return;
+
+        const pos = transform.data.position as { x: number; y: number; z: number };
+        if (!pos) return;
+
+        const snapOn = e.ctrlKey || e.metaKey;
+        const step = snapOn ? (getSettingsValue<number>('scene.gridSize') ?? 50) : 1;
+
+        let dx = 0;
+        let dy = 0;
+        if (e.key === 'ArrowLeft') dx = -step;
+        if (e.key === 'ArrowRight') dx = step;
+        if (e.key === 'ArrowUp') dy = step;
+        if (e.key === 'ArrowDown') dy = -step;
+
+        const oldPos = { ...pos };
+        const newPos = { x: pos.x + dx, y: pos.y + dy, z: pos.z };
+
+        this.store_.updateProperty(entity as number, 'LocalTransform', 'position', oldPos, newPos);
+        e.preventDefault();
+    }
+
     private updateZoomDisplay(): void {
         const display = this.container_.querySelector('.es-zoom-display');
         if (display) {
             display.textContent = `${Math.round(this.zoom_ * 100)}%`;
+        }
+    }
+
+    private updateSnapIndicator(active: boolean): void {
+        const indicator = this.container_.querySelector('.es-snap-indicator') as HTMLElement | null;
+        if (indicator) {
+            indicator.style.display = active ? 'inline' : 'none';
         }
     }
 
@@ -1022,6 +1225,10 @@ export class SceneViewPanel {
             }
         }
 
+        if (this.marqueeActive_) {
+            this.drawMarquee(ctx);
+        }
+
         ctx.restore();
 
         this.drawStats(ctx, w, h);
@@ -1079,6 +1286,21 @@ export class SceneViewPanel {
 
             ctx.restore();
         }
+    }
+
+    private drawMarquee(ctx: CanvasRenderingContext2D): void {
+        const x = Math.min(this.marqueeStartX_, this.marqueeEndX_);
+        const y = Math.min(-this.marqueeStartY_, -this.marqueeEndY_);
+        const w = Math.abs(this.marqueeEndX_ - this.marqueeStartX_);
+        const h = Math.abs(this.marqueeEndY_ - this.marqueeStartY_);
+
+        ctx.fillStyle = 'rgba(0, 170, 255, 0.1)';
+        ctx.fillRect(x, y, w, h);
+
+        ctx.strokeStyle = '#00aaff';
+        ctx.lineWidth = 1 / this.zoom_;
+        ctx.setLineDash([]);
+        ctx.strokeRect(x, y, w, h);
     }
 
     private drawCameraFrustums(ctx: CanvasRenderingContext2D): void {
@@ -1418,6 +1640,10 @@ export class SceneViewPanel {
             }
         }
 
+        if (this.marqueeActive_) {
+            this.drawMarquee(ctx);
+        }
+
         ctx.restore();
     }
 
@@ -1425,36 +1651,33 @@ export class SceneViewPanel {
         if (!getSettingsValue<boolean>('scene.showGrid')) return;
 
         const gridSize = getSettingsValue<number>('scene.gridSize') ?? 50;
+        const baseOpacity = getSettingsValue<number>('scene.gridOpacity');
+        const gridColor = getSettingsValue<string>('scene.gridColor');
         const halfW = w / 2 / this.zoom_;
         const halfH = h / 2 / this.zoom_;
 
+        const screenGridSize = gridSize * this.zoom_;
+
+        if (screenGridSize > 100) {
+            const subDiv = screenGridSize > 250 ? 10 : 5;
+            const subSize = gridSize / subDiv;
+            this.drawGridLines(ctx, subSize, halfW, halfH, gridColor, baseOpacity * 0.3);
+        }
+
+        this.drawGridLines(ctx, gridSize, halfW, halfH, gridColor, baseOpacity);
+
+        if (screenGridSize < 15) {
+            const majorSize = gridSize * (screenGridSize < 5 ? 10 : 5);
+            this.drawGridLines(ctx, majorSize, halfW, halfH, gridColor, baseOpacity);
+        }
+
+        ctx.globalAlpha = baseOpacity;
+        ctx.strokeStyle = this.lightenColor(gridColor, 30);
+        ctx.lineWidth = 2 / this.zoom_;
         const startX = Math.floor((-halfW - this.panX_) / gridSize) * gridSize;
         const endX = Math.ceil((halfW - this.panX_) / gridSize) * gridSize;
         const startY = Math.floor((-halfH - this.panY_) / gridSize) * gridSize;
         const endY = Math.ceil((halfH - this.panY_) / gridSize) * gridSize;
-
-        ctx.globalAlpha = getSettingsValue<number>('scene.gridOpacity');
-        ctx.strokeStyle = getSettingsValue<string>('scene.gridColor');
-        ctx.lineWidth = 1 / this.zoom_;
-
-        for (let x = startX; x <= endX; x += gridSize) {
-            if (x === 0) continue;
-            ctx.beginPath();
-            ctx.moveTo(x, startY);
-            ctx.lineTo(x, endY);
-            ctx.stroke();
-        }
-
-        for (let y = startY; y <= endY; y += gridSize) {
-            if (y === 0) continue;
-            ctx.beginPath();
-            ctx.moveTo(startX, y);
-            ctx.lineTo(endX, y);
-            ctx.stroke();
-        }
-
-        ctx.strokeStyle = this.lightenColor(getSettingsValue<string>('scene.gridColor'), 30);
-        ctx.lineWidth = 2 / this.zoom_;
         ctx.beginPath();
         ctx.moveTo(startX, 0);
         ctx.lineTo(endX, 0);
@@ -1465,6 +1688,40 @@ export class SceneViewPanel {
         ctx.stroke();
 
         ctx.globalAlpha = 1;
+    }
+
+    private drawGridLines(
+        ctx: CanvasRenderingContext2D,
+        step: number,
+        halfW: number,
+        halfH: number,
+        color: string,
+        opacity: number,
+    ): void {
+        const startX = Math.floor((-halfW - this.panX_) / step) * step;
+        const endX = Math.ceil((halfW - this.panX_) / step) * step;
+        const startY = Math.floor((-halfH - this.panY_) / step) * step;
+        const endY = Math.ceil((halfH - this.panY_) / step) * step;
+
+        ctx.globalAlpha = opacity;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1 / this.zoom_;
+
+        for (let x = startX; x <= endX; x += step) {
+            if (x === 0) continue;
+            ctx.beginPath();
+            ctx.moveTo(x, startY);
+            ctx.lineTo(x, endY);
+            ctx.stroke();
+        }
+
+        for (let y = startY; y <= endY; y += step) {
+            if (y === 0) continue;
+            ctx.beginPath();
+            ctx.moveTo(startX, y);
+            ctx.lineTo(endX, y);
+            ctx.stroke();
+        }
     }
 
     private lightenColor(hex: string, percent: number): string {

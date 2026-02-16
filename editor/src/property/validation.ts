@@ -122,13 +122,13 @@ export function validateColor(value: unknown, meta: PropertyMeta): ValidationRes
     if (!value || typeof value !== 'object') {
         return {
             valid: false,
-            value: { r: 255, g: 255, b: 255, a: 255 },
+            value: { r: 1, g: 1, b: 1, a: 1 },
             error: 'Value must be a Color object'
         };
     }
 
     const color = value as { r: number; g: number; b: number; a: number };
-    const componentMeta = { ...meta, min: 0, max: 255 };
+    const componentMeta = { ...meta, min: 0, max: 1 };
 
     const rResult = validateNumber(color.r, componentMeta);
     const gResult = validateNumber(color.g, componentMeta);
@@ -144,7 +144,7 @@ export function validateColor(value: unknown, meta: PropertyMeta): ValidationRes
                 b: bResult.value as number,
                 a: aResult.value as number
             },
-            error: 'Color components must be 0-255'
+            error: 'Color components must be 0-1'
         };
     }
 

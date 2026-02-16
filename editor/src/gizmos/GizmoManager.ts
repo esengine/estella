@@ -61,11 +61,11 @@ export class GizmoManager {
         return true;
     }
 
-    onMouseMove(worldX: number, worldY: number): void {
+    onMouseMove(worldX: number, worldY: number, event?: MouseEvent): void {
         if (!this.context_) return;
 
         if (this.dragState_) {
-            this.dragState_.descriptor.onDrag?.(worldX, worldY, this.dragState_.data, this.context_);
+            this.dragState_.descriptor.onDrag?.(worldX, worldY, this.dragState_.data, this.context_, event);
             return;
         }
 

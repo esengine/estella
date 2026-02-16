@@ -374,3 +374,40 @@ export class RemoveComponentCommand extends BaseCommand {
         });
     }
 }
+
+// =============================================================================
+// ReorderComponentCommand
+// =============================================================================
+
+export class ReorderComponentCommand extends BaseCommand {
+    readonly type = 'reorder_component';
+    readonly description: string;
+
+    constructor(
+        private scene_: SceneData,
+        private entityMap_: Map<number, EntityData>,
+        private entityId_: number,
+        private fromIndex_: number,
+        private toIndex_: number
+    ) {
+        super();
+        this.description = `Reorder component`;
+    }
+
+    execute(): void {
+        this.swap(this.fromIndex_, this.toIndex_);
+    }
+
+    undo(): void {
+        this.swap(this.toIndex_, this.fromIndex_);
+    }
+
+    private swap(from: number, to: number): void {
+        const entity = this.entityMap_.get(this.entityId_);
+        if (!entity) return;
+        const components = entity.components;
+        if (from < 0 || from >= components.length || to < 0 || to >= components.length) return;
+        const [removed] = components.splice(from, 1);
+        components.splice(to, 0, removed);
+    }
+}
