@@ -3,6 +3,7 @@
  * @brief   Desktop application entry point
  */
 
+import 'dockview-core/dist/styles/dockview.css';
 import '@esengine/editor/styles';
 import { createEditor, ProjectLauncher, setPlatformAdapter, setEditorContext, loadProjectConfig, showToast, dismissToast, showProgressToast, updateToast, type Editor } from '@esengine/editor';
 import { TauriPlatformAdapter } from './TauriPlatformAdapter';

@@ -117,24 +117,29 @@ export function registerBuiltinMenus(editor: Editor): void {
 
     registerMenuItem({
         id: 'view.hierarchy', menu: 'view', label: 'Hierarchy', order: 0,
-        action: () => editor.togglePanel('hierarchy'),
+        action: () => editor.showPanel('hierarchy'),
     });
     registerMenuItem({
         id: 'view.inspector', menu: 'view', label: 'Inspector', order: 1,
-        action: () => editor.togglePanel('inspector'),
+        action: () => editor.showPanel('inspector'),
     });
     registerMenuItem({
         id: 'view.content-browser', menu: 'view', label: 'Content Browser', order: 2,
-        action: () => editor.toggleBottomPanel('content-browser'),
+        action: () => editor.showPanel('content-browser'),
     });
     registerMenuItem({
         id: 'view.output', menu: 'view', label: 'Output', order: 3,
-        action: () => editor.toggleBottomPanel('output'),
+        action: () => editor.showPanel('output'),
     });
     registerMenuItem({
         id: 'view.addressable', menu: 'view', label: 'Addressable Groups',
         order: 4, separator: true,
         action: () => editor.showAddressableWindow(),
+    });
+    registerMenuItem({
+        id: 'view.reset-layout', menu: 'view', label: 'Reset Layout',
+        order: 5, separator: true,
+        action: () => editor.resetLayout(),
     });
     registerMenuItem({
         id: 'view.reload-extensions', menu: 'view', label: 'Reload Extensions',

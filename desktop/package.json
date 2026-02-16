@@ -11,13 +11,14 @@
   },
   "dependencies": {
     "@esengine/editor": "workspace:*",
-    "esengine": "workspace:*",
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-dialog": "^2.0.0",
     "@tauri-apps/plugin-fs": "^2.0.0",
-    "@tauri-apps/plugin-shell": "^2.0.0",
     "@tauri-apps/plugin-process": "^2.0.0",
-    "@tauri-apps/plugin-updater": "^2.0.0"
+    "@tauri-apps/plugin-shell": "^2.0.0",
+    "@tauri-apps/plugin-updater": "^2.0.0",
+    "dockview-core": "^4.13.1",
+    "esengine": "workspace:*"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.0.0",

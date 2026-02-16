@@ -24,6 +24,7 @@
     "test:coverage": "vitest --coverage"
   },
   "dependencies": {
+    "dockview-core": "^4.13.1",
     "esbuild-wasm": "^0.27.2",
     "esengine": "workspace:*",
     "lucide": "^0.563.0"

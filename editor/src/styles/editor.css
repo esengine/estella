@@ -272,78 +272,30 @@ svg {
     background: #c9302c;
 }
 
-.es-editor-body {
-    display: flex;
-    flex-direction: column;
+.es-editor-dock {
     flex: 1;
     overflow: hidden;
 }
 
-.es-editor-main {
-    display: flex;
-    flex: 1;
-    overflow: hidden;
-}
-
-.es-editor-left {
-    width: 250px;
-    min-width: 200px;
-    display: flex;
-    flex-direction: column;
-}
-
-.es-editor-center {
-    flex: 1;
-    min-width: 300px;
-    display: flex;
-    flex-direction: column;
-}
-
-.es-editor-right {
-    width: 260px;
-    min-width: 220px;
-    display: flex;
-    flex-direction: column;
-}
-
-.es-splitter {
-    background: var(--es-border);
-    flex-shrink: 0;
-    position: relative;
-    transition: background 0.15s;
-}
-
-.es-splitter:hover {
-    background: var(--es-accent);
-}
-
-.es-splitter-horizontal {
-    width: 4px;
-    cursor: col-resize;
-}
-
-.es-splitter-vertical {
-    height: 4px;
-    cursor: row-resize;
-}
-
-.es-splitter::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-}
-
-.es-splitter-horizontal::after {
-    left: -2px;
-    right: -2px;
-}
-
-.es-splitter-vertical::after {
-    top: -2px;
-    bottom: -2px;
+.dockview-theme-dark {
+    --dv-background-color: var(--es-bg-primary);
+    --dv-group-view-background-color: var(--es-bg-primary);
+    --dv-tabs-and-actions-container-background-color: var(--es-bg-secondary);
+    --dv-tabs-and-actions-container-height: 30px;
+    --dv-tabs-and-actions-container-font-size: 12px;
+    --dv-activegroup-visiblepanel-tab-background-color: var(--es-bg-primary);
+    --dv-activegroup-hiddenpanel-tab-background-color: var(--es-bg-secondary);
+    --dv-inactivegroup-visiblepanel-tab-background-color: var(--es-bg-tertiary);
+    --dv-inactivegroup-hiddenpanel-tab-background-color: var(--es-bg-secondary);
+    --dv-activegroup-visiblepanel-tab-color: #d19a66;
+    --dv-activegroup-hiddenpanel-tab-color: var(--es-text-secondary);
+    --dv-inactivegroup-visiblepanel-tab-color: var(--es-text-primary);
+    --dv-inactivegroup-hiddenpanel-tab-color: var(--es-text-secondary);
+    --dv-separator-border: var(--es-border);
+    --dv-tab-divider-color: var(--es-border);
+    --dv-active-sash-color: var(--es-accent);
+    --dv-drag-over-background-color: rgba(0, 120, 212, 0.15);
+    --dv-drag-over-border-color: var(--es-accent);
 }
 
 /* =============================================================================
@@ -1782,91 +1734,9 @@ svg {
     height: 100%;
 }
 
-/* =============================================================================
- * Tab Bar
- * ============================================================================= */
-
-.es-editor-tabs {
-    display: flex;
-    background: var(--es-bg-primary);
-    border-bottom: 1px solid var(--es-border);
-    gap: 0;
-}
-
-.es-tab {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 16px;
-    background: var(--es-bg-secondary);
-    border-right: 1px solid var(--es-border);
-    cursor: pointer;
-    user-select: none;
-}
-
-.es-tab:hover {
-    background: var(--es-bg-tertiary);
-}
-
-.es-tab.es-tab-active {
-    background: var(--es-bg-primary);
-    border-bottom: 2px solid #d19a66;
-    margin-bottom: -1px;
-}
-
-.es-tab.es-tab-active .es-tab-label {
-    color: #d19a66;
-}
-
-.es-tab-label {
-    font-size: 12px;
-    font-weight: 500;
-}
-
-.es-tab-close {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 2px;
-    background: transparent;
-    border: none;
-    border-radius: 2px;
-    cursor: pointer;
-}
-
-.es-tab-close:hover {
-    background: var(--es-bg-hover);
-}
-
-.es-tab-close svg {
-    stroke: var(--es-text-secondary);
-}
-
-.es-tab-close:hover svg {
-    stroke: var(--es-text-primary);
-}
-
-/* =============================================================================
- * Bottom Panel
- * ============================================================================= */
-
-.es-editor-bottom {
-    display: flex;
-    flex-direction: column;
-    height: 250px;
-    min-height: 150px;
-    border-top: 1px solid var(--es-border);
-    background: var(--es-bg-primary);
-}
-
-.es-editor-bottom > .es-panel-container {
-    flex: 1;
-    overflow: hidden;
-}
-
-.es-content-browser-container,
-.es-output-container {
-    flex: 1;
+.es-panel-container {
+    width: 100%;
+    height: 100%;
     overflow: hidden;
 }
 

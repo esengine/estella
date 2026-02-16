@@ -14,7 +14,7 @@ import { MenuManager } from './MenuManager';
 import { PreviewManager } from './PreviewManager';
 import {
     registerPanel,
-    getPanelsByPosition,
+    getAllPanels,
     isBuiltinPanel,
 } from './panels/PanelRegistry';
 import { registerBuiltinPanels } from './panels/builtinPanels';
@@ -70,7 +70,7 @@ import {
 } from './settings';
 import { loadProjectConfig, loadEditorLocalSettings, saveEditorLocalSetting } from './launcher/ProjectService';
 import type { SpineVersion } from './types/ProjectTypes';
-import { Splitter } from './ui/Splitter';
+import { DockLayoutManager } from './DockLayoutManager';
 import {
     lockBuiltinPanels, clearExtensionPanels,
 } from './panels/PanelRegistry';
@@ -96,7 +96,7 @@ export class Editor {
     private baseAPI_: Record<string, unknown> | null = null;
     private scriptLoader_: ScriptLoader | null = null;
     private extensionLoader_: ExtensionLoader | null = null;
-    private splitters_: Splitter[] = [];
+    private dockLayout_: DockLayoutManager | null = null;
     private assetLibraryReady_: Promise<void> = Promise.resolve();
     private clipboard_: EntityData[] | null = null;
     private addressableWindow_: { element: HTMLElement; panel: AddressablePanel; keyHandler: (e: KeyboardEvent) => void } | null = null;
@@ -168,10 +168,6 @@ export class Editor {
         return this.store_.filePath;
     }
 
-    get activeBottomPanelId(): string | null {
-        return this.panelManager_.activeBottomPanelId;
-    }
-
     setApp(app: App): void {
         this.app_ = app;
         this.bridge_ = new EditorBridge(app, this.store_);
@@ -218,6 +214,12 @@ export class Editor {
     // =========================================================================
 
     showPanel(id: string): void {
+        if (this.dockLayout_?.api) {
+            const panel = this.dockLayout_.api.getPanel(id);
+            if (panel) {
+                panel.api.setActive();
+            }
+        }
         this.panelManager_.showPanel(id);
     }
 
@@ -226,12 +228,11 @@ export class Editor {
     }
 
     togglePanel(id: string): void {
-        this.panelManager_.togglePanel(id);
+        this.showPanel(id);
     }
 
-    toggleBottomPanel(id: string): void {
-        this.panelManager_.toggleBottomPanel(id, this.container_);
-        this.menuManager_.updateStatusbar();
+    resetLayout(): void {
+        this.dockLayout_?.resetLayout();
     }
 
     // =========================================================================
@@ -751,7 +752,14 @@ export class Editor {
     }
 
     private cleanupExtensionUI(): void {
-        this.panelManager_.cleanupExtensionPanels(this.container_);
+        if (this.dockLayout_) {
+            for (const [id] of this.panelManager_.panelInstances) {
+                if (!isBuiltinPanel(id)) {
+                    this.dockLayout_.removePanel(id);
+                }
+            }
+        }
+        this.panelManager_.cleanupExtensionPanels();
 
         this.container_.querySelectorAll('[data-statusbar-id^="toggle-"]').forEach(el => {
             const panelId = el.getAttribute('data-statusbar-id')?.replace('toggle-', '');
@@ -770,14 +778,12 @@ export class Editor {
     }
 
     private applyExtensionUI(): void {
-        this.panelManager_.instantiateExtensionPanels(
-            this.container_, this.store_, this.bridge_, this.app_,
-        );
-        this.menuManager_.addExtensionBottomPanelToggles(
-            this.container_,
-            this.panelManager_.activeBottomPanelId,
-            (id) => this.toggleBottomPanel(id),
-        );
+        if (this.dockLayout_) {
+            for (const desc of getAllPanels()) {
+                if (isBuiltinPanel(desc.id)) continue;
+                this.dockLayout_.addPanel(desc);
+            }
+        }
         this.menuManager_.rebuildMenuBar(this.container_);
     }
 
@@ -857,8 +863,7 @@ export class Editor {
 
         const projectDir = this.projectPath_.replace(/[/\\][^/\\]+$/, '');
 
-        this.panelManager_.showBottomPanel('output', this.container_);
-        this.menuManager_.updateStatusbar();
+        this.showPanel('output');
 
         const parts = fullCommand.split(/\s+/);
         const cmd = parts[0];
@@ -948,22 +953,13 @@ export class Editor {
                 </div>
                 <button class="es-btn es-btn-preview" data-action="preview">${icons.play(14)} Preview</button>
             </div>
-            <div class="es-editor-tabs">
-                ${this.panelManager_.buildTabBarHTML()}
-            </div>
-            <div class="es-editor-body">
-                ${this.panelManager_.buildMainPanelsHTML()}
-                <div class="es-editor-bottom">
-                    ${this.panelManager_.buildBottomPanelsHTML()}
-                </div>
-            </div>
+            <div class="es-editor-dock"></div>
             ${this.menuManager_.buildStatusBarHTML()}
         `;
 
-        this.panelManager_.instantiatePanels(this.container_, this.store_);
-        this.panelManager_.setupTabEvents(this.container_);
-        this.panelManager_.updateBottomPanelVisibility(this.container_);
-        this.setupSplitters();
+        const dockContainer = this.container_.querySelector('.es-editor-dock') as HTMLElement;
+        this.dockLayout_ = new DockLayoutManager(this.panelManager_, this.store_);
+        this.dockLayout_.initialize(dockContainer);
 
         setEditorInstance(this);
 
@@ -984,75 +980,6 @@ export class Editor {
             this.updateSceneNameDisplay();
         });
         this.installConsoleCapture();
-    }
-
-    private setupSplitters(): void {
-        const main = this.container_.querySelector('.es-editor-main');
-        if (!main) return;
-
-        const leftPanel = main.querySelector('.es-editor-left') as HTMLElement;
-        const centerPanel = main.querySelector('.es-editor-center') as HTMLElement;
-        const rightPanel = main.querySelector('.es-editor-right') as HTMLElement;
-
-        if (leftPanel && centerPanel) {
-            const leftSize = this.loadPanelSize('panelSizeLeft', 250);
-            const leftSplitter = new Splitter({
-                direction: 'horizontal',
-                container: main as HTMLElement,
-                leftPanel,
-                rightPanel: centerPanel,
-                minSize: 200,
-                defaultPosition: leftSize,
-                onResize: (size) => {
-                    this.savePanelSize('panelSizeLeft', size);
-                },
-            });
-            this.splitters_.push(leftSplitter);
-        }
-
-        if (centerPanel && rightPanel) {
-            const rightSize = this.loadPanelSize('panelSizeRight', 260);
-            const rightSplitter = new Splitter({
-                direction: 'horizontal',
-                container: main as HTMLElement,
-                leftPanel: centerPanel,
-                rightPanel,
-                minSize: 220,
-                defaultPosition: rightSize,
-                onResize: (_, size) => {
-                    this.savePanelSize('panelSizeRight', size);
-                },
-            });
-            this.splitters_.push(rightSplitter);
-        }
-
-        const body = this.container_.querySelector('.es-editor-body') as HTMLElement;
-        const bottomPanel = this.container_.querySelector('.es-editor-bottom') as HTMLElement;
-        if (body && main && bottomPanel) {
-            const bottomSize = this.loadPanelSize('panelSizeBottom', 250);
-            bottomPanel.style.height = `${bottomSize}px`;
-            (main as HTMLElement).style.flex = '1';
-            const bottomSplitter = new Splitter({
-                direction: 'vertical',
-                container: body,
-                leftPanel: main as HTMLElement,
-                rightPanel: bottomPanel,
-                minSize: 120,
-                onResize: (_, size) => {
-                    this.savePanelSize('panelSizeBottom', size);
-                },
-            });
-            this.splitters_.push(bottomSplitter);
-        }
-    }
-
-    private loadPanelSize(key: string, defaultValue: number): number {
-        const stored = localStorage.getItem(`esengine.editor.${key}`);
-        return stored ? parseInt(stored, 10) : defaultValue;
-    }
-
-    private savePanelSize(key: string, value: number): void {
-        localStorage.setItem(`esengine.editor.${key}`, String(value));
     }
 
     private updateSceneNameDisplay(): void {
@@ -1137,6 +1064,7 @@ export class Editor {
         this.menuManager_.dispose();
         this.scriptLoader_?.dispose();
         this.extensionLoader_?.dispose();
+        this.dockLayout_?.dispose();
         this.panelManager_.dispose();
         this.previewManager_.dispose();
         clearEditorAPI();

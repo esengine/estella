@@ -35,15 +35,11 @@ export function registerBuiltinStatusbarItems(editor: Editor): void {
                     btn.innerHTML += icons.chevronDown(10);
                 }
 
-                btn.addEventListener('click', () => editor.toggleBottomPanel(panel.id));
+                btn.addEventListener('click', () => editor.showPanel(panel.id));
                 container.appendChild(btn);
 
                 return {
                     dispose() { btn.remove(); },
-                    update() {
-                        const isActive = editor.activeBottomPanelId === panel.id;
-                        btn.classList.toggle('es-active', isActive);
-                    },
                 };
             },
         });
@@ -147,7 +143,7 @@ export function registerBuiltinStatusbarItems(editor: Editor): void {
             const notifBtn = document.createElement('button');
             notifBtn.title = 'Notifications';
             notifBtn.innerHTML = icons.list(12);
-            notifBtn.addEventListener('click', () => editor.toggleBottomPanel('output'));
+            notifBtn.addEventListener('click', () => editor.showPanel('output'));
 
             const settingsBtn = document.createElement('button');
             settingsBtn.title = 'Settings';

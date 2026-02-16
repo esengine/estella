@@ -44,6 +44,9 @@ importers:
       '@tauri-apps/plugin-updater':
         specifier: ^2.0.0
         version: 2.10.0
+      dockview-core:
+        specifier: ^4.13.1
+        version: 4.13.1
       esengine:
         specifier: workspace:*
         version: link:../sdk
@@ -60,6 +63,9 @@ importers:
 
   editor:
     dependencies:
+      dockview-core:
+        specifier: ^4.13.1
+        version: 4.13.1
       esbuild-wasm:
         specifier: ^0.27.2
         version: 0.27.2
@@ -973,6 +979,9 @@ packages:
   delayed-stream@1.0.0:
     resolution: {integrity: sha512-ZySD7Nf91aLB0RxL4KGrKHBXl7Eds1DAmEdcoVawXnLD7SDhpNgtuII2aAkg7a7QS41jxPSZ17p4VdGnMHk3MQ==}
     engines: {node: '>=0.4.0'}
+
+  dockview-core@4.13.1:
+    resolution: {integrity: sha512-+7vR0ZEoL8CNck6NqDVUMqBT22niwBu5CMMI137dZ3c8NDc7c5Si+3dGEqQgM4lNtHBLAtvypo1C4p21J2wkiQ==}
 
   dunder-proto@1.0.1:
     resolution: {integrity: sha512-KIN/nDJBQRcXw0MLVhZE9iQHmG68qAVIBg9CqmUYjmQIhgij9U5MFvrqkUL5FbtyyzZuOeOt0zdeRe4UY7ct+A==}
@@ -2116,7 +2125,7 @@ snapshots:
       sirv: 3.0.2
       tinyglobby: 0.2.15
       tinyrainbow: 1.2.0
-      vitest: 2.1.9(@types/node@25.2.3)(@vitest/ui@2.1.9)(happy-dom@20.6.1)(jsdom@25.0.1)(terser@5.46.0)
+      vitest: 2.1.9(@types/node@25.2.3)(@vitest/ui@2.1.9)(happy-dom@15.11.7)(jsdom@25.0.1)(terser@5.46.0)
 
   '@vitest/utils@2.1.9':
     dependencies:
@@ -2239,6 +2248,8 @@ snapshots:
   deepmerge@4.3.1: {}
 
   delayed-stream@1.0.0: {}
+
+  dockview-core@4.13.1: {}
 
   dunder-proto@1.0.1:
     dependencies:

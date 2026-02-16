@@ -34,6 +34,7 @@ export class InspectorPanel {
     private currentAssetPath_: string | null = null;
     private currentComponentCount_: number = 0;
     private currentPrefabPath_: string | undefined = undefined;
+    private currentComponentOrder_: string = '';
     private imageUrlRef_: ImageUrlRef = { current: null };
 
     private footerContainer_: HTMLElement | null = null;
@@ -154,8 +155,11 @@ export class InspectorPanel {
         const entityData = this.store_.getSelectedEntityData();
         const componentCount = entityData?.components.length ?? 0;
         const prefabPath = entityData?.prefab?.prefabPath;
+        const componentOrder = entityData?.components.map(c => c.type).join(',') ?? '';
 
-        return componentCount !== this.currentComponentCount_ || prefabPath !== this.currentPrefabPath_;
+        return componentCount !== this.currentComponentCount_
+            || prefabPath !== this.currentPrefabPath_
+            || componentOrder !== this.currentComponentOrder_;
     }
 
     private renderEmptyState(): void {
@@ -166,6 +170,7 @@ export class InspectorPanel {
         this.currentEntity_ = null;
         this.currentAssetPath_ = null;
         this.currentComponentCount_ = 0;
+        this.currentComponentOrder_ = '';
         this.disposeEditors();
         this.cleanupImageUrl();
         this.contentContainer_.innerHTML = '<div class="es-inspector-empty">No selection</div>';
@@ -185,6 +190,7 @@ export class InspectorPanel {
         this.currentEntity_ = entity;
         this.currentAssetPath_ = null;
         this.currentComponentCount_ = componentCount;
+        this.currentComponentOrder_ = entityData?.components.map(c => c.type).join(',') ?? '';
         this.currentPrefabPath_ = prefabPath;
         this.disposeEditors();
         this.cleanupImageUrl();
@@ -225,6 +231,7 @@ export class InspectorPanel {
         this.currentEntity_ = null;
         this.currentAssetPath_ = null;
         this.currentComponentCount_ = 0;
+        this.currentComponentOrder_ = '';
         this.disposeEditors();
         this.cleanupImageUrl();
         this.contentContainer_.innerHTML = '';
@@ -252,6 +259,7 @@ export class InspectorPanel {
         this.currentAssetPath_ = asset.path;
         this.currentEntity_ = null;
         this.currentComponentCount_ = 0;
+        this.currentComponentOrder_ = '';
         this.disposeEditors();
         this.cleanupImageUrl();
         this.contentContainer_.innerHTML = '';
