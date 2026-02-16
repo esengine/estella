@@ -289,8 +289,8 @@ svg {
 }
 
 .es-editor-right {
-    width: 300px;
-    min-width: 250px;
+    width: 260px;
+    min-width: 220px;
     display: flex;
     flex-direction: column;
 }

@@ -972,13 +972,13 @@ export class Editor {
         }
 
         if (centerPanel && rightPanel) {
-            const rightSize = this.loadPanelSize('panelSizeRight', 300);
+            const rightSize = this.loadPanelSize('panelSizeRight', 260);
             const rightSplitter = new Splitter({
                 direction: 'horizontal',
                 container: main as HTMLElement,
                 leftPanel: centerPanel,
                 rightPanel,
-                minSize: 250,
+                minSize: 220,
                 defaultPosition: rightSize,
                 onResize: (_, size) => {
                     this.savePanelSize('panelSizeRight', size);
