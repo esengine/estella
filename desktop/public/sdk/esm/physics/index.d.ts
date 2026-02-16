@@ -472,6 +472,7 @@ declare class World {
     getWorldVersion(): number;
     beginIteration(): void;
     endIteration(): void;
+    resetIterationDepth(): void;
     isIterating(): boolean;
     getAllEntities(): Entity[];
     setParent(child: Entity, parent: Entity): void;
@@ -492,7 +493,7 @@ declare class World {
     private removeScript;
     private getStorage;
     resetQueryPool(): void;
-    getEntitiesWithComponents(components: AnyComponentDef[]): Entity[];
+    getEntitiesWithComponents(components: AnyComponentDef[], withFilters?: AnyComponentDef[], withoutFilters?: AnyComponentDef[]): Entity[];
 }
 
 /**
@@ -692,6 +693,8 @@ declare class App {
     private physicsModule_?;
     private readonly installed_plugins_;
     private error_handler_;
+    private system_error_handler_;
+    private frame_paused_;
     private constructor();
     static new(): App;
     addPlugin(plugin: Plugin): this;
@@ -714,6 +717,7 @@ declare class App {
     get world(): World;
     setFixedTimestep(timestep: number): this;
     onError(handler: (error: unknown, systemName: string) => void): this;
+    onSystemError(handler: (error: Error, systemName?: string) => 'continue' | 'pause'): this;
     insertResource<T>(resource: ResourceDef<T>, value: T): this;
     getResource<T>(resource: ResourceDef<T>): T;
     hasResource<T>(resource: ResourceDef<T>): boolean;

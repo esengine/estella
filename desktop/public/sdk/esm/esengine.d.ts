@@ -266,6 +266,8 @@ declare class ResMutInstance<T> {
     get(): T;
     set(value: T): void;
     modify(fn: (value: T) => void): void;
+    /** @internal */
+    updateValue(value: T): void;
 }
 declare class ResourceStorage {
     private resources_;
@@ -646,6 +648,7 @@ declare class World {
     getWorldVersion(): number;
     beginIteration(): void;
     endIteration(): void;
+    resetIterationDepth(): void;
     isIterating(): boolean;
     getAllEntities(): Entity[];
     setParent(child: Entity, parent: Entity): void;
@@ -666,7 +669,7 @@ declare class World {
     private removeScript;
     private getStorage;
     resetQueryPool(): void;
-    getEntitiesWithComponents(components: AnyComponentDef[]): Entity[];
+    getEntitiesWithComponents(components: AnyComponentDef[], withFilters?: AnyComponentDef[], withoutFilters?: AnyComponentDef[]): Entity[];
 }
 
 /**
@@ -723,7 +726,7 @@ interface CommandsDescriptor {
 declare function Commands(): CommandsDescriptor;
 interface SpawnComponentEntry {
     component: AnyComponentDef;
-    data: any;
+    data: unknown;
 }
 declare class EntityCommands {
     private readonly commands_;
@@ -1325,6 +1328,7 @@ declare class AssetServer {
     private groupAssets_;
     private spineController_;
     private spineSkeletons_;
+    private textureRefCounts_;
     constructor(module: ESEngineModule);
     registerEmbeddedAssets(assets: Record<string, string>): void;
     setEmbeddedOnly(value: boolean): void;
@@ -1340,6 +1344,7 @@ declare class AssetServer {
     loadTextureRaw(source: string): Promise<TextureInfo>;
     getTexture(source: string): TextureInfo | undefined;
     hasTexture(source: string): boolean;
+    getTextureRefCount(source: string): number;
     releaseTexture(source: string): void;
     releaseAll(): void;
     private cleanupVirtualFS;
@@ -1451,7 +1456,7 @@ declare function registerComponentAssetFields(componentType: string, config: Com
 declare function getComponentAssetFields(componentType: string): string[];
 declare function loadSceneData(world: World, sceneData: SceneData): Map<number, Entity>;
 declare function loadSceneWithAssets(world: World, sceneData: SceneData, options?: SceneLoadOptions): Promise<Map<number, Entity>>;
-declare function loadComponent(world: World, entity: Entity, compData: SceneComponentData): void;
+declare function loadComponent(world: World, entity: Entity, compData: SceneComponentData, entityName?: string): void;
 declare function updateCameraAspectRatio(world: World, aspectRatio: number): void;
 declare function findEntityByName(world: World, name: string): Entity | null;
 
@@ -1506,6 +1511,7 @@ declare class SceneManagerState {
     private activeScene_;
     private initialScene_;
     private transition_;
+    private loadPromises_;
     constructor(app: App);
     register(config: SceneConfig): void;
     setInitial(name: string): void;
@@ -1563,6 +1569,8 @@ declare class App {
     private physicsModule_?;
     private readonly installed_plugins_;
     private error_handler_;
+    private system_error_handler_;
+    private frame_paused_;
     private constructor();
     static new(): App;
     addPlugin(plugin: Plugin): this;
@@ -1585,6 +1593,7 @@ declare class App {
     get world(): World;
     setFixedTimestep(timestep: number): this;
     onError(handler: (error: unknown, systemName: string) => void): this;
+    onSystemError(handler: (error: Error, systemName?: string) => 'continue' | 'pause'): this;
     insertResource<T>(resource: ResourceDef<T>, value: T): this;
     getResource<T>(resource: ResourceDef<T>): T;
     hasResource<T>(resource: ResourceDef<T>): boolean;
@@ -1882,6 +1891,8 @@ interface TextInputData {
 declare const TextInput: ComponentDef<TextInputData>;
 
 declare class TextInputPlugin implements Plugin {
+    private cleanupListeners_;
+    cleanup(): void;
     build(app: App): void;
 }
 declare const textInputPlugin: TextInputPlugin;
@@ -2083,6 +2094,8 @@ declare class PreviewPlugin implements Plugin {
     private app_;
     private loadPromise_;
     private eventSource_;
+    private onMessage_;
+    private onError_;
     constructor(sceneUrl: string, baseUrl?: string);
     build(app: App): void;
     /**
@@ -2091,6 +2104,7 @@ declare class PreviewPlugin implements Plugin {
     waitForReady(): Promise<void>;
     private loadRuntimeData;
     private ensureCamera;
+    cleanup(): void;
     private setupHotReload;
     private reloadScene;
 }

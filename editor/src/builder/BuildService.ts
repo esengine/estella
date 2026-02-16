@@ -125,17 +125,21 @@ export class BuildService {
                 progress.log('info', `Build completed in ${formatDuration(duration)}`);
 
                 if (useCache && artifact.atlasInputHash) {
-                    const cacheData = await this.cache_.loadCache(config.id || 'default') || {
-                        version: '1.3',
-                        configId: config.id || 'default',
-                        timestamp: Date.now(),
-                        files: {},
-                    };
+                    try {
+                        const cacheData = await this.cache_.loadCache(config.id || 'default') || {
+                            version: '1.3',
+                            configId: config.id || 'default',
+                            timestamp: Date.now(),
+                            files: {},
+                        };
 
-                    cacheData.atlasPages = this.cache_.serializeAtlasPages(artifact.atlasResult.pages);
-                    cacheData.atlasInputHash = artifact.atlasInputHash;
+                        cacheData.atlasPages = this.cache_.serializeAtlasPages(artifact.atlasResult.pages);
+                        cacheData.atlasInputHash = artifact.atlasInputHash;
 
-                    await this.cache_.saveCache(cacheData);
+                        await this.cache_.saveCache(cacheData);
+                    } catch (err) {
+                        console.error('Failed to save build cache:', err);
+                    }
                 }
 
                 if (this.history_) {

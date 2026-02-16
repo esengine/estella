@@ -446,6 +446,7 @@ public:
         }
         entities = std::move(sortedEntities);
         components = std::move(sortedComponents);
+        pool->rebuildSparse();
     }
 
     // =========================================================================

@@ -167,6 +167,7 @@ export class SceneManagerState {
     private activeScene_: string | null = null;
     private initialScene_: string | null = null;
     private transition_: TransitionState | null = null;
+    private loadPromises_ = new Map<string, Promise<SceneContext>>();
 
     constructor(app: App) {
         this.app_ = app;
@@ -189,6 +190,11 @@ export class SceneManagerState {
     }
 
     async switchTo(name: string, options?: TransitionOptions): Promise<void> {
+        if (this.transition_) {
+            console.warn(`[SceneManager] Transition already in progress, ignoring switchTo("${name}")`);
+            return;
+        }
+
         const transition = options?.transition ?? 'none';
 
         if (transition === 'fade') {
@@ -273,6 +279,9 @@ export class SceneManagerState {
     async load(name: string): Promise<SceneContext> {
         if (this.scenes_.has(name)) {
             const existing = this.scenes_.get(name)!;
+            if (existing.status === 'loading') {
+                return this.loadPromises_.get(name)!;
+            }
             existing.status = 'running';
             this.activeScene_ = name;
             return this.contexts_.get(name)!;
@@ -289,57 +298,69 @@ export class SceneManagerState {
         const ctx = new SceneContextImpl(instance, this.app_);
         this.contexts_.set(name, ctx);
 
-        let sceneData = config.data;
-        if (!sceneData && config.path) {
-            const assetServer = this.app_.hasResource(Assets)
-                ? this.app_.getResource(Assets)
-                : null;
-            if (assetServer) {
-                sceneData = await assetServer.loadJson<SceneData>(config.path);
-            } else {
-                const response = await fetch(config.path);
-                sceneData = await response.json() as SceneData;
+        const loadPromise = (async (): Promise<SceneContext> => {
+            let sceneData = config.data;
+            if (!sceneData && config.path) {
+                const assetServer = this.app_.hasResource(Assets)
+                    ? this.app_.getResource(Assets)
+                    : null;
+                if (assetServer) {
+                    sceneData = await assetServer.loadJson<SceneData>(config.path);
+                } else {
+                    const response = await fetch(config.path);
+                    sceneData = await response.json() as SceneData;
+                }
             }
-        }
 
-        if (sceneData) {
-            const loadOptions: SceneLoadOptions = {};
-            if (this.app_.hasResource(Assets)) {
-                loadOptions.assetServer = this.app_.getResource(Assets);
+            if (sceneData) {
+                const loadOptions: SceneLoadOptions = {};
+                if (this.app_.hasResource(Assets)) {
+                    loadOptions.assetServer = this.app_.getResource(Assets);
+                }
+                const entityMap = await loadSceneWithAssets(
+                    this.app_.world, sceneData, loadOptions
+                );
+
+                for (const entity of entityMap.values()) {
+                    instance.entities.add(entity);
+                    this.app_.world.insert(entity, SceneOwner, {
+                        scene: name,
+                        persistent: false,
+                    });
+                }
             }
-            const entityMap = await loadSceneWithAssets(
-                this.app_.world, sceneData, loadOptions
-            );
 
-            for (const entity of entityMap.values()) {
-                instance.entities.add(entity);
-                this.app_.world.insert(entity, SceneOwner, {
-                    scene: name,
-                    persistent: false,
-                });
+            if (config.systems) {
+                for (const { schedule, system } of config.systems) {
+                    const wrapped = wrapSceneSystem(this.app_, name, system);
+                    this.app_.addSystemToSchedule(schedule, wrapped);
+                }
             }
-        }
 
-        if (config.systems) {
-            for (const { schedule, system } of config.systems) {
-                const wrapped = wrapSceneSystem(this.app_, name, system);
-                this.app_.addSystemToSchedule(schedule, wrapped);
+            if (config.setup) {
+                await config.setup(ctx);
             }
-        }
 
-        if (config.setup) {
-            await config.setup(ctx);
-        }
+            instance.status = 'running';
+            this.activeScene_ = name;
+            this.loadOrder_.push(name);
+            return ctx;
+        })();
 
-        instance.status = 'running';
-        this.activeScene_ = name;
-        this.loadOrder_.push(name);
-        return ctx;
+        this.loadPromises_.set(name, loadPromise);
+        try {
+            return await loadPromise;
+        } finally {
+            this.loadPromises_.delete(name);
+        }
     }
 
     async loadAdditive(name: string): Promise<SceneContext> {
         if (this.scenes_.has(name)) {
             const existing = this.scenes_.get(name)!;
+            if (existing.status === 'loading') {
+                return this.loadPromises_.get(name)!;
+            }
             existing.status = 'running';
             this.additiveScenes_.add(name);
             return this.contexts_.get(name)!;
@@ -356,52 +377,61 @@ export class SceneManagerState {
         const ctx = new SceneContextImpl(instance, this.app_);
         this.contexts_.set(name, ctx);
 
-        let sceneData = config.data;
-        if (!sceneData && config.path) {
-            const assetServer = this.app_.hasResource(Assets)
-                ? this.app_.getResource(Assets)
-                : null;
-            if (assetServer) {
-                sceneData = await assetServer.loadJson<SceneData>(config.path);
-            } else {
-                const response = await fetch(config.path);
-                sceneData = await response.json() as SceneData;
+        const loadPromise = (async (): Promise<SceneContext> => {
+            let sceneData = config.data;
+            if (!sceneData && config.path) {
+                const assetServer = this.app_.hasResource(Assets)
+                    ? this.app_.getResource(Assets)
+                    : null;
+                if (assetServer) {
+                    sceneData = await assetServer.loadJson<SceneData>(config.path);
+                } else {
+                    const response = await fetch(config.path);
+                    sceneData = await response.json() as SceneData;
+                }
             }
-        }
 
-        if (sceneData) {
-            const loadOptions: SceneLoadOptions = {};
-            if (this.app_.hasResource(Assets)) {
-                loadOptions.assetServer = this.app_.getResource(Assets);
+            if (sceneData) {
+                const loadOptions: SceneLoadOptions = {};
+                if (this.app_.hasResource(Assets)) {
+                    loadOptions.assetServer = this.app_.getResource(Assets);
+                }
+                const entityMap = await loadSceneWithAssets(
+                    this.app_.world, sceneData, loadOptions
+                );
+
+                for (const entity of entityMap.values()) {
+                    instance.entities.add(entity);
+                    this.app_.world.insert(entity, SceneOwner, {
+                        scene: name,
+                        persistent: false,
+                    });
+                }
             }
-            const entityMap = await loadSceneWithAssets(
-                this.app_.world, sceneData, loadOptions
-            );
 
-            for (const entity of entityMap.values()) {
-                instance.entities.add(entity);
-                this.app_.world.insert(entity, SceneOwner, {
-                    scene: name,
-                    persistent: false,
-                });
+            if (config.systems) {
+                for (const { schedule, system } of config.systems) {
+                    const wrapped = wrapSceneSystem(this.app_, name, system);
+                    this.app_.addSystemToSchedule(schedule, wrapped);
+                }
             }
-        }
 
-        if (config.systems) {
-            for (const { schedule, system } of config.systems) {
-                const wrapped = wrapSceneSystem(this.app_, name, system);
-                this.app_.addSystemToSchedule(schedule, wrapped);
+            if (config.setup) {
+                await config.setup(ctx);
             }
-        }
 
-        if (config.setup) {
-            await config.setup(ctx);
-        }
+            instance.status = 'running';
+            this.additiveScenes_.add(name);
+            this.loadOrder_.push(name);
+            return ctx;
+        })();
 
-        instance.status = 'running';
-        this.additiveScenes_.add(name);
-        this.loadOrder_.push(name);
-        return ctx;
+        this.loadPromises_.set(name, loadPromise);
+        try {
+            return await loadPromise;
+        } finally {
+            this.loadPromises_.delete(name);
+        }
     }
 
     async unload(name: string, options?: TransitionOptions): Promise<void> {

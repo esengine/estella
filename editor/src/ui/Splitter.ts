@@ -27,8 +27,8 @@ export class Splitter {
     private startLeftSize_ = 0;
     private startRightSize_ = 0;
     private onResize_?: (leftSize: number, rightSize: number) => void;
-    private boundOnMouseMove_: (e: MouseEvent) => void;
-    private boundOnMouseUp_: () => void;
+    private boundOnMouseMove_!: (e: MouseEvent) => void;
+    private boundOnMouseUp_!: () => void;
 
     constructor(options: SplitterOptions) {
         this.container_ = options.container;

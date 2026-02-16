@@ -309,6 +309,23 @@ public:
         components_.clear();
     }
 
+    void rebuildSparse() {
+        pages_.clear();
+        for (usize i = 0; i < dense_.size(); ++i) {
+            const Entity entity = dense_[i];
+            const auto pageIndex = entity / SPARSE_PAGE_SIZE;
+            const auto offset = entity % SPARSE_PAGE_SIZE;
+            if (pageIndex >= pages_.size()) {
+                pages_.resize(pageIndex + 1);
+            }
+            if (!pages_[pageIndex]) {
+                pages_[pageIndex] = std::make_unique<Page>();
+                std::fill(pages_[pageIndex]->begin(), pages_[pageIndex]->end(), INVALID_ENTITY);
+            }
+            (*pages_[pageIndex])[offset] = static_cast<Entity>(i);
+        }
+    }
+
     // =========================================================================
     // Iteration
     // =========================================================================

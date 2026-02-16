@@ -229,6 +229,9 @@ void RenderFrame::shutdown() {
     }
 
 #ifdef ES_ENABLE_SPINE
+    if (spine_shader_handle_.isValid()) {
+        resource_manager_.releaseShader(spine_shader_handle_);
+    }
     if (spine_ebo_) { glDeleteBuffers(1, &spine_ebo_); spine_ebo_ = 0; }
     if (spine_vbo_) { glDeleteBuffers(1, &spine_vbo_); spine_vbo_ = 0; }
     if (spine_vao_) { glDeleteVertexArrays(1, &spine_vao_); spine_vao_ = 0; }

@@ -358,7 +358,9 @@ export class ApplyPrefabOverridesCommand extends BaseCommand {
 
         this.updateOtherInstances(instanceEntities);
 
-        this.onSave_(this.prefab_, this.prefabPath_);
+        this.onSave_(this.prefab_, this.prefabPath_).catch(err => {
+            console.error('Failed to save prefab:', err);
+        });
     }
 
     undo(): void {
