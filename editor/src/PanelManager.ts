@@ -165,6 +165,14 @@ export class PanelManager {
         }
     }
 
+    removePanelInstance(panelId: string): void {
+        const instance = this.panelInstances_.get(panelId);
+        if (instance) {
+            instance.dispose();
+            this.panelInstances_.delete(panelId);
+        }
+    }
+
     cleanupExtensionPanels(): void {
         for (const [id, instance] of this.panelInstances_) {
             if (isBuiltinPanel(id)) continue;

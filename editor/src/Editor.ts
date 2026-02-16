@@ -71,6 +71,7 @@ import {
 import { loadProjectConfig, loadEditorLocalSettings, saveEditorLocalSetting } from './launcher/ProjectService';
 import type { SpineVersion } from './types/ProjectTypes';
 import { DockLayoutManager } from './DockLayoutManager';
+import { ContentDrawer } from './ui/ContentDrawer';
 import {
     lockBuiltinPanels, clearExtensionPanels,
 } from './panels/PanelRegistry';
@@ -97,6 +98,7 @@ export class Editor {
     private scriptLoader_: ScriptLoader | null = null;
     private extensionLoader_: ExtensionLoader | null = null;
     private dockLayout_: DockLayoutManager | null = null;
+    private contentDrawer_: ContentDrawer | null = null;
     private assetLibraryReady_: Promise<void> = Promise.resolve();
     private clipboard_: EntityData[] | null = null;
     private addressableWindow_: { element: HTMLElement; panel: AddressablePanel; keyHandler: (e: KeyboardEvent) => void } | null = null;
@@ -214,12 +216,11 @@ export class Editor {
     // =========================================================================
 
     showPanel(id: string): void {
-        if (this.dockLayout_?.api) {
-            const panel = this.dockLayout_.api.getPanel(id);
-            if (panel) {
-                panel.api.setActive();
-            }
+        if (id === 'content-browser') {
+            this.contentDrawer_?.toggle();
+            return;
         }
+        this.dockLayout_?.showPanel(id);
         this.panelManager_.showPanel(id);
     }
 
@@ -232,6 +233,7 @@ export class Editor {
     }
 
     resetLayout(): void {
+        this.contentDrawer_?.onResetLayout();
         this.dockLayout_?.resetLayout();
     }
 
@@ -961,6 +963,14 @@ export class Editor {
         this.dockLayout_ = new DockLayoutManager(this.panelManager_, this.store_);
         this.dockLayout_.initialize(dockContainer);
 
+        this.contentDrawer_ = new ContentDrawer(
+            this.container_, this.dockLayout_, this.store_,
+            {
+                projectPath: this.projectPath_ ?? undefined,
+                onOpenScene: (scenePath) => this.openSceneFromPath(scenePath),
+            },
+        );
+
         setEditorInstance(this);
 
         if (this.projectPath_) {
@@ -1035,6 +1045,11 @@ export class Editor {
                 return;
             }
 
+            if (this.contentDrawer_?.state === 'open') {
+                this.contentDrawer_.closeDrawer();
+                return;
+            }
+
             if (this.addressableWindow_) {
                 this.addressableWindow_.panel.dispose();
                 this.addressableWindow_.element.remove();
@@ -1061,6 +1076,7 @@ export class Editor {
             document.removeEventListener('keydown', this.escapeHandler_);
             this.escapeHandler_ = null;
         }
+        this.contentDrawer_?.dispose();
         this.menuManager_.dispose();
         this.scriptLoader_?.dispose();
         this.extensionLoader_?.dispose();

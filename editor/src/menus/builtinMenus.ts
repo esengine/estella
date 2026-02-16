@@ -124,7 +124,8 @@ export function registerBuiltinMenus(editor: Editor): void {
         action: () => editor.showPanel('inspector'),
     });
     registerMenuItem({
-        id: 'view.content-browser', menu: 'view', label: 'Content Browser', order: 2,
+        id: 'view.content-browser', menu: 'view', label: 'Content Browser',
+        shortcut: 'Ctrl+Space', order: 2,
         action: () => editor.showPanel('content-browser'),
     });
     registerMenuItem({

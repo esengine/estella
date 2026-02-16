@@ -7,7 +7,7 @@ import {
     type SerializedDockview,
 } from 'dockview-core';
 import type { EditorStore } from './store/EditorStore';
-import type { PanelDescriptor } from './panels/PanelRegistry';
+import { getPanel, type PanelDescriptor } from './panels/PanelRegistry';
 import type { PanelManager } from './PanelManager';
 
 const LAYOUT_STORAGE_KEY = 'esengine.editor.layout';
@@ -38,7 +38,9 @@ class EditorPanelRenderer implements IContentRenderer {
         this.panelManager_.createPanelInContainer(this.panelId_, this.element_, this.store_);
     }
 
-    dispose(): void {}
+    dispose(): void {
+        this.panelManager_.removePanelInstance(this.panelId_);
+    }
 }
 
 export class DockLayoutManager {
@@ -108,22 +110,6 @@ export class DockLayoutManager {
             position: { referencePanel: 'scene', direction: 'right' },
             initialWidth: 260,
         });
-
-        this.api_.addPanel({
-            id: 'content-browser',
-            component: 'content-browser',
-            title: 'Content Browser',
-            position: { referencePanel: 'scene', direction: 'below' },
-            initialHeight: 250,
-        });
-
-        this.api_.addPanel({
-            id: 'output',
-            component: 'output',
-            title: 'Output',
-            position: { referencePanel: 'content-browser' },
-            inactive: true,
-        });
     }
 
     private startSavingLayout(): void {
@@ -160,6 +146,25 @@ export class DockLayoutManager {
         this.applyDefaultLayout();
     }
 
+    showPanel(id: string): void {
+        if (!this.api_) return;
+
+        let panel = this.api_.getPanel(id);
+        if (!panel) {
+            const desc = getPanel(id);
+            if (!desc) return;
+            this.api_.addPanel({
+                id: desc.id,
+                component: desc.id,
+                title: desc.title,
+                position: { referencePanel: 'scene', direction: 'below' },
+                initialHeight: 200,
+            });
+            panel = this.api_.getPanel(id);
+        }
+        panel?.api.setActive();
+    }
+
     addPanel(desc: PanelDescriptor): void {
         if (!this.api_) return;
 
@@ -168,18 +173,21 @@ export class DockLayoutManager {
 
         const position = desc.position ?? 'bottom';
         let referenceId = 'scene';
-        if (position === 'bottom') referenceId = 'content-browser';
-        else if (position === 'left') referenceId = 'hierarchy';
+        if (position === 'left') referenceId = 'hierarchy';
         else if (position === 'right') referenceId = 'inspector';
 
         const refPanel = this.api_.getPanel(referenceId);
         if (!refPanel) return;
 
+        const direction = position === 'bottom' ? 'below' : undefined;
+
         this.api_.addPanel({
             id: desc.id,
             component: desc.id,
             title: desc.title,
-            position: { referencePanel: refPanel },
+            position: direction
+                ? { referencePanel: refPanel, direction }
+                : { referencePanel: refPanel },
             inactive: true,
         });
     }

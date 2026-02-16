@@ -2220,13 +2220,15 @@ svg {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 20px;
+    min-width: 20px;
     height: 20px;
-    padding: 0;
+    padding: 0 4px;
     background: transparent;
     border: none;
     border-radius: 2px;
     cursor: pointer;
+    color: var(--es-text-secondary);
+    font-size: 11px;
 }
 
 .es-statusbar-icons button:hover {
@@ -5362,4 +5364,106 @@ svg {
   display: flex;
   gap: 8px;
   margin-top: 16px;
+}
+
+/* =============================================================================
+ * Content Drawer
+ * ============================================================================= */
+
+.es-content-drawer {
+    position: relative;
+    height: 0;
+    overflow: hidden;
+    transition: height 0.2s ease;
+    border-top: 1px solid var(--es-border);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+}
+
+.es-content-drawer.es-drawer-open {
+    height: var(--drawer-height, 300px);
+}
+
+.es-content-drawer.es-drawer-resizing {
+    transition: none;
+}
+
+.es-content-drawer-resize {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    cursor: ns-resize;
+    z-index: 10;
+}
+
+.es-content-drawer-resize:hover,
+.es-content-drawer-resize:active {
+    background: var(--es-accent);
+}
+
+.es-content-drawer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 28px;
+    min-height: 28px;
+    padding: 0 8px;
+    background: var(--es-bg-tertiary);
+    border-bottom: 1px solid var(--es-border);
+    user-select: none;
+}
+
+.es-content-drawer-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--es-text-primary);
+}
+
+.es-content-drawer-title svg {
+    stroke: var(--es-text-secondary);
+}
+
+.es-content-drawer-actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.es-content-drawer-actions .es-btn-icon {
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    padding: 0;
+}
+
+.es-content-drawer-actions .es-btn-icon:hover {
+    background: var(--es-bg-hover);
+}
+
+.es-content-drawer-actions .es-btn-icon svg {
+    stroke: var(--es-text-secondary);
+}
+
+.es-content-drawer-actions .es-btn-icon:hover svg {
+    stroke: var(--es-text-primary);
+}
+
+.es-content-drawer-body {
+    flex: 1;
+    overflow: hidden;
+}
+
+.es-content-drawer-body .es-content-browser-header {
+    display: none;
 }
