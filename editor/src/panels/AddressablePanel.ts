@@ -15,6 +15,7 @@ import { showContextMenu, type ContextMenuItem } from '../ui/ContextMenu';
 import { getContextMenuItems, type ContextMenuContext } from '../ui/ContextMenuRegistry';
 import { showErrorToast, showSuccessToast } from '../ui/Toast';
 import { getEditorType } from 'esengine';
+import { escapeHtml } from '../utils/html';
 
 const EDITOR_TYPE_TO_ASSET_TYPE: Record<string, AssetType> = {
     'texture': 'image',
@@ -180,7 +181,7 @@ export class AddressablePanel implements PanelInstance {
             const count = db.getUuidsByGroup(group.name).size;
             const item = document.createElement('div');
             item.className = `es-addr-group-item${group.name === this.selectedGroup_ ? ' es-selected' : ''}`;
-            item.innerHTML = `<span class="es-addr-group-dot"></span> ${this.escapeHtml(group.name)}<span class="es-addr-group-count">${count}</span>`;
+            item.innerHTML = `<span class="es-addr-group-dot"></span> ${escapeHtml(group.name)}<span class="es-addr-group-count">${count}</span>`;
             item.addEventListener('click', () => {
                 this.selectedGroup_ = group.name;
                 this.renderGroupList();
@@ -236,7 +237,7 @@ export class AddressablePanel implements PanelInstance {
                 <label class="es-addr-label-check">
                     <input type="checkbox" ${checked ? 'checked' : ''} />
                     <span class="es-addr-label-dot" style="background:${color}"></span>
-                    <span>${this.escapeHtml(label)}</span>
+                    <span>${escapeHtml(label)}</span>
                 </label>
             `;
             const checkbox = item.querySelector('input')!;
@@ -332,14 +333,14 @@ export class AddressablePanel implements PanelInstance {
             const name = entry.path.split('/').pop() || '';
             const labelsHtml = [...entry.labels].map(l => {
                 const color = this.getLabelColor(l);
-                return `<span class="es-addr-tag" style="--tag-color: ${color}">${this.escapeHtml(l)}</span>`;
+                return `<span class="es-addr-tag" style="--tag-color: ${color}">${escapeHtml(l)}</span>`;
             }).join('');
             const size = this.formatSize(entry.fileSize);
             const selected = this.selectedUuids_.has(entry.uuid);
             return `
                 <div class="es-addr-table-row${selected ? ' es-selected' : ''}" data-uuid="${entry.uuid}" draggable="true">
-                    <span class="es-addr-col-name" title="${this.escapeHtml(entry.path)}">${this.escapeHtml(name)}</span>
-                    <span class="es-addr-col-address">${this.escapeHtml(entry.address || '')}</span>
+                    <span class="es-addr-col-name" title="${escapeHtml(entry.path)}">${escapeHtml(name)}</span>
+                    <span class="es-addr-col-address">${escapeHtml(entry.address || '')}</span>
                     <span class="es-addr-col-labels">${labelsHtml}</span>
                     <span class="es-addr-col-type">${entry.type}</span>
                     <span class="es-addr-col-size">${size}</span>
@@ -472,15 +473,15 @@ export class AddressablePanel implements PanelInstance {
             .join('');
 
         const includeHtml = group.include.length > 0
-            ? group.include.map(p => `<div class="es-addr-include-item">${this.escapeHtml(p)}</div>`).join('')
+            ? group.include.map(p => `<div class="es-addr-include-item">${escapeHtml(p)}</div>`).join('')
             : '<div class="es-muted">No patterns</div>';
 
         this.groupConfigEl_.innerHTML = `
-            <div class="es-addr-config-toggle" title="Hide group config">▾ Config: ${this.escapeHtml(group.name)}</div>
+            <div class="es-addr-config-toggle" title="Hide group config">▾ Config: ${escapeHtml(group.name)}</div>
             <div class="es-addr-group-config-body">
                 <div class="es-addr-config-field">
                     <span class="es-addr-config-label">Description</span>
-                    <input type="text" class="es-input es-addr-config-desc" value="${this.escapeHtml(group.description)}" placeholder="Group description" />
+                    <input type="text" class="es-input es-addr-config-desc" value="${escapeHtml(group.description)}" placeholder="Group description" />
                 </div>
                 <div class="es-addr-config-field">
                     <span class="es-addr-config-label">Bundle Mode</span>
@@ -551,8 +552,8 @@ export class AddressablePanel implements PanelInstance {
             if (!entry) return '';
             const name = entry.path.split('/').pop() || '';
             return `
-                <div class="es-addr-unreferenced-row" data-uuid="${uuid}" title="${this.escapeHtml(entry.path)}">
-                    <span class="es-addr-col-name">${this.escapeHtml(name)}</span>
+                <div class="es-addr-unreferenced-row" data-uuid="${uuid}" title="${escapeHtml(entry.path)}">
+                    <span class="es-addr-col-name">${escapeHtml(name)}</span>
                     <span class="es-addr-col-type">${entry.type}</span>
                     <span class="es-addr-col-size">${this.formatSize(entry.fileSize)}</span>
                 </div>
@@ -910,11 +911,4 @@ export class AddressablePanel implements PanelInstance {
         return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
     }
 
-    private escapeHtml(text: string): string {
-        return text
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;');
-    }
 }

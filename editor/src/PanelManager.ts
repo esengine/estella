@@ -17,6 +17,7 @@ import {
 } from './panels/PanelRegistry';
 import type { EditorAssetServer } from './asset/EditorAssetServer';
 import { icons } from './utils/icons';
+import { escapeHtml } from './utils/html';
 
 export class PanelManager {
     private panelInstances_ = new Map<string, PanelInstance>();
@@ -86,7 +87,7 @@ export class PanelManager {
 
         overlay.querySelector('[data-action="retry"]')?.addEventListener('click', () => {
             overlay.remove();
-            this.createPanelWithErrorBoundary(desc, container, store);
+            this.createPanelWithErrorBoundary(desc, container, store, this.bridge_, this.app_);
         });
 
         overlay.querySelector('[data-action="close"]')?.addEventListener('click', () => {
@@ -189,8 +190,3 @@ export class PanelManager {
     }
 }
 
-function escapeHtml(text: string): string {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}

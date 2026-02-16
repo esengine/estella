@@ -9,6 +9,7 @@ import {
 import type { EditorStore } from './store/EditorStore';
 import { getPanel, type PanelDescriptor } from './panels/PanelRegistry';
 import type { PanelManager } from './PanelManager';
+import { showErrorToast } from './ui/Toast';
 
 const LAYOUT_STORAGE_KEY = 'esengine.editor.layout';
 
@@ -48,6 +49,9 @@ export class DockLayoutManager {
     private panelManager_: PanelManager;
     private store_: EditorStore;
     private layoutChangeDisposable_: { dispose(): void } | null = null;
+    private activePanelDisposable_: { dispose(): void } | null = null;
+    private saveTimer_: ReturnType<typeof setTimeout> | null = null;
+    private lastActivePanelId_: string | null = null;
 
     constructor(panelManager: PanelManager, store: EditorStore) {
         this.panelManager_ = panelManager;
@@ -71,6 +75,18 @@ export class DockLayoutManager {
             disableFloatingGroups: true,
         });
 
+        this.activePanelDisposable_ = this.api_.onDidActivePanelChange((panel) => {
+            const newId = panel?.id ?? null;
+            if (newId === this.lastActivePanelId_) return;
+            if (this.lastActivePanelId_) {
+                this.panelManager_.hidePanel(this.lastActivePanelId_);
+            }
+            if (newId) {
+                this.panelManager_.showPanel(newId);
+            }
+            this.lastActivePanelId_ = newId;
+        });
+
         const saved = this.loadSavedLayout();
         if (saved) {
             try {
@@ -79,6 +95,7 @@ export class DockLayoutManager {
                 return;
             } catch {
                 localStorage.removeItem(LAYOUT_STORAGE_KEY);
+                showErrorToast('Layout Restore Failed', 'The saved layout could not be restored. Using default layout.');
             }
         }
 
@@ -110,12 +127,25 @@ export class DockLayoutManager {
             position: { referencePanel: 'scene', direction: 'right' },
             initialWidth: 260,
         });
+
+        this.api_.addPanel({
+            id: 'output',
+            component: 'output',
+            title: 'Output',
+            position: { referencePanel: 'scene', direction: 'below' },
+            initialHeight: 200,
+            inactive: true,
+        });
     }
 
     private startSavingLayout(): void {
         if (!this.api_) return;
         this.layoutChangeDisposable_ = this.api_.onDidLayoutChange(() => {
-            this.saveLayout();
+            if (this.saveTimer_) clearTimeout(this.saveTimer_);
+            this.saveTimer_ = setTimeout(() => {
+                this.saveTimer_ = null;
+                this.saveLayout();
+            }, 500);
         });
     }
 
@@ -201,6 +231,12 @@ export class DockLayoutManager {
     }
 
     dispose(): void {
+        if (this.saveTimer_) {
+            clearTimeout(this.saveTimer_);
+            this.saveTimer_ = null;
+        }
+        this.activePanelDisposable_?.dispose();
+        this.activePanelDisposable_ = null;
         this.layoutChangeDisposable_?.dispose();
         this.layoutChangeDisposable_ = null;
         this.api_?.dispose();

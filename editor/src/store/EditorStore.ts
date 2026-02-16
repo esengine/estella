@@ -43,6 +43,7 @@ import { getGlobalPathResolver, getAssetDatabase, isUUID } from '../asset';
 import { WorldTransformCache } from '../transform/WorldTransformCache';
 import type { Transform } from '../math/Transform';
 import { isComponentRemovable } from '../schemas/ComponentSchemas';
+import { showConfirmDialog } from '../ui/dialog';
 
 // =============================================================================
 // Types
@@ -137,6 +138,10 @@ export class EditorStore {
         filePath: string | null;
         isDirty: boolean;
     } | null = null;
+    private autoSaveTimer_: ReturnType<typeof setInterval> | null = null;
+
+    private static readonly AUTOSAVE_KEY = 'esengine.autosave';
+    private static readonly AUTOSAVE_INTERVAL = 60_000;
 
     constructor() {
         const scene = createEmptyScene();
@@ -151,6 +156,7 @@ export class EditorStore {
         this.nextEntityId_ = this.computeNextEntityId(scene);
         this.rebuildEntityMap();
         this.worldTransforms_.setScene(scene);
+        this.startAutoSave();
     }
 
     private computeNextEntityId(scene: SceneData): number {
@@ -224,6 +230,7 @@ export class EditorStore {
     // =========================================================================
 
     newScene(name: string = 'Untitled', designResolution?: { width: number; height: number }): void {
+        this.saveRecoveryBackup();
         this.state_.scene = createEmptyScene(name, designResolution);
         this.state_.selectedEntities.clear();
         this.state_.selectedAsset = null;
@@ -238,6 +245,7 @@ export class EditorStore {
     }
 
     loadScene(scene: SceneData, filePath: string | null = null): void {
+        this.saveRecoveryBackup();
         this.state_.scene = scene;
         this.state_.selectedEntities.clear();
         this.state_.selectedAsset = null;
@@ -258,7 +266,36 @@ export class EditorStore {
         if (filePath) {
             this.state_.filePath = filePath;
         }
+        this.clearAutoSave();
         this.notify('scene');
+    }
+
+    hasRecoveryData(): boolean {
+        try {
+            return localStorage.getItem(EditorStore.AUTOSAVE_KEY) !== null;
+        } catch {
+            return false;
+        }
+    }
+
+    recoverScene(): SceneData | null {
+        try {
+            const raw = localStorage.getItem(EditorStore.AUTOSAVE_KEY);
+            if (!raw) return null;
+            const data = JSON.parse(raw) as { scene: SceneData; filePath: string | null };
+            this.clearAutoSave();
+            this.loadScene(data.scene, data.filePath);
+            this.state_.isDirty = true;
+            this.notify('scene');
+            return data.scene;
+        } catch {
+            this.clearAutoSave();
+            return null;
+        }
+    }
+
+    dismissRecovery(): void {
+        this.clearAutoSave();
     }
 
     // =========================================================================
@@ -483,6 +520,12 @@ export class EditorStore {
 
     deleteSelectedEntities(): void {
         const toDelete = Array.from(this.state_.selectedEntities);
+
+        const descendantMap = new Map<number, number[]>();
+        for (const id of toDelete) {
+            descendantMap.set(id, this.collectDescendantIds(id));
+        }
+
         const commands = toDelete.map(id => new DeleteEntityCommand(this.state_.scene, this.entityMap_, id as Entity));
         const compound = new CompoundCommand(commands, 'Delete entities');
         this.executeCommand(compound);
@@ -490,7 +533,7 @@ export class EditorStore {
         this.state_.selectedEntities.clear();
 
         for (const id of toDelete) {
-            const descendants = this.collectDescendantIds(id);
+            const descendants = descendantMap.get(id)!;
             for (const descId of descendants) {
                 this.notifyEntityLifecycle({ entity: descId, type: 'deleted', parent: null });
             }
@@ -902,12 +945,7 @@ export class EditorStore {
 
         let saveFailed = false;
         if (this.state_.isDirty) {
-            try {
-                await this.savePrefabEditing();
-            } catch (e) {
-                console.error('Failed to save prefab:', e);
-                saveFailed = true;
-            }
+            saveFailed = !(await this.trySavePrefabWithRetry());
         }
 
         const saved = this.savedSceneState_;
@@ -919,6 +957,24 @@ export class EditorStore {
         this.loadScene(saved.scene, saved.filePath);
         this.state_.isDirty = saved.isDirty || synced || saveFailed;
         this.notify('scene');
+    }
+
+    private async trySavePrefabWithRetry(): Promise<boolean> {
+        while (true) {
+            try {
+                await this.savePrefabEditing();
+                return true;
+            } catch (e) {
+                const retry = await showConfirmDialog({
+                    title: 'Failed to save prefab',
+                    message: `${String(e)}\n\nRetry saving, or discard changes?`,
+                    confirmText: 'Retry',
+                    cancelText: 'Discard',
+                    danger: true,
+                });
+                if (!retry) return false;
+            }
+        }
     }
 
     async savePrefabEditing(): Promise<boolean> {
@@ -1124,6 +1180,39 @@ export class EditorStore {
         for (const entity of this.state_.scene.entities) {
             this.entityMap_.set(entity.id, entity);
         }
+    }
+
+    private startAutoSave(): void {
+        this.autoSaveTimer_ = setInterval(() => {
+            if (this.state_.isDirty) {
+                this.saveAutoSave();
+            }
+        }, EditorStore.AUTOSAVE_INTERVAL);
+    }
+
+    private saveAutoSave(): void {
+        try {
+            const data = JSON.stringify({
+                scene: this.state_.scene,
+                filePath: this.state_.filePath,
+            });
+            localStorage.setItem(EditorStore.AUTOSAVE_KEY, data);
+        } catch {
+            // localStorage full or unavailable
+        }
+    }
+
+    private clearAutoSave(): void {
+        try {
+            localStorage.removeItem(EditorStore.AUTOSAVE_KEY);
+        } catch {
+            // localStorage unavailable
+        }
+    }
+
+    private saveRecoveryBackup(): void {
+        if (!this.state_.isDirty) return;
+        this.saveAutoSave();
     }
 }
 

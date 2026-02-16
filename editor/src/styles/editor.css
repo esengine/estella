@@ -13,17 +13,35 @@
     --es-bg-hover: #3e3e42;
     --es-border: #3c3c3c;
     --es-text-primary: #cccccc;
-    --es-text-secondary: #808080;
+    --es-text-secondary: #8c8c8c;
     --es-accent: #0078d4;
     --es-accent-hover: #1084d8;
     --es-danger: #f44336;
     --es-success: #4caf50;
+    --es-warning: #f0ad4e;
+    --es-error: #d9534f;
     --es-input-bg: #2d2d2d;
     --es-text-disabled: #555555;
-    --es-text-muted: #666666;
+    --es-text-muted: #737373;
     --es-scrollbar-track: #1e1e1e;
     --es-scrollbar-thumb: #424242;
     --es-scrollbar-thumb-hover: #555555;
+    --es-accent-gold: #d19a66;
+    --es-prefab: #4fc1ff;
+    --es-drag: #61afef;
+    --es-selection-bg: rgba(209, 154, 102, 0.2);
+    --es-radius-sm: 3px;
+    --es-radius-md: 4px;
+    --es-radius-lg: 6px;
+    --es-font-xs: 10px;
+    --es-font-sm: 11px;
+    --es-font-md: 12px;
+    --es-font-base: 13px;
+    --es-font-lg: 14px;
+}
+
+*, *::before, *::after {
+    box-sizing: border-box;
 }
 
 /* =============================================================================
@@ -56,7 +74,7 @@
  * SVG Icons
  * ============================================================================= */
 
-svg {
+.es-editor svg {
     display: inline-block;
     vertical-align: middle;
 }
@@ -66,7 +84,7 @@ svg {
 }
 
 .es-btn-icon:hover svg {
-    stroke: var(--es-text-primary);
+    stroke: #e0e0e0;
 }
 
 .es-btn-icon.es-active {
@@ -85,7 +103,7 @@ svg {
 }
 
 .es-hierarchy-item.es-selected .es-hierarchy-icon svg {
-    stroke: #d19a66;
+    stroke: var(--es-accent-gold);
 }
 
 .es-btn-remove svg {
@@ -213,6 +231,7 @@ svg {
 .es-menu-item.es-disabled {
     color: var(--es-text-secondary);
     cursor: not-allowed;
+    pointer-events: none;
 }
 
 .es-menu-item.es-disabled:hover {
@@ -265,7 +284,7 @@ svg {
 }
 
 .es-editor-menubar .es-btn-preview.es-btn-danger {
-    background: var(--es-error, #d9534f);
+    background: var(--es-error);
 }
 
 .es-editor-menubar .es-btn-preview.es-btn-danger:hover {
@@ -287,7 +306,7 @@ svg {
     --dv-activegroup-hiddenpanel-tab-background-color: var(--es-bg-secondary);
     --dv-inactivegroup-visiblepanel-tab-background-color: var(--es-bg-tertiary);
     --dv-inactivegroup-hiddenpanel-tab-background-color: var(--es-bg-secondary);
-    --dv-activegroup-visiblepanel-tab-color: #d19a66;
+    --dv-activegroup-visiblepanel-tab-color: var(--es-accent-gold);
     --dv-activegroup-hiddenpanel-tab-color: var(--es-text-secondary);
     --dv-inactivegroup-visiblepanel-tab-color: var(--es-text-primary);
     --dv-inactivegroup-hiddenpanel-tab-color: var(--es-text-secondary);
@@ -412,6 +431,7 @@ svg {
     position: relative;
     height: 22px;
     box-sizing: border-box;
+    transition: background 0.15s;
 }
 
 .es-hierarchy-row:hover {
@@ -420,21 +440,21 @@ svg {
 
 .es-hierarchy-item.es-selected > .es-hierarchy-row {
     background: rgba(209, 154, 102, 0.3);
-    border-left-color: #d19a66;
+    border-left-color: var(--es-accent-gold);
 }
 
 .es-hierarchy-item.es-selected > .es-hierarchy-row .es-hierarchy-name {
-    color: #d19a66;
+    color: var(--es-accent-gold);
 }
 
 .es-hierarchy-item.es-drag-over > .es-hierarchy-row {
     background: rgba(97, 175, 239, 0.3);
-    border-left-color: #61afef;
+    border-left-color: var(--es-drag);
 }
 
 .es-hierarchy-tree.es-drag-over {
     background: rgba(97, 175, 239, 0.1);
-    outline: 1px dashed #61afef;
+    outline: 1px dashed var(--es-drag);
     outline-offset: -2px;
 }
 
@@ -445,7 +465,7 @@ svg {
     left: 20px;
     right: 0;
     height: 2px;
-    background: #61afef;
+    background: var(--es-drag);
     pointer-events: none;
 }
 
@@ -456,13 +476,13 @@ svg {
     left: 20px;
     right: 0;
     height: 2px;
-    background: #61afef;
+    background: var(--es-drag);
     pointer-events: none;
 }
 
 .es-hierarchy-item.es-drop-inside > .es-hierarchy-row {
     background: rgba(97, 175, 239, 0.3);
-    border-left-color: #61afef;
+    border-left-color: var(--es-drag);
 }
 
 .es-hierarchy-item.es-dragging {
@@ -539,7 +559,7 @@ svg {
     height: 18px;
     padding: 0 4px;
     margin: 0;
-    border: 1px solid #d19a66;
+    border: 1px solid var(--es-accent-gold);
     border-radius: 2px;
     background: var(--es-bg-primary);
     color: var(--es-text-primary);
@@ -561,7 +581,7 @@ svg {
     background: rgba(79, 193, 255, 0.1);
     border-bottom: 1px solid rgba(79, 193, 255, 0.25);
     font-size: 11px;
-    color: #4fc1ff;
+    color: var(--es-prefab);
 }
 
 .es-prefab-back-btn {
@@ -593,16 +613,16 @@ svg {
 }
 
 .es-prefab-edit-name svg {
-    stroke: #4fc1ff;
+    stroke: var(--es-prefab);
 }
 
 .es-hierarchy-item.es-prefab-root > .es-hierarchy-row .es-hierarchy-name {
-    color: #4fc1ff;
+    color: var(--es-prefab);
     font-weight: 600;
 }
 
 .es-hierarchy-item.es-prefab-root > .es-hierarchy-row .es-hierarchy-icon svg {
-    stroke: #4fc1ff;
+    stroke: var(--es-prefab);
 }
 
 .es-hierarchy-item.es-prefab-child > .es-hierarchy-row .es-hierarchy-name {
@@ -622,7 +642,7 @@ svg {
 }
 
 .es-hierarchy-item.es-search-selected > .es-hierarchy-row {
-    border-left: 2px solid #61afef;
+    border-left: 2px solid var(--es-drag);
 }
 
 .es-hierarchy-footer {
@@ -707,14 +727,17 @@ svg {
 }
 
 .es-entity-icon svg {
-    stroke: #d19a66;
+    stroke: var(--es-accent-gold);
 }
 
 .es-entity-name {
     flex: 1;
     font-weight: 600;
     font-size: 12px;
-    color: #d19a66;
+    color: var(--es-accent-gold);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .es-entity-visibility {
@@ -745,7 +768,7 @@ svg {
     padding: 2px 4px;
     font-size: 12px;
     font-weight: 600;
-    color: #d19a66;
+    color: var(--es-accent-gold);
     background: transparent;
     border: 1px solid transparent;
     border-radius: 2px;
@@ -771,11 +794,11 @@ svg {
     border: 1px solid rgba(79, 193, 255, 0.25);
     border-radius: 3px;
     font-size: 11px;
-    color: #4fc1ff;
+    color: var(--es-prefab);
 }
 
 .es-prefab-info-bar svg {
-    stroke: #4fc1ff;
+    stroke: var(--es-prefab);
     flex-shrink: 0;
 }
 
@@ -795,14 +818,14 @@ svg {
 }
 
 .es-prefab-info-link:hover {
-    text-decoration-color: #4fc1ff;
+    text-decoration-color: var(--es-prefab);
 }
 
 .es-prefab-info-bar .es-btn {
     font-size: 10px;
     padding: 1px 6px;
     border: 1px solid rgba(79, 193, 255, 0.3);
-    color: #4fc1ff;
+    color: var(--es-prefab);
     background: transparent;
     cursor: pointer;
     border-radius: 3px;
@@ -814,7 +837,7 @@ svg {
 
 .es-property-row.es-overridden .es-property-label {
     font-weight: 700;
-    color: #4fc1ff;
+    color: var(--es-prefab);
 }
 
 .es-property-row.es-overridden .es-property-label::before {
@@ -823,7 +846,7 @@ svg {
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: #4fc1ff;
+    background: var(--es-prefab);
     margin-right: 4px;
     vertical-align: middle;
 }
@@ -893,13 +916,16 @@ svg {
 }
 
 .es-component-icon svg {
-    stroke: #d19a66;
+    stroke: var(--es-accent-gold);
 }
 
 .es-component-title {
     flex: 1;
     font-weight: 500;
     font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .es-collapsible-content {
@@ -1371,6 +1397,8 @@ svg {
 .es-btn-icon {
     padding: 2px 6px;
     min-width: 20px;
+    cursor: pointer;
+    transition: background 0.15s;
 }
 
 .es-btn-remove {
@@ -1468,7 +1496,7 @@ svg {
 }
 
 .es-number-drag-label:hover {
-    background: var(--es-hover-bg);
+    background: var(--es-bg-hover);
     color: #999;
 }
 
@@ -1477,7 +1505,7 @@ svg {
     height: 14px;
     margin: 0;
     cursor: pointer;
-    accent-color: #d19a66;
+    accent-color: var(--es-accent-gold);
 }
 
 .es-input-select {
@@ -1660,7 +1688,7 @@ svg {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     min-width: 160px;
     padding: 4px 0;
-    z-index: 1000;
+    z-index: 2000;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     font-size: 12px;
 }
@@ -1673,6 +1701,7 @@ svg {
     color: var(--es-text-primary);
     cursor: pointer;
     position: relative;
+    transition: background 0.15s;
 }
 
 .es-context-menu-item:hover {
@@ -1879,6 +1908,7 @@ svg {
     padding: 4px 8px;
     cursor: pointer;
     user-select: none;
+    transition: background 0.15s;
 }
 
 .es-folder-item:hover {
@@ -1886,11 +1916,11 @@ svg {
 }
 
 .es-folder-item.es-selected {
-    background: rgba(209, 154, 102, 0.2);
+    background: var(--es-selection-bg);
 }
 
 .es-folder-item.es-selected .es-folder-name {
-    color: #d19a66;
+    color: var(--es-accent-gold);
 }
 
 .es-folder-expand {
@@ -1931,6 +1961,7 @@ svg {
     border-radius: 4px;
     cursor: pointer;
     user-select: none;
+    transition: background 0.15s;
 }
 
 .es-asset-item:hover {
@@ -1938,7 +1969,7 @@ svg {
 }
 
 .es-asset-item.es-selected {
-    background: rgba(209, 154, 102, 0.2);
+    background: var(--es-selection-bg);
 }
 
 .es-asset-item.es-dragging {
@@ -2028,7 +2059,7 @@ svg {
 }
 
 .es-cb-list-row.es-selected {
-    background: rgba(209, 154, 102, 0.2);
+    background: var(--es-selection-bg);
 }
 
 .es-cb-list-row[draggable="true"] {
@@ -2190,7 +2221,7 @@ svg {
 }
 
 .es-status-unsaved {
-    color: var(--es-warning, #f0ad4e);
+    color: var(--es-warning);
 }
 
 .es-unsaved-dot {
@@ -2198,7 +2229,7 @@ svg {
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: var(--es-warning, #f0ad4e);
+    background: var(--es-warning);
 }
 
 .es-statusbar-message {
@@ -2303,12 +2334,12 @@ svg {
 /* Active state for statusbar buttons */
 .es-btn-dropdown.es-active,
 .es-btn-tab.es-active {
-    color: #d19a66;
+    color: var(--es-accent-gold);
 }
 
 .es-btn-dropdown.es-active svg,
 .es-btn-tab.es-active svg {
-    stroke: #d19a66;
+    stroke: var(--es-accent-gold);
 }
 
 /* =============================================================================
@@ -2399,8 +2430,8 @@ svg {
 }
 
 .es-launcher-btn-primary {
-    background: #d19a66;
-    border-color: #d19a66;
+    background: var(--es-accent-gold);
+    border-color: var(--es-accent-gold);
     color: #1e1e1e;
     font-weight: 500;
 }
@@ -2544,7 +2575,7 @@ svg {
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 1000;
+    z-index: 3000;
     color: var(--es-text-primary);
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     font-size: 13px;
@@ -2665,7 +2696,7 @@ svg {
 }
 
 .es-dialog-template.selected {
-    border-color: #d19a66;
+    border-color: var(--es-accent-gold);
     background: rgba(209, 154, 102, 0.1);
 }
 
@@ -2720,8 +2751,8 @@ svg {
 }
 
 .es-dialog-btn-primary {
-    background: #d19a66;
-    border-color: #d19a66;
+    background: var(--es-accent-gold);
+    border-color: var(--es-accent-gold);
     color: #1e1e1e;
     font-weight: 500;
 }
@@ -2805,7 +2836,7 @@ svg {
 .es-settings-nav-item.es-active {
     color: var(--es-text-primary);
     background: var(--es-bg-tertiary);
-    border-left: 2px solid #d19a66;
+    border-left: 2px solid var(--es-accent-gold);
     padding-left: 14px;
 }
 
@@ -2960,7 +2991,7 @@ svg {
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 10000;
+    z-index: 5000;
 }
 
 .es-popup-container {
@@ -3447,6 +3478,7 @@ svg {
 }
 
 .es-build-config-item {
+    position: relative;
     padding: 6px 12px 6px 32px;
     display: flex;
     align-items: center;
@@ -3727,7 +3759,7 @@ svg {
 .es-build-hint {
     margin-top: 4px;
     font-size: 11px;
-    color: var(--es-text-tertiary);
+    color: var(--es-text-muted);
 }
 
 .es-build-empty {
@@ -3840,7 +3872,7 @@ svg {
 
 .es-toast-container {
     position: fixed;
-    bottom: 20px;
+    bottom: 44px;
     right: 20px;
     z-index: 10000;
     display: flex;
@@ -3926,7 +3958,7 @@ svg {
     justify-content: center;
     background: none;
     border: none;
-    color: var(--es-text-tertiary);
+    color: var(--es-text-muted);
     cursor: pointer;
     border-radius: 3px;
     transition: background 0.15s, color 0.15s;
@@ -4811,8 +4843,8 @@ svg {
 
 .es-addr-group-item.es-selected {
     background: rgba(209, 154, 102, 0.25);
-    border-left-color: #d19a66;
-    color: #d19a66;
+    border-left-color: var(--es-accent-gold);
+    color: var(--es-accent-gold);
 }
 
 .es-addr-group-dot {
@@ -4824,7 +4856,7 @@ svg {
 }
 
 .es-addr-group-item.es-selected .es-addr-group-dot {
-    background: #d19a66;
+    background: var(--es-accent-gold);
 }
 
 .es-addr-group-count {
@@ -4857,7 +4889,7 @@ svg {
 }
 
 .es-addr-label-check input[type="checkbox"] {
-    accent-color: #d19a66;
+    accent-color: var(--es-accent-gold);
 }
 
 .es-addressable-toolbar {
@@ -4931,11 +4963,11 @@ svg {
 }
 
 .es-addr-table-row.es-selected {
-    background: rgba(209, 154, 102, 0.2);
+    background: var(--es-selection-bg);
 }
 
 .es-addr-table-row.es-selected .es-addr-col-name {
-    color: #d19a66;
+    color: var(--es-accent-gold);
 }
 
 .es-addr-table-row:active {
@@ -5052,7 +5084,7 @@ svg {
 
 .es-addr-group-item.es-drag-over {
     background: rgba(97, 175, 239, 0.25);
-    border-left-color: #61afef;
+    border-left-color: var(--es-drag);
 }
 
 .es-addr-config-toggle {
@@ -5233,7 +5265,7 @@ svg {
 
 .es-floating-window {
     position: fixed;
-    z-index: 1000;
+    z-index: 5000;
     background: var(--es-bg-secondary);
     border: 1px solid var(--es-border);
     border-radius: 6px;
@@ -5383,6 +5415,7 @@ svg {
 
 .es-content-drawer.es-drawer-open {
     height: var(--drawer-height, 300px);
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .es-content-drawer.es-drawer-resizing {
@@ -5422,6 +5455,9 @@ svg {
     gap: 6px;
     font-size: 12px;
     color: var(--es-text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .es-content-drawer-title svg {
@@ -5459,6 +5495,10 @@ svg {
     stroke: var(--es-text-primary);
 }
 
+.es-content-drawer-actions .es-btn-icon.es-active svg {
+    stroke: var(--es-accent);
+}
+
 .es-content-drawer-body {
     flex: 1;
     overflow: hidden;
@@ -5466,4 +5506,75 @@ svg {
 
 .es-content-drawer-body .es-content-browser-header {
     display: none;
+}
+
+/* =============================================================================
+ * Focus Visible
+ * ============================================================================= */
+
+.es-btn:focus-visible,
+.es-btn-icon:focus-visible,
+.es-gizmo-btn:focus-visible,
+.es-menu-trigger:focus-visible,
+.es-menu-item:focus-visible,
+.es-context-menu-item:focus-visible,
+.es-input:focus-visible,
+.es-input-checkbox:focus-visible,
+.es-statusbar-btn:focus-visible {
+    outline: 2px solid var(--es-accent);
+    outline-offset: 2px;
+}
+
+/* =============================================================================
+ * Active / Pressed States
+ * ============================================================================= */
+
+.es-btn:active:not(:disabled) {
+    background: var(--es-bg-primary);
+}
+
+.es-btn-icon:active {
+    background: var(--es-bg-primary);
+}
+
+.es-gizmo-btn:active {
+    background: var(--es-bg-primary);
+}
+
+/* =============================================================================
+ * Splitter
+ * ============================================================================= */
+
+.es-splitter {
+    background: var(--es-border);
+    flex-shrink: 0;
+    transition: background 0.15s;
+}
+
+.es-splitter:hover {
+    background: var(--es-accent);
+}
+
+.es-splitter-horizontal {
+    width: 100%;
+    height: 4px;
+    cursor: ns-resize;
+}
+
+.es-splitter-vertical {
+    width: 4px;
+    height: 100%;
+    cursor: ew-resize;
+}
+
+/* =============================================================================
+ * Reduced Motion
+ * ============================================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
 }

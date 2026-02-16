@@ -19,6 +19,7 @@ import { showInputDialog } from '../ui/dialog';
 import { joinPath, getParentDir } from '../utils/path';
 import { hasAnyOverrides } from '../prefab';
 import { fuzzyFilter, type FuzzyMatch } from '../utils/fuzzy';
+import { escapeHtml } from '../utils/html';
 
 type DropPosition = 'before' | 'after' | 'inside';
 
@@ -79,6 +80,8 @@ export class HierarchyPanel {
             </div>
             <div class="es-hierarchy-toolbar">
                 <input type="text" class="es-input es-hierarchy-search" placeholder="Search...">
+                <button class="es-btn es-btn-icon" data-action="collapse-all" title="Collapse All">${icons.chevronRight(12)}</button>
+                <button class="es-btn es-btn-icon" data-action="expand-all" title="Expand All">${icons.chevronDown(12)}</button>
                 <button class="es-btn es-btn-icon" data-action="add" title="Create Entity">${icons.plus()}</button>
                 <button class="es-btn es-btn-icon" data-action="duplicate" title="Duplicate">${icons.copy()}</button>
             </div>
@@ -88,7 +91,7 @@ export class HierarchyPanel {
                 <span class="es-hierarchy-col-label">Item Label</span>
                 <span class="es-hierarchy-col-type">Type</span>
             </div>
-            <div class="es-hierarchy-tree"></div>
+            <div class="es-hierarchy-tree" role="tree"></div>
             <div class="es-hierarchy-footer">0 entities</div>
         `;
 
@@ -159,6 +162,22 @@ export class HierarchyPanel {
             if (selected !== null) {
                 this.duplicateEntity(selected);
             }
+        });
+
+        const collapseAllBtn = this.container_.querySelector('[data-action="collapse-all"]');
+        collapseAllBtn?.addEventListener('click', () => {
+            this.expandedIds_.clear();
+            this.render();
+        });
+
+        const expandAllBtn = this.container_.querySelector('[data-action="expand-all"]');
+        expandAllBtn?.addEventListener('click', () => {
+            for (const entity of this.store_.scene.entities) {
+                if (entity.children.length > 0) {
+                    this.expandedIds_.add(entity.id);
+                }
+            }
+            this.render();
         });
 
         this.searchInput_?.addEventListener('input', () => {
@@ -287,6 +306,15 @@ export class HierarchyPanel {
                 const selected = this.store_.selectedEntity;
                 if (selected !== null) {
                     this.startInlineRename(selected as number);
+                }
+                return;
+            }
+
+            if ((e.key === 'a' || e.key === 'A') && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                const roots = this.store_.scene.entities.filter(ent => ent.parent === null);
+                if (roots.length > 0) {
+                    this.store_.selectEntities(roots.map(ent => ent.id));
                 }
                 return;
             }
@@ -754,7 +782,7 @@ export class HierarchyPanel {
                     const rawPath = this.store_.prefabEditingPath ?? '';
                     const path = isUUID(rawPath) ? (getAssetDatabase().getPath(rawPath) ?? rawPath) : rawPath;
                     const fileName = path.split('/').pop() ?? path;
-                    nameEl.innerHTML = `${icons.package(12)} ${this.escapeHtml(fileName)}`;
+                    nameEl.innerHTML = `${icons.package(12)} ${escapeHtml(fileName)}`;
                 }
             } else {
                 this.prefabEditBar_.style.display = 'none';
@@ -980,7 +1008,9 @@ export class HierarchyPanel {
 
         const nameHtml = this.renderEntityName(entity.name, match);
 
-        return `<div class="${itemClass}" data-entity-id="${entity.id}">
+        const ariaExpanded = hasChildren ? ` aria-expanded="${isExpanded}"` : '';
+
+        return `<div class="${itemClass}" data-entity-id="${entity.id}" role="treeitem"${ariaExpanded}>
             <div class="es-hierarchy-row" draggable="true" style="padding-left: ${8 + depth * 16}px">
                 ${hasChildren ? `<span class="es-hierarchy-expand">${expandIcon}</span>` : '<span class="es-hierarchy-spacer"></span>'}
                 <span class="es-hierarchy-visibility">${visibilityIcon}</span>
@@ -993,15 +1023,15 @@ export class HierarchyPanel {
 
     private renderEntityName(name: string, match: FuzzyMatch | null | undefined): string {
         if (!match || match.matches.length === 0) {
-            return this.escapeHtml(name);
+            return escapeHtml(name);
         }
 
         let html = '';
         for (let i = 0; i < name.length; i++) {
             if (match.matches.includes(i)) {
-                html += `<mark class="es-search-highlight">${this.escapeHtml(name[i])}</mark>`;
+                html += `<mark class="es-search-highlight">${escapeHtml(name[i])}</mark>`;
             } else {
-                html += this.escapeHtml(name[i]);
+                html += escapeHtml(name[i]);
             }
         }
         return html;
@@ -1304,9 +1334,4 @@ export class HierarchyPanel {
         await this.store_.instantiatePrefab(uuid, parent);
     }
 
-    private escapeHtml(text: string): string {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
 }

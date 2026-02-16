@@ -104,6 +104,7 @@ export class Editor {
     private addressableWindow_: { element: HTMLElement; panel: AddressablePanel; keyHandler: (e: KeyboardEvent) => void } | null = null;
     private isPreviewRunning_ = false;
     private escapeHandler_: ((e: KeyboardEvent) => void) | null = null;
+    private settingsDebounceTimer_: ReturnType<typeof setTimeout> | null = null;
 
     constructor(container: HTMLElement, options?: EditorOptions) {
         this.container_ = container;
@@ -229,7 +230,17 @@ export class Editor {
     }
 
     togglePanel(id: string): void {
-        this.showPanel(id);
+        if (id === 'content-browser') {
+            this.contentDrawer_?.toggle();
+            return;
+        }
+        const panel = this.dockLayout_?.api?.getPanel(id);
+        if (panel) {
+            this.dockLayout_!.removePanel(id);
+            this.panelManager_.removePanelInstance(id);
+        } else {
+            this.showPanel(id);
+        }
     }
 
     resetLayout(): void {
@@ -318,37 +329,43 @@ export class Editor {
     }
 
     duplicateSelected(): void {
-        const entity = this.store_.selectedEntity;
-        if (entity === null) return;
+        const selected = Array.from(this.store_.selectedEntities);
+        if (selected.length === 0) return;
 
-        const entityData = this.store_.getEntityData(entity as number);
-        if (!entityData) return;
+        for (const id of selected) {
+            const entityData = this.store_.getEntityData(id);
+            if (!entityData) continue;
 
-        const scene = this.store_.scene;
-        const siblings = scene.entities
-            .filter(e => e.parent === entityData.parent)
-            .map(e => e.name);
-        const siblingNames = new Set(siblings);
-        const newName = generateUniqueName(entityData.name, siblingNames);
+            const scene = this.store_.scene;
+            const siblings = scene.entities
+                .filter(e => e.parent === entityData.parent)
+                .map(e => e.name);
+            const siblingNames = new Set(siblings);
+            const newName = generateUniqueName(entityData.name, siblingNames);
 
-        const newEntity = this.store_.createEntity(
-            newName,
-            entityData.parent as Entity | null
-        );
+            const newEntity = this.store_.createEntity(
+                newName,
+                entityData.parent as Entity | null
+            );
 
-        for (const comp of entityData.components) {
-            this.store_.addComponent(newEntity, comp.type, JSON.parse(JSON.stringify(comp.data)));
+            for (const comp of entityData.components) {
+                this.store_.addComponent(newEntity, comp.type, JSON.parse(JSON.stringify(comp.data)));
+            }
         }
     }
 
     copySelected(): void {
-        const entity = this.store_.selectedEntity;
-        if (entity === null) return;
+        const selected = Array.from(this.store_.selectedEntities);
+        if (selected.length === 0) return;
 
-        const tree = this.collectEntityTree_(entity as number);
-        if (tree.length === 0) return;
+        const allTrees: EntityData[] = [];
+        for (const id of selected) {
+            const tree = this.collectEntityTree_(id);
+            allTrees.push(...tree);
+        }
+        if (allTrees.length === 0) return;
 
-        this.clipboard_ = JSON.parse(JSON.stringify(tree));
+        this.clipboard_ = JSON.parse(JSON.stringify(allTrees));
         for (const e of this.clipboard_!) {
             delete e.prefab;
         }
@@ -359,37 +376,42 @@ export class Editor {
 
         const cloned: EntityData[] = JSON.parse(JSON.stringify(this.clipboard_));
         const parent = this.store_.selectedEntity;
-        const rootData = cloned[0];
+        const clipboardIds = new Set(cloned.map(e => e.id));
+        const oldIdToNewId = new Map<number, Entity>();
 
         const scene = this.store_.scene;
         const siblings = scene.entities
             .filter(e => e.parent === (parent as number | null))
             .map(e => e.name);
         const siblingNames = new Set(siblings);
-        const newName = generateUniqueName(rootData.name, siblingNames);
 
-        const oldIdToNewId = new Map<number, Entity>();
+        let lastRoot: Entity | null = null;
 
-        const newRoot = this.store_.createEntity(newName, parent);
-        oldIdToNewId.set(rootData.id, newRoot);
-        for (const comp of rootData.components) {
-            this.store_.addComponent(newRoot, comp.type, { ...comp.data });
-        }
+        for (const entityData of cloned) {
+            const isRoot = entityData.parent === null || !clipboardIds.has(entityData.parent);
+            const newParent = isRoot ? parent : (oldIdToNewId.get(entityData.parent!) ?? null);
+            if (!isRoot && newParent === null) continue;
 
-        for (let i = 1; i < cloned.length; i++) {
-            const entityData = cloned[i];
-            const newParent = oldIdToNewId.get(entityData.parent!);
-            if (newParent === undefined) continue;
+            const name = isRoot
+                ? generateUniqueName(entityData.name, siblingNames)
+                : entityData.name;
 
-            const newEntity = this.store_.createEntity(entityData.name, newParent);
+            const newEntity = this.store_.createEntity(name, newParent);
             oldIdToNewId.set(entityData.id, newEntity);
+
+            if (isRoot) {
+                siblingNames.add(name);
+                lastRoot = newEntity;
+            }
 
             for (const comp of entityData.components) {
                 this.store_.addComponent(newEntity, comp.type, { ...comp.data });
             }
         }
 
-        this.store_.selectEntity(newRoot);
+        if (lastRoot !== null) {
+            this.store_.selectEntity(lastRoot);
+        }
     }
 
     hasClipboard(): boolean {
@@ -554,7 +576,8 @@ export class Editor {
         const projectPath = this.projectPath_;
         onSettingsChange((id, value) => {
             if (id.startsWith('project.') || id.startsWith('physics.') || id.startsWith('build.') || id.startsWith('runtime.')) {
-                this.saveProjectField(projectPath);
+                if (this.settingsDebounceTimer_) clearTimeout(this.settingsDebounceTimer_);
+                this.settingsDebounceTimer_ = setTimeout(() => this.saveProjectField(projectPath), 500);
                 if (id === 'project.spineVersion') {
                     this.spineVersionChangeHandler_?.(value as string);
                 }
@@ -806,6 +829,10 @@ export class Editor {
     // =========================================================================
 
     async startPreview(): Promise<void> {
+        if (this.store_.isDirty && this.store_.filePath && hasFileHandle()) {
+            await this.saveScene();
+            showToast({ type: 'info', title: 'Scene saved before preview' });
+        }
         await this.previewManager_.startPreview(
             this.store_.scene, this.scriptLoader_, this.spineVersion_,
         );

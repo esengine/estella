@@ -18,6 +18,7 @@ import { showErrorToast } from '../ui/Toast';
 import { createEmptyScene } from '../types/SceneTypes';
 import { getSettingsValue } from '../settings';
 import { DEFAULT_DESIGN_WIDTH, DEFAULT_DESIGN_HEIGHT, getEditorType } from 'esengine';
+import { fuzzyMatch } from '../utils/fuzzy';
 
 // =============================================================================
 // Types
@@ -254,7 +255,7 @@ export class ContentBrowserPanel {
                         <input type="text" class="es-input es-content-search" placeholder="Search assets...">
                         <button class="es-btn es-btn-icon es-cb-view-toggle" title="Toggle view"></button>
                     </div>
-                    <div class="es-content-browser-grid" tabindex="0"></div>
+                    <div class="es-content-browser-grid" tabindex="0" role="grid"></div>
                 </div>
             </div>
             <div class="es-content-browser-footer">0 items</div>
@@ -1554,10 +1555,10 @@ void main() {
         const fs = getNativeFS();
         if (!fs || !basePath) return [];
 
-        const results: AssetItem[] = [];
+        const scored: Array<{ item: AssetItem; score: number }> = [];
         const stack = [basePath];
 
-        while (stack.length > 0 && results.length < SEARCH_RESULTS_LIMIT * 2) {
+        while (stack.length > 0 && scored.length < SEARCH_RESULTS_LIMIT * 2) {
             const dir = stack.pop()!;
             try {
                 const entries = await fs.listDirectoryDetailed(dir);
@@ -1568,23 +1569,23 @@ void main() {
 
                     if (entry.isDirectory) {
                         stack.push(entryPath);
-                        if (entry.name.toLowerCase().includes(filter)) {
+                        const match = fuzzyMatch(filter, entry.name);
+                        if (match) {
                             const relative = entryPath.substring(basePath.length).replace(/^\//, '');
-                            results.push({
-                                name: entry.name,
-                                path: entryPath,
-                                type: 'folder',
-                                relativePath: relative,
+                            scored.push({
+                                item: { name: entry.name, path: entryPath, type: 'folder', relativePath: relative },
+                                score: match.score,
                             });
                         }
-                    } else if (entry.name.toLowerCase().includes(filter)) {
-                        const relative = entryPath.substring(basePath.length).replace(/^\//, '');
-                        results.push({
-                            name: entry.name,
-                            path: entryPath,
-                            type: getAssetType(entry),
-                            relativePath: relative,
-                        });
+                    } else {
+                        const match = fuzzyMatch(filter, entry.name);
+                        if (match) {
+                            const relative = entryPath.substring(basePath.length).replace(/^\//, '');
+                            scored.push({
+                                item: { name: entry.name, path: entryPath, type: getAssetType(entry), relativePath: relative },
+                                score: match.score,
+                            });
+                        }
                     }
                 }
             } catch {
@@ -1592,11 +1593,13 @@ void main() {
             }
         }
 
-        return results.sort((a, b) => {
-            if (a.type === 'folder' && b.type !== 'folder') return -1;
-            if (a.type !== 'folder' && b.type === 'folder') return 1;
-            return a.name.localeCompare(b.name);
-        });
+        return scored
+            .sort((a, b) => {
+                if (a.item.type === 'folder' && b.item.type !== 'folder') return -1;
+                if (a.item.type !== 'folder' && b.item.type === 'folder') return 1;
+                return b.score - a.score;
+            })
+            .map(s => s.item);
     }
 
     private async loadCurrentFolderItems(): Promise<AssetItem[]> {

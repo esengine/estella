@@ -6,6 +6,7 @@ import { icons } from '../utils/icons';
 type DrawerState = 'hidden' | 'open';
 
 const DRAWER_HEIGHT_KEY = 'esengine.content-drawer.height';
+const DRAWER_PINNED_KEY = 'esengine.content-drawer.pinned';
 const DEFAULT_HEIGHT = 300;
 const MIN_HEIGHT = 150;
 const MAX_HEIGHT = 600;
@@ -18,6 +19,8 @@ export class ContentDrawer {
     private drawerHeight_: number;
     private outsideClickHandler_: ((e: MouseEvent) => void) | null = null;
     private resizing_ = false;
+    private pinned_: boolean;
+    private pinBtn_: HTMLElement | null = null;
 
     constructor(
         private editorContainer_: HTMLElement,
@@ -26,6 +29,7 @@ export class ContentDrawer {
         private panelOptions_: ContentBrowserOptions,
     ) {
         this.drawerHeight_ = parseInt(localStorage.getItem(DRAWER_HEIGHT_KEY) ?? '', 10) || DEFAULT_HEIGHT;
+        this.pinned_ = localStorage.getItem(DRAWER_PINNED_KEY) === 'true';
     }
 
     get state(): DrawerState {
@@ -57,7 +61,9 @@ export class ContentDrawer {
             this.updateStatusbarButton_(true);
         });
 
-        this.attachOutsideClick_();
+        if (!this.pinned_) {
+            this.attachOutsideClick_();
+        }
 
         this.drawerEl_!.addEventListener('transitionend', () => {
             window.dispatchEvent(new Event('resize'));
@@ -123,6 +129,7 @@ export class ContentDrawer {
                 <span class="es-content-drawer-title">${icons.folder(14)} Content Browser</span>
                 <div class="es-content-drawer-actions">
                     <button class="es-btn-icon" title="Dock in Layout">${icons.template(14)}</button>
+                    <button class="es-btn-icon es-drawer-pin-btn${this.pinned_ ? ' es-active' : ''}" title="${this.pinned_ ? 'Unpin' : 'Pin'}">${this.pinned_ ? icons.lock(14) : icons.lockOpen(14)}</button>
                     <button class="es-btn-icon" title="Close">${icons.x(14)}</button>
                 </div>
             </div>
@@ -138,8 +145,12 @@ export class ContentDrawer {
 
         this.panelBody_ = this.drawerEl_.querySelector('.es-content-drawer-body') as HTMLElement;
 
-        const [dockBtn, closeBtn] = this.drawerEl_.querySelectorAll('.es-content-drawer-actions .es-btn-icon');
+        const dockBtn = this.drawerEl_.querySelector('[title="Dock in Layout"]');
+        this.pinBtn_ = this.drawerEl_.querySelector('.es-drawer-pin-btn') as HTMLElement;
+        const closeBtn = this.drawerEl_.querySelector('[title="Close"]');
+
         dockBtn?.addEventListener('click', () => this.dockInLayout());
+        this.pinBtn_?.addEventListener('click', () => this.togglePin_());
         closeBtn?.addEventListener('click', () => this.closeDrawer());
 
         this.setupResize_();
@@ -176,6 +187,23 @@ export class ContentDrawer {
             document.addEventListener('mousemove', onMove);
             document.addEventListener('mouseup', onUp);
         });
+    }
+
+    private togglePin_(): void {
+        this.pinned_ = !this.pinned_;
+        localStorage.setItem(DRAWER_PINNED_KEY, String(this.pinned_));
+
+        if (this.pinBtn_) {
+            this.pinBtn_.innerHTML = this.pinned_ ? icons.lock(14) : icons.lockOpen(14);
+            this.pinBtn_.title = this.pinned_ ? 'Unpin' : 'Pin';
+            this.pinBtn_.classList.toggle('es-active', this.pinned_);
+        }
+
+        if (this.pinned_) {
+            this.detachOutsideClick_();
+        } else if (this.state_ === 'open') {
+            this.attachOutsideClick_();
+        }
     }
 
     private attachOutsideClick_(): void {

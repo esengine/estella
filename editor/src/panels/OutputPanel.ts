@@ -67,7 +67,7 @@ export class OutputPanel implements PanelInstance {
                         <button class="es-btn es-btn-icon" data-action="clear-output" title="Clear">${icons.trash(12)}</button>
                     </div>
                 </div>
-                <div class="es-output-content">
+                <div class="es-output-content" role="log" aria-live="polite">
                     <div class="es-output-empty">No output messages</div>
                 </div>
             </div>

@@ -244,7 +244,41 @@ export class InspectorPanel {
         `;
         this.contentContainer_.appendChild(header);
 
+        const commonComponents = this.getCommonComponents(entities);
+        if (commonComponents.length > 0) {
+            const section = document.createElement('div');
+            section.className = 'es-inspector-common-components';
+            section.innerHTML = `
+                <div class="es-section-header">
+                    <span class="es-section-title">Common Components</span>
+                </div>
+                <div class="es-common-component-list">
+                    ${commonComponents.map(name => `<div class="es-common-component-item">${icons.box(12)} ${name}</div>`).join('')}
+                </div>
+            `;
+            this.contentContainer_.appendChild(section);
+        }
+
+        hideMaterialPreview(this.materialPreviewState_);
         this.updateFooter(`${entities.length} entities selected`);
+    }
+
+    private getCommonComponents(entities: Entity[]): string[] {
+        if (entities.length === 0) return [];
+
+        const first = this.store_.getEntityData(entities[0] as number);
+        if (!first) return [];
+
+        let common = new Set(first.components.map(c => c.type));
+
+        for (let i = 1; i < entities.length; i++) {
+            const data = this.store_.getEntityData(entities[i] as number);
+            if (!data) return [];
+            const types = new Set(data.components.map(c => c.type));
+            common = new Set([...common].filter(t => types.has(t)));
+        }
+
+        return [...common];
     }
 
     // =========================================================================

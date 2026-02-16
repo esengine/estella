@@ -2,6 +2,7 @@ import { registerMenu, registerMenuItem } from './MenuRegistry';
 import type { Editor } from '../Editor';
 import { getEditorContext } from '../context/EditorContext';
 import { showStatusBarMessage } from './builtinStatusbar';
+import { showConfirmDialog } from '../ui/dialog';
 import type { Entity } from 'esengine';
 
 export function registerBuiltinMenus(editor: Editor): void {
@@ -94,20 +95,40 @@ export function registerBuiltinMenus(editor: Editor): void {
     registerMenuItem({
         id: 'edit.duplicate', menu: 'edit', label: 'Duplicate',
         shortcut: 'Ctrl+D', order: 3,
-        enabled: () => editor.store.selectedEntity !== null,
+        enabled: () => editor.store.selectedEntities.size > 0,
         action: () => editor.duplicateSelected(),
     });
     registerMenuItem({
         id: 'edit.copy', menu: 'edit', label: 'Copy',
         shortcut: 'Ctrl+C', order: 4,
-        enabled: () => editor.store.selectedEntity !== null,
+        enabled: () => editor.store.selectedEntities.size > 0,
         action: () => editor.copySelected(),
+    });
+    registerMenuItem({
+        id: 'edit.cut', menu: 'edit', label: 'Cut',
+        shortcut: 'Ctrl+X', order: 4.5,
+        enabled: () => editor.store.selectedEntities.size > 0,
+        action: () => {
+            editor.copySelected();
+            if (editor.store.selectedEntities.size === 1) {
+                const id = Array.from(editor.store.selectedEntities)[0];
+                editor.store.deleteEntity(id as Entity);
+            } else if (editor.store.selectedEntities.size > 1) {
+                editor.store.deleteSelectedEntities();
+            }
+        },
     });
     registerMenuItem({
         id: 'edit.paste', menu: 'edit', label: 'Paste',
         shortcut: 'Ctrl+V', order: 5,
         enabled: () => editor.hasClipboard(),
         action: () => editor.pasteEntity(),
+    });
+    registerMenuItem({
+        id: 'edit.create-entity', menu: 'edit', label: 'Create Entity',
+        shortcut: 'Ctrl+Shift+N', order: 6,
+        action: () => editor.store.createEntity('New Entity', editor.store.selectedEntity),
+        hidden: true,
     });
     registerMenuItem({
         id: 'edit.preferences', menu: 'edit', label: 'Settings...',
@@ -145,7 +166,14 @@ export function registerBuiltinMenus(editor: Editor): void {
     registerMenuItem({
         id: 'view.reload-extensions', menu: 'view', label: 'Reload Extensions',
         order: 10, separator: true,
-        action: () => editor.reloadExtensions(),
+        action: async () => {
+            const confirmed = await showConfirmDialog({
+                title: 'Reload Extensions',
+                message: 'Reload all extensions? This will reset any extension state.',
+                confirmText: 'Reload',
+            });
+            if (confirmed) editor.reloadExtensions();
+        },
     });
     registerMenuItem({
         id: 'view.reload', menu: 'view', label: 'Reload',
@@ -159,6 +187,25 @@ export function registerBuiltinMenus(editor: Editor): void {
             const ctx = getEditorContext();
             ctx.invoke?.('toggle_devtools');
         },
+    });
+
+    registerMenuItem({
+        id: 'view.focus-hierarchy', menu: 'view', label: 'Focus Hierarchy',
+        shortcut: 'Ctrl+1', order: 30,
+        action: () => editor.showPanel('hierarchy'),
+        hidden: true,
+    });
+    registerMenuItem({
+        id: 'view.focus-scene', menu: 'view', label: 'Focus Scene',
+        shortcut: 'Ctrl+2', order: 31,
+        action: () => editor.showPanel('scene'),
+        hidden: true,
+    });
+    registerMenuItem({
+        id: 'view.focus-inspector', menu: 'view', label: 'Focus Inspector',
+        shortcut: 'Ctrl+3', order: 32,
+        action: () => editor.showPanel('inspector'),
+        hidden: true,
     });
 
     registerMenuItem({
