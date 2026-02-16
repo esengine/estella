@@ -62,6 +62,8 @@ export class App {
     private lastTime_ = 0;
     private fixedTimestep_ = 1 / 60;
     private fixedAccumulator_ = 0;
+    private maxDeltaTime_ = 0.25;
+    private maxFixedSteps_ = 8;
 
     private module_: ESEngineModule | null = null;
     private pipeline_: RenderPipeline | null = null;
@@ -200,6 +202,16 @@ export class App {
         return this;
     }
 
+    setMaxDeltaTime(v: number): this {
+        this.maxDeltaTime_ = v;
+        return this;
+    }
+
+    setMaxFixedSteps(v: number): this {
+        this.maxFixedSteps_ = v;
+        return this;
+    }
+
     onError(handler: (error: unknown, systemName: string) => void): this {
         this.error_handler_ = handler;
         return this;
@@ -270,7 +282,7 @@ export class App {
         const deltaMs = currentTime - this.lastTime_;
         this.lastTime_ = currentTime;
 
-        const delta = Math.min(deltaMs / 1000, 0.25);
+        const delta = Math.min(deltaMs / 1000, this.maxDeltaTime_);
 
         this.updateTime(delta);
         this.world_.resetQueryPool();
@@ -280,14 +292,14 @@ export class App {
 
         this.fixedAccumulator_ += delta;
         let fixedSteps = 0;
-        while (this.fixedAccumulator_ >= this.fixedTimestep_ && fixedSteps < 8) {
+        while (this.fixedAccumulator_ >= this.fixedTimestep_ && fixedSteps < this.maxFixedSteps_) {
             this.fixedAccumulator_ -= this.fixedTimestep_;
             this.runSchedule(Schedule.FixedPreUpdate);
             this.runSchedule(Schedule.FixedUpdate);
             this.runSchedule(Schedule.FixedPostUpdate);
             fixedSteps++;
         }
-        if (fixedSteps >= 8) {
+        if (fixedSteps >= this.maxFixedSteps_) {
             this.fixedAccumulator_ = 0;
         }
 

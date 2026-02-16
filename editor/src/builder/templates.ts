@@ -75,7 +75,9 @@ function decodeBinary(dataUrl){
   var es=window.esengine;
   if(!es||!es.createWebApp){console.error('esengine not found');return}
 
+  {{RUNTIME_CONFIG}}
   var app=es.createWebApp(Module);
+  {{RUNTIME_APP_CONFIG}}
   if(typeof __PA__!=='undefined')es.registerEmbeddedAssets(app,__PA__);
   es.flushPendingSystems(app);
 
@@ -146,10 +148,50 @@ export interface WeChatGameJsParams {
     hasSpine: boolean;
     hasPhysics: boolean;
     physicsConfig: string;
+    runtimeConfig?: {
+        sceneTransitionDuration?: number;
+        sceneTransitionColor?: string;
+        defaultFontFamily?: string;
+        canvasScaleMode?: string;
+        canvasMatchWidthOrHeight?: number;
+        maxDeltaTime?: number;
+        maxFixedSteps?: number;
+        textCanvasSize?: number;
+    };
+}
+
+function generateRuntimeConfigBlock(rc?: WeChatGameJsParams['runtimeConfig']): string {
+    if (!rc) return '';
+    const lines: string[] = [];
+    if (rc.maxDeltaTime !== undefined) {
+        lines.push(`    SDK.RuntimeConfig.maxDeltaTime = ${rc.maxDeltaTime};`);
+        lines.push(`    app.setMaxDeltaTime(${rc.maxDeltaTime});`);
+    }
+    if (rc.maxFixedSteps !== undefined) {
+        lines.push(`    SDK.RuntimeConfig.maxFixedSteps = ${rc.maxFixedSteps};`);
+        lines.push(`    app.setMaxFixedSteps(${rc.maxFixedSteps});`);
+    }
+    if (rc.textCanvasSize !== undefined) lines.push(`    SDK.RuntimeConfig.textCanvasSize = ${rc.textCanvasSize};`);
+    if (rc.defaultFontFamily !== undefined) lines.push(`    SDK.RuntimeConfig.defaultFontFamily = ${JSON.stringify(rc.defaultFontFamily)};`);
+    if (rc.sceneTransitionDuration !== undefined) lines.push(`    SDK.RuntimeConfig.sceneTransitionDuration = ${rc.sceneTransitionDuration};`);
+    if (rc.sceneTransitionColor) {
+        const hex = rc.sceneTransitionColor.replace('#', '');
+        const r = parseInt(hex.substring(0, 2), 16) / 255;
+        const g = parseInt(hex.substring(2, 4), 16) / 255;
+        const b = parseInt(hex.substring(4, 6), 16) / 255;
+        lines.push(`    SDK.RuntimeConfig.sceneTransitionColor = {r:${r},g:${g},b:${b},a:1};`);
+    }
+    if (rc.canvasScaleMode !== undefined) {
+        const modeMap: Record<string, number> = { FixedWidth: 0, FixedHeight: 1, Expand: 2, Shrink: 3, Match: 4 };
+        lines.push(`    SDK.RuntimeConfig.canvasScaleMode = ${modeMap[rc.canvasScaleMode] ?? 1};`);
+    }
+    if (rc.canvasMatchWidthOrHeight !== undefined) lines.push(`    SDK.RuntimeConfig.canvasMatchWidthOrHeight = ${rc.canvasMatchWidthOrHeight};`);
+    return lines.join('\n');
 }
 
 export function generateWeChatGameJs(params: WeChatGameJsParams): string {
-    const { userCode, firstSceneName, allSceneNames, hasSpine, hasPhysics, physicsConfig } = params;
+    const { userCode, firstSceneName, allSceneNames, hasSpine, hasPhysics, physicsConfig, runtimeConfig } = params;
+    const runtimeConfigBlock = generateRuntimeConfigBlock(runtimeConfig);
 
     const spineInit = hasSpine ? `
 async function initSpineModule() {
@@ -299,6 +341,8 @@ ${physicsInit}
             return { width: canvas.width, height: canvas.height };
         }
     });
+
+${runtimeConfigBlock}
 
     ${userCode}
 

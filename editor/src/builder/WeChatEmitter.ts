@@ -5,7 +5,7 @@
 
 import * as esbuild from 'esbuild-wasm/esm/browser';
 import type { PlatformEmitter, BuildArtifact } from './PlatformEmitter';
-import type { BuildResult, BuildContext } from './BuildService';
+import type { BuildResult, BuildContext, RuntimeBuildConfig } from './BuildService';
 import { BuildProgressReporter } from './BuildProgress';
 import { getEditorContext } from '../context/EditorContext';
 import { findTsFiles, EDITOR_ONLY_DIRS } from '../scripting/ScriptLoader';
@@ -239,6 +239,7 @@ export class WeChatEmitter implements PlatformEmitter {
             hasSpine: !!context.spineVersion,
             hasPhysics: !!context.enablePhysics,
             physicsConfig,
+            runtimeConfig: context.runtimeConfig,
         });
 
         await fs.writeFile(joinPath(outputDir, 'game.js'), gameJs);

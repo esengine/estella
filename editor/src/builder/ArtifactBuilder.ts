@@ -17,6 +17,7 @@ import { compileMaterials } from './MaterialCompiler';
 import { convertPrefabAssetRefs, deserializePrefab } from '../prefab';
 import { normalizePath, joinPath, isAbsolutePath, getParentDir } from '../utils/path';
 import { getEsbuildWasmURL } from '../context/EditorContext';
+import { getSettingsValue } from '../settings';
 
 // =============================================================================
 // buildArtifact
@@ -70,6 +71,8 @@ export async function buildArtifact(
     }
 
     const packer = new TextureAtlasPacker(fs, projectDir, assetLibrary);
+    const atlasMaxSize = parseInt(getSettingsValue<string>('build.atlasMaxSize') ?? '2048', 10) || 2048;
+    const atlasPadding = getSettingsValue<number>('build.atlasPadding') ?? 2;
 
     let atlasResult;
     let atlasInputHash: string | undefined;
@@ -104,8 +107,9 @@ export async function buildArtifact(
             cachedAtlas,
             atlasInputHash,
             cacheData?.atlasInputHash,
-            2048,
-            [...assetPaths]
+            atlasMaxSize,
+            [...assetPaths],
+            atlasPadding
         );
 
         if (cachedAtlas && atlasInputHash === cacheData?.atlasInputHash) {
@@ -114,7 +118,7 @@ export async function buildArtifact(
             progress.log('info', `Packed ${atlasResult.frameMap.size} textures into ${atlasResult.pages.length} atlas page(s)`);
         }
     } else {
-        atlasResult = await packer.pack(imagePaths, sceneDataList, 2048, [...assetPaths]);
+        atlasResult = await packer.pack(imagePaths, sceneDataList, atlasMaxSize, [...assetPaths], atlasPadding);
 
         if (atlasResult.pages.length > 0) {
             progress.log('info', `Packed ${atlasResult.frameMap.size} textures into ${atlasResult.pages.length} atlas page(s)`);

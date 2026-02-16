@@ -17,6 +17,7 @@ import { Draw } from './draw';
 import { defineResource } from './resource';
 import { SceneOwner, Sprite } from './component';
 import { Assets } from './asset/AssetPlugin';
+import { RuntimeConfig } from './defaults';
 
 // =============================================================================
 // Types
@@ -67,8 +68,6 @@ interface TransitionState {
 
 const TRANSITION_CALLBACK_ID = '__scene_transition_overlay__';
 const OVERLAY_SIZE = 20000;
-const DEFAULT_TRANSITION_DURATION = 0.3;
-const DEFAULT_TRANSITION_COLOR: Color = { r: 0, g: 0, b: 0, a: 1 };
 
 // =============================================================================
 // Scene Instance (internal)
@@ -210,8 +209,8 @@ export class SceneManagerState {
 
     private startFadeTransition(targetScene: string, options: TransitionOptions): Promise<void> {
         return new Promise(resolve => {
-            const duration = options.duration ?? DEFAULT_TRANSITION_DURATION;
-            const color = options.color ?? DEFAULT_TRANSITION_COLOR;
+            const duration = options.duration ?? RuntimeConfig.sceneTransitionDuration;
+            const color = options.color ?? { ...RuntimeConfig.sceneTransitionColor };
 
             options.onStart?.();
 

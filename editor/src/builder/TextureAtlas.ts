@@ -46,23 +46,25 @@ interface RectWithId extends Rect {
 // MaxRects Bin Packing
 // =============================================================================
 
-const PADDING = 2;
+const DEFAULT_PADDING = 2;
 
 class MaxRectsBin {
     private width_: number;
     private height_: number;
     private freeRects_: Rect[];
+    private padding_: number;
     readonly placed: RectWithId[] = [];
 
-    constructor(width: number, height: number) {
+    constructor(width: number, height: number, padding: number = DEFAULT_PADDING) {
         this.width_ = width;
         this.height_ = height;
+        this.padding_ = padding;
         this.freeRects_ = [{ x: 0, y: 0, width, height }];
     }
 
     insert(width: number, height: number, id: string): RectWithId | null {
-        const paddedW = width + PADDING;
-        const paddedH = height + PADDING;
+        const paddedW = width + this.padding_;
+        const paddedH = height + this.padding_;
 
         let bestRect: Rect | null = null;
         let bestShortSide = Infinity;
@@ -196,7 +198,8 @@ export class TextureAtlasPacker {
         imagePaths: string[],
         sceneDataList: Array<{ name: string; data: Record<string, unknown> }>,
         maxSize: number = 2048,
-        allAssetPaths?: string[]
+        allAssetPaths?: string[],
+        padding: number = DEFAULT_PADDING
     ): Promise<AtlasResult> {
         const result: AtlasResult = { pages: [], frameMap: new Map() };
 
@@ -239,7 +242,7 @@ export class TextureAtlasPacker {
                 }
             }
             if (!placed) {
-                const bin = new MaxRectsBin(maxSize, maxSize);
+                const bin = new MaxRectsBin(maxSize, maxSize, padding);
                 const rect = bin.insert(img.width, img.height, img.path);
                 if (rect) {
                     bins.push(bin);
@@ -301,13 +304,14 @@ export class TextureAtlasPacker {
         currentInputHash: string,
         cachedInputHash: string | undefined,
         maxSize: number = 2048,
-        allAssetPaths?: string[]
+        allAssetPaths?: string[],
+        padding: number = DEFAULT_PADDING
     ): Promise<AtlasResult> {
         if (cached && cachedInputHash && currentInputHash === cachedInputHash) {
             return cached;
         }
 
-        return this.pack(imagePaths, sceneDataList, maxSize, allAssetPaths);
+        return this.pack(imagePaths, sceneDataList, maxSize, allAssetPaths, padding);
     }
 
     rewriteSceneData(

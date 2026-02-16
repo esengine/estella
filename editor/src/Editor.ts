@@ -523,11 +523,21 @@ export class Editor {
             const resolution = config.designResolution ?? { width: DEFAULT_DESIGN_WIDTH, height: DEFAULT_DESIGN_HEIGHT };
             setSettingsValue('project.designWidth', resolution.width);
             setSettingsValue('project.designHeight', resolution.height);
+            setSettingsValue('build.atlasMaxSize', String(config.atlasMaxSize ?? 2048));
+            setSettingsValue('build.atlasPadding', config.atlasPadding ?? 2);
+            setSettingsValue('runtime.sceneTransitionDuration', config.sceneTransitionDuration ?? 0.3);
+            setSettingsValue('runtime.sceneTransitionColor', config.sceneTransitionColor ?? '#000000');
+            setSettingsValue('runtime.defaultFontFamily', config.defaultFontFamily ?? 'Arial');
+            setSettingsValue('runtime.canvasScaleMode', config.canvasScaleMode ?? 'FixedHeight');
+            setSettingsValue('runtime.canvasMatchWidthOrHeight', config.canvasMatchWidthOrHeight ?? 0.5);
+            setSettingsValue('runtime.maxDeltaTime', config.maxDeltaTime ?? 0.25);
+            setSettingsValue('runtime.maxFixedSteps', config.maxFixedSteps ?? 8);
+            setSettingsValue('runtime.textCanvasSize', String(config.textCanvasSize ?? 512));
         }
 
         const projectPath = this.projectPath_;
         onSettingsChange((id, value) => {
-            if (id.startsWith('project.') || id.startsWith('physics.')) {
+            if (id.startsWith('project.') || id.startsWith('physics.') || id.startsWith('build.') || id.startsWith('runtime.')) {
                 this.saveProjectField(projectPath);
                 if (id === 'project.spineVersion') {
                     this.spineVersionChangeHandler_?.(value as string);
@@ -566,6 +576,16 @@ export class Editor {
             width: getSettingsValue<number>('project.designWidth') || DEFAULT_DESIGN_WIDTH,
             height: getSettingsValue<number>('project.designHeight') || DEFAULT_DESIGN_HEIGHT,
         };
+        config.atlasMaxSize = parseInt(getSettingsValue<string>('build.atlasMaxSize') ?? '2048', 10);
+        config.atlasPadding = getSettingsValue<number>('build.atlasPadding') ?? 2;
+        config.sceneTransitionDuration = getSettingsValue<number>('runtime.sceneTransitionDuration') ?? 0.3;
+        config.sceneTransitionColor = getSettingsValue<string>('runtime.sceneTransitionColor') ?? '#000000';
+        config.defaultFontFamily = getSettingsValue<string>('runtime.defaultFontFamily') ?? 'Arial';
+        config.canvasScaleMode = getSettingsValue<string>('runtime.canvasScaleMode') ?? 'FixedHeight';
+        config.canvasMatchWidthOrHeight = getSettingsValue<number>('runtime.canvasMatchWidthOrHeight') ?? 0.5;
+        config.maxDeltaTime = getSettingsValue<number>('runtime.maxDeltaTime') ?? 0.25;
+        config.maxFixedSteps = getSettingsValue<number>('runtime.maxFixedSteps') ?? 8;
+        config.textCanvasSize = parseInt(getSettingsValue<string>('runtime.textCanvasSize') ?? '512', 10);
         config.modified = new Date().toISOString();
         const fs = getEditorContext().fs;
         if (fs) {

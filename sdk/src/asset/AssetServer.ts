@@ -4,7 +4,7 @@
  */
 
 import type { Entity, TextureHandle, FontHandle } from '../types';
-import { DEFAULT_TEXT_CANVAS_SIZE } from '../defaults';
+import { RuntimeConfig } from '../defaults';
 import type { ESEngineModule } from '../wasm';
 import type { ShaderHandle } from '../material';
 import { Material } from '../material';
@@ -131,7 +131,7 @@ export class AssetServer {
 
     constructor(module: ESEngineModule) {
         this.module_ = module;
-        this.canvas_ = platformCreateCanvas(DEFAULT_TEXT_CANVAS_SIZE, DEFAULT_TEXT_CANVAS_SIZE) as HTMLCanvasElement;
+        this.canvas_ = platformCreateCanvas(RuntimeConfig.textCanvasSize, RuntimeConfig.textCanvasSize) as HTMLCanvasElement;
         this.ctx_ = this.canvas_.getContext('2d', { willReadFrequently: true })!;
 
         const shaderLoader: ShaderLoader = {

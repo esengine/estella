@@ -26,6 +26,18 @@ export function registerBuiltinSettings(): void {
         order: 3,
     });
 
+    registerSettingsSection({
+        id: 'build',
+        title: 'Build',
+        order: 4,
+    });
+
+    registerSettingsSection({
+        id: 'runtime',
+        title: 'Runtime',
+        order: 5,
+    });
+
     registerSettingsItem({
         id: 'project.name',
         section: 'project',
@@ -218,5 +230,153 @@ export function registerBuiltinSettings(): void {
         type: 'boolean',
         defaultValue: false,
         order: 6,
+    });
+
+    registerSettingsItem({
+        id: 'scene.gridSize',
+        section: 'scene-view',
+        label: 'Grid Size',
+        type: 'number',
+        defaultValue: 50,
+        min: 5,
+        max: 500,
+        step: 5,
+        order: 7,
+    });
+
+    registerSettingsItem({
+        id: 'general.previewPort',
+        section: 'general',
+        label: 'Preview Port',
+        type: 'number',
+        defaultValue: 3456,
+        min: 1024,
+        max: 65535,
+        step: 1,
+        order: 1,
+    });
+
+    registerSettingsItem({
+        id: 'build.atlasMaxSize',
+        section: 'build',
+        label: 'Atlas Max Size',
+        type: 'select',
+        defaultValue: '2048',
+        order: 0,
+        options: [
+            { label: '512', value: '512' },
+            { label: '1024', value: '1024' },
+            { label: '2048', value: '2048' },
+            { label: '4096', value: '4096' },
+        ],
+    });
+
+    registerSettingsItem({
+        id: 'build.atlasPadding',
+        section: 'build',
+        label: 'Atlas Padding',
+        type: 'number',
+        defaultValue: 2,
+        min: 0,
+        max: 16,
+        step: 1,
+        order: 1,
+    });
+
+    registerSettingsItem({
+        id: 'runtime.sceneTransitionDuration',
+        section: 'runtime',
+        label: 'Scene Transition Duration',
+        type: 'number',
+        defaultValue: 0.3,
+        min: 0,
+        max: 5,
+        step: 0.1,
+        order: 0,
+    });
+
+    registerSettingsItem({
+        id: 'runtime.sceneTransitionColor',
+        section: 'runtime',
+        label: 'Scene Transition Color',
+        type: 'color',
+        defaultValue: '#000000',
+        order: 1,
+    });
+
+    registerSettingsItem({
+        id: 'runtime.defaultFontFamily',
+        section: 'runtime',
+        label: 'Default Font Family',
+        type: 'string',
+        defaultValue: 'Arial',
+        order: 2,
+    });
+
+    registerSettingsItem({
+        id: 'runtime.canvasScaleMode',
+        section: 'runtime',
+        label: 'Canvas Scale Mode',
+        type: 'select',
+        defaultValue: 'FixedHeight',
+        order: 3,
+        options: [
+            { label: 'Fixed Width', value: 'FixedWidth' },
+            { label: 'Fixed Height', value: 'FixedHeight' },
+            { label: 'Expand', value: 'Expand' },
+            { label: 'Shrink', value: 'Shrink' },
+            { label: 'Match', value: 'Match' },
+        ],
+    });
+
+    registerSettingsItem({
+        id: 'runtime.canvasMatchWidthOrHeight',
+        section: 'runtime',
+        label: 'Canvas Match W/H',
+        type: 'range',
+        defaultValue: 0.5,
+        min: 0,
+        max: 1,
+        step: 0.1,
+        order: 4,
+    });
+
+    registerSettingsItem({
+        id: 'runtime.maxDeltaTime',
+        section: 'runtime',
+        label: 'Max Delta Time',
+        type: 'number',
+        defaultValue: 0.25,
+        min: 0.01,
+        max: 1,
+        step: 0.01,
+        order: 5,
+    });
+
+    registerSettingsItem({
+        id: 'runtime.maxFixedSteps',
+        section: 'runtime',
+        label: 'Max Fixed Steps',
+        type: 'number',
+        defaultValue: 8,
+        min: 1,
+        max: 64,
+        step: 1,
+        order: 6,
+    });
+
+    registerSettingsItem({
+        id: 'runtime.textCanvasSize',
+        section: 'runtime',
+        label: 'Text Canvas Size',
+        type: 'select',
+        defaultValue: '512',
+        order: 7,
+        options: [
+            { label: '256', value: '256' },
+            { label: '512', value: '512' },
+            { label: '1024', value: '1024' },
+            { label: '2048', value: '2048' },
+        ],
     });
 }

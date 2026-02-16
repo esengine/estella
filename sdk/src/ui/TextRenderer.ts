@@ -4,7 +4,7 @@
  */
 
 import type { Entity, Vec2 } from '../types';
-import { DEFAULT_TEXT_CANVAS_SIZE } from '../defaults';
+import { RuntimeConfig } from '../defaults';
 import type { ESEngineModule, CppResourceManager } from '../wasm';
 import { TextAlign, TextVerticalAlign, TextOverflow, type TextData } from './text';
 import type { UIRectData } from './UIRect';
@@ -32,7 +32,7 @@ export class TextRenderer {
 
     constructor(module: ESEngineModule) {
         this.module = module;
-        this.canvas = platformCreateCanvas(DEFAULT_TEXT_CANVAS_SIZE, DEFAULT_TEXT_CANVAS_SIZE);
+        this.canvas = platformCreateCanvas(RuntimeConfig.textCanvasSize, RuntimeConfig.textCanvasSize);
         this.ctx = this.canvas.getContext('2d', { willReadFrequently: true })! as CanvasRenderingContext2D;
     }
 

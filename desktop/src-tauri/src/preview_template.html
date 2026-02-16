@@ -152,12 +152,35 @@
                 setupCanvas();
                 window.addEventListener('resize', () => setupCanvas());
 
+                step = 'apply runtime config';
+                if (config.maxDeltaTime !== undefined) sdk.RuntimeConfig.maxDeltaTime = config.maxDeltaTime;
+                if (config.maxFixedSteps !== undefined) sdk.RuntimeConfig.maxFixedSteps = config.maxFixedSteps;
+                if (config.textCanvasSize !== undefined) sdk.RuntimeConfig.textCanvasSize = config.textCanvasSize;
+                if (config.defaultFontFamily !== undefined) sdk.RuntimeConfig.defaultFontFamily = config.defaultFontFamily;
+                if (config.sceneTransitionDuration !== undefined) sdk.RuntimeConfig.sceneTransitionDuration = config.sceneTransitionDuration;
+                if (config.sceneTransitionColor) {
+                    const hex = config.sceneTransitionColor.replace('#', '');
+                    sdk.RuntimeConfig.sceneTransitionColor = {
+                        r: parseInt(hex.substring(0,2), 16) / 255,
+                        g: parseInt(hex.substring(2,4), 16) / 255,
+                        b: parseInt(hex.substring(4,6), 16) / 255,
+                        a: 1
+                    };
+                }
+                if (config.canvasScaleMode !== undefined) {
+                    const modeMap = { FixedWidth: 0, FixedHeight: 1, Expand: 2, Shrink: 3, Match: 4 };
+                    sdk.RuntimeConfig.canvasScaleMode = modeMap[config.canvasScaleMode] ?? 1;
+                }
+                if (config.canvasMatchWidthOrHeight !== undefined) sdk.RuntimeConfig.canvasMatchWidthOrHeight = config.canvasMatchWidthOrHeight;
+
                 step = 'create app';
                 const previewPlugin = new sdk.PreviewPlugin('/.esengine/preview/scene.json', '/');
 
                 const app = sdk.createWebApp(Module, {
                     getViewportSize: getCanvasViewportSize
                 });
+                if (config.maxDeltaTime !== undefined) app.setMaxDeltaTime(config.maxDeltaTime);
+                if (config.maxFixedSteps !== undefined) app.setMaxFixedSteps(config.maxFixedSteps);
 
                 step = 'flushPendingSystems';
                 sdk.flushPendingSystems(app);

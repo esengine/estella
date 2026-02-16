@@ -29,6 +29,17 @@ export interface BuildResult {
     cached?: boolean;
 }
 
+export interface RuntimeBuildConfig {
+    sceneTransitionDuration?: number;
+    sceneTransitionColor?: string;
+    defaultFontFamily?: string;
+    canvasScaleMode?: string;
+    canvasMatchWidthOrHeight?: number;
+    maxDeltaTime?: number;
+    maxFixedSteps?: number;
+    textCanvasSize?: number;
+}
+
 export interface BuildContext {
     projectPath: string;
     config: BuildConfig;
@@ -37,6 +48,7 @@ export interface BuildContext {
     physicsGravity?: { x: number; y: number };
     physicsFixedTimestep?: number;
     physicsSubStepCount?: number;
+    runtimeConfig?: RuntimeBuildConfig;
     progress?: BuildProgressReporter;
     cache?: BuildCache;
 }
@@ -88,6 +100,16 @@ export class BuildService {
             },
             physicsFixedTimestep: projectConfig?.physicsFixedTimestep ?? 1 / 60,
             physicsSubStepCount: projectConfig?.physicsSubStepCount ?? 4,
+            runtimeConfig: {
+                sceneTransitionDuration: projectConfig?.sceneTransitionDuration,
+                sceneTransitionColor: projectConfig?.sceneTransitionColor,
+                defaultFontFamily: projectConfig?.defaultFontFamily,
+                canvasScaleMode: projectConfig?.canvasScaleMode,
+                canvasMatchWidthOrHeight: projectConfig?.canvasMatchWidthOrHeight,
+                maxDeltaTime: projectConfig?.maxDeltaTime,
+                maxFixedSteps: projectConfig?.maxFixedSteps,
+                textCanvasSize: projectConfig?.textCanvasSize,
+            },
             progress,
             cache: useCache ? this.cache_ : undefined,
         };

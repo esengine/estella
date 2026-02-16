@@ -686,6 +686,8 @@ declare class App {
     private lastTime_;
     private fixedTimestep_;
     private fixedAccumulator_;
+    private maxDeltaTime_;
+    private maxFixedSteps_;
     private module_;
     private pipeline_;
     private spineInitPromise_?;
@@ -716,6 +718,8 @@ declare class App {
     set physicsModule(m: unknown);
     get world(): World;
     setFixedTimestep(timestep: number): this;
+    setMaxDeltaTime(v: number): this;
+    setMaxFixedSteps(v: number): this;
     onError(handler: (error: unknown, systemName: string) => void): this;
     onSystemError(handler: (error: Error, systemName?: string) => 'continue' | 'pause'): this;
     insertResource<T>(resource: ResourceDef<T>, value: T): this;

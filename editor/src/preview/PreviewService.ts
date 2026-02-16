@@ -39,7 +39,7 @@ export class PreviewService {
         this.previewDir_ = `${this.projectDir_}/.esengine/preview`;
     }
 
-    async startPreview(scene: SceneData, compiledScript?: string, spineVersion?: string, enablePhysics?: boolean, physicsConfig?: { gravityX: number; gravityY: number; fixedTimestep: number; subStepCount: number }): Promise<void> {
+    async startPreview(scene: SceneData, compiledScript?: string, spineVersion?: string, enablePhysics?: boolean, physicsConfig?: { gravityX: number; gravityY: number; fixedTimestep: number; subStepCount: number }, runtimeConfig?: Record<string, unknown>): Promise<void> {
         const fs = this.getNativeFS();
         const invoke = this.getTauriInvoke();
 
@@ -49,7 +49,7 @@ export class PreviewService {
         }
 
         console.log('PreviewService: Preparing files in', this.previewDir_);
-        await this.preparePreviewFiles(fs, scene, compiledScript, spineVersion, enablePhysics, physicsConfig);
+        await this.preparePreviewFiles(fs, scene, compiledScript, spineVersion, enablePhysics, physicsConfig, runtimeConfig);
         console.log('PreviewService: Files prepared');
 
         const port = await invoke('start_preview_server', {
@@ -73,10 +73,11 @@ export class PreviewService {
         spineVersion?: string,
         enablePhysics?: boolean,
         physicsConfig?: { gravityX: number; gravityY: number; fixedTimestep: number; subStepCount: number },
+        runtimeConfig?: Record<string, unknown>,
     ): Promise<void> {
         const fs = this.getNativeFS();
         if (!fs) return;
-        await this.preparePreviewFiles(fs, scene, compiledScript, spineVersion, enablePhysics, physicsConfig);
+        await this.preparePreviewFiles(fs, scene, compiledScript, spineVersion, enablePhysics, physicsConfig, runtimeConfig);
         await this.notifyReload();
     }
 
@@ -87,6 +88,7 @@ export class PreviewService {
         spineVersion?: string,
         enablePhysics?: boolean,
         physicsConfig?: { gravityX: number; gravityY: number; fixedTimestep: number; subStepCount: number },
+        runtimeConfig?: Record<string, unknown>,
     ): Promise<void> {
         await this.ensureDirectory(fs, this.previewDir_);
 
@@ -110,6 +112,7 @@ export class PreviewService {
             physicsGravityY: physicsConfig?.gravityY ?? -9.81,
             physicsFixedTimestep: physicsConfig?.fixedTimestep ?? 1 / 60,
             physicsSubStepCount: physicsConfig?.subStepCount ?? 4,
+            ...runtimeConfig,
         }));
 
         if (compiledScript) {

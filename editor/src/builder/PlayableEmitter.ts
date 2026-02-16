@@ -360,6 +360,9 @@ ${imports}
             ? "document.getElementById('cta').style.display='block';"
             : '';
 
+        const runtimeConfigCode = this.generateRuntimeConfigCode(context);
+        const runtimeAppConfigCode = this.generateRuntimeAppConfigCode(context);
+
         return PLAYABLE_HTML_TEMPLATE
             .replace('{{WASM_SDK}}', () => wasmSdk)
             .replace('{{SPINE_SCRIPT}}', () => spineScript)
@@ -370,10 +373,45 @@ ${imports}
             .replace('{{SCENE_NAME}}', () => sceneName)
             .replace('{{PHYSICS_CONFIG}}', () => physicsConfig)
             .replace('{{MANIFEST}}', () => manifestJson)
+            .replace('{{RUNTIME_CONFIG}}', () => runtimeConfigCode)
+            .replace('{{RUNTIME_APP_CONFIG}}', () => runtimeAppConfigCode)
             .replace('{{CTA_STYLE}}', () => ctaStyle)
             .replace('{{CTA_HTML}}', () => ctaHtml)
             .replace('{{CTA_SCRIPT}}', () => ctaScript)
             .replace('{{CTA_SHOW}}', () => ctaShow);
+    }
+
+    private generateRuntimeConfigCode(context: BuildContext): string {
+        const rc = context.runtimeConfig;
+        if (!rc) return '';
+        const lines: string[] = [];
+        if (rc.maxDeltaTime !== undefined) lines.push(`es.RuntimeConfig.maxDeltaTime=${rc.maxDeltaTime};`);
+        if (rc.maxFixedSteps !== undefined) lines.push(`es.RuntimeConfig.maxFixedSteps=${rc.maxFixedSteps};`);
+        if (rc.textCanvasSize !== undefined) lines.push(`es.RuntimeConfig.textCanvasSize=${rc.textCanvasSize};`);
+        if (rc.defaultFontFamily !== undefined) lines.push(`es.RuntimeConfig.defaultFontFamily=${JSON.stringify(rc.defaultFontFamily)};`);
+        if (rc.sceneTransitionDuration !== undefined) lines.push(`es.RuntimeConfig.sceneTransitionDuration=${rc.sceneTransitionDuration};`);
+        if (rc.sceneTransitionColor) {
+            const hex = rc.sceneTransitionColor.replace('#', '');
+            const r = parseInt(hex.substring(0, 2), 16) / 255;
+            const g = parseInt(hex.substring(2, 4), 16) / 255;
+            const b = parseInt(hex.substring(4, 6), 16) / 255;
+            lines.push(`es.RuntimeConfig.sceneTransitionColor={r:${r},g:${g},b:${b},a:1};`);
+        }
+        if (rc.canvasScaleMode !== undefined) {
+            const modeMap: Record<string, number> = { FixedWidth: 0, FixedHeight: 1, Expand: 2, Shrink: 3, Match: 4 };
+            lines.push(`es.RuntimeConfig.canvasScaleMode=${modeMap[rc.canvasScaleMode] ?? 1};`);
+        }
+        if (rc.canvasMatchWidthOrHeight !== undefined) lines.push(`es.RuntimeConfig.canvasMatchWidthOrHeight=${rc.canvasMatchWidthOrHeight};`);
+        return lines.join('\n  ');
+    }
+
+    private generateRuntimeAppConfigCode(context: BuildContext): string {
+        const rc = context.runtimeConfig;
+        if (!rc) return '';
+        const lines: string[] = [];
+        if (rc.maxDeltaTime !== undefined) lines.push(`app.setMaxDeltaTime(${rc.maxDeltaTime});`);
+        if (rc.maxFixedSteps !== undefined) lines.push(`app.setMaxFixedSteps(${rc.maxFixedSteps});`);
+        return lines.join('\n  ');
     }
 
 }

@@ -12,6 +12,8 @@ export {
     DEFAULT_DESIGN_HEIGHT,
     DEFAULT_PIXELS_PER_UNIT,
     DEFAULT_TEXT_CANVAS_SIZE,
+    RuntimeConfig,
+    applyRuntimeConfig,
 } from './defaults';
 
 // =============================================================================

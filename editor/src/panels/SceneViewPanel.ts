@@ -1424,7 +1424,7 @@ export class SceneViewPanel {
     private drawGrid(ctx: CanvasRenderingContext2D, w: number, h: number): void {
         if (!getSettingsValue<boolean>('scene.showGrid')) return;
 
-        const gridSize = 50;
+        const gridSize = getSettingsValue<number>('scene.gridSize') ?? 50;
         const halfW = w / 2 / this.zoom_;
         const halfH = h / 2 / this.zoom_;
 

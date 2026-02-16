@@ -23,6 +23,16 @@ export interface ProjectConfig {
     physicsFixedTimestep?: number;
     physicsSubStepCount?: number;
     designResolution?: { width: number; height: number };
+    atlasMaxSize?: number;
+    atlasPadding?: number;
+    sceneTransitionDuration?: number;
+    sceneTransitionColor?: string;
+    defaultFontFamily?: string;
+    canvasScaleMode?: string;
+    canvasMatchWidthOrHeight?: number;
+    maxDeltaTime?: number;
+    maxFixedSteps?: number;
+    textCanvasSize?: number;
 }
 
 // =============================================================================

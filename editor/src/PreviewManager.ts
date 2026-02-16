@@ -27,8 +27,8 @@ export class PreviewManager {
                 await scriptLoader.compile();
             }
             const compiledScript = scriptLoader?.getCompiledCode() ?? undefined;
-            const { enablePhysics, physicsConfig, previewSpineVersion } = this.collectPreviewConfig(spineVersion);
-            await this.previewService_.startPreview(scene, compiledScript, previewSpineVersion, enablePhysics, physicsConfig);
+            const { enablePhysics, physicsConfig, previewSpineVersion, runtimeConfig } = this.collectPreviewConfig(spineVersion);
+            await this.previewService_.startPreview(scene, compiledScript, previewSpineVersion, enablePhysics, physicsConfig, runtimeConfig);
         } catch (err) {
             console.error('Failed to start preview:', err);
         }
@@ -45,8 +45,8 @@ export class PreviewManager {
     ): void {
         if (!this.previewService_) return;
         const compiledScript = scriptLoader?.getCompiledCode() ?? undefined;
-        const { enablePhysics, physicsConfig, previewSpineVersion } = this.collectPreviewConfig(spineVersion);
-        this.previewService_.updatePreviewFiles(scene, compiledScript, previewSpineVersion, enablePhysics, physicsConfig);
+        const { enablePhysics, physicsConfig, previewSpineVersion, runtimeConfig } = this.collectPreviewConfig(spineVersion);
+        this.previewService_.updatePreviewFiles(scene, compiledScript, previewSpineVersion, enablePhysics, physicsConfig, runtimeConfig);
     }
 
     private collectPreviewConfig(spineVersion: string) {
@@ -58,7 +58,17 @@ export class PreviewManager {
             subStepCount: getSettingsValue<number>('physics.subStepCount') ?? 4,
         } : undefined;
         const previewSpineVersion = spineVersion === 'none' ? undefined : spineVersion;
-        return { enablePhysics, physicsConfig, previewSpineVersion };
+        const runtimeConfig = {
+            sceneTransitionDuration: getSettingsValue<number>('runtime.sceneTransitionDuration') ?? 0.3,
+            sceneTransitionColor: getSettingsValue<string>('runtime.sceneTransitionColor') ?? '#000000',
+            defaultFontFamily: getSettingsValue<string>('runtime.defaultFontFamily') ?? 'Arial',
+            canvasScaleMode: getSettingsValue<string>('runtime.canvasScaleMode') ?? 'FixedHeight',
+            canvasMatchWidthOrHeight: getSettingsValue<number>('runtime.canvasMatchWidthOrHeight') ?? 0.5,
+            maxDeltaTime: getSettingsValue<number>('runtime.maxDeltaTime') ?? 0.25,
+            maxFixedSteps: getSettingsValue<number>('runtime.maxFixedSteps') ?? 8,
+            textCanvasSize: parseInt(getSettingsValue<string>('runtime.textCanvasSize') ?? '512', 10),
+        };
+        return { enablePhysics, physicsConfig, previewSpineVersion, runtimeConfig };
     }
 
     dispose(): void {
