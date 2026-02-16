@@ -59,7 +59,7 @@ jobs:
 
       - name: Copy esbuild.wasm to desktop public
         shell: bash
-        run: cp node_modules/.pnpm/esbuild-wasm@0.27.2/node_modules/esbuild-wasm/esbuild.wasm desktop/public/esbuild.wasm
+        run: cp $(find node_modules/.pnpm -name 'esbuild.wasm' -path '*/esbuild-wasm/*' | head -1) desktop/public/esbuild.wasm
 
       - name: Build engine and sync to desktop
         run: node build-tools/cli.js build -t all --manifest

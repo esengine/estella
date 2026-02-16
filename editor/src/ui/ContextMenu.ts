@@ -36,6 +36,7 @@ class ContextMenuManager {
     private keyHandler_: ((e: KeyboardEvent) => void) | null = null;
     private activeMenu_: HTMLElement | null = null;
     private focusedIndex_: number = -1;
+    private hideTimeouts_: Set<number> = new Set();
 
     show(options: ContextMenuOptions): void {
         this.hide();
@@ -77,6 +78,10 @@ class ContextMenuManager {
         this.submenus_ = [];
         this.activeMenu_ = null;
         this.focusedIndex_ = -1;
+        for (const id of this.hideTimeouts_) {
+            clearTimeout(id);
+        }
+        this.hideTimeouts_.clear();
         if (this.closeHandler_) {
             document.removeEventListener('mousedown', this.closeHandler_);
             this.closeHandler_ = null;
@@ -265,6 +270,7 @@ class ContextMenuManager {
                 el.addEventListener('mouseenter', () => {
                     if (hideTimeout) {
                         clearTimeout(hideTimeout);
+                        this.hideTimeouts_.delete(hideTimeout);
                         hideTimeout = null;
                     }
 
@@ -295,6 +301,7 @@ class ContextMenuManager {
                         return;
                     }
                     hideTimeout = window.setTimeout(() => {
+                        this.hideTimeouts_.delete(hideTimeout!);
                         if (submenu) {
                             const idx = this.submenus_.indexOf(submenu);
                             if (idx >= 0) {
@@ -304,6 +311,7 @@ class ContextMenuManager {
                             submenu = null;
                         }
                     }, 100);
+                    this.hideTimeouts_.add(hideTimeout);
                 });
             } else if (item.onClick && !item.disabled) {
                 el.addEventListener('click', () => {

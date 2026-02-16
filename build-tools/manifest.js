@@ -1,5 +1,5 @@
 import path from 'path';
-import { stat, readFile, writeFile } from 'fs/promises';
+import { stat, readFile, writeFile, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import { createHash } from 'crypto';
 import * as logger from './utils/logger.js';
@@ -113,8 +113,13 @@ export class BuildManifest {
             },
         };
 
-        await writeFile(outputPath, JSON.stringify(manifest, null, 2), 'utf-8');
-        logger.success(`Build manifest saved to ${outputPath}`);
+        try {
+            await mkdir(path.dirname(outputPath), { recursive: true });
+            await writeFile(outputPath, JSON.stringify(manifest, null, 2), 'utf-8');
+            logger.success(`Build manifest saved to ${outputPath}`);
+        } catch (err) {
+            logger.error(`Failed to save build manifest: ${err.message}`);
+        }
     }
 
     printSummary() {

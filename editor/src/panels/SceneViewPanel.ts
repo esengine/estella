@@ -77,6 +77,13 @@ export class SceneViewPanel {
     private boundOnDocumentMouseMove_: ((e: MouseEvent) => void) | null = null;
     private boundOnDocumentMouseUp_: ((e: MouseEvent) => void) | null = null;
 
+    private boundOnMouseDown_: ((e: MouseEvent) => void) | null = null;
+    private boundOnMouseMove_: ((e: MouseEvent) => void) | null = null;
+    private boundOnMouseUp_: ((e: MouseEvent) => void) | null = null;
+    private boundOnMouseLeave_: ((e: MouseEvent) => void) | null = null;
+    private boundOnWheel_: ((e: WheelEvent) => void) | null = null;
+    private boundOnCanvasClick_: ((e: MouseEvent) => void) | null = null;
+
     private static readonly MAX_CACHE_SIZE = 100;
     private textureCache_: Map<string, HTMLImageElement | null> = new Map();
     private metadataCache_: Map<string, SliceBorder | null> = new Map();
@@ -254,6 +261,30 @@ export class SceneViewPanel {
             this.sceneRenderer_ = null;
         }
         this.stopDocumentDrag();
+        if (this.boundOnMouseDown_) {
+            this.canvas_.removeEventListener('mousedown', this.boundOnMouseDown_);
+            this.boundOnMouseDown_ = null;
+        }
+        if (this.boundOnMouseMove_) {
+            this.canvas_.removeEventListener('mousemove', this.boundOnMouseMove_);
+            this.boundOnMouseMove_ = null;
+        }
+        if (this.boundOnMouseUp_) {
+            this.canvas_.removeEventListener('mouseup', this.boundOnMouseUp_);
+            this.boundOnMouseUp_ = null;
+        }
+        if (this.boundOnMouseLeave_) {
+            this.canvas_.removeEventListener('mouseleave', this.boundOnMouseLeave_);
+            this.boundOnMouseLeave_ = null;
+        }
+        if (this.boundOnWheel_) {
+            this.canvas_.removeEventListener('wheel', this.boundOnWheel_);
+            this.boundOnWheel_ = null;
+        }
+        if (this.boundOnCanvasClick_) {
+            this.canvas_.removeEventListener('click', this.boundOnCanvasClick_);
+            this.boundOnCanvasClick_ = null;
+        }
     }
 
     setBridge(bridge: EditorBridge): void {
@@ -478,12 +509,19 @@ export class SceneViewPanel {
         };
         document.addEventListener('keydown', this.keydownHandler_);
 
-        this.canvas_.addEventListener('mousedown', this.onMouseDown.bind(this));
-        this.canvas_.addEventListener('mousemove', this.onMouseMove.bind(this));
-        this.canvas_.addEventListener('mouseup', this.onMouseUp.bind(this));
-        this.canvas_.addEventListener('mouseleave', this.onMouseLeave.bind(this));
-        this.canvas_.addEventListener('wheel', this.onWheel.bind(this));
-        this.canvas_.addEventListener('click', this.onCanvasClick.bind(this));
+        this.boundOnMouseDown_ = this.onMouseDown.bind(this);
+        this.boundOnMouseMove_ = this.onMouseMove.bind(this);
+        this.boundOnMouseUp_ = this.onMouseUp.bind(this);
+        this.boundOnMouseLeave_ = this.onMouseLeave.bind(this);
+        this.boundOnWheel_ = this.onWheel.bind(this);
+        this.boundOnCanvasClick_ = this.onCanvasClick.bind(this);
+
+        this.canvas_.addEventListener('mousedown', this.boundOnMouseDown_);
+        this.canvas_.addEventListener('mousemove', this.boundOnMouseMove_);
+        this.canvas_.addEventListener('mouseup', this.boundOnMouseUp_);
+        this.canvas_.addEventListener('mouseleave', this.boundOnMouseLeave_);
+        this.canvas_.addEventListener('wheel', this.boundOnWheel_);
+        this.canvas_.addEventListener('click', this.boundOnCanvasClick_);
 
         const viewport = this.container_.querySelector('.es-sceneview-viewport');
         if (viewport) {

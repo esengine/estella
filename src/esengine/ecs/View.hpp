@@ -18,6 +18,7 @@
 
 // Project includes
 #include "../core/Types.hpp"
+#include "../core/Log.hpp"
 #include "Entity.hpp"
 #include "SparseSet.hpp"
 
@@ -67,6 +68,7 @@ public:
      * @return The current entity ID
      */
     Entity operator*() const {
+        ES_ASSERT(entities_ != nullptr, "Dereferencing null ViewIterator");
         return (*entities_)[index_];
     }
 
@@ -106,6 +108,7 @@ private:
      *          all components in the view, or we reach the end.
      */
     void skipInvalid() {
+        if (!entities_) return;
         while (index_ < entities_->size()) {
             Entity entity = (*entities_)[index_];
             if (allHave(entity)) {

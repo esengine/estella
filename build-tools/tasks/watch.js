@@ -110,7 +110,7 @@ export async function startWatch(options = {}) {
             ignoreInitial: true,
             awaitWriteFinish: { stabilityThreshold: 300 },
         }
-    );
+    ).on('error', err => logger.error('Component watcher error:', err));
 
     const cppWatcher = chokidar.watch(
         config.watch.cpp.map(p => path.join(rootDir, p)),
@@ -119,7 +119,7 @@ export async function startWatch(options = {}) {
             awaitWriteFinish: { stabilityThreshold: 300 },
             ignored: config.watch.components.map(p => path.join(rootDir, p)),
         }
-    );
+    ).on('error', err => logger.error('C++ watcher error:', err));
 
     const tsWatcher = chokidar.watch(
         config.watch.ts.map(p => path.join(rootDir, p)),
@@ -127,19 +127,19 @@ export async function startWatch(options = {}) {
             ignoreInitial: true,
             awaitWriteFinish: { stabilityThreshold: 300 },
         }
-    );
+    ).on('error', err => logger.error('TypeScript watcher error:', err));
 
-    componentWatcher.on('change', (file) => rebuild('component', file));
-    componentWatcher.on('add', (file) => rebuild('component', file));
+    componentWatcher.on('change', (file) => rebuild('component', file).catch(err => logger.error('Watch rebuild failed:', err)));
+    componentWatcher.on('add', (file) => rebuild('component', file).catch(err => logger.error('Watch rebuild failed:', err)));
 
     cppWatcher.on('change', (file) => {
         if (!isComponentFile(file)) {
-            rebuild('cpp', file);
+            rebuild('cpp', file).catch(err => logger.error('Watch rebuild failed:', err));
         }
     });
 
-    tsWatcher.on('change', (file) => rebuild('ts', file));
-    tsWatcher.on('add', (file) => rebuild('ts', file));
+    tsWatcher.on('change', (file) => rebuild('ts', file).catch(err => logger.error('Watch rebuild failed:', err)));
+    tsWatcher.on('add', (file) => rebuild('ts', file).catch(err => logger.error('Watch rebuild failed:', err)));
 
     process.on('SIGINT', () => {
         logger.info('Stopping watch mode...');

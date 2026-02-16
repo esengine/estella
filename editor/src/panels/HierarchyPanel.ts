@@ -58,6 +58,7 @@ export class HierarchyPanel {
     private dragOverEntityId_: number | null = null;
     private dropPosition_: DropPosition | null = null;
     private draggingEntityId_: number | null = null;
+    private boundOnScroll_: (() => void) | null = null;
 
     constructor(container: HTMLElement, store: EditorStore) {
         this.container_ = container;
@@ -99,7 +100,8 @@ export class HierarchyPanel {
         this.visibleWindow_.className = 'es-hierarchy-visible-window';
         this.scrollContent_.appendChild(this.visibleWindow_);
         this.treeContainer_.appendChild(this.scrollContent_);
-        this.treeContainer_.addEventListener('scroll', () => this.onScroll());
+        this.boundOnScroll_ = () => this.onScroll();
+        this.treeContainer_.addEventListener('scroll', this.boundOnScroll_);
         this.searchInput_ = this.container_.querySelector('.es-hierarchy-search');
         this.footerContainer_ = this.container_.querySelector('.es-hierarchy-footer');
         this.prefabEditBar_ = this.container_.querySelector('.es-prefab-edit-bar');
@@ -122,6 +124,10 @@ export class HierarchyPanel {
         if (this.scrollRafId_) {
             cancelAnimationFrame(this.scrollRafId_);
             this.scrollRafId_ = 0;
+        }
+        if (this.boundOnScroll_) {
+            this.treeContainer_.removeEventListener('scroll', this.boundOnScroll_);
+            this.boundOnScroll_ = null;
         }
     }
 

@@ -32,7 +32,9 @@ export const sceneManagerPlugin: Plugin = {
                 const manager = app.getResource(SceneManager);
                 const initial = manager.getInitial();
                 if (initial) {
-                    manager.load(initial);
+                    manager.load(initial).catch(err => {
+                        console.error('Failed to load initial scene:', err);
+                    });
                 }
             },
         };

@@ -254,7 +254,11 @@ export class SceneManagerState {
                 }
                 await this.load(targetScene);
             };
-            doSwitch();
+            doSwitch().catch(err => {
+                console.error('Scene transition failed:', err);
+                this.transition_ = null;
+                unregisterDrawCallback(TRANSITION_CALLBACK_ID);
+            });
         }
 
         if (this.transition_.phase === 'fade-in' && this.transition_.elapsed >= halfDuration) {

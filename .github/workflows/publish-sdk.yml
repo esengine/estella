@@ -30,7 +30,6 @@ jobs:
           version: 9
 
       - name: Install dependencies
-        working-directory: sdk
         run: pnpm install
 
       - name: Build SDK

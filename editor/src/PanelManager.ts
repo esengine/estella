@@ -180,15 +180,27 @@ export class PanelManager {
     }
 
     showPanel(id: string): void {
-        this.panelInstances_.get(id)?.onShow?.();
+        try {
+            this.panelInstances_.get(id)?.onShow?.();
+        } catch (err) {
+            console.error(`Panel "${id}" onShow failed:`, err);
+        }
     }
 
     hidePanel(id: string): void {
-        this.panelInstances_.get(id)?.onHide?.();
+        try {
+            this.panelInstances_.get(id)?.onHide?.();
+        } catch (err) {
+            console.error(`Panel "${id}" onHide failed:`, err);
+        }
     }
 
     togglePanel(id: string): void {
-        this.panelInstances_.get(id)?.onShow?.();
+        try {
+            this.panelInstances_.get(id)?.onShow?.();
+        } catch (err) {
+            console.error(`Panel "${id}" onShow failed:`, err);
+        }
     }
 
     showBottomPanel(id: string, container: HTMLElement): void {
@@ -197,9 +209,17 @@ export class PanelManager {
         this.activeBottomPanelId_ = id;
         this.updateBottomPanelVisibility(container);
         if (prev) {
-            this.panelInstances_.get(prev)?.onHide?.();
+            try {
+                this.panelInstances_.get(prev)?.onHide?.();
+            } catch (err) {
+                console.error(`Panel "${prev}" onHide failed:`, err);
+            }
         }
-        this.panelInstances_.get(id)?.onShow?.();
+        try {
+            this.panelInstances_.get(id)?.onShow?.();
+        } catch (err) {
+            console.error(`Panel "${id}" onShow failed:`, err);
+        }
     }
 
     toggleBottomPanel(id: string, container: HTMLElement): void {
@@ -211,10 +231,18 @@ export class PanelManager {
         }
         this.updateBottomPanelVisibility(container);
         if (prev && prev !== id) {
-            this.panelInstances_.get(prev)?.onHide?.();
+            try {
+                this.panelInstances_.get(prev)?.onHide?.();
+            } catch (err) {
+                console.error(`Panel "${prev}" onHide failed:`, err);
+            }
         }
         if (this.activeBottomPanelId_) {
-            this.panelInstances_.get(this.activeBottomPanelId_)?.onShow?.();
+            try {
+                this.panelInstances_.get(this.activeBottomPanelId_)?.onShow?.();
+            } catch (err) {
+                console.error(`Panel "${this.activeBottomPanelId_}" onShow failed:`, err);
+            }
         }
     }
 

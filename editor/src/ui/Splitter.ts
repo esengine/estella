@@ -27,6 +27,8 @@ export class Splitter {
     private startLeftSize_ = 0;
     private startRightSize_ = 0;
     private onResize_?: (leftSize: number, rightSize: number) => void;
+    private boundOnMouseMove_: (e: MouseEvent) => void;
+    private boundOnMouseUp_: () => void;
 
     constructor(options: SplitterOptions) {
         this.container_ = options.container;
@@ -53,8 +55,10 @@ export class Splitter {
 
     private setupEvents(): void {
         this.splitter_.addEventListener('mousedown', (e) => this.onMouseDown(e));
-        document.addEventListener('mousemove', (e) => this.onMouseMove(e));
-        document.addEventListener('mouseup', () => this.onMouseUp());
+        this.boundOnMouseMove_ = (e: MouseEvent) => this.onMouseMove(e);
+        this.boundOnMouseUp_ = () => this.onMouseUp();
+        document.addEventListener('mousemove', this.boundOnMouseMove_);
+        document.addEventListener('mouseup', this.boundOnMouseUp_);
     }
 
     private onMouseDown(e: MouseEvent): void {
@@ -137,6 +141,8 @@ export class Splitter {
     }
 
     dispose(): void {
+        document.removeEventListener('mousemove', this.boundOnMouseMove_);
+        document.removeEventListener('mouseup', this.boundOnMouseUp_);
         this.splitter_.remove();
     }
 }

@@ -111,21 +111,28 @@ bool getMaterialDataWithUniforms(u32 materialId, u32& shaderId, u32& blendMode,
 
     if (uniformCount > 0 && uniformBufferPtr != 0) {
         const u8* ptr = reinterpret_cast<const u8*>(uniformBufferPtr);
+        constexpr usize MAX_BUFFER_SIZE = MAX_UNIFORMS * (4 + 256 + 4 + 16);
+        const u8* bufferEnd = ptr + MAX_BUFFER_SIZE;
 
         for (u32 i = 0; i < uniformCount; ++i) {
-            UniformData ud;
-
+            if (ptr + 4 > bufferEnd) break;
             u32 nameLen = *reinterpret_cast<const u32*>(ptr);
             ptr += 4;
 
+            usize alignedNameLen = ((nameLen + 3) / 4) * 4;
+            if (ptr + alignedNameLen > bufferEnd) break;
+
+            UniformData ud;
             usize copyLen = std::min<usize>(nameLen, 31);
             std::memcpy(ud.name, reinterpret_cast<const char*>(ptr), copyLen);
             ud.name[copyLen] = '\0';
-            ptr += ((nameLen + 3) / 4) * 4;
+            ptr += alignedNameLen;
 
+            if (ptr + 4 > bufferEnd) break;
             ud.type = *reinterpret_cast<const u32*>(ptr);
             ptr += 4;
 
+            if (ptr + 16 > bufferEnd) break;
             std::memcpy(ud.values, ptr, 16);
             ptr += 16;
 

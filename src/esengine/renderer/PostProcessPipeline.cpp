@@ -148,8 +148,10 @@ void PostProcessPipeline::resize(u32 width, u32 height) {
     height_ = height;
 
     if (fbosCreated_) {
-        if (fboA_) fboA_->resize(width, height);
-        if (fboB_) fboB_->resize(width, height);
+        fboA_.reset();
+        fboB_.reset();
+        fbosCreated_ = false;
+        ensureFBOs();
     }
 }
 

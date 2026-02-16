@@ -457,9 +457,13 @@ export class EditorStore {
         const cmd = new DeleteEntityCommand(this.state_.scene, this.entityMap_, entity);
         this.executeCommand(cmd);
 
+        const hadSelection = this.state_.selectedEntities.size > 0;
         this.state_.selectedEntities.delete(entity as number);
         for (const id of descendants) {
             this.state_.selectedEntities.delete(id);
+        }
+        if (hadSelection) {
+            this.notify('selection');
         }
 
         for (const id of descendants) {
