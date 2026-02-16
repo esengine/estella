@@ -221,8 +221,10 @@ export class WeChatEmitter implements PlatformEmitter {
             }
         }
 
-        const firstScene = context.config.scenes[0];
-        const firstSceneName = firstScene ? firstScene.replace(/.*\//, '').replace('.esscene', '') : '';
+        const allSceneNames = context.config.scenes.map(
+            s => s.replace(/.*\//, '').replace('.esscene', '')
+        );
+        const firstSceneName = allSceneNames[0] ?? '';
 
         const physicsConfig = JSON.stringify({
             gravity: context.physicsGravity ?? { x: 0, y: -9.81 },
@@ -233,6 +235,7 @@ export class WeChatEmitter implements PlatformEmitter {
         const gameJs = generateWeChatGameJs({
             userCode,
             firstSceneName,
+            allSceneNames,
             hasSpine: !!context.spineVersion,
             hasPhysics: !!context.enablePhysics,
             physicsConfig,

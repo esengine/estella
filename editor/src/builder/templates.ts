@@ -116,7 +116,13 @@ function decodeBinary(dataUrl){
     resolvePath:function(ref){return ref}
   };
 
-  await es.loadRuntimeScene(app,Module,__SCENE__,provider,spineModule,physicsModule,{{PHYSICS_CONFIG}},__MANIFEST__);
+  var sceneOpts={app:app,module:Module,provider:provider,spineModule:spineModule,physicsModule:physicsModule,physicsConfig:{{PHYSICS_CONFIG}},manifest:__MANIFEST__};
+  var sceneName='{{SCENE_NAME}}';
+  var sceneConfig=es.createRuntimeSceneConfig(sceneName,__SCENE__,sceneOpts);
+  var mgr=app.getResource(es.SceneManager);
+  mgr.register(sceneConfig);
+  mgr.setInitial(sceneName);
+  await mgr.load(sceneName);
 
   var screenAspect=c.width/c.height;
   es.updateCameraAspectRatio(app.world,screenAspect);
@@ -136,13 +142,14 @@ function decodeBinary(dataUrl){
 export interface WeChatGameJsParams {
     userCode: string;
     firstSceneName: string;
+    allSceneNames: string[];
     hasSpine: boolean;
     hasPhysics: boolean;
     physicsConfig: string;
 }
 
 export function generateWeChatGameJs(params: WeChatGameJsParams): string {
-    const { userCode, firstSceneName, hasSpine, hasPhysics, physicsConfig } = params;
+    const { userCode, firstSceneName, allSceneNames, hasSpine, hasPhysics, physicsConfig } = params;
 
     const spineInit = hasSpine ? `
 async function initSpineModule() {
@@ -174,6 +181,8 @@ async function initPhysicsModule() {
     } catch(e) { console.warn('Physics module not available:', e); }
 }` : '';
 
+    const sceneNamesArray = JSON.stringify(allSceneNames);
+
     const sceneLoading = firstSceneName ? `
     try {
         var provider = {
@@ -198,14 +207,25 @@ async function initPhysicsModule() {
             resolvePath: resolvePath
         };
 
-        var sceneData = await new Promise(function(resolve, reject) {
-            wxfs.readFile({ filePath: 'scenes/${firstSceneName}.json', encoding: 'utf-8',
-                success: function(res) { resolve(JSON.parse(res.data)); },
-                fail: function(err) { reject(new Error(err.errMsg)); }
+        function readSceneFile(name) {
+            return new Promise(function(resolve, reject) {
+                wxfs.readFile({ filePath: 'scenes/' + name + '.json', encoding: 'utf-8',
+                    success: function(res) { resolve(JSON.parse(res.data)); },
+                    fail: function(err) { reject(new Error(err.errMsg)); }
+                });
             });
-        });
+        }
 
-        await SDK.loadRuntimeScene(app, module, sceneData, provider, spineModule, physicsModule, ${physicsConfig}, manifest);
+        var sceneNames = ${sceneNamesArray};
+        var mgr = app.getResource(SDK.SceneManager);
+        var sceneOpts = { app: app, module: module, provider: provider, spineModule: spineModule, physicsModule: physicsModule, physicsConfig: ${physicsConfig}, manifest: manifest };
+
+        for (var i = 0; i < sceneNames.length; i++) {
+            var sd = await readSceneFile(sceneNames[i]);
+            mgr.register(SDK.createRuntimeSceneConfig(sceneNames[i], sd, sceneOpts));
+        }
+        mgr.setInitial('${firstSceneName}');
+        await mgr.load('${firstSceneName}');
 
         var screenAspect = canvas.width / canvas.height;
         SDK.updateCameraAspectRatio(app.world, screenAspect);

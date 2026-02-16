@@ -109,7 +109,7 @@ export class PlayableEmitter implements PlatformEmitter {
             // 7. Assemble HTML
             progress.setCurrentTask('Assembling HTML...', 50);
             const html = this.assembleHTML(
-                wasmSdk, gameCode, rewrittenScene, assets,
+                wasmSdk, gameCode, rewrittenScene, sceneName, assets,
                 spineJsSource, spineWasmBase64,
                 physicsJsSource, physicsWasmBase64,
                 context, manifestJson
@@ -317,7 +317,7 @@ ${imports}
     }
 
     private assembleHTML(
-        wasmSdk: string, gameCode: string, sceneData: string,
+        wasmSdk: string, gameCode: string, sceneData: string, sceneName: string,
         assets: Map<string, string>,
         spineJs: string, spineWasmBase64: string,
         physicsJs: string, physicsWasmBase64: string,
@@ -367,6 +367,7 @@ ${imports}
             .replace('{{GAME_CODE}}', () => gameCode)
             .replace('{{ASSETS_MAP}}', () => `{${entries.join(',')}}`)
             .replace('{{SCENE_DATA}}', () => sceneData)
+            .replace('{{SCENE_NAME}}', () => sceneName)
             .replace('{{PHYSICS_CONFIG}}', () => physicsConfig)
             .replace('{{MANIFEST}}', () => manifestJson)
             .replace('{{CTA_STYLE}}', () => ctaStyle)
