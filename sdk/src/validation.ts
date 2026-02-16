@@ -32,6 +32,8 @@ export function validateComponentData(
         const expectedType = getType(defaultValue);
         const actualType = getType(value);
 
+        if (expectedType === 'null' || expectedType === 'undefined') continue;
+
         if (expectedType !== actualType && value !== null && value !== undefined) {
             errors.push({
                 field,

@@ -16,8 +16,6 @@ set(ES_EMSCRIPTEN_COMPILE_FLAGS
     -ffunction-sections
     -fdata-sections
     -fno-exceptions
-    -fno-rtti
-    -DEMSCRIPTEN_HAS_UNBOUND_TYPE_NAMES=0
 )
 
 # Standard (monolithic) link flags
@@ -215,7 +213,7 @@ set(ES_EMSCRIPTEN_SDK_LINK_FLAGS
     -O3
     -flto
     -Wl,--gc-sections
-    --closure=1
+    --closure=0
 )
 
 # Single-file SDK link flags (WASM inlined as Base64, for playable ads)

@@ -3,9 +3,9 @@
  * @brief   Runtime scene loader for builder targets (WeChat, Playable, etc.)
  */
 
-import { Sprite, SpineAnimation, BitmapText, WorldTransform, SceneOwner, type SpineAnimationData, type WorldTransformData } from './component';
+import { SpineAnimation, WorldTransform, SceneOwner, type SpineAnimationData, type WorldTransformData } from './component';
 import { Material } from './material';
-import { loadSceneData, type SceneData } from './scene';
+import { loadSceneData, getComponentAssetFieldDescriptors, type AssetFieldType, type SceneData } from './scene';
 import type { ESEngineModule } from './wasm';
 import { wrapSpineModule, type SpineWasmModule, type SpineWrappedAPI } from './spine/SpineModuleLoader';
 import type { PhysicsWasmModule } from './physics/PhysicsModuleLoader';
@@ -87,21 +87,27 @@ function applyTextureMetadata(
     }
 }
 
-function updateSpriteTextures(
-    world: App['world'],
+function resolveSceneAssetPaths(
     sceneData: SceneData,
     textureCache: Record<string, number>,
-    entityMap: Map<number, number>,
+    fontCache: Record<string, number>,
+    materialCache: Record<string, number>,
 ): void {
-    for (const entityData of sceneData.entities) {
-        const entity = entityMap.get(entityData.id);
-        if (entity === undefined) continue;
-        for (const comp of entityData.components) {
-            if (comp.type === 'Sprite' && comp.data.texture && typeof comp.data.texture === 'string') {
-                const sprite = world.get(entity, Sprite);
-                if (sprite) {
-                    sprite.texture = textureCache[comp.data.texture as string] || 0;
-                    world.insert(entity, Sprite, sprite);
+    const cacheByType: Record<AssetFieldType, Record<string, number>> = {
+        texture: textureCache,
+        material: materialCache,
+        font: fontCache,
+    };
+
+    for (const entity of sceneData.entities) {
+        for (const comp of entity.components) {
+            const descriptors = getComponentAssetFieldDescriptors(comp.type);
+            if (descriptors.length === 0) continue;
+
+            const data = comp.data as Record<string, unknown>;
+            for (const desc of descriptors) {
+                if (typeof data[desc.field] === 'string') {
+                    data[desc.field] = cacheByType[desc.type][data[desc.field] as string] || 0;
                 }
             }
         }
@@ -378,28 +384,6 @@ async function loadBitmapFonts(
     return cache;
 }
 
-function updateBitmapTextFonts(
-    world: App['world'],
-    sceneData: SceneData,
-    fontCache: Record<string, number>,
-    entityMap: Map<number, number>,
-): void {
-    for (const entityData of sceneData.entities) {
-        const entity = entityMap.get(entityData.id);
-        if (entity === undefined) continue;
-        for (const comp of entityData.components) {
-            if (comp.type !== 'BitmapText' || !comp.data.font || typeof comp.data.font !== 'string') continue;
-            const handle = fontCache[comp.data.font as string] || 0;
-            if (!handle) continue;
-            const bt = world.get(entity, BitmapText);
-            if (bt) {
-                bt.font = handle;
-                world.insert(entity, BitmapText, bt);
-            }
-        }
-    }
-}
-
 // =============================================================================
 // Material Helpers
 // =============================================================================
@@ -435,36 +419,6 @@ async function loadMaterials(
         }
     }
     return materialCache;
-}
-
-function updateMaterials(
-    world: App['world'],
-    sceneData: SceneData,
-    materialCache: Record<string, number>,
-    entityMap: Map<number, number>,
-): void {
-    for (const entityData of sceneData.entities) {
-        const entity = entityMap.get(entityData.id);
-        if (entity === undefined) continue;
-        for (const comp of entityData.components) {
-            if (!comp.data || typeof comp.data.material !== 'string' || !comp.data.material) continue;
-            const handle = materialCache[comp.data.material as string] || 0;
-            if (!handle) continue;
-            if (comp.type === 'Sprite') {
-                const sprite = world.get(entity, Sprite);
-                if (sprite) {
-                    sprite.material = handle;
-                    world.insert(entity, Sprite, sprite);
-                }
-            } else if (comp.type === 'SpineAnimation') {
-                const spine = world.get(entity, SpineAnimation);
-                if (spine) {
-                    spine.material = handle;
-                    world.insert(entity, SpineAnimation, spine);
-                }
-            }
-        }
-    }
 }
 
 // =============================================================================
@@ -504,6 +458,8 @@ export async function loadRuntimeScene(
 
     const fontCache = await loadBitmapFonts(module, sceneData, provider);
     const materialCache = await loadMaterials(sceneData, provider);
+
+    resolveSceneAssetPaths(sceneData, textureCache, fontCache, materialCache);
     const entityMap = loadSceneData(app.world, sceneData);
 
     if (sceneName && app.hasResource(SceneManager)) {
@@ -511,10 +467,6 @@ export async function loadRuntimeScene(
             app.world.insert(entity, SceneOwner, { scene: sceneName, persistent: false });
         }
     }
-
-    updateSpriteTextures(app.world, sceneData, textureCache, entityMap);
-    updateBitmapTextFonts(app.world, sceneData, fontCache, entityMap);
-    updateMaterials(app.world, sceneData, materialCache, entityMap);
 
     if (spineModule && spineAPI) {
         const instances = createSpineInstances(spineAPI, sceneData, spineSkeletons, entityMap);

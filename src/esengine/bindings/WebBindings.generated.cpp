@@ -560,7 +560,7 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             r.emplaceOrReplace<esengine::ecs::Parent>(static_cast<Entity>(e), c);
         }))
         .function("removeParent", optional_override([](Registry& r, u32 e) {
-            esengine::ecs::setParent(r, static_cast<Entity>(e), INVALID_ENTITY);
+            r.remove<esengine::ecs::Parent>(static_cast<Entity>(e));
         }))
 
         // Children

@@ -55,7 +55,7 @@ export interface SceneLoadOptions {
 // Component Asset Field Registry
 // =============================================================================
 
-type AssetFieldType = 'texture' | 'material' | 'font';
+export type AssetFieldType = 'texture' | 'material' | 'font';
 
 interface AssetFieldDescriptor {
     field: string;
@@ -114,6 +114,12 @@ export function getComponentAssetFields(componentType: string): string[] {
         fields.push(config.spine.atlasField);
     }
     return fields;
+}
+
+export function getComponentAssetFieldDescriptors(
+    componentType: string,
+): readonly { field: string; type: AssetFieldType }[] {
+    return COMPONENT_ASSET_FIELDS.get(componentType)?.fields ?? [];
 }
 
 // =============================================================================
