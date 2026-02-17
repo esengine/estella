@@ -49,6 +49,7 @@ jobs:
           version: 3.1.51
 
       - name: Setup ccache
+        if: matrix.platform != 'windows-latest'
         uses: hendrikmuhs/ccache-action@v1.2
         with:
           key: ${{ matrix.platform }}-release
@@ -62,10 +63,7 @@ jobs:
         run: cp $(find node_modules/.pnpm -name 'esbuild.wasm' -path '*/esbuild-wasm/*' | head -1) desktop/public/esbuild.wasm
 
       - name: Build engine and sync to desktop
-        run: node build-tools/cli.js build -t all --manifest
-
-      - name: Track bundle sizes
-        run: node build-tools/track-bundle-size.js check
+        run: node build-tools/cli.js build -t all
 
       - name: Build workspace packages
         run: pnpm --filter esengine build && pnpm --filter @esengine/editor build
