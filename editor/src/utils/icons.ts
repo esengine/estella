@@ -62,6 +62,8 @@ import {
     Shield,
     RotateCcw,
     Clipboard,
+    Pause,
+    StepForward,
 } from 'lucide';
 
 // =============================================================================
@@ -180,6 +182,8 @@ export const icons = {
     shield: (size?: number) => renderIcon(Shield as IconNode, size),
     rotateCcw: (size?: number) => renderIcon(RotateCcw as IconNode, size),
     clipboard: (size?: number) => renderIcon(Clipboard as IconNode, size),
+    pause: (size?: number) => renderIcon(Pause as IconNode, size),
+    stepForward: (size?: number) => renderIcon(StepForward as IconNode, size),
 };
 
 export type IconName = keyof typeof icons;

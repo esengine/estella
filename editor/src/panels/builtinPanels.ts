@@ -2,6 +2,7 @@ import { registerPanel } from './PanelRegistry';
 import { HierarchyPanel } from './hierarchy/HierarchyPanel';
 import { InspectorPanel } from './InspectorPanel';
 import { SceneViewPanel } from './scene-view/SceneViewPanel';
+import { GameViewPanel } from './game-view/GameViewPanel';
 import { ContentBrowserPanel } from './content-browser/ContentBrowserPanel';
 import { OutputPanel } from './OutputPanel';
 import { icons } from '../utils/icons';
@@ -29,6 +30,16 @@ export function registerBuiltinPanels(options: BuiltinPanelOptions): void {
         order: 0,
         defaultVisible: true,
         factory: (c, s) => new SceneViewPanel(c, s, { projectPath: options.projectPath }),
+    });
+
+    registerPanel({
+        id: 'game',
+        title: 'Game',
+        icon: icons.play(14),
+        position: 'center',
+        order: 1,
+        defaultVisible: false,
+        factory: (c, s) => new GameViewPanel(c, s, { projectPath: options.projectPath }),
     });
 
     registerPanel({

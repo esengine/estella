@@ -48,6 +48,8 @@ export class PreviewService {
             return;
         }
 
+        await this.stopPreview();
+
         console.log('PreviewService: Preparing files in', this.previewDir_);
         await this.preparePreviewFiles(fs, scene, compiledScript, spineVersion, enablePhysics, physicsConfig, runtimeConfig);
         console.log('PreviewService: Files prepared');

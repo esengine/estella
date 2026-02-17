@@ -1,0 +1,89 @@
+/* =============================================================================
+ * GameView Panel
+ * ============================================================================= */
+
+.es-gameview-panel {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.es-gameview-tools {
+    display: flex;
+    align-items: center;
+}
+
+.es-gameview-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.es-gameview-controls {
+    display: flex;
+    gap: 2px;
+    background: var(--es-bg-tertiary);
+    border-radius: 4px;
+    padding: 2px;
+}
+
+.es-gameview-controls .es-btn-icon {
+    padding: 4px;
+    border-radius: 3px;
+}
+
+.es-gameview-controls .es-btn-icon:disabled {
+    opacity: 0.3;
+    cursor: default;
+}
+
+.es-gameview-controls .es-btn-icon:disabled:hover {
+    background: transparent;
+}
+
+.es-gameview-resolution {
+    background: var(--es-input-bg);
+    color: var(--es-text-primary);
+    border: 1px solid var(--es-border);
+    border-radius: 3px;
+    font-size: 11px;
+    padding: 2px 4px;
+    height: 22px;
+    outline: none;
+}
+
+.es-gameview-resolution:focus {
+    border-color: var(--es-accent);
+}
+
+.es-gameview-fps {
+    font-size: 11px;
+    color: var(--es-text-secondary);
+    min-width: 50px;
+    text-align: right;
+}
+
+.es-gameview-viewport {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    background: #1a1a1a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.es-gameview-canvas {
+    display: none;
+}
+
+.es-gameview-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    color: var(--es-text-secondary);
+    font-size: 14px;
+    user-select: none;
+}

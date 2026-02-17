@@ -6,6 +6,7 @@
 export { HierarchyPanel } from './hierarchy/HierarchyPanel';
 export { InspectorPanel } from './InspectorPanel';
 export { SceneViewPanel } from './scene-view/SceneViewPanel';
+export { GameViewPanel } from './game-view/GameViewPanel';
 export { OutputPanel } from './OutputPanel';
 
 export {

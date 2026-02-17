@@ -25,6 +25,10 @@
     "./physics": {
       "import": "./dist/physics/index.js",
       "types": "./dist/physics/index.d.ts"
+    },
+    "./factory": {
+      "import": "./dist/webAppFactory.js",
+      "types": "./dist/webAppFactory.d.ts"
     }
   },
   "files": [

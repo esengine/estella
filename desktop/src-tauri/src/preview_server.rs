@@ -16,6 +16,7 @@ const MAX_PORT_ATTEMPTS: u16 = 10;
 
 pub struct PreviewServer {
     server: Option<Arc<Server>>,
+    worker_handle: Option<thread::JoinHandle<()>>,
     reload_signal: Arc<ReloadSignal>,
     project_dir: PathBuf,
     port: u16,
@@ -71,6 +72,7 @@ impl PreviewServer {
     pub fn new(project_dir: PathBuf, port: u16) -> Self {
         Self {
             server: None,
+            worker_handle: None,
             reload_signal: Arc::new(ReloadSignal::new()),
             project_dir,
             port,
@@ -91,7 +93,7 @@ impl PreviewServer {
         let project_dir = self.project_dir.clone();
         let reload_signal = Arc::clone(&self.reload_signal);
 
-        thread::spawn(move || {
+        let handle = thread::spawn(move || {
             for request in server.incoming_requests() {
                 let url = request.url().to_string();
                 let path = url.trim_start_matches('/');
@@ -128,6 +130,7 @@ impl PreviewServer {
                 let _ = request.respond(response);
             }
         });
+        self.worker_handle = Some(handle);
 
         Ok(self.port)
     }
@@ -138,6 +141,9 @@ impl PreviewServer {
             server.unblock();
         }
         self.server = None;
+        if let Some(handle) = self.worker_handle.take() {
+            let _ = handle.join();
+        }
     }
 
     pub fn notify_reload(&self) {

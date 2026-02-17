@@ -94,17 +94,44 @@
             });
         }
 
+        function fetchWithRetry(url, options = {}, maxRetries = 3) {
+            let attempt = 0;
+            async function tryFetch() {
+                try {
+                    const resp = await fetch(url, options);
+                    if (!resp.ok) throw new Error(`HTTP ${resp.status} for ${url}`);
+                    return resp;
+                } catch (err) {
+                    attempt++;
+                    if (attempt >= maxRetries) throw err;
+                    await new Promise(r => setTimeout(r, 500 * attempt));
+                    return tryFetch();
+                }
+            }
+            return tryFetch();
+        }
+
+        function withTimeout(promise, ms, label) {
+            return Promise.race([
+                promise,
+                new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error(`${label} timed out after ${ms / 1000}s`)), ms)
+                ),
+            ]);
+        }
+
         async function loadPreview() {
             let step = 'init';
             try {
                 step = 'load WASM module';
                 updateLoading('Loading WASM module...');
-                const ModuleLoader = await import('/wasm/esengine.js');
-                const Module = await ModuleLoader.default();
+                await fetchWithRetry('/wasm/esengine.js');
+                const ModuleLoader = await withTimeout(import('/wasm/esengine.js'), 30000, 'WASM module import');
+                const Module = await withTimeout(ModuleLoader.default(), 30000, 'WASM instantiation');
 
                 step = 'load SDK';
                 updateLoading('Loading SDK...');
-                const sdk = await import('/sdk/index.js');
+                const sdk = await withTimeout(import('/sdk/index.js'), 30000, 'SDK import');
 
                 let spinePlugin = null;
                 let physicsPlugin = null;
@@ -195,7 +222,7 @@
                 app.addPlugin(previewPlugin);
 
                 step = 'waitForReady (scene load)';
-                await previewPlugin.waitForReady();
+                await withTimeout(previewPlugin.waitForReady(), 30000, 'scene loading');
 
                 if (app.physicsInitPromise) {
                     step = 'physics init';
