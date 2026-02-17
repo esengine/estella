@@ -78,33 +78,7 @@ jobs:
       run: pnpm install
 
     - name: Build all targets
-      run: node build-tools/cli.js build -t all --manifest --no-sync
-
-    - name: Track bundle sizes
-      run: node build-tools/track-bundle-size.js check
-
-    - name: Upload bundle size report
-      if: github.event_name == 'pull_request'
-      uses: actions/upload-artifact@v4
-      with:
-        name: bundle-size-report
-        path: build/manifest.json
-
-    - name: Comment PR with bundle size
-      if: github.event_name == 'pull_request'
-      uses: actions/github-script@v7
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        script: |
-          const { execSync } = require('child_process');
-          const comment = execSync('node build-tools/track-bundle-size.js pr-comment', { encoding: 'utf-8' });
-
-          github.rest.issues.createComment({
-            issue_number: context.issue.number,
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            body: comment
-          });
+      run: node build-tools/cli.js build -t all --no-sync
 
   test:
     name: Tests (SDK + Editor)
