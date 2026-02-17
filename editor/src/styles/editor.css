@@ -318,36 +318,6 @@
 }
 
 /* =============================================================================
- * Panels
- * ============================================================================= */
-
-.es-panel-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 6px 12px;
-    background: var(--es-bg-secondary);
-    border-bottom: 1px solid var(--es-border);
-}
-
-.es-panel-title {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-weight: 600;
-    font-size: 12px;
-}
-
-.es-panel-title svg {
-    stroke: var(--es-text-secondary);
-}
-
-.es-panel-actions {
-    display: flex;
-    gap: 4px;
-}
-
-/* =============================================================================
  * Hierarchy Panel
  * ============================================================================= */
 
@@ -1789,18 +1759,6 @@
     border-bottom: 1px solid var(--es-border);
 }
 
-.es-content-browser-title {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-weight: 600;
-    font-size: 12px;
-}
-
-.es-content-browser-title svg {
-    stroke: var(--es-text-secondary);
-}
-
 .es-content-browser-actions {
     display: flex;
     gap: 4px;
@@ -2297,19 +2255,6 @@
     background: var(--es-bg-secondary);
     border-bottom: 1px solid var(--es-border);
     flex-shrink: 0;
-}
-
-.es-output-title {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-weight: 600;
-    font-size: 12px;
-    white-space: nowrap;
-}
-
-.es-output-title svg {
-    stroke: var(--es-text-secondary);
 }
 
 .es-output-toolbar {

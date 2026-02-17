@@ -18,18 +18,6 @@
     border-bottom: 1px solid var(--es-border);
 }
 
-.es-content-browser-title {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-weight: 600;
-    font-size: 12px;
-}
-
-.es-content-browser-title svg {
-    stroke: var(--es-text-secondary);
-}
-
 .es-content-browser-actions {
     display: flex;
     gap: 4px;

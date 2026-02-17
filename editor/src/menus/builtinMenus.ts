@@ -154,13 +154,17 @@ export function registerBuiltinMenus(editor: Editor): void {
         action: () => editor.showPanel('output'),
     });
     registerMenuItem({
+        id: 'view.game', menu: 'view', label: 'Game', order: 4,
+        action: () => editor.showPanel('game'),
+    });
+    registerMenuItem({
         id: 'view.addressable', menu: 'view', label: 'Addressable Groups',
-        order: 4, separator: true,
+        order: 5, separator: true,
         action: () => editor.showAddressableWindow(),
     });
     registerMenuItem({
         id: 'view.reset-layout', menu: 'view', label: 'Reset Layout',
-        order: 5, separator: true,
+        order: 6, separator: true,
         action: () => editor.resetLayout(),
     });
     registerMenuItem({

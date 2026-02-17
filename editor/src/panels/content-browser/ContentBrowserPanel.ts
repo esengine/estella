@@ -52,7 +52,6 @@ export class ContentBrowserPanel implements ContentBrowserState {
         this.container.classList.add('es-content-browser');
         this.container.innerHTML = `
             <div class="es-content-browser-header">
-                <span class="es-content-browser-title">${icons.folder(14)} Content Browser</span>
                 <div class="es-content-browser-actions">
                     <button class="es-btn es-btn-icon es-refresh-btn" title="Refresh">${icons.refresh(12)}</button>
                 </div>

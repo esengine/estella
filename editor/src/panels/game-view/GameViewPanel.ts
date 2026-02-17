@@ -68,7 +68,6 @@ export class GameViewPanel implements PanelInstance, Resizable, AppAware {
         this.container_.className = 'es-gameview-panel';
         this.container_.innerHTML = `
             <div class="es-panel-header">
-                <span class="es-panel-title">Game</span>
                 <div class="es-gameview-tools">
                     ${this.toolbar_.buildHTML()}
                 </div>

@@ -45,9 +45,6 @@ export class HierarchyPanel implements HierarchyState {
 
         this.container_.className = 'es-hierarchy-panel';
         this.container_.innerHTML = `
-            <div class="es-panel-header">
-                <span class="es-panel-title">${icons.list(14)} Hierarchy</span>
-            </div>
             <div class="es-prefab-edit-bar" style="display: none;">
                 <button class="es-prefab-back-btn">${icons.chevronRight(12)} Back to Scene</button>
                 <span class="es-prefab-edit-name">${icons.package(12)} </span>

@@ -667,19 +667,6 @@
     flex-shrink: 0;
 }
 
-.es-output-title {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-weight: 600;
-    font-size: 12px;
-    white-space: nowrap;
-}
-
-.es-output-title svg {
-    stroke: var(--es-text-secondary);
-}
-
 .es-output-toolbar {
     display: flex;
     align-items: center;

@@ -160,7 +160,6 @@ export class OutputPanel implements PanelInstance {
         this.container_.innerHTML = `
             <div class="es-output-panel">
                 <div class="es-output-header">
-                    <span class="es-output-title">${icons.list(14)} Output</span>
                     <div class="es-output-toolbar">
                         <div class="es-output-filters"></div>
                         <div class="es-output-search-wrap">

@@ -84,7 +84,6 @@ export class SceneViewPanel {
         this.container_.className = 'es-sceneview-panel';
         this.container_.innerHTML = `
             <div class="es-panel-header">
-                <span class="es-panel-title">Scene</span>
                 <div class="es-sceneview-tools">
                     <div class="es-gizmo-toolbar">
                         ${this.toolbar_.buildToolbarHTML()}
