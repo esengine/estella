@@ -43,10 +43,6 @@ export class GameInstanceManager {
     }
 
     async stop(): Promise<void> {
-        const editor = getEditorInstance();
-        if (editor) {
-            await editor.stopPreviewServer();
-        }
         this.setState('stopped');
     }
 

@@ -68,7 +68,7 @@ export class GameViewPanel implements PanelInstance, Resizable {
     private async play(): Promise<void> {
         const url = await this.gameManager_.play();
         if (url && this.iframe_) {
-            this.iframe_.src = url;
+            this.iframe_.src = url + '?t=' + Date.now();
         }
     }
 

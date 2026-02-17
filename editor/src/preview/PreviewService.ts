@@ -71,8 +71,6 @@ export class PreviewService {
             return null;
         }
 
-        await this.stopPreview();
-
         await this.preparePreviewFiles(fs, scene, compiledScript, spineVersion, enablePhysics, physicsConfig, runtimeConfig);
 
         const port = await invoke('start_preview_server', {
@@ -138,10 +136,8 @@ export class PreviewService {
             ...runtimeConfig,
         }));
 
-        if (compiledScript) {
-            const scriptPath = `${this.previewDir_}/user-scripts.js`;
-            await fs.writeFile(scriptPath, compiledScript);
-        }
+        const scriptPath = `${this.previewDir_}/user-scripts.js`;
+        await fs.writeFile(scriptPath, compiledScript ?? '');
     }
 
     private async collectTextureMetadata(

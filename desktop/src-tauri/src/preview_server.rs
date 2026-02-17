@@ -96,7 +96,7 @@ impl PreviewServer {
         let handle = thread::spawn(move || {
             for request in server.incoming_requests() {
                 let url = request.url().to_string();
-                let path = url.trim_start_matches('/');
+                let path = url.split('?').next().unwrap_or("").trim_start_matches('/');
 
                 if path == "sse-reload" {
                     let signal = Arc::clone(&reload_signal);
@@ -108,6 +108,7 @@ impl PreviewServer {
 
                 let response = match path {
                     "" | "index.html" => serve_html(),
+                    "favicon.ico" => serve_empty(),
                     "wasm/esengine.js" => serve_embedded(embedded_assets::ENGINE_JS, "application/javascript"),
                     "wasm/esengine.wasm" => serve_embedded(embedded_assets::ENGINE_WASM, "application/wasm"),
                     "sdk/index.js" => serve_embedded(embedded_assets::SDK_ESM_JS, "application/javascript"),
@@ -255,6 +256,12 @@ fn serve_project_file(project_dir: &PathBuf, path: &str) -> Response<std::io::Cu
         }
         Err(_) => not_found(),
     }
+}
+
+fn serve_empty() -> Response<std::io::Cursor<Vec<u8>>> {
+    Response::from_data(Vec::new())
+        .with_header(content_type("text/plain"))
+        .with_header(cors())
 }
 
 fn not_found() -> Response<std::io::Cursor<Vec<u8>>> {

@@ -53,14 +53,33 @@ export class EditorSceneRenderer {
         this.setupSyncService();
     }
 
-    async init(module: ESEngineModule, canvasSelector: string): Promise<boolean> {
+    async init(module: ESEngineModule, canvas: HTMLCanvasElement): Promise<boolean> {
         if (this.initialized_) return true;
 
         this.module_ = module;
 
-        const success = module.initRendererWithCanvas(canvasSelector);
+        const gl = canvas.getContext('webgl2', {
+            alpha: true,
+            depth: true,
+            stencil: true,
+            antialias: true,
+            premultipliedAlpha: true,
+            preserveDrawingBuffer: false,
+        });
+        if (!gl) {
+            console.error('[EditorSceneRenderer] Failed to create WebGL2 context');
+            return false;
+        }
+
+        const handle = module.GL.registerContext(gl, { majorVersion: 2, minorVersion: 0 });
+        if (handle <= 0) {
+            console.error('[EditorSceneRenderer] Failed to register WebGL context');
+            return false;
+        }
+
+        const success = module.initRendererWithContext(handle);
         if (!success) {
-            console.error('[EditorSceneRenderer] Failed to initialize WebGL context');
+            console.error('[EditorSceneRenderer] Failed to initialize renderer');
             return false;
         }
 

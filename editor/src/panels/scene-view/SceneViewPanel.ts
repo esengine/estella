@@ -309,12 +309,9 @@ export class SceneViewPanel {
 
         this.webglInitPending_ = true;
 
-        const canvasId = `es-sceneview-webgl-${Date.now()}`;
-        this.webglCanvas_.id = canvasId;
-
         this.sceneRenderer_ = new EditorSceneRenderer();
         this.sceneRenderer_.setStore(this.store_);
-        const success = await this.sceneRenderer_.init(this.app_.wasmModule, `#${canvasId}`);
+        const success = await this.sceneRenderer_.init(this.app_.wasmModule, this.webglCanvas_);
 
         if (success) {
             this.webglInitialized_ = true;

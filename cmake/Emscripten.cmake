@@ -209,7 +209,7 @@ set(ES_EMSCRIPTEN_SDK_LINK_FLAGS
     -sFORCE_FILESYSTEM=1
     "-sEXPORT_NAME='ESEngineModule'"
     "-sEXPORTED_FUNCTIONS=['_malloc','_free']"
-    "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32','FS','addFunction']"
+    "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32','GL','FS','addFunction']"
     -O3
     -flto
     -Wl,--gc-sections
