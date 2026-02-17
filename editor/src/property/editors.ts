@@ -1605,6 +1605,155 @@ function createBitmapFontFileEditor(
 }
 
 // =============================================================================
+// Entity Editor
+// =============================================================================
+
+function createEntityEditor(
+    container: HTMLElement,
+    ctx: PropertyEditorContext
+): PropertyEditorInstance {
+    const { value, onChange } = ctx;
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'es-entity-editor';
+
+    const select = document.createElement('select');
+    select.className = 'es-input es-input-select';
+
+    function populateOptions(currentValue: number) {
+        select.innerHTML = '';
+
+        const noneOption = document.createElement('option');
+        noneOption.value = '0';
+        noneOption.textContent = '(None)';
+        select.appendChild(noneOption);
+
+        const editor = getEditorInstance();
+        const entities = editor?.store.scene.entities;
+        if (entities) {
+            for (const entity of entities) {
+                const option = document.createElement('option');
+                option.value = String(entity.id);
+                option.textContent = `${entity.name} (${entity.id})`;
+                if (entity.id === currentValue) {
+                    option.selected = true;
+                }
+                select.appendChild(option);
+            }
+        }
+
+        if (currentValue && !select.querySelector(`option[value="${currentValue}"]`)) {
+            const option = document.createElement('option');
+            option.value = String(currentValue);
+            option.textContent = `Entity ${currentValue}`;
+            option.selected = true;
+            select.appendChild(option);
+        }
+    }
+
+    populateOptions(Number(value) || 0);
+
+    select.addEventListener('change', () => {
+        onChange(parseInt(select.value) || 0);
+    });
+
+    select.addEventListener('focus', () => {
+        populateOptions(parseInt(select.value) || 0);
+    });
+
+    wrapper.appendChild(select);
+    container.appendChild(wrapper);
+
+    return {
+        update(v: unknown) {
+            populateOptions(Number(v) || 0);
+        },
+        dispose() {
+            wrapper.remove();
+        },
+    };
+}
+
+// =============================================================================
+// String Array Editor
+// =============================================================================
+
+function createStringArrayEditor(
+    container: HTMLElement,
+    ctx: PropertyEditorContext
+): PropertyEditorInstance {
+    const { value, onChange } = ctx;
+    let items = Array.isArray(value) ? [...value as string[]] : [];
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'es-string-array-editor';
+
+    const listEl = document.createElement('div');
+    listEl.className = 'es-string-array-list';
+
+    const addBtn = document.createElement('button');
+    addBtn.className = 'es-btn es-btn-sm es-btn-add-item';
+    addBtn.textContent = '+';
+    addBtn.title = 'Add item';
+
+    function renderItems() {
+        listEl.innerHTML = '';
+        items.forEach((item, index) => {
+            const row = document.createElement('div');
+            row.className = 'es-string-array-row';
+
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'es-input es-input-string';
+            input.value = item;
+
+            input.addEventListener('change', () => {
+                items[index] = input.value;
+                onChange([...items]);
+            });
+
+            const removeBtn = document.createElement('button');
+            removeBtn.className = 'es-btn es-btn-icon es-btn-clear';
+            removeBtn.title = 'Remove';
+            removeBtn.innerHTML = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
+
+            removeBtn.addEventListener('click', () => {
+                items.splice(index, 1);
+                onChange([...items]);
+                renderItems();
+            });
+
+            row.appendChild(input);
+            row.appendChild(removeBtn);
+            listEl.appendChild(row);
+        });
+    }
+
+    addBtn.addEventListener('click', () => {
+        items.push('');
+        onChange([...items]);
+        renderItems();
+        const lastInput = listEl.querySelector('.es-string-array-row:last-child input') as HTMLInputElement;
+        lastInput?.focus();
+    });
+
+    renderItems();
+    wrapper.appendChild(listEl);
+    wrapper.appendChild(addBtn);
+    container.appendChild(wrapper);
+
+    return {
+        update(v: unknown) {
+            items = Array.isArray(v) ? [...v as string[]] : [];
+            renderItems();
+        },
+        dispose() {
+            wrapper.remove();
+        },
+    };
+}
+
+// =============================================================================
 // Register All Editors
 // =============================================================================
 
@@ -1628,4 +1777,6 @@ export function registerBuiltinEditors(): void {
     registerPropertyEditor('bitmap-font-file', createBitmapFontFileEditor);
     registerPropertyEditor('uirect', createUIRectEditor);
     registerPropertyEditor('button-transition', createButtonTransitionEditor);
+    registerPropertyEditor('entity', createEntityEditor);
+    registerPropertyEditor('string-array', createStringArrayEditor);
 }

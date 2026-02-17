@@ -74,6 +74,15 @@ public:
     void clearEntityClipRect(u32 entity);
     void clearAllClipRects();
 
+    void setEntityStencilMask(u32 entity, i32 refValue);
+    void setEntityStencilTest(u32 entity, i32 refValue);
+    void clearEntityStencilMask(u32 entity);
+    void clearAllStencilMasks();
+    void beginStencilWrite(i32 refValue);
+    void endStencilWrite();
+    void beginStencilTest(i32 refValue);
+    void endStencilTest();
+
     void submit(const RenderItemBase& item, const SpriteData& data);
     void submitExternalTriangles(
         const f32* vertices, i32 vertexCount,
@@ -178,6 +187,12 @@ private:
     bool mat_sprite_vbo_allocated_ = false;
 
     std::unordered_map<u32, ScissorRect> clip_rects_;
+
+    struct EntityStencilInfo {
+        i32 ref_value = 0;
+        bool is_mask = false;
+    };
+    std::unordered_map<u32, EntityStencilInfo> stencil_masks_;
 };
 
 }  // namespace esengine

@@ -15,7 +15,11 @@ export default [
             format: 'es',
             sourcemap: true,
         },
-        external: ['esengine'],
+        external: [/^esengine(\/|$)/],
+        onwarn(warning, warn) {
+            if (warning.code === 'THIS_IS_UNDEFINED') return;
+            warn(warning);
+        },
         plugins: [
             alias({
                 entries: [
@@ -41,7 +45,7 @@ export default [
             file: 'dist/index.d.ts',
             format: 'es',
         },
-        external: ['esengine'],
+        external: [/^esengine(\/|$)/],
         plugins: [dts()],
     },
 ];

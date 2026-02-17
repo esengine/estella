@@ -90,6 +90,12 @@ const COMPONENT_ASSET_FIELDS = new Map<string, ComponentAssetFields>([
             { field: 'font', type: 'font' },
         ],
     }],
+    ['Image', {
+        fields: [
+            { field: 'texture', type: 'texture' },
+            { field: 'material', type: 'material' },
+        ],
+    }],
 ]);
 
 export function registerComponentAssetFields(

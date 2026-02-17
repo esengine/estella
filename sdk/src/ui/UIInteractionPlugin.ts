@@ -1,6 +1,6 @@
 import type { App, Plugin } from '../app';
-import { registerComponent, WorldTransform, Sprite } from '../component';
-import type { WorldTransformData, SpriteData } from '../component';
+import { registerComponent, WorldTransform, Sprite, Parent } from '../component';
+import type { WorldTransformData, SpriteData, ParentData } from '../component';
 import { defineSystem, Schedule } from '../system';
 import { Res } from '../resource';
 import { Input } from '../input';
@@ -16,9 +16,10 @@ import type { UIRectData } from './UIRect';
 import { Button, ButtonState } from './Button';
 import type { ButtonData } from './Button';
 import { UIEvents, UIEventQueue } from './UIEvents';
+import type { UIEventType } from './UIEvents';
 import { UICameraInfo } from './UICameraInfo';
 import type { UICameraData } from './UICameraInfo';
-import { invertMatrix4, screenToWorld, pointInWorldRect } from './uiMath';
+import { invertMatrix4, screenToWorld, pointInOBB } from './uiMath';
 
 const _invVP = new Float32Array(16);
 const _cachedVP = new Float32Array(16);
@@ -39,6 +40,32 @@ function updateInvVPCache(vp: Float32Array): void {
     }
 }
 
+function emitWithBubbling(
+    world: World,
+    events: UIEventQueue,
+    entity: Entity,
+    type: UIEventType
+): void {
+    events.emit(entity, type, entity);
+
+    let current = entity;
+    while (world.has(current, Parent)) {
+        const parentData = world.get(current, Parent) as ParentData;
+        const parentEntity = parentData.entity;
+        if (!world.valid(parentEntity)) break;
+        if (!world.has(parentEntity, Interactable)) {
+            current = parentEntity;
+            continue;
+        }
+        const interactable = world.get(parentEntity, Interactable) as InteractableData;
+        if (interactable.enabled) {
+            events.emit(parentEntity, type, entity);
+        }
+        if (interactable.blockRaycast) break;
+        current = parentEntity;
+    }
+}
+
 export class UIInteractionPlugin implements Plugin {
     build(app: App): void {
         registerComponent('Interactable', Interactable);
@@ -52,9 +79,6 @@ export class UIInteractionPlugin implements Plugin {
         let pressedEntity: Entity | null = null;
         _cachedDpr = typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1;
 
-        // -----------------------------------------------------------------
-        // PreUpdate: Hit Testing & Interaction State
-        // -----------------------------------------------------------------
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
             [Res(Input), Res(UICameraInfo)],
             (input: InputState, camera: UICameraData) => {
@@ -102,11 +126,12 @@ export class UIInteractionPlugin implements Plugin {
                     const worldW = rect.size.x * wt.scale.x;
                     const worldH = rect.size.y * wt.scale.y;
 
-                    if (pointInWorldRect(
+                    if (pointInOBB(
                         worldMouse.x, worldMouse.y,
                         wt.position.x, wt.position.y,
                         worldW, worldH,
                         rect.pivot.x, rect.pivot.y,
+                        wt.rotation.z, wt.rotation.w,
                     )) {
                         let layer = 0;
                         if (world.has(entity, Sprite)) {
@@ -138,7 +163,7 @@ export class UIInteractionPlugin implements Plugin {
                     interaction.pressed = true;
                     interaction.justPressed = true;
                     pressedEntity = hitEntity;
-                    events.emit(hitEntity, 'press');
+                    emitWithBubbling(world, events, hitEntity, 'press');
                 }
 
                 if (input.isMouseButtonReleased(0) && pressedEntity !== null) {
@@ -146,9 +171,9 @@ export class UIInteractionPlugin implements Plugin {
                         const interaction = world.get(pressedEntity, UIInteraction) as UIInteractionData;
                         interaction.pressed = false;
                         interaction.justReleased = true;
-                        events.emit(pressedEntity, 'release');
+                        emitWithBubbling(world, events, pressedEntity, 'release');
                         if (pressedEntity === hoveredEntity) {
-                            events.emit(pressedEntity, 'click');
+                            emitWithBubbling(world, events, pressedEntity, 'click');
                         }
                     }
                     pressedEntity = null;
@@ -157,9 +182,6 @@ export class UIInteractionPlugin implements Plugin {
             { name: 'UIInteractionSystem' }
         ));
 
-        // -----------------------------------------------------------------
-        // Update: Button State
-        // -----------------------------------------------------------------
         app.addSystemToSchedule(Schedule.Update, defineSystem(
             [],
             () => {

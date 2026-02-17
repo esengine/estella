@@ -407,12 +407,6 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         .function("valid", optional_override([](Registry& r, u32 e) {
             return r.valid(static_cast<Entity>(e));
         }))
-        .function("generation", optional_override([](Registry& r, u32 e) {
-            return r.generation(static_cast<Entity>(e));
-        }))
-        .function("validWithGeneration", optional_override([](Registry& r, u32 e, u32 gen) {
-            return r.valid(static_cast<Entity>(e), gen);
-        }))
         .function("entityCount", &Registry::entityCount)
 
         // BoxCollider

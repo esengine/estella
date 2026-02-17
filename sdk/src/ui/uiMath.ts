@@ -125,3 +125,26 @@ export function pointInWorldRect(
     const top = worldY + worldH * (1 - pivotY);
     return px >= left && px <= right && py >= bottom && py <= top;
 }
+
+export function pointInOBB(
+    px: number, py: number,
+    worldX: number, worldY: number,
+    worldW: number, worldH: number,
+    pivotX: number, pivotY: number,
+    rotationZ: number, rotationW: number,
+): boolean {
+    const angle = 2 * Math.atan2(rotationZ, rotationW);
+    const sin = Math.sin(-angle);
+    const cos = Math.cos(-angle);
+
+    const dx = px - worldX;
+    const dy = py - worldY;
+    const localX = dx * cos - dy * sin + worldX;
+    const localY = dx * sin + dy * cos + worldY;
+
+    const left = worldX - worldW * pivotX;
+    const right = worldX + worldW * (1 - pivotX);
+    const bottom = worldY - worldH * pivotY;
+    const top = worldY + worldH * (1 - pivotY);
+    return localX >= left && localX <= right && localY >= bottom && localY <= top;
+}

@@ -385,6 +385,35 @@ void renderer_clearAllClipRects() {
     }
 }
 
+void renderer_clearStencil() {
+    glClearStencil(0);
+    glClear(GL_STENCIL_BUFFER_BIT);
+}
+
+void renderer_setEntityStencilMask(u32 entity, i32 refValue) {
+    if (g_renderFrame) {
+        g_renderFrame->setEntityStencilMask(entity, refValue);
+    }
+}
+
+void renderer_setEntityStencilTest(u32 entity, i32 refValue) {
+    if (g_renderFrame) {
+        g_renderFrame->setEntityStencilTest(entity, refValue);
+    }
+}
+
+void renderer_clearEntityStencilMask(u32 entity) {
+    if (g_renderFrame) {
+        g_renderFrame->clearEntityStencilMask(entity);
+    }
+}
+
+void renderer_clearAllStencilMasks() {
+    if (g_renderFrame) {
+        g_renderFrame->clearAllStencilMasks();
+    }
+}
+
 void gl_enableErrorCheck(bool enabled) {
     ctx().setGlErrorCheckEnabled(enabled);
     if (enabled) {

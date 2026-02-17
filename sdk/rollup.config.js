@@ -8,7 +8,7 @@ const tsPlugin = typescript({
 });
 
 const treeshake = {
-    moduleSideEffects: false,
+    moduleSideEffects: true,
 };
 
 const esmBuilds = [

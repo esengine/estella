@@ -391,6 +391,11 @@ interface ESEngineModule {
     renderer_setEntityClipRect(entity: number, x: number, y: number, w: number, h: number): void;
     renderer_clearEntityClipRect(entity: number): void;
     renderer_clearAllClipRects(): void;
+    renderer_clearStencil(): void;
+    renderer_setEntityStencilMask(entity: number, refValue: number): void;
+    renderer_setEntityStencilTest(entity: number, refValue: number): void;
+    renderer_clearEntityStencilMask(entity: number): void;
+    renderer_clearAllStencilMasks(): void;
     registry_getCanvasEntity(registry: CppRegistry): number;
     registry_getCameraEntities(registry: CppRegistry): number[];
     getChildEntities(registry: CppRegistry, entity: number): number[];

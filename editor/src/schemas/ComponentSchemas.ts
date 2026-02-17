@@ -213,6 +213,14 @@ export const UIMaskSchema: ComponentSchema = {
     category: 'ui',
     properties: [
         { name: 'enabled', type: 'boolean' },
+        {
+            name: 'mode',
+            type: 'enum',
+            options: [
+                { label: 'Scissor', value: 'scissor' },
+                { label: 'Stencil', value: 'stencil' },
+            ],
+        },
     ],
 };
 
@@ -221,6 +229,7 @@ export const InteractableSchema: ComponentSchema = {
     category: 'ui',
     properties: [
         { name: 'enabled', type: 'boolean' },
+        { name: 'blockRaycast', type: 'boolean' },
     ],
 };
 
@@ -345,6 +354,164 @@ export const CapsuleColliderSchema: ComponentSchema = {
     ],
 };
 
+export const ImageSchema: ComponentSchema = {
+    name: 'Image',
+    category: 'ui',
+    properties: [
+        { name: 'texture', type: 'texture' },
+        { name: 'material', type: 'material-file' },
+        { name: 'color', type: 'color' },
+        {
+            name: 'imageType',
+            type: 'enum',
+            options: [
+                { label: 'Simple', value: 0 },
+                { label: 'Sliced', value: 1 },
+                { label: 'Tiled', value: 2 },
+                { label: 'Filled', value: 3 },
+            ],
+        },
+        {
+            name: 'fillMethod',
+            type: 'enum',
+            options: [
+                { label: 'Horizontal', value: 0 },
+                { label: 'Vertical', value: 1 },
+            ],
+        },
+        {
+            name: 'fillOrigin',
+            type: 'enum',
+            options: [
+                { label: 'Left', value: 0 },
+                { label: 'Right', value: 1 },
+                { label: 'Bottom', value: 2 },
+                { label: 'Top', value: 3 },
+            ],
+        },
+        { name: 'fillAmount', type: 'number', min: 0, max: 1, step: 0.01 },
+        { name: 'preserveAspect', type: 'boolean' },
+        { name: 'layer', type: 'number', min: -1000, max: 1000 },
+    ],
+};
+
+export const ToggleSchema: ComponentSchema = {
+    name: 'Toggle',
+    category: 'ui',
+    properties: [
+        { name: 'isOn', type: 'boolean' },
+        { name: 'graphicEntity', type: 'entity' },
+        { name: 'transition', type: 'button-transition' },
+    ],
+};
+
+export const ProgressBarSchema: ComponentSchema = {
+    name: 'ProgressBar',
+    category: 'ui',
+    properties: [
+        { name: 'value', type: 'number', min: 0, max: 1, step: 0.01 },
+        { name: 'fillEntity', type: 'entity' },
+        {
+            name: 'direction',
+            type: 'enum',
+            options: [
+                { label: 'LeftToRight', value: 0 },
+                { label: 'RightToLeft', value: 1 },
+                { label: 'BottomToTop', value: 2 },
+                { label: 'TopToBottom', value: 3 },
+            ],
+        },
+    ],
+};
+
+export const DraggableSchema: ComponentSchema = {
+    name: 'Draggable',
+    category: 'ui',
+    properties: [
+        { name: 'enabled', type: 'boolean' },
+        { name: 'dragThreshold', type: 'number', min: 0, step: 1 },
+        { name: 'lockX', type: 'boolean' },
+        { name: 'lockY', type: 'boolean' },
+    ],
+};
+
+export const ScrollViewSchema: ComponentSchema = {
+    name: 'ScrollView',
+    category: 'ui',
+    properties: [
+        { name: 'contentEntity', type: 'entity' },
+        { name: 'horizontalEnabled', type: 'boolean' },
+        { name: 'verticalEnabled', type: 'boolean' },
+        { name: 'contentWidth', type: 'number', min: 0, step: 1 },
+        { name: 'contentHeight', type: 'number', min: 0, step: 1 },
+        { name: 'inertia', type: 'boolean' },
+        { name: 'decelerationRate', type: 'number', min: 0, max: 1, step: 0.01 },
+    ],
+};
+
+export const SliderSchema: ComponentSchema = {
+    name: 'Slider',
+    category: 'ui',
+    properties: [
+        { name: 'value', type: 'number', step: 0.01 },
+        { name: 'minValue', type: 'number', step: 0.01 },
+        { name: 'maxValue', type: 'number', step: 0.01 },
+        {
+            name: 'direction',
+            type: 'enum',
+            options: [
+                { label: 'LeftToRight', value: 0 },
+                { label: 'RightToLeft', value: 1 },
+                { label: 'BottomToTop', value: 2 },
+                { label: 'TopToBottom', value: 3 },
+            ],
+        },
+        { name: 'fillEntity', type: 'entity' },
+        { name: 'handleEntity', type: 'entity' },
+        { name: 'wholeNumbers', type: 'boolean' },
+    ],
+};
+
+export const FocusableSchema: ComponentSchema = {
+    name: 'Focusable',
+    category: 'ui',
+    properties: [
+        { name: 'tabIndex', type: 'number', min: 0, step: 1 },
+    ],
+};
+
+export const SafeAreaSchema: ComponentSchema = {
+    name: 'SafeArea',
+    category: 'ui',
+    properties: [
+        { name: 'applyTop', type: 'boolean' },
+        { name: 'applyBottom', type: 'boolean' },
+        { name: 'applyLeft', type: 'boolean' },
+        { name: 'applyRight', type: 'boolean' },
+    ],
+};
+
+export const ListViewSchema: ComponentSchema = {
+    name: 'ListView',
+    category: 'ui',
+    properties: [
+        { name: 'itemHeight', type: 'number', min: 1, step: 1 },
+        { name: 'itemCount', type: 'number', min: 0, step: 1 },
+        { name: 'overscan', type: 'number', min: 0, step: 1 },
+    ],
+};
+
+export const DropdownSchema: ComponentSchema = {
+    name: 'Dropdown',
+    category: 'ui',
+    properties: [
+        { name: 'options', type: 'string-array' },
+        { name: 'selectedIndex', type: 'number', min: -1, step: 1 },
+        { name: 'listEntity', type: 'entity' },
+        { name: 'labelEntity', type: 'entity' },
+    ],
+};
+
 // =============================================================================
 // Registry
 // =============================================================================
@@ -463,6 +630,16 @@ export function registerBuiltinSchemas(options?: BuiltinSchemaOptions): void {
     registerComponentSchema(ButtonSchema);
     registerComponentSchema(ScreenSpaceSchema);
     registerComponentSchema(TextInputSchema);
+    registerComponentSchema(ImageSchema);
+    registerComponentSchema(ToggleSchema);
+    registerComponentSchema(ProgressBarSchema);
+    registerComponentSchema(DraggableSchema);
+    registerComponentSchema(ScrollViewSchema);
+    registerComponentSchema(SliderSchema);
+    registerComponentSchema(FocusableSchema);
+    registerComponentSchema(SafeAreaSchema);
+    registerComponentSchema(ListViewSchema);
+    registerComponentSchema(DropdownSchema);
     registerComponentSchema(RigidBodySchema);
     registerComponentSchema(BoxColliderSchema);
     registerComponentSchema(CircleColliderSchema);

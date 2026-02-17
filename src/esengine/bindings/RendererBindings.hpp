@@ -69,6 +69,12 @@ void renderer_setEntityClipRect(u32 entity, i32 x, i32 y, i32 w, i32 h);
 void renderer_clearEntityClipRect(u32 entity);
 void renderer_clearAllClipRects();
 
+void renderer_clearStencil();
+void renderer_setEntityStencilMask(u32 entity, i32 refValue);
+void renderer_setEntityStencilTest(u32 entity, i32 refValue);
+void renderer_clearEntityStencilMask(u32 entity);
+void renderer_clearAllStencilMasks();
+
 void gl_enableErrorCheck(bool enabled);
 u32 gl_checkErrors(const std::string& context);
 

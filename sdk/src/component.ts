@@ -91,6 +91,10 @@ export function clearUserComponents(): void {
     getComponentRegistry().clear();
 }
 
+export function unregisterComponent(name: string): void {
+    getComponentRegistry().delete(name);
+}
+
 function registerToEditor(
     name: string,
     defaults: Record<string, unknown>,

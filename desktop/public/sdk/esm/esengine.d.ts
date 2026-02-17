@@ -133,6 +133,7 @@ declare function defineComponent<T extends object>(name: string, defaults: T): C
 declare function defineTag(name: string): ComponentDef<{}>;
 declare function getUserComponent(name: string): ComponentDef<any> | undefined;
 declare function clearUserComponents(): void;
+declare function unregisterComponent(name: string): void;
 interface BuiltinComponentDef<T> {
     readonly _id: symbol;
     readonly _name: string;
@@ -638,6 +639,11 @@ interface ESEngineModule {
     renderer_setEntityClipRect(entity: number, x: number, y: number, w: number, h: number): void;
     renderer_clearEntityClipRect(entity: number): void;
     renderer_clearAllClipRects(): void;
+    renderer_clearStencil(): void;
+    renderer_setEntityStencilMask(entity: number, refValue: number): void;
+    renderer_setEntityStencilTest(entity: number, refValue: number): void;
+    renderer_clearEntityStencilMask(entity: number): void;
+    renderer_clearAllStencilMasks(): void;
     registry_getCanvasEntity(registry: CppRegistry): number;
     registry_getCameraEntities(registry: CppRegistry): number[];
     getChildEntities(registry: CppRegistry, entity: number): number[];
@@ -1784,8 +1790,10 @@ declare class TextPlugin implements Plugin {
 }
 declare const textPlugin: TextPlugin;
 
+type MaskMode = 'scissor' | 'stencil';
 interface UIMaskData {
     enabled: boolean;
+    mode: MaskMode;
 }
 declare const UIMask: ComponentDef<UIMaskData>;
 
@@ -1809,9 +1817,11 @@ declare function screenToWorld(screenX: number, screenY: number, inverseVP: Floa
     y: number;
 };
 declare function pointInWorldRect(px: number, py: number, worldX: number, worldY: number, worldW: number, worldH: number, pivotX: number, pivotY: number): boolean;
+declare function pointInOBB(px: number, py: number, worldX: number, worldY: number, worldW: number, worldH: number, pivotX: number, pivotY: number, rotationZ: number, rotationW: number): boolean;
 
 interface InteractableData {
     enabled: boolean;
+    blockRaycast: boolean;
 }
 declare const Interactable: ComponentDef<InteractableData>;
 
@@ -1841,14 +1851,16 @@ interface ButtonData {
 }
 declare const Button: ComponentDef<ButtonData>;
 
-type UIEventType = 'click' | 'press' | 'release' | 'hover_enter' | 'hover_exit' | 'submit' | 'change';
+type UIEventType = 'click' | 'press' | 'release' | 'hover_enter' | 'hover_exit' | 'submit' | 'change' | 'drag_start' | 'drag_move' | 'drag_end' | 'scroll';
 interface UIEvent {
     entity: Entity;
     type: UIEventType;
+    target: Entity;
+    currentTarget: Entity;
 }
 declare class UIEventQueue {
     private events_;
-    emit(entity: Entity, type: UIEventType): void;
+    emit(entity: Entity, type: UIEventType, target?: Entity): void;
     drain(): UIEvent[];
     query(type: UIEventType): UIEvent[];
     hasEvent(entity: Entity, type: UIEventType): boolean;
@@ -1938,6 +1950,174 @@ declare class TextInputPlugin implements Plugin {
     build(app: App): void;
 }
 declare const textInputPlugin: TextInputPlugin;
+
+declare const ImageType: {
+    readonly Simple: 0;
+    readonly Sliced: 1;
+    readonly Tiled: 2;
+    readonly Filled: 3;
+};
+type ImageType = (typeof ImageType)[keyof typeof ImageType];
+declare const FillMethod: {
+    readonly Horizontal: 0;
+    readonly Vertical: 1;
+};
+type FillMethod = (typeof FillMethod)[keyof typeof FillMethod];
+declare const FillOrigin: {
+    readonly Left: 0;
+    readonly Right: 1;
+    readonly Bottom: 2;
+    readonly Top: 3;
+};
+type FillOrigin = (typeof FillOrigin)[keyof typeof FillOrigin];
+interface ImageData {
+    texture: number;
+    color: Color;
+    imageType: number;
+    fillMethod: number;
+    fillOrigin: number;
+    fillAmount: number;
+    preserveAspect: boolean;
+    layer: number;
+    material: number;
+}
+declare const Image: ComponentDef<ImageData>;
+
+interface ToggleTransition {
+    normalColor: Color;
+    hoveredColor: Color;
+    pressedColor: Color;
+    disabledColor: Color;
+}
+interface ToggleData {
+    isOn: boolean;
+    graphicEntity: Entity;
+    transition: ToggleTransition | null;
+}
+declare const Toggle: ComponentDef<ToggleData>;
+
+declare enum ProgressBarDirection {
+    LeftToRight = 0,
+    RightToLeft = 1,
+    BottomToTop = 2,
+    TopToBottom = 3
+}
+interface ProgressBarData {
+    value: number;
+    fillEntity: Entity;
+    direction: number;
+}
+declare const ProgressBar: ComponentDef<ProgressBarData>;
+
+interface DraggableData {
+    enabled: boolean;
+    dragThreshold: number;
+    lockX: boolean;
+    lockY: boolean;
+    constraintMin: {
+        x: number;
+        y: number;
+    } | null;
+    constraintMax: {
+        x: number;
+        y: number;
+    } | null;
+}
+declare const Draggable: ComponentDef<DraggableData>;
+interface DragStateData {
+    isDragging: boolean;
+    startWorldPos: {
+        x: number;
+        y: number;
+    };
+    currentWorldPos: {
+        x: number;
+        y: number;
+    };
+    deltaWorld: {
+        x: number;
+        y: number;
+    };
+    totalDeltaWorld: {
+        x: number;
+        y: number;
+    };
+    pointerStartWorld: {
+        x: number;
+        y: number;
+    };
+}
+declare const DragState: ComponentDef<DragStateData>;
+
+interface ScrollViewData {
+    contentEntity: number;
+    horizontalEnabled: boolean;
+    verticalEnabled: boolean;
+    contentWidth: number;
+    contentHeight: number;
+    scrollX: number;
+    scrollY: number;
+    inertia: boolean;
+    decelerationRate: number;
+}
+declare const ScrollView: ComponentDef<ScrollViewData>;
+
+declare enum SliderDirection {
+    LeftToRight = 0,
+    RightToLeft = 1,
+    BottomToTop = 2,
+    TopToBottom = 3
+}
+interface SliderData {
+    value: number;
+    minValue: number;
+    maxValue: number;
+    direction: SliderDirection;
+    fillEntity: number;
+    handleEntity: number;
+    wholeNumbers: boolean;
+}
+declare const Slider: ComponentDef<SliderData>;
+
+interface FocusableData {
+    tabIndex: number;
+    isFocused: boolean;
+}
+declare const Focusable: ComponentDef<FocusableData>;
+declare class FocusManagerState {
+    focusedEntity: Entity | null;
+    focus(entity: Entity): Entity | null;
+    blur(): Entity | null;
+}
+declare const FocusManager: ResourceDef<FocusManagerState>;
+
+interface SafeAreaData {
+    applyTop: boolean;
+    applyBottom: boolean;
+    applyLeft: boolean;
+    applyRight: boolean;
+}
+declare const SafeArea: ComponentDef<SafeAreaData>;
+
+type ListViewItemRenderer = (index: number, entity: Entity) => void;
+interface ListViewData {
+    itemHeight: number;
+    itemCount: number;
+    scrollY: number;
+    overscan: number;
+}
+declare const ListView: ComponentDef<ListViewData>;
+
+declare function setListViewRenderer(entity: Entity, renderer: ListViewItemRenderer): void;
+
+interface DropdownData {
+    options: string[];
+    selectedIndex: number;
+    isOpen: boolean;
+    listEntity: number;
+    labelEntity: number;
+}
+declare const Dropdown: ComponentDef<DropdownData>;
 
 declare class AsyncCache<T> {
     private cache_;
@@ -2788,5 +2968,5 @@ declare const uiPlugins: Plugin[];
 
 declare function createWebApp(module: ESEngineModule, options?: WebAppOptions): App;
 
-export { App, AssetPlugin, AssetRefCounter, AssetServer, Assets, AsyncCache, BitmapText$1 as BitmapText, BlendMode, BodyType, BoxCollider$1 as BoxCollider, Button, ButtonState, Camera$1 as Camera, Canvas$1 as Canvas, CapsuleCollider$1 as CapsuleCollider, Children$1 as Children, CircleCollider$1 as CircleCollider, ClearFlags, Commands, CommandsInstance, DEFAULT_DESIGN_HEIGHT, DEFAULT_DESIGN_WIDTH, DEFAULT_PIXELS_PER_UNIT, DEFAULT_TEXT_CANVAS_SIZE, DataType, Draw, EntityCommands, GLDebug, Geometry, INVALID_ENTITY, INVALID_FONT, INVALID_TEXTURE, Input, InputPlugin, InputState, Interactable, LocalTransform$1 as LocalTransform, LogLevel, Logger, Material, MaterialLoader, Mut, Name, Parent$1 as Parent, Physics, PhysicsEvents, PhysicsPlugin, PostProcess, PrefabServer, Prefabs, PrefabsPlugin, PreviewPlugin, ProjectionType, Query, QueryInstance, RenderPipeline, RenderStage, RenderTexture, Renderer, Res, ResMut, ResMutInstance, RigidBody$1 as RigidBody, RuntimeConfig, ScaleMode, SceneManager, SceneManagerState, SceneOwner, Schedule, ScreenSpace, ShaderSources, SpineAnimation$1 as SpineAnimation, Sprite$1 as Sprite, SystemRunner, Text, TextAlign, TextInput, TextInputPlugin, TextOverflow, TextPlugin, TextRenderer, TextVerticalAlign, Time, UICameraInfo, UIEventQueue, UIEvents, UIInteraction, UIInteractionPlugin, UILayoutPlugin, UIMask, UIMaskPlugin, UIRect, Velocity$1 as Velocity, WebAssetProvider, World, WorldTransform$1 as WorldTransform, addStartupSystem, addSystem, addSystemToSchedule, applyRuntimeConfig, assetPlugin, clearDrawCallbacks, clearUserComponents, color, computeUIRectLayout, createMaskProcessor, createRuntimeSceneConfig, createWebApp, debug, defineComponent, defineResource, defineSystem, defineTag, error, findEntityByName, flushPendingSystems, getAddressableType, getAddressableTypeByEditorType, getAllAssetExtensions, getAssetMimeType, getAssetTypeEntry, getComponent, getComponentAssetFields, getComponentDefaults, getCustomExtensions, getEditorType, getLogger, getPlatform, getPlatformType, getUserComponent, getWeChatPackOptions, info, initDrawAPI, initGLDebugAPI, initGeometryAPI, initMaterialAPI, initPostProcessAPI, initRendererAPI, inputPlugin, instantiatePrefab, intersectRects, invertMatrix4, isBuiltinComponent, isCustomExtension, isEditor, isKnownAssetExtension, isPlatformInitialized, isRuntime, isTextureRef, isWeChat, isWeb, loadComponent, loadPhysicsModule, loadRuntimeScene, loadSceneData, loadSceneWithAssets, looksLikeAssetPath, platformFetch, platformFileExists, platformInstantiateWasm, platformReadFile, platformReadTextFile, pointInWorldRect, prefabsPlugin, quat, registerComponent, registerComponentAssetFields, registerDrawCallback, registerEmbeddedAssets, registerMaterialCallback, sceneManagerPlugin, screenToWorld, setEditorMode, setLogLevel, setWasmErrorHandler, shutdownDrawAPI, shutdownGLDebugAPI, shutdownGeometryAPI, shutdownMaterialAPI, shutdownPostProcessAPI, shutdownRendererAPI, textInputPlugin, textPlugin, transitionTo, uiInteractionPlugin, uiLayoutPlugin, uiMaskPlugin, uiPlugins, unregisterDrawCallback, updateCameraAspectRatio, vec2, vec3, vec4, warn, worldRectToScreen, wrapSceneSystem };
-export type { AddressableAssetType, AddressableManifest, AddressableManifestAsset, AddressableManifestGroup, AddressableResultMap, AnyComponentDef, AssetBundle, AssetContentType, AssetRefInfo, AssetTypeEntry, AssetsData, BitmapTextData, BoxColliderData, BuiltinComponentDef, ButtonData, ButtonTransition, CameraData, CameraRenderParams, CanvasData, CapsuleColliderData, ChildrenData, CircleColliderData, CollisionEnterEvent, Color, CommandsDescriptor, ComponentData, ComponentDef, CppRegistry, CppResourceManager, DrawAPI, DrawCallback, ESEngineModule, EditorAssetType, Entity, FileLoadOptions, FontHandle, GeometryHandle, GeometryOptions, InferParam, InferParams, InstantiatePrefabOptions, InstantiatePrefabResult, InteractableData, LayoutRect, LayoutResult, LoadedMaterial, LocalTransformData, LogEntry, LogHandler, MaskProcessorFn, MaterialAssetData, MaterialHandle, MaterialOptions, MutWrapper, NameData, ParentData, PhysicsEventsData, PhysicsModuleFactory, PhysicsPluginConfig, PhysicsWasmModule, PlatformAdapter, PlatformRequestOptions, PlatformResponse, PlatformType, Plugin, PrefabData, PrefabEntityData, PrefabOverride, Quat, QueryDescriptor, QueryResult, RenderParams, RenderStats, RenderTargetHandle, RenderTextureHandle, RenderTextureOptions, ResDescriptor, ResMutDescriptor, ResourceDef, RigidBodyData, RuntimeAssetProvider, RuntimeSceneOptions, SceneComponentData, SceneConfig, SceneContext, SceneData, SceneEntityData, SceneLoadOptions, SceneOwnerData, SceneStatus, ScreenRect, SensorEvent, ShaderHandle, ShaderLoader, SliceBorder$1 as SliceBorder, SpineAnimationData, SpineDescriptor, SpineLoadResult, SpineRendererFn, SpriteData, SystemDef, SystemOptions, SystemParam, TextData, TextInputData, TextRenderResult, TextureHandle, TextureInfo, TextureRef, TimeData, TransitionConfig, TransitionOptions, UICameraData, UIEvent, UIEventType, UIInteractionData, UIMaskData, UIRectData, UniformValue, Vec2, Vec3, Vec4, VelocityData, VertexAttributeDescriptor, WebAppOptions, WorldTransformData };
+export { App, AssetPlugin, AssetRefCounter, AssetServer, Assets, AsyncCache, BitmapText$1 as BitmapText, BlendMode, BodyType, BoxCollider$1 as BoxCollider, Button, ButtonState, Camera$1 as Camera, Canvas$1 as Canvas, CapsuleCollider$1 as CapsuleCollider, Children$1 as Children, CircleCollider$1 as CircleCollider, ClearFlags, Commands, CommandsInstance, DEFAULT_DESIGN_HEIGHT, DEFAULT_DESIGN_WIDTH, DEFAULT_PIXELS_PER_UNIT, DEFAULT_TEXT_CANVAS_SIZE, DataType, DragState, Draggable, Draw, Dropdown, EntityCommands, FillMethod, FillOrigin, FocusManager, FocusManagerState, Focusable, GLDebug, Geometry, INVALID_ENTITY, INVALID_FONT, INVALID_TEXTURE, Image, ImageType, Input, InputPlugin, InputState, Interactable, ListView, LocalTransform$1 as LocalTransform, LogLevel, Logger, Material, MaterialLoader, Mut, Name, Parent$1 as Parent, Physics, PhysicsEvents, PhysicsPlugin, PostProcess, PrefabServer, Prefabs, PrefabsPlugin, PreviewPlugin, ProgressBar, ProgressBarDirection, ProjectionType, Query, QueryInstance, RenderPipeline, RenderStage, RenderTexture, Renderer, Res, ResMut, ResMutInstance, RigidBody$1 as RigidBody, RuntimeConfig, SafeArea, ScaleMode, SceneManager, SceneManagerState, SceneOwner, Schedule, ScreenSpace, ScrollView, ShaderSources, Slider, SliderDirection, SpineAnimation$1 as SpineAnimation, Sprite$1 as Sprite, SystemRunner, Text, TextAlign, TextInput, TextInputPlugin, TextOverflow, TextPlugin, TextRenderer, TextVerticalAlign, Time, Toggle, UICameraInfo, UIEventQueue, UIEvents, UIInteraction, UIInteractionPlugin, UILayoutPlugin, UIMask, UIMaskPlugin, UIRect, Velocity$1 as Velocity, WebAssetProvider, World, WorldTransform$1 as WorldTransform, addStartupSystem, addSystem, addSystemToSchedule, applyRuntimeConfig, assetPlugin, clearDrawCallbacks, clearUserComponents, color, computeUIRectLayout, createMaskProcessor, createRuntimeSceneConfig, createWebApp, debug, defineComponent, defineResource, defineSystem, defineTag, error, findEntityByName, flushPendingSystems, getAddressableType, getAddressableTypeByEditorType, getAllAssetExtensions, getAssetMimeType, getAssetTypeEntry, getComponent, getComponentAssetFields, getComponentDefaults, getCustomExtensions, getEditorType, getLogger, getPlatform, getPlatformType, getUserComponent, getWeChatPackOptions, info, initDrawAPI, initGLDebugAPI, initGeometryAPI, initMaterialAPI, initPostProcessAPI, initRendererAPI, inputPlugin, instantiatePrefab, intersectRects, invertMatrix4, isBuiltinComponent, isCustomExtension, isEditor, isKnownAssetExtension, isPlatformInitialized, isRuntime, isTextureRef, isWeChat, isWeb, loadComponent, loadPhysicsModule, loadRuntimeScene, loadSceneData, loadSceneWithAssets, looksLikeAssetPath, platformFetch, platformFileExists, platformInstantiateWasm, platformReadFile, platformReadTextFile, pointInOBB, pointInWorldRect, prefabsPlugin, quat, registerComponent, registerComponentAssetFields, registerDrawCallback, registerEmbeddedAssets, registerMaterialCallback, sceneManagerPlugin, screenToWorld, setEditorMode, setListViewRenderer, setLogLevel, setWasmErrorHandler, shutdownDrawAPI, shutdownGLDebugAPI, shutdownGeometryAPI, shutdownMaterialAPI, shutdownPostProcessAPI, shutdownRendererAPI, textInputPlugin, textPlugin, transitionTo, uiInteractionPlugin, uiLayoutPlugin, uiMaskPlugin, uiPlugins, unregisterComponent, unregisterDrawCallback, updateCameraAspectRatio, vec2, vec3, vec4, warn, worldRectToScreen, wrapSceneSystem };
+export type { AddressableAssetType, AddressableManifest, AddressableManifestAsset, AddressableManifestGroup, AddressableResultMap, AnyComponentDef, AssetBundle, AssetContentType, AssetRefInfo, AssetTypeEntry, AssetsData, BitmapTextData, BoxColliderData, BuiltinComponentDef, ButtonData, ButtonTransition, CameraData, CameraRenderParams, CanvasData, CapsuleColliderData, ChildrenData, CircleColliderData, CollisionEnterEvent, Color, CommandsDescriptor, ComponentData, ComponentDef, CppRegistry, CppResourceManager, DragStateData, DraggableData, DrawAPI, DrawCallback, DropdownData, ESEngineModule, EditorAssetType, Entity, FileLoadOptions, FocusableData, FontHandle, GeometryHandle, GeometryOptions, ImageData, InferParam, InferParams, InstantiatePrefabOptions, InstantiatePrefabResult, InteractableData, LayoutRect, LayoutResult, ListViewData, ListViewItemRenderer, LoadedMaterial, LocalTransformData, LogEntry, LogHandler, MaskMode, MaskProcessorFn, MaterialAssetData, MaterialHandle, MaterialOptions, MutWrapper, NameData, ParentData, PhysicsEventsData, PhysicsModuleFactory, PhysicsPluginConfig, PhysicsWasmModule, PlatformAdapter, PlatformRequestOptions, PlatformResponse, PlatformType, Plugin, PrefabData, PrefabEntityData, PrefabOverride, ProgressBarData, Quat, QueryDescriptor, QueryResult, RenderParams, RenderStats, RenderTargetHandle, RenderTextureHandle, RenderTextureOptions, ResDescriptor, ResMutDescriptor, ResourceDef, RigidBodyData, RuntimeAssetProvider, RuntimeSceneOptions, SafeAreaData, SceneComponentData, SceneConfig, SceneContext, SceneData, SceneEntityData, SceneLoadOptions, SceneOwnerData, SceneStatus, ScreenRect, ScrollViewData, SensorEvent, ShaderHandle, ShaderLoader, SliceBorder$1 as SliceBorder, SliderData, SpineAnimationData, SpineDescriptor, SpineLoadResult, SpineRendererFn, SpriteData, SystemDef, SystemOptions, SystemParam, TextData, TextInputData, TextRenderResult, TextureHandle, TextureInfo, TextureRef, TimeData, ToggleData, ToggleTransition, TransitionConfig, TransitionOptions, UICameraData, UIEvent, UIEventType, UIInteractionData, UIMaskData, UIRectData, UniformValue, Vec2, Vec3, Vec4, VelocityData, VertexAttributeDescriptor, WebAppOptions, WorldTransformData };

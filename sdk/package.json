@@ -3,7 +3,12 @@
   "version": "0.4.0",
   "type": "module",
   "description": "Modular TypeScript SDK for ESEngine - A lightweight 2D game engine for Web and WeChat MiniGames",
-  "sideEffects": false,
+  "sideEffects": [
+    "./dist/index.js",
+    "./dist/index.wechat.js",
+    "./dist/index.wechat.cjs.js",
+    "./src/**/*.ts"
+  ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {

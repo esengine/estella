@@ -152,7 +152,7 @@ bool initRendererInternal(const char* canvasSelector) {
     attrs.minorVersion = 0;
     attrs.alpha = true;
     attrs.depth = true;
-    attrs.stencil = false;
+    attrs.stencil = true;
     attrs.antialias = true;
     attrs.premultipliedAlpha = true;
     attrs.preserveDrawingBuffer = false;
@@ -390,6 +390,12 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_setEntityClipRect", &esengine::renderer_setEntityClipRect);
     emscripten::function("renderer_clearEntityClipRect", &esengine::renderer_clearEntityClipRect);
     emscripten::function("renderer_clearAllClipRects", &esengine::renderer_clearAllClipRects);
+
+    emscripten::function("renderer_clearStencil", &esengine::renderer_clearStencil);
+    emscripten::function("renderer_setEntityStencilMask", &esengine::renderer_setEntityStencilMask);
+    emscripten::function("renderer_setEntityStencilTest", &esengine::renderer_setEntityStencilTest);
+    emscripten::function("renderer_clearEntityStencilMask", &esengine::renderer_clearEntityStencilMask);
+    emscripten::function("renderer_clearAllStencilMasks", &esengine::renderer_clearAllStencilMasks);
 
     emscripten::function("registry_getCanvasEntity", &esengine::registry_getCanvasEntity);
     emscripten::function("registry_getCameraEntities", &esengine::registry_getCameraEntities);

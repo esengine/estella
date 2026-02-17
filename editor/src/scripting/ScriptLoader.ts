@@ -4,7 +4,7 @@
  */
 
 import * as esbuild from 'esbuild-wasm/esm/browser';
-import { defineComponent, defineTag, clearUserComponents } from 'esengine';
+import { defineComponent, defineTag, unregisterComponent } from 'esengine';
 import { virtualFsPlugin } from './esbuildPlugins';
 import type { NativeFS, ScriptLoaderOptions, CompileError } from './types';
 import { clearScriptComponents } from '../schemas/ComponentSchemas';
@@ -71,7 +71,12 @@ export class ScriptLoader {
             return false;
         }
 
-        clearUserComponents();
+        const prevSourceMap = window.__esengine_componentSourceMap;
+        if (prevSourceMap) {
+            for (const name of prevSourceMap.keys()) {
+                unregisterComponent(name);
+            }
+        }
         clearScriptComponents();
 
         const scripts = await this.discoverScripts();

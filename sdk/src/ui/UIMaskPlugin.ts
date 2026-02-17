@@ -35,39 +35,60 @@ export function createMaskProcessor(wasm: ESEngineModule, world: World): MaskPro
         vpX: number, vpY: number, vpW: number, vpH: number
     ) => {
         wasm.renderer_clearAllClipRects();
+        wasm.renderer_clearAllStencilMasks();
 
         const maskEntities = world.getEntitiesWithComponents([UIMask]);
         if (maskEntities.length === 0) return;
 
+        const scissorMasks: Entity[] = [];
+        const stencilMasks: Entity[] = [];
+
+        const maskSet = new Set<number>();
+        const stencilMaskSet = new Set<number>();
+
+        for (const e of maskEntities) {
+            const mask = world.get(e, UIMask) as UIMaskData;
+            if (!mask.enabled) continue;
+            maskSet.add(e as number);
+            if (mask.mode === 'stencil') {
+                stencilMasks.push(e);
+                stencilMaskSet.add(e as number);
+            } else {
+                scissorMasks.push(e);
+            }
+        }
+
         try {
-            processMasks(wasm, world, cppRegistry, maskEntities, vp, vpX, vpY, vpW, vpH);
+            if (scissorMasks.length > 0) {
+                processScissorMasks(wasm, world, cppRegistry, scissorMasks, maskSet, vp, vpX, vpY, vpW, vpH);
+            }
+            if (stencilMasks.length > 0) {
+                processStencilMasks(wasm, world, cppRegistry, stencilMasks, stencilMaskSet, vp, vpX, vpY, vpW, vpH);
+            }
         } catch (_) {
             wasm.renderer_clearAllClipRects();
+            wasm.renderer_clearAllStencilMasks();
         }
     };
 }
 
-function processMasks(
+function processScissorMasks(
     wasm: ESEngineModule, world: World, cppRegistry: CppRegistry,
-    maskEntities: Entity[],
+    scissorMasks: Entity[], maskSet: Set<number>,
     vp: Float32Array, vpX: number, vpY: number, vpW: number, vpH: number
 ): void {
-    const maskSet = new Set<number>();
-    for (const e of maskEntities) {
-        const mask = world.get(e, UIMask) as UIMaskData;
-        if (mask.enabled) maskSet.add(e as number);
-    }
-
     const rootMasks: Entity[] = [];
-    for (const entity of maskEntities) {
-        if (!maskSet.has(entity as number)) continue;
+    for (const entity of scissorMasks) {
         let isRoot = true;
         let current = entity;
         while (world.has(current, Parent)) {
             const p = world.get(current, Parent) as ParentData;
             if (maskSet.has(p.entity as number)) {
-                isRoot = false;
-                break;
+                const parentMask = world.get(p.entity, UIMask) as UIMaskData;
+                if (parentMask.mode === 'scissor') {
+                    isRoot = false;
+                    break;
+                }
             }
             current = p.entity;
         }
@@ -80,12 +101,15 @@ function processMasks(
             let childClip = clipRect;
 
             if (maskSet.has(childId)) {
-                const childRect = computeMaskScreenRect(
-                    world, childId as Entity,
-                    vp, vpX, vpY, vpW, vpH
-                );
-                if (childRect) {
-                    childClip = intersectRects(clipRect, childRect);
+                const childMask = world.get(childId as Entity, UIMask) as UIMaskData;
+                if (childMask.mode === 'scissor') {
+                    const childRect = computeMaskScreenRect(
+                        world, childId as Entity,
+                        vp, vpX, vpY, vpW, vpH
+                    );
+                    if (childRect) {
+                        childClip = intersectRects(clipRect, childRect);
+                    }
                 }
             }
 
@@ -103,6 +127,64 @@ function processMasks(
         );
         if (!screenRect) continue;
         applyToDescendants(entity, screenRect);
+    }
+}
+
+function processStencilMasks(
+    wasm: ESEngineModule, world: World, cppRegistry: CppRegistry,
+    stencilMasks: Entity[], stencilMaskSet: Set<number>,
+    _vp: Float32Array, _vpX: number, _vpY: number, _vpW: number, _vpH: number
+): void {
+    wasm.renderer_clearStencil();
+
+    const rootMasks: Entity[] = [];
+    for (const entity of stencilMasks) {
+        let isRoot = true;
+        let current = entity;
+        while (world.has(current, Parent)) {
+            const p = world.get(current, Parent) as ParentData;
+            if (stencilMaskSet.has(p.entity as number)) {
+                isRoot = false;
+                break;
+            }
+            current = p.entity;
+        }
+        if (isRoot) rootMasks.push(entity);
+    }
+
+    let nextRef = 1;
+
+    function applyStencilHierarchy(entity: Entity, refValue: number): void {
+        wasm.renderer_setEntityStencilMask(entity as number, refValue);
+
+        const children = wasm.getChildEntities(cppRegistry, entity as number);
+        for (const childId of children) {
+            if (stencilMaskSet.has(childId)) {
+                const childRef = nextRef++;
+                applyStencilHierarchy(childId as Entity, childRef);
+            } else {
+                wasm.renderer_setEntityStencilTest(childId, refValue);
+                applyStencilDescendants(childId as Entity, refValue);
+            }
+        }
+    }
+
+    function applyStencilDescendants(entity: Entity, refValue: number): void {
+        const children = wasm.getChildEntities(cppRegistry, entity as number);
+        for (const childId of children) {
+            if (stencilMaskSet.has(childId)) {
+                const childRef = nextRef++;
+                applyStencilHierarchy(childId as Entity, childRef);
+            } else {
+                wasm.renderer_setEntityStencilTest(childId, refValue);
+                applyStencilDescendants(childId as Entity, refValue);
+            }
+        }
+    }
+
+    for (const entity of rootMasks) {
+        const refValue = nextRef++;
+        applyStencilHierarchy(entity, refValue);
     }
 }
 

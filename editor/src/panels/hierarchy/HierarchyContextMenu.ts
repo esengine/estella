@@ -35,7 +35,15 @@ export function showEntityContextMenu(state: HierarchyState, x: number, y: numbe
         { label: 'UI', icon: icons.pointer(14), children: [
             { label: 'Button', onClick: () => createButtonEntity(state, entity) },
             { label: 'TextInput', onClick: () => createTextInputEntity(state, entity) },
+            { label: 'Image', onClick: () => createImageEntity(state, entity) },
             { label: 'Panel', onClick: () => createPanelEntity(state, entity) },
+            { label: '', separator: true },
+            { label: 'Toggle', onClick: () => createToggleEntity(state, entity) },
+            { label: 'Slider', onClick: () => createSliderEntity(state, entity) },
+            { label: 'ProgressBar', onClick: () => createProgressBarEntity(state, entity) },
+            { label: 'ScrollView', onClick: () => createScrollViewEntity(state, entity) },
+            { label: 'Dropdown', onClick: () => createDropdownEntity(state, entity) },
+            { label: '', separator: true },
             { label: 'ScreenSpace Root', onClick: () => createScreenSpaceRootEntity(state, entity) },
         ] },
         { label: 'Physics', icon: icons.circle(14), children: [
@@ -91,16 +99,29 @@ export function showEntityContextMenu(state: HierarchyState, x: number, y: numbe
     }
 
     if (entity !== null) {
+        const addComp = (type: string) => state.store.addComponent(entity, type, getInitialComponentData(type));
         items.push({
             label: 'Add Component', children: [
-                { label: 'Interactable', disabled: has('Interactable'), onClick: () => state.store.addComponent(entity, 'Interactable', getInitialComponentData('Interactable')) },
-                { label: 'Button', disabled: has('Button'), onClick: () => state.store.addComponent(entity, 'Button', getInitialComponentData('Button')) },
-                { label: 'ScreenSpace', disabled: has('ScreenSpace'), onClick: () => state.store.addComponent(entity, 'ScreenSpace', getInitialComponentData('ScreenSpace')) },
+                { label: 'Interactable', disabled: has('Interactable'), onClick: () => addComp('Interactable') },
+                { label: 'Button', disabled: has('Button'), onClick: () => addComp('Button') },
+                { label: 'Image', disabled: has('Image'), onClick: () => addComp('Image') },
+                { label: 'UIMask', disabled: has('UIMask'), onClick: () => addComp('UIMask') },
+                { label: 'ScreenSpace', disabled: has('ScreenSpace'), onClick: () => addComp('ScreenSpace') },
                 { label: '', separator: true },
-                { label: 'RigidBody', disabled: has('RigidBody'), onClick: () => state.store.addComponent(entity, 'RigidBody', getInitialComponentData('RigidBody')) },
-                { label: 'BoxCollider', disabled: has('BoxCollider'), onClick: () => state.store.addComponent(entity, 'BoxCollider', getInitialComponentData('BoxCollider')) },
-                { label: 'CircleCollider', disabled: has('CircleCollider'), onClick: () => state.store.addComponent(entity, 'CircleCollider', getInitialComponentData('CircleCollider')) },
-                { label: 'CapsuleCollider', disabled: has('CapsuleCollider'), onClick: () => state.store.addComponent(entity, 'CapsuleCollider', getInitialComponentData('CapsuleCollider')) },
+                { label: 'Toggle', disabled: has('Toggle'), onClick: () => addComp('Toggle') },
+                { label: 'Slider', disabled: has('Slider'), onClick: () => addComp('Slider') },
+                { label: 'ProgressBar', disabled: has('ProgressBar'), onClick: () => addComp('ProgressBar') },
+                { label: 'Draggable', disabled: has('Draggable'), onClick: () => addComp('Draggable') },
+                { label: 'ScrollView', disabled: has('ScrollView'), onClick: () => addComp('ScrollView') },
+                { label: 'Dropdown', disabled: has('Dropdown'), onClick: () => addComp('Dropdown') },
+                { label: 'ListView', disabled: has('ListView'), onClick: () => addComp('ListView') },
+                { label: 'Focusable', disabled: has('Focusable'), onClick: () => addComp('Focusable') },
+                { label: 'SafeArea', disabled: has('SafeArea'), onClick: () => addComp('SafeArea') },
+                { label: '', separator: true },
+                { label: 'RigidBody', disabled: has('RigidBody'), onClick: () => addComp('RigidBody') },
+                { label: 'BoxCollider', disabled: has('BoxCollider'), onClick: () => addComp('BoxCollider') },
+                { label: 'CircleCollider', disabled: has('CircleCollider'), onClick: () => addComp('CircleCollider') },
+                { label: 'CapsuleCollider', disabled: has('CapsuleCollider'), onClick: () => addComp('CapsuleCollider') },
             ],
         });
 
@@ -197,6 +218,209 @@ function createScreenSpaceRootEntity(state: HierarchyState, parent: Entity | nul
         anchorMax: { x: 1, y: 1 },
     });
     state.store.addComponent(newEntity, 'ScreenSpace', {});
+}
+
+function createImageEntity(state: HierarchyState, parent: Entity | null): void {
+    const newEntity = state.store.createEntity('Image', parent);
+    state.store.addComponent(newEntity, 'LocalTransform', getInitialComponentData('LocalTransform'));
+    state.store.addComponent(newEntity, 'Sprite', getInitialComponentData('Sprite'));
+    state.store.addComponent(newEntity, 'UIRect', getInitialComponentData('UIRect'));
+    state.store.addComponent(newEntity, 'Image', getInitialComponentData('Image'));
+}
+
+function createToggleEntity(state: HierarchyState, parent: Entity | null): void {
+    const toggleEntity = state.store.createEntity('Toggle', parent);
+    state.store.addComponent(toggleEntity, 'LocalTransform', getInitialComponentData('LocalTransform'));
+    state.store.addComponent(toggleEntity, 'Sprite', {
+        ...getInitialComponentData('Sprite'),
+        size: { x: 24, y: 24 },
+    });
+    state.store.addComponent(toggleEntity, 'UIRect', {
+        ...getInitialComponentData('UIRect'),
+        size: { x: 24, y: 24 },
+    });
+    state.store.addComponent(toggleEntity, 'Interactable', getInitialComponentData('Interactable'));
+
+    const checkmark = state.store.createEntity('Checkmark', toggleEntity);
+    state.store.addComponent(checkmark, 'LocalTransform', getInitialComponentData('LocalTransform'));
+    state.store.addComponent(checkmark, 'Sprite', {
+        ...getInitialComponentData('Sprite'),
+        size: { x: 16, y: 16 },
+        color: { r: 0.2, g: 0.2, b: 0.2, a: 1 },
+    });
+    state.store.addComponent(checkmark, 'UIRect', {
+        ...getInitialComponentData('UIRect'),
+        size: { x: 16, y: 16 },
+    });
+
+    state.store.addComponent(toggleEntity, 'Toggle', {
+        ...getInitialComponentData('Toggle'),
+        graphicEntity: checkmark as number,
+    });
+}
+
+function createProgressBarEntity(state: HierarchyState, parent: Entity | null): void {
+    const barEntity = state.store.createEntity('ProgressBar', parent);
+    state.store.addComponent(barEntity, 'LocalTransform', getInitialComponentData('LocalTransform'));
+    state.store.addComponent(barEntity, 'Sprite', {
+        ...getInitialComponentData('Sprite'),
+        size: { x: 200, y: 20 },
+        color: { r: 0.3, g: 0.3, b: 0.3, a: 1 },
+    });
+    state.store.addComponent(barEntity, 'UIRect', {
+        ...getInitialComponentData('UIRect'),
+        size: { x: 200, y: 20 },
+    });
+
+    const fill = state.store.createEntity('Fill', barEntity);
+    state.store.addComponent(fill, 'LocalTransform', getInitialComponentData('LocalTransform'));
+    state.store.addComponent(fill, 'Sprite', {
+        ...getInitialComponentData('Sprite'),
+        size: { x: 200, y: 20 },
+        color: { r: 0.2, g: 0.6, b: 1, a: 1 },
+    });
+    state.store.addComponent(fill, 'UIRect', {
+        ...getInitialComponentData('UIRect'),
+        anchorMin: { x: 0, y: 0 },
+        anchorMax: { x: 0.5, y: 1 },
+        offsetMin: { x: 0, y: 0 },
+        offsetMax: { x: 0, y: 0 },
+    });
+
+    state.store.addComponent(barEntity, 'ProgressBar', {
+        ...getInitialComponentData('ProgressBar'),
+        value: 0.5,
+        fillEntity: fill as number,
+    });
+}
+
+function createScrollViewEntity(state: HierarchyState, parent: Entity | null): void {
+    const scrollEntity = state.store.createEntity('ScrollView', parent);
+    state.store.addComponent(scrollEntity, 'LocalTransform', getInitialComponentData('LocalTransform'));
+    state.store.addComponent(scrollEntity, 'Sprite', {
+        ...getInitialComponentData('Sprite'),
+        size: { x: 300, y: 200 },
+    });
+    state.store.addComponent(scrollEntity, 'UIRect', {
+        ...getInitialComponentData('UIRect'),
+        size: { x: 300, y: 200 },
+    });
+    state.store.addComponent(scrollEntity, 'UIMask', getInitialComponentData('UIMask'));
+    state.store.addComponent(scrollEntity, 'Interactable', getInitialComponentData('Interactable'));
+
+    const content = state.store.createEntity('Content', scrollEntity);
+    state.store.addComponent(content, 'LocalTransform', getInitialComponentData('LocalTransform'));
+    state.store.addComponent(content, 'UIRect', {
+        ...getInitialComponentData('UIRect'),
+        anchorMin: { x: 0, y: 0 },
+        anchorMax: { x: 1, y: 1 },
+        offsetMin: { x: 0, y: 0 },
+        offsetMax: { x: 0, y: 0 },
+    });
+
+    state.store.addComponent(scrollEntity, 'ScrollView', {
+        ...getInitialComponentData('ScrollView'),
+        contentEntity: content as number,
+        contentHeight: 600,
+    });
+}
+
+function createSliderEntity(state: HierarchyState, parent: Entity | null): void {
+    const sliderEntity = state.store.createEntity('Slider', parent);
+    state.store.addComponent(sliderEntity, 'LocalTransform', getInitialComponentData('LocalTransform'));
+    state.store.addComponent(sliderEntity, 'Sprite', {
+        ...getInitialComponentData('Sprite'),
+        size: { x: 200, y: 8 },
+        color: { r: 0.3, g: 0.3, b: 0.3, a: 1 },
+    });
+    state.store.addComponent(sliderEntity, 'UIRect', {
+        ...getInitialComponentData('UIRect'),
+        size: { x: 200, y: 20 },
+    });
+    state.store.addComponent(sliderEntity, 'Interactable', getInitialComponentData('Interactable'));
+
+    const fill = state.store.createEntity('Fill', sliderEntity);
+    state.store.addComponent(fill, 'LocalTransform', getInitialComponentData('LocalTransform'));
+    state.store.addComponent(fill, 'Sprite', {
+        ...getInitialComponentData('Sprite'),
+        size: { x: 200, y: 8 },
+        color: { r: 0.2, g: 0.6, b: 1, a: 1 },
+    });
+    state.store.addComponent(fill, 'UIRect', {
+        ...getInitialComponentData('UIRect'),
+        anchorMin: { x: 0, y: 0 },
+        anchorMax: { x: 0.5, y: 1 },
+        offsetMin: { x: 0, y: 0 },
+        offsetMax: { x: 0, y: 0 },
+    });
+
+    const handle = state.store.createEntity('Handle', sliderEntity);
+    state.store.addComponent(handle, 'LocalTransform', getInitialComponentData('LocalTransform'));
+    state.store.addComponent(handle, 'Sprite', {
+        ...getInitialComponentData('Sprite'),
+        size: { x: 20, y: 20 },
+        color: { r: 1, g: 1, b: 1, a: 1 },
+    });
+    state.store.addComponent(handle, 'UIRect', {
+        ...getInitialComponentData('UIRect'),
+        size: { x: 20, y: 20 },
+    });
+
+    state.store.addComponent(sliderEntity, 'Slider', {
+        ...getInitialComponentData('Slider'),
+        value: 0.5,
+        fillEntity: fill as number,
+        handleEntity: handle as number,
+    });
+}
+
+function createDropdownEntity(state: HierarchyState, parent: Entity | null): void {
+    const ddEntity = state.store.createEntity('Dropdown', parent);
+    state.store.addComponent(ddEntity, 'LocalTransform', getInitialComponentData('LocalTransform'));
+    state.store.addComponent(ddEntity, 'Sprite', {
+        ...getInitialComponentData('Sprite'),
+        size: { x: 160, y: 32 },
+    });
+    state.store.addComponent(ddEntity, 'UIRect', {
+        ...getInitialComponentData('UIRect'),
+        size: { x: 160, y: 32 },
+    });
+    state.store.addComponent(ddEntity, 'Interactable', getInitialComponentData('Interactable'));
+
+    const label = state.store.createEntity('Label', ddEntity);
+    state.store.addComponent(label, 'LocalTransform', getInitialComponentData('LocalTransform'));
+    state.store.addComponent(label, 'UIRect', {
+        ...getInitialComponentData('UIRect'),
+        anchorMin: { x: 0, y: 0 },
+        anchorMax: { x: 1, y: 1 },
+        offsetMin: { x: 8, y: 0 },
+        offsetMax: { x: -8, y: 0 },
+    });
+    state.store.addComponent(label, 'Text', {
+        ...getInitialComponentData('Text'),
+        content: 'Select...',
+    });
+
+    const list = state.store.createEntity('List', ddEntity);
+    state.store.addComponent(list, 'LocalTransform', {
+        ...getInitialComponentData('LocalTransform'),
+        scale: { x: 0, y: 0, z: 0 },
+    });
+    state.store.addComponent(list, 'Sprite', {
+        ...getInitialComponentData('Sprite'),
+        size: { x: 160, y: 120 },
+    });
+    state.store.addComponent(list, 'UIRect', {
+        ...getInitialComponentData('UIRect'),
+        size: { x: 160, y: 120 },
+    });
+
+    state.store.addComponent(ddEntity, 'Dropdown', {
+        ...getInitialComponentData('Dropdown'),
+        options: ['Option 1', 'Option 2', 'Option 3'],
+        labelEntity: label as number,
+        listEntity: list as number,
+    });
 }
 
 export function duplicateEntity(state: HierarchyState, entity: Entity): void {

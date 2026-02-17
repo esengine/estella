@@ -359,6 +359,47 @@ void RenderFrame::clearAllClipRects() {
     clip_rects_.clear();
 }
 
+void RenderFrame::setEntityStencilMask(u32 entity, i32 refValue) {
+    stencil_masks_[entity] = {refValue, true};
+}
+
+void RenderFrame::setEntityStencilTest(u32 entity, i32 refValue) {
+    stencil_masks_[entity] = {refValue, false};
+}
+
+void RenderFrame::clearEntityStencilMask(u32 entity) {
+    stencil_masks_.erase(entity);
+}
+
+void RenderFrame::clearAllStencilMasks() {
+    stencil_masks_.clear();
+}
+
+void RenderFrame::beginStencilWrite(i32 refValue) {
+    glEnable(GL_STENCIL_TEST);
+    glStencilFunc(GL_ALWAYS, refValue, 0xFF);
+    glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
+    glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+    glStencilMask(0xFF);
+}
+
+void RenderFrame::endStencilWrite() {
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    glStencilMask(0x00);
+}
+
+void RenderFrame::beginStencilTest(i32 refValue) {
+    glEnable(GL_STENCIL_TEST);
+    glStencilFunc(GL_EQUAL, refValue, 0xFF);
+    glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+    glStencilMask(0x00);
+}
+
+void RenderFrame::endStencilTest() {
+    glDisable(GL_STENCIL_TEST);
+    glStencilMask(0xFF);
+}
+
 void RenderFrame::submitSprites(ecs::Registry& registry) {
     auto spriteView = registry.view<ecs::LocalTransform, ecs::Sprite>();
 
@@ -736,6 +777,8 @@ void RenderFrame::renderSprites(u32 begin, u32 end) {
 
     bool curScissorOn = false;
     ScissorRect curRect{};
+    bool stencilTestActive = false;
+    i32 curStencilRef = -1;
 
     for (u32 i = begin; i < end; ++i) {
         const auto& base = items_[sorted_indices_[i]];
@@ -753,6 +796,44 @@ void RenderFrame::renderSprites(u32 begin, u32 end) {
             }
             curScissorOn = base.scissor_enabled;
             curRect = base.scissor;
+        }
+
+        if (!stencil_masks_.empty()) {
+            auto stIt = stencil_masks_.find(static_cast<u32>(base.entity));
+            if (stIt != stencil_masks_.end()) {
+                if (stIt->second.is_mask) {
+                    batcher_->flush();
+                    beginStencilWrite(stIt->second.ref_value);
+
+                    glm::vec2 position(base.world_position);
+                    glm::vec2 finalSize = sd.size * base.world_scale;
+                    f32 angle = base.world_angle;
+
+                    if (std::abs(angle) > 0.001f) {
+                        batcher_->drawRotatedQuad(position, finalSize, angle,
+                            base.texture_id, base.color, sd.uv_offset, sd.uv_scale);
+                    } else {
+                        batcher_->drawQuad(glm::vec3(position.x, position.y, base.depth),
+                            finalSize, base.texture_id, base.color, sd.uv_offset, sd.uv_scale);
+                    }
+
+                    batcher_->flush();
+                    endStencilWrite();
+                    continue;
+                } else {
+                    if (!stencilTestActive || curStencilRef != stIt->second.ref_value) {
+                        batcher_->flush();
+                        beginStencilTest(stIt->second.ref_value);
+                        stencilTestActive = true;
+                        curStencilRef = stIt->second.ref_value;
+                    }
+                }
+            } else if (stencilTestActive) {
+                batcher_->flush();
+                endStencilTest();
+                stencilTestActive = false;
+                curStencilRef = -1;
+            }
         }
 
         if (sd.material_id != 0) {
@@ -803,6 +884,11 @@ void RenderFrame::renderSprites(u32 begin, u32 end) {
                 sd.uv_scale
             );
         }
+    }
+
+    if (stencilTestActive) {
+        batcher_->flush();
+        endStencilTest();
     }
 
     if (curScissorOn) {
@@ -1169,6 +1255,8 @@ void RenderFrame::renderText(u32 begin, u32 end) {
 
     bool curScissorOn = false;
     ScissorRect curRect{};
+    bool stencilTestActive = false;
+    i32 curStencilRef = -1;
 
     for (u32 i = begin; i < end; ++i) {
         const auto& base = items_[sorted_indices_[i]];
@@ -1186,6 +1274,26 @@ void RenderFrame::renderText(u32 begin, u32 end) {
             }
             curScissorOn = base.scissor_enabled;
             curRect = base.scissor;
+        }
+
+        if (!stencil_masks_.empty()) {
+            auto stIt = stencil_masks_.find(static_cast<u32>(base.entity));
+            if (stIt != stencil_masks_.end() && !stIt->second.is_mask) {
+                if (!stencilTestActive || curStencilRef != stIt->second.ref_value) {
+                    batcher_->flush();
+                    if (stencilTestActive) {
+                        endStencilTest();
+                    }
+                    beginStencilTest(stIt->second.ref_value);
+                    stencilTestActive = true;
+                    curStencilRef = stIt->second.ref_value;
+                }
+            } else if (stencilTestActive) {
+                batcher_->flush();
+                endStencilTest();
+                stencilTestActive = false;
+                curStencilRef = -1;
+            }
         }
 
         auto* font = static_cast<const text::BitmapFont*>(td.font_data);
@@ -1273,6 +1381,11 @@ void RenderFrame::renderText(u32 begin, u32 end) {
             cursorX += (glyph->xAdvance + spacing) * scale;
             prevChar = charCode;
         }
+    }
+
+    if (stencilTestActive) {
+        batcher_->flush();
+        endStencilTest();
     }
 
     if (curScissorOn) {

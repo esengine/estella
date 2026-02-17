@@ -177,6 +177,13 @@ export interface ESEngineModule {
     renderer_clearEntityClipRect(entity: number): void;
     renderer_clearAllClipRects(): void;
 
+    // Stencil API
+    renderer_clearStencil(): void;
+    renderer_setEntityStencilMask(entity: number, refValue: number): void;
+    renderer_setEntityStencilTest(entity: number, refValue: number): void;
+    renderer_clearEntityStencilMask(entity: number): void;
+    renderer_clearAllStencilMasks(): void;
+
     // ECS Query API
     registry_getCanvasEntity(registry: CppRegistry): number;
     registry_getCameraEntities(registry: CppRegistry): number[];
