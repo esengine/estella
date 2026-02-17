@@ -1,0 +1,113 @@
+---
+title: 项目设置
+description: 配置 ESEngine 项目的运行时、构建和编辑器参数
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+项目设置集中管理引擎运行时参数、物理模拟、构建选项和编辑器行为。所有设置会自动保存到项目配置文件中，在团队成员之间共享。
+
+## 打开设置
+
+通过菜单栏 **Edit → Settings...** 或快捷键 `Ctrl+,`（macOS 为 `Cmd+,`）打开设置对话框。左侧导航栏列出所有设置分类，点击分类切换右侧内容区域。
+
+## General
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| Language | select | `en` | 编辑器界面语言 |
+| Preview Port | number | `3456` | 预览服务器监听的本地端口，范围 1024–65535 |
+
+## Project
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| Spine Version | select | `none` | 使用的 Spine 运行时版本。可选 `None`、`4.2`、`4.1`、`3.8`。构建时会自动包含对应版本的 Spine WASM 模块。 |
+| Project Name | string | 空 | 项目名称，显示在编辑器标题栏 |
+| Version | string | 空 | 项目版本号 |
+| Default Scene | string | 空 | 运行时默认加载的场景路径 |
+| Design Width | number | `1920` | 设计分辨率宽度（像素） |
+| Design Height | number | `1080` | 设计分辨率高度（像素） |
+
+<Aside type="tip">
+  设计分辨率决定了 Canvas 组件的基准尺寸。配合 Canvas Scale Mode 使用，可以让游戏在不同屏幕尺寸上正确适配。
+</Aside>
+
+## Scene View
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| Show Grid | boolean | `true` | 在场景视图中显示背景网格 |
+| Grid Color | color | `#333333` | 网格线颜色 |
+| Grid Opacity | range | `1.0` | 网格透明度，范围 0–1 |
+| Show Gizmos | boolean | `true` | 显示 Gizmo 辅助图形（变换手柄、锚点等） |
+| Show Selection Box | boolean | `true` | 显示选中实体的包围框 |
+| Show Colliders | boolean | `true` | 显示物理碰撞体的线框 |
+| Show Stats | boolean | `false` | 在场景视图左上角显示帧率和渲染统计 |
+| Grid Size | number | `50` | 网格单元大小（像素），范围 5–500 |
+
+## Physics
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| Enable Physics | boolean | `false` | 启用物理模拟。启用后构建会自动包含物理 WASM 模块。 |
+| Gravity X | number | `0` | 水平重力分量 |
+| Gravity Y | number | `-9.81` | 垂直重力分量（负数 = 向下） |
+| Fixed Timestep | number | `1/60` | 物理步进间隔（秒），最小值 0.001 |
+| Sub-Step Count | number | `4` | 每次物理步进的子步数，范围 1–16。值越大精度越高，性能开销越大。 |
+
+## Build
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| Atlas Max Size | select | `2048` | 纹理图集最大尺寸（像素）。可选 `512`、`1024`、`2048`、`4096`。 |
+| Atlas Padding | number | `2` | 图集中纹理之间的间距（像素），范围 0–16。防止纹理采样时出现边缘渗色。 |
+
+<Aside type="note">
+  图集相关设置影响所有构建配置。单个构建配置的选项（场景列表、平台设置等）在构建面板中管理，详见[构建](/zh/guides/building)文档。
+</Aside>
+
+## Runtime
+
+运行时设置控制游戏实际运行时的引擎行为，在预览和构建产物中生效。
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| Scene Transition Duration | number | `0.3` | 场景切换时的淡入淡出时长（秒），范围 0–5 |
+| Scene Transition Color | color | `#000000` | 场景切换过渡期间的背景颜色 |
+| Default Font Family | string | `Arial` | 文本渲染的默认字体。应用于 Text 和 TextInput 组件。 |
+| Canvas Scale Mode | select | `FixedHeight` | Canvas 适配模式。决定游戏画面如何适应不同屏幕尺寸。 |
+| Canvas Match W/H | range | `0.5` | 宽高匹配权重，范围 0–1。仅在 Scale Mode 为 `Match` 时可见。0 = 完全匹配宽度，1 = 完全匹配高度。 |
+| Max Delta Time | number | `0.25` | 单帧最大时间步长（秒），范围 0.01–1。防止长时间卡顿后的物理和动画跳变。 |
+| Max Fixed Steps | number | `8` | 每帧最大 Fixed Update 迭代次数，范围 1–64。限制低帧率时的 CPU 开销。 |
+| Text Canvas Size | select | `512` | 文本渲染使用的离屏 Canvas 尺寸。可选 `256`、`512`、`1024`、`2048`。值越大支持的文本区域越大，但内存占用更高。 |
+
+### Canvas Scale Mode 详解
+
+| 模式 | 行为 |
+|------|------|
+| **Fixed Width** | 保持设计宽度不变，高度根据屏幕比例缩放 |
+| **Fixed Height** | 保持设计高度不变，宽度根据屏幕比例缩放 |
+| **Expand** | 取宽度和高度中较大的缩放比，确保设计区域完全可见 |
+| **Shrink** | 取宽度和高度中较小的缩放比，确保屏幕被完全填充 |
+| **Match** | 在宽度和高度的缩放比之间插值，由 Canvas Match W/H 控制混合权重 |
+
+## SDK 中使用 RuntimeConfig
+
+编辑器中的运行时设置会在构建时写入项目配置。在脚本中，可以通过 `RuntimeConfig` 对象直接读取或覆盖这些值：
+
+```typescript
+import { RuntimeConfig } from 'esengine';
+
+RuntimeConfig.maxDeltaTime = 0.25;
+RuntimeConfig.maxFixedSteps = 8;
+RuntimeConfig.sceneTransitionDuration = 0.5;
+RuntimeConfig.defaultFontFamily = 'Noto Sans SC';
+RuntimeConfig.canvasScaleMode = 1;           // 0=FixedWidth, 1=FixedHeight, 2=Expand, 3=Shrink, 4=Match
+RuntimeConfig.canvasMatchWidthOrHeight = 0.5;
+RuntimeConfig.textCanvasSize = 1024;
+```
+
+<Aside type="caution">
+  在脚本中修改 `RuntimeConfig` 会覆盖编辑器设置中的值。建议仅在需要动态调整时使用代码修改，日常配置通过设置对话框管理。
+</Aside>

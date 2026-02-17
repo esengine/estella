@@ -1,0 +1,143 @@
+---
+title: v0.5.1
+description: ESEngine v0.5.1 release notes
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip">
+v0.5.1 brings a Game View panel with play mode, dockable panel layout, Content Drawer, scene management, project settings, and extensive editor and runtime improvements.
+</Aside>
+
+## Game View Panel
+
+- Added Game View panel with play/pause/stop controls and single-frame step
+- Resolution presets (Free Aspect, 16:9, 9:16, 4:3, 1:1) plus custom resolution input
+- Playback speed control and real-time FPS counter
+- Isolated iframe-based preview with its own WASM instance (preserves Scene View renderer)
+- Game panel available as a tab next to Scene in default layout
+
+## Play Mode
+
+- Hierarchy and Inspector panels display runtime entities during play
+- Hierarchy shows runtime entity tree with parent-child relationships
+- Inspector renders live runtime properties with auto-refresh
+- Runtime property editing via `world.insert()` for builtin components
+- Blue "RUNTIME" badge and top border indicate active play mode
+
+## Dockview Layout System
+
+- Replaced fixed splitter layout with dockview-core for drag-drop dockable panels
+- Tabbed panel groups, drag panels between groups, layout persistence in localStorage
+- "Reset Layout" command to restore default arrangement
+
+## Content Drawer
+
+- Content Drawer opens as a slide-up panel from statusbar (Ctrl+Space)
+- Auto-hides on click-outside or Escape key
+- "Dock in Layout" button moves content browser into dockview
+- Drawer and docked panel can coexist independently
+- Resizable drag handle with height persisted in localStorage
+- Pin button to keep drawer open
+
+## Scene Management
+
+- Added `SceneManager` resource with `load`/`unload`/`switchTo`/`loadAdditive`/`pause`/`resume`/`sleep`/`wake`
+- `SceneOwner` component for entity-to-scene lifetime tracking
+- Scene-scoped draw callbacks and camera filtering by active scenes
+- Built-in fade transition in `switchTo()` and standalone `transitionTo()` with fade/crossfade
+- `wrapSceneSystem()` for conditional system execution based on scene status
+- Integrated into build pipeline templates (Playable + WeChat)
+
+## Project Settings
+
+- Exposed 12 hardcoded defaults as configurable project settings
+- `RuntimeConfig` in SDK for runtime-configurable defaults (transition duration, default font, canvas scale mode, max delta time, fixed timestep iterations, text canvas size)
+- Editor Settings panel extended with Build and Runtime sections
+- Settings wired through preview config and build templates
+
+## SDK & Runtime
+
+- System dependency ordering via `runBefore`/`runAfter` with topological sort
+- Playback control API: `setPaused`, `stepFrame`, `setPlaySpeed`
+- Error handling: `onSystemError` callback per system, `onWasmError` boundary with graceful degradation
+- Centralized logger with pluggable handlers
+- Prefab nesting depth guard (`MAX_DEPTH=10`)
+- `AssetRefCounter` for asset usage monitoring
+- `setPipeline()` method replacing unsafe cast
+- Warning for unknown uniform names
+- Fix `EventSource`/`TextInput`/input listener leaks, add cleanup on `quit()`
+
+## Editor Improvements
+
+### Scene View
+
+- Marquee box selection (click-drag to select multiple entities)
+- Snap-to-grid (Ctrl+drag) with configurable grid size
+- Keyboard shortcuts: F (focus), Delete, arrow keys, zoom
+- Space+drag pan, Shift rotation angle snap
+- Adaptive grid subdivision
+
+### Inspector
+
+- Component context menu (reset, copy, paste, reorder)
+- Property reset-to-default
+- AddComponent keyboard navigation with search highlight
+- Responsive labels and component icons
+- Runtime entity property editing in play mode
+
+### Hierarchy
+
+- Inline rename (F2 / context menu / slow double-click)
+- Arrow key navigation with expand/collapse
+- Multi-select: Ctrl+click, Shift+click range, Ctrl+A select all
+- Cut (Ctrl+X), recursive duplicate, collapse/expand all
+- ARIA tree roles for accessibility
+
+### Content Browser
+
+- Fuzzy search with recursive file matching
+- Image thumbnails with LRU cache
+- Grid/list view toggle
+- Multi-select (Ctrl/Shift) with keyboard navigation
+- Empty state display and back button
+- ARIA grid role for accessibility
+
+### Output Panel
+
+- Timestamps on each log entry
+- Type filters (info/warn/error) with count badges
+- Search within output
+- Context menu copy and command grouping
+
+### Keyboard Shortcuts
+
+- Ctrl+X cut entities
+- Ctrl+Space toggle Content Drawer
+- Ctrl+1/2/3 panel focus
+- Ctrl+Shift+N new entity
+- Ctrl+Shift+Z redo
+- Ctrl+S save in input fields
+- Escape handling for dialogs and drawer
+
+## Performance
+
+- AABB-based frustum culling
+- Fast path for non-rotated quad rendering
+- Shader uniform lookups with pre-resolved integer location IDs
+- Shader hot-reload in editor mode
+
+## Bug Fixes
+
+- Fix `SceneManager.switchTo()` reentrancy during active transitions
+- Fix `SceneManager.load()`/`loadAdditive()` race conditions on concurrent loads
+- Fix `PostProcessPipeline` FBO leak on resize
+- Fix scene transition silent failures from unawaited promises
+- Fix editor panel memory leaks (canvas listeners, scroll listeners, context menu timers)
+- Fix entity selection not cleared after deletion
+- Fix stale undo closure, drag undo flooding, zoom DPR on Retina displays
+- Fix settings validation, color range, toast XSS, statusbar footer count
+- Fix `deleteSelectedEntities` undo collecting descendants before command execution
+- Fix prefab save with retry/discard dialog, add auto-save and recovery
+- Fix WebGL context init using `GL.registerContext` + `initRendererWithContext`
+- Fix runtime scene validation errors

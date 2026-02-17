@@ -58,10 +58,46 @@ addSystemToSchedule(Schedule.FixedUpdate, physicsSystem);
 
 <Aside type="note">
   The Fixed schedules (`FixedPreUpdate`, `FixedUpdate`, `FixedPostUpdate`) run at a fixed timestep of 1/60s using an accumulator. In a single frame they may execute zero or multiple times depending on the frame duration, up to a maximum of **8 iterations** per frame. Use them for physics and other deterministic logic that requires consistent time steps.
+
+  The maximum number of iterations is configurable via `RuntimeConfig`:
+
+  ```typescript
+  import { RuntimeConfig } from 'esengine';
+  RuntimeConfig.maxFixedSteps = 8; // default
+  ```
 </Aside>
 
 <Aside type="note">
   Delta time is clamped to a maximum of **250ms** (0.25s). If a frame takes longer (e.g., due to a tab being inactive), the excess time is discarded to prevent large simulation jumps.
+</Aside>
+
+## System Ordering
+
+By default, systems within the same Schedule run in registration order. If you need to enforce execution order between systems, use the third argument to `defineSystem` to specify `runBefore` or `runAfter`:
+
+```typescript
+import { defineSystem, Query, Res, Time, Mut, LocalTransform, Velocity, Sprite } from 'esengine';
+
+const movementSystem = defineSystem(
+    [Res(Time), Query(Mut(LocalTransform), Velocity)],
+    (time, query) => { /* ... */ },
+    { name: 'movement' }
+);
+
+const renderSystem = defineSystem(
+    [Query(LocalTransform, Sprite)],
+    (query) => { /* ... */ },
+    { name: 'render', runAfter: ['movement'] }
+);
+```
+
+- `runAfter: ['movement']` — the current system runs after `movement`
+- `runBefore: ['render']` — the current system runs before `render`
+
+The engine uses topological sorting to determine the final execution order. If the ordering constraints form a cycle, an error is thrown at startup.
+
+<Aside type="tip">
+  `name` is the basis for ordering. Only systems that participate in ordering need a `name`. Systems without a name cannot be referenced by other systems.
 </Aside>
 
 ## System Parameters

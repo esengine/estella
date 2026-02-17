@@ -1,23 +1,157 @@
 ---
 title: 调试
-description: 使用 source maps、WASM 调试和性能分析调试 ESEngine 游戏
+description: ESEngine 调试工具和错误处理
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-本指南介绍 ESEngine 项目的调试技巧，包括 source maps、WASM 调试、性能分析以及常见错误的解决方案。
+本指南介绍 ESEngine 的运行时调试工具，包括错误处理、播放控制、日志系统和编辑器调试面板。
 
-## Source Maps
+## 错误处理
 
-### 编辑器预览
+### 系统错误处理
 
-在编辑器中预览时，source maps 默认启用。在预览窗口中打开浏览器 DevTools 即可设置断点并逐步执行 TypeScript 代码。
+当 ECS 系统抛出异常时，引擎默认会在控制台打印错误并继续运行。通过 `app.onSystemError()` 注册处理器可以控制出错后的行为——返回 `'continue'` 继续执行后续系统，返回 `'pause'` 暂停当前帧剩余的所有系统：
 
-### 构建产物
+```typescript
+app.onSystemError((error: Error, systemName?: string) => {
+    console.error(`System "${systemName}" failed:`, error.message);
 
-对于可玩广告构建，在构建配置中启用**开发构建**以包含 source maps。生产构建会移除 source maps 以减小文件体积。
+    if (error.message.includes('critical')) {
+        return 'pause';
+    }
+    return 'continue';
+});
+```
 
-对于微信小游戏构建，source maps 会生成在输出目录中。在微信开发者工具设置中启用 **Source Maps** 即可使用。
+返回 `'pause'` 后，当前帧中尚未执行的系统会被跳过，但渲染循环不会停止。下一帧开始时所有系统恢复正常执行。
+
+### WASM 错误处理
+
+C++ 引擎核心通过 WebAssembly 运行。当 WASM 层发生错误时，通过 `app.onWasmError()` 捕获：
+
+```typescript
+app.onWasmError((error: unknown, context: string) => {
+    console.error(`WASM error in ${context}:`, error);
+});
+```
+
+`context` 参数标识出错的 WASM 操作（如渲染、物理计算等），便于定位问题来源。
+
+<Aside type="note">
+  WASM 错误通常表示引擎内部状态异常。如果频繁出现，检查是否使用了无效的实体 ID 或已释放的资源。
+</Aside>
+
+## 播放控制
+
+SDK 提供了一组方法用于在运行时控制游戏的执行节奏，适用于逐帧调试和慢动作分析。
+
+### 暂停与恢复
+
+```typescript
+app.setPaused(true);     // 暂停：系统停止执行，仅运行 Last schedule（渲染）
+app.setPaused(false);    // 恢复正常执行
+
+app.isPaused();          // 查询当前暂停状态
+```
+
+暂停状态下引擎仍然运行渲染循环（`Schedule.Last`），画面会保持在最后一帧的状态。
+
+### 单帧步进
+
+暂停状态下调用 `stepFrame()` 可以推进一帧，执行完整的系统调度后再次暂停：
+
+```typescript
+app.setPaused(true);
+app.stepFrame();         // 执行一帧完整的系统调度
+```
+
+### 播放速度
+
+通过 `setPlaySpeed()` 调整时间流速，有效范围为 0.1 到 4.0：
+
+```typescript
+app.setPlaySpeed(0.25);  // 四分之一速度，适合观察快速动画
+app.setPlaySpeed(2.0);   // 双倍速度
+
+app.getPlaySpeed();      // 获取当前速度倍率
+```
+
+播放速度通过缩放每帧的 `delta` 时间实现。所有读取 `Time.delta` 的系统会自动受到影响。
+
+## 日志系统
+
+SDK 提供集中式日志系统，支持分级过滤和自定义处理。
+
+### LogLevel
+
+```typescript
+import { LogLevel, setLogLevel } from 'esengine';
+
+// Debug = 0, Info = 1, Warn = 2, Error = 3
+setLogLevel(LogLevel.Debug);   // 输出所有级别
+setLogLevel(LogLevel.Warn);    // 仅输出 Warn 和 Error
+```
+
+### 使用日志
+
+日志函数接受分类标签、消息和可选的附加数据：
+
+```typescript
+import { debug, info, warn, error } from 'esengine';
+
+debug('Physics', 'Collision detected', { entityA: 1, entityB: 2 });
+info('Scene', 'Level loaded');
+warn('Asset', 'Texture not found, using fallback');
+error('Render', 'WebGL context lost');
+```
+
+默认的 `ConsoleLogHandler` 会格式化输出到浏览器控制台：
+
+```
+[14:32:05.123] [INFO ] [Scene] Level loaded
+```
+
+### 自定义 LogHandler
+
+实现 `LogHandler` 接口可以将日志发送到自定义目标（如远程服务、文件、UI 面板）：
+
+```typescript
+import { getLogger, type LogHandler, type LogEntry } from 'esengine';
+
+const customHandler: LogHandler = {
+    handle(entry: LogEntry) {
+        // entry.timestamp, entry.level, entry.category, entry.message, entry.data
+        myRemoteService.send(entry);
+    }
+};
+
+const logger = getLogger();
+logger.addHandler(customHandler);
+
+// 移除处理器
+logger.removeHandler(customHandler);
+```
+
+## 编辑器调试
+
+### Output 面板
+
+编辑器的 Output 面板捕获运行时的所有控制台输出：
+
+- **时间戳** — 每条日志附带精确到毫秒的时间
+- **类型过滤** — 按 info、warn、error 分类筛选
+- **搜索** — 在日志文本中搜索关键字
+
+### Game View 播放控制
+
+编辑器的 Game View 面板提供了图形化的播放控制工具栏：
+
+- **Play / Pause** — 启动或暂停游戏预览
+- **Step** — 暂停状态下单帧步进
+- **Speed** — 调整播放速度
+
+这些控件直接调用上述 `setPaused()`、`stepFrame()` 和 `setPlaySpeed()` API。
 
 ## WASM 调试
 
@@ -44,12 +178,6 @@ node build-tools/cli.js build -t web -d
 <Aside type="note">
   WASM 调试仅在基于 Chromium 的浏览器中可用。Firefox 和 Safari 不支持基于 DWARF 的 WASM 调试。
 </Aside>
-
-### 调试日志
-
-引擎提供了不同级别的日志宏。在 debug 构建中所有日志级别都会输出。在 release 构建中仅输出警告和错误。
-
-在 SDK 端，使用浏览器控制台。引擎会自动将 C++ 日志消息转发到 `console.log` / `console.warn` / `console.error`。
 
 ## 性能分析
 
@@ -91,10 +219,6 @@ const narrowSystem = defineSystem(
     }
 );
 ```
-
-### 纹理图集效率
-
-大量独立纹理会导致更多 draw call。使用构建面板验证纹理是否被打包到图集中。超过图集页大小（默认 2048x2048）的纹理会作为单独的 draw call。
 
 ## 常见错误
 

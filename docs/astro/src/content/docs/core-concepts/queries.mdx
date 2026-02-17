@@ -147,6 +147,29 @@ addSystem(defineSystem(
 ));
 ```
 
+## Iteration Safety
+
+During query iteration, you **cannot** directly create or destroy entities, or insert or remove components. These operations modify the underlying data structures and would invalidate the iterator. The engine detects such operations during iteration and throws an error to prevent data corruption.
+
+The correct approach is to use `Commands` to defer modifications until after iteration completes:
+
+```typescript
+import { defineSystem, addSystem, Commands, Query, Health } from 'esengine';
+
+const despawnDead = defineSystem(
+    [Commands(), Query(Health)],
+    (commands, query) => {
+        for (const [entity, health] of query) {
+            if (health.value <= 0) {
+                commands.despawn(entity); // deferred, safe
+            }
+        }
+    }
+);
+```
+
+`Commands` operations are flushed after the current system function returns. At that point iteration has finished, so the modifications do not affect any in-progress traversal.
+
 ## Next Steps
 
 - [Resources](/microes/core-concepts/resources/) — global singleton data like Time and Input

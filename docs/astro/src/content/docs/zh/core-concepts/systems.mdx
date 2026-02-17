@@ -58,10 +58,46 @@ addSystemToSchedule(Schedule.FixedUpdate, physicsSystem);
 
 <Aside type="note">
   Fixed 系列调度（`FixedPreUpdate`、`FixedUpdate`、`FixedPostUpdate`）以 1/60s 固定步长运行，使用累加器驱动。一帧内可能执行零次或多次，取决于帧时长，每帧最多执行 **8 次迭代**。适用于物理等需要一致时间步的确定性逻辑。
+
+  最大迭代次数可通过 `RuntimeConfig` 配置：
+
+  ```typescript
+  import { RuntimeConfig } from 'esengine';
+  RuntimeConfig.maxFixedSteps = 8; // 默认值
+  ```
 </Aside>
 
 <Aside type="note">
   Delta time 被限制为最大 **250ms**（0.25s）。如果一帧用时更长（例如标签页不活跃），多余的时间会被丢弃以防止模拟出现大跳变。
+</Aside>
+
+## 系统排序
+
+同一 Schedule 内的多个系统默认按注册顺序执行。如果系统之间有执行顺序依赖，可以通过 `defineSystem` 的第三个参数指定 `runBefore` 或 `runAfter`：
+
+```typescript
+import { defineSystem, Query, Res, Time, Mut, LocalTransform, Velocity, Sprite } from 'esengine';
+
+const movementSystem = defineSystem(
+    [Res(Time), Query(Mut(LocalTransform), Velocity)],
+    (time, query) => { /* ... */ },
+    { name: 'movement' }
+);
+
+const renderSystem = defineSystem(
+    [Query(LocalTransform, Sprite)],
+    (query) => { /* ... */ },
+    { name: 'render', runAfter: ['movement'] }
+);
+```
+
+- `runAfter: ['movement']` — 当前系统在 `movement` 之后执行
+- `runBefore: ['render']` — 当前系统在 `render` 之前执行
+
+引擎使用拓扑排序确定最终执行顺序。如果排序约束形成循环依赖，启动时会抛出错误。
+
+<Aside type="tip">
+  `name` 是排序的基础。只有需要参与排序的系统才必须指定 `name`，未指定名称的系统不能被其他系统引用。
 </Aside>
 
 ## 系统参数

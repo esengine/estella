@@ -1,23 +1,157 @@
 ---
 title: Debugging
-description: Debug ESEngine games with source maps, WASM debugging, and performance profiling
+description: ESEngine debugging tools and error handling
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-This guide covers debugging techniques for ESEngine projects, including source maps, WASM debugging, performance profiling, and solutions to common errors.
+This guide covers ESEngine's runtime debugging tools, including error handling, playback control, the logger system, and editor debugging panels.
 
-## Source Maps
+## Error Handling
 
-### Editor Preview
+### System Error Handling
 
-When previewing in the editor, source maps are enabled by default. Open the browser DevTools in the preview window to set breakpoints and step through your TypeScript code.
+When an ECS system throws an exception, the engine prints the error to the console and continues running by default. Register a handler with `app.onSystemError()` to control the post-error behaviour — return `'continue'` to keep executing subsequent systems, or `'pause'` to skip all remaining systems for the current frame:
 
-### Build Output
+```typescript
+app.onSystemError((error: Error, systemName?: string) => {
+    console.error(`System "${systemName}" failed:`, error.message);
 
-For playable ad builds, enable **Dev Build** in the build configuration to include source maps. Production builds strip source maps for smaller file size.
+    if (error.message.includes('critical')) {
+        return 'pause';
+    }
+    return 'continue';
+});
+```
 
-For WeChat MiniGame builds, source maps are generated alongside the output. Enable **Source Maps** in WeChat DevTools settings to use them.
+After returning `'pause'`, systems that have not yet run in the current frame are skipped, but the render loop does not stop. All systems resume normal execution at the start of the next frame.
+
+### WASM Error Handling
+
+The C++ engine core runs via WebAssembly. Catch errors from the WASM layer with `app.onWasmError()`:
+
+```typescript
+app.onWasmError((error: unknown, context: string) => {
+    console.error(`WASM error in ${context}:`, error);
+});
+```
+
+The `context` parameter identifies the WASM operation that failed (e.g. rendering, physics), making it easier to locate the source of the problem.
+
+<Aside type="note">
+  WASM errors usually indicate abnormal internal engine state. If they occur frequently, check for invalid entity IDs or already-released resources.
+</Aside>
+
+## Playback Control
+
+The SDK provides methods to control game execution at runtime, useful for frame-by-frame debugging and slow-motion analysis.
+
+### Pause and Resume
+
+```typescript
+app.setPaused(true);     // Pause: systems stop, only Last schedule (rendering) runs
+app.setPaused(false);    // Resume normal execution
+
+app.isPaused();          // Query current pause state
+```
+
+While paused, the engine still runs the render loop (`Schedule.Last`), so the screen stays on the last rendered frame.
+
+### Single-Frame Stepping
+
+While paused, call `stepFrame()` to advance exactly one frame — a full system schedule runs then pauses again:
+
+```typescript
+app.setPaused(true);
+app.stepFrame();         // Execute one full frame of system scheduling
+```
+
+### Play Speed
+
+Adjust time flow with `setPlaySpeed()`. The valid range is 0.1 to 4.0:
+
+```typescript
+app.setPlaySpeed(0.25);  // Quarter speed — good for observing fast animations
+app.setPlaySpeed(2.0);   // Double speed
+
+app.getPlaySpeed();      // Get the current speed multiplier
+```
+
+Play speed works by scaling each frame's `delta` time. All systems that read `Time.delta` are affected automatically.
+
+## Logger System
+
+The SDK provides a centralized logging system with level filtering and custom handlers.
+
+### LogLevel
+
+```typescript
+import { LogLevel, setLogLevel } from 'esengine';
+
+// Debug = 0, Info = 1, Warn = 2, Error = 3
+setLogLevel(LogLevel.Debug);   // Output all levels
+setLogLevel(LogLevel.Warn);    // Output Warn and Error only
+```
+
+### Using the Logger
+
+Log functions accept a category tag, a message, and optional additional data:
+
+```typescript
+import { debug, info, warn, error } from 'esengine';
+
+debug('Physics', 'Collision detected', { entityA: 1, entityB: 2 });
+info('Scene', 'Level loaded');
+warn('Asset', 'Texture not found, using fallback');
+error('Render', 'WebGL context lost');
+```
+
+The default `ConsoleLogHandler` formats output to the browser console:
+
+```
+[14:32:05.123] [INFO ] [Scene] Level loaded
+```
+
+### Custom LogHandler
+
+Implement the `LogHandler` interface to send logs to a custom destination (remote service, file, UI panel, etc.):
+
+```typescript
+import { getLogger, type LogHandler, type LogEntry } from 'esengine';
+
+const customHandler: LogHandler = {
+    handle(entry: LogEntry) {
+        // entry.timestamp, entry.level, entry.category, entry.message, entry.data
+        myRemoteService.send(entry);
+    }
+};
+
+const logger = getLogger();
+logger.addHandler(customHandler);
+
+// Remove a handler
+logger.removeHandler(customHandler);
+```
+
+## Editor Debugging
+
+### Output Panel
+
+The editor's Output panel captures all runtime console output:
+
+- **Timestamps** — each log entry includes millisecond-precision timing
+- **Type filtering** — filter by info, warn, or error
+- **Search** — search for keywords within log text
+
+### Game View Playback Controls
+
+The editor's Game View panel provides a graphical playback control toolbar:
+
+- **Play / Pause** — start or pause the game preview
+- **Step** — advance a single frame while paused
+- **Speed** — adjust playback speed
+
+These controls call the `setPaused()`, `stepFrame()`, and `setPlaySpeed()` APIs described above.
 
 ## WASM Debugging
 
@@ -44,12 +178,6 @@ This produces an unoptimized WASM binary with DWARF debug info. The binary is si
 <Aside type="note">
   WASM debugging is only available in Chromium-based browsers. Firefox and Safari do not support DWARF-based WASM debugging.
 </Aside>
-
-### Debug Logging
-
-The engine provides logging macros at different levels. In debug builds, all log levels are active. In release builds, only warnings and errors are emitted.
-
-From the SDK side, use the browser console. The engine forwards C++ log messages to `console.log` / `console.warn` / `console.error` automatically.
 
 ## Performance Profiling
 
@@ -91,10 +219,6 @@ const narrowSystem = defineSystem(
     }
 );
 ```
-
-### Texture Atlas Efficiency
-
-Large numbers of individual textures cause more draw calls. Use the build panel to verify that textures are packed into atlases. Textures that exceed the atlas page size (default 2048x2048) remain as separate draw calls.
 
 ## Common Errors
 

@@ -1,0 +1,113 @@
+---
+title: Project Settings
+description: Configure runtime, build, and editor options for your ESEngine project
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Project settings provide centralized control over engine runtime parameters, physics simulation, build options, and editor behavior. All settings are automatically saved to the project configuration file and shared across team members.
+
+## Opening Settings
+
+Open the settings dialog from the menu bar via **Edit → Settings...** or with the keyboard shortcut `Ctrl+,` (`Cmd+,` on macOS). The left sidebar lists all setting categories; click a category to switch the content area on the right.
+
+## General
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| Language | select | `en` | Editor UI language |
+| Preview Port | number | `3456` | Local port for the preview server. Range: 1024–65535 |
+
+## Project
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| Spine Version | select | `none` | Spine runtime version to use. Options: `None`, `4.2`, `4.1`, `3.8`. The corresponding Spine WASM module is bundled automatically at build time. |
+| Project Name | string | empty | Project name displayed in the editor title bar |
+| Version | string | empty | Project version number |
+| Default Scene | string | empty | Scene path loaded at runtime startup |
+| Design Width | number | `1920` | Design resolution width in pixels |
+| Design Height | number | `1080` | Design resolution height in pixels |
+
+<Aside type="tip">
+  The design resolution defines the reference size for the Canvas component. Combined with the Canvas Scale Mode, it ensures your game adapts correctly to different screen sizes.
+</Aside>
+
+## Scene View
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| Show Grid | boolean | `true` | Display a background grid in the scene view |
+| Grid Color | color | `#333333` | Grid line color |
+| Grid Opacity | range | `1.0` | Grid transparency. Range: 0–1 |
+| Show Gizmos | boolean | `true` | Display gizmo overlays (transform handles, anchors, etc.) |
+| Show Selection Box | boolean | `true` | Display a bounding box around selected entities |
+| Show Colliders | boolean | `true` | Display physics collider wireframes |
+| Show Stats | boolean | `false` | Display frame rate and render statistics in the top-left corner of the scene view |
+| Grid Size | number | `50` | Grid cell size in pixels. Range: 5–500 |
+
+## Physics
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| Enable Physics | boolean | `false` | Enable physics simulation. When enabled, the physics WASM module is included in builds automatically. |
+| Gravity X | number | `0` | Horizontal gravity component |
+| Gravity Y | number | `-9.81` | Vertical gravity component (negative = downward) |
+| Fixed Timestep | number | `1/60` | Physics step interval in seconds. Minimum: 0.001 |
+| Sub-Step Count | number | `4` | Number of sub-steps per physics step. Range: 1–16. Higher values improve accuracy at the cost of performance. |
+
+## Build
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| Atlas Max Size | select | `2048` | Maximum texture atlas size in pixels. Options: `512`, `1024`, `2048`, `4096`. |
+| Atlas Padding | number | `2` | Spacing between textures in the atlas in pixels. Range: 0–16. Prevents edge bleeding during texture sampling. |
+
+<Aside type="note">
+  Atlas settings apply to all build configurations. Per-configuration options (scene lists, platform settings, etc.) are managed in the build panel — see the [Building](/guides/building) guide for details.
+</Aside>
+
+## Runtime
+
+Runtime settings control engine behavior during actual gameplay and take effect in both previews and final builds.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| Scene Transition Duration | number | `0.3` | Fade-in/fade-out duration for scene transitions in seconds. Range: 0–5 |
+| Scene Transition Color | color | `#000000` | Background color during scene transitions |
+| Default Font Family | string | `Arial` | Default font for text rendering. Applies to the Text and TextInput components. |
+| Canvas Scale Mode | select | `FixedHeight` | Canvas scaling strategy. Determines how the game adapts to different screen sizes. |
+| Canvas Match W/H | range | `0.5` | Width-to-height matching weight. Range: 0–1. Only visible when Scale Mode is `Match`. 0 = match width exactly, 1 = match height exactly. |
+| Max Delta Time | number | `0.25` | Maximum time step per frame in seconds. Range: 0.01–1. Prevents physics and animation jumps after long stalls. |
+| Max Fixed Steps | number | `8` | Maximum Fixed Update iterations per frame. Range: 1–64. Caps CPU overhead at low frame rates. |
+| Text Canvas Size | select | `512` | Off-screen canvas size used for text rendering. Options: `256`, `512`, `1024`, `2048`. Larger values support bigger text areas but consume more memory. |
+
+### Canvas Scale Mode Reference
+
+| Mode | Behavior |
+|------|----------|
+| **Fixed Width** | Keeps the design width constant; height scales based on the screen aspect ratio |
+| **Fixed Height** | Keeps the design height constant; width scales based on the screen aspect ratio |
+| **Expand** | Uses the larger of the width and height scale factors, ensuring the full design area is visible |
+| **Shrink** | Uses the smaller of the width and height scale factors, ensuring the screen is completely filled |
+| **Match** | Interpolates between the width and height scale factors, controlled by the Canvas Match W/H weight |
+
+## Using RuntimeConfig in the SDK
+
+The editor's runtime settings are written into the project configuration at build time. In scripts you can read or override these values through the `RuntimeConfig` object:
+
+```typescript
+import { RuntimeConfig } from 'esengine';
+
+RuntimeConfig.maxDeltaTime = 0.25;
+RuntimeConfig.maxFixedSteps = 8;
+RuntimeConfig.sceneTransitionDuration = 0.5;
+RuntimeConfig.defaultFontFamily = 'Noto Sans SC';
+RuntimeConfig.canvasScaleMode = 1;           // 0=FixedWidth, 1=FixedHeight, 2=Expand, 3=Shrink, 4=Match
+RuntimeConfig.canvasMatchWidthOrHeight = 0.5;
+RuntimeConfig.textCanvasSize = 1024;
+```
+
+<Aside type="caution">
+  Modifying `RuntimeConfig` in code overrides the values from the editor settings. Use code overrides only when you need dynamic adjustments at runtime; for day-to-day configuration, use the settings dialog instead.
+</Aside>

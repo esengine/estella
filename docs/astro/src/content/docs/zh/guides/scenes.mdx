@@ -170,6 +170,22 @@ app.setInitialScene('menu');
 app.run();
 ```
 
+除了通过 `path` 指定场景文件路径外，也可以通过 `data` 直接传入场景数据对象，适用于动态生成或内存中的场景：
+
+```typescript
+app.registerScene({
+    name: 'procedural',
+    data: {
+        version: '1.0',
+        name: 'procedural',
+        entities: [],
+    },
+    setup: (ctx) => {
+        // 通过代码生成实体
+    },
+});
+```
+
 <Aside type="tip">
   `systems` 中注册的系统会自动包装为场景作用域系统，仅在该场景状态为 `running` 时执行。
 </Aside>
@@ -186,7 +202,32 @@ await mgr.switchTo('game');
 
 // 带淡入淡出过渡的切换
 await mgr.switchTo('game', { transition: 'fade', duration: 0.5 });
+
+// 完整的切换选项
+await mgr.switchTo('game', {
+    transition: 'fade',
+    duration: 1.0,
+    color: { r: 0, g: 0, b: 0, a: 1 },
+    keepPersistent: true,
+    onStart: () => console.log('transition started'),
+    onComplete: () => console.log('transition finished'),
+});
 ```
+
+`switchTo` 的完整选项：
+
+| 选项 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `transition` | `'none' \| 'fade'` | `'none'` | 过渡动画类型 |
+| `duration` | `number` | 引擎默认值 | 过渡总时长（秒），淡出和淡入各占一半 |
+| `color` | `Color` | 引擎默认值 | 淡入淡出的遮罩颜色 |
+| `keepPersistent` | `boolean` | `true` | 是否保留持久化实体 |
+| `onStart` | `() => void` | - | 过渡开始时的回调 |
+| `onComplete` | `() => void` | - | 过渡完成时的回调 |
+
+<Aside type="note">
+  过渡进行中调用 `switchTo` 会被忽略。可通过 `mgr.isTransitioning()` 检查是否正在过渡。
+</Aside>
 
 ## 多场景（叠加加载）
 
@@ -303,11 +344,15 @@ import { transitionTo } from 'esengine';
 // 淡出到黑色，切换场景，淡入
 await transitionTo(app, 'game', { type: 'fade', duration: 1.0 });
 
-// 交叉淡入淡出
-await transitionTo(app, 'game', { type: 'crossfade', duration: 0.5 });
+// 自定义遮罩颜色
+await transitionTo(app, 'game', {
+    type: 'fade',
+    duration: 0.5,
+    color: { r: 1, g: 1, b: 1, a: 1 },
+});
 ```
 
-`transitionTo` 会处理旧场景的淡出、场景切换以及新场景的淡入，整个过程是异步的。
+`transitionTo` 是对 `mgr.switchTo()` 的便捷封装，内部会获取 `SceneManager` 资源并调用 `switchTo`。整个过程是异步的——先淡出旧场景，执行场景切换，再淡入新场景。
 
 ## 查询场景状态
 
@@ -317,12 +362,16 @@ await transitionTo(app, 'game', { type: 'crossfade', duration: 0.5 });
 const mgr = app.getResource(SceneManager);
 
 mgr.getActive();            // 当前主场景名，无主场景时返回 null
+mgr.isActive('game');       // 判断指定场景是否为主场景
 mgr.getActiveScenes();      // 所有状态为 'running' 的场景名数组
 mgr.getLoaded();            // 所有已加载的场景名数组
 mgr.isLoaded('game');       // 场景是否已加载
 mgr.isPaused('game');       // 场景是否处于暂停状态
 mgr.isSleeping('game');     // 场景是否处于休眠状态
+mgr.isTransitioning();      // 是否正在执行场景过渡
 mgr.getSceneStatus('game'); // 返回场景详细状态
+mgr.getScene('game');       // 获取场景的 SceneContext，未加载时返回 null
+mgr.getLoadOrder();         // 按加载顺序返回场景名数组
 ```
 
 `getSceneStatus` 的返回值类型为：
@@ -335,6 +384,20 @@ mgr.getSceneStatus('game'); // 返回场景详细状态
 | `'sleeping'` | 场景已休眠（系统停止，实体隐藏） |
 | `'unloading'` | 场景正在卸载中 |
 | `null` | 场景未加载 |
+
+## 场景层序
+
+当多个场景同时加载时，渲染和系统执行按加载顺序进行。使用 `bringToTop()` 将指定场景移到最顶层：
+
+```typescript
+const mgr = app.getResource(SceneManager);
+
+await mgr.loadAdditive('hud');
+await mgr.loadAdditive('dialog');
+
+mgr.bringToTop('hud');
+mgr.getLoadOrder();    // ['game', 'dialog', 'hud']
+```
 
 ## 场景数据类型
 

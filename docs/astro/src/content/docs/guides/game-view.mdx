@@ -1,0 +1,113 @@
+---
+title: Game View
+description: Preview and debug your game inside the editor using the Game View panel
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The **Game View** is the in-editor game preview panel. It provides playback controls, resolution simulation, and live debugging, so you can test game logic and visuals without leaving the editor.
+
+## Starting the Preview
+
+Click the **Play** button on the left side of the toolbar to start the game preview. The editor launches a preview server and loads the current project into the Game View.
+
+Click the **Stop** button to end the preview. The Game View returns to its initial blank state and the editor switches back to normal editing mode.
+
+## Playback Controls
+
+The toolbar provides the following playback controls:
+
+| Button | Function |
+|--------|----------|
+| **Play** | Start the game preview |
+| **Pause** | Pause the game, freezing the current frame |
+| **Resume** | Resume from a paused state |
+| **Step Frame** | Advance exactly one frame while paused — useful for frame-by-frame debugging |
+| **Stop** | Stop the preview and destroy the game instance |
+
+<Aside type="tip">
+  Step Frame is only available while paused. Combined with live data in the Inspector, it lets you observe exact state changes on each frame.
+</Aside>
+
+## Playback Speed
+
+The speed dropdown in the toolbar lets you adjust the game's running speed:
+
+- **0.25x** — quarter speed, useful for inspecting fast animations
+- **0.5x** — half speed
+- **1x** — normal speed (default)
+- **2x** — double speed
+- **4x** — four times speed, useful for skipping wait periods
+
+Speed changes take effect immediately without restarting the preview.
+
+## Resolution Settings
+
+The resolution dropdown in the toolbar offers several presets for simulating different screen sizes:
+
+| Preset | Resolution |
+|--------|------------|
+| Free | Fills the entire Game View area |
+| 16:9 | 1920 x 1080 |
+| 9:16 | 1080 x 1920 |
+| 4:3 | 1024 x 768 |
+| 3:4 | 768 x 1024 |
+| Custom | User-defined width and height |
+
+When **Free** is selected, the game fills the full Game View area. When a fixed resolution is selected, the preview scales proportionally to the target aspect ratio and is centered within the panel.
+
+Selecting **Custom** reveals width and height input fields that accept any value between 1 and 7680.
+
+<Aside type="note">
+  Resolution settings only affect the display area inside Game View. They do not change the resolution of actual build output.
+</Aside>
+
+## Play Mode
+
+When the preview starts, the editor enters **Play Mode** — a special runtime debugging mode. The Hierarchy and Inspector panels switch to their runtime views.
+
+### Hierarchy Panel
+
+While in Play Mode the Hierarchy panel changes as follows:
+
+- A blue border appears at the top, with a blue **RUNTIME** badge on the right side of the toolbar
+- The entity tree switches to the runtime entity list, showing every entity that currently exists in the game
+- Dynamically spawned entities (e.g. bullets, particle effects) appear in the list as well
+- Toolbar buttons for adding, duplicating, and expanding/collapsing are disabled
+- Drag-to-reorder, context menus, and double-click-to-rename are disabled
+- The status bar at the bottom displays the runtime entity count
+
+Click a runtime entity to inspect its component data in the Inspector.
+
+### Inspector Panel
+
+When a runtime entity is selected during Play Mode, the Inspector panel:
+
+- Displays a blue **RUNTIME** badge
+- Lists all runtime components on the entity with their current property values
+- Auto-refreshes property values periodically, reflecting live game state
+- Supports direct editing of numbers, booleans, strings, and vector properties — changes are sent to the game instance immediately
+
+<Aside type="caution">
+  Changes made in the Inspector during Play Mode only affect the running game instance. When you stop the preview, all runtime modifications are lost and the scene data reverts to its state before the preview started.
+</Aside>
+
+### Exiting Play Mode
+
+When you click **Stop**:
+
+- The game instance is destroyed and the preview is cleared
+- The Hierarchy panel restores the edit-mode entity tree, including its previous expand/collapse state
+- The Inspector panel returns to edit mode
+- No runtime modifications are saved to the scene file
+
+## FPS Display
+
+While the preview is running, the current frame rate (FPS) is displayed on the right side of the toolbar. The FPS indicator hides automatically when the preview stops.
+
+## Notes
+
+- Hierarchy editing features are disabled during Play Mode, including drag-to-reorder, context menus, and renaming
+- The runtime entity list refreshes periodically; with a large number of entities there may be a brief delay
+- Resolution can be changed while the preview is running — the preview resizes immediately
+- Input fields that are actively being edited in the Inspector are not overwritten by auto-refresh, so manual input is never interrupted

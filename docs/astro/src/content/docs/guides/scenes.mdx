@@ -134,11 +134,13 @@ Entities have a `visible` property (default `true`). When set to `false` in the 
 
 ## Scene Manager
 
-The `SceneManager` resource provides full control over loading, unloading, and switching between multiple scenes at runtime. It is automatically available when using `createWebApp()` — the `sceneManagerPlugin` is included by default.
+The SDK provides the `SceneManager` resource and `sceneManagerPlugin` for managing the loading, switching, and lifecycle of multiple scenes. When using `createWebApp()`, the plugin is included automatically -- no manual registration needed.
 
-<Aside type="note">
-  If you are building an `App` manually, add the `sceneManagerPlugin` to enable scene management.
-</Aside>
+```typescript
+import { SceneManager } from 'esengine';
+
+const mgr = app.getResource(SceneManager);
+```
 
 ## Registering Scenes
 
@@ -168,13 +170,25 @@ app.setInitialScene('menu');
 app.run();
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `name` | string | Unique identifier for the scene |
-| `path` | string | Path to the scene JSON file |
-| `systems` | Array | Systems to run while this scene is active |
-| `setup` | (ctx: SceneContext) => void | Called after the scene loads |
-| `cleanup` | (ctx: SceneContext) => void | Called before the scene unloads |
+Instead of specifying a file path with `path`, you can pass scene data directly via `data`. This is useful for procedurally generated or in-memory scenes:
+
+```typescript
+app.registerScene({
+    name: 'procedural',
+    data: {
+        version: '1.0',
+        name: 'procedural',
+        entities: [],
+    },
+    setup: (ctx) => {
+        // generate entities programmatically
+    },
+});
+```
+
+<Aside type="tip">
+  Systems registered in `systems` are automatically wrapped as scene-scoped systems and only run while that scene's status is `running`.
+</Aside>
 
 ## Switching Scenes
 
@@ -188,10 +202,31 @@ await mgr.switchTo('game');
 
 // Switch with fade transition
 await mgr.switchTo('game', { transition: 'fade', duration: 0.5 });
+
+// Full transition options
+await mgr.switchTo('game', {
+    transition: 'fade',
+    duration: 1.0,
+    color: { r: 0, g: 0, b: 0, a: 1 },
+    keepPersistent: true,
+    onStart: () => console.log('transition started'),
+    onComplete: () => console.log('transition finished'),
+});
 ```
 
-<Aside type="caution">
-  `switchTo` is async — the old scene is fully unloaded and the new scene fully loaded before the promise resolves. Avoid calling it multiple times concurrently.
+Full `switchTo` options:
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `transition` | `'none' \| 'fade'` | `'none'` | Transition animation type |
+| `duration` | `number` | engine default | Total transition duration (seconds); fade-out and fade-in each take half |
+| `color` | `Color` | engine default | Mask colour for the fade |
+| `keepPersistent` | `boolean` | `true` | Whether to keep persistent entities |
+| `onStart` | `() => void` | - | Callback when the transition starts |
+| `onComplete` | `() => void` | - | Callback when the transition finishes |
+
+<Aside type="note">
+  Calling `switchTo` while a transition is in progress is ignored. Use `mgr.isTransitioning()` to check whether a transition is active.
 </Aside>
 
 ## Multi-Scene (Additive Loading)
@@ -209,7 +244,9 @@ await mgr.loadAdditive('pause-menu');
 await mgr.unload('pause-menu');
 ```
 
-Additive scenes run their systems alongside the primary scene. Each loaded scene maintains its own lifecycle independently.
+<Aside type="note">
+  Additive scenes run independently from the primary scene, each with its own systems and lifecycle. Unloading an additive scene does not affect the primary scene.
+</Aside>
 
 ## Scene Lifecycle
 
@@ -298,50 +335,74 @@ app.registerScene({
 });
 ```
 
+<Aside type="tip">
+  When a scene is `paused` or `sleeping`, its scoped systems do not execute -- no need to check the scene state manually.
+</Aside>
+
 ## Scene Transitions
 
-For built-in visual transitions between scenes, use the standalone `transitionTo` helper:
+Use the `transitionTo` helper for animated scene switches:
 
 ```typescript
 import { transitionTo } from 'esengine';
 
-// Fade to black, switch, fade in
+// Fade to black, switch scene, fade in
 await transitionTo(app, 'game', { type: 'fade', duration: 1.0 });
 
-// Crossfade between scenes
-await transitionTo(app, 'game', { type: 'crossfade', duration: 0.5 });
+// Custom mask colour
+await transitionTo(app, 'game', {
+    type: 'fade',
+    duration: 0.5,
+    color: { r: 1, g: 1, b: 1, a: 1 },
+});
 ```
 
-| Transition Type | Description |
-|----------------|-------------|
-| `fade` | Fades to black, switches scene, fades in |
-| `crossfade` | Blends the old and new scenes simultaneously |
+`transitionTo` is a convenience wrapper around `mgr.switchTo()`. It obtains the `SceneManager` resource internally and calls `switchTo`. The process is asynchronous — the old scene fades out, the scene switch executes, then the new scene fades in.
 
 ## Querying Scene State
 
-Inspect which scenes are loaded and their current status:
+`SceneManager` provides a set of methods for inspecting scene status:
 
 ```typescript
 const mgr = app.getResource(SceneManager);
 
-mgr.getActive();                // current primary scene name or null
-mgr.getActiveScenes();          // all scenes with 'running' status
-mgr.getLoaded();                // all loaded scene names
-mgr.isLoaded('game');           // boolean
-mgr.isPaused('game');           // boolean
-mgr.isSleeping('game');         // boolean
-mgr.getSceneStatus('game');     // 'loading' | 'running' | 'paused' | 'sleeping' | 'unloading' | null
+mgr.getActive();            // current primary scene name, or null
+mgr.isActive('game');       // whether a given scene is the primary scene
+mgr.getActiveScenes();      // all scene names with 'running' status
+mgr.getLoaded();            // all loaded scene names
+mgr.isLoaded('game');       // whether the scene is loaded
+mgr.isPaused('game');       // whether the scene is paused
+mgr.isSleeping('game');     // whether the scene is sleeping
+mgr.isTransitioning();      // whether a scene transition is in progress
+mgr.getSceneStatus('game'); // detailed scene status
+mgr.getScene('game');       // get the scene's SceneContext, or null if not loaded
+mgr.getLoadOrder();         // scene names in load order
 ```
 
-| Method | Returns | Description |
-|--------|---------|-------------|
-| `getActive()` | `string \| null` | Name of the current primary scene |
-| `getActiveScenes()` | `string[]` | All scenes with `'running'` status |
-| `getLoaded()` | `string[]` | All loaded scene names (any status) |
-| `isLoaded(name)` | `boolean` | Whether the scene is currently loaded |
-| `isPaused(name)` | `boolean` | Whether the scene is paused |
-| `isSleeping(name)` | `boolean` | Whether the scene is sleeping |
-| `getSceneStatus(name)` | `string \| null` | Current status, or `null` if not loaded |
+`getSceneStatus` return values:
+
+| Status | Description |
+|--------|-------------|
+| `'loading'` | Scene is currently loading |
+| `'running'` | Scene is running |
+| `'paused'` | Scene is paused (systems stopped, entities visible) |
+| `'sleeping'` | Scene is sleeping (systems stopped, entities hidden) |
+| `'unloading'` | Scene is currently unloading |
+| `null` | Scene is not loaded |
+
+## Scene Layer Ordering
+
+When multiple scenes are loaded simultaneously, rendering and system execution follow load order. Use `bringToTop()` to move a scene to the top:
+
+```typescript
+const mgr = app.getResource(SceneManager);
+
+await mgr.loadAdditive('hud');
+await mgr.loadAdditive('dialog');
+
+mgr.bringToTop('hud');
+mgr.getLoadOrder();    // ['game', 'dialog', 'hud']
+```
 
 ## Scene Data Types
 

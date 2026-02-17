@@ -1,0 +1,143 @@
+---
+title: v0.5.1
+description: ESEngine v0.5.1 更新日志
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip">
+v0.5.1 带来了 Game View 面板与播放模式、可停靠面板布局、Content Drawer、场景管理、项目设置，以及大量编辑器和运行时改进。
+</Aside>
+
+## Game View 面板
+
+- 新增 Game View 面板，支持播放/暂停/停止控制和单帧步进
+- 分辨率预设（Free Aspect、16:9、9:16、4:3、1:1）及自定义分辨率输入
+- 播放速度控制和实时 FPS 计数器
+- 基于 iframe 的隔离预览，拥有独立 WASM 实例（不影响 Scene View 渲染器）
+- Game 面板在默认布局中作为 Scene 旁边的标签页
+
+## 播放模式
+
+- 播放期间 Hierarchy 和 Inspector 面板显示运行时实体
+- Hierarchy 显示运行时实体树及父子层级关系
+- Inspector 渲染运行时实体属性并自动刷新
+- 通过 `world.insert()` 编辑内置组件的运行时属性
+- 蓝色 "RUNTIME" 徽章和顶部边框指示播放模式激活
+
+## Dockview 布局系统
+
+- 用 dockview-core 替换固定分割器布局，支持拖拽停靠面板
+- 标签式面板分组、跨组拖拽面板、布局持久化到 localStorage
+- "Reset Layout" 命令恢复默认排列
+
+## Content Drawer
+
+- Content Drawer 从状态栏滑出打开（Ctrl+Space）
+- 点击外部或按 Escape 自动隐藏
+- "Dock in Layout" 按钮将 Content Browser 移入 dockview
+- Drawer 和停靠面板可独立共存
+- 可拖拽调整高度，高度持久化到 localStorage
+- 固定按钮保持 Drawer 常开
+
+## 场景管理
+
+- 新增 `SceneManager` 资源，支持 `load`/`unload`/`switchTo`/`loadAdditive`/`pause`/`resume`/`sleep`/`wake`
+- `SceneOwner` 组件用于实体到场景的生命周期追踪
+- 场景范围的绘制回调和按活跃场景过滤相机
+- `switchTo()` 内置淡入淡出转场，`transitionTo()` 支持 fade/crossfade
+- `wrapSceneSystem()` 根据场景状态条件执行系统
+- 集成到构建管线模板（Playable + 微信）
+
+## 项目设置
+
+- 将 12 个硬编码默认值暴露为可配置的项目设置
+- SDK 中新增 `RuntimeConfig`，支持运行时可配置默认值（转场时长、默认字体、Canvas 缩放模式、最大 Delta Time、固定时间步迭代次数、文本 Canvas 尺寸）
+- 编辑器设置面板新增 Build 和 Runtime 分区
+- 设置通过预览配置和构建模板传递
+
+## SDK 和运行时
+
+- 系统依赖排序，通过 `runBefore`/`runAfter` 和拓扑排序实现
+- 播放控制 API：`setPaused`、`stepFrame`、`setPlaySpeed`
+- 错误处理：每个系统的 `onSystemError` 回调，`onWasmError` 错误边界支持优雅降级
+- 集中式日志系统，支持可插拔处理器
+- Prefab 嵌套深度保护（`MAX_DEPTH=10`）
+- `AssetRefCounter` 用于资产使用监控
+- `setPipeline()` 方法替换不安全的类型转换
+- 未知 uniform 名称警告
+- 修复 `EventSource`/`TextInput`/输入监听器泄漏，`quit()` 时添加清理
+
+## 编辑器改进
+
+### Scene View 场景视图
+
+- 框选（点击拖拽选择多个实体）
+- 吸附到网格（Ctrl+拖拽），网格大小可配置
+- 快捷键：F（聚焦）、Delete、方向键、缩放
+- Space+拖拽平移，Shift 旋转角度吸附
+- 自适应网格细分
+
+### Inspector 检查器
+
+- 组件右键菜单（重置、复制、粘贴、排序）
+- 属性重置为默认值
+- AddComponent 键盘导航，搜索高亮
+- 响应式标签和组件图标
+- 播放模式下编辑运行时实体属性
+
+### Hierarchy 层级
+
+- 内联重命名（F2 / 右键菜单 / 慢速双击）
+- 方向键导航，支持展开/折叠
+- 多选：Ctrl+点击、Shift+点击范围选择、Ctrl+A 全选
+- 剪切（Ctrl+X）、递归复制、全部折叠/展开
+- ARIA tree 角色提升无障碍性
+
+### Content Browser 内容浏览器
+
+- 模糊搜索，支持递归文件匹配
+- 图片缩略图，LRU 缓存
+- 网格/列表视图切换
+- 多选（Ctrl/Shift），键盘导航
+- 空状态显示和返回按钮
+- ARIA grid 角色提升无障碍性
+
+### Output 输出面板
+
+- 每条日志显示时间戳
+- 类型过滤器（info/warn/error），显示计数徽章
+- 输出内容搜索
+- 右键菜单复制和命令分组
+
+### 快捷键
+
+- Ctrl+X 剪切实体
+- Ctrl+Space 切换 Content Drawer
+- Ctrl+1/2/3 面板聚焦
+- Ctrl+Shift+N 新建实体
+- Ctrl+Shift+Z 重做
+- Ctrl+S 在输入框中保存
+- Escape 关闭对话框和 Drawer
+
+## 性能
+
+- 基于 AABB 的视锥剔除
+- 非旋转四边形渲染快速路径
+- Shader Uniform 查找使用预解析的整数位置 ID
+- 编辑器模式下的 Shader 热重载
+
+## Bug 修复
+
+- 修复 `SceneManager.switchTo()` 在活跃转场期间的重入问题
+- 修复 `SceneManager.load()`/`loadAdditive()` 并发加载同一场景的竞态条件
+- 修复 `PostProcessPipeline` 在 resize 时的 FBO 泄漏
+- 修复场景转场中未等待 promise 导致的静默失败
+- 修复编辑器面板内存泄漏（Canvas 监听器、滚动监听器、右键菜单定时器）
+- 修复实体删除后选择状态未清除
+- 修复撤销闭包过期、拖拽撤销泛滥、Retina 显示器缩放 DPR
+- 修复设置校验、颜色范围、toast XSS、状态栏计数
+- 修复 `deleteSelectedEntities` 在命令执行前收集后代的问题
+- 修复 Prefab 保存，增加重试/丢弃对话框和自动保存恢复
+- 修复 WebGL 上下文初始化，使用 `GL.registerContext` + `initRendererWithContext`
+- 修复运行时场景校验错误

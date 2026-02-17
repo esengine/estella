@@ -147,6 +147,29 @@ addSystem(defineSystem(
 ));
 ```
 
+## 迭代安全
+
+在查询迭代过程中，**不能**直接创建或销毁实体，也不能插入或移除组件。这些操作会改变底层数据结构，导致迭代器失效。引擎会在迭代期间检测到这类操作并抛出错误，防止数据损坏。
+
+正确做法是使用 `Commands` 将修改延迟到迭代结束后执行：
+
+```typescript
+import { defineSystem, addSystem, Commands, Query, Health } from 'esengine';
+
+const despawnDead = defineSystem(
+    [Commands(), Query(Health)],
+    (commands, query) => {
+        for (const [entity, health] of query) {
+            if (health.value <= 0) {
+                commands.despawn(entity); // 延迟执行，安全
+            }
+        }
+    }
+);
+```
+
+`Commands` 的操作会在当前系统函数返回后统一刷新（flush），此时迭代已结束，修改不会影响正在进行的遍历。
+
 ## 下一步
 
 - [资源](/microes/zh/core-concepts/resources/) — 全局单例数据如 Time 和 Input
