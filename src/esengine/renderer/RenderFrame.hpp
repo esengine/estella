@@ -2,6 +2,7 @@
 
 #include "../core/Types.hpp"
 #include "RenderItem.hpp"
+#include "TextureSlotAllocator.hpp"
 #include "RenderTarget.hpp"
 #include "RenderContext.hpp"
 #include "PostProcessPipeline.hpp"
@@ -73,7 +74,7 @@ public:
     void clearEntityClipRect(u32 entity);
     void clearAllClipRects();
 
-    void submit(const RenderItem& item);
+    void submit(const RenderItemBase& item, const SpriteData& data);
     void submitExternalTriangles(
         const f32* vertices, i32 vertexCount,
         const u16* indices, i32 indexCount,
@@ -93,7 +94,7 @@ private:
     void sortAndBucket();
     void executeStage(RenderStage stage);
     void renderSprites(u32 begin, u32 end);
-    void renderSpriteWithMaterial(RenderItem* item);
+    void renderSpriteWithMaterial(const RenderItemBase& base, const SpriteData& data);
 #ifdef ES_ENABLE_SPINE
     void renderSpine(u32 begin, u32 end);
     void flushSpineBatch();
@@ -109,7 +110,16 @@ private:
     Unique<PostProcessPipeline> post_process_;
     RenderTargetManager target_manager_;
 
-    std::vector<RenderItem> items_;
+    std::vector<RenderItemBase> items_;
+    std::vector<u32> sorted_indices_;
+
+    std::vector<SpriteData> sprite_data_;
+    std::vector<TextData> text_data_;
+#ifdef ES_ENABLE_SPINE
+    std::vector<SpineData> spine_data_;
+#endif
+    std::vector<ExternalMeshData> ext_data_;
+
     glm::mat4 view_projection_{1.0f};
     Frustum frustum_;
     RenderTargetManager::Handle current_target_ = 0;
@@ -140,8 +150,7 @@ private:
     BlendMode spine_current_blend_ = BlendMode::Normal;
 
     static constexpr u32 SPINE_MAX_TEXTURE_SLOTS = 8;
-    std::array<u32, SPINE_MAX_TEXTURE_SLOTS> spine_texture_slots_{};
-    u32 spine_texture_slot_index_ = 1;
+    TextureSlotAllocator<SPINE_MAX_TEXTURE_SLOTS> spine_tex_slots_;
     resource::ShaderHandle spine_shader_handle_;
 
     u32 spine_vao_ = 0;

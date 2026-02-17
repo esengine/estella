@@ -3,9 +3,9 @@
  * @brief   Editor panels exports
  */
 
-export { HierarchyPanel } from './HierarchyPanel';
+export { HierarchyPanel } from './hierarchy/HierarchyPanel';
 export { InspectorPanel } from './InspectorPanel';
-export { SceneViewPanel } from './SceneViewPanel';
+export { SceneViewPanel } from './scene-view/SceneViewPanel';
 export { OutputPanel } from './OutputPanel';
 
 export {

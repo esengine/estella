@@ -74,16 +74,10 @@ jobs:
         key: ${{ runner.os }}-emscripten
         max-size: 500M
 
-    - name: Configure CMake
-      run: emcmake cmake -B build_web -G Ninja -DES_BUILD_WEB=ON -DES_ENABLE_CCACHE=ON
-
-    - name: Build
-      run: cmake --build build_web
-
     - name: Install dependencies
       run: pnpm install
 
-    - name: Build SDK
+    - name: Build all targets
       run: node build-tools/cli.js build -t all --manifest --no-sync
 
     - name: Track bundle sizes

@@ -93,8 +93,10 @@ public:
 
         if (entity >= entityValid_.size()) {
             entityValid_.resize(entity + 1, false);
+            generations_.resize(entity + 1, 0);
         }
         entityValid_[entity] = true;
+        generations_[entity]++;
         ++entity_count_;
 
         ES_LOG_TRACE("Created entity {}", entity);
@@ -127,8 +129,10 @@ public:
 
         if (entity >= entityValid_.size()) {
             entityValid_.resize(entity + 1, false);
+            generations_.resize(entity + 1, 0);
         }
         entityValid_[entity] = true;
+        generations_[entity]++;
         ++entity_count_;
 
         if (entity >= nextEntity_) {
@@ -173,10 +177,22 @@ public:
         return entity < entityValid_.size() && entityValid_[entity];
     }
 
-    /**
-     * @brief Gets the number of active (non-destroyed) entities
-     * @return Count of valid entities
-     */
+    bool valid(Entity entity, u32 generation) const {
+        return valid(entity) && entity < generations_.size() &&
+               generations_[entity] == generation;
+    }
+
+    u32 generation(Entity entity) const {
+        if (entity < generations_.size()) {
+            return generations_[entity];
+        }
+        return 0;
+    }
+
+    u64 entityHandle(Entity entity) const {
+        return makeEntityHandle(entity, generation(entity));
+    }
+
     usize entityCount() const {
         return entity_count_;
     }
@@ -390,6 +406,7 @@ public:
             pool->clear();
         }
         entityValid_.clear();
+        generations_.clear();
         while (!recycled_.empty()) recycled_.pop();
         nextEntity_ = 0;
         entity_count_ = 0;
@@ -551,13 +568,10 @@ private:
     // Data Members
     // =========================================================================
 
-    /** @brief Validity flags for each entity ID */
     std::vector<bool> entityValid_;
-    /** @brief Queue of recycled entity IDs */
+    std::vector<u32> generations_;
     std::queue<Entity> recycled_;
-    /** @brief Next entity ID to allocate */
     Entity nextEntity_ = 0;
-    /** @brief Cached count of valid entities */
     usize entity_count_ = 0;
 
     /** @brief Type-erased component pools indexed by TypeId */

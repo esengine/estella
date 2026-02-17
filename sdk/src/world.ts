@@ -7,6 +7,7 @@ import { Entity } from './types';
 import { AnyComponentDef, ComponentDef, ComponentData, BuiltinComponentDef, isBuiltinComponent } from './component';
 import type { CppRegistry } from './wasm';
 import { validateComponentData, formatValidationErrors } from './validation';
+import { handleWasmError } from './wasmError';
 
 function convertForWasm(obj: Record<string, unknown>): Record<string, unknown> {
     const result: Record<string, unknown> = {};
@@ -78,7 +79,12 @@ export class World {
         let entity: Entity;
 
         if (this.cppRegistry_) {
-            entity = this.cppRegistry_.create();
+            try {
+                entity = this.cppRegistry_.create();
+            } catch (e) {
+                handleWasmError(e, 'spawn');
+                throw e;
+            }
         } else {
             entity = (this.entities_.size + 1) as Entity;
         }
@@ -96,7 +102,11 @@ export class World {
         }
 
         if (this.cppRegistry_) {
-            this.cppRegistry_.destroy(entity);
+            try {
+                this.cppRegistry_.destroy(entity);
+            } catch (e) {
+                handleWasmError(e, `despawn(entity=${entity})`);
+            }
         }
         this.entities_.delete(entity);
         this.worldVersion_++;
@@ -150,13 +160,21 @@ export class World {
 
     setParent(child: Entity, parent: Entity): void {
         if (this.cppRegistry_) {
-            this.cppRegistry_.setParent(child, parent);
+            try {
+                this.cppRegistry_.setParent(child, parent);
+            } catch (e) {
+                handleWasmError(e, `setParent(child=${child}, parent=${parent})`);
+            }
         }
     }
 
     removeParent(entity: Entity): void {
         if (this.cppRegistry_) {
-            this.cppRegistry_.removeParent(entity);
+            try {
+                this.cppRegistry_.removeParent(entity);
+            } catch (e) {
+                handleWasmError(e, `removeParent(entity=${entity})`);
+            }
         }
     }
 
@@ -188,9 +206,14 @@ export class World {
     tryGet<C extends AnyComponentDef>(entity: Entity, component: C): ComponentData<C> | null {
         if (isBuiltinComponent(component)) {
             if (!this.cppRegistry_) return null;
-            const methods = this.getBuiltinMethods(component._cppName);
-            if (!methods.has(entity)) return null;
-            return methods.get(entity) as ComponentData<C>;
+            try {
+                const methods = this.getBuiltinMethods(component._cppName);
+                if (!methods.has(entity)) return null;
+                return methods.get(entity) as ComponentData<C>;
+            } catch (e) {
+                handleWasmError(e, `tryGet(${component._name}, entity=${entity})`);
+                return null;
+            }
         }
         if (!this.hasScript(entity, component as ComponentDef<any>)) return null;
         return this.getScript(entity, component as ComponentDef<any>) as ComponentData<C>;
@@ -251,7 +274,11 @@ export class World {
         const merged = { ...component._default, ...filtered } as T;
 
         if (this.cppRegistry_) {
-            this.getBuiltinMethods(component._cppName).add(entity, convertForWasm(merged as Record<string, unknown>));
+            try {
+                this.getBuiltinMethods(component._cppName).add(entity, convertForWasm(merged as Record<string, unknown>));
+            } catch (e) {
+                handleWasmError(e, `insertBuiltin(${component._name}, entity=${entity})`);
+            }
         }
 
         return merged;
@@ -261,21 +288,35 @@ export class World {
         if (!this.cppRegistry_) {
             throw new Error('C++ Registry not connected');
         }
-        return this.getBuiltinMethods(component._cppName).get(entity) as T;
+        try {
+            return this.getBuiltinMethods(component._cppName).get(entity) as T;
+        } catch (e) {
+            handleWasmError(e, `getBuiltin(${component._name}, entity=${entity})`);
+            return { ...component._default } as T;
+        }
     }
 
     private hasBuiltin(entity: Entity, component: BuiltinComponentDef<any>): boolean {
         if (!this.cppRegistry_) {
             return false;
         }
-        return this.getBuiltinMethods(component._cppName).has(entity);
+        try {
+            return this.getBuiltinMethods(component._cppName).has(entity);
+        } catch (e) {
+            handleWasmError(e, `hasBuiltin(${component._name}, entity=${entity})`);
+            return false;
+        }
     }
 
     private removeBuiltin(entity: Entity, component: BuiltinComponentDef<any>): void {
         if (!this.cppRegistry_) {
             return;
         }
-        this.getBuiltinMethods(component._cppName).remove(entity);
+        try {
+            this.getBuiltinMethods(component._cppName).remove(entity);
+        } catch (e) {
+            handleWasmError(e, `removeBuiltin(${component._name}, entity=${entity})`);
+        }
     }
 
     // =========================================================================

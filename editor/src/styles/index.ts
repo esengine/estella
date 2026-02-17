@@ -3,7 +3,7 @@
  * @brief   Editor styles loader
  */
 
-export const EDITOR_STYLES_URL = new URL('./editor.css', import.meta.url).href;
+export const EDITOR_STYLES_URL = new URL('./index.css', import.meta.url).href;
 
 export function injectEditorStyles(): void {
     if (document.querySelector('link[data-es-editor-styles]')) {

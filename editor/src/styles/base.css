@@ -1,0 +1,607 @@
+/* =============================================================================
+ * Variables
+ * ============================================================================= */
+
+:root {
+    --es-bg-primary: #1e1e1e;
+    --es-bg-secondary: #252526;
+    --es-bg-tertiary: #2d2d30;
+    --es-bg-hover: #3e3e42;
+    --es-border: #3c3c3c;
+    --es-text-primary: #cccccc;
+    --es-text-secondary: #8c8c8c;
+    --es-accent: #0078d4;
+    --es-accent-hover: #1084d8;
+    --es-danger: #f44336;
+    --es-success: #4caf50;
+    --es-warning: #f0ad4e;
+    --es-error: #d9534f;
+    --es-input-bg: #2d2d2d;
+    --es-text-disabled: #555555;
+    --es-text-muted: #737373;
+    --es-scrollbar-track: #1e1e1e;
+    --es-scrollbar-thumb: #424242;
+    --es-scrollbar-thumb-hover: #555555;
+    --es-accent-gold: #d19a66;
+    --es-prefab: #4fc1ff;
+    --es-drag: #61afef;
+    --es-selection-bg: rgba(209, 154, 102, 0.2);
+    --es-radius-sm: 3px;
+    --es-radius-md: 4px;
+    --es-radius-lg: 6px;
+    --es-font-xs: 10px;
+    --es-font-sm: 11px;
+    --es-font-md: 12px;
+    --es-font-base: 13px;
+    --es-font-lg: 14px;
+}
+
+*, *::before, *::after {
+    box-sizing: border-box;
+}
+
+/* =============================================================================
+ * Scrollbar
+ * ============================================================================= */
+
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--es-scrollbar-track);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--es-scrollbar-thumb);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--es-scrollbar-thumb-hover);
+}
+
+::-webkit-scrollbar-corner {
+    background: var(--es-scrollbar-track);
+}
+
+/* =============================================================================
+ * SVG Icons
+ * ============================================================================= */
+
+.es-editor svg {
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.es-btn-icon svg {
+    stroke: var(--es-text-primary);
+}
+
+.es-btn-icon:hover svg {
+    stroke: #e0e0e0;
+}
+
+.es-btn-icon.es-active {
+    background: var(--es-accent);
+    border-radius: 3px;
+}
+
+.es-btn-icon.es-active svg {
+    stroke: white;
+}
+
+.es-hierarchy-visibility svg,
+.es-hierarchy-expand svg,
+.es-hierarchy-icon svg {
+    stroke: var(--es-text-secondary);
+}
+
+.es-hierarchy-item.es-selected .es-hierarchy-icon svg {
+    stroke: var(--es-accent-gold);
+}
+
+.es-btn-remove svg {
+    stroke: var(--es-text-secondary);
+}
+
+.es-btn-remove:hover svg {
+    stroke: var(--es-danger);
+}
+
+/* =============================================================================
+ * Editor Layout
+ * ============================================================================= */
+
+.es-editor {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    background: var(--es-bg-primary);
+    color: var(--es-text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 13px;
+}
+
+/* =============================================================================
+ * Common Elements
+ * ============================================================================= */
+
+.es-btn {
+    padding: 4px 10px;
+    background: var(--es-bg-tertiary);
+    border: 1px solid var(--es-border);
+    color: var(--es-text-primary);
+    font-size: 11px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.es-btn:hover:not(:disabled) {
+    background: var(--es-bg-hover);
+}
+
+.es-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.es-btn-icon {
+    padding: 2px 6px;
+    min-width: 20px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.es-btn-remove {
+    background: transparent;
+    border: none;
+    color: var(--es-text-secondary);
+    font-size: 16px;
+}
+
+.es-btn-remove:hover {
+    color: var(--es-danger);
+}
+
+.es-btn-clear {
+    background: transparent !important;
+    border: none !important;
+    opacity: 0.5;
+}
+
+.es-btn-clear:hover {
+    opacity: 1;
+}
+
+.es-btn-clear svg {
+    stroke: var(--es-text-secondary);
+}
+
+.es-btn-clear:hover svg {
+    stroke: var(--es-danger);
+}
+
+.es-input {
+    padding: 4px 6px;
+    background: var(--es-bg-primary);
+    border: 1px solid var(--es-border);
+    color: var(--es-text-primary);
+    font-size: 11px;
+    width: 100%;
+}
+
+.es-input:focus {
+    outline: none;
+    border-color: var(--es-accent);
+}
+
+.es-input-number {
+    width: 100%;
+    -moz-appearance: textfield;
+}
+
+.es-input-number::-webkit-outer-spin-button,
+.es-input-number::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.es-validation-error {
+    border-color: var(--es-danger) !important;
+    animation: shake 0.3s;
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    75% { transform: translateX(4px); }
+}
+
+.es-number-editor {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    border: 1px solid var(--es-border);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.es-number-editor .es-input-number {
+    border: none;
+    border-radius: 0;
+}
+
+.es-number-drag-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 24px;
+    background: var(--es-input-bg);
+    color: #666;
+    font-size: 10px;
+    cursor: ew-resize;
+    user-select: none;
+    border-right: 1px solid var(--es-border);
+    letter-spacing: -2px;
+}
+
+.es-number-drag-label:hover {
+    background: var(--es-bg-hover);
+    color: #999;
+}
+
+.es-input-checkbox {
+    width: 14px;
+    height: 14px;
+    margin: 0;
+    cursor: pointer;
+    accent-color: var(--es-accent-gold);
+}
+
+.es-input-select {
+    width: 100%;
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23808080' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    padding-right: 28px;
+}
+
+/* =============================================================================
+ * Vector Editors
+ * ============================================================================= */
+
+.es-vec-editor {
+    display: flex;
+    gap: 2px;
+    width: 100%;
+}
+
+.es-vec-field {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    min-width: 0;
+    border: 1px solid var(--es-border);
+}
+
+.es-vec-label {
+    width: 18px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 600;
+    color: #fff;
+    background: var(--es-text-secondary);
+    flex-shrink: 0;
+    cursor: ew-resize;
+    user-select: none;
+}
+
+.es-vec-field.es-vec-x .es-vec-label {
+    background: #c94c4c;
+}
+
+.es-vec-field.es-vec-y .es-vec-label {
+    background: #5cb85c;
+}
+
+.es-vec-field.es-vec-z .es-vec-label {
+    background: #5bc0de;
+}
+
+.es-vec-field.es-vec-w .es-vec-label {
+    background: #9b59b6;
+}
+
+.es-vec-field .es-input {
+    flex: 1;
+    min-width: 0;
+    width: 100%;
+    border: none;
+    padding: 2px 4px;
+    height: 22px;
+    font-size: 11px;
+    -moz-appearance: textfield;
+}
+
+.es-vec-field .es-input::-webkit-outer-spin-button,
+.es-vec-field .es-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.es-vec-field .es-input:focus {
+    outline: none;
+    background: var(--es-bg-tertiary);
+}
+
+/* =============================================================================
+ * Color Editor
+ * ============================================================================= */
+
+.es-color-editor {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    width: 100%;
+}
+
+.es-input-color {
+    width: 32px;
+    height: 22px;
+    padding: 0;
+    border: 1px solid var(--es-border);
+    cursor: pointer;
+    background: none;
+}
+
+.es-input-color::-webkit-color-swatch-wrapper {
+    padding: 1px;
+}
+
+.es-input-color::-webkit-color-swatch {
+    border: none;
+}
+
+.es-input-hex {
+    flex: 2;
+    min-width: 60px;
+    font-family: monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+}
+
+.es-input-alpha {
+    flex: 1;
+    min-width: 40px;
+}
+
+/* =============================================================================
+ * Button Transition Editor
+ * ============================================================================= */
+
+.es-btn-transition-section {
+    background: var(--es-bg-secondary);
+    border: 1px solid var(--es-border);
+    overflow: hidden;
+}
+
+.es-btn-transition-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    background: var(--es-bg-tertiary);
+    cursor: pointer;
+    border-bottom: 1px solid transparent;
+}
+
+.es-btn-transition-section.es-expanded .es-btn-transition-header {
+    border-bottom-color: var(--es-border);
+}
+
+.es-btn-transition-header:hover {
+    background: var(--es-bg-hover);
+}
+
+.es-btn-transition-title {
+    flex: 1;
+    font-weight: 500;
+    font-size: 11px;
+}
+
+.es-btn-transition-content {
+    padding: 6px 8px;
+}
+
+.es-btn-transition-content .es-property-row {
+    margin-bottom: 4px;
+}
+
+.es-btn-transition-content .es-property-row:last-child {
+    margin-bottom: 0;
+}
+
+/* =============================================================================
+ * Container Classes
+ * ============================================================================= */
+
+.es-hierarchy-container,
+.es-inspector-container,
+.es-sceneview-container {
+    height: 100%;
+}
+
+.es-panel-container {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+/* =============================================================================
+ * Error Boundaries
+ * ============================================================================= */
+
+.es-error-fallback {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  text-align: center;
+  background: rgba(224, 108, 117, 0.05);
+  border: 2px dashed rgba(224, 108, 117, 0.3);
+  border-radius: 8px;
+  margin: 20px;
+  min-height: 200px;
+}
+
+.es-error-fallback-icon {
+  color: #e06c75;
+  margin-bottom: 16px;
+}
+
+.es-error-fallback-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+  color: #e06c75;
+}
+
+.es-error-fallback-message {
+  font-size: 14px;
+  margin: 0 0 16px 0;
+  color: var(--es-text-secondary);
+  max-width: 600px;
+}
+
+.es-error-fallback-details {
+  margin: 16px 0;
+  width: 100%;
+  max-width: 700px;
+  text-align: left;
+}
+
+.es-error-fallback-details summary {
+  cursor: pointer;
+  padding: 8px 12px;
+  background: var(--es-bg-secondary);
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--es-text-secondary);
+  user-select: none;
+}
+
+.es-error-fallback-details summary:hover {
+  background: var(--es-bg-tertiary);
+}
+
+.es-error-fallback-stack {
+  background: var(--es-bg-tertiary);
+  padding: 12px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  overflow-x: auto;
+  max-height: 200px;
+  overflow-y: auto;
+  margin-top: 8px;
+  color: var(--es-text-primary);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.es-error-fallback-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.es-hidden {
+    display: none !important;
+}
+
+.es-muted {
+    color: var(--es-text-secondary);
+    font-size: 11px;
+    padding: 8px;
+}
+
+/* =============================================================================
+ * Focus Visible
+ * ============================================================================= */
+
+.es-btn:focus-visible,
+.es-btn-icon:focus-visible,
+.es-gizmo-btn:focus-visible,
+.es-menu-trigger:focus-visible,
+.es-menu-item:focus-visible,
+.es-context-menu-item:focus-visible,
+.es-input:focus-visible,
+.es-input-checkbox:focus-visible,
+.es-statusbar-btn:focus-visible {
+    outline: 2px solid var(--es-accent);
+    outline-offset: 2px;
+}
+
+/* =============================================================================
+ * Active / Pressed States
+ * ============================================================================= */
+
+.es-btn:active:not(:disabled) {
+    background: var(--es-bg-primary);
+}
+
+.es-btn-icon:active {
+    background: var(--es-bg-primary);
+}
+
+.es-gizmo-btn:active {
+    background: var(--es-bg-primary);
+}
+
+/* =============================================================================
+ * Splitter
+ * ============================================================================= */
+
+.es-splitter {
+    background: var(--es-border);
+    flex-shrink: 0;
+    transition: background 0.15s;
+}
+
+.es-splitter:hover {
+    background: var(--es-accent);
+}
+
+.es-splitter-horizontal {
+    width: 100%;
+    height: 4px;
+    cursor: ns-resize;
+}
+
+.es-splitter-vertical {
+    width: 4px;
+    height: 100%;
+    cursor: ew-resize;
+}
+
+/* =============================================================================
+ * Reduced Motion
+ * ============================================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}

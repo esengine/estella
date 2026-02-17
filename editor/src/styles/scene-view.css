@@ -1,0 +1,192 @@
+/* =============================================================================
+ * SceneView Panel
+ * ============================================================================= */
+
+.es-sceneview-panel {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.es-sceneview-tools {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.es-zoom-display {
+    font-size: 11px;
+    color: var(--es-text-secondary);
+    min-width: 40px;
+}
+
+.es-sceneview-viewport {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    background: #1a1a1a;
+}
+
+.es-sceneview-webgl {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    pointer-events: none;
+}
+
+.es-sceneview-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    pointer-events: auto;
+}
+
+.es-sceneview-canvas {
+    display: block;
+}
+
+.es-gizmo-toolbar {
+    display: flex;
+    gap: 2px;
+    background: var(--es-bg-tertiary);
+    border-radius: 4px;
+    padding: 2px;
+}
+
+.es-gizmo-btn {
+    background: transparent;
+    border: none;
+    border-radius: 3px;
+    padding: 4px;
+    opacity: 0.6;
+}
+
+.es-gizmo-btn:hover {
+    background: var(--es-bg-hover);
+    opacity: 1;
+}
+
+.es-gizmo-btn.es-active {
+    background: var(--es-accent);
+    opacity: 1;
+}
+
+.es-gizmo-btn.es-active svg {
+    stroke: white;
+}
+
+.es-toolbar-divider {
+    width: 1px;
+    height: 20px;
+    background: var(--es-border);
+    margin: 0 4px;
+}
+
+/* Gizmo Settings Dropdown */
+.es-gizmo-settings-wrapper {
+    position: relative;
+}
+
+.es-gizmo-settings-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 4px;
+    min-width: 180px;
+    background: var(--es-bg-secondary);
+    border: 1px solid var(--es-border);
+    border-radius: 4px;
+    padding: 8px;
+    z-index: 1000;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.es-settings-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 0;
+    gap: 8px;
+}
+
+.es-settings-label {
+    font-size: 11px;
+    color: var(--es-text-secondary);
+    white-space: nowrap;
+}
+
+.es-settings-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--es-text-primary);
+    cursor: pointer;
+}
+
+.es-settings-checkbox input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+    cursor: pointer;
+    accent-color: var(--es-accent);
+}
+
+.es-settings-divider {
+    height: 1px;
+    background: var(--es-border);
+    margin: 6px 0;
+}
+
+.es-color-input {
+    width: 32px;
+    height: 22px;
+    padding: 0;
+    border: 1px solid var(--es-border);
+    border-radius: 3px;
+    background: transparent;
+    cursor: pointer;
+}
+
+.es-color-input::-webkit-color-swatch-wrapper {
+    padding: 2px;
+}
+
+.es-color-input::-webkit-color-swatch {
+    border: none;
+    border-radius: 2px;
+}
+
+.es-slider-input {
+    width: 80px;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: var(--es-bg-tertiary);
+    border-radius: 2px;
+    cursor: pointer;
+}
+
+.es-slider-input::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--es-accent);
+    cursor: pointer;
+}
+
+.es-slider-input::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--es-accent);
+    border: none;
+    cursor: pointer;
+}

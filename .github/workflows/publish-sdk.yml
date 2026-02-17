@@ -32,6 +32,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      - name: Type-check SDK
+        run: npx tsc --noEmit -p sdk/tsconfig.json
+
+      - name: Run SDK tests
+        working-directory: sdk
+        run: pnpm run test
+
       - name: Build SDK
         working-directory: sdk
         run: pnpm run build

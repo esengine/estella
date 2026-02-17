@@ -527,3 +527,9 @@ export {
     initGLDebugAPI,
     shutdownGLDebugAPI,
 } from './glDebug';
+
+// =============================================================================
+// WASM Error Handling
+// =============================================================================
+
+export { setWasmErrorHandler } from './wasmError';

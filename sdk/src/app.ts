@@ -18,6 +18,7 @@ import { initGeometryAPI, shutdownGeometryAPI } from './geometry';
 import { initPostProcessAPI, shutdownPostProcessAPI } from './postprocess';
 import { initRendererAPI, shutdownRendererAPI } from './renderer';
 import { initGLDebugAPI, shutdownGLDebugAPI } from './glDebug';
+import { setWasmErrorHandler } from './wasmError';
 import { platformNow } from './platform';
 import { ProjectionType, ScaleMode, SceneOwner } from './component';
 import type { Entity } from './types';
@@ -71,6 +72,7 @@ export class App {
     private physicsInitPromise_?: Promise<unknown>;
     private physicsModule_?: unknown;
     private readonly installed_plugins_ = new Set<Plugin>();
+    private readonly sortedSystemsCache_ = new Map<Schedule, SystemEntry[]>();
     private error_handler_: ((error: unknown, systemName: string) => void) | null = null;
     private system_error_handler_: ((error: Error, systemName?: string) => 'continue' | 'pause') | null = null;
     private frame_paused_ = false;
@@ -124,6 +126,7 @@ export class App {
             runBefore: options?.runBefore,
             runAfter: options?.runAfter,
         });
+        this.sortedSystemsCache_.delete(schedule);
         return this;
     }
 
@@ -155,6 +158,10 @@ export class App {
 
     get pipeline(): RenderPipeline | null {
         return this.pipeline_;
+    }
+
+    setPipeline(pipeline: RenderPipeline): void {
+        this.pipeline_ = pipeline;
     }
 
     setSpineRenderer(fn: SpineRendererFn | null): void {
@@ -219,6 +226,11 @@ export class App {
 
     onSystemError(handler: (error: Error, systemName?: string) => 'continue' | 'pause'): this {
         this.system_error_handler_ = handler;
+        return this;
+    }
+
+    onWasmError(handler: (error: unknown, context: string) => void): this {
+        setWasmErrorHandler(handler);
         return this;
     }
 
@@ -406,13 +418,19 @@ export class App {
     }
 
     private runSchedule(schedule: Schedule): void {
-        let systems = this.systems_.get(schedule);
-        if (!systems || !this.runner_ || this.frame_paused_) {
+        const rawSystems = this.systems_.get(schedule);
+        if (!rawSystems || !this.runner_ || this.frame_paused_) {
             return;
         }
 
-        if (systems.some(s => s.runBefore || s.runAfter)) {
-            systems = this.sortSystems(systems);
+        let systems = this.sortedSystemsCache_.get(schedule);
+        if (!systems) {
+            if (rawSystems.some(s => s.runBefore || s.runAfter)) {
+                systems = this.sortSystems(rawSystems);
+            } else {
+                systems = rawSystems;
+            }
+            this.sortedSystemsCache_.set(schedule, systems);
         }
 
         for (const entry of systems) {
@@ -474,7 +492,7 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
     initGLDebugAPI(module);
 
     const pipeline = new RenderPipeline();
-    (app as any).pipeline_ = pipeline;
+    app.setPipeline(pipeline);
     let startTime = platformNow();
 
     const getViewportSize = options?.getViewportSize ?? (() => ({

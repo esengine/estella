@@ -15,17 +15,16 @@
       "import": "./dist/wasm.js",
       "types": "./dist/wasm.d.ts"
     },
-    "./scene": {
-      "import": "./dist/scene/index.js",
-      "types": "./dist/scene/index.d.ts"
-    },
-    "./assets": {
-      "import": "./dist/assets/index.js",
-      "types": "./dist/assets/index.d.ts"
+    "./wechat": {
+      "import": "./dist/index.wechat.js"
     },
     "./spine": {
       "import": "./dist/spine/index.js",
       "types": "./dist/spine/index.d.ts"
+    },
+    "./physics": {
+      "import": "./dist/physics/index.js",
+      "types": "./dist/physics/index.d.ts"
     }
   },
   "files": [

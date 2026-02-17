@@ -119,6 +119,13 @@ void RenderFrame::init(u32 width, u32 height) {
     post_process_->init(width, height);
 
     items_.reserve(1024);
+    sorted_indices_.reserve(1024);
+    sprite_data_.reserve(512);
+    text_data_.reserve(64);
+    ext_data_.reserve(32);
+#ifdef ES_ENABLE_SPINE
+    spine_data_.reserve(32);
+#endif
 
 #ifdef ES_ENABLE_SPINE
     spine_vertices_.reserve(1024);
@@ -183,9 +190,7 @@ void RenderFrame::init(u32 width, u32 height) {
         }
     }
 
-    for (u32 i = 0; i < SPINE_MAX_TEXTURE_SLOTS; ++i) {
-        spine_texture_slots_[i] = context_.getWhiteTextureId();
-    }
+    spine_tex_slots_.init(context_.getWhiteTextureId());
 #endif
 
     glGenVertexArrays(1, &ext_mesh_vao_);
@@ -251,6 +256,13 @@ void RenderFrame::shutdown() {
     mat_sprite_ebo_initialized_ = false;
 
     items_.clear();
+    sorted_indices_.clear();
+    sprite_data_.clear();
+    text_data_.clear();
+    ext_data_.clear();
+#ifdef ES_ENABLE_SPINE
+    spine_data_.clear();
+#endif
     ES_LOG_INFO("RenderFrame shutdown");
 }
 
@@ -271,6 +283,13 @@ void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::H
     in_frame_ = true;
 
     items_.clear();
+    sorted_indices_.clear();
+    sprite_data_.clear();
+    text_data_.clear();
+    ext_data_.clear();
+#ifdef ES_ENABLE_SPINE
+    spine_data_.clear();
+#endif
     ext_storage_count_ = 0;
     ext_submit_order_ = 0;
     stats_ = Stats{};
@@ -368,47 +387,51 @@ void RenderFrame::submitSprites(ecs::Registry& registry) {
             continue;
         }
 
-        RenderItem item;
-        item.entity = entity;
-        item.type = RenderType::Sprite;
-        item.stage = current_stage_;
+        RenderItemBase base;
+        base.entity = entity;
+        base.type = RenderType::Sprite;
+        base.stage = current_stage_;
 
-        item.world_position = position;
-        item.world_scale = glm::vec2(scale);
+        base.world_position = position;
+        base.world_scale = glm::vec2(scale);
         f32 sinHalfAngle = rotation.z;
         f32 cosHalfAngle = rotation.w;
-        item.world_angle = 2.0f * std::atan2(sinHalfAngle, cosHalfAngle);
+        base.world_angle = 2.0f * std::atan2(sinHalfAngle, cosHalfAngle);
+
+        base.layer = sprite.layer;
+        base.depth = position.z;
+        base.color = sprite.color;
+
+        base.texture_id = context_.getWhiteTextureId();
+
+        SpriteData sd;
+        sd.size = sprite.size;
+        sd.uv_offset = sprite.uvOffset;
+        sd.uv_scale = sprite.uvScale;
+        sd.flip_x = sprite.flipX;
+        sd.flip_y = sprite.flipY;
+        sd.material_id = sprite.material;
 
         if (sprite.material != 0) {
-            item.transform = glm::mat4(1.0f);
-            item.transform = glm::translate(item.transform, position);
-            item.transform *= glm::mat4_cast(rotation);
-            item.transform = glm::scale(item.transform, scale);
+            sd.transform = glm::mat4(1.0f);
+            sd.transform = glm::translate(sd.transform, position);
+            sd.transform *= glm::mat4_cast(rotation);
+            sd.transform = glm::scale(sd.transform, scale);
         }
 
-        item.layer = sprite.layer;
-        item.depth = position.z;
-        item.size = sprite.size;
-        item.color = sprite.color;
-        item.uv_offset = sprite.uvOffset;
-        item.uv_scale = sprite.uvScale;
-        item.flip_x = sprite.flipX;
-        item.flip_y = sprite.flipY;
-
-        item.texture_id = context_.getWhiteTextureId();
         if (sprite.texture.isValid()) {
             Texture* tex = resource_manager_.getTexture(sprite.texture);
             if (tex) {
-                item.texture_id = tex->getId();
-                item.texture_size = glm::vec2(
+                base.texture_id = tex->getId();
+                sd.texture_size = glm::vec2(
                     static_cast<f32>(tex->getWidth()),
                     static_cast<f32>(tex->getHeight())
                 );
 
                 const auto* metadata = resource_manager_.getTextureMetadata(sprite.texture);
                 if (metadata && metadata->sliceBorder.hasSlicing()) {
-                    item.use_nine_slice = true;
-                    item.slice_border = glm::vec4(
+                    sd.use_nine_slice = true;
+                    sd.slice_border = glm::vec4(
                         metadata->sliceBorder.left,
                         metadata->sliceBorder.right,
                         metadata->sliceBorder.top,
@@ -418,17 +441,17 @@ void RenderFrame::submitSprites(ecs::Registry& registry) {
             }
         }
 
-        item.material_id = sprite.material;
-
         if (!clip_rects_.empty()) {
             auto it = clip_rects_.find(static_cast<u32>(entity));
             if (it != clip_rects_.end()) {
-                item.scissor_enabled = true;
-                item.scissor = it->second;
+                base.scissor_enabled = true;
+                base.scissor = it->second;
             }
         }
 
-        items_.push_back(item);
+        base.data_index = static_cast<u32>(sprite_data_.size());
+        sprite_data_.push_back(sd);
+        items_.push_back(base);
         stats_.sprites++;
     }
 }
@@ -476,34 +499,37 @@ void RenderFrame::submitBitmapText(ecs::Registry& registry) {
             continue;
         }
 
-        RenderItem item;
-        item.entity = entity;
-        item.type = RenderType::Text;
-        item.stage = current_stage_;
+        RenderItemBase base;
+        base.entity = entity;
+        base.type = RenderType::Text;
+        base.stage = current_stage_;
 
-        item.world_position = position;
-        item.world_scale = glm::vec2(scale);
-        item.layer = bt.layer;
-        item.depth = position.z;
-        item.color = bt.color;
-        item.texture_id = tex->getId();
+        base.world_position = position;
+        base.world_scale = glm::vec2(scale);
+        base.layer = bt.layer;
+        base.depth = position.z;
+        base.color = bt.color;
+        base.texture_id = tex->getId();
 
-        item.font_data = font;
-        item.text_data = bt.text.c_str();
-        item.text_length = static_cast<u16>(bt.text.size());
-        item.font_size = bt.fontSize;
-        item.text_align = static_cast<u8>(bt.align);
-        item.text_spacing = bt.spacing;
+        TextData td;
+        td.font_data = font;
+        td.text_data = bt.text.c_str();
+        td.text_length = static_cast<u16>(bt.text.size());
+        td.font_size = bt.fontSize;
+        td.text_align = static_cast<u8>(bt.align);
+        td.text_spacing = bt.spacing;
 
         if (!clip_rects_.empty()) {
             auto it = clip_rects_.find(static_cast<u32>(entity));
             if (it != clip_rects_.end()) {
-                item.scissor_enabled = true;
-                item.scissor = it->second;
+                base.scissor_enabled = true;
+                base.scissor = it->second;
             }
         }
 
-        items_.push_back(item);
+        base.data_index = static_cast<u32>(text_data_.size());
+        text_data_.push_back(td);
+        items_.push_back(base);
         stats_.text++;
     }
 }
@@ -534,36 +560,41 @@ void RenderFrame::submitSpine(ecs::Registry& registry, spine::SpineSystem& spine
             scale = local.scale;
         }
 
-        RenderItem item;
-        item.entity = entity;
-        item.type = RenderType::Spine;
-        item.stage = current_stage_;
+        RenderItemBase base;
+        base.entity = entity;
+        base.type = RenderType::Spine;
+        base.stage = current_stage_;
 
-        item.transform = glm::mat4(1.0f);
-        item.transform = glm::translate(item.transform, position);
-        item.transform *= glm::mat4_cast(rotation);
-        item.transform = glm::scale(item.transform, scale);
+        base.world_position = position;
+        base.world_scale = glm::vec2(scale);
+        base.layer = comp.layer;
+        base.depth = position.z;
 
-        item.world_position = position;
-        item.world_scale = glm::vec2(scale);
+        SpineData sd;
+        sd.transform = glm::mat4(1.0f);
+        sd.transform = glm::translate(sd.transform, position);
+        sd.transform *= glm::mat4_cast(rotation);
+        sd.transform = glm::scale(sd.transform, scale);
+        sd.skeleton = instance->skeleton.get();
+        sd.tint_color = comp.color;
+        sd.material_id = comp.material;
 
-        item.layer = comp.layer;
-        item.depth = position.z;
-        item.skeleton = instance->skeleton.get();
-        item.tint_color = comp.color;
-        item.material_id = comp.material;
-
-        items_.push_back(item);
+        base.data_index = static_cast<u32>(spine_data_.size());
+        spine_data_.push_back(sd);
+        items_.push_back(base);
         stats_.spine++;
     }
 }
 #endif
 
-void RenderFrame::submit(const RenderItem& item) {
-    RenderItem copy = item;
+void RenderFrame::submit(const RenderItemBase& item, const SpriteData& data) {
+    RenderItemBase copy = item;
     if (copy.stage == RenderStage::Transparent && copy.stage != current_stage_) {
         copy.stage = current_stage_;
     }
+
+    copy.data_index = static_cast<u32>(sprite_data_.size());
+    sprite_data_.push_back(data);
     items_.push_back(copy);
 
     switch (copy.type) {
@@ -596,30 +627,39 @@ void RenderFrame::submitExternalTriangles(
     }
     u32 storageIdx = ext_storage_count_++;
 
+    RenderItemBase base;
+    base.type = RenderType::ExternalMesh;
+    base.stage = current_stage_;
+    base.texture_id = 0;
+    base.depth = 1.0f - static_cast<f32>(ext_submit_order_++) * 0.0001f;
+    base.blend_mode = static_cast<BlendMode>(blendMode);
 
-    RenderItem item;
-    item.type = RenderType::ExternalMesh;
-    item.stage = current_stage_;
-    item.ext_bind_texture = textureId;
-    item.texture_id = 0;
-    item.depth = 1.0f - static_cast<f32>(ext_submit_order_++) * 0.0001f;
-    item.blend_mode = static_cast<BlendMode>(blendMode);
-    item.ext_vertices = ext_vertex_storage_[storageIdx].data();
-    item.ext_vertex_count = vertexCount;
-    item.ext_indices = ext_index_storage_[storageIdx].data();
-    item.ext_index_count = indexCount;
+    ExternalMeshData ed;
+    ed.ext_bind_texture = textureId;
+    ed.ext_vertices = ext_vertex_storage_[storageIdx].data();
+    ed.ext_vertex_count = vertexCount;
+    ed.ext_indices = ext_index_storage_[storageIdx].data();
+    ed.ext_index_count = indexCount;
 
     if (transform16) {
-        item.transform = glm::make_mat4(transform16);
+        ed.transform = glm::make_mat4(transform16);
     }
 
-    items_.push_back(item);
+    base.data_index = static_cast<u32>(ext_data_.size());
+    ext_data_.push_back(ed);
+    items_.push_back(base);
 }
 
 void RenderFrame::sortAndBucket() {
-    std::sort(items_.begin(), items_.end(),
-        [](const RenderItem& a, const RenderItem& b) {
-            return a.sortKey() < b.sortKey();
+    u32 n = static_cast<u32>(items_.size());
+    sorted_indices_.resize(n);
+    for (u32 i = 0; i < n; ++i) {
+        sorted_indices_[i] = i;
+    }
+
+    std::sort(sorted_indices_.begin(), sorted_indices_.end(),
+        [this](u32 a, u32 b) {
+            return items_[a].sortKey() < items_[b].sortKey();
         });
 
     for (auto& sb : stage_boundaries_) {
@@ -627,16 +667,15 @@ void RenderFrame::sortAndBucket() {
         sb.end = 0;
     }
 
-    if (items_.empty()) return;
+    if (n == 0) return;
 
-    u32 n = static_cast<u32>(items_.size());
     u32 i = 0;
     while (i < n) {
-        auto stage = items_[i].stage;
+        auto stage = items_[sorted_indices_[i]].stage;
         u32 stageIdx = static_cast<u32>(stage);
         if (stageIdx < STAGE_COUNT) {
             stage_boundaries_[stageIdx].begin = i;
-            while (i < n && items_[i].stage == stage) {
+            while (i < n && items_[sorted_indices_[i]].stage == stage) {
                 ++i;
             }
             stage_boundaries_[stageIdx].end = i;
@@ -654,7 +693,7 @@ void RenderFrame::executeStage(RenderStage stage) {
     if (sb.begin >= sb.end) return;
 
     u32 batchStart = sb.begin;
-    RenderType currentType = items_[batchStart].type;
+    RenderType currentType = items_[sorted_indices_[batchStart]].type;
 
     auto flushBatch = [&](u32 begin, u32 end) {
         switch (currentType) {
@@ -681,10 +720,10 @@ void RenderFrame::executeStage(RenderStage stage) {
     };
 
     for (u32 i = sb.begin; i < sb.end; ++i) {
-        if (items_[i].type != currentType) {
+        if (items_[sorted_indices_[i]].type != currentType) {
             flushBatch(batchStart, i);
             batchStart = i;
-            currentType = items_[i].type;
+            currentType = items_[sorted_indices_[i]].type;
         }
     }
 
@@ -699,68 +738,69 @@ void RenderFrame::renderSprites(u32 begin, u32 end) {
     ScissorRect curRect{};
 
     for (u32 i = begin; i < end; ++i) {
-        auto* item = &items_[i];
+        const auto& base = items_[sorted_indices_[i]];
+        const auto& sd = sprite_data_[base.data_index];
 
-        if (item->scissor_enabled != curScissorOn ||
-            (item->scissor_enabled && item->scissor != curRect)) {
+        if (base.scissor_enabled != curScissorOn ||
+            (base.scissor_enabled && base.scissor != curRect)) {
             batcher_->flush();
-            if (item->scissor_enabled) {
+            if (base.scissor_enabled) {
                 glEnable(GL_SCISSOR_TEST);
-                glScissor(item->scissor.x, item->scissor.y,
-                          item->scissor.w, item->scissor.h);
+                glScissor(base.scissor.x, base.scissor.y,
+                          base.scissor.w, base.scissor.h);
             } else {
                 glDisable(GL_SCISSOR_TEST);
             }
-            curScissorOn = item->scissor_enabled;
-            curRect = item->scissor;
+            curScissorOn = base.scissor_enabled;
+            curRect = base.scissor;
         }
 
-        if (item->material_id != 0) {
+        if (sd.material_id != 0) {
             batcher_->flush();
-            renderSpriteWithMaterial(item);
+            renderSpriteWithMaterial(base, sd);
             continue;
         }
 
-        glm::vec2 position(item->world_position);
-        glm::vec2 finalSize = item->size * item->world_scale;
-        f32 angle = item->world_angle;
+        glm::vec2 position(base.world_position);
+        glm::vec2 finalSize = sd.size * base.world_scale;
+        f32 angle = base.world_angle;
 
-        if (item->use_nine_slice) {
+        if (sd.use_nine_slice) {
             resource::SliceBorder border;
-            border.left = item->slice_border.x;
-            border.right = item->slice_border.y;
-            border.top = item->slice_border.z;
-            border.bottom = item->slice_border.w;
+            border.left = sd.slice_border.x;
+            border.right = sd.slice_border.y;
+            border.top = sd.slice_border.z;
+            border.bottom = sd.slice_border.w;
 
             batcher_->drawNineSlice(
                 position,
                 finalSize,
-                item->texture_id,
-                item->texture_size,
+                base.texture_id,
+                sd.texture_size,
                 border,
-                item->color,
+                base.color,
                 angle,
-                item->uv_offset,
-                item->uv_scale
+                sd.uv_offset,
+                sd.uv_scale
             );
         } else if (std::abs(angle) > 0.001f) {
             batcher_->drawRotatedQuad(
                 position,
                 finalSize,
                 angle,
-                item->texture_id,
-                item->color,
-                item->uv_offset,
-                item->uv_scale
+                base.texture_id,
+                base.color,
+                sd.uv_offset,
+                sd.uv_scale
             );
         } else {
             batcher_->drawQuad(
-                glm::vec3(position.x, position.y, item->depth),
+                glm::vec3(position.x, position.y, base.depth),
                 finalSize,
-                item->texture_id,
-                item->color,
-                item->uv_offset,
-                item->uv_scale
+                base.texture_id,
+                base.color,
+                sd.uv_offset,
+                sd.uv_scale
             );
         }
     }
@@ -779,16 +819,14 @@ void RenderFrame::renderSprites(u32 begin, u32 end) {
 void RenderFrame::renderSpine(u32 begin, u32 end) {
     spine_vertices_.clear();
     spine_indices_.clear();
-    spine_texture_slot_index_ = 1;
-    for (u32 i = 0; i < SPINE_MAX_TEXTURE_SLOTS; ++i) {
-        spine_texture_slots_[i] = context_.getWhiteTextureId();
-    }
+    spine_tex_slots_.reset();
 
     static ::spine::SkeletonClipping clipper;
 
     for (u32 idx = begin; idx < end; ++idx) {
-        auto* item = &items_[idx];
-        auto* skeleton = static_cast<::spine::Skeleton*>(item->skeleton);
+        const auto& base = items_[sorted_indices_[idx]];
+        const auto& sd = spine_data_[base.data_index];
+        auto* skeleton = static_cast<::spine::Skeleton*>(sd.skeleton);
         if (!skeleton) continue;
 
         auto& drawOrder = skeleton->getDrawOrder();
@@ -851,24 +889,10 @@ void RenderFrame::renderSpine(u32 begin, u32 end) {
                     RenderCommand::setBlendMode(blendMode);
                 }
 
-                f32 texIndex = 0.0f;
-                if (textureId != 0) {
-                    bool found = false;
-                    for (u32 s = 0; s < spine_texture_slot_index_; ++s) {
-                        if (spine_texture_slots_[s] == textureId) {
-                            texIndex = static_cast<f32>(s);
-                            found = true;
-                            break;
-                        }
-                    }
-                    if (!found) {
-                        if (spine_texture_slot_index_ >= SPINE_MAX_TEXTURE_SLOTS) {
-                            flushSpineBatch();
-                        }
-                        spine_texture_slots_[spine_texture_slot_index_] = textureId;
-                        texIndex = static_cast<f32>(spine_texture_slot_index_);
-                        spine_texture_slot_index_++;
-                    }
+                f32 texIndex = spine_tex_slots_.findOrAllocate(textureId);
+                if (texIndex < 0.0f) {
+                    flushSpineBatch();
+                    texIndex = spine_tex_slots_.findOrAllocate(textureId);
                 }
 
                 if (spine_vertices_.size() + 4 > 65535) {
@@ -878,10 +902,10 @@ void RenderFrame::renderSpine(u32 begin, u32 end) {
                 auto& uvs = region->getUVs();
                 auto& attachColor = region->getColor();
 
-                f32 a = skelColor.a * slotColor.a * attachColor.a * item->tint_color.a;
-                f32 r = skelColor.r * slotColor.r * attachColor.r * item->tint_color.r;
-                f32 g = skelColor.g * slotColor.g * attachColor.g * item->tint_color.g;
-                f32 b = skelColor.b * slotColor.b * attachColor.b * item->tint_color.b;
+                f32 a = skelColor.a * slotColor.a * attachColor.a * sd.tint_color.a;
+                f32 r = skelColor.r * slotColor.r * attachColor.r * sd.tint_color.r;
+                f32 g = skelColor.g * slotColor.g * attachColor.g * sd.tint_color.g;
+                f32 b = skelColor.b * slotColor.b * attachColor.b * sd.tint_color.b;
 
                 if (blendMode == BlendMode::PremultipliedAlpha || blendMode == BlendMode::PmaAdditive) {
                     r *= a;
@@ -893,10 +917,10 @@ void RenderFrame::renderSpine(u32 begin, u32 end) {
 
                 for (size_t j = 0; j < 4; ++j) {
                     glm::vec4 pos(spine_world_vertices_[j * 2], spine_world_vertices_[j * 2 + 1], 0.0f, 1.0f);
-                    pos = item->transform * pos;
+                    pos = sd.transform * pos;
 
                     SpineVertex vertex;
-                    vertex.position = glm::vec3(pos.x, pos.y, item->depth);
+                    vertex.position = glm::vec3(pos.x, pos.y, base.depth);
                     vertex.color = glm::vec4(r, g, b, a);
                     vertex.uv = glm::vec2(uvs[j * 2], uvs[j * 2 + 1]);
                     vertex.texIndex = texIndex;
@@ -942,24 +966,10 @@ void RenderFrame::renderSpine(u32 begin, u32 end) {
                     RenderCommand::setBlendMode(blendMode);
                 }
 
-                f32 texIndex = 0.0f;
-                if (textureId != 0) {
-                    bool found = false;
-                    for (u32 s = 0; s < spine_texture_slot_index_; ++s) {
-                        if (spine_texture_slots_[s] == textureId) {
-                            texIndex = static_cast<f32>(s);
-                            found = true;
-                            break;
-                        }
-                    }
-                    if (!found) {
-                        if (spine_texture_slot_index_ >= SPINE_MAX_TEXTURE_SLOTS) {
-                            flushSpineBatch();
-                        }
-                        spine_texture_slots_[spine_texture_slot_index_] = textureId;
-                        texIndex = static_cast<f32>(spine_texture_slot_index_);
-                        spine_texture_slot_index_++;
-                    }
+                f32 texIndex = spine_tex_slots_.findOrAllocate(textureId);
+                if (texIndex < 0.0f) {
+                    flushSpineBatch();
+                    texIndex = spine_tex_slots_.findOrAllocate(textureId);
                 }
 
                 if (spine_vertices_.size() + vertexCount > 65535) {
@@ -970,10 +980,10 @@ void RenderFrame::renderSpine(u32 begin, u32 end) {
                 auto& triangles = mesh->getTriangles();
                 auto& attachColor = mesh->getColor();
 
-                f32 a = skelColor.a * slotColor.a * attachColor.a * item->tint_color.a;
-                f32 r = skelColor.r * slotColor.r * attachColor.r * item->tint_color.r;
-                f32 g = skelColor.g * slotColor.g * attachColor.g * item->tint_color.g;
-                f32 b = skelColor.b * slotColor.b * attachColor.b * item->tint_color.b;
+                f32 a = skelColor.a * slotColor.a * attachColor.a * sd.tint_color.a;
+                f32 r = skelColor.r * slotColor.r * attachColor.r * sd.tint_color.r;
+                f32 g = skelColor.g * slotColor.g * attachColor.g * sd.tint_color.g;
+                f32 b = skelColor.b * slotColor.b * attachColor.b * sd.tint_color.b;
 
                 if (blendMode == BlendMode::PremultipliedAlpha || blendMode == BlendMode::PmaAdditive) {
                     r *= a;
@@ -985,10 +995,10 @@ void RenderFrame::renderSpine(u32 begin, u32 end) {
 
                 for (size_t j = 0; j < vertexCount; ++j) {
                     glm::vec4 pos(spine_world_vertices_[j * 2], spine_world_vertices_[j * 2 + 1], 0.0f, 1.0f);
-                    pos = item->transform * pos;
+                    pos = sd.transform * pos;
 
                     SpineVertex vertex;
-                    vertex.position = glm::vec3(pos.x, pos.y, item->depth);
+                    vertex.position = glm::vec3(pos.x, pos.y, base.depth);
                     vertex.color = glm::vec4(r, g, b, a);
                     vertex.uv = glm::vec2(uvs[j * 2], uvs[j * 2 + 1]);
                     vertex.texIndex = texIndex;
@@ -1019,13 +1029,10 @@ void RenderFrame::flushSpineBatch() {
         return;
     }
 
-    for (u32 i = 0; i < SPINE_MAX_TEXTURE_SLOTS; ++i) {
-        glActiveTexture(GL_TEXTURE0 + i);
-        glBindTexture(GL_TEXTURE_2D, spine_texture_slots_[i]);
-    }
+    spine_tex_slots_.bindAll();
 
     shader->bind();
-    shader->setUniform("u_projection", view_projection_);
+    shader->setUniform(shader->getUniformLocation("u_projection"), view_projection_);
 
     glBindVertexArray(spine_vao_);
 
@@ -1055,10 +1062,7 @@ void RenderFrame::flushSpineBatch() {
 
     spine_vertices_.clear();
     spine_indices_.clear();
-    spine_texture_slot_index_ = 1;
-    for (u32 i = 0; i < SPINE_MAX_TEXTURE_SLOTS; ++i) {
-        spine_texture_slots_[i] = context_.getWhiteTextureId();
-    }
+    spine_tex_slots_.reset();
 }
 #endif
 
@@ -1067,59 +1071,65 @@ void RenderFrame::renderExternalMeshes(u32 begin, u32 end) {
     if (!shader) shader = context_.getTextureShader();
     if (!shader) return;
 
+    i32 locProjection = shader->getUniformLocation("u_projection");
+    i32 locModel = shader->getUniformLocation("u_model");
+    i32 locTexture = shader->getUniformLocation("u_texture");
+
     for (u32 idx = begin; idx < end; ++idx) {
-        auto* item = &items_[idx];
-        if (!item->ext_vertices || !item->ext_indices ||
-            item->ext_vertex_count <= 0 || item->ext_index_count <= 0) {
+        const auto& base = items_[sorted_indices_[idx]];
+        const auto& ed = ext_data_[base.data_index];
+        if (!ed.ext_vertices || !ed.ext_indices ||
+            ed.ext_vertex_count <= 0 || ed.ext_index_count <= 0) {
             continue;
         }
 
-        RenderCommand::setBlendMode(item->blend_mode);
+        RenderCommand::setBlendMode(base.blend_mode);
 
         shader->bind();
-        shader->setUniform("u_projection", view_projection_);
-        shader->setUniform("u_model", item->transform);
+        shader->setUniform(locProjection, view_projection_);
+        shader->setUniform(locModel, ed.transform);
 
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, item->ext_bind_texture);
-        shader->setUniform("u_texture", 0);
+        glBindTexture(GL_TEXTURE_2D, ed.ext_bind_texture);
+        shader->setUniform(locTexture, 0);
 
         glBindVertexArray(ext_mesh_vao_);
 
         auto vboBytes = static_cast<GLsizeiptr>(
-            item->ext_vertex_count * 8 * sizeof(f32));
+            ed.ext_vertex_count * 8 * sizeof(f32));
         glBindBuffer(GL_ARRAY_BUFFER, ext_mesh_vbo_);
         if (static_cast<u32>(vboBytes) > ext_mesh_vbo_capacity_) {
             ext_mesh_vbo_capacity_ = static_cast<u32>(vboBytes) * 2;
             glBufferData(GL_ARRAY_BUFFER, ext_mesh_vbo_capacity_,
                          nullptr, GL_STREAM_DRAW);
         }
-        glBufferSubData(GL_ARRAY_BUFFER, 0, vboBytes, item->ext_vertices);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, vboBytes, ed.ext_vertices);
 
         auto eboBytes = static_cast<GLsizeiptr>(
-            item->ext_index_count * sizeof(u16));
+            ed.ext_index_count * sizeof(u16));
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ext_mesh_ebo_);
         if (static_cast<u32>(eboBytes) > ext_mesh_ebo_capacity_) {
             ext_mesh_ebo_capacity_ = static_cast<u32>(eboBytes) * 2;
             glBufferData(GL_ELEMENT_ARRAY_BUFFER, ext_mesh_ebo_capacity_,
                          nullptr, GL_STREAM_DRAW);
         }
-        glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, eboBytes, item->ext_indices);
+        glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, eboBytes, ed.ext_indices);
 
-        glDrawElements(GL_TRIANGLES, item->ext_index_count,
+        glDrawElements(GL_TRIANGLES, ed.ext_index_count,
                        GL_UNSIGNED_SHORT, nullptr);
 
         glBindVertexArray(0);
 
-        stats_.triangles += static_cast<u32>(item->ext_index_count / 3);
+        stats_.triangles += static_cast<u32>(ed.ext_index_count / 3);
         stats_.draw_calls++;
     }
 }
 
 void RenderFrame::renderMeshes(u32 begin, u32 end) {
     for (u32 i = begin; i < end; ++i) {
-        auto* item = &items_[i];
-        if (!item->geometry || !item->shader) continue;
+        const auto& base = items_[sorted_indices_[i]];
+        const auto& sd = sprite_data_[base.data_index];
+        if (!sd.geometry || !sd.shader) continue;
         stats_.draw_calls++;
     }
 }
@@ -1161,24 +1171,25 @@ void RenderFrame::renderText(u32 begin, u32 end) {
     ScissorRect curRect{};
 
     for (u32 i = begin; i < end; ++i) {
-        auto* item = &items_[i];
+        const auto& base = items_[sorted_indices_[i]];
+        const auto& td = text_data_[base.data_index];
 
-        if (item->scissor_enabled != curScissorOn ||
-            (item->scissor_enabled && item->scissor != curRect)) {
+        if (base.scissor_enabled != curScissorOn ||
+            (base.scissor_enabled && base.scissor != curRect)) {
             batcher_->flush();
-            if (item->scissor_enabled) {
+            if (base.scissor_enabled) {
                 glEnable(GL_SCISSOR_TEST);
-                glScissor(item->scissor.x, item->scissor.y,
-                          item->scissor.w, item->scissor.h);
+                glScissor(base.scissor.x, base.scissor.y,
+                          base.scissor.w, base.scissor.h);
             } else {
                 glDisable(GL_SCISSOR_TEST);
             }
-            curScissorOn = item->scissor_enabled;
-            curRect = item->scissor;
+            curScissorOn = base.scissor_enabled;
+            curRect = base.scissor;
         }
 
-        auto* font = static_cast<const text::BitmapFont*>(item->font_data);
-        if (!font || !item->text_data || item->text_length == 0) {
+        auto* font = static_cast<const text::BitmapFont*>(td.font_data);
+        if (!font || !td.text_data || td.text_length == 0) {
             continue;
         }
 
@@ -1194,15 +1205,15 @@ void RenderFrame::renderText(u32 begin, u32 end) {
             continue;
         }
 
-        f32 scale = item->font_size * item->world_scale.x;
-        f32 spacing = item->text_spacing;
+        f32 scale = td.font_size * base.world_scale.x;
+        f32 spacing = td.text_spacing;
         f32 fontBase = font->getBase();
 
         f32 totalWidth = 0;
-        if (item->text_align != 0) {
+        if (td.text_align != 0) {
             u32 prevChar = 0;
-            for (u16 j = 0; j < item->text_length; ++j) {
-                u32 charCode = decodeUtf8(item->text_data, item->text_length, j);
+            for (u16 j = 0; j < td.text_length; ++j) {
+                u32 charCode = decodeUtf8(td.text_data, td.text_length, j);
                 auto* glyph = font->getGlyph(charCode);
                 if (!glyph) {
                     continue;
@@ -1216,18 +1227,18 @@ void RenderFrame::renderText(u32 begin, u32 end) {
         }
 
         f32 alignOffset = 0;
-        if (item->text_align == 1) {
+        if (td.text_align == 1) {
             alignOffset = -totalWidth * 0.5f;
-        } else if (item->text_align == 2) {
+        } else if (td.text_align == 2) {
             alignOffset = -totalWidth;
         }
 
-        f32 cursorX = item->world_position.x + alignOffset;
-        f32 baseY = item->world_position.y;
+        f32 cursorX = base.world_position.x + alignOffset;
+        f32 baseY = base.world_position.y;
 
         u32 prevChar = 0;
-        for (u16 j = 0; j < item->text_length; ++j) {
-            u32 charCode = decodeUtf8(item->text_data, item->text_length, j);
+        for (u16 j = 0; j < td.text_length; ++j) {
+            u32 charCode = decodeUtf8(td.text_data, td.text_length, j);
             auto* glyph = font->getGlyph(charCode);
             if (!glyph) {
                 continue;
@@ -1253,7 +1264,7 @@ void RenderFrame::renderText(u32 begin, u32 end) {
                     glm::vec2(posX, posY),
                     glm::vec2(glyphW, glyphH),
                     textureId,
-                    item->color,
+                    base.color,
                     uvOffset,
                     uvScale
                 );
@@ -1274,13 +1285,13 @@ void RenderFrame::renderText(u32 begin, u32 end) {
     stats_.triangles += batcher_->getQuadCount() * 2;
 }
 
-void RenderFrame::renderSpriteWithMaterial(RenderItem* item) {
+void RenderFrame::renderSpriteWithMaterial(const RenderItemBase& base, const SpriteData& sd) {
     u32 shaderId = 0;
     u32 blendMode = 0;
     static std::vector<UniformData> uniforms;
     uniforms.clear();
 
-    if (!getMaterialDataWithUniforms(item->material_id, shaderId, blendMode, uniforms)) {
+    if (!getMaterialDataWithUniforms(sd.material_id, shaderId, blendMode, uniforms)) {
         return;
     }
 
@@ -1288,34 +1299,41 @@ void RenderFrame::renderSpriteWithMaterial(RenderItem* item) {
     if (!shader) return;
 
     shader->bind();
-    shader->setUniform("u_projection", view_projection_);
-    shader->setUniform("u_model", item->transform);
-    shader->setUniform("u_color", item->color);
+
+    i32 locProj = shader->getUniformLocation("u_projection");
+    i32 locModel = shader->getUniformLocation("u_model");
+    i32 locColor = shader->getUniformLocation("u_color");
+    i32 locTex = shader->getUniformLocation("u_texture");
+
+    shader->setUniform(locProj, view_projection_);
+    shader->setUniform(locModel, sd.transform);
+    shader->setUniform(locColor, base.color);
 
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, item->texture_id);
-    shader->setUniform("u_texture", 0);
+    glBindTexture(GL_TEXTURE_2D, base.texture_id);
+    shader->setUniform(locTex, 0);
 
     for (const auto& ud : uniforms) {
+        i32 loc = shader->getUniformLocation(ud.name);
         switch (ud.type) {
             case 0:
-                shader->setUniform(ud.name, ud.values[0]);
+                shader->setUniform(loc, ud.values[0]);
                 break;
             case 1:
-                shader->setUniform(ud.name, glm::vec2(ud.values[0], ud.values[1]));
+                shader->setUniform(loc, glm::vec2(ud.values[0], ud.values[1]));
                 break;
             case 2:
-                shader->setUniform(ud.name, glm::vec3(ud.values[0], ud.values[1], ud.values[2]));
+                shader->setUniform(loc, glm::vec3(ud.values[0], ud.values[1], ud.values[2]));
                 break;
             case 3:
-                shader->setUniform(ud.name, glm::vec4(ud.values[0], ud.values[1], ud.values[2], ud.values[3]));
+                shader->setUniform(loc, glm::vec4(ud.values[0], ud.values[1], ud.values[2], ud.values[3]));
                 break;
         }
     }
 
     RenderCommand::setBlendMode(static_cast<BlendMode>(blendMode));
 
-    glm::vec2 halfSize = item->size * 0.5f;
+    glm::vec2 halfSize = sd.size * 0.5f;
 
     struct MatSpriteVertex {
         f32 px, py;
@@ -1324,10 +1342,10 @@ void RenderFrame::renderSpriteWithMaterial(RenderItem* item) {
     };
 
     MatSpriteVertex vertices[4] = {
-        { -halfSize.x, -halfSize.y, 0.0f, 1.0f, item->color.r, item->color.g, item->color.b, item->color.a },
-        {  halfSize.x, -halfSize.y, 1.0f, 1.0f, item->color.r, item->color.g, item->color.b, item->color.a },
-        {  halfSize.x,  halfSize.y, 1.0f, 0.0f, item->color.r, item->color.g, item->color.b, item->color.a },
-        { -halfSize.x,  halfSize.y, 0.0f, 0.0f, item->color.r, item->color.g, item->color.b, item->color.a },
+        { -halfSize.x, -halfSize.y, 0.0f, 1.0f, base.color.r, base.color.g, base.color.b, base.color.a },
+        {  halfSize.x, -halfSize.y, 1.0f, 1.0f, base.color.r, base.color.g, base.color.b, base.color.a },
+        {  halfSize.x,  halfSize.y, 1.0f, 0.0f, base.color.r, base.color.g, base.color.b, base.color.a },
+        { -halfSize.x,  halfSize.y, 0.0f, 0.0f, base.color.r, base.color.g, base.color.b, base.color.a },
     };
 
     glBindVertexArray(mat_sprite_vao_);
@@ -1339,24 +1357,24 @@ void RenderFrame::renderSpriteWithMaterial(RenderItem* item) {
     }
     glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices);
 
-    GLint locPos = shader->getAttribLocation("a_position");
-    if (locPos >= 0) {
-        glEnableVertexAttribArray(locPos);
-        glVertexAttribPointer(locPos, 2, GL_FLOAT, GL_FALSE, sizeof(MatSpriteVertex),
+    GLint attrPos = shader->getAttribLocation("a_position");
+    if (attrPos >= 0) {
+        glEnableVertexAttribArray(attrPos);
+        glVertexAttribPointer(attrPos, 2, GL_FLOAT, GL_FALSE, sizeof(MatSpriteVertex),
                               reinterpret_cast<void*>(0));
     }
 
-    GLint locTex = shader->getAttribLocation("a_texCoord");
-    if (locTex >= 0) {
-        glEnableVertexAttribArray(locTex);
-        glVertexAttribPointer(locTex, 2, GL_FLOAT, GL_FALSE, sizeof(MatSpriteVertex),
+    GLint attrTex = shader->getAttribLocation("a_texCoord");
+    if (attrTex >= 0) {
+        glEnableVertexAttribArray(attrTex);
+        glVertexAttribPointer(attrTex, 2, GL_FLOAT, GL_FALSE, sizeof(MatSpriteVertex),
                               reinterpret_cast<void*>(2 * sizeof(f32)));
     }
 
-    GLint locColor = shader->getAttribLocation("a_color");
-    if (locColor >= 0) {
-        glEnableVertexAttribArray(locColor);
-        glVertexAttribPointer(locColor, 4, GL_FLOAT, GL_FALSE, sizeof(MatSpriteVertex),
+    GLint attrColor = shader->getAttribLocation("a_color");
+    if (attrColor >= 0) {
+        glEnableVertexAttribArray(attrColor);
+        glVertexAttribPointer(attrColor, 4, GL_FLOAT, GL_FALSE, sizeof(MatSpriteVertex),
                               reinterpret_cast<void*>(4 * sizeof(f32)));
     }
 
@@ -1371,9 +1389,9 @@ void RenderFrame::renderSpriteWithMaterial(RenderItem* item) {
 
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, nullptr);
 
-    if (locPos >= 0) glDisableVertexAttribArray(locPos);
-    if (locTex >= 0) glDisableVertexAttribArray(locTex);
-    if (locColor >= 0) glDisableVertexAttribArray(locColor);
+    if (attrPos >= 0) glDisableVertexAttribArray(attrPos);
+    if (attrTex >= 0) glDisableVertexAttribArray(attrTex);
+    if (attrColor >= 0) glDisableVertexAttribArray(attrColor);
 
     glBindVertexArray(0);
 

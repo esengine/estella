@@ -9,12 +9,10 @@ dist/
 # Node.js
 node_modules/
 package-lock.json
-pnpm-lock.yaml
 pnpm-debug.log*
 
 # Rust/Tauri
 target/
-Cargo.lock
 
 # IDE
 .vs/

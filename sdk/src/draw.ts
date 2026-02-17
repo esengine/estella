@@ -11,6 +11,7 @@ import type { GeometryHandle } from './geometry';
 import type { ShaderHandle, MaterialHandle } from './material';
 import { Material, isTextureRef } from './material';
 import { BlendMode } from './blend';
+import { handleWasmError } from './wasmError';
 
 export { BlendMode } from './blend';
 
@@ -205,78 +206,114 @@ const WHITE: Color = { r: 1, g: 1, b: 1, a: 1 };
 export const Draw: DrawAPI = {
     begin(viewProjection: Float32Array): void {
         const m = getModule();
-        m.HEAPF32.set(viewProjection, viewProjectionPtr / 4);
-        m.draw_begin(viewProjectionPtr);
+        try {
+            m.HEAPF32.set(viewProjection, viewProjectionPtr / 4);
+            m.draw_begin(viewProjectionPtr);
+        } catch (e) {
+            handleWasmError(e, 'Draw.begin');
+        }
     },
 
     end(): void {
-        getModule().draw_end();
+        try {
+            getModule().draw_end();
+        } catch (e) {
+            handleWasmError(e, 'Draw.end');
+        }
     },
 
     line(from: Vec2, to: Vec2, color: Color, thickness = 1): void {
-        getModule().draw_line(
-            from.x, from.y,
-            to.x, to.y,
-            color.r, color.g, color.b, color.a,
-            thickness
-        );
+        try {
+            getModule().draw_line(
+                from.x, from.y,
+                to.x, to.y,
+                color.r, color.g, color.b, color.a,
+                thickness
+            );
+        } catch (e) {
+            handleWasmError(e, 'Draw.line');
+        }
     },
 
     rect(position: Vec2, size: Vec2, color: Color, filled = true): void {
-        getModule().draw_rect(
-            position.x, position.y,
-            size.x, size.y,
-            color.r, color.g, color.b, color.a,
-            filled
-        );
+        try {
+            getModule().draw_rect(
+                position.x, position.y,
+                size.x, size.y,
+                color.r, color.g, color.b, color.a,
+                filled
+            );
+        } catch (e) {
+            handleWasmError(e, 'Draw.rect');
+        }
     },
 
     rectOutline(position: Vec2, size: Vec2, color: Color, thickness = 1): void {
-        getModule().draw_rectOutline(
-            position.x, position.y,
-            size.x, size.y,
-            color.r, color.g, color.b, color.a,
-            thickness
-        );
+        try {
+            getModule().draw_rectOutline(
+                position.x, position.y,
+                size.x, size.y,
+                color.r, color.g, color.b, color.a,
+                thickness
+            );
+        } catch (e) {
+            handleWasmError(e, 'Draw.rectOutline');
+        }
     },
 
     circle(center: Vec2, radius: number, color: Color, filled = true, segments = 32): void {
-        getModule().draw_circle(
-            center.x, center.y,
-            radius,
-            color.r, color.g, color.b, color.a,
-            filled,
-            segments
-        );
+        try {
+            getModule().draw_circle(
+                center.x, center.y,
+                radius,
+                color.r, color.g, color.b, color.a,
+                filled,
+                segments
+            );
+        } catch (e) {
+            handleWasmError(e, 'Draw.circle');
+        }
     },
 
     circleOutline(center: Vec2, radius: number, color: Color, thickness = 1, segments = 32): void {
-        getModule().draw_circleOutline(
-            center.x, center.y,
-            radius,
-            color.r, color.g, color.b, color.a,
-            thickness,
-            segments
-        );
+        try {
+            getModule().draw_circleOutline(
+                center.x, center.y,
+                radius,
+                color.r, color.g, color.b, color.a,
+                thickness,
+                segments
+            );
+        } catch (e) {
+            handleWasmError(e, 'Draw.circleOutline');
+        }
     },
 
     texture(position: Vec2, size: Vec2, textureHandle: number, tint: Color = WHITE): void {
-        getModule().draw_texture(
-            position.x, position.y,
-            size.x, size.y,
-            textureHandle,
-            tint.r, tint.g, tint.b, tint.a
-        );
+        try {
+            getModule().draw_texture(
+                position.x, position.y,
+                size.x, size.y,
+                textureHandle,
+                tint.r, tint.g, tint.b, tint.a
+            );
+        } catch (e) {
+            handleWasmError(e, 'Draw.texture');
+        }
     },
 
     textureRotated(position: Vec2, size: Vec2, rotation: number, textureHandle: number, tint: Color = WHITE): void {
-        getModule().draw_textureRotated(
-            position.x, position.y,
-            size.x, size.y,
-            rotation,
-            textureHandle,
-            tint.r, tint.g, tint.b, tint.a
-        );
+        try {
+            getModule().draw_textureRotated(
+                position.x, position.y,
+                size.x, size.y,
+                rotation,
+                textureHandle,
+                tint.r, tint.g, tint.b, tint.a
+            );
+        } catch (e) {
+            handleWasmError(e, 'Draw.textureRotated');
+        }
     },
 
     setLayer(layer: number): void {
@@ -306,92 +343,100 @@ export const Draw: DrawAPI = {
     },
 
     drawMesh(geometry: GeometryHandle, shader: ShaderHandle, transform: Float32Array): void {
-        const m = getModule();
-        m.HEAPF32.set(transform, transformPtr / 4);
-        m.draw_mesh(geometry, shader, transformPtr);
+        try {
+            const m = getModule();
+            m.HEAPF32.set(transform, transformPtr / 4);
+            m.draw_mesh(geometry, shader, transformPtr);
+        } catch (e) {
+            handleWasmError(e, `Draw.drawMesh(geometry=${geometry}, shader=${shader})`);
+        }
     },
 
     drawMeshWithMaterial(geometry: GeometryHandle, material: MaterialHandle, transform: Float32Array): void {
-        const m = getModule();
-        const matData = Material.get(material);
-        if (!matData) return;
+        try {
+            const m = getModule();
+            const matData = Material.get(material);
+            if (!matData) return;
 
-        Draw.setBlendMode(matData.blendMode);
-        Draw.setDepthTest(matData.depthTest);
+            Draw.setBlendMode(matData.blendMode);
+            Draw.setDepthTest(matData.depthTest);
 
-        if (matData.uniforms.size === 0) {
-            Draw.drawMesh(geometry, matData.shader, transform);
-            return;
-        }
+            if (matData.uniforms.size === 0) {
+                Draw.drawMesh(geometry, matData.shader, transform);
+                return;
+            }
 
-        m.HEAPF32.set(transform, transformPtr / 4);
+            m.HEAPF32.set(transform, transformPtr / 4);
 
-        let idx: number;
-        if (!matData.dirty_ && matData.cachedBuffer_) {
-            idx = matData.cachedIdx_;
-        } else {
-            idx = 0;
-            let autoTextureSlot = 0;
-            for (const [name, value] of matData.uniforms) {
-                const nameId = getUniformNameId(name);
-                if (nameId < 0) continue;
+            let idx: number;
+            if (!matData.dirty_ && matData.cachedBuffer_) {
+                idx = matData.cachedIdx_;
+            } else {
+                idx = 0;
+                let autoTextureSlot = 0;
+                for (const [name, value] of matData.uniforms) {
+                    const nameId = getUniformNameId(name);
+                    if (nameId < 0) continue;
 
-                if (isTextureRef(value)) {
-                    uniformBuffer[idx++] = 10;
-                    uniformBuffer[idx++] = nameId;
-                    uniformBuffer[idx++] = value.slot ?? autoTextureSlot++;
-                    uniformBuffer[idx++] = value.textureId;
-                } else if (typeof value === 'number') {
-                    uniformBuffer[idx++] = 1;
-                    uniformBuffer[idx++] = nameId;
-                    uniformBuffer[idx++] = value;
-                } else if (Array.isArray(value)) {
-                    uniformBuffer[idx++] = value.length;
-                    uniformBuffer[idx++] = nameId;
-                    for (let i = 0; i < value.length; i++) {
-                        uniformBuffer[idx++] = value[i];
+                    if (isTextureRef(value)) {
+                        uniformBuffer[idx++] = 10;
+                        uniformBuffer[idx++] = nameId;
+                        uniformBuffer[idx++] = value.slot ?? autoTextureSlot++;
+                        uniformBuffer[idx++] = value.textureId;
+                    } else if (typeof value === 'number') {
+                        uniformBuffer[idx++] = 1;
+                        uniformBuffer[idx++] = nameId;
+                        uniformBuffer[idx++] = value;
+                    } else if (Array.isArray(value)) {
+                        uniformBuffer[idx++] = value.length;
+                        uniformBuffer[idx++] = nameId;
+                        for (let i = 0; i < value.length; i++) {
+                            uniformBuffer[idx++] = value[i];
+                        }
+                    } else if ('w' in value) {
+                        uniformBuffer[idx++] = 4;
+                        uniformBuffer[idx++] = nameId;
+                        uniformBuffer[idx++] = value.x;
+                        uniformBuffer[idx++] = value.y;
+                        uniformBuffer[idx++] = value.z;
+                        uniformBuffer[idx++] = value.w;
+                    } else if ('z' in value) {
+                        uniformBuffer[idx++] = 3;
+                        uniformBuffer[idx++] = nameId;
+                        uniformBuffer[idx++] = value.x;
+                        uniformBuffer[idx++] = value.y;
+                        uniformBuffer[idx++] = value.z;
+                    } else {
+                        uniformBuffer[idx++] = 2;
+                        uniformBuffer[idx++] = nameId;
+                        uniformBuffer[idx++] = value.x;
+                        uniformBuffer[idx++] = value.y;
                     }
-                } else if ('w' in value) {
-                    uniformBuffer[idx++] = 4;
-                    uniformBuffer[idx++] = nameId;
-                    uniformBuffer[idx++] = value.x;
-                    uniformBuffer[idx++] = value.y;
-                    uniformBuffer[idx++] = value.z;
-                    uniformBuffer[idx++] = value.w;
-                } else if ('z' in value) {
-                    uniformBuffer[idx++] = 3;
-                    uniformBuffer[idx++] = nameId;
-                    uniformBuffer[idx++] = value.x;
-                    uniformBuffer[idx++] = value.y;
-                    uniformBuffer[idx++] = value.z;
-                } else {
-                    uniformBuffer[idx++] = 2;
-                    uniformBuffer[idx++] = nameId;
-                    uniformBuffer[idx++] = value.x;
-                    uniformBuffer[idx++] = value.y;
+
+                    if (idx > UNIFORMS_BUFFER_SIZE - 6) {
+                        console.warn('Uniform buffer overflow, some uniforms will be ignored');
+                        break;
+                    }
                 }
 
-                if (idx > UNIFORMS_BUFFER_SIZE - 6) {
-                    console.warn('Uniform buffer overflow, some uniforms will be ignored');
-                    break;
+                if (!matData.cachedBuffer_ || matData.cachedBuffer_.length < idx) {
+                    matData.cachedBuffer_ = new Float32Array(idx);
                 }
+                matData.cachedBuffer_.set(uniformBuffer.subarray(0, idx));
+                matData.cachedIdx_ = idx;
+                matData.dirty_ = false;
             }
 
-            if (!matData.cachedBuffer_ || matData.cachedBuffer_.length < idx) {
-                matData.cachedBuffer_ = new Float32Array(idx);
+            if (idx === 0) {
+                m.draw_mesh(geometry, matData.shader, transformPtr);
+                return;
             }
-            matData.cachedBuffer_.set(uniformBuffer.subarray(0, idx));
-            matData.cachedIdx_ = idx;
-            matData.dirty_ = false;
-        }
 
-        if (idx === 0) {
-            m.draw_mesh(geometry, matData.shader, transformPtr);
-            return;
+            m.HEAPF32.set(matData.cachedBuffer_!.subarray(0, idx), uniformsPtr / 4);
+            m.draw_meshWithUniforms(geometry, matData.shader, transformPtr, uniformsPtr, idx);
+        } catch (e) {
+            handleWasmError(e, `Draw.drawMeshWithMaterial(geometry=${geometry}, material=${material})`);
         }
-
-        m.HEAPF32.set(matData.cachedBuffer_!.subarray(0, idx), uniformsPtr / 4);
-        m.draw_meshWithUniforms(geometry, matData.shader, transformPtr, uniformsPtr, idx);
     },
 };
 
@@ -416,6 +461,17 @@ const UNIFORM_NAME_MAP: Record<string, number> = {
     'u_texture3': 17,
 };
 
+const warnedUniforms = new Set<string>();
+
 function getUniformNameId(name: string): number {
-    return UNIFORM_NAME_MAP[name] ?? -1;
+    const id = UNIFORM_NAME_MAP[name];
+    if (id !== undefined) return id;
+    if (!warnedUniforms.has(name)) {
+        warnedUniforms.add(name);
+        console.warn(
+            `[ESEngine] Unknown uniform name "${name}" - ` +
+            `supported names: ${Object.keys(UNIFORM_NAME_MAP).join(', ')}`
+        );
+    }
+    return -1;
 }

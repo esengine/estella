@@ -1,4 +1,5 @@
 import type { ESEngineModule, CppRegistry } from './wasm';
+import { handleWasmError } from './wasmError';
 
 export enum RenderStage {
     Background = 0,
@@ -46,31 +47,55 @@ export const Renderer = {
 
     begin(viewProjection: Float32Array, target?: RenderTargetHandle): void {
         if (!module || !viewProjectionPtr) return;
-        module.HEAPF32.set(viewProjection, viewProjectionPtr / 4);
-        module.renderer_begin(viewProjectionPtr, target ?? 0);
+        try {
+            module.HEAPF32.set(viewProjection, viewProjectionPtr / 4);
+            module.renderer_begin(viewProjectionPtr, target ?? 0);
+        } catch (e) {
+            handleWasmError(e, 'Renderer.begin');
+        }
     },
 
     flush(): void {
-        module?.renderer_flush();
+        try {
+            module?.renderer_flush();
+        } catch (e) {
+            handleWasmError(e, 'Renderer.flush');
+        }
     },
 
     end(): void {
-        module?.renderer_end();
+        try {
+            module?.renderer_end();
+        } catch (e) {
+            handleWasmError(e, 'Renderer.end');
+        }
     },
 
     submitSprites(registry: { _cpp: CppRegistry }): void {
         if (!module) return;
-        module.renderer_submitSprites(registry._cpp);
+        try {
+            module.renderer_submitSprites(registry._cpp);
+        } catch (e) {
+            handleWasmError(e, 'Renderer.submitSprites');
+        }
     },
 
     submitBitmapText(registry: { _cpp: CppRegistry }): void {
         if (!module) return;
-        module.renderer_submitBitmapText(registry._cpp);
+        try {
+            module.renderer_submitBitmapText(registry._cpp);
+        } catch (e) {
+            handleWasmError(e, 'Renderer.submitBitmapText');
+        }
     },
 
     submitSpine(registry: { _cpp: CppRegistry }): void {
         if (!module) return;
-        module.renderer_submitSpine?.(registry._cpp);
+        try {
+            module.renderer_submitSpine?.(registry._cpp);
+        } catch (e) {
+            handleWasmError(e, 'Renderer.submitSpine');
+        }
     },
 
     setStage(stage: RenderStage): void {

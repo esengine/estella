@@ -83,98 +83,29 @@ fn open_folder(path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn get_engine_js() -> Vec<u8> {
-    embedded_assets::ENGINE_JS.to_vec()
-}
-
-#[tauri::command]
-fn get_engine_wasm() -> Vec<u8> {
-    embedded_assets::ENGINE_WASM.to_vec()
-}
-
-#[tauri::command]
-fn get_engine_single_js() -> Vec<u8> {
-    embedded_assets::ENGINE_SINGLE_JS.to_vec()
-}
-
-#[tauri::command]
-fn get_engine_wxgame_js() -> Vec<u8> {
-    embedded_assets::ENGINE_WXGAME_JS.to_vec()
-}
-
-#[tauri::command]
-fn get_engine_wxgame_wasm() -> Vec<u8> {
-    embedded_assets::ENGINE_WXGAME_WASM.to_vec()
-}
-
-#[tauri::command]
-fn get_sdk_wechat_js() -> Vec<u8> {
-    embedded_assets::SDK_WECHAT_JS.to_vec()
-}
-
-#[tauri::command]
-fn get_sdk_esm_js() -> Vec<u8> {
-    embedded_assets::SDK_ESM_JS.to_vec()
-}
-
-#[tauri::command]
-fn get_sdk_esm_dts() -> Vec<u8> {
-    embedded_assets::SDK_ESM_DTS.to_vec()
-}
-
-#[tauri::command]
-fn get_sdk_wasm_js() -> Vec<u8> {
-    embedded_assets::SDK_WASM_JS.to_vec()
-}
-
-#[tauri::command]
-fn get_sdk_wasm_dts() -> Vec<u8> {
-    embedded_assets::SDK_WASM_DTS.to_vec()
-}
-
-#[tauri::command]
-fn get_editor_dts() -> Vec<u8> {
-    embedded_assets::EDITOR_DTS.to_vec()
-}
-
-#[tauri::command]
-fn get_spine38_js() -> Vec<u8> {
-    embedded_assets::SPINE38_JS.to_vec()
-}
-
-#[tauri::command]
-fn get_spine38_wasm() -> Vec<u8> {
-    embedded_assets::SPINE38_WASM.to_vec()
-}
-
-#[tauri::command]
-fn get_spine41_js() -> Vec<u8> {
-    embedded_assets::SPINE41_JS.to_vec()
-}
-
-#[tauri::command]
-fn get_spine41_wasm() -> Vec<u8> {
-    embedded_assets::SPINE41_WASM.to_vec()
-}
-
-#[tauri::command]
-fn get_spine42_js() -> Vec<u8> {
-    embedded_assets::SPINE42_JS.to_vec()
-}
-
-#[tauri::command]
-fn get_spine42_wasm() -> Vec<u8> {
-    embedded_assets::SPINE42_WASM.to_vec()
-}
-
-#[tauri::command]
-fn get_physics_js() -> Vec<u8> {
-    embedded_assets::PHYSICS_JS.to_vec()
-}
-
-#[tauri::command]
-fn get_physics_wasm() -> Vec<u8> {
-    embedded_assets::PHYSICS_WASM.to_vec()
+fn get_embedded_asset(name: String) -> Result<Vec<u8>, String> {
+    match name.as_str() {
+        "engine.js" => Ok(embedded_assets::ENGINE_JS.to_vec()),
+        "engine.wasm" => Ok(embedded_assets::ENGINE_WASM.to_vec()),
+        "engine.single.js" => Ok(embedded_assets::ENGINE_SINGLE_JS.to_vec()),
+        "engine.wxgame.js" => Ok(embedded_assets::ENGINE_WXGAME_JS.to_vec()),
+        "engine.wxgame.wasm" => Ok(embedded_assets::ENGINE_WXGAME_WASM.to_vec()),
+        "sdk.wechat.js" => Ok(embedded_assets::SDK_WECHAT_JS.to_vec()),
+        "sdk.esm.js" => Ok(embedded_assets::SDK_ESM_JS.to_vec()),
+        "sdk.esm.dts" => Ok(embedded_assets::SDK_ESM_DTS.to_vec()),
+        "sdk.wasm.js" => Ok(embedded_assets::SDK_WASM_JS.to_vec()),
+        "sdk.wasm.dts" => Ok(embedded_assets::SDK_WASM_DTS.to_vec()),
+        "editor.dts" => Ok(embedded_assets::EDITOR_DTS.to_vec()),
+        "spine38.js" => Ok(embedded_assets::SPINE38_JS.to_vec()),
+        "spine38.wasm" => Ok(embedded_assets::SPINE38_WASM.to_vec()),
+        "spine41.js" => Ok(embedded_assets::SPINE41_JS.to_vec()),
+        "spine41.wasm" => Ok(embedded_assets::SPINE41_WASM.to_vec()),
+        "spine42.js" => Ok(embedded_assets::SPINE42_JS.to_vec()),
+        "spine42.wasm" => Ok(embedded_assets::SPINE42_WASM.to_vec()),
+        "physics.js" => Ok(embedded_assets::PHYSICS_JS.to_vec()),
+        "physics.wasm" => Ok(embedded_assets::PHYSICS_WASM.to_vec()),
+        _ => Err(format!("Unknown embedded asset: {}", name)),
+    }
 }
 
 #[derive(Clone, serde::Serialize)]
@@ -262,25 +193,7 @@ pub fn run() {
             open_preview_in_browser,
             open_folder,
             execute_command,
-            get_engine_js,
-            get_engine_wasm,
-            get_engine_single_js,
-            get_engine_wxgame_js,
-            get_engine_wxgame_wasm,
-            get_sdk_wechat_js,
-            get_sdk_esm_js,
-            get_sdk_esm_dts,
-            get_sdk_wasm_js,
-            get_sdk_wasm_dts,
-            get_editor_dts,
-            get_spine38_js,
-            get_spine38_wasm,
-            get_spine41_js,
-            get_spine41_wasm,
-            get_spine42_js,
-            get_spine42_wasm,
-            get_physics_js,
-            get_physics_wasm,
+            get_embedded_asset,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

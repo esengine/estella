@@ -1,8 +1,8 @@
 import { registerPanel } from './PanelRegistry';
-import { HierarchyPanel } from './HierarchyPanel';
+import { HierarchyPanel } from './hierarchy/HierarchyPanel';
 import { InspectorPanel } from './InspectorPanel';
-import { SceneViewPanel } from './SceneViewPanel';
-import { ContentBrowserPanel } from './ContentBrowserPanel';
+import { SceneViewPanel } from './scene-view/SceneViewPanel';
+import { ContentBrowserPanel } from './content-browser/ContentBrowserPanel';
 import { OutputPanel } from './OutputPanel';
 import { icons } from '../utils/icons';
 

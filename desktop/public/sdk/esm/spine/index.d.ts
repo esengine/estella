@@ -769,6 +769,7 @@ declare class App {
     private physicsInitPromise_?;
     private physicsModule_?;
     private readonly installed_plugins_;
+    private readonly sortedSystemsCache_;
     private error_handler_;
     private system_error_handler_;
     private frame_paused_;
@@ -784,6 +785,7 @@ declare class App {
     connectCpp(cppRegistry: CppRegistry, module?: ESEngineModule): this;
     get wasmModule(): ESEngineModule | null;
     get pipeline(): RenderPipeline | null;
+    setPipeline(pipeline: RenderPipeline): void;
     setSpineRenderer(fn: SpineRendererFn | null): void;
     get spineInitPromise(): Promise<unknown> | undefined;
     set spineInitPromise(p: Promise<unknown> | undefined);
@@ -797,6 +799,7 @@ declare class App {
     setMaxFixedSteps(v: number): this;
     onError(handler: (error: unknown, systemName: string) => void): this;
     onSystemError(handler: (error: Error, systemName?: string) => 'continue' | 'pause'): this;
+    onWasmError(handler: (error: unknown, context: string) => void): this;
     insertResource<T>(resource: ResourceDef<T>, value: T): this;
     getResource<T>(resource: ResourceDef<T>): T;
     hasResource<T>(resource: ResourceDef<T>): boolean;

@@ -97,48 +97,20 @@ public:
      * @param value Integer value
      */
     void setUniform(const std::string& name, i32 value) const;
-
-    /**
-     * @brief Sets a float uniform
-     * @param name Uniform name in shader
-     * @param value Float value
-     */
     void setUniform(const std::string& name, f32 value) const;
-
-    /**
-     * @brief Sets a vec2 uniform
-     * @param name Uniform name in shader
-     * @param value Vector value
-     */
     void setUniform(const std::string& name, const glm::vec2& value) const;
-
-    /**
-     * @brief Sets a vec3 uniform
-     * @param name Uniform name in shader
-     * @param value Vector value
-     */
     void setUniform(const std::string& name, const glm::vec3& value) const;
-
-    /**
-     * @brief Sets a vec4 uniform
-     * @param name Uniform name in shader
-     * @param value Vector value
-     */
     void setUniform(const std::string& name, const glm::vec4& value) const;
-
-    /**
-     * @brief Sets a mat3 uniform
-     * @param name Uniform name in shader
-     * @param value Matrix value
-     */
     void setUniform(const std::string& name, const glm::mat3& value) const;
-
-    /**
-     * @brief Sets a mat4 uniform
-     * @param name Uniform name in shader
-     * @param value Matrix value
-     */
     void setUniform(const std::string& name, const glm::mat4& value) const;
+
+    void setUniform(i32 location, i32 value) const;
+    void setUniform(i32 location, f32 value) const;
+    void setUniform(i32 location, const glm::vec2& value) const;
+    void setUniform(i32 location, const glm::vec3& value) const;
+    void setUniform(i32 location, const glm::vec4& value) const;
+    void setUniform(i32 location, const glm::mat3& value) const;
+    void setUniform(i32 location, const glm::mat4& value) const;
 
     // =========================================================================
     // Attributes
@@ -150,6 +122,8 @@ public:
      * @return Location, or -1 if not found
      */
     i32 getAttribLocation(const std::string& name) const;
+
+    i32 getUniformLocation(const std::string& name) const;
 
     // =========================================================================
     // State
@@ -176,14 +150,6 @@ private:
      */
     bool compile(const std::string& vertexSrc, const std::string& fragmentSrc);
 
-    /**
-     * @brief Gets uniform location with caching
-     * @param name Uniform name
-     * @return Location, or -1 if not found
-     */
-    i32 getUniformLocation(const std::string& name) const;
-
-    /** @brief OpenGL program handle */
     u32 programId_ = 0;
 
     /** @brief Cached uniform locations (mutable for const uniform setters) */

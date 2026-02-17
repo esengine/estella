@@ -299,89 +299,89 @@ export const nativeFS: NativeFS = {
     },
 
     async getEngineJs() {
-        const data = await invoke<number[]>('get_engine_js');
+        const data = await invoke<number[]>('get_embedded_asset', { name: 'engine.js' });
         return new TextDecoder().decode(new Uint8Array(data));
     },
 
     async getEngineWasm() {
-        const data = await invoke<number[]>('get_engine_wasm');
+        const data = await invoke<number[]>('get_embedded_asset', { name: 'engine.wasm' });
         return new Uint8Array(data);
     },
 
     async getEngineSingleJs() {
-        const data = await invoke<number[]>('get_engine_single_js');
+        const data = await invoke<number[]>('get_embedded_asset', { name: 'engine.single.js' });
         return new TextDecoder().decode(new Uint8Array(data));
     },
 
     async getEngineWxgameJs() {
-        const data = await invoke<number[]>('get_engine_wxgame_js');
+        const data = await invoke<number[]>('get_embedded_asset', { name: 'engine.wxgame.js' });
         return new TextDecoder().decode(new Uint8Array(data));
     },
 
     async getEngineWxgameWasm() {
-        const data = await invoke<number[]>('get_engine_wxgame_wasm');
+        const data = await invoke<number[]>('get_embedded_asset', { name: 'engine.wxgame.wasm' });
         return new Uint8Array(data);
     },
 
     async getSdkWechatJs() {
-        const data = await invoke<number[]>('get_sdk_wechat_js');
+        const data = await invoke<number[]>('get_embedded_asset', { name: 'sdk.wechat.js' });
         return new TextDecoder().decode(new Uint8Array(data));
     },
 
     async getSdkEsmJs() {
-        const data = await invoke<number[]>('get_sdk_esm_js');
+        const data = await invoke<number[]>('get_embedded_asset', { name: 'sdk.esm.js' });
         return new TextDecoder().decode(new Uint8Array(data));
     },
 
     async getSdkEsmDts() {
-        const data = await invoke<number[]>('get_sdk_esm_dts');
+        const data = await invoke<number[]>('get_embedded_asset', { name: 'sdk.esm.dts' });
         return new TextDecoder().decode(new Uint8Array(data));
     },
 
     async getSdkWasmJs() {
-        const data = await invoke<number[]>('get_sdk_wasm_js');
+        const data = await invoke<number[]>('get_embedded_asset', { name: 'sdk.wasm.js' });
         return new TextDecoder().decode(new Uint8Array(data));
     },
 
     async getSdkWasmDts() {
-        const data = await invoke<number[]>('get_sdk_wasm_dts');
+        const data = await invoke<number[]>('get_embedded_asset', { name: 'sdk.wasm.dts' });
         return new TextDecoder().decode(new Uint8Array(data));
     },
 
     async getEditorDts() {
-        const data = await invoke<number[]>('get_editor_dts');
+        const data = await invoke<number[]>('get_embedded_asset', { name: 'editor.dts' });
         return new TextDecoder().decode(new Uint8Array(data));
     },
 
     async getSpineJs(version: string) {
-        const cmdMap: Record<string, string> = {
-            '3.8': 'get_spine38_js',
-            '4.1': 'get_spine41_js',
-            '4.2': 'get_spine42_js',
+        const versionMap: Record<string, string> = {
+            '3.8': 'spine38',
+            '4.1': 'spine41',
+            '4.2': 'spine42',
         };
-        const cmd = cmdMap[version] ?? 'get_spine42_js';
-        const data = await invoke<number[]>(cmd);
+        const prefix = versionMap[version] ?? 'spine42';
+        const data = await invoke<number[]>('get_embedded_asset', { name: `${prefix}.js` });
         return new TextDecoder().decode(new Uint8Array(data));
     },
 
     async getSpineWasm(version: string) {
-        const cmdMap: Record<string, string> = {
-            '3.8': 'get_spine38_wasm',
-            '4.1': 'get_spine41_wasm',
-            '4.2': 'get_spine42_wasm',
+        const versionMap: Record<string, string> = {
+            '3.8': 'spine38',
+            '4.1': 'spine41',
+            '4.2': 'spine42',
         };
-        const cmd = cmdMap[version] ?? 'get_spine42_wasm';
-        const data = await invoke<number[]>(cmd);
+        const prefix = versionMap[version] ?? 'spine42';
+        const data = await invoke<number[]>('get_embedded_asset', { name: `${prefix}.wasm` });
         return new Uint8Array(data);
     },
 
     async getPhysicsJs() {
-        const data = await invoke<number[]>('get_physics_js');
+        const data = await invoke<number[]>('get_embedded_asset', { name: 'physics.js' });
         return new TextDecoder().decode(new Uint8Array(data));
     },
 
     async getPhysicsWasm() {
-        const data = await invoke<number[]>('get_physics_wasm');
+        const data = await invoke<number[]>('get_embedded_asset', { name: 'physics.wasm' });
         return new Uint8Array(data);
     },
 };

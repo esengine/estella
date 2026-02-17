@@ -7,6 +7,7 @@
 import type { ESEngineModule } from './wasm';
 import type { ShaderHandle, Vec4 } from './material';
 import { Material } from './material';
+import { handleWasmError } from './wasmError';
 
 // =============================================================================
 // Internal State
@@ -48,14 +49,23 @@ export const PostProcess = {
      * @returns True on success
      */
     init(width: number, height: number): boolean {
-        return getModule().postprocess_init(width, height);
+        try {
+            return getModule().postprocess_init(width, height);
+        } catch (e) {
+            handleWasmError(e, `PostProcess.init(${width}x${height})`);
+            return false;
+        }
     },
 
     /**
      * Shuts down the post-processing pipeline.
      */
     shutdown(): void {
-        getModule().postprocess_shutdown();
+        try {
+            getModule().postprocess_shutdown();
+        } catch (e) {
+            handleWasmError(e, 'PostProcess.shutdown');
+        }
     },
 
     /**
@@ -64,7 +74,11 @@ export const PostProcess = {
      * @param height New height
      */
     resize(width: number, height: number): void {
-        getModule().postprocess_resize(width, height);
+        try {
+            getModule().postprocess_resize(width, height);
+        } catch (e) {
+            handleWasmError(e, `PostProcess.resize(${width}x${height})`);
+        }
     },
 
     /**
@@ -74,7 +88,12 @@ export const PostProcess = {
      * @returns Pass index
      */
     addPass(name: string, shader: ShaderHandle): number {
-        return getModule().postprocess_addPass(name, shader);
+        try {
+            return getModule().postprocess_addPass(name, shader);
+        } catch (e) {
+            handleWasmError(e, `PostProcess.addPass("${name}")`);
+            return -1;
+        }
     },
 
     /**
@@ -82,7 +101,11 @@ export const PostProcess = {
      * @param name Pass name
      */
     removePass(name: string): void {
-        getModule().postprocess_removePass(name);
+        try {
+            getModule().postprocess_removePass(name);
+        } catch (e) {
+            handleWasmError(e, `PostProcess.removePass("${name}")`);
+        }
     },
 
     /**
@@ -91,7 +114,11 @@ export const PostProcess = {
      * @param enabled Whether to enable the pass
      */
     setEnabled(name: string, enabled: boolean): void {
-        getModule().postprocess_setPassEnabled(name, enabled);
+        try {
+            getModule().postprocess_setPassEnabled(name, enabled);
+        } catch (e) {
+            handleWasmError(e, `PostProcess.setEnabled("${name}")`);
+        }
     },
 
     /**
@@ -100,7 +127,12 @@ export const PostProcess = {
      * @returns True if enabled
      */
     isEnabled(name: string): boolean {
-        return getModule().postprocess_isPassEnabled(name);
+        try {
+            return getModule().postprocess_isPassEnabled(name);
+        } catch (e) {
+            handleWasmError(e, `PostProcess.isEnabled("${name}")`);
+            return false;
+        }
     },
 
     /**
@@ -110,7 +142,11 @@ export const PostProcess = {
      * @param value Float value
      */
     setUniform(passName: string, uniform: string, value: number): void {
-        getModule().postprocess_setUniformFloat(passName, uniform, value);
+        try {
+            getModule().postprocess_setUniformFloat(passName, uniform, value);
+        } catch (e) {
+            handleWasmError(e, `PostProcess.setUniform("${passName}", "${uniform}")`);
+        }
     },
 
     /**
@@ -120,7 +156,11 @@ export const PostProcess = {
      * @param value Vec4 value
      */
     setUniformVec4(passName: string, uniform: string, value: Vec4): void {
-        getModule().postprocess_setUniformVec4(passName, uniform, value.x, value.y, value.z, value.w);
+        try {
+            getModule().postprocess_setUniformVec4(passName, uniform, value.x, value.y, value.z, value.w);
+        } catch (e) {
+            handleWasmError(e, `PostProcess.setUniformVec4("${passName}", "${uniform}")`);
+        }
     },
 
     /**
@@ -128,7 +168,11 @@ export const PostProcess = {
      * Call this before rendering your scene.
      */
     begin(): void {
-        getModule().postprocess_begin();
+        try {
+            getModule().postprocess_begin();
+        } catch (e) {
+            handleWasmError(e, 'PostProcess.begin');
+        }
     },
 
     /**
@@ -136,14 +180,23 @@ export const PostProcess = {
      * Call this after rendering your scene.
      */
     end(): void {
-        getModule().postprocess_end();
+        try {
+            getModule().postprocess_end();
+        } catch (e) {
+            handleWasmError(e, 'PostProcess.end');
+        }
     },
 
     /**
      * Gets the number of passes.
      */
     getPassCount(): number {
-        return getModule().postprocess_getPassCount();
+        try {
+            return getModule().postprocess_getPassCount();
+        } catch (e) {
+            handleWasmError(e, 'PostProcess.getPassCount');
+            return 0;
+        }
     },
 
     /**
@@ -151,7 +204,12 @@ export const PostProcess = {
      */
     isInitialized(): boolean {
         if (!module) return false;
-        return module.postprocess_isInitialized();
+        try {
+            return module.postprocess_isInitialized();
+        } catch (e) {
+            handleWasmError(e, 'PostProcess.isInitialized');
+            return false;
+        }
     },
 
     /**
@@ -161,7 +219,11 @@ export const PostProcess = {
      * @param bypass Whether to bypass the pipeline
      */
     setBypass(bypass: boolean): void {
-        getModule().postprocess_setBypass(bypass);
+        try {
+            getModule().postprocess_setBypass(bypass);
+        } catch (e) {
+            handleWasmError(e, 'PostProcess.setBypass');
+        }
     },
 
     /**
@@ -170,7 +232,12 @@ export const PostProcess = {
      */
     isBypassed(): boolean {
         if (!module) return true;
-        return module.postprocess_isBypassed();
+        try {
+            return module.postprocess_isBypassed();
+        } catch (e) {
+            handleWasmError(e, 'PostProcess.isBypassed');
+            return true;
+        }
     },
 
     // =========================================================================

@@ -1,49 +1,12 @@
-/**
- * @file    EditorStore.ts
- * @brief   Editor state management
- */
-
 import type { Entity } from 'esengine';
 import type { SceneData, EntityData, ComponentData } from '../types/SceneTypes';
 import { createEmptyScene } from '../types/SceneTypes';
-import {
-    CommandHistory,
-    PropertyCommand,
-    CompoundCommand,
-    CreateEntityCommand,
-    DeleteEntityCommand,
-    ReparentCommand,
-    MoveEntityCommand,
-    AddComponentCommand,
-    RemoveComponentCommand,
-    ReorderComponentCommand,
-    RenameEntityCommand,
-    ToggleVisibilityCommand,
-    InstantiatePrefabCommand,
-    InstantiateNestedPrefabCommand,
-    UnpackPrefabCommand,
-    RevertPrefabInstanceCommand,
-    ApplyPrefabOverridesCommand,
-} from '../commands';
-import {
-    entityTreeToPrefab,
-    savePrefabToPath,
-    loadPrefabFromPath,
-    prefabToSceneData,
-    sceneDataToPrefab,
-    instantiatePrefabRecursive,
-    syncPrefabInstances,
-    recordPropertyOverride,
-    recordNameOverride,
-    recordVisibilityOverride,
-    recordComponentAddedOverride,
-    recordComponentRemovedOverride,
-} from '../prefab';
-import { getGlobalPathResolver, getAssetDatabase, isUUID } from '../asset';
+import { CommandHistory } from '../commands';
 import { WorldTransformCache } from '../transform/WorldTransformCache';
 import type { Transform } from '../math/Transform';
-import { isComponentRemovable } from '../schemas/ComponentSchemas';
-import { showConfirmDialog } from '../ui/dialog';
+import { SelectionService } from './SelectionService';
+import { SceneOperations } from './SceneOperations';
+import { PrefabEditService } from './PrefabEditService';
 
 // =============================================================================
 // Types
@@ -114,31 +77,27 @@ export type ComponentChangeListener = (event: ComponentChangeEvent) => void;
 // =============================================================================
 
 export class EditorStore {
-    private state_: EditorState;
+    state_: EditorState;
     private history_: CommandHistory;
-    private listeners_: Set<EditorListener> = new Set();
-    private propertyListeners_: Set<PropertyChangeListener> = new Set();
-    private hierarchyListeners_: Set<HierarchyChangeListener> = new Set();
-    private focusListeners_: Set<(entityId: number) => void> = new Set();
-    private visibilityListeners_: Set<VisibilityChangeListener> = new Set();
-    private entityLifecycleListeners_: Set<EntityLifecycleListener> = new Set();
-    private componentChangeListeners_: Set<ComponentChangeListener> = new Set();
-    private sceneSyncListeners_: Set<() => void> = new Set();
+    private listeners_ = new Set<EditorListener>();
+    private propertyListeners_ = new Set<PropertyChangeListener>();
+    private hierarchyListeners_ = new Set<HierarchyChangeListener>();
+    private visibilityListeners_ = new Set<VisibilityChangeListener>();
+    private entityLifecycleListeners_ = new Set<EntityLifecycleListener>();
+    private componentChangeListeners_ = new Set<ComponentChangeListener>();
+    private sceneSyncListeners_ = new Set<() => void>();
     private pendingNotify_ = false;
-    private dirtyFlags_: Set<DirtyFlag> = new Set();
-    private nextEntityId_ = 1;
+    private dirtyFlags_ = new Set<DirtyFlag>();
+    nextEntityId_ = 1;
     private sceneVersion_ = 0;
-    private worldTransforms_ = new WorldTransformCache();
-    private entityMap_ = new Map<number, EntityData>();
+    worldTransforms_ = new WorldTransformCache();
+    entityMap_ = new Map<number, EntityData>();
 
-    private prefabLock_: Promise<void> | null = null;
-    private prefabEditingPath_: string | null = null;
-    private savedSceneState_: {
-        scene: SceneData;
-        filePath: string | null;
-        isDirty: boolean;
-    } | null = null;
     private autoSaveTimer_: ReturnType<typeof setInterval> | null = null;
+
+    private readonly selection_: SelectionService;
+    private readonly sceneOps_: SceneOperations;
+    private readonly prefabEdit_: PrefabEditService;
 
     private static readonly AUTOSAVE_KEY = 'esengine.autosave';
     private static readonly AUTOSAVE_INTERVAL = 60_000;
@@ -156,6 +115,11 @@ export class EditorStore {
         this.nextEntityId_ = this.computeNextEntityId(scene);
         this.rebuildEntityMap();
         this.worldTransforms_.setScene(scene);
+
+        this.selection_ = new SelectionService(this);
+        this.sceneOps_ = new SceneOperations(this);
+        this.prefabEdit_ = new PrefabEditService(this);
+
         this.startAutoSave();
     }
 
@@ -185,8 +149,8 @@ export class EditorStore {
     }
 
     get selectedEntity(): Entity | null {
-        const arr = Array.from(this.state_.selectedEntities);
-        return arr.length === 1 ? (arr[0] as Entity) : null;
+        if (this.state_.selectedEntities.size !== 1) return null;
+        return this.state_.selectedEntities.values().next().value as Entity;
     }
 
     get selectedAsset(): AssetSelection | null {
@@ -194,11 +158,11 @@ export class EditorStore {
     }
 
     get prefabEditingPath(): string | null {
-        return this.prefabEditingPath_;
+        return this.prefabEdit_.prefabEditingPath;
     }
 
     get isEditingPrefab(): boolean {
-        return this.prefabEditingPath_ !== null;
+        return this.prefabEdit_.isEditingPrefab;
     }
 
     get canUndo(): boolean {
@@ -299,107 +263,31 @@ export class EditorStore {
     }
 
     // =========================================================================
-    // Selection
+    // Selection (delegated to SelectionService)
     // =========================================================================
 
     selectEntity(entity: Entity | null, mode: 'replace' | 'add' | 'toggle' = 'replace'): void {
-        const oldSelection = new Set(this.state_.selectedEntities);
-
-        if (entity === null) {
-            this.state_.selectedEntities.clear();
-        } else {
-            const id = entity as number;
-            if (mode === 'replace') {
-                this.state_.selectedEntities.clear();
-                this.state_.selectedEntities.add(id);
-            } else if (mode === 'add') {
-                this.state_.selectedEntities.add(id);
-            } else if (mode === 'toggle') {
-                if (this.state_.selectedEntities.has(id)) {
-                    this.state_.selectedEntities.delete(id);
-                } else {
-                    this.state_.selectedEntities.add(id);
-                }
-            }
-        }
-
-        if (!this.setsEqual(oldSelection, this.state_.selectedEntities)) {
-            this.state_.selectedAsset = null;
-            this.notify('selection');
-        }
+        this.selection_.selectEntity(entity, mode);
     }
 
     selectEntities(entities: number[]): void {
-        this.state_.selectedEntities.clear();
-        for (const id of entities) {
-            this.state_.selectedEntities.add(id);
-        }
-        this.state_.selectedAsset = null;
-        this.notify('selection');
+        this.selection_.selectEntities(entities);
     }
 
     selectRange(fromEntity: number, toEntity: number): void {
-        const flatList: number[] = [];
-        const visited = new Set<number>();
-
-        const traverse = (entityId: number | null) => {
-            if (entityId === null) return;
-            const entity = this.entityMap_.get(entityId);
-            if (!entity || visited.has(entityId)) return;
-            visited.add(entityId);
-            flatList.push(entityId);
-            for (const childId of entity.children) {
-                traverse(childId);
-            }
-        };
-
-        for (const entity of this.state_.scene.entities) {
-            if (entity.parent === null) {
-                traverse(entity.id);
-            }
-        }
-
-        const fromIndex = flatList.indexOf(fromEntity);
-        const toIndex = flatList.indexOf(toEntity);
-
-        if (fromIndex === -1 || toIndex === -1) return;
-
-        const start = Math.min(fromIndex, toIndex);
-        const end = Math.max(fromIndex, toIndex);
-        const range = flatList.slice(start, end + 1);
-
-        this.selectEntities(range);
-    }
-
-    private setsEqual(a: Set<number>, b: Set<number>): boolean {
-        if (a.size !== b.size) return false;
-        for (const item of a) {
-            if (!b.has(item)) return false;
-        }
-        return true;
+        this.selection_.selectRange(fromEntity, toEntity);
     }
 
     selectAsset(asset: AssetSelection | null): void {
-        this.state_.selectedAsset = asset;
-        this.state_.selectedEntities.clear();
-        this.notify('selection');
+        this.selection_.selectAsset(asset);
     }
 
     getSelectedEntityData(): EntityData | null {
-        const arr = Array.from(this.state_.selectedEntities);
-        if (arr.length !== 1) return null;
-        return this.entityMap_.get(arr[0]) ?? null;
+        return this.selection_.getSelectedEntityData();
     }
 
     getSelectedEntitiesData(): EntityData[] {
-        const result: EntityData[] = [];
-        for (const id of this.state_.selectedEntities) {
-            const entity = this.entityMap_.get(id);
-            if (entity) {
-                result.push(entity);
-            }
-        }
-        return result;
+        return this.selection_.getSelectedEntitiesData();
     }
 
     getEntityData(entityId: number): EntityData | null {
@@ -407,35 +295,19 @@ export class EditorStore {
     }
 
     focusEntity(entityId: number): void {
-        for (const listener of this.focusListeners_) {
-            listener(entityId);
-        }
+        this.selection_.focusEntity(entityId);
     }
 
     onFocusEntity(listener: (entityId: number) => void): () => void {
-        this.focusListeners_.add(listener);
-        return () => this.focusListeners_.delete(listener);
+        return this.selection_.onFocusEntity(listener);
     }
 
     // =========================================================================
-    // Visibility
+    // Visibility (delegated to SceneOperations)
     // =========================================================================
 
     toggleVisibility(entityId: number): void {
-        const entityData = this.entityMap_.get(entityId);
-        if (!entityData) return;
-
-        const cmd = new ToggleVisibilityCommand(
-            this.state_.scene,
-            this.entityMap_,
-            entityId,
-            (id, visible) => this.notifyVisibilityChange({ entity: id, visible })
-        );
-        this.executeCommand(cmd);
-
-        if (entityData.prefab) {
-            recordVisibilityOverride(this.state_.scene, entityId, entityData.visible);
-        }
+        this.sceneOps_.toggleVisibility(entityId);
     }
 
     isEntityVisible(entityId: number): boolean {
@@ -457,160 +329,48 @@ export class EditorStore {
         return () => this.visibilityListeners_.delete(listener);
     }
 
-    private notifyVisibilityChange(event: VisibilityChangeEvent): void {
-        for (const listener of this.visibilityListeners_) {
-            listener(event);
-        }
-    }
-
     // =========================================================================
-    // Entity Operations
+    // Entity Operations (delegated to SceneOperations)
     // =========================================================================
 
     createEntity(name?: string, parent: Entity | null = null): Entity {
-        const id = this.nextEntityId_++;
-        const entityName = name ?? `Entity_${id}`;
-
-        const cmd = new CreateEntityCommand(
-            this.state_.scene,
-            this.entityMap_,
-            id,
-            entityName,
-            parent
-        );
-        this.executeCommand(cmd);
-
-        this.notifyEntityLifecycle({ entity: id, type: 'created', parent: parent as number | null });
-
-        if (parent !== null) {
-            const parentData = this.entityMap_.get(parent as number);
-            if (parentData && !parentData.visible) {
-                const newEntityData = this.entityMap_.get(id);
-                if (newEntityData) {
-                    newEntityData.visible = false;
-                    this.notifyVisibilityChange({ entity: id, visible: false });
-                }
-            }
-        }
-
-        this.selectEntity(id as Entity);
-
-        return id as Entity;
+        return this.sceneOps_.createEntity(name, parent);
     }
 
     deleteEntity(entity: Entity): void {
-        const descendants = this.collectDescendantIds(entity as number);
-        const cmd = new DeleteEntityCommand(this.state_.scene, this.entityMap_, entity);
-        this.executeCommand(cmd);
-
-        const hadSelection = this.state_.selectedEntities.size > 0;
-        this.state_.selectedEntities.delete(entity as number);
-        for (const id of descendants) {
-            this.state_.selectedEntities.delete(id);
-        }
-        if (hadSelection) {
-            this.notify('selection');
-        }
-
-        for (const id of descendants) {
-            this.notifyEntityLifecycle({ entity: id, type: 'deleted', parent: null });
-        }
-        this.notifyEntityLifecycle({ entity: entity as number, type: 'deleted', parent: null });
+        this.sceneOps_.deleteEntity(entity);
     }
 
     deleteSelectedEntities(): void {
-        const toDelete = Array.from(this.state_.selectedEntities);
-
-        const descendantMap = new Map<number, number[]>();
-        for (const id of toDelete) {
-            descendantMap.set(id, this.collectDescendantIds(id));
-        }
-
-        const commands = toDelete.map(id => new DeleteEntityCommand(this.state_.scene, this.entityMap_, id as Entity));
-        const compound = new CompoundCommand(commands, 'Delete entities');
-        this.executeCommand(compound);
-
-        this.state_.selectedEntities.clear();
-
-        for (const id of toDelete) {
-            const descendants = descendantMap.get(id)!;
-            for (const descId of descendants) {
-                this.notifyEntityLifecycle({ entity: descId, type: 'deleted', parent: null });
-            }
-            this.notifyEntityLifecycle({ entity: id, type: 'deleted', parent: null });
-        }
+        this.sceneOps_.deleteSelectedEntities();
     }
 
     reparentEntity(entity: Entity, newParent: Entity | null): void {
-        const cmd = new ReparentCommand(this.state_.scene, this.entityMap_, entity, newParent);
-        this.executeCommand(cmd);
-        this.notifyHierarchyChange({
-            entity: entity as number,
-            newParent: newParent as number | null,
-        });
+        this.sceneOps_.reparentEntity(entity, newParent);
     }
 
     moveEntity(entity: Entity, newParent: Entity | null, index: number): void {
-        const cmd = new MoveEntityCommand(this.state_.scene, this.entityMap_, entity, newParent, index);
-        this.executeCommand(cmd);
-        this.notifyHierarchyChange({
-            entity: entity as number,
-            newParent: newParent as number | null,
-        });
+        this.sceneOps_.moveEntity(entity, newParent, index);
     }
 
     renameEntity(entity: Entity, name: string): void {
-        const entityData = this.entityMap_.get(entity as number);
-        if (!entityData) return;
-
-        const oldName = entityData.name;
-        const cmd = new RenameEntityCommand(
-            this.state_.scene,
-            this.entityMap_,
-            entity,
-            oldName,
-            name
-        );
-        this.executeCommand(cmd);
-
-        if (entityData.prefab) {
-            recordNameOverride(this.state_.scene, entity as number, name);
-        }
+        this.sceneOps_.renameEntity(entity, name);
     }
 
     // =========================================================================
-    // Component Operations
+    // Component Operations (delegated to SceneOperations)
     // =========================================================================
 
     addComponent(entity: Entity, type: string, data: Record<string, unknown>): void {
-        const cmd = new AddComponentCommand(this.state_.scene, this.entityMap_, entity, type, data);
-        this.executeCommand(cmd);
-
-        if (this.isPrefabInstance(entity as number)) {
-            recordComponentAddedOverride(this.state_.scene, entity as number, type, data);
-        }
-
-        this.notifyComponentChange({ entity: entity as number, componentType: type, action: 'added' });
+        this.sceneOps_.addComponent(entity, type, data);
     }
 
     removeComponent(entity: Entity, type: string): void {
-        if (!isComponentRemovable(type)) return;
-
-        if (this.isPrefabInstance(entity as number)) {
-            recordComponentRemovedOverride(this.state_.scene, entity as number, type);
-        }
-
-        const cmd = new RemoveComponentCommand(this.state_.scene, this.entityMap_, entity, type);
-        this.executeCommand(cmd);
-        this.notifyComponentChange({ entity: entity as number, componentType: type, action: 'removed' });
+        this.sceneOps_.removeComponent(entity, type);
     }
 
     reorderComponent(entity: Entity, fromIndex: number, toIndex: number): void {
-        const cmd = new ReorderComponentCommand(
-            this.state_.scene, this.entityMap_, entity as number, fromIndex, toIndex
-        );
-        this.executeCommand(cmd);
-        this.notify('selection');
+        this.sceneOps_.reorderComponent(entity, fromIndex, toIndex);
     }
 
     updateProperty(
@@ -620,34 +380,7 @@ export class EditorStore {
         oldValue: unknown,
         newValue: unknown
     ): void {
-        const cmd = new PropertyCommand(
-            this.state_.scene,
-            this.entityMap_,
-            entity,
-            componentType,
-            propertyName,
-            oldValue,
-            newValue
-        );
-        this.executeCommand(cmd);
-
-        if (this.isPrefabInstance(entity as number)) {
-            recordPropertyOverride(
-                this.state_.scene,
-                entity as number,
-                componentType,
-                propertyName,
-                newValue
-            );
-        }
-
-        this.notifyPropertyChange({
-            entity: entity as number,
-            componentType,
-            propertyName,
-            oldValue,
-            newValue,
-        });
+        this.sceneOps_.updateProperty(entity, componentType, propertyName, oldValue, newValue);
     }
 
     updateProperties(
@@ -655,32 +388,11 @@ export class EditorStore {
         componentType: string,
         changes: { property: string; oldValue: unknown; newValue: unknown }[]
     ): void {
-        const commands = changes.map(c => new PropertyCommand(
-            this.state_.scene,
-            this.entityMap_,
-            entity,
-            componentType,
-            c.property,
-            c.oldValue,
-            c.newValue
-        ));
-        const compound = new CompoundCommand(commands, `Change ${componentType} properties`);
-        this.executeCommand(compound);
-        for (const c of changes) {
-            this.notifyPropertyChange({
-                entity: entity as number,
-                componentType,
-                propertyName: c.property,
-                oldValue: c.oldValue,
-                newValue: c.newValue,
-            });
-        }
+        this.sceneOps_.updateProperties(entity, componentType, changes);
     }
 
     getComponent(entity: Entity, type: string): ComponentData | null {
-        const entityData = this.entityMap_.get(entity as number);
-        if (!entityData) return null;
-        return entityData.components.find(c => c.type === type) ?? null;
+        return this.sceneOps_.getComponent(entity, type);
     }
 
     updatePropertyDirect(
@@ -689,316 +401,71 @@ export class EditorStore {
         propertyName: string,
         newValue: unknown
     ): void {
-        const entityData = this.entityMap_.get(entity as number);
-        if (!entityData) return;
-
-        const component = entityData.components.find(c => c.type === componentType);
-        if (!component) return;
-
-        const oldValue = component.data[propertyName];
-        component.data[propertyName] = newValue;
-        this.state_.isDirty = true;
-
-        if (componentType === 'LocalTransform') {
-            this.worldTransforms_.updateEntity(entityData);
-            this.worldTransforms_.markDirty(entity as number);
-        }
-
-        this.notifyPropertyChange({
-            entity: entity as number,
-            componentType,
-            propertyName,
-            oldValue,
-            newValue,
-        });
+        this.sceneOps_.updatePropertyDirect(entity, componentType, propertyName, newValue);
     }
 
     // =========================================================================
     // World Transform
     // =========================================================================
 
-    /**
-     * @brief Get cached world transform for an entity
-     */
     getWorldTransform(entityId: number): Transform {
         return this.worldTransforms_.getWorldTransform(entityId);
     }
 
-    /**
-     * @brief Invalidate all cached transforms (force recalculation)
-     */
     invalidateAllTransforms(): void {
         this.worldTransforms_.invalidateAll();
     }
 
     // =========================================================================
-    // Prefab Operations
+    // Prefab Operations (delegated to PrefabEditService)
     // =========================================================================
 
-    async instantiatePrefab(
-        prefabPath: string,
-        parentEntity: Entity | null = null
-    ): Promise<Entity | null> {
-        if (this.prefabLock_) {
-            await this.prefabLock_;
-        }
-
-        let resolve: () => void;
-        this.prefabLock_ = new Promise<void>(r => { resolve = r; });
-
-        try {
-            return await this.instantiatePrefabInner(prefabPath, parentEntity);
-        } finally {
-            this.prefabLock_ = null;
-            resolve!();
-        }
-    }
-
-    private async instantiatePrefabInner(
-        prefabPath: string,
-        parentEntity: Entity | null
-    ): Promise<Entity | null> {
-        const hasNested = await this.prefabHasNested(prefabPath);
-
-        if (hasNested) {
-            return this.instantiatePrefabNested(prefabPath, parentEntity);
-        }
-
-        const prefab = await loadPrefabFromPath(prefabPath);
-        if (!prefab) return null;
-
-        const cmd = new InstantiatePrefabCommand(
-            this.state_.scene,
-            this.entityMap_,
-            prefab,
-            prefabPath,
-            parentEntity as number | null,
-            this.nextEntityId_
-        );
-        this.executeCommand(cmd);
-
-        const createdIds = cmd.createdEntityIds;
-        this.nextEntityId_ = Math.max(this.nextEntityId_, ...createdIds.map(id => id + 1));
-
-        for (const id of createdIds) {
-            this.notifyEntityLifecycle({ entity: id, type: 'created', parent: null });
-        }
-
-        const rootId = cmd.rootEntityId;
-        if (rootId !== -1) {
-            this.selectEntity(rootId as Entity);
-        }
-
-        return rootId as Entity;
-    }
-
-    private async instantiatePrefabNested(
-        prefabPath: string,
-        parentEntity: Entity | null
-    ): Promise<Entity | null> {
-        const result = await instantiatePrefabRecursive(
-            prefabPath,
-            this.state_.scene,
-            parentEntity as number | null,
-            this.nextEntityId_
-        );
-        if (!result) return null;
-
-        const cmd = new InstantiateNestedPrefabCommand(
-            this.state_.scene,
-            this.entityMap_,
-            result.createdEntities,
-            result.rootEntityId,
-            parentEntity as number | null
-        );
-        this.executeCommand(cmd);
-
-        this.nextEntityId_ = Math.max(
-            this.nextEntityId_,
-            ...result.createdEntities.map(e => e.id + 1)
-        );
-
-        for (const entity of result.createdEntities) {
-            this.notifyEntityLifecycle({ entity: entity.id, type: 'created', parent: entity.parent });
-        }
-
-        this.selectEntity(result.rootEntityId as Entity);
-
-        return result.rootEntityId as Entity;
-    }
-
-    private async prefabHasNested(prefabPath: string): Promise<boolean> {
-        const prefab = await loadPrefabFromPath(prefabPath);
-        if (!prefab) return false;
-        return prefab.entities.some(e => e.nestedPrefab !== undefined);
+    async instantiatePrefab(prefabPath: string, parentEntity: Entity | null = null): Promise<Entity | null> {
+        return this.prefabEdit_.instantiatePrefab(prefabPath, parentEntity);
     }
 
     async saveAsPrefab(entityId: number, filePath: string): Promise<boolean> {
-        const entityData = this.entityMap_.get(entityId);
-        if (!entityData) return false;
-
-        const name = filePath.split('/').pop()?.replace('.esprefab', '') ?? entityData.name;
-        const entities = this.collectEntityTree(entityId);
-        const { prefab, idMapping } = entityTreeToPrefab(name, entityId, entities);
-
-        const saved = await savePrefabToPath(prefab, filePath);
-        if (!saved) return false;
-
-        const relativePath = getGlobalPathResolver().toRelativePath(filePath);
-        const uuid = await getAssetDatabase().ensureMeta(relativePath);
-        const instanceId = `prefab_${Date.now()}_${entityId}`;
-
-        for (const [sceneId, prefabEntityId] of idMapping) {
-            const entity = this.entityMap_.get(sceneId);
-            if (!entity) continue;
-
-            entity.prefab = {
-                prefabPath: uuid,
-                prefabEntityId,
-                isRoot: sceneId === entityId,
-                instanceId,
-                overrides: [],
-            };
-        }
-
-        this.state_.isDirty = true;
-        this.notify('scene');
-        return true;
+        return this.prefabEdit_.saveAsPrefab(entityId, filePath);
     }
 
     async revertPrefabInstance(instanceId: string, prefabPath: string): Promise<void> {
-        const prefab = await loadPrefabFromPath(prefabPath);
-        if (!prefab) return;
-
-        const cmd = new RevertPrefabInstanceCommand(
-            this.state_.scene,
-            instanceId,
-            prefab,
-            prefabPath
-        );
-        this.executeCommand(cmd);
-
+        return this.prefabEdit_.revertPrefabInstance(instanceId, prefabPath);
     }
 
     async applyPrefabOverrides(instanceId: string, prefabPath: string): Promise<void> {
-        const prefab = await loadPrefabFromPath(prefabPath);
-        if (!prefab) return;
-
-        const cmd = new ApplyPrefabOverridesCommand(
-            this.state_.scene,
-            instanceId,
-            prefab,
-            prefabPath,
-            async (p, path) => { await savePrefabToPath(p, path); }
-        );
-        this.executeCommand(cmd);
-
+        return this.prefabEdit_.applyPrefabOverrides(instanceId, prefabPath);
     }
 
     unpackPrefab(instanceId: string): void {
-        const cmd = new UnpackPrefabCommand(this.state_.scene, instanceId);
-        this.executeCommand(cmd);
-
+        this.prefabEdit_.unpackPrefab(instanceId);
     }
 
     isPrefabInstance(entityId: number): boolean {
-        const entity = this.entityMap_.get(entityId);
-        return entity?.prefab !== undefined;
+        return this.prefabEdit_.isPrefabInstance(entityId);
     }
 
     isPrefabRoot(entityId: number): boolean {
-        const entity = this.entityMap_.get(entityId);
-        return entity?.prefab?.isRoot === true;
+        return this.prefabEdit_.isPrefabRoot(entityId);
     }
 
     getPrefabInstanceId(entityId: number): string | undefined {
-        return this.entityMap_.get(entityId)?.prefab?.instanceId;
+        return this.prefabEdit_.getPrefabInstanceId(entityId);
     }
 
     getPrefabPath(entityId: number): string | undefined {
-        return this.entityMap_.get(entityId)?.prefab?.prefabPath;
+        return this.prefabEdit_.getPrefabPath(entityId);
     }
 
     async enterPrefabEditMode(prefabPath: string): Promise<boolean> {
-        const prefab = await loadPrefabFromPath(prefabPath);
-        if (!prefab) return false;
-
-        this.savedSceneState_ = {
-            scene: JSON.parse(JSON.stringify(this.state_.scene)),
-            filePath: this.state_.filePath,
-            isDirty: this.state_.isDirty,
-        };
-
-        if (!isUUID(prefabPath)) {
-            const uuid = getAssetDatabase().getUuid(prefabPath);
-            if (uuid) prefabPath = uuid;
-        }
-        this.prefabEditingPath_ = prefabPath;
-        const scene = prefabToSceneData(prefab);
-        this.loadScene(scene, null);
-
-        return true;
+        return this.prefabEdit_.enterPrefabEditMode(prefabPath);
     }
 
     async exitPrefabEditMode(): Promise<void> {
-        if (!this.savedSceneState_) return;
-
-        let saveFailed = false;
-        if (this.state_.isDirty) {
-            saveFailed = !(await this.trySavePrefabWithRetry());
-        }
-
-        const saved = this.savedSceneState_;
-        const editedPrefabPath = this.prefabEditingPath_!;
-        this.prefabEditingPath_ = null;
-        this.savedSceneState_ = null;
-
-        const synced = await syncPrefabInstances(saved.scene, editedPrefabPath);
-        this.loadScene(saved.scene, saved.filePath);
-        this.state_.isDirty = saved.isDirty || synced || saveFailed;
-        this.notify('scene');
-    }
-
-    private async trySavePrefabWithRetry(): Promise<boolean> {
-        while (true) {
-            try {
-                await this.savePrefabEditing();
-                return true;
-            } catch (e) {
-                const retry = await showConfirmDialog({
-                    title: 'Failed to save prefab',
-                    message: `${String(e)}\n\nRetry saving, or discard changes?`,
-                    confirmText: 'Retry',
-                    cancelText: 'Discard',
-                    danger: true,
-                });
-                if (!retry) return false;
-            }
-        }
+        return this.prefabEdit_.exitPrefabEditMode();
     }
 
     async savePrefabEditing(): Promise<boolean> {
-        if (!this.prefabEditingPath_) return false;
-
-        const prefab = sceneDataToPrefab(this.state_.scene);
-        const saved = await savePrefabToPath(prefab, this.prefabEditingPath_);
-        if (saved) {
-            this.state_.isDirty = false;
-            this.notify('scene');
-        }
-        return saved;
-    }
-
-    private collectEntityTree(rootId: number): import('../types/SceneTypes').EntityData[] {
-        const result: import('../types/SceneTypes').EntityData[] = [];
-        const entity = this.entityMap_.get(rootId);
-        if (!entity) return result;
-
-        result.push(entity);
-        for (const childId of entity.children) {
-            result.push(...this.collectEntityTree(childId));
-        }
-        return result;
+        return this.prefabEdit_.savePrefabEditing();
     }
 
     // =========================================================================
@@ -1065,10 +532,10 @@ export class EditorStore {
     }
 
     // =========================================================================
-    // Private
+    // Internal (used by services via host interfaces)
     // =========================================================================
 
-    private executeCommand(cmd: import('../commands').Command): void {
+    executeCommand(cmd: import('../commands').Command): void {
         this.history_.execute(cmd);
         this.state_.isDirty = true;
         this.applyCommandSideEffects(cmd, false);
@@ -1095,7 +562,7 @@ export class EditorStore {
         }
     }
 
-    private notify(flag: DirtyFlag = 'scene'): void {
+    notify(flag: DirtyFlag = 'scene'): void {
         this.dirtyFlags_.add(flag);
         if (this.pendingNotify_) return;
         this.pendingNotify_ = true;
@@ -1110,7 +577,7 @@ export class EditorStore {
         });
     }
 
-    private notifyPropertyChange(event: PropertyChangeEvent): void {
+    notifyPropertyChange(event: PropertyChangeEvent): void {
         if (event.componentType === 'TextInput' && event.propertyName === 'backgroundColor') {
             const entityData = this.entityMap_.get(event.entity);
             const spriteComp = entityData?.components.find(c => c.type === 'Sprite');
@@ -1146,33 +613,28 @@ export class EditorStore {
         }
     }
 
-    private notifyHierarchyChange(event: HierarchyChangeEvent): void {
+    notifyHierarchyChange(event: HierarchyChangeEvent): void {
         for (const listener of this.hierarchyListeners_) {
             listener(event);
         }
     }
 
-    private notifyEntityLifecycle(event: EntityLifecycleEvent): void {
+    notifyEntityLifecycle(event: EntityLifecycleEvent): void {
         for (const listener of this.entityLifecycleListeners_) {
             listener(event);
         }
     }
 
-    private notifyComponentChange(event: ComponentChangeEvent): void {
+    notifyComponentChange(event: ComponentChangeEvent): void {
         for (const listener of this.componentChangeListeners_) {
             listener(event);
         }
     }
 
-    private collectDescendantIds(entityId: number): number[] {
-        const result: number[] = [];
-        const entityData = this.entityMap_.get(entityId);
-        if (!entityData) return result;
-        for (const childId of entityData.children) {
-            result.push(...this.collectDescendantIds(childId));
-            result.push(childId);
+    notifyVisibilityChange(event: VisibilityChangeEvent): void {
+        for (const listener of this.visibilityListeners_) {
+            listener(event);
         }
-        return result;
     }
 
     private rebuildEntityMap(): void {

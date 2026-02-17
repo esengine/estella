@@ -212,6 +212,34 @@ void Shader::setUniform(const std::string& name, const glm::mat4& value) const {
     glUniformMatrix4fv(getUniformLocation(name), 1, GL_FALSE, glm::value_ptr(value));
 }
 
+void Shader::setUniform(i32 location, i32 value) const {
+    if (location >= 0) glUniform1i(location, value);
+}
+
+void Shader::setUniform(i32 location, f32 value) const {
+    if (location >= 0) glUniform1f(location, value);
+}
+
+void Shader::setUniform(i32 location, const glm::vec2& value) const {
+    if (location >= 0) glUniform2f(location, value.x, value.y);
+}
+
+void Shader::setUniform(i32 location, const glm::vec3& value) const {
+    if (location >= 0) glUniform3f(location, value.x, value.y, value.z);
+}
+
+void Shader::setUniform(i32 location, const glm::vec4& value) const {
+    if (location >= 0) glUniform4f(location, value.x, value.y, value.z, value.w);
+}
+
+void Shader::setUniform(i32 location, const glm::mat3& value) const {
+    if (location >= 0) glUniformMatrix3fv(location, 1, GL_FALSE, glm::value_ptr(value));
+}
+
+void Shader::setUniform(i32 location, const glm::mat4& value) const {
+    if (location >= 0) glUniformMatrix4fv(location, 1, GL_FALSE, glm::value_ptr(value));
+}
+
 i32 Shader::getAttribLocation(const std::string& name) const {
     return glGetAttribLocation(programId_, name.c_str());
 }

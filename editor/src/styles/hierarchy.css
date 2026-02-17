@@ -1,0 +1,305 @@
+/* =============================================================================
+ * Hierarchy Panel
+ * ============================================================================= */
+
+.es-hierarchy-panel {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: var(--es-bg-primary);
+}
+
+.es-hierarchy-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 8px;
+    background: var(--es-bg-secondary);
+    border-bottom: 1px solid var(--es-border);
+}
+
+.es-hierarchy-search {
+    flex: 1;
+    min-width: 80px;
+}
+
+.es-hierarchy-columns {
+    display: flex;
+    align-items: center;
+    padding: 4px 8px;
+    background: var(--es-bg-tertiary);
+    border-bottom: 1px solid var(--es-border);
+    font-size: 11px;
+    color: var(--es-text-secondary);
+}
+
+.es-hierarchy-col-visibility,
+.es-hierarchy-col-lock {
+    width: 20px;
+    text-align: center;
+}
+
+.es-hierarchy-col-label {
+    flex: 1;
+    padding-left: 24px;
+}
+
+.es-hierarchy-col-type {
+    width: 60px;
+    text-align: right;
+}
+
+.es-hierarchy-tree {
+    flex: 1;
+    overflow: auto;
+    padding: 4px 0;
+}
+
+.es-hierarchy-scroll-content {
+    position: relative;
+    min-height: 100%;
+}
+
+.es-hierarchy-visible-window {
+    position: absolute;
+    left: 0;
+    right: 0;
+    will-change: transform;
+}
+
+.es-hierarchy-item {
+    user-select: none;
+    position: relative;
+}
+
+.es-hierarchy-row {
+    display: flex;
+    align-items: center;
+    padding: 3px 8px;
+    min-width: fit-content;
+    cursor: pointer;
+    border-left: 2px solid transparent;
+    position: relative;
+    height: 22px;
+    box-sizing: border-box;
+    transition: background 0.15s;
+}
+
+.es-hierarchy-row:hover {
+    background: var(--es-bg-hover);
+}
+
+.es-hierarchy-item.es-selected > .es-hierarchy-row {
+    background: rgba(209, 154, 102, 0.3);
+    border-left-color: var(--es-accent-gold);
+}
+
+.es-hierarchy-item.es-selected > .es-hierarchy-row .es-hierarchy-name {
+    color: var(--es-accent-gold);
+}
+
+.es-hierarchy-item.es-drag-over > .es-hierarchy-row {
+    background: rgba(97, 175, 239, 0.3);
+    border-left-color: var(--es-drag);
+}
+
+.es-hierarchy-tree.es-drag-over {
+    background: rgba(97, 175, 239, 0.1);
+    outline: 1px dashed var(--es-drag);
+    outline-offset: -2px;
+}
+
+.es-hierarchy-item.es-drop-before > .es-hierarchy-row::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 20px;
+    right: 0;
+    height: 2px;
+    background: var(--es-drag);
+    pointer-events: none;
+}
+
+.es-hierarchy-item.es-drop-after > .es-hierarchy-row::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 20px;
+    right: 0;
+    height: 2px;
+    background: var(--es-drag);
+    pointer-events: none;
+}
+
+.es-hierarchy-item.es-drop-inside > .es-hierarchy-row {
+    background: rgba(97, 175, 239, 0.3);
+    border-left-color: var(--es-drag);
+}
+
+.es-hierarchy-item.es-dragging {
+    opacity: 0.5;
+}
+
+.es-hierarchy-visibility {
+    width: 16px;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.es-hierarchy-visibility svg {
+    stroke: var(--es-text-secondary);
+}
+
+.es-hierarchy-expand {
+    width: 16px;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.15s;
+}
+
+.es-hierarchy-expand svg {
+    stroke: var(--es-text-secondary);
+}
+
+.es-hierarchy-item.es-expanded > .es-hierarchy-row > .es-hierarchy-expand {
+    transform: rotate(90deg);
+}
+
+.es-hierarchy-spacer {
+    width: 16px;
+    flex-shrink: 0;
+}
+
+.es-hierarchy-icon {
+    width: 18px;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 4px;
+}
+
+.es-hierarchy-icon svg {
+    stroke: var(--es-text-secondary);
+}
+
+.es-hierarchy-name {
+    flex: 1;
+    min-width: 80px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+}
+
+.es-hierarchy-type {
+    width: 60px;
+    flex-shrink: 0;
+    text-align: right;
+    font-size: 11px;
+    color: var(--es-text-secondary);
+}
+
+.es-hierarchy-rename-input {
+    width: 100%;
+    height: 18px;
+    padding: 0 4px;
+    margin: 0;
+    border: 1px solid var(--es-accent-gold);
+    border-radius: 2px;
+    background: var(--es-bg-primary);
+    color: var(--es-text-primary);
+    font-size: 12px;
+    font-family: inherit;
+    outline: none;
+    box-sizing: border-box;
+}
+
+.es-hierarchy-item.es-entity-hidden > .es-hierarchy-row {
+    opacity: 0.4;
+}
+
+.es-prefab-edit-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    background: rgba(79, 193, 255, 0.1);
+    border-bottom: 1px solid rgba(79, 193, 255, 0.25);
+    font-size: 11px;
+    color: var(--es-prefab);
+}
+
+.es-prefab-back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    font-size: 11px;
+    color: var(--es-text-primary);
+    background: var(--es-bg-secondary);
+    border: 1px solid var(--es-border);
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.es-prefab-back-btn:hover {
+    background: var(--es-bg-hover);
+}
+
+.es-prefab-back-btn svg {
+    transform: rotate(180deg);
+}
+
+.es-prefab-edit-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 600;
+}
+
+.es-prefab-edit-name svg {
+    stroke: var(--es-prefab);
+}
+
+.es-hierarchy-item.es-prefab-root > .es-hierarchy-row .es-hierarchy-name {
+    color: var(--es-prefab);
+    font-weight: 600;
+}
+
+.es-hierarchy-item.es-prefab-root > .es-hierarchy-row .es-hierarchy-icon svg {
+    stroke: var(--es-prefab);
+}
+
+.es-hierarchy-item.es-prefab-child > .es-hierarchy-row .es-hierarchy-name {
+    color: #87d7ff;
+}
+
+.es-search-highlight {
+    background: rgba(229, 192, 123, 0.3);
+    color: #e5c07b;
+    font-weight: 600;
+    padding: 0 1px;
+    border-radius: 2px;
+}
+
+.es-hierarchy-item.es-search-selected {
+    background: rgba(97, 175, 239, 0.2);
+}
+
+.es-hierarchy-item.es-search-selected > .es-hierarchy-row {
+    border-left: 2px solid var(--es-drag);
+}
+
+.es-hierarchy-footer {
+    padding: 6px 12px;
+    font-size: 11px;
+    color: var(--es-text-secondary);
+    background: var(--es-bg-secondary);
+    border-top: 1px solid var(--es-border);
+}

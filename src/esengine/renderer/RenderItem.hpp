@@ -26,12 +26,12 @@ enum class RenderType : u8 {
     Text = 4,
 };
 
-struct RenderItem {
+struct RenderItemBase {
     Entity entity = INVALID_ENTITY;
     RenderType type = RenderType::Sprite;
     RenderStage stage = RenderStage::Transparent;
+    BlendMode blend_mode = BlendMode::Normal;
 
-    glm::mat4 transform{1.0f};
     glm::vec3 world_position{0.0f};
     f32 world_angle = 0.0f;
     glm::vec2 world_scale{1.0f};
@@ -39,43 +39,13 @@ struct RenderItem {
     i32 layer = 0;
     f32 depth = 0.0f;
     u32 texture_id = 0;
-    BlendMode blend_mode = BlendMode::Normal;
 
-    glm::vec2 size{0.0f};
     glm::vec4 color{1.0f};
-    glm::vec2 uv_offset{0.0f};
-    glm::vec2 uv_scale{1.0f};
-    bool flip_x = false;
-    bool flip_y = false;
-    bool use_nine_slice = false;
-    glm::vec4 slice_border{0.0f};
-    glm::vec2 texture_size{0.0f};
-
-#ifdef ES_ENABLE_SPINE
-    void* skeleton = nullptr;
-    glm::vec4 tint_color{1.0f};
-#endif
-
-    void* geometry = nullptr;
-    void* shader = nullptr;
-
-    u32 material_id = 0;
-
-    const void* font_data = nullptr;
-    const char* text_data = nullptr;
-    u16 text_length = 0;
-    f32 font_size = 1.0f;
-    u8 text_align = 0;
-    f32 text_spacing = 0.0f;
-
-    const f32* ext_vertices = nullptr;
-    i32 ext_vertex_count = 0;
-    const u16* ext_indices = nullptr;
-    i32 ext_index_count = 0;
-    u32 ext_bind_texture = 0;
 
     bool scissor_enabled = false;
     ScissorRect scissor;
+
+    u32 data_index = 0;
 
     u64 sortKey() const {
         u64 stageKey = static_cast<u64>(stage) << 60;
@@ -97,6 +67,48 @@ struct RenderItem {
 
         return stageKey | layerKey | textureKey | depthKey;
     }
+};
+
+struct SpriteData {
+    glm::vec2 size{0.0f};
+    glm::vec2 uv_offset{0.0f};
+    glm::vec2 uv_scale{1.0f};
+    bool flip_x = false;
+    bool flip_y = false;
+    bool use_nine_slice = false;
+    glm::vec4 slice_border{0.0f};
+    glm::vec2 texture_size{0.0f};
+    glm::mat4 transform{1.0f};
+    u32 material_id = 0;
+    void* geometry = nullptr;
+    void* shader = nullptr;
+};
+
+#ifdef ES_ENABLE_SPINE
+struct SpineData {
+    glm::mat4 transform{1.0f};
+    void* skeleton = nullptr;
+    glm::vec4 tint_color{1.0f};
+    u32 material_id = 0;
+};
+#endif
+
+struct TextData {
+    const void* font_data = nullptr;
+    const char* text_data = nullptr;
+    u16 text_length = 0;
+    f32 font_size = 1.0f;
+    u8 text_align = 0;
+    f32 text_spacing = 0.0f;
+};
+
+struct ExternalMeshData {
+    glm::mat4 transform{1.0f};
+    const f32* ext_vertices = nullptr;
+    i32 ext_vertex_count = 0;
+    const u16* ext_indices = nullptr;
+    i32 ext_index_count = 0;
+    u32 ext_bind_texture = 0;
 };
 
 }  // namespace esengine

@@ -19,7 +19,9 @@ namespace esengine {
 
 LogLevel Log::level_ = LogLevel::Info;
 std::vector<std::pair<u32, LogSink>> Log::sinks_;
+#ifndef ES_PLATFORM_WEB
 std::mutex Log::sinkMutex_;
+#endif
 u32 Log::nextSinkId_ = 1;
 
 void Log::init() {
@@ -56,14 +58,18 @@ const char* Log::levelToString(LogLevel level) {
 }
 
 u32 Log::addSink(LogSink sink) {
+#ifndef ES_PLATFORM_WEB
     std::lock_guard<std::mutex> lock(sinkMutex_);
+#endif
     u32 id = nextSinkId_++;
     sinks_.emplace_back(id, std::move(sink));
     return id;
 }
 
 void Log::removeSink(u32 sinkId) {
+#ifndef ES_PLATFORM_WEB
     std::lock_guard<std::mutex> lock(sinkMutex_);
+#endif
     sinks_.erase(
         std::remove_if(sinks_.begin(), sinks_.end(),
                        [sinkId](const auto& pair) { return pair.first == sinkId; }),
@@ -71,7 +77,9 @@ void Log::removeSink(u32 sinkId) {
 }
 
 void Log::notifySinks(LogLevel level, const std::string& message) {
+#ifndef ES_PLATFORM_WEB
     std::lock_guard<std::mutex> lock(sinkMutex_);
+#endif
 
     auto now = std::chrono::system_clock::now();
     auto duration = now.time_since_epoch();

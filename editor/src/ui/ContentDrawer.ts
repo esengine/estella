@@ -1,6 +1,7 @@
 import type { DockLayoutManager } from '../DockLayoutManager';
 import type { EditorStore } from '../store/EditorStore';
-import { ContentBrowserPanel, type ContentBrowserOptions } from '../panels/ContentBrowserPanel';
+import { ContentBrowserPanel } from '../panels/content-browser/ContentBrowserPanel';
+import type { ContentBrowserOptions } from '../panels/content-browser/ContentBrowserTypes';
 import { icons } from '../utils/icons';
 
 type DrawerState = 'hidden' | 'open';

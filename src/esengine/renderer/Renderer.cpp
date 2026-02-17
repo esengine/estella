@@ -12,6 +12,7 @@
 
 #include "Renderer.hpp"
 #include "RenderCommand.hpp"
+#include "TextureSlotAllocator.hpp"
 #include "../core/Log.hpp"
 #include "../resource/ResourceManager.hpp"
 
@@ -298,8 +299,7 @@ struct BatchRenderer2D::BatchData {
     u32 indexCount = 0;
     u32 triangleCount = 0;
 
-    std::array<u32, MAX_TEXTURE_SLOTS> textureSlots;
-    u32 textureSlotIndex = 1;
+    TextureSlotAllocator<MAX_TEXTURE_SLOTS> texSlots;
 
     glm::mat4 projection{1.0f};
 
@@ -399,10 +399,7 @@ void BatchRenderer2D::init() {
         ES_LOG_ERROR("All batch shader variants FAILED!");
     }
 
-    for (u32 i = 0; i < MAX_TEXTURE_SLOTS; ++i) {
-        data_->textureSlots[i] = context_.getWhiteTextureId();
-    }
-
+    data_->texSlots.init(context_.getWhiteTextureId());
     data_->initialized = true;
 }
 
@@ -421,7 +418,7 @@ void BatchRenderer2D::beginBatch() {
     data_->triVertices.clear();
     data_->indexCount = 0;
     data_->triangleCount = 0;
-    data_->textureSlotIndex = 1;
+    data_->texSlots.reset();
     data_->drawCallCount = 0;
     data_->quadCount = 0;
 }
@@ -450,10 +447,7 @@ void BatchRenderer2D::flush() {
         data_->vbo->setDataRaw(data_->triVertices.data(), triBytes);
     }
 
-    for (u32 i = 0; i < MAX_TEXTURE_SLOTS; ++i) {
-        glActiveTexture(GL_TEXTURE0 + i);
-        glBindTexture(GL_TEXTURE_2D, data_->textureSlots[i]);
-    }
+    data_->texSlots.bindAll();
 
     shader->bind();
     shader->setUniform("u_projection", data_->projection);
@@ -487,7 +481,7 @@ void BatchRenderer2D::flush() {
     data_->triVertices.clear();
     data_->indexCount = 0;
     data_->triangleCount = 0;
-    data_->textureSlotIndex = 1;
+    data_->texSlots.reset();
 }
 
 void BatchRenderer2D::drawQuad(const glm::vec2& position, const glm::vec2& size,
@@ -503,32 +497,19 @@ void BatchRenderer2D::drawQuad(const glm::vec3& position, const glm::vec2& size,
         flush();
     }
 
-    f32 texIndex = 0.0f;
-    if (textureId != 0) {
-        bool found = false;
-        for (u32 i = 0; i < data_->textureSlotIndex; ++i) {
-            if (data_->textureSlots[i] == textureId) {
-                texIndex = static_cast<f32>(i);
-                found = true;
-                break;
-            }
-        }
-        if (!found) {
-            if (data_->textureSlotIndex >= MAX_TEXTURE_SLOTS) {
-                flush();
-            }
-            data_->textureSlots[data_->textureSlotIndex] = textureId;
-            texIndex = static_cast<f32>(data_->textureSlotIndex);
-            data_->textureSlotIndex++;
-        }
+    f32 texIndex = data_->texSlots.findOrAllocate(textureId);
+    if (texIndex < 0.0f) {
+        flush();
+        texIndex = data_->texSlots.findOrAllocate(textureId);
     }
-
-    glm::mat4 transform = glm::translate(glm::mat4(1.0f), position);
-    transform = glm::scale(transform, glm::vec3(size, 1.0f));
 
     for (u32 i = 0; i < 4; ++i) {
         BatchVertex vertex;
-        vertex.position = glm::vec3(transform * QUAD_POSITIONS[i]);
+        vertex.position = glm::vec3(
+            position.x + QUAD_POSITIONS[i].x * size.x,
+            position.y + QUAD_POSITIONS[i].y * size.y,
+            position.z
+        );
         vertex.color = color;
         vertex.texCoord = QUAD_TEX_COORDS[i] * uvScale + uvOffset;
         vertex.texIndex = texIndex;
@@ -577,24 +558,10 @@ void BatchRenderer2D::drawRotatedQuad(const glm::vec2& position, const glm::vec2
         flush();
     }
 
-    f32 texIndex = 0.0f;
-    if (textureId != 0) {
-        bool found = false;
-        for (u32 i = 0; i < data_->textureSlotIndex; ++i) {
-            if (data_->textureSlots[i] == textureId) {
-                texIndex = static_cast<f32>(i);
-                found = true;
-                break;
-            }
-        }
-        if (!found) {
-            if (data_->textureSlotIndex >= MAX_TEXTURE_SLOTS) {
-                flush();
-            }
-            data_->textureSlots[data_->textureSlotIndex] = textureId;
-            texIndex = static_cast<f32>(data_->textureSlotIndex);
-            data_->textureSlotIndex++;
-        }
+    f32 texIndex = data_->texSlots.findOrAllocate(textureId);
+    if (texIndex < 0.0f) {
+        flush();
+        texIndex = data_->texSlots.findOrAllocate(textureId);
     }
 
     glm::mat4 transform = glm::translate(glm::mat4(1.0f), glm::vec3(position, 0.0f));
@@ -667,17 +634,12 @@ void BatchRenderer2D::drawNineSlice(const glm::vec2& position, const glm::vec2& 
     };
 
     auto resolveTextureSlot = [this, textureId]() -> f32 {
-        if (textureId == 0) return 0.0f;
-        for (u32 i = 0; i < data_->textureSlotIndex; ++i) {
-            if (data_->textureSlots[i] == textureId) {
-                return static_cast<f32>(i);
-            }
-        }
-        if (data_->textureSlotIndex >= MAX_TEXTURE_SLOTS) {
+        f32 idx = data_->texSlots.findOrAllocate(textureId);
+        if (idx < 0.0f) {
             flush();
+            idx = data_->texSlots.findOrAllocate(textureId);
         }
-        data_->textureSlots[data_->textureSlotIndex] = textureId;
-        return static_cast<f32>(data_->textureSlotIndex++);
+        return idx;
     };
 
     f32 cachedTexIndex = resolveTextureSlot();

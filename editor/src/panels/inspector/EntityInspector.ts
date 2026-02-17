@@ -32,6 +32,7 @@ import {
     type InspectorContext,
     type InspectorSectionInstance,
 } from './InspectorRegistry';
+import { deepEqual } from './SharedEditors';
 
 // =============================================================================
 // Global Augmentation
@@ -168,6 +169,8 @@ export function renderComponent(
         return;
     }
 
+    const defaults = getDefaultComponentData(component.type);
+
     const section = document.createElement('div');
     section.className = 'es-component-section es-collapsible es-expanded';
 
@@ -197,7 +200,6 @@ export function renderComponent(
 
     header.addEventListener('contextmenu', (e) => {
         e.preventDefault();
-        const defaults = getDefaultComponentData(component.type);
         const menuItems: ContextMenuItem[] = [
             {
                 label: 'Reset to Default',
@@ -317,7 +319,6 @@ export function renderComponent(
                 const editorContainer = document.createElement('div');
                 editorContainer.className = 'es-property-editor es-property-editor-full';
 
-                const defaults = getDefaultComponentData(component.type);
                 const fullData = { ...defaults, ...component.data };
 
                 const editor = createPropertyEditor(editorContainer, {
@@ -365,7 +366,6 @@ export function renderComponent(
 
             let currentValue = component.data[propMeta.name];
             if (currentValue === undefined) {
-                const defaults = getDefaultComponentData(component.type);
                 currentValue = defaults[propMeta.name];
             }
             const editor = createPropertyEditor(editorContainer, {
@@ -396,10 +396,9 @@ export function renderComponent(
             row.appendChild(label);
             row.appendChild(editorContainer);
 
-            const defaults = getDefaultComponentData(component.type);
             const defaultValue = defaults[propMeta.name];
             const isModified = currentValue !== undefined &&
-                JSON.stringify(currentValue) !== JSON.stringify(defaultValue);
+                !deepEqual(currentValue, defaultValue);
 
             if (isModified) {
                 const resetBtn = document.createElement('button');
