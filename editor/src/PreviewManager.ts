@@ -34,6 +34,29 @@ export class PreviewManager {
         }
     }
 
+    async startServer(
+        scene: SceneData,
+        scriptLoader: ScriptLoader | null,
+        spineVersion: string,
+    ): Promise<number | null> {
+        if (!this.previewService_) {
+            console.warn('Preview not available: no project loaded');
+            return null;
+        }
+
+        try {
+            if (scriptLoader) {
+                await scriptLoader.compile();
+            }
+            const compiledScript = scriptLoader?.getCompiledCode() ?? undefined;
+            const { enablePhysics, physicsConfig, previewSpineVersion, runtimeConfig } = this.collectPreviewConfig(spineVersion);
+            return await this.previewService_.startServer(scene, compiledScript, previewSpineVersion, enablePhysics, physicsConfig, runtimeConfig);
+        } catch (err) {
+            console.error('Failed to start preview server:', err);
+            return null;
+        }
+    }
+
     async stopPreview(): Promise<void> {
         await this.previewService_?.stopPreview();
     }

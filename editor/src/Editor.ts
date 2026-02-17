@@ -846,6 +846,21 @@ export class Editor {
         this.updatePreviewButton();
     }
 
+    async startPreviewServer(): Promise<string | null> {
+        if (this.store_.isDirty && this.store_.filePath && hasFileHandle()) {
+            await this.saveScene();
+        }
+        const port = await this.previewManager_.startServer(
+            this.store_.scene, this.scriptLoader_, this.spineVersion_,
+        );
+        if (port === null) return null;
+        return `http://localhost:${port}`;
+    }
+
+    async stopPreviewServer(): Promise<void> {
+        await this.previewManager_.stopPreview();
+    }
+
     async togglePreview(): Promise<void> {
         if (this.isPreviewRunning_) {
             await this.stopPreview();

@@ -38,7 +38,7 @@ export function registerBuiltinPanels(options: BuiltinPanelOptions): void {
         icon: icons.play(14),
         position: 'center',
         order: 1,
-        defaultVisible: false,
+        defaultVisible: true,
         factory: (c, s) => new GameViewPanel(c, s, { projectPath: options.projectPath }),
     });
 

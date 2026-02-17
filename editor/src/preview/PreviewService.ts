@@ -62,6 +62,27 @@ export class PreviewService {
         await invoke('open_preview_in_browser', { port });
     }
 
+    async startServer(scene: SceneData, compiledScript?: string, spineVersion?: string, enablePhysics?: boolean, physicsConfig?: { gravityX: number; gravityY: number; fixedTimestep: number; subStepCount: number }, runtimeConfig?: Record<string, unknown>): Promise<number | null> {
+        const fs = this.getNativeFS();
+        const invoke = this.getTauriInvoke();
+
+        if (!fs || !invoke) {
+            console.error('PreviewService: Native APIs not available');
+            return null;
+        }
+
+        await this.stopPreview();
+
+        await this.preparePreviewFiles(fs, scene, compiledScript, spineVersion, enablePhysics, physicsConfig, runtimeConfig);
+
+        const port = await invoke('start_preview_server', {
+            projectDir: this.projectDir_,
+            port: this.port_,
+        }) as number;
+
+        return port;
+    }
+
     async stopPreview(): Promise<void> {
         const invoke = this.getTauriInvoke();
         if (invoke) {

@@ -1,7 +1,3 @@
-/* =============================================================================
- * GameView Panel
- * ============================================================================= */
-
 .es-gameview-panel {
     height: 100%;
     display: flex;
@@ -73,8 +69,10 @@
     justify-content: center;
 }
 
-.es-gameview-canvas {
+.es-gameview-iframe {
     display: none;
+    border: none;
+    background: #000;
 }
 
 .es-gameview-placeholder {

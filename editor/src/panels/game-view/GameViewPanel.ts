@@ -1,6 +1,5 @@
-import type { App } from 'esengine';
 import type { EditorStore } from '../../store/EditorStore';
-import type { AppAware, PanelInstance, Resizable } from '../PanelRegistry';
+import type { PanelInstance, Resizable } from '../PanelRegistry';
 import { GameInstanceManager, type GameState } from './GameInstanceManager';
 import { GameViewToolbar } from './GameViewToolbar';
 
@@ -8,60 +7,38 @@ export interface GameViewPanelOptions {
     projectPath?: string;
 }
 
-export class GameViewPanel implements PanelInstance, Resizable, AppAware {
+export class GameViewPanel implements PanelInstance, Resizable {
     private container_: HTMLElement;
-    private store_: EditorStore;
-    private app_: App | null = null;
-    private projectPath_: string | null;
-    private canvas_: HTMLCanvasElement | null = null;
-    private canvasId_: string;
+    private iframe_: HTMLIFrameElement | null = null;
     private toolbar_: GameViewToolbar;
     private gameManager_: GameInstanceManager;
     private viewport_: HTMLElement | null = null;
-    private resizeObserver_: ResizeObserver | null = null;
     private placeholder_: HTMLElement | null = null;
 
-    constructor(container: HTMLElement, store: EditorStore, options?: GameViewPanelOptions) {
+    constructor(container: HTMLElement, _store: EditorStore, _options?: GameViewPanelOptions) {
         this.container_ = container;
-        this.store_ = store;
-        this.projectPath_ = options?.projectPath ?? null;
-        this.canvasId_ = `es-gameview-canvas-${Date.now()}`;
 
         this.gameManager_ = new GameInstanceManager({
             onStateChange: (state) => this.onStateChange(state),
-            onFpsUpdate: (fps) => this.toolbar_.updateFps(fps),
             onError: (err) => console.error('[GameView]', err.message),
         });
 
         this.toolbar_ = new GameViewToolbar(container, {
             onPlay: () => this.play(),
-            onPause: () => this.gameManager_.pause(),
-            onStep: () => this.gameManager_.step(),
-            onStop: () => this.gameManager_.stop(),
-            onResolutionChange: () => this.updateCanvasSize(),
+            onStop: () => this.stop(),
+            onResolutionChange: () => this.updateIframeSize(),
         });
 
         this.buildUI();
     }
 
-    setApp(app: App): void {
-        this.app_ = app;
-        if (app.wasmModule) {
-            this.gameManager_.setEditorModule(app.wasmModule);
-        }
-    }
-
     resize(): void {
-        this.updateCanvasSize();
+        this.updateIframeSize();
     }
 
     dispose(): void {
         this.gameManager_.dispose();
         this.toolbar_.dispose();
-        if (this.resizeObserver_) {
-            this.resizeObserver_.disconnect();
-            this.resizeObserver_ = null;
-        }
     }
 
     private buildUI(): void {
@@ -73,40 +50,33 @@ export class GameViewPanel implements PanelInstance, Resizable, AppAware {
                 </div>
             </div>
             <div class="es-gameview-viewport">
-                <canvas id="${this.canvasId_}" class="es-gameview-canvas"></canvas>
+                <iframe class="es-gameview-iframe"></iframe>
                 <div class="es-gameview-placeholder">
                     <span>Click Play to start</span>
                 </div>
             </div>
         `;
 
-        this.canvas_ = this.container_.querySelector(`#${this.canvasId_}`)!;
+        this.iframe_ = this.container_.querySelector('.es-gameview-iframe')!;
         this.viewport_ = this.container_.querySelector('.es-gameview-viewport')!;
         this.placeholder_ = this.container_.querySelector('.es-gameview-placeholder')!;
 
         this.toolbar_.setup();
-
-        if (this.projectPath_) {
-            const projectDir = this.projectPath_.replace(/\\/g, '/').replace(/\/[^/]+$/, '');
-            this.gameManager_.setProjectDir(projectDir);
-        }
-
-        this.gameManager_.setCanvasSelector(`#${this.canvasId_}`);
-
-        this.resizeObserver_ = new ResizeObserver(() => this.updateCanvasSize());
-        this.resizeObserver_.observe(this.viewport_);
-
-        this.updateCanvasSize();
+        this.updateIframeSize();
     }
 
-    private play(): void {
-        if (!this.app_?.wasmModule) {
-            console.warn('[GameView] WASM module not available yet');
-            return;
+    private async play(): Promise<void> {
+        const url = await this.gameManager_.play();
+        if (url && this.iframe_) {
+            this.iframe_.src = url;
         }
-        this.gameManager_.setEditorModule(this.app_.wasmModule);
-        this.updateCanvasSize();
-        this.gameManager_.play(this.store_.scene);
+    }
+
+    private async stop(): Promise<void> {
+        if (this.iframe_) {
+            this.iframe_.src = 'about:blank';
+        }
+        await this.gameManager_.stop();
     }
 
     private onStateChange(state: GameState): void {
@@ -115,16 +85,15 @@ export class GameViewPanel implements PanelInstance, Resizable, AppAware {
         if (this.placeholder_) {
             this.placeholder_.style.display = state === 'stopped' ? 'flex' : 'none';
         }
-        if (this.canvas_) {
-            this.canvas_.style.display = state === 'stopped' ? 'none' : 'block';
+        if (this.iframe_) {
+            this.iframe_.style.display = state === 'stopped' ? 'none' : 'block';
         }
     }
 
-    private updateCanvasSize(): void {
-        if (!this.canvas_ || !this.viewport_) return;
+    private updateIframeSize(): void {
+        if (!this.iframe_ || !this.viewport_) return;
 
         const rect = this.viewport_.getBoundingClientRect();
-        const dpr = window.devicePixelRatio || 1;
         const preset = this.toolbar_.currentPreset;
 
         if (preset.width > 0 && preset.height > 0) {
@@ -142,15 +111,11 @@ export class GameViewPanel implements PanelInstance, Resizable, AppAware {
                 displayH = displayW / targetAspect;
             }
 
-            this.canvas_.style.width = `${displayW}px`;
-            this.canvas_.style.height = `${displayH}px`;
-            this.canvas_.width = displayW * dpr;
-            this.canvas_.height = displayH * dpr;
+            this.iframe_.style.width = `${displayW}px`;
+            this.iframe_.style.height = `${displayH}px`;
         } else {
-            this.canvas_.style.width = `${rect.width}px`;
-            this.canvas_.style.height = `${rect.height}px`;
-            this.canvas_.width = rect.width * dpr;
-            this.canvas_.height = rect.height * dpr;
+            this.iframe_.style.width = '100%';
+            this.iframe_.style.height = '100%';
         }
     }
 }

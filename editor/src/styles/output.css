@@ -1,0 +1,221 @@
+/* =============================================================================
+ * Output Panel
+ * ============================================================================= */
+
+.es-output-container {
+    height: 100%;
+}
+
+.es-output-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: var(--es-bg-primary);
+}
+
+.es-output-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px;
+    background: var(--es-bg-secondary);
+    border-bottom: 1px solid var(--es-border);
+    flex-shrink: 0;
+}
+
+.es-output-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+}
+
+.es-output-filters {
+    display: flex;
+    gap: 2px;
+    flex-shrink: 0;
+}
+
+.es-output-filter-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 2px 6px;
+    font-size: 11px;
+    border-radius: 3px;
+    color: var(--es-text-secondary);
+    opacity: 0.5;
+    cursor: pointer;
+}
+
+.es-output-filter-btn.es-active {
+    opacity: 1;
+    color: var(--es-text-primary);
+}
+
+.es-output-filter-command.es-active { color: var(--es-accent); }
+.es-output-filter-stderr.es-active { color: #e5c07b; }
+.es-output-filter-error.es-active { color: var(--es-danger); }
+.es-output-filter-success.es-active { color: var(--es-success); }
+
+.es-output-filter-count {
+    font-size: 10px;
+    opacity: 0.7;
+    min-width: 8px;
+    text-align: center;
+}
+
+.es-output-search-wrap {
+    flex: 1;
+    min-width: 60px;
+    max-width: 200px;
+}
+
+.es-output-search {
+    width: 100%;
+    padding: 2px 6px;
+    font-size: 11px;
+    border: 1px solid var(--es-border);
+    border-radius: 3px;
+    background: var(--es-bg-primary);
+    color: var(--es-text-primary);
+    outline: none;
+}
+
+.es-output-search:focus {
+    border-color: var(--es-accent);
+}
+
+.es-output-actions {
+    display: flex;
+    gap: 2px;
+    flex-shrink: 0;
+}
+
+.es-output-scroll-btn.es-active {
+    color: var(--es-accent);
+}
+
+.es-output-content {
+    flex: 1;
+    overflow: auto;
+    padding: 8px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 12px;
+    user-select: text;
+    cursor: text;
+}
+
+.es-output-empty {
+    color: var(--es-text-secondary);
+    text-align: center;
+    padding: 20px;
+}
+
+/* =============================================================================
+ * Output Panel Lines
+ * ============================================================================= */
+
+.es-output-line {
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.es-output-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 16px;
+    padding: 0 5px;
+    margin-right: 6px;
+    border-radius: 8px;
+    background: var(--es-accent);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1;
+    vertical-align: middle;
+}
+
+.es-output-command {
+    color: var(--es-accent);
+    font-weight: 500;
+    margin-top: 8px;
+}
+
+.es-output-stdout {
+    color: var(--es-text-primary);
+}
+
+.es-output-stderr {
+    color: #e5c07b;
+}
+
+.es-output-error {
+    color: var(--es-danger);
+}
+
+.es-output-success {
+    color: var(--es-success);
+}
+
+.es-output-timestamp {
+    color: var(--es-text-secondary);
+    opacity: 0.6;
+    margin-right: 8px;
+    font-size: 11px;
+    user-select: none;
+}
+
+.es-output-group-header {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 0 2px;
+    cursor: pointer;
+    user-select: none;
+    border-top: 1px solid var(--es-border);
+    margin-top: 4px;
+}
+
+.es-output-group-header:first-child {
+    border-top: none;
+    margin-top: 0;
+}
+
+.es-output-group-toggle {
+    display: inline-flex;
+    transition: transform 0.15s;
+}
+
+.es-output-group-header.es-collapsed .es-output-group-toggle {
+    transform: rotate(-90deg);
+}
+
+.es-output-context-menu {
+    position: fixed;
+    z-index: 10000;
+    min-width: 120px;
+    padding: 4px 0;
+    background: var(--es-bg-secondary);
+    border: 1px solid var(--es-border);
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.es-output-context-item {
+    padding: 5px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    color: var(--es-text-primary);
+}
+
+.es-output-context-item:hover {
+    background: var(--es-accent);
+    color: #fff;
+}

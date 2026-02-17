@@ -49,12 +49,6 @@ export class InspectorPanel {
 
         this.container_.className = 'es-inspector-panel';
         this.container_.innerHTML = `
-            <div class="es-panel-header">
-                <div class="es-panel-actions">
-                    <button class="es-btn es-btn-icon" title="Minimize">${icons.chevronDown(12)}</button>
-                    <button class="es-btn es-btn-icon" title="Close">${icons.x(12)}</button>
-                </div>
-            </div>
             <div class="es-inspector-toolbar">
                 <button class="es-btn es-btn-icon es-lock-btn" title="Lock Inspector">${icons.lockOpen()}</button>
             </div>

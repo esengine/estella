@@ -121,6 +121,14 @@ export class DockLayoutManager {
         });
 
         this.api_.addPanel({
+            id: 'game',
+            component: 'game',
+            title: 'Game',
+            position: { referencePanel: 'scene', direction: 'within' },
+            inactive: true,
+        });
+
+        this.api_.addPanel({
             id: 'inspector',
             component: 'inspector',
             title: 'Inspector',
