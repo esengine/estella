@@ -113,6 +113,10 @@ async function executeWasmBuild(target, targetConfig, { debug, clean, buildDir, 
         `-DCMAKE_BUILD_TYPE=${buildType}`,
     ];
 
+    if (process.platform === 'win32') {
+        cmakeArgs.push('-DES_ENABLE_CCACHE=OFF');
+    }
+
     if (!debug && optConfig?.cmakeOpt) {
         cmakeArgs.push(`-DCMAKE_C_FLAGS=${optConfig.cmakeOpt}`);
         cmakeArgs.push(`-DCMAKE_CXX_FLAGS=${optConfig.cmakeOpt}`);
