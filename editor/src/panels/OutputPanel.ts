@@ -182,7 +182,7 @@ export class OutputPanel implements PanelInstance {
         const filtersEl = this.container_.querySelector('.es-output-filters')!;
         for (const type of Object.keys(TYPE_LABELS) as OutputType[]) {
             const btn = document.createElement('button');
-            btn.className = `es-btn es-btn-icon es-output-filter-btn es-active es-output-filter-${type}`;
+            btn.className = `es-output-filter-btn es-active es-output-filter-${type}`;
             btn.title = `Toggle ${type}`;
             btn.innerHTML = `${TYPE_LABELS[type]} <span class="es-output-filter-count">0</span>`;
             btn.addEventListener('click', () => this.toggleFilter(type));

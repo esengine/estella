@@ -52,6 +52,45 @@
     border-color: var(--es-accent);
 }
 
+.es-gameview-custom-size {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.es-gameview-custom-w,
+.es-gameview-custom-h {
+    width: 56px;
+    height: 22px;
+    padding: 2px 4px;
+    background: var(--es-input-bg);
+    color: var(--es-text-primary);
+    border: 1px solid var(--es-border);
+    border-radius: 3px;
+    font-size: 11px;
+    outline: none;
+    -moz-appearance: textfield;
+}
+
+.es-gameview-custom-w::-webkit-outer-spin-button,
+.es-gameview-custom-w::-webkit-inner-spin-button,
+.es-gameview-custom-h::-webkit-outer-spin-button,
+.es-gameview-custom-h::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.es-gameview-custom-w:focus,
+.es-gameview-custom-h:focus {
+    border-color: var(--es-accent);
+}
+
+.es-gameview-custom-x {
+    font-size: 11px;
+    color: var(--es-text-secondary);
+    user-select: none;
+}
+
 .es-gameview-fps {
     font-size: 11px;
     color: var(--es-text-secondary);

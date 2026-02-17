@@ -28,6 +28,9 @@ export class GameViewToolbar {
     private stopBtn_: HTMLButtonElement | null = null;
     private fpsDisplay_: HTMLSpanElement | null = null;
     private resolutionSelect_: HTMLSelectElement | null = null;
+    private customSizeEl_: HTMLElement | null = null;
+    private customWidthInput_: HTMLInputElement | null = null;
+    private customHeightInput_: HTMLInputElement | null = null;
     private currentPreset_: ResolutionPreset = RESOLUTION_PRESETS[0];
 
     constructor(container: HTMLElement, callbacks: GameViewToolbarCallbacks) {
@@ -47,7 +50,12 @@ export class GameViewToolbar {
                     <button class="es-btn es-btn-icon es-gameview-stop" title="Stop" disabled>${icons.stop(14)}</button>
                 </div>
                 <div class="es-toolbar-divider"></div>
-                <select class="es-gameview-resolution">${options}</select>
+                <select class="es-gameview-resolution">${options}<option value="custom">Custom</option></select>
+                <div class="es-gameview-custom-size" style="display:none">
+                    <input type="number" class="es-gameview-custom-w" placeholder="W" min="1" max="7680" />
+                    <span class="es-gameview-custom-x">&times;</span>
+                    <input type="number" class="es-gameview-custom-h" placeholder="H" min="1" max="4320" />
+                </div>
                 <span class="es-gameview-fps"></span>
             </div>
         `;
@@ -58,15 +66,35 @@ export class GameViewToolbar {
         this.stopBtn_ = this.container_.querySelector('.es-gameview-stop');
         this.fpsDisplay_ = this.container_.querySelector('.es-gameview-fps');
         this.resolutionSelect_ = this.container_.querySelector('.es-gameview-resolution');
+        this.customSizeEl_ = this.container_.querySelector('.es-gameview-custom-size');
+        this.customWidthInput_ = this.container_.querySelector('.es-gameview-custom-w');
+        this.customHeightInput_ = this.container_.querySelector('.es-gameview-custom-h');
 
         this.playBtn_?.addEventListener('click', () => this.callbacks_.onPlay());
         this.stopBtn_?.addEventListener('click', () => this.callbacks_.onStop());
 
         this.resolutionSelect_?.addEventListener('change', () => {
-            const idx = parseInt(this.resolutionSelect_!.value, 10);
-            this.currentPreset_ = RESOLUTION_PRESETS[idx];
-            this.callbacks_.onResolutionChange(this.currentPreset_);
+            const val = this.resolutionSelect_!.value;
+            if (val === 'custom') {
+                this.customSizeEl_!.style.display = 'flex';
+                this.applyCustomResolution();
+            } else {
+                this.customSizeEl_!.style.display = 'none';
+                const idx = parseInt(val, 10);
+                this.currentPreset_ = RESOLUTION_PRESETS[idx];
+                this.callbacks_.onResolutionChange(this.currentPreset_);
+            }
         });
+
+        this.customWidthInput_?.addEventListener('change', () => this.applyCustomResolution());
+        this.customHeightInput_?.addEventListener('change', () => this.applyCustomResolution());
+    }
+
+    private applyCustomResolution(): void {
+        const w = parseInt(this.customWidthInput_?.value ?? '0', 10) || 0;
+        const h = parseInt(this.customHeightInput_?.value ?? '0', 10) || 0;
+        this.currentPreset_ = { label: 'Custom', width: w, height: h };
+        this.callbacks_.onResolutionChange(this.currentPreset_);
     }
 
     updateState(state: GameState): void {
@@ -95,5 +123,8 @@ export class GameViewToolbar {
         this.stopBtn_ = null;
         this.fpsDisplay_ = null;
         this.resolutionSelect_ = null;
+        this.customSizeEl_ = null;
+        this.customWidthInput_ = null;
+        this.customHeightInput_ = null;
     }
 }

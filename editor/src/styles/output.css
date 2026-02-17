@@ -41,23 +41,51 @@
     display: inline-flex;
     align-items: center;
     gap: 3px;
-    padding: 2px 6px;
+    padding: 2px 8px;
     font-size: 11px;
     border-radius: 3px;
-    color: var(--es-text-secondary);
-    opacity: 0.5;
+    border: none;
+    background: transparent;
+    color: var(--es-text-disabled);
     cursor: pointer;
+    transition: color 0.15s, background 0.15s;
+    line-height: 1.4;
+}
+
+.es-output-filter-btn:hover {
+    color: var(--es-text-secondary);
+    background: var(--es-bg-hover);
 }
 
 .es-output-filter-btn.es-active {
-    opacity: 1;
     color: var(--es-text-primary);
+    background: rgba(204, 204, 204, 0.08);
 }
 
-.es-output-filter-command.es-active { color: var(--es-accent); }
-.es-output-filter-stderr.es-active { color: #e5c07b; }
-.es-output-filter-error.es-active { color: var(--es-danger); }
-.es-output-filter-success.es-active { color: var(--es-success); }
+.es-output-filter-command.es-active {
+    color: #4da6ff;
+    background: rgba(0, 120, 212, 0.15);
+}
+
+.es-output-filter-stdout.es-active {
+    color: var(--es-text-primary);
+    background: rgba(204, 204, 204, 0.08);
+}
+
+.es-output-filter-stderr.es-active {
+    color: #e5c07b;
+    background: rgba(229, 192, 123, 0.12);
+}
+
+.es-output-filter-error.es-active {
+    color: #f44336;
+    background: rgba(244, 67, 54, 0.12);
+}
+
+.es-output-filter-success.es-active {
+    color: #4caf50;
+    background: rgba(76, 175, 80, 0.12);
+}
 
 .es-output-filter-count {
     font-size: 10px;
