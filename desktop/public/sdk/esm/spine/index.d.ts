@@ -448,6 +448,7 @@ declare class World {
     private removeScript;
     private getStorage;
     resetQueryPool(): void;
+    getComponentTypes(entity: Entity): string[];
     getEntitiesWithComponents(components: AnyComponentDef[], withFilters?: AnyComponentDef[], withoutFilters?: AnyComponentDef[]): Entity[];
 }
 
@@ -773,6 +774,9 @@ declare class App {
     private error_handler_;
     private system_error_handler_;
     private frame_paused_;
+    private user_paused_;
+    private step_pending_;
+    private play_speed_;
     private constructor();
     static new(): App;
     addPlugin(plugin: Plugin): this;
@@ -800,6 +804,11 @@ declare class App {
     onError(handler: (error: unknown, systemName: string) => void): this;
     onSystemError(handler: (error: Error, systemName?: string) => 'continue' | 'pause'): this;
     onWasmError(handler: (error: unknown, context: string) => void): this;
+    setPaused(paused: boolean): void;
+    isPaused(): boolean;
+    stepFrame(): void;
+    setPlaySpeed(speed: number): void;
+    getPlaySpeed(): number;
     insertResource<T>(resource: ResourceDef<T>, value: T): this;
     getResource<T>(resource: ResourceDef<T>): T;
     hasResource<T>(resource: ResourceDef<T>): boolean;

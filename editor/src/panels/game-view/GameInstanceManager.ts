@@ -1,6 +1,6 @@
 import { getEditorInstance } from '../../context/EditorContext';
 
-export type GameState = 'stopped' | 'playing';
+export type GameState = 'stopped' | 'playing' | 'paused';
 
 export interface GameInstanceCallbacks {
     onStateChange(state: GameState): void;
@@ -39,6 +39,18 @@ export class GameInstanceManager {
         } catch (e) {
             this.callbacks_.onError(e instanceof Error ? e : new Error(String(e)));
             return null;
+        }
+    }
+
+    pause(): void {
+        if (this.state_ === 'playing') {
+            this.setState('paused');
+        }
+    }
+
+    resume(): void {
+        if (this.state_ === 'paused') {
+            this.setState('playing');
         }
     }
 

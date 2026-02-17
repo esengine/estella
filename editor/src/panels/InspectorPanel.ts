@@ -92,6 +92,7 @@ export class InspectorPanel {
             }),
             pms.onSelectionChange((entityId) => {
                 if (!this.playMode_) return;
+                if (entityId === this.runtimeEntityId_) return;
                 this.runtimeEntityId_ = entityId;
                 if (entityId !== null) {
                     this.renderRuntimeEntity(entityId);
@@ -383,7 +384,13 @@ export class InspectorPanel {
                 return;
             }
             const fresh = await pms.querySelectedEntity();
-            if (fresh && this.runtimeEntityId_ === entityId) {
+            if (!fresh) {
+                this.stopRuntimeRefresh();
+                this.contentContainer_.innerHTML = '<div class="es-inspector-empty">Entity despawned</div>';
+                this.updateFooter('Runtime mode');
+                return;
+            }
+            if (this.runtimeEntityId_ === entityId) {
                 updateRuntimeEntityValues(this.contentContainer_, fresh);
             }
         }, 500);

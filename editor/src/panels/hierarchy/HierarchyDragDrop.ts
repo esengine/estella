@@ -6,6 +6,8 @@ export function setupDragAndDrop(
     createEntityFromAsset: (asset: { type: string; path: string; name: string }, parent: Entity | null) => Promise<void>,
 ): void {
     state.treeContainer.addEventListener('dragstart', (e) => {
+        if (state.playMode) { e.preventDefault(); return; }
+
         const target = e.target as HTMLElement;
         const row = target.closest('.es-hierarchy-row') as HTMLElement;
         const item = row?.parentElement as HTMLElement;
@@ -31,6 +33,8 @@ export function setupDragAndDrop(
     });
 
     state.treeContainer.addEventListener('dragover', (e) => {
+        if (state.playMode) { e.preventDefault(); return; }
+
         const types = e.dataTransfer?.types ?? [];
         const hasAssetData = Array.from(types).includes('application/esengine-asset');
         const hasEntityData = Array.from(types).includes('application/esengine-entity');
@@ -86,6 +90,8 @@ export function setupDragAndDrop(
     });
 
     state.treeContainer.addEventListener('drop', (e) => {
+        if (state.playMode) { e.preventDefault(); return; }
+
         e.preventDefault();
 
         const assetDataStr = e.dataTransfer?.getData('application/esengine-asset');

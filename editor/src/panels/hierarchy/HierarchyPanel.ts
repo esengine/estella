@@ -44,6 +44,7 @@ export class HierarchyPanel implements HierarchyState {
     playMode: boolean = false;
     private playModeCleanups_: (() => void)[] = [];
     private toolbar_: HTMLElement | null = null;
+    private editorExpandedIds_: Set<number> | null = null;
 
     constructor(container: HTMLElement, store: EditorStore) {
         this.container_ = container;
@@ -104,9 +105,15 @@ export class HierarchyPanel implements HierarchyState {
                 if (this.playMode) {
                     this.container_.classList.add('es-play-mode');
                     this.setToolbarDisabled(true);
+                    this.editorExpandedIds_ = new Set(this.expandedIds);
+                    this.expandedIds = new Set();
                 } else {
                     this.container_.classList.remove('es-play-mode');
                     this.setToolbarDisabled(false);
+                    if (this.editorExpandedIds_) {
+                        this.expandedIds = this.editorExpandedIds_;
+                        this.editorExpandedIds_ = null;
+                    }
                 }
                 this.render();
             }),
@@ -515,9 +522,18 @@ export class HierarchyPanel implements HierarchyState {
 
     private setToolbarDisabled(disabled: boolean): void {
         if (!this.toolbar_) return;
-        const buttons = this.toolbar_.querySelectorAll('[data-action="add"], [data-action="duplicate"]');
+        const buttons = this.toolbar_.querySelectorAll('[data-action="add"], [data-action="duplicate"], [data-action="expand-all"], [data-action="collapse-all"]');
         for (const btn of buttons) {
             (btn as HTMLButtonElement).disabled = disabled;
+        }
+        if (this.searchInput) {
+            this.searchInput.disabled = disabled;
+            if (disabled) {
+                this.searchInput.value = '';
+                this.searchFilter = '';
+                this.searchResults = [];
+                this.selectedResultIndex = -1;
+            }
         }
     }
 

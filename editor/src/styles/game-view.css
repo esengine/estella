@@ -138,41 +138,6 @@
     border-color: var(--es-accent);
 }
 
-/* Runtime property editors (used by InspectorPanel in play mode) */
-.es-runtime-input {
-    width: 100%;
-    height: 20px;
-    padding: 1px 4px;
-    font-size: 11px;
-}
-
-.es-runtime-vec-field {
-    display: inline-flex;
-    align-items: center;
-    gap: 2px;
-    margin-right: 4px;
-}
-
-.es-runtime-vec-label {
-    font-size: 10px;
-    color: var(--es-text-secondary);
-    text-transform: uppercase;
-    min-width: 8px;
-}
-
-.es-runtime-vec-input {
-    width: 52px;
-    height: 20px;
-    padding: 1px 3px;
-    font-size: 11px;
-}
-
-.es-runtime-readonly {
-    font-size: 11px;
-    color: var(--es-text-secondary);
-    word-break: break-all;
-}
-
 /* Viewport layout */
 .es-gameview-canvas-area {
     flex: 1;

@@ -11,8 +11,9 @@ class PlayModeService {
     private bridge_: GameViewBridge | null = null;
     private selectedEntityId_: number | null = null;
     private cachedEntities_: RuntimeEntityData[] = [];
-    private pollTimer_: ReturnType<typeof setInterval> | null = null;
-    private detailTimer_: ReturnType<typeof setInterval> | null = null;
+    private pollTimer_: ReturnType<typeof setTimeout> | null = null;
+    private isRefreshing_ = false;
+    private consecutiveFailures_ = 0;
     private stateListeners_ = new Set<StateChangeCallback>();
     private entityListListeners_ = new Set<EntityListCallback>();
     private selectionListeners_ = new Set<SelectionCallback>();
@@ -23,6 +24,7 @@ class PlayModeService {
     get selectedEntityId(): number | null { return this.selectedEntityId_; }
 
     enter(bridge: GameViewBridge): void {
+        if (this.state_ === 'playing') this.exit();
         this.bridge_ = bridge;
         this.state_ = 'playing';
         this.cachedEntities_ = [];
@@ -33,7 +35,6 @@ class PlayModeService {
 
     exit(): void {
         this.stopPolling();
-        this.stopDetailPolling();
         this.bridge_ = null;
         this.state_ = 'stopped';
         this.cachedEntities_ = [];
@@ -45,11 +46,6 @@ class PlayModeService {
     selectEntity(id: number | null): void {
         this.selectedEntityId_ = id;
         this.emitSelectionChange();
-        if (id !== null) {
-            this.startDetailPolling();
-        } else {
-            this.stopDetailPolling();
-        }
     }
 
     onStateChange(cb: StateChangeCallback): () => void {
@@ -68,44 +64,52 @@ class PlayModeService {
     }
 
     async refreshEntityList(): Promise<void> {
-        if (!this.bridge_?.isReady) return;
+        if (this.isRefreshing_ || !this.bridge_?.isReady) return;
+        this.isRefreshing_ = true;
         try {
             this.cachedEntities_ = await this.bridge_.queryEntityList();
+            this.consecutiveFailures_ = 0;
             this.emitEntityListUpdate();
-        } catch {}
+        } catch (e) {
+            this.consecutiveFailures_++;
+            if (this.consecutiveFailures_ <= 3) {
+                console.warn('[PlayModeService] refresh failed:', e);
+            }
+        } finally {
+            this.isRefreshing_ = false;
+        }
     }
 
     async querySelectedEntity(): Promise<RuntimeEntityData | null> {
         if (this.selectedEntityId_ === null || !this.bridge_?.isReady) return null;
         try {
             return await this.bridge_.queryEntity(this.selectedEntityId_);
-        } catch { return null; }
+        } catch (e) {
+            console.warn('[PlayModeService] querySelectedEntity failed:', e);
+            return null;
+        }
     }
 
     private startPolling(): void {
         this.stopPolling();
+        this.consecutiveFailures_ = 0;
         this.refreshEntityList();
-        this.pollTimer_ = setInterval(() => this.refreshEntityList(), 1000);
+        this.schedulePoll();
+    }
+
+    private schedulePoll(): void {
+        if (this.state_ !== 'playing') return;
+        const delay = this.consecutiveFailures_ > 2 ? 5000 : 1000;
+        this.pollTimer_ = setTimeout(async () => {
+            await this.refreshEntityList();
+            this.schedulePoll();
+        }, delay);
     }
 
     private stopPolling(): void {
         if (this.pollTimer_) {
-            clearInterval(this.pollTimer_);
+            clearTimeout(this.pollTimer_);
             this.pollTimer_ = null;
-        }
-    }
-
-    private startDetailPolling(): void {
-        this.stopDetailPolling();
-        this.detailTimer_ = setInterval(() => {
-            this.emitSelectionChange();
-        }, 500);
-    }
-
-    private stopDetailPolling(): void {
-        if (this.detailTimer_) {
-            clearInterval(this.detailTimer_);
-            this.detailTimer_ = null;
         }
     }
 

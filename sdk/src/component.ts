@@ -129,6 +129,10 @@ export function registerComponent(name: string, def: AnyComponentDef): void {
     componentRegistry.set(name, def);
 }
 
+export function getAllRegisteredComponents(): Map<string, AnyComponentDef> {
+    return componentRegistry;
+}
+
 export function getComponent(name: string): AnyComponentDef | undefined {
     return componentRegistry.get(name) ?? getUserComponent(name);
 }

@@ -3,6 +3,8 @@ import type { HierarchyState } from './HierarchyTypes';
 
 export function setupKeyboard(state: HierarchyState, scrollToEntity: (id: number) => void): void {
     state.treeContainer.addEventListener('keydown', (e) => {
+        if (state.playMode) return;
+
         if (state.renamingEntityId !== null) {
             return;
         }

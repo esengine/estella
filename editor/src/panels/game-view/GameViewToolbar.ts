@@ -18,6 +18,10 @@ const RESOLUTION_PRESETS: ResolutionPreset[] = [
 export interface GameViewToolbarCallbacks {
     onPlay(): void;
     onStop(): void;
+    onPause(): void;
+    onResume(): void;
+    onStepFrame(): void;
+    onSpeedChange(speed: number): void;
     onResolutionChange(preset: ResolutionPreset): void;
 }
 
@@ -25,7 +29,11 @@ export class GameViewToolbar {
     private container_: HTMLElement;
     private callbacks_: GameViewToolbarCallbacks;
     private playBtn_: HTMLButtonElement | null = null;
+    private pauseBtn_: HTMLButtonElement | null = null;
+    private resumeBtn_: HTMLButtonElement | null = null;
+    private stepBtn_: HTMLButtonElement | null = null;
     private stopBtn_: HTMLButtonElement | null = null;
+    private speedSelect_: HTMLSelectElement | null = null;
     private fpsDisplay_: HTMLSpanElement | null = null;
     private resolutionSelect_: HTMLSelectElement | null = null;
     private customSizeEl_: HTMLElement | null = null;
@@ -47,8 +55,19 @@ export class GameViewToolbar {
             <div class="es-gameview-toolbar">
                 <div class="es-gameview-controls">
                     <button class="es-btn es-btn-icon es-gameview-play" title="Play">${icons.play(14)}</button>
+                    <button class="es-btn es-btn-icon es-gameview-pause" title="Pause" disabled>${icons.pause(14)}</button>
+                    <button class="es-btn es-btn-icon es-gameview-resume" title="Resume" style="display:none">${icons.play(14)}</button>
+                    <button class="es-btn es-btn-icon es-gameview-step" title="Step Frame" disabled>${icons.stepForward(14)}</button>
                     <button class="es-btn es-btn-icon es-gameview-stop" title="Stop" disabled>${icons.stop(14)}</button>
                 </div>
+                <div class="es-toolbar-divider"></div>
+                <select class="es-gameview-speed" title="Play Speed">
+                    <option value="0.25">0.25x</option>
+                    <option value="0.5">0.5x</option>
+                    <option value="1" selected>1x</option>
+                    <option value="2">2x</option>
+                    <option value="4">4x</option>
+                </select>
                 <div class="es-toolbar-divider"></div>
                 <select class="es-gameview-resolution">${options}<option value="custom">Custom</option></select>
                 <div class="es-gameview-custom-size" style="display:none">
@@ -63,7 +82,11 @@ export class GameViewToolbar {
 
     setup(): void {
         this.playBtn_ = this.container_.querySelector('.es-gameview-play');
+        this.pauseBtn_ = this.container_.querySelector('.es-gameview-pause');
+        this.resumeBtn_ = this.container_.querySelector('.es-gameview-resume');
+        this.stepBtn_ = this.container_.querySelector('.es-gameview-step');
         this.stopBtn_ = this.container_.querySelector('.es-gameview-stop');
+        this.speedSelect_ = this.container_.querySelector('.es-gameview-speed');
         this.fpsDisplay_ = this.container_.querySelector('.es-gameview-fps');
         this.resolutionSelect_ = this.container_.querySelector('.es-gameview-resolution');
         this.customSizeEl_ = this.container_.querySelector('.es-gameview-custom-size');
@@ -71,7 +94,15 @@ export class GameViewToolbar {
         this.customHeightInput_ = this.container_.querySelector('.es-gameview-custom-h');
 
         this.playBtn_?.addEventListener('click', () => this.callbacks_.onPlay());
+        this.pauseBtn_?.addEventListener('click', () => this.callbacks_.onPause());
+        this.resumeBtn_?.addEventListener('click', () => this.callbacks_.onResume());
+        this.stepBtn_?.addEventListener('click', () => this.callbacks_.onStepFrame());
         this.stopBtn_?.addEventListener('click', () => this.callbacks_.onStop());
+
+        this.speedSelect_?.addEventListener('change', () => {
+            const speed = parseFloat(this.speedSelect_!.value);
+            this.callbacks_.onSpeedChange(speed);
+        });
 
         this.resolutionSelect_?.addEventListener('change', () => {
             const val = this.resolutionSelect_!.value;
@@ -100,10 +131,17 @@ export class GameViewToolbar {
     updateState(state: GameState): void {
         if (!this.playBtn_) return;
 
-        const playing = state === 'playing';
         const stopped = state === 'stopped';
+        const playing = state === 'playing';
+        const paused = state === 'paused';
 
-        this.playBtn_.disabled = playing;
+        this.playBtn_.disabled = playing || paused;
+        this.playBtn_.style.display = paused ? 'none' : '';
+        this.pauseBtn_!.disabled = !playing;
+        this.pauseBtn_!.style.display = paused ? 'none' : '';
+        this.resumeBtn_!.style.display = paused ? '' : 'none';
+        this.resumeBtn_!.disabled = !paused;
+        this.stepBtn_!.disabled = !paused;
         this.stopBtn_!.disabled = stopped;
 
         this.playBtn_.classList.toggle('es-active', playing);
@@ -120,7 +158,11 @@ export class GameViewToolbar {
 
     dispose(): void {
         this.playBtn_ = null;
+        this.pauseBtn_ = null;
+        this.resumeBtn_ = null;
+        this.stepBtn_ = null;
         this.stopBtn_ = null;
+        this.speedSelect_ = null;
         this.fpsDisplay_ = null;
         this.resolutionSelect_ = null;
         this.customSizeEl_ = null;

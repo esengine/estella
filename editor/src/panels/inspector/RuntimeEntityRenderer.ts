@@ -10,11 +10,22 @@ export function renderRuntimeEntity(
 
     const header = document.createElement('div');
     header.className = 'es-inspector-entity-header';
-    header.innerHTML = `
-        <span class="es-entity-icon">${icons.box(16)}</span>
-        <span class="es-entity-name">${data.name || 'Entity ' + data.entityId}</span>
-        <span class="es-entity-id">#${data.entityId}</span>
-    `;
+
+    const iconSpan = document.createElement('span');
+    iconSpan.className = 'es-entity-icon';
+    iconSpan.innerHTML = icons.box(16);
+
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'es-entity-name';
+    nameSpan.textContent = data.name || 'Entity ' + data.entityId;
+
+    const idSpan = document.createElement('span');
+    idSpan.className = 'es-entity-id';
+    idSpan.textContent = '#' + data.entityId;
+
+    header.appendChild(iconSpan);
+    header.appendChild(nameSpan);
+    header.appendChild(idSpan);
     container.appendChild(header);
 
     for (const comp of data.components) {
@@ -23,10 +34,17 @@ export function renderRuntimeEntity(
 
         const compHeader = document.createElement('div');
         compHeader.className = 'es-component-header es-collapsible-header';
-        compHeader.innerHTML = `
-            <span class="es-collapse-icon">${icons.chevronDown(12)}</span>
-            <span class="es-component-title">${comp.type}</span>
-        `;
+
+        const collapseIcon = document.createElement('span');
+        collapseIcon.className = 'es-collapse-icon';
+        collapseIcon.innerHTML = icons.chevronDown(12);
+
+        const titleSpan = document.createElement('span');
+        titleSpan.className = 'es-component-title';
+        titleSpan.textContent = comp.type;
+
+        compHeader.appendChild(collapseIcon);
+        compHeader.appendChild(titleSpan);
         compHeader.addEventListener('click', () => section.classList.toggle('es-expanded'));
         section.appendChild(compHeader);
 
@@ -61,10 +79,22 @@ export function updateRuntimeEntityValues(
 ): void {
     for (const comp of data.components) {
         for (const [key, value] of Object.entries(comp.data)) {
-            const input = container.querySelector(
+            const el = container.querySelector(
                 `[data-rt-comp="${comp.type}"][data-rt-prop="${key}"]`
-            ) as HTMLInputElement | null;
-            if (!input) continue;
+            ) as HTMLElement | null;
+            if (!el) continue;
+
+            if (el.getAttribute('data-rt-kind') === 'object' && value && typeof value === 'object') {
+                const obj = value as Record<string, number>;
+                for (const [subKey, subVal] of Object.entries(obj)) {
+                    const inp = el.querySelector(`[data-rt-key="${subKey}"]`) as HTMLInputElement | null;
+                    if (!inp || document.activeElement === inp) continue;
+                    inp.value = String(Math.round(subVal * 1000) / 1000);
+                }
+                continue;
+            }
+
+            const input = el as HTMLInputElement;
             if (document.activeElement === input) continue;
 
             if (input.type === 'checkbox') {
@@ -121,9 +151,14 @@ function createRuntimePropertyEditor(
         container.appendChild(input);
     } else if (value && typeof value === 'object' && !Array.isArray(value)) {
         const obj = value as Record<string, number>;
+        const vecWrapper = document.createElement('div');
+        vecWrapper.className = 'es-runtime-vec-wrapper';
+        vecWrapper.setAttribute('data-rt-comp', componentType);
+        vecWrapper.setAttribute('data-rt-prop', property);
+        vecWrapper.setAttribute('data-rt-kind', 'object');
         for (const k of Object.keys(obj)) {
-            const wrapper = document.createElement('span');
-            wrapper.className = 'es-runtime-vec-field';
+            const field = document.createElement('span');
+            field.className = 'es-runtime-vec-field';
             const lbl = document.createElement('span');
             lbl.className = 'es-runtime-vec-label';
             lbl.textContent = k;
@@ -132,14 +167,16 @@ function createRuntimePropertyEditor(
             inp.className = 'es-input es-runtime-vec-input';
             inp.value = String(Math.round(obj[k] * 1000) / 1000);
             inp.step = 'any';
+            inp.dataset.rtKey = k;
             inp.addEventListener('change', () => {
                 const newObj = { ...obj, [k]: parseFloat(inp.value) };
                 bridge?.setEntityProperty(entityId, componentType, property, newObj);
             });
-            wrapper.appendChild(lbl);
-            wrapper.appendChild(inp);
-            container.appendChild(wrapper);
+            field.appendChild(lbl);
+            field.appendChild(inp);
+            vecWrapper.appendChild(field);
         }
+        container.appendChild(vecWrapper);
     } else {
         const span = document.createElement('span');
         span.className = 'es-runtime-readonly';

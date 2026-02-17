@@ -1147,16 +1147,51 @@
     align-items: flex-start;
 }
 
+/* Runtime property editors */
+.es-runtime-input {
+    width: 100%;
+    height: 20px;
+    padding: 1px 4px;
+    font-size: 11px;
+}
+
+.es-runtime-vec-field {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    margin-right: 4px;
+}
+
+.es-runtime-vec-label {
+    font-size: 10px;
+    color: var(--es-text-secondary);
+    text-transform: uppercase;
+    min-width: 8px;
+}
+
+.es-runtime-vec-input {
+    width: 52px;
+    height: 20px;
+    padding: 1px 3px;
+    font-size: 11px;
+}
+
+.es-runtime-readonly {
+    font-size: 11px;
+    color: var(--es-text-secondary);
+    word-break: break-all;
+}
+
 /* Play mode indicator */
 .es-inspector-panel.es-play-mode {
-    border-top: 2px solid #4a9eff;
+    border-top: 2px solid var(--es-play-mode);
 }
 
 .es-inspector-panel.es-play-mode .es-inspector-toolbar::after {
     content: 'RUNTIME';
     font-size: 9px;
     font-weight: 600;
-    color: #4a9eff;
+    color: var(--es-play-mode);
     padding: 1px 5px;
     border-radius: 2px;
     background: rgba(74, 158, 255, 0.12);

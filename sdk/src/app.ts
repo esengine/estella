@@ -76,6 +76,9 @@ export class App {
     private error_handler_: ((error: unknown, systemName: string) => void) | null = null;
     private system_error_handler_: ((error: Error, systemName?: string) => 'continue' | 'pause') | null = null;
     private frame_paused_ = false;
+    private user_paused_ = false;
+    private step_pending_ = false;
+    private play_speed_ = 1.0;
 
     private constructor() {
         this.world_ = new World();
@@ -234,6 +237,26 @@ export class App {
         return this;
     }
 
+    setPaused(paused: boolean): void {
+        this.user_paused_ = paused;
+    }
+
+    isPaused(): boolean {
+        return this.user_paused_;
+    }
+
+    stepFrame(): void {
+        this.step_pending_ = true;
+    }
+
+    setPlaySpeed(speed: number): void {
+        this.play_speed_ = Math.max(0.1, Math.min(4.0, speed));
+    }
+
+    getPlaySpeed(): number {
+        return this.play_speed_;
+    }
+
     // =========================================================================
     // Resource Access
     // =========================================================================
@@ -294,31 +317,40 @@ export class App {
         const deltaMs = currentTime - this.lastTime_;
         this.lastTime_ = currentTime;
 
-        const delta = Math.min(deltaMs / 1000, this.maxDeltaTime_);
+        const rawDelta = Math.min(deltaMs / 1000, this.maxDeltaTime_);
+        const delta = rawDelta * this.play_speed_;
 
         this.updateTime(delta);
         this.world_.resetQueryPool();
         this.frame_paused_ = false;
 
-        this.runSchedule(Schedule.First);
+        if (this.user_paused_ && !this.step_pending_) {
+            this.runSchedule(Schedule.Last);
+        } else {
+            this.runSchedule(Schedule.First);
 
-        this.fixedAccumulator_ += delta;
-        let fixedSteps = 0;
-        while (this.fixedAccumulator_ >= this.fixedTimestep_ && fixedSteps < this.maxFixedSteps_) {
-            this.fixedAccumulator_ -= this.fixedTimestep_;
-            this.runSchedule(Schedule.FixedPreUpdate);
-            this.runSchedule(Schedule.FixedUpdate);
-            this.runSchedule(Schedule.FixedPostUpdate);
-            fixedSteps++;
-        }
-        if (fixedSteps >= this.maxFixedSteps_) {
-            this.fixedAccumulator_ = 0;
-        }
+            this.fixedAccumulator_ += delta;
+            let fixedSteps = 0;
+            while (this.fixedAccumulator_ >= this.fixedTimestep_ && fixedSteps < this.maxFixedSteps_) {
+                this.fixedAccumulator_ -= this.fixedTimestep_;
+                this.runSchedule(Schedule.FixedPreUpdate);
+                this.runSchedule(Schedule.FixedUpdate);
+                this.runSchedule(Schedule.FixedPostUpdate);
+                fixedSteps++;
+            }
+            if (fixedSteps >= this.maxFixedSteps_) {
+                this.fixedAccumulator_ = 0;
+            }
 
-        this.runSchedule(Schedule.PreUpdate);
-        this.runSchedule(Schedule.Update);
-        this.runSchedule(Schedule.PostUpdate);
-        this.runSchedule(Schedule.Last);
+            this.runSchedule(Schedule.PreUpdate);
+            this.runSchedule(Schedule.Update);
+            this.runSchedule(Schedule.PostUpdate);
+            this.runSchedule(Schedule.Last);
+
+            if (this.step_pending_) {
+                this.step_pending_ = false;
+            }
+        }
 
         requestAnimationFrame(this.mainLoop);
     };

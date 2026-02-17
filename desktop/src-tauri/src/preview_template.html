@@ -133,12 +133,15 @@
                         break;
                     }
                 }
+                if (requestId !== undefined) {
+                    window.parent.postMessage({ type, requestId, data: response }, '*');
+                }
             } catch (e) {
-                response = { error: e.message || String(e) };
-            }
-
-            if (requestId !== undefined) {
-                window.parent.postMessage({ type, requestId, data: response }, '*');
+                if (requestId !== undefined) {
+                    try {
+                        window.parent.postMessage({ type, requestId, data: { error: e.message || String(e) } }, '*');
+                    } catch {}
+                }
             }
         });
 
@@ -146,7 +149,9 @@
             if (!gameApp) return [];
             const world = gameApp.world;
             const sdk = window.__esSdk;
-            const entities = world.getAllEntities();
+            const rawEntities = world.getAllEntities();
+            const entities = [];
+            for (let i = 0; i < rawEntities.length; i++) entities.push(Number(rawEntities[i]));
             return entities.map(entityId => {
                 const name = getEntityName(world, entityId);
                 const componentTypes = getComponentTypes(world, entityId);
@@ -182,7 +187,7 @@
                     const nameDef = sdk.getComponent('Name');
                     if (nameDef) {
                         const nameData = world.tryGet(entityId, nameDef);
-                        if (nameData && nameData.value) return nameData.value;
+                        if (nameData && nameData.value) return String(nameData.value);
                     }
                 } catch {}
             }
@@ -192,7 +197,8 @@
         function getComponentTypes(world, entityId) {
             try {
                 if (world.getComponentTypes) {
-                    return world.getComponentTypes(entityId);
+                    const types = world.getComponentTypes(entityId);
+                    return types.map(t => String(t));
                 }
             } catch {}
             return [];
@@ -202,7 +208,7 @@
             if (!sdk) return null;
             try {
                 const parent = world.tryGet(entityId, sdk.Parent);
-                if (parent && parent.entity !== undefined && parent.entity !== 0) return parent.entity;
+                if (parent && parent.entity !== undefined && parent.entity !== 0) return Number(parent.entity);
             } catch {}
             return null;
         }
@@ -211,7 +217,12 @@
             if (!sdk) return [];
             try {
                 const children = world.tryGet(entityId, sdk.Children);
-                if (children && Array.isArray(children.entities)) return children.entities;
+                if (children && children.entities) {
+                    const arr = children.entities;
+                    const result = [];
+                    for (let i = 0; i < arr.length; i++) result.push(Number(arr[i]));
+                    return result;
+                }
             } catch {}
             return [];
         }
@@ -232,6 +243,15 @@
             return String(val);
         }
 
+        function serializeBuiltinComponent(data, compDef) {
+            if (!compDef || !compDef._default) return serializeValue(data);
+            const out = {};
+            for (const key of Object.keys(compDef._default)) {
+                try { out[key] = serializeValue(data[key]); } catch {}
+            }
+            return out;
+        }
+
         function getComponentData(world, entityId, typeName) {
             const sdk = window.__esSdk;
             if (!sdk) return {};
@@ -240,7 +260,7 @@
                 if (!compDef) return {};
                 const data = world.tryGet(entityId, compDef);
                 if (!data) return {};
-                return serializeValue(data);
+                return compDef._builtin ? serializeBuiltinComponent(data, compDef) : serializeValue(data);
             } catch { return {}; }
         }
 
@@ -256,7 +276,7 @@
                 if (!current) return;
 
                 if (compDef._builtin) {
-                    const snapshot = serializeValue(current);
+                    const snapshot = serializeBuiltinComponent(current, compDef);
                     snapshot[property] = value;
                     world.insert(entityId, compDef, snapshot);
                 } else {

@@ -298,14 +298,14 @@
 
 /* Play mode indicator */
 .es-hierarchy-panel.es-play-mode {
-    border-top: 2px solid #4a9eff;
+    border-top: 2px solid var(--es-play-mode);
 }
 
 .es-hierarchy-panel.es-play-mode .es-hierarchy-toolbar::after {
     content: 'RUNTIME';
     font-size: 9px;
     font-weight: 600;
-    color: #4a9eff;
+    color: var(--es-play-mode);
     padding: 1px 5px;
     border-radius: 2px;
     background: rgba(74, 158, 255, 0.12);
@@ -314,11 +314,11 @@
 
 .es-hierarchy-panel.es-play-mode .es-hierarchy-item.es-selected > .es-hierarchy-row {
     background: rgba(74, 158, 255, 0.3);
-    border-left-color: #4a9eff;
+    border-left-color: var(--es-play-mode);
 }
 
 .es-hierarchy-panel.es-play-mode .es-hierarchy-item.es-selected > .es-hierarchy-row .es-hierarchy-name {
-    color: #4a9eff;
+    color: var(--es-play-mode);
 }
 
 .es-hierarchy-footer {

@@ -4,7 +4,7 @@
  */
 
 import { Entity } from './types';
-import { AnyComponentDef, ComponentDef, ComponentData, BuiltinComponentDef, isBuiltinComponent, getComponent } from './component';
+import { AnyComponentDef, ComponentDef, ComponentData, BuiltinComponentDef, isBuiltinComponent, getAllRegisteredComponents } from './component';
 import type { CppRegistry } from './wasm';
 import { validateComponentData, formatValidationErrors } from './validation';
 import { handleWasmError } from './wasmError';
@@ -407,16 +407,8 @@ export class World {
             try { if (methods.has(entity)) types.push(name); } catch {}
         }
         if (this.cppRegistry_) {
-            const knownBuiltins = [
-                'LocalTransform', 'GlobalTransform', 'Sprite', 'Camera', 'Text',
-                'Velocity', 'Parent', 'Children', 'BitmapText', 'SpineAnimation',
-                'Canvas', 'UIRect', 'Interaction', 'Mask', 'LayoutGroup', 'LayoutElement',
-                'TextInput', 'RigidBody', 'BoxCollider', 'CircleCollider', 'CapsuleCollider',
-            ];
-            for (const name of knownBuiltins) {
-                if (types.includes(name)) continue;
-                const comp = getComponent(name);
-                if (comp && isBuiltinComponent(comp)) {
+            for (const [name, comp] of getAllRegisteredComponents()) {
+                if (isBuiltinComponent(comp) && !types.includes(name)) {
                     try {
                         const m = this.getBuiltinMethods(comp._cppName);
                         if (m.has(entity)) types.push(name);
@@ -426,31 +418,21 @@ export class World {
         }
         const ids = this.entityComponents_.get(entity);
         if (ids) {
-            for (const id of ids) {
-                for (const [, storage] of this.tsStorage_) {
-                    if (storage.has(entity) && storage === this.tsStorage_.get(id)) {
-                        for (const [name, def] of this.findScriptName(id)) {
-                            if (!types.includes(name)) types.push(name);
+            const registry = typeof window !== 'undefined'
+                ? (window as any).__esengine_componentRegistry as Map<string, any> | undefined
+                : undefined;
+            if (registry) {
+                for (const id of ids) {
+                    for (const [name, def] of registry) {
+                        if (def._id === id) {
+                            types.push(name);
+                            break;
                         }
                     }
                 }
             }
         }
         return types;
-    }
-
-    private findScriptName(id: symbol): [string, ComponentDef<any>][] {
-        const results: [string, ComponentDef<any>][] = [];
-        if (typeof window !== 'undefined' && (window as any).__esengine_componentRegistry) {
-            const registry = (window as any).__esengine_componentRegistry as Map<string, ComponentDef<any>>;
-            for (const [name, def] of registry) {
-                if (def._id === id) {
-                    results.push([name, def]);
-                    break;
-                }
-            }
-        }
-        return results;
     }
 
     getEntitiesWithComponents(

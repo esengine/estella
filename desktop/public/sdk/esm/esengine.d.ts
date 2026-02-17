@@ -696,7 +696,6 @@ declare class World {
     private getStorage;
     resetQueryPool(): void;
     getComponentTypes(entity: Entity): string[];
-    private findScriptName;
     getEntitiesWithComponents(components: AnyComponentDef[], withFilters?: AnyComponentDef[], withoutFilters?: AnyComponentDef[]): Entity[];
 }
 
