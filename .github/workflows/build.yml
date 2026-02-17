@@ -127,10 +127,10 @@ jobs:
       run: pnpm install
 
     - name: Type-check SDK
-      run: npx tsc --noEmit -p sdk/tsconfig.json
+      run: pnpm exec tsc --noEmit -p sdk/tsconfig.json
 
     - name: Type-check Editor
-      run: npx tsc --noEmit -p editor/tsconfig.json
+      run: pnpm exec tsc --noEmit -p editor/tsconfig.json
 
     - name: Run SDK tests with coverage
       run: pnpm --filter esengine vitest run --coverage --coverage.thresholds.lines=60 --coverage.thresholds.functions=60 --coverage.thresholds.branches=60 --coverage.thresholds.statements=60

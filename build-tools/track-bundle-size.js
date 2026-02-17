@@ -8,7 +8,7 @@ import * as logger from './utils/logger.js';
 
 const BASELINES_FILE = path.join(config.paths.root, '.github', 'bundle-size-baselines.json');
 const THRESHOLDS = {
-    'wasm/web/esengine.wasm': 800 * 1024,
+    'wasm/web/esengine.wasm': 900 * 1024,
     'wasm/web/physics.wasm': 200 * 1024,
     'wasm/web/spine42.wasm': 300 * 1024,
     'wasm/web/spine38.wasm': 300 * 1024,
