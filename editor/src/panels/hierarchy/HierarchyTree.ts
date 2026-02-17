@@ -4,6 +4,7 @@ import type { FuzzyMatch } from '../../utils/fuzzy';
 import { icons } from '../../utils/icons';
 import { escapeHtml } from '../../utils/html';
 import type { FlattenedRow, HierarchyState } from './HierarchyTypes';
+import { getPlayModeService } from '../../services/PlayModeService';
 
 export function buildFlatRows(state: HierarchyState): FlattenedRow[] {
     const rows: FlattenedRow[] = [];
@@ -84,18 +85,26 @@ export function renderSingleRow(state: HierarchyState, row: FlattenedRow, select
     const icon = getEntityIcon(entity);
     const type = getEntityType(entity);
     const expandIcon = isExpanded ? icons.chevronDown(10) : icons.chevronRight(10);
-    const isVisible = state.store.isEntityVisible(entity.id);
+    const inPlayMode = state.playMode;
+
+    const isVisible = inPlayMode ? true : state.store.isEntityVisible(entity.id);
     const visibilityIcon = isVisible ? icons.eye(10) : icons.eyeOff(10);
 
     let itemClass = 'es-hierarchy-item';
-    if (state.store.selectedEntities.has(entity.id)) itemClass += ' es-selected';
+    if (inPlayMode) {
+        if (entity.id === getPlayModeService().selectedEntityId) itemClass += ' es-selected';
+    } else {
+        if (state.store.selectedEntities.has(entity.id)) itemClass += ' es-selected';
+    }
     if (!isVisible) itemClass += ' es-entity-hidden';
-    if (entity.prefab?.isRoot) itemClass += ' es-prefab-root';
-    else if (entity.prefab) itemClass += ' es-prefab-child';
+    if (!inPlayMode) {
+        if (entity.prefab?.isRoot) itemClass += ' es-prefab-root';
+        else if (entity.prefab) itemClass += ' es-prefab-child';
+    }
     if (hasChildren) itemClass += ' es-has-children';
     if (isExpanded) itemClass += ' es-expanded';
-    if (entity.id === state.draggingEntityId) itemClass += ' es-dragging';
-    if (entity.id === state.dragOverEntityId) {
+    if (!inPlayMode && entity.id === state.draggingEntityId) itemClass += ' es-dragging';
+    if (!inPlayMode && entity.id === state.dragOverEntityId) {
         if (state.dropPosition) {
             itemClass += ` es-drop-${state.dropPosition}`;
         } else {
@@ -112,13 +121,13 @@ export function renderSingleRow(state: HierarchyState, row: FlattenedRow, select
     }
 
     const nameHtml = renderEntityName(entity.name, match);
-
     const ariaExpanded = hasChildren ? ` aria-expanded="${isExpanded}"` : '';
+    const draggable = inPlayMode ? 'false' : 'true';
 
     return `<div class="${itemClass}" data-entity-id="${entity.id}" role="treeitem"${ariaExpanded}>
-            <div class="es-hierarchy-row" draggable="true" style="padding-left: ${8 + depth * 16}px">
+            <div class="es-hierarchy-row" draggable="${draggable}" style="padding-left: ${8 + depth * 16}px">
                 ${hasChildren ? `<span class="es-hierarchy-expand">${expandIcon}</span>` : '<span class="es-hierarchy-spacer"></span>'}
-                <span class="es-hierarchy-visibility">${visibilityIcon}</span>
+                ${inPlayMode ? '' : `<span class="es-hierarchy-visibility">${visibilityIcon}</span>`}
                 <span class="es-hierarchy-icon">${icon}</span>
                 <span class="es-hierarchy-name">${nameHtml}</span>
                 <span class="es-hierarchy-type">${type}</span>

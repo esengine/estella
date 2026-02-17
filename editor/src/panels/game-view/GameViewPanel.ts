@@ -2,6 +2,8 @@ import type { EditorStore } from '../../store/EditorStore';
 import type { PanelInstance, Resizable } from '../PanelRegistry';
 import { GameInstanceManager, type GameState } from './GameInstanceManager';
 import { GameViewToolbar } from './GameViewToolbar';
+import { GameViewBridge } from './GameViewBridge';
+import { getPlayModeService } from '../../services/PlayModeService';
 
 export interface GameViewPanelOptions {
     projectPath?: string;
@@ -12,8 +14,10 @@ export class GameViewPanel implements PanelInstance, Resizable {
     private iframe_: HTMLIFrameElement | null = null;
     private toolbar_: GameViewToolbar;
     private gameManager_: GameInstanceManager;
-    private viewport_: HTMLElement | null = null;
+    private bridge_: GameViewBridge | null = null;
+    private canvasArea_: HTMLElement | null = null;
     private placeholder_: HTMLElement | null = null;
+    private eventCleanups_: (() => void)[] = [];
 
     constructor(container: HTMLElement, _store: EditorStore, _options?: GameViewPanelOptions) {
         this.container_ = container;
@@ -26,6 +30,10 @@ export class GameViewPanel implements PanelInstance, Resizable {
         this.toolbar_ = new GameViewToolbar(container, {
             onPlay: () => this.play(),
             onStop: () => this.stop(),
+            onPause: () => this.pause(),
+            onResume: () => this.resume(),
+            onStepFrame: () => this.stepFrame(),
+            onSpeedChange: (speed) => this.bridge_?.setSpeed(speed),
             onResolutionChange: () => this.updateIframeSize(),
         });
 
@@ -37,6 +45,7 @@ export class GameViewPanel implements PanelInstance, Resizable {
     }
 
     dispose(): void {
+        this.disposeBridge();
         this.gameManager_.dispose();
         this.toolbar_.dispose();
     }
@@ -50,15 +59,17 @@ export class GameViewPanel implements PanelInstance, Resizable {
                 </div>
             </div>
             <div class="es-gameview-viewport">
-                <iframe class="es-gameview-iframe"></iframe>
-                <div class="es-gameview-placeholder">
-                    <span>Click Play to start</span>
+                <div class="es-gameview-canvas-area">
+                    <iframe class="es-gameview-iframe"></iframe>
+                    <div class="es-gameview-placeholder">
+                        <span>Click Play to start</span>
+                    </div>
                 </div>
             </div>
         `;
 
         this.iframe_ = this.container_.querySelector('.es-gameview-iframe')!;
-        this.viewport_ = this.container_.querySelector('.es-gameview-viewport')!;
+        this.canvasArea_ = this.container_.querySelector('.es-gameview-canvas-area')!;
         this.placeholder_ = this.container_.querySelector('.es-gameview-placeholder')!;
 
         this.toolbar_.setup();
@@ -69,14 +80,76 @@ export class GameViewPanel implements PanelInstance, Resizable {
         const url = await this.gameManager_.play();
         if (url && this.iframe_) {
             this.iframe_.src = url + '?t=' + Date.now();
+            this.createBridge();
         }
     }
 
+    private async pause(): Promise<void> {
+        if (!this.bridge_?.isReady) return;
+        try {
+            await this.bridge_.pause();
+            this.gameManager_.pause();
+        } catch { /* ignore timeout */ }
+    }
+
+    private async resume(): Promise<void> {
+        if (!this.bridge_?.isReady) return;
+        try {
+            await this.bridge_.resume();
+            this.gameManager_.resume();
+        } catch { /* ignore timeout */ }
+    }
+
+    private async stepFrame(): Promise<void> {
+        if (!this.bridge_?.isReady) return;
+        try {
+            await this.bridge_.step();
+        } catch { /* ignore timeout */ }
+    }
+
     private async stop(): Promise<void> {
+        this.disposeBridge();
         if (this.iframe_) {
             this.iframe_.src = 'about:blank';
         }
         await this.gameManager_.stop();
+    }
+
+    private createBridge(): void {
+        if (!this.iframe_) return;
+        this.disposeBridge();
+
+        this.bridge_ = new GameViewBridge(this.iframe_);
+
+        this.eventCleanups_.push(
+            this.bridge_.on('stats', (data) => {
+                this.toolbar_.updateFps(data.fps ?? 0);
+            }),
+            this.bridge_.on('console:log', (data) => {
+                console.log('[Preview]', data.message);
+            }),
+            this.bridge_.on('console:warn', (data) => {
+                console.warn('[Preview]', data.message);
+            }),
+            this.bridge_.on('console:error', (data) => {
+                console.error('[Preview]', data.message);
+            }),
+            this.bridge_.on('error', (data) => {
+                console.error('[Preview Error]', data.message);
+            }),
+            this.bridge_.on('ready', () => {
+                getPlayModeService().enter(this.bridge_!);
+            }),
+        );
+    }
+
+    private disposeBridge(): void {
+        for (const cleanup of this.eventCleanups_) cleanup();
+        this.eventCleanups_ = [];
+        getPlayModeService().exit();
+        this.bridge_?.dispose();
+        this.bridge_ = null;
+        this.toolbar_.updateFps(0);
     }
 
     private onStateChange(state: GameState): void {
@@ -91,9 +164,9 @@ export class GameViewPanel implements PanelInstance, Resizable {
     }
 
     private updateIframeSize(): void {
-        if (!this.iframe_ || !this.viewport_) return;
+        if (!this.iframe_ || !this.canvasArea_) return;
 
-        const rect = this.viewport_.getBoundingClientRect();
+        const rect = this.canvasArea_.getBoundingClientRect();
         const preset = this.toolbar_.currentPreset;
 
         if (preset.width > 0 && preset.height > 0) {

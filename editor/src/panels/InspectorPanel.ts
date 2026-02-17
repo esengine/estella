@@ -18,6 +18,8 @@ import { renderMaterialInspector } from './inspector/MaterialInspector';
 import { renderBitmapFontInspector } from './inspector/BitmapFontInspector';
 import { renderFolderInspector } from './inspector/FolderInspector';
 import { renderScriptInspector, renderSceneInspector, renderFileInspector } from './inspector/FileInspector';
+import { getPlayModeService } from '../services/PlayModeService';
+import { renderRuntimeEntity, updateRuntimeEntityValues } from './inspector/RuntimeEntityRenderer';
 
 // =============================================================================
 // InspectorPanel
@@ -42,6 +44,10 @@ export class InspectorPanel {
     private locked_: boolean = false;
     private materialPreviewState_: MaterialPreviewState;
     private extensionSections_: InspectorSectionInstance[] = [];
+    private playMode_: boolean = false;
+    private playModeCleanups_: (() => void)[] = [];
+    private runtimeEntityId_: number | null = null;
+    private runtimeRefreshTimer_: ReturnType<typeof setInterval> | null = null;
 
     constructor(container: HTMLElement, store: EditorStore) {
         this.container_ = container;
@@ -69,6 +75,31 @@ export class InspectorPanel {
         this.unsubscribe_ = store.subscribe(() => this.render());
         this.unsubPropertyChange_ = store.subscribeToPropertyChanges(() => this.updateEditors());
         this.render();
+
+        const pms = getPlayModeService();
+        this.playModeCleanups_.push(
+            pms.onStateChange((state) => {
+                this.playMode_ = state === 'playing';
+                if (this.playMode_) {
+                    this.container_.classList.add('es-play-mode');
+                    hideMaterialPreview(this.materialPreviewState_);
+                } else {
+                    this.container_.classList.remove('es-play-mode');
+                    this.stopRuntimeRefresh();
+                    this.runtimeEntityId_ = null;
+                    this.render();
+                }
+            }),
+            pms.onSelectionChange((entityId) => {
+                if (!this.playMode_) return;
+                this.runtimeEntityId_ = entityId;
+                if (entityId !== null) {
+                    this.renderRuntimeEntity(entityId);
+                } else {
+                    this.renderPlayModeEmpty();
+                }
+            }),
+        );
     }
 
     private setupLockButton(): void {
@@ -93,6 +124,9 @@ export class InspectorPanel {
     }
 
     dispose(): void {
+        for (const cleanup of this.playModeCleanups_) cleanup();
+        this.playModeCleanups_ = [];
+        this.stopRuntimeRefresh();
         this.disposeEditors();
         this.cleanupImageUrl();
         if (this.unsubscribe_) {
@@ -110,6 +144,7 @@ export class InspectorPanel {
     // =========================================================================
 
     private render(): void {
+        if (this.playMode_) return;
         if (this.locked_) {
             if (this.currentEntity_ !== null) {
                 this.updateEditors();
@@ -320,6 +355,56 @@ export class InspectorPanel {
 
         this.extensionSections_ = renderAssetExtensionSections(this.contentContainer_, asset.path, asset.type, this.store_);
         this.updateFooter(getAssetTypeName(asset.type));
+    }
+
+    // =========================================================================
+    // Play Mode (Runtime Inspector)
+    // =========================================================================
+
+    private async renderRuntimeEntity(entityId: number): Promise<void> {
+        this.stopRuntimeRefresh();
+        this.disposeEditors();
+        this.cleanupImageUrl();
+        this.currentEntity_ = null;
+        this.currentAssetPath_ = null;
+        hideMaterialPreview(this.materialPreviewState_);
+
+        const pms = getPlayModeService();
+        const data = await pms.querySelectedEntity();
+        if (!data || this.runtimeEntityId_ !== entityId) return;
+
+        this.contentContainer_.innerHTML = '';
+        renderRuntimeEntity(this.contentContainer_, data, pms.bridge);
+        this.updateFooter(`${data.components.length} components (Runtime)`);
+
+        this.runtimeRefreshTimer_ = setInterval(async () => {
+            if (this.runtimeEntityId_ !== entityId) {
+                this.stopRuntimeRefresh();
+                return;
+            }
+            const fresh = await pms.querySelectedEntity();
+            if (fresh && this.runtimeEntityId_ === entityId) {
+                updateRuntimeEntityValues(this.contentContainer_, fresh);
+            }
+        }, 500);
+    }
+
+    private renderPlayModeEmpty(): void {
+        this.stopRuntimeRefresh();
+        this.disposeEditors();
+        this.cleanupImageUrl();
+        this.currentEntity_ = null;
+        this.currentAssetPath_ = null;
+        this.contentContainer_.innerHTML = '<div class="es-inspector-empty">Select a runtime entity</div>';
+        hideMaterialPreview(this.materialPreviewState_);
+        this.updateFooter('Runtime mode');
+    }
+
+    private stopRuntimeRefresh(): void {
+        if (this.runtimeRefreshTimer_) {
+            clearInterval(this.runtimeRefreshTimer_);
+            this.runtimeRefreshTimer_ = null;
+        }
     }
 
     // =========================================================================

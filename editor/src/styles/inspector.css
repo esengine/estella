@@ -1146,3 +1146,19 @@
 .es-property-row-top {
     align-items: flex-start;
 }
+
+/* Play mode indicator */
+.es-inspector-panel.es-play-mode {
+    border-top: 2px solid #4a9eff;
+}
+
+.es-inspector-panel.es-play-mode .es-inspector-toolbar::after {
+    content: 'RUNTIME';
+    font-size: 9px;
+    font-weight: 600;
+    color: #4a9eff;
+    padding: 1px 5px;
+    border-radius: 2px;
+    background: rgba(74, 158, 255, 0.12);
+    margin-left: auto;
+}

@@ -49,6 +49,224 @@
         const loading = document.getElementById('loading');
         const errorDiv = document.getElementById('error');
 
+        let gameApp = null;
+
+        function sendToEditor(type, data) {
+            try {
+                window.parent.postMessage({ type, data }, '*');
+            } catch (e) { /* ignore */ }
+        }
+
+        const _origLog = console.log;
+        const _origWarn = console.warn;
+        const _origError = console.error;
+        function formatArgs(args) {
+            return args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+        }
+        console.log = (...args) => {
+            _origLog.apply(console, args);
+            sendToEditor('console:log', { message: formatArgs(args) });
+        };
+        console.warn = (...args) => {
+            _origWarn.apply(console, args);
+            sendToEditor('console:warn', { message: formatArgs(args) });
+        };
+        console.error = (...args) => {
+            _origError.apply(console, args);
+            sendToEditor('console:error', { message: formatArgs(args) });
+        };
+
+        let _frameCount = 0;
+        let _lastStatsTime = performance.now();
+        function reportStats() {
+            _frameCount++;
+            const now = performance.now();
+            if (now - _lastStatsTime >= 1000) {
+                const fps = Math.round(_frameCount * 1000 / (now - _lastStatsTime));
+                const entityCount = gameApp?.world?.getAllEntities()?.length ?? 0;
+                sendToEditor('stats', { fps, entityCount });
+                _frameCount = 0;
+                _lastStatsTime = now;
+            }
+            requestAnimationFrame(reportStats);
+        }
+
+        window.addEventListener('message', (event) => {
+            if (event.source !== window.parent) return;
+            const msg = event.data;
+            if (!msg || typeof msg !== 'object' || !msg.type) return;
+
+            const { type, requestId } = msg;
+            let response = null;
+
+            try {
+                switch (type) {
+                    case 'pause':
+                        gameApp?.setPaused(true);
+                        response = { success: true };
+                        break;
+                    case 'resume':
+                        gameApp?.setPaused(false);
+                        response = { success: true };
+                        break;
+                    case 'step':
+                        gameApp?.stepFrame();
+                        response = { success: true };
+                        break;
+                    case 'set-speed':
+                        gameApp?.setPlaySpeed(msg.speed ?? 1);
+                        response = { success: true };
+                        break;
+                    case 'query-entity-list':
+                        response = getEntityList();
+                        break;
+                    case 'query-entity':
+                        response = getEntityData(msg.entityId);
+                        break;
+                    case 'set-entity-property':
+                        setEntityProperty(msg.entityId, msg.component, msg.property, msg.value);
+                        response = { success: true };
+                        break;
+                    case 'query-stats': {
+                        const entities = gameApp?.world?.getAllEntities() ?? [];
+                        response = { entityCount: entities.length, paused: gameApp?.isPaused() ?? false };
+                        break;
+                    }
+                }
+            } catch (e) {
+                response = { error: e.message || String(e) };
+            }
+
+            if (requestId !== undefined) {
+                window.parent.postMessage({ type, requestId, data: response }, '*');
+            }
+        });
+
+        function getEntityList() {
+            if (!gameApp) return [];
+            const world = gameApp.world;
+            const sdk = window.__esSdk;
+            const entities = world.getAllEntities();
+            return entities.map(entityId => {
+                const name = getEntityName(world, entityId);
+                const componentTypes = getComponentTypes(world, entityId);
+                const parentId = getEntityParentId(world, sdk, entityId);
+                const children = getEntityChildren(world, sdk, entityId);
+                return { entityId, name, parentId, children, components: componentTypes.map(t => ({ type: t, data: {} })) };
+            });
+        }
+
+        function getEntityData(entityId) {
+            if (!gameApp) return null;
+            const world = gameApp.world;
+            const sdk = window.__esSdk;
+            const name = getEntityName(world, entityId);
+            const componentTypes = getComponentTypes(world, entityId);
+            const parentId = getEntityParentId(world, sdk, entityId);
+            const children = getEntityChildren(world, sdk, entityId);
+            const components = componentTypes.map(typeName => {
+                try {
+                    const data = getComponentData(world, entityId, typeName);
+                    return { type: typeName, data: data || {} };
+                } catch {
+                    return { type: typeName, data: {} };
+                }
+            });
+            return { entityId, name, parentId, children, components };
+        }
+
+        function getEntityName(world, entityId) {
+            const sdk = window.__esSdk;
+            if (sdk) {
+                try {
+                    const nameDef = sdk.getComponent('Name');
+                    if (nameDef) {
+                        const nameData = world.tryGet(entityId, nameDef);
+                        if (nameData && nameData.value) return nameData.value;
+                    }
+                } catch {}
+            }
+            return 'Entity ' + entityId;
+        }
+
+        function getComponentTypes(world, entityId) {
+            try {
+                if (world.getComponentTypes) {
+                    return world.getComponentTypes(entityId);
+                }
+            } catch {}
+            return [];
+        }
+
+        function getEntityParentId(world, sdk, entityId) {
+            if (!sdk) return null;
+            try {
+                const parent = world.tryGet(entityId, sdk.Parent);
+                if (parent && parent.entity !== undefined && parent.entity !== 0) return parent.entity;
+            } catch {}
+            return null;
+        }
+
+        function getEntityChildren(world, sdk, entityId) {
+            if (!sdk) return [];
+            try {
+                const children = world.tryGet(entityId, sdk.Children);
+                if (children && Array.isArray(children.entities)) return children.entities;
+            } catch {}
+            return [];
+        }
+
+        function serializeValue(val) {
+            if (val === null || val === undefined) return val;
+            if (typeof val === 'number' || typeof val === 'boolean' || typeof val === 'string') return val;
+            if (Array.isArray(val)) return val.map(serializeValue);
+            if (typeof val === 'object') {
+                const out = {};
+                for (const k of Object.keys(val)) {
+                    const v = val[k];
+                    if (typeof v === 'function') continue;
+                    out[k] = serializeValue(v);
+                }
+                return out;
+            }
+            return String(val);
+        }
+
+        function getComponentData(world, entityId, typeName) {
+            const sdk = window.__esSdk;
+            if (!sdk) return {};
+            try {
+                const compDef = sdk.getComponent(typeName);
+                if (!compDef) return {};
+                const data = world.tryGet(entityId, compDef);
+                if (!data) return {};
+                return serializeValue(data);
+            } catch { return {}; }
+        }
+
+        function setEntityProperty(entityId, component, property, value) {
+            if (!gameApp) return;
+            const sdk = window.__esSdk;
+            if (!sdk) return;
+            const world = gameApp.world;
+            try {
+                const compDef = sdk.getComponent(component);
+                if (!compDef) return;
+                const current = world.tryGet(entityId, compDef);
+                if (!current) return;
+
+                if (compDef._builtin) {
+                    const snapshot = serializeValue(current);
+                    snapshot[property] = value;
+                    world.insert(entityId, compDef, snapshot);
+                } else {
+                    current[property] = value;
+                }
+            } catch (e) {
+                _origWarn.call(console, 'setEntityProperty failed:', e);
+            }
+        }
+
         function updateLoading(message) {
             loading.textContent = message;
         }
@@ -132,6 +350,7 @@
                 step = 'load SDK';
                 updateLoading('Loading SDK...');
                 const sdk = await withTimeout(import('/sdk/index.js'), 30000, 'SDK import');
+                window.__esSdk = sdk;
 
                 let spinePlugin = null;
                 let physicsPlugin = null;
@@ -232,6 +451,10 @@
                 step = 'app.run';
                 loading.style.display = 'none';
                 app.run();
+
+                gameApp = app;
+                sendToEditor('ready', {});
+                reportStats();
             } catch (err) {
                 showError('[' + step + '] ' + (err.message || String(err)), err);
             }
@@ -239,10 +462,12 @@
 
         window.addEventListener('error', (e) => {
             showError('[runtime error] ' + (e.message || String(e)), e.error);
+            sendToEditor('error', { message: e.message || String(e), stack: e.error?.stack });
         });
         window.addEventListener('unhandledrejection', (e) => {
             const err = e.reason;
             showError('[unhandled rejection] ' + (err?.message || String(err)), err);
+            sendToEditor('error', { message: err?.message || String(err), stack: err?.stack });
         });
 
         function connectLiveReload() {

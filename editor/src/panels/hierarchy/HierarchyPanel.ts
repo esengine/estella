@@ -11,6 +11,9 @@ import { performSearch, selectNextResult, selectPreviousResult, focusSelectedRes
 import { setupKeyboard, selectRange } from './HierarchyKeyboard';
 import { setupDragAndDrop } from './HierarchyDragDrop';
 import { showEntityContextMenu, duplicateEntity, createEntityFromAsset } from './HierarchyContextMenu';
+import { getPlayModeService } from '../../services/PlayModeService';
+import type { RuntimeEntityData } from '../game-view/GameViewBridge';
+import type { EntityData } from '../../types/SceneTypes';
 
 export class HierarchyPanel implements HierarchyState {
     private container_: HTMLElement;
@@ -38,6 +41,9 @@ export class HierarchyPanel implements HierarchyState {
     renamingEntityId: number | null = null;
     lastClickEntityId: number | null = null;
     lastClickTime: number = 0;
+    playMode: boolean = false;
+    private playModeCleanups_: (() => void)[] = [];
+    private toolbar_: HTMLElement | null = null;
 
     constructor(container: HTMLElement, store: EditorStore) {
         this.container_ = container;
@@ -85,12 +91,37 @@ export class HierarchyPanel implements HierarchyState {
             this.store.exitPrefabEditMode();
         });
 
+        this.toolbar_ = this.container_.querySelector('.es-hierarchy-toolbar');
+
         this.setupEvents();
         this.unsubscribe_ = store.subscribe((_state, dirtyFlags) => this.onStoreNotify(dirtyFlags));
         this.render();
+
+        const pms = getPlayModeService();
+        this.playModeCleanups_.push(
+            pms.onStateChange((state) => {
+                this.playMode = state === 'playing';
+                if (this.playMode) {
+                    this.container_.classList.add('es-play-mode');
+                    this.setToolbarDisabled(true);
+                } else {
+                    this.container_.classList.remove('es-play-mode');
+                    this.setToolbarDisabled(false);
+                }
+                this.render();
+            }),
+            pms.onEntityListUpdate(() => {
+                if (this.playMode) this.render();
+            }),
+            pms.onSelectionChange(() => {
+                if (this.playMode) this.renderVisibleRows();
+            }),
+        );
     }
 
     dispose(): void {
+        for (const cleanup of this.playModeCleanups_) cleanup();
+        this.playModeCleanups_ = [];
         if (this.unsubscribe_) {
             this.unsubscribe_();
             this.unsubscribe_ = null;
@@ -106,6 +137,7 @@ export class HierarchyPanel implements HierarchyState {
     }
 
     private onStoreNotify(dirtyFlags?: ReadonlySet<DirtyFlag>): void {
+        if (this.playMode) return;
         if (dirtyFlags && !dirtyFlags.has('scene') && !dirtyFlags.has('hierarchy') && !dirtyFlags.has('selection')) {
             return;
         }
@@ -177,17 +209,6 @@ export class HierarchyPanel implements HierarchyState {
 
             if (target.closest('.es-hierarchy-rename-input')) return;
 
-            const visibilityBtn = target.closest('.es-hierarchy-visibility') as HTMLElement;
-            if (visibilityBtn) {
-                e.stopPropagation();
-                const item = visibilityBtn.closest('.es-hierarchy-item') as HTMLElement;
-                const entityId = parseInt(item?.dataset.entityId ?? '', 10);
-                if (!isNaN(entityId)) {
-                    this.store.toggleVisibility(entityId);
-                }
-                return;
-            }
-
             const expandBtn = target.closest('.es-hierarchy-expand') as HTMLElement;
             if (expandBtn) {
                 e.stopPropagation();
@@ -201,6 +222,28 @@ export class HierarchyPanel implements HierarchyState {
                         this.expandedIds.add(entityId);
                     }
                     this.render();
+                }
+                return;
+            }
+
+            if (this.playMode) {
+                const row = target.closest('.es-hierarchy-row');
+                const item = row?.parentElement as HTMLElement;
+                if (!item?.classList.contains('es-hierarchy-item')) return;
+                const entityId = parseInt(item.dataset.entityId ?? '', 10);
+                if (!isNaN(entityId)) {
+                    getPlayModeService().selectEntity(entityId);
+                }
+                return;
+            }
+
+            const visibilityBtn = target.closest('.es-hierarchy-visibility') as HTMLElement;
+            if (visibilityBtn) {
+                e.stopPropagation();
+                const item = visibilityBtn.closest('.es-hierarchy-item') as HTMLElement;
+                const entityId = parseInt(item?.dataset.entityId ?? '', 10);
+                if (!isNaN(entityId)) {
+                    this.store.toggleVisibility(entityId);
                 }
                 return;
             }
@@ -239,6 +282,7 @@ export class HierarchyPanel implements HierarchyState {
         });
 
         this.treeContainer.addEventListener('dblclick', (e) => {
+            if (this.playMode) return;
             const target = e.target as HTMLElement;
             if (target.closest('.es-hierarchy-rename-input')) return;
             const item = target.closest('.es-hierarchy-item') as HTMLElement;
@@ -253,6 +297,7 @@ export class HierarchyPanel implements HierarchyState {
         });
 
         this.treeContainer.addEventListener('contextmenu', (e) => {
+            if (this.playMode) { e.preventDefault(); return; }
             e.preventDefault();
             const target = e.target as HTMLElement;
             const item = target.closest('.es-hierarchy-item') as HTMLElement;
@@ -323,6 +368,11 @@ export class HierarchyPanel implements HierarchyState {
     }
 
     render(): void {
+        if (this.playMode) {
+            this.renderPlayMode();
+            return;
+        }
+
         const scene = this.store.scene;
         const selectedEntity = this.store.selectedEntity;
 
@@ -362,6 +412,12 @@ export class HierarchyPanel implements HierarchyState {
 
     private updateFooter(): void {
         if (!this.footerContainer_) return;
+
+        if (this.playMode) {
+            const count = getPlayModeService().runtimeEntities.length;
+            this.footerContainer_.textContent = `${count} ${count === 1 ? 'entity' : 'entities'} (Runtime)`;
+            return;
+        }
 
         if (this.searchFilter) {
             const count = this.searchResults.length;
@@ -422,6 +478,49 @@ export class HierarchyPanel implements HierarchyState {
         }
     }
 
+    private renderPlayMode(): void {
+        if (this.prefabEditBar_) {
+            this.prefabEditBar_.style.display = 'none';
+        }
+
+        const entities = getPlayModeService().runtimeEntities;
+        const entityMap = new Map<number, RuntimeEntityData>();
+        for (const e of entities) entityMap.set(e.entityId, e);
+
+        const rows: FlattenedRow[] = [];
+        const visited = new Set<number>();
+        const buildRows = (parentId: number | null, depth: number) => {
+            for (const e of entities) {
+                if (visited.has(e.entityId)) continue;
+                if ((e.parentId ?? null) !== parentId) continue;
+                visited.add(e.entityId);
+                const adapted = runtimeToEntityData(e);
+                const hasChildren = (e.children?.length ?? 0) > 0;
+                const isExpanded = this.expandedIds.has(e.entityId);
+                rows.push({ entity: adapted, depth, hasChildren, isExpanded });
+                if (hasChildren && isExpanded) {
+                    buildRows(e.entityId, depth + 1);
+                }
+            }
+        };
+        buildRows(null, 0);
+
+        this.flatRows = rows;
+        this.scrollContent.style.height = `${rows.length * ROW_HEIGHT}px`;
+        this.lastVisibleStart_ = -1;
+        this.lastVisibleEnd_ = -1;
+        this.renderVisibleRows();
+        this.updateFooter();
+    }
+
+    private setToolbarDisabled(disabled: boolean): void {
+        if (!this.toolbar_) return;
+        const buttons = this.toolbar_.querySelectorAll('[data-action="add"], [data-action="duplicate"]');
+        for (const btn of buttons) {
+            (btn as HTMLButtonElement).disabled = disabled;
+        }
+    }
+
     private onScroll(): void {
         if (this.scrollRafId_) return;
         this.scrollRafId_ = requestAnimationFrame(() => {
@@ -432,4 +531,15 @@ export class HierarchyPanel implements HierarchyState {
             }
         });
     }
+}
+
+function runtimeToEntityData(r: RuntimeEntityData): EntityData {
+    return {
+        id: r.entityId,
+        name: r.name,
+        parent: r.parentId ?? null,
+        children: r.children ?? [],
+        components: r.components.map(c => ({ type: c.type, data: c.data })),
+        visible: true,
+    };
 }

@@ -100,12 +100,9 @@
 
 .es-gameview-viewport {
     flex: 1;
-    position: relative;
     overflow: hidden;
     background: #1a1a1a;
     display: flex;
-    align-items: center;
-    justify-content: center;
 }
 
 .es-gameview-iframe {
@@ -123,4 +120,65 @@
     color: var(--es-text-secondary);
     font-size: 14px;
     user-select: none;
+}
+
+/* Speed select */
+.es-gameview-speed {
+    background: var(--es-input-bg);
+    color: var(--es-text-primary);
+    border: 1px solid var(--es-border);
+    border-radius: 3px;
+    font-size: 11px;
+    padding: 2px 4px;
+    height: 22px;
+    outline: none;
+}
+
+.es-gameview-speed:focus {
+    border-color: var(--es-accent);
+}
+
+/* Runtime property editors (used by InspectorPanel in play mode) */
+.es-runtime-input {
+    width: 100%;
+    height: 20px;
+    padding: 1px 4px;
+    font-size: 11px;
+}
+
+.es-runtime-vec-field {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    margin-right: 4px;
+}
+
+.es-runtime-vec-label {
+    font-size: 10px;
+    color: var(--es-text-secondary);
+    text-transform: uppercase;
+    min-width: 8px;
+}
+
+.es-runtime-vec-input {
+    width: 52px;
+    height: 20px;
+    padding: 1px 3px;
+    font-size: 11px;
+}
+
+.es-runtime-readonly {
+    font-size: 11px;
+    color: var(--es-text-secondary);
+    word-break: break-all;
+}
+
+/* Viewport layout */
+.es-gameview-canvas-area {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }

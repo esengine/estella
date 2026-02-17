@@ -4,7 +4,7 @@
  */
 
 import { Entity } from './types';
-import { AnyComponentDef, ComponentDef, ComponentData, BuiltinComponentDef, isBuiltinComponent } from './component';
+import { AnyComponentDef, ComponentDef, ComponentData, BuiltinComponentDef, isBuiltinComponent, getComponent } from './component';
 import type { CppRegistry } from './wasm';
 import { validateComponentData, formatValidationErrors } from './validation';
 import { handleWasmError } from './wasmError';
@@ -399,6 +399,58 @@ export class World {
     resetQueryPool(): void {
         this.queryPoolIdx_ = 0;
         this.queryCache_.clear();
+    }
+
+    getComponentTypes(entity: Entity): string[] {
+        const types: string[] = [];
+        for (const [name, methods] of this.builtinMethodCache_) {
+            try { if (methods.has(entity)) types.push(name); } catch {}
+        }
+        if (this.cppRegistry_) {
+            const knownBuiltins = [
+                'LocalTransform', 'GlobalTransform', 'Sprite', 'Camera', 'Text',
+                'Velocity', 'Parent', 'Children', 'BitmapText', 'SpineAnimation',
+                'Canvas', 'UIRect', 'Interaction', 'Mask', 'LayoutGroup', 'LayoutElement',
+                'TextInput', 'RigidBody', 'BoxCollider', 'CircleCollider', 'CapsuleCollider',
+            ];
+            for (const name of knownBuiltins) {
+                if (types.includes(name)) continue;
+                const comp = getComponent(name);
+                if (comp && isBuiltinComponent(comp)) {
+                    try {
+                        const m = this.getBuiltinMethods(comp._cppName);
+                        if (m.has(entity)) types.push(name);
+                    } catch {}
+                }
+            }
+        }
+        const ids = this.entityComponents_.get(entity);
+        if (ids) {
+            for (const id of ids) {
+                for (const [, storage] of this.tsStorage_) {
+                    if (storage.has(entity) && storage === this.tsStorage_.get(id)) {
+                        for (const [name, def] of this.findScriptName(id)) {
+                            if (!types.includes(name)) types.push(name);
+                        }
+                    }
+                }
+            }
+        }
+        return types;
+    }
+
+    private findScriptName(id: symbol): [string, ComponentDef<any>][] {
+        const results: [string, ComponentDef<any>][] = [];
+        if (typeof window !== 'undefined' && (window as any).__esengine_componentRegistry) {
+            const registry = (window as any).__esengine_componentRegistry as Map<string, ComponentDef<any>>;
+            for (const [name, def] of registry) {
+                if (def._id === id) {
+                    results.push([name, def]);
+                    break;
+                }
+            }
+        }
+        return results;
     }
 
     getEntitiesWithComponents(
