@@ -5,12 +5,12 @@
 
 import type { App, Plugin } from '../app';
 import type { Entity } from '../types';
-import { INVALID_TEXTURE } from '../types';
 import { defineSystem, Schedule } from '../system';
 import { registerComponent, Sprite, type SpriteData } from '../component';
 import { Text, type TextData } from './text';
 import { TextRenderer } from './TextRenderer';
 import { UIRect, type UIRectData } from './UIRect';
+import { ensureSprite } from './uiHelpers';
 
 interface TextSnapshot {
     content: string;
@@ -105,19 +105,7 @@ export class TextPlugin implements Plugin {
 
                     if (prev && !snapshotChanged(prev, text, uiRect)) continue;
 
-                    if (!world.has(entity, Sprite)) {
-                        world.insert(entity, Sprite, {
-                            texture: INVALID_TEXTURE,
-                            color: { r: 1, g: 1, b: 1, a: 1 },
-                            size: { x: 0, y: 0 },
-                            uvOffset: { x: 0, y: 0 },
-                            uvScale: { x: 1, y: 1 },
-                            layer: 0,
-                            flipX: false,
-                            flipY: false,
-                            material: 0,
-                        });
-                    }
+                    ensureSprite(world, entity);
 
                     const result = renderer.renderForEntity(entity, text, uiRect);
 
@@ -133,8 +121,9 @@ export class TextPlugin implements Plugin {
 
                     snapshots.set(entity, takeSnapshot(text, uiRect));
                 }
-            }
-        ));
+            },
+            { name: 'TextSystem' }
+        ), { runAfter: ['UILayoutSystem'] });
     }
 }
 

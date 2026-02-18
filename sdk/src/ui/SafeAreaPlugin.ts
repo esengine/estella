@@ -69,7 +69,7 @@ export class SafeAreaPlugin implements Plugin {
                 }
             },
             { name: 'SafeAreaSystem' }
-        ));
+        ), { runBefore: ['UILayoutSystem'] });
     }
 }
 

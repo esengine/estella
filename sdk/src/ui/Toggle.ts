@@ -1,23 +1,20 @@
 import { defineComponent } from '../component';
-import type { Color, Entity } from '../types';
+import type { Entity } from '../types';
+import type { ColorTransition } from './uiTypes';
 
-export interface ToggleTransition {
-    normalColor: Color;
-    hoveredColor: Color;
-    pressedColor: Color;
-    disabledColor: Color;
-}
+export type { ColorTransition } from './uiTypes';
+export type ToggleTransition = ColorTransition;
 
 export interface ToggleData {
     isOn: boolean;
     graphicEntity: Entity;
-    transition: ToggleTransition | null;
-    enabled: boolean;
+    group: Entity;
+    transition: ColorTransition | null;
 }
 
 export const Toggle = defineComponent<ToggleData>('Toggle', {
     isOn: true,
     graphicEntity: 0 as Entity,
+    group: 0 as Entity,
     transition: null,
-    enabled: true,
 });

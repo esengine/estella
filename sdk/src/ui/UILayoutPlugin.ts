@@ -25,7 +25,20 @@ interface RectSnapshot {
     sizeY: number;
 }
 
-function takeRectSnapshot(rect: UIRectData): RectSnapshot {
+function updateSnapshot(snap: RectSnapshot, rect: UIRectData): void {
+    snap.anchorMinX = rect.anchorMin.x;
+    snap.anchorMinY = rect.anchorMin.y;
+    snap.anchorMaxX = rect.anchorMax.x;
+    snap.anchorMaxY = rect.anchorMax.y;
+    snap.offsetMinX = rect.offsetMin.x;
+    snap.offsetMinY = rect.offsetMin.y;
+    snap.offsetMaxX = rect.offsetMax.x;
+    snap.offsetMaxY = rect.offsetMax.y;
+    snap.sizeX = rect.size.x;
+    snap.sizeY = rect.size.y;
+}
+
+function createSnapshot(rect: UIRectData): RectSnapshot {
     return {
         anchorMinX: rect.anchorMin.x,
         anchorMinY: rect.anchorMin.y,
@@ -115,10 +128,19 @@ export class UILayoutPlugin implements Plugin {
 
         const world = app.world;
         const snapshots = new Map<Entity, RectSnapshot>();
+        const rootCache = new Map<Entity, Entity | null>();
         let prevCameraLeft = NaN;
         let prevCameraBottom = NaN;
         let prevCameraRight = NaN;
         let prevCameraTop = NaN;
+
+        function getCachedRoot(entity: Entity): Entity | null {
+            let root = rootCache.get(entity);
+            if (root !== undefined) return root;
+            root = findRoot(world, entity);
+            rootCache.set(entity, root);
+            return root;
+        }
 
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
             [Res(UICameraInfo)],
@@ -147,9 +169,17 @@ export class UILayoutPlugin implements Plugin {
                 const dirtyRoots = new Set<Entity>();
 
                 if (cameraChanged) {
+                    rootCache.clear();
                     const roots = world.getEntitiesWithComponents([ScreenSpace, UIRect, LocalTransform]);
                     for (const root of roots) {
                         dirtyRoots.add(root);
+                    }
+                }
+
+                for (const entity of snapshots.keys()) {
+                    if (!world.valid(entity) || !world.has(entity, UIRect)) {
+                        snapshots.delete(entity);
+                        rootCache.delete(entity);
                     }
                 }
 
@@ -158,18 +188,10 @@ export class UILayoutPlugin implements Plugin {
                     const rect = world.get(entity, UIRect) as UIRectData;
                     const snap = snapshots.get(entity);
 
-                    if (!snap || rectChanged(snap, rect)) {
-                        const root = findRoot(world, entity);
-                        if (root !== null) {
-                            dirtyRoots.add(root);
-                        }
-                    }
-                }
-
-                for (const entity of snapshots.keys()) {
-                    if (!world.valid(entity) || !world.has(entity, UIRect)) {
-                        snapshots.delete(entity);
-                        const root = findRoot(world, entity);
+                    if (rect._dirty || !snap || rectChanged(snap, rect)) {
+                        rect._dirty = false;
+                        rootCache.delete(entity);
+                        const root = getCachedRoot(entity);
                         if (root !== null) {
                             dirtyRoots.add(root);
                         }
@@ -182,7 +204,12 @@ export class UILayoutPlugin implements Plugin {
 
                 for (const entity of allUIRectEntities) {
                     const rect = world.get(entity, UIRect) as UIRectData;
-                    snapshots.set(entity, takeRectSnapshot(rect));
+                    const existing = snapshots.get(entity);
+                    if (existing) {
+                        updateSnapshot(existing, rect);
+                    } else {
+                        snapshots.set(entity, createSnapshot(rect));
+                    }
                 }
             },
             { name: 'UILayoutSystem' }

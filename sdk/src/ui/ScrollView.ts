@@ -1,7 +1,8 @@
 import { defineComponent } from '../component';
+import type { Entity } from '../types';
 
 export interface ScrollViewData {
-    contentEntity: number;
+    contentEntity: Entity;
     horizontalEnabled: boolean;
     verticalEnabled: boolean;
     contentWidth: number;
@@ -13,7 +14,7 @@ export interface ScrollViewData {
 }
 
 export const ScrollView = defineComponent<ScrollViewData>('ScrollView', {
-    contentEntity: 0,
+    contentEntity: 0 as Entity,
     horizontalEnabled: false,
     verticalEnabled: true,
     contentWidth: 0,

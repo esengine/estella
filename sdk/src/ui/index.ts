@@ -3,6 +3,21 @@
  * @brief   UI module exports
  */
 
+// Shared Types
+export {
+    FillDirection,
+    type ColorTransition,
+} from './uiTypes';
+
+// Shared Helpers
+export {
+    ensureSprite,
+    applyDirectionalFill,
+    applyColorTransition,
+    wrapText,
+    nextPowerOf2,
+} from './uiHelpers';
+
 // Text Component
 export {
     Text,
@@ -147,6 +162,12 @@ export {
     type ToggleData,
 } from './Toggle';
 
+// ToggleGroup Component
+export {
+    ToggleGroup,
+    type ToggleGroupData,
+} from './ToggleGroup';
+
 // Toggle Plugin
 export {
     TogglePlugin,
@@ -256,3 +277,17 @@ export {
     DropdownPlugin,
     dropdownPlugin,
 } from './DropdownPlugin';
+
+// LayoutGroup Component
+export {
+    LayoutGroup,
+    LayoutDirection,
+    ChildAlignment,
+    type LayoutGroupData,
+} from './LayoutGroup';
+
+// LayoutGroup Plugin
+export {
+    LayoutGroupPlugin,
+    layoutGroupPlugin,
+} from './LayoutGroupPlugin';

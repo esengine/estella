@@ -1,6 +1,5 @@
 import type { App, Plugin } from '../app';
 import type { Entity } from '../types';
-import { INVALID_TEXTURE } from '../types';
 import { RuntimeConfig } from '../defaults';
 import { defineSystem, Schedule } from '../system';
 import { registerComponent, Sprite, type SpriteData } from '../component';
@@ -11,6 +10,7 @@ import { UIInteraction, type UIInteractionData } from './UIInteraction';
 import { UIEvents, UIEventQueue } from './UIEvents';
 import { Res } from '../resource';
 import { platformCreateCanvas } from '../platform';
+import { ensureSprite, wrapText, nextPowerOf2 } from './uiHelpers';
 
 export class TextInputPlugin implements Plugin {
     private cleanupListeners_: (() => void) | null = null;
@@ -247,19 +247,7 @@ export class TextInputPlugin implements Plugin {
                     const h = Math.ceil(uiRect.size.y);
                     if (w <= 0 || h <= 0) continue;
 
-                    if (!world.has(entity, Sprite)) {
-                        world.insert(entity, Sprite, {
-                            texture: INVALID_TEXTURE,
-                            color: { r: 1, g: 1, b: 1, a: 1 },
-                            size: { x: w, y: h },
-                            uvOffset: { x: 0, y: 0 },
-                            uvScale: { x: 1, y: 1 },
-                            layer: 0,
-                            flipX: false,
-                            flipY: false,
-                            material: 0,
-                        });
-                    }
+                    ensureSprite(world, entity);
 
                     renderTextInput(entity, ti, w, h);
                     ti.dirty = false;
@@ -391,38 +379,6 @@ function createHiddenTextarea(): HTMLTextAreaElement | null {
     textarea.setAttribute('spellcheck', 'false');
     document.body.appendChild(textarea);
     return textarea;
-}
-
-function wrapText(
-    ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
-    text: string,
-    maxWidth: number
-): string[] {
-    if (!text) return [''];
-    if (maxWidth <= 0) return text.split('\n');
-    const paragraphs = text.split('\n');
-    const lines: string[] = [];
-    for (const paragraph of paragraphs) {
-        if (!paragraph) { lines.push(''); continue; }
-        let currentLine = '';
-        for (const char of paragraph) {
-            const testLine = currentLine + char;
-            if (ctx.measureText(testLine).width > maxWidth && currentLine) {
-                lines.push(currentLine);
-                currentLine = char;
-            } else {
-                currentLine = testLine;
-            }
-        }
-        if (currentLine) lines.push(currentLine);
-    }
-    return lines.length > 0 ? lines : [''];
-}
-
-function nextPowerOf2(n: number): number {
-    let p = 1;
-    while (p < n) p *= 2;
-    return p;
 }
 
 export const textInputPlugin = new TextInputPlugin();

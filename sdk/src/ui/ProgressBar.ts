@@ -1,21 +1,19 @@
 import { defineComponent } from '../component';
 import type { Entity } from '../types';
+import { FillDirection } from './uiTypes';
 
-export enum ProgressBarDirection {
-    LeftToRight = 0,
-    RightToLeft = 1,
-    BottomToTop = 2,
-    TopToBottom = 3,
-}
+export { FillDirection } from './uiTypes';
+export const ProgressBarDirection = FillDirection;
+export type ProgressBarDirection = FillDirection;
 
 export interface ProgressBarData {
     value: number;
     fillEntity: Entity;
-    direction: number;
+    direction: FillDirection;
 }
 
 export const ProgressBar = defineComponent<ProgressBarData>('ProgressBar', {
     value: 0,
     fillEntity: 0 as Entity,
-    direction: ProgressBarDirection.LeftToRight,
+    direction: FillDirection.LeftToRight,
 });

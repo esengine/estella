@@ -70,13 +70,13 @@ export class FocusPlugin implements Plugin {
                     if (prev !== null && world.valid(prev) && world.has(prev, Focusable)) {
                         const prevF = world.get(prev, Focusable) as FocusableData;
                         prevF.isFocused = false;
-                        events.emit(prev, 'hover_exit', prev);
+                        events.emit(prev, 'blur', prev);
                     }
 
                     focusManager.focus(entity);
                     const f = world.get(entity, Focusable) as FocusableData;
                     f.isFocused = true;
-                    events.emit(entity, 'hover_enter', entity);
+                    events.emit(entity, 'focus', entity);
                 }
             },
             { name: 'FocusSystem' }

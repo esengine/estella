@@ -19,7 +19,10 @@ import { UIEvents, UIEventQueue } from './UIEvents';
 import type { UIEventType } from './UIEvents';
 import { UICameraInfo } from './UICameraInfo';
 import type { UICameraData } from './UICameraInfo';
-import { invertMatrix4, screenToWorld, pointInOBB } from './uiMath';
+import { UIMask } from './UIMask';
+import type { UIMaskData } from './UIMask';
+import { invertMatrix4, screenToWorld, pointInOBB, pointInWorldRect } from './uiMath';
+import { applyColorTransition } from './uiHelpers';
 
 const _invVP = new Float32Array(16);
 const _cachedVP = new Float32Array(16);
@@ -38,6 +41,40 @@ function updateInvVPCache(vp: Float32Array): void {
         _cachedVP.set(vp);
         _invVPDirty = true;
     }
+}
+
+function isClippedByMask(
+    world: World,
+    entity: Entity,
+    worldMouseX: number,
+    worldMouseY: number,
+): boolean {
+    let current = entity;
+    while (world.has(current, Parent)) {
+        const parentData = world.get(current, Parent) as ParentData;
+        const parentEntity = parentData.entity;
+        if (!world.valid(parentEntity)) break;
+
+        if (world.has(parentEntity, UIMask)) {
+            const mask = world.get(parentEntity, UIMask) as UIMaskData;
+            if (mask.enabled && world.has(parentEntity, UIRect) && world.has(parentEntity, WorldTransform)) {
+                const wt = world.get(parentEntity, WorldTransform) as WorldTransformData;
+                const rect = world.get(parentEntity, UIRect) as UIRectData;
+                const maskW = rect.size.x * wt.scale.x;
+                const maskH = rect.size.y * wt.scale.y;
+                if (!pointInWorldRect(
+                    worldMouseX, worldMouseY,
+                    wt.position.x, wt.position.y,
+                    maskW, maskH,
+                    rect.pivot.x, rect.pivot.y,
+                )) {
+                    return true;
+                }
+            }
+        }
+        current = parentEntity;
+    }
+    return false;
 }
 
 function emitWithBubbling(
@@ -106,6 +143,9 @@ export class UIInteractionPlugin implements Plugin {
                     camera.vpX, camera.vpY, camera.vpW, camera.vpH,
                 );
 
+                camera.worldMouseX = worldMouse.x;
+                camera.worldMouseY = worldMouse.y;
+
                 const interactableEntities = world.getEntitiesWithComponents(
                     [Interactable, UIRect, WorldTransform]
                 );
@@ -120,6 +160,7 @@ export class UIInteractionPlugin implements Plugin {
 
                     const interactable = world.get(entity, Interactable) as InteractableData;
                     if (!interactable.enabled) continue;
+                    if (!interactable.raycastTarget) continue;
 
                     const wt = world.get(entity, WorldTransform) as WorldTransformData;
                     const rect = world.get(entity, UIRect) as UIRectData;
@@ -133,6 +174,10 @@ export class UIInteractionPlugin implements Plugin {
                         rect.pivot.x, rect.pivot.y,
                         wt.rotation.z, wt.rotation.w,
                     )) {
+                        if (isClippedByMask(world, entity, worldMouse.x, worldMouse.y)) {
+                            continue;
+                        }
+
                         let layer = 0;
                         if (world.has(entity, Sprite)) {
                             layer = (world.get(entity, Sprite) as SpriteData).layer;
@@ -210,13 +255,12 @@ export class UIInteractionPlugin implements Plugin {
 
                     if (prevState !== button.state && button.transition && world.has(entity, Sprite)) {
                         const sprite = world.get(entity, Sprite) as SpriteData;
-                        const t = button.transition;
-                        switch (button.state) {
-                            case ButtonState.Normal: sprite.color = { ...t.normalColor }; break;
-                            case ButtonState.Hovered: sprite.color = { ...t.hoveredColor }; break;
-                            case ButtonState.Pressed: sprite.color = { ...t.pressedColor }; break;
-                            case ButtonState.Disabled: sprite.color = { ...t.disabledColor }; break;
-                        }
+                        sprite.color = applyColorTransition(
+                            button.transition,
+                            interactable.enabled,
+                            interaction.pressed,
+                            interaction.hovered,
+                        );
                         world.insert(entity, Sprite, sprite);
                     }
                 }

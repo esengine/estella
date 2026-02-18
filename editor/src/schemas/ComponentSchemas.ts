@@ -230,6 +230,7 @@ export const InteractableSchema: ComponentSchema = {
     properties: [
         { name: 'enabled', type: 'boolean' },
         { name: 'blockRaycast', type: 'boolean' },
+        { name: 'raycastTarget', type: 'boolean' },
     ],
 };
 
@@ -391,6 +392,7 @@ export const ImageSchema: ComponentSchema = {
         },
         { name: 'fillAmount', type: 'number', min: 0, max: 1, step: 0.01 },
         { name: 'preserveAspect', type: 'boolean' },
+        { name: 'tileSize', type: 'vec2' },
         { name: 'layer', type: 'number', min: -1000, max: 1000 },
     ],
 };
@@ -509,6 +511,32 @@ export const DropdownSchema: ComponentSchema = {
         { name: 'selectedIndex', type: 'number', min: -1, step: 1 },
         { name: 'listEntity', type: 'entity' },
         { name: 'labelEntity', type: 'entity' },
+    ],
+};
+
+export const LayoutGroupSchema: ComponentSchema = {
+    name: 'LayoutGroup',
+    category: 'ui',
+    properties: [
+        {
+            name: 'direction',
+            type: 'enum',
+            options: [
+                { label: 'Horizontal', value: 0 },
+                { label: 'Vertical', value: 1 },
+            ],
+        },
+        { name: 'spacing', type: 'number', step: 1 },
+        {
+            name: 'childAlignment',
+            type: 'enum',
+            options: [
+                { label: 'Start', value: 0 },
+                { label: 'Center', value: 1 },
+                { label: 'End', value: 2 },
+            ],
+        },
+        { name: 'reverseOrder', type: 'boolean' },
     ],
 };
 
@@ -640,6 +668,7 @@ export function registerBuiltinSchemas(options?: BuiltinSchemaOptions): void {
     registerComponentSchema(SafeAreaSchema);
     registerComponentSchema(ListViewSchema);
     registerComponentSchema(DropdownSchema);
+    registerComponentSchema(LayoutGroupSchema);
     registerComponentSchema(RigidBodySchema);
     registerComponentSchema(BoxColliderSchema);
     registerComponentSchema(CircleColliderSchema);

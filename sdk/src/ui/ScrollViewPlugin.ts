@@ -16,7 +16,6 @@ import { UIInteraction } from './UIInteraction';
 import type { UIInteractionData } from './UIInteraction';
 import { UICameraInfo } from './UICameraInfo';
 import type { UICameraData } from './UICameraInfo';
-import { invertMatrix4, screenToWorld } from './uiMath';
 
 interface ScrollState {
     isDragging: boolean;
@@ -32,8 +31,6 @@ export class ScrollViewPlugin implements Plugin {
 
         const world = app.world;
         const states = new Map<Entity, ScrollState>();
-        const invVP = new Float32Array(16);
-        const cachedDpr = typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1;
         let lastTime = 0;
 
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
@@ -45,13 +42,7 @@ export class ScrollViewPlugin implements Plugin {
 
                 if (!camera.valid) return;
 
-                const mouseGLX = input.mouseX * cachedDpr;
-                const mouseGLY = camera.screenH - input.mouseY * cachedDpr;
-                invertMatrix4(camera.viewProjection, invVP);
-                const worldMouse = screenToWorld(
-                    mouseGLX, mouseGLY, invVP,
-                    camera.vpX, camera.vpY, camera.vpW, camera.vpH,
-                );
+                const worldMouse = { x: camera.worldMouseX, y: camera.worldMouseY };
 
                 const entities = world.getEntitiesWithComponents([ScrollView, UIRect]);
                 for (const entity of entities) {
@@ -139,13 +130,12 @@ export class ScrollViewPlugin implements Plugin {
                     sv.scrollX = Math.max(0, Math.min(sv.scrollX, maxScrollX));
                     sv.scrollY = Math.max(0, Math.min(sv.scrollY, maxScrollY));
 
-                    if (sv.contentEntity !== 0 && world.valid(sv.contentEntity as Entity)) {
-                        const contentEntity = sv.contentEntity as Entity;
-                        if (world.has(contentEntity, LocalTransform)) {
-                            const lt = world.get(contentEntity, LocalTransform) as LocalTransformData;
+                    if (sv.contentEntity !== 0 && world.valid(sv.contentEntity)) {
+                        if (world.has(sv.contentEntity, LocalTransform)) {
+                            const lt = world.get(sv.contentEntity, LocalTransform) as LocalTransformData;
                             lt.position.x = -sv.scrollX;
                             lt.position.y = sv.scrollY;
-                            world.insert(contentEntity, LocalTransform, lt);
+                            world.insert(sv.contentEntity, LocalTransform, lt);
                         }
                     }
                 }

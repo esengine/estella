@@ -13,6 +13,7 @@ import { focusPlugin } from './ui/FocusPlugin';
 import { safeAreaPlugin } from './ui/SafeAreaPlugin';
 import { listViewPlugin } from './ui/ListViewPlugin';
 import { dropdownPlugin } from './ui/DropdownPlugin';
+import { layoutGroupPlugin } from './ui/LayoutGroupPlugin';
 import type { Plugin } from './app';
 
 export const uiPlugins: Plugin[] = [
@@ -21,4 +22,5 @@ export const uiPlugins: Plugin[] = [
     uiInteractionPlugin, dragPlugin, scrollViewPlugin, sliderPlugin,
     togglePlugin, textInputPlugin,
     focusPlugin, safeAreaPlugin, listViewPlugin, dropdownPlugin,
+    layoutGroupPlugin,
 ];

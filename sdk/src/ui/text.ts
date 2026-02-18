@@ -1,36 +1,29 @@
-/**
- * @file    text.ts
- * @brief   Text component definition for UI text rendering
- */
-
 import { defineComponent } from '../component';
 import type { Color } from '../types';
 
-// =============================================================================
-// Text Alignment Enums
-// =============================================================================
+export const TextAlign = {
+    Left: 0,
+    Center: 1,
+    Right: 2,
+} as const;
 
-export enum TextAlign {
-    Left = 0,
-    Center = 1,
-    Right = 2,
-}
+export type TextAlign = (typeof TextAlign)[keyof typeof TextAlign];
 
-export enum TextVerticalAlign {
-    Top = 0,
-    Middle = 1,
-    Bottom = 2,
-}
+export const TextVerticalAlign = {
+    Top: 0,
+    Middle: 1,
+    Bottom: 2,
+} as const;
 
-export enum TextOverflow {
-    Visible = 0,
-    Clip = 1,
-    Ellipsis = 2,
-}
+export type TextVerticalAlign = (typeof TextVerticalAlign)[keyof typeof TextVerticalAlign];
 
-// =============================================================================
-// Text Component Data
-// =============================================================================
+export const TextOverflow = {
+    Visible: 0,
+    Clip: 1,
+    Ellipsis: 2,
+} as const;
+
+export type TextOverflow = (typeof TextOverflow)[keyof typeof TextOverflow];
 
 export interface TextData {
     content: string;
@@ -43,10 +36,6 @@ export interface TextData {
     overflow: TextOverflow;
     lineHeight: number;
 }
-
-// =============================================================================
-// Text Component Definition
-// =============================================================================
 
 export const Text = defineComponent<TextData>('Text', {
     content: '',

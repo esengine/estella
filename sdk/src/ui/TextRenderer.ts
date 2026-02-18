@@ -3,12 +3,16 @@
  * @brief   Renders text to GPU textures using Canvas 2D API
  */
 
-import type { Entity, Vec2 } from '../types';
+import type { Entity } from '../types';
 import { RuntimeConfig } from '../defaults';
-import type { ESEngineModule, CppResourceManager } from '../wasm';
+import type { ESEngineModule } from '../wasm';
 import { TextAlign, TextVerticalAlign, TextOverflow, type TextData } from './text';
-import type { UIRectData } from './UIRect';
 import { platformCreateCanvas } from '../platform';
+import { wrapText, nextPowerOf2 } from './uiHelpers';
+
+interface SizedRect {
+    size: { x: number; y: number };
+}
 
 // =============================================================================
 // Text Render Result
@@ -39,7 +43,7 @@ export class TextRenderer {
     /**
      * Renders text to a texture and returns the handle
      */
-    renderText(text: TextData, uiRect?: UIRectData | null): TextRenderResult {
+    renderText(text: TextData, uiRect?: SizedRect | null): TextRenderResult {
         const ctx = this.ctx;
         const canvas = this.canvas;
 
@@ -50,7 +54,7 @@ export class TextRenderer {
         const containerHeight = hasContainer ? uiRect!.size.y : 0;
 
         const shouldWrap = text.wordWrap && hasContainer;
-        let lines = this.wrapText(text.content, shouldWrap ? containerWidth : 0);
+        let lines = wrapText(ctx, text.content, shouldWrap ? containerWidth : 0);
         const lineHeightPx = Math.ceil(text.fontSize * text.lineHeight);
         const padding = Math.ceil(text.fontSize * 0.2);
 
@@ -71,8 +75,8 @@ export class TextRenderer {
         }
 
         if (canvas.width < width || canvas.height < height) {
-            const newWidth = Math.max(canvas.width, this.nextPowerOf2(width));
-            const newHeight = Math.max(canvas.height, this.nextPowerOf2(height));
+            const newWidth = Math.max(canvas.width, nextPowerOf2(width));
+            const newHeight = Math.max(canvas.height, nextPowerOf2(height));
             canvas.width = newWidth;
             canvas.height = newHeight;
         }
@@ -165,7 +169,7 @@ export class TextRenderer {
     /**
      * Renders text for an entity and caches the result
      */
-    renderForEntity(entity: Entity, text: TextData, uiRect?: UIRectData | null): TextRenderResult {
+    renderForEntity(entity: Entity, text: TextData, uiRect?: SizedRect | null): TextRenderResult {
         const existing = this.cache.get(entity);
         if (existing) {
             const rm = this.module.getResourceManager();
@@ -217,44 +221,6 @@ export class TextRenderer {
         this.cache.clear();
     }
 
-    // =========================================================================
-    // Private Methods
-    // =========================================================================
-
-    private wrapText(text: string, maxWidth: number): string[] {
-        if (!text) return [''];
-        if (maxWidth <= 0) return text.split('\n');
-
-        const paragraphs = text.split('\n');
-        const lines: string[] = [];
-
-        for (const paragraph of paragraphs) {
-            if (!paragraph) {
-                lines.push('');
-                continue;
-            }
-
-            let currentLine = '';
-
-            for (const char of paragraph) {
-                const testLine = currentLine + char;
-                const metrics = this.ctx.measureText(testLine);
-
-                if (metrics.width > maxWidth && currentLine) {
-                    lines.push(currentLine);
-                    currentLine = char;
-                } else {
-                    currentLine = testLine;
-                }
-            }
-            if (currentLine) {
-                lines.push(currentLine);
-            }
-        }
-
-        return lines.length > 0 ? lines : [''];
-    }
-
     private measureWidth(lines: string[]): number {
         let maxWidth = 0;
         for (const line of lines) {
@@ -276,12 +242,6 @@ export class TextRenderer {
             case TextAlign.Right:
                 return 'right';
         }
-    }
-
-    private nextPowerOf2(n: number): number {
-        let p = 1;
-        while (p < n) p *= 2;
-        return p;
     }
 
 }

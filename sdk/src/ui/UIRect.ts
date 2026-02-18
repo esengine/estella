@@ -8,6 +8,7 @@ export interface UIRectData {
     offsetMax: Vec2;
     size: Vec2;
     pivot: Vec2;
+    _dirty: boolean;
 }
 
 export const UIRect = defineComponent<UIRectData>('UIRect', {
@@ -17,4 +18,5 @@ export const UIRect = defineComponent<UIRectData>('UIRect', {
     offsetMax: { x: 0, y: 0 },
     size: { x: 100, y: 100 },
     pivot: { x: 0.5, y: 0.5 },
+    _dirty: true,
 });

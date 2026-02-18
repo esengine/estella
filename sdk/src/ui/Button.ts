@@ -1,28 +1,24 @@
 import { defineComponent } from '../component';
-import type { Color } from '../types';
+import type { ColorTransition } from './uiTypes';
 
-export enum ButtonState {
-    Normal = 0,
-    Hovered = 1,
-    Pressed = 2,
-    Disabled = 3,
-}
+export type { ColorTransition } from './uiTypes';
+export type ButtonTransition = ColorTransition;
 
-export interface ButtonTransition {
-    normalColor: Color;
-    hoveredColor: Color;
-    pressedColor: Color;
-    disabledColor: Color;
-}
+export const ButtonState = {
+    Normal: 0,
+    Hovered: 1,
+    Pressed: 2,
+    Disabled: 3,
+} as const;
+
+export type ButtonState = (typeof ButtonState)[keyof typeof ButtonState];
 
 export interface ButtonData {
     state: ButtonState;
-    transition: ButtonTransition | null;
-    enabled: boolean;
+    transition: ColorTransition | null;
 }
 
 export const Button = defineComponent<ButtonData>('Button', {
     state: ButtonState.Normal,
     transition: null,
-    enabled: true,
 });

@@ -3,18 +3,21 @@ import { registerComponent, Sprite } from '../component';
 import type { SpriteData } from '../component';
 import { defineSystem, Schedule } from '../system';
 import { Res } from '../resource';
-import type { Entity } from '../types';
 import { Interactable } from './Interactable';
 import type { InteractableData } from './Interactable';
 import { UIInteraction } from './UIInteraction';
 import type { UIInteractionData } from './UIInteraction';
 import { Toggle } from './Toggle';
 import type { ToggleData } from './Toggle';
+import { ToggleGroup } from './ToggleGroup';
+import type { ToggleGroupData } from './ToggleGroup';
 import { UIEvents, UIEventQueue } from './UIEvents';
+import { applyColorTransition } from './uiHelpers';
 
 export class TogglePlugin implements Plugin {
     build(app: App): void {
         registerComponent('Toggle', Toggle);
+        registerComponent('ToggleGroup', ToggleGroup);
 
         const world = app.world;
 
@@ -33,31 +36,47 @@ export class TogglePlugin implements Plugin {
                     const interactable = world.get(entity, Interactable) as InteractableData;
 
                     if (interaction.justPressed && interactable.enabled) {
+                        const groupEntity = toggle.group;
+                        const hasGroup = groupEntity !== 0 && world.valid(groupEntity)
+                            && world.has(groupEntity, ToggleGroup);
+
+                        if (toggle.isOn && hasGroup) {
+                            const group = world.get(groupEntity, ToggleGroup) as ToggleGroupData;
+                            if (!group.allowSwitchOff) continue;
+                        }
+
                         toggle.isOn = !toggle.isOn;
+
+                        if (toggle.isOn && hasGroup) {
+                            for (const other of toggleEntities) {
+                                if (other === entity) continue;
+                                const otherToggle = world.get(other, Toggle) as ToggleData;
+                                if (otherToggle.group === groupEntity && otherToggle.isOn) {
+                                    otherToggle.isOn = false;
+                                    events.emit(other, 'change');
+                                }
+                            }
+                        }
+
                         events.emit(entity, 'change');
                     }
 
-                    if (toggle.graphicEntity && world.valid(toggle.graphicEntity as Entity)) {
-                        const graphicEntity = toggle.graphicEntity as Entity;
-                        if (world.has(graphicEntity, Sprite)) {
-                            const sprite = world.get(graphicEntity, Sprite) as SpriteData;
+                    if (toggle.graphicEntity && world.valid(toggle.graphicEntity)) {
+                        if (world.has(toggle.graphicEntity, Sprite)) {
+                            const sprite = world.get(toggle.graphicEntity, Sprite) as SpriteData;
                             sprite.color.a = toggle.isOn ? 1 : 0;
-                            world.insert(graphicEntity, Sprite, sprite);
+                            world.insert(toggle.graphicEntity, Sprite, sprite);
                         }
                     }
 
                     if (toggle.transition && world.has(entity, Sprite)) {
                         const sprite = world.get(entity, Sprite) as SpriteData;
-                        const t = toggle.transition;
-                        if (!interactable.enabled) {
-                            sprite.color = { ...t.disabledColor };
-                        } else if (interaction.pressed) {
-                            sprite.color = { ...t.pressedColor };
-                        } else if (interaction.hovered) {
-                            sprite.color = { ...t.hoveredColor };
-                        } else {
-                            sprite.color = { ...t.normalColor };
-                        }
+                        sprite.color = applyColorTransition(
+                            toggle.transition,
+                            interactable.enabled,
+                            interaction.pressed,
+                            interaction.hovered,
+                        );
                         world.insert(entity, Sprite, sprite);
                     }
                 }

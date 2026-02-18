@@ -35,6 +35,7 @@ export interface ImageData {
     fillOrigin: number;
     fillAmount: number;
     preserveAspect: boolean;
+    tileSize: { x: number; y: number };
     layer: number;
     material: number;
     enabled: boolean;
@@ -48,6 +49,7 @@ export const Image = defineComponent<ImageData>('Image', {
     fillOrigin: FillOrigin.Left,
     fillAmount: 1,
     preserveAspect: false,
+    tileSize: { x: 32, y: 32 },
     layer: 0,
     material: 0,
     enabled: true,

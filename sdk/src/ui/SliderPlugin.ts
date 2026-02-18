@@ -6,7 +6,7 @@ import { Res } from '../resource';
 import { Input } from '../input';
 import type { InputState } from '../input';
 import type { Entity } from '../types';
-import { Slider, SliderDirection } from './Slider';
+import { Slider, FillDirection } from './Slider';
 import type { SliderData } from './Slider';
 import { UIRect } from './UIRect';
 import type { UIRectData } from './UIRect';
@@ -15,15 +15,13 @@ import { UIInteraction } from './UIInteraction';
 import type { UIInteractionData } from './UIInteraction';
 import { UICameraInfo } from './UICameraInfo';
 import type { UICameraData } from './UICameraInfo';
-import { invertMatrix4, screenToWorld, pointInOBB } from './uiMath';
+import { applyDirectionalFill } from './uiHelpers';
 
 export class SliderPlugin implements Plugin {
     build(app: App): void {
         registerComponent('Slider', Slider);
 
         const world = app.world;
-        const invVP = new Float32Array(16);
-        const cachedDpr = typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1;
         let draggingSlider: Entity | null = null;
 
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
@@ -31,13 +29,7 @@ export class SliderPlugin implements Plugin {
             (input: InputState, camera: UICameraData) => {
                 if (!camera.valid) return;
 
-                const mouseGLX = input.mouseX * cachedDpr;
-                const mouseGLY = camera.screenH - input.mouseY * cachedDpr;
-                invertMatrix4(camera.viewProjection, invVP);
-                const worldMouse = screenToWorld(
-                    mouseGLX, mouseGLY, invVP,
-                    camera.vpX, camera.vpY, camera.vpW, camera.vpH,
-                );
+                const worldMouse = { x: camera.worldMouseX, y: camera.worldMouseY };
 
                 const entities = world.getEntitiesWithComponents([Slider, UIRect, WorldTransform]);
                 for (const entity of entities) {
@@ -64,16 +56,16 @@ export class SliderPlugin implements Plugin {
 
                         let t: number;
                         switch (slider.direction) {
-                            case SliderDirection.LeftToRight:
+                            case FillDirection.LeftToRight:
                                 t = worldW > 0 ? (worldMouse.x - originX) / worldW : 0;
                                 break;
-                            case SliderDirection.RightToLeft:
+                            case FillDirection.RightToLeft:
                                 t = worldW > 0 ? 1 - (worldMouse.x - originX) / worldW : 0;
                                 break;
-                            case SliderDirection.BottomToTop:
+                            case FillDirection.BottomToTop:
                                 t = worldH > 0 ? (worldMouse.y - originY) / worldH : 0;
                                 break;
-                            case SliderDirection.TopToBottom:
+                            case FillDirection.TopToBottom:
                                 t = worldH > 0 ? 1 - (worldMouse.y - originY) / worldH : 0;
                                 break;
                         }
@@ -93,55 +85,32 @@ export class SliderPlugin implements Plugin {
                     const range = slider.maxValue - slider.minValue;
                     const normalizedValue = range > 0 ? (slider.value - slider.minValue) / range : 0;
 
-                    if (slider.fillEntity !== 0 && world.valid(slider.fillEntity as Entity)) {
-                        const fillEntity = slider.fillEntity as Entity;
-                        if (world.has(fillEntity, UIRect)) {
-                            const fillRect = world.get(fillEntity, UIRect) as UIRectData;
-                            switch (slider.direction) {
-                                case SliderDirection.LeftToRight:
-                                    fillRect.anchorMin = { x: 0, y: 0 };
-                                    fillRect.anchorMax = { x: normalizedValue, y: 1 };
-                                    break;
-                                case SliderDirection.RightToLeft:
-                                    fillRect.anchorMin = { x: 1 - normalizedValue, y: 0 };
-                                    fillRect.anchorMax = { x: 1, y: 1 };
-                                    break;
-                                case SliderDirection.BottomToTop:
-                                    fillRect.anchorMin = { x: 0, y: 0 };
-                                    fillRect.anchorMax = { x: 1, y: normalizedValue };
-                                    break;
-                                case SliderDirection.TopToBottom:
-                                    fillRect.anchorMin = { x: 0, y: 1 - normalizedValue };
-                                    fillRect.anchorMax = { x: 1, y: 1 };
-                                    break;
-                            }
-                            world.insert(fillEntity, UIRect, fillRect);
-                        }
+                    if (slider.fillEntity !== 0 && world.valid(slider.fillEntity)) {
+                        applyDirectionalFill(world, slider.fillEntity, slider.direction, normalizedValue);
                     }
 
-                    if (slider.handleEntity !== 0 && world.valid(slider.handleEntity as Entity)) {
-                        const handleEntity = slider.handleEntity as Entity;
-                        if (world.has(handleEntity, UIRect)) {
-                            const handleRect = world.get(handleEntity, UIRect) as UIRectData;
+                    if (slider.handleEntity !== 0 && world.valid(slider.handleEntity)) {
+                        if (world.has(slider.handleEntity, UIRect)) {
+                            const handleRect = world.get(slider.handleEntity, UIRect) as UIRectData;
                             switch (slider.direction) {
-                                case SliderDirection.LeftToRight:
+                                case FillDirection.LeftToRight:
                                     handleRect.anchorMin = { x: normalizedValue, y: 0 };
                                     handleRect.anchorMax = { x: normalizedValue, y: 1 };
                                     break;
-                                case SliderDirection.RightToLeft:
+                                case FillDirection.RightToLeft:
                                     handleRect.anchorMin = { x: 1 - normalizedValue, y: 0 };
                                     handleRect.anchorMax = { x: 1 - normalizedValue, y: 1 };
                                     break;
-                                case SliderDirection.BottomToTop:
+                                case FillDirection.BottomToTop:
                                     handleRect.anchorMin = { x: 0, y: normalizedValue };
                                     handleRect.anchorMax = { x: 1, y: normalizedValue };
                                     break;
-                                case SliderDirection.TopToBottom:
+                                case FillDirection.TopToBottom:
                                     handleRect.anchorMin = { x: 0, y: 1 - normalizedValue };
                                     handleRect.anchorMax = { x: 1, y: 1 - normalizedValue };
                                     break;
                             }
-                            world.insert(handleEntity, UIRect, handleRect);
+                            world.insert(slider.handleEntity, UIRect, handleRect);
                         }
                     }
                 }

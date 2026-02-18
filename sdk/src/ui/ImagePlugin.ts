@@ -2,11 +2,11 @@ import type { App, Plugin } from '../app';
 import { registerComponent, Sprite } from '../component';
 import type { SpriteData } from '../component';
 import { defineSystem, Schedule } from '../system';
-import { INVALID_TEXTURE } from '../types';
 import { Image, ImageType, FillMethod, FillOrigin } from './Image';
 import type { ImageData } from './Image';
 import { UIRect } from './UIRect';
 import type { UIRectData } from './UIRect';
+import { ensureSprite } from './uiHelpers';
 
 export class ImagePlugin implements Plugin {
     build(app: App): void {
@@ -22,19 +22,7 @@ export class ImagePlugin implements Plugin {
                 for (const entity of entities) {
                     const image = world.get(entity, Image) as ImageData;
 
-                    if (!world.has(entity, Sprite)) {
-                        world.insert(entity, Sprite, {
-                            texture: INVALID_TEXTURE,
-                            color: { r: 1, g: 1, b: 1, a: 1 },
-                            size: { x: 0, y: 0 },
-                            uvOffset: { x: 0, y: 0 },
-                            uvScale: { x: 1, y: 1 },
-                            layer: 0,
-                            flipX: false,
-                            flipY: false,
-                            material: 0,
-                        });
-                    }
+                    ensureSprite(world, entity);
 
                     const sprite = world.get(entity, Sprite) as SpriteData;
 
@@ -79,13 +67,18 @@ export class ImagePlugin implements Plugin {
                                 sprite.size.y *= amount;
                             }
                         }
+                    } else if (image.imageType === ImageType.Tiled) {
+                        if (image.tileSize.x > 0 && image.tileSize.y > 0) {
+                            sprite.uvScale.x = sprite.size.x / image.tileSize.x;
+                            sprite.uvScale.y = sprite.size.y / image.tileSize.y;
+                        }
                     }
 
                     world.insert(entity, Sprite, sprite);
                 }
             },
             { name: 'ImageSystem' }
-        ));
+        ), { runAfter: ['UILayoutSystem'] });
     }
 }
 
