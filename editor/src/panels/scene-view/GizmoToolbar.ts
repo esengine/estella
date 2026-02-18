@@ -74,6 +74,13 @@ export class GizmoToolbar {
                             <span>Show Stats</span>
                         </label>
                     </div>
+                    <div class="es-settings-divider"></div>
+                    <div class="es-settings-row">
+                        <label class="es-settings-checkbox">
+                            <input type="checkbox" data-setting="scene.livePreview" ${getSettingsValue<boolean>('scene.livePreview') ? 'checked' : ''}>
+                            <span>Live Preview</span>
+                        </label>
+                    </div>
                 </div>
             </div>`;
     }

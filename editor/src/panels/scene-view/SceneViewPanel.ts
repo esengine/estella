@@ -12,7 +12,7 @@ import { getEntityBounds } from '../../bounds';
 import { GizmoManager } from '../../gizmos';
 import type { GizmoContext } from '../../gizmos';
 import { ColliderOverlay } from '../../gizmos/ColliderOverlay';
-import { getSettingsValue } from '../../settings/SettingsRegistry';
+import { getSettingsValue, onSettingsChange } from '../../settings/SettingsRegistry';
 import type { EntityData } from '../../types/SceneTypes';
 
 import { CameraController } from './CameraController';
@@ -43,8 +43,10 @@ export class SceneViewPanel {
     private unsubscribe_: (() => void) | null = null;
     private unsubscribeSceneSync_: (() => void) | null = null;
     private unsubscribeFocus_: (() => void) | null = null;
+    private unsubscribeLivePreview_: (() => void) | null = null;
     private animationId_: number | null = null;
     private continuousRender_ = false;
+    private livePreview_ = false;
     private isDirty_ = true;
     private resizeObserver_: ResizeObserver | null = null;
     private projectPath_: string | null = null;
@@ -136,6 +138,14 @@ export class SceneViewPanel {
             const worldTransform = this.store_.getWorldTransform(entityId);
             this.camera_.focusOnEntity(worldTransform.position.x, worldTransform.position.y);
             this.toolbar_.updateZoomDisplay(this.camera_.zoom);
+        });
+
+        this.livePreview_ = getSettingsValue<boolean>('scene.livePreview') ?? false;
+        this.unsubscribeLivePreview_ = onSettingsChange((id, value) => {
+            if (id === 'scene.livePreview') {
+                this.livePreview_ = value as boolean;
+                if (this.livePreview_) this.requestRender();
+            }
         });
 
         const viewport = this.container_.querySelector('.es-sceneview-viewport');
@@ -254,6 +264,10 @@ export class SceneViewPanel {
         if (this.unsubscribeFocus_) {
             this.unsubscribeFocus_();
             this.unsubscribeFocus_ = null;
+        }
+        if (this.unsubscribeLivePreview_) {
+            this.unsubscribeLivePreview_();
+            this.unsubscribeLivePreview_ = null;
         }
         if (this.resizeObserver_) {
             this.resizeObserver_.disconnect();
@@ -509,6 +523,7 @@ export class SceneViewPanel {
         if (this.animationId_ !== null) return;
         this.animationId_ = requestAnimationFrame(() => {
             this.animationId_ = null;
+            if (this.livePreview_) this.isDirty_ = true;
             if (this.isDirty_) {
                 this.isDirty_ = false;
                 try {
