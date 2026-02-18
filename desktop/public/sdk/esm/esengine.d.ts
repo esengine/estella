@@ -1710,21 +1710,38 @@ declare class InputPlugin implements Plugin {
 }
 declare const inputPlugin: InputPlugin;
 
-declare enum TextAlign {
-    Left = 0,
-    Center = 1,
-    Right = 2
+interface ColorTransition {
+    normalColor: Color;
+    hoveredColor: Color;
+    pressedColor: Color;
+    disabledColor: Color;
 }
-declare enum TextVerticalAlign {
-    Top = 0,
-    Middle = 1,
-    Bottom = 2
-}
-declare enum TextOverflow {
-    Visible = 0,
-    Clip = 1,
-    Ellipsis = 2
-}
+declare const FillDirection: {
+    readonly LeftToRight: 0;
+    readonly RightToLeft: 1;
+    readonly BottomToTop: 2;
+    readonly TopToBottom: 3;
+};
+type FillDirection = (typeof FillDirection)[keyof typeof FillDirection];
+
+declare const TextAlign: {
+    readonly Left: 0;
+    readonly Center: 1;
+    readonly Right: 2;
+};
+type TextAlign = (typeof TextAlign)[keyof typeof TextAlign];
+declare const TextVerticalAlign: {
+    readonly Top: 0;
+    readonly Middle: 1;
+    readonly Bottom: 2;
+};
+type TextVerticalAlign = (typeof TextVerticalAlign)[keyof typeof TextVerticalAlign];
+declare const TextOverflow: {
+    readonly Visible: 0;
+    readonly Clip: 1;
+    readonly Ellipsis: 2;
+};
+type TextOverflow = (typeof TextOverflow)[keyof typeof TextOverflow];
 interface TextData {
     content: string;
     fontFamily: string;
@@ -1745,6 +1762,7 @@ interface UIRectData {
     offsetMax: Vec2;
     size: Vec2;
     pivot: Vec2;
+    _dirty: boolean;
 }
 declare const UIRect: ComponentDef<UIRectData>;
 
@@ -1753,6 +1771,12 @@ declare const UIRect: ComponentDef<UIRectData>;
  * @brief   Renders text to GPU textures using Canvas 2D API
  */
 
+interface SizedRect {
+    size: {
+        x: number;
+        y: number;
+    };
+}
 interface TextRenderResult {
     textureHandle: number;
     width: number;
@@ -1767,12 +1791,12 @@ declare class TextRenderer {
     /**
      * Renders text to a texture and returns the handle
      */
-    renderText(text: TextData, uiRect?: UIRectData | null): TextRenderResult;
+    renderText(text: TextData, uiRect?: SizedRect | null): TextRenderResult;
     private truncateWithEllipsis;
     /**
      * Renders text for an entity and caches the result
      */
-    renderForEntity(entity: Entity, text: TextData, uiRect?: UIRectData | null): TextRenderResult;
+    renderForEntity(entity: Entity, text: TextData, uiRect?: SizedRect | null): TextRenderResult;
     /**
      * Gets cached render result for entity
      */
@@ -1786,10 +1810,8 @@ declare class TextRenderer {
      * Releases all cached textures
      */
     releaseAll(): void;
-    private wrapText;
     private measureWidth;
     private mapAlign;
-    private nextPowerOf2;
 }
 
 /**
@@ -1834,6 +1856,7 @@ declare function pointInOBB(px: number, py: number, worldX: number, worldY: numb
 interface InteractableData {
     enabled: boolean;
     blockRaycast: boolean;
+    raycastTarget: boolean;
 }
 declare const Interactable: ComponentDef<InteractableData>;
 
@@ -1845,26 +1868,21 @@ interface UIInteractionData {
 }
 declare const UIInteraction: ComponentDef<UIInteractionData>;
 
-declare enum ButtonState {
-    Normal = 0,
-    Hovered = 1,
-    Pressed = 2,
-    Disabled = 3
-}
-interface ButtonTransition {
-    normalColor: Color;
-    hoveredColor: Color;
-    pressedColor: Color;
-    disabledColor: Color;
-}
+type ButtonTransition = ColorTransition;
+declare const ButtonState: {
+    readonly Normal: 0;
+    readonly Hovered: 1;
+    readonly Pressed: 2;
+    readonly Disabled: 3;
+};
+type ButtonState = (typeof ButtonState)[keyof typeof ButtonState];
 interface ButtonData {
     state: ButtonState;
-    transition: ButtonTransition | null;
-    enabled: boolean;
+    transition: ColorTransition | null;
 }
 declare const Button: ComponentDef<ButtonData>;
 
-type UIEventType = 'click' | 'press' | 'release' | 'hover_enter' | 'hover_exit' | 'submit' | 'change' | 'drag_start' | 'drag_move' | 'drag_end' | 'scroll';
+type UIEventType = 'click' | 'press' | 'release' | 'hover_enter' | 'hover_exit' | 'focus' | 'blur' | 'submit' | 'change' | 'drag_start' | 'drag_move' | 'drag_end' | 'scroll';
 interface UIEvent {
     entity: Entity;
     type: UIEventType;
@@ -1892,6 +1910,8 @@ interface UICameraData {
     worldBottom: number;
     worldRight: number;
     worldTop: number;
+    worldMouseX: number;
+    worldMouseY: number;
     valid: boolean;
 }
 declare const UICameraInfo: ResourceDef<UICameraData>;
@@ -1991,36 +2011,36 @@ interface ImageData {
     fillOrigin: number;
     fillAmount: number;
     preserveAspect: boolean;
+    tileSize: {
+        x: number;
+        y: number;
+    };
     layer: number;
     material: number;
     enabled: boolean;
 }
 declare const Image: ComponentDef<ImageData>;
 
-interface ToggleTransition {
-    normalColor: Color;
-    hoveredColor: Color;
-    pressedColor: Color;
-    disabledColor: Color;
-}
+type ToggleTransition = ColorTransition;
 interface ToggleData {
     isOn: boolean;
     graphicEntity: Entity;
-    transition: ToggleTransition | null;
-    enabled: boolean;
+    group: Entity;
+    transition: ColorTransition | null;
 }
 declare const Toggle: ComponentDef<ToggleData>;
 
-declare enum ProgressBarDirection {
-    LeftToRight = 0,
-    RightToLeft = 1,
-    BottomToTop = 2,
-    TopToBottom = 3
-}
+declare const ProgressBarDirection: {
+    readonly LeftToRight: 0;
+    readonly RightToLeft: 1;
+    readonly BottomToTop: 2;
+    readonly TopToBottom: 3;
+};
+type ProgressBarDirection = FillDirection;
 interface ProgressBarData {
     value: number;
     fillEntity: Entity;
-    direction: number;
+    direction: FillDirection;
 }
 declare const ProgressBar: ComponentDef<ProgressBarData>;
 
@@ -2065,7 +2085,7 @@ interface DragStateData {
 declare const DragState: ComponentDef<DragStateData>;
 
 interface ScrollViewData {
-    contentEntity: number;
+    contentEntity: Entity;
     horizontalEnabled: boolean;
     verticalEnabled: boolean;
     contentWidth: number;
@@ -2077,21 +2097,21 @@ interface ScrollViewData {
 }
 declare const ScrollView: ComponentDef<ScrollViewData>;
 
-declare enum SliderDirection {
-    LeftToRight = 0,
-    RightToLeft = 1,
-    BottomToTop = 2,
-    TopToBottom = 3
-}
+declare const SliderDirection: {
+    readonly LeftToRight: 0;
+    readonly RightToLeft: 1;
+    readonly BottomToTop: 2;
+    readonly TopToBottom: 3;
+};
+type SliderDirection = FillDirection;
 interface SliderData {
     value: number;
     minValue: number;
     maxValue: number;
-    direction: SliderDirection;
-    fillEntity: number;
-    handleEntity: number;
+    direction: FillDirection;
+    fillEntity: Entity;
+    handleEntity: Entity;
     wholeNumbers: boolean;
-    enabled: boolean;
 }
 declare const Slider: ComponentDef<SliderData>;
 
@@ -2130,8 +2150,8 @@ interface DropdownData {
     options: string[];
     selectedIndex: number;
     isOpen: boolean;
-    listEntity: number;
-    labelEntity: number;
+    listEntity: Entity;
+    labelEntity: Entity;
 }
 declare const Dropdown: ComponentDef<DropdownData>;
 
