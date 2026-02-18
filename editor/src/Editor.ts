@@ -102,7 +102,7 @@ export class Editor {
     private assetLibraryReady_: Promise<void> = Promise.resolve();
     private clipboard_: EntityData[] | null = null;
     private addressableWindow_: { element: HTMLElement; panel: AddressablePanel; keyHandler: (e: KeyboardEvent) => void } | null = null;
-    private isPreviewRunning_ = false;
+    private previewUrl_: string | null = null;
     private escapeHandler_: ((e: KeyboardEvent) => void) | null = null;
     private settingsDebounceTimer_: ReturnType<typeof setTimeout> | null = null;
 
@@ -833,17 +833,13 @@ export class Editor {
             await this.saveScene();
             showToast({ type: 'info', title: 'Scene saved before preview' });
         }
-        await this.previewManager_.startPreview(
+        const port = await this.previewManager_.startPreview(
             this.store_.scene, this.scriptLoader_, this.spineVersion_,
         );
-        this.isPreviewRunning_ = true;
-        this.updatePreviewButton();
-    }
-
-    async stopPreview(): Promise<void> {
-        await this.previewManager_.stopPreview();
-        this.isPreviewRunning_ = false;
-        this.updatePreviewButton();
+        if (port !== null) {
+            this.previewUrl_ = `http://localhost:${port}`;
+            this.updatePreviewUrl();
+        }
     }
 
     async startPreviewServer(): Promise<string | null> {
@@ -854,30 +850,26 @@ export class Editor {
             this.store_.scene, this.scriptLoader_, this.spineVersion_,
         );
         if (port === null) return null;
-        return `http://localhost:${port}`;
+        this.previewUrl_ = `http://localhost:${port}`;
+        this.updatePreviewUrl();
+        return this.previewUrl_;
     }
 
     async stopPreviewServer(): Promise<void> {
         await this.previewManager_.stopPreview();
+        this.previewUrl_ = null;
+        this.updatePreviewUrl();
     }
 
-    async togglePreview(): Promise<void> {
-        if (this.isPreviewRunning_) {
-            await this.stopPreview();
+    private updatePreviewUrl(): void {
+        const urlEl = this.container_.querySelector('.es-preview-url') as HTMLElement;
+        if (!urlEl) return;
+        if (this.previewUrl_) {
+            urlEl.textContent = this.previewUrl_;
+            urlEl.dataset.url = this.previewUrl_;
+            urlEl.style.display = '';
         } else {
-            await this.startPreview();
-        }
-    }
-
-    private updatePreviewButton(): void {
-        const btn = this.container_.querySelector('[data-action="preview"]') as HTMLElement;
-        if (!btn) return;
-        if (this.isPreviewRunning_) {
-            btn.innerHTML = `${icons.stop(14)} Stop`;
-            btn.classList.add('es-btn-danger');
-        } else {
-            btn.innerHTML = `${icons.play(14)} Preview`;
-            btn.classList.remove('es-btn-danger');
+            urlEl.style.display = 'none';
         }
     }
 
@@ -995,6 +987,7 @@ export class Editor {
                 <div class="es-menubar-spacer">
                     <span class="es-menubar-scene-name"></span>
                 </div>
+                <span class="es-preview-url" style="display:none" title="Click to copy"></span>
                 <button class="es-btn es-btn-preview" data-action="preview">${icons.play(14)} Preview</button>
             </div>
             <div class="es-editor-dock"></div>
@@ -1024,7 +1017,18 @@ export class Editor {
             e.preventDefault();
         });
 
-        this.menuManager_.setupToolbarEvents(this.container_, () => this.togglePreview());
+        const previewUrlEl = this.container_.querySelector('.es-preview-url');
+        previewUrlEl?.addEventListener('click', () => {
+            const url = (previewUrlEl as HTMLElement).dataset.url;
+            if (url) {
+                navigator.clipboard.writeText(url);
+                const original = previewUrlEl.textContent;
+                previewUrlEl.textContent = 'Copied!';
+                setTimeout(() => { previewUrlEl.textContent = original; }, 1000);
+            }
+        });
+
+        this.menuManager_.setupToolbarEvents(this.container_, () => this.startPreview());
         this.setupEscapeHandler();
         this.store_.subscribe(() => this.menuManager_.updateToolbarState(this.container_));
         this.store_.subscribe(() => {

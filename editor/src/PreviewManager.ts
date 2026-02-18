@@ -16,10 +16,10 @@ export class PreviewManager {
         scene: SceneData,
         scriptLoader: ScriptLoader | null,
         spineVersion: string,
-    ): Promise<void> {
+    ): Promise<number | null> {
         if (!this.previewService_) {
             console.warn('Preview not available: no project loaded');
-            return;
+            return null;
         }
 
         try {
@@ -28,9 +28,10 @@ export class PreviewManager {
             }
             const compiledScript = scriptLoader?.getCompiledCode() ?? undefined;
             const { enablePhysics, physicsConfig, previewSpineVersion, runtimeConfig } = this.collectPreviewConfig(spineVersion);
-            await this.previewService_.startPreview(scene, compiledScript, previewSpineVersion, enablePhysics, physicsConfig, runtimeConfig);
+            return await this.previewService_.startPreview(scene, compiledScript, previewSpineVersion, enablePhysics, physicsConfig, runtimeConfig);
         } catch (err) {
             console.error('Failed to start preview:', err);
+            return null;
         }
     }
 

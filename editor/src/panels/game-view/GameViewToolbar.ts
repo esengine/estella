@@ -40,6 +40,7 @@ export class GameViewToolbar {
     private customWidthInput_: HTMLInputElement | null = null;
     private customHeightInput_: HTMLInputElement | null = null;
     private currentPreset_: ResolutionPreset = RESOLUTION_PRESETS[0];
+    private previewUrlEl_: HTMLElement | null = null;
 
     constructor(container: HTMLElement, callbacks: GameViewToolbarCallbacks) {
         this.container_ = container;
@@ -76,6 +77,7 @@ export class GameViewToolbar {
                     <input type="number" class="es-gameview-custom-h" placeholder="H" min="1" max="4320" />
                 </div>
                 <span class="es-gameview-fps"></span>
+                <span class="es-gameview-preview-url" style="display:none" title="Click to copy preview URL"></span>
             </div>
         `;
     }
@@ -102,6 +104,18 @@ export class GameViewToolbar {
         this.speedSelect_?.addEventListener('change', () => {
             const speed = parseFloat(this.speedSelect_!.value);
             this.callbacks_.onSpeedChange(speed);
+        });
+
+        this.previewUrlEl_ = this.container_.querySelector('.es-gameview-preview-url');
+        this.previewUrlEl_?.addEventListener('click', () => {
+            const url = this.previewUrlEl_?.dataset.url;
+            if (url) {
+                navigator.clipboard.writeText(url);
+                const el = this.previewUrlEl_!;
+                const original = el.textContent;
+                el.textContent = 'Copied!';
+                setTimeout(() => { el.textContent = original; }, 1000);
+            }
         });
 
         this.resolutionSelect_?.addEventListener('change', () => {
@@ -152,6 +166,19 @@ export class GameViewToolbar {
         this.fpsDisplay_.textContent = fps > 0 ? `${fps} FPS` : '';
     }
 
+    setPreviewUrl(url: string | null): void {
+        if (!this.previewUrlEl_) return;
+        if (url) {
+            this.previewUrlEl_.textContent = url;
+            this.previewUrlEl_.dataset.url = url;
+            this.previewUrlEl_.style.display = '';
+        } else {
+            this.previewUrlEl_.textContent = '';
+            delete this.previewUrlEl_.dataset.url;
+            this.previewUrlEl_.style.display = 'none';
+        }
+    }
+
     get currentPreset(): ResolutionPreset {
         return this.currentPreset_;
     }
@@ -168,5 +195,6 @@ export class GameViewToolbar {
         this.customSizeEl_ = null;
         this.customWidthInput_ = null;
         this.customHeightInput_ = null;
+        this.previewUrlEl_ = null;
     }
 }

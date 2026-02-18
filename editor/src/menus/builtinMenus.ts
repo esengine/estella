@@ -34,13 +34,7 @@ export function registerBuiltinMenus(editor: Editor): void {
     registerMenuItem({
         id: 'file.preview', menu: 'file', label: 'Preview',
         shortcut: 'F5', order: 4, separator: true,
-        action: () => editor.togglePreview(),
-    });
-    registerMenuItem({
-        id: 'file.stop-preview', menu: 'file', label: 'Stop Preview',
-        shortcut: 'Shift+F5', order: 5,
-        action: () => editor.stopPreview(),
-        hidden: true,
+        action: () => editor.startPreview(),
     });
     registerMenuItem({
         id: 'file.build-settings', menu: 'file', label: 'Build Settings...',

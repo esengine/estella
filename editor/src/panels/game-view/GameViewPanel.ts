@@ -80,6 +80,7 @@ export class GameViewPanel implements PanelInstance, Resizable {
         const url = await this.gameManager_.play();
         if (url && this.iframe_) {
             this.iframe_.src = url + '?t=' + Date.now();
+            this.toolbar_.setPreviewUrl(url);
             this.createBridge();
         }
     }
@@ -109,6 +110,7 @@ export class GameViewPanel implements PanelInstance, Resizable {
 
     private async stop(): Promise<void> {
         this.disposeBridge();
+        this.toolbar_.setPreviewUrl(null);
         if (this.iframe_) {
             this.iframe_.src = 'about:blank';
         }

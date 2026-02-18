@@ -10,6 +10,7 @@ export interface GameInstanceCallbacks {
 export class GameInstanceManager {
     private state_: GameState = 'stopped';
     private callbacks_: GameInstanceCallbacks;
+    private previewUrl_: string | null = null;
 
     constructor(callbacks: GameInstanceCallbacks) {
         this.callbacks_ = callbacks;
@@ -17,6 +18,10 @@ export class GameInstanceManager {
 
     get state(): GameState {
         return this.state_;
+    }
+
+    get previewUrl(): string | null {
+        return this.previewUrl_;
     }
 
     async play(): Promise<string | null> {
@@ -34,6 +39,7 @@ export class GameInstanceManager {
                 this.callbacks_.onError(new Error('Failed to start preview server'));
                 return null;
             }
+            this.previewUrl_ = url;
             this.setState('playing');
             return url;
         } catch (e) {
@@ -55,6 +61,7 @@ export class GameInstanceManager {
     }
 
     async stop(): Promise<void> {
+        this.previewUrl_ = null;
         this.setState('stopped');
     }
 

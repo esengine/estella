@@ -98,6 +98,20 @@
     text-align: right;
 }
 
+.es-gameview-preview-url {
+    font-size: 11px;
+    color: var(--es-accent);
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 3px;
+    user-select: none;
+    white-space: nowrap;
+}
+
+.es-gameview-preview-url:hover {
+    background: var(--es-bg-tertiary);
+}
+
 .es-gameview-viewport {
     flex: 1;
     overflow: hidden;

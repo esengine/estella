@@ -160,6 +160,20 @@
     background: #c9302c;
 }
 
+.es-preview-url {
+    font-size: 11px;
+    color: var(--es-accent);
+    cursor: pointer;
+    padding: 2px 8px;
+    border-radius: 3px;
+    user-select: none;
+    white-space: nowrap;
+}
+
+.es-preview-url:hover {
+    background: var(--es-bg-tertiary);
+}
+
 .es-editor-dock {
     flex: 1;
     overflow: hidden;

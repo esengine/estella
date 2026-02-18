@@ -32,6 +32,7 @@ export class PreviewService {
     private projectDir_: string;
     private port_: number;
     private previewDir_: string;
+    private activePort_: number | null = null;
 
     constructor(config: PreviewConfig) {
         this.projectDir_ = getProjectDir(config.projectPath);
@@ -39,27 +40,31 @@ export class PreviewService {
         this.previewDir_ = `${this.projectDir_}/.esengine/preview`;
     }
 
-    async startPreview(scene: SceneData, compiledScript?: string, spineVersion?: string, enablePhysics?: boolean, physicsConfig?: { gravityX: number; gravityY: number; fixedTimestep: number; subStepCount: number }, runtimeConfig?: Record<string, unknown>): Promise<void> {
+    async startPreview(scene: SceneData, compiledScript?: string, spineVersion?: string, enablePhysics?: boolean, physicsConfig?: { gravityX: number; gravityY: number; fixedTimestep: number; subStepCount: number }, runtimeConfig?: Record<string, unknown>): Promise<number | null> {
         const fs = this.getNativeFS();
         const invoke = this.getTauriInvoke();
 
         if (!fs || !invoke) {
             console.error('PreviewService: Native APIs not available');
-            return;
+            return null;
         }
 
-        await this.stopPreview();
-
-        console.log('PreviewService: Preparing files in', this.previewDir_);
         await this.preparePreviewFiles(fs, scene, compiledScript, spineVersion, enablePhysics, physicsConfig, runtimeConfig);
-        console.log('PreviewService: Files prepared');
+
+        if (this.activePort_ !== null) {
+            await this.notifyReload();
+            await invoke('open_preview_in_browser', { port: this.activePort_ });
+            return this.activePort_;
+        }
 
         const port = await invoke('start_preview_server', {
             projectDir: this.projectDir_,
             port: this.port_,
         }) as number;
 
+        this.activePort_ = port;
         await invoke('open_preview_in_browser', { port });
+        return port;
     }
 
     async startServer(scene: SceneData, compiledScript?: string, spineVersion?: string, enablePhysics?: boolean, physicsConfig?: { gravityX: number; gravityY: number; fixedTimestep: number; subStepCount: number }, runtimeConfig?: Record<string, unknown>): Promise<number | null> {
@@ -73,11 +78,17 @@ export class PreviewService {
 
         await this.preparePreviewFiles(fs, scene, compiledScript, spineVersion, enablePhysics, physicsConfig, runtimeConfig);
 
+        if (this.activePort_ !== null) {
+            await this.notifyReload();
+            return this.activePort_;
+        }
+
         const port = await invoke('start_preview_server', {
             projectDir: this.projectDir_,
             port: this.port_,
         }) as number;
 
+        this.activePort_ = port;
         return port;
     }
 
@@ -86,6 +97,7 @@ export class PreviewService {
         if (invoke) {
             await invoke('stop_preview_server');
         }
+        this.activePort_ = null;
     }
 
     async updatePreviewFiles(
