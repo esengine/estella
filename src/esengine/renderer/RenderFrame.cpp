@@ -375,29 +375,37 @@ void RenderFrame::clearAllStencilMasks() {
     stencil_masks_.clear();
 }
 
-void RenderFrame::beginStencilWrite(i32 refValue) {
+void RenderFrame::beginStencilWrite([[maybe_unused]] i32 refValue) {
+#ifdef ES_PLATFORM_WEB
     glEnable(GL_STENCIL_TEST);
     glStencilFunc(GL_ALWAYS, refValue, 0xFF);
     glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
     glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
     glStencilMask(0xFF);
+#endif
 }
 
 void RenderFrame::endStencilWrite() {
+#ifdef ES_PLATFORM_WEB
     glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
     glStencilMask(0x00);
+#endif
 }
 
-void RenderFrame::beginStencilTest(i32 refValue) {
+void RenderFrame::beginStencilTest([[maybe_unused]] i32 refValue) {
+#ifdef ES_PLATFORM_WEB
     glEnable(GL_STENCIL_TEST);
     glStencilFunc(GL_EQUAL, refValue, 0xFF);
     glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
     glStencilMask(0x00);
+#endif
 }
 
 void RenderFrame::endStencilTest() {
+#ifdef ES_PLATFORM_WEB
     glDisable(GL_STENCIL_TEST);
     glStencilMask(0xFF);
+#endif
 }
 
 void RenderFrame::submitSprites(ecs::Registry& registry) {
