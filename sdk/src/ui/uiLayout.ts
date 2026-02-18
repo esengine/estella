@@ -34,19 +34,23 @@ export function computeUIRectLayout(
     let myRight: number;
     let myTop: number;
 
-    if (aLeft === aRight && aBottom === aTop) {
+    if (anchorMin.x === anchorMax.x) {
         const cx = aLeft + offsetMin.x;
-        const cy = aBottom + offsetMin.y;
         const hw = size.x * 0.5;
-        const hh = size.y * 0.5;
         myLeft = cx - hw;
-        myBottom = cy - hh;
         myRight = cx + hw;
-        myTop = cy + hh;
     } else {
         myLeft = aLeft + offsetMin.x;
-        myBottom = aBottom + offsetMin.y;
         myRight = aRight + offsetMax.x;
+    }
+
+    if (anchorMin.y === anchorMax.y) {
+        const cy = aBottom + offsetMin.y;
+        const hh = size.y * 0.5;
+        myBottom = cy - hh;
+        myTop = cy + hh;
+    } else {
+        myBottom = aBottom + offsetMin.y;
         myTop = aTop + offsetMax.y;
     }
 

@@ -1,5 +1,5 @@
 import type { Entity, App } from 'esengine';
-import { Renderer } from 'esengine';
+import { Renderer, computeUIRectLayout } from 'esengine';
 import type { SpineModuleController } from 'esengine/spine';
 import type { EditorStore } from '../../store/EditorStore';
 import type { EditorBridge } from '../../bridge/EditorBridge';
@@ -180,7 +180,61 @@ export class SceneViewPanel {
             }
         }
 
+        const uiRect = entityData.components.find(c => c.type === 'UIRect');
+        if (uiRect) {
+            const d = uiRect.data;
+            const resolved = this.resolveUIRectSize(d, entityData.parent);
+            if (resolved) return resolved;
+        }
+
         return getEntityBounds(entityData.components);
+    }
+
+    private resolveUIRectSize(
+        data: any,
+        parentId: number | null,
+    ): { width: number; height: number } | null {
+        const anchorMin = data.anchorMin ?? { x: 0.5, y: 0.5 };
+        const anchorMax = data.anchorMax ?? { x: 0.5, y: 0.5 };
+        const isStretchX = anchorMin.x !== anchorMax.x;
+        const isStretchY = anchorMin.y !== anchorMax.y;
+
+        if (!isStretchX && !isStretchY) {
+            const s = data.size;
+            return (s?.x > 0 && s?.y > 0) ? { width: s.x, height: s.y } : null;
+        }
+
+        const parentSize = this.resolveParentSize(parentId);
+        if (!parentSize) return null;
+
+        const parentRect = {
+            left: -parentSize.width / 2,
+            bottom: -parentSize.height / 2,
+            right: parentSize.width / 2,
+            top: parentSize.height / 2,
+        };
+        const layout = computeUIRectLayout(
+            anchorMin, anchorMax,
+            data.offsetMin ?? { x: 0, y: 0 },
+            data.offsetMax ?? { x: 0, y: 0 },
+            data.size ?? { x: 100, y: 100 },
+            parentRect,
+        );
+        return { width: Math.abs(layout.width), height: Math.abs(layout.height) };
+    }
+
+    private resolveParentSize(parentId: number | null): { width: number; height: number } | null {
+        if (parentId == null) return null;
+        const parentData = this.store_.getEntityData(parentId);
+        if (!parentData) return null;
+
+        const parentUIRect = parentData.components.find(c => c.type === 'UIRect');
+        if (parentUIRect) {
+            return this.resolveUIRectSize(parentUIRect.data, parentData.parent);
+        }
+
+        const bounds = getEntityBounds(parentData.components);
+        return (bounds.width > 0 && bounds.height > 0) ? bounds : null;
     }
 
     dispose(): void {

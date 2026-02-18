@@ -125,6 +125,31 @@ export function showEntityContextMenu(state: HierarchyState, x: number, y: numbe
             ],
         });
 
+        if (has('UIRect')) {
+            items.push({
+                label: 'UIRect', icon: icons.maximize(14), children: [
+                    { label: 'Fill Parent', icon: icons.maximize(14), onClick: () => {
+                        const uiRect = entityData!.components.find(c => c.type === 'UIRect');
+                        const d = uiRect?.data ?? {};
+                        state.store.updateProperty(entity, 'UIRect', 'anchorMin', d.anchorMin ?? { x: 0.5, y: 0.5 }, { x: 0, y: 0 });
+                        state.store.updateProperty(entity, 'UIRect', 'anchorMax', d.anchorMax ?? { x: 0.5, y: 0.5 }, { x: 1, y: 1 });
+                        state.store.updateProperty(entity, 'UIRect', 'offsetMin', d.offsetMin ?? { x: 0, y: 0 }, { x: 0, y: 0 });
+                        state.store.updateProperty(entity, 'UIRect', 'offsetMax', d.offsetMax ?? { x: 0, y: 0 }, { x: 0, y: 0 });
+                    } },
+                    { label: 'Reset', icon: icons.rotateCw(14), onClick: () => {
+                        const uiRect = entityData!.components.find(c => c.type === 'UIRect');
+                        const d = uiRect?.data ?? {};
+                        state.store.updateProperty(entity, 'UIRect', 'anchorMin', d.anchorMin ?? { x: 0.5, y: 0.5 }, { x: 0.5, y: 0.5 });
+                        state.store.updateProperty(entity, 'UIRect', 'anchorMax', d.anchorMax ?? { x: 0.5, y: 0.5 }, { x: 0.5, y: 0.5 });
+                        state.store.updateProperty(entity, 'UIRect', 'offsetMin', d.offsetMin ?? { x: 0, y: 0 }, { x: 0, y: 0 });
+                        state.store.updateProperty(entity, 'UIRect', 'offsetMax', d.offsetMax ?? { x: 0, y: 0 }, { x: 0, y: 0 });
+                        state.store.updateProperty(entity, 'UIRect', 'size', d.size ?? { x: 100, y: 100 }, { x: 100, y: 100 });
+                        state.store.updateProperty(entity, 'UIRect', 'pivot', d.pivot ?? { x: 0.5, y: 0.5 }, { x: 0.5, y: 0.5 });
+                    } },
+                ],
+            });
+        }
+
         items.push({ label: '', separator: true });
 
         const prefabChildren: ContextMenuItem[] = [

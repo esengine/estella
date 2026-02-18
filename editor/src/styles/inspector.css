@@ -1109,6 +1109,11 @@
     grid-template-columns: repeat(3, 28px);
     gap: 2px;
 }
+.es-anchor-edge {
+    display: grid;
+    grid-template-columns: repeat(2, 28px);
+    gap: 2px;
+}
 .es-anchor-stretch {
     display: flex; flex-direction: column; gap: 2px;
 }

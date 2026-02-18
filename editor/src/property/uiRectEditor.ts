@@ -103,7 +103,14 @@ const STRETCH_PRESETS: AnchorPreset[] = [
     { name: 'stretch-both', label: 'Stretch Both',       anchorMin: { x: 0, y: 0 },   anchorMax: { x: 1, y: 1 },   svg: STRETCH_BOTH_SVG },
 ];
 
-const ALL_PRESETS = [...POINT_PRESETS, ...STRETCH_PRESETS];
+const EDGE_PRESETS: AnchorPreset[] = [
+    { name: 'edge-top',    label: 'Stretch Top Edge',    anchorMin: { x: 0, y: 1 }, anchorMax: { x: 1, y: 1 }, svg: FRAME + '<rect x="2" y="2" width="16" height="3" rx="1" fill="currentColor"/>' },
+    { name: 'edge-right',  label: 'Stretch Right Edge',  anchorMin: { x: 1, y: 0 }, anchorMax: { x: 1, y: 1 }, svg: FRAME + '<rect x="15" y="2" width="3" height="16" rx="1" fill="currentColor"/>' },
+    { name: 'edge-left',   label: 'Stretch Left Edge',   anchorMin: { x: 0, y: 0 }, anchorMax: { x: 0, y: 1 }, svg: FRAME + '<rect x="2" y="2" width="3" height="16" rx="1" fill="currentColor"/>' },
+    { name: 'edge-bottom', label: 'Stretch Bottom Edge', anchorMin: { x: 0, y: 0 }, anchorMax: { x: 1, y: 0 }, svg: FRAME + '<rect x="2" y="15" width="16" height="3" rx="1" fill="currentColor"/>' },
+];
+
+const ALL_PRESETS = [...POINT_PRESETS, ...EDGE_PRESETS, ...STRETCH_PRESETS];
 
 // =============================================================================
 // Helpers
@@ -442,6 +449,16 @@ export function createUIRectEditor(
     gridGroup.appendChild(grid);
     gridGroup.appendChild(gridCaption);
 
+    const edgeGroup = document.createElement('div');
+    edgeGroup.className = 'es-anchor-group';
+    const edgeGrid = document.createElement('div');
+    edgeGrid.className = 'es-anchor-edge';
+    const edgeCaption = document.createElement('div');
+    edgeCaption.className = 'es-anchor-caption';
+    edgeCaption.textContent = 'Edge';
+    edgeGroup.appendChild(edgeGrid);
+    edgeGroup.appendChild(edgeCaption);
+
     const stretchGroup = document.createElement('div');
     stretchGroup.className = 'es-anchor-group';
     const stretchCol = document.createElement('div');
@@ -464,7 +481,8 @@ export function createUIRectEditor(
             return;
         }
         const match = findMatchingPreset(data);
-        modeLabel.textContent = match ? match.label : 'Custom';
+        const label = match ? match.label : 'Custom';
+        modeLabel.textContent = `${label}  ·  Alt = set pivot`;
     }
 
     function createCell(preset: AnchorPreset, parent: HTMLElement): void {
@@ -482,7 +500,7 @@ export function createUIRectEditor(
             refreshModeLabel();
         });
 
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', (e) => {
             const changes: PropertyChange[] = [
                 { property: 'anchorMin', oldValue: data.anchorMin, newValue: { ...preset.anchorMin } },
                 { property: 'anchorMax', oldValue: data.anchorMax, newValue: { ...preset.anchorMax } },
@@ -492,6 +510,16 @@ export function createUIRectEditor(
             if (isStretch) {
                 changes.push({ property: 'offsetMax', oldValue: data.offsetMax, newValue: { x: 0, y: 0 } });
             }
+            if (e.altKey) {
+                changes.push({
+                    property: 'pivot',
+                    oldValue: data.pivot,
+                    newValue: {
+                        x: (preset.anchorMin.x + preset.anchorMax.x) / 2,
+                        y: (preset.anchorMin.y + preset.anchorMax.y) / 2,
+                    },
+                });
+            }
             onChange(changes);
         });
 
@@ -500,9 +528,11 @@ export function createUIRectEditor(
     }
 
     for (const p of POINT_PRESETS) createCell(p, grid);
+    for (const p of EDGE_PRESETS) createCell(p, edgeGrid);
     for (const p of STRETCH_PRESETS) createCell(p, stretchCol);
 
     presetsWrap.appendChild(gridGroup);
+    presetsWrap.appendChild(edgeGroup);
     presetsWrap.appendChild(stretchGroup);
     presetSection.appendChild(presetsWrap);
     presetSection.appendChild(modeLabel);

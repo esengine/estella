@@ -9,6 +9,7 @@
 [![Release](https://img.shields.io/github/v/release/esengine/microes)](https://github.com/esengine/microes/releases)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://isocpp.org/)
 [![Platform](https://img.shields.io/badge/Platform-Web%20%7C%20WeChat-green.svg)]()
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/esengine/microes)
 
 [Getting Started](#getting-started) • [Documentation](#documentation) • [Discord](https://discord.gg/sAX6PXZ9) • [QQ群: 481923584](https://qm.qq.com/q/BONa5LXQ0U)
 
