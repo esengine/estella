@@ -209,6 +209,7 @@ export interface SpriteData {
     flipX: boolean;
     flipY: boolean;
     material: number;
+    enabled: boolean;
 }
 
 export interface CameraData {
@@ -263,6 +264,7 @@ export interface SpineAnimationData {
     layer: number;
     skeletonScale: number;
     material: number;
+    enabled: boolean;
 }
 
 export interface BitmapTextData {
@@ -273,6 +275,7 @@ export interface BitmapTextData {
     spacing: number;
     layer: number;
     font: number;
+    enabled: boolean;
 }
 
 export interface NameData {
@@ -309,7 +312,8 @@ export const Sprite = defineBuiltin<SpriteData>('Sprite', {
     layer: 0,
     flipX: false,
     flipY: false,
-    material: 0
+    material: 0,
+    enabled: true
 });
 
 export const Camera = defineBuiltin<CameraData>('Camera', {
@@ -358,6 +362,7 @@ export const BitmapText = defineBuiltin<BitmapTextData>('BitmapText', {
     spacing: 0,
     layer: 0,
     font: INVALID_FONT,
+    enabled: true,
 });
 
 export const SpineAnimation = defineBuiltin<SpineAnimationData>('SpineAnimation', {
@@ -373,7 +378,8 @@ export const SpineAnimation = defineBuiltin<SpineAnimationData>('SpineAnimation'
     color: { r: 1, g: 1, b: 1, a: 1 },
     layer: 0,
     skeletonScale: 1.0,
-    material: 0
+    material: 0,
+    enabled: true
 });
 
 export const Name: ComponentDef<NameData> = {

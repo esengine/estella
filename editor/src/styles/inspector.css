@@ -273,6 +273,20 @@
     white-space: nowrap;
 }
 
+.es-component-enabled-toggle {
+    flex-shrink: 0;
+    width: 13px;
+    height: 13px;
+    margin: 0;
+    cursor: pointer;
+    accent-color: var(--es-accent);
+}
+
+.es-component-section[data-enabled="false"] > .es-collapsible-content {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
 .es-collapsible-content {
     display: block;
 }

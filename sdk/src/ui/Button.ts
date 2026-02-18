@@ -18,9 +18,11 @@ export interface ButtonTransition {
 export interface ButtonData {
     state: ButtonState;
     transition: ButtonTransition | null;
+    enabled: boolean;
 }
 
 export const Button = defineComponent<ButtonData>('Button', {
     state: ButtonState.Normal,
     transition: null,
+    enabled: true,
 });

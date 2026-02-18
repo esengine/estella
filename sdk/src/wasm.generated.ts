@@ -46,6 +46,7 @@ export interface BoxCollider {
     friction: number;
     restitution: number;
     isSensor: boolean;
+    enabled: boolean;
 }
 
 export interface CircleCollider {
@@ -55,6 +56,7 @@ export interface CircleCollider {
     friction: number;
     restitution: number;
     isSensor: boolean;
+    enabled: boolean;
 }
 
 export interface CapsuleCollider {
@@ -65,6 +67,7 @@ export interface CapsuleCollider {
     friction: number;
     restitution: number;
     isSensor: boolean;
+    enabled: boolean;
 }
 
 export interface LocalTransform {
@@ -98,6 +101,7 @@ export interface SpineAnimation {
     layer: number;
     skeletonScale: number;
     material: number;
+    enabled: boolean;
 }
 
 export interface RigidBody {
@@ -118,6 +122,7 @@ export interface BitmapText {
     spacing: number;
     layer: number;
     font: number;
+    enabled: boolean;
 }
 
 export interface Sprite {
@@ -130,6 +135,7 @@ export interface Sprite {
     flipX: boolean;
     flipY: boolean;
     material: number;
+    enabled: boolean;
 }
 
 export interface Parent {

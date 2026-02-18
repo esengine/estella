@@ -79,6 +79,9 @@ struct Sprite {
     ES_PROPERTY()
     u32 material{0};
 
+    ES_PROPERTY()
+    bool enabled{true};
+
     /** @brief Default constructor (white, no texture) */
     Sprite() = default;
 

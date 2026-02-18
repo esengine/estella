@@ -429,6 +429,7 @@ export class EditorSceneManager {
 
             const spineComp = entityData.components.find(c => c.type === 'SpineAnimation');
             const spineData = spineComp?.data as Record<string, unknown> | undefined;
+            if (spineData?.enabled === false) continue;
 
             const skeletonScale = (spineData?.skeletonScale as number) ?? 1;
             const flipX = (spineData?.flipX as boolean) ?? false;
@@ -677,6 +678,7 @@ export class EditorSceneManager {
             flipX: data.flipX ?? false,
             flipY: data.flipY ?? false,
             material: materialHandle,
+            enabled: data.enabled ?? true,
         });
     }
 
@@ -801,6 +803,7 @@ export class EditorSceneManager {
             spacing: data.spacing ?? 0,
             layer: data.layer ?? 0,
             font: fontHandle,
+            enabled: data.enabled ?? true,
         });
     }
 
@@ -931,6 +934,7 @@ export class EditorSceneManager {
                 layer: data.layer ?? 0,
                 skeletonScale: data.skeletonScale ?? 1,
                 material: materialHandle,
+                enabled: data.enabled ?? true,
             },
         });
     }

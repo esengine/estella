@@ -132,6 +132,7 @@ struct BitmapTextJS {
     f32 spacing;
     i32 layer;
     u32 font;
+    bool enabled;
 };
 
 esengine::ecs::BitmapText bitmaptextFromJS(const BitmapTextJS& js) {
@@ -143,6 +144,7 @@ esengine::ecs::BitmapText bitmaptextFromJS(const BitmapTextJS& js) {
     c.spacing = js.spacing;
     c.layer = js.layer;
     c.font = resource::BitmapFontHandle(js.font);
+    c.enabled = js.enabled;
     return c;
 }
 
@@ -155,6 +157,7 @@ BitmapTextJS bitmaptextToJS(const esengine::ecs::BitmapText& c) {
     js.spacing = c.spacing;
     js.layer = c.layer;
     js.font = c.font.id();
+    js.enabled = c.enabled;
     return js;
 }
 
@@ -168,6 +171,7 @@ struct SpriteJS {
     bool flipX;
     bool flipY;
     u32 material;
+    bool enabled;
 };
 
 esengine::ecs::Sprite spriteFromJS(const SpriteJS& js) {
@@ -181,6 +185,7 @@ esengine::ecs::Sprite spriteFromJS(const SpriteJS& js) {
     c.flipX = js.flipX;
     c.flipY = js.flipY;
     c.material = js.material;
+    c.enabled = js.enabled;
     return c;
 }
 
@@ -195,6 +200,7 @@ SpriteJS spriteToJS(const esengine::ecs::Sprite& c) {
     js.flipX = c.flipX;
     js.flipY = c.flipY;
     js.material = c.material;
+    js.enabled = c.enabled;
     return js;
 }
 
@@ -285,7 +291,8 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("density", &esengine::ecs::BoxCollider::density)
         .field("friction", &esengine::ecs::BoxCollider::friction)
         .field("restitution", &esengine::ecs::BoxCollider::restitution)
-        .field("isSensor", &esengine::ecs::BoxCollider::isSensor);
+        .field("isSensor", &esengine::ecs::BoxCollider::isSensor)
+        .field("enabled", &esengine::ecs::BoxCollider::enabled);
 
     value_object<esengine::ecs::CircleCollider>("CircleCollider")
         .field("radius", &esengine::ecs::CircleCollider::radius)
@@ -293,7 +300,8 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("density", &esengine::ecs::CircleCollider::density)
         .field("friction", &esengine::ecs::CircleCollider::friction)
         .field("restitution", &esengine::ecs::CircleCollider::restitution)
-        .field("isSensor", &esengine::ecs::CircleCollider::isSensor);
+        .field("isSensor", &esengine::ecs::CircleCollider::isSensor)
+        .field("enabled", &esengine::ecs::CircleCollider::enabled);
 
     value_object<esengine::ecs::CapsuleCollider>("CapsuleCollider")
         .field("radius", &esengine::ecs::CapsuleCollider::radius)
@@ -302,7 +310,8 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("density", &esengine::ecs::CapsuleCollider::density)
         .field("friction", &esengine::ecs::CapsuleCollider::friction)
         .field("restitution", &esengine::ecs::CapsuleCollider::restitution)
-        .field("isSensor", &esengine::ecs::CapsuleCollider::isSensor);
+        .field("isSensor", &esengine::ecs::CapsuleCollider::isSensor)
+        .field("enabled", &esengine::ecs::CapsuleCollider::enabled);
 
     value_object<esengine::ecs::LocalTransform>("LocalTransform")
         .field("position", &esengine::ecs::LocalTransform::position)
@@ -331,7 +340,8 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("color", &esengine::ecs::SpineAnimation::color)
         .field("layer", &esengine::ecs::SpineAnimation::layer)
         .field("skeletonScale", &esengine::ecs::SpineAnimation::skeletonScale)
-        .field("material", &esengine::ecs::SpineAnimation::material);
+        .field("material", &esengine::ecs::SpineAnimation::material)
+        .field("enabled", &esengine::ecs::SpineAnimation::enabled);
 
     value_object<RigidBodyJS>("RigidBody")
         .field("bodyType", &RigidBodyJS::bodyType)
@@ -349,7 +359,8 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("align", &BitmapTextJS::align)
         .field("spacing", &BitmapTextJS::spacing)
         .field("layer", &BitmapTextJS::layer)
-        .field("font", &BitmapTextJS::font);
+        .field("font", &BitmapTextJS::font)
+        .field("enabled", &BitmapTextJS::enabled);
 
     value_object<SpriteJS>("Sprite")
         .field("texture", &SpriteJS::texture)
@@ -360,7 +371,8 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("layer", &SpriteJS::layer)
         .field("flipX", &SpriteJS::flipX)
         .field("flipY", &SpriteJS::flipY)
-        .field("material", &SpriteJS::material);
+        .field("material", &SpriteJS::material)
+        .field("enabled", &SpriteJS::enabled);
 
     value_object<esengine::ecs::Parent>("Parent")
         .field("entity", &esengine::ecs::Parent::entity);

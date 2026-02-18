@@ -177,14 +177,33 @@ export function renderComponent(
     const icon = getComponentIcon(component.type);
     const removable = isComponentRemovable(component.type);
 
+    const hasEnabled = 'enabled' in defaults;
+    const isEnabled = hasEnabled ? (component.data.enabled ?? defaults.enabled) !== false : true;
+
+    if (hasEnabled && !isEnabled) {
+        section.dataset.enabled = 'false';
+    }
+
     const header = document.createElement('div');
     header.className = 'es-component-header es-collapsible-header';
     header.innerHTML = `
         <span class="es-collapse-icon">${icons.chevronDown(12)}</span>
         <span class="es-component-icon">${icon}</span>
         <span class="es-component-title">${component.type}</span>
+        ${hasEnabled ? `<input type="checkbox" class="es-component-enabled-toggle" title="Enable/Disable component" ${isEnabled ? 'checked' : ''}>` : ''}
         ${removable ? `<button class="es-btn es-btn-icon es-btn-remove">${icons.x(12)}</button>` : ''}
     `;
+
+    if (hasEnabled) {
+        const toggle = header.querySelector('.es-component-enabled-toggle') as HTMLInputElement;
+        toggle?.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+        toggle?.addEventListener('change', () => {
+            const oldValue = component.data.enabled ?? defaults.enabled;
+            store.updateProperty(entity, component.type, 'enabled', oldValue, toggle.checked);
+        });
+    }
 
     if (removable) {
         const removeBtn = header.querySelector('.es-btn-remove');
@@ -195,6 +214,7 @@ export function renderComponent(
 
     header.addEventListener('click', (e) => {
         if ((e.target as HTMLElement).closest('.es-btn-remove')) return;
+        if ((e.target as HTMLElement).closest('.es-component-enabled-toggle')) return;
         section.classList.toggle('es-expanded');
     });
 

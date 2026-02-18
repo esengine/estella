@@ -26,6 +26,9 @@ struct BoxCollider {
     ES_PROPERTY()
     bool isSensor{false};
 
+    ES_PROPERTY()
+    bool enabled{true};
+
     BoxCollider() = default;
 };
 
@@ -48,6 +51,9 @@ struct CircleCollider {
 
     ES_PROPERTY()
     bool isSensor{false};
+
+    ES_PROPERTY()
+    bool enabled{true};
 
     CircleCollider() = default;
 };
@@ -74,6 +80,9 @@ struct CapsuleCollider {
 
     ES_PROPERTY()
     bool isSensor{false};
+
+    ES_PROPERTY()
+    bool enabled{true};
 
     CapsuleCollider() = default;
 };

@@ -59,6 +59,7 @@ interface BoxColliderData {
     friction: number;
     restitution: number;
     isSensor: boolean;
+    enabled: boolean;
 }
 interface CircleColliderData {
     radius: number;
@@ -67,6 +68,7 @@ interface CircleColliderData {
     friction: number;
     restitution: number;
     isSensor: boolean;
+    enabled: boolean;
 }
 interface CapsuleColliderData {
     radius: number;
@@ -76,6 +78,7 @@ interface CapsuleColliderData {
     friction: number;
     restitution: number;
     isSensor: boolean;
+    enabled: boolean;
 }
 declare const RigidBody$1: BuiltinComponentDef<RigidBodyData>;
 declare const BoxCollider$1: BuiltinComponentDef<BoxColliderData>;
@@ -127,6 +130,7 @@ interface BoxCollider {
     friction: number;
     restitution: number;
     isSensor: boolean;
+    enabled: boolean;
 }
 interface CircleCollider {
     radius: number;
@@ -135,6 +139,7 @@ interface CircleCollider {
     friction: number;
     restitution: number;
     isSensor: boolean;
+    enabled: boolean;
 }
 interface CapsuleCollider {
     radius: number;
@@ -144,6 +149,7 @@ interface CapsuleCollider {
     friction: number;
     restitution: number;
     isSensor: boolean;
+    enabled: boolean;
 }
 interface LocalTransform {
     position: Vec3;
@@ -173,6 +179,7 @@ interface SpineAnimation {
     layer: number;
     skeletonScale: number;
     material: number;
+    enabled: boolean;
 }
 interface RigidBody {
     bodyType: number;
@@ -191,6 +198,7 @@ interface BitmapText {
     spacing: number;
     layer: number;
     font: number;
+    enabled: boolean;
 }
 interface Sprite {
     texture: number;
@@ -202,6 +210,7 @@ interface Sprite {
     flipX: boolean;
     flipY: boolean;
     material: number;
+    enabled: boolean;
 }
 interface Parent {
     entity: number;

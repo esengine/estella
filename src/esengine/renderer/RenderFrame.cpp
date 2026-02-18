@@ -405,6 +405,7 @@ void RenderFrame::submitSprites(ecs::Registry& registry) {
 
     for (auto entity : spriteView) {
         const auto& sprite = spriteView.get<ecs::Sprite>(entity);
+        if (!sprite.enabled) continue;
 
         glm::vec3 position;
         glm::quat rotation;
@@ -502,6 +503,7 @@ void RenderFrame::submitBitmapText(ecs::Registry& registry) {
 
     for (auto entity : textView) {
         const auto& bt = textView.get<ecs::BitmapText>(entity);
+        if (!bt.enabled) continue;
         if (bt.text.empty() || !bt.font.isValid()) {
             continue;
         }
@@ -581,6 +583,7 @@ void RenderFrame::submitSpine(ecs::Registry& registry, spine::SpineSystem& spine
 
     for (auto entity : view) {
         auto& comp = registry.get<ecs::SpineAnimation>(entity);
+        if (!comp.enabled) continue;
         auto* instance = spine_system.getInstance(entity);
 
         if (!instance || !instance->skeleton) continue;

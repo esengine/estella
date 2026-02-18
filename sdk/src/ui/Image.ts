@@ -37,6 +37,7 @@ export interface ImageData {
     preserveAspect: boolean;
     layer: number;
     material: number;
+    enabled: boolean;
 }
 
 export const Image = defineComponent<ImageData>('Image', {
@@ -49,4 +50,5 @@ export const Image = defineComponent<ImageData>('Image', {
     preserveAspect: false,
     layer: 0,
     material: 0,
+    enabled: true,
 });

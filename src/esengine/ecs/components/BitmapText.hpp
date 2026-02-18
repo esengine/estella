@@ -38,6 +38,9 @@ struct BitmapText {
 
     ES_PROPERTY()
     resource::BitmapFontHandle font;
+
+    ES_PROPERTY()
+    bool enabled{true};
 };
 
 }  // namespace esengine::ecs

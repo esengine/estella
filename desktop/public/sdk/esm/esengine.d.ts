@@ -88,6 +88,7 @@ interface BoxColliderData {
     friction: number;
     restitution: number;
     isSensor: boolean;
+    enabled: boolean;
 }
 interface CircleColliderData {
     radius: number;
@@ -96,6 +97,7 @@ interface CircleColliderData {
     friction: number;
     restitution: number;
     isSensor: boolean;
+    enabled: boolean;
 }
 interface CapsuleColliderData {
     radius: number;
@@ -105,6 +107,7 @@ interface CapsuleColliderData {
     friction: number;
     restitution: number;
     isSensor: boolean;
+    enabled: boolean;
 }
 declare const RigidBody$1: BuiltinComponentDef<RigidBodyData>;
 declare const BoxCollider$1: BuiltinComponentDef<BoxColliderData>;
@@ -185,6 +188,7 @@ interface SpriteData {
     flipX: boolean;
     flipY: boolean;
     material: number;
+    enabled: boolean;
 }
 interface CameraData {
     projectionType: number;
@@ -233,6 +237,7 @@ interface SpineAnimationData {
     layer: number;
     skeletonScale: number;
     material: number;
+    enabled: boolean;
 }
 interface BitmapTextData {
     text: string;
@@ -242,6 +247,7 @@ interface BitmapTextData {
     spacing: number;
     layer: number;
     font: number;
+    enabled: boolean;
 }
 interface NameData {
     value: string;
@@ -330,6 +336,7 @@ interface BoxCollider {
     friction: number;
     restitution: number;
     isSensor: boolean;
+    enabled: boolean;
 }
 interface CircleCollider {
     radius: number;
@@ -338,6 +345,7 @@ interface CircleCollider {
     friction: number;
     restitution: number;
     isSensor: boolean;
+    enabled: boolean;
 }
 interface CapsuleCollider {
     radius: number;
@@ -347,6 +355,7 @@ interface CapsuleCollider {
     friction: number;
     restitution: number;
     isSensor: boolean;
+    enabled: boolean;
 }
 interface LocalTransform {
     position: Vec3;
@@ -376,6 +385,7 @@ interface SpineAnimation {
     layer: number;
     skeletonScale: number;
     material: number;
+    enabled: boolean;
 }
 interface RigidBody {
     bodyType: number;
@@ -394,6 +404,7 @@ interface BitmapText {
     spacing: number;
     layer: number;
     font: number;
+    enabled: boolean;
 }
 interface Sprite {
     texture: number;
@@ -405,6 +416,7 @@ interface Sprite {
     flipX: boolean;
     flipY: boolean;
     material: number;
+    enabled: boolean;
 }
 interface Parent {
     entity: number;
@@ -1848,6 +1860,7 @@ interface ButtonTransition {
 interface ButtonData {
     state: ButtonState;
     transition: ButtonTransition | null;
+    enabled: boolean;
 }
 declare const Button: ComponentDef<ButtonData>;
 
@@ -1980,6 +1993,7 @@ interface ImageData {
     preserveAspect: boolean;
     layer: number;
     material: number;
+    enabled: boolean;
 }
 declare const Image: ComponentDef<ImageData>;
 
@@ -1993,6 +2007,7 @@ interface ToggleData {
     isOn: boolean;
     graphicEntity: Entity;
     transition: ToggleTransition | null;
+    enabled: boolean;
 }
 declare const Toggle: ComponentDef<ToggleData>;
 
@@ -2076,6 +2091,7 @@ interface SliderData {
     fillEntity: number;
     handleEntity: number;
     wholeNumbers: boolean;
+    enabled: boolean;
 }
 declare const Slider: ComponentDef<SliderData>;
 

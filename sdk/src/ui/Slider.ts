@@ -15,6 +15,7 @@ export interface SliderData {
     fillEntity: number;
     handleEntity: number;
     wholeNumbers: boolean;
+    enabled: boolean;
 }
 
 export const Slider = defineComponent<SliderData>('Slider', {
@@ -25,4 +26,5 @@ export const Slider = defineComponent<SliderData>('Slider', {
     fillEntity: 0,
     handleEntity: 0,
     wholeNumbers: false,
+    enabled: true,
 });

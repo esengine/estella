@@ -98,6 +98,9 @@ struct SpineAnimation {
     ES_PROPERTY()
     u32 material{0};
 
+    ES_PROPERTY()
+    bool enabled{true};
+
     /** @brief Handle to cached skeleton data (runtime, not serialized) */
     resource::SpineDataHandle skeletonData;
 
