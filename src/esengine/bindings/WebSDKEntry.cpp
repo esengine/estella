@@ -119,6 +119,7 @@ bool getMaterialDataWithUniforms(u32 materialId, u32& shaderId, u32& blendMode,
             u32 nameLen = *reinterpret_cast<const u32*>(ptr);
             ptr += 4;
 
+            if (nameLen > 256) break;
             usize alignedNameLen = ((nameLen + 3) / 4) * 4;
             if (ptr + alignedNameLen > bufferEnd) break;
 

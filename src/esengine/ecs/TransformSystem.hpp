@@ -70,11 +70,9 @@ public:
 
 private:
     void updateDirtyTransforms(Registry& registry) {
-        registry.each<LocalTransform>([&registry](Entity entity, LocalTransform&) {
-            registry.getOrEmplace<WorldTransform>(entity);
-        });
-
         registry.each<LocalTransform>([&registry, this](Entity entity, LocalTransform& local) {
+            registry.getOrEmplace<WorldTransform>(entity);
+
             if (!registry.has<Parent>(entity)) {
                 bool isStatic = registry.has<TransformStatic>(entity);
                 bool isDirty = registry.has<TransformDirty>(entity);
