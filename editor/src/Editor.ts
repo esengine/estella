@@ -75,6 +75,8 @@ import { ContentDrawer } from './ui/ContentDrawer';
 import {
     lockBuiltinPanels, clearExtensionPanels,
 } from './panels/PanelRegistry';
+import { MainWindowBridge } from './multiwindow/MainWindowBridge';
+import { WindowManager } from './multiwindow/WindowManager';
 
 export interface EditorOptions {
     projectPath?: string;
@@ -105,6 +107,8 @@ export class Editor {
     private previewUrl_: string | null = null;
     private escapeHandler_: ((e: KeyboardEvent) => void) | null = null;
     private settingsDebounceTimer_: ReturnType<typeof setTimeout> | null = null;
+    private mainWindowBridge_: MainWindowBridge | null = null;
+    private windowManager_: WindowManager | null = null;
 
     constructor(container: HTMLElement, options?: EditorOptions) {
         this.container_ = container;
@@ -153,6 +157,8 @@ export class Editor {
         this.menuManager_.instantiateStatusbar(this.container_);
         this.menuManager_.setupMenuShortcuts();
         this.menuManager_.attach();
+
+        this.initMultiWindow();
 
         if (this.projectPath_) {
             this.setupEditorGlobals();
@@ -484,6 +490,11 @@ export class Editor {
     }
 
     showAddressableWindow(): void {
+        if (this.windowManager_) {
+            this.windowManager_.detachPanel('addressable', 'Addressable Groups');
+            return;
+        }
+
         if (this.addressableWindow_) {
             this.addressableWindow_.element.style.zIndex = '1001';
             return;
@@ -676,7 +687,7 @@ export class Editor {
                 const msg = errors.map(e => `${e.file}:${e.line} - ${e.message}`).join('\n');
                 showErrorToast('Script compile failed', msg);
                 for (const e of errors) {
-                    this.panelManager_.appendOutput(`${e.file}:${e.line}:${e.column} - ${e.message}`, 'error');
+                    this.appendOutput(`${e.file}:${e.line}:${e.column} - ${e.message}`, 'error');
                 }
             },
             onCompileSuccess: () => {
@@ -887,13 +898,13 @@ export class Editor {
 
     private async executeShellCommand(fullCommand: string): Promise<void> {
         if (!this.projectPath_) {
-            this.panelManager_.appendOutput('Error: No project loaded\n', 'error');
+            this.appendOutput('Error: No project loaded\n', 'error');
             return;
         }
 
         const shell = getEditorContext().shell;
         if (!shell) {
-            this.panelManager_.appendOutput('Error: Shell not available\n', 'error');
+            this.appendOutput('Error: Shell not available\n', 'error');
             return;
         }
 
@@ -905,20 +916,20 @@ export class Editor {
         const cmd = parts[0];
         const args = parts.slice(1);
 
-        this.panelManager_.appendOutput(`> ${fullCommand}\n`, 'command');
+        this.appendOutput(`> ${fullCommand}\n`, 'command');
 
         try {
             const result = await shell.execute(cmd, args, projectDir, (stream: string, data: string) => {
-                this.panelManager_.appendOutput(data + '\n', stream === 'stderr' ? 'stderr' : 'stdout');
+                this.appendOutput(data + '\n', stream === 'stderr' ? 'stderr' : 'stdout');
             });
 
             if (result.code !== 0) {
-                this.panelManager_.appendOutput(`Process exited with code ${result.code}\n`, 'error');
+                this.appendOutput(`Process exited with code ${result.code}\n`, 'error');
             } else {
-                this.panelManager_.appendOutput(`Done.\n`, 'success');
+                this.appendOutput(`Done.\n`, 'success');
             }
         } catch (err) {
-            this.panelManager_.appendOutput(`Error: ${err}\n`, 'error');
+            this.appendOutput(`Error: ${err}\n`, 'error');
         }
     }
 
@@ -965,7 +976,7 @@ export class Editor {
             if (stack) {
                 text += '\n' + stack;
             }
-            this.panelManager_.appendOutput(text + '\n', type);
+            this.appendOutput(text + '\n', type);
         };
 
         console.log = (...args) => { original.log(...args); forward('stdout', args); };
@@ -1111,6 +1122,33 @@ export class Editor {
         document.addEventListener('keydown', this.escapeHandler_);
     }
 
+    get windowManager(): WindowManager | null {
+        return this.windowManager_;
+    }
+
+    appendOutput(text: string, type: 'command' | 'stdout' | 'stderr' | 'error' | 'success'): void {
+        this.panelManager_.appendOutput(text, type);
+        this.mainWindowBridge_?.broadcastOutput(text, type);
+    }
+
+    private initMultiWindow(): void {
+        if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+            this.mainWindowBridge_ = new MainWindowBridge(this.store_);
+            this.mainWindowBridge_.start();
+            this.windowManager_ = new WindowManager();
+            this.windowManager_.setProjectPath(this.projectPath_);
+
+            if (this.dockLayout_) {
+                const bridge = this.mainWindowBridge_;
+                this.dockLayout_.setDetachContext({
+                    handler: this.windowManager_,
+                    getPreviewUrl: () => this.startPreviewServer(),
+                    onPanelClosed: (cb) => bridge.onPanelClosed(cb),
+                });
+            }
+        }
+    }
+
     dispose(): void {
         if (this.addressableWindow_) {
             this.addressableWindow_.panel.dispose();
@@ -1122,6 +1160,8 @@ export class Editor {
             document.removeEventListener('keydown', this.escapeHandler_);
             this.escapeHandler_ = null;
         }
+        this.windowManager_?.closeAll();
+        this.mainWindowBridge_?.dispose();
         this.contentDrawer_?.dispose();
         this.menuManager_.dispose();
         this.scriptLoader_?.dispose();

@@ -10,8 +10,22 @@ import type { EditorStore } from './store/EditorStore';
 import { getPanel, type PanelDescriptor } from './panels/PanelRegistry';
 import type { PanelManager } from './PanelManager';
 import { showErrorToast } from './ui/Toast';
+import { showContextMenu } from './ui/ContextMenu';
 
 const LAYOUT_STORAGE_KEY = 'esengine.editor.layout';
+const NON_DETACHABLE_PANELS = new Set(['scene']);
+
+export interface DetachPanelHandler {
+    detachPanel(panelId: string, title: string): Promise<void>;
+    detachGameView(previewUrl: string): Promise<void>;
+    isDetached(panelId: string): boolean;
+}
+
+export interface DetachContext {
+    handler: DetachPanelHandler;
+    getPreviewUrl: () => Promise<string | null>;
+    onPanelClosed: (callback: (panelId: string) => void) => (() => void);
+}
 
 class EditorPanelRenderer implements IContentRenderer {
     private readonly element_: HTMLElement;
@@ -52,10 +66,18 @@ export class DockLayoutManager {
     private activePanelDisposable_: { dispose(): void } | null = null;
     private saveTimer_: ReturnType<typeof setTimeout> | null = null;
     private lastActivePanelId_: string | null = null;
+    private detachContext_: DetachContext | null = null;
+    private contextMenuHandler_: ((e: MouseEvent) => void) | null = null;
+    private panelClosedUnlisten_: (() => void) | null = null;
 
     constructor(panelManager: PanelManager, store: EditorStore) {
         this.panelManager_ = panelManager;
         this.store_ = store;
+    }
+
+    setDetachContext(context: DetachContext): void {
+        this.detachContext_ = context;
+        this.listenPanelClosed();
     }
 
     get api(): DockviewApi | null {
@@ -74,6 +96,8 @@ export class DockLayoutManager {
             },
             disableFloatingGroups: true,
         });
+
+        this.setupTabContextMenu(container);
 
         this.activePanelDisposable_ = this.api_.onDidActivePanelChange((panel) => {
             const newId = panel?.id ?? null;
@@ -238,11 +262,78 @@ export class DockLayoutManager {
         }
     }
 
+    private setupTabContextMenu(container: HTMLElement): void {
+        this.contextMenuHandler_ = (e: MouseEvent) => {
+            if (!this.detachContext_) return;
+
+            const target = e.target as HTMLElement;
+            const tab = target.closest('.dv-tab') as HTMLElement | null;
+            if (!tab) return;
+
+            const panelId = this.resolvePanelIdFromTab(tab);
+            if (!panelId || NON_DETACHABLE_PANELS.has(panelId)) return;
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            const isGame = panelId === 'game';
+            const items = [{
+                label: 'Open in New Window',
+                onClick: () => this.handleDetachPanel(panelId, isGame),
+            }];
+
+            showContextMenu({ items, x: e.clientX, y: e.clientY });
+        };
+
+        container.addEventListener('contextmenu', this.contextMenuHandler_);
+    }
+
+    private resolvePanelIdFromTab(tab: HTMLElement): string | null {
+        if (!this.api_) return null;
+        const content = tab.querySelector('.dv-default-tab-content');
+        const title = content?.textContent?.trim();
+        if (!title) return null;
+
+        for (const panel of this.api_.panels) {
+            if (panel.title === title) return panel.id;
+        }
+        return null;
+    }
+
+    private async handleDetachPanel(panelId: string, isGame: boolean): Promise<void> {
+        if (!this.detachContext_) return;
+
+        try {
+            if (isGame) {
+                const url = await this.detachContext_.getPreviewUrl();
+                if (!url) return;
+                await this.detachContext_.handler.detachGameView(url);
+            } else {
+                const desc = getPanel(panelId);
+                const title = desc?.title ?? panelId;
+                await this.detachContext_.handler.detachPanel(panelId, title);
+            }
+            this.removePanel(panelId);
+            this.panelManager_.removePanelInstance(panelId);
+        } catch (err) {
+            console.error(`Failed to detach panel "${panelId}":`, err);
+        }
+    }
+
+    private listenPanelClosed(): void {
+        if (!this.detachContext_) return;
+        this.panelClosedUnlisten_ = this.detachContext_.onPanelClosed((panelId) => {
+            this.showPanel(panelId);
+        });
+    }
+
     dispose(): void {
         if (this.saveTimer_) {
             clearTimeout(this.saveTimer_);
             this.saveTimer_ = null;
         }
+        this.panelClosedUnlisten_?.();
+        this.panelClosedUnlisten_ = null;
         this.activePanelDisposable_?.dispose();
         this.activePanelDisposable_ = null;
         this.layoutChangeDisposable_?.dispose();
