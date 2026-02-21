@@ -1,4 +1,5 @@
 import type { App, Plugin } from '../app';
+import { isWeChat } from '../platform';
 import { registerComponent } from '../component';
 import { Res } from '../resource';
 import { defineSystem, Schedule } from '../system';
@@ -16,11 +17,25 @@ export interface SafeAreaInsets {
     right: number;
 }
 
-function getSafeAreaInsets(): SafeAreaInsets {
-    if (typeof document === 'undefined') {
+function getWeChatSafeAreaInsets(): SafeAreaInsets {
+    const g = globalThis as any;
+    const info = g.wx?.getSystemInfoSync?.();
+    if (!info || !info.safeArea) {
         return { top: 0, bottom: 0, left: 0, right: 0 };
     }
+    const { safeArea, screenWidth, screenHeight } = info;
+    return {
+        top: safeArea.top,
+        bottom: screenHeight - safeArea.bottom,
+        left: safeArea.left,
+        right: screenWidth - safeArea.right,
+    };
+}
 
+function getWebSafeAreaInsets(): SafeAreaInsets {
+    if (typeof document === 'undefined' || typeof getComputedStyle === 'undefined') {
+        return { top: 0, bottom: 0, left: 0, right: 0 };
+    }
     const style = getComputedStyle(document.documentElement);
     return {
         top: parseFloat(style.getPropertyValue('--sat') || '0'),
@@ -28,6 +43,13 @@ function getSafeAreaInsets(): SafeAreaInsets {
         left: parseFloat(style.getPropertyValue('--sal') || '0'),
         right: parseFloat(style.getPropertyValue('--sar') || '0'),
     };
+}
+
+function getSafeAreaInsets(): SafeAreaInsets {
+    if (isWeChat()) {
+        return getWeChatSafeAreaInsets();
+    }
+    return getWebSafeAreaInsets();
 }
 
 export class SafeAreaPlugin implements Plugin {
@@ -40,7 +62,13 @@ export class SafeAreaPlugin implements Plugin {
         let prevScreenH = 0;
         let prevWorldH = 0;
 
-        if (typeof window !== 'undefined') {
+        if (isWeChat()) {
+            const g = globalThis as any;
+            g.wx?.onWindowResize?.(() => {
+                cachedInsets = getSafeAreaInsets();
+                dirty = true;
+            });
+        } else if (typeof window !== 'undefined') {
             window.addEventListener('resize', () => {
                 cachedInsets = getSafeAreaInsets();
                 dirty = true;
@@ -63,17 +91,17 @@ export class SafeAreaPlugin implements Plugin {
                 dirty = false;
 
                 const dpr = typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1;
-                const cssToWorld = dpr * worldH / camera.screenH;
+                const insetScale = isWeChat() ? (worldH / camera.screenH) : (dpr * worldH / camera.screenH);
 
                 const entities = world.getEntitiesWithComponents([SafeArea, UIRect]);
                 for (const entity of entities) {
                     const sa = world.get(entity, SafeArea) as SafeAreaData;
                     const rect = world.get(entity, UIRect) as UIRectData;
 
-                    const top = sa.applyTop ? cachedInsets.top * cssToWorld : 0;
-                    const bottom = sa.applyBottom ? cachedInsets.bottom * cssToWorld : 0;
-                    const left = sa.applyLeft ? cachedInsets.left * cssToWorld : 0;
-                    const right = sa.applyRight ? cachedInsets.right * cssToWorld : 0;
+                    const top = sa.applyTop ? cachedInsets.top * insetScale : 0;
+                    const bottom = sa.applyBottom ? cachedInsets.bottom * insetScale : 0;
+                    const left = sa.applyLeft ? cachedInsets.left * insetScale : 0;
+                    const right = sa.applyRight ? cachedInsets.right * insetScale : 0;
 
                     let changed = false;
                     if (rect.offsetMin.x !== left || rect.offsetMin.y !== bottom) {
