@@ -693,6 +693,7 @@ interface Plugin {
     name?: string;
     dependencies?: ResourceDef<any>[];
     build(app: App): void;
+    cleanup?(): void;
 }
 declare class App {
     private readonly world_;
