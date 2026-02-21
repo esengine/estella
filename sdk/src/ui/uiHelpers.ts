@@ -97,6 +97,12 @@ export function applyDirectionalFill(
     fillRect.anchorMax = anchors.anchorMax;
     fillRect.offsetMin = anchors.offsetMin;
     fillRect.offsetMax = anchors.offsetMax;
+    if (anchors.anchorMin.x === anchors.anchorMax.x) {
+        fillRect.size = { ...fillRect.size, x: 0 };
+    }
+    if (anchors.anchorMin.y === anchors.anchorMax.y) {
+        fillRect.size = { ...fillRect.size, y: 0 };
+    }
     world.insert(fillEntity, UIRect, fillRect);
 }
 
