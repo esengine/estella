@@ -7,6 +7,8 @@ import type { EditorStore, PropertyChangeEvent, HierarchyChangeEvent, Visibility
 import type { EditorSceneManager } from '../scene/EditorSceneManager';
 import { getAssetEventBus, type AssetEvent } from '../events/AssetEventBus';
 import { getDependencyGraph } from '../asset/AssetDependencyGraph';
+import { ButtonState, FillDirection } from 'esengine';
+import { computeFillAnchors, computeHandleAnchors, computeFillSize } from '../scene/uiLayoutUtils';
 
 export class RuntimeSyncService {
     private unsubscribes_: (() => void)[] = [];
@@ -117,6 +119,14 @@ export class RuntimeSyncService {
         if (event.componentType === 'Button') {
             this.syncButtonTransitionColor(event.entity);
         }
+
+        if (event.componentType === 'Slider') {
+            this.syncSliderChildren(event.entity);
+        }
+
+        if (event.componentType === 'ProgressBar') {
+            this.syncProgressBarChildren(event.entity);
+        }
     }
 
     private syncCanvasToCamera(canvasEntityId: number): void {
@@ -157,17 +167,86 @@ export class RuntimeSyncService {
         const spriteComp = entityData.components.find(c => c.type === 'Sprite');
         if (!spriteComp) return;
 
-        const state = (buttonComp.data.state as number) ?? 0;
-        const colorMap = [
-            transition.normalColor,
-            transition.hoveredColor,
-            transition.pressedColor,
-            transition.disabledColor,
-        ];
+        const state = (buttonComp.data.state as number) ?? ButtonState.Normal;
+        const colorMap: Record<number, { r: number; g: number; b: number; a: number }> = {
+            [ButtonState.Normal]: transition.normalColor,
+            [ButtonState.Hovered]: transition.hoveredColor,
+            [ButtonState.Pressed]: transition.pressedColor,
+            [ButtonState.Disabled]: transition.disabledColor,
+        };
         const color = colorMap[state] ?? transition.normalColor;
 
         this.store_.updatePropertyDirect(entityId, 'Sprite', 'color', { ...color });
         this.scheduleEntityUpdate(entityId);
+    }
+
+    private syncSliderChildren(entityId: number): void {
+        const entityData = this.store_.getEntityData(entityId);
+        if (!entityData) return;
+
+        const sliderComp = entityData.components.find(c => c.type === 'Slider');
+        if (!sliderComp) return;
+
+        const value = sliderComp.data.value as number ?? 0;
+        const minValue = sliderComp.data.minValue as number ?? 0;
+        const maxValue = sliderComp.data.maxValue as number ?? 1;
+        const direction = sliderComp.data.direction as number ?? FillDirection.LeftToRight;
+        const fillEntity = sliderComp.data.fillEntity as number ?? 0;
+        const handleEntity = sliderComp.data.handleEntity as number ?? 0;
+
+        const range = maxValue - minValue;
+        const normalizedValue = range > 0 ? (value - minValue) / range : 0;
+
+        const uiRectComp = entityData.components.find(c => c.type === 'UIRect');
+        const sliderW = (uiRectComp?.data?.size as { x: number; y: number })?.x ?? 0;
+        const sliderH = (uiRectComp?.data?.size as { x: number; y: number })?.y ?? 0;
+
+        if (fillEntity !== 0) {
+            const fillAnchors = computeFillAnchors(direction, normalizedValue);
+            this.store_.updatePropertyDirect(fillEntity, 'UIRect', 'anchorMin', fillAnchors.anchorMin);
+            this.store_.updatePropertyDirect(fillEntity, 'UIRect', 'anchorMax', fillAnchors.anchorMax);
+            this.store_.updatePropertyDirect(fillEntity, 'UIRect', 'offsetMin', fillAnchors.offsetMin);
+            this.store_.updatePropertyDirect(fillEntity, 'UIRect', 'offsetMax', fillAnchors.offsetMax);
+            this.store_.updatePropertyDirect(fillEntity, 'UIRect', 'size',
+                computeFillSize(direction, normalizedValue, sliderW, sliderH));
+            this.scheduleEntityUpdate(fillEntity);
+        }
+
+        if (handleEntity !== 0) {
+            const handleAnchors = computeHandleAnchors(direction, normalizedValue);
+            this.store_.updatePropertyDirect(handleEntity, 'UIRect', 'anchorMin', handleAnchors.anchorMin);
+            this.store_.updatePropertyDirect(handleEntity, 'UIRect', 'anchorMax', handleAnchors.anchorMax);
+            this.store_.updatePropertyDirect(handleEntity, 'UIRect', 'offsetMin', { x: 0, y: 0 });
+            this.store_.updatePropertyDirect(handleEntity, 'UIRect', 'offsetMax', { x: 0, y: 0 });
+            this.scheduleEntityUpdate(handleEntity);
+        }
+    }
+
+    private syncProgressBarChildren(entityId: number): void {
+        const entityData = this.store_.getEntityData(entityId);
+        if (!entityData) return;
+
+        const barComp = entityData.components.find(c => c.type === 'ProgressBar');
+        if (!barComp) return;
+
+        const value = Math.max(0, Math.min(1, barComp.data.value as number ?? 0));
+        const direction = barComp.data.direction as number ?? FillDirection.LeftToRight;
+        const fillEntity = barComp.data.fillEntity as number ?? 0;
+
+        const uiRectComp = entityData.components.find(c => c.type === 'UIRect');
+        const barW = (uiRectComp?.data?.size as { x: number; y: number })?.x ?? 0;
+        const barH = (uiRectComp?.data?.size as { x: number; y: number })?.y ?? 0;
+
+        if (fillEntity !== 0) {
+            const fillAnchors = computeFillAnchors(direction, value);
+            this.store_.updatePropertyDirect(fillEntity, 'UIRect', 'anchorMin', fillAnchors.anchorMin);
+            this.store_.updatePropertyDirect(fillEntity, 'UIRect', 'anchorMax', fillAnchors.anchorMax);
+            this.store_.updatePropertyDirect(fillEntity, 'UIRect', 'offsetMin', fillAnchors.offsetMin);
+            this.store_.updatePropertyDirect(fillEntity, 'UIRect', 'offsetMax', fillAnchors.offsetMax);
+            this.store_.updatePropertyDirect(fillEntity, 'UIRect', 'size',
+                computeFillSize(direction, value, barW, barH));
+            this.scheduleEntityUpdate(fillEntity);
+        }
     }
 
     private onHierarchyChange(event: HierarchyChangeEvent): void {

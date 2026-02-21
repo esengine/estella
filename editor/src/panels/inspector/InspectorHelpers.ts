@@ -122,37 +122,29 @@ export function getAssetServer(): EditorAssetServer | null {
     return editor?.assetServer ?? null;
 }
 
+const COMPONENT_ICON_MAP = new Map<string, (size: number) => string>([
+    ['LocalTransform', icons.move],
+    ['WorldTransform', icons.move],
+    ['Sprite', icons.image],
+    ['NinePatch', icons.image],
+    ['Camera', icons.camera],
+    ['Text', icons.type],
+    ['TextInput', icons.type],
+    ['RigidBody', icons.zap],
+    ['BoxCollider', icons.zap],
+    ['CircleCollider', icons.zap],
+    ['CapsuleCollider', icons.zap],
+    ['SpineAnimation', icons.film],
+    ['Button', icons.scan],
+    ['Canvas', icons.scan],
+    ['UIRect', icons.scan],
+    ['LayoutGroup', icons.layoutGrid],
+    ['UIMask', icons.shield],
+]);
+
 export function getComponentIcon(type: string): string {
-    switch (type) {
-        case 'LocalTransform':
-        case 'WorldTransform':
-            return icons.move(14);
-        case 'Sprite':
-        case 'NinePatch':
-            return icons.image(14);
-        case 'Camera':
-            return icons.camera(14);
-        case 'Text':
-        case 'TextInput':
-            return icons.type(14);
-        case 'RigidBody':
-        case 'BoxCollider':
-        case 'CircleCollider':
-        case 'CapsuleCollider':
-            return icons.zap(14);
-        case 'SpineAnimation':
-            return icons.film(14);
-        case 'Button':
-        case 'Canvas':
-        case 'UIRect':
-            return icons.scan(14);
-        case 'LayoutGroup':
-            return icons.layoutGrid(14);
-        case 'UIMask':
-            return icons.shield(14);
-        default:
-            return icons.settings(14);
-    }
+    const iconFn = COMPONENT_ICON_MAP.get(type);
+    return iconFn ? iconFn(14) : icons.settings(14);
 }
 
 export function renderError(container: HTMLElement, message: string): void {

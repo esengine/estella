@@ -72,6 +72,11 @@ export interface ComponentChangeEvent {
 
 export type ComponentChangeListener = (event: ComponentChangeEvent) => void;
 
+const DERIVED_PROPERTY_MAP: Array<{ source: [string, string]; target: [string, string] }> = [
+    { source: ['UIRect', 'size'], target: ['Sprite', 'size'] },
+    { source: ['TextInput', 'backgroundColor'], target: ['Sprite', 'color'] },
+];
+
 // =============================================================================
 // EditorStore
 // =============================================================================
@@ -578,19 +583,13 @@ export class EditorStore {
     }
 
     notifyPropertyChange(event: PropertyChangeEvent): void {
-        if (event.componentType === 'TextInput' && event.propertyName === 'backgroundColor') {
-            const entityData = this.entityMap_.get(event.entity);
-            const spriteComp = entityData?.components.find(c => c.type === 'Sprite');
-            if (spriteComp) {
-                spriteComp.data.color = event.newValue;
-            }
-        }
-
-        if (event.componentType === 'UIRect' && event.propertyName === 'size') {
-            const entityData = this.entityMap_.get(event.entity);
-            const spriteComp = entityData?.components.find(c => c.type === 'Sprite');
-            if (spriteComp) {
-                spriteComp.data.size = event.newValue;
+        for (const rule of DERIVED_PROPERTY_MAP) {
+            if (event.componentType === rule.source[0] && event.propertyName === rule.source[1]) {
+                const entityData = this.entityMap_.get(event.entity);
+                const targetComp = entityData?.components.find(c => c.type === rule.target[0]);
+                if (targetComp) {
+                    targetComp.data[rule.target[1]] = event.newValue;
+                }
             }
         }
 
@@ -601,14 +600,12 @@ export class EditorStore {
 
     private syncDerivedProperties(): void {
         for (const entityData of this.entityMap_.values()) {
-            const uiRect = entityData.components.find(c => c.type === 'UIRect');
-            const sprite = entityData.components.find(c => c.type === 'Sprite');
-            if (uiRect && sprite) {
-                sprite.data.size = uiRect.data.size;
-            }
-            const textInput = entityData.components.find(c => c.type === 'TextInput');
-            if (textInput && sprite) {
-                sprite.data.color = textInput.data.backgroundColor;
+            for (const rule of DERIVED_PROPERTY_MAP) {
+                const sourceComp = entityData.components.find(c => c.type === rule.source[0]);
+                const targetComp = entityData.components.find(c => c.type === rule.target[0]);
+                if (sourceComp && targetComp) {
+                    targetComp.data[rule.target[1]] = sourceComp.data[rule.source[1]];
+                }
             }
         }
     }

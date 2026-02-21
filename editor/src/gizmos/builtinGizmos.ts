@@ -8,6 +8,9 @@ const GIZMO_COLORS = {
     y: '#2ecc71',
     xy: '#f1c40f',
     hover: '#ffffff',
+    selection: '#00aaff',
+    handleStroke: '#000',
+    refLine: 'rgba(100, 100, 100, 0.5)',
 };
 
 const GIZMO_SIZE = 80;
@@ -292,7 +295,7 @@ export function createRotateGizmo(): GizmoDescriptor {
             const euler = quatToEuler(quat);
             const angleRad = -euler.z * Math.PI / 180;
 
-            ctx.strokeStyle = 'rgba(100, 100, 100, 0.5)';
+            ctx.strokeStyle = GIZMO_COLORS.refLine;
             ctx.lineWidth = lineWidth;
             ctx.beginPath();
             ctx.moveTo(0, 0);
@@ -305,14 +308,14 @@ export function createRotateGizmo(): GizmoDescriptor {
             ctx.arc(0, 0, radius, 0, Math.PI * 2);
             ctx.stroke();
 
-            ctx.strokeStyle = '#00aaff';
+            ctx.strokeStyle = GIZMO_COLORS.selection;
             ctx.lineWidth = lineWidth * 2;
             ctx.beginPath();
             ctx.moveTo(0, 0);
             ctx.lineTo(Math.cos(angleRad) * radius, Math.sin(angleRad) * radius);
             ctx.stroke();
 
-            ctx.fillStyle = '#00aaff';
+            ctx.fillStyle = GIZMO_COLORS.selection;
             ctx.beginPath();
             ctx.arc(Math.cos(angleRad) * radius, Math.sin(angleRad) * radius, handleSize, 0, Math.PI * 2);
             ctx.fill();
@@ -658,7 +661,7 @@ export function createRectGizmo(): GizmoDescriptor {
                 ctx.fillStyle = isHovered ? GIZMO_COLORS.hover : (isCorner ? GIZMO_COLORS.xy : GIZMO_COLORS.x);
                 ctx.fillRect(handle.x - handleSize, handle.y - handleSize, handleSize * 2, handleSize * 2);
 
-                ctx.strokeStyle = '#000';
+                ctx.strokeStyle = GIZMO_COLORS.handleStroke;
                 ctx.lineWidth = 1 / zoom;
                 ctx.strokeRect(handle.x - handleSize, handle.y - handleSize, handleSize * 2, handleSize * 2);
             }

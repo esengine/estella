@@ -3,7 +3,7 @@
  * @brief   Math utilities for transform calculations
  */
 
-import { computeUIRectLayout, type LayoutRect } from 'esengine';
+import { computeUIRectLayout, DEFAULT_SPRITE_SIZE, type LayoutRect } from 'esengine';
 
 // =============================================================================
 // Types
@@ -209,7 +209,7 @@ const DEFAULT_UIRECT: UIRectLike = {
     anchorMax: { x: 0.5, y: 0.5 },
     offsetMin: { x: 0, y: 0 },
     offsetMax: { x: 0, y: 0 },
-    size: { x: 100, y: 100 },
+    size: { ...DEFAULT_SPRITE_SIZE },
     pivot: { x: 0.5, y: 0.5 },
 };
 
@@ -252,7 +252,7 @@ export function getEntitySize(entity: EntityDataLike): { x: number; y: number } 
         return sprite.data.size as { x: number; y: number };
     }
 
-    return { x: 100, y: 100 };
+    return { ...DEFAULT_SPRITE_SIZE };
 }
 
 // =============================================================================
@@ -346,16 +346,16 @@ function computeScreenSpaceTransform(
 
         const isRoot = i === 0;
         if (isRoot) {
-            resultX = layout.centerX;
-            resultY = layout.centerY;
+            resultX = layout.originX;
+            resultY = layout.originY;
         } else {
-            resultX = layout.centerX - parentCenterX;
-            resultY = layout.centerY - parentCenterY;
+            resultX = layout.originX - parentCenterX;
+            resultY = layout.originY - parentCenterY;
         }
 
         parentRect = layout.rect;
-        parentCenterX = layout.centerX;
-        parentCenterY = layout.centerY;
+        parentCenterX = layout.originX;
+        parentCenterY = layout.originY;
     }
 
     return {
@@ -398,9 +398,11 @@ export function computeAdjustedLocalTransform(
     entity: EntityDataLike,
     getParentEntity: (id: number) => EntityDataLike | undefined,
     allEntities?: EntityDataLike[],
+    cachedCanvasRect?: LayoutRect | null,
 ): Transform {
-    if (allEntities && isInScreenSpaceHierarchy(entity, getParentEntity)) {
-        const canvasRect = findCanvasWorldRect(allEntities);
+    if (isInScreenSpaceHierarchy(entity, getParentEntity)) {
+        const canvasRect = cachedCanvasRect
+            ?? (allEntities ? findCanvasWorldRect(allEntities) : null);
         if (canvasRect) {
             return computeScreenSpaceTransform(entity, getParentEntity, canvasRect);
         }

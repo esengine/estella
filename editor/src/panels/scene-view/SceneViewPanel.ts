@@ -1,5 +1,5 @@
 import type { Entity, App } from 'esengine';
-import { Renderer, computeUIRectLayout } from 'esengine';
+import { Renderer, computeUIRectLayout, DEFAULT_SPRITE_SIZE } from 'esengine';
 import type { SpineModuleController } from 'esengine/spine';
 import type { EditorStore } from '../../store/EditorStore';
 import type { EditorBridge } from '../../bridge/EditorBridge';
@@ -227,7 +227,7 @@ export class SceneViewPanel {
             anchorMin, anchorMax,
             data.offsetMin ?? { x: 0, y: 0 },
             data.offsetMax ?? { x: 0, y: 0 },
-            data.size ?? { x: 100, y: 100 },
+            data.size ?? DEFAULT_SPRITE_SIZE,
             parentRect,
         );
         return { width: Math.abs(layout.width), height: Math.abs(layout.height) };
@@ -1120,8 +1120,8 @@ export class SceneViewPanel {
         const pos = worldTransform.position;
         const scale = worldTransform.scale;
 
-        let w = 50;
-        let h = 50;
+        let w = DEFAULT_SPRITE_SIZE.x / 2;
+        let h = DEFAULT_SPRITE_SIZE.y / 2;
         let color: { r: number; g: number; b: number; a: number } | null = null;
         const hasSprite = !!sprite;
         let textureImg: HTMLImageElement | null = null;

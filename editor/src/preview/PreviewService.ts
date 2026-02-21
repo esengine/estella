@@ -7,6 +7,7 @@ import type { SceneData } from '../types/SceneTypes';
 import type { NativeFS } from '../scripting/types';
 import type { TextureMetadata } from '../types/TextureMetadata';
 import { getMetaFilePath, parseTextureMetadata } from '../types/TextureMetadata';
+import { getComponentAssetFields } from 'esengine';
 import { getEditorContext } from '../context/EditorContext';
 import { getAssetLibrary } from '../asset/AssetLibrary';
 import { getProjectDir } from '../utils/path';
@@ -161,7 +162,8 @@ export class PreviewService {
 
         for (const entity of scene.entities) {
             for (const component of entity.components) {
-                if (component.type !== 'Sprite' && component.type !== 'UIMask') continue;
+                const assetFields = getComponentAssetFields(component.type);
+                if (!assetFields.includes('texture')) continue;
                 const texturePath = component.data.texture as string | undefined;
                 if (!texturePath || processedPaths.has(texturePath)) continue;
                 processedPaths.add(texturePath);

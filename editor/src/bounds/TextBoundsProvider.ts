@@ -3,6 +3,7 @@
  * @brief   Bounds provider for Text component
  */
 
+import { DEFAULT_FONT_SIZE, DEFAULT_FONT_FAMILY, DEFAULT_LINE_HEIGHT } from 'esengine';
 import type { Bounds, BoundsProvider } from './BoundsProvider';
 
 let measureCtx: CanvasRenderingContext2D | null = null;
@@ -19,9 +20,9 @@ export const textBoundsProvider: BoundsProvider = {
         const content = data?.content;
         if (!content) return null;
 
-        const fontSize = data.fontSize ?? 24;
-        const fontFamily = data.fontFamily ?? 'Arial';
-        const lineHeight = data.lineHeight ?? 1.2;
+        const fontSize = data.fontSize ?? DEFAULT_FONT_SIZE;
+        const fontFamily = data.fontFamily ?? DEFAULT_FONT_FAMILY;
+        const lineHeight = data.lineHeight ?? DEFAULT_LINE_HEIGHT;
         const maxWidthLimit = data.maxWidth ?? 0;
 
         const ctx = getContext();

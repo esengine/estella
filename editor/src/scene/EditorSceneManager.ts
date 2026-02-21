@@ -13,12 +13,23 @@ import {
     Renderer,
     INVALID_TEXTURE,
     INVALID_FONT,
+    INVALID_MATERIAL,
     TextRenderer,
     TextAlign,
     TextVerticalAlign,
     TextOverflow,
     UIRect,
     UIMask,
+    FillDirection,
+    applyDirectionalFill,
+    syncFillSpriteSize,
+    computeFillAnchors,
+    computeHandleAnchors,
+    DEFAULT_SPRITE_SIZE,
+    DEFAULT_FONT_FAMILY,
+    DEFAULT_FONT_SIZE,
+    DEFAULT_LINE_HEIGHT,
+    DEFAULT_SPINE_SKIN,
     type SceneComponentData,
     type TextData,
     type BitmapTextData,
@@ -38,8 +49,39 @@ import {
     type Transform,
     getUIRectFromEntity,
     computeAdjustedLocalTransform,
+    findCanvasWorldRect,
     transformToMatrix4x4,
 } from '../math/Transform';
+
+
+const TEXT_RENDER_LAYER = 25;
+
+const BitmapTextAlign = {
+    Left: 0,
+    Center: 1,
+    Right: 2,
+} as const;
+
+const SPRITE_SUPPRESSING_COMPONENTS = new Set(['Text', 'SpineAnimation']);
+
+const EDITOR_IGNORED_COMPONENTS = new Set([
+    'Interactable',
+    'Button',
+    'ScreenSpace',
+    'Slider',
+    'ProgressBar',
+    'Toggle',
+    'ScrollView',
+    'Dropdown',
+    'LayoutGroup',
+    'Image',
+    'Draggable',
+    'Focusable',
+    'SafeArea',
+    'ListView',
+    'Canvas',
+    'Camera',
+]);
 
 // =============================================================================
 // EditorSceneManager
@@ -64,6 +106,7 @@ export class EditorSceneManager {
     private spineCurrentState_ = new Map<number, { animation: string; skin: string; loop: boolean }>();
     private spineReadyListeners_ = new Set<(entityId: number) => void>();
     private updatingEntities_ = new Map<number, Promise<void>>();
+    private cachedCanvasRect_: import('esengine').LayoutRect | null | undefined;
 
     constructor(module: ESEngineModule, pathResolver: AssetPathResolver) {
         this.module_ = module;
@@ -135,41 +178,134 @@ export class EditorSceneManager {
         this.clear();
 
         this.sceneData_ = scene;
+
         for (const entityData of scene.entities) {
             this.entityDataMap_.set(entityData.id, entityData);
+            this.entityMap_.set(entityData.id, this.world_.spawn());
         }
 
-        for (const entityData of scene.entities) {
-            await this.loadEntity(entityData);
-        }
+        this.cachedCanvasRect_ = findCanvasWorldRect(
+            Array.from(this.entityDataMap_.values()),
+        );
 
+        const loadPromises: Promise<void>[] = [];
         for (const entityData of scene.entities) {
             if (entityData.parent !== null) {
-                const entity = this.entityMap_.get(entityData.id);
+                const entity = this.entityMap_.get(entityData.id)!;
                 const parentEntity = this.entityMap_.get(entityData.parent);
-                if (entity !== undefined && parentEntity !== undefined) {
+                if (parentEntity !== undefined) {
                     this.world_.setParent(entity, parentEntity);
+                }
+            }
+            if (entityData.visible !== false) {
+                loadPromises.push(this.loadEntityComponents(entityData));
+            }
+        }
+        await Promise.all(loadPromises);
+
+        this.applyFillStates();
+
+        this.cachedCanvasRect_ = undefined;
+    }
+
+    private applyFillStates(): void {
+        for (const [_, entityData] of this.entityDataMap_) {
+            for (const comp of entityData.components) {
+                if (comp.type === 'Slider') {
+                    this.applySliderFillState(entityData, comp.data);
+                    break;
+                }
+                if (comp.type === 'ProgressBar') {
+                    this.applyProgressBarFillState(entityData, comp.data);
+                    break;
                 }
             }
         }
     }
 
-    private async loadEntity(entityData: EntityData): Promise<void> {
-        let entity = this.entityMap_.get(entityData.id);
-        if (entity !== undefined) {
-            if (this.world_.has(entity, Sprite)) {
-                this.world_.remove(entity, Sprite);
+    private applySliderFillState(entityData: EntityData, data: Record<string, any>): void {
+        const value = data.value as number ?? 0;
+        const minValue = data.minValue as number ?? 0;
+        const maxValue = data.maxValue as number ?? 1;
+        const direction = data.direction as number ?? FillDirection.LeftToRight;
+        const fillEntityId = data.fillEntity as number ?? 0;
+        const handleEntityId = data.handleEntity as number ?? 0;
+
+        const range = maxValue - minValue;
+        const normalizedValue = range > 0 ? (value - minValue) / range : 0;
+
+        const parentSize = this.getEntityUIRectSize(entityData);
+        this.applyFillToWorld(fillEntityId, direction, normalizedValue, parentSize.x, parentSize.y);
+        this.applyHandleToWorld(handleEntityId, direction, normalizedValue);
+    }
+
+    private applyProgressBarFillState(entityData: EntityData, data: Record<string, any>): void {
+        const value = Math.max(0, Math.min(1, data.value as number ?? 0));
+        const direction = data.direction as number ?? FillDirection.LeftToRight;
+        const fillEntityId = data.fillEntity as number ?? 0;
+
+        const parentSize = this.getEntityUIRectSize(entityData);
+        this.applyFillToWorld(fillEntityId, direction, value, parentSize.x, parentSize.y);
+    }
+
+    private getEntityUIRectSize(entityData: EntityData): { x: number; y: number } {
+        const uiRectComp = entityData.components.find(c => c.type === 'UIRect');
+        const size = uiRectComp?.data?.size as { x: number; y: number } | undefined;
+        return { x: size?.x ?? 0, y: size?.y ?? 0 };
+    }
+
+    private applyFillToWorld(
+        fillEntityId: number, direction: number, normalizedValue: number,
+        parentW: number, parentH: number,
+    ): void {
+        if (fillEntityId === 0) return;
+        const fillEntity = this.entityMap_.get(fillEntityId);
+        if (fillEntity === undefined) return;
+        applyDirectionalFill(this.world_, fillEntity, direction, normalizedValue);
+        syncFillSpriteSize(this.world_, fillEntity, direction, normalizedValue, parentW, parentH);
+
+        const fillEntityData = this.entityDataMap_.get(fillEntityId);
+        if (fillEntityData) {
+            const uiRectComp = fillEntityData.components.find(c => c.type === 'UIRect');
+            if (uiRectComp) {
+                const anchors = computeFillAnchors(direction, normalizedValue);
+                uiRectComp.data.anchorMin = anchors.anchorMin;
+                uiRectComp.data.anchorMax = anchors.anchorMax;
+                uiRectComp.data.offsetMin = anchors.offsetMin;
+                uiRectComp.data.offsetMax = anchors.offsetMax;
             }
-            if (this.world_.has(entity, BitmapText)) {
-                this.world_.remove(entity, BitmapText);
-            }
-        } else {
-            entity = this.world_.spawn();
-            this.entityMap_.set(entityData.id, entity);
         }
+        this.syncEntityTransform(fillEntityId);
+    }
 
-        if (entityData.visible === false) return;
+    private applyHandleToWorld(handleEntityId: number, direction: number, normalizedValue: number): void {
+        if (handleEntityId === 0) return;
+        const handleEntity = this.entityMap_.get(handleEntityId);
+        if (handleEntity === undefined) return;
+        if (!this.world_.has(handleEntity, UIRect)) return;
+        const handleRect = this.world_.get(handleEntity, UIRect) as UIRectData;
+        const anchors = computeHandleAnchors(direction, normalizedValue);
+        handleRect.anchorMin = anchors.anchorMin;
+        handleRect.anchorMax = anchors.anchorMax;
+        handleRect.offsetMin = { x: 0, y: 0 };
+        handleRect.offsetMax = { x: 0, y: 0 };
+        this.world_.insert(handleEntity, UIRect, handleRect);
 
+        const handleEntityData = this.entityDataMap_.get(handleEntityId);
+        if (handleEntityData) {
+            const uiRectComp = handleEntityData.components.find(c => c.type === 'UIRect');
+            if (uiRectComp) {
+                uiRectComp.data.anchorMin = anchors.anchorMin;
+                uiRectComp.data.anchorMax = anchors.anchorMax;
+                uiRectComp.data.offsetMin = { x: 0, y: 0 };
+                uiRectComp.data.offsetMax = { x: 0, y: 0 };
+            }
+        }
+        this.syncEntityTransform(handleEntityId);
+    }
+
+    private async loadEntityComponents(entityData: EntityData): Promise<void> {
+        const entity = this.entityMap_.get(entityData.id)!;
         for (const comp of entityData.components) {
             await this.loadComponentWithEditorLogic(entity, comp, entityData.id);
         }
@@ -187,9 +323,10 @@ export class EditorSceneManager {
 
             case 'Sprite': {
                 const entityData = this.entityDataMap_.get(entityId);
-                const hasText = entityData?.components.some(c => c.type === 'Text');
-                const hasSpine = entityData?.components.some(c => c.type === 'SpineAnimation');
-                if (!hasText && !hasSpine) {
+                const suppressed = entityData?.components.some(
+                    c => SPRITE_SUPPRESSING_COMPONENTS.has(c.type)
+                );
+                if (!suppressed) {
                     await this.syncSprite(entity, comp.data, entityId);
                 }
                 break;
@@ -216,13 +353,12 @@ export class EditorSceneManager {
             case 'TextInput':
                 this.syncTextInput(entity, comp.data, entityId);
                 break;
-            case 'Interactable':
-            case 'Button':
-            case 'ScreenSpace':
-                break;
 
             default:
-                loadComponent(this.world_, entity, comp as SceneComponentData);
+                if (!EDITOR_IGNORED_COMPONENTS.has(comp.type)) {
+                    loadComponent(this.world_, entity, comp as SceneComponentData);
+                }
+                break;
         }
     }
 
@@ -356,6 +492,17 @@ export class EditorSceneManager {
             case 'BitmapText':
                 if (this.world_.has(entity, BitmapText)) this.world_.remove(entity, BitmapText);
                 break;
+            case 'UIRect':
+                if (this.world_.has(entity, UIRect)) this.world_.remove(entity, UIRect);
+                break;
+            case 'UIMask':
+                if (this.world_.has(entity, UIMask)) this.world_.remove(entity, UIMask);
+                break;
+            case 'Text':
+            case 'TextInput':
+                this.textRenderer_.release(entity);
+                if (this.world_.has(entity, Sprite)) this.world_.remove(entity, Sprite);
+                break;
             case 'SpineAnimation':
                 this.destroySpineInstance(entityId);
                 break;
@@ -397,11 +544,9 @@ export class EditorSceneManager {
     }
 
     get registry(): CppRegistry {
-        const registry = (this.world_ as any).cppRegistry_;
-        if (!registry) {
-            throw new Error('CppRegistry not connected');
-        }
-        return registry;
+        const reg = this.world_.getCppRegistry();
+        if (!reg) throw new Error('CppRegistry not connected');
+        return reg;
     }
 
     get isBusy(): boolean {
@@ -491,9 +636,9 @@ export class EditorSceneManager {
         const metrics = Renderer.measureBitmapText(bt.font, bt.text, bt.fontSize, bt.spacing);
 
         let offsetX = metrics.width / 2;
-        if (bt.align === 1) {
+        if (bt.align === BitmapTextAlign.Center) {
             offsetX = 0;
-        } else if (bt.align === 2) {
+        } else if (bt.align === BitmapTextAlign.Right) {
             offsetX = -metrics.width / 2;
         }
 
@@ -593,17 +738,16 @@ export class EditorSceneManager {
         }
     }
 
-    private syncTransform(entity: Entity, data: any, entityId: number): void {
-        if (this.world_.has(entity, LocalTransform)) {
-            this.world_.remove(entity, LocalTransform);
-        }
-
+    private syncTransform(entity: Entity, _data: Record<string, unknown> | null, entityId: number): void {
         const entityData = this.entityDataMap_.get(entityId);
         if (!entityData) return;
 
-        const allEntities = Array.from(this.entityDataMap_.values());
+        const canvasRect = this.cachedCanvasRect_ !== undefined
+            ? this.cachedCanvasRect_
+            : findCanvasWorldRect(Array.from(this.entityDataMap_.values()));
+
         const adjustedLocal = computeAdjustedLocalTransform(
-            entityData, (id) => this.entityDataMap_.get(id), allEntities,
+            entityData, (id) => this.entityDataMap_.get(id), undefined, canvasRect,
         );
 
         this.world_.insert(entity, LocalTransform, {
@@ -620,9 +764,9 @@ export class EditorSceneManager {
         return ref;
     }
 
-    private async syncSprite(entity: Entity, data: any, entityId: number): Promise<void> {
+    private async syncSprite(entity: Entity, data: Record<string, any>, entityId: number): Promise<void> {
         let textureHandle = INVALID_TEXTURE as number;
-        let materialHandle = 0;
+        let materialHandle = INVALID_MATERIAL as number;
 
         getDependencyGraph().clearEntity(entityId);
         this.assetServer_.releaseMaterialInstance(entityId);
@@ -661,7 +805,7 @@ export class EditorSceneManager {
             this.world_.remove(entity, Sprite);
         }
 
-        let spriteSize = data.size ?? { x: 100, y: 100 };
+        let spriteSize = data.size ?? DEFAULT_SPRITE_SIZE;
         const entityData = this.entityDataMap_.get(entityId);
         const uiRect = entityData?.components.find(c => c.type === 'UIRect');
         if (uiRect?.data?.size) {
@@ -682,20 +826,20 @@ export class EditorSceneManager {
         });
     }
 
-    private syncText(entity: Entity, data: any, entityId: number): void {
+    private syncText(entity: Entity, data: Record<string, any>, entityId: number): void {
         const entityData = this.entityDataMap_.get(entityId);
         const uiRectData = entityData ? getUIRectFromEntity(entityData) : null;
 
         const textData: TextData = {
             content: data.content ?? '',
-            fontFamily: data.fontFamily ?? 'Arial',
-            fontSize: data.fontSize ?? 24,
+            fontFamily: data.fontFamily ?? DEFAULT_FONT_FAMILY,
+            fontSize: data.fontSize ?? DEFAULT_FONT_SIZE,
             color: data.color ?? { r: 1, g: 1, b: 1, a: 1 },
             align: data.align ?? TextAlign.Left,
             verticalAlign: data.verticalAlign ?? TextVerticalAlign.Top,
             wordWrap: data.wordWrap ?? true,
             overflow: data.overflow ?? TextOverflow.Visible,
-            lineHeight: data.lineHeight ?? 1.2,
+            lineHeight: data.lineHeight ?? DEFAULT_LINE_HEIGHT,
         };
 
         if (!textData.content) {
@@ -706,29 +850,10 @@ export class EditorSceneManager {
             return;
         }
 
-        const result = this.textRenderer_.renderForEntity(entity, textData, uiRectData);
-
-        if (result.textureHandle === (INVALID_TEXTURE as number)) {
-            return;
-        }
-
-        if (this.world_.has(entity, Sprite)) {
-            this.world_.remove(entity, Sprite);
-        }
-
-        this.world_.insert(entity, Sprite, {
-            texture: result.textureHandle,
-            color: { r: 1, g: 1, b: 1, a: 1 },
-            size: { x: result.width, y: result.height },
-            uvOffset: { x: 0, y: 0 },
-            uvScale: { x: 1, y: 1 },
-            layer: 25,
-            flipX: false,
-            flipY: false,
-        });
+        this.renderAndInsertTextSprite(entity, textData, uiRectData);
     }
 
-    private syncTextInput(entity: Entity, data: any, entityId: number): void {
+    private syncTextInput(entity: Entity, data: Record<string, any>, entityId: number): void {
         const entityData = this.entityDataMap_.get(entityId);
         const uiRectData = entityData ? getUIRectFromEntity(entityData) : null;
 
@@ -740,8 +865,8 @@ export class EditorSceneManager {
 
         const textData: TextData = {
             content: displayText,
-            fontFamily: data.fontFamily ?? 'Arial',
-            fontSize: data.fontSize ?? 24,
+            fontFamily: data.fontFamily ?? DEFAULT_FONT_FAMILY,
+            fontSize: data.fontSize ?? DEFAULT_FONT_SIZE,
             color: isEmpty
                 ? (data.placeholderColor ?? { r: 0.6, g: 0.6, b: 0.6, a: 1 })
                 : (data.color ?? { r: 1, g: 1, b: 1, a: 1 }),
@@ -749,18 +874,19 @@ export class EditorSceneManager {
             verticalAlign: TextVerticalAlign.Middle,
             wordWrap: false,
             overflow: TextOverflow.Clip,
-            lineHeight: 1.2,
+            lineHeight: data.lineHeight ?? DEFAULT_LINE_HEIGHT,
         };
 
+        this.renderAndInsertTextSprite(entity, textData, uiRectData);
+    }
+
+    private renderAndInsertTextSprite(
+        entity: Entity,
+        textData: TextData,
+        uiRectData: { size: { x: number; y: number } } | null,
+    ): void {
         const result = this.textRenderer_.renderForEntity(entity, textData, uiRectData);
-
-        if (result.textureHandle === (INVALID_TEXTURE as number)) {
-            return;
-        }
-
-        if (this.world_.has(entity, Sprite)) {
-            this.world_.remove(entity, Sprite);
-        }
+        if (result.textureHandle === (INVALID_TEXTURE as number)) return;
 
         this.world_.insert(entity, Sprite, {
             texture: result.textureHandle,
@@ -768,13 +894,13 @@ export class EditorSceneManager {
             size: { x: result.width, y: result.height },
             uvOffset: { x: 0, y: 0 },
             uvScale: { x: 1, y: 1 },
-            layer: 25,
+            layer: TEXT_RENDER_LAYER,
             flipX: false,
             flipY: false,
         });
     }
 
-    private async syncBitmapText(entity: Entity, data: any, _entityId: number): Promise<void> {
+    private async syncBitmapText(entity: Entity, data: Record<string, any>, _entityId: number): Promise<void> {
         let fontHandle = INVALID_FONT as number;
 
         const fontRef = data.font;
@@ -807,7 +933,7 @@ export class EditorSceneManager {
         });
     }
 
-    private async syncSpineAnimation(entity: Entity, data: any, entityId: number): Promise<void> {
+    private async syncSpineAnimation(entity: Entity, data: Record<string, any>, entityId: number): Promise<void> {
         const skeletonRef = data.skeletonPath ?? '';
         const atlasRef = data.atlasPath ?? '';
 
@@ -831,7 +957,7 @@ export class EditorSceneManager {
         entityId: number,
         skeletonPath: string,
         atlasPath: string,
-        data: any,
+        data: Record<string, any>,
     ): Promise<void> {
         const controller = this.spineController_!;
         const cacheKey = `${skeletonPath}:${atlasPath}`;
@@ -871,7 +997,7 @@ export class EditorSceneManager {
             }
         }
 
-        const skin = data.skin ?? 'default';
+        const skin = data.skin ?? DEFAULT_SPINE_SKIN;
         const animation = data.animation ?? '';
         const loop = data.loop ?? true;
         const prev = this.spineCurrentState_.get(entityId);
@@ -897,7 +1023,7 @@ export class EditorSceneManager {
         entityId: number,
         skeletonPath: string,
         atlasPath: string,
-        data: any,
+        data: Record<string, any>,
     ): Promise<void> {
         const result = await this.assetServer_.loadSpine(skeletonPath, atlasPath);
         if (!result.success) {
@@ -905,7 +1031,7 @@ export class EditorSceneManager {
             return;
         }
 
-        let materialHandle = 0;
+        let materialHandle = INVALID_MATERIAL as number;
         const materialRef = data.material;
         if (materialRef && typeof materialRef === 'string') {
             const materialPath = this.resolveAssetRef(materialRef);
@@ -923,7 +1049,7 @@ export class EditorSceneManager {
             data: {
                 skeletonPath,
                 atlasPath,
-                skin: data.skin ?? 'default',
+                skin: data.skin ?? DEFAULT_SPINE_SKIN,
                 animation: data.animation ?? '',
                 timeScale: data.timeScale ?? 1,
                 loop: data.loop ?? true,

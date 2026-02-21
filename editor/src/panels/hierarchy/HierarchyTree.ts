@@ -55,28 +55,41 @@ export function expandAncestors(state: HierarchyState, entityId: Entity): void {
     }
 }
 
+const ENTITY_ICON_PRIORITY: Array<[string, (size: number) => string]> = [
+    ['Camera', icons.camera],
+    ['SpineAnimation', icons.bone],
+    ['Text', icons.type],
+    ['BitmapText', icons.type],
+    ['TextInput', icons.type],
+    ['Sprite', icons.image],
+];
+
 export function getEntityIcon(entity: EntityData): string {
     if (entity.prefab?.isRoot) return icons.package(12);
 
-    const hasCamera = entity.components.some(c => c.type === 'Camera');
-    const hasSprite = entity.components.some(c => c.type === 'Sprite');
-    const hasText = entity.components.some(c => c.type === 'Text');
-    const hasBitmapText = entity.components.some(c => c.type === 'BitmapText');
-    const hasTextInput = entity.components.some(c => c.type === 'TextInput');
-    const hasSpine = entity.components.some(c => c.type === 'SpineAnimation');
+    let bestIdx = ENTITY_ICON_PRIORITY.length;
+    for (const comp of entity.components) {
+        const idx = ENTITY_ICON_PRIORITY.findIndex(([type]) => type === comp.type);
+        if (idx !== -1 && idx < bestIdx) {
+            bestIdx = idx;
+            if (bestIdx === 0) break;
+        }
+    }
 
-    if (hasCamera) return icons.camera(12);
-    if (hasSpine) return icons.bone(12);
-    if (hasText || hasBitmapText || hasTextInput) return icons.type(12);
-    if (hasSprite) return icons.image(12);
-    return icons.box(12);
+    return bestIdx < ENTITY_ICON_PRIORITY.length
+        ? ENTITY_ICON_PRIORITY[bestIdx][1](12)
+        : icons.box(12);
 }
 
+const ENTITY_TYPE_PRIORITY: Array<[string, string]> = [
+    ['Camera', 'Camera'],
+    ['SpineAnimation', 'Spine'],
+];
+
 export function getEntityType(entity: EntityData): string {
-    const hasCamera = entity.components.some(c => c.type === 'Camera');
-    const hasSpine = entity.components.some(c => c.type === 'SpineAnimation');
-    if (hasCamera) return 'Camera';
-    if (hasSpine) return 'Spine';
+    for (const [compType, label] of ENTITY_TYPE_PRIORITY) {
+        if (entity.components.some(c => c.type === compType)) return label;
+    }
     return 'Entity';
 }
 
