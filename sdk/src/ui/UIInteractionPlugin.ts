@@ -1,6 +1,6 @@
 import type { App, Plugin } from '../app';
-import { registerComponent, WorldTransform, Sprite, Parent } from '../component';
-import type { WorldTransformData, SpriteData, ParentData } from '../component';
+import { registerComponent, WorldTransform, Sprite } from '../component';
+import type { WorldTransformData, SpriteData } from '../component';
 import { defineSystem, Schedule } from '../system';
 import { Res } from '../resource';
 import { Input } from '../input';
@@ -22,7 +22,7 @@ import type { UICameraData } from './UICameraInfo';
 import { UIMask } from './UIMask';
 import type { UIMaskData } from './UIMask';
 import { screenToWorld, pointInOBB, createInvVPCache } from './uiMath';
-import { applyColorTransition, getEffectiveWidth, getEffectiveHeight, ensureComponent } from './uiHelpers';
+import { applyColorTransition, getEffectiveWidth, getEffectiveHeight, ensureComponent, walkParentChain } from './uiHelpers';
 
 const vpCache = createInvVPCache();
 
@@ -32,33 +32,28 @@ function isClippedByMask(
     worldMouseX: number,
     worldMouseY: number,
 ): boolean {
-    let current = entity;
-    while (world.has(current, Parent)) {
-        const parentData = world.get(current, Parent) as ParentData;
-        const parentEntity = parentData.entity;
-        if (!world.valid(parentEntity)) break;
-
-        if (world.has(parentEntity, UIMask)) {
-            const mask = world.get(parentEntity, UIMask) as UIMaskData;
-            if (mask.enabled && world.has(parentEntity, UIRect) && world.has(parentEntity, WorldTransform)) {
-                const wt = world.get(parentEntity, WorldTransform) as WorldTransformData;
-                const rect = world.get(parentEntity, UIRect) as UIRectData;
-                const maskW = getEffectiveWidth(rect) * wt.scale.x;
-                const maskH = getEffectiveHeight(rect) * wt.scale.y;
-                if (!pointInOBB(
-                    worldMouseX, worldMouseY,
-                    wt.position.x, wt.position.y,
-                    maskW, maskH,
-                    rect.pivot.x, rect.pivot.y,
-                    wt.rotation.z, wt.rotation.w,
-                )) {
-                    return true;
-                }
-            }
+    let clipped = false;
+    walkParentChain(world, entity, (ancestor) => {
+        if (!world.has(ancestor, UIMask)) return false;
+        const mask = world.get(ancestor, UIMask) as UIMaskData;
+        if (!mask.enabled || !world.has(ancestor, UIRect) || !world.has(ancestor, WorldTransform)) return false;
+        const wt = world.get(ancestor, WorldTransform) as WorldTransformData;
+        const rect = world.get(ancestor, UIRect) as UIRectData;
+        const maskW = getEffectiveWidth(rect) * wt.scale.x;
+        const maskH = getEffectiveHeight(rect) * wt.scale.y;
+        if (!pointInOBB(
+            worldMouseX, worldMouseY,
+            wt.position.x, wt.position.y,
+            maskW, maskH,
+            rect.pivot.x, rect.pivot.y,
+            wt.rotation.z, wt.rotation.w,
+        )) {
+            clipped = true;
+            return true;
         }
-        current = parentEntity;
-    }
-    return false;
+        return false;
+    });
+    return clipped;
 }
 
 function emitWithBubbling(
@@ -69,22 +64,14 @@ function emitWithBubbling(
 ): void {
     events.emit(entity, type, entity);
 
-    let current = entity;
-    while (world.has(current, Parent)) {
-        const parentData = world.get(current, Parent) as ParentData;
-        const parentEntity = parentData.entity;
-        if (!world.valid(parentEntity)) break;
-        if (!world.has(parentEntity, Interactable)) {
-            current = parentEntity;
-            continue;
-        }
-        const interactable = world.get(parentEntity, Interactable) as InteractableData;
+    walkParentChain(world, entity, (ancestor) => {
+        if (!world.has(ancestor, Interactable)) return false;
+        const interactable = world.get(ancestor, Interactable) as InteractableData;
         if (interactable.enabled) {
-            events.emit(parentEntity, type, entity);
+            events.emit(ancestor, type, entity);
         }
-        if (interactable.blockRaycast) break;
-        current = parentEntity;
-    }
+        return interactable.blockRaycast;
+    });
 }
 
 export class UIInteractionPlugin implements Plugin {

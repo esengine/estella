@@ -3,12 +3,12 @@ import type { ESEngineModule, CppRegistry } from '../wasm';
 import type { MaskProcessorFn } from '../renderPipeline';
 import type { Entity } from '../types';
 import type { World } from '../world';
-import { registerComponent, WorldTransform, Parent } from '../component';
-import type { WorldTransformData, ParentData } from '../component';
+import { registerComponent, WorldTransform } from '../component';
+import type { WorldTransformData } from '../component';
 import { UIMask, type UIMaskData } from './UIMask';
 import { UIRect, type UIRectData } from './UIRect';
 import { intersectRects, quaternionToAngle2D, worldToScreen, type ScreenRect } from './uiMath';
-import { getEffectiveWidth, getEffectiveHeight } from './uiHelpers';
+import { getEffectiveWidth, getEffectiveHeight, walkParentChain } from './uiHelpers';
 
 function computeMaskScreenRect(
     world: World, entity: Entity,
@@ -114,18 +114,16 @@ function processScissorMasks(
     const rootMasks: Entity[] = [];
     for (const entity of scissorMasks) {
         let isRoot = true;
-        let current = entity;
-        while (world.has(current, Parent)) {
-            const p = world.get(current, Parent) as ParentData;
-            if (maskSet.has(p.entity as number)) {
-                const parentMask = world.get(p.entity, UIMask) as UIMaskData;
+        walkParentChain(world, entity, (ancestor) => {
+            if (maskSet.has(ancestor as number)) {
+                const parentMask = world.get(ancestor, UIMask) as UIMaskData;
                 if (parentMask.mode === 'scissor') {
                     isRoot = false;
-                    break;
+                    return true;
                 }
             }
-            current = p.entity;
-        }
+            return false;
+        });
         if (isRoot) rootMasks.push(entity);
     }
 
@@ -174,15 +172,13 @@ function processStencilMasks(
     const rootMasks: Entity[] = [];
     for (const entity of stencilMasks) {
         let isRoot = true;
-        let current = entity;
-        while (world.has(current, Parent)) {
-            const p = world.get(current, Parent) as ParentData;
-            if (stencilMaskSet.has(p.entity as number)) {
+        walkParentChain(world, entity, (ancestor) => {
+            if (stencilMaskSet.has(ancestor as number)) {
                 isRoot = false;
-                break;
+                return true;
             }
-            current = p.entity;
-        }
+            return false;
+        });
         if (isRoot) rootMasks.push(entity);
     }
 

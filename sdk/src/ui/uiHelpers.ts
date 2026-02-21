@@ -221,6 +221,20 @@ export function syncFillSpriteSize(
     }
 }
 
+export function walkParentChain(
+    world: World, entity: Entity,
+    callback: (ancestor: Entity) => boolean,
+): void {
+    let current = entity;
+    while (world.has(current, Parent)) {
+        const parentData = world.get(current, Parent) as ParentData;
+        const parentEntity = parentData.entity;
+        if (!world.valid(parentEntity)) break;
+        if (callback(parentEntity)) return;
+        current = parentEntity;
+    }
+}
+
 export function ensureComponent(
     world: World, entity: Entity,
     component: AnyComponentDef, defaults?: Record<string, unknown>,

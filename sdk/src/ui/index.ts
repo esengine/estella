@@ -22,6 +22,7 @@ export {
     ensureComponent,
     syncFillSpriteSize,
     layoutChildEntity,
+    walkParentChain,
 } from './uiHelpers';
 
 // Snapshot Utilities
