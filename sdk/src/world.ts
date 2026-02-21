@@ -248,11 +248,24 @@ export class World {
         if (methods) return methods;
 
         const reg = this.cppRegistry_!;
+        const addFn = reg[`add${cppName}`];
+        const getFn = reg[`get${cppName}`];
+        const hasFn = reg[`has${cppName}`];
+        const removeFn = reg[`remove${cppName}`];
+
+        if (typeof addFn !== 'function' || typeof getFn !== 'function' ||
+            typeof hasFn !== 'function' || typeof removeFn !== 'function') {
+            throw new Error(
+                `C++ Registry missing methods for component "${cppName}". ` +
+                `Expected: add${cppName}, get${cppName}, has${cppName}, remove${cppName}`
+            );
+        }
+
         methods = {
-            add: (reg[`add${cppName}`] as Function).bind(reg),
-            get: (reg[`get${cppName}`] as Function).bind(reg),
-            has: (reg[`has${cppName}`] as Function).bind(reg),
-            remove: (reg[`remove${cppName}`] as Function).bind(reg),
+            add: addFn.bind(reg),
+            get: getFn.bind(reg),
+            has: hasFn.bind(reg),
+            remove: removeFn.bind(reg),
         };
         this.builtinMethodCache_.set(cppName, methods);
         return methods;

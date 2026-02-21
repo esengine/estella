@@ -174,7 +174,7 @@ function remapEntityFields(compData: SceneComponentData, entityMap: Map<number, 
 // Scene Loader
 // =============================================================================
 
-export function loadSceneData(world: World, sceneData: SceneData): Map<number, Entity> {
+function spawnAndLoadEntities(world: World, sceneData: SceneData): Map<number, Entity> {
     const entityMap = new Map<number, Entity>();
 
     for (const entityData of sceneData.entities) {
@@ -205,12 +205,15 @@ export function loadSceneData(world: World, sceneData: SceneData): Map<number, E
     return entityMap;
 }
 
+export function loadSceneData(world: World, sceneData: SceneData): Map<number, Entity> {
+    return spawnAndLoadEntities(world, sceneData);
+}
+
 export async function loadSceneWithAssets(
     world: World,
     sceneData: SceneData,
     options?: SceneLoadOptions
 ): Promise<Map<number, Entity>> {
-    const entityMap = new Map<number, Entity>();
     const assetServer = options?.assetServer;
     const baseUrl = options?.assetBaseUrl;
     const texturePathToUrl = new Map<string, string>();
@@ -219,30 +222,7 @@ export async function loadSceneWithAssets(
         await preloadSceneAssets(sceneData, assetServer, baseUrl, texturePathToUrl);
     }
 
-    for (const entityData of sceneData.entities) {
-        const entity = world.spawn();
-        entityMap.set(entityData.id, entity);
-        world.insert(entity, Name, { value: entityData.name });
-    }
-
-    for (const entityData of sceneData.entities) {
-        if (entityData.visible === false) continue;
-        const entity = entityMap.get(entityData.id)!;
-        for (const compData of entityData.components) {
-            remapEntityFields(compData, entityMap);
-            loadComponent(world, entity, compData, entityData.name);
-        }
-    }
-
-    for (const entityData of sceneData.entities) {
-        if (entityData.parent !== null) {
-            const entity = entityMap.get(entityData.id);
-            const parentEntity = entityMap.get(entityData.parent);
-            if (entity !== undefined && parentEntity !== undefined) {
-                world.setParent(entity, parentEntity);
-            }
-        }
-    }
+    const entityMap = spawnAndLoadEntities(world, sceneData);
 
     if (assetServer && sceneData.textureMetadata) {
         for (const [texturePath, metadata] of Object.entries(sceneData.textureMetadata)) {

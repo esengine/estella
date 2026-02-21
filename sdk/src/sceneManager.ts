@@ -254,16 +254,20 @@ export class SceneManagerState {
             const oldScene = this.activeScene_;
 
             const doSwitch = async () => {
-                if (oldScene && oldScene !== targetScene) {
-                    await this.unload(oldScene, options);
+                try {
+                    if (oldScene && oldScene !== targetScene) {
+                        await this.unload(oldScene, options);
+                    }
+                    await this.load(targetScene);
+                } catch (err) {
+                    console.error('Scene transition failed:', err);
+                    const { resolve: resolveTransition } = this.transition_!;
+                    this.transition_ = null;
+                    unregisterDrawCallback(TRANSITION_CALLBACK_ID);
+                    resolveTransition();
                 }
-                await this.load(targetScene);
             };
-            doSwitch().catch(err => {
-                console.error('Scene transition failed:', err);
-                this.transition_ = null;
-                unregisterDrawCallback(TRANSITION_CALLBACK_ID);
-            });
+            doSwitch();
         }
 
         if (this.transition_.phase === 'fade-in' && this.transition_.elapsed >= halfDuration) {

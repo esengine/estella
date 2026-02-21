@@ -64,23 +64,23 @@ export function defineComponent<T extends object>(
     name: string,
     defaults: T
 ): ComponentDef<T> {
-    const registry = getComponentRegistry();
-    const existing = registry.get(name);
+    const existing = componentRegistry.get(name) ?? getComponentRegistry().get(name);
     if (existing) return existing as ComponentDef<T>;
 
     const def = createComponentDef(name, defaults);
-    registry.set(name, def);
+    getComponentRegistry().set(name, def);
+    componentRegistry.set(name, def);
     registerToEditor(name, defaults as Record<string, unknown>, false);
     return def;
 }
 
 export function defineTag(name: string): ComponentDef<{}> {
-    const registry = getComponentRegistry();
-    const existing = registry.get(name);
+    const existing = componentRegistry.get(name) ?? getComponentRegistry().get(name);
     if (existing) return existing as ComponentDef<{}>;
 
     const def = createComponentDef(name, {});
-    registry.set(name, def);
+    getComponentRegistry().set(name, def);
+    componentRegistry.set(name, def);
     registerToEditor(name, {}, true);
     return def;
 }
@@ -90,11 +90,16 @@ export function getUserComponent(name: string): ComponentDef<any> | undefined {
 }
 
 export function clearUserComponents(): void {
-    getComponentRegistry().clear();
+    const userRegistry = getComponentRegistry();
+    for (const name of userRegistry.keys()) {
+        componentRegistry.delete(name);
+    }
+    userRegistry.clear();
 }
 
 export function unregisterComponent(name: string): void {
     getComponentRegistry().delete(name);
+    componentRegistry.delete(name);
 }
 
 function registerToEditor(
