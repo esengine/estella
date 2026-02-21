@@ -1,7 +1,7 @@
 import type { Entity } from 'esengine';
 import type { SceneData, EntityData, ComponentData } from '../types/SceneTypes';
 import { createEmptyScene } from '../types/SceneTypes';
-import { CommandHistory } from '../commands';
+import { CommandHistory, type Command } from '../commands';
 import { WorldTransformCache } from '../transform/WorldTransformCache';
 import type { Transform } from '../math/Transform';
 import { SelectionService } from './SelectionService';
@@ -71,11 +71,6 @@ export interface ComponentChangeEvent {
 }
 
 export type ComponentChangeListener = (event: ComponentChangeEvent) => void;
-
-const DERIVED_PROPERTY_MAP: Array<{ source: [string, string]; target: [string, string] }> = [
-    { source: ['UIRect', 'size'], target: ['Sprite', 'size'] },
-    { source: ['TextInput', 'backgroundColor'], target: ['Sprite', 'color'] },
-];
 
 // =============================================================================
 // EditorStore
@@ -483,6 +478,7 @@ export class EditorStore {
         if (this.history_.undo()) {
             this.state_.isDirty = true;
             this.applyCommandSideEffects(cmd, true);
+            cmd.emitChangeEvents(this, true);
         }
     }
 
@@ -492,6 +488,7 @@ export class EditorStore {
         if (this.history_.redo()) {
             this.state_.isDirty = true;
             this.applyCommandSideEffects(cmd, false);
+            cmd.emitChangeEvents(this, false);
         }
     }
 
@@ -544,21 +541,21 @@ export class EditorStore {
         this.history_.execute(cmd);
         this.state_.isDirty = true;
         this.applyCommandSideEffects(cmd, false);
+        cmd.emitChangeEvents(this, false);
     }
 
-    private applyCommandSideEffects(cmd: import('../commands').Command, isUndo: boolean): void {
+    private applyCommandSideEffects(cmd: Command, isUndo: boolean): void {
         cmd.updateEntityMap(this.entityMap_, isUndo);
 
         if (cmd.structural) {
             this.rebuildEntityMap();
             this.worldTransforms_.setScene(this.state_.scene);
+            this.notifySceneSync();
+            this.notify('hierarchy');
         } else {
             this.worldTransforms_.invalidateAll();
+            this.notify('scene');
         }
-
-        this.syncDerivedProperties();
-        this.notifySceneSync();
-        this.notify(cmd.structural ? 'hierarchy' : 'scene');
     }
 
     private notifySceneSync(): void {
@@ -583,30 +580,8 @@ export class EditorStore {
     }
 
     notifyPropertyChange(event: PropertyChangeEvent): void {
-        for (const rule of DERIVED_PROPERTY_MAP) {
-            if (event.componentType === rule.source[0] && event.propertyName === rule.source[1]) {
-                const entityData = this.entityMap_.get(event.entity);
-                const targetComp = entityData?.components.find(c => c.type === rule.target[0]);
-                if (targetComp) {
-                    targetComp.data[rule.target[1]] = event.newValue;
-                }
-            }
-        }
-
         for (const listener of this.propertyListeners_) {
             listener(event);
-        }
-    }
-
-    private syncDerivedProperties(): void {
-        for (const entityData of this.entityMap_.values()) {
-            for (const rule of DERIVED_PROPERTY_MAP) {
-                const sourceComp = entityData.components.find(c => c.type === rule.source[0]);
-                const targetComp = entityData.components.find(c => c.type === rule.target[0]);
-                if (sourceComp && targetComp) {
-                    targetComp.data[rule.target[1]] = sourceComp.data[rule.source[1]];
-                }
-            }
         }
     }
 

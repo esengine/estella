@@ -4,7 +4,7 @@
  */
 
 import type { EntityData } from '../types/SceneTypes';
-import { BaseCommand, type Command } from './Command';
+import { BaseCommand, type ChangeEmitter, type Command } from './Command';
 
 export class CompoundCommand extends BaseCommand {
     readonly type = 'compound';
@@ -15,6 +15,10 @@ export class CompoundCommand extends BaseCommand {
         super();
         this.description = description;
         this.structural = commands_.some(c => c.structural);
+    }
+
+    get commands(): readonly Command[] {
+        return this.commands_;
     }
 
     execute(): void {
@@ -37,6 +41,18 @@ export class CompoundCommand extends BaseCommand {
         } else {
             for (const cmd of this.commands_) {
                 cmd.updateEntityMap(map, isUndo);
+            }
+        }
+    }
+
+    emitChangeEvents(emitter: ChangeEmitter, isUndo: boolean): void {
+        if (isUndo) {
+            for (let i = this.commands_.length - 1; i >= 0; i--) {
+                this.commands_[i].emitChangeEvents(emitter, isUndo);
+            }
+        } else {
+            for (const cmd of this.commands_) {
+                cmd.emitChangeEvents(emitter, isUndo);
             }
         }
     }

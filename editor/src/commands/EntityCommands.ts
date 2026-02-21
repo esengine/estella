@@ -5,7 +5,7 @@
 
 import type { SceneData, EntityData } from '../types/SceneTypes';
 import { createEntityData } from '../types/SceneTypes';
-import { BaseCommand } from './Command';
+import { BaseCommand, type ChangeEmitter } from './Command';
 
 // =============================================================================
 // CreateEntityCommand
@@ -65,6 +65,14 @@ export class CreateEntityCommand extends BaseCommand {
         }
     }
 
+    emitChangeEvents(emitter: ChangeEmitter, isUndo: boolean): void {
+        emitter.notifyEntityLifecycle({
+            entity: this.entityId_,
+            type: isUndo ? 'deleted' : 'created',
+            parent: this.parent_,
+        });
+    }
+
     get entityId(): number {
         return this.entityId_;
     }
@@ -122,6 +130,24 @@ export class DeleteEntityCommand extends BaseCommand {
             if (parentData && !parentData.children.includes(this.entityId_)) {
                 parentData.children.push(this.entityId_);
             }
+        }
+    }
+
+    emitChangeEvents(emitter: ChangeEmitter, isUndo: boolean): void {
+        if (isUndo) {
+            emitter.notifyEntityLifecycle({
+                entity: this.entityId_,
+                type: 'created',
+                parent: this.deletedData_?.parent ?? null,
+            });
+            for (const child of this.deletedChildren_) {
+                emitter.notifyEntityLifecycle({ entity: child.id, type: 'created', parent: child.parent });
+            }
+        } else {
+            for (const child of this.deletedChildren_) {
+                emitter.notifyEntityLifecycle({ entity: child.id, type: 'deleted', parent: null });
+            }
+            emitter.notifyEntityLifecycle({ entity: this.entityId_, type: 'deleted', parent: null });
         }
     }
 
@@ -187,6 +213,13 @@ export class ReparentCommand extends BaseCommand {
         this.setParent(this.oldParent_);
     }
 
+    emitChangeEvents(emitter: ChangeEmitter, isUndo: boolean): void {
+        emitter.notifyHierarchyChange({
+            entity: this.entityId_,
+            newParent: isUndo ? this.oldParent_ : this.newParent_,
+        });
+    }
+
     private setParent(newParent: number | null): void {
         const entity = this.entityMap_.get(this.entityId_);
         if (!entity) return;
@@ -245,6 +278,13 @@ export class MoveEntityCommand extends BaseCommand {
 
     undo(): void {
         this.applyMove(this.oldParent_, this.oldIndex_);
+    }
+
+    emitChangeEvents(emitter: ChangeEmitter, isUndo: boolean): void {
+        emitter.notifyHierarchyChange({
+            entity: this.entityId_,
+            newParent: isUndo ? this.oldParent_ : this.newParent_,
+        });
     }
 
     private computeIndex(parent: number | null): number {
@@ -330,6 +370,14 @@ export class AddComponentCommand extends BaseCommand {
             entity.components.splice(idx, 1);
         }
     }
+
+    emitChangeEvents(emitter: ChangeEmitter, isUndo: boolean): void {
+        emitter.notifyComponentChange({
+            entity: this.entityId_,
+            componentType: this.componentType_,
+            action: isUndo ? 'removed' : 'added',
+        });
+    }
 }
 
 // =============================================================================
@@ -371,6 +419,14 @@ export class RemoveComponentCommand extends BaseCommand {
         entity.components.push({
             type: this.componentType_,
             data: this.removedData_,
+        });
+    }
+
+    emitChangeEvents(emitter: ChangeEmitter, isUndo: boolean): void {
+        emitter.notifyComponentChange({
+            entity: this.entityId_,
+            componentType: this.componentType_,
+            action: isUndo ? 'added' : 'removed',
         });
     }
 }

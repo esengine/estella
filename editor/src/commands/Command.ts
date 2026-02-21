@@ -6,6 +6,25 @@
 import type { EntityData } from '../types/SceneTypes';
 
 // =============================================================================
+// ChangeEmitter Interface
+// =============================================================================
+
+export interface ChangeEmitter {
+    notifyPropertyChange(event: {
+        entity: number; componentType: string; propertyName: string;
+        oldValue: unknown; newValue: unknown;
+    }): void;
+    notifyVisibilityChange(event: { entity: number; visible: boolean }): void;
+    notifyHierarchyChange(event: { entity: number; newParent: number | null }): void;
+    notifyEntityLifecycle(event: {
+        entity: number; type: 'created' | 'deleted'; parent: number | null;
+    }): void;
+    notifyComponentChange(event: {
+        entity: number; componentType: string; action: 'added' | 'removed';
+    }): void;
+}
+
+// =============================================================================
 // Command Interface
 // =============================================================================
 
@@ -23,6 +42,7 @@ export interface Command {
     merge(other: Command): Command;
 
     updateEntityMap(map: Map<number, EntityData>, isUndo: boolean): void;
+    emitChangeEvents(emitter: ChangeEmitter, isUndo: boolean): void;
 }
 
 // =============================================================================
@@ -55,4 +75,5 @@ export abstract class BaseCommand implements Command {
     }
 
     updateEntityMap(_map: Map<number, EntityData>, _isUndo: boolean): void {}
+    emitChangeEvents(_emitter: ChangeEmitter, _isUndo: boolean): void {}
 }

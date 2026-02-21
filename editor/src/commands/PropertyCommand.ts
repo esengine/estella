@@ -5,7 +5,7 @@
 
 import type { Entity } from 'esengine';
 import type { SceneData, EntityData } from '../types/SceneTypes';
-import { BaseCommand, type Command } from './Command';
+import { BaseCommand, type ChangeEmitter, type Command } from './Command';
 
 // =============================================================================
 // Constants
@@ -63,8 +63,26 @@ export class PropertyCommand extends BaseCommand {
         );
     }
 
+    emitChangeEvents(emitter: ChangeEmitter, isUndo: boolean): void {
+        emitter.notifyPropertyChange({
+            entity: this.entity_ as number,
+            componentType: this.componentType_,
+            propertyName: this.propertyName_,
+            oldValue: isUndo ? this.newValue_ : this.oldValue_,
+            newValue: isUndo ? this.oldValue_ : this.newValue_,
+        });
+    }
+
+    get entity(): number {
+        return this.entity_ as number;
+    }
+
     get componentType(): string {
         return this.componentType_;
+    }
+
+    get propertyName(): string {
+        return this.propertyName_;
     }
 
     private setPropertyValue(value: unknown): void {

@@ -25,9 +25,6 @@ import type {
     DirtyFlag,
     PropertyChangeEvent,
     VisibilityChangeEvent,
-    HierarchyChangeEvent,
-    EntityLifecycleEvent,
-    ComponentChangeEvent,
 } from './EditorStore';
 
 export interface SceneOperationsHost {
@@ -42,9 +39,6 @@ export interface SceneOperationsHost {
     notify(flag: DirtyFlag): void;
     notifyPropertyChange(event: PropertyChangeEvent): void;
     notifyVisibilityChange(event: VisibilityChangeEvent): void;
-    notifyHierarchyChange(event: HierarchyChangeEvent): void;
-    notifyEntityLifecycle(event: EntityLifecycleEvent): void;
-    notifyComponentChange(event: ComponentChangeEvent): void;
     selectEntity(entity: Entity | null): void;
     worldTransforms_: {
         updateEntity(entity: EntityData): void;
@@ -71,8 +65,6 @@ export class SceneOperations {
             parent
         );
         this.host_.executeCommand(cmd);
-
-        this.host_.notifyEntityLifecycle({ entity: id, type: 'created', parent: parent as number | null });
 
         if (parent !== null) {
             const parentData = this.host_.entityMap_.get(parent as number);
@@ -103,20 +95,10 @@ export class SceneOperations {
         if (hadSelection) {
             this.host_.notify('selection');
         }
-
-        for (const id of descendants) {
-            this.host_.notifyEntityLifecycle({ entity: id, type: 'deleted', parent: null });
-        }
-        this.host_.notifyEntityLifecycle({ entity: entity as number, type: 'deleted', parent: null });
     }
 
     deleteSelectedEntities(): void {
         const toDelete = Array.from(this.host_.state_.selectedEntities);
-
-        const descendantMap = new Map<number, number[]>();
-        for (const id of toDelete) {
-            descendantMap.set(id, this.collectDescendantIds(id));
-        }
 
         const commands = toDelete.map(id =>
             new DeleteEntityCommand(this.host_.state_.scene, this.host_.entityMap_, id as Entity)
@@ -125,32 +107,16 @@ export class SceneOperations {
         this.host_.executeCommand(compound);
 
         this.host_.state_.selectedEntities.clear();
-
-        for (const id of toDelete) {
-            const descendants = descendantMap.get(id)!;
-            for (const descId of descendants) {
-                this.host_.notifyEntityLifecycle({ entity: descId, type: 'deleted', parent: null });
-            }
-            this.host_.notifyEntityLifecycle({ entity: id, type: 'deleted', parent: null });
-        }
     }
 
     reparentEntity(entity: Entity, newParent: Entity | null): void {
         const cmd = new ReparentCommand(this.host_.state_.scene, this.host_.entityMap_, entity, newParent);
         this.host_.executeCommand(cmd);
-        this.host_.notifyHierarchyChange({
-            entity: entity as number,
-            newParent: newParent as number | null,
-        });
     }
 
     moveEntity(entity: Entity, newParent: Entity | null, index: number): void {
         const cmd = new MoveEntityCommand(this.host_.state_.scene, this.host_.entityMap_, entity, newParent, index);
         this.host_.executeCommand(cmd);
-        this.host_.notifyHierarchyChange({
-            entity: entity as number,
-            newParent: newParent as number | null,
-        });
     }
 
     renameEntity(entity: Entity, name: string): void {
@@ -179,8 +145,7 @@ export class SceneOperations {
         const cmd = new ToggleVisibilityCommand(
             this.host_.state_.scene,
             this.host_.entityMap_,
-            entityId,
-            (id, visible) => this.host_.notifyVisibilityChange({ entity: id, visible })
+            entityId
         );
         this.host_.executeCommand(cmd);
 
@@ -196,8 +161,6 @@ export class SceneOperations {
         if (this.isPrefabInstance(entity as number)) {
             recordComponentAddedOverride(this.host_.state_.scene, entity as number, type, data);
         }
-
-        this.host_.notifyComponentChange({ entity: entity as number, componentType: type, action: 'added' });
     }
 
     removeComponent(entity: Entity, type: string): void {
@@ -209,7 +172,6 @@ export class SceneOperations {
 
         const cmd = new RemoveComponentCommand(this.host_.state_.scene, this.host_.entityMap_, entity, type);
         this.host_.executeCommand(cmd);
-        this.host_.notifyComponentChange({ entity: entity as number, componentType: type, action: 'removed' });
     }
 
     reorderComponent(entity: Entity, fromIndex: number, toIndex: number): void {
@@ -247,14 +209,6 @@ export class SceneOperations {
                 newValue
             );
         }
-
-        this.host_.notifyPropertyChange({
-            entity: entity as number,
-            componentType,
-            propertyName,
-            oldValue,
-            newValue,
-        });
     }
 
     updateProperties(
@@ -273,15 +227,6 @@ export class SceneOperations {
         ));
         const compound = new CompoundCommand(commands, `Change ${componentType} properties`);
         this.host_.executeCommand(compound);
-        for (const c of changes) {
-            this.host_.notifyPropertyChange({
-                entity: entity as number,
-                componentType,
-                propertyName: c.property,
-                oldValue: c.oldValue,
-                newValue: c.newValue,
-            });
-        }
     }
 
     getComponent(entity: Entity, type: string): ComponentData | null {
@@ -318,6 +263,7 @@ export class SceneOperations {
             oldValue,
             newValue,
         });
+        this.host_.notify('property');
     }
 
     isPrefabInstance(entityId: number): boolean {

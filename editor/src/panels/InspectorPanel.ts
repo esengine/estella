@@ -4,7 +4,7 @@
  */
 
 import type { Entity } from 'esengine';
-import type { EditorStore, AssetSelection } from '../store/EditorStore';
+import type { EditorStore, AssetSelection, DirtyFlag } from '../store/EditorStore';
 import { getDefaultComponentData } from '../schemas/ComponentSchemas';
 import { icons } from '../utils/icons';
 import type { EditorInfo } from './inspector/InspectorHelpers';
@@ -30,7 +30,6 @@ export class InspectorPanel {
     private store_: EditorStore;
     private contentContainer_: HTMLElement;
     private unsubscribe_: (() => void) | null = null;
-    private unsubPropertyChange_: (() => void) | null = null;
     private editors_: EditorInfo[] = [];
     private currentEntity_: Entity | null = null;
     private currentAssetPath_: string | null = null;
@@ -72,8 +71,7 @@ export class InspectorPanel {
         this.lockBtn_ = this.container_.querySelector('.es-lock-btn');
 
         this.setupLockButton();
-        this.unsubscribe_ = store.subscribe(() => this.render());
-        this.unsubPropertyChange_ = store.subscribeToPropertyChanges(() => this.updateEditors());
+        this.unsubscribe_ = store.subscribe((_state, dirtyFlags) => this.onStoreNotify(dirtyFlags));
         this.render();
 
         const pms = getPlayModeService();
@@ -134,15 +132,19 @@ export class InspectorPanel {
             this.unsubscribe_();
             this.unsubscribe_ = null;
         }
-        if (this.unsubPropertyChange_) {
-            this.unsubPropertyChange_();
-            this.unsubPropertyChange_ = null;
-        }
     }
 
     // =========================================================================
     // Main Render
     // =========================================================================
+
+    private onStoreNotify(dirtyFlags?: ReadonlySet<DirtyFlag>): void {
+        if (dirtyFlags && dirtyFlags.size === 1 && dirtyFlags.has('property')) {
+            this.updateEditors();
+            return;
+        }
+        this.render();
+    }
 
     private render(): void {
         if (this.playMode_) return;

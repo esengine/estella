@@ -1,5 +1,5 @@
 import type { EntityData, SceneData } from '../types/SceneTypes';
-import { BaseCommand } from './Command';
+import { BaseCommand, type ChangeEmitter } from './Command';
 
 export class ToggleVisibilityCommand extends BaseCommand {
     readonly type = 'toggle_visibility';
@@ -9,8 +9,7 @@ export class ToggleVisibilityCommand extends BaseCommand {
     constructor(
         private scene_: SceneData,
         private entityMap_: Map<number, EntityData>,
-        private entityId_: number,
-        private visibilityCallback_: (entityId: number, visible: boolean) => void
+        private entityId_: number
     ) {
         super();
         const entityData = entityMap_.get(entityId_);
@@ -42,7 +41,15 @@ export class ToggleVisibilityCommand extends BaseCommand {
             const entityData = this.entityMap_.get(id);
             if (entityData) {
                 entityData.visible = visible;
-                this.visibilityCallback_(id, visible);
+            }
+        }
+    }
+
+    emitChangeEvents(emitter: ChangeEmitter, _isUndo: boolean): void {
+        for (const [id] of this.savedStates_) {
+            const entityData = this.entityMap_.get(id);
+            if (entityData) {
+                emitter.notifyVisibilityChange({ entity: id, visible: entityData.visible });
             }
         }
     }
@@ -60,7 +67,6 @@ export class ToggleVisibilityCommand extends BaseCommand {
         const entityData = this.entityMap_.get(entityId);
         if (!entityData) return;
         entityData.visible = false;
-        this.visibilityCallback_(entityId, false);
         for (const childId of entityData.children) {
             const childData = this.entityMap_.get(childId);
             if (childData && childData.visible !== false) {
@@ -73,7 +79,6 @@ export class ToggleVisibilityCommand extends BaseCommand {
         const entityData = this.entityMap_.get(entityId);
         if (!entityData) return;
         entityData.visible = true;
-        this.visibilityCallback_(entityId, true);
         for (const childId of entityData.children) {
             const childData = this.entityMap_.get(childId);
             if (childData && childData.visible === false) {
