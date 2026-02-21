@@ -428,9 +428,11 @@ declare class World {
     private queryCache_;
     private builtinMethodCache_;
     private iterationDepth_;
+    private nextEntityId_;
     connectCpp(cppRegistry: CppRegistry): void;
     disconnectCpp(): void;
     get hasCpp(): boolean;
+    getCppRegistry(): CppRegistry | null;
     spawn(): Entity;
     despawn(entity: Entity): void;
     valid(entity: Entity): boolean;

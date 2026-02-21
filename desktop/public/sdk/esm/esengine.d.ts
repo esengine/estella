@@ -2,6 +2,21 @@ declare const DEFAULT_DESIGN_WIDTH = 1920;
 declare const DEFAULT_DESIGN_HEIGHT = 1080;
 declare const DEFAULT_PIXELS_PER_UNIT = 100;
 declare const DEFAULT_TEXT_CANVAS_SIZE = 512;
+declare const DEFAULT_SPRITE_SIZE: {
+    x: number;
+    y: number;
+};
+declare const DEFAULT_FONT_FAMILY = "Arial";
+declare const DEFAULT_FONT_SIZE = 24;
+declare const DEFAULT_LINE_HEIGHT = 1.2;
+declare const DEFAULT_MAX_DELTA_TIME = 0.5;
+declare const DEFAULT_FALLBACK_DT: number;
+declare const DEFAULT_GRAVITY: {
+    x: number;
+    y: number;
+};
+declare const DEFAULT_FIXED_TIMESTEP: number;
+declare const DEFAULT_SPINE_SKIN = "default";
 declare const RuntimeConfig: {
     sceneTransitionDuration: number;
     sceneTransitionColor: {
@@ -39,6 +54,7 @@ type TextureHandle = number;
 declare const INVALID_TEXTURE: TextureHandle;
 type FontHandle = number;
 declare const INVALID_FONT: FontHandle;
+declare const INVALID_MATERIAL = 0;
 interface Vec2 {
     x: number;
     y: number;
@@ -682,9 +698,11 @@ declare class World {
     private queryCache_;
     private builtinMethodCache_;
     private iterationDepth_;
+    private nextEntityId_;
     connectCpp(cppRegistry: CppRegistry): void;
     disconnectCpp(): void;
     get hasCpp(): boolean;
+    getCppRegistry(): CppRegistry | null;
     spawn(): Entity;
     despawn(entity: Entity): void;
     valid(entity: Entity): boolean;
@@ -1499,6 +1517,7 @@ interface ComponentAssetFields {
 }
 declare function registerComponentAssetFields(componentType: string, config: ComponentAssetFields): void;
 declare function getComponentAssetFields(componentType: string): string[];
+declare function registerComponentEntityFields(componentType: string, fields: string[]): void;
 declare function loadSceneData(world: World, sceneData: SceneData): Map<number, Entity>;
 declare function loadSceneWithAssets(world: World, sceneData: SceneData, options?: SceneLoadOptions): Promise<Map<number, Entity>>;
 declare function loadComponent(world: World, entity: Entity, compData: SceneComponentData, entityName?: string): void;
@@ -1724,6 +1743,89 @@ declare const FillDirection: {
 };
 type FillDirection = (typeof FillDirection)[keyof typeof FillDirection];
 
+interface LayoutRect {
+    left: number;
+    bottom: number;
+    right: number;
+    top: number;
+}
+interface LayoutResult {
+    originX: number;
+    originY: number;
+    width: number;
+    height: number;
+    rect: LayoutRect;
+}
+declare function computeUIRectLayout(anchorMin: {
+    x: number;
+    y: number;
+}, anchorMax: {
+    x: number;
+    y: number;
+}, offsetMin: {
+    x: number;
+    y: number;
+}, offsetMax: {
+    x: number;
+    y: number;
+}, size: {
+    x: number;
+    y: number;
+}, parentRect: LayoutRect, pivot?: {
+    x: number;
+    y: number;
+}): LayoutResult;
+
+interface UIRectData {
+    anchorMin: Vec2;
+    anchorMax: Vec2;
+    offsetMin: Vec2;
+    offsetMax: Vec2;
+    size: Vec2;
+    pivot: Vec2;
+    _dirty: boolean;
+    _computedWidth?: number;
+    _computedHeight?: number;
+    _layoutManaged?: boolean;
+}
+declare const UIRect: ComponentDef<UIRectData>;
+
+interface FillAnchors {
+    anchorMin: {
+        x: number;
+        y: number;
+    };
+    anchorMax: {
+        x: number;
+        y: number;
+    };
+    offsetMin: {
+        x: number;
+        y: number;
+    };
+    offsetMax: {
+        x: number;
+        y: number;
+    };
+}
+declare function computeFillAnchors(direction: number, value: number): FillAnchors;
+declare function computeHandleAnchors(direction: number, value: number): {
+    anchorMin: {
+        x: number;
+        y: number;
+    };
+    anchorMax: {
+        x: number;
+        y: number;
+    };
+};
+declare function computeFillSize(direction: number, value: number, parentW: number, parentH: number): {
+    x: number;
+    y: number;
+};
+declare function applyDirectionalFill(world: World, fillEntity: Entity, direction: number, value: number): void;
+declare function syncFillSpriteSize(world: World, fillEntity: Entity, direction: number, normalizedValue: number, sliderW: number, sliderH: number): void;
+
 declare const TextAlign: {
     readonly Left: 0;
     readonly Center: 1;
@@ -1755,17 +1857,6 @@ interface TextData {
 }
 declare const Text: ComponentDef<TextData>;
 
-interface UIRectData {
-    anchorMin: Vec2;
-    anchorMax: Vec2;
-    offsetMin: Vec2;
-    offsetMax: Vec2;
-    size: Vec2;
-    pivot: Vec2;
-    _dirty: boolean;
-}
-declare const UIRect: ComponentDef<UIRectData>;
-
 /**
  * @file    TextRenderer.ts
  * @brief   Renders text to GPU textures using Canvas 2D API
@@ -1787,11 +1878,13 @@ declare class TextRenderer {
     private ctx;
     private module;
     private cache;
+    private shrinkCounter_;
+    private frameMaxW_;
+    private frameMaxH_;
     constructor(module: ESEngineModule);
-    /**
-     * Renders text to a texture and returns the handle
-     */
-    renderText(text: TextData, uiRect?: SizedRect | null): TextRenderResult;
+    beginFrame(): void;
+    private renderText;
+    private renderTextInner;
     private truncateWithEllipsis;
     /**
      * Renders text for an entity and caches the result
@@ -1813,11 +1906,6 @@ declare class TextRenderer {
     private measureWidth;
     private mapAlign;
 }
-
-/**
- * @file    TextPlugin.ts
- * @brief   Plugin that automatically syncs Text components to Sprite textures
- */
 
 declare class TextPlugin implements Plugin {
     build(app: App): void;
@@ -1844,7 +1932,6 @@ interface ScreenRect {
     h: number;
 }
 declare function intersectRects(a: ScreenRect, b: ScreenRect): ScreenRect;
-declare function worldRectToScreen(worldX: number, worldY: number, worldW: number, worldH: number, pivotX: number, pivotY: number, vp: Float32Array, vpX: number, vpY: number, vpW: number, vpH: number): ScreenRect;
 declare function invertMatrix4(m: Float32Array, result?: Float32Array): Float32Array;
 declare function screenToWorld(screenX: number, screenY: number, inverseVP: Float32Array, vpX: number, vpY: number, vpW: number, vpH: number): {
     x: number;
@@ -1917,36 +2004,6 @@ interface UICameraData {
 declare const UICameraInfo: ResourceDef<UICameraData>;
 
 declare const ScreenSpace: ComponentDef<{}>;
-
-interface LayoutRect {
-    left: number;
-    bottom: number;
-    right: number;
-    top: number;
-}
-interface LayoutResult {
-    centerX: number;
-    centerY: number;
-    width: number;
-    height: number;
-    rect: LayoutRect;
-}
-declare function computeUIRectLayout(anchorMin: {
-    x: number;
-    y: number;
-}, anchorMax: {
-    x: number;
-    y: number;
-}, offsetMin: {
-    x: number;
-    y: number;
-}, offsetMax: {
-    x: number;
-    y: number;
-}, size: {
-    x: number;
-    y: number;
-}, parentRect: LayoutRect): LayoutResult;
 
 declare class UILayoutPlugin implements Plugin {
     build(app: App): void;
@@ -3004,5 +3061,5 @@ declare const uiPlugins: Plugin[];
 
 declare function createWebApp(module: ESEngineModule, options?: WebAppOptions): App;
 
-export { App, AssetPlugin, AssetRefCounter, AssetServer, Assets, AsyncCache, BitmapText$1 as BitmapText, BlendMode, BodyType, BoxCollider$1 as BoxCollider, Button, ButtonState, Camera$1 as Camera, Canvas$1 as Canvas, CapsuleCollider$1 as CapsuleCollider, Children$1 as Children, CircleCollider$1 as CircleCollider, ClearFlags, Commands, CommandsInstance, DEFAULT_DESIGN_HEIGHT, DEFAULT_DESIGN_WIDTH, DEFAULT_PIXELS_PER_UNIT, DEFAULT_TEXT_CANVAS_SIZE, DataType, DragState, Draggable, Draw, Dropdown, EntityCommands, FillMethod, FillOrigin, FocusManager, FocusManagerState, Focusable, GLDebug, Geometry, INVALID_ENTITY, INVALID_FONT, INVALID_TEXTURE, Image, ImageType, Input, InputPlugin, InputState, Interactable, ListView, LocalTransform$1 as LocalTransform, LogLevel, Logger, Material, MaterialLoader, Mut, Name, Parent$1 as Parent, Physics, PhysicsEvents, PhysicsPlugin, PostProcess, PrefabServer, Prefabs, PrefabsPlugin, PreviewPlugin, ProgressBar, ProgressBarDirection, ProjectionType, Query, QueryInstance, RenderPipeline, RenderStage, RenderTexture, Renderer, Res, ResMut, ResMutInstance, RigidBody$1 as RigidBody, RuntimeConfig, SafeArea, ScaleMode, SceneManager, SceneManagerState, SceneOwner, Schedule, ScreenSpace, ScrollView, ShaderSources, Slider, SliderDirection, SpineAnimation$1 as SpineAnimation, Sprite$1 as Sprite, SystemRunner, Text, TextAlign, TextInput, TextInputPlugin, TextOverflow, TextPlugin, TextRenderer, TextVerticalAlign, Time, Toggle, UICameraInfo, UIEventQueue, UIEvents, UIInteraction, UIInteractionPlugin, UILayoutPlugin, UIMask, UIMaskPlugin, UIRect, Velocity$1 as Velocity, WebAssetProvider, World, WorldTransform$1 as WorldTransform, addStartupSystem, addSystem, addSystemToSchedule, applyRuntimeConfig, assetPlugin, clearDrawCallbacks, clearUserComponents, color, computeUIRectLayout, createMaskProcessor, createRuntimeSceneConfig, createWebApp, debug, defineComponent, defineResource, defineSystem, defineTag, error, findEntityByName, flushPendingSystems, getAddressableType, getAddressableTypeByEditorType, getAllAssetExtensions, getAssetMimeType, getAssetTypeEntry, getComponent, getComponentAssetFields, getComponentDefaults, getCustomExtensions, getEditorType, getLogger, getPlatform, getPlatformType, getUserComponent, getWeChatPackOptions, info, initDrawAPI, initGLDebugAPI, initGeometryAPI, initMaterialAPI, initPostProcessAPI, initRendererAPI, inputPlugin, instantiatePrefab, intersectRects, invertMatrix4, isBuiltinComponent, isCustomExtension, isEditor, isKnownAssetExtension, isPlatformInitialized, isRuntime, isTextureRef, isWeChat, isWeb, loadComponent, loadPhysicsModule, loadRuntimeScene, loadSceneData, loadSceneWithAssets, looksLikeAssetPath, platformFetch, platformFileExists, platformInstantiateWasm, platformReadFile, platformReadTextFile, pointInOBB, pointInWorldRect, prefabsPlugin, quat, registerComponent, registerComponentAssetFields, registerDrawCallback, registerEmbeddedAssets, registerMaterialCallback, sceneManagerPlugin, screenToWorld, setEditorMode, setListViewRenderer, setLogLevel, setWasmErrorHandler, shutdownDrawAPI, shutdownGLDebugAPI, shutdownGeometryAPI, shutdownMaterialAPI, shutdownPostProcessAPI, shutdownRendererAPI, textInputPlugin, textPlugin, transitionTo, uiInteractionPlugin, uiLayoutPlugin, uiMaskPlugin, uiPlugins, unregisterComponent, unregisterDrawCallback, updateCameraAspectRatio, vec2, vec3, vec4, warn, worldRectToScreen, wrapSceneSystem };
+export { App, AssetPlugin, AssetRefCounter, AssetServer, Assets, AsyncCache, BitmapText$1 as BitmapText, BlendMode, BodyType, BoxCollider$1 as BoxCollider, Button, ButtonState, Camera$1 as Camera, Canvas$1 as Canvas, CapsuleCollider$1 as CapsuleCollider, Children$1 as Children, CircleCollider$1 as CircleCollider, ClearFlags, Commands, CommandsInstance, DEFAULT_DESIGN_HEIGHT, DEFAULT_DESIGN_WIDTH, DEFAULT_FALLBACK_DT, DEFAULT_FIXED_TIMESTEP, DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE, DEFAULT_GRAVITY, DEFAULT_LINE_HEIGHT, DEFAULT_MAX_DELTA_TIME, DEFAULT_PIXELS_PER_UNIT, DEFAULT_SPINE_SKIN, DEFAULT_SPRITE_SIZE, DEFAULT_TEXT_CANVAS_SIZE, DataType, DragState, Draggable, Draw, Dropdown, EntityCommands, FillDirection, FillMethod, FillOrigin, FocusManager, FocusManagerState, Focusable, GLDebug, Geometry, INVALID_ENTITY, INVALID_FONT, INVALID_MATERIAL, INVALID_TEXTURE, Image, ImageType, Input, InputPlugin, InputState, Interactable, ListView, LocalTransform$1 as LocalTransform, LogLevel, Logger, Material, MaterialLoader, Mut, Name, Parent$1 as Parent, Physics, PhysicsEvents, PhysicsPlugin, PostProcess, PrefabServer, Prefabs, PrefabsPlugin, PreviewPlugin, ProgressBar, ProgressBarDirection, ProjectionType, Query, QueryInstance, RenderPipeline, RenderStage, RenderTexture, Renderer, Res, ResMut, ResMutInstance, RigidBody$1 as RigidBody, RuntimeConfig, SafeArea, ScaleMode, SceneManager, SceneManagerState, SceneOwner, Schedule, ScreenSpace, ScrollView, ShaderSources, Slider, SliderDirection, SpineAnimation$1 as SpineAnimation, Sprite$1 as Sprite, SystemRunner, Text, TextAlign, TextInput, TextInputPlugin, TextOverflow, TextPlugin, TextRenderer, TextVerticalAlign, Time, Toggle, UICameraInfo, UIEventQueue, UIEvents, UIInteraction, UIInteractionPlugin, UILayoutPlugin, UIMask, UIMaskPlugin, UIRect, Velocity$1 as Velocity, WebAssetProvider, World, WorldTransform$1 as WorldTransform, addStartupSystem, addSystem, addSystemToSchedule, applyDirectionalFill, applyRuntimeConfig, assetPlugin, clearDrawCallbacks, clearUserComponents, color, computeFillAnchors, computeFillSize, computeHandleAnchors, computeUIRectLayout, createMaskProcessor, createRuntimeSceneConfig, createWebApp, debug, defineComponent, defineResource, defineSystem, defineTag, error, findEntityByName, flushPendingSystems, getAddressableType, getAddressableTypeByEditorType, getAllAssetExtensions, getAssetMimeType, getAssetTypeEntry, getComponent, getComponentAssetFields, getComponentDefaults, getCustomExtensions, getEditorType, getLogger, getPlatform, getPlatformType, getUserComponent, getWeChatPackOptions, info, initDrawAPI, initGLDebugAPI, initGeometryAPI, initMaterialAPI, initPostProcessAPI, initRendererAPI, inputPlugin, instantiatePrefab, intersectRects, invertMatrix4, isBuiltinComponent, isCustomExtension, isEditor, isKnownAssetExtension, isPlatformInitialized, isRuntime, isTextureRef, isWeChat, isWeb, loadComponent, loadPhysicsModule, loadRuntimeScene, loadSceneData, loadSceneWithAssets, looksLikeAssetPath, platformFetch, platformFileExists, platformInstantiateWasm, platformReadFile, platformReadTextFile, pointInOBB, pointInWorldRect, prefabsPlugin, quat, registerComponent, registerComponentAssetFields, registerComponentEntityFields, registerDrawCallback, registerEmbeddedAssets, registerMaterialCallback, sceneManagerPlugin, screenToWorld, setEditorMode, setListViewRenderer, setLogLevel, setWasmErrorHandler, shutdownDrawAPI, shutdownGLDebugAPI, shutdownGeometryAPI, shutdownMaterialAPI, shutdownPostProcessAPI, shutdownRendererAPI, syncFillSpriteSize, textInputPlugin, textPlugin, transitionTo, uiInteractionPlugin, uiLayoutPlugin, uiMaskPlugin, uiPlugins, unregisterComponent, unregisterDrawCallback, updateCameraAspectRatio, vec2, vec3, vec4, warn, wrapSceneSystem };
 export type { AddressableAssetType, AddressableManifest, AddressableManifestAsset, AddressableManifestGroup, AddressableResultMap, AnyComponentDef, AssetBundle, AssetContentType, AssetRefInfo, AssetTypeEntry, AssetsData, BitmapTextData, BoxColliderData, BuiltinComponentDef, ButtonData, ButtonTransition, CameraData, CameraRenderParams, CanvasData, CapsuleColliderData, ChildrenData, CircleColliderData, CollisionEnterEvent, Color, CommandsDescriptor, ComponentData, ComponentDef, CppRegistry, CppResourceManager, DragStateData, DraggableData, DrawAPI, DrawCallback, DropdownData, ESEngineModule, EditorAssetType, Entity, FileLoadOptions, FocusableData, FontHandle, GeometryHandle, GeometryOptions, ImageData, InferParam, InferParams, InstantiatePrefabOptions, InstantiatePrefabResult, InteractableData, LayoutRect, LayoutResult, ListViewData, ListViewItemRenderer, LoadedMaterial, LocalTransformData, LogEntry, LogHandler, MaskMode, MaskProcessorFn, MaterialAssetData, MaterialHandle, MaterialOptions, MutWrapper, NameData, ParentData, PhysicsEventsData, PhysicsModuleFactory, PhysicsPluginConfig, PhysicsWasmModule, PlatformAdapter, PlatformRequestOptions, PlatformResponse, PlatformType, Plugin, PrefabData, PrefabEntityData, PrefabOverride, ProgressBarData, Quat, QueryDescriptor, QueryResult, RenderParams, RenderStats, RenderTargetHandle, RenderTextureHandle, RenderTextureOptions, ResDescriptor, ResMutDescriptor, ResourceDef, RigidBodyData, RuntimeAssetProvider, RuntimeSceneOptions, SafeAreaData, SceneComponentData, SceneConfig, SceneContext, SceneData, SceneEntityData, SceneLoadOptions, SceneOwnerData, SceneStatus, ScreenRect, ScrollViewData, SensorEvent, ShaderHandle, ShaderLoader, SliceBorder$1 as SliceBorder, SliderData, SpineAnimationData, SpineDescriptor, SpineLoadResult, SpineRendererFn, SpriteData, SystemDef, SystemOptions, SystemParam, TextData, TextInputData, TextRenderResult, TextureHandle, TextureInfo, TextureRef, TimeData, ToggleData, ToggleTransition, TransitionConfig, TransitionOptions, UICameraData, UIEvent, UIEventType, UIInteractionData, UIMaskData, UIRectData, UniformValue, Vec2, Vec3, Vec4, VelocityData, VertexAttributeDescriptor, WebAppOptions, WorldTransformData };
