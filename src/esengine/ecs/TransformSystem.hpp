@@ -81,9 +81,33 @@ private:
                     return;
                 }
 
-                updateEntityTransform(registry, entity, local, glm::mat4(1.0f), true);
+                updateRootTransform(registry, entity, local);
             }
         });
+    }
+
+    void updateRootTransform(Registry& registry, Entity entity, const LocalTransform& local) {
+        auto& world = registry.get<WorldTransform>(entity);
+        world.position = local.position;
+        world.rotation = local.rotation;
+        world.scale = local.scale;
+
+        if (registry.has<TransformDirty>(entity)) {
+            registry.remove<TransformDirty>(entity);
+        }
+
+        auto* children = registry.tryGet<Children>(entity);
+        if (children) {
+            glm::mat4 worldMatrix = math::compose(world.position, world.rotation, world.scale);
+            for (Entity child : children->entities) {
+                if (registry.valid(child)) {
+                    auto* childLocal = registry.tryGet<LocalTransform>(child);
+                    if (childLocal) {
+                        updateEntityTransform(registry, child, *childLocal, worldMatrix, true);
+                    }
+                }
+            }
+        }
     }
 
     void updateEntityTransform(Registry& registry, Entity entity,
@@ -96,11 +120,12 @@ private:
             auto* children = registry.tryGet<Children>(entity);
             if (children) {
                 const auto& world = registry.get<WorldTransform>(entity);
+                glm::mat4 worldMatrix = math::compose(world.position, world.rotation, world.scale);
                 for (Entity child : children->entities) {
                     if (registry.valid(child)) {
                         auto* childLocal = registry.tryGet<LocalTransform>(child);
                         if (childLocal) {
-                            updateEntityTransform(registry, child, *childLocal, world.matrix, false);
+                            updateEntityTransform(registry, child, *childLocal, worldMatrix, false);
                         }
                     }
                 }
@@ -112,7 +137,6 @@ private:
         glm::mat4 worldMatrix = parentWorldMatrix * localMatrix;
 
         auto& world = registry.get<WorldTransform>(entity);
-        world.matrix = worldMatrix;
         math::decompose(worldMatrix, world.position, world.rotation, world.scale);
 
         if (isDirty && !parentDirty) {

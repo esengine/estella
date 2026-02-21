@@ -102,19 +102,15 @@ struct LocalTransform {
  */
 ES_COMPONENT()
 struct WorldTransform {
-    /** @brief Combined world-space transformation matrix */
-    ES_PROPERTY()
-    glm::mat4 matrix{1.0f};
-
-    /** @brief World-space position (extracted from matrix for convenience) */
+    /** @brief World-space position */
     ES_PROPERTY()
     glm::vec3 position{0.0f, 0.0f, 0.0f};
 
-    /** @brief World-space rotation (extracted from matrix) */
+    /** @brief World-space rotation */
     ES_PROPERTY()
     glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
 
-    /** @brief World-space scale (extracted from matrix) */
+    /** @brief World-space scale */
     ES_PROPERTY()
     glm::vec3 scale{1.0f, 1.0f, 1.0f};
 

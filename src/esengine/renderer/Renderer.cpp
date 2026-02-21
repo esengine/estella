@@ -453,12 +453,6 @@ void BatchRenderer2D::flush() {
     shader->setUniform("u_projection", data_->projection);
 
     data_->vao->bind();
-    data_->vbo->bind();
-    constexpr u32 STRIDE = sizeof(BatchVertex);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, STRIDE, reinterpret_cast<void*>(0));
-    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, STRIDE, reinterpret_cast<void*>(12));
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, STRIDE, reinterpret_cast<void*>(28));
-    glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, STRIDE, reinterpret_cast<void*>(36));
 
     if (hasQuads) {
         auto ib = data_->vao->getIndexBuffer();
