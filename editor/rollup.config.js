@@ -15,7 +15,7 @@ export default [
             format: 'es',
             sourcemap: true,
         },
-        external: [/^esengine(\/|$)/],
+        external: [/^esengine(\/|$)/, /^@tauri-apps\//],
         onwarn(warning, warn) {
             if (warning.code === 'THIS_IS_UNDEFINED') return;
             warn(warning);
@@ -45,7 +45,7 @@ export default [
             file: 'dist/index.d.ts',
             format: 'es',
         },
-        external: [/^esengine(\/|$)/],
+        external: [/^esengine(\/|$)/, /^@tauri-apps\//],
         plugins: [dts()],
     },
 ];

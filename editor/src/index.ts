@@ -75,6 +75,7 @@ export {
     InspectorPanel,
     SceneViewPanel,
     OutputPanel,
+    registerBuiltinPanels,
 } from './panels';
 
 // =============================================================================
@@ -246,7 +247,7 @@ export { icons } from './utils/icons';
 // Asset
 // =============================================================================
 
-export { AssetPathResolver, getGlobalPathResolver } from './asset';
+export { AssetPathResolver, getGlobalPathResolver, getAssetDatabase } from './asset';
 
 // =============================================================================
 // Math
@@ -422,3 +423,28 @@ export {
     clearDrawCallbacks,
     type DrawCallback,
 } from 'esengine';
+
+// =============================================================================
+// Multi-Window
+// =============================================================================
+
+export {
+    RemoteEditorStore,
+    MainWindowBridge,
+    WindowManager,
+    serializeEditorState,
+    CHANNEL_STATE,
+    CHANNEL_ACTION,
+    CHANNEL_ACTION_RESULT,
+    CHANNEL_PANEL_OPENED,
+    CHANNEL_PANEL_CLOSED,
+    CHANNEL_OUTPUT,
+    type SerializedEditorState,
+    type ActionType,
+    type ActionMessage,
+    type ActionResultMessage,
+    type PanelOpenedMessage,
+    type PanelClosedMessage,
+    type OutputType,
+    type OutputMessage,
+} from './multiwindow';

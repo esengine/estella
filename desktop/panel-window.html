@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <title>ESEngine Panel</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    input, textarea, [contenteditable], .es-output-content, .es-output-content * {
+      -webkit-user-select: text;
+      user-select: text;
+    }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #1e1e1e;
+    }
+    #panel-root {
+      width: 100%;
+      height: 100%;
+      color: var(--es-text-primary, #cccccc);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <div id="panel-root"></div>
+  <script type="module" src="/src/panel-window.ts"></script>
+</body>
+</html>
