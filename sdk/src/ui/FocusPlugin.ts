@@ -7,6 +7,8 @@ import type { InputState } from '../input';
 import type { Entity } from '../types';
 import { Focusable, FocusManager, FocusManagerState } from './Focusable';
 import type { FocusableData } from './Focusable';
+import { Interactable } from './Interactable';
+import type { InteractableData } from './Interactable';
 import { UIInteraction } from './UIInteraction';
 import type { UIInteractionData } from './UIInteraction';
 import { UIEvents, UIEventQueue } from './UIEvents';
@@ -22,6 +24,10 @@ export class FocusPlugin implements Plugin {
         app.addSystemToSchedule(Schedule.Update, defineSystem(
             [Res(Input), Res(UIEvents)],
             (input: InputState, events: UIEventQueue) => {
+                if (focusManager.focusedEntity !== null && !world.valid(focusManager.focusedEntity)) {
+                    focusManager.focusedEntity = null;
+                }
+
                 const focusableEntities = world.getEntitiesWithComponents([Focusable]);
 
                 for (const entity of focusableEntities) {
@@ -56,6 +62,11 @@ export class FocusPlugin implements Plugin {
                 function getSortedFocusables(): Entity[] {
                     const entries: { entity: Entity; tabIndex: number }[] = [];
                     for (const entity of focusableEntities) {
+                        if (!world.valid(entity)) continue;
+                        if (world.has(entity, Interactable)) {
+                            const interactable = world.get(entity, Interactable) as InteractableData;
+                            if (!interactable.enabled) continue;
+                        }
                         const f = world.get(entity, Focusable) as FocusableData;
                         entries.push({ entity, tabIndex: f.tabIndex });
                     }

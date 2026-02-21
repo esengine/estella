@@ -3,6 +3,7 @@ import { registerComponent, Sprite } from '../component';
 import type { SpriteData } from '../component';
 import { defineSystem, Schedule } from '../system';
 import { Res } from '../resource';
+import type { Entity } from '../types';
 import { Interactable } from './Interactable';
 import type { InteractableData } from './Interactable';
 import { UIInteraction } from './UIInteraction';
@@ -12,7 +13,7 @@ import type { ToggleData } from './Toggle';
 import { ToggleGroup } from './ToggleGroup';
 import type { ToggleGroupData } from './ToggleGroup';
 import { UIEvents, UIEventQueue } from './UIEvents';
-import { applyColorTransition } from './uiHelpers';
+import { applyColorTransition, ensureComponent } from './uiHelpers';
 
 export class TogglePlugin implements Plugin {
     build(app: App): void {
@@ -20,15 +21,27 @@ export class TogglePlugin implements Plugin {
         registerComponent('ToggleGroup', ToggleGroup);
 
         const world = app.world;
+        const initializedEntities = new Set<Entity>();
 
         app.addSystemToSchedule(Schedule.Update, defineSystem(
             [Res(UIEvents)],
             (events: UIEventQueue) => {
                 const toggleEntities = world.getEntitiesWithComponents([Toggle]);
+
+                const groupFirstOn = new Map<Entity, Entity>();
                 for (const entity of toggleEntities) {
-                    if (!world.has(entity, Interactable)) {
-                        world.insert(entity, Interactable, { enabled: true });
+                    if (initializedEntities.has(entity)) continue;
+                    initializedEntities.add(entity);
+                    const toggle = world.get(entity, Toggle) as ToggleData;
+                    if (!toggle.isOn || toggle.group === 0 || !world.valid(toggle.group)) continue;
+                    if (!groupFirstOn.has(toggle.group)) {
+                        groupFirstOn.set(toggle.group, entity);
+                    } else {
+                        toggle.isOn = false;
                     }
+                }
+                for (const entity of toggleEntities) {
+                    ensureComponent(world, entity, Interactable, { enabled: true });
                     if (!world.has(entity, UIInteraction)) continue;
 
                     const interaction = world.get(entity, UIInteraction) as UIInteractionData;
@@ -64,7 +77,7 @@ export class TogglePlugin implements Plugin {
                     if (toggle.graphicEntity && world.valid(toggle.graphicEntity)) {
                         if (world.has(toggle.graphicEntity, Sprite)) {
                             const sprite = world.get(toggle.graphicEntity, Sprite) as SpriteData;
-                            sprite.color.a = toggle.isOn ? 1 : 0;
+                            sprite.enabled = toggle.isOn;
                             world.insert(toggle.graphicEntity, Sprite, sprite);
                         }
                     }

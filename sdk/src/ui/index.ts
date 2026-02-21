@@ -12,11 +12,41 @@ export {
 // Shared Helpers
 export {
     ensureSprite,
+    computeFillAnchors,
+    computeHandleAnchors,
+    computeFillSize,
     applyDirectionalFill,
     applyColorTransition,
     wrapText,
     nextPowerOf2,
+    ensureComponent,
+    syncFillSpriteSize,
+    layoutChildEntity,
 } from './uiHelpers';
+
+// Snapshot Utilities
+export {
+    createSnapshotUtils,
+    type Snapshot,
+} from './uiSnapshot';
+
+// UI Constants
+export {
+    TEXT_PADDING_RATIO,
+    TEXT_CANVAS_SHRINK_FRAMES,
+    TEXT_CANVAS_OVERSIZE_RATIO,
+    TEXT_INPUT_LINE_HEIGHT_RATIO,
+    CURSOR_BLINK_INTERVAL,
+    SCROLL_VELOCITY_SMOOTHING,
+    SCROLL_VELOCITY_NEW_WEIGHT,
+    SCROLL_WHEEL_SENSITIVITY,
+    SCROLL_MAX_DT,
+    SCROLL_FPS_REFERENCE,
+    SCROLL_VELOCITY_THRESHOLD,
+    DROPDOWN_ITEM_HEIGHT,
+    DROPDOWN_FONT_SIZE,
+    DROPDOWN_HIGHLIGHT_COLOR,
+} from './uiConstants';
 
 // Text Component
 export {
@@ -61,12 +91,14 @@ export {
 
 // UI Math Utilities
 export {
-    worldRectToScreen,
     intersectRects,
     invertMatrix4,
     screenToWorld,
     pointInWorldRect,
     pointInOBB,
+    quaternionToAngle2D,
+    worldToScreen,
+    createInvVPCache,
     type ScreenRect,
 } from './uiMath';
 
@@ -291,3 +323,9 @@ export {
     LayoutGroupPlugin,
     layoutGroupPlugin,
 } from './LayoutGroupPlugin';
+
+// UIRenderOrder Plugin
+export {
+    UIRenderOrderPlugin,
+    uiRenderOrderPlugin,
+} from './UIRenderOrderPlugin';

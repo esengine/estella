@@ -6,8 +6,8 @@ export interface LayoutRect {
 }
 
 export interface LayoutResult {
-    centerX: number;
-    centerY: number;
+    originX: number;
+    originY: number;
     width: number;
     height: number;
     rect: LayoutRect;
@@ -20,6 +20,7 @@ export function computeUIRectLayout(
     offsetMax: { x: number; y: number },
     size: { x: number; y: number },
     parentRect: LayoutRect,
+    pivot: { x: number; y: number } = { x: 0.5, y: 0.5 },
 ): LayoutResult {
     const parentW = parentRect.right - parentRect.left;
     const parentH = parentRect.top - parentRect.bottom;
@@ -35,33 +36,29 @@ export function computeUIRectLayout(
     let myTop: number;
 
     if (anchorMin.x === anchorMax.x) {
-        const cx = aLeft + offsetMin.x;
-        const hw = size.x * 0.5;
-        myLeft = cx - hw;
-        myRight = cx + hw;
+        myLeft = aLeft + offsetMin.x - size.x * pivot.x;
+        myRight = myLeft + size.x;
     } else {
         myLeft = aLeft + offsetMin.x;
         myRight = aRight + offsetMax.x;
     }
 
     if (anchorMin.y === anchorMax.y) {
-        const cy = aBottom + offsetMin.y;
-        const hh = size.y * 0.5;
-        myBottom = cy - hh;
-        myTop = cy + hh;
+        myBottom = aBottom + offsetMin.y - size.y * pivot.y;
+        myTop = myBottom + size.y;
     } else {
         myBottom = aBottom + offsetMin.y;
         myTop = aTop + offsetMax.y;
     }
 
-    const width = myRight - myLeft;
-    const height = myTop - myBottom;
-    const centerX = (myLeft + myRight) * 0.5;
-    const centerY = (myBottom + myTop) * 0.5;
+    const width = Math.max(0, myRight - myLeft);
+    const height = Math.max(0, myTop - myBottom);
+    const originX = myLeft + pivot.x * width;
+    const originY = myBottom + pivot.y * height;
 
     return {
-        centerX,
-        centerY,
+        originX,
+        originY,
         width,
         height,
         rect: { left: myLeft, bottom: myBottom, right: myRight, top: myTop },

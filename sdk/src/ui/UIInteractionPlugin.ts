@@ -21,27 +21,10 @@ import { UICameraInfo } from './UICameraInfo';
 import type { UICameraData } from './UICameraInfo';
 import { UIMask } from './UIMask';
 import type { UIMaskData } from './UIMask';
-import { invertMatrix4, screenToWorld, pointInOBB, pointInWorldRect } from './uiMath';
-import { applyColorTransition } from './uiHelpers';
+import { screenToWorld, pointInOBB, createInvVPCache } from './uiMath';
+import { applyColorTransition, getEffectiveWidth, getEffectiveHeight, ensureComponent } from './uiHelpers';
 
-const _invVP = new Float32Array(16);
-const _cachedVP = new Float32Array(16);
-let _invVPDirty = true;
-let _cachedDpr = 1;
-
-function updateInvVPCache(vp: Float32Array): void {
-    let dirty = false;
-    for (let i = 0; i < 16; i++) {
-        if (_cachedVP[i] !== vp[i]) {
-            dirty = true;
-            break;
-        }
-    }
-    if (dirty) {
-        _cachedVP.set(vp);
-        _invVPDirty = true;
-    }
-}
+const vpCache = createInvVPCache();
 
 function isClippedByMask(
     world: World,
@@ -60,13 +43,14 @@ function isClippedByMask(
             if (mask.enabled && world.has(parentEntity, UIRect) && world.has(parentEntity, WorldTransform)) {
                 const wt = world.get(parentEntity, WorldTransform) as WorldTransformData;
                 const rect = world.get(parentEntity, UIRect) as UIRectData;
-                const maskW = rect.size.x * wt.scale.x;
-                const maskH = rect.size.y * wt.scale.y;
-                if (!pointInWorldRect(
+                const maskW = getEffectiveWidth(rect) * wt.scale.x;
+                const maskH = getEffectiveHeight(rect) * wt.scale.y;
+                if (!pointInOBB(
                     worldMouseX, worldMouseY,
                     wt.position.x, wt.position.y,
                     maskW, maskH,
                     rect.pivot.x, rect.pivot.y,
+                    wt.rotation.z, wt.rotation.w,
                 )) {
                     return true;
                 }
@@ -114,7 +98,6 @@ export class UIInteractionPlugin implements Plugin {
 
         let hoveredEntity: Entity | null = null;
         let pressedEntity: Entity | null = null;
-        _cachedDpr = typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1;
 
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
             [Res(Input), Res(UICameraInfo)],
@@ -130,16 +113,14 @@ export class UIInteractionPlugin implements Plugin {
 
                 if (!camera.valid) return;
 
-                const mouseGLX = input.mouseX * _cachedDpr;
-                const mouseGLY = camera.screenH - input.mouseY * _cachedDpr;
+                const dpr = typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1;
+                const mouseGLX = input.mouseX * dpr;
+                const mouseGLY = camera.screenH - input.mouseY * dpr;
 
-                updateInvVPCache(camera.viewProjection);
-                if (_invVPDirty) {
-                    invertMatrix4(camera.viewProjection, _invVP);
-                    _invVPDirty = false;
-                }
+                vpCache.update(camera.viewProjection);
+                const invVP = vpCache.getInverse(camera.viewProjection);
                 const worldMouse = screenToWorld(
-                    mouseGLX, mouseGLY, _invVP,
+                    mouseGLX, mouseGLY, invVP,
                     camera.vpX, camera.vpY, camera.vpW, camera.vpH,
                 );
 
@@ -154,9 +135,7 @@ export class UIInteractionPlugin implements Plugin {
                 let hitLayer = -Infinity;
 
                 for (const entity of interactableEntities) {
-                    if (!world.has(entity, UIInteraction)) {
-                        world.insert(entity, UIInteraction);
-                    }
+                    ensureComponent(world, entity, UIInteraction);
 
                     const interactable = world.get(entity, Interactable) as InteractableData;
                     if (!interactable.enabled) continue;
@@ -164,8 +143,8 @@ export class UIInteractionPlugin implements Plugin {
 
                     const wt = world.get(entity, WorldTransform) as WorldTransformData;
                     const rect = world.get(entity, UIRect) as UIRectData;
-                    const worldW = rect.size.x * wt.scale.x;
-                    const worldH = rect.size.y * wt.scale.y;
+                    const worldW = getEffectiveWidth(rect) * wt.scale.x;
+                    const worldH = getEffectiveHeight(rect) * wt.scale.y;
 
                     if (pointInOBB(
                         worldMouse.x, worldMouse.y,
@@ -182,11 +161,15 @@ export class UIInteractionPlugin implements Plugin {
                         if (world.has(entity, Sprite)) {
                             layer = (world.get(entity, Sprite) as SpriteData).layer;
                         }
-                        if (layer >= hitLayer) {
+                        if (layer > hitLayer) {
                             hitLayer = layer;
                             hitEntity = entity;
                         }
                     }
+                }
+
+                if (hoveredEntity !== null && !world.valid(hoveredEntity)) {
+                    hoveredEntity = null;
                 }
 
                 if (hoveredEntity !== hitEntity) {
@@ -227,20 +210,21 @@ export class UIInteractionPlugin implements Plugin {
             { name: 'UIInteractionSystem' }
         ));
 
+        const buttonInitialized = new Set<Entity>();
+
         app.addSystemToSchedule(Schedule.Update, defineSystem(
             [],
             () => {
                 const buttonEntities = world.getEntitiesWithComponents([Button]);
                 for (const entity of buttonEntities) {
-                    if (!world.has(entity, Interactable)) {
-                        world.insert(entity, Interactable, { enabled: true });
-                    }
+                    ensureComponent(world, entity, Interactable, { enabled: true });
                     if (!world.has(entity, UIInteraction)) continue;
 
                     const interaction = world.get(entity, UIInteraction) as UIInteractionData;
                     const button = world.get(entity, Button) as ButtonData;
                     const interactable = world.get(entity, Interactable) as InteractableData;
 
+                    const isFirstFrame = !buttonInitialized.has(entity);
                     const prevState = button.state;
 
                     if (!interactable.enabled) {
@@ -253,7 +237,11 @@ export class UIInteractionPlugin implements Plugin {
                         button.state = ButtonState.Normal;
                     }
 
-                    if (prevState !== button.state && button.transition && world.has(entity, Sprite)) {
+                    if (isFirstFrame) {
+                        buttonInitialized.add(entity);
+                    }
+
+                    if ((isFirstFrame || prevState !== button.state) && button.transition && world.has(entity, Sprite)) {
                         const sprite = world.get(entity, Sprite) as SpriteData;
                         sprite.color = applyColorTransition(
                             button.transition,

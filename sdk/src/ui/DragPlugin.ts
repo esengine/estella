@@ -1,6 +1,6 @@
 import type { App, Plugin } from '../app';
-import { registerComponent, LocalTransform, WorldTransform, Parent } from '../component';
-import type { LocalTransformData, WorldTransformData, ParentData } from '../component';
+import { registerComponent, LocalTransform, WorldTransform, Parent, Sprite } from '../component';
+import type { LocalTransformData, WorldTransformData, ParentData, SpriteData } from '../component';
 import { defineSystem, Schedule } from '../system';
 import { Res } from '../resource';
 import { Input } from '../input';
@@ -14,41 +14,8 @@ import type { UIInteractionData } from './UIInteraction';
 import { UIEvents, UIEventQueue } from './UIEvents';
 import { UICameraInfo } from './UICameraInfo';
 import type { UICameraData } from './UICameraInfo';
-import { invertMatrix4, screenToWorld } from './uiMath';
-
-const _dragInvVP = new Float32Array(16);
-const _dragCachedVP = new Float32Array(16);
-let _dragInvVPDirty = true;
-
-function updateDragInvVPCache(vp: Float32Array): void {
-    let dirty = false;
-    for (let i = 0; i < 16; i++) {
-        if (_dragCachedVP[i] !== vp[i]) {
-            dirty = true;
-            break;
-        }
-    }
-    if (dirty) {
-        _dragCachedVP.set(vp);
-        _dragInvVPDirty = true;
-    }
-}
-
-function getWorldMousePos(input: InputState, camera: UICameraData, dpr: number): { x: number; y: number } {
-    const mouseGLX = input.mouseX * dpr;
-    const mouseGLY = camera.screenH - input.mouseY * dpr;
-
-    updateDragInvVPCache(camera.viewProjection);
-    if (_dragInvVPDirty) {
-        invertMatrix4(camera.viewProjection, _dragInvVP);
-        _dragInvVPDirty = false;
-    }
-
-    return screenToWorld(
-        mouseGLX, mouseGLY, _dragInvVP,
-        camera.vpX, camera.vpY, camera.vpW, camera.vpH,
-    );
-}
+import { getEntityDepth } from './uiHelpers';
+import { quaternionToAngle2D } from './uiMath';
 
 function worldToLocalDelta(
     world: World,
@@ -68,7 +35,7 @@ function worldToLocalDelta(
     const sx = parentWt.scale.x !== 0 ? parentWt.scale.x : 1;
     const sy = parentWt.scale.y !== 0 ? parentWt.scale.y : 1;
 
-    const angle = 2 * Math.atan2(parentWt.rotation.z, parentWt.rotation.w);
+    const angle = quaternionToAngle2D(parentWt.rotation.z, parentWt.rotation.w);
     const sin = Math.sin(-angle);
     const cos = Math.cos(-angle);
 
@@ -110,25 +77,35 @@ export class DragPlugin implements Plugin {
         let pendingEntity: Entity | null = null;
         let pendingStartWorld = { x: 0, y: 0 };
         let activeEntity: Entity | null = null;
-        const dpr = typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1;
 
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
             [Res(Input), Res(UICameraInfo)],
             (input: InputState, camera: UICameraData) => {
                 if (!camera.valid) return;
 
-                const worldMouse = getWorldMousePos(input, camera, dpr);
+                const worldMouse = { x: camera.worldMouseX, y: camera.worldMouseY };
 
                 if (input.isMouseButtonPressed(0)) {
                     const draggableEntities = world.getEntitiesWithComponents([Draggable, UIInteraction]);
                     let bestEntity: Entity | null = null;
+                    let bestLayer = -Infinity;
+                    let bestDepth = -1;
 
                     for (const entity of draggableEntities) {
                         const draggable = world.get(entity, Draggable) as DraggableData;
                         if (!draggable.enabled) continue;
                         const interaction = world.get(entity, UIInteraction) as UIInteractionData;
                         if (interaction.hovered) {
-                            bestEntity = entity;
+                            let layer = 0;
+                            if (world.has(entity, Sprite)) {
+                                layer = (world.get(entity, Sprite) as SpriteData).layer;
+                            }
+                            const depth = getEntityDepth(world, entity);
+                            if (layer > bestLayer || (layer === bestLayer && depth >= bestDepth)) {
+                                bestLayer = layer;
+                                bestDepth = depth;
+                                bestEntity = entity;
+                            }
                         }
                     }
 
@@ -227,7 +204,7 @@ export class DragPlugin implements Plugin {
                     }
                 }
             },
-            { name: 'DragSystem' }
+            { name: 'DragSystem', runAfter: ['UIInteractionSystem'] }
         ));
     }
 }

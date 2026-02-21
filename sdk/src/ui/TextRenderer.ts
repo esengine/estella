@@ -9,6 +9,7 @@ import type { ESEngineModule } from '../wasm';
 import { TextAlign, TextVerticalAlign, TextOverflow, type TextData } from './text';
 import { platformCreateCanvas } from '../platform';
 import { wrapText, nextPowerOf2 } from './uiHelpers';
+import { TEXT_PADDING_RATIO, TEXT_CANVAS_SHRINK_FRAMES, TEXT_CANVAS_OVERSIZE_RATIO } from './uiConstants';
 
 interface SizedRect {
     size: { x: number; y: number };
@@ -33,6 +34,9 @@ export class TextRenderer {
     private ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
     private module: ESEngineModule;
     private cache = new Map<Entity, TextRenderResult>();
+    private shrinkCounter_ = 0;
+    private frameMaxW_ = 0;
+    private frameMaxH_ = 0;
 
     constructor(module: ESEngineModule) {
         this.module = module;
@@ -40,10 +44,38 @@ export class TextRenderer {
         this.ctx = this.canvas.getContext('2d', { willReadFrequently: true })! as CanvasRenderingContext2D;
     }
 
-    /**
-     * Renders text to a texture and returns the handle
-     */
-    renderText(text: TextData, uiRect?: SizedRect | null): TextRenderResult {
+    beginFrame(): void {
+        const canvas = this.canvas;
+        if (this.frameMaxW_ > 0) {
+            if (canvas.width < this.frameMaxW_ || canvas.height < this.frameMaxH_) {
+                canvas.width = Math.max(canvas.width, nextPowerOf2(this.frameMaxW_));
+                canvas.height = Math.max(canvas.height, nextPowerOf2(this.frameMaxH_));
+                this.shrinkCounter_ = 0;
+            } else if (canvas.width > this.frameMaxW_ * TEXT_CANVAS_OVERSIZE_RATIO || canvas.height > this.frameMaxH_ * TEXT_CANVAS_OVERSIZE_RATIO) {
+                this.shrinkCounter_++;
+                if (this.shrinkCounter_ >= TEXT_CANVAS_SHRINK_FRAMES) {
+                    canvas.width = nextPowerOf2(this.frameMaxW_);
+                    canvas.height = nextPowerOf2(this.frameMaxH_);
+                    this.shrinkCounter_ = 0;
+                }
+            } else {
+                this.shrinkCounter_ = 0;
+            }
+        }
+        this.frameMaxW_ = 0;
+        this.frameMaxH_ = 0;
+    }
+
+    private renderText(text: TextData, uiRect?: SizedRect | null): TextRenderResult {
+        try {
+            return this.renderTextInner(text, uiRect);
+        } catch (e) {
+            console.error('TextRenderer: render failed', e);
+            return { textureHandle: 0, width: 0, height: 0 };
+        }
+    }
+
+    private renderTextInner(text: TextData, uiRect?: SizedRect | null): TextRenderResult {
         const ctx = this.ctx;
         const canvas = this.canvas;
 
@@ -56,7 +88,7 @@ export class TextRenderer {
         const shouldWrap = text.wordWrap && hasContainer;
         let lines = wrapText(ctx, text.content, shouldWrap ? containerWidth : 0);
         const lineHeightPx = Math.ceil(text.fontSize * text.lineHeight);
-        const padding = Math.ceil(text.fontSize * 0.2);
+        const padding = Math.ceil(text.fontSize * TEXT_PADDING_RATIO);
 
         const measuredWidth = Math.ceil(this.measureWidth(lines));
         const measuredHeight = Math.ceil(lines.length * lineHeightPx);
@@ -64,7 +96,6 @@ export class TextRenderer {
         const width = hasContainer ? Math.ceil(containerWidth) : measuredWidth + padding * 2;
         const height = hasContainer ? Math.ceil(containerHeight) : measuredHeight + padding * 2;
 
-        // Handle overflow ellipsis
         if (hasContainer && text.overflow === TextOverflow.Ellipsis && measuredHeight > containerHeight) {
             const maxLines = Math.floor(containerHeight / lineHeightPx);
             if (maxLines > 0 && lines.length > maxLines) {
@@ -74,11 +105,12 @@ export class TextRenderer {
             }
         }
 
+        this.frameMaxW_ = Math.max(this.frameMaxW_, width);
+        this.frameMaxH_ = Math.max(this.frameMaxH_, height);
+
         if (canvas.width < width || canvas.height < height) {
-            const newWidth = Math.max(canvas.width, nextPowerOf2(width));
-            const newHeight = Math.max(canvas.height, nextPowerOf2(height));
-            canvas.width = newWidth;
-            canvas.height = newHeight;
+            canvas.width = Math.max(canvas.width, nextPowerOf2(width));
+            canvas.height = Math.max(canvas.height, nextPowerOf2(height));
         }
 
         const r = Math.round(text.color.r * 255);
@@ -105,7 +137,7 @@ export class TextRenderer {
         if (hasContainer) {
             switch (text.verticalAlign) {
                 case TextVerticalAlign.Top: startY = padding; break;
-                case TextVerticalAlign.Middle: startY = (height - textBlockHeight) / 2; break;
+                case TextVerticalAlign.Middle: startY = padding + (height - 2 * padding - textBlockHeight) / 2; break;
                 case TextVerticalAlign.Bottom: startY = height - textBlockHeight - padding; break;
                 default: startY = padding;
             }
@@ -224,11 +256,7 @@ export class TextRenderer {
     private measureWidth(lines: string[]): number {
         let maxWidth = 0;
         for (const line of lines) {
-            const metrics = this.ctx.measureText(line);
-            const width = metrics.actualBoundingBoxLeft !== undefined
-                ? metrics.actualBoundingBoxLeft + metrics.actualBoundingBoxRight
-                : metrics.width;
-            maxWidth = Math.max(maxWidth, width);
+            maxWidth = Math.max(maxWidth, this.ctx.measureText(line).width);
         }
         return maxWidth;
     }

@@ -6,11 +6,13 @@ import { registerComponent, Sprite, type SpriteData } from '../component';
 import { TextInput, type TextInputData } from './TextInput';
 import { UIRect, type UIRectData } from './UIRect';
 import { Interactable } from './Interactable';
-import { UIInteraction, type UIInteractionData } from './UIInteraction';
+import { Focusable } from './Focusable';
+import { FocusManager, FocusManagerState } from './Focusable';
 import { UIEvents, UIEventQueue } from './UIEvents';
 import { Res } from '../resource';
 import { platformCreateCanvas } from '../platform';
-import { ensureSprite, wrapText, nextPowerOf2 } from './uiHelpers';
+import { ensureSprite, wrapText, nextPowerOf2, ensureComponent } from './uiHelpers';
+import { CURSOR_BLINK_INTERVAL, TEXT_INPUT_LINE_HEIGHT_RATIO } from './uiConstants';
 
 export class TextInputPlugin implements Plugin {
     private cleanupListeners_: (() => void) | null = null;
@@ -37,7 +39,6 @@ export class TextInputPlugin implements Plugin {
         const ctx = canvas.getContext('2d', { willReadFrequently: true })! as
             CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
-        let focusedEntity: Entity | null = null;
         let composing = false;
         let cursorVisible = true;
         let cursorTimer = 0;
@@ -49,8 +50,16 @@ export class TextInputPlugin implements Plugin {
         }
         const textarea = textareaOrNull;
 
+        function getFocusedTextInput(): Entity | null {
+            const fm = app.getResource(FocusManager) as FocusManagerState | null;
+            if (!fm || fm.focusedEntity === null) return null;
+            const entity = fm.focusedEntity;
+            if (!world.valid(entity) || !world.has(entity, TextInput)) return null;
+            return entity;
+        }
+
         const onInput = () => {
-            if (composing || focusedEntity === null) return;
+            if (composing || getFocusedTextInput() === null) return;
             syncFromTextarea();
         };
 
@@ -64,18 +73,19 @@ export class TextInputPlugin implements Plugin {
         };
 
         const onKeyDown = (e: KeyboardEvent) => {
-            if (focusedEntity === null) return;
+            const focused = getFocusedTextInput();
+            if (focused === null) return;
 
             if (e.key === 'Escape') {
                 blurCurrent();
                 return;
             }
 
-            const ti = world.get(focusedEntity, TextInput) as TextInputData;
+            const ti = world.get(focused, TextInput) as TextInputData;
             if (e.key === 'Enter' && !ti.multiline) {
                 e.preventDefault();
                 const events = app.getResource(UIEvents) as UIEventQueue;
-                events.emit(focusedEntity, 'submit');
+                events.emit(focused, 'submit');
                 blurCurrent();
                 return;
             }
@@ -101,12 +111,14 @@ export class TextInputPlugin implements Plugin {
         };
 
         const onBlur = () => {
-            if (focusedEntity !== null && world.valid(focusedEntity) && world.has(focusedEntity, TextInput)) {
-                const ti = world.get(focusedEntity, TextInput) as TextInputData;
+            const focused = getFocusedTextInput();
+            if (focused !== null) {
+                const ti = world.get(focused, TextInput) as TextInputData;
                 ti.focused = false;
                 ti.dirty = true;
+                const fm = app.getResource(FocusManager) as FocusManagerState;
+                fm.blur();
             }
-            focusedEntity = null;
         };
 
         textarea.addEventListener('input', onInput);
@@ -125,8 +137,9 @@ export class TextInputPlugin implements Plugin {
         };
 
         function syncFromTextarea(): void {
-            if (focusedEntity === null || !world.valid(focusedEntity)) return;
-            const ti = world.get(focusedEntity, TextInput) as TextInputData;
+            const focused = getFocusedTextInput();
+            if (focused === null) return;
+            const ti = world.get(focused, TextInput) as TextInputData;
             if (ti.readOnly) return;
 
             let val = textarea.value;
@@ -138,21 +151,17 @@ export class TextInputPlugin implements Plugin {
             if (val !== ti.value) {
                 ti.value = val;
                 const events = app.getResource(UIEvents) as UIEventQueue;
-                events.emit(focusedEntity, 'change');
+                events.emit(focused, 'change');
             }
             ti.cursorPos = textarea.selectionStart ?? val.length;
             ti.dirty = true;
             resetCursorBlink();
         }
 
-        function focusEntity(entity: Entity): void {
-            if (focusedEntity === entity) return;
-            blurCurrent();
-
+        function activateTextarea(entity: Entity): void {
             const ti = world.get(entity, TextInput) as TextInputData;
             if (ti.readOnly) return;
 
-            focusedEntity = entity;
             ti.focused = true;
             ti.dirty = true;
 
@@ -164,12 +173,14 @@ export class TextInputPlugin implements Plugin {
         }
 
         function blurCurrent(): void {
-            if (focusedEntity !== null && world.valid(focusedEntity) && world.has(focusedEntity, TextInput)) {
-                const ti = world.get(focusedEntity, TextInput) as TextInputData;
+            const focused = getFocusedTextInput();
+            if (focused !== null) {
+                const ti = world.get(focused, TextInput) as TextInputData;
                 ti.focused = false;
                 ti.dirty = true;
             }
-            focusedEntity = null;
+            const fm = app.getResource(FocusManager) as FocusManagerState;
+            fm.blur();
             textarea.blur();
         }
 
@@ -178,54 +189,54 @@ export class TextInputPlugin implements Plugin {
             cursorTimer = 0;
         }
 
-        // Focus system
-        app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
-            [Res(UIEvents)],
-            (events: UIEventQueue) => {
-                const textInputEntities = world.getEntitiesWithComponents([TextInput, Interactable]);
+        let prevFocusedTextInput: Entity | null = null;
 
+        app.addSystemToSchedule(Schedule.Update, defineSystem(
+            [Res(FocusManager)],
+            (focusManager: FocusManagerState) => {
+                const textInputEntities = world.getEntitiesWithComponents([TextInput]);
                 for (const entity of textInputEntities) {
-                    if (!world.has(entity, UIInteraction)) continue;
-                    const interaction = world.get(entity, UIInteraction) as UIInteractionData;
-                    if (interaction.justPressed) {
-                        focusEntity(entity);
-                        return;
-                    }
+                    ensureComponent(world, entity, Focusable, { tabIndex: 0, isFocused: false });
+                    ensureComponent(world, entity, Interactable, { enabled: true, blockRaycast: true });
                 }
 
-                if (focusedEntity !== null) {
-                    const allInteractables = world.getEntitiesWithComponents([Interactable]);
-                    for (const entity of allInteractables) {
-                        if (world.has(entity, TextInput)) continue;
-                        if (!world.has(entity, UIInteraction)) continue;
-                        const interaction = world.get(entity, UIInteraction) as UIInteractionData;
-                        if (interaction.justPressed) {
-                            blurCurrent();
-                            return;
-                        }
+                const currentFocused = getFocusedTextInput();
+
+                if (currentFocused !== prevFocusedTextInput) {
+                    if (prevFocusedTextInput !== null && world.valid(prevFocusedTextInput) && world.has(prevFocusedTextInput, TextInput)) {
+                        const ti = world.get(prevFocusedTextInput, TextInput) as TextInputData;
+                        ti.focused = false;
+                        ti.dirty = true;
+                        textarea.blur();
                     }
+
+                    if (currentFocused !== null) {
+                        activateTextarea(currentFocused);
+                    }
+
+                    prevFocusedTextInput = currentFocused;
                 }
             },
             { name: 'TextInputFocusSystem' }
-        ));
+        ), { runAfter: ['FocusSystem'] });
 
         // Render system
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
             [],
             () => {
                 const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
-                const dt = lastTime === 0 ? 0 : (now - lastTime) / 1000;
+                let dt = lastTime === 0 ? 0 : (now - lastTime) / 1000;
                 lastTime = now;
+                dt = Math.min(dt, 0.1);
 
-                if (focusedEntity !== null) {
+                const focused = getFocusedTextInput();
+                if (focused !== null) {
                     cursorTimer += dt;
-                    if (cursorTimer >= 0.5) {
-                        cursorTimer -= 0.5;
+                    if (cursorTimer >= CURSOR_BLINK_INTERVAL) {
+                        cursorTimer -= CURSOR_BLINK_INTERVAL;
                         cursorVisible = !cursorVisible;
-                        if (focusedEntity !== null && world.valid(focusedEntity) && world.has(focusedEntity, TextInput)) {
-                            const ti = world.get(focusedEntity, TextInput) as TextInputData;
-                            ti.dirty = true;
-                        }
+                        const ti = world.get(focused, TextInput) as TextInputData;
+                        ti.dirty = true;
                     }
                 }
 
@@ -264,7 +275,6 @@ export class TextInputPlugin implements Plugin {
 
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // Background
             const bg = ti.backgroundColor;
             ctx.fillStyle = `rgba(${Math.round(bg.r * 255)}, ${Math.round(bg.g * 255)}, ${Math.round(bg.b * 255)}, ${bg.a})`;
             ctx.fillRect(0, 0, w, h);
@@ -288,7 +298,7 @@ export class TextInputPlugin implements Plugin {
             const textColor = isEmpty ? ti.placeholderColor : ti.color;
             ctx.fillStyle = `rgba(${Math.round(textColor.r * 255)}, ${Math.round(textColor.g * 255)}, ${Math.round(textColor.b * 255)}, ${textColor.a})`;
 
-            const lineHeight = Math.ceil(ti.fontSize * 1.2);
+            const lineHeight = Math.ceil(ti.fontSize * TEXT_INPUT_LINE_HEIGHT_RATIO);
             const padding = ti.padding;
 
             if (ti.multiline) {
@@ -303,7 +313,6 @@ export class TextInputPlugin implements Plugin {
                 ctx.fillText(displayText, padding, textY);
             }
 
-            // Cursor
             if (ti.focused && cursorVisible) {
                 const cursorText = ti.password
                     ? '\u25CF'.repeat(ti.cursorPos)
@@ -314,10 +323,27 @@ export class TextInputPlugin implements Plugin {
                 let cursorH: number;
 
                 if (ti.multiline) {
-                    const lines = wrapText(ctx, ti.value.substring(0, ti.cursorPos), w - padding * 2);
-                    const lastLine = lines.length > 0 ? lines[lines.length - 1] : '';
-                    cursorX = padding + ctx.measureText(lastLine).width;
-                    cursorY = padding + (lines.length - 1) * lineHeight;
+                    const lines = wrapText(ctx, ti.value, w - padding * 2);
+                    let charCount = 0;
+                    let cursorLine = 0;
+                    let cursorCol = 0;
+                    for (let i = 0; i < lines.length; i++) {
+                        const lineLen = lines[i].length;
+                        if (charCount + lineLen >= ti.cursorPos) {
+                            cursorLine = i;
+                            cursorCol = ti.cursorPos - charCount;
+                            break;
+                        }
+                        charCount += lineLen;
+                        if (i < lines.length - 1 && charCount < ti.value.length && ti.value[charCount] === '\n') {
+                            charCount++;
+                        }
+                        cursorLine = i + 1;
+                        cursorCol = 0;
+                    }
+                    const partialLine = cursorLine < lines.length ? lines[cursorLine].substring(0, cursorCol) : '';
+                    cursorX = padding + ctx.measureText(partialLine).width;
+                    cursorY = padding + cursorLine * lineHeight;
                     cursorH = lineHeight;
                 } else {
                     cursorX = padding + ctx.measureText(cursorText).width;
@@ -331,7 +357,6 @@ export class TextInputPlugin implements Plugin {
 
             ctx.restore();
 
-            // Upload texture
             const imageData = ctx.getImageData(0, 0, w, h);
             const pixels = new Uint8Array(imageData.data.buffer);
             const rm = module!.getResourceManager();

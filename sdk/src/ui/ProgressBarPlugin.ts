@@ -25,7 +25,7 @@ export class ProgressBarPlugin implements Plugin {
                 }
             },
             { name: 'ProgressBarSystem' }
-        ));
+        ), { runAfter: ['UILayoutSystem'] });
     }
 }
 

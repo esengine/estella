@@ -7,7 +7,8 @@ import { registerComponent, WorldTransform, Parent } from '../component';
 import type { WorldTransformData, ParentData } from '../component';
 import { UIMask, type UIMaskData } from './UIMask';
 import { UIRect, type UIRectData } from './UIRect';
-import { worldRectToScreen, intersectRects, type ScreenRect } from './uiMath';
+import { intersectRects, quaternionToAngle2D, worldToScreen, type ScreenRect } from './uiMath';
+import { getEffectiveWidth, getEffectiveHeight } from './uiHelpers';
 
 function computeMaskScreenRect(
     world: World, entity: Entity,
@@ -18,14 +19,46 @@ function computeMaskScreenRect(
     }
     const uiRect = world.get(entity, UIRect) as UIRectData;
     const wt = world.get(entity, WorldTransform) as WorldTransformData;
-    const worldW = uiRect.size.x * wt.scale.x;
-    const worldH = uiRect.size.y * wt.scale.y;
-    return worldRectToScreen(
-        wt.position.x, wt.position.y,
-        worldW, worldH,
-        uiRect.pivot.x, uiRect.pivot.y,
-        vp, vpX, vpY, vpW, vpH
-    );
+    const worldW = getEffectiveWidth(uiRect) * wt.scale.x;
+    const worldH = getEffectiveHeight(uiRect) * wt.scale.y;
+    const cx = wt.position.x;
+    const cy = wt.position.y;
+    const px = uiRect.pivot.x;
+    const py = uiRect.pivot.y;
+
+    const localLeft = -worldW * px;
+    const localRight = worldW * (1 - px);
+    const localBottom = -worldH * py;
+    const localTop = worldH * (1 - py);
+
+    const rz = wt.rotation.z;
+    const rw = wt.rotation.w;
+    const angle = quaternionToAngle2D(rz, rw);
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+
+    const corners: [number, number][] = [
+        [cx + localLeft * cos - localBottom * sin, cy + localLeft * sin + localBottom * cos],
+        [cx + localRight * cos - localBottom * sin, cy + localRight * sin + localBottom * cos],
+        [cx + localRight * cos - localTop * sin, cy + localRight * sin + localTop * cos],
+        [cx + localLeft * cos - localTop * sin, cy + localLeft * sin + localTop * cos],
+    ];
+
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const [wx, wy] of corners) {
+        const [sx, sy] = worldToScreen(wx, wy, vp, vpX, vpY, vpW, vpH);
+        minX = Math.min(minX, sx);
+        minY = Math.min(minY, sy);
+        maxX = Math.max(maxX, sx);
+        maxY = Math.max(maxY, sy);
+    }
+
+    return {
+        x: Math.round(minX),
+        y: Math.round(minY),
+        w: Math.round(maxX - minX),
+        h: Math.round(maxY - minY),
+    };
 }
 
 export function createMaskProcessor(wasm: ESEngineModule, world: World): MaskProcessorFn {
@@ -65,7 +98,8 @@ export function createMaskProcessor(wasm: ESEngineModule, world: World): MaskPro
             if (stencilMasks.length > 0) {
                 processStencilMasks(wasm, world, cppRegistry, stencilMasks, stencilMaskSet, vp, vpX, vpY, vpW, vpH);
             }
-        } catch (_) {
+        } catch (e) {
+            console.error('Mask processing error:', e);
             wasm.renderer_clearAllClipRects();
             wasm.renderer_clearAllStencilMasks();
         }
@@ -153,14 +187,26 @@ function processStencilMasks(
     }
 
     let nextRef = 1;
+    let overflowed = false;
+
+    function allocStencilRef(): number | null {
+        if (nextRef > 255) {
+            if (!overflowed) console.warn('Stencil mask overflow');
+            overflowed = true;
+            return null;
+        }
+        return nextRef++;
+    }
 
     function applyStencilHierarchy(entity: Entity, refValue: number): void {
+        if (overflowed) return;
         wasm.renderer_setEntityStencilMask(entity as number, refValue);
 
         const children = wasm.getChildEntities(cppRegistry, entity as number);
         for (const childId of children) {
             if (stencilMaskSet.has(childId)) {
-                const childRef = nextRef++;
+                const childRef = allocStencilRef();
+                if (childRef === null) return;
                 applyStencilHierarchy(childId as Entity, childRef);
             } else {
                 wasm.renderer_setEntityStencilTest(childId, refValue);
@@ -170,10 +216,12 @@ function processStencilMasks(
     }
 
     function applyStencilDescendants(entity: Entity, refValue: number): void {
+        if (overflowed) return;
         const children = wasm.getChildEntities(cppRegistry, entity as number);
         for (const childId of children) {
             if (stencilMaskSet.has(childId)) {
-                const childRef = nextRef++;
+                const childRef = allocStencilRef();
+                if (childRef === null) return;
                 applyStencilHierarchy(childId as Entity, childRef);
             } else {
                 wasm.renderer_setEntityStencilTest(childId, refValue);
@@ -183,7 +231,9 @@ function processStencilMasks(
     }
 
     for (const entity of rootMasks) {
-        const refValue = nextRef++;
+        if (overflowed) break;
+        const refValue = allocStencilRef();
+        if (refValue === null) return;
         applyStencilHierarchy(entity, refValue);
     }
 }

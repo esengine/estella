@@ -1,9 +1,11 @@
 import type { App, Plugin } from '../app';
 import { registerComponent } from '../component';
+import { Res } from '../resource';
 import { defineSystem, Schedule } from '../system';
-import type { Entity } from '../types';
 import { SafeArea } from './SafeArea';
 import type { SafeAreaData } from './SafeArea';
+import { UICameraInfo } from './UICameraInfo';
+import type { UICameraData } from './UICameraInfo';
 import { UIRect } from './UIRect';
 import type { UIRectData } from './UIRect';
 
@@ -33,27 +35,47 @@ export class SafeAreaPlugin implements Plugin {
         registerComponent('SafeArea', SafeArea);
 
         const world = app.world;
-        let cachedInsets: SafeAreaInsets = { top: 0, bottom: 0, left: 0, right: 0 };
-        let frameCount = 0;
+        let cachedInsets: SafeAreaInsets = getSafeAreaInsets();
+        let dirty = true;
+        let prevScreenH = 0;
+        let prevWorldH = 0;
+
+        if (typeof window !== 'undefined') {
+            window.addEventListener('resize', () => {
+                cachedInsets = getSafeAreaInsets();
+                dirty = true;
+            });
+        }
 
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
-            [],
-            () => {
-                if (frameCount++ % 60 === 0) {
-                    cachedInsets = getSafeAreaInsets();
+            [Res(UICameraInfo)],
+            (camera: UICameraData) => {
+                if (!camera.valid || camera.screenH === 0) return;
+
+                const worldH = camera.worldTop - camera.worldBottom;
+                if (camera.screenH !== prevScreenH || worldH !== prevWorldH) {
+                    prevScreenH = camera.screenH;
+                    prevWorldH = worldH;
+                    dirty = true;
                 }
+
+                if (!dirty) return;
+                dirty = false;
+
+                const dpr = typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1;
+                const cssToWorld = dpr * worldH / camera.screenH;
 
                 const entities = world.getEntitiesWithComponents([SafeArea, UIRect]);
                 for (const entity of entities) {
                     const sa = world.get(entity, SafeArea) as SafeAreaData;
                     const rect = world.get(entity, UIRect) as UIRectData;
 
-                    let changed = false;
-                    const top = sa.applyTop ? cachedInsets.top : 0;
-                    const bottom = sa.applyBottom ? cachedInsets.bottom : 0;
-                    const left = sa.applyLeft ? cachedInsets.left : 0;
-                    const right = sa.applyRight ? cachedInsets.right : 0;
+                    const top = sa.applyTop ? cachedInsets.top * cssToWorld : 0;
+                    const bottom = sa.applyBottom ? cachedInsets.bottom * cssToWorld : 0;
+                    const left = sa.applyLeft ? cachedInsets.left * cssToWorld : 0;
+                    const right = sa.applyRight ? cachedInsets.right * cssToWorld : 0;
 
+                    let changed = false;
                     if (rect.offsetMin.x !== left || rect.offsetMin.y !== bottom) {
                         rect.offsetMin = { x: left, y: bottom };
                         changed = true;

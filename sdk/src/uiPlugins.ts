@@ -14,6 +14,7 @@ import { safeAreaPlugin } from './ui/SafeAreaPlugin';
 import { listViewPlugin } from './ui/ListViewPlugin';
 import { dropdownPlugin } from './ui/DropdownPlugin';
 import { layoutGroupPlugin } from './ui/LayoutGroupPlugin';
+import { uiRenderOrderPlugin } from './ui/UIRenderOrderPlugin';
 import type { Plugin } from './app';
 
 export const uiPlugins: Plugin[] = [
@@ -23,4 +24,5 @@ export const uiPlugins: Plugin[] = [
     togglePlugin, textInputPlugin,
     focusPlugin, safeAreaPlugin, listViewPlugin, dropdownPlugin,
     layoutGroupPlugin,
+    uiRenderOrderPlugin,
 ];

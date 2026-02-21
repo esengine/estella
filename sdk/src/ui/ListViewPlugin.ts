@@ -14,6 +14,8 @@ import { Interactable } from './Interactable';
 import { UIMask } from './UIMask';
 import { UIInteraction } from './UIInteraction';
 import type { UIInteractionData } from './UIInteraction';
+import { ensureComponent } from './uiHelpers';
+import { SCROLL_WHEEL_SENSITIVITY } from './uiConstants';
 
 interface ListViewState {
     visibleStart: number;
@@ -22,32 +24,53 @@ interface ListViewState {
     renderer: ListViewItemRenderer | null;
 }
 
-const listViewStates = new Map<Entity, ListViewState>();
-
 export function setListViewRenderer(entity: Entity, renderer: ListViewItemRenderer): void {
-    const state = listViewStates.get(entity);
+    const activeStates = ListViewPlugin.activeStates;
+    if (!activeStates) {
+        console.warn('setListViewRenderer: ListViewPlugin has not been initialized');
+        return;
+    }
+    const state = activeStates.get(entity);
     if (state) {
         state.renderer = renderer;
+    } else {
+        activeStates.set(entity, {
+            visibleStart: 0,
+            visibleEnd: 0,
+            itemEntities: new Map(),
+            renderer,
+        });
     }
 }
 
 export class ListViewPlugin implements Plugin {
+    static activeStates: Map<Entity, ListViewState> | null = null;
+
     build(app: App): void {
         registerComponent('ListView', ListView);
 
         const world = app.world;
+        const listViewStates = new Map<Entity, ListViewState>();
+        ListViewPlugin.activeStates = listViewStates;
 
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
             [Res(Input)],
             (input: InputState) => {
+                for (const [e, st] of listViewStates) {
+                    if (!world.valid(e)) {
+                        for (const itemEntity of st.itemEntities.values()) {
+                            if (world.valid(itemEntity)) {
+                                world.despawn(itemEntity);
+                            }
+                        }
+                        listViewStates.delete(e);
+                    }
+                }
+
                 const entities = world.getEntitiesWithComponents([ListView, UIRect]);
                 for (const entity of entities) {
-                    if (!world.has(entity, Interactable)) {
-                        world.insert(entity, Interactable, { enabled: true, blockRaycast: true });
-                    }
-                    if (!world.has(entity, UIMask)) {
-                        world.insert(entity, UIMask, { enabled: true, mode: 'scissor' });
-                    }
+                    ensureComponent(world, entity, Interactable, { enabled: true, blockRaycast: true });
+                    ensureComponent(world, entity, UIMask, { enabled: true, mode: 'scissor' });
 
                     let state = listViewStates.get(entity);
                     if (!state) {
@@ -62,7 +85,8 @@ export class ListViewPlugin implements Plugin {
 
                     const lv = world.get(entity, ListView) as ListViewData;
                     const rect = world.get(entity, UIRect) as UIRectData;
-                    const viewHeight = rect.size.y;
+                    const viewHeight = rect._computedHeight ?? rect.size.y;
+                    const viewWidth = rect._computedWidth ?? rect.size.x;
 
                     const interaction = world.has(entity, UIInteraction)
                         ? world.get(entity, UIInteraction) as UIInteractionData
@@ -71,7 +95,7 @@ export class ListViewPlugin implements Plugin {
                     if (interaction?.hovered) {
                         const scroll = input.getScrollDelta();
                         if (scroll.y !== 0) {
-                            lv.scrollY += scroll.y * 0.1;
+                            lv.scrollY += scroll.y * SCROLL_WHEEL_SENSITIVITY;
                         }
                     }
 
@@ -103,7 +127,7 @@ export class ListViewPlugin implements Plugin {
                                 anchorMax: { x: 1, y: 1 },
                                 offsetMin: { x: 0, y: 0 },
                                 offsetMax: { x: 0, y: 0 },
-                                size: { x: rect.size.x, y: lv.itemHeight },
+                                size: { x: viewWidth, y: lv.itemHeight },
                                 pivot: { x: 0.5, y: 1 },
                             });
                             world.setParent(itemEntity, entity);

@@ -1,5 +1,3 @@
-
-
 import type { App, Plugin } from '../app';
 import { registerComponent, Children, LocalTransform } from '../component';
 import type { ChildrenData, LocalTransformData } from '../component';
@@ -42,50 +40,50 @@ export class LayoutGroupPlugin implements Plugin {
                         validChildren.reverse();
                     }
 
-                    const pw = parentRect.size.x;
-                    const ph = parentRect.size.y;
+                    const pw = parentRect._computedWidth ?? parentRect.size.x;
+                    const ph = parentRect._computedHeight ?? parentRect.size.y;
+                    const pivotX = parentRect.pivot.x;
+                    const pivotY = parentRect.pivot.y;
                     const pad = group.padding;
-                    const contentW = pw - pad.left - pad.right;
-                    const contentH = ph - pad.top - pad.bottom;
 
                     const isHorizontal = group.direction === LayoutDirection.Horizontal;
                     let cursor = 0;
 
-                    for (const child of validChildren) {
-                        const cw = child.rect.size.x;
-                        const ch = child.rect.size.y;
+                    for (let i = 0; i < validChildren.length; i++) {
+                        const child = validChildren[i];
+                        const cw = child.rect._computedWidth ?? child.rect.size.x;
+                        const ch = child.rect._computedHeight ?? child.rect.size.y;
+                        const cpx = child.rect.pivot.x;
+                        const cpy = child.rect.pivot.y;
 
                         let localX: number;
                         let localY: number;
 
                         if (isHorizontal) {
-                            localX = -pw * 0.5 + pad.left + cursor + cw * 0.5;
+                            localX = -pivotX * pw + pad.left + cursor + cpx * cw;
                             if (group.childAlignment === ChildAlignment.Start) {
-                                localY = ph * 0.5 - pad.top - ch * 0.5;
+                                localY = (1 - pivotY) * ph - pad.top - (1 - cpy) * ch;
                             } else if (group.childAlignment === ChildAlignment.End) {
-                                localY = -ph * 0.5 + pad.bottom + ch * 0.5;
+                                localY = -pivotY * ph + pad.bottom + cpy * ch;
                             } else {
-                                localY = (pad.bottom - pad.top) * 0.5;
+                                localY = (0.5 - pivotY) * ph + (pad.bottom - pad.top) * 0.5 + (cpy - 0.5) * ch;
                             }
-                            cursor += cw + group.spacing;
+                            cursor += cw;
+                            if (i < validChildren.length - 1) cursor += group.spacing;
                         } else {
                             if (group.childAlignment === ChildAlignment.Start) {
-                                localX = -pw * 0.5 + pad.left + cw * 0.5;
+                                localX = -pivotX * pw + pad.left + cpx * cw;
                             } else if (group.childAlignment === ChildAlignment.End) {
-                                localX = pw * 0.5 - pad.right - cw * 0.5;
+                                localX = (1 - pivotX) * pw - pad.right - (1 - cpx) * cw;
                             } else {
-                                localX = (pad.left - pad.right) * 0.5;
+                                localX = (0.5 - pivotX) * pw + (pad.left - pad.right) * 0.5 + (cpx - 0.5) * cw;
                             }
-                            localY = ph * 0.5 - pad.top - cursor - ch * 0.5;
-                            cursor += ch + group.spacing;
+                            localY = (1 - pivotY) * ph - pad.top - cursor - (1 - cpy) * ch;
+                            cursor += ch;
+                            if (i < validChildren.length - 1) cursor += group.spacing;
                         }
 
-                        child.rect.anchorMin.x = 0.5;
-                        child.rect.anchorMin.y = 0.5;
-                        child.rect.anchorMax.x = 0.5;
-                        child.rect.anchorMax.y = 0.5;
-                        child.rect.offsetMin.x = localX;
-                        child.rect.offsetMin.y = localY;
+                        child.rect._layoutManaged = true;
 
                         const transform = world.get(child.entity, LocalTransform) as LocalTransformData;
                         transform.position.x = localX;

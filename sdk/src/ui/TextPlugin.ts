@@ -1,73 +1,34 @@
-/**
- * @file    TextPlugin.ts
- * @brief   Plugin that automatically syncs Text components to Sprite textures
- */
-
 import type { App, Plugin } from '../app';
-import type { Entity } from '../types';
+import { INVALID_TEXTURE, type Entity } from '../types';
 import { defineSystem, Schedule } from '../system';
 import { registerComponent, Sprite, type SpriteData } from '../component';
 import { Text, type TextData } from './text';
 import { TextRenderer } from './TextRenderer';
 import { UIRect, type UIRectData } from './UIRect';
-import { ensureSprite } from './uiHelpers';
+import { ensureSprite, getEffectiveWidth, getEffectiveHeight } from './uiHelpers';
+import { createSnapshotUtils, type Snapshot } from './uiSnapshot';
 
-interface TextSnapshot {
-    content: string;
-    fontFamily: string;
-    fontSize: number;
-    colorR: number;
-    colorG: number;
-    colorB: number;
-    colorA: number;
-    align: number;
-    verticalAlign: number;
-    wordWrap: boolean;
-    overflow: number;
-    lineHeight: number;
-    containerWidth: number;
-    containerHeight: number;
+interface TextSource {
+    text: TextData;
+    uiRect: UIRectData | null;
 }
 
-function takeSnapshot(text: TextData, uiRect?: UIRectData | null): TextSnapshot {
-    return {
-        content: text.content,
-        fontFamily: text.fontFamily,
-        fontSize: text.fontSize,
-        colorR: text.color.r,
-        colorG: text.color.g,
-        colorB: text.color.b,
-        colorA: text.color.a,
-        align: text.align,
-        verticalAlign: text.verticalAlign,
-        wordWrap: text.wordWrap,
-        overflow: text.overflow,
-        lineHeight: text.lineHeight,
-        containerWidth: uiRect ? uiRect.size.x : 0,
-        containerHeight: uiRect ? uiRect.size.y : 0,
-    };
-}
-
-function snapshotChanged(snap: TextSnapshot, text: TextData, uiRect?: UIRectData | null): boolean {
-    return snap.content !== text.content
-        || snap.fontFamily !== text.fontFamily
-        || snap.fontSize !== text.fontSize
-        || snap.colorR !== text.color.r
-        || snap.colorG !== text.color.g
-        || snap.colorB !== text.color.b
-        || snap.colorA !== text.color.a
-        || snap.align !== text.align
-        || snap.verticalAlign !== text.verticalAlign
-        || snap.wordWrap !== text.wordWrap
-        || snap.overflow !== text.overflow
-        || snap.lineHeight !== text.lineHeight
-        || snap.containerWidth !== (uiRect ? uiRect.size.x : 0)
-        || snap.containerHeight !== (uiRect ? uiRect.size.y : 0);
-}
-
-// =============================================================================
-// Text Plugin
-// =============================================================================
+const textSnapshot = createSnapshotUtils<TextSource>({
+    content: s => s.text.content,
+    fontFamily: s => s.text.fontFamily,
+    fontSize: s => s.text.fontSize,
+    colorR: s => s.text.color.r,
+    colorG: s => s.text.color.g,
+    colorB: s => s.text.color.b,
+    colorA: s => s.text.color.a,
+    align: s => s.text.align,
+    verticalAlign: s => s.text.verticalAlign,
+    wordWrap: s => s.text.wordWrap,
+    overflow: s => s.text.overflow,
+    lineHeight: s => s.text.lineHeight,
+    containerWidth: s => s.uiRect ? getEffectiveWidth(s.uiRect) : 0,
+    containerHeight: s => s.uiRect ? getEffectiveHeight(s.uiRect) : 0,
+});
 
 export class TextPlugin implements Plugin {
     build(app: App): void {
@@ -81,15 +42,21 @@ export class TextPlugin implements Plugin {
 
         const renderer = new TextRenderer(module);
         const world = app.world;
-        const snapshots = new Map<Entity, TextSnapshot>();
+        const snapshots = new Map<Entity, Snapshot>();
 
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
             [],
             () => {
+                renderer.beginFrame();
                 renderer.cleanupOrphaned(e => world.valid(e) && world.has(e, Text));
 
                 for (const entity of snapshots.keys()) {
                     if (!world.valid(entity) || !world.has(entity, Text)) {
+                        if (world.valid(entity) && world.has(entity, Sprite)) {
+                            const sprite = world.get(entity, Sprite) as SpriteData;
+                            sprite.texture = INVALID_TEXTURE;
+                            world.insert(entity, Sprite, sprite);
+                        }
                         snapshots.delete(entity);
                     }
                 }
@@ -101,9 +68,10 @@ export class TextPlugin implements Plugin {
                     const uiRect = world.has(entity, UIRect)
                         ? world.get(entity, UIRect) as UIRectData
                         : null;
+                    const source: TextSource = { text, uiRect };
                     const prev = snapshots.get(entity);
 
-                    if (prev && !snapshotChanged(prev, text, uiRect)) continue;
+                    if (prev && !textSnapshot.changed(prev, source)) continue;
 
                     ensureSprite(world, entity);
 
@@ -119,7 +87,7 @@ export class TextPlugin implements Plugin {
                     sprite.uvScale.y = 1;
                     world.insert(entity, Sprite, sprite);
 
-                    snapshots.set(entity, takeSnapshot(text, uiRect));
+                    snapshots.set(entity, textSnapshot.take(source));
                 }
             },
             { name: 'TextSystem' }

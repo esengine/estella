@@ -16,6 +16,12 @@ import { UIInteraction } from './UIInteraction';
 import type { UIInteractionData } from './UIInteraction';
 import { UICameraInfo } from './UICameraInfo';
 import type { UICameraData } from './UICameraInfo';
+import { getEffectiveWidth, getEffectiveHeight, ensureComponent } from './uiHelpers';
+import {
+    SCROLL_VELOCITY_SMOOTHING, SCROLL_VELOCITY_NEW_WEIGHT,
+    SCROLL_WHEEL_SENSITIVITY, SCROLL_MAX_DT,
+    SCROLL_FPS_REFERENCE, SCROLL_VELOCITY_THRESHOLD,
+} from './uiConstants';
 
 interface ScrollState {
     isDragging: boolean;
@@ -37,21 +43,21 @@ export class ScrollViewPlugin implements Plugin {
             [Res(Input), Res(UICameraInfo)],
             (input: InputState, camera: UICameraData) => {
                 const now = performance.now() / 1000;
-                const dt = lastTime > 0 ? Math.min(now - lastTime, 0.05) : 0;
+                const dt = lastTime > 0 ? Math.min(now - lastTime, SCROLL_MAX_DT) : 0;
                 lastTime = now;
 
                 if (!camera.valid) return;
+
+                for (const [e] of states) {
+                    if (!world.valid(e)) states.delete(e);
+                }
 
                 const worldMouse = { x: camera.worldMouseX, y: camera.worldMouseY };
 
                 const entities = world.getEntitiesWithComponents([ScrollView, UIRect]);
                 for (const entity of entities) {
-                    if (!world.has(entity, Interactable)) {
-                        world.insert(entity, Interactable, { enabled: true, blockRaycast: true });
-                    }
-                    if (!world.has(entity, UIMask)) {
-                        world.insert(entity, UIMask, { enabled: true, mode: 'scissor' });
-                    }
+                    ensureComponent(world, entity, Interactable, { enabled: true, blockRaycast: true });
+                    ensureComponent(world, entity, UIMask, { enabled: true, mode: 'scissor' });
 
                     const sv = world.get(entity, ScrollView) as ScrollViewData;
                     const rect = world.get(entity, UIRect) as UIRectData;
@@ -80,11 +86,13 @@ export class ScrollViewPlugin implements Plugin {
 
                         if (sv.horizontalEnabled) {
                             sv.scrollX -= dx;
-                            state.velocityX = dt > 0 ? -dx / dt : 0;
+                            const instantVx = dt > 0 ? -dx / dt : 0;
+                            state.velocityX = state.velocityX * SCROLL_VELOCITY_SMOOTHING + instantVx * SCROLL_VELOCITY_NEW_WEIGHT;
                         }
                         if (sv.verticalEnabled) {
                             sv.scrollY -= dy;
-                            state.velocityY = dt > 0 ? -dy / dt : 0;
+                            const instantVy = dt > 0 ? -dy / dt : 0;
+                            state.velocityY = state.velocityY * SCROLL_VELOCITY_SMOOTHING + instantVy * SCROLL_VELOCITY_NEW_WEIGHT;
                         }
 
                         state.lastWorldX = worldMouse.x;
@@ -98,24 +106,24 @@ export class ScrollViewPlugin implements Plugin {
                     if (interaction?.hovered) {
                         const scroll = input.getScrollDelta();
                         if (sv.verticalEnabled && scroll.y !== 0) {
-                            sv.scrollY += scroll.y * 0.1;
+                            sv.scrollY += scroll.y * SCROLL_WHEEL_SENSITIVITY;
                             state.velocityY = 0;
                         }
                         if (sv.horizontalEnabled && scroll.x !== 0) {
-                            sv.scrollX += scroll.x * 0.1;
+                            sv.scrollX += scroll.x * SCROLL_WHEEL_SENSITIVITY;
                             state.velocityX = 0;
                         }
                     }
 
                     if (!state.isDragging && sv.inertia && dt > 0) {
-                        const decay = Math.pow(sv.decelerationRate, dt);
-                        if (sv.horizontalEnabled && Math.abs(state.velocityX) > 0.1) {
+                        const decay = Math.pow(sv.decelerationRate, dt * SCROLL_FPS_REFERENCE);
+                        if (sv.horizontalEnabled && Math.abs(state.velocityX) > SCROLL_VELOCITY_THRESHOLD) {
                             sv.scrollX += state.velocityX * dt;
                             state.velocityX *= decay;
                         } else {
                             state.velocityX = 0;
                         }
-                        if (sv.verticalEnabled && Math.abs(state.velocityY) > 0.1) {
+                        if (sv.verticalEnabled && Math.abs(state.velocityY) > SCROLL_VELOCITY_THRESHOLD) {
                             sv.scrollY += state.velocityY * dt;
                             state.velocityY *= decay;
                         } else {
@@ -123,12 +131,16 @@ export class ScrollViewPlugin implements Plugin {
                         }
                     }
 
-                    const viewW = rect.size.x;
-                    const viewH = rect.size.y;
+                    const viewW = getEffectiveWidth(rect);
+                    const viewH = getEffectiveHeight(rect);
                     const maxScrollX = Math.max(0, sv.contentWidth - viewW);
                     const maxScrollY = Math.max(0, sv.contentHeight - viewH);
+                    const prevScrollX = sv.scrollX;
+                    const prevScrollY = sv.scrollY;
                     sv.scrollX = Math.max(0, Math.min(sv.scrollX, maxScrollX));
                     sv.scrollY = Math.max(0, Math.min(sv.scrollY, maxScrollY));
+                    if (sv.scrollX !== prevScrollX) state.velocityX = 0;
+                    if (sv.scrollY !== prevScrollY) state.velocityY = 0;
 
                     if (sv.contentEntity !== 0 && world.valid(sv.contentEntity)) {
                         if (world.has(sv.contentEntity, LocalTransform)) {
@@ -141,7 +153,7 @@ export class ScrollViewPlugin implements Plugin {
                 }
             },
             { name: 'ScrollViewSystem' }
-        ));
+        ), { runAfter: ['UIInteractionSystem'] });
     }
 }
 

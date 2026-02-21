@@ -1,6 +1,6 @@
 import type { App, Plugin } from '../app';
-import { registerComponent, LocalTransform, Children, Parent } from '../component';
-import type { LocalTransformData, ChildrenData, ParentData } from '../component';
+import { registerComponent, LocalTransform, Children, Parent, Sprite } from '../component';
+import type { LocalTransformData, ChildrenData, ParentData, SpriteData } from '../component';
 import { defineSystem, Schedule } from '../system';
 import { Res } from '../resource';
 import { UIRect } from './UIRect';
@@ -11,60 +11,20 @@ import type { UICameraData } from './UICameraInfo';
 import type { Entity } from '../types';
 import type { World } from '../world';
 import { computeUIRectLayout, type LayoutRect } from './uiLayout';
+import { createSnapshotUtils, type Snapshot } from './uiSnapshot';
 
-interface RectSnapshot {
-    anchorMinX: number;
-    anchorMinY: number;
-    anchorMaxX: number;
-    anchorMaxY: number;
-    offsetMinX: number;
-    offsetMinY: number;
-    offsetMaxX: number;
-    offsetMaxY: number;
-    sizeX: number;
-    sizeY: number;
-}
-
-function updateSnapshot(snap: RectSnapshot, rect: UIRectData): void {
-    snap.anchorMinX = rect.anchorMin.x;
-    snap.anchorMinY = rect.anchorMin.y;
-    snap.anchorMaxX = rect.anchorMax.x;
-    snap.anchorMaxY = rect.anchorMax.y;
-    snap.offsetMinX = rect.offsetMin.x;
-    snap.offsetMinY = rect.offsetMin.y;
-    snap.offsetMaxX = rect.offsetMax.x;
-    snap.offsetMaxY = rect.offsetMax.y;
-    snap.sizeX = rect.size.x;
-    snap.sizeY = rect.size.y;
-}
-
-function createSnapshot(rect: UIRectData): RectSnapshot {
-    return {
-        anchorMinX: rect.anchorMin.x,
-        anchorMinY: rect.anchorMin.y,
-        anchorMaxX: rect.anchorMax.x,
-        anchorMaxY: rect.anchorMax.y,
-        offsetMinX: rect.offsetMin.x,
-        offsetMinY: rect.offsetMin.y,
-        offsetMaxX: rect.offsetMax.x,
-        offsetMaxY: rect.offsetMax.y,
-        sizeX: rect.size.x,
-        sizeY: rect.size.y,
-    };
-}
-
-function rectChanged(snap: RectSnapshot, rect: UIRectData): boolean {
-    return snap.anchorMinX !== rect.anchorMin.x
-        || snap.anchorMinY !== rect.anchorMin.y
-        || snap.anchorMaxX !== rect.anchorMax.x
-        || snap.anchorMaxY !== rect.anchorMax.y
-        || snap.offsetMinX !== rect.offsetMin.x
-        || snap.offsetMinY !== rect.offsetMin.y
-        || snap.offsetMaxX !== rect.offsetMax.x
-        || snap.offsetMaxY !== rect.offsetMax.y
-        || snap.sizeX !== rect.size.x
-        || snap.sizeY !== rect.size.y;
-}
+const rectSnapshot = createSnapshotUtils<UIRectData>({
+    anchorMinX: r => r.anchorMin.x,
+    anchorMinY: r => r.anchorMin.y,
+    anchorMaxX: r => r.anchorMax.x,
+    anchorMaxY: r => r.anchorMax.y,
+    offsetMinX: r => r.offsetMin.x,
+    offsetMinY: r => r.offsetMin.y,
+    offsetMaxX: r => r.offsetMax.x,
+    offsetMaxY: r => r.offsetMax.y,
+    sizeX: r => r.size.x,
+    sizeY: r => r.size.y,
+});
 
 function findRoot(world: World, entity: Entity): Entity | null {
     let current = entity;
@@ -81,8 +41,8 @@ function layoutEntity(
     world: World,
     entity: Entity,
     parentRect: LayoutRect,
-    parentCenterX: number,
-    parentCenterY: number,
+    parentOriginX: number,
+    parentOriginY: number,
     isRoot: boolean,
 ): void {
     if (!world.has(entity, UIRect)) return;
@@ -92,23 +52,34 @@ function layoutEntity(
     const result = computeUIRectLayout(
         rect.anchorMin, rect.anchorMax,
         rect.offsetMin, rect.offsetMax,
-        rect.size, parentRect,
+        rect.size, parentRect, rect.pivot,
     );
 
-    if (rect.anchorMin.x !== rect.anchorMax.x || rect.anchorMin.y !== rect.anchorMax.y) {
-        rect.size.x = result.width;
-        rect.size.y = result.height;
+    const width = result.rect.right - result.rect.left;
+    const height = result.rect.top - result.rect.bottom;
+    rect._computedWidth = width;
+    rect._computedHeight = height;
+
+    if (world.has(entity, Sprite)) {
+        const sprite = world.get(entity, Sprite) as SpriteData;
+        if (sprite.size.x !== width || sprite.size.y !== height) {
+            sprite.size.x = width;
+            sprite.size.y = height;
+            world.insert(entity, Sprite, sprite);
+        }
     }
 
-    const transform = world.get(entity, LocalTransform) as LocalTransformData;
-    if (isRoot) {
-        transform.position.x = result.centerX;
-        transform.position.y = result.centerY;
-    } else {
-        transform.position.x = result.centerX - parentCenterX;
-        transform.position.y = result.centerY - parentCenterY;
+    if (!rect._layoutManaged) {
+        const transform = world.get(entity, LocalTransform) as LocalTransformData;
+        if (isRoot) {
+            transform.position.x = result.originX;
+            transform.position.y = result.originY;
+        } else {
+            transform.position.x = result.originX - parentOriginX;
+            transform.position.y = result.originY - parentOriginY;
+        }
+        world.insert(entity, LocalTransform, transform);
     }
-    world.insert(entity, LocalTransform, transform);
 
     if (!world.has(entity, Children)) return;
 
@@ -117,7 +88,7 @@ function layoutEntity(
 
     for (const child of children.entities) {
         if (world.valid(child)) {
-            layoutEntity(world, child, result.rect, result.centerX, result.centerY, false);
+            layoutEntity(world, child, result.rect, result.originX, result.originY, false);
         }
     }
 }
@@ -127,7 +98,7 @@ export class UILayoutPlugin implements Plugin {
         registerComponent('UIRect', UIRect);
 
         const world = app.world;
-        const snapshots = new Map<Entity, RectSnapshot>();
+        const snapshots = new Map<Entity, Snapshot>();
         const rootCache = new Map<Entity, Entity | null>();
         let prevCameraLeft = NaN;
         let prevCameraBottom = NaN;
@@ -142,6 +113,18 @@ export class UILayoutPlugin implements Plugin {
             return root;
         }
 
+        function clearSubtreeCache(entity: Entity): void {
+            rootCache.delete(entity);
+            if (!world.has(entity, Children)) return;
+            const ch = world.get(entity, Children) as ChildrenData;
+            if (!ch || !ch.entities) return;
+            for (const child of ch.entities) {
+                if (world.valid(child)) {
+                    clearSubtreeCache(child);
+                }
+            }
+        }
+
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
             [Res(UICameraInfo)],
             (camera: UICameraData) => {
@@ -153,8 +136,8 @@ export class UILayoutPlugin implements Plugin {
                     right: camera.worldRight,
                     top: camera.worldTop,
                 };
-                const cameraCenterX = (cameraRect.left + cameraRect.right) * 0.5;
-                const cameraCenterY = (cameraRect.bottom + cameraRect.top) * 0.5;
+                const cameraOriginX = (cameraRect.left + cameraRect.right) * 0.5;
+                const cameraOriginY = (cameraRect.bottom + cameraRect.top) * 0.5;
 
                 const cameraChanged = prevCameraLeft !== camera.worldLeft
                     || prevCameraBottom !== camera.worldBottom
@@ -188,9 +171,9 @@ export class UILayoutPlugin implements Plugin {
                     const rect = world.get(entity, UIRect) as UIRectData;
                     const snap = snapshots.get(entity);
 
-                    if (rect._dirty || !snap || rectChanged(snap, rect)) {
+                    if (rect._dirty || !snap || rectSnapshot.changed(snap, rect)) {
                         rect._dirty = false;
-                        rootCache.delete(entity);
+                        clearSubtreeCache(entity);
                         const root = getCachedRoot(entity);
                         if (root !== null) {
                             dirtyRoots.add(root);
@@ -199,16 +182,16 @@ export class UILayoutPlugin implements Plugin {
                 }
 
                 for (const root of dirtyRoots) {
-                    layoutEntity(world, root, cameraRect, cameraCenterX, cameraCenterY, true);
+                    layoutEntity(world, root, cameraRect, cameraOriginX, cameraOriginY, true);
                 }
 
                 for (const entity of allUIRectEntities) {
                     const rect = world.get(entity, UIRect) as UIRectData;
                     const existing = snapshots.get(entity);
                     if (existing) {
-                        updateSnapshot(existing, rect);
+                        rectSnapshot.update(existing, rect);
                     } else {
-                        snapshots.set(entity, createSnapshot(rect));
+                        snapshots.set(entity, rectSnapshot.take(rect));
                     }
                 }
             },
