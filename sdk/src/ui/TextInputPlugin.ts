@@ -134,6 +134,11 @@ export class TextInputPlugin implements Plugin {
             textarea.removeEventListener('keydown', onKeyDown);
             textarea.removeEventListener('blur', onBlur);
             textarea.remove();
+            const rm = module!.getResourceManager();
+            for (const tex of textureCache.values()) {
+                rm.releaseTexture(tex);
+            }
+            textureCache.clear();
         };
 
         function syncFromTextarea(): void {

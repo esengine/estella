@@ -24,17 +24,18 @@ interface ListViewState {
     renderer: ListViewItemRenderer | null;
 }
 
+let activeListViewStates: Map<Entity, ListViewState> | null = null;
+
 export function setListViewRenderer(entity: Entity, renderer: ListViewItemRenderer): void {
-    const activeStates = ListViewPlugin.activeStates;
-    if (!activeStates) {
+    if (!activeListViewStates) {
         console.warn('setListViewRenderer: ListViewPlugin has not been initialized');
         return;
     }
-    const state = activeStates.get(entity);
+    const state = activeListViewStates.get(entity);
     if (state) {
         state.renderer = renderer;
     } else {
-        activeStates.set(entity, {
+        activeListViewStates.set(entity, {
             visibleStart: 0,
             visibleEnd: 0,
             itemEntities: new Map(),
@@ -44,14 +45,13 @@ export function setListViewRenderer(entity: Entity, renderer: ListViewItemRender
 }
 
 export class ListViewPlugin implements Plugin {
-    static activeStates: Map<Entity, ListViewState> | null = null;
 
     build(app: App): void {
         registerComponent('ListView', ListView);
 
         const world = app.world;
         const listViewStates = new Map<Entity, ListViewState>();
-        ListViewPlugin.activeStates = listViewStates;
+        activeListViewStates = listViewStates;
 
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
             [Res(Input)],

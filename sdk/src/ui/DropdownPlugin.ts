@@ -105,7 +105,7 @@ export class DropdownPlugin implements Plugin {
                 }
             },
             { name: 'DropdownSystem' }
-        ));
+        ), { runAfter: ['UIInteractionSystem'] });
 
         function openDropdown(entity: Entity, dropdown: DropdownData, state: DropdownState): void {
             dropdown.isOpen = true;

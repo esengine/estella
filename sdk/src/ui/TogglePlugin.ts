@@ -40,6 +40,19 @@ export class TogglePlugin implements Plugin {
                         toggle.isOn = false;
                     }
                 }
+                const togglesByGroup = new Map<Entity, Entity[]>();
+                for (const entity of toggleEntities) {
+                    const toggle = world.get(entity, Toggle) as ToggleData;
+                    if (toggle.group !== 0 && world.valid(toggle.group)) {
+                        let group = togglesByGroup.get(toggle.group);
+                        if (!group) {
+                            group = [];
+                            togglesByGroup.set(toggle.group, group);
+                        }
+                        group.push(entity);
+                    }
+                }
+
                 for (const entity of toggleEntities) {
                     ensureComponent(world, entity, Interactable, { enabled: true });
                     if (!world.has(entity, UIInteraction)) continue;
@@ -61,12 +74,15 @@ export class TogglePlugin implements Plugin {
                         toggle.isOn = !toggle.isOn;
 
                         if (toggle.isOn && hasGroup) {
-                            for (const other of toggleEntities) {
-                                if (other === entity) continue;
-                                const otherToggle = world.get(other, Toggle) as ToggleData;
-                                if (otherToggle.group === groupEntity && otherToggle.isOn) {
-                                    otherToggle.isOn = false;
-                                    events.emit(other, 'change');
+                            const siblings = togglesByGroup.get(groupEntity);
+                            if (siblings) {
+                                for (const other of siblings) {
+                                    if (other === entity) continue;
+                                    const otherToggle = world.get(other, Toggle) as ToggleData;
+                                    if (otherToggle.isOn) {
+                                        otherToggle.isOn = false;
+                                        events.emit(other, 'change');
+                                    }
                                 }
                             }
                         }
@@ -95,7 +111,7 @@ export class TogglePlugin implements Plugin {
                 }
             },
             { name: 'ToggleSystem' }
-        ));
+        ), { runAfter: ['UIInteractionSystem'] });
     }
 }
 
