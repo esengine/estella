@@ -15,7 +15,7 @@ import { registerDrawCallback, unregisterDrawCallback } from './customDraw';
 import { PostProcess } from './postprocess';
 import { Draw } from './draw';
 import { defineResource } from './resource';
-import { SceneOwner, Sprite } from './component';
+import { SceneOwner, Sprite, SpineAnimation, BitmapText } from './component';
 import { Assets } from './asset/AssetPlugin';
 import { RuntimeConfig } from './defaults';
 
@@ -78,7 +78,7 @@ class SceneInstance {
     readonly entities = new Set<Entity>();
     readonly drawCallbacks = new Map<string, DrawCallback>();
     readonly postProcessPasses: string[] = [];
-    readonly savedAlphas = new Map<Entity, number>();
+    readonly savedAlphas = new Map<Entity, { sprite?: number; spine?: number; bitmapText?: number }>();
     status: SceneStatus = 'loading';
 
     constructor(config: SceneConfig) {
@@ -511,12 +511,36 @@ export class SceneManagerState {
         this.setPostProcessPassesEnabled(instance, false);
         instance.savedAlphas.clear();
 
+        const world = this.app_.world;
         for (const entity of instance.entities) {
-            if (this.app_.world.valid(entity) && this.app_.world.has(entity, Sprite)) {
-                const sprite = this.app_.world.get(entity, Sprite);
-                instance.savedAlphas.set(entity, sprite.color.a);
+            if (!world.valid(entity)) continue;
+            const saved: { sprite?: number; spine?: number; bitmapText?: number } = {};
+            let hasSaved = false;
+
+            if (world.has(entity, Sprite)) {
+                const sprite = world.get(entity, Sprite);
+                saved.sprite = sprite.color.a;
                 sprite.color = { ...sprite.color, a: 0 };
-                this.app_.world.insert(entity, Sprite, sprite);
+                world.insert(entity, Sprite, sprite);
+                hasSaved = true;
+            }
+            if (world.has(entity, SpineAnimation)) {
+                const spine = world.get(entity, SpineAnimation);
+                saved.spine = spine.color.a;
+                spine.color = { ...spine.color, a: 0 };
+                world.insert(entity, SpineAnimation, spine);
+                hasSaved = true;
+            }
+            if (world.has(entity, BitmapText)) {
+                const bt = world.get(entity, BitmapText);
+                saved.bitmapText = bt.color.a;
+                bt.color = { ...bt.color, a: 0 };
+                world.insert(entity, BitmapText, bt);
+                hasSaved = true;
+            }
+
+            if (hasSaved) {
+                instance.savedAlphas.set(entity, saved);
             }
         }
     }
@@ -528,12 +552,26 @@ export class SceneManagerState {
         this.sleepingScenes_.delete(name);
         this.setPostProcessPassesEnabled(instance, true);
 
+        const world = this.app_.world;
         for (const entity of instance.entities) {
-            if (this.app_.world.valid(entity) && this.app_.world.has(entity, Sprite)) {
-                const sprite = this.app_.world.get(entity, Sprite);
-                const savedAlpha = instance.savedAlphas.get(entity) ?? 1;
-                sprite.color = { ...sprite.color, a: savedAlpha };
-                this.app_.world.insert(entity, Sprite, sprite);
+            if (!world.valid(entity)) continue;
+            const saved = instance.savedAlphas.get(entity);
+            if (!saved) continue;
+
+            if (saved.sprite !== undefined && world.has(entity, Sprite)) {
+                const sprite = world.get(entity, Sprite);
+                sprite.color = { ...sprite.color, a: saved.sprite };
+                world.insert(entity, Sprite, sprite);
+            }
+            if (saved.spine !== undefined && world.has(entity, SpineAnimation)) {
+                const spine = world.get(entity, SpineAnimation);
+                spine.color = { ...spine.color, a: saved.spine };
+                world.insert(entity, SpineAnimation, spine);
+            }
+            if (saved.bitmapText !== undefined && world.has(entity, BitmapText)) {
+                const bt = world.get(entity, BitmapText);
+                bt.color = { ...bt.color, a: saved.bitmapText };
+                world.insert(entity, BitmapText, bt);
             }
         }
         instance.savedAlphas.clear();

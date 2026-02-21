@@ -5,6 +5,7 @@
 
 import type { RuntimeAssetProvider } from '../runtimeLoader';
 import type { SceneData } from '../scene';
+import { getComponentAssetFieldDescriptors, getComponentSpineFieldDescriptor } from '../scene';
 import { getAssetTypeEntry } from '../assetTypes';
 
 export class WebAssetProvider implements RuntimeAssetProvider {
@@ -24,9 +25,10 @@ export class WebAssetProvider implements RuntimeAssetProvider {
         for (const entity of sceneData.entities) {
             for (const comp of entity.components) {
                 if (!comp.data) continue;
-                if (comp.type === 'SpineAnimation') {
-                    const skelPath = comp.data.skeletonPath as string;
-                    const atlasPath = comp.data.atlasPath as string;
+                const spineDesc = getComponentSpineFieldDescriptor(comp.type);
+                if (spineDesc) {
+                    const skelPath = comp.data[spineDesc.skeletonField] as string;
+                    const atlasPath = comp.data[spineDesc.atlasField] as string;
                     if (skelPath) {
                         if (getAssetTypeEntry(skelPath)?.contentType === 'binary') {
                             binaryRefs.add(skelPath);
@@ -36,12 +38,16 @@ export class WebAssetProvider implements RuntimeAssetProvider {
                     }
                     if (atlasPath) textRefs.add(atlasPath);
                 }
-                if (comp.type === 'BitmapText' && typeof comp.data.font === 'string' && comp.data.font) {
-                    bmfontRefs.add(comp.data.font);
-                    textRefs.add(comp.data.font);
-                }
-                if (typeof comp.data.material === 'string' && comp.data.material) {
-                    textRefs.add(comp.data.material);
+                const descriptors = getComponentAssetFieldDescriptors(comp.type);
+                for (const desc of descriptors) {
+                    const value = comp.data[desc.field];
+                    if (typeof value !== 'string' || !value) continue;
+                    if (desc.type === 'font') {
+                        bmfontRefs.add(value);
+                        textRefs.add(value);
+                    } else if (desc.type === 'material') {
+                        textRefs.add(value);
+                    }
                 }
             }
         }

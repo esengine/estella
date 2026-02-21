@@ -2,6 +2,15 @@ export const DEFAULT_DESIGN_WIDTH = 1920;
 export const DEFAULT_DESIGN_HEIGHT = 1080;
 export const DEFAULT_PIXELS_PER_UNIT = 100;
 export const DEFAULT_TEXT_CANVAS_SIZE = 512;
+export const DEFAULT_SPRITE_SIZE = { x: 100, y: 100 };
+export const DEFAULT_FONT_FAMILY = 'Arial';
+export const DEFAULT_FONT_SIZE = 24;
+export const DEFAULT_LINE_HEIGHT = 1.2;
+export const DEFAULT_MAX_DELTA_TIME = 0.5;
+export const DEFAULT_FALLBACK_DT = 1 / 60;
+export const DEFAULT_GRAVITY = { x: 0, y: -9.81 };
+export const DEFAULT_FIXED_TIMESTEP = 1 / 60;
+export const DEFAULT_SPINE_SKIN = 'default';
 
 export const RuntimeConfig = {
     sceneTransitionDuration: 0.3,

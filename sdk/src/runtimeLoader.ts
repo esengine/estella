@@ -5,7 +5,7 @@
 
 import { SpineAnimation, WorldTransform, SceneOwner, type SpineAnimationData, type WorldTransformData } from './component';
 import { Material } from './material';
-import { loadSceneData, getComponentAssetFieldDescriptors, type AssetFieldType, type SceneData } from './scene';
+import { loadSceneData, getComponentAssetFieldDescriptors, getComponentSpineFieldDescriptor, type AssetFieldType, type SceneData } from './scene';
 import type { ESEngineModule } from './wasm';
 import { wrapSpineModule, type SpineWasmModule, type SpineWrappedAPI } from './spine/SpineModuleLoader';
 import type { PhysicsWasmModule } from './physics/PhysicsModuleLoader';
@@ -16,6 +16,7 @@ import type { AddressableManifest } from './asset/AssetServer';
 import { Assets } from './asset/AssetPlugin';
 import { getAssetTypeEntry } from './assetTypes';
 import { SceneManager, type SceneConfig } from './sceneManager';
+import { DEFAULT_MAX_DELTA_TIME, DEFAULT_FALLBACK_DT, DEFAULT_GRAVITY, DEFAULT_FIXED_TIMESTEP } from './defaults';
 
 // =============================================================================
 // Public Interface
@@ -54,8 +55,11 @@ async function loadTextures(
     const cache: Record<string, number> = {};
     for (const entity of sceneData.entities) {
         for (const comp of entity.components) {
-            if (comp.type === 'Sprite' && comp.data.texture && typeof comp.data.texture === 'string') {
-                const ref = comp.data.texture as string;
+            const descriptors = getComponentAssetFieldDescriptors(comp.type);
+            for (const desc of descriptors) {
+                if (desc.type !== 'texture') continue;
+                const ref = comp.data[desc.field];
+                if (typeof ref !== 'string' || !ref) continue;
                 if (cache[ref] !== undefined) continue;
                 try {
                     cache[ref] = createTextureFromPixels(module, await provider.loadPixels(ref));
@@ -139,9 +143,10 @@ async function loadSpineAssets(
     const skeletons: Record<string, number> = {};
     for (const entity of sceneData.entities) {
         for (const comp of entity.components) {
-            if (comp.type !== 'SpineAnimation' || !comp.data) continue;
-            const skelRef = comp.data.skeletonPath as string;
-            const atlasRef = comp.data.atlasPath as string;
+            const spineDesc = getComponentSpineFieldDescriptor(comp.type);
+            if (!spineDesc || !comp.data) continue;
+            const skelRef = comp.data[spineDesc.skeletonField] as string;
+            const atlasRef = comp.data[spineDesc.atlasField] as string;
             if (!skelRef || !atlasRef) continue;
 
             const skelPath = provider.resolvePath(skelRef);
@@ -205,8 +210,9 @@ function createSpineInstances(
     for (const entityData of sceneData.entities) {
         if (entityData.visible === false) continue;
         for (const comp of entityData.components) {
-            if (comp.type !== 'SpineAnimation' || !comp.data) continue;
-            const skelRef = comp.data.skeletonPath as string;
+            const spineDesc = getComponentSpineFieldDescriptor(comp.type);
+            if (!spineDesc || !comp.data) continue;
+            const skelRef = comp.data[spineDesc.skeletonField] as string;
             const skelHandle = skeletons[skelRef];
             if (skelHandle === undefined) continue;
 
@@ -262,7 +268,7 @@ function setupSpineRenderer(
     app.setSpineRenderer((_registry: unknown, elapsed: number) => {
         let dt = elapsed - lastElapsed;
         lastElapsed = elapsed;
-        if (dt <= 0 || dt > 0.5) dt = 1 / 60;
+        if (dt <= 0 || dt > DEFAULT_MAX_DELTA_TIME) dt = DEFAULT_FALLBACK_DT;
 
         const world = app.world;
 
@@ -344,8 +350,11 @@ async function loadBitmapFonts(
     const cache: Record<string, number> = {};
     for (const entity of sceneData.entities) {
         for (const comp of entity.components) {
-            if (comp.type !== 'BitmapText' || !comp.data.font || typeof comp.data.font !== 'string') continue;
-            const ref = comp.data.font as string;
+            const descriptors = getComponentAssetFieldDescriptors(comp.type);
+            const fontDesc = descriptors.find(d => d.type === 'font');
+            if (!fontDesc) continue;
+            const ref = comp.data[fontDesc.field];
+            if (typeof ref !== 'string' || !ref) continue;
             if (cache[ref] !== undefined) continue;
             try {
                 let fntContent: string;
@@ -396,9 +405,12 @@ async function loadMaterials(
     const shaderCache: Record<string, number> = {};
     for (const entity of sceneData.entities) {
         for (const comp of entity.components) {
-            if (!comp.data || typeof comp.data.material !== 'string' || !comp.data.material) continue;
-            if (comp.type !== 'Sprite' && comp.type !== 'SpineAnimation') continue;
-            const matRef = comp.data.material as string;
+            if (!comp.data) continue;
+            const descriptors = getComponentAssetFieldDescriptors(comp.type);
+            const matDesc = descriptors.find(d => d.type === 'material');
+            if (!matDesc) continue;
+            const matRef = comp.data[matDesc.field];
+            if (typeof matRef !== 'string' || !matRef) continue;
             if (materialCache[matRef] !== undefined) continue;
             try {
                 const matData = JSON.parse(await provider.readText(matRef));
@@ -448,8 +460,8 @@ export async function loadRuntimeScene(
 
     if (physicsModule) {
         const config: PhysicsPluginConfig = {
-            gravity: physicsConfig?.gravity ?? { x: 0, y: -9.81 },
-            fixedTimestep: physicsConfig?.fixedTimestep ?? 1 / 60,
+            gravity: physicsConfig?.gravity ?? { ...DEFAULT_GRAVITY },
+            fixedTimestep: physicsConfig?.fixedTimestep ?? DEFAULT_FIXED_TIMESTEP,
             subStepCount: physicsConfig?.subStepCount ?? 4,
         };
         const physicsPlugin = new PhysicsPlugin('', config, () => Promise.resolve(physicsModule));

@@ -16,6 +16,8 @@ export const INVALID_TEXTURE = 0xFFFFFFFF as TextureHandle;
 export type FontHandle = number;
 export const INVALID_FONT = 0xFFFFFFFF as FontHandle;
 
+export const INVALID_MATERIAL = 0;
+
 // =============================================================================
 // Math Types
 // =============================================================================

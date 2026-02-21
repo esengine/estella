@@ -153,7 +153,7 @@ class WebPlatformAdapter implements PlatformAdapter {
         document.addEventListener('keyup', onKeyUp);
         el.addEventListener('mousemove', onMouseMove);
         el.addEventListener('mousedown', onMouseDown);
-        el.addEventListener('mouseup', onMouseUp);
+        document.addEventListener('mouseup', onMouseUp);
         el.addEventListener('touchstart', onTouchStart);
         el.addEventListener('touchmove', onTouchMove);
         el.addEventListener('touchend', onTouchEnd);
@@ -164,7 +164,7 @@ class WebPlatformAdapter implements PlatformAdapter {
             document.removeEventListener('keyup', onKeyUp);
             el.removeEventListener('mousemove', onMouseMove);
             el.removeEventListener('mousedown', onMouseDown);
-            el.removeEventListener('mouseup', onMouseUp);
+            document.removeEventListener('mouseup', onMouseUp);
             el.removeEventListener('touchstart', onTouchStart);
             el.removeEventListener('touchmove', onTouchMove);
             el.removeEventListener('touchend', onTouchEnd);

@@ -53,8 +53,10 @@ function createComponentDef<T extends object>(
     };
 }
 
-function getComponentRegistry(): Map<string, ComponentDef<any>> {
-    if (typeof window === 'undefined') return new Map();
+const fallbackComponentRegistry_ = new Map<string, ComponentDef<any>>();
+
+export function getComponentRegistry(): Map<string, ComponentDef<any>> {
+    if (typeof window === 'undefined') return fallbackComponentRegistry_;
     return (window.__esengine_componentRegistry ??= new Map());
 }
 

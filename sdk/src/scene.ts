@@ -4,7 +4,7 @@
  */
 
 import { World } from './world';
-import { Entity } from './types';
+import { Entity, INVALID_ENTITY } from './types';
 import { getComponent, Name, Camera } from './component';
 import type { AssetServer } from './asset/AssetServer';
 
@@ -128,6 +128,48 @@ export function getComponentAssetFieldDescriptors(
     return COMPONENT_ASSET_FIELDS.get(componentType)?.fields ?? [];
 }
 
+export function getComponentSpineFieldDescriptor(
+    componentType: string,
+): { skeletonField: string; atlasField: string } | null {
+    return COMPONENT_ASSET_FIELDS.get(componentType)?.spine ?? null;
+}
+
+export function getRegisteredAssetComponentTypes(): string[] {
+    return Array.from(COMPONENT_ASSET_FIELDS.keys());
+}
+
+// =============================================================================
+// Component Entity Reference Fields Registry
+// =============================================================================
+
+const COMPONENT_ENTITY_FIELDS = new Map<string, string[]>([
+    ['Slider', ['fillEntity', 'handleEntity']],
+    ['ProgressBar', ['fillEntity']],
+    ['Toggle', ['graphicEntity', 'group']],
+    ['ScrollView', ['contentEntity']],
+    ['Dropdown', ['listEntity', 'labelEntity']],
+]);
+
+export function registerComponentEntityFields(
+    componentType: string,
+    fields: string[]
+): void {
+    COMPONENT_ENTITY_FIELDS.set(componentType, fields);
+}
+
+function remapEntityFields(compData: SceneComponentData, entityMap: Map<number, Entity>): void {
+    const fields = COMPONENT_ENTITY_FIELDS.get(compData.type);
+    if (!fields) return;
+    const data = compData.data as Record<string, unknown>;
+    for (const field of fields) {
+        const editorId = data[field];
+        if (typeof editorId === 'number' && editorId !== INVALID_ENTITY) {
+            const runtimeId = entityMap.get(editorId);
+            data[field] = runtimeId !== undefined ? runtimeId : INVALID_ENTITY;
+        }
+    }
+}
+
 // =============================================================================
 // Scene Loader
 // =============================================================================
@@ -139,15 +181,17 @@ export function loadSceneData(world: World, sceneData: SceneData): Map<number, E
         const entity = world.spawn();
         entityMap.set(entityData.id, entity);
         world.insert(entity, Name, { value: entityData.name });
+    }
 
-        if (entityData.visible !== false) {
-            for (const compData of entityData.components) {
-                loadComponent(world, entity, compData, entityData.name);
-            }
+    for (const entityData of sceneData.entities) {
+        if (entityData.visible === false) continue;
+        const entity = entityMap.get(entityData.id)!;
+        for (const compData of entityData.components) {
+            remapEntityFields(compData, entityMap);
+            loadComponent(world, entity, compData, entityData.name);
         }
     }
 
-    // Set parent-child relationships
     for (const entityData of sceneData.entities) {
         if (entityData.parent !== null) {
             const entity = entityMap.get(entityData.id);
@@ -179,10 +223,13 @@ export async function loadSceneWithAssets(
         const entity = world.spawn();
         entityMap.set(entityData.id, entity);
         world.insert(entity, Name, { value: entityData.name });
+    }
 
+    for (const entityData of sceneData.entities) {
         if (entityData.visible === false) continue;
-
+        const entity = entityMap.get(entityData.id)!;
         for (const compData of entityData.components) {
+            remapEntityFields(compData, entityMap);
             loadComponent(world, entity, compData, entityData.name);
         }
     }

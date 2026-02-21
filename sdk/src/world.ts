@@ -4,7 +4,7 @@
  */
 
 import { Entity } from './types';
-import { AnyComponentDef, ComponentDef, ComponentData, BuiltinComponentDef, isBuiltinComponent, getAllRegisteredComponents } from './component';
+import { AnyComponentDef, ComponentDef, ComponentData, BuiltinComponentDef, isBuiltinComponent, getAllRegisteredComponents, getComponentRegistry } from './component';
 import type { CppRegistry } from './wasm';
 import { validateComponentData, formatValidationErrors } from './validation';
 import { handleWasmError } from './wasmError';
@@ -49,6 +49,7 @@ export class World {
     private queryCache_ = new Map<string, { version: number; result: Entity[] }>();
     private builtinMethodCache_ = new Map<string, BuiltinMethods>();
     private iterationDepth_ = 0;
+    private nextEntityId_ = 0;
 
     connectCpp(cppRegistry: CppRegistry): void {
         this.cppRegistry_ = cppRegistry;
@@ -62,6 +63,10 @@ export class World {
 
     get hasCpp(): boolean {
         return this.cppRegistry_ !== null;
+    }
+
+    getCppRegistry(): CppRegistry | null {
+        return this.cppRegistry_;
     }
 
     // =========================================================================
@@ -86,7 +91,7 @@ export class World {
                 throw e;
             }
         } else {
-            entity = (this.entities_.size + 1) as Entity;
+            entity = (++this.nextEntityId_) as Entity;
         }
 
         this.entities_.add(entity);
@@ -418,16 +423,12 @@ export class World {
         }
         const ids = this.entityComponents_.get(entity);
         if (ids) {
-            const registry = typeof window !== 'undefined'
-                ? (window as any).__esengine_componentRegistry as Map<string, any> | undefined
-                : undefined;
-            if (registry) {
-                for (const id of ids) {
-                    for (const [name, def] of registry) {
-                        if (def._id === id) {
-                            types.push(name);
-                            break;
-                        }
+            const registry = getComponentRegistry();
+            for (const id of ids) {
+                for (const [name, def] of registry) {
+                    if (def._id === id) {
+                        types.push(name);
+                        break;
                     }
                 }
             }
