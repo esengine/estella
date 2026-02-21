@@ -120,6 +120,10 @@ export class RuntimeSyncService {
             this.syncButtonTransitionColor(event.entity);
         }
 
+        if (event.componentType === 'TextInput' && event.propertyName === 'backgroundColor') {
+            this.store_.updatePropertyDirect(event.entity, 'Sprite', 'color', event.newValue);
+        }
+
         if (event.componentType === 'Slider') {
             this.syncSliderChildren(event.entity);
         }

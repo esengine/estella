@@ -19,7 +19,7 @@ import { initPostProcessAPI, shutdownPostProcessAPI } from './postprocess';
 import { initRendererAPI, shutdownRendererAPI } from './renderer';
 import { initGLDebugAPI, shutdownGLDebugAPI } from './glDebug';
 import { setWasmErrorHandler } from './wasmError';
-import { platformNow } from './platform';
+import { platformNow, platformDevicePixelRatio } from './platform';
 import { ProjectionType, ScaleMode, SceneOwner } from './component';
 import type { Entity } from './types';
 import { RenderPipeline, type SpineRendererFn } from './renderPipeline';
@@ -37,6 +37,7 @@ export interface Plugin {
     name?: string;
     dependencies?: ResourceDef<any>[];
     build(app: App): void;
+    cleanup?(): void;
 }
 
 // =============================================================================
@@ -359,6 +360,13 @@ export class App {
         this.running_ = false;
         clearDrawCallbacks();
 
+        for (const plugin of this.installed_plugins_) {
+            try { plugin.cleanup?.(); } catch (e) {
+                console.error('[ESEngine] Plugin cleanup error:', e);
+            }
+        }
+        this.installed_plugins_.clear();
+
         const shutdowns = [
             shutdownGLDebugAPI,
             shutdownRendererAPI,
@@ -527,10 +535,13 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
     app.setPipeline(pipeline);
     let startTime = platformNow();
 
-    const getViewportSize = options?.getViewportSize ?? (() => ({
-        width: window.innerWidth * (window.devicePixelRatio || 1),
-        height: window.innerHeight * (window.devicePixelRatio || 1)
-    }));
+    const getViewportSize = options?.getViewportSize ?? (() => {
+        const dpr = platformDevicePixelRatio();
+        return {
+            width: window.innerWidth * dpr,
+            height: window.innerHeight * dpr,
+        };
+    });
 
     app.insertResource(UICameraInfo, {
         viewProjection: new Float32Array(16),

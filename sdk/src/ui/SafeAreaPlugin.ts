@@ -1,5 +1,5 @@
 import type { App, Plugin } from '../app';
-import { isWeChat } from '../platform';
+import { isWeChat, platformDevicePixelRatio } from '../platform';
 import { registerComponent } from '../component';
 import { Res } from '../resource';
 import { defineSystem, Schedule } from '../system';
@@ -90,7 +90,7 @@ export class SafeAreaPlugin implements Plugin {
                 if (!dirty) return;
                 dirty = false;
 
-                const dpr = typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1;
+                const dpr = platformDevicePixelRatio();
                 const insetScale = isWeChat() ? (worldH / camera.screenH) : (dpr * worldH / camera.screenH);
 
                 const entities = world.getEntitiesWithComponents([SafeArea, UIRect]);

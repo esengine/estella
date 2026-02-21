@@ -22,6 +22,7 @@ import type { UICameraData } from './UICameraInfo';
 import { UIMask } from './UIMask';
 import type { UIMaskData } from './UIMask';
 import { screenToWorld, pointInOBB, createInvVPCache } from './uiMath';
+import { platformDevicePixelRatio } from '../platform';
 import { applyColorTransition, getEffectiveWidth, getEffectiveHeight, ensureComponent, walkParentChain } from './uiHelpers';
 
 const vpCache = createInvVPCache();
@@ -100,7 +101,7 @@ export class UIInteractionPlugin implements Plugin {
 
                 if (!camera.valid) return;
 
-                const dpr = typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1;
+                const dpr = platformDevicePixelRatio();
                 const mouseGLX = input.mouseX * dpr;
                 const mouseGLY = camera.screenH - input.mouseY * dpr;
 

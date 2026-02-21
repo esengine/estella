@@ -101,3 +101,11 @@ export function platformCreateImage(): HTMLImageElement {
 export function platformNow(): number {
     return getPlatform().now();
 }
+
+export function platformDevicePixelRatio(): number {
+    if (currentPlatform?.name === 'wechat') {
+        const g = globalThis as any;
+        return g.wx?.getSystemInfoSync?.()?.pixelRatio ?? 1;
+    }
+    return typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1;
+}

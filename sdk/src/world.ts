@@ -95,6 +95,7 @@ export class World {
         }
 
         this.entities_.add(entity);
+        this.worldVersion_++;
         return entity;
     }
 
@@ -299,6 +300,7 @@ export class World {
             }
         }
 
+        this.worldVersion_++;
         return merged;
     }
 
@@ -335,6 +337,7 @@ export class World {
         } catch (e) {
             handleWasmError(e, `removeBuiltin(${component._name}, entity=${entity})`);
         }
+        this.worldVersion_++;
     }
 
     // =========================================================================
@@ -416,7 +419,6 @@ export class World {
 
     resetQueryPool(): void {
         this.queryPoolIdx_ = 0;
-        this.queryCache_.clear();
     }
 
     getComponentTypes(entity: Entity): string[] {
@@ -505,7 +507,7 @@ export class World {
             }
         }
 
-        this.queryCache_.set(cacheKey, { version: this.worldVersion_, result: entities });
+        this.queryCache_.set(cacheKey, { version: this.worldVersion_, result: entities.slice() });
 
         return entities;
     }

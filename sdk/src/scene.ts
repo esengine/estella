@@ -236,6 +236,65 @@ export async function loadSceneWithAssets(
     return entityMap;
 }
 
+interface AssetFieldHandler {
+    load(paths: Set<string>, assetServer: AssetServer, baseUrl: string | undefined,
+         texturePathToUrl: Map<string, string>): Promise<Map<string, number>>;
+}
+
+const ASSET_FIELD_HANDLERS = new Map<AssetFieldType, AssetFieldHandler>([
+    ['texture', {
+        async load(paths, assetServer, baseUrl, texturePathToUrl) {
+            const handles = new Map<string, number>();
+            const promises = [...paths].map(async (texturePath) => {
+                try {
+                    const isDataUrl = texturePath.startsWith('data:');
+                    const url = isDataUrl ? texturePath : baseUrl ? `${baseUrl}/${texturePath}` : `/${texturePath}`;
+                    const info = await assetServer.loadTexture(url);
+                    handles.set(texturePath, info.handle);
+                    texturePathToUrl.set(texturePath, url);
+                } catch (err) {
+                    console.warn(`Failed to load texture: ${texturePath}`, err);
+                    handles.set(texturePath, 0);
+                }
+            });
+            await Promise.all(promises);
+            return handles;
+        },
+    }],
+    ['material', {
+        async load(paths, assetServer, baseUrl) {
+            const handles = new Map<string, number>();
+            const promises = [...paths].map(async (materialPath) => {
+                try {
+                    const loaded = await assetServer.loadMaterial(materialPath, baseUrl);
+                    handles.set(materialPath, loaded.handle);
+                } catch (err) {
+                    console.warn(`Failed to load material: ${materialPath}`, err);
+                    handles.set(materialPath, 0);
+                }
+            });
+            await Promise.all(promises);
+            return handles;
+        },
+    }],
+    ['font', {
+        async load(paths, assetServer, baseUrl) {
+            const handles = new Map<string, number>();
+            const promises = [...paths].map(async (fontPath) => {
+                try {
+                    const handle = await assetServer.loadBitmapFont(fontPath, baseUrl);
+                    handles.set(fontPath, handle);
+                } catch (err) {
+                    console.warn(`Failed to load bitmap font: ${fontPath}`, err);
+                    handles.set(fontPath, 0);
+                }
+            });
+            await Promise.all(promises);
+            return handles;
+        },
+    }],
+]);
+
 async function preloadSceneAssets(
     sceneData: SceneData,
     assetServer: AssetServer,
@@ -244,9 +303,10 @@ async function preloadSceneAssets(
 ): Promise<void> {
     sceneData = JSON.parse(JSON.stringify(sceneData));
 
-    const textures = new Set<string>();
-    const materials = new Set<string>();
-    const fonts = new Set<string>();
+    const assetPaths = new Map<AssetFieldType, Set<string>>();
+    for (const type of ASSET_FIELD_HANDLERS.keys()) {
+        assetPaths.set(type, new Set());
+    }
     const spines: { skeleton: string; atlas: string }[] = [];
     const spineKeys = new Set<string>();
 
@@ -275,74 +335,26 @@ async function preloadSceneAssets(
                 for (const desc of config.fields) {
                     const value = data[desc.field];
                     if (typeof value !== 'string' || !value) continue;
-
-                    switch (desc.type) {
-                        case 'texture': textures.add(value); break;
-                        case 'material': materials.add(value); break;
-                        case 'font': fonts.add(value); break;
-                    }
+                    assetPaths.get(desc.type)?.add(value);
                 }
             }
         }
     }
 
-    const textureHandles = new Map<string, number>();
-    const materialHandles = new Map<string, number>();
-    const fontHandles = new Map<string, number>();
+    const assetHandles = new Map<AssetFieldType, Map<string, number>>();
+    const loadPromises = [...ASSET_FIELD_HANDLERS.entries()].map(async ([type, handler]) => {
+        const handles = await handler.load(assetPaths.get(type)!, assetServer, baseUrl, texturePathToUrl);
+        assetHandles.set(type, handles);
+    });
 
-    const promises: Promise<void>[] = [];
+    const spinePromises = spines.map(async (spine) => {
+        const result = await assetServer.loadSpine(spine.skeleton, spine.atlas, baseUrl);
+        if (!result.success) {
+            console.warn(`Failed to load Spine: ${result.error}`);
+        }
+    });
 
-    for (const texturePath of textures) {
-        promises.push((async () => {
-            try {
-                const isDataUrl = texturePath.startsWith('data:');
-                const url = isDataUrl
-                    ? texturePath
-                    : baseUrl ? `${baseUrl}/${texturePath}` : `/${texturePath}`;
-                const info = await assetServer.loadTexture(url);
-                textureHandles.set(texturePath, info.handle);
-                texturePathToUrl.set(texturePath, url);
-            } catch (err) {
-                console.warn(`Failed to load texture: ${texturePath}`, err);
-                textureHandles.set(texturePath, 0);
-            }
-        })());
-    }
-
-    for (const materialPath of materials) {
-        promises.push((async () => {
-            try {
-                const loaded = await assetServer.loadMaterial(materialPath, baseUrl);
-                materialHandles.set(materialPath, loaded.handle);
-            } catch (err) {
-                console.warn(`Failed to load material: ${materialPath}`, err);
-                materialHandles.set(materialPath, 0);
-            }
-        })());
-    }
-
-    for (const fontPath of fonts) {
-        promises.push((async () => {
-            try {
-                const handle = await assetServer.loadBitmapFont(fontPath, baseUrl);
-                fontHandles.set(fontPath, handle);
-            } catch (err) {
-                console.warn(`Failed to load bitmap font: ${fontPath}`, err);
-                fontHandles.set(fontPath, 0);
-            }
-        })());
-    }
-
-    for (const spine of spines) {
-        promises.push((async () => {
-            const result = await assetServer.loadSpine(spine.skeleton, spine.atlas, baseUrl);
-            if (!result.success) {
-                console.warn(`Failed to load Spine: ${result.error}`);
-            }
-        })());
-    }
-
-    await Promise.all(promises);
+    await Promise.all([...loadPromises, ...spinePromises]);
 
     for (const entityData of sceneData.entities) {
         if (entityData.visible === false) continue;
@@ -355,18 +367,7 @@ async function preloadSceneAssets(
             for (const desc of config.fields) {
                 const value = data[desc.field];
                 if (typeof value !== 'string' || !value) continue;
-
-                switch (desc.type) {
-                    case 'texture':
-                        data[desc.field] = textureHandles.get(value) ?? 0;
-                        break;
-                    case 'material':
-                        data[desc.field] = materialHandles.get(value) ?? 0;
-                        break;
-                    case 'font':
-                        data[desc.field] = fontHandles.get(value) ?? 0;
-                        break;
-                }
+                data[desc.field] = assetHandles.get(desc.type)?.get(value) ?? 0;
             }
         }
     }

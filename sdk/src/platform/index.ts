@@ -28,6 +28,7 @@ export {
     platformCreateCanvas,
     platformCreateImage,
     platformNow,
+    platformDevicePixelRatio,
 } from './base';
 
 // Note: webAdapter is exported here for initialization

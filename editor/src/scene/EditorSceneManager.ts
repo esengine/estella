@@ -25,6 +25,7 @@ import {
     syncFillSpriteSize,
     computeFillAnchors,
     computeHandleAnchors,
+    computeFillSize,
     DEFAULT_SPRITE_SIZE,
     DEFAULT_FONT_FAMILY,
     DEFAULT_FONT_SIZE,
@@ -273,6 +274,7 @@ export class EditorSceneManager {
                 uiRectComp.data.anchorMax = anchors.anchorMax;
                 uiRectComp.data.offsetMin = anchors.offsetMin;
                 uiRectComp.data.offsetMax = anchors.offsetMax;
+                uiRectComp.data.size = computeFillSize(direction, normalizedValue, parentW, parentH);
             }
         }
         this.syncEntityTransform(fillEntityId);
