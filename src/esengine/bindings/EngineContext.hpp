@@ -85,6 +85,12 @@ public:
         viewportHeight_ = height;
     }
 
+    f32 deltaTime() const { return deltaTime_; }
+    void setDeltaTime(f32 dt) { deltaTime_ = dt; }
+
+    bool transformsUpdated() const { return transformsUpdated_; }
+    void setTransformsUpdated(bool v) { transformsUpdated_ = v; }
+
     const glm::vec4& clearColor() const { return clearColor_; }
     void setClearColor(const glm::vec4& color) { clearColor_ = color; }
 
@@ -130,6 +136,8 @@ private:
     u32 viewportHeight_ = 720;
     glm::vec4 clearColor_{0.0f, 0.0f, 0.0f, 1.0f};
     glm::mat4 currentViewProjection_{1.0f};
+    f32 deltaTime_ = 0.016f;
+    bool transformsUpdated_ = false;
 };
 
 }  // namespace esengine

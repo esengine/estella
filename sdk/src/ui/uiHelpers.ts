@@ -1,5 +1,5 @@
-import { Sprite, Parent, LocalTransform } from '../component';
-import type { ParentData, SpriteData, LocalTransformData, AnyComponentDef } from '../component';
+import { Sprite, Parent, Transform } from '../component';
+import type { ParentData, SpriteData, TransformData, AnyComponentDef } from '../component';
 import { computeUIRectLayout, type LayoutRect } from './uiLayout';
 import { INVALID_TEXTURE } from '../types';
 import type { Entity, Color } from '../types';
@@ -8,6 +8,15 @@ import { UIRect } from './UIRect';
 import type { UIRectData } from './UIRect';
 import { FillDirection } from './uiTypes';
 import type { ColorTransition } from './uiTypes';
+import type { ESEngineModule, CppRegistry } from '../wasm';
+
+let module_: ESEngineModule | null = null;
+let nativeRegistry_: CppRegistry | null = null;
+
+export function initUIHelpers(module: ESEngineModule, registry: CppRegistry): void {
+    module_ = module;
+    nativeRegistry_ = registry;
+}
 
 export function ensureSprite(world: World, entity: Entity): void {
     if (!world.has(entity, Sprite)) {
@@ -189,12 +198,20 @@ export function getEntityDepth(world: World, entity: Entity): number {
     return depth;
 }
 
-export function getEffectiveWidth(rect: UIRectData): number {
-    return rect._computedWidth ?? rect.size.x;
+export function getEffectiveWidth(rect: UIRectData, entity: Entity): number {
+    if (module_ && nativeRegistry_) {
+        const w = module_.getUIRectComputedWidth(nativeRegistry_, entity);
+        if (w > 0) return w;
+    }
+    return rect.size.x;
 }
 
-export function getEffectiveHeight(rect: UIRectData): number {
-    return rect._computedHeight ?? rect.size.y;
+export function getEffectiveHeight(rect: UIRectData, entity: Entity): number {
+    if (module_ && nativeRegistry_) {
+        const h = module_.getUIRectComputedHeight(nativeRegistry_, entity);
+        if (h > 0) return h;
+    }
+    return rect.size.y;
 }
 
 export function syncFillSpriteSize(
@@ -265,8 +282,6 @@ export function layoutChildEntity(
     );
     const width = result.rect.right - result.rect.left;
     const height = result.rect.top - result.rect.bottom;
-    rect._computedWidth = width;
-    rect._computedHeight = height;
 
     if (world.has(entity, Sprite)) {
         const sprite = world.get(entity, Sprite) as SpriteData;
@@ -277,10 +292,33 @@ export function layoutChildEntity(
         }
     }
 
-    if (!rect._layoutManaged && world.has(entity, LocalTransform)) {
-        const transform = world.get(entity, LocalTransform) as LocalTransformData;
+    if (world.has(entity, Transform)) {
+        const transform = world.get(entity, Transform) as TransformData;
         transform.position.x = result.originX - parentOriginX;
         transform.position.y = result.originY - parentOriginY;
-        world.insert(entity, LocalTransform, transform);
+        world.insert(entity, Transform, transform);
+    }
+}
+
+export function syncChildSpriteSize(
+    world: World, entity: Entity,
+    parentRect: LayoutRect,
+): void {
+    if (!world.has(entity, UIRect) || !world.has(entity, Sprite)) return;
+    const rect = world.get(entity, UIRect) as UIRectData;
+
+    const result = computeUIRectLayout(
+        rect.anchorMin, rect.anchorMax,
+        rect.offsetMin, rect.offsetMax,
+        rect.size, parentRect, rect.pivot,
+    );
+    const width = result.rect.right - result.rect.left;
+    const height = result.rect.top - result.rect.bottom;
+
+    const sprite = world.get(entity, Sprite) as SpriteData;
+    if (sprite.size.x !== width || sprite.size.y !== height) {
+        sprite.size.x = width;
+        sprite.size.y = height;
+        world.insert(entity, Sprite, sprite);
     }
 }

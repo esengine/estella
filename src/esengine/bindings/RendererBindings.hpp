@@ -60,6 +60,7 @@ u32 renderer_getSpine();
 u32 renderer_getText();
 u32 renderer_getMeshes();
 u32 renderer_getCulled();
+void renderer_setDeltaTime(f32 dt);
 void renderer_setClearColor(f32 r, f32 g, f32 b, f32 a);
 void renderer_setViewport(i32 x, i32 y, i32 w, i32 h);
 void renderer_setScissor(i32 x, i32 y, i32 w, i32 h, bool enable);
@@ -81,6 +82,8 @@ u32 gl_checkErrors(const std::string& context);
 i32 registry_getCanvasEntity(ecs::Registry& registry);
 emscripten::val registry_getCameraEntities(ecs::Registry& registry);
 emscripten::val getChildEntities(ecs::Registry& registry, u32 entity);
+u32 registry_getGeneration(ecs::Registry& registry, u32 entity);
+u32 registry_getSchemaPoolVersion(ecs::Registry& registry, u32 poolId);
 
 }  // namespace esengine
 

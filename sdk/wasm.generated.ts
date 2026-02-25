@@ -10,11 +10,60 @@ import type { Entity, Vec2, Vec3, Vec4, Quat } from './types';
 export interface UVec2 { x: number; y: number; }
 export type Mat4 = number[];
 
+// Emscripten Vector Types
+export interface VectorEntity {
+    size(): number;
+    get(index: number): number;
+    push_back(value: number): void;
+    set(index: number, value: number): boolean;
+    delete(): void;
+}
+
 // Enums
 
-export enum ProjectionType {
-    Perspective = 0,
-    Orthographic = 1,
+export enum BodyType {
+    Static = 0,
+    Kinematic = 1,
+    Dynamic = 2,
+}
+
+export enum TextAlign {
+    Left = 0,
+    Center = 1,
+    Right = 2,
+}
+
+export enum MaskMode {
+    Scissor = 0,
+    Stencil = 1,
+}
+
+export enum FlexDirection {
+    Row = 0,
+    Column = 1,
+    RowReverse = 2,
+    ColumnReverse = 3,
+}
+
+export enum FlexWrap {
+    NoWrap = 0,
+    Wrap = 1,
+}
+
+export enum JustifyContent {
+    Start = 0,
+    Center = 1,
+    End = 2,
+    SpaceBetween = 3,
+    SpaceAround = 4,
+    SpaceEvenly = 5,
+}
+
+export enum AlignItems {
+    Start = 0,
+    Center = 1,
+    End = 2,
+    Stretch = 3,
 }
 
 export enum CanvasScaleMode {
@@ -25,32 +74,123 @@ export enum CanvasScaleMode {
     Match = 4,
 }
 
+export enum ProjectionType {
+    Perspective = 0,
+    Orthographic = 1,
+}
+
 // Components
 
-export interface Camera {
-    projectionType: number;
-    fov: number;
-    orthoSize: number;
-    nearPlane: number;
-    farPlane: number;
-    aspectRatio: number;
-    isActive: boolean;
-    priority: number;
+export interface UIRect {
+    anchorMin: Vec2;
+    anchorMax: Vec2;
+    offsetMin: Vec2;
+    offsetMax: Vec2;
+    size: Vec2;
+    pivot: Vec2;
 }
 
-export interface Canvas {
-    designResolution: UVec2;
-    pixelsPerUnit: number;
-    scaleMode: number;
-    matchWidthOrHeight: number;
-    backgroundColor: Vec4;
+export interface FlexItem {
+    flexGrow: number;
+    flexShrink: number;
+    flexBasis: number;
+    order: number;
 }
 
-export interface Parent {
-    entity: number;
+export interface BoxCollider {
+    halfExtents: Vec2;
+    offset: Vec2;
+    density: number;
+    friction: number;
+    restitution: number;
+    isSensor: boolean;
+    enabled: boolean;
 }
 
-export interface Children {
+export interface CircleCollider {
+    radius: number;
+    offset: Vec2;
+    density: number;
+    friction: number;
+    restitution: number;
+    isSensor: boolean;
+    enabled: boolean;
+}
+
+export interface CapsuleCollider {
+    radius: number;
+    halfHeight: number;
+    offset: Vec2;
+    density: number;
+    friction: number;
+    restitution: number;
+    isSensor: boolean;
+    enabled: boolean;
+}
+
+export interface Transform {
+    position: Vec3;
+    rotation: Quat;
+    scale: Vec3;
+    worldPosition: Vec3;
+    worldRotation: Quat;
+    worldScale: Vec3;
+}
+
+export interface Velocity {
+    linear: Vec3;
+    angular: Vec3;
+}
+
+export interface SpineAnimation {
+    skeletonPath: string;
+    atlasPath: string;
+    skin: string;
+    animation: string;
+    timeScale: number;
+    loop: boolean;
+    playing: boolean;
+    flipX: boolean;
+    flipY: boolean;
+    color: Vec4;
+    layer: number;
+    skeletonScale: number;
+    material: number;
+    enabled: boolean;
+}
+
+export interface Interactable {
+    enabled: boolean;
+    blockRaycast: boolean;
+    raycastTarget: boolean;
+}
+
+export interface UIInteraction {
+    hovered: boolean;
+    pressed: boolean;
+    justPressed: boolean;
+    justReleased: boolean;
+}
+
+export interface RigidBody {
+    bodyType: number;
+    gravityScale: number;
+    linearDamping: number;
+    angularDamping: number;
+    fixedRotation: boolean;
+    bullet: boolean;
+    enabled: boolean;
+}
+
+export interface BitmapText {
+    text: string;
+    color: Vec4;
+    fontSize: number;
+    align: number;
+    spacing: number;
+    layer: number;
+    font: number;
+    enabled: boolean;
 }
 
 export interface Sprite {
@@ -62,23 +202,57 @@ export interface Sprite {
     layer: number;
     flipX: boolean;
     flipY: boolean;
+    material: number;
+    enabled: boolean;
 }
 
-export interface LocalTransform {
-    position: Vec3;
-    rotation: Quat;
-    scale: Vec3;
+export interface UIMask {
+    enabled: boolean;
+    mode: number;
 }
 
-export interface WorldTransform {
-    position: Vec3;
-    rotation: Quat;
-    scale: Vec3;
+export interface FlexContainer {
+    direction: number;
+    wrap: number;
+    justifyContent: number;
+    alignItems: number;
+    gap: Vec2;
+    padding: Vec4;
 }
 
-export interface Velocity {
-    linear: Vec3;
-    angular: Vec3;
+export interface Parent {
+    entity: number;
+}
+
+export interface Children {
+    entities: VectorEntity;
+}
+
+export interface ScreenSpace {
+}
+
+export interface Canvas {
+    designResolution: UVec2;
+    pixelsPerUnit: number;
+    scaleMode: number;
+    matchWidthOrHeight: number;
+    backgroundColor: Vec4;
+}
+
+export interface Camera {
+    projectionType: number;
+    fov: number;
+    orthoSize: number;
+    nearPlane: number;
+    farPlane: number;
+    aspectRatio: number;
+    isActive: boolean;
+    priority: number;
+    viewportX: number;
+    viewportY: number;
+    viewportW: number;
+    viewportH: number;
+    clearFlags: number;
 }
 
 // Registry
@@ -88,14 +262,66 @@ export interface Registry {
     valid(entity: Entity): boolean;
     entityCount(): number;
 
-    hasCamera(entity: Entity): boolean;
-    getCamera(entity: Entity): Camera;
-    addCamera(entity: Entity, component: Camera): void;
-    removeCamera(entity: Entity): void;
-    hasCanvas(entity: Entity): boolean;
-    getCanvas(entity: Entity): Canvas;
-    addCanvas(entity: Entity, component: Canvas): void;
-    removeCanvas(entity: Entity): void;
+    hasUIRect(entity: Entity): boolean;
+    getUIRect(entity: Entity): UIRect;
+    addUIRect(entity: Entity, component: UIRect): void;
+    removeUIRect(entity: Entity): void;
+    hasFlexItem(entity: Entity): boolean;
+    getFlexItem(entity: Entity): FlexItem;
+    addFlexItem(entity: Entity, component: FlexItem): void;
+    removeFlexItem(entity: Entity): void;
+    hasBoxCollider(entity: Entity): boolean;
+    getBoxCollider(entity: Entity): BoxCollider;
+    addBoxCollider(entity: Entity, component: BoxCollider): void;
+    removeBoxCollider(entity: Entity): void;
+    hasCircleCollider(entity: Entity): boolean;
+    getCircleCollider(entity: Entity): CircleCollider;
+    addCircleCollider(entity: Entity, component: CircleCollider): void;
+    removeCircleCollider(entity: Entity): void;
+    hasCapsuleCollider(entity: Entity): boolean;
+    getCapsuleCollider(entity: Entity): CapsuleCollider;
+    addCapsuleCollider(entity: Entity, component: CapsuleCollider): void;
+    removeCapsuleCollider(entity: Entity): void;
+    hasTransform(entity: Entity): boolean;
+    getTransform(entity: Entity): Transform;
+    addTransform(entity: Entity, component: Transform): void;
+    removeTransform(entity: Entity): void;
+    hasVelocity(entity: Entity): boolean;
+    getVelocity(entity: Entity): Velocity;
+    addVelocity(entity: Entity, component: Velocity): void;
+    removeVelocity(entity: Entity): void;
+    hasSpineAnimation(entity: Entity): boolean;
+    getSpineAnimation(entity: Entity): SpineAnimation;
+    addSpineAnimation(entity: Entity, component: SpineAnimation): void;
+    removeSpineAnimation(entity: Entity): void;
+    hasInteractable(entity: Entity): boolean;
+    getInteractable(entity: Entity): Interactable;
+    addInteractable(entity: Entity, component: Interactable): void;
+    removeInteractable(entity: Entity): void;
+    hasUIInteraction(entity: Entity): boolean;
+    getUIInteraction(entity: Entity): UIInteraction;
+    addUIInteraction(entity: Entity, component: UIInteraction): void;
+    removeUIInteraction(entity: Entity): void;
+    hasRigidBody(entity: Entity): boolean;
+    getRigidBody(entity: Entity): RigidBody;
+    addRigidBody(entity: Entity, component: RigidBody): void;
+    removeRigidBody(entity: Entity): void;
+    hasBitmapText(entity: Entity): boolean;
+    getBitmapText(entity: Entity): BitmapText;
+    addBitmapText(entity: Entity, component: BitmapText): void;
+    removeBitmapText(entity: Entity): void;
+    hasSprite(entity: Entity): boolean;
+    getSprite(entity: Entity): Sprite;
+    addSprite(entity: Entity, component: Sprite): void;
+    removeSprite(entity: Entity): void;
+    hasUIMask(entity: Entity): boolean;
+    getUIMask(entity: Entity): UIMask;
+    addUIMask(entity: Entity, component: UIMask): void;
+    removeUIMask(entity: Entity): void;
+    hasFlexContainer(entity: Entity): boolean;
+    getFlexContainer(entity: Entity): FlexContainer;
+    addFlexContainer(entity: Entity, component: FlexContainer): void;
+    removeFlexContainer(entity: Entity): void;
     hasParent(entity: Entity): boolean;
     getParent(entity: Entity): Parent;
     addParent(entity: Entity, component: Parent): void;
@@ -104,22 +330,18 @@ export interface Registry {
     getChildren(entity: Entity): Children;
     addChildren(entity: Entity, component: Children): void;
     removeChildren(entity: Entity): void;
-    hasSprite(entity: Entity): boolean;
-    getSprite(entity: Entity): Sprite;
-    addSprite(entity: Entity, component: Sprite): void;
-    removeSprite(entity: Entity): void;
-    hasLocalTransform(entity: Entity): boolean;
-    getLocalTransform(entity: Entity): LocalTransform;
-    addLocalTransform(entity: Entity, component: LocalTransform): void;
-    removeLocalTransform(entity: Entity): void;
-    hasWorldTransform(entity: Entity): boolean;
-    getWorldTransform(entity: Entity): WorldTransform;
-    addWorldTransform(entity: Entity, component: WorldTransform): void;
-    removeWorldTransform(entity: Entity): void;
-    hasVelocity(entity: Entity): boolean;
-    getVelocity(entity: Entity): Velocity;
-    addVelocity(entity: Entity, component: Velocity): void;
-    removeVelocity(entity: Entity): void;
+    hasScreenSpace(entity: Entity): boolean;
+    getScreenSpace(entity: Entity): ScreenSpace;
+    addScreenSpace(entity: Entity, component: ScreenSpace): void;
+    removeScreenSpace(entity: Entity): void;
+    hasCanvas(entity: Entity): boolean;
+    getCanvas(entity: Entity): Canvas;
+    addCanvas(entity: Entity, component: Canvas): void;
+    removeCanvas(entity: Entity): void;
+    hasCamera(entity: Entity): boolean;
+    getCamera(entity: Entity): Camera;
+    addCamera(entity: Entity, component: Camera): void;
+    removeCamera(entity: Entity): void;
 
     // Hierarchy Utilities
     setParent(child: Entity, parent: Entity): void;
@@ -128,12 +350,24 @@ export interface Registry {
 // Module
 export interface ESEngineModule {
     Registry: new () => Registry;
-    Camera: new () => Camera;
-    Canvas: new () => Canvas;
+    UIRect: new () => UIRect;
+    FlexItem: new () => FlexItem;
+    BoxCollider: new () => BoxCollider;
+    CircleCollider: new () => CircleCollider;
+    CapsuleCollider: new () => CapsuleCollider;
+    Transform: new () => Transform;
+    Velocity: new () => Velocity;
+    SpineAnimation: new () => SpineAnimation;
+    Interactable: new () => Interactable;
+    UIInteraction: new () => UIInteraction;
+    RigidBody: new () => RigidBody;
+    BitmapText: new () => BitmapText;
+    Sprite: new () => Sprite;
+    UIMask: new () => UIMask;
+    FlexContainer: new () => FlexContainer;
     Parent: new () => Parent;
     Children: new () => Children;
-    Sprite: new () => Sprite;
-    LocalTransform: new () => LocalTransform;
-    WorldTransform: new () => WorldTransform;
-    Velocity: new () => Velocity;
+    ScreenSpace: new () => ScreenSpace;
+    Canvas: new () => Canvas;
+    Camera: new () => Camera;
 }

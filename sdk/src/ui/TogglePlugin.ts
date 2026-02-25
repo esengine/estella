@@ -13,6 +13,7 @@ import type { ToggleData } from './Toggle';
 import { ToggleGroup } from './ToggleGroup';
 import type { ToggleGroupData } from './ToggleGroup';
 import { UIEvents, UIEventQueue } from './UIEvents';
+import { isEditor } from '../env';
 import { applyColorTransition, ensureComponent } from './uiHelpers';
 
 export class TogglePlugin implements Plugin {
@@ -21,6 +22,7 @@ export class TogglePlugin implements Plugin {
         registerComponent('ToggleGroup', ToggleGroup);
 
         const world = app.world;
+        const editorMode = isEditor();
         const initializedEntities = new Set<Entity>();
 
         app.addSystemToSchedule(Schedule.Update, defineSystem(
@@ -28,85 +30,93 @@ export class TogglePlugin implements Plugin {
             (events: UIEventQueue) => {
                 const toggleEntities = world.getEntitiesWithComponents([Toggle]);
 
-                const groupFirstOn = new Map<Entity, Entity>();
-                for (const entity of toggleEntities) {
-                    if (initializedEntities.has(entity)) continue;
-                    initializedEntities.add(entity);
-                    const toggle = world.get(entity, Toggle) as ToggleData;
-                    if (!toggle.isOn || toggle.group === 0 || !world.valid(toggle.group)) continue;
-                    if (!groupFirstOn.has(toggle.group)) {
-                        groupFirstOn.set(toggle.group, entity);
-                    } else {
-                        toggle.isOn = false;
-                    }
-                }
-                const togglesByGroup = new Map<Entity, Entity[]>();
-                for (const entity of toggleEntities) {
-                    const toggle = world.get(entity, Toggle) as ToggleData;
-                    if (toggle.group !== 0 && world.valid(toggle.group)) {
-                        let group = togglesByGroup.get(toggle.group);
-                        if (!group) {
-                            group = [];
-                            togglesByGroup.set(toggle.group, group);
+                if (!editorMode) {
+                    const groupFirstOn = new Map<Entity, Entity>();
+                    for (const entity of toggleEntities) {
+                        if (initializedEntities.has(entity)) continue;
+                        initializedEntities.add(entity);
+                        const toggle = world.get(entity, Toggle) as ToggleData;
+                        if (!toggle.isOn || toggle.group === 0 || !world.valid(toggle.group)) continue;
+                        if (!groupFirstOn.has(toggle.group)) {
+                            groupFirstOn.set(toggle.group, entity);
+                        } else {
+                            toggle.isOn = false;
+                            world.insert(entity, Toggle, toggle);
                         }
-                        group.push(entity);
                     }
-                }
-
-                for (const entity of toggleEntities) {
-                    ensureComponent(world, entity, Interactable, { enabled: true });
-                    if (!world.has(entity, UIInteraction)) continue;
-
-                    const interaction = world.get(entity, UIInteraction) as UIInteractionData;
-                    const toggle = world.get(entity, Toggle) as ToggleData;
-                    const interactable = world.get(entity, Interactable) as InteractableData;
-
-                    if (interaction.justPressed && interactable.enabled) {
-                        const groupEntity = toggle.group;
-                        const hasGroup = groupEntity !== 0 && world.valid(groupEntity)
-                            && world.has(groupEntity, ToggleGroup);
-
-                        if (toggle.isOn && hasGroup) {
-                            const group = world.get(groupEntity, ToggleGroup) as ToggleGroupData;
-                            if (!group.allowSwitchOff) continue;
+                    const togglesByGroup = new Map<Entity, Entity[]>();
+                    for (const entity of toggleEntities) {
+                        const toggle = world.get(entity, Toggle) as ToggleData;
+                        if (toggle.group !== 0 && world.valid(toggle.group)) {
+                            let group = togglesByGroup.get(toggle.group);
+                            if (!group) {
+                                group = [];
+                                togglesByGroup.set(toggle.group, group);
+                            }
+                            group.push(entity);
                         }
+                    }
 
-                        toggle.isOn = !toggle.isOn;
+                    for (const entity of toggleEntities) {
+                        ensureComponent(world, entity, Interactable, { enabled: true });
+                        if (!world.has(entity, UIInteraction)) continue;
 
-                        if (toggle.isOn && hasGroup) {
-                            const siblings = togglesByGroup.get(groupEntity);
-                            if (siblings) {
-                                for (const other of siblings) {
-                                    if (other === entity) continue;
-                                    const otherToggle = world.get(other, Toggle) as ToggleData;
-                                    if (otherToggle.isOn) {
-                                        otherToggle.isOn = false;
-                                        events.emit(other, 'change');
+                        const interaction = world.get(entity, UIInteraction) as UIInteractionData;
+                        const toggle = world.get(entity, Toggle) as ToggleData;
+                        const interactable = world.get(entity, Interactable) as InteractableData;
+
+                        if (interaction.justPressed && interactable.enabled) {
+                            const groupEntity = toggle.group;
+                            const hasGroup = groupEntity !== 0 && world.valid(groupEntity)
+                                && world.has(groupEntity, ToggleGroup);
+
+                            if (toggle.isOn && hasGroup) {
+                                const group = world.get(groupEntity, ToggleGroup) as ToggleGroupData;
+                                if (!group.allowSwitchOff) continue;
+                            }
+
+                            toggle.isOn = !toggle.isOn;
+                            world.insert(entity, Toggle, toggle);
+
+                            if (toggle.isOn && hasGroup) {
+                                const siblings = togglesByGroup.get(groupEntity);
+                                if (siblings) {
+                                    for (const other of siblings) {
+                                        if (other === entity) continue;
+                                        const otherToggle = world.get(other, Toggle) as ToggleData;
+                                        if (otherToggle.isOn) {
+                                            otherToggle.isOn = false;
+                                            world.insert(other, Toggle, otherToggle);
+                                            events.emit(other, 'change');
+                                        }
                                     }
                                 }
                             }
+
+                            events.emit(entity, 'change');
                         }
 
-                        events.emit(entity, 'change');
+                        if (toggle.transition && world.has(entity, Sprite)) {
+                            const sprite = world.get(entity, Sprite) as SpriteData;
+                            sprite.color = applyColorTransition(
+                                toggle.transition,
+                                interactable.enabled,
+                                interaction.pressed,
+                                interaction.hovered,
+                            );
+                            world.insert(entity, Sprite, sprite);
+                        }
                     }
+                }
 
+                for (const entity of toggleEntities) {
+                    const toggle = world.get(entity, Toggle) as ToggleData;
                     if (toggle.graphicEntity && world.valid(toggle.graphicEntity)) {
                         if (world.has(toggle.graphicEntity, Sprite)) {
                             const sprite = world.get(toggle.graphicEntity, Sprite) as SpriteData;
                             sprite.enabled = toggle.isOn;
                             world.insert(toggle.graphicEntity, Sprite, sprite);
                         }
-                    }
-
-                    if (toggle.transition && world.has(entity, Sprite)) {
-                        const sprite = world.get(entity, Sprite) as SpriteData;
-                        sprite.color = applyColorTransition(
-                            toggle.transition,
-                            interactable.enabled,
-                            interaction.pressed,
-                            interaction.hovered,
-                        );
-                        world.insert(entity, Sprite, sprite);
                     }
                 }
             },

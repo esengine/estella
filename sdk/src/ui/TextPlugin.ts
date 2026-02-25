@@ -11,6 +11,7 @@ import { createSnapshotUtils, type Snapshot } from './uiSnapshot';
 interface TextSource {
     text: TextData;
     uiRect: UIRectData | null;
+    entity: Entity;
 }
 
 const textSnapshot = createSnapshotUtils<TextSource>({
@@ -26,8 +27,8 @@ const textSnapshot = createSnapshotUtils<TextSource>({
     wordWrap: s => s.text.wordWrap,
     overflow: s => s.text.overflow,
     lineHeight: s => s.text.lineHeight,
-    containerWidth: s => s.uiRect ? getEffectiveWidth(s.uiRect) : 0,
-    containerHeight: s => s.uiRect ? getEffectiveHeight(s.uiRect) : 0,
+    containerWidth: s => s.uiRect ? getEffectiveWidth(s.uiRect, s.entity) : 0,
+    containerHeight: s => s.uiRect ? getEffectiveHeight(s.uiRect, s.entity) : 0,
 });
 
 export class TextPlugin implements Plugin {
@@ -68,7 +69,7 @@ export class TextPlugin implements Plugin {
                     const uiRect = world.has(entity, UIRect)
                         ? world.get(entity, UIRect) as UIRectData
                         : null;
-                    const source: TextSource = { text, uiRect };
+                    const source: TextSource = { text, uiRect, entity };
                     const prev = snapshots.get(entity);
 
                     if (prev && !textSnapshot.changed(prev, source)) continue;

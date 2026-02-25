@@ -52,8 +52,10 @@ static u32 checkGLErrors(const char* context) {
             case GL_INVALID_OPERATION: errStr = "INVALID_OPERATION"; break;
             case GL_INVALID_FRAMEBUFFER_OPERATION: errStr = "INVALID_FRAMEBUFFER_OPERATION"; break;
             case GL_OUT_OF_MEMORY: errStr = "OUT_OF_MEMORY"; break;
+            case GL_CONTEXT_LOST: errStr = "CONTEXT_LOST"; break;
+            case GL_CONTEXT_LOST_WEBGL: errStr = "CONTEXT_LOST_WEBGL"; break;
         }
-        ES_LOG_ERROR("[GL Error] {} at: {}", errStr, context);
+        ES_LOG_ERROR("[GL Error] {} (0x{:04X}) at: {}", errStr, static_cast<u32>(err), context);
         errorCount++;
     }
     return errorCount;
@@ -85,7 +87,7 @@ void renderFrame(ecs::Registry& registry, i32 viewportWidth, i32 viewportHeight)
 
 #ifdef ES_ENABLE_SPINE
     if (g_spineSystem) {
-        g_spineSystem->update(registry, 0.016f);
+        g_spineSystem->update(registry, ctx().deltaTime());
     }
 #endif
 
@@ -93,18 +95,19 @@ void renderFrame(ecs::Registry& registry, i32 viewportWidth, i32 viewportHeight)
     g_renderFrame->resize(g_viewportWidth, g_viewportHeight);
 
     glViewport(0, 0, viewportWidth, viewportHeight);
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    const auto& cc = ctx().clearColor();
+    glClearColor(cc.r, cc.g, cc.b, cc.a);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     glm::mat4 viewProjection = glm::mat4(1.0f);
 
-    auto cameraView = registry.view<ecs::Camera, ecs::LocalTransform>();
+    auto cameraView = registry.view<ecs::Camera, ecs::Transform>();
 
     for (auto entity : cameraView) {
         auto& camera = registry.get<ecs::Camera>(entity);
         if (!camera.isActive) continue;
 
-        auto& transform = registry.get<ecs::LocalTransform>(entity);
+        auto& transform = registry.get<ecs::Transform>(entity);
         glm::mat4 view = glm::inverse(glm::translate(glm::mat4(1.0f), transform.position));
 
         glm::mat4 projection;
@@ -142,13 +145,17 @@ void renderFrameWithMatrix(ecs::Registry& registry, i32 viewportWidth, i32 viewp
                            uintptr_t matrixPtr) {
     if (!g_initialized || !g_renderFrame) return;
 
+    if (auto* rm = ctx().resourceManager()) {
+        rm->update();
+    }
+
     if (g_transformSystem) {
         g_transformSystem->update(registry, 0.0f);
     }
 
 #ifdef ES_ENABLE_SPINE
     if (g_spineSystem) {
-        g_spineSystem->update(registry, 0.016f);
+        g_spineSystem->update(registry, ctx().deltaTime());
     }
 #endif
 
@@ -156,7 +163,8 @@ void renderFrameWithMatrix(ecs::Registry& registry, i32 viewportWidth, i32 viewp
     g_renderFrame->resize(g_viewportWidth, g_viewportHeight);
 
     glViewport(0, 0, viewportWidth, viewportHeight);
-    glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+    const auto& cc = ctx().clearColor();
+    glClearColor(cc.r, cc.g, cc.b, cc.a);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     const f32* matrixData = reinterpret_cast<const f32*>(matrixPtr);
@@ -188,6 +196,8 @@ void renderer_resize(u32 width, u32 height) {
 void renderer_begin(uintptr_t matrixPtr, u32 targetHandle) {
     if (!g_renderFrame) return;
 
+    ctx().setTransformsUpdated(false);
+
     const f32* matrixData = reinterpret_cast<const f32*>(matrixPtr);
     glm::mat4 viewProjection = glm::make_mat4(matrixData);
 
@@ -206,22 +216,30 @@ void renderer_end() {
     checkGLErrors("renderer_end");
 }
 
+static void ensureTransformsUpdated(ecs::Registry& registry) {
+    if (!ctx().transformsUpdated() && g_transformSystem) {
+        g_transformSystem->update(registry, 0.0f);
+        ctx().setTransformsUpdated(true);
+    }
+}
+
 void renderer_submitSprites(ecs::Registry& registry) {
-    if (!g_renderFrame || !g_transformSystem) return;
-    g_transformSystem->update(registry, 0.0f);
+    if (!g_renderFrame) return;
+    ensureTransformsUpdated(registry);
     g_renderFrame->submitSprites(registry);
 }
 
 void renderer_submitBitmapText(ecs::Registry& registry) {
-    if (!g_renderFrame || !g_transformSystem) return;
-    g_transformSystem->update(registry, 0.0f);
+    if (!g_renderFrame) return;
+    ensureTransformsUpdated(registry);
     g_renderFrame->submitBitmapText(registry);
 }
 
 #ifdef ES_ENABLE_SPINE
 void renderer_submitSpine(ecs::Registry& registry) {
     if (!g_renderFrame || !g_spineSystem) return;
-    g_spineSystem->update(registry, 0.016f);
+    ensureTransformsUpdated(registry);
+    g_spineSystem->update(registry, ctx().deltaTime());
     g_renderFrame->submitSpine(registry, *g_spineSystem);
     checkGLErrors("renderer_submitSpine");
 }
@@ -309,6 +327,10 @@ u32 renderer_getMeshes() {
 u32 renderer_getCulled() {
     if (!g_renderFrame) return 0;
     return g_renderFrame->stats().culled;
+}
+
+void renderer_setDeltaTime(f32 dt) {
+    ctx().setDeltaTime(dt);
 }
 
 void renderer_setClearColor(f32 r, f32 g, f32 b, f32 a) {
@@ -442,7 +464,7 @@ i32 registry_getCanvasEntity(ecs::Registry& registry) {
 }
 
 emscripten::val registry_getCameraEntities(ecs::Registry& registry) {
-    auto cameraView = registry.view<ecs::Camera, ecs::LocalTransform>();
+    auto cameraView = registry.view<ecs::Camera, ecs::Transform>();
     auto result = emscripten::val::array();
     u32 idx = 0;
     for (auto entity : cameraView) {
@@ -465,6 +487,14 @@ emscripten::val getChildEntities(ecs::Registry& registry, u32 entity) {
         result.set(idx++, static_cast<u32>(child));
     }
     return result;
+}
+
+u32 registry_getGeneration(ecs::Registry& registry, u32 entity) {
+    return registry.generation(static_cast<Entity>(entity));
+}
+
+u32 registry_getSchemaPoolVersion(ecs::Registry& registry, u32 poolId) {
+    return registry.getSchemaPoolVersion(poolId);
 }
 
 }  // namespace esengine

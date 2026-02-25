@@ -8,7 +8,11 @@ export { textPlugin, TextPlugin } from './ui/TextPlugin';
 export { uiMaskPlugin, UIMaskPlugin } from './ui/UIMaskPlugin';
 export { uiInteractionPlugin, UIInteractionPlugin } from './ui/UIInteractionPlugin';
 export { uiLayoutPlugin, UILayoutPlugin } from './ui/UILayoutPlugin';
+export { uiRenderOrderPlugin, UIRenderOrderPlugin } from './ui/UIRenderOrderPlugin';
 export { textInputPlugin, TextInputPlugin } from './ui/TextInputPlugin';
+
+export { progressBarPlugin, ProgressBarPlugin } from './ui/ProgressBarPlugin';
+export { sliderPlugin, SliderPlugin } from './ui/SliderPlugin';
 
 export { PhysicsPlugin, PhysicsEvents, Physics, loadPhysicsModule } from './physics';
 
