@@ -13,7 +13,7 @@ import type { ToggleData } from './Toggle';
 import { ToggleGroup } from './ToggleGroup';
 import type { ToggleGroupData } from './ToggleGroup';
 import { UIEvents, UIEventQueue } from './UIEvents';
-import { isEditor } from '../env';
+import { isEditor, isPlayMode } from '../env';
 import { applyColorTransition, ensureComponent } from './uiHelpers';
 
 export class TogglePlugin implements Plugin {
@@ -22,7 +22,6 @@ export class TogglePlugin implements Plugin {
         registerComponent('ToggleGroup', ToggleGroup);
 
         const world = app.world;
-        const editorMode = isEditor();
         const initializedEntities = new Set<Entity>();
 
         app.addSystemToSchedule(Schedule.Update, defineSystem(
@@ -30,7 +29,7 @@ export class TogglePlugin implements Plugin {
             (events: UIEventQueue) => {
                 const toggleEntities = world.getEntitiesWithComponents([Toggle]);
 
-                if (!editorMode) {
+                if (!isEditor() || isPlayMode()) {
                     const groupFirstOn = new Map<Entity, Entity>();
                     for (const entity of toggleEntities) {
                         if (initializedEntities.has(entity)) continue;

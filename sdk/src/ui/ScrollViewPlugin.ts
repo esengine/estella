@@ -16,7 +16,7 @@ import { UIInteraction } from './UIInteraction';
 import type { UIInteractionData } from './UIInteraction';
 import { UICameraInfo } from './UICameraInfo';
 import type { UICameraData } from './UICameraInfo';
-import { isEditor } from '../env';
+import { isEditor, isPlayMode } from '../env';
 import { getEffectiveWidth, getEffectiveHeight, ensureComponent } from './uiHelpers';
 import {
     SCROLL_VELOCITY_SMOOTHING, SCROLL_VELOCITY_NEW_WEIGHT,
@@ -37,7 +37,6 @@ export class ScrollViewPlugin implements Plugin {
         registerComponent('ScrollView', ScrollView);
 
         const world = app.world;
-        const editorMode = isEditor();
         const states = new Map<Entity, ScrollState>();
         let lastTime = 0;
         const worldMouse = { x: 0, y: 0 };
@@ -45,7 +44,7 @@ export class ScrollViewPlugin implements Plugin {
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
             [Res(Input), Res(UICameraInfo)],
             (input: InputState, camera: UICameraData) => {
-                if (editorMode) return;
+                if (isEditor() && !isPlayMode()) return;
 
                 const now = performance.now() / 1000;
                 const dt = lastTime > 0 ? Math.min(now - lastTime, SCROLL_MAX_DT) : 0;

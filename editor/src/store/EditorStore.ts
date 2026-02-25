@@ -246,6 +246,7 @@ export class EditorStore {
         this.state_.selectedEntities = new Set(snapshot.selectedEntities);
         this.state_.isDirty = snapshot.isDirty;
         this.state_.filePath = snapshot.filePath;
+        this.nextEntityId_ = this.computeNextEntityId(this.state_.scene);
         this.rebuildEntityMap();
         this.worldTransforms_.setScene(this.state_.scene);
         this.notifySceneSync();

@@ -11,7 +11,7 @@ import { Interactable } from './Interactable';
 import type { InteractableData } from './Interactable';
 import { UIInteraction } from './UIInteraction';
 import type { UIInteractionData } from './UIInteraction';
-import { isEditor } from '../env';
+import { isEditor, isPlayMode } from '../env';
 import { UIEvents, UIEventQueue } from './UIEvents';
 
 export class FocusPlugin implements Plugin {
@@ -19,14 +19,13 @@ export class FocusPlugin implements Plugin {
         registerComponent('Focusable', Focusable);
 
         const world = app.world;
-        const editorMode = isEditor();
         const focusManager = new FocusManagerState();
         app.insertResource(FocusManager, focusManager);
 
         app.addSystemToSchedule(Schedule.Update, defineSystem(
             [Res(Input), Res(UIEvents)],
             (input: InputState, events: UIEventQueue) => {
-                if (editorMode) return;
+                if (isEditor() && !isPlayMode()) return;
                 if (focusManager.focusedEntity !== null && !world.valid(focusManager.focusedEntity)) {
                     focusManager.focusedEntity = null;
                 }

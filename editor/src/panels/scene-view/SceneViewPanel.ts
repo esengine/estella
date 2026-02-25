@@ -7,6 +7,7 @@ import { getPlatformAdapter } from '../../platform/PlatformAdapter';
 import { isUUID, getAssetLibrary } from '../../asset/AssetDatabase';
 import { icons } from '../../utils/icons';
 import { EditorSceneRenderer } from '../../renderer/EditorSceneRenderer';
+import { getSharedRenderContext } from '../../renderer/SharedRenderContext';
 import { getEntityBounds } from '../../bounds';
 import { GizmoManager } from '../../gizmos';
 import type { GizmoContext } from '../../gizmos';
@@ -37,8 +38,10 @@ export class SceneViewPanel {
     private store_: EditorStore;
     private bridge_: EditorBridge | null = null;
     private canvas_: HTMLCanvasElement;
-    private webglCanvas_: HTMLCanvasElement | null = null;
+    private displayCanvas_: HTMLCanvasElement | null = null;
     private overlayCanvas_: HTMLCanvasElement | null = null;
+    private sceneViewportW_ = 0;
+    private sceneViewportH_ = 0;
     private unsubscribe_: (() => void) | null = null;
     private unsubscribeSceneSync_: (() => void) | null = null;
     private unsubscribeFocus_: (() => void) | null = null;
@@ -98,12 +101,12 @@ export class SceneViewPanel {
                 </div>
             </div>
             <div class="es-sceneview-viewport">
-                <canvas class="es-sceneview-webgl"></canvas>
+                <canvas class="es-sceneview-display"></canvas>
                 <canvas class="es-sceneview-overlay"></canvas>
             </div>
         `;
 
-        this.webglCanvas_ = this.container_.querySelector('.es-sceneview-webgl')!;
+        this.displayCanvas_ = this.container_.querySelector('.es-sceneview-display')!;
         this.overlayCanvas_ = this.container_.querySelector('.es-sceneview-overlay')!;
         this.canvas_ = this.overlayCanvas_;
 
@@ -279,8 +282,13 @@ export class SceneViewPanel {
             this.sceneRenderer_.dispose();
             this.sceneRenderer_ = null;
         }
+        getSharedRenderContext().setSceneViewportSize(0, 0);
         this.input_.dispose();
         this.toolbar_.dispose();
+    }
+
+    get sharedContext() {
+        return this.useWebGL_ ? getSharedRenderContext() : null;
     }
 
     setBridge(bridge: EditorBridge): void {
@@ -336,11 +344,16 @@ export class SceneViewPanel {
         const rect = viewport.getBoundingClientRect();
         const dpr = window.devicePixelRatio || 1;
 
-        if (this.webglCanvas_) {
-            this.webglCanvas_.width = rect.width * dpr;
-            this.webglCanvas_.height = rect.height * dpr;
-            this.webglCanvas_.style.width = `${rect.width}px`;
-            this.webglCanvas_.style.height = `${rect.height}px`;
+        if (this.displayCanvas_) {
+            const pixelW = Math.round(rect.width * dpr);
+            const pixelH = Math.round(rect.height * dpr);
+            this.displayCanvas_.width = pixelW;
+            this.displayCanvas_.height = pixelH;
+            this.displayCanvas_.style.width = `${rect.width}px`;
+            this.displayCanvas_.style.height = `${rect.height}px`;
+            this.sceneViewportW_ = pixelW;
+            this.sceneViewportH_ = pixelH;
+            getSharedRenderContext().setSceneViewportSize(pixelW, pixelH);
         }
 
         if (this.overlayCanvas_) {
@@ -375,16 +388,19 @@ export class SceneViewPanel {
 
     private async initWebGLRenderer(): Promise<void> {
         if (this.webglInitPending_ || this.webglInitialized_) return;
-        if (!this.app_?.wasmModule || !this.webglCanvas_) return;
+        if (!this.app_?.wasmModule) return;
 
         this.webglInitPending_ = true;
 
-        this.sceneRenderer_ = new EditorSceneRenderer();
-        this.sceneRenderer_.setStore(this.store_);
-        this.sceneRenderer_.setRenderCallback(() => this.requestRender());
-        const success = await this.sceneRenderer_.init(this.app_.wasmModule, this.webglCanvas_);
+        const sharedCtx = getSharedRenderContext();
+        const success = sharedCtx.initialized || await sharedCtx.init(this.app_.wasmModule);
 
         if (success) {
+            this.sceneRenderer_ = new EditorSceneRenderer(sharedCtx);
+            this.sceneRenderer_.setStore(this.store_);
+            this.sceneRenderer_.setRenderCallback(() => this.requestRender());
+            sharedCtx.setRenderCallback(() => this.requestRender());
+
             this.webglInitialized_ = true;
             this.useWebGL_ = true;
 
@@ -413,6 +429,7 @@ export class SceneViewPanel {
         try {
             if (this.sceneRenderer_ && this.useWebGL_) {
                 await this.syncSceneToRenderer();
+                this.requestRender();
             }
         } catch (e) {
             console.warn('[SceneViewPanel] Scene sync error:', e);
@@ -526,7 +543,7 @@ export class SceneViewPanel {
         if (this.animationId_ !== null) return;
         this.animationId_ = requestAnimationFrame(() => {
             this.animationId_ = null;
-            if (this.livePreview_) this.isDirty_ = true;
+            if (this.livePreview_ || getSharedRenderContext().isPlayMode) this.isDirty_ = true;
             if (this.isDirty_) {
                 this.isDirty_ = false;
                 try {
@@ -542,9 +559,9 @@ export class SceneViewPanel {
     }
 
     private render(): void {
-        if (this.useWebGL_ && this.sceneRenderer_ && this.webglCanvas_) {
-            const w = this.webglCanvas_.width;
-            const h = this.webglCanvas_.height;
+        if (this.useWebGL_ && this.sceneRenderer_) {
+            const w = this.sceneViewportW_;
+            const h = this.sceneViewportH_;
             if (w === 0 || h === 0) return;
 
             this.sceneRenderer_.camera.panX = this.camera_.panX;
@@ -553,6 +570,18 @@ export class SceneViewPanel {
 
             this.sceneRenderer_.render(w, h);
             this.camera_.orthoHalfHeight = this.sceneRenderer_.camera.orthoHalfHeight;
+
+            const sharedCtx = getSharedRenderContext();
+            const webglCanvas = sharedCtx.webglCanvas_;
+            if (this.displayCanvas_ && webglCanvas) {
+                const dCtx = this.displayCanvas_.getContext('2d');
+                if (dCtx) {
+                    const srcY = webglCanvas.height - h;
+                    dCtx.clearRect(0, 0, this.displayCanvas_.width, this.displayCanvas_.height);
+                    dCtx.drawImage(webglCanvas, 0, srcY, w, h, 0, 0, w, h);
+                }
+            }
+
             this.renderOverlay();
         } else if (this.bridge_) {
             const w = this.canvas_.width;

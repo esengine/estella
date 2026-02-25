@@ -14,7 +14,7 @@ import type { UIInteractionData } from './UIInteraction';
 import { UIEvents, UIEventQueue } from './UIEvents';
 import { UICameraInfo } from './UICameraInfo';
 import type { UICameraData } from './UICameraInfo';
-import { isEditor } from '../env';
+import { isEditor, isPlayMode } from '../env';
 import { getEntityDepth } from './uiHelpers';
 import { quaternionToAngle2D } from './uiMath';
 
@@ -73,7 +73,6 @@ export class DragPlugin implements Plugin {
         registerComponent('DragState', DragState);
 
         const world = app.world;
-        const editorMode = isEditor();
         const events = app.getResource(UIEvents) as UIEventQueue;
 
         let pendingEntity: Entity | null = null;
@@ -83,7 +82,7 @@ export class DragPlugin implements Plugin {
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
             [Res(Input), Res(UICameraInfo)],
             (input: InputState, camera: UICameraData) => {
-                if (editorMode) return;
+                if (isEditor() && !isPlayMode()) return;
                 if (!camera.valid) return;
 
                 const worldMouse = { x: camera.worldMouseX, y: camera.worldMouseY };

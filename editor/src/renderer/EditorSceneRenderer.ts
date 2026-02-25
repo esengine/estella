@@ -1,32 +1,10 @@
-/**
- * @file    EditorSceneRenderer.ts
- * @brief   WebGL scene renderer for editor scene view
- */
-
-import type { ESEngineModule, CppRegistry, LayoutRect } from 'esengine';
+import type { ESEngineModule, LayoutRect } from 'esengine';
 import {
     App,
     UICameraInfo,
-    UIEvents,
-    UIEventQueue,
-    Input,
-    InputState,
-    setEditorMode,
-    uiPlugins,
     ButtonState,
     RenderPipeline,
     Renderer,
-    createMaskProcessor,
-    initDrawAPI,
-    shutdownDrawAPI,
-    initGeometryAPI,
-    shutdownGeometryAPI,
-    initMaterialAPI,
-    shutdownMaterialAPI,
-    initPostProcessAPI,
-    shutdownPostProcessAPI,
-    initRendererAPI,
-    shutdownRendererAPI,
 } from 'esengine';
 import type { SpineModuleController } from 'esengine/spine';
 import type { SceneData, ComponentData } from '../types/SceneTypes';
@@ -37,30 +15,41 @@ import { AssetPathResolver } from '../asset';
 import { getAssetEventBus } from '../events/AssetEventBus';
 import { getDependencyGraph } from '../asset/AssetDependencyGraph';
 import type { TransformValue } from '../math/Transform';
-
-// =============================================================================
-// EditorSceneRenderer
-// =============================================================================
+import type { SharedRenderContext } from './SharedRenderContext';
 
 export class EditorSceneRenderer {
-    private module_: ESEngineModule | null = null;
-    private app_: App | null = null;
-    private sceneManager_: EditorSceneManager | null = null;
-    private pipeline_: RenderPipeline | null = null;
+    private context_: SharedRenderContext;
     private camera_: EditorCamera;
-    private pathResolver_: AssetPathResolver;
     private store_: EditorStore | null = null;
-    private initialized_ = false;
-    private startTime_ = 0;
-    private lastElapsed_ = 0;
     private unsubscribes_: (() => void)[] = [];
     private dirtyEntities_ = new Set<number>();
     private rafId_: number | null = null;
     private renderCallback_: (() => void) | null = null;
+    private lastElapsed_ = 0;
 
-    constructor() {
+    constructor(context: SharedRenderContext) {
+        this.context_ = context;
         this.camera_ = new EditorCamera();
-        this.pathResolver_ = new AssetPathResolver();
+    }
+
+    get camera(): EditorCamera {
+        return this.camera_;
+    }
+
+    private get sceneManager_(): EditorSceneManager | null {
+        return this.context_.sceneManager_;
+    }
+
+    private get pipeline_(): RenderPipeline | null {
+        return this.context_.pipeline_;
+    }
+
+    private get app_(): App | null {
+        return this.context_.app_;
+    }
+
+    private get module_(): ESEngineModule | null {
+        return this.context_.module_;
     }
 
     setStore(store: EditorStore): void {
@@ -70,79 +59,6 @@ export class EditorSceneRenderer {
 
     setRenderCallback(callback: (() => void) | null): void {
         this.renderCallback_ = callback;
-    }
-
-    async init(module: ESEngineModule, canvas: HTMLCanvasElement): Promise<boolean> {
-        if (this.initialized_) return true;
-
-        this.module_ = module;
-
-        const gl = canvas.getContext('webgl2', {
-            alpha: true,
-            depth: true,
-            stencil: true,
-            antialias: true,
-            premultipliedAlpha: true,
-            preserveDrawingBuffer: false,
-        });
-        if (!gl) {
-            console.error('[EditorSceneRenderer] Failed to create WebGL2 context');
-            return false;
-        }
-
-        const handle = module.GL.registerContext(gl, { majorVersion: 2, minorVersion: 0 });
-        if (handle <= 0) {
-            console.error('[EditorSceneRenderer] Failed to register WebGL context');
-            return false;
-        }
-
-        const success = module.initRendererWithContext(handle);
-        if (!success) {
-            console.error('[EditorSceneRenderer] Failed to initialize renderer');
-            return false;
-        }
-
-        initDrawAPI(module);
-        initGeometryAPI(module);
-        initMaterialAPI(module);
-        initPostProcessAPI(module);
-        initRendererAPI(module);
-
-        this.pipeline_ = new RenderPipeline();
-        this.startTime_ = performance.now();
-
-        const app = App.new();
-        const cppRegistry = new module.Registry() as unknown as CppRegistry;
-        app.connectCpp(cppRegistry, module);
-
-        app.insertResource(UICameraInfo, {
-            viewProjection: new Float32Array(16),
-            vpX: 0, vpY: 0, vpW: 0, vpH: 0,
-            screenW: 0, screenH: 0,
-            worldLeft: 0, worldBottom: 0, worldRight: 0, worldTop: 0,
-            worldMouseX: 0, worldMouseY: 0,
-            valid: false,
-        });
-
-        app.insertResource(Input, new InputState());
-        app.insertResource(UIEvents, new UIEventQueue());
-
-        setEditorMode(true);
-        for (const plugin of uiPlugins) {
-            app.addPlugin(plugin);
-        }
-        this.app_ = app;
-
-        this.sceneManager_ = new EditorSceneManager(module, this.pathResolver_, app.world);
-        this.sceneManager_.registerSystems(app);
-        this.pipeline_.setMaskProcessor(
-            createMaskProcessor(module, this.sceneManager_.world)
-        );
-        this.initialized_ = true;
-
-        this.setupSyncService();
-
-        return true;
     }
 
     private setupSyncService(): void {
@@ -215,10 +131,6 @@ export class EditorSceneRenderer {
         this.scheduleEntityUpdate(event.entity);
     }
 
-    // =========================================================================
-    // Sync Helpers
-    // =========================================================================
-
     private syncCanvasToCamera(canvasEntityId: number): void {
         const canvasData = this.store_!.getEntityData(canvasEntityId);
         if (!canvasData) return;
@@ -270,10 +182,6 @@ export class EditorSceneRenderer {
         this.scheduleEntityUpdate(entityId);
     }
 
-    // =========================================================================
-    // Dirty Entity Scheduling
-    // =========================================================================
-
     private scheduleDescendantUpdates(entityId: number): void {
         const entityData = this.store_!.getEntityData(entityId);
         if (!entityData) return;
@@ -315,32 +223,16 @@ export class EditorSceneRenderer {
     }
 
     setProjectDir(projectDir: string): void {
-        this.pathResolver_.setProjectDir(projectDir);
-        this.sceneManager_?.setProjectDir(projectDir);
+        this.context_.setProjectDir(projectDir);
     }
 
     setSpineController(controller: SpineModuleController | null): void {
-        this.sceneManager_?.setSpineController(controller);
-
-        if (controller && this.pipeline_ && this.module_) {
-            const module = this.module_;
-            this.pipeline_.setSpineRenderer((_registry, elapsed) => {
-                const dt = elapsed - this.lastElapsed_;
-                this.lastElapsed_ = elapsed;
-                this.sceneManager_?.updateAndSubmitSpine(module, dt);
-            });
-        } else {
-            this.pipeline_?.setSpineRenderer(null);
-        }
+        this.context_.setSpineController(controller);
     }
 
     get pathResolver(): AssetPathResolver {
-        return this.pathResolver_;
+        return this.context_.pathResolver_;
     }
-
-    // =========================================================================
-    // Scene Sync (Delegated to EditorSceneManager)
-    // =========================================================================
 
     async syncScene(scene: SceneData): Promise<void> {
         await this.sceneManager_?.loadScene(scene);
@@ -352,14 +244,6 @@ export class EditorSceneRenderer {
 
     removeEntity(entityId: number): void {
         this.sceneManager_?.removeEntity(entityId);
-    }
-
-    // =========================================================================
-    // Editor-specific Features
-    // =========================================================================
-
-    get camera(): EditorCamera {
-        return this.camera_;
     }
 
     get textureManager() {
@@ -434,12 +318,8 @@ export class EditorSceneRenderer {
         return this.getComputedLayoutSize(entityId);
     }
 
-    // =========================================================================
-    // Rendering
-    // =========================================================================
-
     render(width: number, height: number): void {
-        if (!this.pipeline_ || !this.sceneManager_ || !this.initialized_) return;
+        if (!this.pipeline_ || !this.sceneManager_ || !this.context_.initialized) return;
         if (width <= 0 || height <= 0) return;
         if (this.sceneManager_.isBusy) return;
 
@@ -456,26 +336,40 @@ export class EditorSceneRenderer {
         }
 
         const matrix = this.camera_.getViewProjection(width, height);
-        const elapsed = (performance.now() - this.startTime_) / 1000;
+        const elapsed = this.context_.elapsed;
 
         const cppReg = this.sceneManager_.registry;
         const registry = { _cpp: cppReg };
 
         try {
             if (this.app_) {
-                const uiCamera = this.app_.getResource(UICameraInfo);
-                if (canvasRect) {
-                    uiCamera.worldLeft = canvasRect.left;
-                    uiCamera.worldBottom = canvasRect.bottom;
-                    uiCamera.worldRight = canvasRect.right;
-                    uiCamera.worldTop = canvasRect.top;
-                    uiCamera.valid = true;
+                if (this.context_.isPlayMode) {
+                    const gameRenderer = this.context_.gameViewRenderer;
+                    if (gameRenderer && gameRenderer.visible) {
+                        gameRenderer.updateUICameraInfo(this.context_);
+                    }
                 } else {
-                    uiCamera.valid = false;
+                    const uiCamera = this.app_.getResource(UICameraInfo);
+                    if (canvasRect) {
+                        uiCamera.worldLeft = canvasRect.left;
+                        uiCamera.worldBottom = canvasRect.bottom;
+                        uiCamera.worldRight = canvasRect.right;
+                        uiCamera.worldTop = canvasRect.top;
+                        uiCamera.valid = true;
+                    } else {
+                        uiCamera.valid = false;
+                    }
                 }
-                this.app_.tick(1 / 60);
+
+                this.context_.tickApp();
             }
 
+            const gameRenderer = this.context_.gameViewRenderer;
+            if (gameRenderer && gameRenderer.visible) {
+                gameRenderer.renderAndCapture(this.context_);
+            }
+
+            Renderer.setClearColor(bg.r, bg.g, bg.b, bg.a);
             Renderer.setViewport(0, 0, width, height);
             Renderer.clearBuffers(3);
             Renderer.begin(matrix);
@@ -500,6 +394,40 @@ export class EditorSceneRenderer {
         }
     }
 
+    renderGameCamera(width: number, height: number, vpMatrix: Float32Array): void {
+        if (!this.pipeline_ || !this.sceneManager_ || !this.context_.initialized) return;
+        if (width <= 0 || height <= 0) return;
+        if (this.sceneManager_.isBusy) return;
+
+        const elapsed = this.context_.elapsed;
+        const cppReg = this.sceneManager_.registry;
+        const registry = { _cpp: cppReg };
+
+        try {
+            Renderer.setViewport(0, 0, width, height);
+            Renderer.clearBuffers(3);
+            Renderer.begin(vpMatrix);
+            if (this.pipeline_.maskProcessor) {
+                this.pipeline_.maskProcessor(registry._cpp, vpMatrix, 0, 0, width, height);
+            }
+            Renderer.submitSprites(registry);
+            Renderer.submitBitmapText(registry);
+            if (this.pipeline_.spineRenderer) {
+                this.pipeline_.spineRenderer(registry, elapsed);
+            } else {
+                Renderer.submitSpine(registry);
+            }
+            Renderer.flush();
+            Renderer.end();
+        } catch (e) {
+            if (e instanceof WebAssembly.RuntimeError) {
+                console.warn('[EditorSceneRenderer] WASM error during game camera render:', (e as Error).message);
+            } else {
+                throw e;
+            }
+        }
+    }
+
     private findCanvasBackgroundColor(): { r: number; g: number; b: number; a: number } {
         if (this.store_) {
             for (const entity of this.store_.scene.entities) {
@@ -513,10 +441,6 @@ export class EditorSceneRenderer {
         return { r: 0.1, g: 0.1, b: 0.1, a: 1.0 };
     }
 
-    // =========================================================================
-    // Cleanup
-    // =========================================================================
-
     dispose(): void {
         if (this.rafId_ !== null) {
             cancelAnimationFrame(this.rafId_);
@@ -525,31 +449,5 @@ export class EditorSceneRenderer {
         this.dirtyEntities_.clear();
         for (const unsub of this.unsubscribes_) unsub();
         this.unsubscribes_ = [];
-
-        if (this.sceneManager_) {
-            this.sceneManager_.dispose();
-            this.sceneManager_ = null;
-        }
-
-        if (this.app_) {
-            const world = this.app_.world;
-            const reg = world.getCppRegistry();
-            world.disconnectCpp();
-            if (reg) (reg as any).delete();
-            this.app_ = null;
-        }
-
-        if (this.module_ && this.initialized_) {
-            shutdownDrawAPI();
-            shutdownGeometryAPI();
-            shutdownMaterialAPI();
-            shutdownPostProcessAPI();
-            shutdownRendererAPI();
-            this.module_.shutdownRenderer();
-        }
-
-        this.pipeline_ = null;
-        this.initialized_ = false;
-        this.module_ = null;
     }
 }

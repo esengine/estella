@@ -7,7 +7,7 @@ import { Input } from '../input';
 import type { InputState } from '../input';
 import type { Entity } from '../types';
 import type { World } from '../world';
-import { isEditor } from '../env';
+import { isEditor, isPlayMode } from '../env';
 import { Interactable } from './Interactable';
 import { UIInteraction } from './UIInteraction';
 import type { UIInteractionData } from './UIInteraction';
@@ -54,8 +54,6 @@ export class UIInteractionPlugin implements Plugin {
         const events = new UIEventQueue();
         app.insertResource(UIEvents, events);
 
-        const editorMode = isEditor();
-
         let hoveredEntity: Entity | null = null;
         let pressedEntity: Entity | null = null;
 
@@ -64,7 +62,7 @@ export class UIInteractionPlugin implements Plugin {
             (input: InputState, camera: UICameraData) => {
                 events.drain();
 
-                if (editorMode) return;
+                if (isEditor() && !isPlayMode()) return;
 
                 const interactionEntities = world.getEntitiesWithComponents([UIInteraction]);
                 for (const entity of interactionEntities) {

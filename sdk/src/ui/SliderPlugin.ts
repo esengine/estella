@@ -1,12 +1,11 @@
 import type { App, Plugin } from '../app';
-import { registerComponent, Transform, Sprite } from '../component';
-import type { TransformData, SpriteData } from '../component';
+import { registerComponent, Transform } from '../component';
+import type { TransformData } from '../component';
 import { defineSystem, Schedule } from '../system';
 import { Res } from '../resource';
 import { Input } from '../input';
 import type { InputState } from '../input';
 import type { Entity } from '../types';
-import type { World } from '../world';
 import { Slider, FillDirection } from './Slider';
 import type { SliderData } from './Slider';
 import { UIRect } from './UIRect';
@@ -17,9 +16,9 @@ import type { UIInteractionData } from './UIInteraction';
 import { UICameraInfo } from './UICameraInfo';
 import type { UICameraData } from './UICameraInfo';
 import { UIEvents, UIEventQueue } from './UIEvents';
-import { isEditor } from '../env';
-import { applyDirectionalFill, getEffectiveWidth, getEffectiveHeight, ensureComponent } from './uiHelpers';
-import { computeUIRectLayout } from './uiLayout';
+import { isEditor, isPlayMode } from '../env';
+import { applyDirectionalFill, getEffectiveWidth, getEffectiveHeight, ensureComponent, layoutChildEntity } from './uiHelpers';
+import type { LayoutRect } from './uiLayout';
 import { quaternionToAngle2D } from './uiMath';
 
 function computeSliderValue(
@@ -80,46 +79,11 @@ function syncHandleRect(
     }
 }
 
-function syncFillLayout(
-    world: World, fillEntity: Entity,
-    sliderW: number, sliderH: number,
-): void {
-    if (!world.has(fillEntity, UIRect)) return;
-    const fillRect = world.get(fillEntity, UIRect) as UIRectData;
-    const halfW = sliderW / 2;
-    const halfH = sliderH / 2;
-    const parentRect = { left: -halfW, bottom: -halfH, right: halfW, top: halfH };
-    const result = computeUIRectLayout(
-        fillRect.anchorMin, fillRect.anchorMax,
-        fillRect.offsetMin, fillRect.offsetMax,
-        fillRect.size, parentRect, fillRect.pivot,
-    );
-
-    if (world.has(fillEntity, Sprite)) {
-        const sprite = world.get(fillEntity, Sprite) as SpriteData;
-        if (sprite.size.x !== result.width || sprite.size.y !== result.height) {
-            sprite.size.x = result.width;
-            sprite.size.y = result.height;
-            world.insert(fillEntity, Sprite, sprite);
-        }
-    }
-
-    if (world.has(fillEntity, Transform)) {
-        const t = world.get(fillEntity, Transform) as TransformData;
-        const curPos = t.position;
-        if (curPos.x !== result.originX || curPos.y !== result.originY) {
-            t.position = { x: result.originX, y: result.originY, z: curPos.z };
-            world.insert(fillEntity, Transform, t);
-        }
-    }
-}
-
 export class SliderPlugin implements Plugin {
     build(app: App): void {
         registerComponent('Slider', Slider);
 
         const world = app.world;
-        const editorMode = isEditor();
         let draggingSlider: Entity | null = null;
 
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
@@ -136,7 +100,7 @@ export class SliderPlugin implements Plugin {
                     const slider = world.get(entity, Slider) as SliderData;
                     const rect = world.get(entity, UIRect) as UIRectData;
 
-                    if (!editorMode) {
+                    if (!isEditor() || isPlayMode()) {
                         const hasWT = world.has(entity, Transform);
                         if (hasWT) {
                             ensureComponent(world, entity, Interactable, { enabled: true, blockRaycast: true });
@@ -187,20 +151,23 @@ export class SliderPlugin implements Plugin {
                     const range = slider.maxValue - slider.minValue;
                     const normalizedValue = range > 0 ? (slider.value - slider.minValue) / range : 0;
 
+                    const sw = getEffectiveWidth(rect, entity);
+                    const sh = getEffectiveHeight(rect, entity);
+                    const parentRect: LayoutRect = {
+                        left: -sw / 2, bottom: -sh / 2,
+                        right: sw / 2, top: sh / 2,
+                    };
+
                     if (slider.fillEntity !== 0 && world.valid(slider.fillEntity)) {
                         applyDirectionalFill(world, slider.fillEntity, slider.direction, normalizedValue);
-                        const sw = getEffectiveWidth(rect, entity);
-                        const sh = getEffectiveHeight(rect, entity);
-                        syncFillLayout(world, slider.fillEntity, sw, sh);
+                        layoutChildEntity(world, slider.fillEntity, parentRect, 0, 0);
                     }
 
                     if (slider.handleEntity !== 0 && world.valid(slider.handleEntity) && world.has(slider.handleEntity, UIRect)) {
                         const handleRect = world.get(slider.handleEntity, UIRect) as UIRectData;
                         syncHandleRect(handleRect, slider.direction, normalizedValue);
                         world.insert(slider.handleEntity, UIRect, handleRect);
-                        const sw = getEffectiveWidth(rect, entity);
-                        const sh = getEffectiveHeight(rect, entity);
-                        syncFillLayout(world, slider.handleEntity, sw, sh);
+                        layoutChildEntity(world, slider.handleEntity, parentRect, 0, 0);
                     }
                 }
             },
