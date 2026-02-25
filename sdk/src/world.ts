@@ -5,11 +5,24 @@
 
 import { Entity } from './types';
 import { AnyComponentDef, ComponentDef, ComponentData, BuiltinComponentDef, isBuiltinComponent, getAllRegisteredComponents, getComponentRegistry } from './component';
-import type { CppRegistry } from './wasm';
+import type { CppRegistry, ESEngineModule } from './wasm';
 import { validateComponentData, formatValidationErrors } from './validation';
 import { handleWasmError } from './wasmError';
 
 function convertForWasm(obj: Record<string, unknown>): Record<string, unknown> {
+    let needsConversion = false;
+    for (const key of Object.keys(obj)) {
+        const val = obj[key];
+        if (val !== null && val !== undefined && typeof val === 'object' && !Array.isArray(val)) {
+            const rec = val as Record<string, unknown>;
+            if ('r' in rec && 'g' in rec && 'b' in rec && 'a' in rec && !('x' in rec)) {
+                needsConversion = true;
+                break;
+            }
+        }
+    }
+    if (!needsConversion) return obj;
+
     const result: Record<string, unknown> = {};
     for (const key of Object.keys(obj)) {
         const val = obj[key];
@@ -18,13 +31,55 @@ function convertForWasm(obj: Record<string, unknown>): Record<string, unknown> {
             if ('r' in rec && 'g' in rec && 'b' in rec && 'a' in rec && !('x' in rec)) {
                 result[key] = { x: rec.r, y: rec.g, z: rec.b, w: rec.a };
             } else {
-                result[key] = convertForWasm(rec);
+                result[key] = val;
             }
         } else {
             result[key] = val;
         }
     }
     return result;
+}
+
+// =============================================================================
+// Numeric Component IDs for Cache Keys
+// =============================================================================
+
+let nextCompNumId_ = 1;
+const compNumIds_ = new WeakMap<object, number>();
+
+function getCompNumId(comp: AnyComponentDef): number {
+    let id = compNumIds_.get(comp);
+    if (id === undefined) {
+        id = nextCompNumId_++;
+        compNumIds_.set(comp, id);
+    }
+    return id;
+}
+
+const _keyIds: number[] = [];
+
+export function computeQueryCacheKey(
+    components: AnyComponentDef[],
+    withFilters: AnyComponentDef[] = [],
+    withoutFilters: AnyComponentDef[] = [],
+): string {
+    _keyIds.length = 0;
+    for (const c of components) _keyIds.push(getCompNumId(c));
+    _keyIds.sort((a, b) => a - b);
+    let key = _keyIds.join(',');
+    if (withFilters.length > 0) {
+        _keyIds.length = 0;
+        for (const c of withFilters) _keyIds.push(getCompNumId(c));
+        _keyIds.sort((a, b) => a - b);
+        key += '|+' + _keyIds.join(',');
+    }
+    if (withoutFilters.length > 0) {
+        _keyIds.length = 0;
+        for (const c of withoutFilters) _keyIds.push(getCompNumId(c));
+        _keyIds.sort((a, b) => a - b);
+        key += '|-' + _keyIds.join(',');
+    }
+    return key;
 }
 
 // =============================================================================
@@ -40,7 +95,8 @@ interface BuiltinMethods {
 
 export class World {
     private cppRegistry_: CppRegistry | null = null;
-    private entities_ = new Set<Entity>();
+    private module_: ESEngineModule | null = null;
+    private entities_ = new Map<Entity, number>();
     private tsStorage_ = new Map<symbol, Map<Entity, unknown>>();
     private entityComponents_ = new Map<Entity, symbol[]>();
     private queryPool_: Entity[][] = [];
@@ -50,14 +106,18 @@ export class World {
     private builtinMethodCache_ = new Map<string, BuiltinMethods>();
     private iterationDepth_ = 0;
     private nextEntityId_ = 0;
+    private nextGeneration_ = 0;
+    private despawnCallbacks_: Array<(entity: Entity) => void> = [];
 
-    connectCpp(cppRegistry: CppRegistry): void {
+    connectCpp(cppRegistry: CppRegistry, module?: ESEngineModule): void {
         this.cppRegistry_ = cppRegistry;
+        this.module_ = module ?? null;
         this.builtinMethodCache_.clear();
     }
 
     disconnectCpp(): void {
         this.cppRegistry_ = null;
+        this.module_ = null;
         this.builtinMethodCache_.clear();
     }
 
@@ -94,7 +154,15 @@ export class World {
             entity = (++this.nextEntityId_) as Entity;
         }
 
-        this.entities_.add(entity);
+        let generation = 0;
+        if (this.module_ && this.cppRegistry_) {
+            try {
+                generation = this.module_.registry_getGeneration(this.cppRegistry_, entity);
+            } catch { /* fallback to 0 */ }
+        } else {
+            generation = ++this.nextGeneration_;
+        }
+        this.entities_.set(entity, generation);
         this.worldVersion_++;
         return entity;
     }
@@ -105,6 +173,10 @@ export class World {
                 'Cannot despawn entity during query iteration. ' +
                 'Use Commands to defer entity destruction until after iteration completes.'
             );
+        }
+
+        for (const cb of this.despawnCallbacks_) {
+            try { cb(entity); } catch {}
         }
 
         if (this.cppRegistry_) {
@@ -124,6 +196,14 @@ export class World {
             }
             this.entityComponents_.delete(entity);
         }
+    }
+
+    onDespawn(callback: (entity: Entity) => void): () => void {
+        this.despawnCallbacks_.push(callback);
+        return () => {
+            const idx = this.despawnCallbacks_.indexOf(callback);
+            if (idx !== -1) this.despawnCallbacks_.splice(idx, 1);
+        };
     }
 
     valid(entity: Entity): boolean {
@@ -148,6 +228,7 @@ export class World {
     endIteration(): void {
         this.iterationDepth_--;
         if (this.iterationDepth_ < 0) {
+            console.warn('World.endIteration: mismatched begin/end calls');
             this.iterationDepth_ = 0;
         }
     }
@@ -161,7 +242,7 @@ export class World {
     }
 
     getAllEntities(): Entity[] {
-        return Array.from(this.entities_);
+        return Array.from(this.entities_.keys());
     }
 
     setParent(child: Entity, parent: Entity): void {
@@ -193,6 +274,23 @@ export class World {
             return this.insertBuiltin(entity, component, data) as ComponentData<C>;
         }
         return this.insertScript(entity, component as ComponentDef<any>, data) as ComponentData<C>;
+    }
+
+    set<C extends AnyComponentDef>(entity: Entity, component: C, data: ComponentData<C>): void {
+        if (isBuiltinComponent(component)) {
+            if (this.cppRegistry_) {
+                try {
+                    this.getBuiltinMethods(component._cppName).add(
+                        entity,
+                        convertForWasm(data as Record<string, unknown>)
+                    );
+                } catch (e) {
+                    handleWasmError(e, `set(${component._name}, entity=${entity})`);
+                }
+            }
+            return;
+        }
+        this.getStorage(component as ComponentDef<any>).set(entity, data);
     }
 
     get<C extends AnyComponentDef>(entity: Entity, component: C): ComponentData<C> {
@@ -292,15 +390,20 @@ export class World {
         }
         const merged = { ...component._default, ...filtered } as T;
 
+        let isNew = true;
         if (this.cppRegistry_) {
             try {
-                this.getBuiltinMethods(component._cppName).add(entity, convertForWasm(merged as Record<string, unknown>));
+                const methods = this.getBuiltinMethods(component._cppName);
+                isNew = !methods.has(entity);
+                methods.add(entity, convertForWasm(merged as Record<string, unknown>));
             } catch (e) {
                 handleWasmError(e, `insertBuiltin(${component._name}, entity=${entity})`);
             }
         }
 
-        this.worldVersion_++;
+        if (isNew) {
+            this.worldVersion_++;
+        }
         return merged;
     }
 
@@ -365,8 +468,9 @@ export class World {
         }
 
         const value = component.create(filtered);
-        this.getStorage(component).set(entity, value);
-        this.worldVersion_++;
+        const storage = this.getStorage(component);
+        const isNew = !storage.has(entity);
+        storage.set(entity, value);
         let ids = this.entityComponents_.get(entity);
         if (!ids) {
             ids = [];
@@ -374,6 +478,9 @@ export class World {
         }
         if (ids.indexOf(component._id) === -1) {
             ids.push(component._id);
+        }
+        if (isNew) {
+            this.worldVersion_++;
         }
         return value;
     }
@@ -422,16 +529,16 @@ export class World {
     }
 
     getComponentTypes(entity: Entity): string[] {
-        const types: string[] = [];
+        const types = new Set<string>();
         for (const [name, methods] of this.builtinMethodCache_) {
-            try { if (methods.has(entity)) types.push(name); } catch {}
+            try { if (methods.has(entity)) types.add(name); } catch {}
         }
         if (this.cppRegistry_) {
             for (const [name, comp] of getAllRegisteredComponents()) {
-                if (isBuiltinComponent(comp) && !types.includes(name)) {
+                if (isBuiltinComponent(comp) && !types.has(name)) {
                     try {
                         const m = this.getBuiltinMethods(comp._cppName);
-                        if (m.has(entity)) types.push(name);
+                        if (m.has(entity)) types.add(name);
                     } catch {}
                 }
             }
@@ -442,31 +549,26 @@ export class World {
             for (const id of ids) {
                 for (const [name, def] of registry) {
                     if (def._id === id) {
-                        types.push(name);
+                        types.add(name);
                         break;
                     }
                 }
             }
         }
-        return types;
+        return Array.from(types);
     }
 
     getEntitiesWithComponents(
         components: AnyComponentDef[],
         withFilters: AnyComponentDef[] = [],
-        withoutFilters: AnyComponentDef[] = []
+        withoutFilters: AnyComponentDef[] = [],
+        precomputedKey?: string
     ): Entity[] {
         if (components.length === 0 && withFilters.length === 0 && withoutFilters.length === 0) {
             return this.getAllEntities();
         }
 
-        let cacheKey = components.map(c => c._name).sort().join(',');
-        if (withFilters.length > 0) {
-            cacheKey += '|+' + withFilters.map(c => c._name).sort().join(',');
-        }
-        if (withoutFilters.length > 0) {
-            cacheKey += '|-' + withoutFilters.map(c => c._name).sort().join(',');
-        }
+        const cacheKey = precomputedKey ?? computeQueryCacheKey(components, withFilters, withoutFilters);
         const cached = this.queryCache_.get(cacheKey);
         if (cached && cached.version === this.worldVersion_) {
             return cached.result;
@@ -492,17 +594,33 @@ export class World {
         const entities = this.queryPool_[this.queryPoolIdx_++];
         entities.length = 0;
 
-        const candidates = smallestPool ? smallestPool.keys() : this.entities_;
+        const candidates = smallestPool ? smallestPool.keys() : this.entities_.keys();
 
         for (const entity of candidates) {
-            let hasAll = true;
+            let match = true;
             for (const comp of components) {
                 if (!this.has(entity, comp)) {
-                    hasAll = false;
+                    match = false;
                     break;
                 }
             }
-            if (hasAll) {
+            if (match) {
+                for (const comp of withFilters) {
+                    if (!this.has(entity, comp)) {
+                        match = false;
+                        break;
+                    }
+                }
+            }
+            if (match) {
+                for (const comp of withoutFilters) {
+                    if (this.has(entity, comp)) {
+                        match = false;
+                        break;
+                    }
+                }
+            }
+            if (match) {
                 entities.push(entity);
             }
         }

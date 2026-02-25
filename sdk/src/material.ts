@@ -167,6 +167,7 @@ export const Material = {
         if (data) {
             data.uniforms.set(name, value);
             data.dirty_ = true;
+            module?.invalidateMaterialCache(material);
         }
     },
 
@@ -190,6 +191,7 @@ export const Material = {
         const data = materials.get(material);
         if (data) {
             data.blendMode = mode;
+            module?.invalidateMaterialCache(material);
         }
     },
 
@@ -212,6 +214,7 @@ export const Material = {
         const data = materials.get(material);
         if (data) {
             data.depthTest = enabled;
+            module?.invalidateMaterialCache(material);
         }
     },
 
@@ -231,6 +234,7 @@ export const Material = {
      */
     release(material: MaterialHandle): void {
         materials.delete(material);
+        module?.invalidateMaterialCache(material);
     },
 
     /**
@@ -244,6 +248,7 @@ export const Material = {
 
     releaseAll(): void {
         materials.clear();
+        module?.clearMaterialCache();
     },
 
     /**
@@ -352,7 +357,7 @@ export const Material = {
 
 let materialCallbackRegistered = false;
 let uniformBuffer: number = 0;
-const UNIFORM_BUFFER_SIZE = 4096;
+const UNIFORM_BUFFER_SIZE = 16384;
 const encodedNameCache = new Map<string, Uint8Array>();
 let encoder: TextEncoder | null = null;
 
@@ -374,7 +379,7 @@ function serializeUniforms(uniforms: Map<string, UniformValue>): { ptr: number; 
     const heapF32 = module.HEAPF32;
 
     for (const [name, value] of uniforms) {
-        if (offset + 128 > UNIFORM_BUFFER_SIZE) break;
+        if (isTextureRef(value)) continue;
 
         let nameBytes = encodedNameCache.get(name);
         if (!nameBytes) {
@@ -384,6 +389,12 @@ function serializeUniforms(uniforms: Map<string, UniformValue>): { ptr: number; 
         }
         const nameLen = nameBytes.length;
         const namePadded = Math.ceil(nameLen / 4) * 4;
+        const requiredBytes = 4 + namePadded + 4 + 16;
+
+        if (offset + requiredBytes > UNIFORM_BUFFER_SIZE) {
+            console.warn(`[ESEngine] Material uniform buffer full (${offset}/${UNIFORM_BUFFER_SIZE} bytes), skipping remaining uniforms`);
+            break;
+        }
 
         heap32[(bufferPtr + offset) >> 2] = nameLen;
         offset += 4;

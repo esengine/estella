@@ -6,10 +6,10 @@ import { createMockModule } from './mocks/wasm';
 describe('World', () => {
     let world: World;
 
-    const Position = defineComponent('Position', { x: 0, y: 0 });
-    const Velocity = defineComponent('Velocity', { dx: 0, dy: 0 });
-    const Health = defineComponent('Health', { value: 100 });
-    const Player = defineTag('Player');
+    const Position = defineComponent('TestPosition', { x: 0, y: 0 });
+    const Velocity = defineComponent('TestVelocity', { dx: 0, dy: 0 });
+    const Health = defineComponent('TestHealth', { value: 100 });
+    const Player = defineTag('TestPlayer');
 
     beforeEach(() => {
         const module = createMockModule();

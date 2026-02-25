@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { World } from '../src/world';
 import { defineComponent, defineTag } from '../src/component';
-import { createMockModule } from './mocks/wasm';
 
 describe('Component Data Validation', () => {
     let world: World;
@@ -21,8 +20,7 @@ describe('Component Data Validation', () => {
     });
 
     beforeEach(() => {
-        const module = createMockModule();
-        world = new World(module);
+        world = new World();
     });
 
     describe('valid data', () => {
@@ -284,7 +282,7 @@ describe('Component Data Validation', () => {
 
     describe('complex data types', () => {
         it('should validate nested objects', () => {
-            const Transform = defineComponent('Transform', {
+            const Pose = defineComponent('Pose', {
                 position: { x: 0, y: 0 },
                 rotation: 0,
             });
@@ -292,7 +290,7 @@ describe('Component Data Validation', () => {
             const entity = world.spawn();
 
             expect(() => {
-                world.insert(entity, Transform, {
+                world.insert(entity, Pose, {
                     position: { x: 10, y: 20 },
                     rotation: 45,
                 });

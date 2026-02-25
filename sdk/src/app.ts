@@ -147,7 +147,7 @@ export class App {
     // =========================================================================
 
     connectCpp(cppRegistry: CppRegistry, module?: ESEngineModule): this {
-        this.world_.connectCpp(cppRegistry);
+        this.world_.connectCpp(cppRegistry, module);
 
         if (module) {
             this.module_ = module;
@@ -293,6 +293,26 @@ export class App {
     // Run
     // =========================================================================
 
+    tick(delta: number): void {
+        if (!this.runner_) {
+            this.runner_ = new SystemRunner(this.world_, this.resources_);
+            if (!this.resources_.has(Time)) {
+                this.resources_.insert(Time, { delta: 0, elapsed: 0, frameCount: 0 });
+            }
+            this.runSchedule(Schedule.Startup);
+        }
+
+        this.updateTime(delta);
+        this.world_.resetQueryPool();
+        this.frame_paused_ = false;
+
+        this.runSchedule(Schedule.First);
+        this.runSchedule(Schedule.PreUpdate);
+        this.runSchedule(Schedule.Update);
+        this.runSchedule(Schedule.PostUpdate);
+        this.runSchedule(Schedule.Last);
+    }
+
     run(): void {
         if (this.running_) {
             return;
@@ -340,7 +360,7 @@ export class App {
                 fixedSteps++;
             }
             if (fixedSteps >= this.maxFixedSteps_) {
-                this.fixedAccumulator_ = 0;
+                this.fixedAccumulator_ = this.fixedTimestep_;
             }
 
             this.runSchedule(Schedule.PreUpdate);
@@ -726,6 +746,27 @@ interface CameraInfo {
     cameraY: number;
 }
 
+const cameraInfoPool_: CameraInfo[] = [];
+
+function acquireCameraInfo(index: number): CameraInfo {
+    if (index < cameraInfoPool_.length) {
+        return cameraInfoPool_[index];
+    }
+    const info: CameraInfo = {
+        entity: 0,
+        viewProjection: new Float32Array(16),
+        viewportRect: { x: 0, y: 0, w: 0, h: 0 },
+        clearFlags: 0,
+        priority: 0,
+        halfW: 0,
+        halfH: 0,
+        cameraX: 0,
+        cameraY: 0,
+    };
+    cameraInfoPool_.push(info);
+    return info;
+}
+
 function collectCameras(
     module: ESEngineModule,
     registry: CppRegistry,
@@ -752,15 +793,9 @@ function collectCameras(
 
     for (const e of filtered) {
         const camera = registry.getCamera(e);
-        const transform = registry.getLocalTransform(e);
+        const transform = registry.getTransform(e);
 
-        const vr = {
-            x: camera.viewportX,
-            y: camera.viewportY,
-            w: camera.viewportW,
-            h: camera.viewportH,
-        };
-        const aspect = (vr.w * width) / (vr.h * height);
+        const aspect = (camera.viewportW * width) / (camera.viewportH * height);
         let projection: Float32Array;
         let camHalfW = 0;
         let camHalfH = 0;
@@ -789,17 +824,20 @@ function collectCameras(
         }
 
         const view = invertTranslation(transform.position.x, transform.position.y, transform.position.z);
-        cameras.push({
-            entity: e,
-            viewProjection: new Float32Array(multiply(projection, view)),
-            viewportRect: vr,
-            clearFlags: camera.clearFlags,
-            priority: camera.priority,
-            halfW: camHalfW,
-            halfH: camHalfH,
-            cameraX: transform.position.x,
-            cameraY: transform.position.y,
-        });
+        const cam = acquireCameraInfo(cameras.length);
+        cam.entity = e;
+        cam.viewProjection.set(multiply(projection, view));
+        cam.viewportRect.x = camera.viewportX;
+        cam.viewportRect.y = camera.viewportY;
+        cam.viewportRect.w = camera.viewportW;
+        cam.viewportRect.h = camera.viewportH;
+        cam.clearFlags = camera.clearFlags;
+        cam.priority = camera.priority;
+        cam.halfW = camHalfW;
+        cam.halfH = camHalfH;
+        cam.cameraX = transform.position.x;
+        cam.cameraY = transform.position.y;
+        cameras.push(cam);
     }
 
     cameras.sort((a, b) => a.priority - b.priority);
@@ -813,7 +851,7 @@ function computeViewProjection(module: ESEngineModule, registry: CppRegistry, wi
 
     const e = cameraEntities[0];
     const camera = registry.getCamera(e);
-    const transform = registry.getLocalTransform(e);
+    const transform = registry.getTransform(e);
 
     const aspect = width / height;
     let projection: Float32Array;

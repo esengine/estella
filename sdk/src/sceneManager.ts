@@ -5,9 +5,9 @@
 
 import type { App } from './app';
 import type { Entity, Color } from './types';
-import type { SceneData, SceneLoadOptions } from './scene';
+import type { SceneData, SceneLoadOptions, LoadedSceneAssets } from './scene';
 import type { SystemDef } from './system';
-import type { ShaderHandle } from './material';
+import { Material, type ShaderHandle } from './material';
 import type { DrawCallback } from './customDraw';
 import { Schedule } from './system';
 import { loadSceneWithAssets } from './scene';
@@ -79,6 +79,7 @@ class SceneInstance {
     readonly drawCallbacks = new Map<string, DrawCallback>();
     readonly postProcessPasses: string[] = [];
     readonly savedAlphas = new Map<Entity, { sprite?: number; spine?: number; bitmapText?: number }>();
+    loadedAssets: LoadedSceneAssets | null = null;
     status: SceneStatus = 'loading';
 
     constructor(config: SceneConfig) {
@@ -166,6 +167,7 @@ export class SceneManagerState {
     private activeScene_: string | null = null;
     private initialScene_: string | null = null;
     private transition_: TransitionState | null = null;
+    private switching_ = false;
     private loadPromises_ = new Map<string, Promise<SceneContext>>();
 
     constructor(app: App) {
@@ -189,8 +191,8 @@ export class SceneManagerState {
     }
 
     async switchTo(name: string, options?: TransitionOptions): Promise<void> {
-        if (this.transition_) {
-            console.warn(`[SceneManager] Transition already in progress, ignoring switchTo("${name}")`);
+        if (this.transition_ || this.switching_) {
+            console.warn(`[SceneManager] Scene switch already in progress, ignoring switchTo("${name}")`);
             return;
         }
 
@@ -201,10 +203,15 @@ export class SceneManagerState {
             return;
         }
 
-        if (this.activeScene_ && this.activeScene_ !== name) {
-            await this.unload(this.activeScene_, options);
+        this.switching_ = true;
+        try {
+            if (this.activeScene_ && this.activeScene_ !== name) {
+                await this.unload(this.activeScene_, options);
+            }
+            await this.load(name);
+        } finally {
+            this.switching_ = false;
         }
-        await this.load(name);
     }
 
     private startFadeTransition(targetScene: string, options: TransitionOptions): Promise<void> {
@@ -315,34 +322,7 @@ export class SceneManagerState {
                 }
             }
 
-            if (sceneData) {
-                const loadOptions: SceneLoadOptions = {};
-                if (this.app_.hasResource(Assets)) {
-                    loadOptions.assetServer = this.app_.getResource(Assets);
-                }
-                const entityMap = await loadSceneWithAssets(
-                    this.app_.world, sceneData, loadOptions
-                );
-
-                for (const entity of entityMap.values()) {
-                    instance.entities.add(entity);
-                    this.app_.world.insert(entity, SceneOwner, {
-                        scene: name,
-                        persistent: false,
-                    });
-                }
-            }
-
-            if (config.systems) {
-                for (const { schedule, system } of config.systems) {
-                    const wrapped = wrapSceneSystem(this.app_, name, system);
-                    this.app_.addSystemToSchedule(schedule, wrapped);
-                }
-            }
-
-            if (config.setup) {
-                await config.setup(ctx);
-            }
+            await this.loadSceneData_(instance, name, config, sceneData);
 
             instance.status = 'running';
             this.activeScene_ = name;
@@ -394,34 +374,7 @@ export class SceneManagerState {
                 }
             }
 
-            if (sceneData) {
-                const loadOptions: SceneLoadOptions = {};
-                if (this.app_.hasResource(Assets)) {
-                    loadOptions.assetServer = this.app_.getResource(Assets);
-                }
-                const entityMap = await loadSceneWithAssets(
-                    this.app_.world, sceneData, loadOptions
-                );
-
-                for (const entity of entityMap.values()) {
-                    instance.entities.add(entity);
-                    this.app_.world.insert(entity, SceneOwner, {
-                        scene: name,
-                        persistent: false,
-                    });
-                }
-            }
-
-            if (config.systems) {
-                for (const { schedule, system } of config.systems) {
-                    const wrapped = wrapSceneSystem(this.app_, name, system);
-                    this.app_.addSystemToSchedule(schedule, wrapped);
-                }
-            }
-
-            if (config.setup) {
-                await config.setup(ctx);
-            }
+            await this.loadSceneData_(instance, name, config, sceneData);
 
             instance.status = 'running';
             this.additiveScenes_.add(name);
@@ -475,6 +428,8 @@ export class SceneManagerState {
         }
         instance.postProcessPasses.length = 0;
 
+        this.releaseSceneAssets_(instance);
+
         this.scenes_.delete(name);
         this.contexts_.delete(name);
         this.additiveScenes_.delete(name);
@@ -489,6 +444,77 @@ export class SceneManagerState {
         if (this.activeScene_ === name) {
             this.activeScene_ = null;
         }
+    }
+
+    private async loadSceneData_(
+        instance: SceneInstance,
+        name: string,
+        config: SceneConfig,
+        sceneData: SceneData | undefined,
+    ): Promise<void> {
+        if (sceneData) {
+            const collectAssets: LoadedSceneAssets = {
+                textureUrls: new Set(),
+                materialHandles: new Set(),
+                fontPaths: new Set(),
+                spineKeys: new Set(),
+            };
+            const loadOptions: SceneLoadOptions = { collectAssets };
+            if (this.app_.hasResource(Assets)) {
+                loadOptions.assetServer = this.app_.getResource(Assets);
+            }
+            const entityMap = await loadSceneWithAssets(
+                this.app_.world, sceneData, loadOptions
+            );
+            instance.loadedAssets = collectAssets;
+
+            for (const entity of entityMap.values()) {
+                instance.entities.add(entity);
+                this.app_.world.insert(entity, SceneOwner, {
+                    scene: name,
+                    persistent: false,
+                });
+            }
+        }
+
+        if (config.systems) {
+            for (const { schedule, system } of config.systems) {
+                const wrapped = wrapSceneSystem(this.app_, name, system);
+                this.app_.addSystemToSchedule(schedule, wrapped);
+            }
+        }
+
+        const ctx = this.contexts_.get(name)!;
+        if (config.setup) {
+            await config.setup(ctx);
+        }
+    }
+
+    private releaseSceneAssets_(instance: SceneInstance): void {
+        const assets = instance.loadedAssets;
+        if (!assets) return;
+
+        const assetServer = this.app_.hasResource(Assets)
+            ? this.app_.getResource(Assets)
+            : null;
+
+        if (assetServer) {
+            for (const url of assets.textureUrls) {
+                assetServer.releaseTexture(url);
+            }
+            for (const path of assets.fontPaths) {
+                assetServer.releaseFont(path);
+            }
+            for (const key of assets.spineKeys) {
+                assetServer.releaseSpine(key);
+            }
+        }
+
+        for (const handle of assets.materialHandles) {
+            Material.release(handle);
+        }
+
+        instance.loadedAssets = null;
     }
 
     pause(name: string): void {
@@ -524,21 +550,21 @@ export class SceneManagerState {
             if (world.has(entity, Sprite)) {
                 const sprite = world.get(entity, Sprite);
                 saved.sprite = sprite.color.a;
-                sprite.color = { ...sprite.color, a: 0 };
+                sprite.color.a = 0;
                 world.insert(entity, Sprite, sprite);
                 hasSaved = true;
             }
             if (world.has(entity, SpineAnimation)) {
                 const spine = world.get(entity, SpineAnimation);
                 saved.spine = spine.color.a;
-                spine.color = { ...spine.color, a: 0 };
+                spine.color.a = 0;
                 world.insert(entity, SpineAnimation, spine);
                 hasSaved = true;
             }
             if (world.has(entity, BitmapText)) {
                 const bt = world.get(entity, BitmapText);
                 saved.bitmapText = bt.color.a;
-                bt.color = { ...bt.color, a: 0 };
+                bt.color.a = 0;
                 world.insert(entity, BitmapText, bt);
                 hasSaved = true;
             }
@@ -564,17 +590,17 @@ export class SceneManagerState {
 
             if (saved.sprite !== undefined && world.has(entity, Sprite)) {
                 const sprite = world.get(entity, Sprite);
-                sprite.color = { ...sprite.color, a: saved.sprite };
+                sprite.color.a = saved.sprite;
                 world.insert(entity, Sprite, sprite);
             }
             if (saved.spine !== undefined && world.has(entity, SpineAnimation)) {
                 const spine = world.get(entity, SpineAnimation);
-                spine.color = { ...spine.color, a: saved.spine };
+                spine.color.a = saved.spine;
                 world.insert(entity, SpineAnimation, spine);
             }
             if (saved.bitmapText !== undefined && world.has(entity, BitmapText)) {
                 const bt = world.get(entity, BitmapText);
-                bt.color = { ...bt.color, a: saved.bitmapText };
+                bt.color.a = saved.bitmapText;
                 world.insert(entity, BitmapText, bt);
             }
         }

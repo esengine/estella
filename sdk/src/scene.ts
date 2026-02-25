@@ -46,9 +46,17 @@ export interface SceneData {
     textureMetadata?: Record<string, TextureMetadata>;
 }
 
+export interface LoadedSceneAssets {
+    textureUrls: Set<string>;
+    materialHandles: Set<number>;
+    fontPaths: Set<string>;
+    spineKeys: Set<string>;
+}
+
 export interface SceneLoadOptions {
     assetServer?: AssetServer;
     assetBaseUrl?: string;
+    collectAssets?: LoadedSceneAssets;
 }
 
 // =============================================================================
@@ -157,7 +165,7 @@ export function registerComponentEntityFields(
     COMPONENT_ENTITY_FIELDS.set(componentType, fields);
 }
 
-function remapEntityFields(compData: SceneComponentData, entityMap: Map<number, Entity>): void {
+export function remapEntityFields(compData: SceneComponentData, entityMap: Map<number, Entity>): void {
     const fields = COMPONENT_ENTITY_FIELDS.get(compData.type);
     if (!fields) return;
     const data = compData.data as Record<string, unknown>;
@@ -165,6 +173,12 @@ function remapEntityFields(compData: SceneComponentData, entityMap: Map<number, 
         const editorId = data[field];
         if (typeof editorId === 'number' && editorId !== INVALID_ENTITY) {
             const runtimeId = entityMap.get(editorId);
+            if (runtimeId === undefined) {
+                console.warn(
+                    `[Scene] Entity reference not found: ${compData.type}.${field} ` +
+                    `references entity ${editorId} which does not exist`,
+                );
+            }
             data[field] = runtimeId !== undefined ? runtimeId : INVALID_ENTITY;
         }
     }
@@ -178,6 +192,7 @@ function spawnAndLoadEntities(world: World, sceneData: SceneData): Map<number, E
     const entityMap = new Map<number, Entity>();
 
     for (const entityData of sceneData.entities) {
+        if (entityData.visible === false) continue;
         const entity = world.spawn();
         entityMap.set(entityData.id, entity);
         world.insert(entity, Name, { value: entityData.name });
@@ -219,7 +234,7 @@ export async function loadSceneWithAssets(
     const texturePathToUrl = new Map<string, string>();
 
     if (assetServer) {
-        await preloadSceneAssets(sceneData, assetServer, baseUrl, texturePathToUrl);
+        await preloadSceneAssets(sceneData, assetServer, baseUrl, texturePathToUrl, options?.collectAssets);
     }
 
     const entityMap = spawnAndLoadEntities(world, sceneData);
@@ -300,6 +315,7 @@ async function preloadSceneAssets(
     assetServer: AssetServer,
     baseUrl: string | undefined,
     texturePathToUrl: Map<string, string>,
+    collectAssets?: LoadedSceneAssets,
 ): Promise<void> {
     sceneData = JSON.parse(JSON.stringify(sceneData));
 
@@ -356,6 +372,27 @@ async function preloadSceneAssets(
 
     await Promise.all([...loadPromises, ...spinePromises]);
 
+    if (collectAssets) {
+        for (const url of texturePathToUrl.values()) {
+            collectAssets.textureUrls.add(url);
+        }
+        const materialHandles = assetHandles.get('material');
+        if (materialHandles) {
+            for (const handle of materialHandles.values()) {
+                if (handle > 0) collectAssets.materialHandles.add(handle);
+            }
+        }
+        const fontPaths = assetPaths.get('font');
+        if (fontPaths) {
+            for (const path of fontPaths) {
+                collectAssets.fontPaths.add(path);
+            }
+        }
+        for (const key of spineKeys) {
+            collectAssets.spineKeys.add(key);
+        }
+    }
+
     for (const entityData of sceneData.entities) {
         if (entityData.visible === false) continue;
 
@@ -374,6 +411,9 @@ async function preloadSceneAssets(
 }
 
 export function loadComponent(world: World, entity: Entity, compData: SceneComponentData, entityName?: string): void {
+    if (compData.type === 'LocalTransform' || compData.type === 'WorldTransform') {
+        compData.type = 'Transform';
+    }
     if (compData.type === 'UIRect') {
         const rectData = compData.data as Record<string, unknown>;
         if (rectData.anchor && !rectData.anchorMin) {
@@ -381,6 +421,11 @@ export function loadComponent(world: World, entity: Entity, compData: SceneCompo
             rectData.anchorMax = { ...(rectData.anchor as Record<string, unknown>) };
             delete rectData.anchor;
         }
+    }
+    if (compData.type === 'UIMask') {
+        const maskData = compData.data as Record<string, unknown>;
+        if (maskData.mode === 'scissor') maskData.mode = 0;
+        else if (maskData.mode === 'stencil') maskData.mode = 1;
     }
     const comp = getComponent(compData.type);
     if (comp) {

@@ -356,6 +356,16 @@ export class AssetServer {
         return this.loadedSpines_.has(`${skeletonPath}:${atlasPath}`);
     }
 
+    releaseSpine(key: string): void {
+        if (!this.loadedSpines_.has(key)) return;
+        this.loadedSpines_.delete(key);
+        const handle = this.spineSkeletons_.get(key);
+        if (handle !== undefined && this.spineController_) {
+            this.spineController_.unloadSkeleton(handle);
+            this.spineSkeletons_.delete(key);
+        }
+    }
+
     // =========================================================================
     // BitmapFont
     // =========================================================================

@@ -159,8 +159,10 @@ async function flattenPrefab(
             }
 
             if (visited?.has(pe.nestedPrefab.prefabPath)) {
-                console.error(`[Prefab] Cycle detected: ${pe.nestedPrefab.prefabPath}`);
-                continue;
+                throw new Error(
+                    `[Prefab] Circular reference detected: "${pe.nestedPrefab.prefabPath}" ` +
+                    `is already being instantiated in the current prefab chain`,
+                );
             }
 
             visited?.add(pe.nestedPrefab.prefabPath);
