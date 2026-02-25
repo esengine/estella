@@ -288,6 +288,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
 
     emscripten::class_<esengine::resource::ResourceManager>("ResourceManager")
         .function("createTexture", &esengine::rm_createTexture)
+        .function("createTextureEx", &esengine::rm_createTextureEx)
         .function("createShader", &esengine::rm_createShader)
         .function("registerExternalTexture", &esengine::rm_registerExternalTexture)
         .function("releaseTexture", &esengine::rm_releaseTexture)

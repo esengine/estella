@@ -21,7 +21,6 @@ export async function renderBitmapFontInspector(
     path: string
 ): Promise<void> {
     const fs = getNativeFS();
-    const platform = getPlatformAdapter();
     if (!fs) {
         renderError(container, 'File system not available');
         return;
@@ -30,6 +29,12 @@ export async function renderBitmapFontInspector(
     const content = await fs.readFile(path);
     if (!content) {
         renderError(container, 'Failed to load font file');
+        return;
+    }
+
+    const ext = getFileExtension(path).toLowerCase();
+    if (ext === '.fnt') {
+        renderFntInspector(container, content, path);
         return;
     }
 
@@ -48,7 +53,7 @@ export async function renderBitmapFontInspector(
 
     const save = async () => {
         try {
-            await platform.writeTextFile(path, JSON.stringify(fontData, null, 2));
+            await getPlatformAdapter().writeTextFile(path, JSON.stringify(fontData, null, 2));
         } catch (err) {
             console.error('Failed to save bitmap font:', err);
         }
@@ -153,6 +158,136 @@ export async function renderBitmapFontInspector(
     renderFields();
     container.appendChild(section);
 }
+
+// =============================================================================
+// .fnt (BMFont text format) Inspector
+// =============================================================================
+
+interface FntInfo {
+    face: string;
+    size: number;
+    lineHeight: number;
+    scaleW: number;
+    scaleH: number;
+    pages: string[];
+    charCount: number;
+}
+
+function parseFntFile(content: string): FntInfo {
+    const info: FntInfo = {
+        face: '',
+        size: 0,
+        lineHeight: 0,
+        scaleW: 0,
+        scaleH: 0,
+        pages: [],
+        charCount: 0,
+    };
+
+    for (const line of content.split('\n')) {
+        const trimmed = line.trim();
+
+        if (trimmed.startsWith('info ')) {
+            const faceMatch = trimmed.match(/face="([^"]*)"/);
+            if (faceMatch) info.face = faceMatch[1];
+            const sizeMatch = trimmed.match(/size=(-?\d+)/);
+            if (sizeMatch) info.size = Math.abs(parseInt(sizeMatch[1]));
+        } else if (trimmed.startsWith('common ')) {
+            const lhMatch = trimmed.match(/lineHeight=(\d+)/);
+            if (lhMatch) info.lineHeight = parseInt(lhMatch[1]);
+            const swMatch = trimmed.match(/scaleW=(\d+)/);
+            if (swMatch) info.scaleW = parseInt(swMatch[1]);
+            const shMatch = trimmed.match(/scaleH=(\d+)/);
+            if (shMatch) info.scaleH = parseInt(shMatch[1]);
+        } else if (trimmed.startsWith('page ')) {
+            const fileMatch = trimmed.match(/file="([^"]*)"/);
+            if (fileMatch) info.pages.push(fileMatch[1]);
+        } else if (trimmed.startsWith('chars ')) {
+            const countMatch = trimmed.match(/count=(\d+)/);
+            if (countMatch) info.charCount = parseInt(countMatch[1]);
+        }
+    }
+
+    return info;
+}
+
+function renderFntInspector(container: HTMLElement, content: string, path: string): void {
+    const info = parseFntFile(content);
+
+    const section = document.createElement('div');
+    section.className = 'es-component-section es-collapsible es-expanded';
+
+    const rows: { label: string; value: string }[] = [
+        { label: 'Format', value: 'BMFont (.fnt)' },
+        { label: 'Face', value: info.face || 'Unknown' },
+        { label: 'Size', value: String(info.size) },
+        { label: 'Line Height', value: String(info.lineHeight) },
+        { label: 'Atlas Size', value: `${info.scaleW} \u00d7 ${info.scaleH}` },
+        { label: 'Characters', value: String(info.charCount) },
+    ];
+
+    for (const page of info.pages) {
+        rows.push({ label: 'Page', value: page });
+    }
+
+    const rowsHtml = rows.map(r =>
+        `<div class="es-property-row">
+            <label class="es-property-label">${escapeHtml(r.label)}</label>
+            <div class="es-property-value">${escapeHtml(r.value)}</div>
+        </div>`
+    ).join('');
+
+    section.innerHTML = `
+        <div class="es-component-header es-collapsible-header">
+            <span class="es-collapse-icon">${icons.chevronDown(12)}</span>
+            <span class="es-component-icon">${icons.type(14)}</span>
+            <span class="es-component-title">BitmapFont</span>
+        </div>
+        <div class="es-component-properties es-collapsible-content">${rowsHtml}</div>
+    `;
+
+    const header = section.querySelector('.es-collapsible-header');
+    header?.addEventListener('click', () => {
+        section.classList.toggle('es-expanded');
+    });
+
+    if (info.pages.length > 0) {
+        const fontDir = path.substring(0, path.lastIndexOf('/'));
+        const propsContainer = section.querySelector('.es-component-properties') as HTMLElement;
+        renderFntPagePreview(propsContainer, fontDir, info.pages[0]);
+    }
+
+    container.appendChild(section);
+}
+
+function renderFntPagePreview(container: HTMLElement, fontDir: string, pageName: string): void {
+    const fs = getNativeFS();
+    if (!fs) return;
+
+    const fullPath = `${fontDir}/${pageName}`;
+
+    fs.readBinaryFile(fullPath).then(data => {
+        if (!data) return;
+
+        const ext = getFileExtension(pageName);
+        const blob = new Blob([new Uint8Array(data).buffer], { type: getMimeType(ext) });
+        const url = URL.createObjectURL(blob);
+
+        const previewDiv = document.createElement('div');
+        previewDiv.className = 'es-asset-preview-section';
+        previewDiv.innerHTML = `
+            <div class="es-image-preview-container">
+                <img class="es-image-preview" src="${url}" alt="${escapeHtml(pageName)}">
+            </div>
+        `;
+
+        container.appendChild(previewDiv);
+    }).catch(() => {});
+}
+
+// =============================================================================
+// .bmfont (JSON) helpers
+// =============================================================================
 
 async function buildBitmapFontAtlas(
     fontDir: string,

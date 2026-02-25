@@ -8,6 +8,7 @@ import type { SpineModuleController } from 'esengine/spine';
 import type { AssetPathResolver } from './AssetPathResolver';
 import { getEditorContext } from '../context/EditorContext';
 import type { NativeFS } from '../types/NativeFS';
+import { parseAtlasTextures } from './importers/SpineAtlasParser';
 
 interface DecodedImage {
     width: number;
@@ -115,7 +116,7 @@ export class AssetLoader {
             state.atlas = true;
 
             const atlasDir = atlasPath.substring(0, atlasPath.lastIndexOf('/'));
-            const textureNames = this.parseAtlasTextures(atlasContent);
+            const textureNames = parseAtlasTextures(atlasContent);
 
             for (const texName of textureNames) {
                 const texPath = atlasDir ? `${atlasDir}/${texName}` : texName;
@@ -169,7 +170,7 @@ export class AssetLoader {
         }
 
         const atlasDir = atlasPath.substring(0, atlasPath.lastIndexOf('/'));
-        const textureNames = this.parseAtlasTextures(atlasContent);
+        const textureNames = parseAtlasTextures(atlasContent);
         const textureResults: { path: string; handle: number; width: number; height: number }[] = [];
 
         for (const texName of textureNames) {
@@ -305,20 +306,6 @@ export class AssetLoader {
         }
     }
 
-    private parseAtlasTextures(atlasContent: string): string[] {
-        const textures: string[] = [];
-        const lines = atlasContent.split('\n');
-
-        for (const line of lines) {
-            const trimmed = line.trim();
-            if (trimmed && !trimmed.includes(':') &&
-                (trimmed.endsWith('.png') || trimmed.endsWith('.jpg'))) {
-                textures.push(trimmed);
-            }
-        }
-
-        return textures;
-    }
 
     private getNativeFS(): NativeFS | null {
         return getEditorContext().fs ?? null;

@@ -9,6 +9,7 @@ import { looksLikeAssetPath } from './AssetTypes';
 import { joinPath, isAbsolutePath, getDirName } from '../utils/path';
 import type { NativeFS } from '../types/NativeFS';
 import { getAssetTypeEntry } from 'esengine';
+import { parseAtlasTextures } from './importers/SpineAtlasParser';
 
 // =============================================================================
 // Types
@@ -251,13 +252,10 @@ export class AssetDependencyAnalyzer {
         if (!content) return;
 
         const atlasDir = getDirName(atlasPath);
-        for (const rawLine of content.split('\n')) {
-            const line = rawLine.trim();
-            if (line && line.indexOf(':') === -1 && (/\.png$/i.test(line) || /\.jpg$/i.test(line))) {
-                const texturePath = atlasDir ? `${atlasDir}/${line}` : line;
-                const texUuid = this.assetDb_.getUuid(texturePath) ?? texturePath;
-                this.addEdge(dependencies, dependents, atlasUuid, texUuid);
-            }
+        for (const texName of parseAtlasTextures(content)) {
+            const texturePath = atlasDir ? `${atlasDir}/${texName}` : texName;
+            const texUuid = this.assetDb_.getUuid(texturePath) ?? texturePath;
+            this.addEdge(dependencies, dependents, atlasUuid, texUuid);
         }
     }
 

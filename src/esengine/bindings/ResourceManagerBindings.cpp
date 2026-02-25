@@ -22,6 +22,45 @@ u32 rm_createTexture(resource::ResourceManager& rm, u32 width, u32 height,
     return handle.id();
 }
 
+u32 rm_createTextureEx(resource::ResourceManager& rm, u32 width, u32 height,
+                        uintptr_t pixelsPtr, u32 pixelsLen, i32 format, bool flipY,
+                        i32 filterMode, i32 wrapMode) {
+    const u8* pixels = reinterpret_cast<const u8*>(pixelsPtr);
+
+    TextureFormat texFormat = TextureFormat::RGBA8;
+    if (format == 0) texFormat = TextureFormat::RGB8;
+    else if (format == 1) texFormat = TextureFormat::RGBA8;
+
+    TextureSpecification spec;
+    spec.width = width;
+    spec.height = height;
+    spec.format = texFormat;
+    spec.generateMips = false;
+
+    spec.minFilter = (filterMode == 0) ? TextureFilter::Nearest : TextureFilter::Linear;
+    spec.magFilter = spec.minFilter;
+
+    switch (wrapMode) {
+        case 0: spec.wrapS = TextureWrap::Repeat; spec.wrapT = TextureWrap::Repeat; break;
+        case 1: spec.wrapS = TextureWrap::ClampToEdge; spec.wrapT = TextureWrap::ClampToEdge; break;
+        case 2: spec.wrapS = TextureWrap::MirroredRepeat; spec.wrapT = TextureWrap::MirroredRepeat; break;
+        default: spec.wrapS = TextureWrap::ClampToEdge; spec.wrapT = TextureWrap::ClampToEdge; break;
+    }
+
+    auto handle = rm.createTexture(spec);
+    if (!handle.isValid()) {
+        return 0;
+    }
+
+    auto* texture = rm.getTexture(handle);
+    if (texture && pixels) {
+        u32 dataSize = width * height * (texFormat == TextureFormat::RGBA8 ? 4 : 3);
+        texture->setDataRaw(pixels, dataSize, flipY);
+    }
+
+    return handle.id();
+}
+
 u32 rm_createShader(resource::ResourceManager& rm,
                      const std::string& vertSrc, const std::string& fragSrc) {
     auto handle = rm.createShader(vertSrc, fragSrc);

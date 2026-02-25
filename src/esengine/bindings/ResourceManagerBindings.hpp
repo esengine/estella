@@ -14,6 +14,9 @@ namespace esengine {
 
 u32 rm_createTexture(resource::ResourceManager& rm, u32 width, u32 height,
                       uintptr_t pixelsPtr, u32 pixelsLen, i32 format, bool flipY);
+u32 rm_createTextureEx(resource::ResourceManager& rm, u32 width, u32 height,
+                        uintptr_t pixelsPtr, u32 pixelsLen, i32 format, bool flipY,
+                        i32 filterMode, i32 wrapMode);
 u32 rm_createShader(resource::ResourceManager& rm,
                      const std::string& vertSrc, const std::string& fragSrc);
 u32 rm_registerExternalTexture(resource::ResourceManager& rm, u32 glTextureId,

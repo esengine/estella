@@ -30,15 +30,24 @@ export async function compileMaterials(
 
         try {
             const matData = JSON.parse(content);
-            if (matData.type !== 'material' || !matData.shader) continue;
+            if (matData.type !== 'material' || !matData.shader) {
+                console.warn(`[MaterialCompiler] Invalid material (missing type or shader): ${relativePath}`);
+                continue;
+            }
 
             const shaderRelPath = resolveShaderPath(relativePath, matData.shader);
             const shaderFullPath = joinPath(projectDir, shaderRelPath);
             const shaderContent = await fs.readFile(shaderFullPath);
-            if (!shaderContent) continue;
+            if (!shaderContent) {
+                console.error(`[MaterialCompiler] Shader not found: ${shaderRelPath} (referenced by ${relativePath})`);
+                continue;
+            }
 
             const parsed = parseEsShader(shaderContent);
-            if (!parsed.vertex || !parsed.fragment) continue;
+            if (!parsed.vertex || !parsed.fragment) {
+                console.error(`[MaterialCompiler] Shader missing vertex or fragment block: ${shaderRelPath}`);
+                continue;
+            }
 
             const compiled = {
                 type: 'material',
@@ -54,8 +63,8 @@ export async function compileMaterials(
                 uuid,
                 json: JSON.stringify(compiled),
             });
-        } catch {
-            console.warn(`[MaterialCompiler] Failed to compile material: ${relativePath}`);
+        } catch (err) {
+            console.error(`[MaterialCompiler] Failed to compile material: ${relativePath}`, err);
         }
     }
 
