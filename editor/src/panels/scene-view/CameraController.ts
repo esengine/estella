@@ -4,6 +4,7 @@ export class CameraController {
     panX = 0;
     panY = 0;
     zoom = 1;
+    orthoHalfHeight = 0;
 
     private isDragging_ = false;
     private lastMouseX_ = 0;
@@ -33,6 +34,13 @@ export class CameraController {
         this.spaceDown_ = value;
     }
 
+    private worldScale(): number {
+        if (this.orthoHalfHeight > 0) {
+            return (this.orthoHalfHeight * 2) / this.canvas_.height;
+        }
+        return 1;
+    }
+
     reset(): void {
         this.panX = 0;
         this.panY = 0;
@@ -52,8 +60,10 @@ export class CameraController {
         const dx = clientX - this.lastMouseX_;
         const dy = clientY - this.lastMouseY_;
 
-        this.panX += dx / this.zoom;
-        this.panY += dy / this.zoom;
+        const dpr = window.devicePixelRatio || 1;
+        const s = this.worldScale() * dpr;
+        this.panX += dx * s / this.zoom;
+        this.panY += dy * s / this.zoom;
 
         this.lastMouseX_ = clientX;
         this.lastMouseY_ = clientY;
@@ -77,13 +87,17 @@ export class CameraController {
         const mouseX = (e.clientX - rect.left) * dpr;
         const mouseY = (e.clientY - rect.top) * dpr;
 
-        const worldX = (mouseX - this.canvas_.width / 2) / this.zoom - this.panX;
-        const worldY = (mouseY - this.canvas_.height / 2) / this.zoom - this.panY;
+        const s = this.worldScale();
+        const w = this.canvas_.width;
+        const h = this.canvas_.height;
+
+        const worldX = (mouseX - w / 2) * s / this.zoom - this.panX;
+        const worldY = -(mouseY - h / 2) * s / this.zoom + this.panY;
 
         this.zoom = newZoom;
 
-        this.panX = (mouseX - this.canvas_.width / 2) / this.zoom - worldX;
-        this.panY = (mouseY - this.canvas_.height / 2) / this.zoom - worldY;
+        this.panX = (mouseX - w / 2) * s / this.zoom - worldX;
+        this.panY = (mouseY - h / 2) * s / this.zoom + worldY;
 
         this.onRender_();
     }
@@ -112,9 +126,10 @@ export class CameraController {
         const w = this.canvas_.width;
         const h = this.canvas_.height;
 
+        const s = this.worldScale();
         return {
-            worldX: (x - w / 2) / this.zoom - this.panX,
-            worldY: -(y - h / 2) / this.zoom + this.panY,
+            worldX: (x - w / 2) * s / this.zoom - this.panX,
+            worldY: -(y - h / 2) * s / this.zoom + this.panY,
         };
     }
 
@@ -128,7 +143,7 @@ export class CameraController {
         const entityData = store.getEntityData(entity);
         if (!entityData) return;
 
-        const transform = entityData.components.find((c: any) => c.type === 'LocalTransform');
+        const transform = entityData.components.find((c: any) => c.type === 'Transform');
         if (!transform) return;
 
         const pos = transform.data.position as { x: number; y: number; z: number };
@@ -147,7 +162,7 @@ export class CameraController {
         const oldPos = { ...pos };
         const newPos = { x: pos.x + dx, y: pos.y + dy, z: pos.z };
 
-        store.updateProperty(entity, 'LocalTransform', 'position', oldPos, newPos);
+        store.updateProperty(entity, 'Transform', 'position', oldPos, newPos);
         e.preventDefault();
     }
 

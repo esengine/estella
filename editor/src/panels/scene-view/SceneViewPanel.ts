@@ -7,7 +7,6 @@ import { getPlatformAdapter } from '../../platform/PlatformAdapter';
 import { isUUID, getAssetLibrary } from '../../asset/AssetDatabase';
 import { icons } from '../../utils/icons';
 import { EditorSceneRenderer } from '../../renderer/EditorSceneRenderer';
-import { findCanvasWorldRect } from '../../math/Transform';
 import { getEntityBounds } from '../../bounds';
 import { GizmoManager } from '../../gizmos';
 import type { GizmoContext } from '../../gizmos';
@@ -192,6 +191,9 @@ export class SceneViewPanel {
 
         const uiRect = entityData.components.find(c => c.type === 'UIRect');
         if (uiRect) {
+            const layoutSize = this.sceneRenderer_?.computeLayoutSize(entityData.id);
+            if (layoutSize) return { width: layoutSize.x, height: layoutSize.y };
+
             const d = uiRect.data;
             const resolved = this.resolveUIRectSize(d, entityData.parent);
             if (resolved) return resolved;
@@ -379,6 +381,7 @@ export class SceneViewPanel {
 
         this.sceneRenderer_ = new EditorSceneRenderer();
         this.sceneRenderer_.setStore(this.store_);
+        this.sceneRenderer_.setRenderCallback(() => this.requestRender());
         const success = await this.sceneRenderer_.init(this.app_.wasmModule, this.webglCanvas_);
 
         if (success) {
@@ -481,7 +484,7 @@ export class SceneViewPanel {
         return {
             store: this.store_,
             ctx,
-            zoom: this.camera_.zoom,
+            zoom: this.overlayScale_(),
             screenToWorld: (clientX, clientY) => this.camera_.screenToWorld(clientX, clientY),
             getWorldTransform: (entityId) => this.store_.getWorldTransform(entityId),
             getEntityBounds: (entityData) => this.getEntityBoundsWithSpine(entityData),
@@ -492,7 +495,7 @@ export class SceneViewPanel {
     private createOverlayContext(): import('../../gizmos/ColliderOverlay').OverlayContext | null {
         const ctx = (this.overlayCanvas_ ?? this.canvas_).getContext('2d');
         if (!ctx) return null;
-        return { ctx, zoom: this.camera_.zoom, store: this.store_ };
+        return { ctx, zoom: this.overlayScale_(), store: this.store_ };
     }
 
     // =========================================================================
@@ -549,6 +552,7 @@ export class SceneViewPanel {
             this.sceneRenderer_.camera.zoom = this.camera_.zoom;
 
             this.sceneRenderer_.render(w, h);
+            this.camera_.orthoHalfHeight = this.sceneRenderer_.camera.orthoHalfHeight;
             this.renderOverlay();
         } else if (this.bridge_) {
             const w = this.canvas_.width;
@@ -565,6 +569,13 @@ export class SceneViewPanel {
     // Overlay Rendering
     // =========================================================================
 
+    private overlayScale_(): number {
+        if (this.camera_.orthoHalfHeight > 0 && this.overlayCanvas_) {
+            return this.camera_.zoom * this.overlayCanvas_.height / (2 * this.camera_.orthoHalfHeight);
+        }
+        return this.camera_.zoom;
+    }
+
     private renderOverlay(): void {
         if (!this.overlayCanvas_) return;
 
@@ -576,19 +587,21 @@ export class SceneViewPanel {
 
         ctx.clearRect(0, 0, w, h);
 
+        const scale = this.overlayScale_();
         ctx.save();
-        ctx.translate(w / 2 + this.camera_.panX * this.camera_.zoom, h / 2 + this.camera_.panY * this.camera_.zoom);
-        ctx.scale(this.camera_.zoom, this.camera_.zoom);
+        ctx.translate(w / 2 + this.camera_.panX * scale, h / 2 + this.camera_.panY * scale);
+        ctx.scale(scale, scale);
 
         this.drawGrid(ctx, w, h);
 
         this.drawCameraFrustums(ctx);
         this.drawScreenSpaceBounds(ctx);
 
+        const oScale = this.overlayScale_();
         if (getSettingsValue<boolean>('scene.showColliders')) {
             this.colliderOverlay_.drawAll({
                 ctx,
-                zoom: this.camera_.zoom,
+                zoom: oScale,
                 store: this.store_,
             });
         }
@@ -607,7 +620,7 @@ export class SceneViewPanel {
         }
 
         if (this.marquee_.active) {
-            this.marquee_.draw(ctx, this.camera_.zoom);
+            this.marquee_.draw(ctx, oScale);
         }
 
         ctx.restore();
@@ -638,9 +651,10 @@ export class SceneViewPanel {
         ctx.fillStyle = '#1a1a1a';
         ctx.fillRect(0, 0, w, h);
 
+        const scale = this.overlayScale_();
         ctx.save();
-        ctx.translate(w / 2 + this.camera_.panX * this.camera_.zoom, h / 2 + this.camera_.panY * this.camera_.zoom);
-        ctx.scale(this.camera_.zoom, this.camera_.zoom);
+        ctx.translate(w / 2 + this.camera_.panX * scale, h / 2 + this.camera_.panY * scale);
+        ctx.scale(scale, scale);
 
         this.drawGrid(ctx, w, h);
 
@@ -655,10 +669,11 @@ export class SceneViewPanel {
         this.drawCameraFrustums(ctx);
         this.drawScreenSpaceBounds(ctx);
 
+        const oScale = this.overlayScale_();
         if (getSettingsValue<boolean>('scene.showColliders')) {
             this.colliderOverlay_.drawAll({
                 ctx,
-                zoom: this.camera_.zoom,
+                zoom: oScale,
                 store: this.store_,
             });
         }
@@ -671,7 +686,7 @@ export class SceneViewPanel {
         }
 
         if (this.marquee_.active) {
-            this.marquee_.draw(ctx, this.camera_.zoom);
+            this.marquee_.draw(ctx, oScale);
         }
 
         ctx.restore();
@@ -687,7 +702,7 @@ export class SceneViewPanel {
         for (const entityData of selectedEntities) {
             if (!this.store_.isEntityVisible(entityData.id)) continue;
 
-            const transform = entityData.components.find(c => c.type === 'LocalTransform');
+            const transform = entityData.components.find(c => c.type === 'Transform');
             if (!transform) continue;
 
             const worldTransform = this.store_.getWorldTransform(entityData.id);
@@ -704,13 +719,13 @@ export class SceneViewPanel {
             ctx.translate(pos.x + offsetX, -pos.y - offsetY);
 
             ctx.strokeStyle = '#00aaff';
-            ctx.lineWidth = 2 / this.camera_.zoom;
+            ctx.lineWidth = 2 / this.overlayScale_();
             ctx.setLineDash([]);
             ctx.strokeRect(-w / 2, -h / 2, w, h);
 
             if (selectedEntities.length === 1) {
                 ctx.fillStyle = '#00aaff';
-                const handleSize = 6 / this.camera_.zoom;
+                const handleSize = 6 / this.overlayScale_();
                 const corners = [
                     [-w / 2, -h / 2],
                     [w / 2, -h / 2],
@@ -746,7 +761,7 @@ export class SceneViewPanel {
             const camera = entity.components.find(c => c.type === 'Camera');
             if (!camera) continue;
 
-            const transform = entity.components.find(c => c.type === 'LocalTransform');
+            const transform = entity.components.find(c => c.type === 'Transform');
             if (!transform) { cameraIndex++; continue; }
 
             const isSelected = entity.id === selectedEntity;
@@ -774,14 +789,14 @@ export class SceneViewPanel {
                 const halfWidth = halfHeight * aspectRatio;
 
                 ctx.strokeStyle = color;
-                ctx.lineWidth = 2 / this.camera_.zoom;
+                ctx.lineWidth = 2 / this.overlayScale_();
 
                 if (isSelected) {
                     ctx.globalAlpha = 1;
                     ctx.setLineDash([]);
                 } else {
                     ctx.globalAlpha = 0.5;
-                    ctx.setLineDash([8 / this.camera_.zoom, 4 / this.camera_.zoom]);
+                    ctx.setLineDash([8 / this.overlayScale_(), 4 / this.overlayScale_()]);
                 }
 
                 ctx.strokeRect(-halfWidth, -halfHeight, halfWidth * 2, halfHeight * 2);
@@ -797,14 +812,14 @@ export class SceneViewPanel {
 
                 this.drawCameraIcon(ctx, color);
 
-                const fontSize = 12 / this.camera_.zoom;
+                const fontSize = 12 / this.overlayScale_();
                 ctx.font = `bold ${fontSize}px system-ui, sans-serif`;
                 ctx.textBaseline = 'bottom';
 
                 ctx.textAlign = 'left';
                 const nameText = entity.name;
                 const nameMetrics = ctx.measureText(nameText);
-                const labelPad = 2 / this.camera_.zoom;
+                const labelPad = 2 / this.overlayScale_();
                 const labelH = fontSize + labelPad * 2;
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
                 ctx.fillRect(
@@ -862,7 +877,7 @@ export class SceneViewPanel {
         );
         if (!hasScreenSpace) return;
 
-        const canvasRect = findCanvasWorldRect(this.store_.scene.entities);
+        const canvasRect = this.sceneRenderer_?.getCanvasRect();
         if (!canvasRect) return;
 
         const x = canvasRect.left;
@@ -873,20 +888,20 @@ export class SceneViewPanel {
         ctx.save();
 
         ctx.strokeStyle = '#ffb400';
-        ctx.lineWidth = 2 / this.camera_.zoom;
-        ctx.setLineDash([6 / this.camera_.zoom, 4 / this.camera_.zoom]);
+        ctx.lineWidth = 2 / this.overlayScale_();
+        ctx.setLineDash([6 / this.overlayScale_(), 4 / this.overlayScale_()]);
         ctx.strokeRect(x, y, w, h);
 
         ctx.fillStyle = 'rgba(255, 180, 0, 0.04)';
         ctx.fillRect(x, y, w, h);
 
         ctx.setLineDash([]);
-        const fontSize = 11 / this.camera_.zoom;
+        const fontSize = 11 / this.overlayScale_();
         ctx.font = `bold ${fontSize}px system-ui, sans-serif`;
         ctx.textAlign = 'left';
         ctx.textBaseline = 'bottom';
         const label = 'ScreenSpace';
-        const pad = 2 / this.camera_.zoom;
+        const pad = 2 / this.overlayScale_();
         const metrics = ctx.measureText(label);
         ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
         ctx.fillRect(x, y - fontSize - pad * 2, metrics.width + pad * 2, fontSize + pad * 2);
@@ -897,7 +912,7 @@ export class SceneViewPanel {
     }
 
     private drawCameraIcon(ctx: CanvasRenderingContext2D, color: string): void {
-        const s = 1 / this.camera_.zoom;
+        const s = 1 / this.overlayScale_();
         const bodyW = 16 * s;
         const bodyH = 12 * s;
         const lensW = 6 * s;
@@ -1027,10 +1042,10 @@ export class SceneViewPanel {
         const gridSize = getSettingsValue<number>('scene.gridSize') ?? 50;
         const baseOpacity = getSettingsValue<number>('scene.gridOpacity');
         const gridColor = getSettingsValue<string>('scene.gridColor');
-        const halfW = w / 2 / this.camera_.zoom;
-        const halfH = h / 2 / this.camera_.zoom;
+        const halfW = w / 2 / this.overlayScale_();
+        const halfH = h / 2 / this.overlayScale_();
 
-        const screenGridSize = gridSize * this.camera_.zoom;
+        const screenGridSize = gridSize * this.overlayScale_();
 
         if (screenGridSize > 100) {
             const subDiv = screenGridSize > 250 ? 10 : 5;
@@ -1047,7 +1062,7 @@ export class SceneViewPanel {
 
         ctx.globalAlpha = baseOpacity;
         ctx.strokeStyle = this.lightenColor(gridColor, 30);
-        ctx.lineWidth = 2 / this.camera_.zoom;
+        ctx.lineWidth = 2 / this.overlayScale_();
         const startX = Math.floor((-halfW - this.camera_.panX) / gridSize) * gridSize;
         const endX = Math.ceil((halfW - this.camera_.panX) / gridSize) * gridSize;
         const startY = Math.floor((-halfH - this.camera_.panY) / gridSize) * gridSize;
@@ -1079,7 +1094,7 @@ export class SceneViewPanel {
 
         ctx.globalAlpha = opacity;
         ctx.strokeStyle = color;
-        ctx.lineWidth = 1 / this.camera_.zoom;
+        ctx.lineWidth = 1 / this.overlayScale_();
 
         for (let x = startX; x <= endX; x += step) {
             if (x === 0) continue;
@@ -1111,7 +1126,7 @@ export class SceneViewPanel {
         entity: EntityData,
         isSelected: boolean,
     ): void {
-        const transform = entity.components.find(c => c.type === 'LocalTransform');
+        const transform = entity.components.find(c => c.type === 'Transform');
         const sprite = entity.components.find(c => c.type === 'Sprite');
 
         if (!transform) return;
@@ -1129,7 +1144,9 @@ export class SceneViewPanel {
         let flipY = false;
 
         if (sprite) {
-            const size = sprite.data.size as { x: number; y: number };
+            const hasUIRect = entity.components.some(c => c.type === 'UIRect');
+            const layoutSize = hasUIRect ? this.sceneRenderer_?.computeLayoutSize(entity.id) : null;
+            const size = layoutSize ?? (sprite.data.size as { x: number; y: number });
             const col = sprite.data.color as { r: number; g: number; b: number; a: number };
             const texturePath = sprite.data.texture;
 
@@ -1188,12 +1205,12 @@ export class SceneViewPanel {
             ctx.translate(pos.x, -pos.y);
 
             ctx.strokeStyle = '#00aaff';
-            ctx.lineWidth = 2 / this.camera_.zoom;
+            ctx.lineWidth = 2 / this.overlayScale_();
             ctx.setLineDash([]);
             ctx.strokeRect(-w / 2, -h / 2, w, h);
 
             ctx.fillStyle = '#00aaff';
-            const handleSize = 6 / this.camera_.zoom;
+            const handleSize = 6 / this.overlayScale_();
             const corners = [
                 [-w / 2, -h / 2],
                 [w / 2, -h / 2],
