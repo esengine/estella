@@ -35,6 +35,8 @@ namespace esengine {
 // RenderCommand Implementation
 // ========================================
 
+static BlendMode s_current_blend_ = BlendMode::Normal;
+
 void RenderCommand::init() {
     // Enable depth testing by default
     glEnable(GL_DEPTH_TEST);
@@ -98,7 +100,13 @@ void RenderCommand::setBlendFunc() {
     glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 }
 
+void RenderCommand::resetBlendState() {
+    s_current_blend_ = BlendMode::Normal;
+}
+
 void RenderCommand::setBlendMode(BlendMode mode) {
+    if (mode == s_current_blend_) return;
+    s_current_blend_ = mode;
     switch (mode) {
         case BlendMode::Normal:
             glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
@@ -302,6 +310,7 @@ struct BatchRenderer2D::BatchData {
     TextureSlotAllocator<MAX_TEXTURE_SLOTS> texSlots;
 
     glm::mat4 projection{1.0f};
+    i32 projectionLoc = -1;
 
     u32 drawCallCount = 0;
     u32 quadCount = 0;
@@ -357,9 +366,10 @@ void BatchRenderer2D::init() {
     data_->shader_handle = resource_manager_.loadEngineShader("batch");
 #endif
     if (!data_->shader_handle.isValid()) {
-        data_->shader_handle = resource_manager_.createShader(
+        data_->shader_handle = resource_manager_.createShaderWithBindings(
             ShaderSources::BATCH_VERTEX,
-            ShaderSources::BATCH_FRAGMENT
+            ShaderSources::BATCH_FRAGMENT,
+            {{0, "a_position"}, {1, "a_color"}, {2, "a_texCoord"}, {3, "a_texIndex"}}
         );
     }
 
@@ -367,36 +377,28 @@ void BatchRenderer2D::init() {
 
     if (!batchShader || !batchShader->isValid()) {
         ES_LOG_WARN("GLSL ES 3.0 batch shader failed, trying GLSL ES 1.0 fallback");
-        data_->shader_handle = resource_manager_.createShader(
+        data_->shader_handle = resource_manager_.createShaderWithBindings(
             ShaderSources::BATCH_VERTEX_COMPAT,
-            ShaderSources::BATCH_FRAGMENT_COMPAT
+            ShaderSources::BATCH_FRAGMENT_COMPAT,
+            {{0, "a_position"}, {1, "a_color"}, {2, "a_texCoord"}, {3, "a_texIndex"}}
         );
         batchShader = resource_manager_.getShader(data_->shader_handle);
     }
 
     if (batchShader && batchShader->isValid()) {
-        GLuint prog = batchShader->getProgramId();
-        glBindAttribLocation(prog, 0, "a_position");
-        glBindAttribLocation(prog, 1, "a_color");
-        glBindAttribLocation(prog, 2, "a_texCoord");
-        glBindAttribLocation(prog, 3, "a_texIndex");
-        glLinkProgram(prog);
-
-        GLint linkStatus;
-        glGetProgramiv(prog, GL_LINK_STATUS, &linkStatus);
-        if (linkStatus) {
-            batchShader->bind();
-            GLint baseLoc = glGetUniformLocation(prog, "u_textures[0]");
-            if (baseLoc >= 0) {
-                for (i32 i = 0; i < static_cast<i32>(MAX_TEXTURE_SLOTS); ++i) {
-                    glUniform1i(baseLoc + i, i);
-                }
+        batchShader->bind();
+        GLint baseLoc = glGetUniformLocation(batchShader->getProgramId(), "u_textures[0]");
+        if (baseLoc >= 0) {
+            for (i32 i = 0; i < static_cast<i32>(MAX_TEXTURE_SLOTS); ++i) {
+                glUniform1i(baseLoc + i, i);
             }
-        } else {
-            ES_LOG_ERROR("Batch shader re-link failed after attribute binding");
         }
     } else {
         ES_LOG_ERROR("All batch shader variants FAILED!");
+    }
+
+    if (batchShader) {
+        data_->projectionLoc = batchShader->getUniformLocation("u_projection");
     }
 
     data_->texSlots.init(context_.getWhiteTextureId());
@@ -450,7 +452,7 @@ void BatchRenderer2D::flush() {
     data_->texSlots.bindAll();
 
     shader->bind();
-    shader->setUniform("u_projection", data_->projection);
+    shader->setUniform(data_->projectionLoc, data_->projection);
 
     data_->vao->bind();
 
@@ -495,6 +497,10 @@ void BatchRenderer2D::drawQuad(const glm::vec3& position, const glm::vec2& size,
     if (texIndex < 0.0f) {
         flush();
         texIndex = data_->texSlots.findOrAllocate(textureId);
+        if (texIndex < 0.0f) {
+            ES_LOG_WARN("TextureSlotAllocator: failed after flush for drawQuad");
+            return;
+        }
     }
 
     for (u32 i = 0; i < 4; ++i) {
@@ -556,6 +562,10 @@ void BatchRenderer2D::drawRotatedQuad(const glm::vec2& position, const glm::vec2
     if (texIndex < 0.0f) {
         flush();
         texIndex = data_->texSlots.findOrAllocate(textureId);
+        if (texIndex < 0.0f) {
+            ES_LOG_WARN("TextureSlotAllocator: failed after flush for drawRotatedQuad");
+            return;
+        }
     }
 
     glm::mat4 transform = glm::translate(glm::mat4(1.0f), glm::vec3(position, 0.0f));
@@ -604,13 +614,13 @@ void BatchRenderer2D::drawNineSlice(const glm::vec2& position, const glm::vec2& 
     f32 y3 = baseY + size.y;
 
     f32 u0 = uvOffset.x;
-    f32 u1 = uvOffset.x + (L / texSize.x) * uvScale.x;
-    f32 u2 = uvOffset.x + (1.0f - R / texSize.x) * uvScale.x;
+    f32 u1 = uvOffset.x + L / texSize.x;
+    f32 u2 = uvOffset.x + uvScale.x - R / texSize.x;
     f32 u3 = uvOffset.x + uvScale.x;
 
     f32 v0 = uvOffset.y;
-    f32 v1 = uvOffset.y + (B / texSize.y) * uvScale.y;
-    f32 v2 = uvOffset.y + (1.0f - T / texSize.y) * uvScale.y;
+    f32 v1 = uvOffset.y + B / texSize.y;
+    f32 v2 = uvOffset.y + uvScale.y - T / texSize.y;
     f32 v3 = uvOffset.y + uvScale.y;
 
     // Precompute rotation sin/cos

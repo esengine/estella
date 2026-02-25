@@ -87,6 +87,8 @@ void ImmediateDraw::end() {
     if (!initialized_ || !inFrame_) return;
 
     impl_->batcher->endBatch();
+    glEnable(GL_DEPTH_TEST);
+    glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
     inFrame_ = false;
 }
 

@@ -2,6 +2,7 @@
 #include "Renderer.hpp"
 #include "RenderCommand.hpp"
 #include "Texture.hpp"
+#include "CustomGeometry.hpp"
 #include "../core/Log.hpp"
 #include "../ecs/components/Transform.hpp"
 #include "../ecs/components/Sprite.hpp"
@@ -79,24 +80,20 @@ bool Frustum::intersectsAABB(const glm::vec3& center, const glm::vec3& halfExten
     return true;
 }
 
-struct UniformData {
-    char name[32];
-    u32 type;
-    f32 values[4];
-};
-
 #ifdef ES_PLATFORM_WEB
 extern bool getMaterialData(u32 materialId, u32& shaderId, u32& blendMode);
 extern bool getMaterialDataWithUniforms(u32 materialId, u32& shaderId, u32& blendMode,
-                                        std::vector<UniformData>& uniforms);
+                                        std::vector<MaterialUniformData>& uniforms);
+extern void clearMaterialCache();
 #else
 bool getMaterialData(u32 /*materialId*/, u32& /*shaderId*/, u32& /*blendMode*/) {
     return false;
 }
 bool getMaterialDataWithUniforms(u32 /*materialId*/, u32& /*shaderId*/, u32& /*blendMode*/,
-                                 std::vector<UniformData>& /*uniforms*/) {
+                                 std::vector<MaterialUniformData>& /*uniforms*/) {
     return false;
 }
+void clearMaterialCache() {}
 #endif
 
 RenderFrame::RenderFrame(RenderContext& context, resource::ResourceManager& resource_manager)
@@ -157,35 +154,26 @@ void RenderFrame::init(u32 width, u32 height) {
     spine_vbo_capacity_ = 0;
     spine_ebo_capacity_ = 0;
 
-    spine_shader_handle_ = resource_manager_.createShader(
+    spine_shader_handle_ = resource_manager_.createShaderWithBindings(
         ShaderSources::BATCH_VERTEX,
-        ShaderSources::BATCH_FRAGMENT
+        ShaderSources::BATCH_FRAGMENT,
+        {{0, "a_position"}, {1, "a_color"}, {2, "a_texCoord"}, {3, "a_texIndex"}}
     );
     Shader* spineShader = resource_manager_.getShader(spine_shader_handle_);
     if (!spineShader || !spineShader->isValid()) {
-        spine_shader_handle_ = resource_manager_.createShader(
+        spine_shader_handle_ = resource_manager_.createShaderWithBindings(
             ShaderSources::BATCH_VERTEX_COMPAT,
-            ShaderSources::BATCH_FRAGMENT_COMPAT
+            ShaderSources::BATCH_FRAGMENT_COMPAT,
+            {{0, "a_position"}, {1, "a_color"}, {2, "a_texCoord"}, {3, "a_texIndex"}}
         );
         spineShader = resource_manager_.getShader(spine_shader_handle_);
     }
     if (spineShader && spineShader->isValid()) {
-        GLuint prog = spineShader->getProgramId();
-        glBindAttribLocation(prog, 0, "a_position");
-        glBindAttribLocation(prog, 1, "a_color");
-        glBindAttribLocation(prog, 2, "a_texCoord");
-        glBindAttribLocation(prog, 3, "a_texIndex");
-        glLinkProgram(prog);
-
-        GLint linkStatus;
-        glGetProgramiv(prog, GL_LINK_STATUS, &linkStatus);
-        if (linkStatus) {
-            spineShader->bind();
-            GLint baseLoc = glGetUniformLocation(prog, "u_textures[0]");
-            if (baseLoc >= 0) {
-                for (i32 i = 0; i < static_cast<i32>(SPINE_MAX_TEXTURE_SLOTS); ++i) {
-                    glUniform1i(baseLoc + i, i);
-                }
+        spineShader->bind();
+        GLint baseLoc = glGetUniformLocation(spineShader->getProgramId(), "u_textures[0]");
+        if (baseLoc >= 0) {
+            for (i32 i = 0; i < static_cast<i32>(SPINE_MAX_TEXTURE_SLOTS); ++i) {
+                glUniform1i(baseLoc + i, i);
             }
         }
     }
@@ -292,6 +280,7 @@ void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::H
 #endif
     ext_storage_count_ = 0;
     ext_submit_order_ = 0;
+    mat_sprite_last_shader_ = 0;
     stats_ = Stats{};
 
     bool usePostProcess = post_process_ && post_process_->isInitialized() &&
@@ -316,6 +305,7 @@ void RenderFrame::flush() {
 
     glEnable(GL_BLEND);
     glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+    RenderCommand::resetBlendState();
     glDisable(GL_DEPTH_TEST);
 
     executeStage(RenderStage::Background);
@@ -409,27 +399,17 @@ void RenderFrame::endStencilTest() {
 }
 
 void RenderFrame::submitSprites(ecs::Registry& registry) {
-    auto spriteView = registry.view<ecs::LocalTransform, ecs::Sprite>();
+    auto spriteView = registry.view<ecs::Transform, ecs::Sprite>();
 
     for (auto entity : spriteView) {
         const auto& sprite = spriteView.get<ecs::Sprite>(entity);
         if (!sprite.enabled) continue;
 
-        glm::vec3 position;
-        glm::quat rotation;
-        glm::vec3 scale;
-
-        if (registry.has<ecs::WorldTransform>(entity)) {
-            const auto& world = registry.get<ecs::WorldTransform>(entity);
-            position = world.position;
-            rotation = world.rotation;
-            scale = world.scale;
-        } else {
-            const auto& local = spriteView.get<ecs::LocalTransform>(entity);
-            position = local.position;
-            rotation = local.rotation;
-            scale = local.scale;
-        }
+        auto& transform = spriteView.get<ecs::Transform>(entity);
+        transform.ensureDecomposed();
+        const auto& position = transform.worldPosition;
+        const auto& rotation = transform.worldRotation;
+        const auto& scale = transform.worldScale;
 
         glm::vec3 halfExtents = glm::vec3(sprite.size.x * scale.x, sprite.size.y * scale.y, 0.0f) * 0.5f;
         if (!frustum_.intersectsAABB(position, halfExtents)) {
@@ -501,13 +481,14 @@ void RenderFrame::submitSprites(ecs::Registry& registry) {
 
         base.data_index = static_cast<u32>(sprite_data_.size());
         sprite_data_.push_back(sd);
+        base.cached_sort_key_ = base.sortKey();
         items_.push_back(base);
         stats_.sprites++;
     }
 }
 
 void RenderFrame::submitBitmapText(ecs::Registry& registry) {
-    auto textView = registry.view<ecs::LocalTransform, ecs::BitmapText>();
+    auto textView = registry.view<ecs::Transform, ecs::BitmapText>();
 
     for (auto entity : textView) {
         const auto& bt = textView.get<ecs::BitmapText>(entity);
@@ -526,18 +507,10 @@ void RenderFrame::submitBitmapText(ecs::Registry& registry) {
             continue;
         }
 
-        glm::vec3 position;
-        glm::vec3 scale{1.0f};
-
-        if (registry.has<ecs::WorldTransform>(entity)) {
-            const auto& world = registry.get<ecs::WorldTransform>(entity);
-            position = world.position;
-            scale = world.scale;
-        } else {
-            const auto& local = textView.get<ecs::LocalTransform>(entity);
-            position = local.position;
-            scale = local.scale;
-        }
+        auto& transform = textView.get<ecs::Transform>(entity);
+        transform.ensureDecomposed();
+        const auto& position = transform.worldPosition;
+        const auto& scale = transform.worldScale;
 
         auto textMetrics = font->measureText(bt.text, bt.fontSize, bt.spacing);
         glm::vec3 halfExtents = glm::vec3(
@@ -580,6 +553,7 @@ void RenderFrame::submitBitmapText(ecs::Registry& registry) {
 
         base.data_index = static_cast<u32>(text_data_.size());
         text_data_.push_back(td);
+        base.cached_sort_key_ = base.sortKey();
         items_.push_back(base);
         stats_.text++;
     }
@@ -600,16 +574,12 @@ void RenderFrame::submitSpine(ecs::Registry& registry, spine::SpineSystem& spine
         glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
         glm::vec3 scale{1.0f};
 
-        if (registry.has<ecs::WorldTransform>(entity)) {
-            const auto& world = registry.get<ecs::WorldTransform>(entity);
-            position = world.position;
-            rotation = world.rotation;
-            scale = world.scale;
-        } else if (registry.has<ecs::LocalTransform>(entity)) {
-            const auto& local = registry.get<ecs::LocalTransform>(entity);
-            position = local.position;
-            rotation = local.rotation;
-            scale = local.scale;
+        if (registry.has<ecs::Transform>(entity)) {
+            auto& t = registry.get<ecs::Transform>(entity);
+            t.ensureDecomposed();
+            position = t.worldPosition;
+            rotation = t.worldRotation;
+            scale = t.worldScale;
         }
 
         RenderItemBase base;
@@ -633,6 +603,7 @@ void RenderFrame::submitSpine(ecs::Registry& registry, spine::SpineSystem& spine
 
         base.data_index = static_cast<u32>(spine_data_.size());
         spine_data_.push_back(sd);
+        base.cached_sort_key_ = base.sortKey();
         items_.push_back(base);
         stats_.spine++;
     }
@@ -647,6 +618,7 @@ void RenderFrame::submit(const RenderItemBase& item, const SpriteData& data) {
 
     copy.data_index = static_cast<u32>(sprite_data_.size());
     sprite_data_.push_back(data);
+    copy.cached_sort_key_ = copy.sortKey();
     items_.push_back(copy);
 
     switch (copy.type) {
@@ -699,6 +671,7 @@ void RenderFrame::submitExternalTriangles(
 
     base.data_index = static_cast<u32>(ext_data_.size());
     ext_data_.push_back(ed);
+    base.cached_sort_key_ = base.sortKey();
     items_.push_back(base);
 }
 
@@ -711,7 +684,7 @@ void RenderFrame::sortAndBucket() {
 
     std::sort(sorted_indices_.begin(), sorted_indices_.end(),
         [this](u32 a, u32 b) {
-            return items_[a].sortKey() < items_[b].sortKey();
+            return items_[a].cached_sort_key_ < items_[b].cached_sort_key_;
         });
 
     for (auto& sb : stage_boundaries_) {
@@ -789,6 +762,7 @@ void RenderFrame::renderSprites(u32 begin, u32 end) {
     bool curScissorOn = false;
     ScissorRect curRect{};
     bool stencilTestActive = false;
+    bool stencilWriteActive = false;
     i32 curStencilRef = -1;
 
     for (u32 i = begin; i < end; ++i) {
@@ -797,6 +771,11 @@ void RenderFrame::renderSprites(u32 begin, u32 end) {
 
         if (base.scissor_enabled != curScissorOn ||
             (base.scissor_enabled && base.scissor != curRect)) {
+            if (stencilWriteActive) {
+                batcher_->flush();
+                endStencilWrite();
+                stencilWriteActive = false;
+            }
             batcher_->flush();
             if (base.scissor_enabled) {
                 glEnable(GL_SCISSOR_TEST);
@@ -813,8 +792,17 @@ void RenderFrame::renderSprites(u32 begin, u32 end) {
             auto stIt = stencil_masks_.find(static_cast<u32>(base.entity));
             if (stIt != stencil_masks_.end()) {
                 if (stIt->second.is_mask) {
-                    batcher_->flush();
-                    beginStencilWrite(stIt->second.ref_value);
+                    if (!stencilWriteActive || curStencilRef != stIt->second.ref_value) {
+                        if (stencilWriteActive) {
+                            batcher_->flush();
+                            endStencilWrite();
+                        } else {
+                            batcher_->flush();
+                        }
+                        beginStencilWrite(stIt->second.ref_value);
+                        stencilWriteActive = true;
+                        curStencilRef = stIt->second.ref_value;
+                    }
 
                     glm::vec2 position(base.world_position);
                     glm::vec2 finalSize = sd.size * base.world_scale;
@@ -828,10 +816,13 @@ void RenderFrame::renderSprites(u32 begin, u32 end) {
                             finalSize, base.texture_id, base.color, sd.uv_offset, sd.uv_scale);
                     }
 
-                    batcher_->flush();
-                    endStencilWrite();
                     continue;
                 } else {
+                    if (stencilWriteActive) {
+                        batcher_->flush();
+                        endStencilWrite();
+                        stencilWriteActive = false;
+                    }
                     if (!stencilTestActive || curStencilRef != stIt->second.ref_value) {
                         batcher_->flush();
                         beginStencilTest(stIt->second.ref_value);
@@ -839,11 +830,18 @@ void RenderFrame::renderSprites(u32 begin, u32 end) {
                         curStencilRef = stIt->second.ref_value;
                     }
                 }
-            } else if (stencilTestActive) {
-                batcher_->flush();
-                endStencilTest();
-                stencilTestActive = false;
-                curStencilRef = -1;
+            } else {
+                if (stencilWriteActive) {
+                    batcher_->flush();
+                    endStencilWrite();
+                    stencilWriteActive = false;
+                }
+                if (stencilTestActive) {
+                    batcher_->flush();
+                    endStencilTest();
+                    stencilTestActive = false;
+                    curStencilRef = -1;
+                }
             }
         }
 
@@ -856,6 +854,17 @@ void RenderFrame::renderSprites(u32 begin, u32 end) {
         glm::vec2 position(base.world_position);
         glm::vec2 finalSize = sd.size * base.world_scale;
         f32 angle = base.world_angle;
+
+        glm::vec2 uvOff = sd.uv_offset;
+        glm::vec2 uvSc = sd.uv_scale;
+        if (sd.flip_x) {
+            uvOff.x += uvSc.x;
+            uvSc.x = -uvSc.x;
+        }
+        if (sd.flip_y) {
+            uvOff.y += uvSc.y;
+            uvSc.y = -uvSc.y;
+        }
 
         if (sd.use_nine_slice) {
             resource::SliceBorder border;
@@ -872,8 +881,8 @@ void RenderFrame::renderSprites(u32 begin, u32 end) {
                 border,
                 base.color,
                 angle,
-                sd.uv_offset,
-                sd.uv_scale
+                uvOff,
+                uvSc
             );
         } else if (std::abs(angle) > 0.001f) {
             batcher_->drawRotatedQuad(
@@ -882,8 +891,8 @@ void RenderFrame::renderSprites(u32 begin, u32 end) {
                 angle,
                 base.texture_id,
                 base.color,
-                sd.uv_offset,
-                sd.uv_scale
+                uvOff,
+                uvSc
             );
         } else {
             batcher_->drawQuad(
@@ -891,10 +900,15 @@ void RenderFrame::renderSprites(u32 begin, u32 end) {
                 finalSize,
                 base.texture_id,
                 base.color,
-                sd.uv_offset,
-                sd.uv_scale
+                uvOff,
+                uvSc
             );
         }
+    }
+
+    if (stencilWriteActive) {
+        batcher_->flush();
+        endStencilWrite();
     }
 
     if (stencilTestActive) {
@@ -917,6 +931,7 @@ void RenderFrame::renderSpine(u32 begin, u32 end) {
     spine_vertices_.clear();
     spine_indices_.clear();
     spine_tex_slots_.reset();
+    spine_current_blend_ = BlendMode::Normal;
 
     static ::spine::SkeletonClipping clipper;
 
@@ -990,6 +1005,10 @@ void RenderFrame::renderSpine(u32 begin, u32 end) {
                 if (texIndex < 0.0f) {
                     flushSpineBatch();
                     texIndex = spine_tex_slots_.findOrAllocate(textureId);
+                    if (texIndex < 0.0f) {
+                        ES_LOG_WARN("TextureSlotAllocator: failed after flush for spine region");
+                        continue;
+                    }
                 }
 
                 if (spine_vertices_.size() + 4 > 65535) {
@@ -1067,6 +1086,10 @@ void RenderFrame::renderSpine(u32 begin, u32 end) {
                 if (texIndex < 0.0f) {
                     flushSpineBatch();
                     texIndex = spine_tex_slots_.findOrAllocate(textureId);
+                    if (texIndex < 0.0f) {
+                        ES_LOG_WARN("TextureSlotAllocator: failed after flush for spine mesh");
+                        continue;
+                    }
                 }
 
                 if (spine_vertices_.size() + vertexCount > 65535) {
@@ -1114,6 +1137,7 @@ void RenderFrame::renderSpine(u32 begin, u32 end) {
     }
 
     flushSpineBatch();
+    RenderCommand::setBlendMode(BlendMode::Normal);
 }
 
 void RenderFrame::flushSpineBatch() {
@@ -1220,6 +1244,8 @@ void RenderFrame::renderExternalMeshes(u32 begin, u32 end) {
         stats_.triangles += static_cast<u32>(ed.ext_index_count / 3);
         stats_.draw_calls++;
     }
+
+    RenderCommand::setBlendMode(BlendMode::Normal);
 }
 
 void RenderFrame::renderMeshes(u32 begin, u32 end) {
@@ -1227,7 +1253,31 @@ void RenderFrame::renderMeshes(u32 begin, u32 end) {
         const auto& base = items_[sorted_indices_[i]];
         const auto& sd = sprite_data_[base.data_index];
         if (!sd.geometry || !sd.shader) continue;
+
+        auto* geom = static_cast<CustomGeometry*>(sd.geometry);
+        auto* shader = static_cast<Shader*>(sd.shader);
+        if (!geom->isValid()) continue;
+
+        shader->bind();
+        shader->setUniform("u_projection", view_projection_);
+        shader->setUniform("u_model", sd.transform);
+
+        geom->bind();
+        if (geom->hasIndices()) {
+            auto* ib = geom->getVAO() ? geom->getVAO()->getIndexBuffer().get() : nullptr;
+            if (ib) {
+                GLenum type = ib->is16Bit() ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT;
+                glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(geom->getIndexCount()), type, nullptr);
+            }
+        } else {
+            glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(geom->getVertexCount()));
+        }
+        geom->unbind();
+
         stats_.draw_calls++;
+        stats_.triangles += geom->hasIndices()
+            ? static_cast<u32>(geom->getIndexCount() / 3)
+            : static_cast<u32>(geom->getVertexCount() / 3);
     }
 }
 
@@ -1412,10 +1462,9 @@ void RenderFrame::renderText(u32 begin, u32 end) {
 void RenderFrame::renderSpriteWithMaterial(const RenderItemBase& base, const SpriteData& sd) {
     u32 shaderId = 0;
     u32 blendMode = 0;
-    static std::vector<UniformData> uniforms;
-    uniforms.clear();
+    mat_uniforms_.clear();
 
-    if (!getMaterialDataWithUniforms(sd.material_id, shaderId, blendMode, uniforms)) {
+    if (!getMaterialDataWithUniforms(sd.material_id, shaderId, blendMode, mat_uniforms_)) {
         return;
     }
 
@@ -1437,7 +1486,7 @@ void RenderFrame::renderSpriteWithMaterial(const RenderItemBase& base, const Spr
     glBindTexture(GL_TEXTURE_2D, base.texture_id);
     shader->setUniform(locTex, 0);
 
-    for (const auto& ud : uniforms) {
+    for (const auto& ud : mat_uniforms_) {
         i32 loc = shader->getUniformLocation(ud.name);
         switch (ud.type) {
             case 0:
@@ -1459,6 +1508,11 @@ void RenderFrame::renderSpriteWithMaterial(const RenderItemBase& base, const Spr
 
     glm::vec2 halfSize = sd.size * 0.5f;
 
+    glm::vec2 uvMin = sd.uv_offset;
+    glm::vec2 uvMax = sd.uv_offset + sd.uv_scale;
+    if (sd.flip_x) { std::swap(uvMin.x, uvMax.x); }
+    if (sd.flip_y) { std::swap(uvMin.y, uvMax.y); }
+
     struct MatSpriteVertex {
         f32 px, py;
         f32 tx, ty;
@@ -1466,10 +1520,10 @@ void RenderFrame::renderSpriteWithMaterial(const RenderItemBase& base, const Spr
     };
 
     MatSpriteVertex vertices[4] = {
-        { -halfSize.x, -halfSize.y, 0.0f, 1.0f, base.color.r, base.color.g, base.color.b, base.color.a },
-        {  halfSize.x, -halfSize.y, 1.0f, 1.0f, base.color.r, base.color.g, base.color.b, base.color.a },
-        {  halfSize.x,  halfSize.y, 1.0f, 0.0f, base.color.r, base.color.g, base.color.b, base.color.a },
-        { -halfSize.x,  halfSize.y, 0.0f, 0.0f, base.color.r, base.color.g, base.color.b, base.color.a },
+        { -halfSize.x, -halfSize.y, uvMin.x, uvMax.y, base.color.r, base.color.g, base.color.b, base.color.a },
+        {  halfSize.x, -halfSize.y, uvMax.x, uvMax.y, base.color.r, base.color.g, base.color.b, base.color.a },
+        {  halfSize.x,  halfSize.y, uvMax.x, uvMin.y, base.color.r, base.color.g, base.color.b, base.color.a },
+        { -halfSize.x,  halfSize.y, uvMin.x, uvMin.y, base.color.r, base.color.g, base.color.b, base.color.a },
     };
 
     glBindVertexArray(mat_sprite_vao_);
@@ -1481,25 +1535,30 @@ void RenderFrame::renderSpriteWithMaterial(const RenderItemBase& base, const Spr
     }
     glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices);
 
-    GLint attrPos = shader->getAttribLocation("a_position");
-    if (attrPos >= 0) {
-        glEnableVertexAttribArray(attrPos);
-        glVertexAttribPointer(attrPos, 2, GL_FLOAT, GL_FALSE, sizeof(MatSpriteVertex),
-                              reinterpret_cast<void*>(0));
-    }
+    u32 programId = shader->getProgramId();
+    if (programId != mat_sprite_last_shader_) {
+        mat_sprite_last_shader_ = programId;
 
-    GLint attrTex = shader->getAttribLocation("a_texCoord");
-    if (attrTex >= 0) {
-        glEnableVertexAttribArray(attrTex);
-        glVertexAttribPointer(attrTex, 2, GL_FLOAT, GL_FALSE, sizeof(MatSpriteVertex),
-                              reinterpret_cast<void*>(2 * sizeof(f32)));
-    }
+        GLint attrPos = shader->getAttribLocation("a_position");
+        if (attrPos >= 0) {
+            glEnableVertexAttribArray(attrPos);
+            glVertexAttribPointer(attrPos, 2, GL_FLOAT, GL_FALSE, sizeof(MatSpriteVertex),
+                                  reinterpret_cast<void*>(0));
+        }
 
-    GLint attrColor = shader->getAttribLocation("a_color");
-    if (attrColor >= 0) {
-        glEnableVertexAttribArray(attrColor);
-        glVertexAttribPointer(attrColor, 4, GL_FLOAT, GL_FALSE, sizeof(MatSpriteVertex),
-                              reinterpret_cast<void*>(4 * sizeof(f32)));
+        GLint attrTex = shader->getAttribLocation("a_texCoord");
+        if (attrTex >= 0) {
+            glEnableVertexAttribArray(attrTex);
+            glVertexAttribPointer(attrTex, 2, GL_FLOAT, GL_FALSE, sizeof(MatSpriteVertex),
+                                  reinterpret_cast<void*>(2 * sizeof(f32)));
+        }
+
+        GLint attrColor = shader->getAttribLocation("a_color");
+        if (attrColor >= 0) {
+            glEnableVertexAttribArray(attrColor);
+            glVertexAttribPointer(attrColor, 4, GL_FLOAT, GL_FALSE, sizeof(MatSpriteVertex),
+                                  reinterpret_cast<void*>(4 * sizeof(f32)));
+        }
     }
 
     if (!mat_sprite_ebo_initialized_) {
@@ -1513,11 +1572,9 @@ void RenderFrame::renderSpriteWithMaterial(const RenderItemBase& base, const Spr
 
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, nullptr);
 
-    if (attrPos >= 0) glDisableVertexAttribArray(attrPos);
-    if (attrTex >= 0) glDisableVertexAttribArray(attrTex);
-    if (attrColor >= 0) glDisableVertexAttribArray(attrColor);
-
     glBindVertexArray(0);
+
+    RenderCommand::setBlendMode(BlendMode::Normal);
 
     stats_.draw_calls++;
     stats_.triangles += 2;

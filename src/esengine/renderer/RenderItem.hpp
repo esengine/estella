@@ -4,6 +4,7 @@
 #include "RenderStage.hpp"
 #include "BlendMode.hpp"
 
+#include <algorithm>
 #include <glm/glm.hpp>
 
 namespace esengine {
@@ -46,14 +47,17 @@ struct RenderItemBase {
     ScissorRect scissor;
 
     u32 data_index = 0;
+    u64 cached_sort_key_ = 0;
 
     u64 sortKey() const {
         u64 stageKey = static_cast<u64>(stage) << 60;
 
-        i32 normalizedLayer = layer + 32768;
+        i32 normalizedLayer = std::clamp(layer + 32768, 0, 65535);
         u64 layerKey = static_cast<u64>(normalizedLayer & 0xFFFF) << 44;
 
-        u64 textureKey = static_cast<u64>(texture_id & 0xFFFFF) << 24;
+        u64 typeKey = static_cast<u64>(type) << 41;
+
+        u64 textureKey = static_cast<u64>(texture_id & 0x1FFFF) << 24;
 
         u32 depthBits;
         if (stage == RenderStage::Transparent) {
@@ -65,7 +69,7 @@ struct RenderItemBase {
         }
         u64 depthKey = static_cast<u64>(depthBits & 0xFFFFFF);
 
-        return stageKey | layerKey | textureKey | depthKey;
+        return stageKey | layerKey | typeKey | textureKey | depthKey;
     }
 };
 

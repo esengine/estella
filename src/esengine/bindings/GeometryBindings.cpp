@@ -53,40 +53,36 @@ u32 geometry_create() {
 
 void geometry_init(u32 handle, uintptr_t verticesPtr, u32 vertexCount,
                    uintptr_t layoutPtr, u32 layoutCount, bool dynamic) {
-    if (!g_geometryManager) return;
+    if (!g_geometryManager || verticesPtr == 0 || layoutPtr == 0) return;
 
     auto* geom = g_geometryManager->get(handle);
     if (!geom) return;
 
+    static constexpr u32 MAX_ATTRS = 8;
+    if (layoutCount == 0 || layoutCount > MAX_ATTRS) {
+        ES_LOG_WARN("geometry_init: invalid layoutCount {}, max {}", layoutCount, MAX_ATTRS);
+        return;
+    }
+
     const f32* vertices = reinterpret_cast<const f32*>(verticesPtr);
     const i32* layoutData = reinterpret_cast<const i32*>(layoutPtr);
 
-    static std::vector<VertexAttribute> s_attrs;
-    s_attrs.clear();
-    s_attrs.reserve(layoutCount);
+    static constexpr const char* ATTR_NAMES[] = {
+        "a_attr0", "a_attr1", "a_attr2", "a_attr3",
+        "a_attr4", "a_attr5", "a_attr6", "a_attr7"
+    };
 
+    std::vector<VertexAttribute> attrs;
+    attrs.reserve(layoutCount);
     for (u32 i = 0; i < layoutCount; ++i) {
-        ShaderDataType type = static_cast<ShaderDataType>(layoutData[i]);
-        std::string name = "a_attr" + std::to_string(i);
-        s_attrs.emplace_back(type, name);
+        attrs.emplace_back(static_cast<ShaderDataType>(layoutData[i]), ATTR_NAMES[i]);
     }
 
-    VertexLayout layout;
-    if (layoutCount == 1) {
-        layout = { s_attrs[0] };
-    } else if (layoutCount == 2) {
-        layout = { s_attrs[0], s_attrs[1] };
-    } else if (layoutCount == 3) {
-        layout = { s_attrs[0], s_attrs[1], s_attrs[2] };
-    } else if (layoutCount == 4) {
-        layout = { s_attrs[0], s_attrs[1], s_attrs[2], s_attrs[3] };
-    }
-
-    geom->init(vertices, vertexCount, layout, dynamic);
+    geom->init(vertices, vertexCount, VertexLayout(std::move(attrs)), dynamic);
 }
 
 void geometry_setIndices16(u32 handle, uintptr_t indicesPtr, u32 indexCount) {
-    if (!g_geometryManager) return;
+    if (!g_geometryManager || indicesPtr == 0) return;
 
     auto* geom = g_geometryManager->get(handle);
     if (!geom) return;
@@ -96,7 +92,7 @@ void geometry_setIndices16(u32 handle, uintptr_t indicesPtr, u32 indexCount) {
 }
 
 void geometry_setIndices32(u32 handle, uintptr_t indicesPtr, u32 indexCount) {
-    if (!g_geometryManager) return;
+    if (!g_geometryManager || indicesPtr == 0) return;
 
     auto* geom = g_geometryManager->get(handle);
     if (!geom) return;
@@ -106,7 +102,7 @@ void geometry_setIndices32(u32 handle, uintptr_t indicesPtr, u32 indexCount) {
 }
 
 void geometry_updateVertices(u32 handle, uintptr_t verticesPtr, u32 vertexCount, u32 offset) {
-    if (!g_geometryManager) return;
+    if (!g_geometryManager || verticesPtr == 0) return;
 
     auto* geom = g_geometryManager->get(handle);
     if (!geom) return;

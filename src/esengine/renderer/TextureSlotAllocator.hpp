@@ -51,7 +51,7 @@ public:
     }
 
     void bindAll() const {
-        for (u32 i = 0; i < MaxSlots; ++i) {
+        for (u32 i = 0; i < slot_count_; ++i) {
             glActiveTexture(GL_TEXTURE0 + i);
             glBindTexture(GL_TEXTURE_2D, slots_[i]);
         }

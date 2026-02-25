@@ -97,17 +97,11 @@ void RenderContext::initShaders() {
         ShaderSources::SPRITE_FRAGMENT
     );
 
-    extMeshShader_ = Shader::create(
+    extMeshShader_ = Shader::createWithBindings(
         ShaderSources::EXT_MESH_VERTEX,
-        ShaderSources::EXT_MESH_FRAGMENT
+        ShaderSources::EXT_MESH_FRAGMENT,
+        {{0, "a_position"}, {1, "a_texCoord"}, {2, "a_color"}}
     );
-    if (extMeshShader_ && extMeshShader_->isValid()) {
-        GLuint prog = extMeshShader_->getProgramId();
-        glBindAttribLocation(prog, 0, "a_position");
-        glBindAttribLocation(prog, 1, "a_texCoord");
-        glBindAttribLocation(prog, 2, "a_color");
-        glLinkProgram(prog);
-    }
 
     ES_LOG_DEBUG("Shaders initialized");
 }
@@ -121,6 +115,8 @@ void RenderContext::initWhiteTexture() {
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
     ES_LOG_DEBUG("White texture created (ID: {})", whiteTextureId_);
 }

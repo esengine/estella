@@ -21,10 +21,16 @@
 #include "../math/Math.hpp"
 
 // Standard library
+#include <initializer_list>
 #include <string>
 #include <unordered_map>
 
 namespace esengine {
+
+struct AttribBinding {
+    u32 index;
+    const char* name;
+};
 
 // =============================================================================
 // Shader Class
@@ -68,6 +74,16 @@ public:
      * @return Unique pointer to the shader, or nullptr on failure
      */
     static Unique<Shader> create(const std::string& vertexSrc, const std::string& fragmentSrc);
+
+    /**
+     * @brief Creates a shader with explicit attribute bindings applied before linking
+     * @param vertexSrc Vertex shader GLSL source
+     * @param fragmentSrc Fragment shader GLSL source
+     * @param bindings Attribute location bindings
+     * @return Unique pointer to the shader, or nullptr on failure
+     */
+    static Unique<Shader> createWithBindings(const std::string& vertexSrc, const std::string& fragmentSrc,
+                                              std::initializer_list<AttribBinding> bindings);
 
     /**
      * @brief Creates a shader from file paths
@@ -148,12 +164,14 @@ private:
      * @param fragmentSrc Fragment shader source
      * @return True on success
      */
-    bool compile(const std::string& vertexSrc, const std::string& fragmentSrc);
+    bool compile(const std::string& vertexSrc, const std::string& fragmentSrc,
+                 std::initializer_list<AttribBinding> bindings = {});
 
     u32 programId_ = 0;
 
     /** @brief Cached uniform locations (mutable for const uniform setters) */
     mutable std::unordered_map<std::string, i32> uniformCache_;
+    mutable std::unordered_map<std::string, i32> attribCache_;
 };
 
 // =============================================================================

@@ -90,7 +90,9 @@ void Framebuffer::resize(u32 width, u32 height) {
     spec_.height = height;
 
     cleanup();
-    initialize();
+    if (!initialize()) {
+        ES_LOG_ERROR("Framebuffer resize failed: {}x{}", width, height);
+    }
 }
 
 // =============================================================================
@@ -120,6 +122,8 @@ bool Framebuffer::initialize() {
                      GL_DEPTH_COMPONENT, GL_UNSIGNED_INT, nullptr);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
                               GL_TEXTURE_2D, depthAttachment_, 0);
     }
@@ -128,6 +132,7 @@ bool Framebuffer::initialize() {
     if (status != GL_FRAMEBUFFER_COMPLETE) {
         ES_LOG_ERROR("Framebuffer is incomplete! Status: 0x{:X}", status);
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        cleanup();
         return false;
     }
 

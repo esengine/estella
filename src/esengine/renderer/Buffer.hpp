@@ -129,6 +129,11 @@ public:
         calculateOffsetsAndStride();
     }
 
+    VertexLayout(std::vector<VertexAttribute> attributes)
+        : attributes_(std::move(attributes)) {
+        calculateOffsetsAndStride();
+    }
+
     /**
      * @brief Gets all vertex attributes
      * @return Const reference to attribute vector

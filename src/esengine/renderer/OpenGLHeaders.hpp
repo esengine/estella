@@ -28,3 +28,11 @@
     #endif
     #include <glad/glad.h>
 #endif
+
+// GL error codes not present in all headers
+#ifndef GL_CONTEXT_LOST
+    #define GL_CONTEXT_LOST 0x0507
+#endif
+#ifndef GL_CONTEXT_LOST_WEBGL
+    #define GL_CONTEXT_LOST_WEBGL 0x9242
+#endif

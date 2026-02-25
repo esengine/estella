@@ -34,7 +34,9 @@ Shader::~Shader() {
 }
 
 Shader::Shader(Shader&& other) noexcept
-    : programId_(other.programId_), uniformCache_(std::move(other.uniformCache_)) {
+    : programId_(other.programId_)
+    , uniformCache_(std::move(other.uniformCache_))
+    , attribCache_(std::move(other.attribCache_)) {
     other.programId_ = 0;
 }
 
@@ -45,6 +47,7 @@ Shader& Shader::operator=(Shader&& other) noexcept {
         }
         programId_ = other.programId_;
         uniformCache_ = std::move(other.uniformCache_);
+        attribCache_ = std::move(other.attribCache_);
         other.programId_ = 0;
     }
     return *this;
@@ -53,6 +56,15 @@ Shader& Shader::operator=(Shader&& other) noexcept {
 Unique<Shader> Shader::create(const std::string& vertexSrc, const std::string& fragmentSrc) {
     auto shader = makeUnique<Shader>();
     if (!shader->compile(vertexSrc, fragmentSrc)) {
+        return nullptr;
+    }
+    return shader;
+}
+
+Unique<Shader> Shader::createWithBindings(const std::string& vertexSrc, const std::string& fragmentSrc,
+                                            std::initializer_list<AttribBinding> bindings) {
+    auto shader = makeUnique<Shader>();
+    if (!shader->compile(vertexSrc, fragmentSrc, bindings)) {
         return nullptr;
     }
     return shader;
@@ -105,7 +117,8 @@ void Shader::unbind() const {
     glUseProgram(0);
 }
 
-bool Shader::compile(const std::string& vertexSrc, const std::string& fragmentSrc) {
+bool Shader::compile(const std::string& vertexSrc, const std::string& fragmentSrc,
+                     std::initializer_list<AttribBinding> bindings) {
     // Create vertex shader
     GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
     const char* vertexSrcPtr = vertexSrc.c_str();
@@ -148,6 +161,11 @@ bool Shader::compile(const std::string& vertexSrc, const std::string& fragmentSr
     programId_ = glCreateProgram();
     glAttachShader(programId_, vertexShader);
     glAttachShader(programId_, fragmentShader);
+
+    for (const auto& b : bindings) {
+        glBindAttribLocation(programId_, b.index, b.name);
+    }
+
     glLinkProgram(programId_);
 
     // Check linking
@@ -241,7 +259,13 @@ void Shader::setUniform(i32 location, const glm::mat4& value) const {
 }
 
 i32 Shader::getAttribLocation(const std::string& name) const {
-    return glGetAttribLocation(programId_, name.c_str());
+    auto it = attribCache_.find(name);
+    if (it != attribCache_.end()) {
+        return it->second;
+    }
+    i32 location = glGetAttribLocation(programId_, name.c_str());
+    attribCache_[name] = location;
+    return location;
 }
 
 }  // namespace esengine

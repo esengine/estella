@@ -249,33 +249,37 @@ void PostProcessPipeline::end() {
         if (pass.enabled) enabledCount++;
     }
 
+    RenderCommand::setDepthTest(false);
+    RenderCommand::setBlending(false);
+
     if (enabledCount == 0) {
         fboA_->unbind();
         blitToScreen(fboA_->getColorAttachment());
-        inFrame_ = false;
-        return;
+    } else {
+        u32 inputTexture = fboA_->getColorAttachment();
+        currentFBO_ = 0;
+
+        for (const auto& pass : passes_) {
+            if (!pass.enabled) continue;
+
+            Framebuffer* targetFBO = (currentFBO_ == 0) ? fboB_.get() : fboA_.get();
+            targetFBO->bind();
+            RenderCommand::setViewport(0, 0, width_, height_);
+
+            renderPass(pass, inputTexture);
+
+            inputTexture = targetFBO->getColorAttachment();
+            currentFBO_ = 1 - currentFBO_;
+        }
+
+        Framebuffer* lastFBO = (currentFBO_ == 0) ? fboA_.get() : fboB_.get();
+        lastFBO->unbind();
+
+        blitToScreen(inputTexture);
     }
 
-    u32 inputTexture = fboA_->getColorAttachment();
-    currentFBO_ = 0;
-
-    for (const auto& pass : passes_) {
-        if (!pass.enabled) continue;
-
-        Framebuffer* targetFBO = (currentFBO_ == 0) ? fboB_.get() : fboA_.get();
-        targetFBO->bind();
-        RenderCommand::setViewport(0, 0, width_, height_);
-
-        renderPass(pass, inputTexture);
-
-        inputTexture = targetFBO->getColorAttachment();
-        currentFBO_ = 1 - currentFBO_;
-    }
-
-    Framebuffer* lastFBO = (currentFBO_ == 0) ? fboA_.get() : fboB_.get();
-    lastFBO->unbind();
-
-    blitToScreen(inputTexture);
+    RenderCommand::setBlending(true);
+    RenderCommand::setDepthTest(true);
     inFrame_ = false;
 }
 
@@ -298,12 +302,7 @@ void PostProcessPipeline::renderPass(const PostProcessPass& pass, u32 inputTextu
         shader->setUniform(name, value);
     }
 
-    RenderCommand::setDepthTest(false);
-    RenderCommand::setBlending(false);
-
     RenderCommand::drawIndexed(*screenQuadVAO_, 6);
-
-    RenderCommand::setBlending(true);
 }
 
 void PostProcessPipeline::blitToScreen(u32 texture) {
@@ -316,12 +315,7 @@ void PostProcessPipeline::blitToScreen(u32 texture) {
     shader->bind();
     shader->setUniform("u_texture", 0);
 
-    RenderCommand::setDepthTest(false);
-    RenderCommand::setBlending(false);
-
     RenderCommand::drawIndexed(*screenQuadVAO_, 6);
-
-    RenderCommand::setBlending(true);
 }
 
 u32 PostProcessPipeline::getSourceTexture() const {

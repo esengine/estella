@@ -30,6 +30,12 @@ struct Frustum {
 
 class BatchRenderer2D;
 
+struct MaterialUniformData {
+    char name[32];
+    u32 type;
+    f32 values[4];
+};
+
 #ifdef ES_ENABLE_SPINE
 namespace spine {
     class SpineSystem;
@@ -185,6 +191,7 @@ private:
     u32 mat_sprite_ebo_ = 0;
     bool mat_sprite_ebo_initialized_ = false;
     bool mat_sprite_vbo_allocated_ = false;
+    u32 mat_sprite_last_shader_ = 0;
 
     std::unordered_map<u32, ScissorRect> clip_rects_;
 
@@ -193,6 +200,8 @@ private:
         bool is_mask = false;
     };
     std::unordered_map<u32, EntityStencilInfo> stencil_masks_;
+
+    std::vector<MaterialUniformData> mat_uniforms_;
 };
 
 }  // namespace esengine

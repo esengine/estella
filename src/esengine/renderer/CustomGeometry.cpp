@@ -24,12 +24,10 @@ void CustomGeometry::init(const f32* vertices, u32 vertexCount, const VertexLayo
     vao_ = VertexArray::create();
 
     if (dynamic) {
-        vbo_ = makeShared<VertexBuffer>();
-        *vbo_ = std::move(*VertexBuffer::create(vertexCount * sizeof(f32)));
+        vbo_ = Shared<VertexBuffer>(VertexBuffer::create(vertexCount * sizeof(f32)));
         vbo_->setDataRaw(vertices, vertexCount * sizeof(f32));
     } else {
-        vbo_ = makeShared<VertexBuffer>();
-        *vbo_ = std::move(*VertexBuffer::createRaw(vertices, vertexCount * sizeof(f32)));
+        vbo_ = Shared<VertexBuffer>(VertexBuffer::createRaw(vertices, vertexCount * sizeof(f32)));
     }
 
     vbo_->setLayout(layout);
@@ -39,16 +37,14 @@ void CustomGeometry::init(const f32* vertices, u32 vertexCount, const VertexLayo
 void CustomGeometry::setIndices(const u16* indices, u32 indexCount) {
     if (!vao_) return;
 
-    ibo_ = makeShared<IndexBuffer>();
-    *ibo_ = std::move(*IndexBuffer::create(indices, indexCount));
+    ibo_ = Shared<IndexBuffer>(IndexBuffer::create(indices, indexCount));
     vao_->setIndexBuffer(ibo_);
 }
 
 void CustomGeometry::setIndices(const u32* indices, u32 indexCount) {
     if (!vao_) return;
 
-    ibo_ = makeShared<IndexBuffer>();
-    *ibo_ = std::move(*IndexBuffer::create(indices, indexCount));
+    ibo_ = Shared<IndexBuffer>(IndexBuffer::create(indices, indexCount));
     vao_->setIndexBuffer(ibo_);
 }
 

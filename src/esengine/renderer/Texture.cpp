@@ -27,16 +27,18 @@ namespace {
 #ifdef ES_PLATFORM_WEB
 GLenum toGLFormat(TextureFormat format) {
     switch (format) {
-    case TextureFormat::RGB8:  return GL_RGB;
-    case TextureFormat::RGBA8: return GL_RGBA;
+    case TextureFormat::RGB8:    return GL_RGB;
+    case TextureFormat::RGBA8:   return GL_RGBA;
+    case TextureFormat::Depth24: return GL_DEPTH_COMPONENT;
     default: return GL_RGBA;
     }
 }
 
 GLenum toGLInternalFormat(TextureFormat format) {
     switch (format) {
-    case TextureFormat::RGB8:  return GL_RGB8;
-    case TextureFormat::RGBA8: return GL_RGBA8;
+    case TextureFormat::RGB8:    return GL_RGB8;
+    case TextureFormat::RGBA8:   return GL_RGBA8;
+    case TextureFormat::Depth24: return GL_DEPTH_COMPONENT24;
     default: return GL_RGBA8;
     }
 }
@@ -77,6 +79,7 @@ Texture::Texture(Texture&& other) noexcept
     other.textureId_ = 0;
     other.width_ = 0;
     other.height_ = 0;
+    other.format_ = TextureFormat::None;
 }
 
 Texture& Texture::operator=(Texture&& other) noexcept {
@@ -93,6 +96,7 @@ Texture& Texture::operator=(Texture&& other) noexcept {
         other.textureId_ = 0;
         other.width_ = 0;
         other.height_ = 0;
+        other.format_ = TextureFormat::None;
     }
     return *this;
 }
