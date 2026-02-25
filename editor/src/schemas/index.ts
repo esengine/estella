@@ -5,7 +5,7 @@
 
 export {
     type ComponentSchema,
-    LocalTransformSchema,
+    TransformSchema,
     SpriteSchema,
     CameraSchema,
     TextSchema,

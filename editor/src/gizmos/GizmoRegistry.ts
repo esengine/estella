@@ -1,13 +1,13 @@
 import type { EditorStore } from '../store/EditorStore';
 import type { EntityData } from '../types/SceneTypes';
-import type { Transform } from '../math/Transform';
+import type { TransformValue } from '../math/Transform';
 
 export interface GizmoContext {
     store: EditorStore;
     ctx: CanvasRenderingContext2D;
     zoom: number;
     screenToWorld(clientX: number, clientY: number): { worldX: number; worldY: number };
-    getWorldTransform(entityId: number): Transform;
+    getWorldTransform(entityId: number): TransformValue;
     getEntityBounds(entityData: EntityData): { width: number; height: number; offsetX?: number; offsetY?: number };
     requestRender(): void;
 }

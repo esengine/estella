@@ -45,7 +45,7 @@ enum class ProjectionType : u8 {
  *
  * @code
  * Entity camera = registry.create();
- * registry.emplace<LocalTransform>(camera, glm::vec3(0, 0, 10));
+ * registry.emplace<Transform>(camera, glm::vec3(0, 0, 10));
  * auto& cam = registry.emplace<Camera>(camera);
  * cam.projectionType = ProjectionType::Perspective;
  * cam.fov = 60.0f;

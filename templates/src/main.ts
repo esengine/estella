@@ -11,7 +11,7 @@ import {
     defineSystem,
     Schedule,
     Commands,
-    LocalTransform,
+    Transform,
     Sprite,
     Camera,
     Canvas,
@@ -50,7 +50,7 @@ export async function main(Module: ESEngineModule): Promise<void> {
                     isActive: true,
                     priority: 0
                 })
-                .insert(LocalTransform, {
+                .insert(Transform, {
                     position: { x: 0, y: 0, z: 10 },
                     rotation: { w: 1, x: 0, y: 0, z: 0 },
                     scale: { x: 1, y: 1, z: 1 }
@@ -69,7 +69,7 @@ export async function main(Module: ESEngineModule): Promise<void> {
                     flipX: false,
                     flipY: false
                 })
-                .insert(LocalTransform, {
+                .insert(Transform, {
                     position: { x: 0, y: 0, z: 0 },
                     rotation: { w: 1, x: 0, y: 0, z: 0 },
                     scale: { x: 1, y: 1, z: 1 }
@@ -82,7 +82,7 @@ export async function main(Module: ESEngineModule): Promise<void> {
 
     // Add update system - runs every frame
     app.addSystemToSchedule(Schedule.Update, defineSystem(
-        [Res(Time), Query(LocalTransform, Sprite)],
+        [Res(Time), Query(Transform, Sprite)],
         (time, query) => {
             for (const [entity, transform, sprite] of query) {
                 // Move the sprite in a circle

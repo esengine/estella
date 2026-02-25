@@ -53,8 +53,8 @@ function inferPropertyType(value: unknown): string {
 // Built-in Schemas
 // =============================================================================
 
-export const LocalTransformSchema: ComponentSchema = {
-    name: 'LocalTransform',
+export const TransformSchema: ComponentSchema = {
+    name: 'Transform',
     category: 'builtin',
     removable: false,
     properties: [
@@ -71,7 +71,7 @@ export const SpriteSchema: ComponentSchema = {
         { name: 'texture', type: 'texture' },
         { name: 'material', type: 'material-file' },
         { name: 'color', type: 'color' },
-        { name: 'size', type: 'vec2' },
+        { name: 'size', type: 'vec2', hiddenWhen: { hasComponent: 'UIRect' } },
         { name: 'uvOffset', type: 'vec2' },
         { name: 'uvScale', type: 'vec2' },
         { name: 'layer', type: 'number', min: -1000, max: 1000 },
@@ -217,8 +217,8 @@ export const UIMaskSchema: ComponentSchema = {
             name: 'mode',
             type: 'enum',
             options: [
-                { label: 'Scissor', value: 'scissor' },
-                { label: 'Stencil', value: 'stencil' },
+                { label: 'Scissor', value: 0 },
+                { label: 'Stencil', value: 1 },
             ],
         },
     ],
@@ -514,6 +514,66 @@ export const DropdownSchema: ComponentSchema = {
     ],
 };
 
+export const FlexContainerSchema: ComponentSchema = {
+    name: 'FlexContainer',
+    category: 'ui',
+    properties: [
+        {
+            name: 'direction',
+            type: 'enum',
+            options: [
+                { label: 'Row', value: 0 },
+                { label: 'Column', value: 1 },
+                { label: 'RowReverse', value: 2 },
+                { label: 'ColumnReverse', value: 3 },
+            ],
+        },
+        {
+            name: 'wrap',
+            type: 'enum',
+            options: [
+                { label: 'NoWrap', value: 0 },
+                { label: 'Wrap', value: 1 },
+            ],
+        },
+        {
+            name: 'justifyContent',
+            type: 'enum',
+            options: [
+                { label: 'Start', value: 0 },
+                { label: 'Center', value: 1 },
+                { label: 'End', value: 2 },
+                { label: 'SpaceBetween', value: 3 },
+                { label: 'SpaceAround', value: 4 },
+                { label: 'SpaceEvenly', value: 5 },
+            ],
+        },
+        {
+            name: 'alignItems',
+            type: 'enum',
+            options: [
+                { label: 'Start', value: 0 },
+                { label: 'Center', value: 1 },
+                { label: 'End', value: 2 },
+                { label: 'Stretch', value: 3 },
+            ],
+        },
+        { name: 'gap', type: 'vec2' },
+        { name: 'padding', type: 'vec4' },
+    ],
+};
+
+export const FlexItemSchema: ComponentSchema = {
+    name: 'FlexItem',
+    category: 'ui',
+    properties: [
+        { name: 'flexGrow', type: 'number', min: 0, step: 0.1 },
+        { name: 'flexShrink', type: 'number', min: 0, step: 0.1 },
+        { name: 'flexBasis', type: 'number', step: 1 },
+        { name: 'order', type: 'number', step: 1 },
+    ],
+};
+
 export const LayoutGroupSchema: ComponentSchema = {
     name: 'LayoutGroup',
     category: 'ui',
@@ -646,7 +706,7 @@ export interface BuiltinSchemaOptions {
 export function registerBuiltinSchemas(options?: BuiltinSchemaOptions): void {
     const enableSpine = options?.enableSpine ?? true;
 
-    registerComponentSchema(LocalTransformSchema);
+    registerComponentSchema(TransformSchema);
     registerComponentSchema(SpriteSchema);
     registerComponentSchema(CameraSchema);
     registerComponentSchema(TextSchema);
@@ -668,6 +728,8 @@ export function registerBuiltinSchemas(options?: BuiltinSchemaOptions): void {
     registerComponentSchema(SafeAreaSchema);
     registerComponentSchema(ListViewSchema);
     registerComponentSchema(DropdownSchema);
+    registerComponentSchema(FlexContainerSchema);
+    registerComponentSchema(FlexItemSchema);
     registerComponentSchema(LayoutGroupSchema);
     registerComponentSchema(RigidBodySchema);
     registerComponentSchema(BoxColliderSchema);

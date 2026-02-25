@@ -48,7 +48,7 @@ export class MarqueeSelection {
 
         for (const entity of scene.entities) {
             if (!store.isEntityVisible(entity.id)) continue;
-            const transform = entity.components.find(c => c.type === 'LocalTransform');
+            const transform = entity.components.find(c => c.type === 'Transform');
             if (!transform) continue;
 
             const worldTransform = store.getWorldTransform(entity.id);

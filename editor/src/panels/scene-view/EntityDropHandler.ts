@@ -48,9 +48,9 @@ export class EntityDropHandler {
         const baseName = asset.name.replace(/\.[^.]+$/, '');
         const newEntity = this.store_.createEntity(baseName);
 
-        const transformData = getInitialComponentData('LocalTransform');
+        const transformData = getInitialComponentData('Transform');
         transformData.position = { x: worldX, y: worldY, z: 0 };
-        this.store_.addComponent(newEntity, 'LocalTransform', transformData);
+        this.store_.addComponent(newEntity, 'Transform', transformData);
 
         const relativePath = getGlobalPathResolver().toRelativePath(asset.path);
         this.store_.addComponent(newEntity, 'Sprite', {

@@ -1,8 +1,8 @@
 /**
  * @file    Transform.hpp
- * @brief   Transform components for spatial positioning
- * @details Provides LocalTransform for relative positioning and WorldTransform
- *          for cached world-space matrices. Uses quaternions for rotation.
+ * @brief   Unified Transform component with local and world-space data
+ * @details Single component storing both local (user-controlled) and world-space
+ *          (system-computed) transforms. Uses quaternions for rotation.
  *
  * @author  ESEngine Team
  * @date    2026
@@ -12,131 +12,73 @@
  */
 #pragma once
 
-// =============================================================================
-// Includes
-// =============================================================================
-
 #include "../../core/Types.hpp"
 #include "../../core/Reflection.hpp"
 #include "../../math/Math.hpp"
 
 namespace esengine::ecs {
 
-// =============================================================================
-// Local Transform Component
-// =============================================================================
-
 /**
- * @brief Local transform relative to parent (or world if no parent)
+ * @brief Unified transform component
  *
- * @details Stores spatial transformation data using quaternion for rotation
- *          to avoid gimbal lock. This component represents the transform
- *          relative to the entity's parent. If no Parent component exists,
- *          this is equivalent to world space.
- *
- * @note Rotation is stored as a quaternion. Use math::eulerToQuat() and
- *       math::quatToEuler() for conversion if needed.
+ * @details Contains both local (relative to parent) and world-space transforms.
+ *          Local fields (position, rotation, scale) are user-controlled.
+ *          World fields (worldPosition, worldRotation, worldScale) are computed
+ *          by TransformSystem each frame.
  *
  * @code
  * Entity e = registry.create();
- * registry.emplace<LocalTransform>(e, glm::vec3(10.0f, 0.0f, 0.0f));
+ * registry.emplace<Transform>(e, glm::vec3(10.0f, 0.0f, 0.0f));
  *
- * auto& transform = registry.get<LocalTransform>(e);
- * transform.rotation = glm::angleAxis(glm::radians(45.0f), glm::vec3(0, 1, 0));
+ * auto& transform = registry.get<Transform>(e);
+ * transform.position.x = 5.0f;  // set local
+ * // After TransformSystem runs:
+ * // transform.worldPosition contains final world-space position
  * @endcode
  */
 ES_COMPONENT()
-struct LocalTransform {
-    /** @brief Position relative to parent */
+struct Transform {
     ES_PROPERTY()
     glm::vec3 position{0.0f, 0.0f, 0.0f};
 
-    /** @brief Rotation as quaternion (no gimbal lock) */
-    ES_PROPERTY()
-    glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};  // Identity quaternion (w, x, y, z)
-
-    /** @brief Scale factors */
-    ES_PROPERTY()
-    glm::vec3 scale{1.0f, 1.0f, 1.0f};
-
-    /** @brief Default constructor (identity transform) */
-    LocalTransform() = default;
-
-    /**
-     * @brief Constructs transform with position only
-     * @param pos Initial position
-     */
-    explicit LocalTransform(const glm::vec3& pos) : position(pos) {}
-
-    /**
-     * @brief Constructs transform with position and rotation
-     * @param pos Initial position
-     * @param rot Initial rotation (quaternion)
-     */
-    LocalTransform(const glm::vec3& pos, const glm::quat& rot)
-        : position(pos), rotation(rot) {}
-
-    /**
-     * @brief Constructs transform with full parameters
-     * @param pos Initial position
-     * @param rot Initial rotation (quaternion)
-     * @param scl Initial scale
-     */
-    LocalTransform(const glm::vec3& pos, const glm::quat& rot, const glm::vec3& scl)
-        : position(pos), rotation(rot), scale(scl) {}
-};
-
-// =============================================================================
-// World Transform Component (Cached)
-// =============================================================================
-
-/**
- * @brief Cached world-space transform matrix
- *
- * @details This component is managed by the TransformSystem. It stores
- *          the final world-space transformation matrix computed from the
- *          hierarchy of LocalTransform components.
- *
- * @note Do not modify this component directly - it will be overwritten
- *       by TransformSystem. Modify LocalTransform instead.
- */
-ES_COMPONENT()
-struct WorldTransform {
-    /** @brief World-space position */
-    ES_PROPERTY()
-    glm::vec3 position{0.0f, 0.0f, 0.0f};
-
-    /** @brief World-space rotation */
     ES_PROPERTY()
     glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
 
-    /** @brief World-space scale */
     ES_PROPERTY()
     glm::vec3 scale{1.0f, 1.0f, 1.0f};
 
-    WorldTransform() = default;
+    ES_PROPERTY()
+    glm::vec3 worldPosition{0.0f, 0.0f, 0.0f};
+
+    ES_PROPERTY()
+    glm::quat worldRotation{1.0f, 0.0f, 0.0f, 0.0f};
+
+    ES_PROPERTY()
+    glm::vec3 worldScale{1.0f, 1.0f, 1.0f};
+
+    glm::mat4 cachedMatrix_{1.0f};
+    bool decomposed_ = true;
+
+    void ensureDecomposed() {
+        if (!decomposed_) {
+            math::decompose(cachedMatrix_, worldPosition, worldRotation, worldScale);
+            decomposed_ = true;
+        }
+    }
+
+    Transform() = default;
+
+    explicit Transform(const glm::vec3& pos) : position(pos) {}
+
+    Transform(const glm::vec3& pos, const glm::quat& rot)
+        : position(pos), rotation(rot) {}
+
+    Transform(const glm::vec3& pos, const glm::quat& rot, const glm::vec3& scl)
+        : position(pos), rotation(rot), scale(scl) {}
 };
 
-// =============================================================================
-// Transform Dirty Flag
-// =============================================================================
-
-/**
- * @brief Tag component indicating transform needs recalculation
- *
- * @details Added when LocalTransform is modified. TransformSystem will
- *          recalculate WorldTransform for all entities with this tag
- *          and then remove the tag.
- */
 struct TransformDirty {};
 
-/**
- * @brief Tag component for static transforms that rarely change
- *
- * @details Entities with this tag are skipped by TransformSystem unless
- *          they also have TransformDirty. Use for background scenery,
- *          static UI elements, etc. that don't move every frame.
- */
 struct TransformStatic {};
 
 }  // namespace esengine::ecs

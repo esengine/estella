@@ -22,7 +22,7 @@ export interface Quat {
     w: number;
 }
 
-export interface Transform {
+export interface TransformValue {
     position: Vec3;
     rotation: Quat;
     scale: Vec3;
@@ -32,7 +32,7 @@ export interface Transform {
 // Constants
 // =============================================================================
 
-export const IDENTITY_TRANSFORM: Readonly<Transform> = Object.freeze({
+export const IDENTITY_TRANSFORM_VALUE: Readonly<TransformValue> = Object.freeze({
     position: Object.freeze({ x: 0, y: 0, z: 0 }),
     rotation: Object.freeze({ x: 0, y: 0, z: 0, w: 1 }),
     scale: Object.freeze({ x: 1, y: 1, z: 1 }),
@@ -132,7 +132,7 @@ export function eulerToQuat(euler: Vec3): Quat {
 /**
  * @brief Compose parent and child transforms: worldChild = worldParent * localChild
  */
-export function composeTransforms(parent: Transform, child: Transform): Transform {
+export function composeTransforms(parent: TransformValue, child: TransformValue): TransformValue {
     const rotatedPos = rotateVector(child.position, parent.rotation);
 
     return {
@@ -153,7 +153,7 @@ export function composeTransforms(parent: Transform, child: Transform): Transfor
 /**
  * @brief Create a copy of an identity transform
  */
-export function createIdentityTransform(): Transform {
+export function createIdentityTransform(): TransformValue {
     return {
         position: { x: 0, y: 0, z: 0 },
         rotation: { x: 0, y: 0, z: 0, w: 1 },
@@ -164,7 +164,7 @@ export function createIdentityTransform(): Transform {
 /**
  * @brief Clone a transform
  */
-export function cloneTransform(t: Transform): Transform {
+export function cloneTransform(t: TransformValue): TransformValue {
     return {
         position: { ...t.position },
         rotation: { ...t.rotation },
@@ -182,16 +182,16 @@ export interface EntityDataLike {
     children: number[];
 }
 
-export function getLocalTransformFromEntity(entity: EntityDataLike): Transform {
-    const comp = entity.components.find(c => c.type === 'LocalTransform');
+export function getTransformFromEntity(entity: EntityDataLike): TransformValue {
+    const comp = entity.components.find(c => c.type === 'Transform');
     if (!comp) {
         return createIdentityTransform();
     }
 
     return {
-        position: (comp.data.position as Vec3) ?? IDENTITY_TRANSFORM.position,
-        rotation: (comp.data.rotation as Quat) ?? IDENTITY_TRANSFORM.rotation,
-        scale: (comp.data.scale as Vec3) ?? IDENTITY_TRANSFORM.scale,
+        position: (comp.data.position as Vec3) ?? IDENTITY_TRANSFORM_VALUE.position,
+        rotation: (comp.data.rotation as Quat) ?? IDENTITY_TRANSFORM_VALUE.rotation,
+        scale: (comp.data.scale as Vec3) ?? IDENTITY_TRANSFORM_VALUE.scale,
     };
 }
 
@@ -285,7 +285,7 @@ export function findCanvasWorldRect(allEntities: EntityDataLike[]): LayoutRect |
         }
         const camera = e.components.find(c => c.type === 'Camera');
         if (camera) {
-            const lt = e.components.find(c => c.type === 'LocalTransform');
+            const lt = e.components.find(c => c.type === 'Transform');
             if (lt?.data?.position) {
                 const pos = lt.data.position as { x: number; y: number };
                 cameraPos = { x: pos.x, y: pos.y };
@@ -309,8 +309,8 @@ function computeScreenSpaceTransform(
     entity: EntityDataLike,
     getParentEntity: (id: number) => EntityDataLike | undefined,
     canvasRect: LayoutRect,
-): Transform {
-    const localTransform = getLocalTransformFromEntity(entity);
+): TransformValue {
+    const localTransform = getTransformFromEntity(entity);
 
     const path: EntityDataLike[] = [];
     let cur: EntityDataLike | undefined = entity;
@@ -332,7 +332,7 @@ function computeScreenSpaceTransform(
         const node = path[i];
         const uiRect = getUIRectFromEntity(node);
         if (!uiRect) {
-            const lt = getLocalTransformFromEntity(node);
+            const lt = getTransformFromEntity(node);
             resultX = lt.position.x;
             resultY = lt.position.y;
             continue;
@@ -341,7 +341,7 @@ function computeScreenSpaceTransform(
         const layout = computeUIRectLayout(
             uiRect.anchorMin, uiRect.anchorMax,
             uiRect.offsetMin, uiRect.offsetMax,
-            uiRect.size, parentRect,
+            uiRect.size, parentRect, uiRect.pivot,
         );
 
         const isRoot = i === 0;
@@ -399,7 +399,7 @@ export function computeAdjustedLocalTransform(
     getParentEntity: (id: number) => EntityDataLike | undefined,
     allEntities?: EntityDataLike[],
     cachedCanvasRect?: LayoutRect | null,
-): Transform {
+): TransformValue {
     if (isInScreenSpaceHierarchy(entity, getParentEntity)) {
         const canvasRect = cachedCanvasRect
             ?? (allEntities ? findCanvasWorldRect(allEntities) : null);
@@ -408,7 +408,7 @@ export function computeAdjustedLocalTransform(
         }
     }
 
-    const localTransform = getLocalTransformFromEntity(entity);
+    const localTransform = getTransformFromEntity(entity);
     const uiRect = getUIRectFromEntity(entity);
     const size = getEntitySize(entity);
 
@@ -437,7 +437,7 @@ export function computeAdjustedLocalTransform(
 // Matrix Conversion
 // =============================================================================
 
-export function transformToMatrix4x4(t: Transform): Float32Array {
+export function transformToMatrix4x4(t: TransformValue): Float32Array {
     const { x: qx, y: qy, z: qz, w: qw } = t.rotation;
     const { x: sx, y: sy, z: sz } = t.scale;
     const { x: tx, y: ty, z: tz } = t.position;

@@ -29,7 +29,7 @@ namespace esengine::ecs {
  * @brief Velocity component for physics simulation
  *
  * @details Stores linear and angular velocity for movement and rotation.
- *          Used by physics systems to update LocalTransform components.
+ *          Used by physics systems to update Transform components.
  *
  * @note Angular velocity is in radians per second around each axis.
  */

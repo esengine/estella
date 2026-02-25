@@ -1,8 +1,8 @@
 /**
  * @file    TransformSystem.hpp
  * @brief   System for computing hierarchical world transforms
- * @details Manages the computation of WorldTransform matrices from
- *          LocalTransform components, respecting parent-child hierarchy.
+ * @details Computes world-space position/rotation/scale from local transform
+ *          fields, respecting parent-child hierarchy.
  *
  * @author  ESEngine Team
  * @date    2026
@@ -12,51 +12,22 @@
  */
 #pragma once
 
-// =============================================================================
-// Includes
-// =============================================================================
-
-// Project includes
 #include "System.hpp"
 #include "Registry.hpp"
 #include "components/Transform.hpp"
 #include "components/Hierarchy.hpp"
 #include "../math/Math.hpp"
 
-// Standard library
 #include <algorithm>
 
 namespace esengine::ecs {
 
-// =============================================================================
-// TransformSystem
-// =============================================================================
-
-/**
- * @brief System that computes world-space transforms from local transforms
- *
- * @details This system processes entities with LocalTransform and computes
- *          their WorldTransform matrices. It handles hierarchical transforms
- *          by processing parents before children.
- *
- * Features:
- * - Respects Parent/Children hierarchy
- * - Uses dirty flags for optimization
- * - Caches world-space position/rotation/scale for convenience
- *
- * @code
- * SystemGroup systems;
- * systems.createSystem<TransformSystem>();
- *
- * // In game loop:
- * systems.update(registry, deltaTime);
- * // WorldTransform is now up-to-date for all entities
- * @endcode
- */
 class TransformSystem : public System {
 public:
+    static constexpr u32 MAX_HIERARCHY_DEPTH = 256;
+
     TransformSystem() {
-        setPriority(-100);  // Run early, before other systems need transforms
+        setPriority(-100);
     }
 
     void init(Registry& registry) override {
@@ -69,41 +40,60 @@ public:
     }
 
 private:
-    void updateDirtyTransforms(Registry& registry) {
-        registry.each<LocalTransform>([&registry, this](Entity entity, LocalTransform& local) {
-            registry.getOrEmplace<WorldTransform>(entity);
+    std::vector<Entity> dirty_to_clear_;
 
+    void updateDirtyTransforms(Registry& registry) {
+        dirty_to_clear_.clear();
+
+        registry.each<Transform>([&registry, this](Entity entity, Transform& transform) {
             if (!registry.has<Parent>(entity)) {
                 bool isStatic = registry.has<TransformStatic>(entity);
                 bool isDirty = registry.has<TransformDirty>(entity);
 
                 if (isStatic && !isDirty) {
+                    auto* children = registry.tryGet<Children>(entity);
+                    if (children) {
+                        for (Entity child : children->entities) {
+                            if (registry.valid(child)) {
+                                auto* childTransform = registry.tryGet<Transform>(child);
+                                if (childTransform) {
+                                    updateEntityTransform(registry, child, *childTransform, transform.cachedMatrix_, false, 1);
+                                }
+                            }
+                        }
+                    }
                     return;
                 }
 
-                updateRootTransform(registry, entity, local);
+                updateRootTransform(registry, entity, transform);
             }
         });
+
+        for (Entity e : dirty_to_clear_) {
+            if (registry.has<TransformDirty>(e)) {
+                registry.remove<TransformDirty>(e);
+            }
+        }
     }
 
-    void updateRootTransform(Registry& registry, Entity entity, const LocalTransform& local) {
-        auto& world = registry.get<WorldTransform>(entity);
-        world.position = local.position;
-        world.rotation = local.rotation;
-        world.scale = local.scale;
+    void updateRootTransform(Registry& registry, Entity entity, Transform& transform) {
+        transform.worldPosition = transform.position;
+        transform.worldRotation = transform.rotation;
+        transform.worldScale = transform.scale;
+        transform.cachedMatrix_ = math::compose(transform.worldPosition, transform.worldRotation, transform.worldScale);
+        transform.decomposed_ = true;
 
         if (registry.has<TransformDirty>(entity)) {
-            registry.remove<TransformDirty>(entity);
+            dirty_to_clear_.push_back(entity);
         }
 
         auto* children = registry.tryGet<Children>(entity);
         if (children) {
-            glm::mat4 worldMatrix = math::compose(world.position, world.rotation, world.scale);
             for (Entity child : children->entities) {
                 if (registry.valid(child)) {
-                    auto* childLocal = registry.tryGet<LocalTransform>(child);
-                    if (childLocal) {
-                        updateEntityTransform(registry, child, *childLocal, worldMatrix, true);
+                    auto* childTransform = registry.tryGet<Transform>(child);
+                    if (childTransform) {
+                        updateEntityTransform(registry, child, *childTransform, transform.cachedMatrix_, true, 1);
                     }
                 }
             }
@@ -111,21 +101,23 @@ private:
     }
 
     void updateEntityTransform(Registry& registry, Entity entity,
-                                const LocalTransform& local,
+                                Transform& transform,
                                 const glm::mat4& parentWorldMatrix,
-                                bool parentDirty) {
+                                bool parentDirty, u32 depth) {
+        if (depth >= MAX_HIERARCHY_DEPTH) {
+            return;
+        }
+
         bool isDirty = parentDirty || registry.has<TransformDirty>(entity);
 
         if (registry.has<TransformStatic>(entity) && !isDirty) {
             auto* children = registry.tryGet<Children>(entity);
             if (children) {
-                const auto& world = registry.get<WorldTransform>(entity);
-                glm::mat4 worldMatrix = math::compose(world.position, world.rotation, world.scale);
                 for (Entity child : children->entities) {
                     if (registry.valid(child)) {
-                        auto* childLocal = registry.tryGet<LocalTransform>(child);
-                        if (childLocal) {
-                            updateEntityTransform(registry, child, *childLocal, worldMatrix, false);
+                        auto* childTransform = registry.tryGet<Transform>(child);
+                        if (childTransform) {
+                            updateEntityTransform(registry, child, *childTransform, transform.cachedMatrix_, false, depth + 1);
                         }
                     }
                 }
@@ -133,23 +125,23 @@ private:
             return;
         }
 
-        glm::mat4 localMatrix = math::compose(local.position, local.rotation, local.scale);
+        glm::mat4 localMatrix = math::compose(transform.position, transform.rotation, transform.scale);
         glm::mat4 worldMatrix = parentWorldMatrix * localMatrix;
 
-        auto& world = registry.get<WorldTransform>(entity);
-        math::decompose(worldMatrix, world.position, world.rotation, world.scale);
+        transform.cachedMatrix_ = worldMatrix;
+        transform.decomposed_ = false;
 
         if (isDirty && !parentDirty) {
-            registry.remove<TransformDirty>(entity);
+            dirty_to_clear_.push_back(entity);
         }
 
         auto* children = registry.tryGet<Children>(entity);
         if (children) {
             for (Entity child : children->entities) {
                 if (registry.valid(child)) {
-                    auto* childLocal = registry.tryGet<LocalTransform>(child);
-                    if (childLocal) {
-                        updateEntityTransform(registry, child, *childLocal, worldMatrix, isDirty);
+                    auto* childTransform = registry.tryGet<Transform>(child);
+                    if (childTransform) {
+                        updateEntityTransform(registry, child, *childTransform, worldMatrix, isDirty, depth + 1);
                     }
                 }
             }
@@ -157,25 +149,17 @@ private:
     }
 };
 
-// =============================================================================
-// Hierarchy Utilities
-// =============================================================================
+inline bool isDescendantOf(Registry& registry, Entity entity, Entity ancestor) {
+    while (registry.has<Parent>(entity)) {
+        Entity parent = registry.get<Parent>(entity).entity;
+        if (parent == ancestor) return true;
+        if (!registry.valid(parent)) break;
+        entity = parent;
+    }
+    return false;
+}
 
-/**
- * @brief Sets the parent of an entity, updating both Parent and Children components
- *
- * @param registry The ECS registry
- * @param child The child entity
- * @param newParent The new parent entity (INVALID_ENTITY to unparent)
- *
- * @code
- * Entity parent = registry.create();
- * Entity child = registry.create();
- * setParent(registry, child, parent);
- * @endcode
- */
 inline void setParent(Registry& registry, Entity child, Entity newParent) {
-    // Remove from old parent if exists
     if (registry.has<Parent>(child)) {
         Entity oldParent = registry.get<Parent>(child).entity;
         if (registry.valid(oldParent) && registry.has<Children>(oldParent)) {
@@ -193,21 +177,22 @@ inline void setParent(Registry& registry, Entity child, Entity newParent) {
         }
     }
 
-    // Set new parent
     if (newParent != INVALID_ENTITY && registry.valid(newParent)) {
+        if (child == newParent || isDescendantOf(registry, newParent, child)) {
+            return;
+        }
+
         if (registry.has<Parent>(child)) {
             registry.get<Parent>(child).entity = newParent;
         } else {
             registry.emplace<Parent>(child, newParent);
         }
 
-        // Add to new parent's children list
         if (!registry.has<Children>(newParent)) {
             registry.emplace<Children>(newParent);
         }
         registry.get<Children>(newParent).entities.push_back(child);
 
-        // Update hierarchy depth
         u32 parentDepth = 0;
         if (registry.has<HierarchyDepth>(newParent)) {
             parentDepth = registry.get<HierarchyDepth>(newParent).depth;
@@ -219,19 +204,11 @@ inline void setParent(Registry& registry, Entity child, Entity newParent) {
         }
     }
 
-    // Mark transform as dirty
     if (!registry.has<TransformDirty>(child)) {
         registry.emplace<TransformDirty>(child);
     }
 }
 
-/**
- * @brief Gets the root ancestor of an entity
- *
- * @param registry The ECS registry
- * @param entity The entity to find root for
- * @return The root entity (entity itself if no parent)
- */
 inline Entity getRoot(Registry& registry, Entity entity) {
     while (registry.has<Parent>(entity)) {
         Entity parent = registry.get<Parent>(entity).entity;
@@ -241,34 +218,9 @@ inline Entity getRoot(Registry& registry, Entity entity) {
     return entity;
 }
 
-/**
- * @brief Checks if an entity is a descendant of another
- *
- * @param registry The ECS registry
- * @param entity The potential descendant
- * @param ancestor The potential ancestor
- * @return true if entity is a descendant of ancestor
- */
-inline bool isDescendantOf(Registry& registry, Entity entity, Entity ancestor) {
-    while (registry.has<Parent>(entity)) {
-        Entity parent = registry.get<Parent>(entity).entity;
-        if (parent == ancestor) return true;
-        if (!registry.valid(parent)) break;
-        entity = parent;
-    }
-    return false;
-}
-
-/**
- * @brief Destroys an entity and all its descendants
- *
- * @param registry The ECS registry
- * @param entity The entity to destroy with its children
- */
 inline void destroyWithChildren(Registry& registry, Entity entity) {
-    // Recursively destroy children first
     if (registry.has<Children>(entity)) {
-        auto children = registry.get<Children>(entity).entities;  // Copy to avoid iteration issues
+        auto children = registry.get<Children>(entity).entities;
         for (Entity child : children) {
             if (registry.valid(child)) {
                 destroyWithChildren(registry, child);
@@ -276,7 +228,6 @@ inline void destroyWithChildren(Registry& registry, Entity entity) {
         }
     }
 
-    // Remove from parent's children list
     if (registry.has<Parent>(entity)) {
         Entity parent = registry.get<Parent>(entity).entity;
         if (registry.valid(parent) && registry.has<Children>(parent)) {
@@ -290,7 +241,6 @@ inline void destroyWithChildren(Registry& registry, Entity entity) {
         }
     }
 
-    // Destroy the entity
     registry.destroy(entity);
 }
 

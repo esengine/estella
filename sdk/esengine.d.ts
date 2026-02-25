@@ -71,16 +71,13 @@ export interface Sprite {
     flipY: boolean;
 }
 
-export interface LocalTransform {
+export interface Transform {
     position: Vec3;
     rotation: Quat;
     scale: Vec3;
-}
-
-export interface WorldTransform {
-    position: Vec3;
-    rotation: Quat;
-    scale: Vec3;
+    worldPosition: Vec3;
+    worldRotation: Quat;
+    worldScale: Vec3;
 }
 
 export interface Velocity {
@@ -115,14 +112,10 @@ export interface Registry {
     getSprite(entity: Entity): Sprite;
     addSprite(entity: Entity, component: Sprite): void;
     removeSprite(entity: Entity): void;
-    hasLocalTransform(entity: Entity): boolean;
-    getLocalTransform(entity: Entity): LocalTransform;
-    addLocalTransform(entity: Entity, component: LocalTransform): void;
-    removeLocalTransform(entity: Entity): void;
-    hasWorldTransform(entity: Entity): boolean;
-    getWorldTransform(entity: Entity): WorldTransform;
-    addWorldTransform(entity: Entity, component: WorldTransform): void;
-    removeWorldTransform(entity: Entity): void;
+    hasTransform(entity: Entity): boolean;
+    getTransform(entity: Entity): Transform;
+    addTransform(entity: Entity, component: Transform): void;
+    removeTransform(entity: Entity): void;
     hasVelocity(entity: Entity): boolean;
     getVelocity(entity: Entity): Velocity;
     addVelocity(entity: Entity, component: Velocity): void;
@@ -146,8 +139,7 @@ export interface ESEngineModule {
     Parent: new () => Parent;
     Children: new () => Children;
     Sprite: new () => Sprite;
-    LocalTransform: new () => LocalTransform;
-    WorldTransform: new () => WorldTransform;
+    Transform: new () => Transform;
     Velocity: new () => Velocity;
 
     // Renderer functions

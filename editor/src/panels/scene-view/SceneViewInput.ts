@@ -337,7 +337,7 @@ export class SceneViewInput {
             const entity = scene.entities[i];
             if (!store.isEntityVisible(entity.id)) continue;
 
-            const transform = entity.components.find(c => c.type === 'LocalTransform');
+            const transform = entity.components.find(c => c.type === 'Transform');
             if (!transform) continue;
 
             const worldTransform = store.getWorldTransform(entity.id);

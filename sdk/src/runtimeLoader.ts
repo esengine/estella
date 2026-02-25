@@ -3,7 +3,7 @@
  * @brief   Runtime scene loader for builder targets (WeChat, Playable, etc.)
  */
 
-import { SpineAnimation, WorldTransform, SceneOwner, type SpineAnimationData, type WorldTransformData } from './component';
+import { SpineAnimation, Transform, SceneOwner, type SpineAnimationData, type TransformData } from './component';
 import { Material } from './material';
 import { loadSceneData, getComponentAssetFieldDescriptors, getComponentSpineFieldDescriptor, type AssetFieldType, type SceneData } from './scene';
 import type { ESEngineModule } from './wasm';
@@ -236,15 +236,15 @@ function createSpineInstances(
 }
 
 function buildTransformMatrix(
-    wt: WorldTransformData,
+    wt: TransformData,
     skeletonScale: number,
     flipX: boolean,
     flipY: boolean,
 ): Float32Array {
-    const sx = wt.scale.x * skeletonScale * (flipX ? -1 : 1);
-    const sy = wt.scale.y * skeletonScale * (flipY ? -1 : 1);
-    const sz = wt.scale.z;
-    const qx = wt.rotation.x, qy = wt.rotation.y, qz = wt.rotation.z, qw = wt.rotation.w;
+    const sx = wt.worldScale.x * skeletonScale * (flipX ? -1 : 1);
+    const sy = wt.worldScale.y * skeletonScale * (flipY ? -1 : 1);
+    const sz = wt.worldScale.z;
+    const qx = wt.worldRotation.x, qy = wt.worldRotation.y, qz = wt.worldRotation.z, qw = wt.worldRotation.w;
     const x2 = qx + qx, y2 = qy + qy, z2 = qz + qz;
     const xx = qx * x2, xy = qx * y2, xz = qx * z2;
     const yy = qy * y2, yz = qy * z2, zz = qz * z2;
@@ -253,7 +253,7 @@ function buildTransformMatrix(
         (1 - (yy + zz)) * sx, (xy + wz) * sx, (xz - wy) * sx, 0,
         (xy - wz) * sy, (1 - (xx + zz)) * sy, (yz + wx) * sy, 0,
         (xz + wy) * sz, (yz - wx) * sz, (1 - (xx + yy)) * sz, 0,
-        wt.position.x, wt.position.y, wt.position.z, 1,
+        wt.worldPosition.x, wt.worldPosition.y, wt.worldPosition.z, 1,
     ]);
 }
 
@@ -287,8 +287,8 @@ function setupSpineRenderer(
             }
 
             let transformPtr = 0;
-            if (world.has(entityId, WorldTransform)) {
-                const wt = world.get(entityId, WorldTransform) as WorldTransformData;
+            if (world.has(entityId, Transform)) {
+                const wt = world.get(entityId, Transform) as TransformData;
                 const skeletonScale = spineData?.skeletonScale ?? 1;
                 const flipX = spineData?.flipX ?? false;
                 const flipY = spineData?.flipY ?? false;

@@ -64,10 +64,10 @@ export class SceneSerializer {
             entity.components = [];
         }
 
-        if (!entity.components.some(c => c.type === 'LocalTransform')) {
+        if (!entity.components.some(c => c.type === 'Transform')) {
             entity.components.unshift({
-                type: 'LocalTransform',
-                data: getDefaultComponentData('LocalTransform'),
+                type: 'Transform',
+                data: getDefaultComponentData('Transform'),
             });
         }
 

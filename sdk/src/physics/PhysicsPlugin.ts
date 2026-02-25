@@ -5,8 +5,8 @@
 
 import type { Plugin, App } from '../app';
 import type { Entity, Vec2 } from '../types';
-import type { LocalTransformData, WorldTransformData, ParentData, CanvasData } from '../component';
-import { LocalTransform, WorldTransform, Parent, Canvas } from '../component';
+import type { TransformData, ParentData, CanvasData } from '../component';
+import { Transform, Parent, Canvas } from '../component';
 import { defineResource, Res, Time, type TimeData } from '../resource';
 import { Schedule, defineSystem } from '../system';
 import {
@@ -128,27 +128,35 @@ export class PhysicsPlugin implements Plugin {
 
                 const world = app.world;
 
+                world.onDespawn((entity: Entity) => {
+                    if (trackedEntities.has(entity)) {
+                        module._physics_destroyBody(entity);
+                        trackedEntities.delete(entity);
+                        cachedProps.delete(entity);
+                    }
+                });
+
                 app.addSystemToSchedule(
                     Schedule.PostUpdate,
                     defineSystem(
                         [Res(Time)],
                         (time: TimeData) => {
-                            const entities = world.getEntitiesWithComponents([RigidBody, LocalTransform, WorldTransform]);
+                            const entities = world.getEntitiesWithComponents([RigidBody, Transform]);
                             const currentEntities = new Set<Entity>();
 
                             for (const entity of entities) {
                                 currentEntities.add(entity);
                                 const rb = world.get(entity, RigidBody) as RigidBodyData;
-                                const wt = world.get(entity, WorldTransform) as WorldTransformData;
+                                const wt = world.get(entity, Transform) as TransformData;
 
                                 if (!trackedEntities.has(entity)) {
                                     if (!rb.enabled) continue;
 
-                                    const angle = quatToAngleZ(wt.rotation);
+                                    const angle = quatToAngleZ(wt.worldRotation);
 
                                     module._physics_createBody(
                                         entity, rb.bodyType,
-                                        wt.position.x * invPpu, wt.position.y * invPpu, angle,
+                                        wt.worldPosition.x * invPpu, wt.worldPosition.y * invPpu, angle,
                                         rb.gravityScale, rb.linearDamping, rb.angularDamping,
                                         rb.fixedRotation ? 1 : 0, rb.bullet ? 1 : 0
                                     );
@@ -187,10 +195,10 @@ export class PhysicsPlugin implements Plugin {
                                 }
 
                                 if (rb.bodyType === BodyType.Kinematic) {
-                                    const angle = quatToAngleZ(wt.rotation);
+                                    const angle = quatToAngleZ(wt.worldRotation);
                                     module._physics_setBodyTransform(
                                         entity,
-                                        wt.position.x * invPpu, wt.position.y * invPpu,
+                                        wt.worldPosition.x * invPpu, wt.worldPosition.y * invPpu,
                                         angle
                                     );
                                 }
@@ -219,7 +227,9 @@ export class PhysicsPlugin implements Plugin {
             }
         );
 
-        initPromise.catch(() => {});
+        initPromise.catch((e) => {
+            console.error('[ESEngine] Physics initialization failed:', e);
+        });
         app.physicsInitPromise = initPromise;
     }
 }
@@ -277,7 +287,7 @@ function syncDynamicTransforms(app: App, module: PhysicsWasmModule, ppu: number)
 
         if (!app.world.valid(entityId)) continue;
 
-        const transform = app.world.get(entityId, LocalTransform) as LocalTransformData;
+        const transform = app.world.get(entityId, Transform) as TransformData;
         if (!transform) continue;
 
         let localX = worldX;
@@ -286,15 +296,15 @@ function syncDynamicTransforms(app: App, module: PhysicsWasmModule, ppu: number)
 
         if (app.world.has(entityId, Parent)) {
             const parentData = app.world.get(entityId, Parent) as ParentData;
-            if (parentData && app.world.valid(parentData.entity) && app.world.has(parentData.entity, WorldTransform)) {
-                const pwt = app.world.get(parentData.entity, WorldTransform) as WorldTransformData;
-                const parentAngle = quatToAngleZ(pwt.rotation);
-                const dx = worldX - pwt.position.x;
-                const dy = worldY - pwt.position.y;
+            if (parentData && app.world.valid(parentData.entity) && app.world.has(parentData.entity, Transform)) {
+                const pwt = app.world.get(parentData.entity, Transform) as TransformData;
+                const parentAngle = quatToAngleZ(pwt.worldRotation);
+                const dx = worldX - pwt.worldPosition.x;
+                const dy = worldY - pwt.worldPosition.y;
                 const cos = Math.cos(-parentAngle);
                 const sin = Math.sin(-parentAngle);
-                const sx = pwt.scale.x !== 0 ? pwt.scale.x : 1;
-                const sy = pwt.scale.y !== 0 ? pwt.scale.y : 1;
+                const sx = pwt.worldScale.x !== 0 ? pwt.worldScale.x : 1;
+                const sy = pwt.worldScale.y !== 0 ? pwt.worldScale.y : 1;
                 localX = (dx * cos - dy * sin) / sx;
                 localY = (dx * sin + dy * cos) / sy;
                 localAngle = worldAngle - parentAngle;
@@ -309,7 +319,7 @@ function syncDynamicTransforms(app: App, module: PhysicsWasmModule, ppu: number)
         transform.rotation.y = q.y;
         transform.rotation.z = q.z;
 
-        app.world.insert(entityId, LocalTransform, transform);
+        app.world.insert(entityId, Transform, transform);
     }
 }
 
