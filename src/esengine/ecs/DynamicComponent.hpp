@@ -125,7 +125,7 @@ public:
         const auto index = sparse_[entity];
 
         dense_[index] = last;
-        values_[index] = std::move(values_.back());
+        std::swap(values_[index], values_.back());
         sparse_[last] = index;
 
         dense_.pop_back();

@@ -196,17 +196,14 @@ private:
     static void log(LogLevel level, const char* fmt, Args&&... args) {
         if (level < level_) return;
 
-        std::ostringstream msgOss;
-        formatTo(msgOss, fmt, std::forward<Args>(args)...);
-        std::string message = msgOss.str();
-
         std::ostringstream oss;
-        oss << "[" << levelToString(level) << "] " << message << "\n";
+        formatTo(oss, fmt, std::forward<Args>(args)...);
+        std::string message = oss.str();
 
         if (level >= LogLevel::Error) {
-            std::cerr << oss.str();
+            std::cerr << "[" << levelToString(level) << "] " << message << "\n";
         } else {
-            std::cout << oss.str();
+            std::cout << "[" << levelToString(level) << "] " << message << "\n";
         }
 
         notifySinks(level, message);

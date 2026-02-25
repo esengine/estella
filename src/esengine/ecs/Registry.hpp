@@ -29,7 +29,6 @@
 #include <any>
 #include <functional>
 #include <queue>
-#include <unordered_map>
 
 namespace esengine::ecs {
 
@@ -61,6 +60,8 @@ namespace esengine::ecs {
  */
 class Registry {
 public:
+    static constexpr u32 MAX_TRACKED_COMPONENTS = 64;
+
     Registry() = default;
     ~Registry() = default;
 
@@ -94,9 +95,11 @@ public:
         if (entity >= entityValid_.size()) {
             entityValid_.resize(entity + 1, false);
             generations_.resize(entity + 1, 0);
+            component_masks_.resize(entity + 1, 0);
         }
         entityValid_[entity] = true;
         generations_[entity]++;
+        component_masks_[entity] = 0;
         ++entity_count_;
 
         ES_LOG_TRACE("Created entity {}", entity);
@@ -130,9 +133,11 @@ public:
         if (entity >= entityValid_.size()) {
             entityValid_.resize(entity + 1, false);
             generations_.resize(entity + 1, 0);
+            component_masks_.resize(entity + 1, 0);
         }
         entityValid_[entity] = true;
         generations_[entity]++;
+        component_masks_[entity] = 0;
         ++entity_count_;
 
         if (entity >= nextEntity_) {
@@ -153,14 +158,23 @@ public:
     void destroy(Entity entity) {
         if (!valid(entity)) return;
 
-        // Remove all static components from this entity
-        for (auto& [typeId, pool] : pools_) {
-            pool->remove(entity);
+        u64 mask = component_masks_[entity];
+        while (mask != 0) {
+            u32 bit = static_cast<u32>(__builtin_ctzll(mask));
+            if (bit < pools_.size() && pools_[bit]) {
+                pools_[bit]->remove(entity);
+            }
+            mask &= mask - 1;
+        }
+        for (usize i = MAX_TRACKED_COMPONENTS; i < pools_.size(); ++i) {
+            if (pools_[i]) {
+                pools_[i]->remove(entity);
+            }
         }
 
-        // Remove all schema components from this entity
         schemaRegistry_.removeAll(entity);
 
+        component_masks_[entity] = 0;
         entityValid_[entity] = false;
         --entity_count_;
         recycled_.push(entity);
@@ -229,7 +243,12 @@ public:
     T& emplace(Entity entity, Args&&... args) {
         ES_ASSERT(valid(entity), "Invalid entity");
         auto& pool = assurePool<T>();
-        return pool.emplace(entity, std::forward<Args>(args)...);
+        auto& result = pool.emplace(entity, std::forward<Args>(args)...);
+        TypeId typeId = getTypeId<T>();
+        if (typeId < MAX_TRACKED_COMPONENTS) {
+            component_masks_[entity] |= (u64{1} << typeId);
+        }
+        return result;
     }
 
     /**
@@ -251,7 +270,12 @@ public:
             pool.get(entity) = T(std::forward<Args>(args)...);
             return pool.get(entity);
         }
-        return pool.emplace(entity, std::forward<Args>(args)...);
+        auto& result = pool.emplace(entity, std::forward<Args>(args)...);
+        TypeId typeId = getTypeId<T>();
+        if (typeId < MAX_TRACKED_COMPONENTS) {
+            component_masks_[entity] |= (u64{1} << typeId);
+        }
+        return result;
     }
 
     /**
@@ -266,6 +290,10 @@ public:
         auto* pool = getPool<T>();
         if (pool) {
             pool->remove(entity);
+            TypeId typeId = getTypeId<T>();
+            if (typeId < MAX_TRACKED_COMPONENTS && entity < component_masks_.size()) {
+                component_masks_[entity] &= ~(u64{1} << typeId);
+            }
         }
     }
 
@@ -325,7 +353,12 @@ public:
         if (pool.contains(entity)) {
             return pool.get(entity);
         }
-        return pool.emplace(entity, std::forward<Args>(args)...);
+        auto& result = pool.emplace(entity, std::forward<Args>(args)...);
+        TypeId typeId = getTypeId<T>();
+        if (typeId < MAX_TRACKED_COMPONENTS) {
+            component_masks_[entity] |= (u64{1} << typeId);
+        }
+        return result;
     }
 
     /**
@@ -402,11 +435,14 @@ public:
      * @details Resets the registry to its initial empty state.
      */
     void clear() {
-        for (auto& [typeId, pool] : pools_) {
-            pool->clear();
+        for (auto& pool : pools_) {
+            if (pool) {
+                pool->clear();
+            }
         }
         entityValid_.clear();
         generations_.clear();
+        component_masks_.clear();
         while (!recycled_.empty()) recycled_.pop();
         nextEntity_ = 0;
         entity_count_ = 0;
@@ -511,6 +547,11 @@ public:
         return schemaRegistry_.getPoolStride(poolId);
     }
 
+    /** @brief Gets schema pool version (detects reallocation) */
+    u32 getSchemaPoolVersion(u32 poolId) const {
+        return schemaRegistry_.getPoolVersion(poolId);
+    }
+
     /** @brief Gets entities with schema component */
     const std::vector<Entity>& getSchemaEntities(u32 poolId) const {
         return schemaRegistry_.getEntities(poolId);
@@ -533,14 +574,13 @@ private:
     template<typename T>
     SparseSet<T>& assurePool() {
         TypeId typeId = getTypeId<T>();
-        auto it = pools_.find(typeId);
-        if (it == pools_.end()) {
-            auto pool = makeUnique<SparseSet<T>>();
-            auto& ref = *pool;
-            pools_[typeId] = std::move(pool);
-            return ref;
+        if (typeId >= pools_.size()) {
+            pools_.resize(typeId + 1);
         }
-        return *static_cast<SparseSet<T>*>(it->second.get());
+        if (!pools_[typeId]) {
+            pools_[typeId] = makeUnique<SparseSet<T>>();
+        }
+        return *static_cast<SparseSet<T>*>(pools_[typeId].get());
     }
 
     /**
@@ -551,17 +591,15 @@ private:
     template<typename T>
     SparseSet<T>* getPool() {
         TypeId typeId = getTypeId<T>();
-        auto it = pools_.find(typeId);
-        if (it == pools_.end()) return nullptr;
-        return static_cast<SparseSet<T>*>(it->second.get());
+        if (typeId >= pools_.size() || !pools_[typeId]) return nullptr;
+        return static_cast<SparseSet<T>*>(pools_[typeId].get());
     }
 
     template<typename T>
     const SparseSet<T>* getPool() const {
         TypeId typeId = getTypeId<T>();
-        auto it = pools_.find(typeId);
-        if (it == pools_.end()) return nullptr;
-        return static_cast<const SparseSet<T>*>(it->second.get());
+        if (typeId >= pools_.size() || !pools_[typeId]) return nullptr;
+        return static_cast<const SparseSet<T>*>(pools_[typeId].get());
     }
 
     // =========================================================================
@@ -570,12 +608,13 @@ private:
 
     std::vector<bool> entityValid_;
     std::vector<u32> generations_;
+    std::vector<u64> component_masks_;
     std::queue<Entity> recycled_;
     Entity nextEntity_ = 0;
     usize entity_count_ = 0;
 
     /** @brief Type-erased component pools indexed by TypeId */
-    std::unordered_map<TypeId, Unique<SparseSetBase>> pools_;
+    std::vector<Unique<SparseSetBase>> pools_;
 
     /** @brief Schema component registry for script-defined components */
     SchemaRegistry schemaRegistry_;
