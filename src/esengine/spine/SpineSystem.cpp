@@ -43,13 +43,13 @@ void SpineSystem::update(ecs::Registry& registry, f32 deltaTime) {
         }
     }
 
-    std::vector<Entity> toRemove;
+    pending_remove_.clear();
     for (auto& [entity, instance] : instances_) {
         if (!registry.valid(entity) || !registry.has<ecs::SpineAnimation>(entity)) {
-            toRemove.push_back(entity);
+            pending_remove_.push_back(entity);
         }
     }
-    for (Entity e : toRemove) {
+    for (Entity e : pending_remove_) {
         instances_.erase(e);
     }
 }
@@ -134,6 +134,10 @@ void SpineSystem::reloadAssets(ecs::Registry& registry) {
     auto view = registry.view<ecs::SpineAnimation>();
     for (auto entity : view) {
         auto& comp = registry.get<ecs::SpineAnimation>(entity);
+        if (comp.skeletonData.isValid()) {
+            resource_manager_.release(comp.skeletonData);
+            comp.skeletonData = {};
+        }
         comp.needsReload = true;
     }
 }

@@ -35,11 +35,14 @@ void Input::shutdown() {
 }
 
 void Input::update() {
-    // Store previous frame's state
     prevTouchStates_ = touchStates_;
-    prevKeyStates_ = keyStates_;
-
-    // Clear per-frame values
+    std::swap(prevKeyStates_, keyStates_);
+    keyStates_.clear();
+    for (const auto& [key, pressed] : prevKeyStates_) {
+        if (pressed) {
+            keyStates_[key] = true;
+        }
+    }
     scrollDelta_ = glm::vec2(0.0f);
 }
 
@@ -122,7 +125,7 @@ void Input::onTouchEvent(TouchType type, const TouchPoint& point) {
 
     // Find existing touch with this ID
     for (u32 i = 0; i < MAX_TOUCH_POINTS; ++i) {
-        if (touchStates_[i].active && static_cast<i32>(i) == point.id) {
+        if (touchStates_[i].active && touchStates_[i].touchId == point.id) {
             index = i;
             break;
         }
@@ -145,6 +148,7 @@ void Input::onTouchEvent(TouchType type, const TouchPoint& point) {
     switch (type) {
     case TouchType::Begin:
         state.active = true;
+        state.touchId = point.id;
         state.x = point.x;
         state.y = point.y;
         state.startX = point.x;
@@ -159,6 +163,7 @@ void Input::onTouchEvent(TouchType type, const TouchPoint& point) {
     case TouchType::End:
     case TouchType::Cancel:
         state.active = false;
+        state.touchId = -1;
         break;
     }
 

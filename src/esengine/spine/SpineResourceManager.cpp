@@ -95,7 +95,8 @@ resource::SpineDataHandle SpineResourceManager::load(const std::string& skeleton
         return resource::SpineDataHandle();
     }
 
-    auto cacheIt = cache_.find(skeletonPath);
+    std::string cacheKey = skeletonPath + ":" + atlasPath + ":" + std::to_string(scale);
+    auto cacheIt = cache_.find(cacheKey);
     if (cacheIt != cache_.end()) {
         return cacheIt->second;
     }
@@ -120,7 +121,7 @@ resource::SpineDataHandle SpineResourceManager::load(const std::string& skeleton
         if (data) {
             data->atlas = std::move(atlas);
         }
-        cache_[skeletonPath] = handle;
+        cache_[cacheKey] = handle;
         ES_LOG_INFO("Loaded Spine skeleton: {}", skeletonPath);
     }
 
@@ -190,8 +191,12 @@ void SpineResourceManager::release(resource::SpineDataHandle handle) {
 }
 
 resource::SpineDataHandle SpineResourceManager::getByPath(const std::string& skeletonPath) const {
-    auto it = cache_.find(skeletonPath);
-    return it != cache_.end() ? it->second : resource::SpineDataHandle();
+    for (const auto& [key, handle] : cache_) {
+        if (key == skeletonPath || key.starts_with(skeletonPath + ":")) {
+            return handle;
+        }
+    }
+    return resource::SpineDataHandle();
 }
 
 usize SpineResourceManager::getLoadedCount() const {
