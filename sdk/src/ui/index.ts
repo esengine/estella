@@ -11,6 +11,7 @@ export {
 
 // Shared Helpers
 export {
+    initUIHelpers,
     ensureSprite,
     computeFillAnchors,
     computeHandleAnchors,
@@ -79,7 +80,7 @@ export {
 // UIMask Component
 export {
     UIMask,
-    type MaskMode,
+    MaskMode,
     type UIMaskData,
 } from './UIMask';
 
@@ -324,6 +325,22 @@ export {
     LayoutGroupPlugin,
     layoutGroupPlugin,
 } from './LayoutGroupPlugin';
+
+// FlexContainer Component
+export {
+    FlexContainer,
+    FlexDirection,
+    FlexWrap,
+    JustifyContent,
+    AlignItems,
+    type FlexContainerData,
+} from './FlexContainer';
+
+// FlexItem Component
+export {
+    FlexItem,
+    type FlexItemData,
+} from './FlexItem';
 
 // UIRenderOrder Plugin
 export {

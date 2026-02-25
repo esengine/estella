@@ -13,6 +13,7 @@ import { createSnapshotUtils, type Snapshot } from './uiSnapshot';
 interface ImageSource {
     image: ImageData;
     uiRect: UIRectData | null;
+    entity: Entity;
 }
 
 const imageSnapshot = createSnapshotUtils<ImageSource>({
@@ -29,8 +30,8 @@ const imageSnapshot = createSnapshotUtils<ImageSource>({
     fillAmount: s => s.image.fillAmount,
     tileSizeX: s => s.image.tileSize.x,
     tileSizeY: s => s.image.tileSize.y,
-    rectWidth: s => s.uiRect ? getEffectiveWidth(s.uiRect) : 0,
-    rectHeight: s => s.uiRect ? getEffectiveHeight(s.uiRect) : 0,
+    rectWidth: s => s.uiRect ? getEffectiveWidth(s.uiRect, s.entity) : 0,
+    rectHeight: s => s.uiRect ? getEffectiveHeight(s.uiRect, s.entity) : 0,
     enabled: s => s.image.enabled,
 });
 
@@ -57,7 +58,7 @@ export class ImagePlugin implements Plugin {
                     const uiRect = world.has(entity, UIRect)
                         ? world.get(entity, UIRect) as UIRectData
                         : null;
-                    const source: ImageSource = { image, uiRect };
+                    const source: ImageSource = { image, uiRect, entity };
 
                     const prev = snapshots.get(entity);
                     if (prev && !imageSnapshot.changed(prev, source)) continue;
@@ -82,8 +83,8 @@ export class ImagePlugin implements Plugin {
                     sprite.material = image.material;
 
                     if (uiRect) {
-                        sprite.size.x = getEffectiveWidth(uiRect);
-                        sprite.size.y = getEffectiveHeight(uiRect);
+                        sprite.size.x = getEffectiveWidth(uiRect, entity);
+                        sprite.size.y = getEffectiveHeight(uiRect, entity);
                     }
 
                     sprite.uvOffset.x = 0;

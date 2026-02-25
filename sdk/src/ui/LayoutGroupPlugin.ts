@@ -1,10 +1,11 @@
 import type { App, Plugin } from '../app';
-import { registerComponent, Children, LocalTransform } from '../component';
-import type { ChildrenData, LocalTransformData } from '../component';
+import { registerComponent, Children, Transform } from '../component';
+import type { ChildrenData, TransformData } from '../component';
 import { defineSystem, Schedule } from '../system';
 import { LayoutGroup, LayoutDirection, ChildAlignment } from './LayoutGroup';
 import type { LayoutGroupData } from './LayoutGroup';
 import { UIRect } from './UIRect';
+import { getEffectiveWidth, getEffectiveHeight } from './uiHelpers';
 import type { UIRectData } from './UIRect';
 import type { Entity } from '../types';
 
@@ -27,7 +28,7 @@ export class LayoutGroupPlugin implements Plugin {
 
                     const validChildren: { entity: Entity; rect: UIRectData }[] = [];
                     for (const child of children.entities) {
-                        if (world.valid(child) && world.has(child, UIRect) && world.has(child, LocalTransform)) {
+                        if (world.valid(child) && world.has(child, UIRect) && world.has(child, Transform)) {
                             validChildren.push({
                                 entity: child,
                                 rect: world.get(child, UIRect) as UIRectData,
@@ -40,8 +41,8 @@ export class LayoutGroupPlugin implements Plugin {
                         validChildren.reverse();
                     }
 
-                    const pw = parentRect._computedWidth ?? parentRect.size.x;
-                    const ph = parentRect._computedHeight ?? parentRect.size.y;
+                    const pw = getEffectiveWidth(parentRect, entity);
+                    const ph = getEffectiveHeight(parentRect, entity);
                     const pivotX = parentRect.pivot.x;
                     const pivotY = parentRect.pivot.y;
                     const pad = group.padding;
@@ -51,8 +52,8 @@ export class LayoutGroupPlugin implements Plugin {
 
                     for (let i = 0; i < validChildren.length; i++) {
                         const child = validChildren[i];
-                        const cw = child.rect._computedWidth ?? child.rect.size.x;
-                        const ch = child.rect._computedHeight ?? child.rect.size.y;
+                        const cw = getEffectiveWidth(child.rect, child.entity);
+                        const ch = getEffectiveHeight(child.rect, child.entity);
                         const cpx = child.rect.pivot.x;
                         const cpy = child.rect.pivot.y;
 
@@ -83,12 +84,10 @@ export class LayoutGroupPlugin implements Plugin {
                             if (i < validChildren.length - 1) cursor += group.spacing;
                         }
 
-                        child.rect._layoutManaged = true;
-
-                        const transform = world.get(child.entity, LocalTransform) as LocalTransformData;
+                        const transform = world.get(child.entity, Transform) as TransformData;
                         transform.position.x = localX;
                         transform.position.y = localY;
-                        world.insert(child.entity, LocalTransform, transform);
+                        world.insert(child.entity, Transform, transform);
                     }
                 }
             },

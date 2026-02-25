@@ -1,4 +1,4 @@
-import { defineComponent } from '../component';
+import { defineBuiltin } from '../component';
 
 export interface InteractableData {
     enabled: boolean;
@@ -6,7 +6,7 @@ export interface InteractableData {
     raycastTarget: boolean;
 }
 
-export const Interactable = defineComponent<InteractableData>('Interactable', {
+export const Interactable = defineBuiltin<InteractableData>('Interactable', {
     enabled: true,
     blockRaycast: true,
     raycastTarget: true,

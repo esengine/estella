@@ -11,6 +11,7 @@ import { FocusManager, FocusManagerState } from './Focusable';
 import { UIEvents, UIEventQueue } from './UIEvents';
 import { Res } from '../resource';
 import { platformCreateCanvas } from '../platform';
+import { isEditor } from '../env';
 import { ensureSprite, wrapText, nextPowerOf2, ensureComponent } from './uiHelpers';
 import { CURSOR_BLINK_INTERVAL, TEXT_INPUT_LINE_HEIGHT_RATIO } from './uiConstants';
 
@@ -27,6 +28,9 @@ export class TextInputPlugin implements Plugin {
     build(app: App): void {
         registerComponent('TextInput', TextInput);
 
+        const editorMode = isEditor();
+        if (editorMode) return;
+
         const module = app.wasmModule;
         if (!module) {
             console.warn('TextInputPlugin: No WASM module available');
@@ -38,6 +42,9 @@ export class TextInputPlugin implements Plugin {
         const canvas = platformCreateCanvas(RuntimeConfig.textCanvasSize, 64);
         const ctx = canvas.getContext('2d', { willReadFrequently: true })! as
             CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+
+        let wasmPixelPtr = 0;
+        let wasmPixelSize = 0;
 
         let composing = false;
         let cursorVisible = true;
@@ -139,6 +146,11 @@ export class TextInputPlugin implements Plugin {
                 rm.releaseTexture(tex);
             }
             textureCache.clear();
+            if (wasmPixelPtr !== 0) {
+                module!._free(wasmPixelPtr);
+                wasmPixelPtr = 0;
+                wasmPixelSize = 0;
+            }
         };
 
         function syncFromTextarea(): void {
@@ -365,17 +377,23 @@ export class TextInputPlugin implements Plugin {
             const imageData = ctx.getImageData(0, 0, w, h);
             const pixels = new Uint8Array(imageData.data.buffer);
             const rm = module!.getResourceManager();
-            const ptr = module!._malloc(pixels.length);
-            module!.HEAPU8.set(pixels, ptr);
+
+            if (pixels.length > wasmPixelSize) {
+                if (wasmPixelPtr !== 0) {
+                    module!._free(wasmPixelPtr);
+                }
+                wasmPixelPtr = module!._malloc(pixels.length);
+                wasmPixelSize = pixels.length;
+            }
+            module!.HEAPU8.set(pixels, wasmPixelPtr);
 
             const existingTex = textureCache.get(entity);
             if (existingTex !== undefined) {
                 rm.releaseTexture(existingTex);
             }
 
-            const textureHandle = rm.createTexture(w, h, ptr, pixels.length, 1, true);
+            const textureHandle = rm.createTexture(w, h, wasmPixelPtr, pixels.length, 1, true);
             textureCache.set(entity, textureHandle);
-            module!._free(ptr);
 
             const sprite = world.get(entity, Sprite) as SpriteData;
             sprite.texture = textureHandle;

@@ -10,6 +10,15 @@ import type { Entity, Vec2, Vec3, Vec4, Quat } from './types';
 export interface UVec2 { x: number; y: number; }
 export type Mat4 = number[];
 
+// Emscripten Vector Types
+export interface VectorEntity {
+    size(): number;
+    get(index: number): number;
+    push_back(value: number): void;
+    set(index: number, value: number): boolean;
+    delete(): void;
+}
+
 // Enums
 
 export enum BodyType {
@@ -22,6 +31,39 @@ export enum TextAlign {
     Left = 0,
     Center = 1,
     Right = 2,
+}
+
+export enum MaskMode {
+    Scissor = 0,
+    Stencil = 1,
+}
+
+export enum FlexDirection {
+    Row = 0,
+    Column = 1,
+    RowReverse = 2,
+    ColumnReverse = 3,
+}
+
+export enum FlexWrap {
+    NoWrap = 0,
+    Wrap = 1,
+}
+
+export enum JustifyContent {
+    Start = 0,
+    Center = 1,
+    End = 2,
+    SpaceBetween = 3,
+    SpaceAround = 4,
+    SpaceEvenly = 5,
+}
+
+export enum AlignItems {
+    Start = 0,
+    Center = 1,
+    End = 2,
+    Stretch = 3,
 }
 
 export enum CanvasScaleMode {
@@ -38,6 +80,22 @@ export enum ProjectionType {
 }
 
 // Components
+
+export interface UIRect {
+    anchorMin: Vec2;
+    anchorMax: Vec2;
+    offsetMin: Vec2;
+    offsetMax: Vec2;
+    size: Vec2;
+    pivot: Vec2;
+}
+
+export interface FlexItem {
+    flexGrow: number;
+    flexShrink: number;
+    flexBasis: number;
+    order: number;
+}
 
 export interface BoxCollider {
     halfExtents: Vec2;
@@ -70,16 +128,13 @@ export interface CapsuleCollider {
     enabled: boolean;
 }
 
-export interface LocalTransform {
+export interface Transform {
     position: Vec3;
     rotation: Quat;
     scale: Vec3;
-}
-
-export interface WorldTransform {
-    position: Vec3;
-    rotation: Quat;
-    scale: Vec3;
+    worldPosition: Vec3;
+    worldRotation: Quat;
+    worldScale: Vec3;
 }
 
 export interface Velocity {
@@ -102,6 +157,19 @@ export interface SpineAnimation {
     skeletonScale: number;
     material: number;
     enabled: boolean;
+}
+
+export interface Interactable {
+    enabled: boolean;
+    blockRaycast: boolean;
+    raycastTarget: boolean;
+}
+
+export interface UIInteraction {
+    hovered: boolean;
+    pressed: boolean;
+    justPressed: boolean;
+    justReleased: boolean;
 }
 
 export interface RigidBody {
@@ -138,11 +206,29 @@ export interface Sprite {
     enabled: boolean;
 }
 
+export interface UIMask {
+    enabled: boolean;
+    mode: number;
+}
+
+export interface FlexContainer {
+    direction: number;
+    wrap: number;
+    justifyContent: number;
+    alignItems: number;
+    gap: Vec2;
+    padding: Vec4;
+}
+
 export interface Parent {
     entity: number;
 }
 
 export interface Children {
+    entities: VectorEntity;
+}
+
+export interface ScreenSpace {
 }
 
 export interface Canvas {
@@ -176,6 +262,14 @@ export interface Registry {
     valid(entity: Entity): boolean;
     entityCount(): number;
 
+    hasUIRect(entity: Entity): boolean;
+    getUIRect(entity: Entity): UIRect;
+    addUIRect(entity: Entity, component: UIRect): void;
+    removeUIRect(entity: Entity): void;
+    hasFlexItem(entity: Entity): boolean;
+    getFlexItem(entity: Entity): FlexItem;
+    addFlexItem(entity: Entity, component: FlexItem): void;
+    removeFlexItem(entity: Entity): void;
     hasBoxCollider(entity: Entity): boolean;
     getBoxCollider(entity: Entity): BoxCollider;
     addBoxCollider(entity: Entity, component: BoxCollider): void;
@@ -188,14 +282,10 @@ export interface Registry {
     getCapsuleCollider(entity: Entity): CapsuleCollider;
     addCapsuleCollider(entity: Entity, component: CapsuleCollider): void;
     removeCapsuleCollider(entity: Entity): void;
-    hasLocalTransform(entity: Entity): boolean;
-    getLocalTransform(entity: Entity): LocalTransform;
-    addLocalTransform(entity: Entity, component: LocalTransform): void;
-    removeLocalTransform(entity: Entity): void;
-    hasWorldTransform(entity: Entity): boolean;
-    getWorldTransform(entity: Entity): WorldTransform;
-    addWorldTransform(entity: Entity, component: WorldTransform): void;
-    removeWorldTransform(entity: Entity): void;
+    hasTransform(entity: Entity): boolean;
+    getTransform(entity: Entity): Transform;
+    addTransform(entity: Entity, component: Transform): void;
+    removeTransform(entity: Entity): void;
     hasVelocity(entity: Entity): boolean;
     getVelocity(entity: Entity): Velocity;
     addVelocity(entity: Entity, component: Velocity): void;
@@ -204,6 +294,14 @@ export interface Registry {
     getSpineAnimation(entity: Entity): SpineAnimation;
     addSpineAnimation(entity: Entity, component: SpineAnimation): void;
     removeSpineAnimation(entity: Entity): void;
+    hasInteractable(entity: Entity): boolean;
+    getInteractable(entity: Entity): Interactable;
+    addInteractable(entity: Entity, component: Interactable): void;
+    removeInteractable(entity: Entity): void;
+    hasUIInteraction(entity: Entity): boolean;
+    getUIInteraction(entity: Entity): UIInteraction;
+    addUIInteraction(entity: Entity, component: UIInteraction): void;
+    removeUIInteraction(entity: Entity): void;
     hasRigidBody(entity: Entity): boolean;
     getRigidBody(entity: Entity): RigidBody;
     addRigidBody(entity: Entity, component: RigidBody): void;
@@ -216,6 +314,14 @@ export interface Registry {
     getSprite(entity: Entity): Sprite;
     addSprite(entity: Entity, component: Sprite): void;
     removeSprite(entity: Entity): void;
+    hasUIMask(entity: Entity): boolean;
+    getUIMask(entity: Entity): UIMask;
+    addUIMask(entity: Entity, component: UIMask): void;
+    removeUIMask(entity: Entity): void;
+    hasFlexContainer(entity: Entity): boolean;
+    getFlexContainer(entity: Entity): FlexContainer;
+    addFlexContainer(entity: Entity, component: FlexContainer): void;
+    removeFlexContainer(entity: Entity): void;
     hasParent(entity: Entity): boolean;
     getParent(entity: Entity): Parent;
     addParent(entity: Entity, component: Parent): void;
@@ -224,6 +330,10 @@ export interface Registry {
     getChildren(entity: Entity): Children;
     addChildren(entity: Entity, component: Children): void;
     removeChildren(entity: Entity): void;
+    hasScreenSpace(entity: Entity): boolean;
+    getScreenSpace(entity: Entity): ScreenSpace;
+    addScreenSpace(entity: Entity, component: ScreenSpace): void;
+    removeScreenSpace(entity: Entity): void;
     hasCanvas(entity: Entity): boolean;
     getCanvas(entity: Entity): Canvas;
     addCanvas(entity: Entity, component: Canvas): void;
@@ -240,18 +350,24 @@ export interface Registry {
 // Module
 export interface ESEngineModule {
     Registry: new () => Registry;
+    UIRect: new () => UIRect;
+    FlexItem: new () => FlexItem;
     BoxCollider: new () => BoxCollider;
     CircleCollider: new () => CircleCollider;
     CapsuleCollider: new () => CapsuleCollider;
-    LocalTransform: new () => LocalTransform;
-    WorldTransform: new () => WorldTransform;
+    Transform: new () => Transform;
     Velocity: new () => Velocity;
     SpineAnimation: new () => SpineAnimation;
+    Interactable: new () => Interactable;
+    UIInteraction: new () => UIInteraction;
     RigidBody: new () => RigidBody;
     BitmapText: new () => BitmapText;
     Sprite: new () => Sprite;
+    UIMask: new () => UIMask;
+    FlexContainer: new () => FlexContainer;
     Parent: new () => Parent;
     Children: new () => Children;
+    ScreenSpace: new () => ScreenSpace;
     Canvas: new () => Canvas;
     Camera: new () => Camera;
 }

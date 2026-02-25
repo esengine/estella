@@ -87,6 +87,10 @@ export interface ESEngineModule {
     getResourceManager(): CppResourceManager;
     getSpineBounds?(registry: CppRegistry, entity: number): SpineBounds;
 
+    // Material cache
+    invalidateMaterialCache(materialId: number): void;
+    clearMaterialCache(): void;
+
     // ImmediateDraw API
     draw_begin(matrixPtr: number): void;
     draw_end(): void;
@@ -188,11 +192,24 @@ export interface ESEngineModule {
     registry_getCanvasEntity(registry: CppRegistry): number;
     registry_getCameraEntities(registry: CppRegistry): number[];
     getChildEntities(registry: CppRegistry, entity: number): number[];
+    registry_getGeneration(registry: CppRegistry, entity: number): number;
+    registry_getSchemaPoolVersion(registry: CppRegistry, poolId: number): number;
 
     // GL Debug API
     gl_enableErrorCheck(enabled: boolean): void;
     gl_checkErrors(context: string): number;
     renderer_diagnose(): void;
+
+    // UI Systems
+    uiLayout_update(registry: CppRegistry, camLeft: number, camBottom: number, camRight: number, camTop: number): void;
+    uiHitTest_update(registry: CppRegistry, mouseWorldX: number, mouseWorldY: number, mouseDown: boolean, mousePressed: boolean, mouseReleased: boolean): void;
+    uiHitTest_getHitEntity(): number;
+    uiHitTest_getHitEntityPrev(): number;
+    uiRenderOrder_update(registry: CppRegistry): void;
+    uiFlexLayout_update(registry: CppRegistry): void;
+    getUIRectComputedWidth(registry: CppRegistry, entity: number): number;
+    getUIRectComputedHeight(registry: CppRegistry, entity: number): number;
+    transform_update(registry: CppRegistry): void;
 
     _malloc(size: number): number;
     _free(ptr: number): void;

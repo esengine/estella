@@ -1,6 +1,6 @@
 import type { App, Plugin } from '../app';
-import { registerComponent, LocalTransform } from '../component';
-import type { LocalTransformData } from '../component';
+import { registerComponent, Transform } from '../component';
+import type { TransformData } from '../component';
 import { defineSystem, Schedule } from '../system';
 import { Res } from '../resource';
 import { Input } from '../input';
@@ -11,11 +11,12 @@ import type { ScrollViewData } from './ScrollView';
 import { UIRect } from './UIRect';
 import type { UIRectData } from './UIRect';
 import { Interactable } from './Interactable';
-import { UIMask } from './UIMask';
+import { UIMask, MaskMode } from './UIMask';
 import { UIInteraction } from './UIInteraction';
 import type { UIInteractionData } from './UIInteraction';
 import { UICameraInfo } from './UICameraInfo';
 import type { UICameraData } from './UICameraInfo';
+import { isEditor } from '../env';
 import { getEffectiveWidth, getEffectiveHeight, ensureComponent } from './uiHelpers';
 import {
     SCROLL_VELOCITY_SMOOTHING, SCROLL_VELOCITY_NEW_WEIGHT,
@@ -36,12 +37,16 @@ export class ScrollViewPlugin implements Plugin {
         registerComponent('ScrollView', ScrollView);
 
         const world = app.world;
+        const editorMode = isEditor();
         const states = new Map<Entity, ScrollState>();
         let lastTime = 0;
+        const worldMouse = { x: 0, y: 0 };
 
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
             [Res(Input), Res(UICameraInfo)],
             (input: InputState, camera: UICameraData) => {
+                if (editorMode) return;
+
                 const now = performance.now() / 1000;
                 const dt = lastTime > 0 ? Math.min(now - lastTime, SCROLL_MAX_DT) : 0;
                 lastTime = now;
@@ -52,12 +57,13 @@ export class ScrollViewPlugin implements Plugin {
                     if (!world.valid(e)) states.delete(e);
                 }
 
-                const worldMouse = { x: camera.worldMouseX, y: camera.worldMouseY };
+                worldMouse.x = camera.worldMouseX;
+                worldMouse.y = camera.worldMouseY;
 
                 const entities = world.getEntitiesWithComponents([ScrollView, UIRect]);
                 for (const entity of entities) {
                     ensureComponent(world, entity, Interactable, { enabled: true, blockRaycast: true });
-                    ensureComponent(world, entity, UIMask, { enabled: true, mode: 'scissor' });
+                    ensureComponent(world, entity, UIMask, { enabled: true, mode: MaskMode.Scissor });
 
                     const sv = world.get(entity, ScrollView) as ScrollViewData;
                     const rect = world.get(entity, UIRect) as UIRectData;
@@ -131,8 +137,8 @@ export class ScrollViewPlugin implements Plugin {
                         }
                     }
 
-                    const viewW = getEffectiveWidth(rect);
-                    const viewH = getEffectiveHeight(rect);
+                    const viewW = getEffectiveWidth(rect, entity);
+                    const viewH = getEffectiveHeight(rect, entity);
                     const maxScrollX = Math.max(0, sv.contentWidth - viewW);
                     const maxScrollY = Math.max(0, sv.contentHeight - viewH);
                     const prevScrollX = sv.scrollX;
@@ -143,11 +149,11 @@ export class ScrollViewPlugin implements Plugin {
                     if (sv.scrollY !== prevScrollY) state.velocityY = 0;
 
                     if (sv.contentEntity !== 0 && world.valid(sv.contentEntity)) {
-                        if (world.has(sv.contentEntity, LocalTransform)) {
-                            const lt = world.get(sv.contentEntity, LocalTransform) as LocalTransformData;
+                        if (world.has(sv.contentEntity, Transform)) {
+                            const lt = world.get(sv.contentEntity, Transform) as TransformData;
                             lt.position.x = -sv.scrollX;
                             lt.position.y = sv.scrollY;
-                            world.insert(sv.contentEntity, LocalTransform, lt);
+                            world.insert(sv.contentEntity, Transform, lt);
                         }
                     }
                 }

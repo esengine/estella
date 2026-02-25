@@ -22,6 +22,11 @@
 #include "GeometryBindings.hpp"
 #include "PostProcessBindings.hpp"
 
+#include "../ecs/UILayoutSystem.hpp"
+#include "../ecs/UIHitTestSystem.hpp"
+#include "../ecs/UIRenderOrderSystem.hpp"
+#include "../ecs/UIFlexLayoutSystem.hpp"
+
 #include "../renderer/OpenGLHeaders.hpp"
 #include "../renderer/RenderContext.hpp"
 #include "../renderer/RenderFrame.hpp"
@@ -64,6 +69,19 @@ EM_JS(void, callMaterialProvider, (int materialId, int outShaderIdPtr, int outBl
     }
 });
 
+struct CachedMaterialData {
+    u32 shaderId = 0;
+    u32 blendMode = 0;
+    std::vector<MaterialUniformData> uniforms;
+};
+static std::unordered_map<u32, CachedMaterialData> s_materialCache;
+
+void clearMaterialCache() { s_materialCache.clear(); }
+
+void invalidateMaterialCache(u32 materialId) {
+    s_materialCache.erase(materialId);
+}
+
 bool getMaterialData(u32 materialId, u32& shaderId, u32& blendMode) {
     if (materialId == 0) {
         return false;
@@ -79,16 +97,18 @@ bool getMaterialData(u32 materialId, u32& shaderId, u32& blendMode) {
     return shaderId != 0;
 }
 
-struct UniformData {
-    char name[32];
-    u32 type;
-    f32 values[4];
-};
-
 bool getMaterialDataWithUniforms(u32 materialId, u32& shaderId, u32& blendMode,
-                                  std::vector<UniformData>& uniforms) {
+                                  std::vector<MaterialUniformData>& uniforms) {
     if (materialId == 0) {
         return false;
+    }
+
+    auto cacheIt = s_materialCache.find(materialId);
+    if (cacheIt != s_materialCache.end()) {
+        shaderId = cacheIt->second.shaderId;
+        blendMode = cacheIt->second.blendMode;
+        uniforms = cacheIt->second.uniforms;
+        return shaderId != 0;
     }
 
     u32 uniformBufferPtr = 0;
@@ -100,7 +120,10 @@ bool getMaterialDataWithUniforms(u32 materialId, u32& shaderId, u32& blendMode,
         toPtr(&uniformBufferPtr),
         toPtr(&uniformCount));
 
-    if (shaderId == 0) return false;
+    if (shaderId == 0) {
+        s_materialCache[materialId] = {};
+        return false;
+    }
 
     constexpr u32 MAX_UNIFORMS = 64;
     if (uniformCount > MAX_UNIFORMS) {
@@ -123,7 +146,7 @@ bool getMaterialDataWithUniforms(u32 materialId, u32& shaderId, u32& blendMode,
             usize alignedNameLen = ((nameLen + 3) / 4) * 4;
             if (ptr + alignedNameLen > bufferEnd) break;
 
-            UniformData ud;
+            MaterialUniformData ud;
             usize copyLen = std::min<usize>(nameLen, 31);
             std::memcpy(ud.name, reinterpret_cast<const char*>(ptr), copyLen);
             ud.name[copyLen] = '\0';
@@ -141,7 +164,43 @@ bool getMaterialDataWithUniforms(u32 materialId, u32& shaderId, u32& blendMode,
         }
     }
 
+    s_materialCache[materialId] = { shaderId, blendMode, uniforms };
     return true;
+}
+
+static void initSubsystems() {
+    auto resourceManager = makeUnique<resource::ResourceManager>();
+    resourceManager->init();
+    ctx().setResourceManager(std::move(resourceManager));
+
+    auto renderContext = makeUnique<RenderContext>();
+    renderContext->init();
+    ctx().setRenderContext(std::move(renderContext));
+
+    ctx().setTransformSystem(makeUnique<ecs::TransformSystem>());
+
+#ifdef ES_ENABLE_SPINE
+    auto spineResourceManager = makeUnique<spine::SpineResourceManager>(*g_resourceManager);
+    spineResourceManager->init();
+    ctx().setSpineResourceManager(std::move(spineResourceManager));
+    ctx().setSpineSystem(makeUnique<spine::SpineSystem>(*g_spineResourceManager));
+#endif
+
+    auto immediateDraw = makeUnique<ImmediateDraw>(*g_renderContext, *g_resourceManager);
+    immediateDraw->init();
+    ctx().setImmediateDraw(std::move(immediateDraw));
+
+    ctx().setGeometryManager(makeUnique<GeometryManager>());
+
+    auto renderFrame = makeUnique<RenderFrame>(*g_renderContext, *g_resourceManager);
+    renderFrame->init(1280, 720);
+    ctx().setRenderFrame(std::move(renderFrame));
+
+    ctx().setInitialized(true);
+
+    const auto& cc = ctx().clearColor();
+    glClearColor(cc.r, cc.g, cc.b, cc.a);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
 bool initRendererInternal(const char* canvasSelector) {
@@ -175,38 +234,7 @@ bool initRendererInternal(const char* canvasSelector) {
 
     ES_LOG_INFO("WebGL2 context created for '{}'", canvasSelector);
 
-    auto resourceManager = makeUnique<resource::ResourceManager>();
-    resourceManager->init();
-    ctx().setResourceManager(std::move(resourceManager));
-
-    auto renderContext = makeUnique<RenderContext>();
-    renderContext->init();
-    ctx().setRenderContext(std::move(renderContext));
-
-    ctx().setTransformSystem(makeUnique<ecs::TransformSystem>());
-
-#ifdef ES_ENABLE_SPINE
-    auto spineResourceManager = makeUnique<spine::SpineResourceManager>(*g_resourceManager);
-    spineResourceManager->init();
-    ctx().setSpineResourceManager(std::move(spineResourceManager));
-    ctx().setSpineSystem(makeUnique<spine::SpineSystem>(*g_spineResourceManager));
-#endif
-
-    auto immediateDraw = makeUnique<ImmediateDraw>(*g_renderContext, *g_resourceManager);
-    immediateDraw->init();
-    ctx().setImmediateDraw(std::move(immediateDraw));
-
-    ctx().setGeometryManager(makeUnique<GeometryManager>());
-
-    auto renderFrame = makeUnique<RenderFrame>(*g_renderContext, *g_resourceManager);
-    renderFrame->init(1280, 720);
-    ctx().setRenderFrame(std::move(renderFrame));
-
-    ctx().setInitialized(true);
-
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
+    initSubsystems();
     return true;
 }
 
@@ -235,38 +263,7 @@ bool initRendererWithContext(int contextHandle) {
 
     ES_LOG_INFO("WebGL context set from external handle: {}", contextHandle);
 
-    auto resourceManager = makeUnique<resource::ResourceManager>();
-    resourceManager->init();
-    ctx().setResourceManager(std::move(resourceManager));
-
-    auto renderContext = makeUnique<RenderContext>();
-    renderContext->init();
-    ctx().setRenderContext(std::move(renderContext));
-
-    ctx().setTransformSystem(makeUnique<ecs::TransformSystem>());
-
-#ifdef ES_ENABLE_SPINE
-    auto spineResourceManager = makeUnique<spine::SpineResourceManager>(*g_resourceManager);
-    spineResourceManager->init();
-    ctx().setSpineResourceManager(std::move(spineResourceManager));
-    ctx().setSpineSystem(makeUnique<spine::SpineSystem>(*g_spineResourceManager));
-#endif
-
-    auto immediateDraw = makeUnique<ImmediateDraw>(*g_renderContext, *g_resourceManager);
-    immediateDraw->init();
-    ctx().setImmediateDraw(std::move(immediateDraw));
-
-    ctx().setGeometryManager(makeUnique<GeometryManager>());
-
-    auto renderFrame = makeUnique<RenderFrame>(*g_renderContext, *g_resourceManager);
-    renderFrame->init(1280, 720);
-    ctx().setRenderFrame(std::move(renderFrame));
-
-    ctx().setInitialized(true);
-
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
+    initSubsystems();
     return true;
 }
 
@@ -316,6 +313,9 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
 
     emscripten::function("getSpineBounds", &esengine::getSpineBounds);
 #endif
+
+    emscripten::function("invalidateMaterialCache", &esengine::invalidateMaterialCache);
+    emscripten::function("clearMaterialCache", &esengine::clearMaterialCache);
 
     emscripten::function("draw_begin", &esengine::draw_begin);
     emscripten::function("draw_end", &esengine::draw_end);
@@ -384,6 +384,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_getText", &esengine::renderer_getText);
     emscripten::function("renderer_getMeshes", &esengine::renderer_getMeshes);
     emscripten::function("renderer_getCulled", &esengine::renderer_getCulled);
+    emscripten::function("renderer_setDeltaTime", &esengine::renderer_setDeltaTime);
     emscripten::function("renderer_setClearColor", &esengine::renderer_setClearColor);
     emscripten::function("renderer_setViewport", &esengine::renderer_setViewport);
     emscripten::function("renderer_setScissor", &esengine::renderer_setScissor);
@@ -401,10 +402,78 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("registry_getCanvasEntity", &esengine::registry_getCanvasEntity);
     emscripten::function("registry_getCameraEntities", &esengine::registry_getCameraEntities);
     emscripten::function("getChildEntities", &esengine::getChildEntities);
+    emscripten::function("registry_getGeneration", &esengine::registry_getGeneration);
+    emscripten::function("registry_getSchemaPoolVersion", &esengine::registry_getSchemaPoolVersion);
 
     emscripten::function("gl_enableErrorCheck", &esengine::gl_enableErrorCheck);
     emscripten::function("gl_checkErrors", &esengine::gl_checkErrors);
     emscripten::function("renderer_diagnose", &esengine::renderer_diagnose);
+}
+
+// =============================================================================
+// UI Systems
+// =============================================================================
+
+namespace esengine {
+
+void uiLayout_update(ecs::Registry& registry, f32 camLeft, f32 camBottom, f32 camRight, f32 camTop) {
+    ecs::uiLayoutUpdate(registry, camLeft, camBottom, camRight, camTop);
+}
+
+void uiHitTest_update(ecs::Registry& registry, f32 mouseWorldX, f32 mouseWorldY,
+                       bool mouseDown, bool mousePressed, bool mouseReleased) {
+    ecs::uiHitTestUpdate(registry, mouseWorldX, mouseWorldY, mouseDown, mousePressed, mouseReleased);
+}
+
+u32 uiHitTest_getHitEntity() {
+    return ecs::uiHitTestGetHitEntity();
+}
+
+u32 uiHitTest_getHitEntityPrev() {
+    return ecs::uiHitTestGetHitEntityPrev();
+}
+
+void uiRenderOrder_update(ecs::Registry& registry) {
+    ecs::uiRenderOrderUpdate(registry);
+}
+
+void uiFlexLayout_update(ecs::Registry& registry) {
+    ecs::uiFlexLayoutUpdate(registry);
+}
+
+f32 getUIRectComputedWidth(ecs::Registry& registry, u32 entity) {
+    auto* rect = registry.tryGet<ecs::UIRect>(static_cast<Entity>(entity));
+    if (!rect) return 0.0f;
+    return rect->computed_width_;
+}
+
+f32 getUIRectComputedHeight(ecs::Registry& registry, u32 entity) {
+    auto* rect = registry.tryGet<ecs::UIRect>(static_cast<Entity>(entity));
+    if (!rect) return 0.0f;
+    return rect->computed_height_;
+}
+
+void transform_update(ecs::Registry& registry) {
+    if (ctx().transformSystem()) {
+        ctx().transformSystem()->update(registry, 0.0f);
+    } else {
+        ecs::TransformSystem ts;
+        ts.update(registry, 0.0f);
+    }
+}
+
+}  // namespace esengine
+
+EMSCRIPTEN_BINDINGS(esengine_ui_systems) {
+    emscripten::function("uiLayout_update", &esengine::uiLayout_update);
+    emscripten::function("uiHitTest_update", &esengine::uiHitTest_update);
+    emscripten::function("uiHitTest_getHitEntity", &esengine::uiHitTest_getHitEntity);
+    emscripten::function("uiHitTest_getHitEntityPrev", &esengine::uiHitTest_getHitEntityPrev);
+    emscripten::function("uiRenderOrder_update", &esengine::uiRenderOrder_update);
+    emscripten::function("uiFlexLayout_update", &esengine::uiFlexLayout_update);
+    emscripten::function("getUIRectComputedWidth", &esengine::getUIRectComputedWidth);
+    emscripten::function("getUIRectComputedHeight", &esengine::getUIRectComputedHeight);
+    emscripten::function("transform_update", &esengine::transform_update);
 }
 
 int main() {

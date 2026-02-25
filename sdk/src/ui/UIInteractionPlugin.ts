@@ -1,61 +1,29 @@
 import type { App, Plugin } from '../app';
-import { registerComponent, WorldTransform, Sprite } from '../component';
-import type { WorldTransformData, SpriteData } from '../component';
+import { registerComponent, Transform, Sprite } from '../component';
+import type { SpriteData } from '../component';
 import { defineSystem, Schedule } from '../system';
 import { Res } from '../resource';
 import { Input } from '../input';
 import type { InputState } from '../input';
 import type { Entity } from '../types';
 import type { World } from '../world';
+import { isEditor } from '../env';
 import { Interactable } from './Interactable';
-import type { InteractableData } from './Interactable';
 import { UIInteraction } from './UIInteraction';
 import type { UIInteractionData } from './UIInteraction';
-import { UIRect } from './UIRect';
-import type { UIRectData } from './UIRect';
 import { Button, ButtonState } from './Button';
 import type { ButtonData } from './Button';
 import { UIEvents, UIEventQueue } from './UIEvents';
 import type { UIEventType } from './UIEvents';
 import { UICameraInfo } from './UICameraInfo';
 import type { UICameraData } from './UICameraInfo';
-import { UIMask } from './UIMask';
-import type { UIMaskData } from './UIMask';
-import { screenToWorld, pointInOBB, createInvVPCache } from './uiMath';
+import type { InteractableData } from './Interactable';
+import { screenToWorld, createInvVPCache } from './uiMath';
 import { platformDevicePixelRatio } from '../platform';
-import { applyColorTransition, getEffectiveWidth, getEffectiveHeight, ensureComponent, walkParentChain } from './uiHelpers';
+import { applyColorTransition, ensureComponent, walkParentChain } from './uiHelpers';
+import type { ESEngineModule, CppRegistry } from '../wasm';
 
 const vpCache = createInvVPCache();
-
-function isClippedByMask(
-    world: World,
-    entity: Entity,
-    worldMouseX: number,
-    worldMouseY: number,
-): boolean {
-    let clipped = false;
-    walkParentChain(world, entity, (ancestor) => {
-        if (!world.has(ancestor, UIMask)) return false;
-        const mask = world.get(ancestor, UIMask) as UIMaskData;
-        if (!mask.enabled || !world.has(ancestor, UIRect) || !world.has(ancestor, WorldTransform)) return false;
-        const wt = world.get(ancestor, WorldTransform) as WorldTransformData;
-        const rect = world.get(ancestor, UIRect) as UIRectData;
-        const maskW = getEffectiveWidth(rect) * wt.scale.x;
-        const maskH = getEffectiveHeight(rect) * wt.scale.y;
-        if (!pointInOBB(
-            worldMouseX, worldMouseY,
-            wt.position.x, wt.position.y,
-            maskW, maskH,
-            rect.pivot.x, rect.pivot.y,
-            wt.rotation.z, wt.rotation.w,
-        )) {
-            clipped = true;
-            return true;
-        }
-        return false;
-    });
-    return clipped;
-}
 
 function emitWithBubbling(
     world: World,
@@ -81,8 +49,12 @@ export class UIInteractionPlugin implements Plugin {
         registerComponent('Button', Button);
 
         const world = app.world;
+        const module = app.wasmModule as ESEngineModule;
+        const registry = world.getCppRegistry() as CppRegistry;
         const events = new UIEventQueue();
         app.insertResource(UIEvents, events);
+
+        const editorMode = isEditor();
 
         let hoveredEntity: Entity | null = null;
         let pressedEntity: Entity | null = null;
@@ -92,11 +64,16 @@ export class UIInteractionPlugin implements Plugin {
             (input: InputState, camera: UICameraData) => {
                 events.drain();
 
+                if (editorMode) return;
+
                 const interactionEntities = world.getEntitiesWithComponents([UIInteraction]);
                 for (const entity of interactionEntities) {
                     const interaction = world.get(entity, UIInteraction) as UIInteractionData;
-                    interaction.justPressed = false;
-                    interaction.justReleased = false;
+                    if (interaction.justPressed || interaction.justReleased) {
+                        interaction.justPressed = false;
+                        interaction.justReleased = false;
+                        world.insert(entity, UIInteraction, interaction);
+                    }
                 }
 
                 if (!camera.valid) return;
@@ -115,46 +92,18 @@ export class UIInteractionPlugin implements Plugin {
                 camera.worldMouseX = worldMouse.x;
                 camera.worldMouseY = worldMouse.y;
 
-                const interactableEntities = world.getEntitiesWithComponents(
-                    [Interactable, UIRect, WorldTransform]
+                const mouseDown = input.isMouseButtonDown(0);
+                const mousePressed = input.isMouseButtonPressed(0);
+                const mouseReleased = input.isMouseButtonReleased(0);
+
+                module.uiHitTest_update(
+                    registry,
+                    worldMouse.x, worldMouse.y,
+                    mouseDown, mousePressed, mouseReleased,
                 );
 
-                let hitEntity: Entity | null = null;
-                let hitLayer = -Infinity;
-
-                for (const entity of interactableEntities) {
-                    ensureComponent(world, entity, UIInteraction);
-
-                    const interactable = world.get(entity, Interactable) as InteractableData;
-                    if (!interactable.enabled) continue;
-                    if (!interactable.raycastTarget) continue;
-
-                    const wt = world.get(entity, WorldTransform) as WorldTransformData;
-                    const rect = world.get(entity, UIRect) as UIRectData;
-                    const worldW = getEffectiveWidth(rect) * wt.scale.x;
-                    const worldH = getEffectiveHeight(rect) * wt.scale.y;
-
-                    if (pointInOBB(
-                        worldMouse.x, worldMouse.y,
-                        wt.position.x, wt.position.y,
-                        worldW, worldH,
-                        rect.pivot.x, rect.pivot.y,
-                        wt.rotation.z, wt.rotation.w,
-                    )) {
-                        if (isClippedByMask(world, entity, worldMouse.x, worldMouse.y)) {
-                            continue;
-                        }
-
-                        let layer = 0;
-                        if (world.has(entity, Sprite)) {
-                            layer = (world.get(entity, Sprite) as SpriteData).layer;
-                        }
-                        if (layer > hitLayer) {
-                            hitLayer = layer;
-                            hitEntity = entity;
-                        }
-                    }
-                }
+                const hitEntityRaw = module.uiHitTest_getHitEntity();
+                const hitEntity: Entity | null = hitEntityRaw === 0xFFFFFFFF ? null : hitEntityRaw;
 
                 if (hoveredEntity !== null && !world.valid(hoveredEntity)) {
                     hoveredEntity = null;
@@ -164,29 +113,34 @@ export class UIInteractionPlugin implements Plugin {
                     if (hoveredEntity !== null && world.valid(hoveredEntity) && world.has(hoveredEntity, UIInteraction)) {
                         const prev = world.get(hoveredEntity, UIInteraction) as UIInteractionData;
                         prev.hovered = false;
+                        world.insert(hoveredEntity, UIInteraction, prev);
                         events.emit(hoveredEntity, 'hover_exit');
                     }
                     if (hitEntity !== null) {
+                        ensureComponent(world, hitEntity, UIInteraction);
                         const curr = world.get(hitEntity, UIInteraction) as UIInteractionData;
                         curr.hovered = true;
+                        world.insert(hitEntity, UIInteraction, curr);
                         events.emit(hitEntity, 'hover_enter');
                     }
                     hoveredEntity = hitEntity;
                 }
 
-                if (input.isMouseButtonPressed(0) && hitEntity !== null) {
+                if (mousePressed && hitEntity !== null) {
                     const interaction = world.get(hitEntity, UIInteraction) as UIInteractionData;
                     interaction.pressed = true;
                     interaction.justPressed = true;
+                    world.insert(hitEntity, UIInteraction, interaction);
                     pressedEntity = hitEntity;
                     emitWithBubbling(world, events, hitEntity, 'press');
                 }
 
-                if (input.isMouseButtonReleased(0) && pressedEntity !== null) {
+                if (mouseReleased && pressedEntity !== null) {
                     if (world.valid(pressedEntity) && world.has(pressedEntity, UIInteraction)) {
                         const interaction = world.get(pressedEntity, UIInteraction) as UIInteractionData;
                         interaction.pressed = false;
                         interaction.justReleased = true;
+                        world.insert(pressedEntity, UIInteraction, interaction);
                         emitWithBubbling(world, events, pressedEntity, 'release');
                         if (pressedEntity === hoveredEntity) {
                             emitWithBubbling(world, events, pressedEntity, 'click');

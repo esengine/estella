@@ -1,4 +1,4 @@
-import { defineComponent } from '../component';
+import { defineBuiltin } from '../component';
 
 export interface UIInteractionData {
     hovered: boolean;
@@ -7,7 +7,7 @@ export interface UIInteractionData {
     justReleased: boolean;
 }
 
-export const UIInteraction = defineComponent<UIInteractionData>('UIInteraction', {
+export const UIInteraction = defineBuiltin<UIInteractionData>('UIInteraction', {
     hovered: false,
     pressed: false,
     justPressed: false,

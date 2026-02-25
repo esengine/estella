@@ -1,5 +1,5 @@
 import type { App, Plugin } from '../app';
-import { registerComponent, LocalTransform, Name, Sprite } from '../component';
+import { registerComponent, Transform, Name, Sprite } from '../component';
 import type { SpriteData } from '../component';
 import { defineSystem, Schedule } from '../system';
 import { Res } from '../resource';
@@ -15,9 +15,10 @@ import { Text, TextAlign, TextVerticalAlign, TextOverflow } from './text';
 import type { TextData } from './text';
 import { UIRect } from './UIRect';
 import type { UIRectData } from './UIRect';
-import { UIMask } from './UIMask';
+import { UIMask, MaskMode } from './UIMask';
 import { Input } from '../input';
 import type { InputState } from '../input';
+import { isEditor } from '../env';
 import { ensureComponent } from './uiHelpers';
 import { DROPDOWN_ITEM_HEIGHT, DROPDOWN_FONT_SIZE, DROPDOWN_HIGHLIGHT_COLOR } from './uiConstants';
 
@@ -31,11 +32,13 @@ export class DropdownPlugin implements Plugin {
         registerComponent('Dropdown', Dropdown);
 
         const world = app.world;
+        const editorMode = isEditor();
         const dropdownStates = new Map<Entity, DropdownState>();
 
         app.addSystemToSchedule(Schedule.Update, defineSystem(
             [Res(Input), Res(UIEvents)],
             (input: InputState, events: UIEventQueue) => {
+                if (editorMode) return;
                 for (const [e] of dropdownStates) {
                     if (!world.valid(e)) dropdownStates.delete(e);
                 }
@@ -116,7 +119,7 @@ export class DropdownPlugin implements Plugin {
 
             setListVisible(listEntity, true);
             if (!world.has(listEntity, UIMask)) {
-                world.insert(listEntity, UIMask, { enabled: true, mode: 'scissor' });
+                world.insert(listEntity, UIMask, { enabled: true, mode: MaskMode.Scissor });
             }
             destroyOptions(state);
 
@@ -136,7 +139,7 @@ export class DropdownPlugin implements Plugin {
                     size: { x: listWidth, y: DROPDOWN_ITEM_HEIGHT },
                     pivot: { x: 0.5, y: 1 },
                 });
-                world.insert(optEntity, LocalTransform, {
+                world.insert(optEntity, Transform, {
                     position: { x: 0, y: -(i * DROPDOWN_ITEM_HEIGHT), z: 0 },
                     rotation: { w: 1, x: 0, y: 0, z: 0 },
                     scale: { x: 1, y: 1, z: 1 },

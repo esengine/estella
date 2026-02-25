@@ -3,9 +3,9 @@ import type { ESEngineModule, CppRegistry } from '../wasm';
 import type { MaskProcessorFn } from '../renderPipeline';
 import type { Entity } from '../types';
 import type { World } from '../world';
-import { registerComponent, WorldTransform } from '../component';
-import type { WorldTransformData } from '../component';
-import { UIMask, type UIMaskData } from './UIMask';
+import { registerComponent, Transform } from '../component';
+import type { TransformData } from '../component';
+import { UIMask, MaskMode, type UIMaskData } from './UIMask';
 import { UIRect, type UIRectData } from './UIRect';
 import { intersectRects, quaternionToAngle2D, worldToScreen, type ScreenRect } from './uiMath';
 import { getEffectiveWidth, getEffectiveHeight, walkParentChain } from './uiHelpers';
@@ -14,15 +14,15 @@ function computeMaskScreenRect(
     world: World, entity: Entity,
     vp: Float32Array, vpX: number, vpY: number, vpW: number, vpH: number
 ): ScreenRect | null {
-    if (!world.has(entity, UIRect) || !world.has(entity, WorldTransform)) {
+    if (!world.has(entity, UIRect) || !world.has(entity, Transform)) {
         return null;
     }
     const uiRect = world.get(entity, UIRect) as UIRectData;
-    const wt = world.get(entity, WorldTransform) as WorldTransformData;
-    const worldW = getEffectiveWidth(uiRect) * wt.scale.x;
-    const worldH = getEffectiveHeight(uiRect) * wt.scale.y;
-    const cx = wt.position.x;
-    const cy = wt.position.y;
+    const wt = world.get(entity, Transform) as TransformData;
+    const worldW = getEffectiveWidth(uiRect, entity) * wt.worldScale.x;
+    const worldH = getEffectiveHeight(uiRect, entity) * wt.worldScale.y;
+    const cx = wt.worldPosition.x;
+    const cy = wt.worldPosition.y;
     const px = uiRect.pivot.x;
     const py = uiRect.pivot.y;
 
@@ -31,8 +31,8 @@ function computeMaskScreenRect(
     const localBottom = -worldH * py;
     const localTop = worldH * (1 - py);
 
-    const rz = wt.rotation.z;
-    const rw = wt.rotation.w;
+    const rz = wt.worldRotation.z;
+    const rw = wt.worldRotation.w;
     const angle = quaternionToAngle2D(rz, rw);
     const cos = Math.cos(angle);
     const sin = Math.sin(angle);
@@ -83,7 +83,7 @@ export function createMaskProcessor(wasm: ESEngineModule, world: World): MaskPro
             const mask = world.get(e, UIMask) as UIMaskData;
             if (!mask.enabled) continue;
             maskSet.add(e as number);
-            if (mask.mode === 'stencil') {
+            if (mask.mode === MaskMode.Stencil) {
                 stencilMasks.push(e);
                 stencilMaskSet.add(e as number);
             } else {
@@ -117,7 +117,7 @@ function processScissorMasks(
         walkParentChain(world, entity, (ancestor) => {
             if (maskSet.has(ancestor as number)) {
                 const parentMask = world.get(ancestor, UIMask) as UIMaskData;
-                if (parentMask.mode === 'scissor') {
+                if (parentMask.mode === MaskMode.Scissor) {
                     isRoot = false;
                     return true;
                 }
@@ -134,7 +134,7 @@ function processScissorMasks(
 
             if (maskSet.has(childId)) {
                 const childMask = world.get(childId as Entity, UIMask) as UIMaskData;
-                if (childMask.mode === 'scissor') {
+                if (childMask.mode === MaskMode.Scissor) {
                     const childRect = computeMaskScreenRect(
                         world, childId as Entity,
                         vp, vpX, vpY, vpW, vpH

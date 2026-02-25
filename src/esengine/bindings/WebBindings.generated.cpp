@@ -16,11 +16,18 @@
 #include "../ecs/components/Camera.hpp"
 #include "../ecs/components/Canvas.hpp"
 #include "../ecs/components/Collider.hpp"
+#include "../ecs/components/FlexContainer.hpp"
+#include "../ecs/components/FlexItem.hpp"
 #include "../ecs/components/Hierarchy.hpp"
+#include "../ecs/components/Interactable.hpp"
 #include "../ecs/components/RigidBody.hpp"
+#include "../ecs/components/ScreenSpace.hpp"
 #include "../ecs/components/SpineAnimation.hpp"
 #include "../ecs/components/Sprite.hpp"
 #include "../ecs/components/Transform.hpp"
+#include "../ecs/components/UIInteraction.hpp"
+#include "../ecs/components/UIMask.hpp"
+#include "../ecs/components/UIRect.hpp"
 #include "../ecs/components/Velocity.hpp"
 
 using namespace emscripten;
@@ -72,6 +79,34 @@ EMSCRIPTEN_BINDINGS(esengine_enums) {
         .value("Left", esengine::ecs::TextAlign::Left)
         .value("Center", esengine::ecs::TextAlign::Center)
         .value("Right", esengine::ecs::TextAlign::Right);
+
+    enum_<esengine::ecs::MaskMode>("MaskMode")
+        .value("Scissor", esengine::ecs::MaskMode::Scissor)
+        .value("Stencil", esengine::ecs::MaskMode::Stencil);
+
+    enum_<esengine::ecs::FlexDirection>("FlexDirection")
+        .value("Row", esengine::ecs::FlexDirection::Row)
+        .value("Column", esengine::ecs::FlexDirection::Column)
+        .value("RowReverse", esengine::ecs::FlexDirection::RowReverse)
+        .value("ColumnReverse", esengine::ecs::FlexDirection::ColumnReverse);
+
+    enum_<esengine::ecs::FlexWrap>("FlexWrap")
+        .value("NoWrap", esengine::ecs::FlexWrap::NoWrap)
+        .value("Wrap", esengine::ecs::FlexWrap::Wrap);
+
+    enum_<esengine::ecs::JustifyContent>("JustifyContent")
+        .value("Start", esengine::ecs::JustifyContent::Start)
+        .value("Center", esengine::ecs::JustifyContent::Center)
+        .value("End", esengine::ecs::JustifyContent::End)
+        .value("SpaceBetween", esengine::ecs::JustifyContent::SpaceBetween)
+        .value("SpaceAround", esengine::ecs::JustifyContent::SpaceAround)
+        .value("SpaceEvenly", esengine::ecs::JustifyContent::SpaceEvenly);
+
+    enum_<esengine::ecs::AlignItems>("AlignItems")
+        .value("Start", esengine::ecs::AlignItems::Start)
+        .value("Center", esengine::ecs::AlignItems::Center)
+        .value("End", esengine::ecs::AlignItems::End)
+        .value("Stretch", esengine::ecs::AlignItems::Stretch);
 
     enum_<esengine::ecs::CanvasScaleMode>("CanvasScaleMode")
         .value("FixedWidth", esengine::ecs::CanvasScaleMode::FixedWidth)
@@ -204,6 +239,56 @@ SpriteJS spriteToJS(const esengine::ecs::Sprite& c) {
     return js;
 }
 
+struct UIMaskJS {
+    bool enabled;
+    i32 mode;
+};
+
+esengine::ecs::UIMask uimaskFromJS(const UIMaskJS& js) {
+    esengine::ecs::UIMask c;
+    c.enabled = js.enabled;
+    c.mode = static_cast<MaskMode>(js.mode);
+    return c;
+}
+
+UIMaskJS uimaskToJS(const esengine::ecs::UIMask& c) {
+    UIMaskJS js;
+    js.enabled = c.enabled;
+    js.mode = static_cast<i32>(c.mode);
+    return js;
+}
+
+struct FlexContainerJS {
+    i32 direction;
+    i32 wrap;
+    i32 justifyContent;
+    i32 alignItems;
+    glm::vec2 gap;
+    glm::vec4 padding;
+};
+
+esengine::ecs::FlexContainer flexcontainerFromJS(const FlexContainerJS& js) {
+    esengine::ecs::FlexContainer c;
+    c.direction = static_cast<FlexDirection>(js.direction);
+    c.wrap = static_cast<FlexWrap>(js.wrap);
+    c.justifyContent = static_cast<JustifyContent>(js.justifyContent);
+    c.alignItems = static_cast<AlignItems>(js.alignItems);
+    c.gap = js.gap;
+    c.padding = js.padding;
+    return c;
+}
+
+FlexContainerJS flexcontainerToJS(const esengine::ecs::FlexContainer& c) {
+    FlexContainerJS js;
+    js.direction = static_cast<i32>(c.direction);
+    js.wrap = static_cast<i32>(c.wrap);
+    js.justifyContent = static_cast<i32>(c.justifyContent);
+    js.alignItems = static_cast<i32>(c.alignItems);
+    js.gap = c.gap;
+    js.padding = c.padding;
+    return js;
+}
+
 struct CanvasJS {
     glm::uvec2 designResolution;
     f32 pixelsPerUnit;
@@ -285,6 +370,22 @@ CameraJS cameraToJS(const esengine::ecs::Camera& c) {
 }
 
 EMSCRIPTEN_BINDINGS(esengine_components) {
+    register_vector<u32>("VectorEntity");
+
+    value_object<esengine::ecs::UIRect>("UIRect")
+        .field("anchorMin", &esengine::ecs::UIRect::anchorMin)
+        .field("anchorMax", &esengine::ecs::UIRect::anchorMax)
+        .field("offsetMin", &esengine::ecs::UIRect::offsetMin)
+        .field("offsetMax", &esengine::ecs::UIRect::offsetMax)
+        .field("size", &esengine::ecs::UIRect::size)
+        .field("pivot", &esengine::ecs::UIRect::pivot);
+
+    value_object<esengine::ecs::FlexItem>("FlexItem")
+        .field("flexGrow", &esengine::ecs::FlexItem::flexGrow)
+        .field("flexShrink", &esengine::ecs::FlexItem::flexShrink)
+        .field("flexBasis", &esengine::ecs::FlexItem::flexBasis)
+        .field("order", &esengine::ecs::FlexItem::order);
+
     value_object<esengine::ecs::BoxCollider>("BoxCollider")
         .field("halfExtents", &esengine::ecs::BoxCollider::halfExtents)
         .field("offset", &esengine::ecs::BoxCollider::offset)
@@ -313,15 +414,13 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("isSensor", &esengine::ecs::CapsuleCollider::isSensor)
         .field("enabled", &esengine::ecs::CapsuleCollider::enabled);
 
-    value_object<esengine::ecs::LocalTransform>("LocalTransform")
-        .field("position", &esengine::ecs::LocalTransform::position)
-        .field("rotation", &esengine::ecs::LocalTransform::rotation)
-        .field("scale", &esengine::ecs::LocalTransform::scale);
-
-    value_object<esengine::ecs::WorldTransform>("WorldTransform")
-        .field("position", &esengine::ecs::WorldTransform::position)
-        .field("rotation", &esengine::ecs::WorldTransform::rotation)
-        .field("scale", &esengine::ecs::WorldTransform::scale);
+    value_object<esengine::ecs::Transform>("Transform")
+        .field("position", &esengine::ecs::Transform::position)
+        .field("rotation", &esengine::ecs::Transform::rotation)
+        .field("scale", &esengine::ecs::Transform::scale)
+        .field("worldPosition", &esengine::ecs::Transform::worldPosition)
+        .field("worldRotation", &esengine::ecs::Transform::worldRotation)
+        .field("worldScale", &esengine::ecs::Transform::worldScale);
 
     value_object<esengine::ecs::Velocity>("Velocity")
         .field("linear", &esengine::ecs::Velocity::linear)
@@ -342,6 +441,17 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("skeletonScale", &esengine::ecs::SpineAnimation::skeletonScale)
         .field("material", &esengine::ecs::SpineAnimation::material)
         .field("enabled", &esengine::ecs::SpineAnimation::enabled);
+
+    value_object<esengine::ecs::Interactable>("Interactable")
+        .field("enabled", &esengine::ecs::Interactable::enabled)
+        .field("blockRaycast", &esengine::ecs::Interactable::blockRaycast)
+        .field("raycastTarget", &esengine::ecs::Interactable::raycastTarget);
+
+    value_object<esengine::ecs::UIInteraction>("UIInteraction")
+        .field("hovered", &esengine::ecs::UIInteraction::hovered)
+        .field("pressed", &esengine::ecs::UIInteraction::pressed)
+        .field("justPressed", &esengine::ecs::UIInteraction::justPressed)
+        .field("justReleased", &esengine::ecs::UIInteraction::justReleased);
 
     value_object<RigidBodyJS>("RigidBody")
         .field("bodyType", &RigidBodyJS::bodyType)
@@ -374,10 +484,25 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("material", &SpriteJS::material)
         .field("enabled", &SpriteJS::enabled);
 
+    value_object<UIMaskJS>("UIMask")
+        .field("enabled", &UIMaskJS::enabled)
+        .field("mode", &UIMaskJS::mode);
+
+    value_object<FlexContainerJS>("FlexContainer")
+        .field("direction", &FlexContainerJS::direction)
+        .field("wrap", &FlexContainerJS::wrap)
+        .field("justifyContent", &FlexContainerJS::justifyContent)
+        .field("alignItems", &FlexContainerJS::alignItems)
+        .field("gap", &FlexContainerJS::gap)
+        .field("padding", &FlexContainerJS::padding);
+
     value_object<esengine::ecs::Parent>("Parent")
         .field("entity", &esengine::ecs::Parent::entity);
 
-    value_object<esengine::ecs::Children>("Children");
+    value_object<esengine::ecs::Children>("Children")
+        .field("entities", &esengine::ecs::Children::entities);
+
+    value_object<esengine::ecs::ScreenSpace>("ScreenSpace");
 
     value_object<CanvasJS>("Canvas")
         .field("designResolution", &CanvasJS::designResolution)
@@ -421,6 +546,34 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         }))
         .function("entityCount", &Registry::entityCount)
 
+        // UIRect
+        .function("hasUIRect", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::UIRect>(static_cast<Entity>(e));
+        }))
+        .function("getUIRect", optional_override([](Registry& r, u32 e) -> esengine::ecs::UIRect& {
+            return r.get<esengine::ecs::UIRect>(static_cast<Entity>(e));
+        }), allow_raw_pointers())
+        .function("addUIRect", optional_override([](Registry& r, u32 e, const esengine::ecs::UIRect& c) {
+            r.emplaceOrReplace<esengine::ecs::UIRect>(static_cast<Entity>(e), c);
+        }))
+        .function("removeUIRect", optional_override([](Registry& r, u32 e) {
+            r.remove<esengine::ecs::UIRect>(static_cast<Entity>(e));
+        }))
+
+        // FlexItem
+        .function("hasFlexItem", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::FlexItem>(static_cast<Entity>(e));
+        }))
+        .function("getFlexItem", optional_override([](Registry& r, u32 e) -> esengine::ecs::FlexItem& {
+            return r.get<esengine::ecs::FlexItem>(static_cast<Entity>(e));
+        }), allow_raw_pointers())
+        .function("addFlexItem", optional_override([](Registry& r, u32 e, const esengine::ecs::FlexItem& c) {
+            r.emplaceOrReplace<esengine::ecs::FlexItem>(static_cast<Entity>(e), c);
+        }))
+        .function("removeFlexItem", optional_override([](Registry& r, u32 e) {
+            r.remove<esengine::ecs::FlexItem>(static_cast<Entity>(e));
+        }))
+
         // BoxCollider
         .function("hasBoxCollider", optional_override([](Registry& r, u32 e) {
             return r.has<esengine::ecs::BoxCollider>(static_cast<Entity>(e));
@@ -463,32 +616,20 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             r.remove<esengine::ecs::CapsuleCollider>(static_cast<Entity>(e));
         }))
 
-        // LocalTransform
-        .function("hasLocalTransform", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::LocalTransform>(static_cast<Entity>(e));
+        // Transform
+        .function("hasTransform", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::Transform>(static_cast<Entity>(e));
         }))
-        .function("getLocalTransform", optional_override([](Registry& r, u32 e) -> esengine::ecs::LocalTransform& {
-            return r.get<esengine::ecs::LocalTransform>(static_cast<Entity>(e));
+        .function("getTransform", optional_override([](Registry& r, u32 e) -> esengine::ecs::Transform& {
+            auto& t = r.get<esengine::ecs::Transform>(static_cast<Entity>(e));
+            t.ensureDecomposed();
+            return t;
         }), allow_raw_pointers())
-        .function("addLocalTransform", optional_override([](Registry& r, u32 e, const esengine::ecs::LocalTransform& c) {
-            r.emplaceOrReplace<esengine::ecs::LocalTransform>(static_cast<Entity>(e), c);
+        .function("addTransform", optional_override([](Registry& r, u32 e, const esengine::ecs::Transform& c) {
+            r.emplaceOrReplace<esengine::ecs::Transform>(static_cast<Entity>(e), c);
         }))
-        .function("removeLocalTransform", optional_override([](Registry& r, u32 e) {
-            r.remove<esengine::ecs::LocalTransform>(static_cast<Entity>(e));
-        }))
-
-        // WorldTransform
-        .function("hasWorldTransform", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::WorldTransform>(static_cast<Entity>(e));
-        }))
-        .function("getWorldTransform", optional_override([](Registry& r, u32 e) -> esengine::ecs::WorldTransform& {
-            return r.get<esengine::ecs::WorldTransform>(static_cast<Entity>(e));
-        }), allow_raw_pointers())
-        .function("addWorldTransform", optional_override([](Registry& r, u32 e, const esengine::ecs::WorldTransform& c) {
-            r.emplaceOrReplace<esengine::ecs::WorldTransform>(static_cast<Entity>(e), c);
-        }))
-        .function("removeWorldTransform", optional_override([](Registry& r, u32 e) {
-            r.remove<esengine::ecs::WorldTransform>(static_cast<Entity>(e));
+        .function("removeTransform", optional_override([](Registry& r, u32 e) {
+            r.remove<esengine::ecs::Transform>(static_cast<Entity>(e));
         }))
 
         // Velocity
@@ -517,6 +658,34 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         }))
         .function("removeSpineAnimation", optional_override([](Registry& r, u32 e) {
             r.remove<esengine::ecs::SpineAnimation>(static_cast<Entity>(e));
+        }))
+
+        // Interactable
+        .function("hasInteractable", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::Interactable>(static_cast<Entity>(e));
+        }))
+        .function("getInteractable", optional_override([](Registry& r, u32 e) -> esengine::ecs::Interactable& {
+            return r.get<esengine::ecs::Interactable>(static_cast<Entity>(e));
+        }), allow_raw_pointers())
+        .function("addInteractable", optional_override([](Registry& r, u32 e, const esengine::ecs::Interactable& c) {
+            r.emplaceOrReplace<esengine::ecs::Interactable>(static_cast<Entity>(e), c);
+        }))
+        .function("removeInteractable", optional_override([](Registry& r, u32 e) {
+            r.remove<esengine::ecs::Interactable>(static_cast<Entity>(e));
+        }))
+
+        // UIInteraction
+        .function("hasUIInteraction", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::UIInteraction>(static_cast<Entity>(e));
+        }))
+        .function("getUIInteraction", optional_override([](Registry& r, u32 e) -> esengine::ecs::UIInteraction& {
+            return r.get<esengine::ecs::UIInteraction>(static_cast<Entity>(e));
+        }), allow_raw_pointers())
+        .function("addUIInteraction", optional_override([](Registry& r, u32 e, const esengine::ecs::UIInteraction& c) {
+            r.emplaceOrReplace<esengine::ecs::UIInteraction>(static_cast<Entity>(e), c);
+        }))
+        .function("removeUIInteraction", optional_override([](Registry& r, u32 e) {
+            r.remove<esengine::ecs::UIInteraction>(static_cast<Entity>(e));
         }))
 
         // RigidBody
@@ -561,6 +730,34 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             r.remove<esengine::ecs::Sprite>(static_cast<Entity>(e));
         }))
 
+        // UIMask
+        .function("hasUIMask", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::UIMask>(static_cast<Entity>(e));
+        }))
+        .function("getUIMask", optional_override([](Registry& r, u32 e) {
+            return uimaskToJS(r.get<esengine::ecs::UIMask>(static_cast<Entity>(e)));
+        }))
+        .function("addUIMask", optional_override([](Registry& r, u32 e, const UIMaskJS& js) {
+            r.emplaceOrReplace<esengine::ecs::UIMask>(static_cast<Entity>(e), uimaskFromJS(js));
+        }))
+        .function("removeUIMask", optional_override([](Registry& r, u32 e) {
+            r.remove<esengine::ecs::UIMask>(static_cast<Entity>(e));
+        }))
+
+        // FlexContainer
+        .function("hasFlexContainer", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::FlexContainer>(static_cast<Entity>(e));
+        }))
+        .function("getFlexContainer", optional_override([](Registry& r, u32 e) {
+            return flexcontainerToJS(r.get<esengine::ecs::FlexContainer>(static_cast<Entity>(e)));
+        }))
+        .function("addFlexContainer", optional_override([](Registry& r, u32 e, const FlexContainerJS& js) {
+            r.emplaceOrReplace<esengine::ecs::FlexContainer>(static_cast<Entity>(e), flexcontainerFromJS(js));
+        }))
+        .function("removeFlexContainer", optional_override([](Registry& r, u32 e) {
+            r.remove<esengine::ecs::FlexContainer>(static_cast<Entity>(e));
+        }))
+
         // Parent
         .function("hasParent", optional_override([](Registry& r, u32 e) {
             return r.has<esengine::ecs::Parent>(static_cast<Entity>(e));
@@ -587,6 +784,20 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         }))
         .function("removeChildren", optional_override([](Registry& r, u32 e) {
             r.remove<esengine::ecs::Children>(static_cast<Entity>(e));
+        }))
+
+        // ScreenSpace
+        .function("hasScreenSpace", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::ScreenSpace>(static_cast<Entity>(e));
+        }))
+        .function("getScreenSpace", optional_override([](Registry& r, u32 e) -> esengine::ecs::ScreenSpace& {
+            return r.get<esengine::ecs::ScreenSpace>(static_cast<Entity>(e));
+        }), allow_raw_pointers())
+        .function("addScreenSpace", optional_override([](Registry& r, u32 e, const esengine::ecs::ScreenSpace& c) {
+            r.emplaceOrReplace<esengine::ecs::ScreenSpace>(static_cast<Entity>(e), c);
+        }))
+        .function("removeScreenSpace", optional_override([](Registry& r, u32 e) {
+            r.remove<esengine::ecs::ScreenSpace>(static_cast<Entity>(e));
         }))
 
         // Canvas

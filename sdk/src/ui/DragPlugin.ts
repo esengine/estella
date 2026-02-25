@@ -1,6 +1,6 @@
 import type { App, Plugin } from '../app';
-import { registerComponent, LocalTransform, WorldTransform, Parent, Sprite } from '../component';
-import type { LocalTransformData, WorldTransformData, ParentData, SpriteData } from '../component';
+import { registerComponent, Transform, Parent, Sprite } from '../component';
+import type { TransformData, ParentData, SpriteData } from '../component';
 import { defineSystem, Schedule } from '../system';
 import { Res } from '../resource';
 import { Input } from '../input';
@@ -14,6 +14,7 @@ import type { UIInteractionData } from './UIInteraction';
 import { UIEvents, UIEventQueue } from './UIEvents';
 import { UICameraInfo } from './UICameraInfo';
 import type { UICameraData } from './UICameraInfo';
+import { isEditor } from '../env';
 import { getEntityDepth } from './uiHelpers';
 import { quaternionToAngle2D } from './uiMath';
 
@@ -28,14 +29,14 @@ function worldToLocalDelta(
     }
     const parentData = world.get(entity, Parent) as ParentData;
     const parentEntity = parentData.entity;
-    if (!world.valid(parentEntity) || !world.has(parentEntity, WorldTransform)) {
+    if (!world.valid(parentEntity) || !world.has(parentEntity, Transform)) {
         return { x: dx, y: dy };
     }
-    const parentWt = world.get(parentEntity, WorldTransform) as WorldTransformData;
-    const sx = parentWt.scale.x !== 0 ? parentWt.scale.x : 1;
-    const sy = parentWt.scale.y !== 0 ? parentWt.scale.y : 1;
+    const parentWt = world.get(parentEntity, Transform) as TransformData;
+    const sx = parentWt.worldScale.x !== 0 ? parentWt.worldScale.x : 1;
+    const sy = parentWt.worldScale.y !== 0 ? parentWt.worldScale.y : 1;
 
-    const angle = quaternionToAngle2D(parentWt.rotation.z, parentWt.rotation.w);
+    const angle = quaternionToAngle2D(parentWt.worldRotation.z, parentWt.worldRotation.w);
     const sin = Math.sin(-angle);
     const cos = Math.cos(-angle);
 
@@ -72,6 +73,7 @@ export class DragPlugin implements Plugin {
         registerComponent('DragState', DragState);
 
         const world = app.world;
+        const editorMode = isEditor();
         const events = app.getResource(UIEvents) as UIEventQueue;
 
         let pendingEntity: Entity | null = null;
@@ -81,6 +83,7 @@ export class DragPlugin implements Plugin {
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
             [Res(Input), Res(UICameraInfo)],
             (input: InputState, camera: UICameraData) => {
+                if (editorMode) return;
                 if (!camera.valid) return;
 
                 const worldMouse = { x: camera.worldMouseX, y: camera.worldMouseY };
@@ -117,9 +120,9 @@ export class DragPlugin implements Plugin {
                             world.insert(bestEntity, DragState);
                         }
                         const dragState = world.get(bestEntity, DragState) as DragStateData;
-                        const wt = world.get(bestEntity, WorldTransform) as WorldTransformData;
-                        dragState.startWorldPos = { x: wt.position.x, y: wt.position.y };
-                        dragState.currentWorldPos = { x: wt.position.x, y: wt.position.y };
+                        const wt = world.get(bestEntity, Transform) as TransformData;
+                        dragState.startWorldPos = { x: wt.worldPosition.x, y: wt.worldPosition.y };
+                        dragState.currentWorldPos = { x: wt.worldPosition.x, y: wt.worldPosition.y };
                         dragState.pointerStartWorld = { x: worldMouse.x, y: worldMouse.y };
                         dragState.deltaWorld = { x: 0, y: 0 };
                         dragState.totalDeltaWorld = { x: 0, y: 0 };
@@ -184,15 +187,15 @@ export class DragPlugin implements Plugin {
                         y: newWorldY - dragState.startWorldPos.y,
                     };
 
-                    if (world.has(activeEntity, LocalTransform)) {
+                    if (world.has(activeEntity, Transform)) {
                         const localDelta = worldToLocalDelta(
                             world, activeEntity,
                             dragState.deltaWorld.x, dragState.deltaWorld.y
                         );
-                        const lt = world.get(activeEntity, LocalTransform) as LocalTransformData;
+                        const lt = world.get(activeEntity, Transform) as TransformData;
                         lt.position.x += localDelta.x;
                         lt.position.y += localDelta.y;
-                        world.insert(activeEntity, LocalTransform, lt);
+                        world.insert(activeEntity, Transform, lt);
                     }
 
                     events.emit(activeEntity, 'drag_move');

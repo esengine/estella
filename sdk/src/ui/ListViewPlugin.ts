@@ -1,6 +1,6 @@
 import type { App, Plugin } from '../app';
-import { registerComponent, LocalTransform, Name } from '../component';
-import type { LocalTransformData } from '../component';
+import { registerComponent, Transform, Name } from '../component';
+import type { TransformData } from '../component';
 import { defineSystem, Schedule } from '../system';
 import { Res } from '../resource';
 import { Input } from '../input';
@@ -9,11 +9,13 @@ import type { Entity } from '../types';
 import { ListView } from './ListView';
 import type { ListViewData, ListViewItemRenderer } from './ListView';
 import { UIRect } from './UIRect';
+import { getEffectiveWidth, getEffectiveHeight } from './uiHelpers';
 import type { UIRectData } from './UIRect';
 import { Interactable } from './Interactable';
-import { UIMask } from './UIMask';
+import { UIMask, MaskMode } from './UIMask';
 import { UIInteraction } from './UIInteraction';
 import type { UIInteractionData } from './UIInteraction';
+import { isEditor } from '../env';
 import { ensureComponent } from './uiHelpers';
 import { SCROLL_WHEEL_SENSITIVITY } from './uiConstants';
 
@@ -50,12 +52,14 @@ export class ListViewPlugin implements Plugin {
         registerComponent('ListView', ListView);
 
         const world = app.world;
+        const editorMode = isEditor();
         const listViewStates = new Map<Entity, ListViewState>();
         activeListViewStates = listViewStates;
 
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
             [Res(Input)],
             (input: InputState) => {
+                if (editorMode) return;
                 for (const [e, st] of listViewStates) {
                     if (!world.valid(e)) {
                         for (const itemEntity of st.itemEntities.values()) {
@@ -70,7 +74,7 @@ export class ListViewPlugin implements Plugin {
                 const entities = world.getEntitiesWithComponents([ListView, UIRect]);
                 for (const entity of entities) {
                     ensureComponent(world, entity, Interactable, { enabled: true, blockRaycast: true });
-                    ensureComponent(world, entity, UIMask, { enabled: true, mode: 'scissor' });
+                    ensureComponent(world, entity, UIMask, { enabled: true, mode: MaskMode.Scissor });
 
                     let state = listViewStates.get(entity);
                     if (!state) {
@@ -85,8 +89,8 @@ export class ListViewPlugin implements Plugin {
 
                     const lv = world.get(entity, ListView) as ListViewData;
                     const rect = world.get(entity, UIRect) as UIRectData;
-                    const viewHeight = rect._computedHeight ?? rect.size.y;
-                    const viewWidth = rect._computedWidth ?? rect.size.x;
+                    const viewHeight = getEffectiveHeight(rect, entity);
+                    const viewWidth = getEffectiveWidth(rect, entity);
 
                     const interaction = world.has(entity, UIInteraction)
                         ? world.get(entity, UIInteraction) as UIInteractionData
@@ -138,10 +142,10 @@ export class ListViewPlugin implements Plugin {
                             }
                         }
 
-                        if (world.has(itemEntity, LocalTransform)) {
-                            const lt = world.get(itemEntity, LocalTransform) as LocalTransformData;
+                        if (world.has(itemEntity, Transform)) {
+                            const lt = world.get(itemEntity, Transform) as TransformData;
                             lt.position.y = -(idx * lv.itemHeight - lv.scrollY);
-                            world.insert(itemEntity, LocalTransform, lt);
+                            world.insert(itemEntity, Transform, lt);
                         }
                     }
 

@@ -1,3 +1,3 @@
-import { defineTag } from '../component';
+import { defineBuiltin } from '../component';
 
-export const ScreenSpace = defineTag('ScreenSpace');
+export const ScreenSpace = defineBuiltin<{}>('ScreenSpace', {});
