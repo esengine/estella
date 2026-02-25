@@ -10,6 +10,7 @@ import type { NativeFS } from '../types/NativeFS';
 import { looksLikeAssetPath } from '../asset/AssetTypes';
 import { getComponentRefFields } from '../asset/AssetDatabase';
 import { getAssetTypeEntry } from 'esengine';
+import { parseAtlasTextures } from '../asset/importers/SpineAtlasParser';
 
 type AssetLibrary = AssetDatabase;
 
@@ -321,13 +322,9 @@ export class AssetReferenceCollector {
         if (!content) return;
 
         const atlasDir = getDirName(atlasPath);
-        const lines = content.split('\n');
-        for (const rawLine of lines) {
-            const line = rawLine.trim();
-            if (line && line.indexOf(':') === -1 && (/\.png$/i.test(line) || /\.jpg$/i.test(line))) {
-                const texturePath = atlasDir ? `${atlasDir}/${line}` : line;
-                refs.add(texturePath);
-            }
+        for (const texName of parseAtlasTextures(content)) {
+            const texturePath = atlasDir ? `${atlasDir}/${texName}` : texName;
+            refs.add(texturePath);
         }
     }
 }

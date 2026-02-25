@@ -21,10 +21,64 @@ export interface AudioImporterSettings {
     quality: number;
 }
 
+export interface SpineImporterSettings {
+    defaultSkin: string;
+    premultiplyAlpha: boolean;
+    scale: number;
+}
+
+export interface MaterialImporterSettings {
+    // reserved
+}
+
+export interface ShaderImporterSettings {
+    // reserved
+}
+
+export interface BitmapFontImporterSettings {
+    fontSize: number;
+}
+
+export interface SceneImporterSettings {
+    autoMigrate: boolean;
+}
+
+export interface PrefabImporterSettings {
+    autoMigrate: boolean;
+}
+
 export type ImporterSettings =
     | TextureImporterSettings
     | AudioImporterSettings
+    | SpineImporterSettings
+    | BitmapFontImporterSettings
+    | SceneImporterSettings
+    | PrefabImporterSettings
     | Record<string, unknown>;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type ImporterData = Record<string, any>;
+
+// =============================================================================
+// Platform Override
+// =============================================================================
+
+export type ImporterPlatform = 'playable' | 'wechat';
+
+export const IMPORTER_PLATFORMS: { id: ImporterPlatform; label: string }[] = [
+    { id: 'playable', label: 'Playable' },
+    { id: 'wechat', label: 'WeChat' },
+];
+
+export function getEffectiveImporter(
+    base: ImporterData,
+    platformOverrides: Record<string, ImporterData>,
+    platform: string,
+): ImporterData {
+    const override = platformOverrides[platform];
+    if (!override || Object.keys(override).length === 0) return base;
+    return { ...base, ...override };
+}
 
 // =============================================================================
 // Default Settings Factories
@@ -48,12 +102,47 @@ export function createDefaultAudioImporter(): AudioImporterSettings {
     };
 }
 
-export function getDefaultImporterForType(type: string): Record<string, unknown> {
+export function createDefaultSpineImporter(): SpineImporterSettings {
+    return {
+        defaultSkin: 'default',
+        premultiplyAlpha: false,
+        scale: 1,
+    };
+}
+
+export function createDefaultBitmapFontImporter(): BitmapFontImporterSettings {
+    return {
+        fontSize: 32,
+    };
+}
+
+export function createDefaultSceneImporter(): SceneImporterSettings {
+    return {
+        autoMigrate: true,
+    };
+}
+
+export function createDefaultPrefabImporter(): PrefabImporterSettings {
+    return {
+        autoMigrate: true,
+    };
+}
+
+export function getDefaultImporterForType(type: string): ImporterData {
     switch (type) {
         case 'texture':
-            return createDefaultTextureImporter() as unknown as Record<string, unknown>;
+            return createDefaultTextureImporter();
         case 'audio':
-            return createDefaultAudioImporter() as unknown as Record<string, unknown>;
+            return createDefaultAudioImporter();
+        case 'spine-skeleton':
+        case 'spine-atlas':
+            return createDefaultSpineImporter();
+        case 'bitmap-font':
+            return createDefaultBitmapFontImporter();
+        case 'scene':
+            return createDefaultSceneImporter();
+        case 'prefab':
+            return createDefaultPrefabImporter();
         default:
             return {};
     }
@@ -69,8 +158,8 @@ export interface AssetMeta {
     type: string;
     labels: string[];
     address: string | null;
-    importer: Record<string, unknown>;
-    platformOverrides: Record<string, Record<string, unknown>>;
+    importer: ImporterData;
+    platformOverrides: Record<string, ImporterData>;
     sliceBorder?: { left: number; right: number; top: number; bottom: number };
 }
 
@@ -102,14 +191,14 @@ export function upgradeMeta(raw: Record<string, unknown>): AssetMeta {
         meta.address = raw.address;
     }
     if (raw.importer && typeof raw.importer === 'object') {
-        meta.importer = { ...meta.importer, ...(raw.importer as Record<string, unknown>) };
+        meta.importer = { ...meta.importer, ...(raw.importer as ImporterData) };
     }
     if (raw.platformOverrides && typeof raw.platformOverrides === 'object') {
-        meta.platformOverrides = raw.platformOverrides as Record<string, Record<string, unknown>>;
+        meta.platformOverrides = raw.platformOverrides as Record<string, ImporterData>;
     }
 
     if (type === 'texture' && raw.sliceBorder && typeof raw.sliceBorder === 'object') {
-        (meta.importer as unknown as TextureImporterSettings).sliceBorder =
+        (meta.importer as TextureImporterSettings).sliceBorder =
             raw.sliceBorder as TextureImporterSettings['sliceBorder'];
     }
 

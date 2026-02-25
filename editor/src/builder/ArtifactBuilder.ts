@@ -11,6 +11,7 @@ import { BuildProgressReporter } from './BuildProgress';
 import { AssetExportConfigService, BuildAssetCollector } from './AssetCollector';
 import { TextureAtlasPacker } from './TextureAtlas';
 import { AssetLibrary, isUUID, getComponentRefFields } from '../asset/AssetLibrary';
+import { type TextureImporterSettings, getEffectiveImporter } from '../asset/ImporterTypes';
 import { BuildCache } from './BuildCache';
 import { getAssetType, toAddressableType } from '../asset/AssetTypes';
 import { compileMaterials } from './MaterialCompiler';
@@ -70,7 +71,7 @@ export async function buildArtifact(
         }
     }
 
-    const packer = new TextureAtlasPacker(fs, projectDir, assetLibrary);
+    const packer = new TextureAtlasPacker(fs, projectDir, assetLibrary, config.platform);
     const atlasMaxSize = parseInt(getSettingsValue<string>('build.atlasMaxSize') ?? '2048', 10) || 2048;
     const atlasPadding = getSettingsValue<number>('build.atlasPadding') ?? 2;
 
@@ -85,7 +86,17 @@ export async function buildArtifact(
                 Object.assign(allTextureMetadata, meta);
             }
         }
-        atlasInputHash = await buildCache.computeAtlasInputHash(imagePaths, allTextureMetadata);
+        const importerEntries = imagePaths.map(p => {
+            const uuid = assetLibrary.getUuid(p);
+            const entry = uuid ? assetLibrary.getEntry(uuid) : null;
+            const effective = entry
+                ? getEffectiveImporter(entry.importer, entry.platformOverrides, config.platform)
+                : {};
+            return { path: p, importer: effective };
+        });
+        const importerHash = await buildCache.computeImporterSettingsHash(importerEntries);
+        const combinedMetadata = { ...allTextureMetadata, __importerHash: importerHash };
+        atlasInputHash = await buildCache.computeAtlasInputHash(imagePaths, combinedMetadata);
 
         let cachedAtlas = null;
         if (cacheData?.atlasPages) {
@@ -136,6 +147,7 @@ export async function buildArtifact(
     for (const { name, data } of sceneDataList) {
         packer.rewriteSceneData(data, atlasResult, '');
         resolveSceneUUIDs(data, assetLibrary);
+        embedTextureImporterSettings(data, assetLibrary, config.platform);
         scenes.set(name, data);
     }
 
@@ -193,6 +205,47 @@ function resolveSceneUUIDs(sceneData: Record<string, unknown>, assetLibrary: Ass
             }
         }
         sceneData.textureMetadata = resolved;
+    }
+}
+
+function embedTextureImporterSettings(sceneData: Record<string, unknown>, assetLibrary: AssetLibrary, platform: string): void {
+    const entities = sceneData.entities as Array<{
+        components: Array<{ type: string; data: Record<string, unknown> }>;
+    }> | undefined;
+    if (!entities) return;
+
+    const settings: Record<string, { filterMode?: string; wrapMode?: string }> = {};
+
+    for (const entity of entities) {
+        for (const comp of entity.components || []) {
+            const refFields = getComponentRefFields(comp.type);
+            if (!refFields || !comp.data) continue;
+            for (const field of refFields) {
+                const value = comp.data[field];
+                if (typeof value !== 'string' || !value) continue;
+                if (settings[value]) continue;
+
+                const uuid = isUUID(value) ? value : assetLibrary.getUuid(value);
+                if (!uuid) continue;
+                const entry = assetLibrary.getEntry(uuid);
+                if (!entry || entry.type !== 'texture') continue;
+
+                const effective = getEffectiveImporter(entry.importer, entry.platformOverrides, platform) as TextureImporterSettings;
+
+                const hasNonDefault = (effective.filterMode && effective.filterMode !== 'linear') ||
+                                      (effective.wrapMode && effective.wrapMode !== 'repeat');
+                if (hasNonDefault) {
+                    settings[entry.path] = {
+                        filterMode: effective.filterMode,
+                        wrapMode: effective.wrapMode,
+                    };
+                }
+            }
+        }
+    }
+
+    if (Object.keys(settings).length > 0) {
+        sceneData.textureImporterSettings = settings;
     }
 }
 

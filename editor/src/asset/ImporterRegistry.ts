@@ -4,8 +4,15 @@
  */
 
 import type { AssetEntry } from './AssetDatabase';
+import type { ImporterData } from './ImporterTypes';
 import { TextureImporter } from './importers/TextureImporter';
 import { AudioImporter } from './importers/AudioImporter';
+import { SpineImporter } from './importers/SpineImporter';
+import { MaterialImporter } from './importers/MaterialImporter';
+import { ShaderImporter } from './importers/ShaderImporter';
+import { BitmapFontImporter } from './importers/BitmapFontImporter';
+import { SceneImporter } from './importers/SceneImporter';
+import { PrefabImporter } from './importers/PrefabImporter';
 
 // =============================================================================
 // Types
@@ -24,13 +31,24 @@ export interface ImporterField {
     step?: number;
 }
 
-export interface AssetImporter<T = Record<string, unknown>> {
+export interface AssetImporter<T = ImporterData> {
     type: string;
     extensions: string[];
     defaultSettings(): T;
     settingsUI(current: T): ImporterField[];
     apply?(asset: AssetEntry, settings: T): void;
 }
+
+// =============================================================================
+// DefaultImporter
+// =============================================================================
+
+const defaultImporter: AssetImporter<ImporterData> = {
+    type: 'default',
+    extensions: [],
+    defaultSettings() { return {}; },
+    settingsUI() { return []; },
+};
 
 // =============================================================================
 // ImporterRegistry
@@ -51,21 +69,27 @@ class ImporterRegistryImpl {
         return this.importers_.get(type);
     }
 
+    getOrDefault(type: string): AssetImporter<any> {
+        return this.importers_.get(type) ?? defaultImporter;
+    }
+
     getByExtension(ext: string): AssetImporter<any> | undefined {
         const type = this.extToType_.get(ext);
         return type ? this.importers_.get(type) : undefined;
     }
 
-    getDefaultSettings(type: string): Record<string, unknown> {
-        const importer = this.importers_.get(type);
-        if (!importer) return {};
-        return importer.defaultSettings() as Record<string, unknown>;
+    getByExtensionOrDefault(ext: string): AssetImporter<any> {
+        return this.getByExtension(ext) ?? defaultImporter;
     }
 
-    getSettingsUI(type: string, current: Record<string, unknown>): ImporterField[] {
+    getDefaultSettings(type: string): ImporterData {
+        return this.getOrDefault(type).defaultSettings();
+    }
+
+    getSettingsUI(type: string, current: ImporterData): ImporterField[] {
         const importer = this.importers_.get(type);
         if (!importer) return [];
-        return importer.settingsUI(current as any);
+        return importer.settingsUI(current);
     }
 
     getAllTypes(): string[] {
@@ -84,6 +108,12 @@ export function getImporterRegistry(): ImporterRegistryImpl {
         registry = new ImporterRegistryImpl();
         registry.register(new TextureImporter());
         registry.register(new AudioImporter());
+        registry.register(new SpineImporter());
+        registry.register(new MaterialImporter());
+        registry.register(new ShaderImporter());
+        registry.register(new BitmapFontImporter());
+        registry.register(new SceneImporter());
+        registry.register(new PrefabImporter());
     }
     return registry;
 }

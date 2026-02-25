@@ -4,8 +4,10 @@
  */
 
 import { type AssetLibrary, isUUID } from '../asset/AssetLibrary';
+import { type TextureImporterSettings, getEffectiveImporter } from '../asset/ImporterTypes';
 import { joinPath } from '../utils/path';
 import type { NativeFS } from '../types/NativeFS';
+import { parseAtlasTextures } from '../asset/importers/SpineAtlasParser';
 
 // =============================================================================
 // Types
@@ -180,11 +182,13 @@ export class TextureAtlasPacker {
     private fs_: NativeFS;
     private projectDir_: string;
     private assetLibrary_: AssetLibrary | null;
+    private platform_: string;
 
-    constructor(fs: NativeFS, projectDir: string, assetLibrary?: AssetLibrary) {
+    constructor(fs: NativeFS, projectDir: string, assetLibrary?: AssetLibrary, platform?: string) {
         this.fs_ = fs;
         this.projectDir_ = projectDir;
         this.assetLibrary_ = assetLibrary ?? null;
+        this.platform_ = platform ?? '';
     }
 
     private resolveRef(ref: string): string {
@@ -207,7 +211,7 @@ export class TextureAtlasPacker {
         if (eligiblePaths.length === 0) return result;
 
         const spineTextures = await this.collectSpineTextures(sceneDataList, allAssetPaths);
-        const nineSliceTextures = this.collectNineSliceTextures(sceneDataList);
+        const nineSliceTextures = this.collectNineSliceTextures(sceneDataList, eligiblePaths);
 
         const images: Array<{ path: string; width: number; height: number; data: Uint8Array }> = [];
 
@@ -221,7 +225,20 @@ export class TextureAtlasPacker {
             const size = this.getImageSize(data, relPath);
             if (!size) continue;
 
-            if (size.width > maxSize / 2 || size.height > maxSize / 2) continue;
+            let texMaxSize = maxSize;
+            if (this.assetLibrary_) {
+                const uuid = this.assetLibrary_.getUuid(relPath);
+                if (uuid) {
+                    const entry = this.assetLibrary_.getEntry(uuid);
+                    const effective = entry ? getEffectiveImporter(entry.importer, entry.platformOverrides, this.platform_) as TextureImporterSettings : undefined;
+                    const perTexMax = effective?.maxSize;
+                    if (perTexMax && perTexMax < texMaxSize) {
+                        texMaxSize = perTexMax;
+                    }
+                }
+            }
+
+            if (size.width > texMaxSize / 2 || size.height > texMaxSize / 2) continue;
 
             images.push({ path: relPath, width: size.width, height: size.height, data });
         }
@@ -407,13 +424,9 @@ export class TextureAtlasPacker {
             if (!content) continue;
 
             const atlasDir = atlasRelPath.substring(0, atlasRelPath.lastIndexOf('/'));
-            const lines = content.split('\n');
-            for (const line of lines) {
-                const trimmed = line.trim();
-                if (trimmed && !trimmed.includes(':') && (/\.png$/i.test(trimmed) || /\.jpg$/i.test(trimmed))) {
-                    const texPath = atlasDir ? `${atlasDir}/${trimmed}` : trimmed;
-                    result.add(texPath);
-                }
+            for (const texName of parseAtlasTextures(content)) {
+                const texPath = atlasDir ? `${atlasDir}/${texName}` : texName;
+                result.add(texPath);
             }
         }
         return result;
@@ -442,9 +455,11 @@ export class TextureAtlasPacker {
     }
 
     private collectNineSliceTextures(
-        sceneDataList: Array<{ name: string; data: Record<string, unknown> }>
+        sceneDataList: Array<{ name: string; data: Record<string, unknown> }>,
+        imagePaths: string[]
     ): Set<string> {
         const result = new Set<string>();
+
         for (const { data } of sceneDataList) {
             const textureMetadata = data.textureMetadata as Record<string, { sliceBorder?: { left: number; right: number; top: number; bottom: number } }> | undefined;
             if (!textureMetadata) continue;
@@ -458,6 +473,21 @@ export class TextureAtlasPacker {
                 }
             }
         }
+
+        if (this.assetLibrary_) {
+            for (const imgPath of imagePaths) {
+                if (result.has(imgPath)) continue;
+                const uuid = this.assetLibrary_.getUuid(imgPath);
+                if (!uuid) continue;
+                const entry = this.assetLibrary_.getEntry(uuid);
+                const effective = entry ? getEffectiveImporter(entry.importer, entry.platformOverrides, this.platform_) as TextureImporterSettings : undefined;
+                const border = effective?.sliceBorder;
+                if (border && (border.left > 0 || border.right > 0 || border.top > 0 || border.bottom > 0)) {
+                    result.add(imgPath);
+                }
+            }
+        }
+
         return result;
     }
 

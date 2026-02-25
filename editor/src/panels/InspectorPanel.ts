@@ -13,6 +13,7 @@ import { renderEntityHeader, renderComponent, renderAddComponentButton, renderEn
 import type { InspectorSectionInstance } from './inspector/InspectorRegistry';
 import { type MaterialPreviewState, renderMaterialPreview, hideMaterialPreview } from './inspector/MaterialPreviewSection';
 import { renderAssetHeader, renderAddressableSection } from './inspector/AssetInspector';
+import { renderImporterSettingsSection } from './inspector/ImporterSettingsSection';
 import { type ImageUrlRef, renderImageInspector } from './inspector/ImageInspector';
 import { renderMaterialInspector } from './inspector/MaterialInspector';
 import { renderBitmapFontInspector } from './inspector/BitmapFontInspector';
@@ -80,8 +81,9 @@ export class InspectorPanel {
         const pms = getPlayModeService();
         this.playModeCleanups_.push(
             pms.onStateChange((state) => {
-                this.playMode_ = state === 'playing';
-                if (this.playMode_) {
+                const isPlaying = state === 'playing' && !pms.isSharedMode;
+                this.playMode_ = isPlaying;
+                if (isPlaying) {
                     this.container_.classList.add('es-play-mode');
                     hideMaterialPreview(this.materialPreviewState_);
                     if (pms.bridge) {
@@ -341,6 +343,7 @@ export class InspectorPanel {
 
         renderAssetHeader(this.contentContainer_, asset);
         renderAddressableSection(this.contentContainer_, asset.path);
+        renderImporterSettingsSection(this.contentContainer_, asset.path);
 
         switch (asset.type) {
             case 'image':

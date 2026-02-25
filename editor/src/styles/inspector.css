@@ -816,8 +816,74 @@
     bottom: -4px;
 }
 
+.es-nine-slice-loading {
+    padding: 20px;
+    text-align: center;
+    color: var(--es-text-secondary);
+    font-size: 11px;
+}
+
+.es-nine-slice-dragging .es-nine-slice-line {
+    background: #00ff88;
+}
+
 .es-nine-slice-inputs {
     margin-top: 8px;
+}
+
+/* =============================================================================
+ * Platform Tabs & Override Fields
+ * ============================================================================= */
+
+.es-platform-tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--es-border);
+}
+
+.es-platform-tab {
+    flex: 1;
+    padding: 4px 8px;
+    border: none;
+    background: transparent;
+    color: var(--es-text-secondary);
+    font-size: 11px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: color 0.15s, border-color 0.15s;
+}
+
+.es-platform-tab:hover {
+    color: var(--es-text-primary);
+}
+
+.es-platform-tab.es-active {
+    color: var(--es-text-primary);
+    border-bottom-color: var(--es-accent);
+}
+
+.es-platform-tab.es-has-override::after {
+    content: '';
+    display: inline-block;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--es-accent);
+    margin-left: 4px;
+    vertical-align: middle;
+}
+
+.es-platform-field {
+    display: flex;
+    align-items: flex-start;
+    gap: 4px;
+}
+
+.es-override-toggle {
+    margin-top: 6px;
+    flex-shrink: 0;
+    cursor: pointer;
 }
 
 /* =============================================================================

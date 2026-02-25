@@ -4,6 +4,7 @@
  */
 
 import type { NativeFS } from '../scripting/types';
+import type { ImporterData } from '../asset/ImporterTypes';
 import { getEditorContext } from '../context/EditorContext';
 
 // =============================================================================
@@ -39,6 +40,7 @@ export interface BuildCacheData {
     compiledScriptsHash?: string;
     atlasPages?: AtlasPageCache[];
     atlasInputHash?: string;
+    importerSettingsHash?: Record<string, string>;
 }
 
 export interface FileChangeResult {
@@ -300,6 +302,31 @@ export class BuildCache {
         } catch {
             return null;
         }
+    }
+
+    async computeImporterSettingsHash(
+        entries: Array<{ path: string; importer: ImporterData }>
+    ): Promise<Record<string, string>> {
+        const result: Record<string, string> = {};
+        for (const entry of entries) {
+            const json = JSON.stringify(entry.importer);
+            result[entry.path] = await computeHash(json);
+        }
+        return result;
+    }
+
+    getImporterChangedPaths(
+        current: Record<string, string>,
+        cached: Record<string, string> | undefined
+    ): string[] {
+        if (!cached) return Object.keys(current);
+        const changed: string[] = [];
+        for (const [path, hash] of Object.entries(current)) {
+            if (cached[path] !== hash) {
+                changed.push(path);
+            }
+        }
+        return changed;
     }
 }
 

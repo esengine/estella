@@ -34,15 +34,33 @@ export interface RuntimeAssetProvider {
 // Texture Helpers
 // =============================================================================
 
+const FILTER_MODE_MAP: Record<string, number> = { 'nearest': 0, 'linear': 1 };
+const WRAP_MODE_MAP: Record<string, number> = { 'repeat': 0, 'clamp': 1, 'mirror': 2 };
+
+interface TextureParams {
+    filterMode?: string;
+    wrapMode?: string;
+}
+
 function createTextureFromPixels(
     module: ESEngineModule,
     result: { width: number; height: number; pixels: Uint8Array },
     flipY: boolean = true,
+    params?: TextureParams,
 ): number {
     const rm = module.getResourceManager();
     const ptr = module._malloc(result.pixels.length);
     module.HEAPU8.set(result.pixels, ptr);
-    const handle = rm.createTexture(result.width, result.height, ptr, result.pixels.length, 1, flipY);
+
+    let handle: number;
+    if (params && (params.filterMode || params.wrapMode) && rm.createTextureEx) {
+        const filter = FILTER_MODE_MAP[params.filterMode ?? 'linear'] ?? 1;
+        const wrap = WRAP_MODE_MAP[params.wrapMode ?? 'clamp'] ?? 1;
+        handle = rm.createTextureEx(result.width, result.height, ptr, result.pixels.length, 1, flipY, filter, wrap);
+    } else {
+        handle = rm.createTexture(result.width, result.height, ptr, result.pixels.length, 1, flipY);
+    }
+
     module._free(ptr);
     return handle;
 }
@@ -53,6 +71,7 @@ async function loadTextures(
     provider: RuntimeAssetProvider,
 ): Promise<Record<string, number>> {
     const cache: Record<string, number> = {};
+    const texSettings = (sceneData as any).textureImporterSettings as Record<string, TextureParams> | undefined;
     for (const entity of sceneData.entities) {
         for (const comp of entity.components) {
             const descriptors = getComponentAssetFieldDescriptors(comp.type);
@@ -62,7 +81,8 @@ async function loadTextures(
                 if (typeof ref !== 'string' || !ref) continue;
                 if (cache[ref] !== undefined) continue;
                 try {
-                    cache[ref] = createTextureFromPixels(module, await provider.loadPixels(ref));
+                    const params = texSettings?.[ref];
+                    cache[ref] = createTextureFromPixels(module, await provider.loadPixels(ref), true, params);
                 } catch {
                     cache[ref] = 0;
                 }

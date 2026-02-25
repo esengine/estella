@@ -10,6 +10,7 @@ import type { NativeFS, FileStats } from '../types/NativeFS';
 import { ASSET_EXTENSIONS, getAssetType } from './AssetTypes';
 import {
     type AssetMeta,
+    type ImporterData,
     type TextureImporterSettings,
     createDefaultMeta,
     upgradeMeta,
@@ -29,8 +30,8 @@ export interface AssetEntry {
     labels: Set<string>;
     address: string | null;
     group: string;
-    importer: Record<string, unknown>;
-    platformOverrides: Record<string, Record<string, unknown>>;
+    importer: ImporterData;
+    platformOverrides: Record<string, ImporterData>;
     fileSize: number;
     lastModified: number;
 }
@@ -45,6 +46,8 @@ export function isUUID(value: string): boolean {
 // AssetDatabase
 // =============================================================================
 
+export type AssetReimportListener = (uuid: string, path: string) => void;
+
 export class AssetDatabase {
     private uuidToEntry_ = new Map<string, AssetEntry>();
     private pathToUuid_ = new Map<string, string>();
@@ -54,6 +57,21 @@ export class AssetDatabase {
     private fs_: NativeFS | null = null;
     private projectDir_ = '';
     private groupService_: AssetGroupService | null = null;
+    private reimportListeners_: AssetReimportListener[] = [];
+
+    onReimport(listener: AssetReimportListener): () => void {
+        this.reimportListeners_.push(listener);
+        return () => {
+            const idx = this.reimportListeners_.indexOf(listener);
+            if (idx >= 0) this.reimportListeners_.splice(idx, 1);
+        };
+    }
+
+    private emitReimport(uuid: string, path: string): void {
+        for (const listener of this.reimportListeners_) {
+            listener(uuid, path);
+        }
+    }
 
     async initialize(projectDir: string, fs: NativeFS): Promise<void> {
         console.log(`[AssetDatabase] initialize: projectDir="${projectDir}"`);
@@ -231,7 +249,11 @@ export class AssetDatabase {
             this.groupIndex_.get(updates.group)!.add(uuid);
         }
 
+        let importerChanged = false;
         if (updates.importer !== undefined) {
+            const oldJson = JSON.stringify(entry.importer);
+            const newJson = JSON.stringify(updates.importer);
+            importerChanged = oldJson !== newJson;
             entry.importer = updates.importer;
         }
 
@@ -240,6 +262,10 @@ export class AssetDatabase {
         }
 
         await this.writeMetaFile(entry);
+
+        if (importerChanged) {
+            this.emitReimport(uuid, entry.path);
+        }
     }
 
     // =========================================================================
@@ -352,7 +378,7 @@ export class AssetDatabase {
     getSliceBorder(uuid: string): { left: number; right: number; top: number; bottom: number } | null {
         const entry = this.uuidToEntry_.get(uuid);
         if (!entry || entry.type !== 'texture') return null;
-        const importer = entry.importer as unknown as TextureImporterSettings;
+        const importer = entry.importer as TextureImporterSettings;
         return importer.sliceBorder ?? null;
     }
 
