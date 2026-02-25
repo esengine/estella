@@ -54,9 +54,19 @@ export class TextPlugin implements Plugin {
                 for (const entity of snapshots.keys()) {
                     if (!world.valid(entity) || !world.has(entity, Text)) {
                         if (world.valid(entity) && world.has(entity, Sprite)) {
-                            const sprite = world.get(entity, Sprite) as SpriteData;
-                            sprite.texture = INVALID_TEXTURE;
-                            world.insert(entity, Sprite, sprite);
+                            const s = world.get(entity, Sprite) as SpriteData;
+                            world.insert(entity, Sprite, {
+                                texture: INVALID_TEXTURE,
+                                color: { r: s.color.r, g: s.color.g, b: s.color.b, a: s.color.a },
+                                size: { x: s.size.x, y: s.size.y },
+                                uvOffset: { x: s.uvOffset.x, y: s.uvOffset.y },
+                                uvScale: { x: s.uvScale.x, y: s.uvScale.y },
+                                layer: s.layer,
+                                flipX: s.flipX,
+                                flipY: s.flipY,
+                                material: s.material,
+                                enabled: s.enabled,
+                            });
                         }
                         snapshots.delete(entity);
                     }
@@ -72,21 +82,35 @@ export class TextPlugin implements Plugin {
                     const source: TextSource = { text, uiRect, entity };
                     const prev = snapshots.get(entity);
 
-                    if (prev && !textSnapshot.changed(prev, source)) continue;
+                    if (prev && !textSnapshot.changed(prev, source)) {
+                        const hasValidSprite = world.has(entity, Sprite)
+                            && (world.get(entity, Sprite) as SpriteData).texture !== INVALID_TEXTURE;
+                        if (hasValidSprite) continue;
+                    }
 
                     ensureSprite(world, entity);
 
-                    const result = renderer.renderForEntity(entity, text, uiRect);
+                    const effectiveRect = uiRect ? {
+                        size: {
+                            x: getEffectiveWidth(uiRect, entity),
+                            y: getEffectiveHeight(uiRect, entity),
+                        },
+                    } : null;
+                    const result = renderer.renderForEntity(entity, text, effectiveRect);
 
-                    const sprite = world.get(entity, Sprite) as SpriteData;
-                    sprite.texture = result.textureHandle;
-                    sprite.size.x = result.width;
-                    sprite.size.y = result.height;
-                    sprite.uvOffset.x = 0;
-                    sprite.uvOffset.y = 0;
-                    sprite.uvScale.x = 1;
-                    sprite.uvScale.y = 1;
-                    world.insert(entity, Sprite, sprite);
+                    const s = world.get(entity, Sprite) as SpriteData;
+                    world.insert(entity, Sprite, {
+                        texture: result.textureHandle,
+                        color: { r: s.color.r, g: s.color.g, b: s.color.b, a: s.color.a },
+                        size: { x: result.width, y: result.height },
+                        uvOffset: { x: 0, y: 0 },
+                        uvScale: { x: 1, y: 1 },
+                        layer: s.layer,
+                        flipX: s.flipX,
+                        flipY: s.flipY,
+                        material: s.material,
+                        enabled: s.enabled,
+                    });
 
                     snapshots.set(entity, textSnapshot.take(source));
                 }

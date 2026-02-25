@@ -53,12 +53,15 @@ export class DropdownPlugin implements Plugin {
                     if (!state) {
                         state = { optionEntities: [], textEntities: [], highlightIndex: -1, ddWidth: 0, ddLayer: 0 };
                         dropdownStates.set(entity, state);
-                        normalizeListTransform(dropdown.listEntity);
-                        if (!dropdown.isOpen) {
-                            setListVisible(dropdown.listEntity, false);
-                        }
-                        initDropdownAppearance(entity);
                     }
+
+                    normalizeListTransform(dropdown.listEntity);
+                    initDropdownAppearance(entity);
+                    if (!dropdown.isOpen) {
+                        setListVisible(dropdown.listEntity, false);
+                    }
+
+                    syncLabel(dropdown);
 
                     if (editorSceneView) continue;
 
@@ -128,8 +131,6 @@ export class DropdownPlugin implements Plugin {
                             }
                         }
                     }
-
-                    syncLabel(dropdown);
                 }
             },
             { name: 'DropdownSystem' }

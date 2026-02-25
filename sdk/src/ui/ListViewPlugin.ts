@@ -58,7 +58,8 @@ export class ListViewPlugin implements Plugin {
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
             [Res(Input)],
             (input: InputState) => {
-                if (isEditor() && !isPlayMode()) return;
+                const editorSceneView = isEditor() && !isPlayMode();
+
                 for (const [e, st] of listViewStates) {
                     if (!world.valid(e)) {
                         for (const itemEntity of st.itemEntities.values()) {
@@ -91,14 +92,16 @@ export class ListViewPlugin implements Plugin {
                     const viewHeight = getEffectiveHeight(rect, entity);
                     const viewWidth = getEffectiveWidth(rect, entity);
 
-                    const interaction = world.has(entity, UIInteraction)
-                        ? world.get(entity, UIInteraction) as UIInteractionData
-                        : null;
+                    if (!editorSceneView) {
+                        const interaction = world.has(entity, UIInteraction)
+                            ? world.get(entity, UIInteraction) as UIInteractionData
+                            : null;
 
-                    if (interaction?.hovered) {
-                        const scroll = input.getScrollDelta();
-                        if (scroll.y !== 0) {
-                            lv.scrollY += scroll.y * SCROLL_WHEEL_SENSITIVITY;
+                        if (interaction?.hovered) {
+                            const scroll = input.getScrollDelta();
+                            if (scroll.y !== 0) {
+                                lv.scrollY += scroll.y * SCROLL_WHEEL_SENSITIVITY;
+                            }
                         }
                     }
 
