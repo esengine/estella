@@ -364,6 +364,13 @@ export function renderComponent(
                 continue;
             }
 
+            if (propMeta.hiddenWhen?.hasComponent) {
+                const ed = store.getEntityData(entity as number);
+                if (ed?.components.some(c => c.type === propMeta.hiddenWhen!.hasComponent)) {
+                    continue;
+                }
+            }
+
             const row = document.createElement('div');
             row.className = 'es-property-row';
 

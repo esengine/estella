@@ -6,38 +6,29 @@
 import type { ESEngineModule, CppRegistry, Entity } from 'esengine';
 import {
     World,
+    App,
     loadComponent,
-    LocalTransform,
+    remapEntityFields,
+    Transform,
     Sprite,
     BitmapText,
     Renderer,
-    INVALID_TEXTURE,
+    Text,
+    TextInput,
+    getComponentAssetFieldDescriptors,
+    getComponentSpineFieldDescriptor,
     INVALID_FONT,
     INVALID_MATERIAL,
-    TextRenderer,
-    TextAlign,
-    TextVerticalAlign,
-    TextOverflow,
+    DEFAULT_SPINE_SKIN,
     UIRect,
     UIMask,
-    FillDirection,
-    applyDirectionalFill,
-    syncFillSpriteSize,
-    computeFillAnchors,
-    computeHandleAnchors,
-    computeFillSize,
-    DEFAULT_SPRITE_SIZE,
-    DEFAULT_FONT_FAMILY,
-    DEFAULT_FONT_SIZE,
-    DEFAULT_LINE_HEIGHT,
-    DEFAULT_SPINE_SKIN,
+    defineSystem,
+    Schedule,
     type SceneComponentData,
-    type TextData,
-    type BitmapTextData,
-    type LocalTransformData,
-    type WorldTransformData,
-    type UIRectData,
-    type UIMaskData,
+    type TransformData,
+    type TextInputData,
+    type LayoutRect,
+    ScaleMode,
 } from 'esengine';
 import type { SpineModuleController } from 'esengine/spine';
 import { submitSpineMeshesToCore } from 'esengine/spine';
@@ -47,15 +38,8 @@ import { AssetPathResolver } from '../asset/AssetPathResolver';
 import { getDependencyGraph } from '../asset/AssetDependencyGraph';
 import { getAssetLibrary, isUUID } from '../asset/AssetLibrary';
 import {
-    type Transform,
-    getUIRectFromEntity,
-    computeAdjustedLocalTransform,
-    findCanvasWorldRect,
     transformToMatrix4x4,
 } from '../math/Transform';
-
-
-const TEXT_RENDER_LAYER = 25;
 
 const BitmapTextAlign = {
     Left: 0,
@@ -63,26 +47,11 @@ const BitmapTextAlign = {
     Right: 2,
 } as const;
 
-const SPRITE_SUPPRESSING_COMPONENTS = new Set(['Text', 'SpineAnimation']);
-
-const EDITOR_IGNORED_COMPONENTS = new Set([
-    'Interactable',
-    'Button',
-    'ScreenSpace',
-    'Slider',
-    'ProgressBar',
-    'Toggle',
-    'ScrollView',
-    'Dropdown',
-    'LayoutGroup',
-    'Image',
-    'Draggable',
-    'Focusable',
-    'SafeArea',
-    'ListView',
-    'Canvas',
-    'Camera',
+const COMPONENT_SUPPRESS_RULES = new Map<string, Set<string>>([
+    ['Sprite', new Set(['Text', 'SpineAnimation'])],
 ]);
+
+const EDITOR_IGNORED_COMPONENTS = new Set<string>();
 
 // =============================================================================
 // EditorSceneManager
@@ -93,7 +62,6 @@ export class EditorSceneManager {
     private world_: World;
     private assetServer_: EditorAssetServer;
     private pathResolver_: AssetPathResolver;
-    private textRenderer_: TextRenderer;
     private entityMap_ = new Map<number, Entity>();
     private entityDataMap_ = new Map<number, EntityData>();
     private sceneData_: SceneData | null = null;
@@ -107,19 +75,92 @@ export class EditorSceneManager {
     private spineCurrentState_ = new Map<number, { animation: string; skin: string; loop: boolean }>();
     private spineReadyListeners_ = new Set<(entityId: number) => void>();
     private updatingEntities_ = new Map<number, Promise<void>>();
-    private cachedCanvasRect_: import('esengine').LayoutRect | null | undefined;
+    private viewportAspect_ = 0;
+    private postLoadHooks_ = new Map<string, (entityId: number, data: Record<string, any>) => Promise<void>>();
 
-    constructor(module: ESEngineModule, pathResolver: AssetPathResolver) {
+    private ownsWorld_: boolean;
+
+    constructor(module: ESEngineModule, pathResolver: AssetPathResolver, world?: World) {
         this.module_ = module;
         this.pathResolver_ = pathResolver;
-        this.world_ = new World();
-        this.world_.connectCpp(new module.Registry() as CppRegistry);
+        if (world) {
+            this.world_ = world;
+            this.ownsWorld_ = false;
+        } else {
+            this.world_ = new World();
+            this.world_.connectCpp(new module.Registry() as CppRegistry);
+            this.ownsWorld_ = true;
+        }
         this.assetServer_ = new EditorAssetServer(module, pathResolver);
-        this.textRenderer_ = new TextRenderer(module);
+        this.postLoadHooks_.set('SpineAnimation', (id, data) => this.syncSpineInstance(id, data));
     }
 
     setProjectDir(projectDir: string): void {
         this.pathResolver_.setProjectDir(projectDir);
+    }
+
+    setViewportSize(width: number, height: number): void {
+        if (height > 0) {
+            this.viewportAspect_ = width / height;
+        }
+    }
+
+    getCanvasRect(): LayoutRect | null {
+        let designResolution: { x: number; y: number } | null = null;
+        let scaleMode = ScaleMode.FixedHeight as number;
+        let matchWidthOrHeight = 0.5;
+        let cameraPos = { x: 0, y: 0 };
+
+        for (const [_, entityData] of this.entityDataMap_) {
+            const canvas = entityData.components.find(c => c.type === 'Canvas');
+            if (canvas?.data?.designResolution) {
+                designResolution = canvas.data.designResolution as { x: number; y: number };
+                scaleMode = (canvas.data.scaleMode as number) ?? ScaleMode.FixedHeight;
+                matchWidthOrHeight = (canvas.data.matchWidthOrHeight as number) ?? 0.5;
+            }
+            const camera = entityData.components.find(c => c.type === 'Camera');
+            if (camera) {
+                const lt = entityData.components.find(c => c.type === 'Transform');
+                if (lt?.data?.position) {
+                    const pos = lt.data.position as { x: number; y: number };
+                    cameraPos = { x: pos.x, y: pos.y };
+                }
+            }
+        }
+
+        if (!designResolution) return null;
+
+        const baseOrthoSize = designResolution.y / 2;
+        const designAspect = designResolution.x / designResolution.y;
+        const actualAspect = this.viewportAspect_ > 0 ? this.viewportAspect_ : designAspect;
+
+        const orthoForWidth = baseOrthoSize * designAspect / actualAspect;
+        const orthoForHeight = baseOrthoSize;
+        let halfH: number;
+        switch (scaleMode) {
+            case ScaleMode.FixedWidth:
+                halfH = orthoForWidth; break;
+            case ScaleMode.FixedHeight:
+                halfH = orthoForHeight; break;
+            case ScaleMode.Expand:
+                halfH = Math.max(orthoForWidth, orthoForHeight); break;
+            case ScaleMode.Shrink:
+                halfH = Math.min(orthoForWidth, orthoForHeight); break;
+            case ScaleMode.Match:
+                halfH = Math.pow(orthoForWidth, 1 - matchWidthOrHeight)
+                      * Math.pow(orthoForHeight, matchWidthOrHeight);
+                break;
+            default:
+                halfH = orthoForHeight;
+        }
+        const halfW = halfH * actualAspect;
+
+        return {
+            left: cameraPos.x - halfW,
+            bottom: cameraPos.y - halfH,
+            right: cameraPos.x + halfW,
+            top: cameraPos.y + halfH,
+        };
     }
 
     setSpineController(controller: SpineModuleController | null): void {
@@ -134,9 +175,15 @@ export class EditorSceneManager {
         for (const [entityId, entityData] of this.entityDataMap_) {
             const spineComp = entityData.components.find(c => c.type === 'SpineAnimation');
             if (!spineComp) continue;
-            const entity = this.entityMap_.get(entityId);
-            if (entity === undefined) continue;
-            await this.syncSpineAnimation(entity, spineComp.data, entityId);
+            const data = spineComp.data as Record<string, any>;
+            const skelRef = data.skeletonPath ?? '';
+            const atlasRef = data.atlasPath ?? '';
+            if (!skelRef || !atlasRef) continue;
+            await this.syncSpineInstance(entityId, {
+                ...data,
+                skeletonPath: this.resolveAssetRef(skelRef),
+                atlasPath: this.resolveAssetRef(atlasRef),
+            });
         }
     }
 
@@ -185,10 +232,6 @@ export class EditorSceneManager {
             this.entityMap_.set(entityData.id, this.world_.spawn());
         }
 
-        this.cachedCanvasRect_ = findCanvasWorldRect(
-            Array.from(this.entityDataMap_.values()),
-        );
-
         const loadPromises: Promise<void>[] = [];
         for (const entityData of scene.entities) {
             if (entityData.parent !== null) {
@@ -203,165 +246,37 @@ export class EditorSceneManager {
             }
         }
         await Promise.all(loadPromises);
-
-        this.applyFillStates();
-
-        this.cachedCanvasRect_ = undefined;
-    }
-
-    private applyFillStates(): void {
-        for (const [_, entityData] of this.entityDataMap_) {
-            for (const comp of entityData.components) {
-                if (comp.type === 'Slider') {
-                    this.applySliderFillState(entityData, comp.data);
-                    break;
-                }
-                if (comp.type === 'ProgressBar') {
-                    this.applyProgressBarFillState(entityData, comp.data);
-                    break;
-                }
-            }
-        }
-    }
-
-    private applySliderFillState(entityData: EntityData, data: Record<string, any>): void {
-        const value = data.value as number ?? 0;
-        const minValue = data.minValue as number ?? 0;
-        const maxValue = data.maxValue as number ?? 1;
-        const direction = data.direction as number ?? FillDirection.LeftToRight;
-        const fillEntityId = data.fillEntity as number ?? 0;
-        const handleEntityId = data.handleEntity as number ?? 0;
-
-        const range = maxValue - minValue;
-        const normalizedValue = range > 0 ? (value - minValue) / range : 0;
-
-        const parentSize = this.getEntityUIRectSize(entityData);
-        this.applyFillToWorld(fillEntityId, direction, normalizedValue, parentSize.x, parentSize.y);
-        this.applyHandleToWorld(handleEntityId, direction, normalizedValue);
-    }
-
-    private applyProgressBarFillState(entityData: EntityData, data: Record<string, any>): void {
-        const value = Math.max(0, Math.min(1, data.value as number ?? 0));
-        const direction = data.direction as number ?? FillDirection.LeftToRight;
-        const fillEntityId = data.fillEntity as number ?? 0;
-
-        const parentSize = this.getEntityUIRectSize(entityData);
-        this.applyFillToWorld(fillEntityId, direction, value, parentSize.x, parentSize.y);
-    }
-
-    private getEntityUIRectSize(entityData: EntityData): { x: number; y: number } {
-        const uiRectComp = entityData.components.find(c => c.type === 'UIRect');
-        const size = uiRectComp?.data?.size as { x: number; y: number } | undefined;
-        return { x: size?.x ?? 0, y: size?.y ?? 0 };
-    }
-
-    private applyFillToWorld(
-        fillEntityId: number, direction: number, normalizedValue: number,
-        parentW: number, parentH: number,
-    ): void {
-        if (fillEntityId === 0) return;
-        const fillEntity = this.entityMap_.get(fillEntityId);
-        if (fillEntity === undefined) return;
-        applyDirectionalFill(this.world_, fillEntity, direction, normalizedValue);
-        syncFillSpriteSize(this.world_, fillEntity, direction, normalizedValue, parentW, parentH);
-
-        const fillEntityData = this.entityDataMap_.get(fillEntityId);
-        if (fillEntityData) {
-            const uiRectComp = fillEntityData.components.find(c => c.type === 'UIRect');
-            if (uiRectComp) {
-                const anchors = computeFillAnchors(direction, normalizedValue);
-                uiRectComp.data.anchorMin = anchors.anchorMin;
-                uiRectComp.data.anchorMax = anchors.anchorMax;
-                uiRectComp.data.offsetMin = anchors.offsetMin;
-                uiRectComp.data.offsetMax = anchors.offsetMax;
-                uiRectComp.data.size = computeFillSize(direction, normalizedValue, parentW, parentH);
-            }
-        }
-        this.syncEntityTransform(fillEntityId);
-    }
-
-    private applyHandleToWorld(handleEntityId: number, direction: number, normalizedValue: number): void {
-        if (handleEntityId === 0) return;
-        const handleEntity = this.entityMap_.get(handleEntityId);
-        if (handleEntity === undefined) return;
-        if (!this.world_.has(handleEntity, UIRect)) return;
-        const handleRect = this.world_.get(handleEntity, UIRect) as UIRectData;
-        const anchors = computeHandleAnchors(direction, normalizedValue);
-        handleRect.anchorMin = anchors.anchorMin;
-        handleRect.anchorMax = anchors.anchorMax;
-        handleRect.offsetMin = { x: 0, y: 0 };
-        handleRect.offsetMax = { x: 0, y: 0 };
-        this.world_.insert(handleEntity, UIRect, handleRect);
-
-        const handleEntityData = this.entityDataMap_.get(handleEntityId);
-        if (handleEntityData) {
-            const uiRectComp = handleEntityData.components.find(c => c.type === 'UIRect');
-            if (uiRectComp) {
-                uiRectComp.data.anchorMin = anchors.anchorMin;
-                uiRectComp.data.anchorMax = anchors.anchorMax;
-                uiRectComp.data.offsetMin = { x: 0, y: 0 };
-                uiRectComp.data.offsetMax = { x: 0, y: 0 };
-            }
-        }
-        this.syncEntityTransform(handleEntityId);
     }
 
     private async loadEntityComponents(entityData: EntityData): Promise<void> {
         const entity = this.entityMap_.get(entityData.id)!;
+        getDependencyGraph().clearEntity(entityData.id);
+        this.assetServer_.releaseMaterialInstance(entityData.id);
         for (const comp of entityData.components) {
-            await this.loadComponentWithEditorLogic(entity, comp, entityData.id);
+            await this.loadComponentForEntity(entity, comp, entityData.id);
         }
     }
 
-    private async loadComponentWithEditorLogic(
+    private async loadComponentForEntity(
         entity: Entity,
         comp: ComponentData,
-        entityId: number
+        entityId: number,
     ): Promise<void> {
-        switch (comp.type) {
-            case 'LocalTransform':
-                this.syncTransform(entity, comp.data, entityId);
-                break;
+        if (EDITOR_IGNORED_COMPONENTS.has(comp.type)) return;
 
-            case 'Sprite': {
-                const entityData = this.entityDataMap_.get(entityId);
-                const suppressed = entityData?.components.some(
-                    c => SPRITE_SUPPRESSING_COMPONENTS.has(c.type)
-                );
-                if (!suppressed) {
-                    await this.syncSprite(entity, comp.data, entityId);
-                }
-                break;
-            }
-
-            case 'Text':
-                this.syncText(entity, comp.data, entityId);
-                break;
-
-            case 'BitmapText':
-                await this.syncBitmapText(entity, comp.data, entityId);
-                break;
-
-            case 'SpineAnimation':
-                await this.syncSpineAnimation(entity, comp.data, entityId);
-                break;
-
-            case 'UIRect':
-                this.world_.insert(entity, UIRect, comp.data as unknown as UIRectData);
-                break;
-            case 'UIMask':
-                this.world_.insert(entity, UIMask, comp.data as unknown as UIMaskData);
-                break;
-            case 'TextInput':
-                this.syncTextInput(entity, comp.data, entityId);
-                break;
-
-            default:
-                if (!EDITOR_IGNORED_COMPONENTS.has(comp.type)) {
-                    loadComponent(this.world_, entity, comp as SceneComponentData);
-                }
-                break;
+        const suppressors = COMPONENT_SUPPRESS_RULES.get(comp.type);
+        if (suppressors) {
+            const ed = this.entityDataMap_.get(entityId);
+            if (ed?.components.some(c => suppressors.has(c.type))) return;
         }
+
+        const resolved: ComponentData = { type: comp.type, data: { ...comp.data } };
+        remapEntityFields(resolved as SceneComponentData, this.entityMap_);
+        await this.resolveComponentAssets(resolved, entityId);
+        loadComponent(this.world_, entity, resolved as SceneComponentData);
+
+        const hook = this.postLoadHooks_.get(comp.type);
+        if (hook) await hook(entityId, resolved.data as Record<string, any>);
     }
 
     // =========================================================================
@@ -403,25 +318,11 @@ export class EditorSceneManager {
             }
         }
 
+        getDependencyGraph().clearEntity(entityId);
+        this.assetServer_.releaseMaterialInstance(entityId);
         for (const comp of components) {
-            await this.loadComponentWithEditorLogic(entity, comp, entityId);
+            await this.loadComponentForEntity(entity, comp, entityId);
         }
-    }
-
-    syncEntityTransform(entityId: number): void {
-        const entity = this.entityMap_.get(entityId);
-        if (entity === undefined) return;
-        this.syncTransform(entity, null, entityId);
-    }
-
-    syncTextForEntity(entityId: number): void {
-        const entity = this.entityMap_.get(entityId);
-        if (entity === undefined) return;
-        const entityData = this.entityDataMap_.get(entityId);
-        if (!entityData) return;
-        const textComp = entityData.components.find(c => c.type === 'Text');
-        if (!textComp) return;
-        this.syncText(entity, textComp.data, entityId);
     }
 
     reparentEntity(entityId: number, newParentId: number | null): void {
@@ -435,14 +336,6 @@ export class EditorSceneManager {
             }
         } else {
             this.world_.removeParent(entity);
-        }
-
-        const entityData = this.entityDataMap_.get(entityId);
-        if (entityData) {
-            const transformComp = entityData.components.find(c => c.type === 'LocalTransform');
-            if (transformComp) {
-                this.syncTransform(entity, transformComp.data, entityId);
-            }
         }
     }
 
@@ -485,8 +378,8 @@ export class EditorSceneManager {
         const entity = this.entityMap_.get(entityId);
         if (entity === undefined) return;
         switch (componentType) {
-            case 'LocalTransform':
-                if (this.world_.has(entity, LocalTransform)) this.world_.remove(entity, LocalTransform);
+            case 'Transform':
+                if (this.world_.has(entity, Transform)) this.world_.remove(entity, Transform);
                 break;
             case 'Sprite':
                 if (this.world_.has(entity, Sprite)) this.world_.remove(entity, Sprite);
@@ -501,9 +394,11 @@ export class EditorSceneManager {
                 if (this.world_.has(entity, UIMask)) this.world_.remove(entity, UIMask);
                 break;
             case 'Text':
+                if (this.world_.has(entity, Text)) this.world_.remove(entity, Text);
+                break;
             case 'TextInput':
-                this.textRenderer_.release(entity);
-                if (this.world_.has(entity, Sprite)) this.world_.remove(entity, Sprite);
+                if (this.world_.has(entity, TextInput)) this.world_.remove(entity, TextInput);
+                if (this.world_.has(entity, Text)) this.world_.remove(entity, Text);
                 break;
             case 'SpineAnimation':
                 this.destroySpineInstance(entityId);
@@ -559,10 +454,6 @@ export class EditorSceneManager {
         return this.assetServer_;
     }
 
-    get textRenderer(): TextRenderer {
-        return this.textRenderer_;
-    }
-
     // =========================================================================
     // Spine Module Rendering
     // =========================================================================
@@ -598,19 +489,12 @@ export class EditorSceneManager {
             const registry = this.registry;
             let transform: Float32Array | undefined;
 
-            if (registry.hasWorldTransform(entity)) {
-                const wt = registry.getWorldTransform(entity) as WorldTransformData;
+            if (registry.hasTransform(entity)) {
+                const wt = registry.getTransform(entity) as TransformData;
                 transform = transformToMatrix4x4({
-                    position: wt.position,
-                    rotation: wt.rotation,
-                    scale: { x: wt.scale.x * scaleX, y: wt.scale.y * scaleY, z: wt.scale.z },
-                });
-            } else if (registry.hasLocalTransform(entity)) {
-                const lt = registry.getLocalTransform(entity) as LocalTransformData;
-                transform = transformToMatrix4x4({
-                    position: lt.position,
-                    rotation: lt.rotation,
-                    scale: { x: lt.scale.x * scaleX, y: lt.scale.y * scaleY, z: lt.scale.z },
+                    position: wt.worldPosition,
+                    rotation: wt.worldRotation,
+                    scale: { x: wt.worldScale.x * scaleX, y: wt.worldScale.y * scaleY, z: wt.worldScale.z },
                 });
             }
 
@@ -716,48 +600,52 @@ export class EditorSceneManager {
         this.entityMap_.clear();
         this.entityDataMap_.clear();
         this.sceneData_ = null;
-        this.textRenderer_.releaseAll();
     }
 
     dispose(): void {
         this.clear();
         this.assetServer_.releaseAll();
-        const registry = this.registry;
-        this.world_.disconnectCpp();
-        registry.delete();
-    }
-
-    // =========================================================================
-    // Component Sync (Editor-specific logic)
-    // =========================================================================
-
-    syncScreenSpaceDescendants(entityId: number): void {
-        const entityData = this.entityDataMap_.get(entityId);
-        if (!entityData) return;
-        for (const childId of entityData.children) {
-            this.syncEntityTransform(childId);
-            this.syncScreenSpaceDescendants(childId);
+        if (this.ownsWorld_) {
+            const registry = this.registry;
+            this.world_.disconnectCpp();
+            registry.delete();
         }
     }
 
-    private syncTransform(entity: Entity, _data: Record<string, unknown> | null, entityId: number): void {
-        const entityData = this.entityDataMap_.get(entityId);
-        if (!entityData) return;
+    // =========================================================================
+    // System Registration
+    // =========================================================================
 
-        const canvasRect = this.cachedCanvasRect_ !== undefined
-            ? this.cachedCanvasRect_
-            : findCanvasWorldRect(Array.from(this.entityDataMap_.values()));
+    registerSystems(app: App): void {
+        const self = this;
 
-        const adjustedLocal = computeAdjustedLocalTransform(
-            entityData, (id) => this.entityDataMap_.get(id), undefined, canvasRect,
-        );
-
-        this.world_.insert(entity, LocalTransform, {
-            position: adjustedLocal.position,
-            rotation: adjustedLocal.rotation,
-            scale: adjustedLocal.scale,
-        });
+        app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
+            [],
+            () => {
+                for (const entity of self.world_.getEntitiesWithComponents([TextInput])) {
+                    const input = self.world_.get(entity, TextInput) as TextInputData;
+                    const isEmpty = !input.value;
+                    const displayText = isEmpty ? input.placeholder : input.value;
+                    if (!displayText) {
+                        if (self.world_.has(entity, Text)) self.world_.remove(entity, Text);
+                        continue;
+                    }
+                    self.world_.insert(entity, Text, {
+                        content: displayText,
+                        fontFamily: input.fontFamily,
+                        fontSize: input.fontSize,
+                        color: isEmpty ? input.placeholderColor : input.color,
+                        wordWrap: false,
+                    });
+                }
+            },
+            { name: 'EditorTextInputVisualSystem' },
+        ), { runBefore: ['TextSystem'] });
     }
+
+    // =========================================================================
+    // Generic Asset Resolution
+    // =========================================================================
 
     private resolveAssetRef(ref: string): string {
         if (isUUID(ref)) {
@@ -766,204 +654,90 @@ export class EditorSceneManager {
         return ref;
     }
 
-    private async syncSprite(entity: Entity, data: Record<string, any>, entityId: number): Promise<void> {
-        let textureHandle = INVALID_TEXTURE as number;
-        let materialHandle = INVALID_MATERIAL as number;
+    private async resolveComponentAssets(comp: ComponentData, entityId: number): Promise<void> {
+        const data = comp.data as Record<string, any>;
 
-        getDependencyGraph().clearEntity(entityId);
-        this.assetServer_.releaseMaterialInstance(entityId);
+        const descriptors = getComponentAssetFieldDescriptors(comp.type);
+        for (const desc of descriptors) {
+            const ref = data[desc.field];
+            if (typeof ref !== 'string' || !ref) continue;
 
-        const rawTexture = data.texture;
-        const textureRef = typeof rawTexture === 'string' && rawTexture !== String(INVALID_TEXTURE)
-            ? rawTexture : '';
-        if (textureRef) {
-            const texturePath = this.resolveAssetRef(textureRef);
-            const info = await this.assetServer_.loadTexture(texturePath);
-            textureHandle = info.handle;
-            getDependencyGraph().registerUsage(textureRef, entityId);
-        }
+            const resolved = this.resolveAssetRef(ref);
+            getDependencyGraph().registerUsage(ref, entityId);
 
-        const materialRef = data.material;
-        if (materialRef && typeof materialRef === 'string') {
-            const materialPath = this.resolveAssetRef(materialRef);
-            try {
-                const loaded = await this.assetServer_.loadMaterial(materialPath);
-                const overrides = data.materialOverrides;
-
-                if (overrides && Object.keys(overrides).length > 0) {
-                    materialHandle = this.assetServer_.createMaterialInstance(
-                        materialPath, entityId, overrides
-                    );
-                } else {
-                    materialHandle = loaded.handle;
+            switch (desc.type) {
+                case 'texture': {
+                    const info = await this.assetServer_.loadTexture(resolved);
+                    data[desc.field] = info.handle;
+                    break;
                 }
-                getDependencyGraph().registerUsage(materialRef, entityId);
-            } catch (err) {
-                console.warn(`[EditorSceneManager] Failed to load material: ${materialPath}`, err);
+                case 'material': {
+                    try {
+                        const loaded = await this.assetServer_.loadMaterial(resolved);
+                        const overrides = data.materialOverrides;
+                        if (overrides && Object.keys(overrides).length > 0) {
+                            data[desc.field] = this.assetServer_.createMaterialInstance(
+                                resolved, entityId, overrides,
+                            );
+                        } else {
+                            data[desc.field] = loaded.handle;
+                        }
+                    } catch (err) {
+                        console.warn(`[EditorSceneManager] Failed to load material: ${resolved}`, err);
+                        data[desc.field] = INVALID_MATERIAL;
+                    }
+                    break;
+                }
+                case 'font': {
+                    try {
+                        data[desc.field] = await this.assetServer_.loadBitmapFont(resolved);
+                    } catch (err) {
+                        console.warn(`[EditorSceneManager] Failed to load bitmap font: ${resolved}`, err);
+                        data[desc.field] = INVALID_FONT;
+                    }
+                    break;
+                }
             }
         }
 
-        if (this.world_.has(entity, Sprite)) {
-            this.world_.remove(entity, Sprite);
-        }
+        const spineDesc = getComponentSpineFieldDescriptor(comp.type);
+        if (spineDesc) {
+            const skelRef = data[spineDesc.skeletonField] ?? '';
+            const atlasRef = data[spineDesc.atlasField] ?? '';
 
-        let spriteSize = data.size ?? DEFAULT_SPRITE_SIZE;
-        const entityData = this.entityDataMap_.get(entityId);
-        const uiRect = entityData?.components.find(c => c.type === 'UIRect');
-        if (uiRect?.data?.size) {
-            spriteSize = uiRect.data.size;
-        }
+            if (skelRef && atlasRef) {
+                const skelPath = this.resolveAssetRef(skelRef);
+                const atlasPath = this.resolveAssetRef(atlasRef);
 
-        this.world_.insert(entity, Sprite, {
-            texture: textureHandle,
-            color: data.color ?? { r: 1, g: 1, b: 1, a: 1 },
-            size: spriteSize,
-            uvOffset: data.uvOffset ?? { x: 0, y: 0 },
-            uvScale: data.uvScale ?? { x: 1, y: 1 },
-            layer: data.layer ?? 0,
-            flipX: data.flipX ?? false,
-            flipY: data.flipY ?? false,
-            material: materialHandle,
-            enabled: data.enabled ?? true,
-        });
-    }
+                getDependencyGraph().registerUsage(skelRef, entityId);
+                getDependencyGraph().registerUsage(atlasRef, entityId);
 
-    private syncText(entity: Entity, data: Record<string, any>, entityId: number): void {
-        const entityData = this.entityDataMap_.get(entityId);
-        const uiRectData = entityData ? getUIRectFromEntity(entityData) : null;
+                data[spineDesc.skeletonField] = skelPath;
+                data[spineDesc.atlasField] = atlasPath;
 
-        const textData: TextData = {
-            content: data.content ?? '',
-            fontFamily: data.fontFamily ?? DEFAULT_FONT_FAMILY,
-            fontSize: data.fontSize ?? DEFAULT_FONT_SIZE,
-            color: data.color ?? { r: 1, g: 1, b: 1, a: 1 },
-            align: data.align ?? TextAlign.Left,
-            verticalAlign: data.verticalAlign ?? TextVerticalAlign.Top,
-            wordWrap: data.wordWrap ?? true,
-            overflow: data.overflow ?? TextOverflow.Visible,
-            lineHeight: data.lineHeight ?? DEFAULT_LINE_HEIGHT,
-        };
-
-        if (!textData.content) {
-            if (this.world_.has(entity, Sprite)) {
-                this.world_.remove(entity, Sprite);
-            }
-            this.textRenderer_.release(entity);
-            return;
-        }
-
-        this.renderAndInsertTextSprite(entity, textData, uiRectData);
-    }
-
-    private syncTextInput(entity: Entity, data: Record<string, any>, entityId: number): void {
-        const entityData = this.entityDataMap_.get(entityId);
-        const uiRectData = entityData ? getUIRectFromEntity(entityData) : null;
-
-        const value = data.value ?? '';
-        const placeholder = data.placeholder ?? '';
-        const isEmpty = value.length === 0;
-        const displayText = isEmpty ? placeholder : value;
-        if (!displayText) return;
-
-        const textData: TextData = {
-            content: displayText,
-            fontFamily: data.fontFamily ?? DEFAULT_FONT_FAMILY,
-            fontSize: data.fontSize ?? DEFAULT_FONT_SIZE,
-            color: isEmpty
-                ? (data.placeholderColor ?? { r: 0.6, g: 0.6, b: 0.6, a: 1 })
-                : (data.color ?? { r: 1, g: 1, b: 1, a: 1 }),
-            align: TextAlign.Left,
-            verticalAlign: TextVerticalAlign.Middle,
-            wordWrap: false,
-            overflow: TextOverflow.Clip,
-            lineHeight: data.lineHeight ?? DEFAULT_LINE_HEIGHT,
-        };
-
-        this.renderAndInsertTextSprite(entity, textData, uiRectData);
-    }
-
-    private renderAndInsertTextSprite(
-        entity: Entity,
-        textData: TextData,
-        uiRectData: { size: { x: number; y: number } } | null,
-    ): void {
-        const result = this.textRenderer_.renderForEntity(entity, textData, uiRectData);
-        if (result.textureHandle === (INVALID_TEXTURE as number)) return;
-
-        this.world_.insert(entity, Sprite, {
-            texture: result.textureHandle,
-            color: { r: 1, g: 1, b: 1, a: 1 },
-            size: { x: result.width, y: result.height },
-            uvOffset: { x: 0, y: 0 },
-            uvScale: { x: 1, y: 1 },
-            layer: TEXT_RENDER_LAYER,
-            flipX: false,
-            flipY: false,
-        });
-    }
-
-    private async syncBitmapText(entity: Entity, data: Record<string, any>, _entityId: number): Promise<void> {
-        let fontHandle = INVALID_FONT as number;
-
-        const fontRef = data.font;
-        if (fontRef && typeof fontRef === 'string') {
-            try {
-                const fontPath = this.resolveAssetRef(fontRef);
-                fontHandle = await this.assetServer_.loadBitmapFont(fontPath);
-            } catch (err) {
-                console.warn(`[EditorSceneManager] Failed to load bitmap font: ${fontRef}`, err);
+                if (!this.spineController_) {
+                    const result = await this.assetServer_.loadSpine(skelPath, atlasPath);
+                    if (!result.success) {
+                        console.warn(`[EditorSceneManager] Failed to load Spine: ${result.error}`);
+                    }
+                }
             }
         }
-
-        if (fontHandle === (INVALID_FONT as number)) {
-            return;
-        }
-
-        if (this.world_.has(entity, BitmapText)) {
-            this.world_.remove(entity, BitmapText);
-        }
-
-        this.world_.insert(entity, BitmapText, {
-            text: data.text ?? '',
-            color: data.color ?? { r: 1, g: 1, b: 1, a: 1 },
-            fontSize: data.fontSize ?? 1.0,
-            align: data.align ?? 0,
-            spacing: data.spacing ?? 0,
-            layer: data.layer ?? 0,
-            font: fontHandle,
-            enabled: data.enabled ?? true,
-        });
     }
 
-    private async syncSpineAnimation(entity: Entity, data: Record<string, any>, entityId: number): Promise<void> {
-        const skeletonRef = data.skeletonPath ?? '';
-        const atlasRef = data.atlasPath ?? '';
+    // =========================================================================
+    // Spine Instance Sync (post-load hook)
+    // =========================================================================
 
-        if (!skeletonRef || !atlasRef) return;
+    private async syncSpineInstance(entityId: number, data: Record<string, any>): Promise<void> {
+        if (!this.spineController_) return;
 
-        const skeletonPath = this.resolveAssetRef(skeletonRef);
-        const atlasPath = this.resolveAssetRef(atlasRef);
+        const controller = this.spineController_;
+        const skeletonPath = data.skeletonPath ?? '';
+        const atlasPath = data.atlasPath ?? '';
+        if (!skeletonPath || !atlasPath) return;
 
-        getDependencyGraph().clearEntity(entityId);
-        getDependencyGraph().registerUsage(skeletonRef, entityId);
-        getDependencyGraph().registerUsage(atlasRef, entityId);
-
-        if (this.spineController_) {
-            await this.syncSpineViaModule(entityId, skeletonPath, atlasPath, data);
-        } else {
-            await this.syncSpineViaCore(entity, entityId, skeletonPath, atlasPath, data);
-        }
-    }
-
-    private async syncSpineViaModule(
-        entityId: number,
-        skeletonPath: string,
-        atlasPath: string,
-        data: Record<string, any>,
-    ): Promise<void> {
-        const controller = this.spineController_!;
         const cacheKey = `${skeletonPath}:${atlasPath}`;
-
         const existingKey = this.spineInstanceKeys_.get(entityId);
         let instanceId = this.spineInstances_.get(entityId);
 
@@ -973,7 +747,7 @@ export class EditorSceneManager {
             let skeletonHandle = this.spineSkeletons_.get(cacheKey);
             if (skeletonHandle === undefined) {
                 const result = await this.assetServer_.assetLoader.loadSpineToModule(
-                    controller, skeletonPath, atlasPath
+                    controller, skeletonPath, atlasPath,
                 );
                 if (!result.success || result.skeletonHandle === undefined) {
                     console.warn(`[EditorSceneManager] Failed to load Spine to module: ${result.error}`);
@@ -1018,52 +792,5 @@ export class EditorSceneManager {
         }
 
         this.spineCurrentState_.set(entityId, { animation, skin, loop });
-    }
-
-    private async syncSpineViaCore(
-        entity: Entity,
-        entityId: number,
-        skeletonPath: string,
-        atlasPath: string,
-        data: Record<string, any>,
-    ): Promise<void> {
-        const result = await this.assetServer_.loadSpine(skeletonPath, atlasPath);
-        if (!result.success) {
-            console.warn(`[EditorSceneManager] Failed to load Spine: ${result.error}`);
-            return;
-        }
-
-        let materialHandle = INVALID_MATERIAL as number;
-        const materialRef = data.material;
-        if (materialRef && typeof materialRef === 'string') {
-            const materialPath = this.resolveAssetRef(materialRef);
-            try {
-                const loaded = await this.assetServer_.loadMaterial(materialPath);
-                materialHandle = loaded.handle;
-                getDependencyGraph().registerUsage(materialRef, entityId);
-            } catch (err) {
-                console.warn(`[EditorSceneManager] Failed to load material: ${materialPath}`, err);
-            }
-        }
-
-        loadComponent(this.world_, entity, {
-            type: 'SpineAnimation',
-            data: {
-                skeletonPath,
-                atlasPath,
-                skin: data.skin ?? DEFAULT_SPINE_SKIN,
-                animation: data.animation ?? '',
-                timeScale: data.timeScale ?? 1,
-                loop: data.loop ?? true,
-                playing: data.playing ?? true,
-                flipX: data.flipX ?? false,
-                flipY: data.flipY ?? false,
-                color: data.color ?? { r: 1, g: 1, b: 1, a: 1 },
-                layer: data.layer ?? 0,
-                skeletonScale: data.skeletonScale ?? 1,
-                material: materialHandle,
-                enabled: data.enabled ?? true,
-            },
-        });
     }
 }

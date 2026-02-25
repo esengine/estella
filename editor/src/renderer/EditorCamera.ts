@@ -13,17 +13,28 @@ export class EditorCamera {
     zoom: number = 1;
     minZoom: number = 0.1;
     maxZoom: number = 10;
+    orthoHalfHeight: number = 0;
 
     private matrix_ = new Float32Array(16);
 
-    getViewProjection(viewportWidth: number, viewportHeight: number): Float32Array {
-        const halfWidth = (viewportWidth / 2) / this.zoom;
-        const halfHeight = (viewportHeight / 2) / this.zoom;
+    private getHalfSize(viewportWidth: number, viewportHeight: number): { halfW: number; halfH: number } {
+        if (this.orthoHalfHeight > 0) {
+            const halfH = this.orthoHalfHeight / this.zoom;
+            return { halfW: halfH * (viewportWidth / viewportHeight), halfH };
+        }
+        return {
+            halfW: (viewportWidth / 2) / this.zoom,
+            halfH: (viewportHeight / 2) / this.zoom,
+        };
+    }
 
-        const left = -halfWidth - this.panX;
-        const right = halfWidth - this.panX;
-        const bottom = -halfHeight + this.panY;
-        const top = halfHeight + this.panY;
+    getViewProjection(viewportWidth: number, viewportHeight: number): Float32Array {
+        const { halfW, halfH } = this.getHalfSize(viewportWidth, viewportHeight);
+
+        const left = -halfW - this.panX;
+        const right = halfW - this.panX;
+        const bottom = -halfH + this.panY;
+        const top = halfH + this.panY;
 
         const near = -1000;
         const far = 1000;
@@ -61,13 +72,12 @@ export class EditorCamera {
         const ndcX = (screenX / viewportWidth) * 2 - 1;
         const ndcY = 1 - (screenY / viewportHeight) * 2;
 
-        const halfWidth = (viewportWidth / 2) / this.zoom;
-        const halfHeight = (viewportHeight / 2) / this.zoom;
+        const { halfW, halfH } = this.getHalfSize(viewportWidth, viewportHeight);
 
-        const worldX = ndcX * halfWidth + this.panX;
-        const worldY = ndcY * halfHeight + this.panY;
-
-        return { x: worldX, y: worldY };
+        return {
+            x: ndcX * halfW + this.panX,
+            y: ndcY * halfH + this.panY,
+        };
     }
 
     /**
@@ -79,24 +89,24 @@ export class EditorCamera {
         viewportWidth: number,
         viewportHeight: number
     ): { x: number; y: number } {
-        const halfWidth = (viewportWidth / 2) / this.zoom;
-        const halfHeight = (viewportHeight / 2) / this.zoom;
+        const { halfW, halfH } = this.getHalfSize(viewportWidth, viewportHeight);
 
-        const ndcX = (worldX - this.panX) / halfWidth;
-        const ndcY = (worldY - this.panY) / halfHeight;
+        const ndcX = (worldX - this.panX) / halfW;
+        const ndcY = (worldY - this.panY) / halfH;
 
-        const screenX = (ndcX + 1) / 2 * viewportWidth;
-        const screenY = (1 - ndcY) / 2 * viewportHeight;
-
-        return { x: screenX, y: screenY };
+        return {
+            x: (ndcX + 1) / 2 * viewportWidth,
+            y: (1 - ndcY) / 2 * viewportHeight,
+        };
     }
 
     /**
      * @brief Pan by screen delta
      */
     pan(deltaScreenX: number, deltaScreenY: number, viewportWidth: number, viewportHeight: number): void {
-        const worldDeltaX = (deltaScreenX / viewportWidth) * (viewportWidth / this.zoom);
-        const worldDeltaY = (deltaScreenY / viewportHeight) * (viewportHeight / this.zoom);
+        const { halfW, halfH } = this.getHalfSize(viewportWidth, viewportHeight);
+        const worldDeltaX = (deltaScreenX / viewportWidth) * (2 * halfW);
+        const worldDeltaY = (deltaScreenY / viewportHeight) * (2 * halfH);
 
         this.panX -= worldDeltaX;
         this.panY += worldDeltaY;

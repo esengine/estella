@@ -16,6 +16,7 @@ export interface PropertyMeta {
     options?: { label: string; value: unknown }[];
     fileFilter?: string[];
     dependsOn?: string;
+    hiddenWhen?: { hasComponent: string };
 }
 
 export interface PropertyEditorContext {
