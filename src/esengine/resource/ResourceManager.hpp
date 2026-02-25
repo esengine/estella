@@ -140,6 +140,8 @@ public:
      * @return Handle to the shader, or invalid handle on failure
      */
     ShaderHandle createShader(const std::string& vertSrc, const std::string& fragSrc);
+    ShaderHandle createShaderWithBindings(const std::string& vertSrc, const std::string& fragSrc,
+                                           std::initializer_list<AttribBinding> bindings);
 
     /**
      * @brief Loads a shader from file paths (with caching)

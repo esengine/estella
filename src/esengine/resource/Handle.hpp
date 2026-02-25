@@ -48,22 +48,48 @@ template<typename T>
 class Handle {
 public:
     using IdType = u32;
+
+    static constexpr u32 INDEX_BITS = 20;
+    static constexpr u32 GEN_BITS = 12;
+    static constexpr u32 INDEX_MASK = (1u << INDEX_BITS) - 1;
+    static constexpr u32 GEN_MASK = (1u << GEN_BITS) - 1;
     static constexpr IdType INVALID = std::numeric_limits<IdType>::max();
 
     /** @brief Creates an invalid handle */
     Handle() = default;
 
     /**
-     * @brief Creates a handle with the given ID
-     * @param id The resource identifier
+     * @brief Creates a handle from a packed ID (index + generation)
+     * @param id The packed resource identifier
      */
     explicit Handle(IdType id) : id_(id) {}
+
+    /**
+     * @brief Creates a handle from separate index and generation
+     * @param index Slot index in the resource pool (max ~1M)
+     * @param generation Reuse counter for the slot (max 4095)
+     */
+    static Handle fromParts(u32 index, u32 generation) {
+        return Handle(((generation & GEN_MASK) << INDEX_BITS) | (index & INDEX_MASK));
+    }
 
     /** @brief Checks if the handle references a valid resource */
     bool isValid() const { return id_ != INVALID; }
 
-    /** @brief Gets the raw identifier */
+    /** @brief Gets the packed identifier (index + generation) */
     IdType id() const { return id_; }
+
+    /** @brief Extracts the slot index from the packed handle */
+    u32 index() const { return id_ & INDEX_MASK; }
+
+    /** @brief Extracts the generation from the packed handle */
+    u32 generation() const { return (id_ >> INDEX_BITS) & GEN_MASK; }
+
+    /** @brief Extracts index from a raw packed ID */
+    static u32 extractIndex(IdType packed) { return packed & INDEX_MASK; }
+
+    /** @brief Extracts generation from a raw packed ID */
+    static u32 extractGeneration(IdType packed) { return (packed >> INDEX_BITS) & GEN_MASK; }
 
     /** @brief Equality comparison */
     bool operator==(const Handle& other) const { return id_ == other.id_; }

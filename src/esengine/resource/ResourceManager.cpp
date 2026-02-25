@@ -86,6 +86,16 @@ ShaderHandle ResourceManager::createShader(const std::string& vertSrc, const std
     return shaders_.add(std::move(shader));
 }
 
+ShaderHandle ResourceManager::createShaderWithBindings(const std::string& vertSrc, const std::string& fragSrc,
+                                                        std::initializer_list<AttribBinding> bindings) {
+    auto shader = Shader::createWithBindings(vertSrc, fragSrc, bindings);
+    if (!shader) {
+        ES_LOG_ERROR("Failed to create shader with bindings from source");
+        return ShaderHandle();
+    }
+    return shaders_.add(std::move(shader));
+}
+
 ShaderHandle ResourceManager::loadShader(const std::string& vertPath, const std::string& fragPath) {
     // Create cache key from paths
     std::string cacheKey = vertPath + ":" + fragPath;
@@ -260,6 +270,16 @@ const Texture* ResourceManager::getTexture(TextureHandle handle) const {
 
 void ResourceManager::releaseTexture(TextureHandle handle) {
     if (handle.isValid()) {
+        if (textures_.getRefCount(handle) == 1) {
+            textureMetadata_.erase(handle.id());
+            for (auto it = guidToTexture_.begin(); it != guidToTexture_.end(); ) {
+                if (it->second == handle) {
+                    it = guidToTexture_.erase(it);
+                } else {
+                    ++it;
+                }
+            }
+        }
         textures_.release(handle.id());
     }
 }

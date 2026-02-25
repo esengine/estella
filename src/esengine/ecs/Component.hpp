@@ -6,7 +6,7 @@
  *          reduced compile times in larger projects.
  *
  * Component files:
- * - components/Transform.hpp  - LocalTransform, WorldTransform, TransformDirty, TransformStatic
+ * - components/Transform.hpp  - Transform, TransformDirty, TransformStatic
  * - components/Hierarchy.hpp  - Parent, Children, HierarchyDepth
  * - components/Sprite.hpp     - Sprite
  * - components/Camera.hpp     - Camera, ProjectionType

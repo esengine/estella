@@ -47,6 +47,7 @@ class SchemaComponentPool {
 public:
     explicit SchemaComponentPool(u32 stride, u32 initialCapacity = 64)
         : stride_(stride) {
+        ES_ASSERT(stride > 0, "stride must be > 0");
         data_.reserve(initialCapacity * stride);
     }
 
@@ -79,9 +80,12 @@ public:
         sparse_[entity] = index;
         dense_.push_back(entity);
 
-        // Allocate space for component data (zero-initialized)
         usize oldSize = data_.size();
+        const u8* oldPtr = data_.data();
         data_.resize(oldSize + stride_, 0);
+        if (data_.data() != oldPtr) {
+            pool_version_++;
+        }
 
         return static_cast<u32>(oldSize);
     }
@@ -134,10 +138,17 @@ public:
     // Memory Access
     // =========================================================================
 
-    /** @brief Gets base pointer for direct memory access from JS */
+    /**
+     * @brief Gets base pointer for direct memory access from JS
+     * @warning This pointer may be invalidated by add() if the internal
+     *          vector reallocates. Check poolVersion() to detect changes.
+     */
     uintptr_t basePtr() const {
         return reinterpret_cast<uintptr_t>(data_.data());
     }
+
+    /** @brief Version counter incremented on each potential reallocation */
+    u32 poolVersion() const { return pool_version_; }
 
     /** @brief Gets the stride (bytes per component) */
     u32 stride() const { return stride_; }
@@ -173,6 +184,7 @@ public:
 
 private:
     u32 stride_;                    ///< Bytes per component
+    u32 pool_version_ = 0;          ///< Incremented on potential reallocation
     std::vector<u8> data_;          ///< Contiguous component data
     std::vector<u32> sparse_;       ///< Entity -> dense index
     std::vector<Entity> dense_;     ///< Dense entity array
@@ -267,6 +279,12 @@ public:
     u32 getPoolStride(u32 poolId) const {
         if (poolId >= pools_.size()) return 0;
         return pools_[poolId]->stride();
+    }
+
+    /** @brief Gets pool version (incremented on reallocation) */
+    u32 getPoolVersion(u32 poolId) const {
+        if (poolId >= pools_.size()) return 0;
+        return pools_[poolId]->poolVersion();
     }
 
     /** @brief Gets entities with component */

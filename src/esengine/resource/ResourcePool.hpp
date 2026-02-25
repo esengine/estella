@@ -89,6 +89,7 @@ public:
         Unique<T> resource;    ///< The owned resource
         u32 refCount = 0;      ///< Reference count (0 = freed)
         std::string path;      ///< Optional path for caching
+        u32 generation = 0;    ///< Reuse counter for stale handle detection
     };
 
     ResourcePool() = default;
@@ -107,19 +108,23 @@ public:
      * @return Handle to the added resource
      */
     Handle<T> add(Unique<T> resource, const std::string& path = "") {
-        u32 id;
+        u32 index;
+        u32 gen;
         if (!freeList_.empty()) {
-            id = freeList_.back();
+            index = freeList_.back();
             freeList_.pop_back();
-            entries_[id] = {std::move(resource), 1, path};
+            gen = entries_[index].generation;
+            entries_[index] = {std::move(resource), 1, path, gen};
         } else {
-            id = static_cast<u32>(entries_.size());
-            entries_.push_back({std::move(resource), 1, path});
+            index = static_cast<u32>(entries_.size());
+            gen = 0;
+            entries_.push_back({std::move(resource), 1, path, 0});
         }
+        auto handle = Handle<T>::fromParts(index, gen);
         if (!path.empty()) {
-            pathToId_[path] = id;
+            pathToId_[path] = handle.id();
         }
-        return Handle<T>(id);
+        return handle;
     }
 
     /**
@@ -128,11 +133,14 @@ public:
      * @return Pointer to the resource, or nullptr if invalid
      */
     T* get(Handle<T> handle) {
-        if (!handle.isValid() || handle.id() >= entries_.size()) {
+        if (!handle.isValid()) return nullptr;
+        u32 idx = handle.index();
+        if (idx >= entries_.size()) return nullptr;
+        auto& entry = entries_[idx];
+        if (entry.refCount == 0 || entry.generation != handle.generation()) {
             return nullptr;
         }
-        auto& entry = entries_[handle.id()];
-        return entry.refCount > 0 ? entry.resource.get() : nullptr;
+        return entry.resource.get();
     }
 
     /**
@@ -141,11 +149,14 @@ public:
      * @return Const pointer to the resource, or nullptr if invalid
      */
     const T* get(Handle<T> handle) const {
-        if (!handle.isValid() || handle.id() >= entries_.size()) {
+        if (!handle.isValid()) return nullptr;
+        u32 idx = handle.index();
+        if (idx >= entries_.size()) return nullptr;
+        const auto& entry = entries_[idx];
+        if (entry.refCount == 0 || entry.generation != handle.generation()) {
             return nullptr;
         }
-        const auto& entry = entries_[handle.id()];
-        return entry.refCount > 0 ? entry.resource.get() : nullptr;
+        return entry.resource.get();
     }
 
     /**
@@ -155,7 +166,13 @@ public:
      */
     Handle<T> findByPath(const std::string& path) const {
         auto it = pathToId_.find(path);
-        return it != pathToId_.end() ? Handle<T>(it->second) : Handle<T>();
+        if (it == pathToId_.end()) return Handle<T>();
+        auto handle = Handle<T>(it->second);
+        u32 idx = handle.index();
+        if (idx < entries_.size() && entries_[idx].generation == handle.generation()) {
+            return handle;
+        }
+        return Handle<T>();
     }
 
     /**
@@ -164,9 +181,11 @@ public:
      * @param path The path to associate
      */
     void setPath(Handle<T> handle, const std::string& path) {
-        if (!handle.isValid() || handle.id() >= entries_.size()) return;
-        auto& entry = entries_[handle.id()];
-        if (entry.refCount > 0 && !path.empty()) {
+        if (!handle.isValid()) return;
+        u32 idx = handle.index();
+        if (idx >= entries_.size()) return;
+        auto& entry = entries_[idx];
+        if (entry.refCount > 0 && entry.generation == handle.generation() && !path.empty()) {
             if (!entry.path.empty()) {
                 pathToId_.erase(entry.path);
             }
@@ -180,9 +199,11 @@ public:
      * @param handle The resource handle
      */
     void addRef(Handle<T> handle) {
-        if (handle.isValid() && handle.id() < entries_.size()) {
-            auto& entry = entries_[handle.id()];
-            if (entry.refCount > 0) {
+        if (!handle.isValid()) return;
+        u32 idx = handle.index();
+        if (idx < entries_.size()) {
+            auto& entry = entries_[idx];
+            if (entry.refCount > 0 && entry.generation == handle.generation()) {
                 entry.refCount++;
             }
         }
@@ -193,15 +214,19 @@ public:
      * @param id The resource identifier
      */
     void release(u32 id) override {
-        if (id < entries_.size() && entries_[id].refCount > 0) {
-            if (--entries_[id].refCount == 0) {
-                if (!entries_[id].path.empty()) {
-                    pathToId_.erase(entries_[id].path);
-                }
-                entries_[id].resource.reset();
-                entries_[id].path.clear();
-                freeList_.push_back(id);
+        u32 index = Handle<T>::extractIndex(id);
+        u32 gen = Handle<T>::extractGeneration(id);
+        if (index >= entries_.size()) return;
+        auto& entry = entries_[index];
+        if (entry.refCount == 0 || entry.generation != gen) return;
+        if (--entry.refCount == 0) {
+            if (!entry.path.empty()) {
+                pathToId_.erase(entry.path);
             }
+            entry.resource.reset();
+            entry.path.clear();
+            entry.generation = (entry.generation + 1) & Handle<T>::GEN_MASK;
+            freeList_.push_back(index);
         }
     }
 
@@ -228,10 +253,12 @@ public:
      * @return Reference count, or 0 if invalid
      */
     u32 getRefCount(Handle<T> handle) const {
-        if (!handle.isValid() || handle.id() >= entries_.size()) {
-            return 0;
-        }
-        return entries_[handle.id()].refCount;
+        if (!handle.isValid()) return 0;
+        u32 idx = handle.index();
+        if (idx >= entries_.size()) return 0;
+        const auto& entry = entries_[idx];
+        if (entry.generation != handle.generation()) return 0;
+        return entry.refCount;
     }
 
     /**
@@ -241,10 +268,12 @@ public:
      */
     const std::string& getPath(Handle<T> handle) const {
         static const std::string empty;
-        if (!handle.isValid() || handle.id() >= entries_.size()) {
-            return empty;
-        }
-        return entries_[handle.id()].path;
+        if (!handle.isValid()) return empty;
+        u32 idx = handle.index();
+        if (idx >= entries_.size()) return empty;
+        const auto& entry = entries_[idx];
+        if (entry.generation != handle.generation()) return empty;
+        return entry.path;
     }
 
 private:
