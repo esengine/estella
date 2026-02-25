@@ -48,6 +48,8 @@ constexpr u32 MAX_TOUCH_POINTS = 10;
 struct TouchState {
     /** @brief Whether this touch point is currently active */
     bool active = false;
+    /** @brief Platform-assigned touch identifier */
+    i32 touchId = -1;
     /** @brief Current X position */
     f32 x = 0.0f;
     /** @brief Current Y position */

@@ -118,16 +118,12 @@ void SpineRenderer::submit(ecs::Registry& registry) {
         glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
         glm::vec3 scale{1.0f};
 
-        if (registry.has<ecs::WorldTransform>(entity)) {
-            const auto& world = registry.get<ecs::WorldTransform>(entity);
-            position = world.position;
-            rotation = world.rotation;
-            scale = world.scale;
-        } else if (registry.has<ecs::LocalTransform>(entity)) {
-            const auto& local = registry.get<ecs::LocalTransform>(entity);
-            position = local.position;
-            rotation = local.rotation;
-            scale = local.scale;
+        if (registry.has<ecs::Transform>(entity)) {
+            auto& t = registry.get<ecs::Transform>(entity);
+            t.ensureDecomposed();
+            position = t.worldPosition;
+            rotation = t.worldRotation;
+            scale = t.worldScale;
         }
 
         renderSkeleton(instance->skeleton.get(), position, rotation, scale,
