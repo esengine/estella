@@ -40,6 +40,8 @@ export class EditorTextureManager {
      * @returns Texture handle ID, or 0 if failed
      */
     async loadTexture(texturePath: string): Promise<number> {
+        if (!texturePath || /^\d+$/.test(texturePath)) return 0;
+
         const fullPath = this.pathResolver_.toAbsolutePath(texturePath);
 
         const existing = this.pathToEntry_.get(fullPath);

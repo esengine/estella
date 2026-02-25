@@ -11,6 +11,7 @@ import {
     getComponentSchema,
     getDefaultComponentData,
     getInitialComponentData,
+    inferPropertyType,
     isComponentRemovable,
 } from '../../schemas/ComponentSchemas';
 import { icons } from '../../utils/icons';
@@ -452,10 +453,55 @@ export function renderComponent(
 
         section.appendChild(propsContainer);
     } else {
-        const rawView = document.createElement('pre');
-        rawView.className = 'es-component-raw';
-        rawView.textContent = JSON.stringify(component.data, null, 2);
-        section.appendChild(rawView);
+        const propsContainer = document.createElement('div');
+        propsContainer.className = 'es-component-properties es-collapsible-content';
+
+        const fullData = { ...defaults, ...component.data };
+        for (const [key, value] of Object.entries(fullData)) {
+            const row = document.createElement('div');
+            row.className = 'es-property-row';
+
+            const label = document.createElement('label');
+            label.className = 'es-property-label';
+            label.textContent = key;
+
+            const editorContainer = document.createElement('div');
+            editorContainer.className = 'es-property-editor';
+
+            const propMeta: import('../../property/PropertyEditor').PropertyMeta = {
+                name: key,
+                type: inferPropertyType(value),
+            };
+
+            let currentValue = component.data[key];
+            if (currentValue === undefined) {
+                currentValue = defaults[key];
+            }
+            const editor = createPropertyEditor(editorContainer, {
+                value: currentValue,
+                meta: propMeta,
+                onChange: (newValue) => {
+                    const oldValue = component.data[key] ?? currentValue;
+                    store.updateProperty(entity, component.type, key, oldValue, newValue);
+                },
+                componentData: component.data,
+                getComponentValue: (name: string) => component.data[name],
+            });
+
+            if (editor) {
+                editors.push({
+                    editor,
+                    componentType: component.type,
+                    propertyName: key,
+                });
+            }
+
+            row.appendChild(label);
+            row.appendChild(editorContainer);
+            propsContainer.appendChild(row);
+        }
+
+        section.appendChild(propsContainer);
     }
 
     container.appendChild(section);

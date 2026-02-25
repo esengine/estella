@@ -231,9 +231,10 @@ export function createVec4Editor(
 // =============================================================================
 
 export function colorToHex(color: { r: number; g: number; b: number; a: number }): string {
-    const r = Math.round(color.r * 255).toString(16).padStart(2, '0');
-    const g = Math.round(color.g * 255).toString(16).padStart(2, '0');
-    const b = Math.round(color.b * 255).toString(16).padStart(2, '0');
+    const clamp = (v: number) => Math.max(0, Math.min(255, Math.round((Number.isFinite(v) ? v : 0) * 255)));
+    const r = clamp(color.r).toString(16).padStart(2, '0');
+    const g = clamp(color.g).toString(16).padStart(2, '0');
+    const b = clamp(color.b).toString(16).padStart(2, '0');
     return `#${r}${g}${b}`;
 }
 
