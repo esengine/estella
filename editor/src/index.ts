@@ -156,7 +156,7 @@ export {
 
 export {
     type ComponentSchema,
-    LocalTransformSchema,
+    TransformSchema,
     SpriteSchema,
     CameraSchema,
     TextSchema,
@@ -253,7 +253,7 @@ export { AssetPathResolver, getGlobalPathResolver, getAssetDatabase } from './as
 // Math
 // =============================================================================
 
-export { quatToEuler, eulerToQuat, type Transform } from './math/Transform';
+export { quatToEuler, eulerToQuat, type TransformValue } from './math/Transform';
 
 // =============================================================================
 // Content Browser

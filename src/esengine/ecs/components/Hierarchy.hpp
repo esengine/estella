@@ -63,6 +63,7 @@ struct Parent {
 ES_COMPONENT()
 struct Children {
     /** @brief List of child entity IDs */
+    ES_PROPERTY()
     std::vector<Entity> entities;
 
     Children() = default;

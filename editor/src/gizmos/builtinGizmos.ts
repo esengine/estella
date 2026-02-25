@@ -170,7 +170,7 @@ export function createMoveGizmo(): GizmoDescriptor {
         onDragStart(worldX, worldY, hitData, gctx) {
             dragAxis = hitData as DragAxis;
             const entityData = gctx.store.getSelectedEntityData();
-            const transform = entityData?.components.find(c => c.type === 'LocalTransform');
+            const transform = entityData?.components.find(c => c.type === 'Transform');
             if (transform) {
                 const value = transform.data.position as { x: number; y: number; z: number };
                 dragState = {
@@ -202,7 +202,7 @@ export function createMoveGizmo(): GizmoDescriptor {
                 newY = Math.round(newY / gridSize) * gridSize;
             }
 
-            gctx.store.updatePropertyDirect(entity, 'LocalTransform', 'position', {
+            gctx.store.updatePropertyDirect(entity, 'Transform', 'position', {
                 x: newX, y: newY, z: dragState.startValue.z,
             });
             gctx.requestRender();
@@ -213,12 +213,12 @@ export function createMoveGizmo(): GizmoDescriptor {
             if (entity === null || !dragState) { dragState = null; return; }
 
             const entityData = gctx.store.getSelectedEntityData();
-            const transform = entityData?.components.find(c => c.type === 'LocalTransform');
+            const transform = entityData?.components.find(c => c.type === 'Transform');
             if (transform) {
                 const currentValue = transform.data.position;
                 if (currentValue && !valuesEqual(dragState.originalValue, currentValue)) {
                     gctx.store.updateProperty(
-                        entity, 'LocalTransform', 'position',
+                        entity, 'Transform', 'position',
                         { ...dragState.originalValue }, deepClone(currentValue),
                     );
                 }
@@ -290,7 +290,7 @@ export function createRotateGizmo(): GizmoDescriptor {
             const radius = size * 0.8;
 
             const entityData = gctx.store.getSelectedEntityData();
-            const transform = entityData?.components.find(c => c.type === 'LocalTransform');
+            const transform = entityData?.components.find(c => c.type === 'Transform');
             const quat = transform?.data.rotation as { x: number; y: number; z: number; w: number } ?? { x: 0, y: 0, z: 0, w: 1 };
             const euler = quatToEuler(quat);
             const angleRad = -euler.z * Math.PI / 180;
@@ -325,7 +325,7 @@ export function createRotateGizmo(): GizmoDescriptor {
 
         onDragStart(worldX, worldY, _hitData, gctx) {
             const entityData = gctx.store.getSelectedEntityData();
-            const transform = entityData?.components.find(c => c.type === 'LocalTransform');
+            const transform = entityData?.components.find(c => c.type === 'Transform');
             if (transform) {
                 const quat = transform.data.rotation as { x: number; y: number; z: number; w: number };
                 dragState = {
@@ -357,7 +357,7 @@ export function createRotateGizmo(): GizmoDescriptor {
 
             const newRotZ = dragState.startEuler.z + deltaAngle;
             const quat = eulerToQuat({ x: 0, y: 0, z: newRotZ });
-            gctx.store.updatePropertyDirect(entity, 'LocalTransform', 'rotation', quat);
+            gctx.store.updatePropertyDirect(entity, 'Transform', 'rotation', quat);
             gctx.requestRender();
         },
 
@@ -366,12 +366,12 @@ export function createRotateGizmo(): GizmoDescriptor {
             if (entity === null || !dragState) { dragState = null; return; }
 
             const entityData = gctx.store.getSelectedEntityData();
-            const transform = entityData?.components.find(c => c.type === 'LocalTransform');
+            const transform = entityData?.components.find(c => c.type === 'Transform');
             if (transform) {
                 const currentValue = transform.data.rotation;
                 if (currentValue && !valuesEqual(dragState.originalQuat, currentValue)) {
                     gctx.store.updateProperty(
-                        entity, 'LocalTransform', 'rotation',
+                        entity, 'Transform', 'rotation',
                         { ...dragState.originalQuat }, deepClone(currentValue),
                     );
                 }
@@ -477,7 +477,7 @@ export function createScaleGizmo(): GizmoDescriptor {
         onDragStart(worldX, worldY, hitData, gctx) {
             dragAxis = hitData as DragAxis;
             const entityData = gctx.store.getSelectedEntityData();
-            const transform = entityData?.components.find(c => c.type === 'LocalTransform');
+            const transform = entityData?.components.find(c => c.type === 'Transform');
             if (transform) {
                 const value = transform.data.scale as { x: number; y: number; z: number };
                 dragState = {
@@ -503,7 +503,7 @@ export function createScaleGizmo(): GizmoDescriptor {
             if (dragAxis === 'x' || dragAxis === 'xy') newX += dx * scaleFactor;
             if (dragAxis === 'y' || dragAxis === 'xy') newY += dy * scaleFactor;
 
-            gctx.store.updatePropertyDirect(entity, 'LocalTransform', 'scale', {
+            gctx.store.updatePropertyDirect(entity, 'Transform', 'scale', {
                 x: Math.max(0.01, newX), y: Math.max(0.01, newY), z: dragState.startValue.z,
             });
             gctx.requestRender();
@@ -514,12 +514,12 @@ export function createScaleGizmo(): GizmoDescriptor {
             if (entity === null || !dragState) { dragState = null; return; }
 
             const entityData = gctx.store.getSelectedEntityData();
-            const transform = entityData?.components.find(c => c.type === 'LocalTransform');
+            const transform = entityData?.components.find(c => c.type === 'Transform');
             if (transform) {
                 const currentValue = transform.data.scale;
                 if (currentValue && !valuesEqual(dragState.originalValue, currentValue)) {
                     gctx.store.updateProperty(
-                        entity, 'LocalTransform', 'scale',
+                        entity, 'Transform', 'scale',
                         { ...dragState.originalValue }, deepClone(currentValue),
                     );
                 }
@@ -674,7 +674,7 @@ export function createRectGizmo(): GizmoDescriptor {
             const entityData = gctx.store.getSelectedEntityData();
             if (!entityData) return;
 
-            const transform = entityData.components.find(c => c.type === 'LocalTransform');
+            const transform = entityData.components.find(c => c.type === 'Transform');
             const pos = transform?.data.position as { x: number; y: number; z: number } ?? { x: 0, y: 0, z: 0 };
 
             const sizeType = getSizeComponentType(entityData);
@@ -731,10 +731,10 @@ export function createRectGizmo(): GizmoDescriptor {
                 gctx.store.updatePropertyDirect(entity, sizeType, 'size', { x: newWidth, y: newHeight });
             }
 
-            const transform = entityData.components.find(c => c.type === 'LocalTransform');
+            const transform = entityData.components.find(c => c.type === 'Transform');
             if (transform) {
                 const pos = transform.data.position as { x: number; y: number; z: number };
-                gctx.store.updatePropertyDirect(entity, 'LocalTransform', 'position', {
+                gctx.store.updatePropertyDirect(entity, 'Transform', 'position', {
                     x: newPosX, y: newPosY, z: pos?.z ?? 0,
                 });
             }
@@ -761,12 +761,12 @@ export function createRectGizmo(): GizmoDescriptor {
                 }
             }
 
-            const transform = entityData.components.find(c => c.type === 'LocalTransform');
+            const transform = entityData.components.find(c => c.type === 'Transform');
             if (transform) {
                 const currentPos = transform.data.position as { x: number; y: number; z: number };
                 if (currentPos && !valuesEqual(dragState.originalPos, currentPos)) {
                     gctx.store.updateProperty(
-                        entity, 'LocalTransform', 'position',
+                        entity, 'Transform', 'position',
                         { ...dragState.originalPos }, { ...currentPos },
                     );
                 }

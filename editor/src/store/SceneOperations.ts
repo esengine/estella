@@ -251,7 +251,7 @@ export class SceneOperations {
         component.data[propertyName] = newValue;
         this.host_.state_.isDirty = true;
 
-        if (componentType === 'LocalTransform') {
+        if (componentType === 'Transform') {
             this.host_.worldTransforms_.updateEntity(entityData);
             this.host_.worldTransforms_.markDirty(entity as number);
         }

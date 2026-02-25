@@ -9,7 +9,7 @@ import type { ESEngineModule } from '../wasm';
 import { defineResource } from '../resource';
 import { Schedule } from '../system';
 import type { SystemDef } from '../system';
-import { SpineAnimation, WorldTransform, type SpineAnimationData, type WorldTransformData } from '../component';
+import { SpineAnimation, Transform, type SpineAnimationData, type TransformData } from '../component';
 import { Assets } from '../asset';
 import type { Entity } from '../types';
 import { loadSpineModule, type SpineModuleFactory } from './SpineModuleLoader';
@@ -20,15 +20,15 @@ export const SpineResource = defineResource<SpineModuleController | null>(null, 
 const _transformBuf = new Float32Array(16);
 
 function buildTransformMatrix(
-    wt: WorldTransformData,
+    wt: TransformData,
     skeletonScale: number,
     flipX: boolean,
     flipY: boolean,
 ): Float32Array {
-    const sx = wt.scale.x * skeletonScale * (flipX ? -1 : 1);
-    const sy = wt.scale.y * skeletonScale * (flipY ? -1 : 1);
-    const sz = wt.scale.z;
-    const qx = wt.rotation.x, qy = wt.rotation.y, qz = wt.rotation.z, qw = wt.rotation.w;
+    const sx = wt.worldScale.x * skeletonScale * (flipX ? -1 : 1);
+    const sy = wt.worldScale.y * skeletonScale * (flipY ? -1 : 1);
+    const sz = wt.worldScale.z;
+    const qx = wt.worldRotation.x, qy = wt.worldRotation.y, qz = wt.worldRotation.z, qw = wt.worldRotation.w;
     const x2 = qx + qx, y2 = qy + qy, z2 = qz + qz;
     const xx = qx * x2, xy = qx * y2, xz = qx * z2;
     const yy = qy * y2, yz = qy * z2, zz = qz * z2;
@@ -45,9 +45,9 @@ function buildTransformMatrix(
     _transformBuf[9] = (yz - wx) * sz;
     _transformBuf[10] = (1 - (xx + yy)) * sz;
     _transformBuf[11] = 0;
-    _transformBuf[12] = wt.position.x;
-    _transformBuf[13] = wt.position.y;
-    _transformBuf[14] = wt.position.z;
+    _transformBuf[12] = wt.worldPosition.x;
+    _transformBuf[13] = wt.worldPosition.y;
+    _transformBuf[14] = wt.worldPosition.z;
     _transformBuf[15] = 1;
     return _transformBuf;
 }
@@ -178,8 +178,8 @@ export class SpinePlugin implements Plugin {
                             }
 
                             let transform: Float32Array | undefined;
-                            if (world.has(entity as Entity, WorldTransform)) {
-                                const wt = world.get(entity as Entity, WorldTransform) as WorldTransformData;
+                            if (world.has(entity as Entity, Transform)) {
+                                const wt = world.get(entity as Entity, Transform) as TransformData;
                                 const skeletonScale = spineData?.skeletonScale ?? 1;
                                 const flipX = spineData?.flipX ?? false;
                                 const flipY = spineData?.flipY ?? false;

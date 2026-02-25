@@ -37,18 +37,30 @@ function deepClone<T>(value: T): T {
 
 let componentCounter = 0;
 
+function hasNestedObjects(obj: object): boolean {
+    for (const key in obj) {
+        const val = (obj as Record<string, unknown>)[key];
+        if (val !== null && typeof val === 'object') return true;
+    }
+    return false;
+}
+
 function createComponentDef<T extends object>(
     name: string,
     defaults: T
 ): ComponentDef<T> {
     const id = ++componentCounter;
+    const needsDeepClone = hasNestedObjects(defaults);
     return {
         _id: Symbol(`Component_${id}_${name}`),
         _name: name,
         _default: defaults,
         _builtin: false as const,
         create(data?: Partial<T>): T {
-            return data ? { ...deepClone(defaults), ...data } : deepClone(defaults);
+            if (needsDeepClone) {
+                return data ? { ...deepClone(defaults), ...data } : deepClone(defaults);
+            }
+            return data ? { ...defaults, ...data } : { ...defaults };
         }
     };
 }
@@ -194,17 +206,17 @@ export type ScaleMode = (typeof ScaleMode)[keyof typeof ScaleMode];
 // Builtin Component Types
 // =============================================================================
 
-export interface LocalTransformData {
+export interface TransformData {
     position: Vec3;
     rotation: Quat;
     scale: Vec3;
+    worldPosition: Vec3;
+    worldRotation: Quat;
+    worldScale: Vec3;
 }
 
-export interface WorldTransformData {
-    position: Vec3;
-    rotation: Quat;
-    scale: Vec3;
-}
+export type LocalTransformData = TransformData;
+export type WorldTransformData = TransformData;
 
 export interface SpriteData {
     texture: number;
@@ -228,6 +240,7 @@ export interface CameraData {
     aspectRatio: number;
     isActive: boolean;
     priority: number;
+    /** Editor-only: not synced to C++ Camera component, used for gizmo rendering */
     showFrustum: boolean;
     viewportX: number;
     viewportY: number;
@@ -298,17 +311,16 @@ export interface SceneOwnerData {
 // Builtin Component Instances
 // =============================================================================
 
-export const LocalTransform = defineBuiltin<LocalTransformData>('LocalTransform', {
+export const Transform = defineBuiltin<TransformData>('Transform', {
     position: { x: 0, y: 0, z: 0 },
     rotation: { w: 1, x: 0, y: 0, z: 0 },
-    scale: { x: 1, y: 1, z: 1 }
+    scale: { x: 1, y: 1, z: 1 },
+    worldPosition: { x: 0, y: 0, z: 0 },
+    worldRotation: { w: 1, x: 0, y: 0, z: 0 },
+    worldScale: { x: 1, y: 1, z: 1 },
 });
-
-export const WorldTransform = defineBuiltin<WorldTransformData>('WorldTransform', {
-    position: { x: 0, y: 0, z: 0 },
-    rotation: { w: 1, x: 0, y: 0, z: 0 },
-    scale: { x: 1, y: 1, z: 1 }
-});
+export const LocalTransform = Transform;
+export const WorldTransform = Transform;
 
 export const Sprite = defineBuiltin<SpriteData>('Sprite', {
     texture: INVALID_TEXTURE,
@@ -389,15 +401,7 @@ export const SpineAnimation = defineBuiltin<SpineAnimationData>('SpineAnimation'
     enabled: true
 });
 
-export const Name: ComponentDef<NameData> = {
-    _id: Symbol('Component_Name'),
-    _name: 'Name',
-    _default: { value: '' },
-    _builtin: false as const,
-    create(data?: Partial<NameData>): NameData {
-        return { value: '', ...data };
-    }
-};
+export const Name = defineComponent<NameData>('Name', { value: '' });
 
 export const SceneOwner = defineComponent<SceneOwnerData>('SceneOwner', {
     scene: '',
@@ -427,4 +431,3 @@ export function getComponentDefaults(typeName: string): Record<string, unknown> 
     return null;
 }
 
-registerComponent('Name', Name);

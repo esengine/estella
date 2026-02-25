@@ -5,7 +5,7 @@
 
 import type { SceneData, EntityData } from '../types/SceneTypes';
 import {
-    Transform,
+    type TransformValue,
     composeTransforms,
     createIdentityTransform,
     computeAdjustedLocalTransform,
@@ -16,13 +16,15 @@ import {
 // =============================================================================
 
 export class WorldTransformCache {
-    private cache_ = new Map<number, Transform>();
+    private cache_ = new Map<number, TransformValue>();
     private dirty_ = new Set<number>();
     private entityMap_ = new Map<number, EntityData>();
+    private cppWorldTransformProvider_: ((entityId: number) => TransformValue | null) | null = null;
 
-    /**
-     * @brief Set scene data and rebuild entity index
-     */
+    setCppWorldTransformProvider(provider: ((entityId: number) => TransformValue | null) | null): void {
+        this.cppWorldTransformProvider_ = provider;
+    }
+
     setScene(scene: SceneData): void {
         this.entityMap_.clear();
         this.cache_.clear();
@@ -61,7 +63,12 @@ export class WorldTransformCache {
     /**
      * @brief Get world transform for an entity (uses cache)
      */
-    getWorldTransform(entityId: number): Transform {
+    getWorldTransform(entityId: number): TransformValue {
+        if (this.cppWorldTransformProvider_) {
+            const cppTransform = this.cppWorldTransformProvider_(entityId);
+            if (cppTransform) return cppTransform;
+        }
+
         if (!this.dirty_.has(entityId) && this.cache_.has(entityId)) {
             return this.cache_.get(entityId)!;
         }
@@ -120,7 +127,7 @@ export class WorldTransformCache {
         }
     }
 
-    private computeWorldTransform(entityId: number): Transform {
+    private computeWorldTransform(entityId: number): TransformValue {
         const entity = this.entityMap_.get(entityId);
         if (!entity) {
             return createIdentityTransform();

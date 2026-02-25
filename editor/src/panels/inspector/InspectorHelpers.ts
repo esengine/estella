@@ -123,8 +123,7 @@ export function getAssetServer(): EditorAssetServer | null {
 }
 
 const COMPONENT_ICON_MAP = new Map<string, (size: number) => string>([
-    ['LocalTransform', icons.move],
-    ['WorldTransform', icons.move],
+    ['Transform', icons.move],
     ['Sprite', icons.image],
     ['NinePatch', icons.image],
     ['Camera', icons.camera],

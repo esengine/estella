@@ -6,7 +6,7 @@
 import type { App, Plugin } from '../app';
 import type { SceneData } from '../scene';
 import { loadRuntimeScene } from '../runtimeLoader';
-import { LocalTransform, Camera, Canvas, ProjectionType, ClearFlags, type LocalTransformData, type CameraData, type CanvasData } from '../component';
+import { Transform, Camera, Canvas, ProjectionType, ClearFlags, type TransformData, type CameraData, type CanvasData } from '../component';
 import { DEFAULT_DESIGN_WIDTH, DEFAULT_DESIGN_HEIGHT, DEFAULT_PIXELS_PER_UNIT } from '../defaults';
 import { platformFetch } from '../platform';
 import { SceneManager } from '../sceneManager';
@@ -119,12 +119,15 @@ export class PreviewPlugin implements Plugin {
             const sceneCtx = manager.getScene(PREVIEW_SCENE);
             const cameraEntity = sceneCtx ? sceneCtx.spawn() : world.spawn();
 
-            const transformData: LocalTransformData = {
+            const transformData: TransformData = {
                 position: { x: 0, y: 0, z: 10 },
                 rotation: { x: 0, y: 0, z: 0, w: 1 },
                 scale: { x: 1, y: 1, z: 1 },
+                worldPosition: { x: 0, y: 0, z: 10 },
+                worldRotation: { x: 0, y: 0, z: 0, w: 1 },
+                worldScale: { x: 1, y: 1, z: 1 },
             };
-            world.insert(cameraEntity, LocalTransform, transformData);
+            world.insert(cameraEntity, Transform, transformData);
 
             const cameraData: CameraData = {
                 isActive: true,

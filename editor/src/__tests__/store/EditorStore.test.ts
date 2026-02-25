@@ -417,17 +417,17 @@ describe('EditorStore', () => {
 
         it('updateProperties changes multiple properties at once', () => {
             const entity = store.createEntity('Entity1');
-            store.addComponent(entity, 'LocalTransform', {
+            store.addComponent(entity, 'Transform', {
                 position: { x: 0, y: 0, z: 0 },
                 scale: { x: 1, y: 1, z: 1 },
             });
 
-            store.updateProperties(entity, 'LocalTransform', [
+            store.updateProperties(entity, 'Transform', [
                 { property: 'position', oldValue: { x: 0, y: 0, z: 0 }, newValue: { x: 10, y: 20, z: 0 } },
                 { property: 'scale', oldValue: { x: 1, y: 1, z: 1 }, newValue: { x: 2, y: 2, z: 2 } },
             ]);
 
-            const comp = store.getComponent(entity, 'LocalTransform');
+            const comp = store.getComponent(entity, 'Transform');
             expect(comp!.data.position).toEqual({ x: 10, y: 20, z: 0 });
             expect(comp!.data.scale).toEqual({ x: 2, y: 2, z: 2 });
         });

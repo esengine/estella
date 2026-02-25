@@ -74,7 +74,7 @@ export function createEmptyScene(
                 children: [],
                 components: [
                     {
-                        type: 'LocalTransform',
+                        type: 'Transform',
                         data: {
                             position: { x: 0, y: 0, z: 10 },
                             rotation: { x: 0, y: 0, z: 0, w: 1 },
@@ -108,7 +108,7 @@ export function createEmptyScene(
                 children: [],
                 components: [
                     {
-                        type: 'LocalTransform',
+                        type: 'Transform',
                         data: {
                             position: { x: 0, y: 0, z: 0 },
                             rotation: { x: 0, y: 0, z: 0, w: 1 },

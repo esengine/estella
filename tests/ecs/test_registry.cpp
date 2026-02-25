@@ -322,7 +322,7 @@ TEST(local_transform_default) {
     esengine::ecs::Registry registry;
     esengine::Entity entity = registry.create();
 
-    auto& local = registry.emplace<esengine::ecs::LocalTransform>(entity);
+    auto& local = registry.emplace<esengine::ecs::Transform>(entity);
 
     ASSERT_EQ(local.position.x, 0.0f);
     ASSERT_EQ(local.position.y, 0.0f);
@@ -335,7 +335,7 @@ TEST(local_transform_with_position) {
     esengine::ecs::Registry registry;
     esengine::Entity entity = registry.create();
 
-    auto& local = registry.emplace<esengine::ecs::LocalTransform>(
+    auto& local = registry.emplace<esengine::ecs::Transform>(
         entity, glm::vec3(10.0f, 20.0f, 30.0f));
 
     ASSERT_EQ(local.position.x, 10.0f);
@@ -348,7 +348,7 @@ TEST(local_transform_with_rotation) {
     esengine::Entity entity = registry.create();
 
     glm::quat rotation = glm::angleAxis(glm::radians(90.0f), glm::vec3(0, 1, 0));
-    auto& local = registry.emplace<esengine::ecs::LocalTransform>(
+    auto& local = registry.emplace<esengine::ecs::Transform>(
         entity, glm::vec3(0.0f), rotation);
 
     ASSERT_TRUE(esengine::math::approxEqual(local.rotation.y, rotation.y, 0.001f));
@@ -360,8 +360,8 @@ TEST(hierarchy_parent_child) {
     esengine::Entity parent = registry.create();
     esengine::Entity child = registry.create();
 
-    registry.emplace<esengine::ecs::LocalTransform>(parent, glm::vec3(10.0f, 0.0f, 0.0f));
-    registry.emplace<esengine::ecs::LocalTransform>(child, glm::vec3(5.0f, 0.0f, 0.0f));
+    registry.emplace<esengine::ecs::Transform>(parent, glm::vec3(10.0f, 0.0f, 0.0f));
+    registry.emplace<esengine::ecs::Transform>(child, glm::vec3(5.0f, 0.0f, 0.0f));
 
     esengine::ecs::setParent(registry, child, parent);
 
@@ -380,9 +380,9 @@ TEST(hierarchy_depth) {
     esengine::Entity parent = registry.create();
     esengine::Entity child = registry.create();
 
-    registry.emplace<esengine::ecs::LocalTransform>(grandparent);
-    registry.emplace<esengine::ecs::LocalTransform>(parent);
-    registry.emplace<esengine::ecs::LocalTransform>(child);
+    registry.emplace<esengine::ecs::Transform>(grandparent);
+    registry.emplace<esengine::ecs::Transform>(parent);
+    registry.emplace<esengine::ecs::Transform>(child);
 
     esengine::ecs::setParent(registry, parent, grandparent);
     esengine::ecs::setParent(registry, child, parent);
@@ -398,9 +398,9 @@ TEST(hierarchy_get_root) {
     esengine::Entity middle = registry.create();
     esengine::Entity leaf = registry.create();
 
-    registry.emplace<esengine::ecs::LocalTransform>(root);
-    registry.emplace<esengine::ecs::LocalTransform>(middle);
-    registry.emplace<esengine::ecs::LocalTransform>(leaf);
+    registry.emplace<esengine::ecs::Transform>(root);
+    registry.emplace<esengine::ecs::Transform>(middle);
+    registry.emplace<esengine::ecs::Transform>(leaf);
 
     esengine::ecs::setParent(registry, middle, root);
     esengine::ecs::setParent(registry, leaf, middle);
@@ -418,10 +418,10 @@ TEST(hierarchy_is_descendant) {
     esengine::Entity grandchild = registry.create();
     esengine::Entity unrelated = registry.create();
 
-    registry.emplace<esengine::ecs::LocalTransform>(root);
-    registry.emplace<esengine::ecs::LocalTransform>(child);
-    registry.emplace<esengine::ecs::LocalTransform>(grandchild);
-    registry.emplace<esengine::ecs::LocalTransform>(unrelated);
+    registry.emplace<esengine::ecs::Transform>(root);
+    registry.emplace<esengine::ecs::Transform>(child);
+    registry.emplace<esengine::ecs::Transform>(grandchild);
+    registry.emplace<esengine::ecs::Transform>(unrelated);
 
     esengine::ecs::setParent(registry, child, root);
     esengine::ecs::setParent(registry, grandchild, child);
