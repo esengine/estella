@@ -1,6 +1,6 @@
 import type { App, Plugin } from '../app';
 import { registerComponent, Transform, Name, Sprite } from '../component';
-import type { SpriteData } from '../component';
+import type { SpriteData, TransformData } from '../component';
 import { defineSystem, Schedule } from '../system';
 import { Res } from '../resource';
 import type { Entity } from '../types';
@@ -15,10 +15,9 @@ import { Text, TextAlign, TextVerticalAlign, TextOverflow } from './text';
 import type { TextData } from './text';
 import { UIRect } from './UIRect';
 import type { UIRectData } from './UIRect';
-import { UIMask, MaskMode } from './UIMask';
 import { Input } from '../input';
 import type { InputState } from '../input';
-import { isEditor } from '../env';
+import { isEditor, isPlayMode } from '../env';
 import { INVALID_TEXTURE } from '../types';
 import { ensureComponent } from './uiHelpers';
 import { DROPDOWN_ITEM_HEIGHT, DROPDOWN_FONT_SIZE, DROPDOWN_HIGHLIGHT_COLOR } from './uiConstants';
@@ -27,6 +26,8 @@ interface DropdownState {
     optionEntities: Entity[];
     textEntities: Entity[];
     highlightIndex: number;
+    ddWidth: number;
+    ddLayer: number;
 }
 
 export class DropdownPlugin implements Plugin {
@@ -34,34 +35,38 @@ export class DropdownPlugin implements Plugin {
         registerComponent('Dropdown', Dropdown);
 
         const world = app.world;
-        const editorMode = isEditor();
         const dropdownStates = new Map<Entity, DropdownState>();
 
         app.addSystemToSchedule(Schedule.Update, defineSystem(
             [Res(Input), Res(UIEvents)],
             (input: InputState, events: UIEventQueue) => {
-                if (editorMode) return;
                 for (const [e] of dropdownStates) {
                     if (!world.valid(e)) dropdownStates.delete(e);
                 }
 
+                const editorSceneView = isEditor() && !isPlayMode();
                 const entities = world.getEntitiesWithComponents([Dropdown]);
                 for (const entity of entities) {
-                    ensureComponent(world, entity, Interactable, { enabled: true, blockRaycast: true });
-
                     const dropdown = world.get(entity, Dropdown) as DropdownData;
-                    const interaction = world.has(entity, UIInteraction)
-                        ? world.get(entity, UIInteraction) as UIInteractionData
-                        : null;
 
                     let state = dropdownStates.get(entity);
                     if (!state) {
-                        state = { optionEntities: [], textEntities: [], highlightIndex: -1 };
+                        state = { optionEntities: [], textEntities: [], highlightIndex: -1, ddWidth: 0, ddLayer: 0 };
                         dropdownStates.set(entity, state);
+                        normalizeListTransform(dropdown.listEntity);
                         if (!dropdown.isOpen) {
                             setListVisible(dropdown.listEntity, false);
                         }
+                        initDropdownAppearance(entity);
                     }
+
+                    if (editorSceneView) continue;
+
+                    ensureComponent(world, entity, Interactable, { enabled: true, blockRaycast: true });
+
+                    const interaction = world.has(entity, UIInteraction)
+                        ? world.get(entity, UIInteraction) as UIInteractionData
+                        : null;
 
                     if (interaction?.justPressed) {
                         if (dropdown.isOpen) {
@@ -80,6 +85,21 @@ export class DropdownPlugin implements Plugin {
                                 selectOption(entity, dropdown, state, i, events);
                                 break;
                             }
+                        }
+
+                        let hoveredIndex = -1;
+                        for (let i = 0; i < state.optionEntities.length; i++) {
+                            const optEntity = state.optionEntities[i];
+                            if (!world.valid(optEntity) || !world.has(optEntity, UIInteraction)) continue;
+                            const optInteraction = world.get(optEntity, UIInteraction) as UIInteractionData;
+                            if (optInteraction.hovered) {
+                                hoveredIndex = i;
+                                break;
+                            }
+                        }
+                        if (hoveredIndex >= 0 && hoveredIndex !== state.highlightIndex) {
+                            state.highlightIndex = hoveredIndex;
+                            updateHighlight(state);
                         }
 
                         if (input.isKeyPressed('ArrowDown')) {
@@ -115,6 +135,71 @@ export class DropdownPlugin implements Plugin {
             { name: 'DropdownSystem' }
         ), { runAfter: ['UIInteractionSystem'] });
 
+        app.addSystemToSchedule(Schedule.PostUpdate, defineSystem(
+            [],
+            () => {
+                for (const [entity, state] of dropdownStates) {
+                    if (!world.valid(entity)) continue;
+                    const dropdown = world.get(entity, Dropdown) as DropdownData;
+                    if (!dropdown.isOpen) continue;
+
+                    const textLayer = state.ddLayer + 3;
+                    for (const te of state.textEntities) {
+                        if (!world.valid(te) || !world.has(te, Sprite)) continue;
+                        const s = world.get(te, Sprite) as SpriteData;
+                        if (s.layer !== textLayer) {
+                            world.insert(te, Sprite, {
+                                texture: s.texture,
+                                color: { r: s.color.r, g: s.color.g, b: s.color.b, a: s.color.a },
+                                size: { x: s.size.x, y: s.size.y },
+                                uvOffset: { x: s.uvOffset.x, y: s.uvOffset.y },
+                                uvScale: { x: s.uvScale.x, y: s.uvScale.y },
+                                layer: textLayer,
+                                flipX: s.flipX,
+                                flipY: s.flipY,
+                                material: s.material,
+                                enabled: s.enabled,
+                            });
+                        }
+                    }
+                }
+            },
+            { name: 'DropdownPostSystem' }
+        ), { runAfter: ['UIRenderOrderSystem'] });
+
+        function normalizeListTransform(listEntity: Entity): void {
+            if (listEntity === 0 || !world.valid(listEntity)) return;
+            if (!world.has(listEntity, Transform)) return;
+            const t = world.get(listEntity, Transform) as TransformData;
+            if (t.scale.x === 0 && t.scale.y === 0 && t.scale.z === 0) {
+                world.insert(listEntity, Transform, {
+                    position: { x: t.position.x, y: t.position.y, z: t.position.z },
+                    rotation: { x: t.rotation.x, y: t.rotation.y, z: t.rotation.z, w: t.rotation.w },
+                    scale: { x: 1, y: 1, z: 1 },
+                });
+            }
+        }
+
+        function initDropdownAppearance(entity: Entity): void {
+            if (world.has(entity, Sprite)) {
+                const s = world.get(entity, Sprite) as SpriteData;
+                if (s.color.r === 1 && s.color.g === 1 && s.color.b === 1 && s.color.a === 1) {
+                    world.insert(entity, Sprite, {
+                        texture: s.texture,
+                        color: { r: 0.9, g: 0.9, b: 0.9, a: 1 },
+                        size: { x: s.size.x, y: s.size.y },
+                        uvOffset: { x: s.uvOffset.x, y: s.uvOffset.y },
+                        uvScale: { x: s.uvScale.x, y: s.uvScale.y },
+                        layer: s.layer,
+                        flipX: s.flipX,
+                        flipY: s.flipY,
+                        material: s.material,
+                        enabled: s.enabled,
+                    });
+                }
+            }
+        }
+
         function openDropdown(entity: Entity, dropdown: DropdownData, state: DropdownState): void {
             dropdown.isOpen = true;
             state.highlightIndex = dropdown.selectedIndex;
@@ -123,39 +208,66 @@ export class DropdownPlugin implements Plugin {
             if (listEntity === 0 || !world.valid(listEntity)) return;
 
             setListVisible(listEntity, true);
-            if (!world.has(listEntity, UIMask)) {
-                world.insert(listEntity, UIMask, { enabled: true, mode: MaskMode.Scissor });
-            }
             destroyOptions(state);
 
-            const listRect = world.has(listEntity, UIRect)
-                ? world.get(listEntity, UIRect) as UIRectData
-                : null;
-            const listWidth = listRect ? listRect.size.x : 160;
+            const ddSprite = world.get(entity, Sprite) as SpriteData;
+            const ddWidth = ddSprite.size.x;
+            const ddHeight = ddSprite.size.y;
+            const ddLayer = ddSprite.layer;
+            state.ddWidth = ddWidth;
+            state.ddLayer = ddLayer;
+            const totalHeight = dropdown.options.length * DROPDOWN_ITEM_HEIGHT;
+
+            world.insert(listEntity, UIRect, {
+                anchorMin: { x: 0, y: 0 },
+                anchorMax: { x: 1, y: 0 },
+                offsetMin: { x: 0, y: 0 },
+                offsetMax: { x: 0, y: 0 },
+                size: { x: ddWidth, y: totalHeight },
+                pivot: { x: 0.5, y: 0.5 },
+            });
+            world.insert(listEntity, Transform, {
+                position: { x: 0, y: -(ddHeight + totalHeight) / 2, z: 0 },
+                rotation: { w: 1, x: 0, y: 0, z: 0 },
+                scale: { x: 1, y: 1, z: 1 },
+            });
+            world.insert(listEntity, Sprite, {
+                texture: INVALID_TEXTURE,
+                color: { r: 1, g: 1, b: 1, a: 1 },
+                size: { x: ddWidth, y: totalHeight },
+                uvOffset: { x: 0, y: 0 },
+                uvScale: { x: 1, y: 1 },
+                layer: ddLayer + 1,
+                flipX: false,
+                flipY: false,
+                material: 0,
+                enabled: true,
+            });
 
             for (let i = 0; i < dropdown.options.length; i++) {
                 const optEntity = world.spawn();
+                const optY = totalHeight / 2 - (i + 0.5) * DROPDOWN_ITEM_HEIGHT;
                 world.insert(optEntity, Name, { value: `Option_${i}` });
                 world.insert(optEntity, UIRect, {
                     anchorMin: { x: 0, y: 1 },
                     anchorMax: { x: 1, y: 1 },
                     offsetMin: { x: 0, y: -i * DROPDOWN_ITEM_HEIGHT },
                     offsetMax: { x: 0, y: 0 },
-                    size: { x: listWidth, y: DROPDOWN_ITEM_HEIGHT },
-                    pivot: { x: 0.5, y: 1 },
+                    size: { x: ddWidth, y: DROPDOWN_ITEM_HEIGHT },
+                    pivot: { x: 0.5, y: 0.5 },
                 });
                 world.insert(optEntity, Transform, {
-                    position: { x: 0, y: 0, z: 0 },
+                    position: { x: 0, y: optY, z: 0 },
                     rotation: { w: 1, x: 0, y: 0, z: 0 },
                     scale: { x: 1, y: 1, z: 1 },
                 });
                 world.insert(optEntity, Sprite, {
                     texture: INVALID_TEXTURE,
                     color: { r: 0.95, g: 0.95, b: 0.95, a: 1 },
-                    size: { x: listWidth, y: DROPDOWN_ITEM_HEIGHT },
+                    size: { x: ddWidth, y: DROPDOWN_ITEM_HEIGHT },
                     uvOffset: { x: 0, y: 0 },
                     uvScale: { x: 1, y: 1 },
-                    layer: 0,
+                    layer: ddLayer + 2,
                     flipX: false,
                     flipY: false,
                     material: 0,
@@ -187,16 +299,11 @@ export class DropdownPlugin implements Plugin {
                     anchorMax: { x: 1, y: 1 },
                     offsetMin: { x: 0, y: 0 },
                     offsetMax: { x: 0, y: 0 },
-                    size: { x: listWidth, y: DROPDOWN_ITEM_HEIGHT },
+                    size: { x: ddWidth, y: DROPDOWN_ITEM_HEIGHT },
                     pivot: { x: 0.5, y: 0.5 },
                 });
                 world.setParent(textEntity, optEntity);
                 state.textEntities.push(textEntity);
-            }
-
-            if (listRect) {
-                listRect.size.y = dropdown.options.length * DROPDOWN_ITEM_HEIGHT;
-                world.insert(listEntity, UIRect, listRect);
             }
 
             updateHighlight(state);
@@ -225,22 +332,36 @@ export class DropdownPlugin implements Plugin {
             if (labelEntity === 0 || !world.valid(labelEntity)) return;
             if (!world.has(labelEntity, Text)) return;
 
-            if (dropdown.selectedIndex < 0 || dropdown.selectedIndex >= dropdown.options.length) return;
-
-            const text = world.get(labelEntity, Text) as TextData;
-            const selectedText = dropdown.options[dropdown.selectedIndex];
-
+            const t = world.get(labelEntity, Text) as TextData;
+            let newColor = { r: t.color.r, g: t.color.g, b: t.color.b, a: t.color.a };
+            let newContent = t.content;
             let changed = false;
-            if (text.content !== selectedText) {
-                text.content = selectedText;
+
+            if (newColor.r === 1 && newColor.g === 1 && newColor.b === 1 && newColor.a === 1) {
+                newColor = { r: 0, g: 0, b: 0, a: 1 };
                 changed = true;
             }
-            if (text.color.r === 1 && text.color.g === 1 && text.color.b === 1 && text.color.a === 1) {
-                text.color = { r: 0, g: 0, b: 0, a: 1 };
-                changed = true;
+
+            if (dropdown.selectedIndex >= 0 && dropdown.selectedIndex < dropdown.options.length) {
+                const selectedText = dropdown.options[dropdown.selectedIndex];
+                if (newContent !== selectedText) {
+                    newContent = selectedText;
+                    changed = true;
+                }
             }
+
             if (changed) {
-                world.insert(labelEntity, Text, text);
+                world.insert(labelEntity, Text, {
+                    content: newContent,
+                    fontSize: t.fontSize,
+                    fontFamily: t.fontFamily,
+                    color: newColor,
+                    align: t.align,
+                    verticalAlign: t.verticalAlign,
+                    wordWrap: t.wordWrap,
+                    overflow: t.overflow,
+                    lineHeight: t.lineHeight,
+                });
             }
         }
 
@@ -262,14 +383,22 @@ export class DropdownPlugin implements Plugin {
         function setListVisible(entity: Entity, visible: boolean): void {
             if (entity === 0 || !world.valid(entity)) return;
             if (world.has(entity, Interactable)) {
-                const inter = world.get(entity, Interactable) as InteractableData;
-                inter.enabled = visible;
-                world.insert(entity, Interactable, inter);
+                world.insert(entity, Interactable, { enabled: visible, blockRaycast: true, raycastTarget: true });
             }
             if (world.has(entity, Sprite)) {
-                const sprite = world.get(entity, Sprite) as SpriteData;
-                sprite.enabled = visible;
-                world.insert(entity, Sprite, sprite);
+                const s = world.get(entity, Sprite) as SpriteData;
+                world.insert(entity, Sprite, {
+                    texture: s.texture,
+                    color: { r: s.color.r, g: s.color.g, b: s.color.b, a: s.color.a },
+                    size: { x: s.size.x, y: s.size.y },
+                    uvOffset: { x: s.uvOffset.x, y: s.uvOffset.y },
+                    uvScale: { x: s.uvScale.x, y: s.uvScale.y },
+                    layer: s.layer,
+                    flipX: s.flipX,
+                    flipY: s.flipY,
+                    material: s.material,
+                    enabled: visible,
+                });
             }
         }
 
@@ -277,13 +406,21 @@ export class DropdownPlugin implements Plugin {
             for (let i = 0; i < state.optionEntities.length; i++) {
                 const optEntity = state.optionEntities[i];
                 if (!world.valid(optEntity) || !world.has(optEntity, Sprite)) continue;
-                const sprite = world.get(optEntity, Sprite) as SpriteData;
-                if (i === state.highlightIndex) {
-                    sprite.color = { ...DROPDOWN_HIGHLIGHT_COLOR };
-                } else {
-                    sprite.color = { r: 0.95, g: 0.95, b: 0.95, a: 1 };
-                }
-                world.insert(optEntity, Sprite, sprite);
+                const color = i === state.highlightIndex
+                    ? { ...DROPDOWN_HIGHLIGHT_COLOR }
+                    : { r: 0.95, g: 0.95, b: 0.95, a: 1 };
+                world.insert(optEntity, Sprite, {
+                    texture: INVALID_TEXTURE,
+                    color,
+                    size: { x: state.ddWidth, y: DROPDOWN_ITEM_HEIGHT },
+                    uvOffset: { x: 0, y: 0 },
+                    uvScale: { x: 1, y: 1 },
+                    layer: state.ddLayer + 2,
+                    flipX: false,
+                    flipY: false,
+                    material: 0,
+                    enabled: true,
+                });
             }
         }
 

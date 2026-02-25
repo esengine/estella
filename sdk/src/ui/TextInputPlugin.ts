@@ -11,7 +11,7 @@ import { FocusManager, FocusManagerState } from './Focusable';
 import { UIEvents, UIEventQueue } from './UIEvents';
 import { Res } from '../resource';
 import { platformCreateCanvas } from '../platform';
-import { isEditor } from '../env';
+import { isEditor, isPlayMode } from '../env';
 import { ensureSprite, wrapText, nextPowerOf2, ensureComponent } from './uiHelpers';
 import { CURSOR_BLINK_INTERVAL, TEXT_INPUT_LINE_HEIGHT_RATIO } from './uiConstants';
 
@@ -28,8 +28,7 @@ export class TextInputPlugin implements Plugin {
     build(app: App): void {
         registerComponent('TextInput', TextInput);
 
-        const editorMode = isEditor();
-        if (editorMode) return;
+        if (isEditor() && !isPlayMode()) return;
 
         const module = app.wasmModule;
         if (!module) {

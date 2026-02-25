@@ -23,6 +23,7 @@ export interface GameViewToolbarCallbacks {
     onStepFrame(): void;
     onSpeedChange(speed: number): void;
     onResolutionChange(preset: ResolutionPreset): void;
+    onScaleChange(scale: number): void;
 }
 
 export class GameViewToolbar {
@@ -36,6 +37,7 @@ export class GameViewToolbar {
     private speedSelect_: HTMLSelectElement | null = null;
     private fpsDisplay_: HTMLSpanElement | null = null;
     private resolutionSelect_: HTMLSelectElement | null = null;
+    private scaleSelect_: HTMLSelectElement | null = null;
     private customSizeEl_: HTMLElement | null = null;
     private customWidthInput_: HTMLInputElement | null = null;
     private customHeightInput_: HTMLInputElement | null = null;
@@ -76,6 +78,16 @@ export class GameViewToolbar {
                     <span class="es-gameview-custom-x">&times;</span>
                     <input type="number" class="es-gameview-custom-h" placeholder="H" min="1" max="4320" />
                 </div>
+                <div class="es-toolbar-divider"></div>
+                <span class="es-gameview-scale-label">Scale</span>
+                <select class="es-gameview-scale" title="Display Scale">
+                    <option value="0.5">0.5x</option>
+                    <option value="0.75">0.75x</option>
+                    <option value="1" selected>1x</option>
+                    <option value="1.5">1.5x</option>
+                    <option value="2">2x</option>
+                    <option value="3">3x</option>
+                </select>
                 <span class="es-gameview-fps"></span>
                 <span class="es-gameview-preview-url" style="display:none" title="Click to copy preview URL"></span>
             </div>
@@ -94,6 +106,7 @@ export class GameViewToolbar {
         this.customSizeEl_ = this.container_.querySelector('.es-gameview-custom-size');
         this.customWidthInput_ = this.container_.querySelector('.es-gameview-custom-w');
         this.customHeightInput_ = this.container_.querySelector('.es-gameview-custom-h');
+        this.scaleSelect_ = this.container_.querySelector('.es-gameview-scale');
 
         this.playBtn_?.addEventListener('click', () => this.callbacks_.onPlay());
         this.pauseBtn_?.addEventListener('click', () => this.callbacks_.onPause());
@@ -133,6 +146,11 @@ export class GameViewToolbar {
 
         this.customWidthInput_?.addEventListener('change', () => this.applyCustomResolution());
         this.customHeightInput_?.addEventListener('change', () => this.applyCustomResolution());
+
+        this.scaleSelect_?.addEventListener('change', () => {
+            const scale = parseFloat(this.scaleSelect_!.value);
+            this.callbacks_.onScaleChange(scale);
+        });
     }
 
     private applyCustomResolution(): void {
@@ -192,6 +210,7 @@ export class GameViewToolbar {
         this.speedSelect_ = null;
         this.fpsDisplay_ = null;
         this.resolutionSelect_ = null;
+        this.scaleSelect_ = null;
         this.customSizeEl_ = null;
         this.customWidthInput_ = null;
         this.customHeightInput_ = null;

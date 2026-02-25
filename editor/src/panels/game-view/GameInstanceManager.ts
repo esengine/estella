@@ -1,5 +1,3 @@
-import { getEditorInstance } from '../../context/EditorContext';
-
 export type GameState = 'stopped' | 'playing' | 'paused';
 
 export interface GameInstanceCallbacks {
@@ -10,7 +8,6 @@ export interface GameInstanceCallbacks {
 export class GameInstanceManager {
     private state_: GameState = 'stopped';
     private callbacks_: GameInstanceCallbacks;
-    private previewUrl_: string | null = null;
 
     constructor(callbacks: GameInstanceCallbacks) {
         this.callbacks_ = callbacks;
@@ -18,34 +15,6 @@ export class GameInstanceManager {
 
     get state(): GameState {
         return this.state_;
-    }
-
-    get previewUrl(): string | null {
-        return this.previewUrl_;
-    }
-
-    async play(): Promise<string | null> {
-        if (this.state_ === 'playing') return null;
-
-        const editor = getEditorInstance();
-        if (!editor) {
-            this.callbacks_.onError(new Error('Editor not available'));
-            return null;
-        }
-
-        try {
-            const url = await editor.startPreviewServer();
-            if (!url) {
-                this.callbacks_.onError(new Error('Failed to start preview server'));
-                return null;
-            }
-            this.previewUrl_ = url;
-            this.setState('playing');
-            return url;
-        } catch (e) {
-            this.callbacks_.onError(e instanceof Error ? e : new Error(String(e)));
-            return null;
-        }
     }
 
     pause(): void {
@@ -61,7 +30,6 @@ export class GameInstanceManager {
     }
 
     async stop(): Promise<void> {
-        this.previewUrl_ = null;
         this.setState('stopped');
     }
 
@@ -69,7 +37,7 @@ export class GameInstanceManager {
         await this.stop();
     }
 
-    private setState(state: GameState): void {
+    setState(state: GameState): void {
         this.state_ = state;
         this.callbacks_.onStateChange(state);
     }

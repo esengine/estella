@@ -155,9 +155,33 @@
 /* Viewport layout */
 .es-gameview-canvas-area {
     flex: 1;
-    position: relative;
-    overflow: hidden;
+    overflow: auto;
     display: flex;
-    align-items: center;
-    justify-content: center;
+}
+
+.es-gameview-canvas {
+    margin: auto;
+    flex-shrink: 0;
+    display: none;
+}
+
+.es-gameview-scale-label {
+    font-size: 11px;
+    color: var(--es-text-secondary);
+    user-select: none;
+}
+
+.es-gameview-scale {
+    background: var(--es-input-bg);
+    color: var(--es-text-primary);
+    border: 1px solid var(--es-border);
+    border-radius: 3px;
+    font-size: 11px;
+    padding: 2px 4px;
+    height: 22px;
+    outline: none;
+}
+
+.es-gameview-scale:focus {
+    border-color: var(--es-accent);
 }

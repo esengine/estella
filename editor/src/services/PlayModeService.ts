@@ -1,6 +1,7 @@
 import type { GameViewBridge, RuntimeEntityData } from '../panels/game-view/GameViewBridge';
 import type { EntityData } from '../types/SceneTypes';
 import { getEditorStore, type SceneSnapshot } from '../store/EditorStore';
+import { getSharedRenderContext } from '../renderer/SharedRenderContext';
 
 export type PlayState = 'stopped' | 'playing';
 
@@ -22,6 +23,7 @@ export function runtimeToEntityData(re: RuntimeEntityData): EntityData {
 class PlayModeService {
     private state_: PlayState = 'stopped';
     private bridge_: GameViewBridge | null = null;
+    private sharedMode_ = false;
     private selectedEntityId_: number | null = null;
     private cachedEntities_: RuntimeEntityData[] = [];
     private pollTimer_: ReturnType<typeof setTimeout> | null = null;
@@ -36,11 +38,43 @@ class PlayModeService {
     get bridge(): GameViewBridge | null { return this.bridge_; }
     get runtimeEntities(): RuntimeEntityData[] { return this.cachedEntities_; }
     get selectedEntityId(): number | null { return this.selectedEntityId_; }
+    get isSharedMode(): boolean { return this.sharedMode_; }
 
     getRuntimeEntityData(entityId: number): EntityData | null {
         const re = this.cachedEntities_.find(e => e.entityId === entityId);
         if (re) return runtimeToEntityData(re);
         return null;
+    }
+
+    enterShared(): void {
+        this.snapshot_ = getEditorStore().takeSnapshot();
+        this.sharedMode_ = true;
+        this.bridge_ = null;
+        this.state_ = 'playing';
+        this.cachedEntities_ = [];
+        this.selectedEntityId_ = null;
+
+        getSharedRenderContext().enterPlayMode();
+        this.emitStateChange();
+    }
+
+    exitShared(): void {
+        if (!this.sharedMode_) return;
+
+        getSharedRenderContext().exitPlayMode();
+
+        this.sharedMode_ = false;
+        this.state_ = 'stopped';
+        this.cachedEntities_ = [];
+        this.selectedEntityId_ = null;
+
+        if (this.snapshot_) {
+            getEditorStore().restoreSnapshot(this.snapshot_);
+            this.snapshot_ = null;
+        }
+
+        this.emitStateChange();
+        this.emitSelectionChange();
     }
 
     enter(bridge: GameViewBridge): void {
@@ -55,6 +89,7 @@ class PlayModeService {
         }
         this.snapshot_ = getEditorStore().takeSnapshot();
         this.bridge_ = bridge;
+        this.sharedMode_ = false;
         this.state_ = 'playing';
         this.cachedEntities_ = [];
         this.selectedEntityId_ = null;
@@ -63,6 +98,10 @@ class PlayModeService {
     }
 
     exit(): void {
+        if (this.sharedMode_) {
+            this.exitShared();
+            return;
+        }
         this.stopPolling();
         this.bridge_ = null;
         this.state_ = 'stopped';

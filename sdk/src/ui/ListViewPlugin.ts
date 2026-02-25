@@ -15,7 +15,7 @@ import { Interactable } from './Interactable';
 import { UIMask, MaskMode } from './UIMask';
 import { UIInteraction } from './UIInteraction';
 import type { UIInteractionData } from './UIInteraction';
-import { isEditor } from '../env';
+import { isEditor, isPlayMode } from '../env';
 import { ensureComponent } from './uiHelpers';
 import { SCROLL_WHEEL_SENSITIVITY } from './uiConstants';
 
@@ -52,14 +52,13 @@ export class ListViewPlugin implements Plugin {
         registerComponent('ListView', ListView);
 
         const world = app.world;
-        const editorMode = isEditor();
         const listViewStates = new Map<Entity, ListViewState>();
         activeListViewStates = listViewStates;
 
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
             [Res(Input)],
             (input: InputState) => {
-                if (editorMode) return;
+                if (isEditor() && !isPlayMode()) return;
                 for (const [e, st] of listViewStates) {
                     if (!world.valid(e)) {
                         for (const itemEntity of st.itemEntities.values()) {
