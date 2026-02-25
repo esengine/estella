@@ -3,8 +3,17 @@
  * @brief   WebGL scene renderer for editor scene view
  */
 
-import type { ESEngineModule } from 'esengine';
+import type { ESEngineModule, CppRegistry, LayoutRect } from 'esengine';
 import {
+    App,
+    UICameraInfo,
+    UIEvents,
+    UIEventQueue,
+    Input,
+    InputState,
+    setEditorMode,
+    uiPlugins,
+    ButtonState,
     RenderPipeline,
     Renderer,
     createMaskProcessor,
@@ -21,11 +30,13 @@ import {
 } from 'esengine';
 import type { SpineModuleController } from 'esengine/spine';
 import type { SceneData, ComponentData } from '../types/SceneTypes';
-import type { EditorStore } from '../store/EditorStore';
+import type { EditorStore, PropertyChangeEvent } from '../store/EditorStore';
 import { EditorCamera } from './EditorCamera';
 import { EditorSceneManager } from '../scene/EditorSceneManager';
-import { RuntimeSyncService } from '../sync/RuntimeSyncService';
 import { AssetPathResolver } from '../asset';
+import { getAssetEventBus } from '../events/AssetEventBus';
+import { getDependencyGraph } from '../asset/AssetDependencyGraph';
+import type { TransformValue } from '../math/Transform';
 
 // =============================================================================
 // EditorSceneRenderer
@@ -33,8 +44,8 @@ import { AssetPathResolver } from '../asset';
 
 export class EditorSceneRenderer {
     private module_: ESEngineModule | null = null;
+    private app_: App | null = null;
     private sceneManager_: EditorSceneManager | null = null;
-    private syncService_: RuntimeSyncService | null = null;
     private pipeline_: RenderPipeline | null = null;
     private camera_: EditorCamera;
     private pathResolver_: AssetPathResolver;
@@ -42,6 +53,10 @@ export class EditorSceneRenderer {
     private initialized_ = false;
     private startTime_ = 0;
     private lastElapsed_ = 0;
+    private unsubscribes_: (() => void)[] = [];
+    private dirtyEntities_ = new Set<number>();
+    private rafId_: number | null = null;
+    private renderCallback_: (() => void) | null = null;
 
     constructor() {
         this.camera_ = new EditorCamera();
@@ -51,6 +66,10 @@ export class EditorSceneRenderer {
     setStore(store: EditorStore): void {
         this.store_ = store;
         this.setupSyncService();
+    }
+
+    setRenderCallback(callback: (() => void) | null): void {
+        this.renderCallback_ = callback;
     }
 
     async init(module: ESEngineModule, canvas: HTMLCanvasElement): Promise<boolean> {
@@ -92,7 +111,30 @@ export class EditorSceneRenderer {
         this.pipeline_ = new RenderPipeline();
         this.startTime_ = performance.now();
 
-        this.sceneManager_ = new EditorSceneManager(module, this.pathResolver_);
+        const app = App.new();
+        const cppRegistry = new module.Registry() as unknown as CppRegistry;
+        app.connectCpp(cppRegistry, module);
+
+        app.insertResource(UICameraInfo, {
+            viewProjection: new Float32Array(16),
+            vpX: 0, vpY: 0, vpW: 0, vpH: 0,
+            screenW: 0, screenH: 0,
+            worldLeft: 0, worldBottom: 0, worldRight: 0, worldTop: 0,
+            worldMouseX: 0, worldMouseY: 0,
+            valid: false,
+        });
+
+        app.insertResource(Input, new InputState());
+        app.insertResource(UIEvents, new UIEventQueue());
+
+        setEditorMode(true);
+        for (const plugin of uiPlugins) {
+            app.addPlugin(plugin);
+        }
+        this.app_ = app;
+
+        this.sceneManager_ = new EditorSceneManager(module, this.pathResolver_, app.world);
+        this.sceneManager_.registerSystems(app);
         this.pipeline_.setMaskProcessor(
             createMaskProcessor(module, this.sceneManager_.world)
         );
@@ -104,10 +146,172 @@ export class EditorSceneRenderer {
     }
 
     private setupSyncService(): void {
-        if (this.syncService_) return;
+        if (this.unsubscribes_.length > 0) return;
         if (!this.store_ || !this.sceneManager_) return;
 
-        this.syncService_ = new RuntimeSyncService(this.store_, this.sceneManager_);
+        const store = this.store_;
+        const sm = this.sceneManager_;
+
+        this.unsubscribes_.push(
+            store.subscribeToPropertyChanges((e) => this.handlePropertyChange(e)),
+            store.subscribeToHierarchyChanges((e) => {
+                sm.reparentEntity(e.entity, e.newParent);
+            }),
+            store.subscribeToVisibilityChanges((e) => {
+                if (e.visible) {
+                    sm.showEntity(e.entity);
+                } else {
+                    sm.hideEntity(e.entity);
+                }
+            }),
+            store.subscribeToEntityLifecycle((e) => {
+                if (e.type === 'created') {
+                    sm.spawnEntity(e.entity, e.parent);
+                } else {
+                    sm.removeEntity(e.entity);
+                    this.dirtyEntities_.delete(e.entity);
+                }
+            }),
+            store.subscribeToComponentChanges((e) => {
+                if (e.action === 'removed') {
+                    sm.removeComponentFromEntity(e.entity, e.componentType);
+                }
+                this.scheduleEntityUpdate(e.entity);
+            }),
+            getAssetEventBus().on('material', (e) => {
+                if (e.type === 'asset:modified') this.onAssetModified(e.path);
+            }),
+            getAssetEventBus().on('texture', (e) => {
+                if (e.type === 'asset:modified') this.onAssetModified(e.path);
+            }),
+        );
+
+        store.worldTransforms_.setCppWorldTransformProvider((entityId: number) => {
+            return this.getCppWorldTransform(entityId);
+        });
+    }
+
+    private handlePropertyChange(event: PropertyChangeEvent): void {
+        if (!this.sceneManager_?.hasEntity(event.entity)) return;
+
+        switch (event.componentType) {
+            case 'UIRect':
+            case 'ScreenSpace':
+                this.scheduleDescendantUpdates(event.entity);
+                break;
+            case 'Canvas':
+                this.syncCanvasToCamera(event.entity);
+                break;
+            case 'Button':
+                this.syncButtonTransitionColor(event.entity);
+                break;
+            case 'TextInput':
+                if (event.propertyName === 'backgroundColor') {
+                    this.store_!.updatePropertyDirect(event.entity, 'Sprite', 'color', event.newValue);
+                }
+                break;
+        }
+
+        this.scheduleEntityUpdate(event.entity);
+    }
+
+    // =========================================================================
+    // Sync Helpers
+    // =========================================================================
+
+    private syncCanvasToCamera(canvasEntityId: number): void {
+        const canvasData = this.store_!.getEntityData(canvasEntityId);
+        if (!canvasData) return;
+
+        const canvasComp = canvasData.components.find(c => c.type === 'Canvas');
+        const resolution = canvasComp?.data?.designResolution as { x: number; y: number } | undefined;
+        if (!resolution) return;
+
+        const orthoSize = resolution.y / 2;
+
+        for (const entity of this.store_!.scene.entities) {
+            const cameraComp = entity.components.find(c => c.type === 'Camera');
+            if (!cameraComp) continue;
+
+            this.store_!.updatePropertyDirect(entity.id, 'Camera', 'orthoSize', orthoSize);
+            this.scheduleEntityUpdate(entity.id);
+            break;
+        }
+    }
+
+    private syncButtonTransitionColor(entityId: number): void {
+        const entityData = this.store_!.getEntityData(entityId);
+        if (!entityData) return;
+
+        const buttonComp = entityData.components.find(c => c.type === 'Button');
+        if (!buttonComp) return;
+
+        const transition = buttonComp.data.transition as {
+            normalColor: { r: number; g: number; b: number; a: number };
+            hoveredColor: { r: number; g: number; b: number; a: number };
+            pressedColor: { r: number; g: number; b: number; a: number };
+            disabledColor: { r: number; g: number; b: number; a: number };
+        } | null;
+        if (!transition) return;
+
+        const spriteComp = entityData.components.find(c => c.type === 'Sprite');
+        if (!spriteComp) return;
+
+        const state = (buttonComp.data.state as number) ?? ButtonState.Normal;
+        const colorMap: Record<number, { r: number; g: number; b: number; a: number }> = {
+            [ButtonState.Normal]: transition.normalColor,
+            [ButtonState.Hovered]: transition.hoveredColor,
+            [ButtonState.Pressed]: transition.pressedColor,
+            [ButtonState.Disabled]: transition.disabledColor,
+        };
+        const color = colorMap[state] ?? transition.normalColor;
+
+        this.store_!.updatePropertyDirect(entityId, 'Sprite', 'color', { ...color });
+        this.scheduleEntityUpdate(entityId);
+    }
+
+    // =========================================================================
+    // Dirty Entity Scheduling
+    // =========================================================================
+
+    private scheduleDescendantUpdates(entityId: number): void {
+        const entityData = this.store_!.getEntityData(entityId);
+        if (!entityData) return;
+        for (const childId of entityData.children) {
+            this.scheduleEntityUpdate(childId);
+            this.scheduleDescendantUpdates(childId);
+        }
+    }
+
+    private scheduleEntityUpdate(entityId: number): void {
+        this.dirtyEntities_.add(entityId);
+        if (this.rafId_ !== null) return;
+        this.rafId_ = requestAnimationFrame(() => {
+            this.rafId_ = null;
+            this.flushDirtyEntities();
+        });
+    }
+
+    private flushDirtyEntities(): void {
+        const entities = [...this.dirtyEntities_];
+        this.dirtyEntities_.clear();
+        for (const entityId of entities) {
+            this.syncEntity(entityId);
+        }
+    }
+
+    private async syncEntity(entityId: number): Promise<void> {
+        if (!this.store_!.isEntityVisible(entityId)) return;
+        const entityData = this.store_!.getEntityData(entityId);
+        if (!entityData) return;
+        await this.sceneManager_!.updateEntity(entityId, entityData.components, entityData);
+        this.renderCallback_?.();
+    }
+
+    private onAssetModified(path: string): void {
+        for (const entityId of getDependencyGraph().getUsers(path)) {
+            this.scheduleEntityUpdate(entityId);
+        }
     }
 
     setProjectDir(projectDir: string): void {
@@ -197,6 +401,39 @@ export class EditorSceneRenderer {
         return this.sceneManager_?.onSpineInstanceReady(listener) ?? (() => {});
     }
 
+    getCanvasRect(): LayoutRect | null {
+        return this.sceneManager_?.getCanvasRect() ?? null;
+    }
+
+    getComputedLayoutSize(entityId: number): { x: number; y: number } | null {
+        if (!this.module_ || !this.sceneManager_) return null;
+        const entity = this.sceneManager_.getEntityMap().get(entityId);
+        if (entity === undefined) return null;
+        const registry = this.sceneManager_.registry;
+        const w = this.module_.getUIRectComputedWidth(registry, entity);
+        const h = this.module_.getUIRectComputedHeight(registry, entity);
+        if (w <= 0 && h <= 0) return null;
+        return { x: w, y: h };
+    }
+
+    getCppWorldTransform(entityId: number): TransformValue | null {
+        if (!this.sceneManager_) return null;
+        const entity = this.sceneManager_.getEntityMap().get(entityId);
+        if (entity === undefined) return null;
+        const registry = this.sceneManager_.registry;
+        if (!registry.hasTransform(entity)) return null;
+        const wt = registry.getTransform(entity);
+        return {
+            position: { x: wt.worldPosition.x, y: wt.worldPosition.y, z: wt.worldPosition.z },
+            rotation: { x: wt.worldRotation.x, y: wt.worldRotation.y, z: wt.worldRotation.z, w: wt.worldRotation.w },
+            scale: { x: wt.worldScale.x, y: wt.worldScale.y, z: wt.worldScale.z },
+        };
+    }
+
+    computeLayoutSize(entityId: number): { x: number; y: number } | null {
+        return this.getComputedLayoutSize(entityId);
+    }
+
     // =========================================================================
     // Rendering
     // =========================================================================
@@ -206,8 +443,17 @@ export class EditorSceneRenderer {
         if (width <= 0 || height <= 0) return;
         if (this.sceneManager_.isBusy) return;
 
+        this.sceneManager_.setViewportSize(width, height);
+
         const bg = this.findCanvasBackgroundColor();
         Renderer.setClearColor(bg.r, bg.g, bg.b, bg.a);
+
+        const canvasRect = this.sceneManager_.getCanvasRect();
+        if (canvasRect) {
+            this.camera_.orthoHalfHeight = (canvasRect.top - canvasRect.bottom) / 2;
+        } else {
+            this.camera_.orthoHalfHeight = 0;
+        }
 
         const matrix = this.camera_.getViewProjection(width, height);
         const elapsed = (performance.now() - this.startTime_) / 1000;
@@ -216,6 +462,20 @@ export class EditorSceneRenderer {
         const registry = { _cpp: cppReg };
 
         try {
+            if (this.app_) {
+                const uiCamera = this.app_.getResource(UICameraInfo);
+                if (canvasRect) {
+                    uiCamera.worldLeft = canvasRect.left;
+                    uiCamera.worldBottom = canvasRect.bottom;
+                    uiCamera.worldRight = canvasRect.right;
+                    uiCamera.worldTop = canvasRect.top;
+                    uiCamera.valid = true;
+                } else {
+                    uiCamera.valid = false;
+                }
+                this.app_.tick(1 / 60);
+            }
+
             Renderer.setViewport(0, 0, width, height);
             Renderer.clearBuffers(3);
             Renderer.begin(matrix);
@@ -258,14 +518,25 @@ export class EditorSceneRenderer {
     // =========================================================================
 
     dispose(): void {
-        if (this.syncService_) {
-            this.syncService_.dispose();
-            this.syncService_ = null;
+        if (this.rafId_ !== null) {
+            cancelAnimationFrame(this.rafId_);
+            this.rafId_ = null;
         }
+        this.dirtyEntities_.clear();
+        for (const unsub of this.unsubscribes_) unsub();
+        this.unsubscribes_ = [];
 
         if (this.sceneManager_) {
             this.sceneManager_.dispose();
             this.sceneManager_ = null;
+        }
+
+        if (this.app_) {
+            const world = this.app_.world;
+            const reg = world.getCppRegistry();
+            world.disconnectCpp();
+            if (reg) (reg as any).delete();
+            this.app_ = null;
         }
 
         if (this.module_ && this.initialized_) {

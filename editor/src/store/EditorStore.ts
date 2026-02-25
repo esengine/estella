@@ -3,7 +3,7 @@ import type { SceneData, EntityData, ComponentData } from '../types/SceneTypes';
 import { createEmptyScene } from '../types/SceneTypes';
 import { CommandHistory, type Command } from '../commands';
 import { WorldTransformCache } from '../transform/WorldTransformCache';
-import type { Transform } from '../math/Transform';
+import type { TransformValue } from '../math/Transform';
 import { SelectionService } from './SelectionService';
 import { SceneOperations } from './SceneOperations';
 import { PrefabEditService } from './PrefabEditService';
@@ -71,6 +71,13 @@ export interface ComponentChangeEvent {
 }
 
 export type ComponentChangeListener = (event: ComponentChangeEvent) => void;
+
+export interface SceneSnapshot {
+    scene: SceneData;
+    selectedEntities: number[];
+    isDirty: boolean;
+    filePath: string | null;
+}
 
 // =============================================================================
 // EditorStore
@@ -221,6 +228,26 @@ export class EditorStore {
 
         this.rebuildEntityMap();
         this.worldTransforms_.setScene(scene);
+        this.notifySceneSync();
+        this.notify('scene');
+    }
+
+    takeSnapshot(): SceneSnapshot {
+        return {
+            scene: JSON.parse(JSON.stringify(this.state_.scene)),
+            selectedEntities: [...this.state_.selectedEntities],
+            isDirty: this.state_.isDirty,
+            filePath: this.state_.filePath,
+        };
+    }
+
+    restoreSnapshot(snapshot: SceneSnapshot): void {
+        this.state_.scene = snapshot.scene;
+        this.state_.selectedEntities = new Set(snapshot.selectedEntities);
+        this.state_.isDirty = snapshot.isDirty;
+        this.state_.filePath = snapshot.filePath;
+        this.rebuildEntityMap();
+        this.worldTransforms_.setScene(this.state_.scene);
         this.notifySceneSync();
         this.notify('scene');
     }
@@ -408,7 +435,7 @@ export class EditorStore {
     // World Transform
     // =========================================================================
 
-    getWorldTransform(entityId: number): Transform {
+    getWorldTransform(entityId: number): TransformValue {
         return this.worldTransforms_.getWorldTransform(entityId);
     }
 
