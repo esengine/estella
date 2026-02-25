@@ -35,6 +35,27 @@ interface UVec2 {
     x: number;
     y: number;
 }
+interface VectorEntity {
+    size(): number;
+    get(index: number): number;
+    push_back(value: number): void;
+    set(index: number, value: number): boolean;
+    delete(): void;
+}
+interface UIRect {
+    anchorMin: Vec2;
+    anchorMax: Vec2;
+    offsetMin: Vec2;
+    offsetMax: Vec2;
+    size: Vec2;
+    pivot: Vec2;
+}
+interface FlexItem {
+    flexGrow: number;
+    flexShrink: number;
+    flexBasis: number;
+    order: number;
+}
 interface BoxCollider {
     halfExtents: Vec2;
     offset: Vec2;
@@ -63,15 +84,13 @@ interface CapsuleCollider {
     isSensor: boolean;
     enabled: boolean;
 }
-interface LocalTransform {
+interface Transform {
     position: Vec3;
     rotation: Quat;
     scale: Vec3;
-}
-interface WorldTransform {
-    position: Vec3;
-    rotation: Quat;
-    scale: Vec3;
+    worldPosition: Vec3;
+    worldRotation: Quat;
+    worldScale: Vec3;
 }
 interface Velocity {
     linear: Vec3;
@@ -92,6 +111,17 @@ interface SpineAnimation {
     skeletonScale: number;
     material: number;
     enabled: boolean;
+}
+interface Interactable {
+    enabled: boolean;
+    blockRaycast: boolean;
+    raycastTarget: boolean;
+}
+interface UIInteraction {
+    hovered: boolean;
+    pressed: boolean;
+    justPressed: boolean;
+    justReleased: boolean;
 }
 interface RigidBody {
     bodyType: number;
@@ -124,10 +154,25 @@ interface Sprite {
     material: number;
     enabled: boolean;
 }
+interface UIMask {
+    enabled: boolean;
+    mode: number;
+}
+interface FlexContainer {
+    direction: number;
+    wrap: number;
+    justifyContent: number;
+    alignItems: number;
+    gap: Vec2;
+    padding: Vec4;
+}
 interface Parent {
     entity: number;
 }
 interface Children {
+    entities: VectorEntity;
+}
+interface ScreenSpace {
 }
 interface Canvas {
     designResolution: UVec2;
@@ -156,6 +201,14 @@ interface Registry {
     destroy(entity: Entity): void;
     valid(entity: Entity): boolean;
     entityCount(): number;
+    hasUIRect(entity: Entity): boolean;
+    getUIRect(entity: Entity): UIRect;
+    addUIRect(entity: Entity, component: UIRect): void;
+    removeUIRect(entity: Entity): void;
+    hasFlexItem(entity: Entity): boolean;
+    getFlexItem(entity: Entity): FlexItem;
+    addFlexItem(entity: Entity, component: FlexItem): void;
+    removeFlexItem(entity: Entity): void;
     hasBoxCollider(entity: Entity): boolean;
     getBoxCollider(entity: Entity): BoxCollider;
     addBoxCollider(entity: Entity, component: BoxCollider): void;
@@ -168,14 +221,10 @@ interface Registry {
     getCapsuleCollider(entity: Entity): CapsuleCollider;
     addCapsuleCollider(entity: Entity, component: CapsuleCollider): void;
     removeCapsuleCollider(entity: Entity): void;
-    hasLocalTransform(entity: Entity): boolean;
-    getLocalTransform(entity: Entity): LocalTransform;
-    addLocalTransform(entity: Entity, component: LocalTransform): void;
-    removeLocalTransform(entity: Entity): void;
-    hasWorldTransform(entity: Entity): boolean;
-    getWorldTransform(entity: Entity): WorldTransform;
-    addWorldTransform(entity: Entity, component: WorldTransform): void;
-    removeWorldTransform(entity: Entity): void;
+    hasTransform(entity: Entity): boolean;
+    getTransform(entity: Entity): Transform;
+    addTransform(entity: Entity, component: Transform): void;
+    removeTransform(entity: Entity): void;
     hasVelocity(entity: Entity): boolean;
     getVelocity(entity: Entity): Velocity;
     addVelocity(entity: Entity, component: Velocity): void;
@@ -184,6 +233,14 @@ interface Registry {
     getSpineAnimation(entity: Entity): SpineAnimation;
     addSpineAnimation(entity: Entity, component: SpineAnimation): void;
     removeSpineAnimation(entity: Entity): void;
+    hasInteractable(entity: Entity): boolean;
+    getInteractable(entity: Entity): Interactable;
+    addInteractable(entity: Entity, component: Interactable): void;
+    removeInteractable(entity: Entity): void;
+    hasUIInteraction(entity: Entity): boolean;
+    getUIInteraction(entity: Entity): UIInteraction;
+    addUIInteraction(entity: Entity, component: UIInteraction): void;
+    removeUIInteraction(entity: Entity): void;
     hasRigidBody(entity: Entity): boolean;
     getRigidBody(entity: Entity): RigidBody;
     addRigidBody(entity: Entity, component: RigidBody): void;
@@ -196,6 +253,14 @@ interface Registry {
     getSprite(entity: Entity): Sprite;
     addSprite(entity: Entity, component: Sprite): void;
     removeSprite(entity: Entity): void;
+    hasUIMask(entity: Entity): boolean;
+    getUIMask(entity: Entity): UIMask;
+    addUIMask(entity: Entity, component: UIMask): void;
+    removeUIMask(entity: Entity): void;
+    hasFlexContainer(entity: Entity): boolean;
+    getFlexContainer(entity: Entity): FlexContainer;
+    addFlexContainer(entity: Entity, component: FlexContainer): void;
+    removeFlexContainer(entity: Entity): void;
     hasParent(entity: Entity): boolean;
     getParent(entity: Entity): Parent;
     addParent(entity: Entity, component: Parent): void;
@@ -204,6 +269,10 @@ interface Registry {
     getChildren(entity: Entity): Children;
     addChildren(entity: Entity, component: Children): void;
     removeChildren(entity: Entity): void;
+    hasScreenSpace(entity: Entity): boolean;
+    getScreenSpace(entity: Entity): ScreenSpace;
+    addScreenSpace(entity: Entity, component: ScreenSpace): void;
+    removeScreenSpace(entity: Entity): void;
     hasCanvas(entity: Entity): boolean;
     getCanvas(entity: Entity): Canvas;
     addCanvas(entity: Entity, component: Canvas): void;
@@ -290,6 +359,8 @@ interface ESEngineModule {
     renderFrameWithMatrix(registry: CppRegistry, width: number, height: number, matrixPtr: number): void;
     getResourceManager(): CppResourceManager;
     getSpineBounds?(registry: CppRegistry, entity: number): SpineBounds;
+    invalidateMaterialCache(materialId: number): void;
+    clearMaterialCache(): void;
     draw_begin(matrixPtr: number): void;
     draw_end(): void;
     draw_line(fromX: number, fromY: number, toX: number, toY: number, r: number, g: number, b: number, a: number, thickness: number): void;
@@ -365,9 +436,20 @@ interface ESEngineModule {
     registry_getCanvasEntity(registry: CppRegistry): number;
     registry_getCameraEntities(registry: CppRegistry): number[];
     getChildEntities(registry: CppRegistry, entity: number): number[];
+    registry_getGeneration(registry: CppRegistry, entity: number): number;
+    registry_getSchemaPoolVersion(registry: CppRegistry, poolId: number): number;
     gl_enableErrorCheck(enabled: boolean): void;
     gl_checkErrors(context: string): number;
     renderer_diagnose(): void;
+    uiLayout_update(registry: CppRegistry, camLeft: number, camBottom: number, camRight: number, camTop: number): void;
+    uiHitTest_update(registry: CppRegistry, mouseWorldX: number, mouseWorldY: number, mouseDown: boolean, mousePressed: boolean, mouseReleased: boolean): void;
+    uiHitTest_getHitEntity(): number;
+    uiHitTest_getHitEntityPrev(): number;
+    uiRenderOrder_update(registry: CppRegistry): void;
+    uiFlexLayout_update(registry: CppRegistry): void;
+    getUIRectComputedWidth(registry: CppRegistry, entity: number): number;
+    getUIRectComputedHeight(registry: CppRegistry, entity: number): number;
+    transform_update(registry: CppRegistry): void;
     _malloc(size: number): number;
     _free(ptr: number): void;
 }
