@@ -62,7 +62,10 @@ class TypeSystem:
     GLM_TYPES = {'glm::vec2', 'glm::vec3', 'glm::vec4', 'glm::quat', 'glm::uvec2'}
 
     # Types that should be skipped entirely (too complex to bind)
-    SKIP_TYPES = {'glm::mat4', 'std::vector', 'std::function'}
+    SKIP_TYPES = {'glm::mat4', 'std::function'}
+
+    # Vector types that can be bound with register_vector
+    VECTOR_TYPES = {'std::vector<Entity>': ('u32', 'VectorEntity', 'VectorEntity')}
 
     # C++ to TypeScript type mapping
     CPP_TO_TS = {
@@ -94,8 +97,16 @@ class TypeSystem:
         t = self.clean_type(cpp_type)
         return 'Handle' in t or t.startswith('resource::')
 
+    def is_vector(self, cpp_type: str) -> bool:
+        t = self.clean_type(cpp_type)
+        return t in self.VECTOR_TYPES
+
     def is_skip(self, cpp_type: str) -> bool:
         t = self.clean_type(cpp_type)
+        if t in self.VECTOR_TYPES:
+            return False
+        if 'std::vector' in t:
+            return True
         return any(skip in t for skip in self.SKIP_TYPES)
 
     def needs_wrapper(self, comp: Component) -> bool:
@@ -110,12 +121,17 @@ class TypeSystem:
             return 'u32'
         if self.is_enum(t):
             return 'i32'
+        if t in self.VECTOR_TYPES:
+            elem_type = self.VECTOR_TYPES[t][0]
+            return f'std::vector<{elem_type}>'
         return t
 
     def to_typescript(self, cpp_type: str) -> str:
         t = self.clean_type(cpp_type)
         if t in self.CPP_TO_TS:
             return self.CPP_TO_TS[t]
+        if t in self.VECTOR_TYPES:
+            return self.VECTOR_TYPES[t][2]
         if self.is_enum(t) or self.is_handle(t):
             return 'number'
         return 'any'
@@ -381,6 +397,19 @@ class EmbindGenerator:
 
         # value_object bindings
         lines.append('EMSCRIPTEN_BINDINGS(esengine_components) {')
+
+        # Register vector types needed by component properties
+        registered_vectors = set()
+        for comp in self.components:
+            for prop in comp.properties:
+                t = self.types.clean_type(prop.cpp_type)
+                if t in self.types.VECTOR_TYPES:
+                    elem_type, js_name, _ = self.types.VECTOR_TYPES[t]
+                    if js_name not in registered_vectors:
+                        lines.append(f'    register_vector<{elem_type}>("{js_name}");')
+                        lines.append('')
+                        registered_vectors.add(js_name)
+
         for comp in self.components:
             full = f'{comp.namespace}::{comp.name}' if comp.namespace else comp.name
             needs_wrap = self.types.needs_wrapper(comp)
@@ -441,7 +470,12 @@ class EmbindGenerator:
                 lines.append('        }))')
             else:
                 lines.append(f'        .function("get{name}", optional_override([](Registry& r, u32 e) -> {full}& {{')
-                lines.append(f'            return r.get<{full}>(static_cast<Entity>(e));')
+                if name == 'Transform':
+                    lines.append(f'            auto& t = r.get<{full}>(static_cast<Entity>(e));')
+                    lines.append(f'            t.ensureDecomposed();')
+                    lines.append(f'            return t;')
+                else:
+                    lines.append(f'            return r.get<{full}>(static_cast<Entity>(e));')
                 lines.append('        }), allow_raw_pointers())')
                 lines.append(f'        .function("add{name}", optional_override([](Registry& r, u32 e, const {full}& c) {{')
                 lines.append(f'            r.emplaceOrReplace<{full}>(static_cast<Entity>(e), c);')
@@ -495,6 +529,15 @@ class TypeScriptGenerator:
             '// Additional Math Types',
             'export interface UVec2 { x: number; y: number; }',
             'export type Mat4 = number[];',
+            '',
+            '// Emscripten Vector Types',
+            'export interface VectorEntity {',
+            '    size(): number;',
+            '    get(index: number): number;',
+            '    push_back(value: number): void;',
+            '    set(index: number, value: number): boolean;',
+            '    delete(): void;',
+            '}',
             '',
         ]
 
@@ -605,11 +648,18 @@ def main():
     embind_gen = EmbindGenerator(cpp_parser.components, cpp_parser.enums)
     embind_path.write_text(embind_gen.generate(), encoding='utf-8')
 
+    ts_gen = TypeScriptGenerator(cpp_parser.components, cpp_parser.enums)
+    ts_content = ts_gen.generate()
+
     args.ts_output.mkdir(parents=True, exist_ok=True)
     ts_path = args.ts_output / 'wasm.generated.ts'
     print(f"Generating: {ts_path}")
-    ts_gen = TypeScriptGenerator(cpp_parser.components, cpp_parser.enums)
-    ts_path.write_text(ts_gen.generate(), encoding='utf-8')
+    ts_path.write_text(ts_content, encoding='utf-8')
+
+    ts_src_path = args.ts_output / 'src' / 'wasm.generated.ts'
+    if ts_src_path.parent.exists():
+        print(f"Generating: {ts_src_path}")
+        ts_src_path.write_text(ts_content, encoding='utf-8')
 
     print("[OK] Done!")
     return 0
