@@ -89,6 +89,30 @@ export class GameViewBridge {
         return this.request('query-stats');
     }
 
+    async spawnEntity(name?: string, parentId?: number | null): Promise<RuntimeEntityData> {
+        return this.request('spawn-entity', { name, parentId });
+    }
+
+    async despawnEntity(entityId: number): Promise<void> {
+        await this.request('despawn-entity', { entityId });
+    }
+
+    async addComponent(entityId: number, componentType: string, data?: Record<string, unknown>): Promise<void> {
+        await this.request('add-component', { entityId, componentType, data });
+    }
+
+    async removeComponent(entityId: number, componentType: string): Promise<void> {
+        await this.request('remove-component', { entityId, componentType });
+    }
+
+    async renameEntity(entityId: number, name: string): Promise<void> {
+        await this.request('rename-entity', { entityId, name });
+    }
+
+    async reparentEntity(entityId: number, newParentId: number | null): Promise<void> {
+        await this.request('reparent-entity', { entityId, newParentId });
+    }
+
     on(event: string, handler: EventHandler): () => void {
         if (!this.listeners_.has(event)) {
             this.listeners_.set(event, new Set());

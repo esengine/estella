@@ -127,6 +127,44 @@
                         setEntityProperty(msg.entityId, msg.component, msg.property, msg.value);
                         response = { success: true };
                         break;
+                    case 'spawn-entity': {
+                        const world = gameApp.world;
+                        const sdk = window.__esSdk;
+                        const entity = world.spawn();
+                        const nameDef = sdk.getComponent('Name');
+                        if (nameDef) world.insert(Number(entity), nameDef, { value: msg.name || 'New Entity' });
+                        if (msg.parentId != null) world.setParent(Number(entity), msg.parentId);
+                        response = getEntityData(Number(entity));
+                        break;
+                    }
+                    case 'despawn-entity':
+                        gameApp.world.despawn(msg.entityId);
+                        response = { success: true };
+                        break;
+                    case 'add-component': {
+                        const compDef = window.__esSdk.getComponent(msg.componentType);
+                        if (compDef) gameApp.world.insert(msg.entityId, compDef, msg.data || {});
+                        response = { success: true };
+                        break;
+                    }
+                    case 'remove-component': {
+                        const compDef = window.__esSdk.getComponent(msg.componentType);
+                        if (compDef) gameApp.world.remove(msg.entityId, compDef);
+                        response = { success: true };
+                        break;
+                    }
+                    case 'rename-entity': {
+                        const nameDef = window.__esSdk.getComponent('Name');
+                        if (nameDef) gameApp.world.insert(msg.entityId, nameDef, { value: msg.name });
+                        response = { success: true };
+                        break;
+                    }
+                    case 'reparent-entity': {
+                        if (msg.newParentId != null) gameApp.world.setParent(msg.entityId, msg.newParentId);
+                        else gameApp.world.removeParent(msg.entityId);
+                        response = { success: true };
+                        break;
+                    }
                     case 'query-stats': {
                         const entities = gameApp?.world?.getAllEntities() ?? [];
                         response = { entityCount: entities.length, paused: gameApp?.isPaused() ?? false };
@@ -195,10 +233,14 @@
         }
 
         function getComponentTypes(world, entityId) {
+            const sdk = window.__esSdk;
             try {
                 if (world.getComponentTypes) {
                     const types = world.getComponentTypes(entityId);
-                    return types.map(t => String(t));
+                    return types.map(t => String(t)).filter(t => {
+                        if (!sdk) return true;
+                        return sdk.getComponent(t) != null;
+                    });
                 }
             } catch {}
             return [];

@@ -9,9 +9,9 @@ export function performSearch(state: HierarchyState): void {
         return;
     }
 
-    const scene = state.store.scene;
+    const entities = state.runtimeEntities ?? state.store.scene.entities;
     const results = fuzzyFilter(
-        scene.entities,
+        entities,
         state.searchFilter,
         (entity) => entity.name
     );

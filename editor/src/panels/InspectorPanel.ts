@@ -19,7 +19,8 @@ import { renderBitmapFontInspector } from './inspector/BitmapFontInspector';
 import { renderFolderInspector } from './inspector/FolderInspector';
 import { renderScriptInspector, renderSceneInspector, renderFileInspector } from './inspector/FileInspector';
 import { getPlayModeService } from '../services/PlayModeService';
-import { renderRuntimeEntity, updateRuntimeEntityValues } from './inspector/RuntimeEntityRenderer';
+import { RuntimeStoreProxy } from '../services/RuntimeStoreProxy';
+import { renderRuntimeEntity } from './inspector/RuntimeEntityRenderer';
 
 // =============================================================================
 // InspectorPanel
@@ -46,7 +47,9 @@ export class InspectorPanel {
     private playMode_: boolean = false;
     private playModeCleanups_: (() => void)[] = [];
     private runtimeEntityId_: number | null = null;
-    private runtimeRefreshTimer_: ReturnType<typeof setInterval> | null = null;
+    private runtimeRefreshRafId_: number = 0;
+    private runtimeRefreshPending_ = false;
+    private runtimeProxy_: RuntimeStoreProxy | null = null;
 
     constructor(container: HTMLElement, store: EditorStore) {
         this.container_ = container;
@@ -81,19 +84,25 @@ export class InspectorPanel {
                 if (this.playMode_) {
                     this.container_.classList.add('es-play-mode');
                     hideMaterialPreview(this.materialPreviewState_);
+                    if (pms.bridge) {
+                        this.runtimeProxy_ = new RuntimeStoreProxy(
+                            pms.bridge, this.store_
+                        );
+                    }
                 } else {
                     this.container_.classList.remove('es-play-mode');
                     this.stopRuntimeRefresh();
                     this.runtimeEntityId_ = null;
+                    this.runtimeProxy_ = null;
                     this.render();
                 }
             }),
             pms.onSelectionChange((entityId) => {
                 if (!this.playMode_) return;
-                if (entityId === this.runtimeEntityId_) return;
+                if (entityId !== null && entityId === this.runtimeEntityId_) return;
                 this.runtimeEntityId_ = entityId;
                 if (entityId !== null) {
-                    this.renderRuntimeEntity(entityId);
+                    this.renderPlayModeEntity(entityId);
                 } else {
                     this.renderPlayModeEmpty();
                 }
@@ -364,7 +373,7 @@ export class InspectorPanel {
     // Play Mode (Runtime Inspector)
     // =========================================================================
 
-    private async renderRuntimeEntity(entityId: number): Promise<void> {
+    private async renderPlayModeEntity(runtimeEntityId: number): Promise<void> {
         this.stopRuntimeRefresh();
         this.disposeEditors();
         this.cleanupImageUrl();
@@ -373,29 +382,78 @@ export class InspectorPanel {
         hideMaterialPreview(this.materialPreviewState_);
 
         const pms = getPlayModeService();
-        const data = await pms.querySelectedEntity();
-        if (!data || this.runtimeEntityId_ !== entityId) return;
 
+        if (this.runtimeProxy_) {
+            const freshData = await pms.queryEntityByRuntimeId(runtimeEntityId);
+            if (!freshData || this.runtimeEntityId_ !== runtimeEntityId) return;
+
+            this.runtimeProxy_.applyRuntimeData(runtimeEntityId, freshData);
+            this.rebuildPlayModeEntity(runtimeEntityId as Entity);
+            this.startRuntimeRefreshLoop(runtimeEntityId);
+        } else {
+            const freshData = await pms.queryEntityByRuntimeId(runtimeEntityId);
+            if (!freshData || this.runtimeEntityId_ !== runtimeEntityId) return;
+
+            this.contentContainer_.innerHTML = '';
+            renderRuntimeEntity(this.contentContainer_, freshData, pms.bridge);
+            this.updateFooter(`${freshData.components.length} components (Runtime)`);
+        }
+    }
+
+    private rebuildPlayModeEntity(entity: Entity): void {
+        if (!this.runtimeProxy_) return;
+        const proxy = this.runtimeProxy_ as any;
+        const entityData = proxy.getEntityData(entity as number);
+        if (!entityData) {
+            this.contentContainer_.innerHTML = '<div class="es-inspector-empty">Entity not found</div>';
+            this.updateFooter('Error');
+            return;
+        }
+
+        const componentCount = entityData.components.length;
+        this.currentEntity_ = entity;
+        this.currentAssetPath_ = null;
+        this.currentComponentCount_ = componentCount;
+        this.currentComponentOrder_ = entityData.components.map((c: any) => c.type).join(',');
+        this.currentPrefabPath_ = undefined;
+        this.disposeEditors();
         this.contentContainer_.innerHTML = '';
-        renderRuntimeEntity(this.contentContainer_, data, pms.bridge);
-        this.updateFooter(`${data.components.length} components (Runtime)`);
 
-        this.runtimeRefreshTimer_ = setInterval(async () => {
-            if (this.runtimeEntityId_ !== entityId) {
-                this.stopRuntimeRefresh();
-                return;
+        renderEntityHeader(this.contentContainer_, entityData.name, entity, proxy);
+
+        for (let i = 0; i < entityData.components.length; i++) {
+            renderComponent(
+                this.contentContainer_, entity, entityData.components[i],
+                proxy, this.editors_, i, entityData.components.length
+            );
+        }
+
+        renderAddComponentButton(this.contentContainer_, entity, entityData.components, proxy);
+        this.updateFooter(`${componentCount} components (Live)`);
+    }
+
+    private updatePlayModeEditors(editorEntityId: number): void {
+        if (!this.runtimeProxy_) return;
+        const proxy = this.runtimeProxy_ as any;
+        const entityData = proxy.getEntityData(editorEntityId);
+        if (!entityData) return;
+
+        for (const info of this.editors_) {
+            const component = entityData.components.find((c: any) => c.type === info.componentType);
+            if (component) {
+                if (info.propertyName === '*') {
+                    const defaults = getDefaultComponentData(component.type);
+                    info.editor.update({ ...defaults, ...component.data });
+                } else {
+                    let value = component.data[info.propertyName];
+                    if (value === undefined) {
+                        const defaults = getDefaultComponentData(component.type);
+                        value = defaults[info.propertyName];
+                    }
+                    info.editor.update(value);
+                }
             }
-            const fresh = await pms.querySelectedEntity();
-            if (!fresh) {
-                this.stopRuntimeRefresh();
-                this.contentContainer_.innerHTML = '<div class="es-inspector-empty">Entity despawned</div>';
-                this.updateFooter('Runtime mode');
-                return;
-            }
-            if (this.runtimeEntityId_ === entityId) {
-                updateRuntimeEntityValues(this.contentContainer_, fresh);
-            }
-        }, 500);
+        }
     }
 
     private renderPlayModeEmpty(): void {
@@ -404,16 +462,51 @@ export class InspectorPanel {
         this.cleanupImageUrl();
         this.currentEntity_ = null;
         this.currentAssetPath_ = null;
-        this.contentContainer_.innerHTML = '<div class="es-inspector-empty">Select a runtime entity</div>';
+        this.contentContainer_.innerHTML = '<div class="es-inspector-empty">Select an entity</div>';
         hideMaterialPreview(this.materialPreviewState_);
-        this.updateFooter('Runtime mode');
+        this.updateFooter('Live mode');
+    }
+
+    private startRuntimeRefreshLoop(runtimeEntityId: number): void {
+        const pms = getPlayModeService();
+        const tick = async () => {
+            if (this.runtimeEntityId_ !== runtimeEntityId) return;
+            if (this.runtimeRefreshPending_) {
+                this.runtimeRefreshRafId_ = requestAnimationFrame(tick);
+                return;
+            }
+            this.runtimeRefreshPending_ = true;
+            try {
+                if (this.runtimeProxy_) {
+                    this.runtimeProxy_.prepareForQuery(runtimeEntityId);
+                }
+                const fresh = await pms.queryEntityByRuntimeId(runtimeEntityId);
+                if (this.runtimeEntityId_ !== runtimeEntityId) return;
+                if (!fresh) {
+                    this.contentContainer_.innerHTML = '<div class="es-inspector-empty">Entity despawned</div>';
+                    this.updateFooter('Runtime mode');
+                    return;
+                }
+                if (this.runtimeProxy_) {
+                    this.runtimeProxy_.applyRuntimeData(runtimeEntityId, fresh);
+                    this.updatePlayModeEditors(runtimeEntityId);
+                }
+            } finally {
+                this.runtimeRefreshPending_ = false;
+            }
+            if (this.runtimeEntityId_ === runtimeEntityId) {
+                this.runtimeRefreshRafId_ = requestAnimationFrame(tick);
+            }
+        };
+        this.runtimeRefreshRafId_ = requestAnimationFrame(tick);
     }
 
     private stopRuntimeRefresh(): void {
-        if (this.runtimeRefreshTimer_) {
-            clearInterval(this.runtimeRefreshTimer_);
-            this.runtimeRefreshTimer_ = null;
+        if (this.runtimeRefreshRafId_) {
+            cancelAnimationFrame(this.runtimeRefreshRafId_);
+            this.runtimeRefreshRafId_ = 0;
         }
+        this.runtimeRefreshPending_ = false;
     }
 
     // =========================================================================
