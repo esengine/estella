@@ -39,19 +39,48 @@ function isVec4OrColor(v: unknown): boolean {
     return 'x' in v && 'y' in v && 'z' in v && 'w' in v;
 }
 
-function inferPropertyType(value: unknown): string {
+export function inferPropertyType(value: unknown): string {
     if (typeof value === 'number') return 'number';
     if (typeof value === 'string') return 'string';
     if (typeof value === 'boolean') return 'boolean';
+    if (Array.isArray(value)) return 'string-array';
     if (isVec2(value)) return 'vec2';
     if (isVec3(value)) return 'vec3';
-    if (isVec4OrColor(value)) return 'vec4';
+    if (typeof value === 'object' && value !== null) {
+        if ('r' in value && 'g' in value && 'b' in value && 'a' in value) return 'color';
+        if ('x' in value && 'y' in value && 'z' in value && 'w' in value) return 'vec4';
+    }
     return 'string';
 }
 
 // =============================================================================
 // Built-in Schemas
 // =============================================================================
+
+export const NameSchema: ComponentSchema = {
+    name: 'Name',
+    category: 'builtin',
+    removable: false,
+    properties: [
+        { name: 'value', type: 'string' },
+    ],
+};
+
+export const ParentSchema: ComponentSchema = {
+    name: 'Parent',
+    category: 'builtin',
+    removable: false,
+    properties: [
+        { name: 'entity', type: 'entity' },
+    ],
+};
+
+export const ChildrenSchema: ComponentSchema = {
+    name: 'Children',
+    category: 'tag',
+    removable: false,
+    properties: [],
+};
 
 export const TransformSchema: ComponentSchema = {
     name: 'Transform',
@@ -277,6 +306,25 @@ export const TextInputSchema: ComponentSchema = {
     ],
 };
 
+export const VelocitySchema: ComponentSchema = {
+    name: 'Velocity',
+    category: 'builtin',
+    properties: [
+        { name: 'linear', type: 'vec3' },
+        { name: 'angular', type: 'vec3' },
+    ],
+};
+
+export const SceneOwnerSchema: ComponentSchema = {
+    name: 'SceneOwner',
+    category: 'builtin',
+    removable: false,
+    properties: [
+        { name: 'scene', type: 'string' },
+        { name: 'persistent', type: 'boolean' },
+    ],
+};
+
 export const SpineAnimationSchema: ComponentSchema = {
     name: 'SpineAnimation',
     category: 'builtin',
@@ -404,6 +452,14 @@ export const ToggleSchema: ComponentSchema = {
         { name: 'isOn', type: 'boolean' },
         { name: 'graphicEntity', type: 'entity' },
         { name: 'transition', type: 'button-transition' },
+    ],
+};
+
+export const ToggleGroupSchema: ComponentSchema = {
+    name: 'ToggleGroup',
+    category: 'ui',
+    properties: [
+        { name: 'allowSwitchOff', type: 'boolean' },
     ],
 };
 
@@ -600,6 +656,13 @@ export const LayoutGroupSchema: ComponentSchema = {
     ],
 };
 
+export const UIInteractionSchema: ComponentSchema = {
+    name: 'UIInteraction',
+    category: 'tag',
+    removable: false,
+    properties: [],
+};
+
 // =============================================================================
 // Registry
 // =============================================================================
@@ -658,6 +721,7 @@ export function clearExtensionComponentSchemas(): void {
 
 export function clearScriptComponents(): void {
     for (const [name, schema] of schemaRegistry.entries()) {
+        if (builtinSchemaNames.has(name)) continue;
         if (schema.category === 'script' || schema.category === 'tag') {
             schemaRegistry.delete(name);
         }
@@ -706,20 +770,27 @@ export interface BuiltinSchemaOptions {
 export function registerBuiltinSchemas(options?: BuiltinSchemaOptions): void {
     const enableSpine = options?.enableSpine ?? true;
 
+    registerComponentSchema(NameSchema);
+    registerComponentSchema(ParentSchema);
+    registerComponentSchema(ChildrenSchema);
     registerComponentSchema(TransformSchema);
     registerComponentSchema(SpriteSchema);
     registerComponentSchema(CameraSchema);
+    registerComponentSchema(VelocitySchema);
+    registerComponentSchema(SceneOwnerSchema);
     registerComponentSchema(TextSchema);
     registerComponentSchema(UIRectSchema);
     registerComponentSchema(CanvasSchema);
     registerComponentSchema(BitmapTextSchema);
     registerComponentSchema(UIMaskSchema);
     registerComponentSchema(InteractableSchema);
+    registerComponentSchema(UIInteractionSchema);
     registerComponentSchema(ButtonSchema);
     registerComponentSchema(ScreenSpaceSchema);
     registerComponentSchema(TextInputSchema);
     registerComponentSchema(ImageSchema);
     registerComponentSchema(ToggleSchema);
+    registerComponentSchema(ToggleGroupSchema);
     registerComponentSchema(ProgressBarSchema);
     registerComponentSchema(DraggableSchema);
     registerComponentSchema(ScrollViewSchema);

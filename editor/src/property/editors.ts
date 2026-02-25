@@ -400,12 +400,21 @@ function createVec4Editor(
 // Color Editor
 // =============================================================================
 
+type RGBA = { r: number; g: number; b: number; a: number };
+
+function sanitizeColor(color: RGBA | null | undefined): RGBA {
+    if (!color || typeof color !== 'object') return { r: 1, g: 1, b: 1, a: 1 };
+    const s = (v: unknown) => (typeof v === 'number' && Number.isFinite(v)) ? v : 0;
+    return { r: s(color.r), g: s(color.g), b: s(color.b), a: s(color.a) || 1 };
+}
+
 function createColorEditor(
     container: HTMLElement,
     ctx: PropertyEditorContext
 ): PropertyEditorInstance {
     const { value, onChange } = ctx;
-    const color = (value as { r: number; g: number; b: number; a: number }) ?? { r: 1, g: 1, b: 1, a: 1 };
+    const raw = value as { r: number; g: number; b: number; a: number } | null | undefined;
+    const color = sanitizeColor(raw);
 
     const wrapper = document.createElement('div');
     wrapper.className = 'es-color-editor';
@@ -463,7 +472,7 @@ function createColorEditor(
 
     return {
         update(v: unknown) {
-            const newColor = (v as { r: number; g: number; b: number; a: number }) ?? { r: 1, g: 1, b: 1, a: 1 };
+            const newColor = sanitizeColor(v as { r: number; g: number; b: number; a: number } | null | undefined);
             colorInput.value = colorToHex(newColor);
             hexInput.value = colorToHex(newColor).toUpperCase();
             alphaInput.value = String(newColor.a);
@@ -885,8 +894,8 @@ function createTextureEditor(
 
     return {
         update(v: unknown) {
-            const raw = String(v ?? '');
-            const newValue = raw === String(INVALID_TEXTURE) ? '' : raw;
+            const raw = (typeof v === 'string') ? v : '';
+            const newValue = (!raw || raw === String(INVALID_TEXTURE)) ? '' : raw;
             input.value = newValue ? resolveDisplayName(newValue) : '';
             if (newValue !== currentRef) {
                 currentRef = newValue;

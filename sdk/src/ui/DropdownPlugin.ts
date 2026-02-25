@@ -19,11 +19,13 @@ import { UIMask, MaskMode } from './UIMask';
 import { Input } from '../input';
 import type { InputState } from '../input';
 import { isEditor } from '../env';
+import { INVALID_TEXTURE } from '../types';
 import { ensureComponent } from './uiHelpers';
 import { DROPDOWN_ITEM_HEIGHT, DROPDOWN_FONT_SIZE, DROPDOWN_HIGHLIGHT_COLOR } from './uiConstants';
 
 interface DropdownState {
     optionEntities: Entity[];
+    textEntities: Entity[];
     highlightIndex: number;
 }
 
@@ -54,8 +56,11 @@ export class DropdownPlugin implements Plugin {
 
                     let state = dropdownStates.get(entity);
                     if (!state) {
-                        state = { optionEntities: [], highlightIndex: -1 };
+                        state = { optionEntities: [], textEntities: [], highlightIndex: -1 };
                         dropdownStates.set(entity, state);
+                        if (!dropdown.isOpen) {
+                            setListVisible(dropdown.listEntity, false);
+                        }
                     }
 
                     if (interaction?.justPressed) {
@@ -134,30 +139,19 @@ export class DropdownPlugin implements Plugin {
                 world.insert(optEntity, UIRect, {
                     anchorMin: { x: 0, y: 1 },
                     anchorMax: { x: 1, y: 1 },
-                    offsetMin: { x: 0, y: 0 },
+                    offsetMin: { x: 0, y: -i * DROPDOWN_ITEM_HEIGHT },
                     offsetMax: { x: 0, y: 0 },
                     size: { x: listWidth, y: DROPDOWN_ITEM_HEIGHT },
                     pivot: { x: 0.5, y: 1 },
                 });
                 world.insert(optEntity, Transform, {
-                    position: { x: 0, y: -(i * DROPDOWN_ITEM_HEIGHT), z: 0 },
+                    position: { x: 0, y: 0, z: 0 },
                     rotation: { w: 1, x: 0, y: 0, z: 0 },
                     scale: { x: 1, y: 1, z: 1 },
                 });
-                world.insert(optEntity, Text, {
-                    content: dropdown.options[i],
-                    fontSize: DROPDOWN_FONT_SIZE,
-                    fontFamily: 'Arial',
-                    color: { r: 1, g: 1, b: 1, a: 1 },
-                    align: TextAlign.Left,
-                    verticalAlign: TextVerticalAlign.Middle,
-                    wordWrap: false,
-                    overflow: TextOverflow.Clip,
-                    lineHeight: 1.2,
-                });
                 world.insert(optEntity, Sprite, {
-                    texture: 0,
-                    color: { r: 1, g: 1, b: 1, a: 0 },
+                    texture: INVALID_TEXTURE,
+                    color: { r: 0.95, g: 0.95, b: 0.95, a: 1 },
                     size: { x: listWidth, y: DROPDOWN_ITEM_HEIGHT },
                     uvOffset: { x: 0, y: 0 },
                     uvScale: { x: 1, y: 1 },
@@ -170,6 +164,34 @@ export class DropdownPlugin implements Plugin {
                 world.insert(optEntity, Interactable, { enabled: true, blockRaycast: true, raycastTarget: true });
                 world.setParent(optEntity, listEntity);
                 state.optionEntities.push(optEntity);
+
+                const textEntity = world.spawn();
+                world.insert(textEntity, Transform, {
+                    position: { x: 0, y: 0, z: 0 },
+                    rotation: { w: 1, x: 0, y: 0, z: 0 },
+                    scale: { x: 1, y: 1, z: 1 },
+                });
+                world.insert(textEntity, Text, {
+                    content: dropdown.options[i],
+                    fontSize: DROPDOWN_FONT_SIZE,
+                    fontFamily: 'Arial',
+                    color: { r: 0, g: 0, b: 0, a: 1 },
+                    align: TextAlign.Left,
+                    verticalAlign: TextVerticalAlign.Middle,
+                    wordWrap: false,
+                    overflow: TextOverflow.Clip,
+                    lineHeight: 1.2,
+                });
+                world.insert(textEntity, UIRect, {
+                    anchorMin: { x: 0, y: 0 },
+                    anchorMax: { x: 1, y: 1 },
+                    offsetMin: { x: 0, y: 0 },
+                    offsetMax: { x: 0, y: 0 },
+                    size: { x: listWidth, y: DROPDOWN_ITEM_HEIGHT },
+                    pivot: { x: 0.5, y: 0.5 },
+                });
+                world.setParent(textEntity, optEntity);
+                state.textEntities.push(textEntity);
             }
 
             if (listRect) {
@@ -203,24 +225,38 @@ export class DropdownPlugin implements Plugin {
             if (labelEntity === 0 || !world.valid(labelEntity)) return;
             if (!world.has(labelEntity, Text)) return;
 
-            const text = world.get(labelEntity, Text) as TextData;
-            const selectedText = dropdown.selectedIndex >= 0 && dropdown.selectedIndex < dropdown.options.length
-                ? dropdown.options[dropdown.selectedIndex]
-                : '';
+            if (dropdown.selectedIndex < 0 || dropdown.selectedIndex >= dropdown.options.length) return;
 
+            const text = world.get(labelEntity, Text) as TextData;
+            const selectedText = dropdown.options[dropdown.selectedIndex];
+
+            let changed = false;
             if (text.content !== selectedText) {
                 text.content = selectedText;
+                changed = true;
+            }
+            if (text.color.r === 1 && text.color.g === 1 && text.color.b === 1 && text.color.a === 1) {
+                text.color = { r: 0, g: 0, b: 0, a: 1 };
+                changed = true;
+            }
+            if (changed) {
                 world.insert(labelEntity, Text, text);
             }
         }
 
         function destroyOptions(state: DropdownState): void {
+            for (const textEntity of state.textEntities) {
+                if (world.valid(textEntity)) {
+                    world.despawn(textEntity);
+                }
+            }
             for (const optEntity of state.optionEntities) {
                 if (world.valid(optEntity)) {
                     world.despawn(optEntity);
                 }
             }
             state.optionEntities = [];
+            state.textEntities = [];
         }
 
         function setListVisible(entity: Entity, visible: boolean): void {
@@ -245,7 +281,7 @@ export class DropdownPlugin implements Plugin {
                 if (i === state.highlightIndex) {
                     sprite.color = { ...DROPDOWN_HIGHLIGHT_COLOR };
                 } else {
-                    sprite.color = { r: 1, g: 1, b: 1, a: 0 };
+                    sprite.color = { r: 0.95, g: 0.95, b: 0.95, a: 1 };
                 }
                 world.insert(optEntity, Sprite, sprite);
             }

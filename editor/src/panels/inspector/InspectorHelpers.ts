@@ -123,10 +123,15 @@ export function getAssetServer(): EditorAssetServer | null {
 }
 
 const COMPONENT_ICON_MAP = new Map<string, (size: number) => string>([
+    ['Name', icons.tag],
+    ['Parent', icons.box],
+    ['Children', icons.box],
     ['Transform', icons.move],
     ['Sprite', icons.image],
     ['NinePatch', icons.image],
     ['Camera', icons.camera],
+    ['Velocity', icons.zap],
+    ['SceneOwner', icons.layers],
     ['Text', icons.type],
     ['TextInput', icons.type],
     ['RigidBody', icons.zap],
@@ -139,6 +144,7 @@ const COMPONENT_ICON_MAP = new Map<string, (size: number) => string>([
     ['UIRect', icons.scan],
     ['LayoutGroup', icons.layoutGrid],
     ['UIMask', icons.shield],
+    ['UIInteraction', icons.zap],
 ]);
 
 export function getComponentIcon(type: string): string {
