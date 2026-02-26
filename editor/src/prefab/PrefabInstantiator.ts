@@ -6,6 +6,7 @@
 import type { SceneData, EntityData, ComponentData } from '../types/SceneTypes';
 import type { PrefabData, PrefabOverride, PrefabInstanceData } from '../types/PrefabTypes';
 import { loadPrefabFromPath } from './PrefabSerializer';
+import { getComponentEntityFields } from 'esengine';
 
 // =============================================================================
 // Instantiation Result
@@ -79,12 +80,15 @@ export function instantiatePrefab(
             overrides: isRoot ? [...overrides] : [],
         };
 
+        const components = deepCloneComponents(pe.components);
+        remapComponentEntityRefs(components, idMapping);
+
         const entity: EntityData = {
             id: sceneId,
             name: pe.name,
             parent,
             children,
-            components: deepCloneComponents(pe.components),
+            components,
             visible: pe.visible,
             prefab: prefabInstance,
         };
@@ -180,12 +184,15 @@ export async function instantiatePrefabRecursive(
             overrides: isRoot ? [...overrides] : [],
         };
 
+        const components = deepCloneComponents(pe.components);
+        remapComponentEntityRefs(components, idMapping);
+
         const entity: EntityData = {
             id: sceneId,
             name: pe.name,
             parent,
             children,
-            components: deepCloneComponents(pe.components),
+            components,
             visible: pe.visible,
             prefab: prefabInstance,
         };
@@ -297,6 +304,14 @@ export async function syncPrefabInstances(scene: SceneData, prefabPath: string):
             newIdMapping.set(pe.prefabEntityId, nextId++);
         }
 
+        const fullIdMapping = new Map<number, number>();
+        for (const [prefabId, entityData] of existingByPrefabId) {
+            fullIdMapping.set(prefabId, entityData.id);
+        }
+        for (const [prefabId, sceneId] of newIdMapping) {
+            fullIdMapping.set(prefabId, sceneId);
+        }
+
         for (const pe of newPrefabEntities) {
             const sceneId = newIdMapping.get(pe.prefabEntityId)!;
 
@@ -312,12 +327,15 @@ export async function syncPrefabInstances(scene: SceneData, prefabPath: string):
                 .map(cid => existingByPrefabId.get(cid)?.id ?? newIdMapping.get(cid))
                 .filter((id): id is number => id !== undefined);
 
+            const components = deepCloneComponents(pe.components);
+            remapComponentEntityRefs(components, fullIdMapping);
+
             const entity: EntityData = {
                 id: sceneId,
                 name: pe.name,
                 parent,
                 children,
-                components: deepCloneComponents(pe.components),
+                components,
                 visible: pe.visible,
                 prefab: {
                     prefabPath,
@@ -372,6 +390,25 @@ function deepCloneComponents(components: ComponentData[]): ComponentData[] {
         type: c.type,
         data: JSON.parse(JSON.stringify(c.data)),
     }));
+}
+
+function remapComponentEntityRefs(
+    components: ComponentData[],
+    idMapping: Map<number, number>,
+): void {
+    for (const comp of components) {
+        const fields = getComponentEntityFields(comp.type);
+        if (!fields) continue;
+        for (const field of fields) {
+            const value = comp.data[field];
+            if (typeof value === 'number' && value !== 0) {
+                const mapped = idMapping.get(value);
+                if (mapped !== undefined) {
+                    comp.data[field] = mapped;
+                }
+            }
+        }
+    }
 }
 
 function computeNextIdAfter(entities: EntityData[], currentNext: number): number {

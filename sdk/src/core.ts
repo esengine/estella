@@ -378,6 +378,7 @@ export {
     getComponentAssetFieldDescriptors,
     getComponentSpineFieldDescriptor,
     registerComponentEntityFields,
+    getComponentEntityFields,
     type AssetFieldType,
     type SceneData,
     type SceneEntityData,

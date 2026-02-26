@@ -1,7 +1,7 @@
 import type { World } from './world';
 import type { Entity } from './types';
 import type { AssetServer } from './asset/AssetServer';
-import { loadSceneWithAssets, type SceneData } from './scene';
+import { loadSceneWithAssets, getComponentEntityFields, type SceneData } from './scene';
 
 // =============================================================================
 // Types
@@ -211,6 +211,7 @@ async function flattenPrefab(
             visible: pe.visible,
         };
 
+        remapComponentEntityRefs(entity.components, idMapping);
         applyOverridesToEntity(entity, overrides);
         result.push(entity);
     }
@@ -221,6 +222,29 @@ async function flattenPrefab(
     }
 
     return { entities: result, rootId, nextId };
+}
+
+// =============================================================================
+// Entity Reference Remapping
+// =============================================================================
+
+function remapComponentEntityRefs(
+    components: { type: string; data: Record<string, unknown> }[],
+    idMapping: Map<number, number>,
+): void {
+    for (const comp of components) {
+        const fields = getComponentEntityFields(comp.type);
+        if (!fields) continue;
+        for (const field of fields) {
+            const value = comp.data[field];
+            if (typeof value === 'number' && value !== 0) {
+                const mapped = idMapping.get(value);
+                if (mapped !== undefined) {
+                    comp.data[field] = mapped;
+                }
+            }
+        }
+    }
 }
 
 // =============================================================================

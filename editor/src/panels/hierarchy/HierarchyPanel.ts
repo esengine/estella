@@ -182,6 +182,13 @@ export class HierarchyPanel implements HierarchyState {
         if (needsRebuild) {
             this.render();
         } else {
+            if (dirtyFlags?.has('selection')) {
+                const sel = this.store.selectedEntity;
+                if (sel !== null && !this.flatRows.some(r => r.entity.id === sel as number)) {
+                    this.render();
+                    return;
+                }
+            }
             this.renderVisibleRows();
             this.updateFooter();
             if (dirtyFlags?.has('selection')) {
