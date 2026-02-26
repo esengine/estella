@@ -6,6 +6,7 @@
 import { World } from './world';
 import { Schedule, SystemDef, SystemRunner } from './system';
 import { ResourceStorage, Time, TimeData, type ResourceDef } from './resource';
+import { EventRegistry, type EventDef } from './event';
 import type { ESEngineModule, CppRegistry } from './wasm';
 import { UICameraInfo } from './ui/UICameraInfo';
 import { inputPlugin } from './input';
@@ -33,11 +34,14 @@ import { sceneManagerPlugin } from './scenePlugin';
 // Plugin Interface
 // =============================================================================
 
+export type PluginDependency = string | ResourceDef<any>;
+
 export interface Plugin {
     name?: string;
-    dependencies?: ResourceDef<any>[];
+    dependencies?: PluginDependency[];
     build(app: App): void;
-    cleanup?(): void;
+    finish?(app: App): void;
+    cleanup?(app?: App): void;
 }
 
 // =============================================================================
@@ -72,7 +76,11 @@ export class App {
     private spineInitPromise_?: Promise<unknown>;
     private physicsInitPromise_?: Promise<unknown>;
     private physicsModule_?: unknown;
-    private readonly installed_plugins_ = new Set<Plugin>();
+    private readonly installed_plugins_: Plugin[] = [];
+    private readonly installedPluginSet_ = new Set<Plugin>();
+    private readonly installedPluginNames_ = new Set<string>();
+    private pluginsFinished_ = false;
+    private readonly eventRegistry_ = new EventRegistry();
     private readonly sortedSystemsCache_ = new Map<Schedule, SystemEntry[]>();
     private error_handler_: ((error: unknown, systemName: string) => void) | null = null;
     private system_error_handler_: ((error: Error, systemName?: string) => 'continue' | 'pause') | null = null;
@@ -101,18 +109,35 @@ export class App {
     // =========================================================================
 
     addPlugin(plugin: Plugin): this {
-        if (this.installed_plugins_.has(plugin)) return this;
+        if (this.installedPluginSet_.has(plugin)) return this;
         if (plugin.dependencies) {
             for (const dep of plugin.dependencies) {
-                if (!this.hasResource(dep)) {
-                    throw new Error(
-                        `Plugin "${plugin.name ?? 'unknown'}" requires resource "${dep._name}" which has not been registered`
-                    );
+                if (typeof dep === 'string') {
+                    if (!this.installedPluginNames_.has(dep)) {
+                        throw new Error(
+                            `Plugin "${plugin.name ?? 'unknown'}" requires plugin "${dep}" which has not been installed`
+                        );
+                    }
+                } else {
+                    if (!this.hasResource(dep)) {
+                        throw new Error(
+                            `Plugin "${plugin.name ?? 'unknown'}" requires resource "${dep._name}" which has not been registered`
+                        );
+                    }
                 }
             }
         }
-        this.installed_plugins_.add(plugin);
+        this.installedPluginSet_.add(plugin);
+        this.installed_plugins_.push(plugin);
+        if (plugin.name) {
+            this.installedPluginNames_.add(plugin.name);
+        }
         plugin.build(this);
+        return this;
+    }
+
+    addEvent<T>(event: EventDef<T>): this {
+        this.eventRegistry_.register(event);
         return this;
     }
 
@@ -295,13 +320,16 @@ export class App {
 
     tick(delta: number): void {
         if (!this.runner_) {
-            this.runner_ = new SystemRunner(this.world_, this.resources_);
+            this.runner_ = new SystemRunner(this.world_, this.resources_, this.eventRegistry_);
             if (!this.resources_.has(Time)) {
                 this.resources_.insert(Time, { delta: 0, elapsed: 0, frameCount: 0 });
             }
+            this.finishPlugins_();
             this.runSchedule(Schedule.Startup);
         }
 
+        this.eventRegistry_.swapAll();
+        this.world_.advanceTick();
         this.updateTime(delta);
         this.world_.resetQueryPool();
         this.frame_paused_ = false;
@@ -311,6 +339,9 @@ export class App {
         this.runSchedule(Schedule.Update);
         this.runSchedule(Schedule.PostUpdate);
         this.runSchedule(Schedule.Last);
+
+        const REMOVED_BUFFER_RETENTION = 2;
+        this.world_.cleanRemovedBuffer(this.world_.getWorldTick() - REMOVED_BUFFER_RETENTION);
     }
 
     run(): void {
@@ -319,10 +350,11 @@ export class App {
         }
 
         this.running_ = true;
-        this.runner_ = new SystemRunner(this.world_, this.resources_);
+        this.runner_ = new SystemRunner(this.world_, this.resources_, this.eventRegistry_);
 
         this.resources_.insert(Time, { delta: 0, elapsed: 0, frameCount: 0 });
 
+        this.finishPlugins_();
         this.runSchedule(Schedule.Startup);
 
         this.lastTime_ = platformNow();
@@ -341,6 +373,8 @@ export class App {
         const rawDelta = Math.min(deltaMs / 1000, this.maxDeltaTime_);
         const delta = rawDelta * this.play_speed_;
 
+        this.eventRegistry_.swapAll();
+        this.world_.advanceTick();
         this.updateTime(delta);
         this.world_.resetQueryPool();
         this.frame_paused_ = false;
@@ -373,6 +407,9 @@ export class App {
             }
         }
 
+        const REMOVED_BUFFER_RETENTION = 2;
+        this.world_.cleanRemovedBuffer(this.world_.getWorldTick() - REMOVED_BUFFER_RETENTION);
+
         requestAnimationFrame(this.mainLoop);
     };
 
@@ -380,12 +417,14 @@ export class App {
         this.running_ = false;
         clearDrawCallbacks();
 
-        for (const plugin of this.installed_plugins_) {
-            try { plugin.cleanup?.(); } catch (e) {
+        for (let i = this.installed_plugins_.length - 1; i >= 0; i--) {
+            try { this.installed_plugins_[i].cleanup?.(this); } catch (e) {
                 console.error('[ESEngine] Plugin cleanup error:', e);
             }
         }
-        this.installed_plugins_.clear();
+        this.installed_plugins_.length = 0;
+        this.installedPluginSet_.clear();
+        this.installedPluginNames_.clear();
 
         const shutdowns = [
             shutdownGLDebugAPI,
@@ -414,6 +453,16 @@ export class App {
     // =========================================================================
     // Internal
     // =========================================================================
+
+    private finishPlugins_(): void {
+        if (this.pluginsFinished_) return;
+        this.pluginsFinished_ = true;
+        for (const plugin of this.installed_plugins_) {
+            try { plugin.finish?.(this); } catch (e) {
+                console.error(`[ESEngine] Plugin "${plugin.name ?? 'unknown'}" finish error:`, e);
+            }
+        }
+    }
 
     private sortSystems(systems: SystemEntry[]): SystemEntry[] {
         if (systems.length <= 1) {

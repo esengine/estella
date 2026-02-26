@@ -5,7 +5,7 @@
 #include "components/Hierarchy.hpp"
 #include "components/UIRect.hpp"
 #include "components/Sprite.hpp"
-#include "components/ScreenSpace.hpp"
+#include "components/Canvas.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -134,7 +134,7 @@ inline void uiLayoutUpdate(
     f32 cameraOriginX = (camLeft + camRight) * 0.5f;
     f32 cameraOriginY = (camBottom + camTop) * 0.5f;
 
-    registry.each<ScreenSpace>([&](Entity entity, ScreenSpace&) {
+    registry.each<Canvas>([&](Entity entity, Canvas&) {
         if (!registry.has<UIRect>(entity) || !registry.has<Transform>(entity)) return;
         layoutEntity(registry, entity, cameraRect, cameraOriginX, cameraOriginY, true);
     });

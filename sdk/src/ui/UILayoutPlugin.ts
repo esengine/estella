@@ -27,6 +27,17 @@ export class UILayoutPlugin implements Plugin {
                 camera.worldRight, camera.worldTop,
             );
             module.uiFlexLayout_update(registry);
+            module.transform_update(registry);
+        };
+
+        const layoutOnlyFn = (camera: UICameraData) => {
+            if (!camera.valid) return;
+            module.uiLayout_update(
+                registry,
+                camera.worldLeft, camera.worldBottom,
+                camera.worldRight, camera.worldTop,
+            );
+            module.uiFlexLayout_update(registry);
         };
 
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
@@ -37,9 +48,15 @@ export class UILayoutPlugin implements Plugin {
 
         app.addSystemToSchedule(Schedule.PostUpdate, defineSystem(
             [Res(UICameraInfo)],
-            layoutFn,
+            layoutOnlyFn,
             { name: 'UILayoutLateSystem' }
         ), { runBefore: ['UIRenderOrderSystem'] });
+
+        app.addSystemToSchedule(Schedule.PostUpdate, defineSystem(
+            [],
+            () => { module.transform_update(registry); },
+            { name: 'UITransformFinalSystem' }
+        ), { runAfter: ['ScrollViewSystem', 'ListViewSystem'], runBefore: ['UIRenderOrderSystem'] });
     }
 }
 

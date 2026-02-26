@@ -1,6 +1,6 @@
 /**
  * Integration tests: UI components (UIRect, UIMask, FlexContainer, FlexItem,
- * Interactable, UIInteraction, ScreenSpace) via real WASM module.
+ * Interactable, UIInteraction, Canvas) via real WASM module.
  *
  * Requires pre-built WASM at desktop/public/wasm/esengine.wasm.
  * Run `node build-tools/cli.js build -t web` first if missing.
@@ -10,9 +10,8 @@ import { existsSync } from 'fs';
 import { resolve } from 'path';
 import { App } from '../src/app';
 import { World } from '../src/world';
-import { Transform, Sprite } from '../src/component';
+import { Transform, Sprite, Canvas } from '../src/component';
 import { UIRect } from '../src/ui/UIRect';
-import { ScreenSpace } from '../src/ui/ScreenSpace';
 import { UIMask, MaskMode } from '../src/ui/UIMask';
 import { FlexContainer, FlexDirection, JustifyContent, AlignItems } from '../src/ui/FlexContainer';
 import { FlexItem } from '../src/ui/FlexItem';
@@ -340,28 +339,28 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
         });
     });
 
-    describe('ScreenSpace', () => {
-        it('should insert and check ScreenSpace tag', () => {
+    describe('Canvas', () => {
+        it('should insert and check Canvas tag', () => {
             const { app, registry } = createEditorApp();
             const world = app.world;
 
             const entity = world.spawn();
-            world.insert(entity, ScreenSpace, {});
+            world.insert(entity, Canvas, {});
 
-            expect(registry.hasScreenSpace(entity)).toBe(true);
+            expect(registry.hasCanvas(entity)).toBe(true);
 
             disposeApp(app, registry);
         });
 
-        it('should remove ScreenSpace', () => {
+        it('should remove Canvas', () => {
             const { app, registry } = createEditorApp();
             const world = app.world;
 
             const entity = world.spawn();
-            world.insert(entity, ScreenSpace, {});
-            world.remove(entity, ScreenSpace);
+            world.insert(entity, Canvas, {});
+            world.remove(entity, Canvas);
 
-            expect(registry.hasScreenSpace(entity)).toBe(false);
+            expect(registry.hasCanvas(entity)).toBe(false);
 
             disposeApp(app, registry);
         });
@@ -373,7 +372,7 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
             const world = app.world;
 
             const root = world.spawn();
-            world.insert(root, ScreenSpace, {});
+            world.insert(root, Canvas, {});
             world.insert(root, UIRect, makeFullRect());
             world.insert(root, Transform, makeTransform());
 
@@ -428,7 +427,7 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
             const world = app.world;
 
             const root = world.spawn();
-            world.insert(root, ScreenSpace, {});
+            world.insert(root, Canvas, {});
             world.insert(root, UIRect, makeFullRect());
             world.insert(root, Transform, makeTransform());
 
@@ -456,7 +455,7 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
             const world = app.world;
 
             const root = world.spawn();
-            world.insert(root, ScreenSpace, {});
+            world.insert(root, Canvas, {});
             world.insert(root, UIRect, makeFullRect());
             world.insert(root, Transform, makeTransform());
             world.insert(root, Sprite, makeSprite());
@@ -488,7 +487,7 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
             const world = app.world;
 
             const root = world.spawn();
-            world.insert(root, ScreenSpace, {});
+            world.insert(root, Canvas, {});
             world.insert(root, UIRect, makeFullRect());
             world.insert(root, Transform, makeTransform());
             world.insert(root, Sprite, makeSprite());
@@ -525,7 +524,7 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
             const world = app.world;
 
             const root = world.spawn();
-            world.insert(root, ScreenSpace, {});
+            world.insert(root, Canvas, {});
             world.insert(root, UIRect, makeFullRect());
             world.insert(root, Transform, makeTransform());
 
@@ -558,7 +557,7 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
             const world = app.world;
 
             const root = world.spawn();
-            world.insert(root, ScreenSpace, {});
+            world.insert(root, Canvas, {});
             world.insert(root, UIRect, makeFullRect());
             world.insert(root, Transform, makeTransform());
 
@@ -591,7 +590,7 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
             const world = app.world;
 
             const root = world.spawn();
-            world.insert(root, ScreenSpace, {});
+            world.insert(root, Canvas, {});
             world.insert(root, UIRect, makeFullRect());
             world.insert(root, Transform, makeTransform());
 
@@ -626,7 +625,7 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
             const world = app.world;
 
             const root = world.spawn();
-            world.insert(root, ScreenSpace, {});
+            world.insert(root, Canvas, {});
             world.insert(root, UIRect, makeFullRect());
             world.insert(root, Transform, makeTransform());
 
@@ -664,7 +663,7 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
             const world = app.world;
 
             const root = world.spawn();
-            world.insert(root, ScreenSpace, {});
+            world.insert(root, Canvas, {});
             world.insert(root, UIRect, makeFullRect());
             world.insert(root, Transform, makeTransform());
 
@@ -692,7 +691,7 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
             const world = app.world;
 
             const root = world.spawn();
-            world.insert(root, ScreenSpace, {});
+            world.insert(root, Canvas, {});
             world.insert(root, UIRect, makeFullRect());
             world.insert(root, Transform, makeTransform());
             world.insert(root, Sprite, makeSprite());

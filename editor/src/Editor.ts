@@ -1146,7 +1146,23 @@ export class Editor {
                     onPanelClosed: (cb) => bridge.onPanelClosed(cb),
                 });
             }
+
+            this.setupCloseHandler();
         }
+    }
+
+    private setupCloseHandler(): void {
+        import('@tauri-apps/api/window').then(({ getCurrentWindow }) => {
+            const mainWindow = getCurrentWindow();
+            mainWindow.onCloseRequested(async (event) => {
+                if (!this.store_.isDirty) return;
+                event.preventDefault();
+                const result = await this.showUnsavedChangesPrompt();
+                if (result === 'cancel') return;
+                if (result === 'save') await this.saveScene();
+                mainWindow.destroy();
+            });
+        });
     }
 
     dispose(): void {

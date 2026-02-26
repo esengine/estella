@@ -67,7 +67,6 @@ export function setupDragAndDrop(
                 state.dropPosition = null;
                 state.renderVisibleRows();
             }
-            state.treeContainer.classList.add('es-drag-over');
             return;
         }
 
@@ -83,10 +82,20 @@ export function setupDragAndDrop(
     state.treeContainer.addEventListener('dragleave', (e) => {
         const relatedTarget = e.relatedTarget as HTMLElement;
         if (state.treeContainer.contains(relatedTarget)) return;
+        const wasDraggingEntity = state.draggingEntityId !== null;
         state.dragOverEntityId = null;
         state.dropPosition = null;
+        state.draggingEntityId = null;
         state.treeContainer.classList.remove('es-drag-over');
-        state.renderVisibleRows();
+        if (wasDraggingEntity) {
+            for (const el of state.treeContainer.querySelectorAll(
+                '.es-drop-before, .es-drop-after, .es-drop-inside, .es-hierarchy-item.es-drag-over, .es-hierarchy-item.es-dragging',
+            )) {
+                el.classList.remove('es-drop-before', 'es-drop-after', 'es-drop-inside', 'es-drag-over', 'es-dragging');
+            }
+        } else {
+            state.renderVisibleRows();
+        }
     });
 
     state.treeContainer.addEventListener('drop', (e) => {

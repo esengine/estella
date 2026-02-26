@@ -2,7 +2,7 @@
  * Integration tests: Slider fill/handle layout via real WASM module.
  *
  * Simulates how the editor renders a Slider:
- *   1. Create root ScreenSpace → Slider background → Fill + Handle as children
+ *   1. Create root Canvas → Slider background → Fill + Handle as children
  *   2. Call applyDirectionalFill / computeHandleAnchors to set anchors
  *   3. Run app.tick() to compute layout
  *   4. Verify computed width/height and world positions
@@ -13,9 +13,8 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { existsSync } from 'fs';
 import { resolve } from 'path';
 import { App } from '../src/app';
-import { Transform, Sprite } from '../src/component';
+import { Transform, Sprite, Canvas } from '../src/component';
 import { UIRect } from '../src/ui/UIRect';
-import { ScreenSpace } from '../src/ui/ScreenSpace';
 import { UICameraInfo } from '../src/ui/UICameraInfo';
 import { Input, InputState } from '../src/input';
 import { UIEvents, UIEventQueue } from '../src/ui/UIEvents';
@@ -113,7 +112,7 @@ describe.skipIf(!HAS_WASM)('Slider Layout (WASM integration)', () => {
         const world = app.world;
 
         const root = world.spawn();
-        world.insert(root, ScreenSpace, {});
+        world.insert(root, Canvas, {});
         world.insert(root, UIRect, makeFullRect());
         world.insert(root, Transform, makeTransform());
 
@@ -432,7 +431,7 @@ describe.skipIf(!HAS_WASM)('Slider Layout (WASM integration)', () => {
 
             // Create scene hierarchy: root → slider → fill + handle
             const root = world.spawn();
-            world.insert(root, ScreenSpace, {});
+            world.insert(root, Canvas, {});
             world.insert(root, UIRect, makeFullRect());
             world.insert(root, Transform, makeTransform());
 
@@ -534,7 +533,7 @@ describe.skipIf(!HAS_WASM)('Slider Layout (WASM integration)', () => {
             const world = app.world;
 
             const root = world.spawn();
-            world.insert(root, ScreenSpace, {});
+            world.insert(root, Canvas, {});
             world.insert(root, UIRect, makeFullRect());
             world.insert(root, Transform, makeTransform());
 
@@ -692,7 +691,7 @@ describe.skipIf(!HAS_WASM)('Slider Layout (WASM integration)', () => {
             const world = app.world;
 
             const root = world.spawn();
-            world.insert(root, ScreenSpace, {});
+            world.insert(root, Canvas, {});
             world.insert(root, UIRect, makeFullRect());
             world.insert(root, Transform, makeTransform());
 
@@ -806,7 +805,7 @@ describe.skipIf(!HAS_WASM)('Slider Layout (WASM integration)', () => {
             // This mirrors what HierarchyContextMenu.createSliderEntity does
 
             const canvasRoot = world.spawn();
-            world.insert(canvasRoot, ScreenSpace, {});
+            world.insert(canvasRoot, Canvas, {});
             world.insert(canvasRoot, UIRect, makeFullRect());
             world.insert(canvasRoot, Transform, makeTransform());
 
@@ -905,7 +904,7 @@ describe.skipIf(!HAS_WASM)('Slider Layout (WASM integration)', () => {
             const world = app.world;
 
             const canvasRoot = world.spawn();
-            world.insert(canvasRoot, ScreenSpace, {});
+            world.insert(canvasRoot, Canvas, {});
             world.insert(canvasRoot, UIRect, makeFullRect());
             world.insert(canvasRoot, Transform, makeTransform());
 

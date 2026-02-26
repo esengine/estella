@@ -112,10 +112,10 @@ export class EditorSceneRenderer {
 
         switch (event.componentType) {
             case 'UIRect':
-            case 'ScreenSpace':
                 this.scheduleDescendantUpdates(event.entity);
                 break;
             case 'Canvas':
+                this.scheduleDescendantUpdates(event.entity);
                 this.syncCanvasToCamera(event.entity);
                 break;
             case 'Button':

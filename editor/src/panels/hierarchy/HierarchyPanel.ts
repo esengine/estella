@@ -101,8 +101,9 @@ export class HierarchyPanel implements HierarchyState {
         const pms = getPlayModeService();
         this.playModeCleanups_.push(
             pms.onStateChange((state) => {
-                this.playMode = state === 'playing';
-                if (this.playMode) {
+                const isPlaying = state === 'playing' && !pms.isSharedMode;
+                this.playMode = isPlaying;
+                if (isPlaying) {
                     this.container_.classList.add('es-play-mode');
                     this.savedExpandedIds_ = new Set(this.expandedIds);
                     this.updateRuntimeEntities();
@@ -183,6 +184,12 @@ export class HierarchyPanel implements HierarchyState {
         } else {
             this.renderVisibleRows();
             this.updateFooter();
+            if (dirtyFlags?.has('selection')) {
+                const sel = this.store.selectedEntity;
+                if (sel !== null) {
+                    this.scrollToEntity(sel as number);
+                }
+            }
         }
     }
 

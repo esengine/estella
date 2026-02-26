@@ -11,6 +11,8 @@ export interface ScrollViewData {
     scrollY: number;
     inertia: boolean;
     decelerationRate: number;
+    elastic: boolean;
+    wheelSensitivity: number;
 }
 
 export const ScrollView = defineComponent<ScrollViewData>('ScrollView', {
@@ -23,4 +25,6 @@ export const ScrollView = defineComponent<ScrollViewData>('ScrollView', {
     scrollY: 0,
     inertia: true,
     decelerationRate: 0.135,
+    elastic: true,
+    wheelSensitivity: 0.1,
 });

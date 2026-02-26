@@ -21,7 +21,6 @@
 #include "../ecs/components/Hierarchy.hpp"
 #include "../ecs/components/Interactable.hpp"
 #include "../ecs/components/RigidBody.hpp"
-#include "../ecs/components/ScreenSpace.hpp"
 #include "../ecs/components/SpineAnimation.hpp"
 #include "../ecs/components/Sprite.hpp"
 #include "../ecs/components/Transform.hpp"
@@ -502,8 +501,6 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
     value_object<esengine::ecs::Children>("Children")
         .field("entities", &esengine::ecs::Children::entities);
 
-    value_object<esengine::ecs::ScreenSpace>("ScreenSpace");
-
     value_object<CanvasJS>("Canvas")
         .field("designResolution", &CanvasJS::designResolution)
         .field("pixelsPerUnit", &CanvasJS::pixelsPerUnit)
@@ -784,20 +781,6 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         }))
         .function("removeChildren", optional_override([](Registry& r, u32 e) {
             r.remove<esengine::ecs::Children>(static_cast<Entity>(e));
-        }))
-
-        // ScreenSpace
-        .function("hasScreenSpace", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::ScreenSpace>(static_cast<Entity>(e));
-        }))
-        .function("getScreenSpace", optional_override([](Registry& r, u32 e) -> esengine::ecs::ScreenSpace& {
-            return r.get<esengine::ecs::ScreenSpace>(static_cast<Entity>(e));
-        }), allow_raw_pointers())
-        .function("addScreenSpace", optional_override([](Registry& r, u32 e, const esengine::ecs::ScreenSpace& c) {
-            r.emplaceOrReplace<esengine::ecs::ScreenSpace>(static_cast<Entity>(e), c);
-        }))
-        .function("removeScreenSpace", optional_override([](Registry& r, u32 e) {
-            r.remove<esengine::ecs::ScreenSpace>(static_cast<Entity>(e));
         }))
 
         // Canvas

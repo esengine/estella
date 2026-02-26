@@ -11,6 +11,8 @@ import type {
     InputEventCallbacks,
 } from './types';
 
+const WHEEL_LINE_HEIGHT = 16;
+
 // =============================================================================
 // Web Platform Adapter
 // =============================================================================
@@ -146,7 +148,16 @@ class WebPlatformAdapter implements PlatformAdapter {
         };
         const onWheel = (e: Event) => {
             const we = e as WheelEvent;
-            callbacks.onWheel(we.deltaX, we.deltaY);
+            let dx = we.deltaX;
+            let dy = we.deltaY;
+            if (we.deltaMode === 1) {
+                dx *= WHEEL_LINE_HEIGHT;
+                dy *= WHEEL_LINE_HEIGHT;
+            } else if (we.deltaMode === 2) {
+                dx *= window.innerWidth;
+                dy *= window.innerHeight;
+            }
+            callbacks.onWheel(dx, dy);
         };
 
         document.addEventListener('keydown', onKeyDown);

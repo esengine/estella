@@ -55,7 +55,7 @@ export class ListViewPlugin implements Plugin {
         const listViewStates = new Map<Entity, ListViewState>();
         activeListViewStates = listViewStates;
 
-        app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
+        app.addSystemToSchedule(Schedule.PostUpdate, defineSystem(
             [Res(Input)],
             (input: InputState) => {
                 const editorSceneView = isEditor() && !isPlayMode();
@@ -156,7 +156,7 @@ export class ListViewPlugin implements Plugin {
                 }
             },
             { name: 'ListViewSystem' }
-        ));
+        ), { runAfter: ['UILayoutLateSystem'], runBefore: ['UIRenderOrderSystem'] });
     }
 }
 

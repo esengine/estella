@@ -4,9 +4,14 @@
  */
 
 import { AnyComponentDef } from './component';
-import { QueryDescriptor, QueryInstance, MutWrapper } from './query';
+import { QueryDescriptor, QueryInstance, MutWrapper, RemovedQueryDescriptor, RemovedQueryInstance } from './query';
 import { ResDescriptor, ResMutDescriptor, ResMutInstance, ResourceStorage } from './resource';
 import { CommandsDescriptor, CommandsInstance } from './commands';
+import {
+    EventWriterDescriptor, EventReaderDescriptor,
+    EventWriterInstance, EventReaderInstance,
+    EventRegistry,
+} from './event';
 import type { World } from './world';
 
 // =============================================================================
@@ -35,7 +40,10 @@ export type SystemParam =
     | QueryDescriptor<readonly QueryArg[]>
     | ResDescriptor<unknown>
     | ResMutDescriptor<unknown>
-    | CommandsDescriptor;
+    | CommandsDescriptor
+    | EventWriterDescriptor<unknown>
+    | EventReaderDescriptor<unknown>
+    | RemovedQueryDescriptor<AnyComponentDef>;
 
 // =============================================================================
 // Parameter Type Inference
@@ -46,6 +54,9 @@ export type InferParam<P> =
     P extends ResDescriptor<infer T> ? T :
     P extends ResMutDescriptor<infer T> ? ResMutInstance<T> :
     P extends CommandsDescriptor ? CommandsInstance :
+    P extends EventWriterDescriptor<infer T> ? EventWriterInstance<T> :
+    P extends EventReaderDescriptor<infer T> ? EventReaderInstance<T> :
+    P extends RemovedQueryDescriptor<infer _T> ? RemovedQueryInstance<_T> :
     never;
 
 export type InferParams<P extends readonly SystemParam[]> = {
@@ -114,11 +125,15 @@ export function addSystemToSchedule(schedule: Schedule, system: SystemDef): void
 export class SystemRunner {
     private readonly world_: World;
     private readonly resources_: ResourceStorage;
+    private readonly eventRegistry_: EventRegistry | null;
     private readonly argsCache_ = new Map<symbol, unknown[]>();
+    private readonly systemTicks_ = new Map<symbol, number>();
+    private currentLastRunTick_ = -1;
 
-    constructor(world: World, resources: ResourceStorage) {
+    constructor(world: World, resources: ResourceStorage, eventRegistry?: EventRegistry) {
         this.world_ = world;
         this.resources_ = resources;
+        this.eventRegistry_ = eventRegistry ?? null;
     }
 
     run(system: SystemDef): void {
@@ -127,6 +142,8 @@ export class SystemRunner {
             args = new Array(system._params.length);
             this.argsCache_.set(system._id, args);
         }
+
+        this.currentLastRunTick_ = this.systemTicks_.get(system._id) ?? -1;
 
         for (let i = 0; i < system._params.length; i++) {
             args[i] = this.resolveParam(system._params[i]);
@@ -142,13 +159,14 @@ export class SystemRunner {
             }
         } finally {
             this.world_.resetIterationDepth();
+            this.systemTicks_.set(system._id, this.world_.getWorldTick());
         }
     }
 
     private resolveParam(param: SystemParam): unknown {
         switch (param._type) {
             case 'query':
-                return new QueryInstance(this.world_, param);
+                return new QueryInstance(this.world_, param, this.currentLastRunTick_);
 
             case 'res':
                 return this.resources_.get(param._resource);
@@ -158,6 +176,27 @@ export class SystemRunner {
 
             case 'commands':
                 return new CommandsInstance(this.world_, this.resources_);
+
+            case 'event_writer': {
+                const desc = param as EventWriterDescriptor<unknown>;
+                const bus = this.eventRegistry_
+                    ? this.eventRegistry_.getBus(desc._event)
+                    : (() => { throw new Error('EventRegistry not available'); })();
+                return new EventWriterInstance(bus);
+            }
+
+            case 'event_reader': {
+                const desc = param as EventReaderDescriptor<unknown>;
+                const bus = this.eventRegistry_
+                    ? this.eventRegistry_.getBus(desc._event)
+                    : (() => { throw new Error('EventRegistry not available'); })();
+                return new EventReaderInstance(bus);
+            }
+
+            case 'removed': {
+                const desc = param as RemovedQueryDescriptor<AnyComponentDef>;
+                return new RemovedQueryInstance(this.world_, desc._component, this.currentLastRunTick_);
+            }
 
             default:
                 throw new Error('Unknown system parameter type');

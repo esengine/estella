@@ -624,7 +624,7 @@ export class SceneViewPanel {
         this.drawGrid(ctx, w, h);
 
         this.drawCameraFrustums(ctx);
-        this.drawScreenSpaceBounds(ctx);
+        this.drawCanvasBounds(ctx);
 
         const oScale = this.overlayScale_();
         if (getSettingsValue<boolean>('scene.showColliders')) {
@@ -696,7 +696,7 @@ export class SceneViewPanel {
         }
 
         this.drawCameraFrustums(ctx);
-        this.drawScreenSpaceBounds(ctx);
+        this.drawCanvasBounds(ctx);
 
         const oScale = this.overlayScale_();
         if (getSettingsValue<boolean>('scene.showColliders')) {
@@ -900,11 +900,11 @@ export class SceneViewPanel {
         }
     }
 
-    private drawScreenSpaceBounds(ctx: CanvasRenderingContext2D): void {
-        const hasScreenSpace = this.store_.scene.entities.some(
-            e => e.components.some(c => c.type === 'ScreenSpace')
+    private drawCanvasBounds(ctx: CanvasRenderingContext2D): void {
+        const hasCanvas = this.store_.scene.entities.some(
+            e => e.components.some(c => c.type === 'Canvas')
         );
-        if (!hasScreenSpace) return;
+        if (!hasCanvas) return;
 
         const canvasRect = this.sceneRenderer_?.getCanvasRect();
         if (!canvasRect) return;
@@ -929,7 +929,7 @@ export class SceneViewPanel {
         ctx.font = `bold ${fontSize}px system-ui, sans-serif`;
         ctx.textAlign = 'left';
         ctx.textBaseline = 'bottom';
-        const label = 'ScreenSpace';
+        const label = 'Canvas';
         const pad = 2 / this.overlayScale_();
         const metrics = ctx.measureText(label);
         ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';

@@ -161,7 +161,11 @@ export class InspectorPanel {
         if (this.playMode_) return;
         if (this.locked_) {
             if (this.currentEntity_ !== null) {
-                this.updateEditors();
+                if (this.needsStructureRebuild(this.currentEntity_)) {
+                    this.rebuildEntityStructure(this.currentEntity_);
+                } else {
+                    this.updateEditors();
+                }
             }
             return;
         }
@@ -194,7 +198,7 @@ export class InspectorPanel {
         if (entity !== this.currentEntity_) return true;
         if (this.currentAssetPath_ !== null) return true;
 
-        const entityData = this.store_.getSelectedEntityData();
+        const entityData = this.store_.getEntityData(entity as number);
         const componentCount = entityData?.components.length ?? 0;
         const prefabPath = entityData?.prefab?.prefabPath;
         const componentOrder = entityData?.components.map(c => c.type).join(',') ?? '';
@@ -225,7 +229,7 @@ export class InspectorPanel {
     // =========================================================================
 
     private rebuildEntityStructure(entity: Entity): void {
-        const entityData = this.store_.getSelectedEntityData();
+        const entityData = this.store_.getEntityData(entity as number);
         const componentCount = entityData?.components.length ?? 0;
         const prefabPath = entityData?.prefab?.prefabPath;
 

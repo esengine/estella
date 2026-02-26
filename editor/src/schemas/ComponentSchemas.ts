@@ -281,12 +281,6 @@ export const ButtonSchema: ComponentSchema = {
     ],
 };
 
-export const ScreenSpaceSchema: ComponentSchema = {
-    name: 'ScreenSpace',
-    category: 'ui',
-    properties: [],
-};
-
 export const TextInputSchema: ComponentSchema = {
     name: 'TextInput',
     category: 'ui',
@@ -504,6 +498,8 @@ export const ScrollViewSchema: ComponentSchema = {
         { name: 'contentHeight', type: 'number', min: 0, step: 1 },
         { name: 'inertia', type: 'boolean' },
         { name: 'decelerationRate', type: 'number', min: 0, max: 1, step: 0.01 },
+        { name: 'elastic', type: 'boolean' },
+        { name: 'wheelSensitivity', type: 'number', min: 0, max: 1, step: 0.01 },
     ],
 };
 
@@ -786,7 +782,6 @@ export function registerBuiltinSchemas(options?: BuiltinSchemaOptions): void {
     registerComponentSchema(InteractableSchema);
     registerComponentSchema(UIInteractionSchema);
     registerComponentSchema(ButtonSchema);
-    registerComponentSchema(ScreenSpaceSchema);
     registerComponentSchema(TextInputSchema);
     registerComponentSchema(ImageSchema);
     registerComponentSchema(ToggleSchema);

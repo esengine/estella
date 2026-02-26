@@ -212,8 +212,6 @@ interface Parent {
 interface Children {
     entities: VectorEntity;
 }
-interface ScreenSpace {
-}
 interface Canvas {
     designResolution: UVec2;
     pixelsPerUnit: number;
@@ -309,10 +307,6 @@ interface Registry {
     getChildren(entity: Entity): Children;
     addChildren(entity: Entity, component: Children): void;
     removeChildren(entity: Entity): void;
-    hasScreenSpace(entity: Entity): boolean;
-    getScreenSpace(entity: Entity): ScreenSpace;
-    addScreenSpace(entity: Entity, component: ScreenSpace): void;
-    removeScreenSpace(entity: Entity): void;
     hasCanvas(entity: Entity): boolean;
     getCanvas(entity: Entity): Canvas;
     addCanvas(entity: Entity, component: Canvas): void;
@@ -336,6 +330,7 @@ interface CppRegistry extends Registry {
 }
 interface CppResourceManager {
     createTexture(width: number, height: number, pixels: number, pixelsLen: number, format: number, flipY: boolean): number;
+    createTextureEx(width: number, height: number, pixels: number, pixelsLen: number, format: number, flipY: boolean, filterMode: number, wrapMode: number): number;
     createShader(vertSrc: string, fragSrc: string): number;
     registerExternalTexture(glTextureId: number, width: number, height: number): number;
     getTextureGLId(handle: number): number;
@@ -514,6 +509,10 @@ declare class World {
     private nextEntityId_;
     private nextGeneration_;
     private despawnCallbacks_;
+    private worldTick_;
+    private componentAddedTicks_;
+    private componentChangedTicks_;
+    private componentRemovedBuffer_;
     connectCpp(cppRegistry: CppRegistry, module?: ESEngineModule): void;
     disconnectCpp(): void;
     get hasCpp(): boolean;
@@ -550,6 +549,15 @@ declare class World {
     resetQueryPool(): void;
     getComponentTypes(entity: Entity): string[];
     getEntitiesWithComponents(components: AnyComponentDef[], withFilters?: AnyComponentDef[], withoutFilters?: AnyComponentDef[], precomputedKey?: string): Entity[];
+    advanceTick(): void;
+    getWorldTick(): number;
+    isAddedSince(entity: Entity, component: AnyComponentDef, sinceTick: number): boolean;
+    isChangedSince(entity: Entity, component: AnyComponentDef, sinceTick: number): boolean;
+    getRemovedEntitiesSince(component: AnyComponentDef, sinceTick: number): Entity[];
+    cleanRemovedBuffer(beforeTick: number): void;
+    private recordAddedTick_;
+    private recordChangedTick_;
+    private recordRemovedTick_;
 }
 
 /**
@@ -561,13 +569,33 @@ interface MutWrapper<T extends AnyComponentDef> {
     readonly _type: 'mut';
     readonly _component: T;
 }
-type QueryArg$1 = AnyComponentDef | MutWrapper<AnyComponentDef>;
+interface AddedWrapper<T extends AnyComponentDef> {
+    readonly _filterType: 'added';
+    readonly _component: T;
+}
+interface ChangedWrapper<T extends AnyComponentDef> {
+    readonly _filterType: 'changed';
+    readonly _component: T;
+}
+type QueryArg$1 = AnyComponentDef | MutWrapper<AnyComponentDef> | AddedWrapper<AnyComponentDef> | ChangedWrapper<AnyComponentDef>;
 interface QueryDescriptor<C extends readonly QueryArg$1[]> {
     readonly _type: 'query';
     readonly _components: C;
     readonly _mutIndices: number[];
     readonly _with: AnyComponentDef[];
     readonly _without: AnyComponentDef[];
+    readonly _addedFilters: Array<{
+        index: number;
+        component: AnyComponentDef;
+    }>;
+    readonly _changedFilters: Array<{
+        index: number;
+        component: AnyComponentDef;
+    }>;
+}
+interface RemovedQueryDescriptor<T extends AnyComponentDef> {
+    readonly _type: 'removed';
+    readonly _component: T;
 }
 
 /**
@@ -577,6 +605,24 @@ interface QueryDescriptor<C extends readonly QueryArg$1[]> {
 
 interface CommandsDescriptor {
     readonly _type: 'commands';
+}
+
+/**
+ * @file    event.ts
+ * @brief   Event system with double-buffered event buses
+ */
+interface EventDef<T> {
+    readonly _id: symbol;
+    readonly _name: string;
+    readonly _phantom?: T;
+}
+interface EventWriterDescriptor<T> {
+    readonly _type: 'event_writer';
+    readonly _event: EventDef<T>;
+}
+interface EventReaderDescriptor<T> {
+    readonly _type: 'event_reader';
+    readonly _event: EventDef<T>;
 }
 
 /**
@@ -596,7 +642,7 @@ declare enum Schedule {
     FixedPostUpdate = 12
 }
 type QueryArg = AnyComponentDef | MutWrapper<AnyComponentDef>;
-type SystemParam = QueryDescriptor<readonly QueryArg[]> | ResDescriptor<unknown> | ResMutDescriptor<unknown> | CommandsDescriptor;
+type SystemParam = QueryDescriptor<readonly QueryArg[]> | ResDescriptor<unknown> | ResMutDescriptor<unknown> | CommandsDescriptor | EventWriterDescriptor<unknown> | EventReaderDescriptor<unknown> | RemovedQueryDescriptor<AnyComponentDef>;
 interface SystemDef {
     readonly _id: symbol;
     readonly _params: readonly SystemParam[];
@@ -848,11 +894,13 @@ interface SceneContext {
  * @brief   Application builder and web platform integration
  */
 
+type PluginDependency = string | ResourceDef<any>;
 interface Plugin {
     name?: string;
-    dependencies?: ResourceDef<any>[];
+    dependencies?: PluginDependency[];
     build(app: App): void;
-    cleanup?(): void;
+    finish?(app: App): void;
+    cleanup?(app?: App): void;
 }
 declare class App {
     private readonly world_;
@@ -871,6 +919,10 @@ declare class App {
     private physicsInitPromise_?;
     private physicsModule_?;
     private readonly installed_plugins_;
+    private readonly installedPluginSet_;
+    private readonly installedPluginNames_;
+    private pluginsFinished_;
+    private readonly eventRegistry_;
     private readonly sortedSystemsCache_;
     private error_handler_;
     private system_error_handler_;
@@ -881,6 +933,7 @@ declare class App {
     private constructor();
     static new(): App;
     addPlugin(plugin: Plugin): this;
+    addEvent<T>(event: EventDef<T>): this;
     addSystemToSchedule(schedule: Schedule, system: SystemDef, options?: {
         runBefore?: string[];
         runAfter?: string[];
@@ -919,6 +972,7 @@ declare class App {
     run(): void;
     private mainLoop;
     quit(): void;
+    private finishPlugins_;
     private sortSystems;
     private runSchedule;
     private updateTime;

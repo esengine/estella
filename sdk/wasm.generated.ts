@@ -228,9 +228,6 @@ export interface Children {
     entities: VectorEntity;
 }
 
-export interface ScreenSpace {
-}
-
 export interface Canvas {
     designResolution: UVec2;
     pixelsPerUnit: number;
@@ -330,10 +327,6 @@ export interface Registry {
     getChildren(entity: Entity): Children;
     addChildren(entity: Entity, component: Children): void;
     removeChildren(entity: Entity): void;
-    hasScreenSpace(entity: Entity): boolean;
-    getScreenSpace(entity: Entity): ScreenSpace;
-    addScreenSpace(entity: Entity, component: ScreenSpace): void;
-    removeScreenSpace(entity: Entity): void;
     hasCanvas(entity: Entity): boolean;
     getCanvas(entity: Entity): Canvas;
     addCanvas(entity: Entity, component: Canvas): void;
@@ -367,7 +360,6 @@ export interface ESEngineModule {
     FlexContainer: new () => FlexContainer;
     Parent: new () => Parent;
     Children: new () => Children;
-    ScreenSpace: new () => ScreenSpace;
     Canvas: new () => Canvas;
     Camera: new () => Camera;
 }

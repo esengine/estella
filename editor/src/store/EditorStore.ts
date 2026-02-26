@@ -86,6 +86,7 @@ export interface SceneSnapshot {
 export class EditorStore {
     state_: EditorState;
     private history_: CommandHistory;
+    private forceDirty_ = false;
     private listeners_ = new Set<EditorListener>();
     private propertyListeners_ = new Set<PropertyChangeListener>();
     private hierarchyListeners_ = new Set<HierarchyChangeListener>();
@@ -189,7 +190,7 @@ export class EditorStore {
     }
 
     get isDirty(): boolean {
-        return this.state_.isDirty;
+        return this.forceDirty_ || !this.history_.isAtSavePoint;
     }
 
     get filePath(): string | null {
@@ -205,9 +206,9 @@ export class EditorStore {
         this.state_.scene = createEmptyScene(name, designResolution);
         this.state_.selectedEntities.clear();
         this.state_.selectedAsset = null;
-        this.state_.isDirty = false;
         this.state_.filePath = null;
         this.history_.clear();
+        this.forceDirty_ = false;
         this.nextEntityId_ = this.computeNextEntityId(this.state_.scene);
         this.rebuildEntityMap();
         this.worldTransforms_.setScene(this.state_.scene);
@@ -220,9 +221,9 @@ export class EditorStore {
         this.state_.scene = scene;
         this.state_.selectedEntities.clear();
         this.state_.selectedAsset = null;
-        this.state_.isDirty = false;
         this.state_.filePath = filePath;
         this.history_.clear();
+        this.forceDirty_ = false;
 
         this.nextEntityId_ = this.computeNextEntityId(scene);
 
@@ -236,7 +237,7 @@ export class EditorStore {
         return {
             scene: JSON.parse(JSON.stringify(this.state_.scene)),
             selectedEntities: [...this.state_.selectedEntities],
-            isDirty: this.state_.isDirty,
+            isDirty: this.isDirty,
             filePath: this.state_.filePath,
         };
     }
@@ -244,7 +245,7 @@ export class EditorStore {
     restoreSnapshot(snapshot: SceneSnapshot): void {
         this.state_.scene = snapshot.scene;
         this.state_.selectedEntities = new Set(snapshot.selectedEntities);
-        this.state_.isDirty = snapshot.isDirty;
+        this.forceDirty_ = snapshot.isDirty;
         this.state_.filePath = snapshot.filePath;
         this.nextEntityId_ = this.computeNextEntityId(this.state_.scene);
         this.rebuildEntityMap();
@@ -254,7 +255,8 @@ export class EditorStore {
     }
 
     markSaved(filePath: string | null = null): void {
-        this.state_.isDirty = false;
+        this.history_.markSaved();
+        this.forceDirty_ = false;
         if (filePath) {
             this.state_.filePath = filePath;
         }
@@ -277,7 +279,7 @@ export class EditorStore {
             const data = JSON.parse(raw) as { scene: SceneData; filePath: string | null };
             this.clearAutoSave();
             this.loadScene(data.scene, data.filePath);
-            this.state_.isDirty = true;
+            this.forceDirty_ = true;
             this.notify('scene');
             return data.scene;
         } catch {
@@ -504,7 +506,6 @@ export class EditorStore {
         const cmd = this.history_.peekUndo();
         if (!cmd) return;
         if (this.history_.undo()) {
-            this.state_.isDirty = true;
             this.applyCommandSideEffects(cmd, true);
             cmd.emitChangeEvents(this, true);
         }
@@ -514,7 +515,6 @@ export class EditorStore {
         const cmd = this.history_.peekRedo();
         if (!cmd) return;
         if (this.history_.redo()) {
-            this.state_.isDirty = true;
             this.applyCommandSideEffects(cmd, false);
             cmd.emitChangeEvents(this, false);
         }
@@ -567,7 +567,6 @@ export class EditorStore {
 
     executeCommand(cmd: import('../commands').Command): void {
         this.history_.execute(cmd);
-        this.state_.isDirty = true;
         this.applyCommandSideEffects(cmd, false);
         cmd.emitChangeEvents(this, false);
     }
@@ -599,6 +598,7 @@ export class EditorStore {
         this.sceneVersion_++;
         requestAnimationFrame(() => {
             this.pendingNotify_ = false;
+            this.state_.isDirty = this.isDirty;
             const flags = new Set(this.dirtyFlags_);
             this.dirtyFlags_.clear();
             for (const listener of this.listeners_) {
@@ -646,7 +646,7 @@ export class EditorStore {
 
     private startAutoSave(): void {
         this.autoSaveTimer_ = setInterval(() => {
-            if (this.state_.isDirty) {
+            if (this.isDirty) {
                 this.saveAutoSave();
             }
         }, EditorStore.AUTOSAVE_INTERVAL);
@@ -673,7 +673,7 @@ export class EditorStore {
     }
 
     private saveRecoveryBackup(): void {
-        if (!this.state_.isDirty) return;
+        if (!this.isDirty) return;
         this.saveAutoSave();
     }
 }

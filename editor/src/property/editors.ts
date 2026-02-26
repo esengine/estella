@@ -15,6 +15,7 @@ import type { NativeFS } from '../types/NativeFS';
 import { INVALID_TEXTURE, getAssetMimeType, getAssetTypeEntry } from 'esengine';
 import { createUIRectEditor } from './uiRectEditor';
 import { createButtonTransitionEditor } from './buttonTransitionEditor';
+import { openEntityPicker } from './EntityPicker';
 import { setupDragLabel, colorToHex, hexToColor } from './editorUtils';
 import { validateNumber, validateVec2, validateVec3, validateColor, showValidationError } from './validation';
 export { setupDragLabel, colorToHex, hexToColor };
@@ -1622,62 +1623,93 @@ function createEntityEditor(
     ctx: PropertyEditorContext
 ): PropertyEditorInstance {
     const { value, onChange } = ctx;
+    let currentValue = Number(value) || 0;
+    let closePicker: (() => void) | null = null;
 
     const wrapper = document.createElement('div');
-    wrapper.className = 'es-entity-editor';
+    wrapper.className = 'es-entity-field';
 
-    const select = document.createElement('select');
-    select.className = 'es-input es-input-select';
+    const label = document.createElement('span');
+    label.className = 'es-entity-field-label';
+    updateLabel(currentValue);
 
-    function populateOptions(currentValue: number) {
-        select.innerHTML = '';
-
-        const noneOption = document.createElement('option');
-        noneOption.value = '0';
-        noneOption.textContent = '(None)';
-        select.appendChild(noneOption);
-
+    label.addEventListener('click', () => {
+        if (currentValue === 0) return;
         const editor = getEditorInstance();
-        const entities = editor?.store.scene.entities;
-        if (entities) {
-            for (const entity of entities) {
-                const option = document.createElement('option');
-                option.value = String(entity.id);
-                option.textContent = `${entity.name} (${entity.id})`;
-                if (entity.id === currentValue) {
-                    option.selected = true;
-                }
-                select.appendChild(option);
-            }
+        if (editor) {
+            editor.store.selectEntity(currentValue);
         }
+    });
 
-        if (currentValue && !select.querySelector(`option[value="${currentValue}"]`)) {
-            const option = document.createElement('option');
-            option.value = String(currentValue);
-            option.textContent = `Entity ${currentValue}`;
-            option.selected = true;
-            select.appendChild(option);
+    const pickerBtn = document.createElement('button');
+    pickerBtn.className = 'es-entity-field-btn';
+    pickerBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1.2"/><circle cx="6" cy="6" r="1.5" fill="currentColor"/></svg>';
+    pickerBtn.title = 'Pick entity';
+
+    pickerBtn.addEventListener('click', () => {
+        if (closePicker) return;
+        closePicker = openEntityPicker({
+            anchorEl: wrapper,
+            currentValue,
+            onSelect: (id: number) => {
+                currentValue = id;
+                updateLabel(id);
+                onChange(id);
+            },
+            onClose: () => { closePicker = null; },
+        });
+    });
+
+    const ENTITY_MIME = 'application/esengine-entity';
+
+    wrapper.addEventListener('dragover', (e) => {
+        if (e.dataTransfer?.types.includes(ENTITY_MIME)) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'link';
+            wrapper.classList.add('es-drag-over');
+        }
+    });
+
+    wrapper.addEventListener('dragleave', () => {
+        wrapper.classList.remove('es-drag-over');
+    });
+
+    wrapper.addEventListener('drop', (e) => {
+        wrapper.classList.remove('es-drag-over');
+        const raw = e.dataTransfer?.getData(ENTITY_MIME);
+        if (!raw) return;
+        e.preventDefault();
+        const entityId = parseInt(raw, 10);
+        if (!isNaN(entityId) && entityId > 0) {
+            currentValue = entityId;
+            updateLabel(entityId);
+            onChange(entityId);
+        }
+    });
+
+    wrapper.appendChild(label);
+    wrapper.appendChild(pickerBtn);
+    container.appendChild(wrapper);
+
+    function updateLabel(entityId: number) {
+        if (entityId === 0) {
+            label.textContent = '(None)';
+            label.classList.add('es-none');
+        } else {
+            label.classList.remove('es-none');
+            const editor = getEditorInstance();
+            const entity = editor?.store.scene.entities.find(e => e.id === entityId);
+            label.textContent = entity ? entity.name : `Entity ${entityId}`;
         }
     }
 
-    populateOptions(Number(value) || 0);
-
-    select.addEventListener('change', () => {
-        onChange(parseInt(select.value) || 0);
-    });
-
-    select.addEventListener('focus', () => {
-        populateOptions(parseInt(select.value) || 0);
-    });
-
-    wrapper.appendChild(select);
-    container.appendChild(wrapper);
-
     return {
         update(v: unknown) {
-            populateOptions(Number(v) || 0);
+            currentValue = Number(v) || 0;
+            updateLabel(currentValue);
         },
         dispose() {
+            if (closePicker) closePicker();
             wrapper.remove();
         },
     };

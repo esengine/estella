@@ -7,9 +7,8 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { existsSync } from 'fs';
 import { resolve } from 'path';
 import { App } from '../src/app';
-import { Transform, Sprite } from '../src/component';
+import { Transform, Sprite, Canvas } from '../src/component';
 import { UIRect } from '../src/ui/UIRect';
-import { ScreenSpace } from '../src/ui/ScreenSpace';
 import { UICameraInfo } from '../src/ui/UICameraInfo';
 import { Input, InputState } from '../src/input';
 import { UIEvents, UIEventQueue } from '../src/ui/UIEvents';
@@ -85,7 +84,7 @@ describe.skipIf(!HAS_WASM)('SliderPlugin system integration', () => {
         const world = app.world;
 
         const root = world.spawn();
-        world.insert(root, ScreenSpace, {});
+        world.insert(root, Canvas, {});
         world.insert(root, UIRect, {
             anchorMin: { x: 0, y: 0 }, anchorMax: { x: 1, y: 1 },
             offsetMin: { x: 0, y: 0 }, offsetMax: { x: 0, y: 0 },
@@ -186,7 +185,7 @@ describe.skipIf(!HAS_WASM)('SliderPlugin system integration', () => {
         const world = app.world;
 
         const root = world.spawn();
-        world.insert(root, ScreenSpace, {});
+        world.insert(root, Canvas, {});
         world.insert(root, UIRect, {
             anchorMin: { x: 0, y: 0 }, anchorMax: { x: 1, y: 1 },
             offsetMin: { x: 0, y: 0 }, offsetMax: { x: 0, y: 0 },

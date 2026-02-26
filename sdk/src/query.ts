@@ -26,7 +26,38 @@ export function isMutWrapper(value: unknown): value is MutWrapper<AnyComponentDe
 }
 
 type UnwrapMut<T> = T extends MutWrapper<infer C> ? C : T;
-type QueryArg = AnyComponentDef | MutWrapper<AnyComponentDef>;
+
+// =============================================================================
+// Change Detection Wrappers
+// =============================================================================
+
+export interface AddedWrapper<T extends AnyComponentDef> {
+    readonly _filterType: 'added';
+    readonly _component: T;
+}
+
+export interface ChangedWrapper<T extends AnyComponentDef> {
+    readonly _filterType: 'changed';
+    readonly _component: T;
+}
+
+export function Added<T extends AnyComponentDef>(component: T): AddedWrapper<T> {
+    return { _filterType: 'added', _component: component };
+}
+
+export function Changed<T extends AnyComponentDef>(component: T): ChangedWrapper<T> {
+    return { _filterType: 'changed', _component: component };
+}
+
+export function isAddedWrapper(value: unknown): value is AddedWrapper<AnyComponentDef> {
+    return typeof value === 'object' && value !== null && '_filterType' in value && value._filterType === 'added';
+}
+
+export function isChangedWrapper(value: unknown): value is ChangedWrapper<AnyComponentDef> {
+    return typeof value === 'object' && value !== null && '_filterType' in value && value._filterType === 'changed';
+}
+
+type QueryArg = AnyComponentDef | MutWrapper<AnyComponentDef> | AddedWrapper<AnyComponentDef> | ChangedWrapper<AnyComponentDef>;
 
 // =============================================================================
 // Query Descriptor
@@ -38,17 +69,39 @@ export interface QueryDescriptor<C extends readonly QueryArg[]> {
     readonly _mutIndices: number[];
     readonly _with: AnyComponentDef[];
     readonly _without: AnyComponentDef[];
+    readonly _addedFilters: Array<{ index: number; component: AnyComponentDef }>;
+    readonly _changedFilters: Array<{ index: number; component: AnyComponentDef }>;
+}
+
+export interface QueryBuilder<C extends readonly QueryArg[]> extends QueryDescriptor<C> {
+    with(...components: AnyComponentDef[]): QueryBuilder<C>;
+    without(...components: AnyComponentDef[]): QueryBuilder<C>;
+}
+
+function unwrapComponent(comp: QueryArg): AnyComponentDef {
+    if (isMutWrapper(comp)) return comp._component;
+    if (isAddedWrapper(comp)) return comp._component;
+    if (isChangedWrapper(comp)) return comp._component;
+    return comp;
 }
 
 function createQueryDescriptor<C extends readonly QueryArg[]>(
     components: C,
     withFilters: AnyComponentDef[] = [],
     withoutFilters: AnyComponentDef[] = []
-): QueryDescriptor<C> {
+): QueryBuilder<C> {
     const mutIndices: number[] = [];
+    const addedFilters: Array<{ index: number; component: AnyComponentDef }> = [];
+    const changedFilters: Array<{ index: number; component: AnyComponentDef }> = [];
+
     components.forEach((comp, i) => {
         if (isMutWrapper(comp)) {
             mutIndices.push(i);
+        }
+        if (isAddedWrapper(comp)) {
+            addedFilters.push({ index: i, component: comp._component });
+        } else if (isChangedWrapper(comp)) {
+            changedFilters.push({ index: i, component: comp._component });
         }
     });
 
@@ -57,15 +110,24 @@ function createQueryDescriptor<C extends readonly QueryArg[]>(
         _components: components,
         _mutIndices: mutIndices,
         _with: withFilters,
-        _without: withoutFilters
+        _without: withoutFilters,
+        _addedFilters: addedFilters,
+        _changedFilters: changedFilters,
+        with(...extraWith: AnyComponentDef[]) {
+            return createQueryDescriptor(components, [...withFilters, ...extraWith], withoutFilters);
+        },
+        without(...extraWithout: AnyComponentDef[]) {
+            return createQueryDescriptor(components, withFilters, [...withoutFilters, ...extraWithout]);
+        },
     };
 }
+
 
 // =============================================================================
 // Query Factory
 // =============================================================================
 
-export function Query<C extends QueryArg[]>(...components: C): QueryDescriptor<C> {
+export function Query<C extends QueryArg[]>(...components: C): QueryBuilder<C> {
     return createQueryDescriptor(components);
 }
 
@@ -73,7 +135,11 @@ export function Query<C extends QueryArg[]>(...components: C): QueryDescriptor<C
 // Query Result Type
 // =============================================================================
 
-type UnwrapQueryArg<T> = T extends MutWrapper<infer C> ? C : T;
+type UnwrapQueryArg<T> =
+    T extends MutWrapper<infer C> ? C :
+    T extends AddedWrapper<infer C> ? C :
+    T extends ChangedWrapper<infer C> ? C :
+    T;
 type ComponentsData<C extends readonly QueryArg[]> = {
     [K in keyof C]: ComponentData<UnwrapQueryArg<C[K]>>;
 };
@@ -101,13 +167,13 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
     private readonly result_: unknown[];
     private readonly mutData_: Array<{ component: AnyComponentDef; data: Record<string, unknown> }>;
     private readonly cacheKey_: string;
+    private readonly lastRunTick_: number;
 
-    constructor(world: World, descriptor: QueryDescriptor<C>) {
+    constructor(world: World, descriptor: QueryDescriptor<C>, lastRunTick = -1) {
         this.world_ = world;
         this.descriptor_ = descriptor;
-        this.actualComponents_ = descriptor._components.map(c =>
-            isMutWrapper(c) ? c._component : c
-        );
+        this.lastRunTick_ = lastRunTick;
+        this.actualComponents_ = descriptor._components.map(unwrapComponent);
         this.allRequired_ = this.actualComponents_.concat(descriptor._with);
         this.result_ = new Array(this.actualComponents_.length + 1);
         this.mutData_ = descriptor._mutIndices.map(idx => ({
@@ -121,6 +187,19 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
         );
     }
 
+    private passesChangeFilters_(entity: Entity): boolean {
+        const { _addedFilters, _changedFilters } = this.descriptor_;
+        if (_addedFilters.length === 0 && _changedFilters.length === 0) return true;
+        const tick = this.lastRunTick_;
+        for (const f of _addedFilters) {
+            if (!this.world_.isAddedSince(entity, f.component, tick)) return false;
+        }
+        for (const f of _changedFilters) {
+            if (!this.world_.isChangedSince(entity, f.component, tick)) return false;
+        }
+        return true;
+    }
+
     *[Symbol.iterator](): Iterator<QueryResult<C>> {
         const { _mutIndices } = this.descriptor_;
         const actualComponents = this.actualComponents_;
@@ -132,6 +211,7 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
         );
         const compCount = actualComponents.length;
         const hasMut = _mutIndices.length > 0;
+        const hasChangeFilters = this.descriptor_._addedFilters.length > 0 || this.descriptor_._changedFilters.length > 0;
         const result = this.result_;
         const mutData = this.mutData_;
         const mutCount = mutData.length;
@@ -141,6 +221,10 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
         this.world_.beginIteration();
         try {
             for (const entity of entities) {
+                if (hasChangeFilters && !this.passesChangeFilters_(entity)) {
+                    continue;
+                }
+
                 if (prevEntity !== null && hasMut) {
                     for (let i = 0; i < mutCount; i++) {
                         const mut = mutData[i];
@@ -202,5 +286,42 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
             arr.push([...row] as QueryResult<C>);
         }
         return arr;
+    }
+}
+
+// =============================================================================
+// Removed Query
+// =============================================================================
+
+export interface RemovedQueryDescriptor<T extends AnyComponentDef> {
+    readonly _type: 'removed';
+    readonly _component: T;
+}
+
+export function Removed<T extends AnyComponentDef>(component: T): RemovedQueryDescriptor<T> {
+    return { _type: 'removed', _component: component };
+}
+
+export class RemovedQueryInstance<T extends AnyComponentDef> implements Iterable<Entity> {
+    private readonly world_: World;
+    private readonly component_: T;
+    private readonly lastRunTick_: number;
+
+    constructor(world: World, component: T, lastRunTick: number) {
+        this.world_ = world;
+        this.component_ = component;
+        this.lastRunTick_ = lastRunTick;
+    }
+
+    *[Symbol.iterator](): Iterator<Entity> {
+        yield* this.world_.getRemovedEntitiesSince(this.component_, this.lastRunTick_);
+    }
+
+    isEmpty(): boolean {
+        return this.world_.getRemovedEntitiesSince(this.component_, this.lastRunTick_).length === 0;
+    }
+
+    toArray(): Entity[] {
+        return this.world_.getRemovedEntitiesSince(this.component_, this.lastRunTick_);
     }
 }

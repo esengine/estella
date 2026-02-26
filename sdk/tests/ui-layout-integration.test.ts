@@ -10,7 +10,7 @@ import { resolve } from 'path';
 import { App } from '../src/app';
 import { World } from '../src/world';
 import { UIRect, type UIRectData } from '../src/ui/UIRect';
-import { ScreenSpace } from '../src/ui/ScreenSpace';
+import { Canvas } from '../src/component';
 import { UICameraInfo, type UICameraData } from '../src/ui/UICameraInfo';
 import { uiLayoutPlugin } from '../src/ui/UILayoutPlugin';
 import { uiRenderOrderPlugin } from '../src/ui/UIRenderOrderPlugin';
@@ -70,7 +70,7 @@ describe.skipIf(!HAS_WASM)('UI Layout via App.tick() (WASM integration)', () => 
         const world = app.world;
 
         const root = world.spawn();
-        world.insert(root, ScreenSpace, {});
+        world.insert(root, Canvas, {});
         world.insert(root, UIRect, {
             anchorMin: { x: 0, y: 0 },
             anchorMax: { x: 1, y: 1 },
@@ -97,7 +97,7 @@ describe.skipIf(!HAS_WASM)('UI Layout via App.tick() (WASM integration)', () => 
         const world = app.world;
 
         const root = world.spawn();
-        world.insert(root, ScreenSpace, {});
+        world.insert(root, Canvas, {});
         world.insert(root, UIRect, {
             anchorMin: { x: 0, y: 0 },
             anchorMax: { x: 1, y: 1 },
@@ -155,7 +155,7 @@ describe.skipIf(!HAS_WASM)('UI Layout via App.tick() (WASM integration)', () => 
         const world = app.world;
 
         const root = world.spawn();
-        world.insert(root, ScreenSpace, {});
+        world.insert(root, Canvas, {});
         world.insert(root, UIRect, {
             anchorMin: { x: 0, y: 0 }, anchorMax: { x: 1, y: 1 },
             offsetMin: { x: 0, y: 0 }, offsetMax: { x: 0, y: 0 },
@@ -208,7 +208,7 @@ describe.skipIf(!HAS_WASM)('UI Layout via App.tick() (WASM integration)', () => 
         const world = app.world;
 
         const root = world.spawn();
-        world.insert(root, ScreenSpace, {});
+        world.insert(root, Canvas, {});
         world.insert(root, UIRect, {
             anchorMin: { x: 0, y: 0 }, anchorMax: { x: 1, y: 1 },
             offsetMin: { x: 0, y: 0 }, offsetMax: { x: 0, y: 0 },
@@ -278,7 +278,7 @@ describe.skipIf(!HAS_WASM)('UI Layout via App.tick() (WASM integration)', () => 
         const world = app.world;
 
         const root = world.spawn();
-        world.insert(root, ScreenSpace, {});
+        world.insert(root, Canvas, {});
         world.insert(root, UIRect, {
             anchorMin: { x: 0, y: 0 }, anchorMax: { x: 1, y: 1 },
             offsetMin: { x: 0, y: 0 }, offsetMax: { x: 0, y: 0 },
@@ -304,7 +304,7 @@ describe.skipIf(!HAS_WASM)('UI Layout via App.tick() (WASM integration)', () => 
         const world = app.world;
 
         const root = world.spawn();
-        world.insert(root, ScreenSpace, {});
+        world.insert(root, Canvas, {});
         world.insert(root, UIRect, {
             anchorMin: { x: 0, y: 0 }, anchorMax: { x: 1, y: 1 },
             offsetMin: { x: 0, y: 0 }, offsetMax: { x: 0, y: 0 },
@@ -323,6 +323,47 @@ describe.skipIf(!HAS_WASM)('UI Layout via App.tick() (WASM integration)', () => 
 
         const w = module.getUIRectComputedWidth(registry, root);
         expect(w).toBe(0);
+
+        disposeApp(app, registry);
+    });
+
+    it('Canvas without UIRect: layout should not overwrite Transform positions', () => {
+        const { app, registry } = createEditorApp();
+        const world = app.world;
+
+        const root = world.spawn();
+        world.insert(root, Canvas, {});
+        world.insert(root, Transform, {
+            position: { x: 0, y: 0, z: 0 },
+            rotation: { x: 0, y: 0, z: 0, w: 1 },
+            scale: { x: 1, y: 1, z: 1 },
+        });
+
+        const child = world.spawn();
+        world.setParent(child, root);
+        world.insert(child, UIRect, {
+            anchorMin: { x: 0, y: 0 }, anchorMax: { x: 0, y: 0 },
+            offsetMin: { x: 0, y: 0 }, offsetMax: { x: 0, y: 0 },
+            size: { x: 200, y: 100 }, pivot: { x: 0.5, y: 0.5 },
+        });
+        world.insert(child, Transform, {
+            position: { x: 50, y: 75, z: 0 },
+            rotation: { x: 0, y: 0, z: 0, w: 1 },
+            scale: { x: 1, y: 1, z: 1 },
+        });
+        world.insert(child, Sprite, {
+            texture: 0, color: { r: 1, g: 1, b: 1, a: 1 },
+            size: { x: 100, y: 100 },
+            uvOffset: { x: 0, y: 0 }, uvScale: { x: 1, y: 1 },
+            layer: 0, flipX: false, flipY: false,
+        });
+
+        setCanvasRect(app, -400, -300, 400, 300);
+        app.tick(1 / 60);
+
+        const t = registry.getTransform(child);
+        expect(t.position.x).toBeCloseTo(50, 1);
+        expect(t.position.y).toBeCloseTo(75, 1);
 
         disposeApp(app, registry);
     });

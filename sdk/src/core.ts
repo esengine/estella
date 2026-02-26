@@ -140,11 +140,35 @@ export {
 export {
     Query,
     Mut,
+    Added,
+    Changed,
+    Removed,
     QueryInstance,
+    RemovedQueryInstance,
+    type QueryBuilder,
     type QueryDescriptor,
     type QueryResult,
     type MutWrapper,
+    type AddedWrapper,
+    type ChangedWrapper,
+    type RemovedQueryDescriptor,
 } from './query';
+
+// =============================================================================
+// Events
+// =============================================================================
+
+export {
+    defineEvent,
+    EventWriter,
+    EventReader,
+    EventRegistry,
+    EventWriterInstance,
+    EventReaderInstance,
+    type EventDef,
+    type EventWriterDescriptor,
+    type EventReaderDescriptor,
+} from './event';
 
 // =============================================================================
 // Commands
@@ -189,6 +213,7 @@ export {
     App,
     flushPendingSystems,
     type Plugin,
+    type PluginDependency,
     type WebAppOptions,
 } from './app';
 
@@ -228,7 +253,6 @@ export {
     UIEvents,
     UIEventQueue,
     UICameraInfo,
-    ScreenSpace,
     computeUIRectLayout,
     computeFillAnchors,
     computeHandleAnchors,
@@ -544,6 +568,8 @@ export {
     setEditorMode,
     isEditor,
     isRuntime,
+    setPlayMode,
+    isPlayMode,
 } from './env';
 
 // =============================================================================

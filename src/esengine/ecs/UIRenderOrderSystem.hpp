@@ -4,7 +4,7 @@
 #include "components/Hierarchy.hpp"
 #include "components/UIRect.hpp"
 #include "components/Sprite.hpp"
-#include "components/ScreenSpace.hpp"
+#include "components/Canvas.hpp"
 
 namespace esengine::ecs {
 
@@ -30,8 +30,7 @@ inline i32 assignRenderOrder(Registry& registry, Entity entity, i32 counter) {
 
 inline void uiRenderOrderUpdate(Registry& registry) {
     i32 counter = 0;
-    registry.each<ScreenSpace>([&](Entity entity, ScreenSpace&) {
-        if (!registry.has<UIRect>(entity)) return;
+    registry.each<Canvas>([&](Entity entity, Canvas&) {
         counter = assignRenderOrder(registry, entity, counter);
     });
 }

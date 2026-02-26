@@ -304,15 +304,32 @@ export class OutputPanel implements PanelInstance {
         }
     }
 
+    private getSelectedEntries(): LogEntry[] {
+        const sel = window.getSelection();
+        if (!sel || sel.isCollapsed || !this.contentEl_) return [];
+
+        const range = sel.getRangeAt(0);
+        const selected: LogEntry[] = [];
+        for (const entry of this.entries_) {
+            if (range.intersectsNode(entry.el)) {
+                selected.push(entry);
+            }
+        }
+        return selected;
+    }
+
     private showContextMenu(e: MouseEvent, entry: LogEntry): void {
         e.preventDefault();
         const existing = document.querySelector('.es-output-context-menu');
         if (existing) existing.remove();
 
+        const selectedEntries = this.getSelectedEntries();
+        const hasMultiSelection = selectedEntries.length > 1;
+
         const menu = document.createElement('div');
         menu.className = 'es-output-context-menu';
         menu.innerHTML = `
-            <div class="es-output-context-item" data-action="copy-line">Copy Line</div>
+            <div class="es-output-context-item" data-action="copy-line">${hasMultiSelection ? 'Copy Selection' : 'Copy Line'}</div>
             <div class="es-output-context-item" data-action="copy-all">Copy All</div>
         `;
 
@@ -322,7 +339,11 @@ export class OutputPanel implements PanelInstance {
 
         const copyLine = menu.querySelector('[data-action="copy-line"]');
         copyLine?.addEventListener('click', () => {
-            navigator.clipboard.writeText(`[${entry.timestamp}] ${entry.text}`);
+            const entries = hasMultiSelection ? selectedEntries : [entry];
+            const text = entries
+                .map(e => `[${e.timestamp}] ${e.text}`)
+                .join('\n');
+            navigator.clipboard.writeText(text);
             menu.remove();
         });
 

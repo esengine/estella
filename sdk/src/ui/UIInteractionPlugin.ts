@@ -148,7 +148,7 @@ export class UIInteractionPlugin implements Plugin {
                 }
             },
             { name: 'UIInteractionSystem' }
-        ));
+        ), { runAfter: ['UILayoutSystem'] });
 
         const buttonInitialized = new Set<Entity>();
 

@@ -10,10 +10,9 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { existsSync } from 'fs';
 import { resolve } from 'path';
 import { App } from '../src/app';
-import { Transform, Sprite, Name } from '../src/component';
+import { Transform, Sprite, Name, Canvas } from '../src/component';
 import type { SpriteData } from '../src/component';
 import { UIRect } from '../src/ui/UIRect';
-import { ScreenSpace } from '../src/ui/ScreenSpace';
 import { UICameraInfo } from '../src/ui/UICameraInfo';
 import { Input, InputState } from '../src/input';
 import { UIEvents, UIEventQueue } from '../src/ui/UIEvents';
@@ -87,7 +86,7 @@ describe.skipIf(!HAS_WASM)('Dropdown Layout (WASM integration)', () => {
         const world = app.world;
 
         const root = world.spawn();
-        world.insert(root, ScreenSpace, {});
+        world.insert(root, Canvas, {});
         world.insert(root, UIRect, {
             anchorMin: { x: 0, y: 0 },
             anchorMax: { x: 1, y: 1 },
@@ -330,6 +329,37 @@ describe.skipIf(!HAS_WASM)('Dropdown Layout (WASM integration)', () => {
         app.tick(1 / 60);
 
         const text = world.get(labelEntity, Text) as TextData;
+        expect(text.content).toBe('Select...');
+
+        disposeApp(app, registry);
+    });
+
+    it('should fix white label text even when selectedIndex is -1', () => {
+        const { app, registry } = createDropdownApp();
+        const { ddEntity, labelEntity } = createDropdownHierarchy(app);
+        const world = app.world;
+
+        // White text + selectedIndex -1 (placeholder scenario from scene)
+        world.insert(labelEntity, Text, {
+            content: 'Select...',
+            fontFamily: 'Arial',
+            fontSize: 16,
+            color: { r: 1, g: 1, b: 1, a: 1 },
+            align: 0, verticalAlign: 1,
+            wordWrap: false, overflow: 1, lineHeight: 1.2,
+        });
+
+        const dd = world.get(ddEntity, Dropdown) as DropdownData;
+        dd.selectedIndex = -1;
+        world.insert(ddEntity, Dropdown, dd);
+
+        app.tick(1 / 60);
+
+        const text = world.get(labelEntity, Text) as TextData;
+        // White text should be fixed to black even without valid selection
+        const isWhite = text.color.r === 1 && text.color.g === 1 && text.color.b === 1;
+        expect(isWhite).toBe(false);
+        // Placeholder content should be preserved
         expect(text.content).toBe('Select...');
 
         disposeApp(app, registry);

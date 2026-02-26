@@ -172,8 +172,6 @@ interface Parent {
 interface Children {
     entities: VectorEntity;
 }
-interface ScreenSpace {
-}
 interface Canvas {
     designResolution: UVec2;
     pixelsPerUnit: number;
@@ -269,10 +267,6 @@ interface Registry {
     getChildren(entity: Entity): Children;
     addChildren(entity: Entity, component: Children): void;
     removeChildren(entity: Entity): void;
-    hasScreenSpace(entity: Entity): boolean;
-    getScreenSpace(entity: Entity): ScreenSpace;
-    addScreenSpace(entity: Entity, component: ScreenSpace): void;
-    removeScreenSpace(entity: Entity): void;
     hasCanvas(entity: Entity): boolean;
     getCanvas(entity: Entity): Canvas;
     addCanvas(entity: Entity, component: Canvas): void;
@@ -296,6 +290,7 @@ interface CppRegistry extends Registry {
 }
 interface CppResourceManager {
     createTexture(width: number, height: number, pixels: number, pixelsLen: number, format: number, flipY: boolean): number;
+    createTextureEx(width: number, height: number, pixels: number, pixelsLen: number, format: number, flipY: boolean, filterMode: number, wrapMode: number): number;
     createShader(vertSrc: string, fragSrc: string): number;
     registerExternalTexture(glTextureId: number, width: number, height: number): number;
     getTextureGLId(handle: number): number;

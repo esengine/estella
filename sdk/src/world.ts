@@ -9,6 +9,50 @@ import type { CppRegistry, ESEngineModule } from './wasm';
 import { validateComponentData, formatValidationErrors } from './validation';
 import { handleWasmError } from './wasmError';
 
+function convertFromWasm(
+    obj: Record<string, unknown>,
+    defaults: Record<string, unknown>,
+): Record<string, unknown> {
+    let needsConversion = false;
+    for (const key of Object.keys(defaults)) {
+        const def = defaults[key];
+        if (def !== null && def !== undefined && typeof def === 'object' && !Array.isArray(def)) {
+            const defRec = def as Record<string, unknown>;
+            if ('r' in defRec && 'g' in defRec && 'b' in defRec && 'a' in defRec) {
+                const val = obj[key];
+                if (val !== null && val !== undefined && typeof val === 'object') {
+                    const valRec = val as Record<string, unknown>;
+                    if ('x' in valRec && !('r' in valRec)) {
+                        needsConversion = true;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    if (!needsConversion) return obj;
+
+    const result: Record<string, unknown> = {};
+    for (const key of Object.keys(obj)) {
+        const val = obj[key];
+        const def = defaults[key];
+        if (val !== null && val !== undefined && typeof val === 'object' && !Array.isArray(val) &&
+            def !== null && def !== undefined && typeof def === 'object' && !Array.isArray(def)) {
+            const valRec = val as Record<string, unknown>;
+            const defRec = def as Record<string, unknown>;
+            if ('r' in defRec && 'g' in defRec && 'b' in defRec && 'a' in defRec &&
+                'x' in valRec && !('r' in valRec)) {
+                result[key] = { r: valRec.x, g: valRec.y, b: valRec.z, a: valRec.w };
+            } else {
+                result[key] = val;
+            }
+        } else {
+            result[key] = val;
+        }
+    }
+    return result;
+}
+
 function convertForWasm(obj: Record<string, unknown>): Record<string, unknown> {
     let needsConversion = false;
     for (const key of Object.keys(obj)) {
@@ -109,6 +153,11 @@ export class World {
     private nextGeneration_ = 0;
     private despawnCallbacks_: Array<(entity: Entity) => void> = [];
 
+    private worldTick_ = 0;
+    private componentAddedTicks_ = new Map<symbol, Map<Entity, number>>();
+    private componentChangedTicks_ = new Map<symbol, Map<Entity, number>>();
+    private componentRemovedBuffer_ = new Map<symbol, Array<{ entity: Entity; tick: number }>>();
+
     connectCpp(cppRegistry: CppRegistry, module?: ESEngineModule): void {
         this.cppRegistry_ = cppRegistry;
         this.module_ = module ?? null;
@@ -193,6 +242,14 @@ export class World {
         if (ids) {
             for (const id of ids) {
                 this.tsStorage_.get(id)?.delete(entity);
+                this.componentAddedTicks_.get(id)?.delete(entity);
+                this.componentChangedTicks_.get(id)?.delete(entity);
+                let buffer = this.componentRemovedBuffer_.get(id);
+                if (!buffer) {
+                    buffer = [];
+                    this.componentRemovedBuffer_.set(id, buffer);
+                }
+                buffer.push({ entity, tick: this.worldTick_ });
             }
             this.entityComponents_.delete(entity);
         }
@@ -288,9 +345,11 @@ export class World {
                     handleWasmError(e, `set(${component._name}, entity=${entity})`);
                 }
             }
+            this.recordChangedTick_(component, entity);
             return;
         }
         this.getStorage(component as ComponentDef<any>).set(entity, data);
+        this.recordChangedTick_(component, entity);
     }
 
     get<C extends AnyComponentDef>(entity: Entity, component: C): ComponentData<C> {
@@ -403,7 +462,9 @@ export class World {
 
         if (isNew) {
             this.worldVersion_++;
+            this.recordAddedTick_(component, entity);
         }
+        this.recordChangedTick_(component, entity);
         return merged;
     }
 
@@ -412,7 +473,11 @@ export class World {
             throw new Error('C++ Registry not connected');
         }
         try {
-            return this.getBuiltinMethods(component._cppName).get(entity) as T;
+            const raw = this.getBuiltinMethods(component._cppName).get(entity);
+            return convertFromWasm(
+                raw as Record<string, unknown>,
+                component._default as Record<string, unknown>,
+            ) as T;
         } catch (e) {
             handleWasmError(e, `getBuiltin(${component._name}, entity=${entity})`);
             return { ...component._default } as T;
@@ -440,6 +505,7 @@ export class World {
         } catch (e) {
             handleWasmError(e, `removeBuiltin(${component._name}, entity=${entity})`);
         }
+        this.recordRemovedTick_(component, entity);
         this.worldVersion_++;
     }
 
@@ -481,7 +547,9 @@ export class World {
         }
         if (isNew) {
             this.worldVersion_++;
+            this.recordAddedTick_(component, entity);
         }
+        this.recordChangedTick_(component, entity);
         return value;
     }
 
@@ -501,6 +569,7 @@ export class World {
     private removeScript<T>(entity: Entity, component: ComponentDef<T>): void {
         const storage = this.tsStorage_.get(component._id);
         storage?.delete(entity);
+        this.recordRemovedTick_(component, entity);
         this.worldVersion_++;
         const ids = this.entityComponents_.get(entity);
         if (ids) {
@@ -628,5 +697,87 @@ export class World {
         this.queryCache_.set(cacheKey, { version: this.worldVersion_, result: entities.slice() });
 
         return entities;
+    }
+
+    // =========================================================================
+    // Change Detection
+    // =========================================================================
+
+    advanceTick(): void {
+        this.worldTick_++;
+    }
+
+    getWorldTick(): number {
+        return this.worldTick_;
+    }
+
+    isAddedSince(entity: Entity, component: AnyComponentDef, sinceTick: number): boolean {
+        const map = this.componentAddedTicks_.get(component._id);
+        if (!map) return false;
+        const tick = map.get(entity);
+        return tick !== undefined && tick > sinceTick;
+    }
+
+    isChangedSince(entity: Entity, component: AnyComponentDef, sinceTick: number): boolean {
+        const map = this.componentChangedTicks_.get(component._id);
+        if (!map) return false;
+        const tick = map.get(entity);
+        return tick !== undefined && tick > sinceTick;
+    }
+
+    getRemovedEntitiesSince(component: AnyComponentDef, sinceTick: number): Entity[] {
+        const buffer = this.componentRemovedBuffer_.get(component._id);
+        if (!buffer) return [];
+        const result: Entity[] = [];
+        for (const entry of buffer) {
+            if (entry.tick > sinceTick) {
+                result.push(entry.entity);
+            }
+        }
+        return result;
+    }
+
+    cleanRemovedBuffer(beforeTick: number): void {
+        for (const [id, buffer] of this.componentRemovedBuffer_) {
+            let writeIdx = 0;
+            for (let i = 0; i < buffer.length; i++) {
+                if (buffer[i].tick >= beforeTick) {
+                    buffer[writeIdx++] = buffer[i];
+                }
+            }
+            buffer.length = writeIdx;
+            if (writeIdx === 0) {
+                this.componentRemovedBuffer_.delete(id);
+            }
+        }
+    }
+
+    private recordAddedTick_(component: AnyComponentDef, entity: Entity): void {
+        let map = this.componentAddedTicks_.get(component._id);
+        if (!map) {
+            map = new Map();
+            this.componentAddedTicks_.set(component._id, map);
+        }
+        map.set(entity, this.worldTick_);
+    }
+
+    private recordChangedTick_(component: AnyComponentDef, entity: Entity): void {
+        let map = this.componentChangedTicks_.get(component._id);
+        if (!map) {
+            map = new Map();
+            this.componentChangedTicks_.set(component._id, map);
+        }
+        map.set(entity, this.worldTick_);
+    }
+
+    private recordRemovedTick_(component: AnyComponentDef, entity: Entity): void {
+        let buffer = this.componentRemovedBuffer_.get(component._id);
+        if (!buffer) {
+            buffer = [];
+            this.componentRemovedBuffer_.set(component._id, buffer);
+        }
+        buffer.push({ entity, tick: this.worldTick_ });
+        this.componentAddedTicks_.get(component._id)?.delete(entity);
+        this.componentChangedTicks_.get(component._id)?.delete(entity);
     }
 }

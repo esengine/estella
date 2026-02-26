@@ -7,10 +7,9 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { existsSync } from 'fs';
 import { resolve } from 'path';
 import { App } from '../src/app';
-import { Transform, Sprite } from '../src/component';
+import { Transform, Sprite, Canvas } from '../src/component';
 import type { SpriteData } from '../src/component';
 import { UIRect } from '../src/ui/UIRect';
-import { ScreenSpace } from '../src/ui/ScreenSpace';
 import { UICameraInfo } from '../src/ui/UICameraInfo';
 import { Input, InputState } from '../src/input';
 import { UIEvents, UIEventQueue } from '../src/ui/UIEvents';
@@ -66,10 +65,10 @@ describe.skipIf(!HAS_WASM)('Multiple Text Entities (WASM)', () => {
         (registry as any).delete();
     }
 
-    function createScreenSpaceRoot(app: App) {
+    function createCanvasRoot(app: App) {
         const world = app.world;
         const root = world.spawn();
-        world.insert(root, ScreenSpace, {});
+        world.insert(root, Canvas, {});
         world.insert(root, UIRect, {
             anchorMin: { x: 0, y: 0 }, anchorMax: { x: 1, y: 1 },
             offsetMin: { x: 0, y: 0 }, offsetMax: { x: 0, y: 0 },
@@ -130,7 +129,7 @@ describe.skipIf(!HAS_WASM)('Multiple Text Entities (WASM)', () => {
         }
 
         const { app, registry } = createApp();
-        const root = createScreenSpaceRoot(app);
+        const root = createCanvasRoot(app);
 
         const textA = createTextEntity(app, root, 'Alpha', 60);
         const textB = createTextEntity(app, root, 'Beta', 0);
@@ -193,7 +192,7 @@ describe.skipIf(!HAS_WASM)('Multiple Text Entities (WASM)', () => {
         const { app, registry } = createApp();
         const world = app.world;
 
-        const root = createScreenSpaceRoot(app);
+        const root = createCanvasRoot(app);
         const textA = createTextEntity(app, root, 'Label', 60);
         const textB = createTextEntity(app, root, 'Option A', 0);
         const textC = createTextEntity(app, root, 'Option B', -60);
@@ -212,7 +211,7 @@ describe.skipIf(!HAS_WASM)('Multiple Text Entities (WASM)', () => {
             world.despawn(e);
         }
 
-        const root2 = createScreenSpaceRoot(app);
+        const root2 = createCanvasRoot(app);
         const textA2 = createTextEntity(app, root2, 'Label', 60);
         const textB2 = createTextEntity(app, root2, 'Option A', 0);
         const textC2 = createTextEntity(app, root2, 'Option B', -60);
@@ -240,7 +239,7 @@ describe.skipIf(!HAS_WASM)('Multiple Text Entities (WASM)', () => {
 
     it('text entities with manual sprites should all have unique textures', () => {
         const { app, registry } = createApp();
-        const root = createScreenSpaceRoot(app);
+        const root = createCanvasRoot(app);
         const world = app.world;
 
         const textA = createTextEntity(app, root, 'Alpha', 60);

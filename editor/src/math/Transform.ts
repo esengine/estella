@@ -256,19 +256,19 @@ export function getEntitySize(entity: EntityDataLike): { x: number; y: number } 
 }
 
 // =============================================================================
-// ScreenSpace Layout Helpers
+// Canvas Layout Helpers
 // =============================================================================
 
-export function isInScreenSpaceHierarchy(
+export function isInCanvasHierarchy(
     entity: EntityDataLike,
     getParentEntity: (id: number) => EntityDataLike | undefined,
 ): boolean {
-    if (entity.components.some(c => c.type === 'ScreenSpace')) return true;
+    if (entity.components.some(c => c.type === 'Canvas')) return true;
     let parentId = entity.parent;
     while (parentId !== null) {
         const parent = getParentEntity(parentId);
         if (!parent) break;
-        if (parent.components.some(c => c.type === 'ScreenSpace')) return true;
+        if (parent.components.some(c => c.type === 'Canvas')) return true;
         parentId = parent.parent;
     }
     return false;
@@ -305,7 +305,7 @@ export function findCanvasWorldRect(allEntities: EntityDataLike[]): LayoutRect |
     };
 }
 
-function computeScreenSpaceTransform(
+function computeCanvasTransform(
     entity: EntityDataLike,
     getParentEntity: (id: number) => EntityDataLike | undefined,
     canvasRect: LayoutRect,
@@ -316,7 +316,7 @@ function computeScreenSpaceTransform(
     let cur: EntityDataLike | undefined = entity;
     while (cur) {
         path.unshift(cur);
-        if (cur.components.some(c => c.type === 'ScreenSpace')) break;
+        if (cur.components.some(c => c.type === 'Canvas')) break;
         if (cur.parent === null) break;
         cur = getParentEntity(cur.parent);
     }
@@ -400,11 +400,11 @@ export function computeAdjustedLocalTransform(
     allEntities?: EntityDataLike[],
     cachedCanvasRect?: LayoutRect | null,
 ): TransformValue {
-    if (isInScreenSpaceHierarchy(entity, getParentEntity)) {
+    if (isInCanvasHierarchy(entity, getParentEntity)) {
         const canvasRect = cachedCanvasRect
             ?? (allEntities ? findCanvasWorldRect(allEntities) : null);
         if (canvasRect) {
-            return computeScreenSpaceTransform(entity, getParentEntity, canvasRect);
+            return computeCanvasTransform(entity, getParentEntity, canvasRect);
         }
     }
 

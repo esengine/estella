@@ -238,28 +238,24 @@ export class GameViewPanel implements PanelInstance, Resizable {
         const canvas = this.canvas2d_;
         if (!canvas) return;
 
-        const getInput = () => getSharedRenderContext().inputState;
+        canvas.tabIndex = 0;
+        canvas.style.outline = 'none';
+        canvas.focus();
 
-        const toRenderCoords = (cssX: number, cssY: number): [number, number] => {
-            const sx = canvas.width / (canvas.clientWidth || 1);
-            const sy = canvas.height / (canvas.clientHeight || 1);
-            return [cssX * sx, cssY * sy];
-        };
+        const getInput = () => getSharedRenderContext().inputState;
 
         const onMouseMove = (e: MouseEvent) => {
             const input = getInput();
             if (input) {
-                const [mx, my] = toRenderCoords(e.offsetX, e.offsetY);
-                input.mouseX = mx;
-                input.mouseY = my;
+                input.mouseX = e.offsetX;
+                input.mouseY = e.offsetY;
             }
         };
         const onMouseDown = (e: MouseEvent) => {
             const input = getInput();
             if (input) {
-                const [mx, my] = toRenderCoords(e.offsetX, e.offsetY);
-                input.mouseX = mx;
-                input.mouseY = my;
+                input.mouseX = e.offsetX;
+                input.mouseY = e.offsetY;
                 input.mouseButtons.add(e.button);
                 input.mouseButtonsPressed.add(e.button);
             }
@@ -277,9 +273,8 @@ export class GameViewPanel implements PanelInstance, Resizable {
             const rect = canvas.getBoundingClientRect();
             const input = getInput();
             if (input) {
-                const [mx, my] = toRenderCoords(touch.clientX - rect.left, touch.clientY - rect.top);
-                input.mouseX = mx;
-                input.mouseY = my;
+                input.mouseX = touch.clientX - rect.left;
+                input.mouseY = touch.clientY - rect.top;
                 input.mouseButtons.add(0);
                 input.mouseButtonsPressed.add(0);
             }
@@ -291,9 +286,8 @@ export class GameViewPanel implements PanelInstance, Resizable {
             const rect = canvas.getBoundingClientRect();
             const input = getInput();
             if (input) {
-                const [mx, my] = toRenderCoords(touch.clientX - rect.left, touch.clientY - rect.top);
-                input.mouseX = mx;
-                input.mouseY = my;
+                input.mouseX = touch.clientX - rect.left;
+                input.mouseY = touch.clientY - rect.top;
             }
             e.preventDefault();
         };
@@ -305,6 +299,28 @@ export class GameViewPanel implements PanelInstance, Resizable {
             }
             e.preventDefault();
         };
+        const onWheel = (e: WheelEvent) => {
+            e.preventDefault();
+            const input = getInput();
+            if (input) {
+                input.scrollDeltaX += e.deltaX;
+                input.scrollDeltaY += e.deltaY;
+            }
+        };
+        const onKeyDown = (e: KeyboardEvent) => {
+            const input = getInput();
+            if (input && !input.keysDown.has(e.code)) {
+                input.keysPressed.add(e.code);
+            }
+            if (input) input.keysDown.add(e.code);
+        };
+        const onKeyUp = (e: KeyboardEvent) => {
+            const input = getInput();
+            if (input) {
+                input.keysDown.delete(e.code);
+                input.keysReleased.add(e.code);
+            }
+        };
 
         canvas.addEventListener('mousemove', onMouseMove);
         canvas.addEventListener('mousedown', onMouseDown);
@@ -312,6 +328,9 @@ export class GameViewPanel implements PanelInstance, Resizable {
         canvas.addEventListener('touchstart', onTouchStart, { passive: false });
         canvas.addEventListener('touchmove', onTouchMove, { passive: false });
         canvas.addEventListener('touchend', onTouchEnd, { passive: false });
+        canvas.addEventListener('wheel', onWheel, { passive: false });
+        canvas.addEventListener('keydown', onKeyDown);
+        canvas.addEventListener('keyup', onKeyUp);
 
         this.inputCleanup_ = () => {
             canvas.removeEventListener('mousemove', onMouseMove);
@@ -320,6 +339,9 @@ export class GameViewPanel implements PanelInstance, Resizable {
             canvas.removeEventListener('touchstart', onTouchStart);
             canvas.removeEventListener('touchmove', onTouchMove);
             canvas.removeEventListener('touchend', onTouchEnd);
+            canvas.removeEventListener('wheel', onWheel);
+            canvas.removeEventListener('keydown', onKeyDown);
+            canvas.removeEventListener('keyup', onKeyUp);
         };
     }
 

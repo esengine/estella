@@ -10,9 +10,7 @@ export class UIRenderOrderPlugin implements Plugin {
 
         app.addSystemToSchedule(Schedule.PostUpdate, defineSystem(
             [],
-            () => {
-                module.uiRenderOrder_update(registry);
-            },
+            () => { module.uiRenderOrder_update(registry); },
             { name: 'UIRenderOrderSystem' }
         ));
     }

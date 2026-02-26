@@ -10,6 +10,7 @@ import type { Command } from './Command';
 // =============================================================================
 
 const MAX_HISTORY_SIZE = 100;
+const UNREACHABLE_SAVE_POINT = -2;
 
 // =============================================================================
 // CommandHistory
@@ -18,6 +19,7 @@ const MAX_HISTORY_SIZE = 100;
 export class CommandHistory {
     private commands_: Command[] = [];
     private index_ = -1;
+    private savedIndex_ = -1;
     private maxSize_: number;
 
     constructor(maxSize: number = MAX_HISTORY_SIZE) {
@@ -28,6 +30,9 @@ export class CommandHistory {
         command.execute();
 
         if (this.index_ < this.commands_.length - 1) {
+            if (this.savedIndex_ > this.index_) {
+                this.savedIndex_ = UNREACHABLE_SAVE_POINT;
+            }
             this.commands_ = this.commands_.slice(0, this.index_ + 1);
         }
 
@@ -42,6 +47,7 @@ export class CommandHistory {
         while (this.commands_.length > this.maxSize_) {
             this.commands_.shift();
             this.index_--;
+            this.savedIndex_--;
         }
     }
 
@@ -84,6 +90,15 @@ export class CommandHistory {
     clear(): void {
         this.commands_ = [];
         this.index_ = -1;
+        this.savedIndex_ = -1;
+    }
+
+    markSaved(): void {
+        this.savedIndex_ = this.index_;
+    }
+
+    get isAtSavePoint(): boolean {
+        return this.index_ === this.savedIndex_;
     }
 
     get undoDescription(): string | null {

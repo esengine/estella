@@ -484,8 +484,6 @@ interface Parent {
 interface Children {
     entities: VectorEntity;
 }
-interface ScreenSpace$1 {
-}
 interface Canvas {
     designResolution: UVec2;
     pixelsPerUnit: number;
@@ -581,10 +579,6 @@ interface Registry {
     getChildren(entity: Entity): Children;
     addChildren(entity: Entity, component: Children): void;
     removeChildren(entity: Entity): void;
-    hasScreenSpace(entity: Entity): boolean;
-    getScreenSpace(entity: Entity): ScreenSpace$1;
-    addScreenSpace(entity: Entity, component: ScreenSpace$1): void;
-    removeScreenSpace(entity: Entity): void;
     hasCanvas(entity: Entity): boolean;
     getCanvas(entity: Entity): Canvas;
     addCanvas(entity: Entity, component: Canvas): void;
@@ -608,6 +602,7 @@ interface CppRegistry extends Registry {
 }
 interface CppResourceManager {
     createTexture(width: number, height: number, pixels: number, pixelsLen: number, format: number, flipY: boolean): number;
+    createTextureEx(width: number, height: number, pixels: number, pixelsLen: number, format: number, flipY: boolean, filterMode: number, wrapMode: number): number;
     createShader(vertSrc: string, fragSrc: string): number;
     registerExternalTexture(glTextureId: number, width: number, height: number): number;
     getTextureGLId(handle: number): number;
@@ -786,6 +781,10 @@ declare class World {
     private nextEntityId_;
     private nextGeneration_;
     private despawnCallbacks_;
+    private worldTick_;
+    private componentAddedTicks_;
+    private componentChangedTicks_;
+    private componentRemovedBuffer_;
     connectCpp(cppRegistry: CppRegistry, module?: ESEngineModule): void;
     disconnectCpp(): void;
     get hasCpp(): boolean;
@@ -822,6 +821,15 @@ declare class World {
     resetQueryPool(): void;
     getComponentTypes(entity: Entity): string[];
     getEntitiesWithComponents(components: AnyComponentDef[], withFilters?: AnyComponentDef[], withoutFilters?: AnyComponentDef[], precomputedKey?: string): Entity[];
+    advanceTick(): void;
+    getWorldTick(): number;
+    isAddedSince(entity: Entity, component: AnyComponentDef, sinceTick: number): boolean;
+    isChangedSince(entity: Entity, component: AnyComponentDef, sinceTick: number): boolean;
+    getRemovedEntitiesSince(component: AnyComponentDef, sinceTick: number): Entity[];
+    cleanRemovedBuffer(beforeTick: number): void;
+    private recordAddedTick_;
+    private recordChangedTick_;
+    private recordRemovedTick_;
 }
 
 /**
@@ -834,16 +842,38 @@ interface MutWrapper<T extends AnyComponentDef> {
     readonly _component: T;
 }
 declare function Mut<T extends AnyComponentDef>(component: T): MutWrapper<T>;
-type QueryArg$1 = AnyComponentDef | MutWrapper<AnyComponentDef>;
+interface AddedWrapper<T extends AnyComponentDef> {
+    readonly _filterType: 'added';
+    readonly _component: T;
+}
+interface ChangedWrapper<T extends AnyComponentDef> {
+    readonly _filterType: 'changed';
+    readonly _component: T;
+}
+declare function Added<T extends AnyComponentDef>(component: T): AddedWrapper<T>;
+declare function Changed<T extends AnyComponentDef>(component: T): ChangedWrapper<T>;
+type QueryArg$1 = AnyComponentDef | MutWrapper<AnyComponentDef> | AddedWrapper<AnyComponentDef> | ChangedWrapper<AnyComponentDef>;
 interface QueryDescriptor<C extends readonly QueryArg$1[]> {
     readonly _type: 'query';
     readonly _components: C;
     readonly _mutIndices: number[];
     readonly _with: AnyComponentDef[];
     readonly _without: AnyComponentDef[];
+    readonly _addedFilters: Array<{
+        index: number;
+        component: AnyComponentDef;
+    }>;
+    readonly _changedFilters: Array<{
+        index: number;
+        component: AnyComponentDef;
+    }>;
 }
-declare function Query<C extends QueryArg$1[]>(...components: C): QueryDescriptor<C>;
-type UnwrapQueryArg<T> = T extends MutWrapper<infer C> ? C : T;
+interface QueryBuilder<C extends readonly QueryArg$1[]> extends QueryDescriptor<C> {
+    with(...components: AnyComponentDef[]): QueryBuilder<C>;
+    without(...components: AnyComponentDef[]): QueryBuilder<C>;
+}
+declare function Query<C extends QueryArg$1[]>(...components: C): QueryBuilder<C>;
+type UnwrapQueryArg<T> = T extends MutWrapper<infer C> ? C : T extends AddedWrapper<infer C> ? C : T extends ChangedWrapper<infer C> ? C : T;
 type ComponentsData<C extends readonly QueryArg$1[]> = {
     [K in keyof C]: ComponentData<UnwrapQueryArg<C[K]>>;
 };
@@ -859,13 +889,29 @@ declare class QueryInstance<C extends readonly QueryArg$1[]> implements Iterable
     private readonly result_;
     private readonly mutData_;
     private readonly cacheKey_;
-    constructor(world: World, descriptor: QueryDescriptor<C>);
+    private readonly lastRunTick_;
+    constructor(world: World, descriptor: QueryDescriptor<C>, lastRunTick?: number);
+    private passesChangeFilters_;
     [Symbol.iterator](): Iterator<QueryResult<C>>;
     forEach(callback: (entity: Entity, ...components: ComponentsData<C>) => void): void;
     single(): QueryResult<C> | null;
     isEmpty(): boolean;
     count(): number;
     toArray(): QueryResult<C>[];
+}
+interface RemovedQueryDescriptor<T extends AnyComponentDef> {
+    readonly _type: 'removed';
+    readonly _component: T;
+}
+declare function Removed<T extends AnyComponentDef>(component: T): RemovedQueryDescriptor<T>;
+declare class RemovedQueryInstance<T extends AnyComponentDef> implements Iterable<Entity> {
+    private readonly world_;
+    private readonly component_;
+    private readonly lastRunTick_;
+    constructor(world: World, component: T, lastRunTick: number);
+    [Symbol.iterator](): Iterator<Entity>;
+    isEmpty(): boolean;
+    toArray(): Entity[];
 }
 
 /**
@@ -912,6 +958,52 @@ declare class CommandsInstance {
 }
 
 /**
+ * @file    event.ts
+ * @brief   Event system with double-buffered event buses
+ */
+interface EventDef<T> {
+    readonly _id: symbol;
+    readonly _name: string;
+    readonly _phantom?: T;
+}
+declare function defineEvent<T>(name: string): EventDef<T>;
+declare class EventBus<T> {
+    private readBuffer_;
+    private writeBuffer_;
+    send(event: T): void;
+    getReadBuffer(): readonly T[];
+    swap(): void;
+}
+declare class EventRegistry {
+    private readonly buses_;
+    register<T>(event: EventDef<T>): void;
+    getBus<T>(event: EventDef<T>): EventBus<T>;
+    swapAll(): void;
+}
+interface EventWriterDescriptor<T> {
+    readonly _type: 'event_writer';
+    readonly _event: EventDef<T>;
+}
+interface EventReaderDescriptor<T> {
+    readonly _type: 'event_reader';
+    readonly _event: EventDef<T>;
+}
+declare function EventWriter<T>(event: EventDef<T>): EventWriterDescriptor<T>;
+declare function EventReader<T>(event: EventDef<T>): EventReaderDescriptor<T>;
+declare class EventWriterInstance<T> {
+    private readonly bus_;
+    constructor(bus: EventBus<T>);
+    send(event: T): void;
+}
+declare class EventReaderInstance<T> implements Iterable<T> {
+    private readonly bus_;
+    constructor(bus: EventBus<T>);
+    [Symbol.iterator](): Iterator<T>;
+    isEmpty(): boolean;
+    toArray(): T[];
+}
+
+/**
  * @file    system.ts
  * @brief   System definition and scheduling
  */
@@ -928,8 +1020,8 @@ declare enum Schedule {
     FixedPostUpdate = 12
 }
 type QueryArg = AnyComponentDef | MutWrapper<AnyComponentDef>;
-type SystemParam = QueryDescriptor<readonly QueryArg[]> | ResDescriptor<unknown> | ResMutDescriptor<unknown> | CommandsDescriptor;
-type InferParam<P> = P extends QueryDescriptor<infer C> ? QueryInstance<C> : P extends ResDescriptor<infer T> ? T : P extends ResMutDescriptor<infer T> ? ResMutInstance<T> : P extends CommandsDescriptor ? CommandsInstance : never;
+type SystemParam = QueryDescriptor<readonly QueryArg[]> | ResDescriptor<unknown> | ResMutDescriptor<unknown> | CommandsDescriptor | EventWriterDescriptor<unknown> | EventReaderDescriptor<unknown> | RemovedQueryDescriptor<AnyComponentDef>;
+type InferParam<P> = P extends QueryDescriptor<infer C> ? QueryInstance<C> : P extends ResDescriptor<infer T> ? T : P extends ResMutDescriptor<infer T> ? ResMutInstance<T> : P extends CommandsDescriptor ? CommandsInstance : P extends EventWriterDescriptor<infer T> ? EventWriterInstance<T> : P extends EventReaderDescriptor<infer T> ? EventReaderInstance<T> : P extends RemovedQueryDescriptor<infer _T> ? RemovedQueryInstance<_T> : never;
 type InferParams<P extends readonly SystemParam[]> = {
     [K in keyof P]: InferParam<P[K]>;
 };
@@ -951,8 +1043,11 @@ declare function addSystemToSchedule(schedule: Schedule, system: SystemDef): voi
 declare class SystemRunner {
     private readonly world_;
     private readonly resources_;
+    private readonly eventRegistry_;
     private readonly argsCache_;
-    constructor(world: World, resources: ResourceStorage);
+    private readonly systemTicks_;
+    private currentLastRunTick_;
+    constructor(world: World, resources: ResourceStorage, eventRegistry?: EventRegistry);
     run(system: SystemDef): void;
     private resolveParam;
 }
@@ -1722,11 +1817,13 @@ declare function wrapSceneSystem(app: App, sceneName: string, system: SystemDef)
  * @brief   Application builder and web platform integration
  */
 
+type PluginDependency = string | ResourceDef<any>;
 interface Plugin {
     name?: string;
-    dependencies?: ResourceDef<any>[];
+    dependencies?: PluginDependency[];
     build(app: App): void;
-    cleanup?(): void;
+    finish?(app: App): void;
+    cleanup?(app?: App): void;
 }
 declare class App {
     private readonly world_;
@@ -1745,6 +1842,10 @@ declare class App {
     private physicsInitPromise_?;
     private physicsModule_?;
     private readonly installed_plugins_;
+    private readonly installedPluginSet_;
+    private readonly installedPluginNames_;
+    private pluginsFinished_;
+    private readonly eventRegistry_;
     private readonly sortedSystemsCache_;
     private error_handler_;
     private system_error_handler_;
@@ -1755,6 +1856,7 @@ declare class App {
     private constructor();
     static new(): App;
     addPlugin(plugin: Plugin): this;
+    addEvent<T>(event: EventDef<T>): this;
     addSystemToSchedule(schedule: Schedule, system: SystemDef, options?: {
         runBefore?: string[];
         runAfter?: string[];
@@ -1793,6 +1895,7 @@ declare class App {
     run(): void;
     private mainLoop;
     quit(): void;
+    private finishPlugins_;
     private sortSystems;
     private runSchedule;
     private updateTime;
@@ -2115,8 +2218,6 @@ interface UICameraData {
 }
 declare const UICameraInfo: ResourceDef<UICameraData>;
 
-declare const ScreenSpace: BuiltinComponentDef<{}>;
-
 declare class UILayoutPlugin implements Plugin {
     build(app: App): void;
 }
@@ -2268,6 +2369,8 @@ interface ScrollViewData {
     scrollY: number;
     inertia: boolean;
     decelerationRate: number;
+    elastic: boolean;
+    wheelSensitivity: number;
 }
 declare const ScrollView: ComponentDef<ScrollViewData>;
 
@@ -3074,6 +3177,8 @@ declare const RenderTexture: {
 declare function setEditorMode(active: boolean): void;
 declare function isEditor(): boolean;
 declare function isRuntime(): boolean;
+declare function setPlayMode(active: boolean): void;
+declare function isPlayMode(): boolean;
 
 interface PhysicsPluginConfig {
     gravity?: Vec2;
@@ -3188,5 +3293,5 @@ declare const uiPlugins: Plugin[];
 
 declare function createWebApp(module: ESEngineModule, options?: WebAppOptions): App;
 
-export { App, AssetPlugin, AssetRefCounter, AssetServer, Assets, AsyncCache, BitmapText$1 as BitmapText, BlendMode, BodyType, BoxCollider$1 as BoxCollider, Button, ButtonState, Camera$1 as Camera, Canvas$1 as Canvas, CapsuleCollider$1 as CapsuleCollider, Children$1 as Children, CircleCollider$1 as CircleCollider, ClearFlags, Commands, CommandsInstance, DEFAULT_DESIGN_HEIGHT, DEFAULT_DESIGN_WIDTH, DEFAULT_FALLBACK_DT, DEFAULT_FIXED_TIMESTEP, DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE, DEFAULT_GRAVITY, DEFAULT_LINE_HEIGHT, DEFAULT_MAX_DELTA_TIME, DEFAULT_PIXELS_PER_UNIT, DEFAULT_SPINE_SKIN, DEFAULT_SPRITE_SIZE, DEFAULT_TEXT_CANVAS_SIZE, DataType, DragState, Draggable, Draw, Dropdown, EntityCommands, FillDirection, FillMethod, FillOrigin, FocusManager, FocusManagerState, Focusable, GLDebug, Geometry, INVALID_ENTITY, INVALID_FONT, INVALID_MATERIAL, INVALID_TEXTURE, Image, ImageType, Input, InputPlugin, InputState, Interactable, ListView, LocalTransform, LogLevel, Logger, MaskMode, Material, MaterialLoader, Mut, Name, Parent$1 as Parent, Physics, PhysicsEvents, PhysicsPlugin, PostProcess, PrefabServer, Prefabs, PrefabsPlugin, PreviewPlugin, ProgressBar, ProgressBarDirection, ProgressBarPlugin, ProjectionType, Query, QueryInstance, RenderPipeline, RenderStage, RenderTexture, Renderer, Res, ResMut, ResMutInstance, RigidBody$1 as RigidBody, RuntimeConfig, SafeArea, ScaleMode, SceneManager, SceneManagerState, SceneOwner, Schedule, ScreenSpace, ScrollView, ShaderSources, Slider, SliderDirection, SliderPlugin, SpineAnimation$1 as SpineAnimation, Sprite$1 as Sprite, SystemRunner, Text, TextAlign, TextInput, TextInputPlugin, TextOverflow, TextPlugin, TextRenderer, TextVerticalAlign, Time, Toggle, Transform$1 as Transform, UICameraInfo, UIEventQueue, UIEvents, UIInteraction, UIInteractionPlugin, UILayoutPlugin, UIMask, UIMaskPlugin, UIRect, UIRenderOrderPlugin, Velocity$1 as Velocity, WebAssetProvider, World, WorldTransform, addStartupSystem, addSystem, addSystemToSchedule, applyDirectionalFill, applyRuntimeConfig, assetPlugin, clearDrawCallbacks, clearUserComponents, color, computeFillAnchors, computeFillSize, computeHandleAnchors, computeUIRectLayout, createMaskProcessor, createRuntimeSceneConfig, createWebApp, debug, defineComponent, defineResource, defineSystem, defineTag, error, findEntityByName, flushPendingSystems, getAddressableType, getAddressableTypeByEditorType, getAllAssetExtensions, getAssetMimeType, getAssetTypeEntry, getComponent, getComponentAssetFieldDescriptors, getComponentAssetFields, getComponentDefaults, getComponentSpineFieldDescriptor, getCustomExtensions, getEditorType, getLogger, getPlatform, getPlatformType, getUserComponent, getWeChatPackOptions, info, initDrawAPI, initGLDebugAPI, initGeometryAPI, initMaterialAPI, initPostProcessAPI, initRendererAPI, inputPlugin, instantiatePrefab, intersectRects, invertMatrix4, isBuiltinComponent, isCustomExtension, isEditor, isKnownAssetExtension, isPlatformInitialized, isRuntime, isTextureRef, isWeChat, isWeb, loadComponent, loadPhysicsModule, loadRuntimeScene, loadSceneData, loadSceneWithAssets, looksLikeAssetPath, platformFetch, platformFileExists, platformInstantiateWasm, platformReadFile, platformReadTextFile, pointInOBB, pointInWorldRect, prefabsPlugin, progressBarPlugin, quat, registerComponent, registerComponentAssetFields, registerComponentEntityFields, registerDrawCallback, registerEmbeddedAssets, registerMaterialCallback, remapEntityFields, sceneManagerPlugin, screenToWorld, setEditorMode, setListViewRenderer, setLogLevel, setWasmErrorHandler, shutdownDrawAPI, shutdownGLDebugAPI, shutdownGeometryAPI, shutdownMaterialAPI, shutdownPostProcessAPI, shutdownRendererAPI, sliderPlugin, syncFillSpriteSize, textInputPlugin, textPlugin, transitionTo, uiInteractionPlugin, uiLayoutPlugin, uiMaskPlugin, uiPlugins, uiRenderOrderPlugin, unregisterComponent, unregisterDrawCallback, updateCameraAspectRatio, vec2, vec3, vec4, warn, wrapSceneSystem };
-export type { AddressableAssetType, AddressableManifest, AddressableManifestAsset, AddressableManifestGroup, AddressableResultMap, AnyComponentDef, AssetBundle, AssetContentType, AssetFieldType, AssetRefInfo, AssetTypeEntry, AssetsData, BitmapTextData, BoxColliderData, BuiltinComponentDef, ButtonData, ButtonTransition, CameraData, CameraRenderParams, CanvasData, CapsuleColliderData, ChildrenData, CircleColliderData, CollisionEnterEvent, Color, CommandsDescriptor, ComponentData, ComponentDef, CppRegistry, CppResourceManager, DragStateData, DraggableData, DrawAPI, DrawCallback, DropdownData, ESEngineModule, EditorAssetType, Entity, FileLoadOptions, FocusableData, FontHandle, GeometryHandle, GeometryOptions, ImageData, InferParam, InferParams, InstantiatePrefabOptions, InstantiatePrefabResult, InteractableData, LayoutRect, LayoutResult, ListViewData, ListViewItemRenderer, LoadedMaterial, LocalTransformData, LogEntry, LogHandler, MaskProcessorFn, MaterialAssetData, MaterialHandle, MaterialOptions, MutWrapper, NameData, ParentData, PhysicsEventsData, PhysicsModuleFactory, PhysicsPluginConfig, PhysicsWasmModule, PlatformAdapter, PlatformRequestOptions, PlatformResponse, PlatformType, Plugin, PrefabData, PrefabEntityData, PrefabOverride, ProgressBarData, Quat, QueryDescriptor, QueryResult, RenderParams, RenderStats, RenderTargetHandle, RenderTextureHandle, RenderTextureOptions, ResDescriptor, ResMutDescriptor, ResourceDef, RigidBodyData, RuntimeAssetProvider, RuntimeSceneOptions, SafeAreaData, SceneComponentData, SceneConfig, SceneContext, SceneData, SceneEntityData, SceneLoadOptions, SceneOwnerData, SceneStatus, ScreenRect, ScrollViewData, SensorEvent, ShaderHandle, ShaderLoader, SliceBorder$1 as SliceBorder, SliderData, SpineAnimationData, SpineDescriptor, SpineLoadResult, SpineRendererFn, SpriteData, SystemDef, SystemOptions, SystemParam, TextData, TextInputData, TextRenderResult, TextureHandle, TextureInfo, TextureRef, TimeData, ToggleData, ToggleTransition, TransformData, TransitionConfig, TransitionOptions, UICameraData, UIEvent, UIEventType, UIInteractionData, UIMaskData, UIRectData, UniformValue, Vec2, Vec3, Vec4, VelocityData, VertexAttributeDescriptor, WebAppOptions, WorldTransformData };
+export { Added, App, AssetPlugin, AssetRefCounter, AssetServer, Assets, AsyncCache, BitmapText$1 as BitmapText, BlendMode, BodyType, BoxCollider$1 as BoxCollider, Button, ButtonState, Camera$1 as Camera, Canvas$1 as Canvas, CapsuleCollider$1 as CapsuleCollider, Changed, Children$1 as Children, CircleCollider$1 as CircleCollider, ClearFlags, Commands, CommandsInstance, DEFAULT_DESIGN_HEIGHT, DEFAULT_DESIGN_WIDTH, DEFAULT_FALLBACK_DT, DEFAULT_FIXED_TIMESTEP, DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE, DEFAULT_GRAVITY, DEFAULT_LINE_HEIGHT, DEFAULT_MAX_DELTA_TIME, DEFAULT_PIXELS_PER_UNIT, DEFAULT_SPINE_SKIN, DEFAULT_SPRITE_SIZE, DEFAULT_TEXT_CANVAS_SIZE, DataType, DragState, Draggable, Draw, Dropdown, EntityCommands, EventReader, EventReaderInstance, EventRegistry, EventWriter, EventWriterInstance, FillDirection, FillMethod, FillOrigin, FocusManager, FocusManagerState, Focusable, GLDebug, Geometry, INVALID_ENTITY, INVALID_FONT, INVALID_MATERIAL, INVALID_TEXTURE, Image, ImageType, Input, InputPlugin, InputState, Interactable, ListView, LocalTransform, LogLevel, Logger, MaskMode, Material, MaterialLoader, Mut, Name, Parent$1 as Parent, Physics, PhysicsEvents, PhysicsPlugin, PostProcess, PrefabServer, Prefabs, PrefabsPlugin, PreviewPlugin, ProgressBar, ProgressBarDirection, ProgressBarPlugin, ProjectionType, Query, QueryInstance, Removed, RemovedQueryInstance, RenderPipeline, RenderStage, RenderTexture, Renderer, Res, ResMut, ResMutInstance, RigidBody$1 as RigidBody, RuntimeConfig, SafeArea, ScaleMode, SceneManager, SceneManagerState, SceneOwner, Schedule, ScrollView, ShaderSources, Slider, SliderDirection, SliderPlugin, SpineAnimation$1 as SpineAnimation, Sprite$1 as Sprite, SystemRunner, Text, TextAlign, TextInput, TextInputPlugin, TextOverflow, TextPlugin, TextRenderer, TextVerticalAlign, Time, Toggle, Transform$1 as Transform, UICameraInfo, UIEventQueue, UIEvents, UIInteraction, UIInteractionPlugin, UILayoutPlugin, UIMask, UIMaskPlugin, UIRect, UIRenderOrderPlugin, Velocity$1 as Velocity, WebAssetProvider, World, WorldTransform, addStartupSystem, addSystem, addSystemToSchedule, applyDirectionalFill, applyRuntimeConfig, assetPlugin, clearDrawCallbacks, clearUserComponents, color, computeFillAnchors, computeFillSize, computeHandleAnchors, computeUIRectLayout, createMaskProcessor, createRuntimeSceneConfig, createWebApp, debug, defineComponent, defineEvent, defineResource, defineSystem, defineTag, error, findEntityByName, flushPendingSystems, getAddressableType, getAddressableTypeByEditorType, getAllAssetExtensions, getAssetMimeType, getAssetTypeEntry, getComponent, getComponentAssetFieldDescriptors, getComponentAssetFields, getComponentDefaults, getComponentSpineFieldDescriptor, getCustomExtensions, getEditorType, getLogger, getPlatform, getPlatformType, getUserComponent, getWeChatPackOptions, info, initDrawAPI, initGLDebugAPI, initGeometryAPI, initMaterialAPI, initPostProcessAPI, initRendererAPI, inputPlugin, instantiatePrefab, intersectRects, invertMatrix4, isBuiltinComponent, isCustomExtension, isEditor, isKnownAssetExtension, isPlatformInitialized, isPlayMode, isRuntime, isTextureRef, isWeChat, isWeb, loadComponent, loadPhysicsModule, loadRuntimeScene, loadSceneData, loadSceneWithAssets, looksLikeAssetPath, platformFetch, platformFileExists, platformInstantiateWasm, platformReadFile, platformReadTextFile, pointInOBB, pointInWorldRect, prefabsPlugin, progressBarPlugin, quat, registerComponent, registerComponentAssetFields, registerComponentEntityFields, registerDrawCallback, registerEmbeddedAssets, registerMaterialCallback, remapEntityFields, sceneManagerPlugin, screenToWorld, setEditorMode, setListViewRenderer, setLogLevel, setPlayMode, setWasmErrorHandler, shutdownDrawAPI, shutdownGLDebugAPI, shutdownGeometryAPI, shutdownMaterialAPI, shutdownPostProcessAPI, shutdownRendererAPI, sliderPlugin, syncFillSpriteSize, textInputPlugin, textPlugin, transitionTo, uiInteractionPlugin, uiLayoutPlugin, uiMaskPlugin, uiPlugins, uiRenderOrderPlugin, unregisterComponent, unregisterDrawCallback, updateCameraAspectRatio, vec2, vec3, vec4, warn, wrapSceneSystem };
+export type { AddedWrapper, AddressableAssetType, AddressableManifest, AddressableManifestAsset, AddressableManifestGroup, AddressableResultMap, AnyComponentDef, AssetBundle, AssetContentType, AssetFieldType, AssetRefInfo, AssetTypeEntry, AssetsData, BitmapTextData, BoxColliderData, BuiltinComponentDef, ButtonData, ButtonTransition, CameraData, CameraRenderParams, CanvasData, CapsuleColliderData, ChangedWrapper, ChildrenData, CircleColliderData, CollisionEnterEvent, Color, CommandsDescriptor, ComponentData, ComponentDef, CppRegistry, CppResourceManager, DragStateData, DraggableData, DrawAPI, DrawCallback, DropdownData, ESEngineModule, EditorAssetType, Entity, EventDef, EventReaderDescriptor, EventWriterDescriptor, FileLoadOptions, FocusableData, FontHandle, GeometryHandle, GeometryOptions, ImageData, InferParam, InferParams, InstantiatePrefabOptions, InstantiatePrefabResult, InteractableData, LayoutRect, LayoutResult, ListViewData, ListViewItemRenderer, LoadedMaterial, LocalTransformData, LogEntry, LogHandler, MaskProcessorFn, MaterialAssetData, MaterialHandle, MaterialOptions, MutWrapper, NameData, ParentData, PhysicsEventsData, PhysicsModuleFactory, PhysicsPluginConfig, PhysicsWasmModule, PlatformAdapter, PlatformRequestOptions, PlatformResponse, PlatformType, Plugin, PluginDependency, PrefabData, PrefabEntityData, PrefabOverride, ProgressBarData, Quat, QueryBuilder, QueryDescriptor, QueryResult, RemovedQueryDescriptor, RenderParams, RenderStats, RenderTargetHandle, RenderTextureHandle, RenderTextureOptions, ResDescriptor, ResMutDescriptor, ResourceDef, RigidBodyData, RuntimeAssetProvider, RuntimeSceneOptions, SafeAreaData, SceneComponentData, SceneConfig, SceneContext, SceneData, SceneEntityData, SceneLoadOptions, SceneOwnerData, SceneStatus, ScreenRect, ScrollViewData, SensorEvent, ShaderHandle, ShaderLoader, SliceBorder$1 as SliceBorder, SliderData, SpineAnimationData, SpineDescriptor, SpineLoadResult, SpineRendererFn, SpriteData, SystemDef, SystemOptions, SystemParam, TextData, TextInputData, TextRenderResult, TextureHandle, TextureInfo, TextureRef, TimeData, ToggleData, ToggleTransition, TransformData, TransitionConfig, TransitionOptions, UICameraData, UIEvent, UIEventType, UIInteractionData, UIMaskData, UIRectData, UniformValue, Vec2, Vec3, Vec4, VelocityData, VertexAttributeDescriptor, WebAppOptions, WorldTransformData };

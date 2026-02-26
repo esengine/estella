@@ -27,7 +27,6 @@ interface DropdownState {
     textEntities: Entity[];
     highlightIndex: number;
     ddWidth: number;
-    ddLayer: number;
 }
 
 export class DropdownPlugin implements Plugin {
@@ -51,7 +50,7 @@ export class DropdownPlugin implements Plugin {
 
                     let state = dropdownStates.get(entity);
                     if (!state) {
-                        state = { optionEntities: [], textEntities: [], highlightIndex: -1, ddWidth: 0, ddLayer: 0 };
+                        state = { optionEntities: [], textEntities: [], highlightIndex: -1, ddWidth: 0 };
                         dropdownStates.set(entity, state);
                     }
 
@@ -136,38 +135,6 @@ export class DropdownPlugin implements Plugin {
             { name: 'DropdownSystem' }
         ), { runAfter: ['UIInteractionSystem'] });
 
-        app.addSystemToSchedule(Schedule.PostUpdate, defineSystem(
-            [],
-            () => {
-                for (const [entity, state] of dropdownStates) {
-                    if (!world.valid(entity)) continue;
-                    const dropdown = world.get(entity, Dropdown) as DropdownData;
-                    if (!dropdown.isOpen) continue;
-
-                    const textLayer = state.ddLayer + 3;
-                    for (const te of state.textEntities) {
-                        if (!world.valid(te) || !world.has(te, Sprite)) continue;
-                        const s = world.get(te, Sprite) as SpriteData;
-                        if (s.layer !== textLayer) {
-                            world.insert(te, Sprite, {
-                                texture: s.texture,
-                                color: { r: s.color.r, g: s.color.g, b: s.color.b, a: s.color.a },
-                                size: { x: s.size.x, y: s.size.y },
-                                uvOffset: { x: s.uvOffset.x, y: s.uvOffset.y },
-                                uvScale: { x: s.uvScale.x, y: s.uvScale.y },
-                                layer: textLayer,
-                                flipX: s.flipX,
-                                flipY: s.flipY,
-                                material: s.material,
-                                enabled: s.enabled,
-                            });
-                        }
-                    }
-                }
-            },
-            { name: 'DropdownPostSystem' }
-        ), { runAfter: ['UIRenderOrderSystem'] });
-
         function normalizeListTransform(listEntity: Entity): void {
             if (listEntity === 0 || !world.valid(listEntity)) return;
             if (!world.has(listEntity, Transform)) return;
@@ -214,9 +181,7 @@ export class DropdownPlugin implements Plugin {
             const ddSprite = world.get(entity, Sprite) as SpriteData;
             const ddWidth = ddSprite.size.x;
             const ddHeight = ddSprite.size.y;
-            const ddLayer = ddSprite.layer;
             state.ddWidth = ddWidth;
-            state.ddLayer = ddLayer;
             const totalHeight = dropdown.options.length * DROPDOWN_ITEM_HEIGHT;
 
             world.insert(listEntity, UIRect, {
@@ -238,7 +203,7 @@ export class DropdownPlugin implements Plugin {
                 size: { x: ddWidth, y: totalHeight },
                 uvOffset: { x: 0, y: 0 },
                 uvScale: { x: 1, y: 1 },
-                layer: ddLayer + 1,
+                layer: 0,
                 flipX: false,
                 flipY: false,
                 material: 0,
@@ -268,7 +233,7 @@ export class DropdownPlugin implements Plugin {
                     size: { x: ddWidth, y: DROPDOWN_ITEM_HEIGHT },
                     uvOffset: { x: 0, y: 0 },
                     uvScale: { x: 1, y: 1 },
-                    layer: ddLayer + 2,
+                    layer: 0,
                     flipX: false,
                     flipY: false,
                     material: 0,
@@ -416,7 +381,7 @@ export class DropdownPlugin implements Plugin {
                     size: { x: state.ddWidth, y: DROPDOWN_ITEM_HEIGHT },
                     uvOffset: { x: 0, y: 0 },
                     uvScale: { x: 1, y: 1 },
-                    layer: state.ddLayer + 2,
+                    layer: 0,
                     flipX: false,
                     flipY: false,
                     material: 0,
