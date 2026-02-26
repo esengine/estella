@@ -11,7 +11,7 @@ import { Aside } from '@astrojs/starlight/components';
 
 内置组件在编辑器中始终可用，由 C++ 后端支持。
 
-### LocalTransform
+### Transform
 
 实体的位置、旋转和缩放。
 
@@ -21,9 +21,13 @@ import { Aside } from '@astrojs/starlight/components';
 | `rotation` | Quat | 四元数 `{ w, x, y, z }` |
 | `scale` | Vec3 | 缩放因子 `{ x, y, z }` |
 
+<Aside type="note">
+  在之前的版本中，`LocalTransform` 和 `WorldTransform` 是两个独立组件。现在已统一为单一的 `Transform`。旧名称仍可作为别名使用，但推荐导入 `Transform`。
+</Aside>
+
 ### Sprite
 
-2D 精灵渲染。需要 `LocalTransform` 才能显示。详见[精灵指南](/microes/zh/guides/sprite/)。
+2D 精灵渲染。需要 `Transform` 才能显示。详见[精灵指南](/microes/zh/guides/sprite/)。
 
 ### Camera
 
@@ -78,11 +82,11 @@ import { Aside } from '@astrojs/starlight/components';
 
 ### SpineAnimation
 
-Spine 骨骼动画播放。需要 `LocalTransform`。详见 [Spine 动画指南](/microes/zh/guides/spine/)。
+Spine 骨骼动画播放。需要 `Transform`。详见 [Spine 动画指南](/microes/zh/guides/spine/)。
 
 ### BitmapText
 
-使用预烘焙位图字体图集（BMFont 格式）进行 GPU 渲染的文本。需要 `LocalTransform`。详见[位图文本指南](/microes/zh/guides/bitmap-text/)。
+使用预烘焙位图字体图集（BMFont 格式）进行 GPU 渲染的文本。需要 `Transform`。详见[位图文本指南](/microes/zh/guides/bitmap-text/)。
 
 | 属性 | 类型 | 说明 |
 |------|------|------|
@@ -125,7 +129,7 @@ UI 布局矩形。定义 UI 元素的锚点布局。
 
 ### UIMask
 
-将子实体裁剪到父级 `UIRect` 边界内。需要在同一实体上同时挂载 `UIRect` 和 `LocalTransform`。详见 [UI 与文本指南](/microes/zh/guides/ui/)。
+将子实体裁剪到父级 `UIRect` 边界内。需要在同一实体上同时挂载 `UIRect` 和 `Transform`。详见 [UI 与文本指南](/microes/zh/guides/ui/)。
 
 | 属性 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
@@ -148,10 +152,6 @@ UI 元素的按钮行为。需要 `Interactable` 和 `UIRect`。
 | `state` | number | `0`（Normal） | 0=正常, 1=悬停, 2=按下, 3=禁用 |
 | `transition` | ButtonTransition \| null | `null` | 各状态的颜色过渡 |
 
-### ScreenSpace
-
-标签组件，将实体标记为屏幕空间 UI 根节点。ScreenSpace 实体的子级通过 `UIRect` 在屏幕坐标中布局。需要 `UIRect` 和 `LocalTransform`。
-
 ### Name
 
 实体的字符串标识符，用于在运行时按名称查找实体。
@@ -166,7 +166,7 @@ UI 元素的按钮行为。需要 `Interactable` 和 `UIRect`。
 
 #### RigidBody
 
-附加到实体的物理刚体。需要 `LocalTransform`。
+附加到实体的物理刚体。需要 `Transform`。
 
 | 属性 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
@@ -211,6 +211,21 @@ UI 元素的按钮行为。需要 `Interactable` 和 `UIRect`。
 | `friction` | number | `0.3` | 表面摩擦力 |
 | `restitution` | number | `0.0` | 弹性（弹力） |
 | `isSensor` | boolean | `false` | 仅触发（无物理响应） |
+
+## 组件启用开关
+
+定义中包含 `enabled` 属性的组件会在 Inspector 的组件标题栏显示一个复选框。取消勾选会将 `enabled` 设为 `false`，对应的系统可以据此跳过处理。
+
+这适用于内置组件（如 `Interactable`、`UIMask`、`RigidBody`），也适用于任何包含 `enabled` 字段的自定义组件：
+
+```typescript
+const MyComponent = defineComponent('MyComponent', {
+    enabled: true,
+    speed: 100,
+});
+```
+
+禁用时，Inspector 中的组件标题栏会变暗显示。
 
 ## 自定义组件
 
@@ -262,7 +277,7 @@ export const Enemy = defineTag('Enemy');
 
 ```typescript
 addSystem(defineSystem(
-    [Query(LocalTransform, Player)],
+    [Query(Transform, Player)],
     (query) => {
         for (const [entity, transform] of query) {
             // 只处理带有 Player 标签的实体
@@ -280,14 +295,14 @@ addSystem(defineSystem(
 需要在运行时创建实体时（如子弹、粒子、特效），使用 `Commands`：
 
 ```typescript
-import { addStartupSystem, defineSystem, Commands, Sprite, LocalTransform } from 'esengine';
+import { addStartupSystem, defineSystem, Commands, Sprite, Transform } from 'esengine';
 
 addStartupSystem(defineSystem(
     [Commands()],
     (cmds) => {
         const entity = cmds.spawn()
             .insert(Sprite, { size: { x: 10, y: 10 } })
-            .insert(LocalTransform, { position: { x: 0, y: 0, z: 0 } })
+            .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
             .id();
     }
 ));
@@ -303,3 +318,4 @@ cmds.entity(entity).remove(Velocity);
 
 - [系统](/microes/zh/core-concepts/systems/) — 操作组件的逻辑
 - [查询](/microes/zh/core-concepts/queries/) — 按组件查找实体
+- [变更检测](/microes/zh/core-concepts/change-detection/) — 响应组件变更

@@ -5,13 +5,17 @@ description: Preview and debug your game inside the editor using the Game View p
 
 import { Aside } from '@astrojs/starlight/components';
 
-The **Game View** is the in-editor game preview panel. It provides playback controls, resolution simulation, and live debugging, so you can test game logic and visuals without leaving the editor.
+The **Game View** is the in-editor game preview panel. It provides playback controls, resolution simulation, live property editing, and runtime debugging — so you can test and tweak game logic without leaving the editor.
 
 ## Starting the Preview
 
 Click the **Play** button on the left side of the toolbar to start the game preview. The editor launches a preview server and loads the current project into the Game View.
 
 Click the **Stop** button to end the preview. The Game View returns to its initial blank state and the editor switches back to normal editing mode.
+
+### Shared Canvas
+
+The Scene View and Game View share a single offscreen WebGL canvas. When the preview starts, both views render from the same pipeline — the Scene View shows the editor viewport with gizmos, and the Game View shows the game camera output. This avoids duplicating the WASM instance and keeps memory usage low.
 
 ## Playback Controls
 
@@ -66,6 +70,10 @@ Selecting **Custom** reveals width and height input fields that accept any value
 
 When the preview starts, the editor enters **Play Mode** — a special runtime debugging mode. The Hierarchy and Inspector panels switch to their runtime views.
 
+### State Snapshot
+
+On entering play mode the editor takes a **full snapshot** of the current scene — entity tree, component data, selection state, and dirty flags. When you stop the preview, the snapshot is restored and all runtime modifications are discarded. This means you can freely experiment during play without affecting your saved scene.
+
 ### Hierarchy Panel
 
 While in Play Mode the Hierarchy panel changes as follows:
@@ -88,18 +96,64 @@ When a runtime entity is selected during Play Mode, the Inspector panel:
 - Auto-refreshes property values periodically, reflecting live game state
 - Supports direct editing of numbers, booleans, strings, and vector properties — changes are sent to the game instance immediately
 
-<Aside type="caution">
-  Changes made in the Inspector during Play Mode only affect the running game instance. When you stop the preview, all runtime modifications are lost and the scene data reverts to its state before the preview started.
-</Aside>
-
 ### Exiting Play Mode
 
 When you click **Stop**:
 
 - The game instance is destroyed and the preview is cleared
+- The scene is restored from the snapshot taken at play start
 - The Hierarchy panel restores the edit-mode entity tree, including its previous expand/collapse state
 - The Inspector panel returns to edit mode
 - No runtime modifications are saved to the scene file
+
+## Live Editing
+
+During play mode you can edit entity properties in the Inspector and see the effect in real time. This is useful for tuning values like speed, gravity, or UI positions while the game is running.
+
+### What You Can Edit
+
+| Property Type | Editable |
+|---------------|----------|
+| Numbers (int, float) | Yes |
+| Booleans | Yes |
+| Strings | Yes |
+| Vectors (Vec2, Vec3) | Yes |
+| Colors | Yes |
+| Enums | Yes |
+
+You can also perform structural changes through the runtime API:
+
+- **Spawn** new entities
+- **Despawn** existing entities
+- **Add** or **remove** components on an entity
+- **Rename** and **reparent** entities
+
+### What You Cannot Edit
+
+- **Scene View gizmos** are disabled during play — you cannot drag entities to move them visually
+- **Component reordering** is not available
+- **Prefab editing** is disabled
+- **Visibility toggle** does not apply during play
+
+<Aside type="caution">
+  All live edits are temporary. When you stop the preview, the scene reverts to the snapshot. There is no way to selectively keep play-mode changes.
+</Aside>
+
+### Editing Workflow
+
+A typical live-edit workflow:
+
+1. **Play** — start the preview
+2. **Select** a runtime entity in the Hierarchy
+3. **Tweak** property values in the Inspector (e.g., adjust a speed or offset)
+4. **Observe** the change immediately in the Game View
+5. **Pause + Step** to inspect frame-by-frame behavior
+6. **Stop** — note down the values you liked
+7. **Apply** the values to the scene in edit mode
+
+<Aside type="tip">
+  Input fields being actively edited are never overwritten by auto-refresh, so your typing is never interrupted.
+</Aside>
 
 ## FPS Display
 
@@ -110,4 +164,4 @@ While the preview is running, the current frame rate (FPS) is displayed on the r
 - Hierarchy editing features are disabled during Play Mode, including drag-to-reorder, context menus, and renaming
 - The runtime entity list refreshes periodically; with a large number of entities there may be a brief delay
 - Resolution can be changed while the preview is running — the preview resizes immediately
-- Input fields that are actively being edited in the Inspector are not overwritten by auto-refresh, so manual input is never interrupted
+- The shared canvas supports only one active game camera at a time

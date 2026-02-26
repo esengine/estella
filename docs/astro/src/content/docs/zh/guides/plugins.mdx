@@ -24,10 +24,23 @@ import { Aside } from '@astrojs/starlight/components';
 | 插件 | 组件 |
 |------|------|
 | 文本 | `Text` — 每帧将文本内容渲染为精灵纹理 |
-| UI 遮罩 | `UIMask` — 基于模板测试的 UI 元素遮罩 |
-| UI 布局 | `UIRect`、`ScreenSpace` — 相对于相机的锚点 UI 布局 |
+| 图片 | `Image` — 显示图片，支持切片、平铺和填充模式 |
+| UI 遮罩 | `UIMask` — 基于裁剪/模板测试的 UI 元素遮罩 |
+| UI 布局 | `UIRect` — 相对于相机的锚点 UI 布局 |
+| UI 渲染排序 | 自动为 UI 层级分配渲染顺序 |
 | UI 交互 | `Interactable`、`Button`、`UIInteraction`、`UIEvents` — 指针命中测试和按钮状态 |
 | 文本输入 | `TextInput` — 可编辑的文本输入框，使用平台原生输入 |
+| 开关 | `Toggle`、`ToggleGroup` — 复选框和单选按钮行为 |
+| 滑块 | `Slider` — 带填充和拖拽手柄的交互式值滑块 |
+| 进度条 | `ProgressBar` — 非交互式进度显示 |
+| 下拉框 | `Dropdown` — 下拉列表选择器 |
+| 滚动视图 | `ScrollView` — 支持惯性和弹性回弹的可滚动容器 |
+| 列表视图 | `ListView` — 大列表的虚拟滚动 |
+| 拖拽 | `Draggable` — UI 元素的拖拽移动 |
+| 焦点 | `Focusable` — 键盘焦点和 Tab 导航 |
+| 安全区域 | `SafeArea` — 适配设备安全区域（刘海、圆角） |
+| 布局组 | `LayoutGroup` — 带方向、间距和对齐的网格式布局 |
+| 弹性布局 | `FlexContainer`、`FlexItem` — 类 CSS Flexbox 的自动子元素排列 |
 
 以上插件在每个项目中默认激活。你可以直接从编辑器的组件选择器中使用它们的组件——无需任何设置。
 
@@ -108,6 +121,26 @@ const GameState = defineResource<{ score: number; level: number }>(
 
 addStartupSystem(defineSystem([Commands()], (cmds) => {
     cmds.insertResource(GameState, { score: 0, level: 1 });
+}));
+```
+
+### 事件
+
+事件用于系统间的解耦通信：
+
+```typescript
+import { defineEvent, EventWriter, EventReader, defineSystem, addSystem } from 'esengine';
+
+const ScoreEvent = defineEvent<{ points: number }>('Score');
+
+addSystem(defineSystem([EventWriter(ScoreEvent)], (writer) => {
+    writer.send({ points: 10 });
+}));
+
+addSystem(defineSystem([EventReader(ScoreEvent)], (reader) => {
+    for (const e of reader) {
+        console.log('Scored:', e.points);
+    }
 }));
 ```
 

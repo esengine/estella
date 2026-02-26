@@ -12,7 +12,7 @@ ESEngine uses an Entity-Component-System (ECS) architecture for game object mana
 | Concept | Role | Example |
 |---------|------|---------|
 | **Entity** | A unique identifier (just a number) | Player, Enemy, Bullet |
-| **Component** | Data attached to an entity | LocalTransform, Sprite, Health |
+| **Component** | Data attached to an entity | Transform, Sprite, Health |
 | **System** | Logic that operates on entities with specific components | MovementSystem, RenderSystem |
 
 <Aside type="tip">
@@ -35,9 +35,9 @@ GameObject
 ECS approach — compose behaviors freely:
 
 ```
-Player  = Entity + LocalTransform + Sprite + Health + PlayerInput
-Enemy   = Entity + LocalTransform + Sprite + Health + AI
-Bullet  = Entity + LocalTransform + Sprite + Velocity + Damage
+Player  = Entity + Transform + Sprite + Health + PlayerInput
+Enemy   = Entity + Transform + Sprite + Health + AI
+Bullet  = Entity + Transform + Sprite + Velocity + Damage
 ```
 
 Benefits:
@@ -49,9 +49,11 @@ Benefits:
 
 ## Entities
 
-An entity is just a number (ID). In ESEngine, entities are typically created in the **scene editor** — you place them visually, add components, and configure their properties.
+An entity is a lightweight handle with two parts: an **index** and a **generation**. The index identifies the slot in memory, while the generation tracks how many times that slot has been recycled.
 
-Entities can also be spawned at runtime with `Commands` (e.g. bullets, particles):
+This **generational handle** design means that when an entity is despawned and its slot is reused by a new entity, any stale references to the old entity are automatically detected — their generation won't match. This prevents bugs where code accidentally operates on a recycled entity.
+
+In practice, you don't need to think about generations — just use the `Entity` type as an opaque handle. Entities are typically created in the **scene editor**, or spawned at runtime with `Commands`:
 
 ```typescript
 import { defineSystem, addStartupSystem, Commands, type Entity } from 'esengine';
@@ -66,7 +68,7 @@ addStartupSystem(defineSystem([Commands()], (cmds) => {
 
 Components are data attached to entities. You **define** components in code, then **attach** them to entities in the scene editor.
 
-- **Builtin components** — LocalTransform, Sprite, Camera, etc. (always available in the editor)
+- **Builtin components** — Transform, Sprite, Camera, etc. (always available in the editor)
 - **Custom components** — defined with `defineComponent` / `defineTag` (appear in the editor after saving)
 
 ```typescript
@@ -85,11 +87,11 @@ See [Components](/microes/core-concepts/components/) for the full API.
 Systems are functions that query entities with specific components and operate on them. They run automatically on all matching entities in the scene.
 
 ```typescript
-import { defineSystem, addSystem, Res, Time, Query, Mut, LocalTransform } from 'esengine';
+import { defineSystem, addSystem, Res, Time, Query, Mut, Transform } from 'esengine';
 import { Health } from './components';
 
 addSystem(defineSystem(
-    [Res(Time), Query(Mut(LocalTransform), Health)],
+    [Res(Time), Query(Mut(Transform), Health)],
     (time, query) => {
         for (const [entity, transform, health] of query) {
             if (health.current <= 0) {
@@ -148,6 +150,10 @@ The `World` stores all entities and components. In your scripts, you interact wi
 | Remove a component at runtime | `Commands()` → `cmds.entity(e).remove(Component)` |
 | Read a resource | `Res(ResourceType)` |
 | Mutate a resource | `ResMut(ResourceType)` |
+| React to added components | `Query(Added(Component))` |
+| React to changed components | `Query(Changed(Component))` |
+| React to removed components | `Removed(Component)` |
+| Send events between systems | `EventWriter(Event)` / `EventReader(Event)` |
 
 See [Systems](/microes/core-concepts/systems/) and [Queries](/microes/core-concepts/queries/) for detailed usage.
 
@@ -157,3 +163,5 @@ See [Systems](/microes/core-concepts/systems/) and [Queries](/microes/core-conce
 - [Systems](/microes/core-concepts/systems/) — defining and scheduling systems
 - [Queries](/microes/core-concepts/queries/) — querying entities
 - [Resources](/microes/core-concepts/resources/) — global singleton data
+- [Change Detection](/microes/core-concepts/change-detection/) — reacting to component changes
+- [Events](/microes/core-concepts/events/) — decoupled inter-system communication

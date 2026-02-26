@@ -12,10 +12,10 @@ ESEngine 通过 `Input` 资源提供输入处理。`InputPlugin` 由 `createWebA
 通过 `Res(Input)` 系统参数访问输入状态：
 
 ```typescript
-import { defineSystem, addSystem, Res, Input, Query, Mut, LocalTransform } from 'esengine';
+import { defineSystem, addSystem, Res, Input, Query, Mut, Transform } from 'esengine';
 
 addSystem(defineSystem(
-    [Res(Input), Query(Mut(LocalTransform))],
+    [Res(Input), Query(Mut(Transform))],
     (input, query) => {
         for (const [entity, transform] of query) {
             if (input.isKeyDown('KeyW')) {
@@ -135,14 +135,14 @@ if (input.isMouseButtonDown(0)) {
 ```typescript
 import {
     defineSystem, defineComponent, defineTag, addSystem,
-    Res, Input, Time, Query, Mut, LocalTransform
+    Res, Input, Time, Query, Mut, Transform
 } from 'esengine';
 
 const Player = defineTag('Player');
 const MoveSpeed = defineComponent('MoveSpeed', { value: 200 });
 
 addSystem(defineSystem(
-    [Res(Input), Res(Time), Query(Mut(LocalTransform), MoveSpeed, Player)],
+    [Res(Input), Res(Time), Query(Mut(Transform), MoveSpeed, Player)],
     (input, time, query) => {
         for (const [entity, transform, speed] of query) {
             const velocity = { x: 0, y: 0 };

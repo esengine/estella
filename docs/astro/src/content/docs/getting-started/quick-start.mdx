@@ -19,7 +19,7 @@ Let's create a simple game that animates a sprite. This will introduce you to th
 
 3. **Add a Sprite entity** in the editor
 
-   In the Hierarchy panel, create a new entity and add `LocalTransform` and `Sprite` components to it. Set the Sprite size to `100 x 100` and pick a color.
+   In the Hierarchy panel, create a new entity and add `Transform` and `Sprite` components to it. Set the Sprite size to `100 x 100` and pick a color.
 
 4. **Create `src/main.ts`** with the following code:
 
@@ -31,12 +31,12 @@ Let's create a simple game that animates a sprite. This will introduce you to th
        Mut,
        Res,
        Time,
-       LocalTransform,
+       Transform,
        Sprite,
    } from 'esengine';
 
    addSystem(defineSystem(
-       [Res(Time), Query(Mut(LocalTransform), Sprite)],
+       [Res(Time), Query(Mut(Transform), Sprite)],
        (time, query) => {
            for (const [entity, transform, sprite] of query) {
                transform.position.x = Math.sin(time.elapsed) * 100;
@@ -56,7 +56,7 @@ Let's create a simple game that animates a sprite. This will introduce you to th
 
 In ESEngine, entities and their components are created in the **scene editor**. Your code doesn't create them — it defines **systems** that query and operate on scene entities.
 
-The sprite you placed in step 3 already has `LocalTransform` and `Sprite` components. The system in step 4 finds it via `Query(Mut(LocalTransform), Sprite)` and animates it.
+The sprite you placed in step 3 already has `Transform` and `Sprite` components. The system in step 4 finds it via `Query(Mut(Transform), Sprite)` and animates it.
 
 ### Custom Components
 
@@ -73,11 +73,11 @@ After saving, the `Speed` component appears in the editor's "Add Component" menu
 
 ```typescript
 // src/systems/movement.ts
-import { defineSystem, addSystem, Res, Time, Query, Mut, LocalTransform } from 'esengine';
+import { defineSystem, addSystem, Res, Time, Query, Mut, Transform } from 'esengine';
 import { Speed } from '../components/Speed';
 
 addSystem(defineSystem(
-    [Res(Time), Query(Mut(LocalTransform), Speed)],
+    [Res(Time), Query(Mut(Transform), Speed)],
     (time, query) => {
         for (const [entity, transform, speed] of query) {
             transform.position.x += speed.value * time.delta;
@@ -110,14 +110,14 @@ addSystemToSchedule(Schedule.FixedUpdate, system);  // runs at fixed intervals
 Use `Commands` when you need to create entities at runtime (e.g. bullets, particles):
 
 ```typescript
-import { addStartupSystem, defineSystem, Commands, Sprite, LocalTransform } from 'esengine';
+import { addStartupSystem, defineSystem, Commands, Sprite, Transform } from 'esengine';
 
 addStartupSystem(defineSystem(
     [Commands()],
     (cmds) => {
         cmds.spawn()
             .insert(Sprite, { size: { x: 10, y: 10 } })
-            .insert(LocalTransform, { position: { x: 0, y: 0, z: 0 } });
+            .insert(Transform, { position: { x: 0, y: 0, z: 0 } });
     }
 ));
 ```

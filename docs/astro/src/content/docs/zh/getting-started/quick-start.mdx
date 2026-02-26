@@ -19,7 +19,7 @@ import { Steps, Aside } from '@astrojs/starlight/components';
 
 3. **在编辑器中添加 Sprite 实体**
 
-   在 Hierarchy 面板中创建新实体，添加 `LocalTransform` 和 `Sprite` 组件。设置 Sprite 尺寸为 `100 x 100`，选择一个颜色。
+   在 Hierarchy 面板中创建新实体，添加 `Transform` 和 `Sprite` 组件。设置 Sprite 尺寸为 `100 x 100`，选择一个颜色。
 
 4. **创建 `src/main.ts`**，填入以下代码：
 
@@ -31,12 +31,12 @@ import { Steps, Aside } from '@astrojs/starlight/components';
        Res,
        Time,
        Mut,
-       LocalTransform,
+       Transform,
        Sprite,
    } from 'esengine';
 
    addSystem(defineSystem(
-       [Res(Time), Query(Mut(LocalTransform), Sprite)],
+       [Res(Time), Query(Mut(Transform), Sprite)],
        (time, query) => {
            for (const [entity, transform, sprite] of query) {
                transform.position.x = Math.sin(time.elapsed) * 100;
@@ -56,7 +56,7 @@ import { Steps, Aside } from '@astrojs/starlight/components';
 
 在 ESEngine 中，实体和组件在**场景编辑器**中创建。你的代码不创建它们 — 而是定义**系统**来查询和操作场景中的实体。
 
-第 3 步放置的精灵已经有 `LocalTransform` 和 `Sprite` 组件。第 4 步的系统通过 `Query(Mut(LocalTransform), Sprite)` 找到它并执行动画。
+第 3 步放置的精灵已经有 `Transform` 和 `Sprite` 组件。第 4 步的系统通过 `Query(Mut(Transform), Sprite)` 找到它并执行动画。
 
 ### 自定义组件
 
@@ -73,11 +73,11 @@ export const Speed = defineComponent('Speed', { value: 200 });
 
 ```typescript
 // src/systems/movement.ts
-import { defineSystem, addSystem, Res, Time, Query, Mut, LocalTransform } from 'esengine';
+import { defineSystem, addSystem, Res, Time, Query, Mut, Transform } from 'esengine';
 import { Speed } from '../components/Speed';
 
 addSystem(defineSystem(
-    [Res(Time), Query(Mut(LocalTransform), Speed)],
+    [Res(Time), Query(Mut(Transform), Speed)],
     (time, query) => {
         for (const [entity, transform, speed] of query) {
             transform.position.x += speed.value * time.delta;
@@ -110,14 +110,14 @@ addSystemToSchedule(Schedule.FixedUpdate, system);  // 固定间隔运行
 需要在运行时创建实体时（如子弹、粒子），使用 `Commands`：
 
 ```typescript
-import { addStartupSystem, defineSystem, Commands, Sprite, LocalTransform } from 'esengine';
+import { addStartupSystem, defineSystem, Commands, Sprite, Transform } from 'esengine';
 
 addStartupSystem(defineSystem(
     [Commands()],
     (cmds) => {
         cmds.spawn()
             .insert(Sprite, { size: { x: 10, y: 10 } })
-            .insert(LocalTransform, { position: { x: 0, y: 0, z: 0 } });
+            .insert(Transform, { position: { x: 0, y: 0, z: 0 } });
     }
 ));
 ```

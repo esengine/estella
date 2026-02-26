@@ -211,7 +211,7 @@ console.log('Primitives:', Draw.getPrimitiveCount());
 
 ```typescript
 const narrowSystem = defineSystem(
-    [Query(Mut(LocalTransform), Velocity, Player)],
+    [Query(Mut(Transform), Velocity, Player)],
     (query) => {
         for (const [entity, transform, velocity] of query) {
             transform.position.x += velocity.linear.x;

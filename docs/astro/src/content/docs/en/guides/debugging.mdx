@@ -211,7 +211,7 @@ If a system with a broad query runs slowly, narrow the query by adding more spec
 
 ```typescript
 const narrowSystem = defineSystem(
-    [Query(Mut(LocalTransform), Velocity, Player)],
+    [Query(Mut(Transform), Velocity, Player)],
     (query) => {
         for (const [entity, transform, velocity] of query) {
             transform.position.x += velocity.linear.x;

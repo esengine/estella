@@ -5,7 +5,7 @@ description: Spine skeletal animation in ESEngine
 
 import { Aside } from '@astrojs/starlight/components';
 
-The `SpineAnimation` component plays [Spine](http://esotericsoftware.com/) skeletal animations. Add it to an entity in the scene editor along with `LocalTransform`.
+The `SpineAnimation` component plays [Spine](http://esotericsoftware.com/) skeletal animations. Add it to an entity in the scene editor along with `Transform`.
 
 <Aside type="note">
   Since v0.3.0, Spine uses standalone WASM modules (`spine38` / `spine41` / `spine42`) instead of being bundled into the engine core. Select the Spine version in the editor under **Settings → Project → Spine Version** (`3.8`, `4.1`, or `4.2`). The editor loads the matching runtime automatically — no code is needed. New projects default to **None** — you must select a Spine version to enable Spine.
@@ -32,7 +32,7 @@ The `SpineAnimation` component plays [Spine](http://esotericsoftware.com/) skele
 ## Setup
 
 1. Place Spine export files (`.json` + `.atlas` + images) in your project's `assets/` folder
-2. In the scene editor: create an entity → add `LocalTransform` and `SpineAnimation`
+2. In the scene editor: create an entity → add `Transform` and `SpineAnimation`
 3. Set `skeletonPath` and `atlasPath` to point to your Spine files
 4. Set `animation` to the name of the animation to play
 
@@ -101,7 +101,7 @@ Define a `CharacterState` component, attach it with `SpineAnimation` on the enti
 ```typescript
 import {
     defineComponent, defineSystem, addSystem,
-    Res, Input, Time, Query, Mut, LocalTransform, SpineAnimation
+    Res, Input, Time, Query, Mut, Transform, SpineAnimation
 } from 'esengine';
 
 const CharacterState = defineComponent('CharacterState', {
@@ -110,7 +110,7 @@ const CharacterState = defineComponent('CharacterState', {
 });
 
 addSystem(defineSystem(
-    [Res(Input), Res(Time), Query(Mut(LocalTransform), Mut(SpineAnimation), Mut(CharacterState))],
+    [Res(Input), Res(Time), Query(Mut(Transform), Mut(SpineAnimation), Mut(CharacterState))],
     (input, time, query) => {
         for (const [entity, transform, spine, state] of query) {
             let moving = false;

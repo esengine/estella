@@ -88,6 +88,23 @@ defineSystem([Res(Input)], (input) => {
 | `isMouseButtonReleased(button)` | Mouse button was released this frame |
 | `getScrollDelta()` | Returns `{ x, y }` scroll delta |
 
+### UIEvents
+
+UI interaction events collected each frame. Available when UI plugins are active (default).
+
+```typescript
+import { Res } from 'esengine';
+import { UIEvents } from 'esengine';
+
+defineSystem([Res(UIEvents)], (events) => {
+    for (const e of events.query('click')) {
+        console.log('Clicked:', e.entity);
+    }
+});
+```
+
+See [UI & Text](/microes/guides/ui/) for the full list of event types.
+
 ## Custom Resources
 
 ### defineResource
@@ -136,7 +153,7 @@ Define a `Coin` tag, attach it to coin entities in the scene, and track score wi
 import {
     defineSystem, defineResource, defineTag,
     addStartupSystem, addSystem, Commands, Query, ResMut,
-    LocalTransform
+    Transform
 } from 'esengine';
 
 const Score = defineResource({ value: 0 });
@@ -148,7 +165,7 @@ addStartupSystem(defineSystem([Commands()], (cmds) => {
 }));
 
 addSystem(defineSystem(
-    [Commands(), ResMut(Score), Query(LocalTransform, Player), Query(LocalTransform, Coin)],
+    [Commands(), ResMut(Score), Query(Transform, Player), Query(Transform, Coin)],
     (cmds, score, players, coins) => {
         for (const [_, pPos] of players) {
             for (const [coinEntity, cPos] of coins) {
@@ -168,3 +185,4 @@ addSystem(defineSystem(
 
 - [Systems](/microes/core-concepts/systems/) — how systems use resources and queries
 - [Components](/microes/core-concepts/components/) — data attached to entities
+- [Events](/microes/core-concepts/events/) — decoupled inter-system communication

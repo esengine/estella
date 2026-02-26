@@ -5,7 +5,7 @@ description: 2D sprite rendering in ESEngine
 
 import { Aside } from '@astrojs/starlight/components';
 
-The `Sprite` component is the primary way to display 2D graphics. Add it to an entity in the scene editor along with `LocalTransform` to make the entity visible.
+The `Sprite` component is the primary way to display 2D graphics. Add it to an entity in the scene editor along with `Transform` to make the entity visible.
 
 ## Properties
 
@@ -23,15 +23,15 @@ The `Sprite` component is the primary way to display 2D graphics. Add it to an e
 
 ## Basic Usage
 
-In the scene editor: create an entity → add `LocalTransform` and `Sprite` → set size and color in the inspector.
+In the scene editor: create an entity → add `Transform` and `Sprite` → set size and color in the inspector.
 
 To modify sprites at runtime, query them in a system:
 
 ```typescript
-import { defineSystem, addSystem, Res, Time, Query, Mut, LocalTransform, Sprite } from 'esengine';
+import { defineSystem, addSystem, Res, Time, Query, Mut, Transform, Sprite } from 'esengine';
 
 addSystem(defineSystem(
-    [Res(Time), Query(Mut(LocalTransform), Sprite)],
+    [Res(Time), Query(Mut(Transform), Sprite)],
     (time, query) => {
         for (const [entity, transform, sprite] of query) {
             transform.position.x = Math.sin(time.elapsed) * 100;
@@ -135,7 +135,7 @@ Sprites are sorted by the following priority (highest first):
 For sprites created at runtime (bullets, particles):
 
 ```typescript
-import { defineSystem, addSystem, Commands, Sprite, LocalTransform } from 'esengine';
+import { defineSystem, addSystem, Commands, Sprite, Transform } from 'esengine';
 
 addSystem(defineSystem(
     [Commands()],
@@ -145,7 +145,7 @@ addSystem(defineSystem(
                 size: { x: 10, y: 10 },
                 color: { r: 1, g: 1, b: 0, a: 1 }
             })
-            .insert(LocalTransform, {
+            .insert(Transform, {
                 position: { x: 0, y: 0, z: 0 }
             });
     }

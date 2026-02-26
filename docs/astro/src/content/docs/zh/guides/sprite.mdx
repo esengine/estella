@@ -5,7 +5,7 @@ description: ESEngine 中的 2D 精灵渲染
 
 import { Aside } from '@astrojs/starlight/components';
 
-`Sprite` 组件是显示 2D 图形的主要方式。在场景编辑器中将它和 `LocalTransform` 一起添加到实体上即可显示。
+`Sprite` 组件是显示 2D 图形的主要方式。在场景编辑器中将它和 `Transform` 一起添加到实体上即可显示。
 
 ## 属性
 
@@ -23,15 +23,15 @@ import { Aside } from '@astrojs/starlight/components';
 
 ## 基本用法
 
-在场景编辑器中：创建实体 → 添加 `LocalTransform` 和 `Sprite` → 在检查器中设置尺寸和颜色。
+在场景编辑器中：创建实体 → 添加 `Transform` 和 `Sprite` → 在检查器中设置尺寸和颜色。
 
 在系统中操作精灵：
 
 ```typescript
-import { defineSystem, addSystem, Res, Time, Query, Mut, LocalTransform, Sprite } from 'esengine';
+import { defineSystem, addSystem, Res, Time, Query, Mut, Transform, Sprite } from 'esengine';
 
 addSystem(defineSystem(
-    [Res(Time), Query(Mut(LocalTransform), Sprite)],
+    [Res(Time), Query(Mut(Transform), Sprite)],
     (time, query) => {
         for (const [entity, transform, sprite] of query) {
             transform.position.x = Math.sin(time.elapsed) * 100;
@@ -135,7 +135,7 @@ addSystem(defineSystem(
 运行时创建精灵（子弹、粒子等）：
 
 ```typescript
-import { defineSystem, addSystem, Commands, Sprite, LocalTransform } from 'esengine';
+import { defineSystem, addSystem, Commands, Sprite, Transform } from 'esengine';
 
 addSystem(defineSystem(
     [Commands()],
@@ -145,7 +145,7 @@ addSystem(defineSystem(
                 size: { x: 10, y: 10 },
                 color: { r: 1, g: 1, b: 0, a: 1 }
             })
-            .insert(LocalTransform, {
+            .insert(Transform, {
                 position: { x: 0, y: 0, z: 0 }
             });
     }

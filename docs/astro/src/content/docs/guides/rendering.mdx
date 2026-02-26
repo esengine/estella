@@ -45,10 +45,10 @@ For screen adaptation and resolution scaling, attach a `Canvas` component to the
 Query the camera entity and modify its transform:
 
 ```typescript
-import { defineSystem, addSystem, Res, Input, Query, Mut, LocalTransform, Camera } from 'esengine';
+import { defineSystem, addSystem, Res, Input, Query, Mut, Transform, Camera } from 'esengine';
 
 addSystem(defineSystem(
-    [Res(Input), Query(Mut(LocalTransform), Camera)],
+    [Res(Input), Query(Mut(Transform), Camera)],
     (input, query) => {
         for (const [entity, transform, camera] of query) {
             if (input.isKeyDown('ArrowLeft')) {
@@ -87,17 +87,17 @@ Both cameras render side by side. Cameras with the same priority render in entit
 
 ## Transform
 
-Every visible entity needs a `LocalTransform`. Add it to entities in the scene editor and configure position, rotation, and scale in the inspector.
+Every visible entity needs a `Transform`. Add it to entities in the scene editor and configure position, rotation, and scale in the inspector.
 
 ### Rotation
 
 Rotation uses quaternions. For 2D rotation around the Z-axis:
 
 ```typescript
-import { defineSystem, addSystem, Res, Time, Query, Mut, LocalTransform, Sprite } from 'esengine';
+import { defineSystem, addSystem, Res, Time, Query, Mut, Transform, Sprite } from 'esengine';
 
 addSystem(defineSystem(
-    [Res(Time), Query(Mut(LocalTransform), Sprite)],
+    [Res(Time), Query(Mut(Transform), Sprite)],
     (time, query) => {
         for (const [entity, transform, sprite] of query) {
             const angle = time.elapsed;

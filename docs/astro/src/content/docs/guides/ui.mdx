@@ -1,84 +1,121 @@
 ---
 title: UI & Text
-description: Text rendering and UI layout components in ESEngine
+description: UI components, layout, interaction, and text rendering in ESEngine
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-The `Text` and `UIRect` components work together with `Sprite` to render text in your game. The `TextPlugin` automatically converts text content into textures each frame.
-
-## Setup
-
-In the scene editor: create an entity → add `LocalTransform`, `Sprite`, `Text`, and `UIRect` components.
-
-- **Text** — defines the text content and style (font, size, color, alignment)
-- **UIRect** — defines the layout rectangle (size, anchor, pivot)
-- **Sprite** — used internally by the text system to display the rendered texture
+ESEngine provides a complete UI framework with layout, interaction, text rendering, and a library of ready-made widgets. Layout computation runs in C++/WASM for performance, while all components are configured from TypeScript.
 
 <Aside type="note">
-  You don't need to configure the Sprite component manually. The `TextPlugin` automatically creates and updates the sprite texture from the Text content.
+  All UI plugins are registered automatically by `createWebApp()`. No manual setup is needed.
 </Aside>
 
-## Text Properties
+## Quick Start
 
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
-| `content` | string | `''` | Text content to display |
-| `fontFamily` | string | `'Arial'` | Font family name |
-| `fontSize` | number | `24` | Font size in pixels |
-| `color` | Color | `{r:1, g:1, b:1, a:1}` | Text color RGBA (0–1) |
-| `align` | TextAlign | `Left` | Horizontal alignment (editor defaults to `Center`) |
-| `verticalAlign` | TextVerticalAlign | `Top` | Vertical alignment (editor defaults to `Middle`) |
-| `wordWrap` | boolean | `true` | Enable automatic word wrapping |
-| `overflow` | TextOverflow | `Visible` | Overflow handling mode |
-| `lineHeight` | number | `1.2` | Line height multiplier |
+In the editor: right-click the Hierarchy → **Create** → **UI** → choose a widget (Button, Slider, Text, etc.). The editor creates the entity hierarchy with all required components pre-configured.
 
-## UIRect Properties
-
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
-| `anchorMin` | Vec2 | `{0.5, 0.5}` | Bottom-left anchor relative to parent (0–1 range) |
-| `anchorMax` | Vec2 | `{0.5, 0.5}` | Top-right anchor relative to parent (0–1 range) |
-| `offsetMin` | Vec2 | `{0, 0}` | Pixel offset from anchorMin |
-| `offsetMax` | Vec2 | `{0, 0}` | Pixel offset from anchorMax |
-| `size` | Vec2 | `{100, 100}` | Width and height (used when anchorMin equals anchorMax) |
-| `pivot` | Vec2 | `{0.5, 0.5}` | Pivot point for rotation and scaling |
-
-When `anchorMin` equals `anchorMax`, the element has a fixed `size` positioned at the anchor point. When they differ, the element stretches between the two anchors and `size` is computed automatically by `UILayoutPlugin`.
-
-## Enums
-
-### TextAlign
-
-| Value | Name | Description |
-|-------|------|-------------|
-| 0 | `Left` | Align text to the left edge |
-| 1 | `Center` | Center text horizontally |
-| 2 | `Right` | Align text to the right edge |
-
-### TextVerticalAlign
-
-| Value | Name | Description |
-|-------|------|-------------|
-| 0 | `Top` | Align text to the top |
-| 1 | `Middle` | Center text vertically |
-| 2 | `Bottom` | Align text to the bottom |
-
-### TextOverflow
-
-| Value | Name | Description |
-|-------|------|-------------|
-| 0 | `Visible` | Text overflows the rectangle boundary |
-| 1 | `Clip` | Text is clipped at the boundary |
-| 2 | `Ellipsis` | Truncated text shows "..." |
-
-## Modifying Text at Runtime
-
-To update text content or style during gameplay, query the `Text` component with `Mut()`:
+To create UI from code:
 
 ```typescript
-import { defineSystem, addSystem, Query, Mut } from 'esengine';
-import { Text } from 'esengine';
+import { defineSystem, addStartupSystem, Commands, Transform, Sprite, UIRect, Text, Parent } from 'esengine';
+
+addStartupSystem(defineSystem([Commands()], (cmds) => {
+    const root = cmds.spawn()
+        .insert(Transform)
+        .insert(UIRect, { anchorMin: { x: 0, y: 0 }, anchorMax: { x: 1, y: 1 } })
+        .id();
+
+    cmds.spawn()
+        .insert(Transform)
+        .insert(Sprite)
+        .insert(UIRect, { size: { x: 200, y: 40 } })
+        .insert(Text, { content: 'Hello World', fontSize: 24 })
+        .insert(Parent, { entity: root });
+}));
+```
+
+## Layout
+
+### UIRect
+
+Every UI element needs a `UIRect` to participate in layout. It defines position and size relative to the parent using an anchor-based system.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `anchorMin` | Vec2 | `{0.5, 0.5}` | Bottom-left anchor (0–1) |
+| `anchorMax` | Vec2 | `{0.5, 0.5}` | Top-right anchor (0–1) |
+| `offsetMin` | Vec2 | `{0, 0}` | Pixel offset from anchorMin |
+| `offsetMax` | Vec2 | `{0, 0}` | Pixel offset from anchorMax |
+| `size` | Vec2 | `{100, 100}` | Width and height (when anchors are equal) |
+| `pivot` | Vec2 | `{0.5, 0.5}` | Pivot point for rotation and scaling |
+
+When `anchorMin` equals `anchorMax`, the element has a fixed `size` at the anchor point. When they differ, the element stretches between anchors and size is computed automatically.
+
+### FlexContainer
+
+CSS Flexbox-like layout for automatic child arrangement.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `direction` | FlexDirection | `Row` | `Row`, `Column`, `RowReverse`, `ColumnReverse` |
+| `wrap` | FlexWrap | `NoWrap` | `NoWrap`, `Wrap` |
+| `justifyContent` | JustifyContent | `Start` | `Start`, `Center`, `End`, `SpaceBetween`, `SpaceAround`, `SpaceEvenly` |
+| `alignItems` | AlignItems | `Stretch` | `Start`, `Center`, `End`, `Stretch` |
+| `gap` | Vec2 | `{0, 0}` | Spacing between items |
+| `padding` | Vec4 | `{0, 0, 0, 0}` | Top, Right, Bottom, Left padding |
+
+### FlexItem
+
+Child properties for entities inside a `FlexContainer`.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `flexGrow` | number | `0` | How much the item grows to fill space |
+| `flexShrink` | number | `1` | How much the item shrinks when space is tight |
+| `flexBasis` | number | `-1` | Base size before grow/shrink (-1 = auto) |
+| `order` | number | `0` | Display order override |
+
+### LayoutGroup
+
+Grid-like layout with direction, spacing, and alignment.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `direction` | LayoutDirection | `Horizontal` | `Horizontal` (0), `Vertical` (1) |
+| `spacing` | number | `0` | Space between children |
+| `padding` | object | `{left:0, top:0, right:0, bottom:0}` | Border spacing |
+| `childAlignment` | ChildAlignment | `Start` | `Start`, `Center`, `End` |
+| `reverseOrder` | boolean | `false` | Reverse layout order |
+
+## Text
+
+### Text Component
+
+Renders styled text into a `Sprite` texture automatically via `TextPlugin`.
+
+**Setup:** Add `Transform`, `Sprite`, `UIRect`, and `Text` to an entity.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `content` | string | `''` | Text content |
+| `fontFamily` | string | `'Arial'` | Font family name |
+| `fontSize` | number | `24` | Font size in pixels |
+| `color` | Color | `{r:1, g:1, b:1, a:1}` | Text color RGBA |
+| `align` | TextAlign | `Left` | `Left` (0), `Center` (1), `Right` (2) |
+| `verticalAlign` | TextVerticalAlign | `Top` | `Top` (0), `Middle` (1), `Bottom` (2) |
+| `wordWrap` | boolean | `true` | Enable word wrapping |
+| `overflow` | TextOverflow | `Visible` | `Visible` (0), `Clip` (1), `Ellipsis` (2) |
+| `lineHeight` | number | `1.2` | Line height multiplier |
+
+<Aside type="note">
+  You don't need to configure the Sprite manually. `TextPlugin` creates and updates the texture from the Text content.
+</Aside>
+
+### Modifying Text at Runtime
+
+```typescript
+import { defineSystem, addSystem, Query, Mut, Text } from 'esengine';
 
 addSystem(defineSystem(
     [Query(Mut(Text))],
@@ -91,134 +128,31 @@ addSystem(defineSystem(
 ));
 ```
 
-<Aside type="caution">
-  Always use `Mut(Text)` when modifying text properties. Without `Mut()`, the component is read-only.
-</Aside>
+### Image
 
-## Example: Dynamic Scoreboard
-
-A common pattern is a score display that updates when a value changes:
-
-```typescript
-import { defineComponent, defineTag, defineSystem, addSystem, Query, Mut } from 'esengine';
-import { Text } from 'esengine';
-
-const ScoreDisplay = defineTag('ScoreDisplay');
-
-const GameState = defineComponent('GameState', {
-    score: 0,
-});
-
-addSystem(defineSystem(
-    [Query(Mut(Text), ScoreDisplay), Query(GameState)],
-    (displayQuery, stateQuery) => {
-        let score = 0;
-        for (const [, state] of stateQuery) {
-            score = state.score;
-        }
-        for (const [, text] of displayQuery) {
-            text.content = `Score: ${score}`;
-        }
-    }
-));
-```
-
-In the editor: create a text entity with `Text`, `UIRect`, `Sprite`, `LocalTransform`, and the `ScoreDisplay` tag.
-
-## UIMask
-
-`UIMask` clips child entities to the parent entity's `UIRect` bounds. Any child that extends beyond the rectangle is visually cropped.
-
-**Setup:** Add `UIMask`, `UIRect`, and `LocalTransform` to the parent entity. All child entities (and their descendants) will be clipped to this rectangle.
-
-<Aside type="note">
-  `UIMaskPlugin` is registered automatically by `createWebApp()`. No manual setup is needed.
-</Aside>
-
-### UIMask Properties
+Displays images with support for slicing, tiling, and fill modes.
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `enabled` | boolean | `true` | Whether clipping is active |
+| `texture` | number | — | Texture asset handle |
+| `color` | Color | `{r:1, g:1, b:1, a:1}` | Color tint |
+| `imageType` | ImageType | `Simple` | `Simple` (0), `Sliced` (1), `Tiled` (2), `Filled` (3) |
+| `fillMethod` | FillMethod | `Horizontal` | `Horizontal` (0), `Vertical` (1) |
+| `fillOrigin` | FillOrigin | `Left` | `Left` (0), `Right` (1), `Bottom` (2), `Top` (3) |
+| `fillAmount` | number | `1` | Fill progress 0–1 |
+| `preserveAspect` | boolean | `false` | Maintain aspect ratio |
+| `enabled` | boolean | `true` | Visibility toggle |
 
-### Nesting
-
-When a child entity also has `UIMask`, its clip rectangle is the intersection of its own `UIRect` and the parent's clip rect. This allows nested scroll areas or layered clipping.
-
-<Aside type="caution">
-  `UIMask` only clips **child** entities — the entity with UIMask itself is not clipped.
-</Aside>
-
-### Example: Scrollable List
-
-Create a mask container, then move child entities to scroll:
-
-```typescript
-import { defineSystem, addSystem, Res, Input, Query, Mut, LocalTransform, Children } from 'esengine';
-import { UIMask } from 'esengine';
-import { ScrollList } from './components';
-
-addSystem(defineSystem(
-    [Res(Input), Query(Children, UIMask, ScrollList), Query(Mut(LocalTransform))],
-    (input, maskQuery, childQuery) => {
-        const scrollDelta = input.getScrollDelta();
-        if (scrollDelta.y === 0) return;
-
-        for (const [entity, children] of maskQuery) {
-            for (const [childEntity, transform] of childQuery) {
-                if (children.entities.includes(childEntity)) {
-                    transform.position.y += scrollDelta.y * 20;
-                }
-            }
-        }
-    }
-));
-```
-
-## UI Interaction
-
-ESEngine provides a built-in UI interaction system for handling hover, press, and click events on UI elements.
-
-### Setup
-
-Add the `Interactable` component to any UI entity with `UIRect` and `LocalTransform`. The `UIInteractionPlugin` (registered automatically by `createWebApp()`) performs hit testing each frame and manages interaction state.
+## Interaction
 
 ### Interactable
 
-Marks an entity as interactive.
+Marks a UI entity as interactive (receives pointer events). Required for all interactive widgets.
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `enabled` | boolean | `true` | Whether interaction is enabled |
-
-### Button
-
-Adds a state machine on top of `Interactable` with optional color transitions.
-
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
-| `state` | ButtonState | `Normal` | Current button state (read-only at runtime) |
-| `transition` | ButtonTransition \| null | `null` | Color transition configuration |
-
-**ButtonState:** `Normal` (0), `Hovered` (1), `Pressed` (2), `Disabled` (3)
-
-When `transition` is set, the `Sprite` color is automatically updated on state change:
-
-```typescript
-import { defineSystem, Commands, Button, Interactable } from 'esengine';
-
-defineSystem([Commands()], (cmds) => {
-    cmds.entity(entity).insert(Button, {
-        state: 0,
-        transition: {
-            normalColor: { r: 1, g: 1, b: 1, a: 1 },
-            hoveredColor: { r: 0.9, g: 0.9, b: 0.9, a: 1 },
-            pressedColor: { r: 0.7, g: 0.7, b: 0.7, a: 1 },
-            disabledColor: { r: 0.5, g: 0.5, b: 0.5, a: 0.5 },
-        },
-    });
-});
-```
+| `enabled` | boolean | `true` | Whether interaction is active |
+| `blockRaycast` | boolean | `true` | Block events from reaching elements behind |
 
 ### UIInteraction
 
@@ -233,7 +167,7 @@ Automatically added by the plugin to entities with `Interactable`. Provides per-
 
 ### UIEvents
 
-The `UIEvents` resource collects interaction events each frame. Query it in systems:
+The `UIEvents` resource collects interaction events each frame:
 
 ```typescript
 import { defineSystem, addSystem, Res } from 'esengine';
@@ -243,83 +177,89 @@ addSystem(defineSystem(
     [Res(UIEvents)],
     (events) => {
         for (const e of events.query('click')) {
-            console.log('Clicked entity:', e.entity);
+            console.log('Clicked:', e.entity);
         }
     }
 ));
 ```
 
-**Event types:** `click`, `press`, `release`, `hover_enter`, `hover_exit`, `submit`, `change`
+**Event types:** `click`, `press`, `release`, `hover_enter`, `hover_exit`, `focus`, `blur`, `submit`, `change`, `drag_start`, `drag_move`, `drag_end`, `scroll`
 
-### ScreenSpace
+Events bubble up the entity hierarchy. If a parent has `Interactable` with `blockRaycast: true`, bubbling stops there.
 
-A tag component for root UI entities. Entities with `ScreenSpace`, `UIRect`, and `LocalTransform` are laid out relative to the camera bounds by `UILayoutPlugin`.
+### Focusable
 
-```typescript
-import { defineSystem, Commands, ScreenSpace, UIRect, LocalTransform } from 'esengine';
-
-defineSystem([Commands()], (cmds) => {
-    cmds.entity(entity)
-        .insert(ScreenSpace)
-        .insert(UIRect, {
-            anchorMin: { x: 0, y: 0 },
-            anchorMax: { x: 1, y: 1 },
-            offsetMin: { x: 0, y: 0 },
-            offsetMax: { x: 0, y: 0 },
-            size: { x: 100, y: 100 },
-            pivot: { x: 0.5, y: 0.5 },
-        });
-});
-```
-
-<Aside type="note">
-  Both `UILayoutPlugin` and `UIInteractionPlugin` are registered automatically by `createWebApp()`. No manual setup is needed.
-</Aside>
-
-## TextInput
-
-`TextInput` renders an editable text field. The `TextInputPlugin` handles keyboard input, cursor blinking, and texture rendering automatically.
-
-### Setup
-
-In the editor: create an entity via right-click → **Create** → **UI** → **TextInput**, or manually add `LocalTransform`, `UIRect`, `Interactable`, and `TextInput` components.
-
-<Aside type="note">
-  The plugin automatically adds a `Sprite` component if missing — no manual setup needed. `TextInputPlugin` is registered automatically by `createWebApp()`.
-</Aside>
-
-### TextInput Properties
+Enables keyboard focus and Tab navigation.
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `value` | string | `''` | Current text content |
-| `placeholder` | string | `''` | Hint text shown when empty |
-| `placeholderColor` | Color | `{r:0.6, g:0.6, b:0.6, a:1}` | Placeholder text color |
-| `fontFamily` | string | `'Arial'` | Font family name |
-| `fontSize` | number | `16` | Font size in pixels |
-| `color` | Color | `{r:1, g:1, b:1, a:1}` | Text color |
-| `backgroundColor` | Color | `{r:0.15, g:0.15, b:0.15, a:1}` | Background fill color |
-| `padding` | number | `6` | Padding in pixels |
-| `maxLength` | number | `0` | Max characters (0 = unlimited) |
-| `multiline` | boolean | `false` | Allow multi-line input |
-| `password` | boolean | `false` | Mask text with bullets |
-| `readOnly` | boolean | `false` | Prevent user input |
+| `tabIndex` | number | `0` | Focus order (lower = earlier) |
+| `isFocused` | boolean | `false` | Current focus state |
 
-The `focused`, `cursorPos`, and `dirty` properties are managed internally by the plugin.
+## Widgets
 
-### Reading Input at Runtime
+### Button
+
+State machine on top of `Interactable` with optional color transitions.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `state` | ButtonState | `Normal` | `Normal` (0), `Hovered` (1), `Pressed` (2), `Disabled` (3) |
+| `transition` | ColorTransition \| null | `null` | Color per state |
 
 ```typescript
-import { defineSystem, addSystem, Query, Res } from 'esengine';
-import { TextInput, UIEvents } from 'esengine';
+cmds.entity(button).insert(Button, {
+    state: 0,
+    transition: {
+        normalColor:   { r: 1, g: 1, b: 1, a: 1 },
+        hoveredColor:  { r: 0.9, g: 0.9, b: 0.9, a: 1 },
+        pressedColor:  { r: 0.7, g: 0.7, b: 0.7, a: 1 },
+        disabledColor: { r: 0.5, g: 0.5, b: 0.5, a: 0.5 },
+    },
+});
+```
 
+### Toggle
+
+Checkbox with optional group for mutual exclusion.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `isOn` | boolean | `true` | Toggle state |
+| `graphicEntity` | Entity | `0` | Child entity to show/hide (checkmark) |
+| `group` | Entity | `0` | ToggleGroup entity for radio-button behavior |
+| `transition` | ColorTransition \| null | `null` | Color transition |
+
+**ToggleGroup** — attach to a parent entity to make child toggles mutually exclusive:
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `allowSwitchOff` | boolean | `false` | Allow all toggles to be off |
+
+### Slider
+
+Interactive value slider with a fill and optional draggable handle.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `value` | number | `0` | Current value |
+| `minValue` | number | `0` | Minimum value |
+| `maxValue` | number | `1` | Maximum value |
+| `direction` | FillDirection | `LeftToRight` | `LeftToRight` (0), `RightToLeft` (1), `BottomToTop` (2), `TopToBottom` (3) |
+| `fillEntity` | Entity | `0` | Child entity for fill visualization |
+| `handleEntity` | Entity | `0` | Child entity for draggable handle |
+| `wholeNumbers` | boolean | `false` | Snap to integers |
+
+Listen for value changes:
+
+```typescript
 addSystem(defineSystem(
-    [Query(TextInput), Res(UIEvents)],
-    (query, events) => {
-        for (const e of events.query('submit')) {
-            for (const [entity, input] of query) {
+    [Res(UIEvents), Query(Slider)],
+    (events, query) => {
+        for (const e of events.query('change')) {
+            for (const [entity, slider] of query) {
                 if (entity === e.entity) {
-                    console.log('Submitted:', input.value);
+                    console.log('Slider value:', slider.value);
                 }
             }
         }
@@ -327,11 +267,152 @@ addSystem(defineSystem(
 ));
 ```
 
-**TextInput events:** `change` (value changed), `submit` (Enter pressed in single-line mode)
+### ProgressBar
+
+Non-interactive progress display.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `value` | number | `0` | Progress 0–1 |
+| `fillEntity` | Entity | `0` | Child entity for fill |
+| `direction` | FillDirection | `LeftToRight` | Fill direction |
+
+```typescript
+// Update progress
+addSystem(defineSystem(
+    [Res(Time), Query(Mut(ProgressBar))],
+    (time, query) => {
+        for (const [entity, bar] of query) {
+            bar.value = Math.min(1, bar.value + time.delta * 0.1);
+        }
+    }
+));
+```
+
+### Dropdown
+
+Dropdown list selector.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `options` | string[] | `[]` | Option labels |
+| `selectedIndex` | number | `-1` | Selected option index |
+| `isOpen` | boolean | `false` | List visibility |
+| `listEntity` | Entity | `0` | Child entity for dropdown list |
+| `labelEntity` | Entity | `0` | Child entity for selected label |
+
+### ScrollView
+
+Scrollable container with momentum and elastic bounce.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `contentEntity` | Entity | `0` | Child holding scrollable content |
+| `horizontalEnabled` | boolean | `false` | Enable horizontal scroll |
+| `verticalEnabled` | boolean | `true` | Enable vertical scroll |
+| `scrollX` | number | `0` | Current horizontal offset |
+| `scrollY` | number | `0` | Current vertical offset |
+| `inertia` | boolean | `true` | Enable momentum scrolling |
+| `decelerationRate` | number | `0.135` | Momentum friction |
+| `elastic` | boolean | `true` | Bounce at edges |
+| `wheelSensitivity` | number | `0.1` | Mouse wheel amount |
+
+### ListView
+
+Virtual scrolling for large lists — only visible items are rendered.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `itemHeight` | number | `40` | Fixed item height |
+| `itemCount` | number | `0` | Total items |
+| `scrollY` | number | `0` | Scroll position |
+| `overscan` | number | `2` | Extra items above/below viewport |
+
+### TextInput
+
+Editable text field with cursor, selection, and placeholder.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `value` | string | `''` | Current text |
+| `placeholder` | string | `''` | Hint when empty |
+| `placeholderColor` | Color | `{r:0.6, g:0.6, b:0.6, a:1}` | Placeholder color |
+| `fontFamily` | string | `'Arial'` | Font family |
+| `fontSize` | number | `16` | Font size |
+| `color` | Color | `{r:1, g:1, b:1, a:1}` | Text color |
+| `backgroundColor` | Color | `{r:0.15, g:0.15, b:0.15, a:1}` | Background color |
+| `padding` | number | `6` | Internal padding |
+| `maxLength` | number | `0` | Max characters (0 = unlimited) |
+| `multiline` | boolean | `false` | Allow line breaks |
+| `password` | boolean | `false` | Mask text |
+| `readOnly` | boolean | `false` | Prevent editing |
+
+**Events:** `change` (value changed), `submit` (Enter pressed in single-line mode)
+
+### Draggable
+
+Enables drag-to-move on a UI element.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `enabled` | boolean | `true` | Enable dragging |
+| `dragThreshold` | number | `5` | Pixels before drag starts |
+| `lockX` | boolean | `false` | Lock horizontal movement |
+| `lockY` | boolean | `false` | Lock vertical movement |
+
+## Masking
+
+### UIMask
+
+Clips child entities to the parent's `UIRect` bounds.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `enabled` | boolean | `true` | Whether clipping is active |
+| `mode` | MaskMode | `Scissor` | `Scissor` (0), `Stencil` (1) |
+
+Nested `UIMask` entities clip to the intersection of all parent masks.
+
+<Aside type="caution">
+  `UIMask` only clips **child** entities — the entity with UIMask itself is not clipped.
+</Aside>
+
+## SafeArea
+
+Adapts layout to device safe areas (notches, rounded corners). Useful for mobile and WeChat MiniGame.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `applyTop` | boolean | `true` | Apply to top edge |
+| `applyBottom` | boolean | `true` | Apply to bottom edge |
+| `applyLeft` | boolean | `true` | Apply to left edge |
+| `applyRight` | boolean | `true` | Apply to right edge |
+
+## Example: Score Display
+
+```typescript
+import { defineTag, defineSystem, addSystem, Query, Mut, Changed, Text } from 'esengine';
+
+const ScoreDisplay = defineTag('ScoreDisplay');
+const GameState = defineComponent('GameState', { score: 0 });
+
+addSystem(defineSystem(
+    [Query(Mut(Text), ScoreDisplay), Query(Changed(GameState))],
+    (displays, stateQuery) => {
+        if (stateQuery.isEmpty()) return;
+        const [, state] = stateQuery.single()!;
+        for (const [, text] of displays) {
+            text.content = `Score: ${state.score}`;
+        }
+    }
+));
+```
+
+Uses [Change Detection](/microes/core-concepts/change-detection/) to only update text when the score actually changes.
 
 ## Next Steps
 
 - [Components](/microes/core-concepts/components/) — all builtin components
 - [Sprite](/microes/guides/sprite/) — sprite rendering details
 - [Bitmap Text](/microes/guides/bitmap-text/) — GPU-rendered bitmap font text
-- [Asset Loading](/microes/guides/assets/) — loading textures and other assets
+- [Input Handling](/microes/guides/input/) — keyboard, mouse, and touch input

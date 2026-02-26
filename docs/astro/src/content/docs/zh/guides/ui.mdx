@@ -1,84 +1,121 @@
 ---
 title: UI 与文本
-description: ESEngine 中的文本渲染和 UI 布局组件
+description: ESEngine 中的 UI 组件、布局、交互和文本渲染
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-`Text` 和 `UIRect` 组件配合 `Sprite` 实现游戏中的文本渲染。`TextPlugin` 会在每帧自动将文本内容转换为纹理。
-
-## 设置步骤
-
-在场景编辑器中：创建实体 → 添加 `LocalTransform`、`Sprite`、`Text` 和 `UIRect` 组件。
-
-- **Text** — 定义文本内容和样式（字体、大小、颜色、对齐）
-- **UIRect** — 定义布局矩形（尺寸、锚点、旋转中心）
-- **Sprite** — 文本系统内部使用，用于显示渲染后的纹理
+ESEngine 提供了完整的 UI 框架，包含布局、交互、文本渲染和一系列预制控件。布局计算在 C++/WASM 中运行以确保性能，所有组件通过 TypeScript 配置。
 
 <Aside type="note">
-  无需手动配置 Sprite 组件。`TextPlugin` 会自动根据 Text 内容创建和更新精灵纹理。
+  所有 UI 插件由 `createWebApp()` 自动注册，无需手动设置。
 </Aside>
 
-## Text 属性
+## 快速开始
 
-| 属性 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| `content` | string | `''` | 显示的文本内容 |
-| `fontFamily` | string | `'Arial'` | 字体名称 |
-| `fontSize` | number | `24` | 字号（像素） |
-| `color` | Color | `{r:1, g:1, b:1, a:1}` | 文本颜色 RGBA（0–1） |
-| `align` | TextAlign | `Left` | 水平对齐方式（编辑器默认为 `Center`） |
-| `verticalAlign` | TextVerticalAlign | `Top` | 垂直对齐方式（编辑器默认为 `Middle`） |
-| `wordWrap` | boolean | `true` | 启用自动换行 |
-| `overflow` | TextOverflow | `Visible` | 溢出处理模式 |
-| `lineHeight` | number | `1.2` | 行高倍率 |
+在编辑器中：右键 Hierarchy → **Create** → **UI** → 选择一个控件（Button、Slider、Text 等）。编辑器会创建预配置好所有必需组件的实体层级。
 
-## UIRect 属性
-
-| 属性 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| `anchorMin` | Vec2 | `{0.5, 0.5}` | 相对于父级的左下角锚点（0–1 范围） |
-| `anchorMax` | Vec2 | `{0.5, 0.5}` | 相对于父级的右上角锚点（0–1 范围） |
-| `offsetMin` | Vec2 | `{0, 0}` | 从 anchorMin 的像素偏移 |
-| `offsetMax` | Vec2 | `{0, 0}` | 从 anchorMax 的像素偏移 |
-| `size` | Vec2 | `{100, 100}` | 宽高（anchorMin 等于 anchorMax 时使用） |
-| `pivot` | Vec2 | `{0.5, 0.5}` | 旋转和缩放的中心点 |
-
-当 `anchorMin` 等于 `anchorMax` 时，元素具有固定 `size`，定位在锚点位置。当两者不同时，元素在两个锚点之间拉伸，`size` 由 `UILayoutPlugin` 自动计算。
-
-## 枚举类型
-
-### TextAlign
-
-| 值 | 名称 | 说明 |
-|----|------|------|
-| 0 | `Left` | 左对齐 |
-| 1 | `Center` | 居中对齐 |
-| 2 | `Right` | 右对齐 |
-
-### TextVerticalAlign
-
-| 值 | 名称 | 说明 |
-|----|------|------|
-| 0 | `Top` | 顶部对齐 |
-| 1 | `Middle` | 垂直居中 |
-| 2 | `Bottom` | 底部对齐 |
-
-### TextOverflow
-
-| 值 | 名称 | 说明 |
-|----|------|------|
-| 0 | `Visible` | 文本溢出矩形边界 |
-| 1 | `Clip` | 在边界处裁剪 |
-| 2 | `Ellipsis` | 截断处显示省略号 |
-
-## 运行时修改文本
-
-在系统中通过 `Mut()` 查询 `Text` 组件来更新文本内容或样式：
+通过代码创建 UI：
 
 ```typescript
-import { defineSystem, addSystem, Query, Mut } from 'esengine';
-import { Text } from 'esengine';
+import { defineSystem, addStartupSystem, Commands, Transform, Sprite, UIRect, Text, Parent } from 'esengine';
+
+addStartupSystem(defineSystem([Commands()], (cmds) => {
+    const root = cmds.spawn()
+        .insert(Transform)
+        .insert(UIRect, { anchorMin: { x: 0, y: 0 }, anchorMax: { x: 1, y: 1 } })
+        .id();
+
+    cmds.spawn()
+        .insert(Transform)
+        .insert(Sprite)
+        .insert(UIRect, { size: { x: 200, y: 40 } })
+        .insert(Text, { content: 'Hello World', fontSize: 24 })
+        .insert(Parent, { entity: root });
+}));
+```
+
+## 布局
+
+### UIRect
+
+每个 UI 元素都需要 `UIRect` 来参与布局。它使用锚点系统定义相对于父级的位置和尺寸。
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `anchorMin` | Vec2 | `{0.5, 0.5}` | 左下锚点（0–1） |
+| `anchorMax` | Vec2 | `{0.5, 0.5}` | 右上锚点（0–1） |
+| `offsetMin` | Vec2 | `{0, 0}` | 相对 anchorMin 的像素偏移 |
+| `offsetMax` | Vec2 | `{0, 0}` | 相对 anchorMax 的像素偏移 |
+| `size` | Vec2 | `{100, 100}` | 宽高（锚点相等时使用） |
+| `pivot` | Vec2 | `{0.5, 0.5}` | 旋转和缩放中心点 |
+
+当 `anchorMin` 等于 `anchorMax` 时，元素在锚点处具有固定 `size`。当两者不同时，元素在锚点之间拉伸，尺寸自动计算。
+
+### FlexContainer
+
+类似 CSS Flexbox 的自动子元素排列布局。
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `direction` | FlexDirection | `Row` | `Row`、`Column`、`RowReverse`、`ColumnReverse` |
+| `wrap` | FlexWrap | `NoWrap` | `NoWrap`、`Wrap` |
+| `justifyContent` | JustifyContent | `Start` | `Start`、`Center`、`End`、`SpaceBetween`、`SpaceAround`、`SpaceEvenly` |
+| `alignItems` | AlignItems | `Stretch` | `Start`、`Center`、`End`、`Stretch` |
+| `gap` | Vec2 | `{0, 0}` | 子元素间距 |
+| `padding` | Vec4 | `{0, 0, 0, 0}` | 上、右、下、左内边距 |
+
+### FlexItem
+
+`FlexContainer` 内子实体的 Flex 属性。
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `flexGrow` | number | `0` | 扩展以填充空间的比例 |
+| `flexShrink` | number | `1` | 空间不足时收缩的比例 |
+| `flexBasis` | number | `-1` | 扩展/收缩前的基础尺寸（-1 = 自动） |
+| `order` | number | `0` | 显示顺序覆盖 |
+
+### LayoutGroup
+
+带方向、间距和对齐的网格式布局。
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `direction` | LayoutDirection | `Horizontal` | `Horizontal` (0)、`Vertical` (1) |
+| `spacing` | number | `0` | 子元素间距 |
+| `padding` | object | `{left:0, top:0, right:0, bottom:0}` | 边距 |
+| `childAlignment` | ChildAlignment | `Start` | `Start`、`Center`、`End` |
+| `reverseOrder` | boolean | `false` | 反向排列 |
+
+## 文本
+
+### Text 组件
+
+通过 `TextPlugin` 自动将样式化文本渲染为 `Sprite` 纹理。
+
+**设置：** 在实体上添加 `Transform`、`Sprite`、`UIRect` 和 `Text`。
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `content` | string | `''` | 文本内容 |
+| `fontFamily` | string | `'Arial'` | 字体名称 |
+| `fontSize` | number | `24` | 字号（像素） |
+| `color` | Color | `{r:1, g:1, b:1, a:1}` | 文本颜色 RGBA |
+| `align` | TextAlign | `Left` | `Left` (0)、`Center` (1)、`Right` (2) |
+| `verticalAlign` | TextVerticalAlign | `Top` | `Top` (0)、`Middle` (1)、`Bottom` (2) |
+| `wordWrap` | boolean | `true` | 启用自动换行 |
+| `overflow` | TextOverflow | `Visible` | `Visible` (0)、`Clip` (1)、`Ellipsis` (2) |
+| `lineHeight` | number | `1.2` | 行高倍率 |
+
+<Aside type="note">
+  无需手动配置 Sprite。`TextPlugin` 会自动从 Text 内容创建和更新纹理。
+</Aside>
+
+### 运行时修改文本
+
+```typescript
+import { defineSystem, addSystem, Query, Mut, Text } from 'esengine';
 
 addSystem(defineSystem(
     [Query(Mut(Text))],
@@ -91,134 +128,31 @@ addSystem(defineSystem(
 ));
 ```
 
-<Aside type="caution">
-  修改文本属性时必须使用 `Mut(Text)`。不使用 `Mut()` 时组件为只读。
-</Aside>
+### Image
 
-## 示例：动态计分板
-
-一种常见模式是在数值变化时更新分数显示：
-
-```typescript
-import { defineComponent, defineTag, defineSystem, addSystem, Query, Mut } from 'esengine';
-import { Text } from 'esengine';
-
-const ScoreDisplay = defineTag('ScoreDisplay');
-
-const GameState = defineComponent('GameState', {
-    score: 0,
-});
-
-addSystem(defineSystem(
-    [Query(Mut(Text), ScoreDisplay), Query(GameState)],
-    (displayQuery, stateQuery) => {
-        let score = 0;
-        for (const [, state] of stateQuery) {
-            score = state.score;
-        }
-        for (const [, text] of displayQuery) {
-            text.content = `分数：${score}`;
-        }
-    }
-));
-```
-
-在编辑器中：创建一个文本实体，添加 `Text`、`UIRect`、`Sprite`、`LocalTransform` 和 `ScoreDisplay` 标签。
-
-## UIMask
-
-`UIMask` 将子实体裁剪到父实体的 `UIRect` 边界内。任何超出矩形的子实体部分会被视觉裁切。
-
-**设置：** 在父实体上添加 `UIMask`、`UIRect` 和 `LocalTransform`。所有子实体（及其后代）都会被裁剪到该矩形范围内。
-
-<Aside type="note">
-  `UIMaskPlugin` 由 `createWebApp()` 自动注册，无需手动设置。
-</Aside>
-
-### UIMask 属性
+显示图片，支持切片、平铺和填充模式。
 
 | 属性 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| `enabled` | boolean | `true` | 是否启用裁剪 |
+| `texture` | number | — | 纹理资产句柄 |
+| `color` | Color | `{r:1, g:1, b:1, a:1}` | 颜色着色 |
+| `imageType` | ImageType | `Simple` | `Simple` (0)、`Sliced` (1)、`Tiled` (2)、`Filled` (3) |
+| `fillMethod` | FillMethod | `Horizontal` | `Horizontal` (0)、`Vertical` (1) |
+| `fillOrigin` | FillOrigin | `Left` | `Left` (0)、`Right` (1)、`Bottom` (2)、`Top` (3) |
+| `fillAmount` | number | `1` | 填充进度 0–1 |
+| `preserveAspect` | boolean | `false` | 保持宽高比 |
+| `enabled` | boolean | `true` | 可见性开关 |
 
-### 嵌套遮罩
-
-当子实体也拥有 `UIMask` 时，其裁剪矩形为自身 `UIRect` 与父级裁剪矩形的交集。这允许嵌套滚动区域或分层裁剪。
-
-<Aside type="caution">
-  `UIMask` 只裁剪**子实体** — 拥有 UIMask 的实体自身不会被裁剪。
-</Aside>
-
-### 示例：可滚动列表
-
-创建遮罩容器，然后移动子实体来实现滚动：
-
-```typescript
-import { defineSystem, addSystem, Res, Input, Query, Mut, LocalTransform, Children } from 'esengine';
-import { UIMask } from 'esengine';
-import { ScrollList } from './components';
-
-addSystem(defineSystem(
-    [Res(Input), Query(Children, UIMask, ScrollList), Query(Mut(LocalTransform))],
-    (input, maskQuery, childQuery) => {
-        const scrollDelta = input.getScrollDelta();
-        if (scrollDelta.y === 0) return;
-
-        for (const [entity, children] of maskQuery) {
-            for (const [childEntity, transform] of childQuery) {
-                if (children.entities.includes(childEntity)) {
-                    transform.position.y += scrollDelta.y * 20;
-                }
-            }
-        }
-    }
-));
-```
-
-## UI 交互
-
-ESEngine 提供了内置的 UI 交互系统，用于处理 UI 元素的悬停、按压和点击事件。
-
-### 设置
-
-在任何拥有 `UIRect` 和 `LocalTransform` 的 UI 实体上添加 `Interactable` 组件。`UIInteractionPlugin`（由 `createWebApp()` 自动注册）每帧执行命中检测并管理交互状态。
+## 交互
 
 ### Interactable
 
-标记实体为可交互。
+将 UI 实体标记为可交互（接收指针事件）。所有交互控件都需要此组件。
 
 | 属性 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
 | `enabled` | boolean | `true` | 是否启用交互 |
-
-### Button
-
-在 `Interactable` 基础上添加状态机，支持可选的颜色过渡。
-
-| 属性 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| `state` | ButtonState | `Normal` | 当前按钮状态（运行时只读） |
-| `transition` | ButtonTransition \| null | `null` | 颜色过渡配置 |
-
-**ButtonState:** `Normal` (0)、`Hovered` (1)、`Pressed` (2)、`Disabled` (3)
-
-设置 `transition` 后，状态变化时 `Sprite` 颜色会自动更新：
-
-```typescript
-import { defineSystem, Commands, Button, Interactable } from 'esengine';
-
-defineSystem([Commands()], (cmds) => {
-    cmds.entity(entity).insert(Button, {
-        state: 0,
-        transition: {
-            normalColor: { r: 1, g: 1, b: 1, a: 1 },
-            hoveredColor: { r: 0.9, g: 0.9, b: 0.9, a: 1 },
-            pressedColor: { r: 0.7, g: 0.7, b: 0.7, a: 1 },
-            disabledColor: { r: 0.5, g: 0.5, b: 0.5, a: 0.5 },
-        },
-    });
-});
-```
+| `blockRaycast` | boolean | `true` | 阻止事件传递到后面的元素 |
 
 ### UIInteraction
 
@@ -226,14 +160,14 @@ defineSystem([Commands()], (cmds) => {
 
 | 属性 | 类型 | 说明 |
 |------|------|------|
-| `hovered` | boolean | 指针悬停在该实体上 |
-| `pressed` | boolean | 实体正在被按压 |
-| `justPressed` | boolean | 本帧开始按压 |
-| `justReleased` | boolean | 本帧释放按压 |
+| `hovered` | boolean | 指针悬停在此实体上 |
+| `pressed` | boolean | 实体正被按下 |
+| `justPressed` | boolean | 本帧开始按下 |
+| `justReleased` | boolean | 本帧释放按下 |
 
 ### UIEvents
 
-`UIEvents` 资源在每帧收集交互事件。在系统中查询：
+`UIEvents` 资源收集每帧的交互事件：
 
 ```typescript
 import { defineSystem, addSystem, Res } from 'esengine';
@@ -243,83 +177,89 @@ addSystem(defineSystem(
     [Res(UIEvents)],
     (events) => {
         for (const e of events.query('click')) {
-            console.log('点击了实体：', e.entity);
+            console.log('点击了：', e.entity);
         }
     }
 ));
 ```
 
-**事件类型：** `click`、`press`、`release`、`hover_enter`、`hover_exit`、`submit`、`change`
+**事件类型：** `click`、`press`、`release`、`hover_enter`、`hover_exit`、`focus`、`blur`、`submit`、`change`、`drag_start`、`drag_move`、`drag_end`、`scroll`
 
-### ScreenSpace
+事件沿实体层级向上冒泡。如果父级的 `Interactable` 设置了 `blockRaycast: true`，冒泡在此停止。
 
-用于根 UI 实体的标签组件。拥有 `ScreenSpace`、`UIRect` 和 `LocalTransform` 的实体会由 `UILayoutPlugin` 相对于相机边界进行布局。
+### Focusable
 
-```typescript
-import { defineSystem, Commands, ScreenSpace, UIRect, LocalTransform } from 'esengine';
-
-defineSystem([Commands()], (cmds) => {
-    cmds.entity(entity)
-        .insert(ScreenSpace)
-        .insert(UIRect, {
-            anchorMin: { x: 0, y: 0 },
-            anchorMax: { x: 1, y: 1 },
-            offsetMin: { x: 0, y: 0 },
-            offsetMax: { x: 0, y: 0 },
-            size: { x: 100, y: 100 },
-            pivot: { x: 0.5, y: 0.5 },
-        });
-});
-```
-
-<Aside type="note">
-  `UILayoutPlugin` 和 `UIInteractionPlugin` 均由 `createWebApp()` 自动注册，无需手动设置。
-</Aside>
-
-## TextInput
-
-`TextInput` 渲染一个可编辑文本输入框。`TextInputPlugin` 自动处理键盘输入、光标闪烁和纹理渲染。
-
-### 设置步骤
-
-在编辑器中：通过右键 → **Create** → **UI** → **TextInput** 创建实体，或手动添加 `LocalTransform`、`UIRect`、`Interactable` 和 `TextInput` 组件。
-
-<Aside type="note">
-  插件会在缺少 `Sprite` 组件时自动添加，无需手动设置。`TextInputPlugin` 由 `createWebApp()` 自动注册。
-</Aside>
-
-### TextInput 属性
+启用键盘焦点和 Tab 导航。
 
 | 属性 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| `value` | string | `''` | 当前文本内容 |
-| `placeholder` | string | `''` | 为空时显示的提示文本 |
-| `placeholderColor` | Color | `{r:0.6, g:0.6, b:0.6, a:1}` | 提示文本颜色 |
-| `fontFamily` | string | `'Arial'` | 字体名称 |
-| `fontSize` | number | `16` | 字号（像素） |
-| `color` | Color | `{r:1, g:1, b:1, a:1}` | 文本颜色 |
-| `backgroundColor` | Color | `{r:0.15, g:0.15, b:0.15, a:1}` | 背景填充颜色 |
-| `padding` | number | `6` | 内边距（像素） |
-| `maxLength` | number | `0` | 最大字符数（0 = 不限） |
-| `multiline` | boolean | `false` | 允许多行输入 |
-| `password` | boolean | `false` | 用圆点遮蔽文本 |
-| `readOnly` | boolean | `false` | 禁止用户输入 |
+| `tabIndex` | number | `0` | 焦点顺序（越小越早） |
+| `isFocused` | boolean | `false` | 当前焦点状态 |
 
-`focused`、`cursorPos` 和 `dirty` 属性由插件内部管理。
+## 控件
 
-### 运行时读取输入
+### Button
+
+在 `Interactable` 之上的状态机，支持可选颜色过渡。
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `state` | ButtonState | `Normal` | `Normal` (0)、`Hovered` (1)、`Pressed` (2)、`Disabled` (3) |
+| `transition` | ColorTransition \| null | `null` | 各状态颜色 |
 
 ```typescript
-import { defineSystem, addSystem, Query, Res } from 'esengine';
-import { TextInput, UIEvents } from 'esengine';
+cmds.entity(button).insert(Button, {
+    state: 0,
+    transition: {
+        normalColor:   { r: 1, g: 1, b: 1, a: 1 },
+        hoveredColor:  { r: 0.9, g: 0.9, b: 0.9, a: 1 },
+        pressedColor:  { r: 0.7, g: 0.7, b: 0.7, a: 1 },
+        disabledColor: { r: 0.5, g: 0.5, b: 0.5, a: 0.5 },
+    },
+});
+```
 
+### Toggle
+
+复选框，可选分组实现互斥。
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `isOn` | boolean | `true` | 开关状态 |
+| `graphicEntity` | Entity | `0` | 显示/隐藏的子实体（勾选标记） |
+| `group` | Entity | `0` | ToggleGroup 实体，实现单选按钮行为 |
+| `transition` | ColorTransition \| null | `null` | 颜色过渡 |
+
+**ToggleGroup** — 挂载到父实体使子级 Toggle 互斥：
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `allowSwitchOff` | boolean | `false` | 允许所有 Toggle 关闭 |
+
+### Slider
+
+交互式数值滑块，带填充和可选可拖拽手柄。
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `value` | number | `0` | 当前值 |
+| `minValue` | number | `0` | 最小值 |
+| `maxValue` | number | `1` | 最大值 |
+| `direction` | FillDirection | `LeftToRight` | `LeftToRight` (0)、`RightToLeft` (1)、`BottomToTop` (2)、`TopToBottom` (3) |
+| `fillEntity` | Entity | `0` | 填充可视化的子实体 |
+| `handleEntity` | Entity | `0` | 可拖拽手柄的子实体 |
+| `wholeNumbers` | boolean | `false` | 吸附到整数 |
+
+监听值变化：
+
+```typescript
 addSystem(defineSystem(
-    [Query(TextInput), Res(UIEvents)],
-    (query, events) => {
-        for (const e of events.query('submit')) {
-            for (const [entity, input] of query) {
+    [Res(UIEvents), Query(Slider)],
+    (events, query) => {
+        for (const e of events.query('change')) {
+            for (const [entity, slider] of query) {
                 if (entity === e.entity) {
-                    console.log('提交内容：', input.value);
+                    console.log('滑块值：', slider.value);
                 }
             }
         }
@@ -327,11 +267,151 @@ addSystem(defineSystem(
 ));
 ```
 
-**TextInput 事件：** `change`（值变更）、`submit`（单行模式下按回车）
+### ProgressBar
+
+非交互式进度条显示。
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `value` | number | `0` | 进度 0–1 |
+| `fillEntity` | Entity | `0` | 填充的子实体 |
+| `direction` | FillDirection | `LeftToRight` | 填充方向 |
+
+```typescript
+addSystem(defineSystem(
+    [Res(Time), Query(Mut(ProgressBar))],
+    (time, query) => {
+        for (const [entity, bar] of query) {
+            bar.value = Math.min(1, bar.value + time.delta * 0.1);
+        }
+    }
+));
+```
+
+### Dropdown
+
+下拉列表选择器。
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `options` | string[] | `[]` | 选项标签 |
+| `selectedIndex` | number | `-1` | 选中项索引 |
+| `isOpen` | boolean | `false` | 列表可见性 |
+| `listEntity` | Entity | `0` | 下拉列表的子实体 |
+| `labelEntity` | Entity | `0` | 显示选中标签的子实体 |
+
+### ScrollView
+
+带惯性和弹性回弹的滚动容器。
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `contentEntity` | Entity | `0` | 持有可滚动内容的子实体 |
+| `horizontalEnabled` | boolean | `false` | 启用水平滚动 |
+| `verticalEnabled` | boolean | `true` | 启用垂直滚动 |
+| `scrollX` | number | `0` | 当前水平偏移 |
+| `scrollY` | number | `0` | 当前垂直偏移 |
+| `inertia` | boolean | `true` | 启用惯性滚动 |
+| `decelerationRate` | number | `0.135` | 惯性摩擦力 |
+| `elastic` | boolean | `true` | 边缘回弹 |
+| `wheelSensitivity` | number | `0.1` | 鼠标滚轮灵敏度 |
+
+### ListView
+
+大列表虚拟滚动——仅渲染可见项目。
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `itemHeight` | number | `40` | 固定项目高度 |
+| `itemCount` | number | `0` | 总项目数 |
+| `scrollY` | number | `0` | 滚动位置 |
+| `overscan` | number | `2` | 视口上下额外渲染的项目数 |
+
+### TextInput
+
+可编辑文本输入框，支持光标、选择和占位符。
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `value` | string | `''` | 当前文本 |
+| `placeholder` | string | `''` | 为空时的提示 |
+| `placeholderColor` | Color | `{r:0.6, g:0.6, b:0.6, a:1}` | 占位符颜色 |
+| `fontFamily` | string | `'Arial'` | 字体 |
+| `fontSize` | number | `16` | 字号 |
+| `color` | Color | `{r:1, g:1, b:1, a:1}` | 文本颜色 |
+| `backgroundColor` | Color | `{r:0.15, g:0.15, b:0.15, a:1}` | 背景颜色 |
+| `padding` | number | `6` | 内边距 |
+| `maxLength` | number | `0` | 最大字符数（0 = 无限） |
+| `multiline` | boolean | `false` | 允许换行 |
+| `password` | boolean | `false` | 密码遮罩 |
+| `readOnly` | boolean | `false` | 禁止编辑 |
+
+**事件：** `change`（值变化）、`submit`（单行模式下按 Enter）
+
+### Draggable
+
+启用 UI 元素的拖拽移动。
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `enabled` | boolean | `true` | 启用拖拽 |
+| `dragThreshold` | number | `5` | 开始拖拽前的像素移动距离 |
+| `lockX` | boolean | `false` | 锁定水平移动 |
+| `lockY` | boolean | `false` | 锁定垂直移动 |
+
+## 遮罩
+
+### UIMask
+
+将子实体裁剪到父级 `UIRect` 边界内。
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `enabled` | boolean | `true` | 是否启用裁剪 |
+| `mode` | MaskMode | `Scissor` | `Scissor` (0)、`Stencil` (1) |
+
+嵌套 `UIMask` 实体会裁剪到所有父级遮罩的交集区域。
+
+<Aside type="caution">
+  `UIMask` 只裁剪**子**实体——拥有 UIMask 的实体本身不会被裁剪。
+</Aside>
+
+## SafeArea
+
+适配设备安全区域（刘海、圆角）。适用于移动端和微信小游戏。
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `applyTop` | boolean | `true` | 应用到顶部 |
+| `applyBottom` | boolean | `true` | 应用到底部 |
+| `applyLeft` | boolean | `true` | 应用到左侧 |
+| `applyRight` | boolean | `true` | 应用到右侧 |
+
+## 示例：分数显示
+
+```typescript
+import { defineTag, defineComponent, defineSystem, addSystem, Query, Mut, Changed, Text } from 'esengine';
+
+const ScoreDisplay = defineTag('ScoreDisplay');
+const GameState = defineComponent('GameState', { score: 0 });
+
+addSystem(defineSystem(
+    [Query(Mut(Text), ScoreDisplay), Query(Changed(GameState))],
+    (displays, stateQuery) => {
+        if (stateQuery.isEmpty()) return;
+        const [, state] = stateQuery.single()!;
+        for (const [, text] of displays) {
+            text.content = `分数：${state.score}`;
+        }
+    }
+));
+```
+
+使用[变更检测](/microes/zh/core-concepts/change-detection/)，仅在分数实际变化时更新文本。
 
 ## 下一步
 
 - [组件](/microes/zh/core-concepts/components/) — 所有内置组件
-- [精灵](/microes/zh/guides/sprite/) — 精灵渲染详解
+- [精灵](/microes/zh/guides/sprite/) — 精灵渲染详情
 - [位图文本](/microes/zh/guides/bitmap-text/) — GPU 渲染的位图字体文本
-- [资源加载](/microes/zh/guides/assets/) — 加载纹理和其他资源
+- [输入处理](/microes/zh/guides/input/) — 键盘、鼠标和触摸输入

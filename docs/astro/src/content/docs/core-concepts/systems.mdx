@@ -10,10 +10,10 @@ Systems contain game logic. They declare what data they need via parameters, and
 ## Defining Systems
 
 ```typescript
-import { defineSystem, Res, Time, Query, Mut, LocalTransform, Velocity } from 'esengine';
+import { defineSystem, Res, Time, Query, Mut, Transform, Velocity } from 'esengine';
 
 const movementSystem = defineSystem(
-    [Res(Time), Query(Mut(LocalTransform), Velocity)],
+    [Res(Time), Query(Mut(Transform), Velocity)],
     (time, query) => {
         for (const [entity, transform, velocity] of query) {
             transform.position.x += velocity.linear.x * time.delta;
@@ -23,11 +23,11 @@ const movementSystem = defineSystem(
 );
 ```
 
-This system automatically processes every entity in the scene that has both `LocalTransform` and `Velocity` components.
+This system automatically processes every entity in the scene that has both `Transform` and `Velocity` components.
 
 `defineSystem` takes two arguments:
 
-1. **Parameters** — an array of `Query`, `Res`, `ResMut`, or `Commands` descriptors
+1. **Parameters** — an array of `Query`, `Res`, `ResMut`, `Commands`, `EventWriter`, or `EventReader` descriptors
 2. **Function** — receives the resolved parameters in the same order
 
 ## Registering Systems
@@ -76,16 +76,16 @@ addSystemToSchedule(Schedule.FixedUpdate, physicsSystem);
 By default, systems within the same Schedule run in registration order. If you need to enforce execution order between systems, use the third argument to `defineSystem` to specify `runBefore` or `runAfter`:
 
 ```typescript
-import { defineSystem, Query, Res, Time, Mut, LocalTransform, Velocity, Sprite } from 'esengine';
+import { defineSystem, Query, Res, Time, Mut, Transform, Velocity, Sprite } from 'esengine';
 
 const movementSystem = defineSystem(
-    [Res(Time), Query(Mut(LocalTransform), Velocity)],
+    [Res(Time), Query(Mut(Transform), Velocity)],
     (time, query) => { /* ... */ },
     { name: 'movement' }
 );
 
 const renderSystem = defineSystem(
-    [Query(LocalTransform, Sprite)],
+    [Query(Transform, Sprite)],
     (query) => { /* ... */ },
     { name: 'render', runAfter: ['movement'] }
 );
@@ -107,14 +107,14 @@ The engine uses topological sorting to determine the final execution order. If t
 Create, modify, and destroy entities at runtime:
 
 ```typescript
-import { Commands, Sprite, LocalTransform, Velocity, defineResource } from 'esengine';
+import { Commands, Sprite, Transform, Velocity, defineResource } from 'esengine';
 
 const Score = defineResource({ value: 0 });
 
 defineSystem([Commands()], (cmds) => {
     // Spawn a new entity with components (chainable)
     const bullet = cmds.spawn()
-        .insert(LocalTransform, { position: { x: 0, y: 0, z: 0 } })
+        .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
         .insert(Sprite, { size: { x: 8, y: 8 } })
         .id();
 
@@ -159,9 +159,9 @@ defineSystem([Commands()], (cmds) => {
 Iterate entities with specific components:
 
 ```typescript
-import { Query, Mut, LocalTransform, Sprite } from 'esengine';
+import { Query, Mut, Transform, Sprite } from 'esengine';
 
-defineSystem([Query(Mut(LocalTransform), Sprite)], (query) => {
+defineSystem([Query(Mut(Transform), Sprite)], (query) => {
     for (const [entity, transform, sprite] of query) {
         transform.position.x += 1;
     }
@@ -192,11 +192,41 @@ defineSystem([ResMut(GameState)], (state) => {
 
 See [Resources](/microes/core-concepts/resources/) for the full API.
 
+### EventWriter
+
+Send events from a system:
+
+```typescript
+import { defineEvent, EventWriter } from 'esengine';
+
+const DamageEvent = defineEvent<{ target: number; amount: number }>('Damage');
+
+defineSystem([EventWriter(DamageEvent)], (writer) => {
+    writer.send({ target: enemy, amount: 25 });
+});
+```
+
+### EventReader
+
+Receive events sent by other systems:
+
+```typescript
+import { EventReader } from 'esengine';
+
+defineSystem([EventReader(DamageEvent)], (reader) => {
+    for (const event of reader) {
+        console.log(`${event.target} took ${event.amount} damage`);
+    }
+});
+```
+
+See [Events](/microes/core-concepts/events/) for the full API.
+
 ### Combining Parameters
 
 ```typescript
 defineSystem(
-    [Commands(), Res(Time), Res(Input), Query(Mut(LocalTransform), Velocity)],
+    [Commands(), Res(Time), Res(Input), Query(Mut(Transform), Velocity)],
     (cmds, time, input, query) => {
         // All parameters available
     }
@@ -215,11 +245,11 @@ export const Speed = defineComponent('Speed', { value: 200 });
 
 ```typescript
 // src/systems/movement.ts
-import { defineSystem, addSystem, Res, Time, Input, Query, Mut, LocalTransform } from 'esengine';
+import { defineSystem, addSystem, Res, Time, Input, Query, Mut, Transform } from 'esengine';
 import { Speed } from '../components/Speed';
 
 addSystem(defineSystem(
-    [Res(Time), Res(Input), Query(Mut(LocalTransform), Speed)],
+    [Res(Time), Res(Input), Query(Mut(Transform), Speed)],
     (time, input, query) => {
         for (const [entity, transform, speed] of query) {
             if (input.isKeyDown('KeyD')) {
@@ -241,3 +271,5 @@ Each system runs inside its own try/catch boundary. If a system throws an error,
 
 - [Queries](/microes/core-concepts/queries/) — query filters and iteration methods
 - [Resources](/microes/core-concepts/resources/) — global singleton data
+- [Change Detection](/microes/core-concepts/change-detection/) — reacting to component changes
+- [Events](/microes/core-concepts/events/) — decoupled inter-system communication

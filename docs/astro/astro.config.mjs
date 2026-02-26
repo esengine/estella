@@ -55,6 +55,8 @@ export default defineConfig({
             { label: 'Systems', translations: { 'zh-CN': '系统' }, slug: 'core-concepts/systems' },
             { label: 'Queries', translations: { 'zh-CN': '查询' }, slug: 'core-concepts/queries' },
             { label: 'Resources', translations: { 'zh-CN': '资源' }, slug: 'core-concepts/resources' },
+            { label: 'Change Detection', translations: { 'zh-CN': '变更检测' }, slug: 'core-concepts/change-detection' },
+            { label: 'Events', translations: { 'zh-CN': '事件' }, slug: 'core-concepts/events' },
           ],
         },
         {
@@ -106,6 +108,7 @@ export default defineConfig({
           label: 'Changelog',
           translations: { 'zh-CN': '更新日志' },
           items: [
+            { label: 'v0.6.0', slug: 'changelog-v060' },
             { label: 'v0.5.1', slug: 'changelog-v051' },
             { label: 'v0.5.0', slug: 'changelog-v050' },
             { label: 'v0.4.3', slug: 'changelog-v043' },

@@ -11,7 +11,7 @@ Components are data attached to entities. In ESEngine, you **define** components
 
 Builtin components are always available in the editor. They are backed by the C++ backend.
 
-### LocalTransform
+### Transform
 
 Position, rotation, and scale of an entity.
 
@@ -21,9 +21,13 @@ Position, rotation, and scale of an entity.
 | `rotation` | Quat | Quaternion `{ w, x, y, z }` |
 | `scale` | Vec3 | Scale factor `{ x, y, z }` |
 
+<Aside type="note">
+  In previous versions, `LocalTransform` and `WorldTransform` were separate components. They have been unified into a single `Transform`. The old names still work as aliases but `Transform` is the recommended import.
+</Aside>
+
 ### Sprite
 
-2D sprite rendering. Requires `LocalTransform` to be visible. See [Sprite guide](/microes/guides/sprite/) for full details.
+2D sprite rendering. Requires `Transform` to be visible. See [Sprite guide](/microes/guides/sprite/) for full details.
 
 ### Camera
 
@@ -78,11 +82,11 @@ Entity hierarchy for scene graphs.
 
 ### SpineAnimation
 
-Spine skeletal animation playback. Requires `LocalTransform`. See [Spine Animation guide](/microes/guides/spine/) for full details.
+Spine skeletal animation playback. Requires `Transform`. See [Spine Animation guide](/microes/guides/spine/) for full details.
 
 ### BitmapText
 
-GPU-rendered text using pre-baked bitmap font atlases (BMFont format). Requires `LocalTransform`. See [Bitmap Text guide](/microes/guides/bitmap-text/) for full details.
+GPU-rendered text using pre-baked bitmap font atlases (BMFont format). Requires `Transform`. See [Bitmap Text guide](/microes/guides/bitmap-text/) for full details.
 
 | Property | Type | Description |
 |----------|------|-------------|
@@ -125,7 +129,7 @@ UI layout rectangle. Defines anchored layout for UI elements.
 
 ### UIMask
 
-Clips child entities to the parent's `UIRect` bounds. Requires `UIRect` and `LocalTransform` on the same entity. See [UI & Text guide](/microes/guides/ui/) for details.
+Clips child entities to the parent's `UIRect` bounds. Requires `UIRect` and `Transform` on the same entity. See [UI & Text guide](/microes/guides/ui/) for details.
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
@@ -148,10 +152,6 @@ Button behavior for UI elements. Requires `Interactable` and `UIRect`.
 | `state` | number | `0` (Normal) | 0=Normal, 1=Hovered, 2=Pressed, 3=Disabled |
 | `transition` | ButtonTransition \| null | `null` | Color transition for each state |
 
-### ScreenSpace
-
-Tag component that marks an entity as a screen-space UI root. Children of a ScreenSpace entity are laid out in screen coordinates via their `UIRect`. Requires `UIRect` and `LocalTransform`.
-
 ### Name
 
 A string identifier for the entity. Useful for finding entities by name at runtime.
@@ -166,7 +166,7 @@ Physics components require the `PhysicsPlugin`. See [Physics guide](/microes/gui
 
 #### RigidBody
 
-Physics body attached to an entity. Requires `LocalTransform`.
+Physics body attached to an entity. Requires `Transform`.
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
@@ -211,6 +211,21 @@ Physics body attached to an entity. Requires `LocalTransform`.
 | `friction` | number | `0.3` | Surface friction |
 | `restitution` | number | `0.0` | Bounciness |
 | `isSensor` | boolean | `false` | Trigger-only (no physical response) |
+
+## Component Enabled Toggle
+
+Components that have an `enabled` property in their definition display a checkbox in the Inspector header. Unchecking it sets `enabled` to `false`, which the corresponding system can use to skip processing.
+
+This applies to builtin components like `Interactable`, `UIMask`, and `RigidBody`, as well as any custom component that includes an `enabled` field:
+
+```typescript
+const MyComponent = defineComponent('MyComponent', {
+    enabled: true,
+    speed: 100,
+});
+```
+
+When disabled, the component header in the Inspector is visually dimmed.
 
 ## Custom Components
 
@@ -262,7 +277,7 @@ Attach `Player` to an entity in the editor, then query it:
 
 ```typescript
 addSystem(defineSystem(
-    [Query(LocalTransform, Player)],
+    [Query(Transform, Player)],
     (query) => {
         for (const [entity, transform] of query) {
             // only processes entities with the Player tag
@@ -280,14 +295,14 @@ addSystem(defineSystem(
 For entities created at runtime (bullets, particles, effects), use `Commands`:
 
 ```typescript
-import { addStartupSystem, defineSystem, Commands, Sprite, LocalTransform } from 'esengine';
+import { addStartupSystem, defineSystem, Commands, Sprite, Transform } from 'esengine';
 
 addStartupSystem(defineSystem(
     [Commands()],
     (cmds) => {
         const entity = cmds.spawn()
             .insert(Sprite, { size: { x: 10, y: 10 } })
-            .insert(LocalTransform, { position: { x: 0, y: 0, z: 0 } })
+            .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
             .id();
     }
 ));
@@ -303,3 +318,4 @@ cmds.entity(entity).remove(Velocity);
 
 - [Systems](/microes/core-concepts/systems/) — logic that operates on components
 - [Queries](/microes/core-concepts/queries/) — finding entities by component
+- [Change Detection](/microes/core-concepts/change-detection/) — reacting to component changes

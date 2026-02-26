@@ -26,7 +26,7 @@ A scene file contains:
       "parent": null,
       "children": [2],
       "components": [
-        { "type": "LocalTransform", "data": { "position": { "x": 0, "y": 0, "z": 0 } } },
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 0 } } },
         { "type": "Sprite", "data": { "texture": "player.png", "size": { "x": 32, "y": 32 } } }
       ]
     }
@@ -47,10 +47,10 @@ After building your project, the engine automatically loads the scene, resolves 
 Every entity loaded from a scene receives a built-in `Name` component with the name assigned in the editor. Query `Name` to find entities:
 
 ```typescript
-import { defineSystem, addStartupSystem, Query, Name, LocalTransform } from 'esengine';
+import { defineSystem, addStartupSystem, Query, Name, Transform } from 'esengine';
 
 addStartupSystem(defineSystem(
-    [Query(Name, LocalTransform)],
+    [Query(Name, Transform)],
     (query) => {
         for (const [entity, name, transform] of query) {
             if (name.value === 'Player') {
@@ -66,12 +66,12 @@ addStartupSystem(defineSystem(
 Use a `Query` to find entities by their components:
 
 ```typescript
-import { defineSystem, addSystem, defineTag, Query, Mut, LocalTransform } from 'esengine';
+import { defineSystem, addSystem, defineTag, Query, Mut, Transform } from 'esengine';
 
 const Player = defineTag('Player');
 
 addSystem(defineSystem(
-    [Query(Mut(LocalTransform), Player)],
+    [Query(Mut(Transform), Player)],
     (query) => {
         for (const [entity, transform] of query) {
             // process each player
@@ -85,10 +85,10 @@ addSystem(defineSystem(
 Use the `Children` component to walk the entity tree:
 
 ```typescript
-import { defineSystem, addSystem, Query, Children, LocalTransform } from 'esengine';
+import { defineSystem, addSystem, Query, Children, Transform } from 'esengine';
 
 addSystem(defineSystem(
-    [Query(Children, LocalTransform)],
+    [Query(Children, Transform)],
     (query) => {
         for (const [entity, children, transform] of query) {
             // children.entities contains child entity IDs
@@ -101,21 +101,21 @@ addSystem(defineSystem(
 
 Scene entities can form a tree via parent-child relationships. Set up parent-child relationships in the editor — the engine manages `Parent` and `Children` components automatically.
 
-When a parent's `LocalTransform` changes, the engine propagates the transform to all descendants via the `WorldTransform` component.
+When a parent's `Transform` changes, the engine automatically propagates the world transform to all descendants.
 
 ## Dynamic Entities
 
 You can spawn and despawn entities at runtime using `Commands`:
 
 ```typescript
-import { defineSystem, addSystem, Commands, LocalTransform, Sprite } from 'esengine';
+import { defineSystem, addSystem, Commands, Transform, Sprite } from 'esengine';
 
 addSystem(defineSystem(
     [Commands()],
     (commands) => {
         // Spawn a new entity with components
         commands.spawn()
-            .insert(LocalTransform, { position: { x: 100, y: 0, z: 0 }, rotation: { w: 1, x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } })
+            .insert(Transform, { position: { x: 100, y: 0, z: 0 }, rotation: { w: 1, x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } })
             .insert(Sprite, { texture: bulletTexture, color: { r: 1, g: 1, b: 1, a: 1 }, size: { x: 8, y: 8 } });
 
         // Despawn an entity
@@ -317,10 +317,10 @@ console.log(owner.persistent);  // false
 Systems registered in a scene config only run when that scene's status is `'running'`. They are automatically wrapped so they skip execution when the scene is paused or sleeping:
 
 ```typescript
-import { defineSystem, Query, Mut, LocalTransform, Schedule } from 'esengine';
+import { defineSystem, Query, Mut, Transform, Schedule } from 'esengine';
 
 const mySystem = defineSystem(
-    [Query(Mut(LocalTransform))],
+    [Query(Mut(Transform))],
     (query) => {
         for (const [entity, transform] of query) {
             // runs only while 'game' scene is running

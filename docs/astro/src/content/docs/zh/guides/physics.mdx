@@ -32,7 +32,7 @@ import { Aside } from '@astrojs/starlight/components';
 
 ## 组件
 
-在场景编辑器中将物理组件与 `LocalTransform` 一起添加到实体上。
+在场景编辑器中将物理组件与 `Transform` 一起添加到实体上。
 
 ### RigidBody
 
@@ -120,7 +120,7 @@ addSystem(defineSystem(
 在编辑器中设置地面、玩家和金币传感器，然后用代码处理事件：
 
 ```typescript
-import { defineSystem, addSystem, Res, Input, Query, Mut, LocalTransform } from 'esengine';
+import { defineSystem, addSystem, Res, Input, Query, Mut, Transform } from 'esengine';
 import { RigidBody, PhysicsEvents } from 'esengine/physics';
 import { Player, Coin } from './components';
 
@@ -135,9 +135,9 @@ addSystem(defineSystem(
 ```
 
 **编辑器设置：**
-- **地面**：`LocalTransform` + `RigidBody`（bodyType=0 Static）+ `BoxCollider`（halfExtents=`{x:10, y:0.5}`）+ `Sprite`
-- **玩家**：`LocalTransform` + `RigidBody`（bodyType=2 Dynamic，fixedRotation=true）+ `BoxCollider` + `Sprite` + `Player` 标签
-- **金币**：`LocalTransform` + `RigidBody`（bodyType=0 Static）+ `CircleCollider`（isSensor=true）+ `Sprite` + `Coin` 标签
+- **地面**：`Transform` + `RigidBody`（bodyType=0 Static）+ `BoxCollider`（halfExtents=`{x:10, y:0.5}`）+ `Sprite`
+- **玩家**：`Transform` + `RigidBody`（bodyType=2 Dynamic，fixedRotation=true）+ `BoxCollider` + `Sprite` + `Player` 标签
+- **金币**：`Transform` + `RigidBody`（bodyType=0 Static）+ `CircleCollider`（isSensor=true）+ `Sprite` + `Coin` 标签
 
 ## Physics API（进阶）
 

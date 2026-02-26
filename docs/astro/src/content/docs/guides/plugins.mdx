@@ -24,10 +24,23 @@ When you create a project in the editor, all built-in plugins are active by defa
 | Plugin | Components |
 |--------|-----------|
 | Text | `Text` -- renders text content to sprite textures each frame |
-| UI Mask | `UIMask` -- stencil-based masking for UI elements |
-| UI Layout | `UIRect`, `ScreenSpace` -- anchored UI layout relative to camera |
+| Image | `Image` -- displays images with slicing, tiling, and fill modes |
+| UI Mask | `UIMask` -- scissor/stencil-based masking for UI elements |
+| UI Layout | `UIRect` -- anchored UI layout relative to camera |
+| UI Render Order | Automatic render order assignment for UI hierarchies |
 | UI Interaction | `Interactable`, `Button`, `UIInteraction`, `UIEvents` -- pointer hit-testing and button states |
 | Text Input | `TextInput` -- editable text fields with platform input |
+| Toggle | `Toggle`, `ToggleGroup` -- checkbox and radio-button behavior |
+| Slider | `Slider` -- interactive value slider with fill and handle |
+| Progress Bar | `ProgressBar` -- non-interactive progress display |
+| Dropdown | `Dropdown` -- dropdown list selector |
+| Scroll View | `ScrollView` -- scrollable container with momentum and elastic bounce |
+| List View | `ListView` -- virtual scrolling for large lists |
+| Drag | `Draggable` -- drag-to-move on UI elements |
+| Focus | `Focusable` -- keyboard focus and Tab navigation |
+| Safe Area | `SafeArea` -- adapts layout to device safe areas (notches, rounded corners) |
+| Layout Group | `LayoutGroup` -- grid-like layout with direction, spacing, and alignment |
+| Flex Layout | `FlexContainer`, `FlexItem` -- CSS Flexbox-like automatic child arrangement |
 
 All of these are active by default in every project. You can use their components directly from the editor's component picker -- no setup required.
 
@@ -108,6 +121,26 @@ const GameState = defineResource<{ score: number; level: number }>(
 
 addStartupSystem(defineSystem([Commands()], (cmds) => {
     cmds.insertResource(GameState, { score: 0, level: 1 });
+}));
+```
+
+### Events
+
+Events enable decoupled communication between systems:
+
+```typescript
+import { defineEvent, EventWriter, EventReader, defineSystem, addSystem } from 'esengine';
+
+const ScoreEvent = defineEvent<{ points: number }>('Score');
+
+addSystem(defineSystem([EventWriter(ScoreEvent)], (writer) => {
+    writer.send({ points: 10 });
+}));
+
+addSystem(defineSystem([EventReader(ScoreEvent)], (reader) => {
+    for (const e of reader) {
+        console.log('Scored:', e.points);
+    }
 }));
 ```
 

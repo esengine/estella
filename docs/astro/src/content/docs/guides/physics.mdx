@@ -32,7 +32,7 @@ Position conversion is handled automatically — entity positions (in pixels) ar
 
 ## Components
 
-Add physics components to entities in the scene editor alongside `LocalTransform`.
+Add physics components to entities in the scene editor alongside `Transform`.
 
 ### RigidBody
 
@@ -120,7 +120,7 @@ addSystem(defineSystem(
 Set up a ground, player, and coin sensor in the editor, then handle events in code:
 
 ```typescript
-import { defineSystem, addSystem, Res, Input, Query, Mut, LocalTransform } from 'esengine';
+import { defineSystem, addSystem, Res, Input, Query, Mut, Transform } from 'esengine';
 import { RigidBody, PhysicsEvents } from 'esengine/physics';
 import { Player, Coin } from './components';
 
@@ -135,9 +135,9 @@ addSystem(defineSystem(
 ```
 
 **Editor setup:**
-- **Ground**: `LocalTransform` + `RigidBody` (bodyType=0 Static) + `BoxCollider` (halfExtents=`{x:10, y:0.5}`) + `Sprite`
-- **Player**: `LocalTransform` + `RigidBody` (bodyType=2 Dynamic, fixedRotation=true) + `BoxCollider` + `Sprite` + `Player` tag
-- **Coin**: `LocalTransform` + `RigidBody` (bodyType=0 Static) + `CircleCollider` (isSensor=true) + `Sprite` + `Coin` tag
+- **Ground**: `Transform` + `RigidBody` (bodyType=0 Static) + `BoxCollider` (halfExtents=`{x:10, y:0.5}`) + `Sprite`
+- **Player**: `Transform` + `RigidBody` (bodyType=2 Dynamic, fixedRotation=true) + `BoxCollider` + `Sprite` + `Player` tag
+- **Coin**: `Transform` + `RigidBody` (bodyType=0 Static) + `CircleCollider` (isSensor=true) + `Sprite` + `Coin` tag
 
 ## Physics API (Advanced)
 

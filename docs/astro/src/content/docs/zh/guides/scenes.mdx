@@ -26,7 +26,7 @@ import { Aside } from '@astrojs/starlight/components';
       "parent": null,
       "children": [2],
       "components": [
-        { "type": "LocalTransform", "data": { "position": { "x": 0, "y": 0, "z": 0 } } },
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 0 } } },
         { "type": "Sprite", "data": { "texture": "player.png", "size": { "x": 32, "y": 32 } } }
       ]
     }
@@ -47,10 +47,10 @@ import { Aside } from '@astrojs/starlight/components';
 从场景加载的每个实体都会自动获得内置的 `Name` 组件，包含在编辑器中指定的名字。通过查询 `Name` 来查找实体：
 
 ```typescript
-import { defineSystem, addStartupSystem, Query, Name, LocalTransform } from 'esengine';
+import { defineSystem, addStartupSystem, Query, Name, Transform } from 'esengine';
 
 addStartupSystem(defineSystem(
-    [Query(Name, LocalTransform)],
+    [Query(Name, Transform)],
     (query) => {
         for (const [entity, name, transform] of query) {
             if (name.value === 'Player') {
@@ -66,12 +66,12 @@ addStartupSystem(defineSystem(
 使用 `Query` 按组件查找实体：
 
 ```typescript
-import { defineSystem, addSystem, defineTag, Query, Mut, LocalTransform } from 'esengine';
+import { defineSystem, addSystem, defineTag, Query, Mut, Transform } from 'esengine';
 
 const Player = defineTag('Player');
 
 addSystem(defineSystem(
-    [Query(Mut(LocalTransform), Player)],
+    [Query(Mut(Transform), Player)],
     (query) => {
         for (const [entity, transform] of query) {
             // 处理每个玩家
@@ -85,10 +85,10 @@ addSystem(defineSystem(
 使用 `Children` 组件遍历实体树：
 
 ```typescript
-import { defineSystem, addSystem, Query, Children, LocalTransform } from 'esengine';
+import { defineSystem, addSystem, Query, Children, Transform } from 'esengine';
 
 addSystem(defineSystem(
-    [Query(Children, LocalTransform)],
+    [Query(Children, Transform)],
     (query) => {
         for (const [entity, children, transform] of query) {
             // children.entities 包含子实体 ID
@@ -101,21 +101,21 @@ addSystem(defineSystem(
 
 场景实体可以通过父子关系形成树状结构。在编辑器中设置父子关系 — 引擎会自动管理 `Parent` 和 `Children` 组件。
 
-当父实体的 `LocalTransform` 变化时，引擎会通过 `WorldTransform` 组件将变换传播到所有后代。
+当父实体的 `Transform` 变化时，引擎会自动将世界变换传播到所有后代。
 
 ## 动态实体
 
 你可以在运行时使用 `Commands` 生成和销毁实体：
 
 ```typescript
-import { defineSystem, addSystem, Commands, LocalTransform, Sprite } from 'esengine';
+import { defineSystem, addSystem, Commands, Transform, Sprite } from 'esengine';
 
 addSystem(defineSystem(
     [Commands()],
     (commands) => {
         // 生成一个带组件的新实体
         commands.spawn()
-            .insert(LocalTransform, { position: { x: 100, y: 0, z: 0 }, rotation: { w: 1, x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } })
+            .insert(Transform, { position: { x: 100, y: 0, z: 0 }, rotation: { w: 1, x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } })
             .insert(Sprite, { texture: bulletTexture, color: { r: 1, g: 1, b: 1, a: 1 }, size: { x: 8, y: 8 } });
 
         // 销毁实体
@@ -312,10 +312,10 @@ console.log(owner.persistent);  // false
 在 `registerScene` 中通过 `systems` 注册的系统会自动包装，仅在场景状态为 `running` 时执行：
 
 ```typescript
-import { defineSystem, Query, Mut, LocalTransform, Schedule } from 'esengine';
+import { defineSystem, Query, Mut, Transform, Schedule } from 'esengine';
 
 const mySystem = defineSystem(
-    [Query(Mut(LocalTransform))],
+    [Query(Mut(Transform))],
     (query) => {
         for (const [entity, transform] of query) {
             // 更新变换

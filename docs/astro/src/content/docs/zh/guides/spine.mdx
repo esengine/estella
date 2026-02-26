@@ -5,7 +5,7 @@ description: ESEngine 中的 Spine 骨骼动画
 
 import { Aside } from '@astrojs/starlight/components';
 
-`SpineAnimation` 组件播放 [Spine](http://esotericsoftware.com/) 骨骼动画。在场景编辑器中将它和 `LocalTransform` 一起添加到实体上。
+`SpineAnimation` 组件播放 [Spine](http://esotericsoftware.com/) 骨骼动画。在场景编辑器中将它和 `Transform` 一起添加到实体上。
 
 <Aside type="note">
   从 v0.3.0 起，Spine 使用独立的 WASM 模块（`spine38` / `spine41` / `spine42`），不再内置于引擎核心。在编辑器中通过 **Settings → Project → Spine Version** 选择版本（`3.8`、`4.1` 或 `4.2`），编辑器会自动加载对应的运行时，无需编写代码。新项目默认为 **None**（不加载 Spine 运行时），需要使用 Spine 时必须显式选择版本。
@@ -32,7 +32,7 @@ import { Aside } from '@astrojs/starlight/components';
 ## 设置步骤
 
 1. 将 Spine 导出文件（`.json` + `.atlas` + 图片）放到项目的 `assets/` 文件夹
-2. 在场景编辑器中：创建实体 → 添加 `LocalTransform` 和 `SpineAnimation`
+2. 在场景编辑器中：创建实体 → 添加 `Transform` 和 `SpineAnimation`
 3. 设置 `skeletonPath` 和 `atlasPath` 指向 Spine 文件
 4. 设置 `animation` 为要播放的动画名
 
@@ -101,7 +101,7 @@ spine.color = { r: 1, g: 1, b: 1, a: 0.5 };   // 50% 透明
 ```typescript
 import {
     defineComponent, defineSystem, addSystem,
-    Res, Input, Time, Query, Mut, LocalTransform, SpineAnimation
+    Res, Input, Time, Query, Mut, Transform, SpineAnimation
 } from 'esengine';
 
 const CharacterState = defineComponent('CharacterState', {
@@ -110,7 +110,7 @@ const CharacterState = defineComponent('CharacterState', {
 });
 
 addSystem(defineSystem(
-    [Res(Input), Res(Time), Query(Mut(LocalTransform), Mut(SpineAnimation), Mut(CharacterState))],
+    [Res(Input), Res(Time), Query(Mut(Transform), Mut(SpineAnimation), Mut(CharacterState))],
     (input, time, query) => {
         for (const [entity, transform, spine, state] of query) {
             let moving = false;

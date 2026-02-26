@@ -1,0 +1,190 @@
+---
+title: Events
+description: Sending and receiving messages between systems in ESEngine
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Events let systems communicate without knowing about each other. One system sends an event, and any number of other systems can read it — with no direct coupling between them.
+
+## Defining Events
+
+Define an event with `defineEvent` and a TypeScript interface for its payload:
+
+```typescript
+import { defineEvent } from 'esengine';
+
+interface DamageEvent {
+    target: Entity;
+    amount: number;
+    source?: Entity;
+}
+
+const Damage = defineEvent<DamageEvent>('Damage');
+```
+
+## Sending Events
+
+Use `EventWriter` as a system parameter to send events:
+
+```typescript
+import { defineSystem, addSystem, EventWriter, Query, Health } from 'esengine';
+
+addSystem(defineSystem(
+    [EventWriter(Damage), Query(Health, Enemy)],
+    (writer, query) => {
+        for (const [entity, health] of query) {
+            if (health.current <= 0) {
+                writer.send({ target: entity, amount: 0 });
+            }
+        }
+    }
+));
+```
+
+You can call `writer.send()` multiple times in a single system — all events are collected.
+
+## Reading Events
+
+Use `EventReader` as a system parameter to receive events:
+
+```typescript
+import { defineSystem, addSystem, EventReader, Commands } from 'esengine';
+
+addSystem(defineSystem(
+    [EventReader(Damage)],
+    (events) => {
+        for (const event of events) {
+            console.log(`Entity ${event.target} took ${event.amount} damage`);
+        }
+    }
+));
+```
+
+`EventReader` is iterable — use `for...of` to process each event. It also provides utility methods:
+
+```typescript
+events.isEmpty()   // true if no events this frame
+events.toArray()   // collect all events into an array
+```
+
+Multiple systems can read the same event type. Each reader sees all events from the previous frame.
+
+## Event Lifecycle
+
+Events use a **double-buffered** design:
+
+1. **Frame start**: buffers swap — events written last frame become readable, old read buffer is cleared
+2. **During frame**: writers push to the write buffer, readers read from the read buffer
+3. **Next frame**: swap again
+
+```
+Frame 1:  systemA sends Damage ──────────────────┐
+Frame 2:  systemB reads Damage (from frame 1) ◄───┘
+          systemA sends new Damage ──────────────┐
+Frame 3:  systemB reads Damage (from frame 2) ◄──┘
+          frame 1 events are gone
+```
+
+<Aside type="note">
+Events last exactly **1 frame**. If no system reads them, they are silently discarded on the next swap. This is by design — events are for frame-to-frame communication, not persistent state.
+</Aside>
+
+## Practical Example: Damage System
+
+A complete example with three decoupled systems:
+
+```typescript
+import { defineEvent, defineSystem, addSystem, EventWriter, EventReader, Query, Mut, Commands, Health, Sprite } from 'esengine';
+
+// 1. Define the event
+interface DamageEvent {
+    target: Entity;
+    amount: number;
+}
+const Damage = defineEvent<DamageEvent>('Damage');
+
+// 2. Combat system — detects hits and sends damage events
+const combatSystem = defineSystem(
+    [EventWriter(Damage), Query(Transform, Projectile), Query(Transform, Health, Enemy)],
+    (damage, projectiles, enemies) => {
+        for (const [_, pTransform, proj] of projectiles) {
+            for (const [enemy, eTransform] of enemies) {
+                if (distance(pTransform, eTransform) < proj.radius) {
+                    damage.send({ target: enemy, amount: proj.power });
+                }
+            }
+        }
+    }
+);
+
+// 3. Health system — applies damage
+const healthSystem = defineSystem(
+    [EventReader(Damage), Query(Mut(Health))],
+    (events, query) => {
+        for (const { target, amount } of events) {
+            const result = query.get(target);
+            if (result) {
+                const [_, health] = result;
+                health.current -= amount;
+            }
+        }
+    }
+);
+
+// 4. VFX system — shows hit effects (reads same events)
+const hitVFXSystem = defineSystem(
+    [EventReader(Damage), Query(Transform)],
+    (events, query) => {
+        for (const { target } of events) {
+            const result = query.get(target);
+            if (result) {
+                const [_, transform] = result;
+                spawnHitParticle(transform.position);
+            }
+        }
+    }
+);
+```
+
+Three systems, one event type, zero direct dependencies between them.
+
+## Multiple Event Types
+
+A system can write and read multiple event types:
+
+```typescript
+const PlayerDied = defineEvent<{ entity: Entity }>('PlayerDied');
+const ScoreChanged = defineEvent<{ delta: number }>('ScoreChanged');
+
+defineSystem(
+    [EventReader(Damage), EventWriter(PlayerDied), EventWriter(ScoreChanged)],
+    (damageEvents, deathWriter, scoreWriter) => {
+        for (const { target, amount } of damageEvents) {
+            if (isPlayer(target) && getHealth(target) <= 0) {
+                deathWriter.send({ entity: target });
+                scoreWriter.send({ delta: -100 });
+            }
+        }
+    }
+);
+```
+
+## When to Use Events vs Direct Queries
+
+| Use Events | Use Queries |
+|-----------|-------------|
+| One-shot notifications (hit, died, scored) | Continuous state (position, health) |
+| Multiple consumers need the same data | Single system owns the logic |
+| Decoupled systems across different modules | Tightly related systems |
+| Timing matters (happened *this* frame) | Current value matters |
+
+<Aside type="tip">
+If you find yourself adding a boolean flag component just to signal "something happened" and clearing it next frame — that's a perfect candidate for an event instead.
+</Aside>
+
+## Next Steps
+
+- [Change Detection](/microes/core-concepts/change-detection/) — react to component additions and modifications
+- [Systems](/microes/core-concepts/systems/) — system parameters and scheduling
+- [Resources](/microes/core-concepts/resources/) — global singleton data

@@ -12,12 +12,12 @@ ESEngine is a lightweight 2D game engine with a **TypeScript SDK** powered by a 
 Use the editor to create projects, place entities in scenes, and attach components visually. Write game logic in TypeScript — define custom components and systems that operate on scene entities:
 
 ```typescript
-import { defineComponent, defineSystem, addSystem, Query, Mut, Res, Time, LocalTransform } from 'esengine';
+import { defineComponent, defineSystem, addSystem, Query, Mut, Res, Time, Transform } from 'esengine';
 
 const Speed = defineComponent('Speed', { value: 200 });
 
 addSystem(defineSystem(
-    [Res(Time), Query(Mut(LocalTransform), Speed)],
+    [Res(Time), Query(Mut(Transform), Speed)],
     (time, query) => {
         for (const [entity, transform, speed] of query) {
             transform.position.x += speed.value * time.delta;
