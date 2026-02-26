@@ -77,6 +77,13 @@ export class AssetGroupService {
 
     async load(): Promise<void> {
         const fullPath = joinPath(this.projectDir_, CONFIG_PATH);
+        const fileExists = await this.fs_.exists(fullPath);
+        if (!fileExists) {
+            this.config_ = createDefaultConfig();
+            await this.save();
+            return;
+        }
+
         const content = await this.fs_.readFile(fullPath);
         if (!content) {
             this.config_ = createDefaultConfig();
