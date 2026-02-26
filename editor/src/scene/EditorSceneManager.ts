@@ -414,15 +414,31 @@ export class EditorSceneManager {
         const entity = this.entityMap_.get(entityId);
         if (entity === undefined) return;
 
+        this.setRenderEnabled_(entity, false);
+    }
+
+    private setRenderEnabled_(entity: Entity, enabled: boolean): void {
         if (this.world_.has(entity, Sprite)) {
-            this.world_.remove(entity, Sprite);
+            const s = this.world_.get(entity, Sprite);
+            if (s.enabled !== enabled) {
+                s.enabled = enabled;
+                this.world_.insert(entity, Sprite, s);
+            }
         }
         if (this.world_.has(entity, BitmapText)) {
-            this.world_.remove(entity, BitmapText);
+            const bt = this.world_.get(entity, BitmapText);
+            if (bt.enabled !== enabled) {
+                bt.enabled = enabled;
+                this.world_.insert(entity, BitmapText, bt);
+            }
         }
     }
 
     async showEntity(entityId: number): Promise<void> {
+        const entity = this.entityMap_.get(entityId);
+        if (entity !== undefined) {
+            this.setRenderEnabled_(entity, true);
+        }
         const entityData = this.entityDataMap_.get(entityId);
         if (!entityData) return;
         await this.updateEntity(entityId, entityData.components);
@@ -641,6 +657,19 @@ export class EditorSceneManager {
             },
             { name: 'EditorTextInputVisualSystem' },
         ), { runBefore: ['TextSystem'] });
+
+        app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
+            [],
+            () => {
+                for (const [entityId, entityData] of self.entityDataMap_) {
+                    if (entityData.visible !== false) continue;
+                    const entity = self.entityMap_.get(entityId);
+                    if (entity === undefined) continue;
+                    self.setRenderEnabled_(entity, false);
+                }
+            },
+            { name: 'EditorVisibilityEnforcementSystem' },
+        ), { runAfter: ['TextSystem'] });
     }
 
     // =========================================================================

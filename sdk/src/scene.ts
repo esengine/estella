@@ -165,6 +165,10 @@ export function registerComponentEntityFields(
     COMPONENT_ENTITY_FIELDS.set(componentType, fields);
 }
 
+export function getComponentEntityFields(componentType: string): string[] | undefined {
+    return COMPONENT_ENTITY_FIELDS.get(componentType);
+}
+
 export function remapEntityFields(compData: SceneComponentData, entityMap: Map<number, Entity>): void {
     const fields = COMPONENT_ENTITY_FIELDS.get(compData.type);
     if (!fields) return;

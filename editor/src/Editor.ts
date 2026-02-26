@@ -1152,9 +1152,13 @@ export class Editor {
             mainWindow.onCloseRequested(async (event) => {
                 if (!this.store_.isDirty) return;
                 event.preventDefault();
-                const result = await this.showUnsavedChangesPrompt();
-                if (result === 'cancel') return;
-                if (result === 'save') await this.saveScene();
+                try {
+                    const result = await this.showUnsavedChangesPrompt();
+                    if (result === 'cancel') return;
+                    if (result === 'save') await this.saveScene();
+                } catch (e) {
+                    console.error('Close handler error:', e);
+                }
                 mainWindow.destroy();
             });
         });

@@ -530,7 +530,6 @@ export function createRuntimeSceneConfig(
 ): SceneConfig {
     return {
         name,
-        data: sceneData,
         async setup() {
             await loadRuntimeScene(
                 options.app,
