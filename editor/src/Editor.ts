@@ -490,11 +490,6 @@ export class Editor {
     }
 
     showAddressableWindow(): void {
-        if (this.windowManager_) {
-            this.windowManager_.detachPanel('addressable', 'Addressable Groups');
-            return;
-        }
-
         if (this.addressableWindow_) {
             this.addressableWindow_.element.style.zIndex = '1001';
             return;

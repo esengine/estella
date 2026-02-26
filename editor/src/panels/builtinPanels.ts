@@ -5,7 +5,7 @@ import { SceneViewPanel } from './scene-view/SceneViewPanel';
 import { GameViewPanel } from './game-view/GameViewPanel';
 import { ContentBrowserPanel } from './content-browser/ContentBrowserPanel';
 import { OutputPanel } from './OutputPanel';
-import { AddressablePanel } from './AddressablePanel';
+
 import { icons } from '../utils/icons';
 
 export interface BuiltinPanelOptions {
@@ -74,16 +74,6 @@ export function registerBuiltinPanels(options: BuiltinPanelOptions): void {
         order: 1,
         defaultVisible: false,
         factory: (c) => new OutputPanel(c),
-    });
-
-    registerPanel({
-        id: 'addressable',
-        title: 'Addressable Groups',
-        icon: icons.list(14),
-        position: 'bottom',
-        order: 2,
-        defaultVisible: false,
-        factory: (c, s) => new AddressablePanel(c, s),
     });
 
 }
