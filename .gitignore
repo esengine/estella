@@ -54,6 +54,9 @@ compile_commands.json
 *.js.mem
 *.data
 
+# Astro
+.astro/
+
 # OS files
 .DS_Store
 Thumbs.db
