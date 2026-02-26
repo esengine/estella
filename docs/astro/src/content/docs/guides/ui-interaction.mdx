@@ -1,0 +1,74 @@
+---
+title: UI Interaction
+description: Pointer events, focus, and drag for UI elements in ESEngine
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## Interactable
+
+Marks a UI entity as interactive (receives pointer events). Required for all interactive widgets.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `enabled` | boolean | `true` | Whether interaction is active |
+| `blockRaycast` | boolean | `true` | Block events from reaching elements behind |
+
+## UIInteraction
+
+Automatically added by the plugin to entities with `Interactable`. Provides per-entity state:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `hovered` | boolean | Pointer is over this entity |
+| `pressed` | boolean | Entity is being pressed |
+| `justPressed` | boolean | Press started this frame |
+| `justReleased` | boolean | Press released this frame |
+
+## UIEvents
+
+The `UIEvents` resource collects interaction events each frame:
+
+```typescript
+import { defineSystem, addSystem, Res } from 'esengine';
+import { UIEvents } from 'esengine';
+
+addSystem(defineSystem(
+    [Res(UIEvents)],
+    (events) => {
+        for (const e of events.query('click')) {
+            console.log('Clicked:', e.entity);
+        }
+    }
+));
+```
+
+**Event types:** `click`, `press`, `release`, `hover_enter`, `hover_exit`, `focus`, `blur`, `submit`, `change`, `drag_start`, `drag_move`, `drag_end`, `scroll`
+
+Events bubble up the entity hierarchy. If a parent has `Interactable` with `blockRaycast: true`, bubbling stops there.
+
+## Focusable
+
+Enables keyboard focus and Tab navigation.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `tabIndex` | number | `0` | Focus order (lower = earlier) |
+| `isFocused` | boolean | `false` | Current focus state |
+
+## Draggable
+
+Enables drag-to-move on a UI element.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `enabled` | boolean | `true` | Enable dragging |
+| `dragThreshold` | number | `5` | Pixels before drag starts |
+| `lockX` | boolean | `false` | Lock horizontal movement |
+| `lockY` | boolean | `false` | Lock vertical movement |
+
+## Next Steps
+
+- [Widgets](/microes/guides/ui-widgets/) — buttons, sliders, toggles, and more
+- [UI Layout](/microes/guides/ui/) — anchors, flex, and grid layout
+- [Input Handling](/microes/guides/input/) — keyboard, mouse, and touch input

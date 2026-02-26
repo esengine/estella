@@ -84,7 +84,11 @@ export default defineConfig({
               label: 'UI',
               translations: { 'zh-CN': 'UI' },
               items: [
-                { label: 'UI & Text', translations: { 'zh-CN': 'UI 与文本' }, slug: 'guides/ui' },
+                { label: 'Layout', translations: { 'zh-CN': '布局' }, slug: 'guides/ui' },
+                { label: 'Text & Image', translations: { 'zh-CN': '文本与图片' }, slug: 'guides/ui-text' },
+                { label: 'Interaction', translations: { 'zh-CN': '交互' }, slug: 'guides/ui-interaction' },
+                { label: 'Widgets', translations: { 'zh-CN': '控件' }, slug: 'guides/ui-widgets' },
+                { label: 'Masking & SafeArea', translations: { 'zh-CN': '遮罩与安全区' }, slug: 'guides/ui-masking' },
               ],
             },
             { label: 'Asset Loading', translations: { 'zh-CN': '资源加载' }, slug: 'guides/assets' },

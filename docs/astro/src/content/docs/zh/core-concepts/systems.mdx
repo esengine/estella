@@ -27,7 +27,7 @@ const movementSystem = defineSystem(
 
 `defineSystem` 接受两个参数：
 
-1. **参数列表** — `Query`、`Res`、`ResMut`、`Commands`、`EventWriter` 或 `EventReader` 描述符的数组
+1. **参数列表** — `Query`、`Res`、`ResMut`、`Commands`、`GetWorld`、`EventWriter` 或 `EventReader` 描述符的数组
 2. **函数** — 按相同顺序接收解析后的参数
 
 ## 注册系统
@@ -222,12 +222,43 @@ defineSystem([EventReader(DamageEvent)], (reader) => {
 
 详见[事件](/microes/zh/core-concepts/events/)。
 
+### GetWorld
+
+直接访问 ECS World。可用 `world.get()` / `world.set()` 按实体 ID 进行 O(1) 组件访问，或配合 `findEntityByName()` 等工具函数：
+
+```typescript
+import { GetWorld, findEntityByName, ProgressBar } from 'esengine';
+
+defineSystem([GetWorld()], (world) => {
+    const entity = findEntityByName(world, 'HealthBar');
+    if (entity) {
+        const bar = world.get(entity, ProgressBar);
+        bar.value = playerHealth / maxHealth;
+        world.set(entity, ProgressBar, bar);
+    }
+});
+```
+
+#### World API
+
+| 方法 | 返回值 | 说明 |
+|------|--------|------|
+| `world.get(entity, Component)` | 组件数据 | 读取组件（O(1)） |
+| `world.set(entity, Component, data)` | void | 写入组件（O(1)） |
+| `world.has(entity, Component)` | boolean | 检查实体是否有该组件 |
+| `world.tryGet(entity, Component)` | data \| null | 安全读取，不存在返回 null |
+| `world.valid(entity)` | boolean | 检查实体是否存活 |
+
+<Aside type="tip">
+  遍历多个实体时优先用 `Query` + `Mut()`——它会自动回写。当你需要**按实体 ID 直接访问已知实体**（如 `findEntityByName()` 之后）时用 `GetWorld()`。
+</Aside>
+
 ### 组合参数
 
 ```typescript
 defineSystem(
-    [Commands(), Res(Time), Res(Input), Query(Mut(Transform), Velocity)],
-    (cmds, time, input, query) => {
+    [Commands(), Res(Time), Res(Input), GetWorld(), Query(Mut(Transform), Velocity)],
+    (cmds, time, input, world, query) => {
         // 所有参数都可用
     }
 );

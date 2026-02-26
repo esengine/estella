@@ -1,0 +1,88 @@
+---
+title: Text & Image
+description: Text rendering and image display for UI in ESEngine
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## Text
+
+Renders styled text into a `Sprite` texture automatically via `TextPlugin`.
+
+**Setup:** Add `Transform`, `Sprite`, `UIRect`, and `Text` to an entity.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `content` | string | `''` | Text content |
+| `fontFamily` | string | `'Arial'` | Font family name |
+| `fontSize` | number | `24` | Font size in pixels |
+| `color` | Color | `{r:1, g:1, b:1, a:1}` | Text color RGBA |
+| `align` | TextAlign | `Left` | `Left` (0), `Center` (1), `Right` (2) |
+| `verticalAlign` | TextVerticalAlign | `Top` | `Top` (0), `Middle` (1), `Bottom` (2) |
+| `wordWrap` | boolean | `true` | Enable word wrapping |
+| `overflow` | TextOverflow | `Visible` | `Visible` (0), `Clip` (1), `Ellipsis` (2) |
+| `lineHeight` | number | `1.2` | Line height multiplier |
+
+<Aside type="note">
+  You don't need to configure the Sprite manually. `TextPlugin` creates and updates the texture from the Text content.
+</Aside>
+
+### Modifying Text at Runtime
+
+```typescript
+import { defineSystem, addSystem, Query, Mut, Text } from 'esengine';
+
+addSystem(defineSystem(
+    [Query(Mut(Text))],
+    (query) => {
+        for (const [entity, text] of query) {
+            text.content = 'Updated!';
+            text.fontSize = 32;
+        }
+    }
+));
+```
+
+## Image
+
+Displays images with support for slicing, tiling, and fill modes.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `texture` | number | — | Texture asset handle |
+| `color` | Color | `{r:1, g:1, b:1, a:1}` | Color tint |
+| `imageType` | ImageType | `Simple` | `Simple` (0), `Sliced` (1), `Tiled` (2), `Filled` (3) |
+| `fillMethod` | FillMethod | `Horizontal` | `Horizontal` (0), `Vertical` (1) |
+| `fillOrigin` | FillOrigin | `Left` | `Left` (0), `Right` (1), `Bottom` (2), `Top` (3) |
+| `fillAmount` | number | `1` | Fill progress 0–1 |
+| `preserveAspect` | boolean | `false` | Maintain aspect ratio |
+| `enabled` | boolean | `true` | Visibility toggle |
+
+## Example: Score Display
+
+```typescript
+import { defineTag, defineComponent, defineSystem, addSystem, Query, Mut, Changed, Text } from 'esengine';
+
+const ScoreDisplay = defineTag('ScoreDisplay');
+const GameState = defineComponent('GameState', { score: 0 });
+
+addSystem(defineSystem(
+    [Query(Mut(Text), ScoreDisplay), Query(Changed(GameState))],
+    (displays, stateQuery) => {
+        if (stateQuery.isEmpty()) return;
+        const [, state] = stateQuery.single()!;
+        for (const [, text] of displays) {
+            text.content = `Score: ${state.score}`;
+        }
+    }
+));
+```
+
+Uses [Change Detection](/microes/core-concepts/change-detection/) to only update text when the score actually changes.
+
+## Next Steps
+
+- [UI Layout](/microes/guides/ui/) — anchors, flex, and grid layout
+- [Interaction](/microes/guides/ui-interaction/) — pointer events, focus, and drag
+- [Bitmap Text](/microes/guides/bitmap-text/) — GPU-rendered bitmap font text
+- [Sprite](/microes/guides/sprite/) — sprite rendering details

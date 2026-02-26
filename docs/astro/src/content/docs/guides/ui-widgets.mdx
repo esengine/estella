@@ -1,0 +1,305 @@
+---
+title: UI Widgets
+description: Buttons, sliders, toggles, dropdowns, and other UI widgets in ESEngine
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+All widgets require `Interactable` and `UIRect` on the same entity. See [UI Interaction](/microes/guides/ui-interaction/) for event handling.
+
+## Getting a Specific Widget
+
+When you place multiple widgets in a scene, use **Query** to find a specific one.
+
+### By Tag (Recommended)
+
+Define a tag and attach it to the entity in the editor. Then use `query.single()` to get the one matching entity directly:
+
+```typescript
+import { defineTag, defineSystem, addSystem, Query, Mut, ProgressBar } from 'esengine';
+
+const HealthBar = defineTag('HealthBar');
+
+addSystem(defineSystem(
+    [Query(Mut(ProgressBar), HealthBar)],
+    (query) => {
+        const [, bar] = query.single()!;
+        bar.value = playerHealth / maxHealth;
+    }
+));
+```
+
+<Aside type="note">
+  `Mut()` enables auto-writeback — mutating `bar.value` automatically persists the change. No need to write it back manually.
+</Aside>
+
+### By Name
+
+Every entity has a `Name` component set in the editor. Query it together with the widget component:
+
+```typescript
+addSystem(defineSystem(
+    [Query(Mut(ProgressBar), Name)],
+    (query) => {
+        for (const [, bar, name] of query) {
+            if (name.value === 'HealthBar') bar.value = playerHealth / maxHealth;
+            if (name.value === 'ManaBar')   bar.value = playerMana / maxMana;
+            if (name.value === 'ExpBar')    bar.value = playerExp / expToNextLevel;
+        }
+    }
+));
+```
+
+<Aside type="tip">
+  Prefer tags for production code — they match by type (no string comparison) and catch typos at compile time. Use `Name` for quick prototyping.
+</Aside>
+
+### By `findEntityByName` + Direct Access
+
+Use `GetWorld()` to access the World directly. `findEntityByName()` looks up an entity by its editor name, then `world.get()` / `world.set()` read/write components in O(1):
+
+```typescript
+import { GetWorld, findEntityByName, ProgressBar } from 'esengine';
+
+addSystem(defineSystem(
+    [GetWorld()],
+    (world) => {
+        const entity = findEntityByName(world, 'HealthBar');
+        if (entity) {
+            const bar = world.get(entity, ProgressBar);
+            bar.value = playerHealth / maxHealth;
+            world.set(entity, ProgressBar, bar);
+        }
+    }
+));
+```
+
+---
+
+## Handling Events on a Specific Widget
+
+### With Tag + `hasEvent`
+
+Combine `query.single()` to get the entity ID, then use `UIEvents.hasEvent()` to check directly — no loop:
+
+```typescript
+import { defineTag, defineSystem, addSystem, Res, Query } from 'esengine';
+import { UIEvents, Button } from 'esengine';
+
+const StartButton = defineTag('StartButton');
+
+addSystem(defineSystem(
+    [Res(UIEvents), Query(Button, StartButton)],
+    (events, query) => {
+        const match = query.single();
+        if (match && events.hasEvent(match[0], 'click')) {
+            startGame();
+        }
+    }
+));
+```
+
+### With UIInteraction (No UIEvents Needed)
+
+For simple press/release checks, read the `UIInteraction` component directly:
+
+```typescript
+import { UIInteraction } from 'esengine';
+
+const StartButton = defineTag('StartButton');
+
+addSystem(defineSystem(
+    [Query(UIInteraction, StartButton)],
+    (query) => {
+        const match = query.single();
+        if (match) {
+            const [, interaction] = match;
+            if (interaction.justPressed) startGame();
+        }
+    }
+));
+```
+
+### Matching Events by Name
+
+When handling events from multiple widgets in one system:
+
+```typescript
+addSystem(defineSystem(
+    [Res(UIEvents), Query(Button, Name)],
+    (events, query) => {
+        for (const e of events.query('click')) {
+            for (const [entity, , name] of query) {
+                if (entity === e.entity) {
+                    console.log('Clicked:', name.value);
+                }
+            }
+        }
+    }
+));
+```
+
+---
+
+## Button
+
+State machine on top of `Interactable` with optional color transitions.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `state` | ButtonState | `Normal` | `Normal` (0), `Hovered` (1), `Pressed` (2), `Disabled` (3) |
+| `transition` | ColorTransition \| null | `null` | Color per state |
+
+```typescript
+cmds.entity(button).insert(Button, {
+    state: 0,
+    transition: {
+        normalColor:   { r: 1, g: 1, b: 1, a: 1 },
+        hoveredColor:  { r: 0.9, g: 0.9, b: 0.9, a: 1 },
+        pressedColor:  { r: 0.7, g: 0.7, b: 0.7, a: 1 },
+        disabledColor: { r: 0.5, g: 0.5, b: 0.5, a: 0.5 },
+    },
+});
+```
+
+## Toggle
+
+Checkbox with optional group for mutual exclusion.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `isOn` | boolean | `true` | Toggle state |
+| `graphicEntity` | Entity | `0` | Child entity to show/hide (checkmark) |
+| `group` | Entity | `0` | ToggleGroup entity for radio-button behavior |
+| `transition` | ColorTransition \| null | `null` | Color transition |
+
+**ToggleGroup** — attach to a parent entity to make child toggles mutually exclusive:
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `allowSwitchOff` | boolean | `false` | Allow all toggles to be off |
+
+Listen for toggle changes:
+
+```typescript
+addSystem(defineSystem(
+    [Res(UIEvents), Query(Toggle, Name)],
+    (events, query) => {
+        for (const e of events.query('change')) {
+            for (const [entity, toggle, name] of query) {
+                if (entity === e.entity) {
+                    console.log(name.value, 'is now:', toggle.isOn);
+                }
+            }
+        }
+    }
+));
+```
+
+## Slider
+
+Interactive value slider with a fill and optional draggable handle.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `value` | number | `0` | Current value |
+| `minValue` | number | `0` | Minimum value |
+| `maxValue` | number | `1` | Maximum value |
+| `direction` | FillDirection | `LeftToRight` | `LeftToRight` (0), `RightToLeft` (1), `BottomToTop` (2), `TopToBottom` (3) |
+| `fillEntity` | Entity | `0` | Child entity for fill visualization |
+| `handleEntity` | Entity | `0` | Child entity for draggable handle |
+| `wholeNumbers` | boolean | `false` | Snap to integers |
+
+Listen for slider changes:
+
+```typescript
+addSystem(defineSystem(
+    [Res(UIEvents), Query(Slider, Name)],
+    (events, query) => {
+        for (const e of events.query('change')) {
+            for (const [entity, slider, name] of query) {
+                if (entity === e.entity) {
+                    if (name.value === 'VolumeSlider')     setVolume(slider.value);
+                    if (name.value === 'BrightnessSlider') setBrightness(slider.value);
+                }
+            }
+        }
+    }
+));
+```
+
+## ProgressBar
+
+Non-interactive progress display.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `value` | number | `0` | Progress 0–1 |
+| `fillEntity` | Entity | `0` | Child entity for fill |
+| `direction` | FillDirection | `LeftToRight` | Fill direction |
+
+## Dropdown
+
+Dropdown list selector.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `options` | string[] | `[]` | Option labels |
+| `selectedIndex` | number | `-1` | Selected option index |
+| `isOpen` | boolean | `false` | List visibility |
+| `listEntity` | Entity | `0` | Child entity for dropdown list |
+| `labelEntity` | Entity | `0` | Child entity for selected label |
+
+## ScrollView
+
+Scrollable container with momentum and elastic bounce.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `contentEntity` | Entity | `0` | Child holding scrollable content |
+| `horizontalEnabled` | boolean | `false` | Enable horizontal scroll |
+| `verticalEnabled` | boolean | `true` | Enable vertical scroll |
+| `scrollX` | number | `0` | Current horizontal offset |
+| `scrollY` | number | `0` | Current vertical offset |
+| `inertia` | boolean | `true` | Enable momentum scrolling |
+| `decelerationRate` | number | `0.135` | Momentum friction |
+| `elastic` | boolean | `true` | Bounce at edges |
+| `wheelSensitivity` | number | `0.1` | Mouse wheel amount |
+
+## ListView
+
+Virtual scrolling for large lists — only visible items are rendered.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `itemHeight` | number | `40` | Fixed item height |
+| `itemCount` | number | `0` | Total items |
+| `scrollY` | number | `0` | Scroll position |
+| `overscan` | number | `2` | Extra items above/below viewport |
+
+## TextInput
+
+Editable text field with cursor, selection, and placeholder.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `value` | string | `''` | Current text |
+| `placeholder` | string | `''` | Hint when empty |
+| `placeholderColor` | Color | `{r:0.6, g:0.6, b:0.6, a:1}` | Placeholder color |
+| `fontFamily` | string | `'Arial'` | Font family |
+| `fontSize` | number | `16` | Font size |
+| `color` | Color | `{r:1, g:1, b:1, a:1}` | Text color |
+| `backgroundColor` | Color | `{r:0.15, g:0.15, b:0.15, a:1}` | Background color |
+| `padding` | number | `6` | Internal padding |
+| `maxLength` | number | `0` | Max characters (0 = unlimited) |
+| `multiline` | boolean | `false` | Allow line breaks |
+| `password` | boolean | `false` | Mask text |
+| `readOnly` | boolean | `false` | Prevent editing |
+
+**Events:** `change` (value changed), `submit` (Enter pressed in single-line mode)
+
+## Next Steps
+
+- [UI Interaction](/microes/guides/ui-interaction/) — pointer events, focus, and drag
+- [Masking & SafeArea](/microes/guides/ui-masking/) — clipping and device safe areas
+- [UI Layout](/microes/guides/ui/) — anchors, flex, and grid layout

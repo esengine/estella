@@ -31,6 +31,18 @@ export enum Schedule {
 }
 
 // =============================================================================
+// World Access Descriptor
+// =============================================================================
+
+export interface GetWorldDescriptor {
+    readonly _type: 'get_world';
+}
+
+export function GetWorld(): GetWorldDescriptor {
+    return { _type: 'get_world' };
+}
+
+// =============================================================================
 // System Parameter Types
 // =============================================================================
 
@@ -43,7 +55,8 @@ export type SystemParam =
     | CommandsDescriptor
     | EventWriterDescriptor<unknown>
     | EventReaderDescriptor<unknown>
-    | RemovedQueryDescriptor<AnyComponentDef>;
+    | RemovedQueryDescriptor<AnyComponentDef>
+    | GetWorldDescriptor;
 
 // =============================================================================
 // Parameter Type Inference
@@ -57,6 +70,7 @@ export type InferParam<P> =
     P extends EventWriterDescriptor<infer T> ? EventWriterInstance<T> :
     P extends EventReaderDescriptor<infer T> ? EventReaderInstance<T> :
     P extends RemovedQueryDescriptor<infer _T> ? RemovedQueryInstance<_T> :
+    P extends GetWorldDescriptor ? World :
     never;
 
 export type InferParams<P extends readonly SystemParam[]> = {
@@ -197,6 +211,9 @@ export class SystemRunner {
                 const desc = param as RemovedQueryDescriptor<AnyComponentDef>;
                 return new RemovedQueryInstance(this.world_, desc._component, this.currentLastRunTick_);
             }
+
+            case 'get_world':
+                return this.world_;
 
             default:
                 throw new Error('Unknown system parameter type');
