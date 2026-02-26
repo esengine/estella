@@ -112,7 +112,7 @@ export class Editor {
 
     constructor(container: HTMLElement, options?: EditorOptions) {
         this.container_ = container;
-        this.store_ = new EditorStore();
+        this.store_ = getEditorStore();
         this.projectPath_ = options?.projectPath ?? null;
 
         this.panelManager_ = new PanelManager();

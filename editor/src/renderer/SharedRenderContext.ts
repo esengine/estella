@@ -295,14 +295,19 @@ export class SharedRenderContext {
         this.requestRender();
     }
 
-    exitPlayMode(): void {
+    async exitPlayMode(scene?: import('../types/SceneTypes').SceneData): Promise<void> {
         this.playMode_ = false;
         this.paused_ = false;
         setPlayMode(false);
         this.clearInputState();
-        const cam = this.getUICameraInfo();
-        if (cam) cam.valid = false;
-        this.stopContinuousRender();
+
+        if (scene && this.sceneManager_) {
+            await this.sceneManager_.loadScene(scene);
+            if (this.app_) {
+                this.app_.tick(0);
+            }
+            this.requestRender();
+        }
     }
 
     pausePlay(): void {

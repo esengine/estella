@@ -157,7 +157,7 @@ export class GameViewPanel implements PanelInstance, Resizable {
         if (this.gameRenderer_) {
             this.gameRenderer_.setVisible(false);
         }
-        getPlayModeService().exitShared();
+        await getPlayModeService().exitShared();
         await this.gameManager_.stop();
     }
 

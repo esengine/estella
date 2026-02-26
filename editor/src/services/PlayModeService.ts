@@ -58,19 +58,20 @@ class PlayModeService {
         this.emitStateChange();
     }
 
-    exitShared(): void {
+    async exitShared(): Promise<void> {
         if (!this.sharedMode_) return;
 
-        getSharedRenderContext().exitPlayMode();
-
+        const snapshot = this.snapshot_;
+        this.snapshot_ = null;
         this.sharedMode_ = false;
         this.state_ = 'stopped';
         this.cachedEntities_ = [];
         this.selectedEntityId_ = null;
 
-        if (this.snapshot_) {
-            getEditorStore().restoreSnapshot(this.snapshot_);
-            this.snapshot_ = null;
+        await getSharedRenderContext().exitPlayMode(snapshot?.scene);
+
+        if (snapshot) {
+            getEditorStore().restoreSnapshot(snapshot);
         }
 
         this.emitStateChange();
