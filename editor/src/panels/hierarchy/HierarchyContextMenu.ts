@@ -278,6 +278,8 @@ function createToggleEntity(state: HierarchyState, parent: Entity | null): void 
         ...getInitialComponentData('Toggle'),
         graphicEntity: checkmark as number,
     });
+
+    state.store.selectEntity(toggleEntity);
 }
 
 function createProgressBarEntity(state: HierarchyState, parent: Entity | null): void {
@@ -313,6 +315,8 @@ function createProgressBarEntity(state: HierarchyState, parent: Entity | null): 
         value: 0.5,
         fillEntity: fill as number,
     });
+
+    state.store.selectEntity(barEntity);
 }
 
 function createScrollViewEntity(state: HierarchyState, parent: Entity | null): void {
@@ -344,6 +348,8 @@ function createScrollViewEntity(state: HierarchyState, parent: Entity | null): v
         ...getInitialComponentData('ScrollView'),
         contentEntity: content as number,
     });
+
+    state.store.selectEntity(scrollEntity);
 }
 
 function createSliderEntity(state: HierarchyState, parent: Entity | null): void {
@@ -393,6 +399,8 @@ function createSliderEntity(state: HierarchyState, parent: Entity | null): void 
         fillEntity: fill as number,
         handleEntity: handle as number,
     });
+
+    state.store.selectEntity(sliderEntity);
 }
 
 function createDropdownEntity(state: HierarchyState, parent: Entity | null): void {
@@ -440,6 +448,8 @@ function createDropdownEntity(state: HierarchyState, parent: Entity | null): voi
         labelEntity: label as number,
         listEntity: list as number,
     });
+
+    state.store.selectEntity(ddEntity);
 }
 
 export function duplicateEntity(state: HierarchyState, entity: Entity): void {
