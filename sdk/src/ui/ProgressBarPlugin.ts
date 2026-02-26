@@ -40,6 +40,7 @@ function syncFillLayout(
         const curPos = t.position;
         if (curPos.x !== result.originX || curPos.y !== result.originY) {
             t.position = { x: result.originX, y: result.originY, z: curPos.z };
+            world.insert(fillEntity, Transform, t);
         }
     }
 }

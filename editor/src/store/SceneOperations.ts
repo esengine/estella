@@ -229,6 +229,36 @@ export class SceneOperations {
         this.host_.executeCommand(compound);
     }
 
+    updateBatchProperties(
+        entity: Entity,
+        changes: { componentType: string; property: string; oldValue: unknown; newValue: unknown }[],
+        description?: string
+    ): void {
+        const commands = changes.map(c => new PropertyCommand(
+            this.host_.state_.scene,
+            this.host_.entityMap_,
+            entity,
+            c.componentType,
+            c.property,
+            c.oldValue,
+            c.newValue
+        ));
+        const compound = new CompoundCommand(commands, description ?? 'Update properties');
+        this.host_.executeCommand(compound);
+
+        if (this.isPrefabInstance(entity as number)) {
+            for (const c of changes) {
+                recordPropertyOverride(
+                    this.host_.state_.scene,
+                    entity as number,
+                    c.componentType,
+                    c.property,
+                    c.newValue
+                );
+            }
+        }
+    }
+
     getComponent(entity: Entity, type: string): ComponentData | null {
         const entityData = this.host_.entityMap_.get(entity as number);
         if (!entityData) return null;

@@ -104,8 +104,6 @@ export function applyDirectionalFill(
     const anchors = computeFillAnchors(direction, value);
     fillRect.anchorMin = anchors.anchorMin;
     fillRect.anchorMax = anchors.anchorMax;
-    fillRect.offsetMin = anchors.offsetMin;
-    fillRect.offsetMax = anchors.offsetMax;
     if (anchors.anchorMin.x === anchors.anchorMax.x) {
         fillRect.size = { ...fillRect.size, x: 0 };
     }

@@ -421,6 +421,14 @@ export class EditorStore {
         this.sceneOps_.updateProperties(entity, componentType, changes);
     }
 
+    updateBatchProperties(
+        entity: Entity,
+        changes: { componentType: string; property: string; oldValue: unknown; newValue: unknown }[],
+        description?: string
+    ): void {
+        this.sceneOps_.updateBatchProperties(entity, changes, description);
+    }
+
     getComponent(entity: Entity, type: string): ComponentData | null {
         return this.sceneOps_.getComponent(entity, type);
     }
