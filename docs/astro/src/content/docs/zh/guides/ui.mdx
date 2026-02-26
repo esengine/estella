@@ -1,6 +1,6 @@
 ---
-title: UI 与文本
-description: ESEngine 中的 UI 组件、布局、交互和文本渲染
+title: UI 布局
+description: ESEngine 中的 UI 布局系统——锚点、Flex 和网格布局
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -35,9 +35,7 @@ addStartupSystem(defineSystem([Commands()], (cmds) => {
 }));
 ```
 
-## 布局
-
-### UIRect
+## UIRect
 
 每个 UI 元素都需要 `UIRect` 来参与布局。它使用锚点系统定义相对于父级的位置和尺寸。
 
@@ -52,7 +50,7 @@ addStartupSystem(defineSystem([Commands()], (cmds) => {
 
 当 `anchorMin` 等于 `anchorMax` 时，元素在锚点处具有固定 `size`。当两者不同时，元素在锚点之间拉伸，尺寸自动计算。
 
-### FlexContainer
+## FlexContainer
 
 类似 CSS Flexbox 的自动子元素排列布局。
 
@@ -65,7 +63,7 @@ addStartupSystem(defineSystem([Commands()], (cmds) => {
 | `gap` | Vec2 | `{0, 0}` | 子元素间距 |
 | `padding` | Vec4 | `{0, 0, 0, 0}` | 上、右、下、左内边距 |
 
-### FlexItem
+## FlexItem
 
 `FlexContainer` 内子实体的 Flex 属性。
 
@@ -76,7 +74,7 @@ addStartupSystem(defineSystem([Commands()], (cmds) => {
 | `flexBasis` | number | `-1` | 扩展/收缩前的基础尺寸（-1 = 自动） |
 | `order` | number | `0` | 显示顺序覆盖 |
 
-### LayoutGroup
+## LayoutGroup
 
 带方向、间距和对齐的网格式布局。
 
@@ -88,330 +86,9 @@ addStartupSystem(defineSystem([Commands()], (cmds) => {
 | `childAlignment` | ChildAlignment | `Start` | `Start`、`Center`、`End` |
 | `reverseOrder` | boolean | `false` | 反向排列 |
 
-## 文本
-
-### Text 组件
-
-通过 `TextPlugin` 自动将样式化文本渲染为 `Sprite` 纹理。
-
-**设置：** 在实体上添加 `Transform`、`Sprite`、`UIRect` 和 `Text`。
-
-| 属性 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| `content` | string | `''` | 文本内容 |
-| `fontFamily` | string | `'Arial'` | 字体名称 |
-| `fontSize` | number | `24` | 字号（像素） |
-| `color` | Color | `{r:1, g:1, b:1, a:1}` | 文本颜色 RGBA |
-| `align` | TextAlign | `Left` | `Left` (0)、`Center` (1)、`Right` (2) |
-| `verticalAlign` | TextVerticalAlign | `Top` | `Top` (0)、`Middle` (1)、`Bottom` (2) |
-| `wordWrap` | boolean | `true` | 启用自动换行 |
-| `overflow` | TextOverflow | `Visible` | `Visible` (0)、`Clip` (1)、`Ellipsis` (2) |
-| `lineHeight` | number | `1.2` | 行高倍率 |
-
-<Aside type="note">
-  无需手动配置 Sprite。`TextPlugin` 会自动从 Text 内容创建和更新纹理。
-</Aside>
-
-### 运行时修改文本
-
-```typescript
-import { defineSystem, addSystem, Query, Mut, Text } from 'esengine';
-
-addSystem(defineSystem(
-    [Query(Mut(Text))],
-    (query) => {
-        for (const [entity, text] of query) {
-            text.content = '已更新！';
-            text.fontSize = 32;
-        }
-    }
-));
-```
-
-### Image
-
-显示图片，支持切片、平铺和填充模式。
-
-| 属性 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| `texture` | number | — | 纹理资产句柄 |
-| `color` | Color | `{r:1, g:1, b:1, a:1}` | 颜色着色 |
-| `imageType` | ImageType | `Simple` | `Simple` (0)、`Sliced` (1)、`Tiled` (2)、`Filled` (3) |
-| `fillMethod` | FillMethod | `Horizontal` | `Horizontal` (0)、`Vertical` (1) |
-| `fillOrigin` | FillOrigin | `Left` | `Left` (0)、`Right` (1)、`Bottom` (2)、`Top` (3) |
-| `fillAmount` | number | `1` | 填充进度 0–1 |
-| `preserveAspect` | boolean | `false` | 保持宽高比 |
-| `enabled` | boolean | `true` | 可见性开关 |
-
-## 交互
-
-### Interactable
-
-将 UI 实体标记为可交互（接收指针事件）。所有交互控件都需要此组件。
-
-| 属性 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| `enabled` | boolean | `true` | 是否启用交互 |
-| `blockRaycast` | boolean | `true` | 阻止事件传递到后面的元素 |
-
-### UIInteraction
-
-由插件自动添加到拥有 `Interactable` 的实体上，提供逐实体状态：
-
-| 属性 | 类型 | 说明 |
-|------|------|------|
-| `hovered` | boolean | 指针悬停在此实体上 |
-| `pressed` | boolean | 实体正被按下 |
-| `justPressed` | boolean | 本帧开始按下 |
-| `justReleased` | boolean | 本帧释放按下 |
-
-### UIEvents
-
-`UIEvents` 资源收集每帧的交互事件：
-
-```typescript
-import { defineSystem, addSystem, Res } from 'esengine';
-import { UIEvents } from 'esengine';
-
-addSystem(defineSystem(
-    [Res(UIEvents)],
-    (events) => {
-        for (const e of events.query('click')) {
-            console.log('点击了：', e.entity);
-        }
-    }
-));
-```
-
-**事件类型：** `click`、`press`、`release`、`hover_enter`、`hover_exit`、`focus`、`blur`、`submit`、`change`、`drag_start`、`drag_move`、`drag_end`、`scroll`
-
-事件沿实体层级向上冒泡。如果父级的 `Interactable` 设置了 `blockRaycast: true`，冒泡在此停止。
-
-### Focusable
-
-启用键盘焦点和 Tab 导航。
-
-| 属性 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| `tabIndex` | number | `0` | 焦点顺序（越小越早） |
-| `isFocused` | boolean | `false` | 当前焦点状态 |
-
-## 控件
-
-### Button
-
-在 `Interactable` 之上的状态机，支持可选颜色过渡。
-
-| 属性 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| `state` | ButtonState | `Normal` | `Normal` (0)、`Hovered` (1)、`Pressed` (2)、`Disabled` (3) |
-| `transition` | ColorTransition \| null | `null` | 各状态颜色 |
-
-```typescript
-cmds.entity(button).insert(Button, {
-    state: 0,
-    transition: {
-        normalColor:   { r: 1, g: 1, b: 1, a: 1 },
-        hoveredColor:  { r: 0.9, g: 0.9, b: 0.9, a: 1 },
-        pressedColor:  { r: 0.7, g: 0.7, b: 0.7, a: 1 },
-        disabledColor: { r: 0.5, g: 0.5, b: 0.5, a: 0.5 },
-    },
-});
-```
-
-### Toggle
-
-复选框，可选分组实现互斥。
-
-| 属性 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| `isOn` | boolean | `true` | 开关状态 |
-| `graphicEntity` | Entity | `0` | 显示/隐藏的子实体（勾选标记） |
-| `group` | Entity | `0` | ToggleGroup 实体，实现单选按钮行为 |
-| `transition` | ColorTransition \| null | `null` | 颜色过渡 |
-
-**ToggleGroup** — 挂载到父实体使子级 Toggle 互斥：
-
-| 属性 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| `allowSwitchOff` | boolean | `false` | 允许所有 Toggle 关闭 |
-
-### Slider
-
-交互式数值滑块，带填充和可选可拖拽手柄。
-
-| 属性 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| `value` | number | `0` | 当前值 |
-| `minValue` | number | `0` | 最小值 |
-| `maxValue` | number | `1` | 最大值 |
-| `direction` | FillDirection | `LeftToRight` | `LeftToRight` (0)、`RightToLeft` (1)、`BottomToTop` (2)、`TopToBottom` (3) |
-| `fillEntity` | Entity | `0` | 填充可视化的子实体 |
-| `handleEntity` | Entity | `0` | 可拖拽手柄的子实体 |
-| `wholeNumbers` | boolean | `false` | 吸附到整数 |
-
-监听值变化：
-
-```typescript
-addSystem(defineSystem(
-    [Res(UIEvents), Query(Slider)],
-    (events, query) => {
-        for (const e of events.query('change')) {
-            for (const [entity, slider] of query) {
-                if (entity === e.entity) {
-                    console.log('滑块值：', slider.value);
-                }
-            }
-        }
-    }
-));
-```
-
-### ProgressBar
-
-非交互式进度条显示。
-
-| 属性 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| `value` | number | `0` | 进度 0–1 |
-| `fillEntity` | Entity | `0` | 填充的子实体 |
-| `direction` | FillDirection | `LeftToRight` | 填充方向 |
-
-```typescript
-addSystem(defineSystem(
-    [Res(Time), Query(Mut(ProgressBar))],
-    (time, query) => {
-        for (const [entity, bar] of query) {
-            bar.value = Math.min(1, bar.value + time.delta * 0.1);
-        }
-    }
-));
-```
-
-### Dropdown
-
-下拉列表选择器。
-
-| 属性 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| `options` | string[] | `[]` | 选项标签 |
-| `selectedIndex` | number | `-1` | 选中项索引 |
-| `isOpen` | boolean | `false` | 列表可见性 |
-| `listEntity` | Entity | `0` | 下拉列表的子实体 |
-| `labelEntity` | Entity | `0` | 显示选中标签的子实体 |
-
-### ScrollView
-
-带惯性和弹性回弹的滚动容器。
-
-| 属性 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| `contentEntity` | Entity | `0` | 持有可滚动内容的子实体 |
-| `horizontalEnabled` | boolean | `false` | 启用水平滚动 |
-| `verticalEnabled` | boolean | `true` | 启用垂直滚动 |
-| `scrollX` | number | `0` | 当前水平偏移 |
-| `scrollY` | number | `0` | 当前垂直偏移 |
-| `inertia` | boolean | `true` | 启用惯性滚动 |
-| `decelerationRate` | number | `0.135` | 惯性摩擦力 |
-| `elastic` | boolean | `true` | 边缘回弹 |
-| `wheelSensitivity` | number | `0.1` | 鼠标滚轮灵敏度 |
-
-### ListView
-
-大列表虚拟滚动——仅渲染可见项目。
-
-| 属性 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| `itemHeight` | number | `40` | 固定项目高度 |
-| `itemCount` | number | `0` | 总项目数 |
-| `scrollY` | number | `0` | 滚动位置 |
-| `overscan` | number | `2` | 视口上下额外渲染的项目数 |
-
-### TextInput
-
-可编辑文本输入框，支持光标、选择和占位符。
-
-| 属性 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| `value` | string | `''` | 当前文本 |
-| `placeholder` | string | `''` | 为空时的提示 |
-| `placeholderColor` | Color | `{r:0.6, g:0.6, b:0.6, a:1}` | 占位符颜色 |
-| `fontFamily` | string | `'Arial'` | 字体 |
-| `fontSize` | number | `16` | 字号 |
-| `color` | Color | `{r:1, g:1, b:1, a:1}` | 文本颜色 |
-| `backgroundColor` | Color | `{r:0.15, g:0.15, b:0.15, a:1}` | 背景颜色 |
-| `padding` | number | `6` | 内边距 |
-| `maxLength` | number | `0` | 最大字符数（0 = 无限） |
-| `multiline` | boolean | `false` | 允许换行 |
-| `password` | boolean | `false` | 密码遮罩 |
-| `readOnly` | boolean | `false` | 禁止编辑 |
-
-**事件：** `change`（值变化）、`submit`（单行模式下按 Enter）
-
-### Draggable
-
-启用 UI 元素的拖拽移动。
-
-| 属性 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| `enabled` | boolean | `true` | 启用拖拽 |
-| `dragThreshold` | number | `5` | 开始拖拽前的像素移动距离 |
-| `lockX` | boolean | `false` | 锁定水平移动 |
-| `lockY` | boolean | `false` | 锁定垂直移动 |
-
-## 遮罩
-
-### UIMask
-
-将子实体裁剪到父级 `UIRect` 边界内。
-
-| 属性 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| `enabled` | boolean | `true` | 是否启用裁剪 |
-| `mode` | MaskMode | `Scissor` | `Scissor` (0)、`Stencil` (1) |
-
-嵌套 `UIMask` 实体会裁剪到所有父级遮罩的交集区域。
-
-<Aside type="caution">
-  `UIMask` 只裁剪**子**实体——拥有 UIMask 的实体本身不会被裁剪。
-</Aside>
-
-## SafeArea
-
-适配设备安全区域（刘海、圆角）。适用于移动端和微信小游戏。
-
-| 属性 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| `applyTop` | boolean | `true` | 应用到顶部 |
-| `applyBottom` | boolean | `true` | 应用到底部 |
-| `applyLeft` | boolean | `true` | 应用到左侧 |
-| `applyRight` | boolean | `true` | 应用到右侧 |
-
-## 示例：分数显示
-
-```typescript
-import { defineTag, defineComponent, defineSystem, addSystem, Query, Mut, Changed, Text } from 'esengine';
-
-const ScoreDisplay = defineTag('ScoreDisplay');
-const GameState = defineComponent('GameState', { score: 0 });
-
-addSystem(defineSystem(
-    [Query(Mut(Text), ScoreDisplay), Query(Changed(GameState))],
-    (displays, stateQuery) => {
-        if (stateQuery.isEmpty()) return;
-        const [, state] = stateQuery.single()!;
-        for (const [, text] of displays) {
-            text.content = `分数：${state.score}`;
-        }
-    }
-));
-```
-
-使用[变更检测](/microes/zh/core-concepts/change-detection/)，仅在分数实际变化时更新文本。
-
 ## 下一步
 
-- [组件](/microes/zh/core-concepts/components/) — 所有内置组件
-- [精灵](/microes/zh/guides/sprite/) — 精灵渲染详情
-- [位图文本](/microes/zh/guides/bitmap-text/) — GPU 渲染的位图字体文本
-- [输入处理](/microes/zh/guides/input/) — 键盘、鼠标和触摸输入
+- [文本与图片](/microes/zh/guides/ui-text/) — 文本渲染和图片显示
+- [交互](/microes/zh/guides/ui-interaction/) — 指针事件、焦点和拖拽
+- [控件](/microes/zh/guides/ui-widgets/) — 按钮、滑块、开关等
+- [遮罩与安全区](/microes/zh/guides/ui-masking/) — 裁剪和设备安全区域

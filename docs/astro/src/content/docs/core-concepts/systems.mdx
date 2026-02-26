@@ -27,7 +27,7 @@ This system automatically processes every entity in the scene that has both `Tra
 
 `defineSystem` takes two arguments:
 
-1. **Parameters** — an array of `Query`, `Res`, `ResMut`, `Commands`, `EventWriter`, or `EventReader` descriptors
+1. **Parameters** — an array of `Query`, `Res`, `ResMut`, `Commands`, `GetWorld`, `EventWriter`, or `EventReader` descriptors
 2. **Function** — receives the resolved parameters in the same order
 
 ## Registering Systems
@@ -222,12 +222,43 @@ defineSystem([EventReader(DamageEvent)], (reader) => {
 
 See [Events](/microes/core-concepts/events/) for the full API.
 
+### GetWorld
+
+Direct access to the ECS World. Use it with `world.get()` / `world.set()` for O(1) component access by entity ID, or with utility functions like `findEntityByName()`:
+
+```typescript
+import { GetWorld, findEntityByName, ProgressBar } from 'esengine';
+
+defineSystem([GetWorld()], (world) => {
+    const entity = findEntityByName(world, 'HealthBar');
+    if (entity) {
+        const bar = world.get(entity, ProgressBar);
+        bar.value = playerHealth / maxHealth;
+        world.set(entity, ProgressBar, bar);
+    }
+});
+```
+
+#### World API
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `world.get(entity, Component)` | component data | Read a component (O(1)) |
+| `world.set(entity, Component, data)` | void | Write a component (O(1)) |
+| `world.has(entity, Component)` | boolean | Check if entity has component |
+| `world.tryGet(entity, Component)` | data \| null | Safe read, returns null if missing |
+| `world.valid(entity)` | boolean | Check if entity is alive |
+
+<Aside type="tip">
+  Prefer `Query` + `Mut()` when iterating multiple entities — it handles auto-writeback. Use `GetWorld()` when you need to access a **known entity by ID** without iteration, e.g. after `findEntityByName()`.
+</Aside>
+
 ### Combining Parameters
 
 ```typescript
 defineSystem(
-    [Commands(), Res(Time), Res(Input), Query(Mut(Transform), Velocity)],
-    (cmds, time, input, query) => {
+    [Commands(), Res(Time), Res(Input), GetWorld(), Query(Mut(Transform), Velocity)],
+    (cmds, time, input, world, query) => {
         // All parameters available
     }
 );

@@ -689,8 +689,11 @@ declare enum Schedule {
     FixedUpdate = 11,
     FixedPostUpdate = 12
 }
+interface GetWorldDescriptor {
+    readonly _type: 'get_world';
+}
 type QueryArg = AnyComponentDef | MutWrapper<AnyComponentDef>;
-type SystemParam = QueryDescriptor<readonly QueryArg[]> | ResDescriptor<unknown> | ResMutDescriptor<unknown> | CommandsDescriptor | EventWriterDescriptor<unknown> | EventReaderDescriptor<unknown> | RemovedQueryDescriptor<AnyComponentDef>;
+type SystemParam = QueryDescriptor<readonly QueryArg[]> | ResDescriptor<unknown> | ResMutDescriptor<unknown> | CommandsDescriptor | EventWriterDescriptor<unknown> | EventReaderDescriptor<unknown> | RemovedQueryDescriptor<AnyComponentDef> | GetWorldDescriptor;
 interface SystemDef {
     readonly _id: symbol;
     readonly _params: readonly SystemParam[];

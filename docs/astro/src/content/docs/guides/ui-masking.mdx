@@ -1,0 +1,38 @@
+---
+title: Masking & SafeArea
+description: UI clipping and device safe area adaptation in ESEngine
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## UIMask
+
+Clips child entities to the parent's `UIRect` bounds.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `enabled` | boolean | `true` | Whether clipping is active |
+| `mode` | MaskMode | `Scissor` | `Scissor` (0), `Stencil` (1) |
+
+Nested `UIMask` entities clip to the intersection of all parent masks.
+
+<Aside type="caution">
+  `UIMask` only clips **child** entities — the entity with UIMask itself is not clipped.
+</Aside>
+
+## SafeArea
+
+Adapts layout to device safe areas (notches, rounded corners). Useful for mobile and WeChat MiniGame.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `applyTop` | boolean | `true` | Apply to top edge |
+| `applyBottom` | boolean | `true` | Apply to bottom edge |
+| `applyLeft` | boolean | `true` | Apply to left edge |
+| `applyRight` | boolean | `true` | Apply to right edge |
+
+## Next Steps
+
+- [UI Layout](/microes/guides/ui/) — anchors, flex, and grid layout
+- [Widgets](/microes/guides/ui-widgets/) — buttons, sliders, toggles, and more
+- [WeChat MiniGame](/microes/guides/wechat/) — platform-specific considerations
