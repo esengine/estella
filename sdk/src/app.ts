@@ -347,11 +347,33 @@ export class App {
         this.world_.resetQueryPool();
         this.frame_paused_ = false;
 
-        this.runSchedule(Schedule.First);
-        this.runSchedule(Schedule.PreUpdate);
-        this.runSchedule(Schedule.Update);
-        this.runSchedule(Schedule.PostUpdate);
-        this.runSchedule(Schedule.Last);
+        if (this.user_paused_ && !this.step_pending_) {
+            this.runSchedule(Schedule.Last);
+        } else {
+            this.runSchedule(Schedule.First);
+
+            this.fixedAccumulator_ += delta;
+            let fixedSteps = 0;
+            while (this.fixedAccumulator_ >= this.fixedTimestep_ && fixedSteps < this.maxFixedSteps_) {
+                this.fixedAccumulator_ -= this.fixedTimestep_;
+                this.runSchedule(Schedule.FixedPreUpdate);
+                this.runSchedule(Schedule.FixedUpdate);
+                this.runSchedule(Schedule.FixedPostUpdate);
+                fixedSteps++;
+            }
+            if (fixedSteps >= this.maxFixedSteps_) {
+                this.fixedAccumulator_ = this.fixedTimestep_;
+            }
+
+            this.runSchedule(Schedule.PreUpdate);
+            this.runSchedule(Schedule.Update);
+            this.runSchedule(Schedule.PostUpdate);
+            this.runSchedule(Schedule.Last);
+
+            if (this.step_pending_) {
+                this.step_pending_ = false;
+            }
+        }
 
         const REMOVED_BUFFER_RETENTION = 2;
         this.world_.cleanRemovedBuffer(this.world_.getWorldTick() - REMOVED_BUFFER_RETENTION);
