@@ -4,8 +4,9 @@
  */
 
 import * as esbuild from 'esbuild-wasm/esm/browser';
+import * as esengineModule from 'esengine';
 import { defineComponent, defineTag, unregisterComponent } from 'esengine';
-import { virtualFsPlugin } from './esbuildPlugins';
+import { virtualFsPlugin, playModeShimPlugin } from './esbuildPlugins';
 import type { NativeFS, ScriptLoaderOptions, CompileError } from './types';
 import { clearScriptComponents } from '../schemas/ComponentSchemas';
 import { getEditorContext } from '../context/EditorContext';
@@ -90,6 +91,10 @@ export class ScriptLoader {
                 .map(p => `import "${p}";`)
                 .join('\n');
 
+            const shimModules = new Map<string, Record<string, unknown>>([
+                ['esengine', esengineModule as unknown as Record<string, unknown>],
+            ]);
+
             const result = await esbuild.build({
                 stdin: {
                     contents: entryContent,
@@ -102,8 +107,8 @@ export class ScriptLoader {
                 sourcemap: 'inline',
                 platform: 'browser',
                 target: 'es2020',
-                external: ['esengine'],
                 plugins: [
+                    playModeShimPlugin(shimModules),
                     virtualFsPlugin({
                         fs,
                         projectDir: this.projectDir_,
@@ -269,6 +274,10 @@ const DEFINE_TAG_RE = /defineTag\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
 
 function extractAndRegisterComponents(source: string): string[] {
     const names: string[] = [];
+    const registerSchema = typeof window !== 'undefined'
+        ? window.__esengine_registerComponent as
+            ((name: string, defaults: Record<string, unknown>, isTag: boolean) => void) | undefined
+        : undefined;
 
     DEFINE_COMPONENT_RE.lastIndex = 0;
     let match;
@@ -280,6 +289,7 @@ function extractAndRegisterComponents(source: string): string[] {
         try {
             const defaults = new Function(`return ${objStr}`)() as Record<string, unknown>;
             defineComponent(name, defaults);
+            registerSchema?.(name, defaults, false);
             names.push(name);
         } catch { /* skip complex expressions */ }
     }
@@ -287,6 +297,7 @@ function extractAndRegisterComponents(source: string): string[] {
     DEFINE_TAG_RE.lastIndex = 0;
     while ((match = DEFINE_TAG_RE.exec(source)) !== null) {
         defineTag(match[1]);
+        registerSchema?.(match[1], {}, true);
         names.push(match[1]);
     }
 

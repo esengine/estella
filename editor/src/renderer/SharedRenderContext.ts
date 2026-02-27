@@ -11,6 +11,8 @@ import {
     defineSystem,
     Schedule,
     uiPlugins,
+    assetPlugin,
+    prefabsPlugin,
     RenderPipeline,
     Renderer,
     createMaskProcessor,
@@ -148,6 +150,8 @@ export class SharedRenderContext {
         }, { name: 'EditorInputClearSystem' }));
 
         setEditorMode(true);
+        app.addPlugin(assetPlugin);
+        app.addPlugin(prefabsPlugin);
         for (const plugin of uiPlugins) {
             app.addPlugin(plugin);
         }

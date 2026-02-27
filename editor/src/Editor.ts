@@ -24,6 +24,7 @@ import { lockBuiltinPropertyEditors, clearExtensionPropertyEditors } from './pro
 import { registerBuiltinSchemas, lockBuiltinComponentSchemas, clearExtensionComponentSchemas } from './schemas/ComponentSchemas';
 import { initBoundsProviders, registerBoundsProvider, lockBuiltinBoundsProviders, clearExtensionBoundsProviders } from './bounds';
 import { saveSceneToFile, saveSceneToPath, loadSceneFromFile, loadSceneFromPath, hasFileHandle, clearFileHandle } from './io/SceneSerializer';
+import { isAbsolutePath, joinPath, getProjectDir } from './utils/path';
 import { icons } from './utils/icons';
 import { ScriptLoader } from './scripting';
 import { showBuildSettingsDialog, BuildService } from './builder';
@@ -102,6 +103,7 @@ export class Editor {
     private dockLayout_: DockLayoutManager | null = null;
     private contentDrawer_: ContentDrawer | null = null;
     private assetLibraryReady_: Promise<void> = Promise.resolve();
+    private scriptsReady_: Promise<void> = Promise.resolve();
     private clipboard_: EntityData[] | null = null;
     private addressableWindow_: { element: HTMLElement; panel: AddressablePanel; keyHandler: (e: KeyboardEvent) => void } | null = null;
     private previewUrl_: string | null = null;
@@ -163,7 +165,7 @@ export class Editor {
         if (this.projectPath_) {
             this.setupEditorGlobals();
             this.assetLibraryReady_ = this.initializeAssetLibrary();
-            this.initializeAllScripts();
+            this.scriptsReady_ = this.initializeAllScripts();
             this.syncProjectSettings();
             this.restoreLastScene();
         }
@@ -321,16 +323,22 @@ export class Editor {
             await this.store_.exitPrefabEditMode();
         }
 
+        let resolvedPath = scenePath;
+        if (!isAbsolutePath(scenePath) && this.projectPath_) {
+            const projectDir = getProjectDir(this.projectPath_);
+            resolvedPath = joinPath(projectDir, scenePath);
+        }
+
         await this.assetLibraryReady_;
-        const scene = await loadSceneFromPath(scenePath);
+        const scene = await loadSceneFromPath(resolvedPath);
         if (scene) {
             const migrated = await getAssetLibrary().migrateScene(scene);
             if (migrated) {
-                await saveSceneToPath(scene, scenePath);
+                await saveSceneToPath(scene, resolvedPath);
             }
-            this.store_.loadScene(scene, scenePath);
+            this.store_.loadScene(scene, resolvedPath);
             this.saveLastOpenedScene(scenePath);
-            console.log('Scene loaded:', scenePath);
+            console.log('Scene loaded:', resolvedPath);
         }
     }
 
@@ -593,6 +601,7 @@ export class Editor {
 
     private async restoreLastScene(): Promise<void> {
         if (!this.projectPath_) return;
+        await this.scriptsReady_;
         const settings = await loadEditorLocalSettings(this.projectPath_);
         const lastScene = settings?.lastOpenedScene as string | undefined;
         if (lastScene) {
@@ -697,6 +706,10 @@ export class Editor {
         } catch (err) {
             console.error('Failed to initialize scripts:', err);
         }
+    }
+
+    getCompiledScripts(): string | null {
+        return this.scriptLoader_?.getCompiledCode() ?? null;
     }
 
     async reloadScripts(): Promise<boolean> {

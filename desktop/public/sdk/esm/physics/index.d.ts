@@ -556,6 +556,7 @@ declare class World {
     private iterationDepth_;
     private nextEntityId_;
     private nextGeneration_;
+    private spawnCallbacks_;
     private despawnCallbacks_;
     private worldTick_;
     private componentAddedTicks_;
@@ -567,6 +568,7 @@ declare class World {
     getCppRegistry(): CppRegistry | null;
     spawn(): Entity;
     despawn(entity: Entity): void;
+    onSpawn(callback: (entity: Entity) => void): () => void;
     onDespawn(callback: (entity: Entity) => void): () => void;
     valid(entity: Entity): boolean;
     entityCount(): number;
@@ -871,6 +873,7 @@ declare class App {
     }): this;
     addSystem(system: SystemDef): this;
     addStartupSystem(system: SystemDef): this;
+    removeSystem(systemId: symbol): boolean;
     connectCpp(cppRegistry: CppRegistry, module?: ESEngineModule): this;
     get wasmModule(): ESEngineModule | null;
     get pipeline(): RenderPipeline | null;

@@ -167,6 +167,19 @@ export class App {
         return this.addSystemToSchedule(Schedule.Startup, system);
     }
 
+    removeSystem(systemId: symbol): boolean {
+        let removed = false;
+        for (const [schedule, entries] of this.systems_) {
+            const filtered = entries.filter(e => e.system._id !== systemId);
+            if (filtered.length !== entries.length) {
+                this.systems_.set(schedule, filtered);
+                this.sortedSystemsCache_.delete(schedule);
+                removed = true;
+            }
+        }
+        return removed;
+    }
+
     // =========================================================================
     // C++ Integration
     // =========================================================================

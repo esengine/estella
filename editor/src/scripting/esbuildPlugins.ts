@@ -89,6 +89,45 @@ export function esengineShimPlugin(): esbuild.Plugin {
 }
 
 // =============================================================================
+// Play Mode Shim Plugin
+// =============================================================================
+
+export function playModeShimPlugin(
+    modules: Map<string, Record<string, unknown>>,
+): esbuild.Plugin {
+    const shimCache = new Map<string, string>();
+    for (const [specifier, mod] of modules) {
+        const names = Object.keys(mod)
+            .filter(k => /^[a-zA-Z_$]/.test(k) && !JS_RESERVED.has(k));
+        const key = JSON.stringify(specifier);
+        const code = [
+            `const __m = window.__esengine_shim__[${key}];`,
+            ...names.map(n => `export const ${n} = __m["${n}"];`),
+        ].join('\n');
+        shimCache.set(specifier, code);
+    }
+
+    return {
+        name: 'play-mode-shim',
+        setup(build) {
+            build.onResolve({ filter: /^[^./]/ }, (args) => {
+                if (shimCache.has(args.path)) {
+                    return { path: args.path, namespace: 'play-mode-shim' };
+                }
+                return undefined;
+            });
+            build.onLoad({ filter: /.*/, namespace: 'play-mode-shim' }, (args) => {
+                const code = shimCache.get(args.path);
+                if (!code) {
+                    return { errors: [{ text: `Shim not found: ${args.path}` }] };
+                }
+                return { contents: code, loader: 'js' };
+            });
+        },
+    };
+}
+
+// =============================================================================
 // Virtual FS Plugin
 // =============================================================================
 
@@ -116,10 +155,6 @@ export function virtualFsPlugin(options: VirtualFsPluginOptions): esbuild.Plugin
 
             build.onResolve({ filter: /^[^./]/ }, async (args) => {
                 if (/^[A-Za-z]:/.test(args.path)) return undefined;
-
-                if (args.path === 'esengine' || args.path === 'esengine/wasm') {
-                    return { path: args.path, external: true };
-                }
 
                 const pkgName = args.path.startsWith('@')
                     ? args.path.split('/').slice(0, 2).join('/')

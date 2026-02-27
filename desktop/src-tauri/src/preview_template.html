@@ -450,6 +450,7 @@
                 }
 
                 try {
+                    window.__esengine_shim__ = { esengine: sdk };
                     await import('/.esengine/preview/user-scripts.js');
                 } catch (e) {
                     console.warn('User scripts load skipped:', e);
