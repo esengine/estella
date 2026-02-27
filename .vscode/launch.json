@@ -13,6 +13,17 @@
             "skipFiles": ["<node_internals>/**"]
         },
         {
+            "name": "Tauri Editor (Release)",
+            "type": "node",
+            "request": "launch",
+            "runtimeExecutable": "pnpm",
+            "runtimeArgs": ["tauri", "dev", "--release"],
+            "cwd": "${workspaceFolder}/desktop",
+            "preLaunchTask": "build-editor",
+            "console": "integratedTerminal",
+            "skipFiles": ["<node_internals>/**"]
+        },
+        {
             "name": "Debug ESEngine Editor (C++)",
             "type": "cppdbg",
             "request": "launch",

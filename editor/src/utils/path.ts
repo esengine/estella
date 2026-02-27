@@ -2,6 +2,23 @@ export function normalizePath(path: string): string {
     return path.replace(/\\/g, '/');
 }
 
+export function resolvePath(path: string): string {
+    const normalized = normalizePath(path);
+    const parts = normalized.split('/');
+    const resolved: string[] = [];
+
+    for (const part of parts) {
+        if (part === '..') {
+            resolved.pop();
+        } else if (part && part !== '.') {
+            resolved.push(part);
+        }
+    }
+
+    const result = resolved.join('/');
+    return normalized.startsWith('/') ? '/' + result : result;
+}
+
 export function joinPath(...parts: string[]): string {
     return normalizePath(parts.join('/').replace(/\/+/g, '/'));
 }

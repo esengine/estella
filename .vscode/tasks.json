@@ -29,6 +29,16 @@
             "problemMatcher": ["$tsc"]
         },
         {
+            "label": "kill-ports",
+            "type": "shell",
+            "command": "node",
+            "args": ["scripts/kill-port.js"],
+            "options": {
+                "cwd": "${workspaceFolder}/desktop"
+            },
+            "problemMatcher": []
+        },
+        {
             "label": "build-editor",
             "type": "shell",
             "command": "pnpm",
@@ -36,7 +46,7 @@
             "options": {
                 "cwd": "${workspaceFolder}/editor"
             },
-            "dependsOn": ["build-sdk"],
+            "dependsOn": ["build-sdk", "kill-ports"],
             "problemMatcher": ["$tsc"]
         },
         {
@@ -60,8 +70,34 @@
             }
         },
         {
+            "label": "tauri-dev-release",
+            "type": "shell",
+            "command": "pnpm",
+            "args": ["tauri", "dev", "--release"],
+            "options": {
+                "cwd": "${workspaceFolder}/desktop"
+            },
+            "isBackground": true,
+            "problemMatcher": {
+                "pattern": {
+                    "regexp": "^$"
+                },
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": "^.*Running.*$",
+                    "endsPattern": "^.*Finished.*$"
+                }
+            }
+        },
+        {
             "label": "build-and-run-tauri",
             "dependsOn": ["build-editor", "tauri-dev"],
+            "dependsOrder": "sequence",
+            "group": "build"
+        },
+        {
+            "label": "build-and-run-tauri-release",
+            "dependsOn": ["build-editor", "tauri-dev-release"],
             "dependsOrder": "sequence",
             "group": "build"
         }

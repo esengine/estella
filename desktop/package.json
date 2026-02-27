@@ -4,6 +4,8 @@
   "type": "module",
   "description": "ESEngine Editor Desktop Application",
   "scripts": {
+    "postinstall": "node scripts/copy-esbuild-wasm.js",
+    "predev": "node scripts/kill-port.js",
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",

@@ -1,6 +1,7 @@
 //! HTTP server for game preview with SSE live reload
 
 use crate::embedded_assets;
+use std::collections::HashMap;
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -241,8 +242,24 @@ fn serve_embedded(data: &[u8], content_type_str: &str) -> Response<std::io::Curs
 
 fn serve_project_file(project_dir: &PathBuf, path: &str) -> Response<std::io::Cursor<Vec<u8>>> {
     let decoded_path = urlencoding::decode(path).unwrap_or_else(|_| path.into());
+    let path_str = decoded_path.as_ref();
 
-    let preview_path = project_dir.join(".esengine/preview").join(decoded_path.as_ref());
+    if is_uuid(path_str) {
+        if let Some(mapped_path) = resolve_asset_uuid(project_dir, path_str) {
+            let full_path = project_dir.join(&mapped_path);
+            if full_path.starts_with(project_dir) {
+                if let Ok(data) = std::fs::read(&full_path) {
+                    return Response::from_data(data)
+                        .with_header(content_type(get_mime_type(&mapped_path)))
+                        .with_header(no_cache())
+                        .with_header(cors());
+                }
+            }
+        }
+        return not_found();
+    }
+
+    let preview_path = project_dir.join(".esengine/preview").join(path_str);
     if preview_path.starts_with(project_dir) {
         if let Ok(data) = std::fs::read(&preview_path) {
             return Response::from_data(data)
@@ -252,7 +269,7 @@ fn serve_project_file(project_dir: &PathBuf, path: &str) -> Response<std::io::Cu
         }
     }
 
-    let file_path = project_dir.join(decoded_path.as_ref());
+    let file_path = project_dir.join(path_str);
 
     if !file_path.starts_with(project_dir) {
         return not_found();
@@ -267,6 +284,47 @@ fn serve_project_file(project_dir: &PathBuf, path: &str) -> Response<std::io::Cu
         }
         Err(_) => not_found(),
     }
+}
+
+fn is_uuid(s: &str) -> bool {
+    s.len() == 36 && s.chars().filter(|c| *c == '-').count() == 4
+}
+
+fn resolve_asset_uuid(project_dir: &PathBuf, uuid: &str) -> Option<String> {
+    let assets_json = project_dir.join(".esengine/preview/.assets.json");
+
+    if !assets_json.exists() {
+        eprintln!("[preview-server] Asset database not found: {:?}", assets_json);
+        let assets_dir = project_dir.join("assets");
+        eprintln!("[preview-server] Trying fallback: searching in assets directory...");
+
+        if let Ok(entries) = std::fs::read_dir(&assets_dir) {
+            for entry in entries.flatten() {
+                if let Some(name) = entry.file_name().to_str() {
+                    if name.contains(uuid) {
+                        if let Ok(rel_path) = entry.path().strip_prefix(project_dir) {
+                            eprintln!("[preview-server] Found asset by UUID in filename: {:?}", rel_path);
+                            return Some(rel_path.to_string_lossy().to_string());
+                        }
+                    }
+                }
+            }
+        }
+        return None;
+    }
+
+    let content = std::fs::read_to_string(&assets_json).ok()?;
+    let assets: HashMap<String, serde_json::Value> = serde_json::from_str(&content).ok()?;
+
+    if let Some(asset) = assets.get(uuid) {
+        if let Some(path) = asset.get("path").and_then(|p| p.as_str()) {
+            eprintln!("[preview-server] Resolved UUID {} -> {}", uuid, path);
+            return Some(path.to_string());
+        }
+    }
+
+    eprintln!("[preview-server] UUID not found in asset database: {}", uuid);
+    None
 }
 
 fn serve_empty() -> Response<std::io::Cursor<Vec<u8>>> {

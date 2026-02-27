@@ -80,6 +80,7 @@ export interface NativeFS {
     getSpineWasm(version: string): Promise<Uint8Array>;
     getPhysicsJs(): Promise<string>;
     getPhysicsWasm(): Promise<Uint8Array>;
+    getEsbuildWasm(): Promise<Uint8Array>;
     toAssetUrl?(path: string): string;
 }
 
@@ -181,9 +182,20 @@ export const nativeFS: NativeFS = {
 
     async readFile(path: string) {
         try {
-            return await readTextFile(path);
+            const resolvedPath = path.replace(/\\/g, '/').split('/').reduce((acc, part) => {
+                if (part === '..') {
+                    acc.pop();
+                } else if (part && part !== '.') {
+                    acc.push(part);
+                }
+                return acc;
+            }, [] as string[]).join('/');
+            return await readTextFile(resolvedPath);
         } catch (err) {
-            console.error(`[NativeFS] readFile failed: ${path}`, err);
+            const errStr = String(err);
+            if (!errStr.includes('os error 2') && !errStr.includes('系统找不到指定的文件')) {
+                console.error(`[NativeFS] readFile failed: ${path}`, err);
+            }
             return null;
         }
     },
@@ -382,6 +394,11 @@ export const nativeFS: NativeFS = {
 
     async getPhysicsWasm() {
         const data = await invoke<number[]>('get_embedded_asset', { name: 'physics.wasm' });
+        return new Uint8Array(data);
+    },
+
+    async getEsbuildWasm() {
+        const data = await invoke<number[]>('get_embedded_asset', { name: 'esbuild.wasm' });
         return new Uint8Array(data);
     },
 };

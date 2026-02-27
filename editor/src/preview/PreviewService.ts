@@ -128,6 +128,8 @@ export class PreviewService {
     ): Promise<void> {
         await this.ensureDirectory(fs, this.previewDir_);
 
+        await this.createAssetDatabaseWithPrefabs(fs, scene);
+
         const resolvedScene = JSON.parse(JSON.stringify(scene));
         getAssetLibrary().resolveSceneAssetPaths(resolvedScene);
 
@@ -155,6 +157,18 @@ export class PreviewService {
         await fs.writeFile(scriptPath, compiledScript ?? '');
 
         await this.resolvePrefabsForPreview(fs, resolvedScene);
+    }
+
+    private async createAssetDatabaseWithPrefabs(fs: NativeFS, scene: SceneData): Promise<void> {
+        const db = getAssetLibrary();
+        const assetMap: Record<string, { path: string }> = {};
+
+        for (const entry of db.getAllEntries()) {
+            assetMap[entry.uuid] = { path: entry.path };
+        }
+
+        const assetDbPath = `${this.previewDir_}/.assets.json`;
+        await fs.writeFile(assetDbPath, JSON.stringify(assetMap, null, 2));
     }
 
     private async collectTextureMetadata(

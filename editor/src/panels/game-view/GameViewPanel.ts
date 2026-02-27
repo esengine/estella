@@ -245,6 +245,13 @@ export class GameViewPanel implements PanelInstance, Resizable {
 
         const getInput = () => getSharedRenderContext().inputState;
 
+        const refocusOnMouseEnter = () => {
+            if (this.gameManager_.state === 'playing') {
+                canvas.focus();
+            }
+        };
+        canvas.addEventListener('mouseenter', refocusOnMouseEnter);
+
         const onMouseMove = (e: MouseEvent) => {
             const input = getInput();
             if (input) {
@@ -355,6 +362,7 @@ export class GameViewPanel implements PanelInstance, Resizable {
             canvas.removeEventListener('touchmove', onTouchMove);
             canvas.removeEventListener('touchend', onTouchEnd);
             canvas.removeEventListener('wheel', onWheel);
+            canvas.removeEventListener('mouseenter', refocusOnMouseEnter);
             document.removeEventListener('keydown', onKeyDown, true);
             document.removeEventListener('keyup', onKeyUp, true);
         };

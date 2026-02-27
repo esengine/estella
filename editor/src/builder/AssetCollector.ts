@@ -46,8 +46,19 @@ export class AssetExportConfigService {
 
     async load(): Promise<AssetExportConfig> {
         const fullPath = joinPath(this.projectDir_, CONFIG_PATH);
+
+        if (!await this.fs_.exists(fullPath)) {
+            const defaultConfig = createDefaultConfig();
+            await this.save(defaultConfig);
+            return defaultConfig;
+        }
+
         const content = await this.fs_.readFile(fullPath);
-        if (!content) return createDefaultConfig();
+        if (!content) {
+            const defaultConfig = createDefaultConfig();
+            await this.save(defaultConfig);
+            return defaultConfig;
+        }
 
         try {
             const data = JSON.parse(content);
@@ -56,7 +67,9 @@ export class AssetExportConfigService {
                 folders: data.folders ?? {},
             };
         } catch {
-            return createDefaultConfig();
+            const defaultConfig = createDefaultConfig();
+            await this.save(defaultConfig);
+            return defaultConfig;
         }
     }
 
@@ -120,6 +133,13 @@ export class AssetReferenceCollector {
             }
         }
 
+        return refs;
+    }
+
+    async collectAssetDependencies(assetPath: string): Promise<Set<string>> {
+        const refs = new Set<string>();
+        const visited = new Set<string>();
+        await this.collectAssetRef(assetPath, refs, visited);
         return refs;
     }
 
@@ -348,12 +368,22 @@ export class BuildAssetCollector {
         const refCollector = new AssetReferenceCollector(this.fs_, this.projectDir_, this.assetLibrary_ ?? undefined);
         const referencedPaths = await refCollector.collectFromScenes(config.scenes);
 
-        const result = new Set<string>();
         const assetsDir = joinPath(this.projectDir_, 'assets');
         if (!await this.fs_.exists(assetsDir)) {
-            return result;
+            return new Set<string>();
         }
 
+        const alwaysFiles = new Set<string>();
+        await this.collectAlwaysFiles(assetsDir, 'assets', exportConfig, alwaysFiles);
+
+        for (const assetPath of alwaysFiles) {
+            const deps = await refCollector.collectAssetDependencies(assetPath);
+            for (const dep of deps) {
+                referencedPaths.add(dep);
+            }
+        }
+
+        const result = new Set<string>();
         await this.walkDirectory(assetsDir, 'assets', exportConfig, referencedPaths, result);
         return result;
     }
@@ -375,6 +405,30 @@ export class BuildAssetCollector {
         }
 
         return 'auto';
+    }
+
+    private async collectAlwaysFiles(
+        absolutePath: string,
+        relativePath: string,
+        exportConfig: AssetExportConfig,
+        result: Set<string>
+    ): Promise<void> {
+        const mode = this.getEffectiveMode(relativePath, exportConfig.folders);
+
+        if (mode === 'exclude') return;
+
+        const entries = await this.fs_.listDirectoryDetailed(absolutePath);
+
+        for (const entry of entries) {
+            const childAbsolute = joinPath(absolutePath, entry.name);
+            const childRelative = `${relativePath}/${entry.name}`;
+
+            if (entry.isDirectory) {
+                await this.collectAlwaysFiles(childAbsolute, childRelative, exportConfig, result);
+            } else if (mode === 'always') {
+                result.add(childRelative);
+            }
+        }
     }
 
     private async walkDirectory(
