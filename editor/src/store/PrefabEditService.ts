@@ -242,11 +242,17 @@ export class PrefabEditService {
         const prefab = await loadPrefabFromPath(prefabPath);
         if (!prefab) return false;
 
-        this.savedSceneState_ = {
-            scene: JSON.parse(JSON.stringify(this.host_.state_.scene)),
-            filePath: this.host_.state_.filePath,
-            isDirty: this.host_.state_.isDirty,
-        };
+        if (this.isEditingPrefab) {
+            if (this.host_.state_.isDirty) {
+                await this.trySavePrefabWithRetry();
+            }
+        } else {
+            this.savedSceneState_ = {
+                scene: JSON.parse(JSON.stringify(this.host_.state_.scene)),
+                filePath: this.host_.state_.filePath,
+                isDirty: this.host_.state_.isDirty,
+            };
+        }
 
         if (!isUUID(prefabPath)) {
             const uuid = getAssetDatabase().getUuid(prefabPath);
