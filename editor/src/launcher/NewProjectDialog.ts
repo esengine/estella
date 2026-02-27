@@ -1,11 +1,11 @@
 /**
  * @file    NewProjectDialog.ts
- * @brief   New project creation dialog
+ * @brief   New project creation dialog with Templates and Examples tabs
  */
 
-import type { ProjectTemplate } from '../types/ProjectTypes';
-import { PROJECT_TEMPLATES } from '../types/ProjectTypes';
-import { createProject, selectProjectLocation } from './ProjectService';
+import type { ProjectTemplate, ExampleProjectInfo } from '../types/ProjectTypes';
+import { PROJECT_TEMPLATES, EXAMPLE_PROJECTS } from '../types/ProjectTypes';
+import { createProject, createFromExample, selectProjectLocation } from './ProjectService';
 
 // =============================================================================
 // Types
@@ -16,6 +16,8 @@ export interface NewProjectDialogOptions {
     onProjectCreated: (projectPath: string) => void;
 }
 
+type DialogTab = 'templates' | 'examples';
+
 // =============================================================================
 // NewProjectDialog
 // =============================================================================
@@ -24,6 +26,8 @@ export class NewProjectDialog {
     private overlay_: HTMLElement;
     private options_: NewProjectDialogOptions;
     private selectedTemplate_: ProjectTemplate = 'empty';
+    private selectedExample_: ExampleProjectInfo | null = EXAMPLE_PROJECTS[0] ?? null;
+    private activeTab_: DialogTab = 'templates';
     private projectLocation_: string = '';
 
     constructor(options: NewProjectDialogOptions) {
@@ -42,18 +46,6 @@ export class NewProjectDialog {
     }
 
     private render(): void {
-        const templatesHtml = PROJECT_TEMPLATES.map(
-            (t) => `
-            <label class="es-dialog-template ${t.id === this.selectedTemplate_ ? 'selected' : ''} ${!t.enabled ? 'disabled' : ''}">
-                <input type="radio" name="template" value="${t.id}"
-                    ${t.id === this.selectedTemplate_ ? 'checked' : ''}
-                    ${!t.enabled ? 'disabled' : ''}>
-                <span class="es-dialog-template-name">${t.name}</span>
-                <span class="es-dialog-template-desc">${t.description}${!t.enabled ? ' (coming soon)' : ''}</span>
-            </label>
-        `
-        ).join('');
-
         this.overlay_.innerHTML = `
             <div class="es-dialog">
                 <div class="es-dialog-header">
@@ -61,6 +53,12 @@ export class NewProjectDialog {
                     <button class="es-dialog-close" data-action="close">×</button>
                 </div>
                 <div class="es-dialog-body">
+                    <div class="es-dialog-tabs">
+                        <button class="es-dialog-tab ${this.activeTab_ === 'templates' ? 'active' : ''}"
+                            data-tab="templates">Templates</button>
+                        <button class="es-dialog-tab ${this.activeTab_ === 'examples' ? 'active' : ''}"
+                            data-tab="examples">Examples</button>
+                    </div>
                     <div class="es-dialog-field">
                         <label class="es-dialog-label">Project Name</label>
                         <input type="text" class="es-dialog-input" id="project-name"
@@ -74,12 +72,7 @@ export class NewProjectDialog {
                             <button class="es-dialog-browse" data-action="browse">...</button>
                         </div>
                     </div>
-                    <div class="es-dialog-field">
-                        <label class="es-dialog-label">Template</label>
-                        <div class="es-dialog-templates">
-                            ${templatesHtml}
-                        </div>
-                    </div>
+                    ${this.renderTabContent()}
                 </div>
                 <div class="es-dialog-footer">
                     <button class="es-dialog-btn" data-action="cancel">Cancel</button>
@@ -89,37 +82,85 @@ export class NewProjectDialog {
         `;
     }
 
+    private renderTabContent(): string {
+        if (this.activeTab_ === 'templates') {
+            return this.renderTemplatesTab();
+        }
+        return this.renderExamplesTab();
+    }
+
+    private renderTemplatesTab(): string {
+        const items = PROJECT_TEMPLATES.map(
+            (t) => `
+            <label class="es-dialog-template ${t.id === this.selectedTemplate_ ? 'selected' : ''} ${!t.enabled ? 'disabled' : ''}">
+                <input type="radio" name="template" value="${t.id}"
+                    ${t.id === this.selectedTemplate_ ? 'checked' : ''}
+                    ${!t.enabled ? 'disabled' : ''}>
+                <span class="es-dialog-template-name">${t.name}</span>
+                <span class="es-dialog-template-desc">${t.description}${!t.enabled ? ' (coming soon)' : ''}</span>
+            </label>
+        `
+        ).join('');
+
+        return `
+            <div class="es-dialog-field">
+                <label class="es-dialog-label">Template</label>
+                <div class="es-dialog-templates">${items}</div>
+            </div>
+        `;
+    }
+
+    private renderExamplesTab(): string {
+        if (EXAMPLE_PROJECTS.length === 0) {
+            return `<div class="es-dialog-field"><span class="es-dialog-empty">No examples available</span></div>`;
+        }
+
+        const items = EXAMPLE_PROJECTS.map(
+            (ex) => `
+            <label class="es-dialog-template ${this.selectedExample_?.id === ex.id ? 'selected' : ''}">
+                <input type="radio" name="example" value="${ex.id}" ${this.selectedExample_?.id === ex.id ? 'checked' : ''}>
+                <span class="es-dialog-template-name">${ex.name}</span>
+                <span class="es-dialog-template-desc">${ex.description}</span>
+            </label>
+        `
+        ).join('');
+
+        return `
+            <div class="es-dialog-field">
+                <label class="es-dialog-label">Example</label>
+                <div class="es-dialog-templates">${items}</div>
+            </div>
+        `;
+    }
+
     private setupEvents(): void {
-        // Close button
-        this.overlay_.querySelector('[data-action="close"]')?.addEventListener('click', () => {
-            this.options_.onClose();
+        this.overlay_.addEventListener('click', (e) => {
+            const target = e.target as HTMLElement;
+            const action = target.dataset.action ?? target.closest('[data-action]')?.getAttribute('data-action');
+            const tab = target.dataset.tab;
+
+            if (action === 'close' || action === 'cancel') {
+                this.options_.onClose();
+            } else if (action === 'browse') {
+                this.handleBrowse();
+            } else if (action === 'create') {
+                this.handleCreate();
+            } else if (tab) {
+                this.switchTab(tab as DialogTab);
+            }
         });
 
-        // Cancel button
-        this.overlay_.querySelector('[data-action="cancel"]')?.addEventListener('click', () => {
-            this.options_.onClose();
-        });
-
-        // Browse button
-        this.overlay_.querySelector('[data-action="browse"]')?.addEventListener('click', () => {
-            this.handleBrowse();
-        });
-
-        // Create button
-        this.overlay_.querySelector('[data-action="create"]')?.addEventListener('click', () => {
-            this.handleCreate();
-        });
-
-        // Template selection
-        this.overlay_.querySelectorAll('input[name="template"]').forEach((input) => {
-            input.addEventListener('change', (e) => {
-                const target = e.target as HTMLInputElement;
+        this.overlay_.addEventListener('change', (e) => {
+            const target = e.target as HTMLInputElement;
+            if (target.name === 'template') {
                 this.selectedTemplate_ = target.value as ProjectTemplate;
-                this.updateTemplateSelection();
-            });
+                this.updateSelection();
+            } else if (target.name === 'example') {
+                this.selectedExample_ = EXAMPLE_PROJECTS.find(ex => ex.id === target.value) ?? null;
+                this.updateSelection();
+            }
         });
 
-        // Escape key to close
         const keyHandler = (e: KeyboardEvent) => {
             if (e.key === 'Escape') {
                 this.options_.onClose();
@@ -129,7 +170,23 @@ export class NewProjectDialog {
         document.addEventListener('keydown', keyHandler);
     }
 
-    private updateTemplateSelection(): void {
+    private switchTab(tab: DialogTab): void {
+        this.activeTab_ = tab;
+
+        const locationInput = this.overlay_.querySelector('#project-location') as HTMLInputElement;
+        const nameInput = this.overlay_.querySelector('#project-name') as HTMLInputElement;
+        const savedLocation = locationInput?.value ?? '';
+        const savedName = nameInput?.value ?? 'MyGame';
+
+        this.render();
+
+        const newNameInput = this.overlay_.querySelector('#project-name') as HTMLInputElement;
+        const newLocationInput = this.overlay_.querySelector('#project-location') as HTMLInputElement;
+        if (newNameInput) newNameInput.value = savedName;
+        if (newLocationInput && savedLocation) newLocationInput.value = savedLocation;
+    }
+
+    private updateSelection(): void {
         this.overlay_.querySelectorAll('.es-dialog-template').forEach((el) => {
             const input = el.querySelector('input') as HTMLInputElement;
             el.classList.toggle('selected', input.checked);
@@ -162,7 +219,6 @@ export class NewProjectDialog {
             return;
         }
 
-        // Validate project name
         if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
             alert('Project name can only contain letters, numbers, underscores, and hyphens');
             nameInput?.focus();
@@ -175,11 +231,20 @@ export class NewProjectDialog {
             createBtn.textContent = 'Creating...';
         }
 
-        const result = await createProject({
-            name,
-            location: this.projectLocation_,
-            template: this.selectedTemplate_,
-        });
+        let result;
+        if (this.activeTab_ === 'examples' && this.selectedExample_) {
+            result = await createFromExample({
+                name,
+                location: this.projectLocation_,
+                example: this.selectedExample_,
+            });
+        } else {
+            result = await createProject({
+                name,
+                location: this.projectLocation_,
+                template: this.selectedTemplate_,
+            });
+        }
 
         if (result.success && result.data) {
             this.options_.onProjectCreated(result.data);
