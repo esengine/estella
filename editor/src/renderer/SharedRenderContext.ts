@@ -302,6 +302,7 @@ export class SharedRenderContext {
     async exitPlayMode(scene?: import('../types/SceneTypes').SceneData): Promise<void> {
         this.playMode_ = false;
         this.paused_ = false;
+        this.app_?.setPaused(false);
         setPlayMode(false);
         this.clearInputState();
 
@@ -316,10 +317,12 @@ export class SharedRenderContext {
 
     pausePlay(): void {
         this.paused_ = true;
+        this.app_?.setPaused(true);
     }
 
     resumePlay(): void {
         this.paused_ = false;
+        this.app_?.setPaused(false);
         this.lastFrameTime_ = performance.now();
     }
 
