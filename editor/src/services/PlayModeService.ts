@@ -1,7 +1,12 @@
 import type { GameViewBridge, RuntimeEntityData } from '../panels/game-view/GameViewBridge';
 import type { EntityData } from '../types/SceneTypes';
+import { Assets, Name, Parent, Children, getComponent } from 'esengine';
+import type { Entity, World } from 'esengine';
 import { getEditorStore, type SceneSnapshot } from '../store/EditorStore';
 import { getSharedRenderContext } from '../renderer/SharedRenderContext';
+import { ScriptInjector } from './ScriptInjector';
+import { getEditorInstance, getEditorContext } from '../context/EditorContext';
+import { getAssetDatabase, isUUID } from '../asset';
 
 export type PlayState = 'stopped' | 'playing';
 
@@ -33,6 +38,10 @@ class PlayModeService {
     private entityListListeners_ = new Set<EntityListCallback>();
     private selectionListeners_ = new Set<SelectionCallback>();
     private snapshot_: SceneSnapshot | null = null;
+    private scriptInjector_: ScriptInjector | null = null;
+    private sharedCleanups_: Array<() => void> = [];
+    private sharedWorld_: World | null = null;
+    private entityNameMap_: Map<number, string> | null = null;
 
     get state(): PlayState { return this.state_; }
     get bridge(): GameViewBridge | null { return this.bridge_; }
@@ -46,7 +55,12 @@ class PlayModeService {
         return null;
     }
 
-    enterShared(): void {
+    querySharedEntity(entityId: number): RuntimeEntityData | null {
+        if (!this.sharedWorld_ || !this.sharedWorld_.valid(entityId as Entity)) return null;
+        return this.entityToRuntimeData(this.sharedWorld_, entityId as Entity);
+    }
+
+    async enterShared(): Promise<void> {
         this.snapshot_ = getEditorStore().takeSnapshot();
         this.sharedMode_ = true;
         this.bridge_ = null;
@@ -54,12 +68,20 @@ class PlayModeService {
         this.cachedEntities_ = [];
         this.selectedEntityId_ = null;
 
-        getSharedRenderContext().enterPlayMode();
+        const ctx = getSharedRenderContext();
+        this.configureAssetBaseUrl(ctx);
+        await this.injectUserScripts(ctx);
+        ctx.enterPlayMode();
+
+        this.startSharedEntityTracking(ctx);
         this.emitStateChange();
     }
 
     async exitShared(): Promise<void> {
         if (!this.sharedMode_) return;
+
+        for (const cleanup of this.sharedCleanups_) cleanup();
+        this.sharedCleanups_ = [];
 
         const snapshot = this.snapshot_;
         this.snapshot_ = null;
@@ -67,7 +89,10 @@ class PlayModeService {
         this.state_ = 'stopped';
         this.cachedEntities_ = [];
         this.selectedEntityId_ = null;
+        this.sharedWorld_ = null;
+        this.entityNameMap_ = null;
 
+        this.ejectUserScripts();
         await getSharedRenderContext().exitPlayMode(snapshot?.scene);
 
         if (snapshot) {
@@ -237,6 +262,120 @@ class PlayModeService {
         } catch (e) {
             console.warn('[PlayModeService] reparentEntity failed:', e);
         }
+    }
+
+    private configureAssetBaseUrl(ctx: ReturnType<typeof getSharedRenderContext>): void {
+        const app = ctx.app_;
+        if (!app || !app.hasResource(Assets)) return;
+
+        const projectDir = ctx.pathResolver_.getProjectDir();
+        if (!projectDir) return;
+
+        const fs = getEditorContext().fs;
+        if (!fs?.toAssetUrl) return;
+
+        const assetServer = app.getResource(Assets);
+        assetServer.baseUrl = fs.toAssetUrl(projectDir);
+
+        const db = getAssetDatabase();
+        assetServer.setAssetRefResolver((ref: string) => {
+            if (isUUID(ref)) {
+                return db.getPath(ref) ?? null;
+            }
+            return null;
+        });
+    }
+
+    private async injectUserScripts(ctx: ReturnType<typeof getSharedRenderContext>): Promise<void> {
+        const app = ctx.app_;
+        if (!app) return;
+
+        const editor = getEditorInstance();
+        if (!editor) return;
+
+        const compiledCode = editor.getCompiledScripts();
+        if (!compiledCode) return;
+
+        this.scriptInjector_ = new ScriptInjector();
+        await this.scriptInjector_.inject(app, compiledCode);
+    }
+
+    private ejectUserScripts(): void {
+        if (this.scriptInjector_) {
+            this.scriptInjector_.eject();
+            this.scriptInjector_ = null;
+        }
+    }
+
+    private buildRuntimeEntityData(world: import('esengine').World): RuntimeEntityData[] {
+        const entities = world.getAllEntities();
+        const result: RuntimeEntityData[] = [];
+        for (const entity of entities) {
+            result.push(this.entityToRuntimeData(world, entity));
+        }
+        return result;
+    }
+
+    private entityToRuntimeData(world: import('esengine').World, entity: Entity): RuntimeEntityData {
+        const nameData = world.tryGet(entity, Name);
+        const parentData = world.tryGet(entity, Parent);
+        const childrenData = world.tryGet(entity, Children);
+
+        const componentTypes = world.getComponentTypes(entity);
+        const components = componentTypes.map(type => {
+            const comp = getComponent(type);
+            if (!comp) return { type, data: {} };
+            const data = world.tryGet(entity, comp);
+            return { type, data: data ? { ...data } : {} };
+        });
+
+        return {
+            entityId: entity as number,
+            name: nameData?.value
+                ?? this.entityNameMap_?.get(entity as number)
+                ?? `Entity ${entity}`,
+            parentId: parentData?.entity ?? null,
+            children: childrenData?.entities ? [...childrenData.entities] : [],
+            components,
+        };
+    }
+
+    private startSharedEntityTracking(ctx: ReturnType<typeof getSharedRenderContext>): void {
+        const app = ctx.app_;
+        if (!app) return;
+
+        const world = app.world;
+        this.sharedWorld_ = world;
+
+        this.entityNameMap_ = new Map();
+        const sm = ctx.sceneManager_;
+        if (sm) {
+            const scene = getEditorStore().scene;
+            const entityMap = sm.getEntityMap();
+            for (const [editorId, ecsEntity] of entityMap) {
+                const ed = scene.entities.find(e => e.id === editorId);
+                if (ed) this.entityNameMap_.set(ecsEntity as number, ed.name);
+            }
+        }
+
+        this.cachedEntities_ = this.buildRuntimeEntityData(world);
+        this.emitEntityListUpdate();
+
+        const unsubSpawn = world.onSpawn((entity: Entity) => {
+            this.cachedEntities_ = this.buildRuntimeEntityData(world);
+            this.emitEntityListUpdate();
+        });
+
+        const unsubDespawn = world.onDespawn((entity: Entity) => {
+            if (this.selectedEntityId_ === (entity as number)) {
+                this.selectedEntityId_ = null;
+                this.emitSelectionChange();
+            }
+            this.cachedEntities_ = this.buildRuntimeEntityData(world);
+            this.emitEntityListUpdate();
+        });
+
+        this.sharedCleanups_.push(unsubSpawn, unsubDespawn);
     }
 
     private startPolling(): void {

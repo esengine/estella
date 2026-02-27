@@ -101,7 +101,7 @@ export class HierarchyPanel implements HierarchyState {
         const pms = getPlayModeService();
         this.playModeCleanups_.push(
             pms.onStateChange((state) => {
-                const isPlaying = state === 'playing' && !pms.isSharedMode;
+                const isPlaying = state === 'playing';
                 this.playMode = isPlaying;
                 if (isPlaying) {
                     this.container_.classList.add('es-play-mode');

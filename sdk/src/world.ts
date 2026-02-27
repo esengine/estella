@@ -151,6 +151,7 @@ export class World {
     private iterationDepth_ = 0;
     private nextEntityId_ = 0;
     private nextGeneration_ = 0;
+    private spawnCallbacks_: Array<(entity: Entity) => void> = [];
     private despawnCallbacks_: Array<(entity: Entity) => void> = [];
 
     private worldTick_ = 0;
@@ -213,6 +214,11 @@ export class World {
         }
         this.entities_.set(entity, generation);
         this.worldVersion_++;
+
+        for (const cb of this.spawnCallbacks_) {
+            try { cb(entity); } catch {}
+        }
+
         return entity;
     }
 
@@ -253,6 +259,14 @@ export class World {
             }
             this.entityComponents_.delete(entity);
         }
+    }
+
+    onSpawn(callback: (entity: Entity) => void): () => void {
+        this.spawnCallbacks_.push(callback);
+        return () => {
+            const idx = this.spawnCallbacks_.indexOf(callback);
+            if (idx !== -1) this.spawnCallbacks_.splice(idx, 1);
+        };
     }
 
     onDespawn(callback: (entity: Entity) => void): () => void {
