@@ -307,8 +307,31 @@ export class EditorSceneRenderer {
         const registry = this.sceneManager_.registry;
         if (!registry.hasTransform(entity)) return null;
         const wt = registry.getTransform(entity);
+
+        let px = wt.worldPosition.x;
+        let py = wt.worldPosition.y;
+
+        if (registry.hasUIRect(entity) && registry.hasSprite(entity)) {
+            const uiRect = registry.getUIRect(entity);
+            const sprite = registry.getSprite(entity);
+            let dx = (0.5 - uiRect.pivot.x) * sprite.size.x * wt.worldScale.x;
+            let dy = (0.5 - uiRect.pivot.y) * sprite.size.y * wt.worldScale.y;
+            const sinHalf = wt.worldRotation.z;
+            if (sinHalf * sinHalf > 1e-6) {
+                const cosHalf = wt.worldRotation.w;
+                const s = 2.0 * sinHalf * cosHalf;
+                const c = cosHalf * cosHalf - sinHalf * sinHalf;
+                const rdx = dx * c - dy * s;
+                const rdy = dx * s + dy * c;
+                dx = rdx;
+                dy = rdy;
+            }
+            px += dx;
+            py += dy;
+        }
+
         return {
-            position: { x: wt.worldPosition.x, y: wt.worldPosition.y, z: wt.worldPosition.z },
+            position: { x: px, y: py, z: wt.worldPosition.z },
             rotation: { x: wt.worldRotation.x, y: wt.worldRotation.y, z: wt.worldRotation.z, w: wt.worldRotation.w },
             scale: { x: wt.worldScale.x, y: wt.worldScale.y, z: wt.worldScale.z },
         };
