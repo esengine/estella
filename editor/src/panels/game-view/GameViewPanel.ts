@@ -147,6 +147,7 @@ export class GameViewPanel implements PanelInstance, Resizable {
     private stepFrame(): void {
         const ctx = getSharedRenderContext();
         if (ctx.app_) {
+            ctx.app_.stepFrame();
             ctx.app_.tick(1 / 60);
             ctx.requestRender();
         }
