@@ -241,6 +241,17 @@ fn serve_embedded(data: &[u8], content_type_str: &str) -> Response<std::io::Curs
 
 fn serve_project_file(project_dir: &PathBuf, path: &str) -> Response<std::io::Cursor<Vec<u8>>> {
     let decoded_path = urlencoding::decode(path).unwrap_or_else(|_| path.into());
+
+    let preview_path = project_dir.join(".esengine/preview").join(decoded_path.as_ref());
+    if preview_path.starts_with(project_dir) {
+        if let Ok(data) = std::fs::read(&preview_path) {
+            return Response::from_data(data)
+                .with_header(content_type(get_mime_type(path)))
+                .with_header(no_cache())
+                .with_header(cors());
+        }
+    }
+
     let file_path = project_dir.join(decoded_path.as_ref());
 
     if !file_path.starts_with(project_dir) {
