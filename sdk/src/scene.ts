@@ -234,7 +234,7 @@ export async function loadSceneWithAssets(
     options?: SceneLoadOptions
 ): Promise<Map<number, Entity>> {
     const assetServer = options?.assetServer;
-    const baseUrl = options?.assetBaseUrl;
+    const baseUrl = options?.assetBaseUrl ?? assetServer?.baseUrl;
     const texturePathToUrl = new Map<string, string>();
 
     if (assetServer) {
@@ -321,8 +321,6 @@ async function preloadSceneAssets(
     texturePathToUrl: Map<string, string>,
     collectAssets?: LoadedSceneAssets,
 ): Promise<void> {
-    sceneData = JSON.parse(JSON.stringify(sceneData));
-
     const assetPaths = new Map<AssetFieldType, Set<string>>();
     for (const type of ASSET_FIELD_HANDLERS.keys()) {
         assetPaths.set(type, new Set());
