@@ -125,7 +125,7 @@ export class GameViewPanel implements PanelInstance, Resizable {
 
     private async play(): Promise<void> {
         const service = getPlayModeService();
-        service.enterShared();
+        await service.enterShared();
         this.gameManager_.setState('playing');
         if (this.gameRenderer_) {
             this.gameRenderer_.setVisible(true);
@@ -252,6 +252,7 @@ export class GameViewPanel implements PanelInstance, Resizable {
             }
         };
         const onMouseDown = (e: MouseEvent) => {
+            canvas.focus();
             const input = getInput();
             if (input) {
                 input.mouseX = e.offsetX;
@@ -308,13 +309,26 @@ export class GameViewPanel implements PanelInstance, Resizable {
             }
         };
         const onKeyDown = (e: KeyboardEvent) => {
-            const input = getInput();
-            if (input && !input.keysDown.has(e.code)) {
-                input.keysPressed.add(e.code);
+            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+                return;
             }
-            if (input) input.keysDown.add(e.code);
+            if (e.ctrlKey || e.metaKey || e.altKey) {
+                return;
+            }
+            const input = getInput();
+            if (input) {
+                if (!input.keysDown.has(e.code)) {
+                    input.keysPressed.add(e.code);
+                }
+                input.keysDown.add(e.code);
+                e.stopPropagation();
+                e.preventDefault();
+            }
         };
         const onKeyUp = (e: KeyboardEvent) => {
+            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+                return;
+            }
             const input = getInput();
             if (input) {
                 input.keysDown.delete(e.code);
@@ -329,8 +343,8 @@ export class GameViewPanel implements PanelInstance, Resizable {
         canvas.addEventListener('touchmove', onTouchMove, { passive: false });
         canvas.addEventListener('touchend', onTouchEnd, { passive: false });
         canvas.addEventListener('wheel', onWheel, { passive: false });
-        canvas.addEventListener('keydown', onKeyDown);
-        canvas.addEventListener('keyup', onKeyUp);
+        document.addEventListener('keydown', onKeyDown, true);
+        document.addEventListener('keyup', onKeyUp, true);
 
         this.inputCleanup_ = () => {
             canvas.removeEventListener('mousemove', onMouseMove);
@@ -340,8 +354,8 @@ export class GameViewPanel implements PanelInstance, Resizable {
             canvas.removeEventListener('touchmove', onTouchMove);
             canvas.removeEventListener('touchend', onTouchEnd);
             canvas.removeEventListener('wheel', onWheel);
-            canvas.removeEventListener('keydown', onKeyDown);
-            canvas.removeEventListener('keyup', onKeyUp);
+            document.removeEventListener('keydown', onKeyDown, true);
+            document.removeEventListener('keyup', onKeyUp, true);
         };
     }
 
