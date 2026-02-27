@@ -1,12 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import {
   normalizePath,
+  resolvePath,
   joinPath,
   getFileExtension,
   getDirName,
   getParentDir,
   isAbsolutePath,
 } from '../../utils/path';
+import { resolveFilePath } from '../../../../desktop/src/native-fs';
 
 describe('Path utilities', () => {
   describe('normalizePath', () => {
@@ -112,6 +114,51 @@ describe('Path utilities', () => {
 
     it('should handle root paths', () => {
       expect(getParentDir('/assets')).toBe('/assets');
+    });
+  });
+
+  describe('resolvePath', () => {
+    it('should preserve leading slash for absolute paths', () => {
+      expect(resolvePath('/Users/yhh/Documents/Spaceshooter/src/main.ts'))
+        .toBe('/Users/yhh/Documents/Spaceshooter/src/main.ts');
+    });
+
+    it('should resolve parent references in absolute paths', () => {
+      expect(resolvePath('/Users/yhh/Documents/../Spaceshooter/src/main.ts'))
+        .toBe('/Users/yhh/Spaceshooter/src/main.ts');
+    });
+
+    it('should resolve dot segments in absolute paths', () => {
+      expect(resolvePath('/Users/yhh/./Documents/Spaceshooter/src/main.ts'))
+        .toBe('/Users/yhh/Documents/Spaceshooter/src/main.ts');
+    });
+
+    it('should handle relative paths without adding a leading slash', () => {
+      expect(resolvePath('src/main.ts')).toBe('src/main.ts');
+    });
+
+    it('should normalize backslashes', () => {
+      expect(resolvePath('C:\\Users\\test\\file.ts')).toBe('C:/Users/test/file.ts');
+    });
+  });
+
+  describe('resolveFilePath (desktop native-fs)', () => {
+    it('should preserve leading slash for absolute paths', () => {
+      expect(resolveFilePath('/Users/yhh/Documents/Spaceshooter/src/main.ts'))
+        .toBe('/Users/yhh/Documents/Spaceshooter/src/main.ts');
+    });
+
+    it('should resolve parent references in absolute paths', () => {
+      expect(resolveFilePath('/Users/yhh/Documents/../Spaceshooter/src/main.ts'))
+        .toBe('/Users/yhh/Spaceshooter/src/main.ts');
+    });
+
+    it('should handle relative paths without adding a leading slash', () => {
+      expect(resolveFilePath('src/main.ts')).toBe('src/main.ts');
+    });
+
+    it('should normalize backslashes', () => {
+      expect(resolveFilePath('C:\\Users\\test\\file.ts')).toBe('C:/Users/test/file.ts');
     });
   });
 

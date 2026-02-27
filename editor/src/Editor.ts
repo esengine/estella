@@ -108,6 +108,8 @@ export class Editor {
     private addressableWindow_: { element: HTMLElement; panel: AddressablePanel; keyHandler: (e: KeyboardEvent) => void } | null = null;
     private previewUrl_: string | null = null;
     private escapeHandler_: ((e: KeyboardEvent) => void) | null = null;
+    private closeUnlisten_: (() => void) | null = null;
+    private contextMenuHandler_: ((e: Event) => void) | null = null;
     private settingsDebounceTimer_: ReturnType<typeof setTimeout> | null = null;
     private mainWindowBridge_: MainWindowBridge | null = null;
     private windowManager_: WindowManager | null = null;
@@ -1032,9 +1034,8 @@ export class Editor {
             getGlobalPathResolver().setProjectDir(projectDir);
         }
 
-        this.container_.addEventListener('contextmenu', (e) => {
-            e.preventDefault();
-        });
+        this.contextMenuHandler_ = (e) => { e.preventDefault(); };
+        this.container_.addEventListener('contextmenu', this.contextMenuHandler_);
 
         const previewUrlEl = this.container_.querySelector('.es-preview-url');
         previewUrlEl?.addEventListener('click', () => {
@@ -1160,9 +1161,9 @@ export class Editor {
     }
 
     private setupCloseHandler(): void {
-        import('@tauri-apps/api/window').then(({ getCurrentWindow }) => {
+        import('@tauri-apps/api/window').then(async ({ getCurrentWindow }) => {
             const mainWindow = getCurrentWindow();
-            mainWindow.onCloseRequested(async (event) => {
+            this.closeUnlisten_ = await mainWindow.onCloseRequested(async (event) => {
                 if (!this.store_.isDirty) return;
                 event.preventDefault();
                 try {
@@ -1178,6 +1179,12 @@ export class Editor {
     }
 
     dispose(): void {
+        this.closeUnlisten_?.();
+        this.closeUnlisten_ = null;
+        if (this.contextMenuHandler_) {
+            this.container_.removeEventListener('contextmenu', this.contextMenuHandler_);
+            this.contextMenuHandler_ = null;
+        }
         if (this.addressableWindow_) {
             this.addressableWindow_.panel.dispose();
             this.addressableWindow_.element.remove();

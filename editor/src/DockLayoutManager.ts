@@ -68,6 +68,7 @@ export class DockLayoutManager {
     private lastActivePanelId_: string | null = null;
     private detachContext_: DetachContext | null = null;
     private contextMenuHandler_: ((e: MouseEvent) => void) | null = null;
+    private contextMenuContainer_: HTMLElement | null = null;
     private panelClosedUnlisten_: (() => void) | null = null;
 
     constructor(panelManager: PanelManager, store: EditorStore) {
@@ -286,6 +287,7 @@ export class DockLayoutManager {
         };
 
         container.addEventListener('contextmenu', this.contextMenuHandler_);
+        this.contextMenuContainer_ = container;
     }
 
     private resolvePanelIdFromTab(tab: HTMLElement): string | null {
@@ -331,6 +333,11 @@ export class DockLayoutManager {
         if (this.saveTimer_) {
             clearTimeout(this.saveTimer_);
             this.saveTimer_ = null;
+        }
+        if (this.contextMenuHandler_ && this.contextMenuContainer_) {
+            this.contextMenuContainer_.removeEventListener('contextmenu', this.contextMenuHandler_);
+            this.contextMenuHandler_ = null;
+            this.contextMenuContainer_ = null;
         }
         this.panelClosedUnlisten_?.();
         this.panelClosedUnlisten_ = null;

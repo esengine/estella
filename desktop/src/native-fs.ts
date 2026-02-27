@@ -23,6 +23,21 @@ import { resourceDir } from '@tauri-apps/api/path';
 import { open as shellOpen } from '@tauri-apps/plugin-shell';
 import type { NativeShell } from '@esengine/editor';
 
+export function resolveFilePath(path: string): string {
+    const normalized = path.replace(/\\/g, '/');
+    const parts = normalized.split('/');
+    const resolved: string[] = [];
+    for (const part of parts) {
+        if (part === '..') {
+            resolved.pop();
+        } else if (part && part !== '.') {
+            resolved.push(part);
+        }
+    }
+    const result = resolved.join('/');
+    return normalized.startsWith('/') ? '/' + result : result;
+}
+
 export interface DirectoryEntry {
     name: string;
     isDirectory: boolean;
@@ -182,14 +197,7 @@ export const nativeFS: NativeFS = {
 
     async readFile(path: string) {
         try {
-            const resolvedPath = path.replace(/\\/g, '/').split('/').reduce((acc, part) => {
-                if (part === '..') {
-                    acc.pop();
-                } else if (part && part !== '.') {
-                    acc.push(part);
-                }
-                return acc;
-            }, [] as string[]).join('/');
+            const resolvedPath = resolveFilePath(path);
             return await readTextFile(resolvedPath);
         } catch (err) {
             const errStr = String(err);
