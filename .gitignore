@@ -57,6 +57,10 @@ compile_commands.json
 # Astro
 .astro/
 
+# Examples
+desktop/public/examples/
+examples/tools/
+
 # OS files
 .DS_Store
 Thumbs.db

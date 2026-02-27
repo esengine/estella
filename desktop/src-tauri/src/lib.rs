@@ -4,6 +4,7 @@ mod embedded_assets;
 mod preview_server;
 
 use preview_server::PreviewServer;
+use std::io::Read as _;
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::Mutex;
@@ -75,6 +76,42 @@ fn notify_preview_reload(state: State<AppState>) {
 fn open_preview_in_browser(port: u16) -> Result<(), String> {
     let url = format!("http://127.0.0.1:{}", port);
     open::that(&url).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn unzip_to_directory(zip_bytes: Vec<u8>, target_dir: String) -> Result<(), String> {
+    let target = PathBuf::from(&target_dir);
+    if target.exists() {
+        return Err("Target directory already exists".to_string());
+    }
+    std::fs::create_dir_all(&target).map_err(|e| e.to_string())?;
+
+    let cursor = std::io::Cursor::new(zip_bytes);
+    let mut archive = zip::ZipArchive::new(cursor).map_err(|e| e.to_string())?;
+
+    for i in 0..archive.len() {
+        let mut file = archive.by_index(i).map_err(|e| e.to_string())?;
+        let name = file.name().to_string();
+
+        if name.starts_with("__MACOSX") || name.ends_with(".DS_Store") {
+            continue;
+        }
+
+        let out_path = target.join(&name);
+
+        if file.is_dir() {
+            std::fs::create_dir_all(&out_path).map_err(|e| e.to_string())?;
+        } else {
+            if let Some(parent) = out_path.parent() {
+                std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+            }
+            let mut buf = Vec::new();
+            file.read_to_end(&mut buf).map_err(|e| e.to_string())?;
+            std::fs::write(&out_path, &buf).map_err(|e| e.to_string())?;
+        }
+    }
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -192,6 +229,7 @@ pub fn run() {
             notify_preview_reload,
             open_preview_in_browser,
             open_folder,
+            unzip_to_directory,
             execute_command,
             get_embedded_asset,
         ])

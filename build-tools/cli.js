@@ -14,6 +14,7 @@ import { syncToDesktop } from './tasks/sync.js';
 import { startWatch } from './tasks/watch.js';
 import { BuildManifest } from './manifest.js';
 import { handleBuildError } from './utils/errorHelp.js';
+import { zipExamples } from './tasks/examples.js';
 
 program
     .name('esengine-build')
@@ -76,6 +77,7 @@ program
 
             if (options.sync) {
                 await syncToDesktop();
+                await zipExamples(config.paths.root);
             }
 
             if (manifest) {
@@ -189,5 +191,15 @@ async function cleanAll() {
     await cleanWasm();
     await cleanSdk();
 }
+
+program
+    .command('zip-examples')
+    .description('Pack example projects into zip files for editor')
+    .action(async () => {
+        logger.header('Zip Examples');
+        const startTime = Date.now();
+        await zipExamples(config.paths.root);
+        logger.printTime(Date.now() - startTime);
+    });
 
 program.parse();

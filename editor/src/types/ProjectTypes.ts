@@ -80,10 +80,33 @@ export const PROJECT_TEMPLATES: ProjectTemplateInfo[] = [
 ];
 
 // =============================================================================
+// Example Projects
+// =============================================================================
+
+export interface ExampleProjectInfo {
+    id: string;
+    name: string;
+    description: string;
+    zipFile: string;
+}
+
+export const EXAMPLE_PROJECTS: ExampleProjectInfo[] = [
+    {
+        id: 'space-shooter',
+        name: 'Space Shooter',
+        description: 'A vertical scrolling shoot\'em up with enemies, bullets, explosions and HUD',
+        zipFile: 'examples/space-shooter.zip',
+    },
+];
+
+// =============================================================================
 // Constants
 // =============================================================================
 
 export const PROJECT_FILE_EXTENSION = '.esproject';
 export const SCENE_FILE_EXTENSION = '.esscene';
-export const ENGINE_VERSION = '0.1.0';
-export const SDK_VERSION = '0.4.0';
+declare const __ENGINE_VERSION__: string;
+declare const __SDK_VERSION__: string;
+
+export const ENGINE_VERSION: string = typeof __ENGINE_VERSION__ !== 'undefined' ? __ENGINE_VERSION__ : '0.0.0';
+export const SDK_VERSION: string = typeof __SDK_VERSION__ !== 'undefined' ? __SDK_VERSION__ : '0.0.0';

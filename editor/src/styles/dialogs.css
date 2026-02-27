@@ -330,6 +330,41 @@
     background: var(--es-bg-hover);
 }
 
+.es-dialog-tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 16px;
+    border-bottom: 1px solid var(--es-border);
+}
+
+.es-dialog-tab {
+    padding: 8px 20px;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--es-text-secondary);
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.es-dialog-tab:hover {
+    color: var(--es-text-primary);
+}
+
+.es-dialog-tab.active {
+    color: var(--es-accent-gold);
+    border-bottom-color: var(--es-accent-gold);
+}
+
+.es-dialog-empty {
+    display: block;
+    color: var(--es-text-secondary);
+    font-size: 13px;
+    padding: 20px 0;
+    text-align: center;
+}
+
 .es-dialog-templates {
     display: flex;
     flex-direction: column;

@@ -7,6 +7,7 @@ import type {
     ProjectConfig,
     RecentProject,
     ProjectTemplate,
+    ExampleProjectInfo,
 } from '../types/ProjectTypes';
 import { ENGINE_VERSION } from '../types/ProjectTypes';
 import { DEFAULT_DESIGN_WIDTH, DEFAULT_DESIGN_HEIGHT, DEFAULT_PIXELS_PER_UNIT } from 'esengine';
@@ -176,6 +177,80 @@ export async function createProject(
     });
 
     return { success: true, data: projectFilePath };
+}
+
+// =============================================================================
+// Create from Example
+// =============================================================================
+
+export interface CreateFromExampleOptions {
+    name: string;
+    location: string;
+    example: ExampleProjectInfo;
+}
+
+export async function createFromExample(
+    options: CreateFromExampleOptions
+): Promise<ProjectServiceResult<string>> {
+    const fs = getNativeFS();
+    const invoke = getEditorContext().invoke;
+    if (!fs || !invoke) {
+        return { success: false, error: 'Native file system not available' };
+    }
+
+    const { name, location, example } = options;
+    const projectDir = getProjectDir(location, name);
+
+    if (await fs.exists(projectDir)) {
+        return { success: false, error: 'Project directory already exists' };
+    }
+
+    try {
+        const response = await fetch(`/${example.zipFile}`);
+        if (!response.ok) {
+            return { success: false, error: `Failed to fetch example: ${response.statusText}` };
+        }
+
+        const arrayBuffer = await response.arrayBuffer();
+        const zipBytes = Array.from(new Uint8Array(arrayBuffer));
+
+        await invoke('unzip_to_directory', {
+            zipBytes,
+            targetDir: projectDir,
+        });
+
+        // Update project config with user's name and current engine version
+        const projectFilePath = joinPath(projectDir, 'project.esproject');
+        const configContent = await fs.readFile(projectFilePath);
+        if (configContent) {
+            try {
+                const config = JSON.parse(configContent) as ProjectConfig;
+                config.name = name;
+                config.engine = ENGINE_VERSION;
+                const now = new Date().toISOString();
+                config.created = now;
+                config.modified = now;
+                await fs.writeFile(projectFilePath, JSON.stringify(config, null, 2));
+            } catch { /* keep original config if parse fails */ }
+        }
+
+        // Export SDK and editor types
+        const sdkService = new SdkExportService();
+        await sdkService.exportToProject(projectDir);
+
+        const editorExportService = new EditorExportService();
+        await editorExportService.exportToProject(projectDir);
+
+        addRecentProject({
+            name,
+            path: projectFilePath,
+            lastOpened: new Date().toISOString(),
+        });
+
+        return { success: true, data: projectFilePath };
+    } catch (err) {
+        return { success: false, error: String(err) };
+    }
 }
 
 export async function openProjectDialog(): Promise<ProjectServiceResult<string>> {
