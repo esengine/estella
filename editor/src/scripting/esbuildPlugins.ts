@@ -78,8 +78,8 @@ export function esengineShimPlugin(): esbuild.Plugin {
     return {
         name: 'esengine-shim',
         setup(build) {
-            build.onResolve({ filter: /^esengine$/ }, () => ({
-                path: 'esengine', namespace: 'esengine-shim',
+            build.onResolve({ filter: /^esengine(\/.*)?$/ }, (args) => ({
+                path: args.path, namespace: 'esengine-shim',
             }));
             build.onLoad({ filter: /.*/, namespace: 'esengine-shim' }, () => ({
                 contents: generateShimCode(), loader: 'js',

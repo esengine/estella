@@ -47,7 +47,14 @@ async function loadWasmModule(): Promise<ESEngineModule | null> {
 
     try {
         const createModule = await loadESModule('/wasm/esengine.js');
-        wasmModule = await createModule();
+        wasmModule = await createModule({
+            locateFile: (path: string) => {
+                if (path.endsWith('.wasm')) {
+                    return `/wasm/${path}`;
+                }
+                return path;
+            },
+        });
         return wasmModule;
     } catch (e) {
         console.warn('Failed to load WASM module:', e);
@@ -97,7 +104,15 @@ async function loadSpineModule(editor: Editor, version: string): Promise<void> {
     if (!url) return;
     try {
         const factory = await loadUmdModule(url, 'ESSpineModule');
-        const module = await factory();
+        const wasmFile = url.replace(/\.js$/, '.wasm');
+        const module = await factory({
+            locateFile: (path: string) => {
+                if (path.endsWith('.wasm')) {
+                    return wasmFile;
+                }
+                return path;
+            },
+        });
         editor.setSpineModule(module, version);
     } catch (e) {
         console.warn(`Failed to load Spine ${version} module:`, e);
@@ -171,11 +186,22 @@ async function checkForUpdate(manual = false): Promise<void> {
 async function init(): Promise<void> {
     const version = await getVersion();
     setPlatformAdapter(new TauriPlatformAdapter());
+
+    let esbuildWasmURL = '/esbuild.wasm';
+    try {
+        const wasmData = await nativeFS.getEsbuildWasm();
+        const blob = new Blob([wasmData.buffer], { type: 'application/wasm' });
+        esbuildWasmURL = URL.createObjectURL(blob);
+        console.log('[init] Using embedded esbuild.wasm');
+    } catch (e) {
+        console.warn('[init] Failed to load embedded esbuild.wasm, using public path:', e);
+    }
+
     setEditorContext({
         fs: nativeFS,
         invoke,
         shell: nativeShell,
-        esbuildWasmURL: '/esbuild.wasm',
+        esbuildWasmURL,
         version,
         onCheckUpdate: () => checkForUpdate(true),
     });

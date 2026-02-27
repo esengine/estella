@@ -8,6 +8,29 @@ import type { ImporterData } from '../asset/ImporterTypes';
 import { getEditorContext } from '../context/EditorContext';
 
 // =============================================================================
+// Base64 Utilities (Browser-compatible)
+// =============================================================================
+
+function arrayBufferToBase64(buffer: Uint8Array): string {
+    let binary = '';
+    const len = buffer.byteLength;
+    for (let i = 0; i < len; i++) {
+        binary += String.fromCharCode(buffer[i]);
+    }
+    return btoa(binary);
+}
+
+function base64ToUint8Array(base64: string): Uint8Array {
+    const binary = atob(base64);
+    const len = binary.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+        bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
+}
+
+// =============================================================================
 // Types
 // =============================================================================
 
@@ -284,7 +307,7 @@ export class BuildCache {
 
     serializeAtlasPages(pages: any[]): AtlasPageCache[] {
         return pages.map(page => ({
-            imageData: Buffer.from(page.imageData).toString('base64'),
+            imageData: arrayBufferToBase64(page.imageData),
             width: page.width,
             height: page.height,
             frames: page.frames,
@@ -297,7 +320,7 @@ export class BuildCache {
         try {
             return cached.map(p => ({
                 ...p,
-                imageData: Uint8Array.from(Buffer.from(p.imageData, 'base64')),
+                imageData: base64ToUint8Array(p.imageData),
             }));
         } catch {
             return null;

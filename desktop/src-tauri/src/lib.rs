@@ -141,6 +141,7 @@ fn get_embedded_asset(name: String) -> Result<Vec<u8>, String> {
         "spine42.wasm" => Ok(embedded_assets::SPINE42_WASM.to_vec()),
         "physics.js" => Ok(embedded_assets::PHYSICS_JS.to_vec()),
         "physics.wasm" => Ok(embedded_assets::PHYSICS_WASM.to_vec()),
+        "esbuild.wasm" => Ok(embedded_assets::ESBUILD_WASM.to_vec()),
         _ => Err(format!("Unknown embedded asset: {}", name)),
     }
 }
@@ -233,6 +234,19 @@ pub fn run() {
             execute_command,
             get_embedded_asset,
         ])
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::Destroyed = event {
+                let app = window.app_handle();
+                if let Some(state) = app.try_state::<AppState>() {
+                    if let Ok(mut server_lock) = state.preview_server.lock() {
+                        if let Some(ref mut server) = *server_lock {
+                            server.stop();
+                        }
+                        *server_lock = None;
+                    }
+                }
+            }
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
