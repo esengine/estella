@@ -241,14 +241,7 @@ export async function savePrefabToPath(prefab: PrefabData, filePath: string): Pr
 
     const resolved = resolvePathOrUuid(filePath);
     const absolutePath = getGlobalPathResolver().toAbsolutePath(resolved);
-    const db = getAssetDatabase();
-    const converted = convertPrefabAssetRefs(prefab, (value) => {
-        if (isUUID(value)) {
-            return db.getPath(value) ?? value;
-        }
-        return value;
-    });
-    const json = serializePrefab(converted);
+    const json = serializePrefab(prefab);
     return fs.writeFile(absolutePath, json);
 }
 
@@ -263,15 +256,42 @@ export async function loadPrefabFromPath(filePath: string): Promise<PrefabData |
         const content = await fs.readFile(absolutePath);
         if (!content) return null;
         const prefab = deserializePrefab(content);
-        const db = getAssetDatabase();
-        return convertPrefabAssetRefs(prefab, (value) => {
-            if (!isUUID(value)) {
-                return db.getUuid(value) ?? value;
-            }
-            return value;
-        });
+        const migrated = await migratePrefab(prefab);
+        if (migrated) {
+            const json = serializePrefab(prefab);
+            await fs.writeFile(absolutePath, json);
+        }
+        return prefab;
     } catch (err) {
         console.error('Failed to load prefab:', absolutePath, err);
         return null;
     }
+}
+
+async function migratePrefab(prefab: PrefabData): Promise<boolean> {
+    const db = getAssetDatabase();
+    let changed = false;
+
+    for (const entity of prefab.entities) {
+        for (const comp of entity.components) {
+            const fields = getComponentRefFields(comp.type);
+            if (!fields || !comp.data) continue;
+            for (const field of fields) {
+                const value = comp.data[field];
+                if (typeof value === 'string' && value && !isUUID(value)) {
+                    const uuid = db.getUuid(value) ?? await db.ensureMeta(value);
+                    comp.data[field] = uuid;
+                    changed = true;
+                }
+            }
+        }
+        if (entity.nestedPrefab?.prefabPath && !isUUID(entity.nestedPrefab.prefabPath)) {
+            const uuid = db.getUuid(entity.nestedPrefab.prefabPath)
+                ?? await db.ensureMeta(entity.nestedPrefab.prefabPath);
+            entity.nestedPrefab.prefabPath = uuid;
+            changed = true;
+        }
+    }
+
+    return changed;
 }

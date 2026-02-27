@@ -1,0 +1,34 @@
+{
+    "version": "1.0",
+    "name": "PlayerBullet",
+    "rootEntityId": 0,
+    "entities": [
+        {
+            "prefabEntityId": 0,
+            "name": "PlayerBullet",
+            "parent": null,
+            "children": [],
+            "components": [
+                {
+                    "type": "Transform",
+                    "data": {}
+                },
+                {
+                    "type": "Sprite",
+                    "data": {
+                        "texture": "c643c566-1859-460a-8029-4568951787f8",
+                        "size": { "x": 8, "y": 24 }
+                    }
+                },
+                {
+                    "type": "Bullet",
+                    "data": {
+                        "speed": 600,
+                        "fromPlayer": true
+                    }
+                }
+            ],
+            "visible": true
+        }
+    ]
+}

@@ -11,6 +11,8 @@ import { getComponentAssetFields } from 'esengine';
 import { getEditorContext } from '../context/EditorContext';
 import { getAssetLibrary } from '../asset/AssetLibrary';
 import { getProjectDir } from '../utils/path';
+import { deserializePrefab, convertPrefabAssetRefs } from '../prefab/PrefabSerializer';
+import { isUUID, getComponentRefFields } from '../asset';
 
 // =============================================================================
 // Types
@@ -151,6 +153,8 @@ export class PreviewService {
 
         const scriptPath = `${this.previewDir_}/user-scripts.js`;
         await fs.writeFile(scriptPath, compiledScript ?? '');
+
+        await this.resolvePrefabsForPreview(fs, resolvedScene);
     }
 
     private async collectTextureMetadata(
@@ -188,6 +192,57 @@ export class PreviewService {
         }
 
         return result;
+    }
+
+    private async resolvePrefabsForPreview(fs: NativeFS, scene: SceneData): Promise<void> {
+        const db = getAssetLibrary();
+        const visited = new Set<string>();
+
+        const collectPrefabPaths = (entities: SceneData['entities']): string[] => {
+            const paths: string[] = [];
+            for (const entity of entities) {
+                if (entity.prefab?.prefabPath) {
+                    paths.push(entity.prefab.prefabPath);
+                }
+            }
+            return paths;
+        };
+
+        const resolvePrefabFile = async (relativePath: string): Promise<void> => {
+            if (visited.has(relativePath)) return;
+            visited.add(relativePath);
+
+            const fullPath = `${this.projectDir_}/${relativePath}`;
+            const content = await fs.readFile(fullPath);
+            if (!content) return;
+
+            try {
+                const prefab = deserializePrefab(content);
+                const resolved = convertPrefabAssetRefs(prefab, (value) => {
+                    if (isUUID(value)) {
+                        return db.getPath(value) ?? value;
+                    }
+                    return value;
+                });
+
+                for (const entity of resolved.entities) {
+                    if (entity.nestedPrefab?.prefabPath) {
+                        await resolvePrefabFile(entity.nestedPrefab.prefabPath);
+                    }
+                }
+
+                const outPath = `${this.previewDir_}/${relativePath}`;
+                const outDir = outPath.substring(0, outPath.lastIndexOf('/'));
+                await this.ensureDirectory(fs, outDir);
+                await fs.writeFile(outPath, JSON.stringify(resolved));
+            } catch {
+                // Skip invalid prefab files
+            }
+        };
+
+        for (const path of collectPrefabPaths(scene.entities)) {
+            await resolvePrefabFile(path);
+        }
     }
 
     private async ensureDirectory(fs: NativeFS, path: string): Promise<void> {

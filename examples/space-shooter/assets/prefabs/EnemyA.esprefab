@@ -1,0 +1,35 @@
+{
+    "version": "1.0",
+    "name": "EnemyA",
+    "rootEntityId": 0,
+    "entities": [
+        {
+            "prefabEntityId": 0,
+            "name": "EnemyA",
+            "parent": null,
+            "children": [],
+            "components": [
+                {
+                    "type": "Transform",
+                    "data": {}
+                },
+                {
+                    "type": "Sprite",
+                    "data": {
+                        "texture": "25e60610-c126-48bf-9b14-85c4699dc912",
+                        "size": { "x": 48, "y": 48 }
+                    }
+                },
+                {
+                    "type": "Enemy",
+                    "data": {
+                        "speed": 150,
+                        "type": "A",
+                        "shootTimer": 2
+                    }
+                }
+            ],
+            "visible": true
+        }
+    ]
+}

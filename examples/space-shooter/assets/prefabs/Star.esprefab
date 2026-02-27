@@ -1,0 +1,19 @@
+{
+    "version": "1.0",
+    "name": "Star",
+    "rootEntityId": 0,
+    "entities": [
+        {
+            "prefabEntityId": 0,
+            "name": "Star",
+            "parent": null,
+            "children": [],
+            "components": [
+                { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": -0.5 } } },
+                { "type": "Sprite", "data": { "texture": "8f56c884-0439-47f1-86d9-05839abfa6e0", "size": { "x": 4, "y": 4 }, "color": { "r": 1, "g": 1, "b": 1, "a": 0.5 }, "layer": -1 } },
+                { "type": "Star", "data": { "speed": 30, "layer": 0 } }
+            ],
+            "visible": true
+        }
+    ]
+}
