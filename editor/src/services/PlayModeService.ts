@@ -1,6 +1,6 @@
 import type { GameViewBridge, RuntimeEntityData } from '../panels/game-view/GameViewBridge';
 import type { EntityData } from '../types/SceneTypes';
-import { Assets, Name, Parent, Children, getComponent } from 'esengine';
+import { Assets, Name, Parent, Children, getComponent, getComponentAssetFields } from 'esengine';
 import type { Entity, World } from 'esengine';
 import { getEditorStore, type SceneSnapshot } from '../store/EditorStore';
 import { getSharedRenderContext } from '../renderer/SharedRenderContext';
@@ -42,6 +42,7 @@ class PlayModeService {
     private sharedCleanups_: Array<() => void> = [];
     private sharedWorld_: World | null = null;
     private entityNameMap_: Map<number, string> | null = null;
+    private entitySceneDataMap_: Map<number, { type: string; data: Record<string, unknown> }[]> | null = null;
 
     get state(): PlayState { return this.state_; }
     get bridge(): GameViewBridge | null { return this.bridge_; }
@@ -91,6 +92,7 @@ class PlayModeService {
         this.selectedEntityId_ = null;
         this.sharedWorld_ = null;
         this.entityNameMap_ = null;
+        this.entitySceneDataMap_ = null;
 
         this.ejectUserScripts();
         await getSharedRenderContext().exitPlayMode(snapshot?.scene);
@@ -329,6 +331,22 @@ class PlayModeService {
             return { type, data: data ? { ...data } : {} };
         });
 
+        const originalComps = this.entitySceneDataMap_?.get(entity as number);
+        if (originalComps) {
+            for (const comp of components) {
+                const assetFields = getComponentAssetFields(comp.type);
+                if (assetFields.length === 0) continue;
+                const originalComp = originalComps.find(c => c.type === comp.type);
+                if (!originalComp) continue;
+                for (const field of assetFields) {
+                    const originalValue = originalComp.data[field];
+                    if (typeof originalValue === 'string' && originalValue) {
+                        comp.data[field] = originalValue;
+                    }
+                }
+            }
+        }
+
         return {
             entityId: entity as number,
             name: nameData?.value
@@ -348,13 +366,17 @@ class PlayModeService {
         this.sharedWorld_ = world;
 
         this.entityNameMap_ = new Map();
+        this.entitySceneDataMap_ = new Map();
         const sm = ctx.sceneManager_;
         if (sm) {
             const scene = getEditorStore().scene;
             const entityMap = sm.getEntityMap();
             for (const [editorId, ecsEntity] of entityMap) {
                 const ed = scene.entities.find(e => e.id === editorId);
-                if (ed) this.entityNameMap_.set(ecsEntity as number, ed.name);
+                if (ed) {
+                    this.entityNameMap_.set(ecsEntity as number, ed.name);
+                    this.entitySceneDataMap_.set(ecsEntity as number, ed.components);
+                }
             }
         }
 
