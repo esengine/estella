@@ -1,0 +1,48 @@
+---
+title: v0.6.1
+description: ESEngine v0.6.1 release notes
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip">
+v0.6.1 focuses on play mode reliability, adds a template browser for new projects, and fixes several rendering and editor issues.
+</Aside>
+
+## Template Browser
+
+- New project dialog now includes a template browser with project templates
+- Bundled **Space Shooter** example project as the first template
+- Templates are packaged as zip archives and extracted on project creation
+
+## Play Mode Improvements
+
+- User scripts now execute in shared play mode — custom components and systems run directly in the editor
+- Bidirectional Inspector sync: edit runtime entity properties and see live values update
+- Asset fields (textures, materials) display correctly in the Inspector during play mode instead of showing raw numeric handles
+- Pause and speed state properly syncs between editor controls and the SDK `App` instance
+- Step Frame button now works correctly when the game is paused
+
+## Bug Fixes
+
+### Rendering
+
+- Fix UIRect pivot offset in sprite rendering — non-center pivots no longer cause visual misalignment
+- Fix editor gizmo alignment for UI elements — gizmos now account for pivot-to-center offset, matching the rendered position
+
+### Editor
+
+- Fix nested prefab navigation: current prefab is saved before opening a nested prefab
+- Fix keyboard input handling in Game View panel
+- Auto-create default `asset-groups.json` for new projects
+
+### SDK
+
+- Fix scene asset preloading when using `assetServer.baseUrl` as fallback
+- Add asset ref resolver to `AssetServer` for UUID-based prefab references
+
+## Internal
+
+- Prefab files now store asset references as UUIDs on disk for consistency
+- Engine and SDK versions exposed as build-time defines
+- Removed `GameViewBridge` in favor of direct play mode service integration

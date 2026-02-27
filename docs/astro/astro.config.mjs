@@ -112,6 +112,7 @@ export default defineConfig({
           label: 'Changelog',
           translations: { 'zh-CN': '更新日志' },
           items: [
+            { label: 'v0.6.1', slug: 'changelog-v061' },
             { label: 'v0.6.0', slug: 'changelog-v060' },
             { label: 'v0.5.1', slug: 'changelog-v051' },
             { label: 'v0.5.0', slug: 'changelog-v050' },
