@@ -21,7 +21,6 @@ import { renderFolderInspector } from './inspector/FolderInspector';
 import { renderScriptInspector, renderSceneInspector, renderFileInspector } from './inspector/FileInspector';
 import { getPlayModeService } from '../services/PlayModeService';
 import { RuntimeStoreProxy } from '../services/RuntimeStoreProxy';
-import { renderRuntimeEntity } from './inspector/RuntimeEntityRenderer';
 
 // =============================================================================
 // InspectorPanel
@@ -86,9 +85,7 @@ export class InspectorPanel {
                 if (isPlaying) {
                     this.container_.classList.add('es-play-mode');
                     hideMaterialPreview(this.materialPreviewState_);
-                    this.runtimeProxy_ = new RuntimeStoreProxy(
-                        pms.bridge, this.store_
-                    );
+                    this.runtimeProxy_ = new RuntimeStoreProxy(this.store_);
                 } else {
                     this.container_.classList.remove('es-play-mode');
                     this.stopRuntimeRefresh();
@@ -378,7 +375,7 @@ export class InspectorPanel {
     // Play Mode (Runtime Inspector)
     // =========================================================================
 
-    private async renderPlayModeEntity(runtimeEntityId: number): Promise<void> {
+    private renderPlayModeEntity(runtimeEntityId: number): void {
         this.stopRuntimeRefresh();
         this.disposeEditors();
         this.cleanupImageUrl();
@@ -386,26 +383,8 @@ export class InspectorPanel {
         this.currentAssetPath_ = null;
         hideMaterialPreview(this.materialPreviewState_);
 
-        const pms = getPlayModeService();
-
-        if (pms.isSharedMode) {
-            this.rebuildPlayModeEntity(runtimeEntityId as Entity);
-            this.startSharedRefreshLoop(runtimeEntityId);
-        } else if (this.runtimeProxy_) {
-            const freshData = await pms.queryEntityByRuntimeId(runtimeEntityId);
-            if (!freshData || this.runtimeEntityId_ !== runtimeEntityId) return;
-
-            this.runtimeProxy_.applyRuntimeData(runtimeEntityId, freshData);
-            this.rebuildPlayModeEntity(runtimeEntityId as Entity);
-            this.startRuntimeRefreshLoop(runtimeEntityId);
-        } else {
-            const freshData = await pms.queryEntityByRuntimeId(runtimeEntityId);
-            if (!freshData || this.runtimeEntityId_ !== runtimeEntityId) return;
-
-            this.contentContainer_.innerHTML = '';
-            renderRuntimeEntity(this.contentContainer_, freshData, pms.bridge);
-            this.updateFooter(`${freshData.components.length} components (Runtime)`);
-        }
+        this.rebuildPlayModeEntity(runtimeEntityId as Entity);
+        this.startSharedRefreshLoop(runtimeEntityId);
     }
 
     private rebuildPlayModeEntity(entity: Entity): void {
@@ -475,40 +454,6 @@ export class InspectorPanel {
         this.updateFooter('Live mode');
     }
 
-    private startRuntimeRefreshLoop(runtimeEntityId: number): void {
-        const pms = getPlayModeService();
-        const tick = async () => {
-            if (this.runtimeEntityId_ !== runtimeEntityId) return;
-            if (this.runtimeRefreshPending_) {
-                this.runtimeRefreshRafId_ = requestAnimationFrame(tick);
-                return;
-            }
-            this.runtimeRefreshPending_ = true;
-            try {
-                if (this.runtimeProxy_) {
-                    this.runtimeProxy_.prepareForQuery(runtimeEntityId);
-                }
-                const fresh = await pms.queryEntityByRuntimeId(runtimeEntityId);
-                if (this.runtimeEntityId_ !== runtimeEntityId) return;
-                if (!fresh) {
-                    this.contentContainer_.innerHTML = '<div class="es-inspector-empty">Entity despawned</div>';
-                    this.updateFooter('Runtime mode');
-                    return;
-                }
-                if (this.runtimeProxy_) {
-                    this.runtimeProxy_.applyRuntimeData(runtimeEntityId, fresh);
-                    this.updatePlayModeEditors(runtimeEntityId);
-                }
-            } finally {
-                this.runtimeRefreshPending_ = false;
-            }
-            if (this.runtimeEntityId_ === runtimeEntityId) {
-                this.runtimeRefreshRafId_ = requestAnimationFrame(tick);
-            }
-        };
-        this.runtimeRefreshRafId_ = requestAnimationFrame(tick);
-    }
-
     private startSharedRefreshLoop(entityId: number): void {
         const pms = getPlayModeService();
         const tick = () => {
@@ -520,6 +465,7 @@ export class InspectorPanel {
                 return;
             }
             if (this.runtimeProxy_) {
+                this.runtimeProxy_.prepareForQuery(entityId);
                 this.runtimeProxy_.applyRuntimeData(entityId, fresh);
                 this.updatePlayModeEditors(entityId);
             }

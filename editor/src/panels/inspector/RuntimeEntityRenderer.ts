@@ -1,10 +1,10 @@
-import type { RuntimeEntityData, GameViewBridge } from '../game-view/GameViewBridge';
+import type { RuntimeEntityData } from '../../services/PlayModeService';
+import { getPlayModeService } from '../../services/PlayModeService';
 import { icons } from '../../utils/icons';
 
 export function renderRuntimeEntity(
     container: HTMLElement,
     data: RuntimeEntityData,
-    bridge: GameViewBridge | null,
 ): void {
     container.innerHTML = '';
 
@@ -61,7 +61,7 @@ export function renderRuntimeEntity(
 
             const editor = document.createElement('div');
             editor.className = 'es-property-editor';
-            createRuntimePropertyEditor(editor, data.entityId, comp.type, key, value, bridge);
+            createRuntimePropertyEditor(editor, data.entityId, comp.type, key, value);
 
             row.appendChild(label);
             row.appendChild(editor);
@@ -114,8 +114,9 @@ function createRuntimePropertyEditor(
     componentType: string,
     property: string,
     value: unknown,
-    bridge: GameViewBridge | null,
 ): void {
+    const pms = getPlayModeService();
+
     if (typeof value === 'number') {
         const input = document.createElement('input');
         input.type = 'number';
@@ -125,7 +126,7 @@ function createRuntimePropertyEditor(
         input.dataset.rtComp = componentType;
         input.dataset.rtProp = property;
         input.addEventListener('change', () => {
-            bridge?.setEntityProperty(entityId, componentType, property, parseFloat(input.value));
+            pms.setEntityProperty(entityId, componentType, property, parseFloat(input.value));
         });
         container.appendChild(input);
     } else if (typeof value === 'boolean') {
@@ -135,7 +136,7 @@ function createRuntimePropertyEditor(
         input.dataset.rtComp = componentType;
         input.dataset.rtProp = property;
         input.addEventListener('change', () => {
-            bridge?.setEntityProperty(entityId, componentType, property, input.checked);
+            pms.setEntityProperty(entityId, componentType, property, input.checked);
         });
         container.appendChild(input);
     } else if (typeof value === 'string') {
@@ -146,7 +147,7 @@ function createRuntimePropertyEditor(
         input.dataset.rtComp = componentType;
         input.dataset.rtProp = property;
         input.addEventListener('change', () => {
-            bridge?.setEntityProperty(entityId, componentType, property, input.value);
+            pms.setEntityProperty(entityId, componentType, property, input.value);
         });
         container.appendChild(input);
     } else if (value && typeof value === 'object' && !Array.isArray(value)) {
@@ -170,7 +171,7 @@ function createRuntimePropertyEditor(
             inp.dataset.rtKey = k;
             inp.addEventListener('change', () => {
                 const newObj = { ...obj, [k]: parseFloat(inp.value) };
-                bridge?.setEntityProperty(entityId, componentType, property, newObj);
+                pms.setEntityProperty(entityId, componentType, property, newObj);
             });
             field.appendChild(lbl);
             field.appendChild(inp);

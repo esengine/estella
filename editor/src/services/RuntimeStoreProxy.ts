@@ -1,17 +1,14 @@
 import type { Entity } from 'esengine';
-import type { GameViewBridge, RuntimeEntityData } from '../panels/game-view/GameViewBridge';
 import type { EditorStore } from '../store/EditorStore';
 import type { SceneData, EntityData, ComponentData } from '../types/SceneTypes';
-import { getPlayModeService } from './PlayModeService';
+import { getPlayModeService, type RuntimeEntityData } from './PlayModeService';
 
 export class RuntimeStoreProxy {
-    private bridge_: GameViewBridge | null;
     private editorStore_: EditorStore;
     private runtimeCache_ = new Map<number, Record<string, Record<string, unknown>>>();
     private pendingWrites_ = new Map<string, { value: unknown; stale: boolean }>();
 
-    constructor(bridge: GameViewBridge | null, editorStore: EditorStore) {
-        this.bridge_ = bridge;
+    constructor(editorStore: EditorStore) {
         this.editorStore_ = editorStore;
     }
 
@@ -105,7 +102,7 @@ export class RuntimeStoreProxy {
         newValue: unknown,
     ): void {
         this.recordPendingWrite(entity as number, componentType, propertyName, newValue);
-        this.bridge_?.setEntityProperty(entity as number, componentType, propertyName, newValue);
+        getPlayModeService().setEntityProperty(entity as number, componentType, propertyName, newValue);
     }
 
     updateProperties(
@@ -113,9 +110,10 @@ export class RuntimeStoreProxy {
         componentType: string,
         changes: { property: string; oldValue: unknown; newValue: unknown }[],
     ): void {
+        const pms = getPlayModeService();
         for (const change of changes) {
             this.recordPendingWrite(entity as number, componentType, change.property, change.newValue);
-            this.bridge_?.setEntityProperty(entity as number, componentType, change.property, change.newValue);
+            pms.setEntityProperty(entity as number, componentType, change.property, change.newValue);
         }
     }
 
@@ -126,42 +124,33 @@ export class RuntimeStoreProxy {
         newValue: unknown,
     ): void {
         this.recordPendingWrite(entity as number, componentType, propertyName, newValue);
-        this.bridge_?.setEntityProperty(entity as number, componentType, propertyName, newValue);
+        getPlayModeService().setEntityProperty(entity as number, componentType, propertyName, newValue);
     }
 
     renameEntity(entity: Entity, name: string): void {
-        const pms = getPlayModeService();
-        pms.renameEntity(entity as number, name);
+        getPlayModeService().renameEntity(entity as number, name);
     }
 
-    toggleVisibility(_entityId: number): void {
-        // visibility toggle not applicable in play mode
-    }
+    toggleVisibility(_entityId: number): void {}
 
     removeComponent(entity: Entity, type: string): void {
-        const pms = getPlayModeService();
-        pms.removeComponent(entity as number, type);
+        getPlayModeService().removeComponent(entity as number, type);
     }
 
-    reorderComponent(_entity: Entity, _fromIndex: number, _toIndex: number): void {
-        // reorder not supported via bridge
-    }
+    reorderComponent(_entity: Entity, _fromIndex: number, _toIndex: number): void {}
 
     addComponent(entity: Entity, type: string, data: Record<string, unknown>): void {
-        const pms = getPlayModeService();
-        pms.addComponent(entity as number, type, data);
+        getPlayModeService().addComponent(entity as number, type, data);
     }
 
     deleteEntity(entity: Entity): void {
-        const pms = getPlayModeService();
-        pms.despawnEntity(entity as number);
+        getPlayModeService().despawnEntity(entity as number);
     }
 
     createEntity(name?: string, parent?: Entity | null): Entity {
-        const pms = getPlayModeService();
         const parentId = parent != null ? Number(parent) : null;
-        pms.spawnEntity(name, parentId);
-        return 0 as Entity;
+        const id = getPlayModeService().spawnEntity(name, parentId);
+        return (id ?? 0) as Entity;
     }
 
     selectEntity(entity: Entity | null, _mode?: 'replace' | 'add' | 'toggle'): void {

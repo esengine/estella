@@ -125,7 +125,7 @@ export class GameViewPanel implements PanelInstance, Resizable {
 
     private async play(): Promise<void> {
         const service = getPlayModeService();
-        await service.enterShared();
+        await service.enter();
         this.gameManager_.setState('playing');
         if (this.gameRenderer_) {
             this.gameRenderer_.setVisible(true);
@@ -157,7 +157,7 @@ export class GameViewPanel implements PanelInstance, Resizable {
         if (this.gameRenderer_) {
             this.gameRenderer_.setVisible(false);
         }
-        await getPlayModeService().exitShared();
+        await getPlayModeService().exit();
         await this.gameManager_.stop();
     }
 
