@@ -1,5 +1,9 @@
 import { resolve } from 'path';
+import { readFileSync } from 'fs';
 import { defineConfig, type Plugin } from 'vite';
+
+const tauriConf = JSON.parse(readFileSync(resolve(__dirname, 'src-tauri/tauri.conf.json'), 'utf-8'));
+const sdkPkg = JSON.parse(readFileSync(resolve(__dirname, '../sdk/package.json'), 'utf-8'));
 
 const host = process.env.TAURI_DEV_HOST;
 
@@ -26,6 +30,10 @@ function tauriHtmlFixes(): Plugin {
 export default defineConfig({
   clearScreen: false,
   plugins: [tauriHtmlFixes()],
+  define: {
+    __ENGINE_VERSION__: JSON.stringify(tauriConf.version),
+    __SDK_VERSION__: JSON.stringify(sdkPkg.version),
+  },
   server: {
     port: 5173,
     strictPort: true,
