@@ -780,6 +780,7 @@ declare class World {
     private iterationDepth_;
     private nextEntityId_;
     private nextGeneration_;
+    private spawnCallbacks_;
     private despawnCallbacks_;
     private worldTick_;
     private componentAddedTicks_;
@@ -791,6 +792,7 @@ declare class World {
     getCppRegistry(): CppRegistry | null;
     spawn(): Entity;
     despawn(entity: Entity): void;
+    onSpawn(callback: (entity: Entity) => void): () => void;
     onDespawn(callback: (entity: Entity) => void): () => void;
     valid(entity: Entity): boolean;
     entityCount(): number;
@@ -1581,6 +1583,7 @@ declare class AssetServer {
     private spineController_;
     private spineSkeletons_;
     private textureRefCounts_;
+    private assetRefResolver_;
     constructor(module: ESEngineModule);
     registerEmbeddedAssets(assets: Record<string, string>): void;
     setEmbeddedOnly(value: boolean): void;
@@ -1612,7 +1615,9 @@ declare class AssetServer {
     releaseFont(fontPath: string): void;
     private loadBmfontAsset;
     private loadFntFile;
+    setAssetRefResolver(resolver: (ref: string) => string | null): void;
     loadPrefab(path: string, baseUrl?: string): Promise<PrefabData>;
+    private resolvePrefabRefs_;
     loadMaterial(path: string, baseUrl?: string): Promise<LoadedMaterial>;
     getMaterial(path: string, baseUrl?: string): LoadedMaterial | undefined;
     hasMaterial(path: string, baseUrl?: string): boolean;
@@ -1633,6 +1638,7 @@ declare class AssetServer {
     private loadTextureWithFlip;
     private loadTextureInternal;
     private loadImage;
+    private loadImageFromSrc;
     private createTextureFromImage;
     private getWebGL2Context;
     private createTextureWebGL2;
@@ -1868,6 +1874,7 @@ declare class App {
     }): this;
     addSystem(system: SystemDef): this;
     addStartupSystem(system: SystemDef): this;
+    removeSystem(systemId: symbol): boolean;
     connectCpp(cppRegistry: CppRegistry, module?: ESEngineModule): this;
     get wasmModule(): ESEngineModule | null;
     get pipeline(): RenderPipeline | null;

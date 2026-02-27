@@ -16,6 +16,7 @@ import { AsyncCache } from './AsyncCache';
 import type { PrefabData } from '../prefab';
 import type { SpineModuleController } from '../spine/SpineController';
 import { type AddressableAssetType, getAssetTypeEntry } from '../assetTypes';
+import { getComponentAssetFields, getComponentSpineFieldDescriptor } from '../scene';
 
 // =============================================================================
 // Types
@@ -128,6 +129,7 @@ export class AssetServer {
     private spineController_: SpineModuleController | null = null;
     private spineSkeletons_ = new Map<string, number>();
     private textureRefCounts_ = new Map<string, number>();
+    private assetRefResolver_: ((ref: string) => string | null) | null = null;
 
     constructor(module: ESEngineModule) {
         this.module_ = module;
@@ -428,14 +430,56 @@ export class AssetServer {
     }
 
     // =========================================================================
+    // Asset Ref Resolver
+    // =========================================================================
+
+    setAssetRefResolver(resolver: (ref: string) => string | null): void {
+        this.assetRefResolver_ = resolver;
+    }
+
+    // =========================================================================
     // Prefab
     // =========================================================================
 
     async loadPrefab(path: string, baseUrl?: string): Promise<PrefabData> {
         const url = this.resolveUrl(path, baseUrl);
-        return this.prefabCache_.getOrLoad(url, () =>
-            this.fetchJson(url) as Promise<PrefabData>
-        );
+        return this.prefabCache_.getOrLoad(url, async () => {
+            const data = await this.fetchJson(url) as PrefabData;
+            if (this.assetRefResolver_) {
+                this.resolvePrefabRefs_(data);
+            }
+            return data;
+        });
+    }
+
+    private resolvePrefabRefs_(prefab: PrefabData): void {
+        const resolve = this.assetRefResolver_!;
+        for (const entity of prefab.entities) {
+            for (const comp of entity.components) {
+                if (!comp.data) continue;
+                for (const field of getComponentAssetFields(comp.type)) {
+                    const value = comp.data[field];
+                    if (typeof value === 'string' && value) {
+                        const resolved = resolve(value);
+                        if (resolved) comp.data[field] = resolved;
+                    }
+                }
+                const spine = getComponentSpineFieldDescriptor(comp.type);
+                if (spine) {
+                    for (const field of [spine.skeletonField, spine.atlasField]) {
+                        const value = comp.data[field];
+                        if (typeof value === 'string' && value) {
+                            const resolved = resolve(value);
+                            if (resolved) comp.data[field] = resolved;
+                        }
+                    }
+                }
+            }
+            if (entity.nestedPrefab?.prefabPath) {
+                const resolved = resolve(entity.nestedPrefab.prefabPath);
+                if (resolved) entity.nestedPrefab.prefabPath = resolved;
+            }
+        }
     }
 
     // =========================================================================
@@ -688,12 +732,25 @@ export class AssetServer {
     }
 
     private async loadImage(source: string): Promise<HTMLImageElement | ImageBitmap> {
-        const localPath = this.isLocalPath(source) ? this.toLocalPath(source) : source;
-        const embedded = this.embedded_.get(localPath);
-        if (this.embeddedOnly_ && !embedded) {
+        const localPath = this.isLocalPath(source) ? this.toLocalPath(source) : null;
+        if (localPath) {
+            const embedded = this.embedded_.get(localPath);
+            if (embedded) {
+                return this.loadImageFromSrc(embedded);
+            }
+            if (this.embeddedOnly_) {
+                throw new Error(`Asset not embedded: ${source}`);
+            }
+            const imgSrc = this.baseUrl ? `${this.baseUrl}/${localPath}` : localPath;
+            return this.loadImageFromSrc(imgSrc);
+        }
+        if (this.embeddedOnly_) {
             throw new Error(`Asset not embedded: ${source}`);
         }
-        const imgSrc = embedded ?? localPath;
+        return this.loadImageFromSrc(source);
+    }
+
+    private loadImageFromSrc(imgSrc: string): Promise<HTMLImageElement | ImageBitmap> {
         return new Promise((resolve, reject) => {
             const img = platformCreateImage();
             img.crossOrigin = 'anonymous';
@@ -712,7 +769,7 @@ export class AssetServer {
                 }
                 resolve(img);
             };
-            img.onerror = () => reject(new Error(`Failed to load image: ${source}`));
+            img.onerror = () => reject(new Error(`Failed to load image: ${imgSrc}`));
             img.src = imgSrc;
         });
     }
@@ -881,7 +938,7 @@ export class AssetServer {
     }
 
     private isLocalPath(url: string): boolean {
-        return !url.startsWith('http://') && !url.startsWith('https://');
+        return !url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('asset://');
     }
 
     private toLocalPath(url: string): string {
