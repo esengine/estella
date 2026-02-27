@@ -5,12 +5,12 @@ import type { SceneData, EntityData, ComponentData } from '../types/SceneTypes';
 import { getPlayModeService } from './PlayModeService';
 
 export class RuntimeStoreProxy {
-    private bridge_: GameViewBridge;
+    private bridge_: GameViewBridge | null;
     private editorStore_: EditorStore;
     private runtimeCache_ = new Map<number, Record<string, Record<string, unknown>>>();
     private pendingWrites_ = new Map<string, { value: unknown; stale: boolean }>();
 
-    constructor(bridge: GameViewBridge, editorStore: EditorStore) {
+    constructor(bridge: GameViewBridge | null, editorStore: EditorStore) {
         this.bridge_ = bridge;
         this.editorStore_ = editorStore;
     }
@@ -105,7 +105,7 @@ export class RuntimeStoreProxy {
         newValue: unknown,
     ): void {
         this.recordPendingWrite(entity as number, componentType, propertyName, newValue);
-        this.bridge_.setEntityProperty(entity as number, componentType, propertyName, newValue);
+        this.bridge_?.setEntityProperty(entity as number, componentType, propertyName, newValue);
     }
 
     updateProperties(
@@ -115,7 +115,7 @@ export class RuntimeStoreProxy {
     ): void {
         for (const change of changes) {
             this.recordPendingWrite(entity as number, componentType, change.property, change.newValue);
-            this.bridge_.setEntityProperty(entity as number, componentType, change.property, change.newValue);
+            this.bridge_?.setEntityProperty(entity as number, componentType, change.property, change.newValue);
         }
     }
 
@@ -126,7 +126,7 @@ export class RuntimeStoreProxy {
         newValue: unknown,
     ): void {
         this.recordPendingWrite(entity as number, componentType, propertyName, newValue);
-        this.bridge_.setEntityProperty(entity as number, componentType, propertyName, newValue);
+        this.bridge_?.setEntityProperty(entity as number, componentType, propertyName, newValue);
     }
 
     renameEntity(entity: Entity, name: string): void {
