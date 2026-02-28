@@ -154,7 +154,7 @@ async function optimizeWasmFiles(buildDir, outputs, optLevel = '-O2') {
 
         try {
             const before = (await stat(wasmPath)).size;
-            await runCommand('wasm-opt', [optLevel, '-o', wasmPath, wasmPath], { silent: true });
+            await runCommand('wasm-opt', [optLevel, '--enable-bulk-memory', '--enable-nontrapping-float-to-int', '-o', wasmPath, wasmPath], { silent: true });
             const after = (await stat(wasmPath)).size;
             const reduction = ((1 - after / before) * 100).toFixed(1);
             logger.debug(`wasm-opt ${optLevel}: ${src} ${(before / 1024).toFixed(0)}KB → ${(after / 1024).toFixed(0)}KB (-${reduction}%)`);
