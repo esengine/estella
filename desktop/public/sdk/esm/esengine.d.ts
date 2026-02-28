@@ -3549,6 +3549,7 @@ declare class Audio {
     private static bgmHandle_;
     private static bgmVolume_;
     private static fadeAnimId_;
+    private static disposed_;
     static init(backend: PlatformAudioBackend, mixer?: AudioMixer | null): void;
     static preload(url: string): Promise<void>;
     static preloadAll(urls: string[]): Promise<void>;
@@ -3573,7 +3574,7 @@ declare class Audio {
     static dispose(): void;
     private static fadeIn;
     private static fadeOut;
-    private static createPendingHandle;
+    private static createDeferredHandle;
 }
 
 interface PooledAudioNode {
@@ -3581,7 +3582,6 @@ interface PooledAudioNode {
     panner: StereoPannerNode;
     source: AudioBufferSourceNode | null;
     inUse: boolean;
-    priority: number;
     startTime: number;
 }
 declare class AudioPool {
@@ -3590,7 +3590,7 @@ declare class AudioPool {
     private activeCount_;
     constructor(context: AudioContext, initialSize?: number);
     private createNode;
-    acquire(priority?: number): PooledAudioNode;
+    acquire(): PooledAudioNode;
     release(node: PooledAudioNode): void;
     get activeCount(): number;
     get capacity(): number;
@@ -3605,6 +3605,7 @@ interface AudioPluginConfig {
 declare class AudioPlugin implements Plugin {
     name: string;
     private config_;
+    private activeSourceHandles_;
     constructor(config?: AudioPluginConfig);
     build(app: App): void;
     cleanup(): void;
@@ -3650,6 +3651,7 @@ type StatsPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 declare class StatsOverlay {
     private el_;
     private visible_;
+    private disposed_;
     constructor(container: HTMLElement, position?: StatsPosition);
     update(stats: FrameStats): void;
     show(): void;
@@ -3680,6 +3682,7 @@ declare class StatsCollector {
     pushFrame(deltaSeconds: number): void;
     getFps(): number;
     getFrameTimeMs(): number;
+    reset(): void;
 }
 interface StatsPluginOptions {
     overlay?: boolean;
