@@ -61,6 +61,7 @@ export interface BuildConfig {
     platform: BuildPlatform;
     scenes: string[];
     defines: string[];
+    additionalAssets?: string[];
     playableSettings?: PlayableSettings;
     wechatSettings?: WeChatSettings;
 }

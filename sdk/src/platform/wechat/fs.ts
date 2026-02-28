@@ -5,7 +5,7 @@
 
 /// <reference types="minigame-api-typings" />
 
-import { isCustomExtension } from '../../assetTypes';
+import { isCustomExtension, toBuildPath } from '../../assetTypes';
 
 // =============================================================================
 // Types
@@ -48,7 +48,7 @@ function formatReadError(path: string, errMsg: string): string {
  */
 export function wxReadFileSync(path: string): ArrayBuffer {
     const fs = getFileSystemManager();
-    return fs.readFileSync(path) as ArrayBuffer;
+    return fs.readFileSync(toBuildPath(path)) as ArrayBuffer;
 }
 
 /**
@@ -56,17 +56,18 @@ export function wxReadFileSync(path: string): ArrayBuffer {
  */
 export function wxReadTextFileSync(path: string, encoding: 'utf8' | 'utf-8' = 'utf-8'): string {
     const fs = getFileSystemManager();
-    return fs.readFileSync(path, encoding) as string;
+    return fs.readFileSync(toBuildPath(path), encoding) as string;
 }
 
 /**
  * Read file as ArrayBuffer (async)
  */
 export function wxReadFile(path: string): Promise<ArrayBuffer> {
+    const resolved = toBuildPath(path);
     return new Promise((resolve, reject) => {
         const fs = getFileSystemManager();
         fs.readFile({
-            filePath: path,
+            filePath: resolved,
             success: (res) => {
                 resolve(res.data as ArrayBuffer);
             },
@@ -81,10 +82,11 @@ export function wxReadFile(path: string): Promise<ArrayBuffer> {
  * Read file as string (async)
  */
 export function wxReadTextFile(path: string, encoding: 'utf8' | 'utf-8' = 'utf-8'): Promise<string> {
+    const resolved = toBuildPath(path);
     return new Promise((resolve, reject) => {
         const fs = getFileSystemManager();
         fs.readFile({
-            filePath: path,
+            filePath: resolved,
             encoding,
             success: (res) => {
                 resolve(res.data as string);
@@ -100,10 +102,11 @@ export function wxReadTextFile(path: string, encoding: 'utf8' | 'utf-8' = 'utf-8
  * Check if file exists
  */
 export function wxFileExists(path: string): Promise<boolean> {
+    const resolved = toBuildPath(path);
     return new Promise((resolve) => {
         const fs = getFileSystemManager();
         fs.access({
-            path,
+            path: resolved,
             success: () => resolve(true),
             fail: () => resolve(false),
         });
@@ -116,7 +119,7 @@ export function wxFileExists(path: string): Promise<boolean> {
 export function wxFileExistsSync(path: string): boolean {
     const fs = getFileSystemManager();
     try {
-        fs.accessSync(path);
+        fs.accessSync(toBuildPath(path));
         return true;
     } catch {
         return false;

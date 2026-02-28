@@ -8,6 +8,7 @@ import { type TextureImporterSettings, getEffectiveImporter } from '../asset/Imp
 import { joinPath } from '../utils/path';
 import type { NativeFS } from '../types/NativeFS';
 import { parseAtlasTextures } from '../asset/importers/SpineAtlasParser';
+import { getComponentAssetFieldDescriptors, getComponentDefaults } from 'esengine';
 
 // =============================================================================
 // Types
@@ -42,6 +43,12 @@ interface Rect {
 
 interface RectWithId extends Rect {
     id: string;
+}
+
+function isAtlasCapable(componentType: string): boolean {
+    const defaults = getComponentDefaults(componentType);
+    if (!defaults) return false;
+    return 'uvOffset' in defaults && 'uvScale' in defaults;
 }
 
 // =============================================================================
@@ -212,11 +219,12 @@ export class TextureAtlasPacker {
 
         const spineTextures = await this.collectSpineTextures(sceneDataList, allAssetPaths);
         const nineSliceTextures = this.collectNineSliceTextures(sceneDataList, eligiblePaths);
+        const nonAtlasTextures = this.collectNonAtlasCapableTextures(sceneDataList);
 
         const images: Array<{ path: string; width: number; height: number; data: Uint8Array }> = [];
 
         for (const relPath of eligiblePaths) {
-            if (spineTextures.has(relPath) || nineSliceTextures.has(relPath)) continue;
+            if (spineTextures.has(relPath) || nineSliceTextures.has(relPath) || nonAtlasTextures.has(relPath)) continue;
 
             const fullPath = joinPath(this.projectDir_, relPath);
             const data = await this.fs_.readBinaryFile(fullPath);
@@ -346,30 +354,35 @@ export class TextureAtlasPacker {
 
         for (const entity of entities) {
             for (const comp of entity.components || []) {
-                if (comp.type !== 'Sprite' || !comp.data) continue;
+                if (!comp.data || !isAtlasCapable(comp.type)) continue;
 
-                const textureRef = comp.data.texture;
-                if (typeof textureRef !== 'string') continue;
+                const descriptors = getComponentAssetFieldDescriptors(comp.type);
+                for (const desc of descriptors) {
+                    if (desc.type !== 'texture') continue;
 
-                const texturePath = this.resolveRef(textureRef);
-                const entry = atlasResult.frameMap.get(texturePath);
-                if (!entry) continue;
+                    const textureRef = comp.data[desc.field];
+                    if (typeof textureRef !== 'string') continue;
 
-                const page = atlasResult.pages[entry.page];
-                const frame = entry.frame;
-                const atlasTexturePath = `${atlasPathPrefix}atlas_${entry.page}.png`;
+                    const texturePath = this.resolveRef(textureRef);
+                    const entry = atlasResult.frameMap.get(texturePath);
+                    if (!entry) continue;
 
-                metadataUpdates.push({ oldKey: textureRef as string, newPath: atlasTexturePath });
+                    const page = atlasResult.pages[entry.page];
+                    const frame = entry.frame;
+                    const atlasTexturePath = `${atlasPathPrefix}atlas_${entry.page}.png`;
 
-                comp.data.texture = atlasTexturePath;
-                comp.data.uvOffset = {
-                    x: frame.x / page.width,
-                    y: frame.y / page.height,
-                };
-                comp.data.uvScale = {
-                    x: frame.width / page.width,
-                    y: frame.height / page.height,
-                };
+                    metadataUpdates.push({ oldKey: textureRef as string, newPath: atlasTexturePath });
+
+                    comp.data[desc.field] = atlasTexturePath;
+                    comp.data.uvOffset = {
+                        x: frame.x / page.width,
+                        y: 1.0 - (frame.y + frame.height) / page.height,
+                    };
+                    comp.data.uvScale = {
+                        x: frame.width / page.width,
+                        y: frame.height / page.height,
+                    };
+                }
             }
         }
 
@@ -484,6 +497,36 @@ export class TextureAtlasPacker {
                 const border = effective?.sliceBorder;
                 if (border && (border.left > 0 || border.right > 0 || border.top > 0 || border.bottom > 0)) {
                     result.add(imgPath);
+                }
+            }
+        }
+
+        return result;
+    }
+
+    private collectNonAtlasCapableTextures(
+        sceneDataList: Array<{ name: string; data: Record<string, unknown> }>
+    ): Set<string> {
+        const result = new Set<string>();
+
+        for (const { data } of sceneDataList) {
+            const entities = data.entities as Array<{
+                components: Array<{ type: string; data: Record<string, unknown> }>;
+            }> | undefined;
+            if (!entities) continue;
+
+            for (const entity of entities) {
+                for (const comp of entity.components || []) {
+                    if (!comp.data || isAtlasCapable(comp.type)) continue;
+
+                    const descriptors = getComponentAssetFieldDescriptors(comp.type);
+                    for (const desc of descriptors) {
+                        if (desc.type !== 'texture') continue;
+                        const ref = comp.data[desc.field];
+                        if (typeof ref === 'string' && ref) {
+                            result.add(this.resolveRef(ref));
+                        }
+                    }
                 }
             }
         }

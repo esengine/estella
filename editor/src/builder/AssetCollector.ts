@@ -368,6 +368,16 @@ export class BuildAssetCollector {
         const refCollector = new AssetReferenceCollector(this.fs_, this.projectDir_, this.assetLibrary_ ?? undefined);
         const referencedPaths = await refCollector.collectFromScenes(config.scenes);
 
+        if (config.additionalAssets) {
+            for (const path of config.additionalAssets) {
+                referencedPaths.add(path);
+                const deps = await refCollector.collectAssetDependencies(path);
+                for (const dep of deps) {
+                    referencedPaths.add(dep);
+                }
+            }
+        }
+
         const assetsDir = joinPath(this.projectDir_, 'assets');
         if (!await this.fs_.exists(assetsDir)) {
             return new Set<string>();

@@ -22,6 +22,7 @@ import { wxReadFile, wxReadTextFile, wxFileExists } from './fs';
 
 class WeChatPlatformAdapter implements PlatformAdapter {
     readonly name = 'wechat' as const;
+    private inputCleanup_: (() => void) | null = null;
 
     async fetch(url: string, options?: PlatformRequestOptions): Promise<PlatformResponse> {
         return wxFetch(url, options);
@@ -67,29 +68,60 @@ class WeChatPlatformAdapter implements PlatformAdapter {
     }
 
     bindInputEvents(callbacks: InputEventCallbacks, _target?: unknown): void {
-        wx.onTouchStart((e: any) => {
-            for (const touch of e.touches) {
-                callbacks.onPointerDown(
-                    touch.identifier,
-                    touch.clientX,
-                    touch.clientY
-                );
+        if (this.inputCleanup_) {
+            this.inputCleanup_();
+            this.inputCleanup_ = null;
+        }
+
+        type KeyResult = WechatMinigame.OnKeyDownListenerResult;
+        type TouchResult = WechatMinigame.OnTouchStartListenerResult;
+
+        const onKeyDown = (res: KeyResult) => callbacks.onKeyDown(res.code);
+        const onKeyUp = (res: KeyResult) => callbacks.onKeyUp(res.code);
+
+        const hasKeyboard = typeof wx.onKeyDown === 'function';
+        if (hasKeyboard) {
+            wx.onKeyDown(onKeyDown);
+            wx.onKeyUp(onKeyUp);
+        }
+
+        const onTouchStart = (res: TouchResult) => {
+            for (const touch of res.touches) {
+                callbacks.onPointerDown(touch.identifier, touch.clientX, touch.clientY);
             }
-        });
-        wx.onTouchMove((e: any) => {
-            const touch = e.touches[0];
+        };
+        const onTouchMove = (res: TouchResult) => {
+            const touch = res.touches[0];
             if (touch) {
-                callbacks.onPointerMove(
-                    touch.clientX,
-                    touch.clientY
-                );
+                callbacks.onPointerMove(touch.clientX, touch.clientY);
             }
-        });
-        wx.onTouchEnd((e: any) => {
-            for (const touch of e.changedTouches) {
+        };
+        const onTouchEnd = (res: TouchResult) => {
+            for (const touch of res.changedTouches) {
                 callbacks.onPointerUp(touch.identifier);
             }
-        });
+        };
+
+        wx.onTouchStart(onTouchStart);
+        wx.onTouchMove(onTouchMove);
+        wx.onTouchEnd(onTouchEnd);
+
+        this.inputCleanup_ = () => {
+            if (hasKeyboard) {
+                wx.offKeyDown(onKeyDown);
+                wx.offKeyUp(onKeyUp);
+            }
+            wx.offTouchStart(onTouchStart);
+            wx.offTouchMove(onTouchMove);
+            wx.offTouchEnd(onTouchEnd);
+        };
+    }
+
+    unbindInputEvents(): void {
+        if (this.inputCleanup_) {
+            this.inputCleanup_();
+            this.inputCleanup_ = null;
+        }
     }
 }
 

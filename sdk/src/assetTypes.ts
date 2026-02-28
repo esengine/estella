@@ -128,3 +128,11 @@ export function isCustomExtension(path: string): boolean {
     const entry = getAssetTypeEntry(path);
     return entry?.wechatPackInclude ?? false;
 }
+
+export function toBuildPath(path: string): string {
+    const entry = getAssetTypeEntry(path);
+    if (!entry || !entry.wechatPackInclude) return path;
+    if (entry.contentType !== 'json') return path;
+    const dotIndex = path.lastIndexOf('.');
+    return dotIndex >= 0 ? path.substring(0, dotIndex) + '.json' : path;
+}

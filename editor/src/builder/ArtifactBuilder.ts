@@ -9,13 +9,15 @@ import type { BuildArtifact } from './PlatformEmitter';
 import type { NativeFS } from '../types/NativeFS';
 import { BuildProgressReporter } from './BuildProgress';
 import { AssetExportConfigService, BuildAssetCollector } from './AssetCollector';
-import { TextureAtlasPacker } from './TextureAtlas';
+import { TextureAtlasPacker, type AtlasResult } from './TextureAtlas';
 import { AssetLibrary, isUUID, getComponentRefFields } from '../asset/AssetLibrary';
 import { type TextureImporterSettings, getEffectiveImporter } from '../asset/ImporterTypes';
 import { BuildCache } from './BuildCache';
 import { getAssetType, toAddressableType } from '../asset/AssetTypes';
 import { compileMaterials } from './MaterialCompiler';
 import { convertPrefabAssetRefs, deserializePrefab } from '../prefab';
+import type { PrefabData } from '../types/PrefabTypes';
+import { toBuildPath, getComponentAssetFieldDescriptors, getComponentDefaults } from 'esengine';
 import { normalizePath, joinPath, isAbsolutePath, getParentDir } from '../utils/path';
 import { getEsbuildWasmURL } from '../context/EditorContext';
 import { getSettingsValue } from '../settings';
@@ -138,6 +140,11 @@ export async function buildArtifact(
 
     const packedPaths = new Set<string>(atlasResult.frameMap.keys());
 
+    const nonAtlasTextures = collectNonAtlasCapableTextures(sceneDataList, assetLibrary);
+    for (const path of nonAtlasTextures) {
+        packedPaths.delete(path);
+    }
+
     progress.setCurrentTask('Compiling materials...', 20);
     const compiledMaterials = await compileMaterials(fs, projectDir, assetLibrary, assetPaths);
     progress.log('info', `Compiled ${compiledMaterials.length} material(s)`);
@@ -162,6 +169,36 @@ export async function buildArtifact(
     };
 }
 
+function collectNonAtlasCapableTextures(
+    sceneDataList: Array<{ name: string; data: Record<string, unknown> }>,
+    assetLibrary: AssetLibrary,
+): Set<string> {
+    const result = new Set<string>();
+    for (const { data } of sceneDataList) {
+        const entities = data.entities as Array<{
+            components: Array<{ type: string; data: Record<string, unknown> }>;
+        }> | undefined;
+        if (!entities) continue;
+        for (const entity of entities) {
+            for (const comp of entity.components || []) {
+                if (!comp.data || isAtlasCapable(comp.type)) continue;
+                const descriptors = getComponentAssetFieldDescriptors(comp.type);
+                for (const desc of descriptors) {
+                    if (desc.type !== 'texture') continue;
+                    const ref = comp.data[desc.field];
+                    if (typeof ref === 'string' && ref) {
+                        const resolved = isUUID(ref)
+                            ? (assetLibrary.getPath(ref) ?? ref)
+                            : ref;
+                        result.add(resolved);
+                    }
+                }
+            }
+        }
+    }
+    return result;
+}
+
 function resolveSceneUUIDs(sceneData: Record<string, unknown>, assetLibrary: AssetLibrary): void {
     const entities = sceneData.entities as Array<{
         components: Array<{ type: string; data: Record<string, unknown> }>;
@@ -180,15 +217,19 @@ function resolveSceneUUIDs(sceneData: Record<string, unknown>, assetLibrary: Ass
                 if (typeof value === 'string' && isUUID(value)) {
                     const path = assetLibrary.getPath(value);
                     if (path) {
-                        comp.data[field] = path;
+                        comp.data[field] = toBuildPath(path);
                     }
                 }
             }
         }
-        if (entity.prefab?.prefabPath && isUUID(entity.prefab.prefabPath)) {
-            const path = assetLibrary.getPath(entity.prefab.prefabPath);
-            if (path) {
-                entity.prefab.prefabPath = path;
+        if (entity.prefab?.prefabPath) {
+            if (isUUID(entity.prefab.prefabPath)) {
+                const path = assetLibrary.getPath(entity.prefab.prefabPath);
+                if (path) {
+                    entity.prefab.prefabPath = toBuildPath(path);
+                }
+            } else {
+                entity.prefab.prefabPath = toBuildPath(entity.prefab.prefabPath);
             }
         }
     }
@@ -337,10 +378,7 @@ export function generateAddressableManifest(
             }
         }
 
-        const compiledMat = artifact.compiledMaterials.find(m => m.relativePath === relativePath);
-        if (compiledMat) {
-            path = relativePath.replace(/\.esmaterial$/, '.json');
-        }
+        path = toBuildPath(path);
 
         if (addressableType === 'spine') {
             const dir = relativePath.substring(0, relativePath.lastIndexOf('/'));
@@ -375,12 +413,53 @@ export function convertPrefabWithResolvedRefs(
 ): string {
     const prefab = deserializePrefab(prefabContent);
     const converted = convertPrefabAssetRefs(prefab, (value) => {
-        if (isUUID(value)) {
-            return artifact.assetLibrary.getPath(value) ?? value;
-        }
-        return value;
+        const resolved = isUUID(value)
+            ? (artifact.assetLibrary.getPath(value) ?? value)
+            : value;
+        return toBuildPath(resolved);
     });
+    rewritePrefabAtlasRefs(converted, artifact.atlasResult);
     return JSON.stringify(converted);
+}
+
+function isAtlasCapable(componentType: string): boolean {
+    const defaults = getComponentDefaults(componentType);
+    if (!defaults) return false;
+    return 'uvOffset' in defaults && 'uvScale' in defaults;
+}
+
+function rewritePrefabAtlasRefs(
+    prefab: PrefabData,
+    atlasResult: AtlasResult,
+): void {
+    for (const entity of prefab.entities) {
+        for (const comp of entity.components) {
+            if (!comp.data || !isAtlasCapable(comp.type)) continue;
+
+            const descriptors = getComponentAssetFieldDescriptors(comp.type);
+            for (const desc of descriptors) {
+                if (desc.type !== 'texture') continue;
+
+                const textureRef = comp.data[desc.field];
+                if (typeof textureRef !== 'string') continue;
+
+                const entry = atlasResult.frameMap.get(textureRef);
+                if (!entry) continue;
+
+                const page = atlasResult.pages[entry.page];
+                const frame = entry.frame;
+                comp.data[desc.field] = `atlas_${entry.page}.png`;
+                comp.data.uvOffset = {
+                    x: frame.x / page.width,
+                    y: 1.0 - (frame.y + frame.height) / page.height,
+                };
+                comp.data.uvScale = {
+                    x: frame.width / page.width,
+                    y: frame.height / page.height,
+                };
+            }
+        }
+    }
 }
 
 export function createBuildVirtualFsPlugin(

@@ -14,7 +14,7 @@ import { isUUID, getComponentRefFields } from '../asset/AssetLibrary';
 import { initializeEsbuild, createBuildVirtualFsPlugin, arrayBufferToBase64, generateAddressableManifest, convertPrefabWithResolvedRefs } from './ArtifactBuilder';
 import { PLAYABLE_HTML_TEMPLATE } from './templates';
 import type { NativeFS } from '../types/NativeFS';
-import { getAssetMimeType, getAssetTypeEntry } from 'esengine';
+import { getAssetMimeType, getAssetTypeEntry, toBuildPath } from 'esengine';
 
 // =============================================================================
 // PlayableEmitter
@@ -228,9 +228,13 @@ ${imports}
         if (!entities) return;
 
         for (const entity of entities) {
-            if (entity.prefab && typeof entity.prefab.prefabPath === 'string' && isUUID(entity.prefab.prefabPath)) {
-                const path = artifact.assetLibrary.getPath(entity.prefab.prefabPath);
-                if (path) entity.prefab.prefabPath = path;
+            if (entity.prefab && typeof entity.prefab.prefabPath === 'string') {
+                if (isUUID(entity.prefab.prefabPath)) {
+                    const path = artifact.assetLibrary.getPath(entity.prefab.prefabPath);
+                    if (path) entity.prefab.prefabPath = toBuildPath(path);
+                } else {
+                    entity.prefab.prefabPath = toBuildPath(entity.prefab.prefabPath);
+                }
             }
             for (const comp of entity.components || []) {
                 const refFields = getComponentRefFields(comp.type);
@@ -239,7 +243,7 @@ ${imports}
                     const value = comp.data[field];
                     if (typeof value === 'string' && isUUID(value)) {
                         const path = artifact.assetLibrary.getPath(value);
-                        if (path) comp.data[field] = path;
+                        if (path) comp.data[field] = toBuildPath(path);
                     }
                 }
             }
@@ -273,15 +277,16 @@ ${imports}
         const pending: Array<Promise<void>> = [];
 
         for (const relativePath of allFiles) {
-            if (artifact.packedPaths.has(relativePath)) continue;
             const entry = getAssetTypeEntry(relativePath);
             if (entry?.editorType === 'shader') continue;
+
+            const outputPath = toBuildPath(relativePath);
 
             if (compiledMaterialPaths.has(relativePath)) {
                 const mat = artifact.compiledMaterials.find(m => m.relativePath === relativePath);
                 if (mat) {
                     const base64 = btoa(mat.json);
-                    assets.set(relativePath, `data:application/json;base64,${base64}`);
+                    assets.set(outputPath, `data:application/json;base64,${base64}`);
                 }
                 continue;
             }
@@ -291,7 +296,7 @@ ${imports}
                     fs.readFile(joinPath(projectDir, relativePath)).then(content => {
                         if (content) {
                             const json = convertPrefabWithResolvedRefs(content, artifact);
-                            assets.set(relativePath, `data:application/json;base64,${btoa(json)}`);
+                            assets.set(outputPath, `data:application/json;base64,${btoa(json)}`);
                         }
                     })
                 );

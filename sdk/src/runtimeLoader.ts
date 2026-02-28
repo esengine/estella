@@ -83,7 +83,8 @@ async function loadTextures(
                 try {
                     const params = texSettings?.[ref];
                     cache[ref] = createTextureFromPixels(module, await provider.loadPixels(ref), true, params);
-                } catch {
+                } catch (e) {
+                    console.warn(`[loadTextures] Failed to load texture: ${ref}`, e);
                     cache[ref] = 0;
                 }
             }

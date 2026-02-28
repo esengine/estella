@@ -1,165 +1,450 @@
 {
-    "version": "1.0",
-    "name": "Main",
-    "entities": [
+  "version": "1.0",
+  "name": "Main",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
         {
-            "id": 0,
-            "name": "Camera",
-            "parent": null,
-            "children": [],
-            "components": [
-                { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 10 } } },
-                { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 540, "isActive": true, "priority": 0 } }
-            ],
-            "visible": true
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 10
+            }
+          }
         },
         {
-            "id": 1,
-            "name": "Background",
-            "parent": null,
-            "children": [],
-            "components": [
-                { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": -1 } } },
-                { "type": "Sprite", "data": { "texture": "78c53bf7-88b8-481d-805c-a443c2d06076", "size": { "x": 600, "y": 1080 }, "layer": -1 } }
-            ],
-            "visible": true
-        },
-        {
-            "id": 2,
-            "name": "Player",
-            "parent": null,
-            "children": [],
-            "components": [
-                { "type": "Transform", "data": { "position": { "x": 0, "y": -420, "z": 0 } } },
-                { "type": "Sprite", "data": { "texture": "92f1ab5f-28f4-4b95-bb82-7182fdb33494", "size": { "x": 64, "y": 64 } } },
-                { "type": "Player", "data": { "speed": 400 } },
-                { "type": "Health", "data": { "value": 3, "maxValue": 3 } }
-            ],
-            "visible": true
-        },
-        {
-            "id": 10,
-            "name": "HUD",
-            "parent": null,
-            "children": [11, 12, 13, 14, 15],
-            "components": [
-                { "type": "Transform", "data": {} },
-                { "type": "Canvas", "data": { "designResolution": { "x": 600, "y": 1080 } } },
-                { "type": "UIRect", "data": {
-                    "anchorMin": { "x": 0.5, "y": 0.5 },
-                    "anchorMax": { "x": 0.5, "y": 0.5 },
-                    "size": { "x": 600, "y": 1080 },
-                    "pivot": { "x": 0.5, "y": 0.5 }
-                }}
-            ],
-            "visible": true
-        },
-        {
-            "id": 11,
-            "name": "ScoreText",
-            "parent": 10,
-            "children": [],
-            "components": [
-                { "type": "Transform", "data": {} },
-                { "type": "UIRect", "data": {
-                    "anchorMin": { "x": 0, "y": 1 },
-                    "anchorMax": { "x": 0, "y": 1 },
-                    "offsetMin": { "x": 20, "y": -40 },
-                    "size": { "x": 200, "y": 40 },
-                    "pivot": { "x": 0, "y": 1 }
-                }},
-                { "type": "Text", "data": {
-                    "content": "SCORE: 0",
-                    "fontSize": 28,
-                    "color": { "r": 0, "g": 0.86, "b": 1, "a": 1 },
-                    "align": 0,
-                    "verticalAlign": 0
-                }},
-                { "type": "ScoreDisplay", "data": {} }
-            ],
-            "visible": true
-        },
-        {
-            "id": 12,
-            "name": "Heart1",
-            "parent": 10,
-            "children": [],
-            "components": [
-                { "type": "Transform", "data": { "position": { "x": 216, "y": 520, "z": 0 } } },
-                { "type": "UIRect", "data": {
-                    "anchorMin": { "x": 1, "y": 1 },
-                    "anchorMax": { "x": 1, "y": 1 },
-                    "offsetMin": { "x": -84, "y": -20 },
-                    "size": { "x": 24, "y": 24 },
-                    "pivot": { "x": 1, "y": 1 }
-                }},
-                { "type": "Image", "data": { "texture": "5b21b6a6-dffa-4256-872a-36f4e4549408", "color": { "r": 1, "g": 1, "b": 1, "a": 1 } } },
-                { "type": "HealthHeart", "data": {} }
-            ],
-            "visible": true
-        },
-        {
-            "id": 13,
-            "name": "Heart2",
-            "parent": 10,
-            "children": [],
-            "components": [
-                { "type": "Transform", "data": { "position": { "x": 248, "y": 520, "z": 0 } } },
-                { "type": "UIRect", "data": {
-                    "anchorMin": { "x": 1, "y": 1 },
-                    "anchorMax": { "x": 1, "y": 1 },
-                    "offsetMin": { "x": -52, "y": -20 },
-                    "size": { "x": 24, "y": 24 },
-                    "pivot": { "x": 1, "y": 1 }
-                }},
-                { "type": "Image", "data": { "texture": "5b21b6a6-dffa-4256-872a-36f4e4549408", "color": { "r": 1, "g": 1, "b": 1, "a": 1 } } },
-                { "type": "HealthHeart", "data": {} }
-            ],
-            "visible": true
-        },
-        {
-            "id": 14,
-            "name": "Heart3",
-            "parent": 10,
-            "children": [],
-            "components": [
-                { "type": "Transform", "data": { "position": { "x": 280, "y": 520, "z": 0 } } },
-                { "type": "UIRect", "data": {
-                    "anchorMin": { "x": 1, "y": 1 },
-                    "anchorMax": { "x": 1, "y": 1 },
-                    "offsetMin": { "x": -20, "y": -20 },
-                    "size": { "x": 24, "y": 24 },
-                    "pivot": { "x": 1, "y": 1 }
-                }},
-                { "type": "Image", "data": { "texture": "5b21b6a6-dffa-4256-872a-36f4e4549408", "color": { "r": 1, "g": 1, "b": 1, "a": 1 } } },
-                { "type": "HealthHeart", "data": {} }
-            ],
-            "visible": true
-        },
-        {
-            "id": 15,
-            "name": "GameOverText",
-            "parent": 10,
-            "children": [],
-            "components": [
-                { "type": "Transform", "data": {} },
-                { "type": "UIRect", "data": {
-                    "anchorMin": { "x": 0.5, "y": 0.5 },
-                    "anchorMax": { "x": 0.5, "y": 0.5 },
-                    "offsetMin": { "x": 0, "y": 0 },
-                    "size": { "x": 400, "y": 120 },
-                    "pivot": { "x": 0.5, "y": 0.5 }
-                }},
-                { "type": "Text", "data": {
-                    "content": "",
-                    "fontSize": 36,
-                    "color": { "r": 1, "g": 0.24, "b": 0.24, "a": 1 },
-                    "align": 1,
-                    "verticalAlign": 1
-                }},
-                { "type": "GameOverScreen", "data": {} }
-            ],
-            "visible": true
+          "type": "Camera",
+          "data": {
+            "projectionType": 1,
+            "orthoSize": 540,
+            "isActive": true,
+            "priority": 0
+          }
         }
-    ]
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "Background",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": -1
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "texture": "78c53bf7-88b8-481d-805c-a443c2d06076",
+            "size": {
+              "x": 600,
+              "y": 1080
+            },
+            "layer": -1
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 2,
+      "name": "Player",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": -420,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "texture": "92f1ab5f-28f4-4b95-bb82-7182fdb33494",
+            "size": {
+              "x": 64,
+              "y": 64
+            }
+          }
+        },
+        {
+          "type": "Player",
+          "data": {
+            "speed": 400
+          }
+        },
+        {
+          "type": "Health",
+          "data": {
+            "value": 3,
+            "maxValue": 3
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 10,
+      "name": "HUD",
+      "parent": null,
+      "children": [
+        11,
+        12,
+        13,
+        14,
+        15
+      ],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "Canvas",
+          "data": {
+            "designResolution": {
+              "x": 600,
+              "y": 1080
+            },
+            "scaleMode": 2
+          }
+        },
+        {
+          "type": "UIRect",
+          "data": {
+            "anchorMin": {
+              "x": 0.5,
+              "y": 0.5
+            },
+            "anchorMax": {
+              "x": 0.5,
+              "y": 0.5
+            },
+            "size": {
+              "x": 600,
+              "y": 1080
+            },
+            "pivot": {
+              "x": 0.5,
+              "y": 0.5
+            }
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 11,
+      "name": "ScoreText",
+      "parent": 10,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UIRect",
+          "data": {
+            "anchorMin": {
+              "x": 0,
+              "y": 1
+            },
+            "anchorMax": {
+              "x": 0,
+              "y": 1
+            },
+            "offsetMin": {
+              "x": 20,
+              "y": -40
+            },
+            "size": {
+              "x": 200,
+              "y": 40
+            },
+            "pivot": {
+              "x": 0,
+              "y": 1
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "SCORE: 0",
+            "fontSize": 28,
+            "color": {
+              "r": 0,
+              "g": 0.86,
+              "b": 1,
+              "a": 1
+            },
+            "align": 0,
+            "verticalAlign": 0
+          }
+        },
+        {
+          "type": "ScoreDisplay",
+          "data": {}
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 12,
+      "name": "Heart1",
+      "parent": 10,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 216,
+              "y": 520,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UIRect",
+          "data": {
+            "anchorMin": {
+              "x": 1,
+              "y": 1
+            },
+            "anchorMax": {
+              "x": 1,
+              "y": 1
+            },
+            "offsetMin": {
+              "x": -84,
+              "y": -20
+            },
+            "size": {
+              "x": 24,
+              "y": 24
+            },
+            "pivot": {
+              "x": 1,
+              "y": 1
+            }
+          }
+        },
+        {
+          "type": "Image",
+          "data": {
+            "texture": "5b21b6a6-dffa-4256-872a-36f4e4549408",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "HealthHeart",
+          "data": {}
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 13,
+      "name": "Heart2",
+      "parent": 10,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 248,
+              "y": 520,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UIRect",
+          "data": {
+            "anchorMin": {
+              "x": 1,
+              "y": 1
+            },
+            "anchorMax": {
+              "x": 1,
+              "y": 1
+            },
+            "offsetMin": {
+              "x": -52,
+              "y": -20
+            },
+            "size": {
+              "x": 24,
+              "y": 24
+            },
+            "pivot": {
+              "x": 1,
+              "y": 1
+            }
+          }
+        },
+        {
+          "type": "Image",
+          "data": {
+            "texture": "5b21b6a6-dffa-4256-872a-36f4e4549408",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "HealthHeart",
+          "data": {}
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 14,
+      "name": "Heart3",
+      "parent": 10,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 280,
+              "y": 520,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UIRect",
+          "data": {
+            "anchorMin": {
+              "x": 1,
+              "y": 1
+            },
+            "anchorMax": {
+              "x": 1,
+              "y": 1
+            },
+            "offsetMin": {
+              "x": -20,
+              "y": -20
+            },
+            "size": {
+              "x": 24,
+              "y": 24
+            },
+            "pivot": {
+              "x": 1,
+              "y": 1
+            }
+          }
+        },
+        {
+          "type": "Image",
+          "data": {
+            "texture": "5b21b6a6-dffa-4256-872a-36f4e4549408",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "HealthHeart",
+          "data": {}
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 15,
+      "name": "GameOverText",
+      "parent": 10,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UIRect",
+          "data": {
+            "anchorMin": {
+              "x": 0.5,
+              "y": 0.5
+            },
+            "anchorMax": {
+              "x": 0.5,
+              "y": 0.5
+            },
+            "offsetMin": {
+              "x": 0,
+              "y": 0
+            },
+            "size": {
+              "x": 400,
+              "y": 120
+            },
+            "pivot": {
+              "x": 0.5,
+              "y": 0.5
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "",
+            "fontSize": 36,
+            "color": {
+              "r": 1,
+              "g": 0.24,
+              "b": 0.24,
+              "a": 1
+            },
+            "align": 1,
+            "verticalAlign": 1
+          }
+        },
+        {
+          "type": "GameOverScreen",
+          "data": {}
+        }
+      ],
+      "visible": true
+    }
+  ]
 }

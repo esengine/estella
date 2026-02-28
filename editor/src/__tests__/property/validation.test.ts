@@ -118,24 +118,24 @@ describe('Property validation', () => {
     });
 
     describe('validateColor', () => {
-        it('validates valid Color', () => {
+        it('validates valid Color (0-1 range)', () => {
             const meta: PropertyMeta = { name: 'test', type: 'color' };
-            const result = validateColor({ r: 255, g: 128, b: 64, a: 255 }, meta);
+            const result = validateColor({ r: 1, g: 0.5, b: 0.25, a: 1 }, meta);
             expect(result.valid).toBe(true);
         });
 
-        it('clamps color components to 0-255', () => {
+        it('clamps color components to 0-1', () => {
             const meta: PropertyMeta = { name: 'test', type: 'color' };
-            const result = validateColor({ r: 300, g: -10, b: 128, a: 400 }, meta);
+            const result = validateColor({ r: 1.5, g: -0.1, b: 0.5, a: 2 }, meta);
             expect(result.valid).toBe(false);
-            expect(result.value).toEqual({ r: 255, g: 0, b: 128, a: 255 });
+            expect(result.value).toEqual({ r: 1, g: 0, b: 0.5, a: 1 });
         });
 
         it('rejects non-object values', () => {
             const meta: PropertyMeta = { name: 'test', type: 'color' };
             const result = validateColor('red', meta);
             expect(result.valid).toBe(false);
-            expect(result.value).toEqual({ r: 255, g: 255, b: 255, a: 255 });
+            expect(result.value).toEqual({ r: 1, g: 1, b: 1, a: 1 });
         });
 
         it('allows valid color range', () => {
