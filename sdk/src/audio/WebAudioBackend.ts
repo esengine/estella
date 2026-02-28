@@ -1,6 +1,7 @@
 import type { AudioHandle, AudioBufferHandle, PlayConfig, PlatformAudioBackend, AudioBackendInitOptions } from './PlatformAudioBackend';
 import { AudioMixer } from './AudioMixer';
 import { AudioPool, type PooledAudioNode } from './AudioPool';
+import { getPlatform } from '../platform/base';
 
 class WebAudioHandle implements AudioHandle {
     readonly id: number;
@@ -196,11 +197,7 @@ export class WebAudioBackend implements PlatformAudioBackend {
     }
 
     private async doLoadBuffer_(url: string): Promise<AudioBufferHandle> {
-        const response = await fetch(url);
-        if (!response.ok) {
-            throw new Error(`Failed to load audio: ${url} (${response.status})`);
-        }
-        const arrayBuffer = await response.arrayBuffer();
+        const arrayBuffer = await getPlatform().readFile(url);
         let audioBuffer: AudioBuffer;
         try {
             audioBuffer = await this.context_!.decodeAudioData(arrayBuffer);
