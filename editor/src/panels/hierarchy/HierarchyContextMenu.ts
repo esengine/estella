@@ -4,14 +4,12 @@ import { icons } from '../../utils/icons';
 import { getInitialComponentData } from '../../schemas/ComponentSchemas';
 import { showContextMenu, type ContextMenuItem } from '../../ui/ContextMenu';
 import { getContextMenuItems, type ContextMenuContext } from '../../ui/ContextMenuRegistry';
-import { getEditorContext, getEditorInstance } from '../../context/EditorContext';
-import { getAssetDatabase, isUUID } from '../../asset/AssetDatabase';
-import { getGlobalPathResolver } from '../../asset';
-import { getPlatformAdapter } from '../../platform/PlatformAdapter';
+import { getEditorInstance } from '../../context/EditorContext';
 import { generateUniqueName } from '../../utils/naming';
 import { showInputDialog } from '../../ui/dialog';
 import { joinPath, getParentDir } from '../../utils/path';
 import { hasAnyOverrides } from '../../prefab';
+import { getAssetTypeDescriptor } from '../../asset/AssetTypeRegistry';
 import type { HierarchyState } from './HierarchyTypes';
 
 export function showEntityContextMenu(state: HierarchyState, x: number, y: number, entity: Entity | null): void {
@@ -532,130 +530,8 @@ export async function createEntityFromAsset(
     asset: { type: string; path: string; name: string },
     parent: Entity | null,
 ): Promise<void> {
-    if (asset.type === 'prefab') {
-        await createEntityFromPrefab(state, asset.path, parent);
-        return;
+    const descriptor = getAssetTypeDescriptor(asset.type);
+    if (descriptor?.onCreateEntity) {
+        await descriptor.onCreateEntity(state, asset, parent);
     }
-
-    const baseName = asset.name.replace(/\.[^.]+$/, '');
-
-    if (asset.type === 'spine' || asset.type === 'json') {
-        const ext = asset.name.substring(asset.name.lastIndexOf('.')).toLowerCase();
-        if (ext === '.atlas') return;
-
-        const skeletonPath = toRelativePath(asset.path);
-        const atlasPath = await findAtlasFile(skeletonPath);
-
-        if (!atlasPath) {
-            console.error(`[HierarchyPanel] No atlas file found for: ${skeletonPath}`);
-            alert(`No atlas file found.\nPlease ensure there is an .atlas file in the same directory as the skeleton file.`);
-            return;
-        }
-
-        const newEntity = state.store.createEntity(baseName, parent);
-
-        state.store.addComponent(newEntity, 'Transform', getInitialComponentData('Transform'));
-
-        state.store.addComponent(newEntity, 'SpineAnimation', {
-            ...getInitialComponentData('SpineAnimation'),
-            skeletonPath,
-            atlasPath,
-        });
-    } else if (asset.type === 'image') {
-        const newEntity = state.store.createEntity(baseName, parent);
-
-        state.store.addComponent(newEntity, 'Transform', getInitialComponentData('Transform'));
-
-        state.store.addComponent(newEntity, 'Sprite', {
-            ...getInitialComponentData('Sprite'),
-            texture: toRelativePath(asset.path),
-        });
-
-        loadImageSize(asset.path).then(size => {
-            if (size) {
-                state.store.updateProperty(newEntity, 'Sprite', 'size', { x: 32, y: 32 }, size);
-            }
-        });
-    } else if (asset.type === 'animclip') {
-        const newEntity = state.store.createEntity(baseName, parent);
-
-        state.store.addComponent(newEntity, 'Transform', getInitialComponentData('Transform'));
-        state.store.addComponent(newEntity, 'Sprite', getInitialComponentData('Sprite'));
-        state.store.addComponent(newEntity, 'SpriteAnimator', {
-            ...getInitialComponentData('SpriteAnimator'),
-            clip: toRelativePath(asset.path),
-        });
-    }
-}
-
-function toRelativePath(absolutePath: string): string {
-    return getGlobalPathResolver().toRelativePath(absolutePath);
-}
-
-async function findAtlasFile(skeletonPath: string): Promise<string | null> {
-    const pathResolver = getGlobalPathResolver();
-
-    const sameNameAtlas = skeletonPath.replace(/\.(json|skel)$/i, '.atlas');
-    const validation = await pathResolver.validatePath(sameNameAtlas);
-    if (validation.exists) {
-        return sameNameAtlas;
-    }
-
-    const dir = skeletonPath.substring(0, skeletonPath.lastIndexOf('/'));
-    const absoluteDir = pathResolver.toAbsolutePath(dir);
-
-    const fs = getEditorContext().fs;
-    if (!fs) {
-        return null;
-    }
-
-    try {
-        const entries = await fs.listDirectoryDetailed(absoluteDir);
-        const atlasFiles = entries
-            .filter(e => e.name.endsWith('.atlas'))
-            .map(e => e.name);
-
-        if (atlasFiles.length === 1) {
-            return dir ? `${dir}/${atlasFiles[0]}` : atlasFiles[0];
-        }
-
-        if (atlasFiles.length > 1) {
-            const baseName = skeletonPath
-                .substring(skeletonPath.lastIndexOf('/') + 1)
-                .replace(/\.(json|skel)$/i, '');
-
-            const matching = atlasFiles.find((name: string) =>
-                name.replace('.atlas', '').toLowerCase().includes(baseName.toLowerCase().split('-')[0])
-            );
-
-            if (matching) {
-                return dir ? `${dir}/${matching}` : matching;
-            }
-
-            return dir ? `${dir}/${atlasFiles[0]}` : atlasFiles[0];
-        }
-    } catch (err) {
-        console.warn('[HierarchyPanel] Failed to scan directory for atlas files:', err);
-    }
-
-    return null;
-}
-
-function loadImageSize(absolutePath: string): Promise<{ x: number; y: number } | null> {
-    return new Promise((resolve) => {
-        const img = new Image();
-        img.onload = () => resolve({ x: img.naturalWidth, y: img.naturalHeight });
-        img.onerror = () => resolve(null);
-        img.src = getPlatformAdapter().convertFilePathToUrl(absolutePath);
-    });
-}
-
-async function createEntityFromPrefab(
-    state: HierarchyState,
-    prefabPath: string,
-    parent: Entity | null,
-): Promise<void> {
-    const relativePath = toRelativePath(prefabPath);
-    const uuid = getAssetDatabase().getUuid(relativePath) ?? relativePath;
-    await state.store.instantiatePrefab(uuid, parent);
 }

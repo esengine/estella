@@ -14,13 +14,9 @@ import type { InspectorSectionInstance } from './inspector/InspectorRegistry';
 import { type MaterialPreviewState, renderMaterialPreview, hideMaterialPreview } from './inspector/MaterialPreviewSection';
 import { renderAssetHeader, renderAddressableSection } from './inspector/AssetInspector';
 import { renderImporterSettingsSection } from './inspector/ImporterSettingsSection';
-import { type ImageUrlRef, renderImageInspector } from './inspector/ImageInspector';
-import { renderMaterialInspector } from './inspector/MaterialInspector';
-import { renderBitmapFontInspector } from './inspector/BitmapFontInspector';
-import { renderFolderInspector } from './inspector/FolderInspector';
-import { renderScriptInspector, renderSceneInspector, renderFileInspector } from './inspector/FileInspector';
-import { renderAnimClipInspector } from './inspector/AnimClipInspector';
+import { type ImageUrlRef } from './inspector/ImageInspector';
 import { getPlayModeService } from '../services/PlayModeService';
+import { getInspectorRenderer } from '../asset/AssetTypeRegistry';
 import { RuntimeStoreProxy } from '../services/RuntimeStoreProxy';
 
 // =============================================================================
@@ -345,30 +341,9 @@ export class InspectorPanel {
         renderAddressableSection(this.contentContainer_, asset.path);
         renderImporterSettingsSection(this.contentContainer_, asset.path);
 
-        switch (asset.type) {
-            case 'image':
-                await renderImageInspector(this.contentContainer_, asset.path, this.imageUrlRef_);
-                break;
-            case 'script':
-                await renderScriptInspector(this.contentContainer_, asset.path);
-                break;
-            case 'scene':
-                await renderSceneInspector(this.contentContainer_, asset.path);
-                break;
-            case 'material':
-                await renderMaterialInspector(this.contentContainer_, asset.path);
-                break;
-            case 'font':
-                await renderBitmapFontInspector(this.contentContainer_, asset.path);
-                break;
-            case 'folder':
-                await renderFolderInspector(this.contentContainer_, asset.path);
-                break;
-            case 'animclip':
-                await renderAnimClipInspector(this.contentContainer_, asset.path);
-                break;
-            default:
-                await renderFileInspector(this.contentContainer_, asset.path, asset.type);
+        const renderer = getInspectorRenderer(asset.type);
+        if (renderer) {
+            await renderer(this.contentContainer_, asset.path, this.imageUrlRef_);
         }
 
         this.extensionSections_ = renderAssetExtensionSections(this.contentContainer_, asset.path, asset.type, this.store_);

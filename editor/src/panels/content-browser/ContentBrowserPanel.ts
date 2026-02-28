@@ -1,4 +1,4 @@
-import type { EditorStore, AssetType } from '../../store/EditorStore';
+import type { EditorStore } from '../../store/EditorStore';
 import { icons } from '../../utils/icons';
 import { getParentDir, joinPath } from '../../utils/path';
 import { getGlobalPathResolver } from '../../asset';
@@ -518,7 +518,7 @@ export class ContentBrowserPanel implements ContentBrowserState {
             if (item) {
                 this.store.selectAsset({
                     path: item.path,
-                    type: item.type as AssetType,
+                    type: item.type,
                     name: item.name,
                 });
             }
