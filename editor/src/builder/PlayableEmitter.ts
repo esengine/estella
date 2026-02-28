@@ -17,6 +17,60 @@ import type { NativeFS } from '../types/NativeFS';
 import { getAssetMimeType, getAssetTypeEntry, toBuildPath } from 'esengine';
 
 // =============================================================================
+// Plugin Analysis
+// =============================================================================
+
+const COMPONENT_TO_PLUGIN: Record<string, string> = {
+    'Text': 'textPlugin',
+    'BitmapText': 'textPlugin',
+    'UIRect': 'uiLayoutPlugin',
+    'UIMask': 'uiMaskPlugin',
+    'Interactable': 'uiInteractionPlugin',
+    'Button': 'uiInteractionPlugin',
+    'TextInput': 'textInputPlugin',
+    'Image': 'imagePlugin',
+    'Toggle': 'togglePlugin',
+    'ToggleGroup': 'togglePlugin',
+    'ProgressBar': 'progressBarPlugin',
+    'Slider': 'sliderPlugin',
+    'Draggable': 'dragPlugin',
+    'ScrollView': 'scrollViewPlugin',
+    'Focusable': 'focusPlugin',
+    'SafeArea': 'safeAreaPlugin',
+    'ListView': 'listViewPlugin',
+    'Dropdown': 'dropdownPlugin',
+    'LayoutGroup': 'layoutGroupPlugin',
+};
+
+function analyzeUsedPlugins(artifact: BuildArtifact): string[] {
+    const plugins = new Set<string>();
+    let hasUI = false;
+
+    for (const sceneData of artifact.scenes.values()) {
+        const entities = (sceneData as any).entities as Array<{
+            components: Array<{ type: string }>;
+        }> | undefined;
+        if (!entities) continue;
+
+        for (const entity of entities) {
+            for (const comp of entity.components) {
+                const plugin = COMPONENT_TO_PLUGIN[comp.type];
+                if (plugin) {
+                    plugins.add(plugin);
+                    hasUI = true;
+                }
+            }
+        }
+    }
+
+    if (hasUI) {
+        plugins.add('uiRenderOrderPlugin');
+    }
+
+    return Array.from(plugins);
+}
+
+// =============================================================================
 // PlayableEmitter
 // =============================================================================
 
@@ -52,7 +106,7 @@ export class PlayableEmitter implements PlatformEmitter {
             // 2. Compile user scripts
             progress.setPhase('compiling');
             progress.setCurrentTask('Compiling scripts...', 0);
-            const gameCode = await this.compileUserScripts(fs, projectDir, context);
+            const gameCode = await this.compileUserScripts(fs, projectDir, context, artifact);
             progress.log('info', `Scripts compiled: ${gameCode.length} bytes`);
 
             // 3. Process startup scene (resolve UUIDs)
@@ -160,7 +214,7 @@ export class PlayableEmitter implements PlatformEmitter {
         }
     }
 
-    private async compileUserScripts(fs: NativeFS, projectDir: string, context: BuildContext): Promise<string> {
+    private async compileUserScripts(fs: NativeFS, projectDir: string, context: BuildContext, artifact: BuildArtifact): Promise<string> {
         const scriptsPath = joinPath(projectDir, 'src');
         const hasSrcDir = await fs.exists(scriptsPath);
 
@@ -170,10 +224,19 @@ export class PlayableEmitter implements PlatformEmitter {
             imports = scripts.map(p => `import "${p}";`).join('\n');
         }
 
+        const usedPlugins = analyzeUsedPlugins(artifact);
+        const pluginImports = usedPlugins.length > 0 ? usedPlugins.join(', ') + ', ' : '';
+        const pluginList = [...usedPlugins, 'animationPlugin'].join(', ');
+
         const entryContent = `
-import * as esengine from 'esengine';
-(window as any).esengine = esengine;
+import { createWebApp as _cwa, initPlayableRuntime, ${pluginImports}animationPlugin } from 'esengine';
 ${imports}
+
+const __plugins = [${pluginList}];
+(window as any).esengine = {
+    createWebApp: (m: any, o?: any) => _cwa(m, { plugins: __plugins, ...o }),
+    initPlayableRuntime,
+};
 `;
 
         const settings = context.config.playableSettings!;

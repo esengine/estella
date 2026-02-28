@@ -432,8 +432,10 @@ export { Prefabs, PrefabServer, PrefabsPlugin, prefabsPlugin } from './prefabSer
 export {
     loadRuntimeScene,
     createRuntimeSceneConfig,
+    initRuntime,
     type RuntimeAssetProvider,
-    type RuntimeSceneOptions,
+    type LoadRuntimeSceneOptions,
+    type RuntimeInitConfig,
 } from './runtimeLoader';
 
 // =============================================================================

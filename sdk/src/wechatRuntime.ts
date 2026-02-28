@@ -5,13 +5,10 @@
 
 /// <reference types="minigame-api-typings" />
 
-import { flushPendingSystems } from './app';
 import { createWebApp } from './webAppFactory';
 import type { ESEngineModule } from './wasm';
 import type { RuntimeAssetProvider } from './runtimeLoader';
-import { createRuntimeSceneConfig } from './runtimeLoader';
-import { updateCameraAspectRatio } from './scene';
-import { SceneManager } from './sceneManager';
+import { initRuntime } from './runtimeLoader';
 import { applyBuildRuntimeConfig, type RuntimeBuildConfig } from './defaults';
 import { platformReadTextFile, platformReadFile, platformInstantiateWasm, platformLoadImagePixels } from './platform';
 import { toBuildPath } from './assetTypes';
@@ -19,6 +16,7 @@ import type { AddressableManifest } from './asset/AssetServer';
 import type { SpineWasmModule } from './spine/SpineModuleLoader';
 import type { PhysicsWasmModule } from './physics/PhysicsModuleLoader';
 import type { Vec2 } from './types';
+import type { SceneData } from './scene';
 
 // =============================================================================
 // WeChat Asset Provider
@@ -163,8 +161,6 @@ export async function initWeChatRuntime(config: WeChatRuntimeConfig): Promise<vo
         applyBuildRuntimeConfig(app, config.runtimeConfig);
     }
 
-    flushPendingSystems(app);
-
     let spineModule: SpineWasmModule | null = null;
     if (config.spineFactory) {
         spineModule = await initWasmModule(config.spineFactory, 'spine.wasm');
@@ -176,30 +172,25 @@ export async function initWeChatRuntime(config: WeChatRuntimeConfig): Promise<vo
     }
 
     const provider = new WeChatAssetProvider(resolvePath);
-    const sceneOpts = {
+
+    const scenes: Array<{ name: string; data: SceneData }> = [];
+    for (const name of config.sceneNames) {
+        const sceneText = await platformReadTextFile(`scenes/${name}.json`);
+        scenes.push({ name, data: JSON.parse(sceneText) });
+    }
+
+    await initRuntime({
         app,
         module,
         provider,
+        scenes,
+        firstScene: config.firstScene,
         spineModule,
         physicsModule,
         physicsConfig: config.physicsConfig,
         manifest,
-    };
-
-    const mgr = app.getResource(SceneManager);
-    for (const name of config.sceneNames) {
-        const sceneText = await platformReadTextFile(`scenes/${name}.json`);
-        const sceneData = JSON.parse(sceneText);
-        mgr.register(createRuntimeSceneConfig(name, sceneData, sceneOpts));
-    }
-
-    if (config.firstScene) {
-        mgr.setInitial(config.firstScene);
-        await mgr.load(config.firstScene);
-    }
-
-    const screenAspect = canvas.width / canvas.height;
-    updateCameraAspectRatio(app.world, screenAspect);
+        aspectRatio: canvas.width / canvas.height,
+    });
 
     app.run();
 }

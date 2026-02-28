@@ -6,8 +6,7 @@
   "sideEffects": [
     "./dist/index.js",
     "./dist/index.wechat.js",
-    "./dist/index.wechat.cjs.js",
-    "./src/**/*.ts"
+    "./dist/index.wechat.cjs.js"
   ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

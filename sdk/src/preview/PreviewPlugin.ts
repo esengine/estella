@@ -77,10 +77,14 @@ export class PreviewPlugin implements Plugin {
             spineModule = result.controller.raw;
         }
 
-        await loadRuntimeScene(
-            this.app_, this.app_.wasmModule!, sceneData, provider, spineModule,
-            null, undefined, null, PREVIEW_SCENE,
-        );
+        await loadRuntimeScene({
+            app: this.app_,
+            module: this.app_.wasmModule!,
+            sceneData,
+            provider,
+            spineModule,
+            sceneName: PREVIEW_SCENE,
+        });
     }
 
     private ensureCamera(): void {

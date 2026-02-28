@@ -7,8 +7,9 @@ const tsPlugin = typescript({
     declaration: false,
 });
 
+const ENTRY_FILES = ['/index.ts', '/index.wechat.ts'];
 const treeshake = {
-    moduleSideEffects: true,
+    moduleSideEffects: (id) => ENTRY_FILES.some(e => id.endsWith(e)),
 };
 
 const esmBuilds = [

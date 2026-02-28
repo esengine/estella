@@ -4,17 +4,15 @@
  */
 
 import type { App } from './app';
-import { flushPendingSystems } from './app';
 import type { ESEngineModule } from './wasm';
+import { initRuntime } from './runtimeLoader';
 import type { RuntimeAssetProvider } from './runtimeLoader';
-import { createRuntimeSceneConfig } from './runtimeLoader';
-import { updateCameraAspectRatio } from './scene';
-import { SceneManager } from './sceneManager';
 import { Assets } from './asset/AssetPlugin';
 import type { AddressableManifest } from './asset/AssetServer';
 import type { Vec2 } from './types';
 import type { SpineWasmModule } from './spine/SpineModuleLoader';
 import type { PhysicsWasmModule } from './physics/PhysicsModuleLoader';
+import type { SceneData } from './scene';
 
 declare const ESSpineModule: ((opts: unknown) => Promise<SpineWasmModule>) | undefined;
 declare const ESPhysicsModule: ((opts: unknown) => Promise<PhysicsWasmModule>) | undefined;
@@ -24,7 +22,7 @@ export interface PlayableRuntimeConfig {
     module: ESEngineModule;
     canvas: HTMLCanvasElement;
     assets: Record<string, string>;
-    sceneData: Record<string, unknown>;
+    sceneData: SceneData;
     sceneName: string;
     spineWasmBase64?: string;
     physicsWasmBase64?: string;
@@ -147,8 +145,6 @@ export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promis
         assetServer.setEmbeddedOnly(true);
     }
 
-    flushPendingSystems(app);
-
     const spineModule = config.spineWasmBase64
         ? await initSpineModule(config.spineWasmBase64)
         : null;
@@ -158,24 +154,19 @@ export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promis
         : null;
 
     const provider = new EmbeddedAssetProvider(assets);
-    const sceneOpts = {
+
+    await initRuntime({
         app,
         module,
         provider,
+        scenes: [{ name: sceneName, data: sceneData }],
+        firstScene: sceneName,
         spineModule,
         physicsModule,
         physicsConfig: config.physicsConfig,
         manifest: config.manifest,
-    };
-
-    const sceneConfig = createRuntimeSceneConfig(sceneName, sceneData as any, sceneOpts);
-    const mgr = app.getResource(SceneManager);
-    mgr.register(sceneConfig);
-    mgr.setInitial(sceneName);
-    await mgr.load(sceneName);
-
-    const screenAspect = config.canvas.width / config.canvas.height;
-    updateCameraAspectRatio(app.world, screenAspect);
+        aspectRatio: config.canvas.width / config.canvas.height,
+    });
 
     app.run();
 }

@@ -20,6 +20,8 @@ import { DEFAULT_MAX_DELTA_TIME, DEFAULT_FALLBACK_DT, DEFAULT_GRAVITY, DEFAULT_F
 import { type AnimClipAssetData, extractAnimClipTexturePaths, parseAnimClipData } from './animation/AnimClipLoader';
 import { registerAnimClip } from './animation/SpriteAnimator';
 import { Audio } from './audio/Audio';
+import { flushPendingSystems } from './app';
+import { updateCameraAspectRatio } from './scene';
 
 // =============================================================================
 // Public Interface
@@ -535,17 +537,21 @@ async function loadAnimClips(
 // Public API
 // =============================================================================
 
-export async function loadRuntimeScene(
-    app: App,
-    module: ESEngineModule,
-    sceneData: SceneData,
-    provider: RuntimeAssetProvider,
-    spineModule?: SpineWasmModule | null,
-    physicsModule?: PhysicsWasmModule | null,
-    physicsConfig?: { gravity?: Vec2; fixedTimestep?: number; subStepCount?: number },
-    manifest?: AddressableManifest | null,
-    sceneName?: string,
-): Promise<void> {
+export interface LoadRuntimeSceneOptions {
+    app: App;
+    module: ESEngineModule;
+    sceneData: SceneData;
+    provider: RuntimeAssetProvider;
+    spineModule?: SpineWasmModule | null;
+    physicsModule?: PhysicsWasmModule | null;
+    physicsConfig?: { gravity?: Vec2; fixedTimestep?: number; subStepCount?: number };
+    manifest?: AddressableManifest | null;
+    sceneName?: string;
+}
+
+export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promise<void> {
+    const { app, module, sceneData, provider, spineModule, physicsModule, physicsConfig, manifest, sceneName } = options;
+
     const textureCache = await loadTextures(module, sceneData, provider);
     applyTextureMetadata(module, sceneData, textureCache);
 
@@ -593,35 +599,58 @@ export async function loadRuntimeScene(
     }
 }
 
-export interface RuntimeSceneOptions {
-    app: App;
-    module: ESEngineModule;
-    provider: RuntimeAssetProvider;
-    spineModule?: SpineWasmModule | null;
-    physicsModule?: PhysicsWasmModule | null;
-    physicsConfig?: { gravity?: Vec2; fixedTimestep?: number; subStepCount?: number };
-    manifest?: AddressableManifest | null;
-}
-
 export function createRuntimeSceneConfig(
     name: string,
     sceneData: SceneData,
-    options: RuntimeSceneOptions,
+    options: Omit<LoadRuntimeSceneOptions, 'sceneData' | 'sceneName'>,
 ): SceneConfig {
     return {
         name,
         async setup() {
-            await loadRuntimeScene(
-                options.app,
-                options.module,
-                sceneData,
-                options.provider,
-                options.spineModule,
-                options.physicsModule,
-                options.physicsConfig,
-                options.manifest,
-                name,
-            );
+            await loadRuntimeScene({ ...options, sceneData, sceneName: name });
         },
     };
+}
+
+export interface RuntimeInitConfig {
+    app: App;
+    module: ESEngineModule;
+    provider: RuntimeAssetProvider;
+    scenes: Array<{ name: string; data: SceneData }>;
+    firstScene: string;
+    spineModule?: SpineWasmModule | null;
+    physicsModule?: PhysicsWasmModule | null;
+    physicsConfig?: { gravity?: Vec2; fixedTimestep?: number; subStepCount?: number };
+    manifest?: AddressableManifest | null;
+    aspectRatio?: number;
+}
+
+export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
+    const { app, firstScene, aspectRatio } = config;
+
+    flushPendingSystems(app);
+
+    const sceneOpts: Omit<LoadRuntimeSceneOptions, 'sceneData' | 'sceneName'> = {
+        app: config.app,
+        module: config.module,
+        provider: config.provider,
+        spineModule: config.spineModule,
+        physicsModule: config.physicsModule,
+        physicsConfig: config.physicsConfig,
+        manifest: config.manifest,
+    };
+
+    const mgr = app.getResource(SceneManager);
+    for (const scene of config.scenes) {
+        mgr.register(createRuntimeSceneConfig(scene.name, scene.data, sceneOpts));
+    }
+
+    if (firstScene) {
+        mgr.setInitial(firstScene);
+        await mgr.load(firstScene);
+    }
+
+    if (aspectRatio !== undefined) {
+        updateCameraAspectRatio(app.world, aspectRatio);
+    }
 }
