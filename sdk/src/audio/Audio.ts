@@ -8,6 +8,7 @@ export class Audio {
     private static bgmHandle_: AudioHandle | null = null;
     private static bgmVolume_ = 1.0;
     private static fadeAnimId_ = 0;
+    private static disposed_ = false;
 
     static init(backend: PlatformAudioBackend, mixer: AudioMixer | null = null): void {
         this.backend_ = backend;
@@ -15,6 +16,7 @@ export class Audio {
         this.bufferCache_.clear();
         this.bgmHandle_ = null;
         this.bgmVolume_ = 1.0;
+        this.disposed_ = false;
         if (this.fadeAnimId_) {
             cancelAnimationFrame(this.fadeAnimId_);
             this.fadeAnimId_ = 0;
@@ -37,31 +39,28 @@ export class Audio {
         pan?: number;
         priority?: number;
     }): AudioHandle {
-        const buffer = this.bufferCache_.get(url);
-        if (!buffer) {
-            this.preload(url).then(() => {
-                const buf = this.bufferCache_.get(url);
-                if (buf) {
-                    this.backend_.play(buf, {
-                        bus: 'sfx',
-                        volume: config?.volume,
-                        playbackRate: config?.pitch,
-                        pan: config?.pan,
-                        priority: config?.priority ?? 0,
-                    });
-                }
-            }).catch(err => {
-                console.warn(`Failed to preload audio: ${url}`, err);
-            });
-            return this.createPendingHandle();
-        }
-        return this.backend_.play(buffer, {
+        const playConfig = {
             bus: 'sfx',
             volume: config?.volume,
             playbackRate: config?.pitch,
             pan: config?.pan,
             priority: config?.priority ?? 0,
-        });
+        };
+        const buffer = this.bufferCache_.get(url);
+        if (!buffer) {
+            const pending = this.createDeferredHandle();
+            this.preload(url).then(() => {
+                if (this.disposed_) return;
+                const buf = this.bufferCache_.get(url);
+                if (buf) {
+                    pending.resolve(this.backend_.play(buf, playConfig));
+                }
+            }).catch(err => {
+                console.warn(`Failed to preload audio: ${url}`, err);
+            });
+            return pending;
+        }
+        return this.backend_.play(buffer, playConfig);
     }
 
     static playBGM(url: string, config?: {
@@ -75,14 +74,15 @@ export class Audio {
                 this.fadeAnimId_ = 0;
             }
 
+            const targetVolume = config?.volume ?? 1.0;
+            const oldVolume = this.bgmVolume_;
+            this.bgmVolume_ = targetVolume;
+
             if (this.bgmHandle_ && config?.crossFade) {
-                this.fadeOut(this.bgmHandle_, config.crossFade, this.bgmVolume_);
+                this.fadeOut(this.bgmHandle_, config.crossFade, oldVolume);
             } else if (this.bgmHandle_) {
                 this.bgmHandle_.stop();
             }
-
-            const targetVolume = config?.volume ?? 1.0;
-            this.bgmVolume_ = targetVolume;
             const fadeInDuration = config?.fadeIn ?? config?.crossFade;
 
             this.bgmHandle_ = this.backend_.play(buffer, {
@@ -101,6 +101,7 @@ export class Audio {
             play(buffer);
         } else {
             this.preload(url).then(() => {
+                if (this.disposed_) return;
                 const buf = this.bufferCache_.get(url);
                 if (buf) {
                     play(buf);
@@ -163,6 +164,7 @@ export class Audio {
     }
 
     static dispose(): void {
+        this.disposed_ = true;
         if (this.fadeAnimId_) {
             cancelAnimationFrame(this.fadeAnimId_);
             this.fadeAnimId_ = 0;
@@ -211,19 +213,22 @@ export class Audio {
         this.fadeAnimId_ = requestAnimationFrame(tick);
     }
 
-    private static createPendingHandle(): AudioHandle {
-        return {
+    private static createDeferredHandle(): AudioHandle & { resolve(real: AudioHandle): void } {
+        let real: AudioHandle | null = null;
+        const handle: AudioHandle & { resolve(r: AudioHandle): void } = {
             id: -1,
-            stop() {},
-            pause() {},
-            resume() {},
-            setVolume() {},
-            setPan() {},
-            setLoop() {},
-            setPlaybackRate() {},
-            isPlaying: false,
-            currentTime: 0,
-            duration: 0,
+            stop() { real?.stop(); },
+            pause() { real?.pause(); },
+            resume() { real?.resume(); },
+            setVolume(v: number) { real?.setVolume(v); },
+            setPan(p: number) { real?.setPan(p); },
+            setLoop(l: boolean) { real?.setLoop(l); },
+            setPlaybackRate(r: number) { real?.setPlaybackRate(r); },
+            get isPlaying() { return real?.isPlaying ?? false; },
+            get currentTime() { return real?.currentTime ?? 0; },
+            get duration() { return real?.duration ?? 0; },
+            resolve(r: AudioHandle) { real = r; },
         };
+        return handle;
     }
 }

@@ -273,6 +273,8 @@ export class WebAudioBackend implements PlatformAudioBackend {
         this.pool_ = null;
         this.mixer_ = null;
         this.buffers_.clear();
+        this.urlToId_.clear();
+        this.loadingUrls_.clear();
         this.context_?.close();
         this.context_ = null;
     }

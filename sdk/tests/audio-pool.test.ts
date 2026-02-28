@@ -58,10 +58,9 @@ describe('AudioPool', () => {
             expect(node.panner.pan.value).toBe(0);
         });
 
-        it('should set priority and startTime', () => {
+        it('should set startTime on acquire', () => {
             const pool = new AudioPool(context, 4);
-            const node = pool.acquire(5);
-            expect(node.priority).toBe(5);
+            const node = pool.acquire();
             expect(node.startTime).toBe(0);
         });
 

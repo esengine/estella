@@ -3,7 +3,6 @@ export interface PooledAudioNode {
     panner: StereoPannerNode;
     source: AudioBufferSourceNode | null;
     inUse: boolean;
-    priority: number;
     startTime: number;
 }
 
@@ -30,12 +29,11 @@ export class AudioPool {
             panner,
             source: null,
             inUse: false,
-            priority: 0,
             startTime: 0,
         };
     }
 
-    acquire(priority: number = 0): PooledAudioNode {
+    acquire(): PooledAudioNode {
         let freeNode = this.pool_.find(n => !n.inUse);
 
         if (!freeNode) {
@@ -44,7 +42,6 @@ export class AudioPool {
         }
 
         freeNode.inUse = true;
-        freeNode.priority = priority;
         freeNode.startTime = this.context_.currentTime;
         freeNode.gain.gain.value = 1.0;
         freeNode.panner.pan.value = 0;
@@ -60,7 +57,6 @@ export class AudioPool {
             node.source = null;
         }
         node.inUse = false;
-        node.priority = 0;
         this.activeCount_--;
     }
 

@@ -19,6 +19,7 @@ export interface AudioPluginConfig {
 export class AudioPlugin implements Plugin {
     name = 'AudioPlugin';
     private config_: AudioPluginConfig;
+    private activeSourceHandles_: Map<number, AudioHandle> | null = null;
 
     constructor(config: AudioPluginConfig = {}) {
         this.config_ = config;
@@ -40,6 +41,8 @@ export class AudioPlugin implements Plugin {
         }
 
         const activeSourceHandles = new Map<number, AudioHandle>();
+        this.activeSourceHandles_ = activeSourceHandles;
+        let spatialListenerWarned = false;
 
         app.addSystemToSchedule(
             Schedule.PreUpdate,
@@ -50,6 +53,7 @@ export class AudioPlugin implements Plugin {
 
                     let listenerX = 0;
                     let listenerY = 0;
+                    let hasListener = false;
                     const listeners = world.getEntitiesWithComponents([AudioListener, WorldTransform]);
                     for (const entity of listeners) {
                         const listener = world.get(entity, AudioListener) as AudioListenerData;
@@ -57,19 +61,18 @@ export class AudioPlugin implements Plugin {
                             const wt = world.get(entity, WorldTransform) as WorldTransformData;
                             listenerX = wt.position.x;
                             listenerY = wt.position.y;
+                            hasListener = true;
                             break;
                         }
                     }
 
-                    const sources = world.getEntitiesWithComponents([AudioSource, WorldTransform]);
+                    const sources = world.getEntitiesWithComponents([AudioSource]);
                     const liveEntities = new Set<number>();
 
                     for (const entity of sources) {
                         const source = world.get(entity, AudioSource) as AudioSourceData;
                         if (!source.enabled || !source.clip) continue;
                         liveEntities.add(entity as number);
-
-                        const wt = world.get(entity, WorldTransform) as WorldTransformData;
 
                         if (source.playOnAwake && !activeSourceHandles.has(entity)) {
                             const buffer = Audio.getBufferHandle(source.clip);
@@ -79,7 +82,6 @@ export class AudioPlugin implements Plugin {
                                     volume: source.volume,
                                     loop: source.loop,
                                     playbackRate: source.pitch,
-                                    priority: source.priority,
                                 });
                                 activeSourceHandles.set(entity, handle);
                             } else {
@@ -95,8 +97,17 @@ export class AudioPlugin implements Plugin {
                                 activeSourceHandles.delete(entity);
                                 continue;
                             }
-                            const dx = wt.position.x - listenerX;
-                            const dy = wt.position.y - listenerY;
+
+                            if (!hasListener && !spatialListenerWarned) {
+                                console.warn('[AudioPlugin] spatial audio used but no AudioListener entity found');
+                                spatialListenerWarned = true;
+                            }
+
+                            const wt = world.tryGet?.(entity, WorldTransform) as WorldTransformData | undefined;
+                            const srcX = wt?.position.x ?? 0;
+                            const srcY = wt?.position.y ?? 0;
+                            const dx = srcX - listenerX;
+                            const dy = srcY - listenerY;
                             const distance = Math.sqrt(dx * dx + dy * dy);
 
                             const spatialConfig: SpatialAudioConfig = {
@@ -108,7 +119,7 @@ export class AudioPlugin implements Plugin {
 
                             const attenuation = calculateAttenuation(distance, spatialConfig);
                             const pan = calculatePanning(
-                                wt.position.x, wt.position.y,
+                                srcX, srcY,
                                 listenerX, listenerY,
                                 source.maxDistance
                             );
@@ -130,6 +141,12 @@ export class AudioPlugin implements Plugin {
     }
 
     cleanup(): void {
+        if (this.activeSourceHandles_) {
+            for (const handle of this.activeSourceHandles_.values()) {
+                handle.stop();
+            }
+            this.activeSourceHandles_.clear();
+        }
         Audio.dispose();
     }
 }

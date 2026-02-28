@@ -53,8 +53,13 @@ class WeChatAudioHandle implements AudioHandle {
         this.ctx_.volume = volume;
     }
 
+    private panWarned_ = false;
+
     setPan(_pan: number): void {
-        // InnerAudioContext does not support panning
+        if (!this.panWarned_) {
+            console.warn('[Audio] WeChat InnerAudioContext does not support stereo panning');
+            this.panWarned_ = true;
+        }
     }
 
     setLoop(loop: boolean): void {
@@ -119,7 +124,6 @@ export class WeChatAudioBackend implements PlatformAudioBackend {
         ctx.volume = config.volume ?? 1.0;
         ctx.playbackRate = config.playbackRate ?? 1.0;
         ctx.startTime = config.startOffset ?? 0;
-        ctx.autoplay = true;
         ctx.obeyMuteSwitch = false;
 
         const handleId = ++this.nextId_;
@@ -133,6 +137,8 @@ export class WeChatAudioBackend implements PlatformAudioBackend {
                 this.contexts_.delete(handleId);
             }
         });
+
+        ctx.autoplay = true;
 
         return handle;
     }

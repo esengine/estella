@@ -25,22 +25,27 @@ export function calculateAttenuation(
     const { model, refDistance, maxDistance, rolloff } = config;
     const d = Math.max(distance, 0.001);
 
+    let result: number;
     switch (model) {
         case AttenuationModel.Linear: {
             const range = maxDistance - refDistance;
             if (range <= 0) return 1.0;
             const clamped = Math.min(Math.max(d, refDistance), maxDistance);
-            return 1 - (clamped - refDistance) / range;
+            result = 1 - (clamped - refDistance) / range;
+            break;
         }
         case AttenuationModel.Inverse: {
-            return refDistance / Math.max(d, refDistance);
+            result = refDistance / Math.max(d, refDistance);
+            break;
         }
         case AttenuationModel.Exponential: {
-            return Math.pow(Math.max(d, refDistance) / refDistance, -rolloff);
+            result = Math.pow(Math.max(d, refDistance) / refDistance, -rolloff);
+            break;
         }
         default:
             return 1;
     }
+    return Math.max(0, Math.min(1, result));
 }
 
 export function calculatePanning(

@@ -107,10 +107,20 @@ describe('Audio', () => {
             );
         });
 
-        it('should return pending handle for uncached buffer', () => {
+        it('should return deferred handle for uncached buffer', () => {
             const handle = Audio.playSFX('uncached.mp3');
             expect(handle.id).toBe(-1);
             expect(handle.isPlaying).toBe(false);
+        });
+
+        it('should delegate deferred handle methods after resolve', async () => {
+            await Audio.preload('deferred.mp3');
+            const mockHandle = createMockHandle({ id: 42 });
+            (backend.play as ReturnType<typeof vi.fn>).mockReturnValue(mockHandle);
+
+            const handle = Audio.playSFX('deferred.mp3');
+            handle.stop();
+            expect(mockHandle.stop).toHaveBeenCalled();
         });
     });
 
@@ -200,6 +210,24 @@ describe('Audio', () => {
             await Audio.preload('sfx.mp3');
             Audio.dispose();
             expect(Audio.getBufferHandle('sfx.mp3')).toBeUndefined();
+        });
+
+        it('should prevent in-flight preloads from playing after dispose', async () => {
+            let resolveLoad!: (v: any) => void;
+            (backend.loadBuffer as ReturnType<typeof vi.fn>).mockReturnValue(
+                new Promise(r => { resolveLoad = r; })
+            );
+
+            Audio.playSFX('slow.mp3');
+            Audio.dispose();
+
+            resolveLoad({ id: 99, duration: 1.0 });
+            await new Promise(r => setTimeout(r, 0));
+
+            expect(backend.play).not.toHaveBeenCalledWith(
+                expect.objectContaining({ id: 99 }),
+                expect.anything()
+            );
         });
     });
 });

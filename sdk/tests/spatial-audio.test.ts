@@ -95,6 +95,18 @@ describe('SpatialAudio', () => {
         it('should use default config when not provided', () => {
             expect(calculateAttenuation(100)).toBeCloseTo(1.0);
         });
+
+        it('should clamp exponential result to [0, 1] with negative rolloff', () => {
+            const config: SpatialAudioConfig = {
+                model: AttenuationModel.Exponential,
+                refDistance: 100,
+                maxDistance: 1000,
+                rolloff: -1.0,
+            };
+            const result = calculateAttenuation(200, config);
+            expect(result).toBeLessThanOrEqual(1.0);
+            expect(result).toBeGreaterThanOrEqual(0.0);
+        });
     });
 
     describe('calculatePanning', () => {

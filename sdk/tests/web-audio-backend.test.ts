@@ -60,6 +60,7 @@ async function initAndLoadBuffer(backend: WebAudioBackend): Promise<{ bufferHand
     const mockAudioBuffer = { duration: 1.0 };
     mockCtx.decodeAudioData.mockResolvedValue(mockAudioBuffer);
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+        ok: true,
         arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(8)),
     }));
     const bufferHandle = await backend.loadBuffer('sfx.mp3');
@@ -148,6 +149,7 @@ describe('WebAudioBackend', () => {
             const mockArrayBuffer = new ArrayBuffer(8);
             const mockAudioBuffer = { duration: 2.5, length: 44100 };
             vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+                ok: true,
                 arrayBuffer: vi.fn().mockResolvedValue(mockArrayBuffer),
             }));
             mockCtx.decodeAudioData.mockResolvedValue(mockAudioBuffer);
@@ -156,6 +158,47 @@ describe('WebAudioBackend', () => {
             expect(handle.id).toBeGreaterThan(0);
             expect(handle.duration).toBe(2.5);
             expect(fetch).toHaveBeenCalledWith('test.mp3');
+        });
+
+        it('should throw on fetch failure', async () => {
+            await backend.initialize();
+            vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+                ok: false,
+                status: 404,
+            }));
+            await expect(backend.loadBuffer('missing.mp3')).rejects.toThrow('Failed to load audio: missing.mp3 (404)');
+        });
+
+        it('should deduplicate concurrent loads for the same URL', async () => {
+            await backend.initialize();
+            const mockCtx = (globalThis as any).__mockAudioContext;
+            mockCtx.decodeAudioData.mockResolvedValue({ duration: 1.0 });
+            vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+                ok: true,
+                arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(8)),
+            }));
+
+            const [h1, h2] = await Promise.all([
+                backend.loadBuffer('dup.mp3'),
+                backend.loadBuffer('dup.mp3'),
+            ]);
+            expect(h1.id).toBe(h2.id);
+            expect(fetch).toHaveBeenCalledTimes(1);
+        });
+
+        it('should return cached handle for already loaded URL', async () => {
+            await backend.initialize();
+            const mockCtx = (globalThis as any).__mockAudioContext;
+            mockCtx.decodeAudioData.mockResolvedValue({ duration: 2.0 });
+            vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+                ok: true,
+                arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(8)),
+            }));
+
+            const h1 = await backend.loadBuffer('cached.mp3');
+            const h2 = await backend.loadBuffer('cached.mp3');
+            expect(h1.id).toBe(h2.id);
+            expect(fetch).toHaveBeenCalledTimes(1);
         });
 
         it('should throw if not initialized', async () => {
@@ -299,6 +342,7 @@ describe('WebAudioBackend', () => {
             const mockCtx = (globalThis as any).__mockAudioContext;
             mockCtx.decodeAudioData.mockResolvedValue({ duration: 1.0 });
             vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+                ok: true,
                 arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(8)),
             }));
 
