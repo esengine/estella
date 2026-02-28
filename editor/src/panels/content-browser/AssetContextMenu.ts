@@ -11,6 +11,7 @@ import { getSettingsValue } from '../../settings';
 import { DEFAULT_DESIGN_WIDTH, DEFAULT_DESIGN_HEIGHT } from 'esengine';
 import type { AssetItem, ContentBrowserState } from './ContentBrowserTypes';
 import { getNativeFS } from './ContentBrowserTypes';
+import { getGlobalPathResolver } from '../../asset';
 
 export function showAssetContextMenu(state: ContentBrowserState, e: MouseEvent, path: string, type: AssetItem['type']): void {
     const fs = getNativeFS();
@@ -60,6 +61,19 @@ export function showMultiSelectContextMenu(state: ContentBrowserState, e: MouseE
         },
     ];
 
+    const selectedItems = state.filteredItems.filter(item => state.selectedPaths.has(item.path));
+    const allImages = selectedItems.length > 0 && selectedItems.every(item => item.type === 'image');
+    if (allImages) {
+        items.push(
+            { label: '', separator: true },
+            {
+                label: 'Create Animation Clip',
+                icon: icons.film(14),
+                onClick: () => createAnimClipFromImages(state, selectedItems),
+            },
+        );
+    }
+
     showContextMenu({ x: e.clientX, y: e.clientY, items });
 }
 
@@ -77,6 +91,7 @@ export function showFolderContextMenu(state: ContentBrowserState, e: MouseEvent,
                 { label: 'Material', icon: icons.settings(14), onClick: () => createNewMaterial(state, path) },
                 { label: 'Shader', icon: icons.code(14), onClick: () => createNewShader(state, path) },
                 { label: 'BitmapFont', icon: icons.type(14), onClick: () => createNewBitmapFont(state, path) },
+                { label: 'Animation Clip', icon: icons.layers(14), onClick: () => createNewAnimClip(state, path) },
                 { label: 'Scene', icon: icons.layers(14), onClick: () => createNewScene(state, path) },
             ],
         },
@@ -377,6 +392,30 @@ void main() {
     }
 }
 
+async function createNewAnimClip(state: ContentBrowserState, parentPath: string): Promise<void> {
+    const name = await promptFileName('NewAnimClip', '.esanim', parentPath);
+    if (!name) return;
+
+    const platform = getPlatformAdapter();
+    const filePath = `${parentPath}/${name}`;
+
+    const content = JSON.stringify({
+        version: '1.0',
+        type: 'animation-clip',
+        fps: 12,
+        loop: true,
+        frames: [],
+    }, null, 2);
+
+    try {
+        await platform.writeTextFile(filePath, content);
+        state.refresh();
+    } catch (err) {
+        console.error('Failed to create animation clip:', err);
+        showErrorToast('Failed to create animation clip', String(err));
+    }
+}
+
 async function createNewBitmapFont(state: ContentBrowserState, parentPath: string): Promise<void> {
     const name = await promptFileName('NewFont', '.bmfont', parentPath);
     if (!name) return;
@@ -432,6 +471,36 @@ async function promptFileName(defaultName: string, extension: string = '', paren
         return trimmed + extension;
     }
     return trimmed;
+}
+
+async function createAnimClipFromImages(state: ContentBrowserState, images: AssetItem[]): Promise<void> {
+    const name = await promptFileName('NewAnimClip', '.esanim', state.currentPath);
+    if (!name) return;
+
+    const platform = getPlatformAdapter();
+    const filePath = `${state.currentPath}/${name}`;
+    const resolver = getGlobalPathResolver();
+
+    const sorted = [...images].sort((a, b) => a.name.localeCompare(b.name));
+    const frames = sorted.map(img => ({
+        texture: resolver.toRelativePath(img.path),
+    }));
+
+    const content = JSON.stringify({
+        version: '1.0',
+        type: 'animation-clip',
+        fps: 12,
+        loop: true,
+        frames,
+    }, null, 2);
+
+    try {
+        await platform.writeTextFile(filePath, content);
+        state.refresh();
+    } catch (err) {
+        console.error('Failed to create animation clip:', err);
+        showErrorToast('Failed to create animation clip', String(err));
+    }
 }
 
 function toClassName(filename: string): string {

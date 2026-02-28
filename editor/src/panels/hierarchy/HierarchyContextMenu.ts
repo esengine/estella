@@ -576,6 +576,15 @@ export async function createEntityFromAsset(
                 state.store.updateProperty(newEntity, 'Sprite', 'size', { x: 32, y: 32 }, size);
             }
         });
+    } else if (asset.type === 'animclip') {
+        const newEntity = state.store.createEntity(baseName, parent);
+
+        state.store.addComponent(newEntity, 'Transform', getInitialComponentData('Transform'));
+        state.store.addComponent(newEntity, 'Sprite', getInitialComponentData('Sprite'));
+        state.store.addComponent(newEntity, 'SpriteAnimator', {
+            ...getInitialComponentData('SpriteAnimator'),
+            clip: toRelativePath(asset.path),
+        });
     }
 }
 

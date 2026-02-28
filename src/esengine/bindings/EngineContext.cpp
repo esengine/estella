@@ -19,6 +19,7 @@
 #include "../renderer/PostProcessPipeline.hpp"
 #include "../resource/ResourceManager.hpp"
 #include "../ecs/TransformSystem.hpp"
+#include "../animation/TweenSystem.hpp"
 #ifdef ES_ENABLE_SPINE
 #include "../spine/SpineResourceManager.hpp"
 #include "../spine/SpineSystem.hpp"
@@ -55,6 +56,7 @@ void EngineContext::shutdown() {
     }
 #endif
 
+    tweenSystem_.reset();
     transformSystem_.reset();
     if (renderContext_) {
         renderContext_->shutdown();

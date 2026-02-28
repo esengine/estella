@@ -100,6 +100,11 @@ export class EditorSceneRenderer {
             getAssetEventBus().on('texture', (e) => {
                 if (e.type === 'asset:modified') this.onAssetModified(e.path);
             }),
+            getAssetEventBus().on('anim-clip', (e) => {
+                if (e.type === 'asset:modified') {
+                    this.sceneManager_?.reloadAnimClip(e.path);
+                }
+            }),
         );
 
         store.worldTransforms_.setCppWorldTransformProvider((entityId: number) => {

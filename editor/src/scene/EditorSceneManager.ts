@@ -24,6 +24,10 @@ import {
     UIMask,
     defineSystem,
     Schedule,
+    registerAnimClip,
+    parseAnimClipData,
+    extractAnimClipTexturePaths,
+    type AnimClipAssetData,
     type SceneComponentData,
     type TransformData,
     type TextInputData,
@@ -37,6 +41,7 @@ import { EditorAssetServer } from '../asset/EditorAssetServer';
 import { AssetPathResolver } from '../asset/AssetPathResolver';
 import { getDependencyGraph } from '../asset/AssetDependencyGraph';
 import { getAssetLibrary, isUUID } from '../asset/AssetLibrary';
+import { getEditorContext } from '../context/EditorContext';
 import {
     transformToMatrix4x4,
 } from '../math/Transform';
@@ -726,6 +731,14 @@ export class EditorSceneManager {
                     }
                     break;
                 }
+                case 'anim-clip': {
+                    try {
+                        await this.loadAndRegisterAnimClip(resolved);
+                    } catch (err) {
+                        console.warn(`[EditorSceneManager] Failed to load animation clip: ${resolved}`, err);
+                    }
+                    break;
+                }
             }
         }
 
@@ -752,6 +765,35 @@ export class EditorSceneManager {
                 }
             }
         }
+    }
+
+    async reloadAnimClip(clipPath: string): Promise<void> {
+        return this.loadAndRegisterAnimClip(clipPath);
+    }
+
+    private async loadAndRegisterAnimClip(clipPath: string): Promise<void> {
+        const fs = getEditorContext().fs;
+        if (!fs) return;
+
+        const absPath = this.pathResolver_.toAbsolutePath(clipPath);
+        const raw = await fs.readFile(absPath);
+        if (!raw) return;
+
+        const clipData = JSON.parse(raw) as AnimClipAssetData;
+        const texturePaths = extractAnimClipTexturePaths(clipData);
+        const textureHandles = new Map<string, number>();
+
+        await Promise.all(texturePaths.map(async (texPath) => {
+            try {
+                const info = await this.assetServer_.loadTexture(texPath);
+                textureHandles.set(texPath, info.handle);
+            } catch {
+                textureHandles.set(texPath, 0);
+            }
+        }));
+
+        const clip = parseAnimClipData(clipPath, clipData, textureHandles);
+        registerAnimClip(clip);
     }
 
     // =========================================================================

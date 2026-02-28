@@ -12,7 +12,7 @@ import { PrefabEditService } from './PrefabEditService';
 // Types
 // =============================================================================
 
-export type AssetType = 'image' | 'script' | 'scene' | 'audio' | 'json' | 'material' | 'shader' | 'font' | 'file' | 'folder';
+export type AssetType = 'image' | 'script' | 'scene' | 'audio' | 'json' | 'material' | 'shader' | 'font' | 'file' | 'folder' | 'animclip';
 
 export interface AssetSelection {
     path: string;

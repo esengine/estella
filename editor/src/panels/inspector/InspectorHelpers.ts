@@ -78,6 +78,7 @@ export function getAssetIcon(type: AssetType, size: number = 16): string {
         case 'shader': return icons.code(size);
         case 'font': return icons.type(size);
         case 'folder': return icons.folder(size);
+        case 'animclip': return icons.film(size);
         default: return icons.file(size);
     }
 }
@@ -93,6 +94,7 @@ export function getAssetTypeName(type: AssetType): string {
         case 'shader': return 'Shader';
         case 'font': return 'BitmapFont';
         case 'folder': return 'Folder';
+        case 'animclip': return 'Animation Clip';
         default: return 'File';
     }
 }

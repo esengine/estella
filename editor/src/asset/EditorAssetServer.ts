@@ -365,6 +365,14 @@ export class EditorAssetServer {
         });
     }
 
+    reloadAnimClip(path: string): void {
+        getAssetEventBus().emit({
+            type: 'asset:modified',
+            category: 'anim-clip',
+            path,
+        });
+    }
+
     createMaterialInstance(
         basePath: string,
         entityId: number,

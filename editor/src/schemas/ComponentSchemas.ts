@@ -339,6 +339,18 @@ export const SpineAnimationSchema: ComponentSchema = {
     ],
 };
 
+export const SpriteAnimatorSchema: ComponentSchema = {
+    name: 'SpriteAnimator',
+    category: 'builtin',
+    properties: [
+        { name: 'clip', type: 'anim-file' },
+        { name: 'speed', type: 'number', min: 0, max: 10, step: 0.1 },
+        { name: 'playing', type: 'boolean' },
+        { name: 'loop', type: 'boolean' },
+        { name: 'enabled', type: 'boolean' },
+    ],
+};
+
 export const RigidBodySchema: ComponentSchema = {
     name: 'RigidBody',
     category: 'physics',
@@ -797,6 +809,7 @@ export function registerBuiltinSchemas(options?: BuiltinSchemaOptions): void {
     registerComponentSchema(FlexContainerSchema);
     registerComponentSchema(FlexItemSchema);
     registerComponentSchema(LayoutGroupSchema);
+    registerComponentSchema(SpriteAnimatorSchema);
     registerComponentSchema(RigidBodySchema);
     registerComponentSchema(BoxColliderSchema);
     registerComponentSchema(CircleColliderSchema);

@@ -777,6 +777,15 @@ interface ESEngineModule {
     getUIRectComputedWidth(registry: CppRegistry, entity: number): number;
     getUIRectComputedHeight(registry: CppRegistry, entity: number): number;
     transform_update(registry: CppRegistry): void;
+    _anim_createTween(registry: CppRegistry, entity: number, targetProp: number, from: number, to: number, duration: number, easing: number, delay: number, loopMode: number, loopCount: number): number;
+    _anim_cancelTween(registry: CppRegistry, tweenEntity: number): void;
+    _anim_cancelAllTweens(registry: CppRegistry, targetEntity: number): void;
+    _anim_pauseTween(registry: CppRegistry, tweenEntity: number): void;
+    _anim_resumeTween(registry: CppRegistry, tweenEntity: number): void;
+    _anim_setTweenBezier(registry: CppRegistry, tweenEntity: number, p1x: number, p1y: number, p2x: number, p2y: number): void;
+    _anim_setSequenceNext(registry: CppRegistry, tweenEntity: number, nextEntity: number): void;
+    _anim_updateTweens(registry: CppRegistry, deltaTime: number): void;
+    _anim_getTweenState(registry: CppRegistry, tweenEntity: number): number;
     _malloc(size: number): number;
     _free(ptr: number): void;
 }
@@ -1478,7 +1487,7 @@ declare class SpineModuleController {
 
 type AssetContentType = 'json' | 'text' | 'binary' | 'image' | 'audio';
 type AddressableAssetType = 'texture' | 'material' | 'spine' | 'bitmap-font' | 'prefab' | 'json' | 'text' | 'binary' | 'audio';
-type EditorAssetType = 'texture' | 'material' | 'shader' | 'spine-atlas' | 'spine-skeleton' | 'bitmap-font' | 'prefab' | 'json' | 'audio' | 'scene' | 'unknown';
+type EditorAssetType = 'texture' | 'material' | 'shader' | 'spine-atlas' | 'spine-skeleton' | 'bitmap-font' | 'prefab' | 'json' | 'audio' | 'scene' | 'anim-clip' | 'unknown';
 interface AssetTypeEntry {
     extensions: string[];
     contentType: AssetContentType;
@@ -1727,7 +1736,7 @@ interface SceneLoadOptions {
     assetBaseUrl?: string;
     collectAssets?: LoadedSceneAssets;
 }
-type AssetFieldType = 'texture' | 'material' | 'font';
+type AssetFieldType = 'texture' | 'material' | 'font' | 'anim-clip';
 interface AssetFieldDescriptor {
     field: string;
     type: AssetFieldType;
@@ -3293,6 +3302,152 @@ type WasmErrorHandler = (error: unknown, context: string) => void;
 declare function setWasmErrorHandler(handler: WasmErrorHandler | null): void;
 
 /**
+ * @file    Tween.ts
+ * @brief   Property tween API wrapping C++ TweenSystem
+ */
+
+declare const EasingType: {
+    readonly Linear: 0;
+    readonly EaseInQuad: 1;
+    readonly EaseOutQuad: 2;
+    readonly EaseInOutQuad: 3;
+    readonly EaseInCubic: 4;
+    readonly EaseOutCubic: 5;
+    readonly EaseInOutCubic: 6;
+    readonly EaseInBack: 7;
+    readonly EaseOutBack: 8;
+    readonly EaseInOutBack: 9;
+    readonly EaseInElastic: 10;
+    readonly EaseOutElastic: 11;
+    readonly EaseInOutElastic: 12;
+    readonly EaseOutBounce: 13;
+    readonly CubicBezier: 14;
+    readonly Step: 15;
+};
+type EasingType = (typeof EasingType)[keyof typeof EasingType];
+declare const TweenTarget: {
+    readonly PositionX: 0;
+    readonly PositionY: 1;
+    readonly PositionZ: 2;
+    readonly ScaleX: 3;
+    readonly ScaleY: 4;
+    readonly RotationZ: 5;
+    readonly ColorR: 6;
+    readonly ColorG: 7;
+    readonly ColorB: 8;
+    readonly ColorA: 9;
+    readonly SizeX: 10;
+    readonly SizeY: 11;
+    readonly CameraOrthoSize: 12;
+};
+type TweenTarget = (typeof TweenTarget)[keyof typeof TweenTarget];
+declare const TweenState: {
+    readonly Running: 0;
+    readonly Paused: 1;
+    readonly Completed: 2;
+    readonly Cancelled: 3;
+};
+type TweenState = (typeof TweenState)[keyof typeof TweenState];
+declare const LoopMode: {
+    readonly None: 0;
+    readonly Restart: 1;
+    readonly PingPong: 2;
+};
+type LoopMode = (typeof LoopMode)[keyof typeof LoopMode];
+interface TweenOptions {
+    easing?: EasingType;
+    delay?: number;
+    loop?: LoopMode;
+    loopCount?: number;
+}
+interface BezierPoints {
+    p1x: number;
+    p1y: number;
+    p2x: number;
+    p2y: number;
+}
+declare class TweenHandle {
+    private readonly module_;
+    private readonly registry_;
+    readonly entity: Entity;
+    constructor(module: ESEngineModule, registry: CppRegistry, entity: Entity);
+    get state(): TweenState;
+    bezier(p1x: number, p1y: number, p2x: number, p2y: number): this;
+    then(next: TweenHandle): this;
+    pause(): void;
+    resume(): void;
+    cancel(): void;
+}
+declare function initTweenAPI(module: ESEngineModule, registry: CppRegistry): void;
+declare function shutdownTweenAPI(): void;
+declare const Tween: {
+    readonly to: (entity: Entity, target: TweenTarget, from: number, to: number, duration: number, options?: TweenOptions) => TweenHandle;
+    readonly cancel: (tweenHandle: TweenHandle) => void;
+    readonly cancelAll: (entity: Entity) => void;
+    readonly update: (deltaTime: number) => void;
+};
+
+/**
+ * @file    SpriteAnimator.ts
+ * @brief   Sprite frame animation component and system (pure TypeScript)
+ */
+
+interface SpriteAnimFrame {
+    texture: TextureHandle;
+    duration?: number;
+}
+interface SpriteAnimClip {
+    name: string;
+    frames: SpriteAnimFrame[];
+    fps: number;
+    loop: boolean;
+}
+declare function registerAnimClip(clip: SpriteAnimClip): void;
+declare function unregisterAnimClip(name: string): void;
+declare function getAnimClip(name: string): SpriteAnimClip | undefined;
+declare function clearAnimClips(): void;
+interface SpriteAnimatorData {
+    clip: string;
+    speed: number;
+    playing: boolean;
+    loop: boolean;
+    enabled: boolean;
+    currentFrame: number;
+    frameTimer: number;
+}
+declare const SpriteAnimator: ComponentDef<SpriteAnimatorData>;
+declare function spriteAnimatorSystemUpdate(world: World, deltaTime: number): void;
+
+/**
+ * @file    AnimationPlugin.ts
+ * @brief   Animation plugin registering Tween and SpriteAnimator systems
+ */
+
+declare class AnimationPlugin implements Plugin {
+    name: string;
+    build(app: App): void;
+    cleanup(): void;
+}
+declare const animationPlugin: AnimationPlugin;
+
+/**
+ * @file    AnimClipLoader.ts
+ * @brief   .esanim asset loading and parsing
+ */
+
+interface AnimClipAssetData {
+    version: string;
+    type: 'animation-clip';
+    fps?: number;
+    loop?: boolean;
+    frames: {
+        texture: string;
+    }[];
+}
+declare function extractAnimClipTexturePaths(data: AnimClipAssetData): string[];
+declare function parseAnimClipData(clipPath: string, data: AnimClipAssetData, textureHandles: Map<string, number>): SpriteAnimClip;
+
+/**
  * @file    playableRuntime.ts
  * @brief   Playable ad runtime initialization (single-HTML builds)
  */
@@ -3319,5 +3474,5 @@ declare const uiPlugins: Plugin[];
 
 declare function createWebApp(module: ESEngineModule, options?: WebAppOptions): App;
 
-export { Added, App, AssetPlugin, AssetRefCounter, AssetServer, Assets, AsyncCache, BitmapText$1 as BitmapText, BlendMode, BodyType, BoxCollider$1 as BoxCollider, Button, ButtonState, Camera$1 as Camera, Canvas$1 as Canvas, CapsuleCollider$1 as CapsuleCollider, Changed, Children$1 as Children, CircleCollider$1 as CircleCollider, ClearFlags, Commands, CommandsInstance, DEFAULT_DESIGN_HEIGHT, DEFAULT_DESIGN_WIDTH, DEFAULT_FALLBACK_DT, DEFAULT_FIXED_TIMESTEP, DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE, DEFAULT_GRAVITY, DEFAULT_LINE_HEIGHT, DEFAULT_MAX_DELTA_TIME, DEFAULT_PIXELS_PER_UNIT, DEFAULT_SPINE_SKIN, DEFAULT_SPRITE_SIZE, DEFAULT_TEXT_CANVAS_SIZE, DataType, DragState, Draggable, Draw, Dropdown, EntityCommands, EventReader, EventReaderInstance, EventRegistry, EventWriter, EventWriterInstance, FillDirection, FillMethod, FillOrigin, FocusManager, FocusManagerState, Focusable, GLDebug, Geometry, GetWorld, INVALID_ENTITY, INVALID_FONT, INVALID_MATERIAL, INVALID_TEXTURE, Image, ImageType, Input, InputPlugin, InputState, Interactable, ListView, LocalTransform, LogLevel, Logger, MaskMode, Material, MaterialLoader, Mut, Name, Parent$1 as Parent, Physics, PhysicsEvents, PhysicsPlugin, PostProcess, PrefabServer, Prefabs, PrefabsPlugin, PreviewPlugin, ProgressBar, ProgressBarDirection, ProgressBarPlugin, ProjectionType, Query, QueryInstance, Removed, RemovedQueryInstance, RenderPipeline, RenderStage, RenderTexture, Renderer, Res, ResMut, ResMutInstance, RigidBody$1 as RigidBody, RuntimeConfig, SafeArea, ScaleMode, SceneManager, SceneManagerState, SceneOwner, Schedule, ScrollView, ShaderSources, Slider, SliderDirection, SliderPlugin, SpineAnimation$1 as SpineAnimation, Sprite$1 as Sprite, SystemRunner, Text, TextAlign, TextInput, TextInputPlugin, TextOverflow, TextPlugin, TextRenderer, TextVerticalAlign, Time, Toggle, Transform$1 as Transform, UICameraInfo, UIEventQueue, UIEvents, UIInteraction, UIInteractionPlugin, UILayoutPlugin, UIMask, UIMaskPlugin, UIRect, UIRenderOrderPlugin, Velocity$1 as Velocity, WebAssetProvider, World, WorldTransform, addStartupSystem, addSystem, addSystemToSchedule, applyBuildRuntimeConfig, applyDirectionalFill, applyRuntimeConfig, assetPlugin, clearDrawCallbacks, clearUserComponents, color, computeFillAnchors, computeFillSize, computeHandleAnchors, computeUIRectLayout, createMaskProcessor, createRuntimeSceneConfig, createWebApp, debug, defineComponent, defineEvent, defineResource, defineSystem, defineTag, error, findEntityByName, flushPendingSystems, getAddressableType, getAddressableTypeByEditorType, getAllAssetExtensions, getAssetMimeType, getAssetTypeEntry, getComponent, getComponentAssetFieldDescriptors, getComponentAssetFields, getComponentDefaults, getComponentEntityFields, getComponentSpineFieldDescriptor, getCustomExtensions, getEditorType, getLogger, getPlatform, getPlatformType, getUserComponent, getWeChatPackOptions, info, initDrawAPI, initGLDebugAPI, initGeometryAPI, initMaterialAPI, initPlayableRuntime, initPostProcessAPI, initRendererAPI, inputPlugin, instantiatePrefab, intersectRects, invertMatrix4, isBuiltinComponent, isCustomExtension, isEditor, isKnownAssetExtension, isPlatformInitialized, isPlayMode, isRuntime, isTextureRef, isWeChat, isWeb, loadComponent, loadPhysicsModule, loadRuntimeScene, loadSceneData, loadSceneWithAssets, looksLikeAssetPath, platformFetch, platformFileExists, platformInstantiateWasm, platformReadFile, platformReadTextFile, pointInOBB, pointInWorldRect, prefabsPlugin, progressBarPlugin, quat, registerComponent, registerComponentAssetFields, registerComponentEntityFields, registerDrawCallback, registerEmbeddedAssets, registerMaterialCallback, remapEntityFields, sceneManagerPlugin, screenToWorld, setEditorMode, setListViewRenderer, setLogLevel, setPlayMode, setWasmErrorHandler, shutdownDrawAPI, shutdownGLDebugAPI, shutdownGeometryAPI, shutdownMaterialAPI, shutdownPostProcessAPI, shutdownRendererAPI, sliderPlugin, syncFillSpriteSize, textInputPlugin, textPlugin, toBuildPath, transitionTo, uiInteractionPlugin, uiLayoutPlugin, uiMaskPlugin, uiPlugins, uiRenderOrderPlugin, unregisterComponent, unregisterDrawCallback, updateCameraAspectRatio, vec2, vec3, vec4, warn, wrapSceneSystem };
-export type { AddedWrapper, AddressableAssetType, AddressableManifest, AddressableManifestAsset, AddressableManifestGroup, AddressableResultMap, AnyComponentDef, AssetBundle, AssetContentType, AssetFieldType, AssetRefInfo, AssetTypeEntry, AssetsData, BitmapTextData, BoxColliderData, BuiltinComponentDef, ButtonData, ButtonTransition, CameraData, CameraRenderParams, CanvasData, CapsuleColliderData, ChangedWrapper, ChildrenData, CircleColliderData, CollisionEnterEvent, Color, CommandsDescriptor, ComponentData, ComponentDef, CppRegistry, CppResourceManager, DragStateData, DraggableData, DrawAPI, DrawCallback, DropdownData, ESEngineModule, EditorAssetType, Entity, EventDef, EventReaderDescriptor, EventWriterDescriptor, FileLoadOptions, FocusableData, FontHandle, GeometryHandle, GeometryOptions, GetWorldDescriptor, ImageData, InferParam, InferParams, InstantiatePrefabOptions, InstantiatePrefabResult, InteractableData, LayoutRect, LayoutResult, ListViewData, ListViewItemRenderer, LoadedMaterial, LocalTransformData, LogEntry, LogHandler, MaskProcessorFn, MaterialAssetData, MaterialHandle, MaterialOptions, MutWrapper, NameData, ParentData, PhysicsEventsData, PhysicsModuleFactory, PhysicsPluginConfig, PhysicsWasmModule, PlatformAdapter, PlatformRequestOptions, PlatformResponse, PlatformType, PlayableRuntimeConfig, Plugin, PluginDependency, PrefabData, PrefabEntityData, PrefabOverride, ProgressBarData, Quat, QueryBuilder, QueryDescriptor, QueryResult, RemovedQueryDescriptor, RenderParams, RenderStats, RenderTargetHandle, RenderTextureHandle, RenderTextureOptions, ResDescriptor, ResMutDescriptor, ResourceDef, RigidBodyData, RuntimeAssetProvider, RuntimeBuildConfig, RuntimeSceneOptions, SafeAreaData, SceneComponentData, SceneConfig, SceneContext, SceneData, SceneEntityData, SceneLoadOptions, SceneOwnerData, SceneStatus, ScreenRect, ScrollViewData, SensorEvent, ShaderHandle, ShaderLoader, SliceBorder$1 as SliceBorder, SliderData, SpineAnimationData, SpineDescriptor, SpineLoadResult, SpineRendererFn, SpriteData, SystemDef, SystemOptions, SystemParam, TextData, TextInputData, TextRenderResult, TextureHandle, TextureInfo, TextureRef, TimeData, ToggleData, ToggleTransition, TransformData, TransitionConfig, TransitionOptions, UICameraData, UIEvent, UIEventType, UIInteractionData, UIMaskData, UIRectData, UniformValue, Vec2, Vec3, Vec4, VelocityData, VertexAttributeDescriptor, WebAppOptions, WorldTransformData };
+export { Added, AnimationPlugin, App, AssetPlugin, AssetRefCounter, AssetServer, Assets, AsyncCache, BitmapText$1 as BitmapText, BlendMode, BodyType, BoxCollider$1 as BoxCollider, Button, ButtonState, Camera$1 as Camera, Canvas$1 as Canvas, CapsuleCollider$1 as CapsuleCollider, Changed, Children$1 as Children, CircleCollider$1 as CircleCollider, ClearFlags, Commands, CommandsInstance, DEFAULT_DESIGN_HEIGHT, DEFAULT_DESIGN_WIDTH, DEFAULT_FALLBACK_DT, DEFAULT_FIXED_TIMESTEP, DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE, DEFAULT_GRAVITY, DEFAULT_LINE_HEIGHT, DEFAULT_MAX_DELTA_TIME, DEFAULT_PIXELS_PER_UNIT, DEFAULT_SPINE_SKIN, DEFAULT_SPRITE_SIZE, DEFAULT_TEXT_CANVAS_SIZE, DataType, DragState, Draggable, Draw, Dropdown, EasingType, EntityCommands, EventReader, EventReaderInstance, EventRegistry, EventWriter, EventWriterInstance, FillDirection, FillMethod, FillOrigin, FocusManager, FocusManagerState, Focusable, GLDebug, Geometry, GetWorld, INVALID_ENTITY, INVALID_FONT, INVALID_MATERIAL, INVALID_TEXTURE, Image, ImageType, Input, InputPlugin, InputState, Interactable, ListView, LocalTransform, LogLevel, Logger, LoopMode, MaskMode, Material, MaterialLoader, Mut, Name, Parent$1 as Parent, Physics, PhysicsEvents, PhysicsPlugin, PostProcess, PrefabServer, Prefabs, PrefabsPlugin, PreviewPlugin, ProgressBar, ProgressBarDirection, ProgressBarPlugin, ProjectionType, Query, QueryInstance, Removed, RemovedQueryInstance, RenderPipeline, RenderStage, RenderTexture, Renderer, Res, ResMut, ResMutInstance, RigidBody$1 as RigidBody, RuntimeConfig, SafeArea, ScaleMode, SceneManager, SceneManagerState, SceneOwner, Schedule, ScrollView, ShaderSources, Slider, SliderDirection, SliderPlugin, SpineAnimation$1 as SpineAnimation, Sprite$1 as Sprite, SpriteAnimator, SystemRunner, Text, TextAlign, TextInput, TextInputPlugin, TextOverflow, TextPlugin, TextRenderer, TextVerticalAlign, Time, Toggle, Transform$1 as Transform, Tween, TweenHandle, TweenState, TweenTarget, UICameraInfo, UIEventQueue, UIEvents, UIInteraction, UIInteractionPlugin, UILayoutPlugin, UIMask, UIMaskPlugin, UIRect, UIRenderOrderPlugin, Velocity$1 as Velocity, WebAssetProvider, World, WorldTransform, addStartupSystem, addSystem, addSystemToSchedule, animationPlugin, applyBuildRuntimeConfig, applyDirectionalFill, applyRuntimeConfig, assetPlugin, clearAnimClips, clearDrawCallbacks, clearUserComponents, color, computeFillAnchors, computeFillSize, computeHandleAnchors, computeUIRectLayout, createMaskProcessor, createRuntimeSceneConfig, createWebApp, debug, defineComponent, defineEvent, defineResource, defineSystem, defineTag, error, extractAnimClipTexturePaths, findEntityByName, flushPendingSystems, getAddressableType, getAddressableTypeByEditorType, getAllAssetExtensions, getAnimClip, getAssetMimeType, getAssetTypeEntry, getComponent, getComponentAssetFieldDescriptors, getComponentAssetFields, getComponentDefaults, getComponentEntityFields, getComponentSpineFieldDescriptor, getCustomExtensions, getEditorType, getLogger, getPlatform, getPlatformType, getUserComponent, getWeChatPackOptions, info, initDrawAPI, initGLDebugAPI, initGeometryAPI, initMaterialAPI, initPlayableRuntime, initPostProcessAPI, initRendererAPI, initTweenAPI, inputPlugin, instantiatePrefab, intersectRects, invertMatrix4, isBuiltinComponent, isCustomExtension, isEditor, isKnownAssetExtension, isPlatformInitialized, isPlayMode, isRuntime, isTextureRef, isWeChat, isWeb, loadComponent, loadPhysicsModule, loadRuntimeScene, loadSceneData, loadSceneWithAssets, looksLikeAssetPath, parseAnimClipData, platformFetch, platformFileExists, platformInstantiateWasm, platformReadFile, platformReadTextFile, pointInOBB, pointInWorldRect, prefabsPlugin, progressBarPlugin, quat, registerAnimClip, registerComponent, registerComponentAssetFields, registerComponentEntityFields, registerDrawCallback, registerEmbeddedAssets, registerMaterialCallback, remapEntityFields, sceneManagerPlugin, screenToWorld, setEditorMode, setListViewRenderer, setLogLevel, setPlayMode, setWasmErrorHandler, shutdownDrawAPI, shutdownGLDebugAPI, shutdownGeometryAPI, shutdownMaterialAPI, shutdownPostProcessAPI, shutdownRendererAPI, shutdownTweenAPI, sliderPlugin, spriteAnimatorSystemUpdate, syncFillSpriteSize, textInputPlugin, textPlugin, toBuildPath, transitionTo, uiInteractionPlugin, uiLayoutPlugin, uiMaskPlugin, uiPlugins, uiRenderOrderPlugin, unregisterAnimClip, unregisterComponent, unregisterDrawCallback, updateCameraAspectRatio, vec2, vec3, vec4, warn, wrapSceneSystem };
+export type { AddedWrapper, AddressableAssetType, AddressableManifest, AddressableManifestAsset, AddressableManifestGroup, AddressableResultMap, AnimClipAssetData, AnyComponentDef, AssetBundle, AssetContentType, AssetFieldType, AssetRefInfo, AssetTypeEntry, AssetsData, BezierPoints, BitmapTextData, BoxColliderData, BuiltinComponentDef, ButtonData, ButtonTransition, CameraData, CameraRenderParams, CanvasData, CapsuleColliderData, ChangedWrapper, ChildrenData, CircleColliderData, CollisionEnterEvent, Color, CommandsDescriptor, ComponentData, ComponentDef, CppRegistry, CppResourceManager, DragStateData, DraggableData, DrawAPI, DrawCallback, DropdownData, ESEngineModule, EditorAssetType, Entity, EventDef, EventReaderDescriptor, EventWriterDescriptor, FileLoadOptions, FocusableData, FontHandle, GeometryHandle, GeometryOptions, GetWorldDescriptor, ImageData, InferParam, InferParams, InstantiatePrefabOptions, InstantiatePrefabResult, InteractableData, LayoutRect, LayoutResult, ListViewData, ListViewItemRenderer, LoadedMaterial, LocalTransformData, LogEntry, LogHandler, MaskProcessorFn, MaterialAssetData, MaterialHandle, MaterialOptions, MutWrapper, NameData, ParentData, PhysicsEventsData, PhysicsModuleFactory, PhysicsPluginConfig, PhysicsWasmModule, PlatformAdapter, PlatformRequestOptions, PlatformResponse, PlatformType, PlayableRuntimeConfig, Plugin, PluginDependency, PrefabData, PrefabEntityData, PrefabOverride, ProgressBarData, Quat, QueryBuilder, QueryDescriptor, QueryResult, RemovedQueryDescriptor, RenderParams, RenderStats, RenderTargetHandle, RenderTextureHandle, RenderTextureOptions, ResDescriptor, ResMutDescriptor, ResourceDef, RigidBodyData, RuntimeAssetProvider, RuntimeBuildConfig, RuntimeSceneOptions, SafeAreaData, SceneComponentData, SceneConfig, SceneContext, SceneData, SceneEntityData, SceneLoadOptions, SceneOwnerData, SceneStatus, ScreenRect, ScrollViewData, SensorEvent, ShaderHandle, ShaderLoader, SliceBorder$1 as SliceBorder, SliderData, SpineAnimationData, SpineDescriptor, SpineLoadResult, SpineRendererFn, SpriteAnimClip, SpriteAnimFrame, SpriteAnimatorData, SpriteData, SystemDef, SystemOptions, SystemParam, TextData, TextInputData, TextRenderResult, TextureHandle, TextureInfo, TextureRef, TimeData, ToggleData, ToggleTransition, TransformData, TransitionConfig, TransitionOptions, TweenOptions, UICameraData, UIEvent, UIEventType, UIInteractionData, UIMaskData, UIRectData, UniformValue, Vec2, Vec3, Vec4, VelocityData, VertexAttributeDescriptor, WebAppOptions, WorldTransformData };

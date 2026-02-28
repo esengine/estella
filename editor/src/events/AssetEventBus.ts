@@ -4,7 +4,7 @@
  */
 
 export type AssetEventType = 'asset:loaded' | 'asset:modified' | 'asset:unloaded';
-export type AssetCategory = 'material' | 'texture' | 'shader' | 'spine';
+export type AssetCategory = 'material' | 'texture' | 'shader' | 'spine' | 'anim-clip';
 
 export interface AssetEvent {
     type: AssetEventType;

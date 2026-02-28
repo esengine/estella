@@ -212,6 +212,21 @@ export interface ESEngineModule {
     getUIRectComputedHeight(registry: CppRegistry, entity: number): number;
     transform_update(registry: CppRegistry): void;
 
+    // Animation (Tween) API
+    _anim_createTween(registry: CppRegistry, entity: number, targetProp: number,
+                      from: number, to: number, duration: number,
+                      easing: number, delay: number,
+                      loopMode: number, loopCount: number): number;
+    _anim_cancelTween(registry: CppRegistry, tweenEntity: number): void;
+    _anim_cancelAllTweens(registry: CppRegistry, targetEntity: number): void;
+    _anim_pauseTween(registry: CppRegistry, tweenEntity: number): void;
+    _anim_resumeTween(registry: CppRegistry, tweenEntity: number): void;
+    _anim_setTweenBezier(registry: CppRegistry, tweenEntity: number,
+                         p1x: number, p1y: number, p2x: number, p2y: number): void;
+    _anim_setSequenceNext(registry: CppRegistry, tweenEntity: number, nextEntity: number): void;
+    _anim_updateTweens(registry: CppRegistry, deltaTime: number): void;
+    _anim_getTweenState(registry: CppRegistry, tweenEntity: number): number;
+
     _malloc(size: number): number;
     _free(ptr: number): void;
 

@@ -15,6 +15,7 @@
 #include <emscripten/html5.h>
 #include <glm/glm.hpp>
 #include "../core/Types.hpp"
+#include "../animation/TweenSystem.hpp"
 
 namespace esengine {
 
@@ -31,6 +32,7 @@ class ResourceManager;
 namespace ecs {
 class TransformSystem;
 }
+
 
 #ifdef ES_ENABLE_SPINE
 namespace spine {
@@ -63,6 +65,7 @@ public:
     PostProcessPipeline* postProcessPipeline() { return postProcessPipeline_.get(); }
     resource::ResourceManager* resourceManager() { return resourceManager_.get(); }
     ecs::TransformSystem* transformSystem() { return transformSystem_.get(); }
+    animation::TweenSystem* tweenSystem() { return tweenSystem_.get(); }
 
 #ifdef ES_ENABLE_SPINE
     spine::SpineResourceManager* spineResourceManager() { return spineResourceManager_.get(); }
@@ -105,6 +108,7 @@ public:
     void setPostProcessPipeline(Unique<PostProcessPipeline> pipeline) { postProcessPipeline_ = std::move(pipeline); }
     void setResourceManager(Unique<resource::ResourceManager> mgr) { resourceManager_ = std::move(mgr); }
     void setTransformSystem(Unique<ecs::TransformSystem> sys) { transformSystem_ = std::move(sys); }
+    void setTweenSystem(Unique<animation::TweenSystem> sys) { tweenSystem_ = std::move(sys); }
 
 #ifdef ES_ENABLE_SPINE
     void setSpineResourceManager(Unique<spine::SpineResourceManager> mgr) { spineResourceManager_ = std::move(mgr); }
@@ -122,6 +126,7 @@ private:
     Unique<PostProcessPipeline> postProcessPipeline_;
     Unique<resource::ResourceManager> resourceManager_;
     Unique<ecs::TransformSystem> transformSystem_;
+    Unique<animation::TweenSystem> tweenSystem_;
 
 #ifdef ES_ENABLE_SPINE
     Unique<spine::SpineResourceManager> spineResourceManager_;

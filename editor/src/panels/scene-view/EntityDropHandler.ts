@@ -3,6 +3,8 @@ import { getDefaultComponentData, getInitialComponentData } from '../../schemas/
 import { getGlobalPathResolver } from '../../asset';
 import { getPlatformAdapter } from '../../platform/PlatformAdapter';
 
+const DROPPABLE_TYPES = new Set(['image', 'animclip']);
+
 export class EntityDropHandler {
     private store_: EditorStore;
 
@@ -33,10 +35,15 @@ export class EntityDropHandler {
                 return;
             }
 
-            if (assetData.type !== 'image') return;
+            if (!DROPPABLE_TYPES.has(assetData.type)) return;
 
             const { worldX, worldY } = screenToWorld(e.clientX, e.clientY);
-            this.createSpriteFromDrop(assetData, worldX, worldY);
+
+            if (assetData.type === 'animclip') {
+                this.createAnimatorFromDrop(assetData, worldX, worldY);
+            } else {
+                this.createSpriteFromDrop(assetData, worldX, worldY);
+            }
         });
     }
 
@@ -63,6 +70,27 @@ export class EntityDropHandler {
                 const defaultSize = getDefaultComponentData('Sprite').size;
                 this.store_.updateProperty(newEntity, 'Sprite', 'size', defaultSize, size);
             }
+        });
+    }
+
+    private createAnimatorFromDrop(
+        asset: { type: string; path: string; name: string },
+        worldX: number,
+        worldY: number,
+    ): void {
+        const baseName = asset.name.replace(/\.[^.]+$/, '');
+        const newEntity = this.store_.createEntity(baseName);
+
+        const transformData = getInitialComponentData('Transform');
+        transformData.position = { x: worldX, y: worldY, z: 0 };
+        this.store_.addComponent(newEntity, 'Transform', transformData);
+
+        this.store_.addComponent(newEntity, 'Sprite', getInitialComponentData('Sprite'));
+
+        const relativePath = getGlobalPathResolver().toRelativePath(asset.path);
+        this.store_.addComponent(newEntity, 'SpriteAnimator', {
+            ...getInitialComponentData('SpriteAnimator'),
+            clip: relativePath,
         });
     }
 

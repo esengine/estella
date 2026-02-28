@@ -6,7 +6,7 @@ export type AddressableAssetType =
 
 export type EditorAssetType =
     | 'texture' | 'material' | 'shader' | 'spine-atlas' | 'spine-skeleton'
-    | 'bitmap-font' | 'prefab' | 'json' | 'audio' | 'scene' | 'unknown';
+    | 'bitmap-font' | 'prefab' | 'json' | 'audio' | 'scene' | 'anim-clip' | 'unknown';
 
 export interface AssetTypeEntry {
     extensions: string[];
@@ -29,6 +29,7 @@ const ASSET_TYPE_REGISTRY: readonly AssetTypeEntry[] = [
     { extensions: ['fnt'], contentType: 'text', editorType: 'bitmap-font', addressableType: 'bitmap-font', wechatPackInclude: true, hasTransitiveDeps: true },
     { extensions: ['esprefab'], contentType: 'json', editorType: 'prefab', addressableType: 'prefab', wechatPackInclude: true, hasTransitiveDeps: true },
     { extensions: ['esscene'], contentType: 'json', editorType: 'scene', addressableType: null, wechatPackInclude: false, hasTransitiveDeps: false },
+    { extensions: ['esanim'], contentType: 'json', editorType: 'anim-clip', addressableType: null, wechatPackInclude: true, hasTransitiveDeps: true },
 ];
 
 const MIME_MAP: Record<string, string> = {
@@ -48,6 +49,7 @@ const MIME_MAP: Record<string, string> = {
     esmaterial: 'application/json',
     esshader: 'text/plain',
     esprefab: 'application/json',
+    esanim: 'application/json',
     bmfont: 'application/json',
     fnt: 'text/plain',
 };

@@ -19,6 +19,7 @@ import { renderMaterialInspector } from './inspector/MaterialInspector';
 import { renderBitmapFontInspector } from './inspector/BitmapFontInspector';
 import { renderFolderInspector } from './inspector/FolderInspector';
 import { renderScriptInspector, renderSceneInspector, renderFileInspector } from './inspector/FileInspector';
+import { renderAnimClipInspector } from './inspector/AnimClipInspector';
 import { getPlayModeService } from '../services/PlayModeService';
 import { RuntimeStoreProxy } from '../services/RuntimeStoreProxy';
 
@@ -362,6 +363,9 @@ export class InspectorPanel {
                 break;
             case 'folder':
                 await renderFolderInspector(this.contentContainer_, asset.path);
+                break;
+            case 'animclip':
+                await renderAnimClipInspector(this.contentContainer_, asset.path);
                 break;
             default:
                 await renderFileInspector(this.contentContainer_, asset.path, asset.type);

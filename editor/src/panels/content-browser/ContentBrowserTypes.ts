@@ -20,7 +20,7 @@ export interface FolderNode {
 export interface AssetItem {
     name: string;
     path: string;
-    type: 'folder' | 'scene' | 'script' | 'image' | 'audio' | 'json' | 'material' | 'shader' | 'spine' | 'font' | 'prefab' | 'file';
+    type: 'folder' | 'scene' | 'script' | 'image' | 'audio' | 'json' | 'material' | 'shader' | 'spine' | 'font' | 'prefab' | 'animclip' | 'file';
     relativePath?: string;
 }
 
@@ -86,6 +86,7 @@ const EDITOR_TYPE_TO_DISPLAY: Record<string, AssetItem['type']> = {
     'json': 'json',
     'audio': 'audio',
     'scene': 'scene',
+    'anim-clip': 'animclip',
 };
 
 export function getAssetType(entry: DirectoryEntry): AssetItem['type'] {
@@ -111,6 +112,7 @@ export function getAssetIcon(type: AssetItem['type'], size: number = 32): string
         case 'shader': return icons.code(size);
         case 'spine': return icons.bone(size);
         case 'font': return icons.type(size);
+        case 'animclip': return icons.film(size);
         default: return icons.file(size);
     }
 }

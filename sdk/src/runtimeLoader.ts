@@ -118,7 +118,7 @@ function resolveSceneAssetPaths(
     fontCache: Record<string, number>,
     materialCache: Record<string, number>,
 ): void {
-    const cacheByType: Record<AssetFieldType, Record<string, number>> = {
+    const cacheByType: Partial<Record<AssetFieldType, Record<string, number>>> = {
         texture: textureCache,
         material: materialCache,
         font: fontCache,
@@ -131,8 +131,9 @@ function resolveSceneAssetPaths(
 
             const data = comp.data as Record<string, unknown>;
             for (const desc of descriptors) {
-                if (typeof data[desc.field] === 'string') {
-                    data[desc.field] = cacheByType[desc.type][data[desc.field] as string] || 0;
+                const cache = cacheByType[desc.type];
+                if (cache && typeof data[desc.field] === 'string') {
+                    data[desc.field] = cache[data[desc.field] as string] || 0;
                 }
             }
         }

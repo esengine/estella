@@ -623,6 +623,37 @@ export {
 export { setWasmErrorHandler } from './wasmError';
 
 // =============================================================================
+// Animation
+// =============================================================================
+
+export {
+    Tween,
+    TweenHandle,
+    EasingType,
+    TweenTarget,
+    TweenState,
+    LoopMode,
+    initTweenAPI,
+    shutdownTweenAPI,
+    SpriteAnimator,
+    spriteAnimatorSystemUpdate,
+    registerAnimClip,
+    unregisterAnimClip,
+    getAnimClip,
+    clearAnimClips,
+    AnimationPlugin,
+    animationPlugin,
+    type TweenOptions,
+    type BezierPoints,
+    type SpriteAnimatorData,
+    type SpriteAnimClip,
+    type SpriteAnimFrame,
+    parseAnimClipData,
+    extractAnimClipTexturePaths,
+    type AnimClipAssetData,
+} from './animation';
+
+// =============================================================================
 // Playable Runtime
 // =============================================================================
 

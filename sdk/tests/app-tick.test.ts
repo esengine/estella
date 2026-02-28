@@ -57,7 +57,7 @@ describe('App.tick()', () => {
         expect(order).toEqual(['First', 'PreUpdate', 'Update', 'PostUpdate', 'Last']);
     });
 
-    it('should skip Fixed schedules', () => {
+    it('should skip Fixed schedules when accumulator below timestep', () => {
         const app = App.new();
         let fixedRan = false;
 
@@ -65,7 +65,8 @@ describe('App.tick()', () => {
             [], () => { fixedRan = true; }, { name: 'S_FixedUpdate' }
         ));
 
-        app.tick(1 / 60);
+        // Default fixedTimestep is 1/60; pass a smaller dt so accumulator stays below threshold
+        app.tick(1 / 120);
 
         expect(fixedRan).toBe(false);
     });

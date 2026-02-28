@@ -1418,3 +1418,138 @@
     border-radius: 2px;
     padding: 0 1px;
 }
+
+/* =============================================================================
+ * Animation Clip Inspector
+ * ============================================================================= */
+
+.es-animclip-fps {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.es-animclip-slider {
+    flex: 1;
+    height: 4px;
+    accent-color: var(--es-accent);
+    cursor: pointer;
+}
+
+.es-animclip-fps-value {
+    min-width: 24px;
+    text-align: right;
+    font-size: 11px;
+    color: var(--es-text-primary);
+}
+
+.es-animclip-frames-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.es-animclip-add-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    font-size: 10px;
+    background: transparent;
+    border: 1px solid var(--es-border);
+    color: var(--es-text-secondary);
+    cursor: pointer;
+    border-radius: 3px;
+}
+
+.es-animclip-add-btn:hover {
+    background: var(--es-bg-hover);
+    color: var(--es-text-primary);
+}
+
+.es-animclip-frame-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: 4px;
+}
+
+.es-animclip-frame {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 6px;
+    background: var(--es-bg-primary);
+    border: 1px solid var(--es-border);
+    border-radius: 3px;
+}
+
+.es-animclip-frame-thumb {
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: repeating-conic-gradient(#222 0% 25%, #2a2a2a 0% 50%) 50% / 8px 8px;
+    border: 1px solid var(--es-border);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.es-animclip-frame-thumb img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    image-rendering: pixelated;
+}
+
+.es-animclip-frame-index {
+    font-size: 10px;
+    color: var(--es-text-secondary);
+}
+
+.es-animclip-frame-name {
+    flex: 1;
+    min-width: 0;
+    font-size: 11px;
+    color: var(--es-text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.es-animclip-delete-btn {
+    flex-shrink: 0;
+    opacity: 0.4;
+    transition: opacity 0.15s;
+}
+
+.es-animclip-frame:hover .es-animclip-delete-btn {
+    opacity: 1;
+}
+
+.es-animclip-empty {
+    padding: 12px;
+    text-align: center;
+    color: var(--es-text-secondary);
+    font-size: 11px;
+    font-style: italic;
+}
+
+.es-animclip-drop-zone {
+    margin-top: 8px;
+    padding: 16px;
+    text-align: center;
+    border: 2px dashed var(--es-border);
+    border-radius: 4px;
+    color: var(--es-text-secondary);
+    font-size: 11px;
+    transition: border-color 0.15s, background 0.15s;
+}
+
+.es-animclip-drop-zone.es-drag-over {
+    border-color: var(--es-accent);
+    background: rgba(79, 145, 255, 0.08);
+    color: var(--es-text-primary);
+}

@@ -7,6 +7,8 @@ import { World } from './world';
 import { Entity, INVALID_ENTITY } from './types';
 import { getComponent, Name, Camera } from './component';
 import type { AssetServer } from './asset/AssetServer';
+import { extractAnimClipTexturePaths, parseAnimClipData, type AnimClipAssetData } from './animation/AnimClipLoader';
+import { registerAnimClip } from './animation/SpriteAnimator';
 
 // =============================================================================
 // Types
@@ -63,7 +65,7 @@ export interface SceneLoadOptions {
 // Component Asset Field Registry
 // =============================================================================
 
-export type AssetFieldType = 'texture' | 'material' | 'font';
+export type AssetFieldType = 'texture' | 'material' | 'font' | 'anim-clip';
 
 interface AssetFieldDescriptor {
     field: string;
@@ -102,6 +104,11 @@ const COMPONENT_ASSET_FIELDS = new Map<string, ComponentAssetFields>([
         fields: [
             { field: 'texture', type: 'texture' },
             { field: 'material', type: 'material' },
+        ],
+    }],
+    ['SpriteAnimator', {
+        fields: [
+            { field: 'clip', type: 'anim-clip' },
         ],
     }],
 ]);
@@ -312,6 +319,37 @@ const ASSET_FIELD_HANDLERS = new Map<AssetFieldType, AssetFieldHandler>([
             return handles;
         },
     }],
+    ['anim-clip', {
+        async load(paths, assetServer, baseUrl, texturePathToUrl) {
+            const promises = [...paths].map(async (clipPath) => {
+                try {
+                    const data = await assetServer.loadJson<AnimClipAssetData>(clipPath);
+                    const texturePaths = extractAnimClipTexturePaths(data);
+                    const textureHandles = new Map<string, number>();
+
+                    const texPromises = texturePaths.map(async (texPath) => {
+                        try {
+                            const url = baseUrl ? `${baseUrl}/${texPath}` : `/${texPath}`;
+                            const info = await assetServer.loadTexture(url);
+                            textureHandles.set(texPath, info.handle);
+                            texturePathToUrl.set(texPath, url);
+                        } catch (err) {
+                            console.warn(`Failed to load anim texture: ${texPath}`, err);
+                            textureHandles.set(texPath, 0);
+                        }
+                    });
+                    await Promise.all(texPromises);
+
+                    const clip = parseAnimClipData(clipPath, data, textureHandles);
+                    registerAnimClip(clip);
+                } catch (err) {
+                    console.warn(`Failed to load animation clip: ${clipPath}`, err);
+                }
+            });
+            await Promise.all(promises);
+            return new Map();
+        },
+    }],
 ]);
 
 async function preloadSceneAssets(
@@ -404,9 +442,14 @@ async function preloadSceneAssets(
 
             const data = compData.data as Record<string, unknown>;
             for (const desc of config.fields) {
+                const handles = assetHandles.get(desc.type);
+                if (!handles) continue;
                 const value = data[desc.field];
                 if (typeof value !== 'string' || !value) continue;
-                data[desc.field] = assetHandles.get(desc.type)?.get(value) ?? 0;
+                const handle = handles.get(value);
+                if (handle !== undefined) {
+                    data[desc.field] = handle;
+                }
             }
         }
     }

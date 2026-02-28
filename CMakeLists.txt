@@ -48,6 +48,7 @@ set(ESENGINE_SOURCES
     src/esengine/text/BitmapFont.cpp
     src/esengine/platform/input/Input.cpp
     src/esengine/platform/PathResolver.cpp
+    src/esengine/animation/TweenSystem.cpp
 )
 
 if(ES_ENABLE_SPINE)
@@ -110,6 +111,9 @@ set(ESENGINE_HEADERS
     src/esengine/events/Signal.hpp
     src/esengine/events/Sink.hpp
     src/esengine/events/Dispatcher.hpp
+    src/esengine/animation/TweenData.hpp
+    src/esengine/animation/EasingFunctions.hpp
+    src/esengine/animation/TweenSystem.hpp
 )
 
 if(ES_ENABLE_SPINE)
