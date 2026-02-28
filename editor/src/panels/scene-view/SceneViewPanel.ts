@@ -1,5 +1,5 @@
 import type { Entity, App } from 'esengine';
-import { Renderer, computeUIRectLayout, DEFAULT_SPRITE_SIZE } from 'esengine';
+import { Renderer, computeUIRectLayout, DEFAULT_SPRITE_SIZE, StatsCollector } from 'esengine';
 import type { SpineModuleController } from 'esengine/spine';
 import type { EditorStore } from '../../store/EditorStore';
 import type { EditorBridge } from '../../bridge/EditorBridge';
@@ -67,6 +67,9 @@ export class SceneViewPanel {
     private marquee_: MarqueeSelection;
     private dropHandler_: EntityDropHandler;
     private input_: SceneViewInput;
+
+    private fpsCollector_ = new StatsCollector();
+    private lastFrameTime_ = 0;
 
     private static readonly MAX_CACHE_SIZE = 100;
     private textureCache_: Map<string, HTMLImageElement | null> = new Map();
@@ -654,6 +657,12 @@ export class SceneViewPanel {
 
         ctx.restore();
 
+        const now = performance.now();
+        if (this.lastFrameTime_ > 0) {
+            this.fpsCollector_.pushFrame((now - this.lastFrameTime_) / 1000);
+        }
+        this.lastFrameTime_ = now;
+
         this.drawStats(ctx, w, h);
         this.drawViewportPreview(ctx, w, h);
 
@@ -980,18 +989,21 @@ export class SceneViewPanel {
 
         const stats = Renderer.getStats();
         const spineCount = this.sceneRenderer_?.spineInstanceCount ?? stats.spine;
+        const fps = this.fpsCollector_.getFps();
+        const entityCount = this.store_.scene.entities.length;
 
         const lines = [
             `DC: ${stats.drawCalls}    Tri: ${stats.triangles}`,
             `Sprite: ${stats.sprites}  Spine: ${spineCount}`,
             `Text: ${stats.text}    Mesh: ${stats.meshes}`,
             `Culled: ${stats.culled}`,
+            `FPS: ${Math.round(fps)}    Entities: ${entityCount}`,
         ];
 
         const fontSize = 12;
         const lineHeight = 18;
         const padding = 8;
-        const panelW = 180;
+        const panelW = 200;
         const panelH = lines.length * lineHeight + padding * 2;
         const x0 = 12;
         const y0 = canvasHeight - panelH - 12;

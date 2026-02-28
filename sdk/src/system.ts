@@ -143,11 +143,20 @@ export class SystemRunner {
     private readonly argsCache_ = new Map<symbol, unknown[]>();
     private readonly systemTicks_ = new Map<symbol, number>();
     private currentLastRunTick_ = -1;
+    private timings_: Map<string, number> | null = null;
 
     constructor(world: World, resources: ResourceStorage, eventRegistry?: EventRegistry) {
         this.world_ = world;
         this.resources_ = resources;
         this.eventRegistry_ = eventRegistry ?? null;
+    }
+
+    setTimingEnabled(enabled: boolean): void {
+        this.timings_ = enabled ? new Map() : null;
+    }
+
+    getTimings(): ReadonlyMap<string, number> | null {
+        return this.timings_;
     }
 
     run(system: SystemDef): void {
@@ -163,6 +172,7 @@ export class SystemRunner {
             args[i] = this.resolveParam(system._params[i]);
         }
 
+        const t0 = this.timings_ ? performance.now() : 0;
         try {
             (system._fn as (...args: unknown[]) => void)(...args);
 
@@ -172,6 +182,9 @@ export class SystemRunner {
                 }
             }
         } finally {
+            if (this.timings_) {
+                this.timings_.set(system._name, performance.now() - t0);
+            }
             this.world_.resetIterationDepth();
             this.systemTicks_.set(system._id, this.world_.getWorldTick());
         }

@@ -874,6 +874,7 @@ declare class App {
     private readonly sortedSystemsCache_;
     private error_handler_;
     private system_error_handler_;
+    private statsEnabled_;
     private frame_paused_;
     private user_paused_;
     private step_pending_;
@@ -912,6 +913,9 @@ declare class App {
     stepFrame(): void;
     setPlaySpeed(speed: number): void;
     getPlaySpeed(): number;
+    enableStats(): this;
+    getSystemTimings(): ReadonlyMap<string, number> | null;
+    getEntityCount(): number;
     insertResource<T>(resource: ResourceDef<T>, value: T): this;
     getResource<T>(resource: ResourceDef<T>): T;
     hasResource<T>(resource: ResourceDef<T>): boolean;

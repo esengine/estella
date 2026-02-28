@@ -84,6 +84,7 @@ export class App {
     private readonly sortedSystemsCache_ = new Map<Schedule, SystemEntry[]>();
     private error_handler_: ((error: unknown, systemName: string) => void) | null = null;
     private system_error_handler_: ((error: Error, systemName?: string) => 'continue' | 'pause') | null = null;
+    private statsEnabled_ = false;
     private frame_paused_ = false;
     private user_paused_ = false;
     private step_pending_ = false;
@@ -297,6 +298,23 @@ export class App {
     }
 
     // =========================================================================
+    // Stats
+    // =========================================================================
+
+    enableStats(): this {
+        this.statsEnabled_ = true;
+        return this;
+    }
+
+    getSystemTimings(): ReadonlyMap<string, number> | null {
+        return this.runner_?.getTimings() ?? null;
+    }
+
+    getEntityCount(): number {
+        return this.world_.entityCount();
+    }
+
+    // =========================================================================
     // Resource Access
     // =========================================================================
 
@@ -334,6 +352,9 @@ export class App {
     tick(delta: number): void {
         if (!this.runner_) {
             this.runner_ = new SystemRunner(this.world_, this.resources_, this.eventRegistry_);
+            if (this.statsEnabled_) {
+                this.runner_.setTimingEnabled(true);
+            }
             if (!this.resources_.has(Time)) {
                 this.resources_.insert(Time, { delta: 0, elapsed: 0, frameCount: 0 });
             }
@@ -386,6 +407,9 @@ export class App {
 
         this.running_ = true;
         this.runner_ = new SystemRunner(this.world_, this.resources_, this.eventRegistry_);
+        if (this.statsEnabled_) {
+            this.runner_.setTimingEnabled(true);
+        }
 
         this.resources_.insert(Time, { delta: 0, elapsed: 0, frameCount: 0 });
 

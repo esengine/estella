@@ -666,7 +666,6 @@ export {
     AudioBus,
     AudioMixer,
     AudioPool,
-    createAudioBackend,
     AttenuationModel,
     calculateAttenuation,
     calculatePanning,
@@ -674,6 +673,7 @@ export {
     type AudioBufferHandle,
     type PlayConfig,
     type PlatformAudioBackend,
+    type AudioBackendInitOptions,
     type AudioPluginConfig,
     type AudioBusConfig,
     type AudioMixerConfig,
@@ -681,8 +681,23 @@ export {
     type AudioSourceData,
     type AudioListenerData,
     type PooledAudioNode,
-    type WebAudioBackendOptions,
 } from './audio';
+
+// =============================================================================
+// Stats
+// =============================================================================
+
+export {
+    Stats,
+    StatsPlugin,
+    statsPlugin,
+    StatsCollector,
+    defaultFrameStats,
+    type FrameStats,
+    type StatsPluginOptions,
+} from './stats';
+
+export { StatsOverlay, type StatsPosition } from './stats-overlay';
 
 // =============================================================================
 // Playable Runtime
