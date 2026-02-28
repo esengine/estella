@@ -3534,6 +3534,8 @@ declare class Audio {
     private static mixer_;
     private static bufferCache_;
     private static bgmHandle_;
+    private static bgmVolume_;
+    private static fadeAnimId_;
     static init(backend: PlatformAudioBackend, mixer?: AudioMixer | null): void;
     static preload(url: string): Promise<void>;
     static preloadAll(urls: string[]): Promise<void>;
@@ -3555,6 +3557,7 @@ declare class Audio {
     static setUIVolume(volume: number): void;
     static muteBus(busName: string, muted: boolean): void;
     static getBufferHandle(url: string): AudioBufferHandle | undefined;
+    static dispose(): void;
     private static fadeIn;
     private static fadeOut;
     private static createPendingHandle;
@@ -3571,6 +3574,7 @@ interface PooledAudioNode {
 declare class AudioPool {
     private readonly context_;
     private readonly pool_;
+    private activeCount_;
     constructor(context: AudioContext, initialSize?: number);
     private createNode;
     acquire(priority?: number): PooledAudioNode;
@@ -3580,7 +3584,7 @@ declare class AudioPool {
 }
 
 interface AudioPluginConfig {
-    maxPoolSize?: number;
+    initialPoolSize?: number;
     masterVolume?: number;
     musicVolume?: number;
     sfxVolume?: number;

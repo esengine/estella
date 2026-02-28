@@ -1,4 +1,5 @@
 import type { App, Plugin } from '../app';
+import type { Entity } from '../types';
 import { defineSystem, Schedule } from '../system';
 import { Res, Time, type TimeData } from '../resource';
 import { Audio } from './Audio';
@@ -10,7 +11,7 @@ import { calculateAttenuation, calculatePanning, type SpatialAudioConfig, Attenu
 import type { AudioHandle } from './PlatformAudioBackend';
 
 export interface AudioPluginConfig {
-    maxPoolSize?: number;
+    initialPoolSize?: number;
     masterVolume?: number;
     musicVolume?: number;
     sfxVolume?: number;
@@ -26,13 +27,25 @@ export class AudioPlugin implements Plugin {
 
     build(app: App): void {
         const backend = createAudioBackend();
-        backend.initialize();
+        const config = this.config_;
+
+        if (backend instanceof WebAudioBackend) {
+            backend.initialize({ initialPoolSize: config.initialPoolSize });
+        } else {
+            backend.initialize();
+        }
 
         let mixer = null;
         if (backend instanceof WebAudioBackend) {
             mixer = backend.mixer;
         }
         Audio.init(backend, mixer);
+
+        if (mixer) {
+            if (config.masterVolume !== undefined) mixer.master.volume = config.masterVolume;
+            if (config.musicVolume !== undefined) mixer.music.volume = config.musicVolume;
+            if (config.sfxVolume !== undefined) mixer.sfx.volume = config.sfxVolume;
+        }
 
         const activeSourceHandles = new Map<number, AudioHandle>();
 
@@ -57,9 +70,12 @@ export class AudioPlugin implements Plugin {
                     }
 
                     const sources = world.getEntitiesWithComponents([AudioSource, WorldTransform]);
+                    const liveEntities = new Set<number>();
+
                     for (const entity of sources) {
                         const source = world.get(entity, AudioSource) as AudioSourceData;
                         if (!source.enabled || !source.clip) continue;
+                        liveEntities.add(entity as number);
 
                         const wt = world.get(entity, WorldTransform) as WorldTransformData;
 
@@ -74,11 +90,19 @@ export class AudioPlugin implements Plugin {
                                     priority: source.priority,
                                 });
                                 activeSourceHandles.set(entity, handle);
+                            } else {
+                                console.warn(
+                                    `[AudioPlugin] playOnAwake: clip "${source.clip}" not preloaded`
+                                );
                             }
                         }
 
                         if (source.spatial && activeSourceHandles.has(entity)) {
                             const handle = activeSourceHandles.get(entity)!;
+                            if (!handle.isPlaying) {
+                                activeSourceHandles.delete(entity);
+                                continue;
+                            }
                             const dx = wt.position.x - listenerX;
                             const dy = wt.position.y - listenerY;
                             const distance = Math.sqrt(dx * dx + dy * dy);
@@ -101,6 +125,12 @@ export class AudioPlugin implements Plugin {
                             handle.setPan(pan);
                         }
                     }
+
+                    for (const [entityId, handle] of activeSourceHandles) {
+                        if (!liveEntities.has(entityId) || !handle.isPlaying) {
+                            activeSourceHandles.delete(entityId);
+                        }
+                    }
                 },
                 { name: 'AudioUpdateSystem' }
             )
@@ -108,7 +138,7 @@ export class AudioPlugin implements Plugin {
     }
 
     cleanup(): void {
-        // Backend disposal handled by app shutdown
+        Audio.dispose();
     }
 }
 

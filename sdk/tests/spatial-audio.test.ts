@@ -41,6 +41,16 @@ describe('SpatialAudio', () => {
             it('should clamp above max distance', () => {
                 expect(calculateAttenuation(2000, config)).toBeCloseTo(0.0);
             });
+
+            it('should return 1 when refDistance equals maxDistance', () => {
+                const edgeConfig: SpatialAudioConfig = {
+                    ...config,
+                    refDistance: 100,
+                    maxDistance: 100,
+                };
+                expect(calculateAttenuation(100, edgeConfig)).toBe(1.0);
+                expect(calculateAttenuation(200, edgeConfig)).toBe(1.0);
+            });
         });
 
         describe('Inverse model', () => {

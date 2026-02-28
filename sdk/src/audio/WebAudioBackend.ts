@@ -6,43 +6,91 @@ class WebAudioHandle implements AudioHandle {
     readonly id: number;
     onEnd?: () => void;
 
+    private buffer_: AudioBuffer;
     private source_: AudioBufferSourceNode;
     private poolNode_: PooledAudioNode;
     private pool_: AudioPool;
     private context_: AudioContext;
     private playing_ = true;
+    private stopped_ = false;
+    private pausedAt_ = 0;
+    private startedAt_: number;
+    private startOffset_: number;
+    private playbackRate_: number;
+    private loop_: boolean;
 
     constructor(
         id: number,
         source: AudioBufferSourceNode,
+        buffer: AudioBuffer,
         poolNode: PooledAudioNode,
         pool: AudioPool,
         context: AudioContext,
+        startOffset: number,
     ) {
         this.id = id;
         this.source_ = source;
+        this.buffer_ = buffer;
         this.poolNode_ = poolNode;
         this.pool_ = pool;
         this.context_ = context;
+        this.startOffset_ = startOffset;
+        this.startedAt_ = context.currentTime;
+        this.playbackRate_ = source.playbackRate.value;
+        this.loop_ = source.loop;
+
+        this.bindOnEnded_(source);
+    }
+
+    private bindOnEnded_(source: AudioBufferSourceNode): void {
+        source.onended = () => {
+            if (!this.stopped_ && !this.loop_) {
+                this.playing_ = false;
+                this.stopped_ = true;
+                this.pool_.release(this.poolNode_);
+                this.onEnd?.();
+            }
+        };
     }
 
     stop(): void {
+        if (this.stopped_) return;
+        this.stopped_ = true;
         this.playing_ = false;
+        this.source_.onended = null;
         this.pool_.release(this.poolNode_);
     }
 
     pause(): void {
-        if (this.playing_) {
-            this.playing_ = false;
-            this.source_.playbackRate.value = 0;
+        if (!this.playing_ || this.stopped_) return;
+        this.playing_ = false;
+        const elapsed = (this.context_.currentTime - this.startedAt_) * this.playbackRate_;
+        this.pausedAt_ = this.startOffset_ + elapsed;
+        if (this.loop_ && this.buffer_.duration > 0) {
+            this.pausedAt_ = this.pausedAt_ % this.buffer_.duration;
         }
+        this.source_.onended = null;
+        try { this.source_.stop(); } catch (_) { /* already stopped */ }
+        this.source_.disconnect();
     }
 
     resume(): void {
-        if (!this.playing_) {
-            this.playing_ = true;
-            this.source_.playbackRate.value = 1;
-        }
+        if (this.playing_ || this.stopped_) return;
+        this.playing_ = true;
+
+        const source = this.context_.createBufferSource();
+        source.buffer = this.buffer_;
+        source.loop = this.loop_;
+        source.playbackRate.value = this.playbackRate_;
+        source.connect(this.poolNode_.gain);
+
+        this.source_ = source;
+        this.poolNode_.source = source;
+        this.startOffset_ = this.pausedAt_;
+        this.startedAt_ = this.context_.currentTime;
+
+        this.bindOnEnded_(source);
+        source.start(0, this.pausedAt_);
     }
 
     setVolume(volume: number): void {
@@ -54,11 +102,15 @@ class WebAudioHandle implements AudioHandle {
     }
 
     setLoop(loop: boolean): void {
+        this.loop_ = loop;
         this.source_.loop = loop;
     }
 
     setPlaybackRate(rate: number): void {
-        this.source_.playbackRate.value = rate;
+        this.playbackRate_ = rate;
+        if (this.playing_) {
+            this.source_.playbackRate.value = rate;
+        }
     }
 
     get isPlaying(): boolean {
@@ -66,16 +118,14 @@ class WebAudioHandle implements AudioHandle {
     }
 
     get currentTime(): number {
-        if (!this.playing_) return 0;
-        return this.context_.currentTime - this.poolNode_.startTime;
+        if (this.stopped_) return 0;
+        if (!this.playing_) return this.pausedAt_;
+        const elapsed = (this.context_.currentTime - this.startedAt_) * this.playbackRate_;
+        return this.startOffset_ + elapsed;
     }
 
     get duration(): number {
-        return this.source_.buffer?.duration ?? 0;
-    }
-
-    markEnded(): void {
-        this.playing_ = false;
+        return this.buffer_.duration;
     }
 }
 
@@ -93,6 +143,7 @@ export class WebAudioBackend implements PlatformAudioBackend {
     private buffers_ = new Map<number, AudioBuffer>();
     private nextBufferId_ = 0;
     private nextHandleId_ = 0;
+    private resumeHandler_: (() => void) | null = null;
 
     get mixer(): AudioMixer | null {
         return this.mixer_;
@@ -109,10 +160,12 @@ export class WebAudioBackend implements PlatformAudioBackend {
                 document.removeEventListener('touchstart', resume);
                 document.removeEventListener('mousedown', resume);
                 document.removeEventListener('keydown', resume);
+                this.resumeHandler_ = null;
             };
-            document.addEventListener('touchstart', resume, { once: true });
-            document.addEventListener('mousedown', resume, { once: true });
-            document.addEventListener('keydown', resume, { once: true });
+            document.addEventListener('touchstart', resume);
+            document.addEventListener('mousedown', resume);
+            document.addEventListener('keydown', resume);
+            this.resumeHandler_ = resume;
         }
     }
 
@@ -165,20 +218,13 @@ export class WebAudioBackend implements PlatformAudioBackend {
         const bus = this.mixer_.getBus(busName) ?? this.mixer_.sfx;
         poolNode.panner.connect(bus.node);
 
-        source.start(0, config.startOffset ?? 0);
+        const startOffset = config.startOffset ?? 0;
+        source.start(0, startOffset);
 
         const handleId = ++this.nextHandleId_;
         const handle = new WebAudioHandle(
-            handleId, source, poolNode, this.pool_, this.context_
+            handleId, source, audioBuffer, poolNode, this.pool_, this.context_, startOffset
         );
-
-        source.onended = () => {
-            if (!source.loop) {
-                handle.markEnded();
-                this.pool_!.release(poolNode);
-                handle.onEnd?.();
-            }
-        };
 
         return handle;
     }
@@ -192,6 +238,12 @@ export class WebAudioBackend implements PlatformAudioBackend {
     }
 
     dispose(): void {
+        if (this.resumeHandler_) {
+            document.removeEventListener('touchstart', this.resumeHandler_);
+            document.removeEventListener('mousedown', this.resumeHandler_);
+            document.removeEventListener('keydown', this.resumeHandler_);
+            this.resumeHandler_ = null;
+        }
         this.pool_ = null;
         this.mixer_ = null;
         this.buffers_.clear();

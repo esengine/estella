@@ -6,12 +6,19 @@ export class Audio {
     private static mixer_: AudioMixer | null = null;
     private static bufferCache_ = new Map<string, AudioBufferHandle>();
     private static bgmHandle_: AudioHandle | null = null;
+    private static bgmVolume_ = 1.0;
+    private static fadeAnimId_ = 0;
 
     static init(backend: PlatformAudioBackend, mixer: AudioMixer | null = null): void {
         this.backend_ = backend;
         this.mixer_ = mixer;
         this.bufferCache_.clear();
         this.bgmHandle_ = null;
+        this.bgmVolume_ = 1.0;
+        if (this.fadeAnimId_) {
+            cancelAnimationFrame(this.fadeAnimId_);
+            this.fadeAnimId_ = 0;
+        }
     }
 
     static async preload(url: string): Promise<void> {
@@ -43,6 +50,8 @@ export class Audio {
                         priority: config?.priority ?? 0,
                     });
                 }
+            }).catch(err => {
+                console.warn(`Failed to preload audio: ${url}`, err);
             });
             return this.createPendingHandle();
         }
@@ -61,20 +70,29 @@ export class Audio {
         crossFade?: number;
     }): void {
         const play = (buffer: AudioBufferHandle) => {
+            if (this.fadeAnimId_) {
+                cancelAnimationFrame(this.fadeAnimId_);
+                this.fadeAnimId_ = 0;
+            }
+
             if (this.bgmHandle_ && config?.crossFade) {
-                this.fadeOut(this.bgmHandle_, config.crossFade);
+                this.fadeOut(this.bgmHandle_, config.crossFade, this.bgmVolume_);
             } else if (this.bgmHandle_) {
                 this.bgmHandle_.stop();
             }
 
+            const targetVolume = config?.volume ?? 1.0;
+            this.bgmVolume_ = targetVolume;
+            const fadeInDuration = config?.fadeIn ?? config?.crossFade;
+
             this.bgmHandle_ = this.backend_.play(buffer, {
                 bus: 'music',
-                volume: config?.fadeIn ? 0 : (config?.volume ?? 1.0),
+                volume: fadeInDuration ? 0 : targetVolume,
                 loop: true,
             });
 
-            if (config?.fadeIn) {
-                this.fadeIn(this.bgmHandle_, config.fadeIn, config?.volume ?? 1.0);
+            if (fadeInDuration) {
+                this.fadeIn(this.bgmHandle_, fadeInDuration, targetVolume);
             }
         };
 
@@ -87,18 +105,26 @@ export class Audio {
                 if (buf) {
                     play(buf);
                 }
+            }).catch(err => {
+                console.warn(`Failed to preload BGM: ${url}`, err);
             });
         }
     }
 
     static stopBGM(fadeOut?: number): void {
         if (!this.bgmHandle_) return;
+        if (this.fadeAnimId_) {
+            cancelAnimationFrame(this.fadeAnimId_);
+            this.fadeAnimId_ = 0;
+        }
         if (fadeOut && fadeOut > 0) {
-            this.fadeOut(this.bgmHandle_, fadeOut);
+            const handle = this.bgmHandle_;
+            this.bgmHandle_ = null;
+            this.fadeOut(handle, fadeOut, this.bgmVolume_);
         } else {
             this.bgmHandle_.stop();
+            this.bgmHandle_ = null;
         }
-        this.bgmHandle_ = null;
     }
 
     static setMasterVolume(volume: number): void {
@@ -136,6 +162,23 @@ export class Audio {
         return this.bufferCache_.get(url);
     }
 
+    static dispose(): void {
+        if (this.fadeAnimId_) {
+            cancelAnimationFrame(this.fadeAnimId_);
+            this.fadeAnimId_ = 0;
+        }
+        if (this.bgmHandle_) {
+            this.bgmHandle_.stop();
+            this.bgmHandle_ = null;
+        }
+        for (const handle of this.bufferCache_.values()) {
+            this.backend_?.unloadBuffer(handle);
+        }
+        this.bufferCache_.clear();
+        this.backend_?.dispose();
+        this.mixer_ = null;
+    }
+
     private static fadeIn(handle: AudioHandle, duration: number, targetVolume: number): void {
         handle.setVolume(0);
         const startTime = performance.now();
@@ -144,25 +187,28 @@ export class Audio {
             const t = Math.min(elapsed / duration, 1);
             handle.setVolume(t * targetVolume);
             if (t < 1 && handle.isPlaying) {
-                requestAnimationFrame(tick);
+                this.fadeAnimId_ = requestAnimationFrame(tick);
+            } else {
+                this.fadeAnimId_ = 0;
             }
         };
-        requestAnimationFrame(tick);
+        this.fadeAnimId_ = requestAnimationFrame(tick);
     }
 
-    private static fadeOut(handle: AudioHandle, duration: number): void {
+    private static fadeOut(handle: AudioHandle, duration: number, startVolume: number): void {
         const startTime = performance.now();
         const tick = () => {
             const elapsed = (performance.now() - startTime) / 1000;
             const t = Math.min(elapsed / duration, 1);
-            handle.setVolume(1 - t);
+            handle.setVolume(startVolume * (1 - t));
             if (t < 1 && handle.isPlaying) {
-                requestAnimationFrame(tick);
+                this.fadeAnimId_ = requestAnimationFrame(tick);
             } else {
                 handle.stop();
+                this.fadeAnimId_ = 0;
             }
         };
-        requestAnimationFrame(tick);
+        this.fadeAnimId_ = requestAnimationFrame(tick);
     }
 
     private static createPendingHandle(): AudioHandle {
