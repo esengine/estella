@@ -8,7 +8,6 @@ import {
   getParentDir,
   isAbsolutePath,
 } from '../../utils/path';
-import { resolveFilePath } from '../../../../desktop/src/native-fs';
 
 describe('Path utilities', () => {
   describe('normalizePath', () => {
@@ -142,23 +141,23 @@ describe('Path utilities', () => {
     });
   });
 
-  describe('resolveFilePath (desktop native-fs)', () => {
+  describe('resolvePath (path resolution)', () => {
     it('should preserve leading slash for absolute paths', () => {
-      expect(resolveFilePath('/Users/yhh/Documents/Spaceshooter/src/main.ts'))
+      expect(resolvePath('/Users/yhh/Documents/Spaceshooter/src/main.ts'))
         .toBe('/Users/yhh/Documents/Spaceshooter/src/main.ts');
     });
 
     it('should resolve parent references in absolute paths', () => {
-      expect(resolveFilePath('/Users/yhh/Documents/../Spaceshooter/src/main.ts'))
+      expect(resolvePath('/Users/yhh/Documents/../Spaceshooter/src/main.ts'))
         .toBe('/Users/yhh/Spaceshooter/src/main.ts');
     });
 
     it('should handle relative paths without adding a leading slash', () => {
-      expect(resolveFilePath('src/main.ts')).toBe('src/main.ts');
+      expect(resolvePath('src/main.ts')).toBe('src/main.ts');
     });
 
     it('should normalize backslashes', () => {
-      expect(resolveFilePath('C:\\Users\\test\\file.ts')).toBe('C:/Users/test/file.ts');
+      expect(resolvePath('C:\\Users\\test\\file.ts')).toBe('C:/Users/test/file.ts');
     });
   });
 
