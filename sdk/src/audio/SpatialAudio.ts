@@ -27,8 +27,10 @@ export function calculateAttenuation(
 
     switch (model) {
         case AttenuationModel.Linear: {
+            const range = maxDistance - refDistance;
+            if (range <= 0) return 1.0;
             const clamped = Math.min(Math.max(d, refDistance), maxDistance);
-            return 1 - (clamped - refDistance) / (maxDistance - refDistance);
+            return 1 - (clamped - refDistance) / range;
         }
         case AttenuationModel.Inverse: {
             return refDistance / Math.max(d, refDistance);

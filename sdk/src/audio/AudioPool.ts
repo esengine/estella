@@ -12,6 +12,7 @@ const DEFAULT_INITIAL_SIZE = 16;
 export class AudioPool {
     private readonly context_: AudioContext;
     private readonly pool_: PooledAudioNode[] = [];
+    private activeCount_ = 0;
 
     constructor(context: AudioContext, initialSize: number = DEFAULT_INITIAL_SIZE) {
         this.context_ = context;
@@ -47,10 +48,12 @@ export class AudioPool {
         freeNode.startTime = this.context_.currentTime;
         freeNode.gain.gain.value = 1.0;
         freeNode.panner.pan.value = 0;
+        this.activeCount_++;
         return freeNode;
     }
 
     release(node: PooledAudioNode): void {
+        if (!node.inUse) return;
         if (node.source) {
             try { node.source.stop(); } catch (_) { /* already stopped */ }
             node.source.disconnect();
@@ -58,10 +61,11 @@ export class AudioPool {
         }
         node.inUse = false;
         node.priority = 0;
+        this.activeCount_--;
     }
 
     get activeCount(): number {
-        return this.pool_.filter(n => n.inUse).length;
+        return this.activeCount_;
     }
 
     get capacity(): number {

@@ -47,20 +47,20 @@ describe('AudioPool', () => {
             const pool = new AudioPool(context, 4);
             const node = pool.acquire();
             expect(node).not.toBeNull();
-            expect(node!.inUse).toBe(true);
+            expect(node.inUse).toBe(true);
             expect(pool.activeCount).toBe(1);
         });
 
         it('should reset gain and pan on acquire', () => {
             const pool = new AudioPool(context, 4);
-            const node = pool.acquire()!;
+            const node = pool.acquire();
             expect(node.gain.gain.value).toBe(1.0);
             expect(node.panner.pan.value).toBe(0);
         });
 
         it('should set priority and startTime', () => {
             const pool = new AudioPool(context, 4);
-            const node = pool.acquire(5)!;
+            const node = pool.acquire(5);
             expect(node.priority).toBe(5);
             expect(node.startTime).toBe(0);
         });
@@ -73,7 +73,7 @@ describe('AudioPool', () => {
 
             const node = pool.acquire();
             expect(node).not.toBeNull();
-            expect(node!.inUse).toBe(true);
+            expect(node.inUse).toBe(true);
             expect(pool.activeCount).toBe(3);
             expect(pool.capacity).toBe(3);
         });
@@ -84,7 +84,7 @@ describe('AudioPool', () => {
             for (let i = 0; i < 100; i++) {
                 const n = pool.acquire();
                 expect(n).not.toBeNull();
-                nodes.push(n!);
+                nodes.push(n);
             }
             expect(pool.activeCount).toBe(100);
             expect(pool.capacity).toBe(100);
@@ -92,11 +92,11 @@ describe('AudioPool', () => {
 
         it('should reuse released nodes before expanding', () => {
             const pool = new AudioPool(context, 2);
-            const n1 = pool.acquire()!;
-            const n2 = pool.acquire()!;
+            const n1 = pool.acquire();
+            pool.acquire();
             pool.release(n1);
 
-            const n3 = pool.acquire()!;
+            pool.acquire();
             expect(pool.capacity).toBe(2);
             expect(pool.activeCount).toBe(2);
         });
@@ -105,7 +105,7 @@ describe('AudioPool', () => {
     describe('release', () => {
         it('should mark node as free', () => {
             const pool = new AudioPool(context, 4);
-            const node = pool.acquire()!;
+            const node = pool.acquire();
             expect(pool.activeCount).toBe(1);
             pool.release(node);
             expect(pool.activeCount).toBe(0);
@@ -114,7 +114,7 @@ describe('AudioPool', () => {
 
         it('should stop and disconnect source', () => {
             const pool = new AudioPool(context, 4);
-            const node = pool.acquire()!;
+            const node = pool.acquire();
             const mockSource = {
                 stop: vi.fn(),
                 disconnect: vi.fn(),
@@ -129,13 +129,25 @@ describe('AudioPool', () => {
 
         it('should handle already stopped source gracefully', () => {
             const pool = new AudioPool(context, 4);
-            const node = pool.acquire()!;
+            const node = pool.acquire();
             node.source = {
                 stop: vi.fn().mockImplementation(() => { throw new Error('already stopped'); }),
                 disconnect: vi.fn(),
             } as unknown as AudioBufferSourceNode;
 
             expect(() => pool.release(node)).not.toThrow();
+        });
+
+        it('should be idempotent on double release', () => {
+            const pool = new AudioPool(context, 4);
+            const node = pool.acquire();
+            expect(pool.activeCount).toBe(1);
+
+            pool.release(node);
+            expect(pool.activeCount).toBe(0);
+
+            pool.release(node);
+            expect(pool.activeCount).toBe(0);
         });
     });
 
@@ -144,8 +156,8 @@ describe('AudioPool', () => {
             const pool = new AudioPool(context, 4);
             expect(pool.activeCount).toBe(0);
 
-            const n1 = pool.acquire()!;
-            const n2 = pool.acquire()!;
+            const n1 = pool.acquire();
+            const n2 = pool.acquire();
             expect(pool.activeCount).toBe(2);
 
             pool.release(n1);

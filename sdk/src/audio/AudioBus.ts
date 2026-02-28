@@ -17,7 +17,7 @@ export class AudioBus {
     constructor(context: AudioContext, config: AudioBusConfig) {
         this.name_ = config.name;
         this.gainNode_ = context.createGain();
-        this.volume_ = config.volume ?? 1.0;
+        this.volume_ = Math.max(0, Math.min(1, config.volume ?? 1.0));
         this.muted_ = config.muted ?? false;
         this.gainNode_.gain.value = this.muted_ ? 0 : this.volume_;
     }

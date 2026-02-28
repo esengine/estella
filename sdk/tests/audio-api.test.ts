@@ -181,4 +181,25 @@ describe('Audio', () => {
             expect(mixer.getBus).toHaveBeenCalledWith('sfx');
         });
     });
+
+    describe('dispose', () => {
+        it('should stop BGM and dispose backend', async () => {
+            await Audio.preload('bgm.mp3');
+            const mockHandle = createMockHandle();
+            (backend.play as ReturnType<typeof vi.fn>).mockReturnValue(mockHandle);
+            Audio.playBGM('bgm.mp3');
+
+            Audio.dispose();
+
+            expect(mockHandle.stop).toHaveBeenCalled();
+            expect(backend.unloadBuffer).toHaveBeenCalled();
+            expect(backend.dispose).toHaveBeenCalled();
+        });
+
+        it('should clear buffer cache', async () => {
+            await Audio.preload('sfx.mp3');
+            Audio.dispose();
+            expect(Audio.getBufferHandle('sfx.mp3')).toBeUndefined();
+        });
+    });
 });
