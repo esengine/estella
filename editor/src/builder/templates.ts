@@ -3,6 +3,8 @@
  * @brief   Build output templates for platform emitters
  */
 
+import { getCustomExtensions, getAssetTypeEntry } from 'esengine';
+
 // =============================================================================
 // Playable HTML Template
 // =============================================================================
@@ -37,31 +39,6 @@ var __PA__={{ASSETS_MAP}};
 var __SCENE__={{SCENE_DATA}};
 var __MANIFEST__={{MANIFEST}};
 
-function loadImagePixels(dataUrl){
-  return new Promise(function(resolve,reject){
-    var img=new Image();
-    img.onload=function(){
-      var cv=document.createElement('canvas');
-      cv.width=img.width;cv.height=img.height;
-      var ctx=cv.getContext('2d');
-      ctx.drawImage(img,0,0);
-      var id=ctx.getImageData(0,0,img.width,img.height);
-      resolve({width:img.width,height:img.height,pixels:new Uint8Array(id.data.buffer)});
-    };
-    img.onerror=reject;
-    img.src=dataUrl;
-  });
-}
-
-function decodeText(dataUrl){return atob(dataUrl.split(',')[1])}
-
-function decodeBinary(dataUrl){
-  var b=atob(dataUrl.split(',')[1]);
-  var a=new Uint8Array(b.length);
-  for(var i=0;i<b.length;i++)a[i]=b.charCodeAt(i);
-  return a;
-}
-
 {{CTA_SCRIPT}}
 
 (async function(){
@@ -73,64 +50,20 @@ function decodeBinary(dataUrl){
 
   var Module=await ESEngineModule({canvas:c,print:function(t){console.log(t)},printErr:function(t){console.error(t)}});
   var es=window.esengine;
-  if(!es||!es.createWebApp){console.error('esengine not found');return}
+  if(!es||!es.initPlayableRuntime){console.error('esengine not found');return}
 
   {{RUNTIME_CONFIG}}
   var app=es.createWebApp(Module);
   {{RUNTIME_APP_CONFIG}}
-  if(typeof __PA__!=='undefined')es.registerEmbeddedAssets(app,__PA__);
-  es.flushPendingSystems(app);
-
-  var spineModule=null;
-  if(typeof ESSpineModule!=='undefined'){
-    try{
-      spineModule=await ESSpineModule({
-        instantiateWasm:function(imports,cb){
-          var b=atob(__SPINE_WASM_B64__);
-          var a=new Uint8Array(b.length);
-          for(var i=0;i<b.length;i++)a[i]=b.charCodeAt(i);
-          WebAssembly.instantiate(a,imports).then(function(r){cb(r.instance,r.module)});
-          return {};
-        }
-      });
-    }catch(e){console.warn('Spine module not available:',e)}
-  }
-
-  var physicsModule=null;
-  if(typeof ESPhysicsModule!=='undefined'){
-    try{
-      physicsModule=await ESPhysicsModule({
-        instantiateWasm:function(imports,cb){
-          var b=atob(__PHYSICS_WASM_B64__);
-          var a=new Uint8Array(b.length);
-          for(var i=0;i<b.length;i++)a[i]=b.charCodeAt(i);
-          WebAssembly.instantiate(a,imports).then(function(r){cb(r.instance,r.module)});
-          return {};
-        }
-      });
-    }catch(e){console.warn('Physics module not available:',e)}
-  }
-
-  var provider={
-    loadPixels:function(ref){var d=__PA__[ref];if(!d)throw new Error('Asset not found: '+ref);return loadImagePixels(d)},
-    readText:function(ref){var d=__PA__[ref];if(!d)throw new Error('Asset not found: '+ref);return decodeText(d)},
-    readBinary:function(ref){var d=__PA__[ref];if(!d)throw new Error('Asset not found: '+ref);return decodeBinary(d)},
-    resolvePath:function(ref){return ref}
-  };
-
-  var sceneOpts={app:app,module:Module,provider:provider,spineModule:spineModule,physicsModule:physicsModule,physicsConfig:{{PHYSICS_CONFIG}},manifest:__MANIFEST__};
-  var sceneName='{{SCENE_NAME}}';
-  var sceneConfig=es.createRuntimeSceneConfig(sceneName,__SCENE__,sceneOpts);
-  var mgr=app.getResource(es.SceneManager);
-  mgr.register(sceneConfig);
-  mgr.setInitial(sceneName);
-  await mgr.load(sceneName);
-
-  var screenAspect=c.width/c.height;
-  es.updateCameraAspectRatio(app.world,screenAspect);
 
   {{CTA_SHOW}}
-  app.run();
+  await es.initPlayableRuntime({
+    app:app,module:Module,canvas:c,
+    assets:__PA__,sceneData:__SCENE__,sceneName:'{{SCENE_NAME}}',
+    spineWasmBase64:typeof __SPINE_WASM_B64__!=='undefined'?__SPINE_WASM_B64__:undefined,
+    physicsWasmBase64:typeof __PHYSICS_WASM_B64__!=='undefined'?__PHYSICS_WASM_B64__:undefined,
+    physicsConfig:{{PHYSICS_CONFIG}},manifest:__MANIFEST__
+  });
   }catch(e){console.error('Playable init error:',e)}
 })();
 </script>
@@ -304,9 +237,17 @@ ${physicsInit}
             pathIndex[g.assets[uuid].path] = g.assets[uuid];
         }
     }
+    var _jsonExts = ${JSON.stringify(getCustomExtensions().filter(e => getAssetTypeEntry(e)?.contentType === 'json'))};
+    function toBuildPath(p) {
+        for (var i = 0; i < _jsonExts.length; i++) {
+            if (p.endsWith(_jsonExts[i])) return p.substring(0, p.length - _jsonExts[i].length) + '.json';
+        }
+        return p;
+    }
     function resolvePath(ref) {
-        var entry = assetIndex[ref] || pathIndex[ref];
-        return entry ? entry.path : ref;
+        var resolved = toBuildPath(ref);
+        var entry = assetIndex[ref] || assetIndex[resolved] || pathIndex[resolved] || pathIndex[ref];
+        return entry ? entry.path : resolved;
     }
 
     var canvas = wx.createCanvas();

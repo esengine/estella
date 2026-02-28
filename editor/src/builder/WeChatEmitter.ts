@@ -14,7 +14,7 @@ import { resolveShaderPath } from '../utils/shader';
 import { initializeEsbuild, createBuildVirtualFsPlugin, generateAddressableManifest, convertPrefabWithResolvedRefs } from './ArtifactBuilder';
 import { generateWeChatGameJs } from './templates';
 import type { NativeFS } from '../types/NativeFS';
-import { getWeChatPackOptions, getAssetTypeEntry } from 'esengine';
+import { getWeChatPackOptions, getAssetTypeEntry, toBuildPath } from 'esengine';
 
 // =============================================================================
 // WeChatEmitter
@@ -91,7 +91,7 @@ export class WeChatEmitter implements PlatformEmitter {
             // 7. Write compiled materials
             progress.setCurrentTask('Writing compiled materials...', 50);
             for (const mat of artifact.compiledMaterials) {
-                const matOutputPath = mat.relativePath.replace(/\.esmaterial$/, '.json');
+                const matOutputPath = toBuildPath(mat.relativePath);
                 const destPath = joinPath(outputDir, matOutputPath);
                 const destDir = destPath.substring(0, destPath.lastIndexOf('/'));
                 await fs.createDirectory(destDir);
@@ -361,7 +361,8 @@ export class WeChatEmitter implements PlatformEmitter {
             if (entry?.editorType === 'shader') continue;
 
             const srcPath = joinPath(projectDir, relativePath);
-            const destPath = joinPath(outputDir, relativePath);
+            const outputPath = toBuildPath(relativePath);
+            const destPath = joinPath(outputDir, outputPath);
             const destDir = destPath.substring(0, destPath.lastIndexOf('/'));
             await fs.createDirectory(destDir);
 

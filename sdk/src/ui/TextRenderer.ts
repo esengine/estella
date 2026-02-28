@@ -141,6 +141,7 @@ export class TextRenderer {
                 case TextVerticalAlign.Bottom: startY = height - textBlockHeight - padding; break;
                 default: startY = padding;
             }
+            if (startY < 0) startY = 0;
         } else {
             startY = padding;
         }

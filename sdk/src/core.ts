@@ -333,6 +333,7 @@ export {
     getWeChatPackOptions,
     getAssetMimeType,
     isCustomExtension,
+    toBuildPath,
 } from './assetTypes';
 
 // =============================================================================
@@ -620,3 +621,12 @@ export {
 // =============================================================================
 
 export { setWasmErrorHandler } from './wasmError';
+
+// =============================================================================
+// Playable Runtime
+// =============================================================================
+
+export {
+    initPlayableRuntime,
+    type PlayableRuntimeConfig,
+} from './playableRuntime';

@@ -74,11 +74,12 @@ set(ES_EMSCRIPTEN_WXGAME_MAIN_MODULE_FLAGS
     -sALLOW_MEMORY_GROWTH=1
     -sALLOW_TABLE_GROWTH=1
     -sNO_EXIT_RUNTIME=1
-    -sENVIRONMENT=web,node
+    -sENVIRONMENT=web
     -sEXPORT_ES6=0
     -sMODULARIZE=1
     -sFORCE_FILESYSTEM=1
     -sDYNAMIC_EXECUTION=0
+    "--extern-pre-js=${CMAKE_SOURCE_DIR}/src/esengine/platform/web/wxgame-pre.js"
     "-sEXPORT_NAME='ESEngineModule'"
     "-sEXPORTED_FUNCTIONS=['_malloc','_free']"
     "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32','GL','FS','loadDynamicLibrary']"
@@ -129,11 +130,12 @@ set(ES_EMSCRIPTEN_WXGAME_SDK_FLAGS
     -sFULL_ES3=1
     -sALLOW_MEMORY_GROWTH=1
     -sNO_EXIT_RUNTIME=1
-    -sENVIRONMENT=web,node
+    -sENVIRONMENT=web
     -sEXPORT_ES6=0
     -sMODULARIZE=1
     -sFORCE_FILESYSTEM=1
     -sDYNAMIC_EXECUTION=0
+    "--extern-pre-js=${CMAKE_SOURCE_DIR}/src/esengine/platform/web/wxgame-pre.js"
     "-sEXPORT_NAME='ESEngineModule'"
     "-sEXPORTED_FUNCTIONS=['_malloc','_free']"
     "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32','GL','FS']"
