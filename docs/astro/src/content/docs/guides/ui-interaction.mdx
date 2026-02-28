@@ -43,9 +43,54 @@ addSystem(defineSystem(
 ));
 ```
 
-**Event types:** `click`, `press`, `release`, `hover_enter`, `hover_exit`, `focus`, `blur`, `submit`, `change`, `drag_start`, `drag_move`, `drag_end`, `scroll`
+### Event Types
 
-Events bubble up the entity hierarchy. If a parent has `Interactable` with `blockRaycast: true`, bubbling stops there.
+| Type | Description | Bubbles | Triggered By |
+|------|-------------|---------|-------------|
+| `click` | Pointer released on same entity where pressed | Yes | UIInteraction |
+| `press` | Pointer button pressed down | Yes | UIInteraction |
+| `release` | Pointer button released | Yes | UIInteraction |
+| `hover_enter` | Pointer entered entity bounds | No | UIInteraction |
+| `hover_exit` | Pointer left entity bounds | No | UIInteraction |
+| `focus` | Element received keyboard focus (click or Tab) | No | Focusable |
+| `blur` | Element lost keyboard focus | No | Focusable |
+| `submit` | Enter key pressed on single-line TextInput | No | TextInput |
+| `change` | Value changed on Slider, Toggle, TextInput, or Dropdown | No | Widget-specific |
+| `drag_start` | Pointer moved beyond drag threshold | No | Draggable |
+| `drag_move` | Pointer moved while dragging | No | Draggable |
+| `drag_end` | Pointer released after drag | No | Draggable |
+| `scroll` | ScrollView content scrolled | No | ScrollView |
+
+### UIEvent Structure
+
+Each event object contains:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `entity` | Entity | The entity that received the event |
+| `type` | string | Event type (see table above) |
+| `target` | Entity | Original entity that triggered the event |
+
+### Querying Events
+
+```typescript
+// Query all events of a specific type
+for (const e of events.query('click')) {
+    console.log('Clicked:', e.entity);
+}
+
+// Check if a specific entity has a specific event
+if (events.hasEvent(buttonEntity, 'click')) {
+    handleButton();
+}
+
+// Drain all events (returns and clears the queue)
+const all = events.drain();
+```
+
+### Event Bubbling
+
+`press`, `release`, and `click` events bubble up the entity hierarchy. If a parent has `Interactable` with `blockRaycast: true`, bubbling stops there. `hover_enter` and `hover_exit` do **not** bubble.
 
 ## Focusable
 
@@ -66,6 +111,31 @@ Enables drag-to-move on a UI element.
 | `dragThreshold` | number | `5` | Pixels before drag starts |
 | `lockX` | boolean | `false` | Lock horizontal movement |
 | `lockY` | boolean | `false` | Lock vertical movement |
+
+When dragging is active, the engine adds a `DragState` component to the entity:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `isDragging` | boolean | Currently dragging |
+| `startWorldPos` | `{x, y}` | Entity position when drag started |
+| `currentWorldPos` | `{x, y}` | Current world position |
+| `deltaWorld` | `{x, y}` | Movement this frame |
+| `totalDeltaWorld` | `{x, y}` | Total movement since drag start |
+
+## Processing Pipeline
+
+UI interaction systems run in a fixed order each frame:
+
+| Schedule | System | Purpose |
+|----------|--------|---------|
+| Last (prev frame) | InputPlugin | Clears one-frame input state |
+| PreUpdate | UIInteractionSystem | Hit test, hover, press, release, click |
+| PreUpdate | DragPlugin | Drag state tracking, drag events |
+| Update | ButtonSystem, TogglePlugin, SliderPlugin, etc. | Widget state updates |
+
+<Aside type="tip">
+  `justPressed` and `justReleased` on UIInteraction are only `true` for one frame. Read them in PreUpdate or Update — by PostUpdate they are already cleared.
+</Aside>
 
 ## Next Steps
 

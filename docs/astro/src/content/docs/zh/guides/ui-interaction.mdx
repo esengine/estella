@@ -43,9 +43,54 @@ addSystem(defineSystem(
 ));
 ```
 
-**事件类型：** `click`、`press`、`release`、`hover_enter`、`hover_exit`、`focus`、`blur`、`submit`、`change`、`drag_start`、`drag_move`、`drag_end`、`scroll`
+### 事件类型
 
-事件沿实体层级向上冒泡。如果父级的 `Interactable` 设置了 `blockRaycast: true`，冒泡在此停止。
+| 类型 | 说明 | 冒泡 | 触发者 |
+|------|------|------|--------|
+| `click` | 指针在同一实体上按下后释放 | 是 | UIInteraction |
+| `press` | 指针按钮按下 | 是 | UIInteraction |
+| `release` | 指针按钮释放 | 是 | UIInteraction |
+| `hover_enter` | 指针进入实体边界 | 否 | UIInteraction |
+| `hover_exit` | 指针离开实体边界 | 否 | UIInteraction |
+| `focus` | 元素获得键盘焦点（点击或 Tab） | 否 | Focusable |
+| `blur` | 元素失去键盘焦点 | 否 | Focusable |
+| `submit` | 单行 TextInput 中按下 Enter | 否 | TextInput |
+| `change` | Slider、Toggle、TextInput 或 Dropdown 的值改变 | 否 | 各控件 |
+| `drag_start` | 指针移动超过拖拽阈值 | 否 | Draggable |
+| `drag_move` | 拖拽过程中指针移动 | 否 | Draggable |
+| `drag_end` | 拖拽后释放指针 | 否 | Draggable |
+| `scroll` | ScrollView 内容滚动 | 否 | ScrollView |
+
+### UIEvent 结构
+
+每个事件对象包含：
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `entity` | Entity | 接收事件的实体 |
+| `type` | string | 事件类型（见上表） |
+| `target` | Entity | 触发事件的原始实体 |
+
+### 查询事件
+
+```typescript
+// 查询特定类型的所有事件
+for (const e of events.query('click')) {
+    console.log('点击了：', e.entity);
+}
+
+// 检查特定实体是否有特定事件
+if (events.hasEvent(buttonEntity, 'click')) {
+    handleButton();
+}
+
+// 消费所有事件（返回并清空队列）
+const all = events.drain();
+```
+
+### 事件冒泡
+
+`press`、`release` 和 `click` 事件沿实体层级向上冒泡。如果父级的 `Interactable` 设置了 `blockRaycast: true`，冒泡在此停止。`hover_enter` 和 `hover_exit` **不会**冒泡。
 
 ## Focusable
 
@@ -66,6 +111,31 @@ addSystem(defineSystem(
 | `dragThreshold` | number | `5` | 开始拖拽前的像素移动距离 |
 | `lockX` | boolean | `false` | 锁定水平移动 |
 | `lockY` | boolean | `false` | 锁定垂直移动 |
+
+拖拽激活时，引擎会自动为实体添加 `DragState` 组件：
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `isDragging` | boolean | 正在拖拽 |
+| `startWorldPos` | `{x, y}` | 拖拽开始时的实体位置 |
+| `currentWorldPos` | `{x, y}` | 当前世界位置 |
+| `deltaWorld` | `{x, y}` | 本帧移动量 |
+| `totalDeltaWorld` | `{x, y}` | 从拖拽开始的总移动量 |
+
+## 处理管线
+
+UI 交互系统每帧按固定顺序执行：
+
+| 调度阶段 | 系统 | 作用 |
+|----------|------|------|
+| Last（上一帧） | InputPlugin | 清除单帧输入状态 |
+| PreUpdate | UIInteractionSystem | 命中测试、悬停、按下、释放、点击 |
+| PreUpdate | DragPlugin | 拖拽状态追踪、拖拽事件 |
+| Update | ButtonSystem、TogglePlugin、SliderPlugin 等 | 控件状态更新 |
+
+<Aside type="tip">
+  UIInteraction 上的 `justPressed` 和 `justReleased` 仅在一帧内为 `true`。请在 PreUpdate 或 Update 中读取 — 到 PostUpdate 时已被清除。
+</Aside>
 
 ## 下一步
 

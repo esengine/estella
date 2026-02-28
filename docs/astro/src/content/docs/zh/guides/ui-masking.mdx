@@ -7,29 +7,165 @@ import { Aside } from '@astrojs/starlight/components';
 
 ## UIMask
 
-将子实体裁剪到父级 `UIRect` 边界内。
+将所有**子**实体裁剪到父级 `UIRect` 边界内。拥有 `UIMask` 的实体本身不会被裁剪 — 只有其后代会被裁剪。
+
+**前置组件：** 被遮罩的实体必须有 `Transform` 和 `UIRect`。
+
+### 属性
 
 | 属性 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
 | `enabled` | boolean | `true` | 是否启用裁剪 |
-| `mode` | MaskMode | `Scissor` | `Scissor` (0)、`Stencil` (1) |
+| `mode` | MaskMode | `Scissor` | 遮罩技术（见下文） |
 
-嵌套 `UIMask` 实体会裁剪到所有父级遮罩的交集区域。
+### MaskMode
+
+| 模式 | 值 | 说明 |
+|------|-----|------|
+| `Scissor` | 0 | GPU 裁剪测试 — 快速，仅支持轴对齐矩形 |
+| `Stencil` | 1 | 模板缓冲 — 支持任意形状和嵌套 |
+
+**如何选择：**
+
+- **Scissor** — 适用于简单矩形容器，如滚动视图、面板、卡片列表。速度快但只支持轴对齐矩形。
+- **Stencil** — 需要非矩形遮罩（圆形头像、自定义形状）或需要嵌套遮罩时使用（支持最多 255 层嵌套）。开销稍大。
+
+### 在编辑器中设置
+
+1. 选择或创建一个带 `UIRect` 的 UI 实体（UIRect 定义裁剪范围）
+2. 在 Inspector 中添加 `UIMask` 组件
+3. 选择 `Scissor` 或 `Stencil` 模式
+4. 该实体下添加的所有子实体都会被裁剪到其边界内
+
+### 在代码中设置
+
+```typescript
+import { UIMask, MaskMode } from 'esengine';
+
+// 创建遮罩容器
+const panel = world.spawn();
+world.insert(panel, UIRect, {
+    anchorMin: { x: 0.1, y: 0.1 },
+    anchorMax: { x: 0.9, y: 0.9 },
+});
+world.insert(panel, UIMask, { enabled: true, mode: MaskMode.Scissor });
+
+// 子内容 — 自动被裁剪
+const content = world.spawn();
+world.setParent(content, panel);
+world.insert(content, Sprite, { texture: myTexture });
+```
+
+### 嵌套遮罩
+
+Scissor 遮罩与父级 Scissor 做交集 — 子级 Scissor 遮罩产生两者的重叠矩形。
+
+Stencil 遮罩支持真正的嵌套：每一层获得独立的模板引用值，子实体根据父级模板进行测试。最多支持 255 层嵌套。
+
+```
+Root (UIMask Stencil)
+  ├── Header (裁剪到 Root)
+  └── Body (UIMask Stencil)    ← 嵌套遮罩
+      ├── Item 1 (裁剪到 Body ∩ Root)
+      └── Item 2 (裁剪到 Body ∩ Root)
+```
 
 <Aside type="caution">
-  `UIMask` 只裁剪**子**实体——拥有 UIMask 的实体本身不会被裁剪。
+  同一层级中混用 Scissor 和 Stencil 模式是允许的 — 它们使用独立的 GPU 特性，互不干扰。
 </Aside>
+
+---
 
 ## SafeArea
 
-适配设备安全区域（刘海、圆角）。适用于移动端和微信小游戏。
+自动适配设备安全区域（刘海、圆角、状态栏）。该组件通过调整 `UIRect.offsetMin` 和 `UIRect.offsetMax` 来将元素从不安全边缘收缩。
+
+**前置组件：** 实体必须有 `UIRect`。
+
+### 属性
 
 | 属性 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| `applyTop` | boolean | `true` | 应用到顶部 |
-| `applyBottom` | boolean | `true` | 应用到底部 |
-| `applyLeft` | boolean | `true` | 应用到左侧 |
-| `applyRight` | boolean | `true` | 应用到右侧 |
+| `applyTop` | boolean | `true` | 从顶部边缘收缩（状态栏、刘海） |
+| `applyBottom` | boolean | `true` | 从底部边缘收缩（Home 指示条） |
+| `applyLeft` | boolean | `true` | 从左侧边缘收缩（横屏刘海） |
+| `applyRight` | boolean | `true` | 从右侧边缘收缩（横屏刘海） |
+
+### 工作原理
+
+1. `SafeAreaPlugin` 在启动时和窗口大小变化时读取设备安全区域边距
+2. 边距根据画布宽高比从屏幕像素缩放到世界单位
+3. 每帧（PreUpdate），插件将缩放后的边距应用到每个带 `SafeArea` 的实体的 `UIRect.offsetMin` / `UIRect.offsetMax`
+
+### 典型用法
+
+创建全屏容器并添加 `SafeArea`，将所有 UI 内容放在其中：
+
+```
+Canvas (全屏)
+  └── SafeArea 容器 (UIRect: 锚点 0,0 → 1,1)  ← 在这里添加 SafeArea
+      ├── HUD
+      ├── 分数
+      └── 控制按钮
+```
+
+**在编辑器中：** 在根 UI 面板上添加 `SafeArea`。将锚点设为拉伸（0,0 → 1,1）。所有子元素将在安全区域内布局。
+
+**在代码中：**
+
+```typescript
+import { SafeArea } from 'esengine';
+
+const safeContainer = world.spawn();
+world.insert(safeContainer, UIRect, {
+    anchorMin: { x: 0, y: 0 },
+    anchorMax: { x: 1, y: 1 },
+});
+world.insert(safeContainer, SafeArea, {
+    applyTop: true,
+    applyBottom: true,
+    applyLeft: true,
+    applyRight: true,
+});
+```
+
+### 选择性应用边缘
+
+你可能只需要部分边缘的安全区域。例如，底部导航栏只需要底部安全区：
+
+```typescript
+world.insert(navBar, SafeArea, {
+    applyTop: false,
+    applyBottom: true,
+    applyLeft: true,
+    applyRight: true,
+});
+```
+
+### 平台支持
+
+| 平台 | 边距获取方式 |
+|------|------------|
+| **Web** | CSS `env(safe-area-inset-*)` 通过计算样式变量 `--sat`、`--sab`、`--sal`、`--sar` |
+| **微信小游戏** | `wx.getSystemInfoSync()` 读取 `safeArea` 字段，窗口大小变化时自动更新 |
+| **桌面端** | 返回零边距（无安全区域问题） |
+
+<Aside type="tip">
+  对于 Web 平台，确保 HTML 中有 `<meta name="viewport" content="viewport-fit=cover">`，这样浏览器才会暴露安全区域边距。否则所有边距都为零。
+</Aside>
+
+### 插件注册
+
+`uiMaskPlugin` 和 `safeAreaPlugin` 在使用 `createWebApp()` 时**自动注册**。手动设置：
+
+```typescript
+import { uiMaskPlugin, safeAreaPlugin } from 'esengine';
+
+const app = App.new()
+    .addPlugin(uiMaskPlugin)
+    .addPlugin(safeAreaPlugin)
+    .run();
+```
 
 ## 下一步
 

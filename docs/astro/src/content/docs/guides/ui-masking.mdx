@@ -7,29 +7,165 @@ import { Aside } from '@astrojs/starlight/components';
 
 ## UIMask
 
-Clips child entities to the parent's `UIRect` bounds.
+Clips all **child** entities to the parent's `UIRect` bounds. The entity with `UIMask` itself is not clipped — only its descendants.
+
+**Required components:** The masked entity must have `Transform` and `UIRect`.
+
+### Properties
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
 | `enabled` | boolean | `true` | Whether clipping is active |
-| `mode` | MaskMode | `Scissor` | `Scissor` (0), `Stencil` (1) |
+| `mode` | MaskMode | `Scissor` | Masking technique (see below) |
 
-Nested `UIMask` entities clip to the intersection of all parent masks.
+### MaskMode
+
+| Mode | Value | Description |
+|------|-------|-------------|
+| `Scissor` | 0 | GPU scissor test — fast, axis-aligned rectangles only |
+| `Stencil` | 1 | Stencil buffer — supports arbitrary shapes and nesting |
+
+**When to use which:**
+
+- **Scissor** — Use for simple rectangular containers like scroll views, panels, and card lists. Faster but limited to axis-aligned rectangles.
+- **Stencil** — Use when you need non-rectangular masks (circular avatars, custom shapes) or when nesting masks inside masks (supports up to 255 levels). Slightly more expensive.
+
+### Setup in Editor
+
+1. Select or create a UI entity with `UIRect` (this defines the clipping bounds)
+2. Add the `UIMask` component in the Inspector
+3. Choose `Scissor` or `Stencil` mode
+4. Any child entities added under this entity will be clipped to its bounds
+
+### Setup in Code
+
+```typescript
+import { UIMask, MaskMode } from 'esengine';
+
+// Create a mask container
+const panel = world.spawn();
+world.insert(panel, UIRect, {
+    anchorMin: { x: 0.1, y: 0.1 },
+    anchorMax: { x: 0.9, y: 0.9 },
+});
+world.insert(panel, UIMask, { enabled: true, mode: MaskMode.Scissor });
+
+// Child content — automatically clipped
+const content = world.spawn();
+world.setParent(content, panel);
+world.insert(content, Sprite, { texture: myTexture });
+```
+
+### Nested Masks
+
+Scissor masks intersect with parent scissors — a child scissor mask produces the overlapping rectangle of both.
+
+Stencil masks support true nesting: each level gets its own stencil ref value, and children are tested against their parent's stencil. Up to 255 nesting levels are supported.
+
+```
+Root (UIMask Stencil)
+  ├── Header (clipped to Root)
+  └── Body (UIMask Stencil)    ← nested mask
+      ├── Item 1 (clipped to Body ∩ Root)
+      └── Item 2 (clipped to Body ∩ Root)
+```
 
 <Aside type="caution">
-  `UIMask` only clips **child** entities — the entity with UIMask itself is not clipped.
+  Mixing Scissor and Stencil modes in the same hierarchy is allowed — they use independent GPU features and don't interfere with each other.
 </Aside>
+
+---
 
 ## SafeArea
 
-Adapts layout to device safe areas (notches, rounded corners). Useful for mobile and WeChat MiniGame.
+Automatically adapts a UI element's layout to device safe areas (notches, rounded corners, status bars). The component adjusts `UIRect.offsetMin` and `UIRect.offsetMax` to shrink the element away from unsafe edges.
+
+**Required components:** The entity must have `UIRect`.
+
+### Properties
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `applyTop` | boolean | `true` | Apply to top edge |
-| `applyBottom` | boolean | `true` | Apply to bottom edge |
-| `applyLeft` | boolean | `true` | Apply to left edge |
-| `applyRight` | boolean | `true` | Apply to right edge |
+| `applyTop` | boolean | `true` | Shrink from top edge (status bar, notch) |
+| `applyBottom` | boolean | `true` | Shrink from bottom edge (home indicator) |
+| `applyLeft` | boolean | `true` | Shrink from left edge (landscape notch) |
+| `applyRight` | boolean | `true` | Shrink from right edge (landscape notch) |
+
+### How It Works
+
+1. The `SafeAreaPlugin` reads device insets at startup and on window resize
+2. Insets are scaled from screen pixels to world units based on canvas aspect ratio
+3. Each frame (PreUpdate), the plugin applies the scaled insets to `UIRect.offsetMin` / `UIRect.offsetMax` for each entity with `SafeArea`
+
+### Typical Usage
+
+Create a full-screen container with `SafeArea` and place all UI content inside it:
+
+```
+Canvas (full screen)
+  └── SafeArea Container (UIRect: anchors 0,0 → 1,1)  ← add SafeArea here
+      ├── HUD
+      ├── Score
+      └── Controls
+```
+
+**In the editor:** Add `SafeArea` to your root UI panel. Set anchors to stretch (0,0 → 1,1). All children will be laid out within the safe area.
+
+**In code:**
+
+```typescript
+import { SafeArea } from 'esengine';
+
+const safeContainer = world.spawn();
+world.insert(safeContainer, UIRect, {
+    anchorMin: { x: 0, y: 0 },
+    anchorMax: { x: 1, y: 1 },
+});
+world.insert(safeContainer, SafeArea, {
+    applyTop: true,
+    applyBottom: true,
+    applyLeft: true,
+    applyRight: true,
+});
+```
+
+### Selective Edges
+
+You may want SafeArea on some edges but not others. For example, a bottom navigation bar only needs the bottom safe area:
+
+```typescript
+world.insert(navBar, SafeArea, {
+    applyTop: false,
+    applyBottom: true,
+    applyLeft: true,
+    applyRight: true,
+});
+```
+
+### Platform Support
+
+| Platform | How Insets are Detected |
+|----------|----------------------|
+| **Web** | CSS `env(safe-area-inset-*)` via computed style variables `--sat`, `--sab`, `--sal`, `--sar` |
+| **WeChat MiniGame** | `wx.getSystemInfoSync()` — reads `safeArea` field, auto-updates on window resize |
+| **Desktop** | Returns zero insets (no safe area concerns) |
+
+<Aside type="tip">
+  For web, ensure your HTML has `<meta name="viewport" content="viewport-fit=cover">` so the browser exposes safe area insets. Without this, all insets will be zero.
+</Aside>
+
+### Plugin Registration
+
+Both `uiMaskPlugin` and `safeAreaPlugin` are **automatically registered** when using `createWebApp()`. For manual setup:
+
+```typescript
+import { uiMaskPlugin, safeAreaPlugin } from 'esengine';
+
+const app = App.new()
+    .addPlugin(uiMaskPlugin)
+    .addPlugin(safeAreaPlugin)
+    .run();
+```
 
 ## Next Steps
 
