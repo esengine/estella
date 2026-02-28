@@ -19,6 +19,7 @@ import { SceneManager, type SceneConfig } from './sceneManager';
 import { DEFAULT_MAX_DELTA_TIME, DEFAULT_FALLBACK_DT, DEFAULT_GRAVITY, DEFAULT_FIXED_TIMESTEP } from './defaults';
 import { type AnimClipAssetData, extractAnimClipTexturePaths, parseAnimClipData } from './animation/AnimClipLoader';
 import { registerAnimClip } from './animation/SpriteAnimator';
+import { Audio } from './audio/Audio';
 
 // =============================================================================
 // Public Interface
@@ -458,6 +459,34 @@ async function loadMaterials(
 }
 
 // =============================================================================
+// Audio Helpers
+// =============================================================================
+
+async function preloadAudioClips(sceneData: SceneData): Promise<void> {
+    const paths: string[] = [];
+    const seen = new Set<string>();
+
+    for (const entity of sceneData.entities) {
+        for (const comp of entity.components) {
+            const descriptors = getComponentAssetFieldDescriptors(comp.type);
+            for (const desc of descriptors) {
+                if (desc.type !== 'audio') continue;
+                const clipPath = comp.data[desc.field];
+                if (typeof clipPath !== 'string' || !clipPath || seen.has(clipPath)) continue;
+                seen.add(clipPath);
+                paths.push(clipPath);
+            }
+        }
+    }
+
+    if (paths.length > 0) {
+        await Audio.preloadAll(paths).catch(err => {
+            console.warn('[preloadAudioClips] Failed to preload audio assets:', err);
+        });
+    }
+}
+
+// =============================================================================
 // Anim-Clip Helpers
 // =============================================================================
 
@@ -540,6 +569,7 @@ export async function loadRuntimeScene(
     const fontCache = await loadBitmapFonts(module, sceneData, provider);
     const materialCache = await loadMaterials(sceneData, provider);
     await loadAnimClips(module, sceneData, provider);
+    await preloadAudioClips(sceneData);
 
     resolveSceneAssetPaths(sceneData, textureCache, fontCache, materialCache);
     const entityMap = loadSceneData(app.world, sceneData);
