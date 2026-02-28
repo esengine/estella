@@ -1,0 +1,44 @@
+---
+title: v0.6.2
+description: ESEngine v0.6.2 更新日志
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip">
+v0.6.2 改进微信小游戏支持，修复资产加载和浏览器兼容性问题，解决多个编辑器稳定性问题。
+</Aside>
+
+## 微信小游戏
+
+- 添加键盘输入支持，通过 `wx.onKeyDown` / `wx.onKeyUp`（PC 平台，基础库 2.10.1+）
+- 新增专用微信运行时入口，简化初始化流程
+- 改进文件系统错误提示，提供可操作的修复建议（如缺少 `packOptions.include` 配置的自定义扩展名）
+- 修复 Emscripten wxgame 构建：使用 `-sENVIRONMENT=web` 并添加最小化的 `document` / `window` 全局变量 polyfill
+- 将组件默认值提取到独立模块，优化微信包体积
+
+## 资产管线
+
+- 资产收集器现在递归收集始终导出文件夹的依赖项
+- 自动创建缺失的 `asset-export.json` 配置文件
+- 浏览器预览现在可解析 UUID 资产引用
+- 修复 `asset:` 协议被 CSP `default-src` 阻止的问题，导致 Windows 上播放模式无法通过 `fetch()` 加载预制体
+
+## Bug 修复
+
+### 编辑器
+
+- 修复 `resolveFilePath` 错误去除绝对路径前导 `/`，导致 virtual-fs 插件无法读取用户脚本
+- 修复 HMR 时事件监听器泄漏：`onCloseRequested` 和 `contextmenu` 处理器在 `Editor.dispose()` 和 `DockLayoutManager.dispose()` 中正确清理
+- 修复文本垂直裁剪：当文本块超出容器高度时，将 `startY` 限制为 >= 0
+
+### SDK
+
+- 修复浏览器兼容性：使用标准 base64 编码替换 Node.js `Buffer`
+- 简化构建模板，统一运行时配置生成
+
+## 内部改动
+
+- 添加 Playable 发射器和图集重写测试覆盖
+- 添加桌面端构建工具脚本（`copy-esbuild-wasm.js`、`kill-port.js`）
+- 修复路径测试中的跨包导入导致 CI 类型检查失败
