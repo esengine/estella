@@ -111,8 +111,20 @@ import { instantiatePrefab } from 'esengine';
 
 const result = await instantiatePrefab(world, prefab, {
     assetServer: assets,
+    assetBaseUrl: 'https://cdn.example.com/game',
+    parent: parentEntity,
+    overrides: [
+        { prefabEntityId: 1, type: 'property', componentType: 'Transform', propertyName: 'position', value: { x: 100, y: 50, z: 0 } },
+    ],
 });
 ```
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `assetServer` | AssetServer | Asset server for loading referenced assets |
+| `assetBaseUrl` | string | Base URL for resolving asset paths |
+| `parent` | Entity | Parent entity to attach the prefab root to |
+| `overrides` | PrefabOverride[] | Property overrides applied during instantiation |
 
 <Aside type="caution">
   Circular prefab references are automatically detected and skipped with an error log, preventing infinite recursion.

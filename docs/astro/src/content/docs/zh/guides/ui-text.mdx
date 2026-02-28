@@ -56,6 +56,9 @@ addSystem(defineSystem(
 | `fillOrigin` | FillOrigin | `Left` | `Left` (0)、`Right` (1)、`Bottom` (2)、`Top` (3) |
 | `fillAmount` | number | `1` | 填充进度 0–1 |
 | `preserveAspect` | boolean | `false` | 保持宽高比 |
+| `tileSize` | Vec2 | `{x:32, y:32}` | 平铺尺寸（`imageType` 为 `Tiled` 时使用） |
+| `layer` | number | `0` | 渲染层级 |
+| `material` | number | `0` | 自定义材质句柄（0 = 默认） |
 | `enabled` | boolean | `true` | 可见性开关 |
 
 ## 示例：分数显示

@@ -77,6 +77,40 @@ query.count();     // 匹配的实体数量
 query.toArray();   // 将所有结果收集到数组中
 ```
 
+## 查询过滤器
+
+使用 `.with()` 和 `.without()` 按组件的有无过滤实体，且不将这些组件包含在结果元组中：
+
+```typescript
+import { Query, Transform, Sprite, Hidden } from 'esengine';
+
+// 匹配有 Transform 和 Sprite 的实体，但只要同时有 Player 的
+defineSystem(
+    [Query(Mut(Transform), Sprite).with(Player)],
+    (query) => {
+        for (const [entity, transform, sprite] of query) {
+            // 保证有 Player，但不在元组中
+        }
+    }
+);
+
+// 匹配有 Transform 的实体，排除有 Hidden 的
+defineSystem(
+    [Query(Transform).without(Hidden)],
+    (query) => {
+        for (const [entity, transform] of query) {
+            // 只有没有 Hidden 组件的实体
+        }
+    }
+);
+```
+
+可以链式调用多个 `.with()` 和 `.without()`：
+
+```typescript
+Query(Mut(Transform), Sprite).with(Player).without(Hidden, Disabled)
+```
+
 ## 变更检测过滤器
 
 用 `Added()`、`Changed()` 包裹组件，或使用 `Removed()` 来响应组件的生命周期事件。

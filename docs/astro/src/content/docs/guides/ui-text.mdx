@@ -56,6 +56,9 @@ Displays images with support for slicing, tiling, and fill modes.
 | `fillOrigin` | FillOrigin | `Left` | `Left` (0), `Right` (1), `Bottom` (2), `Top` (3) |
 | `fillAmount` | number | `1` | Fill progress 0–1 |
 | `preserveAspect` | boolean | `false` | Maintain aspect ratio |
+| `tileSize` | Vec2 | `{x:32, y:32}` | Tile size in pixels (used when `imageType` is `Tiled`) |
+| `layer` | number | `0` | Render layer |
+| `material` | number | `0` | Custom material handle (0 = default) |
 | `enabled` | boolean | `true` | Visibility toggle |
 
 ## Example: Score Display

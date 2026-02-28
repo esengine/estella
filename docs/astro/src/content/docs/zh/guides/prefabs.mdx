@@ -111,8 +111,20 @@ import { instantiatePrefab } from 'esengine';
 
 const result = await instantiatePrefab(world, prefab, {
     assetServer: assets,
+    assetBaseUrl: 'https://cdn.example.com/game',
+    parent: parentEntity,
+    overrides: [
+        { prefabEntityId: 1, type: 'property', componentType: 'Transform', propertyName: 'position', value: { x: 100, y: 50, z: 0 } },
+    ],
 });
 ```
+
+| 选项 | 类型 | 说明 |
+|------|------|------|
+| `assetServer` | AssetServer | 用于加载引用资源的资源服务器 |
+| `assetBaseUrl` | string | 解析资源路径的基础 URL |
+| `parent` | Entity | 预制体根实体要挂载到的父实体 |
+| `overrides` | PrefabOverride[] | 实例化时应用的属性覆盖 |
 
 <Aside type="caution">
   循环预制体引用会被自动检测并跳过，同时输出错误日志，防止无限递归。
