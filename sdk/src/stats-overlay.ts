@@ -16,6 +16,7 @@ font: 11px monospace;
 color: #cccccc;
 line-height: 1.6;
 min-width: 200px;
+white-space: pre;
 `;
 
 function positionStyle(position: StatsPosition): string {
@@ -31,9 +32,14 @@ function formatNumber(n: number, decimals: number): string {
     return n.toFixed(decimals);
 }
 
+function escapeHtml(s: string): string {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 export class StatsOverlay {
     private el_: HTMLDivElement;
     private visible_ = true;
+    private disposed_ = false;
 
     constructor(container: HTMLElement, position: StatsPosition = 'bottom-left') {
         this.el_ = document.createElement('div');
@@ -42,7 +48,7 @@ export class StatsOverlay {
     }
 
     update(stats: FrameStats): void {
-        if (!this.visible_) return;
+        if (!this.visible_ || this.disposed_) return;
 
         const sections: string[] = [];
 
@@ -72,7 +78,8 @@ export class StatsOverlay {
 
             let systemsHtml = '<div style="color:#8c8c8c;border-bottom:1px solid rgba(60,60,60,0.8);padding-bottom:3px;margin-bottom:3px;margin-top:4px">Systems (top 5)</div>';
             for (const [name, ms] of sorted) {
-                const displayName = name.length > 20 ? name.slice(0, 20) + '...' : name;
+                const truncated = name.length > 20 ? name.slice(0, 20) + '...' : name;
+                const displayName = escapeHtml(truncated);
                 systemsHtml += `<div>${displayName.padEnd(22)}<span style="color:#d19a66">${formatNumber(ms, 1)}ms</span></div>`;
             }
             sections.push(systemsHtml);
@@ -92,6 +99,7 @@ export class StatsOverlay {
     }
 
     dispose(): void {
+        this.disposed_ = true;
         this.el_.parentElement?.removeChild(this.el_);
     }
 }

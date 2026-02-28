@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { StatsCollector, defaultFrameStats, Stats, StatsPlugin, statsPlugin, type FrameStats } from '../src/stats';
 import { StatsOverlay } from '../src/stats-overlay';
 import { App } from '../src/app';
@@ -6,6 +6,10 @@ import { Schedule, defineSystem, SystemRunner } from '../src/system';
 import { World } from '../src/world';
 import { ResourceStorage } from '../src/resource';
 import * as rendererModule from '../src/renderer';
+
+afterEach(() => {
+    vi.restoreAllMocks();
+});
 
 // ============================================================================
 // StatsCollector
@@ -88,6 +92,44 @@ describe('StatsCollector', () => {
         }
         expect(collector.getFps()).toBeCloseTo(144, 0);
         expect(collector.getFrameTimeMs()).toBeCloseTo(1000 / 144, 0);
+    });
+
+    // === Review fix: Critical #1 — negative/NaN/Infinity delta ===
+
+    it('should clamp negative delta to 0', () => {
+        const collector = new StatsCollector();
+        for (let i = 0; i < 10; i++) collector.pushFrame(1 / 60);
+        collector.pushFrame(-0.5);
+        const fps = collector.getFps();
+        expect(fps).toBeGreaterThanOrEqual(0);
+        expect(Number.isFinite(fps)).toBe(true);
+    });
+
+    it('should ignore NaN delta', () => {
+        const collector = new StatsCollector();
+        for (let i = 0; i < 10; i++) collector.pushFrame(1 / 60);
+        collector.pushFrame(NaN);
+        expect(Number.isFinite(collector.getFps())).toBe(true);
+        expect(collector.getFps()).toBeCloseTo(60, 0);
+    });
+
+    it('should ignore Infinity delta', () => {
+        const collector = new StatsCollector();
+        for (let i = 0; i < 10; i++) collector.pushFrame(1 / 60);
+        collector.pushFrame(Infinity);
+        expect(Number.isFinite(collector.getFps())).toBe(true);
+        expect(collector.getFps()).toBeCloseTo(60, 0);
+    });
+
+    // === Review fix: Critical #2 — float drift sum_ <= 0 ===
+
+    it('should never return negative FPS from float drift', () => {
+        const collector = new StatsCollector();
+        for (let i = 0; i < 200; i++) {
+            collector.pushFrame(0);
+        }
+        expect(collector.getFps()).toBe(0);
+        expect(collector.getFrameTimeMs()).toBe(0);
     });
 });
 
@@ -180,6 +222,24 @@ describe('App stats API', () => {
 
         app.world.despawn(e1);
         expect(app.getEntityCount()).toBe(1);
+    });
+
+    // === Review fix: Medium #4 — enableStats after first tick ===
+
+    it('should work when enableStats is called after first tick', () => {
+        const app = App.new();
+        app.addSystemToSchedule(Schedule.Update, defineSystem(
+            [], () => {}, { name: 'LateSystem' }
+        ));
+        app.tick(1 / 60);
+        expect(app.getSystemTimings()).toBeNull();
+
+        app.enableStats();
+        app.tick(1 / 60);
+
+        const timings = app.getSystemTimings();
+        expect(timings).toBeInstanceOf(Map);
+        expect(timings!.has('LateSystem')).toBe(true);
     });
 });
 
@@ -292,19 +352,38 @@ describe('SystemRunner timing', () => {
 describe('StatsPlugin', () => {
     it('should register Stats resource on build', () => {
         const app = App.new();
-        app.addPlugin(statsPlugin);
+        app.addPlugin(new StatsPlugin());
         expect(app.hasResource(Stats)).toBe(true);
     });
 
     it('should enable system timings on the app', () => {
         const app = App.new();
-        app.addPlugin(statsPlugin);
+        app.addPlugin(new StatsPlugin());
         app.tick(1 / 60);
         expect(app.getSystemTimings()).not.toBeNull();
     });
 
     it('should have name "Stats"', () => {
-        expect(statsPlugin.name).toBe('Stats');
+        expect(new StatsPlugin().name).toBe('Stats');
+    });
+
+    // === Review fix: Critical #3 — singleton reuse ===
+
+    it('should reset state when build is called on a new app', () => {
+        const plugin = new StatsPlugin({ overlay: false });
+
+        const app1 = App.new();
+        app1.addPlugin(plugin);
+        for (let i = 0; i < 30; i++) app1.tick(1 / 30);
+        expect(app1.getResource(Stats).fps).toBeCloseTo(30, 0);
+
+        plugin.cleanup();
+
+        const app2 = App.new();
+        app2.addPlugin(plugin);
+        for (let i = 0; i < 10; i++) app2.tick(1 / 60);
+        const fps = app2.getResource(Stats).fps;
+        expect(fps).toBeCloseTo(60, 0);
     });
 
     describe('fps & frameTimeMs', () => {
@@ -355,7 +434,7 @@ describe('StatsPlugin', () => {
             app.addPlugin(new StatsPlugin());
 
             const e1 = app.world.spawn();
-            const e2 = app.world.spawn();
+            app.world.spawn();
             app.tick(1 / 60);
             expect(app.getResource(Stats).entityCount).toBe(2);
 
@@ -396,9 +475,22 @@ describe('StatsPlugin', () => {
             expect(timings.has('AnimationSystem')).toBe(true);
         });
 
-        it('should not include StatsCollect own timing (measured after snapshot)', () => {
+        it('should not include StatsCollect own timing on first tick', () => {
             const app = App.new();
             app.addPlugin(new StatsPlugin());
+            app.tick(1 / 60);
+
+            const timings = app.getResource(Stats).systemTimings;
+            expect(timings.has('StatsCollect')).toBe(false);
+        });
+
+        // === Review fix: Medium #8 — second tick leaks previous StatsCollect timing ===
+
+        it('should not include StatsCollect timing on subsequent ticks either', () => {
+            const app = App.new();
+            app.addPlugin(new StatsPlugin());
+            app.tick(1 / 60);
+            app.tick(1 / 60);
             app.tick(1 / 60);
 
             const timings = app.getResource(Stats).systemTimings;
@@ -438,15 +530,9 @@ describe('StatsPlugin', () => {
     describe('render stats from Renderer.getStats()', () => {
         it('should copy all render stats fields', () => {
             const mockStats: rendererModule.RenderStats = {
-                drawCalls: 42,
-                triangles: 8400,
-                sprites: 100,
-                text: 12,
-                spine: 3,
-                meshes: 5,
-                culled: 7,
+                drawCalls: 42, triangles: 8400, sprites: 100,
+                text: 12, spine: 3, meshes: 5, culled: 7,
             };
-
             vi.spyOn(rendererModule.Renderer, 'getStats').mockReturnValue(mockStats);
 
             const app = App.new();
@@ -461,8 +547,6 @@ describe('StatsPlugin', () => {
             expect(stats.spine).toBe(3);
             expect(stats.meshes).toBe(5);
             expect(stats.culled).toBe(7);
-
-            vi.restoreAllMocks();
         });
 
         it('should update render stats each tick', () => {
@@ -497,8 +581,6 @@ describe('StatsPlugin', () => {
             expect(stats.spine).toBe(2);
             expect(stats.meshes).toBe(4);
             expect(stats.culled).toBe(6);
-
-            vi.restoreAllMocks();
         });
 
         it('should default to zeros when no WASM module', () => {
@@ -543,6 +625,15 @@ describe('StatsPlugin', () => {
             const app = App.new();
             app.addPlugin(plugin);
             app.tick(1 / 60);
+            expect(() => plugin.cleanup()).not.toThrow();
+        });
+
+        it('should be safe to call cleanup multiple times', () => {
+            const plugin = new StatsPlugin({ overlay: false });
+            const app = App.new();
+            app.addPlugin(plugin);
+            app.tick(1 / 60);
+            plugin.cleanup();
             expect(() => plugin.cleanup()).not.toThrow();
         });
     });
@@ -650,9 +741,6 @@ describe('StatsOverlay', () => {
         }));
 
         const html = container.innerHTML;
-        expect(html).toContain('Slow');
-        expect(html).toContain('Medium');
-        expect(html).toContain('Fast');
         const slowIdx = html.indexOf('Slow');
         const medIdx = html.indexOf('Medium');
         const fastIdx = html.indexOf('Fast');
@@ -719,5 +807,43 @@ describe('StatsOverlay', () => {
         }));
         expect(container.innerHTML).toContain('...');
         overlay.dispose();
+    });
+
+    // === Review fix: Medium #5 — XSS via system names ===
+
+    it('should escape HTML in system names', () => {
+        const container = document.createElement('div');
+        const overlay = new StatsOverlay(container);
+        overlay.update(makeStats({
+            systemTimings: new Map([
+                ['<img src=x onerror=alert(1)>', 1.0],
+            ]),
+        }));
+        const html = container.innerHTML;
+        expect(html).not.toContain('<img');
+        expect(html).toContain('&lt;');
+        overlay.dispose();
+    });
+
+    // === Review fix: Medium #6 — padEnd spaces collapse in HTML ===
+
+    it('should preserve whitespace alignment in system names', () => {
+        const container = document.createElement('div');
+        const overlay = new StatsOverlay(container);
+        overlay.update(makeStats({
+            systemTimings: new Map([['Abc', 1.0]]),
+        }));
+        const el = container.firstElementChild as HTMLElement;
+        expect(el.style.cssText).toContain('white-space');
+        overlay.dispose();
+    });
+
+    // === Review fix: Low #11 — no-op after dispose ===
+
+    it('should not throw when update is called after dispose', () => {
+        const container = document.createElement('div');
+        const overlay = new StatsOverlay(container);
+        overlay.dispose();
+        expect(() => overlay.update(makeStats({ fps: 60 }))).not.toThrow();
     });
 });

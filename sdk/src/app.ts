@@ -303,6 +303,7 @@ export class App {
 
     enableStats(): this {
         this.statsEnabled_ = true;
+        this.runner_?.setTimingEnabled(true);
         return this;
     }
 

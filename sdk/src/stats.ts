@@ -37,6 +37,7 @@ export function defaultFrameStats(): FrameStats {
 export const Stats = defineResource<FrameStats>(defaultFrameStats(), 'Stats');
 
 const SLIDING_WINDOW_SIZE = 60;
+const STATS_COLLECT_SYSTEM_NAME = 'StatsCollect';
 
 export class StatsCollector {
     private deltas_: number[] = [];
@@ -45,6 +46,8 @@ export class StatsCollector {
     private sum_ = 0;
 
     pushFrame(deltaSeconds: number): void {
+        if (!Number.isFinite(deltaSeconds) || deltaSeconds < 0) return;
+
         if (this.count_ < SLIDING_WINDOW_SIZE) {
             this.deltas_.push(deltaSeconds);
             this.sum_ += deltaSeconds;
@@ -58,13 +61,20 @@ export class StatsCollector {
     }
 
     getFps(): number {
-        if (this.count_ === 0 || this.sum_ === 0) return 0;
+        if (this.count_ === 0 || this.sum_ <= 0) return 0;
         return this.count_ / this.sum_;
     }
 
     getFrameTimeMs(): number {
-        if (this.count_ === 0 || this.sum_ === 0) return 0;
+        if (this.count_ === 0 || this.sum_ <= 0) return 0;
         return (this.sum_ / this.count_) * 1000;
+    }
+
+    reset(): void {
+        this.deltas_.length = 0;
+        this.cursor_ = 0;
+        this.count_ = 0;
+        this.sum_ = 0;
     }
 }
 
@@ -85,6 +95,8 @@ export class StatsPlugin implements Plugin {
     }
 
     build(app: App): void {
+        this.collector_.reset();
+
         app.enableStats();
         app.insertResource(Stats, defaultFrameStats());
 
@@ -108,7 +120,13 @@ export class StatsPlugin implements Plugin {
                 stats.entityCount = world.entityCount();
 
                 const timings = app.getSystemTimings();
-                stats.systemTimings = timings ? new Map(timings) : new Map();
+                if (timings) {
+                    const copy = new Map(timings);
+                    copy.delete(STATS_COLLECT_SYSTEM_NAME);
+                    stats.systemTimings = copy;
+                } else {
+                    stats.systemTimings = new Map();
+                }
 
                 const renderStats = Renderer.getStats();
                 stats.drawCalls = renderStats.drawCalls;
@@ -121,7 +139,7 @@ export class StatsPlugin implements Plugin {
 
                 overlay?.update(stats);
             },
-            { name: 'StatsCollect' }
+            { name: STATS_COLLECT_SYSTEM_NAME }
         );
 
         app.addSystemToSchedule(Schedule.Last, statsCollectSystem);
