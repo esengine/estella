@@ -77,6 +77,40 @@ query.count();     // number of matching entities
 query.toArray();   // collect all results into an array
 ```
 
+## Query Filters
+
+Use `.with()` and `.without()` to filter entities by the presence or absence of components, without including them in the result tuple:
+
+```typescript
+import { Query, Transform, Sprite, Hidden } from 'esengine';
+
+// Match entities with Transform AND Sprite, but only those that also have Player
+defineSystem(
+    [Query(Mut(Transform), Sprite).with(Player)],
+    (query) => {
+        for (const [entity, transform, sprite] of query) {
+            // Player is guaranteed to be present, but not in the tuple
+        }
+    }
+);
+
+// Match entities with Transform, excluding any with Hidden
+defineSystem(
+    [Query(Transform).without(Hidden)],
+    (query) => {
+        for (const [entity, transform] of query) {
+            // Only entities that do NOT have Hidden
+        }
+    }
+);
+```
+
+You can chain multiple `.with()` and `.without()` calls:
+
+```typescript
+Query(Mut(Transform), Sprite).with(Player).without(Hidden, Disabled)
+```
+
 ## Change Detection Filters
 
 Wrap components in `Added()`, `Changed()`, or use `Removed()` to react to component lifecycle events.

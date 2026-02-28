@@ -61,7 +61,7 @@ addStartupSystem(defineSystem([Commands()], (cmds) => {
 | `justifyContent` | JustifyContent | `Start` | `Start`、`Center`、`End`、`SpaceBetween`、`SpaceAround`、`SpaceEvenly` |
 | `alignItems` | AlignItems | `Stretch` | `Start`、`Center`、`End`、`Stretch` |
 | `gap` | Vec2 | `{0, 0}` | 子元素间距 |
-| `padding` | Vec4 | `{0, 0, 0, 0}` | 上、右、下、左内边距 |
+| `padding` | Vec4 | `{x:0, y:0, z:0, w:0}` | 内边距，格式为 `{x: 上, y: 右, z: 下, w: 左}` |
 
 ## FlexItem
 

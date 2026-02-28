@@ -95,7 +95,7 @@ events.toArray()   // 将所有事件收集为数组
 一个完整的示例，包含三个解耦的系统：
 
 ```typescript
-import { defineEvent, defineSystem, addSystem, EventWriter, EventReader, Query, Mut, Commands, Health, Sprite } from 'esengine';
+import { defineEvent, defineSystem, addSystem, EventWriter, EventReader, GetWorld, Query, Mut, Commands, Health, Sprite } from 'esengine';
 
 // 1. 定义事件
 interface DamageEvent {
@@ -120,13 +120,13 @@ const combatSystem = defineSystem(
 
 // 3. 生命系统——应用伤害
 const healthSystem = defineSystem(
-    [EventReader(Damage), Query(Mut(Health))],
-    (events, query) => {
+    [EventReader(Damage), GetWorld()],
+    (events, world) => {
         for (const { target, amount } of events) {
-            const result = query.get(target);
-            if (result) {
-                const [_, health] = result;
+            const health = world.get(target, Health);
+            if (health) {
                 health.current -= amount;
+                world.set(target, Health, health);
             }
         }
     }
@@ -134,12 +134,11 @@ const healthSystem = defineSystem(
 
 // 4. 特效系统——显示命中效果（读取相同事件）
 const hitVFXSystem = defineSystem(
-    [EventReader(Damage), Query(Transform)],
-    (events, query) => {
+    [EventReader(Damage), GetWorld()],
+    (events, world) => {
         for (const { target } of events) {
-            const result = query.get(target);
-            if (result) {
-                const [_, transform] = result;
+            const transform = world.get(target, Transform);
+            if (transform) {
                 spawnHitParticle(transform.position);
             }
         }
