@@ -12,6 +12,8 @@ export interface RenderTextureHandle {
     textureId: number;
     width: number;
     height: number;
+    _depth: boolean;
+    _filter: 'nearest' | 'linear';
 }
 
 export const RenderTexture = {
@@ -28,6 +30,8 @@ export const RenderTexture = {
             textureId,
             width: options.width,
             height: options.height,
+            _depth: depth,
+            _filter: linear ? 'linear' : 'nearest',
         };
     },
 
@@ -37,7 +41,7 @@ export const RenderTexture = {
 
     resize(rt: RenderTextureHandle, width: number, height: number): RenderTextureHandle {
         Renderer.releaseRenderTarget(rt._handle);
-        return RenderTexture.create({ width, height, depth: true });
+        return RenderTexture.create({ width, height, depth: rt._depth, filter: rt._filter });
     },
 
     begin(rt: RenderTextureHandle, viewProjection: Float32Array): void {
