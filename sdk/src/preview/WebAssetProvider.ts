@@ -47,6 +47,8 @@ export class WebAssetProvider implements RuntimeAssetProvider {
                         textRefs.add(value);
                     } else if (desc.type === 'material') {
                         textRefs.add(value);
+                    } else if (desc.type === 'anim-clip') {
+                        textRefs.add(value);
                     }
                 }
             }

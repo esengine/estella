@@ -17,6 +17,8 @@ import { Assets } from './asset/AssetPlugin';
 import { getAssetTypeEntry } from './assetTypes';
 import { SceneManager, type SceneConfig } from './sceneManager';
 import { DEFAULT_MAX_DELTA_TIME, DEFAULT_FALLBACK_DT, DEFAULT_GRAVITY, DEFAULT_FIXED_TIMESTEP } from './defaults';
+import { type AnimClipAssetData, extractAnimClipTexturePaths, parseAnimClipData } from './animation/AnimClipLoader';
+import { registerAnimClip } from './animation/SpriteAnimator';
 
 // =============================================================================
 // Public Interface
@@ -456,6 +458,51 @@ async function loadMaterials(
 }
 
 // =============================================================================
+// Anim-Clip Helpers
+// =============================================================================
+
+async function loadAnimClips(
+    module: ESEngineModule,
+    sceneData: SceneData,
+    provider: RuntimeAssetProvider,
+): Promise<void> {
+    const processed = new Set<string>();
+
+    for (const entity of sceneData.entities) {
+        for (const comp of entity.components) {
+            const descriptors = getComponentAssetFieldDescriptors(comp.type);
+            for (const desc of descriptors) {
+                if (desc.type !== 'anim-clip') continue;
+                const clipPath = comp.data[desc.field];
+                if (typeof clipPath !== 'string' || !clipPath || processed.has(clipPath)) continue;
+                processed.add(clipPath);
+
+                try {
+                    const clipText = await provider.readText(clipPath);
+                    const clipData: AnimClipAssetData = JSON.parse(clipText);
+                    const texturePaths = extractAnimClipTexturePaths(clipData);
+                    const textureHandles = new Map<string, number>();
+
+                    for (const texPath of texturePaths) {
+                        try {
+                            const result = await provider.loadPixels(texPath);
+                            textureHandles.set(texPath, createTextureFromPixels(module, result));
+                        } catch {
+                            textureHandles.set(texPath, 0);
+                        }
+                    }
+
+                    const clip = parseAnimClipData(clipPath, clipData, textureHandles);
+                    registerAnimClip(clip);
+                } catch (err) {
+                    console.warn(`[loadAnimClips] Failed to load animation clip: ${clipPath}`, err);
+                }
+            }
+        }
+    }
+}
+
+// =============================================================================
 // Public API
 // =============================================================================
 
@@ -492,6 +539,7 @@ export async function loadRuntimeScene(
 
     const fontCache = await loadBitmapFonts(module, sceneData, provider);
     const materialCache = await loadMaterials(sceneData, provider);
+    await loadAnimClips(module, sceneData, provider);
 
     resolveSceneAssetPaths(sceneData, textureCache, fontCache, materialCache);
     const entityMap = loadSceneData(app.world, sceneData);
