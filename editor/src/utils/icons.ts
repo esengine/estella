@@ -64,6 +64,9 @@ import {
     Clipboard,
     Pause,
     StepForward,
+    Headphones,
+    SlidersHorizontal,
+    Gauge,
 } from 'lucide';
 
 // =============================================================================
@@ -184,6 +187,9 @@ export const icons = {
     clipboard: (size?: number) => renderIcon(Clipboard as IconNode, size),
     pause: (size?: number) => renderIcon(Pause as IconNode, size),
     stepForward: (size?: number) => renderIcon(StepForward as IconNode, size),
+    headphones: (size?: number) => renderIcon(Headphones as IconNode, size),
+    sliders: (size?: number) => renderIcon(SlidersHorizontal as IconNode, size),
+    gauge: (size?: number) => renderIcon(Gauge as IconNode, size),
 };
 
 export type IconName = keyof typeof icons;

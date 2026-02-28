@@ -17,6 +17,7 @@ export { sliderPlugin, SliderPlugin } from './ui/SliderPlugin';
 
 export { PhysicsPlugin, PhysicsEvents, Physics, loadPhysicsModule } from './physics';
 export { AnimationPlugin, animationPlugin } from './animation';
+export { AudioPlugin, audioPlugin } from './audio';
 
 const defaultPlugins = [...uiPlugins, animationPlugin];
 
