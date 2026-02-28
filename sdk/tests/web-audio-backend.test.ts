@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { WebAudioBackend } from '../src/audio/WebAudioBackend';
+import { setPlatform } from '../src/platform/base';
+import type { PlatformAdapter } from '../src/platform/types';
 
 function createMockGainNode(context: any): any {
     return {
@@ -54,15 +56,30 @@ function setupMockAudioContext(): void {
     (globalThis as any).__mockAudioContext = mockCtx;
 }
 
+function setupMockPlatform(): void {
+    const mockPlatform = {
+        name: 'web' as const,
+        readFile: vi.fn().mockResolvedValue(new ArrayBuffer(8)),
+        fetch: vi.fn(),
+        readTextFile: vi.fn(),
+        fileExists: vi.fn(),
+        loadImagePixels: vi.fn(),
+        instantiateWasm: vi.fn(),
+        createCanvas: vi.fn(),
+        now: vi.fn(),
+        createImage: vi.fn(),
+        bindInputEvents: vi.fn(),
+        createAudioBackend: vi.fn(),
+    } as unknown as PlatformAdapter;
+    setPlatform(mockPlatform);
+    (globalThis as any).__mockPlatform = mockPlatform;
+}
+
 async function initAndLoadBuffer(backend: WebAudioBackend): Promise<{ bufferHandle: any; mockCtx: any }> {
     await backend.initialize();
     const mockCtx = (globalThis as any).__mockAudioContext;
     const mockAudioBuffer = { duration: 1.0 };
     mockCtx.decodeAudioData.mockResolvedValue(mockAudioBuffer);
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-        ok: true,
-        arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(8)),
-    }));
     const bufferHandle = await backend.loadBuffer('sfx.mp3');
     return { bufferHandle, mockCtx };
 }
@@ -72,6 +89,7 @@ describe('WebAudioBackend', () => {
 
     beforeEach(() => {
         setupMockAudioContext();
+        setupMockPlatform();
         backend = new WebAudioBackend();
     });
 
@@ -142,63 +160,53 @@ describe('WebAudioBackend', () => {
     });
 
     describe('loadBuffer', () => {
-        it('should fetch and decode audio data', async () => {
+        it('should load via platform readFile and decode audio data', async () => {
             await backend.initialize();
             const mockCtx = (globalThis as any).__mockAudioContext;
+            const mockPlatform = (globalThis as any).__mockPlatform;
 
             const mockArrayBuffer = new ArrayBuffer(8);
             const mockAudioBuffer = { duration: 2.5, length: 44100 };
-            vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-                ok: true,
-                arrayBuffer: vi.fn().mockResolvedValue(mockArrayBuffer),
-            }));
+            mockPlatform.readFile.mockResolvedValue(mockArrayBuffer);
             mockCtx.decodeAudioData.mockResolvedValue(mockAudioBuffer);
 
             const handle = await backend.loadBuffer('test.mp3');
             expect(handle.id).toBeGreaterThan(0);
             expect(handle.duration).toBe(2.5);
-            expect(fetch).toHaveBeenCalledWith('test.mp3');
+            expect(mockPlatform.readFile).toHaveBeenCalledWith('test.mp3');
         });
 
-        it('should throw on fetch failure', async () => {
+        it('should throw on readFile failure', async () => {
             await backend.initialize();
-            vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-                ok: false,
-                status: 404,
-            }));
-            await expect(backend.loadBuffer('missing.mp3')).rejects.toThrow('Failed to load audio: missing.mp3 (404)');
+            const mockPlatform = (globalThis as any).__mockPlatform;
+            mockPlatform.readFile.mockRejectedValue(new Error('Failed to read file: missing.mp3 (404)'));
+            await expect(backend.loadBuffer('missing.mp3')).rejects.toThrow('Failed to read file: missing.mp3 (404)');
         });
 
         it('should deduplicate concurrent loads for the same URL', async () => {
             await backend.initialize();
             const mockCtx = (globalThis as any).__mockAudioContext;
+            const mockPlatform = (globalThis as any).__mockPlatform;
             mockCtx.decodeAudioData.mockResolvedValue({ duration: 1.0 });
-            vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-                ok: true,
-                arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(8)),
-            }));
 
             const [h1, h2] = await Promise.all([
                 backend.loadBuffer('dup.mp3'),
                 backend.loadBuffer('dup.mp3'),
             ]);
             expect(h1.id).toBe(h2.id);
-            expect(fetch).toHaveBeenCalledTimes(1);
+            expect(mockPlatform.readFile).toHaveBeenCalledTimes(1);
         });
 
         it('should return cached handle for already loaded URL', async () => {
             await backend.initialize();
             const mockCtx = (globalThis as any).__mockAudioContext;
+            const mockPlatform = (globalThis as any).__mockPlatform;
             mockCtx.decodeAudioData.mockResolvedValue({ duration: 2.0 });
-            vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-                ok: true,
-                arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(8)),
-            }));
 
             const h1 = await backend.loadBuffer('cached.mp3');
             const h2 = await backend.loadBuffer('cached.mp3');
             expect(h1.id).toBe(h2.id);
-            expect(fetch).toHaveBeenCalledTimes(1);
+            expect(mockPlatform.readFile).toHaveBeenCalledTimes(1);
         });
 
         it('should throw if not initialized', async () => {
@@ -341,10 +349,6 @@ describe('WebAudioBackend', () => {
             await backend.initialize();
             const mockCtx = (globalThis as any).__mockAudioContext;
             mockCtx.decodeAudioData.mockResolvedValue({ duration: 1.0 });
-            vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-                ok: true,
-                arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(8)),
-            }));
 
             const handle = await backend.loadBuffer('test.mp3');
             backend.unloadBuffer(handle);
