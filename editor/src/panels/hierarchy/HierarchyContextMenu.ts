@@ -23,30 +23,38 @@ export function showEntityContextMenu(state: HierarchyState, x: number, y: numbe
             const newEntity = state.store.createEntity(undefined, entity);
             state.store.addComponent(newEntity, 'Transform', getInitialComponentData('Transform'));
         } },
-        { label: 'Sprite', icon: icons.image(14), onClick: () => createEntityWithComponent(state, 'Sprite', entity) },
-        { label: 'Text', icon: icons.type(14), onClick: () => createEntityWithComponent(state, 'Text', entity) },
-        { label: 'BitmapText', icon: icons.type(14), onClick: () => createEntityWithComponent(state, 'BitmapText', entity) },
-        { label: 'Spine', icon: icons.bone(14), onClick: () => createEntityWithComponent(state, 'SpineAnimation', entity) },
-        { label: 'Camera', icon: icons.camera(14), onClick: () => createEntityWithComponent(state, 'Camera', entity) },
-        { label: 'Canvas', icon: icons.template(14), onClick: () => createEntityWithComponent(state, 'Canvas', entity) },
         { label: '', separator: true },
+        { label: '2D', icon: icons.image(14), children: [
+            { label: 'Sprite', icon: icons.image(14), onClick: () => createEntityWithComponent(state, 'Sprite', entity) },
+            { label: 'Text', icon: icons.type(14), onClick: () => createEntityWithComponent(state, 'Text', entity) },
+            { label: 'BitmapText', icon: icons.type(14), onClick: () => createEntityWithComponent(state, 'BitmapText', entity) },
+            { label: 'Spine', icon: icons.bone(14), onClick: () => createEntityWithComponent(state, 'SpineAnimation', entity) },
+        ] },
         { label: 'UI', icon: icons.pointer(14), children: [
-            { label: 'Button', onClick: () => createButtonEntity(state, entity) },
-            { label: 'TextInput', onClick: () => createTextInputEntity(state, entity) },
-            { label: 'Image', onClick: () => createImageEntity(state, entity) },
-            { label: 'Panel', onClick: () => createPanelEntity(state, entity) },
+            { label: 'Canvas', icon: icons.template(14), onClick: () => createEntityWithComponent(state, 'Canvas', entity) },
             { label: '', separator: true },
-            { label: 'Toggle', onClick: () => createToggleEntity(state, entity) },
-            { label: 'Slider', onClick: () => createSliderEntity(state, entity) },
-            { label: 'ProgressBar', onClick: () => createProgressBarEntity(state, entity) },
-            { label: 'ScrollView', onClick: () => createScrollViewEntity(state, entity) },
-            { label: 'Dropdown', onClick: () => createDropdownEntity(state, entity) },
+            { label: 'Button', icon: icons.pointer(14), onClick: () => createButtonEntity(state, entity) },
+            { label: 'TextInput', icon: icons.type(14), onClick: () => createTextInputEntity(state, entity) },
+            { label: 'Image', icon: icons.image(14), onClick: () => createImageEntity(state, entity) },
+            { label: 'Panel', icon: icons.layers(14), onClick: () => createPanelEntity(state, entity) },
+            { label: '', separator: true },
+            { label: 'Toggle', icon: icons.toggle(14), onClick: () => createToggleEntity(state, entity) },
+            { label: 'Slider', icon: icons.sliders(14), onClick: () => createSliderEntity(state, entity) },
+            { label: 'ProgressBar', icon: icons.gauge(14), onClick: () => createProgressBarEntity(state, entity) },
+            { label: 'ScrollView', icon: icons.list(14), onClick: () => createScrollViewEntity(state, entity) },
+            { label: 'Dropdown', icon: icons.chevronDown(14), onClick: () => createDropdownEntity(state, entity) },
+        ] },
+        { label: 'Audio', icon: icons.volume(14), children: [
+            { label: 'AudioSource', icon: icons.volume(14), onClick: () => createAudioEntity(state, 'AudioSource', entity) },
+            { label: 'AudioListener', icon: icons.headphones(14), onClick: () => createAudioEntity(state, 'AudioListener', entity) },
         ] },
         { label: 'Physics', icon: icons.circle(14), children: [
-            { label: 'Box Collider', onClick: () => createPhysicsEntity(state, 'BoxCollider', entity) },
-            { label: 'Circle Collider', onClick: () => createPhysicsEntity(state, 'CircleCollider', entity) },
-            { label: 'Capsule Collider', onClick: () => createPhysicsEntity(state, 'CapsuleCollider', entity) },
+            { label: 'Box Collider', icon: icons.box(14), onClick: () => createPhysicsEntity(state, 'BoxCollider', entity) },
+            { label: 'Circle Collider', icon: icons.circle(14), onClick: () => createPhysicsEntity(state, 'CircleCollider', entity) },
+            { label: 'Capsule Collider', icon: icons.shield(14), onClick: () => createPhysicsEntity(state, 'CapsuleCollider', entity) },
         ] },
+        { label: '', separator: true },
+        { label: 'Camera', icon: icons.camera(14), onClick: () => createEntityWithComponent(state, 'Camera', entity) },
     ];
 
     const items: ContextMenuItem[] = [];
@@ -98,25 +106,28 @@ export function showEntityContextMenu(state: HierarchyState, x: number, y: numbe
         const addComp = (type: string) => state.store.addComponent(entity, type, getInitialComponentData(type));
         items.push({
             label: 'Add Component', children: [
-                { label: 'Interactable', disabled: has('Interactable'), onClick: () => addComp('Interactable') },
-                { label: 'Button', disabled: has('Button'), onClick: () => addComp('Button') },
-                { label: 'Image', disabled: has('Image'), onClick: () => addComp('Image') },
-                { label: 'UIMask', disabled: has('UIMask'), onClick: () => addComp('UIMask') },
+                { label: 'Interactable', icon: icons.pointer(14), disabled: has('Interactable'), onClick: () => addComp('Interactable') },
+                { label: 'Button', icon: icons.pointer(14), disabled: has('Button'), onClick: () => addComp('Button') },
+                { label: 'Image', icon: icons.image(14), disabled: has('Image'), onClick: () => addComp('Image') },
+                { label: 'UIMask', icon: icons.scan(14), disabled: has('UIMask'), onClick: () => addComp('UIMask') },
                 { label: '', separator: true },
-                { label: 'Toggle', disabled: has('Toggle'), onClick: () => addComp('Toggle') },
-                { label: 'Slider', disabled: has('Slider'), onClick: () => addComp('Slider') },
-                { label: 'ProgressBar', disabled: has('ProgressBar'), onClick: () => addComp('ProgressBar') },
-                { label: 'Draggable', disabled: has('Draggable'), onClick: () => addComp('Draggable') },
-                { label: 'ScrollView', disabled: has('ScrollView'), onClick: () => addComp('ScrollView') },
-                { label: 'Dropdown', disabled: has('Dropdown'), onClick: () => addComp('Dropdown') },
-                { label: 'ListView', disabled: has('ListView'), onClick: () => addComp('ListView') },
-                { label: 'Focusable', disabled: has('Focusable'), onClick: () => addComp('Focusable') },
-                { label: 'SafeArea', disabled: has('SafeArea'), onClick: () => addComp('SafeArea') },
+                { label: 'Toggle', icon: icons.toggle(14), disabled: has('Toggle'), onClick: () => addComp('Toggle') },
+                { label: 'Slider', icon: icons.sliders(14), disabled: has('Slider'), onClick: () => addComp('Slider') },
+                { label: 'ProgressBar', icon: icons.gauge(14), disabled: has('ProgressBar'), onClick: () => addComp('ProgressBar') },
+                { label: 'Draggable', icon: icons.move(14), disabled: has('Draggable'), onClick: () => addComp('Draggable') },
+                { label: 'ScrollView', icon: icons.list(14), disabled: has('ScrollView'), onClick: () => addComp('ScrollView') },
+                { label: 'Dropdown', icon: icons.chevronDown(14), disabled: has('Dropdown'), onClick: () => addComp('Dropdown') },
+                { label: 'ListView', icon: icons.list(14), disabled: has('ListView'), onClick: () => addComp('ListView') },
+                { label: 'Focusable', icon: icons.eye(14), disabled: has('Focusable'), onClick: () => addComp('Focusable') },
+                { label: 'SafeArea', icon: icons.shield(14), disabled: has('SafeArea'), onClick: () => addComp('SafeArea') },
                 { label: '', separator: true },
-                { label: 'RigidBody', disabled: has('RigidBody'), onClick: () => addComp('RigidBody') },
-                { label: 'BoxCollider', disabled: has('BoxCollider'), onClick: () => addComp('BoxCollider') },
-                { label: 'CircleCollider', disabled: has('CircleCollider'), onClick: () => addComp('CircleCollider') },
-                { label: 'CapsuleCollider', disabled: has('CapsuleCollider'), onClick: () => addComp('CapsuleCollider') },
+                { label: 'AudioSource', icon: icons.volume(14), disabled: has('AudioSource'), onClick: () => addComp('AudioSource') },
+                { label: 'AudioListener', icon: icons.headphones(14), disabled: has('AudioListener'), onClick: () => addComp('AudioListener') },
+                { label: '', separator: true },
+                { label: 'RigidBody', icon: icons.box(14), disabled: has('RigidBody'), onClick: () => addComp('RigidBody') },
+                { label: 'BoxCollider', icon: icons.box(14), disabled: has('BoxCollider'), onClick: () => addComp('BoxCollider') },
+                { label: 'CircleCollider', icon: icons.circle(14), disabled: has('CircleCollider'), onClick: () => addComp('CircleCollider') },
+                { label: 'CapsuleCollider', icon: icons.shield(14), disabled: has('CapsuleCollider'), onClick: () => addComp('CapsuleCollider') },
             ],
         });
 
@@ -195,6 +206,12 @@ function createEntityWithComponent(state: HierarchyState, componentType: string,
         }
     }
 
+    state.store.addComponent(newEntity, componentType, getInitialComponentData(componentType));
+}
+
+function createAudioEntity(state: HierarchyState, componentType: string, parent: Entity | null): void {
+    const newEntity = state.store.createEntity(componentType, parent);
+    state.store.addComponent(newEntity, 'Transform', getInitialComponentData('Transform'));
     state.store.addComponent(newEntity, componentType, getInitialComponentData(componentType));
 }
 

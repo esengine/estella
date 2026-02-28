@@ -61,6 +61,7 @@
   "devDependencies": {
     "@rollup/plugin-terser": "^0.4.4",
     "@rollup/plugin-typescript": "^11.1.5",
+    "@vitest/coverage-v8": "^2.1.9",
     "@vitest/ui": "^2.1.0",
     "happy-dom": "^15.11.0",
     "minigame-api-typings": "^3.8.16",

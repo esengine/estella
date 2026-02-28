@@ -9,6 +9,7 @@ import { getComponent, Name, Camera } from './component';
 import type { AssetServer } from './asset/AssetServer';
 import { extractAnimClipTexturePaths, parseAnimClipData, type AnimClipAssetData } from './animation/AnimClipLoader';
 import { registerAnimClip } from './animation/SpriteAnimator';
+import { Audio } from './audio/Audio';
 
 // =============================================================================
 // Types
@@ -65,7 +66,7 @@ export interface SceneLoadOptions {
 // Component Asset Field Registry
 // =============================================================================
 
-export type AssetFieldType = 'texture' | 'material' | 'font' | 'anim-clip';
+export type AssetFieldType = 'texture' | 'material' | 'font' | 'anim-clip' | 'audio';
 
 interface AssetFieldDescriptor {
     field: string;
@@ -109,6 +110,11 @@ const COMPONENT_ASSET_FIELDS = new Map<string, ComponentAssetFields>([
     ['SpriteAnimator', {
         fields: [
             { field: 'clip', type: 'anim-clip' },
+        ],
+    }],
+    ['AudioSource', {
+        fields: [
+            { field: 'clip', type: 'audio' },
         ],
     }],
 ]);
@@ -347,6 +353,15 @@ const ASSET_FIELD_HANDLERS = new Map<AssetFieldType, AssetFieldHandler>([
                 }
             });
             await Promise.all(promises);
+            return new Map();
+        },
+    }],
+    ['audio', {
+        async load(paths, _assetServer, baseUrl) {
+            const urls = [...paths].map(p => baseUrl ? `${baseUrl}/${p}` : `/${p}`);
+            await Audio.preloadAll(urls).catch(err => {
+                console.warn('Failed to preload audio assets:', err);
+            });
             return new Map();
         },
     }],

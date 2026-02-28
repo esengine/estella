@@ -654,6 +654,37 @@ export {
 } from './animation';
 
 // =============================================================================
+// Audio
+// =============================================================================
+
+export {
+    Audio,
+    AudioPlugin,
+    audioPlugin,
+    AudioSource,
+    AudioListener,
+    AudioBus,
+    AudioMixer,
+    AudioPool,
+    createAudioBackend,
+    AttenuationModel,
+    calculateAttenuation,
+    calculatePanning,
+    type AudioHandle,
+    type AudioBufferHandle,
+    type PlayConfig,
+    type PlatformAudioBackend,
+    type AudioPluginConfig,
+    type AudioBusConfig,
+    type AudioMixerConfig,
+    type SpatialAudioConfig,
+    type AudioSourceData,
+    type AudioListenerData,
+    type PooledAudioNode,
+    type WebAudioBackendOptions,
+} from './audio';
+
+// =============================================================================
 // Playable Runtime
 // =============================================================================
 
