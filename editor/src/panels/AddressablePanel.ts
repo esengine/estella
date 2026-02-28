@@ -3,7 +3,7 @@
  * @brief   Addressable asset management panel with groups, labels, and dependency analysis
  */
 
-import type { EditorStore, AssetType } from '../store/EditorStore';
+import type { EditorStore } from '../store/EditorStore';
 import type { PanelInstance } from './PanelRegistry';
 import { icons } from '../utils/icons';
 import { getAssetDatabase, type AssetEntry } from '../asset/AssetDatabase';
@@ -16,25 +16,13 @@ import { getContextMenuItems, type ContextMenuContext } from '../ui/ContextMenuR
 import { showErrorToast, showSuccessToast } from '../ui/Toast';
 import { getEditorType } from 'esengine';
 import { escapeHtml } from '../utils/html';
+import { getDisplayType } from '../asset/AssetTypeRegistry';
 
-const EDITOR_TYPE_TO_ASSET_TYPE: Record<string, AssetType> = {
-    'texture': 'image',
-    'material': 'material',
-    'shader': 'shader',
-    'spine-atlas': 'file',
-    'spine-skeleton': 'file',
-    'bitmap-font': 'font',
-    'prefab': 'file',
-    'json': 'json',
-    'audio': 'audio',
-    'scene': 'scene',
-};
-
-function getAssetTypeFromPath(path: string): AssetType {
+function getAssetTypeFromPath(path: string): string {
     const ext = path.substring(path.lastIndexOf('.')).toLowerCase();
     if (ext === '.ts' || ext === '.js') return 'script';
     const editorType = getEditorType(path);
-    return EDITOR_TYPE_TO_ASSET_TYPE[editorType] ?? 'file';
+    return getDisplayType(editorType);
 }
 
 const LABEL_COLORS = [

@@ -48,6 +48,7 @@ import { showToast, showSuccessToast, showErrorToast } from './ui/Toast';
 import { showContextMenu } from './ui/ContextMenu';
 import { registerContextMenuItem, lockBuiltinContextMenuItems, clearExtensionContextMenuItems } from './ui/ContextMenuRegistry';
 import { installGlobalErrorHandler } from './error/GlobalErrorHandler';
+import { registerBuiltinAssetTypes } from './asset/AssetTypeRegistry';
 import { EditorLogger, createConsoleHandler, createToastHandler } from './logging';
 import {
     registerInspectorSection,
@@ -133,6 +134,7 @@ export class Editor {
         }));
         EditorLogger.setMinLevel('info');
 
+        registerBuiltinAssetTypes();
         registerBuiltinEditors();
         registerMaterialEditors();
         registerBuiltinSchemas();

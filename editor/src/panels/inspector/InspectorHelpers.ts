@@ -3,13 +3,14 @@
  * @brief   Shared helper functions and context type for inspector sub-modules
  */
 
-import type { EditorStore, AssetType } from '../../store/EditorStore';
+import type { EditorStore } from '../../store/EditorStore';
 import type { PropertyEditorInstance } from '../../property/PropertyEditor';
 import type { EditorAssetServer } from '../../asset/EditorAssetServer';
 import type { NativeFS } from '../../types/NativeFS';
 import { getAssetMimeType } from 'esengine';
 import { getEditorContext, getEditorInstance } from '../../context/EditorContext';
 import { icons } from '../../utils/icons';
+import { getAssetTypeIcon, getAssetTypeDisplayName } from '../../asset/AssetTypeRegistry';
 
 // =============================================================================
 // Types
@@ -67,36 +68,12 @@ export function formatDate(date: Date | null): string {
     return date.toLocaleString();
 }
 
-export function getAssetIcon(type: AssetType, size: number = 16): string {
-    switch (type) {
-        case 'image': return icons.image(size);
-        case 'script': return icons.code(size);
-        case 'scene': return icons.layers(size);
-        case 'audio': return icons.volume(size);
-        case 'json': return icons.braces(size);
-        case 'material': return icons.settings(size);
-        case 'shader': return icons.code(size);
-        case 'font': return icons.type(size);
-        case 'folder': return icons.folder(size);
-        case 'animclip': return icons.film(size);
-        default: return icons.file(size);
-    }
+export function getAssetIcon(type: string, size: number = 16): string {
+    return getAssetTypeIcon(type, size);
 }
 
-export function getAssetTypeName(type: AssetType): string {
-    switch (type) {
-        case 'image': return 'Image';
-        case 'script': return 'Script';
-        case 'scene': return 'Scene';
-        case 'audio': return 'Audio';
-        case 'json': return 'JSON';
-        case 'material': return 'Material';
-        case 'shader': return 'Shader';
-        case 'font': return 'BitmapFont';
-        case 'folder': return 'Folder';
-        case 'animclip': return 'Animation Clip';
-        default: return 'File';
-    }
+export function getAssetTypeName(type: string): string {
+    return getAssetTypeDisplayName(type);
 }
 
 export function escapeHtml(text: string): string {

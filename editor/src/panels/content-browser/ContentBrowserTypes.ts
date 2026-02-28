@@ -1,8 +1,8 @@
-import type { EditorStore, AssetType } from '../../store/EditorStore';
+import type { EditorStore } from '../../store/EditorStore';
 import type { NativeFS, DirectoryEntry } from '../../types/NativeFS';
-import { icons } from '../../utils/icons';
 import { getEditorContext } from '../../context/EditorContext';
 import { getEditorType } from 'esengine';
+import { getDisplayType, getAssetTypeIcon } from '../../asset/AssetTypeRegistry';
 
 export interface NativeShell {
     openFile(path: string): Promise<void>;
@@ -20,7 +20,7 @@ export interface FolderNode {
 export interface AssetItem {
     name: string;
     path: string;
-    type: 'folder' | 'scene' | 'script' | 'image' | 'audio' | 'json' | 'material' | 'shader' | 'spine' | 'font' | 'prefab' | 'animclip' | 'file';
+    type: string;
     relativePath?: string;
 }
 
@@ -75,46 +75,18 @@ export function getFileExtension(filename: string): string {
     return dotIndex > 0 ? filename.substring(dotIndex).toLowerCase() : '';
 }
 
-const EDITOR_TYPE_TO_DISPLAY: Record<string, AssetItem['type']> = {
-    'texture': 'image',
-    'material': 'material',
-    'shader': 'shader',
-    'spine-atlas': 'spine',
-    'spine-skeleton': 'spine',
-    'bitmap-font': 'font',
-    'prefab': 'prefab',
-    'json': 'json',
-    'audio': 'audio',
-    'scene': 'scene',
-    'anim-clip': 'animclip',
-};
-
-export function getAssetType(entry: DirectoryEntry): AssetItem['type'] {
+export function getAssetType(entry: DirectoryEntry): string {
     if (entry.isDirectory) return 'folder';
 
     const ext = getFileExtension(entry.name);
     if (ext === '.ts' || ext === '.js') return 'script';
 
     const editorType = getEditorType(entry.name);
-    return EDITOR_TYPE_TO_DISPLAY[editorType] ?? 'file';
+    return getDisplayType(editorType);
 }
 
-export function getAssetIcon(type: AssetItem['type'], size: number = 32): string {
-    switch (type) {
-        case 'folder': return icons.folder(size);
-        case 'prefab': return icons.package(size);
-        case 'scene': return icons.layers(size);
-        case 'script': return icons.code(size);
-        case 'image': return icons.image(size);
-        case 'audio': return icons.volume(size);
-        case 'json': return icons.braces(size);
-        case 'material': return icons.settings(size);
-        case 'shader': return icons.code(size);
-        case 'spine': return icons.bone(size);
-        case 'font': return icons.type(size);
-        case 'animclip': return icons.film(size);
-        default: return icons.file(size);
-    }
+export function getAssetIcon(type: string, size: number = 32): string {
+    return getAssetTypeIcon(type, size);
 }
 
 export function isImageFile(name: string): boolean {
