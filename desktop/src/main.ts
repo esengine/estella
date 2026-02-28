@@ -190,7 +190,7 @@ async function init(): Promise<void> {
     let esbuildWasmURL = '/esbuild.wasm';
     try {
         const wasmData = await nativeFS.getEsbuildWasm();
-        const blob = new Blob([wasmData.buffer], { type: 'application/wasm' });
+        const blob = new Blob([wasmData.buffer as ArrayBuffer], { type: 'application/wasm' });
         esbuildWasmURL = URL.createObjectURL(blob);
         console.log('[init] Using embedded esbuild.wasm');
     } catch (e) {
