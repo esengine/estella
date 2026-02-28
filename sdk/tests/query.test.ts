@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { World } from '../src/world';
-import { Query, QueryInstance, Mut } from '../src/query';
+import {
+    Query, QueryInstance, Mut,
+    Added, Changed, Removed,
+    isMutWrapper, isAddedWrapper, isChangedWrapper,
+    RemovedQueryInstance,
+} from '../src/query';
 import { defineComponent } from '../src/component';
 
 
@@ -251,6 +256,299 @@ describe('Query System', () => {
                     world.remove(entity, Velocity);
                 });
             }).toThrow(/Cannot remove component during query iteration/);
+        });
+    });
+
+    // =========================================================================
+    // with / without filters
+    // =========================================================================
+
+    describe('with / without filters', () => {
+        it('should filter entities that also have a with component', () => {
+            const e1 = world.spawn();
+            world.insert(e1, Position, { x: 1, y: 1 });
+            world.insert(e1, Enemy, {});
+
+            const e2 = world.spawn();
+            world.insert(e2, Position, { x: 2, y: 2 });
+
+            const query = Query(Position).with(Enemy);
+            const results: number[] = [];
+            new QueryInstance(world, query).forEach((entity) => {
+                results.push(entity);
+            });
+            expect(results).toEqual([e1]);
+        });
+
+        it('should exclude entities with a without component', () => {
+            const e1 = world.spawn();
+            world.insert(e1, Position, { x: 1, y: 1 });
+            world.insert(e1, Enemy, {});
+
+            const e2 = world.spawn();
+            world.insert(e2, Position, { x: 2, y: 2 });
+
+            const query = Query(Position).without(Enemy);
+            const results: number[] = [];
+            new QueryInstance(world, query).forEach((entity) => {
+                results.push(entity);
+            });
+            expect(results).toEqual([e2]);
+        });
+
+        it('should chain with and without', () => {
+            const e1 = world.spawn();
+            world.insert(e1, Position, { x: 1, y: 1 });
+            world.insert(e1, Velocity, { dx: 1, dy: 1 });
+            world.insert(e1, Enemy, {});
+
+            const e2 = world.spawn();
+            world.insert(e2, Position, { x: 2, y: 2 });
+            world.insert(e2, Velocity, { dx: 2, dy: 2 });
+
+            const e3 = world.spawn();
+            world.insert(e3, Position, { x: 3, y: 3 });
+            world.insert(e3, Enemy, {});
+
+            const query = Query(Position).with(Velocity).without(Enemy);
+            const results: number[] = [];
+            new QueryInstance(world, query).forEach((entity) => {
+                results.push(entity);
+            });
+            expect(results).toEqual([e2]);
+        });
+    });
+
+    // =========================================================================
+    // Added / Changed wrappers and type guards
+    // =========================================================================
+
+    describe('Added / Changed wrappers', () => {
+        it('Added should create an added filter wrapper', () => {
+            const wrapper = Added(Position);
+            expect(wrapper._filterType).toBe('added');
+            expect(wrapper._component).toBe(Position);
+        });
+
+        it('Changed should create a changed filter wrapper', () => {
+            const wrapper = Changed(Position);
+            expect(wrapper._filterType).toBe('changed');
+            expect(wrapper._component).toBe(Position);
+        });
+
+        it('isAddedWrapper should detect Added wrappers', () => {
+            expect(isAddedWrapper(Added(Position))).toBe(true);
+            expect(isAddedWrapper(Changed(Position))).toBe(false);
+            expect(isAddedWrapper(Mut(Position))).toBe(false);
+            expect(isAddedWrapper(null)).toBe(false);
+        });
+
+        it('isChangedWrapper should detect Changed wrappers', () => {
+            expect(isChangedWrapper(Changed(Position))).toBe(true);
+            expect(isChangedWrapper(Added(Position))).toBe(false);
+            expect(isChangedWrapper(Mut(Position))).toBe(false);
+            expect(isChangedWrapper(null)).toBe(false);
+        });
+
+        it('isMutWrapper should detect Mut wrappers', () => {
+            expect(isMutWrapper(Mut(Position))).toBe(true);
+            expect(isMutWrapper(Added(Position))).toBe(false);
+            expect(isMutWrapper(Position)).toBe(false);
+            expect(isMutWrapper(null)).toBe(false);
+        });
+    });
+
+    describe('Added query filtering', () => {
+        it('should only return entities added since last run tick', () => {
+            const e1 = world.spawn();
+            world.insert(e1, Position, { x: 1, y: 1 });
+
+            const query = Query(Added(Position));
+            const instance = new QueryInstance(world, query, -1);
+            const results: number[] = [];
+            instance.forEach((entity) => {
+                results.push(entity);
+            });
+            expect(results).toContain(e1);
+        });
+    });
+
+    describe('Changed query filtering', () => {
+        it('should only return entities changed since last run tick', () => {
+            const e1 = world.spawn();
+            world.insert(e1, Position, { x: 1, y: 1 });
+
+            const query = Query(Changed(Position));
+            const instance = new QueryInstance(world, query, -1);
+            const results: number[] = [];
+            instance.forEach((entity) => {
+                results.push(entity);
+            });
+            expect(results).toContain(e1);
+        });
+
+        it('should skip entities not changed since a future tick', () => {
+            const e1 = world.spawn();
+            world.insert(e1, Position, { x: 1, y: 1 });
+
+            const query = Query(Changed(Position));
+            const instance = new QueryInstance(world, query, Infinity);
+            const results: number[] = [];
+            instance.forEach((entity) => {
+                results.push(entity);
+            });
+            expect(results).toHaveLength(0);
+        });
+    });
+
+    // =========================================================================
+    // single / isEmpty / count / toArray
+    // =========================================================================
+
+    describe('single()', () => {
+        it('should return first result', () => {
+            const e1 = world.spawn();
+            world.insert(e1, Position, { x: 10, y: 20 });
+
+            const query = Query(Position);
+            const instance = new QueryInstance(world, query);
+            const result = instance.single();
+            expect(result).not.toBeNull();
+            expect(result![0]).toBe(e1);
+        });
+
+        it('should return null when no results', () => {
+            const query = Query(Position);
+            const instance = new QueryInstance(world, query);
+            expect(instance.single()).toBeNull();
+        });
+    });
+
+    describe('isEmpty()', () => {
+        it('should return true when no matching entities', () => {
+            const query = Query(Position);
+            const instance = new QueryInstance(world, query);
+            expect(instance.isEmpty()).toBe(true);
+        });
+
+        it('should return false when matching entities exist', () => {
+            const e1 = world.spawn();
+            world.insert(e1, Position, { x: 0, y: 0 });
+
+            const query = Query(Position);
+            const instance = new QueryInstance(world, query);
+            expect(instance.isEmpty()).toBe(false);
+        });
+    });
+
+    describe('count()', () => {
+        it('should return 0 for empty query', () => {
+            const query = Query(Position);
+            expect(new QueryInstance(world, query).count()).toBe(0);
+        });
+
+        it('should return correct count', () => {
+            for (let i = 0; i < 3; i++) {
+                const e = world.spawn();
+                world.insert(e, Position, { x: i, y: i });
+            }
+
+            const query = Query(Position);
+            expect(new QueryInstance(world, query).count()).toBe(3);
+        });
+    });
+
+    describe('toArray()', () => {
+        it('should return empty array for no results', () => {
+            const query = Query(Position);
+            expect(new QueryInstance(world, query).toArray()).toEqual([]);
+        });
+
+        it('should return all results as array', () => {
+            const e1 = world.spawn();
+            world.insert(e1, Position, { x: 1, y: 1 });
+            const e2 = world.spawn();
+            world.insert(e2, Position, { x: 2, y: 2 });
+
+            const query = Query(Position);
+            const arr = new QueryInstance(world, query).toArray();
+            expect(arr).toHaveLength(2);
+            expect(arr[0][0]).toBe(e1);
+            expect(arr[1][0]).toBe(e2);
+        });
+    });
+
+    // =========================================================================
+    // Mut write-back with multiple entities
+    // =========================================================================
+
+    describe('Mut write-back across multiple entities', () => {
+        it('should write back mutations for all entities', () => {
+            const e1 = world.spawn();
+            world.insert(e1, Position, { x: 0, y: 0 });
+
+            const e2 = world.spawn();
+            world.insert(e2, Position, { x: 0, y: 0 });
+
+            const e3 = world.spawn();
+            world.insert(e3, Position, { x: 0, y: 0 });
+
+            const query = Query(Mut(Position));
+            new QueryInstance(world, query).forEach((entity, pos) => {
+                pos.x = entity * 10;
+                pos.y = entity * 20;
+            });
+
+            expect(world.get(e1, Position)).toEqual({ x: e1 * 10, y: e1 * 20 });
+            expect(world.get(e2, Position)).toEqual({ x: e2 * 10, y: e2 * 20 });
+            expect(world.get(e3, Position)).toEqual({ x: e3 * 10, y: e3 * 20 });
+        });
+    });
+
+    // =========================================================================
+    // Removed query
+    // =========================================================================
+
+    describe('Removed query', () => {
+        it('should create a removed descriptor', () => {
+            const desc = Removed(Position);
+            expect(desc._type).toBe('removed');
+            expect(desc._component).toBe(Position);
+        });
+
+        it('should iterate over removed entities', () => {
+            const e1 = world.spawn();
+            world.insert(e1, Position, { x: 1, y: 1 });
+            world.remove(e1, Position);
+
+            const instance = new RemovedQueryInstance(world, Position, -1);
+            const removed = instance.toArray();
+            expect(removed).toContain(e1);
+        });
+
+        it('should report isEmpty correctly', () => {
+            const instance = new RemovedQueryInstance(world, Position, Infinity);
+            expect(instance.isEmpty()).toBe(true);
+
+            const e1 = world.spawn();
+            world.insert(e1, Position, { x: 1, y: 1 });
+            world.remove(e1, Position);
+
+            const instance2 = new RemovedQueryInstance(world, Position, -1);
+            expect(instance2.isEmpty()).toBe(false);
+        });
+
+        it('should be iterable', () => {
+            const e1 = world.spawn();
+            world.insert(e1, Position, { x: 1, y: 1 });
+            world.remove(e1, Position);
+
+            const instance = new RemovedQueryInstance(world, Position, -1);
+            const results: number[] = [];
+            for (const entity of instance) {
+                results.push(entity);
+            }
+            expect(results).toContain(e1);
         });
     });
 });
