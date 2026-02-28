@@ -29,12 +29,6 @@ interface SpawnComponentEntry {
     data: unknown;
 }
 
-interface SpawnCommand {
-    type: 'spawn';
-    components: SpawnComponentEntry[];
-    entityRef: { entity: Entity };
-}
-
 interface DespawnCommand {
     type: 'despawn';
     entity: Entity;
@@ -60,7 +54,6 @@ interface InsertResourceCommand {
 }
 
 type Command =
-    | SpawnCommand
     | DespawnCommand
     | InsertCommand
     | RemoveCommand
@@ -198,15 +191,6 @@ export class CommandsInstance {
 
     private executeCommand(cmd: Command): void {
         switch (cmd.type) {
-            case 'spawn': {
-                const entity = this.world_.spawn();
-                cmd.entityRef.entity = entity;
-                for (const entry of cmd.components) {
-                    this.world_.insert(entity, entry.component, entry.data as Record<string, unknown>);
-                }
-                break;
-            }
-
             case 'despawn':
                 if (!this.world_.valid(cmd.entity)) {
                     console.warn(`[Commands] despawn skipped: entity ${cmd.entity} is already invalid`);
