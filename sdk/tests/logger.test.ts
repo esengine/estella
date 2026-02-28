@@ -205,5 +205,88 @@ describe('Logger', () => {
             expect(warn).toBeDefined();
             expect(error).toBeDefined();
         });
+
+        it('getLogger should return a Logger instance', async () => {
+            const { getLogger } = await import('../src/logger');
+            expect(getLogger()).toBeInstanceOf(Logger);
+        });
+
+        it('setLogLevel should change default logger level', async () => {
+            const { getLogger, setLogLevel } = await import('../src/logger');
+            const l = getLogger();
+            l.clearHandlers();
+            l.addHandler(mockHandler);
+
+            setLogLevel(LogLevel.Debug);
+            l.debug('Test', 'should appear');
+            expect(capturedEntries.length).toBeGreaterThan(0);
+            setLogLevel(LogLevel.Info);
+        });
+
+        it('shorthand functions should log through default logger', async () => {
+            const mod = await import('../src/logger');
+            const l = mod.getLogger();
+            l.clearHandlers();
+            l.addHandler(mockHandler);
+
+            mod.setLogLevel(LogLevel.Debug);
+            mod.debug('Cat', 'debug msg');
+            mod.info('Cat', 'info msg');
+            mod.warn('Cat', 'warn msg');
+            mod.error('Cat', 'error msg');
+
+            expect(capturedEntries).toHaveLength(4);
+            expect(capturedEntries[0].level).toBe(LogLevel.Debug);
+            expect(capturedEntries[1].level).toBe(LogLevel.Info);
+            expect(capturedEntries[2].level).toBe(LogLevel.Warn);
+            expect(capturedEntries[3].level).toBe(LogLevel.Error);
+            mod.setLogLevel(LogLevel.Info);
+        });
+    });
+
+    describe('ConsoleLogHandler branches', () => {
+        it('should call console.debug for Debug level', () => {
+            const spy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+            const l = new Logger();
+            l.setMinLevel(LogLevel.Debug);
+            l.debug('Test', 'dbg');
+            expect(spy).toHaveBeenCalled();
+            spy.mockRestore();
+        });
+
+        it('should call console.log for Info level', () => {
+            const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+            const l = new Logger();
+            l.info('Test', 'inf');
+            expect(spy).toHaveBeenCalled();
+            spy.mockRestore();
+        });
+
+        it('should call console.warn for Warn level', () => {
+            const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+            const l = new Logger();
+            l.warn('Test', 'wrn');
+            expect(spy).toHaveBeenCalled();
+            spy.mockRestore();
+        });
+
+        it('should call console.error for Error level', () => {
+            const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+            const l = new Logger();
+            l.error('Test', 'err');
+            expect(spy).toHaveBeenCalled();
+            spy.mockRestore();
+        });
+
+        it('should include data in console output', () => {
+            const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+            const l = new Logger();
+            l.info('Test', 'msg', { key: 'val' });
+            expect(spy).toHaveBeenCalledWith(
+                expect.any(String),
+                expect.stringContaining('"key":"val"'),
+            );
+            spy.mockRestore();
+        });
     });
 });
