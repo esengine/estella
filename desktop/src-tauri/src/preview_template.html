@@ -501,6 +501,9 @@
                 if (physicsPlugin) {
                     app.addPlugin(physicsPlugin);
                 }
+                if (config.showStats) {
+                    app.addPlugin(new sdk.StatsPlugin({ position: 'top-left' }));
+                }
                 app.addPlugin(previewPlugin);
 
                 step = 'waitForReady (scene load)';

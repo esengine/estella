@@ -30,6 +30,7 @@ import { ScriptLoader } from './scripting';
 import { showBuildSettingsDialog, BuildService } from './builder';
 import { AddressablePanel } from './panels/AddressablePanel';
 import { getGlobalPathResolver } from './asset';
+import { getSharedRenderContext } from './renderer/SharedRenderContext';
 import type { EditorAssetServer } from './asset/EditorAssetServer';
 import { getAssetLibrary } from './asset/AssetLibrary';
 import { setEditorInstance, getEditorContext, getEditorInstance } from './context/EditorContext';
@@ -79,6 +80,8 @@ import {
 } from './panels/PanelRegistry';
 import { MainWindowBridge } from './multiwindow/MainWindowBridge';
 import { WindowManager } from './multiwindow/WindowManager';
+import { emit } from '@tauri-apps/api/event';
+import { CHANNEL_PROFILER_STATS } from './multiwindow/protocol';
 
 export interface EditorOptions {
     projectPath?: string;
@@ -107,6 +110,7 @@ export class Editor {
     private scriptsReady_: Promise<void> = Promise.resolve();
     private clipboard_: EntityData[] | null = null;
     private addressableWindow_: { element: HTMLElement; panel: AddressablePanel; keyHandler: (e: KeyboardEvent) => void } | null = null;
+    private profilerActive_ = false;
     private previewUrl_: string | null = null;
     private escapeHandler_: ((e: KeyboardEvent) => void) | null = null;
     private closeUnlisten_: (() => void) | null = null;
@@ -563,6 +567,49 @@ export class Editor {
         this.addressableWindow_ = { element: win, panel, keyHandler };
     }
 
+    async showProfilerWindow(): Promise<void> {
+        if (!this.windowManager_) return;
+
+        await this.windowManager_.detachPanel('profiler', 'Profiler');
+        this.startProfilerStats();
+    }
+
+    startProfilerStats(): void {
+        if (this.profilerActive_) return;
+        this.profilerActive_ = true;
+
+        const ctx = getSharedRenderContext();
+        ctx.setPostTickCallback(() => this.emitProfilerStats());
+    }
+
+    stopProfilerStats(): void {
+        if (!this.profilerActive_) return;
+        this.profilerActive_ = false;
+
+        const ctx = getSharedRenderContext();
+        ctx.setPostTickCallback(null);
+    }
+
+    private emitProfilerStats(): void {
+        const ctx = getSharedRenderContext();
+        const app = ctx.app_;
+
+        const frameTimeMs = app?.getPhaseTimings()
+            ? [...(app.getPhaseTimings() as Map<string, number>).values()].reduce((a: number, b: number) => a + b, 0)
+            : 0;
+
+        const phaseTimings: [string, number][] = app?.getPhaseTimings()
+            ? [...(app.getPhaseTimings() as Map<string, number>).entries()]
+            : [];
+
+        const systemTimings: [string, number][] = app?.getSystemTimings()
+            ? [...(app.getSystemTimings() as ReadonlyMap<string, number>).entries()]
+            : [];
+
+        const msg = { frameTimeMs, phaseTimings, systemTimings };
+        emit(CHANNEL_PROFILER_STATS, msg);
+    }
+
     private async syncProjectSettings(): Promise<void> {
         if (!this.projectPath_) return;
         const config = await loadProjectConfig(this.projectPath_);
@@ -884,6 +931,19 @@ export class Editor {
         this.updatePreviewUrl();
     }
 
+    togglePreviewStats(enabled: boolean): void {
+        this.previewManager_.setShowStats(enabled);
+        if (this.previewUrl_) {
+            this.previewManager_.refreshFiles(
+                this.store_.scene, this.scriptLoader_, this.spineVersion_,
+            );
+        }
+    }
+
+    get previewStatsEnabled(): boolean {
+        return this.previewManager_.showStats;
+    }
+
     private updatePreviewUrl(): void {
         const urlEl = this.container_.querySelector('.es-preview-url') as HTMLElement;
         if (!urlEl) return;
@@ -1011,6 +1071,10 @@ export class Editor {
                     <span class="es-menubar-scene-name"></span>
                 </div>
                 <span class="es-preview-url" style="display:none" title="Click to copy"></span>
+                <label class="es-preview-stats-toggle" title="Show stats overlay in preview">
+                    <input type="checkbox" class="es-preview-stats-cb" />
+                    <span>Stats</span>
+                </label>
                 <button class="es-btn es-btn-preview" data-action="preview">${icons.play(14)} Preview</button>
             </div>
             <div class="es-editor-dock"></div>
@@ -1048,6 +1112,11 @@ export class Editor {
                 previewUrlEl.textContent = 'Copied!';
                 setTimeout(() => { previewUrlEl.textContent = original; }, 1000);
             }
+        });
+
+        const statsCb = this.container_.querySelector('.es-preview-stats-cb') as HTMLInputElement;
+        statsCb?.addEventListener('change', () => {
+            this.togglePreviewStats(statsCb.checked);
         });
 
         this.menuManager_.setupToolbarEvents(this.container_, () => this.startPreview());
@@ -1193,6 +1262,7 @@ export class Editor {
             document.removeEventListener('keydown', this.addressableWindow_.keyHandler);
             this.addressableWindow_ = null;
         }
+        this.stopProfilerStats();
         if (this.escapeHandler_) {
             document.removeEventListener('keydown', this.escapeHandler_);
             this.escapeHandler_ = null;

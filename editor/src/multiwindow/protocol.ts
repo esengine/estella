@@ -11,6 +11,7 @@ export const CHANNEL_ACTION_RESULT = 'editor:action-result';
 export const CHANNEL_PANEL_OPENED = 'editor:panel-opened';
 export const CHANNEL_PANEL_CLOSED = 'editor:panel-closed';
 export const CHANNEL_OUTPUT = 'editor:output';
+export const CHANNEL_PROFILER_STATS = 'editor:profiler-stats';
 
 // =============================================================================
 // State Snapshot
@@ -88,4 +89,14 @@ export type OutputType = 'command' | 'stdout' | 'stderr' | 'error' | 'success';
 export interface OutputMessage {
     text: string;
     type: OutputType;
+}
+
+// =============================================================================
+// Profiler Stats Messages
+// =============================================================================
+
+export interface ProfilerStatsMessage {
+    frameTimeMs: number;
+    phaseTimings: [string, number][];
+    systemTimings: [string, number][];
 }

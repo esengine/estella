@@ -692,8 +692,10 @@ export {
     StatsPlugin,
     statsPlugin,
     StatsCollector,
+    FrameHistory,
     defaultFrameStats,
     type FrameStats,
+    type FrameSnapshot,
     type StatsPluginOptions,
 } from './stats';
 

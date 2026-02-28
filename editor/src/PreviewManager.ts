@@ -73,6 +73,16 @@ export class PreviewManager {
         this.previewService_.updatePreviewFiles(scene, compiledScript, previewSpineVersion, enablePhysics, physicsConfig, runtimeConfig);
     }
 
+    private showStats_ = false;
+
+    setShowStats(enabled: boolean): void {
+        this.showStats_ = enabled;
+    }
+
+    get showStats(): boolean {
+        return this.showStats_;
+    }
+
     private collectPreviewConfig(spineVersion: string) {
         const enablePhysics = getSettingsValue<boolean>('project.enablePhysics') ?? false;
         const physicsConfig = enablePhysics ? {
@@ -91,6 +101,7 @@ export class PreviewManager {
             maxDeltaTime: getSettingsValue<number>('runtime.maxDeltaTime') ?? 0.25,
             maxFixedSteps: getSettingsValue<number>('runtime.maxFixedSteps') ?? 8,
             textCanvasSize: parseInt(getSettingsValue<string>('runtime.textCanvasSize') ?? '512', 10),
+            showStats: this.showStats_,
         };
         return { enablePhysics, physicsConfig, previewSpineVersion, runtimeConfig };
     }

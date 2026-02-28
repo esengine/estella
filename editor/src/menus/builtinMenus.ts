@@ -152,8 +152,13 @@ export function registerBuiltinMenus(editor: Editor): void {
         action: () => editor.showPanel('game'),
     });
     registerMenuItem({
-        id: 'view.addressable', menu: 'view', label: 'Addressable Groups',
+        id: 'view.profiler', menu: 'view', label: 'Profiler',
         order: 5, separator: true,
+        action: () => editor.showProfilerWindow(),
+    });
+    registerMenuItem({
+        id: 'view.addressable', menu: 'view', label: 'Addressable Groups',
+        order: 6,
         action: () => editor.showAddressableWindow(),
     });
     registerMenuItem({

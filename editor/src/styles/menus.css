@@ -160,6 +160,21 @@
     background: #c9302c;
 }
 
+.es-preview-stats-toggle {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: var(--es-text-secondary);
+    cursor: pointer;
+    user-select: none;
+    margin-right: 4px;
+}
+
+.es-preview-stats-toggle input {
+    margin: 0;
+}
+
 .es-preview-url {
     font-size: 11px;
     color: var(--es-accent);

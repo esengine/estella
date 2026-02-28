@@ -9,6 +9,7 @@ export interface FrameStats {
     frameTimeMs: number;
     entityCount: number;
     systemTimings: Map<string, number>;
+    phaseTimings: Map<string, number>;
     drawCalls: number;
     triangles: number;
     sprites: number;
@@ -24,6 +25,7 @@ export function defaultFrameStats(): FrameStats {
         frameTimeMs: 0,
         entityCount: 0,
         systemTimings: new Map(),
+        phaseTimings: new Map(),
         drawCalls: 0,
         triangles: 0,
         sprites: 0,
@@ -35,6 +37,72 @@ export function defaultFrameStats(): FrameStats {
 }
 
 export const Stats = defineResource<FrameStats>(defaultFrameStats(), 'Stats');
+
+// =============================================================================
+// Frame History
+// =============================================================================
+
+const DEFAULT_HISTORY_CAPACITY = 300;
+
+export interface FrameSnapshot {
+    frameTimeMs: number;
+    phaseTimings: Map<string, number>;
+    systemTimings: Map<string, number>;
+}
+
+export class FrameHistory {
+    private readonly capacity_: number;
+    private buffer_: FrameSnapshot[] = [];
+    private cursor_ = 0;
+    private count_ = 0;
+
+    constructor(capacity = DEFAULT_HISTORY_CAPACITY) {
+        this.capacity_ = capacity;
+    }
+
+    get count(): number {
+        return this.count_;
+    }
+
+    push(frameTimeMs: number, phaseTimings: Map<string, number>, systemTimings?: Map<string, number>): void {
+        const snapshot: FrameSnapshot = {
+            frameTimeMs,
+            phaseTimings: new Map(phaseTimings),
+            systemTimings: systemTimings ? new Map(systemTimings) : new Map(),
+        };
+
+        if (this.count_ < this.capacity_) {
+            this.buffer_.push(snapshot);
+            this.count_++;
+        } else {
+            this.buffer_[this.cursor_] = snapshot;
+        }
+        this.cursor_ = (this.cursor_ + 1) % this.capacity_;
+    }
+
+    getLatest(): FrameSnapshot | null {
+        if (this.count_ === 0) return null;
+        const idx = (this.cursor_ - 1 + this.capacity_) % this.capacity_;
+        return this.buffer_[idx];
+    }
+
+    getAll(): FrameSnapshot[] {
+        if (this.count_ === 0) return [];
+        if (this.count_ < this.capacity_) {
+            return this.buffer_.slice();
+        }
+        return [
+            ...this.buffer_.slice(this.cursor_),
+            ...this.buffer_.slice(0, this.cursor_),
+        ];
+    }
+
+    reset(): void {
+        this.buffer_.length = 0;
+        this.cursor_ = 0;
+        this.count_ = 0;
+    }
+}
 
 const SLIDING_WINDOW_SIZE = 60;
 const STATS_COLLECT_SYSTEM_NAME = 'StatsCollect';
@@ -127,6 +195,9 @@ export class StatsPlugin implements Plugin {
                 } else {
                     stats.systemTimings = new Map();
                 }
+
+                const pt = app.getPhaseTimings();
+                stats.phaseTimings = pt ? new Map(pt) : new Map();
 
                 const renderStats = Renderer.getStats();
                 stats.drawCalls = renderStats.drawCalls;

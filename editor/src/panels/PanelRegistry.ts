@@ -11,6 +11,7 @@ export interface PanelDescriptor {
     icon?: string;
     position: PanelPosition;
     defaultVisible?: boolean;
+    detachOnly?: boolean;
     order?: number;
     factory: PanelFactory;
 }
@@ -119,5 +120,5 @@ export function getAllPanels(): PanelDescriptor[] {
 }
 
 export function getPanelsByPosition(position: PanelPosition): PanelDescriptor[] {
-    return getAllPanels().filter(p => p.position === position);
+    return getAllPanels().filter(p => p.position === position && !p.detachOnly);
 }

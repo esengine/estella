@@ -85,6 +85,7 @@ export class App {
     private error_handler_: ((error: unknown, systemName: string) => void) | null = null;
     private system_error_handler_: ((error: Error, systemName?: string) => 'continue' | 'pause') | null = null;
     private statsEnabled_ = false;
+    private phaseTimings_: Map<string, number> | null = null;
     private frame_paused_ = false;
     private user_paused_ = false;
     private step_pending_ = false;
@@ -303,12 +304,17 @@ export class App {
 
     enableStats(): this {
         this.statsEnabled_ = true;
+        this.phaseTimings_ = new Map();
         this.runner_?.setTimingEnabled(true);
         return this;
     }
 
     getSystemTimings(): ReadonlyMap<string, number> | null {
         return this.runner_?.getTimings() ?? null;
+    }
+
+    getPhaseTimings(): ReadonlyMap<string, number> | null {
+        return this.phaseTimings_;
     }
 
     getEntityCount(): number {
@@ -602,6 +608,8 @@ export class App {
             this.sortedSystemsCache_.set(schedule, systems);
         }
 
+        const t0 = this.phaseTimings_ ? performance.now() : 0;
+
         for (const entry of systems) {
             try {
                 this.runner_.run(entry.system);
@@ -620,6 +628,10 @@ export class App {
                     }
                 }
             }
+        }
+
+        if (this.phaseTimings_) {
+            this.phaseTimings_.set(Schedule[schedule], performance.now() - t0);
         }
     }
 

@@ -29,13 +29,14 @@ export class WindowManager {
         }
 
         const windowLabel = `panel-${panelId}-${Date.now()}`;
+        const isProfiler = panelId === 'profiler';
         const webviewWindow = new WebviewWindow(windowLabel, {
             url,
             title,
-            width: 400,
-            height: 600,
-            minWidth: 300,
-            minHeight: 200,
+            width: isProfiler ? 780 : 400,
+            height: isProfiler ? 540 : 600,
+            minWidth: isProfiler ? 500 : 300,
+            minHeight: isProfiler ? 360 : 200,
             center: true,
             decorations: true,
             resizable: true,

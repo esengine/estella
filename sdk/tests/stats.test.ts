@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { StatsCollector, defaultFrameStats, Stats, StatsPlugin, statsPlugin, type FrameStats } from '../src/stats';
+import { StatsCollector, defaultFrameStats, Stats, StatsPlugin, statsPlugin, FrameHistory, type FrameStats } from '../src/stats';
 import { StatsOverlay } from '../src/stats-overlay';
 import { App } from '../src/app';
 import { Schedule, defineSystem, SystemRunner } from '../src/system';
@@ -648,6 +648,7 @@ describe('StatsOverlay', () => {
         return {
             fps: 0, frameTimeMs: 0, entityCount: 0,
             systemTimings: new Map(),
+            phaseTimings: new Map(),
             drawCalls: 0, triangles: 0, sprites: 0,
             text: 0, spine: 0, meshes: 0, culled: 0,
             ...overrides,
@@ -845,5 +846,182 @@ describe('StatsOverlay', () => {
         const overlay = new StatsOverlay(container);
         overlay.dispose();
         expect(() => overlay.update(makeStats({ fps: 60 }))).not.toThrow();
+    });
+});
+
+// ============================================================================
+// FrameHistory
+// ============================================================================
+
+describe('FrameHistory', () => {
+    it('should start empty', () => {
+        const history = new FrameHistory();
+        expect(history.count).toBe(0);
+        expect(history.getAll()).toEqual([]);
+    });
+
+    it('should store pushed snapshots', () => {
+        const history = new FrameHistory();
+        history.push(16.7, new Map([['Update', 5.0]]));
+        expect(history.count).toBe(1);
+        const all = history.getAll();
+        expect(all[0].frameTimeMs).toBeCloseTo(16.7);
+        expect(all[0].phaseTimings.get('Update')).toBe(5.0);
+        expect(all[0].systemTimings).toBeInstanceOf(Map);
+        expect(all[0].systemTimings.size).toBe(0);
+    });
+
+    it('should store systemTimings when provided', () => {
+        const history = new FrameHistory();
+        const sysTimes = new Map([['PhysicsSystem', 1.5], ['RenderSystem', 3.2]]);
+        history.push(16.7, new Map(), sysTimes);
+        const snap = history.getLatest()!;
+        expect(snap.systemTimings.get('PhysicsSystem')).toBe(1.5);
+        expect(snap.systemTimings.get('RenderSystem')).toBe(3.2);
+    });
+
+    it('should deep copy systemTimings on push', () => {
+        const history = new FrameHistory();
+        const sysTimes = new Map([['Sys', 2.0]]);
+        history.push(16.0, new Map(), sysTimes);
+        sysTimes.set('Sys', 99.0);
+        expect(history.getLatest()!.systemTimings.get('Sys')).toBe(2.0);
+    });
+
+    it('should preserve insertion order', () => {
+        const history = new FrameHistory();
+        history.push(10.0, new Map());
+        history.push(20.0, new Map());
+        history.push(30.0, new Map());
+        const all = history.getAll();
+        expect(all.map(s => s.frameTimeMs)).toEqual([10.0, 20.0, 30.0]);
+    });
+
+    it('should evict oldest when exceeding capacity', () => {
+        const capacity = 300;
+        const history = new FrameHistory(capacity);
+        for (let i = 0; i < capacity + 10; i++) {
+            history.push(i, new Map());
+        }
+        expect(history.count).toBe(capacity);
+        const all = history.getAll();
+        expect(all[0].frameTimeMs).toBe(10);
+        expect(all[all.length - 1].frameTimeMs).toBe(capacity + 9);
+    });
+
+    it('should return latest snapshot', () => {
+        const history = new FrameHistory();
+        history.push(10.0, new Map());
+        history.push(20.0, new Map());
+        expect(history.getLatest()!.frameTimeMs).toBe(20.0);
+    });
+
+    it('should return null for latest when empty', () => {
+        const history = new FrameHistory();
+        expect(history.getLatest()).toBeNull();
+    });
+
+    it('should use default capacity of 300', () => {
+        const history = new FrameHistory();
+        for (let i = 0; i < 400; i++) {
+            history.push(i, new Map());
+        }
+        expect(history.count).toBe(300);
+    });
+
+    it('should deep copy phase timings on push', () => {
+        const history = new FrameHistory();
+        const timings = new Map([['Update', 5.0]]);
+        history.push(16.0, timings);
+        timings.set('Update', 99.0);
+        expect(history.getLatest()!.phaseTimings.get('Update')).toBe(5.0);
+    });
+
+    it('should reset to empty', () => {
+        const history = new FrameHistory();
+        for (let i = 0; i < 10; i++) history.push(i, new Map());
+        expect(history.count).toBe(10);
+        history.reset();
+        expect(history.count).toBe(0);
+        expect(history.getAll()).toEqual([]);
+    });
+});
+
+// ============================================================================
+// Phase Timings
+// ============================================================================
+
+describe('App phase timings', () => {
+    it('should return null before enableStats', () => {
+        const app = App.new();
+        expect(app.getPhaseTimings()).toBeNull();
+    });
+
+    it('should return a Map after enableStats + tick', () => {
+        const app = App.new();
+        app.enableStats();
+        app.tick(1 / 60);
+        const pt = app.getPhaseTimings();
+        expect(pt).toBeInstanceOf(Map);
+    });
+
+    it('should contain schedule phase names after tick', () => {
+        const app = App.new();
+        app.enableStats();
+        app.addSystemToSchedule(Schedule.Update, defineSystem(
+            [], () => {}, { name: 'Dummy' }
+        ));
+        app.tick(1 / 60);
+        const pt = app.getPhaseTimings()!;
+        expect(pt.has('First')).toBe(true);
+        expect(pt.has('PreUpdate')).toBe(true);
+        expect(pt.has('Update')).toBe(true);
+        expect(pt.has('PostUpdate')).toBe(true);
+        expect(pt.has('Last')).toBe(true);
+    });
+
+    it('should have numeric values for each phase', () => {
+        const app = App.new();
+        app.enableStats();
+        app.tick(1 / 60);
+        const pt = app.getPhaseTimings()!;
+        for (const [, v] of pt) {
+            expect(typeof v).toBe('number');
+            expect(v).toBeGreaterThanOrEqual(0);
+        }
+    });
+
+    it('should work when enableStats called after first tick', () => {
+        const app = App.new();
+        app.tick(1 / 60);
+        expect(app.getPhaseTimings()).toBeNull();
+
+        app.enableStats();
+        app.tick(1 / 60);
+        expect(app.getPhaseTimings()).toBeInstanceOf(Map);
+    });
+});
+
+// ============================================================================
+// FrameStats phaseTimings field
+// ============================================================================
+
+describe('FrameStats phaseTimings', () => {
+    it('should default to empty Map', () => {
+        const stats = defaultFrameStats();
+        expect(stats.phaseTimings).toBeInstanceOf(Map);
+        expect(stats.phaseTimings.size).toBe(0);
+    });
+
+    it('should be populated by StatsPlugin', () => {
+        const app = App.new();
+        app.addPlugin(new StatsPlugin({ overlay: false }));
+        app.addSystemToSchedule(Schedule.Update, defineSystem(
+            [], () => {}, { name: 'TestSys' }
+        ));
+        app.tick(1 / 60);
+        const stats = app.getResource(Stats);
+        expect(stats.phaseTimings).toBeInstanceOf(Map);
+        expect(stats.phaseTimings.size).toBeGreaterThan(0);
     });
 });

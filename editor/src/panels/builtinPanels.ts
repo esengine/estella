@@ -5,7 +5,7 @@ import { SceneViewPanel } from './scene-view/SceneViewPanel';
 import { GameViewPanel } from './game-view/GameViewPanel';
 import { ContentBrowserPanel } from './content-browser/ContentBrowserPanel';
 import { OutputPanel } from './OutputPanel';
-
+import { ProfilerPanel } from './profiler/ProfilerPanel';
 import { icons } from '../utils/icons';
 
 export interface BuiltinPanelOptions {
@@ -74,6 +74,16 @@ export function registerBuiltinPanels(options: BuiltinPanelOptions): void {
         order: 1,
         defaultVisible: false,
         factory: (c) => new OutputPanel(c),
+    });
+
+    registerPanel({
+        id: 'profiler',
+        title: 'Profiler',
+        icon: icons.gauge(14),
+        position: 'bottom',
+        detachOnly: true,
+        order: 99,
+        factory: (c) => new ProfilerPanel(c),
     });
 
 }

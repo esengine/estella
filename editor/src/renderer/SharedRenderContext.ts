@@ -62,6 +62,7 @@ export class SharedRenderContext {
     private gameViewportH_ = 0;
     private renderCallback_: (() => void) | null = null;
     private onInitCallbacks_: (() => void)[] = [];
+    private postTickCallback_: (() => void) | null = null;
 
     constructor() {
         this.pathResolver_ = new AssetPathResolver();
@@ -151,6 +152,7 @@ export class SharedRenderContext {
         }, { name: 'EditorInputClearSystem' }));
 
         setEditorMode(true);
+        app.enableStats();
         app.addPlugin(assetPlugin);
         app.addPlugin(prefabsPlugin);
         app.addPlugin(animationPlugin);
@@ -279,6 +281,10 @@ export class SharedRenderContext {
         }
     }
 
+    setPostTickCallback(cb: (() => void) | null): void {
+        this.postTickCallback_ = cb;
+    }
+
     tickApp(): void {
         if (!this.app_) return;
         if (this.playMode_ && !this.paused_) {
@@ -290,6 +296,7 @@ export class SharedRenderContext {
         } else {
             this.app_.tick(1 / 60);
         }
+        this.postTickCallback_?.();
     }
 
     enterPlayMode(): void {

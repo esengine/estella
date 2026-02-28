@@ -9,6 +9,7 @@ export {
     CHANNEL_PANEL_OPENED,
     CHANNEL_PANEL_CLOSED,
     CHANNEL_OUTPUT,
+    CHANNEL_PROFILER_STATS,
     type SerializedEditorState,
     type ActionType,
     type ActionMessage,
@@ -17,6 +18,7 @@ export {
     type PanelClosedMessage,
     type OutputType,
     type OutputMessage,
+    type ProfilerStatsMessage,
 } from './protocol';
 
 export { serializeEditorState } from './stateSerializer';
