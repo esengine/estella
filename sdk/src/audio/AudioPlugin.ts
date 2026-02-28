@@ -5,8 +5,7 @@ import { Res, Time, type TimeData } from '../resource';
 import { Audio } from './Audio';
 import { AudioSource, AudioListener, type AudioSourceData, type AudioListenerData } from './AudioComponents';
 import { WorldTransform, type WorldTransformData } from '../component';
-import { createAudioBackend } from './AudioBackendFactory';
-import { WebAudioBackend } from './WebAudioBackend';
+import { getPlatform } from '../platform/base';
 import { calculateAttenuation, calculatePanning, type SpatialAudioConfig, AttenuationModel } from './SpatialAudio';
 import type { AudioHandle } from './PlatformAudioBackend';
 
@@ -26,19 +25,12 @@ export class AudioPlugin implements Plugin {
     }
 
     build(app: App): void {
-        const backend = createAudioBackend();
+        const backend = getPlatform().createAudioBackend();
         const config = this.config_;
 
-        if (backend instanceof WebAudioBackend) {
-            backend.initialize({ initialPoolSize: config.initialPoolSize });
-        } else {
-            backend.initialize();
-        }
+        backend.initialize({ initialPoolSize: config.initialPoolSize });
 
-        let mixer = null;
-        if (backend instanceof WebAudioBackend) {
-            mixer = backend.mixer;
-        }
+        const mixer = backend.mixer;
         Audio.init(backend, mixer);
 
         if (mixer) {

@@ -11,6 +11,8 @@ import type {
     InputEventCallbacks,
     ImageLoadResult,
 } from './types';
+import { WebAudioBackend } from '../audio/WebAudioBackend';
+import type { PlatformAudioBackend } from '../audio/PlatformAudioBackend';
 
 const WHEEL_LINE_HEIGHT = 16;
 
@@ -204,6 +206,10 @@ class WebPlatformAdapter implements PlatformAdapter {
             this.inputCleanup_();
             this.inputCleanup_ = null;
         }
+    }
+
+    createAudioBackend(): PlatformAudioBackend {
+        return new WebAudioBackend();
     }
 }
 

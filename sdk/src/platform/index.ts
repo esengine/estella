@@ -30,6 +30,7 @@ export {
     platformCreateCanvas,
     platformCreateImage,
     platformNow,
+    platformCreateAudioBackend,
     platformDevicePixelRatio,
 } from './base';
 

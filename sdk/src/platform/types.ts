@@ -90,6 +90,8 @@ export interface PlatformAdapter {
     createImage(): HTMLImageElement;
 
     bindInputEvents(callbacks: InputEventCallbacks, target?: unknown): void;
+
+    createAudioBackend(): import('../audio/PlatformAudioBackend').PlatformAudioBackend;
 }
 
 // =============================================================================

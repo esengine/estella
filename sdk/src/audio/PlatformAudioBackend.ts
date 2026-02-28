@@ -1,3 +1,6 @@
+import type { AudioMixer } from './AudioMixer';
+import type { AudioMixerConfig } from './AudioMixer';
+
 export interface AudioHandle {
     readonly id: number;
     stop(): void;
@@ -28,9 +31,15 @@ export interface PlayConfig {
     startOffset?: number;
 }
 
+export interface AudioBackendInitOptions {
+    initialPoolSize?: number;
+    mixerConfig?: AudioMixerConfig;
+}
+
 export interface PlatformAudioBackend {
     readonly name: string;
-    initialize(): Promise<void>;
+    readonly mixer: AudioMixer | null;
+    initialize(options?: AudioBackendInitOptions): Promise<void>;
     ensureResumed(): Promise<void>;
     loadBuffer(url: string): Promise<AudioBufferHandle>;
     unloadBuffer(handle: AudioBufferHandle): void;
