@@ -76,4 +76,5 @@ CLAUDE.md
 # Test output
 Testing/
 CTestTestfile.cmake
+coverage/
 design/
