@@ -768,8 +768,8 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
 }
 
 export function flushPendingSystems(app: App): void {
-    if (typeof window === 'undefined') return;
-    const pending = window.__esengine_pendingSystems;
+    const g = globalThis as any;
+    const pending = g.__esengine_pendingSystems;
     if (!pending || pending.length === 0) return;
 
     for (const entry of pending) {

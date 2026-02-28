@@ -116,8 +116,8 @@ export function defineSystem<P extends readonly SystemParam[]>(
 // =============================================================================
 
 function getPendingSystems(): Array<{ schedule: number; system: unknown }> {
-    if (typeof window === 'undefined') return [];
-    return (window.__esengine_pendingSystems ??= []);
+    const g = globalThis as any;
+    return (g.__esengine_pendingSystems ??= []);
 }
 
 export function addSystem(system: SystemDef): void {

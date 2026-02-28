@@ -15,7 +15,7 @@ import { loadSceneWithAssets, type SceneData } from '../scene';
 import { AsyncCache } from './AsyncCache';
 import type { PrefabData } from '../prefab';
 import type { SpineModuleController } from '../spine/SpineController';
-import { type AddressableAssetType, getAssetTypeEntry } from '../assetTypes';
+import { type AddressableAssetType, getAssetTypeEntry, toBuildPath } from '../assetTypes';
 import { getComponentAssetFields, getComponentSpineFieldDescriptor } from '../scene';
 
 // =============================================================================
@@ -734,7 +734,7 @@ export class AssetServer {
     private async loadImage(source: string): Promise<HTMLImageElement | ImageBitmap> {
         const localPath = this.isLocalPath(source) ? this.toLocalPath(source) : null;
         if (localPath) {
-            const embedded = this.embedded_.get(localPath);
+            const embedded = this.getEmbedded(localPath);
             if (embedded) {
                 return this.loadImageFromSrc(embedded);
             }
@@ -879,7 +879,7 @@ export class AssetServer {
     private async loadShaderInternal(path: string): Promise<ShaderHandle> {
         const localPath = this.isLocalPath(path) ? this.toLocalPath(path) : path;
 
-        const embedded = this.embedded_.get(localPath);
+        const embedded = this.getEmbedded(localPath);
         if (embedded) {
             const content = this.decodeDataUrlText(embedded);
             const { vertex, fragment } = this.parseEsShader(content);
@@ -945,10 +945,14 @@ export class AssetServer {
         return url.startsWith('/') ? url.substring(1) : url;
     }
 
+    private getEmbedded(localPath: string): string | undefined {
+        return this.embedded_.get(localPath) ?? this.embedded_.get(toBuildPath(localPath));
+    }
+
     private async fetchJson(url: string): Promise<unknown> {
         const localPath = this.isLocalPath(url) ? this.toLocalPath(url) : null;
         if (localPath) {
-            const embedded = this.embedded_.get(localPath);
+            const embedded = this.getEmbedded(localPath);
             if (embedded) {
                 return JSON.parse(this.decodeDataUrlText(embedded));
             }
@@ -971,7 +975,7 @@ export class AssetServer {
     private async fetchText(url: string): Promise<string> {
         const localPath = this.isLocalPath(url) ? this.toLocalPath(url) : null;
         if (localPath) {
-            const embedded = this.embedded_.get(localPath);
+            const embedded = this.getEmbedded(localPath);
             if (embedded) {
                 return this.decodeDataUrlText(embedded);
             }
@@ -993,7 +997,7 @@ export class AssetServer {
     private async fetchBinary(url: string): Promise<ArrayBuffer> {
         const localPath = this.isLocalPath(url) ? this.toLocalPath(url) : null;
         if (localPath) {
-            const embedded = this.embedded_.get(localPath);
+            const embedded = this.getEmbedded(localPath);
             if (embedded) {
                 return this.decodeDataUrlBinary(embedded);
             }

@@ -3,7 +3,7 @@
  * @brief   Build output templates for platform emitters
  */
 
-import { getCustomExtensions, getAssetTypeEntry } from 'esengine';
+import type { RuntimeBuildConfig } from './BuildService';
 
 // =============================================================================
 // Playable HTML Template
@@ -81,219 +81,35 @@ export interface WeChatGameJsParams {
     hasSpine: boolean;
     hasPhysics: boolean;
     physicsConfig: string;
-    runtimeConfig?: {
-        sceneTransitionDuration?: number;
-        sceneTransitionColor?: string;
-        defaultFontFamily?: string;
-        canvasScaleMode?: string;
-        canvasMatchWidthOrHeight?: number;
-        maxDeltaTime?: number;
-        maxFixedSteps?: number;
-        textCanvasSize?: number;
-    };
-}
-
-function generateRuntimeConfigBlock(rc?: WeChatGameJsParams['runtimeConfig']): string {
-    if (!rc) return '';
-    const lines: string[] = [];
-    if (rc.maxDeltaTime !== undefined) {
-        lines.push(`    SDK.RuntimeConfig.maxDeltaTime = ${rc.maxDeltaTime};`);
-        lines.push(`    app.setMaxDeltaTime(${rc.maxDeltaTime});`);
-    }
-    if (rc.maxFixedSteps !== undefined) {
-        lines.push(`    SDK.RuntimeConfig.maxFixedSteps = ${rc.maxFixedSteps};`);
-        lines.push(`    app.setMaxFixedSteps(${rc.maxFixedSteps});`);
-    }
-    if (rc.textCanvasSize !== undefined) lines.push(`    SDK.RuntimeConfig.textCanvasSize = ${rc.textCanvasSize};`);
-    if (rc.defaultFontFamily !== undefined) lines.push(`    SDK.RuntimeConfig.defaultFontFamily = ${JSON.stringify(rc.defaultFontFamily)};`);
-    if (rc.sceneTransitionDuration !== undefined) lines.push(`    SDK.RuntimeConfig.sceneTransitionDuration = ${rc.sceneTransitionDuration};`);
-    if (rc.sceneTransitionColor) {
-        const hex = rc.sceneTransitionColor.replace('#', '');
-        const r = parseInt(hex.substring(0, 2), 16) / 255;
-        const g = parseInt(hex.substring(2, 4), 16) / 255;
-        const b = parseInt(hex.substring(4, 6), 16) / 255;
-        lines.push(`    SDK.RuntimeConfig.sceneTransitionColor = {r:${r},g:${g},b:${b},a:1};`);
-    }
-    if (rc.canvasScaleMode !== undefined) {
-        const modeMap: Record<string, number> = { FixedWidth: 0, FixedHeight: 1, Expand: 2, Shrink: 3, Match: 4 };
-        lines.push(`    SDK.RuntimeConfig.canvasScaleMode = ${modeMap[rc.canvasScaleMode] ?? 1};`);
-    }
-    if (rc.canvasMatchWidthOrHeight !== undefined) lines.push(`    SDK.RuntimeConfig.canvasMatchWidthOrHeight = ${rc.canvasMatchWidthOrHeight};`);
-    return lines.join('\n');
+    runtimeConfig?: RuntimeBuildConfig;
 }
 
 export function generateWeChatGameJs(params: WeChatGameJsParams): string {
     const { userCode, firstSceneName, allSceneNames, hasSpine, hasPhysics, physicsConfig, runtimeConfig } = params;
-    const runtimeConfigBlock = generateRuntimeConfigBlock(runtimeConfig);
 
-    const spineInit = hasSpine ? `
-async function initSpineModule() {
-    try {
-        var SpineFactory = require('./spine.js');
-        spineModule = await SpineFactory({
-            instantiateWasm: function(imports, successCallback) {
-                WXWebAssembly.instantiate('spine.wasm', imports).then(function(result) {
-                    successCallback(result.instance, result.module);
-                });
-                return {};
-            }
-        });
-    } catch(e) { console.warn('Spine module not available:', e); }
-}` : '';
-
-    const physicsInit = hasPhysics ? `
-async function initPhysicsModule() {
-    try {
-        var PhysicsFactory = require('./physics.js');
-        physicsModule = await PhysicsFactory({
-            instantiateWasm: function(imports, successCallback) {
-                WXWebAssembly.instantiate('physics.wasm', imports).then(function(result) {
-                    successCallback(result.instance, result.module);
-                });
-                return {};
-            }
-        });
-    } catch(e) { console.warn('Physics module not available:', e); }
-}` : '';
-
-    const sceneNamesArray = JSON.stringify(allSceneNames);
-
-    const sceneLoading = firstSceneName ? `
-    try {
-        var provider = {
-            loadPixels: function(ref) { return SDK.wxLoadImagePixels(resolvePath(ref)); },
-            loadPixelsRaw: function(ref) { return SDK.wxLoadImagePixels(resolvePath(ref)); },
-            readText: function(ref) {
-                return new Promise(function(resolve, reject) {
-                    wxfs.readFile({ filePath: resolvePath(ref), encoding: 'utf-8',
-                        success: function(res) { resolve(res.data); },
-                        fail: function(err) { reject(new Error(err.errMsg)); }
-                    });
-                });
-            },
-            readBinary: function(ref) {
-                return new Promise(function(resolve, reject) {
-                    wxfs.readFile({ filePath: resolvePath(ref),
-                        success: function(res) { resolve(new Uint8Array(res.data)); },
-                        fail: function(err) { reject(new Error(err.errMsg)); }
-                    });
-                });
-            },
-            resolvePath: resolvePath
-        };
-
-        function readSceneFile(name) {
-            return new Promise(function(resolve, reject) {
-                wxfs.readFile({ filePath: 'scenes/' + name + '.json', encoding: 'utf-8',
-                    success: function(res) { resolve(JSON.parse(res.data)); },
-                    fail: function(err) { reject(new Error(err.errMsg)); }
-                });
-            });
-        }
-
-        var sceneNames = ${sceneNamesArray};
-        var mgr = app.getResource(SDK.SceneManager);
-        var sceneOpts = { app: app, module: module, provider: provider, spineModule: spineModule, physicsModule: physicsModule, physicsConfig: ${physicsConfig}, manifest: manifest };
-
-        for (var i = 0; i < sceneNames.length; i++) {
-            var sd = await readSceneFile(sceneNames[i]);
-            mgr.register(SDK.createRuntimeSceneConfig(sceneNames[i], sd, sceneOpts));
-        }
-        mgr.setInitial('${firstSceneName}');
-        await mgr.load('${firstSceneName}');
-
-        var screenAspect = canvas.width / canvas.height;
-        SDK.updateCameraAspectRatio(app.world, screenAspect);
-    } catch (err) {
-        console.error('[ESEngine] Failed to load scene:', err);
-    }
-    ` : '';
+    const runtimeConfigJson = runtimeConfig ? JSON.stringify(runtimeConfig) : 'undefined';
 
     return `
 var ESEngineModule = require('./esengine.js');
 var SDK = require('./sdk.js');
 globalThis.__esengine_sdk = SDK;
 
-var spineModule = null;
-${spineInit}
-
-var physicsModule = null;
-${physicsInit}
+${userCode}
 
 (async function() {
-    var wxfs = wx.getFileSystemManager();
-    var manifest = await new Promise(function(resolve, reject) {
-        wxfs.readFile({ filePath: 'asset-manifest.json', encoding: 'utf-8',
-            success: function(res) { resolve(JSON.parse(res.data)); },
-            fail: function(err) { reject(new Error(err.errMsg)); }
+    try {
+        await SDK.initWeChatRuntime({
+            engineFactory: ESEngineModule,
+            sceneNames: ${JSON.stringify(allSceneNames)},
+            firstScene: ${JSON.stringify(firstSceneName)},
+            runtimeConfig: ${runtimeConfigJson},
+            physicsConfig: ${physicsConfig},
+            ${hasSpine ? "spineFactory: require('./spine.js')," : ''}
+            ${hasPhysics ? "physicsFactory: require('./physics.js')," : ''}
         });
-    });
-    var assetIndex = {};
-    var pathIndex = {};
-    for (var gn in manifest.groups) {
-        var g = manifest.groups[gn];
-        for (var uuid in g.assets) {
-            assetIndex[uuid] = g.assets[uuid];
-            pathIndex[g.assets[uuid].path] = g.assets[uuid];
-        }
+    } catch (err) {
+        console.error('[ESEngine] Runtime init error:', err);
     }
-    var _jsonExts = ${JSON.stringify(getCustomExtensions().filter(e => getAssetTypeEntry(e)?.contentType === 'json'))};
-    function toBuildPath(p) {
-        for (var i = 0; i < _jsonExts.length; i++) {
-            if (p.endsWith(_jsonExts[i])) return p.substring(0, p.length - _jsonExts[i].length) + '.json';
-        }
-        return p;
-    }
-    function resolvePath(ref) {
-        var resolved = toBuildPath(ref);
-        var entry = assetIndex[ref] || assetIndex[resolved] || pathIndex[resolved] || pathIndex[ref];
-        return entry ? entry.path : resolved;
-    }
-
-    var canvas = wx.createCanvas();
-    var info = wx.getSystemInfoSync();
-    canvas.width = info.windowWidth * info.pixelRatio;
-    canvas.height = info.windowHeight * info.pixelRatio;
-
-    var module = await ESEngineModule({
-        canvas: canvas,
-        instantiateWasm: function(imports, successCallback) {
-            WXWebAssembly.instantiate('esengine.wasm', imports).then(function(result) {
-                successCallback(result.instance, result.module);
-            });
-            return {};
-        }
-    });
-
-    var gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
-    if (!gl) {
-        console.error('[ESEngine] Failed to create WebGL context');
-        return;
-    }
-    var glHandle = module.GL.registerContext(gl, {
-        majorVersion: gl.getParameter(gl.VERSION).indexOf('WebGL 2') === 0 ? 2 : 1,
-        minorVersion: 0,
-        enableExtensionsByDefault: true
-    });
-
-    var app = SDK.createWebApp(module, {
-        glContextHandle: glHandle,
-        getViewportSize: function() {
-            return { width: canvas.width, height: canvas.height };
-        }
-    });
-
-${runtimeConfigBlock}
-
-    ${userCode}
-
-    SDK.flushPendingSystems(app);
-
-    ${hasSpine ? 'await initSpineModule();' : ''}
-    ${hasPhysics ? 'await initPhysicsModule();' : ''}
-
-    ${sceneLoading}
-    app.run();
 })();
 `;
 }

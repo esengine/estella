@@ -630,3 +630,8 @@ export {
     initPlayableRuntime,
     type PlayableRuntimeConfig,
 } from './playableRuntime';
+
+export {
+    applyBuildRuntimeConfig,
+    type RuntimeBuildConfig,
+} from './defaults';

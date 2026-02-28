@@ -11,10 +11,13 @@ import type {
     PlatformResponse,
     WasmInstantiateResult,
     InputEventCallbacks,
+    ImageLoadResult,
 } from '../types';
 import { wxFetch, polyfillFetch } from './fetch';
 import { wxInstantiateWasm, polyfillWebAssembly } from './wasm';
-import { wxReadFile, wxReadTextFile, wxFileExists } from './fs';
+import { wxReadFileSync, wxReadTextFileSync, wxFileExistsSync } from './fs';
+import { wxLoadImagePixels } from './image';
+import { toBuildPath } from '../../assetTypes';
 
 // =============================================================================
 // WeChat Platform Adapter
@@ -29,15 +32,19 @@ class WeChatPlatformAdapter implements PlatformAdapter {
     }
 
     async readFile(path: string): Promise<ArrayBuffer> {
-        return wxReadFile(path);
+        return wxReadFileSync(toBuildPath(path));
     }
 
     async readTextFile(path: string): Promise<string> {
-        return wxReadTextFile(path);
+        return wxReadTextFileSync(toBuildPath(path));
     }
 
     async fileExists(path: string): Promise<boolean> {
-        return wxFileExists(path);
+        return wxFileExistsSync(toBuildPath(path));
+    }
+
+    async loadImagePixels(path: string): Promise<ImageLoadResult> {
+        return wxLoadImagePixels(path);
     }
 
     async instantiateWasm(
@@ -227,5 +234,5 @@ function polyfillTextEncoder(): void {
 export const wechatAdapter = new WeChatPlatformAdapter();
 
 export { polyfillFetch, polyfillWebAssembly };
-export { wxReadFile, wxReadTextFile, wxFileExists, wxFileExistsSync, wxWriteFile } from './fs';
+export { wxReadFile, wxReadTextFile, wxReadFileSync, wxReadTextFileSync, wxFileExists, wxFileExistsSync, wxWriteFile } from './fs';
 export { wxLoadImage, wxGetImagePixels, wxLoadImagePixels, type ImageLoadResult } from './image';

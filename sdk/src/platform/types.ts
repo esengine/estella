@@ -52,68 +52,43 @@ export interface InputEventCallbacks {
 }
 
 // =============================================================================
+// Image Types
+// =============================================================================
+
+export interface ImageLoadResult {
+    width: number;
+    height: number;
+    pixels: Uint8Array;
+}
+
+// =============================================================================
 // Platform Adapter Interface
 // =============================================================================
 
 export interface PlatformAdapter {
-    /**
-     * Platform name identifier
-     */
     readonly name: 'web' | 'wechat';
 
-    /**
-     * Fetch resource from URL
-     */
     fetch(url: string, options?: PlatformRequestOptions): Promise<PlatformResponse>;
 
-    /**
-     * Read local file as ArrayBuffer
-     * @param path - File path (relative to game root)
-     */
     readFile(path: string): Promise<ArrayBuffer>;
 
-    /**
-     * Read local file as text
-     * @param path - File path (relative to game root)
-     */
     readTextFile(path: string): Promise<string>;
 
-    /**
-     * Check if file exists
-     * @param path - File path
-     */
     fileExists(path: string): Promise<boolean>;
 
-    /**
-     * Instantiate WebAssembly module
-     * @param pathOrBuffer - WASM file path (WeChat) or ArrayBuffer (Web)
-     * @param imports - Import object
-     */
+    loadImagePixels(path: string): Promise<ImageLoadResult>;
+
     instantiateWasm(
         pathOrBuffer: string | ArrayBuffer,
         imports: WebAssembly.Imports
     ): Promise<WasmInstantiateResult>;
 
-    /**
-     * Create a 2D canvas for offscreen rendering
-     */
     createCanvas(width: number, height: number): HTMLCanvasElement | OffscreenCanvas;
 
-    /**
-     * High-resolution timestamp in milliseconds
-     */
     now(): number;
 
-    /**
-     * Create an Image element for loading textures
-     */
     createImage(): HTMLImageElement;
 
-    /**
-     * Bind input events (keyboard, pointer, wheel)
-     * @param callbacks - Event callbacks
-     * @param target - Optional event target (canvas element)
-     */
     bindInputEvents(callbacks: InputEventCallbacks, target?: unknown): void;
 }
 

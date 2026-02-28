@@ -65,11 +65,9 @@ function createComponentDef<T extends object>(
     };
 }
 
-const fallbackComponentRegistry_ = new Map<string, ComponentDef<any>>();
-
 export function getComponentRegistry(): Map<string, ComponentDef<any>> {
-    if (typeof window === 'undefined') return fallbackComponentRegistry_;
-    return (window.__esengine_componentRegistry ??= new Map());
+    const g = globalThis as any;
+    return (g.__esengine_componentRegistry ??= new Map());
 }
 
 export function defineComponent<T extends object>(
@@ -119,8 +117,9 @@ function registerToEditor(
     defaults: Record<string, unknown>,
     isTag: boolean
 ): void {
-    if (typeof window !== 'undefined' && window.__esengine_registerComponent) {
-        window.__esengine_registerComponent(name, defaults, isTag);
+    const g = globalThis as any;
+    if (g.__esengine_registerComponent) {
+        g.__esengine_registerComponent(name, defaults, isTag);
     }
 }
 

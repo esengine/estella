@@ -9,6 +9,7 @@ import type {
     PlatformResponse,
     WasmInstantiateResult,
     InputEventCallbacks,
+    ImageLoadResult,
 } from './types';
 
 const WHEEL_LINE_HEIGHT = 16;
@@ -67,6 +68,21 @@ class WebPlatformAdapter implements PlatformAdapter {
         } catch {
             return false;
         }
+    }
+
+    async loadImagePixels(path: string): Promise<ImageLoadResult> {
+        const img = this.createImage();
+        await new Promise<void>((resolve, reject) => {
+            img.crossOrigin = 'anonymous';
+            img.onload = () => resolve();
+            img.onerror = () => reject(new Error(`Failed to load image: ${path}`));
+            img.src = path;
+        });
+        const cv = this.createCanvas(img.width, img.height);
+        const ctx = (cv as HTMLCanvasElement).getContext('2d')!;
+        ctx.drawImage(img, 0, 0);
+        const id = ctx.getImageData(0, 0, img.width, img.height);
+        return { width: img.width, height: img.height, pixels: new Uint8Array(id.data.buffer) };
     }
 
     async instantiateWasm(

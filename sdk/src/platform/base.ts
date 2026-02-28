@@ -83,6 +83,10 @@ export async function platformFileExists(path: string): Promise<boolean> {
     return getPlatform().fileExists(path);
 }
 
+export async function platformLoadImagePixels(path: string): Promise<import('./types').ImageLoadResult> {
+    return getPlatform().loadImagePixels(path);
+}
+
 export async function platformInstantiateWasm(
     pathOrBuffer: string | ArrayBuffer,
     imports: WebAssembly.Imports

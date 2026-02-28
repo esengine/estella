@@ -23,3 +23,9 @@ export {
     wxLoadImagePixels,
     type ImageLoadResult,
 } from './platform/wechat';
+
+export {
+    initWeChatRuntime,
+    WeChatAssetProvider,
+    type WeChatRuntimeConfig,
+} from './wechatRuntime';

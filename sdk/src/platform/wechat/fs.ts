@@ -1,11 +1,15 @@
 /**
  * @file    fs.ts
  * @brief   File system adapter for WeChat MiniGame
+ *
+ * These are thin wrappers over wx.getFileSystemManager().
+ * Path conversion (toBuildPath) is handled at the platform adapter level,
+ * not here — this layer is pure I/O.
  */
 
 /// <reference types="minigame-api-typings" />
 
-import { isCustomExtension, toBuildPath } from '../../assetTypes';
+import { isCustomExtension } from '../../assetTypes';
 
 // =============================================================================
 // Types
@@ -43,31 +47,21 @@ function formatReadError(path: string, errMsg: string): string {
     return `[ESEngine] Failed to read "${path}": ${errMsg}`;
 }
 
-/**
- * Read file as ArrayBuffer (synchronous)
- */
 export function wxReadFileSync(path: string): ArrayBuffer {
     const fs = getFileSystemManager();
-    return fs.readFileSync(toBuildPath(path)) as ArrayBuffer;
+    return fs.readFileSync(path) as ArrayBuffer;
 }
 
-/**
- * Read file as string (synchronous)
- */
 export function wxReadTextFileSync(path: string, encoding: 'utf8' | 'utf-8' = 'utf-8'): string {
     const fs = getFileSystemManager();
-    return fs.readFileSync(toBuildPath(path), encoding) as string;
+    return fs.readFileSync(path, encoding) as string;
 }
 
-/**
- * Read file as ArrayBuffer (async)
- */
 export function wxReadFile(path: string): Promise<ArrayBuffer> {
-    const resolved = toBuildPath(path);
     return new Promise((resolve, reject) => {
         const fs = getFileSystemManager();
         fs.readFile({
-            filePath: resolved,
+            filePath: path,
             success: (res) => {
                 resolve(res.data as ArrayBuffer);
             },
@@ -78,15 +72,11 @@ export function wxReadFile(path: string): Promise<ArrayBuffer> {
     });
 }
 
-/**
- * Read file as string (async)
- */
 export function wxReadTextFile(path: string, encoding: 'utf8' | 'utf-8' = 'utf-8'): Promise<string> {
-    const resolved = toBuildPath(path);
     return new Promise((resolve, reject) => {
         const fs = getFileSystemManager();
         fs.readFile({
-            filePath: resolved,
+            filePath: path,
             encoding,
             success: (res) => {
                 resolve(res.data as string);
@@ -98,37 +88,27 @@ export function wxReadTextFile(path: string, encoding: 'utf8' | 'utf-8' = 'utf-8
     });
 }
 
-/**
- * Check if file exists
- */
 export function wxFileExists(path: string): Promise<boolean> {
-    const resolved = toBuildPath(path);
     return new Promise((resolve) => {
         const fs = getFileSystemManager();
         fs.access({
-            path: resolved,
+            path,
             success: () => resolve(true),
             fail: () => resolve(false),
         });
     });
 }
 
-/**
- * Check if file exists (sync)
- */
 export function wxFileExistsSync(path: string): boolean {
     const fs = getFileSystemManager();
     try {
-        fs.accessSync(toBuildPath(path));
+        fs.accessSync(path);
         return true;
     } catch {
         return false;
     }
 }
 
-/**
- * Write file
- */
 export function wxWriteFile(path: string, data: string | ArrayBuffer): Promise<void> {
     return new Promise((resolve, reject) => {
         const fs = getFileSystemManager();

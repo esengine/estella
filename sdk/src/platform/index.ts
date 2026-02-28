@@ -10,6 +10,7 @@ export type {
     PlatformRequestOptions,
     PlatformResponse,
     WasmInstantiateResult,
+    ImageLoadResult,
 } from './types';
 
 // Re-export base functions
@@ -24,6 +25,7 @@ export {
     platformReadFile,
     platformReadTextFile,
     platformFileExists,
+    platformLoadImagePixels,
     platformInstantiateWasm,
     platformCreateCanvas,
     platformCreateImage,

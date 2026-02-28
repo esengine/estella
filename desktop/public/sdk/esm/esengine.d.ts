@@ -43,6 +43,20 @@ declare function applyRuntimeConfig(components: {
         _default: Record<string, unknown>;
     };
 }): void;
+interface RuntimeBuildConfig {
+    sceneTransitionDuration?: number;
+    sceneTransitionColor?: string;
+    defaultFontFamily?: string;
+    canvasScaleMode?: string;
+    canvasMatchWidthOrHeight?: number;
+    maxDeltaTime?: number;
+    maxFixedSteps?: number;
+    textCanvasSize?: number;
+}
+declare function applyBuildRuntimeConfig(app: {
+    setMaxDeltaTime(v: number): void;
+    setMaxFixedSteps(v: number): void;
+}, config: RuntimeBuildConfig): void;
 
 /**
  * @file    types.ts
@@ -1657,6 +1671,7 @@ declare class AssetServer {
     private decodeDataUrlBinary;
     private isLocalPath;
     private toLocalPath;
+    private getEmbedded;
     private fetchJson;
     private fetchText;
     private fetchBinary;
@@ -2727,53 +2742,22 @@ interface InputEventCallbacks {
     onPointerUp(button: number): void;
     onWheel(deltaX: number, deltaY: number): void;
 }
+interface ImageLoadResult {
+    width: number;
+    height: number;
+    pixels: Uint8Array;
+}
 interface PlatformAdapter {
-    /**
-     * Platform name identifier
-     */
     readonly name: 'web' | 'wechat';
-    /**
-     * Fetch resource from URL
-     */
     fetch(url: string, options?: PlatformRequestOptions): Promise<PlatformResponse>;
-    /**
-     * Read local file as ArrayBuffer
-     * @param path - File path (relative to game root)
-     */
     readFile(path: string): Promise<ArrayBuffer>;
-    /**
-     * Read local file as text
-     * @param path - File path (relative to game root)
-     */
     readTextFile(path: string): Promise<string>;
-    /**
-     * Check if file exists
-     * @param path - File path
-     */
     fileExists(path: string): Promise<boolean>;
-    /**
-     * Instantiate WebAssembly module
-     * @param pathOrBuffer - WASM file path (WeChat) or ArrayBuffer (Web)
-     * @param imports - Import object
-     */
+    loadImagePixels(path: string): Promise<ImageLoadResult>;
     instantiateWasm(pathOrBuffer: string | ArrayBuffer, imports: WebAssembly.Imports): Promise<WasmInstantiateResult>;
-    /**
-     * Create a 2D canvas for offscreen rendering
-     */
     createCanvas(width: number, height: number): HTMLCanvasElement | OffscreenCanvas;
-    /**
-     * High-resolution timestamp in milliseconds
-     */
     now(): number;
-    /**
-     * Create an Image element for loading textures
-     */
     createImage(): HTMLImageElement;
-    /**
-     * Bind input events (keyboard, pointer, wheel)
-     * @param callbacks - Event callbacks
-     * @param target - Optional event target (canvas element)
-     */
     bindInputEvents(callbacks: InputEventCallbacks, target?: unknown): void;
 }
 type PlatformType = 'web' | 'wechat';
@@ -3335,5 +3319,5 @@ declare const uiPlugins: Plugin[];
 
 declare function createWebApp(module: ESEngineModule, options?: WebAppOptions): App;
 
-export { Added, App, AssetPlugin, AssetRefCounter, AssetServer, Assets, AsyncCache, BitmapText$1 as BitmapText, BlendMode, BodyType, BoxCollider$1 as BoxCollider, Button, ButtonState, Camera$1 as Camera, Canvas$1 as Canvas, CapsuleCollider$1 as CapsuleCollider, Changed, Children$1 as Children, CircleCollider$1 as CircleCollider, ClearFlags, Commands, CommandsInstance, DEFAULT_DESIGN_HEIGHT, DEFAULT_DESIGN_WIDTH, DEFAULT_FALLBACK_DT, DEFAULT_FIXED_TIMESTEP, DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE, DEFAULT_GRAVITY, DEFAULT_LINE_HEIGHT, DEFAULT_MAX_DELTA_TIME, DEFAULT_PIXELS_PER_UNIT, DEFAULT_SPINE_SKIN, DEFAULT_SPRITE_SIZE, DEFAULT_TEXT_CANVAS_SIZE, DataType, DragState, Draggable, Draw, Dropdown, EntityCommands, EventReader, EventReaderInstance, EventRegistry, EventWriter, EventWriterInstance, FillDirection, FillMethod, FillOrigin, FocusManager, FocusManagerState, Focusable, GLDebug, Geometry, GetWorld, INVALID_ENTITY, INVALID_FONT, INVALID_MATERIAL, INVALID_TEXTURE, Image, ImageType, Input, InputPlugin, InputState, Interactable, ListView, LocalTransform, LogLevel, Logger, MaskMode, Material, MaterialLoader, Mut, Name, Parent$1 as Parent, Physics, PhysicsEvents, PhysicsPlugin, PostProcess, PrefabServer, Prefabs, PrefabsPlugin, PreviewPlugin, ProgressBar, ProgressBarDirection, ProgressBarPlugin, ProjectionType, Query, QueryInstance, Removed, RemovedQueryInstance, RenderPipeline, RenderStage, RenderTexture, Renderer, Res, ResMut, ResMutInstance, RigidBody$1 as RigidBody, RuntimeConfig, SafeArea, ScaleMode, SceneManager, SceneManagerState, SceneOwner, Schedule, ScrollView, ShaderSources, Slider, SliderDirection, SliderPlugin, SpineAnimation$1 as SpineAnimation, Sprite$1 as Sprite, SystemRunner, Text, TextAlign, TextInput, TextInputPlugin, TextOverflow, TextPlugin, TextRenderer, TextVerticalAlign, Time, Toggle, Transform$1 as Transform, UICameraInfo, UIEventQueue, UIEvents, UIInteraction, UIInteractionPlugin, UILayoutPlugin, UIMask, UIMaskPlugin, UIRect, UIRenderOrderPlugin, Velocity$1 as Velocity, WebAssetProvider, World, WorldTransform, addStartupSystem, addSystem, addSystemToSchedule, applyDirectionalFill, applyRuntimeConfig, assetPlugin, clearDrawCallbacks, clearUserComponents, color, computeFillAnchors, computeFillSize, computeHandleAnchors, computeUIRectLayout, createMaskProcessor, createRuntimeSceneConfig, createWebApp, debug, defineComponent, defineEvent, defineResource, defineSystem, defineTag, error, findEntityByName, flushPendingSystems, getAddressableType, getAddressableTypeByEditorType, getAllAssetExtensions, getAssetMimeType, getAssetTypeEntry, getComponent, getComponentAssetFieldDescriptors, getComponentAssetFields, getComponentDefaults, getComponentEntityFields, getComponentSpineFieldDescriptor, getCustomExtensions, getEditorType, getLogger, getPlatform, getPlatformType, getUserComponent, getWeChatPackOptions, info, initDrawAPI, initGLDebugAPI, initGeometryAPI, initMaterialAPI, initPlayableRuntime, initPostProcessAPI, initRendererAPI, inputPlugin, instantiatePrefab, intersectRects, invertMatrix4, isBuiltinComponent, isCustomExtension, isEditor, isKnownAssetExtension, isPlatformInitialized, isPlayMode, isRuntime, isTextureRef, isWeChat, isWeb, loadComponent, loadPhysicsModule, loadRuntimeScene, loadSceneData, loadSceneWithAssets, looksLikeAssetPath, platformFetch, platformFileExists, platformInstantiateWasm, platformReadFile, platformReadTextFile, pointInOBB, pointInWorldRect, prefabsPlugin, progressBarPlugin, quat, registerComponent, registerComponentAssetFields, registerComponentEntityFields, registerDrawCallback, registerEmbeddedAssets, registerMaterialCallback, remapEntityFields, sceneManagerPlugin, screenToWorld, setEditorMode, setListViewRenderer, setLogLevel, setPlayMode, setWasmErrorHandler, shutdownDrawAPI, shutdownGLDebugAPI, shutdownGeometryAPI, shutdownMaterialAPI, shutdownPostProcessAPI, shutdownRendererAPI, sliderPlugin, syncFillSpriteSize, textInputPlugin, textPlugin, toBuildPath, transitionTo, uiInteractionPlugin, uiLayoutPlugin, uiMaskPlugin, uiPlugins, uiRenderOrderPlugin, unregisterComponent, unregisterDrawCallback, updateCameraAspectRatio, vec2, vec3, vec4, warn, wrapSceneSystem };
-export type { AddedWrapper, AddressableAssetType, AddressableManifest, AddressableManifestAsset, AddressableManifestGroup, AddressableResultMap, AnyComponentDef, AssetBundle, AssetContentType, AssetFieldType, AssetRefInfo, AssetTypeEntry, AssetsData, BitmapTextData, BoxColliderData, BuiltinComponentDef, ButtonData, ButtonTransition, CameraData, CameraRenderParams, CanvasData, CapsuleColliderData, ChangedWrapper, ChildrenData, CircleColliderData, CollisionEnterEvent, Color, CommandsDescriptor, ComponentData, ComponentDef, CppRegistry, CppResourceManager, DragStateData, DraggableData, DrawAPI, DrawCallback, DropdownData, ESEngineModule, EditorAssetType, Entity, EventDef, EventReaderDescriptor, EventWriterDescriptor, FileLoadOptions, FocusableData, FontHandle, GeometryHandle, GeometryOptions, GetWorldDescriptor, ImageData, InferParam, InferParams, InstantiatePrefabOptions, InstantiatePrefabResult, InteractableData, LayoutRect, LayoutResult, ListViewData, ListViewItemRenderer, LoadedMaterial, LocalTransformData, LogEntry, LogHandler, MaskProcessorFn, MaterialAssetData, MaterialHandle, MaterialOptions, MutWrapper, NameData, ParentData, PhysicsEventsData, PhysicsModuleFactory, PhysicsPluginConfig, PhysicsWasmModule, PlatformAdapter, PlatformRequestOptions, PlatformResponse, PlatformType, PlayableRuntimeConfig, Plugin, PluginDependency, PrefabData, PrefabEntityData, PrefabOverride, ProgressBarData, Quat, QueryBuilder, QueryDescriptor, QueryResult, RemovedQueryDescriptor, RenderParams, RenderStats, RenderTargetHandle, RenderTextureHandle, RenderTextureOptions, ResDescriptor, ResMutDescriptor, ResourceDef, RigidBodyData, RuntimeAssetProvider, RuntimeSceneOptions, SafeAreaData, SceneComponentData, SceneConfig, SceneContext, SceneData, SceneEntityData, SceneLoadOptions, SceneOwnerData, SceneStatus, ScreenRect, ScrollViewData, SensorEvent, ShaderHandle, ShaderLoader, SliceBorder$1 as SliceBorder, SliderData, SpineAnimationData, SpineDescriptor, SpineLoadResult, SpineRendererFn, SpriteData, SystemDef, SystemOptions, SystemParam, TextData, TextInputData, TextRenderResult, TextureHandle, TextureInfo, TextureRef, TimeData, ToggleData, ToggleTransition, TransformData, TransitionConfig, TransitionOptions, UICameraData, UIEvent, UIEventType, UIInteractionData, UIMaskData, UIRectData, UniformValue, Vec2, Vec3, Vec4, VelocityData, VertexAttributeDescriptor, WebAppOptions, WorldTransformData };
+export { Added, App, AssetPlugin, AssetRefCounter, AssetServer, Assets, AsyncCache, BitmapText$1 as BitmapText, BlendMode, BodyType, BoxCollider$1 as BoxCollider, Button, ButtonState, Camera$1 as Camera, Canvas$1 as Canvas, CapsuleCollider$1 as CapsuleCollider, Changed, Children$1 as Children, CircleCollider$1 as CircleCollider, ClearFlags, Commands, CommandsInstance, DEFAULT_DESIGN_HEIGHT, DEFAULT_DESIGN_WIDTH, DEFAULT_FALLBACK_DT, DEFAULT_FIXED_TIMESTEP, DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE, DEFAULT_GRAVITY, DEFAULT_LINE_HEIGHT, DEFAULT_MAX_DELTA_TIME, DEFAULT_PIXELS_PER_UNIT, DEFAULT_SPINE_SKIN, DEFAULT_SPRITE_SIZE, DEFAULT_TEXT_CANVAS_SIZE, DataType, DragState, Draggable, Draw, Dropdown, EntityCommands, EventReader, EventReaderInstance, EventRegistry, EventWriter, EventWriterInstance, FillDirection, FillMethod, FillOrigin, FocusManager, FocusManagerState, Focusable, GLDebug, Geometry, GetWorld, INVALID_ENTITY, INVALID_FONT, INVALID_MATERIAL, INVALID_TEXTURE, Image, ImageType, Input, InputPlugin, InputState, Interactable, ListView, LocalTransform, LogLevel, Logger, MaskMode, Material, MaterialLoader, Mut, Name, Parent$1 as Parent, Physics, PhysicsEvents, PhysicsPlugin, PostProcess, PrefabServer, Prefabs, PrefabsPlugin, PreviewPlugin, ProgressBar, ProgressBarDirection, ProgressBarPlugin, ProjectionType, Query, QueryInstance, Removed, RemovedQueryInstance, RenderPipeline, RenderStage, RenderTexture, Renderer, Res, ResMut, ResMutInstance, RigidBody$1 as RigidBody, RuntimeConfig, SafeArea, ScaleMode, SceneManager, SceneManagerState, SceneOwner, Schedule, ScrollView, ShaderSources, Slider, SliderDirection, SliderPlugin, SpineAnimation$1 as SpineAnimation, Sprite$1 as Sprite, SystemRunner, Text, TextAlign, TextInput, TextInputPlugin, TextOverflow, TextPlugin, TextRenderer, TextVerticalAlign, Time, Toggle, Transform$1 as Transform, UICameraInfo, UIEventQueue, UIEvents, UIInteraction, UIInteractionPlugin, UILayoutPlugin, UIMask, UIMaskPlugin, UIRect, UIRenderOrderPlugin, Velocity$1 as Velocity, WebAssetProvider, World, WorldTransform, addStartupSystem, addSystem, addSystemToSchedule, applyBuildRuntimeConfig, applyDirectionalFill, applyRuntimeConfig, assetPlugin, clearDrawCallbacks, clearUserComponents, color, computeFillAnchors, computeFillSize, computeHandleAnchors, computeUIRectLayout, createMaskProcessor, createRuntimeSceneConfig, createWebApp, debug, defineComponent, defineEvent, defineResource, defineSystem, defineTag, error, findEntityByName, flushPendingSystems, getAddressableType, getAddressableTypeByEditorType, getAllAssetExtensions, getAssetMimeType, getAssetTypeEntry, getComponent, getComponentAssetFieldDescriptors, getComponentAssetFields, getComponentDefaults, getComponentEntityFields, getComponentSpineFieldDescriptor, getCustomExtensions, getEditorType, getLogger, getPlatform, getPlatformType, getUserComponent, getWeChatPackOptions, info, initDrawAPI, initGLDebugAPI, initGeometryAPI, initMaterialAPI, initPlayableRuntime, initPostProcessAPI, initRendererAPI, inputPlugin, instantiatePrefab, intersectRects, invertMatrix4, isBuiltinComponent, isCustomExtension, isEditor, isKnownAssetExtension, isPlatformInitialized, isPlayMode, isRuntime, isTextureRef, isWeChat, isWeb, loadComponent, loadPhysicsModule, loadRuntimeScene, loadSceneData, loadSceneWithAssets, looksLikeAssetPath, platformFetch, platformFileExists, platformInstantiateWasm, platformReadFile, platformReadTextFile, pointInOBB, pointInWorldRect, prefabsPlugin, progressBarPlugin, quat, registerComponent, registerComponentAssetFields, registerComponentEntityFields, registerDrawCallback, registerEmbeddedAssets, registerMaterialCallback, remapEntityFields, sceneManagerPlugin, screenToWorld, setEditorMode, setListViewRenderer, setLogLevel, setPlayMode, setWasmErrorHandler, shutdownDrawAPI, shutdownGLDebugAPI, shutdownGeometryAPI, shutdownMaterialAPI, shutdownPostProcessAPI, shutdownRendererAPI, sliderPlugin, syncFillSpriteSize, textInputPlugin, textPlugin, toBuildPath, transitionTo, uiInteractionPlugin, uiLayoutPlugin, uiMaskPlugin, uiPlugins, uiRenderOrderPlugin, unregisterComponent, unregisterDrawCallback, updateCameraAspectRatio, vec2, vec3, vec4, warn, wrapSceneSystem };
+export type { AddedWrapper, AddressableAssetType, AddressableManifest, AddressableManifestAsset, AddressableManifestGroup, AddressableResultMap, AnyComponentDef, AssetBundle, AssetContentType, AssetFieldType, AssetRefInfo, AssetTypeEntry, AssetsData, BitmapTextData, BoxColliderData, BuiltinComponentDef, ButtonData, ButtonTransition, CameraData, CameraRenderParams, CanvasData, CapsuleColliderData, ChangedWrapper, ChildrenData, CircleColliderData, CollisionEnterEvent, Color, CommandsDescriptor, ComponentData, ComponentDef, CppRegistry, CppResourceManager, DragStateData, DraggableData, DrawAPI, DrawCallback, DropdownData, ESEngineModule, EditorAssetType, Entity, EventDef, EventReaderDescriptor, EventWriterDescriptor, FileLoadOptions, FocusableData, FontHandle, GeometryHandle, GeometryOptions, GetWorldDescriptor, ImageData, InferParam, InferParams, InstantiatePrefabOptions, InstantiatePrefabResult, InteractableData, LayoutRect, LayoutResult, ListViewData, ListViewItemRenderer, LoadedMaterial, LocalTransformData, LogEntry, LogHandler, MaskProcessorFn, MaterialAssetData, MaterialHandle, MaterialOptions, MutWrapper, NameData, ParentData, PhysicsEventsData, PhysicsModuleFactory, PhysicsPluginConfig, PhysicsWasmModule, PlatformAdapter, PlatformRequestOptions, PlatformResponse, PlatformType, PlayableRuntimeConfig, Plugin, PluginDependency, PrefabData, PrefabEntityData, PrefabOverride, ProgressBarData, Quat, QueryBuilder, QueryDescriptor, QueryResult, RemovedQueryDescriptor, RenderParams, RenderStats, RenderTargetHandle, RenderTextureHandle, RenderTextureOptions, ResDescriptor, ResMutDescriptor, ResourceDef, RigidBodyData, RuntimeAssetProvider, RuntimeBuildConfig, RuntimeSceneOptions, SafeAreaData, SceneComponentData, SceneConfig, SceneContext, SceneData, SceneEntityData, SceneLoadOptions, SceneOwnerData, SceneStatus, ScreenRect, ScrollViewData, SensorEvent, ShaderHandle, ShaderLoader, SliceBorder$1 as SliceBorder, SliderData, SpineAnimationData, SpineDescriptor, SpineLoadResult, SpineRendererFn, SpriteData, SystemDef, SystemOptions, SystemParam, TextData, TextInputData, TextRenderResult, TextureHandle, TextureInfo, TextureRef, TimeData, ToggleData, ToggleTransition, TransformData, TransitionConfig, TransitionOptions, UICameraData, UIEvent, UIEventType, UIInteractionData, UIMaskData, UIRectData, UniformValue, Vec2, Vec3, Vec4, VelocityData, VertexAttributeDescriptor, WebAppOptions, WorldTransformData };

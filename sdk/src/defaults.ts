@@ -35,3 +35,57 @@ export function applyRuntimeConfig(components: {
         components.Canvas._default.matchWidthOrHeight = RuntimeConfig.canvasMatchWidthOrHeight;
     }
 }
+
+// =============================================================================
+// Build Runtime Config
+// =============================================================================
+
+export interface RuntimeBuildConfig {
+    sceneTransitionDuration?: number;
+    sceneTransitionColor?: string;
+    defaultFontFamily?: string;
+    canvasScaleMode?: string;
+    canvasMatchWidthOrHeight?: number;
+    maxDeltaTime?: number;
+    maxFixedSteps?: number;
+    textCanvasSize?: number;
+}
+
+const CANVAS_SCALE_MODE_MAP: Record<string, number> = {
+    FixedWidth: 0, FixedHeight: 1, Expand: 2, Shrink: 3, Match: 4,
+};
+
+export function applyBuildRuntimeConfig(app: { setMaxDeltaTime(v: number): void; setMaxFixedSteps(v: number): void }, config: RuntimeBuildConfig): void {
+    if (config.maxDeltaTime !== undefined) {
+        RuntimeConfig.maxDeltaTime = config.maxDeltaTime;
+        app.setMaxDeltaTime(config.maxDeltaTime);
+    }
+    if (config.maxFixedSteps !== undefined) {
+        RuntimeConfig.maxFixedSteps = config.maxFixedSteps;
+        app.setMaxFixedSteps(config.maxFixedSteps);
+    }
+    if (config.textCanvasSize !== undefined) {
+        RuntimeConfig.textCanvasSize = config.textCanvasSize;
+    }
+    if (config.defaultFontFamily !== undefined) {
+        RuntimeConfig.defaultFontFamily = config.defaultFontFamily;
+    }
+    if (config.sceneTransitionDuration !== undefined) {
+        RuntimeConfig.sceneTransitionDuration = config.sceneTransitionDuration;
+    }
+    if (config.sceneTransitionColor) {
+        const hex = config.sceneTransitionColor.replace('#', '');
+        RuntimeConfig.sceneTransitionColor = {
+            r: parseInt(hex.substring(0, 2), 16) / 255,
+            g: parseInt(hex.substring(2, 4), 16) / 255,
+            b: parseInt(hex.substring(4, 6), 16) / 255,
+            a: 1,
+        };
+    }
+    if (config.canvasScaleMode !== undefined) {
+        RuntimeConfig.canvasScaleMode = CANVAS_SCALE_MODE_MAP[config.canvasScaleMode] ?? 1;
+    }
+    if (config.canvasMatchWidthOrHeight !== undefined) {
+        RuntimeConfig.canvasMatchWidthOrHeight = config.canvasMatchWidthOrHeight;
+    }
+}
