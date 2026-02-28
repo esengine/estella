@@ -13,6 +13,8 @@ import type {
     InputEventCallbacks,
     ImageLoadResult,
 } from '../types';
+import { WeChatAudioBackend } from '../../audio/WeChatAudioBackend';
+import type { PlatformAudioBackend } from '../../audio/PlatformAudioBackend';
 import { wxFetch, polyfillFetch } from './fetch';
 import { wxInstantiateWasm, polyfillWebAssembly } from './wasm';
 import { wxReadFileSync, wxReadTextFileSync, wxFileExistsSync } from './fs';
@@ -129,6 +131,10 @@ class WeChatPlatformAdapter implements PlatformAdapter {
             this.inputCleanup_();
             this.inputCleanup_ = null;
         }
+    }
+
+    createAudioBackend(): PlatformAudioBackend {
+        return new WeChatAudioBackend();
     }
 }
 

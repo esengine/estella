@@ -1,4 +1,5 @@
-import type { AudioHandle, AudioBufferHandle, PlayConfig, PlatformAudioBackend } from './PlatformAudioBackend';
+import type { AudioHandle, AudioBufferHandle, PlayConfig, PlatformAudioBackend, AudioBackendInitOptions } from './PlatformAudioBackend';
+import type { AudioMixer } from './AudioMixer';
 
 interface WxInnerAudioContext {
     src: string;
@@ -84,7 +85,11 @@ export class WeChatAudioBackend implements PlatformAudioBackend {
     private urlCache_ = new Map<number, string>();
     private nextId_ = 0;
 
-    async initialize(): Promise<void> {
+    get mixer(): AudioMixer | null {
+        return null;
+    }
+
+    async initialize(_options?: AudioBackendInitOptions): Promise<void> {
         // wx.createInnerAudioContext does not require global initialization
     }
 

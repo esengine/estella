@@ -106,6 +106,10 @@ export function platformNow(): number {
     return getPlatform().now();
 }
 
+export function platformCreateAudioBackend(): import('../audio/PlatformAudioBackend').PlatformAudioBackend {
+    return getPlatform().createAudioBackend();
+}
+
 export function platformDevicePixelRatio(): number {
     if (currentPlatform?.name === 'wechat') {
         const g = globalThis as any;

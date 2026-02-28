@@ -1,5 +1,5 @@
-import type { AudioHandle, AudioBufferHandle, PlayConfig, PlatformAudioBackend } from './PlatformAudioBackend';
-import { AudioMixer, type AudioMixerConfig } from './AudioMixer';
+import type { AudioHandle, AudioBufferHandle, PlayConfig, PlatformAudioBackend, AudioBackendInitOptions } from './PlatformAudioBackend';
+import { AudioMixer } from './AudioMixer';
 import { AudioPool, type PooledAudioNode } from './AudioPool';
 
 class WebAudioHandle implements AudioHandle {
@@ -129,11 +129,6 @@ class WebAudioHandle implements AudioHandle {
     }
 }
 
-export interface WebAudioBackendOptions {
-    initialPoolSize?: number;
-    mixerConfig?: AudioMixerConfig;
-}
-
 export class WebAudioBackend implements PlatformAudioBackend {
     readonly name = 'WebAudio';
 
@@ -141,6 +136,8 @@ export class WebAudioBackend implements PlatformAudioBackend {
     private mixer_: AudioMixer | null = null;
     private pool_: AudioPool | null = null;
     private buffers_ = new Map<number, AudioBuffer>();
+    private urlToId_ = new Map<string, number>();
+    private loadingUrls_ = new Map<string, Promise<AudioBufferHandle>>();
     private nextBufferId_ = 0;
     private nextHandleId_ = 0;
     private resumeHandler_: (() => void) | null = null;
@@ -149,7 +146,7 @@ export class WebAudioBackend implements PlatformAudioBackend {
         return this.mixer_;
     }
 
-    async initialize(options: WebAudioBackendOptions = {}): Promise<void> {
+    async initialize(options: AudioBackendInitOptions = {}): Promise<void> {
         this.context_ = new AudioContext();
         this.mixer_ = new AudioMixer(this.context_, options.mixerConfig);
         this.pool_ = new AudioPool(this.context_, options.initialPoolSize);
@@ -179,12 +176,41 @@ export class WebAudioBackend implements PlatformAudioBackend {
         if (!this.context_) {
             throw new Error('AudioContext not initialized');
         }
+
+        const existingId = this.urlToId_.get(url);
+        if (existingId !== undefined && this.buffers_.has(existingId)) {
+            const buf = this.buffers_.get(existingId)!;
+            return { id: existingId, duration: buf.duration };
+        }
+
+        const inFlight = this.loadingUrls_.get(url);
+        if (inFlight) return inFlight;
+
+        const promise = this.doLoadBuffer_(url);
+        this.loadingUrls_.set(url, promise);
+        try {
+            return await promise;
+        } finally {
+            this.loadingUrls_.delete(url);
+        }
+    }
+
+    private async doLoadBuffer_(url: string): Promise<AudioBufferHandle> {
         const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`Failed to load audio: ${url} (${response.status})`);
+        }
         const arrayBuffer = await response.arrayBuffer();
-        const audioBuffer = await this.context_.decodeAudioData(arrayBuffer);
+        let audioBuffer: AudioBuffer;
+        try {
+            audioBuffer = await this.context_!.decodeAudioData(arrayBuffer);
+        } catch (err) {
+            throw new Error(`Failed to decode audio ${url}: ${(err as Error).message}`);
+        }
 
         const id = ++this.nextBufferId_;
         this.buffers_.set(id, audioBuffer);
+        this.urlToId_.set(url, id);
 
         return { id, duration: audioBuffer.duration };
     }
@@ -203,7 +229,7 @@ export class WebAudioBackend implements PlatformAudioBackend {
             throw new Error(`Buffer ${buffer.id} not found`);
         }
 
-        const poolNode = this.pool_.acquire(config.priority ?? 0);
+        const poolNode = this.pool_.acquire();
         const source = this.context_.createBufferSource();
         source.buffer = audioBuffer;
         source.loop = config.loop ?? false;
