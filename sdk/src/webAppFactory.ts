@@ -3,6 +3,7 @@ import type { App } from './app';
 import type { ESEngineModule } from './wasm';
 import { uiPlugins } from './uiPlugins';
 import { animationPlugin } from './animation';
+import { audioPlugin } from './audio';
 
 export { uiPlugins };
 export { textPlugin, TextPlugin } from './ui/TextPlugin';
@@ -28,7 +29,7 @@ export { PhysicsPlugin, PhysicsEvents, Physics, loadPhysicsModule } from './phys
 export { AnimationPlugin, animationPlugin } from './animation';
 export { AudioPlugin, audioPlugin } from './audio';
 
-const defaultPlugins = [...uiPlugins, animationPlugin];
+const defaultPlugins = [...uiPlugins, animationPlugin, audioPlugin];
 
 export function createWebApp(module: ESEngineModule, options?: WebAppOptions): App {
     return _createWebApp(module, { plugins: defaultPlugins, ...options });

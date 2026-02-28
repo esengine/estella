@@ -9,6 +9,7 @@ import { renderBitmapFontInspector } from '../panels/inspector/BitmapFontInspect
 import { renderFolderInspector } from '../panels/inspector/FolderInspector';
 import { renderScriptInspector, renderSceneInspector, renderFileInspector } from '../panels/inspector/FileInspector';
 import { renderAnimClipInspector } from '../panels/inspector/AnimClipInspector';
+import { renderAudioInspector } from '../panels/inspector/AudioInspector';
 import { getInitialComponentData, getDefaultComponentData } from '../schemas/ComponentSchemas';
 import { getGlobalPathResolver } from '../asset';
 import { getPlatformAdapter } from '../platform/PlatformAdapter';
@@ -350,9 +351,32 @@ export function registerBuiltinAssetTypes(): void {
         displayName: 'Audio',
         icon: icons.volume,
         eventCategory: null,
-        droppable: false,
-        inspectorRenderer: null,
+        droppable: true,
+        inspectorRenderer: (container, path) => renderAudioInspector(container, path),
         createMenuEntry: null,
+        onDropToScene(store, asset, worldX, worldY) {
+            const baseName = asset.name.replace(/\.[^.]+$/, '');
+            const newEntity = store.createEntity(baseName);
+
+            const transformData = getInitialComponentData('Transform');
+            transformData.position = { x: worldX, y: worldY, z: 0 };
+            store.addComponent(newEntity, 'Transform', transformData);
+
+            store.addComponent(newEntity, 'AudioSource', {
+                ...getInitialComponentData('AudioSource'),
+                clip: toRelativePath(asset.path),
+            });
+        },
+        onCreateEntity: async (state, asset, parent) => {
+            const baseName = asset.name.replace(/\.[^.]+$/, '');
+            const newEntity = state.store.createEntity(baseName, parent);
+
+            state.store.addComponent(newEntity, 'Transform', getInitialComponentData('Transform'));
+            state.store.addComponent(newEntity, 'AudioSource', {
+                ...getInitialComponentData('AudioSource'),
+                clip: toRelativePath(asset.path),
+            });
+        },
     });
 
     registerAssetType('script', {
