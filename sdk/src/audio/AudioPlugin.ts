@@ -21,6 +21,7 @@ export class AudioPlugin implements Plugin {
     name = 'AudioPlugin';
     private config_: AudioPluginConfig;
     private activeSourceHandles_: Map<number, AudioHandle> | null = null;
+    private playedEntities_: Set<number> | null = null;
 
     constructor(config: AudioPluginConfig = {}) {
         this.config_ = config;
@@ -30,7 +31,9 @@ export class AudioPlugin implements Plugin {
         const backend = getPlatform().createAudioBackend();
         const config = this.config_;
 
-        backend.initialize({ initialPoolSize: config.initialPoolSize });
+        backend.initialize({ initialPoolSize: config.initialPoolSize }).catch(err => {
+            console.warn('[AudioPlugin] backend initialization failed:', err);
+        });
 
         const mixer = backend.mixer;
         Audio.init(backend, mixer);
@@ -43,14 +46,28 @@ export class AudioPlugin implements Plugin {
 
         const activeSourceHandles = new Map<number, AudioHandle>();
         this.activeSourceHandles_ = activeSourceHandles;
+        const playedEntities = new Set<number>();
+        this.playedEntities_ = playedEntities;
+        const liveEntities = new Set<number>();
         let spatialListenerWarned = false;
+        let wasPlayMode = false;
 
         app.addSystemToSchedule(
             Schedule.PreUpdate,
             defineSystem(
                 [Res(Time)],
                 (_time: TimeData) => {
-                    if (isEditor() && !isPlayMode()) return;
+                    const playMode = !isEditor() || isPlayMode();
+
+                    if (!playMode) {
+                        if (wasPlayMode) {
+                            spatialListenerWarned = false;
+                            wasPlayMode = false;
+                        }
+                        return;
+                    }
+                    wasPlayMode = true;
+
                     const world = app.world;
 
                     let listenerX = 0;
@@ -69,14 +86,15 @@ export class AudioPlugin implements Plugin {
                     }
 
                     const sources = world.getEntitiesWithComponents([AudioSource]);
-                    const liveEntities = new Set<number>();
+                    liveEntities.clear();
 
                     for (const entity of sources) {
                         const source = world.get(entity, AudioSource) as AudioSourceData;
                         if (!source.enabled || !source.clip) continue;
-                        liveEntities.add(entity as number);
+                        const id = entity as number;
+                        liveEntities.add(id);
 
-                        if (source.playOnAwake && !activeSourceHandles.has(entity) && backend.isReady) {
+                        if (source.playOnAwake && !playedEntities.has(id) && !activeSourceHandles.has(id) && backend.isReady) {
                             const buffer = Audio.getBufferHandle(source.clip);
                             if (buffer) {
                                 const handle = backend.play(buffer, {
@@ -85,7 +103,8 @@ export class AudioPlugin implements Plugin {
                                     loop: source.loop,
                                     playbackRate: source.pitch,
                                 });
-                                activeSourceHandles.set(entity, handle);
+                                activeSourceHandles.set(id, handle);
+                                playedEntities.add(id);
                             } else {
                                 console.warn(
                                     `[AudioPlugin] playOnAwake: clip "${source.clip}" not preloaded`
@@ -93,10 +112,10 @@ export class AudioPlugin implements Plugin {
                             }
                         }
 
-                        if (source.spatial && activeSourceHandles.has(entity)) {
-                            const handle = activeSourceHandles.get(entity)!;
+                        if (source.spatial && activeSourceHandles.has(id)) {
+                            const handle = activeSourceHandles.get(id)!;
                             if (!handle.isPlaying) {
-                                activeSourceHandles.delete(entity);
+                                activeSourceHandles.delete(id);
                                 continue;
                             }
 
@@ -142,13 +161,18 @@ export class AudioPlugin implements Plugin {
         );
     }
 
-    cleanup(): void {
+    stopAllSources(): void {
         if (this.activeSourceHandles_) {
             for (const handle of this.activeSourceHandles_.values()) {
                 handle.stop();
             }
             this.activeSourceHandles_.clear();
         }
+        this.playedEntities_?.clear();
+    }
+
+    cleanup(): void {
+        this.stopAllSources();
         Audio.dispose();
     }
 }
