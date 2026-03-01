@@ -8,6 +8,7 @@ import { WorldTransform, type WorldTransformData } from '../component';
 import { getPlatform } from '../platform/base';
 import { calculateAttenuation, calculatePanning, type SpatialAudioConfig, AttenuationModel } from './SpatialAudio';
 import type { AudioHandle } from './PlatformAudioBackend';
+import { isEditor, isPlayMode } from '../env';
 
 export interface AudioPluginConfig {
     initialPoolSize?: number;
@@ -49,6 +50,7 @@ export class AudioPlugin implements Plugin {
             defineSystem(
                 [Res(Time)],
                 (_time: TimeData) => {
+                    if (isEditor() && !isPlayMode()) return;
                     const world = app.world;
 
                     let listenerX = 0;
