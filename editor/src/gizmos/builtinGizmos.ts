@@ -313,6 +313,7 @@ interface RotateGizmoDragState {
     originalQuat: { x: number; y: number; z: number; w: number };
     startWorldX: number;
     startWorldY: number;
+    entityPos: { x: number; y: number };
 }
 
 export function createRotateGizmo(): GizmoDescriptor {
@@ -394,11 +395,13 @@ export function createRotateGizmo(): GizmoDescriptor {
             const transform = entityData?.components.find(c => c.type === 'Transform');
             if (transform) {
                 const quat = transform.data.rotation as { x: number; y: number; z: number; w: number };
+                const pos = getSelectedEntityPosition(gctx);
                 dragState = {
                     startEuler: quatToEuler(quat ?? { x: 0, y: 0, z: 0, w: 1 }),
                     originalQuat: quat ? { ...quat } : { x: 0, y: 0, z: 0, w: 1 },
                     startWorldX: worldX,
                     startWorldY: worldY,
+                    entityPos: { x: pos?.x ?? 0, y: pos?.y ?? 0 },
                 };
             }
         },
@@ -407,8 +410,7 @@ export function createRotateGizmo(): GizmoDescriptor {
             const entity = gctx.store.selectedEntity;
             if (entity === null || !dragState) return;
 
-            const pos = getSelectedEntityPosition(gctx);
-            if (!pos) return;
+            const pos = dragState.entityPos;
 
             const startAngle = Math.atan2(
                 dragState.startWorldY - pos.y,
