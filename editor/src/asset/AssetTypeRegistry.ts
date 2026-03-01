@@ -420,7 +420,7 @@ export function registerBuiltinAssetTypes(): void {
         icon: icons.file,
         eventCategory: null,
         droppable: false,
-        inspectorRenderer: (container, path) => renderFileInspector(container, path, 'file'),
+        inspectorRenderer: (container, path) => renderFileInspector(container, path, 'File'),
         createMenuEntry: null,
     });
 }
