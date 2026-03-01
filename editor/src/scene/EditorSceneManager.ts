@@ -17,6 +17,7 @@ import {
     TextInput,
     getComponentAssetFieldDescriptors,
     getComponentSpineFieldDescriptor,
+    Audio,
     INVALID_FONT,
     INVALID_MATERIAL,
     DEFAULT_SPINE_SKIN,
@@ -42,6 +43,7 @@ import { AssetPathResolver } from '../asset/AssetPathResolver';
 import { getDependencyGraph } from '../asset/AssetDependencyGraph';
 import { getAssetLibrary, isUUID } from '../asset/AssetLibrary';
 import { getEditorContext } from '../context/EditorContext';
+import { getPlatformAdapter } from '../platform/PlatformAdapter';
 import {
     transformToMatrix4x4,
 } from '../math/Transform';
@@ -736,6 +738,17 @@ export class EditorSceneManager {
                         await this.loadAndRegisterAnimClip(resolved);
                     } catch (err) {
                         console.warn(`[EditorSceneManager] Failed to load animation clip: ${resolved}`, err);
+                    }
+                    break;
+                }
+                case 'audio': {
+                    try {
+                        const absPath = this.pathResolver_.toAbsolutePath(resolved);
+                        const url = getPlatformAdapter().convertFilePathToUrl(absPath);
+                        await Audio.preload(url);
+                        data[desc.field] = url;
+                    } catch (err) {
+                        console.warn(`[EditorSceneManager] Failed to preload audio: ${resolved}`, err);
                     }
                     break;
                 }
