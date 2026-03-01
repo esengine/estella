@@ -49,6 +49,7 @@ JS-side value tweening for animating custom properties beyond the built-in targe
 
 ## Refactoring
 
+- **Asset build transforms** — `registerAssetBuildTransform()` API on `AssetTypeEntry` replaces per-type branching in emitters. Both platform emitters now use generic `entry.buildTransform()` calls. Users can register custom transforms for their own asset types.
 - **Tree-shaking** — enable tree-shaking and consolidate runtime initialization logic for smaller bundles
 - **AssetTypeRegistry** — centralized asset type metadata, replacing scattered per-module registration
 - **Audio platform abstraction** — audio backend creation moved into the platform adapter layer
@@ -62,6 +63,7 @@ JS-side value tweening for animating custom properties beyond the built-in targe
 - Fix circular dependencies between `AssetTypeRegistry` and `FileInspector` / `InspectorHelpers`
 - Preload audio assets in editor scene manager
 - Skip `AudioPlugin` system registration in editor Scene View (audio only runs in Game View)
+- Stop all audio when exiting editor play mode
 
 ### SDK / Runtime
 
@@ -74,6 +76,11 @@ JS-side value tweening for animating custom properties beyond the built-in targe
 
 - Defer `playOnAwake` until `AudioContext` is running to avoid silent playback on first load
 - Add audio MIME type detection and auto-repair for unknown asset meta files
+- Fix WeChat audio not playing — set properties before `src`, use explicit `play()` instead of `autoplay`, add `onError` callback
+
+### WeChat Build
+
+- Fix anim-clip textures missing in build — add build transform to rewrite atlas-packed frame paths with `atlasFrame` metadata
 
 ## Testing
 

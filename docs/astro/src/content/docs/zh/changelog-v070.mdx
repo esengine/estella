@@ -49,6 +49,7 @@ JS 侧值补间，支持动画化内置属性之外的自定义属性。
 
 ## 重构
 
+- **资源构建变换** — `registerAssetBuildTransform()` API 替代发射器中的逐类型分支。两个平台发射器现在统一使用 `entry.buildTransform()` 调用。用户可以为自定义资源类型注册构建变换。
 - **Tree-shaking** — 启用 tree-shaking 并整合运行时初始化逻辑，缩小包体积
 - **AssetTypeRegistry** — 集中管理资产类型元数据，替代分散的逐模块注册
 - **音频平台抽象** — 音频后端创建移入平台适配器层
@@ -62,6 +63,7 @@ JS 侧值补间，支持动画化内置属性之外的自定义属性。
 - 修复 `AssetTypeRegistry` 与 `FileInspector` / `InspectorHelpers` 之间的循环依赖
 - 编辑器场景管理器中预加载音频资源
 - 编辑器 Scene View 中跳过 `AudioPlugin` 系统注册（音频仅在 Game View 中运行）
+- 退出编辑器播放模式时停止所有音频
 
 ### SDK / 运行时
 
@@ -74,6 +76,11 @@ JS 侧值补间，支持动画化内置属性之外的自定义属性。
 
 - 延迟 `playOnAwake` 直到 `AudioContext` 激活，避免首次加载时静音播放
 - 添加音频 MIME 类型检测和未知资产 meta 文件自动修复
+- 修复微信音频不播放 — 在设置 `src` 前设置属性，使用显式 `play()` 替代 `autoplay`，添加 `onError` 回调
+
+### 微信构建
+
+- 修复动画剪辑纹理在构建中丢失 — 添加构建变换以重写图集打包的帧路径，附带 `atlasFrame` 元数据
 
 ## 测试
 
