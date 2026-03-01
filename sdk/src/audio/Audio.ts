@@ -33,6 +33,12 @@ export class Audio {
         await Promise.all(urls.map(url => this.preload(url)));
     }
 
+    static async preloadFromData(url: string, data: ArrayBuffer): Promise<void> {
+        if (this.bufferCache_.has(url)) return;
+        const buffer = await this.backend_.loadBufferFromData(url, data);
+        this.bufferCache_.set(url, buffer);
+    }
+
     static playSFX(url: string, config?: {
         volume?: number;
         pitch?: number;

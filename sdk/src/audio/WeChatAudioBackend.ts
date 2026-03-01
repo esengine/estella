@@ -112,6 +112,10 @@ export class WeChatAudioBackend implements PlatformAudioBackend {
         return { id, duration: 0 };
     }
 
+    async loadBufferFromData(url: string, _data: ArrayBuffer): Promise<AudioBufferHandle> {
+        return this.loadBuffer(url);
+    }
+
     unloadBuffer(handle: AudioBufferHandle): void {
         this.urlCache_.delete(handle.id);
     }

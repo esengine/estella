@@ -200,11 +200,20 @@ export class WebAudioBackend implements PlatformAudioBackend {
         }
     }
 
-    private async doLoadBuffer_(url: string): Promise<AudioBufferHandle> {
-        const arrayBuffer = await getPlatform().readFile(url);
+    async loadBufferFromData(url: string, data: ArrayBuffer): Promise<AudioBufferHandle> {
+        if (!this.context_) {
+            throw new Error('AudioContext not initialized');
+        }
+
+        const existingId = this.urlToId_.get(url);
+        if (existingId !== undefined && this.buffers_.has(existingId)) {
+            const buf = this.buffers_.get(existingId)!;
+            return { id: existingId, duration: buf.duration };
+        }
+
         let audioBuffer: AudioBuffer;
         try {
-            audioBuffer = await this.context_!.decodeAudioData(arrayBuffer);
+            audioBuffer = await this.context_.decodeAudioData(data);
         } catch (err) {
             throw new Error(`Failed to decode audio ${url}: ${(err as Error).message}`);
         }
@@ -214,6 +223,11 @@ export class WebAudioBackend implements PlatformAudioBackend {
         this.urlToId_.set(url, id);
 
         return { id, duration: audioBuffer.duration };
+    }
+
+    private async doLoadBuffer_(url: string): Promise<AudioBufferHandle> {
+        const arrayBuffer = await getPlatform().readFile(url);
+        return this.loadBufferFromData(url, arrayBuffer);
     }
 
     unloadBuffer(handle: AudioBufferHandle): void {

@@ -464,7 +464,7 @@ async function loadMaterials(
 // Audio Helpers
 // =============================================================================
 
-async function preloadAudioClips(sceneData: SceneData): Promise<void> {
+async function preloadAudioClips(sceneData: SceneData, provider?: RuntimeAssetProvider): Promise<void> {
     const paths: string[] = [];
     const seen = new Set<string>();
 
@@ -481,7 +481,18 @@ async function preloadAudioClips(sceneData: SceneData): Promise<void> {
         }
     }
 
-    if (paths.length > 0) {
+    if (paths.length === 0) return;
+
+    if (provider) {
+        await Promise.all(paths.map(async (path) => {
+            try {
+                const binary = await provider.readBinary(path);
+                await Audio.preloadFromData(path, binary.buffer as ArrayBuffer);
+            } catch (err) {
+                console.warn(`[preloadAudioClips] Failed to preload audio: ${path}`, err);
+            }
+        }));
+    } else {
         await Audio.preloadAll(paths).catch(err => {
             console.warn('[preloadAudioClips] Failed to preload audio assets:', err);
         });
@@ -575,7 +586,7 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
     const fontCache = await loadBitmapFonts(module, sceneData, provider);
     const materialCache = await loadMaterials(sceneData, provider);
     await loadAnimClips(module, sceneData, provider);
-    await preloadAudioClips(sceneData);
+    await preloadAudioClips(sceneData, provider);
 
     resolveSceneAssetPaths(sceneData, textureCache, fontCache, materialCache);
     const entityMap = loadSceneData(app.world, sceneData);

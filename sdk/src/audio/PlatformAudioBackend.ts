@@ -43,6 +43,7 @@ export interface PlatformAudioBackend {
     initialize(options?: AudioBackendInitOptions): Promise<void>;
     ensureResumed(): Promise<void>;
     loadBuffer(url: string): Promise<AudioBufferHandle>;
+    loadBufferFromData(url: string, data: ArrayBuffer): Promise<AudioBufferHandle>;
     unloadBuffer(handle: AudioBufferHandle): void;
     play(buffer: AudioBufferHandle, config: PlayConfig): AudioHandle;
     suspend(): void;
