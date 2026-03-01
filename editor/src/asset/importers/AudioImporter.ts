@@ -9,7 +9,7 @@ import { createDefaultAudioImporter } from '../ImporterTypes';
 
 export class AudioImporter implements AssetImporter<AudioImporterSettings> {
     readonly type = 'audio';
-    readonly extensions = ['.mp3', '.wav', '.ogg'];
+    readonly extensions = ['.mp3', '.wav', '.ogg', '.aac', '.flac', '.webm'];
 
     defaultSettings(): AudioImporterSettings {
         return createDefaultAudioImporter();

@@ -191,7 +191,16 @@ export class AssetDatabase {
                     const raw = JSON.parse(content) as Record<string, unknown>;
                     if (raw.uuid) {
                         const meta = upgradeMeta(raw);
-                        if (raw.version !== '2.0') {
+                        let needsWrite = raw.version !== '2.0';
+                        if (meta.type === 'unknown') {
+                            const detected = getAssetType(relativePath);
+                            if (detected !== 'unknown') {
+                                meta.type = detected;
+                                meta.importer = getDefaultImporterForType(detected);
+                                needsWrite = true;
+                            }
+                        }
+                        if (needsWrite) {
                             await this.fs_.writeFile(metaPath, serializeMeta(meta));
                         }
                         this.registerEntry(meta, relativePath);

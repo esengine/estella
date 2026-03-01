@@ -1,6 +1,15 @@
 import { icons } from '../../utils/icons';
 import { getNativeFS, getFileName, getFileExtension, formatFileSize, formatDate, renderError } from './InspectorHelpers';
 
+const AUDIO_FORMAT_NAMES: Record<string, string> = {
+    '.mp3': 'MP3 (MPEG Audio)',
+    '.wav': 'WAV (Waveform)',
+    '.ogg': 'OGG Vorbis',
+    '.aac': 'AAC',
+    '.flac': 'FLAC (Lossless)',
+    '.webm': 'WebM Audio',
+};
+
 function formatDuration(seconds: number): string {
     const m = Math.floor(seconds / 60);
     const s = Math.floor(seconds % 60);
@@ -196,7 +205,7 @@ async function renderAudioMetadata(
             </div>
             <div class="es-property-row">
                 <label class="es-property-label">Format</label>
-                <div class="es-property-value">${ext.substring(1).toUpperCase() || 'Unknown'}</div>
+                <div class="es-property-value">${AUDIO_FORMAT_NAMES[ext] ?? (ext.substring(1).toUpperCase() || 'Unknown')}</div>
             </div>
             <div class="es-property-row">
                 <label class="es-property-label">File Size</label>
