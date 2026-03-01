@@ -24,7 +24,7 @@ ESEngine 提供完整的音频系统，包含 ECS 组件、总线混音和空间
 | `spatial` | boolean | `false` | 启用空间音频 |
 | `minDistance` | number | `100` | 空间音频参考距离 |
 | `maxDistance` | number | `1000` | 空间音频最大距离 |
-| `attenuationModel` | number | `0` | 0 = 线性, 1 = 反比, 2 = 指数 |
+| `attenuationModel` | number | `1` | 0 = 线性, 1 = 反比, 2 = 指数 |
 | `rolloff` | number | `1.0` | 空间衰减因子（0–5） |
 | `priority` | number | `0` | 播放优先级 |
 | `enabled` | boolean | `true` | 组件激活 |
@@ -48,23 +48,57 @@ import { Audio } from 'esengine';
 const handle = Audio.playSFX('assets/explosion.mp3', {
     volume: 0.8,
     pitch: 1.2,
+    pan: -0.5,    // 立体声声像（-1 左, 0 中, 1 右）
 });
 
 // 控制播放
 handle.pause();
 handle.resume();
 handle.stop();
+handle.setVolume(0.6);
+handle.setLoop(true);
+handle.setPlaybackRate(1.5);
 
+// 查询状态
+console.log(handle.isPlaying, handle.currentTime, handle.duration);
+```
+
+### 背景音乐
+
+```typescript
 // 播放背景音乐，带淡入
 Audio.playBGM('assets/theme.mp3', { volume: 0.5, fadeIn: 2.0 });
 
+// 切换背景音乐，带交叉淡入淡出（旧曲目淡出，新曲目同时淡入）
+Audio.playBGM('assets/boss.mp3', { volume: 0.7, crossFade: 1.5 });
+
 // 停止背景音乐，带淡出
 Audio.stopBGM(1.0);
+
+// 立即停止所有音频（背景音乐 + 取消淡入淡出）
+Audio.stopAll();
 ```
+
+### AudioHandle
+
+`playSFX` 和基于实体的播放都返回 `AudioHandle`：
+
+| 方法 / 属性 | 说明 |
+|-------------|------|
+| `stop()` | 停止播放并释放资源 |
+| `pause()` | 暂停播放 |
+| `resume()` | 恢复暂停的播放 |
+| `setVolume(v)` | 设置音量（0–1） |
+| `setPan(p)` | 设置立体声声像（-1 左, 0 中, 1 右） |
+| `setLoop(l)` | 启用/禁用循环 |
+| `setPlaybackRate(r)` | 设置播放速度 |
+| `isPlaying` | 是否正在播放 |
+| `currentTime` | 当前播放位置（秒） |
+| `duration` | 总时长（秒） |
 
 ## 音量控制
 
-按总线控制音量：
+通过混音器按总线控制音量：
 
 ```typescript
 import { Audio } from 'esengine';
@@ -77,6 +111,10 @@ Audio.setUIVolume(0.7);
 // 静音指定总线
 Audio.muteBus('music', true);
 ```
+
+<Aside type="caution">
+混音器仅在 Web 平台（Web Audio API）可用。在微信小游戏上，混音器为 `null`，这些音量方法不会生效。请在微信上使用 `AudioHandle.setVolume()` 进行逐个音效的音量控制。
+</Aside>
 
 ## 预加载
 
@@ -92,6 +130,10 @@ await Audio.preloadAll([
     'assets/bgm.mp3',
 ]);
 ```
+
+<Aside type="tip">
+`AudioSource` 组件引用的音频剪辑会在场景加载时自动预加载。只有通过脚本代码调用 `Audio.playSFX()` 或 `Audio.playBGM()` 播放的剪辑才需要手动预加载。
+</Aside>
 
 ## 基于实体的播放
 
@@ -124,8 +166,16 @@ import { AudioSource, AudioListener, AttenuationModel } from 'esengine';
 
 **衰减模型：**
 - **线性** (0) — 音量在 `minDistance` 和 `maxDistance` 之间线性降低
-- **反比** (1) — 基于反比距离的真实衰减
+- **反比** (1, 默认) — 基于反比距离的真实衰减
 - **指数** (2) — 使用指数曲线的陡峭衰减
+
+## 微信小游戏
+
+在微信平台上，音频使用 `wx.createInnerAudioContext()` 而非 Web Audio API。主要差异：
+
+- **无混音器** — 总线音量控制（`setMasterVolume`、`setSFXVolume` 等）不可用。请使用 `AudioHandle.setVolume()` 进行逐个音效的音量控制。
+- **无立体声声像** — `setPan()` 无效。空间音频衰减仍然有效（基于音量）。
+- **本地文件路径** — 构建包内的音频文件通过相对路径访问（如 `assets/sounds/bgm.mp3`）。
 
 ## 编辑器集成
 

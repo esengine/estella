@@ -24,7 +24,7 @@ Attach to any entity to play audio. Requires a `Transform` component for spatial
 | `spatial` | boolean | `false` | Enable spatial audio |
 | `minDistance` | number | `100` | Spatial reference distance |
 | `maxDistance` | number | `1000` | Spatial max distance |
-| `attenuationModel` | number | `0` | 0 = Linear, 1 = Inverse, 2 = Exponential |
+| `attenuationModel` | number | `1` | 0 = Linear, 1 = Inverse, 2 = Exponential |
 | `rolloff` | number | `1.0` | Spatial rolloff factor (0–5) |
 | `priority` | number | `0` | Playback priority |
 | `enabled` | boolean | `true` | Component active |
@@ -48,23 +48,57 @@ import { Audio } from 'esengine';
 const handle = Audio.playSFX('assets/explosion.mp3', {
     volume: 0.8,
     pitch: 1.2,
+    pan: -0.5,    // stereo panning (-1 left, 0 center, 1 right)
 });
 
 // Control playback
 handle.pause();
 handle.resume();
 handle.stop();
+handle.setVolume(0.6);
+handle.setLoop(true);
+handle.setPlaybackRate(1.5);
 
-// Play background music with fade-in
+// Query state
+console.log(handle.isPlaying, handle.currentTime, handle.duration);
+```
+
+### Background Music
+
+```typescript
+// Play BGM with fade-in
 Audio.playBGM('assets/theme.mp3', { volume: 0.5, fadeIn: 2.0 });
+
+// Switch BGM with cross-fade (old track fades out while new one fades in)
+Audio.playBGM('assets/boss.mp3', { volume: 0.7, crossFade: 1.5 });
 
 // Stop BGM with fade-out
 Audio.stopBGM(1.0);
+
+// Stop all audio immediately (BGM + cancel fades)
+Audio.stopAll();
 ```
+
+### AudioHandle
+
+Both `playSFX` and entity-based playback return an `AudioHandle`:
+
+| Method / Property | Description |
+|-------------------|-------------|
+| `stop()` | Stop playback and release resources |
+| `pause()` | Pause playback |
+| `resume()` | Resume paused playback |
+| `setVolume(v)` | Set volume (0–1) |
+| `setPan(p)` | Set stereo panning (-1 left, 0 center, 1 right) |
+| `setLoop(l)` | Enable/disable looping |
+| `setPlaybackRate(r)` | Set playback speed |
+| `isPlaying` | Whether audio is currently playing |
+| `currentTime` | Current playback position in seconds |
+| `duration` | Total duration in seconds |
 
 ## Volume Control
 
-Control volume per bus:
+Control volume per bus via the mixer:
 
 ```typescript
 import { Audio } from 'esengine';
@@ -77,6 +111,10 @@ Audio.setUIVolume(0.7);
 // Mute a specific bus
 Audio.muteBus('music', true);
 ```
+
+<Aside type="caution">
+The mixer is only available on Web (Web Audio API). On WeChat MiniGame, the mixer is `null` and these volume methods are no-ops. Use `AudioHandle.setVolume()` for per-sound volume control on WeChat.
+</Aside>
 
 ## Preloading
 
@@ -92,6 +130,10 @@ await Audio.preloadAll([
     'assets/bgm.mp3',
 ]);
 ```
+
+<Aside type="tip">
+Audio clips referenced by `AudioSource` components are automatically preloaded when a scene loads. Manual preloading is only needed for clips played via `Audio.playSFX()` or `Audio.playBGM()` from script code.
+</Aside>
 
 ## Entity-Based Playback
 
@@ -124,8 +166,16 @@ The system automatically calculates distance-based attenuation and stereo pannin
 
 **Attenuation models:**
 - **Linear** (0) — volume decreases linearly between `minDistance` and `maxDistance`
-- **Inverse** (1) — realistic falloff based on inverse distance
+- **Inverse** (1, default) — realistic falloff based on inverse distance
 - **Exponential** (2) — steep falloff using exponential curve
+
+## WeChat MiniGame
+
+On WeChat, audio uses `wx.createInnerAudioContext()` instead of Web Audio API. Key differences:
+
+- **No mixer** — bus-based volume control (`setMasterVolume`, `setSFXVolume`, etc.) is unavailable. Use `AudioHandle.setVolume()` for per-sound control.
+- **No stereo panning** — `setPan()` is a no-op. Spatial audio attenuation still works (volume-based).
+- **Local file paths** — audio files in the build package are accessed by relative path (e.g. `assets/sounds/bgm.mp3`).
 
 ## Editor Integration
 
