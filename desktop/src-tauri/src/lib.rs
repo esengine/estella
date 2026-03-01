@@ -9,6 +9,7 @@ use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager, State};
+use tauri_plugin_updater::UpdaterExt;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
@@ -209,6 +210,58 @@ async fn execute_command(
 }
 
 // =============================================================================
+// Update (proxy-aware)
+// =============================================================================
+
+fn get_proxy_url() -> Option<url::Url> {
+    ["HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy", "ALL_PROXY", "all_proxy"]
+        .iter()
+        .find_map(|key| std::env::var(key).ok())
+        .and_then(|s| url::Url::parse(&s).ok())
+}
+
+#[derive(serde::Serialize)]
+struct UpdateInfo {
+    version: String,
+    body: Option<String>,
+}
+
+#[tauri::command]
+async fn check_update(app: AppHandle) -> Result<Option<UpdateInfo>, String> {
+    let mut builder = app.updater_builder();
+    if let Some(proxy) = get_proxy_url() {
+        builder = builder.proxy(proxy);
+    }
+    let updater = builder.build().map_err(|e| e.to_string())?;
+    match updater.check().await {
+        Ok(Some(update)) => Ok(Some(UpdateInfo {
+            version: update.version.clone(),
+            body: update.body.clone(),
+        })),
+        Ok(None) => Ok(None),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+#[tauri::command]
+async fn install_update(app: AppHandle) -> Result<(), String> {
+    let mut builder = app.updater_builder();
+    if let Some(proxy) = get_proxy_url() {
+        builder = builder.proxy(proxy);
+    }
+    let updater = builder.build().map_err(|e| e.to_string())?;
+    let update = updater
+        .check()
+        .await
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "No update available".to_string())?;
+    update
+        .download_and_install(|_, _| {}, || {})
+        .await
+        .map_err(|e| e.to_string())
+}
+
+// =============================================================================
 // Entry Point
 // =============================================================================
 
@@ -233,6 +286,8 @@ pub fn run() {
             unzip_to_directory,
             execute_command,
             get_embedded_asset,
+            check_update,
+            install_update,
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::Destroyed = event {

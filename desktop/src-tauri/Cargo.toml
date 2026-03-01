@@ -26,6 +26,7 @@ tiny_http = "0.12"
 open = "5"
 urlencoding = "2"
 zip = "2"
+url = "2"
 
 [profile.release]
 panic = "abort"

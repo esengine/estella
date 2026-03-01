@@ -10,7 +10,6 @@ import { TauriPlatformAdapter } from './TauriPlatformAdapter';
 import { nativeFS, nativeShell } from './native-fs';
 import { invoke } from '@tauri-apps/api/core';
 import { getVersion } from '@tauri-apps/api/app';
-import { check } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
 import type { App, ESEngineModule } from 'esengine';
 
@@ -142,7 +141,7 @@ async function checkForUpdate(manual = false): Promise<void> {
     }
 
     try {
-        const update = await check();
+        const update = await invoke<{ version: string; body: string | null } | null>('check_update');
         if (!update) {
             if (tid) {
                 updateToast(tid, { type: 'success', title: 'You\'re up to date', message: 'No updates available.' });
@@ -164,7 +163,7 @@ async function checkForUpdate(manual = false): Promise<void> {
                 onClick: async () => {
                     const dlTid = showProgressToast('Downloading update...');
                     try {
-                        await update.downloadAndInstall();
+                        await invoke('install_update');
                         updateToast(dlTid, { type: 'success', title: 'Update complete', message: 'Restarting...' });
                         setTimeout(() => relaunch(), 1000);
                     } catch (e) {

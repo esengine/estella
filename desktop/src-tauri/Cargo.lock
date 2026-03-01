@@ -794,6 +794,7 @@ dependencies = [
  "tauri-plugin-updater",
  "tiny_http",
  "tokio",
+ "url",
  "urlencoding",
  "zip 2.4.2",
 ]
