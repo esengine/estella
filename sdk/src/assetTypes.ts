@@ -19,7 +19,7 @@ export interface AssetTypeEntry {
 
 const ASSET_TYPE_REGISTRY: readonly AssetTypeEntry[] = [
     { extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'], contentType: 'image', editorType: 'texture', addressableType: 'texture', wechatPackInclude: false, hasTransitiveDeps: false },
-    { extensions: ['mp3', 'wav', 'ogg'], contentType: 'audio', editorType: 'audio', addressableType: 'audio', wechatPackInclude: false, hasTransitiveDeps: false },
+    { extensions: ['mp3', 'wav', 'ogg', 'aac', 'flac', 'webm'], contentType: 'audio', editorType: 'audio', addressableType: 'audio', wechatPackInclude: false, hasTransitiveDeps: false },
     { extensions: ['esmaterial'], contentType: 'json', editorType: 'material', addressableType: 'material', wechatPackInclude: true, hasTransitiveDeps: true },
     { extensions: ['esshader'], contentType: 'text', editorType: 'shader', addressableType: null, wechatPackInclude: false, hasTransitiveDeps: false },
     { extensions: ['atlas'], contentType: 'text', editorType: 'spine-atlas', addressableType: 'binary', wechatPackInclude: true, hasTransitiveDeps: true },
@@ -43,6 +43,9 @@ const MIME_MAP: Record<string, string> = {
     mp3: 'audio/mpeg',
     wav: 'audio/wav',
     ogg: 'audio/ogg',
+    aac: 'audio/aac',
+    flac: 'audio/flac',
+    webm: 'audio/webm',
     json: 'application/json',
     atlas: 'text/plain',
     skel: 'application/octet-stream',

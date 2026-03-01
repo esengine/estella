@@ -360,6 +360,12 @@ fn get_mime_type(path: &str) -> &'static str {
         Some("css") => "text/css",
         Some("png") => "image/png",
         Some("jpg") | Some("jpeg") => "image/jpeg",
+        Some("mp3") => "audio/mpeg",
+        Some("wav") => "audio/wav",
+        Some("ogg") => "audio/ogg",
+        Some("aac") => "audio/aac",
+        Some("flac") => "audio/flac",
+        Some("webm") => "audio/webm",
         _ => "application/octet-stream",
     }
 }
