@@ -8,7 +8,7 @@ import type { EditorStore, AssetSelection, DirtyFlag } from '../store/EditorStor
 import { getDefaultComponentData } from '../schemas/ComponentSchemas';
 import { icons } from '../utils/icons';
 import type { EditorInfo } from './inspector/InspectorHelpers';
-import { getAssetTypeName } from './inspector/InspectorHelpers';
+import { getAssetTypeDisplayName } from '../asset/AssetTypeRegistry';
 import { renderEntityHeader, renderComponent, renderAddComponentButton, renderEntityExtensionSections, renderAssetExtensionSections } from './inspector/EntityInspector';
 import type { InspectorSectionInstance } from './inspector/InspectorRegistry';
 import { type MaterialPreviewState, renderMaterialPreview, hideMaterialPreview } from './inspector/MaterialPreviewSection';
@@ -347,7 +347,7 @@ export class InspectorPanel {
         }
 
         this.extensionSections_ = renderAssetExtensionSections(this.contentContainer_, asset.path, asset.type, this.store_);
-        this.updateFooter(getAssetTypeName(asset.type));
+        this.updateFooter(getAssetTypeDisplayName(asset.type));
     }
 
     // =========================================================================

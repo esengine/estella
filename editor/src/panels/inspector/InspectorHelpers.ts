@@ -10,7 +10,6 @@ import type { NativeFS } from '../../types/NativeFS';
 import { getAssetMimeType } from 'esengine';
 import { getEditorContext, getEditorInstance } from '../../context/EditorContext';
 import { icons } from '../../utils/icons';
-import { getAssetTypeIcon, getAssetTypeDisplayName } from '../../asset/AssetTypeRegistry';
 
 // =============================================================================
 // Types
@@ -66,14 +65,6 @@ export function formatFileSize(bytes: number): string {
 export function formatDate(date: Date | null): string {
     if (!date) return 'Unknown';
     return date.toLocaleString();
-}
-
-export function getAssetIcon(type: string, size: number = 16): string {
-    return getAssetTypeIcon(type, size);
-}
-
-export function getAssetTypeName(type: string): string {
-    return getAssetTypeDisplayName(type);
 }
 
 export function escapeHtml(text: string): string {

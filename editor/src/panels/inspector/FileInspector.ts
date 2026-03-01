@@ -6,7 +6,8 @@
 import type { AssetType } from '../../store/EditorStore';
 import { icons } from '../../utils/icons';
 import { getEditorInstance } from '../../context/EditorContext';
-import { getNativeFS, getFileExtension, formatFileSize, formatDate, getAssetTypeName, escapeHtml, renderError } from './InspectorHelpers';
+import { getNativeFS, getFileExtension, formatFileSize, formatDate, escapeHtml, renderError } from './InspectorHelpers';
+import { getAssetTypeDisplayName } from '../../asset/AssetTypeRegistry';
 
 export async function renderScriptInspector(container: HTMLElement, path: string): Promise<void> {
     const fs = getNativeFS();
@@ -163,7 +164,7 @@ export async function renderFileInspector(container: HTMLElement, path: string, 
         <div class="es-component-properties es-collapsible-content">
             <div class="es-property-row">
                 <label class="es-property-label">Type</label>
-                <div class="es-property-value">${getAssetTypeName(type)}${ext ? ` (${ext})` : ''}</div>
+                <div class="es-property-value">${getAssetTypeDisplayName(type)}${ext ? ` (${ext})` : ''}</div>
             </div>
             <div class="es-property-row">
                 <label class="es-property-label">File Size</label>

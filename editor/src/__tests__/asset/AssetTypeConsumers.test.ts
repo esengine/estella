@@ -7,7 +7,6 @@ import {
     getDisplayType,
 } from '../../asset/AssetTypeRegistry';
 import { getAssetIcon, getAssetType } from '../../panels/content-browser/ContentBrowserTypes';
-import { getAssetIcon as getInspectorIcon, getAssetTypeName } from '../../panels/inspector/InspectorHelpers';
 
 describe('ContentBrowserTypes delegates to Registry', () => {
     beforeEach(() => {
@@ -31,22 +30,22 @@ describe('ContentBrowserTypes delegates to Registry', () => {
     });
 });
 
-describe('InspectorHelpers delegates to Registry', () => {
+describe('AssetTypeRegistry display helpers', () => {
     beforeEach(() => {
         resetAssetTypeRegistry();
         registerBuiltinAssetTypes();
     });
 
-    it('getAssetIcon returns registry icon', () => {
+    it('getAssetTypeIcon returns icon for all known types', () => {
         const types = ['image', 'script', 'scene', 'audio', 'json', 'material', 'shader', 'font', 'folder', 'animclip'] as const;
         for (const t of types) {
-            const icon = getInspectorIcon(t, 16);
-            const registryIcon = getAssetTypeIcon(t, 16);
-            expect(icon).toBe(registryIcon);
+            const icon = getAssetTypeIcon(t, 16);
+            expect(typeof icon).toBe('string');
+            expect(icon.length).toBeGreaterThan(0);
         }
     });
 
-    it('getAssetTypeName returns registry display name', () => {
+    it('getAssetTypeDisplayName returns correct display name', () => {
         const expected: Record<string, string> = {
             image: 'Image',
             script: 'Script',
@@ -60,11 +59,11 @@ describe('InspectorHelpers delegates to Registry', () => {
             animclip: 'Animation Clip',
         };
         for (const [type, name] of Object.entries(expected)) {
-            expect(getAssetTypeName(type)).toBe(name);
+            expect(getAssetTypeDisplayName(type)).toBe(name);
         }
     });
 
-    it('getAssetTypeName returns File for unknown type', () => {
-        expect(getAssetTypeName('unknown')).toBe('File');
+    it('getAssetTypeDisplayName returns File for unknown type', () => {
+        expect(getAssetTypeDisplayName('unknown')).toBe('File');
     });
 });

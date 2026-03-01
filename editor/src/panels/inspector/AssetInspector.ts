@@ -6,13 +6,14 @@
 import type { AssetSelection, AssetType } from '../../store/EditorStore';
 import { getAssetDatabase } from '../../asset/AssetDatabase';
 import { icons } from '../../utils/icons';
-import { escapeHtml, getAssetIcon, getProjectDir } from './InspectorHelpers';
+import { escapeHtml, getProjectDir } from './InspectorHelpers';
+import { getAssetTypeIcon } from '../../asset/AssetTypeRegistry';
 
 export function renderAssetHeader(container: HTMLElement, asset: AssetSelection): void {
     const header = document.createElement('div');
     header.className = 'es-inspector-asset-header';
     header.innerHTML = `
-        <span class="es-asset-header-icon">${getAssetIcon(asset.type, 20)}</span>
+        <span class="es-asset-header-icon">${getAssetTypeIcon(asset.type, 20)}</span>
         <span class="es-asset-header-name">${escapeHtml(asset.name)}</span>
     `;
     container.appendChild(header);
