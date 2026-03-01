@@ -246,6 +246,7 @@ export class GameViewRenderer {
             } else {
                 Renderer.submitSpine(registry);
             }
+            Renderer.submitParticles(registry);
             Renderer.flush();
             Renderer.end();
 
