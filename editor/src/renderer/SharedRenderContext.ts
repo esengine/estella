@@ -14,6 +14,7 @@ import {
     assetPlugin,
     prefabsPlugin,
     animationPlugin,
+    audioPlugin,
     RenderPipeline,
     Renderer,
     createMaskProcessor,
@@ -156,6 +157,7 @@ export class SharedRenderContext {
         app.addPlugin(assetPlugin);
         app.addPlugin(prefabsPlugin);
         app.addPlugin(animationPlugin);
+        app.addPlugin(audioPlugin);
         for (const plugin of uiPlugins) {
             app.addPlugin(plugin);
         }

@@ -24,6 +24,7 @@ export interface GameViewToolbarCallbacks {
     onSpeedChange(speed: number): void;
     onResolutionChange(preset: ResolutionPreset): void;
     onScaleChange(scale: number): void;
+    onMuteToggle(muted: boolean): void;
 }
 
 export class GameViewToolbar {
@@ -42,6 +43,8 @@ export class GameViewToolbar {
     private customWidthInput_: HTMLInputElement | null = null;
     private customHeightInput_: HTMLInputElement | null = null;
     private currentPreset_: ResolutionPreset = RESOLUTION_PRESETS[0];
+    private muteBtn_: HTMLButtonElement | null = null;
+    private muted_ = false;
     private previewUrlEl_: HTMLElement | null = null;
 
     constructor(container: HTMLElement, callbacks: GameViewToolbarCallbacks) {
@@ -71,6 +74,7 @@ export class GameViewToolbar {
                     <option value="2">2x</option>
                     <option value="4">4x</option>
                 </select>
+                <button class="es-btn es-btn-icon es-gameview-mute" title="Mute Audio">${icons.volume(14)}</button>
                 <div class="es-toolbar-divider"></div>
                 <select class="es-gameview-resolution">${options}<option value="custom">Custom</option></select>
                 <div class="es-gameview-custom-size" style="display:none">
@@ -108,11 +112,21 @@ export class GameViewToolbar {
         this.customHeightInput_ = this.container_.querySelector('.es-gameview-custom-h');
         this.scaleSelect_ = this.container_.querySelector('.es-gameview-scale');
 
+        this.muteBtn_ = this.container_.querySelector('.es-gameview-mute');
+
         this.playBtn_?.addEventListener('click', () => this.callbacks_.onPlay());
         this.pauseBtn_?.addEventListener('click', () => this.callbacks_.onPause());
         this.resumeBtn_?.addEventListener('click', () => this.callbacks_.onResume());
         this.stepBtn_?.addEventListener('click', () => this.callbacks_.onStepFrame());
         this.stopBtn_?.addEventListener('click', () => this.callbacks_.onStop());
+
+        this.muteBtn_?.addEventListener('click', () => {
+            this.muted_ = !this.muted_;
+            this.muteBtn_!.innerHTML = this.muted_ ? icons.volumeX(14) : icons.volume(14);
+            this.muteBtn_!.title = this.muted_ ? 'Unmute Audio' : 'Mute Audio';
+            this.muteBtn_!.classList.toggle('es-active', this.muted_);
+            this.callbacks_.onMuteToggle(this.muted_);
+        });
 
         this.speedSelect_?.addEventListener('change', () => {
             const speed = parseFloat(this.speedSelect_!.value);
@@ -207,6 +221,7 @@ export class GameViewToolbar {
         this.resumeBtn_ = null;
         this.stepBtn_ = null;
         this.stopBtn_ = null;
+        this.muteBtn_ = null;
         this.speedSelect_ = null;
         this.fpsDisplay_ = null;
         this.resolutionSelect_ = null;
