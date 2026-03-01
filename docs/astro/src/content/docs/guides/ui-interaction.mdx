@@ -13,6 +13,7 @@ Marks a UI entity as interactive (receives pointer events). Required for all int
 |----------|------|---------|-------------|
 | `enabled` | boolean | `true` | Whether interaction is active |
 | `blockRaycast` | boolean | `true` | Block events from reaching elements behind |
+| `raycastTarget` | boolean | `true` | Whether this entity is a valid raycast hit target |
 
 ## UIInteraction
 
@@ -70,6 +71,7 @@ Each event object contains:
 | `entity` | Entity | The entity that received the event |
 | `type` | string | Event type (see table above) |
 | `target` | Entity | Original entity that triggered the event |
+| `currentTarget` | Entity | Entity currently handling the event during bubbling |
 
 ### Querying Events
 
@@ -111,6 +113,8 @@ Enables drag-to-move on a UI element.
 | `dragThreshold` | number | `5` | Pixels before drag starts |
 | `lockX` | boolean | `false` | Lock horizontal movement |
 | `lockY` | boolean | `false` | Lock vertical movement |
+| `constraintMin` | `{x, y}` \| null | `null` | Minimum position constraint |
+| `constraintMax` | `{x, y}` \| null | `null` | Maximum position constraint |
 
 When dragging is active, the engine adds a `DragState` component to the entity:
 
@@ -118,6 +122,7 @@ When dragging is active, the engine adds a `DragState` component to the entity:
 |----------|------|-------------|
 | `isDragging` | boolean | Currently dragging |
 | `startWorldPos` | `{x, y}` | Entity position when drag started |
+| `pointerStartWorld` | `{x, y}` | Pointer position in world space when drag started |
 | `currentWorldPos` | `{x, y}` | Current world position |
 | `deltaWorld` | `{x, y}` | Movement this frame |
 | `totalDeltaWorld` | `{x, y}` | Total movement since drag start |

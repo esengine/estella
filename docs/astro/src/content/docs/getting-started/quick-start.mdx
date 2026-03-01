@@ -103,9 +103,14 @@ addSystemToSchedule(Schedule.FixedUpdate, system);  // runs at fixed intervals
 | Schedule | When it runs |
 |----------|--------------|
 | `Startup` | Once at the beginning |
-| `Update` | Every frame |
+| `First` | Before PreUpdate, every frame |
+| `PreUpdate` | Before Update, every frame |
+| `Update` | Every frame (default) |
 | `PostUpdate` | After Update, every frame |
+| `Last` | After PostUpdate, every frame |
+| `FixedPreUpdate` | Before FixedUpdate, at fixed intervals |
 | `FixedUpdate` | At fixed time intervals |
+| `FixedPostUpdate` | After FixedUpdate, at fixed intervals |
 
 ### Runtime Spawning
 

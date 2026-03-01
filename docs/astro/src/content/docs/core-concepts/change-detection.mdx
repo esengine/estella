@@ -32,7 +32,9 @@ An entity appears in an `Added` query in the frame it was spawned or the frame a
 `Changed()` filters a query to only yield entities where a component value was modified:
 
 ```typescript
-import { defineSystem, addSystem, Query, Changed, Mut, Health, Sprite } from 'esengine';
+import { defineSystem, defineComponent, addSystem, Query, Changed, Mut, Sprite } from 'esengine';
+
+const Health = defineComponent('Health', { current: 100, max: 100 });
 
 const healthBarSystem = defineSystem(
     [Query(Changed(Health), Mut(Sprite))],
@@ -56,7 +58,9 @@ A component is marked as changed whenever `world.insert()`, `world.set()`, or `C
 `Removed()` is a standalone query type (not a filter on `Query`). It yields the entity IDs of entities that had a specific component removed:
 
 ```typescript
-import { defineSystem, addSystem, Removed, Commands, Health } from 'esengine';
+import { defineSystem, defineComponent, addSystem, Removed, Commands } from 'esengine';
+
+const Health = defineComponent('Health', { current: 100, max: 100 });
 
 addSystem(defineSystem(
     [Removed(Health), Commands()],
@@ -80,7 +84,9 @@ Removed entries are kept in a buffer for 2 ticks, then automatically cleaned up.
 You can mix `Added`, `Changed`, and `Removed` in the same system:
 
 ```typescript
-import { defineSystem, Query, Added, Changed, Removed, Mut, Transform, Velocity, Health, Commands } from 'esengine';
+import { defineSystem, defineComponent, Query, Added, Changed, Removed, Mut, Transform, Velocity, Commands, Sprite } from 'esengine';
+
+const Health = defineComponent('Health', { current: 100, max: 100 });
 
 defineSystem(
     [

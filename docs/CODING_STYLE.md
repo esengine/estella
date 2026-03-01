@@ -131,13 +131,12 @@ std::unique_ptr<Shader> shader = std::make_unique<Shader>();
 ### Comments
 
 ```cpp
-// Single-line comments for brief explanations
-int count = 0;  // Track entity count
+// Only comment non-obvious logic — code should be self-documenting
 
-/*
- * Multi-line comments for longer explanations.
- * Use these sparingly - code should be self-documenting.
- */
+// WebGL 1.0 does not support NPOT texture mipmaps
+if (!isPowerOfTwo(width)) {
+    disableMipmaps();
+}
 
 /// Doxygen-style comments for public API documentation
 /// @param entity The entity to query

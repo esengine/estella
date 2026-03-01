@@ -104,7 +104,7 @@ We follow a strict commit message format:
 
 ### Code Style
 
-- **C++**: See naming conventions and formatting rules in `CLAUDE.md`
+- **C++**: See naming conventions and formatting rules in [`docs/CODING_STYLE.md`](docs/CODING_STYLE.md)
 - **TypeScript**: Strict mode, use `defineComponent()` and `defineSystem()`
 - **Comments**: Code should be self-documenting. Only add comments for non-obvious logic.
 

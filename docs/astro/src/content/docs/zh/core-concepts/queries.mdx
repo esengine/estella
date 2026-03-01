@@ -82,7 +82,10 @@ query.toArray();   // 将所有结果收集到数组中
 使用 `.with()` 和 `.without()` 按组件的有无过滤实体，且不将这些组件包含在结果元组中：
 
 ```typescript
-import { Query, Transform, Sprite, Hidden } from 'esengine';
+import { Query, Transform, Sprite, defineTag } from 'esengine';
+
+const Hidden = defineTag('Hidden');
+const Disabled = defineTag('Disabled');
 
 // 匹配有 Transform 和 Sprite 的实体，但只要同时有 Player 的
 defineSystem(
@@ -237,7 +240,9 @@ addSystem(defineSystem(
 正确做法是使用 `Commands` 将修改延迟到迭代结束后执行：
 
 ```typescript
-import { defineSystem, addSystem, Commands, Query, Health } from 'esengine';
+import { defineSystem, addSystem, Commands, Query, defineComponent } from 'esengine';
+
+const Health = defineComponent('Health', { value: 100 });
 
 const despawnDead = defineSystem(
     [Commands(), Query(Health)],

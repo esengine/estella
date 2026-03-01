@@ -13,6 +13,7 @@ import { Aside } from '@astrojs/starlight/components';
 |------|------|--------|------|
 | `enabled` | boolean | `true` | 是否启用交互 |
 | `blockRaycast` | boolean | `true` | 阻止事件传递到后面的元素 |
+| `raycastTarget` | boolean | `true` | 是否参与射线检测 |
 
 ## UIInteraction
 
@@ -70,6 +71,7 @@ addSystem(defineSystem(
 | `entity` | Entity | 接收事件的实体 |
 | `type` | string | 事件类型（见上表） |
 | `target` | Entity | 触发事件的原始实体 |
+| `currentTarget` | Entity | 当前正在处理事件的实体（冒泡时可能不同于 target） |
 
 ### 查询事件
 
@@ -111,6 +113,8 @@ const all = events.drain();
 | `dragThreshold` | number | `5` | 开始拖拽前的像素移动距离 |
 | `lockX` | boolean | `false` | 锁定水平移动 |
 | `lockY` | boolean | `false` | 锁定垂直移动 |
+| `constraintMin` | `{x, y}` \| null | `null` | 拖拽范围最小值（世界坐标） |
+| `constraintMax` | `{x, y}` \| null | `null` | 拖拽范围最大值（世界坐标） |
 
 拖拽激活时，引擎会自动为实体添加 `DragState` 组件：
 
@@ -121,6 +125,7 @@ const all = events.drain();
 | `currentWorldPos` | `{x, y}` | 当前世界位置 |
 | `deltaWorld` | `{x, y}` | 本帧移动量 |
 | `totalDeltaWorld` | `{x, y}` | 从拖拽开始的总移动量 |
+| `pointerStartWorld` | `{x, y}` | 拖拽开始时的指针世界位置 |
 
 ## 处理管线
 

@@ -251,8 +251,8 @@ The SDK provides a first-class scene management system built on top of ECS resou
 ## Future Improvements
 
 - [ ] Component groups for cache optimization
-- [ ] Event/signal system
-- [ ] Audio system
+- [x] Event/signal system
+- [x] Audio system
 - [x] Scene serialization
 - [x] Physics integration
 - [x] UI system

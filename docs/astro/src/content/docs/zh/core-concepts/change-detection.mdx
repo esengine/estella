@@ -32,7 +32,9 @@ addSystem(defineSystem(
 `Changed()` 过滤查询，仅返回组件值被修改过的实体：
 
 ```typescript
-import { defineSystem, addSystem, Query, Changed, Mut, Health, Sprite } from 'esengine';
+import { defineSystem, addSystem, Query, Changed, Mut, Sprite, defineComponent } from 'esengine';
+
+const Health = defineComponent('Health', { current: 100, max: 100 });
 
 const healthBarSystem = defineSystem(
     [Query(Changed(Health), Mut(Sprite))],
@@ -56,7 +58,9 @@ const healthBarSystem = defineSystem(
 `Removed()` 是独立的查询类型（不是 `Query` 的过滤器）。它返回被移除了特定组件的实体 ID：
 
 ```typescript
-import { defineSystem, addSystem, Removed, Commands, Health } from 'esengine';
+import { defineSystem, addSystem, Removed, Commands, defineComponent } from 'esengine';
+
+const Health = defineComponent('Health', { current: 100, max: 100 });
 
 addSystem(defineSystem(
     [Removed(Health), Commands()],
@@ -80,7 +84,9 @@ addSystem(defineSystem(
 可以在同一个系统中混合使用 `Added`、`Changed` 和 `Removed`：
 
 ```typescript
-import { defineSystem, Query, Added, Changed, Removed, Mut, Transform, Velocity, Health, Commands } from 'esengine';
+import { defineSystem, Query, Added, Changed, Removed, Mut, Transform, Velocity, Commands, defineComponent } from 'esengine';
+
+const Health = defineComponent('Health', { current: 100, max: 100 });
 
 defineSystem(
     [

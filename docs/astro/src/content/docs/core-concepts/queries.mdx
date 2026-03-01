@@ -82,7 +82,10 @@ query.toArray();   // collect all results into an array
 Use `.with()` and `.without()` to filter entities by the presence or absence of components, without including them in the result tuple:
 
 ```typescript
-import { Query, Transform, Sprite, Hidden } from 'esengine';
+import { Query, Mut, Transform, Sprite, defineTag } from 'esengine';
+
+const Player = defineTag('Player');
+const Hidden = defineTag('Hidden');
 
 // Match entities with Transform AND Sprite, but only those that also have Player
 defineSystem(
@@ -108,6 +111,7 @@ defineSystem(
 You can chain multiple `.with()` and `.without()` calls:
 
 ```typescript
+const Disabled = defineTag('Disabled');
 Query(Mut(Transform), Sprite).with(Player).without(Hidden, Disabled)
 ```
 
@@ -237,7 +241,9 @@ During query iteration, you **cannot** directly create or destroy entities, or i
 The correct approach is to use `Commands` to defer modifications until after iteration completes:
 
 ```typescript
-import { defineSystem, addSystem, Commands, Query, Health } from 'esengine';
+import { defineSystem, defineComponent, addSystem, Commands, Query } from 'esengine';
+
+const Health = defineComponent('Health', { value: 100 });
 
 const despawnDead = defineSystem(
     [Commands(), Query(Health)],

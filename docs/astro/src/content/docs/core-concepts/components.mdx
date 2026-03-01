@@ -20,6 +20,9 @@ Position, rotation, and scale of an entity.
 | `position` | Vec3 | Local position `{ x, y, z }` |
 | `rotation` | Quat | Quaternion `{ w, x, y, z }` |
 | `scale` | Vec3 | Scale factor `{ x, y, z }` |
+| `worldPosition` | Vec3 | Computed world position (read-only) |
+| `worldRotation` | Quat | Computed world rotation (read-only) |
+| `worldScale` | Vec3 | Computed world scale (read-only) |
 
 <Aside type="note">
   In previous versions, `LocalTransform` and `WorldTransform` were separate components. They have been unified into a single `Transform`. The old names still work as aliases but `Transform` is the recommended import.
@@ -97,6 +100,7 @@ GPU-rendered text using pre-baked bitmap font atlases (BMFont format). Requires 
 | `spacing` | number | Extra spacing between characters |
 | `layer` | number | Render layer |
 | `font` | number | Font handle from `assets.loadBitmapFont()` |
+| `enabled` | boolean | Whether this text is rendered |
 
 ### Text
 
@@ -134,6 +138,7 @@ Clips child entities to the parent's `UIRect` bounds. Requires `UIRect` and `Tra
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
 | `enabled` | boolean | `true` | Whether clipping is active |
+| `mode` | number | `0` | Masking technique: 0=Scissor, 1=Stencil |
 
 ### Interactable
 
@@ -142,6 +147,8 @@ Marks a UI element as interactive (receives pointer events). Requires `UIRect`.
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
 | `enabled` | boolean | `true` | Whether interaction is active |
+| `blockRaycast` | boolean | `true` | Block raycast from reaching entities behind |
+| `raycastTarget` | boolean | `true` | Whether this entity is a valid raycast hit target |
 
 ### Button
 
@@ -188,6 +195,7 @@ Physics body attached to an entity. Requires `Transform`.
 | `friction` | number | `0.3` | Surface friction |
 | `restitution` | number | `0.0` | Bounciness |
 | `isSensor` | boolean | `false` | Trigger-only (no physical response) |
+| `enabled` | boolean | `true` | Enable this collider |
 
 #### CircleCollider
 
@@ -199,6 +207,7 @@ Physics body attached to an entity. Requires `Transform`.
 | `friction` | number | `0.3` | Surface friction |
 | `restitution` | number | `0.0` | Bounciness |
 | `isSensor` | boolean | `false` | Trigger-only (no physical response) |
+| `enabled` | boolean | `true` | Enable this collider |
 
 #### CapsuleCollider
 
@@ -211,6 +220,7 @@ Physics body attached to an entity. Requires `Transform`.
 | `friction` | number | `0.3` | Surface friction |
 | `restitution` | number | `0.0` | Bounciness |
 | `isSensor` | boolean | `false` | Trigger-only (no physical response) |
+| `enabled` | boolean | `true` | Enable this collider |
 
 ## Component Enabled Toggle
 

@@ -59,12 +59,7 @@ addSystemToSchedule(Schedule.FixedUpdate, physicsSystem);
 <Aside type="note">
   The Fixed schedules (`FixedPreUpdate`, `FixedUpdate`, `FixedPostUpdate`) run at a fixed timestep of 1/60s using an accumulator. In a single frame they may execute zero or multiple times depending on the frame duration, up to a maximum of **8 iterations** per frame. Use them for physics and other deterministic logic that requires consistent time steps.
 
-  The maximum number of iterations is configurable via `RuntimeConfig`:
-
-  ```typescript
-  import { RuntimeConfig } from 'esengine';
-  RuntimeConfig.maxFixedSteps = 8; // default
-  ```
+  The maximum number of iterations is configurable in the editor under **Settings → Project → Runtime → Max Fixed Steps**. The build pipeline applies this setting automatically.
 </Aside>
 
 <Aside type="note">

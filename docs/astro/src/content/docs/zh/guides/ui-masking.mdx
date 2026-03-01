@@ -40,7 +40,7 @@ import { Aside } from '@astrojs/starlight/components';
 ### 在代码中设置
 
 ```typescript
-import { UIMask, MaskMode } from 'esengine';
+import { UIMask } from 'esengine';
 
 // 创建遮罩容器
 const panel = world.spawn();
@@ -48,7 +48,7 @@ world.insert(panel, UIRect, {
     anchorMin: { x: 0.1, y: 0.1 },
     anchorMax: { x: 0.9, y: 0.9 },
 });
-world.insert(panel, UIMask, { enabled: true, mode: MaskMode.Scissor });
+world.insert(panel, UIMask, { enabled: true, mode: 0 /* Scissor */ });
 
 // 子内容 — 自动被裁剪
 const content = world.spawn();

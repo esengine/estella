@@ -16,8 +16,8 @@ import { Aside } from '@astrojs/starlight/components';
 | 插件 | 提供的功能 |
 |------|-----------|
 | 资源加载 | `AssetServer`，用于在运行时加载纹理、Spine 数据、预制体等资源 |
-| 预制体 | `PrefabServer`，用于实例化预制体 |
-| 输入 | `InputState`，包含键盘、鼠标和触摸输入——每帧末尾清除 |
+| 预制体 | `Prefabs`，用于实例化预制体 |
+| 输入 | `Input`，包含键盘、鼠标和触摸输入——每帧末尾清除 |
 
 ### UI 插件
 
@@ -40,7 +40,6 @@ import { Aside } from '@astrojs/starlight/components';
 | 焦点 | `Focusable` — 键盘焦点和 Tab 导航 |
 | 安全区域 | `SafeArea` — 适配设备安全区域（刘海、圆角） |
 | 布局组 | `LayoutGroup` — 带方向、间距和对齐的网格式布局 |
-| 弹性布局 | `FlexContainer`、`FlexItem` — 类 CSS Flexbox 的自动子元素排列 |
 
 以上插件在每个项目中默认激活。你可以直接从编辑器的组件选择器中使用它们的组件——无需任何设置。
 

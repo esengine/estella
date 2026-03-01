@@ -126,7 +126,7 @@ int main() {
 ### GitHub Actions (Automatic)
 
 Documentation is automatically built and deployed when:
-- Changes are pushed to `main` branch in `docs/`, `src/**/*.hpp`, or `include/**/*.hpp`
+- Changes are pushed to `master` branch in `docs/`, `src/**/*.hpp`, or `include/**/*.hpp`
 - Workflow is manually triggered
 
 **Setup GitHub Pages:**

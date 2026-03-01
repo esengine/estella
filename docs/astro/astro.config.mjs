@@ -26,7 +26,7 @@ export default defineConfig({
         discord: 'https://discord.gg/sAX6PXZ9',
       },
       editLink: {
-        baseUrl: 'https://github.com/esengine/microes/edit/main/docs/astro/',
+        baseUrl: 'https://github.com/esengine/microes/edit/master/docs/astro/',
       },
       customCss: [
         './src/styles/custom.css',
@@ -99,6 +99,9 @@ export default defineConfig({
             { label: 'Geometry & Meshes', translations: { 'zh-CN': '几何体与网格' }, slug: 'guides/geometry' },
             { label: 'Physics', translations: { 'zh-CN': '物理' }, slug: 'guides/physics' },
             { label: 'Profiler', translations: { 'zh-CN': '性能分析' }, slug: 'guides/profiler' },
+            { label: 'Debugging', translations: { 'zh-CN': '调试' }, slug: 'guides/debugging' },
+            { label: 'Game View', translations: { 'zh-CN': 'Game View' }, slug: 'guides/game-view' },
+            { label: 'Project Settings', translations: { 'zh-CN': '项目设置' }, slug: 'guides/project-settings' },
             { label: 'Editor Extensions', translations: { 'zh-CN': '编辑器扩展' }, slug: 'guides/editor-extensions' },
             { label: 'Plugins', translations: { 'zh-CN': '插件系统' }, slug: 'guides/plugins' },
             { label: 'Building', translations: { 'zh-CN': '构建' }, slug: 'guides/building' },

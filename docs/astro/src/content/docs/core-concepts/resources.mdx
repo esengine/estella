@@ -27,7 +27,7 @@ defineSystem([ResMut(GameState)], (state) => {
 });
 ```
 
-`ResMut` wraps the resource value. Access the data with `.get()`, or use `.modify()`:
+`ResMut` wraps the resource value. Access the data with `.get()`, replace it entirely with `.set()`, or use `.modify()` for partial updates:
 
 ```typescript
 defineSystem([ResMut(GameState)], (state) => {

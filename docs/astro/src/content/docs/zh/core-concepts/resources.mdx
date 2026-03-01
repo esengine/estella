@@ -27,7 +27,7 @@ defineSystem([ResMut(GameState)], (state) => {
 });
 ```
 
-`ResMut` 包装了资源值。用 `.get()` 访问数据，或使用 `.modify()`：
+`ResMut` 包装了资源值。用 `.get()` 访问数据，用 `.set()` 替换整个值，或使用 `.modify()`：
 
 ```typescript
 defineSystem([ResMut(GameState)], (state) => {

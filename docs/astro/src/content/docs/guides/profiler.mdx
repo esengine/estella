@@ -78,24 +78,28 @@ addSystem(defineSystem(
 
 ## Frame History
 
-The profiler maintains a 300-frame rolling buffer for trend analysis:
+`FrameHistory` is a utility class that maintains a rolling buffer for trend analysis. Create an instance and feed it data from the `Stats` resource:
 
 ```typescript
-import { FrameHistory } from 'esengine';
+import { FrameHistory, Stats, Res, defineSystem, addSystem } from 'esengine';
 
-const history = app.getResource(FrameHistory);
+const history = new FrameHistory(300);
 
-// Get all recorded frames
-const frames = history.getAll();
+addSystem(defineSystem(
+    [Res(Stats)],
+    (stats) => {
+        history.push(stats.frameTimeMs, new Map());
+    }
+));
 
 // Get the most recent frame snapshot
 const latest = history.getLatest();
 if (latest) {
     console.log(`Frame time: ${latest.frameTimeMs}ms`);
-    for (const [system, ms] of latest.systemTimings) {
-        console.log(`  ${system}: ${ms.toFixed(2)}ms`);
-    }
 }
+
+// Get all recorded frames
+const frames = history.getAll();
 ```
 
 ## Editor Integration

@@ -28,7 +28,10 @@ const Damage = defineEvent<DamageEvent>('Damage');
 Use `EventWriter` as a system parameter to send events:
 
 ```typescript
-import { defineSystem, addSystem, EventWriter, Query, Health } from 'esengine';
+import { defineSystem, defineComponent, defineTag, addSystem, EventWriter, Query } from 'esengine';
+
+const Health = defineComponent('Health', { current: 100, max: 100 });
+const Enemy = defineTag('Enemy');
 
 addSystem(defineSystem(
     [EventWriter(Damage), Query(Health, Enemy)],
@@ -95,7 +98,11 @@ Events last exactly **1 frame**. If no system reads them, they are silently disc
 A complete example with three decoupled systems:
 
 ```typescript
-import { defineEvent, defineSystem, addSystem, EventWriter, EventReader, GetWorld, Query, Mut, Commands, Health, Sprite } from 'esengine';
+import { defineEvent, defineSystem, defineComponent, defineTag, addSystem, EventWriter, EventReader, GetWorld, Query, Mut, Commands, Transform } from 'esengine';
+
+const Health = defineComponent('Health', { current: 100, max: 100 });
+const Enemy = defineTag('Enemy');
+const Projectile = defineComponent('Projectile', { radius: 10, power: 25 });
 
 // 1. Define the event
 interface DamageEvent {
@@ -123,7 +130,7 @@ const healthSystem = defineSystem(
     [EventReader(Damage), GetWorld()],
     (events, world) => {
         for (const { target, amount } of events) {
-            const health = world.get(target, Health);
+            const health = world.tryGet(target, Health);
             if (health) {
                 health.current -= amount;
                 world.set(target, Health, health);
@@ -137,7 +144,7 @@ const hitVFXSystem = defineSystem(
     [EventReader(Damage), GetWorld()],
     (events, world) => {
         for (const { target } of events) {
-            const transform = world.get(target, Transform);
+            const transform = world.tryGet(target, Transform);
             if (transform) {
                 spawnHitParticle(transform.position);
             }

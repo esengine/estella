@@ -28,7 +28,10 @@ const Damage = defineEvent<DamageEvent>('Damage');
 使用 `EventWriter` 作为系统参数来发送事件：
 
 ```typescript
-import { defineSystem, addSystem, EventWriter, Query, Health } from 'esengine';
+import { defineSystem, addSystem, EventWriter, Query, defineComponent, defineTag } from 'esengine';
+
+const Health = defineComponent('Health', { current: 100, max: 100 });
+const Enemy = defineTag('Enemy');
 
 addSystem(defineSystem(
     [EventWriter(Damage), Query(Health, Enemy)],
@@ -95,7 +98,11 @@ events.toArray()   // 将所有事件收集为数组
 一个完整的示例，包含三个解耦的系统：
 
 ```typescript
-import { defineEvent, defineSystem, addSystem, EventWriter, EventReader, GetWorld, Query, Mut, Commands, Health, Sprite } from 'esengine';
+import { defineEvent, defineSystem, addSystem, EventWriter, EventReader, GetWorld, Query, Mut, Commands, Sprite, defineComponent, defineTag } from 'esengine';
+
+const Health = defineComponent('Health', { current: 100, max: 100 });
+const Projectile = defineComponent('Projectile', { radius: 5, power: 10 });
+const Enemy = defineTag('Enemy');
 
 // 1. 定义事件
 interface DamageEvent {
@@ -123,7 +130,7 @@ const healthSystem = defineSystem(
     [EventReader(Damage), GetWorld()],
     (events, world) => {
         for (const { target, amount } of events) {
-            const health = world.get(target, Health);
+            const health = world.tryGet(target, Health);
             if (health) {
                 health.current -= amount;
                 world.set(target, Health, health);
@@ -137,7 +144,7 @@ const hitVFXSystem = defineSystem(
     [EventReader(Damage), GetWorld()],
     (events, world) => {
         for (const { target } of events) {
-            const transform = world.get(target, Transform);
+            const transform = world.tryGet(target, Transform);
             if (transform) {
                 spawnHitParticle(transform.position);
             }

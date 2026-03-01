@@ -40,7 +40,7 @@ Clips all **child** entities to the parent's `UIRect` bounds. The entity with `U
 ### Setup in Code
 
 ```typescript
-import { UIMask, MaskMode } from 'esengine';
+import { UIMask } from 'esengine';
 
 // Create a mask container
 const panel = world.spawn();
@@ -48,7 +48,8 @@ world.insert(panel, UIRect, {
     anchorMin: { x: 0.1, y: 0.1 },
     anchorMax: { x: 0.9, y: 0.9 },
 });
-world.insert(panel, UIMask, { enabled: true, mode: MaskMode.Scissor });
+// mode: 0 = Scissor, 1 = Stencil
+world.insert(panel, UIMask, { enabled: true, mode: 0 });
 
 // Child content — automatically clipped
 const content = world.spawn();

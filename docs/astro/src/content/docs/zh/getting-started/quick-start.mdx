@@ -103,9 +103,14 @@ addSystemToSchedule(Schedule.FixedUpdate, system);  // 固定间隔运行
 | Schedule | 运行时机 |
 |----------|----------|
 | `Startup` | 启动时运行一次 |
+| `First` | 每帧最先运行 |
+| `FixedPreUpdate` | 固定间隔，FixedUpdate 之前 |
+| `FixedUpdate` | 固定时间间隔运行 |
+| `FixedPostUpdate` | 固定间隔，FixedUpdate 之后 |
+| `PreUpdate` | 每帧 Update 之前 |
 | `Update` | 每帧运行 |
 | `PostUpdate` | 每帧 Update 之后 |
-| `FixedUpdate` | 固定时间间隔运行 |
+| `Last` | 每帧最后运行 |
 
 ### 运行时创建实体
 
