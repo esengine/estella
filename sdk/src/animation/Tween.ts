@@ -4,33 +4,23 @@
  */
 
 import type { Entity } from '../types';
-import type { World } from '../world';
 import type { ESEngineModule, CppRegistry } from '../wasm';
+import {
+    EasingType,
+    TweenState,
+    LoopMode,
+    valueTweenManager,
+    ValueTweenHandle,
+} from './ValueTween';
+import type { TweenOptions, BezierPoints } from './ValueTween';
+
+// Re-export shared types from ValueTween for backward compatibility
+export { EasingType, TweenState, LoopMode, ValueTweenHandle } from './ValueTween';
+export type { TweenOptions, BezierPoints } from './ValueTween';
 
 // =============================================================================
-// Enums (must match C++ TweenData.hpp)
+// Tween Target (C++ specific)
 // =============================================================================
-
-export const EasingType = {
-    Linear: 0,
-    EaseInQuad: 1,
-    EaseOutQuad: 2,
-    EaseInOutQuad: 3,
-    EaseInCubic: 4,
-    EaseOutCubic: 5,
-    EaseInOutCubic: 6,
-    EaseInBack: 7,
-    EaseOutBack: 8,
-    EaseInOutBack: 9,
-    EaseInElastic: 10,
-    EaseOutElastic: 11,
-    EaseInOutElastic: 12,
-    EaseOutBounce: 13,
-    CubicBezier: 14,
-    Step: 15,
-} as const;
-
-export type EasingType = (typeof EasingType)[keyof typeof EasingType];
 
 export const TweenTarget = {
     PositionX: 0,
@@ -49,41 +39,6 @@ export const TweenTarget = {
 } as const;
 
 export type TweenTarget = (typeof TweenTarget)[keyof typeof TweenTarget];
-
-export const TweenState = {
-    Running: 0,
-    Paused: 1,
-    Completed: 2,
-    Cancelled: 3,
-} as const;
-
-export type TweenState = (typeof TweenState)[keyof typeof TweenState];
-
-export const LoopMode = {
-    None: 0,
-    Restart: 1,
-    PingPong: 2,
-} as const;
-
-export type LoopMode = (typeof LoopMode)[keyof typeof LoopMode];
-
-// =============================================================================
-// Tween Options
-// =============================================================================
-
-export interface TweenOptions {
-    easing?: EasingType;
-    delay?: number;
-    loop?: LoopMode;
-    loopCount?: number;
-}
-
-export interface BezierPoints {
-    p1x: number;
-    p1y: number;
-    p2x: number;
-    p2y: number;
-}
 
 // =============================================================================
 // Tween Handle (fluent builder)
@@ -109,7 +64,11 @@ export class TweenHandle {
         return this;
     }
 
-    then(next: TweenHandle): this {
+    then(next: TweenHandle | ValueTweenHandle): this {
+        if (next instanceof ValueTweenHandle) {
+            valueTweenManager.registerCppSequence(this.entity, next.id);
+            return this;
+        }
         this.module_._anim_setSequenceNext(this.registry_, this.entity, next.entity);
         return this;
     }
@@ -137,9 +96,11 @@ let _registry: CppRegistry | null = null;
 export function initTweenAPI(module: ESEngineModule, registry: CppRegistry): void {
     _module = module;
     _registry = registry;
+    valueTweenManager.init(module, registry);
 }
 
 export function shutdownTweenAPI(): void {
+    valueTweenManager.shutdown();
     _module = null;
     _registry = null;
 }
@@ -172,6 +133,13 @@ export const Tween = {
         return new TweenHandle(m, r, tweenEntity);
     },
 
+    value(from: number, to: number, duration: number,
+          callback: (value: number) => void,
+          options?: TweenOptions): ValueTweenHandle {
+        const id = valueTweenManager.create(from, to, duration, callback, options);
+        return new ValueTweenHandle(id);
+    },
+
     cancel(tweenHandle: TweenHandle): void {
         getModule()._anim_cancelTween(getRegistry(), tweenHandle.entity);
     },
@@ -182,5 +150,6 @@ export const Tween = {
 
     update(deltaTime: number): void {
         getModule()._anim_updateTweens(getRegistry(), deltaTime);
+        valueTweenManager.update(deltaTime);
     },
-} as const;
+};

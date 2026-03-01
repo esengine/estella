@@ -1,0 +1,272 @@
+---
+title: 补间动画
+description: ESEngine 中的属性补间动画
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Tween 系统可以随时间动画化实体属性 — 位置、缩放、旋转、颜色、尺寸和相机正交大小。`AnimationPlugin` 由引擎默认包含。
+
+## 基本用法
+
+使用 `Tween.to()` 将属性从一个值动画到另一个值：
+
+```typescript
+import { Tween, TweenTarget } from 'esengine';
+
+// 1 秒内将实体移动到 x=200
+Tween.to(entity, TweenTarget.PositionX, 0, 200, 1.0);
+
+// 0.5 秒内淡出精灵
+Tween.to(entity, TweenTarget.ColorA, 1, 0, 0.5);
+
+// 0.3 秒内放大
+Tween.to(entity, TweenTarget.ScaleX, 1, 2, 0.3);
+Tween.to(entity, TweenTarget.ScaleY, 1, 2, 0.3);
+```
+
+### 参数
+
+```typescript
+Tween.to(entity, target, from, to, duration, options?)
+```
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `entity` | Entity | 目标实体 |
+| `target` | TweenTarget | 要动画的属性 |
+| `from` | number | 起始值 |
+| `to` | number | 结束值 |
+| `duration` | number | 持续时间（秒） |
+| `options` | TweenOptions | 可选的缓动、延迟、循环配置 |
+
+## 可动画属性
+
+| 目标 | 属性 |
+|------|------|
+| `PositionX` | Transform 位置 X |
+| `PositionY` | Transform 位置 Y |
+| `PositionZ` | Transform 位置 Z |
+| `ScaleX` | Transform 缩放 X |
+| `ScaleY` | Transform 缩放 Y |
+| `RotationZ` | Transform 绕 Z 轴旋转（弧度） |
+| `ColorR` | Sprite 颜色红通道（0–1） |
+| `ColorG` | Sprite 颜色绿通道（0–1） |
+| `ColorB` | Sprite 颜色蓝通道（0–1） |
+| `ColorA` | Sprite 颜色透明度（0–1） |
+| `SizeX` | Sprite 宽度 |
+| `SizeY` | Sprite 高度 |
+| `CameraOrthoSize` | 相机正交大小 |
+
+## 缓动函数
+
+传入 `easing` 选项控制动画曲线：
+
+```typescript
+import { Tween, TweenTarget, EasingType } from 'esengine';
+
+Tween.to(entity, TweenTarget.PositionX, 0, 100, 1.0, {
+    easing: EasingType.EaseOutCubic,
+});
+```
+
+### 可用缓动类型
+
+| 缓动 | 说明 |
+|------|------|
+| `Linear` | 匀速（默认） |
+| `EaseInQuad` | 慢启动，加速 |
+| `EaseOutQuad` | 快启动，减速 |
+| `EaseInOutQuad` | 慢启慢停 |
+| `EaseInCubic` | 慢启动，更陡加速 |
+| `EaseOutCubic` | 快启动，更陡减速 |
+| `EaseInOutCubic` | 平滑启停 |
+| `EaseInBack` | 先回拉再前进 |
+| `EaseOutBack` | 超越后回弹 |
+| `EaseInOutBack` | 回拉 + 超越 |
+| `EaseInElastic` | 弹性蓄力 |
+| `EaseOutElastic` | 弹性回弹 |
+| `EaseInOutElastic` | 两端弹性 |
+| `EaseOutBounce` | 弹跳回弹 |
+| `CubicBezier` | 自定义贝塞尔曲线 |
+| `Step` | 瞬间跳变（无插值） |
+
+### 自定义贝塞尔曲线
+
+使用 `CubicBezier` 缓动配合 `.bezier()` 定义自定义曲线：
+
+```typescript
+Tween.to(entity, TweenTarget.PositionX, 0, 100, 1.0, {
+    easing: EasingType.CubicBezier,
+}).bezier(0.25, 0.1, 0.25, 1.0);
+```
+
+## 延迟
+
+延迟后开始补间：
+
+```typescript
+Tween.to(entity, TweenTarget.ColorA, 1, 0, 0.5, {
+    delay: 1.0,  // 等待 1 秒后开始淡出
+});
+```
+
+## 循环
+
+```typescript
+import { Tween, TweenTarget, LoopMode } from 'esengine';
+
+// 无限循环（来回）
+Tween.to(entity, TweenTarget.PositionY, 0, 50, 2.0, {
+    loop: LoopMode.PingPong,
+});
+
+// 循环 3 次后停止
+Tween.to(entity, TweenTarget.ScaleX, 1, 1.5, 0.5, {
+    loop: LoopMode.Restart,
+    loopCount: 3,
+});
+```
+
+| 模式 | 行为 |
+|------|------|
+| `None` | 播放一次（默认） |
+| `Restart` | 重置到起始值重新播放 |
+| `PingPong` | 每次迭代反转方向 |
+
+设置 `loopCount` 限制迭代次数。省略则无限循环。
+
+## 序列播放
+
+用 `.then()` 链接补间使它们依次播放：
+
+```typescript
+const moveRight = Tween.to(entity, TweenTarget.PositionX, 0, 100, 1.0);
+const moveDown = Tween.to(entity, TweenTarget.PositionY, 0, 100, 1.0);
+
+moveRight.then(moveDown);
+```
+
+或流式链接：
+
+```typescript
+Tween.to(entity, TweenTarget.PositionX, 0, 100, 1.0)
+    .then(Tween.to(entity, TweenTarget.PositionY, 0, 100, 1.0));
+```
+
+<Aside type="note">
+没有 `.then()` 时，同时创建的补间会并行运行。只在需要顺序播放时使用 `.then()`。
+</Aside>
+
+## 控制补间
+
+`Tween.to()` 返回 `TweenHandle` 用于运行时控制：
+
+```typescript
+const handle = Tween.to(entity, TweenTarget.PositionX, 0, 100, 2.0);
+
+handle.pause();    // 暂停
+handle.resume();   // 恢复
+handle.cancel();   // 取消并移除
+
+// 检查状态
+if (handle.state === TweenState.Running) {
+    // 仍在动画中
+}
+```
+
+### TweenState
+
+| 状态 | 含义 |
+|------|------|
+| `Running` | 正在动画 |
+| `Paused` | 已暂停，可恢复 |
+| `Completed` | 播放完毕 |
+| `Cancelled` | 已取消，将被移除 |
+
+## 取消补间
+
+取消单个补间或实体上的所有补间：
+
+```typescript
+import { Tween } from 'esengine';
+
+// 取消单个
+handle.cancel();
+
+// 取消实体上所有补间
+Tween.cancelAll(entity);
+```
+
+## 自定义属性动画
+
+使用 `Tween.value()` 通过回调动画化任意数值：
+
+```typescript
+import { Tween, EasingType } from 'esengine';
+
+// 动画化自定义属性
+const handle = Tween.value(0, 100, 1.0, (v) => {
+    health.hp = v;
+}, { easing: EasingType.EaseOutQuad });
+
+// 支持所有补间功能
+handle.pause();
+handle.resume();
+handle.cancel();
+```
+
+### 参数
+
+```typescript
+Tween.value(from, to, duration, callback, options?)
+```
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `from` | number | 起始值 |
+| `to` | number | 结束值 |
+| `duration` | number | 持续时间（秒） |
+| `callback` | `(value: number) => void` | 每帧调用，传入插值后的值 |
+| `options` | TweenOptions | 可选的缓动、延迟、循环配置 |
+
+### 自定义贝塞尔曲线
+
+对值补间使用 `CubicBezier` 缓动配合 `.bezier()`：
+
+```typescript
+Tween.value(0, 100, 1.0, (v) => { progress = v; }, {
+    easing: EasingType.CubicBezier,
+}).bezier(0.25, 0.1, 0.25, 1.0);
+```
+
+### 与内置补间的序列链接
+
+值补间可以通过 `.then()` 与内置属性补间链接：
+
+```typescript
+// 先移动实体，再动画化自定义值
+Tween.to(entity, TweenTarget.PositionX, 0, 100, 1.0)
+    .then(Tween.value(0, 1, 0.5, (v) => { shield.opacity = v; }));
+
+// 先动画化自定义值，再缩放实体
+Tween.value(0, 360, 1.0, (v) => { rotation = v; })
+    .then(Tween.to(entity, TweenTarget.ScaleX, 1, 2, 0.5));
+```
+
+### 循环值补间
+
+```typescript
+import { Tween, LoopMode } from 'esengine';
+
+// 无限来回
+Tween.value(0, 1, 2.0, (v) => { pulse = v; }, {
+    loop: LoopMode.PingPong,
+});
+
+// 循环 3 次
+Tween.value(0, 360, 1.0, (v) => { angle = v; }, {
+    loop: LoopMode.Restart,
+    loopCount: 3,
+});
+```

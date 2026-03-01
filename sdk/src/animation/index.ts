@@ -17,6 +17,11 @@ export {
 } from './Tween';
 
 export {
+    ValueTweenHandle,
+    applyEasing,
+} from './ValueTween';
+
+export {
     SpriteAnimator,
     spriteAnimatorSystemUpdate,
     registerAnimClip,
