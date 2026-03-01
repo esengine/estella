@@ -112,6 +112,10 @@ export class EditorSceneRenderer {
         });
     }
 
+    private static readonly TRANSFORM_DIRECT_PROPS_ = new Set([
+        'position', 'rotation', 'scale',
+    ]);
+
     private handlePropertyChange(event: PropertyChangeEvent): void {
         if (!this.sceneManager_?.hasEntity(event.entity)) return;
 
@@ -131,6 +135,17 @@ export class EditorSceneRenderer {
                     this.store_!.updatePropertyDirect(event.entity, 'Sprite', 'color', event.newValue);
                 }
                 break;
+        }
+
+        if (event.componentType === 'Transform'
+            && EditorSceneRenderer.TRANSFORM_DIRECT_PROPS_.has(event.propertyName)) {
+            const entityData = this.store_!.getEntityData(event.entity);
+            const transform = entityData?.components.find(c => c.type === 'Transform');
+            if (transform) {
+                this.sceneManager_!.updateTransform(event.entity, transform.data);
+                this.renderCallback_?.();
+            }
+            return;
         }
 
         this.scheduleEntityUpdate(event.entity);

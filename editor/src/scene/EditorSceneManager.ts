@@ -381,6 +381,12 @@ export class EditorSceneManager {
         return this.entityMap_.has(entityId);
     }
 
+    updateTransform(entityId: number, data: Record<string, unknown>): void {
+        const entity = this.entityMap_.get(entityId);
+        if (entity === undefined) return;
+        this.world_.insert(entity, Transform, data);
+    }
+
     removeComponentFromEntity(entityId: number, componentType: string): void {
         const entity = this.entityMap_.get(entityId);
         if (entity === undefined) return;
