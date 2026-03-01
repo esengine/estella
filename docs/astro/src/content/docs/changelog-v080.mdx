@@ -1,0 +1,41 @@
+---
+title: v0.8.0
+description: ESEngine v0.8.0 release notes
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip">
+v0.8.0 introduces the Particle System — a GPU-instanced 2D particle emitter with full editor integration, custom material support, and UI mask compatibility.
+</Aside>
+
+## Particle System
+
+A flexible 2D particle emitter built on instanced rendering, with a complete C++ simulation backend and TypeScript API.
+
+- **`ParticleEmitter` component** — attach to any entity with 40+ configurable properties covering emission rate, burst, lifetime, shape, velocity, size, color, rotation, forces, sprite sheet animation, and blend mode
+- **4 emission shapes** — Point, Circle, Rectangle, and Cone, each with dedicated editor gizmo visualization showing the emission area in the Scene View
+- **Size & color over lifetime** — start/end ranges with 4 easing modes (Linear, EaseIn, EaseOut, EaseInOut) for smooth transitions
+- **Custom material support** — assign per-emitter materials via `getMaterialDataWithUniforms`, enabling custom shaders on particles
+- **Scissor clip (UIMask) compatibility** — particles respect `UIMask` clipping regions, making them usable inside scrollable UI panels
+- **Simulation space** — choose between World and Local space; local-space particles follow their parent entity's transform
+- **Sprite sheet animation** — configure columns, rows, FPS, and loop for animated particle textures
+- **Runtime API** — `Particle.play(entity)`, `Particle.stop(entity)`, `Particle.reset(entity)`, `Particle.getAliveCount(entity)`
+- **Editor inspector** — properties organized into logical groups (Emission, Lifetime, Shape, Velocity, Size, Color, Rotation, Forces, Texture, Rendering) with constrained inputs
+- **Particle overlay gizmo** — real-time shape visualization in Scene View with zoom-aware rendering, showing Point crosshairs, Circle outlines, Rectangle bounds, or Cone angle spreads
+
+## Bug Fixes
+
+### Editor
+
+- Fix rotation gizmo instability for UIRect entities with non-center pivots — pin entity world position at drag start to prevent feedback loop between rotation and pivot-adjusted position recalculation
+- Fix particles not rendering in editor Game View — add missing `Renderer.submitParticles()` call in `GameViewRenderer.renderAndCapture()`
+
+### Build
+
+- Fix playable (single-HTML) builds failing to preload audio — route audio preload through `RuntimeAssetProvider` to read inline base64 data instead of using `fetch()` on `file://` protocol
+- Include `AudioPlugin` and `ParticlePlugin` in playable builds — add `AudioSource` and `ParticleEmitter` to `COMPONENT_TO_PLUGIN` mapping and always-include both plugins alongside `AnimationPlugin`
+
+## Testing
+
+- Add particle system unit tests covering emitter lifecycle, emission rate, burst mode, shape distribution, size/color interpolation, forces, and sprite sheet animation

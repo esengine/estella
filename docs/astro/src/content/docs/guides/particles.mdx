@@ -1,0 +1,256 @@
+---
+title: Particles
+description: 2D particle system in ESEngine
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+ESEngine provides a GPU-instanced 2D particle system with a C++ simulation backend. The `ParticlePlugin` is included by the engine by default.
+
+## ParticleEmitter Component
+
+Add `ParticleEmitter` to an entity with `Transform` to emit particles from that position.
+
+### General
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `enabled` | boolean | `true` | Component active |
+| `playOnStart` | boolean | `true` | Auto-play when entity loads |
+| `looping` | boolean | `true` | Restart after duration ends |
+| `duration` | number | `5` | Emission duration in seconds |
+
+### Emission
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `rate` | number | `10` | Particles emitted per second |
+| `burstCount` | number | `0` | Particles emitted per burst (0 = disabled) |
+| `burstInterval` | number | `1` | Seconds between bursts |
+| `maxParticles` | number | `1000` | Maximum alive particles |
+
+### Lifetime
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `lifetimeMin` | number | `5` | Minimum particle lifetime (seconds) |
+| `lifetimeMax` | number | `5` | Maximum particle lifetime (seconds) |
+
+### Shape
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `shape` | number | `3` | Emission shape (see below) |
+| `shapeRadius` | number | `100` | Radius for Circle and Cone shapes |
+| `shapeSize` | Vec2 | `{100, 100}` | Width/height for Rectangle shape |
+| `shapeAngle` | number | `25` | Half-angle in degrees for Cone shape (0–360) |
+
+**Emission shapes:**
+
+| Value | Shape | Description |
+|-------|-------|-------------|
+| `0` | Point | Emit from a single point |
+| `1` | Circle | Emit from random positions within a circle |
+| `2` | Rectangle | Emit from random positions within a rectangle |
+| `3` | Cone | Emit in a directed cone from the emitter origin |
+
+### Velocity
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `speedMin` | number | `500` | Minimum initial speed |
+| `speedMax` | number | `500` | Maximum initial speed |
+| `angleSpreadMin` | number | `0` | Minimum emission angle (degrees, 0–360) |
+| `angleSpreadMax` | number | `360` | Maximum emission angle (degrees, 0–360) |
+
+### Size Over Lifetime
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `startSizeMin` | number | `100` | Minimum size at birth |
+| `startSizeMax` | number | `100` | Maximum size at birth |
+| `endSizeMin` | number | `100` | Minimum size at death |
+| `endSizeMax` | number | `100` | Maximum size at death |
+| `sizeEasing` | number | `0` | Interpolation curve (0=Linear, 1=EaseIn, 2=EaseOut, 3=EaseInOut) |
+
+### Color Over Lifetime
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `startColor` | Color | `{1,1,1,1}` | Color at birth (RGBA) |
+| `endColor` | Color | `{1,1,1,0}` | Color at death (RGBA, default fades out) |
+| `colorEasing` | number | `0` | Interpolation curve (0=Linear, 1=EaseIn, 2=EaseOut, 3=EaseInOut) |
+
+### Rotation
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `rotationMin` | number | `0` | Minimum initial rotation (degrees) |
+| `rotationMax` | number | `0` | Maximum initial rotation (degrees) |
+| `angularVelocityMin` | number | `0` | Minimum rotation speed (degrees/sec) |
+| `angularVelocityMax` | number | `0` | Maximum rotation speed (degrees/sec) |
+
+### Forces
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `gravity` | Vec2 | `{0, 0}` | Gravity force applied each frame |
+| `damping` | number | `0` | Velocity damping factor (friction) |
+
+### Texture & Sprite Sheet
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `texture` | TextureHandle | — | Particle texture |
+| `spriteColumns` | number | `1` | Sprite sheet column count |
+| `spriteRows` | number | `1` | Sprite sheet row count |
+| `spriteFPS` | number | `10` | Sprite sheet animation FPS |
+| `spriteLoop` | boolean | `true` | Loop sprite sheet animation |
+
+<Aside type="tip">
+For animated particles, use a sprite sheet texture and set `spriteColumns` and `spriteRows` to match the grid layout. The system automatically cycles through frames at the configured `spriteFPS`.
+</Aside>
+
+### Rendering
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `blendMode` | number | `1` | 0 = Normal, 1 = Additive (default) |
+| `layer` | number | `0` | Render order (-1000 to 1000) |
+| `material` | number | `0` | Custom material ID (0 = default) |
+| `simulationSpace` | number | `0` | 0 = World, 1 = Local |
+
+<Aside type="note">
+**World space** (default): particles are simulated in world coordinates — they stay in place even if the emitter entity moves. **Local space**: particles follow the emitter entity's transform.
+</Aside>
+
+## Runtime API
+
+Use the static `Particle` object to control emitters from code:
+
+```typescript
+import { Particle } from 'esengine';
+
+// Start emitting
+Particle.play(entity);
+
+// Stop emitting (existing particles continue their lifetime)
+Particle.stop(entity);
+
+// Reset emitter state and clear all alive particles
+Particle.reset(entity);
+
+// Query alive particle count
+const count = Particle.getAliveCount(entity);
+```
+
+## Controlling Emitter Properties
+
+Query and modify `ParticleEmitter` in a system:
+
+```typescript
+import { defineSystem, addSystem, Query, Mut, ParticleEmitter } from 'esengine';
+
+addSystem(defineSystem(
+    [Query(Mut(ParticleEmitter))],
+    (query) => {
+        for (const [entity, emitter] of query) {
+            emitter.rate = 50;
+            emitter.startColor = { r: 1, g: 0.5, b: 0, a: 1 };
+            emitter.endColor = { r: 1, g: 0, b: 0, a: 0 };
+            emitter.gravity = { x: 0, y: -500 };
+        }
+    }
+));
+```
+
+## Custom Materials
+
+Assign a custom material to particles for special rendering effects:
+
+```typescript
+emitter.material = myMaterialHandle;
+```
+
+The particle renderer calls `getMaterialDataWithUniforms` on the assigned material, so any shader uniforms you define will be applied per-emitter.
+
+## UIMask Compatibility
+
+Particles respect `UIMask` scissor clipping. To use particles inside a scrollable UI panel:
+
+1. Add a `UIMask` component (Scissor mode) to the panel entity
+2. Place the `ParticleEmitter` entity as a child of the masked container
+3. Particles will be clipped to the mask region
+
+## Editor Integration
+
+- **Inspector** — properties are organized into collapsible groups (Emission, Lifetime, Shape, Velocity, Size, Color, Rotation, Forces, Texture, Rendering) with constrained numeric inputs
+- **Scene View overlay** — when a `ParticleEmitter` entity is selected, the Scene View draws the emission shape as a gizmo:
+  - **Point**: crosshair marker
+  - **Circle**: dashed circle outline
+  - **Rectangle**: dashed rectangle outline
+  - **Cone**: pie-slice showing the emission angle spread
+- **Hierarchy** — right-click → Create → Particle to add a new particle entity
+
+## Enums
+
+Use the named constants for readability:
+
+```typescript
+import { EmitterShape, SimulationSpace, ParticleEasing } from 'esengine';
+
+emitter.shape = EmitterShape.Circle;
+emitter.simulationSpace = SimulationSpace.Local;
+emitter.sizeEasing = ParticleEasing.EaseOut;
+emitter.colorEasing = ParticleEasing.EaseInOut;
+```
+
+| Enum | Values |
+|------|--------|
+| `EmitterShape` | `Point` (0), `Circle` (1), `Rectangle` (2), `Cone` (3) |
+| `SimulationSpace` | `World` (0), `Local` (1) |
+| `ParticleEasing` | `Linear` (0), `EaseIn` (1), `EaseOut` (2), `EaseInOut` (3) |
+
+## Example: Fire Effect
+
+```typescript
+import {
+    defineSystem, addSystem, Commands, Transform,
+    ParticleEmitter, EmitterShape, ParticleEasing
+} from 'esengine';
+
+addSystem(defineSystem(
+    [Commands],
+    (commands) => {
+        commands.spawn(
+            Transform.bundle({ position: { x: 400, y: 300, z: 0 } }),
+            ParticleEmitter.bundle({
+                rate: 30,
+                lifetimeMin: 0.5,
+                lifetimeMax: 1.5,
+                shape: EmitterShape.Circle,
+                shapeRadius: 20,
+                speedMin: 100,
+                speedMax: 200,
+                angleSpreadMin: 250,
+                angleSpreadMax: 290,
+                startSizeMin: 40,
+                startSizeMax: 60,
+                endSizeMin: 5,
+                endSizeMax: 10,
+                sizeEasing: ParticleEasing.EaseIn,
+                startColor: { r: 1, g: 0.8, b: 0.2, a: 1 },
+                endColor: { r: 1, g: 0.2, b: 0, a: 0 },
+                colorEasing: ParticleEasing.EaseOut,
+                gravity: { x: 0, y: -50 },
+                blendMode: 1,
+            }),
+        );
+    },
+    { runCondition: 'once' }
+));
+```
+
+<Aside type="tip">
+The particle simulation runs in the C++ backend. The TypeScript side only sets component data — the engine handles instanced rendering and per-particle updates automatically.
+</Aside>
