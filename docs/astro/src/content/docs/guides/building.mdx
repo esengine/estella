@@ -127,7 +127,31 @@ Referenced images are packed into texture atlas pages (max 2048x2048 by default)
 
 User scripts from the `src/` directory are compiled and bundled with esbuild. The `esengine` SDK is treated as an external module -- on Playable it is inlined, on WeChat it is loaded from `sdk.js`.
 
-### 5. Platform Emission
+### 5. Asset Build Transforms
+
+Before writing assets, the pipeline applies **build transforms** to JSON-based assets that contain references needing rewriting. For example, prefabs and animation clips contain texture paths that must be remapped to atlas coordinates.
+
+Transforms are registered on the `AssetTypeEntry` via `registerAssetBuildTransform()`. The built-in transforms are:
+
+| Asset Type | Transform |
+|------------|-----------|
+| `prefab` | Resolves UUID refs to build paths, rewrites atlas-packed texture refs with `uvOffset`/`uvScale` |
+| `anim-clip` | Rewrites frame texture paths to atlas pages, adds `atlasFrame` metadata for UV calculation |
+
+Both platform emitters call `entry.buildTransform(content, artifact)` generically -- no per-type branching. To add a custom asset type that needs build-time rewriting, register a transform in your editor plugin:
+
+```typescript
+import { registerAssetBuildTransform } from 'esengine';
+
+registerAssetBuildTransform('my-custom-type', (content, context) => {
+    const artifact = context; // BuildArtifact
+    const data = JSON.parse(content);
+    // ... rewrite asset references ...
+    return JSON.stringify(data);
+});
+```
+
+### 6. Platform Emission
 
 The final output is produced for the target platform:
 

@@ -132,9 +132,22 @@ build/wechat/
 
 ### "File not found" 文件未找到
 
-资源未被包含在构建中。请确保满足以下条件之一：
-- 被场景或预制体引用（会自动包含）
-- 所在文件夹的导出模式在资源导出配置中设为 `always`
+资源未被包含在构建中。可能的原因：
+
+- **未被引用**：确保资源被场景或预制体引用（会自动包含），或者所在文件夹的导出模式设为 `always`。
+- **已打包到图集但路径未重写**：如果你创建了包含纹理路径的自定义 JSON 资源类型，这些纹理可能已被打包到纹理图集中，而 JSON 文件仍引用原始路径。注册一个构建变换来重写路径：
+
+```typescript
+import { registerAssetBuildTransform } from 'esengine';
+
+registerAssetBuildTransform('my-type', (content, context) => {
+    const data = JSON.parse(content);
+    // 使用 context.atlasResult 将纹理引用重写为图集路径
+    return JSON.stringify(data);
+});
+```
+
+详见[构建流水线 > 资源构建变换](/microes/zh/guides/building/#5-资源构建变换)。
 
 ### WebGL 上下文错误
 

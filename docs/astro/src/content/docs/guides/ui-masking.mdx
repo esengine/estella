@@ -156,16 +156,7 @@ world.insert(navBar, SafeArea, {
 
 ### Plugin Registration
 
-Both `uiMaskPlugin` and `safeAreaPlugin` are **automatically registered** when using `createWebApp()`. For manual setup:
-
-```typescript
-import { uiMaskPlugin, safeAreaPlugin } from 'esengine';
-
-const app = App.new()
-    .addPlugin(uiMaskPlugin)
-    .addPlugin(safeAreaPlugin)
-    .run();
-```
+Both `uiMaskPlugin` and `safeAreaPlugin` are **registered by the engine automatically**. No manual setup is needed.
 
 ## Next Steps
 

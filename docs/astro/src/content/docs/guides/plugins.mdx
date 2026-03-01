@@ -198,17 +198,14 @@ const analyticsPlugin: Plugin = {
 };
 ```
 
-### SDK Entry Points
+### Registering Custom Plugins
 
-For users building standalone applications without the editor, ESEngine provides two entry points:
-
-- **`esengine`** -- full SDK with all UI plugins included
-- **`esengine/core`** -- base SDK without UI plugins, for smaller bundles when UI is not needed
+Register custom plugins in your script's `setup` function:
 
 ```typescript
-import { createWebApp } from 'esengine/core';
+import { type App } from 'esengine';
 
-const app = createWebApp(module, {
-    plugins: [textPlugin, uiLayoutPlugin],
-});
+export function setup(app: App) {
+    app.addPlugin(myPlugin);
+}
 ```

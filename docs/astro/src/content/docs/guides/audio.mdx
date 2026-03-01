@@ -1,0 +1,139 @@
+---
+title: Audio
+description: Audio playback in ESEngine
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+ESEngine provides a complete audio system with ECS components, bus-based mixing, and spatial audio. The `AudioPlugin` is included by the engine by default.
+
+## Components
+
+### AudioSource
+
+Attach to any entity to play audio. Requires a `Transform` component for spatial audio.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `clip` | string | `''` | Audio file path |
+| `bus` | string | `'sfx'` | Audio bus: `sfx`, `music`, `ui`, `voice` |
+| `volume` | number | `1.0` | Volume (0–1) |
+| `pitch` | number | `1.0` | Playback rate (0.1–3) |
+| `loop` | boolean | `false` | Loop playback |
+| `playOnAwake` | boolean | `false` | Auto-play when entity loads |
+| `spatial` | boolean | `false` | Enable spatial audio |
+| `minDistance` | number | `100` | Spatial reference distance |
+| `maxDistance` | number | `1000` | Spatial max distance |
+| `attenuationModel` | number | `0` | 0 = Linear, 1 = Inverse, 2 = Exponential |
+| `rolloff` | number | `1.0` | Spatial rolloff factor (0–5) |
+| `priority` | number | `0` | Playback priority |
+| `enabled` | boolean | `true` | Component active |
+
+### AudioListener
+
+Add to the camera or player entity to receive spatial audio. Only one listener should be active at a time.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `enabled` | boolean | `true` | Listener active |
+
+## Quick Playback API
+
+For simple one-shot sounds that don't need an entity, use the static `Audio` class:
+
+```typescript
+import { Audio } from 'esengine';
+
+// Play a sound effect
+const handle = Audio.playSFX('assets/explosion.mp3', {
+    volume: 0.8,
+    pitch: 1.2,
+});
+
+// Control playback
+handle.pause();
+handle.resume();
+handle.stop();
+
+// Play background music with fade-in
+Audio.playBGM('assets/theme.mp3', { volume: 0.5, fadeIn: 2.0 });
+
+// Stop BGM with fade-out
+Audio.stopBGM(1.0);
+```
+
+## Volume Control
+
+Control volume per bus:
+
+```typescript
+import { Audio } from 'esengine';
+
+Audio.setMasterVolume(0.8);
+Audio.setMusicVolume(0.5);
+Audio.setSFXVolume(1.0);
+Audio.setUIVolume(0.7);
+
+// Mute a specific bus
+Audio.muteBus('music', true);
+```
+
+## Preloading
+
+Preload audio files to avoid latency on first play:
+
+```typescript
+import { Audio } from 'esengine';
+
+await Audio.preload('assets/explosion.mp3');
+await Audio.preloadAll([
+    'assets/jump.mp3',
+    'assets/coin.mp3',
+    'assets/bgm.mp3',
+]);
+```
+
+## Entity-Based Playback
+
+Add `AudioSource` to an entity in the editor or via code:
+
+```typescript
+import { defineSystem, addSystem, Query, Mut, AudioSource } from 'esengine';
+
+addSystem(defineSystem(
+    [Query(Mut(AudioSource))],
+    (query) => {
+        for (const [entity, audio] of query) {
+            // Change clip at runtime
+            audio.clip = 'assets/new-sound.mp3';
+            audio.volume = 0.5;
+        }
+    }
+));
+```
+
+## Spatial Audio
+
+Enable spatial audio by setting `spatial: true` on `AudioSource` and adding an `AudioListener` to the camera entity.
+
+```typescript
+import { AudioSource, AudioListener, AttenuationModel } from 'esengine';
+```
+
+The system automatically calculates distance-based attenuation and stereo panning based on the `Transform` positions of the source and listener entities.
+
+**Attenuation models:**
+- **Linear** (0) — volume decreases linearly between `minDistance` and `maxDistance`
+- **Inverse** (1) — realistic falloff based on inverse distance
+- **Exponential** (2) — steep falloff using exponential curve
+
+## Editor Integration
+
+- **Inspector** — audio files show an inline preview player with play/pause controls
+- **Drag-to-scene** — drag an audio file from the asset browser onto the scene to create an entity with `AudioSource`
+- **Game View** — a mute toggle button appears in the Game View toolbar
+- **Scene View** — audio systems are skipped in Scene View to avoid unwanted playback during editing
+
+<Aside type="note">
+`playOnAwake` defers playback until the browser's `AudioContext` is running. Most browsers require a user interaction before allowing audio playback.
+</Aside>

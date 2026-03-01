@@ -1,0 +1,109 @@
+---
+title: Sprite Animation
+description: Frame-based sprite animation in ESEngine
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The sprite animation system plays frame-based animations by cycling through a sequence of textures. The `AnimationPlugin` is included by the engine by default.
+
+## SpriteAnimator Component
+
+Add `SpriteAnimator` to an entity with `Transform` and `Sprite` to animate it.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `clip` | string | `''` | Animation clip name (registered or `.esanim` asset) |
+| `speed` | number | `1.0` | Animation speed multiplier |
+| `playing` | boolean | `true` | Is animation playing |
+| `loop` | boolean | `true` | Loop when finished |
+| `enabled` | boolean | `true` | Component active |
+
+## Animation Clip Format
+
+Animation clips are defined as `.esanim` files — a JSON format listing texture frames and playback settings:
+
+```json
+{
+    "version": "1.0",
+    "type": "animation-clip",
+    "fps": 12,
+    "loop": true,
+    "frames": [
+        { "texture": "assets/walk_01.png" },
+        { "texture": "assets/walk_02.png" },
+        { "texture": "assets/walk_03.png" },
+        { "texture": "assets/walk_04.png" }
+    ]
+}
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `fps` | number | `12` | Frames per second |
+| `loop` | boolean | `true` | Loop playback |
+| `frames` | array | — | List of texture references |
+
+## Editor Workflow
+
+1. **Create a clip** — right-click in the asset browser → Create → Animation Clip (`.esanim`)
+2. **Edit frames** — open the clip in the visual editor to add/remove/reorder texture frames and set FPS
+3. **Assign to entity** — add a `SpriteAnimator` component and select the clip in the inspector
+4. **Preview** — the animation plays in the Scene View and Game View
+
+## Runtime API
+
+### Playing Animations
+
+Set the `clip` property to switch animations:
+
+```typescript
+import { defineSystem, addSystem, Query, Mut, SpriteAnimator } from 'esengine';
+
+addSystem(defineSystem(
+    [Query(Mut(SpriteAnimator))],
+    (query) => {
+        for (const [entity, animator] of query) {
+            animator.clip = 'walk';
+            animator.speed = 1.5;
+            animator.playing = true;
+        }
+    }
+));
+```
+
+### Registering Clips in Code
+
+For procedurally generated animations, register clips at runtime:
+
+```typescript
+import { registerAnimClip, getAnimClip } from 'esengine';
+
+registerAnimClip({
+    name: 'explosion',
+    fps: 24,
+    loop: false,
+    frames: [
+        { texture: tex1Handle },
+        { texture: tex2Handle },
+        { texture: tex3Handle },
+    ],
+});
+```
+
+### Stopping and Resetting
+
+```typescript
+// Pause
+animator.playing = false;
+
+// Resume
+animator.playing = true;
+
+// Switch clip (resets to frame 0)
+animator.clip = 'idle';
+```
+
+<Aside type="tip">
+The `SpriteAnimator` system automatically updates the entity's `Sprite` texture each frame. You don't need to manually set the texture — just control the animator.
+</Aside>

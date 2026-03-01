@@ -1,0 +1,109 @@
+---
+title: 精灵动画
+description: ESEngine 中基于帧的精灵动画
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+精灵动画系统通过循环播放一系列纹理来实现基于帧的动画。`AnimationPlugin` 由引擎默认包含。
+
+## SpriteAnimator 组件
+
+为带有 `Transform` 和 `Sprite` 的实体添加 `SpriteAnimator` 即可播放动画。
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `clip` | string | `''` | 动画剪辑名称（已注册或 `.esanim` 资产） |
+| `speed` | number | `1.0` | 动画速度倍率 |
+| `playing` | boolean | `true` | 是否正在播放 |
+| `loop` | boolean | `true` | 播放完毕后循环 |
+| `enabled` | boolean | `true` | 组件激活 |
+
+## 动画剪辑格式
+
+动画剪辑定义为 `.esanim` 文件 — 一种列出纹理帧和播放设置的 JSON 格式：
+
+```json
+{
+    "version": "1.0",
+    "type": "animation-clip",
+    "fps": 12,
+    "loop": true,
+    "frames": [
+        { "texture": "assets/walk_01.png" },
+        { "texture": "assets/walk_02.png" },
+        { "texture": "assets/walk_03.png" },
+        { "texture": "assets/walk_04.png" }
+    ]
+}
+```
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `fps` | number | `12` | 每秒帧数 |
+| `loop` | boolean | `true` | 循环播放 |
+| `frames` | array | — | 纹理引用列表 |
+
+## 编辑器工作流
+
+1. **创建剪辑** — 在资产浏览器中右键 → 创建 → 动画剪辑（`.esanim`）
+2. **编辑帧** — 在可视化编辑器中打开剪辑，添加/删除/重排纹理帧并设置 FPS
+3. **分配给实体** — 添加 `SpriteAnimator` 组件，在检查器中选择剪辑
+4. **预览** — 动画在 Scene View 和 Game View 中播放
+
+## 运行时 API
+
+### 播放动画
+
+设置 `clip` 属性切换动画：
+
+```typescript
+import { defineSystem, addSystem, Query, Mut, SpriteAnimator } from 'esengine';
+
+addSystem(defineSystem(
+    [Query(Mut(SpriteAnimator))],
+    (query) => {
+        for (const [entity, animator] of query) {
+            animator.clip = 'walk';
+            animator.speed = 1.5;
+            animator.playing = true;
+        }
+    }
+));
+```
+
+### 代码注册剪辑
+
+对于程序化生成的动画，可在运行时注册剪辑：
+
+```typescript
+import { registerAnimClip, getAnimClip } from 'esengine';
+
+registerAnimClip({
+    name: 'explosion',
+    fps: 24,
+    loop: false,
+    frames: [
+        { texture: tex1Handle },
+        { texture: tex2Handle },
+        { texture: tex3Handle },
+    ],
+});
+```
+
+### 停止和重置
+
+```typescript
+// 暂停
+animator.playing = false;
+
+// 恢复
+animator.playing = true;
+
+// 切换剪辑（重置到第 0 帧）
+animator.clip = 'idle';
+```
+
+<Aside type="tip">
+`SpriteAnimator` 系统每帧自动更新实体的 `Sprite` 纹理。你不需要手动设置纹理 — 只需控制动画器即可。
+</Aside>

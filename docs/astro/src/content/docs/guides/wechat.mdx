@@ -132,9 +132,22 @@ This happens when WeChat blocks access to a file with an unrecognized extension.
 
 ### "File not found"
 
-The asset is not included in the build. Ensure it is either:
-- Referenced by a scene or prefab (automatically included)
-- In a folder with export mode set to `always` in the asset export configuration
+The asset is not included in the build. Possible causes:
+
+- **Not referenced**: Ensure the asset is referenced by a scene or prefab (automatically included), or is in a folder with export mode set to `always`.
+- **Packed into atlas but path not rewritten**: If you created a custom JSON asset type that contains texture paths, those textures may have been packed into the texture atlas while the JSON file still references the original path. Register a build transform to rewrite the paths:
+
+```typescript
+import { registerAssetBuildTransform } from 'esengine';
+
+registerAssetBuildTransform('my-type', (content, context) => {
+    const data = JSON.parse(content);
+    // rewrite texture refs to atlas paths using context.atlasResult
+    return JSON.stringify(data);
+});
+```
+
+See [Build Pipeline > Asset Build Transforms](/microes/guides/building/#5-asset-build-transforms) for details.
 
 ### WebGL Context Errors
 

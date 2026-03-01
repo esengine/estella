@@ -156,16 +156,7 @@ world.insert(navBar, SafeArea, {
 
 ### 插件注册
 
-`uiMaskPlugin` 和 `safeAreaPlugin` 在使用 `createWebApp()` 时**自动注册**。手动设置：
-
-```typescript
-import { uiMaskPlugin, safeAreaPlugin } from 'esengine';
-
-const app = App.new()
-    .addPlugin(uiMaskPlugin)
-    .addPlugin(safeAreaPlugin)
-    .run();
-```
+`uiMaskPlugin` 和 `safeAreaPlugin` 由引擎**自动注册**，无需手动设置。
 
 ## 下一步
 

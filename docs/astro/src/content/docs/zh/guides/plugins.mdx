@@ -198,17 +198,14 @@ const analyticsPlugin: Plugin = {
 };
 ```
 
-### SDK 入口
+### 注册自定义插件
 
-对于不使用编辑器的独立应用开发者，ESEngine 提供两种入口：
-
-- **`esengine`** — 完整 SDK，包含所有 UI 插件
-- **`esengine/core`** — 基础 SDK，不含 UI 插件，适用于不需要 UI 时减小包体积
+在脚本的 `setup` 函数中注册自定义插件：
 
 ```typescript
-import { createWebApp } from 'esengine/core';
+import { type App } from 'esengine';
 
-const app = createWebApp(module, {
-    plugins: [textPlugin, uiLayoutPlugin],
-});
+export function setup(app: App) {
+    app.addPlugin(myPlugin);
+}
 ```

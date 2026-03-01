@@ -134,40 +134,46 @@ Entities have a `visible` property (default `true`). When set to `false` in the 
 
 ## Scene Manager
 
-The SDK provides the `SceneManager` resource and `sceneManagerPlugin` for managing the loading, switching, and lifecycle of multiple scenes. When using `createWebApp()`, the plugin is included automatically -- no manual registration needed.
+The SDK provides the `SceneManager` resource and `sceneManagerPlugin` for managing the loading, switching, and lifecycle of multiple scenes. The plugin is included by the engine automatically — no manual registration needed.
 
 ```typescript
-import { SceneManager } from 'esengine';
+import { Res, SceneManager, defineSystem, addSystem } from 'esengine';
 
-const mgr = app.getResource(SceneManager);
+addSystem(defineSystem(
+    [Res(SceneManager)],
+    (mgr) => {
+        // access scene manager in a system
+    }
+));
 ```
 
 ## Registering Scenes
 
-Before the app starts, register each scene with a name, a path to its JSON file, and optional per-scene systems and lifecycle hooks:
+Scenes are managed in the editor — create `.scene` files and configure them in the project settings. For advanced use cases, you can register scenes programmatically in a `setup` function:
 
 ```typescript
-import { createWebApp, SceneManager, Schedule, type SceneConfig } from 'esengine';
+import { SceneManager, Schedule, type App } from 'esengine';
 
-const app = createWebApp(module);
+export function setup(app: App) {
+    const mgr = app.getResource(SceneManager);
 
-app.registerScene({
-    name: 'menu',
-    path: '/scenes/menu.json',
-    systems: [
-        { schedule: Schedule.Update, system: menuUpdateSystem },
-    ],
-    setup: (ctx) => {
-        ctx.registerDrawCallback('menu-particles', drawParticles);
-    },
-    cleanup: (ctx) => {
-        // called before scene unload
-    },
-});
+    mgr.register({
+        name: 'menu',
+        path: '/scenes/menu.json',
+        systems: [
+            { schedule: Schedule.Update, system: menuUpdateSystem },
+        ],
+        setup: (ctx) => {
+            ctx.registerDrawCallback('menu-particles', drawParticles);
+        },
+        cleanup: (ctx) => {
+            // called before scene unload
+        },
+    });
 
-app.registerScene({ name: 'game', path: '/scenes/game.json' });
-app.setInitialScene('menu');
-app.run();
+    mgr.register({ name: 'game', path: '/scenes/game.json' });
+    mgr.setInitial('menu');
+}
 ```
 
 Instead of specifying a file path with `path`, you can pass scene data directly via `data`. This is useful for procedurally generated or in-memory scenes:

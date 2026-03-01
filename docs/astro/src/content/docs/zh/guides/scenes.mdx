@@ -134,40 +134,46 @@ addSystem(defineSystem(
 
 ## 场景管理器
 
-SDK 提供了 `SceneManager` 资源和 `sceneManagerPlugin` 插件，用于管理多个场景的加载、切换和生命周期。使用 `createWebApp()` 时会自动包含该插件，无需手动注册。
+SDK 提供了 `SceneManager` 资源和 `sceneManagerPlugin` 插件，用于管理多个场景的加载、切换和生命周期。该插件由引擎自动包含，无需手动注册。
 
 ```typescript
-import { SceneManager } from 'esengine';
+import { Res, SceneManager, defineSystem, addSystem } from 'esengine';
 
-const mgr = app.getResource(SceneManager);
+addSystem(defineSystem(
+    [Res(SceneManager)],
+    (mgr) => {
+        // 在系统中访问场景管理器
+    }
+));
 ```
 
 ## 注册场景
 
-在应用启动前，使用 `app.registerScene()` 注册所有场景。每个场景需要一个唯一名称和场景文件路径，还可以配置专属系统、setup 回调和 cleanup 回调：
+场景在编辑器中管理 — 创建 `.scene` 文件并在项目设置中配置。如需高级用例，可在 `setup` 函数中以编程方式注册场景：
 
 ```typescript
-import { SceneManager, type SceneConfig, Schedule } from 'esengine';
+import { SceneManager, Schedule, type App } from 'esengine';
 
-const app = createWebApp(module);
+export function setup(app: App) {
+    const mgr = app.getResource(SceneManager);
 
-app.registerScene({
-    name: 'menu',
-    path: '/scenes/menu.json',
-    systems: [
-        { schedule: Schedule.Update, system: menuUpdateSystem },
-    ],
-    setup: (ctx) => {
-        ctx.registerDrawCallback('menu-particles', drawParticles);
-    },
-    cleanup: (ctx) => {
-        // 场景卸载前调用
-    },
-});
+    mgr.register({
+        name: 'menu',
+        path: '/scenes/menu.json',
+        systems: [
+            { schedule: Schedule.Update, system: menuUpdateSystem },
+        ],
+        setup: (ctx) => {
+            ctx.registerDrawCallback('menu-particles', drawParticles);
+        },
+        cleanup: (ctx) => {
+            // 场景卸载前调用
+        },
+    });
 
-app.registerScene({ name: 'game', path: '/scenes/game.json' });
-app.setInitialScene('menu');
-app.run();
+    mgr.register({ name: 'game', path: '/scenes/game.json' });
+    mgr.setInitial('menu');
+}
 ```
 
 除了通过 `path` 指定场景文件路径外，也可以通过 `data` 直接传入场景数据对象，适用于动态生成或内存中的场景：
