@@ -1,5 +1,5 @@
 import type { EntityData } from '../types/SceneTypes';
-import { Assets, Name, Parent, Children, getComponent, getComponentAssetFields } from 'esengine';
+import { Assets, Name, Parent, Children, getComponent, getComponentAssetFields, Audio, audioPlugin } from 'esengine';
 import type { Entity, World } from 'esengine';
 import { getEditorStore, type SceneSnapshot } from '../store/EditorStore';
 import { getSharedRenderContext } from '../renderer/SharedRenderContext';
@@ -87,6 +87,9 @@ class PlayModeService {
 
     async exit(): Promise<void> {
         if (this.state_ !== 'playing') return;
+
+        Audio.stopAll();
+        audioPlugin.stopAllSources();
 
         for (const cleanup of this.sharedCleanups_) cleanup();
         this.sharedCleanups_ = [];

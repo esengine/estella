@@ -112,6 +112,17 @@ export class Audio {
         }
     }
 
+    static stopAll(): void {
+        if (this.fadeAnimId_) {
+            cancelAnimationFrame(this.fadeAnimId_);
+            this.fadeAnimId_ = 0;
+        }
+        if (this.bgmHandle_) {
+            this.bgmHandle_.stop();
+            this.bgmHandle_ = null;
+        }
+    }
+
     static stopBGM(fadeOut?: number): void {
         if (!this.bgmHandle_) return;
         if (this.fadeAnimId_) {

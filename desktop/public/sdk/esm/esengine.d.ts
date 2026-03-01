@@ -3631,6 +3631,7 @@ declare class Audio {
         fadeIn?: number;
         crossFade?: number;
     }): void;
+    static stopAll(): void;
     static stopBGM(fadeOut?: number): void;
     static setMasterVolume(volume: number): void;
     static setMusicVolume(volume: number): void;
@@ -3673,8 +3674,10 @@ declare class AudioPlugin implements Plugin {
     name: string;
     private config_;
     private activeSourceHandles_;
+    private playedEntities_;
     constructor(config?: AudioPluginConfig);
     build(app: App): void;
+    stopAllSources(): void;
     cleanup(): void;
 }
 declare const audioPlugin: AudioPlugin;
