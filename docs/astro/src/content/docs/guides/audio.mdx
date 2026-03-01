@@ -97,6 +97,29 @@ Both `playSFX` and entity-based playback return an `AudioHandle`:
 | `duration` | Total duration in seconds |
 | `onEnd` | Optional callback invoked when playback finishes |
 
+## Audio Buses
+
+Every sound is routed through a **bus** — a virtual mixing channel. The engine provides 4 built-in buses, all connected to a `master` bus:
+
+| Bus | Default Volume | Typical Usage |
+|-----|---------------|---------------|
+| `sfx` | `1.0` | Sound effects: explosions, footsteps, UI clicks, one-shot sounds |
+| `music` | `0.8` | Background music and ambient loops |
+| `ui` | `1.0` | UI-specific sounds: button hover, panel open/close, notifications |
+| `voice` | `1.0` | Character dialogue, narration, voiceover |
+
+All 4 buses behave identically — they are simply independent volume/mute channels. The separation lets players adjust each category independently (e.g. lower music but keep SFX loud) via a settings menu:
+
+```
+master (1.0)
+├── sfx   (1.0)
+├── music (0.8)
+├── ui    (1.0)
+└── voice (1.0)
+```
+
+Set the bus on an `AudioSource` component or in `playSFX` config. If not specified, sounds default to the `sfx` bus.
+
 ## Volume Control
 
 Control volume per bus via the mixer:

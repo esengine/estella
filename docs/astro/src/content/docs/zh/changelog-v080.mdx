@@ -1,0 +1,41 @@
+---
+title: v0.8.0
+description: ESEngine v0.8.0 更新日志
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip">
+v0.8.0 引入了粒子系统 — 基于 GPU 实例化渲染的 2D 粒子发射器，支持完整的编辑器集成、自定义材质和 UI 遮罩兼容。
+</Aside>
+
+## 粒子系统
+
+基于实例化渲染的 2D 粒子发射器，C++ 后端模拟 + TypeScript API。
+
+- **`ParticleEmitter` 组件** — 附加到任意实体，提供 40+ 可配置属性，涵盖发射速率、爆发、生命周期、形状、速度、大小、颜色、旋转、作用力、精灵表动画和混合模式
+- **4 种发射形状** — 点、圆形、矩形和锥形，每种形状在 Scene View 中都有专用的编辑器 Gizmo 可视化
+- **大小与颜色生命周期变化** — 起始/结束范围支持 4 种缓动模式（Linear、EaseIn、EaseOut、EaseInOut）
+- **自定义材质支持** — 通过 `getMaterialDataWithUniforms` 为每个发射器指定材质，支持自定义粒子着色器
+- **裁剪区域（UIMask）兼容** — 粒子遵守 `UIMask` 裁剪区域，可在可滚动 UI 面板内使用
+- **模拟空间** — 可选世界空间和本地空间；本地空间粒子跟随父实体变换
+- **精灵表动画** — 可配置列数、行数、FPS 和循环播放
+- **运行时 API** — `Particle.play(entity)`、`Particle.stop(entity)`、`Particle.reset(entity)`、`Particle.getAliveCount(entity)`
+- **编辑器检查器** — 属性按逻辑分组（发射、生命周期、形状、速度、大小、颜色、旋转、作用力、纹理、渲染），带约束输入
+- **粒子叠加 Gizmo** — Scene View 中实时显示形状可视化，自适应缩放，支持点十字、圆形轮廓、矩形边界和锥形角度展示
+
+## Bug 修复
+
+### 编辑器
+
+- 修复非中心锚点 UIRect 实体的旋转 Gizmo 不稳定问题 — 在拖拽开始时锁定实体世界坐标，防止旋转与锚点位置重算之间的反馈循环
+- 修复粒子在编辑器 Game View 中不渲染 — 在 `GameViewRenderer.renderAndCapture()` 中补充 `Renderer.submitParticles()` 调用
+
+### 构建
+
+- 修复 Playable（单 HTML）构建无法预加载音频 — 将音频预加载路由到 `RuntimeAssetProvider`，直接读取内联 base64 数据，避免在 `file://` 协议下使用 `fetch()`
+- Playable 构建中包含 `AudioPlugin` 和 `ParticlePlugin` — 将 `AudioSource` 和 `ParticleEmitter` 添加到 `COMPONENT_TO_PLUGIN` 映射，并始终随 `AnimationPlugin` 一起包含
+
+## 测试
+
+- 添加粒子系统单元测试，覆盖发射器生命周期、发射速率、爆发模式、形状分布、大小/颜色插值、作用力和精灵表动画
