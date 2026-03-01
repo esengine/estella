@@ -40,6 +40,8 @@ const COMPONENT_TO_PLUGIN: Record<string, string> = {
     'ListView': 'listViewPlugin',
     'Dropdown': 'dropdownPlugin',
     'LayoutGroup': 'layoutGroupPlugin',
+    'AudioSource': 'audioPlugin',
+    'ParticleEmitter': 'particlePlugin',
 };
 
 function analyzeUsedPlugins(artifact: BuildArtifact): string[] {
@@ -225,11 +227,13 @@ export class PlayableEmitter implements PlatformEmitter {
         }
 
         const usedPlugins = analyzeUsedPlugins(artifact);
-        const pluginImports = usedPlugins.length > 0 ? usedPlugins.join(', ') + ', ' : '';
-        const pluginList = [...usedPlugins, 'animationPlugin'].join(', ');
+        const alwaysPlugins = ['animationPlugin', 'audioPlugin', 'particlePlugin'];
+        const allPlugins = [...new Set([...usedPlugins, ...alwaysPlugins])];
+        const pluginImports = allPlugins.join(', ');
+        const pluginList = allPlugins.join(', ');
 
         const entryContent = `
-import { createWebApp as _cwa, initPlayableRuntime, ${pluginImports}animationPlugin } from 'esengine';
+import { createWebApp as _cwa, initPlayableRuntime, ${pluginImports} } from 'esengine';
 ${imports}
 
 const __plugins = [${pluginList}];
