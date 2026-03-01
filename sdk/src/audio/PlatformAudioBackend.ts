@@ -39,6 +39,7 @@ export interface AudioBackendInitOptions {
 export interface PlatformAudioBackend {
     readonly name: string;
     readonly mixer: AudioMixer | null;
+    readonly isReady: boolean;
     initialize(options?: AudioBackendInitOptions): Promise<void>;
     ensureResumed(): Promise<void>;
     loadBuffer(url: string): Promise<AudioBufferHandle>;

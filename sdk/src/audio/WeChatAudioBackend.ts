@@ -94,6 +94,10 @@ export class WeChatAudioBackend implements PlatformAudioBackend {
         return null;
     }
 
+    get isReady(): boolean {
+        return true;
+    }
+
     async initialize(_options?: AudioBackendInitOptions): Promise<void> {
         // wx.createInnerAudioContext does not require global initialization
     }

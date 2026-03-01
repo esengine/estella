@@ -74,7 +74,7 @@ export class AudioPlugin implements Plugin {
                         if (!source.enabled || !source.clip) continue;
                         liveEntities.add(entity as number);
 
-                        if (source.playOnAwake && !activeSourceHandles.has(entity)) {
+                        if (source.playOnAwake && !activeSourceHandles.has(entity) && backend.isReady) {
                             const buffer = Audio.getBufferHandle(source.clip);
                             if (buffer) {
                                 const handle = backend.play(buffer, {

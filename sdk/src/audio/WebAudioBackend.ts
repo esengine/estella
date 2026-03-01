@@ -147,6 +147,10 @@ export class WebAudioBackend implements PlatformAudioBackend {
         return this.mixer_;
     }
 
+    get isReady(): boolean {
+        return this.context_?.state === 'running';
+    }
+
     async initialize(options: AudioBackendInitOptions = {}): Promise<void> {
         this.context_ = new AudioContext();
         this.mixer_ = new AudioMixer(this.context_, options.mixerConfig);
