@@ -1,0 +1,87 @@
+---
+title: v0.7.0
+description: ESEngine v0.7.0 更新日志
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip">
+v0.7.0 是一个重大功能版本，引入了音频系统、精灵动画和实时性能分析面板。同时包含大量测试覆盖率提升和多项编辑器/运行时 bug 修复。
+</Aside>
+
+## 音频系统
+
+完整的跨平台音频模块，包含 ECS 组件、总线混音和空间音频支持。
+
+- **`AudioSource` 组件** — 附加到任意实体上播放音效或音乐，支持音量、音调、循环、总线路由（`sfx`、`music`、`ui`、`voice`）和 `playOnAwake` 属性
+- **`AudioListener` 组件** — 添加到摄像机或玩家实体上启用空间音频，支持配置衰减模型（线性、反比、指数）
+- **静态 `Audio` API** — `Audio.playSFX()`、`Audio.playBGM()`、`Audio.stopBGM()` 快速播放；按总线控制音量：`Audio.setMasterVolume()`、`Audio.setMusicVolume()` 等
+- **编辑器集成** — 音频文件检查器支持内联预览播放、拖拽到场景，Game View 中有静音切换按钮
+- **跨平台** — 基于 Web Audio API，自动处理 `AudioContext` 恢复；`playOnAwake` 延迟到上下文激活后播放
+
+## 精灵动画
+
+基于帧的精灵动画系统，编辑器内置可视化动画编辑器。
+
+- **`SpriteAnimator` 组件** — 播放已注册的动画剪辑，可配置速度、循环和播放状态
+- **`.esanim` 资产格式** — 通过纹理帧列表和 FPS 定义动画剪辑
+- **剪辑注册表** — `registerAnimClip()` / `getAnimClip()` API，在运行时管理动画剪辑
+- **编辑器可视化编辑器** — 直接在编辑器中创建和编辑 `.esanim` 剪辑，支持帧预览
+
+## 性能分析面板
+
+实时性能监控，带叠加面板和帧检查功能。
+
+- **`StatsPlugin`** — 添加到应用中启用性能收集，可选屏幕叠加面板
+- **指标** — FPS、帧时间、绘制调用数、三角形数、精灵/文本/Spine/网格计数、剔除实体数、总实体数
+- **系统计时** — 每帧显示前 5 个最慢系统及其执行时间（毫秒）
+- **帧历史** — 300 帧滚动缓冲区用于趋势分析；支持暂停/恢复和逐帧检查
+- **编辑器集成** — 可从编辑器工具栏访问性能分析面板
+
+## 值补间
+
+JS 侧值补间，支持动画化内置属性之外的自定义属性。
+
+- **`Tween.value()` API** — 通过回调补间任意数值，支持与 `Tween.to()` 相同的缓动、延迟、循环和序列功能
+- **16 个缓动函数** — 所有缓动函数从 C++ 1:1 移植到 JS，包括 `CubicBezier` 和 `EaseOutBounce`
+- **跨类型链接** — 通过 `.then()` 任意顺序链接 `Tween.to()` 和 `Tween.value()`
+- **`applyEasing()` 工具函数** — 公开的缓动曲线求值函数，可用于自定义用途
+
+## 重构
+
+- **Tree-shaking** — 启用 tree-shaking 并整合运行时初始化逻辑，缩小包体积
+- **AssetTypeRegistry** — 集中管理资产类型元数据，替代分散的逐模块注册
+- **音频平台抽象** — 音频后端创建移入平台适配器层
+- **WASM 优化** — 在 wasm-opt 中启用 `bulk-memory` 和 `nontrapping-float-to-int` 以提升性能
+
+## Bug 修复
+
+### 编辑器
+
+- 修复 Gizmo 拖拽时 Transform 值冲突 — 使用直接 Transform 同步替代延迟更新
+- 修复 `AssetTypeRegistry` 与 `FileInspector` / `InspectorHelpers` 之间的循环依赖
+- 编辑器场景管理器中预加载音频资源
+- 编辑器 Scene View 中跳过 `AudioPlugin` 系统注册（音频仅在 Game View 中运行）
+
+### SDK / 运行时
+
+- 修复 `RenderTexture.resize()` 丢失深度缓冲区和滤镜设置
+- 修复浏览器预览未加载音频剪辑和动画剪辑资源
+- 修复 `WebAudioBackend` 使用直接 `fetch` 而非平台 `readFile`
+- 加固 stats 模块防御边界情况和 XSS
+
+### 音频
+
+- 延迟 `playOnAwake` 直到 `AudioContext` 激活，避免首次加载时静音播放
+- 添加音频 MIME 类型检测和未知资产 meta 文件自动修复
+
+## 测试
+
+- 为核心 SDK 模块（world、input、resource、query）添加 TDD 测试，覆盖率 100%
+- 为渲染管线（renderTexture、sceneManager）添加 TDD 测试
+- 为 UI 模块（uiMath、uiLayout）添加 TDD 测试
+- 添加资产类型测试，扩展 logger 测试覆盖率至 100%
+
+## 其他
+
+- 添加自动更新器的代理支持，通过环境变量配置
