@@ -5,6 +5,7 @@ import { GameViewToolbar } from './GameViewToolbar';
 import { GameViewRenderer } from '../../renderer/GameViewRenderer';
 import { getSharedRenderContext } from '../../renderer/SharedRenderContext';
 import { getPlayModeService } from '../../services/PlayModeService';
+import { Audio } from 'esengine';
 
 export interface GameViewPanelOptions {
     projectPath?: string;
@@ -41,6 +42,9 @@ export class GameViewPanel implements PanelInstance, Resizable {
             onScaleChange: (scale) => {
                 this.scale_ = scale;
                 this.updateCanvasSize();
+            },
+            onMuteToggle: (muted) => {
+                Audio.setMasterVolume(muted ? 0 : 1);
             },
         });
 
