@@ -215,16 +215,16 @@ emitter.colorEasing = ParticleEasing.EaseInOut;
 
 ```typescript
 import {
-    defineSystem, addSystem, Commands, Transform,
+    defineSystem, addStartupSystem, Commands, Transform,
     ParticleEmitter, EmitterShape, ParticleEasing
 } from 'esengine';
 
-addSystem(defineSystem(
-    [Commands],
+addStartupSystem(defineSystem(
+    [Commands()],
     (commands) => {
-        commands.spawn(
-            Transform.bundle({ position: { x: 400, y: 300, z: 0 } }),
-            ParticleEmitter.bundle({
+        commands.spawn()
+            .insert(Transform, { position: { x: 400, y: 300, z: 0 } })
+            .insert(ParticleEmitter, {
                 rate: 30,
                 lifetimeMin: 0.5,
                 lifetimeMax: 1.5,
@@ -244,10 +244,8 @@ addSystem(defineSystem(
                 colorEasing: ParticleEasing.EaseOut,
                 gravity: { x: 0, y: -50 },
                 blendMode: 1,
-            }),
-        );
-    },
-    { runCondition: 'once' }
+            });
+    }
 ));
 ```
 
