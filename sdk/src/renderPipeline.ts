@@ -86,6 +86,7 @@ export class RenderPipeline {
         } else {
             Renderer.submitSpine(registry);
         }
+        Renderer.submitParticles(registry);
         Renderer.flush();
 
         this.executeDrawCallbacks(viewProjection, elapsed);
@@ -112,6 +113,7 @@ export class RenderPipeline {
         } else {
             Renderer.submitSpine(registry);
         }
+        Renderer.submitParticles(registry);
         Renderer.flush();
 
         this.executeDrawCallbacks(viewProjection, elapsed);

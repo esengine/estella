@@ -10,6 +10,7 @@
 export interface PropertyMeta {
     name: string;
     type: string;
+    group?: string;
     min?: number;
     max?: number;
     step?: number;

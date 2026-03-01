@@ -115,6 +115,7 @@ const COMPONENT_ICON_MAP = new Map<string, (size: number) => string>([
     ['LayoutGroup', icons.layoutGrid],
     ['UIMask', icons.shield],
     ['UIInteraction', icons.zap],
+    ['ParticleEmitter', icons.star],
 ]);
 
 export function getComponentIcon(type: string): string {

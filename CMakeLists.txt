@@ -49,6 +49,8 @@ set(ESENGINE_SOURCES
     src/esengine/platform/input/Input.cpp
     src/esengine/platform/PathResolver.cpp
     src/esengine/animation/TweenSystem.cpp
+    src/esengine/particle/Particle.cpp
+    src/esengine/particle/ParticleSystem.cpp
 )
 
 if(ES_ENABLE_SPINE)

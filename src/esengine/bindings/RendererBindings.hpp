@@ -46,6 +46,12 @@ void renderer_submitTriangles(
     uintptr_t indicesPtr, i32 indexCount,
     u32 textureId, i32 blendMode,
     uintptr_t transformPtr);
+void renderer_submitParticles(ecs::Registry& registry);
+void particle_update(ecs::Registry& registry, f32 dt);
+void particle_play(ecs::Registry& registry, Entity entity);
+void particle_stop(ecs::Registry& registry, Entity entity);
+void particle_reset(ecs::Registry& registry, Entity entity);
+u32 particle_getAliveCount(Entity entity);
 void renderer_setStage(i32 stage);
 u32 renderer_createTarget(u32 width, u32 height, i32 flags);
 u32 renderer_getTargetDepthTexture(u32 handle);

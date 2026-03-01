@@ -351,9 +351,18 @@ export class World {
         if (isBuiltinComponent(component)) {
             if (this.cppRegistry_) {
                 try {
+                    const defaults = component._default as Record<string, unknown>;
+                    const raw = data as Record<string, unknown>;
+                    let wasmData = raw;
+                    for (const k of Object.keys(raw)) {
+                        if (!(k in defaults)) {
+                            if (wasmData === raw) wasmData = { ...raw };
+                            delete wasmData[k];
+                        }
+                    }
                     this.getBuiltinMethods(component._cppName).add(
                         entity,
-                        convertForWasm(data as Record<string, unknown>)
+                        convertForWasm(wasmData)
                     );
                 } catch (e) {
                     handleWasmError(e, `set(${component._name}, entity=${entity})`);
@@ -444,17 +453,18 @@ export class World {
     }
 
     private insertBuiltin<T>(entity: Entity, component: BuiltinComponentDef<T>, data?: Partial<T>): T {
+        const defaults = component._default as Record<string, unknown>;
         const filtered: Record<string, unknown> = {};
         if (data !== null && data !== undefined && typeof data === 'object') {
             for (const [k, v] of Object.entries(data as Record<string, unknown>)) {
-                if (v !== undefined) {
-                    filtered[k] = v;
-                }
+                if (v === undefined) continue;
+                if (!(k in defaults)) continue;
+                filtered[k] = v;
             }
 
             const errors = validateComponentData(
                 component._name,
-                component._default as Record<string, unknown>,
+                defaults,
                 filtered
             );
             if (errors.length > 0) {

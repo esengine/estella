@@ -31,3 +31,4 @@
 #include "components/Camera.hpp"
 #include "components/Velocity.hpp"
 #include "components/Common.hpp"
+#include "components/ParticleEmitter.hpp"

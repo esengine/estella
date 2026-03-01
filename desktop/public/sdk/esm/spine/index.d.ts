@@ -124,6 +124,49 @@ interface CapsuleCollider {
     isSensor: boolean;
     enabled: boolean;
 }
+interface ParticleEmitter {
+    rate: number;
+    burstCount: number;
+    burstInterval: number;
+    duration: number;
+    looping: boolean;
+    playOnStart: boolean;
+    maxParticles: number;
+    lifetimeMin: number;
+    lifetimeMax: number;
+    shape: number;
+    shapeRadius: number;
+    shapeSize: Vec2;
+    shapeAngle: number;
+    speedMin: number;
+    speedMax: number;
+    angleSpreadMin: number;
+    angleSpreadMax: number;
+    startSizeMin: number;
+    startSizeMax: number;
+    endSizeMin: number;
+    endSizeMax: number;
+    sizeEasing: number;
+    startColor: Vec4;
+    endColor: Vec4;
+    colorEasing: number;
+    rotationMin: number;
+    rotationMax: number;
+    angularVelocityMin: number;
+    angularVelocityMax: number;
+    gravity: Vec2;
+    damping: number;
+    texture: number;
+    spriteColumns: number;
+    spriteRows: number;
+    spriteFPS: number;
+    spriteLoop: boolean;
+    blendMode: number;
+    layer: number;
+    material: number;
+    simulationSpace: number;
+    enabled: boolean;
+}
 interface Transform {
     position: Vec3;
     rotation: Quat;
@@ -261,6 +304,10 @@ interface Registry {
     getCapsuleCollider(entity: Entity): CapsuleCollider;
     addCapsuleCollider(entity: Entity, component: CapsuleCollider): void;
     removeCapsuleCollider(entity: Entity): void;
+    hasParticleEmitter(entity: Entity): boolean;
+    getParticleEmitter(entity: Entity): ParticleEmitter;
+    addParticleEmitter(entity: Entity, component: ParticleEmitter): void;
+    removeParticleEmitter(entity: Entity): void;
     hasTransform(entity: Entity): boolean;
     getTransform(entity: Entity): Transform;
     addTransform(entity: Entity, component: Transform): void;
@@ -449,7 +496,13 @@ interface ESEngineModule {
     renderer_submitSprites(registry: CppRegistry): void;
     renderer_submitBitmapText(registry: CppRegistry): void;
     renderer_submitSpine?(registry: CppRegistry): void;
+    renderer_submitParticles?(registry: CppRegistry): void;
     renderer_submitTriangles(verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, blendMode: number, transformPtr: number): void;
+    particle_update?(registry: CppRegistry, dt: number): void;
+    particle_play?(registry: CppRegistry, entity: number): void;
+    particle_stop?(registry: CppRegistry, entity: number): void;
+    particle_reset?(registry: CppRegistry, entity: number): void;
+    particle_getAliveCount?(entity: number): number;
     renderer_setStage(stage: number): void;
     renderer_createTarget(width: number, height: number, flags: number): number;
     renderer_releaseTarget(handle: number): void;

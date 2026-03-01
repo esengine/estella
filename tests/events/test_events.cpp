@@ -1,42 +1,8 @@
-/**
- * @file    test_events.cpp
- * @brief   Unit tests for the event system
- *
- * @author  ESEngine Team
- * @date    2026
- *
- * @copyright Copyright (c) 2026 ESEngine Team
- *            Licensed under the MIT License.
- */
+#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#include <doctest.h>
 
 #include <esengine/events/Events.hpp>
-#include <iostream>
-#include <cassert>
 
-// Simple test macros
-#define TEST(name) void test_##name()
-#define RUN_TEST(name) do { \
-    std::cout << "Running " #name "... "; \
-    test_##name(); \
-    std::cout << "PASSED" << std::endl; \
-    passed++; \
-} while(0)
-
-#define ASSERT_TRUE(cond) do { \
-    if (!(cond)) { \
-        std::cerr << "FAILED: " #cond << " at line " << __LINE__ << std::endl; \
-        failed++; \
-        return; \
-    } \
-} while(0)
-
-#define ASSERT_EQ(a, b) ASSERT_TRUE((a) == (b))
-#define ASSERT_NE(a, b) ASSERT_TRUE((a) != (b))
-
-static int passed = 0;
-static int failed = 0;
-
-// Test events
 struct TestEvent {
     int value;
 };
@@ -45,8 +11,7 @@ struct AnotherEvent {
     std::string message;
 };
 
-// Signal Tests
-TEST(signal_basic) {
+TEST_CASE("signal_basic") {
     esengine::Signal<void(int)> signal;
     int received = 0;
 
@@ -55,10 +20,10 @@ TEST(signal_basic) {
     });
 
     signal.publish(42);
-    ASSERT_EQ(received, 42);
+    CHECK_EQ(received, 42);
 }
 
-TEST(signal_multiple_subscribers) {
+TEST_CASE("signal_multiple_subscribers") {
     esengine::Signal<void(int)> signal;
     int sum = 0;
 
@@ -71,10 +36,10 @@ TEST(signal_multiple_subscribers) {
     });
 
     signal.publish(10);
-    ASSERT_EQ(sum, 30);  // 10 + 20
+    CHECK_EQ(sum, 30);
 }
 
-TEST(signal_disconnect) {
+TEST_CASE("signal_disconnect") {
     esengine::Signal<void(int)> signal;
     int count = 0;
 
@@ -83,15 +48,15 @@ TEST(signal_disconnect) {
     });
 
     signal.publish(1);
-    ASSERT_EQ(count, 1);
+    CHECK_EQ(count, 1);
 
     conn.disconnect();
 
     signal.publish(1);
-    ASSERT_EQ(count, 1);  // No change after disconnect
+    CHECK_EQ(count, 1);
 }
 
-TEST(signal_raii_disconnect) {
+TEST_CASE("signal_raii_disconnect") {
     esengine::Signal<void(int)> signal;
     int count = 0;
 
@@ -101,14 +66,14 @@ TEST(signal_raii_disconnect) {
         });
 
         signal.publish(1);
-        ASSERT_EQ(count, 1);
-    }  // conn goes out of scope, auto-disconnect
+        CHECK_EQ(count, 1);
+    }
 
     signal.publish(1);
-    ASSERT_EQ(count, 1);  // No change after auto-disconnect
+    CHECK_EQ(count, 1);
 }
 
-TEST(connection_holder) {
+TEST_CASE("connection_holder") {
     esengine::Signal<void(int)> signal;
     int count = 0;
 
@@ -123,16 +88,15 @@ TEST(connection_holder) {
     }));
 
     signal.publish(1);
-    ASSERT_EQ(count, 2);
+    CHECK_EQ(count, 2);
 
     holder.disconnectAll();
 
     signal.publish(1);
-    ASSERT_EQ(count, 2);  // No change after disconnect
+    CHECK_EQ(count, 2);
 }
 
-// Dispatcher Tests
-TEST(dispatcher_trigger) {
+TEST_CASE("dispatcher_trigger") {
     esengine::Dispatcher dispatcher;
     int received = 0;
 
@@ -141,10 +105,10 @@ TEST(dispatcher_trigger) {
     });
 
     dispatcher.trigger(TestEvent{42});
-    ASSERT_EQ(received, 42);
+    CHECK_EQ(received, 42);
 }
 
-TEST(dispatcher_multiple_event_types) {
+TEST_CASE("dispatcher_multiple_event_types") {
     esengine::Dispatcher dispatcher;
     int intValue = 0;
     std::string strValue;
@@ -160,11 +124,11 @@ TEST(dispatcher_multiple_event_types) {
     dispatcher.trigger(TestEvent{123});
     dispatcher.trigger(AnotherEvent{"hello"});
 
-    ASSERT_EQ(intValue, 123);
-    ASSERT_EQ(strValue, "hello");
+    CHECK_EQ(intValue, 123);
+    CHECK_EQ(strValue, "hello");
 }
 
-TEST(dispatcher_queue) {
+TEST_CASE("dispatcher_queue") {
     esengine::Dispatcher dispatcher;
     int received = 0;
 
@@ -173,13 +137,13 @@ TEST(dispatcher_queue) {
     });
 
     dispatcher.enqueue(TestEvent{99});
-    ASSERT_EQ(received, 0);  // Not yet processed
+    CHECK_EQ(received, 0);
 
     dispatcher.update();
-    ASSERT_EQ(received, 99);  // Now processed
+    CHECK_EQ(received, 99);
 }
 
-TEST(dispatcher_queue_multiple) {
+TEST_CASE("dispatcher_queue_multiple") {
     esengine::Dispatcher dispatcher;
     std::vector<int> values;
 
@@ -191,31 +155,31 @@ TEST(dispatcher_queue_multiple) {
     dispatcher.enqueue(TestEvent{2});
     dispatcher.enqueue(TestEvent{3});
 
-    ASSERT_TRUE(values.empty());
+    CHECK(values.empty());
 
     dispatcher.update();
 
-    ASSERT_EQ(values.size(), 3u);
-    ASSERT_EQ(values[0], 1);
-    ASSERT_EQ(values[1], 2);
-    ASSERT_EQ(values[2], 3);
+    CHECK_EQ(values.size(), 3u);
+    CHECK_EQ(values[0], 1);
+    CHECK_EQ(values[1], 2);
+    CHECK_EQ(values[2], 3);
 }
 
-TEST(dispatcher_has_subscribers) {
+TEST_CASE("dispatcher_has_subscribers") {
     esengine::Dispatcher dispatcher;
 
-    ASSERT_TRUE(!dispatcher.hasSubscribers<TestEvent>());
+    CHECK(!dispatcher.hasSubscribers<TestEvent>());
 
     {
         auto conn = dispatcher.sink<TestEvent>().connect([](const TestEvent&) {});
-        ASSERT_TRUE(dispatcher.hasSubscribers<TestEvent>());
+        CHECK(dispatcher.hasSubscribers<TestEvent>());
         conn.disconnect();
     }
 
-    ASSERT_TRUE(!dispatcher.hasSubscribers<TestEvent>());
+    CHECK(!dispatcher.hasSubscribers<TestEvent>());
 }
 
-TEST(dispatcher_clear) {
+TEST_CASE("dispatcher_clear") {
     esengine::Dispatcher dispatcher;
     int count = 0;
 
@@ -226,35 +190,9 @@ TEST(dispatcher_clear) {
     dispatcher.enqueue(TestEvent{1});
     dispatcher.enqueue(TestEvent{2});
 
-    // Must disconnect before clear() to avoid dangling pointer in Connection
     conn.disconnect();
 
     dispatcher.clear();
 
-    ASSERT_EQ(dispatcher.queueSize(), 0u);
-}
-
-int main() {
-    std::cout << "ESEngine Events Unit Tests" << std::endl;
-    std::cout << "===========================" << std::endl;
-
-    // Signal tests
-    RUN_TEST(signal_basic);
-    RUN_TEST(signal_multiple_subscribers);
-    RUN_TEST(signal_disconnect);
-    RUN_TEST(signal_raii_disconnect);
-    RUN_TEST(connection_holder);
-
-    // Dispatcher tests
-    RUN_TEST(dispatcher_trigger);
-    RUN_TEST(dispatcher_multiple_event_types);
-    RUN_TEST(dispatcher_queue);
-    RUN_TEST(dispatcher_queue_multiple);
-    RUN_TEST(dispatcher_has_subscribers);
-    RUN_TEST(dispatcher_clear);
-
-    std::cout << "===========================" << std::endl;
-    std::cout << "Results: " << passed << " passed, " << failed << " failed" << std::endl;
-
-    return failed > 0 ? 1 : 0;
+    CHECK_EQ(dispatcher.queueSize(), 0u);
 }

@@ -8,6 +8,7 @@
 #include "PostProcessPipeline.hpp"
 #include "../ecs/Registry.hpp"
 #include "../resource/ResourceManager.hpp"
+#include "../particle/ParticleSystem.hpp"
 
 #include <glm/glm.hpp>
 #include <array>
@@ -53,6 +54,7 @@ public:
 #endif
         u32 meshes = 0;
         u32 text = 0;
+        u32 particles = 0;
         u32 culled = 0;
     };
 
@@ -72,6 +74,7 @@ public:
 
     void submitSprites(ecs::Registry& registry);
     void submitBitmapText(ecs::Registry& registry);
+    void submitParticles(ecs::Registry& registry, particle::ParticleSystem& particle_system);
 #ifdef ES_ENABLE_SPINE
     void submitSpine(ecs::Registry& registry, spine::SpineSystem& spine_system);
 #endif
@@ -117,6 +120,7 @@ private:
     void renderMeshes(u32 begin, u32 end);
     void renderExternalMeshes(u32 begin, u32 end);
     void renderText(u32 begin, u32 end);
+    void renderParticles(u32 begin, u32 end);
 
     RenderContext& context_;
     resource::ResourceManager& resource_manager_;
@@ -134,6 +138,7 @@ private:
     std::vector<SpineData> spine_data_;
 #endif
     std::vector<ExternalMeshData> ext_data_;
+    std::vector<ParticleRenderData> particle_data_;
 
     glm::mat4 view_projection_{1.0f};
     Frustum frustum_;
@@ -192,6 +197,23 @@ private:
     bool mat_sprite_ebo_initialized_ = false;
     bool mat_sprite_vbo_allocated_ = false;
     u32 mat_sprite_last_shader_ = 0;
+
+    u32 particle_vao_ = 0;
+    u32 particle_quad_vbo_ = 0;
+    u32 particle_instance_vbo_ = 0;
+    u32 particle_ebo_ = 0;
+    u32 particle_instance_capacity_ = 0;
+    resource::ShaderHandle particle_shader_handle_;
+
+    struct ParticleInstanceData {
+        glm::vec2 position;
+        glm::vec2 size;
+        f32 rotation;
+        glm::vec4 color;
+        glm::vec2 uv_offset;
+        glm::vec2 uv_scale;
+    };
+    std::vector<ParticleInstanceData> particle_instances_;
 
     std::unordered_map<u32, ScissorRect> clip_rects_;
 

@@ -335,120 +335,49 @@ export function renderComponent(
         const propsContainer = document.createElement('div');
         propsContainer.className = 'es-component-properties es-collapsible-content';
 
+        const ungrouped: import('../../property/PropertyEditor').PropertyMeta[] = [];
+        const groups = new Map<string, import('../../property/PropertyEditor').PropertyMeta[]>();
+        const groupOrder: string[] = [];
         for (const propMeta of schema.properties) {
-            if (propMeta.name === '*') {
-                const editorContainer = document.createElement('div');
-                editorContainer.className = 'es-property-editor es-property-editor-full';
-
-                const fullData = { ...defaults, ...component.data };
-
-                const editor = createPropertyEditor(editorContainer, {
-                    value: fullData,
-                    meta: propMeta,
-                    onChange: (changes) => {
-                        const arr = changes as { property: string; oldValue: unknown; newValue: unknown }[];
-                        store.updateProperties(entity, component.type, arr);
-                    },
-                    componentData: component.data,
-                    getComponentValue: (name: string) => component.data[name],
-                });
-
-                if (editor) {
-                    editors.push({
-                        editor,
-                        componentType: component.type,
-                        propertyName: '*',
-                    });
+            if (propMeta.group) {
+                if (!groups.has(propMeta.group)) {
+                    groups.set(propMeta.group, []);
+                    groupOrder.push(propMeta.group);
                 }
-
-                propsContainer.appendChild(editorContainer);
-                continue;
+                groups.get(propMeta.group)!.push(propMeta);
+            } else {
+                ungrouped.push(propMeta);
             }
+        }
 
-            if (propMeta.hiddenWhen?.hasComponent) {
-                const ed = store.getEntityData(entity as number);
-                if (ed?.components.some(c => c.type === propMeta.hiddenWhen!.hasComponent)) {
-                    continue;
-                }
-            }
+        for (const propMeta of ungrouped) {
+            renderPropertyRow(propsContainer, propMeta, entity, component, defaults, store, editors);
+        }
 
-            const row = document.createElement('div');
-            row.className = 'es-property-row';
+        for (const groupName of groupOrder) {
+            const groupSection = document.createElement('div');
+            groupSection.className = 'es-property-group es-collapsible es-expanded';
 
-            const entityData = store.getEntityData(entity as number);
-            if (entityData?.prefab && isPropertyOverridden(
-                store.scene,
-                entity as number,
-                component.type,
-                propMeta.name
-            )) {
-                row.classList.add('es-overridden');
-            }
-
-            const label = document.createElement('label');
-            label.className = 'es-property-label';
-            label.textContent = propMeta.name;
-
-            const editorContainer = document.createElement('div');
-            editorContainer.className = 'es-property-editor';
-
-            let currentValue = component.data[propMeta.name];
-            if (currentValue === undefined) {
-                currentValue = defaults[propMeta.name];
-            }
-            const editor = createPropertyEditor(editorContainer, {
-                value: currentValue,
-                meta: propMeta,
-                onChange: (newValue) => {
-                    const oldValue = component.data[propMeta.name] ?? currentValue;
-                    store.updateProperty(
-                        entity,
-                        component.type,
-                        propMeta.name,
-                        oldValue,
-                        newValue
-                    );
-                },
-                componentData: component.data,
-                getComponentValue: (name: string) => component.data[name],
+            const groupHeader = document.createElement('div');
+            groupHeader.className = 'es-property-group-divider es-collapsible-header';
+            groupHeader.innerHTML = `
+                <span class="es-collapse-icon">${icons.chevronDown(8)}</span>
+                <span class="es-property-group-label">${groupName}</span>
+                <span class="es-property-group-line"></span>
+            `;
+            groupHeader.addEventListener('click', () => {
+                groupSection.classList.toggle('es-expanded');
             });
+            groupSection.appendChild(groupHeader);
 
-            if (editor) {
-                editors.push({
-                    editor,
-                    componentType: component.type,
-                    propertyName: propMeta.name,
-                });
+            const groupContent = document.createElement('div');
+            groupContent.className = 'es-collapsible-content';
+            for (const propMeta of groups.get(groupName)!) {
+                renderPropertyRow(groupContent, propMeta, entity, component, defaults, store, editors);
             }
+            groupSection.appendChild(groupContent);
 
-            row.appendChild(label);
-            row.appendChild(editorContainer);
-
-            const defaultValue = defaults[propMeta.name];
-            const isModified = currentValue !== undefined &&
-                !deepEqual(currentValue, defaultValue);
-
-            if (isModified) {
-                const resetBtn = document.createElement('button');
-                resetBtn.className = 'es-property-reset';
-                resetBtn.title = `Reset to default`;
-                resetBtn.innerHTML = icons.rotateCcw(10);
-                resetBtn.addEventListener('click', () => {
-                    store.updateProperty(
-                        entity, component.type, propMeta.name,
-                        component.data[propMeta.name] ?? currentValue,
-                        defaultValue
-                    );
-                });
-                row.appendChild(resetBtn);
-            }
-
-            if (component.type === 'Sprite' && propMeta.name === 'size') {
-                const resetBtn = createSpriteSizeResetButton(entity, component, store);
-                row.appendChild(resetBtn);
-            }
-
-            propsContainer.appendChild(row);
+            propsContainer.appendChild(groupSection);
         }
 
         section.appendChild(propsContainer);
@@ -505,6 +434,134 @@ export function renderComponent(
     }
 
     container.appendChild(section);
+}
+
+// =============================================================================
+// Property Row Rendering
+// =============================================================================
+
+function renderPropertyRow(
+    container: HTMLElement,
+    propMeta: import('../../property/PropertyEditor').PropertyMeta,
+    entity: Entity,
+    component: ComponentData,
+    defaults: Record<string, unknown>,
+    store: EditorStore,
+    editors: EditorInfo[]
+): void {
+    if (propMeta.name === '*') {
+        const editorContainer = document.createElement('div');
+        editorContainer.className = 'es-property-editor es-property-editor-full';
+
+        const fullData = { ...defaults, ...component.data };
+
+        const editor = createPropertyEditor(editorContainer, {
+            value: fullData,
+            meta: propMeta,
+            onChange: (changes) => {
+                const arr = changes as { property: string; oldValue: unknown; newValue: unknown }[];
+                store.updateProperties(entity, component.type, arr);
+            },
+            componentData: component.data,
+            getComponentValue: (name: string) => component.data[name],
+        });
+
+        if (editor) {
+            editors.push({
+                editor,
+                componentType: component.type,
+                propertyName: '*',
+            });
+        }
+
+        container.appendChild(editorContainer);
+        return;
+    }
+
+    if (propMeta.hiddenWhen?.hasComponent) {
+        const ed = store.getEntityData(entity as number);
+        if (ed?.components.some(c => c.type === propMeta.hiddenWhen!.hasComponent)) {
+            return;
+        }
+    }
+
+    const row = document.createElement('div');
+    row.className = 'es-property-row';
+
+    const entityData = store.getEntityData(entity as number);
+    if (entityData?.prefab && isPropertyOverridden(
+        store.scene,
+        entity as number,
+        component.type,
+        propMeta.name
+    )) {
+        row.classList.add('es-overridden');
+    }
+
+    const label = document.createElement('label');
+    label.className = 'es-property-label';
+    label.textContent = propMeta.name;
+
+    const editorContainer = document.createElement('div');
+    editorContainer.className = 'es-property-editor';
+
+    let currentValue = component.data[propMeta.name];
+    if (currentValue === undefined) {
+        currentValue = defaults[propMeta.name];
+    }
+    const editor = createPropertyEditor(editorContainer, {
+        value: currentValue,
+        meta: propMeta,
+        onChange: (newValue) => {
+            const oldValue = component.data[propMeta.name] ?? currentValue;
+            store.updateProperty(
+                entity,
+                component.type,
+                propMeta.name,
+                oldValue,
+                newValue
+            );
+        },
+        componentData: component.data,
+        getComponentValue: (name: string) => component.data[name],
+    });
+
+    if (editor) {
+        editors.push({
+            editor,
+            componentType: component.type,
+            propertyName: propMeta.name,
+        });
+    }
+
+    row.appendChild(label);
+    row.appendChild(editorContainer);
+
+    const defaultValue = defaults[propMeta.name];
+    const isModified = currentValue !== undefined &&
+        !deepEqual(currentValue, defaultValue);
+
+    if (isModified) {
+        const resetBtn = document.createElement('button');
+        resetBtn.className = 'es-property-reset';
+        resetBtn.title = `Reset to default`;
+        resetBtn.innerHTML = icons.rotateCcw(10);
+        resetBtn.addEventListener('click', () => {
+            store.updateProperty(
+                entity, component.type, propMeta.name,
+                component.data[propMeta.name] ?? currentValue,
+                defaultValue
+            );
+        });
+        row.appendChild(resetBtn);
+    }
+
+    if (component.type === 'Sprite' && propMeta.name === 'size') {
+        const resetBtn = createSpriteSizeResetButton(entity, component, store);
+        row.appendChild(resetBtn);
+    }
+
+    container.appendChild(row);
 }
 
 // =============================================================================

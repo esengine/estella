@@ -400,6 +400,127 @@ export const SpineAnimation = defineBuiltin<SpineAnimationData>('SpineAnimation'
     enabled: true
 });
 
+// =============================================================================
+// ParticleEmitter Enums
+// =============================================================================
+
+export const EmitterShape = {
+    Point: 0,
+    Circle: 1,
+    Rectangle: 2,
+    Cone: 3,
+} as const;
+
+export type EmitterShape = (typeof EmitterShape)[keyof typeof EmitterShape];
+
+export const SimulationSpace = {
+    World: 0,
+    Local: 1,
+} as const;
+
+export type SimulationSpace = (typeof SimulationSpace)[keyof typeof SimulationSpace];
+
+export const ParticleEasing = {
+    Linear: 0,
+    EaseIn: 1,
+    EaseOut: 2,
+    EaseInOut: 3,
+} as const;
+
+export type ParticleEasing = (typeof ParticleEasing)[keyof typeof ParticleEasing];
+
+// =============================================================================
+// ParticleEmitter Component
+// =============================================================================
+
+export interface ParticleEmitterData {
+    rate: number;
+    burstCount: number;
+    burstInterval: number;
+    duration: number;
+    looping: boolean;
+    playOnStart: boolean;
+    maxParticles: number;
+    lifetimeMin: number;
+    lifetimeMax: number;
+    shape: number;
+    shapeRadius: number;
+    shapeSize: Vec2;
+    shapeAngle: number;
+    speedMin: number;
+    speedMax: number;
+    angleSpreadMin: number;
+    angleSpreadMax: number;
+    startSizeMin: number;
+    startSizeMax: number;
+    endSizeMin: number;
+    endSizeMax: number;
+    sizeEasing: number;
+    startColor: Color;
+    endColor: Color;
+    colorEasing: number;
+    rotationMin: number;
+    rotationMax: number;
+    angularVelocityMin: number;
+    angularVelocityMax: number;
+    gravity: Vec2;
+    damping: number;
+    texture: number;
+    spriteColumns: number;
+    spriteRows: number;
+    spriteFPS: number;
+    spriteLoop: boolean;
+    blendMode: number;
+    layer: number;
+    material: number;
+    simulationSpace: number;
+    enabled: boolean;
+}
+
+export const ParticleEmitter = defineBuiltin<ParticleEmitterData>('ParticleEmitter', {
+    rate: 10,
+    burstCount: 0,
+    burstInterval: 1,
+    duration: 5,
+    looping: true,
+    playOnStart: true,
+    maxParticles: 1000,
+    lifetimeMin: 5,
+    lifetimeMax: 5,
+    shape: EmitterShape.Cone,
+    shapeRadius: 100,
+    shapeSize: { x: 100, y: 100 },
+    shapeAngle: 25,
+    speedMin: 500,
+    speedMax: 500,
+    angleSpreadMin: 0,
+    angleSpreadMax: 360,
+    startSizeMin: 100,
+    startSizeMax: 100,
+    endSizeMin: 100,
+    endSizeMax: 100,
+    sizeEasing: ParticleEasing.Linear,
+    startColor: { r: 1, g: 1, b: 1, a: 1 },
+    endColor: { r: 1, g: 1, b: 1, a: 0 },
+    colorEasing: ParticleEasing.Linear,
+    rotationMin: 0,
+    rotationMax: 0,
+    angularVelocityMin: 0,
+    angularVelocityMax: 0,
+    gravity: { x: 0, y: 0 },
+    damping: 0,
+    texture: INVALID_TEXTURE,
+    spriteColumns: 1,
+    spriteRows: 1,
+    spriteFPS: 10,
+    spriteLoop: true,
+    blendMode: 1,
+    layer: 0,
+    material: 0,
+    simulationSpace: SimulationSpace.World,
+    enabled: true,
+});
+
 export const Name = defineComponent<NameData>('Name', { value: '' });
 
 export const SceneOwner = defineComponent<SceneOwnerData>('SceneOwner', {

@@ -4,6 +4,7 @@ import type { ESEngineModule } from './wasm';
 import { uiPlugins } from './uiPlugins';
 import { animationPlugin } from './animation';
 import { audioPlugin } from './audio';
+import { particlePlugin } from './particle';
 
 export { uiPlugins };
 export { textPlugin, TextPlugin } from './ui/TextPlugin';
@@ -28,8 +29,9 @@ export { layoutGroupPlugin, LayoutGroupPlugin } from './ui/LayoutGroupPlugin';
 export { PhysicsPlugin, PhysicsEvents, Physics, loadPhysicsModule } from './physics';
 export { AnimationPlugin, animationPlugin } from './animation';
 export { AudioPlugin, audioPlugin } from './audio';
+export { ParticlePlugin, particlePlugin } from './particle';
 
-const defaultPlugins = [...uiPlugins, animationPlugin, audioPlugin];
+const defaultPlugins = [...uiPlugins, animationPlugin, audioPlugin, particlePlugin];
 
 export function createWebApp(module: ESEngineModule, options?: WebAppOptions): App {
     return _createWebApp(module, { plugins: defaultPlugins, ...options });

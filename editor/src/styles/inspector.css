@@ -307,6 +307,49 @@
     margin: 0;
 }
 
+/* Property Groups (inline divider style) */
+
+.es-property-group {
+    margin-top: 2px;
+}
+
+.es-property-group-divider {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 0;
+    cursor: pointer;
+    user-select: none;
+}
+
+.es-property-group-divider:hover .es-property-group-label {
+    color: var(--es-text-primary);
+}
+
+.es-property-group-divider .es-collapse-icon {
+    width: 10px;
+    height: 10px;
+    flex-shrink: 0;
+}
+
+.es-property-group-label {
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--es-text-secondary);
+    white-space: nowrap;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    transition: color 0.15s;
+}
+
+.es-property-group-line {
+    flex: 1;
+    height: 1px;
+    background: var(--es-border);
+}
+
+/* Property Rows */
+
 .es-property-row {
     display: flex;
     align-items: center;

@@ -98,6 +98,15 @@ export const Renderer = {
         }
     },
 
+    submitParticles(registry: { _cpp: CppRegistry }): void {
+        if (!module) return;
+        try {
+            module.renderer_submitParticles?.(registry._cpp);
+        } catch (e) {
+            handleWasmError(e, 'Renderer.submitParticles');
+        }
+    },
+
     setStage(stage: RenderStage): void {
         module?.renderer_setStage(stage);
     },

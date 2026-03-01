@@ -57,6 +57,7 @@ static EngineContext& ctx() { return EngineContext::instance(); }
 #define g_spineResourceManager (ctx().spineResourceManager())
 #endif
 #define g_renderContext (ctx().renderContext())
+#define g_particleSystem (ctx().particleSystem())
 
 EM_JS(void, callMaterialProvider, (int materialId, int outShaderIdPtr, int outBlendModePtr, int outUniformBufPtr, int outUniformCountPtr), {
     var fn = Module['materialDataProvider'];
@@ -180,6 +181,7 @@ static void initSubsystems() {
 
     ctx().setTransformSystem(makeUnique<ecs::TransformSystem>());
     ctx().setTweenSystem(makeUnique<animation::TweenSystem>());
+    ctx().setParticleSystem(makeUnique<particle::ParticleSystem>());
 
 #ifdef ES_ENABLE_SPINE
     auto spineResourceManager = makeUnique<spine::SpineResourceManager>(*g_resourceManager);
@@ -373,6 +375,12 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_submitSpine", &esengine::renderer_submitSpine);
 #endif
     emscripten::function("renderer_submitTriangles", &esengine::renderer_submitTriangles);
+    emscripten::function("renderer_submitParticles", &esengine::renderer_submitParticles);
+    emscripten::function("particle_update", &esengine::particle_update);
+    emscripten::function("particle_play", &esengine::particle_play);
+    emscripten::function("particle_stop", &esengine::particle_stop);
+    emscripten::function("particle_reset", &esengine::particle_reset);
+    emscripten::function("particle_getAliveCount", &esengine::particle_getAliveCount);
     emscripten::function("renderer_setStage", &esengine::renderer_setStage);
     emscripten::function("renderer_createTarget", &esengine::renderer_createTarget);
     emscripten::function("renderer_releaseTarget", &esengine::renderer_releaseTarget);

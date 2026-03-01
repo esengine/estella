@@ -421,6 +421,7 @@ export class EditorSceneRenderer {
             }
             Renderer.submitSprites(registry);
             Renderer.submitBitmapText(registry);
+            Renderer.submitParticles(registry);
             if (this.pipeline_.spineRenderer) {
                 this.pipeline_.spineRenderer(registry, elapsed);
             } else {
@@ -455,6 +456,7 @@ export class EditorSceneRenderer {
             }
             Renderer.submitSprites(registry);
             Renderer.submitBitmapText(registry);
+            Renderer.submitParticles(registry);
             if (this.pipeline_.spineRenderer) {
                 this.pipeline_.spineRenderer(registry, elapsed);
             } else {

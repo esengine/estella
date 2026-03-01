@@ -100,6 +100,11 @@ export {
     type CapsuleColliderData,
     type NameData,
     type SceneOwnerData,
+    ParticleEmitter,
+    EmitterShape,
+    SimulationSpace,
+    ParticleEasing,
+    type ParticleEmitterData,
 } from './component';
 
 export {
@@ -687,6 +692,18 @@ export {
     type AudioListenerData,
     type PooledAudioNode,
 } from './audio';
+
+// =============================================================================
+// Particle
+// =============================================================================
+
+export {
+    Particle,
+    initParticleAPI,
+    shutdownParticleAPI,
+    ParticlePlugin,
+    particlePlugin,
+} from './particle';
 
 // =============================================================================
 // Stats

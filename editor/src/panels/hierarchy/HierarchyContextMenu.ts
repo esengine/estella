@@ -29,6 +29,7 @@ export function showEntityContextMenu(state: HierarchyState, x: number, y: numbe
             { label: 'Text', icon: icons.type(14), onClick: () => createEntityWithComponent(state, 'Text', entity) },
             { label: 'BitmapText', icon: icons.type(14), onClick: () => createEntityWithComponent(state, 'BitmapText', entity) },
             { label: 'Spine', icon: icons.bone(14), onClick: () => createEntityWithComponent(state, 'SpineAnimation', entity) },
+            { label: 'Particle', icon: icons.star(14), onClick: () => createEntityWithComponent(state, 'ParticleEmitter', entity) },
         ] },
         { label: 'UI', icon: icons.pointer(14), children: [
             { label: 'Canvas', icon: icons.template(14), onClick: () => createEntityWithComponent(state, 'Canvas', entity) },
@@ -120,6 +121,8 @@ export function showEntityContextMenu(state: HierarchyState, x: number, y: numbe
                 { label: 'ListView', icon: icons.list(14), disabled: has('ListView'), onClick: () => addComp('ListView') },
                 { label: 'Focusable', icon: icons.eye(14), disabled: has('Focusable'), onClick: () => addComp('Focusable') },
                 { label: 'SafeArea', icon: icons.shield(14), disabled: has('SafeArea'), onClick: () => addComp('SafeArea') },
+                { label: '', separator: true },
+                { label: 'ParticleEmitter', icon: icons.star(14), disabled: has('ParticleEmitter'), onClick: () => addComp('ParticleEmitter') },
                 { label: '', separator: true },
                 { label: 'AudioSource', icon: icons.volume(14), disabled: has('AudioSource'), onClick: () => addComp('AudioSource') },
                 { label: 'AudioListener', icon: icons.headphones(14), disabled: has('AudioListener'), onClick: () => addComp('AudioListener') },

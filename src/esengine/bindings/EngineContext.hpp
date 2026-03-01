@@ -16,6 +16,7 @@
 #include <glm/glm.hpp>
 #include "../core/Types.hpp"
 #include "../animation/TweenSystem.hpp"
+#include "../particle/ParticleSystem.hpp"
 
 namespace esengine {
 
@@ -66,6 +67,7 @@ public:
     resource::ResourceManager* resourceManager() { return resourceManager_.get(); }
     ecs::TransformSystem* transformSystem() { return transformSystem_.get(); }
     animation::TweenSystem* tweenSystem() { return tweenSystem_.get(); }
+    particle::ParticleSystem* particleSystem() { return particleSystem_.get(); }
 
 #ifdef ES_ENABLE_SPINE
     spine::SpineResourceManager* spineResourceManager() { return spineResourceManager_.get(); }
@@ -109,6 +111,7 @@ public:
     void setResourceManager(Unique<resource::ResourceManager> mgr) { resourceManager_ = std::move(mgr); }
     void setTransformSystem(Unique<ecs::TransformSystem> sys) { transformSystem_ = std::move(sys); }
     void setTweenSystem(Unique<animation::TweenSystem> sys) { tweenSystem_ = std::move(sys); }
+    void setParticleSystem(Unique<particle::ParticleSystem> sys) { particleSystem_ = std::move(sys); }
 
 #ifdef ES_ENABLE_SPINE
     void setSpineResourceManager(Unique<spine::SpineResourceManager> mgr) { spineResourceManager_ = std::move(mgr); }
@@ -127,6 +130,7 @@ private:
     Unique<resource::ResourceManager> resourceManager_;
     Unique<ecs::TransformSystem> transformSystem_;
     Unique<animation::TweenSystem> tweenSystem_;
+    Unique<particle::ParticleSystem> particleSystem_;
 
 #ifdef ES_ENABLE_SPINE
     Unique<spine::SpineResourceManager> spineResourceManager_;

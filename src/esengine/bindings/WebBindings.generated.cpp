@@ -20,6 +20,7 @@
 #include "../ecs/components/FlexItem.hpp"
 #include "../ecs/components/Hierarchy.hpp"
 #include "../ecs/components/Interactable.hpp"
+#include "../ecs/components/ParticleEmitter.hpp"
 #include "../ecs/components/RigidBody.hpp"
 #include "../ecs/components/ScreenSpace.hpp"
 #include "../ecs/components/SpineAnimation.hpp"
@@ -70,6 +71,16 @@ EMSCRIPTEN_BINDINGS(esengine_math) {
 // =============================================================================
 
 EMSCRIPTEN_BINDINGS(esengine_enums) {
+    enum_<esengine::ecs::EmitterShape>("EmitterShape")
+        .value("Point", esengine::ecs::EmitterShape::Point)
+        .value("Circle", esengine::ecs::EmitterShape::Circle)
+        .value("Rectangle", esengine::ecs::EmitterShape::Rectangle)
+        .value("Cone", esengine::ecs::EmitterShape::Cone);
+
+    enum_<esengine::ecs::SimulationSpace>("SimulationSpace")
+        .value("World", esengine::ecs::SimulationSpace::World)
+        .value("Local", esengine::ecs::SimulationSpace::Local);
+
     enum_<esengine::ecs::BodyType>("BodyType")
         .value("Static", esengine::ecs::BodyType::Static)
         .value("Kinematic", esengine::ecs::BodyType::Kinematic)
@@ -124,6 +135,142 @@ EMSCRIPTEN_BINDINGS(esengine_enums) {
 // =============================================================================
 // Components
 // =============================================================================
+
+struct ParticleEmitterJS {
+    f32 rate;
+    i32 burstCount;
+    f32 burstInterval;
+    f32 duration;
+    bool looping;
+    bool playOnStart;
+    i32 maxParticles;
+    f32 lifetimeMin;
+    f32 lifetimeMax;
+    i32 shape;
+    f32 shapeRadius;
+    glm::vec2 shapeSize;
+    f32 shapeAngle;
+    f32 speedMin;
+    f32 speedMax;
+    f32 angleSpreadMin;
+    f32 angleSpreadMax;
+    f32 startSizeMin;
+    f32 startSizeMax;
+    f32 endSizeMin;
+    f32 endSizeMax;
+    i32 sizeEasing;
+    glm::vec4 startColor;
+    glm::vec4 endColor;
+    i32 colorEasing;
+    f32 rotationMin;
+    f32 rotationMax;
+    f32 angularVelocityMin;
+    f32 angularVelocityMax;
+    glm::vec2 gravity;
+    f32 damping;
+    u32 texture;
+    i32 spriteColumns;
+    i32 spriteRows;
+    f32 spriteFPS;
+    bool spriteLoop;
+    i32 blendMode;
+    i32 layer;
+    u32 material;
+    i32 simulationSpace;
+    bool enabled;
+};
+
+esengine::ecs::ParticleEmitter particleemitterFromJS(const ParticleEmitterJS& js) {
+    esengine::ecs::ParticleEmitter c;
+    c.rate = js.rate;
+    c.burstCount = js.burstCount;
+    c.burstInterval = js.burstInterval;
+    c.duration = js.duration;
+    c.looping = js.looping;
+    c.playOnStart = js.playOnStart;
+    c.maxParticles = js.maxParticles;
+    c.lifetimeMin = js.lifetimeMin;
+    c.lifetimeMax = js.lifetimeMax;
+    c.shape = js.shape;
+    c.shapeRadius = js.shapeRadius;
+    c.shapeSize = js.shapeSize;
+    c.shapeAngle = js.shapeAngle;
+    c.speedMin = js.speedMin;
+    c.speedMax = js.speedMax;
+    c.angleSpreadMin = js.angleSpreadMin;
+    c.angleSpreadMax = js.angleSpreadMax;
+    c.startSizeMin = js.startSizeMin;
+    c.startSizeMax = js.startSizeMax;
+    c.endSizeMin = js.endSizeMin;
+    c.endSizeMax = js.endSizeMax;
+    c.sizeEasing = js.sizeEasing;
+    c.startColor = js.startColor;
+    c.endColor = js.endColor;
+    c.colorEasing = js.colorEasing;
+    c.rotationMin = js.rotationMin;
+    c.rotationMax = js.rotationMax;
+    c.angularVelocityMin = js.angularVelocityMin;
+    c.angularVelocityMax = js.angularVelocityMax;
+    c.gravity = js.gravity;
+    c.damping = js.damping;
+    c.texture = resource::TextureHandle(js.texture);
+    c.spriteColumns = js.spriteColumns;
+    c.spriteRows = js.spriteRows;
+    c.spriteFPS = js.spriteFPS;
+    c.spriteLoop = js.spriteLoop;
+    c.blendMode = js.blendMode;
+    c.layer = js.layer;
+    c.material = js.material;
+    c.simulationSpace = js.simulationSpace;
+    c.enabled = js.enabled;
+    return c;
+}
+
+ParticleEmitterJS particleemitterToJS(const esengine::ecs::ParticleEmitter& c) {
+    ParticleEmitterJS js;
+    js.rate = c.rate;
+    js.burstCount = c.burstCount;
+    js.burstInterval = c.burstInterval;
+    js.duration = c.duration;
+    js.looping = c.looping;
+    js.playOnStart = c.playOnStart;
+    js.maxParticles = c.maxParticles;
+    js.lifetimeMin = c.lifetimeMin;
+    js.lifetimeMax = c.lifetimeMax;
+    js.shape = c.shape;
+    js.shapeRadius = c.shapeRadius;
+    js.shapeSize = c.shapeSize;
+    js.shapeAngle = c.shapeAngle;
+    js.speedMin = c.speedMin;
+    js.speedMax = c.speedMax;
+    js.angleSpreadMin = c.angleSpreadMin;
+    js.angleSpreadMax = c.angleSpreadMax;
+    js.startSizeMin = c.startSizeMin;
+    js.startSizeMax = c.startSizeMax;
+    js.endSizeMin = c.endSizeMin;
+    js.endSizeMax = c.endSizeMax;
+    js.sizeEasing = c.sizeEasing;
+    js.startColor = c.startColor;
+    js.endColor = c.endColor;
+    js.colorEasing = c.colorEasing;
+    js.rotationMin = c.rotationMin;
+    js.rotationMax = c.rotationMax;
+    js.angularVelocityMin = c.angularVelocityMin;
+    js.angularVelocityMax = c.angularVelocityMax;
+    js.gravity = c.gravity;
+    js.damping = c.damping;
+    js.texture = c.texture.id();
+    js.spriteColumns = c.spriteColumns;
+    js.spriteRows = c.spriteRows;
+    js.spriteFPS = c.spriteFPS;
+    js.spriteLoop = c.spriteLoop;
+    js.blendMode = c.blendMode;
+    js.layer = c.layer;
+    js.material = c.material;
+    js.simulationSpace = c.simulationSpace;
+    js.enabled = c.enabled;
+    return js;
+}
 
 struct RigidBodyJS {
     i32 bodyType;
@@ -414,6 +561,49 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("isSensor", &esengine::ecs::CapsuleCollider::isSensor)
         .field("enabled", &esengine::ecs::CapsuleCollider::enabled);
 
+    value_object<ParticleEmitterJS>("ParticleEmitter")
+        .field("rate", &ParticleEmitterJS::rate)
+        .field("burstCount", &ParticleEmitterJS::burstCount)
+        .field("burstInterval", &ParticleEmitterJS::burstInterval)
+        .field("duration", &ParticleEmitterJS::duration)
+        .field("looping", &ParticleEmitterJS::looping)
+        .field("playOnStart", &ParticleEmitterJS::playOnStart)
+        .field("maxParticles", &ParticleEmitterJS::maxParticles)
+        .field("lifetimeMin", &ParticleEmitterJS::lifetimeMin)
+        .field("lifetimeMax", &ParticleEmitterJS::lifetimeMax)
+        .field("shape", &ParticleEmitterJS::shape)
+        .field("shapeRadius", &ParticleEmitterJS::shapeRadius)
+        .field("shapeSize", &ParticleEmitterJS::shapeSize)
+        .field("shapeAngle", &ParticleEmitterJS::shapeAngle)
+        .field("speedMin", &ParticleEmitterJS::speedMin)
+        .field("speedMax", &ParticleEmitterJS::speedMax)
+        .field("angleSpreadMin", &ParticleEmitterJS::angleSpreadMin)
+        .field("angleSpreadMax", &ParticleEmitterJS::angleSpreadMax)
+        .field("startSizeMin", &ParticleEmitterJS::startSizeMin)
+        .field("startSizeMax", &ParticleEmitterJS::startSizeMax)
+        .field("endSizeMin", &ParticleEmitterJS::endSizeMin)
+        .field("endSizeMax", &ParticleEmitterJS::endSizeMax)
+        .field("sizeEasing", &ParticleEmitterJS::sizeEasing)
+        .field("startColor", &ParticleEmitterJS::startColor)
+        .field("endColor", &ParticleEmitterJS::endColor)
+        .field("colorEasing", &ParticleEmitterJS::colorEasing)
+        .field("rotationMin", &ParticleEmitterJS::rotationMin)
+        .field("rotationMax", &ParticleEmitterJS::rotationMax)
+        .field("angularVelocityMin", &ParticleEmitterJS::angularVelocityMin)
+        .field("angularVelocityMax", &ParticleEmitterJS::angularVelocityMax)
+        .field("gravity", &ParticleEmitterJS::gravity)
+        .field("damping", &ParticleEmitterJS::damping)
+        .field("texture", &ParticleEmitterJS::texture)
+        .field("spriteColumns", &ParticleEmitterJS::spriteColumns)
+        .field("spriteRows", &ParticleEmitterJS::spriteRows)
+        .field("spriteFPS", &ParticleEmitterJS::spriteFPS)
+        .field("spriteLoop", &ParticleEmitterJS::spriteLoop)
+        .field("blendMode", &ParticleEmitterJS::blendMode)
+        .field("layer", &ParticleEmitterJS::layer)
+        .field("material", &ParticleEmitterJS::material)
+        .field("simulationSpace", &ParticleEmitterJS::simulationSpace)
+        .field("enabled", &ParticleEmitterJS::enabled);
+
     value_object<esengine::ecs::Transform>("Transform")
         .field("position", &esengine::ecs::Transform::position)
         .field("rotation", &esengine::ecs::Transform::rotation)
@@ -614,6 +804,20 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         }))
         .function("removeCapsuleCollider", optional_override([](Registry& r, u32 e) {
             r.remove<esengine::ecs::CapsuleCollider>(static_cast<Entity>(e));
+        }))
+
+        // ParticleEmitter
+        .function("hasParticleEmitter", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::ParticleEmitter>(static_cast<Entity>(e));
+        }))
+        .function("getParticleEmitter", optional_override([](Registry& r, u32 e) {
+            return particleemitterToJS(r.get<esengine::ecs::ParticleEmitter>(static_cast<Entity>(e)));
+        }))
+        .function("addParticleEmitter", optional_override([](Registry& r, u32 e, const ParticleEmitterJS& js) {
+            r.emplaceOrReplace<esengine::ecs::ParticleEmitter>(static_cast<Entity>(e), particleemitterFromJS(js));
+        }))
+        .function("removeParticleEmitter", optional_override([](Registry& r, u32 e) {
+            r.remove<esengine::ecs::ParticleEmitter>(static_cast<Entity>(e));
         }))
 
         // Transform

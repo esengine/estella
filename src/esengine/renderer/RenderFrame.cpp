@@ -209,6 +209,95 @@ void RenderFrame::init(u32 width, u32 height) {
     glGenBuffers(1, &mat_sprite_ebo_);
     mat_sprite_ebo_initialized_ = false;
 
+#ifdef ES_PLATFORM_WEB
+    glGenVertexArrays(1, &particle_vao_);
+    glGenBuffers(1, &particle_quad_vbo_);
+    glGenBuffers(1, &particle_instance_vbo_);
+    glGenBuffers(1, &particle_ebo_);
+
+    glBindVertexArray(particle_vao_);
+
+    static constexpr f32 QUAD_VERTICES[] = {
+        -0.5f, -0.5f,  0.0f, 0.0f,
+         0.5f, -0.5f,  1.0f, 0.0f,
+         0.5f,  0.5f,  1.0f, 1.0f,
+        -0.5f,  0.5f,  0.0f, 1.0f,
+    };
+    static constexpr u16 QUAD_INDICES[] = { 0, 1, 2, 2, 3, 0 };
+
+    glBindBuffer(GL_ARRAY_BUFFER, particle_quad_vbo_);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(QUAD_VERTICES), QUAD_VERTICES, GL_STATIC_DRAW);
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(f32),
+                          reinterpret_cast<void*>(0));
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(f32),
+                          reinterpret_cast<void*>(2 * sizeof(f32)));
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, particle_ebo_);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(QUAD_INDICES), QUAD_INDICES, GL_STATIC_DRAW);
+
+    glBindBuffer(GL_ARRAY_BUFFER, particle_instance_vbo_);
+    constexpr u32 INITIAL_PARTICLE_CAPACITY = 1024;
+    glBufferData(GL_ARRAY_BUFFER,
+                 INITIAL_PARTICLE_CAPACITY * sizeof(ParticleInstanceData),
+                 nullptr, GL_DYNAMIC_DRAW);
+    particle_instance_capacity_ = INITIAL_PARTICLE_CAPACITY;
+
+    constexpr u32 STRIDE = sizeof(ParticleInstanceData);
+    u32 offset = 0;
+
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, STRIDE,
+                          reinterpret_cast<void*>(offset));
+    glVertexAttribDivisor(2, 1);
+    offset += sizeof(glm::vec2);
+
+    glEnableVertexAttribArray(3);
+    glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, STRIDE,
+                          reinterpret_cast<void*>(offset));
+    glVertexAttribDivisor(3, 1);
+    offset += sizeof(glm::vec2);
+
+    glEnableVertexAttribArray(4);
+    glVertexAttribPointer(4, 1, GL_FLOAT, GL_FALSE, STRIDE,
+                          reinterpret_cast<void*>(offset));
+    glVertexAttribDivisor(4, 1);
+    offset += sizeof(f32);
+
+    glEnableVertexAttribArray(5);
+    glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, STRIDE,
+                          reinterpret_cast<void*>(offset));
+    glVertexAttribDivisor(5, 1);
+    offset += sizeof(glm::vec4);
+
+    glEnableVertexAttribArray(6);
+    glVertexAttribPointer(6, 2, GL_FLOAT, GL_FALSE, STRIDE,
+                          reinterpret_cast<void*>(offset));
+    glVertexAttribDivisor(6, 1);
+    offset += sizeof(glm::vec2);
+
+    glEnableVertexAttribArray(7);
+    glVertexAttribPointer(7, 2, GL_FLOAT, GL_FALSE, STRIDE,
+                          reinterpret_cast<void*>(offset));
+    glVertexAttribDivisor(7, 1);
+
+    glBindVertexArray(0);
+
+    particle_shader_handle_ = resource_manager_.createShader(
+        ShaderSources::PARTICLE_INSTANCE_VERTEX,
+        ShaderSources::PARTICLE_INSTANCE_FRAGMENT
+    );
+    Shader* particleShader = resource_manager_.getShader(particle_shader_handle_);
+    if (particleShader && particleShader->isValid()) {
+        particleShader->bind();
+        particleShader->setUniform("u_texture", 0);
+    }
+
+    particle_instances_.reserve(INITIAL_PARTICLE_CAPACITY);
+#endif
+
 }
 
 void RenderFrame::shutdown() {
@@ -244,11 +333,23 @@ void RenderFrame::shutdown() {
     if (mat_sprite_vao_) { glDeleteVertexArrays(1, &mat_sprite_vao_); mat_sprite_vao_ = 0; }
     mat_sprite_ebo_initialized_ = false;
 
+#ifdef ES_PLATFORM_WEB
+    if (particle_shader_handle_.isValid()) {
+        resource_manager_.releaseShader(particle_shader_handle_);
+    }
+    if (particle_ebo_) { glDeleteBuffers(1, &particle_ebo_); particle_ebo_ = 0; }
+    if (particle_instance_vbo_) { glDeleteBuffers(1, &particle_instance_vbo_); particle_instance_vbo_ = 0; }
+    if (particle_quad_vbo_) { glDeleteBuffers(1, &particle_quad_vbo_); particle_quad_vbo_ = 0; }
+    if (particle_vao_) { glDeleteVertexArrays(1, &particle_vao_); particle_vao_ = 0; }
+    particle_instance_capacity_ = 0;
+#endif
+
     items_.clear();
     sorted_indices_.clear();
     sprite_data_.clear();
     text_data_.clear();
     ext_data_.clear();
+    particle_data_.clear();
 #ifdef ES_ENABLE_SPINE
     spine_data_.clear();
 #endif
@@ -276,6 +377,7 @@ void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::H
     sprite_data_.clear();
     text_data_.clear();
     ext_data_.clear();
+    particle_data_.clear();
 #ifdef ES_ENABLE_SPINE
     spine_data_.clear();
 #endif
@@ -647,6 +749,7 @@ void RenderFrame::submit(const RenderItemBase& item, const SpriteData& data) {
 #endif
         case RenderType::Mesh: stats_.meshes++; break;
         case RenderType::Text: stats_.text++; break;
+        case RenderType::Particle: stats_.particles++; break;
         default: break;
     }
 }
@@ -757,6 +860,9 @@ void RenderFrame::executeStage(RenderStage stage) {
                 break;
             case RenderType::Text:
                 renderText(begin, end);
+                break;
+            case RenderType::Particle:
+                renderParticles(begin, end);
                 break;
             default:
                 break;
@@ -1597,6 +1703,272 @@ void RenderFrame::renderSpriteWithMaterial(const RenderItemBase& base, const Spr
 
     stats_.draw_calls++;
     stats_.triangles += 2;
+}
+
+// ============================================================================
+// Particle Rendering
+// ============================================================================
+
+void RenderFrame::submitParticles(ecs::Registry& registry,
+                                   particle::ParticleSystem& particle_system) {
+    auto emitterView = registry.view<ecs::Transform, ecs::ParticleEmitter>();
+
+    for (auto entity : emitterView) {
+        const auto& emitter = emitterView.get<ecs::ParticleEmitter>(entity);
+        if (!emitter.enabled) continue;
+
+        auto& transform = emitterView.get<ecs::Transform>(entity);
+        transform.ensureDecomposed();
+
+        const auto* state = particle_system.getState(entity);
+        if (!state) continue;
+
+        u32 textureId = context_.getWhiteTextureId();
+        if (emitter.texture.isValid()) {
+            Texture* tex = resource_manager_.getTexture(emitter.texture);
+            if (tex) {
+                textureId = tex->getId();
+            }
+        }
+
+        i32 cols = std::max(emitter.spriteColumns, 1);
+        i32 rows = std::max(emitter.spriteRows, 1);
+        f32 uvScaleX = 1.0f / static_cast<f32>(cols);
+        f32 uvScaleY = 1.0f / static_cast<f32>(rows);
+
+        bool isLocalSpace = emitter.simulationSpace ==
+                            static_cast<i32>(ecs::SimulationSpace::Local);
+        glm::vec3 emitterWorldPos = transform.worldPosition;
+        f32 emitterAngle = 0.0f;
+        glm::vec2 emitterScale(transform.worldScale);
+        if (isLocalSpace) {
+            const auto& rot = transform.worldRotation;
+            emitterAngle = 2.0f * std::atan2(rot.z, rot.w);
+        }
+
+        state->pool.forEachAlive([&](const particle::Particle& p) {
+            RenderItemBase base;
+            base.entity = entity;
+            base.type = RenderType::Particle;
+            base.stage = current_stage_;
+            base.blend_mode = static_cast<BlendMode>(emitter.blendMode);
+            base.layer = emitter.layer;
+            base.color = p.color;
+            base.texture_id = textureId;
+
+            if (isLocalSpace) {
+                glm::vec2 worldPos = glm::vec2(emitterWorldPos) +
+                    glm::vec2(p.position.x * emitterScale.x, p.position.y * emitterScale.y);
+                if (std::abs(emitterAngle) > 0.001f) {
+                    f32 cosA = std::cos(emitterAngle);
+                    f32 sinA = std::sin(emitterAngle);
+                    glm::vec2 rel = p.position * emitterScale;
+                    worldPos = glm::vec2(emitterWorldPos) +
+                        glm::vec2(rel.x * cosA - rel.y * sinA,
+                                  rel.x * sinA + rel.y * cosA);
+                }
+                base.world_position = glm::vec3(worldPos, emitterWorldPos.z);
+                base.world_scale = emitterScale;
+            } else {
+                base.world_position = glm::vec3(p.position, emitterWorldPos.z);
+                base.world_scale = glm::vec2(1.0f);
+            }
+
+            base.world_angle = p.rotation;
+            base.depth = base.world_position.z;
+
+            ParticleRenderData pd;
+            pd.size = glm::vec2(p.size);
+
+            if (cols > 1 || rows > 1) {
+                i32 col = p.sprite_frame % cols;
+                i32 row = p.sprite_frame / cols;
+                pd.uv_offset = glm::vec2(static_cast<f32>(col) * uvScaleX,
+                                          static_cast<f32>(row) * uvScaleY);
+                pd.uv_scale = glm::vec2(uvScaleX, uvScaleY);
+            }
+
+            pd.material_id = emitter.material;
+
+            if (!clip_rects_.empty()) {
+                auto it = clip_rects_.find(static_cast<u32>(entity));
+                if (it != clip_rects_.end()) {
+                    base.scissor_enabled = true;
+                    base.scissor = it->second;
+                }
+            }
+
+            base.data_index = static_cast<u32>(particle_data_.size());
+            particle_data_.push_back(pd);
+            base.cached_sort_key_ = base.sortKey();
+            items_.push_back(base);
+            stats_.particles++;
+        });
+    }
+}
+
+void RenderFrame::renderParticles(u32 begin, u32 end) {
+    if (begin >= end) return;
+
+#ifdef ES_PLATFORM_WEB
+    Shader* defaultShader = resource_manager_.getShader(particle_shader_handle_);
+    if (!defaultShader || !defaultShader->isValid()) return;
+
+    glBindVertexArray(particle_vao_);
+
+    bool curScissorOn = false;
+    ScissorRect curScissorRect{};
+
+    u32 batchStart = begin;
+    const auto& firstBase = items_[sorted_indices_[begin]];
+    const auto& firstPd = particle_data_[firstBase.data_index];
+    u32 batchTexture = firstBase.texture_id;
+    BlendMode batchBlend = firstBase.blend_mode;
+    u32 batchMaterial = firstPd.material_id;
+
+    auto flushParticleBatch = [&](u32 bStart, u32 bEnd) {
+        u32 count = bEnd - bStart;
+        if (count == 0) return;
+
+        particle_instances_.clear();
+        particle_instances_.reserve(count);
+
+        for (u32 i = bStart; i < bEnd; ++i) {
+            const auto& base = items_[sorted_indices_[i]];
+            const auto& pd = particle_data_[base.data_index];
+
+            ParticleInstanceData inst;
+            inst.position = glm::vec2(base.world_position);
+            inst.size = pd.size * base.world_scale;
+            inst.rotation = base.world_angle;
+            inst.color = base.color;
+            inst.uv_offset = pd.uv_offset;
+            inst.uv_scale = pd.uv_scale;
+            particle_instances_.push_back(inst);
+        }
+
+        glBindBuffer(GL_ARRAY_BUFFER, particle_instance_vbo_);
+        if (count > particle_instance_capacity_) {
+            while (particle_instance_capacity_ < count) {
+                particle_instance_capacity_ *= 2;
+            }
+        }
+        glBufferData(GL_ARRAY_BUFFER,
+                     particle_instance_capacity_ * sizeof(ParticleInstanceData),
+                     nullptr, GL_DYNAMIC_DRAW);
+        glBufferSubData(GL_ARRAY_BUFFER, 0,
+                        count * sizeof(ParticleInstanceData),
+                        particle_instances_.data());
+
+        Shader* activeShader = defaultShader;
+
+        if (batchMaterial != 0) {
+            u32 shaderId = 0;
+            u32 matBlendMode = 0;
+            mat_uniforms_.clear();
+            if (getMaterialDataWithUniforms(batchMaterial, shaderId, matBlendMode, mat_uniforms_)) {
+                Shader* customShader = resource_manager_.getShader(resource::ShaderHandle(shaderId));
+                if (customShader && customShader->isValid()) {
+                    activeShader = customShader;
+                    RenderCommand::setBlendMode(static_cast<BlendMode>(matBlendMode));
+                } else {
+                    RenderCommand::setBlendMode(batchBlend);
+                }
+            } else {
+                RenderCommand::setBlendMode(batchBlend);
+            }
+        } else {
+            RenderCommand::setBlendMode(batchBlend);
+        }
+
+        activeShader->bind();
+        activeShader->setUniform("u_projection", view_projection_);
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, batchTexture);
+        activeShader->setUniform("u_texture", 0);
+
+        if (batchMaterial != 0) {
+            for (const auto& ud : mat_uniforms_) {
+                i32 loc = activeShader->getUniformLocation(ud.name);
+                if (loc < 0) continue;
+                switch (ud.type) {
+                    case 0: activeShader->setUniform(loc, ud.values[0]); break;
+                    case 1: activeShader->setUniform(loc, glm::vec2(ud.values[0], ud.values[1])); break;
+                    case 2: activeShader->setUniform(loc, glm::vec3(ud.values[0], ud.values[1], ud.values[2])); break;
+                    case 3: activeShader->setUniform(loc, glm::vec4(ud.values[0], ud.values[1], ud.values[2], ud.values[3])); break;
+                }
+            }
+        }
+
+        glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT,
+                                nullptr, static_cast<i32>(count));
+        stats_.draw_calls++;
+        stats_.triangles += count * 2;
+    };
+
+    for (u32 i = begin; i < end; ++i) {
+        const auto& base = items_[sorted_indices_[i]];
+        const auto& pd = particle_data_[base.data_index];
+
+        bool scissorChanged = base.scissor_enabled != curScissorOn ||
+            (base.scissor_enabled && base.scissor != curScissorRect);
+
+        if (base.texture_id != batchTexture || base.blend_mode != batchBlend
+            || pd.material_id != batchMaterial || scissorChanged) {
+            flushParticleBatch(batchStart, i);
+
+            if (scissorChanged) {
+                if (base.scissor_enabled) {
+                    glEnable(GL_SCISSOR_TEST);
+                    glScissor(base.scissor.x, base.scissor.y,
+                              base.scissor.w, base.scissor.h);
+                } else {
+                    glDisable(GL_SCISSOR_TEST);
+                }
+                curScissorOn = base.scissor_enabled;
+                curScissorRect = base.scissor;
+            }
+
+            batchStart = i;
+            batchTexture = base.texture_id;
+            batchBlend = base.blend_mode;
+            batchMaterial = pd.material_id;
+        }
+    }
+    flushParticleBatch(batchStart, end);
+
+    if (curScissorOn) {
+        glDisable(GL_SCISSOR_TEST);
+    }
+
+    glBindVertexArray(0);
+    RenderCommand::setBlendMode(BlendMode::Normal);
+#else
+    batcher_->setProjection(view_projection_);
+    batcher_->beginBatch();
+
+    for (u32 i = begin; i < end; ++i) {
+        const auto& base = items_[sorted_indices_[i]];
+        const auto& pd = particle_data_[base.data_index];
+
+        glm::vec2 position(base.world_position);
+        glm::vec2 finalSize = pd.size * base.world_scale;
+        f32 angle = base.world_angle;
+
+        if (std::abs(angle) > 0.001f) {
+            batcher_->drawRotatedQuad(position, finalSize, angle,
+                base.texture_id, base.color, pd.uv_offset, pd.uv_scale);
+        } else {
+            batcher_->drawQuad(glm::vec3(position.x, position.y, base.depth),
+                finalSize, base.texture_id, base.color, pd.uv_offset, pd.uv_scale);
+        }
+    }
+
+    batcher_->endBatch();
+    batcher_->flush();
+    RenderCommand::setBlendMode(BlendMode::Normal);
+#endif
 }
 
 }  // namespace esengine

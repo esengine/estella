@@ -39,6 +39,7 @@ static EngineContext& ctx() { return EngineContext::instance(); }
 #ifdef ES_ENABLE_SPINE
 #define g_spineSystem (ctx().spineSystem())
 #endif
+#define g_particleSystem (ctx().particleSystem())
 
 static u32 checkGLErrors(const char* context) {
     if (!g_glErrorCheckEnabled) return 0;
@@ -244,6 +245,40 @@ void renderer_submitSpine(ecs::Registry& registry) {
     checkGLErrors("renderer_submitSpine");
 }
 #endif
+
+void renderer_submitParticles(ecs::Registry& registry) {
+    if (!g_renderFrame || !g_particleSystem) return;
+    ensureTransformsUpdated(registry);
+    g_renderFrame->submitParticles(registry, *g_particleSystem);
+}
+
+void particle_update(ecs::Registry& registry, f32 dt) {
+    if (!g_particleSystem) return;
+    g_particleSystem->update(registry, dt);
+}
+
+void particle_play(ecs::Registry& registry, Entity entity) {
+    if (!g_particleSystem) return;
+    (void)registry;
+    g_particleSystem->play(entity);
+}
+
+void particle_stop(ecs::Registry& registry, Entity entity) {
+    if (!g_particleSystem) return;
+    (void)registry;
+    g_particleSystem->stop(entity);
+}
+
+void particle_reset(ecs::Registry& registry, Entity entity) {
+    if (!g_particleSystem) return;
+    (void)registry;
+    g_particleSystem->reset(entity);
+}
+
+u32 particle_getAliveCount(Entity entity) {
+    if (!g_particleSystem) return 0;
+    return g_particleSystem->aliveCount(entity);
+}
 
 void renderer_submitTriangles(
     uintptr_t verticesPtr, i32 vertexCount,

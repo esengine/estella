@@ -25,6 +25,7 @@ enum class RenderType : u8 {
     Mesh = 2,
     ExternalMesh = 3,
     Text = 4,
+    Particle = 5,
 };
 
 struct RenderItemBase {
@@ -113,6 +114,13 @@ struct ExternalMeshData {
     const u16* ext_indices = nullptr;
     i32 ext_index_count = 0;
     u32 ext_bind_texture = 0;
+};
+
+struct ParticleRenderData {
+    glm::vec2 size{0.0f};
+    glm::vec2 uv_offset{0.0f};
+    glm::vec2 uv_scale{1.0f};
+    u32 material_id = 0;
 };
 
 }  // namespace esengine

@@ -10,6 +10,7 @@ vi.mock('../src/renderer', () => ({
         submitSprites: vi.fn(),
         submitBitmapText: vi.fn(),
         submitSpine: vi.fn(),
+        submitParticles: vi.fn(),
         setStage: vi.fn(),
         setClearColor: vi.fn(),
         setViewport: vi.fn(),
@@ -111,6 +112,7 @@ describe('RenderPipeline', () => {
             (Renderer.submitSprites as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('submitSprites'));
             (Renderer.submitBitmapText as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('submitBitmapText'));
             (Renderer.submitSpine as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('submitSpine'));
+            (Renderer.submitParticles as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('submitParticles'));
             (Renderer.flush as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('flush'));
             (Renderer.end as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('end'));
 
@@ -118,7 +120,7 @@ describe('RenderPipeline', () => {
 
             expect(callOrder).toEqual([
                 'resize', 'setViewport', 'clearBuffers', 'begin',
-                'submitSprites', 'submitBitmapText', 'submitSpine',
+                'submitSprites', 'submitBitmapText', 'submitSpine', 'submitParticles',
                 'flush', 'end',
             ]);
         });
@@ -133,6 +135,7 @@ describe('RenderPipeline', () => {
             expect(Renderer.submitSprites).toHaveBeenCalledWith(registry);
             expect(Renderer.submitBitmapText).toHaveBeenCalledWith(registry);
             expect(Renderer.submitSpine).toHaveBeenCalledWith(registry);
+            expect(Renderer.submitParticles).toHaveBeenCalledWith(registry);
         });
     });
 
@@ -393,6 +396,7 @@ describe('RenderPipeline', () => {
             (Renderer.submitSprites as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('submitSprites'));
             (Renderer.submitBitmapText as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('submitBitmapText'));
             (Renderer.submitSpine as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('submitSpine'));
+            (Renderer.submitParticles as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('submitParticles'));
             (Renderer.flush as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('flush'));
             (Renderer.end as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('end'));
 
@@ -400,7 +404,7 @@ describe('RenderPipeline', () => {
 
             expect(callOrder).toEqual([
                 'setViewport', 'setScissor', 'clearBuffers', 'setScissor',
-                'begin', 'submitSprites', 'submitBitmapText', 'submitSpine',
+                'begin', 'submitSprites', 'submitBitmapText', 'submitSpine', 'submitParticles',
                 'flush', 'end',
             ]);
         });

@@ -28,6 +28,7 @@ import {
     shutdownPostProcessAPI,
     initRendererAPI,
     shutdownRendererAPI,
+    particlePlugin,
 } from 'esengine';
 import type { SpineModuleController } from 'esengine/spine';
 import { EditorSceneManager } from '../scene/EditorSceneManager';
@@ -158,6 +159,7 @@ export class SharedRenderContext {
         app.addPlugin(prefabsPlugin);
         app.addPlugin(animationPlugin);
         app.addPlugin(audioPlugin);
+        app.addPlugin(particlePlugin);
         for (const plugin of uiPlugins) {
             app.addPlugin(plugin);
         }

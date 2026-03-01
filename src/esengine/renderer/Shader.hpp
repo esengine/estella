@@ -424,6 +424,56 @@ inline const char* BATCH_FRAGMENT_COMPAT = R"(
     }
 )";
 
+inline const char* PARTICLE_INSTANCE_VERTEX = R"(#version 300 es
+    layout(location = 0) in vec2 a_position;
+    layout(location = 1) in vec2 a_texCoord;
+
+    layout(location = 2) in vec2 a_inst_position;
+    layout(location = 3) in vec2 a_inst_size;
+    layout(location = 4) in float a_inst_rotation;
+    layout(location = 5) in vec4 a_inst_color;
+    layout(location = 6) in vec2 a_inst_uv_offset;
+    layout(location = 7) in vec2 a_inst_uv_scale;
+
+    uniform mat4 u_projection;
+
+    out vec2 v_texCoord;
+    out vec4 v_color;
+
+    void main() {
+        vec2 scaled = a_position * a_inst_size;
+
+        float cosR = cos(a_inst_rotation);
+        float sinR = sin(a_inst_rotation);
+        vec2 rotated = vec2(
+            scaled.x * cosR - scaled.y * sinR,
+            scaled.x * sinR + scaled.y * cosR
+        );
+
+        vec2 worldPos = rotated + a_inst_position;
+        gl_Position = u_projection * vec4(worldPos, 0.0, 1.0);
+
+        v_texCoord = a_texCoord * a_inst_uv_scale + a_inst_uv_offset;
+        v_color = a_inst_color;
+    }
+)";
+
+inline const char* PARTICLE_INSTANCE_FRAGMENT = R"(#version 300 es
+    precision mediump float;
+
+    in vec2 v_texCoord;
+    in vec4 v_color;
+
+    uniform sampler2D u_texture;
+
+    out vec4 fragColor;
+
+    void main() {
+        vec4 texColor = texture(u_texture, v_texCoord);
+        fragColor = texColor * v_color;
+    }
+)";
+
 }  // namespace ShaderSources
 
 }  // namespace esengine

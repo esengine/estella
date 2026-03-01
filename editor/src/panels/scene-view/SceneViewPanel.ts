@@ -12,6 +12,7 @@ import { getEntityBounds } from '../../bounds';
 import { GizmoManager } from '../../gizmos';
 import type { GizmoContext } from '../../gizmos';
 import { ColliderOverlay } from '../../gizmos/ColliderOverlay';
+import { ParticleOverlay } from '../../gizmos/ParticleOverlay';
 import { getSettingsValue, onSettingsChange } from '../../settings/SettingsRegistry';
 import type { EntityData } from '../../types/SceneTypes';
 
@@ -61,6 +62,7 @@ export class SceneViewPanel {
 
     private gizmoManager_: GizmoManager;
     private colliderOverlay_: ColliderOverlay;
+    private particleOverlay_: ParticleOverlay;
 
     private camera_: CameraController;
     private toolbar_: GizmoToolbar;
@@ -82,6 +84,7 @@ export class SceneViewPanel {
         this.app_ = options?.app ?? null;
         this.gizmoManager_ = new GizmoManager();
         this.colliderOverlay_ = new ColliderOverlay();
+        this.particleOverlay_ = new ParticleOverlay();
 
         this.camera_ = new CameraController(null!, () => this.requestRender());
         this.toolbar_ = new GizmoToolbar(container, this.gizmoManager_, () => this.requestRender());
@@ -637,6 +640,7 @@ export class SceneViewPanel {
                 store: this.store_,
             });
         }
+        this.particleOverlay_.drawAll({ ctx, zoom: oScale, store: this.store_ });
 
         const hasSelection = this.store_.selectedEntities.size > 0;
 
@@ -715,6 +719,7 @@ export class SceneViewPanel {
                 store: this.store_,
             });
         }
+        this.particleOverlay_.drawAll({ ctx, zoom: oScale, store: this.store_ });
 
         if (selectedEntity !== null && this.store_.isEntityVisible(selectedEntity as number)) {
             if (this.gizmoManager_.getActiveId() !== 'select' && getSettingsValue<boolean>('scene.showGizmos')) {

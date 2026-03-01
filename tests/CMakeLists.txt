@@ -1,5 +1,8 @@
 # ESEngine Tests
 
+# doctest header-only framework
+include_directories(${CMAKE_SOURCE_DIR}/third_party/doctest)
+
 # ECS tests
 add_executable(test_ecs
     ecs/test_registry.cpp
@@ -13,3 +16,10 @@ add_executable(test_events
 )
 target_link_libraries(test_events PRIVATE esengine)
 add_test(NAME test_events COMMAND test_events)
+
+# Particle system tests
+add_executable(test_particle
+    particle/test_particle.cpp
+)
+target_link_libraries(test_particle PRIVATE esengine)
+add_test(NAME test_particle COMMAND test_particle)

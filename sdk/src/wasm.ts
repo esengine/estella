@@ -155,11 +155,17 @@ export interface ESEngineModule {
     renderer_submitSprites(registry: CppRegistry): void;
     renderer_submitBitmapText(registry: CppRegistry): void;
     renderer_submitSpine?(registry: CppRegistry): void;
+    renderer_submitParticles?(registry: CppRegistry): void;
     renderer_submitTriangles(
         verticesPtr: number, vertexCount: number,
         indicesPtr: number, indexCount: number,
         textureId: number, blendMode: number,
         transformPtr: number): void;
+    particle_update?(registry: CppRegistry, dt: number): void;
+    particle_play?(registry: CppRegistry, entity: number): void;
+    particle_stop?(registry: CppRegistry, entity: number): void;
+    particle_reset?(registry: CppRegistry, entity: number): void;
+    particle_getAliveCount?(entity: number): number;
     renderer_setStage(stage: number): void;
     renderer_createTarget(width: number, height: number, flags: number): number;
     renderer_releaseTarget(handle: number): void;
