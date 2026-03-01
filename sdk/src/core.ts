@@ -322,6 +322,7 @@ export {
     type AddressableAssetType,
     type EditorAssetType,
     type AssetTypeEntry,
+    type AssetBuildTransform,
     getAssetTypeEntry,
     getEditorType,
     getAddressableType,
@@ -334,6 +335,8 @@ export {
     getAssetMimeType,
     isCustomExtension,
     toBuildPath,
+    registerAssetBuildTransform,
+    getAssetBuildTransform,
 } from './assetTypes';
 
 // =============================================================================

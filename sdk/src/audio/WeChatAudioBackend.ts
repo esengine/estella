@@ -123,7 +123,6 @@ export class WeChatAudioBackend implements PlatformAudioBackend {
         }
 
         const ctx: WxInnerAudioContext = (wx as any).createInnerAudioContext();
-        ctx.src = url;
         ctx.loop = config.loop ?? false;
         ctx.volume = config.volume ?? 1.0;
         ctx.playbackRate = config.playbackRate ?? 1.0;
@@ -141,8 +140,12 @@ export class WeChatAudioBackend implements PlatformAudioBackend {
                 this.contexts_.delete(handleId);
             }
         });
+        ctx.onError((res) => {
+            console.error(`[WeChatAudio] Playback error for "${url}":`, res.errMsg);
+        });
 
-        ctx.autoplay = true;
+        ctx.src = url;
+        ctx.play();
 
         return handle;
     }

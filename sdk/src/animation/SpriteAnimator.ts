@@ -15,6 +15,8 @@ import { Sprite, type SpriteData } from '../component';
 export interface SpriteAnimFrame {
     texture: TextureHandle;
     duration?: number;
+    uvOffset?: { x: number; y: number };
+    uvScale?: { x: number; y: number };
 }
 
 export interface SpriteAnimClip {
@@ -111,6 +113,10 @@ export function spriteAnimatorSystemUpdate(world: World, deltaTime: number): voi
             const frame = clip.frames[animator.currentFrame];
             const sprite = world.get(entity, Sprite) as SpriteData;
             sprite.texture = frame.texture;
+            if (frame.uvOffset) {
+                sprite.uvOffset = frame.uvOffset;
+                sprite.uvScale = frame.uvScale!;
+            }
             world.insert(entity, Sprite, sprite);
         }
 

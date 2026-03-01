@@ -8,6 +8,8 @@ export type EditorAssetType =
     | 'texture' | 'material' | 'shader' | 'spine-atlas' | 'spine-skeleton'
     | 'bitmap-font' | 'prefab' | 'json' | 'audio' | 'scene' | 'anim-clip' | 'unknown';
 
+export type AssetBuildTransform = (content: string, context: unknown) => string;
+
 export interface AssetTypeEntry {
     extensions: string[];
     contentType: AssetContentType;
@@ -15,6 +17,7 @@ export interface AssetTypeEntry {
     addressableType: AddressableAssetType | null;
     wechatPackInclude: boolean;
     hasTransitiveDeps: boolean;
+    buildTransform?: AssetBuildTransform;
 }
 
 const ASSET_TYPE_REGISTRY: readonly AssetTypeEntry[] = [
@@ -140,4 +143,16 @@ export function toBuildPath(path: string): string {
     if (entry.contentType !== 'json') return path;
     const dotIndex = path.lastIndexOf('.');
     return dotIndex >= 0 ? path.substring(0, dotIndex) + '.json' : path;
+}
+
+export function registerAssetBuildTransform(editorType: EditorAssetType, transform: AssetBuildTransform): void {
+    for (const entry of ASSET_TYPE_REGISTRY) {
+        if (entry.editorType === editorType) {
+            (entry as AssetTypeEntry).buildTransform = transform;
+        }
+    }
+}
+
+export function getAssetBuildTransform(extensionOrPath: string): AssetBuildTransform | undefined {
+    return getAssetTypeEntry(extensionOrPath)?.buildTransform;
 }

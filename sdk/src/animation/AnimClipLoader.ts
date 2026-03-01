@@ -3,18 +3,30 @@
  * @brief   .esanim asset loading and parsing
  */
 
-import type { SpriteAnimClip } from './SpriteAnimator';
+import type { SpriteAnimClip, SpriteAnimFrame } from './SpriteAnimator';
 
 // =============================================================================
 // .esanim File Format
 // =============================================================================
+
+export interface AnimClipFrameData {
+    texture: string;
+    atlasFrame?: {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+        pageWidth: number;
+        pageHeight: number;
+    };
+}
 
 export interface AnimClipAssetData {
     version: string;
     type: 'animation-clip';
     fps?: number;
     loop?: boolean;
-    frames: { texture: string }[];
+    frames: AnimClipFrameData[];
 }
 
 // =============================================================================
@@ -42,8 +54,22 @@ export function parseAnimClipData(
         name: clipPath,
         fps: data.fps ?? DEFAULT_FPS,
         loop: data.loop ?? true,
-        frames: data.frames.map(f => ({
-            texture: textureHandles.get(f.texture) ?? 0,
-        })),
+        frames: data.frames.map(f => {
+            const frame: SpriteAnimFrame = {
+                texture: textureHandles.get(f.texture) ?? 0,
+            };
+            if (f.atlasFrame) {
+                const af = f.atlasFrame;
+                frame.uvOffset = {
+                    x: af.x / af.pageWidth,
+                    y: 1.0 - (af.y + af.height) / af.pageHeight,
+                };
+                frame.uvScale = {
+                    x: af.width / af.pageWidth,
+                    y: af.height / af.pageHeight,
+                };
+            }
+            return frame;
+        }),
     };
 }

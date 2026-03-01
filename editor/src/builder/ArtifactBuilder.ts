@@ -17,7 +17,7 @@ import { getAssetType, toAddressableType } from '../asset/AssetTypes';
 import { compileMaterials } from './MaterialCompiler';
 import { convertPrefabAssetRefs, deserializePrefab } from '../prefab';
 import type { PrefabData } from '../types/PrefabTypes';
-import { toBuildPath, getComponentAssetFieldDescriptors, getComponentDefaults } from 'esengine';
+import { toBuildPath, getComponentAssetFieldDescriptors, getComponentDefaults, registerAssetBuildTransform } from 'esengine';
 import { normalizePath, joinPath, isAbsolutePath, getParentDir } from '../utils/path';
 import { getEsbuildWasmURL } from '../context/EditorContext';
 import { getSettingsValue } from '../settings';
@@ -407,11 +407,9 @@ export function generateAddressableManifest(
     return { version: '2.0', groups };
 }
 
-export function convertPrefabWithResolvedRefs(
-    prefabContent: string,
-    artifact: BuildArtifact
-): string {
-    const prefab = deserializePrefab(prefabContent);
+function transformPrefab(content: string, context: unknown): string {
+    const artifact = context as BuildArtifact;
+    const prefab = deserializePrefab(content);
     const converted = convertPrefabAssetRefs(prefab, (value) => {
         const resolved = isUUID(value)
             ? (artifact.assetLibrary.getPath(value) ?? value)
@@ -421,6 +419,39 @@ export function convertPrefabWithResolvedRefs(
     rewritePrefabAtlasRefs(converted, artifact.atlasResult);
     return JSON.stringify(converted);
 }
+
+function transformAnimClip(content: string, context: unknown): string {
+    const artifact = context as BuildArtifact;
+    const data = JSON.parse(content);
+    if (!Array.isArray(data.frames)) return content;
+    for (const frame of data.frames) {
+        if (typeof frame.texture !== 'string') continue;
+        const resolved = isUUID(frame.texture)
+            ? (artifact.assetLibrary.getPath(frame.texture) ?? frame.texture)
+            : frame.texture;
+        const buildPath = toBuildPath(resolved);
+        const entry = artifact.atlasResult.frameMap.get(resolved)
+            ?? artifact.atlasResult.frameMap.get(buildPath);
+        if (entry) {
+            frame.texture = `atlas_${entry.page}.png`;
+            const page = artifact.atlasResult.pages[entry.page];
+            frame.atlasFrame = {
+                x: entry.frame.x,
+                y: entry.frame.y,
+                width: entry.frame.width,
+                height: entry.frame.height,
+                pageWidth: page.width,
+                pageHeight: page.height,
+            };
+        } else {
+            frame.texture = buildPath;
+        }
+    }
+    return JSON.stringify(data);
+}
+
+registerAssetBuildTransform('prefab', transformPrefab);
+registerAssetBuildTransform('anim-clip', transformAnimClip);
 
 function isAtlasCapable(componentType: string): boolean {
     const defaults = getComponentDefaults(componentType);

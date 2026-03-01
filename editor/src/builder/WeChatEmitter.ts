@@ -11,7 +11,7 @@ import { getEditorContext } from '../context/EditorContext';
 import { findTsFiles, EDITOR_ONLY_DIRS } from '../scripting/ScriptLoader';
 import { joinPath, getProjectDir } from '../utils/path';
 import { resolveShaderPath } from '../utils/shader';
-import { initializeEsbuild, createBuildVirtualFsPlugin, generateAddressableManifest, convertPrefabWithResolvedRefs } from './ArtifactBuilder';
+import { initializeEsbuild, createBuildVirtualFsPlugin, generateAddressableManifest } from './ArtifactBuilder';
 import { generateWeChatGameJs } from './templates';
 import type { NativeFS } from '../types/NativeFS';
 import { getWeChatPackOptions, getAssetTypeEntry, toBuildPath } from 'esengine';
@@ -366,10 +366,10 @@ export class WeChatEmitter implements PlatformEmitter {
             const destDir = destPath.substring(0, destPath.lastIndexOf('/'));
             await fs.createDirectory(destDir);
 
-            if (entry?.editorType === 'prefab') {
+            if (entry?.buildTransform) {
                 const content = await fs.readFile(srcPath);
                 if (content) {
-                    const json = convertPrefabWithResolvedRefs(content, artifact);
+                    const json = entry.buildTransform(content, artifact);
                     await fs.writeFile(destPath, JSON.stringify(JSON.parse(json), null, 2));
                 }
                 continue;

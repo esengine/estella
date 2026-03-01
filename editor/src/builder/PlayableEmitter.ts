@@ -11,7 +11,7 @@ import { getEditorContext } from '../context/EditorContext';
 import { findTsFiles, EDITOR_ONLY_DIRS } from '../scripting/ScriptLoader';
 import { joinPath, getFileExtension, isAbsolutePath, getParentDir, normalizePath, getProjectDir } from '../utils/path';
 import { isUUID, getComponentRefFields } from '../asset/AssetLibrary';
-import { initializeEsbuild, createBuildVirtualFsPlugin, arrayBufferToBase64, generateAddressableManifest, convertPrefabWithResolvedRefs } from './ArtifactBuilder';
+import { initializeEsbuild, createBuildVirtualFsPlugin, arrayBufferToBase64, generateAddressableManifest } from './ArtifactBuilder';
 import { PLAYABLE_HTML_TEMPLATE } from './templates';
 import type { NativeFS } from '../types/NativeFS';
 import { getAssetMimeType, getAssetTypeEntry, toBuildPath } from 'esengine';
@@ -354,11 +354,12 @@ const __plugins = [${pluginList}];
                 continue;
             }
 
-            if (entry?.editorType === 'prefab') {
+            if (entry?.buildTransform) {
+                const transform = entry.buildTransform;
                 pending.push(
                     fs.readFile(joinPath(projectDir, relativePath)).then(content => {
                         if (content) {
-                            const json = convertPrefabWithResolvedRefs(content, artifact);
+                            const json = transform(content, artifact);
                             assets.set(outputPath, `data:application/json;base64,${btoa(json)}`);
                         }
                     })
