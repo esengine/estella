@@ -155,11 +155,26 @@ public:
      */
     bool isBypassed() const { return bypass_; }
 
+    /**
+     * @brief Clears all passes
+     */
+    void clearPasses();
+
+    /**
+     * @brief Sets the output target FBO for the final blit (0 = default framebuffer / screen)
+     */
+    void setOutputTarget(u32 fboId);
+
+    /**
+     * @brief Sets the output viewport for the final blit
+     */
+    void setOutputViewport(u32 x, u32 y, u32 w, u32 h);
+
 private:
     PostProcessPass* findPass(const std::string& name);
     void ensureFBOs();
     void renderPass(const PostProcessPass& pass, u32 inputTexture);
-    void blitToScreen(u32 texture);
+    void blitToOutput(u32 texture);
 
     RenderContext& context_;
     resource::ResourceManager& resourceManager_;
@@ -177,6 +192,12 @@ private:
     bool inFrame_ = false;
     bool bypass_ = false;
     u32 currentFBO_ = 0;
+
+    u32 output_target_fbo_ = 0;
+    u32 output_vp_x_ = 0;
+    u32 output_vp_y_ = 0;
+    u32 output_vp_w_ = 0;
+    u32 output_vp_h_ = 0;
 };
 
 }  // namespace esengine

@@ -99,6 +99,7 @@ export class GameViewRenderer {
     private worldRight_ = 0;
     private worldBottom_ = 0;
     private worldTop_ = 0;
+    private cameraEntity_ = -1;
 
     constructor(canvas2d: HTMLCanvasElement, webglCanvas: HTMLCanvasElement) {
         this.canvas2d_ = canvas2d;
@@ -142,6 +143,7 @@ export class GameViewRenderer {
         if (cameraEntities.length === 0) return false;
 
         const e = cameraEntities[0];
+        this.cameraEntity_ = e;
         const camera = registry.getCamera(e);
         const transform = registry.getTransform(e);
 
@@ -233,22 +235,28 @@ export class GameViewRenderer {
         const registry = { _cpp: cppReg };
 
         try {
-            Renderer.setViewport(0, 0, renderW, renderH);
-            Renderer.clearBuffers(3);
-            Renderer.begin(this.vpMatrix_);
-            if (pipeline?.maskProcessor) {
-                pipeline.maskProcessor(registry._cpp, this.vpMatrix_, 0, 0, renderW, renderH);
-            }
-            Renderer.submitSprites(registry);
-            Renderer.submitBitmapText(registry);
-            if (pipeline?.spineRenderer) {
-                pipeline.spineRenderer(registry, elapsed);
+            Renderer.resize(renderW, renderH);
+
+            if (pipeline) {
+                pipeline.renderCamera({
+                    registry,
+                    viewProjection: this.vpMatrix_,
+                    viewportPixels: { x: 0, y: 0, w: renderW, h: renderH },
+                    clearFlags: 3,
+                    elapsed,
+                    cameraEntity: this.cameraEntity_,
+                });
             } else {
+                Renderer.setViewport(0, 0, renderW, renderH);
+                Renderer.clearBuffers(3);
+                Renderer.begin(this.vpMatrix_);
+                Renderer.submitSprites(registry);
+                Renderer.submitBitmapText(registry);
                 Renderer.submitSpine(registry);
+                Renderer.submitParticles(registry);
+                Renderer.flush();
+                Renderer.end();
             }
-            Renderer.submitParticles(registry);
-            Renderer.flush();
-            Renderer.end();
 
             const srcY = this.webglCanvas_.height - renderH;
             this.ctx2d_.clearRect(0, 0, this.width_, this.height_);

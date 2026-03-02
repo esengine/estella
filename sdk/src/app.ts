@@ -744,9 +744,6 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
             const elapsed = (platformNow() - startTime) / 1000;
 
             Renderer.resize(width, height);
-            if (PostProcess.isInitialized() && PostProcess.getPassCount() > 0 && !PostProcess.isBypassed()) {
-                PostProcess.resize(width, height);
-            }
 
             let activeScenes: Set<string> | undefined;
             if (app.hasResource(SceneManager)) {
@@ -781,6 +778,7 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
                         viewportPixels: { x: px, y: py, w: pw, h: ph },
                         clearFlags: cam.clearFlags,
                         elapsed,
+                        cameraEntity: cam.entity,
                     });
                 }
                 Renderer.setViewport(0, 0, width, height);

@@ -25,6 +25,9 @@ u32 postprocess_getPassCount();
 bool postprocess_isInitialized();
 void postprocess_setBypass(bool bypass);
 bool postprocess_isBypassed();
+void postprocess_clearPasses();
+void postprocess_setOutputTarget(u32 fboId);
+void postprocess_setOutputViewport(u32 x, u32 y, u32 w, u32 h);
 
 }  // namespace esengine
 

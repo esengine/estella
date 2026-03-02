@@ -54,6 +54,10 @@ u32 RenderTarget::getDepthTexture() const {
     return framebuffer_ ? framebuffer_->getDepthAttachment() : 0;
 }
 
+u32 RenderTarget::getFramebufferId() const {
+    return framebuffer_ ? framebuffer_->getFramebufferId() : 0;
+}
+
 RenderTargetManager::Handle RenderTargetManager::create(u32 width, u32 height, bool depth, bool linearFilter) {
     Handle handle;
 

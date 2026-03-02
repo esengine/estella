@@ -5,6 +5,10 @@ import {
     ButtonState,
     RenderPipeline,
     Renderer,
+    PostProcess,
+    syncPostProcessVolume,
+    cleanupPostProcessVolume,
+    type PostProcessEffectData,
 } from 'esengine';
 import type { SpineModuleController } from 'esengine/spine';
 import type { SceneData, ComponentData } from '../types/SceneTypes';
@@ -91,6 +95,12 @@ export class EditorSceneRenderer {
             store.subscribeToComponentChanges((e) => {
                 if (e.action === 'removed') {
                     sm.removeComponentFromEntity(e.entity, e.componentType);
+                    if (e.componentType === 'PostProcessVolume') {
+                        cleanupPostProcessVolume(e.entity);
+                    }
+                }
+                if (e.action === 'added' && e.componentType === 'PostProcessVolume') {
+                    this.syncPostProcessVolumeForEntity(e.entity);
                 }
                 this.scheduleEntityUpdate(e.entity);
             }),
@@ -134,6 +144,9 @@ export class EditorSceneRenderer {
                 if (event.propertyName === 'backgroundColor') {
                     this.store_!.updatePropertyDirect(event.entity, 'Sprite', 'color', event.newValue);
                 }
+                break;
+            case 'PostProcessVolume':
+                this.syncPostProcessVolumeForEntity(event.entity);
                 break;
         }
 
@@ -256,6 +269,7 @@ export class EditorSceneRenderer {
 
     async syncScene(scene: SceneData): Promise<void> {
         await this.sceneManager_?.loadScene(scene);
+        this.syncAllPostProcessVolumes();
     }
 
     async updateEntity(entityId: number, components: ComponentData[]): Promise<void> {
@@ -412,7 +426,15 @@ export class EditorSceneRenderer {
                 gameRenderer.renderAndCapture(this.context_);
             }
 
+            const ppCamera = this.findFirstPPCamera();
+            if (ppCamera >= 0) {
+                PostProcess._applyForCamera(ppCamera);
+                PostProcess.resize(width, height);
+                PostProcess.setOutputViewport(0, 0, width, height);
+            }
+
             Renderer.setClearColor(bg.r, bg.g, bg.b, bg.a);
+            Renderer.resize(width, height);
             Renderer.setViewport(0, 0, width, height);
             Renderer.clearBuffers(3);
             Renderer.begin(matrix);
@@ -429,6 +451,10 @@ export class EditorSceneRenderer {
             }
             Renderer.flush();
             Renderer.end();
+
+            if (ppCamera >= 0) {
+                PostProcess._resetAfterCamera();
+            }
         } catch (e) {
             if (e instanceof WebAssembly.RuntimeError) {
                 console.warn('[EditorSceneRenderer] WASM error during render:', (e as Error).message);
@@ -469,6 +495,41 @@ export class EditorSceneRenderer {
                 console.warn('[EditorSceneRenderer] WASM error during game camera render:', (e as Error).message);
             } else {
                 throw e;
+            }
+        }
+    }
+
+    private findFirstPPCamera(): number {
+        if (!this.store_) return -1;
+        for (const entity of this.store_.scene.entities) {
+            const hasCam = entity.components.some(c => c.type === 'Camera');
+            const hasPP = entity.components.some(c => c.type === 'PostProcessVolume');
+            if (hasCam && hasPP && PostProcess.getStack(entity.id)) {
+                return entity.id;
+            }
+        }
+        return -1;
+    }
+
+    private syncPostProcessVolumeForEntity(entityId: number): void {
+        const entityData = this.store_?.getEntityData(entityId);
+        if (!entityData) return;
+        const ppComp = entityData.components.find(c => c.type === 'PostProcessVolume');
+        if (ppComp) {
+            const effects = (ppComp.data.effects as PostProcessEffectData[]) ?? [];
+            syncPostProcessVolume(entityId, { effects });
+        } else {
+            cleanupPostProcessVolume(entityId);
+        }
+    }
+
+    syncAllPostProcessVolumes(): void {
+        if (!this.store_) return;
+        for (const entity of this.store_.scene.entities) {
+            const ppComp = entity.components.find(c => c.type === 'PostProcessVolume');
+            if (ppComp) {
+                const effects = (ppComp.data.effects as PostProcessEffectData[]) ?? [];
+                syncPostProcessVolume(entity.id, { effects });
             }
         }
     }

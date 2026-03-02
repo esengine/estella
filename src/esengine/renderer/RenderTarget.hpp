@@ -32,6 +32,7 @@ public:
     u32 getHeight() const { return height_; }
 
     bool isValid() const { return framebuffer_ != nullptr; }
+    u32 getFramebufferId() const;
 
 private:
     Unique<Framebuffer> framebuffer_;
