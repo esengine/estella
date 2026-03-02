@@ -343,8 +343,10 @@ app.registerScene({
         // Register draw callbacks scoped to this scene
         ctx.registerDrawCallback('game-debug', drawDebug);
 
-        // Add post-process effects scoped to this scene
-        ctx.addPostProcessPass('bloom', bloomShader);
+        // Bind post-process effects scoped to this scene
+        const fx = PostProcess.createStack();
+        fx.addPass('bloom', PostProcess.createBloom());
+        ctx.bindPostProcess(cameraEntity, fx);
 
         // Mark entity as persistent (survives scene unload)
         ctx.setPersistent(e, true);

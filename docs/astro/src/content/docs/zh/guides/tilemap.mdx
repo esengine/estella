@@ -1,0 +1,200 @@
+---
+title: 瓦片地图
+description: ESEngine 中的 Tiled 地图加载与瓦片地图渲染
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+瓦片地图系统加载 [Tiled](https://www.mapeditor.org/) 地图（`.tmj` / `.json`），渲染瓦片图层，支持自动相机裁剪、逐图层着色/透明度、视差滚动和碰撞生成。
+
+## 快速开始
+
+最简单的使用方式是通过编辑器：
+
+1. 从 Tiled 导出地图为 JSON（`.tmj`）
+2. 将 `.tmj` 文件和 tileset 图片放在项目资源文件夹中
+3. 为实体添加 **Tilemap** 组件，将 **Source** 设置为 `.tmj` 文件
+
+场景加载器会自动解析地图、通过 `AssetServer` 加载 tileset 纹理，并注册到渲染管线。
+
+<Aside type="tip">
+  `TilemapPlugin` 已自动包含在 `createWebApp()` 中，无需手动设置插件。
+</Aside>
+
+## 组件
+
+### Tilemap
+
+标记组件，引用 Tiled 地图源文件。场景加载器读取此字段，在场景实例化前预加载地图数据和 tileset 纹理。
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `source` | string | `''` | `.tmj` / `.json` 地图文件路径 |
+
+### TilemapLayer
+
+描述单个瓦片图层的渲染数据。Tiled 地图中每个可见图层会创建一个带有此组件的实体。
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `width` | number | `10` | 图层宽度（瓦片数） |
+| `height` | number | `10` | 图层高度（瓦片数） |
+| `tileWidth` | number | `32` | 瓦片宽度（像素） |
+| `tileHeight` | number | `32` | 瓦片高度（像素） |
+| `texture` | number | `0` | Tileset 纹理句柄 |
+| `tilesetColumns` | number | `1` | Tileset 图片中的列数 |
+| `layer` | number | `0` | 排序图层索引 |
+| `tiles` | number[] | `[]` | 瓦片 ID 平铺数组（行优先） |
+| `tint` | Color | `{r:1,g:1,b:1,a:1}` | 逐图层着色 |
+| `opacity` | number | `1` | 图层透明度（0–1） |
+| `visible` | boolean | `true` | 是否渲染该图层 |
+| `parallaxFactor` | Vec2 | `{x:1,y:1}` | 视差滚动因子 |
+
+<Aside type="tip">
+  瓦片 ID 使用局部索引（1-based，0 = 空白）。水平、垂直和对角线翻转标志编码在高位。
+</Aside>
+
+## 工作原理
+
+### 场景加载管线
+
+当场景包含带有 `Tilemap` 组件的实体时，场景加载器会：
+
+1. 读取 `source` 字段（如 `maps/level1.tmj`）
+2. 通过 `AssetServer` 加载 JSON 并使用 `parseTmjJson` 解析
+3. 解析 tileset 图片的相对路径
+4. 通过 `AssetServer.loadTexture()` 加载 tileset 纹理并注册其尺寸
+5. 使用 `registerTilemapSource()` 缓存解析后的地图数据
+
+运行时，`TilemapPlugin` 读取缓存，每帧提交可见图层进行渲染。
+
+### 构建目标
+
+瓦片地图资源管线适用于所有构建目标：
+
+- **编辑器预览**：通过预览 HTTP 服务器的 `AssetServer` 加载
+- **微信小游戏 / 可玩广告**：通过 `RuntimeAssetProvider` 使用打包资源加载
+- **Web 构建**：与编辑器预览相同，资源从构建输出提供
+
+<Aside type="note">
+  `.tmj` 文件注册为已知资源类型，`wechatPackInclude: true`，因此会自动包含在微信和可玩广告构建中。
+</Aside>
+
+## 代码加载
+
+在场景加载器之外需要从代码加载瓦片地图时，使用底层 API：
+
+```typescript
+import { parseTmjJson, loadTiledMap, registerTextureDimensions } from 'esengine';
+
+// 解析 Tiled JSON 数据
+const mapData = parseTmjJson(jsonObject);
+
+// 通过 AssetServer 加载 tileset 纹理
+const textureHandles = new Map<string, number>();
+for (const tileset of mapData.tilesets) {
+    const info = await assetServer.loadTexture(tileset.image);
+    textureHandles.set(tileset.image, info.handle);
+    registerTextureDimensions(info.handle, info.width, info.height);
+}
+
+// 将瓦片地图图层实体生成到世界中
+const entities = loadTiledMap(world, mapData, textureHandles);
+```
+
+### C++ 解析器（WASM）
+
+对于包含外部 tileset（`.tsj` 文件）的地图，使用 `parseTiledMap`，它委托给 C++ 解析器：
+
+```typescript
+import { parseTiledMap } from 'esengine';
+
+const mapData = await parseTiledMap(jsonString, async (source) => {
+    // 解析外部 tileset 文件
+    return await assetServer.loadText(source);
+});
+```
+
+### loadTiledMap 选项
+
+| 选项 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `generateObjectCollision` | boolean | `true` | 从 Tiled 对象图层创建碰撞体 |
+| `collisionTileIds` | number[] | 自动检测 | 应生成碰撞体的瓦片 ID |
+
+## 碰撞生成
+
+### 对象图层碰撞
+
+Tiled 对象图层自动转换为物理刚体。支持的形状：
+
+- **矩形** → `BoxCollider`，半尺寸与原始尺寸匹配
+- **椭圆** → `CircleCollider`，以较大轴为半径
+- **多边形 / 折线** → `BoxCollider`，拟合包围盒
+- **点** → 跳过
+
+每个碰撞对象创建一个静态 `RigidBody` 实体和相应的碰撞体。
+
+### 瓦片碰撞
+
+在 Tiled 中为 tileset 中的瓦片添加自定义属性 `collision = true` 来标记可碰撞瓦片。加载器读取这些 ID 并生成合并后的碰撞矩形：
+
+```typescript
+const entities = loadTiledMap(world, mapData, textureHandles, {
+    collisionTileIds: [1, 2, 3],
+});
+```
+
+### 碰撞合并
+
+相邻的碰撞瓦片自动合并为更大的矩形，减少物理刚体数量。算法逐行扫描，尽可能向右和向下扩展每个矩形：
+
+```
+合并前:  [1][1][1]    合并后:  [    1    ]
+         [1][1][1]             [    1    ]
+```
+
+这产生更少、更大的 `BoxCollider` 刚体，提升物理性能。
+
+## TilemapAPI
+
+底层运行时瓦片操作 API：
+
+| 方法 | 说明 |
+|------|------|
+| `TilemapAPI.initLayer(entity, w, h, tw, th)` | 为实体初始化瓦片图层 |
+| `TilemapAPI.destroyLayer(entity)` | 销毁瓦片图层 |
+| `TilemapAPI.setTile(entity, x, y, tileId)` | 设置单个瓦片 |
+| `TilemapAPI.getTile(entity, x, y)` | 获取瓦片 ID |
+| `TilemapAPI.fillRect(entity, x, y, w, h, tileId)` | 用指定瓦片填充矩形区域 |
+| `TilemapAPI.setTiles(entity, tiles)` | 从 `Uint16Array` 设置所有瓦片 |
+| `TilemapAPI.hasLayer(entity)` | 检查实体是否有已初始化的图层 |
+
+## 编辑器工作流
+
+1. 在 Hierarchy 中为实体添加 **Tilemap** 组件
+2. 使用资源选择器将 **Source** 字段设置为 `.tmj` 或 `.json` Tiled 地图文件
+3. 编辑器自动加载地图、解析 tileset 纹理并渲染图层
+4. 碰撞对象显示为 Gizmo 叠加层
+
+<Aside type="tip">
+  在 [Tiled Map Editor](https://www.mapeditor.org/) 中设计地图，导出为 JSON（`.tmj`），将文件和 tileset 图片放在项目资源文件夹中。
+</Aside>
+
+## 图层属性
+
+Tiled 图层属性直接映射到 `TilemapLayer` 字段：
+
+| Tiled 属性 | TilemapLayer 字段 | 说明 |
+|------------|-------------------|------|
+| `opacity` | `opacity` | 图层透明度 |
+| `tintcolor` | `tint` | 十六进制颜色字符串（`#AARRGGBB` 或 `#RRGGBB`） |
+| `parallaxx` | `parallaxFactor.x` | 水平视差因子 |
+| `parallaxy` | `parallaxFactor.y` | 垂直视差因子 |
+| `visible` | `visible` | 图层可见性 |
+
+## 下一步
+
+- [物理](/microes/zh/guides/physics/) — 碰撞组件和事件
+- [精灵](/microes/zh/guides/sprite/) — 与瓦片地图一起使用精灵渲染
+- [渲染概览](/microes/zh/guides/rendering/) — 相机、变换、渲染顺序

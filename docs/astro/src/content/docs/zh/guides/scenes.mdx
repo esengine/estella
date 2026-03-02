@@ -337,8 +337,10 @@ app.registerScene({
         // 注册作用域为此场景的绘制回调
         ctx.registerDrawCallback('game-debug', drawDebug);
 
-        // 添加作用域为此场景的后处理效果
-        ctx.addPostProcessPass('bloom', bloomShader);
+        // 绑定作用域为此场景的后处理效果
+        const fx = PostProcess.createStack();
+        fx.addPass('bloom', PostProcess.createBloom());
+        ctx.bindPostProcess(cameraEntity, fx);
 
         // 标记实体为持久（场景卸载时不销毁）
         ctx.setPersistent(e, true);

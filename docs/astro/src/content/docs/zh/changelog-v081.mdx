@@ -75,17 +75,22 @@ PostProcessVolume 检查器新增所有 Volume 属性编辑：
 
 ## Tilemap 系统
 
-新增 Tiled 地图加载器和瓦片地图渲染管线，完整编辑器集成。
+新增 Tiled 地图加载器和瓦片地图渲染管线，完整编辑器集成。详见[瓦片地图指南](/microes/zh/guides/tilemap/)。
 
-- **Tiled JSON 加载器** — 加载 `.tmj` / `.json` 格式的 Tiled 地图，自动解析 tileset 纹理
+- **Tiled JSON 加载器** — 加载 `.tmj` / `.json` 格式的 Tiled 地图，自动解析 tileset 纹理，支持外部 tileset
 - **Tilemap 组件** — `Tilemap` 和 `TilemapLayer` 组件用于 ECS 集成
 - **碰撞合并** — 自动矩形碰撞区域合并，优化物理性能
+- **逐图层属性** — 透明度、着色、视差滚动因子
 - **编辑器支持** — Tilemap 组件检查器，带资源选择器
 
 ## 物理调试绘制
 
-- **`PhysicsDebugDraw`** — 物理碰撞体、关节和接触点的可视化叠加层，编辑器和运行时均可使用
-- 渲染 Box、Circle 和 Capsule 碰撞体的线框轮廓
+详见[物理指南 — 调试绘制](/microes/zh/guides/physics/#调试绘制)章节。
+
+- **`PhysicsDebugDraw`** — 物理碰撞体和接触点的可视化叠加层，编辑器和运行时均可使用
+- 渲染 Box、Circle 和 Capsule 碰撞体的线框轮廓，按刚体类型着色
+- 动态刚体的速度箭头和碰撞接触点标记
+- 通过 `Physics.setDebugDraw(app, true)` 开关，或使用 `Physics.setDebugDrawConfig()` 配置
 
 ## Bug 修复
 

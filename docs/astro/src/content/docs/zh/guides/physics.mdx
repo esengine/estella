@@ -168,8 +168,74 @@ addSystem(defineSystem(
 | `setGravity(gravity)` | 运行时修改世界重力 |
 | `getGravity()` | 获取当前世界重力（Vec2） |
 
+## 调试绘制
+
+物理调试绘制叠加层渲染所有碰撞体的线框轮廓、速度箭头和接触点。使用引擎的 `Draw` API，在编辑器和运行时均可使用。
+
+### 启用调试绘制
+
+```typescript
+import { Physics } from 'esengine/physics';
+
+// 开启/关闭调试绘制
+Physics.setDebugDraw(app, true);
+```
+
+### 配置
+
+控制显示哪些元素：
+
+```typescript
+import { Physics } from 'esengine/physics';
+
+Physics.setDebugDrawConfig(app, {
+    enabled: true,
+    showColliders: true,    // 碰撞体线框轮廓
+    showVelocity: true,     // 动态刚体的速度箭头
+    showContacts: false,    // 接触点标记
+});
+```
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `enabled` | boolean | `false` | 调试绘制主开关 |
+| `showColliders` | boolean | `true` | 绘制碰撞体线框 |
+| `showVelocity` | boolean | `false` | 绘制动态刚体的速度箭头 |
+| `showContacts` | boolean | `false` | 绘制碰撞进入时的接触点 |
+
+### 颜色编码
+
+碰撞体轮廓按刚体类型着色：
+
+| 刚体类型 | 颜色 |
+|----------|------|
+| Static | 蓝色 |
+| Dynamic | 绿色 |
+| Kinematic | 青色 |
+| Sensor | 黄色（半透明） |
+
+速度箭头为红色。接触点显示为红色圆点。
+
+<Aside type="tip">
+  调试绘制注册为名为 `'physics-debug-draw'` 的自定义绘制回调。物理插件初始化时自动设置——你只需启用它。
+</Aside>
+
+### PhysicsDebugDraw 资源
+
+如需高级控制，可直接访问 `PhysicsDebugDraw` 资源：
+
+```typescript
+import { PhysicsDebugDraw } from 'esengine/physics';
+
+const config = app.getResource(PhysicsDebugDraw);
+config.enabled = true;
+config.showVelocity = true;
+app.insertResource(PhysicsDebugDraw, config);
+```
+
 ## 下一步
 
 - [组件](/microes/zh/core-concepts/components/#物理) — 完整物理组件属性表
 - [系统](/microes/zh/core-concepts/systems/) — 创建系统处理物理逻辑
 - [自定义绘制](/microes/zh/guides/custom-draw/) — 碰撞体调试可视化
+- [瓦片地图](/microes/zh/guides/tilemap/) — 基于瓦片的碰撞生成

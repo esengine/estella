@@ -100,6 +100,7 @@ export default defineConfig({
                 { label: 'Audio', translations: { 'zh-CN': '音频' }, slug: 'guides/audio' },
                 { label: 'Particles', translations: { 'zh-CN': '粒子系统' }, slug: 'guides/particles' },
                 { label: 'Physics', translations: { 'zh-CN': '物理' }, slug: 'guides/physics' },
+                { label: 'Tilemap', translations: { 'zh-CN': '瓦片地图' }, slug: 'guides/tilemap' },
               ],
             },
             {
