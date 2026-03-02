@@ -31,6 +31,8 @@ declare const RuntimeConfig: {
     maxDeltaTime: number;
     maxFixedSteps: number;
     textCanvasSize: number;
+    assetLoadTimeout: number;
+    assetFailureCooldown: number;
 };
 declare function applyRuntimeConfig(components: {
     Text?: {
@@ -52,6 +54,8 @@ interface RuntimeBuildConfig {
     maxDeltaTime?: number;
     maxFixedSteps?: number;
     textCanvasSize?: number;
+    assetLoadTimeout?: number;
+    assetFailureCooldown?: number;
 }
 declare function applyBuildRuntimeConfig(app: {
     setMaxDeltaTime(v: number): void;

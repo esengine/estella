@@ -1,5 +1,4 @@
-const DEFAULT_TIMEOUT = 30000;
-const FAILURE_COOLDOWN = 5000;
+import { RuntimeConfig } from '../defaults';
 
 interface PendingEntry<T> {
     promise: Promise<T>;
@@ -16,7 +15,7 @@ export class AsyncCache<T> {
     private pending_ = new Map<string, PendingEntry<T>>();
     private failed_ = new Map<string, FailedEntry>();
 
-    async getOrLoad(key: string, loader: () => Promise<T>, timeout = DEFAULT_TIMEOUT): Promise<T> {
+    async getOrLoad(key: string, loader: () => Promise<T>, timeout = RuntimeConfig.assetLoadTimeout): Promise<T> {
         const cached = this.cache_.get(key);
         if (cached !== undefined) {
             return cached;
@@ -64,7 +63,7 @@ export class AsyncCache<T> {
         } catch (err) {
             this.pending_.delete(key);
             if (err instanceof Error) {
-                this.failed_.set(key, { error: err, expiry: Date.now() + FAILURE_COOLDOWN });
+                this.failed_.set(key, { error: err, expiry: Date.now() + RuntimeConfig.assetFailureCooldown });
                 if (err.message.startsWith('AsyncCache timeout:')) {
                     console.warn(`[AsyncCache] ${err.message}`);
                 }

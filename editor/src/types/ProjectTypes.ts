@@ -33,6 +33,11 @@ export interface ProjectConfig {
     maxDeltaTime?: number;
     maxFixedSteps?: number;
     textCanvasSize?: number;
+    defaultSpriteWidth?: number;
+    defaultSpriteHeight?: number;
+    pixelsPerUnit?: number;
+    assetLoadTimeout?: number;
+    assetFailureCooldown?: number;
 }
 
 // =============================================================================

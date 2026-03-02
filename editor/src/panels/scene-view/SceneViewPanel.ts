@@ -769,13 +769,14 @@ export class SceneViewPanel {
             ctx.save();
             ctx.translate(pos.x + offsetX, -pos.y - offsetY);
 
-            ctx.strokeStyle = '#00aaff';
+            const selColor = getSettingsValue<string>('scene.selectionColor') ?? '#00aaff';
+            ctx.strokeStyle = selColor;
             ctx.lineWidth = 2 / this.overlayScale_();
             ctx.setLineDash([]);
             ctx.strokeRect(-w / 2, -h / 2, w, h);
 
             if (selectedEntities.length === 1) {
-                ctx.fillStyle = '#00aaff';
+                ctx.fillStyle = selColor;
                 const handleSize = 6 / this.overlayScale_();
                 const corners = [
                     [-w / 2, -h / 2],
@@ -1258,12 +1259,13 @@ export class SceneViewPanel {
             ctx.save();
             ctx.translate(pos.x, -pos.y);
 
-            ctx.strokeStyle = '#00aaff';
+            const spriteSelColor = getSettingsValue<string>('scene.selectionColor') ?? '#00aaff';
+            ctx.strokeStyle = spriteSelColor;
             ctx.lineWidth = 2 / this.overlayScale_();
             ctx.setLineDash([]);
             ctx.strokeRect(-w / 2, -h / 2, w, h);
 
-            ctx.fillStyle = '#00aaff';
+            ctx.fillStyle = spriteSelColor;
             const handleSize = 6 / this.overlayScale_();
             const corners = [
                 [-w / 2, -h / 2],

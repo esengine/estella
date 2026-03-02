@@ -3,18 +3,25 @@ import { icons } from '../utils/icons';
 import { quatToEuler, eulerToQuat } from '../math/Transform';
 import { getSettingsValue } from '../settings/SettingsRegistry';
 
-const GIZMO_COLORS = {
-    x: '#e74c3c',
-    y: '#2ecc71',
-    xy: '#f1c40f',
-    hover: '#ffffff',
-    selection: '#00aaff',
-    handleStroke: '#000',
-    refLine: 'rgba(100, 100, 100, 0.5)',
-};
+function getGizmoColors() {
+    return {
+        x: getSettingsValue<string>('scene.gizmoColorX') ?? '#e74c3c',
+        y: getSettingsValue<string>('scene.gizmoColorY') ?? '#2ecc71',
+        xy: getSettingsValue<string>('scene.gizmoColorXY') ?? '#f1c40f',
+        hover: getSettingsValue<string>('scene.gizmoColorHover') ?? '#ffffff',
+        selection: getSettingsValue<string>('scene.selectionColor') ?? '#00aaff',
+        handleStroke: '#000',
+        refLine: 'rgba(100, 100, 100, 0.5)',
+    };
+}
 
-const GIZMO_SIZE = 80;
-const GIZMO_HANDLE_SIZE = 10;
+function getGizmoSize(): number {
+    return getSettingsValue<number>('scene.gizmoSize') ?? 80;
+}
+
+function getGizmoHandleSize(): number {
+    return getSettingsValue<number>('scene.gizmoHandleSize') ?? 10;
+}
 
 type DragAxis = 'none' | 'x' | 'y' | 'xy';
 type RectHandle = 'none' | 'tl' | 'tr' | 'bl' | 'br' | 't' | 'b' | 'l' | 'r';
@@ -109,8 +116,8 @@ export function createMoveGizmo(): GizmoDescriptor {
             const pos = getSelectedEntityPosition(gctx);
             if (!pos) return { hit: false };
 
-            const gizmoScale = GIZMO_SIZE / gctx.zoom;
-            const handleSize = GIZMO_HANDLE_SIZE / gctx.zoom;
+            const gizmoScale = getGizmoSize() / gctx.zoom;
+            const handleSize = getGizmoHandleSize() / gctx.zoom;
             const dx = worldX - pos.x;
             const dy = worldY - pos.y;
 
@@ -133,26 +140,27 @@ export function createMoveGizmo(): GizmoDescriptor {
             const pos = getSelectedEntityPosition(gctx);
             if (!pos) return;
 
+            const colors = getGizmoColors();
             const { ctx, zoom } = gctx;
             ctx.save();
             ctx.translate(pos.x, -pos.y);
 
-            const size = GIZMO_SIZE / zoom;
+            const size = getGizmoSize() / zoom;
             const lineWidth = 2 / zoom;
-            const handleSize = GIZMO_HANDLE_SIZE / zoom;
+            const handleSize = getGizmoHandleSize() / zoom;
             const arrowSize = 8 / zoom;
 
-            ctx.fillStyle = hoveredAxis === 'xy' ? GIZMO_COLORS.hover : GIZMO_COLORS.xy;
+            ctx.fillStyle = hoveredAxis === 'xy' ? colors.hover : colors.xy;
             ctx.fillRect(-handleSize, -handleSize, handleSize * 2, handleSize * 2);
 
-            ctx.strokeStyle = hoveredAxis === 'x' ? GIZMO_COLORS.hover : GIZMO_COLORS.x;
+            ctx.strokeStyle = hoveredAxis === 'x' ? colors.hover : colors.x;
             ctx.lineWidth = lineWidth;
             ctx.beginPath();
             ctx.moveTo(0, 0);
             ctx.lineTo(size, 0);
             ctx.stroke();
 
-            ctx.fillStyle = hoveredAxis === 'x' ? GIZMO_COLORS.hover : GIZMO_COLORS.x;
+            ctx.fillStyle = hoveredAxis === 'x' ? colors.hover : colors.x;
             ctx.beginPath();
             ctx.moveTo(size, 0);
             ctx.lineTo(size - arrowSize, -arrowSize / 2);
@@ -160,13 +168,13 @@ export function createMoveGizmo(): GizmoDescriptor {
             ctx.closePath();
             ctx.fill();
 
-            ctx.strokeStyle = hoveredAxis === 'y' ? GIZMO_COLORS.hover : GIZMO_COLORS.y;
+            ctx.strokeStyle = hoveredAxis === 'y' ? colors.hover : colors.y;
             ctx.beginPath();
             ctx.moveTo(0, 0);
             ctx.lineTo(0, -size);
             ctx.stroke();
 
-            ctx.fillStyle = hoveredAxis === 'y' ? GIZMO_COLORS.hover : GIZMO_COLORS.y;
+            ctx.fillStyle = hoveredAxis === 'y' ? colors.hover : colors.y;
             ctx.beginPath();
             ctx.moveTo(0, -size);
             ctx.lineTo(-arrowSize / 2, -size + arrowSize);
@@ -331,8 +339,8 @@ export function createRotateGizmo(): GizmoDescriptor {
             const pos = getSelectedEntityPosition(gctx);
             if (!pos) return { hit: false };
 
-            const gizmoScale = GIZMO_SIZE / gctx.zoom;
-            const handleSize = GIZMO_HANDLE_SIZE / gctx.zoom;
+            const gizmoScale = getGizmoSize() / gctx.zoom;
+            const handleSize = getGizmoHandleSize() / gctx.zoom;
             const dx = worldX - pos.x;
             const dy = worldY - pos.y;
             const dist = Math.sqrt(dx * dx + dy * dy);
@@ -347,13 +355,14 @@ export function createRotateGizmo(): GizmoDescriptor {
             const pos = getSelectedEntityPosition(gctx);
             if (!pos) return;
 
+            const colors = getGizmoColors();
             const { ctx, zoom } = gctx;
             ctx.save();
             ctx.translate(pos.x, -pos.y);
 
-            const size = GIZMO_SIZE / zoom;
+            const size = getGizmoSize() / zoom;
             const lineWidth = 2 / zoom;
-            const handleSize = GIZMO_HANDLE_SIZE / zoom;
+            const handleSize = getGizmoHandleSize() / zoom;
             const radius = size * 0.8;
 
             const entityData = gctx.store.getSelectedEntityData();
@@ -362,27 +371,27 @@ export function createRotateGizmo(): GizmoDescriptor {
             const euler = quatToEuler(quat);
             const angleRad = -euler.z * Math.PI / 180;
 
-            ctx.strokeStyle = GIZMO_COLORS.refLine;
+            ctx.strokeStyle = colors.refLine;
             ctx.lineWidth = lineWidth;
             ctx.beginPath();
             ctx.moveTo(0, 0);
             ctx.lineTo(radius, 0);
             ctx.stroke();
 
-            ctx.strokeStyle = hovered ? GIZMO_COLORS.hover : GIZMO_COLORS.xy;
+            ctx.strokeStyle = hovered ? colors.hover : colors.xy;
             ctx.lineWidth = lineWidth * 1.5;
             ctx.beginPath();
             ctx.arc(0, 0, radius, 0, Math.PI * 2);
             ctx.stroke();
 
-            ctx.strokeStyle = GIZMO_COLORS.selection;
+            ctx.strokeStyle = colors.selection;
             ctx.lineWidth = lineWidth * 2;
             ctx.beginPath();
             ctx.moveTo(0, 0);
             ctx.lineTo(Math.cos(angleRad) * radius, Math.sin(angleRad) * radius);
             ctx.stroke();
 
-            ctx.fillStyle = GIZMO_COLORS.selection;
+            ctx.fillStyle = colors.selection;
             ctx.beginPath();
             ctx.arc(Math.cos(angleRad) * radius, Math.sin(angleRad) * radius, handleSize, 0, Math.PI * 2);
             ctx.fill();
@@ -485,8 +494,8 @@ export function createScaleGizmo(): GizmoDescriptor {
             const pos = getSelectedEntityPosition(gctx);
             if (!pos) return { hit: false };
 
-            const gizmoScale = GIZMO_SIZE / gctx.zoom;
-            const handleSize = GIZMO_HANDLE_SIZE / gctx.zoom;
+            const gizmoScale = getGizmoSize() / gctx.zoom;
+            const handleSize = getGizmoHandleSize() / gctx.zoom;
             const dx = worldX - pos.x;
             const dy = worldY - pos.y;
 
@@ -509,34 +518,35 @@ export function createScaleGizmo(): GizmoDescriptor {
             const pos = getSelectedEntityPosition(gctx);
             if (!pos) return;
 
+            const colors = getGizmoColors();
             const { ctx, zoom } = gctx;
             ctx.save();
             ctx.translate(pos.x, -pos.y);
 
-            const size = GIZMO_SIZE / zoom;
+            const size = getGizmoSize() / zoom;
             const lineWidth = 2 / zoom;
-            const handleSize = GIZMO_HANDLE_SIZE / zoom;
+            const handleSize = getGizmoHandleSize() / zoom;
 
-            ctx.fillStyle = hoveredAxis === 'xy' ? GIZMO_COLORS.hover : GIZMO_COLORS.xy;
+            ctx.fillStyle = hoveredAxis === 'xy' ? colors.hover : colors.xy;
             ctx.fillRect(-handleSize, -handleSize, handleSize * 2, handleSize * 2);
 
-            ctx.strokeStyle = hoveredAxis === 'x' ? GIZMO_COLORS.hover : GIZMO_COLORS.x;
+            ctx.strokeStyle = hoveredAxis === 'x' ? colors.hover : colors.x;
             ctx.lineWidth = lineWidth;
             ctx.beginPath();
             ctx.moveTo(0, 0);
             ctx.lineTo(size, 0);
             ctx.stroke();
 
-            ctx.fillStyle = hoveredAxis === 'x' ? GIZMO_COLORS.hover : GIZMO_COLORS.x;
+            ctx.fillStyle = hoveredAxis === 'x' ? colors.hover : colors.x;
             ctx.fillRect(size - handleSize, -handleSize, handleSize * 2, handleSize * 2);
 
-            ctx.strokeStyle = hoveredAxis === 'y' ? GIZMO_COLORS.hover : GIZMO_COLORS.y;
+            ctx.strokeStyle = hoveredAxis === 'y' ? colors.hover : colors.y;
             ctx.beginPath();
             ctx.moveTo(0, 0);
             ctx.lineTo(0, -size);
             ctx.stroke();
 
-            ctx.fillStyle = hoveredAxis === 'y' ? GIZMO_COLORS.hover : GIZMO_COLORS.y;
+            ctx.fillStyle = hoveredAxis === 'y' ? colors.hover : colors.y;
             ctx.fillRect(-handleSize, -size - handleSize, handleSize * 2, handleSize * 2);
 
             ctx.restore();
@@ -659,7 +669,7 @@ export function createRectGizmo(): GizmoDescriptor {
             const halfW = w / 2;
             const halfH = h / 2;
 
-            const handleSize = GIZMO_HANDLE_SIZE / gctx.zoom;
+            const handleSize = getGizmoHandleSize() / gctx.zoom;
             const dx = worldX - pos.x - offsetX;
             const dy = worldY - pos.y - offsetY;
 
@@ -690,11 +700,12 @@ export function createRectGizmo(): GizmoDescriptor {
             const pos = getSelectedEntityPosition(gctx);
             if (!pos) return;
 
+            const colors = getGizmoColors();
             const { ctx, zoom } = gctx;
             ctx.save();
             ctx.translate(pos.x, -pos.y);
 
-            const handleSize = GIZMO_HANDLE_SIZE / zoom;
+            const handleSize = getGizmoHandleSize() / zoom;
             const lineWidth = 2 / zoom;
 
             const worldTransform = gctx.getWorldTransform(entityData.id);
@@ -705,7 +716,7 @@ export function createRectGizmo(): GizmoDescriptor {
             const halfW = w / 2;
             const halfH = h / 2;
 
-            ctx.strokeStyle = GIZMO_COLORS.xy;
+            ctx.strokeStyle = colors.xy;
             ctx.lineWidth = lineWidth;
             ctx.setLineDash([5 / zoom, 5 / zoom]);
             ctx.strokeRect(-halfW, -halfH, w, h);
@@ -726,10 +737,10 @@ export function createRectGizmo(): GizmoDescriptor {
                 const isHovered = hoveredHandle === handle.key;
                 const isCorner = ['tl', 'tr', 'bl', 'br'].includes(handle.key);
 
-                ctx.fillStyle = isHovered ? GIZMO_COLORS.hover : (isCorner ? GIZMO_COLORS.xy : GIZMO_COLORS.x);
+                ctx.fillStyle = isHovered ? colors.hover : (isCorner ? colors.xy : colors.x);
                 ctx.fillRect(handle.x - handleSize, handle.y - handleSize, handleSize * 2, handleSize * 2);
 
-                ctx.strokeStyle = GIZMO_COLORS.handleStroke;
+                ctx.strokeStyle = colors.handleStroke;
                 ctx.lineWidth = 1 / zoom;
                 ctx.strokeRect(handle.x - handleSize, handle.y - handleSize, handleSize * 2, handleSize * 2);
             }

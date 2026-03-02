@@ -21,6 +21,8 @@ export const RuntimeConfig = {
     maxDeltaTime: 0.25,
     maxFixedSteps: 8,
     textCanvasSize: 512,
+    assetLoadTimeout: 30000,
+    assetFailureCooldown: 5000,
 };
 
 export function applyRuntimeConfig(components: {
@@ -49,6 +51,8 @@ export interface RuntimeBuildConfig {
     maxDeltaTime?: number;
     maxFixedSteps?: number;
     textCanvasSize?: number;
+    assetLoadTimeout?: number;
+    assetFailureCooldown?: number;
 }
 
 const CANVAS_SCALE_MODE_MAP: Record<string, number> = {
@@ -87,5 +91,11 @@ export function applyBuildRuntimeConfig(app: { setMaxDeltaTime(v: number): void;
     }
     if (config.canvasMatchWidthOrHeight !== undefined) {
         RuntimeConfig.canvasMatchWidthOrHeight = config.canvasMatchWidthOrHeight;
+    }
+    if (config.assetLoadTimeout !== undefined) {
+        RuntimeConfig.assetLoadTimeout = config.assetLoadTimeout;
+    }
+    if (config.assetFailureCooldown !== undefined) {
+        RuntimeConfig.assetFailureCooldown = config.assetFailureCooldown;
     }
 }

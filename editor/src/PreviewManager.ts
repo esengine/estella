@@ -101,6 +101,8 @@ export class PreviewManager {
             maxDeltaTime: getSettingsValue<number>('runtime.maxDeltaTime') ?? 0.25,
             maxFixedSteps: getSettingsValue<number>('runtime.maxFixedSteps') ?? 8,
             textCanvasSize: parseInt(getSettingsValue<string>('runtime.textCanvasSize') ?? '512', 10),
+            assetLoadTimeout: getSettingsValue<number>('asset.timeout') ?? 30000,
+            assetFailureCooldown: getSettingsValue<number>('asset.failureCooldown') ?? 5000,
             showStats: this.showStats_,
         };
         return { enablePhysics, physicsConfig, previewSpineVersion, runtimeConfig };

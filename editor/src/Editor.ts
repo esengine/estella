@@ -5,7 +5,6 @@ import {
     Draw, Geometry, Material, BlendMode, DataType, ShaderSources,
     PostProcess, Renderer, RenderStage,
     registerDrawCallback, unregisterDrawCallback, clearDrawCallbacks,
-    DEFAULT_DESIGN_WIDTH, DEFAULT_DESIGN_HEIGHT,
 } from 'esengine';
 import { EditorStore } from './store/EditorStore';
 import { EditorBridge } from './bridge/EditorBridge';
@@ -72,9 +71,9 @@ import {
     getSettingsValue,
     setSettingsValue,
     onSettingsChange,
+    ProjectSettingsSync,
 } from './settings';
-import { loadProjectConfig, loadEditorLocalSettings, saveEditorLocalSetting } from './launcher/ProjectService';
-import type { SpineVersion } from './types/ProjectTypes';
+import { loadEditorLocalSettings, saveEditorLocalSetting } from './launcher/ProjectService';
 import { DockLayoutManager } from './DockLayoutManager';
 import { ContentDrawer } from './ui/ContentDrawer';
 import {
@@ -117,7 +116,7 @@ export class Editor {
     private escapeHandler_: ((e: KeyboardEvent) => void) | null = null;
     private closeUnlisten_: (() => void) | null = null;
     private contextMenuHandler_: ((e: Event) => void) | null = null;
-    private settingsDebounceTimer_: ReturnType<typeof setTimeout> | null = null;
+    private settingsSync_: ProjectSettingsSync | null = null;
     private mainWindowBridge_: MainWindowBridge | null = null;
     private windowManager_: WindowManager | null = null;
 
@@ -177,7 +176,7 @@ export class Editor {
             this.setupEditorGlobals();
             this.assetLibraryReady_ = this.initializeAssetLibrary();
             this.scriptsReady_ = this.initializeAllScripts();
-            this.syncProjectSettings();
+            this.initProjectSettingsSync();
             this.restoreLastScene();
         }
     }
@@ -613,44 +612,14 @@ export class Editor {
         emit(CHANNEL_PROFILER_STATS, msg);
     }
 
-    private async syncProjectSettings(): Promise<void> {
+    private async initProjectSettingsSync(): Promise<void> {
         if (!this.projectPath_) return;
-        const config = await loadProjectConfig(this.projectPath_);
-        if (config) {
-            setSettingsValue('project.name', config.name);
-            setSettingsValue('project.version', config.version);
-            setSettingsValue('project.defaultScene', config.defaultScene);
-            setSettingsValue('project.spineVersion', config.spineVersion ?? 'none');
-            setSettingsValue('project.enablePhysics', config.enablePhysics ?? false);
-            setSettingsValue('physics.gravityX', config.physicsGravityX ?? 0);
-            setSettingsValue('physics.gravityY', config.physicsGravityY ?? -9.81);
-            setSettingsValue('physics.fixedTimestep', config.physicsFixedTimestep ?? 1 / 60);
-            setSettingsValue('physics.subStepCount', config.physicsSubStepCount ?? 4);
-            const resolution = config.designResolution ?? { width: DEFAULT_DESIGN_WIDTH, height: DEFAULT_DESIGN_HEIGHT };
-            setSettingsValue('project.designWidth', resolution.width);
-            setSettingsValue('project.designHeight', resolution.height);
-            setSettingsValue('build.atlasMaxSize', String(config.atlasMaxSize ?? 2048));
-            setSettingsValue('build.atlasPadding', config.atlasPadding ?? 2);
-            setSettingsValue('runtime.sceneTransitionDuration', config.sceneTransitionDuration ?? 0.3);
-            setSettingsValue('runtime.sceneTransitionColor', config.sceneTransitionColor ?? '#000000');
-            setSettingsValue('runtime.defaultFontFamily', config.defaultFontFamily ?? 'Arial');
-            setSettingsValue('runtime.canvasScaleMode', config.canvasScaleMode ?? 'FixedHeight');
-            setSettingsValue('runtime.canvasMatchWidthOrHeight', config.canvasMatchWidthOrHeight ?? 0.5);
-            setSettingsValue('runtime.maxDeltaTime', config.maxDeltaTime ?? 0.25);
-            setSettingsValue('runtime.maxFixedSteps', config.maxFixedSteps ?? 8);
-            setSettingsValue('runtime.textCanvasSize', String(config.textCanvasSize ?? 512));
-        }
-
-        const projectPath = this.projectPath_;
-        onSettingsChange((id, value) => {
-            if (id.startsWith('project.') || id.startsWith('physics.') || id.startsWith('build.') || id.startsWith('runtime.')) {
-                if (this.settingsDebounceTimer_) clearTimeout(this.settingsDebounceTimer_);
-                this.settingsDebounceTimer_ = setTimeout(() => this.saveProjectField(projectPath), 500);
-                if (id === 'project.spineVersion') {
-                    this.spineVersionChangeHandler_?.(value as string);
-                }
-            }
-        });
+        this.settingsSync_ = new ProjectSettingsSync(
+            this.projectPath_,
+            (version) => this.spineVersionChangeHandler_?.(version),
+        );
+        await this.settingsSync_.loadFromProject();
+        this.settingsSync_.startAutoSync();
     }
 
     private async restoreLastScene(): Promise<void> {
@@ -666,39 +635,6 @@ export class Editor {
     private saveLastOpenedScene(scenePath: string): void {
         if (!this.projectPath_) return;
         saveEditorLocalSetting(this.projectPath_, 'lastOpenedScene', scenePath);
-    }
-
-    private async saveProjectField(projectPath: string): Promise<void> {
-        const config = await loadProjectConfig(projectPath);
-        if (!config) return;
-        config.name = getSettingsValue<string>('project.name') || config.name;
-        config.version = getSettingsValue<string>('project.version') || config.version;
-        config.defaultScene = getSettingsValue<string>('project.defaultScene') || config.defaultScene;
-        config.spineVersion = getSettingsValue<string>('project.spineVersion') as SpineVersion;
-        config.enablePhysics = getSettingsValue<boolean>('project.enablePhysics') ?? false;
-        config.physicsGravityX = getSettingsValue<number>('physics.gravityX') ?? 0;
-        config.physicsGravityY = getSettingsValue<number>('physics.gravityY') ?? -9.81;
-        config.physicsFixedTimestep = getSettingsValue<number>('physics.fixedTimestep') ?? 1 / 60;
-        config.physicsSubStepCount = getSettingsValue<number>('physics.subStepCount') ?? 4;
-        config.designResolution = {
-            width: getSettingsValue<number>('project.designWidth') || DEFAULT_DESIGN_WIDTH,
-            height: getSettingsValue<number>('project.designHeight') || DEFAULT_DESIGN_HEIGHT,
-        };
-        config.atlasMaxSize = parseInt(getSettingsValue<string>('build.atlasMaxSize') ?? '2048', 10);
-        config.atlasPadding = getSettingsValue<number>('build.atlasPadding') ?? 2;
-        config.sceneTransitionDuration = getSettingsValue<number>('runtime.sceneTransitionDuration') ?? 0.3;
-        config.sceneTransitionColor = getSettingsValue<string>('runtime.sceneTransitionColor') ?? '#000000';
-        config.defaultFontFamily = getSettingsValue<string>('runtime.defaultFontFamily') ?? 'Arial';
-        config.canvasScaleMode = getSettingsValue<string>('runtime.canvasScaleMode') ?? 'FixedHeight';
-        config.canvasMatchWidthOrHeight = getSettingsValue<number>('runtime.canvasMatchWidthOrHeight') ?? 0.5;
-        config.maxDeltaTime = getSettingsValue<number>('runtime.maxDeltaTime') ?? 0.25;
-        config.maxFixedSteps = getSettingsValue<number>('runtime.maxFixedSteps') ?? 8;
-        config.textCanvasSize = parseInt(getSettingsValue<string>('runtime.textCanvasSize') ?? '512', 10);
-        config.modified = new Date().toISOString();
-        const fs = getEditorContext().fs;
-        if (fs) {
-            await fs.writeFile(projectPath, JSON.stringify(config, null, 2));
-        }
     }
 
     showSettings(): void {
