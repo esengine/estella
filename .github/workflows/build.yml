@@ -110,7 +110,7 @@ jobs:
       run: pnpm exec tsc --noEmit -p editor/tsconfig.json
 
     - name: Run SDK tests with coverage
-      run: pnpm --filter ./sdk vitest run --coverage --coverage.thresholds.lines=60 --coverage.thresholds.functions=60 --coverage.thresholds.branches=60 --coverage.thresholds.statements=60
+      run: pnpm --filter ./sdk exec vitest run --coverage --coverage.thresholds.lines=60 --coverage.thresholds.functions=60 --coverage.thresholds.branches=60 --coverage.thresholds.statements=60
 
     - name: Run Editor tests with coverage
-      run: pnpm --filter @esengine/editor vitest run --coverage --coverage.thresholds.lines=60 --coverage.thresholds.functions=60 --coverage.thresholds.branches=60 --coverage.thresholds.statements=60
+      run: pnpm --filter ./editor exec vitest run --coverage --coverage.thresholds.lines=60 --coverage.thresholds.functions=60 --coverage.thresholds.branches=60 --coverage.thresholds.statements=60
