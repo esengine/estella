@@ -57,6 +57,8 @@ vi.mock('esengine', () => ({
     audioPlugin: { stopAllSources: vi.fn() },
     getComponent: vi.fn(() => null),
     getComponentAssetFields: vi.fn(() => []),
+    getAllAssetExtensions: vi.fn(() => new Set(['.png', '.jpg', '.esscene', '.json'])),
+    registerAssetBuildTransform: vi.fn(),
 }));
 
 vi.mock('../renderer/SharedRenderContext', () => ({
