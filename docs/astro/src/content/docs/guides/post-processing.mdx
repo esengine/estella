@@ -1,80 +1,141 @@
 ---
 title: Post-Processing
-description: Full-screen post-processing effects pipeline in ESEngine
+description: Per-camera post-processing effects pipeline in ESEngine
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-The PostProcess API applies full-screen shader effects after the scene is rendered. Chain multiple passes to create blur, vignette, grayscale, chromatic aberration, or custom effects.
+The PostProcess API applies full-screen shader effects after each camera renders. Effects are managed through **PostProcessStack** objects that can be bound to individual cameras, allowing different cameras to have different effects.
 
-## Initialization
-
-Initialize the pipeline with your canvas dimensions:
+## Quick Start
 
 ```typescript
 import { PostProcess } from 'esengine';
 
-PostProcess.init(canvas.width, canvas.height);
+// Create an effect stack
+const fx = PostProcess.createStack();
+fx.addPass('bloom', PostProcess.createBloom());
+fx.setUniform('bloom', 'u_threshold', 0.8);
+fx.setUniform('bloom', 'u_intensity', 1.5);
+
+// Bind to a camera entity
+PostProcess.bind(cameraEntity, fx);
+```
+
+## PostProcessStack
+
+A `PostProcessStack` is a reusable effect chain. Create one, add passes, and bind it to one or more cameras:
+
+```typescript
+const fx = PostProcess.createStack();
+
+// Add effects (execute in order)
+fx.addPass('blur', PostProcess.createBlur());
+fx.addPass('vignette', PostProcess.createVignette());
+
+// Configure uniforms
+fx.setUniform('blur', 'u_intensity', 3.0);
+fx.setUniform('vignette', 'u_intensity', 0.8);
+fx.setUniform('vignette', 'u_softness', 0.3);
+
+// Bind to camera — effects apply immediately
+PostProcess.bind(cameraEntity, fx);
+```
+
+<Aside type="tip">
+  Multiple cameras can share the same stack. Modifying the stack affects all cameras that reference it.
+</Aside>
+
+### Stack Methods
+
+| Method | Description |
+|--------|-------------|
+| `addPass(name, shader)` | Append a named pass |
+| `removePass(name)` | Remove a pass by name |
+| `setEnabled(name, enabled)` | Enable or disable a pass |
+| `setUniform(pass, name, value)` | Set a float uniform |
+| `setUniformVec4(pass, name, value)` | Set a vec4 uniform |
+| `setAllPassesEnabled(enabled)` | Enable or disable all passes at once |
+| `passCount` | Total number of passes |
+| `enabledPassCount` | Number of enabled passes |
+| `destroy()` | Destroy the stack (auto-unbinds all cameras) |
+
+## Camera Binding
+
+```typescript
+// Bind a stack to a camera
+PostProcess.bind(cameraEntity, fx);
+
+// Query the current stack
+const stack = PostProcess.getStack(cameraEntity); // null if none
+
+// Unbind (camera renders without effects)
+PostProcess.unbind(cameraEntity);
 ```
 
 <Aside type="note">
-  `PostProcess.begin()` and `PostProcess.end()` are called by the engine internally. You only need to configure passes and uniforms.
+  Each camera can have at most one stack. Binding a new stack replaces the previous one.
 </Aside>
-
-## Adding Passes
-
-Create a built-in effect shader and add it as a named pass:
-
-```typescript
-const blurShader = PostProcess.createBlur();
-PostProcess.addPass('blur', blurShader);
-PostProcess.setUniform('blur', 'u_intensity', 2.0);
-```
-
-Passes execute in the order they are added. Each pass reads the output of the previous pass as `u_texture`.
 
 ## Built-in Effects
 
 | Method | Effect | Uniforms |
 |--------|--------|----------|
-| `createBlur()` | Gaussian blur | `u_intensity` (float) — blur spread, `u_resolution` (vec2) — auto |
-| `createVignette()` | Darkened edges | `u_intensity` (float) — radius, `u_softness` (float) — falloff |
-| `createGrayscale()` | Desaturation | `u_intensity` (float, 0–1) — blend ratio |
-| `createChromaticAberration()` | RGB channel offset | `u_intensity` (float) — offset amount, `u_resolution` (vec2) — auto |
+| `createBloom()` | Bright-pixel glow | `u_threshold` — brightness cutoff, `u_intensity` — glow strength, `u_radius` — blur spread |
+| `createBlur()` | Gaussian blur | `u_intensity` — blur spread |
+| `createVignette()` | Darkened edges | `u_intensity` — radius, `u_softness` — falloff |
+| `createGrayscale()` | Desaturation | `u_intensity` (0–1) — blend ratio |
+| `createChromaticAberration()` | RGB channel offset | `u_intensity` — offset amount |
 
 <Aside type="tip">
-  `u_resolution` is set automatically by the engine. You only need to set the other uniforms.
+  `u_resolution` is set automatically by the engine for effects that use it.
 </Aside>
+
+### Bloom
+
+Extracts bright pixels, blurs them, and adds them back. Good for glowing lights and HDR-like effects:
+
+```typescript
+const fx = PostProcess.createStack();
+fx.addPass('bloom', PostProcess.createBloom());
+fx.setUniform('bloom', 'u_threshold', 0.8);  // brightness cutoff
+fx.setUniform('bloom', 'u_intensity', 1.5);  // glow strength
+fx.setUniform('bloom', 'u_radius', 4.0);     // blur spread
+PostProcess.bind(cameraEntity, fx);
+```
 
 ### Blur
 
 9-tap Gaussian blur. Higher `u_intensity` increases the blur spread:
 
 ```typescript
-const blur = PostProcess.createBlur();
-PostProcess.addPass('blur', blur);
-PostProcess.setUniform('blur', 'u_intensity', 3.0);
+const fx = PostProcess.createStack();
+fx.addPass('blur', PostProcess.createBlur());
+fx.setUniform('blur', 'u_intensity', 3.0);
+PostProcess.bind(cameraEntity, fx);
 ```
 
 ### Vignette
 
-Darkens the screen edges. `u_intensity` controls the radius, `u_softness` controls the falloff:
+Darkens the screen edges:
 
 ```typescript
-const vignette = PostProcess.createVignette();
-PostProcess.addPass('vignette', vignette);
-PostProcess.setUniform('vignette', 'u_intensity', 0.8);
-PostProcess.setUniform('vignette', 'u_softness', 0.4);
+const fx = PostProcess.createStack();
+fx.addPass('vignette', PostProcess.createVignette());
+fx.setUniform('vignette', 'u_intensity', 0.8);
+fx.setUniform('vignette', 'u_softness', 0.4);
+PostProcess.bind(cameraEntity, fx);
 ```
 
 ### Grayscale
 
-Blends between the original color and grayscale. `u_intensity` of `1.0` is fully gray:
+Blends between the original color and grayscale:
 
 ```typescript
-const gray = PostProcess.createGrayscale();
-PostProcess.addPass('grayscale', gray);
-PostProcess.setUniform('grayscale', 'u_intensity', 1.0);
+const fx = PostProcess.createStack();
+fx.addPass('grayscale', PostProcess.createGrayscale());
+fx.setUniform('grayscale', 'u_intensity', 1.0);  // fully gray
+PostProcess.bind(cameraEntity, fx);
 ```
 
 ### Chromatic Aberration
@@ -82,58 +143,31 @@ PostProcess.setUniform('grayscale', 'u_intensity', 1.0);
 Offsets the R and B channels for a lens distortion look:
 
 ```typescript
-const ca = PostProcess.createChromaticAberration();
-PostProcess.addPass('chromatic', ca);
-PostProcess.setUniform('chromatic', 'u_intensity', 2.0);
+const fx = PostProcess.createStack();
+fx.addPass('chromatic', PostProcess.createChromaticAberration());
+fx.setUniform('chromatic', 'u_intensity', 2.0);
+PostProcess.bind(cameraEntity, fx);
 ```
 
-## Pass Management
+## Editor Workflow
 
-```typescript
-PostProcess.setEnabled('blur', false);     // disable a pass
-PostProcess.setEnabled('blur', true);      // re-enable
-PostProcess.removePass('blur');            // remove entirely
-const count = PostProcess.getPassCount();  // number of passes
-```
+Add a **PostProcessVolume** component to a Camera entity in the editor to configure effects visually:
 
-## Setting Uniforms
+1. Select the Camera entity in the Hierarchy
+2. **Add Component** → **PostProcessVolume**
+3. Click **Add Effect** and choose from the built-in effects
+4. Adjust parameters with the sliders
 
-```typescript
-PostProcess.setUniform('blur', 'u_intensity', 5.0);
-PostProcess.setUniformVec4('custom', 'u_tint', { x: 1, y: 0.8, z: 0.6, w: 1 });
-```
-
-## Bypass Mode
-
-When no passes are active, bypass the pipeline to skip FBO overhead:
-
-```typescript
-PostProcess.setBypass(true);   // render directly to screen
-PostProcess.setBypass(false);  // use the pipeline
-
-const bypassed = PostProcess.isBypassed();
-```
-
-## Window Resize
-
-Update framebuffer dimensions when the canvas resizes:
-
-```typescript
-window.addEventListener('resize', () => {
-    PostProcess.resize(canvas.width, canvas.height);
-});
-```
+Effects are visible in both the Scene View and the Game View. The component data is saved with the scene file.
 
 ## Custom Pass
 
-Write a custom fragment shader and add it as a pass. The vertex shader is a fixed full-screen quad — you only write the fragment shader:
+Write a custom fragment shader. The vertex shader uses a fixed full-screen quad — you only write the fragment shader:
 
 ```typescript
 import { Material, PostProcess } from 'esengine';
 
 const invertShader = Material.createShader(
-    // vertex shader is provided internally for post-process,
-    // but createShader needs both — use the same pattern:
     `#version 300 es
     precision highp float;
     layout(location = 0) in vec2 a_position;
@@ -156,8 +190,10 @@ const invertShader = Material.createShader(
     }`
 );
 
-PostProcess.addPass('invert', invertShader);
-PostProcess.setUniform('invert', 'u_intensity', 1.0);
+const fx = PostProcess.createStack();
+fx.addPass('invert', invertShader);
+fx.setUniform('invert', 'u_intensity', 1.0);
+PostProcess.bind(cameraEntity, fx);
 ```
 
 See [Materials & Shaders](/microes/guides/materials/) for more on writing shaders.
@@ -169,38 +205,50 @@ Enable blur and grayscale when the game is paused:
 ```typescript
 import { PostProcess } from 'esengine';
 
-const blurShader = PostProcess.createBlur();
-const grayShader = PostProcess.createGrayscale();
-PostProcess.addPass('pause-blur', blurShader);
-PostProcess.addPass('pause-gray', grayShader);
-PostProcess.setEnabled('pause-blur', false);
-PostProcess.setEnabled('pause-gray', false);
+const pauseFx = PostProcess.createStack();
+pauseFx.addPass('blur', PostProcess.createBlur());
+pauseFx.addPass('gray', PostProcess.createGrayscale());
+pauseFx.setAllPassesEnabled(false);
+
+PostProcess.bind(cameraEntity, pauseFx);
 
 function setPaused(paused: boolean) {
-    PostProcess.setEnabled('pause-blur', paused);
-    PostProcess.setEnabled('pause-gray', paused);
-    PostProcess.setUniform('pause-blur', 'u_intensity', 4.0);
-    PostProcess.setUniform('pause-gray', 'u_intensity', 0.6);
+    pauseFx.setAllPassesEnabled(paused);
+    pauseFx.setUniform('blur', 'u_intensity', 4.0);
+    pauseFx.setUniform('gray', 'u_intensity', 0.6);
 }
 ```
 
-## Full API Reference
+## Example: Different Effects per Camera
+
+```typescript
+// Main camera — bloom + vignette
+const mainFx = PostProcess.createStack();
+mainFx.addPass('bloom', PostProcess.createBloom());
+mainFx.addPass('vignette', PostProcess.createVignette());
+mainFx.setUniform('bloom', 'u_threshold', 0.7);
+mainFx.setUniform('vignette', 'u_intensity', 0.6);
+PostProcess.bind(mainCamera, mainFx);
+
+// Minimap camera — grayscale
+const minimapFx = PostProcess.createStack();
+minimapFx.addPass('gray', PostProcess.createGrayscale());
+minimapFx.setUniform('gray', 'u_intensity', 0.5);
+PostProcess.bind(minimapCamera, minimapFx);
+```
+
+## Lifecycle
 
 | Method | Description |
 |--------|-------------|
-| `PostProcess.init(width, height)` | Initialize the pipeline |
+| `PostProcess.createStack()` | Create a new effect stack |
+| `PostProcess.bind(camera, stack)` | Bind a stack to a camera |
+| `PostProcess.unbind(camera)` | Unbind the stack from a camera |
+| `PostProcess.getStack(camera)` | Get the bound stack (or null) |
+| `PostProcess.init(width, height)` | Initialize the pipeline (called automatically) |
 | `PostProcess.shutdown()` | Shut down the pipeline |
-| `PostProcess.resize(width, height)` | Update framebuffer size |
-| `PostProcess.addPass(name, shader)` | Add a named pass |
-| `PostProcess.removePass(name)` | Remove a pass |
-| `PostProcess.setEnabled(name, enabled)` | Enable or disable a pass |
-| `PostProcess.isEnabled(name)` | Check if a pass is enabled |
-| `PostProcess.setUniform(pass, name, value)` | Set a float uniform |
-| `PostProcess.setUniformVec4(pass, name, value)` | Set a vec4 uniform |
-| `PostProcess.getPassCount()` | Get the number of passes |
-| `PostProcess.isInitialized()` | Check if the pipeline is active |
-| `PostProcess.setBypass(bypass)` | Enable or disable bypass mode |
-| `PostProcess.isBypassed()` | Check bypass state |
+| `PostProcess.resize(width, height)` | Update framebuffer size (called automatically) |
+| `PostProcess.createBloom()` | Create a bloom effect shader |
 | `PostProcess.createBlur()` | Create a blur effect shader |
 | `PostProcess.createVignette()` | Create a vignette effect shader |
 | `PostProcess.createGrayscale()` | Create a grayscale effect shader |

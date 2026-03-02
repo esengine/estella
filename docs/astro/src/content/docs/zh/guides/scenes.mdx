@@ -40,6 +40,10 @@ import { Aside } from '@astrojs/starlight/components';
 
 构建项目后，引擎会自动加载场景、解析所有引用的资源（纹理、材质、Spine），并在没有相机时创建默认相机。你不需要手动处理场景加载。
 
+<Aside type="tip">
+  编辑器中创建的场景文件（`.esscene`）在构建时会**直接嵌入构建产物**。你不需要指定文件路径或关心部署 URL — 构建系统会自动处理。`SceneConfig` 中的 `path` 字段仅用于高级场景，例如运行时从远程服务器加载场景。
+</Aside>
+
 ## 查找实体
 
 ### 按名字查找
@@ -149,7 +153,23 @@ addSystem(defineSystem(
 
 ## 注册场景
 
-场景在编辑器中管理 — 创建 `.scene` 文件并在项目设置中配置。如需高级用例，可在 `setup` 函数中以编程方式注册场景：
+### 编辑器工作流（推荐）
+
+大多数项目完全通过编辑器管理场景：
+
+1. 在 **Content Browser** 中右键 → **创建** → **场景**，创建 `.esscene` 文件（默认位置：`assets/scenes/main.esscene`）
+2. 打开**构建设置**，添加需要包含在构建中的场景
+3. 构建项目 — 构建系统读取每个 `.esscene` 文件，提取场景名称，并将**场景数据直接嵌入**构建产物
+
+运行时引擎会自动注册和加载这些嵌入的场景。**你不需要编写任何场景加载代码，也不需要指定任何文件路径。**
+
+<Aside type="note">
+  构建时，`assets/scenes/main.esscene` 文件会变成名为 `"main"` 的场景。文件路径仅在构建时使用，不是运行时 URL。
+</Aside>
+
+### 编程注册
+
+对于需要场景切换、自定义系统、或 setup/cleanup 回调的多场景项目，在 `setup` 函数中注册场景。同样不需要 `path` — 构建系统会自动处理数据嵌入：
 
 ```typescript
 import { SceneManager, Schedule, type App } from 'esengine';
@@ -159,7 +179,6 @@ export function setup(app: App) {
 
     mgr.register({
         name: 'menu',
-        path: '/scenes/menu.json',
         systems: [
             { schedule: Schedule.Update, system: menuUpdateSystem },
         ],
@@ -171,15 +190,25 @@ export function setup(app: App) {
         },
     });
 
-    mgr.register({ name: 'game', path: '/scenes/game.json' });
+    mgr.register({ name: 'game' });
     mgr.setInitial('menu');
 }
 ```
 
-除了通过 `path` 指定场景文件路径外，也可以通过 `data` 直接传入场景数据对象，适用于动态生成或内存中的场景：
+<Aside type="tip">
+  `name` 必须与场景文件名（不含扩展名）一致。例如 `assets/scenes/menu.esscene` → `name: 'menu'`。
+</Aside>
+
+<Aside type="tip">
+  `systems` 中注册的系统会自动包装为场景作用域系统，仅在该场景状态为 `running` 时执行。
+</Aside>
+
+### 内联场景数据
+
+也可以通过 `data` 直接传入场景数据对象，适用于动态生成或内存中的场景：
 
 ```typescript
-app.registerScene({
+mgr.register({
     name: 'procedural',
     data: {
         version: '1.0',
@@ -192,8 +221,27 @@ app.registerScene({
 });
 ```
 
-<Aside type="tip">
-  `systems` 中注册的系统会自动包装为场景作用域系统，仅在该场景状态为 `running` 时执行。
+### 从 URL 加载（高级）
+
+如需从 CDN 加载或开发时热加载等高级场景，可使用 `path` 字段指定 URL：
+
+```typescript
+mgr.register({
+    name: 'menu',
+    path: '/scenes/menu.json',
+});
+```
+
+路径解析规则：
+
+| 路径格式 | 解析方式 | 示例 |
+|----------|----------|------|
+| 以 `/` 开头 | 从站点根目录的绝对路径，原样使用 | `/scenes/menu.json` → `/scenes/menu.json` |
+| 以 `http://` 或 `https://` 开头 | 完整 URL，原样使用 | `https://cdn.example.com/scenes/menu.json` |
+| 相对路径 | 拼接 `AssetServer.baseUrl` 前缀 | `scenes/menu.json` → `{baseUrl}/scenes/menu.json` |
+
+<Aside type="caution">
+  `path` 是**运行时 URL**，不是项目文件路径。不要把 `.esscene` 文件路径填在这里（例如 `assets/scenes/main.esscene`）。通过编辑器构建的项目，场景数据已经嵌入，完全不需要 `path`。
 </Aside>
 
 ## 切换场景
