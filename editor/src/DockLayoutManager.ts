@@ -116,6 +116,7 @@ export class DockLayoutManager {
         if (saved) {
             try {
                 this.api_.fromJSON(saved);
+                this.ensureRequiredPanels_();
                 this.startSavingLayout();
                 return;
             } catch {
@@ -126,6 +127,10 @@ export class DockLayoutManager {
 
         this.applyDefaultLayout();
         this.startSavingLayout();
+    }
+
+    private ensureRequiredPanels_(): void {
+        // no-op: all required panels are created via default layout
     }
 
     private applyDefaultLayout(): void {
@@ -216,13 +221,24 @@ export class DockLayoutManager {
         if (!panel) {
             const desc = getPanel(id);
             if (!desc) return;
-            this.api_.addPanel({
-                id: desc.id,
-                component: desc.id,
-                title: desc.title,
-                position: { referencePanel: 'scene', direction: 'below' },
-                initialHeight: 200,
-            });
+
+            if (desc.position === 'center') {
+                this.api_.addPanel({
+                    id: desc.id,
+                    component: desc.id,
+                    title: desc.title,
+                    position: { referencePanel: 'scene', direction: 'within' },
+                    inactive: true,
+                });
+            } else {
+                this.api_.addPanel({
+                    id: desc.id,
+                    component: desc.id,
+                    title: desc.title,
+                    position: { referencePanel: 'scene', direction: 'below' },
+                    initialHeight: 200,
+                });
+            }
             panel = this.api_.getPanel(id);
         }
         panel?.api.setActive();

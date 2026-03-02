@@ -1,5 +1,5 @@
 import type { EntityData } from '../types/SceneTypes';
-import { Assets, Name, Parent, Children, getComponent, getComponentAssetFields, Audio, audioPlugin } from 'esengine';
+import { Assets, Name, Parent, Children, getComponent, getComponentAssetFields, Audio, audioPlugin, SceneManager } from 'esengine';
 import type { Entity, World } from 'esengine';
 import { getEditorStore, type SceneSnapshot } from '../store/EditorStore';
 import { getSharedRenderContext } from '../renderer/SharedRenderContext';
@@ -78,6 +78,7 @@ class PlayModeService {
 
         const ctx = getSharedRenderContext();
         this.configureAssetBaseUrl(ctx);
+        this.registerProjectScenes(ctx);
         await this.injectUserScripts(ctx);
         ctx.enterPlayMode();
 
@@ -90,6 +91,7 @@ class PlayModeService {
 
         Audio.stopAll();
         audioPlugin.stopAllSources();
+        this.cleanupSceneManager();
 
         for (const cleanup of this.sharedCleanups_) cleanup();
         this.sharedCleanups_ = [];
@@ -200,6 +202,26 @@ class PlayModeService {
         } else {
             this.sharedWorld_.remove(entityId as Entity, Parent);
         }
+    }
+
+    private registerProjectScenes(ctx: ReturnType<typeof getSharedRenderContext>): void {
+        const app = ctx.app_;
+        if (!app || !app.hasResource(SceneManager)) return;
+
+        const mgr = app.getResource(SceneManager);
+        const db = getAssetDatabase();
+
+        for (const entry of db.getAllEntries()) {
+            if (!entry.path.endsWith('.esscene')) continue;
+            const name = entry.path.replace(/.*\//, '').replace('.esscene', '');
+            mgr.register({ name, path: entry.path });
+        }
+    }
+
+    private cleanupSceneManager(): void {
+        const app = getSharedRenderContext().app_;
+        if (!app || !app.hasResource(SceneManager)) return;
+        app.getResource(SceneManager).reset();
     }
 
     private configureAssetBaseUrl(ctx: ReturnType<typeof getSharedRenderContext>): void {

@@ -14,7 +14,10 @@ vi.mock('../src/postprocess', () => ({
         addPass: vi.fn().mockReturnValue(0),
         removePass: vi.fn(),
         setEnabled: vi.fn(),
+        bind: vi.fn(),
+        unbind: vi.fn(),
     },
+    PostProcessStack: vi.fn(),
 }));
 
 vi.mock('../src/material', () => ({
@@ -896,6 +899,103 @@ describe('SceneManager', () => {
             ctx.addPostProcessPass('bloom', 1 as any);
             ctx.removePostProcessPass('bloom');
             expect(PostProcess.removePass).toHaveBeenCalledWith('bloom');
+        });
+    });
+
+    // =========================================================================
+    // reset()
+    // =========================================================================
+    describe('reset()', () => {
+        it('clears all loaded scenes and configs', async () => {
+            manager.register({ name: 'level1', data: makeSceneData() });
+            manager.register({ name: 'level2', data: makeSceneData() });
+            await manager.load('level1');
+            await manager.loadAdditive('level2');
+
+            manager.reset();
+
+            expect(manager.getActive()).toBeNull();
+            expect(manager.getLoaded()).toEqual([]);
+            expect(manager.getLoadOrder()).toEqual([]);
+            expect(manager.getScene('level1')).toBeNull();
+            expect(manager.getScene('level2')).toBeNull();
+        });
+
+        it('clears initial scene', async () => {
+            manager.setInitial('level1');
+            manager.reset();
+            expect(manager.getInitial()).toBeNull();
+        });
+
+        it('clears paused and sleeping sets', async () => {
+            manager.register({ name: 'level1', data: makeSceneData() });
+            manager.register({ name: 'level2', data: makeSceneData() });
+            await manager.load('level1');
+            await manager.loadAdditive('level2');
+            manager.pause('level1');
+            manager.sleep('level2');
+
+            manager.reset();
+
+            expect(manager.isPaused('level1')).toBe(false);
+            expect(manager.isSleeping('level2')).toBe(false);
+        });
+
+        it('unregisters draw callbacks from loaded scenes', async () => {
+            manager.register({ name: 'level1', data: makeSceneData() });
+            const ctx = await manager.load('level1');
+            ctx.registerDrawCallback('myDraw', () => {});
+
+            manager.reset();
+            expect(unregisterDrawCallback).toHaveBeenCalledWith('myDraw');
+        });
+
+        it('unbinds post process from loaded scenes', async () => {
+            manager.register({ name: 'level1', data: makeSceneData() });
+            const ctx = await manager.load('level1');
+            const mockStack = { setAllPassesEnabled: vi.fn() };
+            ctx.bindPostProcess(42 as any, mockStack as any);
+
+            manager.reset();
+            expect(PostProcess.unbind).toHaveBeenCalledWith(42);
+        });
+
+        it('does not despawn entities', async () => {
+            const entityMap = new Map([[100, 1]]);
+            vi.mocked(loadSceneWithAssets).mockResolvedValueOnce(entityMap);
+            app._entities.set(1, new Map());
+
+            manager.register({ name: 'level1', data: makeSceneData() });
+            await manager.load('level1');
+
+            manager.reset();
+            expect(app.world.despawn).not.toHaveBeenCalled();
+        });
+
+        it('clears transition state', async () => {
+            manager.register({ name: 'level1', data: makeSceneData() });
+            manager.register({ name: 'level2', data: makeSceneData() });
+            await manager.load('level1');
+
+            manager.switchTo('level2', { transition: 'fade', duration: 1.0 });
+            await Promise.resolve();
+            expect(manager.isTransitioning()).toBe(true);
+
+            manager.reset();
+            expect(manager.isTransitioning()).toBe(false);
+            expect(unregisterDrawCallback).toHaveBeenCalledWith('__scene_transition_overlay__');
+        });
+
+        it('allows re-registration and loading after reset', async () => {
+            manager.register({ name: 'level1', data: makeSceneData() });
+            await manager.load('level1');
+
+            manager.reset();
+
+            manager.register({ name: 'level1', data: makeSceneData() });
+            const ctx = await manager.load('level1');
+            expect(ctx.name).toBe('level1');
+            expect(manager.getActive()).toBe('level1');
         });
     });
 });

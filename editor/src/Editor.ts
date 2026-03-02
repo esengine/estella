@@ -57,6 +57,8 @@ import {
     lockBuiltinInspectorExtensions,
     clearExtensionInspectorExtensions,
 } from './panels/inspector/InspectorRegistry';
+import { registerPostProcessVolumeInspector } from './panels/inspector/PostProcessVolumeInspector';
+
 import { showConfirmDialog, showInputDialog, showDialog } from './ui/dialog';
 import { getEditorStore } from './store';
 import { generateUniqueName } from './utils/naming';
@@ -142,6 +144,7 @@ export class Editor {
         registerBuiltinEditors();
         registerMaterialEditors();
         registerBuiltinSchemas();
+        registerPostProcessVolumeInspector();
         initBoundsProviders();
         registerBuiltinGizmos();
         registerBuiltinSettings();

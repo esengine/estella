@@ -36,7 +36,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000}
 </script>
 <script>
 var __PA__={{ASSETS_MAP}};
-var __SCENE__={{SCENE_DATA}};
+var __SCENES__={{SCENES_DATA}};
 var __MANIFEST__={{MANIFEST}};
 
 {{CTA_SCRIPT}}
@@ -59,7 +59,7 @@ var __MANIFEST__={{MANIFEST}};
   {{CTA_SHOW}}
   await es.initPlayableRuntime({
     app:app,module:Module,canvas:c,
-    assets:__PA__,sceneData:__SCENE__,sceneName:'{{SCENE_NAME}}',
+    assets:__PA__,scenes:__SCENES__,firstScene:'{{STARTUP_SCENE}}',
     spineWasmBase64:typeof __SPINE_WASM_B64__!=='undefined'?__SPINE_WASM_B64__:undefined,
     physicsWasmBase64:typeof __PHYSICS_WASM_B64__!=='undefined'?__PHYSICS_WASM_B64__:undefined,
     physicsConfig:{{PHYSICS_CONFIG}},manifest:__MANIFEST__

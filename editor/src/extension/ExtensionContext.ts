@@ -20,11 +20,14 @@ export class ExtensionContext {
 
             PostProcess: {
                 ...(base.PostProcess as object),
-                addPass: (name: string, shader: number) => {
-                    if (this.disposed_) return -1;
-                    const idx = (base.PostProcess as any).addPass(name, shader);
-                    this.postProcessPasses_.add(name);
-                    return idx;
+                bind: (camera: number, stack: unknown) => {
+                    if (this.disposed_) return;
+                    PostProcess.bind(camera, stack as any);
+                    this.postProcessCameras_.add(camera);
+                },
+                unbind: (camera: number) => {
+                    PostProcess.unbind(camera);
+                    this.postProcessCameras_.delete(camera);
                 },
             },
 
@@ -54,8 +57,8 @@ export class ExtensionContext {
             unregisterDrawCallback(id);
         }
 
-        for (const name of this.postProcessPasses_) {
-            try { PostProcess.removePass(name); } catch {}
+        for (const camera of this.postProcessCameras_) {
+            try { PostProcess.unbind(camera); } catch {}
         }
 
         for (const handle of this.shaderHandles_) {
@@ -65,7 +68,7 @@ export class ExtensionContext {
 
     private disposed_ = false;
     private drawCallbackIds_ = new Set<string>();
-    private postProcessPasses_ = new Set<string>();
+    private postProcessCameras_ = new Set<number>();
     private shaderHandles_ = new Set<number>();
     private disposables_: (() => void)[] = [];
 }

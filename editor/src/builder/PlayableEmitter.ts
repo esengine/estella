@@ -42,6 +42,8 @@ const COMPONENT_TO_PLUGIN: Record<string, string> = {
     'LayoutGroup': 'layoutGroupPlugin',
     'AudioSource': 'audioPlugin',
     'ParticleEmitter': 'particlePlugin',
+    'Tilemap': 'tilemapPlugin',
+    'TilemapLayer': 'tilemapPlugin',
 };
 
 function analyzeUsedPlugins(artifact: BuildArtifact): string[] {
@@ -111,15 +113,17 @@ export class PlayableEmitter implements PlatformEmitter {
             const gameCode = await this.compileUserScripts(fs, projectDir, context, artifact);
             progress.log('info', `Scripts compiled: ${gameCode.length} bytes`);
 
-            // 3. Process startup scene (resolve UUIDs)
-            const sceneName = startupScene.replace(/.*\//, '').replace('.esscene', '');
-            const sceneData = artifact.scenes.get(sceneName);
-            if (!sceneData) {
+            // 3. Process all scenes (resolve UUIDs)
+            const startupSceneName = startupScene.replace(/.*\//, '').replace('.esscene', '');
+            const allScenes: Array<{ name: string; data: string }> = [];
+            for (const [name, data] of artifact.scenes) {
+                const copy = JSON.parse(JSON.stringify(data));
+                this.resolveSceneUUIDs(copy, artifact);
+                allScenes.push({ name, data: JSON.stringify(copy) });
+            }
+            if (!allScenes.some(s => s.name === startupSceneName)) {
                 return { success: false, error: `Startup scene not found: ${startupScene}` };
             }
-            const sceneDataCopy = JSON.parse(JSON.stringify(sceneData));
-            this.resolveSceneUUIDs(sceneDataCopy, artifact);
-            const rewrittenScene = JSON.stringify(sceneDataCopy);
 
             // 4. Load spine module if needed
             progress.setCurrentTask('Loading modules...', 25);
@@ -165,7 +169,7 @@ export class PlayableEmitter implements PlatformEmitter {
             // 7. Assemble HTML
             progress.setCurrentTask('Assembling HTML...', 50);
             const html = this.assembleHTML(
-                wasmSdk, gameCode, rewrittenScene, sceneName, assets,
+                wasmSdk, gameCode, allScenes, startupSceneName, assets,
                 spineJsSource, spineWasmBase64,
                 physicsJsSource, physicsWasmBase64,
                 context, manifestJson
@@ -390,7 +394,8 @@ const __plugins = [${pluginList}];
     }
 
     private assembleHTML(
-        wasmSdk: string, gameCode: string, sceneData: string, sceneName: string,
+        wasmSdk: string, gameCode: string,
+        allScenes: Array<{ name: string; data: string }>, startupScene: string,
         assets: Map<string, string>,
         spineJs: string, spineWasmBase64: string,
         physicsJs: string, physicsWasmBase64: string,
@@ -442,8 +447,11 @@ const __plugins = [${pluginList}];
             .replace('{{PHYSICS_SCRIPT}}', () => physicsScript)
             .replace('{{GAME_CODE}}', () => gameCode)
             .replace('{{ASSETS_MAP}}', () => `{${entries.join(',')}}`)
-            .replace('{{SCENE_DATA}}', () => sceneData)
-            .replace('{{SCENE_NAME}}', () => sceneName)
+            .replace('{{SCENES_DATA}}', () => {
+                const items = allScenes.map(s => `{name:${JSON.stringify(s.name)},data:${s.data}}`);
+                return `[${items.join(',')}]`;
+            })
+            .replace('{{STARTUP_SCENE}}', () => startupScene)
             .replace('{{PHYSICS_CONFIG}}', () => physicsConfig)
             .replace('{{MANIFEST}}', () => manifestJson)
             .replace('{{RUNTIME_CONFIG}}', () => runtimeConfigCode)
