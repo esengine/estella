@@ -8,10 +8,11 @@ import {
     getEffectDef,
     syncPostProcessVolume,
     type PostProcessEffectData,
+    type PostProcessVolumeData,
 } from 'esengine';
 import type { ComponentInspectorContext, ComponentInspectorInstance } from './InspectorRegistry';
 import { registerComponentInspector } from './InspectorRegistry';
-import { createFloatEditor } from './SharedEditors';
+import { createFloatEditor, createIntEditor, createVec2Editor } from './SharedEditors';
 import { icons } from '../../utils/icons';
 
 function cloneEffects(effects: PostProcessEffectData[]): PostProcessEffectData[] {
@@ -22,29 +23,60 @@ function cloneEffects(effects: PostProcessEffectData[]): PostProcessEffectData[]
     }));
 }
 
+interface VolumeProps {
+    isGlobal: boolean;
+    shape: 'box' | 'sphere';
+    size: { x: number; y: number };
+    priority: number;
+    weight: number;
+    blendDistance: number;
+}
+
+function extractVolumeProps(data: Record<string, unknown>): VolumeProps {
+    return {
+        isGlobal: (data.isGlobal as boolean) ?? true,
+        shape: (data.shape as 'box' | 'sphere') ?? 'box',
+        size: (data.size as { x: number; y: number }) ?? { x: 5, y: 5 },
+        priority: (data.priority as number) ?? 0,
+        weight: (data.weight as number) ?? 1,
+        blendDistance: (data.blendDistance as number) ?? 0,
+    };
+}
+
+function buildVolumeData(effects: PostProcessEffectData[], props: VolumeProps): PostProcessVolumeData {
+    return { effects, ...props };
+}
+
 function renderInspector(
     container: HTMLElement,
     ctx: ComponentInspectorContext,
 ): ComponentInspectorInstance {
     let currentEffects: PostProcessEffectData[] =
         (ctx.componentData.effects as PostProcessEffectData[]) ?? [];
+    let volumeProps = extractVolumeProps(ctx.componentData);
 
-    function emitChange(newEffects: PostProcessEffectData[]): void {
+    function emitEffectsChange(newEffects: PostProcessEffectData[]): void {
         const old = cloneEffects(currentEffects);
         currentEffects = newEffects;
         ctx.onChange('effects', old, cloneEffects(newEffects));
+        syncToRuntime();
+    }
 
+    function emitPropChange<K extends keyof VolumeProps>(key: K, oldVal: VolumeProps[K], newVal: VolumeProps[K]): void {
+        volumeProps[key] = newVal;
+        ctx.onChange(key, oldVal, newVal);
         syncToRuntime();
     }
 
     function syncToRuntime(): void {
-        syncPostProcessVolume(ctx.entity, { effects: currentEffects });
+        syncPostProcessVolume(ctx.entity, buildVolumeData(currentEffects, volumeProps));
     }
 
     function rebuild(): void {
         container.innerHTML = '';
-        renderEffectList(container, currentEffects, emitChange);
-        renderAddButton(container, currentEffects, emitChange);
+        renderVolumeProps(container, volumeProps, emitPropChange, rebuild);
+        renderEffectList(container, currentEffects, emitEffectsChange);
+        renderAddButton(container, currentEffects, emitEffectsChange);
     }
 
     rebuild();
@@ -53,12 +85,115 @@ function renderInspector(
     return {
         dispose() {},
         update(data: Record<string, unknown>) {
-            const newEffects = (data.effects as PostProcessEffectData[]) ?? [];
-            currentEffects = newEffects;
+            currentEffects = (data.effects as PostProcessEffectData[]) ?? [];
+            volumeProps = extractVolumeProps(data);
             rebuild();
             syncToRuntime();
         },
     };
+}
+
+function renderVolumeProps(
+    container: HTMLElement,
+    props: VolumeProps,
+    onChange: <K extends keyof VolumeProps>(key: K, oldVal: VolumeProps[K], newVal: VolumeProps[K]) => void,
+    rebuild: () => void,
+): void {
+    const section = document.createElement('div');
+    section.className = 'es-pp-volume-props';
+
+    const createRow = (label: string): { row: HTMLElement; value: HTMLElement } => {
+        const row = document.createElement('div');
+        row.className = 'es-property-row';
+        const propLabel = document.createElement('span');
+        propLabel.className = 'es-property-label';
+        propLabel.textContent = label;
+        const propValue = document.createElement('div');
+        propValue.className = 'es-property-value';
+        row.appendChild(propLabel);
+        row.appendChild(propValue);
+        return { row, value: propValue };
+    };
+
+    // isGlobal
+    {
+        const { row, value } = createRow('Is Global');
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.className = 'es-input es-input-checkbox';
+        input.checked = props.isGlobal;
+        input.addEventListener('change', () => {
+            const old = props.isGlobal;
+            onChange('isGlobal', old, input.checked);
+            rebuild();
+        });
+        value.appendChild(input);
+        section.appendChild(row);
+    }
+
+    // priority
+    {
+        const { row, value } = createRow('Priority');
+        createIntEditor(value, props.priority, (v) => {
+            const old = props.priority;
+            onChange('priority', old, v);
+        });
+        section.appendChild(row);
+    }
+
+    // weight
+    {
+        const { row, value } = createRow('Weight');
+        createFloatEditor(value, props.weight, (v) => {
+            const old = props.weight;
+            onChange('weight', old, v);
+        }, 0, 1, 0.01);
+        section.appendChild(row);
+    }
+
+    if (!props.isGlobal) {
+        // shape
+        {
+            const { row, value } = createRow('Shape');
+            const select = document.createElement('select');
+            select.className = 'es-input es-input-select';
+            for (const opt of ['box', 'sphere'] as const) {
+                const option = document.createElement('option');
+                option.value = opt;
+                option.textContent = opt.charAt(0).toUpperCase() + opt.slice(1);
+                if (opt === props.shape) option.selected = true;
+                select.appendChild(option);
+            }
+            select.addEventListener('change', () => {
+                const old = props.shape;
+                onChange('shape', old, select.value as 'box' | 'sphere');
+            });
+            value.appendChild(select);
+            section.appendChild(row);
+        }
+
+        // size
+        {
+            const { row, value } = createRow('Size');
+            createVec2Editor(value, { ...props.size }, (v) => {
+                const old = { ...props.size };
+                onChange('size', old, v);
+            });
+            section.appendChild(row);
+        }
+
+        // blendDistance
+        {
+            const { row, value } = createRow('Blend Distance');
+            createFloatEditor(value, props.blendDistance, (v) => {
+                const old = props.blendDistance;
+                onChange('blendDistance', old, v);
+            }, 0, undefined, 0.1);
+            section.appendChild(row);
+        }
+    }
+
+    container.appendChild(section);
 }
 
 function renderEffectList(

@@ -19,9 +19,9 @@ describe('ParticleEmitter Component', () => {
         expect(defaults.duration).toBe(5);
         expect(defaults.looping).toBe(true);
         expect(defaults.playOnStart).toBe(true);
-        expect(defaults.maxParticles).toBe(100);
-        expect(defaults.lifetimeMin).toBe(1);
-        expect(defaults.lifetimeMax).toBe(2);
+        expect(defaults.maxParticles).toBe(1000);
+        expect(defaults.lifetimeMin).toBe(5);
+        expect(defaults.lifetimeMax).toBe(5);
         expect(defaults.enabled).toBe(true);
     });
 
@@ -29,10 +29,10 @@ describe('ParticleEmitter Component', () => {
         const def = getComponent('ParticleEmitter');
         const defaults = def!._default as Record<string, unknown>;
 
-        expect(defaults.shape).toBe(0);
-        expect(defaults.shapeRadius).toBe(1);
-        expect(defaults.shapeSize).toEqual({ x: 1, y: 1 });
-        expect(defaults.shapeAngle).toBe(45);
+        expect(defaults.shape).toBe(3);
+        expect(defaults.shapeRadius).toBe(100);
+        expect(defaults.shapeSize).toEqual({ x: 100, y: 100 });
+        expect(defaults.shapeAngle).toBe(25);
     });
 
     it('should have color defaults', () => {

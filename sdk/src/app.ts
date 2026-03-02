@@ -766,6 +766,7 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
                     width, height, elapsed,
                 });
             } else {
+                pipeline.beginScreenCapture();
                 for (const cam of cameras) {
                     const vp = cam.viewportRect;
                     const px = Math.round(vp.x * width);
@@ -781,6 +782,7 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
                         cameraEntity: cam.entity,
                     });
                 }
+                pipeline.endScreenCapture();
                 Renderer.setViewport(0, 0, width, height);
             }
         }

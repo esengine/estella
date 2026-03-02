@@ -39,3 +39,10 @@ export {
     type CircleColliderData,
     type CapsuleColliderData,
 } from './PhysicsComponents';
+
+export {
+    PhysicsDebugDraw,
+    setupPhysicsDebugDraw,
+    drawPhysicsDebug,
+    type PhysicsDebugDrawConfig,
+} from './PhysicsDebugDraw';

@@ -2,9 +2,13 @@ export { Tilemap, TilemapLayer, type TilemapData, type TilemapLayerData } from '
 export { TilemapAPI, initTilemapAPI, shutdownTilemapAPI } from './tilemapAPI';
 export { TilemapPlugin, tilemapPlugin } from './tilemapPlugin';
 export {
-    parseTiledMap, parseTmjJson, loadTiledMap, resolveRelativePath,
+    parseTiledMap, parseTmjJson, loadTiledMap, loadTiledCollisionObjects,
+    generateTileCollision, resolveRelativePath,
     type TiledMapData, type TiledLayerData, type TiledTilesetData,
+    type TiledObjectData, type TiledObjectGroupData, type TiledObjectShape,
+    type TilemapLoadOptions,
 } from './tiledLoader';
+export { mergeCollisionTiles, type MergedRect } from './collisionMerge';
 export {
     registerTextureDimensions, getTextureDimensions, clearTextureDimensionsCache,
     registerTilemapSource, getTilemapSource, clearTilemapSourceCache,

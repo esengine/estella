@@ -530,10 +530,22 @@ export const SceneOwner = defineComponent<SceneOwnerData>('SceneOwner', {
 
 export interface PostProcessVolumeData {
     effects: { type: string; enabled: boolean; uniforms: Record<string, number> }[];
+    isGlobal: boolean;
+    shape: 'box' | 'sphere';
+    size: { x: number; y: number };
+    priority: number;
+    weight: number;
+    blendDistance: number;
 }
 
 export const PostProcessVolume = defineComponent<PostProcessVolumeData>('PostProcessVolume', {
     effects: [],
+    isGlobal: true,
+    shape: 'box',
+    size: { x: 5, y: 5 },
+    priority: 0,
+    weight: 1,
+    blendDistance: 0,
 });
 
 export type {

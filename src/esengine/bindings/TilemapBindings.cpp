@@ -65,7 +65,10 @@ void tilemap_submitLayer(u32 entity, u32 textureId,
                          f32 uvTileWidth, f32 uvTileHeight,
                          f32 originX, f32 originY,
                          f32 camLeft, f32 camBottom,
-                         f32 camRight, f32 camTop) {
+                         f32 camRight, f32 camTop,
+                         f32 tintR, f32 tintG, f32 tintB, f32 tintA,
+                         f32 opacity,
+                         f32 parallaxX, f32 parallaxY) {
     auto* frame = ctx().renderFrame();
     if (!frame) return;
 
@@ -80,9 +83,18 @@ void tilemap_submitLayer(u32 entity, u32 textureId,
     const auto* layerData = s_tilemapSystem.getLayerData(layerEntity);
     if (!layerData) return;
 
+    glm::vec4 finalColor(tintR, tintG, tintB, tintA * opacity);
+
+    f32 camCenterX = (camLeft + camRight) * 0.5f;
+    f32 camCenterY = (camBottom + camTop) * 0.5f;
+    f32 parallaxOffsetX = camCenterX * (1.0f - parallaxX);
+    f32 parallaxOffsetY = camCenterY * (1.0f - parallaxY);
+    f32 adjOriginX = originX + parallaxOffsetX;
+    f32 adjOriginY = originY + parallaxOffsetY;
+
     auto range = tilemap::computeVisibleRange(
         camLeft, -camTop, camRight, -camBottom,
-        originX, -originY,
+        adjOriginX, -adjOriginY,
         layerData->tile_width, layerData->tile_height,
         layerData->width, layerData->height);
     if (range.empty()) return;
@@ -102,9 +114,9 @@ void tilemap_submitLayer(u32 entity, u32 textureId,
             u32 tileCol = tileIndex % tilesetColumns;
             u32 tileRow = tileIndex / tilesetColumns;
 
-            f32 worldX = originX + static_cast<f32>(tx) * layerData->tile_width
+            f32 worldX = adjOriginX + static_cast<f32>(tx) * layerData->tile_width
                          + layerData->tile_width * 0.5f;
-            f32 worldY = originY - static_cast<f32>(ty) * layerData->tile_height
+            f32 worldY = adjOriginY - static_cast<f32>(ty) * layerData->tile_height
                          - layerData->tile_height * 0.5f;
 
             f32 u0 = static_cast<f32>(tileCol) * uvTileWidth;
@@ -124,7 +136,7 @@ void tilemap_submitLayer(u32 entity, u32 textureId,
             base.world_angle = 0.0f;
             base.layer = sortLayer;
             base.depth = depth;
-            base.color = glm::vec4(1.0f);
+            base.color = finalColor;
             base.texture_id = glTextureId;
 
             SpriteData sd;
@@ -268,6 +280,124 @@ u32 tiled_getTilesetTileCount(u32 handle, u32 index) {
     return map->tilesets[index].tile_count;
 }
 
+u32 tiled_getObjectGroupCount(u32 handle) {
+    const auto* map = s_tiledLoader.getMap(handle);
+    return map ? static_cast<u32>(map->object_groups.size()) : 0;
+}
+
+std::string tiled_getObjectGroupName(u32 handle, u32 index) {
+    const auto* map = s_tiledLoader.getMap(handle);
+    if (!map || index >= map->object_groups.size()) return "";
+    return map->object_groups[index].name;
+}
+
+u32 tiled_getObjectCount(u32 handle, u32 groupIndex) {
+    const auto* map = s_tiledLoader.getMap(handle);
+    if (!map || groupIndex >= map->object_groups.size()) return 0;
+    return static_cast<u32>(map->object_groups[groupIndex].objects.size());
+}
+
+f32 tiled_getObjectX(u32 handle, u32 groupIndex, u32 objIndex) {
+    const auto* map = s_tiledLoader.getMap(handle);
+    if (!map || groupIndex >= map->object_groups.size()) return 0;
+    const auto& grp = map->object_groups[groupIndex];
+    if (objIndex >= grp.objects.size()) return 0;
+    return grp.objects[objIndex].x;
+}
+
+f32 tiled_getObjectY(u32 handle, u32 groupIndex, u32 objIndex) {
+    const auto* map = s_tiledLoader.getMap(handle);
+    if (!map || groupIndex >= map->object_groups.size()) return 0;
+    const auto& grp = map->object_groups[groupIndex];
+    if (objIndex >= grp.objects.size()) return 0;
+    return grp.objects[objIndex].y;
+}
+
+f32 tiled_getObjectWidth(u32 handle, u32 groupIndex, u32 objIndex) {
+    const auto* map = s_tiledLoader.getMap(handle);
+    if (!map || groupIndex >= map->object_groups.size()) return 0;
+    const auto& grp = map->object_groups[groupIndex];
+    if (objIndex >= grp.objects.size()) return 0;
+    return grp.objects[objIndex].width;
+}
+
+f32 tiled_getObjectHeight(u32 handle, u32 groupIndex, u32 objIndex) {
+    const auto* map = s_tiledLoader.getMap(handle);
+    if (!map || groupIndex >= map->object_groups.size()) return 0;
+    const auto& grp = map->object_groups[groupIndex];
+    if (objIndex >= grp.objects.size()) return 0;
+    return grp.objects[objIndex].height;
+}
+
+f32 tiled_getObjectRotation(u32 handle, u32 groupIndex, u32 objIndex) {
+    const auto* map = s_tiledLoader.getMap(handle);
+    if (!map || groupIndex >= map->object_groups.size()) return 0;
+    const auto& grp = map->object_groups[groupIndex];
+    if (objIndex >= grp.objects.size()) return 0;
+    return grp.objects[objIndex].rotation;
+}
+
+bool tiled_getObjectEllipse(u32 handle, u32 groupIndex, u32 objIndex) {
+    const auto* map = s_tiledLoader.getMap(handle);
+    if (!map || groupIndex >= map->object_groups.size()) return false;
+    const auto& grp = map->object_groups[groupIndex];
+    if (objIndex >= grp.objects.size()) return false;
+    return grp.objects[objIndex].ellipse;
+}
+
+bool tiled_getObjectPoint(u32 handle, u32 groupIndex, u32 objIndex) {
+    const auto* map = s_tiledLoader.getMap(handle);
+    if (!map || groupIndex >= map->object_groups.size()) return false;
+    const auto& grp = map->object_groups[groupIndex];
+    if (objIndex >= grp.objects.size()) return false;
+    return grp.objects[objIndex].point;
+}
+
+u32 tiled_getObjectVertexCount(u32 handle, u32 groupIndex, u32 objIndex) {
+    const auto* map = s_tiledLoader.getMap(handle);
+    if (!map || groupIndex >= map->object_groups.size()) return 0;
+    const auto& grp = map->object_groups[groupIndex];
+    if (objIndex >= grp.objects.size()) return 0;
+    return static_cast<u32>(grp.objects[objIndex].vert_count);
+}
+
+u32 tiled_getObjectVertices(u32 handle, u32 groupIndex, u32 objIndex,
+                             uintptr_t outPtr, u32 maxFloats) {
+    const auto* map = s_tiledLoader.getMap(handle);
+    if (!map || groupIndex >= map->object_groups.size()) return 0;
+    const auto& grp = map->object_groups[groupIndex];
+    if (objIndex >= grp.objects.size()) return 0;
+    const auto& verts = grp.objects[objIndex].vertices;
+    u32 count = std::min(static_cast<u32>(verts.size()), maxFloats);
+    auto* out = reinterpret_cast<f32*>(outPtr);
+    std::memcpy(out, verts.data(), count * sizeof(f32));
+    return count;
+}
+
+f32 tiled_getLayerOpacity(u32 handle, u32 index) {
+    const auto* map = s_tiledLoader.getMap(handle);
+    if (!map || index >= map->layers.size()) return 1.0f;
+    return map->layers[index].opacity;
+}
+
+u32 tiled_getLayerTintColor(u32 handle, u32 index) {
+    const auto* map = s_tiledLoader.getMap(handle);
+    if (!map || index >= map->layers.size()) return 0;
+    return map->layers[index].tint_color;
+}
+
+f32 tiled_getLayerParallaxX(u32 handle, u32 index) {
+    const auto* map = s_tiledLoader.getMap(handle);
+    if (!map || index >= map->layers.size()) return 1.0f;
+    return map->layers[index].parallax_x;
+}
+
+f32 tiled_getLayerParallaxY(u32 handle, u32 index) {
+    const auto* map = s_tiledLoader.getMap(handle);
+    if (!map || index >= map->layers.size()) return 1.0f;
+    return map->layers[index].parallax_y;
+}
+
 }  // namespace esengine
 
 EMSCRIPTEN_BINDINGS(esengine_tilemap) {
@@ -303,6 +433,22 @@ EMSCRIPTEN_BINDINGS(esengine_tilemap) {
     emscripten::function("tiled_getTilesetTileHeight", &esengine::tiled_getTilesetTileHeight);
     emscripten::function("tiled_getTilesetColumns", &esengine::tiled_getTilesetColumns);
     emscripten::function("tiled_getTilesetTileCount", &esengine::tiled_getTilesetTileCount);
+    emscripten::function("tiled_getObjectGroupCount", &esengine::tiled_getObjectGroupCount);
+    emscripten::function("tiled_getObjectGroupName", &esengine::tiled_getObjectGroupName);
+    emscripten::function("tiled_getObjectCount", &esengine::tiled_getObjectCount);
+    emscripten::function("tiled_getObjectX", &esengine::tiled_getObjectX);
+    emscripten::function("tiled_getObjectY", &esengine::tiled_getObjectY);
+    emscripten::function("tiled_getObjectWidth", &esengine::tiled_getObjectWidth);
+    emscripten::function("tiled_getObjectHeight", &esengine::tiled_getObjectHeight);
+    emscripten::function("tiled_getObjectRotation", &esengine::tiled_getObjectRotation);
+    emscripten::function("tiled_getObjectEllipse", &esengine::tiled_getObjectEllipse);
+    emscripten::function("tiled_getObjectPoint", &esengine::tiled_getObjectPoint);
+    emscripten::function("tiled_getObjectVertexCount", &esengine::tiled_getObjectVertexCount);
+    emscripten::function("tiled_getObjectVertices", &esengine::tiled_getObjectVertices);
+    emscripten::function("tiled_getLayerOpacity", &esengine::tiled_getLayerOpacity);
+    emscripten::function("tiled_getLayerTintColor", &esengine::tiled_getLayerTintColor);
+    emscripten::function("tiled_getLayerParallaxX", &esengine::tiled_getLayerParallaxX);
+    emscripten::function("tiled_getLayerParallaxY", &esengine::tiled_getLayerParallaxY);
 }
 
 #endif  // ES_PLATFORM_WEB

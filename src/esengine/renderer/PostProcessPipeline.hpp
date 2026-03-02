@@ -170,6 +170,51 @@ public:
      */
     void setOutputViewport(u32 x, u32 y, u32 w, u32 h);
 
+    /**
+     * @brief Begins screen-level capture (all camera output goes into screen FBO)
+     */
+    void beginScreenCapture();
+
+    /**
+     * @brief Ends screen-level capture
+     */
+    void endScreenCapture();
+
+    /**
+     * @brief Executes screen-level post-process passes on captured output
+     */
+    void executeScreenPasses();
+
+    /**
+     * @brief Adds a screen-level post-process pass
+     */
+    u32 addScreenPass(const std::string& name, resource::ShaderHandle shader);
+
+    /**
+     * @brief Clears all screen-level passes
+     */
+    void clearScreenPasses();
+
+    /**
+     * @brief Sets a float uniform for a screen-level pass
+     */
+    void setScreenPassUniformFloat(const std::string& passName, const std::string& uniform, f32 value);
+
+    /**
+     * @brief Sets a vec4 uniform for a screen-level pass
+     */
+    void setScreenPassUniformVec4(const std::string& passName, const std::string& uniform, const glm::vec4& value);
+
+    /**
+     * @brief Gets the screen pass count
+     */
+    u32 getScreenPassCount() const { return static_cast<u32>(screenPasses_.size()); }
+
+    /**
+     * @brief Checks if screen capture is active
+     */
+    bool isScreenCaptureActive() const { return screenCaptureActive_; }
+
 private:
     PostProcessPass* findPass(const std::string& name);
     void ensureFBOs();
@@ -198,6 +243,14 @@ private:
     u32 output_vp_y_ = 0;
     u32 output_vp_w_ = 0;
     u32 output_vp_h_ = 0;
+
+    Unique<Framebuffer> screenFBO_;
+    bool screenFBOCreated_ = false;
+    bool screenCaptureActive_ = false;
+    std::vector<PostProcessPass> screenPasses_;
+
+    PostProcessPass* findScreenPass(const std::string& name);
+    void ensureScreenFBO();
 };
 
 }  // namespace esengine

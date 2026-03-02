@@ -18,6 +18,10 @@ struct TiledLayerInfo {
     u32 height;
     bool visible;
     std::vector<u16> tiles;
+    f32 opacity = 1.0f;
+    u32 tint_color = 0;
+    f32 parallax_x = 1.0f;
+    f32 parallax_y = 1.0f;
 };
 
 struct TiledTilesetInfo {
@@ -30,6 +34,23 @@ struct TiledTilesetInfo {
     u32 tile_count;
 };
 
+struct TiledObjectInfo {
+    f32 x = 0;
+    f32 y = 0;
+    f32 width = 0;
+    f32 height = 0;
+    f32 rotation = 0;
+    bool ellipse = false;
+    bool point = false;
+    i32 vert_count = 0;
+    std::vector<f32> vertices;
+};
+
+struct TiledObjectGroupInfo {
+    std::string name;
+    std::vector<TiledObjectInfo> objects;
+};
+
 struct TiledMapData {
     u32 width;
     u32 height;
@@ -37,6 +58,7 @@ struct TiledMapData {
     u32 tile_height;
     std::vector<TiledLayerInfo> layers;
     std::vector<TiledTilesetInfo> tilesets;
+    std::vector<TiledObjectGroupInfo> object_groups;
 };
 
 class TiledMapLoader {

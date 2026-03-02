@@ -539,6 +539,13 @@ interface ESEngineModule {
     postprocess_clearPasses(): void;
     postprocess_setOutputTarget(fboId: number): void;
     postprocess_setOutputViewport(x: number, y: number, w: number, h: number): void;
+    postprocess_beginScreenCapture(): void;
+    postprocess_endScreenCapture(): void;
+    postprocess_executeScreenPasses(): void;
+    postprocess_addScreenPass(name: string, shaderHandle: number): number;
+    postprocess_clearScreenPasses(): void;
+    postprocess_setScreenUniformFloat(passName: string, uniform: string, value: number): void;
+    postprocess_setScreenUniformVec4(passName: string, uniform: string, x: number, y: number, z: number, w: number): void;
     renderer_init(width: number, height: number): void;
     renderer_resize(width: number, height: number): void;
     renderer_begin(matrixPtr: number, targetHandle: number): void;
@@ -829,6 +836,8 @@ declare class RenderPipeline {
     get maskProcessor(): MaskProcessorFn | null;
     setMaskProcessor(fn: MaskProcessorFn | null): void;
     setActiveScenes(scenes: Set<string> | null): void;
+    beginScreenCapture(): void;
+    endScreenCapture(): void;
     render(params: RenderParams): void;
     renderCamera(params: CameraRenderParams): void;
     private executeDrawCallbacks;
@@ -882,11 +891,6 @@ interface SceneData {
  * @brief   Custom draw callback registration for the render pipeline
  */
 type DrawCallback = (elapsed: number) => void;
-
-/**
- * @file    postprocess.ts
- * @brief   Per-camera post-processing effects API
- */
 
 interface PassConfig {
     name: string;
@@ -1090,6 +1094,22 @@ interface ESEngineMainModule {
 }
 declare function loadPhysicsSideModule(wasmBinary: ArrayBuffer, mainModule: ESEngineMainModule): Promise<PhysicsWasmModule>;
 
+interface PhysicsDebugDrawConfig {
+    enabled: boolean;
+    showColliders: boolean;
+    showVelocity: boolean;
+    showContacts: boolean;
+}
+declare const PhysicsDebugDraw: ResourceDef<PhysicsDebugDrawConfig>;
+interface VelocityProvider {
+    getLinearVelocity(entity: number): {
+        x: number;
+        y: number;
+    };
+}
+declare function drawPhysicsDebug(app: App, physicsApiRes: ResourceDef<VelocityProvider>, physicsEventsRes: ResourceDef<PhysicsEventsData>): void;
+declare function setupPhysicsDebugDraw(app: App, physicsApiRes: ResourceDef<VelocityProvider>, physicsEventsRes: ResourceDef<PhysicsEventsData>): void;
+
 interface PhysicsPluginConfig {
     gravity?: Vec2;
     fixedTimestep?: number;
@@ -1140,7 +1160,9 @@ declare class Physics {
     getAngularVelocity(entity: Entity): number;
     applyTorque(entity: Entity, torque: number): void;
     applyAngularImpulse(entity: Entity, impulse: number): void;
+    static setDebugDraw(app: App, enabled: boolean): void;
+    static setDebugDrawConfig(app: App, config: Partial<PhysicsDebugDrawConfig>): void;
 }
 
-export { BodyType, BoxCollider$1 as BoxCollider, CapsuleCollider$1 as CapsuleCollider, CircleCollider$1 as CircleCollider, Physics, PhysicsAPI, PhysicsEvents, PhysicsPlugin, RigidBody$1 as RigidBody, loadPhysicsModule, loadPhysicsSideModule };
-export type { BoxColliderData, CapsuleColliderData, CircleColliderData, CollisionEnterEvent, ESEngineMainModule, PhysicsEventsData, PhysicsModuleFactory, PhysicsPluginConfig, PhysicsWasmModule, RigidBodyData, SensorEvent };
+export { BodyType, BoxCollider$1 as BoxCollider, CapsuleCollider$1 as CapsuleCollider, CircleCollider$1 as CircleCollider, Physics, PhysicsAPI, PhysicsDebugDraw, PhysicsEvents, PhysicsPlugin, RigidBody$1 as RigidBody, drawPhysicsDebug, loadPhysicsModule, loadPhysicsSideModule, setupPhysicsDebugDraw };
+export type { BoxColliderData, CapsuleColliderData, CircleColliderData, CollisionEnterEvent, ESEngineMainModule, PhysicsDebugDrawConfig, PhysicsEventsData, PhysicsModuleFactory, PhysicsPluginConfig, PhysicsWasmModule, RigidBodyData, SensorEvent };

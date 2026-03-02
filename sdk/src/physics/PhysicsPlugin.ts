@@ -15,6 +15,7 @@ import {
     type PhysicsModuleFactory,
 } from './PhysicsModuleLoader';
 import { RigidBody, BoxCollider, CircleCollider, CapsuleCollider, BodyType, type RigidBodyData } from './PhysicsComponents';
+import { setupPhysicsDebugDraw, PhysicsDebugDraw, type PhysicsDebugDrawConfig } from './PhysicsDebugDraw';
 
 // =============================================================================
 // Physics Config
@@ -223,6 +224,7 @@ export class PhysicsPlugin implements Plugin {
 
                 app.physicsModule = module;
                 app.insertResource(PhysicsAPI, Physics._fromModule(module));
+                setupPhysicsDebugDraw(app, PhysicsAPI, PhysicsEvents);
                 app.setFixedTimestep(this.config_.fixedTimestep);
             }
         );
@@ -453,5 +455,20 @@ export class Physics {
 
     applyAngularImpulse(entity: Entity, impulse: number): void {
         this.module_._physics_applyAngularImpulse(entity, impulse);
+    }
+
+    static setDebugDraw(app: App, enabled: boolean): void {
+        const config = app.getResource<PhysicsDebugDrawConfig>(PhysicsDebugDraw);
+        if (config) {
+            config.enabled = enabled;
+            app.insertResource(PhysicsDebugDraw, config);
+        }
+    }
+
+    static setDebugDrawConfig(app: App, config: Partial<PhysicsDebugDrawConfig>): void {
+        const current = app.getResource<PhysicsDebugDrawConfig>(PhysicsDebugDraw);
+        if (current) {
+            app.insertResource(PhysicsDebugDraw, { ...current, ...config });
+        }
     }
 }

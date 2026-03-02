@@ -9,6 +9,7 @@ import {
     syncPostProcessVolume,
     cleanupPostProcessVolume,
     type PostProcessEffectData,
+    type PostProcessVolumeData,
 } from 'esengine';
 import type { SpineModuleController } from 'esengine/spine';
 import type { SceneData, ComponentData } from '../types/SceneTypes';
@@ -511,13 +512,24 @@ export class EditorSceneRenderer {
         return -1;
     }
 
+    private extractVolumeData(data: Record<string, unknown>): PostProcessVolumeData {
+        return {
+            effects: (data.effects as PostProcessEffectData[]) ?? [],
+            isGlobal: (data.isGlobal as boolean) ?? true,
+            shape: (data.shape as 'box' | 'sphere') ?? 'box',
+            size: (data.size as { x: number; y: number }) ?? { x: 5, y: 5 },
+            priority: (data.priority as number) ?? 0,
+            weight: (data.weight as number) ?? 1,
+            blendDistance: (data.blendDistance as number) ?? 0,
+        };
+    }
+
     private syncPostProcessVolumeForEntity(entityId: number): void {
         const entityData = this.store_?.getEntityData(entityId);
         if (!entityData) return;
         const ppComp = entityData.components.find(c => c.type === 'PostProcessVolume');
         if (ppComp) {
-            const effects = (ppComp.data.effects as PostProcessEffectData[]) ?? [];
-            syncPostProcessVolume(entityId, { effects });
+            syncPostProcessVolume(entityId, this.extractVolumeData(ppComp.data));
         } else {
             cleanupPostProcessVolume(entityId);
         }
@@ -528,8 +540,7 @@ export class EditorSceneRenderer {
         for (const entity of this.store_.scene.entities) {
             const ppComp = entity.components.find(c => c.type === 'PostProcessVolume');
             if (ppComp) {
-                const effects = (ppComp.data.effects as PostProcessEffectData[]) ?? [];
-                syncPostProcessVolume(entity.id, { effects });
+                syncPostProcessVolume(entity.id, this.extractVolumeData(ppComp.data));
             }
         }
     }

@@ -451,6 +451,13 @@ interface ESEngineModule {
     postprocess_clearPasses(): void;
     postprocess_setOutputTarget(fboId: number): void;
     postprocess_setOutputViewport(x: number, y: number, w: number, h: number): void;
+    postprocess_beginScreenCapture(): void;
+    postprocess_endScreenCapture(): void;
+    postprocess_executeScreenPasses(): void;
+    postprocess_addScreenPass(name: string, shaderHandle: number): number;
+    postprocess_clearScreenPasses(): void;
+    postprocess_setScreenUniformFloat(passName: string, uniform: string, value: number): void;
+    postprocess_setScreenUniformVec4(passName: string, uniform: string, x: number, y: number, z: number, w: number): void;
     renderer_init(width: number, height: number): void;
     renderer_resize(width: number, height: number): void;
     renderer_begin(matrixPtr: number, targetHandle: number): void;

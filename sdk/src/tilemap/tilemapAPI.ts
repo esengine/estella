@@ -16,7 +16,10 @@ interface TilemapModule {
                         uvTileWidth: number, uvTileHeight: number,
                         originX: number, originY: number,
                         camLeft: number, camBottom: number,
-                        camRight: number, camTop: number): void;
+                        camRight: number, camTop: number,
+                        tintR: number, tintG: number, tintB: number, tintA: number,
+                        opacity: number,
+                        parallaxX: number, parallaxY: number): void;
 
     tiled_loadMap(dataPtr: number, dataSize: number): number;
     tiled_freeMap(handle: number): void;
@@ -43,6 +46,11 @@ interface TilemapModule {
     tiled_getTilesetTileHeight(handle: number, index: number): number;
     tiled_getTilesetColumns(handle: number, index: number): number;
     tiled_getTilesetTileCount(handle: number, index: number): number;
+
+    tiled_getLayerOpacity(handle: number, index: number): number;
+    tiled_getLayerTintColor(handle: number, index: number): number;
+    tiled_getLayerParallaxX(handle: number, index: number): number;
+    tiled_getLayerParallaxY(handle: number, index: number): number;
 
     HEAPU8: Uint8Array;
     _malloc(size: number): number;
@@ -107,11 +115,15 @@ export const TilemapAPI = {
                 uvTileWidth: number, uvTileHeight: number,
                 originX: number, originY: number,
                 camLeft: number, camBottom: number,
-                camRight: number, camTop: number): void {
+                camRight: number, camTop: number,
+                tintR: number, tintG: number, tintB: number, tintA: number,
+                opacity: number,
+                parallaxX: number, parallaxY: number): void {
         module_?.tilemap_submitLayer(
             entity, textureId, sortLayer, depth,
             tilesetColumns, uvTileWidth, uvTileHeight,
-            originX, originY, camLeft, camBottom, camRight, camTop
+            originX, originY, camLeft, camBottom, camRight, camTop,
+            tintR, tintG, tintB, tintA, opacity, parallaxX, parallaxY
         );
     },
 };

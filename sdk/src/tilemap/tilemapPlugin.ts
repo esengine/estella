@@ -3,7 +3,7 @@ import type { ESEngineModule } from '../wasm';
 import { Transform, type TransformData } from '../component';
 import { UICameraInfo, type UICameraData } from '../ui/UICameraInfo';
 import { initTilemapAPI, shutdownTilemapAPI, TilemapAPI } from './tilemapAPI';
-import { Tilemap, TilemapLayer } from './components';
+import { Tilemap, TilemapLayer, type TilemapLayerData } from './components';
 import { getTextureDimensions, clearTextureDimensionsCache, getTilemapSource } from './tilesetCache';
 
 const MAX_CAMERA_EXTENT = 1e6;
@@ -35,18 +35,11 @@ export class TilemapPlugin implements Plugin {
                 [TilemapLayer, Transform],
             );
             for (const entity of layerEntities) {
-                const layerData = world.tryGet(entity, TilemapLayer) as {
-                    width: number;
-                    height: number;
-                    tileWidth: number;
-                    tileHeight: number;
-                    texture: number;
-                    tilesetColumns: number;
-                    layer: number;
-                    tiles: number[];
-                } | null;
+                const layerData = world.tryGet(entity, TilemapLayer) as TilemapLayerData | null;
                 const transform = world.tryGet(entity, Transform) as TransformData | null;
                 if (!layerData || !transform) continue;
+
+                if (!layerData.visible) continue;
 
                 const textureHandle = layerData.texture;
                 if (!textureHandle) continue;
@@ -71,6 +64,8 @@ export class TilemapPlugin implements Plugin {
 
                 const uvTileWidth = layerData.tileWidth / dims.width;
                 const uvTileHeight = layerData.tileHeight / dims.height;
+                const tint = layerData.tint;
+                const pf = layerData.parallaxFactor;
 
                 TilemapAPI.submitLayer(
                     entity,
@@ -83,6 +78,9 @@ export class TilemapPlugin implements Plugin {
                     transform.worldPosition.x,
                     transform.worldPosition.y,
                     camLeft, camBottom, camRight, camTop,
+                    tint.r, tint.g, tint.b, tint.a,
+                    layerData.opacity,
+                    pf.x, pf.y,
                 );
             }
 
@@ -140,6 +138,9 @@ export class TilemapPlugin implements Plugin {
                         transform.worldPosition.x,
                         transform.worldPosition.y,
                         camLeft, camBottom, camRight, camTop,
+                        1, 1, 1, 1,
+                        1,
+                        1, 1,
                     );
                 }
             }

@@ -140,6 +140,47 @@ void postprocess_setOutputViewport(u32 x, u32 y, u32 w, u32 h) {
     }
 }
 
+void postprocess_beginScreenCapture() {
+    if (!g_postProcessPipeline) return;
+    g_postProcessPipeline->beginScreenCapture();
+}
+
+void postprocess_endScreenCapture() {
+    if (!g_postProcessPipeline) return;
+    g_postProcessPipeline->endScreenCapture();
+}
+
+void postprocess_executeScreenPasses() {
+    if (!g_postProcessPipeline) return;
+    g_postProcessPipeline->executeScreenPasses();
+}
+
+u32 postprocess_addScreenPass(const std::string& name, u32 shaderHandle) {
+    if (!g_postProcessPipeline) return 0;
+    return g_postProcessPipeline->addScreenPass(name, resource::ShaderHandle(shaderHandle));
+}
+
+void postprocess_clearScreenPasses() {
+    if (g_postProcessPipeline) {
+        g_postProcessPipeline->clearScreenPasses();
+    }
+}
+
+void postprocess_setScreenUniformFloat(const std::string& passName,
+                                        const std::string& uniform, f32 value) {
+    if (g_postProcessPipeline) {
+        g_postProcessPipeline->setScreenPassUniformFloat(passName, uniform, value);
+    }
+}
+
+void postprocess_setScreenUniformVec4(const std::string& passName,
+                                       const std::string& uniform,
+                                       f32 x, f32 y, f32 z, f32 w) {
+    if (g_postProcessPipeline) {
+        g_postProcessPipeline->setScreenPassUniformVec4(passName, uniform, glm::vec4(x, y, z, w));
+    }
+}
+
 }  // namespace esengine
 
 #endif  // ES_PLATFORM_WEB

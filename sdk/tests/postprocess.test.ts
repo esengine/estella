@@ -1,11 +1,12 @@
 vi.mock('../src/material', () => ({
     Material: {
         createShader: vi.fn().mockReturnValue(42),
+        releaseShader: vi.fn(),
     },
 }));
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { PostProcess, initPostProcessAPI, shutdownPostProcessAPI } from '../src/postprocess';
+import { PostProcess, PostProcessStack, initPostProcessAPI, shutdownPostProcessAPI } from '../src/postprocess';
 import { Material } from '../src/material';
 import type { ESEngineModule } from '../src/wasm';
 
@@ -19,17 +20,12 @@ function createPostProcessMockModule() {
         postprocess_shutdown: vi.fn(),
         postprocess_resize: vi.fn(),
         postprocess_addPass: vi.fn().mockReturnValue(0),
-        postprocess_removePass: vi.fn(),
-        postprocess_setPassEnabled: vi.fn(),
-        postprocess_isPassEnabled: vi.fn().mockReturnValue(true),
+        postprocess_clearPasses: vi.fn(),
         postprocess_setUniformFloat: vi.fn(),
         postprocess_setUniformVec4: vi.fn(),
-        postprocess_begin: vi.fn(),
-        postprocess_end: vi.fn(),
-        postprocess_getPassCount: vi.fn().mockReturnValue(3),
         postprocess_isInitialized: vi.fn().mockReturnValue(true),
         postprocess_setBypass: vi.fn(),
-        postprocess_isBypassed: vi.fn().mockReturnValue(false),
+        postprocess_setOutputViewport: vi.fn(),
     };
 
     return mock;
@@ -95,24 +91,19 @@ describe('PostProcess API', () => {
             expect(PostProcess.isInitialized()).toBe(false);
         });
 
-        it('should return true for isBypassed after shutdown', () => {
-            shutdownPostProcessAPI();
-            expect(PostProcess.isBypassed()).toBe(true);
-        });
-
         it('should return false from init after shutdown', () => {
             shutdownPostProcessAPI();
             expect(PostProcess.init(800, 600)).toBe(false);
         });
 
-        it('should return -1 from addPass after shutdown', () => {
+        it('should not throw from shutdown after shutdown', () => {
             shutdownPostProcessAPI();
-            expect(PostProcess.addPass('test', 1)).toBe(-1);
+            expect(() => PostProcess.shutdown()).not.toThrow();
         });
 
-        it('should not throw from begin after shutdown', () => {
+        it('should not throw from setBypass after shutdown', () => {
             shutdownPostProcessAPI();
-            expect(() => PostProcess.begin()).not.toThrow();
+            expect(() => PostProcess.setBypass(true)).not.toThrow();
         });
     });
 
@@ -146,73 +137,111 @@ describe('PostProcess API', () => {
     });
 
     // =========================================================================
-    // Pass management
+    // PostProcessStack
     // =========================================================================
 
-    describe('pass management', () => {
-        it('should call postprocess_addPass and return index', () => {
-            mock.postprocess_addPass.mockReturnValue(2);
-            const index = PostProcess.addPass('bloom', 10);
-            expect(mock.postprocess_addPass).toHaveBeenCalledWith('bloom', 10);
-            expect(index).toBe(2);
+    describe('PostProcessStack', () => {
+        it('should create a stack with unique id', () => {
+            const stack1 = PostProcess.createStack();
+            const stack2 = PostProcess.createStack();
+            expect(stack1.id).not.toBe(stack2.id);
         });
 
-        it('should call postprocess_removePass', () => {
-            PostProcess.removePass('bloom');
-            expect(mock.postprocess_removePass).toHaveBeenCalledWith('bloom');
+        it('should add passes and track count', () => {
+            const stack = PostProcess.createStack();
+            stack.addPass('bloom', 1);
+            stack.addPass('blur', 2);
+            expect(stack.passCount).toBe(2);
         });
 
-        it('should call postprocess_setPassEnabled', () => {
-            PostProcess.setEnabled('bloom', true);
-            expect(mock.postprocess_setPassEnabled).toHaveBeenCalledWith('bloom', true);
-
-            PostProcess.setEnabled('bloom', false);
-            expect(mock.postprocess_setPassEnabled).toHaveBeenCalledWith('bloom', false);
+        it('should remove passes by name', () => {
+            const stack = PostProcess.createStack();
+            stack.addPass('bloom', 1);
+            stack.addPass('blur', 2);
+            stack.removePass('bloom');
+            expect(stack.passCount).toBe(1);
+            expect(stack.passes[0].name).toBe('blur');
         });
 
-        it('should call postprocess_isPassEnabled and return result', () => {
-            mock.postprocess_isPassEnabled.mockReturnValue(true);
-            expect(PostProcess.isEnabled('bloom')).toBe(true);
-
-            mock.postprocess_isPassEnabled.mockReturnValue(false);
-            expect(PostProcess.isEnabled('bloom')).toBe(false);
+        it('should set pass enabled state', () => {
+            const stack = PostProcess.createStack();
+            stack.addPass('bloom', 1);
+            stack.setEnabled('bloom', false);
+            expect(stack.enabledPassCount).toBe(0);
+            stack.setEnabled('bloom', true);
+            expect(stack.enabledPassCount).toBe(1);
         });
 
-        it('should call postprocess_getPassCount and return count', () => {
-            mock.postprocess_getPassCount.mockReturnValue(5);
-            expect(PostProcess.getPassCount()).toBe(5);
+        it('should set float uniforms on passes', () => {
+            const stack = PostProcess.createStack();
+            stack.addPass('bloom', 1);
+            stack.setUniform('bloom', 'u_intensity', 0.5);
+            const pass = stack.passes[0];
+            expect(pass.floatUniforms.get('u_intensity')).toBe(0.5);
+        });
+
+        it('should set vec4 uniforms on passes', () => {
+            const stack = PostProcess.createStack();
+            stack.addPass('bloom', 1);
+            stack.setUniformVec4('bloom', 'u_color', { x: 1, y: 0.5, z: 0.25, w: 1 });
+            const pass = stack.passes[0];
+            expect(pass.vec4Uniforms.get('u_color')).toEqual({ x: 1, y: 0.5, z: 0.25, w: 1 });
+        });
+
+        it('should enable/disable all passes', () => {
+            const stack = PostProcess.createStack();
+            stack.addPass('bloom', 1);
+            stack.addPass('blur', 2);
+            stack.setAllPassesEnabled(false);
+            expect(stack.enabledPassCount).toBe(0);
+            stack.setAllPassesEnabled(true);
+            expect(stack.enabledPassCount).toBe(2);
+        });
+
+        it('should mark as destroyed after destroy()', () => {
+            const stack = PostProcess.createStack();
+            expect(stack.isDestroyed).toBe(false);
+            stack.destroy();
+            expect(stack.isDestroyed).toBe(true);
+        });
+
+        it('should support chaining on addPass/removePass/setEnabled/setUniform', () => {
+            const stack = PostProcess.createStack();
+            const result = stack
+                .addPass('bloom', 1)
+                .setEnabled('bloom', true)
+                .setUniform('bloom', 'u_intensity', 0.5)
+                .removePass('bloom');
+            expect(result).toBe(stack);
         });
     });
 
     // =========================================================================
-    // Uniform setting
+    // Camera binding
     // =========================================================================
 
-    describe('uniform setting', () => {
-        it('should call postprocess_setUniformFloat', () => {
-            PostProcess.setUniform('bloom', 'u_intensity', 0.5);
-            expect(mock.postprocess_setUniformFloat).toHaveBeenCalledWith('bloom', 'u_intensity', 0.5);
+    describe('camera binding', () => {
+        it('should bind a stack to a camera entity', () => {
+            const stack = PostProcess.createStack();
+            PostProcess.bind(1 as any, stack);
+            expect(PostProcess.getStack(1 as any)).toBe(stack);
         });
 
-        it('should call postprocess_setUniformVec4 with destructured values', () => {
-            PostProcess.setUniformVec4('bloom', 'u_color', { x: 1, y: 0.5, z: 0.25, w: 1 });
-            expect(mock.postprocess_setUniformVec4).toHaveBeenCalledWith('bloom', 'u_color', 1, 0.5, 0.25, 1);
-        });
-    });
-
-    // =========================================================================
-    // Render frame
-    // =========================================================================
-
-    describe('render frame', () => {
-        it('should call postprocess_begin', () => {
-            PostProcess.begin();
-            expect(mock.postprocess_begin).toHaveBeenCalledOnce();
+        it('should unbind a camera', () => {
+            const stack = PostProcess.createStack();
+            PostProcess.bind(1 as any, stack);
+            PostProcess.unbind(1 as any);
+            expect(PostProcess.getStack(1 as any)).toBeNull();
         });
 
-        it('should call postprocess_end', () => {
-            PostProcess.end();
-            expect(mock.postprocess_end).toHaveBeenCalledOnce();
+        it('should return null for unbound camera', () => {
+            expect(PostProcess.getStack(99 as any)).toBeNull();
+        });
+
+        it('should throw when binding a destroyed stack', () => {
+            const stack = PostProcess.createStack();
+            stack.destroy();
+            expect(() => PostProcess.bind(1 as any, stack)).toThrow('destroyed');
         });
     });
 
@@ -230,18 +259,62 @@ describe('PostProcess API', () => {
             PostProcess.setBypass(false);
             expect(mock.postprocess_setBypass).toHaveBeenCalledWith(false);
         });
+    });
 
-        it('should return WASM result from isBypassed', () => {
-            mock.postprocess_isBypassed.mockReturnValue(true);
-            expect(PostProcess.isBypassed()).toBe(true);
+    // =========================================================================
+    // _applyForCamera
+    // =========================================================================
 
-            mock.postprocess_isBypassed.mockReturnValue(false);
-            expect(PostProcess.isBypassed()).toBe(false);
+    describe('_applyForCamera', () => {
+        it('should set bypass=true when camera has no bound stack', () => {
+            PostProcess._applyForCamera(1 as any);
+            expect(mock.postprocess_setBypass).toHaveBeenCalledWith(true);
         });
 
-        it('should return true for isBypassed when module is null', () => {
-            shutdownPostProcessAPI();
-            expect(PostProcess.isBypassed()).toBe(true);
+        it('should sync enabled passes to WASM when stack is bound', () => {
+            const stack = PostProcess.createStack();
+            stack.addPass('bloom', 42);
+            stack.setUniform('bloom', 'u_intensity', 0.5);
+            PostProcess.bind(1 as any, stack);
+
+            PostProcess._applyForCamera(1 as any);
+
+            expect(mock.postprocess_setBypass).toHaveBeenCalledWith(false);
+            expect(mock.postprocess_clearPasses).toHaveBeenCalled();
+            expect(mock.postprocess_addPass).toHaveBeenCalledWith('bloom', 42);
+            expect(mock.postprocess_setUniformFloat).toHaveBeenCalledWith('bloom', 'u_intensity', 0.5);
+        });
+
+        it('should set bypass=true when all passes are disabled', () => {
+            const stack = PostProcess.createStack();
+            stack.addPass('bloom', 42);
+            stack.setEnabled('bloom', false);
+            PostProcess.bind(1 as any, stack);
+
+            PostProcess._applyForCamera(1 as any);
+            expect(mock.postprocess_setBypass).toHaveBeenCalledWith(true);
+        });
+
+        it('should sync vec4 uniforms to WASM', () => {
+            const stack = PostProcess.createStack();
+            stack.addPass('bloom', 42);
+            stack.setUniformVec4('bloom', 'u_color', { x: 1, y: 0.5, z: 0.25, w: 1 });
+            PostProcess.bind(1 as any, stack);
+
+            PostProcess._applyForCamera(1 as any);
+            expect(mock.postprocess_setUniformVec4).toHaveBeenCalledWith('bloom', 'u_color', 1, 0.5, 0.25, 1);
+        });
+    });
+
+    // =========================================================================
+    // _resetAfterCamera
+    // =========================================================================
+
+    describe('_resetAfterCamera', () => {
+        it('should clear passes and set bypass=true', () => {
+            PostProcess._resetAfterCamera();
+            expect(mock.postprocess_clearPasses).toHaveBeenCalled();
+            expect(mock.postprocess_setBypass).toHaveBeenCalledWith(true);
         });
     });
 
@@ -311,21 +384,6 @@ describe('PostProcess API', () => {
             expect(PostProcess.init(800, 600)).toBe(false);
         });
 
-        it('should return -1 when postprocess_addPass throws', () => {
-            mock.postprocess_addPass.mockImplementation(() => { throw new Error('WASM crash'); });
-            expect(PostProcess.addPass('test', 1)).toBe(-1);
-        });
-
-        it('should return 0 when postprocess_getPassCount throws', () => {
-            mock.postprocess_getPassCount.mockImplementation(() => { throw new Error('WASM crash'); });
-            expect(PostProcess.getPassCount()).toBe(0);
-        });
-
-        it('should return false when postprocess_isPassEnabled throws', () => {
-            mock.postprocess_isPassEnabled.mockImplementation(() => { throw new Error('WASM crash'); });
-            expect(PostProcess.isEnabled('test')).toBe(false);
-        });
-
         it('should not throw when postprocess_shutdown throws', () => {
             mock.postprocess_shutdown.mockImplementation(() => { throw new Error('WASM crash'); });
             expect(() => PostProcess.shutdown()).not.toThrow();
@@ -334,26 +392,6 @@ describe('PostProcess API', () => {
         it('should not throw when postprocess_resize throws', () => {
             mock.postprocess_resize.mockImplementation(() => { throw new Error('WASM crash'); });
             expect(() => PostProcess.resize(800, 600)).not.toThrow();
-        });
-
-        it('should not throw when postprocess_removePass throws', () => {
-            mock.postprocess_removePass.mockImplementation(() => { throw new Error('WASM crash'); });
-            expect(() => PostProcess.removePass('test')).not.toThrow();
-        });
-
-        it('should not throw when postprocess_begin throws', () => {
-            mock.postprocess_begin.mockImplementation(() => { throw new Error('WASM crash'); });
-            expect(() => PostProcess.begin()).not.toThrow();
-        });
-
-        it('should not throw when postprocess_end throws', () => {
-            mock.postprocess_end.mockImplementation(() => { throw new Error('WASM crash'); });
-            expect(() => PostProcess.end()).not.toThrow();
-        });
-
-        it('should return true when postprocess_isBypassed throws', () => {
-            mock.postprocess_isBypassed.mockImplementation(() => { throw new Error('WASM crash'); });
-            expect(PostProcess.isBypassed()).toBe(true);
         });
 
         it('should return false when postprocess_isInitialized throws', () => {

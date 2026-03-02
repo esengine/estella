@@ -21,11 +21,19 @@ vi.mock('../src/renderer', () => ({
 
 vi.mock('../src/postprocess', () => ({
     PostProcess: {
-        isInitialized: vi.fn().mockReturnValue(false),
-        getPassCount: vi.fn().mockReturnValue(0),
+        getStack: vi.fn().mockReturnValue(null),
         resize: vi.fn(),
-        begin: vi.fn(),
-        end: vi.fn(),
+        setBypass: vi.fn(),
+        setOutputViewport: vi.fn(),
+        _applyForCamera: vi.fn(),
+        _resetAfterCamera: vi.fn(),
+        screenStack: null,
+        isInitialized: vi.fn().mockReturnValue(false),
+        init: vi.fn().mockReturnValue(true),
+        _applyScreenStack: vi.fn(),
+        _beginScreenCapture: vi.fn(),
+        _endScreenCapture: vi.fn(),
+        _executeScreenPasses: vi.fn(),
     },
 }));
 
@@ -173,29 +181,37 @@ describe('RenderPipeline', () => {
             expect(Renderer.resize).toHaveBeenCalledWith(800, 768);
         });
 
-        it('calls PostProcess.resize when PostProcess is initialized with passes', () => {
-            (PostProcess.isInitialized as ReturnType<typeof vi.fn>).mockReturnValue(true);
-            (PostProcess.getPassCount as ReturnType<typeof vi.fn>).mockReturnValue(2);
-
+        it('does not call PostProcess.resize on render() (only renderCamera does)', () => {
             pipeline.render({ registry, viewProjection, width: 800, height: 600, elapsed: 0 });
+            expect(PostProcess.resize).not.toHaveBeenCalled();
+        });
+
+        it('calls PostProcess.resize in renderCamera when camera has postprocess stack', () => {
+            (PostProcess.getStack as ReturnType<typeof vi.fn>).mockReturnValue({});
+
+            pipeline.renderCamera({
+                registry,
+                viewProjection,
+                viewportPixels: { x: 0, y: 0, w: 800, h: 600 },
+                clearFlags: 3,
+                elapsed: 0,
+                cameraEntity: 1 as any,
+            });
 
             expect(PostProcess.resize).toHaveBeenCalledWith(800, 600);
         });
 
-        it('does not call PostProcess.resize when PostProcess is not initialized', () => {
-            (PostProcess.isInitialized as ReturnType<typeof vi.fn>).mockReturnValue(false);
-            (PostProcess.getPassCount as ReturnType<typeof vi.fn>).mockReturnValue(2);
+        it('does not call PostProcess.resize in renderCamera when no postprocess stack', () => {
+            (PostProcess.getStack as ReturnType<typeof vi.fn>).mockReturnValue(null);
 
-            pipeline.render({ registry, viewProjection, width: 800, height: 600, elapsed: 0 });
-
-            expect(PostProcess.resize).not.toHaveBeenCalled();
-        });
-
-        it('does not call PostProcess.resize when pass count is 0', () => {
-            (PostProcess.isInitialized as ReturnType<typeof vi.fn>).mockReturnValue(true);
-            (PostProcess.getPassCount as ReturnType<typeof vi.fn>).mockReturnValue(0);
-
-            pipeline.render({ registry, viewProjection, width: 800, height: 600, elapsed: 0 });
+            pipeline.renderCamera({
+                registry,
+                viewProjection,
+                viewportPixels: { x: 0, y: 0, w: 800, h: 600 },
+                clearFlags: 3,
+                elapsed: 0,
+                cameraEntity: 1 as any,
+            });
 
             expect(PostProcess.resize).not.toHaveBeenCalled();
         });
@@ -435,6 +451,49 @@ describe('RenderPipeline', () => {
             expect(Draw.begin).toHaveBeenCalledWith(viewProjection);
             expect(cb).toHaveBeenCalledWith(16);
             expect(Draw.end).toHaveBeenCalled();
+        });
+    });
+
+    describe('screen capture', () => {
+        it('does not call screen capture when screenStack is null', () => {
+            (PostProcess as any).screenStack = null;
+            pipeline.beginScreenCapture();
+            pipeline.endScreenCapture();
+            expect(PostProcess._beginScreenCapture).not.toHaveBeenCalled();
+            expect(PostProcess._endScreenCapture).not.toHaveBeenCalled();
+            expect(PostProcess._executeScreenPasses).not.toHaveBeenCalled();
+        });
+
+        it('calls screen capture when screenStack has enabled passes', () => {
+            const mockStack = { enabledPassCount: 1, passes: [] };
+            (PostProcess as any).screenStack = mockStack;
+
+            pipeline.beginScreenCapture();
+            expect(PostProcess._applyScreenStack).toHaveBeenCalled();
+            expect(PostProcess._beginScreenCapture).toHaveBeenCalled();
+
+            pipeline.endScreenCapture();
+            expect(PostProcess._endScreenCapture).toHaveBeenCalled();
+            expect(PostProcess._executeScreenPasses).toHaveBeenCalled();
+        });
+
+        it('does not call screen capture when screenStack has 0 enabled passes', () => {
+            const mockStack = { enabledPassCount: 0, passes: [] };
+            (PostProcess as any).screenStack = mockStack;
+
+            pipeline.beginScreenCapture();
+            pipeline.endScreenCapture();
+            expect(PostProcess._beginScreenCapture).not.toHaveBeenCalled();
+            expect(PostProcess._executeScreenPasses).not.toHaveBeenCalled();
+        });
+
+        it('initializes postprocess if not yet initialized', () => {
+            const mockStack = { enabledPassCount: 1, passes: [] };
+            (PostProcess as any).screenStack = mockStack;
+            (PostProcess.isInitialized as ReturnType<typeof vi.fn>).mockReturnValue(false);
+
+            pipeline.beginScreenCapture();
+            expect(PostProcess.init).toHaveBeenCalledWith(1, 1);
         });
     });
 });

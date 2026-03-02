@@ -70,6 +70,23 @@ export class RenderPipeline {
         this.activeScenes_ = scenes;
     }
 
+    beginScreenCapture(): void {
+        if (PostProcess.screenStack && PostProcess.screenStack.enabledPassCount > 0) {
+            if (!PostProcess.isInitialized()) {
+                PostProcess.init(1, 1);
+            }
+            PostProcess._applyScreenStack();
+            PostProcess._beginScreenCapture();
+        }
+    }
+
+    endScreenCapture(): void {
+        if (PostProcess.screenStack && PostProcess.screenStack.enabledPassCount > 0) {
+            PostProcess._endScreenCapture();
+            PostProcess._executeScreenPasses();
+        }
+    }
+
     render(params: RenderParams): void {
         const { registry, viewProjection, width, height, elapsed } = params;
 

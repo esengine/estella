@@ -13,6 +13,10 @@ export interface TilemapLayerData {
     tilesetColumns: number;
     layer: number;
     tiles: number[];
+    tint: { r: number; g: number; b: number; a: number };
+    opacity: number;
+    visible: boolean;
+    parallaxFactor: { x: number; y: number };
 }
 
 export const Tilemap = defineComponent<TilemapData>('Tilemap', {
@@ -28,4 +32,8 @@ export const TilemapLayer = defineComponent<TilemapLayerData>('TilemapLayer', {
     tilesetColumns: 1,
     layer: 0,
     tiles: [],
+    tint: { r: 1, g: 1, b: 1, a: 1 },
+    opacity: 1,
+    visible: true,
+    parallaxFactor: { x: 1, y: 1 },
 });

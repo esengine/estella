@@ -148,6 +148,29 @@ void TiledMapLoader::collectLayers(cute_tiled_map_t* map, TiledMapData& result,
                 continue;
             }
 
+            if (layer->type.ptr && std::strcmp(layer->type.ptr, "objectgroup") == 0) {
+                TiledObjectGroupInfo groupInfo;
+                groupInfo.name = layer->name.ptr ? layer->name.ptr : "";
+                for (auto* obj = layer->objects; obj; obj = obj->next) {
+                    TiledObjectInfo objInfo;
+                    objInfo.x = obj->x;
+                    objInfo.y = obj->y;
+                    objInfo.width = obj->width;
+                    objInfo.height = obj->height;
+                    objInfo.rotation = obj->rotation;
+                    objInfo.ellipse = obj->ellipse != 0;
+                    objInfo.point = obj->point != 0;
+                    objInfo.vert_count = obj->vert_count;
+                    if (obj->vert_count > 0 && obj->vertices) {
+                        objInfo.vertices.assign(obj->vertices,
+                            obj->vertices + obj->vert_count * 2);
+                    }
+                    groupInfo.objects.push_back(std::move(objInfo));
+                }
+                result.object_groups.push_back(std::move(groupInfo));
+                continue;
+            }
+
             if (!layer->type.ptr || std::strcmp(layer->type.ptr, "tilelayer") != 0) {
                 continue;
             }
@@ -161,6 +184,10 @@ void TiledMapLoader::collectLayers(cute_tiled_map_t* map, TiledMapData& result,
             info.width = static_cast<u32>(layer->width);
             info.height = static_cast<u32>(layer->height);
             info.visible = layer->visible != 0;
+            info.opacity = layer->opacity;
+            info.tint_color = layer->tintcolor;
+            info.parallax_x = layer->parallaxx;
+            info.parallax_y = layer->parallaxy;
 
             auto tileCount = static_cast<u32>(layer->data_count);
             info.tiles.resize(tileCount);

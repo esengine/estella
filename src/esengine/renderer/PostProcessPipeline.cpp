@@ -128,10 +128,14 @@ void PostProcessPipeline::shutdown() {
     if (!initialized_) return;
 
     passes_.clear();
+    screenPasses_.clear();
     screenQuadVAO_.reset();
     fboA_.reset();
     fboB_.reset();
+    screenFBO_.reset();
     fbosCreated_ = false;
+    screenFBOCreated_ = false;
+    screenCaptureActive_ = false;
 
     if (blitShader_.isValid()) {
         resourceManager_.releaseShader(blitShader_);
@@ -152,6 +156,12 @@ void PostProcessPipeline::resize(u32 width, u32 height) {
         fboB_.reset();
         fbosCreated_ = false;
         ensureFBOs();
+    }
+
+    if (screenFBOCreated_) {
+        screenFBO_.reset();
+        screenFBOCreated_ = false;
+        ensureScreenFBO();
     }
 }
 
@@ -347,6 +357,127 @@ u32 PostProcessPipeline::getSourceTexture() const {
 u32 PostProcessPipeline::getOutputTexture() const {
     if (!fboA_ || !fboB_) return 0;
     return (currentFBO_ == 0) ? fboA_->getColorAttachment() : fboB_->getColorAttachment();
+}
+
+void PostProcessPipeline::ensureScreenFBO() {
+    if (screenFBOCreated_) return;
+
+    FramebufferSpec spec;
+    spec.width = width_;
+    spec.height = height_;
+    spec.depthStencil = false;
+
+    screenFBO_ = Framebuffer::create(spec);
+    if (!screenFBO_) {
+        ES_LOG_ERROR("PostProcessPipeline: Failed to create screen FBO");
+        return;
+    }
+
+    screenFBOCreated_ = true;
+}
+
+void PostProcessPipeline::beginScreenCapture() {
+    if (!initialized_ || screenCaptureActive_) return;
+
+    ensureScreenFBO();
+    if (!screenFBOCreated_) return;
+
+    screenFBO_->bind();
+    RenderCommand::setViewport(0, 0, width_, height_);
+    RenderCommand::clear();
+
+    screenCaptureActive_ = true;
+}
+
+void PostProcessPipeline::endScreenCapture() {
+    if (!initialized_ || !screenCaptureActive_) return;
+
+    screenFBO_->unbind();
+    screenCaptureActive_ = false;
+}
+
+void PostProcessPipeline::executeScreenPasses() {
+    if (!initialized_ || !screenFBOCreated_) return;
+
+    u32 enabledCount = 0;
+    for (const auto& pass : screenPasses_) {
+        if (pass.enabled) enabledCount++;
+    }
+
+    if (enabledCount == 0) {
+        blitToOutput(screenFBO_->getColorAttachment());
+        return;
+    }
+
+    RenderCommand::setDepthTest(false);
+    RenderCommand::setBlending(false);
+
+    ensureFBOs();
+    if (!fbosCreated_) return;
+
+    u32 inputTexture = screenFBO_->getColorAttachment();
+    u32 pingPong = 0;
+
+    for (const auto& pass : screenPasses_) {
+        if (!pass.enabled) continue;
+
+        Framebuffer* targetFBO = (pingPong == 0) ? fboA_.get() : fboB_.get();
+        targetFBO->bind();
+        RenderCommand::setViewport(0, 0, width_, height_);
+
+        renderPass(pass, inputTexture);
+
+        inputTexture = targetFBO->getColorAttachment();
+        pingPong = 1 - pingPong;
+    }
+
+    Framebuffer* lastFBO = (pingPong == 0) ? fboA_.get() : fboB_.get();
+    lastFBO->unbind();
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    RenderCommand::setViewport(0, 0, width_, height_);
+    blitToOutput(inputTexture);
+
+    RenderCommand::setBlending(true);
+    RenderCommand::setDepthTest(true);
+}
+
+u32 PostProcessPipeline::addScreenPass(const std::string& name, resource::ShaderHandle shader) {
+    PostProcessPass pass;
+    pass.name = name;
+    pass.shader = shader;
+    pass.enabled = true;
+
+    screenPasses_.push_back(pass);
+    return static_cast<u32>(screenPasses_.size() - 1);
+}
+
+void PostProcessPipeline::clearScreenPasses() {
+    screenPasses_.clear();
+}
+
+PostProcessPass* PostProcessPipeline::findScreenPass(const std::string& name) {
+    for (auto& pass : screenPasses_) {
+        if (pass.name == name) {
+            return &pass;
+        }
+    }
+    return nullptr;
+}
+
+void PostProcessPipeline::setScreenPassUniformFloat(const std::string& passName,
+                                                     const std::string& uniform, f32 value) {
+    if (auto* pass = findScreenPass(passName)) {
+        pass->floatUniforms[uniform] = value;
+    }
+}
+
+void PostProcessPipeline::setScreenPassUniformVec4(const std::string& passName,
+                                                    const std::string& uniform,
+                                                    const glm::vec4& value) {
+    if (auto* pass = findScreenPass(passName)) {
+        pass->vec4Uniforms[uniform] = value;
+    }
 }
 
 }  // namespace esengine

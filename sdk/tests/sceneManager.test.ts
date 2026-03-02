@@ -11,9 +11,6 @@ vi.mock('../src/customDraw', () => ({
 
 vi.mock('../src/postprocess', () => ({
     PostProcess: {
-        addPass: vi.fn().mockReturnValue(0),
-        removePass: vi.fn(),
-        setEnabled: vi.fn(),
         bind: vi.fn(),
         unbind: vi.fn(),
     },
@@ -284,13 +281,14 @@ describe('SceneManager', () => {
             expect(unregisterDrawCallback).toHaveBeenCalledWith('myDraw');
         });
 
-        it('unload() removes postprocess passes', async () => {
+        it('unload() unbinds postprocess stacks', async () => {
             manager.register({ name: 'level1', data: makeSceneData() });
             const ctx = await manager.load('level1');
 
-            ctx.addPostProcessPass('bloom', 42 as any);
+            const mockStack = { setAllPassesEnabled: vi.fn(), isDestroyed: false } as any;
+            ctx.bindPostProcess(1 as any, mockStack);
             await manager.unload('level1');
-            expect(PostProcess.removePass).toHaveBeenCalledWith('bloom');
+            expect(PostProcess.unbind).toHaveBeenCalledWith(1);
         });
 
         it('unload() releases material handles from loadedAssets', async () => {
@@ -460,25 +458,27 @@ describe('SceneManager', () => {
             expect(manager.getSceneStatus('level1')).toBe('running');
         });
 
-        it('pause() disables postprocess passes', async () => {
+        it('pause() disables postprocess passes via stack', async () => {
             manager.register({ name: 'level1', data: makeSceneData() });
             const ctx = await manager.load('level1');
-            ctx.addPostProcessPass('bloom', 1 as any);
+            const mockStack = { setAllPassesEnabled: vi.fn(), isDestroyed: false } as any;
+            ctx.bindPostProcess(1 as any, mockStack);
 
             manager.pause('level1');
-            expect(PostProcess.setEnabled).toHaveBeenCalledWith('bloom', false);
+            expect(mockStack.setAllPassesEnabled).toHaveBeenCalledWith(false);
         });
 
-        it('resume() re-enables postprocess passes', async () => {
+        it('resume() re-enables postprocess passes via stack', async () => {
             manager.register({ name: 'level1', data: makeSceneData() });
             const ctx = await manager.load('level1');
-            ctx.addPostProcessPass('bloom', 1 as any);
+            const mockStack = { setAllPassesEnabled: vi.fn(), isDestroyed: false } as any;
+            ctx.bindPostProcess(1 as any, mockStack);
 
             manager.pause('level1');
-            vi.mocked(PostProcess.setEnabled).mockClear();
+            mockStack.setAllPassesEnabled.mockClear();
 
             manager.resume('level1');
-            expect(PostProcess.setEnabled).toHaveBeenCalledWith('bloom', true);
+            expect(mockStack.setAllPassesEnabled).toHaveBeenCalledWith(true);
         });
     });
 
@@ -562,14 +562,15 @@ describe('SceneManager', () => {
         it('wake() disables postprocess passes on sleep and re-enables on wake', async () => {
             manager.register({ name: 'level1', data: makeSceneData() });
             const ctx = await manager.load('level1');
-            ctx.addPostProcessPass('blur', 2 as any);
+            const mockStack = { setAllPassesEnabled: vi.fn(), isDestroyed: false } as any;
+            ctx.bindPostProcess(1 as any, mockStack);
 
             manager.sleep('level1');
-            expect(PostProcess.setEnabled).toHaveBeenCalledWith('blur', false);
+            expect(mockStack.setAllPassesEnabled).toHaveBeenCalledWith(false);
 
-            vi.mocked(PostProcess.setEnabled).mockClear();
+            mockStack.setAllPassesEnabled.mockClear();
             manager.wake('level1');
-            expect(PostProcess.setEnabled).toHaveBeenCalledWith('blur', true);
+            expect(mockStack.setAllPassesEnabled).toHaveBeenCalledWith(true);
         });
     });
 
@@ -892,13 +893,14 @@ describe('SceneManager', () => {
             expect(lastInsertCall[2].persistent).toBe(true);
         });
 
-        it('removePostProcessPass() removes pass from instance tracking', async () => {
+        it('unbindPostProcess() removes binding from instance tracking', async () => {
             manager.register({ name: 'level1', data: makeSceneData() });
             const ctx = await manager.load('level1');
 
-            ctx.addPostProcessPass('bloom', 1 as any);
-            ctx.removePostProcessPass('bloom');
-            expect(PostProcess.removePass).toHaveBeenCalledWith('bloom');
+            const mockStack = { setAllPassesEnabled: vi.fn(), isDestroyed: false } as any;
+            ctx.bindPostProcess(1 as any, mockStack);
+            ctx.unbindPostProcess(1 as any);
+            expect(PostProcess.unbind).toHaveBeenCalledWith(1);
         });
     });
 
