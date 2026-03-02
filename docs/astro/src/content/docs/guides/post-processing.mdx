@@ -149,14 +149,74 @@ fx.setUniform('chromatic', 'u_intensity', 2.0);
 PostProcess.bind(cameraEntity, fx);
 ```
 
+## Screen Post-Processing
+
+Screen-level effects apply after all cameras have rendered, affecting the final composited image. This is useful for global effects like fade-to-black, full-screen vignette, or cinematic letterboxing.
+
+```typescript
+import { PostProcess } from 'esengine';
+
+const screenFx = PostProcess.createStack();
+screenFx.addPass('vignette', PostProcess.createVignette());
+screenFx.setUniform('vignette', 'u_intensity', 0.8);
+
+// Apply to the final composited image (after all cameras)
+PostProcess.setScreenStack(screenFx);
+
+// Remove screen effects
+PostProcess.setScreenStack(null);
+```
+
+<Aside type="note">
+  Screen effects run after all camera effects. The processing order is: Camera PostProcess → Screen PostProcess.
+</Aside>
+
+## Post-Process Volumes
+
+Volumes allow spatial post-processing — effects that activate when the camera enters a region. Multiple volumes blend by priority, similar to Unity's Post Process Volumes.
+
+### Volume Properties
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `isGlobal` | boolean | `true` | Applies everywhere regardless of shape |
+| `shape` | `'box' \| 'sphere'` | `'box'` | Trigger region shape |
+| `size` | `{ x, y }` | `{ x: 5, y: 5 }` | Half-extents (box) or radius (sphere) |
+| `priority` | number | `0` | Higher priority overrides lower |
+| `weight` | number | `1` | Blend weight (0–1) |
+| `blendDistance` | number | `0` | Smooth fade distance at edges (world units) |
+
+### Volume Blending
+
+When multiple volumes overlap, the system evaluates each volume's influence using SDF distance functions and blends their effects by priority:
+
+```typescript
+// Global volume — always active, low priority (base layer)
+// Entity A: PostProcessVolume with isGlobal=true, priority=0
+//   effects: [{ type: 'vignette', enabled: true, uniforms: { u_intensity: 0.3 } }]
+
+// Local volume — activates when camera enters the region
+// Entity B: PostProcessVolume with isGlobal=false, shape='sphere', size={x:10,y:10}
+//   priority=1, blendDistance=3
+//   effects: [{ type: 'blur', enabled: true, uniforms: { u_intensity: 5.0 } }]
+```
+
+<Aside type="tip">
+  Use `blendDistance` to create smooth transitions. A value of 0 means instant on/off; higher values create a gradual fade as the camera approaches the volume boundary.
+</Aside>
+
 ## Editor Workflow
 
 Add a **PostProcessVolume** component to a Camera entity in the editor to configure effects visually:
 
 1. Select the Camera entity in the Hierarchy
 2. **Add Component** → **PostProcessVolume**
-3. Click **Add Effect** and choose from the built-in effects
-4. Adjust parameters with the sliders
+3. Configure volume properties:
+   - **Is Global** — check for scene-wide effects, uncheck for spatial volumes
+   - **Priority** / **Weight** — control blending order and strength
+   - **Shape** / **Size** / **Blend Distance** — define the spatial trigger region (when not global)
+4. Click **Add Effect** and choose from the built-in effects
+5. Adjust parameters with the sliders
 
 Effects are visible in both the Scene View and the Game View. The component data is saved with the scene file.
 
@@ -245,6 +305,8 @@ PostProcess.bind(minimapCamera, minimapFx);
 | `PostProcess.bind(camera, stack)` | Bind a stack to a camera |
 | `PostProcess.unbind(camera)` | Unbind the stack from a camera |
 | `PostProcess.getStack(camera)` | Get the bound stack (or null) |
+| `PostProcess.setScreenStack(stack)` | Set the screen-level effect stack (pass `null` to clear) |
+| `PostProcess.screenStack` | Get the current screen stack |
 | `PostProcess.init(width, height)` | Initialize the pipeline (called automatically) |
 | `PostProcess.shutdown()` | Shut down the pipeline |
 | `PostProcess.resize(width, height)` | Update framebuffer size (called automatically) |

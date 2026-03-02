@@ -1,0 +1,100 @@
+---
+title: v0.8.1
+description: ESEngine v0.8.1 release notes
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip">
+v0.8.1 adds a volume-based post-processing system with spatial blending, screen-level effects, a Tiled map loader, and physics debug drawing.
+</Aside>
+
+## Volume-Based Post-Processing
+
+The post-processing pipeline is now three-layered: **Screen → Camera → Volume**, matching industry-standard workflows (similar to Unity/Unreal Post Process Volumes).
+
+### PostProcessVolume Component
+
+The `PostProcessVolume` component now supports spatial fields beyond just the effects list:
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `isGlobal` | boolean | `true` | When true, the volume applies everywhere regardless of shape |
+| `shape` | `'box' \| 'sphere'` | `'box'` | Trigger region shape (only used when `isGlobal` is false) |
+| `size` | `{ x, y }` | `{ x: 5, y: 5 }` | Half-extents for box / radius for sphere |
+| `priority` | number | `0` | Higher priority volumes override lower ones |
+| `weight` | number | `1` | Blend weight (0–1) |
+| `blendDistance` | number | `0` | Edge fade distance in world units |
+
+### Volume Blending System
+
+When multiple volumes overlap, they are blended by priority. The system evaluates each volume's spatial influence using SDF (Signed Distance Field) distance functions:
+
+- **Box volumes** — axis-aligned box SDF with configurable half-extents
+- **Sphere volumes** — radial distance with configurable radius
+- **Blend distance** — smooth fade-in at volume edges based on distance
+
+### Screen Post-Processing
+
+A new screen-level post-processing layer applies effects after all cameras have rendered:
+
+```typescript
+import { PostProcess } from 'esengine';
+
+const screenFx = PostProcess.createStack();
+screenFx.addPass('vignette', PostProcess.createVignette());
+screenFx.setUniform('vignette', 'u_intensity', 0.8);
+
+PostProcess.setScreenStack(screenFx);  // applies to final composited image
+```
+
+| Method | Description |
+|--------|-------------|
+| `PostProcess.setScreenStack(stack)` | Set the screen-level effect stack (pass `null` to clear) |
+| `PostProcess.screenStack` | Get the current screen stack |
+
+### PostProcessPlugin
+
+Post-processing is now a standard plugin, automatically included in `createWebApp()`. It registers the volume blending system and handles cleanup:
+
+```typescript
+import { postProcessPlugin } from 'esengine';
+// Already included in createWebApp() — no manual setup needed
+```
+
+### Editor Support
+
+The PostProcessVolume inspector now exposes all volume fields:
+
+- **Is Global** checkbox — toggle between global and spatial mode
+- **Priority** — integer input for volume ordering
+- **Weight** — float slider (0–1)
+- **Shape** dropdown — Box or Sphere (visible when not global)
+- **Size** — Vec2 editor for spatial extent (visible when not global)
+- **Blend Distance** — fade distance at volume edges (visible when not global)
+
+## Tilemap System
+
+New Tiled map loader and tilemap rendering pipeline with full editor integration.
+
+- **Tiled JSON loader** — load `.tmj` / `.json` Tiled maps with automatic tileset texture resolution
+- **Tilemap components** — `Tilemap` and `TilemapLayer` components for ECS integration
+- **Collision merge** — automatic rectangular collision region merging for physics optimization
+- **Editor support** — Tilemap component inspector with asset picker
+
+## Physics Debug Draw
+
+- **`PhysicsDebugDraw`** — visual overlay for physics colliders, joints, and contacts in the editor and at runtime
+- Renders wireframe outlines for box, circle, and capsule colliders
+
+## Bug Fixes
+
+- Fix CSP blocking `blob:` URL fetch for esbuild WASM initialization — add `connect-src 'self' blob:` to Tauri security policy
+- Fix tilemap texture handle resolution and Y-axis rendering
+- Fix tilemap and audio asset prefetch in preview runtime loader
+- Fix particle guide code examples to match SDK API
+
+## Testing
+
+- Add volume blending unit tests (SDF distance, factor computation, priority-based blending)
+- Add PostProcessPlugin lifecycle tests
