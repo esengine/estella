@@ -122,6 +122,24 @@ bool postprocess_isBypassed() {
     return g_postProcessPipeline->isBypassed();
 }
 
+void postprocess_clearPasses() {
+    if (g_postProcessPipeline) {
+        g_postProcessPipeline->clearPasses();
+    }
+}
+
+void postprocess_setOutputTarget(u32 fboId) {
+    if (g_postProcessPipeline) {
+        g_postProcessPipeline->setOutputTarget(fboId);
+    }
+}
+
+void postprocess_setOutputViewport(u32 x, u32 y, u32 w, u32 h) {
+    if (g_postProcessPipeline) {
+        g_postProcessPipeline->setOutputViewport(x, y, w, h);
+    }
+}
+
 }  // namespace esengine
 
 #endif  // ES_PLATFORM_WEB

@@ -165,12 +165,14 @@ export function renderComponent(
     if (!schema) {
         console.warn(`[Inspector] No schema found for component "${component.type}"`);
     }
+    if (schema?.hidden) return;
     if (schema?.category === 'tag') {
         renderTagComponent(container, entity, component, store);
         return;
     }
 
     const defaults = getDefaultComponentData(component.type);
+    const displayTitle = schema?.displayName ?? component.type;
 
     const section = document.createElement('div');
     section.className = 'es-component-section es-collapsible es-expanded';
@@ -190,7 +192,7 @@ export function renderComponent(
     header.innerHTML = `
         <span class="es-collapse-icon">${icons.chevronDown(12)}</span>
         <span class="es-component-icon">${icon}</span>
-        <span class="es-component-title">${component.type}</span>
+        <span class="es-component-title">${displayTitle}</span>
         ${hasEnabled ? `<input type="checkbox" class="es-component-enabled-toggle" title="Enable/Disable component" ${isEnabled ? 'checked' : ''}>` : ''}
         ${removable ? `<button class="es-btn es-btn-icon es-btn-remove">${icons.x(12)}</button>` : ''}
     `;
@@ -317,7 +319,7 @@ export function renderComponent(
     if (customInspector) {
         const propsContainer = document.createElement('div');
         propsContainer.className = 'es-component-properties es-collapsible-content';
-        customInspector.render(propsContainer, {
+        const instance = customInspector.render(propsContainer, {
             store,
             entity,
             componentType: component.type,
@@ -326,6 +328,13 @@ export function renderComponent(
                 store.updateProperty(entity, component.type, property, oldValue, newValue);
             },
         });
+        if (instance) {
+            editors.push({
+                editor: instance,
+                componentType: component.type,
+                propertyName: '*',
+            });
+        }
         section.appendChild(propsContainer);
         container.appendChild(section);
         return;

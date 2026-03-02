@@ -22,8 +22,8 @@ export interface PlayableRuntimeConfig {
     module: ESEngineModule;
     canvas: HTMLCanvasElement;
     assets: Record<string, string>;
-    sceneData: SceneData;
-    sceneName: string;
+    scenes: Array<{ name: string; data: SceneData }>;
+    firstScene: string;
     spineWasmBase64?: string;
     physicsWasmBase64?: string;
     physicsConfig?: { gravity?: Vec2; fixedTimestep?: number; subStepCount?: number };
@@ -137,7 +137,7 @@ async function initPhysicsModule(wasmBase64: string): Promise<PhysicsWasmModule 
 }
 
 export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promise<void> {
-    const { app, module, assets, sceneData, sceneName } = config;
+    const { app, module, assets, scenes, firstScene } = config;
 
     const assetServer = app.getResource(Assets);
     if (assetServer) {
@@ -159,8 +159,8 @@ export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promis
         app,
         module,
         provider,
-        scenes: [{ name: sceneName, data: sceneData }],
-        firstScene: sceneName,
+        scenes,
+        firstScene,
         spineModule,
         physicsModule,
         physicsConfig: config.physicsConfig,

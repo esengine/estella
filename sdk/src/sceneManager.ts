@@ -7,12 +7,12 @@ import type { App } from './app';
 import type { Entity, Color } from './types';
 import type { SceneData, SceneLoadOptions, LoadedSceneAssets } from './scene';
 import type { SystemDef } from './system';
-import { Material, type ShaderHandle } from './material';
+import { Material } from './material';
 import type { DrawCallback } from './customDraw';
 import { Schedule } from './system';
 import { loadSceneWithAssets } from './scene';
 import { registerDrawCallback, unregisterDrawCallback } from './customDraw';
-import { PostProcess } from './postprocess';
+import { PostProcess, PostProcessStack } from './postprocess';
 import { Draw } from './draw';
 import { defineResource } from './resource';
 import { SceneOwner, Sprite, SpineAnimation, BitmapText } from './component';
@@ -40,8 +40,8 @@ export interface SceneContext {
     spawn(): Entity;
     despawn(entity: Entity): void;
     registerDrawCallback(id: string, fn: DrawCallback): void;
-    addPostProcessPass(name: string, shader: ShaderHandle): number;
-    removePostProcessPass(name: string): void;
+    bindPostProcess(camera: Entity, stack: PostProcessStack): void;
+    unbindPostProcess(camera: Entity): void;
     setPersistent(entity: Entity, persistent: boolean): void;
 }
 
@@ -77,7 +77,7 @@ class SceneInstance {
     readonly config: SceneConfig;
     readonly entities = new Set<Entity>();
     readonly drawCallbacks = new Map<string, DrawCallback>();
-    readonly postProcessPasses: string[] = [];
+    readonly postProcessBindings = new Map<Entity, PostProcessStack>();
     readonly savedAlphas = new Map<Entity, { sprite?: number; spine?: number; bitmapText?: number }>();
     loadedAssets: LoadedSceneAssets | null = null;
     status: SceneStatus = 'loading';
@@ -128,18 +128,14 @@ class SceneContextImpl implements SceneContext {
         registerDrawCallback(id, fn, this.instance_.config.name);
     }
 
-    addPostProcessPass(name: string, shader: ShaderHandle): number {
-        const index = PostProcess.addPass(name, shader);
-        this.instance_.postProcessPasses.push(name);
-        return index;
+    bindPostProcess(camera: Entity, stack: PostProcessStack): void {
+        PostProcess.bind(camera, stack);
+        this.instance_.postProcessBindings.set(camera, stack);
     }
 
-    removePostProcessPass(name: string): void {
-        PostProcess.removePass(name);
-        const idx = this.instance_.postProcessPasses.indexOf(name);
-        if (idx !== -1) {
-            this.instance_.postProcessPasses.splice(idx, 1);
-        }
+    unbindPostProcess(camera: Entity): void {
+        PostProcess.unbind(camera);
+        this.instance_.postProcessBindings.delete(camera);
     }
 
     setPersistent(entity: Entity, persistent: boolean): void {
@@ -172,6 +168,34 @@ export class SceneManagerState {
 
     constructor(app: App) {
         this.app_ = app;
+    }
+
+    reset(): void {
+        for (const instance of this.scenes_.values()) {
+            for (const id of instance.drawCallbacks.keys()) {
+                unregisterDrawCallback(id);
+            }
+            for (const camera of instance.postProcessBindings.keys()) {
+                PostProcess.unbind(camera);
+            }
+        }
+
+        if (this.transition_) {
+            unregisterDrawCallback(TRANSITION_CALLBACK_ID);
+            this.transition_ = null;
+        }
+
+        this.configs_.clear();
+        this.scenes_.clear();
+        this.contexts_.clear();
+        this.additiveScenes_.clear();
+        this.pausedScenes_.clear();
+        this.sleepingScenes_.clear();
+        this.loadOrder_.length = 0;
+        this.activeScene_ = null;
+        this.initialScene_ = null;
+        this.switching_ = false;
+        this.loadPromises_.clear();
     }
 
     register(config: SceneConfig): void {
@@ -419,14 +443,10 @@ export class SceneManagerState {
         }
         instance.drawCallbacks.clear();
 
-        for (const passName of instance.postProcessPasses) {
-            try {
-                PostProcess.removePass(passName);
-            } catch {
-                // pass may already be removed
-            }
+        for (const camera of instance.postProcessBindings.keys()) {
+            PostProcess.unbind(camera);
         }
-        instance.postProcessPasses.length = 0;
+        instance.postProcessBindings.clear();
 
         this.releaseSceneAssets_(instance);
 
@@ -608,12 +628,8 @@ export class SceneManagerState {
     }
 
     private setPostProcessPassesEnabled(instance: SceneInstance, enabled: boolean): void {
-        for (const passName of instance.postProcessPasses) {
-            try {
-                PostProcess.setEnabled(passName, enabled);
-            } catch {
-                // pass may have been removed externally
-            }
+        for (const stack of instance.postProcessBindings.values()) {
+            stack.setAllPassesEnabled(enabled);
         }
     }
 

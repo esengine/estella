@@ -254,7 +254,7 @@ void PostProcessPipeline::end() {
 
     if (enabledCount == 0) {
         fboA_->unbind();
-        blitToScreen(fboA_->getColorAttachment());
+        blitToOutput(fboA_->getColorAttachment());
     } else {
         u32 inputTexture = fboA_->getColorAttachment();
         currentFBO_ = 0;
@@ -275,12 +275,13 @@ void PostProcessPipeline::end() {
         Framebuffer* lastFBO = (currentFBO_ == 0) ? fboA_.get() : fboB_.get();
         lastFBO->unbind();
 
-        blitToScreen(inputTexture);
+        blitToOutput(inputTexture);
     }
 
     RenderCommand::setBlending(true);
     RenderCommand::setDepthTest(true);
     inFrame_ = false;
+    output_target_fbo_ = 0;
 }
 
 void PostProcessPipeline::renderPass(const PostProcessPass& pass, u32 inputTexture) {
@@ -305,9 +306,30 @@ void PostProcessPipeline::renderPass(const PostProcessPass& pass, u32 inputTextu
     RenderCommand::drawIndexed(*screenQuadVAO_, 6);
 }
 
-void PostProcessPipeline::blitToScreen(u32 texture) {
+void PostProcessPipeline::clearPasses() {
+    passes_.clear();
+}
+
+void PostProcessPipeline::setOutputTarget(u32 fboId) {
+    output_target_fbo_ = fboId;
+}
+
+void PostProcessPipeline::setOutputViewport(u32 x, u32 y, u32 w, u32 h) {
+    output_vp_x_ = x;
+    output_vp_y_ = y;
+    output_vp_w_ = w;
+    output_vp_h_ = h;
+}
+
+void PostProcessPipeline::blitToOutput(u32 texture) {
     Shader* shader = resourceManager_.getShader(blitShader_);
     if (!shader) return;
+
+    glBindFramebuffer(GL_FRAMEBUFFER, output_target_fbo_);
+
+    if (output_vp_w_ > 0 && output_vp_h_ > 0) {
+        RenderCommand::setViewport(output_vp_x_, output_vp_y_, output_vp_w_, output_vp_h_);
+    }
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, texture);

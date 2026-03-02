@@ -390,6 +390,12 @@ void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::H
                           !post_process_->isBypassed() && post_process_->getPassCount() > 0;
 
     if (usePostProcess) {
+        if (target != RenderTargetManager::INVALID_HANDLE) {
+            auto* rt = target_manager_.get(target);
+            if (rt) {
+                post_process_->setOutputTarget(rt->getFramebufferId());
+            }
+        }
         post_process_->begin();
     } else if (target != RenderTargetManager::INVALID_HANDLE) {
         auto* rt = target_manager_.get(target);

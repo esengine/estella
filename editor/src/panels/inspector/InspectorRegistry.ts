@@ -43,7 +43,7 @@ export interface ComponentInspectorContext {
 
 export interface ComponentInspectorInstance {
     dispose(): void;
-    update?(data: Record<string, unknown>): void;
+    update(data: Record<string, unknown>): void;
 }
 
 export interface ComponentInspectorDescriptor {

@@ -151,6 +151,9 @@ public:
     /** @brief Gets the framebuffer specification */
     const FramebufferSpec& getSpecification() const { return spec_; }
 
+    /** @brief Gets the underlying GL framebuffer object ID */
+    u32 getFramebufferId() const { return framebufferId_; }
+
 private:
     /**
      * @brief Initializes the framebuffer on GPU
