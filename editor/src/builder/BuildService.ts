@@ -13,7 +13,7 @@ import { BuildCache } from './BuildCache';
 import { BuildProgressReporter, formatDuration } from './BuildProgress';
 import { BuildHistory } from './BuildHistory';
 import { getProjectDir } from '../utils/path';
-import { loadProjectConfig } from '../launcher/ProjectService';
+import { getSettingsValue } from '../settings/SettingsRegistry';
 import { getEditorContext } from '../context/EditorContext';
 
 // =============================================================================
@@ -38,6 +38,8 @@ export interface RuntimeBuildConfig {
     maxDeltaTime?: number;
     maxFixedSteps?: number;
     textCanvasSize?: number;
+    assetLoadTimeout?: number;
+    assetFailureCooldown?: number;
 }
 
 export interface BuildContext {
@@ -85,9 +87,9 @@ export class BuildService {
         progress.setPhase('preparing');
         progress.log('info', `Building config: ${config.name}`);
 
-        const projectConfig = await loadProjectConfig(this.projectPath_);
-        const spineVersion = projectConfig?.spineVersion === 'none' ? undefined : projectConfig?.spineVersion;
-        const enablePhysics = projectConfig?.enablePhysics ?? false;
+        const spineVersionRaw = getSettingsValue<string>('project.spineVersion');
+        const spineVersion = spineVersionRaw === 'none' ? undefined : spineVersionRaw as SpineVersion | undefined;
+        const enablePhysics = getSettingsValue<boolean>('project.enablePhysics') ?? false;
 
         const context: BuildContext = {
             projectPath: this.projectPath_,
@@ -95,20 +97,22 @@ export class BuildService {
             spineVersion,
             enablePhysics,
             physicsGravity: {
-                x: projectConfig?.physicsGravityX ?? 0,
-                y: projectConfig?.physicsGravityY ?? -9.81,
+                x: getSettingsValue<number>('physics.gravityX') ?? 0,
+                y: getSettingsValue<number>('physics.gravityY') ?? -9.81,
             },
-            physicsFixedTimestep: projectConfig?.physicsFixedTimestep ?? 1 / 60,
-            physicsSubStepCount: projectConfig?.physicsSubStepCount ?? 4,
+            physicsFixedTimestep: getSettingsValue<number>('physics.fixedTimestep') ?? 1 / 60,
+            physicsSubStepCount: getSettingsValue<number>('physics.subStepCount') ?? 4,
             runtimeConfig: {
-                sceneTransitionDuration: projectConfig?.sceneTransitionDuration,
-                sceneTransitionColor: projectConfig?.sceneTransitionColor,
-                defaultFontFamily: projectConfig?.defaultFontFamily,
-                canvasScaleMode: projectConfig?.canvasScaleMode,
-                canvasMatchWidthOrHeight: projectConfig?.canvasMatchWidthOrHeight,
-                maxDeltaTime: projectConfig?.maxDeltaTime,
-                maxFixedSteps: projectConfig?.maxFixedSteps,
-                textCanvasSize: projectConfig?.textCanvasSize,
+                sceneTransitionDuration: getSettingsValue<number>('runtime.sceneTransitionDuration') ?? 0.3,
+                sceneTransitionColor: getSettingsValue<string>('runtime.sceneTransitionColor') ?? '#000000',
+                defaultFontFamily: getSettingsValue<string>('runtime.defaultFontFamily') ?? 'Arial',
+                canvasScaleMode: getSettingsValue<string>('runtime.canvasScaleMode') ?? 'FixedHeight',
+                canvasMatchWidthOrHeight: getSettingsValue<number>('runtime.canvasMatchWidthOrHeight') ?? 0.5,
+                maxDeltaTime: getSettingsValue<number>('runtime.maxDeltaTime') ?? 0.25,
+                maxFixedSteps: getSettingsValue<number>('runtime.maxFixedSteps') ?? 8,
+                textCanvasSize: parseInt(getSettingsValue<string>('runtime.textCanvasSize') ?? '512', 10),
+                assetLoadTimeout: getSettingsValue<number>('asset.timeout') ?? 30000,
+                assetFailureCooldown: getSettingsValue<number>('asset.failureCooldown') ?? 5000,
             },
             progress,
             cache: useCache ? this.cache_ : undefined,

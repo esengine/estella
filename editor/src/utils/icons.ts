@@ -68,6 +68,7 @@ import {
     Headphones,
     SlidersHorizontal,
     Gauge,
+    Globe,
 } from 'lucide';
 
 // =============================================================================
@@ -192,6 +193,7 @@ export const icons = {
     headphones: (size?: number) => renderIcon(Headphones as IconNode, size),
     sliders: (size?: number) => renderIcon(SlidersHorizontal as IconNode, size),
     gauge: (size?: number) => renderIcon(Gauge as IconNode, size),
+    globe: (size?: number) => renderIcon(Globe as IconNode, size),
 };
 
 export type IconName = keyof typeof icons;

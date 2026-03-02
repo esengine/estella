@@ -4,7 +4,7 @@
  */
 
 import { Entity, Vec2, Vec3, Color, Quat, INVALID_TEXTURE, INVALID_FONT } from './types';
-import { DEFAULT_DESIGN_WIDTH, DEFAULT_DESIGN_HEIGHT, DEFAULT_PIXELS_PER_UNIT } from './defaults';
+import { DEFAULT_DESIGN_WIDTH, DEFAULT_DESIGN_HEIGHT, DEFAULT_PIXELS_PER_UNIT, DEFAULT_SPRITE_SIZE } from './defaults';
 import type {
     RigidBodyData, BoxColliderData, CircleColliderData, CapsuleColliderData,
 } from './physics/PhysicsComponents';
@@ -324,7 +324,7 @@ export const WorldTransform = Transform;
 export const Sprite = defineBuiltin<SpriteData>('Sprite', {
     texture: INVALID_TEXTURE,
     color: { r: 1, g: 1, b: 1, a: 1 },
-    size: { x: 32, y: 32 },
+    size: { x: DEFAULT_SPRITE_SIZE.x, y: DEFAULT_SPRITE_SIZE.y },
     uvOffset: { x: 0, y: 0 },
     uvScale: { x: 1, y: 1 },
     layer: 0,

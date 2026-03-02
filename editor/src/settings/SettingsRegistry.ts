@@ -7,6 +7,14 @@ export interface SettingsSectionDescriptor {
     order?: number;
 }
 
+export interface SettingsGroupDescriptor {
+    id: string;
+    section: string;
+    label: string;
+    order?: number;
+    collapsed?: boolean;
+}
+
 export interface SettingsItemDescriptor {
     id: string;
     section: string;
@@ -21,6 +29,9 @@ export interface SettingsItemDescriptor {
     step?: number;
     onChange?: (value: unknown) => void;
     visibleWhen?: { settingId: string; value: unknown };
+    group?: string;
+    tags?: string[];
+    projectSync?: boolean;
 }
 
 type SettingsChangeListener = (id: string, value: unknown) => void;
@@ -28,6 +39,7 @@ type SettingsChangeListener = (id: string, value: unknown) => void;
 const STORAGE_KEY = 'esengine_settings';
 
 const sections_ = new Map<string, SettingsSectionDescriptor>();
+const groups_ = new Map<string, SettingsGroupDescriptor>();
 const items_ = new Map<string, SettingsItemDescriptor>();
 const values_ = new Map<string, unknown>();
 const listeners_: SettingsChangeListener[] = [];
@@ -88,6 +100,10 @@ export function registerSettingsSection(descriptor: SettingsSectionDescriptor): 
     sections_.set(descriptor.id, descriptor);
 }
 
+export function registerSettingsGroup(descriptor: SettingsGroupDescriptor): void {
+    groups_.set(descriptor.id, descriptor);
+}
+
 export function registerSettingsItem(descriptor: SettingsItemDescriptor): void {
     items_.set(descriptor.id, descriptor);
     if (!values_.has(descriptor.id)) {
@@ -134,8 +150,76 @@ export function getSectionItems(sectionId: string): SettingsItemDescriptor[] {
         .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 }
 
+export function getSectionGroups(sectionId: string): SettingsGroupDescriptor[] {
+    return [...groups_.values()]
+        .filter(g => g.section === sectionId)
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+}
+
+export function getGroupItems(groupId: string): SettingsItemDescriptor[] {
+    return [...items_.values()]
+        .filter(item => item.group === groupId)
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+}
+
+export function getUngroupedSectionItems(sectionId: string): SettingsItemDescriptor[] {
+    return [...items_.values()]
+        .filter(item => item.section === sectionId && !item.group)
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+}
+
+export function searchSettings(query: string): SettingsItemDescriptor[] {
+    const q = query.toLowerCase();
+    return [...items_.values()].filter(item => {
+        if (item.label.toLowerCase().includes(q)) return true;
+        if (item.description?.toLowerCase().includes(q)) return true;
+        if (item.tags?.some(t => t.toLowerCase().includes(q))) return true;
+        const section = sections_.get(item.section);
+        if (section?.title.toLowerCase().includes(q)) return true;
+        return false;
+    });
+}
+
+export function sectionHasModifiedValues(sectionId: string): boolean {
+    const sectionItems = getSectionItems(sectionId);
+    return sectionItems.some(item => {
+        const current = getSettingsValue(item.id);
+        return current !== item.defaultValue;
+    });
+}
+
+export function resetSection(sectionId: string): void {
+    const sectionItems = getSectionItems(sectionId);
+    for (const item of sectionItems) {
+        setSettingsValue(item.id, item.defaultValue);
+    }
+}
+
+export function exportSettings(): Record<string, unknown> {
+    const result: Record<string, unknown> = {};
+    for (const item of items_.values()) {
+        const value = getSettingsValue(item.id);
+        if (value !== item.defaultValue) {
+            result[item.id] = value;
+        }
+    }
+    return result;
+}
+
+export function importSettings(data: Record<string, unknown>): void {
+    for (const [id, value] of Object.entries(data)) {
+        if (items_.has(id)) {
+            setSettingsValue(id, value);
+        }
+    }
+}
+
 export function getItemDescriptor(id: string): SettingsItemDescriptor | undefined {
     return items_.get(id);
+}
+
+export function getGroupDescriptor(id: string): SettingsGroupDescriptor | undefined {
+    return groups_.get(id);
 }
 
 export function lockBuiltinSettings(): void {
