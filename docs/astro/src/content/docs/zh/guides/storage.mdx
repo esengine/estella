@@ -1,0 +1,136 @@
+---
+title: 数据存储
+description: 在 ESEngine 中保存和读取本地持久化数据
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+ESEngine 提供了 `Storage` API 用于本地数据持久化，在 Web（localStorage）和微信小游戏（wx storage）平台上使用统一的接口。
+
+## 基本用法
+
+```typescript
+import { Storage } from 'esengine';
+
+// 字符串
+Storage.setString('playerName', 'Alice');
+const name = Storage.getString('playerName'); // 'Alice'
+
+// 数字
+Storage.setNumber('highScore', 9999);
+const score = Storage.getNumber('highScore', 0); // 9999
+
+// 布尔值
+Storage.setBoolean('musicEnabled', true);
+const music = Storage.getBoolean('musicEnabled', false); // true
+
+// JSON（对象、数组等）
+Storage.setJSON('settings', { volume: 0.8, language: 'zh' });
+const settings = Storage.getJSON<{ volume: number; language: string }>('settings');
+```
+
+## 默认值
+
+所有 getter 方法接受可选的第二个参数作为默认值。当 key 不存在或存储的值损坏时返回默认值：
+
+```typescript
+const score = Storage.getNumber('score', 0);           // 不存在时返回 0
+const name = Storage.getString('name', 'Player');       // 不存在时返回 'Player'
+const items = Storage.getJSON<string[]>('items', []);   // 不存在或 JSON 无效时返回 []
+```
+
+## 检查与删除
+
+```typescript
+if (Storage.has('highScore')) {
+    console.log('找到存档数据');
+}
+
+Storage.remove('highScore');
+
+// 清除所有 ESEngine 存储的数据
+Storage.clear();
+```
+
+## 游戏存档示例
+
+```typescript
+import { Storage } from 'esengine';
+
+interface SaveData {
+    level: number;
+    hp: number;
+    position: { x: number; y: number };
+    inventory: string[];
+}
+
+function saveGame(data: SaveData): void {
+    Storage.setJSON('save:slot1', data);
+}
+
+function loadGame(): SaveData {
+    return Storage.getJSON<SaveData>('save:slot1', {
+        level: 1,
+        hp: 100,
+        position: { x: 0, y: 0 },
+        inventory: [],
+    })!;
+}
+```
+
+<Aside type="tip">
+  使用 key 命名约定如 `save:slot1`、`save:slot2` 来实现多存档槽，无需内置的存档槽系统。
+</Aside>
+
+## 玩家设置示例
+
+```typescript
+function loadSettings() {
+    return {
+        musicVolume: Storage.getNumber('settings:musicVolume', 1.0),
+        sfxVolume: Storage.getNumber('settings:sfxVolume', 1.0),
+        language: Storage.getString('settings:language', 'zh'),
+    };
+}
+
+function saveMusicVolume(volume: number) {
+    Storage.setNumber('settings:musicVolume', volume);
+}
+```
+
+## API 参考
+
+| 方法 | 说明 |
+|------|------|
+| `getString(key, default?)` | 获取字符串 |
+| `setString(key, value)` | 存储字符串 |
+| `getNumber(key, default?)` | 获取数字 |
+| `setNumber(key, value)` | 存储数字 |
+| `getBoolean(key, default?)` | 获取布尔值 |
+| `setBoolean(key, value)` | 存储布尔值 |
+| `getJSON<T>(key, default?)` | 获取 JSON 解析后的值 |
+| `setJSON<T>(key, value)` | 存储可序列化为 JSON 的值 |
+| `has(key)` | 检查 key 是否存在 |
+| `remove(key)` | 删除指定 key |
+| `clear()` | 清除所有 ESEngine 存储的数据 |
+
+<Aside type="note">
+  所有 key 会自动添加 `esengine:` 前缀，避免与其他库冲突。使用时无需手动添加此前缀。
+</Aside>
+
+## 平台说明
+
+| 平台 | 底层实现 | 容量限制 |
+|------|---------|---------|
+| Web | `localStorage` | ~5 MB |
+| 微信小游戏 | `wx.getStorageSync` | 10 MB |
+
+<Aside type="caution">
+  两个平台的存储操作都是同步的。请保持存储数据量较小（设置、存档状态），避免造成卡帧。如需存储大体积二进制数据，建议直接使用平台原生 API。
+</Aside>
+
+## 下一步
+
+- [场景](/microes/zh/guides/scenes/) — 场景加载与管理
+- [资源](/microes/zh/core-concepts/resources/) — Resource 系统的运行时全局状态
+- [微信小游戏](/microes/zh/guides/wechat/) — 微信平台相关

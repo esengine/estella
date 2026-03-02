@@ -81,6 +81,7 @@ export default defineConfig({
             },
             { label: 'Scenes', translations: { 'zh-CN': '场景' }, slug: 'guides/scenes' },
             { label: 'Prefabs', translations: { 'zh-CN': '预制体' }, slug: 'guides/prefabs' },
+            { label: 'Storage', translations: { 'zh-CN': '数据存储' }, slug: 'guides/storage' },
             { label: 'Input Handling', translations: { 'zh-CN': '输入处理' }, slug: 'guides/input' },
             {
               label: 'UI',
