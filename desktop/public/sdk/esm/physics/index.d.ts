@@ -536,6 +536,9 @@ interface ESEngineModule {
     postprocess_isInitialized(): boolean;
     postprocess_setBypass(bypass: boolean): void;
     postprocess_isBypassed(): boolean;
+    postprocess_clearPasses(): void;
+    postprocess_setOutputTarget(fboId: number): void;
+    postprocess_setOutputViewport(x: number, y: number, w: number, h: number): void;
     renderer_init(width: number, height: number): void;
     renderer_resize(width: number, height: number): void;
     renderer_begin(matrixPtr: number, targetHandle: number): void;
@@ -551,6 +554,14 @@ interface ESEngineModule {
     particle_stop?(registry: CppRegistry, entity: number): void;
     particle_reset?(registry: CppRegistry, entity: number): void;
     particle_getAliveCount?(entity: number): number;
+    tilemap_initLayer?(entity: number, width: number, height: number, tileWidth: number, tileHeight: number): void;
+    tilemap_destroyLayer?(entity: number): void;
+    tilemap_setTile?(entity: number, x: number, y: number, tileId: number): void;
+    tilemap_getTile?(entity: number, x: number, y: number): number;
+    tilemap_fillRect?(entity: number, x: number, y: number, w: number, h: number, tileId: number): void;
+    tilemap_setTiles?(entity: number, tilesPtr: number, count: number): void;
+    tilemap_hasLayer?(entity: number): boolean;
+    tilemap_submitLayer?(entity: number, textureId: number, sortLayer: number, depth: number, tilesetColumns: number, uvTileWidth: number, uvTileHeight: number, originX: number, originY: number, camLeft: number, camBottom: number, camRight: number, camTop: number): void;
     renderer_setStage(stage: number): void;
     renderer_createTarget(width: number, height: number, flags: number): number;
     renderer_releaseTarget(handle: number): void;
@@ -798,19 +809,23 @@ interface CameraRenderParams {
     };
     clearFlags: number;
     elapsed: number;
+    cameraEntity?: Entity;
 }
 type SpineRendererFn = (registry: {
     _cpp: CppRegistry;
 }, elapsed: number) => void;
+type TilemapRendererFn = () => void;
 type MaskProcessorFn = (registry: CppRegistry, vp: Float32Array, viewportX: number, viewportY: number, viewportW: number, viewportH: number) => void;
 declare class RenderPipeline {
     private spineRenderer_;
+    private tilemapRenderer_;
     private maskProcessor_;
     private lastWidth_;
     private lastHeight_;
     private activeScenes_;
     get spineRenderer(): SpineRendererFn | null;
     setSpineRenderer(fn: SpineRendererFn | null): void;
+    setTilemapRenderer(fn: TilemapRendererFn | null): void;
     get maskProcessor(): MaskProcessorFn | null;
     setMaskProcessor(fn: MaskProcessorFn | null): void;
     setActiveScenes(scenes: Set<string> | null): void;
@@ -868,6 +883,36 @@ interface SceneData {
  */
 type DrawCallback = (elapsed: number) => void;
 
+/**
+ * @file    postprocess.ts
+ * @brief   Per-camera post-processing effects API
+ */
+
+interface PassConfig {
+    name: string;
+    shader: ShaderHandle;
+    enabled: boolean;
+    floatUniforms: Map<string, number>;
+    vec4Uniforms: Map<string, Vec4>;
+}
+declare class PostProcessStack {
+    readonly id: number;
+    private passes_;
+    private destroyed_;
+    constructor();
+    addPass(name: string, shader: ShaderHandle): this;
+    removePass(name: string): this;
+    setEnabled(name: string, enabled: boolean): this;
+    setUniform(passName: string, uniform: string, value: number): this;
+    setUniformVec4(passName: string, uniform: string, value: Vec4): this;
+    setAllPassesEnabled(enabled: boolean): void;
+    get passCount(): number;
+    get enabledPassCount(): number;
+    get passes(): readonly PassConfig[];
+    get isDestroyed(): boolean;
+    destroy(): void;
+}
+
 interface SceneConfig {
     name: string;
     path?: string;
@@ -885,8 +930,8 @@ interface SceneContext {
     spawn(): Entity;
     despawn(entity: Entity): void;
     registerDrawCallback(id: string, fn: DrawCallback): void;
-    addPostProcessPass(name: string, shader: ShaderHandle): number;
-    removePostProcessPass(name: string): void;
+    bindPostProcess(camera: Entity, stack: PostProcessStack): void;
+    unbindPostProcess(camera: Entity): void;
     setPersistent(entity: Entity, persistent: boolean): void;
 }
 
