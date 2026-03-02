@@ -10,6 +10,8 @@ import type { AssetServer } from './asset/AssetServer';
 import { extractAnimClipTexturePaths, parseAnimClipData, type AnimClipAssetData } from './animation/AnimClipLoader';
 import { registerAnimClip } from './animation/SpriteAnimator';
 import { Audio } from './audio/Audio';
+import { registerTextureDimensions, registerTilemapSource } from './tilemap/tilesetCache';
+import { parseTmjJson, resolveRelativePath } from './tilemap/tiledLoader';
 
 // =============================================================================
 // Types
@@ -66,7 +68,7 @@ export interface SceneLoadOptions {
 // Component Asset Field Registry
 // =============================================================================
 
-export type AssetFieldType = 'texture' | 'material' | 'font' | 'anim-clip' | 'audio';
+export type AssetFieldType = 'texture' | 'material' | 'font' | 'anim-clip' | 'audio' | 'tilemap';
 
 interface AssetFieldDescriptor {
     field: string;
@@ -121,6 +123,11 @@ const COMPONENT_ASSET_FIELDS = new Map<string, ComponentAssetFields>([
         fields: [
             { field: 'texture', type: 'texture' },
             { field: 'material', type: 'material' },
+        ],
+    }],
+    ['Tilemap', {
+        fields: [
+            { field: 'source', type: 'tilemap' },
         ],
     }],
 ]);
@@ -290,6 +297,7 @@ const ASSET_FIELD_HANDLERS = new Map<AssetFieldType, AssetFieldHandler>([
                     const info = await assetServer.loadTexture(url);
                     handles.set(texturePath, info.handle);
                     texturePathToUrl.set(texturePath, url);
+                    registerTextureDimensions(info.handle, info.width, info.height);
                 } catch (err) {
                     console.warn(`Failed to load texture: ${texturePath}`, err);
                     handles.set(texturePath, 0);
@@ -368,6 +376,52 @@ const ASSET_FIELD_HANDLERS = new Map<AssetFieldType, AssetFieldHandler>([
             await Audio.preloadAll(urls).catch(err => {
                 console.warn('Failed to preload audio assets:', err);
             });
+            return new Map();
+        },
+    }],
+    ['tilemap', {
+        async load(paths, assetServer, baseUrl, texturePathToUrl) {
+            const promises = [...paths].map(async (tmjPath) => {
+                try {
+                    const json = await assetServer.loadJson<Record<string, unknown>>(tmjPath);
+                    const mapData = parseTmjJson(json);
+                    if (!mapData) {
+                        console.warn(`Failed to parse tilemap: ${tmjPath}`);
+                        return;
+                    }
+
+                    const tilesets = [];
+                    for (const ts of mapData.tilesets) {
+                        const imagePath = resolveRelativePath(tmjPath, ts.image);
+                        let textureHandle = 0;
+                        try {
+                            const url = baseUrl ? `${baseUrl}/${imagePath}` : `/${imagePath}`;
+                            const info = await assetServer.loadTexture(url);
+                            textureHandle = info.handle;
+                            texturePathToUrl.set(imagePath, url);
+                            registerTextureDimensions(info.handle, info.width, info.height);
+                        } catch (err) {
+                            console.warn(`Failed to load tileset texture: ${imagePath}`, err);
+                        }
+                        tilesets.push({ textureHandle, columns: ts.columns });
+                    }
+
+                    registerTilemapSource(tmjPath, {
+                        tileWidth: mapData.tileWidth,
+                        tileHeight: mapData.tileHeight,
+                        layers: mapData.layers.map(l => ({
+                            name: l.name,
+                            width: l.width,
+                            height: l.height,
+                            tiles: l.tiles,
+                        })),
+                        tilesets,
+                    });
+                } catch (err) {
+                    console.warn(`Failed to load tilemap: ${tmjPath}`, err);
+                }
+            });
+            await Promise.all(promises);
             return new Map();
         },
     }],

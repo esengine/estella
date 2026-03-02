@@ -4,6 +4,7 @@
  */
 
 import type { CppRegistry } from './wasm';
+import type { Entity } from './types';
 import { Renderer } from './renderer';
 import { PostProcess } from './postprocess';
 import { Draw } from './draw';
@@ -23,9 +24,12 @@ export interface CameraRenderParams {
     viewportPixels: { x: number; y: number; w: number; h: number };
     clearFlags: number;
     elapsed: number;
+    cameraEntity?: Entity;
 }
 
 export type SpineRendererFn = (registry: { _cpp: CppRegistry }, elapsed: number) => void;
+
+export type TilemapRendererFn = () => void;
 
 export type MaskProcessorFn = (
     registry: CppRegistry,
@@ -36,6 +40,7 @@ export type MaskProcessorFn = (
 
 export class RenderPipeline {
     private spineRenderer_: SpineRendererFn | null = null;
+    private tilemapRenderer_: TilemapRendererFn | null = null;
     private maskProcessor_: MaskProcessorFn | null = null;
     private lastWidth_ = 0;
     private lastHeight_ = 0;
@@ -47,6 +52,10 @@ export class RenderPipeline {
 
     setSpineRenderer(fn: SpineRendererFn | null): void {
         this.spineRenderer_ = fn;
+    }
+
+    setTilemapRenderer(fn: TilemapRendererFn | null): void {
+        this.tilemapRenderer_ = fn;
     }
 
     get maskProcessor(): MaskProcessorFn | null {
@@ -66,9 +75,6 @@ export class RenderPipeline {
 
         if (width !== this.lastWidth_ || height !== this.lastHeight_) {
             Renderer.resize(width, height);
-            if (PostProcess.isInitialized() && PostProcess.getPassCount() > 0) {
-                PostProcess.resize(width, height);
-            }
             this.lastWidth_ = width;
             this.lastHeight_ = height;
         }
@@ -78,6 +84,9 @@ export class RenderPipeline {
         Renderer.begin(viewProjection);
         if (this.maskProcessor_) {
             this.maskProcessor_(registry._cpp, viewProjection, 0, 0, width, height);
+        }
+        if (this.tilemapRenderer_) {
+            this.tilemapRenderer_();
         }
         Renderer.submitSprites(registry);
         Renderer.submitBitmapText(registry);
@@ -95,7 +104,15 @@ export class RenderPipeline {
     }
 
     renderCamera(params: CameraRenderParams): void {
-        const { registry, viewProjection, viewportPixels: vp, clearFlags, elapsed } = params;
+        const { registry, viewProjection, viewportPixels: vp, clearFlags, elapsed, cameraEntity } = params;
+
+        const hasPostProcess = cameraEntity !== undefined && PostProcess.getStack(cameraEntity) !== null;
+
+        if (hasPostProcess) {
+            PostProcess._applyForCamera(cameraEntity!);
+            PostProcess.resize(vp.w, vp.h);
+            PostProcess.setOutputViewport(vp.x, vp.y, vp.w, vp.h);
+        }
 
         Renderer.setViewport(vp.x, vp.y, vp.w, vp.h);
         Renderer.setScissor(vp.x, vp.y, vp.w, vp.h, true);
@@ -105,6 +122,9 @@ export class RenderPipeline {
         Renderer.begin(viewProjection);
         if (this.maskProcessor_) {
             this.maskProcessor_(registry._cpp, viewProjection, vp.x, vp.y, vp.w, vp.h);
+        }
+        if (this.tilemapRenderer_) {
+            this.tilemapRenderer_();
         }
         Renderer.submitSprites(registry);
         Renderer.submitBitmapText(registry);
@@ -119,6 +139,10 @@ export class RenderPipeline {
         this.executeDrawCallbacks(viewProjection, elapsed);
 
         Renderer.end();
+
+        if (hasPostProcess) {
+            PostProcess._resetAfterCamera();
+        }
     }
 
     private executeDrawCallbacks(viewProjection: Float32Array, elapsed: number): void {

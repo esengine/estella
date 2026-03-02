@@ -93,6 +93,7 @@ export function showFolderContextMenu(state: ContentBrowserState, e: MouseEvent,
                 { label: 'BitmapFont', icon: icons.type(14), onClick: () => createNewBitmapFont(state, path) },
                 { label: 'Animation Clip', icon: icons.layers(14), onClick: () => createNewAnimClip(state, path) },
                 { label: 'Scene', icon: icons.layers(14), onClick: () => createNewScene(state, path) },
+
             ],
         },
         { label: '', separator: true },

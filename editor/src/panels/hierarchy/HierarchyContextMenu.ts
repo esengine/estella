@@ -30,6 +30,7 @@ export function showEntityContextMenu(state: HierarchyState, x: number, y: numbe
             { label: 'BitmapText', icon: icons.type(14), onClick: () => createEntityWithComponent(state, 'BitmapText', entity) },
             { label: 'Spine', icon: icons.bone(14), onClick: () => createEntityWithComponent(state, 'SpineAnimation', entity) },
             { label: 'Particle', icon: icons.star(14), onClick: () => createEntityWithComponent(state, 'ParticleEmitter', entity) },
+            { label: 'Tilemap', icon: icons.grid(14), onClick: () => createTilemapEntity(state, entity) },
         ] },
         { label: 'UI', icon: icons.pointer(14), children: [
             { label: 'Canvas', icon: icons.template(14), onClick: () => createEntityWithComponent(state, 'Canvas', entity) },
@@ -543,6 +544,12 @@ async function saveEntityAsPrefab(state: HierarchyState, entity: Entity): Promis
     if (!success) {
         console.error('[HierarchyPanel] Failed to save prefab:', filePath);
     }
+}
+
+function createTilemapEntity(state: HierarchyState, parent: Entity | null): void {
+    const newEntity = state.store.createEntity('Tilemap', parent);
+    state.store.addComponent(newEntity, 'Transform', getInitialComponentData('Transform'));
+    state.store.addComponent(newEntity, 'Tilemap', getInitialComponentData('Tilemap'));
 }
 
 export async function createEntityFromAsset(

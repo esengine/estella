@@ -105,6 +105,8 @@ export {
     SimulationSpace,
     ParticleEasing,
     type ParticleEmitterData,
+    PostProcessVolume,
+    type PostProcessVolumeData,
 } from './component';
 
 export {
@@ -524,8 +526,18 @@ export {
 
 export {
     PostProcess,
+    PostProcessStack,
     initPostProcessAPI,
     shutdownPostProcessAPI,
+    type EffectDef,
+    type EffectUniformDef,
+    type PostProcessEffectData,
+    getEffectDef,
+    getEffectTypes,
+    getAllEffectDefs,
+    syncPostProcessVolume,
+    cleanupPostProcessVolume,
+    cleanupAllPostProcessVolumes,
 } from './postprocess';
 
 // =============================================================================
@@ -704,6 +716,39 @@ export {
     ParticlePlugin,
     particlePlugin,
 } from './particle';
+
+// =============================================================================
+// Tilemap
+// =============================================================================
+
+export {
+    Tilemap,
+    TilemapLayer,
+    TilemapAPI,
+    initTilemapAPI,
+    shutdownTilemapAPI,
+    TilemapPlugin,
+    tilemapPlugin,
+    parseTiledMap,
+    parseTmjJson,
+    loadTiledMap,
+    resolveRelativePath,
+    registerTextureDimensions,
+    getTextureDimensions,
+    clearTextureDimensionsCache,
+    registerTilemapSource,
+    getTilemapSource,
+    clearTilemapSourceCache,
+    type TilemapData,
+    type TilemapLayerData,
+    type TiledMapData,
+    type TiledLayerData,
+    type TiledTilesetData,
+    type TextureDimensions,
+    type LoadedTilemapSource,
+    type LoadedTilemapLayer,
+    type LoadedTilemapTileset,
+} from './tilemap';
 
 // =============================================================================
 // Stats

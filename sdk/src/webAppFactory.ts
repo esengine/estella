@@ -5,6 +5,7 @@ import { uiPlugins } from './uiPlugins';
 import { animationPlugin } from './animation';
 import { audioPlugin } from './audio';
 import { particlePlugin } from './particle';
+import { tilemapPlugin } from './tilemap';
 
 export { uiPlugins };
 export { textPlugin, TextPlugin } from './ui/TextPlugin';
@@ -31,7 +32,7 @@ export { AnimationPlugin, animationPlugin } from './animation';
 export { AudioPlugin, audioPlugin } from './audio';
 export { ParticlePlugin, particlePlugin } from './particle';
 
-const defaultPlugins = [...uiPlugins, animationPlugin, audioPlugin, particlePlugin];
+const defaultPlugins = [...uiPlugins, animationPlugin, audioPlugin, particlePlugin, tilemapPlugin];
 
 export function createWebApp(module: ESEngineModule, options?: WebAppOptions): App {
     return _createWebApp(module, { plugins: defaultPlugins, ...options });

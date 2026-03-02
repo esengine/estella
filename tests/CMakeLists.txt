@@ -23,3 +23,10 @@ add_executable(test_particle
 )
 target_link_libraries(test_particle PRIVATE esengine)
 add_test(NAME test_particle COMMAND test_particle)
+
+# Tilemap system tests
+add_executable(test_tilemap
+    tilemap/test_tilemap.cpp
+)
+target_link_libraries(test_tilemap PRIVATE esengine)
+add_test(NAME test_tilemap COMMAND test_tilemap)

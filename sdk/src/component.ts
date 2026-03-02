@@ -528,6 +528,14 @@ export const SceneOwner = defineComponent<SceneOwnerData>('SceneOwner', {
     persistent: false,
 });
 
+export interface PostProcessVolumeData {
+    effects: { type: string; enabled: boolean; uniforms: Record<string, number> }[];
+}
+
+export const PostProcessVolume = defineComponent<PostProcessVolumeData>('PostProcessVolume', {
+    effects: [],
+});
+
 export type {
     RigidBodyData, BoxColliderData, CircleColliderData, CapsuleColliderData,
 };

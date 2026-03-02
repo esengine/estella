@@ -34,6 +34,10 @@ import {
     type TextInputData,
     type LayoutRect,
     ScaleMode,
+    parseTmjJson,
+    resolveRelativePath,
+    registerTextureDimensions,
+    registerTilemapSource,
 } from 'esengine';
 import type { SpineModuleController } from 'esengine/spine';
 import { submitSpineMeshesToCore } from 'esengine/spine';
@@ -758,6 +762,15 @@ export class EditorSceneManager {
                     }
                     break;
                 }
+                case 'tilemap': {
+                    try {
+                        await this.loadTilemapSource(resolved);
+                        data[desc.field] = resolved;
+                    } catch (err) {
+                        console.warn(`[EditorSceneManager] Failed to load tilemap: ${resolved}`, err);
+                    }
+                    break;
+                }
             }
         }
 
@@ -813,6 +826,45 @@ export class EditorSceneManager {
 
         const clip = parseAnimClipData(clipPath, clipData, textureHandles);
         registerAnimClip(clip);
+    }
+
+    private async loadTilemapSource(tmjPath: string): Promise<void> {
+        const fs = getEditorContext().fs;
+        if (!fs) return;
+
+        const absPath = this.pathResolver_.toAbsolutePath(tmjPath);
+        const raw = await fs.readFile(absPath);
+        if (!raw) return;
+
+        const json = JSON.parse(raw) as Record<string, unknown>;
+        const mapData = parseTmjJson(json);
+        if (!mapData) return;
+
+        const tilesets = [];
+        for (const ts of mapData.tilesets) {
+            const imagePath = resolveRelativePath(tmjPath, ts.image);
+            let textureHandle = 0;
+            try {
+                const info = await this.assetServer_.loadTexture(imagePath);
+                textureHandle = info.handle;
+                registerTextureDimensions(info.handle, info.width, info.height);
+            } catch (err) {
+                console.warn(`[EditorSceneManager] Failed to load tileset texture: ${imagePath}`, err);
+            }
+            tilesets.push({ textureHandle, columns: ts.columns });
+        }
+
+        registerTilemapSource(tmjPath, {
+            tileWidth: mapData.tileWidth,
+            tileHeight: mapData.tileHeight,
+            layers: mapData.layers.map(l => ({
+                name: l.name,
+                width: l.width,
+                height: l.height,
+                tiles: l.tiles,
+            })),
+            tilesets,
+        });
     }
 
     // =========================================================================

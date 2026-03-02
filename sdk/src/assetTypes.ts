@@ -6,7 +6,9 @@ export type AddressableAssetType =
 
 export type EditorAssetType =
     | 'texture' | 'material' | 'shader' | 'spine-atlas' | 'spine-skeleton'
-    | 'bitmap-font' | 'prefab' | 'json' | 'audio' | 'scene' | 'anim-clip' | 'unknown';
+    | 'bitmap-font' | 'prefab' | 'json' | 'audio' | 'scene' | 'anim-clip'
+    | 'tilemap'
+    | 'unknown';
 
 export type AssetBuildTransform = (content: string, context: unknown) => string;
 
@@ -33,6 +35,7 @@ const ASSET_TYPE_REGISTRY: readonly AssetTypeEntry[] = [
     { extensions: ['esprefab'], contentType: 'json', editorType: 'prefab', addressableType: 'prefab', wechatPackInclude: true, hasTransitiveDeps: true },
     { extensions: ['esscene'], contentType: 'json', editorType: 'scene', addressableType: null, wechatPackInclude: false, hasTransitiveDeps: false },
     { extensions: ['esanim'], contentType: 'json', editorType: 'anim-clip', addressableType: null, wechatPackInclude: true, hasTransitiveDeps: true },
+    { extensions: ['tmj'], contentType: 'json', editorType: 'tilemap', addressableType: 'json', wechatPackInclude: true, hasTransitiveDeps: true },
 ];
 
 const MIME_MAP: Record<string, string> = {
