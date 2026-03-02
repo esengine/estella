@@ -18,6 +18,7 @@ import { createButtonTransitionEditor } from './buttonTransitionEditor';
 import { openEntityPicker } from './EntityPicker';
 import { setupDragLabel, colorToHex, hexToColor } from './editorUtils';
 import { validateNumber, validateVec2, validateVec3, validateColor, showValidationError } from './validation';
+import { getNamedLayers, layerIndexFromBits, bitsFromLayerIndex } from '../settings/collisionLayers';
 export { setupDragLabel, colorToHex, hexToColor };
 
 // =============================================================================
@@ -2176,6 +2177,53 @@ function createTilemapFileEditor(
 }
 
 // =============================================================================
+// Collision Layer Editor
+// =============================================================================
+
+function createCollisionLayerEditor(
+    container: HTMLElement,
+    ctx: PropertyEditorContext
+): PropertyEditorInstance {
+    const { value, onChange } = ctx;
+
+    const select = document.createElement('select');
+    select.className = 'es-input es-input-select';
+
+    function populateOptions(): void {
+        select.innerHTML = '';
+        const layers = getNamedLayers();
+        for (const layer of layers) {
+            const option = document.createElement('option');
+            option.value = String(layer.index);
+            option.textContent = `${layer.index}: ${layer.name}`;
+            select.appendChild(option);
+        }
+    }
+
+    populateOptions();
+    const currentIndex = layerIndexFromBits(value as number);
+    select.value = String(currentIndex);
+
+    select.addEventListener('change', () => {
+        const idx = parseInt(select.value, 10);
+        onChange(bitsFromLayerIndex(idx));
+    });
+
+    container.appendChild(select);
+
+    return {
+        update(newValue: unknown) {
+            populateOptions();
+            const idx = layerIndexFromBits(newValue as number);
+            select.value = String(idx);
+        },
+        dispose() {
+            select.remove();
+        },
+    };
+}
+
+// =============================================================================
 // Register All Editors
 // =============================================================================
 
@@ -2204,4 +2252,5 @@ export function registerBuiltinEditors(): void {
     registerPropertyEditor('anim-file', createAnimFileEditor);
     registerPropertyEditor('audio-file', createAudioFileEditor);
     registerPropertyEditor('tilemap-file', createTilemapFileEditor);
+    registerPropertyEditor('collision-layer', createCollisionLayerEditor);
 }

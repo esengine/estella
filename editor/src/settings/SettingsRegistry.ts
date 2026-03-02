@@ -1,4 +1,4 @@
-export type SettingsItemType = 'boolean' | 'number' | 'string' | 'color' | 'select' | 'range';
+export type SettingsItemType = 'boolean' | 'number' | 'string' | 'color' | 'select' | 'range' | 'custom';
 
 export interface SettingsSectionDescriptor {
     id: string;
@@ -32,6 +32,8 @@ export interface SettingsItemDescriptor {
     group?: string;
     tags?: string[];
     projectSync?: boolean;
+    hidden?: boolean;
+    render?: (container: HTMLElement) => (() => void) | void;
 }
 
 type SettingsChangeListener = (id: string, value: unknown) => void;
@@ -171,6 +173,7 @@ export function getUngroupedSectionItems(sectionId: string): SettingsItemDescrip
 export function searchSettings(query: string): SettingsItemDescriptor[] {
     const q = query.toLowerCase();
     return [...items_.values()].filter(item => {
+        if (item.hidden) return false;
         if (item.label.toLowerCase().includes(q)) return true;
         if (item.description?.toLowerCase().includes(q)) return true;
         if (item.tags?.some(t => t.toLowerCase().includes(q))) return true;

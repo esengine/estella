@@ -1,6 +1,6 @@
 import type { SceneData } from './types/SceneTypes';
 import { PreviewService } from './preview';
-import { getSettingsValue } from './settings';
+import { getSettingsValue, MAX_COLLISION_LAYERS } from './settings';
 import type { ScriptLoader } from './scripting';
 
 export class PreviewManager {
@@ -85,11 +85,15 @@ export class PreviewManager {
 
     private collectPreviewConfig(spineVersion: string) {
         const enablePhysics = getSettingsValue<boolean>('project.enablePhysics') ?? false;
+        const collisionLayerMasks = Array.from({ length: MAX_COLLISION_LAYERS }, (_, i) =>
+            getSettingsValue<number>(`physics.layerMask${i}`) ?? 0xFFFF
+        );
         const physicsConfig = enablePhysics ? {
             gravityX: getSettingsValue<number>('physics.gravityX') ?? 0,
             gravityY: getSettingsValue<number>('physics.gravityY') ?? -9.81,
             fixedTimestep: getSettingsValue<number>('physics.fixedTimestep') ?? 1 / 60,
             subStepCount: getSettingsValue<number>('physics.subStepCount') ?? 4,
+            collisionLayerMasks,
         } : undefined;
         const previewSpineVersion = spineVersion === 'none' ? undefined : spineVersion;
         const runtimeConfig = {

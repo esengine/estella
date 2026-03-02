@@ -63,6 +63,7 @@ export function showSettingsDialog(): void {
     const inputElements = new Map<string, HTMLInputElement | HTMLSelectElement>();
     const itemRows = new Map<string, HTMLElement>();
     const collapsedGroups = new Set<string>();
+    const customDisposers: (() => void)[] = [];
 
     for (const section of sections) {
         for (const group of getSectionGroups(section.id)) {
@@ -129,6 +130,8 @@ export function showSettingsDialog(): void {
     }
 
     function buildContent(): void {
+        for (const dispose of customDisposers) dispose();
+        customDisposers.length = 0;
         content.innerHTML = '';
         itemRows.clear();
         inputElements.clear();
@@ -282,9 +285,20 @@ export function showSettingsDialog(): void {
     }
 
     function renderItem(container: HTMLElement, item: SettingsItemDescriptor): void {
+        if (item.hidden) return;
+
         const value = getSettingsValue(item.id);
 
         switch (item.type) {
+            case 'custom': {
+                if (item.render) {
+                    const dispose = item.render(container);
+                    if (dispose) {
+                        customDisposers.push(dispose);
+                    }
+                }
+                break;
+            }
             case 'boolean': {
                 const label = document.createElement('label');
                 label.className = 'es-settings-checkbox-row';
@@ -488,5 +502,7 @@ export function showSettingsDialog(): void {
 
     dialog.open().then(() => {
         unsubscribe();
+        for (const dispose of customDisposers) dispose();
+        customDisposers.length = 0;
     });
 }

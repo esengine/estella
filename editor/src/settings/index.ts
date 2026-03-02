@@ -28,3 +28,10 @@ export {
 export { showSettingsDialog } from './SettingsDialog';
 export { registerBuiltinSettings } from './builtinSettings';
 export { ProjectSettingsSync } from './ProjectSettingsSync';
+export {
+    MAX_COLLISION_LAYERS,
+    getLayerName,
+    getNamedLayers,
+    layerIndexFromBits,
+    bitsFromLayerIndex,
+} from './collisionLayers';

@@ -165,7 +165,8 @@ int physics_hasBody(uint32_t entityId) {
 EMSCRIPTEN_KEEPALIVE
 void physics_addBoxShape(uint32_t entityId, float halfW, float halfH,
                          float offX, float offY,
-                         float density, float friction, float restitution, int isSensor) {
+                         float density, float friction, float restitution, int isSensor,
+                         uint32_t categoryBits, uint32_t maskBits) {
     auto it = g_entityToBody.find(entityId);
     if (it == g_entityToBody.end()) return;
 
@@ -176,6 +177,8 @@ void physics_addBoxShape(uint32_t entityId, float halfW, float halfH,
     shapeDef.isSensor = isSensor != 0;
     shapeDef.enableContactEvents = true;
     shapeDef.enableSensorEvents = isSensor != 0;
+    shapeDef.filter.categoryBits = static_cast<uint64_t>(categoryBits);
+    shapeDef.filter.maskBits = static_cast<uint64_t>(maskBits);
 
     b2Polygon polygon = b2MakeOffsetBox(halfW, halfH, {offX, offY}, b2MakeRot(0.0f));
     b2ShapeId shapeId = b2CreatePolygonShape(it->second, &shapeDef, &polygon);
@@ -185,7 +188,8 @@ void physics_addBoxShape(uint32_t entityId, float halfW, float halfH,
 EMSCRIPTEN_KEEPALIVE
 void physics_addCircleShape(uint32_t entityId, float radius,
                             float offX, float offY,
-                            float density, float friction, float restitution, int isSensor) {
+                            float density, float friction, float restitution, int isSensor,
+                            uint32_t categoryBits, uint32_t maskBits) {
     auto it = g_entityToBody.find(entityId);
     if (it == g_entityToBody.end()) return;
 
@@ -196,6 +200,8 @@ void physics_addCircleShape(uint32_t entityId, float radius,
     shapeDef.isSensor = isSensor != 0;
     shapeDef.enableContactEvents = true;
     shapeDef.enableSensorEvents = isSensor != 0;
+    shapeDef.filter.categoryBits = static_cast<uint64_t>(categoryBits);
+    shapeDef.filter.maskBits = static_cast<uint64_t>(maskBits);
 
     b2Circle circle;
     circle.center = {offX, offY};
@@ -208,7 +214,8 @@ void physics_addCircleShape(uint32_t entityId, float radius,
 EMSCRIPTEN_KEEPALIVE
 void physics_addCapsuleShape(uint32_t entityId, float radius, float halfHeight,
                              float offX, float offY,
-                             float density, float friction, float restitution, int isSensor) {
+                             float density, float friction, float restitution, int isSensor,
+                             uint32_t categoryBits, uint32_t maskBits) {
     auto it = g_entityToBody.find(entityId);
     if (it == g_entityToBody.end()) return;
 
@@ -219,6 +226,8 @@ void physics_addCapsuleShape(uint32_t entityId, float radius, float halfHeight,
     shapeDef.isSensor = isSensor != 0;
     shapeDef.enableContactEvents = true;
     shapeDef.enableSensorEvents = isSensor != 0;
+    shapeDef.filter.categoryBits = static_cast<uint64_t>(categoryBits);
+    shapeDef.filter.maskBits = static_cast<uint64_t>(maskBits);
 
     b2Capsule capsule;
     capsule.center1 = {offX, offY + halfHeight};

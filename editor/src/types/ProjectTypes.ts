@@ -38,6 +38,8 @@ export interface ProjectConfig {
     pixelsPerUnit?: number;
     assetLoadTimeout?: number;
     assetFailureCooldown?: number;
+    collisionLayerNames?: string[];
+    collisionLayerMasks?: number[];
 }
 
 // =============================================================================

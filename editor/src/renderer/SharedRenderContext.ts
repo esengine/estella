@@ -32,6 +32,7 @@ import {
     tilemapPlugin,
     sceneManagerPlugin,
 } from 'esengine';
+import { PhysicsPlugin, type PhysicsPluginConfig } from 'esengine/physics';
 import type { SpineModuleController } from 'esengine/spine';
 import { EditorSceneManager } from '../scene/EditorSceneManager';
 import { AssetPathResolver } from '../asset';
@@ -60,6 +61,7 @@ export class SharedRenderContext {
     private animationId_: number | null = null;
     private continuousRender_ = false;
     private isDirty_ = true;
+    private physicsFactory_: unknown = null;
     private sceneViewportW_ = 0;
     private sceneViewportH_ = 0;
     private gameViewportW_ = 0;
@@ -308,7 +310,23 @@ export class SharedRenderContext {
         this.postTickCallback_?.();
     }
 
-    enterPlayMode(): void {
+    setPhysicsFactory(factory: unknown): void {
+        this.physicsFactory_ = factory;
+    }
+
+    async enterPlayMode(physicsConfig?: PhysicsPluginConfig): Promise<void> {
+        if (physicsConfig && this.app_) {
+            const plugin = new PhysicsPlugin(
+                '/wasm/physics.js',
+                physicsConfig,
+                this.physicsFactory_ as any,
+            );
+            this.app_.addPlugin(plugin);
+            if (this.app_.physicsInitPromise) {
+                await this.app_.physicsInitPromise;
+            }
+        }
+
         this.playMode_ = true;
         this.paused_ = false;
         this.lastFrameTime_ = performance.now();

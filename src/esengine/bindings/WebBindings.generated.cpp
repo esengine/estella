@@ -540,7 +540,9 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("friction", &esengine::ecs::BoxCollider::friction)
         .field("restitution", &esengine::ecs::BoxCollider::restitution)
         .field("isSensor", &esengine::ecs::BoxCollider::isSensor)
-        .field("enabled", &esengine::ecs::BoxCollider::enabled);
+        .field("enabled", &esengine::ecs::BoxCollider::enabled)
+        .field("categoryBits", &esengine::ecs::BoxCollider::categoryBits)
+        .field("maskBits", &esengine::ecs::BoxCollider::maskBits);
 
     value_object<esengine::ecs::CircleCollider>("CircleCollider")
         .field("radius", &esengine::ecs::CircleCollider::radius)
@@ -549,7 +551,9 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("friction", &esengine::ecs::CircleCollider::friction)
         .field("restitution", &esengine::ecs::CircleCollider::restitution)
         .field("isSensor", &esengine::ecs::CircleCollider::isSensor)
-        .field("enabled", &esengine::ecs::CircleCollider::enabled);
+        .field("enabled", &esengine::ecs::CircleCollider::enabled)
+        .field("categoryBits", &esengine::ecs::CircleCollider::categoryBits)
+        .field("maskBits", &esengine::ecs::CircleCollider::maskBits);
 
     value_object<esengine::ecs::CapsuleCollider>("CapsuleCollider")
         .field("radius", &esengine::ecs::CapsuleCollider::radius)
@@ -559,7 +563,9 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("friction", &esengine::ecs::CapsuleCollider::friction)
         .field("restitution", &esengine::ecs::CapsuleCollider::restitution)
         .field("isSensor", &esengine::ecs::CapsuleCollider::isSensor)
-        .field("enabled", &esengine::ecs::CapsuleCollider::enabled);
+        .field("enabled", &esengine::ecs::CapsuleCollider::enabled)
+        .field("categoryBits", &esengine::ecs::CapsuleCollider::categoryBits)
+        .field("maskBits", &esengine::ecs::CapsuleCollider::maskBits);
 
     value_object<ParticleEmitterJS>("ParticleEmitter")
         .field("rate", &ParticleEmitterJS::rate)

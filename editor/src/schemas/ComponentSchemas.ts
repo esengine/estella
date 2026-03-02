@@ -5,6 +5,7 @@
 
 import type { PropertyMeta } from '../property/PropertyEditor';
 import { getComponentDefaults } from 'esengine';
+import { getSettingsValue } from '../settings';
 
 // =============================================================================
 // Types
@@ -418,6 +419,7 @@ export const BoxColliderSchema: ComponentSchema = {
         { name: 'friction', type: 'number', min: 0, max: 1, step: 0.01 },
         { name: 'restitution', type: 'number', min: 0, max: 1, step: 0.01 },
         { name: 'isSensor', type: 'boolean' },
+        { name: 'categoryBits', type: 'collision-layer' },
     ],
 };
 
@@ -431,6 +433,7 @@ export const CircleColliderSchema: ComponentSchema = {
         { name: 'friction', type: 'number', min: 0, max: 1, step: 0.01 },
         { name: 'restitution', type: 'number', min: 0, max: 1, step: 0.01 },
         { name: 'isSensor', type: 'boolean' },
+        { name: 'categoryBits', type: 'collision-layer' },
     ],
 };
 
@@ -445,6 +448,7 @@ export const CapsuleColliderSchema: ComponentSchema = {
         { name: 'friction', type: 'number', min: 0, max: 1, step: 0.01 },
         { name: 'restitution', type: 'number', min: 0, max: 1, step: 0.01 },
         { name: 'isSensor', type: 'boolean' },
+        { name: 'categoryBits', type: 'collision-layer' },
     ],
 };
 
@@ -1015,11 +1019,34 @@ const editorInitialOverrides: Record<string, Record<string, unknown>> = {
     },
 };
 
+function getDynamicOverrides(typeName: string): Record<string, unknown> | null {
+    switch (typeName) {
+        case 'Sprite': {
+            const w = getSettingsValue<number>('rendering.defaultSpriteWidth');
+            const h = getSettingsValue<number>('rendering.defaultSpriteHeight');
+            if (w != null || h != null) {
+                return { size: { x: w ?? 100, y: h ?? 100 } };
+            }
+            return null;
+        }
+        case 'Canvas': {
+            const ppu = getSettingsValue<number>('rendering.pixelsPerUnit');
+            if (ppu != null) {
+                return { pixelsPerUnit: ppu };
+            }
+            return null;
+        }
+        default:
+            return null;
+    }
+}
+
 export function getInitialComponentData(typeName: string): Record<string, unknown> {
     const defaults = getDefaultComponentData(typeName);
     const overrides = editorInitialOverrides[typeName];
-    if (overrides) {
-        return { ...defaults, ...overrides };
+    const dynamic = getDynamicOverrides(typeName);
+    if (overrides || dynamic) {
+        return { ...defaults, ...overrides, ...dynamic };
     }
     return defaults;
 }

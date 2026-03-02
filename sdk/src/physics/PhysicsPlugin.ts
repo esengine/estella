@@ -9,12 +9,13 @@ import type { TransformData, ParentData, CanvasData } from '../component';
 import { Transform, Parent, Canvas } from '../component';
 import { defineResource, Res, Time, type TimeData } from '../resource';
 import { Schedule, defineSystem } from '../system';
+import { isEditor, isPlayMode } from '../env';
 import {
     loadPhysicsModule,
     type PhysicsWasmModule,
     type PhysicsModuleFactory,
 } from './PhysicsModuleLoader';
-import { RigidBody, BoxCollider, CircleCollider, CapsuleCollider, BodyType, type RigidBodyData } from './PhysicsComponents';
+import { RigidBody, BoxCollider, CircleCollider, CapsuleCollider, BodyType, type RigidBodyData, type BoxColliderData, type CircleColliderData, type CapsuleColliderData } from './PhysicsComponents';
 import { setupPhysicsDebugDraw, PhysicsDebugDraw, type PhysicsDebugDrawConfig } from './PhysicsDebugDraw';
 
 // =============================================================================
@@ -25,6 +26,7 @@ export interface PhysicsPluginConfig {
     gravity?: Vec2;
     fixedTimestep?: number;
     subStepCount?: number;
+    collisionLayerMasks?: number[];
 }
 
 // =============================================================================
@@ -90,7 +92,7 @@ function readPixelsPerUnit(app: App): number {
 }
 
 export class PhysicsPlugin implements Plugin {
-    private config_: Required<PhysicsPluginConfig>;
+    private config_: Required<Omit<PhysicsPluginConfig, 'collisionLayerMasks'>> & Pick<PhysicsPluginConfig, 'collisionLayerMasks'>;
     private wasmUrl_: string;
     private factory_?: PhysicsModuleFactory;
 
@@ -100,7 +102,8 @@ export class PhysicsPlugin implements Plugin {
         this.config_ = {
             gravity: config.gravity ?? { x: 0, y: -9.81 },
             fixedTimestep: config.fixedTimestep ?? 1 / 60,
-            subStepCount: config.subStepCount ?? 4
+            subStepCount: config.subStepCount ?? 4,
+            collisionLayerMasks: config.collisionLayerMasks,
         };
     }
 
@@ -142,6 +145,8 @@ export class PhysicsPlugin implements Plugin {
                     defineSystem(
                         [Res(Time)],
                         (time: TimeData) => {
+                            if (isEditor() && !isPlayMode()) return;
+
                             const entities = world.getEntitiesWithComponents([RigidBody, Transform]);
                             const currentEntities = new Set<Entity>();
 
@@ -162,7 +167,7 @@ export class PhysicsPlugin implements Plugin {
                                         rb.fixedRotation ? 1 : 0, rb.bullet ? 1 : 0
                                     );
 
-                                    addShapeForEntity(app, module, entity);
+                                    addShapeForEntity(app, module, entity, this.config_.collisionLayerMasks);
                                     trackedEntities.add(entity);
                                     cachedProps.set(entity, {
                                         bodyType: rb.bodyType,
@@ -240,35 +245,54 @@ export class PhysicsPlugin implements Plugin {
 // Internal helpers
 // =============================================================================
 
-function addShapeForEntity(app: App, module: PhysicsWasmModule, entity: Entity): void {
+const MAX_COLLISION_LAYERS = 16;
+
+function resolveCollisionMask(categoryBits: number, maskBits: number, layerMasks?: number[]): number {
+    if (!layerMasks) return maskBits;
+    for (let i = 0; i < MAX_COLLISION_LAYERS; i++) {
+        if (categoryBits === (1 << i)) return layerMasks[i];
+    }
+    return maskBits;
+}
+
+function addShapeForEntity(app: App, module: PhysicsWasmModule, entity: Entity, layerMasks?: number[]): void {
     const world = app.world;
 
     if (world.has(entity, BoxCollider)) {
-        const box = world.get(entity, BoxCollider) as { halfExtents: Vec2; offset: Vec2; density: number; friction: number; restitution: number; isSensor: boolean };
+        const box = world.get(entity, BoxCollider) as BoxColliderData;
+        const category = box.categoryBits ?? 0x0001;
+        const mask = resolveCollisionMask(category, box.maskBits ?? 0xFFFF, layerMasks);
         module._physics_addBoxShape(
             entity, box.halfExtents.x, box.halfExtents.y,
             box.offset.x, box.offset.y,
-            box.density, box.friction, box.restitution, box.isSensor ? 1 : 0
+            box.density, box.friction, box.restitution, box.isSensor ? 1 : 0,
+            category, mask
         );
         return;
     }
 
     if (world.has(entity, CircleCollider)) {
-        const circle = world.get(entity, CircleCollider) as { radius: number; offset: Vec2; density: number; friction: number; restitution: number; isSensor: boolean };
+        const circle = world.get(entity, CircleCollider) as CircleColliderData;
+        const category = circle.categoryBits ?? 0x0001;
+        const mask = resolveCollisionMask(category, circle.maskBits ?? 0xFFFF, layerMasks);
         module._physics_addCircleShape(
             entity, circle.radius,
             circle.offset.x, circle.offset.y,
-            circle.density, circle.friction, circle.restitution, circle.isSensor ? 1 : 0
+            circle.density, circle.friction, circle.restitution, circle.isSensor ? 1 : 0,
+            category, mask
         );
         return;
     }
 
     if (world.has(entity, CapsuleCollider)) {
-        const capsule = world.get(entity, CapsuleCollider) as { radius: number; halfHeight: number; offset: Vec2; density: number; friction: number; restitution: number; isSensor: boolean };
+        const capsule = world.get(entity, CapsuleCollider) as CapsuleColliderData;
+        const category = capsule.categoryBits ?? 0x0001;
+        const mask = resolveCollisionMask(category, capsule.maskBits ?? 0xFFFF, layerMasks);
         module._physics_addCapsuleShape(
             entity, capsule.radius, capsule.halfHeight,
             capsule.offset.x, capsule.offset.y,
-            capsule.density, capsule.friction, capsule.restitution, capsule.isSensor ? 1 : 0
+            capsule.density, capsule.friction, capsule.restitution, capsule.isSensor ? 1 : 0,
+            category, mask
         );
     }
 }

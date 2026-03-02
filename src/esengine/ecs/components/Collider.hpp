@@ -29,6 +29,12 @@ struct BoxCollider {
     ES_PROPERTY()
     bool enabled{true};
 
+    ES_PROPERTY()
+    u32 categoryBits{0x0001};
+
+    ES_PROPERTY()
+    u32 maskBits{0xFFFF};
+
     BoxCollider() = default;
 };
 
@@ -54,6 +60,12 @@ struct CircleCollider {
 
     ES_PROPERTY()
     bool enabled{true};
+
+    ES_PROPERTY()
+    u32 categoryBits{0x0001};
+
+    ES_PROPERTY()
+    u32 maskBits{0xFFFF};
 
     CircleCollider() = default;
 };
@@ -83,6 +95,12 @@ struct CapsuleCollider {
 
     ES_PROPERTY()
     bool enabled{true};
+
+    ES_PROPERTY()
+    u32 categoryBits{0x0001};
+
+    ES_PROPERTY()
+    u32 maskBits{0xFFFF};
 
     CapsuleCollider() = default;
 };

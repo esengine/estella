@@ -195,6 +195,10 @@ export class Editor {
         this.panelManager_.setApp(app, this.bridge_);
     }
 
+    setPhysicsFactory(factory: unknown): void {
+        getSharedRenderContext().setPhysicsFactory(factory);
+    }
+
     setSpineModule(module: unknown, version: string): void {
         this.spineModule_ = module;
         this.spineVersion_ = version;

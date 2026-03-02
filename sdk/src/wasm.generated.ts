@@ -117,6 +117,8 @@ export interface BoxCollider {
     restitution: number;
     isSensor: boolean;
     enabled: boolean;
+    categoryBits: number;
+    maskBits: number;
 }
 
 export interface CircleCollider {
@@ -127,6 +129,8 @@ export interface CircleCollider {
     restitution: number;
     isSensor: boolean;
     enabled: boolean;
+    categoryBits: number;
+    maskBits: number;
 }
 
 export interface CapsuleCollider {
@@ -138,6 +142,8 @@ export interface CapsuleCollider {
     restitution: number;
     isSensor: boolean;
     enabled: boolean;
+    categoryBits: number;
+    maskBits: number;
 }
 
 export interface ParticleEmitter {

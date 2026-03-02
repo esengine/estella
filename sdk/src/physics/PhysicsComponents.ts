@@ -28,6 +28,8 @@ export interface BoxColliderData {
     restitution: number;
     isSensor: boolean;
     enabled: boolean;
+    categoryBits: number;
+    maskBits: number;
 }
 
 export interface CircleColliderData {
@@ -38,6 +40,8 @@ export interface CircleColliderData {
     restitution: number;
     isSensor: boolean;
     enabled: boolean;
+    categoryBits: number;
+    maskBits: number;
 }
 
 export interface CapsuleColliderData {
@@ -49,6 +53,8 @@ export interface CapsuleColliderData {
     restitution: number;
     isSensor: boolean;
     enabled: boolean;
+    categoryBits: number;
+    maskBits: number;
 }
 
 // =============================================================================
@@ -72,7 +78,9 @@ export const BoxCollider = defineBuiltin<BoxColliderData>('BoxCollider', {
     friction: 0.3,
     restitution: 0.0,
     isSensor: false,
-    enabled: true
+    enabled: true,
+    categoryBits: 0x0001,
+    maskBits: 0xFFFF,
 });
 
 export const CircleCollider = defineBuiltin<CircleColliderData>('CircleCollider', {
@@ -82,7 +90,9 @@ export const CircleCollider = defineBuiltin<CircleColliderData>('CircleCollider'
     friction: 0.3,
     restitution: 0.0,
     isSensor: false,
-    enabled: true
+    enabled: true,
+    categoryBits: 0x0001,
+    maskBits: 0xFFFF,
 });
 
 export const CapsuleCollider = defineBuiltin<CapsuleColliderData>('CapsuleCollider', {
@@ -93,7 +103,9 @@ export const CapsuleCollider = defineBuiltin<CapsuleColliderData>('CapsuleCollid
     friction: 0.3,
     restitution: 0.0,
     isSensor: false,
-    enabled: true
+    enabled: true,
+    categoryBits: 0x0001,
+    maskBits: 0xFFFF,
 });
 
 // =============================================================================

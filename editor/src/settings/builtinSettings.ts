@@ -1,5 +1,7 @@
-import { registerSettingsSection, registerSettingsGroup, registerSettingsItem } from './SettingsRegistry';
+import { registerSettingsSection, registerSettingsGroup, registerSettingsItem, type SettingsItemType } from './SettingsRegistry';
 import { DEFAULT_DESIGN_WIDTH, DEFAULT_DESIGN_HEIGHT } from 'esengine';
+import { renderCollisionMatrix } from './CollisionMatrixWidget';
+import { MAX_COLLISION_LAYERS } from './collisionLayers';
 
 export function registerBuiltinSettings(): void {
     // =========================================================================
@@ -458,6 +460,65 @@ export function registerBuiltinSettings(): void {
     // =========================================================================
     // Physics
     // =========================================================================
+
+    // =========================================================================
+    // Physics — Collision Layers group
+    // =========================================================================
+
+    registerSettingsGroup({
+        id: 'physics.collision-layers',
+        section: 'physics',
+        label: 'Collision Layers',
+        order: 10,
+        collapsed: true,
+    });
+
+    registerSettingsGroup({
+        id: 'physics.collision-matrix',
+        section: 'physics',
+        label: 'Collision Matrix',
+        order: 11,
+    });
+
+    const COLLISION_LAYER_DEFAULTS = [
+        'Default', '', '', '', '', '', '', '',
+        '', '', '', '', '', '', '', '',
+    ];
+
+    for (let i = 0; i < MAX_COLLISION_LAYERS; i++) {
+        registerSettingsItem({
+            id: `physics.layerName${i}`,
+            section: 'physics',
+            group: 'physics.collision-layers',
+            label: `Layer ${i}`,
+            type: 'string',
+            defaultValue: COLLISION_LAYER_DEFAULTS[i],
+            order: i,
+            projectSync: true,
+            tags: ['collision', 'layer'],
+        });
+
+        registerSettingsItem({
+            id: `physics.layerMask${i}`,
+            section: 'physics',
+            label: `Layer ${i} Mask`,
+            type: 'number',
+            defaultValue: 0xFFFF,
+            hidden: true,
+            projectSync: true,
+        });
+    }
+
+    registerSettingsItem({
+        id: 'physics.collisionMatrix',
+        section: 'physics',
+        group: 'physics.collision-matrix',
+        label: 'Collision Matrix',
+        type: 'custom' as SettingsItemType,
+        defaultValue: null,
+        render: renderCollisionMatrix,
+        tags: ['collision', 'matrix', 'layer'],
+    });
 
     registerSettingsItem({
         id: 'physics.gravityX',

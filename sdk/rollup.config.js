@@ -2,11 +2,6 @@ import typescript from '@rollup/plugin-typescript';
 import terser from '@rollup/plugin-terser';
 import dts from 'rollup-plugin-dts';
 
-const tsPlugin = typescript({
-    tsconfig: './tsconfig.json',
-    declaration: false,
-});
-
 const ENTRY_FILES = ['/index.ts', '/index.wechat.ts'];
 const treeshake = {
     moduleSideEffects: (id) => ENTRY_FILES.some(e => id.endsWith(e)),
@@ -14,9 +9,22 @@ const treeshake = {
 
 const esmBuilds = [
     {
-        input: 'src/index.ts',
-        output: { file: 'dist/index.js', format: 'esm', sourcemap: true },
-        plugins: [tsPlugin, terser()],
+        input: {
+            'index': 'src/index.ts',
+            'physics/index': 'src/physics/index.ts',
+            'spine/index': 'src/spine/index.ts',
+            'wasm': 'src/wasm.ts',
+        },
+        output: {
+            dir: 'dist',
+            format: 'esm',
+            sourcemap: true,
+            chunkFileNames: 'shared/[name].js',
+        },
+        plugins: [
+            typescript({ tsconfig: './tsconfig.json', declaration: false }),
+            terser(),
+        ],
         treeshake,
     },
     {
@@ -31,45 +39,21 @@ const esmBuilds = [
         plugins: [typescript({ tsconfig: './tsconfig.json', declaration: false }), terser()],
         treeshake,
     },
-    {
-        input: 'src/wasm.ts',
-        output: { file: 'dist/wasm.js', format: 'esm', sourcemap: true },
-        plugins: [typescript({ tsconfig: './tsconfig.json', declaration: false }), terser()],
-        treeshake,
-    },
-    {
-        input: 'src/spine/index.ts',
-        output: { file: 'dist/spine/index.js', format: 'esm', sourcemap: true },
-        plugins: [typescript({ tsconfig: './tsconfig.json', declaration: false }), terser()],
-        treeshake,
-    },
-    {
-        input: 'src/physics/index.ts',
-        output: { file: 'dist/physics/index.js', format: 'esm', sourcemap: true },
-        plugins: [typescript({ tsconfig: './tsconfig.json', declaration: false }), terser()],
-        treeshake,
-    },
 ];
 
 const dtsBuilds = [
     {
-        input: 'src/index.ts',
-        output: { file: 'dist/index.d.ts', format: 'esm' },
-        plugins: [dts()],
-    },
-    {
-        input: 'src/wasm.ts',
-        output: { file: 'dist/wasm.d.ts', format: 'esm' },
-        plugins: [dts()],
-    },
-    {
-        input: 'src/spine/index.ts',
-        output: { file: 'dist/spine/index.d.ts', format: 'esm' },
-        plugins: [dts()],
-    },
-    {
-        input: 'src/physics/index.ts',
-        output: { file: 'dist/physics/index.d.ts', format: 'esm' },
+        input: {
+            'index': 'src/index.ts',
+            'physics/index': 'src/physics/index.ts',
+            'spine/index': 'src/spine/index.ts',
+            'wasm': 'src/wasm.ts',
+        },
+        output: {
+            dir: 'dist',
+            format: 'esm',
+            chunkFileNames: 'shared/[name].d.ts',
+        },
         plugins: [dts()],
     },
 ];
