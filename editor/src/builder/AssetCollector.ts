@@ -210,6 +210,9 @@ export class AssetReferenceCollector {
             case 'prefab':
                 await this.collectPrefabRefs(resolved, refs, visited);
                 break;
+            case 'tilemap':
+                await this.collectTilemapRefs(resolved, refs);
+                break;
         }
     }
 
@@ -326,6 +329,32 @@ export class AssetReferenceCollector {
                     if (looksLikeAssetPath(value)) {
                         refs.add(value);
                     }
+                }
+            }
+        } catch {
+            // Ignore parse errors
+        }
+    }
+
+    private async collectTilemapRefs(tilemapPath: string, refs: Set<string>): Promise<void> {
+        const fullPath = isAbsolutePath(tilemapPath)
+            ? tilemapPath
+            : joinPath(this.projectDir_, tilemapPath);
+
+        const content = await this.fs_.readFile(fullPath);
+        if (!content) return;
+
+        try {
+            const json = JSON.parse(content);
+            const dir = getDirName(tilemapPath);
+            const tilesets = json.tilesets as Array<Record<string, unknown>> | undefined;
+            if (!tilesets) return;
+
+            for (const tileset of tilesets) {
+                const image = tileset.image as string | undefined;
+                if (image) {
+                    const texturePath = dir ? `${dir}/${image}` : image;
+                    refs.add(texturePath);
                 }
             }
         } catch {

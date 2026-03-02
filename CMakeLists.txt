@@ -51,6 +51,8 @@ set(ESENGINE_SOURCES
     src/esengine/animation/TweenSystem.cpp
     src/esengine/particle/Particle.cpp
     src/esengine/particle/ParticleSystem.cpp
+    src/esengine/tilemap/TilemapSystem.cpp
+    src/esengine/tilemap/TiledMapLoader.cpp
 )
 
 if(ES_ENABLE_SPINE)
@@ -116,6 +118,8 @@ set(ESENGINE_HEADERS
     src/esengine/animation/TweenData.hpp
     src/esengine/animation/EasingFunctions.hpp
     src/esengine/animation/TweenSystem.hpp
+    src/esengine/tilemap/TilemapSystem.hpp
+    src/esengine/tilemap/TiledMapLoader.hpp
 )
 
 if(ES_ENABLE_SPINE)
@@ -203,7 +207,7 @@ target_include_directories(esengine
         ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb
 )
 
-target_link_libraries(esengine PUBLIC glm)
+target_link_libraries(esengine PUBLIC glm cute_tiled)
 
 if(ES_ENABLE_SPINE)
     target_link_libraries(esengine PUBLIC spine-cpp)
@@ -241,6 +245,7 @@ if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
         src/esengine/bindings/ImmediateDrawBindings.cpp
         src/esengine/bindings/GeometryBindings.cpp
         src/esengine/bindings/PostProcessBindings.cpp
+        src/esengine/bindings/TilemapBindings.cpp
         ${GENERATED_WEB_BINDINGS})
     target_link_libraries(esengine_sdk PRIVATE esengine)
     es_apply_sdk_settings(esengine_sdk)
@@ -260,6 +265,7 @@ if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
             src/esengine/bindings/ImmediateDrawBindings.cpp
             src/esengine/bindings/GeometryBindings.cpp
             src/esengine/bindings/PostProcessBindings.cpp
+            src/esengine/bindings/TilemapBindings.cpp
             ${GENERATED_WEB_BINDINGS})
         target_link_libraries(esengine_single PRIVATE esengine)
         es_apply_single_file_settings(esengine_single)
@@ -356,6 +362,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#1a1a1a}
             src/esengine/bindings/ImmediateDrawBindings.cpp
             src/esengine/bindings/GeometryBindings.cpp
             src/esengine/bindings/PostProcessBindings.cpp
+            src/esengine/bindings/TilemapBindings.cpp
             ${GENERATED_WEB_BINDINGS})
         target_link_libraries(esengine_wxgame PRIVATE esengine)
         es_apply_wxgame_sdk_settings(esengine_wxgame)
@@ -453,6 +460,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#1a1a1a}
             src/esengine/bindings/ImmediateDrawBindings.cpp
             src/esengine/bindings/GeometryBindings.cpp
             src/esengine/bindings/PostProcessBindings.cpp
+            src/esengine/bindings/TilemapBindings.cpp
             ${GENERATED_WEB_BINDINGS})
         target_link_libraries(esengine_sdk_main PRIVATE esengine)
         es_apply_main_module_settings(esengine_sdk_main)
@@ -470,6 +478,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#1a1a1a}
                 src/esengine/bindings/ImmediateDrawBindings.cpp
                 src/esengine/bindings/GeometryBindings.cpp
                 src/esengine/bindings/PostProcessBindings.cpp
+                src/esengine/bindings/TilemapBindings.cpp
                 ${GENERATED_WEB_BINDINGS})
             target_link_libraries(esengine_wxgame_main PRIVATE esengine)
             es_apply_wxgame_main_module_settings(esengine_wxgame_main)

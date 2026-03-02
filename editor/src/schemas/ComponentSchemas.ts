@@ -17,6 +17,8 @@ export interface ComponentSchema {
     category: ComponentCategory;
     properties: PropertyMeta[];
     removable?: boolean;
+    hidden?: boolean;
+    displayName?: string;
 }
 
 // =============================================================================
@@ -802,6 +804,29 @@ export const UIInteractionSchema: ComponentSchema = {
     properties: [],
 };
 
+export const TilemapSchema: ComponentSchema = {
+    name: 'Tilemap',
+    category: 'builtin',
+    properties: [
+        { name: 'source', type: 'tilemap-file' },
+    ],
+};
+
+export const TilemapLayerSchema: ComponentSchema = {
+    name: 'TilemapLayer',
+    category: 'builtin',
+    hidden: true,
+    properties: [
+        { name: 'width', type: 'number', min: 1, max: 1000 },
+        { name: 'height', type: 'number', min: 1, max: 1000 },
+        { name: 'tileWidth', type: 'number', min: 1, max: 512 },
+        { name: 'tileHeight', type: 'number', min: 1, max: 512 },
+        { name: 'texture', type: 'number' },
+        { name: 'tilesetColumns', type: 'number', min: 1, max: 256 },
+        { name: 'layer', type: 'number', min: -1000, max: 1000 },
+    ],
+};
+
 // =============================================================================
 // Registry
 // =============================================================================
@@ -898,6 +923,12 @@ function exposeRegistrationAPI(): void {
     }
 }
 
+export const PostProcessVolumeSchema: ComponentSchema = {
+    name: 'PostProcessVolume',
+    category: 'builtin',
+    properties: [],
+};
+
 // =============================================================================
 // Initialization
 // =============================================================================
@@ -948,6 +979,9 @@ export function registerBuiltinSchemas(options?: BuiltinSchemaOptions): void {
     registerComponentSchema(CircleColliderSchema);
     registerComponentSchema(CapsuleColliderSchema);
     registerComponentSchema(ParticleEmitterSchema);
+    registerComponentSchema(TilemapSchema);
+    registerComponentSchema(TilemapLayerSchema);
+    registerComponentSchema(PostProcessVolumeSchema);
     if (enableSpine) {
         registerComponentSchema(SpineAnimationSchema);
     }

@@ -10,6 +10,7 @@ import { renderFolderInspector } from '../panels/inspector/FolderInspector';
 import { renderScriptInspector, renderSceneInspector, renderFileInspector } from '../panels/inspector/FileInspector';
 import { renderAnimClipInspector } from '../panels/inspector/AnimClipInspector';
 import { renderAudioInspector } from '../panels/inspector/AudioInspector';
+
 import { getInitialComponentData, getDefaultComponentData } from '../schemas/ComponentSchemas';
 import { getGlobalPathResolver } from '../asset';
 import { getPlatformAdapter } from '../platform/PlatformAdapter';

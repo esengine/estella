@@ -145,6 +145,9 @@ export interface ESEngineModule {
     postprocess_isInitialized(): boolean;
     postprocess_setBypass(bypass: boolean): void;
     postprocess_isBypassed(): boolean;
+    postprocess_clearPasses(): void;
+    postprocess_setOutputTarget(fboId: number): void;
+    postprocess_setOutputViewport(x: number, y: number, w: number, h: number): void;
 
     // Renderer API (RenderFrame)
     renderer_init(width: number, height: number): void;
@@ -166,6 +169,24 @@ export interface ESEngineModule {
     particle_stop?(registry: CppRegistry, entity: number): void;
     particle_reset?(registry: CppRegistry, entity: number): void;
     particle_getAliveCount?(entity: number): number;
+
+    // Tilemap API
+    tilemap_initLayer?(entity: number, width: number, height: number,
+                       tileWidth: number, tileHeight: number): void;
+    tilemap_destroyLayer?(entity: number): void;
+    tilemap_setTile?(entity: number, x: number, y: number, tileId: number): void;
+    tilemap_getTile?(entity: number, x: number, y: number): number;
+    tilemap_fillRect?(entity: number, x: number, y: number,
+                      w: number, h: number, tileId: number): void;
+    tilemap_setTiles?(entity: number, tilesPtr: number, count: number): void;
+    tilemap_hasLayer?(entity: number): boolean;
+    tilemap_submitLayer?(entity: number, textureId: number,
+                         sortLayer: number, depth: number,
+                         tilesetColumns: number,
+                         uvTileWidth: number, uvTileHeight: number,
+                         originX: number, originY: number,
+                         camLeft: number, camBottom: number,
+                         camRight: number, camTop: number): void;
     renderer_setStage(stage: number): void;
     renderer_createTarget(width: number, height: number, flags: number): number;
     renderer_releaseTarget(handle: number): void;

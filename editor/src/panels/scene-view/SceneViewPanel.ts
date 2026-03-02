@@ -21,6 +21,7 @@ import { GizmoToolbar } from './GizmoToolbar';
 import { MarqueeSelection } from './MarqueeSelection';
 import { EntityDropHandler } from './EntityDropHandler';
 import { SceneViewInput } from './SceneViewInput';
+import { TilemapOverlay } from '../../gizmos/TilemapOverlay';
 
 const CAMERA_COLORS = [
     '#ffaa00',
@@ -70,6 +71,8 @@ export class SceneViewPanel {
     private dropHandler_: EntityDropHandler;
     private input_: SceneViewInput;
 
+    private tilemapOverlay_: TilemapOverlay;
+
     private fpsCollector_ = new StatsCollector();
     private lastFrameTime_ = 0;
 
@@ -85,6 +88,8 @@ export class SceneViewPanel {
         this.gizmoManager_ = new GizmoManager();
         this.colliderOverlay_ = new ColliderOverlay();
         this.particleOverlay_ = new ParticleOverlay();
+        this.tilemapOverlay_ = new TilemapOverlay();
+        this.tilemapOverlay_.setRenderCallback(() => this.requestRender());
 
         this.camera_ = new CameraController(null!, () => this.requestRender());
         this.toolbar_ = new GizmoToolbar(container, this.gizmoManager_, () => this.requestRender());
@@ -117,6 +122,8 @@ export class SceneViewPanel {
         this.canvas_ = this.overlayCanvas_;
 
         this.camera_.setCanvas(this.canvas_);
+
+        const viewport = this.container_.querySelector('.es-sceneview-viewport')!;
 
         this.input_ = new SceneViewInput({
             store,
@@ -156,11 +163,8 @@ export class SceneViewPanel {
             }
         });
 
-        const viewport = this.container_.querySelector('.es-sceneview-viewport');
-        if (viewport) {
-            this.resizeObserver_ = new ResizeObserver(() => this.resize());
-            this.resizeObserver_.observe(viewport);
-        }
+        this.resizeObserver_ = new ResizeObserver(() => this.resize());
+        this.resizeObserver_.observe(viewport);
 
         this.resize();
 
@@ -446,6 +450,7 @@ export class SceneViewPanel {
         this.requestRender();
     }
 
+
     // =========================================================================
     // Texture Cache
     // =========================================================================
@@ -598,6 +603,7 @@ export class SceneViewPanel {
         } else {
             this.renderPreview();
         }
+
     }
 
     // =========================================================================
@@ -633,6 +639,7 @@ export class SceneViewPanel {
         this.drawCanvasBounds(ctx);
 
         const oScale = this.overlayScale_();
+        this.tilemapOverlay_.drawAll({ ctx, zoom: oScale, store: this.store_ });
         if (getSettingsValue<boolean>('scene.showColliders')) {
             this.colliderOverlay_.drawAll({
                 ctx,
@@ -712,6 +719,7 @@ export class SceneViewPanel {
         this.drawCanvasBounds(ctx);
 
         const oScale = this.overlayScale_();
+        this.tilemapOverlay_.drawAll({ ctx, zoom: oScale, store: this.store_ });
         if (getSettingsValue<boolean>('scene.showColliders')) {
             this.colliderOverlay_.drawAll({
                 ctx,

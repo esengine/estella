@@ -29,6 +29,8 @@ import {
     initRendererAPI,
     shutdownRendererAPI,
     particlePlugin,
+    tilemapPlugin,
+    sceneManagerPlugin,
 } from 'esengine';
 import type { SpineModuleController } from 'esengine/spine';
 import { EditorSceneManager } from '../scene/EditorSceneManager';
@@ -129,6 +131,7 @@ export class SharedRenderContext {
         const app = App.new();
         const cppRegistry = new module.Registry() as unknown as CppRegistry;
         app.connectCpp(cppRegistry, module);
+        app.setPipeline(this.pipeline_);
 
         app.insertResource(UICameraInfo, {
             viewProjection: new Float32Array(16),
@@ -160,6 +163,8 @@ export class SharedRenderContext {
         app.addPlugin(animationPlugin);
         app.addPlugin(audioPlugin);
         app.addPlugin(particlePlugin);
+        app.addPlugin(tilemapPlugin);
+        app.addPlugin(sceneManagerPlugin);
         for (const plugin of uiPlugins) {
             app.addPlugin(plugin);
         }
