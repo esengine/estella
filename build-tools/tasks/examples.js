@@ -3,16 +3,28 @@
  * @brief   Pack example projects into zip files for editor
  */
 
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync, copyFileSync } from 'fs';
 import path from 'path';
 import { deflateRawSync } from 'zlib';
 import * as logger from '../utils/logger.js';
 
-const EXAMPLES = [
-    { name: 'space-shooter', dir: 'examples/space-shooter' },
-];
-
+const EXAMPLES_DIR = 'examples';
 const OUTPUT_DIR = 'desktop/public/examples';
+const THUMBNAILS_DIR = 'thumbnails';
+const THUMBNAIL_FILENAME = 'thumbnail.png';
+
+function discoverExamples(rootDir) {
+    const examplesPath = path.join(rootDir, EXAMPLES_DIR);
+    if (!existsSync(examplesPath)) return [];
+
+    return readdirSync(examplesPath)
+        .filter(entry => {
+            const fullPath = path.join(examplesPath, entry);
+            return statSync(fullPath).isDirectory() &&
+                existsSync(path.join(fullPath, 'project.esproject'));
+        })
+        .map(name => ({ name, dir: path.join(EXAMPLES_DIR, name) }));
+}
 
 const EXCLUDE_PATTERNS = [
     '.DS_Store',
@@ -122,25 +134,38 @@ function createZip(srcDir, outputPath) {
 export async function zipExamples(rootDir) {
     logger.step('Packing example projects...');
 
+    const examples = discoverExamples(rootDir);
+    if (examples.length === 0) {
+        logger.warn('No example projects found');
+        return;
+    }
+
     const outDir = path.join(rootDir, OUTPUT_DIR);
     if (!existsSync(outDir)) {
         mkdirSync(outDir, { recursive: true });
     }
 
-    for (const example of EXAMPLES) {
+    const thumbDir = path.join(outDir, THUMBNAILS_DIR);
+    if (!existsSync(thumbDir)) {
+        mkdirSync(thumbDir, { recursive: true });
+    }
+
+    for (const example of examples) {
         const srcDir = path.join(rootDir, example.dir);
         const zipPath = path.join(outDir, `${example.name}.zip`);
-
-        if (!existsSync(srcDir)) {
-            logger.warn(`Example not found: ${srcDir}`);
-            continue;
-        }
 
         try {
             createZip(srcDir, zipPath);
             logger.success(`${example.name}.zip`);
         } catch (err) {
             logger.error(`Failed to zip ${example.name}: ${err.message}`);
+        }
+
+        const thumbSrc = path.join(srcDir, THUMBNAIL_FILENAME);
+        if (existsSync(thumbSrc)) {
+            const thumbDest = path.join(thumbDir, `${example.name}.png`);
+            copyFileSync(thumbSrc, thumbDest);
+            logger.success(`${example.name} thumbnail`);
         }
     }
 }

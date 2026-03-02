@@ -90,12 +90,33 @@ export const PROJECT_TEMPLATES: ProjectTemplateInfo[] = [
 // Example Projects
 // =============================================================================
 
+export type ExampleCategory =
+    | 'getting-started' | 'rendering' | 'physics'
+    | 'ui' | 'animation' | 'audio' | 'input' | 'game';
+
+export type ExampleDifficulty = 'beginner' | 'intermediate' | 'advanced';
+
 export interface ExampleProjectInfo {
     id: string;
     name: string;
     description: string;
     zipFile: string;
+    category: ExampleCategory;
+    difficulty: ExampleDifficulty;
+    thumbnail: string;
+    tags: string[];
 }
+
+export const EXAMPLE_CATEGORY_LABELS: Record<ExampleCategory, string> = {
+    'getting-started': 'Getting Started',
+    'rendering': 'Rendering',
+    'physics': 'Physics',
+    'ui': 'UI',
+    'animation': 'Animation',
+    'audio': 'Audio',
+    'input': 'Input',
+    'game': 'Game',
+};
 
 export const EXAMPLE_PROJECTS: ExampleProjectInfo[] = [
     {
@@ -103,6 +124,10 @@ export const EXAMPLE_PROJECTS: ExampleProjectInfo[] = [
         name: 'Space Shooter',
         description: 'A vertical scrolling shoot\'em up with enemies, bullets, explosions and HUD',
         zipFile: 'examples/space-shooter.zip',
+        category: 'game',
+        difficulty: 'intermediate',
+        thumbnail: 'examples/thumbnails/space-shooter.png',
+        tags: ['shooter', 'sprites', 'input', 'hud', 'collision'],
     },
 ];
 

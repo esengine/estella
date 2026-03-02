@@ -1,32 +1,31 @@
 /**
- * @file    NewProjectDialog.ts
- * @brief   New project creation dialog with template selection
+ * @file    CreateFromExampleDialog.ts
+ * @brief   Simplified dialog for creating a project from an example (name + location only)
  */
 
-import type { ProjectTemplate } from '../types/ProjectTypes';
-import { PROJECT_TEMPLATES } from '../types/ProjectTypes';
-import { createProject, selectProjectLocation } from './ProjectService';
+import type { ExampleProjectInfo } from '../types/ProjectTypes';
+import { createFromExample, selectProjectLocation } from './ProjectService';
 
 // =============================================================================
 // Types
 // =============================================================================
 
-export interface NewProjectDialogOptions {
+export interface CreateFromExampleDialogOptions {
+    example: ExampleProjectInfo;
     onClose: () => void;
     onProjectCreated: (projectPath: string) => void;
 }
 
 // =============================================================================
-// NewProjectDialog
+// CreateFromExampleDialog
 // =============================================================================
 
-export class NewProjectDialog {
+export class CreateFromExampleDialog {
     private overlay_: HTMLElement;
-    private options_: NewProjectDialogOptions;
-    private selectedTemplate_: ProjectTemplate = 'empty';
+    private options_: CreateFromExampleDialogOptions;
     private projectLocation_ = '';
 
-    constructor(options: NewProjectDialogOptions) {
+    constructor(options: CreateFromExampleDialogOptions) {
         this.options_ = options;
 
         this.overlay_ = document.createElement('div');
@@ -42,53 +41,41 @@ export class NewProjectDialog {
     }
 
     private render(): void {
+        const { example } = this.options_;
+        const defaultName = example.name.replace(/\s+/g, '');
+
         this.overlay_.innerHTML = `
             <div class="es-dialog">
                 <div class="es-dialog-header">
-                    <span class="es-dialog-title">New Project</span>
+                    <span class="es-dialog-title">Create from Example</span>
                     <button class="es-dialog-close" data-action="close">&times;</button>
                 </div>
                 <div class="es-dialog-body">
                     <div class="es-dialog-field">
+                        <label class="es-dialog-label">Example</label>
+                        <div class="es-dialog-example-info">
+                            <span class="es-dialog-example-name">${this.escapeHtml(example.name)}</span>
+                            <span class="es-dialog-example-desc">${this.escapeHtml(example.description)}</span>
+                        </div>
+                    </div>
+                    <div class="es-dialog-field">
                         <label class="es-dialog-label">Project Name</label>
-                        <input type="text" class="es-dialog-input" id="project-name"
-                            placeholder="My Game" value="MyGame">
+                        <input type="text" class="es-dialog-input" id="example-project-name"
+                            placeholder="My Game" value="${defaultName}">
                     </div>
                     <div class="es-dialog-field">
                         <label class="es-dialog-label">Location</label>
                         <div class="es-dialog-path-row">
                             <input type="text" class="es-dialog-input es-dialog-path"
-                                id="project-location" placeholder="Select a folder..." readonly>
+                                id="example-project-location" placeholder="Select a folder..." readonly>
                             <button class="es-dialog-browse" data-action="browse">...</button>
                         </div>
                     </div>
-                    ${this.renderTemplates()}
                 </div>
                 <div class="es-dialog-footer">
                     <button class="es-dialog-btn" data-action="cancel">Cancel</button>
                     <button class="es-dialog-btn es-dialog-btn-primary" data-action="create">Create Project</button>
                 </div>
-            </div>
-        `;
-    }
-
-    private renderTemplates(): string {
-        const items = PROJECT_TEMPLATES.map(
-            (t) => `
-            <label class="es-dialog-template ${t.id === this.selectedTemplate_ ? 'selected' : ''} ${!t.enabled ? 'disabled' : ''}">
-                <input type="radio" name="template" value="${t.id}"
-                    ${t.id === this.selectedTemplate_ ? 'checked' : ''}
-                    ${!t.enabled ? 'disabled' : ''}>
-                <span class="es-dialog-template-name">${t.name}</span>
-                <span class="es-dialog-template-desc">${t.description}${!t.enabled ? ' (coming soon)' : ''}</span>
-            </label>
-        `
-        ).join('');
-
-        return `
-            <div class="es-dialog-field">
-                <label class="es-dialog-label">Template</label>
-                <div class="es-dialog-templates">${items}</div>
             </div>
         `;
     }
@@ -107,14 +94,6 @@ export class NewProjectDialog {
             }
         });
 
-        this.overlay_.addEventListener('change', (e) => {
-            const target = e.target as HTMLInputElement;
-            if (target.name === 'template') {
-                this.selectedTemplate_ = target.value as ProjectTemplate;
-                this.updateSelection();
-            }
-        });
-
         const keyHandler = (e: KeyboardEvent) => {
             if (e.key === 'Escape') {
                 this.options_.onClose();
@@ -124,18 +103,11 @@ export class NewProjectDialog {
         document.addEventListener('keydown', keyHandler);
     }
 
-    private updateSelection(): void {
-        this.overlay_.querySelectorAll('.es-dialog-template').forEach((el) => {
-            const input = el.querySelector('input') as HTMLInputElement;
-            el.classList.toggle('selected', input.checked);
-        });
-    }
-
     private async handleBrowse(): Promise<void> {
         const path = await selectProjectLocation();
         if (path) {
             this.projectLocation_ = path;
-            const locationInput = this.overlay_.querySelector('#project-location') as HTMLInputElement;
+            const locationInput = this.overlay_.querySelector('#example-project-location') as HTMLInputElement;
             if (locationInput) {
                 locationInput.value = path;
             }
@@ -143,7 +115,7 @@ export class NewProjectDialog {
     }
 
     private async handleCreate(): Promise<void> {
-        const nameInput = this.overlay_.querySelector('#project-name') as HTMLInputElement;
+        const nameInput = this.overlay_.querySelector('#example-project-name') as HTMLInputElement;
         const name = nameInput?.value.trim();
 
         if (!name) {
@@ -169,10 +141,10 @@ export class NewProjectDialog {
             createBtn.textContent = 'Creating...';
         }
 
-        const result = await createProject({
+        const result = await createFromExample({
             name,
             location: this.projectLocation_,
-            template: this.selectedTemplate_,
+            example: this.options_.example,
         });
 
         if (result.success && result.data) {
@@ -184,5 +156,11 @@ export class NewProjectDialog {
                 createBtn.textContent = 'Create Project';
             }
         }
+    }
+
+    private escapeHtml(text: string): string {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 }
