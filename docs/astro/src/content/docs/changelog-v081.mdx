@@ -75,17 +75,22 @@ The PostProcessVolume inspector now exposes all volume fields:
 
 ## Tilemap System
 
-New Tiled map loader and tilemap rendering pipeline with full editor integration.
+New Tiled map loader and tilemap rendering pipeline with full editor integration. See the [Tilemap guide](/microes/guides/tilemap/) for details.
 
-- **Tiled JSON loader** — load `.tmj` / `.json` Tiled maps with automatic tileset texture resolution
+- **Tiled JSON loader** — load `.tmj` / `.json` Tiled maps with automatic tileset texture resolution, supports external tilesets
 - **Tilemap components** — `Tilemap` and `TilemapLayer` components for ECS integration
 - **Collision merge** — automatic rectangular collision region merging for physics optimization
+- **Per-layer properties** — opacity, tint color, parallax scrolling factor
 - **Editor support** — Tilemap component inspector with asset picker
 
 ## Physics Debug Draw
 
-- **`PhysicsDebugDraw`** — visual overlay for physics colliders, joints, and contacts in the editor and at runtime
-- Renders wireframe outlines for box, circle, and capsule colliders
+See the [Physics guide — Debug Draw](/microes/guides/physics/#debug-draw) section for usage.
+
+- **`PhysicsDebugDraw`** — visual overlay for physics colliders and contacts in the editor and at runtime
+- Renders wireframe outlines for box, circle, and capsule colliders with color coding by body type
+- Velocity arrows on dynamic bodies and contact point markers
+- Toggle via `Physics.setDebugDraw(app, true)` or configure with `Physics.setDebugDrawConfig()`
 
 ## Bug Fixes
 

@@ -181,8 +181,22 @@ const myPlugin: Plugin = {
             // game logic
         }));
     },
+    finish(app: App) {
+        // Called after all plugins have been built — safe to read resources from other plugins
+    },
+    cleanup(app?: App) {
+        // Called when the app shuts down — release resources, remove listeners, etc.
+    },
 };
 ```
+
+### Plugin Lifecycle
+
+| Method | When | Purpose |
+|--------|------|---------|
+| `build(app)` | Plugin is added | Register resources, systems, and components |
+| `finish?(app)` | After all plugins are built | Cross-plugin initialization that depends on other plugins being ready |
+| `cleanup?(app)` | App shutdown | Release resources, clean up listeners and state |
 
 Plugins can declare resource dependencies:
 
