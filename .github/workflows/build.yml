@@ -55,18 +55,18 @@ jobs:
 
     - uses: pnpm/action-setup@v4
       with:
-        version: 9
+        version: 10
 
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '22'
+        node-version: '24'
         cache: 'pnpm'
 
     - name: Setup Emscripten
       uses: mymindstorm/setup-emsdk@v14
       with:
-        version: 3.1.51
+        version: 5.0.0
 
     - name: Setup ccache
       uses: hendrikmuhs/ccache-action@v1.2
@@ -89,12 +89,12 @@ jobs:
 
     - uses: pnpm/action-setup@v4
       with:
-        version: 9
+        version: 10
 
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '22'
+        node-version: '24'
         cache: 'pnpm'
 
     - name: Install dependencies

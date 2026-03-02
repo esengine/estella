@@ -1,19 +1,32 @@
 const DEFAULT_TIMEOUT = 30000;
+const FAILURE_COOLDOWN = 5000;
 
 interface PendingEntry<T> {
     promise: Promise<T>;
     aborted: boolean;
 }
 
+interface FailedEntry {
+    error: Error;
+    expiry: number;
+}
+
 export class AsyncCache<T> {
     private cache_ = new Map<string, T>();
     private pending_ = new Map<string, PendingEntry<T>>();
+    private failed_ = new Map<string, FailedEntry>();
 
     async getOrLoad(key: string, loader: () => Promise<T>, timeout = DEFAULT_TIMEOUT): Promise<T> {
         const cached = this.cache_.get(key);
         if (cached !== undefined) {
             return cached;
         }
+
+        const failed = this.failed_.get(key);
+        if (failed && Date.now() < failed.expiry) {
+            throw failed.error;
+        }
+        this.failed_.delete(key);
 
         const existing = this.pending_.get(key);
         if (existing && !existing.aborted) {
@@ -50,8 +63,11 @@ export class AsyncCache<T> {
             return await entry.promise;
         } catch (err) {
             this.pending_.delete(key);
-            if (err instanceof Error && err.message.startsWith('AsyncCache timeout:')) {
-                console.warn(`[AsyncCache] ${err.message}`);
+            if (err instanceof Error) {
+                this.failed_.set(key, { error: err, expiry: Date.now() + FAILURE_COOLDOWN });
+                if (err.message.startsWith('AsyncCache timeout:')) {
+                    console.warn(`[AsyncCache] ${err.message}`);
+                }
             }
             throw err;
         }
@@ -75,6 +91,7 @@ export class AsyncCache<T> {
 
     clearAll(): void {
         this.cache_.clear();
+        this.failed_.clear();
         for (const entry of this.pending_.values()) {
             entry.aborted = true;
         }

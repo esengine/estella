@@ -2803,6 +2803,7 @@ declare const uiRenderOrderPlugin: UIRenderOrderPlugin;
 declare class AsyncCache<T> {
     private cache_;
     private pending_;
+    private failed_;
     getOrLoad(key: string, loader: () => Promise<T>, timeout?: number): Promise<T>;
     get(key: string): T | undefined;
     has(key: string): boolean;

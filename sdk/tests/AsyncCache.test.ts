@@ -89,7 +89,16 @@ describe('AsyncCache', () => {
 
             await expect(cache.getOrLoad('key', loader)).rejects.toThrow('first failure');
 
+            // Within cooldown, returns the cached error without calling loader
+            await expect(cache.getOrLoad('key', loader)).rejects.toThrow('first failure');
+            expect(loader).toHaveBeenCalledTimes(1);
+
+            // After cooldown expires, retries with the loader
+            vi.useFakeTimers();
+            vi.advanceTimersByTime(6000);
             const result = await cache.getOrLoad('key', loader);
+            vi.useRealTimers();
+
             expect(result).toBe('success');
             expect(loader).toHaveBeenCalledTimes(2);
         });
@@ -99,8 +108,12 @@ describe('AsyncCache', () => {
 
             await expect(cache.getOrLoad('key', loader)).rejects.toThrow('failed');
 
+            // After cooldown, allows retry with a new loader
+            vi.useFakeTimers();
+            vi.advanceTimersByTime(6000);
             const newLoader = vi.fn().mockResolvedValue('success');
             await cache.getOrLoad('key', newLoader);
+            vi.useRealTimers();
 
             expect(newLoader).toHaveBeenCalled();
         });
@@ -257,7 +270,12 @@ describe('AsyncCache', () => {
                 .mockResolvedValueOnce('success');
 
             await expect(cache.getOrLoad('key', loader)).rejects.toThrow('temp failure');
+
+            // After cooldown, retries and succeeds
+            vi.useFakeTimers();
+            vi.advanceTimersByTime(6000);
             const result = await cache.getOrLoad('key', loader);
+            vi.useRealTimers();
 
             expect(result).toBe('success');
             expect(cache.has('key')).toBe(true);

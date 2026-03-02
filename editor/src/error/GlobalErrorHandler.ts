@@ -2,6 +2,9 @@ import { showErrorToast } from '../ui/Toast';
 
 export type ErrorCategory = 'asset_missing' | 'invalid_schema' | 'wasm_crash' | 'unknown';
 
+const DEDUP_WINDOW_MS = 5000;
+const recentErrors_ = new Map<string, number>();
+
 export function installGlobalErrorHandler(): void {
   window.addEventListener('error', (event) => {
     handleError(event.error || new Error(event.message));
@@ -46,6 +49,20 @@ const CATEGORY_MESSAGES: Record<ErrorCategory, string> = {
 
 function handleError(error: Error): void {
   const category = categorizeError(error);
+  const dedupeKey = `${category}:${error.message}`;
+  const now = Date.now();
+
+  const lastSeen = recentErrors_.get(dedupeKey);
+  if (lastSeen !== undefined && now - lastSeen < DEDUP_WINDOW_MS) {
+    return;
+  }
+  recentErrors_.set(dedupeKey, now);
+
+  if (recentErrors_.size > 100) {
+    for (const [key, ts] of recentErrors_) {
+      if (now - ts >= DEDUP_WINDOW_MS) recentErrors_.delete(key);
+    }
+  }
 
   console.error(`[ESEngine:${category}]`, {
     message: error.message,
