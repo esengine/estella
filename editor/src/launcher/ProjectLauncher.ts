@@ -1,6 +1,6 @@
 /**
  * @file    ProjectLauncher.ts
- * @brief   Project launcher/welcome screen component
+ * @brief   Project launcher/welcome screen with sidebar navigation
  */
 
 import type { RecentProject } from '../types/ProjectTypes';
@@ -12,6 +12,7 @@ import {
     openProjectDialog,
 } from './ProjectService';
 import { NewProjectDialog } from './NewProjectDialog';
+import { ExampleBrowser } from './ExampleBrowser';
 import { icons } from '../utils/icons';
 
 // =============================================================================
@@ -22,6 +23,8 @@ export interface ProjectLauncherOptions {
     onProjectOpen: (projectPath: string) => void;
 }
 
+type LauncherView = 'projects' | 'learn';
+
 // =============================================================================
 // ProjectLauncher
 // =============================================================================
@@ -30,6 +33,8 @@ export class ProjectLauncher {
     private container_: HTMLElement;
     private options_: ProjectLauncherOptions;
     private newProjectDialog_: NewProjectDialog | null = null;
+    private activeView_: LauncherView = 'projects';
+    private exampleBrowser_: ExampleBrowser | null = null;
 
     constructor(container: HTMLElement, options: ProjectLauncherOptions) {
         this.container_ = container;
@@ -41,49 +46,92 @@ export class ProjectLauncher {
     dispose(): void {
         this.newProjectDialog_?.dispose();
         this.newProjectDialog_ = null;
+        this.exampleBrowser_?.dispose();
+        this.exampleBrowser_ = null;
         this.container_.innerHTML = '';
     }
 
     private render(): void {
         this.container_.className = 'es-launcher';
         this.container_.innerHTML = `
-            <div class="es-launcher-content">
-                <div class="es-launcher-header">
-                    <div class="es-launcher-logo">
-                        <div class="es-launcher-logo-icon">${icons.logo()}</div>
-                        <div class="es-launcher-logo-text">
-                            <span class="es-launcher-title">ESEngine</span>
-                            <span class="es-launcher-subtitle">Editor</span>
-                        </div>
+            <div class="es-launcher-topbar" data-tauri-drag-region>
+                <div class="es-launcher-topbar-left">
+                    <div class="es-launcher-logo-icon">${icons.logo(28)}</div>
+                    <span class="es-launcher-topbar-title">ESEngine Editor</span>
+                </div>
+                <span class="es-launcher-topbar-version">v${ENGINE_VERSION}</span>
+            </div>
+            <div class="es-launcher-body">
+                <div class="es-launcher-sidebar">
+                    <button class="es-launcher-nav-item ${this.activeView_ === 'projects' ? 'active' : ''}" data-view="projects">
+                        <span class="es-launcher-nav-icon">${icons.folder(16)}</span>
+                        <span>Projects</span>
+                    </button>
+                    <button class="es-launcher-nav-item ${this.activeView_ === 'learn' ? 'active' : ''}" data-view="learn">
+                        <span class="es-launcher-nav-icon">${icons.bookOpen(16)}</span>
+                        <span>Learn</span>
+                    </button>
+                </div>
+                <div class="es-launcher-content"></div>
+            </div>
+        `;
+
+        this.renderActiveView();
+        this.setupEvents();
+    }
+
+    private renderActiveView(): void {
+        const content = this.container_.querySelector('.es-launcher-content');
+        if (!content) return;
+
+        this.exampleBrowser_?.dispose();
+        this.exampleBrowser_ = null;
+
+        if (this.activeView_ === 'projects') {
+            this.renderProjectsView(content as HTMLElement);
+        } else {
+            this.renderLearnView(content as HTMLElement);
+        }
+    }
+
+    private renderProjectsView(container: HTMLElement): void {
+        container.innerHTML = `
+            <div class="es-launcher-projects">
+                <div class="es-launcher-welcome">
+                    <div class="es-launcher-welcome-icon">${icons.logo(48)}</div>
+                    <div class="es-launcher-welcome-text">
+                        <h2 class="es-launcher-welcome-title">Welcome to ESEngine</h2>
+                        <p class="es-launcher-welcome-desc">Create a new project or open an existing one to get started.</p>
                     </div>
                 </div>
-
                 <div class="es-launcher-actions">
-                    <button class="es-launcher-btn es-launcher-btn-primary" data-action="new">
-                        <span class="es-launcher-btn-icon">${icons.plus()}</span>
-                        <span>New Project</span>
+                    <button class="es-launcher-action-card" data-action="new">
+                        <span class="es-launcher-action-icon es-launcher-action-icon--primary">${icons.plus(20)}</span>
+                        <span class="es-launcher-action-label">New Project</span>
+                        <span class="es-launcher-action-desc">Start from a blank template</span>
                     </button>
-                    <button class="es-launcher-btn" data-action="open">
-                        <span class="es-launcher-btn-icon">${icons.folderOpen()}</span>
-                        <span>Open Project</span>
+                    <button class="es-launcher-action-card" data-action="open">
+                        <span class="es-launcher-action-icon">${icons.folderOpen(20)}</span>
+                        <span class="es-launcher-action-label">Open Project</span>
+                        <span class="es-launcher-action-desc">Open an existing .esproject</span>
                     </button>
                 </div>
-
                 <div class="es-launcher-recent">
                     <div class="es-launcher-recent-header">
                         <span>Recent Projects</span>
                     </div>
                     <div class="es-launcher-recent-list"></div>
                 </div>
-
-                <div class="es-launcher-footer">
-                    <span>v${ENGINE_VERSION}</span>
-                </div>
             </div>
         `;
 
         this.renderRecentProjects();
-        this.setupEvents();
+    }
+
+    private renderLearnView(container: HTMLElement): void {
+        this.exampleBrowser_ = new ExampleBrowser(container, {
+            onProjectOpen: (path) => this.options_.onProjectOpen(path),
+        });
     }
 
     private renderRecentProjects(): void {
@@ -95,7 +143,9 @@ export class ProjectLauncher {
         if (projects.length === 0) {
             listContainer.innerHTML = `
                 <div class="es-launcher-recent-empty">
-                    No recent projects
+                    <div class="es-launcher-recent-empty-icon">${icons.folder(24)}</div>
+                    <span>No recent projects</span>
+                    <span class="es-launcher-recent-empty-hint">Projects you open will appear here</span>
                 </div>
             `;
             return;
@@ -105,7 +155,6 @@ export class ProjectLauncher {
             .map((project, index) => this.renderRecentProjectItem(project, index))
             .join('');
 
-        // Bind click events for recent project items
         listContainer.querySelectorAll('.es-launcher-recent-item').forEach((item, index) => {
             item.addEventListener('click', () => this.handleOpenRecentProject(projects[index]));
         });
@@ -130,7 +179,7 @@ export class ProjectLauncher {
                     <div class="es-launcher-recent-path">${this.escapeHtml(shortPath)}</div>
                 </div>
                 <div class="es-launcher-recent-time">${timeAgo}</div>
-                <button class="es-launcher-recent-remove" title="Remove from list">×</button>
+                <button class="es-launcher-recent-remove" title="Remove from list">&times;</button>
             </div>
         `;
     }
@@ -140,11 +189,38 @@ export class ProjectLauncher {
             e.preventDefault();
         });
 
+        this.container_.querySelectorAll('.es-launcher-nav-item').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const view = (btn as HTMLElement).dataset.view as LauncherView;
+                if (view && view !== this.activeView_) {
+                    this.switchView(view);
+                }
+            });
+        });
+
         const newBtn = this.container_.querySelector('[data-action="new"]');
         const openBtn = this.container_.querySelector('[data-action="open"]');
 
         newBtn?.addEventListener('click', () => this.handleNewProject());
         openBtn?.addEventListener('click', () => this.handleOpenProject());
+    }
+
+    private switchView(view: LauncherView): void {
+        this.activeView_ = view;
+
+        this.container_.querySelectorAll('.es-launcher-nav-item').forEach(btn => {
+            btn.classList.toggle('active', (btn as HTMLElement).dataset.view === view);
+        });
+
+        this.renderActiveView();
+
+        const content = this.container_.querySelector('.es-launcher-content');
+        if (content && this.activeView_ === 'projects') {
+            const newBtn = content.querySelector('[data-action="new"]');
+            const openBtn = content.querySelector('[data-action="open"]');
+            newBtn?.addEventListener('click', () => this.handleNewProject());
+            openBtn?.addEventListener('click', () => this.handleOpenProject());
+        }
     }
 
     private handleNewProject(): void {

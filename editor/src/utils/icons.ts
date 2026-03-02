@@ -69,6 +69,7 @@ import {
     SlidersHorizontal,
     Gauge,
     Globe,
+    BookOpen,
 } from 'lucide';
 
 // =============================================================================
@@ -194,6 +195,7 @@ export const icons = {
     sliders: (size?: number) => renderIcon(SlidersHorizontal as IconNode, size),
     gauge: (size?: number) => renderIcon(Gauge as IconNode, size),
     globe: (size?: number) => renderIcon(Globe as IconNode, size),
+    bookOpen: (size?: number) => renderIcon(BookOpen as IconNode, size),
 };
 
 export type IconName = keyof typeof icons;
