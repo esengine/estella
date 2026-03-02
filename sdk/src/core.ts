@@ -133,6 +133,8 @@ export {
     type TimeData,
 } from './resource';
 
+export { Storage } from './storage';
+
 export {
     Input,
     InputState,

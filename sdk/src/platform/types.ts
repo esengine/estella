@@ -92,6 +92,11 @@ export interface PlatformAdapter {
     bindInputEvents(callbacks: InputEventCallbacks, target?: unknown): void;
 
     createAudioBackend(): import('../audio/PlatformAudioBackend').PlatformAudioBackend;
+
+    getStorageItem(key: string): string | null;
+    setStorageItem(key: string, value: string): void;
+    removeStorageItem(key: string): void;
+    clearStorage(prefix: string): void;
 }
 
 // =============================================================================

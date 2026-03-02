@@ -136,6 +136,44 @@ class WeChatPlatformAdapter implements PlatformAdapter {
     createAudioBackend(): PlatformAudioBackend {
         return new WeChatAudioBackend();
     }
+
+    getStorageItem(key: string): string | null {
+        try {
+            const value = wx.getStorageSync(key);
+            return typeof value === 'string' ? value : null;
+        } catch {
+            return null;
+        }
+    }
+
+    setStorageItem(key: string, value: string): void {
+        try {
+            wx.setStorageSync(key, value);
+        } catch {
+            // silent fail
+        }
+    }
+
+    removeStorageItem(key: string): void {
+        try {
+            wx.removeStorageSync(key);
+        } catch {
+            // silent fail
+        }
+    }
+
+    clearStorage(prefix: string): void {
+        try {
+            const { keys } = wx.getStorageInfoSync();
+            for (const k of keys) {
+                if (k.startsWith(prefix)) {
+                    wx.removeStorageSync(k);
+                }
+            }
+        } catch {
+            // silent fail
+        }
+    }
 }
 
 // =============================================================================

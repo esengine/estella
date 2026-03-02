@@ -211,6 +211,31 @@ class WebPlatformAdapter implements PlatformAdapter {
     createAudioBackend(): PlatformAudioBackend {
         return new WebAudioBackend();
     }
+
+    getStorageItem(key: string): string | null {
+        return localStorage.getItem(key);
+    }
+
+    setStorageItem(key: string, value: string): void {
+        localStorage.setItem(key, value);
+    }
+
+    removeStorageItem(key: string): void {
+        localStorage.removeItem(key);
+    }
+
+    clearStorage(prefix: string): void {
+        const toRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k !== null && k.startsWith(prefix)) {
+                toRemove.push(k);
+            }
+        }
+        for (const k of toRemove) {
+            localStorage.removeItem(k);
+        }
+    }
 }
 
 // =============================================================================
