@@ -22,6 +22,8 @@ import { registerAnimClip } from './animation/SpriteAnimator';
 import { Audio } from './audio/Audio';
 import { flushPendingSystems } from './app';
 import { updateCameraAspectRatio } from './scene';
+import { parseTmjJson, resolveRelativePath } from './tilemap/tiledLoader';
+import { registerTextureDimensions, registerTilemapSource } from './tilemap/tilesetCache';
 
 // =============================================================================
 // Public Interface
@@ -545,6 +547,64 @@ async function loadAnimClips(
 }
 
 // =============================================================================
+// Tilemap Helpers
+// =============================================================================
+
+async function loadTilemaps(
+    module: ESEngineModule,
+    sceneData: SceneData,
+    provider: RuntimeAssetProvider,
+): Promise<void> {
+    const processed = new Set<string>();
+
+    for (const entity of sceneData.entities) {
+        for (const comp of entity.components) {
+            const descriptors = getComponentAssetFieldDescriptors(comp.type);
+            for (const desc of descriptors) {
+                if (desc.type !== 'tilemap') continue;
+                const tmjPath = comp.data[desc.field];
+                if (typeof tmjPath !== 'string' || !tmjPath || processed.has(tmjPath)) continue;
+                processed.add(tmjPath);
+
+                try {
+                    const jsonText = await provider.readText(tmjPath);
+                    const mapData = parseTmjJson(JSON.parse(jsonText));
+                    if (!mapData) continue;
+
+                    const tilesets = [];
+                    for (const ts of mapData.tilesets) {
+                        const imagePath = resolveRelativePath(tmjPath, ts.image);
+                        let textureHandle = 0;
+                        try {
+                            const result = await provider.loadPixels(imagePath);
+                            textureHandle = createTextureFromPixels(module, result);
+                            registerTextureDimensions(textureHandle, result.width, result.height);
+                        } catch {
+                            /* skip missing tileset texture */
+                        }
+                        tilesets.push({ textureHandle, columns: ts.columns });
+                    }
+
+                    registerTilemapSource(tmjPath, {
+                        tileWidth: mapData.tileWidth,
+                        tileHeight: mapData.tileHeight,
+                        layers: mapData.layers.map(l => ({
+                            name: l.name,
+                            width: l.width,
+                            height: l.height,
+                            tiles: l.tiles,
+                        })),
+                        tilesets,
+                    });
+                } catch (err) {
+                    console.warn(`[loadTilemaps] Failed to load tilemap: ${tmjPath}`, err);
+                }
+            }
+        }
+    }
+}
+
+// =============================================================================
 // Public API
 // =============================================================================
 
@@ -586,6 +646,7 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
     const fontCache = await loadBitmapFonts(module, sceneData, provider);
     const materialCache = await loadMaterials(sceneData, provider);
     await loadAnimClips(module, sceneData, provider);
+    await loadTilemaps(module, sceneData, provider);
     await preloadAudioClips(sceneData, provider);
 
     resolveSceneAssetPaths(sceneData, textureCache, fontCache, materialCache);
