@@ -40,6 +40,10 @@ In the editor, scenes are loaded automatically — you only write scripts that d
 
 After building your project, the engine automatically loads the scene, resolves all referenced assets (textures, materials, Spine), and creates a default camera if none exists. You don't need to handle scene loading manually.
 
+<Aside type="tip">
+  Scene files (`.esscene`) created in the editor are **embedded directly into the build output** as data. You do not need to specify file paths or worry about deployment URLs — the build system handles everything. The `path` field in `SceneConfig` is only needed for advanced use cases like loading scenes from a remote server at runtime.
+</Aside>
+
 ## Finding Entities
 
 ### By Name
@@ -149,7 +153,23 @@ addSystem(defineSystem(
 
 ## Registering Scenes
 
-Scenes are managed in the editor — create `.scene` files and configure them in the project settings. For advanced use cases, you can register scenes programmatically in a `setup` function:
+### Editor Workflow (Recommended)
+
+Most projects manage scenes entirely through the editor:
+
+1. Right-click in the **Content Browser** → **Create** → **Scene** to create a `.esscene` file (default location: `assets/scenes/main.esscene`)
+2. Open **Build Settings** and add the scenes you want to include in the build
+3. Build the project — the build system reads each `.esscene` file, extracts its name, and **embeds the scene data directly** into the build output
+
+At runtime, the engine automatically registers and loads these embedded scenes. **You don't need to write any scene loading code or specify any file paths.**
+
+<Aside type="note">
+  When the project is built, the `.esscene` file at `assets/scenes/main.esscene` becomes a scene named `"main"`. The file path is only used at build time — it is not a runtime URL.
+</Aside>
+
+### Programmatic Registration
+
+For multi-scene projects that need scene switching, custom systems, or setup/cleanup callbacks, register scenes in a `setup` function. You still don't need `path` — the build system handles data embedding:
 
 ```typescript
 import { SceneManager, Schedule, type App } from 'esengine';
@@ -159,7 +179,6 @@ export function setup(app: App) {
 
     mgr.register({
         name: 'menu',
-        path: '/scenes/menu.json',
         systems: [
             { schedule: Schedule.Update, system: menuUpdateSystem },
         ],
@@ -171,15 +190,25 @@ export function setup(app: App) {
         },
     });
 
-    mgr.register({ name: 'game', path: '/scenes/game.json' });
+    mgr.register({ name: 'game' });
     mgr.setInitial('menu');
 }
 ```
 
-Instead of specifying a file path with `path`, you can pass scene data directly via `data`. This is useful for procedurally generated or in-memory scenes:
+<Aside type="tip">
+  The `name` must match the scene file name without extension. For example, `assets/scenes/menu.esscene` → `name: 'menu'`.
+</Aside>
+
+<Aside type="tip">
+  Systems registered in `systems` are automatically wrapped as scene-scoped systems and only run while that scene's status is `running`.
+</Aside>
+
+### Inline Scene Data
+
+You can pass scene data directly via `data` for procedurally generated or in-memory scenes:
 
 ```typescript
-app.registerScene({
+mgr.register({
     name: 'procedural',
     data: {
         version: '1.0',
@@ -192,8 +221,27 @@ app.registerScene({
 });
 ```
 
-<Aside type="tip">
-  Systems registered in `systems` are automatically wrapped as scene-scoped systems and only run while that scene's status is `running`.
+### Loading from URL (Advanced)
+
+For advanced use cases — such as loading scenes from a CDN or hot-reloading during development — use the `path` field to specify a URL:
+
+```typescript
+mgr.register({
+    name: 'menu',
+    path: '/scenes/menu.json',
+});
+```
+
+Path resolution rules:
+
+| Path format | Resolves to | Example |
+|-------------|-------------|---------|
+| Starts with `/` | Absolute path from site root | `/scenes/menu.json` → `/scenes/menu.json` |
+| Starts with `http://` or `https://` | Full URL, used as-is | `https://cdn.example.com/scenes/menu.json` |
+| Relative path | Prepended with `AssetServer.baseUrl` | `scenes/menu.json` → `{baseUrl}/scenes/menu.json` |
+
+<Aside type="caution">
+  `path` is a **runtime URL**, not a project file path. Do not put your `.esscene` file path here (e.g. `assets/scenes/main.esscene`). For editor-built projects, scene data is already embedded — you don't need `path` at all.
 </Aside>
 
 ## Switching Scenes

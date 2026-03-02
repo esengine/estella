@@ -1,132 +1,168 @@
 ---
 title: 后处理效果
-description: ESEngine 全屏后处理效果管线
+description: ESEngine 逐相机后处理效果管线
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-PostProcess API 在场景渲染完成后应用全屏着色器效果。可以链式添加多个 pass 来实现模糊、暗角、灰度、色差等效果。
+PostProcess API 在每个相机渲染完成后应用全屏着色器效果。效果通过 **PostProcessStack** 对象管理，可以绑定到不同的相机，让每个相机拥有不同的效果。
 
-## 初始化
-
-使用画布尺寸初始化管线：
+## 快速开始
 
 ```typescript
 import { PostProcess } from 'esengine';
 
-PostProcess.init(canvas.width, canvas.height);
+// 创建效果栈
+const fx = PostProcess.createStack();
+fx.addPass('bloom', PostProcess.createBloom());
+fx.setUniform('bloom', 'u_threshold', 0.8);
+fx.setUniform('bloom', 'u_intensity', 1.5);
+
+// 绑定到相机实体
+PostProcess.bind(cameraEntity, fx);
+```
+
+## PostProcessStack
+
+`PostProcessStack` 是可复用的效果链。创建一个 Stack，添加 pass，然后绑定到一个或多个相机：
+
+```typescript
+const fx = PostProcess.createStack();
+
+// 添加效果（按顺序执行）
+fx.addPass('blur', PostProcess.createBlur());
+fx.addPass('vignette', PostProcess.createVignette());
+
+// 配置 uniform
+fx.setUniform('blur', 'u_intensity', 3.0);
+fx.setUniform('vignette', 'u_intensity', 0.8);
+fx.setUniform('vignette', 'u_softness', 0.3);
+
+// 绑定到相机 — 效果立即生效
+PostProcess.bind(cameraEntity, fx);
+```
+
+<Aside type="tip">
+  多个相机可以共享同一个 Stack。修改 Stack 会影响所有引用它的相机。
+</Aside>
+
+### Stack 方法
+
+| 方法 | 说明 |
+|------|------|
+| `addPass(name, shader)` | 追加一个命名 pass |
+| `removePass(name)` | 按名称移除 pass |
+| `setEnabled(name, enabled)` | 启用或禁用 pass |
+| `setUniform(pass, name, value)` | 设置 float uniform |
+| `setUniformVec4(pass, name, value)` | 设置 vec4 uniform |
+| `setAllPassesEnabled(enabled)` | 一次性启用或禁用所有 pass |
+| `passCount` | pass 总数 |
+| `enabledPassCount` | 已启用的 pass 数 |
+| `destroy()` | 销毁 Stack（自动解绑所有相机） |
+
+## 相机绑定
+
+```typescript
+// 绑定 Stack 到相机
+PostProcess.bind(cameraEntity, fx);
+
+// 查询当前 Stack
+const stack = PostProcess.getStack(cameraEntity); // 无绑定时返回 null
+
+// 解绑（相机不再应用效果）
+PostProcess.unbind(cameraEntity);
 ```
 
 <Aside type="note">
-  `PostProcess.begin()` 和 `PostProcess.end()` 由引擎内部调用。你只需配置 pass 和 uniform。
+  每个相机最多绑定一个 Stack。绑定新的 Stack 会替换之前的。
 </Aside>
-
-## 添加 Pass
-
-创建内置效果着色器并添加为命名 pass：
-
-```typescript
-const blurShader = PostProcess.createBlur();
-PostProcess.addPass('blur', blurShader);
-PostProcess.setUniform('blur', 'u_intensity', 2.0);
-```
-
-Pass 按添加顺序执行。每个 pass 读取前一个 pass 的输出作为 `u_texture`。
 
 ## 内置效果
 
 | 方法 | 效果 | Uniform |
 |------|------|---------|
-| `createBlur()` | 高斯模糊 | `u_intensity` (float) — 模糊扩散, `u_resolution` (vec2) — 自动 |
-| `createVignette()` | 暗角 | `u_intensity` (float) — 半径, `u_softness` (float) — 衰减 |
-| `createGrayscale()` | 灰度 | `u_intensity` (float, 0–1) — 混合比例 |
-| `createChromaticAberration()` | 色差 | `u_intensity` (float) — 偏移量, `u_resolution` (vec2) — 自动 |
+| `createBloom()` | 亮像素辉光 | `u_threshold` — 亮度截断, `u_intensity` — 辉光强度, `u_radius` — 模糊扩散 |
+| `createBlur()` | 高斯模糊 | `u_intensity` — 模糊扩散 |
+| `createVignette()` | 暗角 | `u_intensity` — 半径, `u_softness` — 衰减 |
+| `createGrayscale()` | 去饱和 | `u_intensity` (0–1) — 混合比例 |
+| `createChromaticAberration()` | RGB 通道偏移 | `u_intensity` — 偏移量 |
 
 <Aside type="tip">
-  `u_resolution` 由引擎自动设置，你只需设置其他 uniform。
+  `u_resolution` 由引擎自动设置，无需手动配置。
 </Aside>
 
-### 模糊
+### 辉光 (Bloom)
+
+提取亮像素、模糊后叠加回原图。适合发光灯效和类 HDR 效果：
+
+```typescript
+const fx = PostProcess.createStack();
+fx.addPass('bloom', PostProcess.createBloom());
+fx.setUniform('bloom', 'u_threshold', 0.8);  // 亮度截断
+fx.setUniform('bloom', 'u_intensity', 1.5);  // 辉光强度
+fx.setUniform('bloom', 'u_radius', 4.0);     // 模糊扩散
+PostProcess.bind(cameraEntity, fx);
+```
+
+### 模糊 (Blur)
 
 9 次采样高斯模糊。`u_intensity` 越大模糊越强：
 
 ```typescript
-const blur = PostProcess.createBlur();
-PostProcess.addPass('blur', blur);
-PostProcess.setUniform('blur', 'u_intensity', 3.0);
+const fx = PostProcess.createStack();
+fx.addPass('blur', PostProcess.createBlur());
+fx.setUniform('blur', 'u_intensity', 3.0);
+PostProcess.bind(cameraEntity, fx);
 ```
 
-### 暗角
+### 暗角 (Vignette)
 
-使屏幕边缘变暗。`u_intensity` 控制半径，`u_softness` 控制衰减：
+使屏幕边缘变暗：
 
 ```typescript
-const vignette = PostProcess.createVignette();
-PostProcess.addPass('vignette', vignette);
-PostProcess.setUniform('vignette', 'u_intensity', 0.8);
-PostProcess.setUniform('vignette', 'u_softness', 0.4);
+const fx = PostProcess.createStack();
+fx.addPass('vignette', PostProcess.createVignette());
+fx.setUniform('vignette', 'u_intensity', 0.8);
+fx.setUniform('vignette', 'u_softness', 0.4);
+PostProcess.bind(cameraEntity, fx);
 ```
 
-### 灰度
+### 灰度 (Grayscale)
 
-在原色和灰度之间混合。`u_intensity` 为 `1.0` 时完全灰度：
+在原色和灰度之间混合：
 
 ```typescript
-const gray = PostProcess.createGrayscale();
-PostProcess.addPass('grayscale', gray);
-PostProcess.setUniform('grayscale', 'u_intensity', 1.0);
+const fx = PostProcess.createStack();
+fx.addPass('grayscale', PostProcess.createGrayscale());
+fx.setUniform('grayscale', 'u_intensity', 1.0);  // 完全灰度
+PostProcess.bind(cameraEntity, fx);
 ```
 
-### 色差
+### 色差 (Chromatic Aberration)
 
 偏移 R 和 B 通道以产生镜头畸变效果：
 
 ```typescript
-const ca = PostProcess.createChromaticAberration();
-PostProcess.addPass('chromatic', ca);
-PostProcess.setUniform('chromatic', 'u_intensity', 2.0);
+const fx = PostProcess.createStack();
+fx.addPass('chromatic', PostProcess.createChromaticAberration());
+fx.setUniform('chromatic', 'u_intensity', 2.0);
+PostProcess.bind(cameraEntity, fx);
 ```
 
-## Pass 管理
+## 编辑器工作流
 
-```typescript
-PostProcess.setEnabled('blur', false);     // 禁用 pass
-PostProcess.setEnabled('blur', true);      // 重新启用
-PostProcess.removePass('blur');            // 完全移除
-const count = PostProcess.getPassCount();  // pass 数量
-```
+在编辑器中为 Camera 实体添加 **PostProcessVolume** 组件即可可视化配置效果：
 
-## 设置 Uniform
+1. 在 Hierarchy 中选中 Camera 实体
+2. **添加组件** → **PostProcessVolume**
+3. 点击 **添加效果** 并从内置效果列表中选择
+4. 使用滑块调整参数
 
-```typescript
-PostProcess.setUniform('blur', 'u_intensity', 5.0);
-PostProcess.setUniformVec4('custom', 'u_tint', { x: 1, y: 0.8, z: 0.6, w: 1 });
-```
-
-## 旁路模式
-
-没有活跃 pass 时，启用旁路模式跳过 FBO 开销：
-
-```typescript
-PostProcess.setBypass(true);   // 直接渲染到屏幕
-PostProcess.setBypass(false);  // 使用管线
-
-const bypassed = PostProcess.isBypassed();
-```
-
-## 窗口缩放
-
-画布尺寸变化时更新帧缓冲尺寸：
-
-```typescript
-window.addEventListener('resize', () => {
-    PostProcess.resize(canvas.width, canvas.height);
-});
-```
+效果在场景视图和游戏视图中都可见。组件数据随场景文件保存。
 
 ## 自定义 Pass
 
-编写自定义片段着色器并添加为 pass。顶点着色器是固定的全屏四边形，你只需编写片段着色器：
+编写自定义片段着色器。顶点着色器使用固定的全屏四边形 — 你只需编写片段着色器：
 
 ```typescript
 import { Material, PostProcess } from 'esengine';
@@ -154,8 +190,10 @@ const invertShader = Material.createShader(
     }`
 );
 
-PostProcess.addPass('invert', invertShader);
-PostProcess.setUniform('invert', 'u_intensity', 1.0);
+const fx = PostProcess.createStack();
+fx.addPass('invert', invertShader);
+fx.setUniform('invert', 'u_intensity', 1.0);
+PostProcess.bind(cameraEntity, fx);
 ```
 
 参见[材质与着色器](/microes/zh/guides/materials/)了解更多着色器编写方法。
@@ -167,38 +205,50 @@ PostProcess.setUniform('invert', 'u_intensity', 1.0);
 ```typescript
 import { PostProcess } from 'esengine';
 
-const blurShader = PostProcess.createBlur();
-const grayShader = PostProcess.createGrayscale();
-PostProcess.addPass('pause-blur', blurShader);
-PostProcess.addPass('pause-gray', grayShader);
-PostProcess.setEnabled('pause-blur', false);
-PostProcess.setEnabled('pause-gray', false);
+const pauseFx = PostProcess.createStack();
+pauseFx.addPass('blur', PostProcess.createBlur());
+pauseFx.addPass('gray', PostProcess.createGrayscale());
+pauseFx.setAllPassesEnabled(false);
+
+PostProcess.bind(cameraEntity, pauseFx);
 
 function setPaused(paused: boolean) {
-    PostProcess.setEnabled('pause-blur', paused);
-    PostProcess.setEnabled('pause-gray', paused);
-    PostProcess.setUniform('pause-blur', 'u_intensity', 4.0);
-    PostProcess.setUniform('pause-gray', 'u_intensity', 0.6);
+    pauseFx.setAllPassesEnabled(paused);
+    pauseFx.setUniform('blur', 'u_intensity', 4.0);
+    pauseFx.setUniform('gray', 'u_intensity', 0.6);
 }
 ```
 
-## 完整 API 参考
+## 示例：不同相机使用不同效果
+
+```typescript
+// 主相机 — 辉光 + 暗角
+const mainFx = PostProcess.createStack();
+mainFx.addPass('bloom', PostProcess.createBloom());
+mainFx.addPass('vignette', PostProcess.createVignette());
+mainFx.setUniform('bloom', 'u_threshold', 0.7);
+mainFx.setUniform('vignette', 'u_intensity', 0.6);
+PostProcess.bind(mainCamera, mainFx);
+
+// 小地图相机 — 灰度
+const minimapFx = PostProcess.createStack();
+minimapFx.addPass('gray', PostProcess.createGrayscale());
+minimapFx.setUniform('gray', 'u_intensity', 0.5);
+PostProcess.bind(minimapCamera, minimapFx);
+```
+
+## 生命周期
 
 | 方法 | 说明 |
 |------|------|
-| `PostProcess.init(width, height)` | 初始化管线 |
+| `PostProcess.createStack()` | 创建新的效果栈 |
+| `PostProcess.bind(camera, stack)` | 将 Stack 绑定到相机 |
+| `PostProcess.unbind(camera)` | 解绑相机的 Stack |
+| `PostProcess.getStack(camera)` | 获取已绑定的 Stack（无则返回 null） |
+| `PostProcess.init(width, height)` | 初始化管线（自动调用） |
 | `PostProcess.shutdown()` | 关闭管线 |
-| `PostProcess.resize(width, height)` | 更新帧缓冲尺寸 |
-| `PostProcess.addPass(name, shader)` | 添加命名 pass |
-| `PostProcess.removePass(name)` | 移除 pass |
-| `PostProcess.setEnabled(name, enabled)` | 启用或禁用 pass |
-| `PostProcess.isEnabled(name)` | 检查 pass 是否启用 |
-| `PostProcess.setUniform(pass, name, value)` | 设置 float uniform |
-| `PostProcess.setUniformVec4(pass, name, value)` | 设置 vec4 uniform |
-| `PostProcess.getPassCount()` | 获取 pass 数量 |
-| `PostProcess.isInitialized()` | 检查管线是否活跃 |
-| `PostProcess.setBypass(bypass)` | 启用或禁用旁路模式 |
-| `PostProcess.isBypassed()` | 检查旁路状态 |
+| `PostProcess.resize(width, height)` | 更新帧缓冲尺寸（自动调用） |
+| `PostProcess.createBloom()` | 创建辉光效果着色器 |
 | `PostProcess.createBlur()` | 创建模糊效果着色器 |
 | `PostProcess.createVignette()` | 创建暗角效果着色器 |
 | `PostProcess.createGrayscale()` | 创建灰度效果着色器 |
