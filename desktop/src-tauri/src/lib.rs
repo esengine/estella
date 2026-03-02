@@ -213,10 +213,14 @@ async fn execute_command(
 // Update (proxy-aware)
 // =============================================================================
 
-fn get_proxy_url() -> Option<url::Url> {
-    ["HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy", "ALL_PROXY", "all_proxy"]
-        .iter()
-        .find_map(|key| std::env::var(key).ok())
+fn resolve_proxy(explicit: Option<String>) -> Option<url::Url> {
+    explicit
+        .filter(|s| !s.is_empty())
+        .or_else(|| {
+            ["HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy", "ALL_PROXY", "all_proxy"]
+                .iter()
+                .find_map(|key| std::env::var(key).ok())
+        })
         .and_then(|s| url::Url::parse(&s).ok())
 }
 
@@ -227,10 +231,10 @@ struct UpdateInfo {
 }
 
 #[tauri::command]
-async fn check_update(app: AppHandle) -> Result<Option<UpdateInfo>, String> {
+async fn check_update(app: AppHandle, proxy: Option<String>) -> Result<Option<UpdateInfo>, String> {
     let mut builder = app.updater_builder();
-    if let Some(proxy) = get_proxy_url() {
-        builder = builder.proxy(proxy);
+    if let Some(proxy_url) = resolve_proxy(proxy) {
+        builder = builder.proxy(proxy_url);
     }
     let updater = builder.build().map_err(|e| e.to_string())?;
     match updater.check().await {
@@ -244,10 +248,10 @@ async fn check_update(app: AppHandle) -> Result<Option<UpdateInfo>, String> {
 }
 
 #[tauri::command]
-async fn install_update(app: AppHandle) -> Result<(), String> {
+async fn install_update(app: AppHandle, proxy: Option<String>) -> Result<(), String> {
     let mut builder = app.updater_builder();
-    if let Some(proxy) = get_proxy_url() {
-        builder = builder.proxy(proxy);
+    if let Some(proxy_url) = resolve_proxy(proxy) {
+        builder = builder.proxy(proxy_url);
     }
     let updater = builder.build().map_err(|e| e.to_string())?;
     let update = updater

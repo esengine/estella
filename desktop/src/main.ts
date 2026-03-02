@@ -5,7 +5,7 @@
 
 import 'dockview-core/dist/styles/dockview.css';
 import '@esengine/editor/styles';
-import { createEditor, ProjectLauncher, setPlatformAdapter, setEditorContext, loadProjectConfig, showToast, dismissToast, showProgressToast, updateToast, type Editor } from '@esengine/editor';
+import { createEditor, ProjectLauncher, setPlatformAdapter, setEditorContext, loadProjectConfig, showToast, dismissToast, showProgressToast, updateToast, getSettingsValue, type Editor } from '@esengine/editor';
 import { TauriPlatformAdapter } from './TauriPlatformAdapter';
 import { nativeFS, nativeShell } from './native-fs';
 import { invoke } from '@tauri-apps/api/core';
@@ -141,7 +141,8 @@ async function checkForUpdate(manual = false): Promise<void> {
     }
 
     try {
-        const update = await invoke<{ version: string; body: string | null } | null>('check_update');
+        const proxy = getSettingsValue<string>('network.proxy') || undefined;
+        const update = await invoke<{ version: string; body: string | null } | null>('check_update', { proxy });
         if (!update) {
             if (tid) {
                 updateToast(tid, { type: 'success', title: 'You\'re up to date', message: 'No updates available.' });
@@ -163,7 +164,8 @@ async function checkForUpdate(manual = false): Promise<void> {
                 onClick: async () => {
                     const dlTid = showProgressToast('Downloading update...');
                     try {
-                        await invoke('install_update');
+                        const installProxy = getSettingsValue<string>('network.proxy') || undefined;
+                        await invoke('install_update', { proxy: installProxy });
                         updateToast(dlTid, { type: 'success', title: 'Update complete', message: 'Restarting...' });
                         setTimeout(() => relaunch(), 1000);
                     } catch (e) {

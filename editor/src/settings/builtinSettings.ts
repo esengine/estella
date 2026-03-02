@@ -38,6 +38,12 @@ export function registerBuiltinSettings(): void {
         order: 5,
     });
 
+    registerSettingsSection({
+        id: 'network',
+        title: 'Network',
+        order: 6,
+    });
+
     registerSettingsItem({
         id: 'project.name',
         section: 'project',
@@ -388,5 +394,15 @@ export function registerBuiltinSettings(): void {
             { label: '1024', value: '1024' },
             { label: '2048', value: '2048' },
         ],
+    });
+
+    registerSettingsItem({
+        id: 'network.proxy',
+        section: 'network',
+        label: 'HTTP Proxy',
+        description: 'Proxy for update downloads (e.g. http://127.0.0.1:7890)',
+        type: 'string',
+        defaultValue: '',
+        order: 0,
     });
 }
