@@ -363,6 +363,14 @@ interface ParticleEmitterData {
 declare const ParticleEmitter$1: BuiltinComponentDef<ParticleEmitterData>;
 declare const Name: ComponentDef<NameData>;
 declare const SceneOwner: ComponentDef<SceneOwnerData>;
+interface PostProcessVolumeData$1 {
+    effects: {
+        type: string;
+        enabled: boolean;
+        uniforms: Record<string, number>;
+    }[];
+}
+declare const PostProcessVolume: ComponentDef<PostProcessVolumeData$1>;
 
 type ComponentData<C> = C extends BuiltinComponentDef<infer T> ? T : C extends ComponentDef<infer T> ? T : never;
 declare function getComponentDefaults(typeName: string): Record<string, unknown> | null;
@@ -837,6 +845,9 @@ interface ESEngineModule {
     postprocess_isInitialized(): boolean;
     postprocess_setBypass(bypass: boolean): void;
     postprocess_isBypassed(): boolean;
+    postprocess_clearPasses(): void;
+    postprocess_setOutputTarget(fboId: number): void;
+    postprocess_setOutputViewport(x: number, y: number, w: number, h: number): void;
     renderer_init(width: number, height: number): void;
     renderer_resize(width: number, height: number): void;
     renderer_begin(matrixPtr: number, targetHandle: number): void;
@@ -852,6 +863,14 @@ interface ESEngineModule {
     particle_stop?(registry: CppRegistry, entity: number): void;
     particle_reset?(registry: CppRegistry, entity: number): void;
     particle_getAliveCount?(entity: number): number;
+    tilemap_initLayer?(entity: number, width: number, height: number, tileWidth: number, tileHeight: number): void;
+    tilemap_destroyLayer?(entity: number): void;
+    tilemap_setTile?(entity: number, x: number, y: number, tileId: number): void;
+    tilemap_getTile?(entity: number, x: number, y: number): number;
+    tilemap_fillRect?(entity: number, x: number, y: number, w: number, h: number, tileId: number): void;
+    tilemap_setTiles?(entity: number, tilesPtr: number, count: number): void;
+    tilemap_hasLayer?(entity: number): boolean;
+    tilemap_submitLayer?(entity: number, textureId: number, sortLayer: number, depth: number, tilesetColumns: number, uvTileWidth: number, uvTileHeight: number, originX: number, originY: number, camLeft: number, camBottom: number, camRight: number, camTop: number): void;
     renderer_setStage(stage: number): void;
     renderer_createTarget(width: number, height: number, flags: number): number;
     renderer_releaseTarget(handle: number): void;
@@ -1233,19 +1252,23 @@ interface CameraRenderParams {
     };
     clearFlags: number;
     elapsed: number;
+    cameraEntity?: Entity;
 }
 type SpineRendererFn = (registry: {
     _cpp: CppRegistry;
 }, elapsed: number) => void;
+type TilemapRendererFn = () => void;
 type MaskProcessorFn = (registry: CppRegistry, vp: Float32Array, viewportX: number, viewportY: number, viewportW: number, viewportH: number) => void;
 declare class RenderPipeline {
     private spineRenderer_;
+    private tilemapRenderer_;
     private maskProcessor_;
     private lastWidth_;
     private lastHeight_;
     private activeScenes_;
     get spineRenderer(): SpineRendererFn | null;
     setSpineRenderer(fn: SpineRendererFn | null): void;
+    setTilemapRenderer(fn: TilemapRendererFn | null): void;
     get maskProcessor(): MaskProcessorFn | null;
     setMaskProcessor(fn: MaskProcessorFn | null): void;
     setActiveScenes(scenes: Set<string> | null): void;
@@ -1606,7 +1629,7 @@ declare class SpineModuleController {
 
 type AssetContentType = 'json' | 'text' | 'binary' | 'image' | 'audio';
 type AddressableAssetType = 'texture' | 'material' | 'spine' | 'bitmap-font' | 'prefab' | 'json' | 'text' | 'binary' | 'audio';
-type EditorAssetType = 'texture' | 'material' | 'shader' | 'spine-atlas' | 'spine-skeleton' | 'bitmap-font' | 'prefab' | 'json' | 'audio' | 'scene' | 'anim-clip' | 'unknown';
+type EditorAssetType = 'texture' | 'material' | 'shader' | 'spine-atlas' | 'spine-skeleton' | 'bitmap-font' | 'prefab' | 'json' | 'audio' | 'scene' | 'anim-clip' | 'tilemap' | 'unknown';
 type AssetBuildTransform = (content: string, context: unknown) => string;
 interface AssetTypeEntry {
     extensions: string[];
@@ -1859,7 +1882,7 @@ interface SceneLoadOptions {
     assetBaseUrl?: string;
     collectAssets?: LoadedSceneAssets;
 }
-type AssetFieldType = 'texture' | 'material' | 'font' | 'anim-clip' | 'audio';
+type AssetFieldType = 'texture' | 'material' | 'font' | 'anim-clip' | 'audio' | 'tilemap';
 interface AssetFieldDescriptor {
     field: string;
     type: AssetFieldType;
@@ -1900,6 +1923,86 @@ declare function registerDrawCallback(id: string, fn: DrawCallback, scene?: stri
 declare function unregisterDrawCallback(id: string): void;
 declare function clearDrawCallbacks(): void;
 
+/**
+ * @file    postprocess.ts
+ * @brief   Per-camera post-processing effects API
+ */
+
+declare function initPostProcessAPI(wasmModule: ESEngineModule): void;
+declare function shutdownPostProcessAPI(): void;
+interface PassConfig {
+    name: string;
+    shader: ShaderHandle;
+    enabled: boolean;
+    floatUniforms: Map<string, number>;
+    vec4Uniforms: Map<string, Vec4>;
+}
+declare class PostProcessStack {
+    readonly id: number;
+    private passes_;
+    private destroyed_;
+    constructor();
+    addPass(name: string, shader: ShaderHandle): this;
+    removePass(name: string): this;
+    setEnabled(name: string, enabled: boolean): this;
+    setUniform(passName: string, uniform: string, value: number): this;
+    setUniformVec4(passName: string, uniform: string, value: Vec4): this;
+    setAllPassesEnabled(enabled: boolean): void;
+    get passCount(): number;
+    get enabledPassCount(): number;
+    get passes(): readonly PassConfig[];
+    get isDestroyed(): boolean;
+    destroy(): void;
+}
+declare const PostProcess: {
+    createStack(): PostProcessStack;
+    bind(camera: Entity, stack: PostProcessStack): void;
+    unbind(camera: Entity): void;
+    getStack(camera: Entity): PostProcessStack | null;
+    init(width: number, height: number): boolean;
+    shutdown(): void;
+    resize(width: number, height: number): void;
+    isInitialized(): boolean;
+    setBypass(bypass: boolean): void;
+    setOutputViewport(x: number, y: number, w: number, h: number): void;
+    _applyForCamera(camera: Entity): void;
+    _resetAfterCamera(): void;
+    _cleanupDestroyedCameras(isValid: (e: Entity) => boolean): void;
+    createBlur(): ShaderHandle;
+    createVignette(): ShaderHandle;
+    createGrayscale(): ShaderHandle;
+    createBloom(): ShaderHandle;
+    createChromaticAberration(): ShaderHandle;
+};
+interface EffectUniformDef {
+    name: string;
+    label: string;
+    min: number;
+    max: number;
+    step: number;
+    defaultValue: number;
+}
+interface EffectDef {
+    type: string;
+    label: string;
+    factory: () => ShaderHandle;
+    uniforms: EffectUniformDef[];
+}
+declare function getEffectDef(type: string): EffectDef | undefined;
+declare function getEffectTypes(): string[];
+declare function getAllEffectDefs(): EffectDef[];
+interface PostProcessEffectData {
+    type: string;
+    enabled: boolean;
+    uniforms: Record<string, number>;
+}
+interface PostProcessVolumeData {
+    effects: PostProcessEffectData[];
+}
+declare function syncPostProcessVolume(camera: Entity, data: PostProcessVolumeData): void;
+declare function cleanupPostProcessVolume(camera: Entity): void;
+declare function cleanupAllPostProcessVolumes(): void;
+
 type SceneStatus = 'loading' | 'running' | 'paused' | 'sleeping' | 'unloading';
 interface SceneConfig {
     name: string;
@@ -1918,8 +2021,8 @@ interface SceneContext {
     spawn(): Entity;
     despawn(entity: Entity): void;
     registerDrawCallback(id: string, fn: DrawCallback): void;
-    addPostProcessPass(name: string, shader: ShaderHandle): number;
-    removePostProcessPass(name: string): void;
+    bindPostProcess(camera: Entity, stack: PostProcessStack): void;
+    unbindPostProcess(camera: Entity): void;
     setPersistent(entity: Entity, persistent: boolean): void;
 }
 interface TransitionOptions {
@@ -1945,6 +2048,7 @@ declare class SceneManagerState {
     private switching_;
     private loadPromises_;
     constructor(app: App);
+    reset(): void;
     register(config: SceneConfig): void;
     setInitial(name: string): void;
     getInitial(): string | null;
@@ -3281,122 +3385,6 @@ interface DrawAPI {
 }
 declare const Draw: DrawAPI;
 
-/**
- * @file    postprocess.ts
- * @brief   Post-processing effects API
- * @details Provides full-screen post-processing effects like blur, vignette, etc.
- */
-
-declare function initPostProcessAPI(wasmModule: ESEngineModule): void;
-declare function shutdownPostProcessAPI(): void;
-declare const PostProcess: {
-    /**
-     * Initializes the post-processing pipeline.
-     * @param width Framebuffer width
-     * @param height Framebuffer height
-     * @returns True on success
-     */
-    init(width: number, height: number): boolean;
-    /**
-     * Shuts down the post-processing pipeline.
-     */
-    shutdown(): void;
-    /**
-     * Resizes the framebuffers.
-     * @param width New width
-     * @param height New height
-     */
-    resize(width: number, height: number): void;
-    /**
-     * Adds a post-processing pass.
-     * @param name Unique name for the pass
-     * @param shader Shader handle
-     * @returns Pass index
-     */
-    addPass(name: string, shader: ShaderHandle): number;
-    /**
-     * Removes a pass by name.
-     * @param name Pass name
-     */
-    removePass(name: string): void;
-    /**
-     * Enables or disables a pass.
-     * @param name Pass name
-     * @param enabled Whether to enable the pass
-     */
-    setEnabled(name: string, enabled: boolean): void;
-    /**
-     * Checks if a pass is enabled.
-     * @param name Pass name
-     * @returns True if enabled
-     */
-    isEnabled(name: string): boolean;
-    /**
-     * Sets a float uniform on a pass.
-     * @param passName Pass name
-     * @param uniform Uniform name
-     * @param value Float value
-     */
-    setUniform(passName: string, uniform: string, value: number): void;
-    /**
-     * Sets a vec4 uniform on a pass.
-     * @param passName Pass name
-     * @param uniform Uniform name
-     * @param value Vec4 value
-     */
-    setUniformVec4(passName: string, uniform: string, value: Vec4): void;
-    /**
-     * Begins rendering to the post-process pipeline.
-     * Call this before rendering your scene.
-     */
-    begin(): void;
-    /**
-     * Ends and processes all passes.
-     * Call this after rendering your scene.
-     */
-    end(): void;
-    /**
-     * Gets the number of passes.
-     */
-    getPassCount(): number;
-    /**
-     * Checks if the pipeline is initialized.
-     */
-    isInitialized(): boolean;
-    /**
-     * Sets bypass mode to skip FBO rendering entirely.
-     * When bypassed, begin()/end() become no-ops and scene renders directly to screen.
-     * Use this when no post-processing passes are needed for maximum performance.
-     * @param bypass Whether to bypass the pipeline
-     */
-    setBypass(bypass: boolean): void;
-    /**
-     * Checks if bypass mode is enabled.
-     * @returns True if bypassed
-     */
-    isBypassed(): boolean;
-    /**
-     * Creates a blur effect shader.
-     * @returns Shader handle
-     */
-    createBlur(): ShaderHandle;
-    /**
-     * Creates a vignette effect shader.
-     * @returns Shader handle
-     */
-    createVignette(): ShaderHandle;
-    /**
-     * Creates a grayscale effect shader.
-     * @returns Shader handle
-     */
-    createGrayscale(): ShaderHandle;
-    /**
-     * Creates a chromatic aberration effect shader.
-     * @returns Shader handle
-     */
-    createChromaticAberration(): ShaderHandle;
-};
-
 declare enum RenderStage {
     Background = 0,
     Opaque = 1,
@@ -3897,6 +3885,99 @@ declare class ParticlePlugin implements Plugin {
 }
 declare const particlePlugin: ParticlePlugin;
 
+interface TilemapData {
+    source: string;
+}
+interface TilemapLayerData {
+    width: number;
+    height: number;
+    tileWidth: number;
+    tileHeight: number;
+    texture: number;
+    tilesetColumns: number;
+    layer: number;
+    tiles: number[];
+}
+declare const Tilemap: ComponentDef<TilemapData>;
+declare const TilemapLayer: ComponentDef<TilemapLayerData>;
+
+declare function initTilemapAPI(m: ESEngineModule): void;
+declare function shutdownTilemapAPI(): void;
+declare const TilemapAPI: {
+    initLayer(entity: number, width: number, height: number, tileWidth: number, tileHeight: number): void;
+    destroyLayer(entity: number): void;
+    setTile(entity: number, x: number, y: number, tileId: number): void;
+    getTile(entity: number, x: number, y: number): number;
+    fillRect(entity: number, x: number, y: number, w: number, h: number, tileId: number): void;
+    setTiles(entity: number, tiles: Uint16Array): void;
+    hasLayer(entity: number): boolean;
+    submitLayer(entity: number, textureId: number, sortLayer: number, depth: number, tilesetColumns: number, uvTileWidth: number, uvTileHeight: number, originX: number, originY: number, camLeft: number, camBottom: number, camRight: number, camTop: number): void;
+};
+
+declare class TilemapPlugin implements Plugin {
+    name: string;
+    private initializedLayers_;
+    private sourceEntityKeys_;
+    build(app: App): void;
+    cleanup(): void;
+}
+declare const tilemapPlugin: TilemapPlugin;
+
+interface TiledLayerData {
+    name: string;
+    width: number;
+    height: number;
+    visible: boolean;
+    tiles: Uint16Array;
+}
+interface TiledTilesetData {
+    name: string;
+    image: string;
+    tileWidth: number;
+    tileHeight: number;
+    columns: number;
+    tileCount: number;
+}
+interface TiledMapData {
+    width: number;
+    height: number;
+    tileWidth: number;
+    tileHeight: number;
+    layers: TiledLayerData[];
+    tilesets: TiledTilesetData[];
+}
+declare function parseTmjJson(json: Record<string, unknown>): TiledMapData | null;
+declare function resolveRelativePath(basePath: string, relativePath: string): string;
+declare function parseTiledMap(jsonString: string, resolveExternal?: (source: string) => Promise<string>): Promise<TiledMapData | null>;
+declare function loadTiledMap(world: World, mapData: TiledMapData, textureHandles: Map<string, number>): Entity[];
+
+interface TextureDimensions {
+    width: number;
+    height: number;
+}
+interface LoadedTilemapLayer {
+    name: string;
+    width: number;
+    height: number;
+    tiles: Uint16Array;
+}
+interface LoadedTilemapTileset {
+    textureHandle: number;
+    columns: number;
+}
+interface LoadedTilemapSource {
+    tileWidth: number;
+    tileHeight: number;
+    layers: LoadedTilemapLayer[];
+    tilesets: LoadedTilemapTileset[];
+}
+declare function registerTextureDimensions(handle: number, width: number, height: number): void;
+declare function getTextureDimensions(handle: number): TextureDimensions | undefined;
+declare function clearTextureDimensionsCache(): void;
+declare function registerTilemapSource(path: string, data: LoadedTilemapSource): void;
+declare function getTilemapSource(path: string): LoadedTilemapSource | undefined;
+declare function clearTilemapSourceCache(): void;
+
 type StatsPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 declare class StatsOverlay {
     private el_;
@@ -3978,8 +4059,11 @@ interface PlayableRuntimeConfig {
     module: ESEngineModule;
     canvas: HTMLCanvasElement;
     assets: Record<string, string>;
-    sceneData: SceneData;
-    sceneName: string;
+    scenes: Array<{
+        name: string;
+        data: SceneData;
+    }>;
+    firstScene: string;
     spineWasmBase64?: string;
     physicsWasmBase64?: string;
     physicsConfig?: {
@@ -3995,5 +4079,5 @@ declare const uiPlugins: Plugin[];
 
 declare function createWebApp(module: ESEngineModule, options?: WebAppOptions): App;
 
-export { Added, AnimationPlugin, App, AssetPlugin, AssetRefCounter, AssetServer, Assets, AsyncCache, AttenuationModel, Audio, AudioBus, AudioListener, AudioMixer, AudioPlugin, AudioPool, AudioSource, BitmapText$1 as BitmapText, BlendMode, BodyType, BoxCollider$1 as BoxCollider, Button, ButtonState, Camera$1 as Camera, Canvas$1 as Canvas, CapsuleCollider$1 as CapsuleCollider, Changed, Children$1 as Children, CircleCollider$1 as CircleCollider, ClearFlags, Commands, CommandsInstance, DEFAULT_DESIGN_HEIGHT, DEFAULT_DESIGN_WIDTH, DEFAULT_FALLBACK_DT, DEFAULT_FIXED_TIMESTEP, DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE, DEFAULT_GRAVITY, DEFAULT_LINE_HEIGHT, DEFAULT_MAX_DELTA_TIME, DEFAULT_PIXELS_PER_UNIT, DEFAULT_SPINE_SKIN, DEFAULT_SPRITE_SIZE, DEFAULT_TEXT_CANVAS_SIZE, DataType, DragPlugin, DragState, Draggable, Draw, Dropdown, DropdownPlugin, EasingType, EmitterShape, EntityCommands, EventReader, EventReaderInstance, EventRegistry, EventWriter, EventWriterInstance, FillDirection, FillMethod, FillOrigin, FocusManager, FocusManagerState, FocusPlugin, Focusable, FrameHistory, GLDebug, Geometry, GetWorld, INVALID_ENTITY, INVALID_FONT, INVALID_MATERIAL, INVALID_TEXTURE, Image, ImagePlugin, ImageType, Input, InputPlugin, InputState, Interactable, LayoutGroupPlugin, ListView, ListViewPlugin, LocalTransform, LogLevel, Logger, LoopMode, MaskMode, Material, MaterialLoader, Mut, Name, Parent$1 as Parent, Particle, ParticleEasing, ParticleEmitter$1 as ParticleEmitter, ParticlePlugin, Physics, PhysicsEvents, PhysicsPlugin, PostProcess, PrefabServer, Prefabs, PrefabsPlugin, PreviewPlugin, ProgressBar, ProgressBarDirection, ProgressBarPlugin, ProjectionType, Query, QueryInstance, Removed, RemovedQueryInstance, RenderPipeline, RenderStage, RenderTexture, Renderer, Res, ResMut, ResMutInstance, RigidBody$1 as RigidBody, RuntimeConfig, SafeArea, SafeAreaPlugin, ScaleMode, SceneManager, SceneManagerState, SceneOwner, Schedule, ScrollView, ScrollViewPlugin, ShaderSources, SimulationSpace, Slider, SliderDirection, SliderPlugin, SpineAnimation$1 as SpineAnimation, Sprite$1 as Sprite, SpriteAnimator, Stats, StatsCollector, StatsOverlay, StatsPlugin, SystemRunner, Text, TextAlign, TextInput, TextInputPlugin, TextOverflow, TextPlugin, TextRenderer, TextVerticalAlign, Time, Toggle, TogglePlugin, Transform$1 as Transform, Tween, TweenHandle, TweenState, TweenTarget, UICameraInfo, UIEventQueue, UIEvents, UIInteraction, UIInteractionPlugin, UILayoutPlugin, UIMask, UIMaskPlugin, UIRect, UIRenderOrderPlugin, Velocity$1 as Velocity, WebAssetProvider, World, WorldTransform, addStartupSystem, addSystem, addSystemToSchedule, animationPlugin, applyBuildRuntimeConfig, applyDirectionalFill, applyRuntimeConfig, assetPlugin, audioPlugin, calculateAttenuation, calculatePanning, clearAnimClips, clearDrawCallbacks, clearUserComponents, color, computeFillAnchors, computeFillSize, computeHandleAnchors, computeUIRectLayout, createMaskProcessor, createRuntimeSceneConfig, createWebApp, debug, defaultFrameStats, defineComponent, defineEvent, defineResource, defineSystem, defineTag, dragPlugin, dropdownPlugin, error, extractAnimClipTexturePaths, findEntityByName, flushPendingSystems, focusPlugin, getAddressableType, getAddressableTypeByEditorType, getAllAssetExtensions, getAnimClip, getAssetBuildTransform, getAssetMimeType, getAssetTypeEntry, getComponent, getComponentAssetFieldDescriptors, getComponentAssetFields, getComponentDefaults, getComponentEntityFields, getComponentSpineFieldDescriptor, getCustomExtensions, getEditorType, getLogger, getPlatform, getPlatformType, getUserComponent, getWeChatPackOptions, imagePlugin, info, initDrawAPI, initGLDebugAPI, initGeometryAPI, initMaterialAPI, initParticleAPI, initPlayableRuntime, initPostProcessAPI, initRendererAPI, initRuntime, initTweenAPI, inputPlugin, instantiatePrefab, intersectRects, invertMatrix4, isBuiltinComponent, isCustomExtension, isEditor, isKnownAssetExtension, isPlatformInitialized, isPlayMode, isRuntime, isTextureRef, isWeChat, isWeb, layoutGroupPlugin, listViewPlugin, loadComponent, loadPhysicsModule, loadRuntimeScene, loadSceneData, loadSceneWithAssets, looksLikeAssetPath, parseAnimClipData, particlePlugin, platformFetch, platformFileExists, platformInstantiateWasm, platformReadFile, platformReadTextFile, pointInOBB, pointInWorldRect, prefabsPlugin, progressBarPlugin, quat, registerAnimClip, registerAssetBuildTransform, registerComponent, registerComponentAssetFields, registerComponentEntityFields, registerDrawCallback, registerEmbeddedAssets, registerMaterialCallback, remapEntityFields, safeAreaPlugin, sceneManagerPlugin, screenToWorld, scrollViewPlugin, setEditorMode, setListViewRenderer, setLogLevel, setPlayMode, setWasmErrorHandler, shutdownDrawAPI, shutdownGLDebugAPI, shutdownGeometryAPI, shutdownMaterialAPI, shutdownParticleAPI, shutdownPostProcessAPI, shutdownRendererAPI, shutdownTweenAPI, sliderPlugin, spriteAnimatorSystemUpdate, statsPlugin, syncFillSpriteSize, textInputPlugin, textPlugin, toBuildPath, togglePlugin, transitionTo, uiInteractionPlugin, uiLayoutPlugin, uiMaskPlugin, uiPlugins, uiRenderOrderPlugin, unregisterAnimClip, unregisterComponent, unregisterDrawCallback, updateCameraAspectRatio, vec2, vec3, vec4, warn, wrapSceneSystem };
-export type { AddedWrapper, AddressableAssetType, AddressableManifest, AddressableManifestAsset, AddressableManifestGroup, AddressableResultMap, AnimClipAssetData, AnyComponentDef, AssetBuildTransform, AssetBundle, AssetContentType, AssetFieldType, AssetRefInfo, AssetTypeEntry, AssetsData, AudioBackendInitOptions, AudioBufferHandle, AudioBusConfig, AudioHandle, AudioListenerData, AudioMixerConfig, AudioPluginConfig, AudioSourceData, BezierPoints, BitmapTextData, BoxColliderData, BuiltinComponentDef, ButtonData, ButtonTransition, CameraData, CameraRenderParams, CanvasData, CapsuleColliderData, ChangedWrapper, ChildrenData, CircleColliderData, CollisionEnterEvent, Color, CommandsDescriptor, ComponentData, ComponentDef, CppRegistry, CppResourceManager, DragStateData, DraggableData, DrawAPI, DrawCallback, DropdownData, ESEngineModule, EditorAssetType, Entity, EventDef, EventReaderDescriptor, EventWriterDescriptor, FileLoadOptions, FocusableData, FontHandle, FrameSnapshot, FrameStats, GeometryHandle, GeometryOptions, GetWorldDescriptor, ImageData, InferParam, InferParams, InstantiatePrefabOptions, InstantiatePrefabResult, InteractableData, LayoutRect, LayoutResult, ListViewData, ListViewItemRenderer, LoadRuntimeSceneOptions, LoadedMaterial, LocalTransformData, LogEntry, LogHandler, MaskProcessorFn, MaterialAssetData, MaterialHandle, MaterialOptions, MutWrapper, NameData, ParentData, ParticleEmitterData, PhysicsEventsData, PhysicsModuleFactory, PhysicsPluginConfig, PhysicsWasmModule, PlatformAdapter, PlatformAudioBackend, PlatformRequestOptions, PlatformResponse, PlatformType, PlayConfig, PlayableRuntimeConfig, Plugin, PluginDependency, PooledAudioNode, PrefabData, PrefabEntityData, PrefabOverride, ProgressBarData, Quat, QueryBuilder, QueryDescriptor, QueryResult, RemovedQueryDescriptor, RenderParams, RenderStats, RenderTargetHandle, RenderTextureHandle, RenderTextureOptions, ResDescriptor, ResMutDescriptor, ResourceDef, RigidBodyData, RuntimeAssetProvider, RuntimeBuildConfig, RuntimeInitConfig, SafeAreaData, SceneComponentData, SceneConfig, SceneContext, SceneData, SceneEntityData, SceneLoadOptions, SceneOwnerData, SceneStatus, ScreenRect, ScrollViewData, SensorEvent, ShaderHandle, ShaderLoader, SliceBorder$1 as SliceBorder, SliderData, SpatialAudioConfig, SpineAnimationData, SpineDescriptor, SpineLoadResult, SpineRendererFn, SpriteAnimClip, SpriteAnimFrame, SpriteAnimatorData, SpriteData, StatsPluginOptions, StatsPosition, SystemDef, SystemOptions, SystemParam, TextData, TextInputData, TextRenderResult, TextureHandle, TextureInfo, TextureRef, TimeData, ToggleData, ToggleTransition, TransformData, TransitionConfig, TransitionOptions, TweenOptions, UICameraData, UIEvent, UIEventType, UIInteractionData, UIMaskData, UIRectData, UniformValue, Vec2, Vec3, Vec4, VelocityData, VertexAttributeDescriptor, WebAppOptions, WorldTransformData };
+export { Added, AnimationPlugin, App, AssetPlugin, AssetRefCounter, AssetServer, Assets, AsyncCache, AttenuationModel, Audio, AudioBus, AudioListener, AudioMixer, AudioPlugin, AudioPool, AudioSource, BitmapText$1 as BitmapText, BlendMode, BodyType, BoxCollider$1 as BoxCollider, Button, ButtonState, Camera$1 as Camera, Canvas$1 as Canvas, CapsuleCollider$1 as CapsuleCollider, Changed, Children$1 as Children, CircleCollider$1 as CircleCollider, ClearFlags, Commands, CommandsInstance, DEFAULT_DESIGN_HEIGHT, DEFAULT_DESIGN_WIDTH, DEFAULT_FALLBACK_DT, DEFAULT_FIXED_TIMESTEP, DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE, DEFAULT_GRAVITY, DEFAULT_LINE_HEIGHT, DEFAULT_MAX_DELTA_TIME, DEFAULT_PIXELS_PER_UNIT, DEFAULT_SPINE_SKIN, DEFAULT_SPRITE_SIZE, DEFAULT_TEXT_CANVAS_SIZE, DataType, DragPlugin, DragState, Draggable, Draw, Dropdown, DropdownPlugin, EasingType, EmitterShape, EntityCommands, EventReader, EventReaderInstance, EventRegistry, EventWriter, EventWriterInstance, FillDirection, FillMethod, FillOrigin, FocusManager, FocusManagerState, FocusPlugin, Focusable, FrameHistory, GLDebug, Geometry, GetWorld, INVALID_ENTITY, INVALID_FONT, INVALID_MATERIAL, INVALID_TEXTURE, Image, ImagePlugin, ImageType, Input, InputPlugin, InputState, Interactable, LayoutGroupPlugin, ListView, ListViewPlugin, LocalTransform, LogLevel, Logger, LoopMode, MaskMode, Material, MaterialLoader, Mut, Name, Parent$1 as Parent, Particle, ParticleEasing, ParticleEmitter$1 as ParticleEmitter, ParticlePlugin, Physics, PhysicsEvents, PhysicsPlugin, PostProcess, PostProcessStack, PostProcessVolume, PrefabServer, Prefabs, PrefabsPlugin, PreviewPlugin, ProgressBar, ProgressBarDirection, ProgressBarPlugin, ProjectionType, Query, QueryInstance, Removed, RemovedQueryInstance, RenderPipeline, RenderStage, RenderTexture, Renderer, Res, ResMut, ResMutInstance, RigidBody$1 as RigidBody, RuntimeConfig, SafeArea, SafeAreaPlugin, ScaleMode, SceneManager, SceneManagerState, SceneOwner, Schedule, ScrollView, ScrollViewPlugin, ShaderSources, SimulationSpace, Slider, SliderDirection, SliderPlugin, SpineAnimation$1 as SpineAnimation, Sprite$1 as Sprite, SpriteAnimator, Stats, StatsCollector, StatsOverlay, StatsPlugin, SystemRunner, Text, TextAlign, TextInput, TextInputPlugin, TextOverflow, TextPlugin, TextRenderer, TextVerticalAlign, Tilemap, TilemapAPI, TilemapLayer, TilemapPlugin, Time, Toggle, TogglePlugin, Transform$1 as Transform, Tween, TweenHandle, TweenState, TweenTarget, UICameraInfo, UIEventQueue, UIEvents, UIInteraction, UIInteractionPlugin, UILayoutPlugin, UIMask, UIMaskPlugin, UIRect, UIRenderOrderPlugin, Velocity$1 as Velocity, WebAssetProvider, World, WorldTransform, addStartupSystem, addSystem, addSystemToSchedule, animationPlugin, applyBuildRuntimeConfig, applyDirectionalFill, applyRuntimeConfig, assetPlugin, audioPlugin, calculateAttenuation, calculatePanning, cleanupAllPostProcessVolumes, cleanupPostProcessVolume, clearAnimClips, clearDrawCallbacks, clearTextureDimensionsCache, clearTilemapSourceCache, clearUserComponents, color, computeFillAnchors, computeFillSize, computeHandleAnchors, computeUIRectLayout, createMaskProcessor, createRuntimeSceneConfig, createWebApp, debug, defaultFrameStats, defineComponent, defineEvent, defineResource, defineSystem, defineTag, dragPlugin, dropdownPlugin, error, extractAnimClipTexturePaths, findEntityByName, flushPendingSystems, focusPlugin, getAddressableType, getAddressableTypeByEditorType, getAllAssetExtensions, getAllEffectDefs, getAnimClip, getAssetBuildTransform, getAssetMimeType, getAssetTypeEntry, getComponent, getComponentAssetFieldDescriptors, getComponentAssetFields, getComponentDefaults, getComponentEntityFields, getComponentSpineFieldDescriptor, getCustomExtensions, getEditorType, getEffectDef, getEffectTypes, getLogger, getPlatform, getPlatformType, getTextureDimensions, getTilemapSource, getUserComponent, getWeChatPackOptions, imagePlugin, info, initDrawAPI, initGLDebugAPI, initGeometryAPI, initMaterialAPI, initParticleAPI, initPlayableRuntime, initPostProcessAPI, initRendererAPI, initRuntime, initTilemapAPI, initTweenAPI, inputPlugin, instantiatePrefab, intersectRects, invertMatrix4, isBuiltinComponent, isCustomExtension, isEditor, isKnownAssetExtension, isPlatformInitialized, isPlayMode, isRuntime, isTextureRef, isWeChat, isWeb, layoutGroupPlugin, listViewPlugin, loadComponent, loadPhysicsModule, loadRuntimeScene, loadSceneData, loadSceneWithAssets, loadTiledMap, looksLikeAssetPath, parseAnimClipData, parseTiledMap, parseTmjJson, particlePlugin, platformFetch, platformFileExists, platformInstantiateWasm, platformReadFile, platformReadTextFile, pointInOBB, pointInWorldRect, prefabsPlugin, progressBarPlugin, quat, registerAnimClip, registerAssetBuildTransform, registerComponent, registerComponentAssetFields, registerComponentEntityFields, registerDrawCallback, registerEmbeddedAssets, registerMaterialCallback, registerTextureDimensions, registerTilemapSource, remapEntityFields, resolveRelativePath, safeAreaPlugin, sceneManagerPlugin, screenToWorld, scrollViewPlugin, setEditorMode, setListViewRenderer, setLogLevel, setPlayMode, setWasmErrorHandler, shutdownDrawAPI, shutdownGLDebugAPI, shutdownGeometryAPI, shutdownMaterialAPI, shutdownParticleAPI, shutdownPostProcessAPI, shutdownRendererAPI, shutdownTilemapAPI, shutdownTweenAPI, sliderPlugin, spriteAnimatorSystemUpdate, statsPlugin, syncFillSpriteSize, syncPostProcessVolume, textInputPlugin, textPlugin, tilemapPlugin, toBuildPath, togglePlugin, transitionTo, uiInteractionPlugin, uiLayoutPlugin, uiMaskPlugin, uiPlugins, uiRenderOrderPlugin, unregisterAnimClip, unregisterComponent, unregisterDrawCallback, updateCameraAspectRatio, vec2, vec3, vec4, warn, wrapSceneSystem };
+export type { AddedWrapper, AddressableAssetType, AddressableManifest, AddressableManifestAsset, AddressableManifestGroup, AddressableResultMap, AnimClipAssetData, AnyComponentDef, AssetBuildTransform, AssetBundle, AssetContentType, AssetFieldType, AssetRefInfo, AssetTypeEntry, AssetsData, AudioBackendInitOptions, AudioBufferHandle, AudioBusConfig, AudioHandle, AudioListenerData, AudioMixerConfig, AudioPluginConfig, AudioSourceData, BezierPoints, BitmapTextData, BoxColliderData, BuiltinComponentDef, ButtonData, ButtonTransition, CameraData, CameraRenderParams, CanvasData, CapsuleColliderData, ChangedWrapper, ChildrenData, CircleColliderData, CollisionEnterEvent, Color, CommandsDescriptor, ComponentData, ComponentDef, CppRegistry, CppResourceManager, DragStateData, DraggableData, DrawAPI, DrawCallback, DropdownData, ESEngineModule, EditorAssetType, EffectDef, EffectUniformDef, Entity, EventDef, EventReaderDescriptor, EventWriterDescriptor, FileLoadOptions, FocusableData, FontHandle, FrameSnapshot, FrameStats, GeometryHandle, GeometryOptions, GetWorldDescriptor, ImageData, InferParam, InferParams, InstantiatePrefabOptions, InstantiatePrefabResult, InteractableData, LayoutRect, LayoutResult, ListViewData, ListViewItemRenderer, LoadRuntimeSceneOptions, LoadedMaterial, LoadedTilemapLayer, LoadedTilemapSource, LoadedTilemapTileset, LocalTransformData, LogEntry, LogHandler, MaskProcessorFn, MaterialAssetData, MaterialHandle, MaterialOptions, MutWrapper, NameData, ParentData, ParticleEmitterData, PhysicsEventsData, PhysicsModuleFactory, PhysicsPluginConfig, PhysicsWasmModule, PlatformAdapter, PlatformAudioBackend, PlatformRequestOptions, PlatformResponse, PlatformType, PlayConfig, PlayableRuntimeConfig, Plugin, PluginDependency, PooledAudioNode, PostProcessEffectData, PostProcessVolumeData$1 as PostProcessVolumeData, PrefabData, PrefabEntityData, PrefabOverride, ProgressBarData, Quat, QueryBuilder, QueryDescriptor, QueryResult, RemovedQueryDescriptor, RenderParams, RenderStats, RenderTargetHandle, RenderTextureHandle, RenderTextureOptions, ResDescriptor, ResMutDescriptor, ResourceDef, RigidBodyData, RuntimeAssetProvider, RuntimeBuildConfig, RuntimeInitConfig, SafeAreaData, SceneComponentData, SceneConfig, SceneContext, SceneData, SceneEntityData, SceneLoadOptions, SceneOwnerData, SceneStatus, ScreenRect, ScrollViewData, SensorEvent, ShaderHandle, ShaderLoader, SliceBorder$1 as SliceBorder, SliderData, SpatialAudioConfig, SpineAnimationData, SpineDescriptor, SpineLoadResult, SpineRendererFn, SpriteAnimClip, SpriteAnimFrame, SpriteAnimatorData, SpriteData, StatsPluginOptions, StatsPosition, SystemDef, SystemOptions, SystemParam, TextData, TextInputData, TextRenderResult, TextureDimensions, TextureHandle, TextureInfo, TextureRef, TiledLayerData, TiledMapData, TiledTilesetData, TilemapData, TilemapLayerData, TimeData, ToggleData, ToggleTransition, TransformData, TransitionConfig, TransitionOptions, TweenOptions, UICameraData, UIEvent, UIEventType, UIInteractionData, UIMaskData, UIRectData, UniformValue, Vec2, Vec3, Vec4, VelocityData, VertexAttributeDescriptor, WebAppOptions, WorldTransformData };
