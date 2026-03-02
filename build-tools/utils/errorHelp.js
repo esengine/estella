@@ -14,7 +14,7 @@ export function suggestFix(error) {
     if (message.includes('emscripten') || message.includes('emcc') || message.includes('emcmake')) {
         return [
             'Emscripten not found or incorrect version.',
-            'Run: emsdk install 3.1.51 && emsdk activate 3.1.51',
+            'Run: emsdk install 5.0.0 && emsdk activate 5.0.0',
             'Then reload your shell: source path/to/emsdk/emsdk_env.sh',
         ];
     }

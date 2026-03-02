@@ -2,7 +2,7 @@ import { spawn } from 'child_process';
 import os from 'os';
 import * as logger from './logger.js';
 
-const MIN_EMSCRIPTEN_VERSION = '3.1.51';
+const MIN_EMSCRIPTEN_VERSION = '5.0.0';
 
 function compareVersions(a, b) {
     const pa = a.split('.').map(Number);
@@ -56,8 +56,8 @@ export async function checkEnvironment() {
 
     if (!checks.emscripten) {
         logger.error('Emscripten not found. Please install and activate emsdk:');
-        logger.info('  Required version: 3.1.51');
-        logger.info('  Install: emsdk install 3.1.51 && emsdk activate 3.1.51');
+        logger.info(`  Required version: ${MIN_EMSCRIPTEN_VERSION}`);
+        logger.info(`  Install: emsdk install ${MIN_EMSCRIPTEN_VERSION} && emsdk activate ${MIN_EMSCRIPTEN_VERSION}`);
         logger.info('  Activate: source /path/to/emsdk/emsdk_env.sh');
         return false;
     }
