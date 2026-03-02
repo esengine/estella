@@ -1,5 +1,6 @@
 import type { EntityData } from '../types/SceneTypes';
 import { Assets, Name, Parent, Children, getComponent, getComponentAssetFields, Audio, audioPlugin, SceneManager } from 'esengine';
+import { getSettingsValue, MAX_COLLISION_LAYERS } from '../settings';
 import type { Entity, World } from 'esengine';
 import { getEditorStore, type SceneSnapshot } from '../store/EditorStore';
 import { getSharedRenderContext } from '../renderer/SharedRenderContext';
@@ -80,7 +81,20 @@ class PlayModeService {
         this.configureAssetBaseUrl(ctx);
         this.registerProjectScenes(ctx);
         await this.injectUserScripts(ctx);
-        ctx.enterPlayMode();
+
+        const enablePhysics = getSettingsValue<boolean>('project.enablePhysics') ?? false;
+        const physicsConfig = enablePhysics ? {
+            gravity: {
+                x: getSettingsValue<number>('physics.gravityX') ?? 0,
+                y: getSettingsValue<number>('physics.gravityY') ?? -9.81,
+            },
+            fixedTimestep: getSettingsValue<number>('physics.fixedTimestep') ?? 1 / 60,
+            subStepCount: getSettingsValue<number>('physics.subStepCount') ?? 4,
+            collisionLayerMasks: Array.from({ length: MAX_COLLISION_LAYERS }, (_, i) =>
+                getSettingsValue<number>(`physics.layerMask${i}`) ?? 0xFFFF
+            ),
+        } : undefined;
+        await ctx.enterPlayMode(physicsConfig);
 
         this.startSharedEntityTracking(ctx);
         this.emitStateChange();

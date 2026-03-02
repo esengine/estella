@@ -1,5 +1,5 @@
 import path from 'path';
-import { mkdir, cp, readFile, writeFile } from 'fs/promises';
+import { mkdir, cp, readFile, writeFile, readdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import config from '../build.config.js';
 import * as logger from '../utils/logger.js';
@@ -94,8 +94,10 @@ async function copyDistOutputs(sdkDir, outputDir) {
 
     const spineDir = path.join(esmDir, 'spine');
     const physicsDir = path.join(esmDir, 'physics');
+    const sharedDir = path.join(esmDir, 'shared');
     await mkdir(spineDir, { recursive: true });
     await mkdir(physicsDir, { recursive: true });
+    await mkdir(sharedDir, { recursive: true });
 
     const files = [
         { src: 'index.js', dest: path.join(esmDir, 'esengine.js') },
@@ -116,6 +118,15 @@ async function copyDistOutputs(sdkDir, outputDir) {
             await cp(srcPath, dest);
             logger.debug(`Copied ${src}`);
         }
+    }
+
+    const srcSharedDir = path.join(distDir, 'shared');
+    if (existsSync(srcSharedDir)) {
+        const sharedFiles = await readdir(srcSharedDir);
+        for (const file of sharedFiles) {
+            await cp(path.join(srcSharedDir, file), path.join(sharedDir, file));
+        }
+        logger.debug(`Copied ${sharedFiles.length} shared chunks`);
     }
 }
 

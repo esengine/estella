@@ -420,6 +420,7 @@ const __plugins = [${pluginList}];
             gravity: context.physicsGravity ?? { x: 0, y: -9.81 },
             fixedTimestep: context.physicsFixedTimestep ?? 1 / 60,
             subStepCount: context.physicsSubStepCount ?? 4,
+            collisionLayerMasks: context.collisionLayerMasks,
         });
 
         const enableCTA = context.config.playableSettings?.enableBuiltinCTA ?? false;

@@ -77,6 +77,15 @@ const SPINE_WASM_MAP: Record<string, string> = {
     '4.2': '/wasm/spine42.js',
 };
 
+async function loadPhysicsFactory(editor: Editor): Promise<void> {
+    try {
+        const factory = await loadUmdModule('/wasm/physics.js', 'ESPhysicsModule');
+        editor.setPhysicsFactory(factory);
+    } catch (e) {
+        console.warn('Failed to load physics module:', e);
+    }
+}
+
 async function openEditor(container: HTMLElement, projectPath: string): Promise<void> {
     const editor = createEditor(container, { projectPath });
     console.log('ESEngine Editor opened project:', projectPath);
@@ -90,6 +99,9 @@ async function openEditor(container: HTMLElement, projectPath: string): Promise<
     }
 
     const config = await loadProjectConfig(projectPath);
+
+    await loadPhysicsFactory(editor);
+
     const spineVersion = config?.spineVersion ?? '4.2';
     await loadSpineModule(editor, spineVersion);
 

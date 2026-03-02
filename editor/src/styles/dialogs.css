@@ -240,6 +240,9 @@
 .es-dialog {
     width: 100%;
     max-width: 480px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
     background: var(--es-bg-secondary);
     border: 1px solid var(--es-border);
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
@@ -278,6 +281,9 @@
 
 .es-dialog-body {
     padding: 20px;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
 }
 
 .es-dialog-field {
@@ -495,7 +501,9 @@
 .es-settings-dialog-body {
     display: flex;
     flex-direction: column;
+    flex: 1;
     min-height: 480px;
+    overflow: hidden;
 }
 
 .es-settings-search {
@@ -855,4 +863,76 @@
     flex: 1;
     min-height: 0;
     overflow: hidden;
+}
+
+/* =============================================================================
+ * Collision Matrix Widget
+ * ============================================================================= */
+
+.es-collision-matrix {
+    padding: 4px 0;
+    overflow-x: auto;
+}
+
+.es-collision-matrix-empty {
+    color: var(--es-text-secondary);
+    font-size: 12px;
+    font-style: italic;
+    padding: 8px 0;
+}
+
+.es-collision-matrix-grid {
+    display: grid;
+    gap: 2px;
+    align-items: center;
+    justify-items: center;
+    width: fit-content;
+}
+
+.es-collision-matrix-corner {
+    width: 120px;
+}
+
+.es-collision-matrix-header {
+    width: 32px;
+    height: 48px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    overflow: visible;
+}
+
+.es-collision-matrix-header span {
+    display: block;
+    transform: rotate(-45deg);
+    transform-origin: center center;
+    white-space: nowrap;
+    font-size: 11px;
+    color: var(--es-text-secondary);
+}
+
+.es-collision-matrix-row-label {
+    width: 120px;
+    text-align: right;
+    padding-right: 8px;
+    font-size: 12px;
+    color: var(--es-text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.es-collision-matrix-cell {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.es-collision-matrix-cell input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: var(--es-accent-gold);
 }

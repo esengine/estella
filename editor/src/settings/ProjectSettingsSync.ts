@@ -3,6 +3,7 @@ import { loadProjectConfig } from '../launcher/ProjectService';
 import { getEditorContext } from '../context/EditorContext';
 import { DEFAULT_DESIGN_WIDTH, DEFAULT_DESIGN_HEIGHT } from 'esengine';
 import type { ProjectConfig, SpineVersion } from '../types/ProjectTypes';
+import { MAX_COLLISION_LAYERS } from './collisionLayers';
 
 type SettingMapping = {
     settingId: string;
@@ -147,6 +148,22 @@ const SETTINGS_TO_PROJECT_MAP: SettingMapping[] = [
         read: c => c.assetFailureCooldown ?? 5000,
         write: (c, v) => { c.assetFailureCooldown = v as number; },
     },
+    ...Array.from({ length: MAX_COLLISION_LAYERS }, (_, i): SettingMapping => ({
+        settingId: `physics.layerName${i}`,
+        read: c => c.collisionLayerNames?.[i] ?? (i === 0 ? 'Default' : ''),
+        write: (c, v) => {
+            if (!c.collisionLayerNames) c.collisionLayerNames = Array.from({ length: MAX_COLLISION_LAYERS }, (_, j) => j === 0 ? 'Default' : '');
+            c.collisionLayerNames[i] = v as string;
+        },
+    })),
+    ...Array.from({ length: MAX_COLLISION_LAYERS }, (_, i): SettingMapping => ({
+        settingId: `physics.layerMask${i}`,
+        read: c => c.collisionLayerMasks?.[i] ?? 0xFFFF,
+        write: (c, v) => {
+            if (!c.collisionLayerMasks) c.collisionLayerMasks = Array(MAX_COLLISION_LAYERS).fill(0xFFFF);
+            c.collisionLayerMasks[i] = v as number;
+        },
+    })),
 ];
 
 const SYNC_PREFIXES = ['project.', 'physics.', 'build.', 'runtime.', 'rendering.', 'asset.'];

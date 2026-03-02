@@ -14,6 +14,7 @@ import { BuildProgressReporter, formatDuration } from './BuildProgress';
 import { BuildHistory } from './BuildHistory';
 import { getProjectDir } from '../utils/path';
 import { getSettingsValue } from '../settings/SettingsRegistry';
+import { MAX_COLLISION_LAYERS } from '../settings/collisionLayers';
 import { getEditorContext } from '../context/EditorContext';
 
 // =============================================================================
@@ -50,6 +51,7 @@ export interface BuildContext {
     physicsGravity?: { x: number; y: number };
     physicsFixedTimestep?: number;
     physicsSubStepCount?: number;
+    collisionLayerMasks?: number[];
     runtimeConfig?: RuntimeBuildConfig;
     progress?: BuildProgressReporter;
     cache?: BuildCache;
@@ -102,6 +104,9 @@ export class BuildService {
             },
             physicsFixedTimestep: getSettingsValue<number>('physics.fixedTimestep') ?? 1 / 60,
             physicsSubStepCount: getSettingsValue<number>('physics.subStepCount') ?? 4,
+            collisionLayerMasks: Array.from({ length: MAX_COLLISION_LAYERS }, (_, i) =>
+                getSettingsValue<number>(`physics.layerMask${i}`) ?? 0xFFFF
+            ),
             runtimeConfig: {
                 sceneTransitionDuration: getSettingsValue<number>('runtime.sceneTransitionDuration') ?? 0.3,
                 sceneTransitionColor: getSettingsValue<string>('runtime.sceneTransitionColor') ?? '#000000',
