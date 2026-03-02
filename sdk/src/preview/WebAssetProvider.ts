@@ -49,6 +49,10 @@ export class WebAssetProvider implements RuntimeAssetProvider {
                         textRefs.add(value);
                     } else if (desc.type === 'anim-clip') {
                         textRefs.add(value);
+                    } else if (desc.type === 'tilemap') {
+                        textRefs.add(value);
+                    } else if (desc.type === 'audio') {
+                        binaryRefs.add(value);
                     }
                 }
             }
