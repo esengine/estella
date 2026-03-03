@@ -14,9 +14,9 @@ import { PostProcess } from 'esengine';
 
 // Create an effect stack
 const fx = PostProcess.createStack();
-fx.addPass('bloom', PostProcess.createBloom());
-fx.setUniform('bloom', 'u_threshold', 0.8);
-fx.setUniform('bloom', 'u_intensity', 1.5);
+fx.addPass('vignette', PostProcess.createVignette());
+fx.setUniform('vignette', 'u_intensity', 0.6);
+fx.setUniform('vignette', 'u_softness', 0.5);
 
 // Bind to a camera entity
 PostProcess.bind(cameraEntity, fx);
@@ -52,6 +52,7 @@ PostProcess.bind(cameraEntity, fx);
 |--------|-------------|
 | `addPass(name, shader)` | Append a named pass |
 | `removePass(name)` | Remove a pass by name |
+| `clearPasses()` | Remove all passes |
 | `setEnabled(name, enabled)` | Enable or disable a pass |
 | `setUniform(pass, name, value)` | Set a float uniform |
 | `setUniformVec4(pass, name, value)` | Set a vec4 uniform |
@@ -81,9 +82,11 @@ PostProcess.unbind(cameraEntity);
 
 | Method | Effect | Uniforms |
 |--------|--------|----------|
-| `createBloom()` | Bright-pixel glow | `u_threshold` — brightness cutoff, `u_intensity` — glow strength, `u_radius` — blur spread |
+| `createBloomExtract()` | Bloom: extract bright pixels | `u_threshold` (0–1) — brightness cutoff |
+| `createBloomKawase(iteration)` | Bloom: Kawase blur pass | `u_radius` — blur spread, `u_resolution` (auto) |
+| `createBloomComposite()` | Bloom: recombine with scene | `u_intensity` — glow strength, `u_sceneTexture` (auto) |
 | `createBlur()` | Gaussian blur | `u_intensity` — blur spread |
-| `createVignette()` | Darkened edges | `u_intensity` — radius, `u_softness` — falloff |
+| `createVignette()` | Darkened edges | `u_intensity` (0–1) — effect strength, `u_softness` (0–1) — falloff |
 | `createGrayscale()` | Desaturation | `u_intensity` (0–1) — blend ratio |
 | `createChromaticAberration()` | RGB channel offset | `u_intensity` — offset amount |
 
@@ -93,16 +96,31 @@ PostProcess.unbind(cameraEntity);
 
 ### Bloom
 
-Extracts bright pixels, blurs them, and adds them back. Good for glowing lights and HDR-like effects:
+Bloom uses a multi-pass pipeline: extract bright pixels, apply several Kawase blur iterations, then composite the result back onto the scene. This produces higher-quality results than a single-pass approach:
 
 ```typescript
 const fx = PostProcess.createStack();
-fx.addPass('bloom', PostProcess.createBloom());
-fx.setUniform('bloom', 'u_threshold', 0.8);  // brightness cutoff
-fx.setUniform('bloom', 'u_intensity', 1.5);  // glow strength
-fx.setUniform('bloom', 'u_radius', 4.0);     // blur spread
+
+// 1. Extract bright pixels
+fx.addPass('bloom_extract', PostProcess.createBloomExtract());
+fx.setUniform('bloom_extract', 'u_threshold', 0.4);
+
+// 2. Kawase blur (multiple iterations for wider, smoother blur)
+for (let i = 0; i < 5; i++) {
+    fx.addPass(`bloom_kawase_${i}`, PostProcess.createBloomKawase(i));
+    fx.setUniform(`bloom_kawase_${i}`, 'u_radius', 1.0);
+}
+
+// 3. Composite bloom back onto the original scene
+fx.addPass('bloom_composite', PostProcess.createBloomComposite());
+fx.setUniform('bloom_composite', 'u_intensity', 1.5);
+
 PostProcess.bind(cameraEntity, fx);
 ```
+
+<Aside type="tip">
+  The engine automatically binds the original scene texture to `u_sceneTexture` (texture unit 1) so the composite pass can blend bloom with the unprocessed scene.
+</Aside>
 
 ### Blur
 
@@ -122,8 +140,8 @@ Darkens the screen edges:
 ```typescript
 const fx = PostProcess.createStack();
 fx.addPass('vignette', PostProcess.createVignette());
-fx.setUniform('vignette', 'u_intensity', 0.8);
-fx.setUniform('vignette', 'u_softness', 0.4);
+fx.setUniform('vignette', 'u_intensity', 0.6);
+fx.setUniform('vignette', 'u_softness', 0.5);
 PostProcess.bind(cameraEntity, fx);
 ```
 
@@ -222,7 +240,7 @@ Effects are visible in both the Scene View and the Game View. The component data
 
 ## Custom Pass
 
-Write a custom fragment shader. The vertex shader uses a fixed full-screen quad — you only write the fragment shader:
+Write a custom fragment shader. The vertex shader uses a fixed full-screen triangle — you only write the fragment shader:
 
 ```typescript
 import { Material, PostProcess } from 'esengine';
@@ -284,9 +302,14 @@ function setPaused(paused: boolean) {
 ```typescript
 // Main camera — bloom + vignette
 const mainFx = PostProcess.createStack();
-mainFx.addPass('bloom', PostProcess.createBloom());
+mainFx.addPass('bloom_extract', PostProcess.createBloomExtract());
+mainFx.setUniform('bloom_extract', 'u_threshold', 0.4);
+for (let i = 0; i < 5; i++) {
+    mainFx.addPass(`bloom_kawase_${i}`, PostProcess.createBloomKawase(i));
+}
+mainFx.addPass('bloom_composite', PostProcess.createBloomComposite());
+mainFx.setUniform('bloom_composite', 'u_intensity', 1.5);
 mainFx.addPass('vignette', PostProcess.createVignette());
-mainFx.setUniform('bloom', 'u_threshold', 0.7);
 mainFx.setUniform('vignette', 'u_intensity', 0.6);
 PostProcess.bind(mainCamera, mainFx);
 
@@ -310,7 +333,11 @@ PostProcess.bind(minimapCamera, minimapFx);
 | `PostProcess.init(width, height)` | Initialize the pipeline (called automatically) |
 | `PostProcess.shutdown()` | Shut down the pipeline |
 | `PostProcess.resize(width, height)` | Update framebuffer size (called automatically) |
-| `PostProcess.createBloom()` | Create a bloom effect shader |
+| `PostProcess.begin()` | Begin capturing the scene for post-processing |
+| `PostProcess.end()` | End capture and execute all effect passes |
+| `PostProcess.createBloomExtract()` | Create bloom brightness extraction shader |
+| `PostProcess.createBloomKawase(iteration)` | Create bloom Kawase blur shader for a given iteration |
+| `PostProcess.createBloomComposite()` | Create bloom composite shader |
 | `PostProcess.createBlur()` | Create a blur effect shader |
 | `PostProcess.createVignette()` | Create a vignette effect shader |
 | `PostProcess.createGrayscale()` | Create a grayscale effect shader |
