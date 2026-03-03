@@ -59,7 +59,7 @@ const SETTINGS_TO_PROJECT_MAP: SettingMapping[] = [
     },
     {
         settingId: 'physics.contactHertz',
-        read: c => c.physicsContactHertz ?? 120,
+        read: c => c.physicsContactHertz ?? 30,
         write: (c, v) => { c.physicsContactHertz = v as number; },
     },
     {
@@ -69,7 +69,7 @@ const SETTINGS_TO_PROJECT_MAP: SettingMapping[] = [
     },
     {
         settingId: 'physics.contactSpeed',
-        read: c => c.physicsContactSpeed ?? 10,
+        read: c => c.physicsContactSpeed ?? 3,
         write: (c, v) => { c.physicsContactSpeed = v as number; },
     },
     {

@@ -150,9 +150,9 @@ export class PreviewService {
             physicsGravityY: physicsConfig?.gravityY ?? -9.81,
             physicsFixedTimestep: physicsConfig?.fixedTimestep ?? 1 / 60,
             physicsSubStepCount: physicsConfig?.subStepCount ?? 4,
-            physicsContactHertz: physicsConfig?.contactHertz ?? 120,
+            physicsContactHertz: physicsConfig?.contactHertz ?? 30,
             physicsContactDampingRatio: physicsConfig?.contactDampingRatio ?? 10,
-            physicsContactSpeed: physicsConfig?.contactSpeed ?? 10,
+            physicsContactSpeed: physicsConfig?.contactSpeed ?? 3,
             collisionLayerMasks: physicsConfig?.collisionLayerMasks,
             ...runtimeConfig,
         }));

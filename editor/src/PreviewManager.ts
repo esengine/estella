@@ -93,9 +93,9 @@ export class PreviewManager {
             gravityY: getSettingsValue<number>('physics.gravityY') ?? -9.81,
             fixedTimestep: getSettingsValue<number>('physics.fixedTimestep') ?? 1 / 60,
             subStepCount: getSettingsValue<number>('physics.subStepCount') ?? 4,
-            contactHertz: getSettingsValue<number>('physics.contactHertz') ?? 120,
+            contactHertz: getSettingsValue<number>('physics.contactHertz') ?? 30,
             contactDampingRatio: getSettingsValue<number>('physics.contactDampingRatio') ?? 10,
-            contactSpeed: getSettingsValue<number>('physics.contactSpeed') ?? 10,
+            contactSpeed: getSettingsValue<number>('physics.contactSpeed') ?? 3,
             collisionLayerMasks,
         } : undefined;
         const previewSpineVersion = spineVersion === 'none' ? undefined : spineVersion;
