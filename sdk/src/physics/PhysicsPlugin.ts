@@ -15,7 +15,14 @@ import {
     type PhysicsWasmModule,
     type PhysicsModuleFactory,
 } from './PhysicsModuleLoader';
-import { RigidBody, BoxCollider, CircleCollider, CapsuleCollider, BodyType, type RigidBodyData, type BoxColliderData, type CircleColliderData, type CapsuleColliderData } from './PhysicsComponents';
+import {
+    RigidBody, BoxCollider, CircleCollider, CapsuleCollider,
+    SegmentCollider, PolygonCollider, ChainCollider,
+    BodyType,
+    type RigidBodyData, type BoxColliderData, type CircleColliderData,
+    type CapsuleColliderData, type SegmentColliderData, type PolygonColliderData,
+    type ChainColliderData,
+} from './PhysicsComponents';
 import { setupPhysicsDebugDraw, PhysicsDebugDraw, type PhysicsDebugDrawConfig } from './PhysicsDebugDraw';
 
 // =============================================================================
@@ -106,9 +113,9 @@ export class PhysicsPlugin implements Plugin {
             gravity: config.gravity ?? { x: 0, y: -9.81 },
             fixedTimestep: config.fixedTimestep ?? 1 / 60,
             subStepCount: config.subStepCount ?? 4,
-            contactHertz: config.contactHertz ?? 120,
+            contactHertz: config.contactHertz ?? 30,
             contactDampingRatio: config.contactDampingRatio ?? 10,
-            contactSpeed: config.contactSpeed ?? 10,
+            contactSpeed: config.contactSpeed ?? 3,
             collisionLayerMasks: config.collisionLayerMasks,
         };
     }
@@ -273,7 +280,7 @@ function addShapeForEntity(app: App, module: PhysicsWasmModule, entity: Entity, 
         const mask = resolveCollisionMask(category, box.maskBits ?? 0xFFFF, layerMasks);
         module._physics_addBoxShape(
             entity, box.halfExtents.x, box.halfExtents.y,
-            box.offset.x, box.offset.y,
+            box.offset.x, box.offset.y, box.radius ?? 0.05,
             box.density, box.friction, box.restitution, box.isSensor ? 1 : 0,
             category, mask
         );
@@ -303,6 +310,60 @@ function addShapeForEntity(app: App, module: PhysicsWasmModule, entity: Entity, 
             capsule.density, capsule.friction, capsule.restitution, capsule.isSensor ? 1 : 0,
             category, mask
         );
+        return;
+    }
+
+    if (world.has(entity, SegmentCollider)) {
+        const seg = world.get(entity, SegmentCollider) as SegmentColliderData;
+        const category = seg.categoryBits ?? 0x0001;
+        const mask = resolveCollisionMask(category, seg.maskBits ?? 0xFFFF, layerMasks);
+        module._physics_addSegmentShape(
+            entity, seg.point1.x, seg.point1.y, seg.point2.x, seg.point2.y,
+            seg.density, seg.friction, seg.restitution, seg.isSensor ? 1 : 0,
+            category, mask
+        );
+        return;
+    }
+
+    if (world.has(entity, PolygonCollider)) {
+        const poly = world.get(entity, PolygonCollider) as PolygonColliderData;
+        const category = poly.categoryBits ?? 0x0001;
+        const mask = resolveCollisionMask(category, poly.maskBits ?? 0xFFFF, layerMasks);
+        const verts = poly.vertices;
+        const count = Math.min(verts.length, 8);
+        const byteSize = count * 2 * 4;
+        const ptr = module._malloc(byteSize);
+        const base = ptr >> 2;
+        for (let i = 0; i < count; i++) {
+            module.HEAPF32[base + i * 2] = verts[i].x;
+            module.HEAPF32[base + i * 2 + 1] = verts[i].y;
+        }
+        module._physics_addPolygonShape(
+            entity, ptr, count, poly.radius ?? 0,
+            poly.density, poly.friction, poly.restitution, poly.isSensor ? 1 : 0,
+            category, mask
+        );
+        module._free(ptr);
+        return;
+    }
+
+    if (world.has(entity, ChainCollider)) {
+        const chain = world.get(entity, ChainCollider) as ChainColliderData;
+        const pts = chain.points;
+        if (pts.length < 4) return;
+        const byteSize = pts.length * 2 * 4;
+        const ptr = module._malloc(byteSize);
+        const base = ptr >> 2;
+        for (let i = 0; i < pts.length; i++) {
+            module.HEAPF32[base + i * 2] = pts[i].x;
+            module.HEAPF32[base + i * 2 + 1] = pts[i].y;
+        }
+        module._physics_addChainShape(
+            entity, ptr, pts.length, chain.isLoop ? 1 : 0,
+            chain.friction, chain.restitution,
+            chain.categoryBits ?? 0x0001, chain.maskBits ?? 0xFFFF
+        );
+        module._free(ptr);
     }
 }
 

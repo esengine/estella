@@ -105,4 +105,37 @@ struct CapsuleCollider {
     CapsuleCollider() = default;
 };
 
+ES_COMPONENT()
+struct SegmentCollider {
+    ES_PROPERTY()
+    glm::vec2 point1{-0.5f, 0.0f};
+
+    ES_PROPERTY()
+    glm::vec2 point2{0.5f, 0.0f};
+
+    ES_PROPERTY()
+    f32 density{1.0f};
+
+    ES_PROPERTY()
+    f32 friction{0.3f};
+
+    ES_PROPERTY()
+    f32 restitution{0.0f};
+
+    ES_PROPERTY()
+    bool isSensor{false};
+
+    ES_PROPERTY()
+    bool enabled{true};
+
+    ES_PROPERTY()
+    u32 categoryBits{0x0001};
+
+    ES_PROPERTY()
+    u32 maskBits{0xFFFF};
+
+    SegmentCollider() = default;
+};
+
+
 }  // namespace esengine::ecs

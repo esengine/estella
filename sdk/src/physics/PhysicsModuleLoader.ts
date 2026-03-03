@@ -15,7 +15,7 @@ export interface PhysicsWasmModule {
     _physics_hasBody(entityId: number): number;
 
     _physics_addBoxShape(entityId: number, halfW: number, halfH: number,
-        offX: number, offY: number,
+        offX: number, offY: number, radius: number,
         density: number, friction: number, restitution: number, isSensor: number,
         categoryBits: number, maskBits: number): void;
     _physics_addCircleShape(entityId: number, radius: number,
@@ -25,6 +25,16 @@ export interface PhysicsWasmModule {
     _physics_addCapsuleShape(entityId: number, radius: number, halfHeight: number,
         offX: number, offY: number,
         density: number, friction: number, restitution: number, isSensor: number,
+        categoryBits: number, maskBits: number): void;
+
+    _physics_addSegmentShape(entityId: number, x1: number, y1: number, x2: number, y2: number,
+        density: number, friction: number, restitution: number, isSensor: number,
+        categoryBits: number, maskBits: number): void;
+    _physics_addPolygonShape(entityId: number, verticesPtr: number, vertexCount: number, radius: number,
+        density: number, friction: number, restitution: number, isSensor: number,
+        categoryBits: number, maskBits: number): void;
+    _physics_addChainShape(entityId: number, pointsPtr: number, pointCount: number, isLoop: number,
+        friction: number, restitution: number,
         categoryBits: number, maskBits: number): void;
 
     _physics_step(dt: number): void;
@@ -111,9 +121,12 @@ export async function loadPhysicsSideModule(
         _physics_destroyBody: cwrap('physics_destroyBody', null, ['number']) as PhysicsWasmModule['_physics_destroyBody'],
         _physics_hasBody: cwrap('physics_hasBody', 'number', ['number']) as PhysicsWasmModule['_physics_hasBody'],
 
-        _physics_addBoxShape: cwrap('physics_addBoxShape', null, ['number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number']) as PhysicsWasmModule['_physics_addBoxShape'],
+        _physics_addBoxShape: cwrap('physics_addBoxShape', null, ['number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number']) as PhysicsWasmModule['_physics_addBoxShape'],
         _physics_addCircleShape: cwrap('physics_addCircleShape', null, ['number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number']) as PhysicsWasmModule['_physics_addCircleShape'],
         _physics_addCapsuleShape: cwrap('physics_addCapsuleShape', null, ['number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number']) as PhysicsWasmModule['_physics_addCapsuleShape'],
+        _physics_addSegmentShape: cwrap('physics_addSegmentShape', null, ['number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number']) as PhysicsWasmModule['_physics_addSegmentShape'],
+        _physics_addPolygonShape: cwrap('physics_addPolygonShape', null, ['number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number']) as PhysicsWasmModule['_physics_addPolygonShape'],
+        _physics_addChainShape: cwrap('physics_addChainShape', null, ['number', 'number', 'number', 'number', 'number', 'number', 'number', 'number']) as PhysicsWasmModule['_physics_addChainShape'],
 
         _physics_step: cwrap('physics_step', null, ['number']) as PhysicsWasmModule['_physics_step'],
 
