@@ -20,7 +20,7 @@ import type { PrefabData } from '../types/PrefabTypes';
 import { toBuildPath, getComponentAssetFieldDescriptors, getComponentDefaults, registerAssetBuildTransform } from 'esengine';
 import { normalizePath, joinPath, isAbsolutePath, getParentDir } from '../utils/path';
 import { getEsbuildWasmURL } from '../context/EditorContext';
-import { getSettingsValue } from '../settings';
+import { getSettingsValue } from '../settings/SettingsRegistry';
 
 // =============================================================================
 // buildArtifact

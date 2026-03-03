@@ -44,6 +44,7 @@ const COMPONENT_TO_PLUGIN: Record<string, string> = {
     'ParticleEmitter': 'particlePlugin',
     'Tilemap': 'tilemapPlugin',
     'TilemapLayer': 'tilemapPlugin',
+    'PostProcessVolume': 'postProcessPlugin',
 };
 
 function analyzeUsedPlugins(artifact: BuildArtifact): string[] {
@@ -237,13 +238,14 @@ export class PlayableEmitter implements PlatformEmitter {
         const pluginList = allPlugins.join(', ');
 
         const entryContent = `
-import { createWebApp as _cwa, initPlayableRuntime, ${pluginImports} } from 'esengine';
+import { createWebApp as _cwa, initPlayableRuntime, RuntimeConfig, ${pluginImports} } from 'esengine';
 ${imports}
 
 const __plugins = [${pluginList}];
 (window as any).esengine = {
     createWebApp: (m: any, o?: any) => _cwa(m, { plugins: __plugins, ...o }),
     initPlayableRuntime,
+    RuntimeConfig,
 };
 `;
 

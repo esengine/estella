@@ -2,6 +2,7 @@ import { icons } from '../../utils/icons';
 import { getNativeFS, getFileName, renderError, getAssetServer } from './InspectorHelpers';
 import { getPlatformAdapter } from '../../platform/PlatformAdapter';
 import { getGlobalPathResolver } from '../../asset';
+import { getAssetDatabase, isUUID } from '../../asset/AssetDatabase';
 
 interface AnimClipAssetData {
     version: string;
@@ -16,7 +17,15 @@ const MAX_FPS = 60;
 
 interface FrameInfo {
     texture: string;
+    displayPath: string;
     thumbnailUrl: string | null;
+}
+
+function resolveTexturePath(ref: string): string {
+    if (isUUID(ref)) {
+        return getAssetDatabase().getPath(ref) ?? ref;
+    }
+    return ref;
 }
 
 export async function renderAnimClipInspector(container: HTMLElement, path: string): Promise<void> {
@@ -37,6 +46,7 @@ export async function renderAnimClipInspector(container: HTMLElement, path: stri
 
     const frames: FrameInfo[] = data.frames.map(f => ({
         texture: f.texture,
+        displayPath: resolveTexturePath(f.texture),
         thumbnailUrl: null,
     }));
 
@@ -121,7 +131,7 @@ function renderSection(
                 const resolver = getGlobalPathResolver();
                 const projectDir = resolver.getProjectDir();
                 if (!projectDir) continue;
-                state.frames.push({ texture: file.name, thumbnailUrl: null });
+                state.frames.push({ texture: file.name, displayPath: file.name, thumbnailUrl: null });
             }
             await save(state, filePath);
             renderSection(section, state, filePath);
@@ -147,7 +157,7 @@ function renderFrameList(frames: FrameInfo[]): string {
                     : `<span class="es-animclip-frame-index">${String(i).padStart(2, '0')}</span>`
                 }
             </div>
-            <span class="es-animclip-frame-name" title="${frame.texture}">${getFileName(frame.texture)}</span>
+            <span class="es-animclip-frame-name" title="${frame.displayPath}">${getFileName(frame.displayPath)}</span>
             <button class="es-btn es-btn-icon es-animclip-delete-btn" data-index="${i}" title="Remove frame">
                 ${icons.x(12)}
             </button>
@@ -221,7 +231,7 @@ function setupDropZone(
         const resolver = getGlobalPathResolver();
         for (const asset of imageAssets) {
             const relativePath = resolver.toRelativePath(asset.path);
-            state.frames.push({ texture: relativePath, thumbnailUrl: null });
+            state.frames.push({ texture: relativePath, displayPath: relativePath, thumbnailUrl: null });
         }
 
         await save(state, filePath);
@@ -248,7 +258,7 @@ async function loadThumbnails(
         const frame = state.frames[i];
         if (frame.thumbnailUrl) continue;
 
-        const absPath = resolver.toAbsolutePath(frame.texture);
+        const absPath = resolver.toAbsolutePath(frame.displayPath);
         try {
             const data = await fs.readBinaryFile(absPath);
             if (!data) continue;

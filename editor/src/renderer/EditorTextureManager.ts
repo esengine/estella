@@ -6,6 +6,7 @@
 import type { ESEngineModule } from 'esengine';
 import { parseTextureMetadata, getMetaFilePath } from '../types/TextureMetadata';
 import type { AssetPathResolver } from '../asset';
+import { getAssetDatabase, isUUID } from '../asset/AssetDatabase';
 import { getEditorContext } from '../context/EditorContext';
 import type { NativeFS } from '../types/NativeFS';
 
@@ -41,6 +42,13 @@ export class EditorTextureManager {
      */
     async loadTexture(texturePath: string): Promise<number> {
         if (!texturePath || /^\d+$/.test(texturePath)) return 0;
+
+        if (isUUID(texturePath)) {
+            const resolved = getAssetDatabase().getPath(texturePath);
+            if (resolved) {
+                texturePath = resolved;
+            }
+        }
 
         const fullPath = this.pathResolver_.toAbsolutePath(texturePath);
 

@@ -31,6 +31,7 @@ import {
     particlePlugin,
     tilemapPlugin,
     sceneManagerPlugin,
+    postProcessPlugin,
 } from 'esengine';
 import { PhysicsPlugin, type PhysicsPluginConfig } from 'esengine/physics';
 import type { SpineModuleController } from 'esengine/spine';
@@ -167,6 +168,7 @@ export class SharedRenderContext {
         app.addPlugin(particlePlugin);
         app.addPlugin(tilemapPlugin);
         app.addPlugin(sceneManagerPlugin);
+        app.addPlugin(postProcessPlugin);
         for (const plugin of uiPlugins) {
             app.addPlugin(plugin);
         }

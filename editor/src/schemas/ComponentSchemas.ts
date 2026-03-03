@@ -5,7 +5,7 @@
 
 import type { PropertyMeta } from '../property/PropertyEditor';
 import { getComponentDefaults } from 'esengine';
-import { getSettingsValue } from '../settings';
+import { getSettingsValue } from '../settings/SettingsRegistry';
 
 // =============================================================================
 // Types
