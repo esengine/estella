@@ -61,7 +61,7 @@ export class ImagePlugin implements Plugin {
                     const source: ImageSource = { image, uiRect, entity };
 
                     const prev = snapshots.get(entity);
-                    if (prev && !imageSnapshot.changed(prev, source)) continue;
+                    if (prev && world.has(entity, Sprite) && !imageSnapshot.changed(prev, source)) continue;
 
                     ensureSprite(world, entity);
 
