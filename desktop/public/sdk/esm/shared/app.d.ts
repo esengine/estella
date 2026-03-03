@@ -791,6 +791,11 @@ declare const Material: {
     tex(textureId: number, slot?: number): TextureRef;
 };
 declare function registerMaterialCallback(): void;
+/**
+ * Built-in ES 3.0 shader sources for SDK custom materials.
+ * These use the batch renderer vertex layout (vec3 position + vec4 color + vec2 texCoord)
+ * and are NOT duplicates of the .esshader files (which are ES 1.0 with different layouts).
+ */
 declare const ShaderSources: {
     SPRITE_VERTEX: string;
     SPRITE_FRAGMENT: string;

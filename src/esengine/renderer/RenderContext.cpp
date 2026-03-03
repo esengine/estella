@@ -11,6 +11,8 @@
 
 #include "RenderContext.hpp"
 #include "RenderCommand.hpp"
+#include "ShaderEmbeds.generated.hpp"
+#include "../resource/ShaderParser.hpp"
 #include "../core/Log.hpp"
 #include "OpenGLHeaders.hpp"
 
@@ -85,16 +87,16 @@ void RenderContext::initQuadData() {
 }
 
 void RenderContext::initShaders() {
-    // Color shader (no texture)
+    auto colorParsed = resource::ShaderParser::parse(ShaderEmbeds::COLOR);
     colorShader_ = Shader::create(
-        ShaderSources::COLOR_VERTEX,
-        ShaderSources::COLOR_FRAGMENT
+        resource::ShaderParser::assembleStage(colorParsed, resource::ShaderStage::Vertex),
+        resource::ShaderParser::assembleStage(colorParsed, resource::ShaderStage::Fragment)
     );
 
-    // Texture shader
+    auto spriteParsed = resource::ShaderParser::parse(ShaderEmbeds::SPRITE);
     textureShader_ = Shader::create(
-        ShaderSources::SPRITE_VERTEX,
-        ShaderSources::SPRITE_FRAGMENT
+        resource::ShaderParser::assembleStage(spriteParsed, resource::ShaderStage::Vertex),
+        resource::ShaderParser::assembleStage(spriteParsed, resource::ShaderStage::Fragment)
     );
 
     extMeshShader_ = Shader::createWithBindings(

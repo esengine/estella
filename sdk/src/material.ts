@@ -473,6 +473,11 @@ export function registerMaterialCallback(): void {
 // Built-in Shader Sources
 // =============================================================================
 
+/**
+ * Built-in ES 3.0 shader sources for SDK custom materials.
+ * These use the batch renderer vertex layout (vec3 position + vec4 color + vec2 texCoord)
+ * and are NOT duplicates of the .esshader files (which are ES 1.0 with different layouts).
+ */
 export const ShaderSources = {
     SPRITE_VERTEX: `#version 300 es
 precision highp float;

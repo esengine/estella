@@ -30,17 +30,26 @@ varying float v_texIndex;
 uniform sampler2D u_textures[8];
 
 void main() {
-    int index = int(v_texIndex);
-    vec4 texColor = vec4(1.0);
+    int index = int(v_texIndex + 0.5);
+    vec4 texColor;
 
-    if (index == 0) texColor = texture2D(u_textures[0], v_texCoord);
-    else if (index == 1) texColor = texture2D(u_textures[1], v_texCoord);
-    else if (index == 2) texColor = texture2D(u_textures[2], v_texCoord);
-    else if (index == 3) texColor = texture2D(u_textures[3], v_texCoord);
-    else if (index == 4) texColor = texture2D(u_textures[4], v_texCoord);
-    else if (index == 5) texColor = texture2D(u_textures[5], v_texCoord);
-    else if (index == 6) texColor = texture2D(u_textures[6], v_texCoord);
-    else if (index == 7) texColor = texture2D(u_textures[7], v_texCoord);
+    if (index <= 0) {
+        texColor = vec4(1.0);
+    } else if (index == 1) {
+        texColor = texture2D(u_textures[1], v_texCoord);
+    } else if (index == 2) {
+        texColor = texture2D(u_textures[2], v_texCoord);
+    } else if (index == 3) {
+        texColor = texture2D(u_textures[3], v_texCoord);
+    } else if (index == 4) {
+        texColor = texture2D(u_textures[4], v_texCoord);
+    } else if (index == 5) {
+        texColor = texture2D(u_textures[5], v_texCoord);
+    } else if (index == 6) {
+        texColor = texture2D(u_textures[6], v_texCoord);
+    } else {
+        texColor = texture2D(u_textures[7], v_texCoord);
+    }
 
     gl_FragColor = texColor * v_color;
 }

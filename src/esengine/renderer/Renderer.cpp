@@ -13,6 +13,8 @@
 #include "Renderer.hpp"
 #include "RenderCommand.hpp"
 #include "TextureSlotAllocator.hpp"
+#include "ShaderEmbeds.generated.hpp"
+#include "../resource/ShaderParser.hpp"
 #include "../core/Log.hpp"
 #include "../resource/ResourceManager.hpp"
 
@@ -377,9 +379,10 @@ void BatchRenderer2D::init() {
 
     if (!batchShader || !batchShader->isValid()) {
         ES_LOG_WARN("GLSL ES 3.0 batch shader failed, trying GLSL ES 1.0 fallback");
+        auto batchParsed = resource::ShaderParser::parse(ShaderEmbeds::BATCH);
         data_->shader_handle = resource_manager_.createShaderWithBindings(
-            ShaderSources::BATCH_VERTEX_COMPAT,
-            ShaderSources::BATCH_FRAGMENT_COMPAT,
+            resource::ShaderParser::assembleStage(batchParsed, resource::ShaderStage::Vertex),
+            resource::ShaderParser::assembleStage(batchParsed, resource::ShaderStage::Fragment),
             {{0, "a_position"}, {1, "a_color"}, {2, "a_texCoord"}, {3, "a_texIndex"}}
         );
         batchShader = resource_manager_.getShader(data_->shader_handle);

@@ -112,7 +112,8 @@ private:
     void sortAndBucket();
     void executeStage(RenderStage stage);
     void renderSprites(u32 begin, u32 end);
-    void renderSpriteWithMaterial(const RenderItemBase& base, const SpriteData& data);
+    void accumulateMaterialSprite(const RenderItemBase& base, const SpriteData& data);
+    void flushMaterialBatch();
 #ifdef ES_ENABLE_SPINE
     void renderSpine(u32 begin, u32 end);
     void flushSpineBatch();
@@ -193,9 +194,24 @@ private:
     u32 mat_sprite_vao_ = 0;
     u32 mat_sprite_vbo_ = 0;
     u32 mat_sprite_ebo_ = 0;
-    bool mat_sprite_ebo_initialized_ = false;
-    bool mat_sprite_vbo_allocated_ = false;
+    u32 mat_sprite_vbo_capacity_ = 0;
+    u32 mat_sprite_ebo_capacity_ = 0;
     u32 mat_sprite_last_shader_ = 0;
+
+    struct MatSpriteVertex {
+        f32 px, py;
+        f32 tx, ty;
+        f32 cr, cg, cb, ca;
+    };
+
+    struct MatBatchState {
+        u32 material_id = 0;
+        u32 texture_id = 0;
+        glm::vec4 color{0.0f};
+        std::vector<MatSpriteVertex> vertices;
+        std::vector<u16> indices;
+    };
+    MatBatchState mat_batch_;
 
     u32 particle_vao_ = 0;
     u32 particle_quad_vbo_ = 0;

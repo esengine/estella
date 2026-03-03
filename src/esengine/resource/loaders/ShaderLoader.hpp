@@ -71,27 +71,5 @@ public:
     static std::string getDefaultPlatform();
 };
 
-// =============================================================================
-// ShaderLoader (legacy compatibility alias)
-// =============================================================================
-
-/**
- * @brief Legacy shader loader (use ShaderFileLoader for new code)
- */
-class ShaderLoader {
-public:
-    ShaderLoadResult loadFromFile(const std::string& path,
-                                   const std::string& platform = "");
-
-    ShaderLoadResult loadFromSource(const std::string& source,
-                                     const std::string& platform = "");
-
-    static std::string getDefaultPlatform() { return ShaderFileLoader::getDefaultPlatform(); }
-    static bool canLoad(const std::string& path);
-    static std::vector<std::string> getSupportedExtensions();
-
-private:
-    ShaderFileLoader loader_;
-};
 
 }  // namespace esengine::resource

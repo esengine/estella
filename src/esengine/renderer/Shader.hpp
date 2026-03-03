@@ -179,65 +179,13 @@ private:
 // =============================================================================
 
 /**
- * @brief Common shader source code for 2D rendering
+ * @brief Shader source code for internal renderers (ES 3.0)
  *
- * @details Provides ready-to-use GLSL ES shader sources for common
- *          2D rendering tasks. Compatible with WebGL and OpenGL ES 2.0.
+ * @details ES 1.0 shaders (sprite, color, batch compat) are now sourced from
+ *          .esshader files via ShaderEmbeds.generated.hpp + ShaderParser.
+ *          Only ES 3.0 and internal-only shaders remain here.
  */
 namespace ShaderSources {
-
-/**
- * @brief Vertex shader for textured sprites
- *
- * @details Uniforms:
- * - u_projection: Projection matrix
- * - u_model: Model transform matrix
- *
- * Attributes:
- * - a_position: Vertex position (vec2)
- * - a_texCoord: Texture coordinates (vec2)
- *
- * Outputs:
- * - v_texCoord: Interpolated texture coordinates
- */
-inline const char* SPRITE_VERTEX = R"(
-    attribute vec2 a_position;
-    attribute vec2 a_texCoord;
-
-    uniform mat4 u_projection;
-    uniform mat4 u_model;
-
-    varying vec2 v_texCoord;
-
-    void main() {
-        gl_Position = u_projection * u_model * vec4(a_position, 0.0, 1.0);
-        v_texCoord = a_texCoord;
-    }
-)";
-
-/**
- * @brief Fragment shader for textured sprites
- *
- * @details Uniforms:
- * - u_texture: Texture sampler
- * - u_color: Color tint
- *
- * Inputs:
- * - v_texCoord: Texture coordinates
- */
-inline const char* SPRITE_FRAGMENT = R"(
-    precision mediump float;
-
-    uniform sampler2D u_texture;
-    uniform vec4 u_color;
-
-    varying vec2 v_texCoord;
-
-    void main() {
-        vec4 texColor = texture2D(u_texture, v_texCoord);
-        gl_FragColor = texColor * u_color;
-    }
-)";
 
 inline const char* EXT_MESH_VERTEX = R"(
     attribute vec2 a_position;
@@ -271,36 +219,6 @@ inline const char* EXT_MESH_FRAGMENT = R"(
     }
 )";
 
-inline const char* COLOR_VERTEX = R"(
-    attribute vec2 a_position;
-
-    uniform mat4 u_projection;
-    uniform mat4 u_model;
-
-    void main() {
-        gl_Position = u_projection * u_model * vec4(a_position, 0.0, 1.0);
-    }
-)";
-
-/**
- * @brief Fragment shader for solid color shapes
- *
- * @details Uniforms:
- * - u_color: Fill color
- */
-inline const char* COLOR_FRAGMENT = R"(
-    precision mediump float;
-
-    uniform vec4 u_color;
-
-    void main() {
-        gl_FragColor = u_color;
-    }
-)";
-
-/**
- * @brief Vertex shader for batched sprite rendering
- */
 inline const char* BATCH_VERTEX = R"(#version 300 es
     layout(location = 0) in vec3 a_position;
     layout(location = 1) in vec4 a_color;
@@ -358,69 +276,6 @@ inline const char* BATCH_FRAGMENT = R"(#version 300 es
         }
 
         fragColor = texColor * v_color;
-    }
-)";
-
-/**
- * @brief GLSL ES 1.0 fallback vertex shader for batched sprite rendering
- * @details Used when #version 300 es is not supported by the GPU driver.
- *          Requires glBindAttribLocation before linking for correct attribute mapping.
- */
-inline const char* BATCH_VERTEX_COMPAT = R"(
-    attribute vec3 a_position;
-    attribute vec4 a_color;
-    attribute vec2 a_texCoord;
-    attribute float a_texIndex;
-
-    uniform mat4 u_projection;
-
-    varying vec4 v_color;
-    varying vec2 v_texCoord;
-    varying float v_texIndex;
-
-    void main() {
-        gl_Position = u_projection * vec4(a_position, 1.0);
-        v_color = a_color;
-        v_texCoord = a_texCoord;
-        v_texIndex = a_texIndex;
-    }
-)";
-
-/**
- * @brief GLSL ES 1.0 fallback fragment shader for batched sprite rendering
- */
-inline const char* BATCH_FRAGMENT_COMPAT = R"(
-    precision mediump float;
-
-    varying vec4 v_color;
-    varying vec2 v_texCoord;
-    varying float v_texIndex;
-
-    uniform sampler2D u_textures[8];
-
-    void main() {
-        int index = int(v_texIndex + 0.5);
-        vec4 texColor;
-
-        if (index <= 0) {
-            texColor = vec4(1.0);
-        } else if (index == 1) {
-            texColor = texture2D(u_textures[1], v_texCoord);
-        } else if (index == 2) {
-            texColor = texture2D(u_textures[2], v_texCoord);
-        } else if (index == 3) {
-            texColor = texture2D(u_textures[3], v_texCoord);
-        } else if (index == 4) {
-            texColor = texture2D(u_textures[4], v_texCoord);
-        } else if (index == 5) {
-            texColor = texture2D(u_textures[5], v_texCoord);
-        } else if (index == 6) {
-            texColor = texture2D(u_textures[6], v_texCoord);
-        } else {
-            texColor = texture2D(u_textures[7], v_texCoord);
-        }
-
-        gl_FragColor = texColor * v_color;
     }
 )";
 

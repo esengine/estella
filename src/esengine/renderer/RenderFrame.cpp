@@ -3,6 +3,8 @@
 #include "RenderCommand.hpp"
 #include "Texture.hpp"
 #include "CustomGeometry.hpp"
+#include "ShaderEmbeds.generated.hpp"
+#include "../resource/ShaderParser.hpp"
 #include "../core/Log.hpp"
 #include "../ecs/components/Transform.hpp"
 #include "../ecs/components/Sprite.hpp"
@@ -161,9 +163,10 @@ void RenderFrame::init(u32 width, u32 height) {
     );
     Shader* spineShader = resource_manager_.getShader(spine_shader_handle_);
     if (!spineShader || !spineShader->isValid()) {
+        auto batchParsed = resource::ShaderParser::parse(ShaderEmbeds::BATCH);
         spine_shader_handle_ = resource_manager_.createShaderWithBindings(
-            ShaderSources::BATCH_VERTEX_COMPAT,
-            ShaderSources::BATCH_FRAGMENT_COMPAT,
+            resource::ShaderParser::assembleStage(batchParsed, resource::ShaderStage::Vertex),
+            resource::ShaderParser::assembleStage(batchParsed, resource::ShaderStage::Fragment),
             {{0, "a_position"}, {1, "a_color"}, {2, "a_texCoord"}, {3, "a_texIndex"}}
         );
         spineShader = resource_manager_.getShader(spine_shader_handle_);
@@ -206,7 +209,8 @@ void RenderFrame::init(u32 width, u32 height) {
     glGenVertexArrays(1, &mat_sprite_vao_);
     glGenBuffers(1, &mat_sprite_vbo_);
     glGenBuffers(1, &mat_sprite_ebo_);
-    mat_sprite_ebo_initialized_ = false;
+    mat_sprite_vbo_capacity_ = 0;
+    mat_sprite_ebo_capacity_ = 0;
 
 #ifdef ES_PLATFORM_WEB
     glGenVertexArrays(1, &particle_vao_);
@@ -330,7 +334,8 @@ void RenderFrame::shutdown() {
     if (mat_sprite_ebo_) { glDeleteBuffers(1, &mat_sprite_ebo_); mat_sprite_ebo_ = 0; }
     if (mat_sprite_vbo_) { glDeleteBuffers(1, &mat_sprite_vbo_); mat_sprite_vbo_ = 0; }
     if (mat_sprite_vao_) { glDeleteVertexArrays(1, &mat_sprite_vao_); mat_sprite_vao_ = 0; }
-    mat_sprite_ebo_initialized_ = false;
+    mat_sprite_vbo_capacity_ = 0;
+    mat_sprite_ebo_capacity_ = 0;
 
 #ifdef ES_PLATFORM_WEB
     if (particle_shader_handle_.isValid()) {
@@ -971,9 +976,10 @@ void RenderFrame::renderSprites(u32 begin, u32 end) {
 
         if (sd.material_id != 0) {
             batcher_->flush();
-            renderSpriteWithMaterial(base, sd);
+            accumulateMaterialSprite(base, sd);
             continue;
         }
+        flushMaterialBatch();
 
         glm::vec2 position(base.world_position);
         glm::vec2 finalSize = sd.size * base.world_scale;
@@ -1029,6 +1035,8 @@ void RenderFrame::renderSprites(u32 begin, u32 end) {
             );
         }
     }
+
+    flushMaterialBatch();
 
     if (stencilWriteActive) {
         batcher_->flush();
@@ -1583,32 +1591,79 @@ void RenderFrame::renderText(u32 begin, u32 end) {
     stats_.triangles += batcher_->getQuadCount() * 2;
 }
 
-void RenderFrame::renderSpriteWithMaterial(const RenderItemBase& base, const SpriteData& sd) {
+void RenderFrame::accumulateMaterialSprite(const RenderItemBase& base, const SpriteData& sd) {
+    bool needFlush = mat_batch_.material_id != 0 &&
+        (mat_batch_.material_id != sd.material_id ||
+         mat_batch_.texture_id != base.texture_id ||
+         mat_batch_.color != base.color);
+
+    if (needFlush) {
+        flushMaterialBatch();
+    }
+
+    mat_batch_.material_id = sd.material_id;
+    mat_batch_.texture_id = base.texture_id;
+    mat_batch_.color = base.color;
+
+    glm::vec2 halfSize = sd.size * 0.5f;
+    glm::vec2 uvMin = sd.uv_offset;
+    glm::vec2 uvMax = sd.uv_offset + sd.uv_scale;
+    if (sd.flip_x) { std::swap(uvMin.x, uvMax.x); }
+    if (sd.flip_y) { std::swap(uvMin.y, uvMax.y); }
+
+    glm::vec4 corners[4] = {
+        sd.transform * glm::vec4(-halfSize.x, -halfSize.y, 0.0f, 1.0f),
+        sd.transform * glm::vec4( halfSize.x, -halfSize.y, 0.0f, 1.0f),
+        sd.transform * glm::vec4( halfSize.x,  halfSize.y, 0.0f, 1.0f),
+        sd.transform * glm::vec4(-halfSize.x,  halfSize.y, 0.0f, 1.0f),
+    };
+
+    auto baseIdx = static_cast<u16>(mat_batch_.vertices.size());
+
+    mat_batch_.vertices.push_back({corners[0].x, corners[0].y, uvMin.x, uvMax.y, base.color.r, base.color.g, base.color.b, base.color.a});
+    mat_batch_.vertices.push_back({corners[1].x, corners[1].y, uvMax.x, uvMax.y, base.color.r, base.color.g, base.color.b, base.color.a});
+    mat_batch_.vertices.push_back({corners[2].x, corners[2].y, uvMax.x, uvMin.y, base.color.r, base.color.g, base.color.b, base.color.a});
+    mat_batch_.vertices.push_back({corners[3].x, corners[3].y, uvMin.x, uvMin.y, base.color.r, base.color.g, base.color.b, base.color.a});
+
+    mat_batch_.indices.push_back(baseIdx);
+    mat_batch_.indices.push_back(baseIdx + 1);
+    mat_batch_.indices.push_back(baseIdx + 2);
+    mat_batch_.indices.push_back(baseIdx + 2);
+    mat_batch_.indices.push_back(baseIdx + 3);
+    mat_batch_.indices.push_back(baseIdx);
+}
+
+void RenderFrame::flushMaterialBatch() {
+    if (mat_batch_.vertices.empty()) return;
+
     u32 shaderId = 0;
     u32 blendMode = 0;
     mat_uniforms_.clear();
 
-    if (!getMaterialDataWithUniforms(sd.material_id, shaderId, blendMode, mat_uniforms_)) {
+    if (!getMaterialDataWithUniforms(mat_batch_.material_id, shaderId, blendMode, mat_uniforms_)) {
+        mat_batch_.vertices.clear();
+        mat_batch_.indices.clear();
+        mat_batch_.material_id = 0;
         return;
     }
 
     Shader* shader = resource_manager_.getShader(resource::ShaderHandle(shaderId));
-    if (!shader) return;
+    if (!shader) {
+        mat_batch_.vertices.clear();
+        mat_batch_.indices.clear();
+        mat_batch_.material_id = 0;
+        return;
+    }
 
     shader->bind();
 
-    i32 locProj = shader->getUniformLocation("u_projection");
-    i32 locModel = shader->getUniformLocation("u_model");
-    i32 locColor = shader->getUniformLocation("u_color");
-    i32 locTex = shader->getUniformLocation("u_texture");
-
-    shader->setUniform(locProj, view_projection_);
-    shader->setUniform(locModel, sd.transform);
-    shader->setUniform(locColor, base.color);
+    shader->setUniform(shader->getUniformLocation("u_projection"), view_projection_);
+    shader->setUniform(shader->getUniformLocation("u_model"), glm::mat4(1.0f));
+    shader->setUniform(shader->getUniformLocation("u_color"), mat_batch_.color);
 
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, base.texture_id);
-    shader->setUniform(locTex, 0);
+    glBindTexture(GL_TEXTURE_2D, mat_batch_.texture_id);
+    shader->setUniform(shader->getUniformLocation("u_texture"), 0);
 
     for (const auto& ud : mat_uniforms_) {
         i32 loc = shader->getUniformLocation(ud.name);
@@ -1630,34 +1685,16 @@ void RenderFrame::renderSpriteWithMaterial(const RenderItemBase& base, const Spr
 
     RenderCommand::setBlendMode(static_cast<BlendMode>(blendMode));
 
-    glm::vec2 halfSize = sd.size * 0.5f;
-
-    glm::vec2 uvMin = sd.uv_offset;
-    glm::vec2 uvMax = sd.uv_offset + sd.uv_scale;
-    if (sd.flip_x) { std::swap(uvMin.x, uvMax.x); }
-    if (sd.flip_y) { std::swap(uvMin.y, uvMax.y); }
-
-    struct MatSpriteVertex {
-        f32 px, py;
-        f32 tx, ty;
-        f32 cr, cg, cb, ca;
-    };
-
-    MatSpriteVertex vertices[4] = {
-        { -halfSize.x, -halfSize.y, uvMin.x, uvMax.y, base.color.r, base.color.g, base.color.b, base.color.a },
-        {  halfSize.x, -halfSize.y, uvMax.x, uvMax.y, base.color.r, base.color.g, base.color.b, base.color.a },
-        {  halfSize.x,  halfSize.y, uvMax.x, uvMin.y, base.color.r, base.color.g, base.color.b, base.color.a },
-        { -halfSize.x,  halfSize.y, uvMin.x, uvMin.y, base.color.r, base.color.g, base.color.b, base.color.a },
-    };
-
     glBindVertexArray(mat_sprite_vao_);
-
     glBindBuffer(GL_ARRAY_BUFFER, mat_sprite_vbo_);
-    if (!mat_sprite_vbo_allocated_) {
-        glBufferData(GL_ARRAY_BUFFER, sizeof(MatSpriteVertex) * 4, nullptr, GL_STREAM_DRAW);
-        mat_sprite_vbo_allocated_ = true;
+
+    auto vboSize = static_cast<u32>(mat_batch_.vertices.size() * sizeof(MatSpriteVertex));
+    if (vboSize > mat_sprite_vbo_capacity_) {
+        glBufferData(GL_ARRAY_BUFFER, vboSize, mat_batch_.vertices.data(), GL_STREAM_DRAW);
+        mat_sprite_vbo_capacity_ = vboSize;
+    } else {
+        glBufferSubData(GL_ARRAY_BUFFER, 0, vboSize, mat_batch_.vertices.data());
     }
-    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices);
 
     u32 programId = shader->getProgramId();
     if (programId != mat_sprite_last_shader_) {
@@ -1685,23 +1722,26 @@ void RenderFrame::renderSpriteWithMaterial(const RenderItemBase& base, const Spr
         }
     }
 
-    if (!mat_sprite_ebo_initialized_) {
-        u16 indices[] = { 0, 1, 2, 2, 3, 0 };
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mat_sprite_ebo_);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-        mat_sprite_ebo_initialized_ = true;
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mat_sprite_ebo_);
+    auto eboSize = static_cast<u32>(mat_batch_.indices.size() * sizeof(u16));
+    if (eboSize > mat_sprite_ebo_capacity_) {
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, eboSize, mat_batch_.indices.data(), GL_STREAM_DRAW);
+        mat_sprite_ebo_capacity_ = eboSize;
     } else {
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mat_sprite_ebo_);
+        glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, eboSize, mat_batch_.indices.data());
     }
 
-    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, nullptr);
+    glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(mat_batch_.indices.size()), GL_UNSIGNED_SHORT, nullptr);
 
     glBindVertexArray(0);
-
     RenderCommand::setBlendMode(BlendMode::Normal);
 
     stats_.draw_calls++;
-    stats_.triangles += 2;
+    stats_.triangles += static_cast<u32>(mat_batch_.indices.size()) / 3;
+
+    mat_batch_.vertices.clear();
+    mat_batch_.indices.clear();
+    mat_batch_.material_id = 0;
 }
 
 // ============================================================================

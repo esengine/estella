@@ -5,13 +5,14 @@ import config from '../build.config.js';
 import * as logger from '../utils/logger.js';
 import { runCommand, getCpuCount } from '../utils/emscripten.js';
 import { hashFiles, hashDirectory, HashCache } from '../utils/hash.js';
+import { generateShaderEmbeds } from './shader-embeds.js';
 
 async function computeWasmHash(target, targetConfig, debug) {
     const rootDir = config.paths.root;
     const srcDir = path.join(rootDir, 'src/esengine');
     const cmakeLists = path.join(rootDir, 'CMakeLists.txt');
 
-    const sourceHash = await hashDirectory(srcDir, /\.(hpp|cpp|h)$/);
+    const sourceHash = await hashDirectory(srcDir, /\.(hpp|cpp|h|esshader)$/);
 
     const buildType = debug ? 'Debug' : 'Release';
     const flagsKey = [...targetConfig.cmakeFlags, `CMAKE_BUILD_TYPE=${buildType}`].join('|');
@@ -98,6 +99,8 @@ export async function buildWasm(target, options = {}) {
 }
 
 async function executeWasmBuild(target, targetConfig, { debug, clean, buildDir, rootDir, outputDir }) {
+    await generateShaderEmbeds();
+
     if (clean && existsSync(buildDir)) {
         logger.debug(`Cleaning ${buildDir}`);
         await rm(buildDir, { recursive: true, force: true });

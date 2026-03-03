@@ -192,14 +192,11 @@ bool Shader::compile(const std::string& vertexSrc, const std::string& fragmentSr
 }
 
 i32 Shader::getUniformLocation(const std::string& name) const {
-    auto it = uniformCache_.find(name);
-    if (it != uniformCache_.end()) {
-        return it->second;
+    auto [it, inserted] = uniformCache_.emplace(name, -1);
+    if (inserted) {
+        it->second = glGetUniformLocation(programId_, name.c_str());
     }
-
-    i32 location = glGetUniformLocation(programId_, name.c_str());
-    uniformCache_[name] = location;
-    return location;
+    return it->second;
 }
 
 void Shader::setUniform(const std::string& name, i32 value) const {
@@ -259,13 +256,11 @@ void Shader::setUniform(i32 location, const glm::mat4& value) const {
 }
 
 i32 Shader::getAttribLocation(const std::string& name) const {
-    auto it = attribCache_.find(name);
-    if (it != attribCache_.end()) {
-        return it->second;
+    auto [it, inserted] = attribCache_.emplace(name, -1);
+    if (inserted) {
+        it->second = glGetAttribLocation(programId_, name.c_str());
     }
-    i32 location = glGetAttribLocation(programId_, name.c_str());
-    attribCache_[name] = location;
-    return location;
+    return it->second;
 }
 
 }  // namespace esengine

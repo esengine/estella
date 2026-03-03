@@ -875,6 +875,9 @@ interface LoadRuntimeSceneOptions {
         gravity?: Vec2;
         fixedTimestep?: number;
         subStepCount?: number;
+        contactHertz?: number;
+        contactDampingRatio?: number;
+        contactSpeed?: number;
     };
     manifest?: AddressableManifest | null;
     sceneName?: string;
@@ -896,6 +899,9 @@ interface RuntimeInitConfig {
         gravity?: Vec2;
         fixedTimestep?: number;
         subStepCount?: number;
+        contactHertz?: number;
+        contactDampingRatio?: number;
+        contactSpeed?: number;
     };
     manifest?: AddressableManifest | null;
     aspectRatio?: number;

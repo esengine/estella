@@ -95,31 +95,5 @@ std::string ShaderFileLoader::getDefaultPlatform() {
 #endif
 }
 
-// =============================================================================
-// ShaderLoader (Legacy) Implementation
-// =============================================================================
-
-ShaderLoadResult ShaderLoader::loadFromFile(const std::string& path,
-                                             const std::string& platform) {
-    LoadRequest request;
-    request.path = path;
-    request.platform = platform;
-    return loader_.load(request);
-}
-
-ShaderLoadResult ShaderLoader::loadFromSource(const std::string& source,
-                                               const std::string& platform) {
-    return loader_.loadFromSource(source, platform);
-}
-
-bool ShaderLoader::canLoad(const std::string& path) {
-    ShaderFileLoader loader;
-    return loader.canLoad(path);
-}
-
-std::vector<std::string> ShaderLoader::getSupportedExtensions() {
-    ShaderFileLoader loader;
-    return loader.getSupportedExtensions();
-}
 
 }  // namespace esengine::resource

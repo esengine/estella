@@ -128,8 +128,11 @@ ShaderHandle ResourceManager::loadShaderFile(const std::string& path, const std:
         return cached;
     }
 
-    ShaderLoader loader;
-    auto result = loader.loadFromFile(path, platform);
+    ShaderFileLoader loader;
+    LoadRequest request;
+    request.path = path;
+    request.platform = platform;
+    auto result = loader.load(request);
     if (!result.isOk()) {
         stats_.cacheMisses++;
         return ShaderHandle();
@@ -161,8 +164,11 @@ ShaderHandle ResourceManager::loadEngineShader(const std::string& name, const st
 
     std::string path = PathResolver::editorPath("src/esengine/data/shaders/" + name + ".esshader");
 
-    ShaderLoader loader;
-    auto result = loader.loadFromFile(path, platform);
+    ShaderFileLoader loader;
+    LoadRequest request;
+    request.path = path;
+    request.platform = platform;
+    auto result = loader.load(request);
     if (!result.isOk()) {
         ES_LOG_ERROR("Failed to load engine shader '{}': {}", name, result.errorMessage);
         stats_.cacheMisses++;
@@ -543,8 +549,10 @@ void ResourceManager::reloadShader(ShaderHandle handle, const std::string& path)
 
     ES_LOG_INFO("HotReload: Reloading shader '{}'", path);
 
-    ShaderLoader loader;
-    auto result = loader.loadFromFile(path, "");
+    ShaderFileLoader loader;
+    LoadRequest request;
+    request.path = path;
+    auto result = loader.load(request);
 
     ReloadEvent<Shader> event;
     event.handle = handle;
