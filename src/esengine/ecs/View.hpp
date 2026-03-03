@@ -266,34 +266,21 @@ public:
     // Functional Iteration
     // =========================================================================
 
-    /**
-     * @brief Executes a function for each matching entity
-     * @tparam Func Callback type
-     * @param func The callback to invoke
-     *
-     * @details The callback can have one of these signatures:
-     *          - `void(Entity, Component&...)` - entity and all components
-     *          - `void(Component&...)` - components only
-     *          - `void(Entity)` - entity only
-     *
-     * @code
-     * // With entity and components
-     * view.each([](Entity e, Position& p, Velocity& v) { ... });
-     *
-     * // Components only
-     * view.each([](Position& p, Velocity& v) { ... });
-     *
-     * // Entity only
-     * view.each([](Entity e) { ... });
-     * @endcode
-     */
     template<typename Func>
     void each(Func&& func) {
-        for (auto entity : *this) {
+        if (!smallest_) return;
+
+        const auto& entities = smallest_->entities();
+        const usize n = entities.size();
+
+        for (usize i = 0; i < n; ++i) {
+            Entity entity = entities[i];
+            if (!allHaveExceptSmallest(entity)) continue;
+
             if constexpr (std::is_invocable_v<Func, Entity, Components&...>) {
-                func(entity, get<Components>(entity)...);
+                func(entity, getFromPool<Components>(entity, i)...);
             } else if constexpr (std::is_invocable_v<Func, Components&...>) {
-                func(get<Components>(entity)...);
+                func(getFromPool<Components>(entity, i)...);
             } else {
                 func(entity);
             }
@@ -301,6 +288,25 @@ public:
     }
 
 private:
+    template<typename T>
+    T& getFromPool(Entity entity, usize smallestDenseIndex) {
+        auto* pool = std::get<SparseSet<T>*>(pools_);
+        if (static_cast<SparseSetBase*>(pool) == smallest_) {
+            return pool->components()[smallestDenseIndex];
+        }
+        return pool->getUnchecked(entity);
+    }
+
+    bool allHaveExceptSmallest(Entity entity) const {
+        return allHaveExceptSmallestImpl(entity, std::index_sequence_for<Components...>{});
+    }
+
+    template<usize... Is>
+    bool allHaveExceptSmallestImpl(Entity entity, std::index_sequence<Is...>) const {
+        return ((static_cast<SparseSetBase*>(std::get<Is>(pools_)) == smallest_ ||
+                 std::get<Is>(pools_)->contains(entity)) && ...);
+    }
+
     /**
      * @brief Finds the smallest component pool
      *

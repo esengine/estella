@@ -117,7 +117,6 @@ void RenderFrame::init(u32 width, u32 height) {
     post_process_->init(width, height);
 
     items_.reserve(1024);
-    sorted_indices_.reserve(1024);
     sprite_data_.reserve(512);
     text_data_.reserve(64);
     ext_data_.reserve(32);
@@ -345,7 +344,6 @@ void RenderFrame::shutdown() {
 #endif
 
     items_.clear();
-    sorted_indices_.clear();
     sprite_data_.clear();
     text_data_.clear();
     ext_data_.clear();
@@ -373,7 +371,6 @@ void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::H
     in_frame_ = true;
 
     items_.clear();
-    sorted_indices_.clear();
     sprite_data_.clear();
     text_data_.clear();
     ext_data_.clear();
@@ -805,14 +802,10 @@ void RenderFrame::submitExternalTriangles(
 
 void RenderFrame::sortAndBucket() {
     u32 n = static_cast<u32>(items_.size());
-    sorted_indices_.resize(n);
-    for (u32 i = 0; i < n; ++i) {
-        sorted_indices_[i] = i;
-    }
 
-    std::sort(sorted_indices_.begin(), sorted_indices_.end(),
-        [this](u32 a, u32 b) {
-            return items_[a].cached_sort_key_ < items_[b].cached_sort_key_;
+    std::sort(items_.begin(), items_.end(),
+        [](const RenderItemBase& a, const RenderItemBase& b) {
+            return a.cached_sort_key_ < b.cached_sort_key_;
         });
 
     for (auto& sb : stage_boundaries_) {
@@ -824,11 +817,11 @@ void RenderFrame::sortAndBucket() {
 
     u32 i = 0;
     while (i < n) {
-        auto stage = items_[sorted_indices_[i]].stage;
+        auto stage = items_[i].stage;
         u32 stageIdx = static_cast<u32>(stage);
         if (stageIdx < STAGE_COUNT) {
             stage_boundaries_[stageIdx].begin = i;
-            while (i < n && items_[sorted_indices_[i]].stage == stage) {
+            while (i < n && items_[i].stage == stage) {
                 ++i;
             }
             stage_boundaries_[stageIdx].end = i;
@@ -846,7 +839,7 @@ void RenderFrame::executeStage(RenderStage stage) {
     if (sb.begin >= sb.end) return;
 
     u32 batchStart = sb.begin;
-    RenderType currentType = items_[sorted_indices_[batchStart]].type;
+    RenderType currentType = items_[batchStart].type;
 
     auto flushBatch = [&](u32 begin, u32 end) {
         switch (currentType) {
@@ -876,10 +869,10 @@ void RenderFrame::executeStage(RenderStage stage) {
     };
 
     for (u32 i = sb.begin; i < sb.end; ++i) {
-        if (items_[sorted_indices_[i]].type != currentType) {
+        if (items_[i].type != currentType) {
             flushBatch(batchStart, i);
             batchStart = i;
-            currentType = items_[sorted_indices_[i]].type;
+            currentType = items_[i].type;
         }
     }
 
@@ -897,7 +890,7 @@ void RenderFrame::renderSprites(u32 begin, u32 end) {
     i32 curStencilRef = -1;
 
     for (u32 i = begin; i < end; ++i) {
-        const auto& base = items_[sorted_indices_[i]];
+        const auto& base = items_[i];
         const auto& sd = sprite_data_[base.data_index];
 
         if (base.scissor_enabled != curScissorOn ||
@@ -1067,7 +1060,7 @@ void RenderFrame::renderSpine(u32 begin, u32 end) {
     static ::spine::SkeletonClipping clipper;
 
     for (u32 idx = begin; idx < end; ++idx) {
-        const auto& base = items_[sorted_indices_[idx]];
+        const auto& base = items_[idx];
         const auto& sd = spine_data_[base.data_index];
         auto* skeleton = static_cast<::spine::Skeleton*>(sd.skeleton);
         if (!skeleton) continue;
@@ -1328,7 +1321,7 @@ void RenderFrame::renderExternalMeshes(u32 begin, u32 end) {
     i32 locTexture = shader->getUniformLocation("u_texture");
 
     for (u32 idx = begin; idx < end; ++idx) {
-        const auto& base = items_[sorted_indices_[idx]];
+        const auto& base = items_[idx];
         const auto& ed = ext_data_[base.data_index];
         if (!ed.ext_vertices || !ed.ext_indices ||
             ed.ext_vertex_count <= 0 || ed.ext_index_count <= 0) {
@@ -1381,7 +1374,7 @@ void RenderFrame::renderExternalMeshes(u32 begin, u32 end) {
 
 void RenderFrame::renderMeshes(u32 begin, u32 end) {
     for (u32 i = begin; i < end; ++i) {
-        const auto& base = items_[sorted_indices_[i]];
+        const auto& base = items_[i];
         const auto& sd = sprite_data_[base.data_index];
         if (!sd.geometry || !sd.shader) continue;
 
@@ -1451,7 +1444,7 @@ void RenderFrame::renderText(u32 begin, u32 end) {
     i32 curStencilRef = -1;
 
     for (u32 i = begin; i < end; ++i) {
-        const auto& base = items_[sorted_indices_[i]];
+        const auto& base = items_[i];
         const auto& td = text_data_[base.data_index];
 
         if (base.scissor_enabled != curScissorOn ||
@@ -1826,7 +1819,7 @@ void RenderFrame::renderParticles(u32 begin, u32 end) {
     ScissorRect curScissorRect{};
 
     u32 batchStart = begin;
-    const auto& firstBase = items_[sorted_indices_[begin]];
+    const auto& firstBase = items_[begin];
     const auto& firstPd = particle_data_[firstBase.data_index];
     u32 batchTexture = firstBase.texture_id;
     BlendMode batchBlend = firstBase.blend_mode;
@@ -1840,7 +1833,7 @@ void RenderFrame::renderParticles(u32 begin, u32 end) {
         particle_instances_.reserve(count);
 
         for (u32 i = bStart; i < bEnd; ++i) {
-            const auto& base = items_[sorted_indices_[i]];
+            const auto& base = items_[i];
             const auto& pd = particle_data_[base.data_index];
 
             ParticleInstanceData inst;
@@ -1914,7 +1907,7 @@ void RenderFrame::renderParticles(u32 begin, u32 end) {
     };
 
     for (u32 i = begin; i < end; ++i) {
-        const auto& base = items_[sorted_indices_[i]];
+        const auto& base = items_[i];
         const auto& pd = particle_data_[base.data_index];
 
         bool scissorChanged = base.scissor_enabled != curScissorOn ||
@@ -1955,7 +1948,7 @@ void RenderFrame::renderParticles(u32 begin, u32 end) {
     batcher_->beginBatch();
 
     for (u32 i = begin; i < end; ++i) {
-        const auto& base = items_[sorted_indices_[i]];
+        const auto& base = items_[i];
         const auto& pd = particle_data_[base.data_index];
 
         glm::vec2 position(base.world_position);

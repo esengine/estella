@@ -130,7 +130,6 @@ private:
     RenderTargetManager target_manager_;
 
     std::vector<RenderItemBase> items_;
-    std::vector<u32> sorted_indices_;
 
     std::vector<SpriteData> sprite_data_;
     std::vector<TextData> text_data_;

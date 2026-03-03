@@ -484,21 +484,32 @@ public:
         usize n = entities.size();
         if (n <= 1) return;
 
-        std::vector<usize> indices(n);
-        for (usize i = 0; i < n; ++i) indices[i] = i;
+        std::vector<usize> perm(n);
+        for (usize i = 0; i < n; ++i) perm[i] = i;
 
-        std::sort(indices.begin(), indices.end(), [&](usize a, usize b) {
+        std::sort(perm.begin(), perm.end(), [&](usize a, usize b) {
             return compare(components[a], components[b]);
         });
 
-        std::vector<Entity> sortedEntities(n);
-        std::vector<T> sortedComponents(n);
         for (usize i = 0; i < n; ++i) {
-            sortedEntities[i] = std::move(entities[indices[i]]);
-            sortedComponents[i] = std::move(components[indices[i]]);
+            if (perm[i] == i) continue;
+
+            usize j = i;
+            Entity tmpEntity = std::move(entities[i]);
+            T tmpComponent = std::move(components[i]);
+
+            while (perm[j] != i) {
+                usize src = perm[j];
+                entities[j] = std::move(entities[src]);
+                components[j] = std::move(components[src]);
+                perm[j] = j;
+                j = src;
+            }
+
+            entities[j] = std::move(tmpEntity);
+            components[j] = std::move(tmpComponent);
+            perm[j] = j;
         }
-        entities = std::move(sortedEntities);
-        components = std::move(sortedComponents);
         pool->rebuildSparse();
     }
 
@@ -606,7 +617,7 @@ private:
     // Data Members
     // =========================================================================
 
-    std::vector<bool> entityValid_;
+    std::vector<u8> entityValid_;
     std::vector<u32> generations_;
     std::vector<u64> component_masks_;
     std::queue<Entity> recycled_;

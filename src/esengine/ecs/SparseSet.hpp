@@ -196,6 +196,18 @@ public:
         return components_[(*pages_[pageIndex])[offset]];
     }
 
+    T& getUnchecked(Entity entity) {
+        const auto pageIndex = entity / SPARSE_PAGE_SIZE;
+        const auto offset = entity % SPARSE_PAGE_SIZE;
+        return components_[(*pages_[pageIndex])[offset]];
+    }
+
+    const T& getUnchecked(Entity entity) const {
+        const auto pageIndex = entity / SPARSE_PAGE_SIZE;
+        const auto offset = entity % SPARSE_PAGE_SIZE;
+        return components_[(*pages_[pageIndex])[offset]];
+    }
+
     /**
      * @brief Tries to get a component (returns nullptr if not found)
      * @param entity The entity
