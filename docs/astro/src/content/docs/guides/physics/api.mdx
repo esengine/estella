@@ -1,0 +1,46 @@
+---
+title: Physics API
+description: Runtime force, velocity, and gravity control
+---
+
+The `Physics` class provides runtime force/velocity control. It is automatically registered as a `PhysicsAPI` resource when the physics plugin loads, so you can access it from any system via `Res(PhysicsAPI)`.
+
+## Accessing the API
+
+```typescript
+import { defineSystem, addSystem, Res } from 'esengine';
+import { PhysicsAPI } from 'esengine/physics';
+
+addSystem(defineSystem(
+    [Res(PhysicsAPI)],
+    (physics) => {
+        physics.applyForce(entity, { x: 0, y: 10 });
+    }
+));
+```
+
+## Methods
+
+| Method | Description |
+|--------|-------------|
+| `applyForce(entity, force)` | Apply a continuous force (Vec2) |
+| `applyImpulse(entity, impulse)` | Apply an instant impulse (Vec2) |
+| `setLinearVelocity(entity, velocity)` | Set linear velocity directly |
+| `getLinearVelocity(entity)` | Get current linear velocity (Vec2) |
+| `setAngularVelocity(entity, omega)` | Set angular velocity (number) |
+| `getAngularVelocity(entity)` | Get current angular velocity |
+| `applyTorque(entity, torque)` | Apply rotational torque |
+| `applyAngularImpulse(entity, impulse)` | Apply instant angular impulse |
+| `setGravity(gravity)` | Change world gravity at runtime |
+| `getGravity()` | Get current world gravity (Vec2) |
+
+## Force vs Impulse
+
+- **Force** is applied continuously each frame. The effect depends on the body's mass and is integrated over the physics timestep. Use for sustained push (e.g., rocket thrust, wind).
+- **Impulse** is applied instantly. It directly changes velocity, independent of frame rate. Use for one-time events (e.g., jump, explosion knockback).
+
+## See Also
+
+- [Physics Overview](./index.mdx) — setup, PPU, and body types
+- [RigidBody](./rigidbody/) — body properties
+- [Events](./events/) — collision and sensor events

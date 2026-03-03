@@ -1,0 +1,57 @@
+---
+title: RigidBody
+description: RigidBody component properties for physics entities
+---
+
+Every physics entity needs a `RigidBody` component. It defines the body type and physical properties.
+
+## Properties
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `bodyType` | number | `2` (Dynamic) | 0=Static, 1=Kinematic, 2=Dynamic |
+| `gravityScale` | number | `1.0` | Gravity multiplier |
+| `linearDamping` | number | `0.0` | Linear velocity damping |
+| `angularDamping` | number | `0.0` | Angular velocity damping |
+| `fixedRotation` | boolean | `false` | Lock rotation |
+| `bullet` | boolean | `false` | CCD for fast objects |
+| `enabled` | boolean | `true` | Enable physics body |
+
+## Body Types
+
+### Static (0)
+
+Does not move. Used for walls, floors, and platforms. Static bodies have infinite mass and do not respond to forces.
+
+```typescript
+rigidBody.bodyType = 0;
+```
+
+### Kinematic (1)
+
+Moved by code (transform), not by physics forces. Other bodies collide with it but don't push it. Used for moving platforms and elevators.
+
+```typescript
+rigidBody.bodyType = 1;
+```
+
+### Dynamic (2)
+
+Fully simulated. Responds to gravity, forces, and collisions. Used for players, projectiles, and physics objects.
+
+```typescript
+rigidBody.bodyType = 2;
+```
+
+## Usage Notes
+
+- `gravityScale` allows per-body gravity adjustment. Set to `0` for zero-gravity objects, negative values for reverse gravity.
+- `fixedRotation` is useful for character controllers that should not rotate on collision.
+- `bullet` enables continuous collision detection (CCD), which prevents fast-moving objects from tunneling through thin colliders. Use sparingly as it has a performance cost.
+- `linearDamping` and `angularDamping` simulate air resistance. Higher values slow the body faster.
+
+## See Also
+
+- [Physics Overview](./index.mdx) — setup and coordinate conversion
+- [Colliders](./colliders/) — attaching collider shapes to rigid bodies
+- [API](./api/) — runtime force and velocity control

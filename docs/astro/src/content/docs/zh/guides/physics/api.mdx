@@ -1,0 +1,46 @@
+---
+title: 物理 API
+description: 运行时力、速度与重力控制
+---
+
+`Physics` 类提供运行时力/速度控制。物理插件加载完成后会自动注册 `PhysicsAPI` 资源，可在任何系统中通过 `Res(PhysicsAPI)` 访问。
+
+## 访问 API
+
+```typescript
+import { defineSystem, addSystem, Res } from 'esengine';
+import { PhysicsAPI } from 'esengine/physics';
+
+addSystem(defineSystem(
+    [Res(PhysicsAPI)],
+    (physics) => {
+        physics.applyForce(entity, { x: 0, y: 10 });
+    }
+));
+```
+
+## 方法
+
+| 方法 | 说明 |
+|------|------|
+| `applyForce(entity, force)` | 施加持续力（Vec2） |
+| `applyImpulse(entity, impulse)` | 施加瞬时冲量（Vec2） |
+| `setLinearVelocity(entity, velocity)` | 直接设置线速度 |
+| `getLinearVelocity(entity)` | 获取当前线速度（Vec2） |
+| `setAngularVelocity(entity, omega)` | 设置角速度（number） |
+| `getAngularVelocity(entity)` | 获取当前角速度 |
+| `applyTorque(entity, torque)` | 施加旋转扭矩 |
+| `applyAngularImpulse(entity, impulse)` | 施加瞬时角冲量 |
+| `setGravity(gravity)` | 运行时修改世界重力 |
+| `getGravity()` | 获取当前世界重力（Vec2） |
+
+## 力 vs 冲量
+
+- **力**每帧持续施加。效果取决于刚体质量，在物理时间步中积分。适用于持续推力（如火箭推进、风力）。
+- **冲量**瞬间施加。直接改变速度，与帧率无关。适用于一次性事件（如跳跃、爆炸击退）。
+
+## 参见
+
+- [物理概述](./index.mdx) — 设置、PPU 与刚体类型
+- [刚体](./rigidbody/) — 刚体属性
+- [碰撞事件](./events/) — 碰撞与传感器事件

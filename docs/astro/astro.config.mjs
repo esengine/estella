@@ -94,7 +94,21 @@ export default defineConfig({
                 { label: 'Masking & SafeArea', translations: { 'zh-CN': '遮罩与安全区' }, slug: 'guides/ui-masking' },
               ],
             },
-            { label: 'Physics', translations: { 'zh-CN': '物理' }, slug: 'guides/physics' },
+            {
+              label: 'Physics',
+              translations: { 'zh-CN': '物理' },
+              items: [
+                { label: 'Overview', translations: { 'zh-CN': '概述' }, slug: 'guides/physics' },
+                { label: 'RigidBody', translations: { 'zh-CN': '刚体' }, slug: 'guides/physics/rigidbody' },
+                { label: 'Colliders', translations: { 'zh-CN': '碰撞器' }, slug: 'guides/physics/colliders' },
+                { label: 'Segment Collider', translations: { 'zh-CN': '线段碰撞器' }, slug: 'guides/physics/segment-collider' },
+                { label: 'Polygon Collider', translations: { 'zh-CN': '多边形碰撞器' }, slug: 'guides/physics/polygon-collider' },
+                { label: 'Chain Collider', translations: { 'zh-CN': '链条碰撞器' }, slug: 'guides/physics/chain-collider' },
+                { label: 'Events', translations: { 'zh-CN': '碰撞事件' }, slug: 'guides/physics/events' },
+                { label: 'API', translations: { 'zh-CN': '物理 API' }, slug: 'guides/physics/api' },
+                { label: 'Debug Draw', translations: { 'zh-CN': '调试绘制' }, slug: 'guides/physics/debug-draw' },
+              ],
+            },
             { label: 'Audio', translations: { 'zh-CN': '音频' }, slug: 'guides/audio' },
             { label: 'Tilemap', translations: { 'zh-CN': '瓦片地图' }, slug: 'guides/tilemap' },
             {

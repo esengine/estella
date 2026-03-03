@@ -1,0 +1,96 @@
+---
+title: Physics
+description: 2D physics simulation with Box2D in ESEngine
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The physics system provides 2D rigid body simulation powered by a standalone Box2D WASM module. The editor and build pipeline handle loading automatically — you only need to enable it in settings and add components to entities.
+
+## Setup
+
+Enable physics in the editor: **Settings → Physics → Enable Physics**.
+
+Configure the simulation parameters in the same panel:
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| Gravity X | `0` | Horizontal gravity |
+| Gravity Y | `-9.81` | Vertical gravity (negative = downward) |
+| Fixed Timestep | `1/60` | Physics step interval in seconds |
+| Sub-Step Count | `4` | Sub-steps per physics step for accuracy |
+| Contact Hertz | `120` | Contact stiffness (cycles/sec). Higher = less overlap but more jitter |
+| Contact Damping Ratio | `10` | Contact bounciness damping. Lower = faster overlap recovery but more energetic |
+| Contact Speed | `10` | Max overlap resolution speed (m/s) |
+
+<Aside type="note">
+  The physics WASM module is loaded automatically by the editor preview and build pipeline. No manual plugin initialization is needed in your game scripts.
+</Aside>
+
+### Coordinate Conversion (PPU)
+
+Collider dimensions (`halfExtents`, `radius`, `halfHeight`) are specified in **physics units (meters)**. The Canvas component's `pixelsPerUnit` (default `100`) determines the conversion ratio between pixel coordinates and physics coordinates.
+
+Position conversion is handled automatically — entity positions (in pixels) are divided by PPU when sent to Box2D, and multiplied by PPU when read back. Physics API values (`force`, `velocity`, `impulse`, `gravity`) also operate in physics units. You do not need to perform any manual conversion.
+
+## Body Types
+
+### Static (0)
+
+Does not move. Used for walls, floors, and platforms.
+
+```typescript
+rigidBody.bodyType = 0;
+```
+
+### Kinematic (1)
+
+Moved by code (transform), not by physics forces. Other bodies collide with it but don't push it. Used for moving platforms and elevators.
+
+```typescript
+rigidBody.bodyType = 1;
+```
+
+### Dynamic (2)
+
+Fully simulated. Responds to gravity, forces, and collisions. Used for players, projectiles, and physics objects.
+
+```typescript
+rigidBody.bodyType = 2;
+```
+
+## Components
+
+Add physics components to entities in the scene editor alongside `Transform`. Every physics entity needs a [RigidBody](./rigidbody/) and at least one [collider](./colliders/).
+
+## Example: Simple Platformer
+
+Set up a ground, player, and coin sensor in the editor, then handle events in code:
+
+```typescript
+import { defineSystem, addSystem, Res, Input, Query, Mut, Transform } from 'esengine';
+import { RigidBody, PhysicsEvents } from 'esengine/physics';
+import { Player, Coin } from './components';
+
+addSystem(defineSystem(
+    [Res(PhysicsEvents)],
+    (events) => {
+        for (const e of events.sensorEnters) {
+            // Coin collected
+        }
+    }
+));
+```
+
+**Editor setup:**
+- **Ground**: `Transform` + `RigidBody` (bodyType=0 Static) + `BoxCollider` (halfExtents=`{x:10, y:0.5}`) + `Sprite`
+- **Player**: `Transform` + `RigidBody` (bodyType=2 Dynamic, fixedRotation=true) + `BoxCollider` + `Sprite` + `Player` tag
+- **Coin**: `Transform` + `RigidBody` (bodyType=0 Static) + `CircleCollider` (isSensor=true) + `Sprite` + `Coin` tag
+
+## Next Steps
+
+- [RigidBody](./rigidbody/) — rigid body properties
+- [Colliders](./colliders/) — collider shapes overview
+- [Events](./events/) — collision and sensor events
+- [API](./api/) — runtime force and velocity control
+- [Debug Draw](./debug-draw/) — debug visualization
