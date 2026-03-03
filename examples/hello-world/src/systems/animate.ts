@@ -5,7 +5,7 @@ import {
 import { Rotator } from '../components';
 
 export const rotateSystem = defineSystem(
-    [Query([Mut(Transform), Rotator]), Res(Time)],
+    [Query(Mut(Transform), Rotator), Res(Time)],
     (query, time) => {
         for (const [_entity, transform, rotator] of query) {
             const angle = rotator.speed * time.elapsed * (Math.PI / 180);
@@ -21,7 +21,7 @@ export const rotateSystem = defineSystem(
 );
 
 export const colorPulseSystem = defineSystem(
-    [Query([Mut(Sprite), Rotator]), Res(Time)],
+    [Query(Mut(Sprite), Rotator), Res(Time)],
     (query, time) => {
         for (const [_entity, sprite, rotator] of query) {
             const pulse = 0.7 + 0.3 * Math.sin(time.elapsed * rotator.bobSpeed * 1.5);

@@ -18,7 +18,7 @@ const X_TO = 250;
 const DURATION = 2;
 
 export const setupSystem = defineSystem(
-    [Query([Transform, EasingDemo]), Query([Transform, ScaleDemo]), Query([Transform, RotationDemo]), Query([Transform, ColorDemo])],
+    [Query(Transform, EasingDemo), Query(Transform, ScaleDemo), Query(Transform, RotationDemo), Query(Transform, ColorDemo)],
     (easings, scales, rotations, colors) => {
         for (const [entity, _t, demo] of easings) {
             Tween.to(entity, TweenTarget.PositionX, X_FROM, X_TO, DURATION, {

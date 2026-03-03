@@ -7,7 +7,7 @@ const HALF_WIDTH = 400;
 const HALF_HEIGHT = 300;
 
 export const bounceSystem = defineSystem(
-    [Query([Transform, Mut(Mover), Bouncer])],
+    [Query(Transform, Mut(Mover), Bouncer)],
     (query) => {
         for (const [_entity, transform, mover] of query) {
             if (transform.position.x > HALF_WIDTH || transform.position.x < -HALF_WIDTH) {

@@ -5,7 +5,7 @@ import {
 import { Trail } from '../components';
 
 export const trailSystem = defineSystem(
-    [Query([Mut(Transform), Mut(Sprite), Mut(Trail)]), Res(Time), Commands()],
+    [Query(Mut(Transform), Mut(Sprite), Mut(Trail)), Res(Time), Commands()],
     (query, time, cmds) => {
         for (const [entity, transform, sprite, trail] of query) {
             trail.lifetime -= time.delta;

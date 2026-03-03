@@ -13,7 +13,7 @@ const SFX_URLS = [
 let triggerIndex = 0;
 
 export const sfxTriggerSystem = defineSystem(
-    [Query([Mut(SFXTrigger)]), Res(Time), Res(Input)],
+    [Query(Mut(SFXTrigger)), Res(Time), Res(Input)],
     (query, time, input) => {
         triggerIndex = 0;
         for (const [_entity, trigger] of query) {

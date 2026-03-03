@@ -4,7 +4,7 @@ import {
 import { ProgressAnimator } from '../components';
 
 export const progressAnimateSystem = defineSystem(
-    [Query([Mut(ProgressBar), Mut(ProgressAnimator)]), Res(Time)],
+    [Query(Mut(ProgressBar), Mut(ProgressAnimator)), Res(Time)],
     (query, time) => {
         for (const [_entity, bar, animator] of query) {
             bar.value += animator.speed * animator.direction * time.delta;

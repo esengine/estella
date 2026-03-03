@@ -8,7 +8,7 @@ const PLAYER_HALF_W = 16;
 const PLAYER_HALF_H = 24;
 
 export const playerSystem = defineSystem(
-    [Query([Mut(Transform), Mut(Player)]), Query([Transform, Platform]), Res(Time), Res(Input)],
+    [Query(Mut(Transform), Mut(Player)), Query(Transform, Platform), Res(Time), Res(Input)],
     (players, platforms, time, input) => {
         for (const [_entity, transform, player] of players) {
             let moveX = 0;

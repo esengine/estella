@@ -7,7 +7,7 @@ import { MouseFollower, Trail } from '../components';
 const FOLLOW_SPEED = 8;
 
 export const mouseFollowSystem = defineSystem(
-    [Query([Mut(Transform), MouseFollower]), Res(Input)],
+    [Query(Mut(Transform), MouseFollower), Res(Input)],
     (query, input) => {
         const mouse = input.getMousePosition();
         const worldX = mouse.x;

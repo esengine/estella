@@ -9,9 +9,9 @@ const BOB_AMOUNT = 6;
 
 export const coinSystem = defineSystem(
     [
-        Query([Mut(Transform), Mut(Coin)]),
-        Query([Transform, Player]),
-        Query([Mut(ScoreDisplay)]),
+        Query(Mut(Transform), Mut(Coin)),
+        Query(Transform, Player),
+        Query(Mut(ScoreDisplay)),
         Res(Time),
         Commands(),
     ],
