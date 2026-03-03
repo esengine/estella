@@ -129,6 +129,7 @@ export class RenderPipeline {
             PostProcess._applyForCamera(cameraEntity!);
             PostProcess.resize(vp.w, vp.h);
             PostProcess.setOutputViewport(vp.x, vp.y, vp.w, vp.h);
+            PostProcess.begin();
         }
 
         Renderer.setViewport(vp.x, vp.y, vp.w, vp.h);
@@ -158,6 +159,7 @@ export class RenderPipeline {
         Renderer.end();
 
         if (hasPostProcess) {
+            PostProcess.end();
             PostProcess._resetAfterCamera();
         }
     }

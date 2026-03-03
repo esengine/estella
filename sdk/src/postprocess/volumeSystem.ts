@@ -2,11 +2,11 @@ import { defineSystem } from '../system';
 import { defineResource } from '../resource';
 import { Query } from '../query';
 import type { Entity } from '../types';
-import { PostProcessVolume, Transform, type PostProcessVolumeData, type TransformData } from '../component';
+import { PostProcessVolume, Transform, Camera, type PostProcessVolumeData, type TransformData, type CameraData } from '../component';
 import { PostProcess } from './PostProcessAPI';
 import { PostProcessStack } from './PostProcessStack';
 import { getEffectDef } from './effects';
-import { computeVolumeFactor, blendVolumeEffects, type ActiveVolume } from './volumeBlending';
+import { blendVolumeEffects, type ActiveVolume } from './volumeBlending';
 import type { ShaderHandle } from '../material';
 import { Material } from '../material';
 
@@ -22,15 +22,12 @@ export const PostProcessVolumeConfigResource = defineResource<PostProcessVolumeC
 const volumeStacks = new Map<Entity, PostProcessStack>();
 const volumeShaders = new Map<string, ShaderHandle>();
 
-function getOrCreateShader(effectType: string): ShaderHandle | null {
-    const existing = volumeShaders.get(effectType);
+function getOrCreateShader(key: string, factory: () => ShaderHandle): ShaderHandle {
+    const existing = volumeShaders.get(key);
     if (existing !== undefined) return existing;
 
-    const def = getEffectDef(effectType);
-    if (!def) return null;
-
-    const shader = def.factory();
-    volumeShaders.set(effectType, shader);
+    const shader = factory();
+    volumeShaders.set(key, shader);
     return shader;
 }
 
@@ -51,21 +48,28 @@ function applyBlendedEffects(camera: Entity, effects: Map<string, { enabled: boo
         volumeStacks.set(camera, stack);
     }
 
-    while (stack.passCount > 0) {
-        const passes = stack.passes;
-        stack.removePass(passes[passes.length - 1].name);
-    }
+    stack.clearPasses();
 
     for (const [effectType, effectData] of effects) {
         if (!effectData.enabled) continue;
 
-        const shader = getOrCreateShader(effectType);
-        if (shader === null) continue;
+        const def = getEffectDef(effectType);
+        if (!def) continue;
 
-        stack.addPass(effectType, shader);
-
-        for (const [uniformName, uniformValue] of effectData.uniforms) {
-            stack.setUniform(effectType, uniformName, uniformValue);
+        if (def.multiPass) {
+            for (const subPass of def.multiPass) {
+                const shader = getOrCreateShader(subPass.name, subPass.factory);
+                stack.addPass(subPass.name, shader);
+                for (const [uniformName, uniformValue] of effectData.uniforms) {
+                    stack.setUniform(subPass.name, uniformName, uniformValue);
+                }
+            }
+        } else {
+            const shader = getOrCreateShader(effectType, def.factory);
+            stack.addPass(effectType, shader);
+            for (const [uniformName, uniformValue] of effectData.uniforms) {
+                stack.setUniform(effectType, uniformName, uniformValue);
+            }
         }
     }
 
@@ -77,26 +81,27 @@ function applyBlendedEffects(camera: Entity, effects: Map<string, { enabled: boo
 }
 
 export const postProcessVolumeSystem = defineSystem(
-    [Query(PostProcessVolume, Transform)],
-    (query: Iterable<[Entity, PostProcessVolumeData, TransformData]>) => {
+    [Query(PostProcessVolume, Transform), Query(Camera)],
+    (volumeQuery: Iterable<[Entity, PostProcessVolumeData, TransformData]>, cameraQuery: Iterable<[Entity, CameraData]>) => {
         const volumes: { data: PostProcessVolumeData; tx: { x: number; y: number } }[] = [];
-        for (const [_entity, volumeData, transform] of query) {
+        for (const [_entity, volumeData, transform] of volumeQuery) {
             volumes.push({ data: volumeData, tx: { x: transform.position.x, y: transform.position.y } });
         }
 
-        if (volumes.length === 0) return;
-
         const activeVolumes: ActiveVolume[] = [];
-        for (const { data, tx } of volumes) {
+        for (const { data } of volumes) {
             if (data.isGlobal) {
                 activeVolumes.push({ data, factor: 1 });
             }
         }
 
-        if (activeVolumes.length > 0) {
-            const blended = blendVolumeEffects(activeVolumes);
-            for (const [camera] of volumeStacks) {
-                applyBlendedEffects(camera, blended);
+        const blended = activeVolumes.length > 0
+            ? blendVolumeEffects(activeVolumes)
+            : new Map<string, { enabled: boolean; uniforms: Map<string, number> }>();
+
+        for (const [cameraEntity, cameraData] of cameraQuery) {
+            if (cameraData.isActive) {
+                applyBlendedEffects(cameraEntity, blended);
             }
         }
     },

@@ -21,7 +21,6 @@ export {
     DEFAULT_GRAVITY,
     DEFAULT_FIXED_TIMESTEP,
     DEFAULT_SPINE_SKIN,
-    RuntimeConfig,
     applyRuntimeConfig,
 } from './defaults';
 
@@ -780,6 +779,7 @@ export {
 } from './playableRuntime';
 
 export {
+    RuntimeConfig,
     applyBuildRuntimeConfig,
     type RuntimeBuildConfig,
 } from './defaults';

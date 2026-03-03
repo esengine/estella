@@ -131,6 +131,22 @@ export const PostProcess = {
         }
     },
 
+    begin(): void {
+        try {
+            getModule().postprocess_begin();
+        } catch (e) {
+            handleWasmError(e, 'PostProcess.begin');
+        }
+    },
+
+    end(): void {
+        try {
+            getModule().postprocess_end();
+        } catch (e) {
+            handleWasmError(e, 'PostProcess.end');
+        }
+    },
+
     setOutputViewport(x: number, y: number, w: number, h: number): void {
         try {
             getModule().postprocess_setOutputViewport(x, y, w, h);
@@ -285,8 +301,8 @@ void main() {
     vec4 color = texture(u_texture, v_texCoord);
     vec2 uv = v_texCoord * 2.0 - 1.0;
     float dist = length(uv);
-    float vignette = smoothstep(u_intensity, u_intensity - u_softness, dist);
-    fragColor = vec4(color.rgb * vignette, color.a);
+    float vig = 1.0 - smoothstep(1.0 - u_softness, 1.0, dist);
+    fragColor = vec4(color.rgb * mix(1.0, vig, u_intensity), color.a);
 }
 `;
         return Material.createShader(POSTPROCESS_VERTEX, fragmentSrc);
@@ -310,37 +326,68 @@ void main() {
         return Material.createShader(POSTPROCESS_VERTEX, fragmentSrc);
     },
 
-    createBloom(): ShaderHandle {
+    createBloomExtract(): ShaderHandle {
+        const fragmentSrc = `#version 300 es
+precision highp float;
+
+in vec2 v_texCoord;
+uniform sampler2D u_texture;
+uniform float u_threshold;
+out vec4 fragColor;
+
+void main() {
+    vec4 color = texture(u_texture, v_texCoord);
+    float brightness = dot(color.rgb, vec3(0.2126, 0.7152, 0.0722));
+    float knee = u_threshold * 0.5;
+    float soft = brightness - u_threshold + knee;
+    soft = clamp(soft, 0.0, 2.0 * knee);
+    soft = soft * soft / (4.0 * knee + 0.00001);
+    float contrib = max(soft, brightness - u_threshold);
+    contrib /= max(brightness, 0.00001);
+    fragColor = vec4(color.rgb * contrib, 1.0);
+}
+`;
+        return Material.createShader(POSTPROCESS_VERTEX, fragmentSrc);
+    },
+
+    createBloomKawase(iteration: number): ShaderHandle {
         const fragmentSrc = `#version 300 es
 precision highp float;
 
 in vec2 v_texCoord;
 uniform sampler2D u_texture;
 uniform vec2 u_resolution;
-uniform float u_threshold;
-uniform float u_intensity;
 uniform float u_radius;
 out vec4 fragColor;
 
 void main() {
-    vec4 color = texture(u_texture, v_texCoord);
-    vec2 texelSize = 1.0 / u_resolution;
+    float d = (${iteration.toFixed(1)} + 0.5) * max(u_radius, 0.5);
+    vec2 ts = 1.0 / u_resolution;
+    fragColor = (
+        texture(u_texture, v_texCoord + vec2(-d, -d) * ts) +
+        texture(u_texture, v_texCoord + vec2( d, -d) * ts) +
+        texture(u_texture, v_texCoord + vec2(-d,  d) * ts) +
+        texture(u_texture, v_texCoord + vec2( d,  d) * ts)
+    ) * 0.25;
+}
+`;
+        return Material.createShader(POSTPROCESS_VERTEX, fragmentSrc);
+    },
 
-    vec3 bloom = vec3(0.0);
-    float total = 0.0;
-    for (float x = -3.0; x <= 3.0; x += 1.0) {
-        for (float y = -3.0; y <= 3.0; y += 1.0) {
-            vec2 offset = vec2(x, y) * texelSize * u_radius;
-            vec4 s = texture(u_texture, v_texCoord + offset);
-            float brightness = dot(s.rgb, vec3(0.2126, 0.7152, 0.0722));
-            float w = max(brightness - u_threshold, 0.0);
-            bloom += s.rgb * w;
-            total += w;
-        }
-    }
-    if (total > 0.0) bloom /= total;
+    createBloomComposite(): ShaderHandle {
+        const fragmentSrc = `#version 300 es
+precision highp float;
 
-    fragColor = vec4(color.rgb + bloom * u_intensity, color.a);
+in vec2 v_texCoord;
+uniform sampler2D u_texture;
+uniform sampler2D u_sceneTexture;
+uniform float u_intensity;
+out vec4 fragColor;
+
+void main() {
+    vec4 blur = texture(u_texture, v_texCoord);
+    vec4 scene = texture(u_sceneTexture, v_texCoord);
+    fragColor = vec4(scene.rgb + blur.rgb * u_intensity, scene.a);
 }
 `;
         return Material.createShader(POSTPROCESS_VERTEX, fragmentSrc);
