@@ -6,7 +6,7 @@ import { Visualizer } from '../components';
 let barIndex = 0;
 
 export const visualizerSystem = defineSystem(
-    [Query([Mut(UIRect), Visualizer]), Res(Time)],
+    [Query(Mut(UIRect), Visualizer), Res(Time)],
     (query, time) => {
         barIndex = 0;
         for (const [_entity, rect] of query) {

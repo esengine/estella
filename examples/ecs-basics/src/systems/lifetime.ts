@@ -4,7 +4,7 @@ import {
 import { Lifetime } from '../components';
 
 export const lifetimeSystem = defineSystem(
-    [Query([Mut(Lifetime), Mut(Sprite)]), Res(Time), Commands()],
+    [Query(Mut(Lifetime), Mut(Sprite)), Res(Time), Commands()],
     (query, time, cmds) => {
         for (const [entity, lifetime, sprite] of query) {
             lifetime.remaining -= time.delta;

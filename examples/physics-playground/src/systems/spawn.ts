@@ -1,6 +1,7 @@
 import {
     defineSystem, Query, Mut, Res, Time, Commands,
     Transform, Sprite, RigidBody, BoxCollider, CircleCollider, BodyType,
+    INVALID_TEXTURE,
 } from 'esengine';
 import { SpawnTimer } from '../components';
 
@@ -11,7 +12,7 @@ const PPU = 100;
 let bodyCount = 0;
 
 export const spawnSystem = defineSystem(
-    [Query([Mut(SpawnTimer)]), Res(Time), Commands()],
+    [Query(Mut(SpawnTimer)), Res(Time), Commands()],
     (query, time, cmds) => {
         for (const [_entity, timer] of query) {
             timer.timer += time.delta;
@@ -30,7 +31,7 @@ export const spawnSystem = defineSystem(
                     .insert(Sprite, {
                         size: { x: radius * 2, y: radius * 2 },
                         color: { r: rgb.r, g: rgb.g, b: rgb.b, a: 1 },
-                        texture: '0477f2e4-d640-4a8e-b696-36f52b7583df',
+                        texture: INVALID_TEXTURE,
                     })
                     .insert(RigidBody, {
                         bodyType: BodyType.Dynamic,
@@ -48,7 +49,7 @@ export const spawnSystem = defineSystem(
                     .insert(Sprite, {
                         size: { x: w, y: h },
                         color: { r: rgb.r, g: rgb.g, b: rgb.b, a: 1 },
-                        texture: '88be0710-ab45-4377-ac76-166aecfbd56f',
+                        texture: INVALID_TEXTURE,
                     })
                     .insert(RigidBody, {
                         bodyType: BodyType.Dynamic,

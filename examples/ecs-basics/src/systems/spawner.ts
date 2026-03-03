@@ -8,7 +8,7 @@ const MAX_ENTITIES = 60;
 let entityCount = 0;
 
 export const spawnerSystem = defineSystem(
-    [Query([Mut(Spawner), Transform]), Res(Time), Commands()],
+    [Query(Mut(Spawner), Transform), Res(Time), Commands()],
     (query, time, cmds) => {
         for (const [_entity, spawner, transform] of query) {
             spawner.timer += time.delta;

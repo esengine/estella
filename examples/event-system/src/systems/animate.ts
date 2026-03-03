@@ -5,7 +5,7 @@ import {
 import { Collectible } from '../components';
 
 export const animateSystem = defineSystem(
-    [Query([Mut(Transform), Mut(Sprite), Collectible]), Res(Time)],
+    [Query(Mut(Transform), Mut(Sprite), Collectible), Res(Time)],
     (query, time) => {
         for (const [_entity, transform, sprite, collectible] of query) {
             const scale = 1 + 0.2 * Math.sin(time.elapsed * collectible.pulseSpeed);

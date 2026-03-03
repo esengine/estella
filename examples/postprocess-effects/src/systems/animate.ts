@@ -4,7 +4,7 @@ import {
 import { Orbit } from '../components';
 
 export const animateSystem = defineSystem(
-    [Query([Mut(Transform), Mut(Orbit)]), Res(Time)],
+    [Query(Mut(Transform), Mut(Orbit)), Res(Time)],
     (query, time) => {
         for (const [_entity, transform, orbit] of query) {
             orbit.angle += orbit.speed * time.delta;

@@ -22,7 +22,7 @@ const LAYERS = [
 let bodyCount = 0;
 
 export const spawnSystem = defineSystem(
-    [Query([Mut(SpawnTimer)]), Res(Time), Commands()],
+    [Query(Mut(SpawnTimer)), Res(Time), Commands()],
     (query, time, cmds) => {
         for (const [_entity, timer] of query) {
             timer.timer += time.delta;

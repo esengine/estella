@@ -4,7 +4,7 @@ import {
 import { AnimSwitcher } from '../components';
 
 export const switchSystem = defineSystem(
-    [Query([Mut(SpriteAnimator), Mut(AnimSwitcher)]), Res(Time)],
+    [Query(Mut(SpriteAnimator), Mut(AnimSwitcher)), Res(Time)],
     (query, time) => {
         for (const [_entity, animator, switcher] of query) {
             switcher.switchTimer -= time.delta;
