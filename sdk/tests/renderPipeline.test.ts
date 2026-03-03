@@ -27,6 +27,8 @@ vi.mock('../src/postprocess', () => ({
         setOutputViewport: vi.fn(),
         _applyForCamera: vi.fn(),
         _resetAfterCamera: vi.fn(),
+        begin: vi.fn(),
+        end: vi.fn(),
         screenStack: null,
         isInitialized: vi.fn().mockReturnValue(false),
         init: vi.fn().mockReturnValue(true),

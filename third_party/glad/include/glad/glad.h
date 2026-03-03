@@ -269,6 +269,7 @@ typedef void (APIENTRYP PFNGLDEPTHFUNCPROC)(GLenum func);
 typedef void (APIENTRYP PFNGLCULLFACEPROC)(GLenum mode);
 typedef void (APIENTRYP PFNGLFRONTFACEPROC)(GLenum mode);
 typedef void (APIENTRYP PFNGLDEPTHMASKPROC)(GLboolean flag);
+typedef void (APIENTRYP PFNGLCOLORMASKPROC)(GLboolean red, GLboolean green, GLboolean blue, GLboolean alpha);
 typedef void (APIENTRYP PFNGLPOLYGONMODEPROC)(GLenum face, GLenum mode);
 typedef const GLubyte* (APIENTRYP PFNGLGETSTRINGPROC)(GLenum name);
 typedef GLenum (APIENTRYP PFNGLGETERRORPROC)(void);
@@ -370,6 +371,7 @@ GLAPI PFNGLDEPTHFUNCPROC glad_glDepthFunc;
 GLAPI PFNGLCULLFACEPROC glad_glCullFace;
 GLAPI PFNGLFRONTFACEPROC glad_glFrontFace;
 GLAPI PFNGLDEPTHMASKPROC glad_glDepthMask;
+GLAPI PFNGLCOLORMASKPROC glad_glColorMask;
 GLAPI PFNGLPOLYGONMODEPROC glad_glPolygonMode;
 GLAPI PFNGLGETSTRINGPROC glad_glGetString;
 GLAPI PFNGLGETERRORPROC glad_glGetError;
@@ -470,6 +472,7 @@ GLAPI PFNGLBLITFRAMEBUFFERPROC glad_glBlitFramebuffer;
 #define glCullFace glad_glCullFace
 #define glFrontFace glad_glFrontFace
 #define glDepthMask glad_glDepthMask
+#define glColorMask glad_glColorMask
 #define glPolygonMode glad_glPolygonMode
 #define glGetString glad_glGetString
 #define glGetError glad_glGetError

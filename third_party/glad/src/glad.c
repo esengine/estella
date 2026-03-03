@@ -35,6 +35,7 @@ PFNGLDEPTHFUNCPROC glad_glDepthFunc = NULL;
 PFNGLCULLFACEPROC glad_glCullFace = NULL;
 PFNGLFRONTFACEPROC glad_glFrontFace = NULL;
 PFNGLDEPTHMASKPROC glad_glDepthMask = NULL;
+PFNGLCOLORMASKPROC glad_glColorMask = NULL;
 PFNGLPOLYGONMODEPROC glad_glPolygonMode = NULL;
 PFNGLGETSTRINGPROC glad_glGetString = NULL;
 PFNGLGETERRORPROC glad_glGetError = NULL;
@@ -145,6 +146,7 @@ int gladLoadGLLoader(GLADloadproc load) {
     glad_glCullFace = (PFNGLCULLFACEPROC)load("glCullFace");
     glad_glFrontFace = (PFNGLFRONTFACEPROC)load("glFrontFace");
     glad_glDepthMask = (PFNGLDEPTHMASKPROC)load("glDepthMask");
+    glad_glColorMask = (PFNGLCOLORMASKPROC)load("glColorMask");
     glad_glPolygonMode = (PFNGLPOLYGONMODEPROC)load("glPolygonMode");
     glad_glGetString = (PFNGLGETSTRINGPROC)load("glGetString");
     glad_glGetError = (PFNGLGETERRORPROC)load("glGetError");
