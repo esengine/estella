@@ -128,9 +128,14 @@ bool Framebuffer::initialize() {
                               GL_TEXTURE_2D, depthAttachment_, 0);
     }
 
+    GLenum err = glGetError();
+    if (err != GL_NO_ERROR) {
+        ES_LOG_ERROR("Framebuffer GL error before completeness check: 0x{:X} (size: {}x{})", err, spec_.width, spec_.height);
+    }
+
     GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
     if (status != GL_FRAMEBUFFER_COMPLETE) {
-        ES_LOG_ERROR("Framebuffer is incomplete! Status: 0x{:X}", status);
+        ES_LOG_ERROR("Framebuffer is incomplete! Status: 0x{:X} (size: {}x{})", status, spec_.width, spec_.height);
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
         cleanup();
         return false;

@@ -140,7 +140,7 @@ private:
     EMSCRIPTEN_WEBGL_CONTEXT_HANDLE webglContext_ = 0;
     bool initialized_ = false;
     bool immediateDrawActive_ = false;
-    bool glErrorCheckEnabled_ = false;
+    bool glErrorCheckEnabled_ = true;
     u32 viewportWidth_ = 1280;
     u32 viewportHeight_ = 720;
     glm::vec4 clearColor_{0.0f, 0.0f, 0.0f, 1.0f};

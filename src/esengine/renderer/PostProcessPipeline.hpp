@@ -14,7 +14,6 @@
 #include "../resource/Handle.hpp"
 #include "../math/Math.hpp"
 #include "Framebuffer.hpp"
-#include "Buffer.hpp"
 
 #include <glm/glm.hpp>
 #include <string>
@@ -218,6 +217,8 @@ public:
 private:
     PostProcessPass* findPass(const std::string& name);
     void ensureFBOs();
+    void ensureScreenQuad();
+    void drawScreenQuad();
     void renderPass(const PostProcessPass& pass, u32 inputTexture);
     void blitToOutput(u32 texture);
 
@@ -226,7 +227,9 @@ private:
 
     Unique<Framebuffer> fboA_;
     Unique<Framebuffer> fboB_;
-    Unique<VertexArray> screenQuadVAO_;
+    Unique<Framebuffer> fboOriginal_;
+    u32 screen_quad_vao_ = 0;
+    u32 screen_quad_vbo_ = 0;
     resource::ShaderHandle blitShader_;
 
     std::vector<PostProcessPass> passes_;
@@ -234,9 +237,11 @@ private:
     u32 height_ = 0;
     bool initialized_ = false;
     bool fbosCreated_ = false;
+    bool fboOriginalCreated_ = false;
     bool inFrame_ = false;
     bool bypass_ = false;
     u32 currentFBO_ = 0;
+    u32 sceneTexture_ = 0;
 
     u32 output_target_fbo_ = 0;
     u32 output_vp_x_ = 0;

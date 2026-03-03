@@ -72,30 +72,6 @@ void PostProcessPipeline::init(u32 width, u32 height) {
     width_ = width;
     height_ = height;
 
-    f32 quadVertices[] = {
-        // position     texCoord
-        -1.0f, -1.0f,   0.0f, 0.0f,
-         1.0f, -1.0f,   1.0f, 0.0f,
-         1.0f,  1.0f,   1.0f, 1.0f,
-        -1.0f,  1.0f,   0.0f, 1.0f,
-    };
-
-    u16 quadIndices[] = { 0, 1, 2, 2, 3, 0 };
-
-    screenQuadVAO_ = VertexArray::create();
-
-    auto vbo = makeShared<VertexBuffer>();
-    *vbo = std::move(*VertexBuffer::createRaw(quadVertices, sizeof(quadVertices)));
-    vbo->setLayout({
-        { ShaderDataType::Float2, "a_position" },
-        { ShaderDataType::Float2, "a_texCoord" },
-    });
-    screenQuadVAO_->addVertexBuffer(vbo);
-
-    auto ibo = makeShared<IndexBuffer>();
-    *ibo = std::move(*IndexBuffer::create(quadIndices, 6));
-    screenQuadVAO_->setIndexBuffer(ibo);
-
     blitShader_ = resourceManager_.createShader(BLIT_VERTEX, BLIT_FRAGMENT);
     if (!blitShader_.isValid()) {
         ES_LOG_ERROR("PostProcessPipeline: Failed to create blit shader");
@@ -106,6 +82,20 @@ void PostProcessPipeline::init(u32 width, u32 height) {
 }
 
 void PostProcessPipeline::ensureFBOs() {
+    if (!fboOriginalCreated_) {
+        FramebufferSpec origSpec;
+        origSpec.width = width_;
+        origSpec.height = height_;
+        origSpec.depthStencil = false;
+
+        fboOriginal_ = Framebuffer::create(origSpec);
+        if (!fboOriginal_) {
+            ES_LOG_ERROR("PostProcessPipeline: Failed to create original FBO");
+            return;
+        }
+        fboOriginalCreated_ = true;
+    }
+
     if (fbosCreated_) return;
 
     FramebufferSpec spec;
@@ -129,13 +119,27 @@ void PostProcessPipeline::shutdown() {
 
     passes_.clear();
     screenPasses_.clear();
-    screenQuadVAO_.reset();
+
+    if (screen_quad_vbo_ != 0) {
+        GLuint vbo = static_cast<GLuint>(screen_quad_vbo_);
+        glDeleteBuffers(1, &vbo);
+        screen_quad_vbo_ = 0;
+    }
+    if (screen_quad_vao_ != 0) {
+        GLuint vao = static_cast<GLuint>(screen_quad_vao_);
+        glDeleteVertexArrays(1, &vao);
+        screen_quad_vao_ = 0;
+    }
+
     fboA_.reset();
     fboB_.reset();
+    fboOriginal_.reset();
     screenFBO_.reset();
     fbosCreated_ = false;
-    screenFBOCreated_ = false;
+    fboOriginalCreated_ = false;
     screenCaptureActive_ = false;
+    screenFBOCreated_ = false;
+    sceneTexture_ = 0;
 
     if (blitShader_.isValid()) {
         resourceManager_.releaseShader(blitShader_);
@@ -147,16 +151,23 @@ void PostProcessPipeline::shutdown() {
 
 void PostProcessPipeline::resize(u32 width, u32 height) {
     if (!initialized_) return;
+    if (width == width_ && height == height_) return;
 
     width_ = width;
     height_ = height;
+
+    if (fboOriginalCreated_) {
+        fboOriginal_.reset();
+        fboOriginalCreated_ = false;
+    }
 
     if (fbosCreated_) {
         fboA_.reset();
         fboB_.reset();
         fbosCreated_ = false;
-        ensureFBOs();
     }
+
+    ensureFBOs();
 
     if (screenFBOCreated_) {
         screenFBO_.reset();
@@ -237,13 +248,50 @@ PostProcessPass* PostProcessPipeline::findPass(const std::string& name) {
     return nullptr;
 }
 
+void PostProcessPipeline::ensureScreenQuad() {
+    if (screen_quad_vao_ != 0) return;
+
+    constexpr GLsizei STRIDE = 4 * static_cast<GLsizei>(sizeof(f32));
+    f32 vertices[] = {
+        -1.0f, -1.0f,  0.0f, 0.0f,
+         3.0f, -1.0f,  2.0f, 0.0f,
+        -1.0f,  3.0f,  0.0f, 2.0f,
+    };
+
+    GLuint vao = 0, vbo = 0;
+    glGenVertexArrays(1, &vao);
+    glBindVertexArray(vao);
+
+    glGenBuffers(1, &vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(sizeof(vertices)), vertices, GL_STATIC_DRAW);
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, STRIDE,
+                          reinterpret_cast<const void*>(0));
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, STRIDE,
+                          reinterpret_cast<const void*>(2 * sizeof(f32)));
+
+    glBindVertexArray(0);
+
+    screen_quad_vao_ = static_cast<u32>(vao);
+    screen_quad_vbo_ = static_cast<u32>(vbo);
+}
+
+void PostProcessPipeline::drawScreenQuad() {
+    ensureScreenQuad();
+    glBindVertexArray(static_cast<GLuint>(screen_quad_vao_));
+    glDrawArrays(GL_TRIANGLES, 0, 3);
+}
+
 void PostProcessPipeline::begin() {
     if (!initialized_ || inFrame_ || bypass_) return;
 
     ensureFBOs();
-    if (!fbosCreated_) return;
+    if (!fboOriginalCreated_) return;
 
-    fboA_->bind();
+    fboOriginal_->bind();
     RenderCommand::setViewport(0, 0, width_, height_);
     RenderCommand::clear();
 
@@ -261,18 +309,27 @@ void PostProcessPipeline::end() {
 
     RenderCommand::setDepthTest(false);
     RenderCommand::setBlending(false);
+    glDisable(GL_SCISSOR_TEST);
+    glDisable(GL_STENCIL_TEST);
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+
+    sceneTexture_ = fboOriginal_->getColorAttachment();
+    fboOriginal_->unbind();
 
     if (enabledCount == 0) {
-        fboA_->unbind();
-        blitToOutput(fboA_->getColorAttachment());
+        blitToOutput(sceneTexture_);
     } else {
-        u32 inputTexture = fboA_->getColorAttachment();
+        u32 inputTexture = sceneTexture_;
         currentFBO_ = 0;
+
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, sceneTexture_);
+        glActiveTexture(GL_TEXTURE0);
 
         for (const auto& pass : passes_) {
             if (!pass.enabled) continue;
 
-            Framebuffer* targetFBO = (currentFBO_ == 0) ? fboB_.get() : fboA_.get();
+            Framebuffer* targetFBO = (currentFBO_ == 0) ? fboA_.get() : fboB_.get();
             targetFBO->bind();
             RenderCommand::setViewport(0, 0, width_, height_);
 
@@ -303,6 +360,7 @@ void PostProcessPipeline::renderPass(const PostProcessPass& pass, u32 inputTextu
 
     shader->bind();
     shader->setUniform("u_texture", 0);
+    shader->setUniform("u_sceneTexture", 1);
     shader->setUniform("u_resolution", glm::vec2(static_cast<f32>(width_), static_cast<f32>(height_)));
 
     for (const auto& [name, value] : pass.floatUniforms) {
@@ -313,7 +371,7 @@ void PostProcessPipeline::renderPass(const PostProcessPass& pass, u32 inputTextu
         shader->setUniform(name, value);
     }
 
-    RenderCommand::drawIndexed(*screenQuadVAO_, 6);
+    drawScreenQuad();
 }
 
 void PostProcessPipeline::clearPasses() {
@@ -347,11 +405,11 @@ void PostProcessPipeline::blitToOutput(u32 texture) {
     shader->bind();
     shader->setUniform("u_texture", 0);
 
-    RenderCommand::drawIndexed(*screenQuadVAO_, 6);
+    drawScreenQuad();
 }
 
 u32 PostProcessPipeline::getSourceTexture() const {
-    return fboA_ ? fboA_->getColorAttachment() : 0;
+    return fboOriginal_ ? fboOriginal_->getColorAttachment() : 0;
 }
 
 u32 PostProcessPipeline::getOutputTexture() const {
@@ -411,12 +469,21 @@ void PostProcessPipeline::executeScreenPasses() {
 
     RenderCommand::setDepthTest(false);
     RenderCommand::setBlending(false);
+    glDisable(GL_SCISSOR_TEST);
+    glDisable(GL_STENCIL_TEST);
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 
     ensureFBOs();
     if (!fbosCreated_) return;
 
-    u32 inputTexture = screenFBO_->getColorAttachment();
+    sceneTexture_ = screenFBO_->getColorAttachment();
+    screenFBO_->unbind();
+    u32 inputTexture = sceneTexture_;
     u32 pingPong = 0;
+
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, sceneTexture_);
+    glActiveTexture(GL_TEXTURE0);
 
     for (const auto& pass : screenPasses_) {
         if (!pass.enabled) continue;
