@@ -1,4 +1,4 @@
-import { B as BuiltinComponentDef, R as ResourceDef, A as App, P as Plugin } from '../shared/app.js';
+import { B as BuiltinComponentDef, C as ComponentDef, R as ResourceDef, A as App, P as Plugin } from '../shared/app.js';
 import { V as Vec2, a as Entity } from '../shared/wasm.js';
 
 interface RigidBodyData {
@@ -13,6 +13,7 @@ interface RigidBodyData {
 interface BoxColliderData {
     halfExtents: Vec2;
     offset: Vec2;
+    radius: number;
     density: number;
     friction: number;
     restitution: number;
@@ -44,10 +45,44 @@ interface CapsuleColliderData {
     categoryBits: number;
     maskBits: number;
 }
+interface SegmentColliderData {
+    point1: Vec2;
+    point2: Vec2;
+    density: number;
+    friction: number;
+    restitution: number;
+    isSensor: boolean;
+    enabled: boolean;
+    categoryBits: number;
+    maskBits: number;
+}
+interface PolygonColliderData {
+    vertices: Vec2[];
+    radius: number;
+    density: number;
+    friction: number;
+    restitution: number;
+    isSensor: boolean;
+    enabled: boolean;
+    categoryBits: number;
+    maskBits: number;
+}
+interface ChainColliderData {
+    points: Vec2[];
+    isLoop: boolean;
+    friction: number;
+    restitution: number;
+    categoryBits: number;
+    maskBits: number;
+    enabled: boolean;
+}
 declare const RigidBody: BuiltinComponentDef<RigidBodyData>;
 declare const BoxCollider: BuiltinComponentDef<BoxColliderData>;
 declare const CircleCollider: BuiltinComponentDef<CircleColliderData>;
 declare const CapsuleCollider: BuiltinComponentDef<CapsuleColliderData>;
+declare const SegmentCollider: BuiltinComponentDef<SegmentColliderData>;
+declare const PolygonCollider: ComponentDef<PolygonColliderData>;
+declare const ChainCollider: ComponentDef<ChainColliderData>;
 declare const BodyType: {
     readonly Static: 0;
     readonly Kinematic: 1;
@@ -65,9 +100,12 @@ interface PhysicsWasmModule {
     _physics_createBody(entityId: number, bodyType: number, x: number, y: number, angle: number, gravityScale: number, linearDamping: number, angularDamping: number, fixedRotation: number, bullet: number): void;
     _physics_destroyBody(entityId: number): void;
     _physics_hasBody(entityId: number): number;
-    _physics_addBoxShape(entityId: number, halfW: number, halfH: number, offX: number, offY: number, density: number, friction: number, restitution: number, isSensor: number, categoryBits: number, maskBits: number): void;
+    _physics_addBoxShape(entityId: number, halfW: number, halfH: number, offX: number, offY: number, radius: number, density: number, friction: number, restitution: number, isSensor: number, categoryBits: number, maskBits: number): void;
     _physics_addCircleShape(entityId: number, radius: number, offX: number, offY: number, density: number, friction: number, restitution: number, isSensor: number, categoryBits: number, maskBits: number): void;
     _physics_addCapsuleShape(entityId: number, radius: number, halfHeight: number, offX: number, offY: number, density: number, friction: number, restitution: number, isSensor: number, categoryBits: number, maskBits: number): void;
+    _physics_addSegmentShape(entityId: number, x1: number, y1: number, x2: number, y2: number, density: number, friction: number, restitution: number, isSensor: number, categoryBits: number, maskBits: number): void;
+    _physics_addPolygonShape(entityId: number, verticesPtr: number, vertexCount: number, radius: number, density: number, friction: number, restitution: number, isSensor: number, categoryBits: number, maskBits: number): void;
+    _physics_addChainShape(entityId: number, pointsPtr: number, pointCount: number, isLoop: number, friction: number, restitution: number, categoryBits: number, maskBits: number): void;
     _physics_step(dt: number): void;
     _physics_setBodyTransform(entityId: number, x: number, y: number, angle: number): void;
     _physics_getDynamicBodyCount(): number;
@@ -188,5 +226,5 @@ declare class Physics {
     static setDebugDrawConfig(app: App, config: Partial<PhysicsDebugDrawConfig>): void;
 }
 
-export { BodyType, BoxCollider, CapsuleCollider, CircleCollider, Physics, PhysicsAPI, PhysicsDebugDraw, PhysicsEvents, PhysicsPlugin, RigidBody, drawPhysicsDebug, loadPhysicsModule, loadPhysicsSideModule, setupPhysicsDebugDraw };
-export type { BoxColliderData, CapsuleColliderData, CircleColliderData, CollisionEnterEvent, ESEngineMainModule, PhysicsDebugDrawConfig, PhysicsEventsData, PhysicsModuleFactory, PhysicsPluginConfig, PhysicsWasmModule, RigidBodyData, SensorEvent };
+export { BodyType, BoxCollider, CapsuleCollider, ChainCollider, CircleCollider, Physics, PhysicsAPI, PhysicsDebugDraw, PhysicsEvents, PhysicsPlugin, PolygonCollider, RigidBody, SegmentCollider, drawPhysicsDebug, loadPhysicsModule, loadPhysicsSideModule, setupPhysicsDebugDraw };
+export type { BoxColliderData, CapsuleColliderData, ChainColliderData, CircleColliderData, CollisionEnterEvent, ESEngineMainModule, PhysicsDebugDrawConfig, PhysicsEventsData, PhysicsModuleFactory, PhysicsPluginConfig, PhysicsWasmModule, PolygonColliderData, RigidBodyData, SegmentColliderData, SensorEvent };
