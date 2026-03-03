@@ -28,6 +28,7 @@ import {
     registerAnimClip,
     parseAnimClipData,
     extractAnimClipTexturePaths,
+    getAnimClip,
     type AnimClipAssetData,
     type SceneComponentData,
     type TransformData,
@@ -104,6 +105,7 @@ export class EditorSceneManager {
         }
         this.assetServer_ = new EditorAssetServer(module, pathResolver);
         this.postLoadHooks_.set('SpineAnimation', (id, data) => this.syncSpineInstance(id, data));
+        this.postLoadHooks_.set('SpriteAnimator', (id, data) => this.applyAnimFirstFrame(id, data));
     }
 
     setProjectDir(projectDir: string): void {
@@ -746,6 +748,7 @@ export class EditorSceneManager {
                 case 'anim-clip': {
                     try {
                         await this.loadAndRegisterAnimClip(resolved);
+                        data[desc.field] = resolved;
                     } catch (err) {
                         console.warn(`[EditorSceneManager] Failed to load animation clip: ${resolved}`, err);
                     }
@@ -870,6 +873,28 @@ export class EditorSceneManager {
     // =========================================================================
     // Spine Instance Sync (post-load hook)
     // =========================================================================
+
+    private async applyAnimFirstFrame(entityId: number, data: Record<string, any>): Promise<void> {
+        const clipName = data.clip as string;
+        if (!clipName) return;
+
+        const clip = getAnimClip(clipName);
+        if (!clip || clip.frames.length === 0) return;
+
+        const entity = this.entityMap_.get(entityId);
+        if (entity === undefined || !this.world_.has(entity, Sprite)) return;
+
+        const sprite = this.world_.get(entity, Sprite) as Record<string, any>;
+        if (sprite.texture !== 0) return;
+
+        const frame = clip.frames[0];
+        sprite.texture = frame.texture;
+        if (frame.uvOffset) {
+            sprite.uvOffset = frame.uvOffset;
+            sprite.uvScale = frame.uvScale;
+        }
+        this.world_.insert(entity, Sprite, sprite);
+    }
 
     private async syncSpineInstance(entityId: number, data: Record<string, any>): Promise<void> {
         if (!this.spineController_) return;
