@@ -55,6 +55,11 @@ export class PostProcessStack {
         return this;
     }
 
+    clearPasses(): this {
+        this.passes_.length = 0;
+        return this;
+    }
+
     setEnabled(name: string, enabled: boolean): this {
         const pass = this.passes_.find(p => p.name === name);
         if (pass) {
