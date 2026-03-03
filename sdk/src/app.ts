@@ -366,8 +366,9 @@ export class App {
                 this.resources_.insert(Time, { delta: 0, elapsed: 0, frameCount: 0 });
             }
             this.finishPlugins_();
-            this.runSchedule(Schedule.Startup);
         }
+
+        this.flushStartupSystems_();
 
         this.eventRegistry_.swapAll();
         this.world_.advanceTick();
@@ -421,7 +422,7 @@ export class App {
         this.resources_.insert(Time, { delta: 0, elapsed: 0, frameCount: 0 });
 
         this.finishPlugins_();
-        this.runSchedule(Schedule.Startup);
+        this.flushStartupSystems_();
 
         this.lastTime_ = platformNow();
         this.mainLoop();
@@ -438,6 +439,8 @@ export class App {
 
         const rawDelta = Math.min(deltaMs / 1000, this.maxDeltaTime_);
         const delta = rawDelta * this.play_speed_;
+
+        this.flushStartupSystems_();
 
         this.eventRegistry_.swapAll();
         this.world_.advanceTick();
@@ -590,6 +593,15 @@ export class App {
         }
 
         return sorted;
+    }
+
+    private flushStartupSystems_(): void {
+        const startup = this.systems_.get(Schedule.Startup)!;
+        if (startup.length === 0) return;
+        this.sortedSystemsCache_.delete(Schedule.Startup);
+        this.runSchedule(Schedule.Startup);
+        startup.length = 0;
+        this.sortedSystemsCache_.delete(Schedule.Startup);
     }
 
     private runSchedule(schedule: Schedule): void {

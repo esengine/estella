@@ -10,6 +10,7 @@ import { Time, type TimeData } from '../resource';
 import type { ESEngineModule, CppRegistry } from '../wasm';
 import { initTweenAPI, shutdownTweenAPI, Tween } from './Tween';
 import { spriteAnimatorSystemUpdate } from './SpriteAnimator';
+import { isEditor, isPlayMode } from '../env';
 
 export class AnimationPlugin implements Plugin {
     name = 'AnimationPlugin';
@@ -23,6 +24,7 @@ export class AnimationPlugin implements Plugin {
         app.addSystemToSchedule(Schedule.Update, defineSystem(
             [Res(Time)],
             (time: TimeData) => {
+                if (isEditor() && !isPlayMode()) return;
                 Tween.update(time.delta);
             },
             { name: 'TweenSystem' }
@@ -31,6 +33,7 @@ export class AnimationPlugin implements Plugin {
         app.addSystemToSchedule(Schedule.Update, defineSystem(
             [Res(Time)],
             (time: TimeData) => {
+                if (isEditor() && !isPlayMode()) return;
                 spriteAnimatorSystemUpdate(world, time.delta);
             },
             { name: 'SpriteAnimatorSystem' }

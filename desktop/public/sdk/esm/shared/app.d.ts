@@ -1483,6 +1483,7 @@ declare class App {
     quit(): void;
     private finishPlugins_;
     private sortSystems;
+    private flushStartupSystems_;
     private runSchedule;
     private updateTime;
 }
