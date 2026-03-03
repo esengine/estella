@@ -443,6 +443,7 @@ export class EditorSceneRenderer {
                 this.pipeline_.maskProcessor(registry._cpp, matrix, 0, 0, width, height);
             }
             Renderer.submitSprites(registry);
+            Renderer.submitShapes(registry);
             Renderer.submitBitmapText(registry);
             Renderer.submitParticles(registry);
             if (this.pipeline_.spineRenderer) {
@@ -482,6 +483,7 @@ export class EditorSceneRenderer {
                 this.pipeline_.maskProcessor(registry._cpp, vpMatrix, 0, 0, width, height);
             }
             Renderer.submitSprites(registry);
+            Renderer.submitShapes(registry);
             Renderer.submitBitmapText(registry);
             Renderer.submitParticles(registry);
             if (this.pipeline_.spineRenderer) {
