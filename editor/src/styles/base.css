@@ -345,6 +345,46 @@
 }
 
 /* =============================================================================
+ * Vec2 Array Editor
+ * ============================================================================= */
+
+.es-vec2-array-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: 100%;
+}
+
+.es-vec2-array-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.es-vec2-array-row {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.es-vec2-array-index {
+    width: 18px;
+    text-align: center;
+    font-size: 10px;
+    color: var(--es-text-secondary);
+    flex-shrink: 0;
+}
+
+.es-vec2-array-row .es-vec-field {
+    flex: 1;
+    min-width: 0;
+}
+
+.es-vec2-array-row .es-btn-clear {
+    flex-shrink: 0;
+}
+
+/* =============================================================================
  * Color Editor
  * ============================================================================= */
 

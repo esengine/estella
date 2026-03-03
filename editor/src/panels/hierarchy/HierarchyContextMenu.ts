@@ -29,6 +29,7 @@ export function showEntityContextMenu(state: HierarchyState, x: number, y: numbe
             { label: 'Text', icon: icons.type(14), onClick: () => createEntityWithComponent(state, 'Text', entity) },
             { label: 'BitmapText', icon: icons.type(14), onClick: () => createEntityWithComponent(state, 'BitmapText', entity) },
             { label: 'Spine', icon: icons.bone(14), onClick: () => createEntityWithComponent(state, 'SpineAnimation', entity) },
+            { label: 'Shape', icon: icons.hexagon(14), onClick: () => createEntityWithComponent(state, 'ShapeRenderer', entity) },
             { label: 'Particle', icon: icons.star(14), onClick: () => createEntityWithComponent(state, 'ParticleEmitter', entity) },
             { label: 'Tilemap', icon: icons.grid(14), onClick: () => createTilemapEntity(state, entity) },
         ] },
@@ -54,6 +55,9 @@ export function showEntityContextMenu(state: HierarchyState, x: number, y: numbe
             { label: 'Box Collider', icon: icons.box(14), onClick: () => createPhysicsEntity(state, 'BoxCollider', entity) },
             { label: 'Circle Collider', icon: icons.circle(14), onClick: () => createPhysicsEntity(state, 'CircleCollider', entity) },
             { label: 'Capsule Collider', icon: icons.shield(14), onClick: () => createPhysicsEntity(state, 'CapsuleCollider', entity) },
+            { label: 'Segment Collider', icon: icons.minus(14), onClick: () => createPhysicsEntity(state, 'SegmentCollider', entity) },
+            { label: 'Polygon Collider', icon: icons.hexagon(14), onClick: () => createPhysicsEntity(state, 'PolygonCollider', entity) },
+            { label: 'Chain Collider', icon: icons.link(14), onClick: () => createPhysicsEntity(state, 'ChainCollider', entity) },
         ] },
         { label: '', separator: true },
         { label: 'Camera', icon: icons.camera(14), onClick: () => createEntityWithComponent(state, 'Camera', entity) },
@@ -132,6 +136,9 @@ export function showEntityContextMenu(state: HierarchyState, x: number, y: numbe
                 { label: 'BoxCollider', icon: icons.box(14), disabled: has('BoxCollider'), onClick: () => addComp('BoxCollider') },
                 { label: 'CircleCollider', icon: icons.circle(14), disabled: has('CircleCollider'), onClick: () => addComp('CircleCollider') },
                 { label: 'CapsuleCollider', icon: icons.shield(14), disabled: has('CapsuleCollider'), onClick: () => addComp('CapsuleCollider') },
+                { label: 'SegmentCollider', icon: icons.minus(14), disabled: has('SegmentCollider'), onClick: () => addComp('SegmentCollider') },
+                { label: 'PolygonCollider', icon: icons.hexagon(14), disabled: has('PolygonCollider'), onClick: () => addComp('PolygonCollider') },
+                { label: 'ChainCollider', icon: icons.link(14), disabled: has('ChainCollider'), onClick: () => addComp('ChainCollider') },
             ],
         });
 

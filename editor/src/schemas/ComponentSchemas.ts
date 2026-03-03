@@ -46,7 +46,10 @@ export function inferPropertyType(value: unknown): string {
     if (typeof value === 'number') return 'number';
     if (typeof value === 'string') return 'string';
     if (typeof value === 'boolean') return 'boolean';
-    if (Array.isArray(value)) return 'string-array';
+    if (Array.isArray(value)) {
+        if (value.length > 0 && isVec2(value[0])) return 'vec2-array';
+        return 'string-array';
+    }
     if (isVec2(value)) return 'vec2';
     if (isVec3(value)) return 'vec3';
     if (typeof value === 'object' && value !== null) {
@@ -109,6 +112,26 @@ export const SpriteSchema: ComponentSchema = {
         { name: 'layer', type: 'number', min: -1000, max: 1000 },
         { name: 'flipX', type: 'boolean' },
         { name: 'flipY', type: 'boolean' },
+    ],
+};
+
+export const ShapeRendererSchema: ComponentSchema = {
+    name: 'ShapeRenderer',
+    category: 'builtin',
+    properties: [
+        {
+            name: 'shapeType',
+            type: 'enum',
+            options: [
+                { label: 'Circle', value: 0 },
+                { label: 'Capsule', value: 1 },
+                { label: 'RoundedRect', value: 2 },
+            ],
+        },
+        { name: 'color', type: 'color' },
+        { name: 'size', type: 'vec2' },
+        { name: 'cornerRadius', type: 'number', min: 0 },
+        { name: 'layer', type: 'number', min: -1000, max: 1000 },
     ],
 };
 
@@ -415,6 +438,7 @@ export const BoxColliderSchema: ComponentSchema = {
     properties: [
         { name: 'halfExtents', type: 'vec2' },
         { name: 'offset', type: 'vec2' },
+        { name: 'radius', type: 'number', min: 0, step: 0.01 },
         { name: 'density', type: 'number', min: 0, step: 0.1 },
         { name: 'friction', type: 'number', min: 0, max: 1, step: 0.01 },
         { name: 'restitution', type: 'number', min: 0, max: 1, step: 0.01 },
@@ -448,6 +472,46 @@ export const CapsuleColliderSchema: ComponentSchema = {
         { name: 'friction', type: 'number', min: 0, max: 1, step: 0.01 },
         { name: 'restitution', type: 'number', min: 0, max: 1, step: 0.01 },
         { name: 'isSensor', type: 'boolean' },
+        { name: 'categoryBits', type: 'collision-layer' },
+    ],
+};
+
+export const SegmentColliderSchema: ComponentSchema = {
+    name: 'SegmentCollider',
+    category: 'physics',
+    properties: [
+        { name: 'point1', type: 'vec2' },
+        { name: 'point2', type: 'vec2' },
+        { name: 'density', type: 'number', min: 0, step: 0.1 },
+        { name: 'friction', type: 'number', min: 0, max: 1, step: 0.01 },
+        { name: 'restitution', type: 'number', min: 0, max: 1, step: 0.01 },
+        { name: 'isSensor', type: 'boolean' },
+        { name: 'categoryBits', type: 'collision-layer' },
+    ],
+};
+
+export const PolygonColliderSchema: ComponentSchema = {
+    name: 'PolygonCollider',
+    category: 'physics',
+    properties: [
+        { name: 'vertices', type: 'vec2-array', max: 8 },
+        { name: 'radius', type: 'number', min: 0, step: 0.01 },
+        { name: 'density', type: 'number', min: 0, step: 0.1 },
+        { name: 'friction', type: 'number', min: 0, max: 1, step: 0.01 },
+        { name: 'restitution', type: 'number', min: 0, max: 1, step: 0.01 },
+        { name: 'isSensor', type: 'boolean' },
+        { name: 'categoryBits', type: 'collision-layer' },
+    ],
+};
+
+export const ChainColliderSchema: ComponentSchema = {
+    name: 'ChainCollider',
+    category: 'physics',
+    properties: [
+        { name: 'points', type: 'vec2-array' },
+        { name: 'isLoop', type: 'boolean' },
+        { name: 'friction', type: 'number', min: 0, max: 1, step: 0.01 },
+        { name: 'restitution', type: 'number', min: 0, max: 1, step: 0.01 },
         { name: 'categoryBits', type: 'collision-layer' },
     ],
 };
@@ -949,6 +1013,7 @@ export function registerBuiltinSchemas(options?: BuiltinSchemaOptions): void {
     registerComponentSchema(ChildrenSchema);
     registerComponentSchema(TransformSchema);
     registerComponentSchema(SpriteSchema);
+    registerComponentSchema(ShapeRendererSchema);
     registerComponentSchema(CameraSchema);
     registerComponentSchema(VelocitySchema);
     registerComponentSchema(SceneOwnerSchema);
@@ -982,6 +1047,9 @@ export function registerBuiltinSchemas(options?: BuiltinSchemaOptions): void {
     registerComponentSchema(BoxColliderSchema);
     registerComponentSchema(CircleColliderSchema);
     registerComponentSchema(CapsuleColliderSchema);
+    registerComponentSchema(SegmentColliderSchema);
+    registerComponentSchema(PolygonColliderSchema);
+    registerComponentSchema(ChainColliderSchema);
     registerComponentSchema(ParticleEmitterSchema);
     registerComponentSchema(TilemapSchema);
     registerComponentSchema(TilemapLayerSchema);
