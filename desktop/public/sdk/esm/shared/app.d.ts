@@ -1301,6 +1301,7 @@ declare class PostProcessStack {
     constructor();
     addPass(name: string, shader: ShaderHandle): this;
     removePass(name: string): this;
+    clearPasses(): this;
     setEnabled(name: string, enabled: boolean): this;
     setUniform(passName: string, uniform: string, value: number): this;
     setUniformVec4(passName: string, uniform: string, value: Vec4): this;
