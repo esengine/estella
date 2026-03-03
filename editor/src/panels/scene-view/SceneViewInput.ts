@@ -40,6 +40,8 @@ export class SceneViewInput {
     private boundOnMouseLeave_: ((e: MouseEvent) => void) | null = null;
     private boundOnWheel_: ((e: WheelEvent) => void) | null = null;
     private boundOnCanvasClick_: ((e: MouseEvent) => void) | null = null;
+    private boundOnDblClick_: ((e: MouseEvent) => void) | null = null;
+    private boundOnContextMenu_: ((e: MouseEvent) => void) | null = null;
 
     private keydownHandler_: ((e: KeyboardEvent) => void) | null = null;
     private keyupHandler_: ((e: KeyboardEvent) => void) | null = null;
@@ -153,6 +155,8 @@ export class SceneViewInput {
             this.deps_.toolbar.updateZoomDisplay(this.deps_.camera.zoom);
         };
         this.boundOnCanvasClick_ = this.onCanvasClick.bind(this);
+        this.boundOnDblClick_ = this.onDblClick.bind(this);
+        this.boundOnContextMenu_ = this.onContextMenu.bind(this);
 
         canvas.addEventListener('mousedown', this.boundOnMouseDown_);
         canvas.addEventListener('mousemove', this.boundOnMouseMove_);
@@ -160,6 +164,8 @@ export class SceneViewInput {
         canvas.addEventListener('mouseleave', this.boundOnMouseLeave_);
         canvas.addEventListener('wheel', this.boundOnWheel_);
         canvas.addEventListener('click', this.boundOnCanvasClick_);
+        canvas.addEventListener('dblclick', this.boundOnDblClick_);
+        canvas.addEventListener('contextmenu', this.boundOnContextMenu_);
     }
 
     private onMouseDown(e: MouseEvent): void {
@@ -328,6 +334,58 @@ export class SceneViewInput {
         store.selectEntity(next);
     }
 
+    private onDblClick(e: MouseEvent): void {
+        if (!getSettingsValue<boolean>('scene.showColliders')) return;
+
+        const { camera, colliderOverlay } = this.deps_;
+        const { worldX, worldY } = camera.screenToWorld(e.clientX, e.clientY);
+        const octx = this.deps_.createOverlayContext();
+        if (octx && colliderOverlay.onDoubleClick(worldX, worldY, octx)) {
+            this.deps_.requestRender();
+        }
+    }
+
+    private onContextMenu(e: MouseEvent): void {
+        if (!getSettingsValue<boolean>('scene.showColliders')) return;
+
+        const { camera, colliderOverlay } = this.deps_;
+        const { worldX, worldY } = camera.screenToWorld(e.clientX, e.clientY);
+        const octx = this.deps_.createOverlayContext();
+        if (!octx) return;
+
+        const items = colliderOverlay.getContextMenuItems(worldX, worldY, octx);
+        if (items.length === 0) return;
+
+        e.preventDefault();
+        const menu = document.createElement('div');
+        menu.className = 'es-context-menu';
+        menu.style.position = 'fixed';
+        menu.style.left = `${e.clientX}px`;
+        menu.style.top = `${e.clientY}px`;
+        menu.style.zIndex = '9999';
+
+        for (const item of items) {
+            const menuItem = document.createElement('div');
+            menuItem.className = 'es-context-menu-item';
+            menuItem.textContent = item.label;
+            menuItem.addEventListener('click', () => {
+                item.action();
+                menu.remove();
+                this.deps_.requestRender();
+            });
+            menu.appendChild(menuItem);
+        }
+
+        document.body.appendChild(menu);
+        const dismiss = (ev: MouseEvent) => {
+            if (!menu.contains(ev.target as Node)) {
+                menu.remove();
+                document.removeEventListener('mousedown', dismiss);
+            }
+        };
+        setTimeout(() => document.addEventListener('mousedown', dismiss), 0);
+    }
+
     findEntitiesAtPosition(worldX: number, worldY: number): Entity[] {
         const { store, getBounds } = this.deps_;
         const scene = store.scene;
@@ -433,6 +491,14 @@ export class SceneViewInput {
         if (this.boundOnCanvasClick_) {
             canvas.removeEventListener('click', this.boundOnCanvasClick_);
             this.boundOnCanvasClick_ = null;
+        }
+        if (this.boundOnDblClick_) {
+            canvas.removeEventListener('dblclick', this.boundOnDblClick_);
+            this.boundOnDblClick_ = null;
+        }
+        if (this.boundOnContextMenu_) {
+            canvas.removeEventListener('contextmenu', this.boundOnContextMenu_);
+            this.boundOnContextMenu_ = null;
         }
     }
 }

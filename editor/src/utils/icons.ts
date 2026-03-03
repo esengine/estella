@@ -70,6 +70,9 @@ import {
     Gauge,
     Globe,
     BookOpen,
+    Minus,
+    Hexagon,
+    Link2,
 } from 'lucide';
 
 // =============================================================================
@@ -196,6 +199,9 @@ export const icons = {
     gauge: (size?: number) => renderIcon(Gauge as IconNode, size),
     globe: (size?: number) => renderIcon(Globe as IconNode, size),
     bookOpen: (size?: number) => renderIcon(BookOpen as IconNode, size),
+    minus: (size?: number) => renderIcon(Minus as IconNode, size),
+    hexagon: (size?: number) => renderIcon(Hexagon as IconNode, size),
+    link: (size?: number) => renderIcon(Link2 as IconNode, size),
 };
 
 export type IconName = keyof typeof icons;
