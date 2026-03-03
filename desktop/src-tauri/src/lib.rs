@@ -43,14 +43,18 @@ fn start_preview_server(
     port: u16,
 ) -> Result<u16, String> {
     let mut server_lock = state.preview_server.lock().unwrap();
+    let new_dir = PathBuf::from(&project_dir);
 
     if let Some(ref server) = *server_lock {
         if server.is_running() {
+            if server.project_dir() != new_dir {
+                server.set_project_dir(new_dir);
+            }
             return Ok(server.port());
         }
     }
 
-    let mut server = PreviewServer::new(PathBuf::from(project_dir), port);
+    let mut server = PreviewServer::new(new_dir, port);
     let port = server.start()?;
     *server_lock = Some(server);
     Ok(port)

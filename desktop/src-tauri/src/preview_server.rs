@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::{Arc, Condvar, Mutex, RwLock};
 use std::thread;
 use tiny_http::{Header, Response, Server};
 
@@ -19,7 +19,7 @@ pub struct PreviewServer {
     server: Option<Arc<Server>>,
     worker_handle: Option<thread::JoinHandle<()>>,
     reload_signal: Arc<ReloadSignal>,
-    project_dir: PathBuf,
+    project_dir: Arc<RwLock<PathBuf>>,
     port: u16,
 }
 
@@ -75,7 +75,7 @@ impl PreviewServer {
             server: None,
             worker_handle: None,
             reload_signal: Arc::new(ReloadSignal::new()),
-            project_dir,
+            project_dir: Arc::new(RwLock::new(project_dir)),
             port,
         }
     }
@@ -91,7 +91,7 @@ impl PreviewServer {
         let server = Arc::new(server);
         self.server = Some(Arc::clone(&server));
 
-        let project_dir = self.project_dir.clone();
+        let project_dir = Arc::clone(&self.project_dir);
         let reload_signal = Arc::clone(&self.reload_signal);
 
         let handle = thread::spawn(move || {
@@ -106,6 +106,8 @@ impl PreviewServer {
                     });
                     continue;
                 }
+
+                let current_dir = project_dir.read().unwrap().clone();
 
                 let response = match path {
                     "" | "index.html" => serve_html(),
@@ -132,7 +134,7 @@ impl PreviewServer {
                     "wasm/spine42.wasm" => serve_embedded(embedded_assets::SPINE42_WASM, "application/wasm"),
                     "wasm/physics.js" => serve_embedded(embedded_assets::PHYSICS_JS, "application/javascript"),
                     "wasm/physics.wasm" => serve_embedded(embedded_assets::PHYSICS_WASM, "application/wasm"),
-                    _ => serve_project_file(&project_dir, path),
+                    _ => serve_project_file(&current_dir, path),
                 };
 
                 let _ = request.respond(response);
@@ -164,6 +166,14 @@ impl PreviewServer {
 
     pub fn port(&self) -> u16 {
         self.port
+    }
+
+    pub fn project_dir(&self) -> PathBuf {
+        self.project_dir.read().unwrap().clone()
+    }
+
+    pub fn set_project_dir(&self, dir: PathBuf) {
+        *self.project_dir.write().unwrap() = dir;
     }
 }
 
