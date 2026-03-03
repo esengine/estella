@@ -77,11 +77,11 @@ export default defineConfig({
                 { label: 'Custom Draw', translations: { 'zh-CN': '自定义绘制' }, slug: 'guides/custom-draw' },
                 { label: 'Post-Processing', translations: { 'zh-CN': '后处理效果' }, slug: 'guides/post-processing' },
                 { label: 'Render Texture', translations: { 'zh-CN': '渲染纹理' }, slug: 'guides/render-texture' },
+                { label: 'Particles', translations: { 'zh-CN': '粒子系统' }, slug: 'guides/particles' },
               ],
             },
             { label: 'Scenes', translations: { 'zh-CN': '场景' }, slug: 'guides/scenes' },
             { label: 'Prefabs', translations: { 'zh-CN': '预制体' }, slug: 'guides/prefabs' },
-            { label: 'Storage', translations: { 'zh-CN': '数据存储' }, slug: 'guides/storage' },
             { label: 'Input Handling', translations: { 'zh-CN': '输入处理' }, slug: 'guides/input' },
             {
               label: 'UI',
@@ -94,16 +94,9 @@ export default defineConfig({
                 { label: 'Masking & SafeArea', translations: { 'zh-CN': '遮罩与安全区' }, slug: 'guides/ui-masking' },
               ],
             },
-            {
-              label: 'Audio & Effects',
-              translations: { 'zh-CN': '音频与特效' },
-              items: [
-                { label: 'Audio', translations: { 'zh-CN': '音频' }, slug: 'guides/audio' },
-                { label: 'Particles', translations: { 'zh-CN': '粒子系统' }, slug: 'guides/particles' },
-                { label: 'Physics', translations: { 'zh-CN': '物理' }, slug: 'guides/physics' },
-                { label: 'Tilemap', translations: { 'zh-CN': '瓦片地图' }, slug: 'guides/tilemap' },
-              ],
-            },
+            { label: 'Physics', translations: { 'zh-CN': '物理' }, slug: 'guides/physics' },
+            { label: 'Audio', translations: { 'zh-CN': '音频' }, slug: 'guides/audio' },
+            { label: 'Tilemap', translations: { 'zh-CN': '瓦片地图' }, slug: 'guides/tilemap' },
             {
               label: 'Assets & Materials',
               translations: { 'zh-CN': '资源与材质' },
@@ -113,6 +106,8 @@ export default defineConfig({
                 { label: 'Geometry & Meshes', translations: { 'zh-CN': '几何体与网格' }, slug: 'guides/geometry' },
               ],
             },
+            { label: 'Storage', translations: { 'zh-CN': '数据存储' }, slug: 'guides/storage' },
+            { label: 'Plugins', translations: { 'zh-CN': '插件系统' }, slug: 'guides/plugins' },
             {
               label: 'Editor',
               translations: { 'zh-CN': '编辑器' },
@@ -124,7 +119,6 @@ export default defineConfig({
                 { label: 'Debugging', translations: { 'zh-CN': '调试' }, slug: 'guides/debugging' },
               ],
             },
-            { label: 'Plugins', translations: { 'zh-CN': '插件系统' }, slug: 'guides/plugins' },
             {
               label: 'Build & Deploy',
               translations: { 'zh-CN': '构建与部署' },
