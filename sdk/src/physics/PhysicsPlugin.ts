@@ -26,6 +26,9 @@ export interface PhysicsPluginConfig {
     gravity?: Vec2;
     fixedTimestep?: number;
     subStepCount?: number;
+    contactHertz?: number;
+    contactDampingRatio?: number;
+    contactSpeed?: number;
     collisionLayerMasks?: number[];
 }
 
@@ -103,6 +106,9 @@ export class PhysicsPlugin implements Plugin {
             gravity: config.gravity ?? { x: 0, y: -9.81 },
             fixedTimestep: config.fixedTimestep ?? 1 / 60,
             subStepCount: config.subStepCount ?? 4,
+            contactHertz: config.contactHertz ?? 120,
+            contactDampingRatio: config.contactDampingRatio ?? 10,
+            contactSpeed: config.contactSpeed ?? 10,
             collisionLayerMasks: config.collisionLayerMasks,
         };
     }
@@ -124,7 +130,10 @@ export class PhysicsPlugin implements Plugin {
                     this.config_.gravity.x,
                     this.config_.gravity.y,
                     this.config_.fixedTimestep,
-                    this.config_.subStepCount
+                    this.config_.subStepCount,
+                    this.config_.contactHertz,
+                    this.config_.contactDampingRatio,
+                    this.config_.contactSpeed
                 );
 
                 const ppu = readPixelsPerUnit(app);

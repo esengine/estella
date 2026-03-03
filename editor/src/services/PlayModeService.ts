@@ -90,6 +90,9 @@ class PlayModeService {
             },
             fixedTimestep: getSettingsValue<number>('physics.fixedTimestep') ?? 1 / 60,
             subStepCount: getSettingsValue<number>('physics.subStepCount') ?? 4,
+            contactHertz: getSettingsValue<number>('physics.contactHertz') ?? 120,
+            contactDampingRatio: getSettingsValue<number>('physics.contactDampingRatio') ?? 10,
+            contactSpeed: getSettingsValue<number>('physics.contactSpeed') ?? 10,
             collisionLayerMasks: Array.from({ length: MAX_COLLISION_LAYERS }, (_, i) =>
                 getSettingsValue<number>(`physics.layerMask${i}`) ?? 0xFFFF
             ),

@@ -569,6 +569,48 @@ export function registerBuiltinSettings(): void {
         projectSync: true,
     });
 
+    registerSettingsItem({
+        id: 'physics.contactHertz',
+        section: 'physics',
+        label: 'Contact Hertz',
+        description: 'Contact stiffness (cycles/sec). Higher = less overlap but more jitter',
+        type: 'number',
+        defaultValue: 120,
+        step: 10,
+        min: 1,
+        max: 500,
+        order: 5,
+        projectSync: true,
+    });
+
+    registerSettingsItem({
+        id: 'physics.contactDampingRatio',
+        section: 'physics',
+        label: 'Contact Damping Ratio',
+        description: 'Contact bounciness damping. Lower = faster overlap recovery but more energetic',
+        type: 'number',
+        defaultValue: 10,
+        step: 1,
+        min: 0.1,
+        max: 100,
+        order: 6,
+        projectSync: true,
+    });
+
+    registerSettingsItem({
+        id: 'physics.contactSpeed',
+        section: 'physics',
+        label: 'Contact Speed',
+        description: 'Max overlap resolution speed (m/s)',
+        type: 'number',
+        defaultValue: 10,
+        step: 1,
+        min: 1,
+        max: 100,
+        order: 7,
+        projectSync: true,
+    });
+
     // =========================================================================
     // Build
     // =========================================================================

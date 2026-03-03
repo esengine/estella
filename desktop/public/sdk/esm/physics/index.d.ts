@@ -60,7 +60,7 @@ type BodyType = (typeof BodyType)[keyof typeof BodyType];
  * @brief   Loads and initializes the Physics WASM module (standalone or side module)
  */
 interface PhysicsWasmModule {
-    _physics_init(gx: number, gy: number, timestep: number, substeps: number): void;
+    _physics_init(gx: number, gy: number, timestep: number, substeps: number, contactHertz: number, contactDampingRatio: number, contactSpeed: number): void;
     _physics_shutdown(): void;
     _physics_createBody(entityId: number, bodyType: number, x: number, y: number, angle: number, gravityScale: number, linearDamping: number, angularDamping: number, fixedRotation: number, bullet: number): void;
     _physics_destroyBody(entityId: number): void;
@@ -134,6 +134,9 @@ interface PhysicsPluginConfig {
     gravity?: Vec2;
     fixedTimestep?: number;
     subStepCount?: number;
+    contactHertz?: number;
+    contactDampingRatio?: number;
+    contactSpeed?: number;
     collisionLayerMasks?: number[];
 }
 interface CollisionEnterEvent {

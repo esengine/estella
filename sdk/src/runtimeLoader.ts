@@ -615,7 +615,7 @@ export interface LoadRuntimeSceneOptions {
     provider: RuntimeAssetProvider;
     spineModule?: SpineWasmModule | null;
     physicsModule?: PhysicsWasmModule | null;
-    physicsConfig?: { gravity?: Vec2; fixedTimestep?: number; subStepCount?: number };
+    physicsConfig?: { gravity?: Vec2; fixedTimestep?: number; subStepCount?: number; contactHertz?: number; contactDampingRatio?: number; contactSpeed?: number };
     manifest?: AddressableManifest | null;
     sceneName?: string;
 }
@@ -638,6 +638,9 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
             gravity: physicsConfig?.gravity ?? { ...DEFAULT_GRAVITY },
             fixedTimestep: physicsConfig?.fixedTimestep ?? DEFAULT_FIXED_TIMESTEP,
             subStepCount: physicsConfig?.subStepCount ?? 4,
+            contactHertz: physicsConfig?.contactHertz ?? 120,
+            contactDampingRatio: physicsConfig?.contactDampingRatio ?? 10,
+            contactSpeed: physicsConfig?.contactSpeed ?? 10,
         };
         const physicsPlugin = new PhysicsPlugin('', config, () => Promise.resolve(physicsModule));
         physicsPlugin.build(app);
@@ -692,7 +695,7 @@ export interface RuntimeInitConfig {
     firstScene: string;
     spineModule?: SpineWasmModule | null;
     physicsModule?: PhysicsWasmModule | null;
-    physicsConfig?: { gravity?: Vec2; fixedTimestep?: number; subStepCount?: number };
+    physicsConfig?: { gravity?: Vec2; fixedTimestep?: number; subStepCount?: number; contactHertz?: number; contactDampingRatio?: number; contactSpeed?: number };
     manifest?: AddressableManifest | null;
     aspectRatio?: number;
 }

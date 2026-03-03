@@ -4,7 +4,8 @@
  */
 
 export interface PhysicsWasmModule {
-    _physics_init(gx: number, gy: number, timestep: number, substeps: number): void;
+    _physics_init(gx: number, gy: number, timestep: number, substeps: number,
+                  contactHertz: number, contactDampingRatio: number, contactSpeed: number): void;
     _physics_shutdown(): void;
 
     _physics_createBody(entityId: number, bodyType: number, x: number, y: number, angle: number,
@@ -103,7 +104,7 @@ export async function loadPhysicsSideModule(
     const cwrap = mainModule.cwrap.bind(mainModule);
 
     return {
-        _physics_init: cwrap('physics_init', null, ['number', 'number', 'number', 'number']) as PhysicsWasmModule['_physics_init'],
+        _physics_init: cwrap('physics_init', null, ['number', 'number', 'number', 'number', 'number', 'number', 'number']) as PhysicsWasmModule['_physics_init'],
         _physics_shutdown: cwrap('physics_shutdown', null, []) as PhysicsWasmModule['_physics_shutdown'],
 
         _physics_createBody: cwrap('physics_createBody', null, ['number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number']) as PhysicsWasmModule['_physics_createBody'],

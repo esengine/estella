@@ -22,6 +22,9 @@ export interface ProjectConfig {
     physicsGravityY?: number;
     physicsFixedTimestep?: number;
     physicsSubStepCount?: number;
+    physicsContactHertz?: number;
+    physicsContactDampingRatio?: number;
+    physicsContactSpeed?: number;
     designResolution?: { width: number; height: number };
     atlasMaxSize?: number;
     atlasPadding?: number;

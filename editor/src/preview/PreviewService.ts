@@ -43,7 +43,7 @@ export class PreviewService {
         this.previewDir_ = `${this.projectDir_}/.esengine/preview`;
     }
 
-    async startPreview(scene: SceneData, compiledScript?: string, spineVersion?: string, enablePhysics?: boolean, physicsConfig?: { gravityX: number; gravityY: number; fixedTimestep: number; subStepCount: number; collisionLayerMasks?: number[] }, runtimeConfig?: Record<string, unknown>): Promise<number | null> {
+    async startPreview(scene: SceneData, compiledScript?: string, spineVersion?: string, enablePhysics?: boolean, physicsConfig?: { gravityX: number; gravityY: number; fixedTimestep: number; subStepCount: number; contactHertz?: number; contactDampingRatio?: number; contactSpeed?: number; collisionLayerMasks?: number[] }, runtimeConfig?: Record<string, unknown>): Promise<number | null> {
         const fs = this.getNativeFS();
         const invoke = this.getTauriInvoke();
 
@@ -70,7 +70,7 @@ export class PreviewService {
         return port;
     }
 
-    async startServer(scene: SceneData, compiledScript?: string, spineVersion?: string, enablePhysics?: boolean, physicsConfig?: { gravityX: number; gravityY: number; fixedTimestep: number; subStepCount: number; collisionLayerMasks?: number[] }, runtimeConfig?: Record<string, unknown>): Promise<number | null> {
+    async startServer(scene: SceneData, compiledScript?: string, spineVersion?: string, enablePhysics?: boolean, physicsConfig?: { gravityX: number; gravityY: number; fixedTimestep: number; subStepCount: number; contactHertz?: number; contactDampingRatio?: number; contactSpeed?: number; collisionLayerMasks?: number[] }, runtimeConfig?: Record<string, unknown>): Promise<number | null> {
         const fs = this.getNativeFS();
         const invoke = this.getTauriInvoke();
 
@@ -108,7 +108,7 @@ export class PreviewService {
         compiledScript?: string,
         spineVersion?: string,
         enablePhysics?: boolean,
-        physicsConfig?: { gravityX: number; gravityY: number; fixedTimestep: number; subStepCount: number; collisionLayerMasks?: number[] },
+        physicsConfig?: { gravityX: number; gravityY: number; fixedTimestep: number; subStepCount: number; contactHertz?: number; contactDampingRatio?: number; contactSpeed?: number; collisionLayerMasks?: number[] },
         runtimeConfig?: Record<string, unknown>,
     ): Promise<void> {
         const fs = this.getNativeFS();
@@ -123,7 +123,7 @@ export class PreviewService {
         compiledScript?: string,
         spineVersion?: string,
         enablePhysics?: boolean,
-        physicsConfig?: { gravityX: number; gravityY: number; fixedTimestep: number; subStepCount: number; collisionLayerMasks?: number[] },
+        physicsConfig?: { gravityX: number; gravityY: number; fixedTimestep: number; subStepCount: number; contactHertz?: number; contactDampingRatio?: number; contactSpeed?: number; collisionLayerMasks?: number[] },
         runtimeConfig?: Record<string, unknown>,
     ): Promise<void> {
         await this.ensureDirectory(fs, this.previewDir_);
@@ -150,6 +150,9 @@ export class PreviewService {
             physicsGravityY: physicsConfig?.gravityY ?? -9.81,
             physicsFixedTimestep: physicsConfig?.fixedTimestep ?? 1 / 60,
             physicsSubStepCount: physicsConfig?.subStepCount ?? 4,
+            physicsContactHertz: physicsConfig?.contactHertz ?? 120,
+            physicsContactDampingRatio: physicsConfig?.contactDampingRatio ?? 10,
+            physicsContactSpeed: physicsConfig?.contactSpeed ?? 10,
             collisionLayerMasks: physicsConfig?.collisionLayerMasks,
             ...runtimeConfig,
         }));

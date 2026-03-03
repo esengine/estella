@@ -58,6 +58,21 @@ const SETTINGS_TO_PROJECT_MAP: SettingMapping[] = [
         write: (c, v) => { c.physicsSubStepCount = v as number; },
     },
     {
+        settingId: 'physics.contactHertz',
+        read: c => c.physicsContactHertz ?? 120,
+        write: (c, v) => { c.physicsContactHertz = v as number; },
+    },
+    {
+        settingId: 'physics.contactDampingRatio',
+        read: c => c.physicsContactDampingRatio ?? 10,
+        write: (c, v) => { c.physicsContactDampingRatio = v as number; },
+    },
+    {
+        settingId: 'physics.contactSpeed',
+        read: c => c.physicsContactSpeed ?? 10,
+        write: (c, v) => { c.physicsContactSpeed = v as number; },
+    },
+    {
         settingId: 'project.designWidth',
         read: c => c.designResolution?.width ?? DEFAULT_DESIGN_WIDTH,
         write: (c, v) => {

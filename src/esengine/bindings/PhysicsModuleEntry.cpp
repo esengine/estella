@@ -75,11 +75,15 @@ extern "C" {
 // World Lifecycle
 
 EMSCRIPTEN_KEEPALIVE
-void physics_init(float gx, float gy, float timestep, int substeps) {
+void physics_init(float gx, float gy, float timestep, int substeps,
+                  float contactHertz, float contactDampingRatio, float contactSpeed) {
     if (b2World_IsValid(g_worldId)) return;
 
     b2WorldDef worldDef = b2DefaultWorldDef();
     worldDef.gravity = {gx, gy};
+    worldDef.contactHertz = contactHertz;
+    worldDef.contactDampingRatio = contactDampingRatio;
+    worldDef.contactSpeed = contactSpeed;
     g_worldId = b2CreateWorld(&worldDef);
 
     g_fixedTimestep = timestep;
