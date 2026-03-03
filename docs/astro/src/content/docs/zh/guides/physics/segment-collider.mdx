@@ -1,0 +1,51 @@
+---
+title: 线段碰撞器
+description: 用于薄墙和屏障的线段碰撞体
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`SegmentCollider` 定义两点之间的线段。适用于薄墙、单向平台和不需要体积形状的隐形屏障。
+
+## 属性
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `point1` | Vec2 | `{x: -0.5, y: 0}` | 起点，以物理单位计（局部空间） |
+| `point2` | Vec2 | `{x: 0.5, y: 0}` | 终点，以物理单位计（局部空间） |
+| `density` | number | `1.0` | 质量密度 |
+| `friction` | number | `0.6` | 表面摩擦力 |
+| `restitution` | number | `0.0` | 弹性 |
+| `isSensor` | boolean | `false` | 触发区域，无物理响应 |
+| `categoryBits` | number | `1` | 碰撞过滤类别位 |
+
+## 用法
+
+将 `SegmentCollider` 组件添加到同时具有 `RigidBody` 和 `Transform` 的实体上。
+
+**薄墙：**创建无需完整盒形的隐形碰撞边界。
+
+```typescript
+commands.spawn(
+    Transform.default(),
+    RigidBody.with({ bodyType: 0 }),
+    SegmentCollider.with({
+        point1: { x: 0, y: 0 },
+        point2: { x: 0, y: 5 },
+    }),
+);
+```
+
+**单向平台：**搭配静态刚体创建物体可以落在上面的边缘。
+
+**隐形屏障：**定义游戏区域边界，无需可见碰撞体几何形状。
+
+<Aside type="note">
+  线段碰撞体是单面的。如需双面碰撞边界，请考虑使用薄 [BoxCollider](./colliders/#boxcollider) 或 [ChainCollider](./chain-collider/)。
+</Aside>
+
+## 参见
+
+- [碰撞体概览](./colliders/) — 所有碰撞体类型
+- [链条碰撞器](./chain-collider/) — 用于地形的连接线段链
+- [多边形碰撞器](./polygon-collider/) — 凸多边形形状

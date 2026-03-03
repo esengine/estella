@@ -1,0 +1,83 @@
+---
+title: Chain Collider
+description: Chain of line segments for terrain and static boundaries
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The `ChainCollider` defines a chain of connected line segments. It is designed for static terrain surfaces and complex boundaries that would be impractical to build from individual box or segment colliders.
+
+<Aside type="caution">
+  Chain colliders can only be used with **static bodies** (bodyType=0). They do not support density or sensor mode.
+</Aside>
+
+## Properties
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `points` | Vec2[] | `[]` | Chain vertices in physics units (local space) |
+| `isLoop` | boolean | `false` | Connect the last point back to the first, forming a closed loop |
+| `friction` | number | `0.6` | Surface friction |
+| `restitution` | number | `0.0` | Bounciness |
+| `categoryBits` | number | `1` | Collision filter category bits |
+
+## Point Editing in Scene View
+
+When an entity with a `ChainCollider` is selected in the editor, point handles appear in the Scene View:
+
+- **Drag a handle** to move a point
+- **Double-click on a segment** to insert a new point
+- **Right-click a handle** to remove a point
+
+## isLoop
+
+When `isLoop` is `false`, the chain is an open path — objects can pass around the endpoints. When `isLoop` is `true`, the last point connects back to the first point, forming a closed boundary.
+
+**Open chain** — useful for terrain surfaces:
+
+```typescript
+commands.spawn(
+    Transform.default(),
+    RigidBody.with({ bodyType: 0 }),
+    ChainCollider.with({
+        points: [
+            { x: -10, y: 0 },
+            { x: -5, y: 2 },
+            { x: 0, y: 0 },
+            { x: 5, y: 1 },
+            { x: 10, y: 0 },
+        ],
+        isLoop: false,
+    }),
+);
+```
+
+**Closed loop** — useful for enclosed areas:
+
+```typescript
+commands.spawn(
+    Transform.default(),
+    RigidBody.with({ bodyType: 0 }),
+    ChainCollider.with({
+        points: [
+            { x: -5, y: -5 },
+            { x: 5, y: -5 },
+            { x: 5, y: 5 },
+            { x: -5, y: 5 },
+        ],
+        isLoop: true,
+    }),
+);
+```
+
+## Tips
+
+- Chain colliders have no volume, so they only collide on one side. Place points in counter-clockwise order for outward-facing normals.
+- Unlike [PolygonCollider](./polygon-collider/), chain colliders have no vertex limit — use as many points as needed to define your terrain.
+- For dynamic collision shapes, use [PolygonCollider](./polygon-collider/) or the basic collider types instead.
+
+## See Also
+
+- [Colliders Overview](./colliders/) — all collider types
+- [Segment Collider](./segment-collider/) — single line segment
+- [Polygon Collider](./polygon-collider/) — convex polygon shapes

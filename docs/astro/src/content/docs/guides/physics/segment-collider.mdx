@@ -1,0 +1,51 @@
+---
+title: Segment Collider
+description: Line segment collider for thin walls and barriers
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The `SegmentCollider` defines a line segment between two points. It is useful for thin walls, one-way platforms, and invisible barriers that don't need volumetric shape.
+
+## Properties
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `point1` | Vec2 | `{x: -0.5, y: 0}` | Start point in physics units (local space) |
+| `point2` | Vec2 | `{x: 0.5, y: 0}` | End point in physics units (local space) |
+| `density` | number | `1.0` | Mass density |
+| `friction` | number | `0.6` | Surface friction |
+| `restitution` | number | `0.0` | Bounciness |
+| `isSensor` | boolean | `false` | Trigger zone without physical response |
+| `categoryBits` | number | `1` | Collision filter category bits |
+
+## Usage
+
+Add a `SegmentCollider` component to any entity that also has a `RigidBody` and `Transform`.
+
+**Thin walls:** Create invisible collision boundaries without using a full box shape.
+
+```typescript
+commands.spawn(
+    Transform.default(),
+    RigidBody.with({ bodyType: 0 }),
+    SegmentCollider.with({
+        point1: { x: 0, y: 0 },
+        point2: { x: 0, y: 5 },
+    }),
+);
+```
+
+**One-way platforms:** Combine with static body type to create edges that objects can land on.
+
+**Invisible barriers:** Define play area boundaries without visible collider geometry.
+
+<Aside type="note">
+  Segment colliders are single-sided. For two-sided collision boundaries, consider using a thin [BoxCollider](./colliders/#boxcollider) or a [ChainCollider](./chain-collider/) instead.
+</Aside>
+
+## See Also
+
+- [Colliders Overview](./colliders/) — all collider types
+- [Chain Collider](./chain-collider/) — chain of connected segments for terrain
+- [Polygon Collider](./polygon-collider/) — convex polygon shapes

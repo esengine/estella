@@ -1,0 +1,78 @@
+---
+title: Colliders
+description: Overview of collider shapes for physics entities
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Each physics entity needs at least one collider shape alongside its [RigidBody](./rigidbody/). The collider defines the physical shape used for collision detection.
+
+## Collider Types
+
+| Collider | Shape | Use Case |
+|----------|-------|----------|
+| [BoxCollider](#boxcollider) | Axis-aligned rectangle | Crates, platforms, walls |
+| [CircleCollider](#circlecollider) | Circle | Balls, coins, rounded objects |
+| [CapsuleCollider](#capsulecollider) | Capsule (rectangle with rounded ends) | Characters, pills |
+| [SegmentCollider](./segment-collider/) | Line segment | Thin walls, one-way platforms |
+| [PolygonCollider](./polygon-collider/) | Convex polygon (up to 8 vertices) | Custom convex shapes |
+| [ChainCollider](./chain-collider/) | Chain of line segments | Terrain, complex static boundaries |
+
+## Common Properties
+
+All colliders (except ChainCollider) share these properties:
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `density` | number | `1.0` | Mass density. Affects total body mass |
+| `friction` | number | `0.6` | Surface friction (0 = ice, 1 = rubber) |
+| `restitution` | number | `0.0` | Bounciness (0 = no bounce, 1 = full bounce) |
+| `isSensor` | boolean | `false` | Trigger zone — detects overlap without physical response |
+| `categoryBits` | number | `1` | Collision filter category bits |
+| `enabled` | boolean | `true` | Enable/disable the collider |
+
+<Aside type="tip">
+  Set `isSensor = true` to create a trigger zone that fires [sensor events](./events/) without blocking movement.
+</Aside>
+
+## BoxCollider
+
+An axis-aligned rectangular collider.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `halfExtents` | Vec2 | `{x: 0.5, y: 0.5}` | Half-width and half-height in physics units |
+| `offset` | Vec2 | `{x: 0, y: 0}` | Offset from entity center in physics units |
+| `radius` | number | `0.0` | Corner rounding radius. Creates a rounded rectangle when > 0 |
+
+Plus all [common properties](#common-properties).
+
+## CircleCollider
+
+A circular collider.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `radius` | number | `0.5` | Circle radius in physics units |
+| `offset` | Vec2 | `{x: 0, y: 0}` | Offset from entity center in physics units |
+
+Plus all [common properties](#common-properties).
+
+## CapsuleCollider
+
+A capsule shape (rectangle with semicircle caps on top and bottom).
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `radius` | number | `0.5` | Capsule radius in physics units |
+| `halfHeight` | number | `0.5` | Half-height of the rectangular center section in physics units |
+| `offset` | Vec2 | `{x: 0, y: 0}` | Offset from entity center in physics units |
+
+Plus all [common properties](#common-properties).
+
+## See Also
+
+- [Segment Collider](./segment-collider/) — line segment collider
+- [Polygon Collider](./polygon-collider/) — custom convex polygon collider
+- [Chain Collider](./chain-collider/) — chain of line segments for terrain
+- [Events](./events/) — collision and sensor events
