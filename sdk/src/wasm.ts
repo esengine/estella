@@ -164,6 +164,7 @@ export interface ESEngineModule {
     renderer_end(): void;
     renderer_submitSprites(registry: CppRegistry): void;
     renderer_submitBitmapText(registry: CppRegistry): void;
+    renderer_submitShapes?(registry: CppRegistry): void;
     renderer_submitSpine?(registry: CppRegistry): void;
     renderer_submitParticles?(registry: CppRegistry): void;
     renderer_submitTriangles(

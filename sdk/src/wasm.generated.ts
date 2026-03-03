@@ -146,6 +146,18 @@ export interface CapsuleCollider {
     maskBits: number;
 }
 
+export interface SegmentCollider {
+    point1: Vec2;
+    point2: Vec2;
+    density: number;
+    friction: number;
+    restitution: number;
+    isSensor: boolean;
+    enabled: boolean;
+    categoryBits: number;
+    maskBits: number;
+}
+
 export interface ParticleEmitter {
     rate: number;
     burstCount: number;
@@ -290,6 +302,15 @@ export interface Children {
     entities: VectorEntity;
 }
 
+export interface ShapeRenderer {
+    shapeType: number;
+    color: Vec4;
+    size: Vec2;
+    cornerRadius: number;
+    layer: number;
+    enabled: boolean;
+}
+
 export interface ScreenSpace {
 }
 
@@ -344,6 +365,10 @@ export interface Registry {
     getCapsuleCollider(entity: Entity): CapsuleCollider;
     addCapsuleCollider(entity: Entity, component: CapsuleCollider): void;
     removeCapsuleCollider(entity: Entity): void;
+    hasSegmentCollider(entity: Entity): boolean;
+    getSegmentCollider(entity: Entity): SegmentCollider;
+    addSegmentCollider(entity: Entity, component: SegmentCollider): void;
+    removeSegmentCollider(entity: Entity): void;
     hasParticleEmitter(entity: Entity): boolean;
     getParticleEmitter(entity: Entity): ParticleEmitter;
     addParticleEmitter(entity: Entity, component: ParticleEmitter): void;
@@ -396,6 +421,10 @@ export interface Registry {
     getChildren(entity: Entity): Children;
     addChildren(entity: Entity, component: Children): void;
     removeChildren(entity: Entity): void;
+    hasShapeRenderer(entity: Entity): boolean;
+    getShapeRenderer(entity: Entity): ShapeRenderer;
+    addShapeRenderer(entity: Entity, component: ShapeRenderer): void;
+    removeShapeRenderer(entity: Entity): void;
     hasScreenSpace(entity: Entity): boolean;
     getScreenSpace(entity: Entity): ScreenSpace;
     addScreenSpace(entity: Entity, component: ScreenSpace): void;
@@ -421,6 +450,7 @@ export interface ESEngineModule {
     BoxCollider: new () => BoxCollider;
     CircleCollider: new () => CircleCollider;
     CapsuleCollider: new () => CapsuleCollider;
+    SegmentCollider: new () => SegmentCollider;
     ParticleEmitter: new () => ParticleEmitter;
     Transform: new () => Transform;
     Velocity: new () => Velocity;
@@ -434,6 +464,7 @@ export interface ESEngineModule {
     FlexContainer: new () => FlexContainer;
     Parent: new () => Parent;
     Children: new () => Children;
+    ShapeRenderer: new () => ShapeRenderer;
     ScreenSpace: new () => ScreenSpace;
     Canvas: new () => Canvas;
     Camera: new () => Camera;

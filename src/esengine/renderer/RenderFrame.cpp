@@ -10,6 +10,7 @@
 #include "../ecs/components/Sprite.hpp"
 #include "../ecs/components/UIRect.hpp"
 #include "../ecs/components/BitmapText.hpp"
+#include "../ecs/components/ShapeRenderer.hpp"
 #include "../text/BitmapFont.hpp"
 #ifdef ES_ENABLE_SPINE
 #include "../ecs/components/SpineAnimation.hpp"
@@ -301,6 +302,41 @@ void RenderFrame::init(u32 width, u32 height) {
     particle_instances_.reserve(INITIAL_PARTICLE_CAPACITY);
 #endif
 
+    shape_vertices_.reserve(256);
+    shape_indices_.reserve(384);
+
+    glGenVertexArrays(1, &shape_vao_);
+    glGenBuffers(1, &shape_vbo_);
+    glGenBuffers(1, &shape_ebo_);
+
+    glBindVertexArray(shape_vao_);
+    glBindBuffer(GL_ARRAY_BUFFER, shape_vbo_);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, shape_ebo_);
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(ShapeVertex),
+                          reinterpret_cast<void*>(offsetof(ShapeVertex, px)));
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(ShapeVertex),
+                          reinterpret_cast<void*>(offsetof(ShapeVertex, ux)));
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(ShapeVertex),
+                          reinterpret_cast<void*>(offsetof(ShapeVertex, cr)));
+    glEnableVertexAttribArray(3);
+    glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, sizeof(ShapeVertex),
+                          reinterpret_cast<void*>(offsetof(ShapeVertex, shapeType)));
+
+    glBindVertexArray(0);
+    shape_vbo_capacity_ = 0;
+    shape_ebo_capacity_ = 0;
+
+    auto shapeParsed = resource::ShaderParser::parse(ShaderEmbeds::SHAPE);
+    shape_shader_handle_ = resource_manager_.createShaderWithBindings(
+        resource::ShaderParser::assembleStage(shapeParsed, resource::ShaderStage::Vertex),
+        resource::ShaderParser::assembleStage(shapeParsed, resource::ShaderStage::Fragment),
+        {{0, "a_position"}, {1, "a_texCoord"}, {2, "a_color"}, {3, "a_shapeInfo"}}
+    );
+
 }
 
 void RenderFrame::shutdown() {
@@ -348,11 +384,21 @@ void RenderFrame::shutdown() {
     particle_instance_capacity_ = 0;
 #endif
 
+    if (shape_shader_handle_.isValid()) {
+        resource_manager_.releaseShader(shape_shader_handle_);
+    }
+    if (shape_ebo_) { glDeleteBuffers(1, &shape_ebo_); shape_ebo_ = 0; }
+    if (shape_vbo_) { glDeleteBuffers(1, &shape_vbo_); shape_vbo_ = 0; }
+    if (shape_vao_) { glDeleteVertexArrays(1, &shape_vao_); shape_vao_ = 0; }
+    shape_vbo_capacity_ = 0;
+    shape_ebo_capacity_ = 0;
+
     items_.clear();
     sprite_data_.clear();
     text_data_.clear();
     ext_data_.clear();
     particle_data_.clear();
+    shape_data_.clear();
 #ifdef ES_ENABLE_SPINE
     spine_data_.clear();
 #endif
@@ -380,6 +426,7 @@ void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::H
     text_data_.clear();
     ext_data_.clear();
     particle_data_.clear();
+    shape_data_.clear();
 #ifdef ES_ENABLE_SPINE
     spine_data_.clear();
 #endif
@@ -867,6 +914,9 @@ void RenderFrame::executeStage(RenderStage stage) {
                 break;
             case RenderType::Particle:
                 renderParticles(begin, end);
+                break;
+            case RenderType::Shape:
+                renderShapes(begin, end);
                 break;
             default:
                 break;
@@ -2008,6 +2058,160 @@ void RenderFrame::renderParticles(u32 begin, u32 end) {
     batcher_->flush();
     RenderCommand::setBlendMode(BlendMode::Normal);
 #endif
+}
+
+// ============================================================================
+// Shape Rendering
+// ============================================================================
+
+void RenderFrame::submitShapes(ecs::Registry& registry) {
+    auto shapeView = registry.view<ecs::Transform, ecs::ShapeRenderer>();
+
+    for (auto entity : shapeView) {
+        const auto& shape = shapeView.get<ecs::ShapeRenderer>(entity);
+        if (!shape.enabled) continue;
+
+        auto& transform = shapeView.get<ecs::Transform>(entity);
+        transform.ensureDecomposed();
+        glm::vec3 position = transform.worldPosition;
+        const auto& rotation = transform.worldRotation;
+        const auto& scale = transform.worldScale;
+
+        glm::vec3 halfExtents = glm::vec3(shape.size.x * scale.x, shape.size.y * scale.y, 0.0f) * 0.5f;
+        if (!frustum_.intersectsAABB(position, halfExtents)) {
+            stats_.culled++;
+            continue;
+        }
+
+        RenderItemBase base;
+        base.entity = entity;
+        base.type = RenderType::Shape;
+        base.stage = current_stage_;
+
+        base.world_position = position;
+        base.world_scale = glm::vec2(scale);
+        f32 sinHalfAngle = rotation.z;
+        f32 cosHalfAngle = rotation.w;
+        base.world_angle = 2.0f * std::atan2(sinHalfAngle, cosHalfAngle);
+
+        base.layer = shape.layer;
+        base.depth = position.z;
+        base.color = shape.color;
+        base.texture_id = 0;
+
+        ShapeData sd;
+        sd.size = shape.size;
+        sd.params = glm::vec3(
+            static_cast<f32>(shape.shapeType),
+            shape.cornerRadius,
+            0.0f
+        );
+
+        base.data_index = static_cast<u32>(shape_data_.size());
+        shape_data_.push_back(sd);
+        base.cached_sort_key_ = base.sortKey();
+        items_.push_back(base);
+        stats_.shapes++;
+    }
+}
+
+void RenderFrame::renderShapes(u32 begin, u32 end) {
+    if (begin >= end) return;
+
+    Shader* shader = resource_manager_.getShader(shape_shader_handle_);
+    if (!shader || !shader->isValid()) return;
+
+    shape_vertices_.clear();
+    shape_indices_.clear();
+
+    for (u32 i = begin; i < end; ++i) {
+        const auto& base = items_[i];
+        const auto& sd = shape_data_[base.data_index];
+
+        glm::vec2 halfSize = sd.size * base.world_scale * 0.5f;
+        f32 shapeType = sd.params.x;
+        f32 cornerRadius = sd.params.y;
+
+        f32 cosA = std::cos(base.world_angle);
+        f32 sinA = std::sin(base.world_angle);
+
+        glm::vec2 pos(base.world_position);
+
+        glm::vec2 localCorners[4] = {
+            {-halfSize.x, -halfSize.y},
+            { halfSize.x, -halfSize.y},
+            { halfSize.x,  halfSize.y},
+            {-halfSize.x,  halfSize.y},
+        };
+
+        glm::vec2 uvCorners[4] = {
+            {-1.0f, -1.0f},
+            { 1.0f, -1.0f},
+            { 1.0f,  1.0f},
+            {-1.0f,  1.0f},
+        };
+
+        auto baseIdx = static_cast<u16>(shape_vertices_.size());
+
+        for (u32 v = 0; v < 4; ++v) {
+            f32 rx = localCorners[v].x * cosA - localCorners[v].y * sinA;
+            f32 ry = localCorners[v].x * sinA + localCorners[v].y * cosA;
+
+            ShapeVertex sv;
+            sv.px = pos.x + rx;
+            sv.py = pos.y + ry;
+            sv.ux = uvCorners[v].x;
+            sv.uy = uvCorners[v].y;
+            sv.cr = base.color.r;
+            sv.cg = base.color.g;
+            sv.cb = base.color.b;
+            sv.ca = base.color.a;
+            sv.shapeType = shapeType;
+            sv.halfW = halfSize.x;
+            sv.halfH = halfSize.y;
+            sv.cornerRadius = cornerRadius;
+            shape_vertices_.push_back(sv);
+        }
+
+        shape_indices_.push_back(baseIdx);
+        shape_indices_.push_back(baseIdx + 1);
+        shape_indices_.push_back(baseIdx + 2);
+        shape_indices_.push_back(baseIdx + 2);
+        shape_indices_.push_back(baseIdx + 3);
+        shape_indices_.push_back(baseIdx);
+    }
+
+    shader->bind();
+    shader->setUniform("u_projection", view_projection_);
+
+    RenderCommand::setBlendMode(BlendMode::Normal);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    glBindVertexArray(shape_vao_);
+    glBindBuffer(GL_ARRAY_BUFFER, shape_vbo_);
+
+    auto vboSize = static_cast<u32>(shape_vertices_.size() * sizeof(ShapeVertex));
+    if (vboSize > shape_vbo_capacity_) {
+        shape_vbo_capacity_ = vboSize * 2;
+        glBufferData(GL_ARRAY_BUFFER, shape_vbo_capacity_, nullptr, GL_STREAM_DRAW);
+    }
+    glBufferSubData(GL_ARRAY_BUFFER, 0, vboSize, shape_vertices_.data());
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, shape_ebo_);
+    auto eboSize = static_cast<u32>(shape_indices_.size() * sizeof(u16));
+    if (eboSize > shape_ebo_capacity_) {
+        shape_ebo_capacity_ = eboSize * 2;
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, shape_ebo_capacity_, nullptr, GL_STREAM_DRAW);
+    }
+    glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, eboSize, shape_indices_.data());
+
+    glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(shape_indices_.size()), GL_UNSIGNED_SHORT, nullptr);
+
+    glBindVertexArray(0);
+
+    stats_.draw_calls++;
+    stats_.triangles += static_cast<u32>(shape_indices_.size()) / 3;
 }
 
 }  // namespace esengine

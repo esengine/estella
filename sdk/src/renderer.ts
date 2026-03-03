@@ -89,6 +89,15 @@ export const Renderer = {
         }
     },
 
+    submitShapes(registry: { _cpp: CppRegistry }): void {
+        if (!module) return;
+        try {
+            module.renderer_submitShapes?.(registry._cpp);
+        } catch (e) {
+            handleWasmError(e, 'Renderer.submitShapes');
+        }
+    },
+
     submitSpine(registry: { _cpp: CppRegistry }): void {
         if (!module) return;
         try {

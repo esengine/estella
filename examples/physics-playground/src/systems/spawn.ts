@@ -1,14 +1,13 @@
 import {
     defineSystem, Query, Mut, Res, Time, Commands,
-    Transform, Sprite, RigidBody, BoxCollider, CircleCollider, BodyType,
-    INVALID_TEXTURE,
+    Transform, ShapeRenderer, ShapeType,
+    RigidBody, BoxCollider, CircleCollider, CapsuleCollider, BodyType,
 } from 'esengine';
 import { SpawnTimer } from '../components';
 
 const MAX_BODIES = 40;
 const SPAWN_Y = 250;
 const PPU = 100;
-
 let bodyCount = 0;
 
 export const spawnSystem = defineSystem(
@@ -22,38 +21,54 @@ export const spawnSystem = defineSystem(
             const x = (Math.random() - 0.5) * 400;
             const hue = Math.random();
             const rgb = hslToRgb(hue, 0.85, 0.55);
-            const useCircle = Math.random() > 0.5;
+            const color = { r: rgb.r, g: rgb.g, b: rgb.b, a: 1 };
 
-            if (useCircle) {
-                const radius = 12 + Math.random() * 18;
+            const variant = Math.floor(Math.random() * 3);
+
+            if (variant === 0) {
+                const r = 15 + Math.random() * 15;
+                const d = r * 2;
                 cmds.spawn()
                     .insert(Transform, { position: { x, y: SPAWN_Y, z: 0 } })
-                    .insert(Sprite, {
-                        size: { x: radius * 2, y: radius * 2 },
-                        color: { r: rgb.r, g: rgb.g, b: rgb.b, a: 1 },
-                        texture: INVALID_TEXTURE,
+                    .insert(ShapeRenderer, {
+                        shapeType: ShapeType.Circle,
+                        size: { x: d, y: d },
+                        color,
                     })
-                    .insert(RigidBody, {
-                        bodyType: BodyType.Dynamic,
-                        restitution: 0.3 + Math.random() * 0.5,
-                    })
+                    .insert(RigidBody, { bodyType: BodyType.Dynamic })
                     .insert(CircleCollider, {
-                        radius: radius / PPU,
-                        restitution: 0.3 + Math.random() * 0.5,
+                        radius: r / PPU,
+                        restitution: 0.2 + Math.random() * 0.4,
+                    });
+            } else if (variant === 1) {
+                const w = 20 + Math.random() * 20;
+                const h = 40 + Math.random() * 30;
+                cmds.spawn()
+                    .insert(Transform, { position: { x, y: SPAWN_Y, z: 0 } })
+                    .insert(ShapeRenderer, {
+                        shapeType: ShapeType.Capsule,
+                        size: { x: w, y: h },
+                        color,
+                    })
+                    .insert(RigidBody, { bodyType: BodyType.Dynamic })
+                    .insert(CapsuleCollider, {
+                        radius: (w / 2) / PPU,
+                        halfHeight: ((h - w) / 2) / PPU,
+                        restitution: 0.2 + Math.random() * 0.4,
                     });
             } else {
                 const w = 20 + Math.random() * 30;
                 const h = 20 + Math.random() * 30;
+                const cr = 4 + Math.random() * 6;
                 cmds.spawn()
                     .insert(Transform, { position: { x, y: SPAWN_Y, z: 0 } })
-                    .insert(Sprite, {
+                    .insert(ShapeRenderer, {
+                        shapeType: ShapeType.RoundedRect,
                         size: { x: w, y: h },
-                        color: { r: rgb.r, g: rgb.g, b: rgb.b, a: 1 },
-                        texture: INVALID_TEXTURE,
+                        cornerRadius: cr,
+                        color,
                     })
-                    .insert(RigidBody, {
-                        bodyType: BodyType.Dynamic,
-                    })
+                    .insert(RigidBody, { bodyType: BodyType.Dynamic })
                     .insert(BoxCollider, {
                         halfExtents: { x: w / 2 / PPU, y: h / 2 / PPU },
                         restitution: 0.2 + Math.random() * 0.4,

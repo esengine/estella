@@ -162,6 +162,68 @@ void main() {
 #pragma end
 )esshader";
 
+inline constexpr const char* SHAPE = R"esshader(#pragma shader "Shape"
+#pragma version 300 es
+
+#pragma vertex
+layout(location = 0) in vec2 a_position;
+layout(location = 1) in vec2 a_texCoord;
+layout(location = 2) in vec4 a_color;
+layout(location = 3) in vec4 a_shapeInfo;
+
+uniform mat4 u_projection;
+
+out vec2 v_uv;
+out vec4 v_color;
+out vec4 v_shapeInfo;
+
+void main() {
+    gl_Position = u_projection * vec4(a_position, 0.0, 1.0);
+    v_uv = a_texCoord;
+    v_color = a_color;
+    v_shapeInfo = a_shapeInfo;
+}
+#pragma end
+
+#pragma fragment
+precision mediump float;
+
+in vec2 v_uv;
+in vec4 v_color;
+in vec4 v_shapeInfo;
+
+out vec4 fragColor;
+
+void main() {
+    vec2 halfSize = v_shapeInfo.yz;
+    float cornerRadius = v_shapeInfo.w;
+    vec2 p = v_uv * halfSize;
+
+    float dist;
+    float shapeType = v_shapeInfo.x;
+
+    if (shapeType < 0.5) {
+        float r = min(halfSize.x, halfSize.y);
+        dist = length(p) - r;
+    } else if (shapeType < 1.5) {
+        float r = min(halfSize.x, halfSize.y);
+        vec2 elongation = halfSize - vec2(r);
+        vec2 q = abs(p) - elongation;
+        dist = length(max(q, 0.0)) - r;
+    } else {
+        float r = min(cornerRadius, min(halfSize.x, halfSize.y));
+        vec2 q = abs(p) - halfSize + vec2(r);
+        dist = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
+    }
+
+    float fw = fwidth(dist);
+    float alpha = 1.0 - smoothstep(-fw, fw, dist);
+    if (alpha < 0.001) discard;
+    fragColor = vec4(v_color.rgb, v_color.a * alpha);
+}
+#pragma end
+)esshader";
+
 inline constexpr const char* SPRITE = R"esshader(#pragma shader "Sprite"
 
 #pragma vertex
