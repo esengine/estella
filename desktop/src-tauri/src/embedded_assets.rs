@@ -28,14 +28,20 @@ pub const ESBUILD_WASM: &[u8] = include_bytes!("../../public/esbuild.wasm");
 // SDK
 // =============================================================================
 
-pub const SDK_ESM_JS: &[u8] = include_bytes!("../../public/sdk/esm/esengine.js");
+pub const SDK_ESM_JS: &[u8] = include_bytes!("../../public/sdk/esm/esengine.bundled.js");
+pub const SDK_ESM_JS_MAP: &[u8] = include_bytes!("../../public/sdk/esm/esengine.bundled.js.map");
 pub const SDK_ESM_DTS: &[u8] = include_bytes!("../../public/sdk/esm/esengine.d.ts");
-pub const SDK_ESM_JS_MAP: &[u8] = include_bytes!("../../public/sdk/esm/index.js.map");
 pub const SDK_WASM_JS: &[u8] = include_bytes!("../../public/sdk/esm/wasm.js");
 pub const SDK_WASM_DTS: &[u8] = include_bytes!("../../public/sdk/esm/wasm.d.ts");
 pub const SDK_WASM_JS_MAP: &[u8] = include_bytes!("../../public/sdk/esm/wasm.js.map");
 pub const SDK_SPINE_JS: &[u8] = include_bytes!("../../public/sdk/esm/spine/index.js");
 pub const SDK_SPINE_JS_MAP: &[u8] = include_bytes!("../../public/sdk/esm/spine/index.js.map");
+pub const SDK_SHARED_INDEX_JS: &[u8] = include_bytes!("../../public/sdk/esm/shared/index.js");
+pub const SDK_SHARED_INDEX_JS_MAP: &[u8] = include_bytes!("../../public/sdk/esm/shared/index.js.map");
+pub const SDK_SHARED_MATERIAL_JS: &[u8] = include_bytes!("../../public/sdk/esm/shared/material.js");
+pub const SDK_SHARED_MATERIAL_JS_MAP: &[u8] = include_bytes!("../../public/sdk/esm/shared/material.js.map");
+pub const SDK_SHARED_SPINEMODULELOADER_JS: &[u8] = include_bytes!("../../public/sdk/esm/shared/SpineModuleLoader.js");
+pub const SDK_SHARED_SPINEMODULELOADER_JS_MAP: &[u8] = include_bytes!("../../public/sdk/esm/shared/SpineModuleLoader.js.map");
 pub const SDK_WECHAT_JS: &[u8] = include_bytes!("../../public/sdk/cjs/esengine.wechat.js");
 
 // =============================================================================
