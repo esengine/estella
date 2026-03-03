@@ -1,0 +1,119 @@
+{
+  "version": "1.0",
+  "name": "Main",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 10 } } },
+        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 300, "isActive": true, "priority": 0 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "Ground",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": -250, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 700, "y": 20 }, "color": { "r": 0.5, "g": 0.5, "b": 0.55, "a": 1 } } },
+        { "type": "RigidBody", "data": { "bodyType": 0 } },
+        { "type": "BoxCollider", "data": { "halfExtents": { "x": 3.5, "y": 0.1 }, "categoryBits": 8, "maskBits": 15 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 2,
+      "name": "RedPlatform1",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": -200, "y": -100, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 130, "y": 12 }, "color": { "r": 1, "g": 0.3, "b": 0.3, "a": 0.6 } } },
+        { "type": "RigidBody", "data": { "bodyType": 0 } },
+        { "type": "BoxCollider", "data": { "halfExtents": { "x": 0.65, "y": 0.06 }, "categoryBits": 1, "maskBits": 9 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 3,
+      "name": "RedPlatform2",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": -200, "y": 50, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 130, "y": 12 }, "color": { "r": 1, "g": 0.3, "b": 0.3, "a": 0.6 } } },
+        { "type": "RigidBody", "data": { "bodyType": 0 } },
+        { "type": "BoxCollider", "data": { "halfExtents": { "x": 0.65, "y": 0.06 }, "categoryBits": 1, "maskBits": 9 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 4,
+      "name": "GreenPlatform1",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": -100, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 130, "y": 12 }, "color": { "r": 0.3, "g": 1, "b": 0.3, "a": 0.6 } } },
+        { "type": "RigidBody", "data": { "bodyType": 0 } },
+        { "type": "BoxCollider", "data": { "halfExtents": { "x": 0.65, "y": 0.06 }, "categoryBits": 2, "maskBits": 10 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 5,
+      "name": "GreenPlatform2",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 50, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 130, "y": 12 }, "color": { "r": 0.3, "g": 1, "b": 0.3, "a": 0.6 } } },
+        { "type": "RigidBody", "data": { "bodyType": 0 } },
+        { "type": "BoxCollider", "data": { "halfExtents": { "x": 0.65, "y": 0.06 }, "categoryBits": 2, "maskBits": 10 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 6,
+      "name": "BluePlatform1",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 200, "y": -100, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 130, "y": 12 }, "color": { "r": 0.3, "g": 0.5, "b": 1, "a": 0.6 } } },
+        { "type": "RigidBody", "data": { "bodyType": 0 } },
+        { "type": "BoxCollider", "data": { "halfExtents": { "x": 0.65, "y": 0.06 }, "categoryBits": 4, "maskBits": 12 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 7,
+      "name": "BluePlatform2",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 200, "y": 50, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 130, "y": 12 }, "color": { "r": 0.3, "g": 0.5, "b": 1, "a": 0.6 } } },
+        { "type": "RigidBody", "data": { "bodyType": 0 } },
+        { "type": "BoxCollider", "data": { "halfExtents": { "x": 0.65, "y": 0.06 }, "categoryBits": 4, "maskBits": 12 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 8,
+      "name": "SpawnTimer",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "SpawnTimer", "data": { "interval": 0.6, "timer": 0 } }
+      ],
+      "visible": true
+    }
+  ]
+}

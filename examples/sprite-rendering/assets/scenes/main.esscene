@@ -1,0 +1,257 @@
+{
+  "version": "1.0",
+  "name": "Main",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": { "x": 0, "y": 0, "z": 10 }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 1,
+            "orthoSize": 300,
+            "isActive": true,
+            "priority": 0
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "Layer0",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": -250, "y": 150, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 120, "y": 40 }, "color": { "r": 0.93, "g": 0.17, "b": 0.17, "a": 0.9 } } },
+        { "type": "Wave", "data": { "amplitude": 15, "frequency": 1.5 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 2,
+      "name": "Layer1",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": -230, "y": 90, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 120, "y": 40 }, "color": { "r": 0.93, "g": 0.74, "b": 0.17, "a": 0.9 }, "layer": 1 } },
+        { "type": "Wave", "data": { "amplitude": 15, "frequency": 1.7, "phase": 0.5 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 3,
+      "name": "Layer2",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": -210, "y": 30, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 120, "y": 40 }, "color": { "r": 0.55, "g": 0.93, "b": 0.17, "a": 0.9 }, "layer": 2 } },
+        { "type": "Wave", "data": { "amplitude": 15, "frequency": 1.9, "phase": 1 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 4,
+      "name": "Layer3",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": -190, "y": -30, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 120, "y": 40 }, "color": { "r": 0.17, "g": 0.93, "b": 0.36, "a": 0.9 }, "layer": 3 } },
+        { "type": "Wave", "data": { "amplitude": 15, "frequency": 2.1, "phase": 1.5 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 5,
+      "name": "Layer4",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": -170, "y": -90, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 120, "y": 40 }, "color": { "r": 0.17, "g": 0.93, "b": 0.93, "a": 0.9 }, "layer": 4 } },
+        { "type": "Wave", "data": { "amplitude": 15, "frequency": 2.3, "phase": 2 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 6,
+      "name": "Layer5",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": -150, "y": -150, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 120, "y": 40 }, "color": { "r": 0.17, "g": 0.36, "b": 0.93, "a": 0.9 }, "layer": 5 } },
+        { "type": "Wave", "data": { "amplitude": 15, "frequency": 2.5, "phase": 2.5 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 7,
+      "name": "Layer6",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": -130, "y": -210, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 120, "y": 40 }, "color": { "r": 0.55, "g": 0.17, "b": 0.93, "a": 0.9 }, "layer": 6 } },
+        { "type": "Wave", "data": { "amplitude": 15, "frequency": 2.7, "phase": 3 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 8,
+      "name": "Layer7",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": -110, "y": -270, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 120, "y": 40 }, "color": { "r": 0.93, "g": 0.17, "b": 0.74, "a": 0.9 }, "layer": 7 } },
+        { "type": "Wave", "data": { "amplitude": 15, "frequency": 2.9, "phase": 3.5 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 9,
+      "name": "OrbitCenter",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 200, "y": 0, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 40, "y": 40 }, "layer": 10, "texture": "ac9483ea-42c0-4fce-8a31-cf4cdc224330" } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 10,
+      "name": "Orbit0",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 200, "y": 0, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 24, "y": 24 }, "color": { "r": 0.96, "g": 0.24, "b": 0.24, "a": 1 }, "layer": 11, "texture": "ac9483ea-42c0-4fce-8a31-cf4cdc224330" } },
+        { "type": "Orbit", "data": { "centerX": 200, "radius": 60 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 11,
+      "name": "Orbit1",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 200, "y": 0, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 24, "y": 24 }, "color": { "r": 0.96, "g": 0.96, "b": 0.24, "a": 1 }, "layer": 11, "texture": "ac9483ea-42c0-4fce-8a31-cf4cdc224330" } },
+        { "type": "Orbit", "data": { "centerX": 200, "radius": 85, "speed": 1.3, "angle": 1.05 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 12,
+      "name": "Orbit2",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 200, "y": 0, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 24, "y": 24 }, "color": { "r": 0.24, "g": 0.96, "b": 0.24, "a": 1 }, "layer": 11, "texture": "ac9483ea-42c0-4fce-8a31-cf4cdc224330" } },
+        { "type": "Orbit", "data": { "centerX": 200, "radius": 110, "speed": 1.6, "angle": 2.09 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 13,
+      "name": "Orbit3",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 200, "y": 0, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 24, "y": 24 }, "color": { "r": 0.24, "g": 0.96, "b": 0.96, "a": 1 }, "layer": 11, "texture": "ac9483ea-42c0-4fce-8a31-cf4cdc224330" } },
+        { "type": "Orbit", "data": { "centerX": 200, "radius": 60, "speed": 1.9, "angle": 3.14 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 14,
+      "name": "Orbit4",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 200, "y": 0, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 24, "y": 24 }, "color": { "r": 0.24, "g": 0.24, "b": 0.96, "a": 1 }, "layer": 11, "texture": "ac9483ea-42c0-4fce-8a31-cf4cdc224330" } },
+        { "type": "Orbit", "data": { "centerX": 200, "radius": 85, "speed": 2.2, "angle": 4.19 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 15,
+      "name": "Orbit5",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 200, "y": 0, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 24, "y": 24 }, "color": { "r": 0.96, "g": 0.24, "b": 0.96, "a": 1 }, "layer": 11, "texture": "ac9483ea-42c0-4fce-8a31-cf4cdc224330" } },
+        { "type": "Orbit", "data": { "centerX": 200, "radius": 110, "speed": 2.5, "angle": 5.24 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 16,
+      "name": "FlipNormal",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": -90, "y": -200, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 50, "y": 30 }, "color": { "r": 0.4, "g": 0.8, "b": 1, "a": 1 }, "layer": 5, "texture": "d7cfc683-b474-4c6a-bedf-c5149593510a" } },
+        { "type": "FlipDemo", "data": {} }
+      ],
+      "visible": true
+    },
+    {
+      "id": 17,
+      "name": "FlipX",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": -10, "y": -200, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 50, "y": 30 }, "color": { "r": 0.4, "g": 0.8, "b": 1, "a": 1 }, "flipX": true, "layer": 5, "texture": "d7cfc683-b474-4c6a-bedf-c5149593510a" } },
+        { "type": "FlipDemo", "data": {} }
+      ],
+      "visible": true
+    },
+    {
+      "id": 18,
+      "name": "FlipY",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 70, "y": -200, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 50, "y": 30 }, "color": { "r": 0.4, "g": 0.8, "b": 1, "a": 1 }, "flipY": true, "layer": 5, "texture": "d7cfc683-b474-4c6a-bedf-c5149593510a" } },
+        { "type": "FlipDemo", "data": {} }
+      ],
+      "visible": true
+    },
+    {
+      "id": 19,
+      "name": "FlipXY",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 150, "y": -200, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 50, "y": 30 }, "color": { "r": 0.4, "g": 0.8, "b": 1, "a": 1 }, "flipX": true, "flipY": true, "layer": 5, "texture": "d7cfc683-b474-4c6a-bedf-c5149593510a" } },
+        { "type": "FlipDemo", "data": {} }
+      ],
+      "visible": true
+    }
+  ]
+}

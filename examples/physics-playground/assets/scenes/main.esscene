@@ -1,0 +1,80 @@
+{
+  "version": "1.0",
+  "name": "Main",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 10 } } },
+        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 300, "isActive": true, "priority": 0 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "Ground",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": -250, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 700, "y": 20 }, "color": { "r": 0.4, "g": 0.4, "b": 0.45, "a": 1 } } },
+        { "type": "RigidBody", "data": { "bodyType": 0 } },
+        { "type": "BoxCollider", "data": { "halfExtents": { "x": 3.5, "y": 0.1 } } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 2,
+      "name": "LeftWall",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": -350, "y": -50, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 20, "y": 400 }, "color": { "r": 0.4, "g": 0.4, "b": 0.45, "a": 1 } } },
+        { "type": "RigidBody", "data": { "bodyType": 0 } },
+        { "type": "BoxCollider", "data": { "halfExtents": { "x": 0.1, "y": 2.0 } } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 3,
+      "name": "RightWall",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 350, "y": -50, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 20, "y": 400 }, "color": { "r": 0.4, "g": 0.4, "b": 0.45, "a": 1 } } },
+        { "type": "RigidBody", "data": { "bodyType": 0 } },
+        { "type": "BoxCollider", "data": { "halfExtents": { "x": 0.1, "y": 2.0 } } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 4,
+      "name": "Platform",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": -80, "y": -100, "z": 0 }, "rotation": { "w": 0.966, "x": 0, "y": 0, "z": 0.259 } } },
+        { "type": "Sprite", "data": { "size": { "x": 250, "y": 14 }, "color": { "r": 0.5, "g": 0.5, "b": 0.55, "a": 1 } } },
+        { "type": "RigidBody", "data": { "bodyType": 0 } },
+        { "type": "BoxCollider", "data": { "halfExtents": { "x": 1.25, "y": 0.07 } } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 5,
+      "name": "SpawnTimer",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "SpawnTimer", "data": { "interval": 1.2, "timer": 0 } }
+      ],
+      "visible": true
+    }
+  ]
+}

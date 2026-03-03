@@ -1,0 +1,18 @@
+{
+  "fps": 8,
+  "loop": true,
+  "frames": [
+    {
+      "texture": "a354adf4-afc0-49a2-8cad-8c8f40d3d669"
+    },
+    {
+      "texture": "586f71d5-05fd-4abc-b534-d81a042382b4"
+    },
+    {
+      "texture": "ca5ce245-b0d4-46f3-b8f0-055d30f82800"
+    },
+    {
+      "texture": "be2aabee-879f-4a7b-923b-e7f793e4d56f"
+    }
+  ]
+}

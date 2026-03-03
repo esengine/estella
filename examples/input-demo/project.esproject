@@ -1,0 +1,10 @@
+{
+  "name": "Input Demo",
+  "version": "0.1.0",
+  "engine": "0.1.0",
+  "defaultScene": "assets/scenes/main.esscene",
+  "created": "2026-03-02T00:00:00.000Z",
+  "modified": "2026-03-02T00:00:00.000Z",
+  "spineVersion": "none",
+  "designResolution": { "width": 800, "height": 600 }
+}

@@ -1,0 +1,96 @@
+{
+  "version": "1.0",
+  "name": "Main",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 10 } } },
+        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 300, "isActive": true, "priority": 0 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "Character0",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": -240, "y": 0, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 80, "y": 80 } } },
+        { "type": "SpriteAnimator", "data": {
+          "clip": "assets/animations/walk.esanim",
+          "speed": 0.8
+        }},
+        { "type": "AnimSwitcher", "data": { "switchTimer": 2 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 2,
+      "name": "Character1",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": -120, "y": 0, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 80, "y": 80 } } },
+        { "type": "SpriteAnimator", "data": {
+          "clip": "assets/animations/idle.esanim"
+        }},
+        { "type": "AnimSwitcher", "data": { "isWalking": false, "switchTimer": 2.5 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 3,
+      "name": "Character2",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 80, "y": 80 } } },
+        { "type": "SpriteAnimator", "data": {
+          "clip": "assets/animations/walk.esanim",
+          "speed": 1.2
+        }},
+        { "type": "AnimSwitcher", "data": {} }
+      ],
+      "visible": true
+    },
+    {
+      "id": 4,
+      "name": "Character3",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 120, "y": 0, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 80, "y": 80 } } },
+        { "type": "SpriteAnimator", "data": {
+          "clip": "assets/animations/idle.esanim",
+          "speed": 1.4
+        }},
+        { "type": "AnimSwitcher", "data": { "isWalking": false, "switchTimer": 3.5 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 5,
+      "name": "Character4",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 240, "y": 0, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 80, "y": 80 } } },
+        { "type": "SpriteAnimator", "data": {
+          "clip": "assets/animations/walk.esanim",
+          "speed": 1.6
+        }},
+        { "type": "AnimSwitcher", "data": { "switchTimer": 4 } }
+      ],
+      "visible": true
+    }
+  ]
+}

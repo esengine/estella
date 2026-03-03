@@ -1,0 +1,41 @@
+{
+  "version": "1.0",
+  "name": "Main",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 10 } } },
+        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 300, "isActive": true, "priority": 0 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "Player",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": -150, "y": 0, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 40, "y": 40 }, "color": { "r": 0.3, "g": 0.8, "b": 1, "a": 1 }, "layer": 2, "texture": "52b02713-c5ba-4b97-a9ae-311511dd26ec" } },
+        { "type": "PlayerControl", "data": { "speed": 250 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 2,
+      "name": "MouseFollower",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 150, "y": 0, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 30, "y": 30 }, "color": { "r": 1, "g": 0.5, "b": 0.3, "a": 1 }, "layer": 2, "texture": "625449a9-8566-4af6-b8d1-4c762cb47f1e" } },
+        { "type": "MouseFollower", "data": {} }
+      ],
+      "visible": true
+    }
+  ]
+}

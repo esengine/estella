@@ -1,0 +1,169 @@
+{
+  "version": "1.0",
+  "name": "Main",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": { "x": 0, "y": 0, "z": 10 }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 1,
+            "orthoSize": 300,
+            "isActive": true,
+            "priority": 0
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "Fire",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": -250, "y": -100, "z": 0 } } },
+        { "type": "ParticleEmitter", "data": {
+          "rate": 40,
+          "maxParticles": 200,
+          "lifetimeMin": 0.8,
+          "lifetimeMax": 1.5,
+          "shape": 1,
+          "shapeRadius": 20,
+          "speedMin": 80,
+          "speedMax": 180,
+          "angleSpreadMin": 70,
+          "angleSpreadMax": 110,
+          "startSizeMin": 15,
+          "startSizeMax": 25,
+          "endSizeMin": 2,
+          "endSizeMax": 5,
+          "sizeEasing": 2,
+          "startColor": { "r": 1, "g": 0.6, "b": 0.1, "a": 1 },
+          "endColor": { "r": 1, "g": 0.1, "b": 0, "a": 0 },
+          "colorEasing": 1,
+          "gravity": { "x": 0, "y": 50 },
+          "simulationSpace": 0,
+          "looping": true,
+          "playOnStart": true,
+          "texture": "24cb4e0f-7c75-4df4-9a4d-58480ee405c0"
+        }}
+      ],
+      "visible": true
+    },
+    {
+      "id": 2,
+      "name": "Sparkle",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "ParticleEmitter", "data": {
+          "rate": 25,
+          "maxParticles": 150,
+          "lifetimeMin": 1,
+          "lifetimeMax": 2,
+          "shape": 0,
+          "speedMin": 100,
+          "speedMax": 250,
+          "angleSpreadMin": 0,
+          "angleSpreadMax": 360,
+          "startSizeMin": 8,
+          "startSizeMax": 14,
+          "endSizeMin": 0,
+          "endSizeMax": 0,
+          "sizeEasing": 2,
+          "startColor": { "r": 0.5, "g": 0.8, "b": 1, "a": 1 },
+          "endColor": { "r": 0.2, "g": 0.4, "b": 1, "a": 0 },
+          "colorEasing": 0,
+          "angularVelocityMin": -180,
+          "angularVelocityMax": 180,
+          "damping": 0.5,
+          "looping": true,
+          "playOnStart": true,
+          "texture": "24cb4e0f-7c75-4df4-9a4d-58480ee405c0"
+        }}
+      ],
+      "visible": true
+    },
+    {
+      "id": 3,
+      "name": "Smoke",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 250, "y": -100, "z": 0 } } },
+        { "type": "ParticleEmitter", "data": {
+          "rate": 15,
+          "maxParticles": 100,
+          "lifetimeMin": 2,
+          "lifetimeMax": 4,
+          "shape": 1,
+          "shapeRadius": 10,
+          "speedMin": 30,
+          "speedMax": 60,
+          "angleSpreadMin": 60,
+          "angleSpreadMax": 120,
+          "startSizeMin": 20,
+          "startSizeMax": 30,
+          "endSizeMin": 80,
+          "endSizeMax": 120,
+          "sizeEasing": 2,
+          "startColor": { "r": 0.5, "g": 0.5, "b": 0.5, "a": 0.6 },
+          "endColor": { "r": 0.3, "g": 0.3, "b": 0.3, "a": 0 },
+          "colorEasing": 1,
+          "gravity": { "x": 0, "y": 20 },
+          "damping": 0.3,
+          "looping": true,
+          "playOnStart": true,
+          "texture": "24cb4e0f-7c75-4df4-9a4d-58480ee405c0"
+        }}
+      ],
+      "visible": true
+    },
+    {
+      "id": 4,
+      "name": "Burst",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 180, "z": 0 } } },
+        { "type": "ParticleEmitter", "data": {
+          "rate": 0,
+          "burstCount": 30,
+          "burstInterval": 2,
+          "maxParticles": 200,
+          "lifetimeMin": 0.5,
+          "lifetimeMax": 1.2,
+          "shape": 0,
+          "speedMin": 200,
+          "speedMax": 400,
+          "angleSpreadMin": 0,
+          "angleSpreadMax": 360,
+          "startSizeMin": 6,
+          "startSizeMax": 12,
+          "endSizeMin": 0,
+          "endSizeMax": 0,
+          "sizeEasing": 0,
+          "startColor": { "r": 1, "g": 0.9, "b": 0.2, "a": 1 },
+          "endColor": { "r": 1, "g": 0.3, "b": 0.1, "a": 0 },
+          "gravity": { "x": 0, "y": -200 },
+          "looping": true,
+          "playOnStart": true,
+          "texture": "24cb4e0f-7c75-4df4-9a4d-58480ee405c0"
+        }}
+      ],
+      "visible": true
+    }
+  ]
+}

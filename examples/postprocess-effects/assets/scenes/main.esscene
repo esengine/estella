@@ -1,0 +1,158 @@
+{
+  "version": "1.0",
+  "name": "Main",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 10 } } },
+        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 300, "isActive": true, "priority": 0 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "OrbitSprite0",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 100, "y": 0, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 50, "y": 50 }, "color": { "r": 0.96, "g": 0.24, "b": 0.24, "a": 1 } } },
+        { "type": "Orbit", "data": { "speed": 0.5, "radius": 80 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 2,
+      "name": "OrbitSprite1",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 70.71, "y": 70.71, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 50, "y": 50 }, "color": { "r": 0.96, "g": 0.78, "b": 0.24, "a": 1 } } },
+        { "type": "Orbit", "data": { "speed": 0.6, "radius": 110, "angle": 0.79 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 3,
+      "name": "OrbitSprite2",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 100, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 50, "y": 50 }, "color": { "r": 0.6, "g": 0.96, "b": 0.24, "a": 1 } } },
+        { "type": "Orbit", "data": { "speed": 0.7, "radius": 140, "angle": 1.57 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 4,
+      "name": "OrbitSprite3",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": -70.71, "y": 70.71, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 50, "y": 50 }, "color": { "r": 0.24, "g": 0.96, "b": 0.42, "a": 1 } } },
+        { "type": "Orbit", "data": { "speed": 0.8, "radius": 80, "angle": 2.36 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 5,
+      "name": "OrbitSprite4",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": -100, "y": 0, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 50, "y": 50 }, "color": { "r": 0.24, "g": 0.96, "b": 0.96, "a": 1 } } },
+        { "type": "Orbit", "data": { "speed": 0.9, "radius": 110, "angle": 3.14 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 6,
+      "name": "OrbitSprite5",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": -70.71, "y": -70.71, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 50, "y": 50 }, "color": { "r": 0.24, "g": 0.42, "b": 0.96, "a": 1 } } },
+        { "type": "Orbit", "data": { "speed": 1.0, "radius": 140, "angle": 3.93 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 7,
+      "name": "OrbitSprite6",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": -100, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 50, "y": 50 }, "color": { "r": 0.6, "g": 0.24, "b": 0.96, "a": 1 } } },
+        { "type": "Orbit", "data": { "speed": 1.1, "radius": 80, "angle": 4.71 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 8,
+      "name": "OrbitSprite7",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 70.71, "y": -70.71, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 50, "y": 50 }, "color": { "r": 0.96, "g": 0.24, "b": 0.78, "a": 1 } } },
+        { "type": "Orbit", "data": { "speed": 1.2, "radius": 110, "angle": 5.50 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 9,
+      "name": "CenterSprite",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "Sprite", "data": { "size": { "x": 60, "y": 60 } } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 10,
+      "name": "PostProcess",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "PostProcessVolume", "data": {
+          "isGlobal": true,
+          "priority": 0,
+          "weight": 1,
+          "effects": [
+            {
+              "type": "bloom",
+              "enabled": true,
+              "uniforms": {
+                "u_threshold": 0.3,
+                "u_intensity": 1.5,
+                "u_radius": 6
+              }
+            },
+            {
+              "type": "vignette",
+              "enabled": true,
+              "uniforms": {
+                "u_intensity": 0.8,
+                "u_softness": 0.5
+              }
+            }
+          ]
+        }}
+      ],
+      "visible": true
+    }
+  ]
+}
