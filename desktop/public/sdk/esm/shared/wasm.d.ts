@@ -107,6 +107,17 @@ interface CapsuleCollider {
     categoryBits: number;
     maskBits: number;
 }
+interface SegmentCollider {
+    point1: Vec2;
+    point2: Vec2;
+    density: number;
+    friction: number;
+    restitution: number;
+    isSensor: boolean;
+    enabled: boolean;
+    categoryBits: number;
+    maskBits: number;
+}
 interface ParticleEmitter {
     rate: number;
     burstCount: number;
@@ -238,6 +249,14 @@ interface Parent {
 interface Children {
     entities: VectorEntity;
 }
+interface ShapeRenderer {
+    shapeType: number;
+    color: Vec4;
+    size: Vec2;
+    cornerRadius: number;
+    layer: number;
+    enabled: boolean;
+}
 interface ScreenSpace {
 }
 interface Canvas {
@@ -287,6 +306,10 @@ interface Registry {
     getCapsuleCollider(entity: Entity): CapsuleCollider;
     addCapsuleCollider(entity: Entity, component: CapsuleCollider): void;
     removeCapsuleCollider(entity: Entity): void;
+    hasSegmentCollider(entity: Entity): boolean;
+    getSegmentCollider(entity: Entity): SegmentCollider;
+    addSegmentCollider(entity: Entity, component: SegmentCollider): void;
+    removeSegmentCollider(entity: Entity): void;
     hasParticleEmitter(entity: Entity): boolean;
     getParticleEmitter(entity: Entity): ParticleEmitter;
     addParticleEmitter(entity: Entity, component: ParticleEmitter): void;
@@ -339,6 +362,10 @@ interface Registry {
     getChildren(entity: Entity): Children;
     addChildren(entity: Entity, component: Children): void;
     removeChildren(entity: Entity): void;
+    hasShapeRenderer(entity: Entity): boolean;
+    getShapeRenderer(entity: Entity): ShapeRenderer;
+    addShapeRenderer(entity: Entity, component: ShapeRenderer): void;
+    removeShapeRenderer(entity: Entity): void;
     hasScreenSpace(entity: Entity): boolean;
     getScreenSpace(entity: Entity): ScreenSpace;
     addScreenSpace(entity: Entity, component: ScreenSpace): void;
@@ -488,6 +515,7 @@ interface ESEngineModule {
     renderer_end(): void;
     renderer_submitSprites(registry: CppRegistry): void;
     renderer_submitBitmapText(registry: CppRegistry): void;
+    renderer_submitShapes?(registry: CppRegistry): void;
     renderer_submitSpine?(registry: CppRegistry): void;
     renderer_submitParticles?(registry: CppRegistry): void;
     renderer_submitTriangles(verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, blendMode: number, transformPtr: number): void;

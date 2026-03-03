@@ -21,6 +21,18 @@ export interface VectorEntity {
 
 // Enums
 
+export enum EmitterShape {
+    Point = 0,
+    Circle = 1,
+    Rectangle = 2,
+    Cone = 3,
+}
+
+export enum SimulationSpace {
+    World = 0,
+    Local = 1,
+}
+
 export enum BodyType {
     Static = 0,
     Kinematic = 1,
@@ -105,6 +117,8 @@ export interface BoxCollider {
     restitution: number;
     isSensor: boolean;
     enabled: boolean;
+    categoryBits: number;
+    maskBits: number;
 }
 
 export interface CircleCollider {
@@ -115,6 +129,8 @@ export interface CircleCollider {
     restitution: number;
     isSensor: boolean;
     enabled: boolean;
+    categoryBits: number;
+    maskBits: number;
 }
 
 export interface CapsuleCollider {
@@ -125,6 +141,64 @@ export interface CapsuleCollider {
     friction: number;
     restitution: number;
     isSensor: boolean;
+    enabled: boolean;
+    categoryBits: number;
+    maskBits: number;
+}
+
+export interface SegmentCollider {
+    point1: Vec2;
+    point2: Vec2;
+    density: number;
+    friction: number;
+    restitution: number;
+    isSensor: boolean;
+    enabled: boolean;
+    categoryBits: number;
+    maskBits: number;
+}
+
+export interface ParticleEmitter {
+    rate: number;
+    burstCount: number;
+    burstInterval: number;
+    duration: number;
+    looping: boolean;
+    playOnStart: boolean;
+    maxParticles: number;
+    lifetimeMin: number;
+    lifetimeMax: number;
+    shape: number;
+    shapeRadius: number;
+    shapeSize: Vec2;
+    shapeAngle: number;
+    speedMin: number;
+    speedMax: number;
+    angleSpreadMin: number;
+    angleSpreadMax: number;
+    startSizeMin: number;
+    startSizeMax: number;
+    endSizeMin: number;
+    endSizeMax: number;
+    sizeEasing: number;
+    startColor: Vec4;
+    endColor: Vec4;
+    colorEasing: number;
+    rotationMin: number;
+    rotationMax: number;
+    angularVelocityMin: number;
+    angularVelocityMax: number;
+    gravity: Vec2;
+    damping: number;
+    texture: number;
+    spriteColumns: number;
+    spriteRows: number;
+    spriteFPS: number;
+    spriteLoop: boolean;
+    blendMode: number;
+    layer: number;
+    material: number;
+    simulationSpace: number;
     enabled: boolean;
 }
 
@@ -228,6 +302,9 @@ export interface Children {
     entities: VectorEntity;
 }
 
+export interface ScreenSpace {
+}
+
 export interface Canvas {
     designResolution: UVec2;
     pixelsPerUnit: number;
@@ -279,6 +356,14 @@ export interface Registry {
     getCapsuleCollider(entity: Entity): CapsuleCollider;
     addCapsuleCollider(entity: Entity, component: CapsuleCollider): void;
     removeCapsuleCollider(entity: Entity): void;
+    hasSegmentCollider(entity: Entity): boolean;
+    getSegmentCollider(entity: Entity): SegmentCollider;
+    addSegmentCollider(entity: Entity, component: SegmentCollider): void;
+    removeSegmentCollider(entity: Entity): void;
+    hasParticleEmitter(entity: Entity): boolean;
+    getParticleEmitter(entity: Entity): ParticleEmitter;
+    addParticleEmitter(entity: Entity, component: ParticleEmitter): void;
+    removeParticleEmitter(entity: Entity): void;
     hasTransform(entity: Entity): boolean;
     getTransform(entity: Entity): Transform;
     addTransform(entity: Entity, component: Transform): void;
@@ -327,6 +412,10 @@ export interface Registry {
     getChildren(entity: Entity): Children;
     addChildren(entity: Entity, component: Children): void;
     removeChildren(entity: Entity): void;
+    hasScreenSpace(entity: Entity): boolean;
+    getScreenSpace(entity: Entity): ScreenSpace;
+    addScreenSpace(entity: Entity, component: ScreenSpace): void;
+    removeScreenSpace(entity: Entity): void;
     hasCanvas(entity: Entity): boolean;
     getCanvas(entity: Entity): Canvas;
     addCanvas(entity: Entity, component: Canvas): void;
@@ -348,6 +437,8 @@ export interface ESEngineModule {
     BoxCollider: new () => BoxCollider;
     CircleCollider: new () => CircleCollider;
     CapsuleCollider: new () => CapsuleCollider;
+    SegmentCollider: new () => SegmentCollider;
+    ParticleEmitter: new () => ParticleEmitter;
     Transform: new () => Transform;
     Velocity: new () => Velocity;
     SpineAnimation: new () => SpineAnimation;
@@ -360,6 +451,7 @@ export interface ESEngineModule {
     FlexContainer: new () => FlexContainer;
     Parent: new () => Parent;
     Children: new () => Children;
+    ScreenSpace: new () => ScreenSpace;
     Canvas: new () => Canvas;
     Camera: new () => Camera;
 }

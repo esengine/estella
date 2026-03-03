@@ -23,6 +23,7 @@
 #include "../ecs/components/ParticleEmitter.hpp"
 #include "../ecs/components/RigidBody.hpp"
 #include "../ecs/components/ScreenSpace.hpp"
+#include "../ecs/components/ShapeRenderer.hpp"
 #include "../ecs/components/SpineAnimation.hpp"
 #include "../ecs/components/Sprite.hpp"
 #include "../ecs/components/Transform.hpp"
@@ -343,6 +344,37 @@ BitmapTextJS bitmaptextToJS(const esengine::ecs::BitmapText& c) {
     return js;
 }
 
+struct ShapeRendererJS {
+    i32 shapeType;
+    glm::vec4 color;
+    glm::vec2 size;
+    f32 cornerRadius;
+    i32 layer;
+    bool enabled;
+};
+
+esengine::ecs::ShapeRenderer shaperendererFromJS(const ShapeRendererJS& js) {
+    esengine::ecs::ShapeRenderer c;
+    c.shapeType = static_cast<u8>(js.shapeType);
+    c.color = js.color;
+    c.size = js.size;
+    c.cornerRadius = js.cornerRadius;
+    c.layer = js.layer;
+    c.enabled = js.enabled;
+    return c;
+}
+
+ShapeRendererJS shaperendererToJS(const esengine::ecs::ShapeRenderer& c) {
+    ShapeRendererJS js;
+    js.shapeType = static_cast<i32>(c.shapeType);
+    js.color = c.color;
+    js.size = c.size;
+    js.cornerRadius = c.cornerRadius;
+    js.layer = c.layer;
+    js.enabled = c.enabled;
+    return js;
+}
+
 struct SpriteJS {
     u32 texture;
     glm::vec4 color;
@@ -567,6 +599,17 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("categoryBits", &esengine::ecs::CapsuleCollider::categoryBits)
         .field("maskBits", &esengine::ecs::CapsuleCollider::maskBits);
 
+    value_object<esengine::ecs::SegmentCollider>("SegmentCollider")
+        .field("point1", &esengine::ecs::SegmentCollider::point1)
+        .field("point2", &esengine::ecs::SegmentCollider::point2)
+        .field("density", &esengine::ecs::SegmentCollider::density)
+        .field("friction", &esengine::ecs::SegmentCollider::friction)
+        .field("restitution", &esengine::ecs::SegmentCollider::restitution)
+        .field("isSensor", &esengine::ecs::SegmentCollider::isSensor)
+        .field("enabled", &esengine::ecs::SegmentCollider::enabled)
+        .field("categoryBits", &esengine::ecs::SegmentCollider::categoryBits)
+        .field("maskBits", &esengine::ecs::SegmentCollider::maskBits);
+
     value_object<ParticleEmitterJS>("ParticleEmitter")
         .field("rate", &ParticleEmitterJS::rate)
         .field("burstCount", &ParticleEmitterJS::burstCount)
@@ -617,6 +660,14 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("worldPosition", &esengine::ecs::Transform::worldPosition)
         .field("worldRotation", &esengine::ecs::Transform::worldRotation)
         .field("worldScale", &esengine::ecs::Transform::worldScale);
+
+    value_object<ShapeRendererJS>("ShapeRenderer")
+        .field("shapeType", &ShapeRendererJS::shapeType)
+        .field("color", &ShapeRendererJS::color)
+        .field("size", &ShapeRendererJS::size)
+        .field("cornerRadius", &ShapeRendererJS::cornerRadius)
+        .field("layer", &ShapeRendererJS::layer)
+        .field("enabled", &ShapeRendererJS::enabled);
 
     value_object<esengine::ecs::Velocity>("Velocity")
         .field("linear", &esengine::ecs::Velocity::linear)
@@ -697,6 +748,14 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
 
     value_object<esengine::ecs::Children>("Children")
         .field("entities", &esengine::ecs::Children::entities);
+
+    value_object<esengine::ecs::ShapeRenderer>("ShapeRenderer")
+        .field("shapeType", &esengine::ecs::ShapeRenderer::shapeType)
+        .field("color", &esengine::ecs::ShapeRenderer::color)
+        .field("size", &esengine::ecs::ShapeRenderer::size)
+        .field("cornerRadius", &esengine::ecs::ShapeRenderer::cornerRadius)
+        .field("layer", &esengine::ecs::ShapeRenderer::layer)
+        .field("enabled", &esengine::ecs::ShapeRenderer::enabled);
 
     value_object<esengine::ecs::ScreenSpace>("ScreenSpace");
 
@@ -812,6 +871,20 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             r.remove<esengine::ecs::CapsuleCollider>(static_cast<Entity>(e));
         }))
 
+        // SegmentCollider
+        .function("hasSegmentCollider", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::SegmentCollider>(static_cast<Entity>(e));
+        }))
+        .function("getSegmentCollider", optional_override([](Registry& r, u32 e) -> esengine::ecs::SegmentCollider& {
+            return r.get<esengine::ecs::SegmentCollider>(static_cast<Entity>(e));
+        }), allow_raw_pointers())
+        .function("addSegmentCollider", optional_override([](Registry& r, u32 e, const esengine::ecs::SegmentCollider& c) {
+            r.emplaceOrReplace<esengine::ecs::SegmentCollider>(static_cast<Entity>(e), c);
+        }))
+        .function("removeSegmentCollider", optional_override([](Registry& r, u32 e) {
+            r.remove<esengine::ecs::SegmentCollider>(static_cast<Entity>(e));
+        }))
+
         // ParticleEmitter
         .function("hasParticleEmitter", optional_override([](Registry& r, u32 e) {
             return r.has<esengine::ecs::ParticleEmitter>(static_cast<Entity>(e));
@@ -854,6 +927,20 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         }))
         .function("removeVelocity", optional_override([](Registry& r, u32 e) {
             r.remove<esengine::ecs::Velocity>(static_cast<Entity>(e));
+        }))
+
+        // ShapeRenderer
+        .function("hasShapeRenderer", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::ShapeRenderer>(static_cast<Entity>(e));
+        }))
+        .function("getShapeRenderer", optional_override([](Registry& r, u32 e) {
+            return shaperendererToJS(r.get<esengine::ecs::ShapeRenderer>(static_cast<Entity>(e)));
+        }))
+        .function("addShapeRenderer", optional_override([](Registry& r, u32 e, const ShapeRendererJS& js) {
+            r.emplaceOrReplace<esengine::ecs::ShapeRenderer>(static_cast<Entity>(e), shaperendererFromJS(js));
+        }))
+        .function("removeShapeRenderer", optional_override([](Registry& r, u32 e) {
+            r.remove<esengine::ecs::ShapeRenderer>(static_cast<Entity>(e));
         }))
 
         // SpineAnimation
@@ -994,6 +1081,20 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         }))
         .function("removeChildren", optional_override([](Registry& r, u32 e) {
             r.remove<esengine::ecs::Children>(static_cast<Entity>(e));
+        }))
+
+        // ShapeRenderer
+        .function("hasShapeRenderer", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::ShapeRenderer>(static_cast<Entity>(e));
+        }))
+        .function("getShapeRenderer", optional_override([](Registry& r, u32 e) -> esengine::ecs::ShapeRenderer& {
+            return r.get<esengine::ecs::ShapeRenderer>(static_cast<Entity>(e));
+        }), allow_raw_pointers())
+        .function("addShapeRenderer", optional_override([](Registry& r, u32 e, const esengine::ecs::ShapeRenderer& c) {
+            r.emplaceOrReplace<esengine::ecs::ShapeRenderer>(static_cast<Entity>(e), c);
+        }))
+        .function("removeShapeRenderer", optional_override([](Registry& r, u32 e) {
+            r.remove<esengine::ecs::ShapeRenderer>(static_cast<Entity>(e));
         }))
 
         // ScreenSpace

@@ -55,6 +55,7 @@ public:
         u32 meshes = 0;
         u32 text = 0;
         u32 particles = 0;
+        u32 shapes = 0;
         u32 culled = 0;
     };
 
@@ -73,6 +74,7 @@ public:
     void end();
 
     void submitSprites(ecs::Registry& registry);
+    void submitShapes(ecs::Registry& registry);
     void submitBitmapText(ecs::Registry& registry);
     void submitParticles(ecs::Registry& registry, particle::ParticleSystem& particle_system);
 #ifdef ES_ENABLE_SPINE
@@ -122,6 +124,7 @@ private:
     void renderExternalMeshes(u32 begin, u32 end);
     void renderText(u32 begin, u32 end);
     void renderParticles(u32 begin, u32 end);
+    void renderShapes(u32 begin, u32 end);
 
     RenderContext& context_;
     resource::ResourceManager& resource_manager_;
@@ -139,6 +142,7 @@ private:
 #endif
     std::vector<ExternalMeshData> ext_data_;
     std::vector<ParticleRenderData> particle_data_;
+    std::vector<ShapeData> shape_data_;
 
     glm::mat4 view_projection_{1.0f};
     Frustum frustum_;
@@ -229,6 +233,21 @@ private:
         glm::vec2 uv_scale;
     };
     std::vector<ParticleInstanceData> particle_instances_;
+
+    struct ShapeVertex {
+        f32 px, py;
+        f32 ux, uy;
+        f32 cr, cg, cb, ca;
+        f32 shapeType, halfW, halfH, cornerRadius;
+    };
+    std::vector<ShapeVertex> shape_vertices_;
+    std::vector<u16> shape_indices_;
+    u32 shape_vao_ = 0;
+    u32 shape_vbo_ = 0;
+    u32 shape_ebo_ = 0;
+    u32 shape_vbo_capacity_ = 0;
+    u32 shape_ebo_capacity_ = 0;
+    resource::ShaderHandle shape_shader_handle_;
 
     std::unordered_map<u32, ScissorRect> clip_rects_;
 

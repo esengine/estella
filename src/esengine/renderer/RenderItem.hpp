@@ -26,6 +26,7 @@ enum class RenderType : u8 {
     ExternalMesh = 3,
     Text = 4,
     Particle = 5,
+    Shape = 6,
 };
 
 struct RenderItemBase {
@@ -121,6 +122,11 @@ struct ParticleRenderData {
     glm::vec2 uv_offset{0.0f};
     glm::vec2 uv_scale{1.0f};
     u32 material_id = 0;
+};
+
+struct ShapeData {
+    glm::vec2 size{0.0f};
+    glm::vec3 params{0.0f};
 };
 
 }  // namespace esengine

@@ -38,6 +38,7 @@ void renderer_flush();
 void renderer_end();
 void renderer_submitSprites(ecs::Registry& registry);
 void renderer_submitBitmapText(ecs::Registry& registry);
+void renderer_submitShapes(ecs::Registry& registry);
 #ifdef ES_ENABLE_SPINE
 void renderer_submitSpine(ecs::Registry& registry);
 #endif

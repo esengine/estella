@@ -230,6 +230,23 @@ export interface SpriteData {
     enabled: boolean;
 }
 
+export const ShapeType = {
+    Circle: 0,
+    Capsule: 1,
+    RoundedRect: 2,
+} as const;
+
+export type ShapeType = (typeof ShapeType)[keyof typeof ShapeType];
+
+export interface ShapeRendererData {
+    shapeType: number;
+    color: Color;
+    size: Vec2;
+    cornerRadius: number;
+    layer: number;
+    enabled: boolean;
+}
+
 export interface CameraData {
     projectionType: number;
     fov: number;
@@ -332,6 +349,15 @@ export const Sprite = defineBuiltin<SpriteData>('Sprite', {
     flipY: false,
     material: 0,
     enabled: true
+});
+
+export const ShapeRenderer = defineBuiltin<ShapeRendererData>('ShapeRenderer', {
+    shapeType: ShapeType.Circle,
+    color: { r: 1, g: 1, b: 1, a: 1 },
+    size: { x: 100, y: 100 },
+    cornerRadius: 0,
+    layer: 0,
+    enabled: true,
 });
 
 export const Camera = defineBuiltin<CameraData>('Camera', {

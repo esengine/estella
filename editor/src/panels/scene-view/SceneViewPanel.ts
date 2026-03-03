@@ -766,8 +766,12 @@ export class SceneViewPanel {
             const offsetX = (bounds.offsetX ?? 0) * scale.x;
             const offsetY = (bounds.offsetY ?? 0) * scale.y;
 
+            const rot = worldTransform.rotation;
+            const angleRad = -Math.atan2(2 * (rot.w * rot.z + rot.x * rot.y), 1 - 2 * (rot.y * rot.y + rot.z * rot.z));
+
             ctx.save();
             ctx.translate(pos.x + offsetX, -pos.y - offsetY);
+            ctx.rotate(angleRad);
 
             const selColor = getSettingsValue<string>('scene.selectionColor') ?? '#00aaff';
             ctx.strokeStyle = selColor;

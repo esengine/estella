@@ -106,6 +106,7 @@ export class RenderPipeline {
             this.tilemapRenderer_();
         }
         Renderer.submitSprites(registry);
+        Renderer.submitShapes(registry);
         Renderer.submitBitmapText(registry);
         if (this.spineRenderer_) {
             this.spineRenderer_(registry, elapsed);
@@ -145,6 +146,7 @@ export class RenderPipeline {
             this.tilemapRenderer_();
         }
         Renderer.submitSprites(registry);
+        Renderer.submitShapes(registry);
         Renderer.submitBitmapText(registry);
         if (this.spineRenderer_) {
             this.spineRenderer_(registry, elapsed);

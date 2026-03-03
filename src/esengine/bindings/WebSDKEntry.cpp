@@ -381,6 +381,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_end", &esengine::renderer_end);
     emscripten::function("renderer_submitSprites", &esengine::renderer_submitSprites);
     emscripten::function("renderer_submitBitmapText", &esengine::renderer_submitBitmapText);
+    emscripten::function("renderer_submitShapes", &esengine::renderer_submitShapes);
 #ifdef ES_ENABLE_SPINE
     emscripten::function("renderer_submitSpine", &esengine::renderer_submitSpine);
 #endif
