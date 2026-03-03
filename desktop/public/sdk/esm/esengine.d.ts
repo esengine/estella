@@ -95,6 +95,8 @@ declare const PostProcess: {
     resize(width: number, height: number): void;
     isInitialized(): boolean;
     setBypass(bypass: boolean): void;
+    begin(): void;
+    end(): void;
     setOutputViewport(x: number, y: number, w: number, h: number): void;
     _applyForCamera(camera: Entity): void;
     _resetAfterCamera(): void;
@@ -108,7 +110,9 @@ declare const PostProcess: {
     createBlur(): ShaderHandle;
     createVignette(): ShaderHandle;
     createGrayscale(): ShaderHandle;
-    createBloom(): ShaderHandle;
+    createBloomExtract(): ShaderHandle;
+    createBloomKawase(iteration: number): ShaderHandle;
+    createBloomComposite(): ShaderHandle;
     createChromaticAberration(): ShaderHandle;
 };
 
@@ -120,11 +124,16 @@ interface EffectUniformDef {
     step: number;
     defaultValue: number;
 }
+interface EffectSubPass {
+    name: string;
+    factory: () => ShaderHandle;
+}
 interface EffectDef {
     type: string;
     label: string;
     factory: () => ShaderHandle;
     uniforms: EffectUniformDef[];
+    multiPass?: EffectSubPass[];
 }
 declare function getEffectDef(type: string): EffectDef | undefined;
 declare function getEffectTypes(): string[];
