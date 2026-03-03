@@ -19,6 +19,9 @@ Configure the simulation parameters in the same panel:
 | Gravity Y | `-9.81` | Vertical gravity (negative = downward) |
 | Fixed Timestep | `1/60` | Physics step interval in seconds |
 | Sub-Step Count | `4` | Sub-steps per physics step for accuracy |
+| Contact Hertz | `120` | Contact stiffness (cycles/sec). Higher = less overlap but more jitter |
+| Contact Damping Ratio | `10` | Contact bounciness damping. Lower = faster overlap recovery but more energetic |
+| Contact Speed | `10` | Max overlap resolution speed (m/s) |
 
 <Aside type="note">
   The physics WASM module is loaded automatically by the editor preview and build pipeline. No manual plugin initialization is needed in your game scripts.
