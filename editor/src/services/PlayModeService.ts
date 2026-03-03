@@ -90,9 +90,9 @@ class PlayModeService {
             },
             fixedTimestep: getSettingsValue<number>('physics.fixedTimestep') ?? 1 / 60,
             subStepCount: getSettingsValue<number>('physics.subStepCount') ?? 4,
-            contactHertz: getSettingsValue<number>('physics.contactHertz') ?? 120,
+            contactHertz: getSettingsValue<number>('physics.contactHertz') ?? 30,
             contactDampingRatio: getSettingsValue<number>('physics.contactDampingRatio') ?? 10,
-            contactSpeed: getSettingsValue<number>('physics.contactSpeed') ?? 10,
+            contactSpeed: getSettingsValue<number>('physics.contactSpeed') ?? 3,
             collisionLayerMasks: Array.from({ length: MAX_COLLISION_LAYERS }, (_, i) =>
                 getSettingsValue<number>(`physics.layerMask${i}`) ?? 0xFFFF
             ),
@@ -107,6 +107,7 @@ class PlayModeService {
         if (this.state_ !== 'playing') return;
 
         Audio.stopAll();
+        Audio.baseUrl = '';
         audioPlugin.stopAllSources();
         this.cleanupSceneManager();
 
@@ -252,7 +253,9 @@ class PlayModeService {
         if (!fs?.toAssetUrl) return;
 
         const assetServer = app.getResource(Assets);
-        assetServer.baseUrl = fs.toAssetUrl(projectDir);
+        const assetBaseUrl = fs.toAssetUrl(projectDir);
+        assetServer.baseUrl = assetBaseUrl;
+        Audio.baseUrl = assetBaseUrl;
 
         const db = getAssetDatabase();
         assetServer.setAssetRefResolver((ref: string) => {

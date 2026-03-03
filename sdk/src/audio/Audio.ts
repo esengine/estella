@@ -9,6 +9,7 @@ export class Audio {
     private static bgmVolume_ = 1.0;
     private static fadeAnimId_ = 0;
     private static disposed_ = false;
+    static baseUrl = '';
 
     static init(backend: PlatformAudioBackend, mixer: AudioMixer | null = null): void {
         this.backend_ = backend;
@@ -23,9 +24,16 @@ export class Audio {
         }
     }
 
+    private static resolveUrl_(url: string): string {
+        if (!this.baseUrl || url.startsWith('/') || url.startsWith('http://') || url.startsWith('https://')) {
+            return url;
+        }
+        return `${this.baseUrl}/${url}`;
+    }
+
     static async preload(url: string): Promise<void> {
         if (this.bufferCache_.has(url)) return;
-        const buffer = await this.backend_.loadBuffer(url);
+        const buffer = await this.backend_.loadBuffer(this.resolveUrl_(url));
         this.bufferCache_.set(url, buffer);
     }
 
