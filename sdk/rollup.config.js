@@ -28,6 +28,12 @@ const esmBuilds = [
         treeshake,
     },
     {
+        input: 'src/index.ts',
+        output: { file: 'dist/index.bundled.js', format: 'esm', sourcemap: true },
+        plugins: [typescript({ tsconfig: './tsconfig.json', declaration: false }), terser()],
+        treeshake,
+    },
+    {
         input: 'src/index.wechat.ts',
         output: { file: 'dist/index.wechat.js', format: 'esm', sourcemap: true },
         plugins: [typescript({ tsconfig: './tsconfig.json', declaration: false }), terser()],

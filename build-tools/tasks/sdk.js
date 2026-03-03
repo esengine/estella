@@ -21,6 +21,7 @@ export async function buildSdk(options = {}) {
 
         const sdkOutputs = [
             'esm/esengine.js',
+            'esm/esengine.bundled.js',
             'esm/esengine.d.ts',
             'esm/wasm.js',
             'esm/wasm.d.ts',
@@ -101,6 +102,8 @@ async function copyDistOutputs(sdkDir, outputDir) {
 
     const files = [
         { src: 'index.js', dest: path.join(esmDir, 'esengine.js') },
+        { src: 'index.bundled.js', dest: path.join(esmDir, 'esengine.bundled.js') },
+        { src: 'index.bundled.js.map', dest: path.join(esmDir, 'esengine.bundled.js.map') },
         { src: 'index.d.ts', dest: path.join(esmDir, 'esengine.d.ts') },
         { src: 'wasm.js', dest: path.join(esmDir, 'wasm.js') },
         { src: 'wasm.d.ts', dest: path.join(esmDir, 'wasm.d.ts') },
