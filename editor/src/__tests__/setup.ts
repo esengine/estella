@@ -6,6 +6,6 @@
 // `instanceof Uint8Array` against jsdom's Uint8Array.
 // esbuild-wasm checks this invariant at import time and throws.
 const OriginalEncode = TextEncoder.prototype.encode;
-TextEncoder.prototype.encode = function (input?: string): Uint8Array {
-    return new Uint8Array(OriginalEncode.call(this, input));
+TextEncoder.prototype.encode = function (input?: string) {
+    return new Uint8Array(OriginalEncode.call(this, input)) as Uint8Array<ArrayBuffer>;
 };
