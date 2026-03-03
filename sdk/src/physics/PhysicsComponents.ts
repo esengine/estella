@@ -4,7 +4,7 @@
  */
 
 import type { Vec2 } from '../types';
-import { defineBuiltin } from '../component';
+import { defineBuiltin, defineComponent } from '../component';
 
 // =============================================================================
 // Component Data Interfaces
@@ -23,6 +23,7 @@ export interface RigidBodyData {
 export interface BoxColliderData {
     halfExtents: Vec2;
     offset: Vec2;
+    radius: number;
     density: number;
     friction: number;
     restitution: number;
@@ -57,6 +58,40 @@ export interface CapsuleColliderData {
     maskBits: number;
 }
 
+export interface SegmentColliderData {
+    point1: Vec2;
+    point2: Vec2;
+    density: number;
+    friction: number;
+    restitution: number;
+    isSensor: boolean;
+    enabled: boolean;
+    categoryBits: number;
+    maskBits: number;
+}
+
+export interface PolygonColliderData {
+    vertices: Vec2[];
+    radius: number;
+    density: number;
+    friction: number;
+    restitution: number;
+    isSensor: boolean;
+    enabled: boolean;
+    categoryBits: number;
+    maskBits: number;
+}
+
+export interface ChainColliderData {
+    points: Vec2[];
+    isLoop: boolean;
+    friction: number;
+    restitution: number;
+    categoryBits: number;
+    maskBits: number;
+    enabled: boolean;
+}
+
 // =============================================================================
 // Builtin Component Instances
 // =============================================================================
@@ -74,6 +109,7 @@ export const RigidBody = defineBuiltin<RigidBodyData>('RigidBody', {
 export const BoxCollider = defineBuiltin<BoxColliderData>('BoxCollider', {
     halfExtents: { x: 0.5, y: 0.5 },
     offset: { x: 0, y: 0 },
+    radius: 0.05,
     density: 1.0,
     friction: 0.3,
     restitution: 0.0,
@@ -106,6 +142,50 @@ export const CapsuleCollider = defineBuiltin<CapsuleColliderData>('CapsuleCollid
     enabled: true,
     categoryBits: 0x0001,
     maskBits: 0xFFFF,
+});
+
+export const SegmentCollider = defineBuiltin<SegmentColliderData>('SegmentCollider', {
+    point1: { x: -0.5, y: 0 },
+    point2: { x: 0.5, y: 0 },
+    density: 1.0,
+    friction: 0.3,
+    restitution: 0.0,
+    isSensor: false,
+    enabled: true,
+    categoryBits: 0x0001,
+    maskBits: 0xFFFF,
+});
+
+export const PolygonCollider = defineComponent<PolygonColliderData>('PolygonCollider', {
+    vertices: [
+        { x: -0.5, y: -0.5 },
+        { x: 0.5, y: -0.5 },
+        { x: 0.5, y: 0.5 },
+        { x: -0.5, y: 0.5 },
+    ],
+    radius: 0.0,
+    density: 1.0,
+    friction: 0.3,
+    restitution: 0.0,
+    isSensor: false,
+    enabled: true,
+    categoryBits: 0x0001,
+    maskBits: 0xFFFF,
+});
+
+export const ChainCollider = defineComponent<ChainColliderData>('ChainCollider', {
+    points: [
+        { x: -1, y: 0 },
+        { x: 0, y: 0.5 },
+        { x: 1, y: 0 },
+        { x: 0, y: -0.5 },
+    ],
+    isLoop: true,
+    friction: 0.6,
+    restitution: 0.0,
+    categoryBits: 0x0001,
+    maskBits: 0xFFFF,
+    enabled: true,
 });
 
 // =============================================================================

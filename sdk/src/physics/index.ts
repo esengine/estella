@@ -33,11 +33,17 @@ export {
     BoxCollider,
     CircleCollider,
     CapsuleCollider,
+    SegmentCollider,
+    PolygonCollider,
+    ChainCollider,
     BodyType,
     type RigidBodyData,
     type BoxColliderData,
     type CircleColliderData,
     type CapsuleColliderData,
+    type SegmentColliderData,
+    type PolygonColliderData,
+    type ChainColliderData,
 } from './PhysicsComponents';
 
 export {

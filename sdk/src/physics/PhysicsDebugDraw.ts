@@ -2,13 +2,19 @@ import type { App } from '../app';
 import type { Color } from '../types';
 import type { TransformData, CanvasData } from '../component';
 import type { ResourceDef } from '../resource';
-import type { RigidBodyData, BoxColliderData, CircleColliderData, CapsuleColliderData } from './PhysicsComponents';
+import type {
+    RigidBodyData, BoxColliderData, CircleColliderData, CapsuleColliderData,
+    SegmentColliderData, PolygonColliderData, ChainColliderData,
+} from './PhysicsComponents';
 import type { PhysicsEventsData } from './PhysicsPlugin';
 import { Transform, Canvas } from '../component';
 import { Draw } from '../draw';
 import { defineResource } from '../resource';
 import { registerDrawCallback } from '../customDraw';
-import { RigidBody, BoxCollider, CircleCollider, CapsuleCollider, BodyType } from './PhysicsComponents';
+import {
+    RigidBody, BoxCollider, CircleCollider, CapsuleCollider,
+    SegmentCollider, PolygonCollider, ChainCollider, BodyType,
+} from './PhysicsComponents';
 
 export interface PhysicsDebugDrawConfig {
     enabled: boolean;
@@ -227,6 +233,53 @@ export function drawPhysicsDebug(
                 const cx = wx + offsetX * cosA - offsetY * sinA;
                 const cy = wy + offsetX * sinA + offsetY * cosA;
                 drawCapsule(cx, cy, capsule.radius * ppu, capsule.halfHeight * ppu, angle, baseColor);
+            }
+
+            if (app.world.has(entity, SegmentCollider)) {
+                const seg = app.world.get(entity, SegmentCollider) as SegmentColliderData;
+                const baseColor = seg.isSensor ? SENSOR_COLOR : bodyTypeColor(rb.bodyType);
+                const cosA = Math.cos(angle);
+                const sinA = Math.sin(angle);
+                const p1x = wx + (seg.point1.x * ppu * cosA - seg.point1.y * ppu * sinA);
+                const p1y = wy + (seg.point1.x * ppu * sinA + seg.point1.y * ppu * cosA);
+                const p2x = wx + (seg.point2.x * ppu * cosA - seg.point2.y * ppu * sinA);
+                const p2y = wy + (seg.point2.x * ppu * sinA + seg.point2.y * ppu * cosA);
+                Draw.line({ x: p1x, y: p1y }, { x: p2x, y: p2y }, baseColor, DEBUG_LINE_THICKNESS);
+            }
+
+            if (app.world.has(entity, PolygonCollider)) {
+                const poly = app.world.get(entity, PolygonCollider) as PolygonColliderData;
+                const baseColor = poly.isSensor ? SENSOR_COLOR : bodyTypeColor(rb.bodyType);
+                const cosA = Math.cos(angle);
+                const sinA = Math.sin(angle);
+                const verts = poly.vertices;
+                for (let vi = 0; vi < verts.length; vi++) {
+                    const v0 = verts[vi];
+                    const v1 = verts[(vi + 1) % verts.length];
+                    const x0 = wx + (v0.x * ppu * cosA - v0.y * ppu * sinA);
+                    const y0 = wy + (v0.x * ppu * sinA + v0.y * ppu * cosA);
+                    const x1 = wx + (v1.x * ppu * cosA - v1.y * ppu * sinA);
+                    const y1 = wy + (v1.x * ppu * sinA + v1.y * ppu * cosA);
+                    Draw.line({ x: x0, y: y0 }, { x: x1, y: y1 }, baseColor, DEBUG_LINE_THICKNESS);
+                }
+            }
+
+            if (app.world.has(entity, ChainCollider)) {
+                const chain = app.world.get(entity, ChainCollider) as ChainColliderData;
+                const baseColor = bodyTypeColor(rb.bodyType);
+                const cosA = Math.cos(angle);
+                const sinA = Math.sin(angle);
+                const pts = chain.points;
+                const end = chain.isLoop ? pts.length : pts.length - 1;
+                for (let pi = 0; pi < end; pi++) {
+                    const p0 = pts[pi];
+                    const p1 = pts[(pi + 1) % pts.length];
+                    const x0 = wx + (p0.x * ppu * cosA - p0.y * ppu * sinA);
+                    const y0 = wy + (p0.x * ppu * sinA + p0.y * ppu * cosA);
+                    const x1 = wx + (p1.x * ppu * cosA - p1.y * ppu * sinA);
+                    const y1 = wy + (p1.x * ppu * sinA + p1.y * ppu * cosA);
+                    Draw.line({ x: x0, y: y0 }, { x: x1, y: y1 }, baseColor, DEBUG_LINE_THICKNESS);
+                }
             }
         }
 
