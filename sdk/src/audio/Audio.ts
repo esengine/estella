@@ -9,6 +9,7 @@ export class Audio {
     private static bgmVolume_ = 1.0;
     private static fadeAnimId_ = 0;
     private static disposed_ = false;
+    private static assetResolver_: ((url: string) => ArrayBuffer | null) | null = null;
     static baseUrl = '';
 
     static init(backend: PlatformAudioBackend, mixer: AudioMixer | null = null): void {
@@ -24,6 +25,10 @@ export class Audio {
         }
     }
 
+    static setAssetResolver(resolver: (url: string) => ArrayBuffer | null): void {
+        this.assetResolver_ = resolver;
+    }
+
     private static resolveUrl_(url: string): string {
         if (!this.baseUrl || url.startsWith('/') || url.startsWith('http://') || url.startsWith('https://')) {
             return url;
@@ -33,6 +38,12 @@ export class Audio {
 
     static async preload(url: string): Promise<void> {
         if (this.bufferCache_.has(url)) return;
+        if (this.assetResolver_) {
+            const data = this.assetResolver_(url);
+            if (data) {
+                return this.preloadFromData(url, data);
+            }
+        }
         const buffer = await this.backend_.loadBuffer(this.resolveUrl_(url));
         this.bufferCache_.set(url, buffer);
     }

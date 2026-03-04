@@ -1667,8 +1667,10 @@ declare class Audio {
     private static bgmVolume_;
     private static fadeAnimId_;
     private static disposed_;
+    private static assetResolver_;
     static baseUrl: string;
     static init(backend: PlatformAudioBackend, mixer?: AudioMixer | null): void;
+    static setAssetResolver(resolver: (url: string) => ArrayBuffer | null): void;
     private static resolveUrl_;
     static preload(url: string): Promise<void>;
     static preloadAll(urls: string[]): Promise<void>;
