@@ -15,6 +15,7 @@ import {
     Renderer,
     Text,
     TextInput,
+    Name,
     getComponentAssetFieldDescriptors,
     getComponentSpineFieldDescriptor,
     Audio,
@@ -242,7 +243,11 @@ export class EditorSceneManager {
 
         for (const entityData of scene.entities) {
             this.entityDataMap_.set(entityData.id, entityData);
-            this.entityMap_.set(entityData.id, this.world_.spawn());
+            const entity = this.world_.spawn();
+            this.entityMap_.set(entityData.id, entity);
+            if (entityData.name) {
+                this.world_.insert(entity, Name, { value: entityData.name });
+            }
         }
 
         const loadPromises: Promise<void>[] = [];

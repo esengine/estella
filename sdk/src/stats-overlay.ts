@@ -3,6 +3,9 @@ import type { FrameStats } from './stats';
 export type StatsPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 
 const TOP_SYSTEMS_COUNT = 5;
+const OVERLAY_UPDATE_INTERVAL_MS = 500;
+const SYSTEM_NAME_MAX_LENGTH = 20;
+const SYSTEM_NAME_PAD_WIDTH = 22;
 
 const PANEL_STYLES = `
 position: fixed;
@@ -15,7 +18,7 @@ padding: 6px 10px;
 font: 11px monospace;
 color: #cccccc;
 line-height: 1.6;
-min-width: 200px;
+min-width: 220px;
 white-space: pre;
 `;
 
@@ -36,10 +39,19 @@ function escapeHtml(s: string): string {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+interface SystemAccumulator {
+    sum: number;
+    max: number;
+    count: number;
+}
+
 export class StatsOverlay {
     private el_: HTMLDivElement;
     private visible_ = true;
     private disposed_ = false;
+    private lastUpdateTime_ = 0;
+    private lastStats_: FrameStats | null = null;
+    private accumulatedTimings_ = new Map<string, SystemAccumulator>();
 
     constructor(container: HTMLElement, position: StatsPosition = 'bottom-left') {
         this.el_ = document.createElement('div');
@@ -49,6 +61,49 @@ export class StatsOverlay {
 
     update(stats: FrameStats): void {
         if (!this.visible_ || this.disposed_) return;
+
+        this.lastStats_ = stats;
+        this.accumulateTimings_(stats.systemTimings);
+
+        const now = performance.now();
+        if (this.lastUpdateTime_ > 0 && now - this.lastUpdateTime_ < OVERLAY_UPDATE_INTERVAL_MS) return;
+        this.lastUpdateTime_ = now;
+
+        this.render_();
+    }
+
+    show(): void {
+        this.visible_ = true;
+        this.lastUpdateTime_ = 0;
+        this.el_.style.display = '';
+    }
+
+    hide(): void {
+        this.visible_ = false;
+        this.el_.style.display = 'none';
+    }
+
+    dispose(): void {
+        this.disposed_ = true;
+        this.el_.parentElement?.removeChild(this.el_);
+    }
+
+    private accumulateTimings_(timings: Map<string, number>): void {
+        for (const [name, ms] of timings) {
+            const acc = this.accumulatedTimings_.get(name);
+            if (acc) {
+                acc.sum += ms;
+                acc.count++;
+                if (ms > acc.max) acc.max = ms;
+            } else {
+                this.accumulatedTimings_.set(name, { sum: ms, max: ms, count: 1 });
+            }
+        }
+    }
+
+    private render_(): void {
+        const stats = this.lastStats_;
+        if (!stats) return;
 
         const sections: string[] = [];
 
@@ -71,35 +126,25 @@ export class StatsOverlay {
             `<div>Entities: <span style="color:#d19a66">${stats.entityCount}</span></div>`
         );
 
-        if (stats.systemTimings.size > 0) {
-            const sorted = [...stats.systemTimings.entries()]
-                .sort((a, b) => b[1] - a[1])
-                .slice(0, TOP_SYSTEMS_COUNT);
+        if (this.accumulatedTimings_.size > 0) {
+            const entries: [string, number, number][] = [];
+            for (const [name, acc] of this.accumulatedTimings_) {
+                const avg = acc.sum / acc.count;
+                entries.push([name, avg, acc.max]);
+            }
+            entries.sort((a, b) => b[2] - a[2]);
+            const top = entries.slice(0, TOP_SYSTEMS_COUNT);
 
             let systemsHtml = '<div style="color:#8c8c8c;border-bottom:1px solid rgba(60,60,60,0.8);padding-bottom:3px;margin-bottom:3px;margin-top:4px">Systems (top 5)</div>';
-            for (const [name, ms] of sorted) {
-                const truncated = name.length > 20 ? name.slice(0, 20) + '...' : name;
+            for (const [name, avg, max] of top) {
+                const truncated = name.length > SYSTEM_NAME_MAX_LENGTH ? name.slice(0, SYSTEM_NAME_MAX_LENGTH) + '...' : name;
                 const displayName = escapeHtml(truncated);
-                systemsHtml += `<div>${displayName.padEnd(22)}<span style="color:#d19a66">${formatNumber(ms, 1)}ms</span></div>`;
+                systemsHtml += `<div>${displayName.padEnd(SYSTEM_NAME_PAD_WIDTH)}<span style="color:#d19a66">${formatNumber(avg, 1)} / ${formatNumber(max, 1)}ms</span></div>`;
             }
             sections.push(systemsHtml);
         }
 
         this.el_.innerHTML = sections.join('');
-    }
-
-    show(): void {
-        this.visible_ = true;
-        this.el_.style.display = '';
-    }
-
-    hide(): void {
-        this.visible_ = false;
-        this.el_.style.display = 'none';
-    }
-
-    dispose(): void {
-        this.disposed_ = true;
-        this.el_.parentElement?.removeChild(this.el_);
+        this.accumulatedTimings_.clear();
     }
 }

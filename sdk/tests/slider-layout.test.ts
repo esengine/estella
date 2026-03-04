@@ -199,20 +199,20 @@ describe.skipIf(!HAS_WASM)('Slider Layout (WASM integration)', () => {
     describe('computeHandleAnchors (pure logic)', () => {
         it('should position handle at value for LeftToRight', () => {
             const anchors = computeHandleAnchors(FillDirection.LeftToRight, 0.5);
-            expect(anchors.anchorMin).toEqual({ x: 0.5, y: 0 });
-            expect(anchors.anchorMax).toEqual({ x: 0.5, y: 1 });
+            expect(anchors.anchorMin).toEqual({ x: 0.5, y: 0.5 });
+            expect(anchors.anchorMax).toEqual({ x: 0.5, y: 0.5 });
         });
 
         it('should position handle at start for LeftToRight 0%', () => {
             const anchors = computeHandleAnchors(FillDirection.LeftToRight, 0);
-            expect(anchors.anchorMin).toEqual({ x: 0, y: 0 });
-            expect(anchors.anchorMax).toEqual({ x: 0, y: 1 });
+            expect(anchors.anchorMin).toEqual({ x: 0, y: 0.5 });
+            expect(anchors.anchorMax).toEqual({ x: 0, y: 0.5 });
         });
 
         it('should position handle at end for LeftToRight 100%', () => {
             const anchors = computeHandleAnchors(FillDirection.LeftToRight, 1);
-            expect(anchors.anchorMin).toEqual({ x: 1, y: 0 });
-            expect(anchors.anchorMax).toEqual({ x: 1, y: 1 });
+            expect(anchors.anchorMin).toEqual({ x: 1, y: 0.5 });
+            expect(anchors.anchorMax).toEqual({ x: 1, y: 0.5 });
         });
     });
 

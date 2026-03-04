@@ -14,7 +14,7 @@ import { ToggleGroup } from './ToggleGroup';
 import type { ToggleGroupData } from './ToggleGroup';
 import { UIEvents, UIEventQueue } from './UIEvents';
 import { isEditor, isPlayMode } from '../env';
-import { applyColorTransition, ensureComponent } from './uiHelpers';
+import { applyColorTransition, applyDefaultTint, ensureComponent } from './uiHelpers';
 
 export class TogglePlugin implements Plugin {
     build(app: App): void {
@@ -104,6 +104,15 @@ export class TogglePlugin implements Plugin {
                                 interaction.hovered,
                             );
                             world.insert(entity, Sprite, sprite);
+                        } else if (!toggle.transition && world.has(entity, Sprite)) {
+                            const baseColor = toggle.isOn ? toggle.onColor : toggle.offColor;
+                            const sprite = world.get(entity, Sprite) as SpriteData;
+                            const tinted = applyDefaultTint(baseColor, interactable.enabled, interaction.pressed, interaction.hovered);
+                            if (sprite.color.r !== tinted.r || sprite.color.g !== tinted.g
+                                || sprite.color.b !== tinted.b || sprite.color.a !== tinted.a) {
+                                sprite.color = tinted;
+                                world.insert(entity, Sprite, sprite);
+                            }
                         }
                     }
                 }
