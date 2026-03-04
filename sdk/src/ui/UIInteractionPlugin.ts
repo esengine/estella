@@ -20,7 +20,9 @@ import type { UICameraData } from './UICameraInfo';
 import type { InteractableData } from './Interactable';
 import { screenToWorld, createInvVPCache } from './uiMath';
 import { platformDevicePixelRatio } from '../platform';
-import { applyColorTransition, ensureComponent, walkParentChain } from './uiHelpers';
+import { applyColorTransition, applyDefaultTint, ensureComponent, walkParentChain } from './uiHelpers';
+import { Image } from './Image';
+import type { ImageData } from './Image';
 import type { ESEngineModule, CppRegistry } from '../wasm';
 
 const vpCache = createInvVPCache();
@@ -190,6 +192,16 @@ export class UIInteractionPlugin implements Plugin {
                             interaction.hovered,
                         );
                         world.insert(entity, Sprite, sprite);
+                    } else if ((isFirstFrame || prevState !== button.state) && !button.transition
+                        && world.has(entity, Image) && world.has(entity, Sprite)) {
+                        const image = world.get(entity, Image) as ImageData;
+                        const sprite = world.get(entity, Sprite) as SpriteData;
+                        const tinted = applyDefaultTint(image.color, interactable.enabled, interaction.pressed, interaction.hovered);
+                        if (sprite.color.r !== tinted.r || sprite.color.g !== tinted.g
+                            || sprite.color.b !== tinted.b || sprite.color.a !== tinted.a) {
+                            sprite.color = tinted;
+                            world.insert(entity, Sprite, sprite);
+                        }
                     }
                 }
             },

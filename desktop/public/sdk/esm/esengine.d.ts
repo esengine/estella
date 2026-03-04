@@ -559,6 +559,8 @@ interface ToggleData {
     graphicEntity: Entity;
     group: Entity;
     transition: ColorTransition | null;
+    onColor: Color;
+    offColor: Color;
 }
 declare const Toggle: ComponentDef<ToggleData>;
 
@@ -1925,11 +1927,16 @@ declare class StatsOverlay {
     private el_;
     private visible_;
     private disposed_;
+    private lastUpdateTime_;
+    private lastStats_;
+    private accumulatedTimings_;
     constructor(container: HTMLElement, position?: StatsPosition);
     update(stats: FrameStats): void;
     show(): void;
     hide(): void;
     dispose(): void;
+    private accumulateTimings_;
+    private render_;
 }
 
 interface FrameStats {

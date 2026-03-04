@@ -8,21 +8,8 @@
       "parent": null,
       "children": [],
       "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": { "x": 0, "y": 0, "z": 10 }
-          }
-        },
-        {
-          "type": "Camera",
-          "data": {
-            "projectionType": 1,
-            "orthoSize": 300,
-            "isActive": true,
-            "priority": 0
-          }
-        }
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 10 } } },
+        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 300, "isActive": true, "priority": 0 } }
       ],
       "visible": true
     },
@@ -30,25 +17,11 @@
       "id": 1,
       "name": "Canvas",
       "parent": null,
-      "children": [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17],
+      "children": [2, 3, 16, 4, 6, 8, 10, 12, 14],
       "components": [
         { "type": "Transform", "data": {} },
-        {
-          "type": "Canvas",
-          "data": {
-            "designResolution": { "x": 800, "y": 600 },
-            "scaleMode": 2
-          }
-        },
-        {
-          "type": "UIRect",
-          "data": {
-            "anchorMin": { "x": 0.5, "y": 0.5 },
-            "anchorMax": { "x": 0.5, "y": 0.5 },
-            "size": { "x": 800, "y": 600 },
-            "pivot": { "x": 0.5, "y": 0.5 }
-          }
-        }
+        { "type": "Canvas", "data": { "designResolution": { "x": 800, "y": 600 }, "scaleMode": 2 } },
+        { "type": "UIRect", "data": { "anchorMin": { "x": 0.5, "y": 0.5 }, "anchorMax": { "x": 0.5, "y": 0.5 }, "size": { "x": 800, "y": 600 }, "pivot": { "x": 0.5, "y": 0.5 } } }
       ],
       "visible": true
     },
@@ -59,26 +32,8 @@
       "children": [],
       "components": [
         { "type": "Transform", "data": {} },
-        {
-          "type": "UIRect",
-          "data": {
-            "anchorMin": { "x": 0.5, "y": 1 },
-            "anchorMax": { "x": 0.5, "y": 1 },
-            "offsetMin": { "x": 0, "y": -50 },
-            "size": { "x": 500, "y": 50 },
-            "pivot": { "x": 0.5, "y": 1 }
-          }
-        },
-        {
-          "type": "Text",
-          "data": {
-            "content": "Drag & Focus Demo",
-            "fontSize": 28,
-            "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
-            "align": 1,
-            "verticalAlign": 1
-          }
-        }
+        { "type": "UIRect", "data": { "anchorMin": { "x": 0.5, "y": 1 }, "anchorMax": { "x": 0.5, "y": 1 }, "offsetMin": { "x": 0, "y": -50 }, "size": { "x": 500, "y": 50 }, "pivot": { "x": 0.5, "y": 1 } } },
+        { "type": "Text", "data": { "content": "Drag & Focus Demo", "fontSize": 28, "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "align": 1, "verticalAlign": 1 } }
       ],
       "visible": true
     },
@@ -89,26 +44,8 @@
       "children": [],
       "components": [
         { "type": "Transform", "data": {} },
-        {
-          "type": "UIRect",
-          "data": {
-            "anchorMin": { "x": 0.5, "y": 1 },
-            "anchorMax": { "x": 0.5, "y": 1 },
-            "offsetMin": { "x": 0, "y": -80 },
-            "size": { "x": 500, "y": 30 },
-            "pivot": { "x": 0.5, "y": 1 }
-          }
-        },
-        {
-          "type": "Text",
-          "data": {
-            "content": "Drag cards to rearrange \u00b7 Tab to cycle focus",
-            "fontSize": 16,
-            "color": { "r": 0.6, "g": 0.6, "b": 0.6, "a": 1 },
-            "align": 1,
-            "verticalAlign": 1
-          }
-        }
+        { "type": "UIRect", "data": { "anchorMin": { "x": 0.5, "y": 1 }, "anchorMax": { "x": 0.5, "y": 1 }, "offsetMin": { "x": 0, "y": -80 }, "size": { "x": 500, "y": 30 }, "pivot": { "x": 0.5, "y": 1 } } },
+        { "type": "Text", "data": { "content": "Drag cards to rearrange \u00b7 Tab to cycle focus", "fontSize": 16, "color": { "r": 0.6, "g": 0.6, "b": 0.6, "a": 1 }, "align": 1, "verticalAlign": 1 } }
       ],
       "visible": true
     },
@@ -116,25 +53,11 @@
       "id": 4,
       "name": "Card1",
       "parent": 1,
-      "children": [],
+      "children": [5],
       "components": [
         { "type": "Transform", "data": {} },
-        {
-          "type": "UIRect",
-          "data": {
-            "anchorMin": { "x": 0.5, "y": 0.5 },
-            "anchorMax": { "x": 0.5, "y": 0.5 },
-            "offsetMin": { "x": -350, "y": -40 },
-            "size": { "x": 100, "y": 80 },
-            "pivot": { "x": 0.5, "y": 0.5 }
-          }
-        },
-        {
-          "type": "Image",
-          "data": {
-            "color": { "r": 0.85, "g": 0.15, "b": 0.15, "a": 1 }
-          }
-        },
+        { "type": "UIRect", "data": { "anchorMin": { "x": 0.5, "y": 0.5 }, "anchorMax": { "x": 0.5, "y": 0.5 }, "offsetMin": { "x": -350, "y": -40 }, "size": { "x": 100, "y": 80 }, "pivot": { "x": 0.5, "y": 0.5 } } },
+        { "type": "Image", "data": { "color": { "r": 0.85, "g": 0.15, "b": 0.15, "a": 1 } } },
         { "type": "Interactable", "data": {} },
         { "type": "Draggable", "data": {} },
         { "type": "Focusable", "data": {} }
@@ -144,30 +67,12 @@
     {
       "id": 5,
       "name": "Card1Label",
-      "parent": 1,
+      "parent": 4,
       "children": [],
       "components": [
         { "type": "Transform", "data": {} },
-        {
-          "type": "UIRect",
-          "data": {
-            "anchorMin": { "x": 0.5, "y": 0.5 },
-            "anchorMax": { "x": 0.5, "y": 0.5 },
-            "offsetMin": { "x": -350, "y": -40 },
-            "size": { "x": 100, "y": 80 },
-            "pivot": { "x": 0.5, "y": 0.5 }
-          }
-        },
-        {
-          "type": "Text",
-          "data": {
-            "content": "Card 1",
-            "fontSize": 18,
-            "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
-            "align": 1,
-            "verticalAlign": 1
-          }
-        }
+        { "type": "UIRect", "data": { "anchorMin": { "x": 0, "y": 0 }, "anchorMax": { "x": 1, "y": 1 }, "pivot": { "x": 0.5, "y": 0.5 } } },
+        { "type": "Text", "data": { "content": "Card 1", "fontSize": 18, "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "align": 1, "verticalAlign": 1 } }
       ],
       "visible": true
     },
@@ -175,25 +80,11 @@
       "id": 6,
       "name": "Card2",
       "parent": 1,
-      "children": [],
+      "children": [7],
       "components": [
         { "type": "Transform", "data": {} },
-        {
-          "type": "UIRect",
-          "data": {
-            "anchorMin": { "x": 0.5, "y": 0.5 },
-            "anchorMax": { "x": 0.5, "y": 0.5 },
-            "offsetMin": { "x": -230, "y": -40 },
-            "size": { "x": 100, "y": 80 },
-            "pivot": { "x": 0.5, "y": 0.5 }
-          }
-        },
-        {
-          "type": "Image",
-          "data": {
-            "color": { "r": 0.85, "g": 0.85, "b": 0.15, "a": 1 }
-          }
-        },
+        { "type": "UIRect", "data": { "anchorMin": { "x": 0.5, "y": 0.5 }, "anchorMax": { "x": 0.5, "y": 0.5 }, "offsetMin": { "x": -230, "y": -40 }, "size": { "x": 100, "y": 80 }, "pivot": { "x": 0.5, "y": 0.5 } } },
+        { "type": "Image", "data": { "color": { "r": 0.85, "g": 0.85, "b": 0.15, "a": 1 } } },
         { "type": "Interactable", "data": {} },
         { "type": "Draggable", "data": {} },
         { "type": "Focusable", "data": {} }
@@ -203,30 +94,12 @@
     {
       "id": 7,
       "name": "Card2Label",
-      "parent": 1,
+      "parent": 6,
       "children": [],
       "components": [
         { "type": "Transform", "data": {} },
-        {
-          "type": "UIRect",
-          "data": {
-            "anchorMin": { "x": 0.5, "y": 0.5 },
-            "anchorMax": { "x": 0.5, "y": 0.5 },
-            "offsetMin": { "x": -230, "y": -40 },
-            "size": { "x": 100, "y": 80 },
-            "pivot": { "x": 0.5, "y": 0.5 }
-          }
-        },
-        {
-          "type": "Text",
-          "data": {
-            "content": "Card 2",
-            "fontSize": 18,
-            "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
-            "align": 1,
-            "verticalAlign": 1
-          }
-        }
+        { "type": "UIRect", "data": { "anchorMin": { "x": 0, "y": 0 }, "anchorMax": { "x": 1, "y": 1 }, "pivot": { "x": 0.5, "y": 0.5 } } },
+        { "type": "Text", "data": { "content": "Card 2", "fontSize": 18, "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "align": 1, "verticalAlign": 1 } }
       ],
       "visible": true
     },
@@ -234,25 +107,11 @@
       "id": 8,
       "name": "Card3",
       "parent": 1,
-      "children": [],
+      "children": [9],
       "components": [
         { "type": "Transform", "data": {} },
-        {
-          "type": "UIRect",
-          "data": {
-            "anchorMin": { "x": 0.5, "y": 0.5 },
-            "anchorMax": { "x": 0.5, "y": 0.5 },
-            "offsetMin": { "x": -110, "y": -40 },
-            "size": { "x": 100, "y": 80 },
-            "pivot": { "x": 0.5, "y": 0.5 }
-          }
-        },
-        {
-          "type": "Image",
-          "data": {
-            "color": { "r": 0.15, "g": 0.85, "b": 0.15, "a": 1 }
-          }
-        },
+        { "type": "UIRect", "data": { "anchorMin": { "x": 0.5, "y": 0.5 }, "anchorMax": { "x": 0.5, "y": 0.5 }, "offsetMin": { "x": -110, "y": -40 }, "size": { "x": 100, "y": 80 }, "pivot": { "x": 0.5, "y": 0.5 } } },
+        { "type": "Image", "data": { "color": { "r": 0.15, "g": 0.85, "b": 0.15, "a": 1 } } },
         { "type": "Interactable", "data": {} },
         { "type": "Draggable", "data": {} },
         { "type": "Focusable", "data": {} }
@@ -262,30 +121,12 @@
     {
       "id": 9,
       "name": "Card3Label",
-      "parent": 1,
+      "parent": 8,
       "children": [],
       "components": [
         { "type": "Transform", "data": {} },
-        {
-          "type": "UIRect",
-          "data": {
-            "anchorMin": { "x": 0.5, "y": 0.5 },
-            "anchorMax": { "x": 0.5, "y": 0.5 },
-            "offsetMin": { "x": -110, "y": -40 },
-            "size": { "x": 100, "y": 80 },
-            "pivot": { "x": 0.5, "y": 0.5 }
-          }
-        },
-        {
-          "type": "Text",
-          "data": {
-            "content": "Card 3",
-            "fontSize": 18,
-            "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
-            "align": 1,
-            "verticalAlign": 1
-          }
-        }
+        { "type": "UIRect", "data": { "anchorMin": { "x": 0, "y": 0 }, "anchorMax": { "x": 1, "y": 1 }, "pivot": { "x": 0.5, "y": 0.5 } } },
+        { "type": "Text", "data": { "content": "Card 3", "fontSize": 18, "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "align": 1, "verticalAlign": 1 } }
       ],
       "visible": true
     },
@@ -293,25 +134,11 @@
       "id": 10,
       "name": "Card4",
       "parent": 1,
-      "children": [],
+      "children": [11],
       "components": [
         { "type": "Transform", "data": {} },
-        {
-          "type": "UIRect",
-          "data": {
-            "anchorMin": { "x": 0.5, "y": 0.5 },
-            "anchorMax": { "x": 0.5, "y": 0.5 },
-            "offsetMin": { "x": 10, "y": -40 },
-            "size": { "x": 100, "y": 80 },
-            "pivot": { "x": 0.5, "y": 0.5 }
-          }
-        },
-        {
-          "type": "Image",
-          "data": {
-            "color": { "r": 0.15, "g": 0.85, "b": 0.85, "a": 1 }
-          }
-        },
+        { "type": "UIRect", "data": { "anchorMin": { "x": 0.5, "y": 0.5 }, "anchorMax": { "x": 0.5, "y": 0.5 }, "offsetMin": { "x": 10, "y": -40 }, "size": { "x": 100, "y": 80 }, "pivot": { "x": 0.5, "y": 0.5 } } },
+        { "type": "Image", "data": { "color": { "r": 0.15, "g": 0.85, "b": 0.85, "a": 1 } } },
         { "type": "Interactable", "data": {} },
         { "type": "Draggable", "data": {} },
         { "type": "Focusable", "data": {} }
@@ -321,30 +148,12 @@
     {
       "id": 11,
       "name": "Card4Label",
-      "parent": 1,
+      "parent": 10,
       "children": [],
       "components": [
         { "type": "Transform", "data": {} },
-        {
-          "type": "UIRect",
-          "data": {
-            "anchorMin": { "x": 0.5, "y": 0.5 },
-            "anchorMax": { "x": 0.5, "y": 0.5 },
-            "offsetMin": { "x": 10, "y": -40 },
-            "size": { "x": 100, "y": 80 },
-            "pivot": { "x": 0.5, "y": 0.5 }
-          }
-        },
-        {
-          "type": "Text",
-          "data": {
-            "content": "Card 4",
-            "fontSize": 18,
-            "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
-            "align": 1,
-            "verticalAlign": 1
-          }
-        }
+        { "type": "UIRect", "data": { "anchorMin": { "x": 0, "y": 0 }, "anchorMax": { "x": 1, "y": 1 }, "pivot": { "x": 0.5, "y": 0.5 } } },
+        { "type": "Text", "data": { "content": "Card 4", "fontSize": 18, "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "align": 1, "verticalAlign": 1 } }
       ],
       "visible": true
     },
@@ -352,25 +161,11 @@
       "id": 12,
       "name": "Card5",
       "parent": 1,
-      "children": [],
+      "children": [13],
       "components": [
         { "type": "Transform", "data": {} },
-        {
-          "type": "UIRect",
-          "data": {
-            "anchorMin": { "x": 0.5, "y": 0.5 },
-            "anchorMax": { "x": 0.5, "y": 0.5 },
-            "offsetMin": { "x": 130, "y": -40 },
-            "size": { "x": 100, "y": 80 },
-            "pivot": { "x": 0.5, "y": 0.5 }
-          }
-        },
-        {
-          "type": "Image",
-          "data": {
-            "color": { "r": 0.15, "g": 0.15, "b": 0.85, "a": 1 }
-          }
-        },
+        { "type": "UIRect", "data": { "anchorMin": { "x": 0.5, "y": 0.5 }, "anchorMax": { "x": 0.5, "y": 0.5 }, "offsetMin": { "x": 130, "y": -40 }, "size": { "x": 100, "y": 80 }, "pivot": { "x": 0.5, "y": 0.5 } } },
+        { "type": "Image", "data": { "color": { "r": 0.15, "g": 0.15, "b": 0.85, "a": 1 } } },
         { "type": "Interactable", "data": {} },
         { "type": "Draggable", "data": {} },
         { "type": "Focusable", "data": {} }
@@ -380,30 +175,12 @@
     {
       "id": 13,
       "name": "Card5Label",
-      "parent": 1,
+      "parent": 12,
       "children": [],
       "components": [
         { "type": "Transform", "data": {} },
-        {
-          "type": "UIRect",
-          "data": {
-            "anchorMin": { "x": 0.5, "y": 0.5 },
-            "anchorMax": { "x": 0.5, "y": 0.5 },
-            "offsetMin": { "x": 130, "y": -40 },
-            "size": { "x": 100, "y": 80 },
-            "pivot": { "x": 0.5, "y": 0.5 }
-          }
-        },
-        {
-          "type": "Text",
-          "data": {
-            "content": "Card 5",
-            "fontSize": 18,
-            "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
-            "align": 1,
-            "verticalAlign": 1
-          }
-        }
+        { "type": "UIRect", "data": { "anchorMin": { "x": 0, "y": 0 }, "anchorMax": { "x": 1, "y": 1 }, "pivot": { "x": 0.5, "y": 0.5 } } },
+        { "type": "Text", "data": { "content": "Card 5", "fontSize": 18, "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "align": 1, "verticalAlign": 1 } }
       ],
       "visible": true
     },
@@ -411,25 +188,11 @@
       "id": 14,
       "name": "Card6",
       "parent": 1,
-      "children": [],
+      "children": [15],
       "components": [
         { "type": "Transform", "data": {} },
-        {
-          "type": "UIRect",
-          "data": {
-            "anchorMin": { "x": 0.5, "y": 0.5 },
-            "anchorMax": { "x": 0.5, "y": 0.5 },
-            "offsetMin": { "x": 250, "y": -40 },
-            "size": { "x": 100, "y": 80 },
-            "pivot": { "x": 0.5, "y": 0.5 }
-          }
-        },
-        {
-          "type": "Image",
-          "data": {
-            "color": { "r": 0.85, "g": 0.15, "b": 0.85, "a": 1 }
-          }
-        },
+        { "type": "UIRect", "data": { "anchorMin": { "x": 0.5, "y": 0.5 }, "anchorMax": { "x": 0.5, "y": 0.5 }, "offsetMin": { "x": 250, "y": -40 }, "size": { "x": 100, "y": 80 }, "pivot": { "x": 0.5, "y": 0.5 } } },
+        { "type": "Image", "data": { "color": { "r": 0.85, "g": 0.15, "b": 0.85, "a": 1 } } },
         { "type": "Interactable", "data": {} },
         { "type": "Draggable", "data": {} },
         { "type": "Focusable", "data": {} }
@@ -439,86 +202,36 @@
     {
       "id": 15,
       "name": "Card6Label",
-      "parent": 1,
+      "parent": 14,
       "children": [],
       "components": [
         { "type": "Transform", "data": {} },
-        {
-          "type": "UIRect",
-          "data": {
-            "anchorMin": { "x": 0.5, "y": 0.5 },
-            "anchorMax": { "x": 0.5, "y": 0.5 },
-            "offsetMin": { "x": 250, "y": -40 },
-            "size": { "x": 100, "y": 80 },
-            "pivot": { "x": 0.5, "y": 0.5 }
-          }
-        },
-        {
-          "type": "Text",
-          "data": {
-            "content": "Card 6",
-            "fontSize": 18,
-            "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
-            "align": 1,
-            "verticalAlign": 1
-          }
-        }
+        { "type": "UIRect", "data": { "anchorMin": { "x": 0, "y": 0 }, "anchorMax": { "x": 1, "y": 1 }, "pivot": { "x": 0.5, "y": 0.5 } } },
+        { "type": "Text", "data": { "content": "Card 6", "fontSize": 18, "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "align": 1, "verticalAlign": 1 } }
       ],
       "visible": true
     },
     {
       "id": 16,
-      "name": "DropZoneBg",
+      "name": "DropZone",
       "parent": 1,
-      "children": [],
+      "children": [17],
       "components": [
         { "type": "Transform", "data": {} },
-        {
-          "type": "UIRect",
-          "data": {
-            "anchorMin": { "x": 0.5, "y": 0 },
-            "anchorMax": { "x": 0.5, "y": 0 },
-            "offsetMin": { "x": -250, "y": 40 },
-            "size": { "x": 500, "y": 120 },
-            "pivot": { "x": 0.5, "y": 0 }
-          }
-        },
-        {
-          "type": "Image",
-          "data": {
-            "color": { "r": 0.15, "g": 0.15, "b": 0.2, "a": 0.5 }
-          }
-        }
+        { "type": "UIRect", "data": { "anchorMin": { "x": 0.5, "y": 0 }, "anchorMax": { "x": 0.5, "y": 0 }, "offsetMin": { "x": 0, "y": 40 }, "size": { "x": 500, "y": 120 }, "pivot": { "x": 0.5, "y": 0 } } },
+        { "type": "Image", "data": { "color": { "r": 0.15, "g": 0.15, "b": 0.2, "a": 0.5 } } }
       ],
       "visible": true
     },
     {
       "id": 17,
       "name": "DropZoneLabel",
-      "parent": 1,
+      "parent": 16,
       "children": [],
       "components": [
         { "type": "Transform", "data": {} },
-        {
-          "type": "UIRect",
-          "data": {
-            "anchorMin": { "x": 0.5, "y": 0 },
-            "anchorMax": { "x": 0.5, "y": 0 },
-            "offsetMin": { "x": -250, "y": 40 },
-            "size": { "x": 500, "y": 120 },
-            "pivot": { "x": 0.5, "y": 0 }
-          }
-        },
-        {
-          "type": "Text",
-          "data": {
-            "content": "Drop Zone",
-            "fontSize": 20,
-            "color": { "r": 0.4, "g": 0.4, "b": 0.4, "a": 1 },
-            "align": 1,
-            "verticalAlign": 1
-          }
-        }
+        { "type": "UIRect", "data": { "anchorMin": { "x": 0, "y": 0 }, "anchorMax": { "x": 1, "y": 1 }, "pivot": { "x": 0.5, "y": 0.5 } } },
+        { "type": "Text", "data": { "content": "Drop Zone", "fontSize": 20, "color": { "r": 0.4, "g": 0.4, "b": 0.4, "a": 1 }, "align": 1, "verticalAlign": 1 } }
       ],
       "visible": true
     }

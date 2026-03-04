@@ -71,13 +71,13 @@ export function computeHandleAnchors(
 ): { anchorMin: { x: number; y: number }; anchorMax: { x: number; y: number } } {
     switch (direction) {
         case FillDirection.RightToLeft:
-            return { anchorMin: { x: 1 - value, y: 0 }, anchorMax: { x: 1 - value, y: 1 } };
+            return { anchorMin: { x: 1 - value, y: 0.5 }, anchorMax: { x: 1 - value, y: 0.5 } };
         case FillDirection.BottomToTop:
-            return { anchorMin: { x: 0, y: value }, anchorMax: { x: 1, y: value } };
+            return { anchorMin: { x: 0.5, y: value }, anchorMax: { x: 0.5, y: value } };
         case FillDirection.TopToBottom:
-            return { anchorMin: { x: 0, y: 1 - value }, anchorMax: { x: 1, y: 1 - value } };
+            return { anchorMin: { x: 0.5, y: 1 - value }, anchorMax: { x: 0.5, y: 1 - value } };
         default:
-            return { anchorMin: { x: value, y: 0 }, anchorMax: { x: value, y: 1 } };
+            return { anchorMin: { x: value, y: 0.5 }, anchorMax: { x: value, y: 0.5 } };
     }
 }
 
@@ -123,6 +123,44 @@ export function applyColorTransition(
     if (pressed) return { ...transition.pressedColor };
     if (hovered) return { ...transition.hoveredColor };
     return { ...transition.normalColor };
+}
+
+const TINT_HOVER = 1.15;
+const TINT_PRESSED = 0.75;
+const TINT_DISABLED = 0.5;
+const TINT_DISABLED_ALPHA = 0.6;
+
+export function applyDefaultTint(
+    baseColor: Color,
+    enabled: boolean,
+    pressed: boolean,
+    hovered: boolean,
+): Color {
+    if (!enabled) {
+        return {
+            r: baseColor.r * TINT_DISABLED,
+            g: baseColor.g * TINT_DISABLED,
+            b: baseColor.b * TINT_DISABLED,
+            a: baseColor.a * TINT_DISABLED_ALPHA,
+        };
+    }
+    if (pressed) {
+        return {
+            r: baseColor.r * TINT_PRESSED,
+            g: baseColor.g * TINT_PRESSED,
+            b: baseColor.b * TINT_PRESSED,
+            a: baseColor.a,
+        };
+    }
+    if (hovered) {
+        return {
+            r: Math.min(1, baseColor.r * TINT_HOVER),
+            g: Math.min(1, baseColor.g * TINT_HOVER),
+            b: Math.min(1, baseColor.b * TINT_HOVER),
+            a: baseColor.a,
+        };
+    }
+    return { ...baseColor };
 }
 
 function isWordChar(code: number): boolean {

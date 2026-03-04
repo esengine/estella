@@ -847,6 +847,163 @@ describe('StatsOverlay', () => {
         overlay.dispose();
         expect(() => overlay.update(makeStats({ fps: 60 }))).not.toThrow();
     });
+
+    // === Throttle & avg/max ===
+
+    it('should render immediately on first update', () => {
+        const container = document.createElement('div');
+        const overlay = new StatsOverlay(container);
+        overlay.update(makeStats({ fps: 60 }));
+        expect(container.innerHTML).toContain('60');
+        overlay.dispose();
+    });
+
+    it('should throttle DOM updates within the interval', () => {
+        const container = document.createElement('div');
+        const overlay = new StatsOverlay(container);
+        let now = 1000;
+        vi.spyOn(performance, 'now').mockImplementation(() => now);
+
+        overlay.update(makeStats({ fps: 30, entityCount: 111 }));
+        expect(container.innerHTML).toContain('30');
+        expect(container.innerHTML).toContain('111');
+
+        now = 1100;
+        overlay.update(makeStats({ fps: 55, entityCount: 222 }));
+        expect(container.innerHTML).toContain('111');
+        expect(container.innerHTML).not.toContain('222');
+
+        overlay.dispose();
+    });
+
+    it('should render again after throttle interval elapses', () => {
+        const container = document.createElement('div');
+        const overlay = new StatsOverlay(container);
+        let now = 1000;
+        vi.spyOn(performance, 'now').mockImplementation(() => now);
+
+        overlay.update(makeStats({ fps: 30 }));
+        expect(container.innerHTML).toContain('30');
+
+        now = 1600;
+        overlay.update(makeStats({ fps: 55 }));
+        expect(container.innerHTML).toContain('55');
+
+        overlay.dispose();
+    });
+
+    it('should display avg and max for system timings', () => {
+        const container = document.createElement('div');
+        const overlay = new StatsOverlay(container);
+        let now = 1000;
+        vi.spyOn(performance, 'now').mockImplementation(() => now);
+
+        overlay.update(makeStats({
+            systemTimings: new Map([['Physics', 2.0]]),
+        }));
+
+        const html = container.innerHTML;
+        expect(html).toContain('Physics');
+        expect(html).toContain('2.0');
+        overlay.dispose();
+    });
+
+    it('should accumulate system timings across throttled frames and show avg/max', () => {
+        const container = document.createElement('div');
+        const overlay = new StatsOverlay(container);
+        let now = 1000;
+        vi.spyOn(performance, 'now').mockImplementation(() => now);
+
+        overlay.update(makeStats({
+            systemTimings: new Map([['Physics', 1.0]]),
+        }));
+
+        now = 1100;
+        overlay.update(makeStats({
+            systemTimings: new Map([['Physics', 5.0]]),
+        }));
+        now = 1200;
+        overlay.update(makeStats({
+            systemTimings: new Map([['Physics', 1.0]]),
+        }));
+
+        now = 1600;
+        overlay.update(makeStats({
+            systemTimings: new Map([['Physics', 3.0]]),
+        }));
+
+        const html = container.innerHTML;
+        expect(html).toContain('Physics');
+        expect(html).toContain('3.0');
+        expect(html).toContain('5.0');
+        overlay.dispose();
+    });
+
+    it('should sort systems by max value', () => {
+        const container = document.createElement('div');
+        const overlay = new StatsOverlay(container);
+        let now = 1000;
+        vi.spyOn(performance, 'now').mockImplementation(() => now);
+
+        overlay.update(makeStats({
+            systemTimings: new Map([['A', 0.5], ['B', 1.0]]),
+        }));
+
+        now = 1100;
+        overlay.update(makeStats({
+            systemTimings: new Map([['A', 10.0], ['B', 1.0]]),
+        }));
+
+        now = 1600;
+        overlay.update(makeStats({
+            systemTimings: new Map([['A', 0.5], ['B', 1.0]]),
+        }));
+
+        const html = container.innerHTML;
+        const aIdx = html.indexOf('A');
+        const bIdx = html.indexOf('B');
+        expect(aIdx).toBeLessThan(bIdx);
+        overlay.dispose();
+    });
+
+    it('should reset accumulator after rendering', () => {
+        const container = document.createElement('div');
+        const overlay = new StatsOverlay(container);
+        let now = 1000;
+        vi.spyOn(performance, 'now').mockImplementation(() => now);
+
+        overlay.update(makeStats({
+            systemTimings: new Map([['Physics', 10.0]]),
+        }));
+
+        now = 1600;
+        overlay.update(makeStats({
+            systemTimings: new Map([['Physics', 1.0]]),
+        }));
+
+        const html = container.innerHTML;
+        expect(html).not.toContain('10.0');
+        expect(html).toContain('1.0');
+        overlay.dispose();
+    });
+
+    it('should render immediately after show() resets throttle', () => {
+        const container = document.createElement('div');
+        const overlay = new StatsOverlay(container);
+        let now = 1000;
+        vi.spyOn(performance, 'now').mockImplementation(() => now);
+
+        overlay.update(makeStats({ fps: 30 }));
+        expect(container.innerHTML).toContain('30');
+
+        overlay.hide();
+        now = 1050;
+        overlay.show();
+        overlay.update(makeStats({ fps: 45 }));
+        expect(container.innerHTML).toContain('45');
+
+        overlay.dispose();
+    });
 });
 
 // ============================================================================

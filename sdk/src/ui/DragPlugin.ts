@@ -1,6 +1,8 @@
 import type { App, Plugin } from '../app';
 import { registerComponent, Transform, Parent, Sprite } from '../component';
 import type { TransformData, ParentData, SpriteData } from '../component';
+import { UIRect } from './UIRect';
+import type { UIRectData } from './UIRect';
 import { defineSystem, Schedule } from '../system';
 import { Res } from '../resource';
 import { Input } from '../input';
@@ -186,7 +188,16 @@ export class DragPlugin implements Plugin {
                         y: newWorldY - dragState.startWorldPos.y,
                     };
 
-                    if (world.has(activeEntity, Transform)) {
+                    if (world.has(activeEntity, UIRect)) {
+                        const rect = world.get(activeEntity, UIRect) as UIRectData;
+                        const localDelta = worldToLocalDelta(
+                            world, activeEntity,
+                            dragState.deltaWorld.x, dragState.deltaWorld.y
+                        );
+                        rect.offsetMin.x += localDelta.x;
+                        rect.offsetMin.y += localDelta.y;
+                        world.insert(activeEntity, UIRect, rect);
+                    } else if (world.has(activeEntity, Transform)) {
                         const localDelta = worldToLocalDelta(
                             world, activeEntity,
                             dragState.deltaWorld.x, dragState.deltaWorld.y

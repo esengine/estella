@@ -61,20 +61,20 @@ function syncHandleRect(
     handleRect.offsetMax.x = 0; handleRect.offsetMax.y = 0;
     switch (direction) {
         case FillDirection.LeftToRight:
-            handleRect.anchorMin.x = normalizedValue; handleRect.anchorMin.y = 0;
-            handleRect.anchorMax.x = normalizedValue; handleRect.anchorMax.y = 1;
+            handleRect.anchorMin.x = normalizedValue; handleRect.anchorMin.y = 0.5;
+            handleRect.anchorMax.x = normalizedValue; handleRect.anchorMax.y = 0.5;
             break;
         case FillDirection.RightToLeft:
-            handleRect.anchorMin.x = 1 - normalizedValue; handleRect.anchorMin.y = 0;
-            handleRect.anchorMax.x = 1 - normalizedValue; handleRect.anchorMax.y = 1;
+            handleRect.anchorMin.x = 1 - normalizedValue; handleRect.anchorMin.y = 0.5;
+            handleRect.anchorMax.x = 1 - normalizedValue; handleRect.anchorMax.y = 0.5;
             break;
         case FillDirection.BottomToTop:
-            handleRect.anchorMin.x = 0; handleRect.anchorMin.y = normalizedValue;
-            handleRect.anchorMax.x = 1; handleRect.anchorMax.y = normalizedValue;
+            handleRect.anchorMin.x = 0.5; handleRect.anchorMin.y = normalizedValue;
+            handleRect.anchorMax.x = 0.5; handleRect.anchorMax.y = normalizedValue;
             break;
         case FillDirection.TopToBottom:
-            handleRect.anchorMin.x = 0; handleRect.anchorMin.y = 1 - normalizedValue;
-            handleRect.anchorMax.x = 1; handleRect.anchorMax.y = 1 - normalizedValue;
+            handleRect.anchorMin.x = 0.5; handleRect.anchorMin.y = 1 - normalizedValue;
+            handleRect.anchorMax.x = 0.5; handleRect.anchorMax.y = 1 - normalizedValue;
             break;
     }
 }
