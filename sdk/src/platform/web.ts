@@ -148,6 +148,7 @@ class WebPlatformAdapter implements PlatformAdapter {
             callbacks.onPointerUp((e as MouseEvent).button);
         };
         const onTouchStart = (e: Event) => {
+            e.preventDefault();
             const touch = (e as TouchEvent).touches[0];
             if (touch) {
                 const rect = (el as HTMLElement).getBoundingClientRect();
@@ -155,13 +156,18 @@ class WebPlatformAdapter implements PlatformAdapter {
             }
         };
         const onTouchMove = (e: Event) => {
+            e.preventDefault();
             const touch = (e as TouchEvent).touches[0];
             if (touch) {
                 const rect = (el as HTMLElement).getBoundingClientRect();
                 callbacks.onPointerMove(touch.clientX - rect.left, touch.clientY - rect.top);
             }
         };
-        const onTouchEnd = () => {
+        const onTouchEnd = (e: Event) => {
+            e.preventDefault();
+            callbacks.onPointerUp(0);
+        };
+        const onTouchCancel = () => {
             callbacks.onPointerUp(0);
         };
         const onWheel = (e: Event) => {
@@ -183,9 +189,10 @@ class WebPlatformAdapter implements PlatformAdapter {
         el.addEventListener('mousemove', onMouseMove);
         el.addEventListener('mousedown', onMouseDown);
         document.addEventListener('mouseup', onMouseUp);
-        el.addEventListener('touchstart', onTouchStart);
-        el.addEventListener('touchmove', onTouchMove);
-        el.addEventListener('touchend', onTouchEnd);
+        el.addEventListener('touchstart', onTouchStart, { passive: false });
+        el.addEventListener('touchmove', onTouchMove, { passive: false });
+        el.addEventListener('touchend', onTouchEnd, { passive: false });
+        el.addEventListener('touchcancel', onTouchCancel);
         el.addEventListener('wheel', onWheel);
 
         this.inputCleanup_ = () => {
@@ -197,6 +204,7 @@ class WebPlatformAdapter implements PlatformAdapter {
             el.removeEventListener('touchstart', onTouchStart);
             el.removeEventListener('touchmove', onTouchMove);
             el.removeEventListener('touchend', onTouchEnd);
+            el.removeEventListener('touchcancel', onTouchCancel);
             el.removeEventListener('wheel', onWheel);
         };
     }
