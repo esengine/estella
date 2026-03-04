@@ -8,6 +8,7 @@ vi.mock('../src/renderer', () => ({
         flush: vi.fn(),
         end: vi.fn(),
         submitSprites: vi.fn(),
+        submitShapes: vi.fn(),
         submitBitmapText: vi.fn(),
         submitSpine: vi.fn(),
         submitParticles: vi.fn(),
