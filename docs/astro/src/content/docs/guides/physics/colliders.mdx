@@ -70,6 +70,30 @@ A capsule shape (rectangle with semicircle caps on top and bottom).
 
 Plus all [common properties](#common-properties).
 
+## Collision Filtering
+
+Collision layers let you control which objects can collide with each other. The system uses 16 named layers with bitmask filtering.
+
+### How It Works
+
+Each collider has a `categoryBits` field that assigns it to a layer. The collision matrix in **Settings → Physics → Collision Matrix** determines which layers interact.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `categoryBits` | number | `1` | Layer this collider belongs to (bitmask, one bit per layer) |
+
+Collision occurs when both colliders' layers are allowed to interact in the collision matrix.
+
+### Editor Setup
+
+1. **Name your layers** in **Settings → Physics → Collision Layers** (up to 16 layers, e.g., "Player", "Enemy", "Ground", "Projectile")
+2. **Configure the matrix** in **Settings → Physics → Collision Matrix** — check which layer pairs should collide
+3. **Assign layers** in the Inspector — each collider's `categoryBits` dropdown shows the named layers
+
+<Aside type="note">
+Collision layers are configured entirely through the editor settings. The physics plugin reads the layer names and collision matrix from the project config automatically — no code setup is needed.
+</Aside>
+
 ## See Also
 
 - [Segment Collider](./segment-collider/) — line segment collider

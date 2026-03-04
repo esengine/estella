@@ -78,6 +78,7 @@ export default defineConfig({
                 { label: 'Post-Processing', translations: { 'zh-CN': '后处理效果' }, slug: 'guides/post-processing' },
                 { label: 'Render Texture', translations: { 'zh-CN': '渲染纹理' }, slug: 'guides/render-texture' },
                 { label: 'Particles', translations: { 'zh-CN': '粒子系统' }, slug: 'guides/particles' },
+                { label: 'Shape Renderer', translations: { 'zh-CN': '形状渲染器' }, slug: 'guides/shape-renderer' },
               ],
             },
             { label: 'Scenes', translations: { 'zh-CN': '场景' }, slug: 'guides/scenes' },
@@ -148,6 +149,7 @@ export default defineConfig({
           label: 'Changelog',
           translations: { 'zh-CN': '更新日志' },
           items: [
+            { label: 'v0.8.2', slug: 'changelog-v082' },
             { label: 'v0.8.1', slug: 'changelog-v081' },
             { label: 'v0.8.0', slug: 'changelog-v080' },
             { label: 'v0.7.0', slug: 'changelog-v070' },

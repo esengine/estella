@@ -116,6 +116,8 @@ const all = events.drain();
 | `constraintMin` | `{x, y}` \| null | `null` | 拖拽范围最小值（世界坐标） |
 | `constraintMax` | `{x, y}` \| null | `null` | 拖拽范围最大值（世界坐标） |
 
+Draggable 同时支持基于 Transform 和基于 UIRect（锚点布局）的元素。当实体拥有 `UIRect` 时，拖拽会调整布局偏移量；否则直接移动 Transform 位置。
+
 拖拽激活时，引擎会自动为实体添加 `DragState` 组件：
 
 | 属性 | 类型 | 说明 |
@@ -126,6 +128,19 @@ const all = events.drain();
 | `deltaWorld` | `{x, y}` | 本帧移动量 |
 | `totalDeltaWorld` | `{x, y}` | 从拖拽开始的总移动量 |
 | `pointerStartWorld` | `{x, y}` | 拖拽开始时的指针世界位置 |
+
+## 默认着色
+
+当 `Button` 或 `Toggle` 没有显式 `transition` 时，UI 系统会自动为实体的 `Sprite` 或 `Image` 颜色应用基于状态的着色：
+
+| 状态 | 效果 |
+|------|------|
+| 正常 | 无变化 |
+| 悬停 | 1.15 倍亮度 |
+| 按下 | 0.75 倍亮度 |
+| 禁用 | 0.5 倍亮度，0.6 透明度 |
+
+无需显式定义 `ColorTransition` 即可获得视觉反馈。
 
 ## 处理管线
 

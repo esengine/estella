@@ -11,6 +11,8 @@ Project settings provide centralized control over engine runtime parameters, phy
 
 Open the settings dialog from the menu bar via **Edit → Settings...** or with the keyboard shortcut `Ctrl+,` (`Cmd+,` on macOS). The left sidebar lists all setting categories; click a category to switch the content area on the right.
 
+Use the **search bar** at the top to filter settings by name, description, or tag. Settings with non-default values show a **dot indicator** on the sidebar navigation. Each section provides a **Reset** button to restore all its settings to defaults.
+
 ## General
 
 | Property | Type | Default | Description |
@@ -46,6 +48,18 @@ Open the settings dialog from the menu bar via **Edit → Settings...** or with 
 | Show Stats | boolean | `false` | Display frame rate and render statistics in the top-left corner of the scene view |
 | Grid Size | number | `50` | Grid cell size in pixels. Range: 5–500 |
 
+### Gizmo Appearance
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| Gizmo Color X | color | red | X-axis gizmo color |
+| Gizmo Color Y | color | green | Y-axis gizmo color |
+| Gizmo Color XY | color | blue | XY-plane gizmo color |
+| Gizmo Hover Color | color | yellow | Gizmo hover highlight color |
+| Selection Color | color | blue | Selected entity outline color |
+| Handle Size | number | `10` | Transform handle size in pixels |
+| Gizmo Size | number | `100` | Transform gizmo length in pixels |
+
 ## Physics
 
 | Property | Type | Default | Description |
@@ -55,6 +69,21 @@ Open the settings dialog from the menu bar via **Edit → Settings...** or with 
 | Gravity Y | number | `-9.81` | Vertical gravity component (negative = downward) |
 | Fixed Timestep | number | `1/60` | Physics step interval in seconds. Minimum: 0.001 |
 | Sub-Step Count | number | `4` | Number of sub-steps per physics step. Range: 1–16. Higher values improve accuracy at the cost of performance. |
+| Contact Hertz | number | `30` | Contact stiffness (cycles/sec). Higher = less overlap but more jitter. Range: 1–500 |
+| Contact Damping Ratio | number | `10` | Contact bounciness damping. Lower = faster overlap recovery but more energetic. Range: 0.1–100 |
+| Contact Speed | number | `3` | Max overlap resolution speed (m/s). Range: 1–100 |
+
+### Collision Layers
+
+Define up to 16 named collision layers (e.g., "Player", "Enemy", "Ground") and configure the collision matrix to control which layers interact. See [Colliders — Collision Filtering](/microes/guides/physics/colliders/#collision-filtering) for details.
+
+## Rendering
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| Default Sprite Width | number | `100` | Default width for new Sprite components |
+| Default Sprite Height | number | `100` | Default height for new Sprite components |
+| Pixels Per Unit | number | `100` | Pixel-to-physics-unit conversion ratio |
 
 ## Build
 
@@ -91,6 +120,19 @@ Runtime settings control engine behavior during actual gameplay and take effect 
 | **Expand** | Uses the larger of the width and height scale factors, ensuring the full design area is visible |
 | **Shrink** | Uses the smaller of the width and height scale factors, ensuring the screen is completely filled |
 | **Match** | Interpolates between the width and height scale factors, controlled by the Canvas Match W/H weight |
+
+## Asset Loading
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| Load Timeout | number | `30000` | Maximum time (ms) to wait for a single asset to load before marking it as failed |
+| Failure Cooldown | number | `5000` | Time (ms) before a failed asset can be retried |
+
+## Network
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| HTTP Proxy | string | empty | Proxy URL for editor HTTP requests (update downloads, etc.) |
 
 ## Using RuntimeConfig in the SDK
 

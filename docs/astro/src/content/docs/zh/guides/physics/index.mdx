@@ -19,9 +19,9 @@ import { Aside } from '@astrojs/starlight/components';
 | Gravity Y | `-9.81` | 垂直重力（负数 = 向下） |
 | Fixed Timestep | `1/60` | 物理步进间隔（秒） |
 | Sub-Step Count | `4` | 每次物理步进的子步数，用于提高精度 |
-| Contact Hertz | `120` | 接触刚度（周期/秒）。越高穿透越少但抖动越明显 |
-| Contact Damping Ratio | `10` | 接触弹性阻尼。越低重叠恢复越快但弹性越强 |
-| Contact Speed | `10` | 最大重叠修正速度（米/秒） |
+| Contact Hertz | `30` | 接触刚度（周期/秒）。越高穿透越少但抖动越明显。范围：1–500 |
+| Contact Damping Ratio | `10` | 接触弹性阻尼。越低重叠恢复越快但弹性越强。范围：0.1–100 |
+| Contact Speed | `3` | 最大重叠修正速度（米/秒）。范围：1–100 |
 
 <Aside type="note">
   物理 WASM 模块由编辑器预览和构建流程自动加载，无需在游戏脚本中手动初始化插件。

@@ -1,0 +1,131 @@
+---
+title: 形状渲染器
+description: 使用 ShapeRenderer 组件绘制圆形、胶囊和圆角矩形
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`ShapeRenderer` 组件使用 GPU 加速的有符号距离场（SDF）绘制 2D 形状。支持圆形、胶囊和圆角矩形，在任意缩放下都能保持抗锯齿边缘。
+
+## 使用方法
+
+将 `ShapeRenderer` 与 `Transform` 一起添加到实体上：
+
+```typescript
+import { Commands, Transform, ShapeRenderer, ShapeType } from 'esengine';
+
+commands.spawn()
+    .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+    .insert(ShapeRenderer, {
+        shapeType: ShapeType.Circle,
+        size: { x: 80, y: 80 },
+        color: { r: 1, g: 0.5, b: 0, a: 1 },
+    });
+```
+
+## 属性
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `shapeType` | number | `0` (Circle) | 要渲染的形状（见[形状类型](#形状类型)） |
+| `color` | Color | `{r:1, g:1, b:1, a:1}` | 填充颜色（RGBA，0–1） |
+| `size` | Vec2 | `{x:100, y:100}` | 宽度和高度（像素） |
+| `cornerRadius` | number | `0` | `RoundedRect` 的圆角半径 |
+| `layer` | number | `0` | 渲染层级排序（-1000 到 1000） |
+| `enabled` | boolean | `true` | 可见性开关 |
+
+## 形状类型
+
+```typescript
+import { ShapeType } from 'esengine';
+```
+
+| 类型 | 值 | 说明 |
+|------|---|------|
+| `ShapeType.Circle` | `0` | 内切于 `size` 的圆形 |
+| `ShapeType.Capsule` | `1` | 跑道形——矩形两端为半圆 |
+| `ShapeType.RoundedRect` | `2` | 圆角矩形，由 `cornerRadius` 控制圆角大小 |
+
+### 圆形
+
+以 `size` 为边界框，圆的半径为 `min(size.x, size.y) / 2`。
+
+```typescript
+commands.spawn()
+    .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+    .insert(ShapeRenderer, {
+        shapeType: ShapeType.Circle,
+        size: { x: 60, y: 60 },
+        color: { r: 0, g: 0.8, b: 1, a: 1 },
+    });
+```
+
+### 胶囊
+
+短轴决定端部半径，长轴决定整体长度。
+
+```typescript
+commands.spawn()
+    .insert(Transform, { position: { x: 100, y: 0, z: 0 } })
+    .insert(ShapeRenderer, {
+        shapeType: ShapeType.Capsule,
+        size: { x: 30, y: 80 },
+        color: { r: 0, g: 1, b: 0.5, a: 1 },
+    });
+```
+
+### 圆角矩形
+
+带圆角的矩形。`cornerRadius` 会被限制在短边的一半以内。
+
+```typescript
+commands.spawn()
+    .insert(Transform, { position: { x: 200, y: 0, z: 0 } })
+    .insert(ShapeRenderer, {
+        shapeType: ShapeType.RoundedRect,
+        size: { x: 120, y: 80 },
+        cornerRadius: 12,
+        color: { r: 1, g: 0.3, b: 0.6, a: 1 },
+    });
+```
+
+## 运行时修改
+
+像其他组件一样查询和修改 `ShapeRenderer`：
+
+```typescript
+import { defineSystem, addSystem, Query, Mut, ShapeRenderer } from 'esengine';
+
+addSystem(defineSystem(
+    [Query(Mut(ShapeRenderer))],
+    (query) => {
+        for (const [entity, shape] of query) {
+            shape.color = { r: 0, g: 1, b: 0, a: 0.5 };
+            shape.enabled = false;
+        }
+    }
+));
+```
+
+## 渲染细节
+
+- **SDF 渲染** — 在片段着色器中使用有符号距离场函数渲染形状，无论缩放级别如何都能产生干净的抗锯齿边缘
+- **Transform 集成** — 响应实体 `Transform` 的位置、旋转和缩放
+- **层级排序** — 按 `layer` 排序，然后按深度（z 坐标）排序，与精灵相同
+- **视锥裁剪** — 摄像机视野外的形状自动跳过渲染
+
+<Aside type="tip">
+ShapeRenderer 适用于物理原型开发——将其添加到带碰撞体的实体上可以快速可视化，无需导入贴图。`physics-playground` 示例使用了这种方式。
+</Aside>
+
+## 编辑器集成
+
+- **Hierarchy** — 右键 → Add Component → ShapeRenderer
+- **Inspector** — 形状类型下拉框、颜色拾取器、尺寸矢量和圆角半径输入
+- **Scene View** — 编辑模式和播放模式下均可渲染
+
+## 下一步
+
+- [精灵](/microes/zh/guides/sprite/) — 基于纹理的渲染
+- [自定义绘制](/microes/zh/guides/custom-draw/) — 底层绘制 API
+- [粒子系统](/microes/zh/guides/particles/) — 粒子效果

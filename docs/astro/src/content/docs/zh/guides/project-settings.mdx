@@ -11,6 +11,8 @@ import { Aside } from '@astrojs/starlight/components';
 
 通过菜单栏 **Edit → Settings...** 或快捷键 `Ctrl+,`（macOS 为 `Cmd+,`）打开设置对话框。左侧导航栏列出所有设置分类，点击分类切换右侧内容区域。
 
+使用顶部的**搜索栏**按名称、描述或标签筛选设置。有非默认值的设置会在导航栏显示**圆点标记**。每个分类提供**重置**按钮，可将所有设置恢复为默认值。
+
 ## General
 
 | 属性 | 类型 | 默认值 | 说明 |
@@ -46,6 +48,18 @@ import { Aside } from '@astrojs/starlight/components';
 | Show Stats | boolean | `false` | 在场景视图左上角显示帧率和渲染统计 |
 | Grid Size | number | `50` | 网格单元大小（像素），范围 5–500 |
 
+### Gizmo 外观
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| Gizmo Color X | color | 红色 | X 轴 Gizmo 颜色 |
+| Gizmo Color Y | color | 绿色 | Y 轴 Gizmo 颜色 |
+| Gizmo Color XY | color | 蓝色 | XY 平面 Gizmo 颜色 |
+| Gizmo Hover Color | color | 黄色 | Gizmo 悬停高亮颜色 |
+| Selection Color | color | 蓝色 | 选中实体轮廓颜色 |
+| Handle Size | number | `10` | 变换手柄大小（像素） |
+| Gizmo Size | number | `100` | 变换 Gizmo 长度（像素） |
+
 ## Physics
 
 | 属性 | 类型 | 默认值 | 说明 |
@@ -55,6 +69,21 @@ import { Aside } from '@astrojs/starlight/components';
 | Gravity Y | number | `-9.81` | 垂直重力分量（负数 = 向下） |
 | Fixed Timestep | number | `1/60` | 物理步进间隔（秒），最小值 0.001 |
 | Sub-Step Count | number | `4` | 每次物理步进的子步数，范围 1–16。值越大精度越高，性能开销越大。 |
+| Contact Hertz | number | `30` | 接触刚度（周期/秒）。越高穿透越少但抖动越明显。范围：1–500 |
+| Contact Damping Ratio | number | `10` | 接触弹性阻尼。越低重叠恢复越快但弹性越强。范围：0.1–100 |
+| Contact Speed | number | `3` | 最大重叠修正速度（米/秒）。范围：1–100 |
+
+### 碰撞层
+
+可定义最多 16 个命名碰撞层（如 "Player"、"Enemy"、"Ground"），通过碰撞矩阵控制哪些层之间可以交互。详见[碰撞体 — 碰撞过滤](/microes/zh/guides/physics/colliders/#碰撞过滤)。
+
+## Rendering
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| Default Sprite Width | number | `100` | 新建 Sprite 组件的默认宽度 |
+| Default Sprite Height | number | `100` | 新建 Sprite 组件的默认高度 |
+| Pixels Per Unit | number | `100` | 像素到物理单位的换算比例 |
 
 ## Build
 
@@ -91,6 +120,19 @@ import { Aside } from '@astrojs/starlight/components';
 | **Expand** | 取宽度和高度中较大的缩放比，确保设计区域完全可见 |
 | **Shrink** | 取宽度和高度中较小的缩放比，确保屏幕被完全填充 |
 | **Match** | 在宽度和高度的缩放比之间插值，由 Canvas Match W/H 控制混合权重 |
+
+## Asset Loading
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| Load Timeout | number | `30000` | 单个资源加载超时时间（毫秒） |
+| Failure Cooldown | number | `5000` | 加载失败后允许重试的冷却时间（毫秒） |
+
+## Network
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| HTTP Proxy | string | 空 | 编辑器 HTTP 请求使用的代理地址（用于更新下载等） |
 
 ## SDK 中使用 RuntimeConfig
 

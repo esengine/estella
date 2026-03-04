@@ -172,6 +172,8 @@ cmds.entity(button).insert(Button, {
 | `graphicEntity` | Entity | `0` | 显示/隐藏的子实体（勾选标记） |
 | `group` | Entity | `0` | ToggleGroup 实体，实现单选按钮行为 |
 | `transition` | ColorTransition \| null | `null` | 颜色过渡 |
+| `onColor` | Color | `{r:0.2, g:0.6, b:1, a:1}` | 开启时的颜色（无 transition 时使用） |
+| `offColor` | Color | `{r:0.4, g:0.4, b:0.4, a:1}` | 关闭时的颜色（无 transition 时使用） |
 
 **ToggleGroup** — 挂载到父实体使子级 Toggle 互斥：
 

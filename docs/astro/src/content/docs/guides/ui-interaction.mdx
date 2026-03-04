@@ -116,6 +116,8 @@ Enables drag-to-move on a UI element.
 | `constraintMin` | `{x, y}` \| null | `null` | Minimum position constraint |
 | `constraintMax` | `{x, y}` \| null | `null` | Maximum position constraint |
 
+Draggable supports both Transform-based and UIRect-based (anchored) elements. When an entity has `UIRect`, dragging adjusts the layout offsets; otherwise it moves the Transform position directly.
+
 When dragging is active, the engine adds a `DragState` component to the entity:
 
 | Property | Type | Description |
@@ -126,6 +128,19 @@ When dragging is active, the engine adds a `DragState` component to the entity:
 | `currentWorldPos` | `{x, y}` | Current world position |
 | `deltaWorld` | `{x, y}` | Movement this frame |
 | `totalDeltaWorld` | `{x, y}` | Total movement since drag start |
+
+## Default Tinting
+
+When a `Button` or `Toggle` has no explicit `transition`, the UI system applies automatic state-based tinting to the entity's `Sprite` or `Image` color:
+
+| State | Effect |
+|-------|--------|
+| Normal | No change |
+| Hovered | 1.15x brightness |
+| Pressed | 0.75x brightness |
+| Disabled | 0.5x brightness, 0.6 alpha |
+
+This provides visual feedback without requiring explicit `ColorTransition` definitions.
 
 ## Processing Pipeline
 
