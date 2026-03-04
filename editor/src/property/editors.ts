@@ -19,6 +19,7 @@ import { openEntityPicker } from './EntityPicker';
 import { setupDragLabel, colorToHex, hexToColor } from './editorUtils';
 import { validateNumber, validateVec2, validateVec3, validateColor, showValidationError } from './validation';
 import { getNamedLayers, layerIndexFromBits, bitsFromLayerIndex } from '../settings/collisionLayers';
+import { onSettingsChange } from '../settings/SettingsRegistry';
 export { setupDragLabel, colorToHex, hexToColor };
 
 // =============================================================================
@@ -2342,6 +2343,14 @@ function createCollisionLayerEditor(
         onChange(bitsFromLayerIndex(idx));
     });
 
+    const unsubscribe = onSettingsChange((id) => {
+        if (id.startsWith('physics.layerName')) {
+            const prev = select.value;
+            populateOptions();
+            select.value = prev;
+        }
+    });
+
     container.appendChild(select);
 
     return {
@@ -2351,6 +2360,7 @@ function createCollisionLayerEditor(
             select.value = String(idx);
         },
         dispose() {
+            unsubscribe();
             select.remove();
         },
     };
