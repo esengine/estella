@@ -243,6 +243,16 @@ export const EXAMPLE_PROJECTS: ExampleProjectInfo[] = [
         tags: ['physics', 'collision', 'layers', 'filtering', 'category', 'mask'],
     },
     {
+        id: 'physics-spinner',
+        name: 'Physics Spinner',
+        description: 'Box2D spinner benchmark: revolute joint motor driving 6076 dynamic bodies',
+        zipFile: 'examples/physics-spinner.zip',
+        category: 'physics',
+        difficulty: 'advanced',
+        thumbnail: 'examples/thumbnails/physics-spinner.png',
+        tags: ['physics', 'benchmark', 'box2d', 'joint', 'revolute', 'motor', 'performance'],
+    },
+    {
         id: 'ui-interaction',
         name: 'Drag & Focus',
         description: 'Draggable cards, focusable elements, and drop zone with tab navigation',

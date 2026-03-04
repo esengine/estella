@@ -1,0 +1,64 @@
+{
+  "version": "1.0",
+  "name": "Main",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 3200, "z": 10 } } },
+        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 4200, "isActive": true, "priority": 0 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "SpinnerAnchor",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 1200, "z": 0 } } },
+        { "type": "RigidBody", "data": { "bodyType": 0 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 2,
+      "name": "SpinnerBar",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 1200, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 120, "y": 4040 }, "color": { "r": 0.9, "g": 0.3, "b": 0.2, "a": 1 } } },
+        { "type": "RigidBody", "data": { "bodyType": 2 } },
+        { "type": "BoxCollider", "data": { "halfExtents": { "x": 0.4, "y": 20.0 }, "radius": 0.2, "friction": 0.0 } },
+        { "type": "RevoluteJoint", "data": {
+          "connectedEntity": 1,
+          "anchorA": { "x": 0, "y": 0 },
+          "anchorB": { "x": 0, "y": 0 },
+          "enableMotor": true,
+          "motorSpeed": 5.0,
+          "maxMotorTorque": 3.4e+38,
+          "enableLimit": false,
+          "lowerAngle": 0,
+          "upperAngle": 0,
+          "collideConnected": false
+        } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 3,
+      "name": "Spawner",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "SpawnMarker", "data": { "spawned": false } }
+      ],
+      "visible": true
+    }
+  ]
+}

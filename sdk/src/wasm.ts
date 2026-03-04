@@ -230,6 +230,7 @@ export interface ESEngineModule {
     getChildEntities(registry: CppRegistry, entity: number): number[];
     registry_getGeneration(registry: CppRegistry, entity: number): number;
     registry_getSchemaPoolVersion(registry: CppRegistry, poolId: number): number;
+    registry_batchSyncPhysicsTransforms(registry: CppRegistry, bufferPtr: number, count: number, ppu: number): void;
 
     // GL Debug API
     gl_enableErrorCheck(enabled: boolean): void;

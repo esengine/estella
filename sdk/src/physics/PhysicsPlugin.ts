@@ -18,10 +18,11 @@ import {
 import {
     RigidBody, BoxCollider, CircleCollider, CapsuleCollider,
     SegmentCollider, PolygonCollider, ChainCollider,
+    RevoluteJoint,
     BodyType,
     type RigidBodyData, type BoxColliderData, type CircleColliderData,
     type CapsuleColliderData, type SegmentColliderData, type PolygonColliderData,
-    type ChainColliderData,
+    type ChainColliderData, type RevoluteJointData,
 } from './PhysicsComponents';
 import { setupPhysicsDebugDraw, PhysicsDebugDraw, type PhysicsDebugDrawConfig } from './PhysicsDebugDraw';
 
@@ -111,7 +112,7 @@ export class PhysicsPlugin implements Plugin {
         this.factory_ = factory;
         this.config_ = {
             gravity: config.gravity ?? { x: 0, y: -9.81 },
-            fixedTimestep: config.fixedTimestep ?? 1 / 60,
+            fixedTimestep: config.fixedTimestep ?? 1 / 30,
             subStepCount: config.subStepCount ?? 4,
             contactHertz: config.contactHertz ?? 30,
             contactDampingRatio: config.contactDampingRatio ?? 10,
@@ -129,7 +130,10 @@ export class PhysicsPlugin implements Plugin {
         });
 
         const trackedEntities = new Set<Entity>();
+        const trackedJoints = new Set<Entity>();
+        const parentedBodies = new Set<Entity>();
         const cachedProps = new Map<Entity, { bodyType: number; gravityScale: number; linearDamping: number; angularDamping: number; fixedRotation: boolean; bullet: boolean }>();
+        let lastEntitySyncTick = -1;
 
         const initPromise = loadPhysicsModule(this.wasmUrl_, this.factory_).then(
             (module: PhysicsWasmModule) => {
@@ -145,14 +149,18 @@ export class PhysicsPlugin implements Plugin {
 
                 const ppu = readPixelsPerUnit(app);
                 const invPpu = 1 / ppu;
-
                 const world = app.world;
 
                 world.onDespawn((entity: Entity) => {
+                    if (trackedJoints.has(entity)) {
+                        module._physics_destroyJoint(entity);
+                        trackedJoints.delete(entity);
+                    }
                     if (trackedEntities.has(entity)) {
                         module._physics_destroyBody(entity);
                         trackedEntities.delete(entity);
                         cachedProps.delete(entity);
+                        parentedBodies.delete(entity);
                     }
                 });
 
@@ -168,23 +176,29 @@ export class PhysicsPlugin implements Plugin {
 
                             for (const entity of entities) {
                                 currentEntities.add(entity);
-                                const rb = world.get(entity, RigidBody) as RigidBodyData;
-                                const wt = world.get(entity, Transform) as TransformData;
 
                                 if (!trackedEntities.has(entity)) {
+                                    const rb = world.get(entity, RigidBody) as RigidBodyData;
                                     if (!rb.enabled) continue;
-
-                                    const angle = quatToAngleZ(wt.worldRotation);
+                                    const wt = world.get(entity, Transform) as TransformData;
+                                    const hasParent = world.has(entity, Parent);
+                                    const posX = hasParent ? wt.worldPosition.x : wt.position.x;
+                                    const posY = hasParent ? wt.worldPosition.y : wt.position.y;
+                                    const rot = hasParent ? wt.worldRotation : wt.rotation;
+                                    const angle = quatToAngleZ(rot);
 
                                     module._physics_createBody(
                                         entity, rb.bodyType,
-                                        wt.worldPosition.x * invPpu, wt.worldPosition.y * invPpu, angle,
+                                        posX * invPpu, posY * invPpu, angle,
                                         rb.gravityScale, rb.linearDamping, rb.angularDamping,
                                         rb.fixedRotation ? 1 : 0, rb.bullet ? 1 : 0
                                     );
 
                                     addShapeForEntity(app, module, entity, this.config_.collisionLayerMasks);
                                     trackedEntities.add(entity);
+                                    if (world.has(entity, Parent)) {
+                                        parentedBodies.add(entity);
+                                    }
                                     cachedProps.set(entity, {
                                         bodyType: rb.bodyType,
                                         gravityScale: rb.gravityScale,
@@ -194,37 +208,44 @@ export class PhysicsPlugin implements Plugin {
                                         bullet: rb.bullet,
                                     });
                                 } else {
-                                    const prev = cachedProps.get(entity);
-                                    if (prev &&
-                                        (prev.bodyType !== rb.bodyType ||
-                                         prev.gravityScale !== rb.gravityScale ||
-                                         prev.linearDamping !== rb.linearDamping ||
-                                         prev.angularDamping !== rb.angularDamping ||
-                                         prev.fixedRotation !== rb.fixedRotation ||
-                                         prev.bullet !== rb.bullet)) {
-                                        module._physics_updateBodyProperties(
-                                            entity, rb.bodyType,
-                                            rb.gravityScale, rb.linearDamping, rb.angularDamping,
-                                            rb.fixedRotation ? 1 : 0, rb.bullet ? 1 : 0
+                                    if (world.isChangedSince(entity, RigidBody, lastEntitySyncTick)) {
+                                        const rb = world.get(entity, RigidBody) as RigidBodyData;
+                                        const prev = cachedProps.get(entity);
+                                        if (prev &&
+                                            (prev.bodyType !== rb.bodyType ||
+                                             prev.gravityScale !== rb.gravityScale ||
+                                             prev.linearDamping !== rb.linearDamping ||
+                                             prev.angularDamping !== rb.angularDamping ||
+                                             prev.fixedRotation !== rb.fixedRotation ||
+                                             prev.bullet !== rb.bullet)) {
+                                            module._physics_updateBodyProperties(
+                                                entity, rb.bodyType,
+                                                rb.gravityScale, rb.linearDamping, rb.angularDamping,
+                                                rb.fixedRotation ? 1 : 0, rb.bullet ? 1 : 0
+                                            );
+                                            prev.bodyType = rb.bodyType;
+                                            prev.gravityScale = rb.gravityScale;
+                                            prev.linearDamping = rb.linearDamping;
+                                            prev.angularDamping = rb.angularDamping;
+                                            prev.fixedRotation = rb.fixedRotation;
+                                            prev.bullet = rb.bullet;
+                                        }
+                                    }
+
+                                    const cached = cachedProps.get(entity);
+                                    if (cached && cached.bodyType === BodyType.Kinematic) {
+                                        const wt = world.get(entity, Transform) as TransformData;
+                                        const angle = quatToAngleZ(wt.worldRotation);
+                                        module._physics_setBodyTransform(
+                                            entity,
+                                            wt.worldPosition.x * invPpu, wt.worldPosition.y * invPpu,
+                                            angle
                                         );
-                                        prev.bodyType = rb.bodyType;
-                                        prev.gravityScale = rb.gravityScale;
-                                        prev.linearDamping = rb.linearDamping;
-                                        prev.angularDamping = rb.angularDamping;
-                                        prev.fixedRotation = rb.fixedRotation;
-                                        prev.bullet = rb.bullet;
                                     }
                                 }
-
-                                if (rb.bodyType === BodyType.Kinematic) {
-                                    const angle = quatToAngleZ(wt.worldRotation);
-                                    module._physics_setBodyTransform(
-                                        entity,
-                                        wt.worldPosition.x * invPpu, wt.worldPosition.y * invPpu,
-                                        angle
-                                    );
-                                }
                             }
+
+                            lastEntitySyncTick = world.getWorldTick();
 
                             for (const entity of trackedEntities) {
                                 if (!currentEntities.has(entity)) {
@@ -234,9 +255,13 @@ export class PhysicsPlugin implements Plugin {
                                 }
                             }
 
-                            module._physics_step(time.delta);
+                            createPendingJoints(world, module, trackedEntities, trackedJoints, invPpu);
 
-                            syncDynamicTransforms(app, module, ppu);
+                            if (trackedEntities.size > 0 && time.delta > 0) {
+                                module._physics_step(time.delta);
+                            }
+
+                            syncDynamicTransforms(app, module, ppu, parentedBodies);
                             collectEvents(app, module, ppu);
                         },
                         { name: 'PhysicsSystem' }
@@ -367,55 +392,109 @@ function addShapeForEntity(app: App, module: PhysicsWasmModule, entity: Entity, 
     }
 }
 
-function syncDynamicTransforms(app: App, module: PhysicsWasmModule, ppu: number): void {
+function createPendingJoints(
+    world: App['world'],
+    module: PhysicsWasmModule,
+    trackedEntities: Set<Entity>,
+    trackedJoints: Set<Entity>,
+    invPpu: number,
+): void {
+    const jointEntities = world.getEntitiesWithComponents([RevoluteJoint, RigidBody]);
+    for (const entity of jointEntities) {
+        if (trackedJoints.has(entity)) continue;
+        if (!trackedEntities.has(entity)) continue;
+
+        const joint = world.get(entity, RevoluteJoint) as RevoluteJointData;
+        if (!joint.enabled) continue;
+
+        const connectedEntity = joint.connectedEntity as Entity;
+        if (!trackedEntities.has(connectedEntity)) continue;
+
+        module._physics_createRevoluteJoint(
+            connectedEntity, entity,
+            joint.anchorA.x * invPpu, joint.anchorA.y * invPpu,
+            joint.anchorB.x * invPpu, joint.anchorB.y * invPpu,
+            joint.enableMotor ? 1 : 0, joint.motorSpeed, joint.maxMotorTorque,
+            joint.enableLimit ? 1 : 0, joint.lowerAngle, joint.upperAngle,
+            joint.collideConnected ? 1 : 0,
+        );
+        trackedJoints.add(entity);
+    }
+}
+
+const syncTransformBuf_ = {
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { w: 1, x: 0, y: 0, z: 0 },
+    scale: { x: 1, y: 1, z: 1 },
+    worldPosition: { x: 0, y: 0, z: 0 },
+    worldRotation: { w: 1, x: 0, y: 0, z: 0 },
+    worldScale: { x: 1, y: 1, z: 1 },
+};
+
+/** @internal exported for testing */
+export function syncDynamicTransforms(
+    app: App,
+    module: PhysicsWasmModule,
+    ppu: number,
+    parentedBodies: Set<Entity>,
+): void {
     const count = module._physics_getDynamicBodyCount();
     if (count === 0) return;
 
     const ptr = module._physics_getDynamicBodyTransforms();
     const baseU32 = ptr >> 2;
+    const heap32 = module.HEAPU32;
+    const heapF = module.HEAPF32;
+
+    const registry = app.world.getCppRegistry();
+    if (!registry) return;
+    const addFn = registry.addTransform.bind(registry);
+    const hasParented = parentedBodies.size > 0;
+    const t = syncTransformBuf_;
 
     for (let i = 0; i < count; i++) {
         const offset = baseU32 + i * 4;
-        const entityId = module.HEAPU32[offset] as Entity;
-        const worldX = module.HEAPF32[offset + 1] * ppu;
-        const worldY = module.HEAPF32[offset + 2] * ppu;
-        const worldAngle = module.HEAPF32[offset + 3];
+        const entityId = heap32[offset] as Entity;
+        let localX = heapF[offset + 1] * ppu;
+        let localY = heapF[offset + 2] * ppu;
+        let localAngle = heapF[offset + 3];
 
-        if (!app.world.valid(entityId)) continue;
-
-        const transform = app.world.get(entityId, Transform) as TransformData;
-        if (!transform) continue;
-
-        let localX = worldX;
-        let localY = worldY;
-        let localAngle = worldAngle;
-
-        if (app.world.has(entityId, Parent)) {
+        if (hasParented && parentedBodies.has(entityId)) {
             const parentData = app.world.get(entityId, Parent) as ParentData;
             if (parentData && app.world.valid(parentData.entity) && app.world.has(parentData.entity, Transform)) {
                 const pwt = app.world.get(parentData.entity, Transform) as TransformData;
-                const parentAngle = quatToAngleZ(pwt.worldRotation);
+                const parentAngleZ = quatToAngleZ(pwt.worldRotation);
+                const worldX = localX;
+                const worldY = localY;
                 const dx = worldX - pwt.worldPosition.x;
                 const dy = worldY - pwt.worldPosition.y;
-                const cos = Math.cos(-parentAngle);
-                const sin = Math.sin(-parentAngle);
+                const cos = Math.cos(-parentAngleZ);
+                const sin = Math.sin(-parentAngleZ);
                 const sx = pwt.worldScale.x !== 0 ? pwt.worldScale.x : 1;
                 const sy = pwt.worldScale.y !== 0 ? pwt.worldScale.y : 1;
                 localX = (dx * cos - dy * sin) / sx;
                 localY = (dx * sin + dy * cos) / sy;
-                localAngle = worldAngle - parentAngle;
+                localAngle = localAngle - parentAngleZ;
             }
         }
 
-        transform.position.x = localX;
-        transform.position.y = localY;
-        const q = angleZToQuat(localAngle);
-        transform.rotation.w = q.w;
-        transform.rotation.x = q.x;
-        transform.rotation.y = q.y;
-        transform.rotation.z = q.z;
+        const half = localAngle * 0.5;
+        const cosH = Math.cos(half);
+        const sinH = Math.sin(half);
+        t.position.x = localX;
+        t.position.y = localY;
+        t.rotation.w = cosH;
+        t.rotation.x = 0;
+        t.rotation.y = 0;
+        t.rotation.z = sinH;
+        t.worldPosition.x = localX;
+        t.worldPosition.y = localY;
+        t.worldRotation.w = cosH;
+        t.worldRotation.x = 0;
+        t.worldRotation.y = 0;
+        t.worldRotation.z = sinH;
 
-        app.world.insert(entityId, Transform, transform);
+        addFn(entityId, t);
     }
 }
 
@@ -549,6 +628,57 @@ export class Physics {
 
     applyAngularImpulse(entity: Entity, impulse: number): void {
         this.module_._physics_applyAngularImpulse(entity, impulse);
+    }
+
+    createRevoluteJoint(
+        entityA: Entity, entityB: Entity,
+        anchorA: Vec2, anchorB: Vec2,
+        options?: {
+            enableMotor?: boolean; motorSpeed?: number; maxMotorTorque?: number;
+            enableLimit?: boolean; lowerAngle?: number; upperAngle?: number;
+            collideConnected?: boolean;
+        }
+    ): boolean {
+        const o = options ?? {};
+        return this.module_._physics_createRevoluteJoint(
+            entityA, entityB,
+            anchorA.x, anchorA.y, anchorB.x, anchorB.y,
+            o.enableMotor ? 1 : 0, o.motorSpeed ?? 0, o.maxMotorTorque ?? 0,
+            o.enableLimit ? 1 : 0, o.lowerAngle ?? 0, o.upperAngle ?? 0,
+            o.collideConnected ? 1 : 0,
+        ) !== 0;
+    }
+
+    destroyJoint(entity: Entity): void {
+        this.module_._physics_destroyJoint(entity);
+    }
+
+    setRevoluteMotorSpeed(entity: Entity, speed: number): void {
+        this.module_._physics_setRevoluteMotorSpeed(entity, speed);
+    }
+
+    setRevoluteMaxMotorTorque(entity: Entity, torque: number): void {
+        this.module_._physics_setRevoluteMaxMotorTorque(entity, torque);
+    }
+
+    enableRevoluteMotor(entity: Entity, enable: boolean): void {
+        this.module_._physics_enableRevoluteMotor(entity, enable ? 1 : 0);
+    }
+
+    enableRevoluteLimit(entity: Entity, enable: boolean): void {
+        this.module_._physics_enableRevoluteLimit(entity, enable ? 1 : 0);
+    }
+
+    setRevoluteLimits(entity: Entity, lower: number, upper: number): void {
+        this.module_._physics_setRevoluteLimits(entity, lower, upper);
+    }
+
+    getRevoluteAngle(entity: Entity): number {
+        return this.module_._physics_getRevoluteAngle(entity);
+    }
+
+    getRevoluteMotorTorque(entity: Entity): number {
+        return this.module_._physics_getRevoluteMotorTorque(entity);
     }
 
     static setDebugDraw(app: App, enabled: boolean): void {

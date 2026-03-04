@@ -516,6 +516,24 @@ export const ChainColliderSchema: ComponentSchema = {
     ],
 };
 
+export const RevoluteJointSchema: ComponentSchema = {
+    name: 'RevoluteJoint',
+    category: 'physics',
+    properties: [
+        { name: 'connectedEntity', type: 'entity' },
+        { name: 'anchorA', type: 'vec2' },
+        { name: 'anchorB', type: 'vec2' },
+        { name: 'enableMotor', type: 'boolean' },
+        { name: 'motorSpeed', type: 'number', step: 0.1 },
+        { name: 'maxMotorTorque', type: 'number', min: 0, step: 1 },
+        { name: 'enableLimit', type: 'boolean' },
+        { name: 'lowerAngle', type: 'number', step: 0.01 },
+        { name: 'upperAngle', type: 'number', step: 0.01 },
+        { name: 'collideConnected', type: 'boolean' },
+        { name: 'enabled', type: 'boolean' },
+    ],
+};
+
 export const ImageSchema: ComponentSchema = {
     name: 'Image',
     category: 'ui',
@@ -1050,6 +1068,7 @@ export function registerBuiltinSchemas(options?: BuiltinSchemaOptions): void {
     registerComponentSchema(SegmentColliderSchema);
     registerComponentSchema(PolygonColliderSchema);
     registerComponentSchema(ChainColliderSchema);
+    registerComponentSchema(RevoluteJointSchema);
     registerComponentSchema(ParticleEmitterSchema);
     registerComponentSchema(TilemapSchema);
     registerComponentSchema(TilemapLayerSchema);

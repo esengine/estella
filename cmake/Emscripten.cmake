@@ -315,6 +315,8 @@ endfunction()
 set(ES_EMSCRIPTEN_PHYSICS_MODULE_FLAGS
     -sWASM=1
     -sALLOW_MEMORY_GROWTH=1
+    -sMAXIMUM_MEMORY=4294967296
+    -sINITIAL_MEMORY=33554432
     -sNO_EXIT_RUNTIME=1
     -sEXPORT_ES6=0
     -sMODULARIZE=1
@@ -329,9 +331,18 @@ set(ES_EMSCRIPTEN_PHYSICS_MODULE_FLAGS
     -fno-exceptions
 )
 
+if(NOT BOX2D_DISABLE_SIMD)
+    list(APPEND ES_EMSCRIPTEN_PHYSICS_MODULE_FLAGS -msimd128)
+    list(APPEND ES_EMSCRIPTEN_PHYSICS_SIDE_MODULE_FLAGS -msimd128)
+endif()
+
 function(es_apply_physics_module_settings TARGET_NAME)
     if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
-        target_compile_options(${TARGET_NAME} PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS} -flto -fno-rtti -fno-exceptions)
+        set(_PHYSICS_COMPILE_FLAGS ${ES_EMSCRIPTEN_COMPILE_FLAGS} -flto -fno-rtti -fno-exceptions)
+        if(NOT BOX2D_DISABLE_SIMD)
+            list(APPEND _PHYSICS_COMPILE_FLAGS -msimd128)
+        endif()
+        target_compile_options(${TARGET_NAME} PRIVATE ${_PHYSICS_COMPILE_FLAGS})
 
         string(REPLACE ";" " " LINK_FLAGS_STR "${ES_EMSCRIPTEN_PHYSICS_MODULE_FLAGS}")
         set_target_properties(${TARGET_NAME} PROPERTIES

@@ -83,6 +83,20 @@ declare const CapsuleCollider: BuiltinComponentDef<CapsuleColliderData>;
 declare const SegmentCollider: BuiltinComponentDef<SegmentColliderData>;
 declare const PolygonCollider: ComponentDef<PolygonColliderData>;
 declare const ChainCollider: ComponentDef<ChainColliderData>;
+interface RevoluteJointData {
+    connectedEntity: number;
+    anchorA: Vec2;
+    anchorB: Vec2;
+    enableMotor: boolean;
+    motorSpeed: number;
+    maxMotorTorque: number;
+    enableLimit: boolean;
+    lowerAngle: number;
+    upperAngle: number;
+    collideConnected: boolean;
+    enabled: boolean;
+}
+declare const RevoluteJoint: ComponentDef<RevoluteJointData>;
 declare const BodyType: {
     readonly Static: 0;
     readonly Kinematic: 1;
@@ -130,6 +144,16 @@ interface PhysicsWasmModule {
     _physics_applyTorque(entityId: number, torque: number): void;
     _physics_applyAngularImpulse(entityId: number, impulse: number): void;
     _physics_updateBodyProperties(entityId: number, bodyType: number, gravityScale: number, linearDamping: number, angularDamping: number, fixedRotation: number, bullet: number): void;
+    _physics_createRevoluteJoint(entityIdA: number, entityIdB: number, anchorAx: number, anchorAy: number, anchorBx: number, anchorBy: number, enableMotor: number, motorSpeed: number, maxMotorTorque: number, enableLimit: number, lowerAngle: number, upperAngle: number, collideConnected: number): number;
+    _physics_destroyJoint(entityId: number): void;
+    _physics_hasJoint(entityId: number): number;
+    _physics_setRevoluteMotorSpeed(entityId: number, speed: number): void;
+    _physics_setRevoluteMaxMotorTorque(entityId: number, torque: number): void;
+    _physics_enableRevoluteMotor(entityId: number, enable: number): void;
+    _physics_enableRevoluteLimit(entityId: number, enable: number): void;
+    _physics_setRevoluteLimits(entityId: number, lower: number, upper: number): void;
+    _physics_getRevoluteAngle(entityId: number): number;
+    _physics_getRevoluteMotorTorque(entityId: number): number;
     HEAPF32: Float32Array;
     HEAPU8: Uint8Array;
     HEAPU32: Uint32Array;
@@ -222,9 +246,26 @@ declare class Physics {
     getAngularVelocity(entity: Entity): number;
     applyTorque(entity: Entity, torque: number): void;
     applyAngularImpulse(entity: Entity, impulse: number): void;
+    createRevoluteJoint(entityA: Entity, entityB: Entity, anchorA: Vec2, anchorB: Vec2, options?: {
+        enableMotor?: boolean;
+        motorSpeed?: number;
+        maxMotorTorque?: number;
+        enableLimit?: boolean;
+        lowerAngle?: number;
+        upperAngle?: number;
+        collideConnected?: boolean;
+    }): boolean;
+    destroyJoint(entity: Entity): void;
+    setRevoluteMotorSpeed(entity: Entity, speed: number): void;
+    setRevoluteMaxMotorTorque(entity: Entity, torque: number): void;
+    enableRevoluteMotor(entity: Entity, enable: boolean): void;
+    enableRevoluteLimit(entity: Entity, enable: boolean): void;
+    setRevoluteLimits(entity: Entity, lower: number, upper: number): void;
+    getRevoluteAngle(entity: Entity): number;
+    getRevoluteMotorTorque(entity: Entity): number;
     static setDebugDraw(app: App, enabled: boolean): void;
     static setDebugDrawConfig(app: App, config: Partial<PhysicsDebugDrawConfig>): void;
 }
 
-export { BodyType, BoxCollider, CapsuleCollider, ChainCollider, CircleCollider, Physics, PhysicsAPI, PhysicsDebugDraw, PhysicsEvents, PhysicsPlugin, PolygonCollider, RigidBody, SegmentCollider, drawPhysicsDebug, loadPhysicsModule, loadPhysicsSideModule, setupPhysicsDebugDraw };
-export type { BoxColliderData, CapsuleColliderData, ChainColliderData, CircleColliderData, CollisionEnterEvent, ESEngineMainModule, PhysicsDebugDrawConfig, PhysicsEventsData, PhysicsModuleFactory, PhysicsPluginConfig, PhysicsWasmModule, PolygonColliderData, RigidBodyData, SegmentColliderData, SensorEvent };
+export { BodyType, BoxCollider, CapsuleCollider, ChainCollider, CircleCollider, Physics, PhysicsAPI, PhysicsDebugDraw, PhysicsEvents, PhysicsPlugin, PolygonCollider, RevoluteJoint, RigidBody, SegmentCollider, drawPhysicsDebug, loadPhysicsModule, loadPhysicsSideModule, setupPhysicsDebugDraw };
+export type { BoxColliderData, CapsuleColliderData, ChainColliderData, CircleColliderData, CollisionEnterEvent, ESEngineMainModule, PhysicsDebugDrawConfig, PhysicsEventsData, PhysicsModuleFactory, PhysicsPluginConfig, PhysicsWasmModule, PolygonColliderData, RevoluteJointData, RigidBodyData, SegmentColliderData, SensorEvent };

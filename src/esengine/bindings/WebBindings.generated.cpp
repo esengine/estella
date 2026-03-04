@@ -344,37 +344,6 @@ BitmapTextJS bitmaptextToJS(const esengine::ecs::BitmapText& c) {
     return js;
 }
 
-struct ShapeRendererJS {
-    i32 shapeType;
-    glm::vec4 color;
-    glm::vec2 size;
-    f32 cornerRadius;
-    i32 layer;
-    bool enabled;
-};
-
-esengine::ecs::ShapeRenderer shaperendererFromJS(const ShapeRendererJS& js) {
-    esengine::ecs::ShapeRenderer c;
-    c.shapeType = static_cast<u8>(js.shapeType);
-    c.color = js.color;
-    c.size = js.size;
-    c.cornerRadius = js.cornerRadius;
-    c.layer = js.layer;
-    c.enabled = js.enabled;
-    return c;
-}
-
-ShapeRendererJS shaperendererToJS(const esengine::ecs::ShapeRenderer& c) {
-    ShapeRendererJS js;
-    js.shapeType = static_cast<i32>(c.shapeType);
-    js.color = c.color;
-    js.size = c.size;
-    js.cornerRadius = c.cornerRadius;
-    js.layer = c.layer;
-    js.enabled = c.enabled;
-    return js;
-}
-
 struct SpriteJS {
     u32 texture;
     glm::vec4 color;
@@ -661,14 +630,6 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("worldRotation", &esengine::ecs::Transform::worldRotation)
         .field("worldScale", &esengine::ecs::Transform::worldScale);
 
-    value_object<ShapeRendererJS>("ShapeRenderer")
-        .field("shapeType", &ShapeRendererJS::shapeType)
-        .field("color", &ShapeRendererJS::color)
-        .field("size", &ShapeRendererJS::size)
-        .field("cornerRadius", &ShapeRendererJS::cornerRadius)
-        .field("layer", &ShapeRendererJS::layer)
-        .field("enabled", &ShapeRendererJS::enabled);
-
     value_object<esengine::ecs::Velocity>("Velocity")
         .field("linear", &esengine::ecs::Velocity::linear)
         .field("angular", &esengine::ecs::Velocity::angular);
@@ -927,20 +888,6 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         }))
         .function("removeVelocity", optional_override([](Registry& r, u32 e) {
             r.remove<esengine::ecs::Velocity>(static_cast<Entity>(e));
-        }))
-
-        // ShapeRenderer
-        .function("hasShapeRenderer", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::ShapeRenderer>(static_cast<Entity>(e));
-        }))
-        .function("getShapeRenderer", optional_override([](Registry& r, u32 e) {
-            return shaperendererToJS(r.get<esengine::ecs::ShapeRenderer>(static_cast<Entity>(e)));
-        }))
-        .function("addShapeRenderer", optional_override([](Registry& r, u32 e, const ShapeRendererJS& js) {
-            r.emplaceOrReplace<esengine::ecs::ShapeRenderer>(static_cast<Entity>(e), shaperendererFromJS(js));
-        }))
-        .function("removeShapeRenderer", optional_override([](Registry& r, u32 e) {
-            r.remove<esengine::ecs::ShapeRenderer>(static_cast<Entity>(e));
         }))
 
         // SpineAnimation

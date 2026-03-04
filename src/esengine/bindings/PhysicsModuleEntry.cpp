@@ -30,6 +30,7 @@ static constexpr int MAX_PHYSICS_STEPS_PER_FRAME = 8;
 
 static std::unordered_map<uint32_t, b2BodyId> g_entityToBody;
 static std::unordered_map<uint32_t, b2ShapeId> g_entityToShape;
+static std::unordered_map<uint32_t, b2JointId> g_entityToJoint;
 static std::vector<uint32_t> g_dynamicBodyEntities;
 
 // [entityId_bits, x, y, angle, ...]
@@ -98,6 +99,7 @@ void physics_shutdown() {
 
     g_entityToBody.clear();
     g_entityToShape.clear();
+    g_entityToJoint.clear();
     g_dynamicBodyEntities.clear();
     g_dynamicTransformBuffer.clear();
     g_collisionEnterBuffer.clear();
@@ -147,6 +149,14 @@ EMSCRIPTEN_KEEPALIVE
 void physics_destroyBody(uint32_t entityId) {
     auto it = g_entityToBody.find(entityId);
     if (it == g_entityToBody.end()) return;
+
+    auto jit = g_entityToJoint.find(entityId);
+    if (jit != g_entityToJoint.end()) {
+        if (b2Joint_IsValid(jit->second)) {
+            b2DestroyJoint(jit->second, false);
+        }
+        g_entityToJoint.erase(jit);
+    }
 
     if (b2Body_IsValid(it->second)) {
         b2DestroyBody(it->second);
@@ -651,6 +661,112 @@ void physics_updateBodyProperties(uint32_t entityId, int bodyType,
     b2MotionLocks locks = b2Body_GetMotionLocks(it->second);
     locks.angularZ = fixedRotation != 0;
     b2Body_SetMotionLocks(it->second, locks);
+}
+
+// Revolute Joint
+
+EMSCRIPTEN_KEEPALIVE
+int physics_createRevoluteJoint(uint32_t entityIdA, uint32_t entityIdB,
+                                float anchorAx, float anchorAy,
+                                float anchorBx, float anchorBy,
+                                int enableMotor, float motorSpeed, float maxMotorTorque,
+                                int enableLimit, float lowerAngle, float upperAngle,
+                                int collideConnected) {
+    if (!b2World_IsValid(g_worldId)) return 0;
+
+    auto itA = g_entityToBody.find(entityIdA);
+    auto itB = g_entityToBody.find(entityIdB);
+    if (itA == g_entityToBody.end() || itB == g_entityToBody.end()) return 0;
+    if (!b2Body_IsValid(itA->second) || !b2Body_IsValid(itB->second)) return 0;
+
+    b2RevoluteJointDef jointDef = b2DefaultRevoluteJointDef();
+    jointDef.base.bodyIdA = itA->second;
+    jointDef.base.bodyIdB = itB->second;
+    jointDef.base.localFrameA.p = {anchorAx, anchorAy};
+    jointDef.base.localFrameB.p = {anchorBx, anchorBy};
+    jointDef.enableMotor = enableMotor != 0;
+    jointDef.motorSpeed = motorSpeed;
+    jointDef.maxMotorTorque = maxMotorTorque;
+    jointDef.enableLimit = enableLimit != 0;
+    jointDef.lowerAngle = lowerAngle;
+    jointDef.upperAngle = upperAngle;
+    jointDef.base.collideConnected = collideConnected != 0;
+
+    b2JointId jointId = b2CreateRevoluteJoint(g_worldId, &jointDef);
+    g_entityToJoint[entityIdB] = jointId;
+    return 1;
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics_destroyJoint(uint32_t entityId) {
+    auto it = g_entityToJoint.find(entityId);
+    if (it == g_entityToJoint.end()) return;
+
+    if (b2Joint_IsValid(it->second)) {
+        b2DestroyJoint(it->second, true);
+    }
+    g_entityToJoint.erase(it);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics_setRevoluteMotorSpeed(uint32_t entityId, float speed) {
+    auto it = g_entityToJoint.find(entityId);
+    if (it == g_entityToJoint.end()) return;
+    if (!b2Joint_IsValid(it->second)) return;
+    b2RevoluteJoint_SetMotorSpeed(it->second, speed);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics_setRevoluteMaxMotorTorque(uint32_t entityId, float torque) {
+    auto it = g_entityToJoint.find(entityId);
+    if (it == g_entityToJoint.end()) return;
+    if (!b2Joint_IsValid(it->second)) return;
+    b2RevoluteJoint_SetMaxMotorTorque(it->second, torque);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics_enableRevoluteMotor(uint32_t entityId, int enable) {
+    auto it = g_entityToJoint.find(entityId);
+    if (it == g_entityToJoint.end()) return;
+    if (!b2Joint_IsValid(it->second)) return;
+    b2RevoluteJoint_EnableMotor(it->second, enable != 0);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics_enableRevoluteLimit(uint32_t entityId, int enable) {
+    auto it = g_entityToJoint.find(entityId);
+    if (it == g_entityToJoint.end()) return;
+    if (!b2Joint_IsValid(it->second)) return;
+    b2RevoluteJoint_EnableLimit(it->second, enable != 0);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics_setRevoluteLimits(uint32_t entityId, float lower, float upper) {
+    auto it = g_entityToJoint.find(entityId);
+    if (it == g_entityToJoint.end()) return;
+    if (!b2Joint_IsValid(it->second)) return;
+    b2RevoluteJoint_SetLimits(it->second, lower, upper);
+}
+
+EMSCRIPTEN_KEEPALIVE
+float physics_getRevoluteAngle(uint32_t entityId) {
+    auto it = g_entityToJoint.find(entityId);
+    if (it == g_entityToJoint.end()) return 0;
+    if (!b2Joint_IsValid(it->second)) return 0;
+    return b2RevoluteJoint_GetAngle(it->second);
+}
+
+EMSCRIPTEN_KEEPALIVE
+float physics_getRevoluteMotorTorque(uint32_t entityId) {
+    auto it = g_entityToJoint.find(entityId);
+    if (it == g_entityToJoint.end()) return 0;
+    if (!b2Joint_IsValid(it->second)) return 0;
+    return b2RevoluteJoint_GetMotorTorque(it->second);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int physics_hasJoint(uint32_t entityId) {
+    return g_entityToJoint.contains(entityId) ? 1 : 0;
 }
 
 } // extern "C"

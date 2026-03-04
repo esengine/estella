@@ -36,6 +36,7 @@ export {
     SegmentCollider,
     PolygonCollider,
     ChainCollider,
+    RevoluteJoint,
     BodyType,
     type RigidBodyData,
     type BoxColliderData,
@@ -44,6 +45,7 @@ export {
     type SegmentColliderData,
     type PolygonColliderData,
     type ChainColliderData,
+    type RevoluteJointData,
 } from './PhysicsComponents';
 
 export {

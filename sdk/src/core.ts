@@ -116,6 +116,10 @@ export {
     BoxCollider,
     CircleCollider,
     CapsuleCollider,
+    SegmentCollider,
+    PolygonCollider,
+    ChainCollider,
+    RevoluteJoint,
     BodyType,
 } from './physics/PhysicsComponents';
 

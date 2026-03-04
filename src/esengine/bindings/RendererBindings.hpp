@@ -91,6 +91,7 @@ emscripten::val registry_getCameraEntities(ecs::Registry& registry);
 emscripten::val getChildEntities(ecs::Registry& registry, u32 entity);
 u32 registry_getGeneration(ecs::Registry& registry, u32 entity);
 u32 registry_getSchemaPoolVersion(ecs::Registry& registry, u32 poolId);
+void registry_batchSyncPhysicsTransforms(ecs::Registry& registry, uintptr_t bufferPtr, int count, float ppu);
 
 }  // namespace esengine
 
