@@ -392,7 +392,49 @@ const __plugins = [${pluginList}];
         }
 
         await Promise.all(pending);
+
+        await this.collectUntrackedAudioAssets(fs, projectDir, allFiles, assets);
+
         return assets;
+    }
+
+    private async collectUntrackedAudioAssets(
+        fs: NativeFS,
+        projectDir: string,
+        trackedPaths: Set<string>,
+        assets: Map<string, string>
+    ): Promise<void> {
+        const audioExts = new Set(['mp3', 'wav', 'ogg', 'aac', 'flac', 'webm']);
+        const assetsDir = joinPath(projectDir, 'assets');
+        if (!await fs.exists(assetsDir)) return;
+
+        const scan = async (absDir: string, relDir: string): Promise<void> => {
+            const entries = await fs.listDirectoryDetailed(absDir);
+            const pending: Array<Promise<void>> = [];
+            for (const entry of entries) {
+                const childAbs = joinPath(absDir, entry.name);
+                const childRel = `${relDir}/${entry.name}`;
+                if (entry.isDirectory) {
+                    pending.push(scan(childAbs, childRel));
+                } else {
+                    const ext = getFileExtension(childRel);
+                    if (audioExts.has(ext) && !trackedPaths.has(childRel)) {
+                        const mimeType = getAssetMimeType(ext);
+                        if (!mimeType) continue;
+                        pending.push(
+                            fs.readBinaryFile(childAbs).then(binary => {
+                                if (binary) {
+                                    assets.set(childRel, `data:${mimeType};base64,${arrayBufferToBase64(binary)}`);
+                                }
+                            })
+                        );
+                    }
+                }
+            }
+            await Promise.all(pending);
+        };
+
+        await scan(assetsDir, 'assets');
     }
 
     private assembleHTML(

@@ -38,6 +38,8 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000}
 var __PA__={{ASSETS_MAP}};
 var __SCENES__={{SCENES_DATA}};
 var __MANIFEST__={{MANIFEST}};
+var _fetch=window.fetch;
+window.fetch=function(u,o){var d=typeof u==='string'&&__PA__[u];return d?_fetch.call(this,d,o):_fetch.call(this,u,o)};
 
 {{CTA_SCRIPT}}
 

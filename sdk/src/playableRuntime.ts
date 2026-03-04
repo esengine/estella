@@ -13,6 +13,7 @@ import type { Vec2 } from './types';
 import type { SpineWasmModule } from './spine/SpineModuleLoader';
 import type { PhysicsWasmModule } from './physics/PhysicsModuleLoader';
 import type { SceneData } from './scene';
+import { Audio } from './audio/Audio';
 
 declare const ESSpineModule: ((opts: unknown) => Promise<SpineWasmModule>) | undefined;
 declare const ESPhysicsModule: ((opts: unknown) => Promise<PhysicsWasmModule>) | undefined;
@@ -163,6 +164,12 @@ export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promis
         : null;
 
     const provider = new EmbeddedAssetProvider(assets);
+
+    Audio.setAssetResolver((url: string) => {
+        const dataUrl = assets[url];
+        if (!dataUrl) return null;
+        return decodeDataUrlBinary(dataUrl).buffer as ArrayBuffer;
+    });
 
     await initRuntime({
         app,
