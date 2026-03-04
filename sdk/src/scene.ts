@@ -182,6 +182,7 @@ const COMPONENT_ENTITY_FIELDS = new Map<string, string[]>([
     ['Toggle', ['graphicEntity', 'group']],
     ['ScrollView', ['contentEntity']],
     ['Dropdown', ['listEntity', 'labelEntity']],
+    ['RevoluteJoint', ['connectedEntity']],
 ]);
 
 export function registerComponentEntityFields(

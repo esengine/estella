@@ -80,6 +80,15 @@ export default {
                 'sdk/physics.wasm': 'wasm/web/physics.wasm',
             },
         },
+        'physics-playable': {
+            buildDir: 'build-physics-playable',
+            cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_BOX2D=ON'],
+            targets: ['physics_module'],
+            outputs: {
+                'sdk/physics.js': 'wasm/playable/physics.js',
+                'sdk/physics.wasm': 'wasm/playable/physics.wasm',
+            },
+        },
         spine: {
             buildDir: 'build-web',
             cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF'],

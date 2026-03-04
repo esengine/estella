@@ -108,15 +108,24 @@ async function instantiateWasmModule(
 ): Promise<unknown | null> {
     try {
         const wasmBytes = decodeBase64ToWasm(wasmBase64);
-        return await factory({
+        const opts: Record<string, unknown> = {
             instantiateWasm(imports: WebAssembly.Imports, cb: Function) {
-                (WebAssembly.instantiate(wasmBytes.buffer as ArrayBuffer, imports) as
-                    Promise<WebAssembly.WebAssemblyInstantiatedSource>).then(r => {
-                    cb(r.instance, r.module);
+                const response = new Response(wasmBytes.buffer as ArrayBuffer, {
+                    headers: { 'Content-Type': 'application/wasm' },
                 });
+                WebAssembly.instantiateStreaming(response, imports).then(
+                    r => cb(r.instance, r.module),
+                    () => {
+                        WebAssembly.instantiate(wasmBytes.buffer as ArrayBuffer, imports).then(
+                            r => cb((r as WebAssembly.WebAssemblyInstantiatedSource).instance,
+                                    (r as WebAssembly.WebAssemblyInstantiatedSource).module),
+                        );
+                    },
+                );
                 return {};
             },
-        });
+        };
+        return await factory(opts);
     } catch (e) {
         return null;
     }

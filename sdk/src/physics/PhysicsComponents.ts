@@ -189,6 +189,38 @@ export const ChainCollider = defineComponent<ChainColliderData>('ChainCollider',
 });
 
 // =============================================================================
+// Joint Components
+// =============================================================================
+
+export interface RevoluteJointData {
+    connectedEntity: number;
+    anchorA: Vec2;
+    anchorB: Vec2;
+    enableMotor: boolean;
+    motorSpeed: number;
+    maxMotorTorque: number;
+    enableLimit: boolean;
+    lowerAngle: number;
+    upperAngle: number;
+    collideConnected: boolean;
+    enabled: boolean;
+}
+
+export const RevoluteJoint = defineComponent<RevoluteJointData>('RevoluteJoint', {
+    connectedEntity: -1,
+    anchorA: { x: 0, y: 0 },
+    anchorB: { x: 0, y: 0 },
+    enableMotor: false,
+    motorSpeed: 0,
+    maxMotorTorque: 0,
+    enableLimit: false,
+    lowerAngle: 0,
+    upperAngle: 0,
+    collideConnected: false,
+    enabled: true,
+});
+
+// =============================================================================
 // Body Type Enum (matches C++ BodyType)
 // =============================================================================
 

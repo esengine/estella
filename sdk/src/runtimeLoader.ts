@@ -655,6 +655,11 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
     resolveSceneAssetPaths(sceneData, textureCache, fontCache, materialCache);
     const entityMap = loadSceneData(app.world, sceneData);
 
+    const cppRegistry = app.world.getCppRegistry();
+    if (cppRegistry) {
+        (module as ESEngineModule).transform_update(cppRegistry);
+    }
+
     if (sceneName && app.hasResource(SceneManager)) {
         for (const entity of entityMap.values()) {
             app.world.insert(entity, SceneOwner, { scene: sceneName, persistent: false });

@@ -70,6 +70,21 @@ export interface PhysicsWasmModule {
         gravityScale: number, linearDamping: number, angularDamping: number,
         fixedRotation: number, bullet: number): void;
 
+    _physics_createRevoluteJoint(entityIdA: number, entityIdB: number,
+        anchorAx: number, anchorAy: number, anchorBx: number, anchorBy: number,
+        enableMotor: number, motorSpeed: number, maxMotorTorque: number,
+        enableLimit: number, lowerAngle: number, upperAngle: number,
+        collideConnected: number): number;
+    _physics_destroyJoint(entityId: number): void;
+    _physics_hasJoint(entityId: number): number;
+    _physics_setRevoluteMotorSpeed(entityId: number, speed: number): void;
+    _physics_setRevoluteMaxMotorTorque(entityId: number, torque: number): void;
+    _physics_enableRevoluteMotor(entityId: number, enable: number): void;
+    _physics_enableRevoluteLimit(entityId: number, enable: number): void;
+    _physics_setRevoluteLimits(entityId: number, lower: number, upper: number): void;
+    _physics_getRevoluteAngle(entityId: number): number;
+    _physics_getRevoluteMotorTorque(entityId: number): number;
+
     HEAPF32: Float32Array;
     HEAPU8: Uint8Array;
     HEAPU32: Uint32Array;
@@ -158,6 +173,17 @@ export async function loadPhysicsSideModule(
         _physics_applyAngularImpulse: cwrap('physics_applyAngularImpulse', null, ['number', 'number']) as PhysicsWasmModule['_physics_applyAngularImpulse'],
 
         _physics_updateBodyProperties: cwrap('physics_updateBodyProperties', null, ['number', 'number', 'number', 'number', 'number', 'number', 'number']) as PhysicsWasmModule['_physics_updateBodyProperties'],
+
+        _physics_createRevoluteJoint: cwrap('physics_createRevoluteJoint', 'number', ['number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number']) as PhysicsWasmModule['_physics_createRevoluteJoint'],
+        _physics_destroyJoint: cwrap('physics_destroyJoint', null, ['number']) as PhysicsWasmModule['_physics_destroyJoint'],
+        _physics_hasJoint: cwrap('physics_hasJoint', 'number', ['number']) as PhysicsWasmModule['_physics_hasJoint'],
+        _physics_setRevoluteMotorSpeed: cwrap('physics_setRevoluteMotorSpeed', null, ['number', 'number']) as PhysicsWasmModule['_physics_setRevoluteMotorSpeed'],
+        _physics_setRevoluteMaxMotorTorque: cwrap('physics_setRevoluteMaxMotorTorque', null, ['number', 'number']) as PhysicsWasmModule['_physics_setRevoluteMaxMotorTorque'],
+        _physics_enableRevoluteMotor: cwrap('physics_enableRevoluteMotor', null, ['number', 'number']) as PhysicsWasmModule['_physics_enableRevoluteMotor'],
+        _physics_enableRevoluteLimit: cwrap('physics_enableRevoluteLimit', null, ['number', 'number']) as PhysicsWasmModule['_physics_enableRevoluteLimit'],
+        _physics_setRevoluteLimits: cwrap('physics_setRevoluteLimits', null, ['number', 'number', 'number']) as PhysicsWasmModule['_physics_setRevoluteLimits'],
+        _physics_getRevoluteAngle: cwrap('physics_getRevoluteAngle', 'number', ['number']) as PhysicsWasmModule['_physics_getRevoluteAngle'],
+        _physics_getRevoluteMotorTorque: cwrap('physics_getRevoluteMotorTorque', 'number', ['number']) as PhysicsWasmModule['_physics_getRevoluteMotorTorque'],
 
         get HEAPF32() { return mainModule.HEAPF32; },
         get HEAPU8() { return mainModule.HEAPU8; },

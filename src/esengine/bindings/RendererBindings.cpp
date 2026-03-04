@@ -540,6 +540,34 @@ u32 registry_getSchemaPoolVersion(ecs::Registry& registry, u32 poolId) {
     return registry.getSchemaPoolVersion(poolId);
 }
 
+void registry_batchSyncPhysicsTransforms(ecs::Registry& registry, uintptr_t bufferPtr, int count, float ppu) {
+    const float* buffer = reinterpret_cast<const float*>(bufferPtr);
+    for (int i = 0; i < count; i++) {
+        const int offset = i * 4;
+        uint32_t entityId;
+        std::memcpy(&entityId, buffer + offset, sizeof(uint32_t));
+        auto entity = static_cast<Entity>(entityId);
+        if (!registry.valid(entity)) continue;
+        if (!registry.has<ecs::Transform>(entity)) continue;
+
+        auto& transform = registry.get<ecs::Transform>(entity);
+        float px = buffer[offset + 1] * ppu;
+        float py = buffer[offset + 2] * ppu;
+        float angle = buffer[offset + 3];
+        float half = angle * 0.5f;
+        glm::quat rot(std::cos(half), 0.0f, 0.0f, std::sin(half));
+
+        transform.position.x = px;
+        transform.position.y = py;
+        transform.rotation = rot;
+
+        transform.worldPosition.x = px;
+        transform.worldPosition.y = py;
+        transform.worldRotation = rot;
+        transform.decomposed_ = true;
+    }
+}
+
 }  // namespace esengine
 
 #endif  // ES_PLATFORM_WEB
