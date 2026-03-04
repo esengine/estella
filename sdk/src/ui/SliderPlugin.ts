@@ -84,16 +84,11 @@ export class SliderPlugin implements Plugin {
         registerComponent('Slider', Slider);
 
         const world = app.world;
-        let draggingSlider: Entity | null = null;
 
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
             [Res(Input), Res(UICameraInfo), Res(UIEvents)],
             (input: InputState, camera: UICameraData, events: UIEventQueue) => {
                 if (!camera.valid) return;
-
-                if (draggingSlider !== null && !world.valid(draggingSlider)) {
-                    draggingSlider = null;
-                }
 
                 const entities = world.getEntitiesWithComponents([Slider, UIRect]);
                 for (const entity of entities) {
@@ -109,20 +104,16 @@ export class SliderPlugin implements Plugin {
                             }
 
                             const wt = world.get(entity, Transform) as TransformData;
-                            const interaction = world.has(entity, UIInteraction)
-                                ? world.get(entity, UIInteraction) as UIInteractionData
-                                : null;
 
-                            let pressed = interaction?.justPressed ?? false;
-                            if (!pressed && slider.handleEntity !== 0 && world.valid(slider.handleEntity) && world.has(slider.handleEntity, UIInteraction)) {
-                                pressed = (world.get(slider.handleEntity, UIInteraction) as UIInteractionData).justPressed;
+                            let isDragging = false;
+                            if (world.has(entity, UIInteraction)) {
+                                isDragging = (world.get(entity, UIInteraction) as UIInteractionData).pressed;
+                            }
+                            if (!isDragging && slider.handleEntity !== 0 && world.valid(slider.handleEntity) && world.has(slider.handleEntity, UIInteraction)) {
+                                isDragging = (world.get(slider.handleEntity, UIInteraction) as UIInteractionData).pressed;
                             }
 
-                            if (pressed) {
-                                draggingSlider = entity;
-                            }
-
-                            if (draggingSlider === entity && input.isMouseButtonDown(0)) {
+                            if (isDragging && input.isMouseButtonDown(0)) {
                                 let t = computeSliderValue(
                                     camera.worldMouseX, camera.worldMouseY,
                                     wt, rect, entity, slider.direction,
@@ -142,9 +133,6 @@ export class SliderPlugin implements Plugin {
                                 }
                             }
 
-                            if (draggingSlider === entity && input.isMouseButtonReleased(0)) {
-                                draggingSlider = null;
-                            }
                         }
                     }
 
