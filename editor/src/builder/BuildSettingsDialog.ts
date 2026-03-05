@@ -1372,7 +1372,7 @@ export class BuildSettingsDialog {
             this.render();
             showToast({ type: 'info', title: 'Scenes Added', message: `Added ${added} scene(s)`, duration: 2000 });
         } else if (allScenes.length === 0) {
-            showToast({ type: 'warning', title: 'No Scenes Found', message: 'No .esscene files found in assets/', duration: 3000 });
+            showToast({ type: 'info', title: 'No Scenes Found', message: 'No .esscene files found in assets/', duration: 3000 });
         } else {
             showToast({ type: 'info', title: 'No New Scenes', message: 'All scenes already added', duration: 2000 });
         }
@@ -1386,7 +1386,7 @@ export class BuildSettingsDialog {
         const allScenes = await discoverProjectScenes(fs, projectDir);
 
         if (allScenes.length === 0) {
-            showToast({ type: 'warning', title: 'No Scenes Found', message: 'No .esscene files found in assets/', duration: 3000 });
+            showToast({ type: 'info', title: 'No Scenes Found', message: 'No .esscene files found in assets/', duration: 3000 });
             return;
         }
 
