@@ -29,6 +29,7 @@ export class ContentBrowserPanel implements ContentBrowserState {
     currentItems: AssetItem[] = [];
     filteredItems: AssetItem[] = [];
     onOpenScene: ((scenePath: string) => void) | null = null;
+    onOpenTimeline: ((timelinePath: string) => void) | null = null; // reserved for future use
     selectedPaths = new Set<string>();
     lastSelectedPath: string | null = null;
     viewMode: ViewMode;
@@ -43,6 +44,7 @@ export class ContentBrowserPanel implements ContentBrowserState {
         this.store = store;
         this.projectPath = options?.projectPath ?? null;
         this.onOpenScene = options?.onOpenScene ?? null;
+        this.onOpenTimeline = options?.onOpenTimeline ?? null;
         this.viewMode = (localStorage.getItem(VIEW_MODE_KEY) as ViewMode) || 'grid';
 
         if (this.projectPath) {

@@ -1009,6 +1009,21 @@ function exposeRegistrationAPI(): void {
     }
 }
 
+export const TimelinePlayerSchema: ComponentSchema = {
+    name: 'TimelinePlayer',
+    category: 'builtin',
+    properties: [
+        { name: 'timeline', type: 'timeline-file' },
+        { name: 'playing', type: 'boolean' },
+        { name: 'speed', type: 'number', min: 0, max: 10, step: 0.1 },
+        { name: 'wrapMode', type: 'enum', options: [
+            { label: 'Once', value: 'once' },
+            { label: 'Loop', value: 'loop' },
+            { label: 'Ping Pong', value: 'pingPong' },
+        ]},
+    ],
+};
+
 export const PostProcessVolumeSchema: ComponentSchema = {
     name: 'PostProcessVolume',
     category: 'builtin',
@@ -1072,6 +1087,7 @@ export function registerBuiltinSchemas(options?: BuiltinSchemaOptions): void {
     registerComponentSchema(ParticleEmitterSchema);
     registerComponentSchema(TilemapSchema);
     registerComponentSchema(TilemapLayerSchema);
+    registerComponentSchema(TimelinePlayerSchema);
     registerComponentSchema(PostProcessVolumeSchema);
     if (enableSpine) {
         registerComponentSchema(SpineAnimationSchema);

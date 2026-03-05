@@ -583,6 +583,14 @@ interface ESEngineModule {
     _anim_setSequenceNext(registry: CppRegistry, tweenEntity: number, nextEntity: number): void;
     _anim_updateTweens(registry: CppRegistry, deltaTime: number): void;
     _anim_getTweenState(registry: CppRegistry, tweenEntity: number): number;
+    getTransformPtr(registry: CppRegistry, entity: number): number;
+    getSpritePtr(registry: CppRegistry, entity: number): number;
+    getVelocityPtr(registry: CppRegistry, entity: number): number;
+    getCameraPtr(registry: CppRegistry, entity: number): number;
+    getUIRectPtr(registry: CppRegistry, entity: number): number;
+    getRigidBodyPtr(registry: CppRegistry, entity: number): number;
+    getBoxColliderPtr(registry: CppRegistry, entity: number): number;
+    getCircleColliderPtr(registry: CppRegistry, entity: number): number;
     _malloc(size: number): number;
     _free(ptr: number): void;
 }

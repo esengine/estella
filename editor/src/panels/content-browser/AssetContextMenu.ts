@@ -92,6 +92,7 @@ export function showFolderContextMenu(state: ContentBrowserState, e: MouseEvent,
                 { label: 'Shader', icon: icons.code(14), onClick: () => createNewShader(state, path) },
                 { label: 'BitmapFont', icon: icons.type(14), onClick: () => createNewBitmapFont(state, path) },
                 { label: 'Animation Clip', icon: icons.layers(14), onClick: () => createNewAnimClip(state, path) },
+                { label: 'Timeline', icon: icons.film(14), onClick: () => createNewTimeline(state, path) },
                 { label: 'Scene', icon: icons.layers(14), onClick: () => createNewScene(state, path) },
 
             ],
@@ -414,6 +415,30 @@ async function createNewAnimClip(state: ContentBrowserState, parentPath: string)
     } catch (err) {
         console.error('Failed to create animation clip:', err);
         showErrorToast('Failed to create animation clip', String(err));
+    }
+}
+
+async function createNewTimeline(state: ContentBrowserState, parentPath: string): Promise<void> {
+    const name = await promptFileName('NewTimeline', '.estimeline', parentPath);
+    if (!name) return;
+
+    const platform = getPlatformAdapter();
+    const filePath = `${parentPath}/${name}`;
+
+    const content = JSON.stringify({
+        version: '1.0',
+        type: 'timeline',
+        duration: 5.0,
+        wrapMode: 'once',
+        tracks: [],
+    }, null, 2);
+
+    try {
+        await platform.writeTextFile(filePath, content);
+        state.refresh();
+    } catch (err) {
+        console.error('Failed to create timeline:', err);
+        showErrorToast('Failed to create timeline', String(err));
     }
 }
 

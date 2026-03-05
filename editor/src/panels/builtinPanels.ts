@@ -6,6 +6,7 @@ import { GameViewPanel } from './game-view/GameViewPanel';
 import { ContentBrowserPanel } from './content-browser/ContentBrowserPanel';
 import { OutputPanel } from './OutputPanel';
 import { ProfilerPanel } from './profiler/ProfilerPanel';
+import { TimelinePanel } from './timeline/TimelinePanel';
 import { icons } from '../utils/icons';
 
 export interface BuiltinPanelOptions {
@@ -74,6 +75,16 @@ export function registerBuiltinPanels(options: BuiltinPanelOptions): void {
         order: 1,
         defaultVisible: false,
         factory: (c) => new OutputPanel(c),
+    });
+
+    registerPanel({
+        id: 'timeline',
+        title: 'Timeline',
+        icon: icons.film(14),
+        position: 'bottom',
+        order: 2,
+        defaultVisible: false,
+        factory: (c, s) => new TimelinePanel(c, s),
     });
 
     registerPanel({

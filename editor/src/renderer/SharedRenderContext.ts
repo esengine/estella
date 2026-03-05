@@ -32,6 +32,8 @@ import {
     tilemapPlugin,
     sceneManagerPlugin,
     postProcessPlugin,
+    timelinePlugin,
+    clearTimelineInstances,
 } from 'esengine';
 import { PhysicsPlugin, type PhysicsPluginConfig } from 'esengine/physics';
 import type { SpineModuleController } from 'esengine/spine';
@@ -169,6 +171,7 @@ export class SharedRenderContext {
         app.addPlugin(tilemapPlugin);
         app.addPlugin(sceneManagerPlugin);
         app.addPlugin(postProcessPlugin);
+        app.addPlugin(timelinePlugin);
         for (const plugin of uiPlugins) {
             app.addPlugin(plugin);
         }
@@ -329,6 +332,7 @@ export class SharedRenderContext {
             }
         }
 
+        clearTimelineInstances();
         this.playMode_ = true;
         this.paused_ = false;
         this.lastFrameTime_ = performance.now();

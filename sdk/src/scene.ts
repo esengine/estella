@@ -12,6 +12,8 @@ import { registerAnimClip } from './animation/SpriteAnimator';
 import { Audio } from './audio/Audio';
 import { registerTextureDimensions, registerTilemapSource } from './tilemap/tilesetCache';
 import { parseTmjJson, resolveRelativePath } from './tilemap/tiledLoader';
+import { parseTimelineAsset } from './timeline/TimelineLoader';
+import { registerTimelineAsset } from './timeline/TimelinePlugin';
 
 // =============================================================================
 // Types
@@ -68,7 +70,7 @@ export interface SceneLoadOptions {
 // Component Asset Field Registry
 // =============================================================================
 
-export type AssetFieldType = 'texture' | 'material' | 'font' | 'anim-clip' | 'audio' | 'tilemap';
+export type AssetFieldType = 'texture' | 'material' | 'font' | 'anim-clip' | 'audio' | 'tilemap' | 'timeline';
 
 interface AssetFieldDescriptor {
     field: string;
@@ -128,6 +130,11 @@ const COMPONENT_ASSET_FIELDS = new Map<string, ComponentAssetFields>([
     ['Tilemap', {
         fields: [
             { field: 'source', type: 'tilemap' },
+        ],
+    }],
+    ['TimelinePlayer', {
+        fields: [
+            { field: 'timeline', type: 'timeline' },
         ],
     }],
 ]);
@@ -420,6 +427,21 @@ const ASSET_FIELD_HANDLERS = new Map<AssetFieldType, AssetFieldHandler>([
                     });
                 } catch (err) {
                     console.warn(`Failed to load tilemap: ${tmjPath}`, err);
+                }
+            });
+            await Promise.all(promises);
+            return new Map();
+        },
+    }],
+    ['timeline', {
+        async load(paths, assetServer) {
+            const promises = [...paths].map(async (tlPath) => {
+                try {
+                    const raw = await assetServer.loadJson<Record<string, unknown>>(tlPath);
+                    const asset = parseTimelineAsset(raw);
+                    registerTimelineAsset(tlPath, asset);
+                } catch (err) {
+                    console.warn(`Failed to load timeline: ${tlPath}`, err);
                 }
             });
             await Promise.all(promises);

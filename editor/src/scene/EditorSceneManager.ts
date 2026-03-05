@@ -40,6 +40,8 @@ import {
     resolveRelativePath,
     registerTextureDimensions,
     registerTilemapSource,
+    registerTimelineAsset,
+    parseTimelineAsset,
 } from 'esengine';
 import type { SpineModuleController } from 'esengine/spine';
 import { submitSpineMeshesToCore } from 'esengine/spine';
@@ -779,6 +781,15 @@ export class EditorSceneManager {
                     }
                     break;
                 }
+                case 'timeline': {
+                    try {
+                        await this.loadAndRegisterTimeline(resolved);
+                        data[desc.field] = resolved;
+                    } catch (err) {
+                        console.warn(`[EditorSceneManager] Failed to load timeline: ${resolved}`, err);
+                    }
+                    break;
+                }
             }
         }
 
@@ -873,6 +884,19 @@ export class EditorSceneManager {
             })),
             tilesets,
         });
+    }
+
+    private async loadAndRegisterTimeline(tlPath: string): Promise<void> {
+        const fs = getEditorContext().fs;
+        if (!fs) return;
+
+        const absPath = this.pathResolver_.toAbsolutePath(tlPath);
+        const raw = await fs.readFile(absPath);
+        if (!raw) return;
+
+        const json = JSON.parse(raw) as Record<string, unknown>;
+        const asset = parseTimelineAsset(json);
+        registerTimelineAsset(tlPath, asset);
     }
 
     // =========================================================================
