@@ -167,7 +167,7 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
     private readonly result_: unknown[];
     private readonly mutData_: Array<{ component: AnyComponentDef; data: Record<string, unknown> }>;
     private readonly cacheKey_: string;
-    private readonly lastRunTick_: number;
+    private lastRunTick_: number;
     private readonly getters_: Array<((entity: Entity) => unknown) | null>;
     private readonly mutSetters_: Array<((entity: Entity, data: unknown) => void) | null>;
     private readonly mutIsBuiltin_: boolean[];
@@ -201,6 +201,11 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
         for (const f of descriptor._changedFilters) {
             world.enableChangeTracking(f.component);
         }
+    }
+
+    /** @internal Update lastRunTick for reuse across system runs */
+    resetTick(tick: number): void {
+        this.lastRunTick_ = tick;
     }
 
     private passesChangeFilters_(entity: Entity): boolean {
@@ -427,13 +432,18 @@ export function Removed<T extends AnyComponentDef>(component: T): RemovedQueryDe
 export class RemovedQueryInstance<T extends AnyComponentDef> implements Iterable<Entity> {
     private readonly world_: World;
     private readonly component_: T;
-    private readonly lastRunTick_: number;
+    private lastRunTick_: number;
 
     constructor(world: World, component: T, lastRunTick: number) {
         this.world_ = world;
         this.component_ = component;
         this.lastRunTick_ = lastRunTick;
         world.enableChangeTracking(component);
+    }
+
+    /** @internal Update lastRunTick for reuse across system runs */
+    resetTick(tick: number): void {
+        this.lastRunTick_ = tick;
     }
 
     *[Symbol.iterator](): Iterator<Entity> {
