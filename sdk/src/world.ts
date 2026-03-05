@@ -596,6 +596,218 @@ export class World {
         return (e) => storage.get(e);
     }
 
+    /** @internal Pre-resolve a component to a direct has-check for fast query matching. */
+    resolveHas(component: AnyComponentDef): ((entity: Entity) => boolean) | null {
+        if (isBuiltinComponent(component)) {
+            if (!this.cppRegistry_) return null;
+
+            if (this.module_) {
+                const ptrFn = this.resolvePtrFn_(component._cppName);
+                if (ptrFn) return (e: Entity) => ptrFn(e) !== 0;
+            }
+
+            const methods = this.getBuiltinMethods(component._cppName);
+            return (e) => methods.has(e);
+        }
+        const storage = this.tsStorage_.get(component._id);
+        if (!storage) return null;
+        return (e) => storage.has(e);
+    }
+
+    /** @internal Pre-resolve a component to a direct setter for fast Mut write-back. */
+    resolveSetter(component: AnyComponentDef): ((entity: Entity, data: unknown) => void) | null {
+        if (isBuiltinComponent(component)) {
+            if (!this.cppRegistry_) return null;
+
+            if (this.module_) {
+                const ptrSetter = this.resolvePtrSetter_(component._cppName);
+                if (ptrSetter) return ptrSetter;
+            }
+
+            const methods = this.getBuiltinMethods(component._cppName);
+            const colorKeys = component._colorKeys;
+            if (colorKeys.length === 0) {
+                return (e, d) => methods.add(e, d);
+            }
+            return (e, d) => methods.add(e, convertForWasm(d as Record<string, unknown>, colorKeys));
+        }
+        const storage = this.tsStorage_.get(component._id);
+        if (!storage) return null;
+        return (e, d) => storage.set(e, d);
+    }
+
+    private resolvePtrFn_(cppName: string): ((entity: Entity) => number) | null {
+        const mod = this.module_!;
+        const reg = this.cppRegistry_!;
+        const fnMap: Record<string, (r: any, e: number) => number> = {
+            Transform: mod.getTransformPtr,
+            Sprite: mod.getSpritePtr,
+            Velocity: mod.getVelocityPtr,
+            Camera: mod.getCameraPtr,
+            UIRect: mod.getUIRectPtr,
+            RigidBody: mod.getRigidBodyPtr,
+            BoxCollider: mod.getBoxColliderPtr,
+            CircleCollider: mod.getCircleColliderPtr,
+        };
+        const fn = fnMap[cppName];
+        if (!fn) return null;
+        return (e: Entity) => fn(reg, e);
+    }
+
+    private resolvePtrSetter_(cppName: string): ((entity: Entity, data: unknown) => void) | null {
+        const mod = this.module_!;
+        const reg = this.cppRegistry_!;
+
+        if (cppName === 'Transform') {
+            return (e: Entity, data: unknown) => {
+                const ptr = mod.getTransformPtr(reg, e);
+                if (!ptr) return;
+                const d = data as any;
+                const f = mod.HEAPF32;
+                const b = ptr >> 2;
+                const p = d.position, r = d.rotation, s = d.scale;
+                f[b]   = p.x; f[b+1] = p.y; f[b+2] = p.z;
+                f[b+3] = r.x; f[b+4] = r.y; f[b+5] = r.z; f[b+6] = r.w;
+                f[b+7] = s.x; f[b+8] = s.y; f[b+9] = s.z;
+            };
+        }
+
+        if (cppName === 'Sprite') {
+            return (e: Entity, data: unknown) => {
+                const ptr = mod.getSpritePtr(reg, e);
+                if (!ptr) return;
+                const d = data as any;
+                const f = mod.HEAPF32;
+                const u8 = mod.HEAPU8;
+                const u32 = mod.HEAPU32;
+                const i32 = new Int32Array(f.buffer);
+                const fb = ptr >> 2;
+                u32[fb]   = d.texture;
+                const c = d.color;
+                f[fb+1] = c.r; f[fb+2] = c.g; f[fb+3] = c.b; f[fb+4] = c.a;
+                f[fb+5] = d.size.x;     f[fb+6] = d.size.y;
+                f[fb+7] = d.uvOffset.x; f[fb+8] = d.uvOffset.y;
+                f[fb+9] = d.uvScale.x;  f[fb+10] = d.uvScale.y;
+                i32[fb+11] = d.layer;
+                u8[ptr + 48] = d.flipX ? 1 : 0;
+                u8[ptr + 49] = d.flipY ? 1 : 0;
+                u32[fb+13] = d.material;
+                u8[ptr + 56] = d.enabled ? 1 : 0;
+            };
+        }
+
+        if (cppName === 'Velocity') {
+            return (e: Entity, data: unknown) => {
+                const ptr = mod.getVelocityPtr(reg, e);
+                if (!ptr) return;
+                const d = data as any;
+                const f = mod.HEAPF32;
+                const b = ptr >> 2;
+                f[b]   = d.linear.x;  f[b+1] = d.linear.y;  f[b+2] = d.linear.z;
+                f[b+3] = d.angular.x; f[b+4] = d.angular.y; f[b+5] = d.angular.z;
+            };
+        }
+
+        if (cppName === 'Camera') {
+            return (e: Entity, data: unknown) => {
+                const ptr = mod.getCameraPtr(reg, e);
+                if (!ptr) return;
+                const d = data as any;
+                const f = mod.HEAPF32;
+                const u8 = mod.HEAPU8;
+                const i32 = new Int32Array(f.buffer);
+                const b = ptr >> 2;
+                u8[ptr] = d.projectionType;
+                f[b+1] = d.fov;        f[b+2] = d.orthoSize;
+                f[b+3] = d.nearPlane;  f[b+4] = d.farPlane;
+                f[b+5] = d.aspectRatio;
+                u8[ptr + 24] = d.isActive ? 1 : 0;
+                i32[b+7] = d.priority;
+                f[b+8] = d.viewportX;  f[b+9] = d.viewportY;
+                f[b+10] = d.viewportW; f[b+11] = d.viewportH;
+                i32[b+12] = d.clearFlags;
+            };
+        }
+
+        if (cppName === 'UIRect') {
+            return (e: Entity, data: unknown) => {
+                const ptr = mod.getUIRectPtr(reg, e);
+                if (!ptr) return;
+                const d = data as any;
+                const f = mod.HEAPF32;
+                const b = ptr >> 2;
+                f[b]   = d.anchorMin.x; f[b+1] = d.anchorMin.y;
+                f[b+2] = d.anchorMax.x; f[b+3] = d.anchorMax.y;
+                f[b+4] = d.offsetMin.x; f[b+5] = d.offsetMin.y;
+                f[b+6] = d.offsetMax.x; f[b+7] = d.offsetMax.y;
+                f[b+8] = d.size.x;      f[b+9] = d.size.y;
+                f[b+10] = d.pivot.x;    f[b+11] = d.pivot.y;
+            };
+        }
+
+        if (cppName === 'RigidBody') {
+            return (e: Entity, data: unknown) => {
+                const ptr = mod.getRigidBodyPtr(reg, e);
+                if (!ptr) return;
+                const d = data as any;
+                const f = mod.HEAPF32;
+                const u8 = mod.HEAPU8;
+                const b = ptr >> 2;
+                u8[ptr] = d.bodyType;
+                f[b+1] = d.gravityScale;
+                f[b+2] = d.linearDamping;
+                f[b+3] = d.angularDamping;
+                u8[ptr + 16] = d.fixedRotation ? 1 : 0;
+                u8[ptr + 17] = d.bullet ? 1 : 0;
+                u8[ptr + 18] = d.enabled ? 1 : 0;
+            };
+        }
+
+        if (cppName === 'BoxCollider') {
+            return (e: Entity, data: unknown) => {
+                const ptr = mod.getBoxColliderPtr(reg, e);
+                if (!ptr) return;
+                const d = data as any;
+                const f = mod.HEAPF32;
+                const u8 = mod.HEAPU8;
+                const u32 = mod.HEAPU32;
+                const b = ptr >> 2;
+                f[b]   = d.halfExtents.x; f[b+1] = d.halfExtents.y;
+                f[b+2] = d.offset.x;      f[b+3] = d.offset.y;
+                f[b+4] = d.density;
+                f[b+5] = d.friction;
+                f[b+6] = d.restitution;
+                u8[ptr + 28] = d.isSensor ? 1 : 0;
+                u8[ptr + 29] = d.enabled ? 1 : 0;
+                u32[b+8] = d.categoryBits;
+                u32[b+9] = d.maskBits;
+            };
+        }
+
+        if (cppName === 'CircleCollider') {
+            return (e: Entity, data: unknown) => {
+                const ptr = mod.getCircleColliderPtr(reg, e);
+                if (!ptr) return;
+                const d = data as any;
+                const f = mod.HEAPF32;
+                const u8 = mod.HEAPU8;
+                const u32 = mod.HEAPU32;
+                const b = ptr >> 2;
+                f[b]   = d.radius;
+                f[b+1] = d.offset.x; f[b+2] = d.offset.y;
+                f[b+3] = d.density;
+                f[b+4] = d.friction;
+                f[b+5] = d.restitution;
+                u8[ptr + 24] = d.isSensor ? 1 : 0;
+                u8[ptr + 25] = d.enabled ? 1 : 0;
+                u32[b+7] = d.categoryBits;
+                u32[b+8] = d.maskBits;
+            };
+        }
+
+        return null;
+    }
+
     private resolvePtrGetter_(cppName: string): ((entity: Entity) => unknown) | null {
         const mod = this.module_!;
         const reg = this.cppRegistry_!;

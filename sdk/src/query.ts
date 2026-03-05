@@ -169,6 +169,7 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
     private readonly cacheKey_: string;
     private readonly lastRunTick_: number;
     private readonly getters_: Array<((entity: Entity) => unknown) | null>;
+    private readonly mutSetters_: Array<((entity: Entity, data: unknown) => void) | null>;
 
     constructor(world: World, descriptor: QueryDescriptor<C>, lastRunTick = -1) {
         this.world_ = world;
@@ -187,6 +188,9 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
             descriptor._without,
         );
         this.getters_ = this.actualComponents_.map(comp => world.resolveGetter(comp));
+        this.mutSetters_ = descriptor._mutIndices.map(idx =>
+            world.resolveSetter(this.actualComponents_[idx])
+        );
         for (const f of descriptor._addedFilters) {
             world.enableChangeTracking(f.component);
         }
@@ -223,6 +227,7 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
         const result = this.result_;
         const mutData = this.mutData_;
         const mutCount = mutData.length;
+        const mutSetters = this.mutSetters_;
         const world = this.world_;
         const getters = this.getters_;
         const self = this;
@@ -232,15 +237,24 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
         let started = false;
         let done = false;
 
+        const writeMut = () => {
+            for (let i = 0; i < mutCount; i++) {
+                const mut = mutData[i];
+                const setter = mutSetters[i];
+                if (setter) {
+                    setter(prevEntity!, mut.data);
+                } else {
+                    world.set(prevEntity!, mut.component, mut.data);
+                }
+            }
+        };
+
         const finalize = () => {
             if (done) return;
             done = true;
             world.endIteration();
             if (prevEntity !== null && hasMut) {
-                for (let i = 0; i < mutCount; i++) {
-                    const mut = mutData[i];
-                    world.set(prevEntity, mut.component, mut.data);
-                }
+                writeMut();
             }
         };
 
@@ -259,10 +273,7 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
                     }
 
                     if (prevEntity !== null && hasMut) {
-                        for (let i = 0; i < mutCount; i++) {
-                            const mut = mutData[i];
-                            world.set(prevEntity, mut.component, mut.data);
-                        }
+                        writeMut();
                     }
 
                     result[0] = entity;
