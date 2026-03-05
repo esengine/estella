@@ -258,7 +258,6 @@ export class World {
     private entities_ = new Map<Entity, number>();
     private tsStorage_ = new Map<symbol, Map<Entity, unknown>>();
     private entityComponents_ = new Map<Entity, symbol[]>();
-    private queryPool_: Entity[][] = [];
     private queryPoolIdx_ = 0;
     private worldVersion_ = 0;
     private queryCache_ = new Map<string, { version: number; result: Entity[] }>();
@@ -912,11 +911,7 @@ export class World {
             return cached.result;
         }
 
-        if (this.queryPoolIdx_ >= this.queryPool_.length) {
-            this.queryPool_.push([]);
-        }
-        const entities = this.queryPool_[this.queryPoolIdx_++];
-        entities.length = 0;
+        const entities: Entity[] = [];
 
         const reqScript: Map<Entity, unknown>[] = [];
         const reqBuiltin: BuiltinMethods[] = [];
@@ -993,7 +988,7 @@ export class World {
             }
         }
 
-        this.queryCache_.set(cacheKey, { version: this.worldVersion_, result: entities.slice() });
+        this.queryCache_.set(cacheKey, { version: this.worldVersion_, result: entities });
 
         return entities;
     }
