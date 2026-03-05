@@ -142,6 +142,8 @@ export class SystemRunner {
     private readonly eventRegistry_: EventRegistry | null;
     private readonly argsCache_ = new Map<symbol, unknown[]>();
     private readonly systemTicks_ = new Map<symbol, number>();
+    private readonly queryCache_ = new Map<symbol, QueryInstance<any>[]>();
+    private readonly removedCache_ = new Map<symbol, RemovedQueryInstance<any>[]>();
     private currentLastRunTick_ = -1;
     private timings_: Map<string, number> | null = null;
 
@@ -168,8 +170,46 @@ export class SystemRunner {
 
         this.currentLastRunTick_ = this.systemTicks_.get(system._id) ?? -1;
 
+        let queries = this.queryCache_.get(system._id);
+        let removeds = this.removedCache_.get(system._id);
+        const firstRun = !queries;
+
+        if (firstRun) {
+            queries = [];
+            removeds = [];
+            this.queryCache_.set(system._id, queries);
+            this.removedCache_.set(system._id, removeds);
+        }
+
+        let qi = 0, ri = 0;
         for (let i = 0; i < system._params.length; i++) {
-            args[i] = this.resolveParam(system._params[i]);
+            const param = system._params[i];
+            if (param._type === 'query') {
+                if (firstRun) {
+                    const inst = new QueryInstance(this.world_, param, this.currentLastRunTick_);
+                    queries!.push(inst);
+                    args[i] = inst;
+                } else {
+                    const inst = queries![qi];
+                    inst.resetTick(this.currentLastRunTick_);
+                    args[i] = inst;
+                }
+                qi++;
+            } else if (param._type === 'removed') {
+                if (firstRun) {
+                    const desc = param as RemovedQueryDescriptor<AnyComponentDef>;
+                    const inst = new RemovedQueryInstance(this.world_, desc._component, this.currentLastRunTick_);
+                    removeds!.push(inst);
+                    args[i] = inst;
+                } else {
+                    const inst = removeds![ri];
+                    inst.resetTick(this.currentLastRunTick_);
+                    args[i] = inst;
+                }
+                ri++;
+            } else {
+                args[i] = this.resolveParam(param);
+            }
         }
 
         const t0 = this.timings_ ? performance.now() : 0;
@@ -192,9 +232,6 @@ export class SystemRunner {
 
     private resolveParam(param: SystemParam): unknown {
         switch (param._type) {
-            case 'query':
-                return new QueryInstance(this.world_, param, this.currentLastRunTick_);
-
             case 'res':
                 return this.resources_.get(param._resource);
 
@@ -218,11 +255,6 @@ export class SystemRunner {
                     ? this.eventRegistry_.getBus(desc._event)
                     : (() => { throw new Error('EventRegistry not available'); })();
                 return new EventReaderInstance(bus);
-            }
-
-            case 'removed': {
-                const desc = param as RemovedQueryDescriptor<AnyComponentDef>;
-                return new RemovedQueryInstance(this.world_, desc._component, this.currentLastRunTick_);
             }
 
             case 'get_world':
