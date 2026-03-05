@@ -546,6 +546,174 @@ describe('Ptr-based getter vs embind - CircleCollider', () => {
     });
 });
 
+// =============================================================================
+// Ptr-based SET (write) benchmarks
+// =============================================================================
+
+describe('Ptr-based setter vs embind - Transform write', () => {
+    bench('embind: addTransform (set) x100', () => {
+        const reg = new wasmModule.Registry();
+        const e = reg.create();
+        reg.addTransform(e, TRANSFORM_WASM);
+        for (let i = 0; i < 100; i++) reg.addTransform(e, TRANSFORM_WASM);
+        reg.delete();
+    });
+
+    bench('ptr-based: resolveSetter(Transform) x100', () => {
+        const world = new World();
+        const reg = new wasmModule.Registry();
+        world.connectCpp(reg as unknown as CppRegistry, wasmModule);
+        const e = world.spawn();
+        world.insert(e, Transform, TRANSFORM_WASM as any);
+        const setter = world.resolveSetter(Transform)!;
+        for (let i = 0; i < 100; i++) setter(e, TRANSFORM_WASM);
+        reg.delete();
+    });
+});
+
+describe('Ptr-based setter vs embind - Sprite write', () => {
+    bench('embind: addSprite (set) x100', () => {
+        const reg = new wasmModule.Registry();
+        const e = reg.create();
+        reg.addSprite(e, SPRITE_WASM);
+        for (let i = 0; i < 100; i++) reg.addSprite(e, SPRITE_WASM);
+        reg.delete();
+    });
+
+    bench('ptr-based: resolveSetter(Sprite) x100', () => {
+        const world = new World();
+        const reg = new wasmModule.Registry();
+        world.connectCpp(reg as unknown as CppRegistry, wasmModule);
+        const e = world.spawn();
+        world.insert(e, Sprite, SPRITE_SDK as any);
+        const setter = world.resolveSetter(Sprite)!;
+        for (let i = 0; i < 100; i++) setter(e, SPRITE_SDK);
+        reg.delete();
+    });
+});
+
+describe('Ptr-based setter vs embind - Velocity write', () => {
+    bench('embind: addVelocity (set) x100', () => {
+        const reg = new wasmModule.Registry();
+        const e = reg.create();
+        (reg as any).addVelocity(e, VELOCITY_DATA);
+        for (let i = 0; i < 100; i++) (reg as any).addVelocity(e, VELOCITY_DATA);
+        reg.delete();
+    });
+
+    bench('ptr-based: resolveSetter(Velocity) x100', () => {
+        const world = new World();
+        const reg = new wasmModule.Registry();
+        world.connectCpp(reg as unknown as CppRegistry, wasmModule);
+        const e = world.spawn();
+        world.insert(e, Velocity, VELOCITY_DATA as any);
+        const setter = world.resolveSetter(Velocity)!;
+        for (let i = 0; i < 100; i++) setter(e, VELOCITY_DATA);
+        reg.delete();
+    });
+});
+
+describe('Ptr-based setter vs embind - RigidBody write', () => {
+    bench('embind: addRigidBody (set) x100', () => {
+        const reg = new wasmModule.Registry();
+        const e = reg.create();
+        (reg as any).addRigidBody(e, RIGIDBODY_DATA);
+        for (let i = 0; i < 100; i++) (reg as any).addRigidBody(e, RIGIDBODY_DATA);
+        reg.delete();
+    });
+
+    bench('ptr-based: resolveSetter(RigidBody) x100', () => {
+        const world = new World();
+        const reg = new wasmModule.Registry();
+        world.connectCpp(reg as unknown as CppRegistry, wasmModule);
+        const e = world.spawn();
+        world.insert(e, RigidBody, RIGIDBODY_DATA as any);
+        const setter = world.resolveSetter(RigidBody)!;
+        for (let i = 0; i < 100; i++) setter(e, RIGIDBODY_DATA);
+        reg.delete();
+    });
+});
+
+// =============================================================================
+// Ptr-based HAS benchmarks
+// =============================================================================
+
+describe('Ptr-based has vs embind - Transform', () => {
+    bench('embind: hasTransform x1000', () => {
+        const reg = new wasmModule.Registry();
+        const e = reg.create();
+        reg.addTransform(e, TRANSFORM_WASM);
+        for (let i = 0; i < 1000; i++) reg.hasTransform(e);
+        reg.delete();
+    });
+
+    bench('ptr-based: resolveHas(Transform) x1000', () => {
+        const world = new World();
+        const reg = new wasmModule.Registry();
+        world.connectCpp(reg as unknown as CppRegistry, wasmModule);
+        const e = world.spawn();
+        world.insert(e, Transform, TRANSFORM_WASM as any);
+        const has = world.resolveHas(Transform)!;
+        for (let i = 0; i < 1000; i++) has(e);
+        reg.delete();
+    });
+});
+
+describe('Ptr-based has vs embind - Sprite', () => {
+    bench('embind: hasSprite x1000', () => {
+        const reg = new wasmModule.Registry();
+        const e = reg.create();
+        reg.addSprite(e, SPRITE_WASM);
+        for (let i = 0; i < 1000; i++) reg.hasSprite(e);
+        reg.delete();
+    });
+
+    bench('ptr-based: resolveHas(Sprite) x1000', () => {
+        const world = new World();
+        const reg = new wasmModule.Registry();
+        world.connectCpp(reg as unknown as CppRegistry, wasmModule);
+        const e = world.spawn();
+        world.insert(e, Sprite, SPRITE_SDK as any);
+        const has = world.resolveHas(Sprite)!;
+        for (let i = 0; i < 1000; i++) has(e);
+        reg.delete();
+    });
+});
+
+// =============================================================================
+// Full Mut query cycle: read + modify + write-back
+// =============================================================================
+
+describe('Mut query write-back: embind vs ptr-based', () => {
+    bench('embind: get+set Transform x100', () => {
+        const reg = new wasmModule.Registry();
+        const e = reg.create();
+        reg.addTransform(e, TRANSFORM_WASM);
+        for (let i = 0; i < 100; i++) {
+            const t = reg.getTransform(e);
+            t.position.x += 1;
+            reg.addTransform(e, t);
+        }
+        reg.delete();
+    });
+
+    bench('ptr-based: get+set Transform x100', () => {
+        const world = new World();
+        const reg = new wasmModule.Registry();
+        world.connectCpp(reg as unknown as CppRegistry, wasmModule);
+        const e = world.spawn();
+        world.insert(e, Transform, TRANSFORM_WASM as any);
+        const getter = world.resolveGetter(Transform)!;
+        const setter = world.resolveSetter(Transform)!;
+        for (let i = 0; i < 100; i++) {
+            const t = getter(e) as any;
+            t.position.x += 1;
+            setter(e, t);
+        }
+        reg.delete();
+    });
+});
+
 describe('World wrapper overhead - full entity lifecycle', () => {
     bench('direct WASM: create + addTransform + addSprite + getTransform + destroy', () => {
         const reg = new wasmModule.Registry();
