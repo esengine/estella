@@ -578,6 +578,12 @@ export class World {
     resolveGetter(component: AnyComponentDef): ((entity: Entity) => unknown) | null {
         if (isBuiltinComponent(component)) {
             if (!this.cppRegistry_) return null;
+
+            if (this.module_) {
+                const ptrGetter = this.resolvePtrGetter_(component._cppName);
+                if (ptrGetter) return ptrGetter;
+            }
+
             const methods = this.getBuiltinMethods(component._cppName);
             const colorKeys = component._colorKeys;
             if (colorKeys.length === 0) {
@@ -588,6 +594,54 @@ export class World {
         const storage = this.tsStorage_.get(component._id);
         if (!storage) return null;
         return (e) => storage.get(e);
+    }
+
+    private resolvePtrGetter_(cppName: string): ((entity: Entity) => unknown) | null {
+        const mod = this.module_!;
+        const reg = this.cppRegistry_!;
+
+        if (cppName === 'Transform') {
+            return (e: Entity) => {
+                const ptr = mod.getTransformPtr(reg, e);
+                if (!ptr) return null;
+                const f = mod.HEAPF32;
+                const b = ptr >> 2;
+                return {
+                    position:      { x: f[b],    y: f[b+1],  z: f[b+2] },
+                    rotation:      { x: f[b+3],  y: f[b+4],  z: f[b+5],  w: f[b+6] },
+                    scale:         { x: f[b+7],  y: f[b+8],  z: f[b+9] },
+                    worldPosition: { x: f[b+10], y: f[b+11], z: f[b+12] },
+                    worldRotation: { x: f[b+13], y: f[b+14], z: f[b+15], w: f[b+16] },
+                    worldScale:    { x: f[b+17], y: f[b+18], z: f[b+19] },
+                };
+            };
+        }
+
+        if (cppName === 'Sprite') {
+            return (e: Entity) => {
+                const ptr = mod.getSpritePtr(reg, e);
+                if (!ptr) return null;
+                const f = mod.HEAPF32;
+                const u8 = mod.HEAPU8;
+                const i32 = new Int32Array(mod.HEAPF32.buffer);
+                const u32 = mod.HEAPU32;
+                const fb = ptr >> 2;
+                return {
+                    texture:  u32[fb],
+                    color:    { r: f[fb+1], g: f[fb+2], b: f[fb+3], a: f[fb+4] },
+                    size:     { x: f[fb+5], y: f[fb+6] },
+                    uvOffset: { x: f[fb+7], y: f[fb+8] },
+                    uvScale:  { x: f[fb+9], y: f[fb+10] },
+                    layer:    i32[fb+11],
+                    flipX:    u8[ptr + 48] !== 0,
+                    flipY:    u8[ptr + 49] !== 0,
+                    material: u32[fb+13],
+                    enabled:  u8[ptr + 56] !== 0,
+                };
+            };
+        }
+
+        return null;
     }
 
     // =========================================================================

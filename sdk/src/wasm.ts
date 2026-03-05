@@ -263,6 +263,10 @@ export interface ESEngineModule {
     _anim_updateTweens(registry: CppRegistry, deltaTime: number): void;
     _anim_getTweenState(registry: CppRegistry, tweenEntity: number): number;
 
+    // Pointer-based component access
+    getTransformPtr(registry: CppRegistry, entity: number): number;
+    getSpritePtr(registry: CppRegistry, entity: number): number;
+
     _malloc(size: number): number;
     _free(ptr: number): void;
 

@@ -43,6 +43,7 @@
 
 #include <glm/glm.hpp>
 #include <cstring>
+#include <cstddef>
 
 static_assert(sizeof(void*) == 4, "EM_JS pointer passing assumes wasm32 (4-byte pointers)");
 
@@ -279,7 +280,47 @@ resource::ResourceManager* getResourceManager() {
     return g_resourceManager;
 }
 
+// =============================================================================
+// Pointer-based Component Access
+// =============================================================================
+
+static_assert(offsetof(ecs::Transform, position) == 0);
+static_assert(offsetof(ecs::Transform, rotation) == 12);
+static_assert(offsetof(ecs::Transform, scale) == 28);
+static_assert(offsetof(ecs::Transform, worldPosition) == 40);
+static_assert(offsetof(ecs::Transform, worldRotation) == 52);
+static_assert(offsetof(ecs::Transform, worldScale) == 68);
+
+static_assert(offsetof(ecs::Sprite, texture) == 0);
+static_assert(offsetof(ecs::Sprite, color) == 4);
+static_assert(offsetof(ecs::Sprite, size) == 20);
+static_assert(offsetof(ecs::Sprite, uvOffset) == 28);
+static_assert(offsetof(ecs::Sprite, uvScale) == 36);
+static_assert(offsetof(ecs::Sprite, layer) == 44);
+static_assert(offsetof(ecs::Sprite, flipX) == 48);
+static_assert(offsetof(ecs::Sprite, flipY) == 49);
+static_assert(offsetof(ecs::Sprite, material) == 52);
+static_assert(offsetof(ecs::Sprite, enabled) == 56);
+
+int getTransformPtr(ecs::Registry& r, u32 e) {
+    auto* t = r.tryGet<ecs::Transform>(static_cast<Entity>(e));
+    if (!t) return 0;
+    t->ensureDecomposed();
+    return static_cast<int>(reinterpret_cast<uintptr_t>(t));
+}
+
+int getSpritePtr(ecs::Registry& r, u32 e) {
+    auto* s = r.tryGet<ecs::Sprite>(static_cast<Entity>(e));
+    if (!s) return 0;
+    return static_cast<int>(reinterpret_cast<uintptr_t>(s));
+}
+
 }  // namespace esengine
+
+EMSCRIPTEN_BINDINGS(esengine_ptr_access) {
+    emscripten::function("getTransformPtr", &esengine::getTransformPtr);
+    emscripten::function("getSpritePtr", &esengine::getSpritePtr);
+}
 
 EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("initRenderer", &esengine::initRenderer);
