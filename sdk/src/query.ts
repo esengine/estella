@@ -170,6 +170,7 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
     private readonly lastRunTick_: number;
     private readonly getters_: Array<((entity: Entity) => unknown) | null>;
     private readonly mutSetters_: Array<((entity: Entity, data: unknown) => void) | null>;
+    private readonly mutIsBuiltin_: boolean[];
 
     constructor(world: World, descriptor: QueryDescriptor<C>, lastRunTick = -1) {
         this.world_ = world;
@@ -190,6 +191,9 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
         this.getters_ = this.actualComponents_.map(comp => world.resolveGetter(comp));
         this.mutSetters_ = descriptor._mutIndices.map(idx =>
             world.resolveSetter(this.actualComponents_[idx])
+        );
+        this.mutIsBuiltin_ = descriptor._mutIndices.map(idx =>
+            isBuiltinComponent(this.actualComponents_[idx])
         );
         for (const f of descriptor._addedFilters) {
             world.enableChangeTracking(f.component);
@@ -237,14 +241,16 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
         let started = false;
         let done = false;
 
+        const mutIsBuiltin = this.mutIsBuiltin_;
         const writeMut = () => {
             for (let i = 0; i < mutCount; i++) {
                 const mut = mutData[i];
-                const setter = mutSetters[i];
-                if (setter) {
-                    setter(prevEntity!, mut.data);
+                if (mutIsBuiltin[i]) {
+                    const setter = mutSetters[i];
+                    if (setter) setter(prevEntity!, mut.data);
+                    else world.set(prevEntity!, mut.component, mut.data);
                 } else {
-                    world.set(prevEntity!, mut.component, mut.data);
+                    world.markChanged(prevEntity!, mut.component);
                 }
             }
         };
@@ -333,9 +339,13 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
             if (prevEntity !== null && hasMut) {
                 for (let i = 0; i < mutCount; i++) {
                     const mut = mutData[i];
-                    const setter = mutSetters[i];
-                    if (setter) setter(prevEntity, mut.data);
-                    else world.set(prevEntity, mut.component, mut.data);
+                    if (this.mutIsBuiltin_[i]) {
+                        const setter = mutSetters[i];
+                        if (setter) setter(prevEntity, mut.data);
+                        else world.set(prevEntity, mut.component, mut.data);
+                    } else {
+                        world.markChanged(prevEntity, mut.component);
+                    }
                 }
             }
 
@@ -363,9 +373,13 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
         if (prevEntity !== null && hasMut) {
             for (let i = 0; i < mutCount; i++) {
                 const mut = mutData[i];
-                const setter = mutSetters[i];
-                if (setter) setter(prevEntity, mut.data);
-                else world.set(prevEntity, mut.component, mut.data);
+                if (this.mutIsBuiltin_[i]) {
+                    const setter = mutSetters[i];
+                    if (setter) setter(prevEntity, mut.data);
+                    else world.set(prevEntity, mut.component, mut.data);
+                } else {
+                    world.markChanged(prevEntity, mut.component);
+                }
             }
         }
         world.endIteration();

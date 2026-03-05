@@ -1065,6 +1065,11 @@ export class World {
         map.set(entity, this.worldTick_);
     }
 
+    /** @internal Mark component as changed without writing data (for in-place Mut query) */
+    markChanged(entity: Entity, component: AnyComponentDef): void {
+        this.recordChangedTick_(component, entity);
+    }
+
     private recordChangedTick_(component: AnyComponentDef, entity: Entity): void {
         if (!this.trackedComponents_.has(component._id)) return;
         let map = this.componentChangedTicks_.get(component._id);
