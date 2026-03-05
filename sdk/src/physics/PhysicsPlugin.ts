@@ -431,6 +431,9 @@ const syncTransformBuf_ = {
     worldScale: { x: 1, y: 1, z: 1 },
 };
 
+const PHYSICS_BODY_STRIDE = 4; // u32 entity + 3x f32 (x, y, angle)
+const PHYSICS_BODY_BYTES = PHYSICS_BODY_STRIDE * 4;
+
 /** @internal exported for testing */
 export function syncDynamicTransforms(
     app: App,
@@ -443,21 +446,43 @@ export function syncDynamicTransforms(
 
     const ptr = module._physics_getDynamicBodyTransforms();
     const baseU32 = ptr >> 2;
-    const heap32 = module.HEAPU32;
-    const heapF = module.HEAPF32;
+    const physU32 = module.HEAPU32;
+    const physF32 = module.HEAPF32;
 
     const registry = app.world.getCppRegistry();
     if (!registry) return;
-    const addFn = registry.addTransform.bind(registry);
+
+    const engineMod = app.world.getWasmModule();
     const hasParented = parentedBodies.size > 0;
+
+    if (!hasParented && engineMod?.registry_batchSyncPhysicsTransforms) {
+        const byteLen = count * PHYSICS_BODY_BYTES;
+        const engineBuf = engineMod._malloc(byteLen);
+        engineMod.HEAPU8.set(
+            new Uint8Array(module.HEAPU8.buffer, ptr, byteLen),
+            engineBuf,
+        );
+        engineMod.registry_batchSyncPhysicsTransforms(registry, engineBuf, count, ppu);
+        engineMod._free(engineBuf);
+        return;
+    }
+
+    const getTransformPtr = engineMod?.getTransformPtr
+        ? (e: Entity) => engineMod!.getTransformPtr(registry!, e as number)
+        : null;
+    const engF32 = engineMod?.HEAPF32;
+    const addFn = (!getTransformPtr || !engF32)
+        ? registry.addTransform.bind(registry)
+        : null;
+
     const t = syncTransformBuf_;
 
     for (let i = 0; i < count; i++) {
-        const offset = baseU32 + i * 4;
-        const entityId = heap32[offset] as Entity;
-        let localX = heapF[offset + 1] * ppu;
-        let localY = heapF[offset + 2] * ppu;
-        let localAngle = heapF[offset + 3];
+        const offset = baseU32 + i * PHYSICS_BODY_STRIDE;
+        const entityId = physU32[offset] as Entity;
+        let localX = physF32[offset + 1] * ppu;
+        let localY = physF32[offset + 2] * ppu;
+        let localAngle = physF32[offset + 3];
 
         if (hasParented && parentedBodies.has(entityId)) {
             const parentData = app.world.get(entityId, Parent) as ParentData;
@@ -481,6 +506,35 @@ export function syncDynamicTransforms(
         const half = localAngle * 0.5;
         const cosH = Math.cos(half);
         const sinH = Math.sin(half);
+
+        if (getTransformPtr && engF32) {
+            const tPtr = getTransformPtr(entityId);
+            if (tPtr) {
+                const fi = tPtr >> 2;
+                engF32[fi]      = localX;
+                engF32[fi + 1]  = localY;
+                engF32[fi + 2]  = 0;
+                engF32[fi + 3]  = 0;
+                engF32[fi + 4]  = 0;
+                engF32[fi + 5]  = sinH;
+                engF32[fi + 6]  = cosH;
+                engF32[fi + 7]  = 1;
+                engF32[fi + 8]  = 1;
+                engF32[fi + 9]  = 1;
+                engF32[fi + 10] = localX;
+                engF32[fi + 11] = localY;
+                engF32[fi + 12] = 0;
+                engF32[fi + 13] = 0;
+                engF32[fi + 14] = 0;
+                engF32[fi + 15] = sinH;
+                engF32[fi + 16] = cosH;
+                engF32[fi + 17] = 1;
+                engF32[fi + 18] = 1;
+                engF32[fi + 19] = 1;
+                continue;
+            }
+        }
+
         t.position.x = localX;
         t.position.y = localY;
         t.rotation.w = cosH;
@@ -494,7 +548,7 @@ export function syncDynamicTransforms(
         t.worldRotation.y = 0;
         t.worldRotation.z = sinH;
 
-        addFn(entityId, t);
+        addFn!(entityId, t);
     }
 }
 
