@@ -349,7 +349,12 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
                 prevEntity = entity;
             }
 
-            (callback as Function).apply(null, result);
+            switch (compCount) {
+                case 1: (callback as any)(entity, result[1]); break;
+                case 2: (callback as any)(entity, result[1], result[2]); break;
+                case 3: (callback as any)(entity, result[1], result[2], result[3]); break;
+                default: (callback as Function).apply(null, result); break;
+            }
         }
 
         if (prevEntity !== null && hasMut) {
