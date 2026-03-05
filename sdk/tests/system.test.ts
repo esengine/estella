@@ -57,6 +57,7 @@ function createMockWorld() {
         isChangedSince: vi.fn(() => false),
         getRemovedEntitiesSince: vi.fn(() => []),
         enableChangeTracking: vi.fn(),
+        resolveGetter: vi.fn(() => null),
     };
 
     return { world: world as unknown as World, entities, worldTick };

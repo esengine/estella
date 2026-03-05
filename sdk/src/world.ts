@@ -569,6 +569,22 @@ export class World {
         return storage;
     }
 
+    /** @internal Pre-resolve a component to its direct storage/getter for fast iteration. */
+    resolveGetter(component: AnyComponentDef): ((entity: Entity) => unknown) | null {
+        if (isBuiltinComponent(component)) {
+            if (!this.cppRegistry_) return null;
+            const methods = this.getBuiltinMethods(component._cppName);
+            const colorKeys = component._colorKeys;
+            if (colorKeys.length === 0) {
+                return (e) => methods.get(e);
+            }
+            return (e) => convertFromWasm(methods.get(e) as Record<string, unknown>, colorKeys);
+        }
+        const storage = this.tsStorage_.get(component._id);
+        if (!storage) return null;
+        return (e) => storage.get(e);
+    }
+
     // =========================================================================
     // Query Support
     // =========================================================================
@@ -607,6 +623,24 @@ export class World {
         return Array.from(types);
     }
 
+    private resolveStorages_(
+        comps: AnyComponentDef[],
+        scriptOut: Map<Entity, unknown>[],
+        builtinOut: BuiltinMethods[],
+    ): boolean {
+        for (const comp of comps) {
+            if (isBuiltinComponent(comp)) {
+                if (!this.cppRegistry_) return false;
+                builtinOut.push(this.getBuiltinMethods(comp._cppName));
+            } else {
+                const storage = this.tsStorage_.get(comp._id);
+                if (!storage) return false;
+                scriptOut.push(storage);
+            }
+        }
+        return true;
+    }
+
     getEntitiesWithComponents(
         components: AnyComponentDef[],
         withFilters: AnyComponentDef[] = [],
@@ -623,49 +657,79 @@ export class World {
             return cached.result;
         }
 
-        let smallestPool: Map<Entity, unknown> | null = null;
-        let smallestSize = Infinity;
-
-        for (const comp of components) {
-            if (!isBuiltinComponent(comp)) {
-                const storage = this.tsStorage_.get(comp._id);
-                const size = storage ? storage.size : 0;
-                if (size < smallestSize) {
-                    smallestSize = size;
-                    smallestPool = storage ?? null;
-                }
-            }
-        }
-
         if (this.queryPoolIdx_ >= this.queryPool_.length) {
             this.queryPool_.push([]);
         }
         const entities = this.queryPool_[this.queryPoolIdx_++];
         entities.length = 0;
 
+        const reqScript: Map<Entity, unknown>[] = [];
+        const reqBuiltin: BuiltinMethods[] = [];
+        if (!this.resolveStorages_(components, reqScript, reqBuiltin)) {
+            this.queryCache_.set(cacheKey, { version: this.worldVersion_, result: [] });
+            return entities;
+        }
+
+        let withScript: Map<Entity, unknown>[] | null = null;
+        let withBuiltin: BuiltinMethods[] | null = null;
+        if (withFilters.length > 0) {
+            withScript = [];
+            withBuiltin = [];
+            if (!this.resolveStorages_(withFilters, withScript, withBuiltin)) {
+                this.queryCache_.set(cacheKey, { version: this.worldVersion_, result: [] });
+                return entities;
+            }
+        }
+
+        let woScript: Map<Entity, unknown>[] | null = null;
+        let woBuiltin: BuiltinMethods[] | null = null;
+        if (withoutFilters.length > 0) {
+            woScript = [];
+            woBuiltin = [];
+            this.resolveStorages_(withoutFilters, woScript, woBuiltin);
+        }
+
+        let smallestPool: Map<Entity, unknown> | null = null;
+        let smallestSize = Infinity;
+        for (let i = 0; i < reqScript.length; i++) {
+            const size = reqScript[i].size;
+            if (size < smallestSize) {
+                smallestSize = size;
+                smallestPool = reqScript[i];
+            }
+        }
+
         const candidates = smallestPool ? smallestPool.keys() : this.entities_.keys();
+        const rsLen = reqScript.length;
+        const rbLen = reqBuiltin.length;
 
         for (const entity of candidates) {
             let match = true;
-            for (const comp of components) {
-                if (!this.has(entity, comp)) {
-                    match = false;
-                    break;
-                }
+            for (let i = 0; i < rsLen; i++) {
+                if (!reqScript[i].has(entity)) { match = false; break; }
             }
             if (match) {
-                for (const comp of withFilters) {
-                    if (!this.has(entity, comp)) {
-                        match = false;
-                        break;
+                for (let i = 0; i < rbLen; i++) {
+                    if (!reqBuiltin[i].has(entity)) { match = false; break; }
+                }
+            }
+            if (match && withScript) {
+                for (let i = 0; i < withScript.length; i++) {
+                    if (!withScript[i].has(entity)) { match = false; break; }
+                }
+                if (match) {
+                    for (let i = 0; i < withBuiltin!.length; i++) {
+                        if (!withBuiltin![i].has(entity)) { match = false; break; }
                     }
                 }
             }
-            if (match) {
-                for (const comp of withoutFilters) {
-                    if (this.has(entity, comp)) {
-                        match = false;
-                        break;
+            if (match && woScript) {
+                for (let i = 0; i < woScript.length; i++) {
+                    if (woScript[i].has(entity)) { match = false; break; }
+                }
+                if (match) {
+                    for (let i = 0; i < woBuiltin!.length; i++) {
+                        if (woBuiltin![i].has(entity)) { match = false; break; }
                     }
                 }
             }
