@@ -257,8 +257,8 @@ export class World {
     private module_: ESEngineModule | null = null;
     private entities_ = new Map<Entity, number>();
     private tsStorage_ = new Map<symbol, Map<Entity, unknown>>();
-    private entityComponents_ = new Map<Entity, symbol[]>();
-    private queryPoolIdx_ = 0;
+    private entityComponents_ = new Map<Entity, Set<symbol>>();
+    private builtinEntitySets_ = new Map<string, Set<Entity>>();
     private worldVersion_ = 0;
     private queryCache_ = new Map<string, { version: number; result: Entity[] }>();
     private builtinMethodCache_ = new Map<string, BuiltinMethods>();
@@ -363,6 +363,10 @@ export class World {
         }
         this.entities_.delete(entity);
         this.worldVersion_++;
+
+        for (const [, set] of this.builtinEntitySets_) {
+            set.delete(entity);
+        }
 
         const ids = this.entityComponents_.get(entity);
         if (ids) {
@@ -613,6 +617,12 @@ export class World {
         if (isNew) {
             this.worldVersion_++;
             this.recordAddedTick_(component, entity);
+            let set = this.builtinEntitySets_.get(component._cppName);
+            if (!set) {
+                set = new Set();
+                this.builtinEntitySets_.set(component._cppName, set);
+            }
+            set.add(entity);
         }
         this.recordChangedTick_(component, entity);
         return merged;
@@ -657,6 +667,7 @@ export class World {
         }
         this.recordRemovedTick_(component, entity);
         this.worldVersion_++;
+        this.builtinEntitySets_.get(component._cppName)?.delete(entity);
     }
 
     // =========================================================================
@@ -689,12 +700,10 @@ export class World {
         storage.set(entity, value);
         let ids = this.entityComponents_.get(entity);
         if (!ids) {
-            ids = [];
+            ids = new Set();
             this.entityComponents_.set(entity, ids);
         }
-        if (ids.indexOf(component._id) === -1) {
-            ids.push(component._id);
-        }
+        ids.add(component._id);
         if (isNew) {
             this.worldVersion_++;
             this.recordAddedTick_(component, entity);
@@ -723,10 +732,7 @@ export class World {
         this.worldVersion_++;
         const ids = this.entityComponents_.get(entity);
         if (ids) {
-            const idx = ids.indexOf(component._id);
-            if (idx !== -1) {
-                ids.splice(idx, 1);
-            }
+            ids.delete(component._id);
         }
     }
 
@@ -844,7 +850,7 @@ export class World {
     // =========================================================================
 
     resetQueryPool(): void {
-        this.queryPoolIdx_ = 0;
+        // No-op: query pool removed, results stored directly in cache
     }
 
     getComponentTypes(entity: Entity): string[] {
@@ -939,17 +945,26 @@ export class World {
             this.resolveStorages_(withoutFilters, woScript, woBuiltin);
         }
 
-        let smallestPool: Map<Entity, unknown> | null = null;
+        let smallestSet: { keys(): IterableIterator<Entity>; size: number } | null = null;
         let smallestSize = Infinity;
         for (let i = 0; i < reqScript.length; i++) {
             const size = reqScript[i].size;
             if (size < smallestSize) {
                 smallestSize = size;
-                smallestPool = reqScript[i];
+                smallestSet = reqScript[i];
+            }
+        }
+        for (const comp of components) {
+            if (isBuiltinComponent(comp)) {
+                const bset = this.builtinEntitySets_.get(comp._cppName);
+                if (bset && bset.size < smallestSize) {
+                    smallestSize = bset.size;
+                    smallestSet = bset;
+                }
             }
         }
 
-        const candidates = smallestPool ? smallestPool.keys() : this.entities_.keys();
+        const candidates = smallestSet ? smallestSet.keys() : this.entities_.keys();
         const rsLen = reqScript.length;
         const rbLen = reqBuiltin.length;
 
