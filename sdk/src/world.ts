@@ -351,14 +351,19 @@ export class World {
             try {
                 const methods = this.getBuiltinMethods(component._cppName);
                 if (!methods.has(entity)) return null;
-                return methods.get(entity) as ComponentData<C>;
+                return convertFromWasm(
+                    methods.get(entity) as Record<string, unknown>,
+                    component._colorKeys,
+                ) as ComponentData<C>;
             } catch (e) {
                 handleWasmError(e, `tryGet(${component._name}, entity=${entity})`);
                 return null;
             }
         }
-        if (!this.hasScript(entity, component as ComponentDef<any>)) return null;
-        return this.getScript(entity, component as ComponentDef<any>) as ComponentData<C>;
+        const storage = this.tsStorage_.get(component._id as symbol);
+        if (!storage) return null;
+        const val = storage.get(entity);
+        return val !== undefined ? val as ComponentData<C> : null;
     }
 
     remove(entity: Entity, component: AnyComponentDef): void {
