@@ -168,6 +168,7 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
     private readonly mutData_: Array<{ component: AnyComponentDef; data: Record<string, unknown> }>;
     private readonly cacheKey_: string;
     private readonly lastRunTick_: number;
+    private readonly getters_: Array<((entity: Entity) => unknown) | null>;
 
     constructor(world: World, descriptor: QueryDescriptor<C>, lastRunTick = -1) {
         this.world_ = world;
@@ -185,6 +186,7 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
             descriptor._with,
             descriptor._without,
         );
+        this.getters_ = this.actualComponents_.map(comp => world.resolveGetter(comp));
         for (const f of descriptor._addedFilters) {
             world.enableChangeTracking(f.component);
         }
@@ -222,6 +224,7 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
         const mutData = this.mutData_;
         const mutCount = mutData.length;
         const world = this.world_;
+        const getters = this.getters_;
         const self = this;
 
         let idx = 0;
@@ -264,7 +267,8 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
 
                     result[0] = entity;
                     for (let i = 0; i < compCount; i++) {
-                        result[i + 1] = world.get(entity, actualComponents[i]);
+                        const getter = getters[i];
+                        result[i + 1] = getter ? getter(entity) : world.get(entity, actualComponents[i]);
                     }
 
                     if (hasMut) {
