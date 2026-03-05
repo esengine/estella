@@ -180,6 +180,58 @@ function readPtrField(
     }
 }
 
+function fillPtrFields(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, fields: readonly PtrFieldDesc[], target: Record<string, unknown>,
+): void {
+    for (let i = 0; i < fields.length; i++) {
+        const field = fields[i];
+        const byteOff = ptr + field.offset;
+        const idx = byteOff >> 2;
+        switch (field.type) {
+            case 'f32':   target[field.name] = f32[idx]; break;
+            case 'i32':   target[field.name] = u32[idx] | 0; break;
+            case 'u32':   target[field.name] = u32[idx]; break;
+            case 'bool':  target[field.name] = u8[byteOff] !== 0; break;
+            case 'u8':    target[field.name] = u8[byteOff]; break;
+            case 'vec2': {
+                const v = target[field.name] as any;
+                v.x = f32[idx]; v.y = f32[idx + 1];
+                break;
+            }
+            case 'vec3': {
+                const v = target[field.name] as any;
+                v.x = f32[idx]; v.y = f32[idx + 1]; v.z = f32[idx + 2];
+                break;
+            }
+            case 'quat': {
+                const v = target[field.name] as any;
+                v.x = f32[idx]; v.y = f32[idx + 1]; v.z = f32[idx + 2]; v.w = f32[idx + 3];
+                break;
+            }
+            case 'color': {
+                const v = target[field.name] as any;
+                v.r = f32[idx]; v.g = f32[idx + 1]; v.b = f32[idx + 2]; v.a = f32[idx + 3];
+                break;
+            }
+        }
+    }
+}
+
+function createPreallocatedResult(fields: readonly PtrFieldDesc[]): Record<string, unknown> {
+    const obj: Record<string, unknown> = {};
+    for (const f of fields) {
+        switch (f.type) {
+            case 'vec2':  obj[f.name] = { x: 0, y: 0 }; break;
+            case 'vec3':  obj[f.name] = { x: 0, y: 0, z: 0 }; break;
+            case 'quat':  obj[f.name] = { x: 0, y: 0, z: 0, w: 0 }; break;
+            case 'color': obj[f.name] = { r: 0, g: 0, b: 0, a: 0 }; break;
+            default:      obj[f.name] = null; break;
+        }
+    }
+    return obj;
+}
+
 function writePtrField(
     f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
     ptr: number, field: PtrFieldDesc, value: any,
@@ -834,14 +886,12 @@ export class World {
         if (!getPtrFn) return null;
         const mod = this.module_!;
         const fields = layout.fields;
+        const cached = createPreallocatedResult(fields);
         return (e: Entity) => {
             const ptr = getPtrFn(e);
             if (!ptr) return null;
-            const result: Record<string, unknown> = {};
-            for (let i = 0; i < fields.length; i++) {
-                result[fields[i].name] = readPtrField(mod.HEAPF32, mod.HEAPU32, mod.HEAPU8, ptr, fields[i]);
-            }
-            return result;
+            fillPtrFields(mod.HEAPF32, mod.HEAPU32, mod.HEAPU8, ptr, fields, cached);
+            return cached;
         };
     }
 
