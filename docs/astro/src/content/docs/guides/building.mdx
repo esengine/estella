@@ -39,6 +39,22 @@ Build progress and logs are displayed in real time via a toast notification. Whe
   Use **Build All** to build every configuration in sequence. This is useful for producing both development and production builds at once.
 </Aside>
 
+## Build Templates
+
+Click **Templates** in the toolbar to create a configuration from a preset. Built-in templates:
+
+| Template | Platform | Description |
+|----------|----------|-------------|
+| Facebook Playable | Playable Ads | Optimized for Facebook's 2 MB limit with minification enabled |
+| Google Playable | Playable Ads | Optimized for Google's 5 MB limit |
+| Playable Debug | Playable Ads | Development build with `DEBUG` define |
+| WeChat Production | WeChat | Subpackage mode, portrait orientation |
+| WeChat Debug | WeChat | Single bundle with `DEBUG` define |
+| WeChat Single File | WeChat | Single file bundle for simple games |
+| WeChat Landscape | WeChat | Landscape orientation for wide-screen games |
+
+You can also save any existing configuration as a custom template via **Save as Preset** in the detail panel.
+
 ## Build Configuration
 
 Each configuration contains:
@@ -210,6 +226,160 @@ Both platforms generate an `asset-manifest.json` that maps asset UUIDs to runtim
     }
 }
 ```
+
+## Build Hooks
+
+Each configuration can define **pre-build** and **post-build** hooks to automate custom steps. Add hooks in the collapsible Build Hooks section of the configuration detail panel. Each hook has a **phase** (`pre` or `post`) and a **type** (`copy-files` or `run-command`).
+
+### Copy Files
+
+Recursively copy a directory to another location. Optionally filter files by glob pattern.
+
+| Field | Description |
+|-------|-------------|
+| **from** | Source directory path |
+| **to** | Destination directory path |
+| **pattern** | Optional filename filter (e.g. `*.png`, `*.json`) — only matching files are copied |
+
+Both `from` and `to` support path variables:
+
+| Variable | Resolves To |
+|----------|-------------|
+| `${projectDir}` | Absolute path to the project root |
+| `${outputPath}` | Full path to the output file (e.g. `build/playable.html`) |
+| `${outputDir}` | Directory containing the output (e.g. `build/`) |
+
+### Run Command
+
+Execute a shell command with the **project root** as the working directory (`cwd`).
+
+| Field | Description |
+|-------|-------------|
+| **command** | The executable to run (e.g. `node`, `python3`, `bash`) |
+| **args** | Optional array of string arguments passed to the command |
+
+The command receives:
+- **Working directory** — the project root (same as the editor's project path)
+- **Arguments** — the literal strings from the `args` array (no variable substitution)
+- **Stdout/stderr** — captured and logged to the build console (stdout truncated to 200 chars)
+- **Exit code** — non-zero exits will fail the build
+
+<Aside type="note">
+Path variables (`${projectDir}`, `${outputPath}`, etc.) are **only** supported in `copy-files` hooks. For `run-command`, pass paths as literal strings in `args`, or have your script read them from a config file / environment.
+</Aside>
+
+### Hook Examples
+
+Copy extra assets into the WeChat output after building:
+
+```json
+{
+    "phase": "post",
+    "type": "copy-files",
+    "config": {
+        "from": "${projectDir}/assets/extras",
+        "to": "${outputDir}/assets/extras",
+        "pattern": "*.png"
+    }
+}
+```
+
+Run a texture compression script before building (CWD is the project root, so relative paths work):
+
+```json
+{
+    "phase": "pre",
+    "type": "run-command",
+    "config": {
+        "command": "node",
+        "args": ["scripts/compress-textures.js", "--input", "assets/textures", "--quality", "80"]
+    }
+}
+```
+
+The script receives `args` as `process.argv.slice(2)`:
+
+```javascript
+// scripts/compress-textures.js
+const args = process.argv.slice(2);
+// args = ["--input", "assets/textures", "--quality", "80"]
+// process.cwd() = project root directory
+
+const inputDir = args[args.indexOf('--input') + 1]; // "assets/textures"
+const quality = args[args.indexOf('--quality') + 1]; // "80"
+```
+
+Post-build hook to copy the output to a deploy folder:
+
+```json
+{
+    "phase": "post",
+    "type": "copy-files",
+    "config": {
+        "from": "${outputDir}",
+        "to": "${projectDir}/deploy"
+    }
+}
+```
+
+### Config JSON Format
+
+Build configurations are stored in `editor-state.json`. Each config follows this structure:
+
+```json
+{
+    "id": "playable-prod",
+    "name": "Playable - Production",
+    "platform": "playable",
+    "scenes": ["assets/scenes/main.esscene"],
+    "defines": [],
+    "hooks": [
+        {
+            "phase": "post",
+            "type": "run-command",
+            "config": { "command": "open", "args": ["${outputDir}"] }
+        }
+    ],
+    "playableSettings": {
+        "startupScene": "assets/scenes/main.esscene",
+        "isDevelopment": false,
+        "minifyCode": true,
+        "embedFonts": true,
+        "outputPath": "build/playable.html",
+        "enableBuiltinCTA": false,
+        "ctaUrl": ""
+    }
+}
+```
+
+For WeChat configurations, replace `playableSettings` with `wechatSettings`:
+
+```json
+{
+    "id": "wechat-prod",
+    "name": "WeChat - Production",
+    "platform": "wechat",
+    "scenes": ["assets/scenes/main.esscene"],
+    "defines": [],
+    "hooks": [],
+    "wechatSettings": {
+        "appId": "wx1234567890",
+        "version": "1.0.0",
+        "bundleMode": "subpackage",
+        "outputDir": "build/wechat",
+        "orientation": "portrait"
+    }
+}
+```
+
+## Config Import & Export
+
+Build configurations can be exported as JSON for backup or team sharing:
+
+- **Export** — click the Export button in the toolbar to save all configs to a `.json` file
+- **Import** — click Import to load configs from a previously exported file
+
+Custom templates saved via **Save as Preset** are stored in `.esengine/build-templates/` as JSON files. These can be committed to version control for team sharing.
 
 ## Project Settings
 

@@ -106,9 +106,11 @@ addStartupSystem(defineSystem([], () => {
   未被启动场景引用的资源不会被包含。使用可寻址资源组并将导出模式设为 "always" 可以强制包含运行时动态加载的资源。
 </Aside>
 
-## Spine 与物理支持
+## Spine、物理与音频支持
 
 如果项目使用了 Spine 动画或 Box2D 物理，对应的 WASM 模块会被自动嵌入为 base64 并在运行时实例化。无需额外配置——构建会检测项目设置中是否启用了 Spine 或物理。
+
+`AudioSource` 组件引用的音频片段也会被自动嵌入并在运行时加载。内联的 `playSFX`/`playBGM` 调用和基于实体的 `AudioSource` 播放在单文件输出中均可正常工作。
 
 ## 体积优化
 

@@ -106,9 +106,11 @@ All assets referenced by the startup scene are automatically embedded:
   Assets not referenced by the startup scene are not included. Use addressable groups with export mode "always" to force-include assets that are loaded dynamically at runtime.
 </Aside>
 
-## Spine & Physics Support
+## Spine, Physics & Audio Support
 
 If your project uses Spine animations or Box2D physics, the respective WASM modules are automatically embedded as base64 and instantiated at runtime. No additional configuration is needed -- the build detects whether Spine or physics is enabled in your project settings.
+
+Audio clips referenced by `AudioSource` components are also automatically embedded and loaded at runtime. Both inline `playSFX`/`playBGM` calls and entity-based `AudioSource` playback work in the single-file output.
 
 ## Size Optimization
 

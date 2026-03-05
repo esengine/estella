@@ -1,0 +1,48 @@
+---
+title: v0.8.3
+description: ESEngine v0.8.3 release notes
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip">
+v0.8.3 restructures the build pipeline with templates, hooks, and config management, adds physics support for playable builds, and fixes touch input and slider behavior.
+</Aside>
+
+## Build Pipeline Overhaul
+
+The build system has been restructured with new features for automation and reuse:
+
+- **Build Templates** — 7 built-in presets (Facebook Playable, Google Playable, Playable Debug, WeChat Production, WeChat Debug, WeChat Single File, WeChat Landscape) plus the ability to save custom templates from existing configs
+- **Build Hooks** — pre-build and post-build hooks for copying files (with glob patterns) or running shell commands, enabling custom automation workflows
+- **Config Import/Export** — export build configurations as JSON for backup or team sharing, and import them on another machine
+- **Build Status Indicators** — green/red dots on each configuration showing the last build result at a glance
+- **Auto Plugin Detection** — the build now automatically detects which UI plugins your scenes need (Text, UIRect, etc.) and includes only those, reducing output size
+
+See the [Building guide](/microes/guides/building/) for details on templates and hooks.
+
+## Physics in Playable Builds
+
+Playable ad builds now fully support the Box2D physics module. When physics is enabled in project settings, the physics WASM binary is automatically embedded as base64 in the single-file HTML output. A body position synchronization bug was also fixed, ensuring physics bodies correctly track their Transform positions.
+
+## Audio in Playable Builds
+
+Audio loading in playable builds has been fixed. Audio clips referenced by `AudioSource` components are now correctly embedded and loaded at runtime. Previously, audio files could fail to load in the single-file HTML output.
+
+## Touch Input Improvements
+
+- Added `touchcancel` event handler to the web adapter, preventing stuck touch states when the browser cancels a touch (e.g., system gesture, notification overlay)
+- Touch events now call `preventDefault()` to avoid unintended browser behaviors (scroll, zoom) during gameplay
+
+## Slider Fix
+
+The slider drag system now uses `UIInteraction.pressed` state instead of internal closure state, fixing an issue where sliders could become unresponsive after rapid interactions.
+
+## Editor Fixes
+
+- Collision layer dropdown in the Inspector now refreshes immediately when layers are renamed or added in project settings
+- Audio playback in the editor preview now works correctly (CSP `media-src` policy updated)
+
+## Example Projects
+
+A new `physics-spinner` example project demonstrates physics-driven gameplay with dynamic body spawning, motor joints, and collision layers.
