@@ -2,7 +2,6 @@ import type { ESEngineModule, LayoutRect } from 'esengine';
 import {
     App,
     UICameraInfo,
-    ButtonState,
     RenderPipeline,
     Renderer,
     PostProcess,
@@ -13,7 +12,7 @@ import {
 } from 'esengine';
 import type { SpineModuleController } from 'esengine/spine';
 import type { SceneData, ComponentData } from '../types/SceneTypes';
-import type { EditorStore, PropertyChangeEvent } from '../store/EditorStore';
+import type { EditorStore } from '../store/EditorStore';
 import { EditorCamera } from './EditorCamera';
 import { EditorSceneManager } from '../scene/EditorSceneManager';
 import { AssetPathResolver } from '../asset';
@@ -68,13 +67,17 @@ export class EditorSceneRenderer {
 
     private setupSyncService(): void {
         if (this.unsubscribes_.length > 0) return;
-        if (!this.store_ || !this.sceneManager_) return;
+        if (!this.store_ || !this.sceneManager_) {
+            console.warn('[SceneRenderer] setupSyncService skipped: store=', !!this.store_, 'sceneManager=', !!this.sceneManager_);
+            return;
+        }
 
         const store = this.store_;
         const sm = this.sceneManager_;
 
+        this.registerPipelineSyncHooks_(store);
+
         this.unsubscribes_.push(
-            store.subscribeToPropertyChanges((e) => this.handlePropertyChange(e)),
             store.subscribeToHierarchyChanges((e) => {
                 sm.reparentEntity(e.entity, e.newParent);
             }),
@@ -127,93 +130,48 @@ export class EditorSceneRenderer {
         'position', 'rotation', 'scale',
     ]);
 
-    private handlePropertyChange(event: PropertyChangeEvent): void {
-        if (!this.sceneManager_?.hasEntity(event.entity)) return;
+    private registerPipelineSyncHooks_(store: EditorStore): void {
+        const pipeline = store.pipeline_;
 
-        switch (event.componentType) {
-            case 'UIRect':
-                this.scheduleDescendantUpdates(event.entity);
-                break;
-            case 'Canvas':
-                this.scheduleDescendantUpdates(event.entity);
-                this.syncCanvasToCamera(event.entity);
-                break;
-            case 'Button':
-                this.syncButtonTransitionColor(event.entity);
-                break;
-            case 'TextInput':
-                if (event.propertyName === 'backgroundColor') {
-                    this.store_!.updatePropertyDirect(event.entity, 'Sprite', 'color', event.newValue);
+        this.unsubscribes_.push(
+            pipeline.registerSyncHook('Transform', '*', (event, entityData) => {
+                if (!this.sceneManager_?.hasEntity(event.entity)) return;
+
+                if (EditorSceneRenderer.TRANSFORM_DIRECT_PROPS_.has(event.propertyName)) {
+                    if (event.propertyName === 'position'
+                        && entityData.components.some(c => c.type === 'UIRect')) {
+                        this.scheduleEntityUpdate(event.entity);
+                    } else {
+                        const transform = entityData.components.find(c => c.type === 'Transform');
+                        if (transform) {
+                            this.sceneManager_!.updateTransform(event.entity, transform.data);
+                        }
+                    }
+                    this.renderCallback_?.();
+                    return true;
                 }
-                break;
-            case 'PostProcessVolume':
+            }),
+
+            pipeline.registerSyncHook('UIRect', '*', (event) => {
+                if (!this.sceneManager_?.hasEntity(event.entity)) return;
+                this.scheduleDescendantUpdates(event.entity);
+            }),
+
+            pipeline.registerSyncHook('Canvas', '*', (event) => {
+                if (!this.sceneManager_?.hasEntity(event.entity)) return;
+                this.scheduleDescendantUpdates(event.entity);
+            }),
+
+            pipeline.registerSyncHook('PostProcessVolume', '*', (event) => {
+                if (!this.sceneManager_?.hasEntity(event.entity)) return;
                 this.syncPostProcessVolumeForEntity(event.entity);
-                break;
-        }
+            }),
 
-        if (event.componentType === 'Transform'
-            && EditorSceneRenderer.TRANSFORM_DIRECT_PROPS_.has(event.propertyName)) {
-            const entityData = this.store_!.getEntityData(event.entity);
-            const transform = entityData?.components.find(c => c.type === 'Transform');
-            if (transform) {
-                this.sceneManager_!.updateTransform(event.entity, transform.data);
-                this.renderCallback_?.();
-            }
-            return;
-        }
-
-        this.scheduleEntityUpdate(event.entity);
-    }
-
-    private syncCanvasToCamera(canvasEntityId: number): void {
-        const canvasData = this.store_!.getEntityData(canvasEntityId);
-        if (!canvasData) return;
-
-        const canvasComp = canvasData.components.find(c => c.type === 'Canvas');
-        const resolution = canvasComp?.data?.designResolution as { x: number; y: number } | undefined;
-        if (!resolution) return;
-
-        const orthoSize = resolution.y / 2;
-
-        for (const entity of this.store_!.scene.entities) {
-            const cameraComp = entity.components.find(c => c.type === 'Camera');
-            if (!cameraComp) continue;
-
-            this.store_!.updatePropertyDirect(entity.id, 'Camera', 'orthoSize', orthoSize);
-            this.scheduleEntityUpdate(entity.id);
-            break;
-        }
-    }
-
-    private syncButtonTransitionColor(entityId: number): void {
-        const entityData = this.store_!.getEntityData(entityId);
-        if (!entityData) return;
-
-        const buttonComp = entityData.components.find(c => c.type === 'Button');
-        if (!buttonComp) return;
-
-        const transition = buttonComp.data.transition as {
-            normalColor: { r: number; g: number; b: number; a: number };
-            hoveredColor: { r: number; g: number; b: number; a: number };
-            pressedColor: { r: number; g: number; b: number; a: number };
-            disabledColor: { r: number; g: number; b: number; a: number };
-        } | null;
-        if (!transition) return;
-
-        const spriteComp = entityData.components.find(c => c.type === 'Sprite');
-        if (!spriteComp) return;
-
-        const state = (buttonComp.data.state as number) ?? ButtonState.Normal;
-        const colorMap: Record<number, { r: number; g: number; b: number; a: number }> = {
-            [ButtonState.Normal]: transition.normalColor,
-            [ButtonState.Hovered]: transition.hoveredColor,
-            [ButtonState.Pressed]: transition.pressedColor,
-            [ButtonState.Disabled]: transition.disabledColor,
-        };
-        const color = colorMap[state] ?? transition.normalColor;
-
-        this.store_!.updatePropertyDirect(entityId, 'Sprite', 'color', { ...color });
-        this.scheduleEntityUpdate(entityId);
+            pipeline.setDefaultSyncHook((event) => {
+                if (!this.sceneManager_?.hasEntity(event.entity)) return;
+                this.scheduleEntityUpdate(event.entity);
+            }),
+        );
     }
 
     private scheduleDescendantUpdates(entityId: number): void {

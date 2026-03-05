@@ -7,6 +7,8 @@ import type { TransformValue } from '../math/Transform';
 import { SelectionService } from './SelectionService';
 import { SceneOperations } from './SceneOperations';
 import { PrefabEditService } from './PrefabEditService';
+import { PropertyWritePipeline } from './PropertyWritePipeline';
+import { registerBuiltinTransformHooks } from './propertyHooks';
 
 // =============================================================================
 // Types
@@ -106,6 +108,7 @@ export class EditorStore {
     private readonly selection_: SelectionService;
     private readonly sceneOps_: SceneOperations;
     private readonly prefabEdit_: PrefabEditService;
+    readonly pipeline_: PropertyWritePipeline;
 
     private static readonly AUTOSAVE_KEY = 'esengine.autosave';
     private static readonly AUTOSAVE_INTERVAL = 60_000;
@@ -127,6 +130,17 @@ export class EditorStore {
         this.selection_ = new SelectionService(this);
         this.sceneOps_ = new SceneOperations(this);
         this.prefabEdit_ = new PrefabEditService(this);
+
+        this.pipeline_ = new PropertyWritePipeline({
+            getEntityData: (id: number) => this.entityMap_.get(id),
+            writeDirect: (entity, comp, prop, val) =>
+                this.sceneOps_.updatePropertyDirect(entity as Entity, comp, prop, val),
+        });
+        const self = this;
+        registerBuiltinTransformHooks(this.pipeline_, {
+            getEntityData: (id: number) => self.entityMap_.get(id),
+            get scene() { return self.state_.scene; },
+        });
 
         this.startAutoSave();
     }
@@ -616,6 +630,7 @@ export class EditorStore {
     }
 
     notifyPropertyChange(event: PropertyChangeEvent): void {
+        this.pipeline_.handlePropertyNotification(event);
         for (const listener of this.propertyListeners_) {
             listener(event);
         }
