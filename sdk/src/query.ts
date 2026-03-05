@@ -258,6 +258,9 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
             }
         };
 
+        const iterResult: IteratorResult<QueryResult<C>> = { value: result as QueryResult<C>, done: false };
+        const doneResult: IteratorResult<QueryResult<C>> = { value: undefined as unknown as QueryResult<C>, done: true };
+
         return {
             next(): IteratorResult<QueryResult<C>> {
                 if (!started) {
@@ -289,15 +292,15 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
                         prevEntity = entity;
                     }
 
-                    return { value: result as QueryResult<C>, done: false };
+                    return iterResult;
                 }
 
                 finalize();
-                return { value: undefined as unknown as QueryResult<C>, done: true };
+                return doneResult;
             },
             return(): IteratorResult<QueryResult<C>> {
                 finalize();
-                return { value: undefined as unknown as QueryResult<C>, done: true };
+                return doneResult;
             },
         };
     }
