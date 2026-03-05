@@ -64,6 +64,7 @@ export interface SpineBounds {
 export interface ESEngineModule {
     Registry: new () => CppRegistry;
     HEAPU8: Uint8Array;
+    HEAP32: Int32Array;
     HEAPU32: Uint32Array;
     HEAPF32: Float32Array;
 
