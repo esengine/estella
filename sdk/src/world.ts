@@ -454,9 +454,6 @@ export class World {
     }
 
     valid(entity: Entity): boolean {
-        if (this.cppRegistry_) {
-            return this.cppRegistry_.valid(entity);
-        }
         return this.entities_.has(entity);
     }
 
@@ -561,7 +558,10 @@ export class World {
     has(entity: Entity, component: AnyComponentDef): boolean {
         if (component._builtin) {
             if (!this.cppRegistry_) return false;
-            return this.getBuiltinMethods((component as BuiltinComponentDef<any>)._cppName).has(entity);
+            const cppName = (component as BuiltinComponentDef<any>)._cppName;
+            const bset = this.builtinEntitySets_.get(cppName);
+            if (bset) return bset.has(entity);
+            return this.getBuiltinMethods(cppName).has(entity);
         }
         return this.hasScript(entity, component as ComponentDef<any>);
     }
@@ -569,9 +569,11 @@ export class World {
     tryGet<C extends AnyComponentDef>(entity: Entity, component: C): ComponentData<C> | null {
         if (isBuiltinComponent(component)) {
             if (!this.cppRegistry_) return null;
+            const bset = this.builtinEntitySets_.get(component._cppName);
+            if (bset && !bset.has(entity)) return null;
             try {
                 const methods = this.getBuiltinMethods(component._cppName);
-                if (!methods.has(entity)) return null;
+                if (!bset && !methods.has(entity)) return null;
                 return convertFromWasm(
                     methods.get(entity) as Record<string, unknown>,
                     component._colorKeys,
