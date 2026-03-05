@@ -12,6 +12,7 @@ import {
     deleteSelectedAssets, renameAsset,
     importDroppedFiles, saveDroppedEntityAsPrefab,
 } from './AssetContextMenu';
+import { DisposableStore } from '../../utils/Disposable';
 
 export class ContentBrowserPanel implements ContentBrowserState {
     container: HTMLElement;
@@ -34,7 +35,7 @@ export class ContentBrowserPanel implements ContentBrowserState {
     lastSelectedPath: string | null = null;
     viewMode: ViewMode;
 
-    private unwatchFn_: (() => void) | null = null;
+    private disposables_ = new DisposableStore();
     private refreshing_ = false;
     private refreshPending_ = false;
     private thumbnailCache_ = new ThumbnailCache();
@@ -85,10 +86,7 @@ export class ContentBrowserPanel implements ContentBrowserState {
     }
 
     dispose(): void {
-        if (this.unwatchFn_) {
-            this.unwatchFn_();
-            this.unwatchFn_ = null;
-        }
+        this.disposables_.dispose();
     }
 
     async navigateToAsset(assetPath: string): Promise<void> {
@@ -253,11 +251,12 @@ export class ContentBrowserPanel implements ContentBrowserState {
         const projectDir = getParentDir(this.projectPath);
 
         try {
-            this.unwatchFn_ = await fs.watchDirectory(
+            const unwatchFn = await fs.watchDirectory(
                 projectDir,
                 () => { this.refresh(); },
                 { recursive: true }
             );
+            this.disposables_.add(unwatchFn);
         } catch (err) {
             console.error('Failed to setup file watcher:', err);
         }
@@ -284,209 +283,226 @@ export class ContentBrowserPanel implements ContentBrowserState {
     }
 
     private setupEvents(): void {
-        this.searchInput?.addEventListener('input', () => {
-            this.searchFilter = this.searchInput?.value.toLowerCase() ?? '';
-            this.renderGrid();
-        });
+        if (this.searchInput) {
+            this.disposables_.addListener(this.searchInput, 'input', () => {
+                this.searchFilter = this.searchInput?.value.toLowerCase() ?? '';
+                this.renderGrid();
+            });
+        }
 
-        this.breadcrumbContainer?.addEventListener('click', (e) => {
-            const target = e.target as HTMLElement;
-            const item = target.closest('.es-breadcrumb-item') as HTMLElement;
-            if (!item) return;
-            const path = item.dataset.path;
-            if (path) {
-                selectFolder(this, path);
-            }
-        });
+        if (this.breadcrumbContainer) {
+            this.disposables_.addListener(this.breadcrumbContainer, 'click', (e) => {
+                const target = (e as MouseEvent).target as HTMLElement;
+                const item = target.closest('.es-breadcrumb-item') as HTMLElement;
+                if (!item) return;
+                const path = item.dataset.path;
+                if (path) {
+                    selectFolder(this, path);
+                }
+            });
+        }
 
         const upBtn = this.container.querySelector('.es-cb-up-btn');
-        upBtn?.addEventListener('click', () => {
-            this.navigateToParent();
-        });
+        if (upBtn) {
+            this.disposables_.addListener(upBtn, 'click', () => {
+                this.navigateToParent();
+            });
+        }
 
         const viewToggle = this.container.querySelector('.es-cb-view-toggle');
-        viewToggle?.addEventListener('click', () => {
-            this.viewMode = this.viewMode === 'grid' ? 'list' : 'grid';
-            localStorage.setItem(VIEW_MODE_KEY, this.viewMode);
-            this.updateViewToggleButton();
-            this.renderGrid();
-        });
+        if (viewToggle) {
+            this.disposables_.addListener(viewToggle, 'click', () => {
+                this.viewMode = this.viewMode === 'grid' ? 'list' : 'grid';
+                localStorage.setItem(VIEW_MODE_KEY, this.viewMode);
+                this.updateViewToggleButton();
+                this.renderGrid();
+            });
+        }
 
-        this.treeContainer?.addEventListener('click', async (e) => {
-            const target = e.target as HTMLElement;
-            const item = target.closest('.es-folder-item') as HTMLElement;
-            if (!item) return;
-            const path = item.dataset.path;
-            if (!path) return;
+        if (this.treeContainer) {
+            this.disposables_.addListener(this.treeContainer, 'click', async (e) => {
+                const target = (e as MouseEvent).target as HTMLElement;
+                const item = target.closest('.es-folder-item') as HTMLElement;
+                if (!item) return;
+                const path = item.dataset.path;
+                if (!path) return;
 
-            if (target.closest('.es-folder-expand')) {
-                await toggleFolder(this, path);
-            } else {
-                selectFolder(this, path);
-            }
-        });
-
-        this.gridContainer?.addEventListener('click', (e) => {
-            const target = e.target as HTMLElement;
-            const item = (target.closest('.es-asset-item') || target.closest('.es-cb-list-row')) as HTMLElement;
-
-            if (!item) {
-                this.selectedPaths.clear();
-                this.lastSelectedPath = null;
-                this.updateAssetSelection();
-                return;
-            }
-
-            const path = item.dataset.path;
-            if (!path) return;
-
-            if (e.shiftKey && this.lastSelectedPath) {
-                this.rangeSelect(this.lastSelectedPath, path);
-            } else if (e.ctrlKey || e.metaKey) {
-                if (this.selectedPaths.has(path)) {
-                    this.selectedPaths.delete(path);
+                if (target.closest('.es-folder-expand')) {
+                    await toggleFolder(this, path);
                 } else {
-                    this.selectedPaths.add(path);
+                    selectFolder(this, path);
                 }
-                this.lastSelectedPath = path;
-            } else {
-                this.selectedPaths.clear();
-                this.selectedPaths.add(path);
-                this.lastSelectedPath = path;
-            }
+            });
 
-            this.updateAssetSelection();
-            this.notifyStoreSelection();
-        });
+            this.disposables_.addListener(this.treeContainer, 'contextmenu', (e) => {
+                (e as MouseEvent).preventDefault();
+                const target = (e as MouseEvent).target as HTMLElement;
+                const item = target.closest('.es-folder-item') as HTMLElement;
+                const path = item?.dataset.path ?? this.currentPath;
+                if (path) {
+                    showFolderContextMenu(this, e as MouseEvent, path);
+                }
+            });
+        }
 
-        this.gridContainer?.addEventListener('dblclick', async (e) => {
-            const target = e.target as HTMLElement;
-            const item = (target.closest('.es-asset-item') || target.closest('.es-cb-list-row')) as HTMLElement;
-            if (!item) return;
+        if (this.gridContainer) {
+            this.disposables_.addListener(this.gridContainer, 'click', (e) => {
+                const target = (e as MouseEvent).target as HTMLElement;
+                const item = (target.closest('.es-asset-item') || target.closest('.es-cb-list-row')) as HTMLElement;
 
-            const path = item.dataset.path;
-            const type = item.dataset.type;
+                if (!item) {
+                    this.selectedPaths.clear();
+                    this.lastSelectedPath = null;
+                    this.updateAssetSelection();
+                    return;
+                }
 
-            if (type === 'folder' && path) {
-                selectFolder(this, path);
-                await expandFolder(this, path);
-            } else if (path) {
-                this.onAssetDoubleClick(path, type as AssetItem['type']);
-            }
-        });
+                const path = item.dataset.path;
+                if (!path) return;
 
-        const refreshBtn = this.container.querySelector('.es-refresh-btn');
-        refreshBtn?.addEventListener('click', () => {
-            this.refresh();
-        });
+                const me = e as MouseEvent;
+                if (me.shiftKey && this.lastSelectedPath) {
+                    this.rangeSelect(this.lastSelectedPath, path);
+                } else if (me.ctrlKey || me.metaKey) {
+                    if (this.selectedPaths.has(path)) {
+                        this.selectedPaths.delete(path);
+                    } else {
+                        this.selectedPaths.add(path);
+                    }
+                    this.lastSelectedPath = path;
+                } else {
+                    this.selectedPaths.clear();
+                    this.selectedPaths.add(path);
+                    this.lastSelectedPath = path;
+                }
 
-        this.gridContainer?.addEventListener('contextmenu', (e) => {
-            e.preventDefault();
-            const target = e.target as HTMLElement;
-            const item = (target.closest('.es-asset-item') || target.closest('.es-cb-list-row')) as HTMLElement;
+                this.updateAssetSelection();
+                this.notifyStoreSelection();
+            });
 
-            if (item) {
+            this.disposables_.addListener(this.gridContainer, 'dblclick', async (e) => {
+                const target = (e as MouseEvent).target as HTMLElement;
+                const item = (target.closest('.es-asset-item') || target.closest('.es-cb-list-row')) as HTMLElement;
+                if (!item) return;
+
                 const path = item.dataset.path;
                 const type = item.dataset.type;
-                if (path) {
-                    if (!this.selectedPaths.has(path)) {
-                        this.selectedPaths.clear();
-                        this.selectedPaths.add(path);
-                        this.lastSelectedPath = path;
-                        this.updateAssetSelection();
-                    }
 
-                    if (this.selectedPaths.size > 1) {
-                        showMultiSelectContextMenu(this, e);
-                    } else {
-                        showAssetContextMenu(this, e, path, type as AssetItem['type']);
-                    }
+                if (type === 'folder' && path) {
+                    selectFolder(this, path);
+                    await expandFolder(this, path);
+                } else if (path) {
+                    this.onAssetDoubleClick(path, type as AssetItem['type']);
                 }
-            } else {
-                showFolderContextMenu(this, e, this.currentPath);
-            }
-        });
+            });
 
-        this.treeContainer?.addEventListener('contextmenu', (e) => {
-            e.preventDefault();
-            const target = e.target as HTMLElement;
-            const item = target.closest('.es-folder-item') as HTMLElement;
-            const path = item?.dataset.path ?? this.currentPath;
-            if (path) {
-                showFolderContextMenu(this, e, path);
-            }
-        });
+            this.disposables_.addListener(this.gridContainer, 'contextmenu', (e) => {
+                (e as MouseEvent).preventDefault();
+                const target = (e as MouseEvent).target as HTMLElement;
+                const item = (target.closest('.es-asset-item') || target.closest('.es-cb-list-row')) as HTMLElement;
 
-        this.gridContainer?.addEventListener('dragstart', (e) => {
-            const target = e.target as HTMLElement;
-            const item = (target.closest('.es-asset-item') || target.closest('.es-cb-list-row')) as HTMLElement;
-            if (!item) return;
+                if (item) {
+                    const path = item.dataset.path;
+                    const type = item.dataset.type;
+                    if (path) {
+                        if (!this.selectedPaths.has(path)) {
+                            this.selectedPaths.clear();
+                            this.selectedPaths.add(path);
+                            this.lastSelectedPath = path;
+                            this.updateAssetSelection();
+                        }
 
-            const path = item.dataset.path;
-            const type = item.dataset.type;
-            if (!path || !type) return;
+                        if (this.selectedPaths.size > 1) {
+                            showMultiSelectContextMenu(this, e as MouseEvent);
+                        } else {
+                            showAssetContextMenu(this, e as MouseEvent, path, type as AssetItem['type']);
+                        }
+                    }
+                } else {
+                    showFolderContextMenu(this, e as MouseEvent, this.currentPath);
+                }
+            });
 
-            if (!this.selectedPaths.has(path)) {
-                this.selectedPaths.clear();
-                this.selectedPaths.add(path);
-                this.lastSelectedPath = path;
-                this.updateAssetSelection();
-            }
+            this.disposables_.addListener(this.gridContainer, 'dragstart', (e) => {
+                const target = (e as DragEvent).target as HTMLElement;
+                const item = (target.closest('.es-asset-item') || target.closest('.es-cb-list-row')) as HTMLElement;
+                if (!item) return;
 
-            const dragItems = this.filteredItems.filter(i => this.selectedPaths.has(i.path));
-            const payload = dragItems.map(i => ({ type: i.type, path: i.path, name: i.name }));
+                const path = item.dataset.path;
+                const type = item.dataset.type;
+                if (!path || !type) return;
 
-            e.dataTransfer?.setData('application/esengine-asset', JSON.stringify(
-                payload.length === 1 ? payload[0] : payload
-            ));
-            e.dataTransfer!.effectAllowed = 'copy';
+                if (!this.selectedPaths.has(path)) {
+                    this.selectedPaths.clear();
+                    this.selectedPaths.add(path);
+                    this.lastSelectedPath = path;
+                    this.updateAssetSelection();
+                }
 
-            item.classList.add('es-dragging');
-        });
+                const dragItems = this.filteredItems.filter(i => this.selectedPaths.has(i.path));
+                const payload = dragItems.map(i => ({ type: i.type, path: i.path, name: i.name }));
 
-        this.gridContainer?.addEventListener('dragend', (e) => {
-            const target = e.target as HTMLElement;
-            const item = (target.closest('.es-asset-item') || target.closest('.es-cb-list-row')) as HTMLElement;
-            item?.classList.remove('es-dragging');
-        });
+                (e as DragEvent).dataTransfer?.setData('application/esengine-asset', JSON.stringify(
+                    payload.length === 1 ? payload[0] : payload
+                ));
+                (e as DragEvent).dataTransfer!.effectAllowed = 'copy';
 
-        this.gridContainer?.addEventListener('dragover', (e) => {
-            const types = e.dataTransfer?.types ?? [];
-            const typesArr = Array.from(types);
-            if (!typesArr.includes('application/esengine-entity') && !typesArr.includes('Files')) return;
-            e.preventDefault();
-            e.dataTransfer!.dropEffect = 'copy';
-            this.gridContainer?.classList.add('es-drag-over');
-        });
+                item.classList.add('es-dragging');
+            });
 
-        this.gridContainer?.addEventListener('dragleave', (e) => {
-            const related = e.relatedTarget as HTMLElement;
-            if (this.gridContainer?.contains(related)) return;
-            this.gridContainer?.classList.remove('es-drag-over');
-        });
+            this.disposables_.addListener(this.gridContainer, 'dragend', (e) => {
+                const target = (e as DragEvent).target as HTMLElement;
+                const item = (target.closest('.es-asset-item') || target.closest('.es-cb-list-row')) as HTMLElement;
+                item?.classList.remove('es-dragging');
+            });
 
-        this.gridContainer?.addEventListener('drop', (e) => {
-            this.gridContainer?.classList.remove('es-drag-over');
+            this.disposables_.addListener(this.gridContainer, 'dragover', (e) => {
+                const de = e as DragEvent;
+                const types = de.dataTransfer?.types ?? [];
+                const typesArr = Array.from(types);
+                if (!typesArr.includes('application/esengine-entity') && !typesArr.includes('Files')) return;
+                de.preventDefault();
+                de.dataTransfer!.dropEffect = 'copy';
+                this.gridContainer?.classList.add('es-drag-over');
+            });
 
-            if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
-                e.preventDefault();
-                importDroppedFiles(this, e.dataTransfer.files);
-                return;
-            }
+            this.disposables_.addListener(this.gridContainer, 'dragleave', (e) => {
+                const related = (e as MouseEvent).relatedTarget as HTMLElement;
+                if (this.gridContainer?.contains(related)) return;
+                this.gridContainer?.classList.remove('es-drag-over');
+            });
 
-            const entityIdStr = e.dataTransfer?.getData('application/esengine-entity');
-            if (!entityIdStr) return;
+            this.disposables_.addListener(this.gridContainer, 'drop', (e) => {
+                const de = e as DragEvent;
+                this.gridContainer?.classList.remove('es-drag-over');
 
-            e.preventDefault();
-            const entityId = parseInt(entityIdStr, 10);
-            if (isNaN(entityId)) return;
+                if (de.dataTransfer?.files && de.dataTransfer.files.length > 0) {
+                    de.preventDefault();
+                    importDroppedFiles(this, de.dataTransfer.files);
+                    return;
+                }
 
-            saveDroppedEntityAsPrefab(this, entityId);
-        });
+                const entityIdStr = de.dataTransfer?.getData('application/esengine-entity');
+                if (!entityIdStr) return;
 
-        this.gridContainer?.addEventListener('keydown', (e) => {
-            this.handleKeyboardNavigation(e);
-        });
+                de.preventDefault();
+                const entityId = parseInt(entityIdStr, 10);
+                if (isNaN(entityId)) return;
+
+                saveDroppedEntityAsPrefab(this, entityId);
+            });
+
+            this.disposables_.addListener(this.gridContainer, 'keydown', (e) => {
+                this.handleKeyboardNavigation(e as KeyboardEvent);
+            });
+        }
+
+        const refreshBtn = this.container.querySelector('.es-refresh-btn');
+        if (refreshBtn) {
+            this.disposables_.addListener(refreshBtn, 'click', () => {
+                this.refresh();
+            });
+        }
     }
 
     private navigateToParent(): void {

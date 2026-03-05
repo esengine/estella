@@ -22,6 +22,7 @@ import { MarqueeSelection } from './MarqueeSelection';
 import { EntityDropHandler } from './EntityDropHandler';
 import { SceneViewInput } from './SceneViewInput';
 import { TilemapOverlay } from '../../gizmos/TilemapOverlay';
+import { DisposableStore } from '../../utils/Disposable';
 
 const CAMERA_COLORS = [
     '#ffaa00',
@@ -37,6 +38,7 @@ export interface SceneViewPanelOptions {
 
 export class SceneViewPanel {
     private container_: HTMLElement;
+    private disposables_ = new DisposableStore();
     private store_: EditorStore;
     private bridge_: EditorBridge | null = null;
     private canvas_: HTMLCanvasElement;
@@ -44,15 +46,10 @@ export class SceneViewPanel {
     private overlayCanvas_: HTMLCanvasElement | null = null;
     private sceneViewportW_ = 0;
     private sceneViewportH_ = 0;
-    private unsubscribe_: (() => void) | null = null;
-    private unsubscribeSceneSync_: (() => void) | null = null;
-    private unsubscribeFocus_: (() => void) | null = null;
-    private unsubscribeLivePreview_: (() => void) | null = null;
     private animationId_: number | null = null;
     private continuousRender_ = false;
     private livePreview_ = false;
     private isDirty_ = true;
-    private resizeObserver_: ResizeObserver | null = null;
     private projectPath_: string | null = null;
     private app_: App | null = null;
 
@@ -147,24 +144,30 @@ export class SceneViewPanel {
             (cx, cy) => this.camera_.screenToWorld(cx, cy),
         );
 
-        this.unsubscribe_ = store.subscribe(() => this.onSceneChanged());
-        this.unsubscribeSceneSync_ = store.subscribeToSceneSync(() => this.onSceneSyncNeeded());
-        this.unsubscribeFocus_ = store.onFocusEntity((entityId) => {
+        this.disposables_.add(store.subscribe(() => this.onSceneChanged()));
+        this.disposables_.add(store.subscribeToSceneSync(() => this.onSceneSyncNeeded()));
+        this.disposables_.add(store.onFocusEntity((entityId) => {
             const worldTransform = this.store_.getWorldTransform(entityId);
             this.camera_.focusOnEntity(worldTransform.position.x, worldTransform.position.y);
             this.toolbar_.updateZoomDisplay(this.camera_.zoom);
-        });
+        }));
 
         this.livePreview_ = getSettingsValue<boolean>('scene.livePreview') ?? false;
-        this.unsubscribeLivePreview_ = onSettingsChange((id, value) => {
+        this.disposables_.add(onSettingsChange((id, value) => {
             if (id === 'scene.livePreview') {
                 this.livePreview_ = value as boolean;
                 if (this.livePreview_) this.requestRender();
             }
-        });
+        }));
 
-        this.resizeObserver_ = new ResizeObserver(() => this.resize());
-        this.resizeObserver_.observe(viewport);
+        this.disposables_.add(this.input_);
+        this.disposables_.add(this.toolbar_);
+        this.disposables_.add(() => { if (this.animationId_ !== null) cancelAnimationFrame(this.animationId_); });
+        this.disposables_.add(() => this.sceneRenderer_?.dispose());
+
+        const resizeObserver = new ResizeObserver(() => this.resize());
+        resizeObserver.observe(viewport);
+        this.disposables_.add(() => resizeObserver.disconnect());
 
         this.resize();
 
@@ -264,37 +267,8 @@ export class SceneViewPanel {
 
     dispose(): void {
         this.continuousRender_ = false;
-        if (this.animationId_ !== null) {
-            cancelAnimationFrame(this.animationId_);
-            this.animationId_ = null;
-        }
-        if (this.unsubscribe_) {
-            this.unsubscribe_();
-            this.unsubscribe_ = null;
-        }
-        if (this.unsubscribeSceneSync_) {
-            this.unsubscribeSceneSync_();
-            this.unsubscribeSceneSync_ = null;
-        }
-        if (this.unsubscribeFocus_) {
-            this.unsubscribeFocus_();
-            this.unsubscribeFocus_ = null;
-        }
-        if (this.unsubscribeLivePreview_) {
-            this.unsubscribeLivePreview_();
-            this.unsubscribeLivePreview_ = null;
-        }
-        if (this.resizeObserver_) {
-            this.resizeObserver_.disconnect();
-            this.resizeObserver_ = null;
-        }
-        if (this.sceneRenderer_) {
-            this.sceneRenderer_.dispose();
-            this.sceneRenderer_ = null;
-        }
+        this.disposables_.dispose();
         getSharedRenderContext().setSceneViewportSize(0, 0);
-        this.input_.dispose();
-        this.toolbar_.dispose();
     }
 
     get sharedContext() {

@@ -1,5 +1,6 @@
 import type { PanelInstance } from './PanelRegistry';
 import { icons } from '../utils/icons';
+import { DisposableStore } from '../utils/Disposable';
 
 type OutputType = 'command' | 'stdout' | 'stderr' | 'error' | 'success';
 
@@ -32,6 +33,7 @@ function formatTimestamp(): string {
 
 export class OutputPanel implements PanelInstance {
     private container_: HTMLElement;
+    private disposables_ = new DisposableStore();
     private contentEl_: HTMLElement | null = null;
     private entries_: LogEntry[] = [];
     private lastEntry_: LogEntry | null = null;
@@ -153,6 +155,7 @@ export class OutputPanel implements PanelInstance {
     }
 
     dispose(): void {
+        this.disposables_.dispose();
         this.container_.innerHTML = '';
     }
 
@@ -185,35 +188,43 @@ export class OutputPanel implements PanelInstance {
             btn.className = `es-output-filter-btn es-active es-output-filter-${type}`;
             btn.title = `Toggle ${type}`;
             btn.innerHTML = `${TYPE_LABELS[type]} <span class="es-output-filter-count">0</span>`;
-            btn.addEventListener('click', () => this.toggleFilter(type));
+            this.disposables_.addListener(btn, 'click', () => this.toggleFilter(type));
             filtersEl.appendChild(btn);
             this.filterBtns_.set(type, btn);
         }
 
         this.scrollBtn_ = this.container_.querySelector('[data-action="toggle-scroll"]');
-        this.scrollBtn_?.addEventListener('click', () => this.toggleAutoScroll());
+        if (this.scrollBtn_) {
+            this.disposables_.addListener(this.scrollBtn_, 'click', () => this.toggleAutoScroll());
+        }
 
         this.searchInput_ = this.container_.querySelector('.es-output-search');
-        this.searchInput_?.addEventListener('input', (e) => {
-            this.searchText_ = (e.target as HTMLInputElement).value.toLowerCase();
-            this.applyFilters();
-        });
+        if (this.searchInput_) {
+            this.disposables_.addListener(this.searchInput_, 'input', (e) => {
+                this.searchText_ = ((e as Event).target as HTMLInputElement).value.toLowerCase();
+                this.applyFilters();
+            });
+        }
 
         const clearBtn = this.container_.querySelector('[data-action="clear-output"]');
-        clearBtn?.addEventListener('click', () => this.clear());
+        if (clearBtn) {
+            this.disposables_.addListener(clearBtn, 'click', () => this.clear());
+        }
 
-        this.contentEl_?.addEventListener('scroll', () => {
-            if (!this.contentEl_) return;
-            const { scrollTop, scrollHeight, clientHeight } = this.contentEl_;
-            const atBottom = scrollHeight - scrollTop - clientHeight < 30;
-            if (atBottom && !this.autoScroll_) {
-                this.autoScroll_ = true;
-                this.scrollBtn_?.classList.add('es-active');
-            } else if (!atBottom && this.autoScroll_) {
-                this.autoScroll_ = false;
-                this.scrollBtn_?.classList.remove('es-active');
-            }
-        });
+        if (this.contentEl_) {
+            this.disposables_.addListener(this.contentEl_, 'scroll', () => {
+                if (!this.contentEl_) return;
+                const { scrollTop, scrollHeight, clientHeight } = this.contentEl_;
+                const atBottom = scrollHeight - scrollTop - clientHeight < 30;
+                if (atBottom && !this.autoScroll_) {
+                    this.autoScroll_ = true;
+                    this.scrollBtn_?.classList.add('es-active');
+                } else if (!atBottom && this.autoScroll_) {
+                    this.autoScroll_ = false;
+                    this.scrollBtn_?.classList.remove('es-active');
+                }
+            });
+        }
     }
 
     private toggleFilter(type: OutputType): void {

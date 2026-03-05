@@ -13,15 +13,16 @@ import { setupDragAndDrop } from './HierarchyDragDrop';
 import { showEntityContextMenu, duplicateEntity, createEntityFromAsset } from './HierarchyContextMenu';
 import { showContextMenu, type ContextMenuItem } from '../../ui/ContextMenu';
 import { getPlayModeService, runtimeToEntityData } from '../../services/PlayModeService';
+import { DisposableStore } from '../../utils/Disposable';
 
 export class HierarchyPanel implements HierarchyState {
     private container_: HTMLElement;
+    private disposables_ = new DisposableStore();
     store: EditorStore;
     treeContainer: HTMLElement;
     searchInput: HTMLInputElement | null = null;
     private footerContainer_: HTMLElement | null = null;
     private prefabEditBar_: HTMLElement | null = null;
-    private unsubscribe_: (() => void) | null = null;
     searchFilter: string = '';
     searchResults: HierarchyState['searchResults'] = [];
     selectedResultIndex: number = -1;
@@ -36,13 +37,11 @@ export class HierarchyPanel implements HierarchyState {
     dragOverEntityId: number | null = null;
     dropPosition: HierarchyState['dropPosition'] = null;
     draggingEntityId: number | null = null;
-    private boundOnScroll_: (() => void) | null = null;
     renamingEntityId: number | null = null;
     lastClickEntityId: number | null = null;
     lastClickTime: number = 0;
     playMode: boolean = false;
     runtimeEntities?: HierarchyState['runtimeEntities'];
-    private playModeCleanups_: (() => void)[] = [];
     private toolbar_: HTMLElement | null = null;
     private savedExpandedIds_: Set<number> | null = null;
 
@@ -81,52 +80,51 @@ export class HierarchyPanel implements HierarchyState {
         this.visibleWindow.className = 'es-hierarchy-visible-window';
         this.scrollContent.appendChild(this.visibleWindow);
         this.treeContainer.appendChild(this.scrollContent);
-        this.boundOnScroll_ = () => this.onScroll();
-        this.treeContainer.addEventListener('scroll', this.boundOnScroll_);
+        this.disposables_.addListener(this.treeContainer, 'scroll', () => this.onScroll());
         this.searchInput = this.container_.querySelector('.es-hierarchy-search');
         this.footerContainer_ = this.container_.querySelector('.es-hierarchy-footer');
         this.prefabEditBar_ = this.container_.querySelector('.es-prefab-edit-bar');
 
         const backBtn = this.container_.querySelector('.es-prefab-back-btn');
-        backBtn?.addEventListener('click', () => {
-            this.store.exitPrefabEditMode();
-        });
+        if (backBtn) {
+            this.disposables_.addListener(backBtn, 'click', () => {
+                this.store.exitPrefabEditMode();
+            });
+        }
 
         this.toolbar_ = this.container_.querySelector('.es-hierarchy-toolbar');
 
         this.setupEvents();
-        this.unsubscribe_ = store.subscribe((_state, dirtyFlags) => this.onStoreNotify(dirtyFlags));
+        this.disposables_.add(store.subscribe((_state, dirtyFlags) => this.onStoreNotify(dirtyFlags)));
         this.render();
 
         const pms = getPlayModeService();
-        this.playModeCleanups_.push(
-            pms.onStateChange((state) => {
-                const isPlaying = state === 'playing';
-                this.playMode = isPlaying;
-                if (isPlaying) {
-                    this.container_.classList.add('es-play-mode');
-                    this.savedExpandedIds_ = new Set(this.expandedIds);
-                    this.updateRuntimeEntities();
-                } else {
-                    this.container_.classList.remove('es-play-mode');
-                    this.runtimeEntities = undefined;
-                    if (this.savedExpandedIds_) {
-                        this.expandedIds = this.savedExpandedIds_;
-                        this.savedExpandedIds_ = null;
-                    }
+        this.disposables_.add(pms.onStateChange((state) => {
+            const isPlaying = state === 'playing';
+            this.playMode = isPlaying;
+            if (isPlaying) {
+                this.container_.classList.add('es-play-mode');
+                this.savedExpandedIds_ = new Set(this.expandedIds);
+                this.updateRuntimeEntities();
+            } else {
+                this.container_.classList.remove('es-play-mode');
+                this.runtimeEntities = undefined;
+                if (this.savedExpandedIds_) {
+                    this.expandedIds = this.savedExpandedIds_;
+                    this.savedExpandedIds_ = null;
                 }
+            }
+            this.render();
+        }));
+        this.disposables_.add(pms.onEntityListUpdate(() => {
+            if (this.playMode) {
+                this.updateRuntimeEntities();
                 this.render();
-            }),
-            pms.onEntityListUpdate(() => {
-                if (this.playMode) {
-                    this.updateRuntimeEntities();
-                    this.render();
-                }
-            }),
-            pms.onSelectionChange(() => {
-                if (this.playMode) this.renderVisibleRows();
-            }),
-        );
+            }
+        }));
+        this.disposables_.add(pms.onSelectionChange(() => {
+            if (this.playMode) this.renderVisibleRows();
+        }));
     }
 
     private updateRuntimeEntities(): void {
@@ -150,19 +148,10 @@ export class HierarchyPanel implements HierarchyState {
     }
 
     dispose(): void {
-        for (const cleanup of this.playModeCleanups_) cleanup();
-        this.playModeCleanups_ = [];
-        if (this.unsubscribe_) {
-            this.unsubscribe_();
-            this.unsubscribe_ = null;
-        }
+        this.disposables_.dispose();
         if (this.scrollRafId_) {
             cancelAnimationFrame(this.scrollRafId_);
             this.scrollRafId_ = 0;
-        }
-        if (this.boundOnScroll_) {
-            this.treeContainer.removeEventListener('scroll', this.boundOnScroll_);
-            this.boundOnScroll_ = null;
         }
     }
 
@@ -202,64 +191,76 @@ export class HierarchyPanel implements HierarchyState {
 
     private setupEvents(): void {
         const addBtn = this.container_.querySelector('[data-action="add"]');
-        addBtn?.addEventListener('click', () => {
-            if (this.playMode) {
-                const pms = getPlayModeService();
-                pms.spawnEntity();
-                return;
-            }
-            const entity = this.store.createEntity();
-            this.store.addComponent(entity, 'Transform', getInitialComponentData('Transform'));
-        });
+        if (addBtn) {
+            this.disposables_.addListener(addBtn, 'click', () => {
+                if (this.playMode) {
+                    const pms = getPlayModeService();
+                    pms.spawnEntity();
+                    return;
+                }
+                const entity = this.store.createEntity();
+                this.store.addComponent(entity, 'Transform', getInitialComponentData('Transform'));
+            });
+        }
 
         const dupBtn = this.container_.querySelector('[data-action="duplicate"]');
-        dupBtn?.addEventListener('click', () => {
-            if (this.playMode) return;
-            const selected = this.store.selectedEntity;
-            if (selected !== null) {
-                duplicateEntity(this, selected);
-            }
-        });
+        if (dupBtn) {
+            this.disposables_.addListener(dupBtn, 'click', () => {
+                if (this.playMode) return;
+                const selected = this.store.selectedEntity;
+                if (selected !== null) {
+                    duplicateEntity(this, selected);
+                }
+            });
+        }
 
         const collapseAllBtn = this.container_.querySelector('[data-action="collapse-all"]');
-        collapseAllBtn?.addEventListener('click', () => {
-            this.expandedIds.clear();
-            this.render();
-        });
+        if (collapseAllBtn) {
+            this.disposables_.addListener(collapseAllBtn, 'click', () => {
+                this.expandedIds.clear();
+                this.render();
+            });
+        }
 
         const expandAllBtn = this.container_.querySelector('[data-action="expand-all"]');
-        expandAllBtn?.addEventListener('click', () => {
-            const entities = this.runtimeEntities ?? this.store.scene.entities;
-            for (const entity of entities) {
-                if (entity.children.length > 0) {
-                    this.expandedIds.add(entity.id);
+        if (expandAllBtn) {
+            this.disposables_.addListener(expandAllBtn, 'click', () => {
+                const entities = this.runtimeEntities ?? this.store.scene.entities;
+                for (const entity of entities) {
+                    if (entity.children.length > 0) {
+                        this.expandedIds.add(entity.id);
+                    }
                 }
-            }
-            this.render();
-        });
+                this.render();
+            });
+        }
 
-        this.searchInput?.addEventListener('input', () => {
-            this.searchFilter = this.searchInput?.value ?? '';
-            performSearch(this);
-            this.render();
-        });
+        if (this.searchInput) {
+            this.disposables_.addListener(this.searchInput, 'input', () => {
+                this.searchFilter = this.searchInput?.value ?? '';
+                performSearch(this);
+                this.render();
+            });
 
-        this.searchInput?.addEventListener('keydown', (e) => {
-            if (e.key === 'ArrowDown') {
-                e.preventDefault();
-                selectNextResult(this);
-            } else if (e.key === 'ArrowUp') {
-                e.preventDefault();
-                selectPreviousResult(this);
-            } else if (e.key === 'Enter') {
-                e.preventDefault();
-                focusSelectedResult(this);
-            } else if (e.key === 'Escape') {
-                clearSearch(this);
-            }
-        });
+            this.disposables_.addListener(this.searchInput, 'keydown', (e) => {
+                const ke = e as KeyboardEvent;
+                if (ke.key === 'ArrowDown') {
+                    ke.preventDefault();
+                    selectNextResult(this);
+                } else if (ke.key === 'ArrowUp') {
+                    ke.preventDefault();
+                    selectPreviousResult(this);
+                } else if (ke.key === 'Enter') {
+                    ke.preventDefault();
+                    focusSelectedResult(this);
+                } else if (ke.key === 'Escape') {
+                    clearSearch(this);
+                }
+            });
+        }
 
-        this.treeContainer.addEventListener('click', (e) => {
+        this.disposables_.addListener(this.treeContainer, 'click', (ev) => {
+            const e = ev as MouseEvent;
             const target = e.target as HTMLElement;
 
             if (target.closest('.es-hierarchy-rename-input')) return;
@@ -338,8 +339,9 @@ export class HierarchyPanel implements HierarchyState {
             this.lastClickTime = now;
         });
 
-        this.treeContainer.addEventListener('dblclick', (e) => {
+        this.disposables_.addListener(this.treeContainer, 'dblclick', (ev) => {
             if (this.playMode) return;
+            const e = ev as MouseEvent;
             const target = e.target as HTMLElement;
             if (target.closest('.es-hierarchy-rename-input')) return;
             const item = target.closest('.es-hierarchy-item') as HTMLElement;
@@ -353,7 +355,8 @@ export class HierarchyPanel implements HierarchyState {
             }
         });
 
-        this.treeContainer.addEventListener('contextmenu', (e) => {
+        this.disposables_.addListener(this.treeContainer, 'contextmenu', (ev) => {
+            const e = ev as MouseEvent;
             if (this.playMode) {
                 e.preventDefault();
                 const target = e.target as HTMLElement;
