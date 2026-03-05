@@ -18,6 +18,7 @@ import { type ImageUrlRef } from './inspector/ImageInspector';
 import { getPlayModeService } from '../services/PlayModeService';
 import { getInspectorRenderer } from '../asset/AssetTypeRegistry';
 import { RuntimeStoreProxy } from '../services/RuntimeStoreProxy';
+import { DisposableStore } from '../utils/Disposable';
 
 // =============================================================================
 // InspectorPanel
@@ -25,9 +26,9 @@ import { RuntimeStoreProxy } from '../services/RuntimeStoreProxy';
 
 export class InspectorPanel {
     private container_: HTMLElement;
+    private disposables_ = new DisposableStore();
     private store_: EditorStore;
     private contentContainer_: HTMLElement;
-    private unsubscribe_: (() => void) | null = null;
     private editors_: EditorInfo[] = [];
     private currentEntity_: Entity | null = null;
     private currentAssetPath_: string | null = null;
@@ -42,7 +43,6 @@ export class InspectorPanel {
     private materialPreviewState_: MaterialPreviewState;
     private extensionSections_: InspectorSectionInstance[] = [];
     private playMode_: boolean = false;
-    private playModeCleanups_: (() => void)[] = [];
     private runtimeEntityId_: number | null = null;
     private runtimeRefreshRafId_: number = 0;
     private runtimeRefreshPending_ = false;
@@ -71,37 +71,35 @@ export class InspectorPanel {
         this.lockBtn_ = this.container_.querySelector('.es-lock-btn');
 
         this.setupLockButton();
-        this.unsubscribe_ = store.subscribe((_state, dirtyFlags) => this.onStoreNotify(dirtyFlags));
+        this.disposables_.add(store.subscribe((_state, dirtyFlags) => this.onStoreNotify(dirtyFlags)));
         this.render();
 
         const pms = getPlayModeService();
-        this.playModeCleanups_.push(
-            pms.onStateChange((state) => {
-                const isPlaying = state === 'playing';
-                this.playMode_ = isPlaying;
-                if (isPlaying) {
-                    this.container_.classList.add('es-play-mode');
-                    hideMaterialPreview(this.materialPreviewState_);
-                    this.runtimeProxy_ = new RuntimeStoreProxy(this.store_);
-                } else {
-                    this.container_.classList.remove('es-play-mode');
-                    this.stopRuntimeRefresh();
-                    this.runtimeEntityId_ = null;
-                    this.runtimeProxy_ = null;
-                    this.render();
-                }
-            }),
-            pms.onSelectionChange((entityId) => {
-                if (!this.playMode_) return;
-                if (entityId !== null && entityId === this.runtimeEntityId_) return;
-                this.runtimeEntityId_ = entityId;
-                if (entityId !== null) {
-                    this.renderPlayModeEntity(entityId);
-                } else {
-                    this.renderPlayModeEmpty();
-                }
-            }),
-        );
+        this.disposables_.add(pms.onStateChange((state) => {
+            const isPlaying = state === 'playing';
+            this.playMode_ = isPlaying;
+            if (isPlaying) {
+                this.container_.classList.add('es-play-mode');
+                hideMaterialPreview(this.materialPreviewState_);
+                this.runtimeProxy_ = new RuntimeStoreProxy(this.store_);
+            } else {
+                this.container_.classList.remove('es-play-mode');
+                this.stopRuntimeRefresh();
+                this.runtimeEntityId_ = null;
+                this.runtimeProxy_ = null;
+                this.render();
+            }
+        }));
+        this.disposables_.add(pms.onSelectionChange((entityId) => {
+            if (!this.playMode_) return;
+            if (entityId !== null && entityId === this.runtimeEntityId_) return;
+            this.runtimeEntityId_ = entityId;
+            if (entityId !== null) {
+                this.renderPlayModeEntity(entityId);
+            } else {
+                this.renderPlayModeEmpty();
+            }
+        }));
     }
 
     private setupLockButton(): void {
@@ -126,15 +124,10 @@ export class InspectorPanel {
     }
 
     dispose(): void {
-        for (const cleanup of this.playModeCleanups_) cleanup();
-        this.playModeCleanups_ = [];
+        this.disposables_.dispose();
         this.stopRuntimeRefresh();
         this.disposeEditors();
         this.cleanupImageUrl();
-        if (this.unsubscribe_) {
-            this.unsubscribe_();
-            this.unsubscribe_ = null;
-        }
     }
 
     // =========================================================================

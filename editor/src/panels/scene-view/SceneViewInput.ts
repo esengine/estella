@@ -8,6 +8,7 @@ import { getEditorInstance } from '../../context/EditorContext';
 import type { CameraController } from './CameraController';
 import type { GizmoToolbar } from './GizmoToolbar';
 import type { MarqueeSelection, BoundsProvider } from './MarqueeSelection';
+import { DisposableStore } from '../../utils/Disposable';
 
 export interface InputDeps {
     store: EditorStore;
@@ -26,6 +27,7 @@ export interface InputDeps {
 
 export class SceneViewInput {
     private deps_: InputDeps;
+    private disposables_ = new DisposableStore();
 
     private skipNextClick_ = false;
     private mouseDownX_ = 0;
@@ -33,18 +35,6 @@ export class SceneViewInput {
 
     private boundOnDocumentMouseMove_: ((e: MouseEvent) => void) | null = null;
     private boundOnDocumentMouseUp_: ((e: MouseEvent) => void) | null = null;
-
-    private boundOnMouseDown_: ((e: MouseEvent) => void) | null = null;
-    private boundOnMouseMove_: ((e: MouseEvent) => void) | null = null;
-    private boundOnMouseUp_: ((e: MouseEvent) => void) | null = null;
-    private boundOnMouseLeave_: ((e: MouseEvent) => void) | null = null;
-    private boundOnWheel_: ((e: WheelEvent) => void) | null = null;
-    private boundOnCanvasClick_: ((e: MouseEvent) => void) | null = null;
-    private boundOnDblClick_: ((e: MouseEvent) => void) | null = null;
-    private boundOnContextMenu_: ((e: MouseEvent) => void) | null = null;
-
-    private keydownHandler_: ((e: KeyboardEvent) => void) | null = null;
-    private keyupHandler_: ((e: KeyboardEvent) => void) | null = null;
 
     constructor(deps: InputDeps) {
         this.deps_ = deps;
@@ -67,7 +57,8 @@ export class SceneViewInput {
     private setupKeyboard(): void {
         const { camera, toolbar, store } = this.deps_;
 
-        this.keydownHandler_ = (e: KeyboardEvent) => {
+        this.disposables_.addListener(document, 'keydown', (ev) => {
+            const e = ev as KeyboardEvent;
             if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
                 return;
             }
@@ -126,10 +117,10 @@ export class SceneViewInput {
             if (e.key === 'Control' || e.key === 'Meta') {
                 toolbar.updateSnapIndicator(true);
             }
-        };
-        document.addEventListener('keydown', this.keydownHandler_);
+        });
 
-        this.keyupHandler_ = (e: KeyboardEvent) => {
+        this.disposables_.addListener(document, 'keyup', (ev) => {
+            const e = ev as KeyboardEvent;
             if (e.key === ' ') {
                 camera.spaceDown = false;
                 if (!camera.isDragging) {
@@ -139,33 +130,23 @@ export class SceneViewInput {
             if (e.key === 'Control' || e.key === 'Meta') {
                 toolbar.updateSnapIndicator(false);
             }
-        };
-        document.addEventListener('keyup', this.keyupHandler_);
+        });
     }
 
     private setupMouse(): void {
         const { canvas } = this.deps_;
 
-        this.boundOnMouseDown_ = this.onMouseDown.bind(this);
-        this.boundOnMouseMove_ = this.onMouseMove.bind(this);
-        this.boundOnMouseUp_ = this.onMouseUp.bind(this);
-        this.boundOnMouseLeave_ = this.onMouseLeave.bind(this);
-        this.boundOnWheel_ = (e: WheelEvent) => {
-            this.deps_.camera.wheel(e);
+        this.disposables_.addListener(canvas, 'mousedown', (e) => this.onMouseDown(e as MouseEvent));
+        this.disposables_.addListener(canvas, 'mousemove', (e) => this.onMouseMove(e as MouseEvent));
+        this.disposables_.addListener(canvas, 'mouseup', (e) => this.onMouseUp(e as MouseEvent));
+        this.disposables_.addListener(canvas, 'mouseleave', (e) => this.onMouseLeave(e as MouseEvent));
+        this.disposables_.addListener(canvas, 'wheel', (e) => {
+            this.deps_.camera.wheel(e as WheelEvent);
             this.deps_.toolbar.updateZoomDisplay(this.deps_.camera.zoom);
-        };
-        this.boundOnCanvasClick_ = this.onCanvasClick.bind(this);
-        this.boundOnDblClick_ = this.onDblClick.bind(this);
-        this.boundOnContextMenu_ = this.onContextMenu.bind(this);
-
-        canvas.addEventListener('mousedown', this.boundOnMouseDown_);
-        canvas.addEventListener('mousemove', this.boundOnMouseMove_);
-        canvas.addEventListener('mouseup', this.boundOnMouseUp_);
-        canvas.addEventListener('mouseleave', this.boundOnMouseLeave_);
-        canvas.addEventListener('wheel', this.boundOnWheel_);
-        canvas.addEventListener('click', this.boundOnCanvasClick_);
-        canvas.addEventListener('dblclick', this.boundOnDblClick_);
-        canvas.addEventListener('contextmenu', this.boundOnContextMenu_);
+        });
+        this.disposables_.addListener(canvas, 'click', (e) => this.onCanvasClick(e as MouseEvent));
+        this.disposables_.addListener(canvas, 'dblclick', (e) => this.onDblClick(e as MouseEvent));
+        this.disposables_.addListener(canvas, 'contextmenu', (e) => this.onContextMenu(e as MouseEvent));
     }
 
     private onMouseDown(e: MouseEvent): void {
@@ -455,50 +436,7 @@ export class SceneViewInput {
     }
 
     dispose(): void {
-        const { canvas } = this.deps_;
-
-        if (this.keydownHandler_) {
-            document.removeEventListener('keydown', this.keydownHandler_);
-            this.keydownHandler_ = null;
-        }
-        if (this.keyupHandler_) {
-            document.removeEventListener('keyup', this.keyupHandler_);
-            this.keyupHandler_ = null;
-        }
-
         this.stopDocumentDrag();
-
-        if (this.boundOnMouseDown_) {
-            canvas.removeEventListener('mousedown', this.boundOnMouseDown_);
-            this.boundOnMouseDown_ = null;
-        }
-        if (this.boundOnMouseMove_) {
-            canvas.removeEventListener('mousemove', this.boundOnMouseMove_);
-            this.boundOnMouseMove_ = null;
-        }
-        if (this.boundOnMouseUp_) {
-            canvas.removeEventListener('mouseup', this.boundOnMouseUp_);
-            this.boundOnMouseUp_ = null;
-        }
-        if (this.boundOnMouseLeave_) {
-            canvas.removeEventListener('mouseleave', this.boundOnMouseLeave_);
-            this.boundOnMouseLeave_ = null;
-        }
-        if (this.boundOnWheel_) {
-            canvas.removeEventListener('wheel', this.boundOnWheel_);
-            this.boundOnWheel_ = null;
-        }
-        if (this.boundOnCanvasClick_) {
-            canvas.removeEventListener('click', this.boundOnCanvasClick_);
-            this.boundOnCanvasClick_ = null;
-        }
-        if (this.boundOnDblClick_) {
-            canvas.removeEventListener('dblclick', this.boundOnDblClick_);
-            this.boundOnDblClick_ = null;
-        }
-        if (this.boundOnContextMenu_) {
-            canvas.removeEventListener('contextmenu', this.boundOnContextMenu_);
-            this.boundOnContextMenu_ = null;
-        }
+        this.disposables_.dispose();
     }
 }

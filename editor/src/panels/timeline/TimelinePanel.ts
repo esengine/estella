@@ -10,11 +10,13 @@ import { TimelineCurveEditor } from './TimelineCurveEditor';
 import { AddKeyframeCommand } from './TimelineCommands';
 import { getEditorContext, getEditorInstance } from '../../context/EditorContext';
 import { getAssetDatabase as getAssetLibrary, isUUID } from '../../asset';
+import { DisposableStore } from '../../utils/Disposable';
 
 const PLAYBACK_INTERVAL_MS = 16;
 
 export class TimelinePanel implements PanelInstance {
     private container_: HTMLElement;
+    private disposables_ = new DisposableStore();
     private store_: EditorStore;
     private state_: TimelineState;
     private toolbar_: TimelineToolbar | null = null;
@@ -23,9 +25,6 @@ export class TimelinePanel implements PanelInstance {
     private curveEditor_: TimelineCurveEditor | null = null;
     private emptyEl_: HTMLElement | null = null;
     private bodyEl_: HTMLElement | null = null;
-    private storeUnsub_: (() => void) | null = null;
-    private propertyUnsub_: (() => void) | null = null;
-    private playbackUnsub_: (() => void) | null = null;
     private isRecordingKeyframe_ = false;
     private isScrubPreview_ = false;
     private lastPreviewTime_ = -1;
@@ -42,24 +41,24 @@ export class TimelinePanel implements PanelInstance {
         this.state_ = new TimelineState();
         this.render();
 
-        this.storeUnsub_ = store.subscribe((_state, dirtyFlags) => {
+        this.disposables_.add(store.subscribe((_state, dirtyFlags) => {
             if (dirtyFlags?.has('selection') || dirtyFlags?.has('scene')) {
                 this.onSelectionOrSceneChanged();
             }
-        });
+        }));
 
-        this.propertyUnsub_ = store.subscribeToPropertyChanges(
+        this.disposables_.add(store.subscribeToPropertyChanges(
             (event) => this.onPropertyChanged(event),
-        );
+        ));
 
-        this.playbackUnsub_ = this.state_.onChange(() => {
+        this.disposables_.add(this.state_.onChange(() => {
             if (this.state_.playing && this.playbackTimer_ === null) {
                 this.startPlayback();
             } else if (!this.state_.playing && this.playbackTimer_ !== null) {
                 this.stopPlayback();
             }
             this.applyScrubPreview();
-        });
+        }));
 
         this.updateEmptyState();
     }
@@ -70,9 +69,7 @@ export class TimelinePanel implements PanelInstance {
         this.trackList_?.dispose();
         this.keyframeArea_?.dispose();
         this.curveEditor_?.dispose();
-        this.storeUnsub_?.();
-        this.propertyUnsub_?.();
-        this.playbackUnsub_?.();
+        this.disposables_.dispose();
         this.container_.innerHTML = '';
     }
 

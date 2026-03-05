@@ -6,6 +6,7 @@ import { GameViewRenderer } from '../../renderer/GameViewRenderer';
 import { getSharedRenderContext } from '../../renderer/SharedRenderContext';
 import { getPlayModeService } from '../../services/PlayModeService';
 import { Audio } from 'esengine';
+import { DisposableStore } from '../../utils/Disposable';
 
 export interface GameViewPanelOptions {
     projectPath?: string;
@@ -13,6 +14,7 @@ export interface GameViewPanelOptions {
 
 export class GameViewPanel implements PanelInstance {
     private container_: HTMLElement;
+    private disposables_ = new DisposableStore();
     private toolbar_: GameViewToolbar;
     private gameManager_: GameInstanceManager;
     private canvasArea_: HTMLElement | null = null;
@@ -20,7 +22,6 @@ export class GameViewPanel implements PanelInstance {
     private canvas2d_: HTMLCanvasElement | null = null;
     private gameRenderer_: GameViewRenderer | null = null;
     private inputCleanup_: (() => void) | null = null;
-    private resizeObserver_: ResizeObserver | null = null;
     private scale_ = 1;
 
     constructor(container: HTMLElement, _store: EditorStore, _options?: GameViewPanelOptions) {
@@ -57,14 +58,8 @@ export class GameViewPanel implements PanelInstance {
     }
 
     dispose(): void {
-        if (this.resizeObserver_) {
-            this.resizeObserver_.disconnect();
-            this.resizeObserver_ = null;
-        }
         this.cleanupInput();
-        this.detachRenderer();
-        this.gameManager_.dispose();
-        this.toolbar_.dispose();
+        this.disposables_.dispose();
     }
 
     private buildUI(): void {
@@ -92,9 +87,14 @@ export class GameViewPanel implements PanelInstance {
         this.toolbar_.setup();
 
         if (this.canvasArea_) {
-            this.resizeObserver_ = new ResizeObserver(() => this.updateCanvasSize());
-            this.resizeObserver_.observe(this.canvasArea_);
+            const resizeObserver = new ResizeObserver(() => this.updateCanvasSize());
+            resizeObserver.observe(this.canvasArea_);
+            this.disposables_.add(() => resizeObserver.disconnect());
         }
+
+        this.disposables_.add(this.gameManager_);
+        this.disposables_.add(this.toolbar_);
+        this.disposables_.add(() => this.detachRenderer());
 
         this.updateCanvasSize();
     }
