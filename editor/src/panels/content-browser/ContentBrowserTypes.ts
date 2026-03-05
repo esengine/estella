@@ -29,6 +29,7 @@ export type ViewMode = 'grid' | 'list';
 export interface ContentBrowserOptions {
     projectPath?: string;
     onOpenScene?: (scenePath: string) => void;
+    onOpenTimeline?: (timelinePath: string) => void;
 }
 
 export const THUMBNAIL_CACHE_MAX = 200;
@@ -52,6 +53,7 @@ export interface ContentBrowserState {
     currentItems: AssetItem[];
     filteredItems: AssetItem[];
     onOpenScene: ((scenePath: string) => void) | null;
+    onOpenTimeline: ((timelinePath: string) => void) | null;
     selectedPaths: Set<string>;
     lastSelectedPath: string | null;
     viewMode: ViewMode;

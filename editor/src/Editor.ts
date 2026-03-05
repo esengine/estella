@@ -15,6 +15,7 @@ import {
     registerPanel,
     getAllPanels,
     isBuiltinPanel,
+    isSaveable,
 } from './panels/PanelRegistry';
 import { registerBuiltinPanels } from './panels/builtinPanels';
 import { registerBuiltinEditors } from './property/editors';
@@ -292,6 +293,8 @@ export class Editor {
             return;
         }
 
+        await this.saveDirtyPanels();
+
         const filePath = this.store_.filePath;
 
         if (filePath && hasFileHandle()) {
@@ -307,6 +310,14 @@ export class Editor {
         if (savedPath) {
             this.store_.markSaved(savedPath);
             this.previewManager_.refreshFiles(this.store_.scene, this.scriptLoader_, this.spineVersion_);
+        }
+    }
+
+    private async saveDirtyPanels(): Promise<void> {
+        for (const panel of this.panelManager_.panelInstances.values()) {
+            if (isSaveable(panel) && panel.isDirty) {
+                await panel.saveAsset();
+            }
         }
     }
 

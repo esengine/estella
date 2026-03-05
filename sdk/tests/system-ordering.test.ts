@@ -155,6 +155,42 @@ describe('System Dependency Ordering', () => {
         });
     });
 
+    describe('timeline system ordering in PostUpdate', () => {
+        it('should run TimelineSystem after UILayoutLateSystem and before UITransformFinalSystem', () => {
+            const uiLayoutLate = defineSystem([], () => {
+                executionOrder.push('UILayoutLateSystem');
+            }, { name: 'UILayoutLateSystem' });
+
+            const timeline = defineSystem([], () => {
+                executionOrder.push('TimelineSystem');
+            }, { name: 'TimelineSystem' });
+
+            const transformFinal = defineSystem([], () => {
+                executionOrder.push('UITransformFinalSystem');
+            }, { name: 'UITransformFinalSystem' });
+
+            app.addSystemToSchedule(Schedule.PostUpdate, uiLayoutLate, { runBefore: ['UIRenderOrderSystem'] });
+            app.addSystemToSchedule(Schedule.PostUpdate, timeline, {
+                runAfter: ['UILayoutLateSystem'],
+                runBefore: ['UITransformFinalSystem'],
+            });
+            app.addSystemToSchedule(Schedule.PostUpdate, transformFinal, {
+                runAfter: ['ScrollViewSystem', 'ListViewSystem'],
+                runBefore: ['UIRenderOrderSystem'],
+            });
+
+            (app as any).runner_ = { run: (sys: any) => sys._fn() };
+            (app as any).runSchedule(Schedule.PostUpdate);
+
+            const layoutIdx = executionOrder.indexOf('UILayoutLateSystem');
+            const timelineIdx = executionOrder.indexOf('TimelineSystem');
+            const transformIdx = executionOrder.indexOf('UITransformFinalSystem');
+
+            expect(layoutIdx).toBeLessThan(timelineIdx);
+            expect(timelineIdx).toBeLessThan(transformIdx);
+        });
+    });
+
     describe('non-existent dependencies', () => {
         it('should ignore dependencies on non-existent systems', () => {
             const systemA = defineSystem([], () => {

@@ -319,6 +319,17 @@ export function registerBuiltinAssetTypes(): void {
         },
     });
 
+    registerAssetType('timeline', {
+        editorType: 'timeline',
+        displayType: 'timeline',
+        displayName: 'Timeline',
+        icon: icons.film,
+        eventCategory: null,
+        droppable: false,
+        inspectorRenderer: null,
+        createMenuEntry: null,
+    });
+
     registerAssetType('scene', {
         editorType: 'scene',
         displayType: 'scene',

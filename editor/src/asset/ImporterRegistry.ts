@@ -13,6 +13,7 @@ import { ShaderImporter } from './importers/ShaderImporter';
 import { BitmapFontImporter } from './importers/BitmapFontImporter';
 import { SceneImporter } from './importers/SceneImporter';
 import { PrefabImporter } from './importers/PrefabImporter';
+import { TimelineImporter } from './importers/TimelineImporter';
 
 
 // =============================================================================
@@ -115,6 +116,7 @@ export function getImporterRegistry(): ImporterRegistryImpl {
         registry.register(new BitmapFontImporter());
         registry.register(new SceneImporter());
         registry.register(new PrefabImporter());
+        registry.register(new TimelineImporter());
     }
     return registry;
 }

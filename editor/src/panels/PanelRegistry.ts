@@ -58,6 +58,11 @@ export interface SpineInfoProvider {
     onSpineInstanceReady(listener: (entityId: number) => void): () => void;
 }
 
+export interface Saveable {
+    readonly isDirty: boolean;
+    saveAsset(): Promise<boolean>;
+}
+
 export function isResizable(p: PanelInstance): p is PanelInstance & Resizable {
     return typeof (p as any).resize === 'function';
 }
@@ -88,6 +93,10 @@ export function isOutputAppendable(p: PanelInstance): p is PanelInstance & Outpu
 
 export function isSpineInfoProvider(p: PanelInstance): p is PanelInstance & SpineInfoProvider {
     return typeof (p as any).getSpineSkeletonInfo === 'function';
+}
+
+export function isSaveable(p: PanelInstance): p is PanelInstance & Saveable {
+    return typeof (p as any).saveAsset === 'function' && 'isDirty' in p;
 }
 
 const panels = new Map<string, PanelDescriptor>();

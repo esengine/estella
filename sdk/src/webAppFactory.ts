@@ -7,6 +7,7 @@ import { audioPlugin } from './audio';
 import { particlePlugin } from './particle';
 import { tilemapPlugin } from './tilemap';
 import { postProcessPlugin } from './postprocess';
+import { timelinePlugin } from './timeline';
 
 export { uiPlugins };
 export { textPlugin, TextPlugin } from './ui/TextPlugin';
@@ -33,8 +34,9 @@ export { AnimationPlugin, animationPlugin } from './animation';
 export { AudioPlugin, audioPlugin } from './audio';
 export { ParticlePlugin, particlePlugin } from './particle';
 export { PostProcessPlugin, postProcessPlugin } from './postprocess';
+export { TimelinePlugin, timelinePlugin, registerTimelineAsset, parseTimelineAsset, clearTimelineInstances } from './timeline';
 
-const defaultPlugins = [...uiPlugins, animationPlugin, audioPlugin, particlePlugin, tilemapPlugin, postProcessPlugin];
+const defaultPlugins = [...uiPlugins, animationPlugin, audioPlugin, particlePlugin, tilemapPlugin, postProcessPlugin, timelinePlugin];
 
 export function createWebApp(module: ESEngineModule, options?: WebAppOptions): App {
     return _createWebApp(module, { plugins: defaultPlugins, ...options });

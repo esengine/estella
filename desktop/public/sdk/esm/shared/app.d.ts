@@ -23,6 +23,7 @@ interface BuiltinComponentDef<T> {
     readonly _cppName: string;
     readonly _builtin: true;
     readonly _default: T;
+    readonly _colorKeys: readonly string[];
 }
 type AnyComponentDef = ComponentDef<any> | BuiltinComponentDef<any>;
 declare function isBuiltinComponent(comp: AnyComponentDef): comp is BuiltinComponentDef<any>;
@@ -307,8 +308,7 @@ declare class World {
     private entities_;
     private tsStorage_;
     private entityComponents_;
-    private queryPool_;
-    private queryPoolIdx_;
+    private builtinEntitySets_;
     private worldVersion_;
     private queryCache_;
     private builtinMethodCache_;
@@ -321,10 +321,13 @@ declare class World {
     private componentAddedTicks_;
     private componentChangedTicks_;
     private componentRemovedBuffer_;
+    private trackedComponents_;
     connectCpp(cppRegistry: CppRegistry, module?: ESEngineModule): void;
     disconnectCpp(): void;
     get hasCpp(): boolean;
     getCppRegistry(): CppRegistry | null;
+    /** @internal */
+    getWasmModule(): ESEngineModule | null;
     spawn(): Entity;
     despawn(entity: Entity): void;
     onSpawn(callback: (entity: Entity) => void): () => void;
@@ -355,16 +358,29 @@ declare class World {
     private hasScript;
     private removeScript;
     private getStorage;
+    /** @internal Pre-resolve a component to its direct storage/getter for fast iteration. */
+    resolveGetter(component: AnyComponentDef): ((entity: Entity) => unknown) | null;
+    /** @internal Pre-resolve a component to a direct has-check for fast query matching. */
+    resolveHas(component: AnyComponentDef): ((entity: Entity) => boolean) | null;
+    /** @internal Pre-resolve a component to a direct setter for fast Mut write-back. */
+    resolveSetter(component: AnyComponentDef): ((entity: Entity, data: unknown) => void) | null;
+    private resolvePtrFn_;
+    private resolvePtrSetter_;
+    private resolvePtrGetter_;
     resetQueryPool(): void;
     getComponentTypes(entity: Entity): string[];
+    private resolveStorages_;
     getEntitiesWithComponents(components: AnyComponentDef[], withFilters?: AnyComponentDef[], withoutFilters?: AnyComponentDef[], precomputedKey?: string): Entity[];
     advanceTick(): void;
     getWorldTick(): number;
+    enableChangeTracking(component: AnyComponentDef): void;
     isAddedSince(entity: Entity, component: AnyComponentDef, sinceTick: number): boolean;
     isChangedSince(entity: Entity, component: AnyComponentDef, sinceTick: number): boolean;
     getRemovedEntitiesSince(component: AnyComponentDef, sinceTick: number): Entity[];
     cleanRemovedBuffer(beforeTick: number): void;
     private recordAddedTick_;
+    /** @internal Mark component as changed without writing data (for in-place Mut query) */
+    markChanged(entity: Entity, component: AnyComponentDef): void;
     private recordChangedTick_;
     private recordRemovedTick_;
 }
@@ -426,8 +442,13 @@ declare class QueryInstance<C extends readonly QueryArg$1[]> implements Iterable
     private readonly result_;
     private readonly mutData_;
     private readonly cacheKey_;
-    private readonly lastRunTick_;
+    private lastRunTick_;
+    private readonly getters_;
+    private readonly mutSetters_;
+    private readonly mutIsBuiltin_;
     constructor(world: World, descriptor: QueryDescriptor<C>, lastRunTick?: number);
+    /** @internal Update lastRunTick for reuse across system runs */
+    resetTick(tick: number): void;
     private passesChangeFilters_;
     [Symbol.iterator](): Iterator<QueryResult<C>>;
     forEach(callback: (entity: Entity, ...components: ComponentsData<C>) => void): void;
@@ -444,8 +465,10 @@ declare function Removed<T extends AnyComponentDef>(component: T): RemovedQueryD
 declare class RemovedQueryInstance<T extends AnyComponentDef> implements Iterable<Entity> {
     private readonly world_;
     private readonly component_;
-    private readonly lastRunTick_;
+    private lastRunTick_;
     constructor(world: World, component: T, lastRunTick: number);
+    /** @internal Update lastRunTick for reuse across system runs */
+    resetTick(tick: number): void;
     [Symbol.iterator](): Iterator<Entity>;
     isEmpty(): boolean;
     toArray(): Entity[];
@@ -587,6 +610,8 @@ declare class SystemRunner {
     private readonly eventRegistry_;
     private readonly argsCache_;
     private readonly systemTicks_;
+    private readonly queryCache_;
+    private readonly removedCache_;
     private currentLastRunTick_;
     private timings_;
     constructor(world: World, resources: ResourceStorage, eventRegistry?: EventRegistry);
@@ -1013,7 +1038,7 @@ declare class SpineModuleController {
 
 type AssetContentType = 'json' | 'text' | 'binary' | 'image' | 'audio';
 type AddressableAssetType = 'texture' | 'material' | 'spine' | 'bitmap-font' | 'prefab' | 'json' | 'text' | 'binary' | 'audio';
-type EditorAssetType = 'texture' | 'material' | 'shader' | 'spine-atlas' | 'spine-skeleton' | 'bitmap-font' | 'prefab' | 'json' | 'audio' | 'scene' | 'anim-clip' | 'tilemap' | 'unknown';
+type EditorAssetType = 'texture' | 'material' | 'shader' | 'spine-atlas' | 'spine-skeleton' | 'bitmap-font' | 'prefab' | 'json' | 'audio' | 'scene' | 'anim-clip' | 'tilemap' | 'timeline' | 'unknown';
 type AssetBuildTransform = (content: string, context: unknown) => string;
 interface AssetTypeEntry {
     extensions: string[];
@@ -1266,7 +1291,7 @@ interface SceneLoadOptions {
     assetBaseUrl?: string;
     collectAssets?: LoadedSceneAssets;
 }
-type AssetFieldType = 'texture' | 'material' | 'font' | 'anim-clip' | 'audio' | 'tilemap';
+type AssetFieldType = 'texture' | 'material' | 'font' | 'anim-clip' | 'audio' | 'tilemap' | 'timeline';
 interface AssetFieldDescriptor {
     field: string;
     type: AssetFieldType;
