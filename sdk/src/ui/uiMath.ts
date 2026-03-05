@@ -137,6 +137,10 @@ export function pointInOBB(
     pivotX: number, pivotY: number,
     rotationZ: number, rotationW: number,
 ): boolean {
+    if (rotationZ === 0 && rotationW === 1) {
+        return pointInWorldRect(px, py, worldX, worldY, worldW, worldH, pivotX, pivotY);
+    }
+
     const angle = quaternionToAngle2D(rotationZ, rotationW);
     const sin = Math.sin(-angle);
     const cos = Math.cos(-angle);

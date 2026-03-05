@@ -37,12 +37,25 @@ function deepClone<T>(value: T): T {
 
 let componentCounter = 0;
 
-function hasNestedObjects(obj: object): boolean {
+function classifyKeys(obj: object): { flatKeys: string[]; objectKeys: string[]; arrayKeys: string[] } | null {
+    const flatKeys: string[] = [];
+    const objectKeys: string[] = [];
+    const arrayKeys: string[] = [];
+    let hasNested = false;
     for (const key in obj) {
         const val = (obj as Record<string, unknown>)[key];
-        if (val !== null && typeof val === 'object') return true;
+        if (val !== null && typeof val === 'object') {
+            hasNested = true;
+            if (Array.isArray(val)) {
+                arrayKeys.push(key);
+            } else {
+                objectKeys.push(key);
+            }
+        } else {
+            flatKeys.push(key);
+        }
     }
-    return false;
+    return hasNested ? { flatKeys, objectKeys, arrayKeys } : null;
 }
 
 function createComponentDef<T extends object>(
@@ -50,15 +63,20 @@ function createComponentDef<T extends object>(
     defaults: T
 ): ComponentDef<T> {
     const id = ++componentCounter;
-    const needsDeepClone = hasNestedObjects(defaults);
+    const keyInfo = classifyKeys(defaults);
+    const defaultsRec = defaults as Record<string, unknown>;
     return {
         _id: Symbol(`Component_${id}_${name}`),
         _name: name,
         _default: defaults,
         _builtin: false as const,
         create(data?: Partial<T>): T {
-            if (needsDeepClone) {
-                return data ? { ...deepClone(defaults), ...data } : deepClone(defaults);
+            if (keyInfo) {
+                const result = { ...defaultsRec };
+                for (const k of keyInfo.objectKeys) result[k] = { ...(defaultsRec[k] as object) };
+                for (const k of keyInfo.arrayKeys) result[k] = (defaultsRec[k] as unknown[]).slice();
+                if (data) Object.assign(result, data);
+                return result as T;
             }
             return data ? { ...defaults, ...data } : { ...defaults };
         }
@@ -133,6 +151,7 @@ export interface BuiltinComponentDef<T> {
     readonly _cppName: string;
     readonly _builtin: true;
     readonly _default: T;
+    readonly _colorKeys: readonly string[];
 }
 
 // =============================================================================
@@ -159,13 +178,29 @@ export function getComponent(name: string): AnyComponentDef | undefined {
     return componentRegistry.get(name) ?? getUserComponent(name);
 }
 
+function detectColorKeys(defaults: unknown): readonly string[] {
+    if (defaults === null || typeof defaults !== 'object') return [];
+    const keys: string[] = [];
+    for (const key of Object.keys(defaults as Record<string, unknown>)) {
+        const val = (defaults as Record<string, unknown>)[key];
+        if (val !== null && typeof val === 'object' && !Array.isArray(val)) {
+            const rec = val as Record<string, unknown>;
+            if ('r' in rec && 'g' in rec && 'b' in rec && 'a' in rec) {
+                keys.push(key);
+            }
+        }
+    }
+    return keys;
+}
+
 export function defineBuiltin<T>(name: string, defaults: T): BuiltinComponentDef<T> {
     const def: BuiltinComponentDef<T> = {
         _id: Symbol(`Builtin_${name}`),
         _name: name,
         _cppName: name,
         _builtin: true,
-        _default: defaults
+        _default: defaults,
+        _colorKeys: detectColorKeys(defaults),
     };
     componentRegistry.set(name, def);
     return def;

@@ -526,6 +526,7 @@ describe('World', () => {
 
         it('isAddedSince should detect newly added components', () => {
             const w = new World();
+            w.enableChangeTracking(Position);
             const e = w.spawn();
             w.advanceTick();
             w.insert(e, Position, { x: 1, y: 1 });
@@ -541,6 +542,7 @@ describe('World', () => {
 
         it('isChangedSince should detect changed components', () => {
             const w = new World();
+            w.enableChangeTracking(Position);
             const e = w.spawn();
             w.insert(e, Position, { x: 0, y: 0 });
             w.advanceTick();
@@ -556,6 +558,7 @@ describe('World', () => {
 
         it('getRemovedEntitiesSince should detect removed components', () => {
             const w = new World();
+            w.enableChangeTracking(Position);
             const e = w.spawn();
             w.insert(e, Position, { x: 0, y: 0 });
             w.advanceTick();
@@ -571,6 +574,7 @@ describe('World', () => {
 
         it('cleanRemovedBuffer should remove old entries', () => {
             const w = new World();
+            w.enableChangeTracking(Position);
             const e1 = w.spawn();
             w.insert(e1, Position, { x: 0, y: 0 });
             w.remove(e1, Position);
@@ -590,6 +594,7 @@ describe('World', () => {
 
         it('cleanRemovedBuffer should delete empty buffers', () => {
             const w = new World();
+            w.enableChangeTracking(Position);
             const e = w.spawn();
             w.insert(e, Position, { x: 0, y: 0 });
             w.remove(e, Position);
@@ -600,6 +605,8 @@ describe('World', () => {
 
         it('despawn should record removed ticks for all components', () => {
             const w = new World();
+            w.enableChangeTracking(Position);
+            w.enableChangeTracking(Velocity);
             const e = w.spawn();
             w.insert(e, Position, { x: 0, y: 0 });
             w.insert(e, Velocity, { dx: 1, dy: 1 });

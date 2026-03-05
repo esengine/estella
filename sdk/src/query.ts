@@ -185,6 +185,12 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
             descriptor._with,
             descriptor._without,
         );
+        for (const f of descriptor._addedFilters) {
+            world.enableChangeTracking(f.component);
+        }
+        for (const f of descriptor._changedFilters) {
+            world.enableChangeTracking(f.component);
+        }
     }
 
     private passesChangeFilters_(entity: Entity): boolean {
@@ -200,7 +206,7 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
         return true;
     }
 
-    *[Symbol.iterator](): Iterator<QueryResult<C>> {
+    [Symbol.iterator](): Iterator<QueryResult<C>> {
         const { _mutIndices } = this.descriptor_;
         const actualComponents = this.actualComponents_;
         const entities = this.world_.getEntitiesWithComponents(
@@ -215,46 +221,70 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
         const result = this.result_;
         const mutData = this.mutData_;
         const mutCount = mutData.length;
+        const world = this.world_;
+        const self = this;
 
+        let idx = 0;
         let prevEntity: Entity | null = null;
+        let started = false;
+        let done = false;
 
-        this.world_.beginIteration();
-        try {
-            for (const entity of entities) {
-                if (hasChangeFilters && !this.passesChangeFilters_(entity)) {
-                    continue;
-                }
-
-                if (prevEntity !== null && hasMut) {
-                    for (let i = 0; i < mutCount; i++) {
-                        const mut = mutData[i];
-                        this.world_.set(prevEntity, mut.component, mut.data);
-                    }
-                }
-
-                result[0] = entity;
-                for (let i = 0; i < compCount; i++) {
-                    result[i + 1] = this.world_.get(entity, actualComponents[i]);
-                }
-
-                if (hasMut) {
-                    for (let i = 0; i < mutCount; i++) {
-                        mutData[i].data = result[_mutIndices[i] + 1] as Record<string, unknown>;
-                    }
-                    prevEntity = entity;
-                }
-
-                yield result as QueryResult<C>;
-            }
-        } finally {
-            this.world_.endIteration();
+        const finalize = () => {
+            if (done) return;
+            done = true;
+            world.endIteration();
             if (prevEntity !== null && hasMut) {
                 for (let i = 0; i < mutCount; i++) {
                     const mut = mutData[i];
-                    this.world_.set(prevEntity, mut.component, mut.data);
+                    world.set(prevEntity, mut.component, mut.data);
                 }
             }
-        }
+        };
+
+        return {
+            next(): IteratorResult<QueryResult<C>> {
+                if (!started) {
+                    started = true;
+                    world.beginIteration();
+                }
+
+                while (idx < entities.length) {
+                    const entity = entities[idx++];
+
+                    if (hasChangeFilters && !self.passesChangeFilters_(entity)) {
+                        continue;
+                    }
+
+                    if (prevEntity !== null && hasMut) {
+                        for (let i = 0; i < mutCount; i++) {
+                            const mut = mutData[i];
+                            world.set(prevEntity, mut.component, mut.data);
+                        }
+                    }
+
+                    result[0] = entity;
+                    for (let i = 0; i < compCount; i++) {
+                        result[i + 1] = world.get(entity, actualComponents[i]);
+                    }
+
+                    if (hasMut) {
+                        for (let i = 0; i < mutCount; i++) {
+                            mutData[i].data = result[_mutIndices[i] + 1] as Record<string, unknown>;
+                        }
+                        prevEntity = entity;
+                    }
+
+                    return { value: result as QueryResult<C>, done: false };
+                }
+
+                finalize();
+                return { value: undefined as unknown as QueryResult<C>, done: true };
+            },
+            return(): IteratorResult<QueryResult<C>> {
+                finalize();
+                return { value: undefined as unknown as QueryResult<C>, done: true };
+            },
+        };
     }
 
     forEach(callback: (entity: Entity, ...components: ComponentsData<C>) => void): void {
@@ -311,6 +341,7 @@ export class RemovedQueryInstance<T extends AnyComponentDef> implements Iterable
         this.world_ = world;
         this.component_ = component;
         this.lastRunTick_ = lastRunTick;
+        world.enableChangeTracking(component);
     }
 
     *[Symbol.iterator](): Iterator<Entity> {

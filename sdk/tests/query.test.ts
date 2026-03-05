@@ -360,6 +360,7 @@ describe('Query System', () => {
 
     describe('Added query filtering', () => {
         it('should only return entities added since last run tick', () => {
+            world.enableChangeTracking(Position);
             const e1 = world.spawn();
             world.insert(e1, Position, { x: 1, y: 1 });
 
@@ -375,6 +376,7 @@ describe('Query System', () => {
 
     describe('Changed query filtering', () => {
         it('should only return entities changed since last run tick', () => {
+            world.enableChangeTracking(Position);
             const e1 = world.spawn();
             world.insert(e1, Position, { x: 1, y: 1 });
 
@@ -517,6 +519,7 @@ describe('Query System', () => {
         });
 
         it('should iterate over removed entities', () => {
+            world.enableChangeTracking(Position);
             const e1 = world.spawn();
             world.insert(e1, Position, { x: 1, y: 1 });
             world.remove(e1, Position);
@@ -527,6 +530,7 @@ describe('Query System', () => {
         });
 
         it('should report isEmpty correctly', () => {
+            world.enableChangeTracking(Position);
             const instance = new RemovedQueryInstance(world, Position, Infinity);
             expect(instance.isEmpty()).toBe(true);
 
@@ -539,6 +543,7 @@ describe('Query System', () => {
         });
 
         it('should be iterable', () => {
+            world.enableChangeTracking(Position);
             const e1 = world.spawn();
             world.insert(e1, Position, { x: 1, y: 1 });
             world.remove(e1, Position);

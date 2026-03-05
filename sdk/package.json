@@ -45,7 +45,9 @@
     "prepublishOnly": "npm run clean && npm run build",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:ui": "vitest --ui"
+    "test:ui": "vitest --ui",
+    "bench": "vitest bench",
+    "bench:watch": "vitest bench --watch"
   },
   "keywords": [
     "game-engine",

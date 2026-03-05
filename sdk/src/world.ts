@@ -11,74 +11,29 @@ import { handleWasmError } from './wasmError';
 
 function convertFromWasm(
     obj: Record<string, unknown>,
-    defaults: Record<string, unknown>,
+    colorKeys: readonly string[],
 ): Record<string, unknown> {
-    let needsConversion = false;
-    for (const key of Object.keys(defaults)) {
-        const def = defaults[key];
-        if (def !== null && def !== undefined && typeof def === 'object' && !Array.isArray(def)) {
-            const defRec = def as Record<string, unknown>;
-            if ('r' in defRec && 'g' in defRec && 'b' in defRec && 'a' in defRec) {
-                const val = obj[key];
-                if (val !== null && val !== undefined && typeof val === 'object') {
-                    const valRec = val as Record<string, unknown>;
-                    if ('x' in valRec && !('r' in valRec)) {
-                        needsConversion = true;
-                        break;
-                    }
-                }
-            }
-        }
-    }
-    if (!needsConversion) return obj;
-
-    const result: Record<string, unknown> = {};
-    for (const key of Object.keys(obj)) {
-        const val = obj[key];
-        const def = defaults[key];
-        if (val !== null && val !== undefined && typeof val === 'object' && !Array.isArray(val) &&
-            def !== null && def !== undefined && typeof def === 'object' && !Array.isArray(def)) {
-            const valRec = val as Record<string, unknown>;
-            const defRec = def as Record<string, unknown>;
-            if ('r' in defRec && 'g' in defRec && 'b' in defRec && 'a' in defRec &&
-                'x' in valRec && !('r' in valRec)) {
-                result[key] = { r: valRec.x, g: valRec.y, b: valRec.z, a: valRec.w };
-            } else {
-                result[key] = val;
-            }
-        } else {
-            result[key] = val;
+    if (colorKeys.length === 0) return obj;
+    const result: Record<string, unknown> = { ...obj };
+    for (const key of colorKeys) {
+        const val = result[key] as Record<string, unknown> | null | undefined;
+        if (val && typeof val === 'object') {
+            result[key] = { r: val.x, g: val.y, b: val.z, a: val.w };
         }
     }
     return result;
 }
 
-function convertForWasm(obj: Record<string, unknown>): Record<string, unknown> {
-    let needsConversion = false;
-    for (const key of Object.keys(obj)) {
-        const val = obj[key];
-        if (val !== null && val !== undefined && typeof val === 'object' && !Array.isArray(val)) {
-            const rec = val as Record<string, unknown>;
-            if ('r' in rec && 'g' in rec && 'b' in rec && 'a' in rec && !('x' in rec)) {
-                needsConversion = true;
-                break;
-            }
-        }
-    }
-    if (!needsConversion) return obj;
-
-    const result: Record<string, unknown> = {};
-    for (const key of Object.keys(obj)) {
-        const val = obj[key];
-        if (val !== null && val !== undefined && typeof val === 'object' && !Array.isArray(val)) {
-            const rec = val as Record<string, unknown>;
-            if ('r' in rec && 'g' in rec && 'b' in rec && 'a' in rec && !('x' in rec)) {
-                result[key] = { x: rec.r, y: rec.g, z: rec.b, w: rec.a };
-            } else {
-                result[key] = val;
-            }
-        } else {
-            result[key] = val;
+function convertForWasm(
+    obj: Record<string, unknown>,
+    colorKeys: readonly string[],
+): Record<string, unknown> {
+    if (colorKeys.length === 0) return obj;
+    const result: Record<string, unknown> = { ...obj };
+    for (const key of colorKeys) {
+        const val = result[key] as Record<string, unknown> | null | undefined;
+        if (val && typeof val === 'object') {
+            result[key] = { x: val.r, y: val.g, z: val.b, w: val.a };
         }
     }
     return result;
@@ -158,6 +113,7 @@ export class World {
     private componentAddedTicks_ = new Map<symbol, Map<Entity, number>>();
     private componentChangedTicks_ = new Map<symbol, Map<Entity, number>>();
     private componentRemovedBuffer_ = new Map<symbol, Array<{ entity: Entity; tick: number }>>();
+    private trackedComponents_ = new Set<symbol>();
 
     connectCpp(cppRegistry: CppRegistry, module?: ESEngineModule): void {
         this.cppRegistry_ = cppRegistry;
@@ -362,7 +318,7 @@ export class World {
                     }
                     this.getBuiltinMethods(component._cppName).add(
                         entity,
-                        convertForWasm(wasmData)
+                        convertForWasm(wasmData, component._colorKeys)
                     );
                 } catch (e) {
                     handleWasmError(e, `set(${component._name}, entity=${entity})`);
@@ -478,7 +434,7 @@ export class World {
             try {
                 const methods = this.getBuiltinMethods(component._cppName);
                 isNew = !methods.has(entity);
-                methods.add(entity, convertForWasm(merged as Record<string, unknown>));
+                methods.add(entity, convertForWasm(merged as Record<string, unknown>, component._colorKeys));
             } catch (e) {
                 handleWasmError(e, `insertBuiltin(${component._name}, entity=${entity})`);
             }
@@ -500,7 +456,7 @@ export class World {
             const raw = this.getBuiltinMethods(component._cppName).get(entity);
             return convertFromWasm(
                 raw as Record<string, unknown>,
-                component._default as Record<string, unknown>,
+                component._colorKeys,
             ) as T;
         } catch (e) {
             handleWasmError(e, `getBuiltin(${component._name}, entity=${entity})`);
@@ -735,6 +691,10 @@ export class World {
         return this.worldTick_;
     }
 
+    enableChangeTracking(component: AnyComponentDef): void {
+        this.trackedComponents_.add(component._id);
+    }
+
     isAddedSince(entity: Entity, component: AnyComponentDef, sinceTick: number): boolean {
         const map = this.componentAddedTicks_.get(component._id);
         if (!map) return false;
@@ -777,6 +737,7 @@ export class World {
     }
 
     private recordAddedTick_(component: AnyComponentDef, entity: Entity): void {
+        if (!this.trackedComponents_.has(component._id)) return;
         let map = this.componentAddedTicks_.get(component._id);
         if (!map) {
             map = new Map();
@@ -786,6 +747,7 @@ export class World {
     }
 
     private recordChangedTick_(component: AnyComponentDef, entity: Entity): void {
+        if (!this.trackedComponents_.has(component._id)) return;
         let map = this.componentChangedTicks_.get(component._id);
         if (!map) {
             map = new Map();
@@ -795,6 +757,7 @@ export class World {
     }
 
     private recordRemovedTick_(component: AnyComponentDef, entity: Entity): void {
+        if (!this.trackedComponents_.has(component._id)) return;
         let buffer = this.componentRemovedBuffer_.get(component._id);
         if (!buffer) {
             buffer = [];
