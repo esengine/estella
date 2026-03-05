@@ -4,7 +4,7 @@
  */
 
 export { BuildSettingsDialog, showBuildSettingsDialog } from './BuildSettingsDialog';
-export { BuildService, type BuildResult, type BuildContext, type BuildOptions } from './BuildService';
+export { BuildService, type BuildResult, type BuildContext, type BuildOptions, type OutputFileEntry } from './BuildService';
 export { buildArtifact, initializeEsbuild, createBuildVirtualFsPlugin, arrayBufferToBase64, generateAddressableManifest, type SdkModuleLoader } from './ArtifactBuilder';
 export { PLAYABLE_HTML_TEMPLATE, generateWeChatGameJs, type WeChatGameJsParams } from './templates';
 
@@ -15,12 +15,15 @@ export { BuildConfigService, getBuildConfigService, initBuildConfigService, type
 export { BuildPipeline, createTask, createPlayableTasks, type BuildTask, type TaskResult, type PipelineResult } from './BuildPipeline';
 export { BuildConfigIO, downloadConfigsAsFile, uploadConfigsFromFile, type ExportedConfig, type ImportResult } from './BuildConfigIO';
 export { BuildHistory, formatBuildTime, formatBuildDuration, getBuildStatusIcon, getBuildStatusClass, type BuildHistoryEntry, type BuildStatus } from './BuildHistory';
-export { BUILD_TEMPLATES, getTemplates, getTemplatesByPlatform, getTemplate, createConfigFromTemplate, applyTemplateToConfig, getTemplateIconSvg, type BuildTemplate } from './BuildTemplates';
+export { BUILD_TEMPLATES, getTemplates, getTemplatesByPlatform, getTemplate, createConfigFromTemplate, applyTemplateToConfig, getTemplateIconSvg, getAllTemplates, configToTemplate, saveUserTemplate, loadUserTemplates, deleteUserTemplate, type BuildTemplate, type UserTemplate } from './BuildTemplates';
 export { BatchBuilder, ParallelBatchBuilder, type BatchBuildResult, type ConfigBuildResult, type BatchBuildProgress } from './BatchBuilder';
 export { AssetExportConfigService, AssetReferenceCollector, BuildAssetCollector, type FolderExportMode, type AssetExportConfig } from './AssetCollector';
 export { AssetDependencyAnalyzer, collectReferencedAssets, registerRefScanner, type AssetRefScanner, type DependencyGraph } from '../asset/AssetDependencyAnalyzer';
 export { type PlatformEmitter, type BuildArtifact } from './PlatformEmitter';
 export { PlayableEmitter } from './PlayableEmitter';
 export { WeChatEmitter } from './WeChatEmitter';
+export { discoverProjectScenes } from './SceneDiscovery';
+export { analyzeUsedPlugins, buildDefinesMap, generatePhysicsConfig, compileUserScripts, resolveSceneUUIDs, collectUserScriptImports, type CompileOptions } from './EmitterUtils';
+export { executeHooks, validateHook, createDefaultHook } from './BuildHooks';
 export { TextureAtlasPacker, type AtlasFrame, type AtlasPage, type AtlasResult } from './TextureAtlas';
 export { AssetDatabase, AssetDatabase as AssetLibrary, getAssetDatabase, getAssetDatabase as getAssetLibrary, resetAssetDatabase, resetAssetDatabase as resetAssetLibrary, isUUID } from '../asset/AssetDatabase';

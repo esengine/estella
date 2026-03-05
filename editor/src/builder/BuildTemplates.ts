@@ -9,6 +9,8 @@ import {
     PlayableSettings,
     WeChatSettings,
 } from '../types/BuildTypes';
+import type { NativeFS } from '../types/NativeFS';
+import { joinPath } from '../utils/path';
 
 // =============================================================================
 // Types
@@ -200,6 +202,101 @@ export function applyTemplateToConfig(
     }
 
     return updated;
+}
+
+// =============================================================================
+// Template Icon Mapping
+// =============================================================================
+
+// =============================================================================
+// User Custom Presets
+// =============================================================================
+
+const USER_TEMPLATES_DIR = '.esengine/build-templates';
+
+export interface UserTemplate extends BuildTemplate {
+    isUserDefined: true;
+}
+
+export function configToTemplate(config: BuildConfig, name: string, description: string): UserTemplate {
+    const template: UserTemplate = {
+        id: `user-${Date.now()}`,
+        name,
+        description,
+        platform: config.platform,
+        icon: config.platform === 'playable' ? 'play' : 'box',
+        defines: [...config.defines],
+        isUserDefined: true,
+    };
+
+    if (config.playableSettings) {
+        const { startupScene, ...rest } = config.playableSettings;
+        template.playableSettings = rest;
+    }
+    if (config.wechatSettings) {
+        const { appId, ...rest } = config.wechatSettings;
+        template.wechatSettings = rest;
+    }
+
+    return template;
+}
+
+export async function saveUserTemplate(
+    fs: NativeFS,
+    projectDir: string,
+    template: UserTemplate,
+): Promise<void> {
+    const dir = joinPath(projectDir, USER_TEMPLATES_DIR);
+    await fs.createDirectory(dir);
+    const filePath = joinPath(dir, `${template.id}.json`);
+    await fs.writeFile(filePath, JSON.stringify(template, null, 2));
+}
+
+export async function loadUserTemplates(
+    fs: NativeFS,
+    projectDir: string,
+): Promise<UserTemplate[]> {
+    const dir = joinPath(projectDir, USER_TEMPLATES_DIR);
+    if (!await fs.exists(dir)) return [];
+
+    const entries = await fs.listDirectory(dir);
+    const templates: UserTemplate[] = [];
+
+    for (const entry of entries) {
+        if (!entry.endsWith('.json')) continue;
+        const filePath = joinPath(dir, entry);
+        const content = await fs.readFile(filePath);
+        if (content) {
+            try {
+                const parsed = JSON.parse(content) as UserTemplate;
+                parsed.isUserDefined = true;
+                templates.push(parsed);
+            } catch {
+                // skip invalid files
+            }
+        }
+    }
+
+    return templates;
+}
+
+export async function deleteUserTemplate(
+    fs: NativeFS,
+    projectDir: string,
+    templateId: string,
+): Promise<void> {
+    const filePath = joinPath(projectDir, USER_TEMPLATES_DIR, `${templateId}.json`);
+    if (await fs.exists(filePath)) {
+        await fs.writeFile(filePath, '');
+    }
+}
+
+export async function getAllTemplates(
+    fs: NativeFS,
+    projectDir: string,
+): Promise<BuildTemplate[]> {
+    const userTemplates = await loadUserTemplates(fs, projectDir);
+    return [...BUILD_TEMPLATES, ...userTemplates];
 }
 
 // =============================================================================

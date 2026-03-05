@@ -5,75 +5,21 @@
 
 import * as esbuild from 'esbuild-wasm/esm/browser';
 import type { PlatformEmitter, BuildArtifact } from './PlatformEmitter';
-import type { BuildResult, BuildContext } from './BuildService';
+import type { BuildResult, BuildContext, OutputFileEntry } from './BuildService';
 import { BuildProgressReporter } from './BuildProgress';
 import { getEditorContext } from '../context/EditorContext';
-import { findTsFiles, EDITOR_ONLY_DIRS } from '../scripting/ScriptLoader';
 import { joinPath, getFileExtension, isAbsolutePath, getParentDir, normalizePath, getProjectDir } from '../utils/path';
-import { isUUID, getComponentRefFields } from '../asset/AssetLibrary';
-import { initializeEsbuild, createBuildVirtualFsPlugin, arrayBufferToBase64, generateAddressableManifest } from './ArtifactBuilder';
+import { arrayBufferToBase64, generateAddressableManifest } from './ArtifactBuilder';
 import { PLAYABLE_HTML_TEMPLATE } from './templates';
 import type { NativeFS } from '../types/NativeFS';
 import { getAssetMimeType, getAssetTypeEntry, toBuildPath } from 'esengine';
-
-// =============================================================================
-// Plugin Analysis
-// =============================================================================
-
-const COMPONENT_TO_PLUGIN: Record<string, string> = {
-    'Text': 'textPlugin',
-    'BitmapText': 'textPlugin',
-    'UIRect': 'uiLayoutPlugin',
-    'UIMask': 'uiMaskPlugin',
-    'Interactable': 'uiInteractionPlugin',
-    'Button': 'uiInteractionPlugin',
-    'TextInput': 'textInputPlugin',
-    'Image': 'imagePlugin',
-    'Toggle': 'togglePlugin',
-    'ToggleGroup': 'togglePlugin',
-    'ProgressBar': 'progressBarPlugin',
-    'Slider': 'sliderPlugin',
-    'Draggable': 'dragPlugin',
-    'ScrollView': 'scrollViewPlugin',
-    'Focusable': 'focusPlugin',
-    'SafeArea': 'safeAreaPlugin',
-    'ListView': 'listViewPlugin',
-    'Dropdown': 'dropdownPlugin',
-    'LayoutGroup': 'layoutGroupPlugin',
-    'AudioSource': 'audioPlugin',
-    'ParticleEmitter': 'particlePlugin',
-    'Tilemap': 'tilemapPlugin',
-    'TilemapLayer': 'tilemapPlugin',
-    'PostProcessVolume': 'postProcessPlugin',
-};
-
-function analyzeUsedPlugins(artifact: BuildArtifact): string[] {
-    const plugins = new Set<string>();
-    let hasUI = false;
-
-    for (const sceneData of artifact.scenes.values()) {
-        const entities = (sceneData as any).entities as Array<{
-            components: Array<{ type: string }>;
-        }> | undefined;
-        if (!entities) continue;
-
-        for (const entity of entities) {
-            for (const comp of entity.components) {
-                const plugin = COMPONENT_TO_PLUGIN[comp.type];
-                if (plugin) {
-                    plugins.add(plugin);
-                    hasUI = true;
-                }
-            }
-        }
-    }
-
-    if (hasUI) {
-        plugins.add('uiRenderOrderPlugin');
-    }
-
-    return Array.from(plugins);
-}
+import {
+    analyzeUsedPlugins,
+    collectUserScriptImports,
+    compileUserScripts,
+    resolveSceneUUIDs,
+    generatePhysicsConfig,
+} from './EmitterUtils';
 
 // =============================================================================
 // PlayableEmitter
@@ -111,7 +57,7 @@ export class PlayableEmitter implements PlatformEmitter {
             // 2. Compile user scripts
             progress.setPhase('compiling');
             progress.setCurrentTask('Compiling scripts...', 0);
-            const gameCode = await this.compileUserScripts(fs, projectDir, context, artifact);
+            const gameCode = await this.compilePlayableScripts(fs, projectDir, context, artifact);
             progress.log('info', `Scripts compiled: ${gameCode.length} bytes`);
 
             // 3. Process all scenes (resolve UUIDs)
@@ -119,7 +65,7 @@ export class PlayableEmitter implements PlatformEmitter {
             const allScenes: Array<{ name: string; data: string }> = [];
             for (const [name, data] of artifact.scenes) {
                 const copy = JSON.parse(JSON.stringify(data));
-                this.resolveSceneUUIDs(copy, artifact);
+                resolveSceneUUIDs(copy, artifact);
                 allScenes.push({ name, data: JSON.stringify(copy) });
             }
             if (!allScenes.some(s => s.name === startupSceneName)) {
@@ -189,11 +135,13 @@ export class PlayableEmitter implements PlatformEmitter {
             const success = await fs.writeFile(outputPath, html);
 
             if (success) {
+                const fileSize = new TextEncoder().encode(html).length;
                 progress.log('info', `Build successful: ${outputPath}`);
                 return {
                     success: true,
                     outputPath,
-                    outputSize: new TextEncoder().encode(html).length,
+                    outputSize: fileSize,
+                    outputFiles: [{ path: outputPath, size: fileSize }],
                 };
             }
             return { success: false, error: 'Failed to write output file' };
@@ -221,15 +169,13 @@ export class PlayableEmitter implements PlatformEmitter {
         }
     }
 
-    private async compileUserScripts(fs: NativeFS, projectDir: string, context: BuildContext, artifact: BuildArtifact): Promise<string> {
-        const scriptsPath = joinPath(projectDir, 'src');
-        const hasSrcDir = await fs.exists(scriptsPath);
-
-        let imports = '';
-        if (hasSrcDir) {
-            const scripts = await findTsFiles(fs, scriptsPath, EDITOR_ONLY_DIRS);
-            imports = scripts.map(p => `import "${p}";`).join('\n');
-        }
+    private async compilePlayableScripts(
+        fs: NativeFS,
+        projectDir: string,
+        context: BuildContext,
+        artifact: BuildArtifact,
+    ): Promise<string> {
+        const { imports, hasSrcDir } = await collectUserScriptImports(fs, projectDir);
 
         const usedPlugins = analyzeUsedPlugins(artifact);
         const alwaysPlugins = ['animationPlugin', 'audioPlugin', 'particlePlugin'];
@@ -250,91 +196,22 @@ const __plugins = [${pluginList}];
 `;
 
         const settings = context.config.playableSettings!;
-        const defines: Record<string, string> = {
-            'process.env.EDITOR': 'false',
-        };
-        for (const def of context.config.defines) {
-            defines[`process.env.${def}`] = 'true';
-        }
+        const scriptsPath = joinPath(projectDir, 'src');
 
-        await initializeEsbuild();
-
-        const plugin = createBuildVirtualFsPlugin(fs, projectDir, async (path) => {
-            if (path === 'esengine') {
-                return { contents: await fs.getSdkEsmJs(), loader: 'js' as esbuild.Loader };
-            }
-            if (path === 'esengine/wasm') {
-                return { contents: await fs.getSdkWasmJs(), loader: 'js' as esbuild.Loader };
-            }
-            return { contents: '', loader: 'js' as esbuild.Loader };
-        });
-
-        const result = await esbuild.build({
-            stdin: {
-                contents: entryContent,
-                loader: 'ts',
-                resolveDir: hasSrcDir ? scriptsPath : projectDir,
-            },
-            bundle: true,
-            format: 'iife',
-            write: false,
-            platform: 'browser',
-            target: 'es2020',
-            treeShaking: true,
+        return compileUserScripts(fs, projectDir, context, {
+            entryContent,
+            resolveDir: hasSrcDir ? scriptsPath : projectDir,
             minify: settings.minifyCode,
-            define: defines,
-            plugins: [plugin],
+            sdkResolver: async (path) => {
+                if (path === 'esengine') {
+                    return { contents: await fs.getSdkEsmJs(), loader: 'js' as esbuild.Loader };
+                }
+                if (path === 'esengine/wasm') {
+                    return { contents: await fs.getSdkWasmJs(), loader: 'js' as esbuild.Loader };
+                }
+                return { contents: '', loader: 'js' as esbuild.Loader };
+            },
         });
-
-        const output = result.outputFiles?.[0]?.text;
-        if (!output) {
-            throw new Error('esbuild produced no output');
-        }
-        return output;
-    }
-
-    private resolveSceneUUIDs(sceneData: Record<string, unknown>, artifact: BuildArtifact): void {
-        const entities = sceneData.entities as Array<{
-            components: Array<{ type: string; data: Record<string, unknown> }>;
-            prefab?: { prefabPath: string };
-        }> | undefined;
-        if (!entities) return;
-
-        for (const entity of entities) {
-            if (entity.prefab && typeof entity.prefab.prefabPath === 'string') {
-                if (isUUID(entity.prefab.prefabPath)) {
-                    const path = artifact.assetLibrary.getPath(entity.prefab.prefabPath);
-                    if (path) entity.prefab.prefabPath = toBuildPath(path);
-                } else {
-                    entity.prefab.prefabPath = toBuildPath(entity.prefab.prefabPath);
-                }
-            }
-            for (const comp of entity.components || []) {
-                const refFields = getComponentRefFields(comp.type);
-                if (!refFields || !comp.data) continue;
-                for (const field of refFields) {
-                    const value = comp.data[field];
-                    if (typeof value === 'string' && isUUID(value)) {
-                        const path = artifact.assetLibrary.getPath(value);
-                        if (path) comp.data[field] = toBuildPath(path);
-                    }
-                }
-            }
-        }
-
-        const textureMetadata = sceneData.textureMetadata as Record<string, unknown> | undefined;
-        if (textureMetadata) {
-            const resolved: Record<string, unknown> = {};
-            for (const [key, value] of Object.entries(textureMetadata)) {
-                if (isUUID(key)) {
-                    const path = artifact.assetLibrary.getPath(key);
-                    resolved[path ?? key] = value;
-                } else {
-                    resolved[key] = value;
-                }
-            }
-            sceneData.textureMetadata = resolved;
-        }
     }
 
     private async collectInlineAssets(
@@ -460,12 +337,7 @@ const __plugins = [${pluginList}];
             physicsScript = `<script>\nvar __PHYSICS_WASM_B64__="${physicsWasmBase64}";\n${physicsJs}\n</script>`;
         }
 
-        const physicsConfig = JSON.stringify({
-            gravity: context.physicsGravity ?? { x: 0, y: -9.81 },
-            fixedTimestep: context.physicsFixedTimestep ?? 1 / 60,
-            subStepCount: context.physicsSubStepCount ?? 4,
-            collisionLayerMasks: context.collisionLayerMasks,
-        });
+        const physicsConfig = generatePhysicsConfig(context);
 
         const enableCTA = context.config.playableSettings?.enableBuiltinCTA ?? false;
         const ctaUrl = JSON.stringify(context.config.playableSettings?.ctaUrl || '');

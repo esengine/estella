@@ -52,6 +52,30 @@ export interface WeChatSettings {
 }
 
 // =============================================================================
+// Build Hooks
+// =============================================================================
+
+export type BuildHookPhase = 'pre' | 'post';
+export type BuildHookType = 'copy-files' | 'run-command';
+
+export interface CopyFilesConfig {
+    from: string;
+    to: string;
+    pattern?: string;
+}
+
+export interface RunCommandConfig {
+    command: string;
+    args?: string[];
+}
+
+export interface BuildHook {
+    phase: BuildHookPhase;
+    type: BuildHookType;
+    config: CopyFilesConfig | RunCommandConfig;
+}
+
+// =============================================================================
 // Build Configuration
 // =============================================================================
 
@@ -62,6 +86,7 @@ export interface BuildConfig {
     scenes: string[];
     defines: string[];
     additionalAssets?: string[];
+    hooks?: BuildHook[];
     playableSettings?: PlayableSettings;
     wechatSettings?: WeChatSettings;
 }
