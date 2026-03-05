@@ -1,4 +1,4 @@
-import type { PanelInstance, Resizable } from '../PanelRegistry';
+import type { PanelInstance } from '../PanelRegistry';
 import type { EditorStore } from '../../store/EditorStore';
 import type { PropertyChangeEvent } from '../../store/EditorStore';
 import type { Command } from '../../commands/Command';
@@ -13,7 +13,7 @@ import { getAssetDatabase as getAssetLibrary, isUUID } from '../../asset';
 
 const PLAYBACK_INTERVAL_MS = 16;
 
-export class TimelinePanel implements PanelInstance, Resizable {
+export class TimelinePanel implements PanelInstance {
     private container_: HTMLElement;
     private store_: EditorStore;
     private state_: TimelineState;

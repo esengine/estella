@@ -1,6 +1,8 @@
 import type { EditorStore } from '../store/EditorStore';
 import type { EntityData } from '../types/SceneTypes';
 import type { TransformValue } from '../math/Transform';
+import { getEditorContainer } from '../container';
+import { GIZMO } from '../container/tokens';
 
 export interface GizmoContext {
     store: EditorStore;
@@ -28,27 +30,15 @@ export interface GizmoDescriptor {
     getCursor?(hitData: unknown): string;
 }
 
-const gizmos = new Map<string, GizmoDescriptor>();
-const builtinGizmoIds = new Set<string>();
-
 export function registerGizmo(descriptor: GizmoDescriptor): void {
-    gizmos.set(descriptor.id, descriptor);
-}
-
-export function lockBuiltinGizmos(): void {
-    for (const id of gizmos.keys()) builtinGizmoIds.add(id);
-}
-
-export function clearExtensionGizmos(): void {
-    for (const id of gizmos.keys()) {
-        if (!builtinGizmoIds.has(id)) gizmos.delete(id);
-    }
+    getEditorContainer().provide(GIZMO, descriptor.id, descriptor);
 }
 
 export function getGizmo(id: string): GizmoDescriptor | undefined {
-    return gizmos.get(id);
+    return getEditorContainer().get(GIZMO, id);
 }
 
 export function getAllGizmos(): GizmoDescriptor[] {
-    return Array.from(gizmos.values()).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    return Array.from(getEditorContainer().getAll(GIZMO).values())
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 }

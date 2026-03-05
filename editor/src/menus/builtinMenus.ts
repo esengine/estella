@@ -1,11 +1,15 @@
-import { registerMenu, registerMenuItem } from './MenuRegistry';
+import type { MenuDescriptor, MenuItemDescriptor } from './MenuRegistry';
 import type { Editor } from '../Editor';
+import type { PluginRegistrar } from '../container';
+import { MENU, MENU_ITEM } from '../container/tokens';
 import { getEditorContext } from '../context/EditorContext';
 import { showStatusBarMessage } from './builtinStatusbar';
 import { showConfirmDialog } from '../ui/dialog';
 import type { Entity } from 'esengine';
 
-export function registerBuiltinMenus(editor: Editor): void {
+export function registerBuiltinMenus(registrar: PluginRegistrar, editor: Editor): void {
+    const registerMenu = (d: MenuDescriptor) => registrar.provide(MENU, d.id, d);
+    const registerMenuItem = (d: MenuItemDescriptor) => registrar.provide(MENU_ITEM, d.id, d);
     registerMenu({ id: 'file', label: 'File', order: 0 });
     registerMenu({ id: 'edit', label: 'Edit', order: 1 });
     registerMenu({ id: 'view', label: 'View', order: 2 });

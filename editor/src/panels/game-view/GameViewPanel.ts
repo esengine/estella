@@ -1,5 +1,5 @@
 import type { EditorStore } from '../../store/EditorStore';
-import type { PanelInstance, Resizable } from '../PanelRegistry';
+import type { PanelInstance } from '../PanelRegistry';
 import { GameInstanceManager, type GameState } from './GameInstanceManager';
 import { GameViewToolbar } from './GameViewToolbar';
 import { GameViewRenderer } from '../../renderer/GameViewRenderer';
@@ -11,7 +11,7 @@ export interface GameViewPanelOptions {
     projectPath?: string;
 }
 
-export class GameViewPanel implements PanelInstance, Resizable {
+export class GameViewPanel implements PanelInstance {
     private container_: HTMLElement;
     private toolbar_: GameViewToolbar;
     private gameManager_: GameInstanceManager;

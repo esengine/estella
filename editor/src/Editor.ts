@@ -11,15 +11,13 @@ import { EditorBridge } from './bridge/EditorBridge';
 import { PanelManager } from './PanelManager';
 import { MenuManager } from './MenuManager';
 import { PreviewManager } from './PreviewManager';
+import { getAllPanels } from './panels/PanelRegistry';
+import { exposeRegistrationAPI } from './schemas/ComponentSchemas';
 import {
-    registerPanel,
-    getAllPanels,
-    isBuiltinPanel,
-    isSaveable,
-} from './panels/PanelRegistry';
-import { lockBuiltinPropertyEditors, clearExtensionPropertyEditors } from './property/PropertyEditor';
-import { lockBuiltinComponentSchemas, clearExtensionComponentSchemas, exposeRegistrationAPI } from './schemas/ComponentSchemas';
-import { registerBoundsProvider, lockBuiltinBoundsProviders, clearExtensionBoundsProviders } from './bounds';
+    EditorContainer, setEditorContainer, getEditorContainer,
+    PANEL,
+} from './container';
+import * as containerTokens from './container/tokens';
 import { saveSceneToFile, saveSceneToPath, loadSceneFromFile, loadSceneFromPath, hasFileHandle, clearFileHandle } from './io/SceneSerializer';
 import { isAbsolutePath, joinPath, getProjectDir } from './utils/path';
 import { icons } from './utils/icons';
@@ -31,26 +29,12 @@ import { getSharedRenderContext } from './renderer/SharedRenderContext';
 import type { EditorAssetServer } from './asset/EditorAssetServer';
 import { getAssetLibrary } from './asset/AssetLibrary';
 import { setEditorInstance, getEditorContext, getEditorInstance } from './context/EditorContext';
-import { registerGizmo, lockBuiltinGizmos, clearExtensionGizmos } from './gizmos';
 import { ExtensionLoader } from './extension';
 import { setEditorAPI, clearEditorAPI } from './extension/editorAPI';
-import {
-    registerMenu, registerMenuItem, registerStatusbarItem,
-    lockBuiltinMenus, clearExtensionMenus,
-} from './menus/MenuRegistry';
-import { registerPropertyEditor } from './property';
-import { registerComponentSchema } from './schemas';
 import { showToast, showSuccessToast, showErrorToast } from './ui/Toast';
 import { showContextMenu } from './ui/ContextMenu';
-import { registerContextMenuItem, lockBuiltinContextMenuItems, clearExtensionContextMenuItems } from './ui/ContextMenuRegistry';
 import { installGlobalErrorHandler } from './error/GlobalErrorHandler';
 import { EditorLogger, createConsoleHandler, createToastHandler } from './logging';
-import {
-    registerInspectorSection,
-    registerComponentInspector,
-    lockBuiltinInspectorExtensions,
-    clearExtensionInspectorExtensions,
-} from './panels/inspector/InspectorRegistry';
 import type { EditorPlugin, EditorPluginContext } from './plugins/EditorPlugin';
 import { builtinPlugins, coreStatusbarPlugin } from './plugins';
 
@@ -58,11 +42,7 @@ import { showConfirmDialog, showInputDialog, showDialog } from './ui/dialog';
 import { getEditorStore } from './store';
 import { generateUniqueName } from './utils/naming';
 import {
-    lockBuiltinSettings,
-    clearExtensionSettings,
     showSettingsDialog,
-    registerSettingsSection,
-    registerSettingsItem,
     getSettingsValue,
     setSettingsValue,
     onSettingsChange,
@@ -71,9 +51,6 @@ import {
 import { loadEditorLocalSettings, saveEditorLocalSetting } from './launcher/ProjectService';
 import { DockLayoutManager } from './DockLayoutManager';
 import { ContentDrawer } from './ui/ContentDrawer';
-import {
-    lockBuiltinPanels, clearExtensionPanels,
-} from './panels/PanelRegistry';
 import { MainWindowBridge } from './multiwindow/MainWindowBridge';
 import { WindowManager } from './multiwindow/WindowManager';
 import { emit } from '@tauri-apps/api/event';
@@ -128,7 +105,11 @@ export class Editor {
         this.menuManager_.setStore(this.store_);
         this.previewManager_ = new PreviewManager(this.projectPath_);
 
+        const iocContainer = new EditorContainer();
+        setEditorContainer(iocContainer);
+
         this.pluginContext_ = {
+            registrar: iocContainer,
             editor: this,
             projectPath: this.projectPath_,
             onOpenScene: (path: string) => this.openSceneFromPath(path),
@@ -147,15 +128,7 @@ export class Editor {
             this.addPlugin(plugin);
         }
         exposeRegistrationAPI();
-        lockBuiltinPanels();
-        lockBuiltinMenus();
-        lockBuiltinGizmos();
-        lockBuiltinPropertyEditors();
-        lockBuiltinComponentSchemas();
-        lockBuiltinBoundsProviders();
-        lockBuiltinSettings();
-        lockBuiltinContextMenuItems();
-        lockBuiltinInspectorExtensions();
+        iocContainer.lockBuiltins();
 
         this.setupLayout();
 
@@ -322,11 +295,7 @@ export class Editor {
     }
 
     private async saveDirtyPanels(): Promise<void> {
-        for (const panel of this.panelManager_.panelInstances.values()) {
-            if (isSaveable(panel) && panel.isDirty) {
-                await panel.saveAsset();
-            }
-        }
+        await this.panelManager_.saveDirtyPanels();
     }
 
     async saveSceneAs(): Promise<void> {
@@ -741,28 +710,24 @@ export class Editor {
     // =========================================================================
 
     private setupEditorGlobals(): void {
+        const container = getEditorContainer();
+        const registrar = container as import('./container').PluginRegistrar;
+
         this.baseAPI_ = {
             ...esengine,
-            registerPanel,
-            registerMenuItem,
-            registerMenu,
-            registerGizmo,
-            registerStatusbarItem,
-            registerPropertyEditor,
-            registerComponentSchema,
-            registerBoundsProvider,
+            registrar,
+            tokens: containerTokens,
             icons,
             showToast,
             showSuccessToast,
             showErrorToast,
             showContextMenu,
-            registerContextMenuItem,
-            registerInspectorSection,
-            registerComponentInspector,
             showConfirmDialog,
             showInputDialog,
             getEditorInstance,
             getEditorStore,
+            getSettingsValue,
+            setSettingsValue,
             Draw,
             Geometry,
             Material,
@@ -775,10 +740,6 @@ export class Editor {
             registerDrawCallback,
             unregisterDrawCallback,
             clearDrawCallbacks,
-            registerSettingsSection,
-            registerSettingsItem,
-            getSettingsValue,
-            setSettingsValue,
         };
         setEditorAPI(this.baseAPI_);
     }
@@ -809,9 +770,10 @@ export class Editor {
     }
 
     private cleanupExtensionUI(): void {
+        const c = getEditorContainer();
         if (this.dockLayout_) {
             for (const [id] of this.panelManager_.panelInstances) {
-                if (!isBuiltinPanel(id)) {
+                if (!c.isBuiltin(PANEL, id)) {
                     this.dockLayout_.removePanel(id);
                 }
             }
@@ -820,24 +782,17 @@ export class Editor {
 
         this.container_.querySelectorAll('[data-statusbar-id^="toggle-"]').forEach(el => {
             const panelId = el.getAttribute('data-statusbar-id')?.replace('toggle-', '');
-            if (panelId && !isBuiltinPanel(panelId)) el.remove();
+            if (panelId && !c.isBuiltin(PANEL, panelId)) el.remove();
         });
 
-        clearExtensionPanels();
-        clearExtensionMenus();
-        clearExtensionGizmos();
-        clearExtensionPropertyEditors();
-        clearExtensionComponentSchemas();
-        clearExtensionBoundsProviders();
-        clearExtensionSettings();
-        clearExtensionContextMenuItems();
-        clearExtensionInspectorExtensions();
+        c.clearExtensions();
     }
 
     private applyExtensionUI(): void {
+        const c = getEditorContainer();
         if (this.dockLayout_) {
             for (const desc of getAllPanels()) {
-                if (isBuiltinPanel(desc.id)) continue;
+                if (c.isBuiltin(PANEL, desc.id)) continue;
                 this.dockLayout_.addPanel(desc);
             }
         }

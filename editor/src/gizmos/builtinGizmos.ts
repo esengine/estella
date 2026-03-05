@@ -1,4 +1,6 @@
-import { registerGizmo, type GizmoContext, type GizmoDescriptor } from './GizmoRegistry';
+import type { GizmoContext, GizmoDescriptor } from './GizmoRegistry';
+import type { PluginRegistrar } from '../container';
+import { GIZMO } from '../container/tokens';
 import { icons } from '../utils/icons';
 import { quatToEuler, eulerToQuat } from '../math/Transform';
 import { getSettingsValue } from '../settings/SettingsRegistry';
@@ -800,7 +802,8 @@ export function createRectGizmo(): GizmoDescriptor {
 // Registration
 // =============================================================================
 
-export function registerBuiltinGizmos(): void {
+export function registerBuiltinGizmos(registrar: PluginRegistrar): void {
+    const registerGizmo = (d: GizmoDescriptor) => registrar.provide(GIZMO, d.id, d);
     registerGizmo(createSelectGizmo());
     registerGizmo(createMoveGizmo());
     registerGizmo(createRotateGizmo());

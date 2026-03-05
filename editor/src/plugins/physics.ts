@@ -1,5 +1,6 @@
-import type { EditorPlugin } from './EditorPlugin';
-import { registerComponentSchema, type ComponentSchema } from '../schemas/ComponentSchemas';
+import type { EditorPlugin, EditorPluginContext } from './EditorPlugin';
+import type { ComponentSchema } from '../schemas/ComponentSchemas';
+import { COMPONENT_SCHEMA } from '../container/tokens';
 
 const RigidBodySchema: ComponentSchema = {
     name: 'RigidBody',
@@ -125,9 +126,9 @@ const PHYSICS_SCHEMAS: ComponentSchema[] = [
 
 export const physicsPlugin: EditorPlugin = {
     name: 'physics',
-    register() {
+    register(ctx: EditorPluginContext) {
         for (const schema of PHYSICS_SCHEMAS) {
-            registerComponentSchema(schema);
+            ctx.registrar.provide(COMPONENT_SCHEMA, schema.name, schema);
         }
     },
 };

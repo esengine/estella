@@ -1,0 +1,28 @@
+import { ServiceToken } from './ServiceToken';
+import type { ComponentSchema } from '../schemas/ComponentSchemas';
+import type { PropertyEditorFactory } from '../property/PropertyEditor';
+import type { BoundsProvider } from '../bounds/BoundsProvider';
+import type { GizmoDescriptor } from '../gizmos/GizmoRegistry';
+import type { PanelDescriptor } from '../panels/PanelRegistry';
+import type { MenuDescriptor, MenuItemDescriptor, StatusbarItemDescriptor } from '../menus/MenuRegistry';
+import type { SettingsSectionDescriptor, SettingsGroupDescriptor, SettingsItemDescriptor } from '../settings/SettingsRegistry';
+import type { ContextMenuContribution } from '../ui/ContextMenuRegistry';
+import type { InspectorSectionDescriptor, ComponentInspectorDescriptor } from '../panels/inspector/InspectorRegistry';
+import type { AssetTypeDescriptor } from '../asset/AssetTypeRegistry';
+
+export const COMPONENT_SCHEMA = new ServiceToken<ComponentSchema>('COMPONENT_SCHEMA');
+export const PROPERTY_EDITOR = new ServiceToken<PropertyEditorFactory>('PROPERTY_EDITOR');
+export const BOUNDS_PROVIDER = new ServiceToken<BoundsProvider>('BOUNDS_PROVIDER');
+export const GIZMO = new ServiceToken<GizmoDescriptor>('GIZMO');
+export const PANEL = new ServiceToken<PanelDescriptor>('PANEL');
+export const MENU = new ServiceToken<MenuDescriptor>('MENU');
+export const MENU_ITEM = new ServiceToken<MenuItemDescriptor>('MENU_ITEM');
+export const STATUSBAR_ITEM = new ServiceToken<StatusbarItemDescriptor>('STATUSBAR_ITEM');
+export const SETTINGS_SECTION = new ServiceToken<SettingsSectionDescriptor>('SETTINGS_SECTION');
+export const SETTINGS_GROUP = new ServiceToken<SettingsGroupDescriptor>('SETTINGS_GROUP');
+export const SETTINGS_ITEM = new ServiceToken<SettingsItemDescriptor>('SETTINGS_ITEM');
+export const CONTEXT_MENU_ITEM = new ServiceToken<ContextMenuContribution>('CONTEXT_MENU_ITEM');
+export const INSPECTOR_SECTION = new ServiceToken<InspectorSectionDescriptor>('INSPECTOR_SECTION');
+export const COMPONENT_INSPECTOR = new ServiceToken<ComponentInspectorDescriptor>('COMPONENT_INSPECTOR');
+export const ASSET_TYPE = new ServiceToken<AssetTypeDescriptor>('ASSET_TYPE');
+export const ASSET_EDITOR_TYPE = new ServiceToken<string>('ASSET_EDITOR_TYPE');

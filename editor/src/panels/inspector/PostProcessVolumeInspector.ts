@@ -11,9 +11,10 @@ import {
     type PostProcessVolumeData,
 } from 'esengine';
 import type { ComponentInspectorContext, ComponentInspectorInstance } from './InspectorRegistry';
-import { registerComponentInspector } from './InspectorRegistry';
 import { createFloatEditor, createIntEditor, createVec2Editor } from './SharedEditors';
 import { icons } from '../../utils/icons';
+import type { PluginRegistrar } from '../../container';
+import { COMPONENT_INSPECTOR } from '../../container/tokens';
 
 function cloneEffects(effects: PostProcessEffectData[]): PostProcessEffectData[] {
     return effects.map(e => ({
@@ -349,8 +350,8 @@ function renderAddButton(
     container.appendChild(wrapper);
 }
 
-export function registerPostProcessVolumeInspector(): void {
-    registerComponentInspector({
+export function registerPostProcessVolumeInspector(registrar: PluginRegistrar): void {
+    registrar.provide(COMPONENT_INSPECTOR, 'postprocess-volume', {
         id: 'postprocess-volume',
         componentType: 'PostProcessVolume',
         render: renderInspector,

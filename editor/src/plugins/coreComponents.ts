@@ -1,5 +1,6 @@
-import type { EditorPlugin } from './EditorPlugin';
-import { registerComponentSchema, type ComponentSchema } from '../schemas/ComponentSchemas';
+import type { EditorPlugin, EditorPluginContext } from './EditorPlugin';
+import type { ComponentSchema } from '../schemas/ComponentSchemas';
+import { COMPONENT_SCHEMA } from '../container/tokens';
 
 const NameSchema: ComponentSchema = {
     name: 'Name',
@@ -121,9 +122,9 @@ const CORE_SCHEMAS: ComponentSchema[] = [
 
 export const coreComponentsPlugin: EditorPlugin = {
     name: 'core-components',
-    register() {
+    register(ctx: EditorPluginContext) {
         for (const schema of CORE_SCHEMAS) {
-            registerComponentSchema(schema);
+            ctx.registrar.provide(COMPONENT_SCHEMA, schema.name, schema);
         }
     },
 };

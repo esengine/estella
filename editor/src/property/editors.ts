@@ -4,10 +4,12 @@
  */
 
 import {
-    registerPropertyEditor,
     type PropertyEditorContext,
     type PropertyEditorInstance,
+    type PropertyEditorFactory,
 } from './PropertyEditor';
+import type { PluginRegistrar } from '../container';
+import { PROPERTY_EDITOR } from '../container/tokens';
 import { getEditorContext, getEditorInstance } from '../context/EditorContext';
 import { getPlatformAdapter } from '../platform/PlatformAdapter';
 import { getAssetLibrary, isUUID } from '../asset/AssetLibrary';
@@ -1827,7 +1829,8 @@ function createCollisionLayerEditor(
 // Register All Editors
 // =============================================================================
 
-export function registerBuiltinEditors(): void {
+export function registerBuiltinEditors(registrar: PluginRegistrar): void {
+    const registerPropertyEditor = (type: string, factory: PropertyEditorFactory) => registrar.provide(PROPERTY_EDITOR, type, factory);
     console.log('[PropertyEditor] registerBuiltinEditors called');
     registerPropertyEditor('number', createNumberEditor);
     registerPropertyEditor('string', createStringEditor);

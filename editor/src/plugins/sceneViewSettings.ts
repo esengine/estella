@@ -1,14 +1,15 @@
-import type { EditorPlugin } from './EditorPlugin';
-import {
-    registerSettingsSection,
-    registerSettingsGroup,
-    registerSettingsItem,
-} from '../settings/SettingsRegistry';
+import type { EditorPlugin, EditorPluginContext } from './EditorPlugin';
+import type { SettingsSectionDescriptor, SettingsGroupDescriptor, SettingsItemDescriptor } from '../settings/SettingsRegistry';
+import { SETTINGS_SECTION, SETTINGS_GROUP, SETTINGS_ITEM } from '../container/tokens';
 
 export const sceneViewSettingsPlugin: EditorPlugin = {
     name: 'scene-view-settings',
     dependencies: ['core-settings'],
-    register() {
+    register(ctx: EditorPluginContext) {
+        const registerSettingsSection = (d: SettingsSectionDescriptor) => ctx.registrar.provide(SETTINGS_SECTION, d.id, d);
+        const registerSettingsGroup = (d: SettingsGroupDescriptor) => ctx.registrar.provide(SETTINGS_GROUP, d.id, d);
+        const registerSettingsItem = (d: SettingsItemDescriptor) => ctx.registrar.provide(SETTINGS_ITEM, d.id, d);
+
         registerSettingsSection({ id: 'scene-view', title: 'Scene View', icon: 'eye', order: 1 });
 
         registerSettingsGroup({ id: 'scene-view.grid', section: 'scene-view', label: 'Grid', order: 0 });

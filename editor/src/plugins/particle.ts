@@ -1,5 +1,6 @@
-import type { EditorPlugin } from './EditorPlugin';
-import { registerComponentSchema, type ComponentSchema } from '../schemas/ComponentSchemas';
+import type { EditorPlugin, EditorPluginContext } from './EditorPlugin';
+import type { ComponentSchema } from '../schemas/ComponentSchemas';
+import { COMPONENT_SCHEMA } from '../container/tokens';
 import { LAYER_MIN, LAYER_MAX } from '../schemas/schemaConstants';
 
 const ParticleEmitterSchema: ComponentSchema = {
@@ -52,7 +53,7 @@ const ParticleEmitterSchema: ComponentSchema = {
 
 export const particlePlugin: EditorPlugin = {
     name: 'particle',
-    register() {
-        registerComponentSchema(ParticleEmitterSchema);
+    register(ctx: EditorPluginContext) {
+        ctx.registrar.provide(COMPONENT_SCHEMA, ParticleEmitterSchema.name, ParticleEmitterSchema);
     },
 };

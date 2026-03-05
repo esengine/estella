@@ -1,7 +1,7 @@
-import type { EditorPlugin } from './EditorPlugin';
-import { registerComponentSchema, type ComponentSchema } from '../schemas/ComponentSchemas';
-import { registerBoundsProvider } from '../bounds/BoundsRegistry';
+import type { EditorPlugin, EditorPluginContext } from './EditorPlugin';
+import type { ComponentSchema } from '../schemas/ComponentSchemas';
 import { textBoundsProvider } from '../bounds/TextBoundsProvider';
+import { COMPONENT_SCHEMA, BOUNDS_PROVIDER } from '../container/tokens';
 import { LAYER_MIN, LAYER_MAX, FONT_SIZE_MIN, FONT_SIZE_MAX } from '../schemas/schemaConstants';
 
 const TextSchema: ComponentSchema = {
@@ -69,10 +69,10 @@ const BitmapTextSchema: ComponentSchema = {
 export const textPlugin: EditorPlugin = {
     name: 'text',
     dependencies: ['core-components'],
-    register() {
-        registerComponentSchema(TextSchema);
-        registerComponentSchema(BitmapTextSchema);
-        registerBoundsProvider('Text', textBoundsProvider);
+    register(ctx: EditorPluginContext) {
+        ctx.registrar.provide(COMPONENT_SCHEMA, TextSchema.name, TextSchema);
+        ctx.registrar.provide(COMPONENT_SCHEMA, BitmapTextSchema.name, BitmapTextSchema);
+        ctx.registrar.provide(BOUNDS_PROVIDER, 'Text', textBoundsProvider);
     },
 };
 

@@ -1,7 +1,7 @@
-import type { EditorPlugin } from './EditorPlugin';
-import { registerComponentSchema, type ComponentSchema } from '../schemas/ComponentSchemas';
-import { registerBoundsProvider } from '../bounds/BoundsRegistry';
+import type { EditorPlugin, EditorPluginContext } from './EditorPlugin';
+import type { ComponentSchema } from '../schemas/ComponentSchemas';
 import { uiRectBoundsProvider } from '../bounds/UIRectBoundsProvider';
+import { COMPONENT_SCHEMA, BOUNDS_PROVIDER } from '../container/tokens';
 
 const UIRectSchema: ComponentSchema = {
     name: 'UIRect',
@@ -234,10 +234,10 @@ const UI_SCHEMAS: ComponentSchema[] = [
 export const uiPlugin: EditorPlugin = {
     name: 'ui',
     dependencies: ['core-components'],
-    register() {
+    register(ctx: EditorPluginContext) {
         for (const schema of UI_SCHEMAS) {
-            registerComponentSchema(schema);
+            ctx.registrar.provide(COMPONENT_SCHEMA, schema.name, schema);
         }
-        registerBoundsProvider('UIRect', uiRectBoundsProvider);
+        ctx.registrar.provide(BOUNDS_PROVIDER, 'UIRect', uiRectBoundsProvider);
     },
 };

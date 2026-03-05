@@ -1,9 +1,9 @@
-import type { EditorPlugin } from './EditorPlugin';
+import type { EditorPlugin, EditorPluginContext } from './EditorPlugin';
 import { registerBuiltinAssetTypes } from '../asset/AssetTypeRegistry';
 
 export const assetInfraPlugin: EditorPlugin = {
     name: 'asset-infra',
-    register() {
-        registerBuiltinAssetTypes();
+    register(ctx: EditorPluginContext) {
+        registerBuiltinAssetTypes(ctx.registrar);
     },
 };

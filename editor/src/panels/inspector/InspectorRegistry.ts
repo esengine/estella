@@ -1,15 +1,8 @@
-/**
- * @file    InspectorRegistry.ts
- * @brief   Registry for custom inspector sections and component inspectors
- */
-
 import type { Entity } from 'esengine';
 import type { EditorStore } from '../../store/EditorStore';
 import type { AssetType } from '../../store/EditorStore';
-
-// =============================================================================
-// Types
-// =============================================================================
+import { getEditorContainer } from '../../container';
+import { INSPECTOR_SECTION, COMPONENT_INSPECTOR } from '../../container/tokens';
 
 export interface InspectorContext {
     store: EditorStore;
@@ -52,56 +45,22 @@ export interface ComponentInspectorDescriptor {
     render: (container: HTMLElement, ctx: ComponentInspectorContext) => ComponentInspectorInstance;
 }
 
-// =============================================================================
-// Section Registry
-// =============================================================================
-
-const sectionRegistry: InspectorSectionDescriptor[] = [];
-const builtinSectionIds = new Set<string>();
-
 export function registerInspectorSection(descriptor: InspectorSectionDescriptor): void {
-    sectionRegistry.push(descriptor);
+    getEditorContainer().provide(INSPECTOR_SECTION, descriptor.id, descriptor);
 }
 
 export function getInspectorSections(target: 'entity' | 'asset'): InspectorSectionDescriptor[] {
-    return sectionRegistry
-        .filter(s => s.target === target || s.target === 'both')
-        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    const result: InspectorSectionDescriptor[] = [];
+    for (const s of getEditorContainer().getAll(INSPECTOR_SECTION).values()) {
+        if (s.target === target || s.target === 'both') result.push(s);
+    }
+    return result.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 }
-
-export function lockBuiltinInspectorExtensions(): void {
-    for (const s of sectionRegistry) {
-        builtinSectionIds.add(s.id);
-    }
-    for (const c of componentRegistry.values()) {
-        builtinComponentTypes.add(c.componentType);
-    }
-}
-
-export function clearExtensionInspectorExtensions(): void {
-    for (let i = sectionRegistry.length - 1; i >= 0; i--) {
-        if (!builtinSectionIds.has(sectionRegistry[i].id)) {
-            sectionRegistry.splice(i, 1);
-        }
-    }
-    for (const [key, desc] of componentRegistry) {
-        if (!builtinComponentTypes.has(desc.componentType)) {
-            componentRegistry.delete(key);
-        }
-    }
-}
-
-// =============================================================================
-// Component Inspector Registry
-// =============================================================================
-
-const componentRegistry = new Map<string, ComponentInspectorDescriptor>();
-const builtinComponentTypes = new Set<string>();
 
 export function registerComponentInspector(descriptor: ComponentInspectorDescriptor): void {
-    componentRegistry.set(descriptor.componentType, descriptor);
+    getEditorContainer().provide(COMPONENT_INSPECTOR, descriptor.componentType, descriptor);
 }
 
 export function getComponentInspector(componentType: string): ComponentInspectorDescriptor | undefined {
-    return componentRegistry.get(componentType);
+    return getEditorContainer().get(COMPONENT_INSPECTOR, componentType);
 }

@@ -4,10 +4,12 @@
  */
 
 import {
-    registerPropertyEditor,
     type PropertyEditorContext,
     type PropertyEditorInstance,
+    type PropertyEditorFactory,
 } from './PropertyEditor';
+import type { PluginRegistrar } from '../container';
+import { PROPERTY_EDITOR } from '../container/tokens';
 import { BLEND_MODE_OPTIONS } from '../types/MaterialMetadata';
 import {
     getProjectDir,
@@ -242,7 +244,8 @@ function createMaterialTextureEditor(
 // Register Material Editors
 // =============================================================================
 
-export function registerMaterialEditors(): void {
+export function registerMaterialEditors(registrar: PluginRegistrar): void {
+    const registerPropertyEditor = (type: string, factory: PropertyEditorFactory) => registrar.provide(PROPERTY_EDITOR, type, factory);
     registerPropertyEditor('blend-mode', createBlendModeEditor);
     registerPropertyEditor('shader-file', createShaderFileEditor);
     registerPropertyEditor('material-texture', createMaterialTextureEditor);

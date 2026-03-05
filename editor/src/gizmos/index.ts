@@ -4,8 +4,6 @@ export {
     registerGizmo,
     getGizmo,
     getAllGizmos,
-    lockBuiltinGizmos,
-    clearExtensionGizmos,
 } from './GizmoRegistry';
 
 export { GizmoManager } from './GizmoManager';

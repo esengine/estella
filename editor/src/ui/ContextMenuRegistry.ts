@@ -1,15 +1,8 @@
-/**
- * @file    ContextMenuRegistry.ts
- * @brief   Context menu contribution registry for extension-provided menu items
- */
-
 import type { Entity } from 'esengine';
 import type { EntityData } from '../types/SceneTypes';
 import type { ContextMenuItem } from './ContextMenu';
-
-// =============================================================================
-// Types
-// =============================================================================
+import { getEditorContainer } from '../container';
+import { CONTEXT_MENU_ITEM } from '../container/tokens';
 
 export type ContextMenuLocation =
     | 'hierarchy.entity'
@@ -43,37 +36,17 @@ export interface ContextMenuContribution {
     children?: ContextMenuContribution[];
 }
 
-// =============================================================================
-// Registry
-// =============================================================================
-
-const registry: ContextMenuContribution[] = [];
-const builtinIds = new Set<string>();
-
 export function registerContextMenuItem(contribution: ContextMenuContribution): void {
-    registry.push(contribution);
-}
-
-export function lockBuiltinContextMenuItems(): void {
-    for (const item of registry) {
-        builtinIds.add(item.id);
-    }
-}
-
-export function clearExtensionContextMenuItems(): void {
-    for (let i = registry.length - 1; i >= 0; i--) {
-        if (!builtinIds.has(registry[i].id)) {
-            registry.splice(i, 1);
-        }
-    }
+    getEditorContainer().provide(CONTEXT_MENU_ITEM, contribution.id, contribution);
 }
 
 export function getContextMenuItems(location: ContextMenuLocation, ctx: ContextMenuContext): ContextMenuItem[] {
-    const contributions = registry.filter(c => {
-        if (c.location !== location) return false;
-        if (c.visible && !c.visible(ctx)) return false;
-        return true;
-    });
+    const contributions: ContextMenuContribution[] = [];
+    for (const c of getEditorContainer().getAll(CONTEXT_MENU_ITEM).values()) {
+        if (c.location !== location) continue;
+        if (c.visible && !c.visible(ctx)) continue;
+        contributions.push(c);
+    }
 
     if (contributions.length === 0) return [];
 

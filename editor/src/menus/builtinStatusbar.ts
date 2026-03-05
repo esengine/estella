@@ -1,7 +1,9 @@
-import { registerStatusbarItem } from './MenuRegistry';
+import type { StatusbarItemDescriptor } from './MenuRegistry';
 import { getPanelsByPosition } from '../panels/PanelRegistry';
 import { icons } from '../utils/icons';
 import type { Editor } from '../Editor';
+import type { PluginRegistrar } from '../container';
+import { STATUSBAR_ITEM } from '../container/tokens';
 
 let statusMessageTimer_: ReturnType<typeof setTimeout> | null = null;
 let statusMessageEl_: HTMLElement | null = null;
@@ -16,7 +18,8 @@ export function showStatusBarMessage(text: string, durationMs = 2000): void {
     }, durationMs);
 }
 
-export function registerBuiltinStatusbarItems(editor: Editor): void {
+export function registerBuiltinStatusbarItems(registrar: PluginRegistrar, editor: Editor): void {
+    const registerStatusbarItem = (d: StatusbarItemDescriptor) => registrar.provide(STATUSBAR_ITEM, d.id, d);
     const bottomPanels = getPanelsByPosition('bottom');
 
     for (const panel of bottomPanels) {

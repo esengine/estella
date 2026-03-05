@@ -1,11 +1,5 @@
-/**
- * @file    PropertyEditor.ts
- * @brief   Base property editor interface and registry
- */
-
-// =============================================================================
-// Types
-// =============================================================================
+import { getEditorContainer } from '../container';
+import { PROPERTY_EDITOR } from '../container/tokens';
 
 export interface PropertyMeta {
     name: string;
@@ -38,37 +32,19 @@ export interface PropertyEditorInstance {
     dispose(): void;
 }
 
-// =============================================================================
-// Registry
-// =============================================================================
-
-const editorRegistry = new Map<string, PropertyEditorFactory>();
-
 export function registerPropertyEditor(type: string, factory: PropertyEditorFactory): void {
-    editorRegistry.set(type, factory);
+    getEditorContainer().provide(PROPERTY_EDITOR, type, factory);
 }
 
 export function getPropertyEditor(type: string): PropertyEditorFactory | undefined {
-    return editorRegistry.get(type);
-}
-
-const builtinEditorTypes = new Set<string>();
-
-export function lockBuiltinPropertyEditors(): void {
-    for (const type of editorRegistry.keys()) builtinEditorTypes.add(type);
-}
-
-export function clearExtensionPropertyEditors(): void {
-    for (const type of editorRegistry.keys()) {
-        if (!builtinEditorTypes.has(type)) editorRegistry.delete(type);
-    }
+    return getEditorContainer().get(PROPERTY_EDITOR, type);
 }
 
 export function createPropertyEditor(
     container: HTMLElement,
     ctx: PropertyEditorContext
 ): PropertyEditorInstance | null {
-    const factory = editorRegistry.get(ctx.meta.type);
+    const factory = getEditorContainer().get(PROPERTY_EDITOR, ctx.meta.type);
     if (!factory) {
         console.warn(`[PropertyEditor] No editor registered for type "${ctx.meta.type}"`);
         return null;

@@ -2,6 +2,9 @@ import type { App } from 'esengine';
 import type { SpineModuleController } from 'esengine/spine';
 import type { EditorStore } from '../store/EditorStore';
 import type { EditorBridge } from '../bridge/EditorBridge';
+import type { EditorAssetServer } from '../asset/EditorAssetServer';
+import { getEditorContainer } from '../container';
+import { PANEL } from '../container/tokens';
 
 export type PanelPosition = 'left' | 'right' | 'center' | 'bottom';
 
@@ -16,7 +19,26 @@ export interface PanelDescriptor {
     factory: PanelFactory;
 }
 
-export type PanelFactory = (container: HTMLElement, store: EditorStore) => PanelInstance;
+export interface PanelHooks {
+    setBridge?: (bridge: EditorBridge) => void;
+    setApp?: (app: App | null) => void;
+    resize?: () => void;
+    getAssetServer?: () => EditorAssetServer | null;
+    navigateToAsset?: (path: string) => Promise<void>;
+    appendOutput?: (text: string, type: string) => void;
+    setSpineController?: (ctrl: SpineModuleController | null) => void;
+    getSpineSkeletonInfo?: (entityId: number) => { animations: string[]; skins: string[] } | null;
+    onSpineInstanceReady?: (listener: (entityId: number) => void) => () => void;
+    saveAsset?: () => Promise<boolean>;
+    isDirty?: () => boolean;
+}
+
+export interface PanelFactoryResult {
+    instance: PanelInstance;
+    hooks?: PanelHooks;
+}
+
+export type PanelFactory = (container: HTMLElement, store: EditorStore) => PanelFactoryResult;
 
 export interface PanelInstance {
     dispose(): void;
@@ -24,108 +46,17 @@ export interface PanelInstance {
     onHide?(): void;
 }
 
-export interface Resizable {
-    resize(): void;
-}
-
-export interface BridgeAware {
-    setBridge(bridge: EditorBridge): void;
-}
-
-export interface AppAware {
-    setApp(app: App): void;
-}
-
-export interface AssetServerProvider {
-    readonly assetServer: unknown;
-}
-
-export interface AssetNavigable {
-    navigateToAsset(path: string): Promise<void>;
-}
-
-export interface OutputAppendable {
-    appendOutput(text: string, type: 'command' | 'stdout' | 'stderr' | 'error' | 'success'): void;
-    clear(): void;
-}
-
-export interface SpineControllerAware {
-    setSpineController(controller: SpineModuleController | null): void;
-}
-
-export interface SpineInfoProvider {
-    getSpineSkeletonInfo(entityId: number): { animations: string[]; skins: string[] } | null;
-    onSpineInstanceReady(listener: (entityId: number) => void): () => void;
-}
-
-export interface Saveable {
-    readonly isDirty: boolean;
-    saveAsset(): Promise<boolean>;
-}
-
-export function isResizable(p: PanelInstance): p is PanelInstance & Resizable {
-    return typeof (p as any).resize === 'function';
-}
-
-export function isBridgeAware(p: PanelInstance): p is PanelInstance & BridgeAware {
-    return typeof (p as any).setBridge === 'function';
-}
-
-export function isAppAware(p: PanelInstance): p is PanelInstance & AppAware {
-    return typeof (p as any).setApp === 'function';
-}
-
-export function isAssetServerProvider(p: PanelInstance): p is PanelInstance & AssetServerProvider {
-    return 'assetServer' in p;
-}
-
-export function isAssetNavigable(p: PanelInstance): p is PanelInstance & AssetNavigable {
-    return typeof (p as any).navigateToAsset === 'function';
-}
-
-export function isSpineControllerAware(p: PanelInstance): p is PanelInstance & SpineControllerAware {
-    return typeof (p as any).setSpineController === 'function';
-}
-
-export function isOutputAppendable(p: PanelInstance): p is PanelInstance & OutputAppendable {
-    return typeof (p as any).appendOutput === 'function';
-}
-
-export function isSpineInfoProvider(p: PanelInstance): p is PanelInstance & SpineInfoProvider {
-    return typeof (p as any).getSpineSkeletonInfo === 'function';
-}
-
-export function isSaveable(p: PanelInstance): p is PanelInstance & Saveable {
-    return typeof (p as any).saveAsset === 'function' && 'isDirty' in p;
-}
-
-const panels = new Map<string, PanelDescriptor>();
-const builtinPanelIds = new Set<string>();
-
 export function registerPanel(descriptor: PanelDescriptor): void {
-    panels.set(descriptor.id, descriptor);
-}
-
-export function lockBuiltinPanels(): void {
-    for (const id of panels.keys()) builtinPanelIds.add(id);
-}
-
-export function clearExtensionPanels(): void {
-    for (const id of panels.keys()) {
-        if (!builtinPanelIds.has(id)) panels.delete(id);
-    }
-}
-
-export function isBuiltinPanel(id: string): boolean {
-    return builtinPanelIds.has(id);
+    getEditorContainer().provide(PANEL, descriptor.id, descriptor);
 }
 
 export function getPanel(id: string): PanelDescriptor | undefined {
-    return panels.get(id);
+    return getEditorContainer().get(PANEL, id);
 }
 
 export function getAllPanels(): PanelDescriptor[] {
-    return Array.from(panels.values()).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    return Array.from(getEditorContainer().getAll(PANEL).values())
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 }
 
 export function getPanelsByPosition(position: PanelPosition): PanelDescriptor[] {

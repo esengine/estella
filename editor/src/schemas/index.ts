@@ -12,9 +12,4 @@ export {
     registerComponentSchema,
     getComponentSchema,
     getAllComponentSchemas,
-    registerBuiltinSchemas,
-    registerSpineSchema,
-    lockBuiltinComponentSchemas,
-    clearExtensionComponentSchemas,
-    type BuiltinSchemaOptions,
 } from './ComponentSchemas';

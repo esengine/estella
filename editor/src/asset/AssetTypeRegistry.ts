@@ -17,6 +17,8 @@ import { getPlatformAdapter } from '../platform/PlatformAdapter';
 import { getEditorContext } from '../context/EditorContext';
 import { getAssetDatabase } from './AssetDatabase';
 import { AssetType } from '../constants/AssetTypes';
+import { getEditorContainer } from '../container';
+import { ASSET_TYPE, ASSET_EDITOR_TYPE } from '../container/tokens';
 
 export type AssetPayload = { type: string; path: string; name: string };
 
@@ -33,33 +35,31 @@ export interface AssetTypeDescriptor {
     onCreateEntity?: (state: HierarchyState, asset: AssetPayload, parent: Entity | null) => Promise<void>;
 }
 
-const registry_ = new Map<string, AssetTypeDescriptor>();
-const editorTypeIndex_ = new Map<string, string>();
-
 export function registerAssetType(displayType: string, descriptor: AssetTypeDescriptor): void {
-    if (registry_.has(displayType)) {
+    const c = getEditorContainer();
+    if (c.has(ASSET_TYPE, displayType)) {
         throw new Error(`Asset type '${displayType}' is already registered`);
     }
-    registry_.set(displayType, descriptor);
+    c.provide(ASSET_TYPE, displayType, descriptor);
     const editorTypes = Array.isArray(descriptor.editorType)
         ? descriptor.editorType
         : [descriptor.editorType];
     for (const et of editorTypes) {
-        editorTypeIndex_.set(et, displayType);
+        c.provide(ASSET_EDITOR_TYPE, et, displayType);
     }
 }
 
 export function getAssetTypeDescriptor(displayType: string): AssetTypeDescriptor | undefined {
-    return registry_.get(displayType);
+    return getEditorContainer().get(ASSET_TYPE, displayType);
 }
 
 export function getAllAssetTypes(): string[] {
-    return [...registry_.keys()];
+    return [...getEditorContainer().getAll(ASSET_TYPE).keys()];
 }
 
 export function getDroppableTypes(): Set<string> {
     const result = new Set<string>();
-    for (const [type, desc] of registry_) {
+    for (const [type, desc] of getEditorContainer().getAll(ASSET_TYPE)) {
         if (desc.droppable) {
             result.add(type);
         }
@@ -68,11 +68,11 @@ export function getDroppableTypes(): Set<string> {
 }
 
 export function getDisplayType(editorType: string): string {
-    return editorTypeIndex_.get(editorType) ?? editorType;
+    return getEditorContainer().get(ASSET_EDITOR_TYPE, editorType) ?? editorType;
 }
 
 export function getAssetTypeIcon(displayType: string, size: number = 16): string {
-    const desc = registry_.get(displayType);
+    const desc = getEditorContainer().get(ASSET_TYPE, displayType);
     if (desc) {
         return desc.icon(size);
     }
@@ -80,7 +80,7 @@ export function getAssetTypeIcon(displayType: string, size: number = 16): string
 }
 
 export function getAssetTypeDisplayName(displayType: string): string {
-    const desc = registry_.get(displayType);
+    const desc = getEditorContainer().get(ASSET_TYPE, displayType);
     if (desc) {
         return desc.displayName;
     }
@@ -88,7 +88,7 @@ export function getAssetTypeDisplayName(displayType: string): string {
 }
 
 export function getInspectorRenderer(displayType: string): AssetTypeDescriptor['inspectorRenderer'] {
-    return registry_.get(displayType)?.inspectorRenderer ?? null;
+    return getEditorContainer().get(ASSET_TYPE, displayType)?.inspectorRenderer ?? null;
 }
 
 // =========================================================================
@@ -188,8 +188,21 @@ async function createSpineEntityFromAsset(
 // Builtin registration
 // =========================================================================
 
-export function registerBuiltinAssetTypes(): void {
-    registerAssetType(AssetType.IMAGE, {
+export function registerBuiltinAssetTypes(registrar?: import('../container').PluginRegistrar): void {
+    const reg = (displayType: string, descriptor: AssetTypeDescriptor) => {
+        const r = registrar ?? getEditorContainer();
+        if (r.has(ASSET_TYPE, displayType)) {
+            throw new Error(`Asset type '${displayType}' is already registered`);
+        }
+        r.provide(ASSET_TYPE, displayType, descriptor);
+        const editorTypes = Array.isArray(descriptor.editorType)
+            ? descriptor.editorType
+            : [descriptor.editorType];
+        for (const et of editorTypes) {
+            r.provide(ASSET_EDITOR_TYPE, et, displayType);
+        }
+    };
+    reg(AssetType.IMAGE, {
         editorType: 'texture',
         displayType: AssetType.IMAGE,
         displayName: 'Image',
@@ -237,7 +250,7 @@ export function registerBuiltinAssetTypes(): void {
         },
     });
 
-    registerAssetType(AssetType.MATERIAL, {
+    reg(AssetType.MATERIAL, {
         editorType: 'material',
         displayType: AssetType.MATERIAL,
         displayName: 'Material',
@@ -248,7 +261,7 @@ export function registerBuiltinAssetTypes(): void {
         createMenuEntry: null,
     });
 
-    registerAssetType(AssetType.SHADER, {
+    reg(AssetType.SHADER, {
         editorType: 'shader',
         displayType: AssetType.SHADER,
         displayName: 'Shader',
@@ -259,7 +272,7 @@ export function registerBuiltinAssetTypes(): void {
         createMenuEntry: null,
     });
 
-    registerAssetType(AssetType.FONT, {
+    reg(AssetType.FONT, {
         editorType: 'bitmap-font',
         displayType: AssetType.FONT,
         displayName: 'BitmapFont',
@@ -270,7 +283,7 @@ export function registerBuiltinAssetTypes(): void {
         createMenuEntry: null,
     });
 
-    registerAssetType(AssetType.SPINE, {
+    reg(AssetType.SPINE, {
         editorType: ['spine-atlas', 'spine-skeleton'],
         displayType: AssetType.SPINE,
         displayName: 'Spine',
@@ -282,7 +295,7 @@ export function registerBuiltinAssetTypes(): void {
         onCreateEntity: createSpineEntityFromAsset,
     });
 
-    registerAssetType(AssetType.ANIMCLIP, {
+    reg(AssetType.ANIMCLIP, {
         editorType: 'anim-clip',
         displayType: AssetType.ANIMCLIP,
         displayName: 'Animation Clip',
@@ -320,7 +333,7 @@ export function registerBuiltinAssetTypes(): void {
         },
     });
 
-    registerAssetType(AssetType.TIMELINE, {
+    reg(AssetType.TIMELINE, {
         editorType: 'timeline',
         displayType: AssetType.TIMELINE,
         displayName: 'Timeline',
@@ -331,7 +344,7 @@ export function registerBuiltinAssetTypes(): void {
         createMenuEntry: null,
     });
 
-    registerAssetType(AssetType.SCENE, {
+    reg(AssetType.SCENE, {
         editorType: 'scene',
         displayType: AssetType.SCENE,
         displayName: 'Scene',
@@ -342,7 +355,7 @@ export function registerBuiltinAssetTypes(): void {
         createMenuEntry: null,
     });
 
-    registerAssetType(AssetType.PREFAB, {
+    reg(AssetType.PREFAB, {
         editorType: 'prefab',
         displayType: AssetType.PREFAB,
         displayName: 'Prefab',
@@ -358,7 +371,7 @@ export function registerBuiltinAssetTypes(): void {
         },
     });
 
-    registerAssetType(AssetType.AUDIO, {
+    reg(AssetType.AUDIO, {
         editorType: 'audio',
         displayType: AssetType.AUDIO,
         displayName: 'Audio',
@@ -392,7 +405,7 @@ export function registerBuiltinAssetTypes(): void {
         },
     });
 
-    registerAssetType(AssetType.SCRIPT, {
+    reg(AssetType.SCRIPT, {
         editorType: 'script',
         displayType: AssetType.SCRIPT,
         displayName: 'Script',
@@ -403,7 +416,7 @@ export function registerBuiltinAssetTypes(): void {
         createMenuEntry: null,
     });
 
-    registerAssetType(AssetType.JSON, {
+    reg(AssetType.JSON, {
         editorType: 'json',
         displayType: AssetType.JSON,
         displayName: 'JSON',
@@ -415,7 +428,7 @@ export function registerBuiltinAssetTypes(): void {
         onCreateEntity: createSpineEntityFromAsset,
     });
 
-    registerAssetType(AssetType.FOLDER, {
+    reg(AssetType.FOLDER, {
         editorType: 'folder',
         displayType: AssetType.FOLDER,
         displayName: 'Folder',
@@ -426,7 +439,7 @@ export function registerBuiltinAssetTypes(): void {
         createMenuEntry: null,
     });
 
-    registerAssetType(AssetType.FILE, {
+    reg(AssetType.FILE, {
         editorType: 'file',
         displayType: AssetType.FILE,
         displayName: 'File',
@@ -439,6 +452,7 @@ export function registerBuiltinAssetTypes(): void {
 }
 
 export function resetAssetTypeRegistry(): void {
-    registry_.clear();
-    editorTypeIndex_.clear();
+    const c = getEditorContainer();
+    c.removeWhere(ASSET_TYPE, () => true);
+    c.removeWhere(ASSET_EDITOR_TYPE, () => true);
 }

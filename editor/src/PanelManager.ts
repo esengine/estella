@@ -1,26 +1,19 @@
 import type { App } from 'esengine';
-import type { SpineModuleController, SpineWasmModule } from 'esengine/spine';
-import { wrapSpineModule, SpineModuleController as SpineModuleControllerClass } from 'esengine/spine';
+import type { SpineWasmModule } from 'esengine/spine';
+import { SpineModuleController as SpineModuleControllerClass, wrapSpineModule } from 'esengine/spine';
 import type { EditorStore } from './store/EditorStore';
 import type { EditorBridge } from './bridge/EditorBridge';
-import type { PanelInstance, PanelDescriptor } from './panels/PanelRegistry';
-import {
-    isBridgeAware,
-    isAppAware,
-    isAssetServerProvider,
-    isAssetNavigable,
-    isOutputAppendable,
-    isSpineControllerAware,
-    isSpineInfoProvider,
-    isBuiltinPanel,
-    getPanel,
-} from './panels/PanelRegistry';
+import type { PanelInstance, PanelDescriptor, PanelHooks } from './panels/PanelRegistry';
+import { getPanel } from './panels/PanelRegistry';
 import type { EditorAssetServer } from './asset/EditorAssetServer';
+import { getEditorContainer } from './container';
+import { PANEL } from './container/tokens';
 import { icons } from './utils/icons';
 import { escapeHtml } from './utils/html';
 
 export class PanelManager {
     private panelInstances_ = new Map<string, PanelInstance>();
+    private panelHooks_ = new Map<string, PanelHooks>();
     private bridge_: EditorBridge | null = null;
     private app_: App | null = null;
 
@@ -29,8 +22,8 @@ export class PanelManager {
     }
 
     get assetServer(): EditorAssetServer | null {
-        for (const panel of this.panelInstances_.values()) {
-            if (isAssetServerProvider(panel)) return panel.assetServer as EditorAssetServer;
+        for (const hooks of this.panelHooks_.values()) {
+            if (hooks.getAssetServer) return hooks.getAssetServer();
         }
         return null;
     }
@@ -50,9 +43,13 @@ export class PanelManager {
         app?: App | null,
     ): void {
         try {
-            const instance = desc.factory(container, store);
-            if (bridge && isBridgeAware(instance)) instance.setBridge(bridge);
-            if (app && isAppAware(instance)) instance.setApp(app);
+            const result = desc.factory(container, store);
+            const { instance, hooks } = result;
+            if (hooks) {
+                this.panelHooks_.set(desc.id, hooks);
+                if (bridge) hooks.setBridge?.(bridge);
+                if (app) hooks.setApp?.(app);
+            }
             this.panelInstances_.set(desc.id, instance);
         } catch (err) {
             console.error(`Panel "${desc.id}" failed to initialize:`, err);
@@ -100,44 +97,42 @@ export class PanelManager {
     setApp(app: App, bridge: EditorBridge): void {
         this.app_ = app;
         this.bridge_ = bridge;
-        for (const panel of this.panelInstances_.values()) {
-            if (isBridgeAware(panel)) panel.setBridge(bridge);
-            if (isAppAware(panel)) panel.setApp(app);
+        for (const hooks of this.panelHooks_.values()) {
+            hooks.setBridge?.(bridge);
+            hooks.setApp?.(app);
         }
     }
 
     setSpineModule(module: unknown): void {
         const raw = module as SpineWasmModule;
         const controller = module ? new SpineModuleControllerClass(raw, wrapSpineModule(raw)) : null;
-        for (const panel of this.panelInstances_.values()) {
-            if (isSpineControllerAware(panel)) {
-                panel.setSpineController(controller);
-            }
+        for (const hooks of this.panelHooks_.values()) {
+            hooks.setSpineController?.(controller);
         }
     }
 
     getSpineSkeletonInfo(entityId: number): { animations: string[]; skins: string[] } | null {
-        for (const panel of this.panelInstances_.values()) {
-            if (isSpineInfoProvider(panel)) {
-                return panel.getSpineSkeletonInfo(entityId);
+        for (const hooks of this.panelHooks_.values()) {
+            if (hooks.getSpineSkeletonInfo) {
+                return hooks.getSpineSkeletonInfo(entityId);
             }
         }
         return null;
     }
 
     onSpineInstanceReady(listener: (entityId: number) => void): () => void {
-        for (const panel of this.panelInstances_.values()) {
-            if (isSpineInfoProvider(panel)) {
-                return panel.onSpineInstanceReady(listener);
+        for (const hooks of this.panelHooks_.values()) {
+            if (hooks.onSpineInstanceReady) {
+                return hooks.onSpineInstanceReady(listener);
             }
         }
         return () => {};
     }
 
     async navigateToAsset(assetPath: string): Promise<void> {
-        for (const panel of this.panelInstances_.values()) {
-            if (isAssetNavigable(panel)) {
-                await panel.navigateToAsset(assetPath);
+        for (const hooks of this.panelHooks_.values()) {
+            if (hooks.navigateToAsset) {
+                await hooks.navigateToAsset(assetPath);
                 return;
             }
         }
@@ -160,10 +155,20 @@ export class PanelManager {
     }
 
     appendOutput(text: string, type: 'command' | 'stdout' | 'stderr' | 'error' | 'success'): void {
-        const outputPanel = this.panelInstances_.get('output');
-        if (outputPanel && isOutputAppendable(outputPanel)) {
-            outputPanel.appendOutput(text, type);
+        const hooks = this.panelHooks_.get('output');
+        if (hooks?.appendOutput) {
+            hooks.appendOutput(text, type);
         }
+    }
+
+    saveDirtyPanels(): Promise<void> {
+        const promises: Promise<boolean>[] = [];
+        for (const hooks of this.panelHooks_.values()) {
+            if (hooks.isDirty?.() && hooks.saveAsset) {
+                promises.push(hooks.saveAsset());
+            }
+        }
+        return Promise.all(promises).then(() => {});
     }
 
     removePanelInstance(panelId: string): void {
@@ -171,14 +176,17 @@ export class PanelManager {
         if (instance) {
             instance.dispose();
             this.panelInstances_.delete(panelId);
+            this.panelHooks_.delete(panelId);
         }
     }
 
     cleanupExtensionPanels(): void {
+        const c = getEditorContainer();
         for (const [id, instance] of this.panelInstances_) {
-            if (isBuiltinPanel(id)) continue;
+            if (c.isBuiltin(PANEL, id)) continue;
             instance.dispose();
             this.panelInstances_.delete(id);
+            this.panelHooks_.delete(id);
         }
     }
 
@@ -187,6 +195,6 @@ export class PanelManager {
             panel.dispose();
         }
         this.panelInstances_.clear();
+        this.panelHooks_.clear();
     }
 }
-

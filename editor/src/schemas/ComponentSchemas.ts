@@ -1,10 +1,8 @@
 import type { PropertyMeta } from '../property/PropertyEditor';
 import { getComponentDefaults } from 'esengine';
 import { getSettingsValue } from '../settings/SettingsRegistry';
-
-// =============================================================================
-// Types
-// =============================================================================
+import { getEditorContainer } from '../container';
+import { COMPONENT_SCHEMA } from '../container/tokens';
 
 export type ComponentCategory = 'builtin' | 'ui' | 'physics' | 'script' | 'tag';
 
@@ -16,10 +14,6 @@ export interface ComponentSchema {
     hidden?: boolean;
     displayName?: string;
 }
-
-// =============================================================================
-// Type Inference
-// =============================================================================
 
 function isVec2(v: unknown): boolean {
     return typeof v === 'object' && v !== null &&
@@ -44,26 +38,20 @@ export function inferPropertyType(value: unknown): string {
     return 'string';
 }
 
-// =============================================================================
-// Registry
-// =============================================================================
-
-const schemaRegistry = new Map<string, ComponentSchema>();
-
 export function registerComponentSchema(schema: ComponentSchema): void {
-    schemaRegistry.set(schema.name, schema);
+    getEditorContainer().provide(COMPONENT_SCHEMA, schema.name, schema);
 }
 
 export function getComponentSchema(name: string): ComponentSchema | undefined {
-    return schemaRegistry.get(name);
+    return getEditorContainer().get(COMPONENT_SCHEMA, name);
 }
 
 export function getAllComponentSchemas(): ComponentSchema[] {
-    return Array.from(schemaRegistry.values());
+    return Array.from(getEditorContainer().getAll(COMPONENT_SCHEMA).values());
 }
 
 export function isComponentRemovable(name: string): boolean {
-    const schema = schemaRegistry.get(name);
+    const schema = getEditorContainer().get(COMPONENT_SCHEMA, name);
     return schema?.removable !== false;
 }
 
@@ -77,7 +65,7 @@ export interface ComponentsByCategory {
 
 export function getComponentsByCategory(): ComponentsByCategory {
     const result: ComponentsByCategory = { builtin: [], ui: [], physics: [], script: [], tag: [] };
-    for (const schema of schemaRegistry.values()) {
+    for (const schema of getEditorContainer().getAll(COMPONENT_SCHEMA).values()) {
         result[schema.category].push(schema);
     }
     result.builtin.sort((a, b) => a.name.localeCompare(b.name));
@@ -88,37 +76,19 @@ export function getComponentsByCategory(): ComponentsByCategory {
     return result;
 }
 
-const builtinSchemaNames = new Set<string>();
-
-export function lockBuiltinComponentSchemas(): void {
-    for (const name of schemaRegistry.keys()) builtinSchemaNames.add(name);
-}
-
-export function clearExtensionComponentSchemas(): void {
-    for (const name of schemaRegistry.keys()) {
-        if (!builtinSchemaNames.has(name)) schemaRegistry.delete(name);
-    }
-}
-
 export function clearScriptComponents(): void {
-    for (const [name, schema] of schemaRegistry.entries()) {
-        if (builtinSchemaNames.has(name)) continue;
-        if (schema.category === 'script' || schema.category === 'tag') {
-            schemaRegistry.delete(name);
-        }
-    }
+    const c = getEditorContainer();
+    c.removeWhere(COMPONENT_SCHEMA,
+        (k, s) => !c.isBuiltin(COMPONENT_SCHEMA, k) && (s.category === 'script' || s.category === 'tag'));
 }
-
-// =============================================================================
-// User Component Registration
-// =============================================================================
 
 function registerUserComponent(
     name: string,
     defaults: Record<string, unknown>,
     isTag: boolean
 ): void {
-    const existing = schemaRegistry.get(name);
+    const c = getEditorContainer();
+    const existing = c.get(COMPONENT_SCHEMA, name);
     if (existing?.category === 'builtin') {
         return;
     }
@@ -131,7 +101,7 @@ function registerUserComponent(
             type: inferPropertyType(value),
         })),
     };
-    schemaRegistry.set(name, schema);
+    c.provide(COMPONENT_SCHEMA, name, schema);
 }
 
 export function exposeRegistrationAPI(): void {
@@ -140,35 +110,9 @@ export function exposeRegistrationAPI(): void {
     }
 }
 
-// =============================================================================
-// Backward-compatible re-exports from plugins
-// =============================================================================
-
 export { TransformSchema, CameraSchema } from '../plugins/coreComponents';
 export { SpriteSchema } from '../plugins/sprite';
 export { TextSchema } from '../plugins/text';
-
-// =============================================================================
-// Legacy registration (kept for backward compat)
-// =============================================================================
-
-export interface BuiltinSchemaOptions {
-    enableSpine?: boolean;
-}
-
-export function registerBuiltinSchemas(_options?: BuiltinSchemaOptions): void {
-    // Schemas are now registered via EditorPlugin system.
-    // This function is kept for backward compatibility.
-    exposeRegistrationAPI();
-}
-
-export function registerSpineSchema(): void {
-    // Spine schema is now registered via the spine plugin.
-}
-
-// =============================================================================
-// Default Component Data
-// =============================================================================
 
 export function getDefaultComponentData(typeName: string): Record<string, unknown> {
     return getComponentDefaults(typeName) ?? {};

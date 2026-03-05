@@ -1,5 +1,6 @@
-import type { EditorPlugin } from './EditorPlugin';
-import { registerComponentSchema, type ComponentSchema } from '../schemas/ComponentSchemas';
+import type { EditorPlugin, EditorPluginContext } from './EditorPlugin';
+import type { ComponentSchema } from '../schemas/ComponentSchemas';
+import { COMPONENT_SCHEMA } from '../container/tokens';
 import { LAYER_MIN, LAYER_MAX } from '../schemas/schemaConstants';
 
 const TilemapSchema: ComponentSchema = {
@@ -27,8 +28,8 @@ const TilemapLayerSchema: ComponentSchema = {
 
 export const tilemapPlugin: EditorPlugin = {
     name: 'tilemap',
-    register() {
-        registerComponentSchema(TilemapSchema);
-        registerComponentSchema(TilemapLayerSchema);
+    register(ctx: EditorPluginContext) {
+        ctx.registrar.provide(COMPONENT_SCHEMA, TilemapSchema.name, TilemapSchema);
+        ctx.registrar.provide(COMPONENT_SCHEMA, TilemapLayerSchema.name, TilemapLayerSchema);
     },
 };

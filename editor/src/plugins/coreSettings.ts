@@ -1,17 +1,17 @@
-import type { EditorPlugin } from './EditorPlugin';
-import {
-    registerSettingsSection,
-    registerSettingsGroup,
-    registerSettingsItem,
-    type SettingsItemType,
-} from '../settings/SettingsRegistry';
+import type { EditorPlugin, EditorPluginContext } from './EditorPlugin';
+import type { SettingsItemType, SettingsSectionDescriptor, SettingsGroupDescriptor, SettingsItemDescriptor } from '../settings/SettingsRegistry';
+import { SETTINGS_SECTION, SETTINGS_GROUP, SETTINGS_ITEM } from '../container/tokens';
 import { DEFAULT_DESIGN_WIDTH, DEFAULT_DESIGN_HEIGHT } from 'esengine';
 import { renderCollisionMatrix } from '../settings/CollisionMatrixWidget';
 import { MAX_COLLISION_LAYERS } from '../settings/collisionLayers';
 
 export const coreSettingsPlugin: EditorPlugin = {
     name: 'core-settings',
-    register() {
+    register(ctx: EditorPluginContext) {
+        const registerSettingsSection = (d: SettingsSectionDescriptor) => ctx.registrar.provide(SETTINGS_SECTION, d.id, d);
+        const registerSettingsGroup = (d: SettingsGroupDescriptor) => ctx.registrar.provide(SETTINGS_GROUP, d.id, d);
+        const registerSettingsItem = (d: SettingsItemDescriptor) => ctx.registrar.provide(SETTINGS_ITEM, d.id, d);
+
         registerSettingsSection({ id: 'general', title: 'General', icon: 'settings', order: 0 });
         registerSettingsSection({ id: 'project', title: 'Project', icon: 'folder', order: 2 });
         registerSettingsSection({ id: 'rendering', title: 'Rendering', icon: 'image', order: 2.5 });

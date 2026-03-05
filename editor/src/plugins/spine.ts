@@ -1,7 +1,7 @@
-import type { EditorPlugin } from './EditorPlugin';
-import { registerComponentSchema, type ComponentSchema } from '../schemas/ComponentSchemas';
-import { registerBoundsProvider } from '../bounds/BoundsRegistry';
+import type { EditorPlugin, EditorPluginContext } from './EditorPlugin';
+import type { ComponentSchema } from '../schemas/ComponentSchemas';
 import { spineAnimationBoundsProvider } from '../bounds/SpineAnimationBoundsProvider';
+import { COMPONENT_SCHEMA, BOUNDS_PROVIDER } from '../container/tokens';
 import {
     LAYER_MIN, LAYER_MAX,
     TIME_SCALE_MAX,
@@ -30,8 +30,8 @@ const SpineAnimationSchema: ComponentSchema = {
 
 export const spinePlugin: EditorPlugin = {
     name: 'spine',
-    register() {
-        registerComponentSchema(SpineAnimationSchema);
-        registerBoundsProvider('SpineAnimation', spineAnimationBoundsProvider);
+    register(ctx: EditorPluginContext) {
+        ctx.registrar.provide(COMPONENT_SCHEMA, SpineAnimationSchema.name, SpineAnimationSchema);
+        ctx.registrar.provide(BOUNDS_PROVIDER, 'SpineAnimation', spineAnimationBoundsProvider);
     },
 };

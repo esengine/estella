@@ -1,7 +1,7 @@
-import type { EditorPlugin } from './EditorPlugin';
-import { registerComponentSchema, type ComponentSchema } from '../schemas/ComponentSchemas';
-import { registerBoundsProvider } from '../bounds/BoundsRegistry';
+import type { EditorPlugin, EditorPluginContext } from './EditorPlugin';
+import type { ComponentSchema } from '../schemas/ComponentSchemas';
 import { spriteBoundsProvider } from '../bounds/SpriteBoundsProvider';
+import { COMPONENT_SCHEMA, BOUNDS_PROVIDER } from '../container/tokens';
 import { LAYER_MIN, LAYER_MAX } from '../schemas/schemaConstants';
 
 const SpriteSchema: ComponentSchema = {
@@ -23,9 +23,9 @@ const SpriteSchema: ComponentSchema = {
 export const spritePlugin: EditorPlugin = {
     name: 'sprite',
     dependencies: ['core-components'],
-    register() {
-        registerComponentSchema(SpriteSchema);
-        registerBoundsProvider('Sprite', spriteBoundsProvider);
+    register(ctx: EditorPluginContext) {
+        ctx.registrar.provide(COMPONENT_SCHEMA, SpriteSchema.name, SpriteSchema);
+        ctx.registrar.provide(BOUNDS_PROVIDER, 'Sprite', spriteBoundsProvider);
     },
 };
 

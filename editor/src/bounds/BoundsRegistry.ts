@@ -1,31 +1,15 @@
-/**
- * @file    BoundsRegistry.ts
- * @brief   Registry for component bounds providers
- */
-
 import type { Bounds, BoundsProvider } from './BoundsProvider';
-
-const providers = new Map<string, BoundsProvider>();
+import { getEditorContainer } from '../container';
+import { BOUNDS_PROVIDER } from '../container/tokens';
 
 export function registerBoundsProvider(componentType: string, provider: BoundsProvider): void {
-    providers.set(componentType, provider);
-}
-
-const builtinProviderTypes = new Set<string>();
-
-export function lockBuiltinBoundsProviders(): void {
-    for (const type of providers.keys()) builtinProviderTypes.add(type);
-}
-
-export function clearExtensionBoundsProviders(): void {
-    for (const type of providers.keys()) {
-        if (!builtinProviderTypes.has(type)) providers.delete(type);
-    }
+    getEditorContainer().provide(BOUNDS_PROVIDER, componentType, provider);
 }
 
 export function getEntityBounds(components: { type: string; data: any }[]): Bounds {
+    const container = getEditorContainer();
     for (const comp of components) {
-        const provider = providers.get(comp.type);
+        const provider = container.get(BOUNDS_PROVIDER, comp.type);
         if (provider) {
             const bounds = provider.getBounds(comp.data);
             if (bounds) return bounds;

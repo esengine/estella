@@ -4,4 +4,4 @@
  */
 
 export * from './BoundsProvider';
-export { registerBoundsProvider, getEntityBounds, lockBuiltinBoundsProviders, clearExtensionBoundsProviders } from './BoundsRegistry';
+export { registerBoundsProvider, getEntityBounds } from './BoundsRegistry';

@@ -87,22 +87,11 @@ export {
     type PanelDescriptor,
     type PanelFactory,
     type PanelInstance,
-    type Resizable,
-    type BridgeAware,
-    type AppAware,
-    type AssetServerProvider,
-    type AssetNavigable,
-    type OutputAppendable,
+    type PanelHooks,
+    type PanelFactoryResult,
     registerPanel,
     getPanel,
     getAllPanels,
-    isResizable,
-    isBridgeAware,
-    isAppAware,
-    isAssetServerProvider,
-    isAssetNavigable,
-    isOutputAppendable,
-    isSpineControllerAware,
 } from './panels/PanelRegistry';
 
 // =============================================================================
@@ -163,7 +152,6 @@ export {
     registerComponentSchema,
     getComponentSchema,
     getAllComponentSchemas,
-    registerBuiltinSchemas,
 } from './schemas';
 
 // =============================================================================
@@ -391,6 +379,24 @@ export {
     getSectionItems,
     showSettingsDialog,
 } from './settings';
+
+// =============================================================================
+// IoC Container
+// =============================================================================
+
+export {
+    type PluginRegistrar,
+    EditorContainer,
+    getEditorContainer,
+} from './container';
+
+export * as tokens from './container/tokens';
+
+// =============================================================================
+// Plugins
+// =============================================================================
+
+export type { EditorPlugin, EditorPluginContext } from './plugins/EditorPlugin';
 
 // =============================================================================
 // SDK Re-exports

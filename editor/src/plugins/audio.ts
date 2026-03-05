@@ -1,5 +1,6 @@
-import type { EditorPlugin } from './EditorPlugin';
-import { registerComponentSchema, type ComponentSchema } from '../schemas/ComponentSchemas';
+import type { EditorPlugin, EditorPluginContext } from './EditorPlugin';
+import type { ComponentSchema } from '../schemas/ComponentSchemas';
+import { COMPONENT_SCHEMA } from '../container/tokens';
 
 const AudioSourceSchema: ComponentSchema = {
     name: 'AudioSource',
@@ -29,8 +30,8 @@ const AudioListenerSchema: ComponentSchema = {
 
 export const audioPlugin: EditorPlugin = {
     name: 'audio',
-    register() {
-        registerComponentSchema(AudioSourceSchema);
-        registerComponentSchema(AudioListenerSchema);
+    register(ctx: EditorPluginContext) {
+        ctx.registrar.provide(COMPONENT_SCHEMA, AudioSourceSchema.name, AudioSourceSchema);
+        ctx.registrar.provide(COMPONENT_SCHEMA, AudioListenerSchema.name, AudioListenerSchema);
     },
 };

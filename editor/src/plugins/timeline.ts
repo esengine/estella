@@ -1,5 +1,6 @@
-import type { EditorPlugin } from './EditorPlugin';
-import { registerComponentSchema, type ComponentSchema } from '../schemas/ComponentSchemas';
+import type { EditorPlugin, EditorPluginContext } from './EditorPlugin';
+import type { ComponentSchema } from '../schemas/ComponentSchemas';
+import { COMPONENT_SCHEMA } from '../container/tokens';
 import { TIME_SCALE_MAX } from '../schemas/schemaConstants';
 
 const TimelinePlayerSchema: ComponentSchema = {
@@ -15,7 +16,7 @@ const TimelinePlayerSchema: ComponentSchema = {
 
 export const timelinePlugin: EditorPlugin = {
     name: 'timeline',
-    register() {
-        registerComponentSchema(TimelinePlayerSchema);
+    register(ctx: EditorPluginContext) {
+        ctx.registrar.provide(COMPONENT_SCHEMA, TimelinePlayerSchema.name, TimelinePlayerSchema);
     },
 };
