@@ -162,14 +162,14 @@ const PTR_LAYOUTS: Record<string, PtrLayout> = {
 };
 
 function readPtrField(
-    f32: Float32Array, i32: Int32Array, u32: Uint32Array, u8: Uint8Array,
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
     ptr: number, field: PtrFieldDesc,
 ): unknown {
     const byteOff = ptr + field.offset;
     const idx = byteOff >> 2;
     switch (field.type) {
         case 'f32':   return f32[idx];
-        case 'i32':   return i32[idx];
+        case 'i32':   return u32[idx] | 0;
         case 'u32':   return u32[idx];
         case 'bool':  return u8[byteOff] !== 0;
         case 'u8':    return u8[byteOff];
@@ -181,14 +181,14 @@ function readPtrField(
 }
 
 function writePtrField(
-    f32: Float32Array, i32: Int32Array, u32: Uint32Array, u8: Uint8Array,
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
     ptr: number, field: PtrFieldDesc, value: any,
 ): void {
     const byteOff = ptr + field.offset;
     const idx = byteOff >> 2;
     switch (field.type) {
         case 'f32':   f32[idx] = value; break;
-        case 'i32':   i32[idx] = value; break;
+        case 'i32':   u32[idx] = value | 0; break;
         case 'u32':   u32[idx] = value; break;
         case 'bool':  u8[byteOff] = value ? 1 : 0; break;
         case 'u8':    u8[byteOff] = value; break;
@@ -293,6 +293,11 @@ export class World {
 
     getCppRegistry(): CppRegistry | null {
         return this.cppRegistry_;
+    }
+
+    /** @internal */
+    getWasmModule(): ESEngineModule | null {
+        return this.module_;
     }
 
     // =========================================================================
@@ -499,8 +504,9 @@ export class World {
     }
 
     has(entity: Entity, component: AnyComponentDef): boolean {
-        if (isBuiltinComponent(component)) {
-            return this.hasBuiltin(entity, component);
+        if (component._builtin) {
+            if (!this.cppRegistry_) return false;
+            return this.getBuiltinMethods((component as BuiltinComponentDef<any>)._cppName).has(entity);
         }
         return this.hasScript(entity, component as ComponentDef<any>);
     }
@@ -811,7 +817,7 @@ export class World {
             if (!ptr) return;
             const d = data as any;
             for (let i = 0; i < fields.length; i++) {
-                writePtrField(mod.HEAPF32, mod.HEAP32, mod.HEAPU32, mod.HEAPU8, ptr, fields[i], d[fields[i].name]);
+                writePtrField(mod.HEAPF32, mod.HEAPU32, mod.HEAPU8, ptr, fields[i], d[fields[i].name]);
             }
         };
     }
@@ -828,7 +834,7 @@ export class World {
             if (!ptr) return null;
             const result: Record<string, unknown> = {};
             for (let i = 0; i < fields.length; i++) {
-                result[fields[i].name] = readPtrField(mod.HEAPF32, mod.HEAP32, mod.HEAPU32, mod.HEAPU8, ptr, fields[i]);
+                result[fields[i].name] = readPtrField(mod.HEAPF32, mod.HEAPU32, mod.HEAPU8, ptr, fields[i]);
             }
             return result;
         };

@@ -303,9 +303,64 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
     }
 
     forEach(callback: (entity: Entity, ...components: ComponentsData<C>) => void): void {
-        for (const [entity, ...components] of this) {
-            callback(entity, ...(components as ComponentsData<C>));
+        const { _mutIndices } = this.descriptor_;
+        const entities = this.world_.getEntitiesWithComponents(
+            this.allRequired_,
+            this.descriptor_._with,
+            this.descriptor_._without,
+            this.cacheKey_
+        );
+        const compCount = this.actualComponents_.length;
+        const hasMut = _mutIndices.length > 0;
+        const hasChangeFilters = this.descriptor_._addedFilters.length > 0 || this.descriptor_._changedFilters.length > 0;
+        const result = this.result_;
+        const mutData = this.mutData_;
+        const mutCount = mutData.length;
+        const mutSetters = this.mutSetters_;
+        const world = this.world_;
+        const getters = this.getters_;
+        const actualComponents = this.actualComponents_;
+
+        world.beginIteration();
+        let prevEntity: Entity | null = null;
+        for (let idx = 0; idx < entities.length; idx++) {
+            const entity = entities[idx];
+            if (hasChangeFilters && !this.passesChangeFilters_(entity)) continue;
+
+            if (prevEntity !== null && hasMut) {
+                for (let i = 0; i < mutCount; i++) {
+                    const mut = mutData[i];
+                    const setter = mutSetters[i];
+                    if (setter) setter(prevEntity, mut.data);
+                    else world.set(prevEntity, mut.component, mut.data);
+                }
+            }
+
+            result[0] = entity;
+            for (let i = 0; i < compCount; i++) {
+                const getter = getters[i];
+                result[i + 1] = getter ? getter(entity) : world.get(entity, actualComponents[i]);
+            }
+
+            if (hasMut) {
+                for (let i = 0; i < mutCount; i++) {
+                    mutData[i].data = result[_mutIndices[i] + 1] as Record<string, unknown>;
+                }
+                prevEntity = entity;
+            }
+
+            (callback as Function).apply(null, result);
         }
+
+        if (prevEntity !== null && hasMut) {
+            for (let i = 0; i < mutCount; i++) {
+                const mut = mutData[i];
+                const setter = mutSetters[i];
+                if (setter) setter(prevEntity, mut.data);
+                else world.set(prevEntity, mut.component, mut.data);
+            }
+        }
+        world.endIteration();
     }
 
     single(): QueryResult<C> | null {
