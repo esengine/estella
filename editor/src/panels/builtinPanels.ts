@@ -9,6 +9,8 @@ import { ProfilerPanel } from './profiler/ProfilerPanel';
 import { TimelinePanel } from './timeline/TimelinePanel';
 import { icons } from '../utils/icons';
 
+const PANEL_ICON_SIZE = 14;
+
 export interface BuiltinPanelOptions {
     projectPath?: string;
     onOpenScene?: (path: string) => void;
@@ -18,7 +20,7 @@ export function registerBuiltinPanels(options: BuiltinPanelOptions): void {
     registerPanel({
         id: 'hierarchy',
         title: 'Hierarchy',
-        icon: icons.list(14),
+        icon: icons.list(PANEL_ICON_SIZE),
         position: 'left',
         order: 0,
         defaultVisible: true,
@@ -37,7 +39,7 @@ export function registerBuiltinPanels(options: BuiltinPanelOptions): void {
     registerPanel({
         id: 'game',
         title: 'Game',
-        icon: icons.play(14),
+        icon: icons.play(PANEL_ICON_SIZE),
         position: 'center',
         order: 2,
         defaultVisible: true,
@@ -47,7 +49,7 @@ export function registerBuiltinPanels(options: BuiltinPanelOptions): void {
     registerPanel({
         id: 'inspector',
         title: 'Inspector',
-        icon: icons.settings(14),
+        icon: icons.settings(PANEL_ICON_SIZE),
         position: 'right',
         order: 0,
         defaultVisible: true,
@@ -57,7 +59,7 @@ export function registerBuiltinPanels(options: BuiltinPanelOptions): void {
     registerPanel({
         id: 'content-browser',
         title: 'Content Browser',
-        icon: icons.folder(14),
+        icon: icons.folder(PANEL_ICON_SIZE),
         position: 'bottom',
         order: 0,
         defaultVisible: true,
@@ -70,7 +72,7 @@ export function registerBuiltinPanels(options: BuiltinPanelOptions): void {
     registerPanel({
         id: 'output',
         title: 'Output',
-        icon: icons.list(14),
+        icon: icons.list(PANEL_ICON_SIZE),
         position: 'bottom',
         order: 1,
         defaultVisible: false,
@@ -80,7 +82,7 @@ export function registerBuiltinPanels(options: BuiltinPanelOptions): void {
     registerPanel({
         id: 'timeline',
         title: 'Timeline',
-        icon: icons.film(14),
+        icon: icons.film(PANEL_ICON_SIZE),
         position: 'bottom',
         order: 2,
         defaultVisible: false,
@@ -90,7 +92,7 @@ export function registerBuiltinPanels(options: BuiltinPanelOptions): void {
     registerPanel({
         id: 'profiler',
         title: 'Profiler',
-        icon: icons.gauge(14),
+        icon: icons.gauge(PANEL_ICON_SIZE),
         position: 'bottom',
         detachOnly: true,
         order: 99,

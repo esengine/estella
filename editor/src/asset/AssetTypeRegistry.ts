@@ -16,6 +16,7 @@ import { getGlobalPathResolver } from '../asset';
 import { getPlatformAdapter } from '../platform/PlatformAdapter';
 import { getEditorContext } from '../context/EditorContext';
 import { getAssetDatabase } from './AssetDatabase';
+import { AssetType } from '../constants/AssetTypes';
 
 export type AssetPayload = { type: string; path: string; name: string };
 
@@ -188,9 +189,9 @@ async function createSpineEntityFromAsset(
 // =========================================================================
 
 export function registerBuiltinAssetTypes(): void {
-    registerAssetType('image', {
+    registerAssetType(AssetType.IMAGE, {
         editorType: 'texture',
-        displayType: 'image',
+        displayType: AssetType.IMAGE,
         displayName: 'Image',
         icon: icons.image,
         eventCategory: 'texture',
@@ -236,9 +237,9 @@ export function registerBuiltinAssetTypes(): void {
         },
     });
 
-    registerAssetType('material', {
+    registerAssetType(AssetType.MATERIAL, {
         editorType: 'material',
-        displayType: 'material',
+        displayType: AssetType.MATERIAL,
         displayName: 'Material',
         icon: icons.settings,
         eventCategory: 'material',
@@ -247,9 +248,9 @@ export function registerBuiltinAssetTypes(): void {
         createMenuEntry: null,
     });
 
-    registerAssetType('shader', {
+    registerAssetType(AssetType.SHADER, {
         editorType: 'shader',
-        displayType: 'shader',
+        displayType: AssetType.SHADER,
         displayName: 'Shader',
         icon: icons.code,
         eventCategory: 'shader',
@@ -258,9 +259,9 @@ export function registerBuiltinAssetTypes(): void {
         createMenuEntry: null,
     });
 
-    registerAssetType('font', {
+    registerAssetType(AssetType.FONT, {
         editorType: 'bitmap-font',
-        displayType: 'font',
+        displayType: AssetType.FONT,
         displayName: 'BitmapFont',
         icon: icons.type,
         eventCategory: null,
@@ -269,9 +270,9 @@ export function registerBuiltinAssetTypes(): void {
         createMenuEntry: null,
     });
 
-    registerAssetType('spine', {
+    registerAssetType(AssetType.SPINE, {
         editorType: ['spine-atlas', 'spine-skeleton'],
-        displayType: 'spine',
+        displayType: AssetType.SPINE,
         displayName: 'Spine',
         icon: icons.bone,
         eventCategory: 'spine',
@@ -281,9 +282,9 @@ export function registerBuiltinAssetTypes(): void {
         onCreateEntity: createSpineEntityFromAsset,
     });
 
-    registerAssetType('animclip', {
+    registerAssetType(AssetType.ANIMCLIP, {
         editorType: 'anim-clip',
-        displayType: 'animclip',
+        displayType: AssetType.ANIMCLIP,
         displayName: 'Animation Clip',
         icon: icons.film,
         eventCategory: 'anim-clip',
@@ -319,9 +320,9 @@ export function registerBuiltinAssetTypes(): void {
         },
     });
 
-    registerAssetType('timeline', {
+    registerAssetType(AssetType.TIMELINE, {
         editorType: 'timeline',
-        displayType: 'timeline',
+        displayType: AssetType.TIMELINE,
         displayName: 'Timeline',
         icon: icons.film,
         eventCategory: null,
@@ -330,9 +331,9 @@ export function registerBuiltinAssetTypes(): void {
         createMenuEntry: null,
     });
 
-    registerAssetType('scene', {
+    registerAssetType(AssetType.SCENE, {
         editorType: 'scene',
-        displayType: 'scene',
+        displayType: AssetType.SCENE,
         displayName: 'Scene',
         icon: icons.layers,
         eventCategory: null,
@@ -341,9 +342,9 @@ export function registerBuiltinAssetTypes(): void {
         createMenuEntry: null,
     });
 
-    registerAssetType('prefab', {
+    registerAssetType(AssetType.PREFAB, {
         editorType: 'prefab',
-        displayType: 'prefab',
+        displayType: AssetType.PREFAB,
         displayName: 'Prefab',
         icon: icons.package,
         eventCategory: null,
@@ -357,9 +358,9 @@ export function registerBuiltinAssetTypes(): void {
         },
     });
 
-    registerAssetType('audio', {
+    registerAssetType(AssetType.AUDIO, {
         editorType: 'audio',
-        displayType: 'audio',
+        displayType: AssetType.AUDIO,
         displayName: 'Audio',
         icon: icons.volume,
         eventCategory: null,
@@ -391,9 +392,9 @@ export function registerBuiltinAssetTypes(): void {
         },
     });
 
-    registerAssetType('script', {
+    registerAssetType(AssetType.SCRIPT, {
         editorType: 'script',
-        displayType: 'script',
+        displayType: AssetType.SCRIPT,
         displayName: 'Script',
         icon: icons.code,
         eventCategory: null,
@@ -402,9 +403,9 @@ export function registerBuiltinAssetTypes(): void {
         createMenuEntry: null,
     });
 
-    registerAssetType('json', {
+    registerAssetType(AssetType.JSON, {
         editorType: 'json',
-        displayType: 'json',
+        displayType: AssetType.JSON,
         displayName: 'JSON',
         icon: icons.braces,
         eventCategory: null,
@@ -414,9 +415,9 @@ export function registerBuiltinAssetTypes(): void {
         onCreateEntity: createSpineEntityFromAsset,
     });
 
-    registerAssetType('folder', {
+    registerAssetType(AssetType.FOLDER, {
         editorType: 'folder',
-        displayType: 'folder',
+        displayType: AssetType.FOLDER,
         displayName: 'Folder',
         icon: icons.folder,
         eventCategory: null,
@@ -425,9 +426,9 @@ export function registerBuiltinAssetTypes(): void {
         createMenuEntry: null,
     });
 
-    registerAssetType('file', {
+    registerAssetType(AssetType.FILE, {
         editorType: 'file',
-        displayType: 'file',
+        displayType: AssetType.FILE,
         displayName: 'File',
         icon: icons.file,
         eventCategory: null,

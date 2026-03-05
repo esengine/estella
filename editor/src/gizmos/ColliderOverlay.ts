@@ -4,10 +4,10 @@
  */
 
 import type { Entity } from 'esengine';
-import { DEFAULT_PIXELS_PER_UNIT } from 'esengine';
 import type { EditorStore } from '../store/EditorStore';
 import type { EntityData, ComponentData } from '../types/SceneTypes';
 import { quatToEuler } from '../math/Transform';
+import { findScenePixelsPerUnit } from '../utils/sceneQueries';
 
 const COLLIDER_COLOR = 'rgba(0, 255, 100, 0.3)';
 const COLLIDER_COLOR_SELECTED = 'rgba(0, 255, 100, 0.8)';
@@ -93,7 +93,7 @@ export class ColliderOverlay {
         if (!this.dragState_) return;
 
         const { store } = octx;
-        const ppu = this.getPixelsPerUnit(store);
+        const ppu = findScenePixelsPerUnit(store.scene.entities);
         const { entity, componentType, handleId, startWorldX, startWorldY } = this.dragState_;
         const comp = store.getComponent(entity, componentType);
         if (!comp) return;
@@ -201,7 +201,7 @@ export class ColliderOverlay {
         const entityData = store.getSelectedEntityData();
         if (!entityData) return false;
 
-        const ppu = this.getPixelsPerUnit(store);
+        const ppu = findScenePixelsPerUnit(store.scene.entities);
         const worldTransform = store.getWorldTransform(entityData.id);
         const pos = worldTransform.position;
         const scale = worldTransform.scale;
@@ -333,7 +333,7 @@ export class ColliderOverlay {
 
     private drawEntityColliders(octx: OverlayContext, entity: EntityData, isSelected: boolean): void {
         const { ctx, zoom, store } = octx;
-        const ppu = this.getPixelsPerUnit(store);
+        const ppu = findScenePixelsPerUnit(store.scene.entities);
         const worldTransform = store.getWorldTransform(entity.id);
         const pos = worldTransform.position;
         const scale = worldTransform.scale;
@@ -634,7 +634,7 @@ export class ColliderOverlay {
         entityData: EntityData
     ): { componentType: string; handleId: HandleId } | null {
         const { zoom, store } = octx;
-        const ppu = this.getPixelsPerUnit(store);
+        const ppu = findScenePixelsPerUnit(store.scene.entities);
         const worldTransform = store.getWorldTransform(entityData.id);
         const pos = worldTransform.position;
         const scale = worldTransform.scale;
@@ -751,16 +751,6 @@ export class ColliderOverlay {
         return null;
     }
 
-    private getPixelsPerUnit(store: EditorStore): number {
-        for (const entity of store.scene.entities) {
-            for (const comp of entity.components) {
-                if (comp.type === 'Canvas') {
-                    return (comp.data.pixelsPerUnit as number) || DEFAULT_PIXELS_PER_UNIT;
-                }
-            }
-        }
-        return DEFAULT_PIXELS_PER_UNIT;
-    }
 
     private cloneColliderData(comp: ComponentData): Record<string, unknown> {
         const result: Record<string, unknown> = {};

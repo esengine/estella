@@ -2,6 +2,7 @@ import { icons } from '../../utils/icons';
 import { joinPath } from '../../utils/path';
 import type { AssetItem, ContentBrowserState } from './ContentBrowserTypes';
 import { getNativeFS, getAssetType, getAssetIcon, isImageFile, SEARCH_RESULTS_LIMIT } from './ContentBrowserTypes';
+import { AssetType } from '../../constants/AssetTypes';
 import type { ThumbnailCache } from './ThumbnailCache';
 import { searchRecursive } from './AssetSearch';
 import { findFolder } from './FolderTree';
@@ -75,7 +76,7 @@ export async function renderGrid(state: ContentBrowserState, thumbnailCache: Thu
     }
 
     for (const item of filteredItems) {
-        if (item.type === 'image' && isImageFile(item.name)) {
+        if (item.type === AssetType.IMAGE && isImageFile(item.name)) {
             loadThumbnailFor(state, item.path, thumbnailCache);
         }
     }
@@ -89,7 +90,7 @@ export async function renderGrid(state: ContentBrowserState, thumbnailCache: Thu
 }
 
 function getItemIconHtml(item: AssetItem, size: number, thumbnailCache: ThumbnailCache): string {
-    if (item.type === 'image' && isImageFile(item.name)) {
+    if (item.type === AssetType.IMAGE && isImageFile(item.name)) {
         const cached = thumbnailCache.get(item.path);
         if (cached) {
             return `<img src="${cached}" width="${size}" height="${size}" class="es-cb-thumbnail" alt="">`;

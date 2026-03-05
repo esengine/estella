@@ -3,6 +3,7 @@ import { getNativeFS, getFileName, renderError, getAssetServer } from './Inspect
 import { getPlatformAdapter } from '../../platform/PlatformAdapter';
 import { getGlobalPathResolver } from '../../asset';
 import { getAssetDatabase, isUUID } from '../../asset/AssetDatabase';
+import { AssetType } from '../../constants/AssetTypes';
 
 interface AnimClipAssetData {
     version: string;
@@ -225,7 +226,7 @@ function setupDropZone(
             return;
         }
 
-        const imageAssets = assets.filter(a => a.type === 'image');
+        const imageAssets = assets.filter(a => a.type === AssetType.IMAGE);
         if (imageAssets.length === 0) return;
 
         const resolver = getGlobalPathResolver();

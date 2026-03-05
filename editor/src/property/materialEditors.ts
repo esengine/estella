@@ -9,28 +9,16 @@ import {
     type PropertyEditorInstance,
 } from './PropertyEditor';
 import { BLEND_MODE_OPTIONS } from '../types/MaterialMetadata';
-import { getAssetMimeType } from 'esengine';
-import { getPlatformAdapter } from '../platform/PlatformAdapter';
-import { getEditorContext, getEditorInstance } from '../context/EditorContext';
-import type { NativeFS } from '../types/NativeFS';
-
-// =============================================================================
-// Helpers
-// =============================================================================
-
-function getProjectDir(): string | null {
-    const editor = getEditorInstance();
-    const projectPath = editor?.projectPath;
-    if (!projectPath) return null;
-    return projectPath.replace(/\\/g, '/').replace(/\/[^/]+$/, '');
-}
-
-function navigateToAsset(assetPath: string): void {
-    const editor = getEditorInstance();
-    if (editor && typeof editor.navigateToAsset === 'function') {
-        editor.navigateToAsset(assetPath);
-    }
-}
+import {
+    getProjectDir,
+    getNativeFS,
+    getMimeType,
+    navigateToAsset,
+    handleAssetDrop,
+    browseForAsset,
+    BROWSE_ICON,
+} from './editors';
+import { AssetType } from '../constants/AssetTypes';
 
 // =============================================================================
 // Blend Mode Editor
@@ -94,75 +82,22 @@ function createShaderFileEditor(
     const browseBtn = document.createElement('button');
     browseBtn.className = 'es-btn es-btn-icon es-btn-browse';
     browseBtn.title = 'Browse';
-    browseBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2z"></path></svg>`;
+    browseBtn.innerHTML = BROWSE_ICON;
 
     input.addEventListener('click', () => {
-        if (input.value) {
-            navigateToAsset(input.value);
-        }
+        if (input.value) navigateToAsset(input.value);
     });
 
-    wrapper.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        const data = e.dataTransfer?.types.includes('application/esengine-asset');
-        if (data) {
-            wrapper.classList.add('es-drag-over');
-            e.dataTransfer!.dropEffect = 'copy';
-        } else {
-            e.dataTransfer!.dropEffect = 'none';
-        }
-    });
-
-    wrapper.addEventListener('dragleave', () => {
-        wrapper.classList.remove('es-drag-over');
-    });
-
-    wrapper.addEventListener('drop', (e) => {
-        e.preventDefault();
-        wrapper.classList.remove('es-drag-over');
-
-        const jsonData = e.dataTransfer?.getData('application/esengine-asset');
-        if (!jsonData) return;
-
-        try {
-            const assetData = JSON.parse(jsonData);
-            if (assetData.type === 'shader') {
-                const projectDir = getProjectDir();
-                if (projectDir && assetData.path.startsWith(projectDir)) {
-                    const relativePath = assetData.path.substring(projectDir.length + 1);
-                    input.value = relativePath;
-                    onChange(relativePath);
-                }
-            }
-        } catch (err) {
-            console.error('Failed to parse drop data:', err);
-        }
+    handleAssetDrop(wrapper, [AssetType.SHADER], (relativePath) => {
+        input.value = relativePath;
+        onChange(relativePath);
     });
 
     browseBtn.addEventListener('click', async () => {
-        const projectDir = getProjectDir();
-        if (!projectDir) return;
-
-        const assetsDir = `${projectDir}/assets`;
-
-        try {
-            const platform = getPlatformAdapter();
-            const result = await platform.openFileDialog({
-                title: 'Select Shader',
-                defaultPath: assetsDir,
-                filters: [{ name: 'Shader Files', extensions: ['esshader'] }],
-            });
-            if (result) {
-                const normalizedPath = result.replace(/\\/g, '/');
-                const assetsIndex = normalizedPath.indexOf('/assets/');
-                if (assetsIndex !== -1) {
-                    const relativePath = normalizedPath.substring(assetsIndex + 1);
-                    input.value = relativePath;
-                    onChange(relativePath);
-                }
-            }
-        } catch (err) {
-            console.error('Failed to open file dialog:', err);
+        const result = await browseForAsset('Select Shader', 'Shader Files', ['esshader']);
+        if (result) {
+            input.value = result.relativePath;
+            onChange(result.relativePath);
         }
     });
 
@@ -183,15 +118,6 @@ function createShaderFileEditor(
 // =============================================================================
 // Material Texture Editor
 // =============================================================================
-
-function getNativeFS(): NativeFS | null {
-    return getEditorContext().fs ?? null;
-}
-
-function getMimeType(path: string): string {
-    const ext = path.split('.').pop()?.toLowerCase() ?? '';
-    return getAssetMimeType(ext) ?? 'image/png';
-}
 
 function createMaterialTextureEditor(
     container: HTMLElement,
@@ -225,7 +151,7 @@ function createMaterialTextureEditor(
     const browseBtn = document.createElement('button');
     browseBtn.className = 'es-btn es-btn-icon es-btn-browse';
     browseBtn.title = 'Browse';
-    browseBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2z"></path></svg>`;
+    browseBtn.innerHTML = BROWSE_ICON;
 
     const updatePreview = async (texturePath: string) => {
         const gen = ++previewGeneration;
@@ -271,71 +197,20 @@ function createMaterialTextureEditor(
         }
     });
 
-    wrapper.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        const data = e.dataTransfer?.types.includes('application/esengine-asset');
-        if (data) {
-            wrapper.classList.add('es-drag-over');
-            e.dataTransfer!.dropEffect = 'copy';
-        } else {
-            e.dataTransfer!.dropEffect = 'none';
-        }
-    });
-
-    wrapper.addEventListener('dragleave', () => {
-        wrapper.classList.remove('es-drag-over');
-    });
-
-    wrapper.addEventListener('drop', (e) => {
-        e.preventDefault();
-        wrapper.classList.remove('es-drag-over');
-
-        const jsonData = e.dataTransfer?.getData('application/esengine-asset');
-        if (!jsonData) return;
-
-        try {
-            const assetData = JSON.parse(jsonData);
-            if (assetData.type === 'image') {
-                const projectDir = getProjectDir();
-                if (projectDir && assetData.path.startsWith(projectDir)) {
-                    const relativePath = assetData.path.substring(projectDir.length + 1);
-                    input.value = relativePath;
-                    currentRef = relativePath;
-                    onChange(relativePath);
-                    updatePreview(relativePath);
-                }
-            }
-        } catch (err) {
-            console.error('Failed to parse drop data:', err);
-        }
+    handleAssetDrop(wrapper, [AssetType.IMAGE], (relativePath) => {
+        input.value = relativePath;
+        currentRef = relativePath;
+        onChange(relativePath);
+        updatePreview(relativePath);
     });
 
     browseBtn.addEventListener('click', async () => {
-        const projectDir = getProjectDir();
-        if (!projectDir) return;
-
-        const assetsDir = `${projectDir}/assets`;
-
-        try {
-            const platform = getPlatformAdapter();
-            const result = await platform.openFileDialog({
-                title: 'Select Texture',
-                defaultPath: assetsDir,
-                filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp'] }],
-            });
-            if (result) {
-                const normalizedPath = result.replace(/\\/g, '/');
-                const assetsIndex = normalizedPath.indexOf('/assets/');
-                if (assetsIndex !== -1) {
-                    const relativePath = normalizedPath.substring(assetsIndex + 1);
-                    input.value = relativePath;
-                    currentRef = relativePath;
-                    onChange(relativePath);
-                    updatePreview(relativePath);
-                }
-            }
-        } catch (err) {
-            console.error('Failed to open file dialog:', err);
+        const result = await browseForAsset('Select Texture', 'Images', ['png', 'jpg', 'jpeg', 'webp']);
+        if (result) {
+            input.value = result.relativePath;
+            currentRef = result.relativePath;
+            onChange(result.relativePath);
+            updatePreview(result.relativePath);
         }
     });
 

@@ -17,12 +17,9 @@ import {
     isBuiltinPanel,
     isSaveable,
 } from './panels/PanelRegistry';
-import { registerBuiltinPanels } from './panels/builtinPanels';
-import { registerBuiltinEditors } from './property/editors';
-import { registerMaterialEditors } from './property/materialEditors';
 import { lockBuiltinPropertyEditors, clearExtensionPropertyEditors } from './property/PropertyEditor';
-import { registerBuiltinSchemas, lockBuiltinComponentSchemas, clearExtensionComponentSchemas } from './schemas/ComponentSchemas';
-import { initBoundsProviders, registerBoundsProvider, lockBuiltinBoundsProviders, clearExtensionBoundsProviders } from './bounds';
+import { lockBuiltinComponentSchemas, clearExtensionComponentSchemas, exposeRegistrationAPI } from './schemas/ComponentSchemas';
+import { registerBoundsProvider, lockBuiltinBoundsProviders, clearExtensionBoundsProviders } from './bounds';
 import { saveSceneToFile, saveSceneToPath, loadSceneFromFile, loadSceneFromPath, hasFileHandle, clearFileHandle } from './io/SceneSerializer';
 import { isAbsolutePath, joinPath, getProjectDir } from './utils/path';
 import { icons } from './utils/icons';
@@ -34,9 +31,7 @@ import { getSharedRenderContext } from './renderer/SharedRenderContext';
 import type { EditorAssetServer } from './asset/EditorAssetServer';
 import { getAssetLibrary } from './asset/AssetLibrary';
 import { setEditorInstance, getEditorContext, getEditorInstance } from './context/EditorContext';
-import { registerBuiltinMenus } from './menus';
-import { registerBuiltinGizmos, registerGizmo, lockBuiltinGizmos, clearExtensionGizmos } from './gizmos';
-import { registerBuiltinStatusbarItems } from './menus/builtinStatusbar';
+import { registerGizmo, lockBuiltinGizmos, clearExtensionGizmos } from './gizmos';
 import { ExtensionLoader } from './extension';
 import { setEditorAPI, clearEditorAPI } from './extension/editorAPI';
 import {
@@ -49,7 +44,6 @@ import { showToast, showSuccessToast, showErrorToast } from './ui/Toast';
 import { showContextMenu } from './ui/ContextMenu';
 import { registerContextMenuItem, lockBuiltinContextMenuItems, clearExtensionContextMenuItems } from './ui/ContextMenuRegistry';
 import { installGlobalErrorHandler } from './error/GlobalErrorHandler';
-import { registerBuiltinAssetTypes } from './asset/AssetTypeRegistry';
 import { EditorLogger, createConsoleHandler, createToastHandler } from './logging';
 import {
     registerInspectorSection,
@@ -57,13 +51,13 @@ import {
     lockBuiltinInspectorExtensions,
     clearExtensionInspectorExtensions,
 } from './panels/inspector/InspectorRegistry';
-import { registerPostProcessVolumeInspector } from './panels/inspector/PostProcessVolumeInspector';
+import type { EditorPlugin, EditorPluginContext } from './plugins/EditorPlugin';
+import { builtinPlugins, coreStatusbarPlugin } from './plugins';
 
 import { showConfirmDialog, showInputDialog, showDialog } from './ui/dialog';
 import { getEditorStore } from './store';
 import { generateUniqueName } from './utils/naming';
 import {
-    registerBuiltinSettings,
     lockBuiltinSettings,
     clearExtensionSettings,
     showSettingsDialog,
@@ -120,6 +114,9 @@ export class Editor {
     private settingsSync_: ProjectSettingsSync | null = null;
     private mainWindowBridge_: MainWindowBridge | null = null;
     private windowManager_: WindowManager | null = null;
+    private plugins_: EditorPlugin[] = [];
+    private pluginNames_ = new Set<string>();
+    private pluginContext_!: EditorPluginContext;
 
     constructor(container: HTMLElement, options?: EditorOptions) {
         this.container_ = container;
@@ -131,6 +128,12 @@ export class Editor {
         this.menuManager_.setStore(this.store_);
         this.previewManager_ = new PreviewManager(this.projectPath_);
 
+        this.pluginContext_ = {
+            editor: this,
+            projectPath: this.projectPath_,
+            onOpenScene: (path: string) => this.openSceneFromPath(path),
+        };
+
         installGlobalErrorHandler();
 
         EditorLogger.addHandler(createConsoleHandler());
@@ -140,20 +143,10 @@ export class Editor {
         }));
         EditorLogger.setMinLevel('info');
 
-        registerBuiltinAssetTypes();
-        registerBuiltinEditors();
-        registerMaterialEditors();
-        registerBuiltinSchemas();
-        registerPostProcessVolumeInspector();
-        initBoundsProviders();
-        registerBuiltinGizmos();
-        registerBuiltinSettings();
-
-        registerBuiltinPanels({
-            projectPath: this.projectPath_ ?? undefined,
-            onOpenScene: (scenePath) => this.openSceneFromPath(scenePath),
-        });
-        registerBuiltinMenus(this);
+        for (const plugin of builtinPlugins) {
+            this.addPlugin(plugin);
+        }
+        exposeRegistrationAPI();
         lockBuiltinPanels();
         lockBuiltinMenus();
         lockBuiltinGizmos();
@@ -166,7 +159,7 @@ export class Editor {
 
         this.setupLayout();
 
-        registerBuiltinStatusbarItems(this);
+        this.addPlugin(coreStatusbarPlugin);
         this.menuManager_.instantiateStatusbar(this.container_);
         this.menuManager_.setupMenuShortcuts();
         this.menuManager_.attach();
@@ -180,6 +173,21 @@ export class Editor {
             this.initProjectSettingsSync();
             this.restoreLastScene();
         }
+    }
+
+    addPlugin(plugin: EditorPlugin): this {
+        if (this.pluginNames_.has(plugin.name)) return this;
+        if (plugin.dependencies) {
+            for (const dep of plugin.dependencies) {
+                if (!this.pluginNames_.has(dep)) {
+                    throw new Error(`Plugin "${plugin.name}" requires "${dep}"`);
+                }
+            }
+        }
+        plugin.register(this.pluginContext_);
+        this.plugins_.push(plugin);
+        this.pluginNames_.add(plugin.name);
+        return this;
     }
 
     get projectPath(): string | null {

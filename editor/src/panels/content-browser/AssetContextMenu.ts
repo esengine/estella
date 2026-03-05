@@ -11,6 +11,7 @@ import { getSettingsValue } from '../../settings';
 import { DEFAULT_DESIGN_WIDTH, DEFAULT_DESIGN_HEIGHT } from 'esengine';
 import type { AssetItem, ContentBrowserState } from './ContentBrowserTypes';
 import { getNativeFS } from './ContentBrowserTypes';
+import { AssetType } from '../../constants/AssetTypes';
 import { getGlobalPathResolver } from '../../asset';
 
 export function showAssetContextMenu(state: ContentBrowserState, e: MouseEvent, path: string, type: AssetItem['type']): void {
@@ -62,7 +63,7 @@ export function showMultiSelectContextMenu(state: ContentBrowserState, e: MouseE
     ];
 
     const selectedItems = state.filteredItems.filter(item => state.selectedPaths.has(item.path));
-    const allImages = selectedItems.length > 0 && selectedItems.every(item => item.type === 'image');
+    const allImages = selectedItems.length > 0 && selectedItems.every(item => item.type === AssetType.IMAGE);
     if (allImages) {
         items.push(
             { label: '', separator: true },

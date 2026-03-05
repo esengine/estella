@@ -20,6 +20,7 @@ import { setupDragLabel, colorToHex, hexToColor } from './editorUtils';
 import { validateNumber, validateVec2, validateVec3, validateColor, showValidationError } from './validation';
 import { getNamedLayers, layerIndexFromBits, bitsFromLayerIndex } from '../settings/collisionLayers';
 import { onSettingsChange } from '../settings/SettingsRegistry';
+import { AssetType } from '../constants/AssetTypes';
 export { setupDragLabel, colorToHex, hexToColor };
 
 // =============================================================================
@@ -669,18 +670,18 @@ function createEnumEditor(
 // Texture Editor
 // =============================================================================
 
-function getNativeFS(): NativeFS | null {
+export function getNativeFS(): NativeFS | null {
     return getEditorContext().fs ?? null;
 }
 
-function getProjectDir(): string | null {
+export function getProjectDir(): string | null {
     const editor = getEditorInstance();
     const projectPath = editor?.projectPath;
     if (!projectPath) return null;
     return projectPath.replace(/\\/g, '/').replace(/\/[^/]+$/, '');
 }
 
-function getMimeType(path: string): string {
+export function getMimeType(path: string): string {
     const ext = path.split('.').pop()?.toLowerCase() ?? '';
     return getAssetMimeType(ext) ?? 'image/png';
 }
@@ -748,12 +749,12 @@ function createTextureEditor(
     const browseBtn = document.createElement('button');
     browseBtn.className = 'es-btn es-btn-icon es-btn-browse';
     browseBtn.title = 'Browse';
-    browseBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2z"></path></svg>`;
+    browseBtn.innerHTML = BROWSE_ICON;
 
     const clearBtn = document.createElement('button');
     clearBtn.className = 'es-btn es-btn-icon es-btn-clear';
     clearBtn.title = 'Clear';
-    clearBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
+    clearBtn.innerHTML = CLEAR_ICON;
 
     const updatePreview = async (textureRef: string) => {
         const gen = ++previewGeneration;
@@ -809,75 +810,20 @@ function createTextureEditor(
     input.addEventListener('click', navigateToAssetPath);
     preview.addEventListener('click', navigateToAssetPath);
 
-    wrapper.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        const data = e.dataTransfer?.types.includes('application/esengine-asset');
-        if (data) {
-            wrapper.classList.add('es-drag-over');
-            e.dataTransfer!.dropEffect = 'copy';
-        } else {
-            e.dataTransfer!.dropEffect = 'none';
-        }
-    });
-
-    wrapper.addEventListener('dragleave', () => {
-        wrapper.classList.remove('es-drag-over');
-    });
-
-    wrapper.addEventListener('drop', (e) => {
-        e.preventDefault();
-        wrapper.classList.remove('es-drag-over');
-
-        const jsonData = e.dataTransfer?.getData('application/esengine-asset');
-        if (!jsonData) return;
-
-        try {
-            const assetData = JSON.parse(jsonData);
-            if (assetData.type === 'image') {
-                const projectDir = getProjectDir();
-                if (projectDir && assetData.path.startsWith(projectDir)) {
-                    const relativePath = assetData.path.substring(projectDir.length + 1);
-                    const uuid = getAssetLibrary().getUuid(relativePath);
-                    const ref = uuid ?? relativePath;
-                    input.value = relativePath;
-                    currentRef = ref;
-                    onChange(ref);
-                    updatePreview(ref);
-                }
-            }
-        } catch (err) {
-            console.error('Failed to parse drop data:', err);
-        }
+    handleAssetDrop(wrapper, [AssetType.IMAGE], (relativePath, ref) => {
+        input.value = relativePath;
+        currentRef = ref;
+        onChange(ref);
+        updatePreview(ref);
     });
 
     browseBtn.addEventListener('click', async () => {
-        const projectDir = getProjectDir();
-        if (!projectDir) return;
-
-        const assetsDir = `${projectDir}/assets`;
-
-        try {
-            const platform = getPlatformAdapter();
-            const result = await platform.openFileDialog({
-                title: 'Select Texture',
-                defaultPath: assetsDir,
-                filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp'] }],
-            });
-            if (result) {
-                const normalizedPath = result.replace(/\\/g, '/');
-                const assetsIndex = normalizedPath.indexOf('/assets/');
-                if (assetsIndex !== -1) {
-                    const relativePath = normalizedPath.substring(assetsIndex + 1);
-                    const uuid = getAssetLibrary().getUuid(relativePath);
-                    const ref = uuid ?? relativePath;
-                    input.value = relativePath;
-                    currentRef = ref;
-                    onChange(ref);
-                    updatePreview(ref);
-                }
-            }
-        } catch (err) {
-            console.error('Failed to open file dialog:', err);
+        const result = await browseForAsset('Select Texture', 'Images', ['png', 'jpg', 'jpeg', 'webp']);
+        if (result) {
+            input.value = result.relativePath;
+            currentRef = result.ref;
+            onChange(result.ref);
+            updatePreview(result.ref);
         }
     });
 
@@ -1031,44 +977,23 @@ function createSpineFileEditor(
     const browseBtn = document.createElement('button');
     browseBtn.className = 'es-btn es-btn-icon es-btn-browse';
     browseBtn.title = 'Browse';
-    browseBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2z"></path></svg>`;
+    browseBtn.innerHTML = BROWSE_ICON;
 
     const clearBtn = document.createElement('button');
     clearBtn.className = 'es-btn es-btn-icon es-btn-clear';
     clearBtn.title = 'Clear';
-    clearBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
+    clearBtn.innerHTML = CLEAR_ICON;
 
     input.addEventListener('change', () => {
         onChange(input.value || '');
     });
 
     browseBtn.addEventListener('click', async () => {
-        const projectDir = getProjectDir();
-        if (!projectDir) return;
-
-        const assetsDir = `${projectDir}/assets`;
-
-        try {
-            const platform = getPlatformAdapter();
-            const extensions = fileFilter.map(f => f.replace('.', ''));
-            const result = await platform.openFileDialog({
-                title: 'Select File',
-                defaultPath: assetsDir,
-                filters: [{ name: 'Spine Files', extensions }],
-            });
-            if (result) {
-                const normalizedPath = result.replace(/\\/g, '/');
-                const assetsIndex = normalizedPath.indexOf('/assets/');
-                if (assetsIndex !== -1) {
-                    const relativePath = normalizedPath.substring(assetsIndex + 1);
-                    const uuid = getAssetLibrary().getUuid(relativePath);
-                    const ref = uuid ?? relativePath;
-                    input.value = relativePath;
-                    onChange(ref);
-                }
-            }
-        } catch (err) {
-            console.error('Failed to open file dialog:', err);
+        const extensions = fileFilter.map((f: string) => f.replace('.', ''));
+        const result = await browseForAsset('Select File', 'Spine Files', extensions);
+        if (result) {
+            input.value = result.relativePath;
+            onChange(result.ref);
         }
     });
 
@@ -1356,53 +1281,36 @@ function createSpineSkinEditor(
 }
 
 // =============================================================================
-// Material File Editor
+// Generic Asset File Editor Factory
 // =============================================================================
 
-function navigateToAsset(assetPath: string): void {
+interface AssetFileEditorConfig {
+    acceptTypes: string[];
+    dialogTitle: string;
+    filterName: string;
+    extensions: string[];
+}
+
+export function navigateToAsset(assetPath: string): void {
     const editor = getEditorInstance();
     if (editor && typeof editor.navigateToAsset === 'function') {
         editor.navigateToAsset(assetPath);
     }
 }
 
-function createMaterialFileEditor(
-    container: HTMLElement,
-    ctx: PropertyEditorContext
-): PropertyEditorInstance {
-    const { value, onChange } = ctx;
+export const BROWSE_ICON = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2z"></path></svg>`;
+export const CLEAR_ICON = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
+const ASSET_DRAG_MIME = 'application/esengine-asset';
+const ASSETS_DIR_NAME = 'assets';
 
-    const wrapper = document.createElement('div');
-    wrapper.className = 'es-file-editor';
-
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.className = 'es-input es-input-file es-asset-link';
-    input.value = resolveDisplayName(String(value ?? ''));
-    input.placeholder = 'None';
-    input.readOnly = true;
-    checkAssetMissing(String(value ?? ''), input);
-
-    const browseBtn = document.createElement('button');
-    browseBtn.className = 'es-btn es-btn-icon es-btn-browse';
-    browseBtn.title = 'Browse';
-    browseBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2z"></path></svg>`;
-
-    const clearBtn = document.createElement('button');
-    clearBtn.className = 'es-btn es-btn-icon es-btn-clear';
-    clearBtn.title = 'Clear';
-    clearBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
-
-    input.addEventListener('click', () => {
-        if (input.value) {
-            navigateToAsset(input.value);
-        }
-    });
-
+export function handleAssetDrop(
+    wrapper: HTMLElement,
+    acceptTypes: string[],
+    onAccept: (relativePath: string, ref: string) => void
+): void {
     wrapper.addEventListener('dragover', (e) => {
         e.preventDefault();
-        const data = e.dataTransfer?.types.includes('application/esengine-asset');
-        if (data) {
+        if (e.dataTransfer?.types.includes(ASSET_DRAG_MIME)) {
             wrapper.classList.add('es-drag-over');
             e.dataTransfer!.dropEffect = 'copy';
         } else {
@@ -1417,85 +1325,59 @@ function createMaterialFileEditor(
     wrapper.addEventListener('drop', (e) => {
         e.preventDefault();
         wrapper.classList.remove('es-drag-over');
-
-        const jsonData = e.dataTransfer?.getData('application/esengine-asset');
+        const jsonData = e.dataTransfer?.getData(ASSET_DRAG_MIME);
         if (!jsonData) return;
-
         try {
             const assetData = JSON.parse(jsonData);
-            if (assetData.type === 'material') {
+            if (acceptTypes.includes(assetData.type)) {
                 const projectDir = getProjectDir();
                 if (projectDir && assetData.path.startsWith(projectDir)) {
                     const relativePath = assetData.path.substring(projectDir.length + 1);
                     const uuid = getAssetLibrary().getUuid(relativePath);
-                    const ref = uuid ?? relativePath;
-                    input.value = relativePath;
-                    onChange(ref);
+                    onAccept(relativePath, uuid ?? relativePath);
                 }
             }
         } catch (err) {
             console.error('Failed to parse drop data:', err);
         }
     });
-
-    browseBtn.addEventListener('click', async () => {
-        const projectDir = getProjectDir();
-        if (!projectDir) return;
-
-        const assetsDir = `${projectDir}/assets`;
-
-        try {
-            const platform = getPlatformAdapter();
-            const result = await platform.openFileDialog({
-                title: 'Select Material',
-                defaultPath: assetsDir,
-                filters: [{ name: 'Material Files', extensions: ['esmaterial'] }],
-            });
-            if (result) {
-                const normalizedPath = result.replace(/\\/g, '/');
-                const assetsIndex = normalizedPath.indexOf('/assets/');
-                if (assetsIndex !== -1) {
-                    const relativePath = normalizedPath.substring(assetsIndex + 1);
-                    const uuid = getAssetLibrary().getUuid(relativePath);
-                    const ref = uuid ?? relativePath;
-                    input.value = relativePath;
-                    onChange(ref);
-                }
-            }
-        } catch (err) {
-            console.error('Failed to open file dialog:', err);
-        }
-    });
-
-    clearBtn.addEventListener('click', () => {
-        input.value = '';
-        onChange('');
-    });
-
-    wrapper.appendChild(input);
-    wrapper.appendChild(browseBtn);
-    wrapper.appendChild(clearBtn);
-    container.appendChild(wrapper);
-
-    return {
-        update(v: unknown) {
-            const ref = String(v ?? '');
-            input.value = resolveDisplayName(ref);
-            checkAssetMissing(ref, input);
-        },
-        dispose() {
-            wrapper.remove();
-        },
-    };
 }
 
-// =============================================================================
-// Bitmap Font File Editor
-// =============================================================================
+export async function browseForAsset(
+    dialogTitle: string,
+    filterName: string,
+    extensions: string[]
+): Promise<{ relativePath: string; ref: string } | null> {
+    const projectDir = getProjectDir();
+    if (!projectDir) return null;
 
-function createBitmapFontFileEditor(
+    const assetsDir = `${projectDir}/${ASSETS_DIR_NAME}`;
+    try {
+        const platform = getPlatformAdapter();
+        const result = await platform.openFileDialog({
+            title: dialogTitle,
+            defaultPath: assetsDir,
+            filters: [{ name: filterName, extensions }],
+        });
+        if (result) {
+            const normalizedPath = result.replace(/\\/g, '/');
+            const assetsIndex = normalizedPath.indexOf(`/${ASSETS_DIR_NAME}/`);
+            if (assetsIndex !== -1) {
+                const relativePath = normalizedPath.substring(assetsIndex + 1);
+                const uuid = getAssetLibrary().getUuid(relativePath);
+                return { relativePath, ref: uuid ?? relativePath };
+            }
+        }
+    } catch (err) {
+        console.error('Failed to open file dialog:', err);
+    }
+    return null;
+}
+
+function createAssetFileEditor(
     container: HTMLElement,
-    ctx: PropertyEditorContext
+    ctx: PropertyEditorContext,
+    config: AssetFileEditorConfig
 ): PropertyEditorInstance {
     const { value, onChange } = ctx;
 
@@ -1513,84 +1395,27 @@ function createBitmapFontFileEditor(
     const browseBtn = document.createElement('button');
     browseBtn.className = 'es-btn es-btn-icon es-btn-browse';
     browseBtn.title = 'Browse';
-    browseBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2z"></path></svg>`;
+    browseBtn.innerHTML = BROWSE_ICON;
 
     const clearBtn = document.createElement('button');
     clearBtn.className = 'es-btn es-btn-icon es-btn-clear';
     clearBtn.title = 'Clear';
-    clearBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
+    clearBtn.innerHTML = CLEAR_ICON;
 
     input.addEventListener('click', () => {
-        if (input.value) {
-            navigateToAsset(input.value);
-        }
+        if (input.value) navigateToAsset(input.value);
     });
 
-    wrapper.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        const data = e.dataTransfer?.types.includes('application/esengine-asset');
-        if (data) {
-            wrapper.classList.add('es-drag-over');
-            e.dataTransfer!.dropEffect = 'copy';
-        } else {
-            e.dataTransfer!.dropEffect = 'none';
-        }
-    });
-
-    wrapper.addEventListener('dragleave', () => {
-        wrapper.classList.remove('es-drag-over');
-    });
-
-    wrapper.addEventListener('drop', (e) => {
-        e.preventDefault();
-        wrapper.classList.remove('es-drag-over');
-
-        const jsonData = e.dataTransfer?.getData('application/esengine-asset');
-        if (!jsonData) return;
-
-        try {
-            const assetData = JSON.parse(jsonData);
-            if (assetData.type === 'font') {
-                const projectDir = getProjectDir();
-                if (projectDir && assetData.path.startsWith(projectDir)) {
-                    const relativePath = assetData.path.substring(projectDir.length + 1);
-                    const uuid = getAssetLibrary().getUuid(relativePath);
-                    const ref = uuid ?? relativePath;
-                    input.value = relativePath;
-                    onChange(ref);
-                }
-            }
-        } catch (err) {
-            console.error('Failed to parse drop data:', err);
-        }
+    handleAssetDrop(wrapper, config.acceptTypes, (relativePath, ref) => {
+        input.value = relativePath;
+        onChange(ref);
     });
 
     browseBtn.addEventListener('click', async () => {
-        const projectDir = getProjectDir();
-        if (!projectDir) return;
-
-        const assetsDir = `${projectDir}/assets`;
-
-        try {
-            const platform = getPlatformAdapter();
-            const result = await platform.openFileDialog({
-                title: 'Select BitmapFont',
-                defaultPath: assetsDir,
-                filters: [{ name: 'BitmapFont Files', extensions: ['bmfont'] }],
-            });
-            if (result) {
-                const normalizedPath = result.replace(/\\/g, '/');
-                const assetsIndex = normalizedPath.indexOf('/assets/');
-                if (assetsIndex !== -1) {
-                    const relativePath = normalizedPath.substring(assetsIndex + 1);
-                    const uuid = getAssetLibrary().getUuid(relativePath);
-                    const ref = uuid ?? relativePath;
-                    input.value = relativePath;
-                    onChange(ref);
-                }
-            }
-        } catch (err) {
-            console.error('Failed to open file dialog:', err);
+        const result = await browseForAsset(config.dialogTitle, config.filterName, config.extensions);
+        if (result) {
+            input.value = result.relativePath;
+            onChange(result.ref);
         }
     });
 
@@ -1930,512 +1755,17 @@ function createStringArrayEditor(
 }
 
 // =============================================================================
-// Animation Clip File Editor
+// Asset File Editor Configs (data-driven via createAssetFileEditor)
 // =============================================================================
 
-function createAnimFileEditor(
-    container: HTMLElement,
-    ctx: PropertyEditorContext
-): PropertyEditorInstance {
-    const { value, onChange } = ctx;
-
-    const wrapper = document.createElement('div');
-    wrapper.className = 'es-file-editor';
-
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.className = 'es-input es-input-file es-asset-link';
-    input.value = resolveDisplayName(String(value ?? ''));
-    input.placeholder = 'None';
-    input.readOnly = true;
-    checkAssetMissing(String(value ?? ''), input);
-
-    const browseBtn = document.createElement('button');
-    browseBtn.className = 'es-btn es-btn-icon es-btn-browse';
-    browseBtn.title = 'Browse';
-    browseBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2z"></path></svg>`;
-
-    const clearBtn = document.createElement('button');
-    clearBtn.className = 'es-btn es-btn-icon es-btn-clear';
-    clearBtn.title = 'Clear';
-    clearBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
-
-    input.addEventListener('click', () => {
-        if (input.value) {
-            navigateToAsset(input.value);
-        }
-    });
-
-    wrapper.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        const data = e.dataTransfer?.types.includes('application/esengine-asset');
-        if (data) {
-            wrapper.classList.add('es-drag-over');
-            e.dataTransfer!.dropEffect = 'copy';
-        } else {
-            e.dataTransfer!.dropEffect = 'none';
-        }
-    });
-
-    wrapper.addEventListener('dragleave', () => {
-        wrapper.classList.remove('es-drag-over');
-    });
-
-    wrapper.addEventListener('drop', (e) => {
-        e.preventDefault();
-        wrapper.classList.remove('es-drag-over');
-
-        const jsonData = e.dataTransfer?.getData('application/esengine-asset');
-        if (!jsonData) return;
-
-        try {
-            const assetData = JSON.parse(jsonData);
-            if (assetData.type === 'animclip') {
-                const projectDir = getProjectDir();
-                if (projectDir && assetData.path.startsWith(projectDir)) {
-                    const relativePath = assetData.path.substring(projectDir.length + 1);
-                    const uuid = getAssetLibrary().getUuid(relativePath);
-                    const ref = uuid ?? relativePath;
-                    input.value = relativePath;
-                    onChange(ref);
-                }
-            }
-        } catch (err) {
-            console.error('Failed to parse drop data:', err);
-        }
-    });
-
-    browseBtn.addEventListener('click', async () => {
-        const projectDir = getProjectDir();
-        if (!projectDir) return;
-
-        const assetsDir = `${projectDir}/assets`;
-
-        try {
-            const platform = getPlatformAdapter();
-            const result = await platform.openFileDialog({
-                title: 'Select Animation Clip',
-                defaultPath: assetsDir,
-                filters: [{ name: 'Animation Clip', extensions: ['esanim'] }],
-            });
-            if (result) {
-                const normalizedPath = result.replace(/\\/g, '/');
-                const assetsIndex = normalizedPath.indexOf('/assets/');
-                if (assetsIndex !== -1) {
-                    const relativePath = normalizedPath.substring(assetsIndex + 1);
-                    const uuid = getAssetLibrary().getUuid(relativePath);
-                    const ref = uuid ?? relativePath;
-                    input.value = relativePath;
-                    onChange(ref);
-                }
-            }
-        } catch (err) {
-            console.error('Failed to open file dialog:', err);
-        }
-    });
-
-    clearBtn.addEventListener('click', () => {
-        input.value = '';
-        onChange('');
-    });
-
-    wrapper.appendChild(input);
-    wrapper.appendChild(browseBtn);
-    wrapper.appendChild(clearBtn);
-    container.appendChild(wrapper);
-
-    return {
-        update(v: unknown) {
-            const ref = String(v ?? '');
-            input.value = resolveDisplayName(ref);
-            checkAssetMissing(ref, input);
-        },
-        dispose() {
-            wrapper.remove();
-        },
-    };
-}
-
-// =============================================================================
-// Timeline File Editor
-// =============================================================================
-
-function createTimelineFileEditor(
-    container: HTMLElement,
-    ctx: PropertyEditorContext
-): PropertyEditorInstance {
-    const { value, onChange } = ctx;
-
-    const wrapper = document.createElement('div');
-    wrapper.className = 'es-file-editor';
-
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.className = 'es-input es-input-file es-asset-link';
-    input.value = resolveDisplayName(String(value ?? ''));
-    input.placeholder = 'None';
-    input.readOnly = true;
-    checkAssetMissing(String(value ?? ''), input);
-
-    const browseBtn = document.createElement('button');
-    browseBtn.className = 'es-btn es-btn-icon es-btn-browse';
-    browseBtn.title = 'Browse';
-    browseBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2z"></path></svg>`;
-
-    const clearBtn = document.createElement('button');
-    clearBtn.className = 'es-btn es-btn-icon es-btn-clear';
-    clearBtn.title = 'Clear';
-    clearBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
-
-    input.addEventListener('click', () => {
-        if (input.value) {
-            navigateToAsset(input.value);
-        }
-    });
-
-    wrapper.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        const data = e.dataTransfer?.types.includes('application/esengine-asset');
-        if (data) {
-            wrapper.classList.add('es-drag-over');
-            e.dataTransfer!.dropEffect = 'copy';
-        } else {
-            e.dataTransfer!.dropEffect = 'none';
-        }
-    });
-
-    wrapper.addEventListener('dragleave', () => {
-        wrapper.classList.remove('es-drag-over');
-    });
-
-    wrapper.addEventListener('drop', (e) => {
-        e.preventDefault();
-        wrapper.classList.remove('es-drag-over');
-
-        const jsonData = e.dataTransfer?.getData('application/esengine-asset');
-        if (!jsonData) return;
-
-        try {
-            const assetData = JSON.parse(jsonData);
-            if (assetData.type === 'timeline') {
-                const projectDir = getProjectDir();
-                if (projectDir && assetData.path.startsWith(projectDir)) {
-                    const relativePath = assetData.path.substring(projectDir.length + 1);
-                    const uuid = getAssetLibrary().getUuid(relativePath);
-                    const ref = uuid ?? relativePath;
-                    input.value = relativePath;
-                    onChange(ref);
-                }
-            }
-        } catch (err) {
-            console.error('Failed to parse drop data:', err);
-        }
-    });
-
-    browseBtn.addEventListener('click', async () => {
-        const projectDir = getProjectDir();
-        if (!projectDir) return;
-
-        const assetsDir = `${projectDir}/assets`;
-
-        try {
-            const platform = getPlatformAdapter();
-            const result = await platform.openFileDialog({
-                title: 'Select Timeline',
-                defaultPath: assetsDir,
-                filters: [{ name: 'Timeline', extensions: ['estimeline'] }],
-            });
-            if (result) {
-                const normalizedPath = result.replace(/\\/g, '/');
-                const assetsIndex = normalizedPath.indexOf('/assets/');
-                if (assetsIndex !== -1) {
-                    const relativePath = normalizedPath.substring(assetsIndex + 1);
-                    const uuid = getAssetLibrary().getUuid(relativePath);
-                    const ref = uuid ?? relativePath;
-                    input.value = relativePath;
-                    onChange(ref);
-                }
-            }
-        } catch (err) {
-            console.error('Failed to open file dialog:', err);
-        }
-    });
-
-    clearBtn.addEventListener('click', () => {
-        input.value = '';
-        onChange('');
-    });
-
-    wrapper.appendChild(input);
-    wrapper.appendChild(browseBtn);
-    wrapper.appendChild(clearBtn);
-    container.appendChild(wrapper);
-
-    return {
-        update(v: unknown) {
-            const ref = String(v ?? '');
-            input.value = resolveDisplayName(ref);
-            checkAssetMissing(ref, input);
-        },
-        dispose() {
-            wrapper.remove();
-        },
-    };
-}
-
-// =============================================================================
-// Audio File Editor
-// =============================================================================
-
-function createAudioFileEditor(
-    container: HTMLElement,
-    ctx: PropertyEditorContext
-): PropertyEditorInstance {
-    const { value, onChange } = ctx;
-
-    const wrapper = document.createElement('div');
-    wrapper.className = 'es-file-editor';
-
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.className = 'es-input es-input-file es-asset-link';
-    input.value = resolveDisplayName(String(value ?? ''));
-    input.placeholder = 'None';
-    input.readOnly = true;
-    checkAssetMissing(String(value ?? ''), input);
-
-    const browseBtn = document.createElement('button');
-    browseBtn.className = 'es-btn es-btn-icon es-btn-browse';
-    browseBtn.title = 'Browse';
-    browseBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2z"></path></svg>`;
-
-    const clearBtn = document.createElement('button');
-    clearBtn.className = 'es-btn es-btn-icon es-btn-clear';
-    clearBtn.title = 'Clear';
-    clearBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
-
-    input.addEventListener('click', () => {
-        if (input.value) {
-            navigateToAsset(input.value);
-        }
-    });
-
-    wrapper.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        const data = e.dataTransfer?.types.includes('application/esengine-asset');
-        if (data) {
-            wrapper.classList.add('es-drag-over');
-            e.dataTransfer!.dropEffect = 'copy';
-        } else {
-            e.dataTransfer!.dropEffect = 'none';
-        }
-    });
-
-    wrapper.addEventListener('dragleave', () => {
-        wrapper.classList.remove('es-drag-over');
-    });
-
-    wrapper.addEventListener('drop', (e) => {
-        e.preventDefault();
-        wrapper.classList.remove('es-drag-over');
-
-        const jsonData = e.dataTransfer?.getData('application/esengine-asset');
-        if (!jsonData) return;
-
-        try {
-            const assetData = JSON.parse(jsonData);
-            if (assetData.type === 'audio') {
-                const projectDir = getProjectDir();
-                if (projectDir && assetData.path.startsWith(projectDir)) {
-                    const relativePath = assetData.path.substring(projectDir.length + 1);
-                    const uuid = getAssetLibrary().getUuid(relativePath);
-                    const ref = uuid ?? relativePath;
-                    input.value = relativePath;
-                    onChange(ref);
-                }
-            }
-        } catch (err) {
-            console.error('Failed to parse drop data:', err);
-        }
-    });
-
-    browseBtn.addEventListener('click', async () => {
-        const projectDir = getProjectDir();
-        if (!projectDir) return;
-
-        const assetsDir = `${projectDir}/assets`;
-
-        try {
-            const platform = getPlatformAdapter();
-            const result = await platform.openFileDialog({
-                title: 'Select Audio File',
-                defaultPath: assetsDir,
-                filters: [{ name: 'Audio', extensions: ['mp3', 'wav', 'ogg'] }],
-            });
-            if (result) {
-                const normalizedPath = result.replace(/\\/g, '/');
-                const assetsIndex = normalizedPath.indexOf('/assets/');
-                if (assetsIndex !== -1) {
-                    const relativePath = normalizedPath.substring(assetsIndex + 1);
-                    const uuid = getAssetLibrary().getUuid(relativePath);
-                    const ref = uuid ?? relativePath;
-                    input.value = relativePath;
-                    onChange(ref);
-                }
-            }
-        } catch (err) {
-            console.error('Failed to open file dialog:', err);
-        }
-    });
-
-    clearBtn.addEventListener('click', () => {
-        input.value = '';
-        onChange('');
-    });
-
-    wrapper.appendChild(input);
-    wrapper.appendChild(browseBtn);
-    wrapper.appendChild(clearBtn);
-    container.appendChild(wrapper);
-
-    return {
-        update(v: unknown) {
-            const ref = String(v ?? '');
-            input.value = resolveDisplayName(ref);
-            checkAssetMissing(ref, input);
-        },
-        dispose() {
-            wrapper.remove();
-        },
-    };
-}
-
-// =============================================================================
-// Tilemap File Editor
-// =============================================================================
-
-function createTilemapFileEditor(
-    container: HTMLElement,
-    ctx: PropertyEditorContext
-): PropertyEditorInstance {
-    const { value, onChange } = ctx;
-
-    const wrapper = document.createElement('div');
-    wrapper.className = 'es-file-editor';
-
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.className = 'es-input es-input-file es-asset-link';
-    input.value = resolveDisplayName(String(value ?? ''));
-    input.placeholder = 'None';
-    input.readOnly = true;
-    checkAssetMissing(String(value ?? ''), input);
-
-    const browseBtn = document.createElement('button');
-    browseBtn.className = 'es-btn es-btn-icon es-btn-browse';
-    browseBtn.title = 'Browse';
-    browseBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2z"></path></svg>`;
-
-    const clearBtn = document.createElement('button');
-    clearBtn.className = 'es-btn es-btn-icon es-btn-clear';
-    clearBtn.title = 'Clear';
-    clearBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
-
-    input.addEventListener('click', () => {
-        if (input.value) {
-            navigateToAsset(input.value);
-        }
-    });
-
-    wrapper.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        const data = e.dataTransfer?.types.includes('application/esengine-asset');
-        if (data) {
-            wrapper.classList.add('es-drag-over');
-            e.dataTransfer!.dropEffect = 'copy';
-        } else {
-            e.dataTransfer!.dropEffect = 'none';
-        }
-    });
-
-    wrapper.addEventListener('dragleave', () => {
-        wrapper.classList.remove('es-drag-over');
-    });
-
-    wrapper.addEventListener('drop', (e) => {
-        e.preventDefault();
-        wrapper.classList.remove('es-drag-over');
-
-        const jsonData = e.dataTransfer?.getData('application/esengine-asset');
-        if (!jsonData) return;
-
-        try {
-            const assetData = JSON.parse(jsonData);
-            if (assetData.type === 'tilemap') {
-                const projectDir = getProjectDir();
-                if (projectDir && assetData.path.startsWith(projectDir)) {
-                    const relativePath = assetData.path.substring(projectDir.length + 1);
-                    const uuid = getAssetLibrary().getUuid(relativePath);
-                    const ref = uuid ?? relativePath;
-                    input.value = relativePath;
-                    onChange(ref);
-                }
-            }
-        } catch (err) {
-            console.error('Failed to parse drop data:', err);
-        }
-    });
-
-    browseBtn.addEventListener('click', async () => {
-        const projectDir = getProjectDir();
-        if (!projectDir) return;
-
-        const assetsDir = `${projectDir}/assets`;
-
-        try {
-            const platform = getPlatformAdapter();
-            const result = await platform.openFileDialog({
-                title: 'Select Tilemap',
-                defaultPath: assetsDir,
-                filters: [{ name: 'Tiled Map', extensions: ['tmj'] }],
-            });
-            if (result) {
-                const normalizedPath = result.replace(/\\/g, '/');
-                const assetsIndex = normalizedPath.indexOf('/assets/');
-                if (assetsIndex !== -1) {
-                    const relativePath = normalizedPath.substring(assetsIndex + 1);
-                    const uuid = getAssetLibrary().getUuid(relativePath);
-                    const ref = uuid ?? relativePath;
-                    input.value = relativePath;
-                    onChange(ref);
-                }
-            }
-        } catch (err) {
-            console.error('Failed to open file dialog:', err);
-        }
-    });
-
-    clearBtn.addEventListener('click', () => {
-        input.value = '';
-        onChange('');
-    });
-
-    wrapper.appendChild(input);
-    wrapper.appendChild(browseBtn);
-    wrapper.appendChild(clearBtn);
-    container.appendChild(wrapper);
-
-    return {
-        update(v: unknown) {
-            const ref = String(v ?? '');
-            input.value = resolveDisplayName(ref);
-            checkAssetMissing(ref, input);
-        },
-        dispose() {
-            wrapper.remove();
-        },
-    };
-}
+const ASSET_FILE_EDITORS: Record<string, AssetFileEditorConfig> = {
+    'material-file': { acceptTypes: [AssetType.MATERIAL], dialogTitle: 'Select Material', filterName: 'Material Files', extensions: ['esmaterial'] },
+    'bitmap-font-file': { acceptTypes: [AssetType.FONT], dialogTitle: 'Select BitmapFont', filterName: 'BitmapFont Files', extensions: ['bmfont'] },
+    'anim-file': { acceptTypes: [AssetType.ANIMCLIP], dialogTitle: 'Select Animation Clip', filterName: 'Animation Clip', extensions: ['esanim'] },
+    'timeline-file': { acceptTypes: [AssetType.TIMELINE], dialogTitle: 'Select Timeline', filterName: 'Timeline', extensions: ['estimeline'] },
+    'audio-file': { acceptTypes: [AssetType.AUDIO], dialogTitle: 'Select Audio File', filterName: 'Audio', extensions: ['mp3', 'wav', 'ogg'] },
+    'tilemap-file': { acceptTypes: [AssetType.TILEMAP], dialogTitle: 'Select Tilemap', filterName: 'Tiled Map', extensions: ['tmj'] },
+};
 
 // =============================================================================
 // Collision Layer Editor
@@ -2513,16 +1843,13 @@ export function registerBuiltinEditors(): void {
     registerPropertyEditor('spine-file', createSpineFileEditor);
     registerPropertyEditor('spine-animation', createSpineAnimationEditor);
     registerPropertyEditor('spine-skin', createSpineSkinEditor);
-    registerPropertyEditor('material-file', createMaterialFileEditor);
-    registerPropertyEditor('bitmap-font-file', createBitmapFontFileEditor);
+    for (const [editorType, config] of Object.entries(ASSET_FILE_EDITORS)) {
+        registerPropertyEditor(editorType, (container, ctx) => createAssetFileEditor(container, ctx, config));
+    }
     registerPropertyEditor('uirect', createUIRectEditor);
     registerPropertyEditor('button-transition', createButtonTransitionEditor);
     registerPropertyEditor('entity', createEntityEditor);
     registerPropertyEditor('string-array', createStringArrayEditor);
     registerPropertyEditor('vec2-array', createVec2ArrayEditor);
-    registerPropertyEditor('anim-file', createAnimFileEditor);
-    registerPropertyEditor('audio-file', createAudioFileEditor);
-    registerPropertyEditor('timeline-file', createTimelineFileEditor);
-    registerPropertyEditor('tilemap-file', createTilemapFileEditor);
     registerPropertyEditor('collision-layer', createCollisionLayerEditor);
 }

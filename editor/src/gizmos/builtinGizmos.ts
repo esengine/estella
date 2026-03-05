@@ -2,6 +2,7 @@ import { registerGizmo, type GizmoContext, type GizmoDescriptor } from './GizmoR
 import { icons } from '../utils/icons';
 import { quatToEuler, eulerToQuat } from '../math/Transform';
 import { getSettingsValue } from '../settings/SettingsRegistry';
+import { getSizeProvider } from '../utils/sceneQueries';
 
 function getGizmoColors() {
     return {
@@ -41,11 +42,6 @@ function valuesEqual(a: unknown, b: unknown): boolean {
     return JSON.stringify(a) === JSON.stringify(b);
 }
 
-function getSizeComponentType(entityData: { components: { type: string; data: any }[] }): 'UIRect' | 'Sprite' | null {
-    if (entityData.components.some(c => c.type === 'UIRect')) return 'UIRect';
-    if (entityData.components.some(c => c.type === 'Sprite')) return 'Sprite';
-    return null;
-}
 
 function hitTestEntityBounds(worldX: number, worldY: number, gctx: GizmoContext): boolean {
     const entityData = gctx.store.getSelectedEntityData();
@@ -690,7 +686,7 @@ export function createRectGizmo(): GizmoDescriptor {
             const transform = entityData.components.find(c => c.type === 'Transform');
             const pos = transform?.data.position as { x: number; y: number; z: number } ?? { x: 0, y: 0, z: 0 };
 
-            const sizeType = getSizeComponentType(entityData);
+            const sizeType = getSizeProvider(entityData);
             let size: { x: number; y: number };
             if (sizeType) {
                 const comp = entityData.components.find(c => c.type === sizeType);
@@ -739,7 +735,7 @@ export function createRectGizmo(): GizmoDescriptor {
             newWidth = Math.max(1, newWidth);
             newHeight = Math.max(1, newHeight);
 
-            const sizeType = getSizeComponentType(entityData);
+            const sizeType = getSizeProvider(entityData);
             if (sizeType) {
                 gctx.store.updatePropertyDirect(entity, sizeType, 'size', { x: newWidth, y: newHeight });
             }
@@ -762,7 +758,7 @@ export function createRectGizmo(): GizmoDescriptor {
             const entityData = gctx.store.getSelectedEntityData();
             if (!entityData) { dragState = null; return; }
 
-            const sizeType = getSizeComponentType(entityData);
+            const sizeType = getSizeProvider(entityData);
             if (sizeType) {
                 const comp = entityData.components.find(c => c.type === sizeType)!;
                 const currentSize = comp.data.size as { x: number; y: number };

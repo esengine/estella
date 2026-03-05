@@ -3,11 +3,11 @@
  * @brief   Overlay for particle emitter shape visualization
  */
 
-import { DEFAULT_PIXELS_PER_UNIT } from 'esengine';
 import type { EditorStore } from '../store/EditorStore';
 import type { EntityData } from '../types/SceneTypes';
 import { quatToEuler } from '../math/Transform';
 import type { OverlayContext } from './ColliderOverlay';
+import { findScenePixelsPerUnit } from '../utils/sceneQueries';
 
 const PARTICLE_COLOR = 'rgba(255, 165, 0, 0.8)';
 const PARTICLE_FILL = 'rgba(255, 165, 0, 0.15)';
@@ -40,7 +40,7 @@ export class ParticleOverlay {
         if (!comp) return;
 
         const { ctx, zoom, store } = octx;
-        const ppu = this.getPixelsPerUnit(store);
+        const ppu = findScenePixelsPerUnit(store.scene.entities);
         const worldTransform = store.getWorldTransform(entity.id);
         const pos = worldTransform.position;
         const scale = worldTransform.scale;
@@ -160,14 +160,4 @@ export class ParticleOverlay {
         ctx.fill();
     }
 
-    private getPixelsPerUnit(store: EditorStore): number {
-        for (const entity of store.scene.entities) {
-            for (const comp of entity.components) {
-                if (comp.type === 'Canvas') {
-                    return (comp.data.pixelsPerUnit as number) || DEFAULT_PIXELS_PER_UNIT;
-                }
-            }
-        }
-        return DEFAULT_PIXELS_PER_UNIT;
-    }
 }
