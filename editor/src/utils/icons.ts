@@ -73,6 +73,7 @@ import {
     Minus,
     Hexagon,
     Link2,
+    GripVertical,
 } from 'lucide';
 
 // =============================================================================
@@ -202,6 +203,7 @@ export const icons = {
     minus: (size?: number) => renderIcon(Minus as IconNode, size),
     hexagon: (size?: number) => renderIcon(Hexagon as IconNode, size),
     link: (size?: number) => renderIcon(Link2 as IconNode, size),
+    grip: (size?: number) => renderIcon(GripVertical as IconNode, size),
 };
 
 export type IconName = keyof typeof icons;

@@ -51,4 +51,5 @@ export interface NativeFS {
     getPhysicsJs(): Promise<string>;
     getPhysicsWasm(): Promise<Uint8Array>;
     toAssetUrl?(path: string): string;
+    executeCommand?(command: string, args: string[], cwd: string): Promise<{ exitCode: number; stdout: string; stderr: string }>;
 }

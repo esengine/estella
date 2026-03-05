@@ -1533,3 +1533,174 @@
 .es-addressable-window .es-addressable-panel > .es-panel-header {
     display: none;
 }
+
+/* =============================================================================
+ * Scene Management
+ * ============================================================================= */
+
+.es-build-scene-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 4px;
+}
+
+.es-build-scene-drag-handle {
+    cursor: grab;
+    opacity: 0.4;
+    flex-shrink: 0;
+}
+
+.es-build-scene-drag-handle:hover {
+    opacity: 0.8;
+}
+
+.es-build-scene-item[draggable="true"] {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.es-build-scene-item.es-dragging {
+    opacity: 0.4;
+}
+
+.es-build-scene-item.es-drag-over {
+    border-top: 2px solid var(--es-accent);
+}
+
+.es-build-scene-path {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.es-build-badge-small {
+    font-size: 9px;
+    padding: 1px 4px;
+    border-radius: 3px;
+    background: var(--es-accent);
+    color: #fff;
+    flex-shrink: 0;
+}
+
+.es-btn-danger {
+    color: var(--es-error, #e74c3c) !important;
+}
+
+/* Scene Picker */
+
+.es-build-scene-picker-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.es-build-scene-picker-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.es-build-scene-picker-item:hover {
+    background: var(--es-bg-hover);
+}
+
+.es-build-scene-picker-item.es-active {
+    background: var(--es-bg-tertiary);
+}
+
+/* =============================================================================
+ * Build Hooks
+ * ============================================================================= */
+
+.es-build-hooks-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.es-build-hook-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    background: var(--es-bg-primary);
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.es-build-hook-type {
+    font-weight: 500;
+    flex-shrink: 0;
+}
+
+.es-build-hook-detail {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    opacity: 0.7;
+}
+
+.es-build-hook-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 4px;
+}
+
+/* =============================================================================
+ * Output File List
+ * ============================================================================= */
+
+.es-build-file-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.es-build-file-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 6px;
+    font-size: 11px;
+    font-family: var(--es-font-mono, monospace);
+}
+
+.es-build-file-icon {
+    flex-shrink: 0;
+    opacity: 0.5;
+}
+
+.es-build-file-path {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.es-build-file-dir {
+    opacity: 0.5;
+}
+
+.es-build-file-size {
+    flex-shrink: 0;
+    opacity: 0.6;
+    font-size: 10px;
+}
+
+.es-build-file-more {
+    padding: 4px 6px;
+    font-size: 11px;
+    opacity: 0.5;
+    font-style: italic;
+}

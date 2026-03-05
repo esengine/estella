@@ -5,16 +5,20 @@
 
 import * as esbuild from 'esbuild-wasm/esm/browser';
 import type { PlatformEmitter, BuildArtifact } from './PlatformEmitter';
-import type { BuildResult, BuildContext, RuntimeBuildConfig } from './BuildService';
+import type { BuildResult, BuildContext, OutputFileEntry } from './BuildService';
 import { BuildProgressReporter } from './BuildProgress';
 import { getEditorContext } from '../context/EditorContext';
-import { findTsFiles, EDITOR_ONLY_DIRS } from '../scripting/ScriptLoader';
 import { joinPath, getProjectDir } from '../utils/path';
 import { resolveShaderPath } from '../utils/shader';
-import { initializeEsbuild, createBuildVirtualFsPlugin, generateAddressableManifest } from './ArtifactBuilder';
+import { generateAddressableManifest } from './ArtifactBuilder';
 import { generateWeChatGameJs } from './templates';
 import type { NativeFS } from '../types/NativeFS';
 import { getWeChatPackOptions, getAssetTypeEntry, toBuildPath } from 'esengine';
+import {
+    collectUserScriptImports,
+    compileUserScripts,
+    generatePhysicsConfig,
+} from './EmitterUtils';
 
 // =============================================================================
 // WeChatEmitter
@@ -105,8 +109,10 @@ export class WeChatEmitter implements PlatformEmitter {
             progress.log('info', 'Generated asset-manifest.json');
 
             progress.setCurrentTask('Finalizing...', 90);
+            const outputFiles = await this.collectOutputFiles(fs, outputDir, outputDir);
+            const totalSize = outputFiles.reduce((sum, f) => sum + f.size, 0);
             progress.log('info', `Build successful: ${outputDir}`);
-            return { success: true, outputPath: outputDir };
+            return { success: true, outputPath: outputDir, outputSize: totalSize, outputFiles };
         } catch (err) {
             console.error('[WeChatEmitter] Build error:', err);
             progress.fail(String(err));
@@ -211,14 +217,20 @@ export class WeChatEmitter implements PlatformEmitter {
         outputDir: string,
         context: BuildContext
     ): Promise<void> {
-        const scriptsPath = joinPath(projectDir, 'src');
+        const { imports, hasSrcDir } = await collectUserScriptImports(fs, projectDir);
 
         let userCode = '';
-        if (await fs.exists(scriptsPath)) {
-            const scripts = await findTsFiles(fs, scriptsPath, EDITOR_ONLY_DIRS);
-            if (scripts.length > 0) {
-                userCode = await this.compileScripts(fs, projectDir, scripts, context);
-            }
+        if (imports) {
+            userCode = await compileUserScripts(fs, projectDir, context, {
+                entryContent: imports,
+                resolveDir: joinPath(projectDir, 'src'),
+                minify: !context.config.defines.includes('DEBUG'),
+                sdkResolver: async () => ({
+                    contents: 'module.exports = globalThis.__esengine_sdk;',
+                    loader: 'js' as esbuild.Loader,
+                }),
+                preferEsmEntry: false,
+            });
         }
 
         const allSceneNames = context.config.scenes.map(
@@ -226,12 +238,7 @@ export class WeChatEmitter implements PlatformEmitter {
         );
         const firstSceneName = allSceneNames[0] ?? '';
 
-        const physicsConfig = JSON.stringify({
-            gravity: context.physicsGravity ?? { x: 0, y: -9.81 },
-            fixedTimestep: context.physicsFixedTimestep ?? 1 / 60,
-            subStepCount: context.physicsSubStepCount ?? 4,
-            collisionLayerMasks: context.collisionLayerMasks,
-        });
+        const physicsConfig = generatePhysicsConfig(context);
 
         const gameJs = generateWeChatGameJs({
             userCode,
@@ -245,47 +252,6 @@ export class WeChatEmitter implements PlatformEmitter {
 
         await fs.writeFile(joinPath(outputDir, 'game.js'), gameJs);
         await this.copyWeChatSdk(fs, outputDir, context);
-    }
-
-    private async compileScripts(
-        fs: NativeFS,
-        projectDir: string,
-        scripts: string[],
-        context: BuildContext
-    ): Promise<string> {
-        const entryContent = scripts.map(p => `import "${p}";`).join('\n');
-
-        const defines: Record<string, string> = {
-            'process.env.EDITOR': 'false',
-        };
-        for (const def of context.config.defines) {
-            defines[`process.env.${def}`] = 'true';
-        }
-
-        await initializeEsbuild();
-
-        const plugin = createBuildVirtualFsPlugin(fs, projectDir, async () => ({
-            contents: 'module.exports = globalThis.__esengine_sdk;',
-            loader: 'js' as esbuild.Loader,
-        }), false);
-
-        const result = await esbuild.build({
-            stdin: {
-                contents: entryContent,
-                loader: 'ts',
-                resolveDir: joinPath(projectDir, 'src'),
-            },
-            bundle: true,
-            format: 'iife',
-            write: false,
-            platform: 'browser',
-            target: 'es2020',
-            minify: !context.config.defines.includes('DEBUG'),
-            define: defines,
-            plugins: [plugin],
-        });
-
-        return result.outputFiles?.[0]?.text ?? '';
     }
 
     private async copyWeChatSdk(
@@ -393,5 +359,30 @@ export class WeChatEmitter implements PlatformEmitter {
             joinPath(outputDir, 'asset-manifest.json'),
             JSON.stringify(manifest, null, 2)
         );
+    }
+
+    private async collectOutputFiles(
+        fs: NativeFS,
+        dir: string,
+        rootDir: string,
+    ): Promise<OutputFileEntry[]> {
+        const results: OutputFileEntry[] = [];
+        const entries = await fs.listDirectoryDetailed(dir);
+
+        for (const entry of entries) {
+            const fullPath = joinPath(dir, entry.name);
+            if (entry.isDirectory) {
+                const children = await this.collectOutputFiles(fs, fullPath, rootDir);
+                results.push(...children);
+            } else {
+                const stats = await fs.getFileStats(fullPath);
+                results.push({
+                    path: fullPath.substring(rootDir.length + 1),
+                    size: stats?.size ?? 0,
+                });
+            }
+        }
+
+        return results;
     }
 }

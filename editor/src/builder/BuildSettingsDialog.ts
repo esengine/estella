@@ -18,9 +18,12 @@ import { showProgressToast, dismissToast, showToast } from '../ui/Toast';
 import { BuildHistory, formatBuildTime, formatBuildDuration, getBuildStatusIcon, type BuildHistoryEntry } from './BuildHistory';
 import { BuildConfigService, initBuildConfigService } from './BuildConfigService';
 import { downloadConfigsAsFile, uploadConfigsFromFile } from './BuildConfigIO';
-import { BUILD_TEMPLATES, createConfigFromTemplate, type BuildTemplate } from './BuildTemplates';
+import { BUILD_TEMPLATES, createConfigFromTemplate, getAllTemplates, configToTemplate, saveUserTemplate, type BuildTemplate, type UserTemplate } from './BuildTemplates';
 import { BatchBuilder } from './BatchBuilder';
 import { formatSize } from './BuildProgress';
+import { discoverProjectScenes } from './SceneDiscovery';
+import { createDefaultHook } from './BuildHooks';
+import type { BuildHook, BuildHookPhase, BuildHookType, CopyFilesConfig, RunCommandConfig } from '../types/BuildTypes';
 
 // =============================================================================
 // Types
@@ -133,6 +136,8 @@ export class BuildSettingsDialog {
                 </div>
             </div>
         `;
+
+        this.setupSceneDragAndDrop();
     }
 
     private renderSidebar(): string {
@@ -197,6 +202,9 @@ export class BuildSettingsDialog {
                     <button class="es-btn es-btn-icon" data-action="duplicate-config" title="Duplicate">
                         ${icons.copy(14)}
                     </button>
+                    <button class="es-btn es-btn-icon" data-action="save-as-preset" title="Save as Preset">
+                        ${icons.download(14)}
+                    </button>
                 </div>
             </div>
             <div class="es-build-detail-content">
@@ -206,6 +214,63 @@ export class BuildSettingsDialog {
                 </div>
                 <div class="es-build-settings-section">
                     ${this.renderPlatformSettings(config)}
+                    ${this.renderHooksSection(config)}
+                </div>
+            </div>
+        `;
+    }
+
+    private renderHooksSection(config: BuildConfig): string {
+        const isExpanded = this.expandedSections_.has('hooks');
+        const hooks = config.hooks ?? [];
+
+        const hooksHtml = hooks.length > 0
+            ? hooks.map((h, i) => {
+                const phaseLabel = h.phase === 'pre' ? 'Pre-Build' : 'Post-Build';
+                const typeLabel = h.type === 'copy-files' ? 'Copy Files' : 'Run Command';
+                let detail = '';
+                if (h.type === 'copy-files') {
+                    const c = h.config as CopyFilesConfig;
+                    detail = `${c.from} → ${c.to}`;
+                } else {
+                    const c = h.config as RunCommandConfig;
+                    detail = `${c.command} ${(c.args ?? []).join(' ')}`.trim();
+                }
+                return `
+                    <div class="es-build-hook-item">
+                        <span class="es-build-badge es-build-badge-small">${phaseLabel}</span>
+                        <span class="es-build-hook-type">${typeLabel}</span>
+                        <span class="es-build-hook-detail" title="${detail}">${detail || '(not configured)'}</span>
+                        <button class="es-btn-icon" data-action="edit-hook" data-index="${i}" title="Edit">
+                            ${icons.pencil(10)}
+                        </button>
+                        <button class="es-btn-icon" data-action="remove-hook" data-index="${i}" title="Remove">
+                            ${icons.x(10)}
+                        </button>
+                    </div>
+                `;
+            }).join('')
+            : '<div class="es-build-empty-list">No hooks configured</div>';
+
+        return `
+            <div class="es-build-collapse ${isExpanded ? 'es-expanded' : ''}" data-section="hooks">
+                <div class="es-build-collapse-header">
+                    ${isExpanded ? icons.chevronDown(12) : icons.chevronRight(12)}
+                    <span>Build Hooks</span>
+                    <span class="es-build-collapse-count">${hooks.length}</span>
+                </div>
+                <div class="es-build-collapse-content">
+                    <div class="es-build-hooks-list">
+                        ${hooksHtml}
+                    </div>
+                    <div class="es-build-hook-actions">
+                        <button class="es-btn es-btn-link" data-action="add-hook" data-hook-type="copy-files" data-hook-phase="post">
+                            ${icons.plus(12)} Add Copy Files Hook
+                        </button>
+                        <button class="es-btn es-btn-link" data-action="add-hook" data-hook-type="run-command" data-hook-phase="post">
+                            ${icons.plus(12)} Add Run Command Hook
+                        </button>
+                    </div>
                 </div>
             </div>
         `;
@@ -273,7 +338,47 @@ export class BuildSettingsDialog {
                 ` : ''}
             </div>
             ${latestSection}
+            ${this.renderOutputFiles(config.id)}
             ${historySection}
+        `;
+    }
+
+    private renderOutputFiles(configId: string): string {
+        const files = this.lastBuildOutputFiles_.get(configId);
+        if (!files || files.length === 0) return '';
+
+        const isExpanded = this.expandedSections_.has('output-files');
+        const sorted = [...files].sort((a, b) => b.size - a.size);
+        const totalSize = sorted.reduce((sum, f) => sum + f.size, 0);
+
+        const fileItems = sorted.slice(0, 20).map(f => {
+            const name = f.path.split('/').pop() ?? f.path;
+            const dir = f.path.substring(0, f.path.length - name.length);
+            return `
+                <div class="es-build-file-item">
+                    <span class="es-build-file-icon">${icons.file(10)}</span>
+                    <span class="es-build-file-path" title="${f.path}">${dir ? `<span class="es-build-file-dir">${dir}</span>` : ''}${name}</span>
+                    <span class="es-build-file-size">${formatSize(f.size)}</span>
+                </div>
+            `;
+        }).join('');
+
+        const moreCount = sorted.length - 20;
+
+        return `
+            <div class="es-build-collapse ${isExpanded ? 'es-expanded' : ''}" data-section="output-files">
+                <div class="es-build-collapse-header">
+                    ${isExpanded ? icons.chevronDown(12) : icons.chevronRight(12)}
+                    <span>Output Files</span>
+                    <span class="es-build-collapse-count">${files.length} files (${formatSize(totalSize)})</span>
+                </div>
+                <div class="es-build-collapse-content">
+                    <div class="es-build-file-list">
+                        ${fileItems}
+                        ${moreCount > 0 ? `<div class="es-build-file-more">and ${moreCount} more files...</div>` : ''}
+                    </div>
+                </div>
+            </div>
         `;
     }
 
@@ -290,17 +395,19 @@ export class BuildSettingsDialog {
 
     private renderScenesSection(config: BuildConfig): string {
         const isExpanded = this.expandedSections_.has('scenes');
+        const firstScene = config.scenes[0];
         const scenesHtml = config.scenes.length > 0
             ? config.scenes.map((s, i) => `
-                <div class="es-build-scene-item">
-                    <input type="checkbox" checked data-scene-index="${i}">
-                    <span>${s}</span>
+                <div class="es-build-scene-item" draggable="true" data-scene-drag="${i}">
+                    <span class="es-build-scene-drag-handle">${icons.grip(10)}</span>
+                    ${i === 0 ? '<span class="es-build-badge es-build-badge-small">Startup</span>' : ''}
+                    <span class="es-build-scene-path">${s}</span>
                     <button class="es-btn-icon" data-action="remove-scene" data-index="${i}">
                         ${icons.x(10)}
                     </button>
                 </div>
             `).join('')
-            : '<div class="es-build-empty-list">No scenes</div>';
+            : '<div class="es-build-empty-list">No scenes added. Use buttons below to add scenes.</div>';
 
         return `
             <div class="es-build-collapse ${isExpanded ? 'es-expanded' : ''}" data-section="scenes">
@@ -310,12 +417,25 @@ export class BuildSettingsDialog {
                     <span class="es-build-collapse-count">${config.scenes.length}</span>
                 </div>
                 <div class="es-build-collapse-content">
-                    <div class="es-build-scene-list">
+                    <div class="es-build-scene-list" data-scene-drop-zone>
                         ${scenesHtml}
                     </div>
-                    <button class="es-btn es-btn-link" data-action="add-current-scene">
-                        ${icons.plus(12)} Add Current Scene
-                    </button>
+                    <div class="es-build-scene-actions">
+                        <button class="es-btn es-btn-link" data-action="add-current-scene">
+                            ${icons.plus(12)} Add Current Scene
+                        </button>
+                        <button class="es-btn es-btn-link" data-action="add-all-scenes">
+                            ${icons.plus(12)} Add All Scenes
+                        </button>
+                        <button class="es-btn es-btn-link" data-action="show-scene-picker">
+                            ${icons.list(12)} Scene Picker
+                        </button>
+                        ${config.scenes.length > 0 ? `
+                        <button class="es-btn es-btn-link es-btn-danger" data-action="remove-all-scenes">
+                            ${icons.trash(12)} Remove All
+                        </button>
+                        ` : ''}
+                    </div>
                 </div>
             </div>
         `;
@@ -597,6 +717,12 @@ export class BuildSettingsDialog {
                 }
                 break;
 
+            case 'save-as-preset':
+                if (config) {
+                    this.showSavePresetDialog(config);
+                }
+                break;
+
             case 'add-current-scene':
                 if (config) {
                     const editor = getEditorInstance();
@@ -622,6 +748,26 @@ export class BuildSettingsDialog {
                 break;
             }
 
+            case 'add-all-scenes':
+                if (config) {
+                    await this.addAllScenes(config);
+                }
+                break;
+
+            case 'remove-all-scenes':
+                if (config) {
+                    config.scenes = [];
+                    await this.saveSettings();
+                    this.render();
+                }
+                break;
+
+            case 'show-scene-picker':
+                if (config) {
+                    await this.showScenePicker(config);
+                }
+                break;
+
             case 'add-define': {
                 const input = this.overlay_.querySelector('#new-define') as HTMLInputElement;
                 const value = input?.value.trim();
@@ -639,6 +785,36 @@ export class BuildSettingsDialog {
                     config.defines.splice(index, 1);
                     await this.saveSettings();
                     this.render();
+                }
+                break;
+            }
+
+            case 'add-hook': {
+                if (config) {
+                    const hookType = element.dataset.hookType as BuildHookType;
+                    const hookPhase = element.dataset.hookPhase as BuildHookPhase;
+                    if (!config.hooks) config.hooks = [];
+                    config.hooks.push(createDefaultHook(hookType, hookPhase));
+                    await this.saveSettings();
+                    this.render();
+                }
+                break;
+            }
+
+            case 'remove-hook': {
+                const hookIdx = parseInt(element.dataset.index ?? '-1', 10);
+                if (config && config.hooks && hookIdx >= 0) {
+                    config.hooks.splice(hookIdx, 1);
+                    await this.saveSettings();
+                    this.render();
+                }
+                break;
+            }
+
+            case 'edit-hook': {
+                const editIdx = parseInt(element.dataset.index ?? '-1', 10);
+                if (config && config.hooks && editIdx >= 0) {
+                    this.showEditHookDialog(config, editIdx);
                 }
                 break;
             }
@@ -808,19 +984,41 @@ export class BuildSettingsDialog {
         });
     }
 
-    private showTemplatesDialog(): void {
+    private async showTemplatesDialog(): Promise<void> {
+        const fs = getEditorContext().fs;
+        const projectDir = this.getProjectDir();
+        const allTemplates = fs
+            ? await getAllTemplates(fs, projectDir)
+            : BUILD_TEMPLATES;
+
         const dialog = document.createElement('div');
         dialog.className = 'es-build-add-dialog';
 
-        const templatesHtml = BUILD_TEMPLATES.map(t => `
-            <div class="es-build-template-item" data-template="${t.id}">
-                <div class="es-build-template-header">
-                    <span class="es-build-template-name">${t.name}</span>
-                    <span class="es-build-template-platform">${t.platform}</span>
+        const builtinHtml = allTemplates
+            .filter(t => !(t as UserTemplate).isUserDefined)
+            .map(t => `
+                <div class="es-build-template-item" data-template="${t.id}">
+                    <div class="es-build-template-header">
+                        <span class="es-build-template-name">${t.name}</span>
+                        <span class="es-build-template-platform">${t.platform}</span>
+                    </div>
+                    <div class="es-build-template-desc">${t.description}</div>
                 </div>
-                <div class="es-build-template-desc">${t.description}</div>
-            </div>
-        `).join('');
+            `).join('');
+
+        const userTemplates = allTemplates.filter(t => (t as UserTemplate).isUserDefined);
+        const userHtml = userTemplates.length > 0
+            ? `<div class="es-build-section-title" style="margin-top: 12px;">Custom Presets</div>` +
+              userTemplates.map(t => `
+                <div class="es-build-template-item" data-template="${t.id}">
+                    <div class="es-build-template-header">
+                        <span class="es-build-template-name">${t.name}</span>
+                        <span class="es-build-template-platform">${t.platform}</span>
+                    </div>
+                    <div class="es-build-template-desc">${t.description}</div>
+                </div>
+              `).join('')
+            : '';
 
         dialog.innerHTML = `
             <div class="es-dialog" style="max-width: 400px;">
@@ -828,9 +1026,11 @@ export class BuildSettingsDialog {
                     <span class="es-dialog-title">Build Templates</span>
                     <button class="es-dialog-close" data-action="cancel">&times;</button>
                 </div>
-                <div class="es-dialog-body">
+                <div class="es-dialog-body" style="max-height: 450px; overflow-y: auto;">
+                    <div class="es-build-section-title">Built-in</div>
                     <div class="es-build-templates-list">
-                        ${templatesHtml}
+                        ${builtinHtml}
+                        ${userHtml}
                     </div>
                 </div>
                 <div class="es-dialog-footer">
@@ -848,7 +1048,7 @@ export class BuildSettingsDialog {
         dialog.querySelectorAll('.es-build-template-item').forEach(item => {
             item.addEventListener('click', async () => {
                 const templateId = (item as HTMLElement).dataset.template;
-                const template = BUILD_TEMPLATES.find(t => t.id === templateId);
+                const template = allTemplates.find(t => t.id === templateId);
                 if (template) {
                     const newConfig = createConfigFromTemplate(template);
                     this.settings_.configs.push(newConfig);
@@ -858,6 +1058,49 @@ export class BuildSettingsDialog {
                     this.render();
                 }
             });
+        });
+    }
+
+    private showSavePresetDialog(config: BuildConfig): void {
+        const dialog = document.createElement('div');
+        dialog.className = 'es-build-add-dialog';
+        dialog.innerHTML = `
+            <div class="es-dialog" style="max-width: 360px;">
+                <div class="es-dialog-header">
+                    <span class="es-dialog-title">Save as Preset</span>
+                    <button class="es-dialog-close" data-action="cancel">&times;</button>
+                </div>
+                <div class="es-dialog-body">
+                    <div class="es-dialog-field">
+                        <label class="es-dialog-label">Preset Name</label>
+                        <input type="text" class="es-dialog-input" id="preset-name" value="${config.name}" placeholder="My Preset">
+                    </div>
+                    <div class="es-dialog-field">
+                        <label class="es-dialog-label">Description</label>
+                        <input type="text" class="es-dialog-input" id="preset-desc" placeholder="Brief description...">
+                    </div>
+                </div>
+                <div class="es-dialog-footer">
+                    <button class="es-dialog-btn" data-action="cancel">Cancel</button>
+                    <button class="es-dialog-btn es-dialog-btn-primary" data-action="save">Save</button>
+                </div>
+            </div>
+        `;
+
+        this.overlay_.appendChild(dialog);
+        const close = () => dialog.remove();
+
+        dialog.querySelector('[data-action="cancel"]')?.addEventListener('click', close);
+        dialog.querySelector('[data-action="save"]')?.addEventListener('click', async () => {
+            const name = (dialog.querySelector('#preset-name') as HTMLInputElement).value.trim() || config.name;
+            const description = (dialog.querySelector('#preset-desc') as HTMLInputElement).value.trim() || '';
+            const fs = getEditorContext().fs;
+            if (fs) {
+                const template = configToTemplate(config, name, description);
+                await saveUserTemplate(fs, this.getProjectDir(), template);
+                showToast({ type: 'success', title: 'Preset Saved', message: `Saved "${name}"`, duration: 3000 });
+            }
+            close();
         });
     }
 
@@ -936,6 +1179,9 @@ export class BuildSettingsDialog {
             dismissToast(toastId);
 
             if (result.success && result.outputPath) {
+                if (result.outputFiles) {
+                    this.lastBuildOutputFiles_.set(config.id, result.outputFiles);
+                }
                 this.history_.addEntry({
                     configId: config.id,
                     configName: config.name,
@@ -1103,6 +1349,224 @@ export class BuildSettingsDialog {
     }
 
     // =========================================================================
+    // Scene Management
+    // =========================================================================
+
+    private async addAllScenes(config: BuildConfig): Promise<void> {
+        const fs = getEditorContext().fs;
+        if (!fs) return;
+
+        const projectDir = this.getProjectDir();
+        const allScenes = await discoverProjectScenes(fs, projectDir);
+
+        let added = 0;
+        for (const scene of allScenes) {
+            if (!config.scenes.includes(scene)) {
+                config.scenes.push(scene);
+                added++;
+            }
+        }
+
+        if (added > 0) {
+            await this.saveSettings();
+            this.render();
+            showToast({ type: 'info', title: 'Scenes Added', message: `Added ${added} scene(s)`, duration: 2000 });
+        } else if (allScenes.length === 0) {
+            showToast({ type: 'warning', title: 'No Scenes Found', message: 'No .esscene files found in assets/', duration: 3000 });
+        } else {
+            showToast({ type: 'info', title: 'No New Scenes', message: 'All scenes already added', duration: 2000 });
+        }
+    }
+
+    private async showScenePicker(config: BuildConfig): Promise<void> {
+        const fs = getEditorContext().fs;
+        if (!fs) return;
+
+        const projectDir = this.getProjectDir();
+        const allScenes = await discoverProjectScenes(fs, projectDir);
+
+        if (allScenes.length === 0) {
+            showToast({ type: 'warning', title: 'No Scenes Found', message: 'No .esscene files found in assets/', duration: 3000 });
+            return;
+        }
+
+        const dialog = document.createElement('div');
+        dialog.className = 'es-build-add-dialog';
+
+        const scenesHtml = allScenes.map(s => {
+            const isAdded = config.scenes.includes(s);
+            return `
+                <label class="es-build-scene-picker-item ${isAdded ? 'es-active' : ''}">
+                    <input type="checkbox" data-scene-path="${s}" ${isAdded ? 'checked' : ''}>
+                    <span>${s}</span>
+                </label>
+            `;
+        }).join('');
+
+        dialog.innerHTML = `
+            <div class="es-dialog" style="max-width: 480px;">
+                <div class="es-dialog-header">
+                    <span class="es-dialog-title">Scene Picker</span>
+                    <button class="es-dialog-close" data-action="cancel">&times;</button>
+                </div>
+                <div class="es-dialog-body" style="max-height: 400px; overflow-y: auto;">
+                    <div class="es-build-scene-picker-list">
+                        ${scenesHtml}
+                    </div>
+                </div>
+                <div class="es-dialog-footer">
+                    <button class="es-dialog-btn" data-action="cancel">Cancel</button>
+                    <button class="es-dialog-btn es-dialog-btn-primary" data-action="apply">Apply</button>
+                </div>
+            </div>
+        `;
+
+        this.overlay_.appendChild(dialog);
+
+        const close = () => dialog.remove();
+
+        dialog.querySelector('[data-action="cancel"]')?.addEventListener('click', close);
+        dialog.querySelector('[data-action="apply"]')?.addEventListener('click', async () => {
+            const checkboxes = dialog.querySelectorAll('input[data-scene-path]') as NodeListOf<HTMLInputElement>;
+            const selected: string[] = [];
+            checkboxes.forEach(cb => {
+                if (cb.checked) {
+                    selected.push(cb.dataset.scenePath!);
+                }
+            });
+
+            const existingOrder = config.scenes.filter(s => selected.includes(s));
+            const newScenes = selected.filter(s => !existingOrder.includes(s));
+            config.scenes = [...existingOrder, ...newScenes];
+
+            await this.saveSettings();
+            close();
+            this.render();
+        });
+    }
+
+    private showEditHookDialog(config: BuildConfig, index: number): void {
+        const hook = config.hooks![index];
+        const dialog = document.createElement('div');
+        dialog.className = 'es-build-add-dialog';
+
+        const isCopy = hook.type === 'copy-files';
+        const copyConfig = isCopy ? hook.config as CopyFilesConfig : null;
+        const cmdConfig = !isCopy ? hook.config as RunCommandConfig : null;
+
+        dialog.innerHTML = `
+            <div class="es-dialog" style="max-width: 420px;">
+                <div class="es-dialog-header">
+                    <span class="es-dialog-title">Edit ${isCopy ? 'Copy Files' : 'Run Command'} Hook</span>
+                    <button class="es-dialog-close" data-action="cancel">&times;</button>
+                </div>
+                <div class="es-dialog-body">
+                    <div class="es-dialog-field">
+                        <label class="es-dialog-label">Phase</label>
+                        <select class="es-dialog-input" id="hook-phase">
+                            <option value="pre" ${hook.phase === 'pre' ? 'selected' : ''}>Pre-Build</option>
+                            <option value="post" ${hook.phase === 'post' ? 'selected' : ''}>Post-Build</option>
+                        </select>
+                    </div>
+                    ${isCopy ? `
+                    <div class="es-dialog-field">
+                        <label class="es-dialog-label">From Path</label>
+                        <input type="text" class="es-dialog-input" id="hook-from" value="${copyConfig?.from ?? ''}" placeholder="\${outputDir}">
+                    </div>
+                    <div class="es-dialog-field">
+                        <label class="es-dialog-label">To Path</label>
+                        <input type="text" class="es-dialog-input" id="hook-to" value="${copyConfig?.to ?? ''}" placeholder="/path/to/dest">
+                    </div>
+                    <div class="es-dialog-field">
+                        <label class="es-dialog-label">Pattern (optional)</label>
+                        <input type="text" class="es-dialog-input" id="hook-pattern" value="${copyConfig?.pattern ?? ''}" placeholder="*.png">
+                    </div>
+                    ` : `
+                    <div class="es-dialog-field">
+                        <label class="es-dialog-label">Command</label>
+                        <input type="text" class="es-dialog-input" id="hook-command" value="${cmdConfig?.command ?? ''}" placeholder="echo">
+                    </div>
+                    <div class="es-dialog-field">
+                        <label class="es-dialog-label">Arguments (space-separated)</label>
+                        <input type="text" class="es-dialog-input" id="hook-args" value="${(cmdConfig?.args ?? []).join(' ')}" placeholder="arg1 arg2">
+                    </div>
+                    `}
+                </div>
+                <div class="es-dialog-footer">
+                    <button class="es-dialog-btn" data-action="cancel">Cancel</button>
+                    <button class="es-dialog-btn es-dialog-btn-primary" data-action="save">Save</button>
+                </div>
+            </div>
+        `;
+
+        this.overlay_.appendChild(dialog);
+        const close = () => dialog.remove();
+
+        dialog.querySelector('[data-action="cancel"]')?.addEventListener('click', close);
+        dialog.querySelector('[data-action="save"]')?.addEventListener('click', async () => {
+            const phase = (dialog.querySelector('#hook-phase') as HTMLSelectElement).value as BuildHookPhase;
+            hook.phase = phase;
+
+            if (isCopy) {
+                const from = (dialog.querySelector('#hook-from') as HTMLInputElement).value;
+                const to = (dialog.querySelector('#hook-to') as HTMLInputElement).value;
+                const pattern = (dialog.querySelector('#hook-pattern') as HTMLInputElement).value;
+                hook.config = { from, to, ...(pattern ? { pattern } : {}) } as CopyFilesConfig;
+            } else {
+                const command = (dialog.querySelector('#hook-command') as HTMLInputElement).value;
+                const argsStr = (dialog.querySelector('#hook-args') as HTMLInputElement).value.trim();
+                const args = argsStr ? argsStr.split(/\s+/) : [];
+                hook.config = { command, args } as RunCommandConfig;
+            }
+
+            await this.saveSettings();
+            close();
+            this.render();
+        });
+    }
+
+    private setupSceneDragAndDrop(): void {
+        const dropZone = this.overlay_?.querySelector('[data-scene-drop-zone]');
+        if (!dropZone) return;
+
+        const items = dropZone.querySelectorAll('[data-scene-drag]');
+        items.forEach(item => {
+            const el = item as HTMLElement;
+            el.addEventListener('dragstart', (e: DragEvent) => {
+                this.dragSourceIndex_ = parseInt(el.dataset.sceneDrag ?? '-1', 10);
+                el.classList.add('es-dragging');
+                e.dataTransfer!.effectAllowed = 'move';
+            });
+            el.addEventListener('dragend', () => {
+                el.classList.remove('es-dragging');
+                this.dragSourceIndex_ = -1;
+            });
+            el.addEventListener('dragover', (e: DragEvent) => {
+                e.preventDefault();
+                e.dataTransfer!.dropEffect = 'move';
+                el.classList.add('es-drag-over');
+            });
+            el.addEventListener('dragleave', () => {
+                el.classList.remove('es-drag-over');
+            });
+            el.addEventListener('drop', async (e: DragEvent) => {
+                e.preventDefault();
+                el.classList.remove('es-drag-over');
+                const targetIndex = parseInt(el.dataset.sceneDrag ?? '-1', 10);
+                if (this.dragSourceIndex_ >= 0 && targetIndex >= 0 && this.dragSourceIndex_ !== targetIndex) {
+                    const config = this.getActiveConfig();
+                    if (config) {
+                        const [moved] = config.scenes.splice(this.dragSourceIndex_, 1);
+                        config.scenes.splice(targetIndex, 0, moved);
+                        await this.saveSettings();
+                        this.render();
+                    }
+                }
+            });
+        });
+    }
+
+    // =========================================================================
     // Member Variables
     // =========================================================================
 
@@ -1114,6 +1578,8 @@ export class BuildSettingsDialog {
     private batchBuilder_!: BatchBuilder;
     private expandedSections_: Set<string> = new Set(['scenes', 'defines', 'platform']);
     private keyHandler_: ((e: KeyboardEvent) => void) | null = null;
+    private dragSourceIndex_ = -1;
+    private lastBuildOutputFiles_: Map<string, Array<{ path: string; size: number }>> = new Map();
 }
 
 // =============================================================================

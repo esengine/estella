@@ -16,15 +16,22 @@ import { getProjectDir } from '../utils/path';
 import { getSettingsValue } from '../settings/SettingsRegistry';
 import { MAX_COLLISION_LAYERS } from '../settings/collisionLayers';
 import { getEditorContext } from '../context/EditorContext';
+import { executeHooks } from './BuildHooks';
 
 // =============================================================================
 // Types
 // =============================================================================
 
+export interface OutputFileEntry {
+    path: string;
+    size: number;
+}
+
 export interface BuildResult {
     success: boolean;
     outputPath?: string;
     outputSize?: number;
+    outputFiles?: OutputFileEntry[];
     error?: string;
     duration?: number;
     cached?: boolean;
@@ -146,7 +153,20 @@ export class BuildService {
                 };
             }
 
+            const hooks = config.hooks ?? [];
+            const outputPath = config.playableSettings?.outputPath
+                ?? config.wechatSettings?.outputDir
+                ?? '';
+
+            if (hooks.length > 0) {
+                await executeHooks(hooks, 'pre', projectDir, outputPath, fs, progress);
+            }
+
             const result = await emitter.emit(artifact, context);
+
+            if (result.success && hooks.length > 0) {
+                await executeHooks(hooks, 'post', projectDir, result.outputPath ?? outputPath, fs, progress);
+            }
 
             const duration = Date.now() - startTime;
             result.duration = duration;
