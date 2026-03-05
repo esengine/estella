@@ -641,6 +641,125 @@ export class World {
             };
         }
 
+        if (cppName === 'Velocity') {
+            return (e: Entity) => {
+                const ptr = mod.getVelocityPtr(reg, e);
+                if (!ptr) return null;
+                const f = mod.HEAPF32;
+                const b = ptr >> 2;
+                return {
+                    linear:  { x: f[b],   y: f[b+1], z: f[b+2] },
+                    angular: { x: f[b+3], y: f[b+4], z: f[b+5] },
+                };
+            };
+        }
+
+        if (cppName === 'Camera') {
+            return (e: Entity) => {
+                const ptr = mod.getCameraPtr(reg, e);
+                if (!ptr) return null;
+                const f = mod.HEAPF32;
+                const u8 = mod.HEAPU8;
+                const i32 = new Int32Array(f.buffer);
+                const b = ptr >> 2;
+                return {
+                    projectionType: u8[ptr],
+                    fov:         f[b+1],
+                    orthoSize:   f[b+2],
+                    nearPlane:   f[b+3],
+                    farPlane:    f[b+4],
+                    aspectRatio: f[b+5],
+                    isActive:    u8[ptr + 24] !== 0,
+                    priority:    i32[b+7],
+                    viewportX:   f[b+8],
+                    viewportY:   f[b+9],
+                    viewportW:   f[b+10],
+                    viewportH:   f[b+11],
+                    clearFlags:  i32[b+12],
+                };
+            };
+        }
+
+        if (cppName === 'UIRect') {
+            return (e: Entity) => {
+                const ptr = mod.getUIRectPtr(reg, e);
+                if (!ptr) return null;
+                const f = mod.HEAPF32;
+                const b = ptr >> 2;
+                return {
+                    anchorMin: { x: f[b],    y: f[b+1] },
+                    anchorMax: { x: f[b+2],  y: f[b+3] },
+                    offsetMin: { x: f[b+4],  y: f[b+5] },
+                    offsetMax: { x: f[b+6],  y: f[b+7] },
+                    size:      { x: f[b+8],  y: f[b+9] },
+                    pivot:     { x: f[b+10], y: f[b+11] },
+                };
+            };
+        }
+
+        if (cppName === 'RigidBody') {
+            return (e: Entity) => {
+                const ptr = mod.getRigidBodyPtr(reg, e);
+                if (!ptr) return null;
+                const f = mod.HEAPF32;
+                const u8 = mod.HEAPU8;
+                const b = ptr >> 2;
+                return {
+                    bodyType:       u8[ptr],
+                    gravityScale:   f[b+1],
+                    linearDamping:  f[b+2],
+                    angularDamping: f[b+3],
+                    fixedRotation:  u8[ptr + 16] !== 0,
+                    bullet:         u8[ptr + 17] !== 0,
+                    enabled:        u8[ptr + 18] !== 0,
+                };
+            };
+        }
+
+        if (cppName === 'BoxCollider') {
+            return (e: Entity) => {
+                const ptr = mod.getBoxColliderPtr(reg, e);
+                if (!ptr) return null;
+                const f = mod.HEAPF32;
+                const u8 = mod.HEAPU8;
+                const u32 = mod.HEAPU32;
+                const b = ptr >> 2;
+                return {
+                    halfExtents:  { x: f[b],   y: f[b+1] },
+                    offset:       { x: f[b+2], y: f[b+3] },
+                    density:      f[b+4],
+                    friction:     f[b+5],
+                    restitution:  f[b+6],
+                    isSensor:     u8[ptr + 28] !== 0,
+                    enabled:      u8[ptr + 29] !== 0,
+                    categoryBits: u32[b+8],
+                    maskBits:     u32[b+9],
+                };
+            };
+        }
+
+        if (cppName === 'CircleCollider') {
+            return (e: Entity) => {
+                const ptr = mod.getCircleColliderPtr(reg, e);
+                if (!ptr) return null;
+                const f = mod.HEAPF32;
+                const u8 = mod.HEAPU8;
+                const u32 = mod.HEAPU32;
+                const b = ptr >> 2;
+                return {
+                    radius:       f[b],
+                    offset:       { x: f[b+1], y: f[b+2] },
+                    density:      f[b+3],
+                    friction:     f[b+4],
+                    restitution:  f[b+5],
+                    isSensor:     u8[ptr + 24] !== 0,
+                    enabled:      u8[ptr + 25] !== 0,
+                    categoryBits: u32[b+7],
+                    maskBits:     u32[b+8],
+                };
+            };
+        }
+
         return null;
     }
 

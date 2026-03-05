@@ -40,6 +40,134 @@ const Sprite = defineBuiltin('Sprite', {
     enabled: true,
 });
 
+const Velocity = defineBuiltin('Velocity', {
+    linear: { x: 0, y: 0, z: 0 },
+    angular: { x: 0, y: 0, z: 0 },
+});
+
+const Camera = defineBuiltin('Camera', {
+    projectionType: 0,
+    fov: 60,
+    orthoSize: 5,
+    nearPlane: 0.1,
+    farPlane: 1000,
+    aspectRatio: 0,
+    isActive: false,
+    priority: 0,
+    viewportX: 0,
+    viewportY: 0,
+    viewportW: 1,
+    viewportH: 1,
+    clearFlags: 3,
+});
+
+const UIRect = defineBuiltin('UIRect', {
+    anchorMin: { x: 0.5, y: 0.5 },
+    anchorMax: { x: 0.5, y: 0.5 },
+    offsetMin: { x: 0, y: 0 },
+    offsetMax: { x: 0, y: 0 },
+    size: { x: 100, y: 100 },
+    pivot: { x: 0.5, y: 0.5 },
+});
+
+const RigidBody = defineBuiltin('RigidBody', {
+    bodyType: 2,
+    gravityScale: 1,
+    linearDamping: 0,
+    angularDamping: 0,
+    fixedRotation: false,
+    bullet: false,
+    enabled: true,
+});
+
+const BoxCollider = defineBuiltin('BoxCollider', {
+    halfExtents: { x: 0.5, y: 0.5 },
+    offset: { x: 0, y: 0 },
+    density: 1,
+    friction: 0.3,
+    restitution: 0,
+    isSensor: false,
+    enabled: true,
+    categoryBits: 0x0001,
+    maskBits: 0xFFFF,
+});
+
+const CircleCollider = defineBuiltin('CircleCollider', {
+    radius: 0.5,
+    offset: { x: 0, y: 0 },
+    density: 1,
+    friction: 0.3,
+    restitution: 0,
+    isSensor: false,
+    enabled: true,
+    categoryBits: 0x0001,
+    maskBits: 0xFFFF,
+});
+
+const VELOCITY_DATA = {
+    linear: { x: 5, y: 0, z: 0 },
+    angular: { x: 0, y: 0, z: 1 },
+};
+
+const CAMERA_DATA = {
+    projectionType: 1,
+    fov: 60,
+    orthoSize: 5,
+    nearPlane: 0.1,
+    farPlane: 1000,
+    aspectRatio: 1.777,
+    isActive: true,
+    priority: 0,
+    viewportX: 0,
+    viewportY: 0,
+    viewportW: 1,
+    viewportH: 1,
+    clearFlags: 3,
+};
+
+const UIRECT_DATA = {
+    anchorMin: { x: 0, y: 0 },
+    anchorMax: { x: 1, y: 1 },
+    offsetMin: { x: 10, y: 10 },
+    offsetMax: { x: -10, y: -10 },
+    size: { x: 200, y: 100 },
+    pivot: { x: 0.5, y: 0.5 },
+};
+
+const RIGIDBODY_DATA = {
+    bodyType: 2,
+    gravityScale: 1,
+    linearDamping: 0.1,
+    angularDamping: 0.05,
+    fixedRotation: false,
+    bullet: false,
+    enabled: true,
+};
+
+const BOXCOLLIDER_DATA = {
+    halfExtents: { x: 0.5, y: 0.5 },
+    offset: { x: 0, y: 0 },
+    density: 1,
+    friction: 0.3,
+    restitution: 0.2,
+    isSensor: false,
+    enabled: true,
+    categoryBits: 0x0001,
+    maskBits: 0xFFFF,
+};
+
+const CIRCLECOLLIDER_DATA = {
+    radius: 0.5,
+    offset: { x: 0, y: 0 },
+    density: 1,
+    friction: 0.3,
+    restitution: 0.2,
+    isSensor: false,
+    enabled: true,
+    categoryBits: 0x0001,
+    maskBits: 0xFFFF,
+};
+
 const TRANSFORM_WASM = {
     position: { x: 1, y: 2, z: 0 },
     rotation: { x: 0, y: 0, z: 0, w: 1 },
@@ -288,6 +416,132 @@ describe('Ptr-based multi-entity query - Transform + Sprite', () => {
             getT(e);
             getS(e);
         }
+        reg.delete();
+    });
+});
+
+describe('Ptr-based getter vs embind - Velocity', () => {
+    bench('embind: getVelocity x100', () => {
+        const reg = new wasmModule.Registry();
+        const e = reg.create();
+        (reg as any).addVelocity(e, VELOCITY_DATA);
+        for (let i = 0; i < 100; i++) (reg as any).getVelocity(e);
+        reg.delete();
+    });
+
+    bench('ptr-based: resolveGetter(Velocity) x100', () => {
+        const world = new World();
+        const reg = new wasmModule.Registry();
+        world.connectCpp(reg as unknown as CppRegistry, wasmModule);
+        const e = world.spawn();
+        world.insert(e, Velocity, VELOCITY_DATA as any);
+        const getter = world.resolveGetter(Velocity)!;
+        for (let i = 0; i < 100; i++) getter(e);
+        reg.delete();
+    });
+});
+
+describe('Ptr-based getter vs embind - Camera', () => {
+    bench('embind: getCamera x100', () => {
+        const reg = new wasmModule.Registry();
+        const e = reg.create();
+        (reg as any).addCamera(e, CAMERA_DATA);
+        for (let i = 0; i < 100; i++) (reg as any).getCamera(e);
+        reg.delete();
+    });
+
+    bench('ptr-based: resolveGetter(Camera) x100', () => {
+        const world = new World();
+        const reg = new wasmModule.Registry();
+        world.connectCpp(reg as unknown as CppRegistry, wasmModule);
+        const e = world.spawn();
+        world.insert(e, Camera, CAMERA_DATA as any);
+        const getter = world.resolveGetter(Camera)!;
+        for (let i = 0; i < 100; i++) getter(e);
+        reg.delete();
+    });
+});
+
+describe('Ptr-based getter vs embind - UIRect', () => {
+    bench('embind: getUIRect x100', () => {
+        const reg = new wasmModule.Registry();
+        const e = reg.create();
+        (reg as any).addUIRect(e, UIRECT_DATA);
+        for (let i = 0; i < 100; i++) (reg as any).getUIRect(e);
+        reg.delete();
+    });
+
+    bench('ptr-based: resolveGetter(UIRect) x100', () => {
+        const world = new World();
+        const reg = new wasmModule.Registry();
+        world.connectCpp(reg as unknown as CppRegistry, wasmModule);
+        const e = world.spawn();
+        world.insert(e, UIRect, UIRECT_DATA as any);
+        const getter = world.resolveGetter(UIRect)!;
+        for (let i = 0; i < 100; i++) getter(e);
+        reg.delete();
+    });
+});
+
+describe('Ptr-based getter vs embind - RigidBody', () => {
+    bench('embind: getRigidBody x100', () => {
+        const reg = new wasmModule.Registry();
+        const e = reg.create();
+        (reg as any).addRigidBody(e, RIGIDBODY_DATA);
+        for (let i = 0; i < 100; i++) (reg as any).getRigidBody(e);
+        reg.delete();
+    });
+
+    bench('ptr-based: resolveGetter(RigidBody) x100', () => {
+        const world = new World();
+        const reg = new wasmModule.Registry();
+        world.connectCpp(reg as unknown as CppRegistry, wasmModule);
+        const e = world.spawn();
+        world.insert(e, RigidBody, RIGIDBODY_DATA as any);
+        const getter = world.resolveGetter(RigidBody)!;
+        for (let i = 0; i < 100; i++) getter(e);
+        reg.delete();
+    });
+});
+
+describe('Ptr-based getter vs embind - BoxCollider', () => {
+    bench('embind: getBoxCollider x100', () => {
+        const reg = new wasmModule.Registry();
+        const e = reg.create();
+        (reg as any).addBoxCollider(e, BOXCOLLIDER_DATA);
+        for (let i = 0; i < 100; i++) (reg as any).getBoxCollider(e);
+        reg.delete();
+    });
+
+    bench('ptr-based: resolveGetter(BoxCollider) x100', () => {
+        const world = new World();
+        const reg = new wasmModule.Registry();
+        world.connectCpp(reg as unknown as CppRegistry, wasmModule);
+        const e = world.spawn();
+        world.insert(e, BoxCollider, BOXCOLLIDER_DATA as any);
+        const getter = world.resolveGetter(BoxCollider)!;
+        for (let i = 0; i < 100; i++) getter(e);
+        reg.delete();
+    });
+});
+
+describe('Ptr-based getter vs embind - CircleCollider', () => {
+    bench('embind: getCircleCollider x100', () => {
+        const reg = new wasmModule.Registry();
+        const e = reg.create();
+        (reg as any).addCircleCollider(e, CIRCLECOLLIDER_DATA);
+        for (let i = 0; i < 100; i++) (reg as any).getCircleCollider(e);
+        reg.delete();
+    });
+
+    bench('ptr-based: resolveGetter(CircleCollider) x100', () => {
+        const world = new World();
+        const reg = new wasmModule.Registry();
+        world.connectCpp(reg as unknown as CppRegistry, wasmModule);
+        const e = world.spawn();
+        world.insert(e, CircleCollider, CIRCLECOLLIDER_DATA as any);
+        const getter = world.resolveGetter(CircleCollider)!;
+        for (let i = 0; i < 100; i++) getter(e);
         reg.delete();
     });
 });

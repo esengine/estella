@@ -34,6 +34,12 @@
 #include "../renderer/CustomGeometry.hpp"
 #include "../resource/ResourceManager.hpp"
 #include "../ecs/TransformSystem.hpp"
+#include "../ecs/components/Velocity.hpp"
+#include "../ecs/components/Camera.hpp"
+#include "../ecs/components/UIRect.hpp"
+#include "../ecs/components/RigidBody.hpp"
+#include "../ecs/components/Collider.hpp"
+#include "../ecs/components/ShapeRenderer.hpp"
 #include "../animation/TweenSystem.hpp"
 #include "../core/Log.hpp"
 #ifdef ES_ENABLE_SPINE
@@ -315,11 +321,113 @@ int getSpritePtr(ecs::Registry& r, u32 e) {
     return static_cast<int>(reinterpret_cast<uintptr_t>(s));
 }
 
+// Velocity: 2x vec3 = 24 bytes pure float
+static_assert(offsetof(ecs::Velocity, linear) == 0);
+static_assert(offsetof(ecs::Velocity, angular) == 12);
+
+int getVelocityPtr(ecs::Registry& r, u32 e) {
+    auto* v = r.tryGet<ecs::Velocity>(static_cast<Entity>(e));
+    if (!v) return 0;
+    return static_cast<int>(reinterpret_cast<uintptr_t>(v));
+}
+
+// Camera: enum u8 + padding + floats + bool + i32
+static_assert(offsetof(ecs::Camera, projectionType) == 0);
+static_assert(offsetof(ecs::Camera, fov) == 4);
+static_assert(offsetof(ecs::Camera, orthoSize) == 8);
+static_assert(offsetof(ecs::Camera, nearPlane) == 12);
+static_assert(offsetof(ecs::Camera, farPlane) == 16);
+static_assert(offsetof(ecs::Camera, aspectRatio) == 20);
+static_assert(offsetof(ecs::Camera, isActive) == 24);
+static_assert(offsetof(ecs::Camera, priority) == 28);
+static_assert(offsetof(ecs::Camera, viewportX) == 32);
+static_assert(offsetof(ecs::Camera, viewportY) == 36);
+static_assert(offsetof(ecs::Camera, viewportW) == 40);
+static_assert(offsetof(ecs::Camera, viewportH) == 44);
+static_assert(offsetof(ecs::Camera, clearFlags) == 48);
+
+int getCameraPtr(ecs::Registry& r, u32 e) {
+    auto* c = r.tryGet<ecs::Camera>(static_cast<Entity>(e));
+    if (!c) return 0;
+    return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+}
+
+// UIRect: 6x vec2 (48 bytes) + computed fields
+static_assert(offsetof(ecs::UIRect, anchorMin) == 0);
+static_assert(offsetof(ecs::UIRect, anchorMax) == 8);
+static_assert(offsetof(ecs::UIRect, offsetMin) == 16);
+static_assert(offsetof(ecs::UIRect, offsetMax) == 24);
+static_assert(offsetof(ecs::UIRect, size) == 32);
+static_assert(offsetof(ecs::UIRect, pivot) == 40);
+static_assert(offsetof(ecs::UIRect, computed_width_) == 48);
+static_assert(offsetof(ecs::UIRect, computed_height_) == 52);
+
+int getUIRectPtr(ecs::Registry& r, u32 e) {
+    auto* rect = r.tryGet<ecs::UIRect>(static_cast<Entity>(e));
+    if (!rect) return 0;
+    return static_cast<int>(reinterpret_cast<uintptr_t>(rect));
+}
+
+// RigidBody: enum u8 + padding + floats + bools
+static_assert(offsetof(ecs::RigidBody, bodyType) == 0);
+static_assert(offsetof(ecs::RigidBody, gravityScale) == 4);
+static_assert(offsetof(ecs::RigidBody, linearDamping) == 8);
+static_assert(offsetof(ecs::RigidBody, angularDamping) == 12);
+static_assert(offsetof(ecs::RigidBody, fixedRotation) == 16);
+static_assert(offsetof(ecs::RigidBody, bullet) == 17);
+static_assert(offsetof(ecs::RigidBody, enabled) == 18);
+
+int getRigidBodyPtr(ecs::Registry& r, u32 e) {
+    auto* rb = r.tryGet<ecs::RigidBody>(static_cast<Entity>(e));
+    if (!rb) return 0;
+    return static_cast<int>(reinterpret_cast<uintptr_t>(rb));
+}
+
+// BoxCollider: vec2 + vec2 + floats + bools + u32s
+static_assert(offsetof(ecs::BoxCollider, halfExtents) == 0);
+static_assert(offsetof(ecs::BoxCollider, offset) == 8);
+static_assert(offsetof(ecs::BoxCollider, density) == 16);
+static_assert(offsetof(ecs::BoxCollider, friction) == 20);
+static_assert(offsetof(ecs::BoxCollider, restitution) == 24);
+static_assert(offsetof(ecs::BoxCollider, isSensor) == 28);
+static_assert(offsetof(ecs::BoxCollider, enabled) == 29);
+static_assert(offsetof(ecs::BoxCollider, categoryBits) == 32);
+static_assert(offsetof(ecs::BoxCollider, maskBits) == 36);
+
+int getBoxColliderPtr(ecs::Registry& r, u32 e) {
+    auto* bc = r.tryGet<ecs::BoxCollider>(static_cast<Entity>(e));
+    if (!bc) return 0;
+    return static_cast<int>(reinterpret_cast<uintptr_t>(bc));
+}
+
+// CircleCollider: f32 + vec2 + floats + bools + u32s
+static_assert(offsetof(ecs::CircleCollider, radius) == 0);
+static_assert(offsetof(ecs::CircleCollider, offset) == 4);
+static_assert(offsetof(ecs::CircleCollider, density) == 12);
+static_assert(offsetof(ecs::CircleCollider, friction) == 16);
+static_assert(offsetof(ecs::CircleCollider, restitution) == 20);
+static_assert(offsetof(ecs::CircleCollider, isSensor) == 24);
+static_assert(offsetof(ecs::CircleCollider, enabled) == 25);
+static_assert(offsetof(ecs::CircleCollider, categoryBits) == 28);
+static_assert(offsetof(ecs::CircleCollider, maskBits) == 32);
+
+int getCircleColliderPtr(ecs::Registry& r, u32 e) {
+    auto* cc = r.tryGet<ecs::CircleCollider>(static_cast<Entity>(e));
+    if (!cc) return 0;
+    return static_cast<int>(reinterpret_cast<uintptr_t>(cc));
+}
+
 }  // namespace esengine
 
 EMSCRIPTEN_BINDINGS(esengine_ptr_access) {
     emscripten::function("getTransformPtr", &esengine::getTransformPtr);
     emscripten::function("getSpritePtr", &esengine::getSpritePtr);
+    emscripten::function("getVelocityPtr", &esengine::getVelocityPtr);
+    emscripten::function("getCameraPtr", &esengine::getCameraPtr);
+    emscripten::function("getUIRectPtr", &esengine::getUIRectPtr);
+    emscripten::function("getRigidBodyPtr", &esengine::getRigidBodyPtr);
+    emscripten::function("getBoxColliderPtr", &esengine::getBoxColliderPtr);
+    emscripten::function("getCircleColliderPtr", &esengine::getCircleColliderPtr);
 }
 
 EMSCRIPTEN_BINDINGS(esengine_renderer) {

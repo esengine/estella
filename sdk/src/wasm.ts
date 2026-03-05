@@ -266,6 +266,12 @@ export interface ESEngineModule {
     // Pointer-based component access
     getTransformPtr(registry: CppRegistry, entity: number): number;
     getSpritePtr(registry: CppRegistry, entity: number): number;
+    getVelocityPtr(registry: CppRegistry, entity: number): number;
+    getCameraPtr(registry: CppRegistry, entity: number): number;
+    getUIRectPtr(registry: CppRegistry, entity: number): number;
+    getRigidBodyPtr(registry: CppRegistry, entity: number): number;
+    getBoxColliderPtr(registry: CppRegistry, entity: number): number;
+    getCircleColliderPtr(registry: CppRegistry, entity: number): number;
 
     _malloc(size: number): number;
     _free(ptr: number): void;
