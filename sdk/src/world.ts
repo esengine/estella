@@ -600,12 +600,6 @@ export class World {
     resolveHas(component: AnyComponentDef): ((entity: Entity) => boolean) | null {
         if (isBuiltinComponent(component)) {
             if (!this.cppRegistry_) return null;
-
-            if (this.module_) {
-                const ptrFn = this.resolvePtrFn_(component._cppName);
-                if (ptrFn) return (e: Entity) => ptrFn(e) !== 0;
-            }
-
             const methods = this.getBuiltinMethods(component._cppName);
             return (e) => methods.has(e);
         }
