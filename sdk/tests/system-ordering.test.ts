@@ -12,7 +12,7 @@ describe('System Dependency Ordering', () => {
     });
 
     describe('runAfter', () => {
-        it('should run systems in dependency order', () => {
+        it('should run systems in dependency order', async () => {
             const systemA = defineSystem([], () => {
                 executionOrder.push('A');
             }, { name: 'SystemA' });
@@ -25,12 +25,12 @@ describe('System Dependency Ordering', () => {
             app.addSystemToSchedule(Schedule.Update, systemA);
 
             (app as any).runner_ = { run: (sys: any) => sys._fn() };
-            (app as any).runSchedule(Schedule.Update);
+            await (app as any).runSchedule(Schedule.Update);
 
             expect(executionOrder).toEqual(['A', 'B']);
         });
 
-        it('should handle multiple runAfter dependencies', () => {
+        it('should handle multiple runAfter dependencies', async () => {
             const systemA = defineSystem([], () => {
                 executionOrder.push('A');
             }, { name: 'SystemA' });
@@ -48,7 +48,7 @@ describe('System Dependency Ordering', () => {
             app.addSystemToSchedule(Schedule.Update, systemA);
 
             (app as any).runner_ = { run: (sys: any) => sys._fn() };
-            (app as any).runSchedule(Schedule.Update);
+            await (app as any).runSchedule(Schedule.Update);
 
             const aIndex = executionOrder.indexOf('A');
             const bIndex = executionOrder.indexOf('B');
@@ -60,7 +60,7 @@ describe('System Dependency Ordering', () => {
     });
 
     describe('runBefore', () => {
-        it('should run system before specified target', () => {
+        it('should run system before specified target', async () => {
             const systemA = defineSystem([], () => {
                 executionOrder.push('A');
             }, { name: 'SystemA' });
@@ -73,14 +73,14 @@ describe('System Dependency Ordering', () => {
             app.addSystemToSchedule(Schedule.Update, systemA, { runBefore: ['SystemB'] });
 
             (app as any).runner_ = { run: (sys: any) => sys._fn() };
-            (app as any).runSchedule(Schedule.Update);
+            await (app as any).runSchedule(Schedule.Update);
 
             expect(executionOrder).toEqual(['A', 'B']);
         });
     });
 
     describe('mixed dependencies', () => {
-        it('should handle runBefore and runAfter together', () => {
+        it('should handle runBefore and runAfter together', async () => {
             const systemA = defineSystem([], () => {
                 executionOrder.push('A');
             }, { name: 'SystemA' });
@@ -98,7 +98,7 @@ describe('System Dependency Ordering', () => {
             app.addSystemToSchedule(Schedule.Update, systemA);
 
             (app as any).runner_ = { run: (sys: any) => sys._fn() };
-            (app as any).runSchedule(Schedule.Update);
+            await (app as any).runSchedule(Schedule.Update);
 
             const aIndex = executionOrder.indexOf('A');
             const bIndex = executionOrder.indexOf('B');
@@ -110,7 +110,7 @@ describe('System Dependency Ordering', () => {
     });
 
     describe('circular dependency detection', () => {
-        it('should throw on circular dependencies', () => {
+        it('should throw on circular dependencies', async () => {
             const systemA = defineSystem([], () => {
                 executionOrder.push('A');
             }, { name: 'SystemA' });
@@ -124,14 +124,12 @@ describe('System Dependency Ordering', () => {
 
             (app as any).runner_ = { run: (sys: any) => sys._fn() };
 
-            expect(() => {
-                (app as any).runSchedule(Schedule.Update);
-            }).toThrow('Circular dependency');
+            await expect((app as any).runSchedule(Schedule.Update)).rejects.toThrow('Circular dependency');
         });
     });
 
     describe('systems without dependencies', () => {
-        it('should run in registration order when no dependencies specified', () => {
+        it('should run in registration order when no dependencies specified', async () => {
             const systemA = defineSystem([], () => {
                 executionOrder.push('A');
             }, { name: 'SystemA' });
@@ -149,14 +147,14 @@ describe('System Dependency Ordering', () => {
             app.addSystemToSchedule(Schedule.Update, systemC);
 
             (app as any).runner_ = { run: (sys: any) => sys._fn() };
-            (app as any).runSchedule(Schedule.Update);
+            await (app as any).runSchedule(Schedule.Update);
 
             expect(executionOrder).toEqual(['A', 'B', 'C']);
         });
     });
 
     describe('timeline system ordering in PostUpdate', () => {
-        it('should run TimelineSystem after UILayoutLateSystem and before UITransformFinalSystem', () => {
+        it('should run TimelineSystem after UILayoutLateSystem and before UITransformFinalSystem', async () => {
             const uiLayoutLate = defineSystem([], () => {
                 executionOrder.push('UILayoutLateSystem');
             }, { name: 'UILayoutLateSystem' });
@@ -180,7 +178,7 @@ describe('System Dependency Ordering', () => {
             });
 
             (app as any).runner_ = { run: (sys: any) => sys._fn() };
-            (app as any).runSchedule(Schedule.PostUpdate);
+            await (app as any).runSchedule(Schedule.PostUpdate);
 
             const layoutIdx = executionOrder.indexOf('UILayoutLateSystem');
             const timelineIdx = executionOrder.indexOf('TimelineSystem');
@@ -192,7 +190,7 @@ describe('System Dependency Ordering', () => {
     });
 
     describe('non-existent dependencies', () => {
-        it('should ignore dependencies on non-existent systems', () => {
+        it('should ignore dependencies on non-existent systems', async () => {
             const systemA = defineSystem([], () => {
                 executionOrder.push('A');
             }, { name: 'SystemA' });
@@ -201,9 +199,7 @@ describe('System Dependency Ordering', () => {
 
             (app as any).runner_ = { run: (sys: any) => sys._fn() };
 
-            expect(() => {
-                (app as any).runSchedule(Schedule.Update);
-            }).not.toThrow();
+            await expect((app as any).runSchedule(Schedule.Update)).resolves.not.toThrow();
 
             expect(executionOrder).toEqual(['A']);
         });

@@ -84,7 +84,7 @@ export type InferParams<P extends readonly SystemParam[]> = {
 export interface SystemDef {
     readonly _id: symbol;
     readonly _params: readonly SystemParam[];
-    readonly _fn: (...args: never[]) => void;
+    readonly _fn: (...args: never[]) => void | Promise<void>;
     readonly _name: string;
 }
 
@@ -98,7 +98,7 @@ export interface SystemOptions {
 
 export function defineSystem<P extends readonly SystemParam[]>(
     params: [...P],
-    fn: (...args: InferParams<P>) => void,
+    fn: (...args: InferParams<P>) => void | Promise<void>,
     options?: SystemOptions
 ): SystemDef {
     const id = ++systemCounter;
@@ -161,7 +161,7 @@ export class SystemRunner {
         return this.timings_;
     }
 
-    run(system: SystemDef): void {
+    run(system: SystemDef): void | Promise<void> {
         let args = this.argsCache_.get(system._id);
         if (!args) {
             args = new Array(system._params.length);
@@ -213,21 +213,37 @@ export class SystemRunner {
         }
 
         const t0 = this.timings_ ? performance.now() : 0;
+        let result: void | Promise<void>;
         try {
-            (system._fn as (...args: unknown[]) => void)(...args);
-
-            for (let i = 0; i < args.length; i++) {
-                if (args[i] instanceof CommandsInstance) {
-                    (args[i] as CommandsInstance).flush();
-                }
-            }
-        } finally {
-            if (this.timings_) {
-                this.timings_.set(system._name, performance.now() - t0);
-            }
-            this.world_.resetIterationDepth();
-            this.systemTicks_.set(system._id, this.world_.getWorldTick());
+            result = (system._fn as (...args: unknown[]) => void | Promise<void>)(...args);
+        } catch (e) {
+            this.flushSystem_(system, args, t0);
+            throw e;
         }
+
+        if (result instanceof Promise) {
+            return result.then(() => {
+                this.flushSystem_(system, args, t0);
+            }, (e) => {
+                this.flushSystem_(system, args, t0);
+                throw e;
+            });
+        }
+
+        this.flushSystem_(system, args, t0);
+    }
+
+    private flushSystem_(system: SystemDef, args: unknown[], t0: number): void {
+        for (let i = 0; i < args.length; i++) {
+            if (args[i] instanceof CommandsInstance) {
+                (args[i] as CommandsInstance).flush();
+            }
+        }
+        if (this.timings_) {
+            this.timings_.set(system._name, performance.now() - t0);
+        }
+        this.world_.resetIterationDepth();
+        this.systemTicks_.set(system._id, this.world_.getWorldTick());
     }
 
     private resolveParam(param: SystemParam): unknown {
