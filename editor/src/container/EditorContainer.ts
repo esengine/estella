@@ -57,6 +57,15 @@ export class EditorContainer implements PluginRegistrar {
         }
     }
 
+    getOrdered<V extends { order?: number }>(token: ServiceToken<V>): V[] {
+        return Array.from(this.getAll(token).values())
+            .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    }
+
+    filter<V>(token: ServiceToken<V>, pred: (v: V) => boolean): V[] {
+        return Array.from(this.getAll(token).values()).filter(pred);
+    }
+
     clearExtensions(): void {
         for (const [token, map] of this.stores_) {
             const builtin = this.builtinKeys_.get(token);

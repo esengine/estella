@@ -90,6 +90,24 @@ vi.mock('../context/EditorContext', () => ({
     })),
 }));
 
+const mockContainer = (() => {
+    const stores = new Map<any, Map<string, any>>();
+    return {
+        provide: (token: any, key: string, value: any) => {
+            if (!stores.has(token)) stores.set(token, new Map());
+            stores.get(token)!.set(key, value);
+        },
+        get: (token: any, key: string) => stores.get(token)?.get(key),
+        has: () => false,
+        getAll: () => new Map(),
+    };
+})();
+
+vi.mock('../container/EditorContainer', () => ({
+    getEditorContainer: vi.fn(() => mockContainer),
+    setEditorContainer: vi.fn(),
+}));
+
 vi.mock('../asset', () => ({
     getAssetDatabase: vi.fn(() => ({
         getAllEntries: vi.fn(() => mockDbEntries[Symbol.iterator]()),
@@ -97,13 +115,15 @@ vi.mock('../asset', () => ({
     isUUID: vi.fn(() => false),
 }));
 
-import { getPlayModeService } from '../services/PlayModeService';
+import { getPlayModeService, PlayModeService } from '../services/PlayModeService';
+import { PLAY_MODE_SERVICE } from '../container/tokens';
 
 describe('PlayModeService — SceneManager integration', () => {
     let service: ReturnType<typeof getPlayModeService>;
 
     beforeEach(() => {
         vi.clearAllMocks();
+        mockContainer.provide(PLAY_MODE_SERVICE, 'default', new PlayModeService());
         service = getPlayModeService();
     });
 

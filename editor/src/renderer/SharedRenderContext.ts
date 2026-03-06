@@ -412,16 +412,16 @@ export class SharedRenderContext {
     }
 }
 
-let sharedInstance: SharedRenderContext | null = null;
+import { getEditorContainer } from '../container/EditorContainer';
+import { SHARED_RENDER_CTX } from '../container/tokens';
 
 export function getSharedRenderContext(): SharedRenderContext {
-    if (!sharedInstance) sharedInstance = new SharedRenderContext();
-    return sharedInstance;
+    return getEditorContainer().get(SHARED_RENDER_CTX, 'default')!;
 }
 
 export function resetSharedRenderContext(): void {
-    if (sharedInstance) {
-        sharedInstance.dispose();
-        sharedInstance = null;
+    const instance = getEditorContainer().get(SHARED_RENDER_CTX, 'default');
+    if (instance) {
+        instance.dispose();
     }
 }

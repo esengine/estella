@@ -1,6 +1,5 @@
 import type { PropertyMeta } from '../property/PropertyEditor';
 import { getComponentDefaults } from 'esengine';
-import { getSettingsValue } from '../settings/SettingsRegistry';
 import { getEditorContainer } from '../container';
 import { COMPONENT_SCHEMA } from '../container/tokens';
 
@@ -13,6 +12,7 @@ export interface ComponentSchema {
     removable?: boolean;
     hidden?: boolean;
     displayName?: string;
+    editorDefaults?: () => Record<string, unknown> | null;
 }
 
 function isVec2(v: unknown): boolean {
@@ -134,25 +134,11 @@ const editorInitialOverrides: Record<string, Record<string, unknown>> = {
 };
 
 function getDynamicOverrides(typeName: string): Record<string, unknown> | null {
-    switch (typeName) {
-        case 'Sprite': {
-            const w = getSettingsValue<number>('rendering.defaultSpriteWidth');
-            const h = getSettingsValue<number>('rendering.defaultSpriteHeight');
-            if (w != null || h != null) {
-                return { size: { x: w ?? 100, y: h ?? 100 } };
-            }
-            return null;
-        }
-        case 'Canvas': {
-            const ppu = getSettingsValue<number>('rendering.pixelsPerUnit');
-            if (ppu != null) {
-                return { pixelsPerUnit: ppu };
-            }
-            return null;
-        }
-        default:
-            return null;
+    const schema = getEditorContainer().get(COMPONENT_SCHEMA, typeName);
+    if (schema?.editorDefaults) {
+        return schema.editorDefaults();
     }
+    return null;
 }
 
 export function getInitialComponentData(typeName: string): Record<string, unknown> {

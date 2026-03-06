@@ -65,12 +65,9 @@ export {
 } from './ImporterTypes';
 
 import { AssetPathResolver } from './AssetPathResolver';
-
-let globalPathResolver: AssetPathResolver | null = null;
+import { getEditorContainer } from '../container/EditorContainer';
+import { GLOBAL_PATH_RESOLVER } from '../container/tokens';
 
 export function getGlobalPathResolver(): AssetPathResolver {
-    if (!globalPathResolver) {
-        globalPathResolver = new AssetPathResolver();
-    }
-    return globalPathResolver;
+    return getEditorContainer().get(GLOBAL_PATH_RESOLVER, 'default')!;
 }

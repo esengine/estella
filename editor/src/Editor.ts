@@ -97,13 +97,7 @@ export class Editor {
 
     constructor(container: HTMLElement, options?: EditorOptions) {
         this.container_ = container;
-        this.store_ = getEditorStore();
         this.projectPath_ = options?.projectPath ?? null;
-
-        this.panelManager_ = new PanelManager();
-        this.menuManager_ = new MenuManager();
-        this.menuManager_.setStore(this.store_);
-        this.previewManager_ = new PreviewManager(this.projectPath_);
 
         const iocContainer = new EditorContainer();
         setEditorContainer(iocContainer);
@@ -127,6 +121,12 @@ export class Editor {
         for (const plugin of builtinPlugins) {
             this.addPlugin(plugin);
         }
+
+        this.store_ = getEditorStore();
+        this.panelManager_ = new PanelManager();
+        this.menuManager_ = new MenuManager();
+        this.menuManager_.setStore(this.store_);
+        this.previewManager_ = new PreviewManager(this.projectPath_);
         exposeRegistrationAPI();
         iocContainer.lockBuiltins();
 

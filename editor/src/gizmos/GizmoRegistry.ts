@@ -39,6 +39,5 @@ export function getGizmo(id: string): GizmoDescriptor | undefined {
 }
 
 export function getAllGizmos(): GizmoDescriptor[] {
-    return Array.from(getEditorContainer().getAll(GIZMO).values())
-        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    return getEditorContainer().getOrdered(GIZMO);
 }

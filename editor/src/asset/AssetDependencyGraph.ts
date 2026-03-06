@@ -48,16 +48,16 @@ export class AssetDependencyGraph {
     }
 }
 
-let graph: AssetDependencyGraph | null = null;
+import { getEditorContainer } from '../container/EditorContainer';
+import { ASSET_DEP_GRAPH } from '../container/tokens';
+
+const SERVICE_KEY = 'default';
 
 export function getDependencyGraph(): AssetDependencyGraph {
-    if (!graph) {
-        graph = new AssetDependencyGraph();
-    }
-    return graph;
+    return getEditorContainer().get(ASSET_DEP_GRAPH, SERVICE_KEY)!;
 }
 
 export function resetDependencyGraph(): void {
+    const graph = getEditorContainer().get(ASSET_DEP_GRAPH, SERVICE_KEY);
     graph?.clear();
-    graph = null;
 }

@@ -42,21 +42,16 @@ export function registerStatusbarItem(item: StatusbarItemDescriptor): void {
 }
 
 export function getAllMenus(): MenuDescriptor[] {
-    return Array.from(getEditorContainer().getAll(MENU).values())
-        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    return getEditorContainer().getOrdered(MENU);
 }
 
 export function getMenuItems(menuId: string): MenuItemDescriptor[] {
-    const result: MenuItemDescriptor[] = [];
-    for (const item of getEditorContainer().getAll(MENU_ITEM).values()) {
-        if (item.menu === menuId) result.push(item);
-    }
-    return result.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    return getEditorContainer().getOrdered(MENU_ITEM)
+        .filter(item => item.menu === menuId);
 }
 
 export function getAllStatusbarItems(): StatusbarItemDescriptor[] {
-    return Array.from(getEditorContainer().getAll(STATUSBAR_ITEM).values())
-        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    return getEditorContainer().getOrdered(STATUSBAR_ITEM);
 }
 
 export function getMenuItem(id: string): MenuItemDescriptor | undefined {

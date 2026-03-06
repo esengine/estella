@@ -43,16 +43,16 @@ export class AssetEventBus {
     }
 }
 
-let bus: AssetEventBus | null = null;
+import { getEditorContainer } from '../container/EditorContainer';
+import { ASSET_EVENT_BUS } from '../container/tokens';
+
+const SERVICE_KEY = 'default';
 
 export function getAssetEventBus(): AssetEventBus {
-    if (!bus) {
-        bus = new AssetEventBus();
-    }
-    return bus;
+    return getEditorContainer().get(ASSET_EVENT_BUS, SERVICE_KEY)!;
 }
 
 export function resetAssetEventBus(): void {
+    const bus = getEditorContainer().get(ASSET_EVENT_BUS, SERVICE_KEY);
     bus?.clear();
-    bus = null;
 }

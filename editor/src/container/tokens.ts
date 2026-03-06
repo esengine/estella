@@ -9,6 +9,14 @@ import type { SettingsSectionDescriptor, SettingsGroupDescriptor, SettingsItemDe
 import type { ContextMenuContribution } from '../ui/ContextMenuRegistry';
 import type { InspectorSectionDescriptor, ComponentInspectorDescriptor } from '../panels/inspector/InspectorRegistry';
 import type { AssetTypeDescriptor } from '../asset/AssetTypeRegistry';
+import type { AssetEventBus } from '../events/AssetEventBus';
+import type { AssetDependencyGraph } from '../asset/AssetDependencyGraph';
+import type { ImporterRegistryImpl } from '../asset/ImporterRegistry';
+import type { AssetPathResolver } from '../asset/AssetPathResolver';
+import type { EditorStore } from '../store/EditorStore';
+import type { SharedRenderContext } from '../renderer/SharedRenderContext';
+import type { AssetDatabase } from '../asset/AssetDatabase';
+import type { PlayModeService } from '../services/PlayModeService';
 
 export const COMPONENT_SCHEMA = new ServiceToken<ComponentSchema>('COMPONENT_SCHEMA');
 export const PROPERTY_EDITOR = new ServiceToken<PropertyEditorFactory>('PROPERTY_EDITOR');
@@ -26,3 +34,16 @@ export const INSPECTOR_SECTION = new ServiceToken<InspectorSectionDescriptor>('I
 export const COMPONENT_INSPECTOR = new ServiceToken<ComponentInspectorDescriptor>('COMPONENT_INSPECTOR');
 export const ASSET_TYPE = new ServiceToken<AssetTypeDescriptor>('ASSET_TYPE');
 export const ASSET_EDITOR_TYPE = new ServiceToken<string>('ASSET_EDITOR_TYPE');
+export const ASSET_EVENT_BUS = new ServiceToken<AssetEventBus>('ASSET_EVENT_BUS');
+export const ASSET_DEP_GRAPH = new ServiceToken<AssetDependencyGraph>('ASSET_DEP_GRAPH');
+export const IMPORTER_REGISTRY = new ServiceToken<ImporterRegistryImpl>('IMPORTER_REGISTRY');
+export const GLOBAL_PATH_RESOLVER = new ServiceToken<AssetPathResolver>('GLOBAL_PATH_RESOLVER');
+export const EDITOR_STORE = new ServiceToken<EditorStore>('EDITOR_STORE');
+export const SHARED_RENDER_CTX = new ServiceToken<SharedRenderContext>('SHARED_RENDER_CTX');
+export const ASSET_DATABASE = new ServiceToken<AssetDatabase>('ASSET_DATABASE');
+export const PLAY_MODE_SERVICE = new ServiceToken<PlayModeService>('PLAY_MODE_SERVICE');
+
+export interface ComponentLifecycle {
+    remove(world: any, entity: any, entityId: number): void;
+}
+export const COMPONENT_LIFECYCLE = new ServiceToken<ComponentLifecycle>('COMPONENT_LIFECYCLE');

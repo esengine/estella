@@ -56,7 +56,7 @@ const defaultImporter: AssetImporter<ImporterData> = {
 // ImporterRegistry
 // =============================================================================
 
-class ImporterRegistryImpl {
+export class ImporterRegistryImpl {
     private importers_ = new Map<string, AssetImporter<any>>();
     private extToType_ = new Map<string, string>();
 
@@ -100,23 +100,28 @@ class ImporterRegistryImpl {
 }
 
 // =============================================================================
-// Singleton
+// IoC accessor
 // =============================================================================
 
-let registry: ImporterRegistryImpl | null = null;
+import { getEditorContainer } from '../container/EditorContainer';
+import { IMPORTER_REGISTRY } from '../container/tokens';
+
+const SERVICE_KEY = 'default';
 
 export function getImporterRegistry(): ImporterRegistryImpl {
-    if (!registry) {
-        registry = new ImporterRegistryImpl();
-        registry.register(new TextureImporter());
-        registry.register(new AudioImporter());
-        registry.register(new SpineImporter());
-        registry.register(new MaterialImporter());
-        registry.register(new ShaderImporter());
-        registry.register(new BitmapFontImporter());
-        registry.register(new SceneImporter());
-        registry.register(new PrefabImporter());
-        registry.register(new TimelineImporter());
-    }
+    return getEditorContainer().get(IMPORTER_REGISTRY, SERVICE_KEY)!;
+}
+
+export function createImporterRegistry(): ImporterRegistryImpl {
+    const registry = new ImporterRegistryImpl();
+    registry.register(new TextureImporter());
+    registry.register(new AudioImporter());
+    registry.register(new SpineImporter());
+    registry.register(new MaterialImporter());
+    registry.register(new ShaderImporter());
+    registry.register(new BitmapFontImporter());
+    registry.register(new SceneImporter());
+    registry.register(new PrefabImporter());
+    registry.register(new TimelineImporter());
     return registry;
 }

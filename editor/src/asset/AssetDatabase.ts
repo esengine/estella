@@ -543,17 +543,15 @@ export function getComponentRefFields(componentType: string): string[] | undefin
 // Singleton
 // =============================================================================
 
-let instance: AssetDatabase | null = null;
+import { getEditorContainer } from '../container/EditorContainer';
+import { ASSET_DATABASE } from '../container/tokens';
 
 export function getAssetDatabase(): AssetDatabase {
-    if (!instance) {
-        instance = new AssetDatabase();
-    }
-    return instance;
+    return getEditorContainer().get(ASSET_DATABASE, 'default')!;
 }
 
 export function resetAssetDatabase(): void {
-    instance = null;
+    // no-op: lifecycle managed by IoC container
 }
 
 // Backward-compatible aliases

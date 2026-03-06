@@ -1,6 +1,7 @@
 import type { EditorPlugin, EditorPluginContext } from './EditorPlugin';
 import type { ComponentSchema } from '../schemas/ComponentSchemas';
 import { COMPONENT_SCHEMA } from '../container/tokens';
+import { getSettingsValue } from '../settings/SettingsRegistry';
 
 const NameSchema: ComponentSchema = {
     name: 'Name',
@@ -60,6 +61,13 @@ const SceneOwnerSchema: ComponentSchema = {
 const CanvasSchema: ComponentSchema = {
     name: 'Canvas',
     category: 'builtin',
+    editorDefaults: () => {
+        const ppu = getSettingsValue<number>('rendering.pixelsPerUnit');
+        if (ppu != null) {
+            return { pixelsPerUnit: ppu };
+        }
+        return null;
+    },
     properties: [
         { name: 'designResolution', type: 'vec2' },
         { name: 'pixelsPerUnit', type: 'number', min: 1, step: 1 },

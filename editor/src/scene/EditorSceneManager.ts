@@ -51,6 +51,8 @@ import { AssetPathResolver } from '../asset/AssetPathResolver';
 import { getDependencyGraph } from '../asset/AssetDependencyGraph';
 import { getAssetLibrary, isUUID } from '../asset/AssetLibrary';
 import { getEditorContext } from '../context/EditorContext';
+import { getEditorContainer } from '../container/EditorContainer';
+import { COMPONENT_LIFECYCLE, type ComponentLifecycle } from '../container/tokens';
 import { getPlatformAdapter } from '../platform/PlatformAdapter';
 import {
     transformToMatrix4x4,
@@ -109,6 +111,33 @@ export class EditorSceneManager {
         this.assetServer_ = new EditorAssetServer(module, pathResolver);
         this.postLoadHooks_.set('SpineAnimation', (id, data) => this.syncSpineInstance(id, data));
         this.postLoadHooks_.set('SpriteAnimator', (id, data) => this.applyAnimFirstFrame(id, data));
+        this.registerComponentLifecycles_();
+    }
+
+    private registerComponentLifecycles_(): void {
+        const container = getEditorContainer();
+        const simpleRemove = (comp: any): ComponentLifecycle => ({
+            remove: (world, entity) => {
+                if (world.has(entity, comp)) world.remove(entity, comp);
+            },
+        });
+        container.provide(COMPONENT_LIFECYCLE, 'Transform', simpleRemove(Transform));
+        container.provide(COMPONENT_LIFECYCLE, 'Sprite', simpleRemove(Sprite));
+        container.provide(COMPONENT_LIFECYCLE, 'BitmapText', simpleRemove(BitmapText));
+        container.provide(COMPONENT_LIFECYCLE, 'UIRect', simpleRemove(UIRect));
+        container.provide(COMPONENT_LIFECYCLE, 'UIMask', simpleRemove(UIMask));
+        container.provide(COMPONENT_LIFECYCLE, 'Text', simpleRemove(Text));
+        container.provide(COMPONENT_LIFECYCLE, 'TextInput', {
+            remove: (world, entity) => {
+                if (world.has(entity, TextInput)) world.remove(entity, TextInput);
+                if (world.has(entity, Text)) world.remove(entity, Text);
+            },
+        });
+        container.provide(COMPONENT_LIFECYCLE, 'SpineAnimation', {
+            remove: (_world, _entity, entityId) => {
+                this.destroySpineInstance(entityId);
+            },
+        });
     }
 
     setProjectDir(projectDir: string): void {
@@ -403,32 +432,9 @@ export class EditorSceneManager {
     removeComponentFromEntity(entityId: number, componentType: string): void {
         const entity = this.entityMap_.get(entityId);
         if (entity === undefined) return;
-        switch (componentType) {
-            case 'Transform':
-                if (this.world_.has(entity, Transform)) this.world_.remove(entity, Transform);
-                break;
-            case 'Sprite':
-                if (this.world_.has(entity, Sprite)) this.world_.remove(entity, Sprite);
-                break;
-            case 'BitmapText':
-                if (this.world_.has(entity, BitmapText)) this.world_.remove(entity, BitmapText);
-                break;
-            case 'UIRect':
-                if (this.world_.has(entity, UIRect)) this.world_.remove(entity, UIRect);
-                break;
-            case 'UIMask':
-                if (this.world_.has(entity, UIMask)) this.world_.remove(entity, UIMask);
-                break;
-            case 'Text':
-                if (this.world_.has(entity, Text)) this.world_.remove(entity, Text);
-                break;
-            case 'TextInput':
-                if (this.world_.has(entity, TextInput)) this.world_.remove(entity, TextInput);
-                if (this.world_.has(entity, Text)) this.world_.remove(entity, Text);
-                break;
-            case 'SpineAnimation':
-                this.destroySpineInstance(entityId);
-                break;
+        const lifecycle = getEditorContainer().get(COMPONENT_LIFECYCLE, componentType);
+        if (lifecycle) {
+            lifecycle.remove(this.world_, entity, entityId);
         }
     }
 

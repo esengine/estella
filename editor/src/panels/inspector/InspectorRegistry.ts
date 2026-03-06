@@ -50,11 +50,8 @@ export function registerInspectorSection(descriptor: InspectorSectionDescriptor)
 }
 
 export function getInspectorSections(target: 'entity' | 'asset'): InspectorSectionDescriptor[] {
-    const result: InspectorSectionDescriptor[] = [];
-    for (const s of getEditorContainer().getAll(INSPECTOR_SECTION).values()) {
-        if (s.target === target || s.target === 'both') result.push(s);
-    }
-    return result.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    return getEditorContainer().getOrdered(INSPECTOR_SECTION)
+        .filter(s => s.target === target || s.target === 'both');
 }
 
 export function registerComponentInspector(descriptor: ComponentInspectorDescriptor): void {

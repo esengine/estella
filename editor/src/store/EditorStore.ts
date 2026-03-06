@@ -702,18 +702,16 @@ export class EditorStore {
 }
 
 // =============================================================================
-// Singleton Instance
+// IoC accessor
 // =============================================================================
 
-let editorStore: EditorStore | null = null;
+import { getEditorContainer } from '../container/EditorContainer';
+import { EDITOR_STORE } from '../container/tokens';
 
 export function getEditorStore(): EditorStore {
-    if (!editorStore) {
-        editorStore = new EditorStore();
-    }
-    return editorStore;
+    return getEditorContainer().get(EDITOR_STORE, 'default')!;
 }
 
 export function resetEditorStore(): void {
-    editorStore = null;
+    // no-op: lifecycle managed by IoC container
 }

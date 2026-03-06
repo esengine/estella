@@ -55,8 +55,7 @@ export function getPanel(id: string): PanelDescriptor | undefined {
 }
 
 export function getAllPanels(): PanelDescriptor[] {
-    return Array.from(getEditorContainer().getAll(PANEL).values())
-        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    return getEditorContainer().getOrdered(PANEL);
 }
 
 export function getPanelsByPosition(position: PanelPosition): PanelDescriptor[] {

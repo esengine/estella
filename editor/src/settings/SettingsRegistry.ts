@@ -141,32 +141,27 @@ export function onSettingsChange(listener: SettingsChangeListener): () => void {
 }
 
 export function getAllSections(): SettingsSectionDescriptor[] {
-    return [...getEditorContainer().getAll(SETTINGS_SECTION).values()]
-        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    return getEditorContainer().getOrdered(SETTINGS_SECTION);
 }
 
 export function getSectionItems(sectionId: string): SettingsItemDescriptor[] {
-    return [...getEditorContainer().getAll(SETTINGS_ITEM).values()]
-        .filter(item => item.section === sectionId)
-        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    return getEditorContainer().getOrdered(SETTINGS_ITEM)
+        .filter(item => item.section === sectionId);
 }
 
 export function getSectionGroups(sectionId: string): SettingsGroupDescriptor[] {
-    return [...getEditorContainer().getAll(SETTINGS_GROUP).values()]
-        .filter(g => g.section === sectionId)
-        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    return getEditorContainer().getOrdered(SETTINGS_GROUP)
+        .filter(g => g.section === sectionId);
 }
 
 export function getGroupItems(groupId: string): SettingsItemDescriptor[] {
-    return [...getEditorContainer().getAll(SETTINGS_ITEM).values()]
-        .filter(item => item.group === groupId)
-        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    return getEditorContainer().getOrdered(SETTINGS_ITEM)
+        .filter(item => item.group === groupId);
 }
 
 export function getUngroupedSectionItems(sectionId: string): SettingsItemDescriptor[] {
-    return [...getEditorContainer().getAll(SETTINGS_ITEM).values()]
-        .filter(item => item.section === sectionId && !item.group)
-        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    return getEditorContainer().getOrdered(SETTINGS_ITEM)
+        .filter(item => item.section === sectionId && !item.group);
 }
 
 export function searchSettings(query: string): SettingsItemDescriptor[] {

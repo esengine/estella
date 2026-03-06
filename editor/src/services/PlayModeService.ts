@@ -42,7 +42,7 @@ export function runtimeToEntityData(re: RuntimeEntityData): EntityData {
     };
 }
 
-class PlayModeService {
+export class PlayModeService {
     private state_: PlayState = 'stopped';
     private selectedEntityId_: number | null = null;
     private cachedEntities_: RuntimeEntityData[] = [];
@@ -391,9 +391,9 @@ class PlayModeService {
     }
 }
 
-let instance: PlayModeService | null = null;
+import { getEditorContainer } from '../container/EditorContainer';
+import { PLAY_MODE_SERVICE } from '../container/tokens';
 
 export function getPlayModeService(): PlayModeService {
-    if (!instance) instance = new PlayModeService();
-    return instance;
+    return getEditorContainer().get(PLAY_MODE_SERVICE, 'default')!;
 }
