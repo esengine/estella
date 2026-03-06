@@ -11,7 +11,10 @@ import { getEditorContext } from '../context/EditorContext';
 import { initializeEsbuild } from '../builder/ArtifactBuilder';
 import { ExtensionContext } from './ExtensionContext';
 import { setEditorAPI } from './editorAPI';
+import { getEditorContainer } from '../container';
 import { normalizePath, joinPath, getProjectDir } from '../utils/path';
+import { discoverPluginPackages } from './pluginDiscovery';
+import { getSettingsValue } from '../settings/SettingsRegistry';
 
 // =============================================================================
 // Native FS Access
@@ -20,6 +23,22 @@ import { normalizePath, joinPath, getProjectDir } from '../utils/path';
 function getNativeFS(): NativeFS | null {
     return getEditorContext().fs ?? null;
 }
+
+// =============================================================================
+// Plugin Info
+// =============================================================================
+
+export interface ExtensionPluginInfo {
+    id: string;
+    type: 'local' | 'npm';
+    name: string;
+    version?: string;
+    description?: string;
+    status: 'loaded' | 'error' | 'disabled';
+    error?: string;
+}
+
+const PLUGIN_ERRORS_KEY = '__esengine_plugin_errors__';
 
 // =============================================================================
 // Extension Loader
@@ -55,6 +74,10 @@ export class ExtensionLoader {
         this.initialized_ = true;
     }
 
+    getDiscoveredPlugins(): ExtensionPluginInfo[] {
+        return this.discoveredPlugins_;
+    }
+
     async discover(): Promise<string[]> {
         const fs = getNativeFS();
         if (!fs) return [];
@@ -73,16 +96,56 @@ export class ExtensionLoader {
         const fs = getNativeFS();
         if (!fs) return false;
 
+        const disabled = getSettingsValue<string[]>('extensions.disabled') ?? [];
+        const disabledSet = new Set(disabled);
+
         const scripts = await this.discover();
-        if (scripts.length === 0) {
+        const infos: ExtensionPluginInfo[] = [];
+
+        const pluginImports: string[] = [];
+        try {
+            const plugins = await discoverPluginPackages(fs, this.projectDir_, 'editor');
+            for (const p of plugins) {
+                const info: ExtensionPluginInfo = {
+                    id: p.packageName,
+                    type: 'npm',
+                    name: p.displayName ?? p.packageName,
+                    version: p.version,
+                    description: p.description,
+                    status: disabledSet.has(p.packageName) ? 'disabled' : 'loaded',
+                };
+                infos.push(info);
+                if (info.status !== 'disabled') {
+                    pluginImports.push(
+                        `try { await import("${p.entryPath}"); } catch(e) { (window.${PLUGIN_ERRORS_KEY} ??= new Map()).set("${p.packageName}", String(e)); console.error("[plugin] ${p.packageName} failed:", e); }`
+                    );
+                }
+            }
+        } catch (err) {
+            console.warn('ExtensionLoader: Plugin discovery failed:', err);
+        }
+
+        for (const path of scripts) {
+            const name = path.split('/').pop() ?? path;
+            infos.push({
+                id: path,
+                type: 'local',
+                name,
+                status: disabledSet.has(path) ? 'disabled' : 'loaded',
+            });
+        }
+
+        this.discoveredPlugins_ = infos;
+
+        const activeScripts = scripts.filter(p => !disabledSet.has(p));
+        if (activeScripts.length === 0 && pluginImports.length === 0) {
             this.lastCompiled_ = null;
             return true;
         }
 
         try {
-            const entryContent = scripts
-                .map(p => `import "${p}";`)
-                .join('\n');
+            const localImports = activeScripts.map(p => `import "${p}";`).join('\n');
+            const entryContent = pluginImports.join('\n') + '\n' + localImports;
 
             const result = await esbuild.build({
                 stdin: {
@@ -180,8 +243,9 @@ export class ExtensionLoader {
             if (!compiled) return false;
             if (!this.lastCompiled_) return true;
             this.currentContext_ = new ExtensionContext();
-            setEditorAPI(this.currentContext_.createAPI(this.baseAPI_));
+            setEditorAPI(this.currentContext_.createAPI(this.baseAPI_, getEditorContainer()));
             const executed = await this.execute();
+            this.collectPluginErrors_();
             if (executed) {
                 this.onAfterReload_?.();
             }
@@ -240,6 +304,19 @@ export class ExtensionLoader {
     // Private Methods
     // =========================================================================
 
+    private collectPluginErrors_(): void {
+        const errors = (window as any)[PLUGIN_ERRORS_KEY] as Map<string, string> | undefined;
+        if (!errors) return;
+        for (const info of this.discoveredPlugins_) {
+            const err = errors.get(info.id);
+            if (err) {
+                info.status = 'error';
+                info.error = err;
+            }
+        }
+        delete (window as any)[PLUGIN_ERRORS_KEY];
+    }
+
     private disposeCurrentUrl(): void {
         if (this.currentBlobUrl_) {
             URL.revokeObjectURL(this.currentBlobUrl_);
@@ -262,6 +339,7 @@ export class ExtensionLoader {
     private currentContext_: ExtensionContext | null = null;
     private unwatchFn_: (() => void) | null = null;
     private recompileTimer_: number | null = null;
+    private discoveredPlugins_: ExtensionPluginInfo[] = [];
     private onCompileError_?: (errors: CompileError[]) => void;
     private onCompileSuccess_?: () => void;
     private onCleanup_?: () => void;

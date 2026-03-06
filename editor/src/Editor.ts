@@ -247,6 +247,7 @@ export class Editor {
     }
 
     private async initializeAllScripts_(): Promise<void> {
+        await this.extensionService_.startListening();
         await this.extensionService_.initialize();
         await this.scriptService_.initialize();
     }
