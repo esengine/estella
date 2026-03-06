@@ -16,6 +16,8 @@ import { PostProcess, PostProcessStack } from './postprocess';
 import { Draw } from './draw';
 import { defineResource } from './resource';
 import { SceneOwner, Sprite, SpineAnimation, BitmapText } from './component';
+import { UIRenderer } from './ui/UIRenderer';
+import type { UIRendererData } from './ui/UIRenderer';
 import { Assets } from './asset/AssetPlugin';
 import { RuntimeConfig } from './defaults';
 
@@ -78,7 +80,7 @@ class SceneInstance {
     readonly entities = new Set<Entity>();
     readonly drawCallbacks = new Map<string, DrawCallback>();
     readonly postProcessBindings = new Map<Entity, PostProcessStack>();
-    readonly savedAlphas = new Map<Entity, { sprite?: number; spine?: number; bitmapText?: number }>();
+    readonly savedAlphas = new Map<Entity, { sprite?: number; spine?: number; bitmapText?: number; uiRenderer?: number }>();
     loadedAssets: LoadedSceneAssets | null = null;
     status: SceneStatus = 'loading';
 
@@ -564,7 +566,7 @@ export class SceneManagerState {
         const world = this.app_.world;
         for (const entity of instance.entities) {
             if (!world.valid(entity)) continue;
-            const saved: { sprite?: number; spine?: number; bitmapText?: number } = {};
+            const saved: { sprite?: number; spine?: number; bitmapText?: number; uiRenderer?: number } = {};
             let hasSaved = false;
 
             if (world.has(entity, Sprite)) {
@@ -586,6 +588,13 @@ export class SceneManagerState {
                 saved.bitmapText = bt.color.a;
                 bt.color.a = 0;
                 world.insert(entity, BitmapText, bt);
+                hasSaved = true;
+            }
+            if (world.has(entity, UIRenderer)) {
+                const r = world.get(entity, UIRenderer) as UIRendererData;
+                saved.uiRenderer = r.color.a;
+                r.color.a = 0;
+                world.insert(entity, UIRenderer, r);
                 hasSaved = true;
             }
 
@@ -622,6 +631,11 @@ export class SceneManagerState {
                 const bt = world.get(entity, BitmapText);
                 bt.color.a = saved.bitmapText;
                 world.insert(entity, BitmapText, bt);
+            }
+            if (saved.uiRenderer !== undefined && world.has(entity, UIRenderer)) {
+                const r = world.get(entity, UIRenderer) as UIRendererData;
+                r.color.a = saved.uiRenderer;
+                world.insert(entity, UIRenderer, r);
             }
         }
         instance.savedAlphas.clear();

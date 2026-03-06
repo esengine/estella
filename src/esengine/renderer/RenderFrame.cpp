@@ -564,29 +564,13 @@ void RenderFrame::submitSprites(ecs::Registry& registry) {
         const auto& sprite = spriteView.get<ecs::Sprite>(entity);
         if (!sprite.enabled) continue;
 
+        if (registry.has<ecs::UIRect>(entity)) continue;
+
         auto& transform = spriteView.get<ecs::Transform>(entity);
         transform.ensureDecomposed();
         glm::vec3 position = transform.worldPosition;
         const auto& rotation = transform.worldRotation;
         const auto& scale = transform.worldScale;
-
-        auto* uiRect = registry.tryGet<ecs::UIRect>(entity);
-        if (uiRect) {
-            f32 dx = (0.5f - uiRect->pivot.x) * sprite.size.x * scale.x;
-            f32 dy = (0.5f - uiRect->pivot.y) * sprite.size.y * scale.y;
-            f32 sinHalf = rotation.z;
-            if (sinHalf * sinHalf > 1e-6f) {
-                f32 cosHalf = rotation.w;
-                f32 s = 2.0f * sinHalf * cosHalf;
-                f32 c = cosHalf * cosHalf - sinHalf * sinHalf;
-                f32 rdx = dx * c - dy * s;
-                f32 rdy = dx * s + dy * c;
-                dx = rdx;
-                dy = rdy;
-            }
-            position.x += dx;
-            position.y += dy;
-        }
 
         glm::vec3 halfExtents = glm::vec3(sprite.size.x * scale.x, sprite.size.y * scale.y, 0.0f) * 0.5f;
         if (!frustum_.intersectsAABB(position, halfExtents)) {

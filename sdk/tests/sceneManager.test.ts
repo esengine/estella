@@ -46,6 +46,7 @@ vi.mock('../src/component', () => ({
     Sprite: Symbol('Sprite'),
     SpineAnimation: Symbol('SpineAnimation'),
     BitmapText: Symbol('BitmapText'),
+    defineBuiltin: (name: string, defaults: unknown) => Symbol(name),
 }));
 
 vi.mock('../src/asset/AssetPlugin', () => ({
