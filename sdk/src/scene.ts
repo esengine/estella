@@ -229,6 +229,35 @@ export function remapEntityFields(compData: SceneComponentData, entityMap: Map<n
 }
 
 // =============================================================================
+// Scene Migration
+// =============================================================================
+
+function migrateToUIRenderer(entityData: SceneEntityData): void {
+    const hasUIRect = entityData.components.some(c => c.type === 'UIRect');
+    const spriteIdx = entityData.components.findIndex(c => c.type === 'Sprite');
+    const hasUIRenderer = entityData.components.some(c => c.type === 'UIRenderer');
+
+    if (!hasUIRect || spriteIdx === -1 || hasUIRenderer) return;
+
+    const sprite = entityData.components[spriteIdx].data;
+    const tex = sprite.texture as number | undefined;
+    entityData.components.push({
+        type: 'UIRenderer',
+        data: {
+            visualType: tex ? 2 : 1,
+            texture: tex ?? 0,
+            color: sprite.color ?? { r: 1, g: 1, b: 1, a: 1 },
+            uvOffset: sprite.uvOffset ?? { x: 0, y: 0 },
+            uvScale: sprite.uvScale ?? { x: 1, y: 1 },
+            sliceBorder: sprite.sliceBorder ?? { x: 0, y: 0, z: 0, w: 0 },
+            material: sprite.material ?? 0,
+            enabled: sprite.enabled ?? true,
+        },
+    });
+    entityData.components.splice(spriteIdx, 1);
+}
+
+// =============================================================================
 // Scene Loader
 // =============================================================================
 
@@ -244,6 +273,7 @@ function spawnAndLoadEntities(world: World, sceneData: SceneData): Map<number, E
 
     for (const entityData of sceneData.entities) {
         if (entityData.visible === false) continue;
+        migrateToUIRenderer(entityData);
         const entity = entityMap.get(entityData.id)!;
         for (const compData of entityData.components) {
             remapEntityFields(compData, entityMap);
