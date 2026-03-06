@@ -23,10 +23,19 @@ export function createColorEditor(
     const wrapper = document.createElement('div');
     wrapper.className = 'es-color-editor';
 
+    const swatch = document.createElement('div');
+    swatch.className = 'es-color-swatch';
+
+    const overlay = document.createElement('div');
+    overlay.className = 'es-color-overlay';
+
     const colorInput = document.createElement('input');
     colorInput.type = 'color';
     colorInput.className = 'es-input es-input-color';
     colorInput.value = colorToHex(color);
+
+    swatch.appendChild(overlay);
+    swatch.appendChild(colorInput);
 
     const hexInput = document.createElement('input');
     hexInput.type = 'text';
@@ -41,9 +50,16 @@ export function createColorEditor(
     alphaInput.step = '0.01';
     alphaInput.value = String(color.a);
 
+    const updateOverlay = (hex: string, alpha: number) => {
+        const c = hexToColor(hex);
+        overlay.style.background = `rgba(${Math.round(c.r * 255)}, ${Math.round(c.g * 255)}, ${Math.round(c.b * 255)}, ${alpha})`;
+    };
+    updateOverlay(colorToHex(color), color.a);
+
     const applyColor = (hex: string, alpha: number) => {
         const newColor = hexToColor(hex);
         newColor.a = alpha;
+        updateOverlay(hex, alpha);
         onChange(newColor);
     };
 
@@ -69,7 +85,7 @@ export function createColorEditor(
         }
     });
 
-    wrapper.appendChild(colorInput);
+    wrapper.appendChild(swatch);
     wrapper.appendChild(hexInput);
     wrapper.appendChild(alphaInput);
     container.appendChild(wrapper);
@@ -80,6 +96,7 @@ export function createColorEditor(
             colorInput.value = colorToHex(newColor);
             hexInput.value = colorToHex(newColor).toUpperCase();
             alphaInput.value = String(newColor.a);
+            updateOverlay(colorToHex(newColor), newColor.a);
         },
         dispose() {
             wrapper.remove();

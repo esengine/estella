@@ -4,6 +4,7 @@ import {
 } from '../PropertyEditor';
 import { getEditorStore } from '../../store/EditorStore';
 import { openEntityPicker } from '../EntityPicker';
+import { getEntityIcon } from '../../panels/hierarchy/HierarchyTree';
 
 export function createEntityEditor(
     container: HTMLElement,
@@ -15,6 +16,9 @@ export function createEntityEditor(
 
     const wrapper = document.createElement('div');
     wrapper.className = 'es-entity-field';
+
+    const iconSpan = document.createElement('span');
+    iconSpan.className = 'es-entity-field-icon';
 
     const label = document.createElement('span');
     label.className = 'es-entity-field-label';
@@ -71,6 +75,7 @@ export function createEntityEditor(
         }
     });
 
+    wrapper.appendChild(iconSpan);
     wrapper.appendChild(label);
     wrapper.appendChild(pickerBtn);
     container.appendChild(wrapper);
@@ -79,10 +84,19 @@ export function createEntityEditor(
         if (entityId === 0) {
             label.textContent = '(None)';
             label.classList.add('es-none');
+            iconSpan.innerHTML = '';
+            iconSpan.style.display = 'none';
         } else {
             label.classList.remove('es-none');
             const entity = getEditorStore().scene.entities.find((e: { id: number }) => e.id === entityId);
             label.textContent = entity ? entity.name : `Entity ${entityId}`;
+            if (entity) {
+                iconSpan.innerHTML = getEntityIcon(entity);
+                iconSpan.style.display = '';
+            } else {
+                iconSpan.innerHTML = '';
+                iconSpan.style.display = 'none';
+            }
         }
     }
 

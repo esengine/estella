@@ -74,6 +74,20 @@ const ENTITY_ICON_PRIORITY: Array<[string, (size: number) => string]> = [
     ['BitmapText', icons.type],
     ['TextInput', icons.type],
     ['Sprite', icons.image],
+    ['Image', icons.image],
+    ['Canvas', icons.template],
+    ['Button', icons.pointer],
+    ['Toggle', icons.toggle],
+    ['Slider', icons.sliders],
+    ['ScrollView', icons.list],
+    ['ProgressBar', icons.gauge],
+    ['Dropdown', icons.chevronDown],
+    ['ParticleEmitter', icons.star],
+    ['ShapeRenderer', icons.hexagon],
+    ['Tilemap', icons.grid],
+    ['AudioSource', icons.volume],
+    ['AudioListener', icons.headphones],
+    ['RigidBody', icons.box],
 ];
 
 export function getEntityIcon(entity: EntityData): string {
@@ -93,22 +107,53 @@ export function getEntityIcon(entity: EntityData): string {
         : icons.box(12);
 }
 
-const ENTITY_TYPE_PRIORITY: Array<[string, string]> = [
-    ['Camera', 'Camera'],
-    ['SpineAnimation', 'Spine'],
+const ENTITY_TYPE_MAP: Array<[string, string, string]> = [
+    ['Camera', 'Camera', 'default'],
+    ['SpineAnimation', 'Spine', 'spine'],
+    ['Canvas', 'Canvas', 'ui'],
+    ['Text', 'Text', 'ui'],
+    ['BitmapText', 'Text', 'ui'],
+    ['TextInput', 'Text', 'ui'],
+    ['Button', 'UI', 'ui'],
+    ['Toggle', 'UI', 'ui'],
+    ['Slider', 'UI', 'ui'],
+    ['ScrollView', 'UI', 'ui'],
+    ['ProgressBar', 'UI', 'ui'],
+    ['Dropdown', 'UI', 'ui'],
+    ['Image', 'UI', 'ui'],
+    ['Sprite', 'Sprite', 'default'],
+    ['RigidBody', 'Physics', 'physics'],
+    ['BoxCollider', 'Physics', 'physics'],
+    ['CircleCollider', 'Physics', 'physics'],
+    ['CapsuleCollider', 'Physics', 'physics'],
+    ['PolygonCollider', 'Physics', 'physics'],
+    ['AudioSource', 'Audio', 'audio'],
+    ['AudioListener', 'Audio', 'audio'],
+    ['ParticleEmitter', 'Particle', 'particle'],
+    ['ShapeRenderer', 'Shape', 'default'],
+    ['Tilemap', 'Tilemap', 'default'],
 ];
 
-export function getEntityType(entity: EntityData): string {
-    for (const [compType, label] of ENTITY_TYPE_PRIORITY) {
-        if (entity.components.some(c => c.type === compType)) return label;
+export interface EntityTypeInfo {
+    label: string;
+    category: string;
+}
+
+export function getEntityType(entity: EntityData): EntityTypeInfo {
+    for (const [compType, label, category] of ENTITY_TYPE_MAP) {
+        if (entity.components.some(c => c.type === compType)) return { label, category };
     }
-    return 'Entity';
+    return { label: 'Entity', category: 'default' };
+}
+
+export function getEntityTypeCategory(entity: EntityData): string {
+    return getEntityType(entity).category;
 }
 
 export function renderSingleRow(state: HierarchyState, row: FlattenedRow, selectedEntity: Entity | null): string {
     const { entity, depth, hasChildren, isExpanded } = row;
     const icon = getEntityIcon(entity);
-    const type = getEntityType(entity);
+    const { label: type, category } = getEntityType(entity);
     const expandIcon = isExpanded ? icons.chevronDown(10) : icons.chevronRight(10);
     const inPlayMode = state.playMode;
 
@@ -149,7 +194,7 @@ export function renderSingleRow(state: HierarchyState, row: FlattenedRow, select
                 <span class="es-hierarchy-visibility">${visibilityIcon}</span>
                 <span class="es-hierarchy-icon">${icon}</span>
                 <span class="es-hierarchy-name">${nameHtml}</span>
-                <span class="es-hierarchy-type">${type}</span>
+                <span class="es-hierarchy-type" data-type-cat="${category}">${type}</span>
             </div>
         </div>`;
 }
