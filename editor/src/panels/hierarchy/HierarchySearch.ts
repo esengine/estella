@@ -1,6 +1,29 @@
 import type { Entity } from 'esengine';
 import { fuzzyFilter } from '../../utils/fuzzy';
 import type { HierarchyState } from './HierarchyTypes';
+import { getEntityTypeCategory } from './HierarchyTree';
+
+const TYPE_ALIASES: Record<string, string> = {
+    ui: 'ui',
+    physics: 'physics',
+    phy: 'physics',
+    audio: 'audio',
+    sfx: 'audio',
+    particle: 'particle',
+    spine: 'spine',
+    camera: 'default',
+    cam: 'default',
+};
+
+function parseSearchQuery(query: string): { typeFilter: string | null; nameQuery: string } {
+    const match = query.match(/^t:(\w+)(?:\s+(.*))?$/);
+    if (match) {
+        const alias = match[1].toLowerCase();
+        const category = TYPE_ALIASES[alias] ?? alias;
+        return { typeFilter: category, nameQuery: match[2]?.trim() ?? '' };
+    }
+    return { typeFilter: null, nameQuery: query };
+}
 
 export function performSearch(state: HierarchyState): void {
     if (!state.searchFilter) {
@@ -10,13 +33,26 @@ export function performSearch(state: HierarchyState): void {
     }
 
     const entities = state.runtimeEntities ?? state.store.scene.entities;
-    const results = fuzzyFilter(
-        entities,
-        state.searchFilter,
-        (entity) => entity.name
-    );
+    const { typeFilter, nameQuery } = parseSearchQuery(state.searchFilter);
 
-    state.searchResults = results.map(r => ({ entity: r.item, match: r.match }));
+    let filtered = entities;
+    if (typeFilter) {
+        filtered = entities.filter(e => {
+            const cat = getEntityTypeCategory(e);
+            if (typeFilter === 'default') {
+                return e.components.some(c => c.type === 'Camera');
+            }
+            return cat === typeFilter;
+        });
+    }
+
+    if (!nameQuery) {
+        state.searchResults = filtered.map(e => ({ entity: e, match: { score: 0, matches: [] } }));
+    } else {
+        const results = fuzzyFilter(filtered, nameQuery, (entity) => entity.name);
+        state.searchResults = results.map(r => ({ entity: r.item, match: r.match }));
+    }
+
     state.selectedResultIndex = state.searchResults.length > 0 ? 0 : -1;
 }
 

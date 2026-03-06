@@ -33,8 +33,7 @@
     color: var(--es-text-secondary);
 }
 
-.es-hierarchy-col-visibility,
-.es-hierarchy-col-lock {
+.es-hierarchy-col-visibility {
     width: 20px;
     text-align: center;
 }
@@ -204,6 +203,12 @@
     font-size: 11px;
     color: var(--es-text-secondary);
 }
+
+.es-hierarchy-type[data-type-cat="ui"] { color: var(--es-type-ui); }
+.es-hierarchy-type[data-type-cat="physics"] { color: var(--es-type-physics); }
+.es-hierarchy-type[data-type-cat="audio"] { color: var(--es-type-audio); }
+.es-hierarchy-type[data-type-cat="particle"] { color: var(--es-type-particle); }
+.es-hierarchy-type[data-type-cat="spine"] { color: var(--es-type-spine); }
 
 .es-hierarchy-rename-input {
     width: 100%;

@@ -6,7 +6,7 @@ import { escapeHtml } from '../../utils/html';
 import { getInitialComponentData } from '../../schemas/ComponentSchemas';
 import type { HierarchyState, FlattenedRow } from './HierarchyTypes';
 import { ROW_HEIGHT, OVERSCAN, SLOW_DOUBLE_CLICK_MIN, SLOW_DOUBLE_CLICK_MAX } from './HierarchyTypes';
-import { buildFlatRows, expandAncestors, renderSingleRow } from './HierarchyTree';
+import { buildFlatRows, expandAncestors, renderSingleRow, getEntityTypeCategory } from './HierarchyTree';
 import { performSearch, selectNextResult, selectPreviousResult, focusSelectedResult, clearSearch } from './HierarchySearch';
 import { setupKeyboard, selectRange } from './HierarchyKeyboard';
 import { setupDragAndDrop } from './HierarchyDragDrop';
@@ -56,15 +56,14 @@ export class HierarchyPanel implements HierarchyState {
                 <span class="es-prefab-edit-name">${icons.package(12)} </span>
             </div>
             <div class="es-hierarchy-toolbar">
-                <input type="text" class="es-input es-hierarchy-search" placeholder="Search...">
-                <button class="es-btn es-btn-icon" data-action="collapse-all" title="Collapse All">${icons.chevronRight(12)}</button>
-                <button class="es-btn es-btn-icon" data-action="expand-all" title="Expand All">${icons.chevronDown(12)}</button>
-                <button class="es-btn es-btn-icon" data-action="add" title="Create Entity">${icons.plus()}</button>
-                <button class="es-btn es-btn-icon" data-action="duplicate" title="Duplicate">${icons.copy()}</button>
+                <input type="text" class="es-input es-hierarchy-search" placeholder="Search (t:type)">
+                <button class="es-btn es-btn-icon" data-action="collapse-all" data-tooltip="Collapse All">${icons.chevronRight(12)}</button>
+                <button class="es-btn es-btn-icon" data-action="expand-all" data-tooltip="Expand All">${icons.chevronDown(12)}</button>
+                <button class="es-btn es-btn-icon" data-action="add" data-tooltip="Create Entity">${icons.plus()}</button>
+                <button class="es-btn es-btn-icon" data-action="duplicate" data-tooltip="Duplicate">${icons.copy()}</button>
             </div>
             <div class="es-hierarchy-columns">
                 <span class="es-hierarchy-col-visibility">${icons.eye(12)}</span>
-                <span class="es-hierarchy-col-lock">${icons.star(12)}</span>
                 <span class="es-hierarchy-col-label">Item Label</span>
                 <span class="es-hierarchy-col-type">Type</span>
             </div>
@@ -523,10 +522,31 @@ export class HierarchyPanel implements HierarchyState {
         if (this.searchFilter) {
             const count = this.searchResults.length;
             this.footerContainer_.textContent = `${count} ${count === 1 ? 'match' : 'matches'}`;
-        } else {
-            const count = this.store.scene.entities.length;
-            this.footerContainer_.textContent = `${count} ${count === 1 ? 'entity' : 'entities'}`;
+            return;
         }
+
+        const entities = this.store.scene.entities;
+        const count = entities.length;
+        const selectedCount = this.store.selectedEntities.size;
+
+        if (selectedCount > 1) {
+            this.footerContainer_.textContent = `${count} entities · ${selectedCount} selected`;
+            return;
+        }
+
+        const typeCounts = new Map<string, number>();
+        for (const entity of entities) {
+            const cat = getEntityTypeCategory(entity);
+            if (cat !== 'default') {
+                typeCounts.set(cat, (typeCounts.get(cat) ?? 0) + 1);
+            }
+        }
+
+        let text = `${count} ${count === 1 ? 'entity' : 'entities'}`;
+        for (const [cat, n] of typeCounts) {
+            text += ` · ${n} ${cat.charAt(0).toUpperCase() + cat.slice(1)}`;
+        }
+        this.footerContainer_.textContent = text;
     }
 
     renderVisibleRows(): void {

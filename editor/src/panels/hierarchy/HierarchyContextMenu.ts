@@ -11,6 +11,7 @@ import { joinPath, getParentDir } from '../../utils/path';
 import { hasAnyOverrides } from '../../prefab';
 import { getAssetTypeDescriptor } from '../../asset/AssetTypeRegistry';
 import type { HierarchyState } from './HierarchyTypes';
+import { instantiateTemplate } from './EntityTemplates';
 
 export function showEntityContextMenu(state: HierarchyState, x: number, y: number, entity: Entity | null): void {
     const entityData = entity !== null ? state.store.getEntityData(entity as number) : null;
@@ -31,21 +32,21 @@ export function showEntityContextMenu(state: HierarchyState, x: number, y: numbe
             { label: 'Spine', icon: icons.bone(14), onClick: () => createEntityWithComponent(state, 'SpineAnimation', entity) },
             { label: 'Shape', icon: icons.hexagon(14), onClick: () => createEntityWithComponent(state, 'ShapeRenderer', entity) },
             { label: 'Particle', icon: icons.star(14), onClick: () => createEntityWithComponent(state, 'ParticleEmitter', entity) },
-            { label: 'Tilemap', icon: icons.grid(14), onClick: () => createTilemapEntity(state, entity) },
+            { label: 'Tilemap', icon: icons.grid(14), onClick: () => instantiateTemplate(state, 'Tilemap', entity) },
         ] },
         { label: 'UI', icon: icons.pointer(14), children: [
             { label: 'Canvas', icon: icons.template(14), onClick: () => createEntityWithComponent(state, 'Canvas', entity) },
             { label: '', separator: true },
-            { label: 'Button', icon: icons.pointer(14), onClick: () => createButtonEntity(state, entity) },
+            { label: 'Button', icon: icons.pointer(14), onClick: () => instantiateTemplate(state, 'Button', entity) },
             { label: 'TextInput', icon: icons.type(14), onClick: () => createTextInputEntity(state, entity) },
-            { label: 'Image', icon: icons.image(14), onClick: () => createImageEntity(state, entity) },
-            { label: 'Panel', icon: icons.layers(14), onClick: () => createPanelEntity(state, entity) },
+            { label: 'Image', icon: icons.image(14), onClick: () => instantiateTemplate(state, 'Image', entity) },
+            { label: 'Panel', icon: icons.layers(14), onClick: () => instantiateTemplate(state, 'Panel', entity) },
             { label: '', separator: true },
-            { label: 'Toggle', icon: icons.toggle(14), onClick: () => createToggleEntity(state, entity) },
-            { label: 'Slider', icon: icons.sliders(14), onClick: () => createSliderEntity(state, entity) },
-            { label: 'ProgressBar', icon: icons.gauge(14), onClick: () => createProgressBarEntity(state, entity) },
-            { label: 'ScrollView', icon: icons.list(14), onClick: () => createScrollViewEntity(state, entity) },
-            { label: 'Dropdown', icon: icons.chevronDown(14), onClick: () => createDropdownEntity(state, entity) },
+            { label: 'Toggle', icon: icons.toggle(14), onClick: () => instantiateTemplate(state, 'Toggle', entity) },
+            { label: 'Slider', icon: icons.sliders(14), onClick: () => instantiateTemplate(state, 'Slider', entity) },
+            { label: 'ProgressBar', icon: icons.gauge(14), onClick: () => instantiateTemplate(state, 'ProgressBar', entity) },
+            { label: 'ScrollView', icon: icons.list(14), onClick: () => instantiateTemplate(state, 'ScrollView', entity) },
+            { label: 'Dropdown', icon: icons.chevronDown(14), onClick: () => instantiateTemplate(state, 'Dropdown', entity) },
         ] },
         { label: 'Audio', icon: icons.volume(14), children: [
             { label: 'AudioSource', icon: icons.volume(14), onClick: () => createAudioEntity(state, 'AudioSource', entity) },
@@ -233,15 +234,6 @@ function createPhysicsEntity(state: HierarchyState, colliderType: string, parent
     state.store.addComponent(newEntity, colliderType, getInitialComponentData(colliderType));
 }
 
-function createButtonEntity(state: HierarchyState, parent: Entity | null): void {
-    const newEntity = state.store.createEntity('Button', parent);
-    state.store.addComponent(newEntity, 'Transform', getInitialComponentData('Transform'));
-    state.store.addComponent(newEntity, 'Image', getInitialComponentData('Image'));
-    state.store.addComponent(newEntity, 'UIRect', getInitialComponentData('UIRect'));
-    state.store.addComponent(newEntity, 'Interactable', getInitialComponentData('Interactable'));
-    state.store.addComponent(newEntity, 'Button', getInitialComponentData('Button'));
-}
-
 function createTextInputEntity(state: HierarchyState, parent: Entity | null): void {
     const newEntity = state.store.createEntity('TextInput', parent);
     state.store.addComponent(newEntity, 'Transform', getInitialComponentData('Transform'));
@@ -256,207 +248,6 @@ function createTextInputEntity(state: HierarchyState, parent: Entity | null): vo
     });
     state.store.addComponent(newEntity, 'Interactable', getInitialComponentData('Interactable'));
     state.store.addComponent(newEntity, 'TextInput', getInitialComponentData('TextInput'));
-}
-
-function createPanelEntity(state: HierarchyState, parent: Entity | null): void {
-    const newEntity = state.store.createEntity('Panel', parent);
-    state.store.addComponent(newEntity, 'Transform', getInitialComponentData('Transform'));
-    state.store.addComponent(newEntity, 'Image', getInitialComponentData('Image'));
-    state.store.addComponent(newEntity, 'UIRect', getInitialComponentData('UIRect'));
-    state.store.addComponent(newEntity, 'UIMask', getInitialComponentData('UIMask'));
-}
-
-function createImageEntity(state: HierarchyState, parent: Entity | null): void {
-    const newEntity = state.store.createEntity('Image', parent);
-    state.store.addComponent(newEntity, 'Transform', getInitialComponentData('Transform'));
-    state.store.addComponent(newEntity, 'Image', getInitialComponentData('Image'));
-    state.store.addComponent(newEntity, 'UIRect', getInitialComponentData('UIRect'));
-}
-
-function createToggleEntity(state: HierarchyState, parent: Entity | null): void {
-    const toggleEntity = state.store.createEntity('Toggle', parent);
-    state.store.addComponent(toggleEntity, 'Transform', getInitialComponentData('Transform'));
-    state.store.addComponent(toggleEntity, 'Image', getInitialComponentData('Image'));
-    state.store.addComponent(toggleEntity, 'UIRect', {
-        ...getInitialComponentData('UIRect'),
-        size: { x: 24, y: 24 },
-    });
-    state.store.addComponent(toggleEntity, 'Interactable', getInitialComponentData('Interactable'));
-
-    const checkmark = state.store.createEntity('Checkmark', toggleEntity);
-    state.store.addComponent(checkmark, 'Transform', getInitialComponentData('Transform'));
-    state.store.addComponent(checkmark, 'Image', {
-        ...getInitialComponentData('Image'),
-        color: { r: 0.2, g: 0.2, b: 0.2, a: 1 },
-    });
-    state.store.addComponent(checkmark, 'UIRect', {
-        ...getInitialComponentData('UIRect'),
-        size: { x: 16, y: 16 },
-    });
-
-    state.store.addComponent(toggleEntity, 'Toggle', {
-        ...getInitialComponentData('Toggle'),
-        graphicEntity: checkmark as number,
-    });
-
-    state.store.selectEntity(toggleEntity);
-}
-
-function createProgressBarEntity(state: HierarchyState, parent: Entity | null): void {
-    const barEntity = state.store.createEntity('ProgressBar', parent);
-    state.store.addComponent(barEntity, 'Transform', getInitialComponentData('Transform'));
-    state.store.addComponent(barEntity, 'Image', {
-        ...getInitialComponentData('Image'),
-        color: { r: 0.3, g: 0.3, b: 0.3, a: 1 },
-    });
-    state.store.addComponent(barEntity, 'UIRect', {
-        ...getInitialComponentData('UIRect'),
-        size: { x: 200, y: 20 },
-    });
-
-    const fill = state.store.createEntity('Fill', barEntity);
-    state.store.addComponent(fill, 'Transform', getInitialComponentData('Transform'));
-    state.store.addComponent(fill, 'Image', {
-        ...getInitialComponentData('Image'),
-        color: { r: 0.2, g: 0.6, b: 1, a: 1 },
-    });
-    state.store.addComponent(fill, 'UIRect', {
-        ...getInitialComponentData('UIRect'),
-        anchorMin: { x: 0, y: 0 },
-        anchorMax: { x: 0.5, y: 1 },
-        offsetMin: { x: 0, y: 0 },
-        offsetMax: { x: 0, y: 0 },
-    });
-
-    state.store.addComponent(barEntity, 'ProgressBar', {
-        ...getInitialComponentData('ProgressBar'),
-        value: 0.5,
-        fillEntity: fill as number,
-    });
-
-    state.store.selectEntity(barEntity);
-}
-
-function createScrollViewEntity(state: HierarchyState, parent: Entity | null): void {
-    const scrollEntity = state.store.createEntity('ScrollView', parent);
-    state.store.addComponent(scrollEntity, 'Transform', getInitialComponentData('Transform'));
-    state.store.addComponent(scrollEntity, 'Image', {
-        ...getInitialComponentData('Image'),
-        color: { r: 0.15, g: 0.15, b: 0.15, a: 1 },
-    });
-    state.store.addComponent(scrollEntity, 'UIRect', {
-        ...getInitialComponentData('UIRect'),
-        size: { x: 300, y: 200 },
-    });
-    state.store.addComponent(scrollEntity, 'UIMask', getInitialComponentData('UIMask'));
-    state.store.addComponent(scrollEntity, 'Interactable', getInitialComponentData('Interactable'));
-
-    const content = state.store.createEntity('Content', scrollEntity);
-    state.store.addComponent(content, 'Transform', getInitialComponentData('Transform'));
-    state.store.addComponent(content, 'UIRect', {
-        ...getInitialComponentData('UIRect'),
-        anchorMin: { x: 0, y: 0 },
-        anchorMax: { x: 1, y: 1 },
-        offsetMin: { x: 0, y: 0 },
-        offsetMax: { x: 0, y: 0 },
-    });
-
-    state.store.addComponent(scrollEntity, 'ScrollView', {
-        ...getInitialComponentData('ScrollView'),
-        contentEntity: content as number,
-    });
-
-    state.store.selectEntity(scrollEntity);
-}
-
-function createSliderEntity(state: HierarchyState, parent: Entity | null): void {
-    const sliderEntity = state.store.createEntity('Slider', parent);
-    state.store.addComponent(sliderEntity, 'Transform', getInitialComponentData('Transform'));
-    state.store.addComponent(sliderEntity, 'Image', {
-        ...getInitialComponentData('Image'),
-        color: { r: 0.3, g: 0.3, b: 0.3, a: 1 },
-    });
-    state.store.addComponent(sliderEntity, 'UIRect', {
-        ...getInitialComponentData('UIRect'),
-        size: { x: 200, y: 20 },
-    });
-    state.store.addComponent(sliderEntity, 'Interactable', getInitialComponentData('Interactable'));
-
-    const fill = state.store.createEntity('Fill', sliderEntity);
-    state.store.addComponent(fill, 'Transform', getInitialComponentData('Transform'));
-    state.store.addComponent(fill, 'Image', {
-        ...getInitialComponentData('Image'),
-        color: { r: 0.2, g: 0.6, b: 1, a: 1 },
-    });
-    state.store.addComponent(fill, 'UIRect', {
-        ...getInitialComponentData('UIRect'),
-        anchorMin: { x: 0, y: 0 },
-        anchorMax: { x: 0.5, y: 1 },
-        offsetMin: { x: 0, y: 0 },
-        offsetMax: { x: 0, y: 0 },
-    });
-
-    const handle = state.store.createEntity('Handle', sliderEntity);
-    state.store.addComponent(handle, 'Transform', getInitialComponentData('Transform'));
-    state.store.addComponent(handle, 'Image', getInitialComponentData('Image'));
-    state.store.addComponent(handle, 'UIRect', {
-        ...getInitialComponentData('UIRect'),
-        size: { x: 20, y: 20 },
-    });
-
-    state.store.addComponent(sliderEntity, 'Slider', {
-        ...getInitialComponentData('Slider'),
-        value: 0.5,
-        fillEntity: fill as number,
-        handleEntity: handle as number,
-    });
-
-    state.store.selectEntity(sliderEntity);
-}
-
-function createDropdownEntity(state: HierarchyState, parent: Entity | null): void {
-    const ddEntity = state.store.createEntity('Dropdown', parent);
-    state.store.addComponent(ddEntity, 'Transform', getInitialComponentData('Transform'));
-    state.store.addComponent(ddEntity, 'Image', getInitialComponentData('Image'));
-    state.store.addComponent(ddEntity, 'UIRect', {
-        ...getInitialComponentData('UIRect'),
-        size: { x: 160, y: 32 },
-    });
-    state.store.addComponent(ddEntity, 'Interactable', getInitialComponentData('Interactable'));
-
-    const label = state.store.createEntity('Label', ddEntity);
-    state.store.addComponent(label, 'Transform', getInitialComponentData('Transform'));
-    state.store.addComponent(label, 'UIRect', {
-        ...getInitialComponentData('UIRect'),
-        anchorMin: { x: 0, y: 0 },
-        anchorMax: { x: 1, y: 1 },
-        offsetMin: { x: 8, y: 0 },
-        offsetMax: { x: -8, y: 0 },
-    });
-    state.store.addComponent(label, 'Text', {
-        ...getInitialComponentData('Text'),
-        content: 'Select...',
-    });
-
-    const list = state.store.createEntity('List', ddEntity);
-    state.store.addComponent(list, 'Transform', getInitialComponentData('Transform'));
-    state.store.addComponent(list, 'Image', {
-        ...getInitialComponentData('Image'),
-        enabled: false,
-    });
-    state.store.addComponent(list, 'UIRect', {
-        ...getInitialComponentData('UIRect'),
-        size: { x: 160, y: 120 },
-    });
-
-    state.store.addComponent(ddEntity, 'Dropdown', {
-        ...getInitialComponentData('Dropdown'),
-        options: ['Option 1', 'Option 2', 'Option 3'],
-        labelEntity: label as number,
-        listEntity: list as number,
-    });
-
-    state.store.selectEntity(ddEntity);
 }
 
 export function duplicateEntity(state: HierarchyState, entity: Entity): void {
@@ -532,12 +323,6 @@ async function saveEntityAsPrefab(state: HierarchyState, entity: Entity): Promis
     if (!success) {
         console.error('[HierarchyPanel] Failed to save prefab:', filePath);
     }
-}
-
-function createTilemapEntity(state: HierarchyState, parent: Entity | null): void {
-    const newEntity = state.store.createEntity('Tilemap', parent);
-    state.store.addComponent(newEntity, 'Transform', getInitialComponentData('Transform'));
-    state.store.addComponent(newEntity, 'Tilemap', getInitialComponentData('Tilemap'));
 }
 
 export async function createEntityFromAsset(

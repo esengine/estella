@@ -45,6 +45,13 @@
     --es-play-mode: hsl(215, 100%, 65%);
     --es-selection-bg: hsla(28, 55%, 62%, 0.2);
 
+    /* Entity type colors */
+    --es-type-ui: hsl(215, 80%, 65%);
+    --es-type-physics: hsl(130, 50%, 55%);
+    --es-type-audio: hsl(280, 50%, 65%);
+    --es-type-particle: hsl(36, 70%, 65%);
+    --es-type-spine: hsl(350, 60%, 65%);
+
     /* Scrollbar */
     --es-scrollbar-track: transparent;
     --es-scrollbar-thumb: hsl(220, 5%, 22%);
@@ -322,12 +329,131 @@
     color: var(--es-text-secondary);
 }
 
+.es-number-slider {
+    flex: 1;
+    min-width: 40px;
+    height: var(--es-row-height);
+    background: linear-gradient(to right, var(--es-accent) var(--slider-pct, 0%), var(--es-bg-tertiary) var(--slider-pct, 0%));
+    cursor: ew-resize;
+    border-left: 1px solid var(--es-border);
+}
+
+.es-number-slider:hover {
+    background: linear-gradient(to right, var(--es-accent-hover) var(--slider-pct, 0%), var(--es-bg-hover) var(--slider-pct, 0%));
+}
+
 .es-input-checkbox {
     width: 14px;
     height: 14px;
     margin: 0;
     cursor: pointer;
     accent-color: var(--es-accent-gold);
+}
+
+/* =============================================================================
+ * Toggle Switch
+ * ============================================================================= */
+
+.es-toggle {
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+}
+
+.es-toggle-input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.es-toggle-track {
+    position: relative;
+    width: 28px;
+    height: 16px;
+    background: var(--es-bg-tertiary);
+    border: 1px solid var(--es-border);
+    border-radius: var(--es-radius-full);
+    transition: background var(--es-transition-normal), border-color var(--es-transition-normal);
+}
+
+.es-toggle-track::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 10px;
+    height: 10px;
+    background: var(--es-text-secondary);
+    border-radius: 50%;
+    transition: transform var(--es-transition-normal), background var(--es-transition-normal);
+}
+
+.es-toggle-input:checked + .es-toggle-track {
+    background: var(--es-accent);
+    border-color: var(--es-accent);
+}
+
+.es-toggle-input:checked + .es-toggle-track::after {
+    transform: translateX(12px);
+    background: var(--es-text-bright);
+}
+
+.es-toggle:hover .es-toggle-track {
+    border-color: var(--es-border-light);
+}
+
+.es-toggle-input:focus-visible + .es-toggle-track {
+    outline: 2px solid var(--es-border-focus);
+    outline-offset: 2px;
+}
+
+/* =============================================================================
+ * Segmented Control (Enum ≤ 5 options)
+ * ============================================================================= */
+
+.es-segmented {
+    display: flex;
+    background: var(--es-input-bg);
+    border: 1px solid var(--es-border);
+    border-radius: var(--es-radius-sm);
+    overflow: hidden;
+    width: 100%;
+}
+
+.es-segmented-btn {
+    flex: 1;
+    padding: 2px 4px;
+    background: transparent;
+    border: none;
+    border-right: 1px solid var(--es-border);
+    color: var(--es-text-secondary);
+    font-size: var(--es-font-xs);
+    cursor: pointer;
+    transition: background var(--es-transition-fast), color var(--es-transition-fast);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-height: 22px;
+}
+
+.es-segmented-btn:last-child {
+    border-right: none;
+}
+
+.es-segmented-btn:hover:not(.es-active) {
+    background: var(--es-bg-hover);
+    color: var(--es-text-primary);
+}
+
+.es-segmented-btn.es-active {
+    background: var(--es-accent);
+    color: var(--es-text-bright);
+}
+
+.es-segmented-btn:focus-visible {
+    outline: 2px solid var(--es-border-focus);
+    outline-offset: -2px;
 }
 
 .es-input-select {
@@ -462,17 +588,37 @@
     width: 100%;
 }
 
-.es-input-color {
-    width: 32px;
+.es-color-swatch {
+    position: relative;
+    width: 40px;
     height: 22px;
-    padding: 0;
+    flex-shrink: 0;
     border: 1px solid var(--es-border);
+    border-radius: 3px;
+    overflow: hidden;
+    background: repeating-conic-gradient(hsl(220, 5%, 18%) 0% 25%, hsl(220, 5%, 28%) 0% 50%) 50% / 8px 8px;
     cursor: pointer;
-    background: none;
+}
+
+.es-color-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.es-input-color {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    border: none;
+    cursor: pointer;
+    opacity: 0;
 }
 
 .es-input-color::-webkit-color-swatch-wrapper {
-    padding: 1px;
+    padding: 0;
 }
 
 .es-input-color::-webkit-color-swatch {
@@ -631,6 +777,44 @@
   display: flex;
   gap: 8px;
   margin-top: 16px;
+}
+
+/* =============================================================================
+ * Tooltip System
+ * ============================================================================= */
+
+[data-tooltip] {
+    position: relative;
+}
+
+[data-tooltip]::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 4px 8px;
+    background: var(--es-bg-deep);
+    color: var(--es-text-primary);
+    font-size: var(--es-font-xs);
+    line-height: 1.4;
+    white-space: nowrap;
+    border-radius: var(--es-radius-sm);
+    border: 1px solid var(--es-border);
+    box-shadow: var(--es-shadow-md);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity var(--es-transition-normal);
+    z-index: 9999;
+}
+
+[data-tooltip]:hover::after {
+    opacity: 1;
+    transition-delay: 0.4s;
+}
+
+[data-tooltip=""]:hover::after {
+    display: none;
 }
 
 .es-hidden {
