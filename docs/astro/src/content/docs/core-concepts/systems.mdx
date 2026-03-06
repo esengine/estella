@@ -243,10 +243,37 @@ defineSystem([GetWorld()], (world) => {
 | `world.has(entity, Component)` | boolean | Check if entity has component |
 | `world.tryGet(entity, Component)` | data \| null | Safe read, returns null if missing |
 | `world.valid(entity)` | boolean | Check if entity is alive |
+| `world.setParent(child, parent)` | void | Set entity's parent (child Transform becomes relative to parent) |
+| `world.removeParent(entity)` | void | Remove entity's parent, making it a root entity |
 
 <Aside type="tip">
   Prefer `Query` + `Mut()` when iterating multiple entities — it handles auto-writeback. Use `GetWorld()` when you need to access a **known entity by ID** without iteration, e.g. after `findEntityByName()`.
 </Aside>
+
+#### Entity Hierarchy
+
+Use `setParent` / `removeParent` to build parent-child relationships. A child's `Transform` is relative to its parent.
+
+```typescript
+import { GetWorld, Commands, Transform, Sprite } from 'esengine';
+
+defineSystem([Commands(), GetWorld()], (cmds, world) => {
+    const parent = cmds.spawn()
+        .insert(Transform, { position: { x: 100, y: 100, z: 0 } })
+        .insert(Sprite, {})
+        .id();
+
+    const child = cmds.spawn()
+        .insert(Transform, { position: { x: 50, y: 0, z: 0 } })
+        .insert(Sprite, {})
+        .id();
+
+    world.setParent(child, parent);
+
+    // Later, to detach:
+    // world.removeParent(child);
+});
+```
 
 ### Combining Parameters
 

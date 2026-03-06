@@ -154,6 +154,8 @@ addSystem(defineSystem(
 | 响应变更组件 | `Query(Changed(Component))` |
 | 响应移除组件 | `Removed(Component)` |
 | 系统间发送事件 | `EventWriter(Event)` / `EventReader(Event)` |
+| 设置父子层级 | `GetWorld()` → `world.setParent(child, parent)` |
+| 移除父节点 | `GetWorld()` → `world.removeParent(entity)` |
 
 详见[系统](/microes/zh/core-concepts/systems/)和[查询](/microes/zh/core-concepts/queries/)。
 

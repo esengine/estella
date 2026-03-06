@@ -154,6 +154,8 @@ The `World` stores all entities and components. In your scripts, you interact wi
 | React to changed components | `Query(Changed(Component))` |
 | React to removed components | `Removed(Component)` |
 | Send events between systems | `EventWriter(Event)` / `EventReader(Event)` |
+| Set parent-child hierarchy | `GetWorld()` → `world.setParent(child, parent)` |
+| Remove parent | `GetWorld()` → `world.removeParent(entity)` |
 
 See [Systems](/microes/core-concepts/systems/) and [Queries](/microes/core-concepts/queries/) for detailed usage.
 

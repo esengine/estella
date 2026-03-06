@@ -243,10 +243,37 @@ defineSystem([GetWorld()], (world) => {
 | `world.has(entity, Component)` | boolean | 检查实体是否有该组件 |
 | `world.tryGet(entity, Component)` | data \| null | 安全读取，不存在返回 null |
 | `world.valid(entity)` | boolean | 检查实体是否存活 |
+| `world.setParent(child, parent)` | void | 设置父子关系（子实体 Transform 相对于父实体） |
+| `world.removeParent(entity)` | void | 移除父节点，使实体成为根实体 |
 
 <Aside type="tip">
   遍历多个实体时优先用 `Query` + `Mut()`——它会自动回写。当你需要**按实体 ID 直接访问已知实体**（如 `findEntityByName()` 之后）时用 `GetWorld()`。
 </Aside>
+
+#### 实体层级
+
+使用 `setParent` / `removeParent` 建立父子关系。子实体的 `Transform` 相对于父实体计算。
+
+```typescript
+import { GetWorld, Commands, Transform, Sprite } from 'esengine';
+
+defineSystem([Commands(), GetWorld()], (cmds, world) => {
+    const parent = cmds.spawn()
+        .insert(Transform, { position: { x: 100, y: 100, z: 0 } })
+        .insert(Sprite, {})
+        .id();
+
+    const child = cmds.spawn()
+        .insert(Transform, { position: { x: 50, y: 0, z: 0 } })
+        .insert(Sprite, {})
+        .id();
+
+    world.setParent(child, parent);
+
+    // 之后可以解除父子关系：
+    // world.removeParent(child);
+});
+```
 
 ### 组合参数
 
