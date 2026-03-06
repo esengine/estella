@@ -1,11 +1,13 @@
 import type { App, Plugin } from '../app';
-import { INVALID_TEXTURE, type Entity } from '../types';
+import { type Entity } from '../types';
 import { defineSystem, Schedule } from '../system';
-import { registerComponent, Sprite, type SpriteData } from '../component';
+import { registerComponent } from '../component';
 import { Text, type TextData } from './text';
 import { TextRenderer } from './TextRenderer';
 import { UIRect, type UIRectData } from './UIRect';
-import { ensureSprite, getEffectiveWidth, getEffectiveHeight } from './uiHelpers';
+import { UIRenderer, UIVisualType } from './UIRenderer';
+import type { UIRendererData } from './UIRenderer';
+import { getEffectiveWidth, getEffectiveHeight } from './uiHelpers';
 import { createSnapshotUtils, type Snapshot } from './uiSnapshot';
 
 interface TextSource {
@@ -31,6 +33,21 @@ const textSnapshot = createSnapshotUtils<TextSource>({
     containerHeight: s => s.uiRect ? getEffectiveHeight(s.uiRect, s.entity) : 0,
 });
 
+function ensureUIRenderer(world: import('../world').World, entity: Entity): void {
+    if (!world.has(entity, UIRenderer)) {
+        world.insert(entity, UIRenderer, {
+            visualType: UIVisualType.None,
+            texture: 0,
+            color: { r: 1, g: 1, b: 1, a: 1 },
+            uvOffset: { x: 0, y: 0 },
+            uvScale: { x: 1, y: 1 },
+            sliceBorder: { x: 0, y: 0, z: 0, w: 0 },
+            material: 0,
+            enabled: true,
+        });
+    }
+}
+
 export class TextPlugin implements Plugin {
     build(app: App): void {
         registerComponent('Text', Text);
@@ -53,20 +70,11 @@ export class TextPlugin implements Plugin {
 
                 for (const entity of snapshots.keys()) {
                     if (!world.valid(entity) || !world.has(entity, Text)) {
-                        if (world.valid(entity) && world.has(entity, Sprite)) {
-                            const s = world.get(entity, Sprite) as SpriteData;
-                            world.insert(entity, Sprite, {
-                                texture: INVALID_TEXTURE,
-                                color: { r: s.color.r, g: s.color.g, b: s.color.b, a: s.color.a },
-                                size: { x: s.size.x, y: s.size.y },
-                                uvOffset: { x: s.uvOffset.x, y: s.uvOffset.y },
-                                uvScale: { x: s.uvScale.x, y: s.uvScale.y },
-                                layer: s.layer,
-                                flipX: s.flipX,
-                                flipY: s.flipY,
-                                material: s.material,
-                                enabled: s.enabled,
-                            });
+                        if (world.valid(entity) && world.has(entity, UIRenderer)) {
+                            const r = world.get(entity, UIRenderer) as UIRendererData;
+                            r.texture = 0;
+                            r.visualType = UIVisualType.None;
+                            world.insert(entity, UIRenderer, r);
                         }
                         snapshots.delete(entity);
                     }
@@ -83,12 +91,12 @@ export class TextPlugin implements Plugin {
                     const prev = snapshots.get(entity);
 
                     if (prev && !textSnapshot.changed(prev, source)) {
-                        const hasValidSprite = world.has(entity, Sprite)
-                            && (world.get(entity, Sprite) as SpriteData).texture !== INVALID_TEXTURE;
-                        if (hasValidSprite) continue;
+                        const hasValidRenderer = world.has(entity, UIRenderer)
+                            && (world.get(entity, UIRenderer) as UIRendererData).texture !== 0;
+                        if (hasValidRenderer) continue;
                     }
 
-                    ensureSprite(world, entity);
+                    ensureUIRenderer(world, entity);
 
                     const effectiveRect = uiRect ? {
                         size: {
@@ -98,19 +106,18 @@ export class TextPlugin implements Plugin {
                     } : null;
                     const result = renderer.renderForEntity(entity, text, effectiveRect);
 
-                    const s = world.get(entity, Sprite) as SpriteData;
-                    world.insert(entity, Sprite, {
-                        texture: result.textureHandle,
-                        color: { r: s.color.r, g: s.color.g, b: s.color.b, a: s.color.a },
-                        size: { x: result.width, y: result.height },
-                        uvOffset: { x: 0, y: 0 },
-                        uvScale: { x: 1, y: 1 },
-                        layer: s.layer,
-                        flipX: s.flipX,
-                        flipY: s.flipY,
-                        material: s.material,
-                        enabled: s.enabled,
-                    });
+                    const r = world.get(entity, UIRenderer) as UIRendererData;
+                    r.texture = result.textureHandle;
+                    r.visualType = UIVisualType.Image;
+                    r.color = { r: 1, g: 1, b: 1, a: 1 };
+                    r.uvOffset = { x: 0, y: 0 };
+                    r.uvScale = { x: 1, y: 1 };
+                    world.insert(entity, UIRenderer, r);
+
+                    if (uiRect) {
+                        uiRect.size = { x: result.width, y: result.height };
+                        world.insert(entity, UIRect, uiRect);
+                    }
 
                     snapshots.set(entity, textSnapshot.take(source));
                 }

@@ -52,6 +52,12 @@ interface UVec2 {
     x: number;
     y: number;
 }
+interface Padding {
+    left: number;
+    top: number;
+    right: number;
+    bottom: number;
+}
 interface VectorEntity {
     size(): number;
     get(index: number): number;
@@ -169,6 +175,16 @@ interface Transform {
     worldRotation: Quat;
     worldScale: Vec3;
 }
+interface UIRenderer {
+    visualType: number;
+    texture: number;
+    color: Vec4;
+    uvOffset: Vec2;
+    uvScale: Vec2;
+    sliceBorder: Vec4;
+    material: number;
+    enabled: boolean;
+}
 interface Velocity {
     linear: Vec3;
     angular: Vec3;
@@ -241,7 +257,7 @@ interface FlexContainer {
     justifyContent: number;
     alignItems: number;
     gap: Vec2;
-    padding: Vec4;
+    padding: Padding;
 }
 interface Parent {
     entity: number;
@@ -256,6 +272,13 @@ interface ShapeRenderer {
     cornerRadius: number;
     layer: number;
     enabled: boolean;
+}
+interface LayoutGroup {
+    direction: number;
+    spacing: number;
+    padding: Padding;
+    childAlignment: number;
+    reverseOrder: boolean;
 }
 interface ScreenSpace {
 }
@@ -318,6 +341,10 @@ interface Registry {
     getTransform(entity: Entity): Transform;
     addTransform(entity: Entity, component: Transform): void;
     removeTransform(entity: Entity): void;
+    hasUIRenderer(entity: Entity): boolean;
+    getUIRenderer(entity: Entity): UIRenderer;
+    addUIRenderer(entity: Entity, component: UIRenderer): void;
+    removeUIRenderer(entity: Entity): void;
     hasVelocity(entity: Entity): boolean;
     getVelocity(entity: Entity): Velocity;
     addVelocity(entity: Entity, component: Velocity): void;
@@ -366,6 +393,10 @@ interface Registry {
     getShapeRenderer(entity: Entity): ShapeRenderer;
     addShapeRenderer(entity: Entity, component: ShapeRenderer): void;
     removeShapeRenderer(entity: Entity): void;
+    hasLayoutGroup(entity: Entity): boolean;
+    getLayoutGroup(entity: Entity): LayoutGroup;
+    addLayoutGroup(entity: Entity, component: LayoutGroup): void;
+    removeLayoutGroup(entity: Entity): void;
     hasScreenSpace(entity: Entity): boolean;
     getScreenSpace(entity: Entity): ScreenSpace;
     addScreenSpace(entity: Entity, component: ScreenSpace): void;
@@ -514,6 +545,7 @@ interface ESEngineModule {
     renderer_flush(): void;
     renderer_end(): void;
     renderer_submitSprites(registry: CppRegistry): void;
+    renderer_submitUIElements(registry: CppRegistry): void;
     renderer_submitBitmapText(registry: CppRegistry): void;
     renderer_submitShapes?(registry: CppRegistry): void;
     renderer_submitSpine?(registry: CppRegistry): void;
@@ -573,6 +605,9 @@ interface ESEngineModule {
     uiFlexLayout_update(registry: CppRegistry): void;
     getUIRectComputedWidth(registry: CppRegistry, entity: number): number;
     getUIRectComputedHeight(registry: CppRegistry, entity: number): number;
+    uiTree_markStructureDirty(): void;
+    uiTree_markDirty(entity: number): void;
+    uiTree_markAllDirty(): void;
     transform_update(registry: CppRegistry): void;
     _anim_createTween(registry: CppRegistry, entity: number, targetProp: number, from: number, to: number, duration: number, easing: number, delay: number, loopMode: number, loopCount: number): number;
     _anim_cancelTween(registry: CppRegistry, tweenEntity: number): void;

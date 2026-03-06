@@ -163,6 +163,7 @@ export interface ESEngineModule {
     renderer_flush(): void;
     renderer_end(): void;
     renderer_submitSprites(registry: CppRegistry): void;
+    renderer_submitUIElements(registry: CppRegistry): void;
     renderer_submitBitmapText(registry: CppRegistry): void;
     renderer_submitShapes?(registry: CppRegistry): void;
     renderer_submitSpine?(registry: CppRegistry): void;
@@ -246,6 +247,9 @@ export interface ESEngineModule {
     uiFlexLayout_update(registry: CppRegistry): void;
     getUIRectComputedWidth(registry: CppRegistry, entity: number): number;
     getUIRectComputedHeight(registry: CppRegistry, entity: number): number;
+    uiTree_markStructureDirty(): void;
+    uiTree_markDirty(entity: number): void;
+    uiTree_markAllDirty(): void;
     transform_update(registry: CppRegistry): void;
 
     // Animation (Tween) API

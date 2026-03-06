@@ -17,8 +17,7 @@ import { UICameraInfo } from './UICameraInfo';
 import type { UICameraData } from './UICameraInfo';
 import { UIEvents, UIEventQueue } from './UIEvents';
 import { isEditor, isPlayMode } from '../env';
-import { applyDirectionalFill, getEffectiveWidth, getEffectiveHeight, ensureComponent, layoutChildEntity } from './uiHelpers';
-import type { LayoutRect } from './uiLayout';
+import { applyDirectionalFill, getEffectiveWidth, getEffectiveHeight, ensureComponent, layoutChildEntity, type LayoutRect } from './uiHelpers';
 import { quaternionToAngle2D } from './uiMath';
 
 function computeSliderValue(

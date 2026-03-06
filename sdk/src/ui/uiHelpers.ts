@@ -1,7 +1,5 @@
 import { Sprite, Parent, Transform } from '../component';
 import type { ParentData, SpriteData, TransformData, AnyComponentDef } from '../component';
-import { computeUIRectLayout, type LayoutRect } from './uiLayout';
-import { INVALID_TEXTURE } from '../types';
 import type { Entity, Color } from '../types';
 import type { World } from '../world';
 import { UIRect } from './UIRect';
@@ -9,6 +7,73 @@ import type { UIRectData } from './UIRect';
 import { FillDirection } from './uiTypes';
 import type { ColorTransition } from './uiTypes';
 import type { ESEngineModule, CppRegistry } from '../wasm';
+
+export interface LayoutRect {
+    left: number;
+    bottom: number;
+    right: number;
+    top: number;
+}
+
+export interface LayoutResult {
+    originX: number;
+    originY: number;
+    width: number;
+    height: number;
+    rect: LayoutRect;
+}
+
+export function computeUIRectLayout(
+    anchorMin: { x: number; y: number },
+    anchorMax: { x: number; y: number },
+    offsetMin: { x: number; y: number },
+    offsetMax: { x: number; y: number },
+    size: { x: number; y: number },
+    parentRect: LayoutRect,
+    pivot: { x: number; y: number } = { x: 0.5, y: 0.5 },
+): LayoutResult {
+    const parentW = parentRect.right - parentRect.left;
+    const parentH = parentRect.top - parentRect.bottom;
+
+    const aLeft = parentRect.left + anchorMin.x * parentW;
+    const aRight = parentRect.left + anchorMax.x * parentW;
+    const aBottom = parentRect.bottom + anchorMin.y * parentH;
+    const aTop = parentRect.bottom + anchorMax.y * parentH;
+
+    let myLeft: number;
+    let myBottom: number;
+    let myRight: number;
+    let myTop: number;
+
+    if (anchorMin.x === anchorMax.x) {
+        myLeft = aLeft + offsetMin.x - size.x * pivot.x;
+        myRight = myLeft + size.x;
+    } else {
+        myLeft = aLeft + offsetMin.x;
+        myRight = aRight + offsetMax.x;
+    }
+
+    if (anchorMin.y === anchorMax.y) {
+        myBottom = aBottom + offsetMin.y - size.y * pivot.y;
+        myTop = myBottom + size.y;
+    } else {
+        myBottom = aBottom + offsetMin.y;
+        myTop = aTop + offsetMax.y;
+    }
+
+    const width = Math.max(0, myRight - myLeft);
+    const height = Math.max(0, myTop - myBottom);
+    const originX = myLeft + pivot.x * width;
+    const originY = myBottom + pivot.y * height;
+
+    return {
+        originX,
+        originY,
+        width,
+        height,
+        rect: { left: myLeft, bottom: myBottom, right: myRight, top: myTop },
+    };
+}
 
 let module_: ESEngineModule | null = null;
 let nativeRegistry_: CppRegistry | null = null;
@@ -18,21 +83,6 @@ export function initUIHelpers(module: ESEngineModule, registry: CppRegistry): vo
     nativeRegistry_ = registry;
 }
 
-export function ensureSprite(world: World, entity: Entity): void {
-    if (!world.has(entity, Sprite)) {
-        world.insert(entity, Sprite, {
-            texture: INVALID_TEXTURE,
-            color: { r: 1, g: 1, b: 1, a: 1 },
-            size: { x: 0, y: 0 },
-            uvOffset: { x: 0, y: 0 },
-            uvScale: { x: 1, y: 1 },
-            layer: 0,
-            flipX: false,
-            flipY: false,
-            material: 0,
-        });
-    }
-}
 
 interface FillAnchors {
     anchorMin: { x: number; y: number };
@@ -336,25 +386,3 @@ export function layoutChildEntity(
     }
 }
 
-export function syncChildSpriteSize(
-    world: World, entity: Entity,
-    parentRect: LayoutRect,
-): void {
-    if (!world.has(entity, UIRect) || !world.has(entity, Sprite)) return;
-    const rect = world.get(entity, UIRect) as UIRectData;
-
-    const result = computeUIRectLayout(
-        rect.anchorMin, rect.anchorMax,
-        rect.offsetMin, rect.offsetMax,
-        rect.size, parentRect, rect.pivot,
-    );
-    const width = result.rect.right - result.rect.left;
-    const height = result.rect.top - result.rect.bottom;
-
-    const sprite = world.get(entity, Sprite) as SpriteData;
-    if (sprite.size.x !== width || sprite.size.y !== height) {
-        sprite.size.x = width;
-        sprite.size.y = height;
-        world.insert(entity, Sprite, sprite);
-    }
-}

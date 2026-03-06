@@ -133,6 +133,7 @@ void renderFrame(ecs::Registry& registry, i32 viewportWidth, i32 viewportHeight)
 
     g_renderFrame->begin(viewProjection);
     g_renderFrame->submitSprites(registry);
+    g_renderFrame->submitUIElements(registry);
     g_renderFrame->submitShapes(registry);
     g_renderFrame->submitBitmapText(registry);
 #ifdef ES_ENABLE_SPINE
@@ -174,6 +175,7 @@ void renderFrameWithMatrix(ecs::Registry& registry, i32 viewportWidth, i32 viewp
 
     g_renderFrame->begin(viewProjection);
     g_renderFrame->submitSprites(registry);
+    g_renderFrame->submitUIElements(registry);
     g_renderFrame->submitShapes(registry);
     g_renderFrame->submitBitmapText(registry);
 #ifdef ES_ENABLE_SPINE
@@ -230,6 +232,12 @@ void renderer_submitSprites(ecs::Registry& registry) {
     if (!g_renderFrame) return;
     ensureTransformsUpdated(registry);
     g_renderFrame->submitSprites(registry);
+}
+
+void renderer_submitUIElements(ecs::Registry& registry) {
+    if (!g_renderFrame) return;
+    ensureTransformsUpdated(registry);
+    g_renderFrame->submitUIElements(registry);
 }
 
 void renderer_submitBitmapText(ecs::Registry& registry) {

@@ -403,6 +403,79 @@ function createVec4Editor(
 }
 
 // =============================================================================
+// Padding Editor
+// =============================================================================
+
+interface PaddingValue { left: number; top: number; right: number; bottom: number }
+
+function createPaddingEditor(
+    container: HTMLElement,
+    ctx: PropertyEditorContext
+): PropertyEditorInstance {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'vec-editor';
+
+    const keys: (keyof PaddingValue)[] = ['left', 'top', 'right', 'bottom'];
+    const labels = ['L', 'T', 'R', 'B'];
+    let currentPad: PaddingValue = { left: 0, top: 0, right: 0, bottom: 0 };
+    const inputs: HTMLInputElement[] = [];
+
+    const onChange = (value: PaddingValue) => {
+        ctx.onChange(value);
+    };
+
+    keys.forEach((key, i) => {
+        const group = document.createElement('div');
+        group.className = 'vec-component';
+        const label = document.createElement('span');
+        label.className = 'vec-label';
+        label.textContent = labels[i];
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.className = 'property-input vec-input';
+        input.value = String(currentPad[key]);
+
+        input.addEventListener('change', () => {
+            currentPad = { ...currentPad, [key]: parseFloat(input.value) || 0 };
+            onChange(currentPad);
+        });
+
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                input.blur();
+                currentPad = { ...currentPad, [key]: parseFloat(input.value) || 0 };
+                onChange(currentPad);
+            }
+        });
+
+        setupDragLabel(label, input, (newValue) => {
+            currentPad = { ...currentPad, [key]: newValue };
+            onChange(currentPad);
+        });
+
+        group.appendChild(label);
+        group.appendChild(input);
+        wrapper.appendChild(group);
+        inputs.push(input);
+    });
+
+    container.appendChild(wrapper);
+
+    return {
+        update(v: unknown) {
+            currentPad = (v as PaddingValue) ?? { left: 0, top: 0, right: 0, bottom: 0 };
+            inputs[0].value = String(currentPad.left);
+            inputs[1].value = String(currentPad.top);
+            inputs[2].value = String(currentPad.right);
+            inputs[3].value = String(currentPad.bottom);
+        },
+        dispose() {
+            wrapper.remove();
+        },
+    };
+}
+
+// =============================================================================
 // Color Editor
 // =============================================================================
 
@@ -1838,6 +1911,7 @@ export function registerBuiltinEditors(registrar: PluginRegistrar): void {
     registerPropertyEditor('vec2', createVec2Editor);
     registerPropertyEditor('vec3', createVec3Editor);
     registerPropertyEditor('vec4', createVec4Editor);
+    registerPropertyEditor('padding', createPaddingEditor);
     registerPropertyEditor('color', createColorEditor);
     registerPropertyEditor('enum', createEnumEditor);
     registerPropertyEditor('euler', createEulerEditor);

@@ -61,6 +61,12 @@ class TypeSystem:
     # GLM types that are bound as value_objects
     GLM_TYPES = {'glm::vec2', 'glm::vec3', 'glm::vec4', 'glm::quat', 'glm::uvec2'}
 
+    # Custom struct types with semantic field names (bound as value_objects)
+    # Maps C++ type -> (TS interface name, [(field_name, cpp_member)])
+    CUSTOM_STRUCT_TYPES = {
+        'Padding': ('Padding', [('left', 'left'), ('top', 'top'), ('right', 'right'), ('bottom', 'bottom')]),
+    }
+
     # Types that should be skipped entirely (too complex to bind)
     SKIP_TYPES = {'glm::mat4', 'std::function'}
 
@@ -77,6 +83,7 @@ class TypeSystem:
         'std::string': 'string', 'Entity': 'number',
         'glm::vec2': 'Vec2', 'glm::vec3': 'Vec3', 'glm::vec4': 'Vec4',
         'glm::quat': 'Quat', 'glm::uvec2': 'UVec2',
+        'Padding': 'Padding',
     }
 
     def __init__(self, enums: List[Enum]):
@@ -261,6 +268,7 @@ class EmbindGenerator:
             '#include <emscripten/bind.h>',
             '#include "../ecs/Registry.hpp"',
             '#include "../math/Math.hpp"',
+            '#include "../core/UITypes.hpp"',
         ]
 
     def _gen_includes(self) -> List[str]:
@@ -311,6 +319,12 @@ class EmbindGenerator:
             '        .field("x", &glm::quat::x)',
             '        .field("y", &glm::quat::y)',
             '        .field("z", &glm::quat::z);',
+            '',
+            '    value_object<esengine::Padding>("Padding")',
+            '        .field("left", &esengine::Padding::left)',
+            '        .field("top", &esengine::Padding::top)',
+            '        .field("right", &esengine::Padding::right)',
+            '        .field("bottom", &esengine::Padding::bottom);',
             '}',
             '',
         ]
@@ -528,6 +542,7 @@ class TypeScriptGenerator:
             '',
             '// Additional Math Types',
             'export interface UVec2 { x: number; y: number; }',
+            'export interface Padding { left: number; top: number; right: number; bottom: number; }',
             'export type Mat4 = number[];',
             '',
             '// Emscripten Vector Types',

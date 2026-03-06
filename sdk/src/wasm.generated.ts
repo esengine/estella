@@ -8,6 +8,7 @@ import type { Entity, Vec2, Vec3, Vec4, Quat } from './types';
 
 // Additional Math Types
 export interface UVec2 { x: number; y: number; }
+export interface Padding { left: number; top: number; right: number; bottom: number; }
 export type Mat4 = number[];
 
 // Emscripten Vector Types
@@ -31,6 +32,13 @@ export enum EmitterShape {
 export enum SimulationSpace {
     World = 0,
     Local = 1,
+}
+
+export enum UIVisualType {
+    None = 0,
+    SolidColor = 1,
+    Image = 2,
+    NineSlice = 3,
 }
 
 export enum BodyType {
@@ -76,6 +84,17 @@ export enum AlignItems {
     Center = 1,
     End = 2,
     Stretch = 3,
+}
+
+export enum LayoutDirection {
+    Horizontal = 0,
+    Vertical = 1,
+}
+
+export enum ChildAlignment {
+    Start = 0,
+    Center = 1,
+    End = 2,
 }
 
 export enum CanvasScaleMode {
@@ -211,6 +230,17 @@ export interface Transform {
     worldScale: Vec3;
 }
 
+export interface UIRenderer {
+    visualType: number;
+    texture: number;
+    color: Vec4;
+    uvOffset: Vec2;
+    uvScale: Vec2;
+    sliceBorder: Vec4;
+    material: number;
+    enabled: boolean;
+}
+
 export interface Velocity {
     linear: Vec3;
     angular: Vec3;
@@ -291,7 +321,7 @@ export interface FlexContainer {
     justifyContent: number;
     alignItems: number;
     gap: Vec2;
-    padding: Vec4;
+    padding: Padding;
 }
 
 export interface Parent {
@@ -309,6 +339,14 @@ export interface ShapeRenderer {
     cornerRadius: number;
     layer: number;
     enabled: boolean;
+}
+
+export interface LayoutGroup {
+    direction: number;
+    spacing: number;
+    padding: Padding;
+    childAlignment: number;
+    reverseOrder: boolean;
 }
 
 export interface ScreenSpace {
@@ -377,6 +415,10 @@ export interface Registry {
     getTransform(entity: Entity): Transform;
     addTransform(entity: Entity, component: Transform): void;
     removeTransform(entity: Entity): void;
+    hasUIRenderer(entity: Entity): boolean;
+    getUIRenderer(entity: Entity): UIRenderer;
+    addUIRenderer(entity: Entity, component: UIRenderer): void;
+    removeUIRenderer(entity: Entity): void;
     hasVelocity(entity: Entity): boolean;
     getVelocity(entity: Entity): Velocity;
     addVelocity(entity: Entity, component: Velocity): void;
@@ -425,6 +467,10 @@ export interface Registry {
     getShapeRenderer(entity: Entity): ShapeRenderer;
     addShapeRenderer(entity: Entity, component: ShapeRenderer): void;
     removeShapeRenderer(entity: Entity): void;
+    hasLayoutGroup(entity: Entity): boolean;
+    getLayoutGroup(entity: Entity): LayoutGroup;
+    addLayoutGroup(entity: Entity, component: LayoutGroup): void;
+    removeLayoutGroup(entity: Entity): void;
     hasScreenSpace(entity: Entity): boolean;
     getScreenSpace(entity: Entity): ScreenSpace;
     addScreenSpace(entity: Entity, component: ScreenSpace): void;
@@ -453,6 +499,7 @@ export interface ESEngineModule {
     SegmentCollider: new () => SegmentCollider;
     ParticleEmitter: new () => ParticleEmitter;
     Transform: new () => Transform;
+    UIRenderer: new () => UIRenderer;
     Velocity: new () => Velocity;
     SpineAnimation: new () => SpineAnimation;
     Interactable: new () => Interactable;
@@ -465,6 +512,7 @@ export interface ESEngineModule {
     Parent: new () => Parent;
     Children: new () => Children;
     ShapeRenderer: new () => ShapeRenderer;
+    LayoutGroup: new () => LayoutGroup;
     ScreenSpace: new () => ScreenSpace;
     Canvas: new () => Canvas;
     Camera: new () => Camera;

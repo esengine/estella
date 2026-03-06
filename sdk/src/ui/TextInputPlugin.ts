@@ -2,9 +2,11 @@ import type { App, Plugin } from '../app';
 import type { Entity } from '../types';
 import { RuntimeConfig } from '../defaults';
 import { defineSystem, Schedule } from '../system';
-import { registerComponent, Sprite, type SpriteData } from '../component';
+import { registerComponent } from '../component';
 import { TextInput, type TextInputData } from './TextInput';
 import { UIRect, type UIRectData } from './UIRect';
+import { UIRenderer, UIVisualType } from './UIRenderer';
+import type { UIRendererData } from './UIRenderer';
 import { Interactable } from './Interactable';
 import { Focusable } from './Focusable';
 import { FocusManager, FocusManagerState } from './Focusable';
@@ -12,7 +14,7 @@ import { UIEvents, UIEventQueue } from './UIEvents';
 import { Res } from '../resource';
 import { platformCreateCanvas } from '../platform';
 import { isEditor, isPlayMode } from '../env';
-import { ensureSprite, wrapText, nextPowerOf2, ensureComponent } from './uiHelpers';
+import { wrapText, nextPowerOf2, ensureComponent } from './uiHelpers';
 import { CURSOR_BLINK_INTERVAL, TEXT_INPUT_LINE_HEIGHT_RATIO } from './uiConstants';
 
 export class TextInputPlugin implements Plugin {
@@ -274,7 +276,18 @@ export class TextInputPlugin implements Plugin {
                     const h = Math.ceil(uiRect.size.y);
                     if (w <= 0 || h <= 0) continue;
 
-                    ensureSprite(world, entity);
+                    if (!world.has(entity, UIRenderer)) {
+                        world.insert(entity, UIRenderer, {
+                            visualType: UIVisualType.None,
+                            texture: 0,
+                            color: { r: 1, g: 1, b: 1, a: 1 },
+                            uvOffset: { x: 0, y: 0 },
+                            uvScale: { x: 1, y: 1 },
+                            sliceBorder: { x: 0, y: 0, z: 0, w: 0 },
+                            material: 0,
+                            enabled: true,
+                        });
+                    }
 
                     renderTextInput(entity, ti, w, h);
                     ti.dirty = false;
@@ -394,16 +407,14 @@ export class TextInputPlugin implements Plugin {
             const textureHandle = rm.createTexture(w, h, wasmPixelPtr, pixels.length, 1, true);
             textureCache.set(entity, textureHandle);
 
-            const sprite = world.get(entity, Sprite) as SpriteData;
-            sprite.texture = textureHandle;
-            sprite.size.x = w;
-            sprite.size.y = h;
-            sprite.uvOffset.x = 0;
-            sprite.uvOffset.y = 0;
-            sprite.uvScale.x = 1;
-            sprite.uvScale.y = 1;
-            sprite.color = { r: 1, g: 1, b: 1, a: 1 };
-            world.insert(entity, Sprite, sprite);
+            const renderer = world.get(entity, UIRenderer) as UIRendererData;
+            renderer.texture = textureHandle;
+            renderer.visualType = UIVisualType.Image;
+            renderer.uvOffset = { x: 0, y: 0 };
+            renderer.uvScale = { x: 1, y: 1 };
+            renderer.color = { r: 1, g: 1, b: 1, a: 1 };
+            renderer.enabled = true;
+            world.insert(entity, UIRenderer, renderer);
         }
     }
 }

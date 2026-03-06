@@ -12,7 +12,6 @@ export {
 // Shared Helpers
 export {
     initUIHelpers,
-    ensureSprite,
     computeFillAnchors,
     computeHandleAnchors,
     computeFillSize,
@@ -66,6 +65,13 @@ export {
     UIRect,
     type UIRectData,
 } from './UIRect';
+
+// UIRenderer Component
+export {
+    UIRenderer,
+    UIVisualType,
+    type UIRendererData,
+} from './UIRenderer';
 
 // Text Renderer
 export {
@@ -145,7 +151,13 @@ export {
     computeUIRectLayout,
     type LayoutRect,
     type LayoutResult,
-} from './uiLayout';
+} from './uiHelpers';
+
+// UI Layout Generation Resource
+export {
+    UILayoutGeneration,
+    type UILayoutGenerationData,
+} from './UILayoutGeneration';
 
 // UI Layout Plugin
 export {

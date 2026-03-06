@@ -217,7 +217,7 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
                 justifyContent: JustifyContent.Center,
                 alignItems: AlignItems.Center,
                 gap: { x: 10, y: 5 },
-                padding: { x: 8, y: 8, z: 8, w: 8 },
+                padding: { left: 8, top: 8, right: 8, bottom: 8 },
             });
 
             const fc = registry.getFlexContainer(entity);

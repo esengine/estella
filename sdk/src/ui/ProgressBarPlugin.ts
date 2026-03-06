@@ -6,10 +6,11 @@ import type { Entity } from '../types';
 import type { World } from '../world';
 import { UIRect } from './UIRect';
 import type { UIRectData } from './UIRect';
+import { UIRenderer } from './UIRenderer';
+import type { UIRendererData } from './UIRenderer';
 import { ProgressBar } from './ProgressBar';
 import type { ProgressBarData } from './ProgressBar';
-import { applyDirectionalFill, getEffectiveWidth, getEffectiveHeight } from './uiHelpers';
-import { computeUIRectLayout } from './uiLayout';
+import { applyDirectionalFill, getEffectiveWidth, getEffectiveHeight, computeUIRectLayout } from './uiHelpers';
 
 function syncFillLayout(
     world: World, fillEntity: Entity,
@@ -26,7 +27,7 @@ function syncFillLayout(
         fillRect.size, parentRect, fillRect.pivot,
     );
 
-    if (world.has(fillEntity, Sprite)) {
+    if (!world.has(fillEntity, UIRenderer) && world.has(fillEntity, Sprite)) {
         const sprite = world.get(fillEntity, Sprite) as SpriteData;
         if (sprite.size.x !== result.width || sprite.size.y !== result.height) {
             sprite.size.x = result.width;

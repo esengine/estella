@@ -359,8 +359,7 @@ static_assert(offsetof(ecs::UIRect, offsetMin) == 16);
 static_assert(offsetof(ecs::UIRect, offsetMax) == 24);
 static_assert(offsetof(ecs::UIRect, size) == 32);
 static_assert(offsetof(ecs::UIRect, pivot) == 40);
-static_assert(offsetof(ecs::UIRect, computed_width_) == 48);
-static_assert(offsetof(ecs::UIRect, computed_height_) == 52);
+static_assert(offsetof(ecs::UIRect, computed_size_) == 48);
 
 int getUIRectPtr(ecs::Registry& r, u32 e) {
     auto* rect = r.tryGet<ecs::UIRect>(static_cast<Entity>(e));
@@ -529,6 +528,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_flush", &esengine::renderer_flush);
     emscripten::function("renderer_end", &esengine::renderer_end);
     emscripten::function("renderer_submitSprites", &esengine::renderer_submitSprites);
+    emscripten::function("renderer_submitUIElements", &esengine::renderer_submitUIElements);
     emscripten::function("renderer_submitBitmapText", &esengine::renderer_submitBitmapText);
     emscripten::function("renderer_submitShapes", &esengine::renderer_submitShapes);
 #ifdef ES_ENABLE_SPINE
@@ -610,19 +610,33 @@ void uiRenderOrder_update(ecs::Registry& registry) {
 }
 
 void uiFlexLayout_update(ecs::Registry& registry) {
-    ecs::uiFlexLayoutUpdate(registry);
+    // Flex layout is now integrated into uiLayout_update via unified layout pass.
+    // Kept as no-op for backward compatibility with TS plugin.
+    (void)registry;
+}
+
+void uiTree_markStructureDirty() {
+    ecs::uiTreeMarkStructureDirty();
+}
+
+void uiTree_markDirty(u32 entity) {
+    ecs::uiTreeMarkDirty(static_cast<Entity>(entity));
+}
+
+void uiTree_markAllDirty() {
+    ecs::getUITree().markAllDirty();
 }
 
 f32 getUIRectComputedWidth(ecs::Registry& registry, u32 entity) {
     auto* rect = registry.tryGet<ecs::UIRect>(static_cast<Entity>(entity));
     if (!rect) return 0.0f;
-    return rect->computed_width_;
+    return rect->computed_size_.x;
 }
 
 f32 getUIRectComputedHeight(ecs::Registry& registry, u32 entity) {
     auto* rect = registry.tryGet<ecs::UIRect>(static_cast<Entity>(entity));
     if (!rect) return 0.0f;
-    return rect->computed_height_;
+    return rect->computed_size_.y;
 }
 
 void transform_update(ecs::Registry& registry) {
@@ -645,6 +659,9 @@ EMSCRIPTEN_BINDINGS(esengine_ui_systems) {
     emscripten::function("uiFlexLayout_update", &esengine::uiFlexLayout_update);
     emscripten::function("getUIRectComputedWidth", &esengine::getUIRectComputedWidth);
     emscripten::function("getUIRectComputedHeight", &esengine::getUIRectComputedHeight);
+    emscripten::function("uiTree_markStructureDirty", &esengine::uiTree_markStructureDirty);
+    emscripten::function("uiTree_markDirty", &esengine::uiTree_markDirty);
+    emscripten::function("uiTree_markAllDirty", &esengine::uiTree_markAllDirty);
     emscripten::function("transform_update", &esengine::transform_update);
 }
 

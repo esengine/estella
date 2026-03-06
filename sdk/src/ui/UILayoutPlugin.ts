@@ -3,8 +3,11 @@ import { registerComponent } from '../component';
 import { defineSystem, Schedule } from '../system';
 import { Res } from '../resource';
 import { UIRect } from './UIRect';
+import { UIRenderer } from './UIRenderer';
 import { UICameraInfo } from './UICameraInfo';
 import type { UICameraData } from './UICameraInfo';
+import { UILayoutGeneration } from './UILayoutGeneration';
+import type { UILayoutGenerationData } from './UILayoutGeneration';
 import type { ESEngineModule } from '../wasm';
 import type { CppRegistry } from '../wasm';
 import { initUIHelpers } from './uiHelpers';
@@ -12,12 +15,16 @@ import { initUIHelpers } from './uiHelpers';
 export class UILayoutPlugin implements Plugin {
     build(app: App): void {
         registerComponent('UIRect', UIRect);
+        registerComponent('UIRenderer', UIRenderer);
 
         const world = app.world;
         const module = app.wasmModule as ESEngineModule;
         const registry = world.getCppRegistry() as CppRegistry;
 
         initUIHelpers(module, registry);
+
+        const layoutGen: UILayoutGenerationData = { generation: 0 };
+        app.insertResource(UILayoutGeneration, layoutGen);
 
         const layoutFn = (camera: UICameraData) => {
             if (!camera.valid) return;
@@ -26,8 +33,8 @@ export class UILayoutPlugin implements Plugin {
                 camera.worldLeft, camera.worldBottom,
                 camera.worldRight, camera.worldTop,
             );
-            module.uiFlexLayout_update(registry);
             module.transform_update(registry);
+            layoutGen.generation++;
         };
 
         const layoutOnlyFn = (camera: UICameraData) => {
@@ -37,7 +44,7 @@ export class UILayoutPlugin implements Plugin {
                 camera.worldLeft, camera.worldBottom,
                 camera.worldRight, camera.worldTop,
             );
-            module.uiFlexLayout_update(registry);
+            layoutGen.generation++;
         };
 
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(

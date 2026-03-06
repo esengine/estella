@@ -196,7 +196,7 @@ const FlexContainerSchema: ComponentSchema = {
         { name: 'justifyContent', type: 'enum', options: [{ label: 'Start', value: 0 }, { label: 'Center', value: 1 }, { label: 'End', value: 2 }, { label: 'SpaceBetween', value: 3 }, { label: 'SpaceAround', value: 4 }, { label: 'SpaceEvenly', value: 5 }] },
         { name: 'alignItems', type: 'enum', options: [{ label: 'Start', value: 0 }, { label: 'Center', value: 1 }, { label: 'End', value: 2 }, { label: 'Stretch', value: 3 }] },
         { name: 'gap', type: 'vec2' },
-        { name: 'padding', type: 'vec4' },
+        { name: 'padding', type: 'padding' },
     ],
 };
 
@@ -217,6 +217,7 @@ const LayoutGroupSchema: ComponentSchema = {
     properties: [
         { name: 'direction', type: 'enum', options: [{ label: 'Horizontal', value: 0 }, { label: 'Vertical', value: 1 }] },
         { name: 'spacing', type: 'number', step: 1 },
+        { name: 'padding', type: 'padding' },
         { name: 'childAlignment', type: 'enum', options: [{ label: 'Start', value: 0 }, { label: 'Center', value: 1 }, { label: 'End', value: 2 }] },
         { name: 'reverseOrder', type: 'boolean' },
     ],

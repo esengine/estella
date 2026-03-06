@@ -4,17 +4,24 @@
 #include "components/Hierarchy.hpp"
 #include "components/UIRect.hpp"
 #include "components/Sprite.hpp"
+#include "components/UIRenderer.hpp"
 #include "components/Canvas.hpp"
 
 namespace esengine::ecs {
 
 inline i32 assignRenderOrder(Registry& registry, Entity entity, i32 counter) {
-    if (registry.has<Sprite>(entity) && registry.has<UIRect>(entity)) {
-        auto& sprite = registry.get<Sprite>(entity);
-        if (sprite.layer != counter) {
-            sprite.layer = counter;
+    if (registry.has<UIRect>(entity)) {
+        auto* uiRenderer = registry.tryGet<UIRenderer>(entity);
+        if (uiRenderer) {
+            uiRenderer->uiOrder = counter;
+            counter++;
+        } else if (registry.has<Sprite>(entity)) {
+            auto& sprite = registry.get<Sprite>(entity);
+            if (sprite.layer != counter) {
+                sprite.layer = counter;
+            }
+            counter++;
         }
-        counter++;
     }
 
     auto* children = registry.tryGet<Children>(entity);

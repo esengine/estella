@@ -26,10 +26,7 @@ struct UIRect {
     ES_PROPERTY()
     glm::vec2 pivot{0.5f, 0.5f};
 
-    f32 computed_width_{0.0f};
-    f32 computed_height_{0.0f};
-    bool dirty_{true};
-    bool layout_managed_{false};
+    glm::vec2 computed_size_{0.0f};
 
     UIRect() = default;
 };

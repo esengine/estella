@@ -32,16 +32,16 @@ inline void uiFlexLayoutUpdate(Registry& registry) {
         auto& children = registry.get<Children>(entity);
         if (children.entities.empty()) return;
 
-        f32 parentW = parentRect.computed_width_ > 0.0f ? parentRect.computed_width_ : parentRect.size.x;
-        f32 parentH = parentRect.computed_height_ > 0.0f ? parentRect.computed_height_ : parentRect.size.y;
+        f32 parentW = parentRect.computed_size_.x > 0.0f ? parentRect.computed_size_.x : parentRect.size.x;
+        f32 parentH = parentRect.computed_size_.y > 0.0f ? parentRect.computed_size_.y : parentRect.size.y;
         f32 pivotX = parentRect.pivot.x;
         f32 pivotY = parentRect.pivot.y;
 
         // padding: x=left, y=top, z=right, w=bottom
-        f32 padLeft = flex.padding.x;
-        f32 padTop = flex.padding.y;
-        f32 padRight = flex.padding.z;
-        f32 padBottom = flex.padding.w;
+        f32 padLeft = flex.padding.left;
+        f32 padTop = flex.padding.top;
+        f32 padRight = flex.padding.right;
+        f32 padBottom = flex.padding.bottom;
 
         bool isRow = (flex.direction == FlexDirection::Row || flex.direction == FlexDirection::RowReverse);
         bool isReverse = (flex.direction == FlexDirection::RowReverse || flex.direction == FlexDirection::ColumnReverse);
@@ -77,8 +77,8 @@ inline void uiFlexLayoutUpdate(Registry& registry) {
                 item.order = 0;
             }
 
-            f32 cw = childRect->computed_width_ > 0.0f ? childRect->computed_width_ : childRect->size.x;
-            f32 ch = childRect->computed_height_ > 0.0f ? childRect->computed_height_ : childRect->size.y;
+            f32 cw = childRect->computed_size_.x > 0.0f ? childRect->computed_size_.x : childRect->size.x;
+            f32 ch = childRect->computed_size_.y > 0.0f ? childRect->computed_size_.y : childRect->size.y;
 
             if (item.basis >= 0.0f) {
                 item.main_size = item.basis;
@@ -219,10 +219,8 @@ inline void uiFlexLayoutUpdate(Registry& registry) {
             transform.position.x = localX;
             transform.position.y = localY;
 
-            childRect.computed_width_ = finalW;
-            childRect.computed_height_ = finalH;
-            childRect.layout_managed_ = true;
-
+            childRect.computed_size_.x = finalW;
+            childRect.computed_size_.y = finalH;
             auto* sprite = registry.tryGet<Sprite>(item.entity);
             if (sprite) {
                 if (sprite->size.x != finalW || sprite->size.y != finalH) {

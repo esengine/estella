@@ -1,4 +1,5 @@
-import { defineComponent } from '../component';
+import { defineBuiltin } from '../component';
+import type { Padding } from '../wasm.generated';
 
 export const LayoutDirection = {
     Horizontal: 0,
@@ -18,12 +19,12 @@ export type ChildAlignment = (typeof ChildAlignment)[keyof typeof ChildAlignment
 export interface LayoutGroupData {
     direction: number;
     spacing: number;
-    padding: { left: number; top: number; right: number; bottom: number };
+    padding: Padding;
     childAlignment: number;
     reverseOrder: boolean;
 }
 
-export const LayoutGroup = defineComponent<LayoutGroupData>('LayoutGroup', {
+export const LayoutGroup = defineBuiltin<LayoutGroupData>('LayoutGroup', {
     direction: LayoutDirection.Horizontal,
     spacing: 0,
     padding: { left: 0, top: 0, right: 0, bottom: 0 },

@@ -74,6 +74,7 @@ public:
     void end();
 
     void submitSprites(ecs::Registry& registry);
+    void submitUIElements(ecs::Registry& registry);
     void submitShapes(ecs::Registry& registry);
     void submitBitmapText(ecs::Registry& registry);
     void submitParticles(ecs::Registry& registry, particle::ParticleSystem& particle_system);

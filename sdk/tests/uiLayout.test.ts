@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { computeUIRectLayout } from '../src/ui/uiLayout';
-import type { LayoutRect, LayoutResult } from '../src/ui/uiLayout';
+import { computeUIRectLayout } from '../src/ui/uiHelpers';
+import type { LayoutRect, LayoutResult } from '../src/ui/uiHelpers';
 
 const PARENT: LayoutRect = { left: 0, bottom: 0, right: 800, top: 600 };
 
