@@ -1,5 +1,5 @@
-import { getEditorInstance } from '../context/EditorContext';
 import type { EntityData } from '../types/SceneTypes';
+import { getEditorStore } from '../store';
 
 export interface EntityPickerOptions {
     anchorEl: HTMLElement;
@@ -36,8 +36,7 @@ export function openEntityPicker(options: EntityPickerOptions): () => void {
     let filter = '';
 
     function buildFlatList(): FlatEntry[] {
-        const editor = getEditorInstance();
-        const entities = editor?.store.scene.entities;
+        const entities = getEditorStore().scene.entities;
         if (!entities) return [];
 
         const childMap = new Map<number | null, EntityData[]>();

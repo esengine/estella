@@ -8,7 +8,8 @@ import type { PropertyEditorInstance } from '../../property/PropertyEditor';
 import type { EditorAssetServer } from '../../asset/EditorAssetServer';
 import type { NativeFS } from '../../types/NativeFS';
 import { getAssetMimeType } from 'esengine';
-import { getEditorContext, getEditorInstance } from '../../context/EditorContext';
+import { getEditorContext } from '../../context/EditorContext';
+import { getProjectService, getNavigationService } from '../../services';
 import { icons } from '../../utils/icons';
 
 // =============================================================================
@@ -74,22 +75,17 @@ export function escapeHtml(text: string): string {
 }
 
 export function getProjectDir(): string | null {
-    const editor = getEditorInstance();
-    const projectPath = editor?.projectPath;
+    const projectPath = getProjectService().projectPath;
     if (!projectPath) return null;
     return projectPath.replace(/\\/g, '/').replace(/\/[^/]+$/, '');
 }
 
 export function openAssetInBrowser(assetPath: string): void {
-    const editor = getEditorInstance();
-    if (editor && typeof editor.navigateToAsset === 'function') {
-        editor.navigateToAsset(assetPath);
-    }
+    getNavigationService().navigateToAsset(assetPath);
 }
 
 export function getAssetServer(): EditorAssetServer | null {
-    const editor = getEditorInstance();
-    return editor?.assetServer ?? null;
+    return getNavigationService().getAssetServer();
 }
 
 const COMPONENT_ICON_MAP = new Map<string, (size: number) => string>([

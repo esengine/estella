@@ -16,7 +16,8 @@ import {
 } from '../../schemas/ComponentSchemas';
 import { icons } from '../../utils/icons';
 import { showAddComponentPopup } from '../AddComponentPopup';
-import { getEditorContext, getEditorInstance } from '../../context/EditorContext';
+import { getEditorContext } from '../../context/EditorContext';
+import { getNavigationService } from '../../services';
 import { getPlatformAdapter } from '../../platform/PlatformAdapter';
 import { getAssetLibrary, isUUID } from '../../asset/AssetLibrary';
 import {
@@ -119,7 +120,7 @@ function renderPrefabInfoBar(
 
     const pathEl = bar.querySelector('.es-prefab-info-link');
     pathEl?.addEventListener('click', () => {
-        getEditorInstance()?.navigateToAsset(resolvedPath);
+        getNavigationService().navigateToAsset(resolvedPath);
     });
 
     if (prefab.isRoot) {

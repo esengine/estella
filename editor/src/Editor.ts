@@ -1,60 +1,52 @@
-import type { App, Entity } from 'esengine';
-import type { EntityData } from './types/SceneTypes';
-import * as esengine from 'esengine';
-import {
-    Draw, Geometry, Material, BlendMode, DataType, ShaderSources,
-    PostProcess, Renderer, RenderStage,
-    registerDrawCallback, unregisterDrawCallback, clearDrawCallbacks,
-} from 'esengine';
+import type { App } from 'esengine';
 import { EditorStore } from './store/EditorStore';
-import { EditorBridge } from './bridge/EditorBridge';
 import { PanelManager } from './PanelManager';
 import { MenuManager } from './MenuManager';
-import { PreviewManager } from './PreviewManager';
-import { getAllPanels } from './panels/PanelRegistry';
 import { exposeRegistrationAPI } from './schemas/ComponentSchemas';
-import {
-    EditorContainer, setEditorContainer, getEditorContainer,
-    PANEL,
-} from './container';
-import * as containerTokens from './container/tokens';
-import { saveSceneToFile, saveSceneToPath, loadSceneFromFile, loadSceneFromPath, hasFileHandle, clearFileHandle } from './io/SceneSerializer';
-import { isAbsolutePath, joinPath, getProjectDir } from './utils/path';
+import { EditorContainer, setEditorContainer, getEditorContainer } from './container';
 import { icons } from './utils/icons';
-import { ScriptLoader } from './scripting';
-import { showBuildSettingsDialog, BuildService } from './builder';
-import { AddressablePanel } from './panels/AddressablePanel';
-import { getGlobalPathResolver } from './asset';
-import { getSharedRenderContext } from './renderer/SharedRenderContext';
 import type { EditorAssetServer } from './asset/EditorAssetServer';
-import { getAssetLibrary } from './asset/AssetLibrary';
-import { setEditorInstance, getEditorContext, getEditorInstance } from './context/EditorContext';
-import { ExtensionLoader } from './extension';
-import { setEditorAPI, clearEditorAPI } from './extension/editorAPI';
-import { showToast, showSuccessToast, showErrorToast } from './ui/Toast';
-import { showContextMenu } from './ui/ContextMenu';
+import { setEditorInstance } from './context/EditorContext';
+import { showToast, showErrorToast } from './ui/Toast';
 import { installGlobalErrorHandler } from './error/GlobalErrorHandler';
 import { EditorLogger, createConsoleHandler, createToastHandler } from './logging';
-import type { EditorPlugin, EditorPluginContext } from './plugins/EditorPlugin';
 import { builtinPlugins, coreStatusbarPlugin } from './plugins';
-
-import { showConfirmDialog, showInputDialog, showDialog } from './ui/dialog';
+import { PluginManager as PluginManagerService } from './services/PluginManager';
 import { getEditorStore } from './store';
-import { generateUniqueName } from './utils/naming';
-import {
-    showSettingsDialog,
-    getSettingsValue,
-    setSettingsValue,
-    onSettingsChange,
-    ProjectSettingsSync,
-} from './settings';
-import { loadEditorLocalSettings, saveEditorLocalSetting } from './launcher/ProjectService';
 import { DockLayoutManager } from './DockLayoutManager';
 import { ContentDrawer } from './ui/ContentDrawer';
-import { MainWindowBridge } from './multiwindow/MainWindowBridge';
-import { WindowManager } from './multiwindow/WindowManager';
-import { emit } from '@tauri-apps/api/event';
-import { CHANNEL_PROFILER_STATS } from './multiwindow/protocol';
+import { closeAddressableWindow, hasAddressableWindow } from './dialogs/AddressableWindow';
+
+import { OutputService } from './services/OutputService';
+import { ClipboardService } from './services/ClipboardService';
+import { ShellService } from './services/ShellService';
+import { ProfilerService } from './services/ProfilerService';
+import { NavigationService } from './services/NavigationService';
+import { SpineService } from './services/SpineService';
+import { RuntimeService } from './services/RuntimeService';
+import { ScriptService } from './services/ScriptService';
+import { ExtensionService } from './services/ExtensionService';
+import { PreviewService } from './services/PreviewService';
+import { SceneService } from './services/SceneService';
+import { ProjectService } from './services/ProjectService';
+import { MultiWindowService } from './services/MultiWindowService';
+import {
+    OUTPUT_SERVICE,
+    CLIPBOARD_SERVICE,
+    SHELL_SERVICE,
+    PROFILER_SERVICE,
+    NAVIGATION_SERVICE,
+    SPINE_SERVICE,
+    RUNTIME_SERVICE,
+    SCRIPT_SERVICE,
+    EXTENSION_SERVICE,
+    PREVIEW_SERVICE,
+    SCENE_SERVICE,
+    PROJECT_SERVICE,
+    MULTI_WINDOW_SERVICE,
+    LAYOUT_SERVICE,
+    PLUGIN_MANAGER,
+} from './container/tokens';
 
 export interface EditorOptions {
     projectPath?: string;
@@ -62,38 +54,31 @@ export interface EditorOptions {
 
 export class Editor {
     private container_: HTMLElement;
-    private app_: App | null = null;
-    private spineModule_: unknown = null;
-    private spineVersion_: string = 'none';
-    private spineVersionChangeHandler_: ((version: string) => void) | null = null;
     private store_: EditorStore;
-    private bridge_: EditorBridge | null = null;
     private projectPath_: string | null = null;
 
     private panelManager_: PanelManager;
     private menuManager_: MenuManager;
-    private previewManager_: PreviewManager;
 
-    private baseAPI_: Record<string, unknown> | null = null;
-    private scriptLoader_: ScriptLoader | null = null;
-    private extensionLoader_: ExtensionLoader | null = null;
     private dockLayout_: DockLayoutManager | null = null;
     private contentDrawer_: ContentDrawer | null = null;
-    private assetLibraryReady_: Promise<void> = Promise.resolve();
-    private scriptsReady_: Promise<void> = Promise.resolve();
-    private clipboard_: EntityData[] | null = null;
-    private addressableWindow_: { element: HTMLElement; panel: AddressablePanel; keyHandler: (e: KeyboardEvent) => void } | null = null;
-    private profilerActive_ = false;
-    private previewUrl_: string | null = null;
     private escapeHandler_: ((e: KeyboardEvent) => void) | null = null;
-    private closeUnlisten_: (() => void) | null = null;
     private contextMenuHandler_: ((e: Event) => void) | null = null;
-    private settingsSync_: ProjectSettingsSync | null = null;
-    private mainWindowBridge_: MainWindowBridge | null = null;
-    private windowManager_: WindowManager | null = null;
-    private plugins_: EditorPlugin[] = [];
-    private pluginNames_ = new Set<string>();
-    private pluginContext_!: EditorPluginContext;
+    private pluginManager_!: PluginManagerService;
+
+    private outputService_!: OutputService;
+    private clipboardService_!: ClipboardService;
+    private shellService_!: ShellService;
+    private profilerService_!: ProfilerService;
+    private navigationService_!: NavigationService;
+    private spineService_!: SpineService;
+    private runtimeService_!: RuntimeService;
+    private scriptService_!: ScriptService;
+    private extensionService_!: ExtensionService;
+    private previewService_!: PreviewService;
+    private sceneService_!: SceneService;
+    private projectService_!: ProjectService;
+    private multiWindowService_!: MultiWindowService;
 
     constructor(container: HTMLElement, options?: EditorOptions) {
         this.container_ = container;
@@ -102,12 +87,10 @@ export class Editor {
         const iocContainer = new EditorContainer();
         setEditorContainer(iocContainer);
 
-        this.pluginContext_ = {
+        this.pluginManager_ = new PluginManagerService({
             registrar: iocContainer,
-            editor: this,
             projectPath: this.projectPath_,
-            onOpenScene: (path: string) => this.openSceneFromPath(path),
-        };
+        });
 
         installGlobalErrorHandler();
 
@@ -119,85 +102,45 @@ export class Editor {
         EditorLogger.setMinLevel('info');
 
         for (const plugin of builtinPlugins) {
-            this.addPlugin(plugin);
+            this.pluginManager_.addPlugin(plugin);
         }
 
         this.store_ = getEditorStore();
         this.panelManager_ = new PanelManager();
         this.menuManager_ = new MenuManager();
         this.menuManager_.setStore(this.store_);
-        this.previewManager_ = new PreviewManager(this.projectPath_);
+
+        this.createServices_(iocContainer);
+
         exposeRegistrationAPI();
         iocContainer.lockBuiltins();
 
-        this.setupLayout();
+        this.setupLayout_();
 
-        this.addPlugin(coreStatusbarPlugin);
+        this.pluginManager_.addPlugin(coreStatusbarPlugin);
         this.menuManager_.instantiateStatusbar(this.container_);
         this.menuManager_.setupMenuShortcuts();
         this.menuManager_.attach();
 
-        this.initMultiWindow();
+        this.initMultiWindow_();
 
         if (this.projectPath_) {
-            this.setupEditorGlobals();
-            this.assetLibraryReady_ = this.initializeAssetLibrary();
-            this.scriptsReady_ = this.initializeAllScripts();
-            this.initProjectSettingsSync();
-            this.restoreLastScene();
+            this.extensionService_.setupEditorGlobals();
+            const assetReady = this.projectService_.initializeAssetLibrary();
+            this.sceneService_.setAssetLibraryReady(assetReady);
+            const scriptsReady = this.initializeAllScripts_();
+            this.sceneService_.setScriptsReady(scriptsReady);
+            this.projectService_.initProjectSettingsSync();
+            this.sceneService_.restoreLastScene();
         }
     }
 
-    addPlugin(plugin: EditorPlugin): this {
-        if (this.pluginNames_.has(plugin.name)) return this;
-        if (plugin.dependencies) {
-            for (const dep of plugin.dependencies) {
-                if (!this.pluginNames_.has(dep)) {
-                    throw new Error(`Plugin "${plugin.name}" requires "${dep}"`);
-                }
-            }
-        }
-        plugin.register(this.pluginContext_);
-        this.plugins_.push(plugin);
-        this.pluginNames_.add(plugin.name);
-        return this;
-    }
+    // =========================================================================
+    // Public API (used by desktop/main.ts)
+    // =========================================================================
 
     get projectPath(): string | null {
         return this.projectPath_;
-    }
-
-    get currentScenePath(): string | null {
-        return this.store_.filePath;
-    }
-
-    setApp(app: App): void {
-        this.app_ = app;
-        this.bridge_ = new EditorBridge(app, this.store_);
-        this.panelManager_.setApp(app, this.bridge_);
-    }
-
-    setPhysicsFactory(factory: unknown): void {
-        getSharedRenderContext().setPhysicsFactory(factory);
-    }
-
-    setSpineModule(module: unknown, version: string): void {
-        this.spineModule_ = module;
-        this.spineVersion_ = version;
-        this.panelManager_.setSpineModule(module);
-        this.store_.notifyChange();
-    }
-
-    onSpineVersionChange(handler: (version: string) => void): void {
-        this.spineVersionChangeHandler_ = handler;
-    }
-
-    get spineModule(): unknown {
-        return this.spineModule_;
-    }
-
-    get spineVersion(): string {
-        return this.spineVersion_;
     }
 
     get store(): EditorStore {
@@ -205,780 +148,105 @@ export class Editor {
     }
 
     get assetServer(): EditorAssetServer | null {
-        return this.panelManager_.assetServer;
+        return this.navigationService_.getAssetServer();
     }
 
-    getSpineSkeletonInfo(entityId: number): { animations: string[]; skins: string[] } | null {
-        return this.panelManager_.getSpineSkeletonInfo(entityId);
+    setApp(app: App): void {
+        this.runtimeService_.setApp(app);
     }
 
-    onSpineInstanceReady(listener: (entityId: number) => void): () => void {
-        return this.panelManager_.onSpineInstanceReady(listener);
+    setPhysicsFactory(factory: unknown): void {
+        this.runtimeService_.setPhysicsFactory(factory);
     }
 
-    // =========================================================================
-    // Panel Operations
-    // =========================================================================
-
-    showPanel(id: string): void {
-        if (id === 'content-browser') {
-            this.contentDrawer_?.toggle();
-            return;
-        }
-        this.dockLayout_?.showPanel(id);
-        this.panelManager_.showPanel(id);
+    setSpineModule(module: unknown, version: string): void {
+        this.spineService_.setSpineModule(module, version);
     }
 
-    hidePanel(id: string): void {
-        this.panelManager_.hidePanel(id);
-    }
-
-    togglePanel(id: string): void {
-        if (id === 'content-browser') {
-            this.contentDrawer_?.toggle();
-            return;
-        }
-        const panel = this.dockLayout_?.api?.getPanel(id);
-        if (panel) {
-            this.dockLayout_!.removePanel(id);
-            this.panelManager_.removePanelInstance(id);
-        } else {
-            this.showPanel(id);
-        }
-    }
-
-    resetLayout(): void {
-        this.contentDrawer_?.onResetLayout();
-        this.dockLayout_?.resetLayout();
+    onSpineVersionChange(handler: (version: string) => void): void {
+        this.spineService_.onSpineVersionChange(handler);
     }
 
     // =========================================================================
-    // Scene Operations
+    // Plugin system
     // =========================================================================
 
-    async newScene(): Promise<void> {
-        if (this.store_.isDirty) {
-            const result = await this.showUnsavedChangesPrompt();
-            if (result === 'cancel') return;
-            if (result === 'save') await this.saveScene();
-        }
-        const w = getSettingsValue<number>('project.designWidth');
-        const h = getSettingsValue<number>('project.designHeight');
-        this.store_.newScene('Untitled', { width: w, height: h });
-        clearFileHandle();
+    get pluginManager(): PluginManagerService {
+        return this.pluginManager_;
     }
 
-    async saveScene(): Promise<void> {
-        if (this.store_.isEditingPrefab) {
-            await this.store_.savePrefabEditing();
-            return;
+    // =========================================================================
+    // Lifecycle
+    // =========================================================================
+
+    dispose(): void {
+        if (this.contextMenuHandler_) {
+            this.container_.removeEventListener('contextmenu', this.contextMenuHandler_);
+            this.contextMenuHandler_ = null;
         }
-
-        await this.saveDirtyPanels();
-
-        const filePath = this.store_.filePath;
-
-        if (filePath && hasFileHandle()) {
-            const success = await saveSceneToPath(this.store_.scene, filePath);
-            if (success) {
-                this.store_.markSaved();
-                this.previewManager_.refreshFiles(this.store_.scene, this.scriptLoader_, this.spineVersion_);
-                return;
-            }
+        closeAddressableWindow();
+        this.profilerService_.stopProfilerStats();
+        if (this.escapeHandler_) {
+            document.removeEventListener('keydown', this.escapeHandler_);
+            this.escapeHandler_ = null;
         }
-
-        const savedPath = await saveSceneToFile(this.store_.scene);
-        if (savedPath) {
-            this.store_.markSaved(savedPath);
-            this.previewManager_.refreshFiles(this.store_.scene, this.scriptLoader_, this.spineVersion_);
-        }
+        this.multiWindowService_.dispose();
+        this.contentDrawer_?.dispose();
+        this.menuManager_.dispose();
+        this.scriptService_.dispose();
+        this.extensionService_.dispose();
+        this.dockLayout_?.dispose();
+        this.panelManager_.dispose();
+        this.previewService_.dispose();
     }
 
-    private async saveDirtyPanels(): Promise<void> {
-        await this.panelManager_.saveDirtyPanels();
-    }
+    // =========================================================================
+    // Private
+    // =========================================================================
 
-    async saveSceneAs(): Promise<void> {
-        clearFileHandle();
-        const savedPath = await saveSceneToFile(this.store_.scene);
-        if (savedPath) {
-            this.store_.markSaved(savedPath);
-        }
-    }
-
-    async loadScene(): Promise<void> {
-        if (this.store_.isDirty) {
-            const result = await this.showUnsavedChangesPrompt();
-            if (result === 'cancel') return;
-            if (result === 'save') await this.saveScene();
-        }
-        await this.assetLibraryReady_;
-        const scene = await loadSceneFromFile();
-        if (scene) {
-            await getAssetLibrary().migrateScene(scene);
-            this.store_.loadScene(scene);
-        }
-    }
-
-    async openSceneFromPath(scenePath: string): Promise<void> {
-        if (this.store_.isEditingPrefab) {
-            await this.store_.exitPrefabEditMode();
-        }
-
-        let resolvedPath = scenePath;
-        if (!isAbsolutePath(scenePath) && this.projectPath_) {
-            const projectDir = getProjectDir(this.projectPath_);
-            resolvedPath = joinPath(projectDir, scenePath);
-        }
-
-        await this.assetLibraryReady_;
-        const scene = await loadSceneFromPath(resolvedPath);
-        if (scene) {
-            const migrated = await getAssetLibrary().migrateScene(scene);
-            if (migrated) {
-                await saveSceneToPath(scene, resolvedPath);
-            }
-            this.store_.loadScene(scene, resolvedPath);
-            this.saveLastOpenedScene(scenePath);
-            console.log('Scene loaded:', resolvedPath);
-        }
-    }
-
-    duplicateSelected(): void {
-        const selected = Array.from(this.store_.selectedEntities);
-        if (selected.length === 0) return;
-
-        for (const id of selected) {
-            const entityData = this.store_.getEntityData(id);
-            if (!entityData) continue;
-
-            const scene = this.store_.scene;
-            const siblings = scene.entities
-                .filter(e => e.parent === entityData.parent)
-                .map(e => e.name);
-            const siblingNames = new Set(siblings);
-            const newName = generateUniqueName(entityData.name, siblingNames);
-
-            const newEntity = this.store_.createEntity(
-                newName,
-                entityData.parent as Entity | null
-            );
-
-            for (const comp of entityData.components) {
-                this.store_.addComponent(newEntity, comp.type, JSON.parse(JSON.stringify(comp.data)));
-            }
-        }
-    }
-
-    copySelected(): void {
-        const selected = Array.from(this.store_.selectedEntities);
-        if (selected.length === 0) return;
-
-        const allTrees: EntityData[] = [];
-        for (const id of selected) {
-            const tree = this.collectEntityTree_(id);
-            allTrees.push(...tree);
-        }
-        if (allTrees.length === 0) return;
-
-        this.clipboard_ = JSON.parse(JSON.stringify(allTrees));
-        for (const e of this.clipboard_!) {
-            delete e.prefab;
-        }
-    }
-
-    pasteEntity(): void {
-        if (!this.clipboard_ || this.clipboard_.length === 0) return;
-
-        const cloned: EntityData[] = JSON.parse(JSON.stringify(this.clipboard_));
-        const parent = this.store_.selectedEntity;
-        const clipboardIds = new Set(cloned.map(e => e.id));
-        const oldIdToNewId = new Map<number, Entity>();
-
-        const scene = this.store_.scene;
-        const siblings = scene.entities
-            .filter(e => e.parent === (parent as number | null))
-            .map(e => e.name);
-        const siblingNames = new Set(siblings);
-
-        let lastRoot: Entity | null = null;
-
-        for (const entityData of cloned) {
-            const isRoot = entityData.parent === null || !clipboardIds.has(entityData.parent);
-            const newParent = isRoot ? parent : (oldIdToNewId.get(entityData.parent!) ?? null);
-            if (!isRoot && newParent === null) continue;
-
-            const name = isRoot
-                ? generateUniqueName(entityData.name, siblingNames)
-                : entityData.name;
-
-            const newEntity = this.store_.createEntity(name, newParent);
-            oldIdToNewId.set(entityData.id, newEntity);
-
-            if (isRoot) {
-                siblingNames.add(name);
-                lastRoot = newEntity;
-            }
-
-            for (const comp of entityData.components) {
-                this.store_.addComponent(newEntity, comp.type, { ...comp.data });
-            }
-        }
-
-        if (lastRoot !== null) {
-            this.store_.selectEntity(lastRoot);
-        }
-    }
-
-    hasClipboard(): boolean {
-        return this.clipboard_ !== null && this.clipboard_.length > 0;
-    }
-
-    private collectEntityTree_(entityId: number): EntityData[] {
-        const entity = this.store_.getEntityData(entityId);
-        if (!entity) return [];
-        const result: EntityData[] = [entity];
-        for (const childId of entity.children) {
-            result.push(...this.collectEntityTree_(childId));
-        }
-        return result;
-    }
-
-    showBuildSettings(): void {
-        if (!this.projectPath_) {
-            alert('请先打开一个项目');
-            return;
-        }
-
-        const buildService = new BuildService(this.projectPath_);
-        showBuildSettingsDialog({
-            projectPath: this.projectPath_,
-            onBuild: async (config) => {
-                return await buildService.build(config);
-            },
-            onClose: () => {},
-        });
-    }
-
-    showAboutDialog(): void {
-        const hasUpdater = !!getEditorContext().onCheckUpdate;
-        const overlay = document.createElement('div');
-        overlay.className = 'es-dialog-overlay';
-        overlay.innerHTML = `
-            <div class="es-dialog" style="max-width: 360px;">
-                <div class="es-dialog-header">
-                    <span class="es-dialog-title">About ESEngine</span>
-                    <button class="es-dialog-close">&times;</button>
-                </div>
-                <div class="es-dialog-body" style="text-align: center; padding: 24px;">
-                    <div style="margin-bottom: 16px;">${icons.logo(64)}</div>
-                    <h3 style="margin: 0 0 8px; color: var(--es-text-primary);">ESEngine Editor</h3>
-                    <p style="margin: 0 0 16px; color: var(--es-text-secondary);">Version ${getEditorContext().version ?? '0.0.0'}</p>
-                    <p style="margin: 0; font-size: 12px; color: var(--es-text-secondary);">
-                        A lightweight 2D game engine<br>for web and mini-programs.
-                    </p>
-                </div>
-                <div class="es-dialog-footer" style="justify-content: center; gap: 8px;">
-                    ${hasUpdater ? '<button class="es-dialog-btn" id="about-check-update">Check for Updates</button>' : ''}
-                    <button class="es-dialog-btn es-dialog-btn-primary">OK</button>
-                </div>
-            </div>
-        `;
-
-        const close = () => overlay.remove();
-        overlay.querySelector('.es-dialog-close')?.addEventListener('click', close);
-        overlay.querySelector('.es-dialog-btn-primary')?.addEventListener('click', close);
-        overlay.querySelector('#about-check-update')?.addEventListener('click', () => {
-            close();
-            getEditorContext().onCheckUpdate?.();
-        });
-        overlay.addEventListener('click', (e) => {
-            if (e.target === overlay) close();
-        });
-
-        document.body.appendChild(overlay);
-    }
-
-    showAddressableWindow(): void {
-        if (this.addressableWindow_) {
-            this.addressableWindow_.element.style.zIndex = '1001';
-            return;
-        }
-
-        const win = document.createElement('div');
-        win.className = 'es-floating-window es-addressable-window';
-        win.innerHTML = `
-            <div class="es-floating-header">
-                <span class="es-floating-title">Addressable Groups</span>
-                <button class="es-dialog-close">&times;</button>
-            </div>
-            <div class="es-floating-body"></div>
-        `;
-
-        const body = win.querySelector('.es-floating-body') as HTMLElement;
-        const panel = new AddressablePanel(body, this.store_);
-
-        const close = () => {
-            panel.dispose();
-            win.remove();
-            document.removeEventListener('keydown', keyHandler);
-            this.addressableWindow_ = null;
-        };
-
-        win.querySelector('.es-dialog-close')!.addEventListener('click', close);
-
-        const header = win.querySelector('.es-floating-header') as HTMLElement;
-        header.addEventListener('mousedown', (e) => {
-            if ((e.target as HTMLElement).closest('.es-dialog-close')) return;
-            const rect = win.getBoundingClientRect();
-            win.style.left = `${rect.left}px`;
-            win.style.top = `${rect.top}px`;
-            win.style.transform = 'none';
-            const offsetX = e.clientX - rect.left;
-            const offsetY = e.clientY - rect.top;
-            const onMove = (e: MouseEvent) => {
-                const w = win.offsetWidth;
-                const h = win.offsetHeight;
-                const x = Math.max(0, Math.min(e.clientX - offsetX, window.innerWidth - w));
-                const y = Math.max(0, Math.min(e.clientY - offsetY, window.innerHeight - h));
-                win.style.left = `${x}px`;
-                win.style.top = `${y}px`;
-            };
-            const onUp = () => {
-                document.removeEventListener('mousemove', onMove);
-                document.removeEventListener('mouseup', onUp);
-            };
-            document.addEventListener('mousemove', onMove);
-            document.addEventListener('mouseup', onUp);
-        });
-
-        const keyHandler = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') close();
-        };
-        document.addEventListener('keydown', keyHandler);
-
-        document.body.appendChild(win);
-        this.addressableWindow_ = { element: win, panel, keyHandler };
-    }
-
-    async showProfilerWindow(): Promise<void> {
-        if (!this.windowManager_) return;
-
-        await this.windowManager_.detachPanel('profiler', 'Profiler');
-        this.startProfilerStats();
-    }
-
-    startProfilerStats(): void {
-        if (this.profilerActive_) return;
-        this.profilerActive_ = true;
-
-        const ctx = getSharedRenderContext();
-        ctx.setPostTickCallback(() => this.emitProfilerStats());
-    }
-
-    stopProfilerStats(): void {
-        if (!this.profilerActive_) return;
-        this.profilerActive_ = false;
-
-        const ctx = getSharedRenderContext();
-        ctx.setPostTickCallback(null);
-    }
-
-    private emitProfilerStats(): void {
-        const ctx = getSharedRenderContext();
-        const app = ctx.app_;
-
-        const frameTimeMs = app?.getPhaseTimings()
-            ? [...(app.getPhaseTimings() as Map<string, number>).values()].reduce((a: number, b: number) => a + b, 0)
-            : 0;
-
-        const phaseTimings: [string, number][] = app?.getPhaseTimings()
-            ? [...(app.getPhaseTimings() as Map<string, number>).entries()]
-            : [];
-
-        const systemTimings: [string, number][] = app?.getSystemTimings()
-            ? [...(app.getSystemTimings() as ReadonlyMap<string, number>).entries()]
-            : [];
-
-        const msg = { frameTimeMs, phaseTimings, systemTimings };
-        emit(CHANNEL_PROFILER_STATS, msg);
-    }
-
-    private async initProjectSettingsSync(): Promise<void> {
-        if (!this.projectPath_) return;
-        this.settingsSync_ = new ProjectSettingsSync(
-            this.projectPath_,
-            (version) => this.spineVersionChangeHandler_?.(version),
+    private createServices_(iocContainer: EditorContainer): void {
+        this.outputService_ = new OutputService();
+        this.clipboardService_ = new ClipboardService(this.store_);
+        this.navigationService_ = new NavigationService(this.panelManager_);
+        this.profilerService_ = new ProfilerService();
+        this.spineService_ = new SpineService(this.store_);
+        this.runtimeService_ = new RuntimeService(this.store_);
+        this.scriptService_ = new ScriptService(this.projectPath_, this.outputService_, this.store_);
+        this.extensionService_ = new ExtensionService(
+            this.projectPath_, this.panelManager_, this.menuManager_, this.container_,
         );
-        await this.settingsSync_.loadFromProject();
-        this.settingsSync_.startAutoSync();
-    }
+        this.sceneService_ = new SceneService(this.store_, this.projectPath_);
+        this.projectService_ = new ProjectService(this.projectPath_, this.spineService_);
+        this.multiWindowService_ = new MultiWindowService(this.store_, this.projectPath_);
 
-    private async restoreLastScene(): Promise<void> {
-        if (!this.projectPath_) return;
-        await this.scriptsReady_;
-        const settings = await loadEditorLocalSettings(this.projectPath_);
-        const lastScene = settings?.lastOpenedScene as string | undefined;
-        if (lastScene) {
-            await this.openSceneFromPath(lastScene);
-        }
-    }
-
-    private saveLastOpenedScene(scenePath: string): void {
-        if (!this.projectPath_) return;
-        saveEditorLocalSetting(this.projectPath_, 'lastOpenedScene', scenePath);
-    }
-
-    showSettings(): void {
-        showSettingsDialog();
-    }
-
-    // =========================================================================
-    // Script Operations
-    // =========================================================================
-
-    private async initializeAssetLibrary(): Promise<void> {
-        console.log(`[Editor] initializeAssetLibrary: projectPath=${this.projectPath_}`);
-        if (!this.projectPath_) {
-            console.warn('[Editor] initializeAssetLibrary: no projectPath');
-            return;
-        }
-
-        const fs = getEditorContext().fs;
-        if (!fs) {
-            console.warn('[Editor] initializeAssetLibrary: no fs in context');
-            return;
-        }
-
-        const projectDir = this.projectPath_.replace(/[/\\][^/\\]+$/, '');
-        try {
-            await getAssetLibrary().initialize(projectDir, fs);
-        } catch (err) {
-            console.error('Failed to initialize AssetLibrary:', err);
-        }
-    }
-
-    private async initializeAllScripts(): Promise<void> {
-        await this.initializeExtensions();
-        await this.initializeScripts();
-    }
-
-    private async initializeScripts(): Promise<void> {
-        if (!this.projectPath_) return;
-
-        this.scriptLoader_ = new ScriptLoader({
-            projectPath: this.projectPath_,
-            onCompileError: (errors) => {
-                console.error('Script compilation errors:', errors);
-                const msg = errors.map(e => `${e.file}:${e.line} - ${e.message}`).join('\n');
-                showErrorToast('Script compile failed', msg);
-                for (const e of errors) {
-                    this.appendOutput(`${e.file}:${e.line}:${e.column} - ${e.message}`, 'error');
-                }
-            },
-            onCompileSuccess: () => {
-                this.store_.notifyChange();
-            },
-        });
-
-        try {
-            await this.scriptLoader_.initialize();
-            await this.scriptLoader_.compile();
-            await this.scriptLoader_.watch();
-        } catch (err) {
-            console.error('Failed to initialize scripts:', err);
-        }
-    }
-
-    getCompiledScripts(): string | null {
-        return this.scriptLoader_?.getCompiledCode() ?? null;
-    }
-
-    async reloadScripts(): Promise<boolean> {
-        if (!this.scriptLoader_) {
-            if (this.projectPath_) {
-                await this.initializeScripts();
-                return true;
-            }
-            return false;
-        }
-        return this.scriptLoader_.reload();
-    }
-
-    // =========================================================================
-    // Extension Operations
-    // =========================================================================
-
-    private setupEditorGlobals(): void {
-        const container = getEditorContainer();
-        const registrar = container as import('./container').PluginRegistrar;
-
-        this.baseAPI_ = {
-            ...esengine,
-            registrar,
-            tokens: containerTokens,
-            icons,
-            showToast,
-            showSuccessToast,
-            showErrorToast,
-            showContextMenu,
-            showConfirmDialog,
-            showInputDialog,
-            getEditorInstance,
-            getEditorStore,
-            getSettingsValue,
-            setSettingsValue,
-            Draw,
-            Geometry,
-            Material,
-            BlendMode,
-            DataType,
-            ShaderSources,
-            PostProcess,
-            Renderer,
-            RenderStage,
-            registerDrawCallback,
-            unregisterDrawCallback,
-            clearDrawCallbacks,
-        };
-        setEditorAPI(this.baseAPI_);
-    }
-
-    private async initializeExtensions(): Promise<void> {
-        if (!this.projectPath_ || !this.baseAPI_) return;
-
-        this.extensionLoader_ = new ExtensionLoader({
-            projectPath: this.projectPath_,
-            baseAPI: this.baseAPI_,
-            onCompileError: (errors) => {
-                console.error('Extension compilation errors:', errors);
-                const msg = errors.map(e => `${e.file}:${e.line} - ${e.message}`).join('\n');
-                showErrorToast(`Extension compile failed:\n${msg}`);
-            },
-            onCompileSuccess: () => {},
-            onCleanup: () => this.cleanupExtensionUI(),
-            onAfterReload: () => this.applyExtensionUI(),
-        });
-
-        try {
-            await this.extensionLoader_.initialize();
-            await this.extensionLoader_.reload();
-            await this.extensionLoader_.watch();
-        } catch (err) {
-            console.error('Failed to initialize extensions:', err);
-        }
-    }
-
-    private cleanupExtensionUI(): void {
-        const c = getEditorContainer();
-        if (this.dockLayout_) {
-            for (const [id] of this.panelManager_.panelInstances) {
-                if (!c.isBuiltin(PANEL, id)) {
-                    this.dockLayout_.removePanel(id);
-                }
-            }
-        }
-        this.panelManager_.cleanupExtensionPanels();
-
-        this.container_.querySelectorAll('[data-statusbar-id^="toggle-"]').forEach(el => {
-            const panelId = el.getAttribute('data-statusbar-id')?.replace('toggle-', '');
-            if (panelId && !c.isBuiltin(PANEL, panelId)) el.remove();
-        });
-
-        c.clearExtensions();
-    }
-
-    private applyExtensionUI(): void {
-        const c = getEditorContainer();
-        if (this.dockLayout_) {
-            for (const desc of getAllPanels()) {
-                if (c.isBuiltin(PANEL, desc.id)) continue;
-                this.dockLayout_.addPanel(desc);
-            }
-        }
-        this.menuManager_.rebuildMenuBar(this.container_);
-    }
-
-    async reloadExtensions(): Promise<boolean> {
-        if (!this.extensionLoader_) {
-            if (this.projectPath_) {
-                await this.initializeExtensions();
-                return true;
-            }
-            return false;
-        }
-
-        return this.extensionLoader_.reload();
-    }
-
-    // =========================================================================
-    // Preview Operations
-    // =========================================================================
-
-    async startPreview(): Promise<void> {
-        if (this.store_.isDirty && this.store_.filePath && hasFileHandle()) {
-            await this.saveScene();
-            showToast({ type: 'info', title: 'Scene saved before preview' });
-        }
-        const port = await this.previewManager_.startPreview(
-            this.store_.scene, this.scriptLoader_, this.spineVersion_,
+        this.shellService_ = new ShellService(
+            this.projectPath_, this.outputService_,
+            (id) => this.navigationService_.showPanel(id),
         );
-        if (port !== null) {
-            this.previewUrl_ = `http://localhost:${port}`;
-            this.updatePreviewUrl();
-        }
+
+        const sk = 'default';
+        iocContainer.provide(OUTPUT_SERVICE, sk, this.outputService_);
+        iocContainer.provide(CLIPBOARD_SERVICE, sk, this.clipboardService_);
+        iocContainer.provide(NAVIGATION_SERVICE, sk, this.navigationService_);
+        iocContainer.provide(PROFILER_SERVICE, sk, this.profilerService_);
+        iocContainer.provide(SHELL_SERVICE, sk, this.shellService_);
+        iocContainer.provide(SPINE_SERVICE, sk, this.spineService_);
+        iocContainer.provide(RUNTIME_SERVICE, sk, this.runtimeService_);
+        iocContainer.provide(SCRIPT_SERVICE, sk, this.scriptService_);
+        iocContainer.provide(EXTENSION_SERVICE, sk, this.extensionService_);
+        iocContainer.provide(SCENE_SERVICE, sk, this.sceneService_);
+        iocContainer.provide(PROJECT_SERVICE, sk, this.projectService_);
+        iocContainer.provide(MULTI_WINDOW_SERVICE, sk, this.multiWindowService_);
+        iocContainer.provide(LAYOUT_SERVICE, sk, this.navigationService_);
+        iocContainer.provide(PLUGIN_MANAGER, sk, this.pluginManager_);
     }
 
-    async startPreviewServer(): Promise<string | null> {
-        if (this.store_.isDirty && this.store_.filePath && hasFileHandle()) {
-            await this.saveScene();
-        }
-        const port = await this.previewManager_.startServer(
-            this.store_.scene, this.scriptLoader_, this.spineVersion_,
-        );
-        if (port === null) return null;
-        this.previewUrl_ = `http://localhost:${port}`;
-        this.updatePreviewUrl();
-        return this.previewUrl_;
+    private async initializeAllScripts_(): Promise<void> {
+        await this.extensionService_.initialize();
+        await this.scriptService_.initialize();
     }
 
-    async stopPreviewServer(): Promise<void> {
-        await this.previewManager_.stopPreview();
-        this.previewUrl_ = null;
-        this.updatePreviewUrl();
-    }
-
-    togglePreviewStats(enabled: boolean): void {
-        this.previewManager_.setShowStats(enabled);
-        if (this.previewUrl_) {
-            this.previewManager_.refreshFiles(
-                this.store_.scene, this.scriptLoader_, this.spineVersion_,
-            );
-        }
-    }
-
-    get previewStatsEnabled(): boolean {
-        return this.previewManager_.showStats;
-    }
-
-    private updatePreviewUrl(): void {
-        const urlEl = this.container_.querySelector('.es-preview-url') as HTMLElement;
-        if (!urlEl) return;
-        if (this.previewUrl_) {
-            urlEl.textContent = this.previewUrl_;
-            urlEl.dataset.url = this.previewUrl_;
-            urlEl.style.display = '';
-        } else {
-            urlEl.style.display = 'none';
-        }
-    }
-
-    async navigateToAsset(assetPath: string): Promise<void> {
-        await this.panelManager_.navigateToAsset(assetPath);
-    }
-
-    // =========================================================================
-    // Shell Commands
-    // =========================================================================
-
-    executeCommand(fullCommand: string): void {
-        this.executeShellCommand(fullCommand);
-    }
-
-    private async executeShellCommand(fullCommand: string): Promise<void> {
-        if (!this.projectPath_) {
-            this.appendOutput('Error: No project loaded\n', 'error');
-            return;
-        }
-
-        const shell = getEditorContext().shell;
-        if (!shell) {
-            this.appendOutput('Error: Shell not available\n', 'error');
-            return;
-        }
-
-        const projectDir = this.projectPath_.replace(/[/\\][^/\\]+$/, '');
-
-        this.showPanel('output');
-
-        const parts = fullCommand.split(/\s+/);
-        const cmd = parts[0];
-        const args = parts.slice(1);
-
-        this.appendOutput(`> ${fullCommand}\n`, 'command');
-
-        try {
-            const result = await shell.execute(cmd, args, projectDir, (stream: string, data: string) => {
-                this.appendOutput(data + '\n', stream === 'stderr' ? 'stderr' : 'stdout');
-            });
-
-            if (result.code !== 0) {
-                this.appendOutput(`Process exited with code ${result.code}\n`, 'error');
-            } else {
-                this.appendOutput(`Done.\n`, 'success');
-            }
-        } catch (err) {
-            this.appendOutput(`Error: ${err}\n`, 'error');
-        }
-    }
-
-    private installConsoleCapture(): void {
-        const original = {
-            log: console.log.bind(console),
-            info: console.info.bind(console),
-            warn: console.warn.bind(console),
-            error: console.error.bind(console),
-        };
-
-        const formatArg = (a: unknown): string => {
-            if (typeof a === 'string') return a;
-            if (a instanceof Error) return `${a.name}: ${a.message}`;
-            return JSON.stringify(a, null, 2) ?? String(a);
-        };
-        const formatArgs = (args: unknown[]) => args.map(formatArg).join(' ');
-
-        const cleanStack = (raw: string | undefined): string => {
-            if (!raw) return '';
-            return raw.split('\n')
-                .filter(line => {
-                    const t = line.trim();
-                    if (!t || t === 'Error') return false;
-                    if (t.includes('/editor/dist/')) return false;
-                    return true;
-                })
-                .map(line => line
-                    .replace(/https?:\/\/[^/]+\/@fs/g, '')
-                    .replace(/blob:https?:\/\/[^/]+\/[a-f0-9-]+/g, '<extension>')
-                )
-                .join('\n');
-        };
-
-        const INTERNAL_PREFIXES = [
-            '[TAURI]', '[INFO]', 'File change:',
-        ];
-
-        const forward = (type: 'stdout' | 'stderr' | 'error', args: unknown[], stack?: string) => {
-            const first = typeof args[0] === 'string' ? args[0] : '';
-            if (INTERNAL_PREFIXES.some(p => first.startsWith(p))) return;
-
-            let text = formatArgs(args);
-            if (stack) {
-                text += '\n' + stack;
-            }
-            this.appendOutput(text + '\n', type);
-        };
-
-        console.log = (...args) => { original.log(...args); forward('stdout', args); };
-        console.info = (...args) => { original.info(...args); forward('stdout', args); };
-        console.warn = (...args) => { original.warn(...args); forward('stderr', args, cleanStack(new Error().stack)); };
-        console.error = (...args) => { original.error(...args); forward('error', args, cleanStack(new Error().stack)); };
-    }
-
-    // =========================================================================
-    // Layout
-    // =========================================================================
-
-    private setupLayout(): void {
+    private setupLayout_(): void {
         this.container_.className = 'es-editor';
         this.container_.innerHTML = `
             <div class="es-editor-menubar">
@@ -1006,16 +274,24 @@ export class Editor {
             this.container_, this.dockLayout_, this.store_,
             {
                 projectPath: this.projectPath_ ?? undefined,
-                onOpenScene: (scenePath) => this.openSceneFromPath(scenePath),
+                onOpenScene: (scenePath) => this.sceneService_.openSceneFromPath(scenePath),
             },
         );
 
-        setEditorInstance(this);
+        this.navigationService_.setDockLayout(this.dockLayout_);
+        this.navigationService_.setContentDrawer(this.contentDrawer_);
+        this.extensionService_.setDockLayout(this.dockLayout_);
 
-        if (this.projectPath_) {
-            const projectDir = this.projectPath_.replace(/[/\\][^/\\]+$/, '');
-            getGlobalPathResolver().setProjectDir(projectDir);
-        }
+        this.previewService_ = new PreviewService(
+            this.projectPath_, this.store_, this.scriptService_, this.spineService_,
+            this.container_, () => this.sceneService_.saveScene(),
+        );
+        this.sceneService_.setPreviewService(this.previewService_);
+        getEditorContainer().provide(PREVIEW_SERVICE, 'default', this.previewService_);
+
+        this.projectService_.initializeProjectDir();
+
+        setEditorInstance(this);
 
         this.contextMenuHandler_ = (e) => { e.preventDefault(); };
         this.container_.addEventListener('contextmenu', this.contextMenuHandler_);
@@ -1033,20 +309,20 @@ export class Editor {
 
         const statsCb = this.container_.querySelector('.es-preview-stats-cb') as HTMLInputElement;
         statsCb?.addEventListener('change', () => {
-            this.togglePreviewStats(statsCb.checked);
+            this.previewService_.togglePreviewStats(statsCb.checked);
         });
 
-        this.menuManager_.setupToolbarEvents(this.container_, () => this.startPreview());
-        this.setupEscapeHandler();
+        this.menuManager_.setupToolbarEvents(this.container_, () => this.previewService_.startPreview());
+        this.setupEscapeHandler_();
         this.store_.subscribe(() => this.menuManager_.updateToolbarState(this.container_));
         this.store_.subscribe(() => {
             this.menuManager_.updateStatusbar();
-            this.updateSceneNameDisplay();
+            this.updateSceneNameDisplay_();
         });
-        this.installConsoleCapture();
+        this.outputService_.installConsoleCapture();
     }
 
-    private updateSceneNameDisplay(): void {
+    private updateSceneNameDisplay_(): void {
         const el = this.container_.querySelector('.es-menubar-scene-name');
         if (!el) return;
         const filePath = this.store_.filePath;
@@ -1059,33 +335,7 @@ export class Editor {
         }
     }
 
-    private async showUnsavedChangesPrompt(): Promise<'save' | 'discard' | 'cancel'> {
-        return new Promise((resolve) => {
-            let resolved = false;
-            showDialog({
-                title: 'Unsaved Changes',
-                content: 'You have unsaved changes. Save before continuing?',
-                buttons: [
-                    { label: 'Cancel', role: 'cancel' },
-                    {
-                        label: "Don't Save", role: 'custom',
-                        onClick: () => { resolved = true; resolve('discard'); },
-                    },
-                    {
-                        label: 'Save', role: 'confirm', primary: true,
-                        onClick: () => { resolved = true; resolve('save'); },
-                    },
-                ],
-                closeOnEscape: true,
-            }).then((result) => {
-                if (!resolved) {
-                    resolve(result.action === 'confirm' ? 'save' : 'cancel');
-                }
-            });
-        });
-    }
-
-    private setupEscapeHandler(): void {
+    private setupEscapeHandler_(): void {
         this.escapeHandler_ = (e: KeyboardEvent) => {
             if (e.key !== 'Escape') return;
             if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
@@ -1104,11 +354,8 @@ export class Editor {
                 return;
             }
 
-            if (this.addressableWindow_) {
-                this.addressableWindow_.panel.dispose();
-                this.addressableWindow_.element.remove();
-                document.removeEventListener('keydown', this.addressableWindow_.keyHandler);
-                this.addressableWindow_ = null;
+            if (hasAddressableWindow()) {
+                closeAddressableWindow();
                 return;
             }
 
@@ -1119,81 +366,18 @@ export class Editor {
         document.addEventListener('keydown', this.escapeHandler_);
     }
 
-    get windowManager(): WindowManager | null {
-        return this.windowManager_;
-    }
-
-    appendOutput(text: string, type: 'command' | 'stdout' | 'stderr' | 'error' | 'success'): void {
-        this.panelManager_.appendOutput(text, type);
-        this.mainWindowBridge_?.broadcastOutput(text, type);
-    }
-
-    private initMultiWindow(): void {
-        if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
-            this.mainWindowBridge_ = new MainWindowBridge(this.store_);
-            this.mainWindowBridge_.start();
-            this.windowManager_ = new WindowManager();
-            this.windowManager_.setProjectPath(this.projectPath_);
-
-            if (this.dockLayout_) {
-                const bridge = this.mainWindowBridge_;
-                this.dockLayout_.setDetachContext({
-                    handler: this.windowManager_,
-                    getPreviewUrl: () => this.startPreviewServer(),
-                    onPanelClosed: (cb) => bridge.onPanelClosed(cb),
-                });
-            }
-
-            this.setupCloseHandler();
-        }
-    }
-
-    private setupCloseHandler(): void {
-        import('@tauri-apps/api/window').then(async ({ getCurrentWindow }) => {
-            const mainWindow = getCurrentWindow();
-            this.closeUnlisten_ = await mainWindow.onCloseRequested(async (event) => {
-                if (!this.store_.isDirty) return;
-                event.preventDefault();
-                try {
-                    const result = await this.showUnsavedChangesPrompt();
-                    if (result === 'cancel') return;
-                    if (result === 'save') await this.saveScene();
-                } catch (e) {
-                    console.error('Close handler error:', e);
-                }
-                mainWindow.destroy();
-            });
-        });
-    }
-
-    dispose(): void {
-        this.closeUnlisten_?.();
-        this.closeUnlisten_ = null;
-        if (this.contextMenuHandler_) {
-            this.container_.removeEventListener('contextmenu', this.contextMenuHandler_);
-            this.contextMenuHandler_ = null;
-        }
-        if (this.addressableWindow_) {
-            this.addressableWindow_.panel.dispose();
-            this.addressableWindow_.element.remove();
-            document.removeEventListener('keydown', this.addressableWindow_.keyHandler);
-            this.addressableWindow_ = null;
-        }
-        this.stopProfilerStats();
-        if (this.escapeHandler_) {
-            document.removeEventListener('keydown', this.escapeHandler_);
-            this.escapeHandler_ = null;
-        }
-        this.windowManager_?.closeAll();
-        this.mainWindowBridge_?.dispose();
-        this.contentDrawer_?.dispose();
-        this.menuManager_.dispose();
-        this.scriptLoader_?.dispose();
-        this.extensionLoader_?.dispose();
-        this.dockLayout_?.dispose();
-        this.panelManager_.dispose();
-        this.previewManager_.dispose();
-        clearEditorAPI();
+    private initMultiWindow_(): void {
+        this.multiWindowService_.initialize(
+            this.dockLayout_,
+            this.outputService_,
+            this.profilerService_,
+            () => this.previewService_.startPreviewServer(),
+            async () => {
+                const result = await this.sceneService_.showUnsavedChangesPrompt_();
+                if (result === 'cancel') return;
+                if (result === 'save') await this.sceneService_.saveScene();
+            },
+        );
     }
 }
 

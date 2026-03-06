@@ -13,6 +13,7 @@ import {
     importDroppedFiles, saveDroppedEntityAsPrefab,
 } from './AssetContextMenu';
 import { DisposableStore } from '../../utils/Disposable';
+import { getNavigationService } from '../../services';
 
 export class ContentBrowserPanel implements ContentBrowserState {
     container: HTMLElement;
@@ -39,6 +40,7 @@ export class ContentBrowserPanel implements ContentBrowserState {
     private refreshing_ = false;
     private refreshPending_ = false;
     private thumbnailCache_ = new ThumbnailCache();
+    private disposeNavReg_: (() => void) | null = null;
 
     constructor(container: HTMLElement, store: EditorStore, options?: ContentBrowserOptions) {
         this.container = container;
@@ -83,9 +85,11 @@ export class ContentBrowserPanel implements ContentBrowserState {
         this.updateViewToggleButton();
         this.setupEvents();
         this.initialize();
+        this.disposeNavReg_ = getNavigationService().registerNavigateToAsset(async (path) => { this.navigateToAsset(path); });
     }
 
     dispose(): void {
+        this.disposeNavReg_?.();
         this.disposables_.dispose();
     }
 

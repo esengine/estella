@@ -6,7 +6,6 @@ export const corePanelsPlugin: EditorPlugin = {
     register(ctx: EditorPluginContext) {
         registerBuiltinPanels(ctx.registrar, {
             projectPath: ctx.projectPath ?? undefined,
-            onOpenScene: ctx.onOpenScene,
         });
     },
 };

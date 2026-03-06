@@ -9,7 +9,8 @@ import { icons } from '../utils/icons';
 import { getAssetDatabase, type AssetEntry } from '../asset/AssetDatabase';
 import type { AssetGroupService, AssetGroupDef, BundleMode } from '../asset/AssetGroup';
 import { AssetDependencyAnalyzer } from '../asset/AssetDependencyAnalyzer';
-import { getEditorInstance, getEditorContext } from '../context/EditorContext';
+import { getEditorContext } from '../context/EditorContext';
+import { getNavigationService, getProjectService } from '../services';
 import { showInputDialog, showConfirmDialog } from '../ui/dialog';
 import { showContextMenu, type ContextMenuItem } from '../ui/ContextMenu';
 import { getContextMenuItems, type ContextMenuContext } from '../ui/ContextMenuRegistry';
@@ -565,7 +566,7 @@ export class AddressablePanel implements PanelInstance {
                 if (!uuid) return;
                 const entry = db.getEntry(uuid);
                 if (entry) {
-                    getEditorInstance()?.navigateToAsset(entry.path);
+                    getNavigationService().navigateToAsset(entry.path);
                 }
             });
         });
@@ -618,7 +619,7 @@ export class AddressablePanel implements PanelInstance {
         if (this.analyzing_) return;
         const db = getAssetDatabase();
         const fs = getEditorContext().fs;
-        const projectFilePath = getEditorInstance()?.projectPath;
+        const projectFilePath = getProjectService().projectPath;
         if (!fs || !projectFilePath) {
             showErrorToast('No project loaded');
             return;
@@ -828,7 +829,7 @@ export class AddressablePanel implements PanelInstance {
                 {
                     label: 'Reveal in Content Browser',
                     onClick: () => {
-                        getEditorInstance()?.navigateToAsset(entry.path);
+                        getNavigationService().navigateToAsset(entry.path);
                     },
                 },
             ],
@@ -879,7 +880,7 @@ export class AddressablePanel implements PanelInstance {
     }
 
     private getProjectDir(): string | null {
-        const projectPath = getEditorInstance()?.projectPath;
+        const projectPath = getProjectService().projectPath;
         if (!projectPath) return null;
         return projectPath.replace(/[/\\][^/\\]+$/, '');
     }

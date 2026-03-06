@@ -4,7 +4,7 @@
  */
 
 import { icons } from '../../utils/icons';
-import { getEditorInstance } from '../../context/EditorContext';
+import { getSceneService } from '../../services';
 import { getNativeFS, getFileExtension, formatFileSize, formatDate, escapeHtml, renderError } from './InspectorHelpers';
 
 export async function renderScriptInspector(container: HTMLElement, path: string): Promise<void> {
@@ -137,10 +137,7 @@ export async function renderSceneInspector(container: HTMLElement, path: string)
 
     const openBtn = actionsWrapper.querySelector('.es-btn-open-scene');
     openBtn?.addEventListener('click', () => {
-        const editor = getEditorInstance();
-        if (editor && typeof editor.openSceneFromPath === 'function') {
-            editor.openSceneFromPath(path);
-        }
+        getSceneService().openSceneFromPath(path);
     });
 
     container.appendChild(actionsWrapper);

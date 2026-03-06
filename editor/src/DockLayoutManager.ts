@@ -31,16 +31,14 @@ class EditorPanelRenderer implements IContentRenderer {
     private readonly element_: HTMLElement;
     private panelId_: string;
     private panelManager_: PanelManager;
-    private store_: EditorStore;
 
     get element(): HTMLElement {
         return this.element_;
     }
 
-    constructor(panelId: string, panelManager: PanelManager, store: EditorStore) {
+    constructor(panelId: string, panelManager: PanelManager) {
         this.panelId_ = panelId;
         this.panelManager_ = panelManager;
-        this.store_ = store;
         this.element_ = document.createElement('div');
         this.element_.className = 'es-panel-container';
         this.element_.dataset.panelId = panelId;
@@ -50,7 +48,7 @@ class EditorPanelRenderer implements IContentRenderer {
     }
 
     init(_params: GroupPanelPartInitParameters): void {
-        this.panelManager_.createPanelInContainer(this.panelId_, this.element_, this.store_);
+        this.panelManager_.createPanelInContainer(this.panelId_, this.element_);
     }
 
     dispose(): void {
@@ -92,7 +90,6 @@ export class DockLayoutManager {
                 return new EditorPanelRenderer(
                     options.id,
                     this.panelManager_,
-                    this.store_,
                 );
             },
             disableFloatingGroups: true,

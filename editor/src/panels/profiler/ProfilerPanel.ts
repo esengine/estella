@@ -1,7 +1,7 @@
 import { FrameHistory, type FrameSnapshot } from 'esengine';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { CHANNEL_PROFILER_STATS, type ProfilerStatsMessage } from '../../multiwindow/protocol';
-import { getEditorInstance } from '../../context/EditorContext';
+import { getProfilerService } from '../../services';
 import type { PanelInstance } from '../PanelRegistry';
 import { FrameTimeline } from './FrameTimeline';
 import { PhaseWaterfall } from './PhaseWaterfall';
@@ -38,7 +38,7 @@ export class ProfilerPanel implements PanelInstance {
         this.container_ = container;
         this.buildUI();
         this.startListening();
-        getEditorInstance()?.startProfilerStats();
+        getProfilerService().startProfilerStats();
     }
 
     dispose(): void {
@@ -50,7 +50,7 @@ export class ProfilerPanel implements PanelInstance {
         this.waterfall_?.dispose();
         this.systemTable_?.dispose();
         this.container_.innerHTML = '';
-        getEditorInstance()?.stopProfilerStats();
+        getProfilerService().stopProfilerStats();
     }
 
     private buildUI(): void {

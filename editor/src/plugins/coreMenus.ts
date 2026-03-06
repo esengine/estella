@@ -5,7 +5,7 @@ import { registerBuiltinStatusbarItems } from '../menus/builtinStatusbar';
 export const coreMenusPlugin: EditorPlugin = {
     name: 'core-menus',
     register(ctx: EditorPluginContext) {
-        registerBuiltinMenus(ctx.registrar, ctx.editor);
+        registerBuiltinMenus(ctx.registrar);
     },
 };
 
@@ -13,6 +13,6 @@ export const coreStatusbarPlugin: EditorPlugin = {
     name: 'core-statusbar',
     dependencies: ['core-menus', 'core-panels'],
     register(ctx: EditorPluginContext) {
-        registerBuiltinStatusbarItems(ctx.registrar, ctx.editor);
+        registerBuiltinStatusbarItems(ctx.registrar);
     },
 };

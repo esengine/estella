@@ -5,7 +5,8 @@ import type { Entity, World } from 'esengine';
 import { getEditorStore, type SceneSnapshot } from '../store/EditorStore';
 import { getSharedRenderContext } from '../renderer/SharedRenderContext';
 import { ScriptInjector } from './ScriptInjector';
-import { getEditorInstance, getEditorContext } from '../context/EditorContext';
+import { getEditorContext } from '../context/EditorContext';
+import { getScriptService } from './index';
 import { getAssetDatabase, isUUID } from '../asset';
 
 export interface EntityComponentData {
@@ -270,10 +271,7 @@ export class PlayModeService {
         const app = ctx.app_;
         if (!app) return;
 
-        const editor = getEditorInstance();
-        if (!editor) return;
-
-        const compiledCode = editor.getCompiledScripts();
+        const compiledCode = getScriptService().getCompiledScripts();
         if (!compiledCode) return;
 
         this.scriptInjector_ = new ScriptInjector();

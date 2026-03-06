@@ -4,7 +4,7 @@ import type { GizmoContext } from '../../gizmos';
 import { GizmoManager } from '../../gizmos';
 import { ColliderOverlay } from '../../gizmos/ColliderOverlay';
 import { getSettingsValue } from '../../settings/SettingsRegistry';
-import { getEditorInstance } from '../../context/EditorContext';
+import { getClipboardService } from '../../services';
 import type { CameraController } from './CameraController';
 import type { GizmoToolbar } from './GizmoToolbar';
 import type { MarqueeSelection, BoundsProvider } from './MarqueeSelection';
@@ -93,7 +93,7 @@ export class SceneViewInput {
 
             if ((e.key === 'd' || e.key === 'D') && (e.ctrlKey || e.metaKey)) {
                 e.preventDefault();
-                getEditorInstance()?.duplicateSelected();
+                getClipboardService().duplicateSelected();
                 return;
             }
 

@@ -47,3 +47,19 @@ export interface ComponentLifecycle {
     remove(world: any, entity: any, entityId: number): void;
 }
 export const COMPONENT_LIFECYCLE = new ServiceToken<ComponentLifecycle>('COMPONENT_LIFECYCLE');
+
+export const SCENE_SERVICE = new ServiceToken<any>('SCENE_SERVICE');
+export const CLIPBOARD_SERVICE = new ServiceToken<any>('CLIPBOARD_SERVICE');
+export const PREVIEW_SERVICE = new ServiceToken<any>('PREVIEW_SERVICE');
+export const SCRIPT_SERVICE = new ServiceToken<any>('SCRIPT_SERVICE');
+export const EXTENSION_SERVICE = new ServiceToken<any>('EXTENSION_SERVICE');
+export const SHELL_SERVICE = new ServiceToken<any>('SHELL_SERVICE');
+export const PROFILER_SERVICE = new ServiceToken<any>('PROFILER_SERVICE');
+export const LAYOUT_SERVICE = new ServiceToken<any>('LAYOUT_SERVICE');
+export const NAVIGATION_SERVICE = new ServiceToken<any>('NAVIGATION_SERVICE');
+export const OUTPUT_SERVICE = new ServiceToken<any>('OUTPUT_SERVICE');
+export const SPINE_SERVICE = new ServiceToken<any>('SPINE_SERVICE');
+export const RUNTIME_SERVICE = new ServiceToken<any>('RUNTIME_SERVICE');
+export const MULTI_WINDOW_SERVICE = new ServiceToken<any>('MULTI_WINDOW_SERVICE');
+export const PROJECT_SERVICE = new ServiceToken<any>('PROJECT_SERVICE');
+export const PLUGIN_MANAGER = new ServiceToken<any>('PLUGIN_MANAGER');

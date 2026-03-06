@@ -12,7 +12,8 @@ import {
     createDefaultBuildConfig,
     createDefaultBuildSettings,
 } from '../types/BuildTypes';
-import { getEditorContext, getEditorInstance } from '../context/EditorContext';
+import { getEditorContext } from '../context/EditorContext';
+import { getEditorStore } from '../store';
 import { type BuildResult } from './BuildService';
 import { showProgressToast, dismissToast, showToast } from '../ui/Toast';
 import { BuildHistory, formatBuildTime, formatBuildDuration, getBuildStatusIcon, type BuildHistoryEntry } from './BuildHistory';
@@ -725,8 +726,7 @@ export class BuildSettingsDialog {
 
             case 'add-current-scene':
                 if (config) {
-                    const editor = getEditorInstance();
-                    const scenePath = editor?.currentScenePath;
+                    const scenePath = getEditorStore().filePath;
                     if (scenePath) {
                         const relativePath = this.toRelativePath(scenePath);
                         if (!config.scenes.includes(relativePath)) {

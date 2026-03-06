@@ -1,9 +1,10 @@
 import type { StatusbarItemDescriptor } from './MenuRegistry';
 import { getPanelsByPosition } from '../panels/PanelRegistry';
 import { icons } from '../utils/icons';
-import type { Editor } from '../Editor';
 import type { PluginRegistrar } from '../container';
 import { STATUSBAR_ITEM } from '../container/tokens';
+import { getEditorStore } from '../store';
+import { getNavigationService, getShellService, getProjectService } from '../services';
 
 let statusMessageTimer_: ReturnType<typeof setTimeout> | null = null;
 let statusMessageEl_: HTMLElement | null = null;
@@ -18,7 +19,7 @@ export function showStatusBarMessage(text: string, durationMs = 2000): void {
     }, durationMs);
 }
 
-export function registerBuiltinStatusbarItems(registrar: PluginRegistrar, editor: Editor): void {
+export function registerBuiltinStatusbarItems(registrar: PluginRegistrar): void {
     const registerStatusbarItem = (d: StatusbarItemDescriptor) => registrar.provide(STATUSBAR_ITEM, d.id, d);
     const bottomPanels = getPanelsByPosition('bottom');
 
@@ -38,7 +39,7 @@ export function registerBuiltinStatusbarItems(registrar: PluginRegistrar, editor
                     btn.innerHTML += icons.chevronDown(10);
                 }
 
-                btn.addEventListener('click', () => editor.showPanel(panel.id));
+                btn.addEventListener('click', () => getNavigationService().showPanel(panel.id));
                 container.appendChild(btn);
 
                 return {
@@ -67,7 +68,7 @@ export function registerBuiltinStatusbarItems(registrar: PluginRegistrar, editor
                 if (e.key === 'Enter') {
                     const command = input.value.trim();
                     if (command) {
-                        editor.executeCommand(command);
+                        getShellService().executeCommand(command);
                         input.value = '';
                     }
                 }
@@ -103,8 +104,9 @@ export function registerBuiltinStatusbarItems(registrar: PluginRegistrar, editor
             undoBtn.title = 'Undo';
             undoBtn.innerHTML = '<span>Undo</span>';
             undoBtn.addEventListener('click', () => {
-                const desc = editor.store.undoDescription;
-                editor.store.undo();
+                const store = getEditorStore();
+                const desc = store.undoDescription;
+                store.undo();
                 if (desc) showStatusBarMessage(`Undo: ${desc}`);
             });
 
@@ -112,8 +114,9 @@ export function registerBuiltinStatusbarItems(registrar: PluginRegistrar, editor
             redoBtn.title = 'Redo';
             redoBtn.innerHTML = '<span>Redo</span>';
             redoBtn.addEventListener('click', () => {
-                const desc = editor.store.redoDescription;
-                editor.store.redo();
+                const store = getEditorStore();
+                const desc = store.redoDescription;
+                store.redo();
                 if (desc) showStatusBarMessage(`Redo: ${desc}`);
             });
 
@@ -124,12 +127,13 @@ export function registerBuiltinStatusbarItems(registrar: PluginRegistrar, editor
             return {
                 dispose() { wrapper.remove(); },
                 update() {
-                    const undoDesc = editor.store.undoDescription;
-                    const redoDesc = editor.store.redoDescription;
+                    const store = getEditorStore();
+                    const undoDesc = store.undoDescription;
+                    const redoDesc = store.redoDescription;
                     undoBtn.title = undoDesc ? `Undo: ${undoDesc}` : 'Undo';
                     redoBtn.title = redoDesc ? `Redo: ${redoDesc}` : 'Redo';
-                    undoBtn.disabled = !editor.store.canUndo;
-                    redoBtn.disabled = !editor.store.canRedo;
+                    undoBtn.disabled = !store.canUndo;
+                    redoBtn.disabled = !store.canRedo;
                 },
             };
         },
@@ -146,12 +150,12 @@ export function registerBuiltinStatusbarItems(registrar: PluginRegistrar, editor
             const notifBtn = document.createElement('button');
             notifBtn.title = 'Notifications';
             notifBtn.innerHTML = icons.list(12);
-            notifBtn.addEventListener('click', () => editor.showPanel('output'));
+            notifBtn.addEventListener('click', () => getNavigationService().showPanel('output'));
 
             const settingsBtn = document.createElement('button');
             settingsBtn.title = 'Settings';
             settingsBtn.innerHTML = icons.settings(12);
-            settingsBtn.addEventListener('click', () => editor.showSettings());
+            settingsBtn.addEventListener('click', () => getProjectService().showSettings());
 
             wrapper.appendChild(notifBtn);
             wrapper.appendChild(settingsBtn);
@@ -180,9 +184,10 @@ export function registerBuiltinStatusbarItems(registrar: PluginRegistrar, editor
             return {
                 dispose() { container.innerHTML = ''; },
                 update() {
+                    const store = getEditorStore();
                     const saved = container.querySelector('.es-status-saved') as HTMLElement;
                     const unsaved = container.querySelector('.es-status-unsaved') as HTMLElement;
-                    if (editor.store.isDirty) {
+                    if (store.isDirty) {
                         if (saved) saved.style.display = 'none';
                         if (unsaved) unsaved.style.display = '';
                     } else {

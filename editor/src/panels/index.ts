@@ -14,7 +14,6 @@ export {
     type PanelDescriptor,
     type PanelFactory,
     type PanelInstance,
-    type PanelHooks,
     type PanelFactoryResult,
     registerPanel,
     getPanel,

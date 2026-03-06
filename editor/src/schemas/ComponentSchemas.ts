@@ -33,6 +33,7 @@ export function inferPropertyType(value: unknown): string {
         'x' in value && 'y' in value && 'z' in value && !('w' in value)) return 'vec3';
     if (typeof value === 'object' && value !== null) {
         if ('r' in value && 'g' in value && 'b' in value && 'a' in value) return 'color';
+        if ('left' in value && 'top' in value && 'right' in value && 'bottom' in value) return 'padding';
         if ('x' in value && 'y' in value && 'z' in value && 'w' in value) return 'vec4';
     }
     return 'string';

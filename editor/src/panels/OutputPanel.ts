@@ -1,6 +1,7 @@
 import type { PanelInstance } from './PanelRegistry';
 import { icons } from '../utils/icons';
 import { DisposableStore } from '../utils/Disposable';
+import { getOutputService } from '../services';
 
 type OutputType = 'command' | 'stdout' | 'stderr' | 'error' | 'success';
 
@@ -47,10 +48,12 @@ export class OutputPanel implements PanelInstance {
     private filterBtns_ = new Map<OutputType, HTMLElement>();
     private scrollBtn_: HTMLElement | null = null;
     private searchInput_: HTMLElement | null = null;
+    private disposeOutputReg_: (() => void) | null = null;
 
     constructor(container: HTMLElement) {
         this.container_ = container;
         this.render();
+        this.disposeOutputReg_ = getOutputService().registerOutputHandler((text, type) => this.appendOutput(text, type));
     }
 
     appendOutput(text: string, type: OutputType): void {
@@ -155,6 +158,7 @@ export class OutputPanel implements PanelInstance {
     }
 
     dispose(): void {
+        this.disposeOutputReg_?.();
         this.disposables_.dispose();
         this.container_.innerHTML = '';
     }

@@ -1,8 +1,3 @@
-import type { App } from 'esengine';
-import type { SpineModuleController } from 'esengine/spine';
-import type { EditorStore } from '../store/EditorStore';
-import type { EditorBridge } from '../bridge/EditorBridge';
-import type { EditorAssetServer } from '../asset/EditorAssetServer';
 import { getEditorContainer } from '../container';
 import { PANEL } from '../container/tokens';
 
@@ -19,26 +14,11 @@ export interface PanelDescriptor {
     factory: PanelFactory;
 }
 
-export interface PanelHooks {
-    setBridge?: (bridge: EditorBridge) => void;
-    setApp?: (app: App | null) => void;
-    resize?: () => void;
-    getAssetServer?: () => EditorAssetServer | null;
-    navigateToAsset?: (path: string) => Promise<void>;
-    appendOutput?: (text: string, type: string) => void;
-    setSpineController?: (ctrl: SpineModuleController | null) => void;
-    getSpineSkeletonInfo?: (entityId: number) => { animations: string[]; skins: string[] } | null;
-    onSpineInstanceReady?: (listener: (entityId: number) => void) => () => void;
-    saveAsset?: () => Promise<boolean>;
-    isDirty?: () => boolean;
-}
-
 export interface PanelFactoryResult {
     instance: PanelInstance;
-    hooks?: PanelHooks;
 }
 
-export type PanelFactory = (container: HTMLElement, store: EditorStore) => PanelFactoryResult;
+export type PanelFactory = (container: HTMLElement) => PanelFactoryResult;
 
 export interface PanelInstance {
     dispose(): void;

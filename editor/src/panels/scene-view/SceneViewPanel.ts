@@ -23,6 +23,7 @@ import { EntityDropHandler } from './EntityDropHandler';
 import { SceneViewInput } from './SceneViewInput';
 import { TilemapOverlay } from '../../gizmos/TilemapOverlay';
 import { DisposableStore } from '../../utils/Disposable';
+import { getRuntimeService, getSpineService, getNavigationService } from '../../services';
 
 const CAMERA_COLORS = [
     '#ffaa00',
@@ -72,6 +73,10 @@ export class SceneViewPanel {
 
     private fpsCollector_ = new StatsCollector();
     private lastFrameTime_ = 0;
+
+    private disposeRuntimeReg_: (() => void) | null = null;
+    private disposeSpineReg_: (() => void) | null = null;
+    private disposeAssetServerReg_: (() => void) | null = null;
 
     private static readonly MAX_CACHE_SIZE = 100;
     private textureCache_: Map<string, HTMLImageElement | null> = new Map();
@@ -176,6 +181,21 @@ export class SceneViewPanel {
         } else {
             this.startContinuousRender();
         }
+
+        this.disposeRuntimeReg_ = getRuntimeService().registerAppListener((app, bridge) => {
+            this.setBridge(bridge);
+            this.setApp(app);
+        });
+
+        this.disposeSpineReg_ = getSpineService().registerSpinePanel({
+            setSpineController: (ctrl) => this.setSpineController(ctrl),
+            getSpineSkeletonInfo: (id) => this.getSpineSkeletonInfo(id),
+            onSpineInstanceReady: (listener) => this.onSpineInstanceReady(listener),
+        });
+
+        this.disposeAssetServerReg_ = getNavigationService().registerAssetServerProvider(
+            () => this.assetServer
+        );
     }
 
     private getEntityBoundsWithSpine(entityData: EntityData): { width: number; height: number; offsetX?: number; offsetY?: number } {
@@ -267,6 +287,9 @@ export class SceneViewPanel {
 
     dispose(): void {
         this.continuousRender_ = false;
+        this.disposeRuntimeReg_?.();
+        this.disposeSpineReg_?.();
+        this.disposeAssetServerReg_?.();
         this.disposables_.dispose();
         getSharedRenderContext().setSceneViewportSize(0, 0);
     }

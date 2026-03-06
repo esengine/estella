@@ -4,7 +4,7 @@ import { icons } from '../../utils/icons';
 import { getInitialComponentData } from '../../schemas/ComponentSchemas';
 import { showContextMenu, type ContextMenuItem } from '../../ui/ContextMenu';
 import { getContextMenuItems, type ContextMenuContext } from '../../ui/ContextMenuRegistry';
-import { getEditorInstance } from '../../context/EditorContext';
+import { getClipboardService, getProjectService } from '../../services';
 import { generateUniqueName } from '../../utils/naming';
 import { showInputDialog } from '../../ui/dialog';
 import { joinPath, getParentDir } from '../../utils/path';
@@ -15,7 +15,7 @@ import type { HierarchyState } from './HierarchyTypes';
 export function showEntityContextMenu(state: HierarchyState, x: number, y: number, entity: Entity | null): void {
     const entityData = entity !== null ? state.store.getEntityData(entity as number) : null;
     const has = (type: string) => entityData?.components.some(c => c.type === type) ?? false;
-    const editor = getEditorInstance();
+    const clipboard = getClipboardService();
     const multiSelected = state.store.selectedEntities.size > 1;
 
     const createChildren: ContextMenuItem[] = [
@@ -80,17 +80,17 @@ export function showEntityContextMenu(state: HierarchyState, x: number, y: numbe
                     duplicateEntity(state, entity);
                 }
             } },
-            { label: 'Copy', icon: icons.copy(14), onClick: () => { state.store.selectEntity(entity); editor?.copySelected(); } },
+            { label: 'Copy', icon: icons.copy(14), onClick: () => { state.store.selectEntity(entity); clipboard.copySelected(); } },
             { label: 'Cut', icon: icons.copy(14), onClick: () => {
                 state.store.selectEntity(entity);
-                editor?.copySelected();
+                clipboard.copySelected();
                 if (multiSelected) {
                     state.store.deleteSelectedEntities();
                 } else {
                     state.store.deleteEntity(entity);
                 }
             } },
-            { label: 'Paste', icon: icons.template(14), disabled: !editor?.hasClipboard(), onClick: () => { state.store.selectEntity(entity); editor?.pasteEntity(); } },
+            { label: 'Paste', icon: icons.template(14), disabled: !clipboard.hasClipboard(), onClick: () => { state.store.selectEntity(entity); clipboard.pasteEntity(); } },
             { label: 'Delete', icon: icons.trash(14), onClick: () => {
                 if (multiSelected) {
                     state.store.deleteSelectedEntities();
@@ -105,7 +105,7 @@ export function showEntityContextMenu(state: HierarchyState, x: number, y: numbe
     items.push({ label: 'Create', icon: icons.plus(14), children: createChildren });
 
     if (entity === null) {
-        items.push({ label: 'Paste', icon: icons.template(14), disabled: !editor?.hasClipboard(), onClick: () => { editor?.pasteEntity(); } });
+        items.push({ label: 'Paste', icon: icons.template(14), disabled: !clipboard.hasClipboard(), onClick: () => { clipboard.pasteEntity(); } });
     }
 
     if (entity !== null) {
@@ -520,7 +520,7 @@ async function saveEntityAsPrefab(state: HierarchyState, entity: Entity): Promis
     const entityData = state.store.getEntityData(entity as number);
     if (!entityData) return;
 
-    const projectPath = getEditorInstance()?.projectPath;
+    const projectPath = getProjectService().projectPath;
     if (!projectPath) return;
 
     const projectDir = getParentDir(projectPath);

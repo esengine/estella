@@ -8,7 +8,8 @@ import { TimelineTrackList } from './TimelineTrackList';
 import { TimelineKeyframeArea, type TimelineAssetData, type TimelineTrackData } from './TimelineKeyframeArea';
 import { TimelineCurveEditor } from './TimelineCurveEditor';
 import { AddKeyframeCommand } from './TimelineCommands';
-import { getEditorContext, getEditorInstance } from '../../context/EditorContext';
+import { getEditorContext } from '../../context/EditorContext';
+import { getProjectService, getSceneService } from '../../services';
 import { getAssetDatabase as getAssetLibrary, isUUID } from '../../asset';
 import { DisposableStore } from '../../utils/Disposable';
 
@@ -34,6 +35,7 @@ export class TimelinePanel implements PanelInstance {
     private assetPath_: string | null = null;
     private dirty_ = false;
     private boundEntityId_: number | null = null;
+    private disposeDirtyReg_: (() => void) | null = null;
 
     constructor(container: HTMLElement, store: EditorStore) {
         this.container_ = container;
@@ -61,9 +63,14 @@ export class TimelinePanel implements PanelInstance {
         }));
 
         this.updateEmptyState();
+        this.disposeDirtyReg_ = getSceneService().registerDirtyChecker(() => ({
+            isDirty: this.isDirty,
+            save: () => this.saveAsset(),
+        }));
     }
 
     dispose(): void {
+        this.disposeDirtyReg_?.();
         this.stopPlayback();
         this.toolbar_?.dispose();
         this.trackList_?.dispose();
@@ -411,7 +418,7 @@ export class TimelinePanel implements PanelInstance {
             if (!resolved) return null;
             relativePath = resolved;
         }
-        const projectPath = getEditorInstance()?.projectPath;
+        const projectPath = getProjectService().projectPath;
         if (!projectPath) return null;
         const projectDir = projectPath.replace(/\\/g, '/').replace(/\/[^/]+$/, '');
         return `${projectDir}/${relativePath}`;

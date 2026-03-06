@@ -1,4 +1,4 @@
-import type { PanelHooks, PanelDescriptor } from './PanelRegistry';
+import type { PanelDescriptor } from './PanelRegistry';
 import type { PluginRegistrar } from '../container';
 import { PANEL } from '../container/tokens';
 import { HierarchyPanel } from './hierarchy/HierarchyPanel';
@@ -10,12 +10,12 @@ import { OutputPanel } from './OutputPanel';
 import { ProfilerPanel } from './profiler/ProfilerPanel';
 import { TimelinePanel } from './timeline/TimelinePanel';
 import { icons } from '../utils/icons';
+import { getEditorStore } from '../store';
 
 const PANEL_ICON_SIZE = 14;
 
 export interface BuiltinPanelOptions {
     projectPath?: string;
-    onOpenScene?: (path: string) => void;
 }
 
 export function registerBuiltinPanels(registrar: PluginRegistrar, options: BuiltinPanelOptions): void {
@@ -27,7 +27,7 @@ export function registerBuiltinPanels(registrar: PluginRegistrar, options: Built
         position: 'left',
         order: 0,
         defaultVisible: true,
-        factory: (c, s) => ({ instance: new HierarchyPanel(c, s) }),
+        factory: (c) => ({ instance: new HierarchyPanel(c, getEditorStore()) }),
     });
 
     registerPanel({
@@ -36,19 +36,7 @@ export function registerBuiltinPanels(registrar: PluginRegistrar, options: Built
         position: 'center',
         order: 0,
         defaultVisible: true,
-        factory: (c, s) => {
-            const panel = new SceneViewPanel(c, s, { projectPath: options.projectPath });
-            const hooks: PanelHooks = {
-                setBridge: (b) => panel.setBridge(b),
-                setApp: (a) => panel.setApp(a!),
-                resize: () => panel.resize(),
-                getAssetServer: () => panel.assetServer,
-                setSpineController: (ctrl) => panel.setSpineController(ctrl),
-                getSpineSkeletonInfo: (id) => panel.getSpineSkeletonInfo(id),
-                onSpineInstanceReady: (listener) => panel.onSpineInstanceReady(listener),
-            };
-            return { instance: panel, hooks };
-        },
+        factory: (c) => ({ instance: new SceneViewPanel(c, getEditorStore(), { projectPath: options.projectPath }) }),
     });
 
     registerPanel({
@@ -58,13 +46,7 @@ export function registerBuiltinPanels(registrar: PluginRegistrar, options: Built
         position: 'center',
         order: 2,
         defaultVisible: true,
-        factory: (c, s) => {
-            const panel = new GameViewPanel(c, s, { projectPath: options.projectPath });
-            const hooks: PanelHooks = {
-                resize: () => panel.resize(),
-            };
-            return { instance: panel, hooks };
-        },
+        factory: (c) => ({ instance: new GameViewPanel(c, getEditorStore(), { projectPath: options.projectPath }) }),
     });
 
     registerPanel({
@@ -74,7 +56,7 @@ export function registerBuiltinPanels(registrar: PluginRegistrar, options: Built
         position: 'right',
         order: 0,
         defaultVisible: true,
-        factory: (c, s) => ({ instance: new InspectorPanel(c, s) }),
+        factory: (c) => ({ instance: new InspectorPanel(c, getEditorStore()) }),
     });
 
     registerPanel({
@@ -84,15 +66,14 @@ export function registerBuiltinPanels(registrar: PluginRegistrar, options: Built
         position: 'bottom',
         order: 0,
         defaultVisible: true,
-        factory: (c, s) => {
-            const panel = new ContentBrowserPanel(c, s, {
-                projectPath: options.projectPath,
-                onOpenScene: options.onOpenScene,
-            });
-            const hooks: PanelHooks = {
-                navigateToAsset: (path) => panel.navigateToAsset(path),
+        factory: (c) => {
+            const { getSceneService } = require('../services');
+            return {
+                instance: new ContentBrowserPanel(c, getEditorStore(), {
+                    projectPath: options.projectPath,
+                    onOpenScene: (path: string) => getSceneService().openSceneFromPath(path),
+                }),
             };
-            return { instance: panel, hooks };
         },
     });
 
@@ -103,13 +84,7 @@ export function registerBuiltinPanels(registrar: PluginRegistrar, options: Built
         position: 'bottom',
         order: 1,
         defaultVisible: false,
-        factory: (c) => {
-            const panel = new OutputPanel(c);
-            const hooks: PanelHooks = {
-                appendOutput: (text, type) => panel.appendOutput(text, type as any),
-            };
-            return { instance: panel, hooks };
-        },
+        factory: (c) => ({ instance: new OutputPanel(c) }),
     });
 
     registerPanel({
@@ -119,15 +94,7 @@ export function registerBuiltinPanels(registrar: PluginRegistrar, options: Built
         position: 'bottom',
         order: 2,
         defaultVisible: false,
-        factory: (c, s) => {
-            const panel = new TimelinePanel(c, s);
-            const hooks: PanelHooks = {
-                resize: () => panel.resize(),
-                saveAsset: () => panel.saveAsset(),
-                isDirty: () => panel.isDirty,
-            };
-            return { instance: panel, hooks };
-        },
+        factory: (c) => ({ instance: new TimelinePanel(c, getEditorStore()) }),
     });
 
     registerPanel({
