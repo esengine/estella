@@ -20,6 +20,7 @@ export {
     wrapText,
     nextPowerOf2,
     ensureComponent,
+    makeInteractable,
     syncFillSpriteSize,
     layoutChildEntity,
     walkParentChain,
@@ -138,6 +139,8 @@ export {
     UIEventQueue,
     type UIEvent,
     type UIEventType,
+    type UIEventHandler,
+    type Unsubscribe,
 } from './UIEvents';
 
 // UI Camera Info Resource

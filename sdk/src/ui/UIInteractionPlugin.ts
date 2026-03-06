@@ -60,6 +60,7 @@ export class UIInteractionPlugin implements Plugin {
         const module = app.wasmModule as ESEngineModule;
         const registry = world.getCppRegistry() as CppRegistry;
         const events = new UIEventQueue();
+        events.setEntityValidator((e) => world.valid(e));
         app.insertResource(UIEvents, events);
 
         let hoveredEntity: Entity | null = null;
