@@ -385,7 +385,9 @@ export {
 
 export {
     type PluginRegistrar,
+    ServiceToken,
     EditorContainer,
+    setEditorContainer,
     getEditorContainer,
 } from './container';
 
@@ -396,6 +398,8 @@ export * as tokens from './container/tokens';
 // =============================================================================
 
 export type { EditorPlugin, EditorPluginContext } from './plugins/EditorPlugin';
+export { builtinPlugins } from './plugins';
+export { OutputService, getOutputService } from './services';
 
 // =============================================================================
 // SDK Re-exports

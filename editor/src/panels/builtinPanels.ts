@@ -11,6 +11,7 @@ import { ProfilerPanel } from './profiler/ProfilerPanel';
 import { TimelinePanel } from './timeline/TimelinePanel';
 import { icons } from '../utils/icons';
 import { getEditorStore } from '../store';
+import { getSceneService } from '../services';
 
 const PANEL_ICON_SIZE = 14;
 
@@ -66,15 +67,12 @@ export function registerBuiltinPanels(registrar: PluginRegistrar, options: Built
         position: 'bottom',
         order: 0,
         defaultVisible: true,
-        factory: (c) => {
-            const { getSceneService } = require('../services');
-            return {
-                instance: new ContentBrowserPanel(c, getEditorStore(), {
-                    projectPath: options.projectPath,
-                    onOpenScene: (path: string) => getSceneService().openSceneFromPath(path),
-                }),
-            };
-        },
+        factory: (c) => ({
+            instance: new ContentBrowserPanel(c, getEditorStore(), {
+                projectPath: options.projectPath,
+                onOpenScene: (path: string) => getSceneService().openSceneFromPath(path),
+            }),
+        }),
     });
 
     registerPanel({

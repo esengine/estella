@@ -4,15 +4,17 @@ import {
     setPlatformAdapter,
     setEditorContext,
     getPanel,
-    registerBuiltinEditors,
-    registerBuiltinSchemas,
-    registerBuiltinPanels,
     getAssetDatabase,
     type PanelInstance,
-    isOutputAppendable,
+    EditorContainer,
+    setEditorContainer,
+    builtinPlugins,
+    getOutputService,
     RemoteEditorStore,
     CHANNEL_OUTPUT,
     type OutputMessage,
+    tokens,
+    type ServiceToken,
 } from '@esengine/editor';
 import { TauriPlatformAdapter } from './TauriPlatformAdapter';
 import { nativeFS, nativeShell } from './native-fs';
@@ -37,11 +39,20 @@ async function init(): Promise<void> {
         version,
     });
 
-    registerBuiltinEditors();
-    registerBuiltinSchemas();
-    registerBuiltinPanels({});
+    const iocContainer = new EditorContainer();
+    setEditorContainer(iocContainer);
 
     const projectPath = params.get('projectPath');
+    const pluginCtx = { registrar: iocContainer, projectPath };
+    for (const plugin of builtinPlugins) {
+        plugin.register(pluginCtx);
+    }
+
+    const store = new RemoteEditorStore(panelId);
+    await store.connect();
+    const storeToken = tokens.EDITOR_STORE as ServiceToken<RemoteEditorStore>;
+    iocContainer.provide(storeToken, 'default', store);
+
     if (projectPath) {
         const projectDir = projectPath.replace(/[/\\][^/\\]+$/, '');
         const db = getAssetDatabase();
@@ -62,22 +73,20 @@ async function init(): Promise<void> {
 
     document.title = desc.title;
 
-    const store = new RemoteEditorStore(panelId);
-    await store.connect();
-
     let panelInstance: PanelInstance | null = null;
     try {
-        panelInstance = desc.factory(container, store as any);
+        const result = desc.factory(container);
+        panelInstance = result.instance;
     } catch (err) {
         console.error(`Failed to create panel "${panelId}":`, err);
         container.textContent = `Failed to load panel: ${(err as Error).message}`;
         return;
     }
 
-    if (panelId === 'output' && panelInstance && isOutputAppendable(panelInstance)) {
-        const outputPanel = panelInstance;
+    if (panelId === 'output') {
+        const outputService = getOutputService();
         await listen<OutputMessage>(CHANNEL_OUTPUT, (event) => {
-            outputPanel.appendOutput(event.payload.text, event.payload.type);
+            outputService.appendOutput(event.payload.text, event.payload.type);
         });
     }
 

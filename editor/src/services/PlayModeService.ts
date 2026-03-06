@@ -6,7 +6,7 @@ import { getEditorStore, type SceneSnapshot } from '../store/EditorStore';
 import { getSharedRenderContext } from '../renderer/SharedRenderContext';
 import { ScriptInjector } from './ScriptInjector';
 import { getEditorContext } from '../context/EditorContext';
-import { getScriptService } from './index';
+import { SCRIPT_SERVICE } from '../container/tokens';
 import { getAssetDatabase, isUUID } from '../asset';
 
 export interface EntityComponentData {
@@ -271,7 +271,8 @@ export class PlayModeService {
         const app = ctx.app_;
         if (!app) return;
 
-        const compiledCode = getScriptService().getCompiledScripts();
+        const scriptService = getEditorContainer().get(SCRIPT_SERVICE, 'default')!;
+        const compiledCode = scriptService.getCompiledScripts();
         if (!compiledCode) return;
 
         this.scriptInjector_ = new ScriptInjector();
