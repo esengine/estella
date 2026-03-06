@@ -42,6 +42,7 @@ set(ESENGINE_SOURCES
     src/esengine/renderer/Texture.cpp
     src/esengine/renderer/Framebuffer.cpp
     src/esengine/renderer/RenderFrame.cpp
+    src/esengine/renderer/FrameCapture.cpp
     src/esengine/renderer/RenderTarget.cpp
     src/esengine/renderer/ImmediateDraw.cpp
     src/esengine/renderer/CustomGeometry.cpp

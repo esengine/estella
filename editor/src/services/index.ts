@@ -5,6 +5,7 @@ export { OutputService } from './OutputService';
 export { ClipboardService } from './ClipboardService';
 export { ShellService } from './ShellService';
 export { ProfilerService } from './ProfilerService';
+export { FrameDebuggerService } from './FrameDebuggerService';
 export { NavigationService } from './NavigationService';
 export { SpineService } from './SpineService';
 export { RuntimeService } from './RuntimeService';
@@ -20,6 +21,7 @@ import type { OutputService } from './OutputService';
 import type { ClipboardService } from './ClipboardService';
 import type { ShellService } from './ShellService';
 import type { ProfilerService } from './ProfilerService';
+import type { FrameDebuggerService } from './FrameDebuggerService';
 import type { NavigationService } from './NavigationService';
 import type { SpineService } from './SpineService';
 import type { RuntimeService } from './RuntimeService';
@@ -38,6 +40,7 @@ import {
     EXTENSION_SERVICE,
     SHELL_SERVICE,
     PROFILER_SERVICE,
+    FRAME_DEBUGGER_SERVICE,
     LAYOUT_SERVICE,
     NAVIGATION_SERVICE,
     OUTPUT_SERVICE,
@@ -74,8 +77,12 @@ export function getShellService(): ShellService {
     return getEditorContainer().get(SHELL_SERVICE, SERVICE_KEY)!;
 }
 
-export function getProfilerService(): ProfilerService {
-    return getEditorContainer().get(PROFILER_SERVICE, SERVICE_KEY)!;
+export function getProfilerService(): ProfilerService | undefined {
+    return getEditorContainer().get(PROFILER_SERVICE, SERVICE_KEY);
+}
+
+export function getFrameDebuggerService(): FrameDebuggerService | undefined {
+    return getEditorContainer().get(FRAME_DEBUGGER_SERVICE, SERVICE_KEY);
 }
 
 export function getLayoutService() {

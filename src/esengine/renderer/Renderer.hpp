@@ -23,6 +23,7 @@
 #include "Shader.hpp"
 #include "Texture.hpp"
 #include "RenderContext.hpp"
+#include "FrameCapture.hpp"
 #include "../resource/Handle.hpp"
 #include "../resource/TextureMetadata.hpp"
 
@@ -404,11 +405,20 @@ public:
     /** @brief Gets the number of triangles rendered in the current/last frame */
     u32 getTriangleCount() const;
 
+    using FlushCallback = void(*)(FlushReason reason, u32 vertexCount, u32 triangleCount,
+                                  u8 textureSlotUsage, void* userData);
+    void setFlushCallback(FlushCallback cb, void* userData);
+
+    void setNextFlushReason(FlushReason reason) { next_flush_reason_ = reason; }
+
 private:
     struct BatchData;
     Unique<BatchData> data_;
     RenderContext& context_;
     resource::ResourceManager& resource_manager_;
+    FlushCallback flush_callback_ = nullptr;
+    void* flush_callback_data_ = nullptr;
+    FlushReason next_flush_reason_ = FlushReason::FrameEnd;
 };
 
 }  // namespace esengine

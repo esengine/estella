@@ -598,6 +598,67 @@ void registry_batchSyncPhysicsTransforms(ecs::Registry& registry, uintptr_t buff
     }
 }
 
+void renderer_captureNextFrame() {
+    if (g_renderFrame) {
+        g_renderFrame->frameCapture().setCaptureNextFrame(true);
+    }
+}
+
+u32 renderer_getCapturedFrameSize() {
+    if (!g_renderFrame) return 0;
+    return g_renderFrame->frameCapture().getRecordCount();
+}
+
+uintptr_t renderer_getCapturedFrameData() {
+    if (!g_renderFrame) return 0;
+    return reinterpret_cast<uintptr_t>(g_renderFrame->frameCapture().getRecords());
+}
+
+uintptr_t renderer_getCapturedEntities() {
+    if (!g_renderFrame) return 0;
+    return reinterpret_cast<uintptr_t>(g_renderFrame->frameCapture().getEntities());
+}
+
+u32 renderer_getCapturedEntityCount() {
+    if (!g_renderFrame) return 0;
+    return g_renderFrame->frameCapture().getEntityCount();
+}
+
+u32 renderer_getCapturedCameraCount() {
+    if (!g_renderFrame) return 0;
+    return g_renderFrame->frameCapture().getCameraCount();
+}
+
+bool renderer_hasCapturedData() {
+    if (!g_renderFrame) return false;
+    return g_renderFrame->frameCapture().hasCapturedData();
+}
+
+void renderer_replayToDrawCall(i32 drawCallIndex) {
+    if (!g_renderFrame) return;
+    g_renderFrame->replayToDrawCall(drawCallIndex);
+}
+
+uintptr_t renderer_getSnapshotPtr() {
+    if (!g_renderFrame) return 0;
+    return reinterpret_cast<uintptr_t>(g_renderFrame->getSnapshotPixels());
+}
+
+u32 renderer_getSnapshotSize() {
+    if (!g_renderFrame) return 0;
+    return g_renderFrame->getSnapshotSize();
+}
+
+u32 renderer_getSnapshotWidth() {
+    if (!g_renderFrame) return 0;
+    return g_renderFrame->getSnapshotWidth();
+}
+
+u32 renderer_getSnapshotHeight() {
+    if (!g_renderFrame) return 0;
+    return g_renderFrame->getSnapshotHeight();
+}
+
 }  // namespace esengine
 
 #endif  // ES_PLATFORM_WEB

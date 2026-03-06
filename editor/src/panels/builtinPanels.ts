@@ -9,6 +9,8 @@ import { ContentBrowserPanel } from './content-browser/ContentBrowserPanel';
 import { OutputPanel } from './OutputPanel';
 import { ProfilerPanel } from './profiler/ProfilerPanel';
 import { TimelinePanel } from './timeline/TimelinePanel';
+import { FrameDebuggerPanel } from './frameDebugger/FrameDebuggerPanel';
+import { ExtensionsPanel } from './ExtensionsPanel';
 import { icons } from '../utils/icons';
 import { getEditorStore } from '../store';
 import { getSceneService } from '../services';
@@ -90,8 +92,8 @@ export function registerBuiltinPanels(registrar: PluginRegistrar, options: Built
         title: 'Timeline',
         icon: icons.film(PANEL_ICON_SIZE),
         position: 'bottom',
+        detachOnly: true,
         order: 2,
-        defaultVisible: false,
         factory: (c) => ({ instance: new TimelinePanel(c, getEditorStore()) }),
     });
 
@@ -103,5 +105,25 @@ export function registerBuiltinPanels(registrar: PluginRegistrar, options: Built
         detachOnly: true,
         order: 99,
         factory: (c) => ({ instance: new ProfilerPanel(c) }),
+    });
+
+    registerPanel({
+        id: 'frame-debugger',
+        title: 'Frame Debugger',
+        icon: icons.gauge(PANEL_ICON_SIZE),
+        position: 'bottom',
+        detachOnly: true,
+        order: 3,
+        factory: (c) => ({ instance: new FrameDebuggerPanel(c) }),
+    });
+
+    registerPanel({
+        id: 'extensions',
+        title: 'Extensions',
+        icon: icons.package(PANEL_ICON_SIZE),
+        position: 'bottom',
+        detachOnly: true,
+        order: 4,
+        factory: (c) => ({ instance: new ExtensionsPanel(c) }),
     });
 }

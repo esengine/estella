@@ -569,6 +569,13 @@ export {
     type RenderStats,
 } from './renderer';
 
+export {
+    FlushReason,
+    RenderType,
+    type DrawCallInfo,
+    type FrameCaptureData,
+} from './frameCapture';
+
 // =============================================================================
 // RenderTexture API
 // =============================================================================

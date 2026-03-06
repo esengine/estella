@@ -239,6 +239,21 @@ export interface ESEngineModule {
     gl_checkErrors(context: string): number;
     renderer_diagnose(): void;
 
+    // Frame Capture API
+    renderer_captureNextFrame(): void;
+    renderer_getCapturedFrameSize(): number;
+    renderer_getCapturedFrameData(): number;
+    renderer_getCapturedEntities(): number;
+    renderer_getCapturedEntityCount(): number;
+    renderer_getCapturedCameraCount(): number;
+    renderer_hasCapturedData(): boolean;
+
+    renderer_replayToDrawCall(drawCallIndex: number): void;
+    renderer_getSnapshotPtr(): number;
+    renderer_getSnapshotSize(): number;
+    renderer_getSnapshotWidth(): number;
+    renderer_getSnapshotHeight(): number;
+
     // UI Systems
     uiLayout_update(registry: CppRegistry, camLeft: number, camBottom: number, camRight: number, camTop: number): void;
     uiHitTest_update(registry: CppRegistry, mouseWorldX: number, mouseWorldY: number, mouseDown: boolean, mousePressed: boolean, mouseReleased: boolean): void;

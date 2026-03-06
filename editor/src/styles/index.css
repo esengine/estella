@@ -11,4 +11,6 @@
 @import './builder.css';
 @import './profiler.css';
 @import './timeline.css';
+@import './frame-debugger.css';
+@import './extensions.css';
 

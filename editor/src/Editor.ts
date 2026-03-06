@@ -21,6 +21,7 @@ import { OutputService } from './services/OutputService';
 import { ClipboardService } from './services/ClipboardService';
 import { ShellService } from './services/ShellService';
 import { ProfilerService } from './services/ProfilerService';
+import { FrameDebuggerService } from './services/FrameDebuggerService';
 import { NavigationService } from './services/NavigationService';
 import { SpineService } from './services/SpineService';
 import { RuntimeService } from './services/RuntimeService';
@@ -35,6 +36,7 @@ import {
     CLIPBOARD_SERVICE,
     SHELL_SERVICE,
     PROFILER_SERVICE,
+    FRAME_DEBUGGER_SERVICE,
     NAVIGATION_SERVICE,
     SPINE_SERVICE,
     RUNTIME_SERVICE,
@@ -70,6 +72,7 @@ export class Editor {
     private clipboardService_!: ClipboardService;
     private shellService_!: ShellService;
     private profilerService_!: ProfilerService;
+    private frameDebuggerService_!: FrameDebuggerService;
     private navigationService_!: NavigationService;
     private spineService_!: SpineService;
     private runtimeService_!: RuntimeService;
@@ -209,6 +212,7 @@ export class Editor {
         this.clipboardService_ = new ClipboardService(this.store_);
         this.navigationService_ = new NavigationService(this.panelManager_);
         this.profilerService_ = new ProfilerService();
+        this.frameDebuggerService_ = new FrameDebuggerService();
         this.spineService_ = new SpineService(this.store_);
         this.runtimeService_ = new RuntimeService(this.store_);
         this.scriptService_ = new ScriptService(this.projectPath_, this.outputService_, this.store_);
@@ -229,6 +233,7 @@ export class Editor {
         iocContainer.provide(CLIPBOARD_SERVICE, sk, this.clipboardService_);
         iocContainer.provide(NAVIGATION_SERVICE, sk, this.navigationService_);
         iocContainer.provide(PROFILER_SERVICE, sk, this.profilerService_);
+        iocContainer.provide(FRAME_DEBUGGER_SERVICE, sk, this.frameDebuggerService_);
         iocContainer.provide(SHELL_SERVICE, sk, this.shellService_);
         iocContainer.provide(SPINE_SERVICE, sk, this.spineService_);
         iocContainer.provide(RUNTIME_SERVICE, sk, this.runtimeService_);
@@ -371,6 +376,7 @@ export class Editor {
             this.dockLayout_,
             this.outputService_,
             this.profilerService_,
+            this.frameDebuggerService_,
             () => this.previewService_.startPreviewServer(),
             async () => {
                 const result = await this.sceneService_.showUnsavedChangesPrompt_();

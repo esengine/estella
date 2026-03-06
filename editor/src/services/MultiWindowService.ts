@@ -4,6 +4,7 @@ import type { EditorStore } from '../store/EditorStore';
 import type { DockLayoutManager } from '../DockLayoutManager';
 import type { OutputService } from './OutputService';
 import type { ProfilerService } from './ProfilerService';
+import type { FrameDebuggerService } from './FrameDebuggerService';
 
 export class MultiWindowService {
     private mainWindowBridge_: MainWindowBridge | null = null;
@@ -29,6 +30,7 @@ export class MultiWindowService {
         dockLayout: DockLayoutManager | null,
         outputService: OutputService,
         profilerService: ProfilerService,
+        frameDebuggerService: FrameDebuggerService,
         getPreviewUrl: () => Promise<string | null>,
         onUnsavedClose: () => Promise<void>,
     ): void {
@@ -41,6 +43,7 @@ export class MultiWindowService {
 
         outputService.setMainWindowBridge(this.mainWindowBridge_);
         profilerService.setWindowManager(this.windowManager_);
+        frameDebuggerService.setWindowManager(this.windowManager_);
 
         if (dockLayout) {
             const bridge = this.mainWindowBridge_;

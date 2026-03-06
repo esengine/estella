@@ -13,6 +13,7 @@ import {
     getPreviewService,
     getNavigationService,
     getProfilerService,
+    getFrameDebuggerService,
     getProjectService,
     getExtensionService,
 } from '../services';
@@ -177,7 +178,22 @@ export function registerBuiltinMenus(registrar: PluginRegistrar): void {
     registerMenuItem({
         id: 'view.profiler', menu: 'view', label: 'Profiler',
         order: 5, separator: true,
-        action: () => getProfilerService().showProfilerWindow(),
+        action: () => getProfilerService()?.showProfilerWindow(),
+    });
+    registerMenuItem({
+        id: 'view.timeline', menu: 'view', label: 'Timeline',
+        order: 5.5,
+        action: () => getNavigationService().showPanel('timeline'),
+    });
+    registerMenuItem({
+        id: 'view.frame-debugger', menu: 'view', label: 'Frame Debugger',
+        order: 5.6,
+        action: () => getFrameDebuggerService()?.showFrameDebuggerWindow(),
+    });
+    registerMenuItem({
+        id: 'view.extensions', menu: 'view', label: 'Extensions',
+        order: 5.7,
+        action: () => getNavigationService().showPanel('extensions'),
     });
     registerMenuItem({
         id: 'view.addressable', menu: 'view', label: 'Addressable Groups',

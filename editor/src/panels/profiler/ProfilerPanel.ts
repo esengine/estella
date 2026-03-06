@@ -38,7 +38,7 @@ export class ProfilerPanel implements PanelInstance {
         this.container_ = container;
         this.buildUI();
         this.startListening();
-        getProfilerService().startProfilerStats();
+        getProfilerService()?.startProfilerStats();
     }
 
     dispose(): void {
@@ -50,7 +50,7 @@ export class ProfilerPanel implements PanelInstance {
         this.waterfall_?.dispose();
         this.systemTable_?.dispose();
         this.container_.innerHTML = '';
-        getProfilerService().stopProfilerStats();
+        getProfilerService()?.stopProfilerStats();
     }
 
     private buildUI(): void {

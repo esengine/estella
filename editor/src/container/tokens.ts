@@ -55,6 +55,7 @@ export const SCRIPT_SERVICE = new ServiceToken<any>('SCRIPT_SERVICE');
 export const EXTENSION_SERVICE = new ServiceToken<any>('EXTENSION_SERVICE');
 export const SHELL_SERVICE = new ServiceToken<any>('SHELL_SERVICE');
 export const PROFILER_SERVICE = new ServiceToken<any>('PROFILER_SERVICE');
+export const FRAME_DEBUGGER_SERVICE = new ServiceToken<any>('FRAME_DEBUGGER_SERVICE');
 export const LAYOUT_SERVICE = new ServiceToken<any>('LAYOUT_SERVICE');
 export const NAVIGATION_SERVICE = new ServiceToken<any>('NAVIGATION_SERVICE');
 export const OUTPUT_SERVICE = new ServiceToken<any>('OUTPUT_SERVICE');

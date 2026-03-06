@@ -327,6 +327,11 @@ BatchRenderer2D::BatchRenderer2D(RenderContext& context,
     , resource_manager_(resource_manager) {
 }
 
+void BatchRenderer2D::setFlushCallback(FlushCallback cb, void* userData) {
+    flush_callback_ = cb;
+    flush_callback_data_ = userData;
+}
+
 BatchRenderer2D::~BatchRenderer2D() {
     if (data_ && data_->initialized) {
         shutdown();
@@ -437,6 +442,10 @@ void BatchRenderer2D::flush() {
     bool hasTris = !data_->triVertices.empty();
     if (!hasQuads && !hasTris) return;
 
+    u32 vertexCount = static_cast<u32>(data_->vertices.size() + data_->triVertices.size());
+    u32 triangleCount = data_->quadCount * 2 + static_cast<u32>(data_->triVertices.size()) / 3;
+    u8 slotUsage = static_cast<u8>(data_->texSlots.slotCount());
+
     Shader* shader = resource_manager_.getShader(data_->shader_handle);
     if (!shader) return;
 
@@ -476,6 +485,11 @@ void BatchRenderer2D::flush() {
         data_->drawCallCount++;
     }
 
+    if (flush_callback_) {
+        flush_callback_(next_flush_reason_, vertexCount, triangleCount, slotUsage, flush_callback_data_);
+        next_flush_reason_ = FlushReason::FrameEnd;
+    }
+
     data_->vertices.clear();
     data_->triVertices.clear();
     data_->indexCount = 0;
@@ -493,11 +507,13 @@ void BatchRenderer2D::drawQuad(const glm::vec3& position, const glm::vec2& size,
                                 u32 textureId, const glm::vec4& color,
                                 const glm::vec2& uvOffset, const glm::vec2& uvScale) {
     if (data_->vertices.size() + data_->triVertices.size() + 4 > MAX_VERTICES) {
+        next_flush_reason_ = FlushReason::BatchFull;
         flush();
     }
 
     f32 texIndex = data_->texSlots.findOrAllocate(textureId);
     if (texIndex < 0.0f) {
+        next_flush_reason_ = FlushReason::TextureSlotsFull;
         flush();
         texIndex = data_->texSlots.findOrAllocate(textureId);
         if (texIndex < 0.0f) {
@@ -531,6 +547,7 @@ void BatchRenderer2D::drawQuad(const glm::vec2& position, const glm::vec2& size,
 void BatchRenderer2D::drawTriangle(const glm::vec2& p0, const glm::vec2& p1,
                                     const glm::vec2& p2, const glm::vec4& color) {
     if (data_->vertices.size() + data_->triVertices.size() + 3 > MAX_VERTICES) {
+        next_flush_reason_ = FlushReason::BatchFull;
         flush();
     }
 
@@ -558,11 +575,13 @@ void BatchRenderer2D::drawRotatedQuad(const glm::vec2& position, const glm::vec2
                                        f32 rotation, u32 textureId, const glm::vec4& tintColor,
                                        const glm::vec2& uvOffset, const glm::vec2& uvScale) {
     if (data_->vertices.size() + data_->triVertices.size() + 4 > MAX_VERTICES) {
+        next_flush_reason_ = FlushReason::BatchFull;
         flush();
     }
 
     f32 texIndex = data_->texSlots.findOrAllocate(textureId);
     if (texIndex < 0.0f) {
+        next_flush_reason_ = FlushReason::TextureSlotsFull;
         flush();
         texIndex = data_->texSlots.findOrAllocate(textureId);
         if (texIndex < 0.0f) {
@@ -643,6 +662,7 @@ void BatchRenderer2D::drawNineSlice(const glm::vec2& position, const glm::vec2& 
     auto resolveTextureSlot = [this, textureId]() -> f32 {
         f32 idx = data_->texSlots.findOrAllocate(textureId);
         if (idx < 0.0f) {
+            next_flush_reason_ = FlushReason::TextureSlotsFull;
             flush();
             idx = data_->texSlots.findOrAllocate(textureId);
         }
@@ -658,6 +678,7 @@ void BatchRenderer2D::drawNineSlice(const glm::vec2& position, const glm::vec2& 
         if (pw <= 0 || ph <= 0) return;
 
         if (data_->vertices.size() + data_->triVertices.size() + 4 > MAX_VERTICES) {
+            next_flush_reason_ = FlushReason::BatchFull;
             flush();
             cachedTexIndex = resolveTextureSlot();
         }

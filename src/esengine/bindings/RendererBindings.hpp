@@ -88,6 +88,20 @@ void renderer_clearAllStencilMasks();
 void gl_enableErrorCheck(bool enabled);
 u32 gl_checkErrors(const std::string& context);
 
+void renderer_captureNextFrame();
+u32 renderer_getCapturedFrameSize();
+uintptr_t renderer_getCapturedFrameData();
+uintptr_t renderer_getCapturedEntities();
+u32 renderer_getCapturedEntityCount();
+u32 renderer_getCapturedCameraCount();
+bool renderer_hasCapturedData();
+
+void renderer_replayToDrawCall(i32 drawCallIndex);
+uintptr_t renderer_getSnapshotPtr();
+u32 renderer_getSnapshotSize();
+u32 renderer_getSnapshotWidth();
+u32 renderer_getSnapshotHeight();
+
 i32 registry_getCanvasEntity(ecs::Registry& registry);
 emscripten::val registry_getCameraEntities(ecs::Registry& registry);
 emscripten::val getChildEntities(ecs::Registry& registry, u32 entity);

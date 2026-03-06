@@ -1,0 +1,284 @@
+.es-fd-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+    font: 11px monospace;
+    color: #cccccc;
+}
+
+.es-fd-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px;
+    background: var(--es-bg-secondary, rgba(30, 30, 30, 0.5));
+    border-bottom: 1px solid var(--es-border);
+    flex-shrink: 0;
+}
+
+.es-fd-btn {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #cccccc;
+    font: 10px monospace;
+    padding: 2px 8px;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.es-fd-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.es-fd-btn:disabled {
+    opacity: 0.3;
+    cursor: default;
+}
+
+.es-fd-btn-active {
+    background: rgba(59, 130, 246, 0.3) !important;
+    border-color: rgba(59, 130, 246, 0.5);
+}
+
+.es-fd-summary {
+    color: #999;
+    font-size: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Pipeline bar */
+.es-fd-pipeline {
+    flex-shrink: 0;
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--es-border);
+    max-height: 80px;
+    overflow-y: auto;
+}
+
+.es-fd-pipe-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 16px;
+}
+
+.es-fd-pipe-label {
+    font-size: 9px;
+    font-weight: bold;
+    width: 20px;
+    flex-shrink: 0;
+    text-align: right;
+}
+
+.es-fd-pipe-bars {
+    display: flex;
+    flex: 1;
+    gap: 1px;
+    height: 12px;
+    align-items: stretch;
+}
+
+.es-fd-pipe-bar {
+    min-width: 3px;
+    border-radius: 1px;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.1s;
+}
+
+.es-fd-pipe-bar:hover {
+    opacity: 1;
+}
+
+.es-fd-pipe-sel {
+    opacity: 1;
+    outline: 1px solid #fff;
+}
+
+/* Body layout */
+.es-fd-body {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+}
+
+.es-fd-list {
+    width: 260px;
+    min-width: 180px;
+    overflow-y: auto;
+    border-right: 1px solid var(--es-border);
+    flex-shrink: 0;
+}
+
+.es-fd-detail {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+}
+
+.es-fd-empty {
+    color: #666;
+    padding: 16px;
+    text-align: center;
+}
+
+/* Stage groups */
+.es-fd-stage-group {
+    margin-bottom: 2px;
+}
+
+.es-fd-stage-header {
+    font-size: 10px;
+    font-weight: bold;
+    padding: 3px 6px;
+    background: rgba(255, 255, 255, 0.03);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Draw call items */
+.es-fd-item {
+    display: flex;
+    gap: 4px;
+    padding: 2px 6px 2px 16px;
+    cursor: pointer;
+    white-space: nowrap;
+    align-items: center;
+}
+
+.es-fd-item:hover {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.es-fd-item-selected {
+    background: rgba(59, 130, 246, 0.2) !important;
+}
+
+.es-fd-index {
+    color: #888;
+    width: 24px;
+    flex-shrink: 0;
+}
+
+.es-fd-type {
+    flex: 1;
+    min-width: 0;
+}
+
+.es-fd-tri {
+    color: #888;
+    font-size: 10px;
+    flex-shrink: 0;
+}
+
+.es-fd-flush-tag {
+    font-size: 9px;
+    flex-shrink: 0;
+}
+
+/* Preview canvas */
+.es-fd-preview {
+    display: none;
+    width: 100%;
+    max-height: 200px;
+    object-fit: contain;
+    background: #111;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 3px;
+    margin-bottom: 8px;
+}
+
+/* Detail table */
+.es-fd-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.es-fd-table td {
+    padding: 2px 4px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.es-fd-label {
+    color: #888;
+    width: 100px;
+    white-space: nowrap;
+}
+
+.es-fd-value {
+    color: #ddd;
+}
+
+/* Entities */
+.es-fd-entities-title {
+    margin-top: 8px;
+    color: #888;
+    font-size: 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding-bottom: 2px;
+}
+
+.es-fd-entities {
+    max-height: 120px;
+    overflow-y: auto;
+}
+
+.es-fd-entity {
+    padding: 1px 4px;
+    color: #aaa;
+    cursor: pointer;
+}
+
+.es-fd-entity:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.04);
+}
+
+/* Batch stats */
+.es-fd-stats-title {
+    margin-top: 8px;
+    color: #888;
+    font-size: 10px;
+    font-weight: bold;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding-bottom: 2px;
+    margin-bottom: 4px;
+}
+
+.es-fd-stat-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 1px 0;
+}
+
+.es-fd-stat-label {
+    width: 80px;
+    color: #aaa;
+    font-size: 10px;
+    flex-shrink: 0;
+}
+
+.es-fd-stat-bar-bg {
+    flex: 1;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.es-fd-stat-bar {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.2s;
+}
+
+.es-fd-stat-count {
+    width: 24px;
+    text-align: right;
+    color: #999;
+    font-size: 10px;
+    flex-shrink: 0;
+}

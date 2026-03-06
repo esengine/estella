@@ -6,6 +6,7 @@
 #include "RenderTarget.hpp"
 #include "RenderContext.hpp"
 #include "PostProcessPipeline.hpp"
+#include "FrameCapture.hpp"
 #include "../ecs/Registry.hpp"
 #include "../resource/ResourceManager.hpp"
 #include "../particle/ParticleSystem.hpp"
@@ -110,6 +111,13 @@ public:
     RenderTargetManager& targetManager() { return target_manager_; }
 
     const Stats& stats() const { return stats_; }
+    FrameCapture& frameCapture() { return frame_capture_; }
+
+    void replayToDrawCall(i32 stopAtDrawCall);
+    const u8* getSnapshotPixels() const { return snapshot_pixels_.data(); }
+    u32 getSnapshotSize() const { return static_cast<u32>(snapshot_pixels_.size()); }
+    u32 getSnapshotWidth() const { return width_; }
+    u32 getSnapshotHeight() const { return height_; }
 
     static constexpr u32 STAGE_COUNT = 4;
 
@@ -153,6 +161,9 @@ private:
     RenderStage current_stage_ = RenderStage::Transparent;
 
     Stats stats_;
+    FrameCapture frame_capture_;
+    std::vector<u8> snapshot_pixels_;
+    RenderTargetManager::Handle replay_rt_ = 0;
     bool in_frame_ = false;
     bool flushed_ = false;
     u32 width_ = 0;

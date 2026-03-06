@@ -1,5 +1,6 @@
 import type { ESEngineModule, CppRegistry } from './wasm';
 import { handleWasmError } from './wasmError';
+import { decodeFrameCapture, replayToDrawCall as replayToDrawCallImpl, getSnapshotImageData as getSnapshotImpl, type FrameCaptureData } from './frameCapture';
 
 export enum RenderStage {
     Background = 0,
@@ -185,5 +186,28 @@ export const Renderer = {
             meshes: module.renderer_getMeshes(),
             culled: module.renderer_getCulled(),
         };
+    },
+
+    captureNextFrame(): void {
+        module?.renderer_captureNextFrame();
+    },
+
+    getCapturedData(): FrameCaptureData | null {
+        if (!module) return null;
+        return decodeFrameCapture(module);
+    },
+
+    hasCapturedData(): boolean {
+        return module?.renderer_hasCapturedData() ?? false;
+    },
+
+    replayToDrawCall(drawCallIndex: number): void {
+        if (!module) return;
+        replayToDrawCallImpl(module, drawCallIndex);
+    },
+
+    getSnapshotImageData(): ImageData | null {
+        if (!module) return null;
+        return getSnapshotImpl(module);
     },
 };

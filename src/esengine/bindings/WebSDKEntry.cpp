@@ -581,6 +581,19 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("gl_enableErrorCheck", &esengine::gl_enableErrorCheck);
     emscripten::function("gl_checkErrors", &esengine::gl_checkErrors);
     emscripten::function("renderer_diagnose", &esengine::renderer_diagnose);
+
+    emscripten::function("renderer_captureNextFrame", &esengine::renderer_captureNextFrame);
+    emscripten::function("renderer_getCapturedFrameSize", &esengine::renderer_getCapturedFrameSize);
+    emscripten::function("renderer_getCapturedFrameData", &esengine::renderer_getCapturedFrameData);
+    emscripten::function("renderer_getCapturedEntities", &esengine::renderer_getCapturedEntities);
+    emscripten::function("renderer_getCapturedEntityCount", &esengine::renderer_getCapturedEntityCount);
+    emscripten::function("renderer_getCapturedCameraCount", &esengine::renderer_getCapturedCameraCount);
+    emscripten::function("renderer_hasCapturedData", &esengine::renderer_hasCapturedData);
+    emscripten::function("renderer_replayToDrawCall", &esengine::renderer_replayToDrawCall);
+    emscripten::function("renderer_getSnapshotPtr", &esengine::renderer_getSnapshotPtr);
+    emscripten::function("renderer_getSnapshotSize", &esengine::renderer_getSnapshotSize);
+    emscripten::function("renderer_getSnapshotWidth", &esengine::renderer_getSnapshotWidth);
+    emscripten::function("renderer_getSnapshotHeight", &esengine::renderer_getSnapshotHeight);
 }
 
 // =============================================================================

@@ -104,6 +104,40 @@ bool getMaterialDataWithUniforms(u32 /*materialId*/, u32& /*shaderId*/, u32& /*b
 void clearMaterialCache() {}
 #endif
 
+namespace {
+struct CaptureContext {
+    FrameCapture* capture = nullptr;
+    RenderStage stage = RenderStage::Transparent;
+    RenderType type = RenderType::Sprite;
+    BlendMode blend_mode = BlendMode::Normal;
+    u32 texture_id = 0;
+    u32 material_id = 0;
+    i32 layer = 0;
+    ScissorRect scissor;
+    bool scissor_enabled = false;
+    bool stencil_write = false;
+    bool stencil_test = false;
+    i32 stencil_ref = -1;
+};
+
+static CaptureContext s_capture_ctx;
+
+void batcherFlushCallback(FlushReason reason, u32 vertexCount, u32 triangleCount,
+                           u8 textureSlotUsage, void* userData) {
+    (void)userData;
+    auto& ctx = s_capture_ctx;
+    if (!ctx.capture || (!ctx.capture->isCapturing() && !ctx.capture->isReplaying())) return;
+
+    ctx.capture->recordDrawCall(
+        ctx.stage, ctx.type, ctx.blend_mode,
+        ctx.texture_id, ctx.material_id, 0,
+        vertexCount, triangleCount, ctx.layer,
+        reason, ctx.scissor, ctx.scissor_enabled,
+        ctx.stencil_write, ctx.stencil_test, ctx.stencil_ref,
+        textureSlotUsage);
+}
+}  // namespace
+
 RenderFrame::RenderFrame(RenderContext& context, resource::ResourceManager& resource_manager)
     : context_(context)
     , resource_manager_(resource_manager) {
@@ -119,6 +153,8 @@ void RenderFrame::init(u32 width, u32 height) {
 
     batcher_ = makeUnique<BatchRenderer2D>(context_, resource_manager_);
     batcher_->init();
+    batcher_->setFlushCallback(batcherFlushCallback, nullptr);
+    s_capture_ctx.capture = &frame_capture_;
 
     post_process_ = makeUnique<PostProcessPipeline>(context_, resource_manager_);
     post_process_->init(width, height);
@@ -424,6 +460,7 @@ void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::H
     current_target_ = target;
     current_stage_ = RenderStage::Transparent;
     in_frame_ = true;
+    frame_capture_.beginCapture();
 
     items_.clear();
     sprite_data_.clear();
@@ -495,8 +532,54 @@ void RenderFrame::end() {
         }
     }
 
+    frame_capture_.endCapture();
     in_frame_ = false;
     flushed_ = false;
+}
+
+void RenderFrame::replayToDrawCall(i32 stopAtDrawCall) {
+    if (items_.empty() || stopAtDrawCall < 0) return;
+
+    if (replay_rt_ == 0) {
+        replay_rt_ = target_manager_.create(width_, height_, false, false);
+    } else {
+        auto* rt = target_manager_.get(replay_rt_);
+        if (rt && (rt->getWidth() != width_ || rt->getHeight() != height_)) {
+            rt->resize(width_, height_);
+        }
+    }
+
+    auto* rt = target_manager_.get(replay_rt_);
+    if (!rt) return;
+
+    rt->bind();
+    glViewport(0, 0, static_cast<GLsizei>(width_), static_cast<GLsizei>(height_));
+    glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    glEnable(GL_BLEND);
+    glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+    RenderCommand::resetBlendState();
+    glDisable(GL_DEPTH_TEST);
+
+    frame_capture_.setReplayMode(stopAtDrawCall + 1);
+
+    executeStage(RenderStage::Background);
+    if (!frame_capture_.shouldStop()) executeStage(RenderStage::Opaque);
+    if (!frame_capture_.shouldStop()) executeStage(RenderStage::Transparent);
+    if (!frame_capture_.shouldStop()) executeStage(RenderStage::Overlay);
+
+    glDisable(GL_SCISSOR_TEST);
+    glDisable(GL_STENCIL_TEST);
+
+    frame_capture_.clearReplayMode();
+
+    u32 pixelCount = width_ * height_ * 4;
+    snapshot_pixels_.resize(pixelCount);
+    glReadPixels(0, 0, static_cast<GLsizei>(width_), static_cast<GLsizei>(height_),
+                 GL_RGBA, GL_UNSIGNED_BYTE, snapshot_pixels_.data());
+
+    rt->unbind();
 }
 
 void RenderFrame::setEntityClipRect(u32 entity, i32 x, i32 y, i32 w, i32 h) {
@@ -1275,19 +1358,39 @@ void RenderFrame::executeStage(RenderStage stage) {
     };
 
     for (u32 i = sb.begin; i < sb.end; ++i) {
+        if (frame_capture_.shouldStop()) return;
         if (items_[i].type != currentType) {
             flushBatch(batchStart, i);
+            if (frame_capture_.shouldStop()) return;
             batchStart = i;
             currentType = items_[i].type;
         }
     }
 
-    flushBatch(batchStart, sb.end);
+    if (!frame_capture_.shouldStop()) {
+        flushBatch(batchStart, sb.end);
+    }
 }
 
 void RenderFrame::renderSprites(u32 begin, u32 end) {
     batcher_->setProjection(view_projection_);
     batcher_->beginBatch();
+
+    bool capturing = frame_capture_.isCapturing();
+    auto updateCaptureCtx = [&](const RenderItemBase& base, bool stencilW, bool stencilT, i32 stRef) {
+        if (!capturing) return;
+        s_capture_ctx.stage = base.stage;
+        s_capture_ctx.type = base.type;
+        s_capture_ctx.blend_mode = base.blend_mode;
+        s_capture_ctx.texture_id = base.texture_id;
+        s_capture_ctx.layer = base.layer;
+        s_capture_ctx.scissor = base.scissor;
+        s_capture_ctx.scissor_enabled = base.scissor_enabled;
+        s_capture_ctx.stencil_write = stencilW;
+        s_capture_ctx.stencil_test = stencilT;
+        s_capture_ctx.stencil_ref = stRef;
+        s_capture_ctx.material_id = 0;
+    };
 
     bool curScissorOn = false;
     ScissorRect curRect{};
@@ -1296,16 +1399,19 @@ void RenderFrame::renderSprites(u32 begin, u32 end) {
     i32 curStencilRef = -1;
 
     for (u32 i = begin; i < end; ++i) {
+        if (frame_capture_.shouldStop()) break;
         const auto& base = items_[i];
         const auto& sd = sprite_data_[base.data_index];
 
         if (base.scissor_enabled != curScissorOn ||
             (base.scissor_enabled && base.scissor != curRect)) {
             if (stencilWriteActive) {
+                batcher_->setNextFlushReason(FlushReason::ScissorChange);
                 batcher_->flush();
                 endStencilWrite();
                 stencilWriteActive = false;
             }
+            batcher_->setNextFlushReason(FlushReason::ScissorChange);
             batcher_->flush();
             if (base.scissor_enabled) {
                 glEnable(GL_SCISSOR_TEST);
@@ -1323,6 +1429,7 @@ void RenderFrame::renderSprites(u32 begin, u32 end) {
             if (stIt != stencil_masks_.end()) {
                 if (stIt->second.is_mask) {
                     if (!stencilWriteActive || curStencilRef != stIt->second.ref_value) {
+                        batcher_->setNextFlushReason(FlushReason::StencilChange);
                         if (stencilWriteActive) {
                             batcher_->flush();
                             endStencilWrite();
@@ -1334,6 +1441,7 @@ void RenderFrame::renderSprites(u32 begin, u32 end) {
                         curStencilRef = stIt->second.ref_value;
                     }
 
+                    updateCaptureCtx(base, true, false, curStencilRef);
                     glm::vec2 position(base.world_position);
                     glm::vec2 finalSize = sd.size * base.world_scale;
                     f32 angle = base.world_angle;
@@ -1345,15 +1453,18 @@ void RenderFrame::renderSprites(u32 begin, u32 end) {
                         batcher_->drawQuad(glm::vec3(position.x, position.y, base.depth),
                             finalSize, base.texture_id, base.color, sd.uv_offset, sd.uv_scale);
                     }
+                    if (capturing) frame_capture_.addPendingEntity(base.entity);
 
                     continue;
                 } else {
                     if (stencilWriteActive) {
+                        batcher_->setNextFlushReason(FlushReason::StencilChange);
                         batcher_->flush();
                         endStencilWrite();
                         stencilWriteActive = false;
                     }
                     if (!stencilTestActive || curStencilRef != stIt->second.ref_value) {
+                        batcher_->setNextFlushReason(FlushReason::StencilChange);
                         batcher_->flush();
                         beginStencilTest(stIt->second.ref_value);
                         stencilTestActive = true;
@@ -1362,11 +1473,13 @@ void RenderFrame::renderSprites(u32 begin, u32 end) {
                 }
             } else {
                 if (stencilWriteActive) {
+                    batcher_->setNextFlushReason(FlushReason::StencilChange);
                     batcher_->flush();
                     endStencilWrite();
                     stencilWriteActive = false;
                 }
                 if (stencilTestActive) {
+                    batcher_->setNextFlushReason(FlushReason::StencilChange);
                     batcher_->flush();
                     endStencilTest();
                     stencilTestActive = false;
@@ -1376,11 +1489,15 @@ void RenderFrame::renderSprites(u32 begin, u32 end) {
         }
 
         if (sd.material_id != 0) {
+            batcher_->setNextFlushReason(FlushReason::MaterialChange);
             batcher_->flush();
             accumulateMaterialSprite(base, sd);
+            if (capturing) frame_capture_.addPendingEntity(base.entity);
             continue;
         }
         flushMaterialBatch();
+
+        updateCaptureCtx(base, stencilWriteActive, stencilTestActive, curStencilRef);
 
         glm::vec2 position(base.world_position);
         glm::vec2 finalSize = sd.size * base.world_scale;
@@ -1435,21 +1552,25 @@ void RenderFrame::renderSprites(u32 begin, u32 end) {
                 uvSc
             );
         }
+        if (capturing) frame_capture_.addPendingEntity(base.entity);
     }
 
     flushMaterialBatch();
 
     if (stencilWriteActive) {
+        batcher_->setNextFlushReason(FlushReason::FrameEnd);
         batcher_->flush();
         endStencilWrite();
     }
 
     if (stencilTestActive) {
+        batcher_->setNextFlushReason(FlushReason::FrameEnd);
         batcher_->flush();
         endStencilTest();
     }
 
     if (curScissorOn) {
+        batcher_->setNextFlushReason(FlushReason::FrameEnd);
         batcher_->flush();
         glDisable(GL_SCISSOR_TEST);
     }
@@ -1469,6 +1590,7 @@ void RenderFrame::renderSpine(u32 begin, u32 end) {
     static ::spine::SkeletonClipping clipper;
 
     for (u32 idx = begin; idx < end; ++idx) {
+        if (frame_capture_.shouldStop()) break;
         const auto& base = items_[idx];
         const auto& sd = spine_data_[base.data_index];
         auto* skeleton = static_cast<::spine::Skeleton*>(sd.skeleton);
@@ -1711,8 +1833,19 @@ void RenderFrame::flushSpineBatch() {
 
     glBindVertexArray(0);
 
-    stats_.triangles += static_cast<u32>(spine_indices_.size() / 3);
+    u32 spineTriCount = static_cast<u32>(spine_indices_.size() / 3);
+    stats_.triangles += spineTriCount;
     stats_.draw_calls++;
+
+    if (frame_capture_.isCapturing() || frame_capture_.isReplaying()) {
+        frame_capture_.recordDrawCall(
+            s_capture_ctx.stage, RenderType::Spine, spine_current_blend_,
+            0, 0, 0,
+            static_cast<u32>(spine_vertices_.size()), spineTriCount,
+            s_capture_ctx.layer, FlushReason::FrameEnd,
+            s_capture_ctx.scissor, s_capture_ctx.scissor_enabled,
+            false, false, -1, spine_tex_slots_.slotCount());
+    }
 
     spine_vertices_.clear();
     spine_indices_.clear();
@@ -1730,6 +1863,7 @@ void RenderFrame::renderExternalMeshes(u32 begin, u32 end) {
     i32 locTexture = shader->getUniformLocation("u_texture");
 
     for (u32 idx = begin; idx < end; ++idx) {
+        if (frame_capture_.shouldStop()) break;
         const auto& base = items_[idx];
         const auto& ed = ext_data_[base.data_index];
         if (!ed.ext_vertices || !ed.ext_indices ||
@@ -1774,8 +1908,20 @@ void RenderFrame::renderExternalMeshes(u32 begin, u32 end) {
 
         glBindVertexArray(0);
 
-        stats_.triangles += static_cast<u32>(ed.ext_index_count / 3);
+        u32 extTriCount = static_cast<u32>(ed.ext_index_count / 3);
+        stats_.triangles += extTriCount;
         stats_.draw_calls++;
+
+        if (frame_capture_.isCapturing() || frame_capture_.isReplaying()) {
+            frame_capture_.recordDrawCall(
+                base.stage, RenderType::ExternalMesh, base.blend_mode,
+                ed.ext_bind_texture, 0, 0,
+                static_cast<u32>(ed.ext_vertex_count), extTriCount,
+                base.layer, FlushReason::FrameEnd,
+                base.scissor, base.scissor_enabled,
+                false, false, -1, 1);
+            frame_capture_.addPendingEntity(base.entity);
+        }
     }
 
     RenderCommand::setBlendMode(BlendMode::Normal);
@@ -1783,6 +1929,7 @@ void RenderFrame::renderExternalMeshes(u32 begin, u32 end) {
 
 void RenderFrame::renderMeshes(u32 begin, u32 end) {
     for (u32 i = begin; i < end; ++i) {
+        if (frame_capture_.shouldStop()) break;
         const auto& base = items_[i];
         const auto& sd = sprite_data_[base.data_index];
         if (!sd.geometry || !sd.shader) continue;
@@ -1807,10 +1954,22 @@ void RenderFrame::renderMeshes(u32 begin, u32 end) {
         }
         geom->unbind();
 
-        stats_.draw_calls++;
-        stats_.triangles += geom->hasIndices()
+        u32 meshTriCount = geom->hasIndices()
             ? static_cast<u32>(geom->getIndexCount() / 3)
             : static_cast<u32>(geom->getVertexCount() / 3);
+        stats_.draw_calls++;
+        stats_.triangles += meshTriCount;
+
+        if (frame_capture_.isCapturing() || frame_capture_.isReplaying()) {
+            frame_capture_.recordDrawCall(
+                base.stage, RenderType::Mesh, base.blend_mode,
+                base.texture_id, sd.material_id, 0,
+                geom->hasIndices() ? static_cast<u32>(geom->getIndexCount()) : static_cast<u32>(geom->getVertexCount()),
+                meshTriCount, base.layer, FlushReason::FrameEnd,
+                base.scissor, base.scissor_enabled,
+                false, false, -1, 1);
+            frame_capture_.addPendingEntity(base.entity);
+        }
     }
 }
 
@@ -1847,17 +2006,20 @@ void RenderFrame::renderText(u32 begin, u32 end) {
     batcher_->setProjection(view_projection_);
     batcher_->beginBatch();
 
+    bool capturing = frame_capture_.isCapturing();
     bool curScissorOn = false;
     ScissorRect curRect{};
     bool stencilTestActive = false;
     i32 curStencilRef = -1;
 
     for (u32 i = begin; i < end; ++i) {
+        if (frame_capture_.shouldStop()) break;
         const auto& base = items_[i];
         const auto& td = text_data_[base.data_index];
 
         if (base.scissor_enabled != curScissorOn ||
             (base.scissor_enabled && base.scissor != curRect)) {
+            batcher_->setNextFlushReason(FlushReason::ScissorChange);
             batcher_->flush();
             if (base.scissor_enabled) {
                 glEnable(GL_SCISSOR_TEST);
@@ -1874,6 +2036,7 @@ void RenderFrame::renderText(u32 begin, u32 end) {
             auto stIt = stencil_masks_.find(static_cast<u32>(base.entity));
             if (stIt != stencil_masks_.end() && !stIt->second.is_mask) {
                 if (!stencilTestActive || curStencilRef != stIt->second.ref_value) {
+                    batcher_->setNextFlushReason(FlushReason::StencilChange);
                     batcher_->flush();
                     if (stencilTestActive) {
                         endStencilTest();
@@ -1883,11 +2046,25 @@ void RenderFrame::renderText(u32 begin, u32 end) {
                     curStencilRef = stIt->second.ref_value;
                 }
             } else if (stencilTestActive) {
+                batcher_->setNextFlushReason(FlushReason::StencilChange);
                 batcher_->flush();
                 endStencilTest();
                 stencilTestActive = false;
                 curStencilRef = -1;
             }
+        }
+
+        if (capturing) {
+            s_capture_ctx.stage = base.stage;
+            s_capture_ctx.type = RenderType::Text;
+            s_capture_ctx.blend_mode = base.blend_mode;
+            s_capture_ctx.texture_id = base.texture_id;
+            s_capture_ctx.layer = base.layer;
+            s_capture_ctx.scissor = base.scissor;
+            s_capture_ctx.scissor_enabled = base.scissor_enabled;
+            s_capture_ctx.stencil_test = stencilTestActive;
+            s_capture_ctx.stencil_ref = curStencilRef;
+            s_capture_ctx.material_id = 0;
         }
 
         auto* font = static_cast<const text::BitmapFont*>(td.font_data);
@@ -1975,14 +2152,17 @@ void RenderFrame::renderText(u32 begin, u32 end) {
             cursorX += (glyph->xAdvance + spacing) * scale;
             prevChar = charCode;
         }
+        if (capturing) frame_capture_.addPendingEntity(base.entity);
     }
 
     if (stencilTestActive) {
+        batcher_->setNextFlushReason(FlushReason::FrameEnd);
         batcher_->flush();
         endStencilTest();
     }
 
     if (curScissorOn) {
+        batcher_->setNextFlushReason(FlushReason::FrameEnd);
         batcher_->flush();
         glDisable(GL_SCISSOR_TEST);
     }
@@ -2137,8 +2317,20 @@ void RenderFrame::flushMaterialBatch() {
     glBindVertexArray(0);
     RenderCommand::setBlendMode(BlendMode::Normal);
 
+    u32 matTriCount = static_cast<u32>(mat_batch_.indices.size()) / 3;
     stats_.draw_calls++;
-    stats_.triangles += static_cast<u32>(mat_batch_.indices.size()) / 3;
+    stats_.triangles += matTriCount;
+
+    if (frame_capture_.isCapturing()) {
+        frame_capture_.recordDrawCall(
+            s_capture_ctx.stage, s_capture_ctx.type, static_cast<BlendMode>(blendMode),
+            mat_batch_.texture_id, mat_batch_.material_id, shaderId,
+            static_cast<u32>(mat_batch_.vertices.size()), matTriCount,
+            s_capture_ctx.layer, FlushReason::MaterialChange,
+            s_capture_ctx.scissor, s_capture_ctx.scissor_enabled,
+            s_capture_ctx.stencil_write, s_capture_ctx.stencil_test,
+            s_capture_ctx.stencil_ref, 1);
+    }
 
     mat_batch_.vertices.clear();
     mat_batch_.indices.clear();
@@ -2345,9 +2537,22 @@ void RenderFrame::renderParticles(u32 begin, u32 end) {
                                 nullptr, static_cast<i32>(count));
         stats_.draw_calls++;
         stats_.triangles += count * 2;
+
+        if (frame_capture_.isCapturing() || frame_capture_.isReplaying()) {
+            frame_capture_.recordDrawCall(
+                items_[bStart].stage, RenderType::Particle, batchBlend,
+                batchTexture, batchMaterial, 0,
+                count * 4, count * 2, items_[bStart].layer,
+                FlushReason::FrameEnd, {}, false,
+                false, false, -1, 1);
+            for (u32 ei = bStart; ei < bEnd; ++ei) {
+                frame_capture_.addPendingEntity(items_[ei].entity);
+            }
+        }
     };
 
     for (u32 i = begin; i < end; ++i) {
+        if (frame_capture_.shouldStop()) break;
         const auto& base = items_[i];
         const auto& pd = particle_data_[base.data_index];
 
@@ -2561,8 +2766,21 @@ void RenderFrame::renderShapes(u32 begin, u32 end) {
 
     glBindVertexArray(0);
 
+    u32 shapeTriCount = static_cast<u32>(shape_indices_.size()) / 3;
     stats_.draw_calls++;
-    stats_.triangles += static_cast<u32>(shape_indices_.size()) / 3;
+    stats_.triangles += shapeTriCount;
+
+    if (frame_capture_.isCapturing() || frame_capture_.isReplaying()) {
+        frame_capture_.recordDrawCall(
+            items_[begin].stage, RenderType::Shape, BlendMode::Normal,
+            0, 0, 0,
+            static_cast<u32>(shape_vertices_.size()), shapeTriCount,
+            items_[begin].layer, FlushReason::FrameEnd,
+            {}, false, false, false, -1, 0);
+        for (u32 ei = begin; ei < end; ++ei) {
+            frame_capture_.addPendingEntity(items_[ei].entity);
+        }
+    }
 }
 
 }  // namespace esengine

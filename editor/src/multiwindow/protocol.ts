@@ -12,6 +12,9 @@ export const CHANNEL_PANEL_OPENED = 'editor:panel-opened';
 export const CHANNEL_PANEL_CLOSED = 'editor:panel-closed';
 export const CHANNEL_OUTPUT = 'editor:output';
 export const CHANNEL_PROFILER_STATS = 'editor:profiler-stats';
+export const CHANNEL_FRAME_DEBUGGER_DATA = 'editor:frame-debugger-data';
+export const CHANNEL_FRAME_DEBUGGER_REPLAY_REQ = 'editor:frame-debugger-replay-req';
+export const CHANNEL_FRAME_DEBUGGER_SNAPSHOT = 'editor:frame-debugger-snapshot';
 
 // =============================================================================
 // State Snapshot
@@ -99,4 +102,23 @@ export interface ProfilerStatsMessage {
     frameTimeMs: number;
     phaseTimings: [string, number][];
     systemTimings: [string, number][];
+}
+
+// =============================================================================
+// Frame Debugger Messages
+// =============================================================================
+
+export interface FrameDebuggerDataMessage {
+    drawCalls: import('esengine').DrawCallInfo[];
+    cameraCount: number;
+}
+
+export interface FrameDebuggerReplayReqMessage {
+    drawCallIndex: number;
+}
+
+export interface FrameDebuggerSnapshotMessage {
+    dataUrl: string;
+    width: number;
+    height: number;
 }
