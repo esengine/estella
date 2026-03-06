@@ -1,6 +1,6 @@
 import type { Entity } from 'esengine';
 import type { EntityData, SceneData } from '../types/SceneTypes';
-import { BaseCommand, type Command } from './Command';
+import { BaseCommand, CommandRegistry, type Command, type SerializedCommand } from './Command';
 
 const MERGE_WINDOW_MS = 500;
 
@@ -41,6 +41,28 @@ export class RenameEntityCommand extends BaseCommand {
             this.entity_,
             this.oldName_,
             otherRename.newName_
+        );
+    }
+
+    serialize(): SerializedCommand {
+        return {
+            type: this.type,
+            data: {
+                entity: this.entity_ as number,
+                oldName: this.oldName_,
+                newName: this.newName_,
+            },
+        };
+    }
+
+    static {
+        CommandRegistry.register('rename_entity', (data, scene, entityMap) =>
+            new RenameEntityCommand(
+                scene, entityMap,
+                data.entity as number,
+                data.oldName as string,
+                data.newName as string,
+            ),
         );
     }
 

@@ -1,6 +1,8 @@
 export { RemoteEditorStore } from './RemoteEditorStore';
 export { MainWindowBridge } from './MainWindowBridge';
 export { WindowManager } from './WindowManager';
+export { CommandReplicator } from './CommandReplicator';
+export { ReplicaStore } from './ReplicaStore';
 
 export {
     CHANNEL_STATE,
@@ -19,6 +21,12 @@ export {
     type OutputType,
     type OutputMessage,
     type ProfilerStatsMessage,
+    CHANNEL_CMD_EXECUTED,
+    CHANNEL_CMD_REQUEST,
+    CHANNEL_CMD_SNAPSHOT,
+    type CmdExecutedMessage,
+    type CmdRequestMessage,
+    type CmdSnapshotMessage,
 } from './protocol';
 
 export { serializeEditorState } from './stateSerializer';

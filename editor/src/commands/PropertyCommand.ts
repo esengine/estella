@@ -5,7 +5,7 @@
 
 import type { Entity } from 'esengine';
 import type { SceneData, EntityData } from '../types/SceneTypes';
-import { BaseCommand, type ChangeEmitter, type Command } from './Command';
+import { BaseCommand, CommandRegistry, type ChangeEmitter, type Command, type SerializedCommand } from './Command';
 
 // =============================================================================
 // Constants
@@ -73,6 +73,19 @@ export class PropertyCommand extends BaseCommand {
         });
     }
 
+    serialize(): SerializedCommand {
+        return {
+            type: this.type,
+            data: {
+                entity: this.entity_ as number,
+                componentType: this.componentType_,
+                propertyName: this.propertyName_,
+                oldValue: this.oldValue_,
+                newValue: this.newValue_,
+            },
+        };
+    }
+
     get entity(): number {
         return this.entity_ as number;
     }
@@ -83,6 +96,19 @@ export class PropertyCommand extends BaseCommand {
 
     get propertyName(): string {
         return this.propertyName_;
+    }
+
+    static {
+        CommandRegistry.register('property', (data, scene, entityMap) =>
+            new PropertyCommand(
+                scene, entityMap,
+                data.entity as number,
+                data.componentType as string,
+                data.propertyName as string,
+                data.oldValue,
+                data.newValue,
+            ),
+        );
     }
 
     private setPropertyValue(value: unknown): void {

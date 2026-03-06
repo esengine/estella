@@ -1,5 +1,5 @@
 import type { EntityData, SceneData } from '../types/SceneTypes';
-import { BaseCommand, type ChangeEmitter } from './Command';
+import { BaseCommand, CommandRegistry, type ChangeEmitter, type SerializedCommand } from './Command';
 
 export class ToggleVisibilityCommand extends BaseCommand {
     readonly type = 'toggle_visibility';
@@ -52,6 +52,19 @@ export class ToggleVisibilityCommand extends BaseCommand {
                 emitter.notifyVisibilityChange({ entity: id, visible: entityData.visible });
             }
         }
+    }
+
+    serialize(): SerializedCommand {
+        return {
+            type: this.type,
+            data: { entityId: this.entityId_ },
+        };
+    }
+
+    static {
+        CommandRegistry.register('toggle_visibility', (data, scene, entityMap) =>
+            new ToggleVisibilityCommand(scene, entityMap, data.entityId as number),
+        );
     }
 
     private captureVisibilityStates(entityId: number): void {

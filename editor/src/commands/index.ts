@@ -3,7 +3,10 @@
  * @brief   Command system exports
  */
 
-export { type Command, type ChangeEmitter, BaseCommand } from './Command';
+export {
+    type Command, type ChangeEmitter, type SerializedCommand,
+    type CommandDeserializer, CommandRegistry, BaseCommand,
+} from './Command';
 export { PropertyCommand } from './PropertyCommand';
 export {
     CreateEntityCommand,

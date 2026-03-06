@@ -3,7 +3,48 @@
  * @brief   Command interface for undo/redo system
  */
 
-import type { EntityData } from '../types/SceneTypes';
+import type { EntityData, SceneData } from '../types/SceneTypes';
+
+// =============================================================================
+// SerializedCommand
+// =============================================================================
+
+export interface SerializedCommand {
+    type: string;
+    data: Record<string, unknown>;
+}
+
+export type CommandDeserializer = (
+    data: Record<string, unknown>,
+    scene: SceneData,
+    entityMap: Map<number, EntityData>,
+) => Command;
+
+// =============================================================================
+// CommandRegistry
+// =============================================================================
+
+const deserializers_ = new Map<string, CommandDeserializer>();
+
+export const CommandRegistry = {
+    register(type: string, deserializer: CommandDeserializer): void {
+        deserializers_.set(type, deserializer);
+    },
+
+    deserialize(
+        serialized: SerializedCommand,
+        scene: SceneData,
+        entityMap: Map<number, EntityData>,
+    ): Command | null {
+        const deserializer = deserializers_.get(serialized.type);
+        if (!deserializer) return null;
+        return deserializer(serialized.data, scene, entityMap);
+    },
+
+    has(type: string): boolean {
+        return deserializers_.has(type);
+    },
+};
 
 // =============================================================================
 // ChangeEmitter Interface
@@ -43,6 +84,8 @@ export interface Command {
 
     updateEntityMap(map: Map<number, EntityData>, isUndo: boolean): void;
     emitChangeEvents(emitter: ChangeEmitter, isUndo: boolean): void;
+
+    serialize(): SerializedCommand | null;
 }
 
 // =============================================================================
@@ -76,4 +119,8 @@ export abstract class BaseCommand implements Command {
 
     updateEntityMap(_map: Map<number, EntityData>, _isUndo: boolean): void {}
     emitChangeEvents(_emitter: ChangeEmitter, _isUndo: boolean): void {}
+
+    serialize(): SerializedCommand | null {
+        return null;
+    }
 }
