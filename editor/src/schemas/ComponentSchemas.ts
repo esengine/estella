@@ -5,6 +5,26 @@ import { COMPONENT_SCHEMA } from '../container/tokens';
 
 export type ComponentCategory = 'builtin' | 'ui' | 'physics' | 'script' | 'tag';
 
+export interface InspectorSectionDef {
+    id: string;
+    title?: string;
+    order?: number;
+    insertAfterGroup?: string;
+    render: (container: HTMLElement, ctx: InspectorSectionContext) => InspectorSectionHandle;
+}
+
+export interface InspectorSectionContext {
+    entity: import('esengine').Entity;
+    componentType: string;
+    componentData: Record<string, unknown>;
+    onChange: (property: string, oldValue: unknown, newValue: unknown) => void;
+}
+
+export interface InspectorSectionHandle {
+    update?(data: Record<string, unknown>): void;
+    dispose(): void;
+}
+
 export interface ComponentSchema {
     name: string;
     category: ComponentCategory;
@@ -12,6 +32,10 @@ export interface ComponentSchema {
     removable?: boolean;
     hidden?: boolean;
     displayName?: string;
+    description?: string;
+    requires?: string[];
+    conflicts?: string[];
+    sections?: InspectorSectionDef[];
     editorDefaults?: () => Record<string, unknown> | null;
 }
 
@@ -40,7 +64,20 @@ export function inferPropertyType(value: unknown): string {
 }
 
 export function registerComponentSchema(schema: ComponentSchema): void {
+    validateSchema(schema);
     getEditorContainer().provide(COMPONENT_SCHEMA, schema.name, schema);
+}
+
+function validateSchema(schema: ComponentSchema): void {
+    const defaults = getComponentDefaults(schema.name);
+    if (!defaults) return;
+
+    for (const prop of schema.properties) {
+        if (prop.name === '*') continue;
+        if (!(prop.name in defaults)) {
+            console.warn(`[Schema] ${schema.name}.${prop.name}: field not found in component defaults`);
+        }
+    }
 }
 
 export function getComponentSchema(name: string): ComponentSchema | undefined {
@@ -119,35 +156,12 @@ export function getDefaultComponentData(typeName: string): Record<string, unknow
     return getComponentDefaults(typeName) ?? {};
 }
 
-const editorInitialOverrides: Record<string, Record<string, unknown>> = {
-    BitmapText: {
-        text: 'BitmapText',
-        font: '',
-    },
-    Text: {
-        content: 'Text',
-        align: 1,
-        verticalAlign: 1,
-    },
-    TextInput: {
-        placeholder: 'Enter text...',
-    },
-};
-
-function getDynamicOverrides(typeName: string): Record<string, unknown> | null {
-    const schema = getEditorContainer().get(COMPONENT_SCHEMA, typeName);
-    if (schema?.editorDefaults) {
-        return schema.editorDefaults();
-    }
-    return null;
-}
-
 export function getInitialComponentData(typeName: string): Record<string, unknown> {
     const defaults = getDefaultComponentData(typeName);
-    const overrides = editorInitialOverrides[typeName];
-    const dynamic = getDynamicOverrides(typeName);
-    if (overrides || dynamic) {
-        return { ...defaults, ...overrides, ...dynamic };
+    const schema = getEditorContainer().get(COMPONENT_SCHEMA, typeName);
+    const overrides = schema?.editorDefaults?.();
+    if (overrides) {
+        return { ...defaults, ...overrides };
     }
     return defaults;
 }

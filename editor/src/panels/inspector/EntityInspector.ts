@@ -35,6 +35,7 @@ import {
     type InspectorSectionInstance,
 } from './InspectorRegistry';
 import { deepEqual } from './SharedEditors';
+import { visibilityResolver } from '../../schemas/VisibilityResolver';
 
 // =============================================================================
 // Global Augmentation
@@ -316,6 +317,13 @@ export function renderComponent(
 
     section.appendChild(header);
 
+    if (schema?.description) {
+        const desc = document.createElement('div');
+        desc.className = 'es-component-description es-collapsible-content';
+        desc.textContent = schema.description;
+        section.appendChild(desc);
+    }
+
     const customInspector = getComponentInspector(component.type);
     if (customInspector) {
         const propsContainer = document.createElement('div');
@@ -345,11 +353,17 @@ export function renderComponent(
         const propsContainer = document.createElement('div');
         propsContainer.className = 'es-component-properties es-collapsible-content';
 
+        const entityData = store.getEntityData(entity as number);
+        const entityComponents = entityData?.components.map(c => c.type) ?? [];
+
         const ungrouped: import('../../property/PropertyEditor').PropertyMeta[] = [];
         const groups = new Map<string, import('../../property/PropertyEditor').PropertyMeta[]>();
         const groupOrder: string[] = [];
+        const advancedProps: import('../../property/PropertyEditor').PropertyMeta[] = [];
         for (const propMeta of schema.properties) {
-            if (propMeta.group) {
+            if (propMeta.advanced) {
+                advancedProps.push(propMeta);
+            } else if (propMeta.group) {
                 if (!groups.has(propMeta.group)) {
                     groups.set(propMeta.group, []);
                     groupOrder.push(propMeta.group);
@@ -361,7 +375,7 @@ export function renderComponent(
         }
 
         for (const propMeta of ungrouped) {
-            renderPropertyRow(propsContainer, propMeta, entity, component, defaults, store, editors);
+            renderPropertyRow(propsContainer, propMeta, entity, component, defaults, store, editors, entityComponents);
         }
 
         for (const groupName of groupOrder) {
@@ -383,11 +397,53 @@ export function renderComponent(
             const groupContent = document.createElement('div');
             groupContent.className = 'es-collapsible-content';
             for (const propMeta of groups.get(groupName)!) {
-                renderPropertyRow(groupContent, propMeta, entity, component, defaults, store, editors);
+                renderPropertyRow(groupContent, propMeta, entity, component, defaults, store, editors, entityComponents);
             }
             groupSection.appendChild(groupContent);
 
             propsContainer.appendChild(groupSection);
+
+            if (schema.sections) {
+                for (const sec of schema.sections) {
+                    if (sec.insertAfterGroup === groupName) {
+                        renderSchemaSection(propsContainer, sec, entity, component, store, editors);
+                    }
+                }
+            }
+        }
+
+        if (schema.sections) {
+            for (const sec of schema.sections) {
+                if (!sec.insertAfterGroup) {
+                    renderSchemaSection(propsContainer, sec, entity, component, store, editors);
+                }
+            }
+        }
+
+        if (advancedProps.length > 0) {
+            const advSection = document.createElement('div');
+            advSection.className = 'es-property-group es-collapsible';
+
+            const advHeader = document.createElement('div');
+            advHeader.className = 'es-property-group-divider es-collapsible-header';
+            advHeader.innerHTML = `
+                <span class="es-collapse-icon">${icons.chevronDown(8)}</span>
+                <span class="es-property-group-label">Advanced</span>
+                <span class="es-property-group-line"></span>
+            `;
+            advHeader.addEventListener('click', () => {
+                advSection.classList.toggle('es-expanded');
+            });
+            advSection.appendChild(advHeader);
+
+            const advContent = document.createElement('div');
+            advContent.className = 'es-collapsible-content';
+            for (const propMeta of advancedProps) {
+                renderPropertyRow(advContent, propMeta, entity, component, defaults, store, editors, entityComponents);
+            }
+            advSection.appendChild(advContent);
+
+            propsContainer.appendChild(advSection);
         }
 
         section.appendChild(propsContainer);
@@ -457,7 +513,8 @@ function renderPropertyRow(
     component: ComponentData,
     defaults: Record<string, unknown>,
     store: EditorStore,
-    editors: EditorInfo[]
+    editors: EditorInfo[],
+    entityComponents: string[] = []
 ): void {
     if (propMeta.name === '*') {
         const editorContainer = document.createElement('div');
@@ -488,11 +545,9 @@ function renderPropertyRow(
         return;
     }
 
-    if (propMeta.hiddenWhen?.hasComponent) {
-        const ed = store.getEntityData(entity as number);
-        if (ed?.components.some(c => c.type === propMeta.hiddenWhen!.hasComponent)) {
-            return;
-        }
+    const fullData = { ...defaults, ...component.data };
+    if (!visibilityResolver.isVisible(propMeta, fullData, entityComponents)) {
+        return;
     }
 
     const row = document.createElement('div');
@@ -510,10 +565,16 @@ function renderPropertyRow(
 
     const label = document.createElement('label');
     label.className = 'es-property-label';
-    label.textContent = propMeta.name;
+    label.textContent = propMeta.displayName ?? propMeta.name;
+    if (propMeta.tooltip) {
+        label.dataset.tooltip = propMeta.tooltip;
+    }
 
     const editorContainer = document.createElement('div');
     editorContainer.className = 'es-property-editor';
+    if (propMeta.readOnly) {
+        editorContainer.classList.add('es-property-readonly');
+    }
 
     let currentValue = component.data[propMeta.name];
     if (currentValue === undefined) {
@@ -522,7 +583,7 @@ function renderPropertyRow(
     const editor = createPropertyEditor(editorContainer, {
         value: currentValue,
         meta: propMeta,
-        onChange: (newValue) => {
+        onChange: propMeta.readOnly ? () => {} : (newValue) => {
             const oldValue = component.data[propMeta.name] ?? currentValue;
             store.updateProperty(
                 entity,
@@ -572,6 +633,72 @@ function renderPropertyRow(
     }
 
     container.appendChild(row);
+}
+
+// =============================================================================
+// Schema Sections (Hybrid Inspector)
+// =============================================================================
+
+function renderSchemaSection(
+    container: HTMLElement,
+    sec: import('../../schemas/ComponentSchemas').InspectorSectionDef,
+    entity: Entity,
+    component: ComponentData,
+    store: EditorStore,
+    editors: EditorInfo[],
+): void {
+    const wrapper = document.createElement('div');
+    if (sec.title) {
+        const secSection = document.createElement('div');
+        secSection.className = 'es-property-group es-collapsible es-expanded';
+
+        const secHeader = document.createElement('div');
+        secHeader.className = 'es-property-group-divider es-collapsible-header';
+        secHeader.innerHTML = `
+            <span class="es-collapse-icon">${icons.chevronDown(8)}</span>
+            <span class="es-property-group-label">${sec.title}</span>
+            <span class="es-property-group-line"></span>
+        `;
+        secHeader.addEventListener('click', () => {
+            secSection.classList.toggle('es-expanded');
+        });
+        secSection.appendChild(secHeader);
+
+        const secContent = document.createElement('div');
+        secContent.className = 'es-collapsible-content';
+        secSection.appendChild(secContent);
+
+        const instance = sec.render(secContent, {
+            entity,
+            componentType: component.type,
+            componentData: component.data,
+            onChange: (property, oldValue, newValue) => {
+                store.updateProperty(entity, component.type, property, oldValue, newValue);
+            },
+        });
+        editors.push({
+            editor: { update: (v) => instance.update?.(v as Record<string, unknown>), dispose: () => instance.dispose() },
+            componentType: component.type,
+            propertyName: `__section_${sec.id}`,
+        });
+
+        container.appendChild(secSection);
+    } else {
+        const instance = sec.render(wrapper, {
+            entity,
+            componentType: component.type,
+            componentData: component.data,
+            onChange: (property, oldValue, newValue) => {
+                store.updateProperty(entity, component.type, property, oldValue, newValue);
+            },
+        });
+        editors.push({
+            editor: { update: (v) => instance.update?.(v as Record<string, unknown>), dispose: () => instance.dispose() },
+            componentType: component.type,
+            propertyName: `__section_${sec.id}`,
+        });
+        container.appendChild(wrapper);
+    }
 }
 
 // =============================================================================

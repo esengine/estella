@@ -358,7 +358,10 @@ export type { NativeFS, DirectoryEntry } from './scripting/types';
 export {
     ExtensionLoader,
     EditorExportService,
+    EditorExtensionAPI,
     type ExtensionLoaderOptions,
+    type ExtensionPluginInfo,
+    type Disposable,
 } from './extension';
 
 // =============================================================================

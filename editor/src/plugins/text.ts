@@ -7,6 +7,7 @@ import { LAYER_MIN, LAYER_MAX, FONT_SIZE_MIN, FONT_SIZE_MAX } from '../schemas/s
 const TextSchema: ComponentSchema = {
     name: 'Text',
     category: 'ui',
+    editorDefaults: () => ({ content: 'Text', align: 1, verticalAlign: 1 }),
     properties: [
         { name: 'content', type: 'string' },
         { name: 'fontFamily', type: 'font' },
@@ -47,6 +48,7 @@ const TextSchema: ComponentSchema = {
 const BitmapTextSchema: ComponentSchema = {
     name: 'BitmapText',
     category: 'ui',
+    editorDefaults: () => ({ text: 'BitmapText', font: '' }),
     properties: [
         { name: 'text', type: 'string' },
         { name: 'font', type: 'bitmap-font-file' },

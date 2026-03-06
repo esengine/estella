@@ -7,6 +7,7 @@ export const MAX_PIXELS_PER_SECOND = 500;
 export const DEFAULT_PIXELS_PER_SECOND = 100;
 export const KEYFRAME_SIZE = 8;
 export const SNAP_THRESHOLD = 5;
+export const DEFAULT_DURATION = 5;
 
 export type TrackType = 'property' | 'spine' | 'spriteAnim' | 'audio' | 'activation';
 
@@ -18,14 +19,18 @@ export interface TimelineTrackState {
     channelCount: number;
 }
 
+export type WrapMode = 'once' | 'loop' | 'pingPong';
+
 export class TimelineState {
     pixelsPerSecond = DEFAULT_PIXELS_PER_SECOND;
     scrollX = 0;
     scrollY = 0;
     playheadTime = 0;
-    duration = 5;
+    duration = DEFAULT_DURATION;
     playing = false;
     recording = false;
+    playbackSpeed = 1;
+    wrapMode: WrapMode = 'once';
     selectedTrackIndex = -1;
     selectedKeyframes: Set<string> = new Set();
     tracks: TimelineTrackState[] = [];

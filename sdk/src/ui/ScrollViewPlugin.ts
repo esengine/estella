@@ -18,7 +18,7 @@ import type { UIInteractionData } from './UIInteraction';
 import { UICameraInfo } from './UICameraInfo';
 import type { UICameraData } from './UICameraInfo';
 import { isEditor, isPlayMode } from '../env';
-import { getEffectiveWidth, getEffectiveHeight, ensureComponent } from './uiHelpers';
+import { getEffectiveWidth, getEffectiveHeight, ensureComponent, withChildEntity, EntityStateMap } from './uiHelpers';
 import {
     SCROLL_MAX_DT, SCROLL_VELOCITY_THRESHOLD,
     SCROLL_VELOCITY_LERP_SPEED, SCROLL_ELASTIC_SMOOTH_TIME,
@@ -68,11 +68,20 @@ interface ScrollState {
 }
 
 export class ScrollViewPlugin implements Plugin {
+    private cleanup_: (() => void) | null = null;
+
+    cleanup(): void {
+        if (this.cleanup_) {
+            this.cleanup_();
+            this.cleanup_ = null;
+        }
+    }
+
     build(app: App): void {
         registerComponent('ScrollView', ScrollView);
 
         const world = app.world;
-        const states = new Map<Entity, ScrollState>();
+        const states = new EntityStateMap<ScrollState>();
         const worldMouse = { x: 0, y: 0 };
 
         app.addSystemToSchedule(Schedule.PostUpdate, defineSystem(
@@ -82,9 +91,7 @@ export class ScrollViewPlugin implements Plugin {
 
                 const dt = Math.min(time.delta, SCROLL_MAX_DT);
 
-                for (const [e] of states) {
-                    if (!world.valid(e)) states.delete(e);
-                }
+                states.cleanup(world);
 
                 if (camera.valid) {
                     worldMouse.x = camera.worldMouseX;
@@ -98,16 +105,12 @@ export class ScrollViewPlugin implements Plugin {
                     const sv = world.get(entity, ScrollView) as ScrollViewData;
                     const rect = world.get(entity, UIRect) as UIRectData;
 
-                    let state = states.get(entity);
-                    if (!state) {
-                        state = {
-                            isDragging: false, lastWorldX: 0, lastWorldY: 0,
-                            velocityX: 0, velocityY: 0,
-                            contentBaseX: NaN, contentBaseY: NaN,
-                            lastAppliedX: NaN, lastAppliedY: NaN,
-                        };
-                        states.set(entity, state);
-                    }
+                    const state = states.ensureInit(entity, () => ({
+                        isDragging: false, lastWorldX: 0, lastWorldY: 0,
+                        velocityX: 0, velocityY: 0,
+                        contentBaseX: NaN, contentBaseY: NaN,
+                        lastAppliedX: NaN, lastAppliedY: NaN,
+                    }));
 
                     const viewW = getEffectiveWidth(rect, entity);
                     const viewH = getEffectiveHeight(rect, entity);
@@ -279,32 +282,34 @@ export class ScrollViewPlugin implements Plugin {
                         sv.scrollY = Math.max(-maxOverY, Math.min(sv.scrollY, maxScrollY + maxOverY));
                     }
 
-                    // Apply scroll to content transform
-                    if (sv.contentEntity !== 0 && world.valid(sv.contentEntity)) {
-                        if (world.has(sv.contentEntity, Transform)) {
-                            const lt = world.get(sv.contentEntity, Transform) as TransformData;
-                            const curX = lt.position.x;
-                            const curY = lt.position.y;
+                    withChildEntity(world, sv.contentEntity, (contentEntity) => {
+                        if (!world.has(contentEntity, Transform)) return;
+                        const lt = world.get(contentEntity, Transform) as TransformData;
+                        const curX = lt.position.x;
+                        const curY = lt.position.y;
 
-                            if (isNaN(state.lastAppliedX) || Math.abs(curX - state.lastAppliedX) > SCROLL_POSITION_EPSILON) {
-                                state.contentBaseX = curX;
-                            }
-                            if (isNaN(state.lastAppliedY) || Math.abs(curY - state.lastAppliedY) > SCROLL_POSITION_EPSILON) {
-                                state.contentBaseY = curY;
-                            }
-
-                            lt.position.x = state.contentBaseX - sv.scrollX;
-                            lt.position.y = state.contentBaseY + sv.scrollY;
-
-                            state.lastAppliedX = lt.position.x;
-                            state.lastAppliedY = lt.position.y;
-                            world.insert(sv.contentEntity, Transform, lt);
+                        if (isNaN(state.lastAppliedX) || Math.abs(curX - state.lastAppliedX) > SCROLL_POSITION_EPSILON) {
+                            state.contentBaseX = curX;
                         }
-                    }
+                        if (isNaN(state.lastAppliedY) || Math.abs(curY - state.lastAppliedY) > SCROLL_POSITION_EPSILON) {
+                            state.contentBaseY = curY;
+                        }
+
+                        lt.position.x = state.contentBaseX - sv.scrollX;
+                        lt.position.y = state.contentBaseY + sv.scrollY;
+
+                        state.lastAppliedX = lt.position.x;
+                        state.lastAppliedY = lt.position.y;
+                        world.insert(contentEntity, Transform, lt);
+                    });
                 }
             },
             { name: 'ScrollViewSystem' }
         ), { runAfter: ['UILayoutLateSystem'], runBefore: ['UIRenderOrderSystem'] });
+
+        this.cleanup_ = () => {
+            states.clear();
+        };
     }
 }
 

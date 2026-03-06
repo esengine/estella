@@ -2,12 +2,12 @@ import type { PanelInstance } from '../PanelRegistry';
 import type { EditorStore } from '../../store/EditorStore';
 import type { PropertyChangeEvent } from '../../store/EditorStore';
 import type { Command } from '../../commands/Command';
-import { TimelineState, type TimelineTrackState } from './TimelineState';
+import { TimelineState, DEFAULT_DURATION, type TimelineTrackState } from './TimelineState';
 import { TimelineToolbar } from './TimelineToolbar';
 import { TimelineTrackList } from './TimelineTrackList';
 import { TimelineKeyframeArea, type TimelineAssetData, type TimelineTrackData } from './TimelineKeyframeArea';
 import { TimelineCurveEditor } from './TimelineCurveEditor';
-import { AddKeyframeCommand } from './TimelineCommands';
+import { AddKeyframeCommand, ReorderTrackCommand, RenameTrackCommand } from './TimelineCommands';
 import { getEditorContext } from '../../context/EditorContext';
 import { getProjectService, getSceneService } from '../../services';
 import { getAssetDatabase as getAssetLibrary, isUUID } from '../../asset';
@@ -44,7 +44,7 @@ export class TimelinePanel implements PanelInstance {
         this.render();
 
         this.disposables_.add(store.subscribe((_state, dirtyFlags) => {
-            if (dirtyFlags?.has('selection') || dirtyFlags?.has('scene')) {
+            if (!dirtyFlags || dirtyFlags.has('selection') || dirtyFlags.has('scene')) {
                 this.onSelectionOrSceneChanged();
             }
         }));
@@ -63,10 +63,13 @@ export class TimelinePanel implements PanelInstance {
         }));
 
         this.updateEmptyState();
-        this.disposeDirtyReg_ = getSceneService().registerDirtyChecker(() => ({
-            isDirty: this.isDirty,
-            save: () => this.saveAsset(),
-        }));
+        const sceneService = getSceneService();
+        if (sceneService) {
+            this.disposeDirtyReg_ = sceneService.registerDirtyChecker(() => ({
+                isDirty: this.isDirty,
+                save: () => this.saveAsset(),
+            }));
+        }
     }
 
     dispose(): void {
@@ -157,7 +160,7 @@ export class TimelinePanel implements PanelInstance {
         this.boundEntityId_ = null;
         this.toolbar_?.setBoundEntity(null);
         this.state_.tracks = [];
-        this.state_.duration = 5;
+        this.state_.duration = DEFAULT_DURATION;
         this.state_.playheadTime = 0;
         this.state_.playing = false;
         this.state_.recording = false;
@@ -418,7 +421,7 @@ export class TimelinePanel implements PanelInstance {
             if (!resolved) return null;
             relativePath = resolved;
         }
-        const projectPath = getProjectService().projectPath;
+        const projectPath = getProjectService()?.projectPath;
         if (!projectPath) return null;
         const projectDir = projectPath.replace(/\\/g, '/').replace(/\/[^/]+$/, '');
         return `${projectDir}/${relativePath}`;
@@ -438,18 +441,39 @@ export class TimelinePanel implements PanelInstance {
 
     private tickPlayback(): void {
         const now = performance.now();
-        const dt = (now - this.lastPlaybackTime_) / 1000;
+        const dt = (now - this.lastPlaybackTime_) / 1000 * this.state_.playbackSpeed;
         this.lastPlaybackTime_ = now;
 
         let newTime = this.state_.playheadTime + dt;
 
         if (newTime >= this.state_.duration) {
-            newTime = 0;
-            this.state_.playing = false;
+            switch (this.state_.wrapMode) {
+                case 'loop':
+                    newTime = newTime % this.state_.duration;
+                    break;
+                case 'pingPong':
+                    const cycle = Math.floor(newTime / this.state_.duration);
+                    const frac = newTime % this.state_.duration;
+                    newTime = cycle % 2 === 0 ? frac : this.state_.duration - frac;
+                    break;
+                default:
+                    newTime = this.state_.duration;
+                    this.state_.playing = false;
+                    break;
+            }
         }
 
         this.state_.playheadTime = newTime;
+        this.autoScrollPlayhead();
         this.state_.notify();
+    }
+
+    private autoScrollPlayhead(): void {
+        const x = this.state_.timeToX(this.state_.playheadTime);
+        const visibleWidth = this.container_.querySelector('.es-timeline-keyframes-pane')?.clientWidth ?? 600;
+        if (x > visibleWidth) {
+            this.state_.scrollX = this.state_.playheadTime * this.state_.pixelsPerSecond - visibleWidth * 0.2;
+        }
     }
 
     private render(): void {
@@ -483,11 +507,17 @@ export class TimelinePanel implements PanelInstance {
             toolbarEl, this.state_, this.store_,
             (track) => this.addTrack(track),
             (ti, ci, ki, val) => this.keyframeArea_?.updateKeyframeValue(ti, ci, ki, val),
+            (dur) => { this.dirty_ = true; this.state_.duration = dur; },
         );
-        this.trackList_ = new TimelineTrackList(tracksEl, this.state_);
+        this.trackList_ = new TimelineTrackList(
+            tracksEl, this.state_,
+            (from, to) => this.reorderTrack(from, to),
+            (idx, oldName, newName) => this.renameTrack(idx, oldName, newName),
+            (ti, ci) => this.showCurveEditor(ti, ci),
+        );
         this.keyframeArea_ = new TimelineKeyframeArea(keyframesEl, this.state_, this);
-        this.keyframeArea_.onKeyframeSelectionChange = (info) => this.toolbar_?.setSelectedKeyframe(info ?? null);
-        this.curveEditor_ = new TimelineCurveEditor(curveEl, this.state_);
+        this.keyframeArea_.onKeyframeSelectionChange = (summary) => this.toolbar_?.setSelectionSummary(summary);
+        this.curveEditor_ = new TimelineCurveEditor(curveEl, this.state_, this);
     }
 
     private updateEmptyState(): void {
@@ -497,7 +527,14 @@ export class TimelinePanel implements PanelInstance {
             const textEl = this.emptyEl_.querySelector('.es-timeline-empty-text');
             if (textEl) {
                 if (this.boundEntityId_ !== null && this.assetPath_ === null) {
-                    textEl.innerHTML = 'No timeline file assigned.<br>Drag a <strong>.estimeline</strong> file to the <strong>TimelinePlayer</strong> component in Inspector.';
+                    textEl.innerHTML = `
+                        No timeline file assigned.<br>
+                        Drag a <strong>.estimeline</strong> file to the <strong>TimelinePlayer</strong> component,<br>
+                        or <button class="es-btn es-btn-sm es-timeline-create-btn">Create Timeline</button>
+                    `;
+                    textEl.querySelector('.es-timeline-create-btn')?.addEventListener('click', () => {
+                        this.createNewTimeline();
+                    });
                 } else {
                     textEl.innerHTML = 'Select an entity with <strong>TimelinePlayer</strong> component to edit its timeline';
                 }
@@ -506,6 +543,54 @@ export class TimelinePanel implements PanelInstance {
         if (this.bodyEl_) {
             this.bodyEl_.style.display = hasFile ? 'flex' : 'none';
         }
+    }
+
+    private async createNewTimeline(): Promise<void> {
+        if (this.boundEntityId_ === null) return;
+
+        const fs = getEditorContext().fs;
+        if (!fs) return;
+
+        const projectPath = getProjectService()?.projectPath;
+        if (!projectPath) return;
+
+        const projectDir = projectPath.replace(/\\/g, '/').replace(/\/[^/]+$/, '');
+        const entityData = this.store_.getEntityData(this.boundEntityId_ as number);
+        const name = entityData?.name ?? 'timeline';
+        const safeName = name.replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase();
+        const relativePath = `assets/${safeName}.estimeline`;
+        const absPath = `${projectDir}/${relativePath}`;
+
+        const data: TimelineAssetData = { tracks: [], duration: DEFAULT_DURATION };
+        const saveData = { version: '1.0', type: 'timeline', duration: DEFAULT_DURATION, wrapMode: 'once', tracks: [] };
+
+        try {
+            await fs.writeFile(absPath, JSON.stringify(saveData, null, 2));
+            this.store_.updatePropertyDirect(
+                this.boundEntityId_, 'TimelinePlayer', 'timeline', relativePath,
+            );
+            this.loadTimeline(data, DEFAULT_DURATION, relativePath);
+        } catch (err) {
+            console.error('Failed to create timeline:', err);
+        }
+    }
+
+    private reorderTrack(fromIndex: number, toIndex: number): void {
+        if (!this.assetData_) return;
+        const cmd = new ReorderTrackCommand(
+            this.assetData_, fromIndex, toIndex,
+            () => this.onAssetDataChanged(),
+        );
+        this.executeCommand(cmd);
+    }
+
+    private renameTrack(trackIndex: number, oldName: string, newName: string): void {
+        if (!this.assetData_) return;
+        const cmd = new RenameTrackCommand(
+            this.assetData_, trackIndex, oldName, newName,
+            () => this.onAssetDataChanged(),
+        );
+        this.executeCommand(cmd);
     }
 
     private addTrack(track: TimelineTrackData): void {
@@ -530,7 +615,7 @@ export class TimelinePanel implements PanelInstance {
             const content = await fs.readFile(absPath);
             if (!content) return;
             const data = JSON.parse(content) as TimelineAssetData & { duration?: number };
-            const duration = data.duration ?? 5;
+            const duration = data.duration ?? DEFAULT_DURATION;
             this.loadTimeline(data, duration, ref);
         } catch (err) {
             console.error('Failed to open timeline:', err);

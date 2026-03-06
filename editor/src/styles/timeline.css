@@ -102,6 +102,37 @@
 
 .es-timeline-toolbar-right {
     margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.es-timeline-speed-btn {
+    font: var(--es-font-sm) var(--es-font-mono);
+    min-width: 32px;
+    text-align: center;
+    padding: 2px 6px;
+}
+
+.es-timeline-wrap-btn.es-active {
+    color: var(--es-accent);
+    background: var(--es-accent-subtle);
+}
+
+.es-timeline-duration-input {
+    width: 80px;
+    height: 20px;
+    font: var(--es-font-sm) var(--es-font-mono);
+    padding: 0 4px;
+    background: var(--es-bg-primary);
+    border: 1px solid var(--es-accent);
+    border-radius: 2px;
+    color: var(--es-text-primary);
+    outline: none;
+}
+
+.es-timeline-create-btn {
+    margin-top: 8px;
 }
 
 .es-timeline-body {
@@ -153,6 +184,13 @@
     background: var(--es-accent-subtle);
 }
 
+.es-timeline-track-color-bar {
+    width: 3px;
+    height: 100%;
+    flex-shrink: 0;
+    border-radius: 1px;
+}
+
 .es-timeline-track-icon {
     flex-shrink: 0;
     opacity: 0.6;
@@ -197,6 +235,25 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.es-timeline-rename-input {
+    background: var(--es-bg-primary);
+    border: 1px solid var(--es-accent);
+    border-radius: 2px;
+    color: var(--es-text-primary);
+    padding: 0 4px;
+    outline: none;
+}
+
+.es-timeline-drag-indicator {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--es-accent);
+    pointer-events: none;
+    z-index: 10;
 }
 
 .es-timeline-empty {

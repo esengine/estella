@@ -6,9 +6,11 @@
 import { icons } from '../utils/icons';
 import {
     getComponentsByCategory,
+    getInitialComponentData,
     type ComponentSchema,
     type ComponentCategory,
 } from '../schemas/ComponentSchemas';
+import { checkComponentComposition } from '../schemas/CompositionChecker';
 
 // =============================================================================
 // Types
@@ -120,11 +122,16 @@ export class AddComponentPopup {
             `;
 
             for (const schema of filtered) {
-                const displayName = this.highlightName(schema.name, filter);
+                const label = schema.displayName ?? schema.name;
+                const displayName = this.highlightName(label, filter);
+                const composition = checkComponentComposition(schema.name, this.options_.existingComponents);
+                const disabledClass = composition.allowed ? '' : 'es-disabled';
+                const title = composition.reason ?? (schema.description ?? '');
                 categoryHtml += `
-                    <div class="es-component-item" data-component="${schema.name}">
+                    <div class="es-component-item ${disabledClass}" data-component="${schema.name}" title="${title}">
                         <span class="es-component-icon">${iconFn()}</span>
                         <span class="es-component-name">${displayName}</span>
+                        ${schema.description ? `<span class="es-component-desc">${schema.description}</span>` : ''}
                     </div>
                 `;
             }
@@ -175,6 +182,13 @@ export class AddComponentPopup {
             if (componentItem) {
                 const name = componentItem.dataset.component;
                 if (name) {
+                    const composition = checkComponentComposition(name, this.options_.existingComponents);
+                    if (!composition.allowed) return;
+                    if (composition.autoAdd) {
+                        for (const dep of composition.autoAdd) {
+                            this.options_.onSelect(dep);
+                        }
+                    }
                     this.options_.onSelect(name);
                     this.options_.onClose();
                 }
@@ -229,6 +243,13 @@ export class AddComponentPopup {
             if (this.highlightIndex_ >= 0 && this.highlightIndex_ < items.length) {
                 const name = items[this.highlightIndex_].dataset.component;
                 if (name) {
+                    const composition = checkComponentComposition(name, this.options_.existingComponents);
+                    if (!composition.allowed) return;
+                    if (composition.autoAdd) {
+                        for (const dep of composition.autoAdd) {
+                            this.options_.onSelect(dep);
+                        }
+                    }
                     this.options_.onSelect(name);
                     this.options_.onClose();
                 }

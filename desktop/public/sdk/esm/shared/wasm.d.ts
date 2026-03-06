@@ -644,4 +644,4 @@ interface ESEngineModule {
 }
 
 export { INVALID_ENTITY as I, INVALID_FONT as f, INVALID_MATERIAL as g, INVALID_TEXTURE as h, color as i, vec3 as j, vec4 as k, quat as q, vec2 as v };
-export type { Color as C, ESEngineModule as E, FontHandle as F, Quat as Q, SpineBounds as S, TextureHandle as T, Vec2 as V, Entity as a, Vec3 as b, CppRegistry as c, Vec4 as d, CppResourceManager as e, EmscriptenFS as l };
+export type { Color as C, ESEngineModule as E, FontHandle as F, Padding as P, Quat as Q, SpineBounds as S, TextureHandle as T, Vec2 as V, Entity as a, Vec3 as b, CppRegistry as c, Vec4 as d, CppResourceManager as e, EmscriptenFS as l };

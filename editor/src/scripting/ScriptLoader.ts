@@ -12,6 +12,7 @@ import { clearScriptComponents } from '../schemas/ComponentSchemas';
 import { getEditorContext } from '../context/EditorContext';
 import { initializeEsbuild } from '../builder/ArtifactBuilder';
 import { normalizePath, joinPath, getProjectDir } from '../utils/path';
+import { discoverPluginPackages } from '../extension/pluginDiscovery';
 
 // =============================================================================
 // Native FS Access
@@ -81,15 +82,25 @@ export class ScriptLoader {
         clearScriptComponents();
 
         const scripts = await this.discoverScripts();
-        if (scripts.length === 0) {
+
+        const pluginImports: string[] = [];
+        try {
+            const plugins = await discoverPluginPackages(fs, this.projectDir_, 'main');
+            for (const p of plugins) {
+                pluginImports.push(`import "${p.entryPath}";`);
+            }
+        } catch (err) {
+            console.warn('ScriptLoader: Plugin discovery failed:', err);
+        }
+
+        if (scripts.length === 0 && pluginImports.length === 0) {
             this.lastCompiled_ = null;
             return true;
         }
 
         try {
-            const entryContent = scripts
-                .map(p => `import "${p}";`)
-                .join('\n');
+            const localImports = scripts.map(p => `import "${p}";`).join('\n');
+            const entryContent = pluginImports.join('\n') + '\n' + localImports;
 
             const shimModules = new Map<string, Record<string, unknown>>([
                 ['esengine', esengineModule as unknown as Record<string, unknown>],

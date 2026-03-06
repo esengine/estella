@@ -1,18 +1,19 @@
 import type { TimelineState } from './TimelineState';
-import type { TimelineAssetData } from './TimelineKeyframeArea';
+import type { TimelineAssetData, TimelinePanelHost } from './TimelineKeyframeArea';
+import { ChangeTangentCommand } from './TimelineCommands';
 
 const CURVE_BG = '#1a1a1a';
 const CURVE_GRID = '#2a2a2a';
-const CURVE_LINE = '#61afef';
-const CURVE_KF_COLOR = '#e5c07b';
 const CURVE_KF_SELECTED = '#61afef';
 const CURVE_TANGENT_LINE = '#555555';
 const CURVE_TANGENT_HANDLE = '#e06c75';
-const CURVE_HEIGHT = 150;
 const PADDING = 20;
 const KF_RADIUS = 4;
 const HANDLE_RADIUS = 3;
 const TANGENT_LENGTH_PX = 40;
+const STEP_TANGENT_VALUE = 1e6;
+
+const CHANNEL_COLORS = ['#e06c75', '#98c379', '#61afef', '#d19a66', '#c678dd', '#56b6c2'];
 
 interface CurveKeyframe {
     time: number;
@@ -31,6 +32,7 @@ export class TimelineCurveEditor {
     private canvas_: HTMLCanvasElement;
     private ctx_: CanvasRenderingContext2D;
     private state_: TimelineState;
+    private host_: TimelinePanelHost | null = null;
     private visible_ = false;
     private trackIndex_ = -1;
     private channelIndex_ = -1;
@@ -41,9 +43,10 @@ export class TimelineCurveEditor {
     private valueMin_ = 0;
     private valueMax_ = 1;
 
-    constructor(container: HTMLElement, state: TimelineState) {
+    constructor(container: HTMLElement, state: TimelineState, host?: TimelinePanelHost) {
         this.container_ = container;
         this.state_ = state;
+        this.host_ = host ?? null;
 
         this.container_.style.display = 'none';
         this.container_.innerHTML = `
@@ -56,6 +59,7 @@ export class TimelineCurveEditor {
         const canvasWrap = this.container_.querySelector('.es-timeline-curve-canvas-wrap') as HTMLElement;
         this.canvas_ = document.createElement('canvas');
         this.canvas_.className = 'es-timeline-canvas';
+        this.canvas_.tabIndex = 0;
         canvasWrap.appendChild(this.canvas_);
         this.ctx_ = this.canvas_.getContext('2d')!;
 
@@ -68,6 +72,8 @@ export class TimelineCurveEditor {
 
         this.canvas_.addEventListener('mousedown', (e) => this.onMouseDown(e));
         this.canvas_.addEventListener('contextmenu', (e) => this.onContextMenu(e));
+        this.canvas_.addEventListener('wheel', (e) => this.onWheel(e), { passive: false });
+        this.canvas_.addEventListener('keydown', (e) => this.onKeyDown(e));
     }
 
     dispose(): void {
@@ -86,7 +92,7 @@ export class TimelineCurveEditor {
         this.selectedKfIndex_ = -1;
         this.visible_ = true;
         this.container_.style.display = '';
-        this.computeValueRange();
+        this.fitValueRange();
         this.resizeCanvas();
     }
 
@@ -99,27 +105,38 @@ export class TimelineCurveEditor {
         return this.visible_;
     }
 
-    private getKeyframes(): CurveKeyframe[] {
+    private getKeyframes(channelIndex?: number): CurveKeyframe[] {
         if (!this.assetData_) return [];
         const track = this.assetData_.tracks[this.trackIndex_];
         if (!track || track.type !== 'property') return [];
-        const channel = track.channels?.[this.channelIndex_];
+        const ci = channelIndex ?? this.channelIndex_;
+        const channel = track.channels?.[ci];
         return channel?.keyframes ?? [];
     }
 
-    private computeValueRange(): void {
-        const kfs = this.getKeyframes();
-        if (kfs.length === 0) {
-            this.valueMin_ = 0;
-            this.valueMax_ = 1;
-            return;
-        }
+    private getChannelCount(): number {
+        if (!this.assetData_) return 0;
+        const track = this.assetData_.tracks[this.trackIndex_];
+        if (!track || track.type !== 'property') return 0;
+        return track.channels?.length ?? 0;
+    }
 
+    private fitValueRange(): void {
+        const channelCount = this.getChannelCount();
         let min = Infinity;
         let max = -Infinity;
-        for (const kf of kfs) {
-            if (kf.value < min) min = kf.value;
-            if (kf.value > max) max = kf.value;
+
+        for (let c = 0; c < channelCount; c++) {
+            const kfs = this.getKeyframes(c);
+            for (const kf of kfs) {
+                if (kf.value < min) min = kf.value;
+                if (kf.value > max) max = kf.value;
+            }
+        }
+
+        if (min === Infinity) {
+            min = 0;
+            max = 1;
         }
 
         const padding = Math.max(0.1, (max - min) * 0.2);
@@ -171,7 +188,7 @@ export class TimelineCurveEditor {
         ctx.fillRect(0, 0, w, h);
 
         this.drawGrid(ctx, w, h);
-        this.drawCurve(ctx, w);
+        this.drawAllChannelCurves(ctx, w);
         this.drawKeyframePoints(ctx);
     }
 
@@ -230,12 +247,37 @@ export class TimelineCurveEditor {
         return 100;
     }
 
-    private drawCurve(ctx: CanvasRenderingContext2D, width: number): void {
-        const kfs = this.getKeyframes();
-        if (kfs.length < 2) return;
+    private drawAllChannelCurves(ctx: CanvasRenderingContext2D, width: number): void {
+        const channelCount = this.getChannelCount();
+        if (channelCount === 0) return;
 
-        ctx.strokeStyle = CURVE_LINE;
-        ctx.lineWidth = 1.5;
+        for (let c = 0; c < channelCount; c++) {
+            if (c === this.channelIndex_) continue;
+            const kfs = this.getKeyframes(c);
+            if (kfs.length < 2) continue;
+            const color = CHANNEL_COLORS[c % CHANNEL_COLORS.length];
+            this.drawCurve(ctx, width, kfs, color, 1, 0.35);
+        }
+
+        const activeKfs = this.getKeyframes();
+        if (activeKfs.length >= 2) {
+            const activeColor = CHANNEL_COLORS[this.channelIndex_ % CHANNEL_COLORS.length];
+            this.drawCurve(ctx, width, activeKfs, activeColor, 2, 1);
+        }
+    }
+
+    private drawCurve(
+        ctx: CanvasRenderingContext2D,
+        width: number,
+        kfs: CurveKeyframe[],
+        color: string,
+        lineWidth: number,
+        alpha: number,
+    ): void {
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = lineWidth;
         ctx.beginPath();
 
         let started = false;
@@ -254,6 +296,7 @@ export class TimelineCurveEditor {
         }
 
         ctx.stroke();
+        ctx.restore();
     }
 
     private evaluateAtTime(kfs: CurveKeyframe[], time: number): number | null {
@@ -286,6 +329,7 @@ export class TimelineCurveEditor {
 
     private drawKeyframePoints(ctx: CanvasRenderingContext2D): void {
         const kfs = this.getKeyframes();
+        const color = CHANNEL_COLORS[this.channelIndex_ % CHANNEL_COLORS.length];
 
         for (let i = 0; i < kfs.length; i++) {
             const kf = kfs[i];
@@ -296,7 +340,7 @@ export class TimelineCurveEditor {
                 this.drawTangentHandles(ctx, kf, x, y);
             }
 
-            ctx.fillStyle = i === this.selectedKfIndex_ ? CURVE_KF_SELECTED : CURVE_KF_COLOR;
+            ctx.fillStyle = i === this.selectedKfIndex_ ? CURVE_KF_SELECTED : color;
             ctx.beginPath();
             ctx.arc(x, y, KF_RADIUS, 0, Math.PI * 2);
             ctx.fill();
@@ -399,6 +443,33 @@ export class TimelineCurveEditor {
         this.draw();
     }
 
+    private onWheel(e: WheelEvent): void {
+        e.preventDefault();
+
+        if (e.ctrlKey || e.metaKey) {
+            this.state_.zoom(-e.deltaY, e.offsetX);
+        } else {
+            const range = this.valueMax_ - this.valueMin_;
+            const zoomFactor = 1 + e.deltaY * 0.002;
+            const pivotValue = this.yToValue(e.offsetY);
+
+            const newRange = range * zoomFactor;
+            const ratio = (pivotValue - this.valueMin_) / range;
+            this.valueMin_ = pivotValue - ratio * newRange;
+            this.valueMax_ = pivotValue + (1 - ratio) * newRange;
+
+            this.draw();
+        }
+    }
+
+    private onKeyDown(e: KeyboardEvent): void {
+        if (e.key === 'F' && e.shiftKey) {
+            e.preventDefault();
+            this.fitValueRange();
+            this.draw();
+        }
+    }
+
     private onContextMenu(e: MouseEvent): void {
         e.preventDefault();
         const rect = this.canvas_.getBoundingClientRect();
@@ -421,26 +492,25 @@ export class TimelineCurveEditor {
         menu.style.left = `${e.clientX}px`;
         menu.style.top = `${e.clientY}px`;
 
-        const modes: { label: string; inT: number; outT: number }[] = [
-            { label: 'Smooth (Flat)', inT: 0, outT: 0 },
-            { label: 'Linear', inT: this.calcLinearTangent(kfs, kfIdx, 'in'), outT: this.calcLinearTangent(kfs, kfIdx, 'out') },
-            { label: 'Constant (Step)', inT: Infinity, outT: Infinity },
+        const linearIn = this.calcLinearTangent(kfs, kfIdx, 'in');
+        const linearOut = this.calcLinearTangent(kfs, kfIdx, 'out');
+
+        const presets: { label: string; inT: number; outT: number }[] = [
+            { label: 'Flat (Smooth)', inT: 0, outT: 0 },
+            { label: 'Linear', inT: linearIn, outT: linearOut },
+            { label: 'Ease In', inT: 0, outT: 2 },
+            { label: 'Ease Out', inT: 2, outT: 0 },
+            { label: 'Ease In-Out', inT: linearIn * 0.5, outT: linearOut * 0.5 },
+            { label: 'Step (Constant)', inT: 0, outT: STEP_TANGENT_VALUE },
         ];
 
-        for (const mode of modes) {
+        for (const preset of presets) {
             const item = document.createElement('div');
             item.className = 'es-timeline-dropdown-item';
-            item.textContent = mode.label;
+            item.textContent = preset.label;
             item.addEventListener('click', () => {
                 menu.remove();
-                if (mode.inT === Infinity) {
-                    (kf as any).inTangent = 0;
-                    (kf as any).outTangent = 1e6;
-                } else {
-                    (kf as any).inTangent = mode.inT;
-                    (kf as any).outTangent = mode.outT;
-                }
-                this.draw();
+                this.applyTangentPreset(kfIdx, kf, preset.inT, preset.outT);
             });
             menu.appendChild(item);
         }
@@ -453,6 +523,34 @@ export class TimelineCurveEditor {
             }
         };
         setTimeout(() => document.addEventListener('mousedown', dismiss, true), 0);
+    }
+
+    private applyTangentPreset(kfIdx: number, kf: CurveKeyframe, newIn: number, newOut: number): void {
+        const oldIn = kf.inTangent ?? 0;
+        const oldOut = kf.outTangent ?? 0;
+
+        if (this.host_ && this.assetData_) {
+            if (newIn !== oldIn) {
+                const cmdIn = new ChangeTangentCommand(
+                    this.assetData_, this.trackIndex_, this.channelIndex_,
+                    kfIdx, 'in', oldIn, newIn,
+                    () => this.host_!.onAssetDataChanged(),
+                );
+                this.host_.executeCommand(cmdIn);
+            }
+            if (newOut !== oldOut) {
+                const cmdOut = new ChangeTangentCommand(
+                    this.assetData_, this.trackIndex_, this.channelIndex_,
+                    kfIdx, 'out', oldOut, newOut,
+                    () => this.host_!.onAssetDataChanged(),
+                );
+                this.host_.executeCommand(cmdOut);
+            }
+        } else {
+            (kf as any).inTangent = newIn;
+            (kf as any).outTangent = newOut;
+            this.draw();
+        }
     }
 
     private calcLinearTangent(
@@ -480,6 +578,7 @@ export class TimelineCurveEditor {
 
         const kx = this.timeToX(kf.time);
         const ky = this.valueToY(kf.value);
+        const oldValue = hit.handle === 'in' ? (kf.inTangent ?? 0) : (kf.outTangent ?? 0);
 
         const onMove = (ev: MouseEvent) => {
             const mx = ev.clientX - rect.left;
@@ -501,6 +600,17 @@ export class TimelineCurveEditor {
         const onUp = () => {
             document.removeEventListener('mousemove', onMove);
             document.removeEventListener('mouseup', onUp);
+
+            const newValue = hit.handle === 'in' ? (kf.inTangent ?? 0) : (kf.outTangent ?? 0);
+            if (newValue !== oldValue && this.host_ && this.assetData_) {
+                kf[hit.handle === 'in' ? 'inTangent' : 'outTangent'] = oldValue;
+                const cmd = new ChangeTangentCommand(
+                    this.assetData_, this.trackIndex_, this.channelIndex_,
+                    hit.keyframeIndex, hit.handle, oldValue, newValue,
+                    () => this.host_!.onAssetDataChanged(),
+                );
+                this.host_.executeCommand(cmd);
+            }
         };
 
         document.addEventListener('mousemove', onMove);

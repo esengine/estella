@@ -2,6 +2,7 @@ import type { EditorPlugin, EditorPluginContext } from './EditorPlugin';
 import type { ComponentSchema } from '../schemas/ComponentSchemas';
 import { COMPONENT_SCHEMA } from '../container/tokens';
 import { getSettingsValue } from '../settings/SettingsRegistry';
+import { Constraints } from '../schemas/schemaConstants';
 
 const NameSchema: ComponentSchema = {
     name: 'Name',
@@ -92,26 +93,30 @@ const CameraSchema: ComponentSchema = {
     category: 'builtin',
     properties: [
         { name: 'isActive', type: 'boolean' },
+        { name: 'priority', type: 'number', ...Constraints.positiveInt },
         {
             name: 'projectionType',
             type: 'enum',
+            displayName: 'Projection',
             options: [
                 { label: 'Perspective', value: 0 },
                 { label: 'Orthographic', value: 1 },
             ],
         },
-        { name: 'fov', type: 'number', min: 1, max: 179 },
-        { name: 'orthoSize', type: 'number', min: 0.1 },
-        { name: 'nearPlane', type: 'number', step: 0.1 },
-        { name: 'farPlane', type: 'number', step: 1 },
-        { name: 'priority', type: 'number', step: 1 },
-        { name: 'viewportX', type: 'number', min: 0, max: 1, step: 0.01 },
-        { name: 'viewportY', type: 'number', min: 0, max: 1, step: 0.01 },
-        { name: 'viewportW', type: 'number', min: 0, max: 1, step: 0.01 },
-        { name: 'viewportH', type: 'number', min: 0, max: 1, step: 0.01 },
+        { name: 'fov', type: 'number', ...Constraints.fov, displayName: 'Field of View',
+          visibleWhen: { field: 'projectionType', equals: 0 } },
+        { name: 'orthoSize', type: 'number', min: 0.1, displayName: 'Size',
+          visibleWhen: { field: 'projectionType', equals: 1 } },
+        { name: 'nearPlane', type: 'number', step: 0.1, displayName: 'Near', group: 'Clipping' },
+        { name: 'farPlane', type: 'number', step: 1, displayName: 'Far', group: 'Clipping' },
+        { name: 'viewportX', type: 'number', ...Constraints.percentage, group: 'Viewport' },
+        { name: 'viewportY', type: 'number', ...Constraints.percentage, group: 'Viewport' },
+        { name: 'viewportW', type: 'number', ...Constraints.percentage, group: 'Viewport' },
+        { name: 'viewportH', type: 'number', ...Constraints.percentage, group: 'Viewport' },
         {
             name: 'clearFlags',
             type: 'enum',
+            group: 'Viewport',
             options: [
                 { label: 'None', value: 0 },
                 { label: 'Color Only', value: 1 },
@@ -119,7 +124,7 @@ const CameraSchema: ComponentSchema = {
                 { label: 'Color + Depth', value: 3 },
             ],
         },
-        { name: 'showFrustum', type: 'boolean' },
+        { name: 'showFrustum', type: 'boolean', group: 'Debug' },
     ],
 };
 

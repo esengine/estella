@@ -1,12 +1,18 @@
 import { icons } from '../../utils/icons';
-import type { TimelineState } from './TimelineState';
+import type { TimelineState, WrapMode } from './TimelineState';
 import type { EditorStore } from '../../store/EditorStore';
 import type { TimelineTrackData } from './TimelineKeyframeArea';
-import type { SelectedKeyframeInfo } from './TimelineKeyframeArea';
+import type { SelectedKeyframeInfo, SelectionSummary } from './TimelineKeyframeArea';
 import { TimelineAddTrackWizard } from './TimelineAddTrackWizard';
 
 export type AddTrackCallback = (track: TimelineTrackData) => void;
 export type KeyframeValueChangeCallback = (trackIndex: number, channelIndex: number, keyframeIndex: number, value: number) => void;
+export type DurationChangeCallback = (newDuration: number) => void;
+
+const FRAME_STEP = 1 / 60;
+const SPEED_OPTIONS = [0.25, 0.5, 1, 2, 4];
+const WRAP_MODES: WrapMode[] = ['once', 'loop', 'pingPong'];
+const WRAP_LABELS: Record<WrapMode, string> = { once: 'Once', loop: 'Loop', pingPong: 'Ping Pong' };
 
 export class TimelineToolbar {
     private el_: HTMLElement;
@@ -15,14 +21,18 @@ export class TimelineToolbar {
     private timeDisplay_: HTMLElement | null = null;
     private playBtn_: HTMLElement | null = null;
     private recordBtn_: HTMLElement | null = null;
+    private wrapBtn_: HTMLElement | null = null;
+    private speedBtn_: HTMLElement | null = null;
     private valueGroup_: HTMLElement | null = null;
     private valueInput_: HTMLInputElement | null = null;
     private unsub_: (() => void) | null = null;
     private onAddTrack_: AddTrackCallback | null = null;
     private onValueChange_: KeyframeValueChangeCallback | null = null;
+    private onDurationChange_: DurationChangeCallback | null = null;
     private wizard_: TimelineAddTrackWizard | null = null;
     private boundEntityId_: number | null = null;
     private selectedKf_: SelectedKeyframeInfo | null = null;
+    private selectionCount_ = 0;
 
     constructor(
         container: HTMLElement,
@@ -30,12 +40,14 @@ export class TimelineToolbar {
         store: EditorStore,
         onAddTrack?: AddTrackCallback,
         onValueChange?: KeyframeValueChangeCallback,
+        onDurationChange?: DurationChangeCallback,
     ) {
         this.el_ = container;
         this.state_ = state;
         this.store_ = store;
         this.onAddTrack_ = onAddTrack ?? null;
         this.onValueChange_ = onValueChange ?? null;
+        this.onDurationChange_ = onDurationChange ?? null;
         this.render();
         this.unsub_ = state.onChange(() => this.update());
     }
@@ -51,7 +63,19 @@ export class TimelineToolbar {
 
     setSelectedKeyframe(info: SelectedKeyframeInfo | null): void {
         this.selectedKf_ = info;
+        this.selectionCount_ = info ? 1 : 0;
         this.updateValueField();
+    }
+
+    setSelectionSummary(summary: SelectionSummary): void {
+        this.selectedKf_ = summary.single;
+        this.selectionCount_ = summary.count;
+        this.updateValueField();
+    }
+
+    private stepFrame(direction: number): void {
+        const newTime = this.state_.playheadTime + direction * FRAME_STEP;
+        this.state_.setPlayhead(newTime);
     }
 
     private render(): void {
@@ -59,15 +83,20 @@ export class TimelineToolbar {
             <div class="es-timeline-toolbar">
                 <div class="es-timeline-transport">
                     <button class="es-btn es-btn-icon es-timeline-record-btn" data-action="record" title="Record">${icons.circle(12)}</button>
-                    <button class="es-btn es-btn-icon" data-action="stop" title="Stop">${icons.stop(12)}</button>
+                    <button class="es-btn es-btn-icon" data-action="skip-back" title="Go to Start">${icons.skipBack(12)}</button>
+                    <button class="es-btn es-btn-icon" data-action="step-back" title="Previous Frame (,)">${icons.stepBack(12)}</button>
                     <button class="es-btn es-btn-icon" data-action="play" title="Play">${icons.play(12)}</button>
+                    <button class="es-btn es-btn-icon" data-action="step-forward" title="Next Frame (.)">${icons.stepForward(12)}</button>
+                    <button class="es-btn es-btn-icon" data-action="skip-forward" title="Go to End">${icons.skipForward(12)}</button>
                 </div>
-                <div class="es-timeline-time-display">0:00.00 / 0:00.00</div>
+                <div class="es-timeline-time-display" title="Double-click to edit duration">0:00.00 / 0:00.00</div>
                 <div class="es-timeline-value-group" style="display:none">
                     <span class="es-timeline-value-label">Value</span>
                     <input type="number" class="es-input es-timeline-value-input" step="any" />
                 </div>
                 <div class="es-timeline-toolbar-right">
+                    <button class="es-btn es-btn-sm es-timeline-speed-btn" data-action="speed" title="Playback Speed">1x</button>
+                    <button class="es-btn es-btn-icon es-timeline-wrap-btn" data-action="wrap" title="Wrap Mode: Once">${icons.repeat(12)}</button>
                     <button class="es-btn es-btn-icon" data-action="add-track" title="Add Track">${icons.plus(12)}</button>
                 </div>
             </div>
@@ -76,6 +105,8 @@ export class TimelineToolbar {
         this.timeDisplay_ = this.el_.querySelector('.es-timeline-time-display');
         this.playBtn_ = this.el_.querySelector('[data-action="play"]');
         this.recordBtn_ = this.el_.querySelector('[data-action="record"]');
+        this.wrapBtn_ = this.el_.querySelector('[data-action="wrap"]');
+        this.speedBtn_ = this.el_.querySelector('[data-action="speed"]');
         this.valueGroup_ = this.el_.querySelector('.es-timeline-value-group');
         this.valueInput_ = this.el_.querySelector('.es-timeline-value-input');
 
@@ -89,15 +120,41 @@ export class TimelineToolbar {
             this.state_.notify();
         });
 
-        this.el_.querySelector('[data-action="stop"]')?.addEventListener('click', () => {
+        this.el_.querySelector('[data-action="skip-back"]')?.addEventListener('click', () => {
             this.state_.playing = false;
             this.state_.playheadTime = 0;
             this.state_.notify();
         });
 
+        this.el_.querySelector('[data-action="skip-forward"]')?.addEventListener('click', () => {
+            this.state_.playing = false;
+            this.state_.playheadTime = this.state_.duration;
+            this.state_.notify();
+        });
+
+        this.el_.querySelector('[data-action="step-back"]')?.addEventListener('click', () => {
+            this.stepFrame(-1);
+        });
+
+        this.el_.querySelector('[data-action="step-forward"]')?.addEventListener('click', () => {
+            this.stepFrame(1);
+        });
+
+        this.el_.querySelector('[data-action="speed"]')?.addEventListener('click', () => {
+            this.cycleSpeed();
+        });
+
+        this.el_.querySelector('[data-action="wrap"]')?.addEventListener('click', () => {
+            this.cycleWrapMode();
+        });
+
         this.el_.querySelector('[data-action="add-track"]')?.addEventListener('click', (e) => {
             e.stopPropagation();
             this.showWizard(e.target as HTMLElement);
+        });
+
+        this.timeDisplay_?.addEventListener('dblclick', () => {
+            this.editDuration();
         });
 
         this.valueInput_?.addEventListener('change', () => {
@@ -120,11 +177,77 @@ export class TimelineToolbar {
         });
     }
 
+    private cycleSpeed(): void {
+        const currentIdx = SPEED_OPTIONS.indexOf(this.state_.playbackSpeed);
+        const nextIdx = (currentIdx + 1) % SPEED_OPTIONS.length;
+        this.state_.playbackSpeed = SPEED_OPTIONS[nextIdx];
+        this.updateSpeedButton();
+        this.state_.notify();
+    }
+
+    private cycleWrapMode(): void {
+        const currentIdx = WRAP_MODES.indexOf(this.state_.wrapMode);
+        const nextIdx = (currentIdx + 1) % WRAP_MODES.length;
+        this.state_.wrapMode = WRAP_MODES[nextIdx];
+        this.updateWrapButton();
+        this.state_.notify();
+    }
+
+    private editDuration(): void {
+        if (!this.timeDisplay_) return;
+
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.className = 'es-input es-timeline-duration-input';
+        input.value = String(this.state_.duration);
+        input.step = '0.1';
+        input.min = '0.1';
+        input.style.width = '80px';
+
+        const original = this.timeDisplay_.textContent ?? '';
+        this.timeDisplay_.textContent = '';
+        this.timeDisplay_.appendChild(input);
+        input.focus();
+        input.select();
+
+        const commit = () => {
+            const newDuration = parseFloat(input.value);
+            if (!isNaN(newDuration) && newDuration > 0) {
+                this.state_.duration = newDuration;
+                this.onDurationChange_?.(newDuration);
+                this.state_.notify();
+            }
+            if (this.timeDisplay_) {
+                input.remove();
+                this.timeDisplay_.textContent = original;
+                this.update();
+            }
+        };
+
+        input.addEventListener('blur', commit);
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') input.blur();
+            if (e.key === 'Escape') {
+                input.value = String(this.state_.duration);
+                input.blur();
+            }
+            e.stopPropagation();
+        });
+    }
+
     private updateValueField(): void {
         if (!this.valueGroup_ || !this.valueInput_) return;
-        if (this.selectedKf_) {
+        if (this.selectedKf_ && this.selectionCount_ === 1) {
             this.valueGroup_.style.display = 'flex';
+            const label = this.valueGroup_.querySelector('.es-timeline-value-label');
+            if (label) label.textContent = 'Value';
+            this.valueInput_.style.display = '';
             this.valueInput_.value = String(parseFloat(this.selectedKf_.value.toFixed(4)));
+        } else if (this.selectionCount_ > 1) {
+            this.valueGroup_.style.display = 'flex';
+            const label = this.valueGroup_.querySelector('.es-timeline-value-label');
+            if (label) label.textContent = `${this.selectionCount_} keyframes`;
+            this.valueInput_.style.display = 'none';
         } else {
             this.valueGroup_.style.display = 'none';
         }
@@ -138,6 +261,19 @@ export class TimelineToolbar {
             (track) => this.onAddTrack_?.(track),
         );
         this.wizard_.show(anchor);
+    }
+
+    private updateSpeedButton(): void {
+        if (this.speedBtn_) {
+            this.speedBtn_.textContent = `${this.state_.playbackSpeed}x`;
+        }
+    }
+
+    private updateWrapButton(): void {
+        if (this.wrapBtn_) {
+            this.wrapBtn_.title = `Wrap Mode: ${WRAP_LABELS[this.state_.wrapMode]}`;
+            this.wrapBtn_.classList.toggle('es-active', this.state_.wrapMode !== 'once');
+        }
     }
 
     private update(): void {

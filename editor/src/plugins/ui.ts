@@ -2,6 +2,7 @@ import type { EditorPlugin, EditorPluginContext } from './EditorPlugin';
 import type { ComponentSchema } from '../schemas/ComponentSchemas';
 import { uiRectBoundsProvider } from '../bounds/UIRectBoundsProvider';
 import { COMPONENT_SCHEMA, BOUNDS_PROVIDER } from '../container/tokens';
+import { Constraints } from '../schemas/schemaConstants';
 
 const UIRectSchema: ComponentSchema = {
     name: 'UIRect',
@@ -40,8 +41,8 @@ const UIInteractionSchema: ComponentSchema = {
 const ButtonSchema: ComponentSchema = {
     name: 'Button',
     category: 'ui',
+    requires: ['Interactable'],
     properties: [
-        { name: 'state', type: 'enum', options: [{ label: 'Normal', value: 0 }, { label: 'Hovered', value: 1 }, { label: 'Pressed', value: 2 }, { label: 'Disabled', value: 3 }] },
         { name: 'transition', type: 'button-transition' },
     ],
 };
@@ -49,36 +50,47 @@ const ButtonSchema: ComponentSchema = {
 const TextInputSchema: ComponentSchema = {
     name: 'TextInput',
     category: 'ui',
+    editorDefaults: () => ({ placeholder: 'Enter text...' }),
     properties: [
-        { name: 'value', type: 'string' },
-        { name: 'placeholder', type: 'string' },
-        { name: 'placeholderColor', type: 'color' },
-        { name: 'fontFamily', type: 'font' },
-        { name: 'fontSize', type: 'number', min: 8, max: 200 },
-        { name: 'color', type: 'color' },
-        { name: 'backgroundColor', type: 'color' },
-        { name: 'padding', type: 'number', min: 0, step: 1 },
-        { name: 'maxLength', type: 'number', min: 0, step: 1 },
-        { name: 'multiline', type: 'boolean' },
-        { name: 'password', type: 'boolean' },
-        { name: 'readOnly', type: 'boolean' },
+        { name: 'value', type: 'string', group: 'Content' },
+        { name: 'placeholder', type: 'string', group: 'Content' },
+        { name: 'maxLength', type: 'number', ...Constraints.positiveInt, displayName: 'Max Length', group: 'Content',
+          tooltip: '0 = no limit' },
+        { name: 'fontFamily', type: 'font', displayName: 'Font', group: 'Appearance' },
+        { name: 'fontSize', type: 'number', ...Constraints.fontSize, displayName: 'Font Size', group: 'Appearance' },
+        { name: 'color', type: 'color', displayName: 'Text Color', group: 'Appearance' },
+        { name: 'backgroundColor', type: 'color', displayName: 'Background', group: 'Appearance' },
+        { name: 'placeholderColor', type: 'color', displayName: 'Placeholder Color', group: 'Appearance' },
+        { name: 'padding', type: 'number', ...Constraints.positiveInt, group: 'Appearance' },
+        { name: 'multiline', type: 'boolean', group: 'Behavior' },
+        { name: 'password', type: 'boolean', group: 'Behavior' },
+        { name: 'readOnly', type: 'boolean', displayName: 'Read Only', group: 'Behavior' },
     ],
 };
 
 const ImageSchema: ComponentSchema = {
     name: 'Image',
     category: 'ui',
+    requires: ['UIRect'],
+    description: 'Displays a texture with slicing, tiling, or fill modes',
     properties: [
         { name: 'texture', type: 'texture' },
         { name: 'material', type: 'material-file' },
         { name: 'color', type: 'color' },
-        { name: 'imageType', type: 'enum', options: [{ label: 'Simple', value: 0 }, { label: 'Sliced', value: 1 }, { label: 'Tiled', value: 2 }, { label: 'Filled', value: 3 }] },
-        { name: 'fillMethod', type: 'enum', options: [{ label: 'Horizontal', value: 0 }, { label: 'Vertical', value: 1 }] },
-        { name: 'fillOrigin', type: 'enum', options: [{ label: 'Left', value: 0 }, { label: 'Right', value: 1 }, { label: 'Bottom', value: 2 }, { label: 'Top', value: 3 }] },
-        { name: 'fillAmount', type: 'number', min: 0, max: 1, step: 0.01 },
-        { name: 'preserveAspect', type: 'boolean' },
-        { name: 'tileSize', type: 'vec2' },
-        { name: 'layer', type: 'number', min: -1000, max: 1000 },
+        { name: 'imageType', type: 'enum', displayName: 'Type',
+          options: [{ label: 'Simple', value: 0 }, { label: 'Sliced', value: 1 }, { label: 'Tiled', value: 2 }, { label: 'Filled', value: 3 }] },
+        { name: 'preserveAspect', type: 'boolean', displayName: 'Preserve Aspect' },
+        { name: 'layer', type: 'number', ...Constraints.layer },
+        { name: 'fillMethod', type: 'enum', displayName: 'Fill Method', group: 'Fill',
+          visibleWhen: { field: 'imageType', equals: 3 },
+          options: [{ label: 'Horizontal', value: 0 }, { label: 'Vertical', value: 1 }] },
+        { name: 'fillOrigin', type: 'enum', displayName: 'Fill Origin', group: 'Fill',
+          visibleWhen: { field: 'imageType', equals: 3 },
+          options: [{ label: 'Left', value: 0 }, { label: 'Right', value: 1 }, { label: 'Bottom', value: 2 }, { label: 'Top', value: 3 }] },
+        { name: 'fillAmount', type: 'number', ...Constraints.percentage, displayName: 'Fill Amount', group: 'Fill',
+          visibleWhen: { field: 'imageType', equals: 3 } },
+        { name: 'tileSize', type: 'vec2', displayName: 'Tile Size', group: 'Tiling',
+          visibleWhen: { field: 'imageType', equals: 2 } },
     ],
 };
 
@@ -86,9 +98,12 @@ const ToggleSchema: ComponentSchema = {
     name: 'Toggle',
     category: 'ui',
     properties: [
-        { name: 'isOn', type: 'boolean' },
-        { name: 'graphicEntity', type: 'entity' },
-        { name: 'transition', type: 'button-transition' },
+        { name: 'isOn', type: 'boolean', displayName: 'Is On' },
+        { name: 'onColor', type: 'color', displayName: 'On Color', group: 'Appearance' },
+        { name: 'offColor', type: 'color', displayName: 'Off Color', group: 'Appearance' },
+        { name: 'transition', type: 'button-transition', group: 'Appearance' },
+        { name: 'graphicEntity', type: 'entity', displayName: 'Graphic', advanced: true },
+        { name: 'group', type: 'entity', displayName: 'Toggle Group', advanced: true },
     ],
 };
 
@@ -102,9 +117,9 @@ const ProgressBarSchema: ComponentSchema = {
     name: 'ProgressBar',
     category: 'ui',
     properties: [
-        { name: 'value', type: 'number', min: 0, max: 1, step: 0.01 },
-        { name: 'fillEntity', type: 'entity' },
+        { name: 'value', type: 'number', ...Constraints.percentage },
         { name: 'direction', type: 'enum', options: [{ label: 'LeftToRight', value: 0 }, { label: 'RightToLeft', value: 1 }, { label: 'BottomToTop', value: 2 }, { label: 'TopToBottom', value: 3 }] },
+        { name: 'fillEntity', type: 'entity', displayName: 'Fill', advanced: true },
     ],
 };
 
@@ -113,7 +128,7 @@ const DraggableSchema: ComponentSchema = {
     category: 'ui',
     properties: [
         { name: 'enabled', type: 'boolean' },
-        { name: 'dragThreshold', type: 'number', min: 0, step: 1 },
+        { name: 'dragThreshold', type: 'number', ...Constraints.positiveInt, displayName: 'Threshold' },
         { name: 'lockX', type: 'boolean' },
         { name: 'lockY', type: 'boolean' },
     ],
@@ -122,16 +137,19 @@ const DraggableSchema: ComponentSchema = {
 const ScrollViewSchema: ComponentSchema = {
     name: 'ScrollView',
     category: 'ui',
+    requires: ['UIRect'],
+    description: 'Scrollable container with inertia and elastic bounce',
     properties: [
-        { name: 'contentEntity', type: 'entity' },
-        { name: 'horizontalEnabled', type: 'boolean' },
-        { name: 'verticalEnabled', type: 'boolean' },
-        { name: 'contentWidth', type: 'number', min: 0, step: 1 },
-        { name: 'contentHeight', type: 'number', min: 0, step: 1 },
-        { name: 'inertia', type: 'boolean' },
-        { name: 'decelerationRate', type: 'number', min: 0, max: 1, step: 0.01 },
-        { name: 'elastic', type: 'boolean' },
-        { name: 'wheelSensitivity', type: 'number', min: 0, max: 1, step: 0.01 },
+        { name: 'horizontalEnabled', type: 'boolean', displayName: 'Horizontal' },
+        { name: 'verticalEnabled', type: 'boolean', displayName: 'Vertical' },
+        { name: 'contentWidth', type: 'number', ...Constraints.positiveInt, displayName: 'Content Width', group: 'Content' },
+        { name: 'contentHeight', type: 'number', ...Constraints.positiveInt, displayName: 'Content Height', group: 'Content' },
+        { name: 'inertia', type: 'boolean', group: 'Physics' },
+        { name: 'decelerationRate', type: 'number', ...Constraints.percentage, displayName: 'Deceleration', group: 'Physics',
+          visibleWhen: { field: 'inertia', equals: true } },
+        { name: 'elastic', type: 'boolean', group: 'Physics' },
+        { name: 'wheelSensitivity', type: 'number', ...Constraints.percentage, displayName: 'Wheel Speed', group: 'Physics' },
+        { name: 'contentEntity', type: 'entity', displayName: 'Content', advanced: true },
     ],
 };
 
@@ -140,12 +158,12 @@ const SliderSchema: ComponentSchema = {
     category: 'ui',
     properties: [
         { name: 'value', type: 'number', step: 0.01 },
-        { name: 'minValue', type: 'number', step: 0.01 },
-        { name: 'maxValue', type: 'number', step: 0.01 },
+        { name: 'minValue', type: 'number', step: 0.01, displayName: 'Min' },
+        { name: 'maxValue', type: 'number', step: 0.01, displayName: 'Max' },
         { name: 'direction', type: 'enum', options: [{ label: 'LeftToRight', value: 0 }, { label: 'RightToLeft', value: 1 }, { label: 'BottomToTop', value: 2 }, { label: 'TopToBottom', value: 3 }] },
-        { name: 'fillEntity', type: 'entity' },
-        { name: 'handleEntity', type: 'entity' },
-        { name: 'wholeNumbers', type: 'boolean' },
+        { name: 'wholeNumbers', type: 'boolean', displayName: 'Whole Numbers' },
+        { name: 'fillEntity', type: 'entity', displayName: 'Fill', advanced: true },
+        { name: 'handleEntity', type: 'entity', displayName: 'Handle', advanced: true },
     ],
 };
 
@@ -181,15 +199,18 @@ const DropdownSchema: ComponentSchema = {
     category: 'ui',
     properties: [
         { name: 'options', type: 'string-array' },
-        { name: 'selectedIndex', type: 'number', min: -1, step: 1 },
-        { name: 'listEntity', type: 'entity' },
-        { name: 'labelEntity', type: 'entity' },
+        { name: 'selectedIndex', type: 'number', min: -1, step: 1, displayName: 'Selected' },
+        { name: 'listEntity', type: 'entity', displayName: 'List', advanced: true },
+        { name: 'labelEntity', type: 'entity', displayName: 'Label', advanced: true },
     ],
 };
 
 const FlexContainerSchema: ComponentSchema = {
     name: 'FlexContainer',
     category: 'ui',
+    requires: ['UIRect'],
+    conflicts: ['LayoutGroup'],
+    description: 'CSS-like flexbox layout for child elements',
     properties: [
         { name: 'direction', type: 'enum', options: [{ label: 'Row', value: 0 }, { label: 'Column', value: 1 }, { label: 'RowReverse', value: 2 }, { label: 'ColumnReverse', value: 3 }] },
         { name: 'wrap', type: 'enum', options: [{ label: 'NoWrap', value: 0 }, { label: 'Wrap', value: 1 }] },
@@ -214,6 +235,9 @@ const FlexItemSchema: ComponentSchema = {
 const LayoutGroupSchema: ComponentSchema = {
     name: 'LayoutGroup',
     category: 'ui',
+    requires: ['UIRect'],
+    conflicts: ['FlexContainer'],
+    description: 'Simple horizontal or vertical layout for children',
     properties: [
         { name: 'direction', type: 'enum', options: [{ label: 'Horizontal', value: 0 }, { label: 'Vertical', value: 1 }] },
         { name: 'spacing', type: 'number', step: 1 },
@@ -223,6 +247,13 @@ const LayoutGroupSchema: ComponentSchema = {
     ],
 };
 
+const DragStateSchema: ComponentSchema = {
+    name: 'DragState',
+    category: 'ui',
+    hidden: true,
+    properties: [],
+};
+
 const UI_SCHEMAS: ComponentSchema[] = [
     UIRectSchema, UIMaskSchema, InteractableSchema, UIInteractionSchema,
     ButtonSchema, TextInputSchema, ImageSchema,
@@ -230,6 +261,7 @@ const UI_SCHEMAS: ComponentSchema[] = [
     DraggableSchema, ScrollViewSchema, SliderSchema, FocusableSchema,
     SafeAreaSchema, ListViewSchema, DropdownSchema,
     FlexContainerSchema, FlexItemSchema, LayoutGroupSchema,
+    DragStateSchema,
 ];
 
 export const uiPlugin: EditorPlugin = {

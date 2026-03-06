@@ -8,23 +8,32 @@ export function createBooleanEditor(
     ctx: PropertyEditorContext
 ): PropertyEditorInstance {
     const { value, onChange } = ctx;
+
+    const toggle = document.createElement('label');
+    toggle.className = 'es-toggle';
+
     const input = document.createElement('input');
     input.type = 'checkbox';
-    input.className = 'es-input es-input-checkbox';
+    input.className = 'es-toggle-input';
     input.checked = Boolean(value);
+
+    const track = document.createElement('span');
+    track.className = 'es-toggle-track';
 
     input.addEventListener('change', () => {
         onChange(input.checked);
     });
 
-    container.appendChild(input);
+    toggle.appendChild(input);
+    toggle.appendChild(track);
+    container.appendChild(toggle);
 
     return {
         update(v: unknown) {
             input.checked = Boolean(v);
         },
         dispose() {
-            input.remove();
+            toggle.remove();
         },
     };
 }

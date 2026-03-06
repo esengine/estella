@@ -1,6 +1,18 @@
 import { getEditorContainer } from '../container';
 import { PROPERTY_EDITOR } from '../container/tokens';
 
+export interface VisibilityRule {
+    field: string;
+    equals?: unknown;
+    notEquals?: unknown;
+    oneOf?: unknown[];
+}
+
+export type VisibilityPredicate =
+    | VisibilityRule
+    | VisibilityRule[]
+    | ((data: Record<string, unknown>) => boolean);
+
 export interface PropertyMeta {
     name: string;
     type: string;
@@ -12,6 +24,11 @@ export interface PropertyMeta {
     fileFilter?: string[];
     dependsOn?: string;
     hiddenWhen?: { hasComponent: string };
+    displayName?: string;
+    tooltip?: string;
+    readOnly?: boolean;
+    advanced?: boolean;
+    visibleWhen?: VisibilityPredicate;
 }
 
 export interface PropertyEditorContext {

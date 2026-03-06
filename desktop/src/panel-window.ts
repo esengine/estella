@@ -54,6 +54,10 @@ async function init(): Promise<void> {
     iocContainer.provide(storeToken, 'default', store);
 
     if (projectPath) {
+        iocContainer.provide(tokens.PROJECT_SERVICE, 'default', { projectPath });
+    }
+
+    if (projectPath) {
         const projectDir = projectPath.replace(/[/\\][^/\\]+$/, '');
         const db = getAssetDatabase();
         await db.initialize(projectDir, nativeFS);

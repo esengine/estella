@@ -1,8 +1,5 @@
 import type { App, Plugin } from '../app';
-import { registerComponent, Transform, Sprite } from '../component';
-import type { SpriteData } from '../component';
-import { UIRenderer } from './UIRenderer';
-import type { UIRendererData } from './UIRenderer';
+import { registerComponent, Transform } from '../component';
 import { defineSystem, Schedule } from '../system';
 import { Res } from '../resource';
 import { Input } from '../input';
@@ -22,7 +19,7 @@ import type { UICameraData } from './UICameraInfo';
 import type { InteractableData } from './Interactable';
 import { screenToWorld, createInvVPCache } from './uiMath';
 import { platformDevicePixelRatio } from '../platform';
-import { applyColorTransition, applyDefaultTint, ensureComponent, walkParentChain } from './uiHelpers';
+import { applyColorTransition, applyDefaultTint, ensureComponent, walkParentChain, setEntityColor } from './uiHelpers';
 import { Image } from './Image';
 import type { ImageData } from './Image';
 import type { ESEngineModule, CppRegistry } from '../wasm';
@@ -215,34 +212,12 @@ export class UIInteractionPlugin implements Plugin {
                             interaction.pressed,
                             interaction.hovered,
                         );
-                        if (world.has(entity, UIRenderer)) {
-                            const r = world.get(entity, UIRenderer) as UIRendererData;
-                            r.color = color;
-                            world.insert(entity, UIRenderer, r);
-                        } else if (world.has(entity, Sprite)) {
-                            const sprite = world.get(entity, Sprite) as SpriteData;
-                            sprite.color = color;
-                            world.insert(entity, Sprite, sprite);
-                        }
+                        setEntityColor(world, entity, color);
                     } else if ((isFirstFrame || prevState !== button.state) && !button.transition
                         && world.has(entity, Image)) {
                         const image = world.get(entity, Image) as ImageData;
                         const tinted = applyDefaultTint(image.color, interactable.enabled, interaction.pressed, interaction.hovered);
-                        if (world.has(entity, UIRenderer)) {
-                            const r = world.get(entity, UIRenderer) as UIRendererData;
-                            if (r.color.r !== tinted.r || r.color.g !== tinted.g
-                                || r.color.b !== tinted.b || r.color.a !== tinted.a) {
-                                r.color = tinted;
-                                world.insert(entity, UIRenderer, r);
-                            }
-                        } else if (world.has(entity, Sprite)) {
-                            const sprite = world.get(entity, Sprite) as SpriteData;
-                            if (sprite.color.r !== tinted.r || sprite.color.g !== tinted.g
-                                || sprite.color.b !== tinted.b || sprite.color.a !== tinted.a) {
-                                sprite.color = tinted;
-                                world.insert(entity, Sprite, sprite);
-                            }
-                        }
+                        setEntityColor(world, entity, tinted);
                     }
                 }
             },

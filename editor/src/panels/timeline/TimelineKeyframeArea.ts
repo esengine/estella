@@ -3,12 +3,29 @@ import {
     RULER_HEIGHT,
     TRACK_HEIGHT,
     KEYFRAME_SIZE,
+    MIN_PIXELS_PER_SECOND,
+    MAX_PIXELS_PER_SECOND,
 } from './TimelineState';
 import {
     AddKeyframeCommand,
-    DeleteKeyframeCommand,
-    MoveKeyframeCommand,
+    DeleteTrackCommand,
+    BatchMoveKeyframesCommand,
+    BatchDeleteKeyframesCommand,
+    PasteKeyframesCommand,
 } from './TimelineCommands';
+import {
+    AddSpineClipCommand,
+    MoveSpineClipCommand,
+    ResizeSpineClipCommand,
+    DeleteSpineClipCommand,
+    AddAudioEventCommand,
+    MoveAudioEventCommand,
+    DeleteAudioEventCommand,
+    AddActivationRangeCommand,
+    MoveActivationRangeCommand,
+    ResizeActivationRangeCommand,
+    DeleteActivationRangeCommand,
+} from './TimelineTrackCommands';
 
 const RULER_BG = '#1e1e1e';
 const RULER_TEXT = '#888888';
@@ -26,6 +43,29 @@ const ACTIVATION_BORDER = '#98c379';
 const AUDIO_EVENT_COLOR = '#d19a66';
 const CHANNEL_BG = '#1e1e1e';
 const KEYFRAME_HIT_RADIUS = 6;
+const EDGE_RESIZE_ZONE = 8;
+const FRAME_STEP = 1 / 60;
+const RUBBERBAND_COLOR = 'rgba(97, 175, 239, 0.2)';
+const RUBBERBAND_BORDER = 'rgba(97, 175, 239, 0.6)';
+const DURATION_LINE_COLOR = '#e5c07b';
+const BEYOND_DURATION_COLOR = 'rgba(0, 0, 0, 0.2)';
+
+interface SpineClipHit {
+    trackIndex: number;
+    clipIndex: number;
+    zone: 'body' | 'resize';
+}
+
+interface AudioEventHit {
+    trackIndex: number;
+    eventIndex: number;
+}
+
+interface ActivationRangeHit {
+    trackIndex: number;
+    rangeIndex: number;
+    zone: 'body' | 'left' | 'right';
+}
 
 export interface TimelineAssetData {
     tracks: TimelineTrackData[];
@@ -67,7 +107,16 @@ export interface SelectedKeyframeInfo {
     value: number;
 }
 
-export type KeyframeSelectionCallback = (info: SelectedKeyframeInfo | null) => void;
+export interface SelectionSummary {
+    count: number;
+    single: SelectedKeyframeInfo | null;
+}
+
+export type KeyframeSelectionCallback = (summary: SelectionSummary) => void;
+
+function kfKey(trackIndex: number, channelIndex: number, keyframeIndex: number): string {
+    return `${trackIndex}:${channelIndex}:${keyframeIndex}`;
+}
 
 export class TimelineKeyframeArea {
     private canvas_: HTMLCanvasElement;
@@ -77,8 +126,10 @@ export class TimelineKeyframeArea {
     private assetData_: TimelineAssetData | null = null;
     private unsub_: (() => void) | null = null;
     private resizeObserver_: ResizeObserver | null = null;
-    private selectedKeyframe_: KeyframeHit | null = null;
+    private selectedKeyframes_: Map<string, KeyframeHit> = new Map();
     private onSelectionChange_: KeyframeSelectionCallback | null = null;
+    private rubberBand_: { startX: number; startY: number; endX: number; endY: number } | null = null;
+    private clipboard_: { channelIndex: number; relativeTime: number; value: number; inTangent: number; outTangent: number }[] = [];
 
     constructor(container: HTMLElement, state: TimelineState, host?: TimelinePanelHost) {
         this.state_ = state;
@@ -111,7 +162,7 @@ export class TimelineKeyframeArea {
 
     setAssetData(data: TimelineAssetData | null): void {
         this.assetData_ = data;
-        this.setSelectedKeyframe(null);
+        this.clearSelection();
         this.draw();
     }
 
@@ -119,25 +170,88 @@ export class TimelineKeyframeArea {
         this.onSelectionChange_ = cb;
     }
 
-    private setSelectedKeyframe(hit: KeyframeHit | null): void {
-        this.selectedKeyframe_ = hit;
-        if (!hit || !this.assetData_) {
-            this.onSelectionChange_?.(null);
+    private clearSelection(): void {
+        this.selectedKeyframes_.clear();
+        this.notifySelectionChange();
+    }
+
+    private selectOnly(hit: KeyframeHit): void {
+        this.selectedKeyframes_.clear();
+        this.selectedKeyframes_.set(kfKey(hit.trackIndex, hit.channelIndex, hit.keyframeIndex), hit);
+        this.notifySelectionChange();
+    }
+
+    private toggleSelect(hit: KeyframeHit): void {
+        const key = kfKey(hit.trackIndex, hit.channelIndex, hit.keyframeIndex);
+        if (this.selectedKeyframes_.has(key)) {
+            this.selectedKeyframes_.delete(key);
+        } else {
+            this.selectedKeyframes_.set(key, hit);
+        }
+        this.notifySelectionChange();
+    }
+
+    private addToSelection(hit: KeyframeHit): void {
+        this.selectedKeyframes_.set(kfKey(hit.trackIndex, hit.channelIndex, hit.keyframeIndex), hit);
+    }
+
+    private isKeyframeSelected(trackIndex: number, channelIndex: number, keyframeIndex: number): boolean {
+        return this.selectedKeyframes_.has(kfKey(trackIndex, channelIndex, keyframeIndex));
+    }
+
+    private notifySelectionChange(): void {
+        if (!this.onSelectionChange_) return;
+        const count = this.selectedKeyframes_.size;
+        if (count === 0) {
+            this.onSelectionChange_({ count: 0, single: null });
             return;
         }
-        const track = this.assetData_.tracks[hit.trackIndex];
-        const kf = track?.channels?.[hit.channelIndex]?.keyframes[hit.keyframeIndex];
-        if (!kf) {
-            this.onSelectionChange_?.(null);
+        if (count === 1) {
+            const hit = this.selectedKeyframes_.values().next().value!;
+            const track = this.assetData_?.tracks[hit.trackIndex];
+            const kf = track?.channels?.[hit.channelIndex]?.keyframes[hit.keyframeIndex];
+            if (kf) {
+                this.onSelectionChange_({
+                    count: 1,
+                    single: {
+                        trackIndex: hit.trackIndex,
+                        channelIndex: hit.channelIndex,
+                        keyframeIndex: hit.keyframeIndex,
+                        time: kf.time,
+                        value: kf.value,
+                    },
+                });
+                return;
+            }
+        }
+        this.onSelectionChange_({ count, single: null });
+    }
+
+    private shiftSelect(hit: KeyframeHit): void {
+        if (this.selectedKeyframes_.size === 0) {
+            this.selectOnly(hit);
             return;
         }
-        this.onSelectionChange_?.({
-            trackIndex: hit.trackIndex,
-            channelIndex: hit.channelIndex,
-            keyframeIndex: hit.keyframeIndex,
-            time: kf.time,
-            value: kf.value,
-        });
+
+        const last = [...this.selectedKeyframes_.values()].pop()!;
+        if (last.trackIndex !== hit.trackIndex || last.channelIndex !== hit.channelIndex) {
+            this.selectOnly(hit);
+            return;
+        }
+
+        const minIdx = Math.min(last.keyframeIndex, hit.keyframeIndex);
+        const maxIdx = Math.max(last.keyframeIndex, hit.keyframeIndex);
+        const track = this.assetData_?.tracks[hit.trackIndex];
+        const channel = track?.channels?.[hit.channelIndex];
+        if (!channel) return;
+
+        for (let i = minIdx; i <= maxIdx; i++) {
+            const kf = channel.keyframes[i];
+            if (kf) {
+                this.addToSelection({ trackIndex: hit.trackIndex, channelIndex: hit.channelIndex, keyframeIndex: i, time: kf.time });
+            }
+        }
+        this.notifySelectionChange();
     }
 
     updateKeyframeValue(trackIndex: number, channelIndex: number, keyframeIndex: number, value: number): void {
@@ -170,7 +284,9 @@ export class TimelineKeyframeArea {
 
         this.drawRuler(ctx, w);
         this.drawTracks(ctx, w, h);
+        this.drawDurationEnd(ctx, w, h);
         this.drawPlayhead(ctx, w, h);
+        this.drawRubberBand(ctx);
     }
 
     private drawRuler(ctx: CanvasRenderingContext2D, width: number): void {
@@ -331,10 +447,7 @@ export class TimelineKeyframeArea {
             const x = this.state_.timeToX(kf.time);
             if (x < -KEYFRAME_SIZE || x > this.canvas_.clientWidth + KEYFRAME_SIZE) continue;
 
-            const isSelected = this.selectedKeyframe_ !== null
-                && this.selectedKeyframe_.trackIndex === trackIndex
-                && this.selectedKeyframe_.channelIndex === channelIndex
-                && this.selectedKeyframe_.keyframeIndex === ki;
+            const isSelected = this.isKeyframeSelected(trackIndex, channelIndex, ki);
 
             ctx.fillStyle = isSelected ? KEYFRAME_SELECTED : KEYFRAME_COLOR;
             ctx.beginPath();
@@ -453,6 +566,43 @@ export class TimelineKeyframeArea {
         ctx.fill();
     }
 
+    private drawDurationEnd(ctx: CanvasRenderingContext2D, width: number, height: number): void {
+        const x = this.state_.timeToX(this.state_.duration);
+        if (x < 0) return;
+
+        if (x < width) {
+            ctx.strokeStyle = DURATION_LINE_COLOR;
+            ctx.lineWidth = 1;
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath();
+            ctx.moveTo(Math.round(x) + 0.5, RULER_HEIGHT);
+            ctx.lineTo(Math.round(x) + 0.5, height);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        const overlayX = Math.max(x, 0);
+        if (overlayX < width) {
+            ctx.fillStyle = BEYOND_DURATION_COLOR;
+            ctx.fillRect(overlayX, RULER_HEIGHT, width - overlayX, height - RULER_HEIGHT);
+        }
+    }
+
+    private drawRubberBand(ctx: CanvasRenderingContext2D): void {
+        if (!this.rubberBand_) return;
+        const rb = this.rubberBand_;
+        const x = Math.min(rb.startX, rb.endX);
+        const y = Math.min(rb.startY, rb.endY);
+        const w = Math.abs(rb.endX - rb.startX);
+        const h = Math.abs(rb.endY - rb.startY);
+
+        ctx.fillStyle = RUBBERBAND_COLOR;
+        ctx.fillRect(x, y, w, h);
+        ctx.strokeStyle = RUBBERBAND_BORDER;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+    }
+
     private hitTestKeyframe(x: number, y: number): KeyframeHit | null {
         if (!this.assetData_) return null;
 
@@ -523,6 +673,153 @@ export class TimelineKeyframeArea {
         return null;
     }
 
+    private hitTestSpineClip(x: number, y: number, trackIndex: number, rowY: number): SpineClipHit | null {
+        if (!this.assetData_) return null;
+        const track = this.assetData_.tracks[trackIndex];
+        if (!track || track.type !== 'spine' || !track.clips) return null;
+        if (y < rowY || y >= rowY + TRACK_HEIGHT) return null;
+
+        for (let i = 0; i < track.clips.length; i++) {
+            const clip = track.clips[i];
+            const x1 = this.state_.timeToX(clip.start);
+            const x2 = this.state_.timeToX(clip.start + clip.duration);
+            if (x >= x1 && x <= x2) {
+                const zone = (x2 - x) <= EDGE_RESIZE_ZONE ? 'resize' : 'body';
+                return { trackIndex, clipIndex: i, zone };
+            }
+        }
+        return null;
+    }
+
+    private hitTestAudioEvent(x: number, y: number, trackIndex: number, rowY: number): AudioEventHit | null {
+        if (!this.assetData_) return null;
+        const track = this.assetData_.tracks[trackIndex];
+        if (!track || track.type !== 'audio' || !track.events) return null;
+        if (y < rowY || y >= rowY + TRACK_HEIGHT) return null;
+
+        for (let i = 0; i < track.events.length; i++) {
+            const ex = this.state_.timeToX(track.events[i].time);
+            if (Math.abs(x - ex) <= KEYFRAME_HIT_RADIUS) {
+                return { trackIndex, eventIndex: i };
+            }
+        }
+        return null;
+    }
+
+    private hitTestActivationRange(x: number, y: number, trackIndex: number, rowY: number): ActivationRangeHit | null {
+        if (!this.assetData_) return null;
+        const track = this.assetData_.tracks[trackIndex];
+        if (!track || track.type !== 'activation' || !track.ranges) return null;
+        if (y < rowY || y >= rowY + TRACK_HEIGHT) return null;
+
+        for (let i = 0; i < track.ranges.length; i++) {
+            const range = track.ranges[i];
+            const x1 = this.state_.timeToX(range.start);
+            const x2 = this.state_.timeToX(range.end);
+            if (x >= x1 && x <= x2) {
+                const zone = (x - x1) <= EDGE_RESIZE_ZONE ? 'left'
+                    : (x2 - x) <= EDGE_RESIZE_ZONE ? 'right'
+                    : 'body';
+                return { trackIndex, rangeIndex: i, zone };
+            }
+        }
+        return null;
+    }
+
+    private hitTestNonPropertyTrack(x: number, y: number): { type: string; hit: SpineClipHit | AudioEventHit | ActivationRangeHit } | null {
+        if (!this.assetData_) return null;
+
+        const tracks = this.state_.tracks;
+        let rowY = RULER_HEIGHT;
+
+        for (let i = 0; i < tracks.length; i++) {
+            const track = tracks[i];
+            const assetTrack = this.assetData_.tracks[track.index];
+
+            if (y >= rowY && y < rowY + TRACK_HEIGHT && assetTrack) {
+                if (assetTrack.type === 'spine') {
+                    const hit = this.hitTestSpineClip(x, y, track.index, rowY);
+                    if (hit) return { type: 'spine', hit };
+                } else if (assetTrack.type === 'audio') {
+                    const hit = this.hitTestAudioEvent(x, y, track.index, rowY);
+                    if (hit) return { type: 'audio', hit };
+                } else if (assetTrack.type === 'activation') {
+                    const hit = this.hitTestActivationRange(x, y, track.index, rowY);
+                    if (hit) return { type: 'activation', hit };
+                }
+            }
+            rowY += TRACK_HEIGHT;
+
+            if (track.expanded && track.channelCount > 0) {
+                rowY += track.channelCount * TRACK_HEIGHT;
+            }
+        }
+        return null;
+    }
+
+    private collectKeyframesInRect(
+        x1: number, y1: number, x2: number, y2: number,
+    ): KeyframeHit[] {
+        if (!this.assetData_) return [];
+
+        const minX = Math.min(x1, x2);
+        const maxX = Math.max(x1, x2);
+        const minY = Math.min(y1, y2);
+        const maxY = Math.max(y1, y2);
+        const hits: KeyframeHit[] = [];
+
+        const tracks = this.state_.tracks;
+        let rowY = RULER_HEIGHT;
+
+        for (let i = 0; i < tracks.length; i++) {
+            const track = tracks[i];
+            const assetTrack = this.assetData_.tracks[track.index];
+
+            if (assetTrack?.type === 'property' && assetTrack.channels) {
+                if (rowY + TRACK_HEIGHT > minY && rowY < maxY) {
+                    for (let c = 0; c < assetTrack.channels.length; c++) {
+                        this.collectChannelKeyframesInRange(
+                            assetTrack.channels[c].keyframes, minX, maxX,
+                            track.index, c, hits,
+                        );
+                    }
+                }
+            }
+            rowY += TRACK_HEIGHT;
+
+            if (track.expanded && track.channelCount > 0 && assetTrack?.type === 'property') {
+                for (let c = 0; c < track.channelCount; c++) {
+                    if (rowY + TRACK_HEIGHT > minY && rowY < maxY) {
+                        const channel = assetTrack.channels?.[c];
+                        if (channel) {
+                            this.collectChannelKeyframesInRange(
+                                channel.keyframes, minX, maxX,
+                                track.index, c, hits,
+                            );
+                        }
+                    }
+                    rowY += TRACK_HEIGHT;
+                }
+            }
+        }
+
+        return hits;
+    }
+
+    private collectChannelKeyframesInRange(
+        keyframes: { time: number }[],
+        minX: number, maxX: number,
+        trackIndex: number, channelIndex: number,
+        out: KeyframeHit[],
+    ): void {
+        for (let ki = 0; ki < keyframes.length; ki++) {
+            const kx = this.state_.timeToX(keyframes[ki].time);
+            if (kx >= minX && kx <= maxX) {
+                out.push({ trackIndex, channelIndex, keyframeIndex: ki, time: keyframes[ki].time });
+            }
+        }
+    }
+
     private getTrackAtY(y: number): { trackIndex: number; channelIndex: number; isChannel: boolean } | null {
         const tracks = this.state_.tracks;
         let rowY = RULER_HEIGHT;
@@ -560,14 +857,41 @@ export class TimelineKeyframeArea {
         const hit = this.hitTestKeyframe(x, y);
 
         if (hit) {
-            this.setSelectedKeyframe(hit);
+            const key = kfKey(hit.trackIndex, hit.channelIndex, hit.keyframeIndex);
+
+            if (e.ctrlKey || e.metaKey) {
+                this.toggleSelect(hit);
+            } else if (e.shiftKey) {
+                this.shiftSelect(hit);
+            } else {
+                if (!this.selectedKeyframes_.has(key)) {
+                    this.selectOnly(hit);
+                }
+            }
+
             this.draw();
             this.canvas_.focus();
-            this.startKeyframeDrag(e, rect, hit);
+            this.startKeyframeDrag(e, rect);
             return;
         }
 
-        this.setSelectedKeyframe(null);
+        const npHit = this.hitTestNonPropertyTrack(x, y);
+        if (npHit) {
+            this.clearSelection();
+            this.canvas_.focus();
+            if (npHit.type === 'spine') {
+                this.startSpineClipDrag(e, rect, npHit.hit as SpineClipHit);
+            } else if (npHit.type === 'audio') {
+                this.startAudioEventDrag(e, rect, npHit.hit as AudioEventHit);
+            } else if (npHit.type === 'activation') {
+                this.startActivationRangeDrag(e, rect, npHit.hit as ActivationRangeHit);
+            }
+            return;
+        }
+
+        if (!e.ctrlKey && !e.metaKey) {
+            this.clearSelection();
+        }
         this.draw();
 
         const trackInfo = this.getTrackAtY(y);
@@ -575,6 +899,190 @@ export class TimelineKeyframeArea {
             this.state_.selectedTrackIndex = trackInfo.trackIndex;
             this.state_.notify();
         }
+
+        this.startRubberBand(e, rect);
+    }
+
+    private startSpineClipDrag(_e: MouseEvent, rect: DOMRect, hit: SpineClipHit): void {
+        if (!this.assetData_ || !this.host_) return;
+        const track = this.assetData_.tracks[hit.trackIndex];
+        if (!track?.clips) return;
+        const clip = track.clips[hit.clipIndex];
+        if (!clip) return;
+
+        if (hit.zone === 'resize') {
+            const oldDuration = clip.duration;
+            const onMove = (ev: MouseEvent) => {
+                const mx = ev.clientX - rect.left;
+                const endTime = Math.max(clip.start + 0.05, this.state_.xToTime(mx));
+                const newDuration = endTime - clip.start;
+                const cmd = new ResizeSpineClipCommand(
+                    this.assetData_!, hit.trackIndex, hit.clipIndex,
+                    oldDuration, newDuration,
+                    () => this.host_!.onAssetDataChanged(),
+                );
+                this.host_!.executeCommand(cmd);
+            };
+            const onUp = () => {
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+            };
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+        } else {
+            const oldStart = clip.start;
+            const offsetX = _e.clientX - rect.left - this.state_.timeToX(clip.start);
+            const onMove = (ev: MouseEvent) => {
+                const mx = ev.clientX - rect.left - offsetX;
+                const newStart = Math.max(0, this.state_.xToTime(mx));
+                const cmd = new MoveSpineClipCommand(
+                    this.assetData_!, hit.trackIndex, hit.clipIndex,
+                    oldStart, newStart,
+                    () => this.host_!.onAssetDataChanged(),
+                );
+                this.host_!.executeCommand(cmd);
+            };
+            const onUp = () => {
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+            };
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+        }
+    }
+
+    private startAudioEventDrag(_e: MouseEvent, rect: DOMRect, hit: AudioEventHit): void {
+        if (!this.assetData_ || !this.host_) return;
+        const track = this.assetData_.tracks[hit.trackIndex];
+        if (!track?.events) return;
+        const event = track.events[hit.eventIndex];
+        if (!event) return;
+
+        const oldTime = event.time;
+        const onMove = (ev: MouseEvent) => {
+            const mx = ev.clientX - rect.left;
+            const newTime = Math.max(0, this.state_.xToTime(mx));
+            const cmd = new MoveAudioEventCommand(
+                this.assetData_!, hit.trackIndex, hit.eventIndex,
+                oldTime, newTime,
+                () => this.host_!.onAssetDataChanged(),
+            );
+            this.host_!.executeCommand(cmd);
+        };
+        const onUp = () => {
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+        };
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+    }
+
+    private startActivationRangeDrag(_e: MouseEvent, rect: DOMRect, hit: ActivationRangeHit): void {
+        if (!this.assetData_ || !this.host_) return;
+        const track = this.assetData_.tracks[hit.trackIndex];
+        if (!track?.ranges) return;
+        const range = track.ranges[hit.rangeIndex];
+        if (!range) return;
+
+        const oldStart = range.start;
+        const oldEnd = range.end;
+
+        if (hit.zone === 'left') {
+            const onMove = (ev: MouseEvent) => {
+                const mx = ev.clientX - rect.left;
+                const newStart = Math.max(0, Math.min(this.state_.xToTime(mx), oldEnd - 0.05));
+                const cmd = new ResizeActivationRangeCommand(
+                    this.assetData_!, hit.trackIndex, hit.rangeIndex,
+                    oldStart, oldEnd, newStart, oldEnd,
+                    () => this.host_!.onAssetDataChanged(),
+                );
+                this.host_!.executeCommand(cmd);
+            };
+            const onUp = () => {
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+            };
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+        } else if (hit.zone === 'right') {
+            const onMove = (ev: MouseEvent) => {
+                const mx = ev.clientX - rect.left;
+                const newEnd = Math.max(oldStart + 0.05, this.state_.xToTime(mx));
+                const cmd = new ResizeActivationRangeCommand(
+                    this.assetData_!, hit.trackIndex, hit.rangeIndex,
+                    oldStart, oldEnd, oldStart, newEnd,
+                    () => this.host_!.onAssetDataChanged(),
+                );
+                this.host_!.executeCommand(cmd);
+            };
+            const onUp = () => {
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+            };
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+        } else {
+            const duration = oldEnd - oldStart;
+            const offsetX = _e.clientX - rect.left - this.state_.timeToX(oldStart);
+            const onMove = (ev: MouseEvent) => {
+                const mx = ev.clientX - rect.left - offsetX;
+                const newStart = Math.max(0, this.state_.xToTime(mx));
+                const newEnd = newStart + duration;
+                const cmd = new MoveActivationRangeCommand(
+                    this.assetData_!, hit.trackIndex, hit.rangeIndex,
+                    oldStart, oldEnd, newStart, newEnd,
+                    () => this.host_!.onAssetDataChanged(),
+                );
+                this.host_!.executeCommand(cmd);
+            };
+            const onUp = () => {
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+            };
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+        }
+    }
+
+    private startRubberBand(e: MouseEvent, rect: DOMRect): void {
+        const startX = e.clientX - rect.left;
+        const startY = e.clientY - rect.top;
+        const isAdditive = e.ctrlKey || e.metaKey;
+
+        this.rubberBand_ = { startX, startY, endX: startX, endY: startY };
+
+        const onMove = (ev: MouseEvent) => {
+            this.rubberBand_!.endX = ev.clientX - rect.left;
+            this.rubberBand_!.endY = ev.clientY - rect.top;
+            this.draw();
+        };
+
+        const onUp = () => {
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+
+            if (!this.rubberBand_) return;
+            const rb = this.rubberBand_;
+            const w = Math.abs(rb.endX - rb.startX);
+            const h = Math.abs(rb.endY - rb.startY);
+
+            if (w > 3 || h > 3) {
+                const hits = this.collectKeyframesInRect(rb.startX, rb.startY, rb.endX, rb.endY);
+                if (!isAdditive) {
+                    this.selectedKeyframes_.clear();
+                }
+                for (const hit of hits) {
+                    this.addToSelection(hit);
+                }
+                this.notifySelectionChange();
+            }
+
+            this.rubberBand_ = null;
+            this.draw();
+        };
+
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
     }
 
     private onDoubleClick(e: MouseEvent): void {
@@ -589,47 +1097,92 @@ export class TimelineKeyframeArea {
         const hit = this.hitTestKeyframe(x, y);
         if (hit) return;
 
+        const npHit = this.hitTestNonPropertyTrack(x, y);
+        if (npHit) return;
+
         const trackInfo = this.getTrackAtY(y);
         if (!trackInfo) return;
 
         const assetTrack = this.assetData_.tracks[trackInfo.trackIndex];
-        if (!assetTrack || assetTrack.type !== 'property') return;
-
-        const channelIndex = trackInfo.isChannel ? trackInfo.channelIndex : 0;
-        if (!assetTrack.channels || channelIndex < 0 || channelIndex >= assetTrack.channels.length) return;
+        if (!assetTrack) return;
 
         const time = Math.max(0, this.state_.xToTime(x));
-        const value = this.host_.readPropertyValue(trackInfo.trackIndex, channelIndex);
-        const cmd = new AddKeyframeCommand(
-            this.assetData_,
-            trackInfo.trackIndex,
-            channelIndex,
-            { time, value },
-            () => this.host_!.onAssetDataChanged(),
-        );
-        this.host_.executeCommand(cmd);
+
+        switch (assetTrack.type) {
+            case 'property': {
+                const channelIndex = trackInfo.isChannel ? trackInfo.channelIndex : 0;
+                if (!assetTrack.channels || channelIndex < 0 || channelIndex >= assetTrack.channels.length) return;
+                const value = this.host_.readPropertyValue(trackInfo.trackIndex, channelIndex);
+                const cmd = new AddKeyframeCommand(
+                    this.assetData_, trackInfo.trackIndex, channelIndex,
+                    { time, value },
+                    () => this.host_!.onAssetDataChanged(),
+                );
+                this.host_.executeCommand(cmd);
+                break;
+            }
+            case 'spine': {
+                const cmd = new AddSpineClipCommand(
+                    this.assetData_, trackInfo.trackIndex,
+                    { start: time, duration: 1, animation: 'idle' },
+                    () => this.host_!.onAssetDataChanged(),
+                );
+                this.host_.executeCommand(cmd);
+                break;
+            }
+            case 'audio': {
+                const cmd = new AddAudioEventCommand(
+                    this.assetData_, trackInfo.trackIndex,
+                    { time, clip: '' },
+                    () => this.host_!.onAssetDataChanged(),
+                );
+                this.host_.executeCommand(cmd);
+                break;
+            }
+            case 'activation': {
+                const cmd = new AddActivationRangeCommand(
+                    this.assetData_, trackInfo.trackIndex,
+                    { start: time, end: Math.min(time + 1, this.state_.duration) },
+                    () => this.host_!.onAssetDataChanged(),
+                );
+                this.host_.executeCommand(cmd);
+                break;
+            }
+        }
     }
 
-    private startKeyframeDrag(e: MouseEvent, rect: DOMRect, hit: KeyframeHit): void {
+    private startKeyframeDrag(e: MouseEvent, rect: DOMRect): void {
         if (!this.assetData_ || !this.host_) return;
+        if (this.selectedKeyframes_.size === 0) return;
 
-        let lastTime = hit.time;
+        const startX = e.clientX - rect.left;
+        const startTime = this.state_.xToTime(startX);
+
+        const refs = [...this.selectedKeyframes_.values()].map(hit => ({
+            trackIndex: hit.trackIndex,
+            channelIndex: hit.channelIndex,
+            keyframeIndex: hit.keyframeIndex,
+        }));
+        const oldTimes = refs.map(ref => {
+            const channel = this.assetData_!.tracks[ref.trackIndex]?.channels?.[ref.channelIndex];
+            return channel?.keyframes[ref.keyframeIndex]?.time ?? 0;
+        });
+
+        let lastDelta = 0;
 
         const onMove = (ev: MouseEvent) => {
-            const x = ev.clientX - rect.left;
-            const newTime = Math.max(0, this.state_.xToTime(x));
+            const currentX = ev.clientX - rect.left;
+            const currentTime = this.state_.xToTime(currentX);
+            const timeDelta = currentTime - startTime;
 
-            const cmd = new MoveKeyframeCommand(
-                this.assetData_!,
-                hit.trackIndex,
-                hit.channelIndex,
-                hit.keyframeIndex,
-                lastTime,
-                newTime,
+            if (timeDelta === lastDelta) return;
+            lastDelta = timeDelta;
+
+            const cmd = new BatchMoveKeyframesCommand(
+                this.assetData_!, refs, oldTimes, timeDelta,
                 () => this.host_!.onAssetDataChanged(),
             );
             this.host_!.executeCommand(cmd);
-            lastTime = newTime;
         };
 
         const onUp = () => {
@@ -642,28 +1195,150 @@ export class TimelineKeyframeArea {
     }
 
     private onKeyDown(e: KeyboardEvent): void {
+        if (e.key === ',' || e.key === '<') {
+            e.preventDefault();
+            this.state_.setPlayhead(this.state_.playheadTime - FRAME_STEP);
+            return;
+        }
+        if (e.key === '.' || e.key === '>') {
+            e.preventDefault();
+            this.state_.setPlayhead(this.state_.playheadTime + FRAME_STEP);
+            return;
+        }
+
         if (!this.assetData_ || !this.host_) return;
 
-        if ((e.key === 'Delete' || e.key === 'Backspace') && this.selectedKeyframe_) {
+        if ((e.key === 'Delete' || e.key === 'Backspace') && this.selectedKeyframes_.size > 0) {
             e.preventDefault();
             e.stopPropagation();
-            const { trackIndex, channelIndex, keyframeIndex } = this.selectedKeyframe_;
-            const cmd = new DeleteKeyframeCommand(
-                this.assetData_,
-                trackIndex,
-                channelIndex,
-                [keyframeIndex],
+            const refs = [...this.selectedKeyframes_.values()].map(hit => ({
+                trackIndex: hit.trackIndex,
+                channelIndex: hit.channelIndex,
+                keyframeIndex: hit.keyframeIndex,
+            }));
+            const cmd = new BatchDeleteKeyframesCommand(
+                this.assetData_, refs,
                 () => this.host_!.onAssetDataChanged(),
             );
             this.host_.executeCommand(cmd);
-            this.setSelectedKeyframe(null);
+            this.clearSelection();
             return;
         }
 
         if (e.key === 'k' || e.key === 'K') {
             e.preventDefault();
             this.addKeyframeAtPlayhead();
+            return;
         }
+
+        if (e.key === 'a' && (e.ctrlKey || e.metaKey)) {
+            e.preventDefault();
+            this.selectAllInTrack();
+            return;
+        }
+
+        if (e.key === 'f' || e.key === 'F') {
+            e.preventDefault();
+            this.zoomToFit();
+            return;
+        }
+
+        if (e.key === 'c' && (e.ctrlKey || e.metaKey)) {
+            e.preventDefault();
+            this.copySelectedKeyframes();
+            return;
+        }
+
+        if (e.key === 'v' && (e.ctrlKey || e.metaKey)) {
+            e.preventDefault();
+            this.pasteKeyframes();
+            return;
+        }
+    }
+
+    private copySelectedKeyframes(): void {
+        if (!this.assetData_ || this.selectedKeyframes_.size === 0) return;
+
+        const hits = [...this.selectedKeyframes_.values()];
+        let minTime = Infinity;
+        for (const hit of hits) {
+            if (hit.time < minTime) minTime = hit.time;
+        }
+
+        this.clipboard_ = hits.map(hit => {
+            const channel = this.assetData_!.tracks[hit.trackIndex]?.channels?.[hit.channelIndex];
+            const kf = channel?.keyframes[hit.keyframeIndex];
+            return {
+                channelIndex: hit.channelIndex,
+                relativeTime: hit.time - minTime,
+                value: kf?.value ?? 0,
+                inTangent: kf?.inTangent ?? 0,
+                outTangent: kf?.outTangent ?? 0,
+            };
+        });
+    }
+
+    private pasteKeyframes(): void {
+        if (!this.assetData_ || !this.host_ || this.clipboard_.length === 0) return;
+
+        const trackIndex = this.state_.selectedTrackIndex;
+        if (trackIndex < 0) return;
+        const assetTrack = this.assetData_.tracks[trackIndex];
+        if (!assetTrack || assetTrack.type !== 'property' || !assetTrack.channels) return;
+
+        const baseTime = this.state_.playheadTime;
+        const entries = this.clipboard_
+            .filter(entry => entry.channelIndex < assetTrack.channels!.length)
+            .map(entry => ({
+                trackIndex,
+                channelIndex: entry.channelIndex,
+                keyframe: {
+                    time: baseTime + entry.relativeTime,
+                    value: entry.value,
+                    inTangent: entry.inTangent,
+                    outTangent: entry.outTangent,
+                },
+            }));
+
+        if (entries.length === 0) return;
+
+        const cmd = new PasteKeyframesCommand(
+            this.assetData_, entries,
+            () => this.host_!.onAssetDataChanged(),
+        );
+        this.host_.executeCommand(cmd);
+    }
+
+    private zoomToFit(): void {
+        const width = this.canvas_.clientWidth;
+        if (width <= 0 || this.state_.duration <= 0) return;
+
+        const margin = 40;
+        this.state_.pixelsPerSecond = Math.max(
+            MIN_PIXELS_PER_SECOND,
+            Math.min(MAX_PIXELS_PER_SECOND, (width - margin * 2) / this.state_.duration),
+        );
+        this.state_.scrollX = 0;
+        this.state_.notify();
+    }
+
+    private selectAllInTrack(): void {
+        if (!this.assetData_) return;
+        const trackIndex = this.state_.selectedTrackIndex;
+        if (trackIndex < 0) return;
+
+        const assetTrack = this.assetData_.tracks[trackIndex];
+        if (!assetTrack || assetTrack.type !== 'property' || !assetTrack.channels) return;
+
+        this.selectedKeyframes_.clear();
+        for (let c = 0; c < assetTrack.channels.length; c++) {
+            for (let ki = 0; ki < assetTrack.channels[c].keyframes.length; ki++) {
+                const kf = assetTrack.channels[c].keyframes[ki];
+                this.addToSelection({ trackIndex, channelIndex: c, keyframeIndex: ki, time: kf.time });
+            }
+        }
+        this.notifySelectionChange();
+        this.draw();
     }
 
     private addKeyframeAtPlayhead(): void {
@@ -713,26 +1388,37 @@ export class TimelineKeyframeArea {
         menu.style.left = `${e.clientX}px`;
         menu.style.top = `${e.clientY}px`;
 
+        const npHit = this.hitTestNonPropertyTrack(x, y);
+
         if (hit) {
-            this.setSelectedKeyframe(hit);
+            const key = kfKey(hit.trackIndex, hit.channelIndex, hit.keyframeIndex);
+            if (!this.selectedKeyframes_.has(key)) {
+                this.selectOnly(hit);
+            }
             this.draw();
 
+            const count = this.selectedKeyframes_.size;
+            const deleteLabel = count > 1 ? `Delete ${count} Keyframes` : 'Delete Keyframe';
             const deleteItem = document.createElement('div');
             deleteItem.className = 'es-timeline-dropdown-item';
-            deleteItem.textContent = 'Delete Keyframe';
+            deleteItem.textContent = deleteLabel;
             deleteItem.addEventListener('click', () => {
                 menu.remove();
-                const cmd = new DeleteKeyframeCommand(
-                    this.assetData_!,
-                    hit.trackIndex,
-                    hit.channelIndex,
-                    [hit.keyframeIndex],
+                const refs = [...this.selectedKeyframes_.values()].map(h => ({
+                    trackIndex: h.trackIndex,
+                    channelIndex: h.channelIndex,
+                    keyframeIndex: h.keyframeIndex,
+                }));
+                const cmd = new BatchDeleteKeyframesCommand(
+                    this.assetData_!, refs,
                     () => this.host_!.onAssetDataChanged(),
                 );
                 this.host_!.executeCommand(cmd);
-                this.selectedKeyframe_ = null;
+                this.clearSelection();
             });
             menu.appendChild(deleteItem);
+        } else if (npHit) {
+            this.buildNonPropertyContextMenu(menu, npHit);
         } else if (trackInfo) {
             const assetTrack = this.assetData_.tracks[trackInfo.trackIndex];
             if (assetTrack?.type === 'property' && assetTrack.channels) {
@@ -776,8 +1462,12 @@ export class TimelineKeyframeArea {
             deleteTrackItem.textContent = 'Delete Track';
             deleteTrackItem.addEventListener('click', () => {
                 menu.remove();
-                this.assetData_!.tracks.splice(trackInfo.trackIndex, 1);
-                this.host_!.onAssetDataChanged();
+                const cmd = new DeleteTrackCommand(
+                    this.assetData_!,
+                    trackInfo.trackIndex,
+                    () => this.host_!.onAssetDataChanged(),
+                );
+                this.host_!.executeCommand(cmd);
             });
             menu.appendChild(deleteTrackItem);
         }
@@ -793,6 +1483,57 @@ export class TimelineKeyframeArea {
             }
         };
         setTimeout(() => document.addEventListener('mousedown', dismiss, true), 0);
+    }
+
+    private buildNonPropertyContextMenu(
+        menu: HTMLElement,
+        npHit: { type: string; hit: SpineClipHit | AudioEventHit | ActivationRangeHit },
+    ): void {
+        if (!this.assetData_ || !this.host_) return;
+
+        if (npHit.type === 'spine') {
+            const hit = npHit.hit as SpineClipHit;
+            const item = document.createElement('div');
+            item.className = 'es-timeline-dropdown-item';
+            item.textContent = 'Delete Clip';
+            item.addEventListener('click', () => {
+                menu.remove();
+                const cmd = new DeleteSpineClipCommand(
+                    this.assetData_!, hit.trackIndex, hit.clipIndex,
+                    () => this.host_!.onAssetDataChanged(),
+                );
+                this.host_!.executeCommand(cmd);
+            });
+            menu.appendChild(item);
+        } else if (npHit.type === 'audio') {
+            const hit = npHit.hit as AudioEventHit;
+            const item = document.createElement('div');
+            item.className = 'es-timeline-dropdown-item';
+            item.textContent = 'Delete Event';
+            item.addEventListener('click', () => {
+                menu.remove();
+                const cmd = new DeleteAudioEventCommand(
+                    this.assetData_!, hit.trackIndex, hit.eventIndex,
+                    () => this.host_!.onAssetDataChanged(),
+                );
+                this.host_!.executeCommand(cmd);
+            });
+            menu.appendChild(item);
+        } else if (npHit.type === 'activation') {
+            const hit = npHit.hit as ActivationRangeHit;
+            const item = document.createElement('div');
+            item.className = 'es-timeline-dropdown-item';
+            item.textContent = 'Delete Range';
+            item.addEventListener('click', () => {
+                menu.remove();
+                const cmd = new DeleteActivationRangeCommand(
+                    this.assetData_!, hit.trackIndex, hit.rangeIndex,
+                    () => this.host_!.onAssetDataChanged(),
+                );
+                this.host_!.executeCommand(cmd);
+            });
+            menu.appendChild(item);
+        }
     }
 
     private startPlayheadDrag(e: MouseEvent, rect: DOMRect): void {

@@ -9,6 +9,7 @@ import type { BuildContext } from './BuildService';
 import type { NativeFS } from '../types/NativeFS';
 import { findTsFiles, EDITOR_ONLY_DIRS } from '../scripting/ScriptLoader';
 import { joinPath } from '../utils/path';
+import { discoverPluginPackages } from '../extension/pluginDiscovery';
 import { isUUID, getComponentRefFields } from '../asset/AssetLibrary';
 import { initializeEsbuild, createBuildVirtualFsPlugin, type SdkModuleLoader } from './ArtifactBuilder';
 import { toBuildPath } from 'esengine';
@@ -211,11 +212,23 @@ export async function collectUserScriptImports(
     const scriptsPath = joinPath(projectDir, 'src');
     const hasSrcDir = await fs.exists(scriptsPath);
 
-    let imports = '';
-    if (hasSrcDir) {
-        const scripts = await findTsFiles(fs, scriptsPath, EDITOR_ONLY_DIRS);
-        imports = scripts.map(p => `import "${p}";`).join('\n');
+    const parts: string[] = [];
+
+    try {
+        const plugins = await discoverPluginPackages(fs, projectDir, 'main');
+        for (const p of plugins) {
+            parts.push(`import "${p.entryPath}";`);
+        }
+    } catch {
+        // plugin discovery is best-effort in production builds
     }
 
-    return { imports, hasSrcDir };
+    if (hasSrcDir) {
+        const scripts = await findTsFiles(fs, scriptsPath, EDITOR_ONLY_DIRS);
+        for (const p of scripts) {
+            parts.push(`import "${p}";`);
+        }
+    }
+
+    return { imports: parts.join('\n'), hasSrcDir: hasSrcDir || parts.length > 0 };
 }

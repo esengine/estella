@@ -1,6 +1,6 @@
 import type { App, Plugin } from '../app';
 import { registerComponent, Transform, Name, Sprite } from '../component';
-import type { SpriteData, TransformData } from '../component';
+import type { TransformData, SpriteData } from '../component';
 import { UIRenderer, UIVisualType } from './UIRenderer';
 import type { UIRendererData } from './UIRenderer';
 import { defineSystem, Schedule } from '../system';
@@ -20,7 +20,7 @@ import type { UIRectData } from './UIRect';
 import { Input } from '../input';
 import type { InputState } from '../input';
 import { isEditor, isPlayMode } from '../env';
-import { ensureComponent, getEffectiveWidth, getEffectiveHeight } from './uiHelpers';
+import { ensureComponent, getEffectiveWidth, getEffectiveHeight, setEntityColor, setEntityEnabled, withChildEntity } from './uiHelpers';
 import { DROPDOWN_ITEM_HEIGHT, DROPDOWN_FONT_SIZE, DROPDOWN_HIGHLIGHT_COLOR, DROPDOWN_DEFAULT_COLOR, DROPDOWN_OPTION_COLOR } from './uiConstants';
 
 interface DropdownState {
@@ -31,6 +31,15 @@ interface DropdownState {
 }
 
 export class DropdownPlugin implements Plugin {
+    private cleanup_: (() => void) | null = null;
+
+    cleanup(): void {
+        if (this.cleanup_) {
+            this.cleanup_();
+            this.cleanup_ = null;
+        }
+    }
+
     build(app: App): void {
         registerComponent('Dropdown', Dropdown);
 
@@ -41,8 +50,12 @@ export class DropdownPlugin implements Plugin {
         app.addSystemToSchedule(Schedule.Update, defineSystem(
             [Res(Input), Res(UIEvents)],
             (input: InputState, events: UIEventQueue) => {
-                for (const [e] of dropdownStates) {
-                    if (!world.valid(e)) dropdownStates.delete(e);
+                for (const [e, st] of dropdownStates) {
+                    if (!world.valid(e)) {
+                        destroyOptions(st);
+                        dropdownStates.delete(e);
+                        appearanceInitialized.delete(e);
+                    }
                 }
 
                 const editorSceneView = isEditor() && !isPlayMode();
@@ -141,40 +154,29 @@ export class DropdownPlugin implements Plugin {
         ), { runAfter: ['UIInteractionSystem'] });
 
         function normalizeListTransform(listEntity: Entity): void {
-            if (listEntity === 0 || !world.valid(listEntity)) return;
-            if (!world.has(listEntity, Transform)) return;
-            const t = world.get(listEntity, Transform) as TransformData;
-            if (t.scale.x === 0 && t.scale.y === 0 && t.scale.z === 0) {
-                world.insert(listEntity, Transform, {
-                    position: { x: t.position.x, y: t.position.y, z: t.position.z },
-                    rotation: { x: t.rotation.x, y: t.rotation.y, z: t.rotation.z, w: t.rotation.w },
-                    scale: { x: 1, y: 1, z: 1 },
-                });
-            }
+            withChildEntity(world, listEntity, (e) => {
+                if (!world.has(e, Transform)) return;
+                const t = world.get(e, Transform) as TransformData;
+                if (t.scale.x === 0 && t.scale.y === 0 && t.scale.z === 0) {
+                    world.insert(e, Transform, {
+                        position: { x: t.position.x, y: t.position.y, z: t.position.z },
+                        rotation: { x: t.rotation.x, y: t.rotation.y, z: t.rotation.z, w: t.rotation.w },
+                        scale: { x: 1, y: 1, z: 1 },
+                    });
+                }
+            });
         }
 
         function initDropdownAppearance(entity: Entity): void {
             if (world.has(entity, UIRenderer)) {
                 const r = world.get(entity, UIRenderer) as UIRendererData;
                 if (r.color.r === 1 && r.color.g === 1 && r.color.b === 1 && r.color.a === 1) {
-                    r.color = { ...DROPDOWN_DEFAULT_COLOR };
-                    world.insert(entity, UIRenderer, r);
+                    setEntityColor(world, entity, { ...DROPDOWN_DEFAULT_COLOR });
                 }
             } else if (world.has(entity, Sprite)) {
                 const s = world.get(entity, Sprite) as SpriteData;
                 if (s.color.r === 1 && s.color.g === 1 && s.color.b === 1 && s.color.a === 1) {
-                    world.insert(entity, Sprite, {
-                        texture: s.texture,
-                        color: { ...DROPDOWN_DEFAULT_COLOR },
-                        size: { x: s.size.x, y: s.size.y },
-                        uvOffset: { x: s.uvOffset.x, y: s.uvOffset.y },
-                        uvScale: { x: s.uvScale.x, y: s.uvScale.y },
-                        layer: s.layer,
-                        flipX: s.flipX,
-                        flipY: s.flipY,
-                        material: s.material,
-                        enabled: s.enabled,
-                    });
+                    setEntityColor(world, entity, { ...DROPDOWN_DEFAULT_COLOR });
                 }
             }
         }
@@ -362,19 +364,12 @@ export class DropdownPlugin implements Plugin {
         }
 
         function setListVisible(entity: Entity, visible: boolean): void {
-            if (entity === 0 || !world.valid(entity)) return;
-            if (world.has(entity, Interactable)) {
-                world.insert(entity, Interactable, { enabled: visible, blockRaycast: true, raycastTarget: true });
-            }
-            if (world.has(entity, UIRenderer)) {
-                const r = world.get(entity, UIRenderer) as UIRendererData;
-                r.enabled = visible;
-                world.insert(entity, UIRenderer, r);
-            } else if (world.has(entity, Sprite)) {
-                const s = world.get(entity, Sprite) as SpriteData;
-                s.enabled = visible;
-                world.insert(entity, Sprite, s);
-            }
+            withChildEntity(world, entity, (e) => {
+                if (world.has(e, Interactable)) {
+                    world.insert(e, Interactable, { enabled: visible, blockRaycast: true, raycastTarget: true });
+                }
+                setEntityEnabled(world, e, visible);
+            });
         }
 
         function updateHighlight(state: DropdownState): void {
@@ -384,15 +379,7 @@ export class DropdownPlugin implements Plugin {
                 const color = i === state.highlightIndex
                     ? { ...DROPDOWN_HIGHLIGHT_COLOR }
                     : { ...DROPDOWN_OPTION_COLOR };
-                if (world.has(optEntity, UIRenderer)) {
-                    const r = world.get(optEntity, UIRenderer) as UIRendererData;
-                    r.color = color;
-                    world.insert(optEntity, UIRenderer, r);
-                } else if (world.has(optEntity, Sprite)) {
-                    const s = world.get(optEntity, Sprite) as SpriteData;
-                    s.color = color;
-                    world.insert(optEntity, Sprite, s);
-                }
+                setEntityColor(world, optEntity, color);
             }
         }
 
@@ -404,6 +391,14 @@ export class DropdownPlugin implements Plugin {
             }
             return false;
         }
+
+        this.cleanup_ = () => {
+            for (const [, st] of dropdownStates) {
+                destroyOptions(st);
+            }
+            dropdownStates.clear();
+            appearanceInitialized.clear();
+        };
     }
 }
 

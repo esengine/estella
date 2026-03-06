@@ -1,6 +1,5 @@
 import type { App, Plugin } from '../app';
-import { registerComponent, Sprite } from '../component';
-import type { SpriteData } from '../component';
+import { registerComponent } from '../component';
 import { defineSystem, Schedule } from '../system';
 import { Res } from '../resource';
 import type { Entity } from '../types';
@@ -13,10 +12,8 @@ import type { ToggleData } from './Toggle';
 import { ToggleGroup } from './ToggleGroup';
 import type { ToggleGroupData } from './ToggleGroup';
 import { UIEvents, UIEventQueue } from './UIEvents';
-import { UIRenderer } from './UIRenderer';
-import type { UIRendererData } from './UIRenderer';
 import { isEditor, isPlayMode } from '../env';
-import { applyColorTransition, applyDefaultTint, ensureComponent } from './uiHelpers';
+import { applyColorTransition, applyDefaultTint, ensureComponent, setEntityColor, setEntityEnabled, withChildEntity } from './uiHelpers';
 
 export class TogglePlugin implements Plugin {
     build(app: App): void {
@@ -104,50 +101,20 @@ export class TogglePlugin implements Plugin {
                                 interaction.pressed,
                                 interaction.hovered,
                             );
-                            if (world.has(entity, UIRenderer)) {
-                                const r = world.get(entity, UIRenderer) as UIRendererData;
-                                r.color = color;
-                                world.insert(entity, UIRenderer, r);
-                            } else if (world.has(entity, Sprite)) {
-                                const sprite = world.get(entity, Sprite) as SpriteData;
-                                sprite.color = color;
-                                world.insert(entity, Sprite, sprite);
-                            }
+                            setEntityColor(world, entity, color);
                         } else {
                             const baseColor = toggle.isOn ? toggle.onColor : toggle.offColor;
                             const tinted = applyDefaultTint(baseColor, interactable.enabled, interaction.pressed, interaction.hovered);
-                            if (world.has(entity, UIRenderer)) {
-                                const r = world.get(entity, UIRenderer) as UIRendererData;
-                                if (r.color.r !== tinted.r || r.color.g !== tinted.g
-                                    || r.color.b !== tinted.b || r.color.a !== tinted.a) {
-                                    r.color = tinted;
-                                    world.insert(entity, UIRenderer, r);
-                                }
-                            } else if (world.has(entity, Sprite)) {
-                                const sprite = world.get(entity, Sprite) as SpriteData;
-                                if (sprite.color.r !== tinted.r || sprite.color.g !== tinted.g
-                                    || sprite.color.b !== tinted.b || sprite.color.a !== tinted.a) {
-                                    sprite.color = tinted;
-                                    world.insert(entity, Sprite, sprite);
-                                }
-                            }
+                            setEntityColor(world, entity, tinted);
                         }
                     }
                 }
 
                 for (const entity of toggleEntities) {
                     const toggle = world.get(entity, Toggle) as ToggleData;
-                    if (toggle.graphicEntity && world.valid(toggle.graphicEntity)) {
-                        if (world.has(toggle.graphicEntity, UIRenderer)) {
-                            const r = world.get(toggle.graphicEntity, UIRenderer) as UIRendererData;
-                            r.enabled = toggle.isOn;
-                            world.insert(toggle.graphicEntity, UIRenderer, r);
-                        } else if (world.has(toggle.graphicEntity, Sprite)) {
-                            const sprite = world.get(toggle.graphicEntity, Sprite) as SpriteData;
-                            sprite.enabled = toggle.isOn;
-                            world.insert(toggle.graphicEntity, Sprite, sprite);
-                        }
-                    }
+                    withChildEntity(world, toggle.graphicEntity, (graphic) => {
+                        setEntityEnabled(world, graphic, toggle.isOn);
+                    });
                 }
             },
             { name: 'ToggleSystem' }

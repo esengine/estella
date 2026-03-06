@@ -425,6 +425,66 @@ export class MoveActivationRangeCommand extends BaseCommand {
     }
 }
 
+export class ResizeActivationRangeCommand extends BaseCommand {
+    readonly type = 'timeline_resize_activation_range';
+    readonly description = 'Resize activation range';
+    readonly newStart: number;
+    readonly newEnd: number;
+
+    constructor(
+        private data_: TimelineAssetData,
+        private trackIndex_: number,
+        private rangeIndex_: number,
+        private oldStart_: number,
+        private oldEnd_: number,
+        newStart: number,
+        newEnd: number,
+        private onChanged_: () => void,
+    ) {
+        super();
+        this.newStart = newStart;
+        this.newEnd = newEnd;
+    }
+
+    execute(): void {
+        const ranges = getActivationRanges(this.data_, this.trackIndex_);
+        if (!ranges) return;
+        const range = ranges[this.rangeIndex_];
+        if (range) {
+            range.start = this.newStart;
+            range.end = this.newEnd;
+        }
+        this.onChanged_();
+    }
+
+    undo(): void {
+        const ranges = getActivationRanges(this.data_, this.trackIndex_);
+        if (!ranges) return;
+        const range = ranges[this.rangeIndex_];
+        if (range) {
+            range.start = this.oldStart_;
+            range.end = this.oldEnd_;
+        }
+        this.onChanged_();
+    }
+
+    override canMerge(other: Command): boolean {
+        if (!(other instanceof ResizeActivationRangeCommand)) return false;
+        if (other.trackIndex_ !== this.trackIndex_) return false;
+        if (other.rangeIndex_ !== this.rangeIndex_) return false;
+        return other.timestamp - this.timestamp < MERGE_THRESHOLD_MS;
+    }
+
+    override merge(other: Command): Command {
+        if (!(other instanceof ResizeActivationRangeCommand)) return this;
+        return new ResizeActivationRangeCommand(
+            this.data_, this.trackIndex_, this.rangeIndex_,
+            this.oldStart_, this.oldEnd_,
+            other.newStart, other.newEnd, this.onChanged_,
+        );
+    }
+}
+
 export class DeleteActivationRangeCommand extends BaseCommand {
     readonly type = 'timeline_delete_activation_range';
     readonly description = 'Delete activation range';

@@ -61,13 +61,15 @@ export class MultiWindowService {
         import('@tauri-apps/api/window').then(async ({ getCurrentWindow }) => {
             const mainWindow = getCurrentWindow();
             this.closeUnlisten_ = await mainWindow.onCloseRequested(async (event) => {
-                if (!this.store_.isDirty) return;
                 event.preventDefault();
-                try {
-                    await onUnsavedClose();
-                } catch (e) {
-                    console.error('Close handler error:', e);
+                if (this.store_.isDirty) {
+                    try {
+                        await onUnsavedClose();
+                    } catch (e) {
+                        console.error('Close handler error:', e);
+                    }
                 }
+                await this.windowManager_?.closeAll();
                 mainWindow.destroy();
             });
         });

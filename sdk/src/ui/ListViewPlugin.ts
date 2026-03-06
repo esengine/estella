@@ -47,6 +47,15 @@ export function setListViewRenderer(entity: Entity, renderer: ListViewItemRender
 }
 
 export class ListViewPlugin implements Plugin {
+    private cleanup_: (() => void) | null = null;
+
+    cleanup(): void {
+        if (this.cleanup_) {
+            this.cleanup_();
+            this.cleanup_ = null;
+        }
+        activeListViewStates = null;
+    }
 
     build(app: App): void {
         registerComponent('ListView', ListView);
@@ -157,6 +166,17 @@ export class ListViewPlugin implements Plugin {
             },
             { name: 'ListViewSystem' }
         ), { runAfter: ['UILayoutLateSystem'], runBefore: ['UIRenderOrderSystem'] });
+
+        this.cleanup_ = () => {
+            for (const [, st] of listViewStates) {
+                for (const itemEntity of st.itemEntities.values()) {
+                    if (world.valid(itemEntity)) {
+                        world.despawn(itemEntity);
+                    }
+                }
+            }
+            listViewStates.clear();
+        };
     }
 }
 
