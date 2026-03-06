@@ -5,7 +5,7 @@
 
 import type { SceneData, EntityData } from '../types/SceneTypes';
 import { createEntityData } from '../types/SceneTypes';
-import { BaseCommand, type ChangeEmitter } from './Command';
+import { BaseCommand, CommandRegistry, type ChangeEmitter, type SerializedCommand } from './Command';
 
 // =============================================================================
 // CreateEntityCommand
@@ -71,6 +71,24 @@ export class CreateEntityCommand extends BaseCommand {
             type: isUndo ? 'deleted' : 'created',
             parent: this.parent_,
         });
+    }
+
+    serialize(): SerializedCommand {
+        return {
+            type: this.type,
+            data: { entityId: this.entityId_, name: this.name_, parent: this.parent_ },
+        };
+    }
+
+    static {
+        CommandRegistry.register('create_entity', (data, scene, entityMap) =>
+            new CreateEntityCommand(
+                scene, entityMap,
+                data.entityId as number,
+                data.name as string,
+                (data.parent as number | null) ?? null,
+            ),
+        );
     }
 
     get entityId(): number {
@@ -167,6 +185,19 @@ export class DeleteEntityCommand extends BaseCommand {
         }
     }
 
+    serialize(): SerializedCommand {
+        return {
+            type: this.type,
+            data: { entityId: this.entityId_ },
+        };
+    }
+
+    static {
+        CommandRegistry.register('delete_entity', (data, scene, entityMap) =>
+            new DeleteEntityCommand(scene, entityMap, data.entityId as number),
+        );
+    }
+
     private collectDescendants(entityId: number): EntityData[] {
         const result: EntityData[] = [];
         const entity = this.entityMap_.get(entityId);
@@ -218,6 +249,23 @@ export class ReparentCommand extends BaseCommand {
             entity: this.entityId_,
             newParent: isUndo ? this.oldParent_ : this.newParent_,
         });
+    }
+
+    serialize(): SerializedCommand {
+        return {
+            type: this.type,
+            data: { entityId: this.entityId_, newParent: this.newParent_ },
+        };
+    }
+
+    static {
+        CommandRegistry.register('reparent', (data, scene, entityMap) =>
+            new ReparentCommand(
+                scene, entityMap,
+                data.entityId as number,
+                (data.newParent as number | null) ?? null,
+            ),
+        );
     }
 
     private setParent(newParent: number | null): void {
@@ -285,6 +333,28 @@ export class MoveEntityCommand extends BaseCommand {
             entity: this.entityId_,
             newParent: isUndo ? this.oldParent_ : this.newParent_,
         });
+    }
+
+    serialize(): SerializedCommand {
+        return {
+            type: this.type,
+            data: {
+                entityId: this.entityId_,
+                newParent: this.newParent_,
+                newIndex: this.newIndex_,
+            },
+        };
+    }
+
+    static {
+        CommandRegistry.register('move_entity', (data, scene, entityMap) =>
+            new MoveEntityCommand(
+                scene, entityMap,
+                data.entityId as number,
+                (data.newParent as number | null) ?? null,
+                data.newIndex as number,
+            ),
+        );
     }
 
     private computeIndex(parent: number | null): number {
@@ -378,6 +448,28 @@ export class AddComponentCommand extends BaseCommand {
             action: isUndo ? 'removed' : 'added',
         });
     }
+
+    serialize(): SerializedCommand {
+        return {
+            type: this.type,
+            data: {
+                entityId: this.entityId_,
+                componentType: this.componentType_,
+                componentData: this.componentData_,
+            },
+        };
+    }
+
+    static {
+        CommandRegistry.register('add_component', (data, scene, entityMap) =>
+            new AddComponentCommand(
+                scene, entityMap,
+                data.entityId as number,
+                data.componentType as string,
+                data.componentData as Record<string, unknown>,
+            ),
+        );
+    }
 }
 
 // =============================================================================
@@ -429,6 +521,23 @@ export class RemoveComponentCommand extends BaseCommand {
             action: isUndo ? 'added' : 'removed',
         });
     }
+
+    serialize(): SerializedCommand {
+        return {
+            type: this.type,
+            data: { entityId: this.entityId_, componentType: this.componentType_ },
+        };
+    }
+
+    static {
+        CommandRegistry.register('remove_component', (data, scene, entityMap) =>
+            new RemoveComponentCommand(
+                scene, entityMap,
+                data.entityId as number,
+                data.componentType as string,
+            ),
+        );
+    }
 }
 
 // =============================================================================
@@ -456,6 +565,28 @@ export class ReorderComponentCommand extends BaseCommand {
 
     undo(): void {
         this.swap(this.toIndex_, this.fromIndex_);
+    }
+
+    serialize(): SerializedCommand {
+        return {
+            type: this.type,
+            data: {
+                entityId: this.entityId_,
+                fromIndex: this.fromIndex_,
+                toIndex: this.toIndex_,
+            },
+        };
+    }
+
+    static {
+        CommandRegistry.register('reorder_component', (data, scene, entityMap) =>
+            new ReorderComponentCommand(
+                scene, entityMap,
+                data.entityId as number,
+                data.fromIndex as number,
+                data.toIndex as number,
+            ),
+        );
     }
 
     private swap(from: number, to: number): void {

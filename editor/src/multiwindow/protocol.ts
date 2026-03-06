@@ -19,6 +19,9 @@ export const CHANNEL_EXTENSIONS_DATA = 'editor:extensions-data';
 export const CHANNEL_EXTENSIONS_TOGGLE = 'editor:extensions-toggle';
 export const CHANNEL_EXTENSIONS_RELOAD = 'editor:extensions-reload';
 export const CHANNEL_EXTENSIONS_REQUEST = 'editor:extensions-request';
+export const CHANNEL_CMD_EXECUTED = 'editor:cmd-executed';
+export const CHANNEL_CMD_REQUEST = 'editor:cmd-request';
+export const CHANNEL_CMD_SNAPSHOT = 'editor:cmd-snapshot';
 
 // =============================================================================
 // State Snapshot
@@ -151,3 +154,22 @@ export interface ExtensionToggleMessage {
 }
 
 export interface ExtensionReloadMessage {}
+
+// =============================================================================
+// Command Replication Messages
+// =============================================================================
+
+export interface CmdExecutedMessage {
+    version: number;
+    serialized: import('../commands/Command').SerializedCommand;
+}
+
+export interface CmdRequestMessage {
+    serialized: import('../commands/Command').SerializedCommand;
+}
+
+export interface CmdSnapshotMessage {
+    scene: SceneData;
+    selectedEntities: number[];
+    version: number;
+}

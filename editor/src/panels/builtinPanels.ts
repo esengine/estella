@@ -92,7 +92,7 @@ export function registerBuiltinPanels(registrar: PluginRegistrar, options: Built
         title: 'Timeline',
         icon: icons.film(PANEL_ICON_SIZE),
         position: 'bottom',
-        detachOnly: true,
+        defaultVisible: false,
         order: 2,
         factory: (c) => ({ instance: new TimelinePanel(c, getEditorStore()) }),
     });
@@ -102,7 +102,7 @@ export function registerBuiltinPanels(registrar: PluginRegistrar, options: Built
         title: 'Profiler',
         icon: icons.gauge(PANEL_ICON_SIZE),
         position: 'bottom',
-        detachOnly: true,
+        defaultVisible: false,
         order: 99,
         factory: (c) => ({ instance: new ProfilerPanel(c) }),
     });
@@ -112,7 +112,7 @@ export function registerBuiltinPanels(registrar: PluginRegistrar, options: Built
         title: 'Frame Debugger',
         icon: icons.gauge(PANEL_ICON_SIZE),
         position: 'bottom',
-        detachOnly: true,
+        defaultVisible: false,
         order: 3,
         factory: (c) => ({ instance: new FrameDebuggerPanel(c) }),
     });
@@ -122,7 +122,7 @@ export function registerBuiltinPanels(registrar: PluginRegistrar, options: Built
         title: 'Extensions',
         icon: icons.package(PANEL_ICON_SIZE),
         position: 'bottom',
-        detachOnly: true,
+        defaultVisible: false,
         order: 4,
         factory: (c) => ({ instance: new ExtensionsPanel(c) }),
     });

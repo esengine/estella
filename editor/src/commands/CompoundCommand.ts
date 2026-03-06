@@ -3,8 +3,8 @@
  * @brief   Compound command for batching multiple commands as one undo unit
  */
 
-import type { EntityData } from '../types/SceneTypes';
-import { BaseCommand, type ChangeEmitter, type Command } from './Command';
+import type { EntityData, SceneData } from '../types/SceneTypes';
+import { BaseCommand, CommandRegistry, type ChangeEmitter, type Command, type SerializedCommand } from './Command';
 
 export class CompoundCommand extends BaseCommand {
     readonly type = 'compound';
@@ -43,6 +43,32 @@ export class CompoundCommand extends BaseCommand {
                 cmd.updateEntityMap(map, isUndo);
             }
         }
+    }
+
+    serialize(): SerializedCommand | null {
+        const serializedCmds: SerializedCommand[] = [];
+        for (const cmd of this.commands_) {
+            const s = cmd.serialize();
+            if (!s) return null;
+            serializedCmds.push(s);
+        }
+        return {
+            type: this.type,
+            data: { commands: serializedCmds, description: this.description },
+        };
+    }
+
+    static {
+        CommandRegistry.register('compound', (data, scene, entityMap) => {
+            const serializedCmds = data.commands as SerializedCommand[];
+            const commands: Command[] = [];
+            for (const s of serializedCmds) {
+                const cmd = CommandRegistry.deserialize(s, scene, entityMap);
+                if (!cmd) return null as unknown as Command;
+                commands.push(cmd);
+            }
+            return new CompoundCommand(commands, data.description as string);
+        });
     }
 
     emitChangeEvents(emitter: ChangeEmitter, isUndo: boolean): void {

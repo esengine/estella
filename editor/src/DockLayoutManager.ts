@@ -92,7 +92,7 @@ export class DockLayoutManager {
                     this.panelManager_,
                 );
             },
-            disableFloatingGroups: true,
+            disableFloatingGroups: false,
         });
 
         this.setupTabContextMenu(container);
@@ -225,11 +225,6 @@ export class DockLayoutManager {
         if (!panel) {
             const desc = getPanel(id);
             if (!desc) return;
-
-            if (desc.detachOnly) {
-                this.handleDetachPanel(id, false);
-                return;
-            }
 
             if (desc.position === 'center') {
                 this.api_.addPanel({
