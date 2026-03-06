@@ -18,3 +18,5 @@ export const SCROLL_POSITION_EPSILON = 0.01;
 export const DROPDOWN_ITEM_HEIGHT = 30;
 export const DROPDOWN_FONT_SIZE = 16;
 export const DROPDOWN_HIGHLIGHT_COLOR = { r: 0.3, g: 0.5, b: 0.8, a: 1 };
+export const DROPDOWN_DEFAULT_COLOR = { r: 0.9, g: 0.9, b: 0.9, a: 1 };
+export const DROPDOWN_OPTION_COLOR = { r: 0.95, g: 0.95, b: 0.95, a: 1 };

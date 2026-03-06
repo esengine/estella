@@ -41,7 +41,9 @@ export class TextRenderer {
     constructor(module: ESEngineModule) {
         this.module = module;
         this.canvas = platformCreateCanvas(RuntimeConfig.textCanvasSize, RuntimeConfig.textCanvasSize);
-        this.ctx = this.canvas.getContext('2d', { willReadFrequently: true })! as CanvasRenderingContext2D;
+        const ctx = this.canvas.getContext('2d', { willReadFrequently: true });
+        if (!ctx) throw new Error('TextRenderer: failed to create 2D canvas context');
+        this.ctx = ctx;
     }
 
     beginFrame(): void {

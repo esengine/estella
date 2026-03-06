@@ -21,7 +21,7 @@ import { Input } from '../input';
 import type { InputState } from '../input';
 import { isEditor, isPlayMode } from '../env';
 import { ensureComponent, getEffectiveWidth, getEffectiveHeight } from './uiHelpers';
-import { DROPDOWN_ITEM_HEIGHT, DROPDOWN_FONT_SIZE, DROPDOWN_HIGHLIGHT_COLOR } from './uiConstants';
+import { DROPDOWN_ITEM_HEIGHT, DROPDOWN_FONT_SIZE, DROPDOWN_HIGHLIGHT_COLOR, DROPDOWN_DEFAULT_COLOR, DROPDOWN_OPTION_COLOR } from './uiConstants';
 
 interface DropdownState {
     optionEntities: Entity[];
@@ -157,7 +157,7 @@ export class DropdownPlugin implements Plugin {
             if (world.has(entity, UIRenderer)) {
                 const r = world.get(entity, UIRenderer) as UIRendererData;
                 if (r.color.r === 1 && r.color.g === 1 && r.color.b === 1 && r.color.a === 1) {
-                    r.color = { r: 0.9, g: 0.9, b: 0.9, a: 1 };
+                    r.color = { ...DROPDOWN_DEFAULT_COLOR };
                     world.insert(entity, UIRenderer, r);
                 }
             } else if (world.has(entity, Sprite)) {
@@ -165,7 +165,7 @@ export class DropdownPlugin implements Plugin {
                 if (s.color.r === 1 && s.color.g === 1 && s.color.b === 1 && s.color.a === 1) {
                     world.insert(entity, Sprite, {
                         texture: s.texture,
-                        color: { r: 0.9, g: 0.9, b: 0.9, a: 1 },
+                        color: { ...DROPDOWN_DEFAULT_COLOR },
                         size: { x: s.size.x, y: s.size.y },
                         uvOffset: { x: s.uvOffset.x, y: s.uvOffset.y },
                         uvScale: { x: s.uvScale.x, y: s.uvScale.y },
@@ -247,7 +247,7 @@ export class DropdownPlugin implements Plugin {
                 world.insert(optEntity, UIRenderer, {
                     visualType: UIVisualType.SolidColor,
                     texture: 0,
-                    color: { r: 0.95, g: 0.95, b: 0.95, a: 1 },
+                    color: { ...DROPDOWN_OPTION_COLOR },
                     uvOffset: { x: 0, y: 0 },
                     uvScale: { x: 1, y: 1 },
                     sliceBorder: { x: 0, y: 0, z: 0, w: 0 },
@@ -383,7 +383,7 @@ export class DropdownPlugin implements Plugin {
                 if (!world.valid(optEntity)) continue;
                 const color = i === state.highlightIndex
                     ? { ...DROPDOWN_HIGHLIGHT_COLOR }
-                    : { r: 0.95, g: 0.95, b: 0.95, a: 1 };
+                    : { ...DROPDOWN_OPTION_COLOR };
                 if (world.has(optEntity, UIRenderer)) {
                     const r = world.get(optEntity, UIRenderer) as UIRendererData;
                     r.color = color;
