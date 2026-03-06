@@ -236,7 +236,7 @@ function createPhysicsEntity(state: HierarchyState, colliderType: string, parent
 function createButtonEntity(state: HierarchyState, parent: Entity | null): void {
     const newEntity = state.store.createEntity('Button', parent);
     state.store.addComponent(newEntity, 'Transform', getInitialComponentData('Transform'));
-    state.store.addComponent(newEntity, 'Sprite', getInitialComponentData('Sprite'));
+    state.store.addComponent(newEntity, 'Image', getInitialComponentData('Image'));
     state.store.addComponent(newEntity, 'UIRect', getInitialComponentData('UIRect'));
     state.store.addComponent(newEntity, 'Interactable', getInitialComponentData('Interactable'));
     state.store.addComponent(newEntity, 'Button', getInitialComponentData('Button'));
@@ -246,10 +246,9 @@ function createTextInputEntity(state: HierarchyState, parent: Entity | null): vo
     const newEntity = state.store.createEntity('TextInput', parent);
     state.store.addComponent(newEntity, 'Transform', getInitialComponentData('Transform'));
     const tiDefaults = getInitialComponentData('TextInput');
-    state.store.addComponent(newEntity, 'Sprite', {
-        ...getInitialComponentData('Sprite'),
+    state.store.addComponent(newEntity, 'Image', {
+        ...getInitialComponentData('Image'),
         color: tiDefaults.backgroundColor,
-        size: { x: 200, y: 36 },
     });
     state.store.addComponent(newEntity, 'UIRect', {
         ...getInitialComponentData('UIRect'),
@@ -262,7 +261,7 @@ function createTextInputEntity(state: HierarchyState, parent: Entity | null): vo
 function createPanelEntity(state: HierarchyState, parent: Entity | null): void {
     const newEntity = state.store.createEntity('Panel', parent);
     state.store.addComponent(newEntity, 'Transform', getInitialComponentData('Transform'));
-    state.store.addComponent(newEntity, 'Sprite', getInitialComponentData('Sprite'));
+    state.store.addComponent(newEntity, 'Image', getInitialComponentData('Image'));
     state.store.addComponent(newEntity, 'UIRect', getInitialComponentData('UIRect'));
     state.store.addComponent(newEntity, 'UIMask', getInitialComponentData('UIMask'));
 }
@@ -270,18 +269,14 @@ function createPanelEntity(state: HierarchyState, parent: Entity | null): void {
 function createImageEntity(state: HierarchyState, parent: Entity | null): void {
     const newEntity = state.store.createEntity('Image', parent);
     state.store.addComponent(newEntity, 'Transform', getInitialComponentData('Transform'));
-    state.store.addComponent(newEntity, 'Sprite', getInitialComponentData('Sprite'));
-    state.store.addComponent(newEntity, 'UIRect', getInitialComponentData('UIRect'));
     state.store.addComponent(newEntity, 'Image', getInitialComponentData('Image'));
+    state.store.addComponent(newEntity, 'UIRect', getInitialComponentData('UIRect'));
 }
 
 function createToggleEntity(state: HierarchyState, parent: Entity | null): void {
     const toggleEntity = state.store.createEntity('Toggle', parent);
     state.store.addComponent(toggleEntity, 'Transform', getInitialComponentData('Transform'));
-    state.store.addComponent(toggleEntity, 'Sprite', {
-        ...getInitialComponentData('Sprite'),
-        size: { x: 24, y: 24 },
-    });
+    state.store.addComponent(toggleEntity, 'Image', getInitialComponentData('Image'));
     state.store.addComponent(toggleEntity, 'UIRect', {
         ...getInitialComponentData('UIRect'),
         size: { x: 24, y: 24 },
@@ -290,9 +285,8 @@ function createToggleEntity(state: HierarchyState, parent: Entity | null): void 
 
     const checkmark = state.store.createEntity('Checkmark', toggleEntity);
     state.store.addComponent(checkmark, 'Transform', getInitialComponentData('Transform'));
-    state.store.addComponent(checkmark, 'Sprite', {
-        ...getInitialComponentData('Sprite'),
-        size: { x: 16, y: 16 },
+    state.store.addComponent(checkmark, 'Image', {
+        ...getInitialComponentData('Image'),
         color: { r: 0.2, g: 0.2, b: 0.2, a: 1 },
     });
     state.store.addComponent(checkmark, 'UIRect', {
@@ -311,9 +305,8 @@ function createToggleEntity(state: HierarchyState, parent: Entity | null): void 
 function createProgressBarEntity(state: HierarchyState, parent: Entity | null): void {
     const barEntity = state.store.createEntity('ProgressBar', parent);
     state.store.addComponent(barEntity, 'Transform', getInitialComponentData('Transform'));
-    state.store.addComponent(barEntity, 'Sprite', {
-        ...getInitialComponentData('Sprite'),
-        size: { x: 200, y: 20 },
+    state.store.addComponent(barEntity, 'Image', {
+        ...getInitialComponentData('Image'),
         color: { r: 0.3, g: 0.3, b: 0.3, a: 1 },
     });
     state.store.addComponent(barEntity, 'UIRect', {
@@ -323,9 +316,8 @@ function createProgressBarEntity(state: HierarchyState, parent: Entity | null): 
 
     const fill = state.store.createEntity('Fill', barEntity);
     state.store.addComponent(fill, 'Transform', getInitialComponentData('Transform'));
-    state.store.addComponent(fill, 'Sprite', {
-        ...getInitialComponentData('Sprite'),
-        size: { x: 200, y: 20 },
+    state.store.addComponent(fill, 'Image', {
+        ...getInitialComponentData('Image'),
         color: { r: 0.2, g: 0.6, b: 1, a: 1 },
     });
     state.store.addComponent(fill, 'UIRect', {
@@ -348,9 +340,8 @@ function createProgressBarEntity(state: HierarchyState, parent: Entity | null): 
 function createScrollViewEntity(state: HierarchyState, parent: Entity | null): void {
     const scrollEntity = state.store.createEntity('ScrollView', parent);
     state.store.addComponent(scrollEntity, 'Transform', getInitialComponentData('Transform'));
-    state.store.addComponent(scrollEntity, 'Sprite', {
-        ...getInitialComponentData('Sprite'),
-        size: { x: 300, y: 200 },
+    state.store.addComponent(scrollEntity, 'Image', {
+        ...getInitialComponentData('Image'),
         color: { r: 0.15, g: 0.15, b: 0.15, a: 1 },
     });
     state.store.addComponent(scrollEntity, 'UIRect', {
@@ -381,9 +372,8 @@ function createScrollViewEntity(state: HierarchyState, parent: Entity | null): v
 function createSliderEntity(state: HierarchyState, parent: Entity | null): void {
     const sliderEntity = state.store.createEntity('Slider', parent);
     state.store.addComponent(sliderEntity, 'Transform', getInitialComponentData('Transform'));
-    state.store.addComponent(sliderEntity, 'Sprite', {
-        ...getInitialComponentData('Sprite'),
-        size: { x: 200, y: 8 },
+    state.store.addComponent(sliderEntity, 'Image', {
+        ...getInitialComponentData('Image'),
         color: { r: 0.3, g: 0.3, b: 0.3, a: 1 },
     });
     state.store.addComponent(sliderEntity, 'UIRect', {
@@ -394,9 +384,8 @@ function createSliderEntity(state: HierarchyState, parent: Entity | null): void 
 
     const fill = state.store.createEntity('Fill', sliderEntity);
     state.store.addComponent(fill, 'Transform', getInitialComponentData('Transform'));
-    state.store.addComponent(fill, 'Sprite', {
-        ...getInitialComponentData('Sprite'),
-        size: { x: 200, y: 8 },
+    state.store.addComponent(fill, 'Image', {
+        ...getInitialComponentData('Image'),
         color: { r: 0.2, g: 0.6, b: 1, a: 1 },
     });
     state.store.addComponent(fill, 'UIRect', {
@@ -409,11 +398,7 @@ function createSliderEntity(state: HierarchyState, parent: Entity | null): void 
 
     const handle = state.store.createEntity('Handle', sliderEntity);
     state.store.addComponent(handle, 'Transform', getInitialComponentData('Transform'));
-    state.store.addComponent(handle, 'Sprite', {
-        ...getInitialComponentData('Sprite'),
-        size: { x: 20, y: 20 },
-        color: { r: 1, g: 1, b: 1, a: 1 },
-    });
+    state.store.addComponent(handle, 'Image', getInitialComponentData('Image'));
     state.store.addComponent(handle, 'UIRect', {
         ...getInitialComponentData('UIRect'),
         size: { x: 20, y: 20 },
@@ -432,10 +417,7 @@ function createSliderEntity(state: HierarchyState, parent: Entity | null): void 
 function createDropdownEntity(state: HierarchyState, parent: Entity | null): void {
     const ddEntity = state.store.createEntity('Dropdown', parent);
     state.store.addComponent(ddEntity, 'Transform', getInitialComponentData('Transform'));
-    state.store.addComponent(ddEntity, 'Sprite', {
-        ...getInitialComponentData('Sprite'),
-        size: { x: 160, y: 32 },
-    });
+    state.store.addComponent(ddEntity, 'Image', getInitialComponentData('Image'));
     state.store.addComponent(ddEntity, 'UIRect', {
         ...getInitialComponentData('UIRect'),
         size: { x: 160, y: 32 },
@@ -458,9 +440,8 @@ function createDropdownEntity(state: HierarchyState, parent: Entity | null): voi
 
     const list = state.store.createEntity('List', ddEntity);
     state.store.addComponent(list, 'Transform', getInitialComponentData('Transform'));
-    state.store.addComponent(list, 'Sprite', {
-        ...getInitialComponentData('Sprite'),
-        size: { x: 160, y: 120 },
+    state.store.addComponent(list, 'Image', {
+        ...getInitialComponentData('Image'),
         enabled: false,
     });
     state.store.addComponent(list, 'UIRect', {

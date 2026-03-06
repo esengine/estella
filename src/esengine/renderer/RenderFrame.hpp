@@ -82,6 +82,8 @@ public:
     void submitSpine(ecs::Registry& registry, spine::SpineSystem& spine_system);
 #endif
 
+    void processMasks(ecs::Registry& registry, i32 vpX, i32 vpY, i32 vpW, i32 vpH);
+
     void setEntityClipRect(u32 entity, i32 x, i32 y, i32 w, i32 h);
     void clearEntityClipRect(u32 entity);
     void clearAllClipRects();

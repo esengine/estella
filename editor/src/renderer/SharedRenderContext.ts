@@ -17,7 +17,6 @@ import {
     audioPlugin,
     RenderPipeline,
     Renderer,
-    createMaskProcessor,
     initDrawAPI,
     shutdownDrawAPI,
     initGeometryAPI,
@@ -179,9 +178,6 @@ export class SharedRenderContext {
 
         this.sceneManager_ = new EditorSceneManager(module, this.pathResolver_, app.world);
         this.sceneManager_.registerSystems(app);
-        this.pipeline_.setMaskProcessor(
-            createMaskProcessor(module, this.sceneManager_.world)
-        );
         this.initialized_ = true;
 
         for (const cb of this.onInitCallbacks_) cb();

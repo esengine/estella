@@ -402,19 +402,7 @@ export class EditorSceneRenderer {
             Renderer.setViewport(0, 0, width, height);
             Renderer.clearBuffers(3);
             Renderer.begin(matrix);
-            if (this.pipeline_.maskProcessor) {
-                this.pipeline_.maskProcessor(registry._cpp, matrix, 0, 0, width, height);
-            }
-            Renderer.submitSprites(registry);
-            Renderer.submitShapes(registry);
-            Renderer.submitBitmapText(registry);
-            Renderer.submitParticles(registry);
-            if (this.pipeline_.spineRenderer) {
-                this.pipeline_.spineRenderer(registry, elapsed);
-            } else {
-                Renderer.submitSpine(registry);
-            }
-            Renderer.flush();
+            this.pipeline_.submitScene(registry, matrix, { x: 0, y: 0, w: width, h: height }, elapsed);
             Renderer.end();
 
             if (ppCamera >= 0) {
@@ -442,19 +430,7 @@ export class EditorSceneRenderer {
             Renderer.setViewport(0, 0, width, height);
             Renderer.clearBuffers(3);
             Renderer.begin(vpMatrix);
-            if (this.pipeline_.maskProcessor) {
-                this.pipeline_.maskProcessor(registry._cpp, vpMatrix, 0, 0, width, height);
-            }
-            Renderer.submitSprites(registry);
-            Renderer.submitShapes(registry);
-            Renderer.submitBitmapText(registry);
-            Renderer.submitParticles(registry);
-            if (this.pipeline_.spineRenderer) {
-                this.pipeline_.spineRenderer(registry, elapsed);
-            } else {
-                Renderer.submitSpine(registry);
-            }
-            Renderer.flush();
+            this.pipeline_.submitScene(registry, vpMatrix, { x: 0, y: 0, w: width, h: height }, elapsed);
             Renderer.end();
         } catch (e) {
             if (e instanceof WebAssembly.RuntimeError) {

@@ -536,6 +536,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
 #endif
     emscripten::function("renderer_submitTriangles", &esengine::renderer_submitTriangles);
     emscripten::function("renderer_submitParticles", &esengine::renderer_submitParticles);
+    emscripten::function("renderer_submitAll", &esengine::renderer_submitAll);
     emscripten::function("particle_update", &esengine::particle_update);
     emscripten::function("particle_play", &esengine::particle_play);
     emscripten::function("particle_stop", &esengine::particle_stop);

@@ -8,6 +8,12 @@ export enum RenderStage {
     Overlay = 3,
 }
 
+export const SubmitSkipFlags = {
+    None: 0,
+    Spine: 1,
+    Particles: 2,
+} as const;
+
 export type RenderTargetHandle = number;
 
 export interface RenderStats {
@@ -113,6 +119,15 @@ export const Renderer = {
             module.renderer_submitParticles?.(registry._cpp);
         } catch (e) {
             handleWasmError(e, 'Renderer.submitParticles');
+        }
+    },
+
+    submitAll(registry: { _cpp: CppRegistry }, skipFlags: number, vpX: number, vpY: number, vpW: number, vpH: number): void {
+        if (!module) return;
+        try {
+            module.renderer_submitAll(registry._cpp, skipFlags, vpX, vpY, vpW, vpH);
+        } catch (e) {
+            handleWasmError(e, 'Renderer.submitAll');
         }
     },
 

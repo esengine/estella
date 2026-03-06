@@ -250,10 +250,7 @@ export class GameViewRenderer {
                 Renderer.setViewport(0, 0, renderW, renderH);
                 Renderer.clearBuffers(3);
                 Renderer.begin(this.vpMatrix_);
-                Renderer.submitSprites(registry);
-                Renderer.submitBitmapText(registry);
-                Renderer.submitSpine(registry);
-                Renderer.submitParticles(registry);
+                Renderer.submitAll(registry, 0, 0, 0, renderW, renderH);
                 Renderer.flush();
                 Renderer.end();
             }

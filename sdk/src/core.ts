@@ -258,7 +258,6 @@ export {
     UIVisualType,
     UILayoutGeneration,
     UIMask,
-    createMaskProcessor,
     TextRenderer,
     textPlugin,
     intersectRects,
@@ -563,6 +562,7 @@ export {
 export {
     Renderer,
     RenderStage,
+    SubmitSkipFlags,
     initRendererAPI,
     shutdownRendererAPI,
     type RenderTargetHandle,
@@ -585,9 +585,9 @@ export {
 
 export {
     RenderPipeline,
+    type Viewport,
     type RenderParams,
     type CameraRenderParams,
-    type MaskProcessorFn,
     type SpineRendererFn,
 } from './renderPipeline';
 

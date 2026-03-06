@@ -268,6 +268,28 @@ void renderer_submitParticles(ecs::Registry& registry) {
     g_renderFrame->submitParticles(registry, *g_particleSystem);
 }
 
+static constexpr u32 SKIP_SPINE = 1;
+static constexpr u32 SKIP_PARTICLES = 2;
+
+void renderer_submitAll(ecs::Registry& registry, u32 skipFlags, i32 vpX, i32 vpY, i32 vpW, i32 vpH) {
+    if (!g_renderFrame) return;
+    ensureTransformsUpdated(registry);
+    g_renderFrame->processMasks(registry, vpX, vpY, vpW, vpH);
+    g_renderFrame->submitSprites(registry);
+    g_renderFrame->submitUIElements(registry);
+    g_renderFrame->submitShapes(registry);
+    g_renderFrame->submitBitmapText(registry);
+#ifdef ES_ENABLE_SPINE
+    if (!(skipFlags & SKIP_SPINE) && g_spineSystem) {
+        g_spineSystem->update(registry, ctx().deltaTime());
+        g_renderFrame->submitSpine(registry, *g_spineSystem);
+    }
+#endif
+    if (!(skipFlags & SKIP_PARTICLES) && g_particleSystem) {
+        g_renderFrame->submitParticles(registry, *g_particleSystem);
+    }
+}
+
 void particle_update(ecs::Registry& registry, f32 dt) {
     if (!g_particleSystem) return;
     g_particleSystem->update(registry, dt);

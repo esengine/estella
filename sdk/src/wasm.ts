@@ -168,6 +168,7 @@ export interface ESEngineModule {
     renderer_submitShapes?(registry: CppRegistry): void;
     renderer_submitSpine?(registry: CppRegistry): void;
     renderer_submitParticles?(registry: CppRegistry): void;
+    renderer_submitAll(registry: CppRegistry, skipFlags: number, vpX: number, vpY: number, vpW: number, vpH: number): void;
     renderer_submitTriangles(
         verticesPtr: number, vertexCount: number,
         indicesPtr: number, indexCount: number,

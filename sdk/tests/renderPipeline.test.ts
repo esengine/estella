@@ -12,11 +12,17 @@ vi.mock('../src/renderer', () => ({
         submitBitmapText: vi.fn(),
         submitSpine: vi.fn(),
         submitParticles: vi.fn(),
+        submitAll: vi.fn(),
         setStage: vi.fn(),
         setClearColor: vi.fn(),
         setViewport: vi.fn(),
         setScissor: vi.fn(),
         clearBuffers: vi.fn(),
+    },
+    SubmitSkipFlags: {
+        None: 0,
+        Spine: 1,
+        Particles: 2,
     },
 }));
 
@@ -89,27 +95,10 @@ describe('RenderPipeline', () => {
             expect(pipeline.spineRenderer).toBeNull();
         });
 
-        it('stores maskProcessor via setMaskProcessor', () => {
-            const fn = vi.fn();
-            pipeline.setMaskProcessor(fn);
-            expect(pipeline.maskProcessor).toBe(fn);
-        });
-
-        it('returns null for maskProcessor by default', () => {
-            expect(pipeline.maskProcessor).toBeNull();
-        });
-
-        it('allows clearing maskProcessor with null', () => {
-            pipeline.setMaskProcessor(vi.fn());
-            pipeline.setMaskProcessor(null);
-            expect(pipeline.maskProcessor).toBeNull();
-        });
-
         it('stores active scenes via setActiveScenes', () => {
             const scenes = new Set(['scene1', 'scene2']);
             pipeline.setActiveScenes(scenes);
             pipeline.render({ registry, viewProjection, width: 100, height: 100, elapsed: 0 });
-            // No direct getter, but we verify indirectly via callback filtering
         });
     });
 
@@ -120,10 +109,7 @@ describe('RenderPipeline', () => {
             (Renderer.setViewport as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('setViewport'));
             (Renderer.clearBuffers as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('clearBuffers'));
             (Renderer.begin as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('begin'));
-            (Renderer.submitSprites as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('submitSprites'));
-            (Renderer.submitBitmapText as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('submitBitmapText'));
-            (Renderer.submitSpine as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('submitSpine'));
-            (Renderer.submitParticles as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('submitParticles'));
+            (Renderer.submitAll as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('submitAll'));
             (Renderer.flush as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('flush'));
             (Renderer.end as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('end'));
 
@@ -131,8 +117,7 @@ describe('RenderPipeline', () => {
 
             expect(callOrder).toEqual([
                 'resize', 'setViewport', 'clearBuffers', 'begin',
-                'submitSprites', 'submitBitmapText', 'submitSpine', 'submitParticles',
-                'flush', 'end',
+                'submitAll', 'flush', 'end',
             ]);
         });
 
@@ -143,10 +128,7 @@ describe('RenderPipeline', () => {
             expect(Renderer.setViewport).toHaveBeenCalledWith(0, 0, 800, 600);
             expect(Renderer.clearBuffers).toHaveBeenCalledWith(3);
             expect(Renderer.begin).toHaveBeenCalledWith(viewProjection);
-            expect(Renderer.submitSprites).toHaveBeenCalledWith(registry);
-            expect(Renderer.submitBitmapText).toHaveBeenCalledWith(registry);
-            expect(Renderer.submitSpine).toHaveBeenCalledWith(registry);
-            expect(Renderer.submitParticles).toHaveBeenCalledWith(registry);
+            expect(Renderer.submitAll).toHaveBeenCalledWith(registry, 0, 0, 0, 800, 600);
         });
     });
 
@@ -221,54 +203,35 @@ describe('RenderPipeline', () => {
     });
 
     describe('spine rendering', () => {
-        it('uses Renderer.submitSpine by default', () => {
+        it('calls submitAll without skip flags by default', () => {
             pipeline.render({ registry, viewProjection, width: 800, height: 600, elapsed: 16 });
-            expect(Renderer.submitSpine).toHaveBeenCalledWith(registry);
+            expect(Renderer.submitAll).toHaveBeenCalledWith(registry, 0, 0, 0, 800, 600);
         });
 
-        it('uses custom spineRenderer when set', () => {
+        it('skips spine in submitAll and calls custom spineRenderer when set', () => {
             const customSpine = vi.fn();
             pipeline.setSpineRenderer(customSpine);
             pipeline.render({ registry, viewProjection, width: 800, height: 600, elapsed: 16 });
 
+            expect(Renderer.submitAll).toHaveBeenCalledWith(registry, 1, 0, 0, 800, 600);
             expect(customSpine).toHaveBeenCalledWith(registry, 16);
-            expect(Renderer.submitSpine).not.toHaveBeenCalled();
         });
 
-        it('reverts to Renderer.submitSpine when spineRenderer cleared', () => {
+        it('reverts to no skip flags when spineRenderer cleared', () => {
             const customSpine = vi.fn();
             pipeline.setSpineRenderer(customSpine);
             pipeline.setSpineRenderer(null);
             pipeline.render({ registry, viewProjection, width: 800, height: 600, elapsed: 16 });
 
-            expect(Renderer.submitSpine).toHaveBeenCalledWith(registry);
+            expect(Renderer.submitAll).toHaveBeenCalledWith(registry, 0, 0, 0, 800, 600);
             expect(customSpine).not.toHaveBeenCalled();
         });
     });
 
-    describe('mask processing', () => {
-        it('skips mask call when no maskProcessor is set', () => {
+    describe('mask processing (handled in C++)', () => {
+        it('submitAll receives viewport params for C++ mask processing', () => {
             pipeline.render({ registry, viewProjection, width: 800, height: 600, elapsed: 0 });
-            // No maskProcessor means nothing to assert was called - just ensure no error
-        });
-
-        it('calls maskProcessor with correct arguments', () => {
-            const maskFn = vi.fn();
-            pipeline.setMaskProcessor(maskFn);
-            pipeline.render({ registry, viewProjection, width: 800, height: 600, elapsed: 0 });
-
-            expect(maskFn).toHaveBeenCalledWith(registry._cpp, viewProjection, 0, 0, 800, 600);
-        });
-
-        it('calls maskProcessor before submitSprites', () => {
-            const callOrder: string[] = [];
-            const maskFn = vi.fn(() => callOrder.push('mask'));
-            (Renderer.submitSprites as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('submitSprites'));
-
-            pipeline.setMaskProcessor(maskFn);
-            pipeline.render({ registry, viewProjection, width: 800, height: 600, elapsed: 0 });
-
-            expect(callOrder).toEqual(['mask', 'submitSprites']);
+            expect(Renderer.submitAll).toHaveBeenCalledWith(registry, 0, 0, 0, 800, 600);
         });
     });
 
@@ -406,16 +369,13 @@ describe('RenderPipeline', () => {
             expect(Renderer.resize).not.toHaveBeenCalled();
         });
 
-        it('follows same rendering sequence as render() after setup', () => {
+        it('follows correct rendering sequence', () => {
             const callOrder: string[] = [];
             (Renderer.setViewport as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('setViewport'));
             (Renderer.setScissor as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('setScissor'));
             (Renderer.clearBuffers as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('clearBuffers'));
             (Renderer.begin as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('begin'));
-            (Renderer.submitSprites as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('submitSprites'));
-            (Renderer.submitBitmapText as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('submitBitmapText'));
-            (Renderer.submitSpine as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('submitSpine'));
-            (Renderer.submitParticles as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('submitParticles'));
+            (Renderer.submitAll as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('submitAll'));
             (Renderer.flush as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('flush'));
             (Renderer.end as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('end'));
 
@@ -423,26 +383,22 @@ describe('RenderPipeline', () => {
 
             expect(callOrder).toEqual([
                 'setViewport', 'setScissor', 'clearBuffers', 'setScissor',
-                'begin', 'submitSprites', 'submitBitmapText', 'submitSpine', 'submitParticles',
-                'flush', 'end',
+                'begin', 'submitAll', 'flush', 'end',
             ]);
         });
 
-        it('calls custom spineRenderer in renderCamera', () => {
+        it('skips spine in submitAll and calls custom spineRenderer in renderCamera', () => {
             const customSpine = vi.fn();
             pipeline.setSpineRenderer(customSpine);
             pipeline.renderCamera({ registry, viewProjection, viewportPixels, clearFlags: 3, elapsed: 16 });
 
+            expect(Renderer.submitAll).toHaveBeenCalledWith(registry, 1, 10, 20, 400, 300);
             expect(customSpine).toHaveBeenCalledWith(registry, 16);
-            expect(Renderer.submitSpine).not.toHaveBeenCalled();
         });
 
-        it('calls maskProcessor with viewport params in renderCamera', () => {
-            const maskFn = vi.fn();
-            pipeline.setMaskProcessor(maskFn);
+        it('passes viewport params to submitAll in renderCamera for C++ mask processing', () => {
             pipeline.renderCamera({ registry, viewProjection, viewportPixels, clearFlags: 3, elapsed: 0 });
-
-            expect(maskFn).toHaveBeenCalledWith(registry._cpp, viewProjection, 10, 20, 400, 300);
+            expect(Renderer.submitAll).toHaveBeenCalledWith(registry, 0, 10, 20, 400, 300);
         });
 
         it('executes draw callbacks in renderCamera', () => {

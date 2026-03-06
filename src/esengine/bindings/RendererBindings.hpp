@@ -49,6 +49,7 @@ void renderer_submitTriangles(
     u32 textureId, i32 blendMode,
     uintptr_t transformPtr);
 void renderer_submitParticles(ecs::Registry& registry);
+void renderer_submitAll(ecs::Registry& registry, u32 skipFlags, i32 vpX, i32 vpY, i32 vpW, i32 vpH);
 void particle_update(ecs::Registry& registry, f32 dt);
 void particle_play(ecs::Registry& registry, Entity entity);
 void particle_stop(ecs::Registry& registry, Entity entity);

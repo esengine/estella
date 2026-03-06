@@ -97,7 +97,6 @@ export {
 export {
     UIMaskPlugin,
     uiMaskPlugin,
-    createMaskProcessor,
 } from './UIMaskPlugin';
 
 // UI Math Utilities
