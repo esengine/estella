@@ -845,6 +845,12 @@ export class TimelineKeyframeArea {
     }
 
     private onMouseDown(e: MouseEvent): void {
+        if (e.button === 1) {
+            e.preventDefault();
+            this.startMiddleButtonPan(e);
+            return;
+        }
+
         const rect = this.canvas_.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
@@ -1555,6 +1561,22 @@ export class TimelineKeyframeArea {
         document.addEventListener('mouseup', onUp);
     }
 
+    private startMiddleButtonPan(e: MouseEvent): void {
+        let lastX = e.clientX;
+        const onMove = (ev: MouseEvent) => {
+            const dx = ev.clientX - lastX;
+            lastX = ev.clientX;
+            this.state_.scrollX = Math.max(0, this.state_.scrollX - dx);
+            this.state_.notify();
+        };
+        const onUp = () => {
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+        };
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+    }
+
     private onWheel(e: WheelEvent): void {
         e.preventDefault();
         if (e.ctrlKey || e.metaKey) {
@@ -1562,7 +1584,9 @@ export class TimelineKeyframeArea {
             const pivotX = e.clientX - rect.left;
             this.state_.zoom(-e.deltaY, pivotX);
         } else {
-            this.state_.scrollX = Math.max(0, this.state_.scrollX + e.deltaX);
+            const dx = e.shiftKey ? e.deltaY : e.deltaX;
+            const scrollDelta = dx !== 0 ? dx : e.deltaY;
+            this.state_.scrollX = Math.max(0, this.state_.scrollX + scrollDelta);
             this.state_.notify();
         }
     }

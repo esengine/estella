@@ -126,6 +126,20 @@ export class FrameDebuggerPanel implements PanelInstance {
         this.btnToggle_.addEventListener('click', () => this.toggleMode_());
         this.btnPrev_.addEventListener('click', () => this.stepDrawCall_(-1));
         this.btnNext_.addEventListener('click', () => this.stepDrawCall_(1));
+
+        this.listEl_.addEventListener('mousedown', (e) => {
+            const item = (e.target as HTMLElement).closest('.es-fd-item') as HTMLElement | null;
+            if (!item) return;
+            const idx = parseInt(item.dataset.index!, 10);
+            if (!isNaN(idx)) this.selectDrawCall_(idx);
+        });
+
+        this.pipelineEl_.addEventListener('mousedown', (e) => {
+            const bar = (e.target as HTMLElement).closest('.es-fd-pipe-bar') as HTMLElement | null;
+            if (!bar) return;
+            const idx = parseInt(bar.dataset.index!, 10);
+            if (!isNaN(idx)) this.selectDrawCall_(idx);
+        });
     }
 
     private async startListening_(): Promise<void> {
@@ -227,12 +241,6 @@ export class FrameDebuggerPanel implements PanelInstance {
         }
 
         this.pipelineEl_.innerHTML = html;
-        this.pipelineEl_.querySelectorAll('.es-fd-pipe-bar').forEach(el => {
-            el.addEventListener('click', () => {
-                const idx = parseInt((el as HTMLElement).dataset.index!, 10);
-                this.selectDrawCall_(idx);
-            });
-        });
     }
 
     private selectDrawCall_(index: number): void {
@@ -288,12 +296,6 @@ export class FrameDebuggerPanel implements PanelInstance {
         }
 
         this.listEl_.innerHTML = html;
-        this.listEl_.querySelectorAll('.es-fd-item').forEach(el => {
-            el.addEventListener('click', () => {
-                const idx = parseInt((el as HTMLElement).dataset.index!, 10);
-                this.selectDrawCall_(idx);
-            });
-        });
     }
 
     private renderDetail_(): void {
@@ -302,7 +304,13 @@ export class FrameDebuggerPanel implements PanelInstance {
             return;
         }
 
-        const dc: DrawCallInfo = this.captureData_.drawCalls[this.selectedIndex_];
+        const dc: DrawCallInfo | undefined = this.captureData_.drawCalls.find(
+            d => d.index === this.selectedIndex_,
+        ) ?? this.captureData_.drawCalls[this.selectedIndex_];
+        if (!dc) {
+            this.detailEl_.innerHTML = '<div class="es-fd-empty">Draw call not found</div>';
+            return;
+        }
         const rows = [
             ['Stage', STAGE_NAMES[dc.stage] ?? dc.stage],
             ['Type', TYPE_LABELS[dc.type] ?? dc.type],
