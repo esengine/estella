@@ -59,32 +59,32 @@
 
 .es-output-filter-btn.es-active {
     color: var(--es-text-primary);
-    background: rgba(204, 204, 204, 0.08);
+    background: hsla(220, 10%, 85%, 0.08);
 }
 
 .es-output-filter-command.es-active {
-    color: #4da6ff;
-    background: rgba(0, 120, 212, 0.15);
+    color: var(--es-accent);
+    background: var(--es-accent-subtle);
 }
 
 .es-output-filter-stdout.es-active {
     color: var(--es-text-primary);
-    background: rgba(204, 204, 204, 0.08);
+    background: hsla(220, 10%, 85%, 0.08);
 }
 
 .es-output-filter-stderr.es-active {
-    color: #e5c07b;
-    background: rgba(229, 192, 123, 0.12);
+    color: var(--es-warning);
+    background: hsla(36, 85%, 60%, 0.12);
 }
 
 .es-output-filter-error.es-active {
-    color: #f44336;
-    background: rgba(244, 67, 54, 0.12);
+    color: var(--es-danger);
+    background: hsla(4, 80%, 60%, 0.12);
 }
 
 .es-output-filter-success.es-active {
-    color: #4caf50;
-    background: rgba(76, 175, 80, 0.12);
+    color: var(--es-success);
+    background: hsla(130, 50%, 50%, 0.12);
 }
 
 .es-output-filter-count {
@@ -129,7 +129,7 @@
     flex: 1;
     overflow: auto;
     padding: 8px;
-    font-family: 'Consolas', 'Monaco', monospace;
+    font-family: var(--es-font-mono);
     font-size: 12px;
     user-select: text;
     cursor: text;
@@ -146,7 +146,7 @@
  * ============================================================================= */
 
 .es-output-line {
-    font-family: 'Consolas', 'Monaco', monospace;
+    font-family: var(--es-font-mono);
     font-size: 12px;
     line-height: 1.5;
     white-space: pre-wrap;
@@ -161,9 +161,9 @@
     height: 16px;
     padding: 0 5px;
     margin-right: 6px;
-    border-radius: 8px;
+    border-radius: var(--es-radius-full);
     background: var(--es-accent);
-    color: #fff;
+    color: var(--es-text-bright);
     font-size: 10px;
     font-weight: 600;
     line-height: 1;
@@ -181,7 +181,7 @@
 }
 
 .es-output-stderr {
-    color: #e5c07b;
+    color: var(--es-warning);
 }
 
 .es-output-error {
@@ -245,5 +245,5 @@
 
 .es-output-context-item:hover {
     background: var(--es-accent);
-    color: #fff;
+    color: var(--es-text-bright);
 }

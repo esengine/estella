@@ -76,6 +76,7 @@
 .es-breadcrumb-item:hover {
     color: var(--es-text-primary);
     background: var(--es-bg-hover);
+    text-decoration: underline;
 }
 
 .es-breadcrumb-item.es-active {
@@ -103,8 +104,8 @@
     flex: 1;
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
-    padding: 12px;
+    gap: var(--es-space-3);
+    padding: var(--es-space-4);
     overflow: auto;
     align-content: flex-start;
 }
@@ -161,7 +162,7 @@
 }
 
 .es-folder-icon svg {
-    stroke: #e8c36a;
+    stroke: var(--es-accent-gold);
 }
 
 .es-folder-name {
@@ -183,10 +184,12 @@
 
 .es-asset-item:hover {
     background: var(--es-bg-hover);
+    box-shadow: var(--es-shadow-sm);
 }
 
 .es-asset-item.es-selected {
     background: var(--es-selection-bg);
+    box-shadow: inset 3px 0 0 var(--es-accent-gold);
 }
 
 .es-asset-item.es-dragging {
@@ -211,7 +214,7 @@
 }
 
 .es-asset-icon svg {
-    stroke: #e8c36a;
+    stroke: var(--es-accent-gold);
 }
 
 .es-asset-name {
@@ -293,7 +296,7 @@
 }
 
 .es-cb-list-icon svg {
-    stroke: #e8c36a;
+    stroke: var(--es-accent-gold);
 }
 
 .es-cb-list-name {

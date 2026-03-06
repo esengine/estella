@@ -3,38 +3,99 @@
  * ============================================================================= */
 
 :root {
-    --es-bg-primary: #1e1e1e;
-    --es-bg-secondary: #252526;
-    --es-bg-tertiary: #2d2d30;
-    --es-bg-hover: #3e3e42;
-    --es-border: #3c3c3c;
-    --es-text-primary: #cccccc;
-    --es-text-secondary: #8c8c8c;
-    --es-accent: #0078d4;
-    --es-accent-hover: #1084d8;
-    --es-danger: #f44336;
-    --es-success: #4caf50;
-    --es-warning: #f0ad4e;
-    --es-error: #d9534f;
-    --es-input-bg: #2d2d2d;
-    --es-text-disabled: #555555;
-    --es-text-muted: #737373;
-    --es-scrollbar-track: #1e1e1e;
-    --es-scrollbar-thumb: #424242;
-    --es-scrollbar-thumb-hover: #555555;
-    --es-accent-gold: #d19a66;
-    --es-prefab: #4fc1ff;
-    --es-drag: #61afef;
-    --es-play-mode: #4a9eff;
-    --es-selection-bg: rgba(209, 154, 102, 0.2);
+    /* Surface layers (220° blue hue injection) */
+    --es-bg-deep: hsl(220, 10%, 8%);
+    --es-bg-primary: hsl(220, 8%, 11%);
+    --es-bg-secondary: hsl(220, 7%, 14%);
+    --es-bg-tertiary: hsl(220, 6%, 18%);
+    --es-bg-hover: hsl(220, 5%, 26%);
+    --es-bg-active: hsl(220, 5%, 22%);
+    --es-bg-elevated: hsl(220, 7%, 16%);
+
+    /* Borders */
+    --es-border: hsl(220, 5%, 20%);
+    --es-border-light: hsl(220, 5%, 24%);
+    --es-border-subtle: hsl(220, 5%, 16%);
+    --es-border-focus: hsl(215, 80%, 56%);
+
+    /* Text */
+    --es-text-primary: hsl(220, 10%, 85%);
+    --es-text-secondary: hsl(220, 6%, 55%);
+    --es-text-bright: hsl(220, 10%, 93%);
+    --es-text-muted: hsl(220, 5%, 42%);
+    --es-text-disabled: hsl(220, 4%, 32%);
+
+    /* Accent (Unity-style blue) */
+    --es-accent: hsl(215, 80%, 56%);
+    --es-accent-hover: hsl(215, 80%, 64%);
+    --es-accent-pressed: hsl(215, 80%, 48%);
+    --es-accent-subtle: hsla(215, 80%, 56%, 0.15);
+
+    /* Semantic colors */
+    --es-danger: hsl(4, 80%, 60%);
+    --es-success: hsl(130, 50%, 50%);
+    --es-warning: hsl(36, 85%, 60%);
+    --es-error: hsl(4, 60%, 55%);
+
+    /* Special purpose */
+    --es-input-bg: hsl(220, 7%, 13%);
+    --es-accent-gold: hsl(28, 55%, 62%);
+    --es-prefab: hsl(195, 100%, 65%);
+    --es-drag: hsl(210, 80%, 66%);
+    --es-play-mode: hsl(215, 100%, 65%);
+    --es-selection-bg: hsla(28, 55%, 62%, 0.2);
+
+    /* Scrollbar */
+    --es-scrollbar-track: transparent;
+    --es-scrollbar-thumb: hsl(220, 5%, 22%);
+    --es-scrollbar-thumb-hover: hsl(220, 5%, 32%);
+
+    /* Radius */
     --es-radius-sm: 3px;
     --es-radius-md: 4px;
     --es-radius-lg: 6px;
+    --es-radius-xl: 8px;
+    --es-radius-full: 9999px;
+
+    /* Typography */
+    --es-font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --es-font-mono: 'JetBrains Mono', 'SF Mono', 'Consolas', 'Monaco', monospace;
     --es-font-xs: 10px;
     --es-font-sm: 11px;
     --es-font-md: 12px;
     --es-font-base: 13px;
     --es-font-lg: 14px;
+    --es-font-xl: 16px;
+    --es-font-2xl: 20px;
+
+    /* Spacing (4px grid) */
+    --es-space-1: 4px;
+    --es-space-2: 8px;
+    --es-space-3: 12px;
+    --es-space-4: 16px;
+    --es-space-5: 20px;
+    --es-space-6: 24px;
+    --es-space-8: 32px;
+    --es-space-10: 40px;
+    --es-space-12: 48px;
+
+    /* Shadows */
+    --es-shadow-sm: 0 1px 3px hsla(220, 40%, 2%, 0.4);
+    --es-shadow-md: 0 4px 12px hsla(220, 40%, 2%, 0.5);
+    --es-shadow-lg: 0 8px 24px hsla(220, 40%, 2%, 0.6);
+    --es-shadow-xl: 0 12px 40px hsla(220, 40%, 2%, 0.7);
+
+    /* Transitions */
+    --es-transition-fast: 0.1s ease;
+    --es-transition-normal: 0.15s ease;
+    --es-transition-slow: 0.25s ease;
+
+    /* Component sizes */
+    --es-row-height: 24px;
+    --es-toolbar-height: 32px;
+    --es-icon-sm: 14px;
+    --es-icon-md: 16px;
+    --es-icon-lg: 20px;
 }
 
 *, *::before, *::after {
@@ -46,8 +107,8 @@
  * ============================================================================= */
 
 ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 6px;
+    height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -81,7 +142,7 @@
 }
 
 .es-btn-icon:hover svg {
-    stroke: #e0e0e0;
+    stroke: var(--es-text-bright);
 }
 
 .es-btn-icon.es-active {
@@ -122,8 +183,8 @@
     height: 100%;
     background: var(--es-bg-primary);
     color: var(--es-text-primary);
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    font-size: 13px;
+    font-family: var(--es-font-family);
+    font-size: var(--es-font-base);
 }
 
 /* =============================================================================
@@ -131,13 +192,14 @@
  * ============================================================================= */
 
 .es-btn {
-    padding: 4px 10px;
+    padding: var(--es-space-1) 10px;
     background: var(--es-bg-tertiary);
     border: 1px solid var(--es-border);
     color: var(--es-text-primary);
-    font-size: 11px;
+    font-size: var(--es-font-sm);
+    border-radius: var(--es-radius-sm);
     cursor: pointer;
-    transition: background 0.15s;
+    transition: all var(--es-transition-normal);
 }
 
 .es-btn:hover:not(:disabled) {
@@ -145,15 +207,16 @@
 }
 
 .es-btn:disabled {
-    opacity: 0.5;
+    opacity: 0.4;
     cursor: not-allowed;
 }
 
 .es-btn-icon {
     padding: 2px 6px;
     min-width: 20px;
+    border-radius: var(--es-radius-sm);
     cursor: pointer;
-    transition: background 0.15s;
+    transition: all var(--es-transition-fast);
 }
 
 .es-btn-remove {
@@ -186,17 +249,20 @@
 }
 
 .es-input {
-    padding: 4px 6px;
-    background: var(--es-bg-primary);
+    padding: var(--es-space-1) 6px;
+    background: var(--es-input-bg);
     border: 1px solid var(--es-border);
+    border-radius: var(--es-radius-sm);
     color: var(--es-text-primary);
-    font-size: 11px;
+    font-size: var(--es-font-sm);
     width: 100%;
+    transition: border-color var(--es-transition-fast), box-shadow var(--es-transition-fast);
 }
 
 .es-input:focus {
     outline: none;
-    border-color: var(--es-accent);
+    border-color: var(--es-border-focus);
+    box-shadow: 0 0 0 1px var(--es-border-focus);
 }
 
 .es-input-number {
@@ -240,19 +306,20 @@
     align-items: center;
     justify-content: center;
     width: 16px;
-    height: 24px;
+    height: var(--es-row-height);
     background: var(--es-input-bg);
-    color: #666;
-    font-size: 10px;
+    color: var(--es-text-muted);
+    font-size: var(--es-font-xs);
     cursor: ew-resize;
     user-select: none;
     border-right: 1px solid var(--es-border);
     letter-spacing: -2px;
+    transition: background var(--es-transition-fast), color var(--es-transition-fast);
 }
 
 .es-number-drag-label:hover {
     background: var(--es-bg-hover);
-    color: #999;
+    color: var(--es-text-secondary);
 }
 
 .es-input-checkbox {
@@ -297,9 +364,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 10px;
+    font-size: var(--es-font-xs);
     font-weight: 600;
-    color: #fff;
+    color: var(--es-text-bright);
     background: var(--es-text-secondary);
     flex-shrink: 0;
     cursor: ew-resize;
@@ -307,19 +374,19 @@
 }
 
 .es-vec-field.es-vec-x .es-vec-label {
-    background: #c94c4c;
+    background: hsl(0, 55%, 52%);
 }
 
 .es-vec-field.es-vec-y .es-vec-label {
-    background: #5cb85c;
+    background: hsl(130, 40%, 48%);
 }
 
 .es-vec-field.es-vec-z .es-vec-label {
-    background: #5bc0de;
+    background: hsl(195, 60%, 55%);
 }
 
 .es-vec-field.es-vec-w .es-vec-label {
-    background: #9b59b6;
+    background: hsl(280, 40%, 52%);
 }
 
 .es-vec-field .es-input {
@@ -496,25 +563,25 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 40px;
+  padding: var(--es-space-10);
   text-align: center;
-  background: rgba(224, 108, 117, 0.05);
-  border: 2px dashed rgba(224, 108, 117, 0.3);
-  border-radius: 8px;
-  margin: 20px;
+  background: hsla(4, 60%, 55%, 0.05);
+  border: 2px dashed hsla(4, 60%, 55%, 0.3);
+  border-radius: var(--es-radius-xl);
+  margin: var(--es-space-5);
   min-height: 200px;
 }
 
 .es-error-fallback-icon {
-  color: #e06c75;
-  margin-bottom: 16px;
+  color: var(--es-danger);
+  margin-bottom: var(--es-space-4);
 }
 
 .es-error-fallback-title {
   font-size: 18px;
   font-weight: 600;
-  margin: 0 0 8px 0;
-  color: #e06c75;
+  margin: 0 0 var(--es-space-2) 0;
+  color: var(--es-danger);
 }
 
 .es-error-fallback-message {
@@ -547,10 +614,10 @@
 
 .es-error-fallback-stack {
   background: var(--es-bg-tertiary);
-  padding: 12px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-family: 'Consolas', 'Monaco', monospace;
+  padding: var(--es-space-3);
+  border-radius: var(--es-radius-md);
+  font-size: var(--es-font-sm);
+  font-family: var(--es-font-mono);
   overflow-x: auto;
   max-height: 200px;
   overflow-y: auto;
@@ -589,7 +656,7 @@
 .es-input:focus-visible,
 .es-input-checkbox:focus-visible,
 .es-statusbar-btn:focus-visible {
-    outline: 2px solid var(--es-accent);
+    outline: 2px solid var(--es-border-focus);
     outline-offset: 2px;
 }
 
@@ -614,9 +681,9 @@
  * ============================================================================= */
 
 .es-splitter {
-    background: var(--es-border);
+    background: var(--es-border-subtle);
     flex-shrink: 0;
-    transition: background 0.15s;
+    transition: background var(--es-transition-normal);
 }
 
 .es-splitter:hover {

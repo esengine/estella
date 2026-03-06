@@ -115,14 +115,14 @@
 .es-gameview-viewport {
     flex: 1;
     overflow: hidden;
-    background: #1a1a1a;
+    background: var(--es-bg-deep);
     display: flex;
 }
 
 .es-gameview-iframe {
     display: none;
     border: none;
-    background: #000;
+    background: var(--es-bg-deep);
 }
 
 .es-gameview-placeholder {

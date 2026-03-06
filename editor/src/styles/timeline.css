@@ -3,8 +3,8 @@
     flex-direction: column;
     height: 100%;
     overflow: hidden;
-    font: 11px monospace;
-    color: #cccccc;
+    font: var(--es-font-sm) var(--es-font-mono);
+    color: var(--es-text-primary);
 }
 
 .es-timeline-empty-state {
@@ -16,14 +16,14 @@
 }
 
 .es-timeline-empty-text {
-    color: var(--es-text-disabled, #555555);
-    font: 12px -apple-system, BlinkMacSystemFont, sans-serif;
+    color: var(--es-text-disabled);
+    font: var(--es-font-md) var(--es-font-family);
     text-align: center;
     line-height: 1.6;
 }
 
 .es-timeline-empty-text strong {
-    color: var(--es-text-secondary, #888888);
+    color: var(--es-text-secondary);
 }
 
 .es-timeline-editor {
@@ -38,7 +38,7 @@
     align-items: center;
     gap: 6px;
     padding: 4px 8px;
-    background: var(--es-bg-secondary, rgba(30, 30, 30, 0.5));
+    background: var(--es-bg-secondary);
     border-bottom: 1px solid var(--es-border);
     flex-shrink: 0;
 }
@@ -49,21 +49,21 @@
 }
 
 .es-timeline-record-btn {
-    color: #888888;
+    color: var(--es-text-secondary);
 }
 
 .es-timeline-record-btn.es-active {
-    color: #e06c75;
-    background: rgba(224, 108, 117, 0.15);
+    color: var(--es-danger);
+    background: hsla(4, 60%, 55%, 0.15);
 }
 
 .es-timeline-record-btn.es-active svg {
-    fill: #e06c75;
+    fill: var(--es-danger);
 }
 
 .es-timeline-time-display {
-    font: 11px monospace;
-    color: var(--es-text-secondary, #888888);
+    font: var(--es-font-sm) var(--es-font-mono);
+    color: var(--es-text-secondary);
     padding: 0 8px;
     min-width: 120px;
 }
@@ -74,12 +74,12 @@
     gap: 4px;
     margin-left: 8px;
     padding-left: 8px;
-    border-left: 1px solid var(--es-border, #3c3c3c);
+    border-left: 1px solid var(--es-border);
 }
 
 .es-timeline-value-label {
     font-size: 10px;
-    color: var(--es-text-secondary, #888888);
+    color: var(--es-text-secondary);
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
@@ -87,17 +87,17 @@
 .es-timeline-value-input {
     width: 72px;
     height: 20px;
-    font: 11px monospace;
+    font: var(--es-font-sm) var(--es-font-mono);
     padding: 0 4px;
-    background: var(--es-bg-primary, #1e1e1e);
-    border: 1px solid var(--es-border, #3c3c3c);
+    background: var(--es-bg-primary);
+    border: 1px solid var(--es-border);
     border-radius: 2px;
-    color: #cccccc;
+    color: var(--es-text-primary);
     outline: none;
 }
 
 .es-timeline-value-input:focus {
-    border-color: var(--es-accent, #0078d4);
+    border-color: var(--es-accent);
 }
 
 .es-timeline-toolbar-right {
@@ -116,7 +116,7 @@
     flex-shrink: 0;
     border-right: 1px solid var(--es-border);
     overflow-y: auto;
-    background: var(--es-bg-primary, #1e1e1e);
+    background: var(--es-bg-primary);
 }
 
 .es-timeline-keyframes-pane {
@@ -142,15 +142,15 @@
     gap: 4px;
     padding: 0 8px;
     cursor: pointer;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid var(--es-border-subtle);
 }
 
 .es-timeline-track-row:hover {
-    background: rgba(255, 255, 255, 0.04);
+    background: hsla(220, 10%, 85%, 0.04);
 }
 
 .es-timeline-track-row.es-selected {
-    background: rgba(44, 62, 80, 0.6);
+    background: var(--es-accent-subtle);
 }
 
 .es-timeline-track-icon {
@@ -188,8 +188,8 @@
     display: flex;
     align-items: center;
     padding: 0 8px 0 36px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
-    color: var(--es-text-secondary, #888888);
+    border-bottom: 1px solid hsla(220, 10%, 85%, 0.03);
+    color: var(--es-text-secondary);
     font-size: 10px;
 }
 
@@ -202,7 +202,7 @@
 .es-timeline-empty {
     padding: 16px;
     text-align: center;
-    color: var(--es-text-disabled, #555555);
+    color: var(--es-text-disabled);
     font-style: italic;
 }
 
@@ -215,10 +215,10 @@
     display: flex;
     align-items: center;
     padding: 2px 8px;
-    background: var(--es-bg-secondary, rgba(30, 30, 30, 0.5));
+    background: var(--es-bg-secondary);
     border-bottom: 1px solid var(--es-border);
     font-size: 10px;
-    color: var(--es-text-secondary, #888888);
+    color: var(--es-text-secondary);
 }
 
 .es-timeline-curve-title {
@@ -232,8 +232,8 @@
 }
 
 .es-timeline-dropdown {
-    background: var(--es-bg-secondary, #252526);
-    border: 1px solid var(--es-border, #3c3c3c);
+    background: var(--es-bg-secondary);
+    border: 1px solid var(--es-border);
     border-radius: 4px;
     padding: 4px 0;
     min-width: 180px;
@@ -241,8 +241,8 @@
     overflow-y: auto;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
     z-index: 10000;
-    font: 12px -apple-system, BlinkMacSystemFont, sans-serif;
-    color: #cccccc;
+    font: var(--es-font-md) var(--es-font-family);
+    color: var(--es-text-primary);
 }
 
 .es-timeline-dropdown-header {
@@ -251,8 +251,8 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    color: var(--es-text-secondary, #888888);
-    border-bottom: 1px solid var(--es-border, #3c3c3c);
+    color: var(--es-text-secondary);
+    border-bottom: 1px solid var(--es-border);
     margin-bottom: 2px;
 }
 
@@ -266,8 +266,8 @@
 }
 
 .es-timeline-dropdown-item:hover {
-    background: var(--es-accent, #0078d4);
-    color: #ffffff;
+    background: var(--es-accent);
+    color: var(--es-text-bright);
 }
 
 .es-timeline-dropdown-item.es-disabled {
@@ -277,9 +277,9 @@
 }
 
 .es-timeline-dropdown-back {
-    color: var(--es-text-secondary, #888888);
+    color: var(--es-text-secondary);
     font-size: 11px;
-    border-bottom: 1px solid var(--es-border, #3c3c3c);
+    border-bottom: 1px solid var(--es-border);
     margin-bottom: 2px;
 }
 
@@ -295,7 +295,7 @@
 .es-timeline-dropdown-empty {
     padding: 12px;
     text-align: center;
-    color: var(--es-text-disabled, #555555);
+    color: var(--es-text-disabled);
     font-style: italic;
     font-size: 11px;
 }

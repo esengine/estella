@@ -24,7 +24,7 @@
     flex: 1;
     position: relative;
     overflow: hidden;
-    background: #1a1a1a;
+    background: var(--es-bg-deep);
 }
 
 .es-sceneview-display {
@@ -57,6 +57,7 @@
     background: var(--es-bg-tertiary);
     border-radius: 4px;
     padding: 2px;
+    box-shadow: var(--es-shadow-sm);
 }
 
 .es-gizmo-btn {
@@ -75,6 +76,7 @@
 .es-gizmo-btn.es-active {
     background: var(--es-accent);
     opacity: 1;
+    box-shadow: 0 0 0 1px var(--es-accent);
 }
 
 .es-gizmo-btn.es-active svg {

@@ -90,8 +90,8 @@
 }
 
 .es-hierarchy-item.es-selected > .es-hierarchy-row {
-    background: rgba(209, 154, 102, 0.3);
-    border-left-color: var(--es-accent-gold);
+    background: hsla(28, 55%, 62%, 0.3);
+    border-left: 3px solid var(--es-accent-gold);
 }
 
 .es-hierarchy-item.es-selected > .es-hierarchy-row .es-hierarchy-name {
@@ -99,12 +99,12 @@
 }
 
 .es-hierarchy-item.es-drag-over > .es-hierarchy-row {
-    background: rgba(97, 175, 239, 0.3);
+    background: hsla(210, 80%, 66%, 0.3);
     border-left-color: var(--es-drag);
 }
 
 .es-hierarchy-tree.es-drag-over {
-    background: rgba(97, 175, 239, 0.1);
+    background: hsla(210, 80%, 66%, 0.1);
     outline: 1px dashed var(--es-drag);
     outline-offset: -2px;
 }
@@ -132,7 +132,7 @@
 }
 
 .es-hierarchy-item.es-drop-inside > .es-hierarchy-row {
-    background: rgba(97, 175, 239, 0.3);
+    background: hsla(210, 80%, 66%, 0.3);
     border-left-color: var(--es-drag);
 }
 
@@ -229,8 +229,8 @@
     align-items: center;
     gap: 6px;
     padding: 4px 8px;
-    background: rgba(79, 193, 255, 0.1);
-    border-bottom: 1px solid rgba(79, 193, 255, 0.25);
+    background: hsla(195, 100%, 65%, 0.1);
+    border-bottom: 1px solid hsla(195, 100%, 65%, 0.25);
     font-size: 11px;
     color: var(--es-prefab);
 }
@@ -277,19 +277,19 @@
 }
 
 .es-hierarchy-item.es-prefab-child > .es-hierarchy-row .es-hierarchy-name {
-    color: #87d7ff;
+    color: hsl(195, 100%, 76%);
 }
 
 .es-search-highlight {
-    background: rgba(229, 192, 123, 0.3);
-    color: #e5c07b;
+    background: hsla(36, 70%, 69%, 0.3);
+    color: hsl(36, 70%, 69%);
     font-weight: 600;
     padding: 0 1px;
     border-radius: 2px;
 }
 
 .es-hierarchy-item.es-search-selected {
-    background: rgba(97, 175, 239, 0.2);
+    background: hsla(210, 80%, 66%, 0.2);
 }
 
 .es-hierarchy-item.es-search-selected > .es-hierarchy-row {
@@ -301,10 +301,10 @@
     content: 'LIVE';
     font-size: 9px;
     font-weight: 600;
-    color: #fff;
+    color: var(--es-text-bright);
     padding: 1px 6px;
     border-radius: 8px;
-    background: rgba(74, 158, 255, 0.5);
+    background: hsla(215, 100%, 65%, 0.5);
     margin-left: auto;
 }
 

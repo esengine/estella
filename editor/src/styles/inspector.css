@@ -135,8 +135,8 @@
     gap: 6px;
     padding: 4px 8px;
     margin-bottom: 4px;
-    background: rgba(79, 193, 255, 0.08);
-    border: 1px solid rgba(79, 193, 255, 0.25);
+    background: hsla(195, 100%, 65%, 0.08);
+    border: 1px solid hsla(195, 100%, 65%, 0.25);
     border-radius: 3px;
     font-size: 11px;
     color: var(--es-prefab);
@@ -169,7 +169,7 @@
 .es-prefab-info-bar .es-btn {
     font-size: 10px;
     padding: 1px 6px;
-    border: 1px solid rgba(79, 193, 255, 0.3);
+    border: 1px solid hsla(195, 100%, 65%, 0.3);
     color: var(--es-prefab);
     background: transparent;
     cursor: pointer;
@@ -177,7 +177,7 @@
 }
 
 .es-prefab-info-bar .es-btn:hover {
-    background: rgba(79, 193, 255, 0.15);
+    background: hsla(195, 100%, 65%, 0.15);
 }
 
 .es-property-row.es-overridden .es-property-label {
@@ -201,6 +201,7 @@
     margin-bottom: 4px;
     overflow: hidden;
     border: 1px solid var(--es-border);
+    border-radius: var(--es-radius-md);
 }
 
 .es-component-tag-row {
@@ -517,7 +518,7 @@
 }
 
 .es-asset-preview-error {
-    color: #e74c3c;
+    color: var(--es-danger);
 }
 
 .es-image-preview-container {
@@ -525,7 +526,7 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    background: repeating-conic-gradient(#222 0% 25%, #2a2a2a 0% 50%) 50% / 16px 16px;
+    background: repeating-conic-gradient(hsl(220, 8%, 12%) 0% 25%, hsl(220, 7%, 15%) 0% 50%) 50% / 16px 16px;
     min-height: 100px;
     max-height: 200px;
 }
@@ -549,7 +550,7 @@
 .es-code-preview {
     margin: 0;
     padding: 10px;
-    font-family: 'Consolas', 'Monaco', monospace;
+    font-family: var(--es-font-mono);
     font-size: 11px;
     line-height: 1.5;
     color: var(--es-text-secondary);
@@ -577,7 +578,7 @@
 }
 
 .es-btn-primary:hover {
-    background: #5a9cf5;
+    background: var(--es-accent-hover);
 }
 
 /* =============================================================================
@@ -783,7 +784,7 @@
 .es-nine-slice-preview {
     position: relative;
     width: 100%;
-    background: repeating-conic-gradient(#333 0% 25%, #444 0% 50%) 50% / 16px 16px;
+    background: repeating-conic-gradient(hsl(220, 5%, 18%) 0% 25%, hsl(220, 5%, 24%) 0% 50%) 50% / 16px 16px;
     border: 1px solid var(--es-border);
     overflow: hidden;
 }
@@ -942,7 +943,7 @@
 .es-texture-preview {
     width: 64px;
     height: 64px;
-    background: repeating-conic-gradient(#333 0% 25%, #444 0% 50%) 50% / 8px 8px;
+    background: repeating-conic-gradient(hsl(220, 5%, 18%) 0% 25%, hsl(220, 5%, 24%) 0% 50%) 50% / 8px 8px;
     border: 1px solid var(--es-border);
     border-radius: 4px;
     overflow: hidden;
@@ -1027,7 +1028,7 @@
 }
 
 .es-missing-asset {
-    color: #ff6b6b !important;
+    color: var(--es-danger) !important;
 }
 
 /* =============================================================================
@@ -1149,7 +1150,7 @@
 }
 
 .es-material-preview-row.es-overridden .es-property-label {
-    color: #4fc3f7;
+    color: var(--es-prefab);
 }
 
 .es-material-preview-row .es-property-editor {
@@ -1259,7 +1260,7 @@
 .es-anchor-cell.es-active {
     background: var(--es-accent);
     border-color: var(--es-accent);
-    color: #fff;
+    color: var(--es-text-bright);
 }
 .es-anchor-cell svg { width: 20px; height: 20px; }
 
@@ -1315,10 +1316,10 @@
     content: 'LIVE';
     font-size: 9px;
     font-weight: 600;
-    color: #fff;
+    color: var(--es-text-bright);
     padding: 1px 6px;
     border-radius: 8px;
-    background: rgba(74, 158, 255, 0.5);
+    background: hsla(215, 100%, 65%, 0.5);
     margin-left: auto;
 }
 
@@ -1391,7 +1392,7 @@
 
 .es-entity-field.es-drag-over {
     border-color: var(--es-accent);
-    background: rgba(79, 145, 255, 0.1);
+    background: var(--es-accent-subtle);
 }
 
 .es-entity-picker-overlay {
@@ -1534,7 +1535,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: repeating-conic-gradient(#222 0% 25%, #2a2a2a 0% 50%) 50% / 8px 8px;
+    background: repeating-conic-gradient(hsl(220, 8%, 12%) 0% 25%, hsl(220, 7%, 15%) 0% 50%) 50% / 8px 8px;
     border: 1px solid var(--es-border);
     border-radius: 2px;
     overflow: hidden;
@@ -1593,7 +1594,7 @@
 
 .es-animclip-drop-zone.es-drag-over {
     border-color: var(--es-accent);
-    background: rgba(79, 145, 255, 0.08);
+    background: hsla(215, 80%, 56%, 0.08);
     color: var(--es-text-primary);
 }
 
