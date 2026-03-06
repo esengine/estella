@@ -74,6 +74,8 @@ import {
     Hexagon,
     Link2,
     GripVertical,
+    Info,
+    TriangleAlert,
 } from 'lucide';
 
 // =============================================================================
@@ -204,6 +206,8 @@ export const icons = {
     hexagon: (size?: number) => renderIcon(Hexagon as IconNode, size),
     link: (size?: number) => renderIcon(Link2 as IconNode, size),
     grip: (size?: number) => renderIcon(GripVertical as IconNode, size),
+    info: (size?: number) => renderIcon(Info as IconNode, size),
+    alertTriangle: (size?: number) => renderIcon(TriangleAlert as IconNode, size),
 };
 
 export type IconName = keyof typeof icons;

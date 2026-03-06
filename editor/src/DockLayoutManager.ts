@@ -164,11 +164,18 @@ export class DockLayoutManager {
         });
 
         this.api_.addPanel({
+            id: 'content-browser',
+            component: 'content-browser',
+            title: 'Content Browser',
+            position: { referencePanel: 'scene', direction: 'below' },
+            initialHeight: 200,
+        });
+
+        this.api_.addPanel({
             id: 'output',
             component: 'output',
             title: 'Output',
-            position: { referencePanel: 'scene', direction: 'below' },
-            initialHeight: 200,
+            position: { referencePanel: 'content-browser', direction: 'within' },
             inactive: true,
         });
     }
@@ -218,6 +225,11 @@ export class DockLayoutManager {
         if (!panel) {
             const desc = getPanel(id);
             if (!desc) return;
+
+            if (desc.detachOnly) {
+                this.handleDetachPanel(id, false);
+                return;
+            }
 
             if (desc.position === 'center') {
                 this.api_.addPanel({
@@ -337,8 +349,9 @@ export class DockLayoutManager {
 
     private listenPanelClosed(): void {
         if (!this.detachContext_) return;
-        this.panelClosedUnlisten_ = this.detachContext_.onPanelClosed((panelId) => {
-            this.showPanel(panelId);
+        this.panelClosedUnlisten_ = this.detachContext_.onPanelClosed((_panelId) => {
+            // Detached panel was closed externally — do NOT re-show in main editor.
+            // User can re-open via View menu if needed.
         });
     }
 

@@ -12,7 +12,7 @@ import type {
 import { ENGINE_VERSION } from '../types/ProjectTypes';
 import { DEFAULT_DESIGN_WIDTH, DEFAULT_DESIGN_HEIGHT, DEFAULT_PIXELS_PER_UNIT } from 'esengine';
 import { SdkExportService } from '../sdk';
-import { EditorExportService } from '../extension';
+import { EditorExportService } from '../extension/EditorExportService';
 import { getEditorContext } from '../context/EditorContext';
 import type { NativeFS } from '../types/NativeFS';
 

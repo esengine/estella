@@ -2,11 +2,20 @@ import {
     PostProcess, Material,
     unregisterDrawCallback,
 } from 'esengine';
+import type { EditorContainer } from '../container/EditorContainer';
+import { EditorExtensionAPI } from './EditorExtensionAPI';
 
 export class ExtensionContext {
-    createAPI(base: Record<string, unknown>): Record<string, unknown> {
+    private editorAPI_: EditorExtensionAPI | null = null;
+
+    createAPI(base: Record<string, unknown>, container?: EditorContainer): Record<string, unknown> {
+        if (container) {
+            this.editorAPI_ = new EditorExtensionAPI(container);
+        }
+
         return {
             ...base,
+            editor: this.editorAPI_,
             registerDrawCallback: (id: string, fn: Function) => {
                 if (this.disposed_) return;
                 (base.registerDrawCallback as Function)(id, fn);
@@ -48,6 +57,9 @@ export class ExtensionContext {
     dispose(): void {
         if (this.disposed_) return;
         this.disposed_ = true;
+
+        this.editorAPI_?.dispose();
+        this.editorAPI_ = null;
 
         for (let i = this.disposables_.length - 1; i >= 0; i--) {
             try { this.disposables_[i](); } catch {}

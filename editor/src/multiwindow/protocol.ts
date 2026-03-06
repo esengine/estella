@@ -15,6 +15,10 @@ export const CHANNEL_PROFILER_STATS = 'editor:profiler-stats';
 export const CHANNEL_FRAME_DEBUGGER_DATA = 'editor:frame-debugger-data';
 export const CHANNEL_FRAME_DEBUGGER_REPLAY_REQ = 'editor:frame-debugger-replay-req';
 export const CHANNEL_FRAME_DEBUGGER_SNAPSHOT = 'editor:frame-debugger-snapshot';
+export const CHANNEL_EXTENSIONS_DATA = 'editor:extensions-data';
+export const CHANNEL_EXTENSIONS_TOGGLE = 'editor:extensions-toggle';
+export const CHANNEL_EXTENSIONS_RELOAD = 'editor:extensions-reload';
+export const CHANNEL_EXTENSIONS_REQUEST = 'editor:extensions-request';
 
 // =============================================================================
 // State Snapshot
@@ -122,3 +126,28 @@ export interface FrameDebuggerSnapshotMessage {
     width: number;
     height: number;
 }
+
+// =============================================================================
+// Extensions Messages
+// =============================================================================
+
+export interface ExtensionDataMessage {
+    plugins: ExtensionPluginData[];
+    reloading: boolean;
+}
+
+export interface ExtensionPluginData {
+    id: string;
+    type: 'local' | 'npm';
+    name: string;
+    version?: string;
+    description?: string;
+    status: 'loaded' | 'error' | 'disabled';
+    error?: string;
+}
+
+export interface ExtensionToggleMessage {
+    pluginId: string;
+}
+
+export interface ExtensionReloadMessage {}

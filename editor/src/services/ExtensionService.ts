@@ -4,7 +4,7 @@ import {
     PostProcess, Renderer, RenderStage,
     registerDrawCallback, unregisterDrawCallback, clearDrawCallbacks,
 } from 'esengine';
-import { ExtensionLoader } from '../extension';
+import { ExtensionLoader, type ExtensionPluginInfo } from '../extension';
 import { setEditorAPI, clearEditorAPI } from '../extension/editorAPI';
 import { showToast, showSuccessToast, showErrorToast } from '../ui/Toast';
 import { showContextMenu } from '../ui/ContextMenu';
@@ -18,10 +18,18 @@ import {
     PANEL,
 } from '../container';
 import * as containerTokens from '../container/tokens';
+import { EditorExtensionAPI } from '../extension/EditorExtensionAPI';
 import { getAllPanels } from '../panels/PanelRegistry';
 import type { PanelManager } from '../PanelManager';
 import type { MenuManager } from '../MenuManager';
 import type { DockLayoutManager } from '../DockLayoutManager';
+import {
+    CHANNEL_EXTENSIONS_DATA,
+    CHANNEL_EXTENSIONS_TOGGLE,
+    CHANNEL_EXTENSIONS_RELOAD,
+    CHANNEL_EXTENSIONS_REQUEST,
+    type ExtensionToggleMessage,
+} from '../multiwindow/protocol';
 
 export class ExtensionService {
     private baseAPI_: Record<string, unknown> | null = null;
@@ -31,6 +39,10 @@ export class ExtensionService {
     private menuManager_: MenuManager;
     private container_: HTMLElement;
     private dockLayout_: DockLayoutManager | null = null;
+    private unlistenToggle_: (() => void) | null = null;
+    private unlistenReload_: (() => void) | null = null;
+    private unlistenRequest_: (() => void) | null = null;
+    private reloading_ = false;
 
     constructor(
         projectPath: string | null,
@@ -46,6 +58,52 @@ export class ExtensionService {
 
     setDockLayout(dockLayout: DockLayoutManager | null): void {
         this.dockLayout_ = dockLayout;
+    }
+
+    get isReloading(): boolean {
+        return this.reloading_;
+    }
+
+    async startListening(): Promise<void> {
+        if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) return;
+        const { listen } = await import('@tauri-apps/api/event');
+
+        this.unlistenToggle_ = (await listen<ExtensionToggleMessage>(
+            CHANNEL_EXTENSIONS_TOGGLE,
+            (event) => this.handleRemoteToggle_(event.payload.pluginId),
+        )) as unknown as () => void;
+
+        this.unlistenReload_ = (await listen(
+            CHANNEL_EXTENSIONS_RELOAD,
+            () => this.reload(),
+        )) as unknown as () => void;
+
+        this.unlistenRequest_ = (await listen(
+            CHANNEL_EXTENSIONS_REQUEST,
+            () => this.broadcastPluginList(),
+        )) as unknown as () => void;
+    }
+
+    broadcastPluginList(): void {
+        if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) return;
+        import('@tauri-apps/api/event').then(({ emit }) => {
+            emit(CHANNEL_EXTENSIONS_DATA, {
+                plugins: this.getDiscoveredPlugins(),
+                reloading: this.reloading_,
+            });
+        });
+    }
+
+    private handleRemoteToggle_(pluginId: string): void {
+        const disabled = getSettingsValue<string[]>('extensions.disabled') ?? [];
+        const set = new Set(disabled);
+        if (set.has(pluginId)) {
+            set.delete(pluginId);
+        } else {
+            set.add(pluginId);
+        }
+        setSettingsValue('extensions.disabled', Array.from(set));
+        this.reload();
     }
 
     setupEditorGlobals(): void {
@@ -79,6 +137,7 @@ export class ExtensionService {
             registerDrawCallback,
             unregisterDrawCallback,
             clearDrawCallbacks,
+            editor: new EditorExtensionAPI(container),
         };
         setEditorAPI(this.baseAPI_);
     }
@@ -138,16 +197,29 @@ export class ExtensionService {
         this.menuManager_.rebuildMenuBar(this.container_);
     }
 
+    getDiscoveredPlugins(): ExtensionPluginInfo[] {
+        return this.extensionLoader_?.getDiscoveredPlugins() ?? [];
+    }
+
     async reload(): Promise<boolean> {
         if (!this.extensionLoader_) {
             if (this.projectPath_) {
                 await this.initialize();
+                this.broadcastPluginList();
                 return true;
             }
             return false;
         }
 
-        return this.extensionLoader_.reload();
+        this.reloading_ = true;
+        this.broadcastPluginList();
+        try {
+            const result = await this.extensionLoader_.reload();
+            return result;
+        } finally {
+            this.reloading_ = false;
+            this.broadcastPluginList();
+        }
     }
 
     clearAPI(): void {
@@ -155,6 +227,9 @@ export class ExtensionService {
     }
 
     dispose(): void {
+        this.unlistenToggle_?.();
+        this.unlistenReload_?.();
+        this.unlistenRequest_?.();
         this.extensionLoader_?.dispose();
         clearEditorAPI();
     }
