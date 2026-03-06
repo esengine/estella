@@ -22,8 +22,13 @@ export {
     ensureComponent,
     makeInteractable,
     syncFillSpriteSize,
-    layoutChildEntity,
     walkParentChain,
+    withChildEntity,
+    setEntityColor,
+    setEntityEnabled,
+    colorScale,
+    colorWithAlpha,
+    EntityStateMap,
 } from './uiHelpers';
 
 // Snapshot Utilities
@@ -358,3 +363,40 @@ export {
     UIRenderOrderPlugin,
     uiRenderOrderPlugin,
 } from './UIRenderOrderPlugin';
+
+// UI Theme
+export {
+    UIThemeRes,
+    DARK_THEME,
+    type UITheme,
+} from './UITheme';
+
+// UI Builder (Factory Functions & Declarative Tree)
+export {
+    UI,
+    initUIBuilder,
+    type UIEntityDef,
+    type ButtonOptions,
+    type SliderOptions,
+    type ToggleOptions,
+    type ProgressBarOptions,
+    type ScrollViewOptions,
+    type TextInputOptions,
+    type DropdownOptions,
+    type LabelOptions,
+    type PanelOptions,
+    type FlexOptions,
+    type UINode,
+    type UIElementNode,
+    type UIButtonNode,
+    type UISliderNode,
+    type UIToggleNode,
+    type UITextInputNode,
+    type UIDropdownNode,
+    type UIProgressBarNode,
+    type UILabelNode,
+    type UIPanelNode,
+    type UIFlexRowNode,
+    type UIFlexColumnNode,
+    type UIScrollViewNode,
+} from './UIBuilder';

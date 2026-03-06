@@ -4,6 +4,8 @@ import type { Entity, Color } from '../types';
 import type { World } from '../world';
 import { UIRect } from './UIRect';
 import type { UIRectData } from './UIRect';
+import { UIRenderer } from './UIRenderer';
+import type { UIRendererData } from './UIRenderer';
 import { FillDirection } from './uiTypes';
 import type { ColorTransition } from './uiTypes';
 import type { ESEngineModule, CppRegistry } from '../wasm';
@@ -362,36 +364,78 @@ export function makeInteractable(world: World, entity: Entity): void {
     });
 }
 
-export function layoutChildEntity(
-    world: World, entity: Entity,
-    parentRect: LayoutRect,
-    parentOriginX: number, parentOriginY: number,
+export function withChildEntity(
+    world: World,
+    childId: Entity,
+    callback: (entity: Entity) => void,
 ): void {
-    if (!world.has(entity, UIRect)) return;
-    const rect = world.get(entity, UIRect) as UIRectData;
+    if (childId !== 0 && world.valid(childId)) {
+        callback(childId);
+    }
+}
 
-    const result = computeUIRectLayout(
-        rect.anchorMin, rect.anchorMax,
-        rect.offsetMin, rect.offsetMax,
-        rect.size, parentRect, rect.pivot,
-    );
-    const width = result.rect.right - result.rect.left;
-    const height = result.rect.top - result.rect.bottom;
+export function setEntityColor(world: World, entity: Entity, color: Color): void {
+    if (world.has(entity, UIRenderer)) {
+        const r = world.get(entity, UIRenderer) as UIRendererData;
+        r.color = color;
+        world.insert(entity, UIRenderer, r);
+    } else if (world.has(entity, Sprite)) {
+        const s = world.get(entity, Sprite) as SpriteData;
+        s.color = color;
+        world.insert(entity, Sprite, s);
+    }
+}
 
-    if (world.has(entity, Sprite)) {
-        const sprite = world.get(entity, Sprite) as SpriteData;
-        if (sprite.size.x !== width || sprite.size.y !== height) {
-            sprite.size.x = width;
-            sprite.size.y = height;
-            world.insert(entity, Sprite, sprite);
+export function setEntityEnabled(world: World, entity: Entity, enabled: boolean): void {
+    if (world.has(entity, UIRenderer)) {
+        const r = world.get(entity, UIRenderer) as UIRendererData;
+        r.enabled = enabled;
+        world.insert(entity, UIRenderer, r);
+    } else if (world.has(entity, Sprite)) {
+        const s = world.get(entity, Sprite) as SpriteData;
+        s.enabled = enabled;
+        world.insert(entity, Sprite, s);
+    }
+}
+
+export function colorScale(c: Color, factor: number): Color {
+    return {
+        r: Math.min(1, c.r * factor),
+        g: Math.min(1, c.g * factor),
+        b: Math.min(1, c.b * factor),
+        a: c.a,
+    };
+}
+
+export function colorWithAlpha(c: Color, alpha: number): Color {
+    return { r: c.r, g: c.g, b: c.b, a: alpha };
+}
+
+export class EntityStateMap<T> {
+    private map_ = new Map<Entity, T>();
+
+    get(entity: Entity): T | undefined { return this.map_.get(entity); }
+    set(entity: Entity, state: T): void { this.map_.set(entity, state); }
+    delete(entity: Entity): void { this.map_.delete(entity); }
+    has(entity: Entity): boolean { return this.map_.has(entity); }
+
+    cleanup(world: World): void {
+        for (const [e] of this.map_) {
+            if (!world.valid(e)) this.map_.delete(e);
         }
     }
 
-    if (world.has(entity, Transform)) {
-        const transform = world.get(entity, Transform) as TransformData;
-        transform.position.x = result.originX - parentOriginX;
-        transform.position.y = result.originY - parentOriginY;
-        world.insert(entity, Transform, transform);
+    ensureInit(entity: Entity, init: () => T): T {
+        let state = this.map_.get(entity);
+        if (!state) {
+            state = init();
+            this.map_.set(entity, state);
+        }
+        return state;
     }
+
+    clear(): void { this.map_.clear(); }
+
+    [Symbol.iterator]() { return this.map_[Symbol.iterator](); }
 }
 

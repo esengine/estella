@@ -3,7 +3,6 @@
 #include "Registry.hpp"
 #include "UITree.hpp"
 #include "components/Transform.hpp"
-#include "components/Hierarchy.hpp"
 #include "components/UIRect.hpp"
 #include "components/Sprite.hpp"
 #include "components/Canvas.hpp"
@@ -98,25 +97,8 @@ inline void writePosition(
     auto* transform = registry.tryGet<Transform>(node.entity);
     if (!transform) return;
 
-    if (node.parent == INVALID_ENTITY) {
-        transform->position.x = originX;
-        transform->position.y = originY;
-    } else {
-        auto& parentTransform = registry.get<Transform>(node.parent);
-        transform->position.x = originX - parentTransform.position.x;
-        transform->position.y = originY - parentTransform.position.y;
-
-        if (registry.has<Parent>(node.entity)) {
-            Entity actualParent = registry.get<Parent>(node.entity).entity;
-            if (actualParent != node.parent) {
-                auto* actualTransform = registry.tryGet<Transform>(actualParent);
-                if (actualTransform) {
-                    transform->position.x = originX - actualTransform->position.x;
-                    transform->position.y = originY - actualTransform->position.y;
-                }
-            }
-        }
-    }
+    transform->position.x = originX;
+    transform->position.y = originY;
 }
 
 inline void layoutNodeAnchor(

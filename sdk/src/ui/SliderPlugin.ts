@@ -17,7 +17,7 @@ import { UICameraInfo } from './UICameraInfo';
 import type { UICameraData } from './UICameraInfo';
 import { UIEvents, UIEventQueue } from './UIEvents';
 import { isEditor, isPlayMode } from '../env';
-import { applyDirectionalFill, getEffectiveWidth, getEffectiveHeight, ensureComponent, layoutChildEntity, type LayoutRect } from './uiHelpers';
+import { applyDirectionalFill, getEffectiveWidth, getEffectiveHeight, ensureComponent, withChildEntity } from './uiHelpers';
 import { quaternionToAngle2D } from './uiMath';
 
 function computeSliderValue(
@@ -98,9 +98,9 @@ export class SliderPlugin implements Plugin {
                         const hasWT = world.has(entity, Transform);
                         if (hasWT) {
                             ensureComponent(world, entity, Interactable, { enabled: true, blockRaycast: true });
-                            if (slider.handleEntity !== 0 && world.valid(slider.handleEntity)) {
-                                ensureComponent(world, slider.handleEntity, Interactable, { enabled: true, blockRaycast: false });
-                            }
+                            withChildEntity(world, slider.handleEntity, (handle) => {
+                                ensureComponent(world, handle, Interactable, { enabled: true, blockRaycast: false });
+                            });
 
                             const wt = world.get(entity, Transform) as TransformData;
 
@@ -108,9 +108,11 @@ export class SliderPlugin implements Plugin {
                             if (world.has(entity, UIInteraction)) {
                                 isDragging = (world.get(entity, UIInteraction) as UIInteractionData).pressed;
                             }
-                            if (!isDragging && slider.handleEntity !== 0 && world.valid(slider.handleEntity) && world.has(slider.handleEntity, UIInteraction)) {
-                                isDragging = (world.get(slider.handleEntity, UIInteraction) as UIInteractionData).pressed;
-                            }
+                            withChildEntity(world, slider.handleEntity, (handle) => {
+                                if (!isDragging && world.has(handle, UIInteraction)) {
+                                    isDragging = (world.get(handle, UIInteraction) as UIInteractionData).pressed;
+                                }
+                            });
 
                             if (isDragging && input.isMouseButtonDown(0)) {
                                 let t = computeSliderValue(
@@ -138,24 +140,16 @@ export class SliderPlugin implements Plugin {
                     const range = slider.maxValue - slider.minValue;
                     const normalizedValue = range > 0 ? (slider.value - slider.minValue) / range : 0;
 
-                    const sw = getEffectiveWidth(rect, entity);
-                    const sh = getEffectiveHeight(rect, entity);
-                    const parentRect: LayoutRect = {
-                        left: -sw / 2, bottom: -sh / 2,
-                        right: sw / 2, top: sh / 2,
-                    };
+                    withChildEntity(world, slider.fillEntity, (fill) => {
+                        applyDirectionalFill(world, fill, slider.direction, normalizedValue);
+                    });
 
-                    if (slider.fillEntity !== 0 && world.valid(slider.fillEntity)) {
-                        applyDirectionalFill(world, slider.fillEntity, slider.direction, normalizedValue);
-                        layoutChildEntity(world, slider.fillEntity, parentRect, 0, 0);
-                    }
-
-                    if (slider.handleEntity !== 0 && world.valid(slider.handleEntity) && world.has(slider.handleEntity, UIRect)) {
-                        const handleRect = world.get(slider.handleEntity, UIRect) as UIRectData;
+                    withChildEntity(world, slider.handleEntity, (handle) => {
+                        if (!world.has(handle, UIRect)) return;
+                        const handleRect = world.get(handle, UIRect) as UIRectData;
                         syncHandleRect(handleRect, slider.direction, normalizedValue);
-                        world.insert(slider.handleEntity, UIRect, handleRect);
-                        layoutChildEntity(world, slider.handleEntity, parentRect, 0, 0);
-                    }
+                        world.insert(handle, UIRect, handleRect);
+                    });
                 }
             },
             { name: 'SliderSystem' }
