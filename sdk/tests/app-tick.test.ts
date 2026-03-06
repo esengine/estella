@@ -5,11 +5,11 @@ import { Time } from '../src/resource';
 import { defineResource, Res } from '../src/resource';
 
 describe('App.tick()', () => {
-    it('should lazily initialize runner and Time resource', () => {
+    it('should lazily initialize runner and Time resource', async () => {
         const app = App.new();
         expect(app.hasResource(Time)).toBe(false);
 
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         expect(app.hasResource(Time)).toBe(true);
         const time = app.getResource(Time);
@@ -17,7 +17,7 @@ describe('App.tick()', () => {
         expect(time.delta).toBeCloseTo(1 / 60);
     });
 
-    it('should run Startup schedule only once', () => {
+    it('should run Startup schedule only once', async () => {
         const app = App.new();
         let startupCount = 0;
 
@@ -25,14 +25,14 @@ describe('App.tick()', () => {
             [], () => { startupCount++; }, { name: 'TestStartup' }
         ));
 
-        app.tick(1 / 60);
-        app.tick(1 / 60);
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
+        await app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         expect(startupCount).toBe(1);
     });
 
-    it('should execute schedules in correct order', () => {
+    it('should execute schedules in correct order', async () => {
         const app = App.new();
         const order: string[] = [];
 
@@ -52,12 +52,12 @@ describe('App.tick()', () => {
             [], () => { order.push('Last'); }, { name: 'S_Last' }
         ));
 
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         expect(order).toEqual(['First', 'PreUpdate', 'Update', 'PostUpdate', 'Last']);
     });
 
-    it('should skip Fixed schedules when accumulator below timestep', () => {
+    it('should skip Fixed schedules when accumulator below timestep', async () => {
         const app = App.new();
         let fixedRan = false;
 
@@ -66,17 +66,17 @@ describe('App.tick()', () => {
         ));
 
         // Default fixedTimestep is 1/60; pass a smaller dt so accumulator stays below threshold
-        app.tick(1 / 120);
+        await app.tick(1 / 120);
 
         expect(fixedRan).toBe(false);
     });
 
-    it('should accumulate elapsed time across ticks', () => {
+    it('should accumulate elapsed time across ticks', async () => {
         const app = App.new();
 
-        app.tick(0.1);
-        app.tick(0.2);
-        app.tick(0.05);
+        await app.tick(0.1);
+        await app.tick(0.2);
+        await app.tick(0.05);
 
         const time = app.getResource(Time);
         expect(time.elapsed).toBeCloseTo(0.35);
@@ -84,7 +84,7 @@ describe('App.tick()', () => {
         expect(time.delta).toBeCloseTo(0.05);
     });
 
-    it('should pass resources to systems via Res()', () => {
+    it('should pass resources to systems via Res()', async () => {
         const app = App.new();
         const MyRes = defineResource({ value: 42 }, 'MyRes');
         app.insertResource(MyRes, { value: 42 });
@@ -96,7 +96,7 @@ describe('App.tick()', () => {
             { name: 'S_ReadRes' }
         ));
 
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         expect(capturedValue).toBe(42);
     });

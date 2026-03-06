@@ -356,7 +356,7 @@ export class App {
     // Run
     // =========================================================================
 
-    tick(delta: number): void {
+    async tick(delta: number): Promise<void> {
         if (!this.runner_) {
             this.runner_ = new SystemRunner(this.world_, this.resources_, this.eventRegistry_);
             if (this.statsEnabled_) {
@@ -368,7 +368,7 @@ export class App {
             this.finishPlugins_();
         }
 
-        this.flushStartupSystems_();
+        await this.flushStartupSystems_();
 
         this.eventRegistry_.swapAll();
         this.world_.advanceTick();
@@ -377,27 +377,27 @@ export class App {
         this.frame_paused_ = false;
 
         if (this.user_paused_ && !this.step_pending_) {
-            this.runSchedule(Schedule.Last);
+            await this.runSchedule(Schedule.Last);
         } else {
-            this.runSchedule(Schedule.First);
+            await this.runSchedule(Schedule.First);
 
             this.fixedAccumulator_ += delta;
             let fixedSteps = 0;
             while (this.fixedAccumulator_ >= this.fixedTimestep_ && fixedSteps < this.maxFixedSteps_) {
                 this.fixedAccumulator_ -= this.fixedTimestep_;
-                this.runSchedule(Schedule.FixedPreUpdate);
-                this.runSchedule(Schedule.FixedUpdate);
-                this.runSchedule(Schedule.FixedPostUpdate);
+                await this.runSchedule(Schedule.FixedPreUpdate);
+                await this.runSchedule(Schedule.FixedUpdate);
+                await this.runSchedule(Schedule.FixedPostUpdate);
                 fixedSteps++;
             }
             if (fixedSteps >= this.maxFixedSteps_) {
                 this.fixedAccumulator_ = this.fixedTimestep_;
             }
 
-            this.runSchedule(Schedule.PreUpdate);
-            this.runSchedule(Schedule.Update);
-            this.runSchedule(Schedule.PostUpdate);
-            this.runSchedule(Schedule.Last);
+            await this.runSchedule(Schedule.PreUpdate);
+            await this.runSchedule(Schedule.Update);
+            await this.runSchedule(Schedule.PostUpdate);
+            await this.runSchedule(Schedule.Last);
 
             if (this.step_pending_) {
                 this.step_pending_ = false;
@@ -408,7 +408,7 @@ export class App {
         this.world_.cleanRemovedBuffer(this.world_.getWorldTick() - REMOVED_BUFFER_RETENTION);
     }
 
-    run(): void {
+    async run(): Promise<void> {
         if (this.running_) {
             return;
         }
@@ -422,13 +422,13 @@ export class App {
         this.resources_.insert(Time, { delta: 0, elapsed: 0, frameCount: 0 });
 
         this.finishPlugins_();
-        this.flushStartupSystems_();
+        await this.flushStartupSystems_();
 
         this.lastTime_ = platformNow();
         this.mainLoop();
     }
 
-    private mainLoop = (): void => {
+    private mainLoop = async (): Promise<void> => {
         if (!this.running_) {
             return;
         }
@@ -440,7 +440,7 @@ export class App {
         const rawDelta = Math.min(deltaMs / 1000, this.maxDeltaTime_);
         const delta = rawDelta * this.play_speed_;
 
-        this.flushStartupSystems_();
+        await this.flushStartupSystems_();
 
         this.eventRegistry_.swapAll();
         this.world_.advanceTick();
@@ -449,27 +449,27 @@ export class App {
         this.frame_paused_ = false;
 
         if (this.user_paused_ && !this.step_pending_) {
-            this.runSchedule(Schedule.Last);
+            await this.runSchedule(Schedule.Last);
         } else {
-            this.runSchedule(Schedule.First);
+            await this.runSchedule(Schedule.First);
 
             this.fixedAccumulator_ += delta;
             let fixedSteps = 0;
             while (this.fixedAccumulator_ >= this.fixedTimestep_ && fixedSteps < this.maxFixedSteps_) {
                 this.fixedAccumulator_ -= this.fixedTimestep_;
-                this.runSchedule(Schedule.FixedPreUpdate);
-                this.runSchedule(Schedule.FixedUpdate);
-                this.runSchedule(Schedule.FixedPostUpdate);
+                await this.runSchedule(Schedule.FixedPreUpdate);
+                await this.runSchedule(Schedule.FixedUpdate);
+                await this.runSchedule(Schedule.FixedPostUpdate);
                 fixedSteps++;
             }
             if (fixedSteps >= this.maxFixedSteps_) {
                 this.fixedAccumulator_ = this.fixedTimestep_;
             }
 
-            this.runSchedule(Schedule.PreUpdate);
-            this.runSchedule(Schedule.Update);
-            this.runSchedule(Schedule.PostUpdate);
-            this.runSchedule(Schedule.Last);
+            await this.runSchedule(Schedule.PreUpdate);
+            await this.runSchedule(Schedule.Update);
+            await this.runSchedule(Schedule.PostUpdate);
+            await this.runSchedule(Schedule.Last);
 
             if (this.step_pending_) {
                 this.step_pending_ = false;
@@ -595,16 +595,16 @@ export class App {
         return sorted;
     }
 
-    private flushStartupSystems_(): void {
+    private async flushStartupSystems_(): Promise<void> {
         const startup = this.systems_.get(Schedule.Startup)!;
         if (startup.length === 0) return;
         this.sortedSystemsCache_.delete(Schedule.Startup);
-        this.runSchedule(Schedule.Startup);
+        await this.runSchedule(Schedule.Startup);
         startup.length = 0;
         this.sortedSystemsCache_.delete(Schedule.Startup);
     }
 
-    private runSchedule(schedule: Schedule): void {
+    private async runSchedule(schedule: Schedule): Promise<void> {
         const rawSystems = this.systems_.get(schedule);
         if (!rawSystems || !this.runner_ || this.frame_paused_) {
             return;
@@ -624,7 +624,10 @@ export class App {
 
         for (const entry of systems) {
             try {
-                this.runner_.run(entry.system);
+                const result = this.runner_.run(entry.system);
+                if (result instanceof Promise) {
+                    await result;
+                }
             } catch (e) {
                 const name = entry.system._name;
                 console.error(`[ESEngine] System "${name}" threw an error:`, e);
