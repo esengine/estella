@@ -304,11 +304,19 @@ export class EditorSceneRenderer {
         let px = wt.worldPosition.x;
         let py = wt.worldPosition.y;
 
-        if (registry.hasUIRect(entity) && registry.hasSprite(entity)) {
+        if (registry.hasUIRect(entity) && (registry.hasUIRenderer(entity) || registry.hasSprite(entity))) {
             const uiRect = registry.getUIRect(entity);
-            const sprite = registry.getSprite(entity);
-            let dx = (0.5 - uiRect.pivot.x) * sprite.size.x * wt.worldScale.x;
-            let dy = (0.5 - uiRect.pivot.y) * sprite.size.y * wt.worldScale.y;
+            let sizeX: number, sizeY: number;
+            if (registry.hasUIRenderer(entity) && this.module_) {
+                sizeX = this.module_.getUIRectComputedWidth(registry, entity) || uiRect.size.x;
+                sizeY = this.module_.getUIRectComputedHeight(registry, entity) || uiRect.size.y;
+            } else {
+                const sprite = registry.getSprite(entity);
+                sizeX = sprite.size.x;
+                sizeY = sprite.size.y;
+            }
+            let dx = (0.5 - uiRect.pivot.x) * sizeX * wt.worldScale.x;
+            let dy = (0.5 - uiRect.pivot.y) * sizeY * wt.worldScale.y;
             const sinHalf = wt.worldRotation.z;
             if (sinHalf * sinHalf > 1e-6) {
                 const cosHalf = wt.worldRotation.w;

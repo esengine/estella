@@ -12,6 +12,7 @@ import { resolve } from 'path';
 import { App } from '../src/app';
 import { Transform, Sprite, Name, Canvas } from '../src/component';
 import type { SpriteData } from '../src/component';
+import { UIRenderer } from '../src/ui/UIRenderer';
 import { UIRect } from '../src/ui/UIRect';
 import { UICameraInfo } from '../src/ui/UICameraInfo';
 import { Input, InputState } from '../src/input';
@@ -191,7 +192,7 @@ describe.skipIf(!HAS_WASM)('Dropdown Layout (WASM integration)', () => {
         const optionEntities: number[] = [];
         for (const e of allEntities) {
             if (e === listEntity || e === ddEntity) continue;
-            if (!world.has(e, Sprite) || !world.has(e, Interactable)) continue;
+            if ((!world.has(e, Sprite) && !world.has(e, UIRenderer)) || !world.has(e, Interactable)) continue;
             if (!world.has(e, UIRect)) continue;
             // Check if this is a child of listEntity
             if (world.has(e, Transform)) {
@@ -258,10 +259,10 @@ describe.skipIf(!HAS_WASM)('Dropdown Layout (WASM integration)', () => {
         expect(optionEntities.length).toBe(3);
 
         for (const e of optionEntities) {
-            const sprite = registry.getSprite(e);
-            expect(sprite.size.x).toBeGreaterThan(0);
-            expect(sprite.size.y).toBeGreaterThan(0);
-            expect(sprite.enabled).toBe(true);
+            expect(world.has(e, UIRenderer)).toBe(true);
+            const renderer = world.get(e, UIRenderer) as any;
+            expect(renderer.enabled).toBe(true);
+            expect(world.has(e, UIRect)).toBe(true);
         }
 
         disposeApp(app, registry);

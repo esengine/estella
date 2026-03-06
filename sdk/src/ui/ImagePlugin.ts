@@ -1,13 +1,14 @@
 import type { App, Plugin } from '../app';
 import type { Entity } from '../types';
-import { registerComponent, Sprite } from '../component';
-import type { SpriteData } from '../component';
+import { registerComponent } from '../component';
 import { defineSystem, Schedule } from '../system';
 import { Image, ImageType, FillMethod, FillOrigin } from './Image';
 import type { ImageData } from './Image';
 import { UIRect } from './UIRect';
 import type { UIRectData } from './UIRect';
-import { ensureSprite, getEffectiveWidth, getEffectiveHeight } from './uiHelpers';
+import { UIRenderer, UIVisualType } from './UIRenderer';
+import type { UIRendererData } from './UIRenderer';
+import { getEffectiveWidth, getEffectiveHeight } from './uiHelpers';
 import { createSnapshotUtils, type Snapshot } from './uiSnapshot';
 
 interface ImageSource {
@@ -22,7 +23,6 @@ const imageSnapshot = createSnapshotUtils<ImageSource>({
     colorG: s => s.image.color.g,
     colorB: s => s.image.color.b,
     colorA: s => s.image.color.a,
-    layer: s => s.image.layer,
     material: s => s.image.material,
     imageType: s => s.image.imageType,
     fillMethod: s => s.image.fillMethod,
@@ -34,6 +34,21 @@ const imageSnapshot = createSnapshotUtils<ImageSource>({
     rectHeight: s => s.uiRect ? getEffectiveHeight(s.uiRect, s.entity) : 0,
     enabled: s => s.image.enabled,
 });
+
+function ensureUIRenderer(world: import('../world').World, entity: Entity): void {
+    if (!world.has(entity, UIRenderer)) {
+        world.insert(entity, UIRenderer, {
+            visualType: UIVisualType.None,
+            texture: 0,
+            color: { r: 1, g: 1, b: 1, a: 1 },
+            uvOffset: { x: 0, y: 0 },
+            uvScale: { x: 1, y: 1 },
+            sliceBorder: { x: 0, y: 0, z: 0, w: 0 },
+            material: 0,
+            enabled: true,
+        });
+    }
+}
 
 export class ImagePlugin implements Plugin {
     build(app: App): void {
@@ -61,69 +76,62 @@ export class ImagePlugin implements Plugin {
                     const source: ImageSource = { image, uiRect, entity };
 
                     const prev = snapshots.get(entity);
-                    if (prev && world.has(entity, Sprite) && !imageSnapshot.changed(prev, source)) continue;
+                    if (prev && world.has(entity, UIRenderer) && !imageSnapshot.changed(prev, source)) continue;
 
-                    ensureSprite(world, entity);
+                    ensureUIRenderer(world, entity);
 
-                    const sprite = world.get(entity, Sprite) as SpriteData;
+                    const renderer = world.get(entity, UIRenderer) as UIRendererData;
 
                     if (!image.enabled) {
-                        sprite.color.a = 0;
-                        world.insert(entity, Sprite, sprite);
+                        renderer.enabled = false;
+                        world.insert(entity, UIRenderer, renderer);
                         snapshots.set(entity, imageSnapshot.take(source));
                         continue;
                     }
 
-                    sprite.texture = image.texture;
-                    sprite.color.r = image.color.r;
-                    sprite.color.g = image.color.g;
-                    sprite.color.b = image.color.b;
-                    sprite.color.a = image.color.a;
-                    sprite.layer = image.layer;
-                    sprite.material = image.material;
+                    renderer.enabled = true;
+                    renderer.texture = image.texture;
+                    renderer.color = { r: image.color.r, g: image.color.g, b: image.color.b, a: image.color.a };
+                    renderer.material = image.material;
 
-                    if (uiRect) {
-                        sprite.size.x = getEffectiveWidth(uiRect, entity);
-                        sprite.size.y = getEffectiveHeight(uiRect, entity);
+                    renderer.uvOffset = { x: 0, y: 0 };
+                    renderer.uvScale = { x: 1, y: 1 };
+
+                    if (image.imageType === ImageType.Sliced) {
+                        renderer.visualType = UIVisualType.NineSlice;
+                    } else {
+                        renderer.visualType = UIVisualType.Image;
                     }
-
-                    sprite.uvOffset.x = 0;
-                    sprite.uvOffset.y = 0;
-                    sprite.uvScale.x = 1;
-                    sprite.uvScale.y = 1;
 
                     if (image.imageType === ImageType.Filled) {
                         const amount = Math.max(0, Math.min(1, image.fillAmount));
-                        const fullWidth = sprite.size.x;
-                        const fullHeight = sprite.size.y;
+                        const w = uiRect ? getEffectiveWidth(uiRect, entity) : 0;
+                        const h = uiRect ? getEffectiveHeight(uiRect, entity) : 0;
 
                         if (image.fillMethod === FillMethod.Horizontal) {
                             if (image.fillOrigin === FillOrigin.Left) {
-                                sprite.uvScale.x = amount;
-                                sprite.size.x = fullWidth * amount;
+                                renderer.uvScale = { x: amount, y: 1 };
                             } else {
-                                sprite.uvOffset.x = 1 - amount;
-                                sprite.uvScale.x = amount;
-                                sprite.size.x = fullWidth * amount;
+                                renderer.uvOffset = { x: 1 - amount, y: 0 };
+                                renderer.uvScale = { x: amount, y: 1 };
                             }
                         } else {
                             if (image.fillOrigin === FillOrigin.Bottom) {
-                                sprite.uvScale.y = amount;
-                                sprite.size.y = fullHeight * amount;
+                                renderer.uvScale = { x: 1, y: amount };
                             } else {
-                                sprite.uvOffset.y = 1 - amount;
-                                sprite.uvScale.y = amount;
-                                sprite.size.y = fullHeight * amount;
+                                renderer.uvOffset = { x: 0, y: 1 - amount };
+                                renderer.uvScale = { x: 1, y: amount };
                             }
                         }
                     } else if (image.imageType === ImageType.Tiled) {
+                        const w = uiRect ? getEffectiveWidth(uiRect, entity) : 0;
+                        const h = uiRect ? getEffectiveHeight(uiRect, entity) : 0;
                         if (image.tileSize.x > 0 && image.tileSize.y > 0) {
-                            sprite.uvScale.x = sprite.size.x / image.tileSize.x;
-                            sprite.uvScale.y = sprite.size.y / image.tileSize.y;
+                            renderer.uvScale = { x: w / image.tileSize.x, y: h / image.tileSize.y };
                         }
                     }
 
-                    world.insert(entity, Sprite, sprite);
+                    world.insert(entity, UIRenderer, renderer);
                     snapshots.set(entity, imageSnapshot.take(source));
                 }
             },

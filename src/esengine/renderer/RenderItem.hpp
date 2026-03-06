@@ -27,6 +27,7 @@ enum class RenderType : u8 {
     Text = 4,
     Particle = 5,
     Shape = 6,
+    UIElement = 7,
 };
 
 struct RenderItemBase {

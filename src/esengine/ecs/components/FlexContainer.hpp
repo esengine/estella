@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../../core/Types.hpp"
+#include "../../core/UITypes.hpp"
 #include "../../core/Reflection.hpp"
 #include "../../math/Math.hpp"
 
@@ -51,7 +52,7 @@ struct FlexContainer {
     ES_PROPERTY()
     glm::vec2 gap{0.0f, 0.0f};
     ES_PROPERTY()
-    glm::vec4 padding{0.0f, 0.0f, 0.0f, 0.0f};
+    Padding padding{};
 };
 
 }  // namespace esengine::ecs

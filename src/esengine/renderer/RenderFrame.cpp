@@ -9,6 +9,7 @@
 #include "../ecs/components/Transform.hpp"
 #include "../ecs/components/Sprite.hpp"
 #include "../ecs/components/UIRect.hpp"
+#include "../ecs/components/UIRenderer.hpp"
 #include "../ecs/components/BitmapText.hpp"
 #include "../ecs/components/ShapeRenderer.hpp"
 #include "../text/BitmapFont.hpp"
@@ -663,6 +664,123 @@ void RenderFrame::submitSprites(ecs::Registry& registry) {
     }
 }
 
+void RenderFrame::submitUIElements(ecs::Registry& registry) {
+    constexpr i32 UI_BASE_LAYER = 1000;
+
+    auto uiView = registry.view<ecs::Transform, ecs::UIRenderer, ecs::UIRect>();
+
+    for (auto entity : uiView) {
+        const auto& renderer = uiView.get<ecs::UIRenderer>(entity);
+        if (!renderer.enabled || renderer.visualType == ecs::UIVisualType::None) continue;
+
+        auto& transform = uiView.get<ecs::Transform>(entity);
+        transform.ensureDecomposed();
+        const auto& rect = uiView.get<ecs::UIRect>(entity);
+
+        glm::vec3 position = transform.worldPosition;
+        const auto& rotation = transform.worldRotation;
+        const auto& scale = transform.worldScale;
+
+        f32 w = rect.computed_size_.x;
+        f32 h = rect.computed_size_.y;
+        if (w <= 0.0f && h <= 0.0f) continue;
+
+        f32 dx = (0.5f - rect.pivot.x) * w * scale.x;
+        f32 dy = (0.5f - rect.pivot.y) * h * scale.y;
+        f32 sinHalf = rotation.z;
+        if (sinHalf * sinHalf > 1e-6f) {
+            f32 cosHalf = rotation.w;
+            f32 s = 2.0f * sinHalf * cosHalf;
+            f32 c = cosHalf * cosHalf - sinHalf * sinHalf;
+            f32 rdx = dx * c - dy * s;
+            f32 rdy = dx * s + dy * c;
+            dx = rdx;
+            dy = rdy;
+        }
+        position.x += dx;
+        position.y += dy;
+
+        glm::vec3 halfExtents = glm::vec3(w * scale.x, h * scale.y, 0.0f) * 0.5f;
+        if (!frustum_.intersectsAABB(position, halfExtents)) {
+            stats_.culled++;
+            continue;
+        }
+
+        RenderItemBase base;
+        base.entity = entity;
+        base.type = RenderType::UIElement;
+        base.stage = current_stage_;
+
+        base.world_position = position;
+        base.world_scale = glm::vec2(scale);
+        f32 sinHalfAngle = rotation.z;
+        f32 cosHalfAngle = rotation.w;
+        base.world_angle = 2.0f * std::atan2(sinHalfAngle, cosHalfAngle);
+
+        base.layer = UI_BASE_LAYER + renderer.uiOrder;
+        base.depth = position.z;
+        base.color = renderer.color;
+
+        base.texture_id = context_.getWhiteTextureId();
+
+        SpriteData sd;
+        sd.size = rect.computed_size_;
+        sd.uv_offset = renderer.uvOffset;
+        sd.uv_scale = renderer.uvScale;
+        sd.material_id = renderer.material;
+
+        if (renderer.material != 0) {
+            sd.transform = glm::mat4(1.0f);
+            sd.transform = glm::translate(sd.transform, position);
+            sd.transform *= glm::mat4_cast(rotation);
+            sd.transform = glm::scale(sd.transform, scale);
+        }
+
+        if (renderer.texture.isValid()) {
+            Texture* tex = resource_manager_.getTexture(renderer.texture);
+            if (tex) {
+                base.texture_id = tex->getId();
+                sd.texture_size = glm::vec2(
+                    static_cast<f32>(tex->getWidth()),
+                    static_cast<f32>(tex->getHeight())
+                );
+
+                const auto* metadata = resource_manager_.getTextureMetadata(renderer.texture);
+                if (metadata && metadata->sliceBorder.hasSlicing()) {
+                    sd.use_nine_slice = true;
+                    sd.slice_border = glm::vec4(
+                        metadata->sliceBorder.left,
+                        metadata->sliceBorder.right,
+                        metadata->sliceBorder.top,
+                        metadata->sliceBorder.bottom
+                    );
+                }
+            }
+        }
+
+        if (renderer.visualType == ecs::UIVisualType::NineSlice) {
+            sd.use_nine_slice = true;
+            if (sd.slice_border == glm::vec4(0.0f)) {
+                sd.slice_border = renderer.sliceBorder;
+            }
+        }
+
+        if (!clip_rects_.empty()) {
+            auto it = clip_rects_.find(static_cast<u32>(entity));
+            if (it != clip_rects_.end()) {
+                base.scissor_enabled = true;
+                base.scissor = it->second;
+            }
+        }
+
+        base.data_index = static_cast<u32>(sprite_data_.size());
+        sprite_data_.push_back(sd);
+        base.cached_sort_key_ = base.sortKey();
+        items_.push_back(base);
+        stats_.sprites++;
+    }
+}
+
 void RenderFrame::submitBitmapText(ecs::Registry& registry) {
     auto textView = registry.view<ecs::Transform, ecs::BitmapText>();
 
@@ -917,6 +1035,9 @@ void RenderFrame::executeStage(RenderStage stage) {
                 break;
             case RenderType::Shape:
                 renderShapes(begin, end);
+                break;
+            case RenderType::UIElement:
+                renderSprites(begin, end);
                 break;
             default:
                 break;

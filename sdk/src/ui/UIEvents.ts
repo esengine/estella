@@ -8,14 +8,30 @@ export interface UIEvent {
     type: UIEventType;
     target: Entity;
     currentTarget: Entity;
+    propagationStopped: boolean;
+    stopPropagation(): void;
 }
 
 export class UIEventQueue {
     private events_: UIEvent[] = [];
 
-    emit(entity: Entity, type: UIEventType, target?: Entity): void {
+    emit(entity: Entity, type: UIEventType, target?: Entity): UIEvent {
         const t = target ?? entity;
-        this.events_.push({ entity, type, target: t, currentTarget: entity });
+        const event: UIEvent = {
+            entity, type, target: t, currentTarget: entity,
+            propagationStopped: false,
+            stopPropagation() { this.propagationStopped = true; },
+        };
+        this.events_.push(event);
+        return event;
+    }
+
+    emitBubbled(entity: Entity, type: UIEventType, target: Entity, shared: UIEvent): void {
+        this.events_.push({
+            entity, type, target, currentTarget: entity,
+            propagationStopped: false,
+            stopPropagation() { shared.propagationStopped = true; },
+        });
     }
 
     drain(): UIEvent[] {

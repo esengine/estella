@@ -1,5 +1,6 @@
 import { defineBuiltin } from '../component';
-import type { Vec2, Vec4 } from '../types';
+import type { Vec2 } from '../types';
+import type { Padding } from '../wasm.generated';
 
 export const FlexDirection = { Row: 0, Column: 1, RowReverse: 2, ColumnReverse: 3 } as const;
 export type FlexDirection = (typeof FlexDirection)[keyof typeof FlexDirection];
@@ -19,7 +20,7 @@ export interface FlexContainerData {
     justifyContent: JustifyContent;
     alignItems: AlignItems;
     gap: Vec2;
-    padding: Vec4;
+    padding: Padding;
 }
 
 export const FlexContainer = defineBuiltin<FlexContainerData>('FlexContainer', {
@@ -28,5 +29,5 @@ export const FlexContainer = defineBuiltin<FlexContainerData>('FlexContainer', {
     justifyContent: JustifyContent.Start,
     alignItems: AlignItems.Stretch,
     gap: { x: 0, y: 0 },
-    padding: { x: 0, y: 0, z: 0, w: 0 },
+    padding: { left: 0, top: 0, right: 0, bottom: 0 },
 });

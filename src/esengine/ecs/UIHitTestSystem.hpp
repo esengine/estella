@@ -4,13 +4,12 @@
 #include "components/Transform.hpp"
 #include "components/Hierarchy.hpp"
 #include "components/UIRect.hpp"
-#include "components/Sprite.hpp"
 #include "components/Interactable.hpp"
 #include "components/UIInteraction.hpp"
 #include "components/UIMask.hpp"
+#include "UILayoutSystem.hpp"
 
 #include <cmath>
-#include <limits>
 
 namespace esengine::ecs {
 
@@ -59,8 +58,8 @@ inline bool isClippedByMask(
             auto* rect = registry.tryGet<UIRect>(ancestor);
             if (t && rect) {
                 t->ensureDecomposed();
-                f32 maskW = (rect->computed_width_ > 0.0f ? rect->computed_width_ : rect->size.x) * t->worldScale.x;
-                f32 maskH = (rect->computed_height_ > 0.0f ? rect->computed_height_ : rect->size.y) * t->worldScale.y;
+                f32 maskW = (rect->computed_size_.x > 0.0f ? rect->computed_size_.x : rect->size.x) * t->worldScale.x;
+                f32 maskH = (rect->computed_size_.y > 0.0f ? rect->computed_size_.y : rect->size.y) * t->worldScale.y;
                 if (!pointInOBB(
                     worldMouseX, worldMouseY,
                     t->worldPosition.x, t->worldPosition.y,
@@ -96,12 +95,15 @@ inline void uiHitTestUpdate(
     s_hit_test_result.prev_hit_entity = s_hit_test_result.hit_entity;
     s_hit_test_result.hit_entity = INVALID_ENTITY;
 
-    Entity hitEntity = INVALID_ENTITY;
-    i32 hitLayer = std::numeric_limits<i32>::min();
+    const auto& tree = getUITree();
+    const auto& nodes = tree.nodes_;
 
-    registry.each<Interactable>([&](Entity entity, Interactable& interactable) {
-        if (!interactable.enabled || !interactable.raycastTarget) return;
-        if (!registry.has<UIRect>(entity) || !registry.has<Transform>(entity)) return;
+    for (i32 i = static_cast<i32>(nodes.size()) - 1; i >= 0; i--) {
+        Entity entity = nodes[i].entity;
+
+        auto* interactable = registry.tryGet<Interactable>(entity);
+        if (!interactable || !interactable->enabled || !interactable->raycastTarget) continue;
+        if (!registry.has<Transform>(entity)) continue;
 
         registry.getOrEmplace<UIInteraction>(entity);
 
@@ -109,8 +111,8 @@ inline void uiHitTestUpdate(
         t.ensureDecomposed();
         auto& rect = registry.get<UIRect>(entity);
 
-        f32 worldW = (rect.computed_width_ > 0.0f ? rect.computed_width_ : rect.size.x) * t.worldScale.x;
-        f32 worldH = (rect.computed_height_ > 0.0f ? rect.computed_height_ : rect.size.y) * t.worldScale.y;
+        f32 worldW = (rect.computed_size_.x > 0.0f ? rect.computed_size_.x : rect.size.x) * t.worldScale.x;
+        f32 worldH = (rect.computed_size_.y > 0.0f ? rect.computed_size_.y : rect.size.y) * t.worldScale.y;
 
         if (pointInOBB(
             mouseWorldX, mouseWorldY,
@@ -120,22 +122,12 @@ inline void uiHitTestUpdate(
             t.worldRotation.z, t.worldRotation.w
         )) {
             if (isClippedByMask(registry, entity, mouseWorldX, mouseWorldY)) {
-                return;
+                continue;
             }
-
-            i32 layer = 0;
-            auto* sprite = registry.tryGet<Sprite>(entity);
-            if (sprite) {
-                layer = sprite->layer;
-            }
-            if (layer > hitLayer) {
-                hitLayer = layer;
-                hitEntity = entity;
-            }
+            s_hit_test_result.hit_entity = entity;
+            return;
         }
-    });
-
-    s_hit_test_result.hit_entity = hitEntity;
+    }
 }
 
 inline u32 uiHitTestGetHitEntity() {

@@ -11,6 +11,7 @@
 #include <emscripten/bind.h>
 #include "../ecs/Registry.hpp"
 #include "../math/Math.hpp"
+#include "../core/UITypes.hpp"
 #include "../ecs/TransformSystem.hpp"
 #include "../ecs/components/BitmapText.hpp"
 #include "../ecs/components/Camera.hpp"
@@ -20,6 +21,7 @@
 #include "../ecs/components/FlexItem.hpp"
 #include "../ecs/components/Hierarchy.hpp"
 #include "../ecs/components/Interactable.hpp"
+#include "../ecs/components/LayoutGroup.hpp"
 #include "../ecs/components/ParticleEmitter.hpp"
 #include "../ecs/components/RigidBody.hpp"
 #include "../ecs/components/ScreenSpace.hpp"
@@ -30,6 +32,7 @@
 #include "../ecs/components/UIInteraction.hpp"
 #include "../ecs/components/UIMask.hpp"
 #include "../ecs/components/UIRect.hpp"
+#include "../ecs/components/UIRenderer.hpp"
 #include "../ecs/components/Velocity.hpp"
 
 using namespace emscripten;
@@ -65,6 +68,12 @@ EMSCRIPTEN_BINDINGS(esengine_math) {
         .field("x", &glm::quat::x)
         .field("y", &glm::quat::y)
         .field("z", &glm::quat::z);
+
+    value_object<esengine::Padding>("Padding")
+        .field("left", &esengine::Padding::left)
+        .field("top", &esengine::Padding::top)
+        .field("right", &esengine::Padding::right)
+        .field("bottom", &esengine::Padding::bottom);
 }
 
 // =============================================================================
@@ -81,6 +90,12 @@ EMSCRIPTEN_BINDINGS(esengine_enums) {
     enum_<esengine::ecs::SimulationSpace>("SimulationSpace")
         .value("World", esengine::ecs::SimulationSpace::World)
         .value("Local", esengine::ecs::SimulationSpace::Local);
+
+    enum_<esengine::ecs::UIVisualType>("UIVisualType")
+        .value("None", esengine::ecs::UIVisualType::None)
+        .value("SolidColor", esengine::ecs::UIVisualType::SolidColor)
+        .value("Image", esengine::ecs::UIVisualType::Image)
+        .value("NineSlice", esengine::ecs::UIVisualType::NineSlice);
 
     enum_<esengine::ecs::BodyType>("BodyType")
         .value("Static", esengine::ecs::BodyType::Static)
@@ -119,6 +134,15 @@ EMSCRIPTEN_BINDINGS(esengine_enums) {
         .value("Center", esengine::ecs::AlignItems::Center)
         .value("End", esengine::ecs::AlignItems::End)
         .value("Stretch", esengine::ecs::AlignItems::Stretch);
+
+    enum_<esengine::ecs::LayoutDirection>("LayoutDirection")
+        .value("Horizontal", esengine::ecs::LayoutDirection::Horizontal)
+        .value("Vertical", esengine::ecs::LayoutDirection::Vertical);
+
+    enum_<esengine::ecs::ChildAlignment>("ChildAlignment")
+        .value("Start", esengine::ecs::ChildAlignment::Start)
+        .value("Center", esengine::ecs::ChildAlignment::Center)
+        .value("End", esengine::ecs::ChildAlignment::End);
 
     enum_<esengine::ecs::CanvasScaleMode>("CanvasScaleMode")
         .value("FixedWidth", esengine::ecs::CanvasScaleMode::FixedWidth)
@@ -273,6 +297,43 @@ ParticleEmitterJS particleemitterToJS(const esengine::ecs::ParticleEmitter& c) {
     return js;
 }
 
+struct UIRendererJS {
+    i32 visualType;
+    u32 texture;
+    glm::vec4 color;
+    glm::vec2 uvOffset;
+    glm::vec2 uvScale;
+    glm::vec4 sliceBorder;
+    u32 material;
+    bool enabled;
+};
+
+esengine::ecs::UIRenderer uirendererFromJS(const UIRendererJS& js) {
+    esengine::ecs::UIRenderer c;
+    c.visualType = static_cast<UIVisualType>(js.visualType);
+    c.texture = resource::TextureHandle(js.texture);
+    c.color = js.color;
+    c.uvOffset = js.uvOffset;
+    c.uvScale = js.uvScale;
+    c.sliceBorder = js.sliceBorder;
+    c.material = js.material;
+    c.enabled = js.enabled;
+    return c;
+}
+
+UIRendererJS uirendererToJS(const esengine::ecs::UIRenderer& c) {
+    UIRendererJS js;
+    js.visualType = static_cast<i32>(c.visualType);
+    js.texture = c.texture.id();
+    js.color = c.color;
+    js.uvOffset = c.uvOffset;
+    js.uvScale = c.uvScale;
+    js.sliceBorder = c.sliceBorder;
+    js.material = c.material;
+    js.enabled = c.enabled;
+    return js;
+}
+
 struct RigidBodyJS {
     i32 bodyType;
     f32 gravityScale;
@@ -412,7 +473,7 @@ struct FlexContainerJS {
     i32 justifyContent;
     i32 alignItems;
     glm::vec2 gap;
-    glm::vec4 padding;
+    Padding padding;
 };
 
 esengine::ecs::FlexContainer flexcontainerFromJS(const FlexContainerJS& js) {
@@ -434,6 +495,34 @@ FlexContainerJS flexcontainerToJS(const esengine::ecs::FlexContainer& c) {
     js.alignItems = static_cast<i32>(c.alignItems);
     js.gap = c.gap;
     js.padding = c.padding;
+    return js;
+}
+
+struct LayoutGroupJS {
+    i32 direction;
+    f32 spacing;
+    Padding padding;
+    i32 childAlignment;
+    bool reverseOrder;
+};
+
+esengine::ecs::LayoutGroup layoutgroupFromJS(const LayoutGroupJS& js) {
+    esengine::ecs::LayoutGroup c;
+    c.direction = static_cast<LayoutDirection>(js.direction);
+    c.spacing = js.spacing;
+    c.padding = js.padding;
+    c.childAlignment = static_cast<ChildAlignment>(js.childAlignment);
+    c.reverseOrder = js.reverseOrder;
+    return c;
+}
+
+LayoutGroupJS layoutgroupToJS(const esengine::ecs::LayoutGroup& c) {
+    LayoutGroupJS js;
+    js.direction = static_cast<i32>(c.direction);
+    js.spacing = c.spacing;
+    js.padding = c.padding;
+    js.childAlignment = static_cast<i32>(c.childAlignment);
+    js.reverseOrder = c.reverseOrder;
     return js;
 }
 
@@ -630,6 +719,16 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("worldRotation", &esengine::ecs::Transform::worldRotation)
         .field("worldScale", &esengine::ecs::Transform::worldScale);
 
+    value_object<UIRendererJS>("UIRenderer")
+        .field("visualType", &UIRendererJS::visualType)
+        .field("texture", &UIRendererJS::texture)
+        .field("color", &UIRendererJS::color)
+        .field("uvOffset", &UIRendererJS::uvOffset)
+        .field("uvScale", &UIRendererJS::uvScale)
+        .field("sliceBorder", &UIRendererJS::sliceBorder)
+        .field("material", &UIRendererJS::material)
+        .field("enabled", &UIRendererJS::enabled);
+
     value_object<esengine::ecs::Velocity>("Velocity")
         .field("linear", &esengine::ecs::Velocity::linear)
         .field("angular", &esengine::ecs::Velocity::angular);
@@ -717,6 +816,13 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("cornerRadius", &esengine::ecs::ShapeRenderer::cornerRadius)
         .field("layer", &esengine::ecs::ShapeRenderer::layer)
         .field("enabled", &esengine::ecs::ShapeRenderer::enabled);
+
+    value_object<LayoutGroupJS>("LayoutGroup")
+        .field("direction", &LayoutGroupJS::direction)
+        .field("spacing", &LayoutGroupJS::spacing)
+        .field("padding", &LayoutGroupJS::padding)
+        .field("childAlignment", &LayoutGroupJS::childAlignment)
+        .field("reverseOrder", &LayoutGroupJS::reverseOrder);
 
     value_object<esengine::ecs::ScreenSpace>("ScreenSpace");
 
@@ -874,6 +980,20 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         }))
         .function("removeTransform", optional_override([](Registry& r, u32 e) {
             r.remove<esengine::ecs::Transform>(static_cast<Entity>(e));
+        }))
+
+        // UIRenderer
+        .function("hasUIRenderer", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::UIRenderer>(static_cast<Entity>(e));
+        }))
+        .function("getUIRenderer", optional_override([](Registry& r, u32 e) {
+            return uirendererToJS(r.get<esengine::ecs::UIRenderer>(static_cast<Entity>(e)));
+        }))
+        .function("addUIRenderer", optional_override([](Registry& r, u32 e, const UIRendererJS& js) {
+            r.emplaceOrReplace<esengine::ecs::UIRenderer>(static_cast<Entity>(e), uirendererFromJS(js));
+        }))
+        .function("removeUIRenderer", optional_override([](Registry& r, u32 e) {
+            r.remove<esengine::ecs::UIRenderer>(static_cast<Entity>(e));
         }))
 
         // Velocity
@@ -1042,6 +1162,20 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         }))
         .function("removeShapeRenderer", optional_override([](Registry& r, u32 e) {
             r.remove<esengine::ecs::ShapeRenderer>(static_cast<Entity>(e));
+        }))
+
+        // LayoutGroup
+        .function("hasLayoutGroup", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::LayoutGroup>(static_cast<Entity>(e));
+        }))
+        .function("getLayoutGroup", optional_override([](Registry& r, u32 e) {
+            return layoutgroupToJS(r.get<esengine::ecs::LayoutGroup>(static_cast<Entity>(e)));
+        }))
+        .function("addLayoutGroup", optional_override([](Registry& r, u32 e, const LayoutGroupJS& js) {
+            r.emplaceOrReplace<esengine::ecs::LayoutGroup>(static_cast<Entity>(e), layoutgroupFromJS(js));
+        }))
+        .function("removeLayoutGroup", optional_override([](Registry& r, u32 e) {
+            r.remove<esengine::ecs::LayoutGroup>(static_cast<Entity>(e));
         }))
 
         // ScreenSpace

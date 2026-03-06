@@ -1,6 +1,8 @@
 import type { App, Plugin } from '../app';
 import { registerComponent, Transform, Sprite } from '../component';
 import type { SpriteData } from '../component';
+import { UIRenderer } from './UIRenderer';
+import type { UIRendererData } from './UIRenderer';
 import { defineSystem, Schedule } from '../system';
 import { Res } from '../resource';
 import { Input } from '../input';
@@ -24,6 +26,8 @@ import { applyColorTransition, applyDefaultTint, ensureComponent, walkParentChai
 import { Image } from './Image';
 import type { ImageData } from './Image';
 import type { ESEngineModule, CppRegistry } from '../wasm';
+import { UILayoutGeneration } from './UILayoutGeneration';
+import type { UILayoutGenerationData } from './UILayoutGeneration';
 
 const vpCache = createInvVPCache();
 
@@ -33,13 +37,14 @@ function emitWithBubbling(
     entity: Entity,
     type: UIEventType
 ): void {
-    events.emit(entity, type, entity);
+    const event = events.emit(entity, type, entity);
 
     walkParentChain(world, entity, (ancestor) => {
+        if (event.propagationStopped) return true;
         if (!world.has(ancestor, Interactable)) return false;
         const interactable = world.get(ancestor, Interactable) as InteractableData;
         if (interactable.enabled) {
-            events.emit(ancestor, type, entity);
+            events.emitBubbled(ancestor, type, entity, event);
         }
         return interactable.blockRaycast;
     });
@@ -58,10 +63,13 @@ export class UIInteractionPlugin implements Plugin {
 
         let hoveredEntity: Entity | null = null;
         let pressedEntity: Entity | null = null;
+        let lastPointerX = NaN;
+        let lastPointerY = NaN;
+        let lastLayoutGen = -1;
 
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
-            [Res(Input), Res(UICameraInfo)],
-            (input: InputState, camera: UICameraData) => {
+            [Res(Input), Res(UICameraInfo), Res(UILayoutGeneration)],
+            (input: InputState, camera: UICameraData, layoutGen: UILayoutGenerationData) => {
                 events.drain();
 
                 if (isEditor() && !isPlayMode()) return;
@@ -96,14 +104,26 @@ export class UIInteractionPlugin implements Plugin {
                 const mousePressed = input.isMouseButtonPressed(0);
                 const mouseReleased = input.isMouseButtonReleased(0);
 
-                module.uiHitTest_update(
-                    registry,
-                    worldMouse.x, worldMouse.y,
-                    mouseDown, mousePressed, mouseReleased,
-                );
+                const pointerMoved = worldMouse.x !== lastPointerX || worldMouse.y !== lastPointerY;
+                const layoutChanged = layoutGen.generation !== lastLayoutGen;
+                const hasMouseEvent = mousePressed || mouseReleased;
+                const needsHitTest = pointerMoved || layoutChanged || hasMouseEvent;
 
-                const hitEntityRaw = module.uiHitTest_getHitEntity();
-                const hitEntity: Entity | null = hitEntityRaw === 0xFFFFFFFF ? null : hitEntityRaw;
+                lastPointerX = worldMouse.x;
+                lastPointerY = worldMouse.y;
+                lastLayoutGen = layoutGen.generation;
+
+                let hitEntity: Entity | null = hoveredEntity;
+                if (needsHitTest) {
+                    module.uiHitTest_update(
+                        registry,
+                        worldMouse.x, worldMouse.y,
+                        mouseDown, mousePressed, mouseReleased,
+                    );
+
+                    const hitEntityRaw = module.uiHitTest_getHitEntity();
+                    hitEntity = hitEntityRaw === 0xFFFFFFFF ? null : hitEntityRaw;
+                }
 
                 if (hoveredEntity !== null && !world.valid(hoveredEntity)) {
                     hoveredEntity = null;
@@ -183,24 +203,40 @@ export class UIInteractionPlugin implements Plugin {
                         buttonInitialized.add(entity);
                     }
 
-                    if ((isFirstFrame || prevState !== button.state) && button.transition && world.has(entity, Sprite)) {
-                        const sprite = world.get(entity, Sprite) as SpriteData;
-                        sprite.color = applyColorTransition(
+                    if ((isFirstFrame || prevState !== button.state) && button.transition) {
+                        const color = applyColorTransition(
                             button.transition,
                             interactable.enabled,
                             interaction.pressed,
                             interaction.hovered,
                         );
-                        world.insert(entity, Sprite, sprite);
-                    } else if ((isFirstFrame || prevState !== button.state) && !button.transition
-                        && world.has(entity, Image) && world.has(entity, Sprite)) {
-                        const image = world.get(entity, Image) as ImageData;
-                        const sprite = world.get(entity, Sprite) as SpriteData;
-                        const tinted = applyDefaultTint(image.color, interactable.enabled, interaction.pressed, interaction.hovered);
-                        if (sprite.color.r !== tinted.r || sprite.color.g !== tinted.g
-                            || sprite.color.b !== tinted.b || sprite.color.a !== tinted.a) {
-                            sprite.color = tinted;
+                        if (world.has(entity, UIRenderer)) {
+                            const r = world.get(entity, UIRenderer) as UIRendererData;
+                            r.color = color;
+                            world.insert(entity, UIRenderer, r);
+                        } else if (world.has(entity, Sprite)) {
+                            const sprite = world.get(entity, Sprite) as SpriteData;
+                            sprite.color = color;
                             world.insert(entity, Sprite, sprite);
+                        }
+                    } else if ((isFirstFrame || prevState !== button.state) && !button.transition
+                        && world.has(entity, Image)) {
+                        const image = world.get(entity, Image) as ImageData;
+                        const tinted = applyDefaultTint(image.color, interactable.enabled, interaction.pressed, interaction.hovered);
+                        if (world.has(entity, UIRenderer)) {
+                            const r = world.get(entity, UIRenderer) as UIRendererData;
+                            if (r.color.r !== tinted.r || r.color.g !== tinted.g
+                                || r.color.b !== tinted.b || r.color.a !== tinted.a) {
+                                r.color = tinted;
+                                world.insert(entity, UIRenderer, r);
+                            }
+                        } else if (world.has(entity, Sprite)) {
+                            const sprite = world.get(entity, Sprite) as SpriteData;
+                            if (sprite.color.r !== tinted.r || sprite.color.g !== tinted.g
+                                || sprite.color.b !== tinted.b || sprite.color.a !== tinted.a) {
+                                sprite.color = tinted;
+                                world.insert(entity, Sprite, sprite);
+                            }
                         }
                     }
                 }

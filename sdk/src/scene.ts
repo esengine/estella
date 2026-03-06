@@ -111,6 +111,12 @@ const COMPONENT_ASSET_FIELDS = new Map<string, ComponentAssetFields>([
             { field: 'material', type: 'material' },
         ],
     }],
+    ['UIRenderer', {
+        fields: [
+            { field: 'texture', type: 'texture' },
+            { field: 'material', type: 'material' },
+        ],
+    }],
     ['SpriteAnimator', {
         fields: [
             { field: 'clip', type: 'anim-clip' },
