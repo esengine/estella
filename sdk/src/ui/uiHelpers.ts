@@ -7,6 +7,7 @@ import type { UIRectData } from './UIRect';
 import { FillDirection } from './uiTypes';
 import type { ColorTransition } from './uiTypes';
 import type { ESEngineModule, CppRegistry } from '../wasm';
+import { Interactable } from './Interactable';
 
 export interface LayoutRect {
     left: number;
@@ -351,6 +352,14 @@ export function ensureComponent(
     if (!world.has(entity, component)) {
         world.insert(entity, component, defaults);
     }
+}
+
+export function makeInteractable(world: World, entity: Entity): void {
+    ensureComponent(world, entity, Interactable, {
+        enabled: true,
+        blockRaycast: true,
+        raycastTarget: true,
+    });
 }
 
 export function layoutChildEntity(
