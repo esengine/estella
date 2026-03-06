@@ -30,6 +30,7 @@ import { UILayoutGeneration } from './UILayoutGeneration';
 import type { UILayoutGenerationData } from './UILayoutGeneration';
 
 const vpCache = createInvVPCache();
+const CPP_NO_HIT_ENTITY = 0xFFFFFFFF;
 
 function emitWithBubbling(
     world: World,
@@ -122,7 +123,7 @@ export class UIInteractionPlugin implements Plugin {
                     );
 
                     const hitEntityRaw = module.uiHitTest_getHitEntity();
-                    hitEntity = hitEntityRaw === 0xFFFFFFFF ? null : hitEntityRaw;
+                    hitEntity = hitEntityRaw === CPP_NO_HIT_ENTITY ? null : hitEntityRaw;
                 }
 
                 if (hoveredEntity !== null && !world.valid(hoveredEntity)) {
@@ -177,6 +178,9 @@ export class UIInteractionPlugin implements Plugin {
         app.addSystemToSchedule(Schedule.Update, defineSystem(
             [],
             () => {
+                for (const e of buttonInitialized) {
+                    if (!world.valid(e)) buttonInitialized.delete(e);
+                }
                 const buttonEntities = world.getEntitiesWithComponents([Button]);
                 for (const entity of buttonEntities) {
                     ensureComponent(world, entity, Interactable, { enabled: true });

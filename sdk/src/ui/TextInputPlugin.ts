@@ -32,17 +32,22 @@ export class TextInputPlugin implements Plugin {
 
         if (isEditor() && !isPlayMode()) return;
 
-        const module = app.wasmModule;
-        if (!module) {
+        const moduleOrNull = app.wasmModule;
+        if (!moduleOrNull) {
             console.warn('TextInputPlugin: No WASM module available');
             return;
         }
+        const module = moduleOrNull;
 
         const world = app.world;
         const textureCache = new Map<Entity, number>();
         const canvas = platformCreateCanvas(RuntimeConfig.textCanvasSize, 64);
-        const ctx = canvas.getContext('2d', { willReadFrequently: true })! as
-            CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+        const ctxOrNull = canvas.getContext('2d', { willReadFrequently: true });
+        if (!ctxOrNull) {
+            console.warn('TextInputPlugin: failed to create 2D canvas context');
+            return;
+        }
+        const ctx = ctxOrNull as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
         let wasmPixelPtr = 0;
         let wasmPixelSize = 0;
@@ -142,13 +147,13 @@ export class TextInputPlugin implements Plugin {
             textarea.removeEventListener('keydown', onKeyDown);
             textarea.removeEventListener('blur', onBlur);
             textarea.remove();
-            const rm = module!.getResourceManager();
+            const rm = module.getResourceManager();
             for (const tex of textureCache.values()) {
                 rm.releaseTexture(tex);
             }
             textureCache.clear();
             if (wasmPixelPtr !== 0) {
-                module!._free(wasmPixelPtr);
+                module._free(wasmPixelPtr);
                 wasmPixelPtr = 0;
                 wasmPixelSize = 0;
             }
@@ -258,7 +263,7 @@ export class TextInputPlugin implements Plugin {
                     }
                 }
 
-                const rm = module!.getResourceManager();
+                const rm = module.getResourceManager();
                 for (const [e, tex] of textureCache) {
                     if (!world.valid(e) || !world.has(e, TextInput)) {
                         rm.releaseTexture(tex);
@@ -388,16 +393,16 @@ export class TextInputPlugin implements Plugin {
 
             const imageData = ctx.getImageData(0, 0, w, h);
             const pixels = new Uint8Array(imageData.data.buffer);
-            const rm = module!.getResourceManager();
+            const rm = module.getResourceManager();
 
             if (pixels.length > wasmPixelSize) {
                 if (wasmPixelPtr !== 0) {
-                    module!._free(wasmPixelPtr);
+                    module._free(wasmPixelPtr);
                 }
-                wasmPixelPtr = module!._malloc(pixels.length);
+                wasmPixelPtr = module._malloc(pixels.length);
                 wasmPixelSize = pixels.length;
             }
-            module!.HEAPU8.set(pixels, wasmPixelPtr);
+            module.HEAPU8.set(pixels, wasmPixelPtr);
 
             const existingTex = textureCache.get(entity);
             if (existingTex !== undefined) {

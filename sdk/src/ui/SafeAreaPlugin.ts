@@ -17,8 +17,15 @@ export interface SafeAreaInsets {
     right: number;
 }
 
+interface WxGlobal {
+    wx?: {
+        getSystemInfoSync?(): { safeArea: { top: number; bottom: number; left: number; right: number }; screenWidth: number; screenHeight: number } | undefined;
+        onWindowResize?(cb: () => void): void;
+    };
+}
+
 function getWeChatSafeAreaInsets(): SafeAreaInsets {
-    const g = globalThis as any;
+    const g = globalThis as unknown as WxGlobal;
     const info = g.wx?.getSystemInfoSync?.();
     if (!info || !info.safeArea) {
         return { top: 0, bottom: 0, left: 0, right: 0 };
@@ -63,7 +70,7 @@ export class SafeAreaPlugin implements Plugin {
         let prevWorldH = 0;
 
         if (isWeChat()) {
-            const g = globalThis as any;
+            const g = globalThis as unknown as WxGlobal;
             g.wx?.onWindowResize?.(() => {
                 cachedInsets = getSafeAreaInsets();
                 dirty = true;
