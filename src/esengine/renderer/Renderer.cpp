@@ -356,7 +356,7 @@ void BatchRenderer2D::init() {
     *data_->vbo = std::move(*VertexBuffer::create(MAX_VERTICES * sizeof(BatchVertex)));
     data_->vbo->setLayout({
         { ShaderDataType::Float2, "a_position" },
-        { ShaderDataType::Float, "a_color" },
+        { ShaderDataType::UByte4N, "a_color" },
         { ShaderDataType::Float2, "a_texCoord" }
     });
 

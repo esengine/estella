@@ -28,6 +28,7 @@ u32 shaderDataTypeSize(ShaderDataType type) {
     case ShaderDataType::Int3:   return 4 * 3;
     case ShaderDataType::Int4:   return 4 * 4;
     case ShaderDataType::Bool:   return 1;
+    case ShaderDataType::UByte4N: return 4;
     default: return 0;
     }
 }
@@ -43,6 +44,7 @@ u32 shaderDataTypeComponentCount(ShaderDataType type) {
     case ShaderDataType::Int3:   return 3;
     case ShaderDataType::Int4:   return 4;
     case ShaderDataType::Bool:   return 1;
+    case ShaderDataType::UByte4N: return 4;
     default: return 0;
     }
 }
@@ -296,17 +298,23 @@ void VertexArray::addVertexBuffer(Shared<VertexBuffer> buffer) {
             glType = GL_INT;
             break;
         case ShaderDataType::Bool:
+        case ShaderDataType::UByte4N:
             glType = GL_UNSIGNED_BYTE;
             break;
         default:
             break;
         }
 
+        GLboolean normalized = attr.normalized ? GL_TRUE : GL_FALSE;
+        if (attr.type == ShaderDataType::UByte4N) {
+            normalized = GL_TRUE;
+        }
+
         glVertexAttribPointer(
             vertexAttribIndex_,
             shaderDataTypeComponentCount(attr.type),
             glType,
-            attr.normalized ? GL_TRUE : GL_FALSE,
+            normalized,
             layout.getStride(),
             reinterpret_cast<const void*>(static_cast<uintptr_t>(attr.offset))
         );

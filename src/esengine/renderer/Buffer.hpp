@@ -45,7 +45,8 @@ enum class ShaderDataType {
     Int2,    ///< ivec2 (2 ints)
     Int3,    ///< ivec3 (3 ints)
     Int4,    ///< ivec4 (4 ints)
-    Bool     ///< Boolean (1 byte)
+    Bool,    ///< Boolean (1 byte)
+    UByte4N  ///< 4 unsigned bytes, normalized to [0,1] vec4
 };
 
 /**
