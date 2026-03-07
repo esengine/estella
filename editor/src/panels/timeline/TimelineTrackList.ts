@@ -2,6 +2,7 @@ import { icons } from '../../utils/icons';
 import type { TimelineState, TimelineTrackState } from './TimelineState';
 import { TRACK_HEIGHT } from './TimelineState';
 import type { TimelineAssetData } from './TimelineKeyframeArea';
+import { showContextMenu } from '../../ui/ContextMenu';
 
 const TRACK_TYPE_ICONS: Record<string, (size: number) => string> = {
     property: icons.settings,
@@ -27,6 +28,7 @@ function escapeHtml(text: string): string {
 
 export type TrackReorderCallback = (fromIndex: number, toIndex: number) => void;
 export type TrackRenameCallback = (trackIndex: number, oldName: string, newName: string) => void;
+export type TrackDeleteCallback = (trackIndex: number) => void;
 export type ChannelClickCallback = (trackIndex: number, channelIndex: number) => void;
 
 export class TimelineTrackList {
@@ -37,6 +39,7 @@ export class TimelineTrackList {
     private assetData_: TimelineAssetData | null = null;
     private onReorder_: TrackReorderCallback | null = null;
     private onRename_: TrackRenameCallback | null = null;
+    private onDelete_: TrackDeleteCallback | null = null;
     private onChannelClick_: ChannelClickCallback | null = null;
     private dragState_: { trackIndex: number; startY: number; timer: number | null } | null = null;
     private dragIndicator_: HTMLElement | null = null;
@@ -48,11 +51,13 @@ export class TimelineTrackList {
         onReorder?: TrackReorderCallback,
         onRename?: TrackRenameCallback,
         onChannelClick?: ChannelClickCallback,
+        onDelete?: TrackDeleteCallback,
     ) {
         this.el_ = container;
         this.state_ = state;
         this.onReorder_ = onReorder ?? null;
         this.onRename_ = onRename ?? null;
+        this.onDelete_ = onDelete ?? null;
         this.onChannelClick_ = onChannelClick ?? null;
         this.render();
         this.unsub_ = state.onChange(() => this.update());
@@ -124,6 +129,26 @@ export class TimelineTrackList {
         row.addEventListener('click', () => {
             this.state_.selectedTrackIndex = track.index;
             this.state_.notify();
+        });
+
+        row.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            this.state_.selectedTrackIndex = track.index;
+            this.state_.notify();
+            showContextMenu({
+                x: e.clientX,
+                y: e.clientY,
+                items: [
+                    { label: 'Rename', icon: icons.pencil(12), onClick: () => {
+                        const el = row.querySelector('.es-timeline-track-name') as HTMLElement;
+                        if (el) this.startInlineRename(el, track);
+                    }},
+                    { label: '', separator: true },
+                    { label: 'Delete Track', icon: icons.trash(12), onClick: () => {
+                        this.onDelete_?.(track.index);
+                    }},
+                ],
+            });
         });
 
         const nameEl = row.querySelector('.es-timeline-track-name') as HTMLElement;
