@@ -303,6 +303,12 @@ export function getEffectiveHeight(rect: UIRectData, entity: Entity): number {
     return rect.size.y;
 }
 
+export function setUIRectSizeNative(entity: Entity, w: number, h: number): void {
+    if (module_ && nativeRegistry_) {
+        module_.setUIRectSize(nativeRegistry_, entity, w, h);
+    }
+}
+
 export function syncFillSpriteSize(
     world: World,
     fillEntity: Entity,
