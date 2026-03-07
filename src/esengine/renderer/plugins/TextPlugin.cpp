@@ -166,20 +166,22 @@ void TextPlugin::emitGlyphQuad(
     f32 hw = size.x * 0.5f;
     f32 hh = size.y * 0.5f;
 
+    u32 pc = packColor(color);
+
     verts[0].position = glm::vec2(position.x - hw, position.y - hh);
-    verts[0].color = color;
+    verts[0].color = pc;
     verts[0].texCoord = glm::vec2(0.0f, 0.0f) * uvScale + uvOffset;
 
     verts[1].position = glm::vec2(position.x + hw, position.y - hh);
-    verts[1].color = color;
+    verts[1].color = pc;
     verts[1].texCoord = glm::vec2(1.0f, 0.0f) * uvScale + uvOffset;
 
     verts[2].position = glm::vec2(position.x + hw, position.y + hh);
-    verts[2].color = color;
+    verts[2].color = pc;
     verts[2].texCoord = glm::vec2(1.0f, 1.0f) * uvScale + uvOffset;
 
     verts[3].position = glm::vec2(position.x - hw, position.y + hh);
-    verts[3].color = color;
+    verts[3].color = pc;
     verts[3].texCoord = glm::vec2(0.0f, 1.0f) * uvScale + uvOffset;
 
     u32 vOff = buffers.appendVertices(verts, sizeof(verts));

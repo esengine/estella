@@ -33,8 +33,6 @@ struct Frustum {
     bool intersectsAABB(const glm::vec3& center, const glm::vec3& halfExtents) const;
 };
 
-class BatchRenderer2D;
-
 class RenderFrame {
 public:
     struct Stats {
@@ -112,7 +110,6 @@ private:
     resource::ResourceManager& resource_manager_;
     StateTracker state_tracker_;
 
-    Unique<BatchRenderer2D> batcher_;
     Unique<PostProcessPipeline> post_process_;
     RenderTargetManager target_manager_;
 
@@ -145,6 +142,7 @@ private:
     std::vector<std::unique_ptr<RenderTypePlugin>> plugins_;
 
     void buildClipState();
+    u32 initBatchShader();
 };
 
 }  // namespace esengine

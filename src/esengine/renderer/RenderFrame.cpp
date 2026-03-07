@@ -1,5 +1,7 @@
 #include "RenderFrame.hpp"
-#include "Renderer.hpp"
+#include "Shader.hpp"
+#include "ShaderEmbeds.generated.hpp"
+#include "../resource/ShaderParser.hpp"
 #include "../core/Log.hpp"
 #include "../ecs/components/Transform.hpp"
 #include "../ecs/components/UIRect.hpp"
@@ -81,16 +83,13 @@ void RenderFrame::init(u32 width, u32 height) {
     width_ = width;
     height_ = height;
 
-    batcher_ = makeUnique<BatchRenderer2D>(context_, resource_manager_);
-    batcher_->init();
-
     state_tracker_.init();
 
     post_process_ = makeUnique<PostProcessPipeline>(context_, resource_manager_);
     post_process_->init(width, height);
 
     pool_.init();
-    batch_shader_id_ = batcher_ ? batcher_->getShaderProgramId() : 0;
+    batch_shader_id_ = initBatchShader();
 
     RenderFrameContext initCtx{
         context_,
@@ -111,11 +110,6 @@ void RenderFrame::shutdown() {
     }
     plugins_.clear();
     pool_.shutdown();
-
-    if (batcher_) {
-        batcher_->shutdown();
-        batcher_.reset();
-    }
 
     if (post_process_) {
         post_process_->shutdown();
@@ -551,10 +545,19 @@ void RenderFrame::processMasks(ecs::Registry& registry, i32 vpX, i32 vpY, i32 vp
 namespace {
 struct TileVertex {
     glm::vec2 position;
-    glm::vec4 color;
+    u32 color;
     glm::vec2 texCoord;
 };
 static constexpr u16 TILE_QUAD_IDX[6] = { 0, 1, 2, 2, 3, 0 };
+
+static u32 packColor(const glm::vec4& c) {
+    u8 r = static_cast<u8>(c.r * 255.0f + 0.5f);
+    u8 g = static_cast<u8>(c.g * 255.0f + 0.5f);
+    u8 b = static_cast<u8>(c.b * 255.0f + 0.5f);
+    u8 a = static_cast<u8>(c.a * 255.0f + 0.5f);
+    return static_cast<u32>(r) | (static_cast<u32>(g) << 8)
+         | (static_cast<u32>(b) << 16) | (static_cast<u32>(a) << 24);
+}
 }  // namespace
 
 void RenderFrame::submitTileQuad(
@@ -565,12 +568,13 @@ void RenderFrame::submitTileQuad(
 ) {
     f32 hw = size.x * 0.5f;
     f32 hh = size.y * 0.5f;
+    u32 pc = packColor(color);
 
     TileVertex verts[4];
-    verts[0] = { {position.x - hw, position.y - hh}, color, uvOffset };
-    verts[1] = { {position.x + hw, position.y - hh}, color, {uvOffset.x + uvScale.x, uvOffset.y} };
-    verts[2] = { {position.x + hw, position.y + hh}, color, {uvOffset.x + uvScale.x, uvOffset.y + uvScale.y} };
-    verts[3] = { {position.x - hw, position.y + hh}, color, {uvOffset.x, uvOffset.y + uvScale.y} };
+    verts[0] = { {position.x - hw, position.y - hh}, pc, uvOffset };
+    verts[1] = { {position.x + hw, position.y - hh}, pc, {uvOffset.x + uvScale.x, uvOffset.y} };
+    verts[2] = { {position.x + hw, position.y + hh}, pc, {uvOffset.x + uvScale.x, uvOffset.y + uvScale.y} };
+    verts[3] = { {position.x - hw, position.y + hh}, pc, {uvOffset.x, uvOffset.y + uvScale.y} };
 
     u32 vOff = pool_.appendVertices(verts, sizeof(verts));
     u32 baseVertex = vOff / sizeof(TileVertex);
@@ -632,7 +636,7 @@ void RenderFrame::collectAll(ecs::Registry& registry) {
         context_,
         resource_manager_,
         context_.getWhiteTextureId(),
-        batcher_ ? batcher_->getShaderProgramId() : 0,
+        batch_shader_id_,
         current_stage_,
         view_projection_
     };
@@ -640,6 +644,46 @@ void RenderFrame::collectAll(ecs::Registry& registry) {
     for (auto& plugin : plugins_) {
         plugin->collect(registry, frustum_, clip_state_, pool_, draw_list_, ctx);
     }
+}
+
+u32 RenderFrame::initBatchShader() {
+#ifndef ES_PLATFORM_WEB
+    auto handle = resource_manager_.loadEngineShader("batch");
+#else
+    resource::ShaderHandle handle;
+#endif
+    if (!handle.isValid()) {
+        handle = resource_manager_.createShaderWithBindings(
+            ShaderSources::BATCH_VERTEX,
+            ShaderSources::BATCH_FRAGMENT,
+            {{0, "a_position"}, {1, "a_color"}, {2, "a_texCoord"}}
+        );
+    }
+
+    Shader* shader = resource_manager_.getShader(handle);
+    if (!shader || !shader->isValid()) {
+        ES_LOG_WARN("GLSL ES 3.0 batch shader failed, trying GLSL ES 1.0 fallback");
+        auto parsed = resource::ShaderParser::parse(ShaderEmbeds::BATCH);
+        handle = resource_manager_.createShaderWithBindings(
+            resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Vertex),
+            resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Fragment),
+            {{0, "a_position"}, {1, "a_color"}, {2, "a_texCoord"}}
+        );
+        shader = resource_manager_.getShader(handle);
+    }
+
+    if (shader && shader->isValid()) {
+        shader->bind();
+        GLint texLoc = glGetUniformLocation(shader->getProgramId(), "u_texture");
+        if (texLoc >= 0) {
+            glUniform1i(texLoc, 0);
+        }
+        shader->unbind();
+        return shader->getProgramId();
+    }
+
+    ES_LOG_ERROR("Failed to create batch shader");
+    return 0;
 }
 
 }  // namespace esengine

@@ -147,13 +147,13 @@ void TransientBufferPool::setupLayoutVAO(LayoutId layout) {
 
     switch (layout) {
         case LayoutId::Batch: {
-            constexpr u32 STRIDE = 32;
+            constexpr u32 STRIDE = 20;
             glEnableVertexAttribArray(0);
             glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, STRIDE, reinterpret_cast<void*>(0));
             glEnableVertexAttribArray(1);
-            glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, STRIDE, reinterpret_cast<void*>(8));
+            glVertexAttribPointer(1, 4, GL_UNSIGNED_BYTE, GL_TRUE, STRIDE, reinterpret_cast<void*>(8));
             glEnableVertexAttribArray(2);
-            glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, STRIDE, reinterpret_cast<void*>(24));
+            glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, STRIDE, reinterpret_cast<void*>(12));
             break;
         }
         case LayoutId::ExtMesh: {

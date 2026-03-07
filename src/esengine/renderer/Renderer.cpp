@@ -272,9 +272,18 @@ void Renderer::resetStats() {
 // Batch vertex structure
 struct BatchVertex {
     glm::vec2 position;
-    glm::vec4 color;
+    u32 color;
     glm::vec2 texCoord;
 };
+
+static u32 packColor(const glm::vec4& c) {
+    u8 r = static_cast<u8>(c.r * 255.0f + 0.5f);
+    u8 g = static_cast<u8>(c.g * 255.0f + 0.5f);
+    u8 b = static_cast<u8>(c.b * 255.0f + 0.5f);
+    u8 a = static_cast<u8>(c.a * 255.0f + 0.5f);
+    return static_cast<u32>(r) | (static_cast<u32>(g) << 8)
+         | (static_cast<u32>(b) << 16) | (static_cast<u32>(a) << 24);
+}
 
 // Batch rendering constants
 constexpr u32 MAX_QUADS = 10000;
@@ -347,7 +356,7 @@ void BatchRenderer2D::init() {
     *data_->vbo = std::move(*VertexBuffer::create(MAX_VERTICES * sizeof(BatchVertex)));
     data_->vbo->setLayout({
         { ShaderDataType::Float2, "a_position" },
-        { ShaderDataType::Float4, "a_color" },
+        { ShaderDataType::Float, "a_color" },
         { ShaderDataType::Float2, "a_texCoord" }
     });
 
@@ -513,7 +522,7 @@ void BatchRenderer2D::drawQuad(const glm::vec3& position, const glm::vec2& size,
             position.x + QUAD_POSITIONS[i].x * size.x,
             position.y + QUAD_POSITIONS[i].y * size.y
         );
-        vertex.color = color;
+        vertex.color = packColor(color);
         vertex.texCoord = QUAD_TEX_COORDS[i] * uvScale + uvOffset;
         data_->vertices.push_back(vertex);
     }
@@ -535,7 +544,7 @@ void BatchRenderer2D::drawTriangle(const glm::vec2& p0, const glm::vec2& p1,
     }
 
     BatchVertex v;
-    v.color = color;
+    v.color = packColor(color);
     v.texCoord = { 0.0f, 0.0f };
 
     v.position = p0;
@@ -568,7 +577,7 @@ void BatchRenderer2D::drawRotatedQuad(const glm::vec2& position, const glm::vec2
     for (u32 i = 0; i < 4; ++i) {
         BatchVertex vertex;
         vertex.position = glm::vec2(transform * QUAD_POSITIONS[i]);
-        vertex.color = tintColor;
+        vertex.color = packColor(tintColor);
         vertex.texCoord = QUAD_TEX_COORDS[i] * uvScale + uvOffset;
         data_->vertices.push_back(vertex);
     }
@@ -629,7 +638,8 @@ void BatchRenderer2D::drawNineSlice(const glm::vec2& position, const glm::vec2& 
         );
     };
 
-    auto drawSlice = [this, &color, &rotatePoint](
+    u32 packedColor = packColor(color);
+    auto drawSlice = [this, packedColor, &rotatePoint](
         f32 px, f32 py, f32 pw, f32 ph,
         f32 uvX, f32 uvY, f32 uvW, f32 uvH) {
 
@@ -648,19 +658,19 @@ void BatchRenderer2D::drawNineSlice(const glm::vec2& position, const glm::vec2& 
         glm::vec2 p3 = rotatePoint(px, py + ph);
 
         v0.position = p0;
-        v0.color = color;
+        v0.color = packedColor;
         v0.texCoord = glm::vec2(uvX, uvY);
 
         v1.position = p1;
-        v1.color = color;
+        v1.color = packedColor;
         v1.texCoord = glm::vec2(uvX + uvW, uvY);
 
         v2.position = p2;
-        v2.color = color;
+        v2.color = packedColor;
         v2.texCoord = glm::vec2(uvX + uvW, uvY + uvH);
 
         v3.position = p3;
-        v3.color = color;
+        v3.color = packedColor;
         v3.texCoord = glm::vec2(uvX, uvY + uvH);
 
         data_->vertices.push_back(v0);

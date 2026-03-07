@@ -117,7 +117,7 @@ void SpritePlugin::emitQuad(
                 position.x + lx * cosA - ly * sinA,
                 position.y + lx * sinA + ly * cosA
             );
-            verts[i].color = color;
+            verts[i].color = packColor(color);
             verts[i].texCoord = QUAD_TEX_COORDS[i] * uvScale + uvOffset;
         }
     } else {
@@ -126,7 +126,7 @@ void SpritePlugin::emitQuad(
                 position.x + QUAD_POSITIONS[i].x * size.x,
                 position.y + QUAD_POSITIONS[i].y * size.y
             );
-            verts[i].color = color;
+            verts[i].color = packColor(color);
             verts[i].texCoord = QUAD_TEX_COORDS[i] * uvScale + uvOffset;
         }
     }
@@ -218,10 +218,11 @@ void SpritePlugin::emitNineSlice(
             glm::vec2 p2 = rotatePoint(x[col + 1], y[row + 1]);
             glm::vec2 p3 = rotatePoint(x[col],     y[row + 1]);
 
-            verts[0] = { p0, color, {u[col],     v[row]}     };
-            verts[1] = { p1, color, {u[col + 1], v[row]}     };
-            verts[2] = { p2, color, {u[col + 1], v[row + 1]} };
-            verts[3] = { p3, color, {u[col],     v[row + 1]} };
+            u32 pc = packColor(color);
+            verts[0] = { p0, pc, {u[col],     v[row]}     };
+            verts[1] = { p1, pc, {u[col + 1], v[row]}     };
+            verts[2] = { p2, pc, {u[col + 1], v[row + 1]} };
+            verts[3] = { p3, pc, {u[col],     v[row + 1]} };
 
             u32 vOff = buffers.appendVertices(verts, sizeof(verts));
             u32 baseVert = vOff / sizeof(BatchVertex);
