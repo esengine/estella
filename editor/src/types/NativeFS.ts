@@ -45,6 +45,10 @@ export interface NativeFS {
     getSdkEsmDts(): Promise<string>;
     getSdkWasmJs(): Promise<string>;
     getSdkWasmDts(): Promise<string>;
+    getSdkSharedWasmDts(): Promise<string>;
+    getSdkSharedAppDts(): Promise<string>;
+    getSdkPhysicsDts(): Promise<string>;
+    getSdkSpineDts(): Promise<string>;
     getEditorDts(): Promise<string>;
     getSpineJs(version: string): Promise<string>;
     getSpineWasm(version: string): Promise<Uint8Array>;

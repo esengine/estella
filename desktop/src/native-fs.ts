@@ -90,6 +90,10 @@ export interface NativeFS {
     getSdkEsmDts(): Promise<string>;
     getSdkWasmJs(): Promise<string>;
     getSdkWasmDts(): Promise<string>;
+    getSdkSharedWasmDts(): Promise<string>;
+    getSdkSharedAppDts(): Promise<string>;
+    getSdkPhysicsDts(): Promise<string>;
+    getSdkSpineDts(): Promise<string>;
     getEditorDts(): Promise<string>;
     getSpineJs(version: string): Promise<string>;
     getSpineWasm(version: string): Promise<Uint8Array>;
@@ -365,6 +369,26 @@ export const nativeFS: NativeFS = {
 
     async getSdkWasmDts() {
         const data = await invoke<number[]>('get_embedded_asset', { name: 'sdk.wasm.dts' });
+        return new TextDecoder().decode(new Uint8Array(data));
+    },
+
+    async getSdkSharedWasmDts() {
+        const data = await invoke<number[]>('get_embedded_asset', { name: 'sdk.shared.wasm.dts' });
+        return new TextDecoder().decode(new Uint8Array(data));
+    },
+
+    async getSdkSharedAppDts() {
+        const data = await invoke<number[]>('get_embedded_asset', { name: 'sdk.shared.app.dts' });
+        return new TextDecoder().decode(new Uint8Array(data));
+    },
+
+    async getSdkPhysicsDts() {
+        const data = await invoke<number[]>('get_embedded_asset', { name: 'sdk.physics.dts' });
+        return new TextDecoder().decode(new Uint8Array(data));
+    },
+
+    async getSdkSpineDts() {
+        const data = await invoke<number[]>('get_embedded_asset', { name: 'sdk.spine.dts' });
         return new TextDecoder().decode(new Uint8Array(data));
     },
 
