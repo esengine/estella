@@ -85,6 +85,13 @@ public:
         Entity entity, i32 layer, f32 depth
     );
 
+    void submitExternalTriangles(
+        const f32* vertices, i32 vertexCount,
+        const u16* indices, i32 indexCount,
+        u32 textureId, i32 blendMode,
+        const f32* transform16
+    );
+
     void setStage(RenderStage stage) { current_stage_ = stage; }
     RenderStage getStage() const { return current_stage_; }
 
