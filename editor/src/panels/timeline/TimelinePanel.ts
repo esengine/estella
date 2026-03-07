@@ -7,7 +7,7 @@ import { TimelineToolbar } from './TimelineToolbar';
 import { TimelineTrackList } from './TimelineTrackList';
 import { TimelineKeyframeArea, type TimelineAssetData, type TimelineTrackData } from './TimelineKeyframeArea';
 import { TimelineCurveEditor } from './TimelineCurveEditor';
-import { AddKeyframeCommand, ReorderTrackCommand, RenameTrackCommand } from './TimelineCommands';
+import { AddKeyframeCommand, ReorderTrackCommand, RenameTrackCommand, DeleteTrackCommand } from './TimelineCommands';
 import { getEditorContext } from '../../context/EditorContext';
 import { getSharedRenderContext } from '../../renderer';
 import { getComponent as getComponentDef } from 'esengine';
@@ -570,6 +570,7 @@ export class TimelinePanel implements PanelInstance {
             (from, to) => this.reorderTrack(from, to),
             (idx, oldName, newName) => this.renameTrack(idx, oldName, newName),
             (ti, ci) => this.showCurveEditor(ti, ci),
+            (idx) => this.deleteTrack(idx),
         );
         this.keyframeArea_ = new TimelineKeyframeArea(keyframesEl, this.state_, this);
         this.keyframeArea_.onKeyframeSelectionChange = (summary) => this.toolbar_?.setSelectionSummary(summary);
@@ -635,6 +636,15 @@ export class TimelinePanel implements PanelInstance {
         if (!this.assetData_) return;
         const cmd = new ReorderTrackCommand(
             this.assetData_, fromIndex, toIndex,
+            () => this.onAssetDataChanged(),
+        );
+        this.executeCommand(cmd);
+    }
+
+    private deleteTrack(trackIndex: number): void {
+        if (!this.assetData_) return;
+        const cmd = new DeleteTrackCommand(
+            this.assetData_, trackIndex,
             () => this.onAssetDataChanged(),
         );
         this.executeCommand(cmd);
