@@ -2,18 +2,21 @@
 
 #include "../core/Types.hpp"
 #include "RenderItem.hpp"
-#include "TextureSlotAllocator.hpp"
 #include "RenderTarget.hpp"
 #include "RenderContext.hpp"
+#include "RenderTypePlugin.hpp"
 #include "PostProcessPipeline.hpp"
 #include "FrameCapture.hpp"
+#include "StateTracker.hpp"
+#include "TransientBufferPool.hpp"
+#include "DrawList.hpp"
+#include "ClipState.hpp"
 #include "../ecs/Registry.hpp"
 #include "../resource/ResourceManager.hpp"
-#include "../particle/ParticleSystem.hpp"
 
 #include <glm/glm.hpp>
-#include <array>
 #include <vector>
+#include <memory>
 #include <unordered_map>
 
 namespace esengine {
@@ -31,18 +34,6 @@ struct Frustum {
 };
 
 class BatchRenderer2D;
-
-struct MaterialUniformData {
-    char name[32];
-    u32 type;
-    f32 values[4];
-};
-
-#ifdef ES_ENABLE_SPINE
-namespace spine {
-    class SpineSystem;
-}
-#endif
 
 class RenderFrame {
 public:
@@ -74,15 +65,6 @@ public:
     void flush();
     void end();
 
-    void submitSprites(ecs::Registry& registry);
-    void submitUIElements(ecs::Registry& registry);
-    void submitShapes(ecs::Registry& registry);
-    void submitBitmapText(ecs::Registry& registry);
-    void submitParticles(ecs::Registry& registry, particle::ParticleSystem& particle_system);
-#ifdef ES_ENABLE_SPINE
-    void submitSpine(ecs::Registry& registry, spine::SpineSystem& spine_system);
-#endif
-
     void processMasks(ecs::Registry& registry, i32 vpX, i32 vpY, i32 vpW, i32 vpH);
 
     void setEntityClipRect(u32 entity, i32 x, i32 y, i32 w, i32 h);
@@ -98,12 +80,13 @@ public:
     void beginStencilTest(i32 refValue);
     void endStencilTest();
 
-    void submit(const RenderItemBase& item, const SpriteData& data);
-    void submitExternalTriangles(
-        const f32* vertices, i32 vertexCount,
-        const u16* indices, i32 indexCount,
-        u32 textureId, i32 blendMode,
-        const f32* transform16);
+    void submitTileQuad(
+        const glm::vec2& position, const glm::vec2& size,
+        const glm::vec2& uvOffset, const glm::vec2& uvScale,
+        const glm::vec4& color, u32 textureId,
+        Entity entity, i32 layer, f32 depth
+    );
+
     void setStage(RenderStage stage) { current_stage_ = stage; }
     RenderStage getStage() const { return current_stage_; }
 
@@ -119,41 +102,19 @@ public:
     u32 getSnapshotWidth() const { return width_; }
     u32 getSnapshotHeight() const { return height_; }
 
+    void addPlugin(std::unique_ptr<RenderTypePlugin> plugin);
+    void collectAll(ecs::Registry& registry);
+
     static constexpr u32 STAGE_COUNT = 4;
 
 private:
-    void sortAndBucket();
-    void executeStage(RenderStage stage);
-    void renderSprites(u32 begin, u32 end);
-    void accumulateMaterialSprite(const RenderItemBase& base, const SpriteData& data);
-    void flushMaterialBatch();
-#ifdef ES_ENABLE_SPINE
-    void renderSpine(u32 begin, u32 end);
-    void flushSpineBatch();
-#endif
-    void renderMeshes(u32 begin, u32 end);
-    void renderExternalMeshes(u32 begin, u32 end);
-    void renderText(u32 begin, u32 end);
-    void renderParticles(u32 begin, u32 end);
-    void renderShapes(u32 begin, u32 end);
-
     RenderContext& context_;
     resource::ResourceManager& resource_manager_;
+    StateTracker state_tracker_;
 
     Unique<BatchRenderer2D> batcher_;
     Unique<PostProcessPipeline> post_process_;
     RenderTargetManager target_manager_;
-
-    std::vector<RenderItemBase> items_;
-
-    std::vector<SpriteData> sprite_data_;
-    std::vector<TextData> text_data_;
-#ifdef ES_ENABLE_SPINE
-    std::vector<SpineData> spine_data_;
-#endif
-    std::vector<ExternalMeshData> ext_data_;
-    std::vector<ParticleRenderData> particle_data_;
-    std::vector<ShapeData> shape_data_;
 
     glm::mat4 view_projection_{1.0f};
     Frustum frustum_;
@@ -169,100 +130,6 @@ private:
     u32 width_ = 0;
     u32 height_ = 0;
 
-    struct StageBoundary {
-        u32 begin = 0;
-        u32 end = 0;
-    };
-    std::array<StageBoundary, STAGE_COUNT> stage_boundaries_{};
-
-#ifdef ES_ENABLE_SPINE
-    std::vector<f32> spine_world_vertices_;
-    struct SpineVertex {
-        glm::vec3 position;
-        glm::vec4 color;
-        glm::vec2 uv;
-        f32 texIndex;
-    };
-    std::vector<SpineVertex> spine_vertices_;
-    std::vector<u16> spine_indices_;
-    BlendMode spine_current_blend_ = BlendMode::Normal;
-
-    static constexpr u32 SPINE_MAX_TEXTURE_SLOTS = 8;
-    TextureSlotAllocator<SPINE_MAX_TEXTURE_SLOTS> spine_tex_slots_;
-    resource::ShaderHandle spine_shader_handle_;
-
-    u32 spine_vao_ = 0;
-    u32 spine_vbo_ = 0;
-    u32 spine_ebo_ = 0;
-    u32 spine_vbo_capacity_ = 0;
-    u32 spine_ebo_capacity_ = 0;
-#endif
-
-    u32 ext_mesh_vao_ = 0;
-    u32 ext_mesh_vbo_ = 0;
-    u32 ext_mesh_ebo_ = 0;
-    u32 ext_mesh_vbo_capacity_ = 0;
-    u32 ext_mesh_ebo_capacity_ = 0;
-
-    std::vector<std::vector<f32>> ext_vertex_storage_;
-    std::vector<std::vector<u16>> ext_index_storage_;
-    u32 ext_storage_count_ = 0;
-    u32 ext_submit_order_ = 0;
-
-    u32 mat_sprite_vao_ = 0;
-    u32 mat_sprite_vbo_ = 0;
-    u32 mat_sprite_ebo_ = 0;
-    u32 mat_sprite_vbo_capacity_ = 0;
-    u32 mat_sprite_ebo_capacity_ = 0;
-    u32 mat_sprite_last_shader_ = 0;
-
-    struct MatSpriteVertex {
-        f32 px, py;
-        f32 tx, ty;
-        f32 cr, cg, cb, ca;
-    };
-
-    struct MatBatchState {
-        u32 material_id = 0;
-        u32 texture_id = 0;
-        glm::vec4 color{0.0f};
-        std::vector<MatSpriteVertex> vertices;
-        std::vector<u16> indices;
-    };
-    MatBatchState mat_batch_;
-
-    u32 particle_vao_ = 0;
-    u32 particle_quad_vbo_ = 0;
-    u32 particle_instance_vbo_ = 0;
-    u32 particle_ebo_ = 0;
-    u32 particle_instance_capacity_ = 0;
-    resource::ShaderHandle particle_shader_handle_;
-
-    struct ParticleInstanceData {
-        glm::vec2 position;
-        glm::vec2 size;
-        f32 rotation;
-        glm::vec4 color;
-        glm::vec2 uv_offset;
-        glm::vec2 uv_scale;
-    };
-    std::vector<ParticleInstanceData> particle_instances_;
-
-    struct ShapeVertex {
-        f32 px, py;
-        f32 ux, uy;
-        f32 cr, cg, cb, ca;
-        f32 shapeType, halfW, halfH, cornerRadius;
-    };
-    std::vector<ShapeVertex> shape_vertices_;
-    std::vector<u16> shape_indices_;
-    u32 shape_vao_ = 0;
-    u32 shape_vbo_ = 0;
-    u32 shape_ebo_ = 0;
-    u32 shape_vbo_capacity_ = 0;
-    u32 shape_ebo_capacity_ = 0;
-    resource::ShaderHandle shape_shader_handle_;
-
     std::unordered_map<u32, ScissorRect> clip_rects_;
 
     struct EntityStencilInfo {
@@ -271,7 +138,13 @@ private:
     };
     std::unordered_map<u32, EntityStencilInfo> stencil_masks_;
 
-    std::vector<MaterialUniformData> mat_uniforms_;
+    u32 batch_shader_id_ = 0;
+    TransientBufferPool pool_;
+    DrawList draw_list_;
+    ClipState clip_state_;
+    std::vector<std::unique_ptr<RenderTypePlugin>> plugins_;
+
+    void buildClipState();
 };
 
 }  // namespace esengine

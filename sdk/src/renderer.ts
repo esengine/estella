@@ -78,51 +78,6 @@ export const Renderer = {
         }
     },
 
-    submitSprites(registry: { _cpp: CppRegistry }): void {
-        if (!module) return;
-        try {
-            module.renderer_submitSprites(registry._cpp);
-        } catch (e) {
-            handleWasmError(e, 'Renderer.submitSprites');
-        }
-    },
-
-    submitBitmapText(registry: { _cpp: CppRegistry }): void {
-        if (!module) return;
-        try {
-            module.renderer_submitBitmapText(registry._cpp);
-        } catch (e) {
-            handleWasmError(e, 'Renderer.submitBitmapText');
-        }
-    },
-
-    submitShapes(registry: { _cpp: CppRegistry }): void {
-        if (!module) return;
-        try {
-            module.renderer_submitShapes?.(registry._cpp);
-        } catch (e) {
-            handleWasmError(e, 'Renderer.submitShapes');
-        }
-    },
-
-    submitSpine(registry: { _cpp: CppRegistry }): void {
-        if (!module) return;
-        try {
-            module.renderer_submitSpine?.(registry._cpp);
-        } catch (e) {
-            handleWasmError(e, 'Renderer.submitSpine');
-        }
-    },
-
-    submitParticles(registry: { _cpp: CppRegistry }): void {
-        if (!module) return;
-        try {
-            module.renderer_submitParticles?.(registry._cpp);
-        } catch (e) {
-            handleWasmError(e, 'Renderer.submitParticles');
-        }
-    },
-
     submitAll(registry: { _cpp: CppRegistry }, skipFlags: number, vpX: number, vpY: number, vpW: number, vpH: number): void {
         if (!module) return;
         try {

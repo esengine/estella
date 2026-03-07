@@ -1,11 +1,6 @@
 #pragma once
 
 #include "../core/Types.hpp"
-#include "RenderStage.hpp"
-#include "BlendMode.hpp"
-
-#include <algorithm>
-#include <glm/glm.hpp>
 
 namespace esengine {
 
@@ -28,106 +23,6 @@ enum class RenderType : u8 {
     Particle = 5,
     Shape = 6,
     UIElement = 7,
-};
-
-struct RenderItemBase {
-    Entity entity = INVALID_ENTITY;
-    RenderType type = RenderType::Sprite;
-    RenderStage stage = RenderStage::Transparent;
-    BlendMode blend_mode = BlendMode::Normal;
-
-    glm::vec3 world_position{0.0f};
-    f32 world_angle = 0.0f;
-    glm::vec2 world_scale{1.0f};
-
-    i32 layer = 0;
-    f32 depth = 0.0f;
-    u32 texture_id = 0;
-
-    glm::vec4 color{1.0f};
-
-    bool scissor_enabled = false;
-    ScissorRect scissor;
-
-    u32 data_index = 0;
-    u64 cached_sort_key_ = 0;
-
-    u64 sortKey() const {
-        u64 stageKey = static_cast<u64>(stage) << 60;
-
-        i32 normalizedLayer = std::clamp(layer + 32768, 0, 65535);
-        u64 layerKey = static_cast<u64>(normalizedLayer & 0xFFFF) << 44;
-
-        u64 typeKey = static_cast<u64>(type) << 41;
-
-        u64 textureKey = static_cast<u64>(texture_id & 0x1FFFF) << 24;
-
-        u32 depthBits;
-        if (stage == RenderStage::Transparent) {
-            f32 invDepth = 1.0f - (depth * 0.5f + 0.5f);
-            depthBits = static_cast<u32>(invDepth * 16777215.0f);
-        } else {
-            f32 normDepth = depth * 0.5f + 0.5f;
-            depthBits = static_cast<u32>(normDepth * 16777215.0f);
-        }
-        u64 depthKey = static_cast<u64>(depthBits & 0xFFFFFF);
-
-        return stageKey | layerKey | typeKey | textureKey | depthKey;
-    }
-};
-
-struct SpriteData {
-    glm::vec2 size{0.0f};
-    glm::vec2 uv_offset{0.0f};
-    glm::vec2 uv_scale{1.0f};
-    bool flip_x = false;
-    bool flip_y = false;
-    bool use_nine_slice = false;
-    glm::vec4 slice_border{0.0f};
-    glm::vec2 texture_size{0.0f};
-    glm::mat4 transform{1.0f};
-    u32 material_id = 0;
-    void* geometry = nullptr;
-    void* shader = nullptr;
-};
-
-#ifdef ES_ENABLE_SPINE
-struct SpineData {
-    glm::mat4 transform{1.0f};
-    void* skeleton = nullptr;
-    glm::vec4 tint_color{1.0f};
-    u32 material_id = 0;
-};
-#endif
-
-struct TextData {
-    const void* font_data = nullptr;
-    const char* text_data = nullptr;
-    u16 text_length = 0;
-    f32 font_size = 1.0f;
-    u8 text_align = 0;
-    f32 text_spacing = 0.0f;
-};
-
-struct ExternalMeshData {
-    glm::mat4 transform{1.0f};
-    const f32* ext_vertices = nullptr;
-    i32 ext_vertex_count = 0;
-    const u16* ext_indices = nullptr;
-    i32 ext_index_count = 0;
-    u32 ext_bind_texture = 0;
-};
-
-struct ParticleRenderData {
-    glm::vec2 size{0.0f};
-    glm::vec2 uv_offset{0.0f};
-    glm::vec2 uv_scale{1.0f};
-    u32 material_id = 0;
-};
-
-struct ShapeData {
-    glm::vec2 size{0.0f};
-    glm::vec3 params{0.0f};
 };
 
 }  // namespace esengine

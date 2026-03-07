@@ -220,22 +220,19 @@ inline const char* EXT_MESH_FRAGMENT = R"(
 )";
 
 inline const char* BATCH_VERTEX = R"(#version 300 es
-    layout(location = 0) in vec3 a_position;
+    layout(location = 0) in vec2 a_position;
     layout(location = 1) in vec4 a_color;
     layout(location = 2) in vec2 a_texCoord;
-    layout(location = 3) in float a_texIndex;
 
     uniform mat4 u_projection;
 
     out vec4 v_color;
     out vec2 v_texCoord;
-    out float v_texIndex;
 
     void main() {
-        gl_Position = u_projection * vec4(a_position, 1.0);
+        gl_Position = u_projection * vec4(a_position, 0.0, 1.0);
         v_color = a_color;
         v_texCoord = a_texCoord;
-        v_texIndex = a_texIndex;
     }
 )";
 
@@ -247,34 +244,13 @@ inline const char* BATCH_FRAGMENT = R"(#version 300 es
 
     in vec4 v_color;
     in vec2 v_texCoord;
-    in float v_texIndex;
 
-    uniform sampler2D u_textures[8];
+    uniform sampler2D u_texture;
 
     out vec4 fragColor;
 
     void main() {
-        int index = int(v_texIndex + 0.5);
-        vec4 texColor;
-
-        if (index <= 0) {
-            texColor = vec4(1.0);
-        } else if (index == 1) {
-            texColor = texture(u_textures[1], v_texCoord);
-        } else if (index == 2) {
-            texColor = texture(u_textures[2], v_texCoord);
-        } else if (index == 3) {
-            texColor = texture(u_textures[3], v_texCoord);
-        } else if (index == 4) {
-            texColor = texture(u_textures[4], v_texCoord);
-        } else if (index == 5) {
-            texColor = texture(u_textures[5], v_texCoord);
-        } else if (index == 6) {
-            texColor = texture(u_textures[6], v_texCoord);
-        } else {
-            texColor = texture(u_textures[7], v_texCoord);
-        }
-
+        vec4 texColor = texture(u_texture, v_texCoord);
         fragColor = texColor * v_color;
     }
 )";

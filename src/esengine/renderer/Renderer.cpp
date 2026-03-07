@@ -271,10 +271,9 @@ void Renderer::resetStats() {
 
 // Batch vertex structure
 struct BatchVertex {
-    glm::vec3 position;
+    glm::vec2 position;
     glm::vec4 color;
     glm::vec2 texCoord;
-    f32 texIndex;
 };
 
 // Batch rendering constants
@@ -347,10 +346,9 @@ void BatchRenderer2D::init() {
     data_->vbo = makeShared<VertexBuffer>();
     *data_->vbo = std::move(*VertexBuffer::create(MAX_VERTICES * sizeof(BatchVertex)));
     data_->vbo->setLayout({
-        { ShaderDataType::Float3, "a_position" },
+        { ShaderDataType::Float2, "a_position" },
         { ShaderDataType::Float4, "a_color" },
-        { ShaderDataType::Float2, "a_texCoord" },
-        { ShaderDataType::Float,  "a_texIndex" }
+        { ShaderDataType::Float2, "a_texCoord" }
     });
 
     data_->vao->addVertexBuffer(data_->vbo);
@@ -376,7 +374,7 @@ void BatchRenderer2D::init() {
         data_->shader_handle = resource_manager_.createShaderWithBindings(
             ShaderSources::BATCH_VERTEX,
             ShaderSources::BATCH_FRAGMENT,
-            {{0, "a_position"}, {1, "a_color"}, {2, "a_texCoord"}, {3, "a_texIndex"}}
+            {{0, "a_position"}, {1, "a_color"}, {2, "a_texCoord"}}
         );
     }
 
@@ -388,18 +386,16 @@ void BatchRenderer2D::init() {
         data_->shader_handle = resource_manager_.createShaderWithBindings(
             resource::ShaderParser::assembleStage(batchParsed, resource::ShaderStage::Vertex),
             resource::ShaderParser::assembleStage(batchParsed, resource::ShaderStage::Fragment),
-            {{0, "a_position"}, {1, "a_color"}, {2, "a_texCoord"}, {3, "a_texIndex"}}
+            {{0, "a_position"}, {1, "a_color"}, {2, "a_texCoord"}}
         );
         batchShader = resource_manager_.getShader(data_->shader_handle);
     }
 
     if (batchShader && batchShader->isValid()) {
         batchShader->bind();
-        GLint baseLoc = glGetUniformLocation(batchShader->getProgramId(), "u_textures[0]");
-        if (baseLoc >= 0) {
-            for (i32 i = 0; i < static_cast<i32>(MAX_TEXTURE_SLOTS); ++i) {
-                glUniform1i(baseLoc + i, i);
-            }
+        GLint texLoc = glGetUniformLocation(batchShader->getProgramId(), "u_texture");
+        if (texLoc >= 0) {
+            glUniform1i(texLoc, 0);
         }
     } else {
         ES_LOG_ERROR("All batch shader variants FAILED!");
@@ -511,27 +507,14 @@ void BatchRenderer2D::drawQuad(const glm::vec3& position, const glm::vec2& size,
         flush();
     }
 
-    f32 texIndex = data_->texSlots.findOrAllocate(textureId);
-    if (texIndex < 0.0f) {
-        next_flush_reason_ = FlushReason::TextureSlotsFull;
-        flush();
-        texIndex = data_->texSlots.findOrAllocate(textureId);
-        if (texIndex < 0.0f) {
-            ES_LOG_WARN("TextureSlotAllocator: failed after flush for drawQuad");
-            return;
-        }
-    }
-
     for (u32 i = 0; i < 4; ++i) {
         BatchVertex vertex;
-        vertex.position = glm::vec3(
+        vertex.position = glm::vec2(
             position.x + QUAD_POSITIONS[i].x * size.x,
-            position.y + QUAD_POSITIONS[i].y * size.y,
-            position.z
+            position.y + QUAD_POSITIONS[i].y * size.y
         );
         vertex.color = color;
         vertex.texCoord = QUAD_TEX_COORDS[i] * uvScale + uvOffset;
-        vertex.texIndex = texIndex;
         data_->vertices.push_back(vertex);
     }
 
@@ -554,13 +537,12 @@ void BatchRenderer2D::drawTriangle(const glm::vec2& p0, const glm::vec2& p1,
     BatchVertex v;
     v.color = color;
     v.texCoord = { 0.0f, 0.0f };
-    v.texIndex = 0.0f;
 
-    v.position = glm::vec3(p0, 0.0f);
+    v.position = p0;
     data_->triVertices.push_back(v);
-    v.position = glm::vec3(p1, 0.0f);
+    v.position = p1;
     data_->triVertices.push_back(v);
-    v.position = glm::vec3(p2, 0.0f);
+    v.position = p2;
     data_->triVertices.push_back(v);
 
     data_->triangleCount++;
@@ -579,27 +561,15 @@ void BatchRenderer2D::drawRotatedQuad(const glm::vec2& position, const glm::vec2
         flush();
     }
 
-    f32 texIndex = data_->texSlots.findOrAllocate(textureId);
-    if (texIndex < 0.0f) {
-        next_flush_reason_ = FlushReason::TextureSlotsFull;
-        flush();
-        texIndex = data_->texSlots.findOrAllocate(textureId);
-        if (texIndex < 0.0f) {
-            ES_LOG_WARN("TextureSlotAllocator: failed after flush for drawRotatedQuad");
-            return;
-        }
-    }
-
     glm::mat4 transform = glm::translate(glm::mat4(1.0f), glm::vec3(position, 0.0f));
     transform = glm::rotate(transform, rotation, glm::vec3(0.0f, 0.0f, 1.0f));
     transform = glm::scale(transform, glm::vec3(size, 1.0f));
 
     for (u32 i = 0; i < 4; ++i) {
         BatchVertex vertex;
-        vertex.position = glm::vec3(transform * QUAD_POSITIONS[i]);
+        vertex.position = glm::vec2(transform * QUAD_POSITIONS[i]);
         vertex.color = tintColor;
         vertex.texCoord = QUAD_TEX_COORDS[i] * uvScale + uvOffset;
-        vertex.texIndex = texIndex;
         data_->vertices.push_back(vertex);
     }
 
@@ -659,19 +629,7 @@ void BatchRenderer2D::drawNineSlice(const glm::vec2& position, const glm::vec2& 
         );
     };
 
-    auto resolveTextureSlot = [this, textureId]() -> f32 {
-        f32 idx = data_->texSlots.findOrAllocate(textureId);
-        if (idx < 0.0f) {
-            next_flush_reason_ = FlushReason::TextureSlotsFull;
-            flush();
-            idx = data_->texSlots.findOrAllocate(textureId);
-        }
-        return idx;
-    };
-
-    f32 cachedTexIndex = resolveTextureSlot();
-
-    auto drawSlice = [this, &color, &rotatePoint, &cachedTexIndex, &resolveTextureSlot](
+    auto drawSlice = [this, &color, &rotatePoint](
         f32 px, f32 py, f32 pw, f32 ph,
         f32 uvX, f32 uvY, f32 uvW, f32 uvH) {
 
@@ -680,40 +638,30 @@ void BatchRenderer2D::drawNineSlice(const glm::vec2& position, const glm::vec2& 
         if (data_->vertices.size() + data_->triVertices.size() + 4 > MAX_VERTICES) {
             next_flush_reason_ = FlushReason::BatchFull;
             flush();
-            cachedTexIndex = resolveTextureSlot();
         }
 
-        f32 texIndex = cachedTexIndex;
-
-        // Vertices for this slice (bottom-left origin)
-        // 0: bottom-left, 1: bottom-right, 2: top-right, 3: top-left
         BatchVertex v0, v1, v2, v3;
 
-        // Apply rotation to each vertex position
         glm::vec2 p0 = rotatePoint(px, py);
         glm::vec2 p1 = rotatePoint(px + pw, py);
         glm::vec2 p2 = rotatePoint(px + pw, py + ph);
         glm::vec2 p3 = rotatePoint(px, py + ph);
 
-        v0.position = glm::vec3(p0.x, p0.y, 0.0f);
+        v0.position = p0;
         v0.color = color;
         v0.texCoord = glm::vec2(uvX, uvY);
-        v0.texIndex = texIndex;
 
-        v1.position = glm::vec3(p1.x, p1.y, 0.0f);
+        v1.position = p1;
         v1.color = color;
         v1.texCoord = glm::vec2(uvX + uvW, uvY);
-        v1.texIndex = texIndex;
 
-        v2.position = glm::vec3(p2.x, p2.y, 0.0f);
+        v2.position = p2;
         v2.color = color;
         v2.texCoord = glm::vec2(uvX + uvW, uvY + uvH);
-        v2.texIndex = texIndex;
 
-        v3.position = glm::vec3(p3.x, p3.y, 0.0f);
+        v3.position = p3;
         v3.color = color;
         v3.texCoord = glm::vec2(uvX, uvY + uvH);
-        v3.texIndex = texIndex;
 
         data_->vertices.push_back(v0);
         data_->vertices.push_back(v1);
@@ -751,6 +699,12 @@ u32 BatchRenderer2D::getQuadCount() const {
 
 u32 BatchRenderer2D::getTriangleCount() const {
     return data_ ? data_->triangleCount : 0;
+}
+
+u32 BatchRenderer2D::getShaderProgramId() const {
+    if (!data_ || !data_->shader_handle.isValid()) return 0;
+    Shader* shader = resource_manager_.getShader(data_->shader_handle);
+    return shader ? shader->getProgramId() : 0;
 }
 
 }  // namespace esengine

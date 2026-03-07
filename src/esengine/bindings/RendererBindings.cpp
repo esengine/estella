@@ -132,15 +132,7 @@ void renderFrame(ecs::Registry& registry, i32 viewportWidth, i32 viewportHeight)
     }
 
     g_renderFrame->begin(viewProjection);
-    g_renderFrame->submitSprites(registry);
-    g_renderFrame->submitUIElements(registry);
-    g_renderFrame->submitShapes(registry);
-    g_renderFrame->submitBitmapText(registry);
-#ifdef ES_ENABLE_SPINE
-    if (g_spineSystem) {
-        g_renderFrame->submitSpine(registry, *g_spineSystem);
-    }
-#endif
+    g_renderFrame->collectAll(registry);
     g_renderFrame->end();
 }
 
@@ -174,15 +166,7 @@ void renderFrameWithMatrix(ecs::Registry& registry, i32 viewportWidth, i32 viewp
     glm::mat4 viewProjection = glm::make_mat4(matrixData);
 
     g_renderFrame->begin(viewProjection);
-    g_renderFrame->submitSprites(registry);
-    g_renderFrame->submitUIElements(registry);
-    g_renderFrame->submitShapes(registry);
-    g_renderFrame->submitBitmapText(registry);
-#ifdef ES_ENABLE_SPINE
-    if (g_spineSystem) {
-        g_renderFrame->submitSpine(registry, *g_spineSystem);
-    }
-#endif
+    g_renderFrame->collectAll(registry);
     g_renderFrame->end();
 }
 
@@ -229,65 +213,37 @@ static void ensureTransformsUpdated(ecs::Registry& registry) {
 }
 
 void renderer_submitSprites(ecs::Registry& registry) {
-    if (!g_renderFrame) return;
-    ensureTransformsUpdated(registry);
-    g_renderFrame->submitSprites(registry);
+    (void)registry;
 }
 
 void renderer_submitUIElements(ecs::Registry& registry) {
-    if (!g_renderFrame) return;
-    ensureTransformsUpdated(registry);
-    g_renderFrame->submitUIElements(registry);
+    (void)registry;
 }
 
 void renderer_submitBitmapText(ecs::Registry& registry) {
-    if (!g_renderFrame) return;
-    ensureTransformsUpdated(registry);
-    g_renderFrame->submitBitmapText(registry);
+    (void)registry;
 }
 
 void renderer_submitShapes(ecs::Registry& registry) {
-    if (!g_renderFrame) return;
-    ensureTransformsUpdated(registry);
-    g_renderFrame->submitShapes(registry);
+    (void)registry;
 }
 
 #ifdef ES_ENABLE_SPINE
 void renderer_submitSpine(ecs::Registry& registry) {
-    if (!g_renderFrame || !g_spineSystem) return;
-    ensureTransformsUpdated(registry);
-    g_spineSystem->update(registry, ctx().deltaTime());
-    g_renderFrame->submitSpine(registry, *g_spineSystem);
-    checkGLErrors("renderer_submitSpine");
+    (void)registry;
 }
 #endif
 
 void renderer_submitParticles(ecs::Registry& registry) {
-    if (!g_renderFrame || !g_particleSystem) return;
-    ensureTransformsUpdated(registry);
-    g_renderFrame->submitParticles(registry, *g_particleSystem);
+    (void)registry;
 }
-
-static constexpr u32 SKIP_SPINE = 1;
-static constexpr u32 SKIP_PARTICLES = 2;
 
 void renderer_submitAll(ecs::Registry& registry, u32 skipFlags, i32 vpX, i32 vpY, i32 vpW, i32 vpH) {
     if (!g_renderFrame) return;
     ensureTransformsUpdated(registry);
     g_renderFrame->processMasks(registry, vpX, vpY, vpW, vpH);
-    g_renderFrame->submitSprites(registry);
-    g_renderFrame->submitUIElements(registry);
-    g_renderFrame->submitShapes(registry);
-    g_renderFrame->submitBitmapText(registry);
-#ifdef ES_ENABLE_SPINE
-    if (!(skipFlags & SKIP_SPINE) && g_spineSystem) {
-        g_spineSystem->update(registry, ctx().deltaTime());
-        g_renderFrame->submitSpine(registry, *g_spineSystem);
-    }
-#endif
-    if (!(skipFlags & SKIP_PARTICLES) && g_particleSystem) {
-        g_renderFrame->submitParticles(registry, *g_particleSystem);
-    }
+
+    g_renderFrame->collectAll(registry);
 }
 
 void particle_update(ecs::Registry& registry, f32 dt) {
@@ -323,17 +279,10 @@ void renderer_submitTriangles(
     uintptr_t indicesPtr, i32 indexCount,
     u32 textureId, i32 blendMode,
     uintptr_t transformPtr) {
-    if (!g_renderFrame) return;
-
-    const f32* vertices = reinterpret_cast<const f32*>(verticesPtr);
-    const u16* indices = reinterpret_cast<const u16*>(indicesPtr);
-    const f32* transform = transformPtr ? reinterpret_cast<const f32*>(transformPtr) : nullptr;
-
-    g_renderFrame->submitExternalTriangles(
-        vertices, vertexCount,
-        indices, indexCount,
-        textureId, blendMode,
-        transform);
+    (void)verticesPtr; (void)vertexCount;
+    (void)indicesPtr; (void)indexCount;
+    (void)textureId; (void)blendMode;
+    (void)transformPtr;
 }
 
 void renderer_setStage(i32 stage) {

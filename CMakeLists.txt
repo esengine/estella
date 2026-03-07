@@ -47,6 +47,15 @@ set(ESENGINE_SOURCES
     src/esengine/renderer/ImmediateDraw.cpp
     src/esengine/renderer/CustomGeometry.cpp
     src/esengine/renderer/PostProcessPipeline.cpp
+    src/esengine/renderer/StateTracker.cpp
+    src/esengine/renderer/TransientBufferPool.cpp
+    src/esengine/renderer/DrawList.cpp
+    src/esengine/renderer/plugins/SpritePlugin.cpp
+    src/esengine/renderer/plugins/UIElementPlugin.cpp
+    src/esengine/renderer/plugins/TextPlugin.cpp
+    src/esengine/renderer/plugins/ShapePlugin.cpp
+    src/esengine/renderer/plugins/ParticlePlugin.cpp
+    src/esengine/renderer/plugins/ExternalMeshPlugin.cpp
     src/esengine/text/BitmapFont.cpp
     src/esengine/platform/input/Input.cpp
     src/esengine/platform/PathResolver.cpp
@@ -63,6 +72,7 @@ if(ES_ENABLE_SPINE)
         src/esengine/spine/SpineResourceManager.cpp
         src/esengine/spine/SpineSystem.cpp
         src/esengine/spine/SpineRenderer.cpp
+        src/esengine/renderer/plugins/SpinePlugin.cpp
     )
 endif()
 
@@ -109,6 +119,19 @@ set(ESENGINE_HEADERS
     src/esengine/renderer/BlendMode.hpp
     src/esengine/renderer/CustomGeometry.hpp
     src/esengine/renderer/PostProcessPipeline.hpp
+    src/esengine/renderer/StateTracker.hpp
+    src/esengine/renderer/TransientBufferPool.hpp
+    src/esengine/renderer/DrawCommand.hpp
+    src/esengine/renderer/DrawList.hpp
+    src/esengine/renderer/ClipState.hpp
+    src/esengine/renderer/RenderTypePlugin.hpp
+    src/esengine/renderer/plugins/SpritePlugin.hpp
+    src/esengine/renderer/plugins/UIElementPlugin.hpp
+    src/esengine/renderer/plugins/TextPlugin.hpp
+    src/esengine/renderer/plugins/ShapePlugin.hpp
+    src/esengine/renderer/plugins/SpinePlugin.hpp
+    src/esengine/renderer/plugins/ParticlePlugin.hpp
+    src/esengine/renderer/plugins/ExternalMeshPlugin.hpp
     src/esengine/platform/Platform.hpp
     src/esengine/platform/FileSystem.hpp
     src/esengine/platform/input/Input.hpp

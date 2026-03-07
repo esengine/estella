@@ -32,22 +32,19 @@ void main() {
 inline constexpr const char* BATCH = R"esshader(#pragma shader "Batch"
 
 #pragma vertex
-attribute vec3 a_position;
+attribute vec2 a_position;
 attribute vec4 a_color;
 attribute vec2 a_texCoord;
-attribute float a_texIndex;
 
 uniform mat4 u_projection;
 
 varying vec4 v_color;
 varying vec2 v_texCoord;
-varying float v_texIndex;
 
 void main() {
-    gl_Position = u_projection * vec4(a_position, 1.0);
+    gl_Position = u_projection * vec4(a_position, 0.0, 1.0);
     v_color = a_color;
     v_texCoord = a_texCoord;
-    v_texIndex = a_texIndex;
 }
 #pragma end
 
@@ -56,32 +53,11 @@ precision mediump float;
 
 varying vec4 v_color;
 varying vec2 v_texCoord;
-varying float v_texIndex;
 
-uniform sampler2D u_textures[8];
+uniform sampler2D u_texture;
 
 void main() {
-    int index = int(v_texIndex + 0.5);
-    vec4 texColor;
-
-    if (index <= 0) {
-        texColor = vec4(1.0);
-    } else if (index == 1) {
-        texColor = texture2D(u_textures[1], v_texCoord);
-    } else if (index == 2) {
-        texColor = texture2D(u_textures[2], v_texCoord);
-    } else if (index == 3) {
-        texColor = texture2D(u_textures[3], v_texCoord);
-    } else if (index == 4) {
-        texColor = texture2D(u_textures[4], v_texCoord);
-    } else if (index == 5) {
-        texColor = texture2D(u_textures[5], v_texCoord);
-    } else if (index == 6) {
-        texColor = texture2D(u_textures[6], v_texCoord);
-    } else {
-        texColor = texture2D(u_textures[7], v_texCoord);
-    }
-
+    vec4 texColor = texture2D(u_texture, v_texCoord);
     gl_FragColor = texColor * v_color;
 }
 #pragma end

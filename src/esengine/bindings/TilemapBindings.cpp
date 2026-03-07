@@ -5,7 +5,6 @@
 #include "../tilemap/TiledMapLoader.hpp"
 #include "../renderer/RenderContext.hpp"
 #include "../renderer/RenderFrame.hpp"
-#include "../renderer/RenderItem.hpp"
 #include "../renderer/ImmediateDraw.hpp"
 #include "../renderer/CustomGeometry.hpp"
 #include "../renderer/PostProcessPipeline.hpp"
@@ -127,24 +126,13 @@ void tilemap_submitLayer(u32 entity, u32 textureId,
             if (flipH) { u0 += uvTileWidth; su = -su; }
             if (flipV) { v0 += uvTileHeight; sv = -sv; }
 
-            RenderItemBase base;
-            base.entity = layerEntity;
-            base.type = RenderType::Sprite;
-            base.stage = RenderStage::Transparent;
-            base.world_position = glm::vec3(worldX, worldY, 0.0f);
-            base.world_scale = glm::vec2(1.0f);
-            base.world_angle = 0.0f;
-            base.layer = sortLayer;
-            base.depth = depth;
-            base.color = finalColor;
-            base.texture_id = glTextureId;
-
-            SpriteData sd;
-            sd.size = glm::vec2(layerData->tile_width, layerData->tile_height);
-            sd.uv_offset = glm::vec2(u0, v0);
-            sd.uv_scale = glm::vec2(su, sv);
-
-            frame->submit(base, sd);
+            frame->submitTileQuad(
+                glm::vec2(worldX, worldY),
+                glm::vec2(layerData->tile_width, layerData->tile_height),
+                glm::vec2(u0, v0), glm::vec2(su, sv),
+                finalColor, glTextureId,
+                layerEntity, sortLayer, depth
+            );
         }
     }
 }

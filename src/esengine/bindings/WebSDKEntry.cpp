@@ -32,6 +32,15 @@
 #include "../renderer/RenderFrame.hpp"
 #include "../renderer/ImmediateDraw.hpp"
 #include "../renderer/CustomGeometry.hpp"
+#include "../renderer/plugins/SpritePlugin.hpp"
+#include "../renderer/plugins/UIElementPlugin.hpp"
+#include "../renderer/plugins/TextPlugin.hpp"
+#include "../renderer/plugins/ShapePlugin.hpp"
+#include "../renderer/plugins/ParticlePlugin.hpp"
+#include "../renderer/plugins/ExternalMeshPlugin.hpp"
+#ifdef ES_ENABLE_SPINE
+#include "../renderer/plugins/SpinePlugin.hpp"
+#endif
 #include "../resource/ResourceManager.hpp"
 #include "../ecs/TransformSystem.hpp"
 #include "../ecs/components/Velocity.hpp"
@@ -77,6 +86,12 @@ EM_JS(void, callMaterialProvider, (int materialId, int outShaderIdPtr, int outBl
         HEAPU32[outUniformCountPtr >> 2] = 0;
     }
 });
+
+struct MaterialUniformData {
+    char name[32];
+    u32 type;
+    f32 values[4];
+};
 
 struct CachedMaterialData {
     u32 shaderId = 0;
@@ -204,6 +219,25 @@ static void initSubsystems() {
     ctx().setGeometryManager(makeUnique<GeometryManager>());
 
     auto renderFrame = makeUnique<RenderFrame>(*g_renderContext, *g_resourceManager);
+
+    renderFrame->addPlugin(std::make_unique<SpritePlugin>());
+    renderFrame->addPlugin(std::make_unique<UIElementPlugin>());
+    renderFrame->addPlugin(std::make_unique<TextPlugin>());
+    renderFrame->addPlugin(std::make_unique<ShapePlugin>());
+#ifdef ES_ENABLE_SPINE
+    {
+        auto spinePlugin = std::make_unique<SpinePlugin>();
+        spinePlugin->setSpineSystem(ctx().spineSystem());
+        renderFrame->addPlugin(std::move(spinePlugin));
+    }
+#endif
+    {
+        auto particlePlugin = std::make_unique<ParticlePlugin>();
+        particlePlugin->setParticleSystem(ctx().particleSystem());
+        renderFrame->addPlugin(std::move(particlePlugin));
+    }
+    renderFrame->addPlugin(std::make_unique<ExternalMeshPlugin>());
+
     renderFrame->init(1280, 720);
     ctx().setRenderFrame(std::move(renderFrame));
 

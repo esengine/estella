@@ -2,6 +2,8 @@
 
 #include "../core/Types.hpp"
 #include "RenderItem.hpp"
+#include "RenderStage.hpp"
+#include "BlendMode.hpp"
 
 #include <vector>
 

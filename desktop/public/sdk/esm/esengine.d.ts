@@ -1806,21 +1806,6 @@ declare const Renderer: {
     begin(viewProjection: Float32Array, target?: RenderTargetHandle): void;
     flush(): void;
     end(): void;
-    submitSprites(registry: {
-        _cpp: CppRegistry;
-    }): void;
-    submitBitmapText(registry: {
-        _cpp: CppRegistry;
-    }): void;
-    submitShapes(registry: {
-        _cpp: CppRegistry;
-    }): void;
-    submitSpine(registry: {
-        _cpp: CppRegistry;
-    }): void;
-    submitParticles(registry: {
-        _cpp: CppRegistry;
-    }): void;
     submitAll(registry: {
         _cpp: CppRegistry;
     }, skipFlags: number, vpX: number, vpY: number, vpW: number, vpH: number): void;

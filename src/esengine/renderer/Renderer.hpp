@@ -411,6 +411,8 @@ public:
 
     void setNextFlushReason(FlushReason reason) { next_flush_reason_ = reason; }
 
+    u32 getShaderProgramId() const;
+
 private:
     struct BatchData;
     Unique<BatchData> data_;
