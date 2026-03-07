@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <glm/gtc/type_ptr.hpp>
 #include <unordered_set>
 
 namespace esengine {
@@ -174,6 +175,27 @@ void RenderFrame::flush() {
     pool_.upload();
     draw_list_.finalize();
     draw_list_.execute(state_tracker_, pool_, view_projection_, &frame_capture_);
+
+    stats_.draw_calls = draw_list_.mergedDrawCallCount();
+    for (u32 i = 0; i < draw_list_.commandCount(); ++i) {
+        const auto& cmd = draw_list_.command(i);
+        stats_.triangles += cmd.index_count / 3;
+        switch (cmd.type) {
+        case RenderType::Sprite:
+        case RenderType::UIElement:
+            stats_.sprites += cmd.entity_count; break;
+        case RenderType::Text:     stats_.text += cmd.entity_count; break;
+        case RenderType::Mesh:
+        case RenderType::ExternalMesh:
+            stats_.meshes += cmd.entity_count; break;
+        case RenderType::Particle: stats_.particles += cmd.entity_count; break;
+        case RenderType::Shape:    stats_.shapes += cmd.entity_count; break;
+#ifdef ES_ENABLE_SPINE
+        case RenderType::Spine:    stats_.spine += cmd.entity_count; break;
+#endif
+        default: break;
+        }
+    }
 }
 
 void RenderFrame::end() {
@@ -601,6 +623,58 @@ void RenderFrame::submitTileQuad(
     cmd.layer = layer;
 
     clip_state_.applyTo(entity, cmd);
+
+    draw_list_.push(cmd);
+}
+
+void RenderFrame::submitExternalTriangles(
+    const f32* vertices, i32 vertexCount,
+    const u16* indices, i32 indexCount,
+    u32 textureId, i32 blendMode,
+    const f32* transform16
+) {
+    if (vertexCount <= 0 || indexCount <= 0) return;
+
+    glm::mat4 model(1.0f);
+    if (transform16) {
+        model = glm::make_mat4(transform16);
+    }
+
+    constexpr i32 FLOATS_PER_VERT = 8;
+    std::vector<TileVertex> batchVerts(vertexCount);
+    for (i32 i = 0; i < vertexCount; ++i) {
+        const f32* v = vertices + i * FLOATS_PER_VERT;
+        glm::vec4 pos = model * glm::vec4(v[0], v[1], 0.0f, 1.0f);
+        batchVerts[i].position = glm::vec2(pos.x, pos.y);
+        batchVerts[i].color = packColor(glm::vec4(v[2], v[3], v[4], v[5]));
+        batchVerts[i].texCoord = glm::vec2(v[6], v[7]);
+    }
+
+    u32 vBytes = static_cast<u32>(vertexCount) * sizeof(TileVertex);
+    u32 vOff = pool_.appendVertices(batchVerts.data(), vBytes);
+    u32 baseVertex = vOff / sizeof(TileVertex);
+
+    std::vector<u16> remapped(indexCount);
+    for (i32 i = 0; i < indexCount; ++i) {
+        remapped[i] = static_cast<u16>(baseVertex + indices[i]);
+    }
+    u32 iOff = pool_.appendIndices(remapped.data(), static_cast<u32>(indexCount));
+
+    DrawCommand cmd{};
+    cmd.sort_key = DrawCommand::buildSortKey(
+        current_stage_, 0, batch_shader_id_,
+        static_cast<BlendMode>(blendMode), 0, textureId, 0.0f);
+    cmd.index_offset = iOff;
+    cmd.index_count = static_cast<u32>(indexCount);
+    cmd.vertex_byte_offset = vOff;
+    cmd.shader_id = batch_shader_id_;
+    cmd.blend_mode = static_cast<BlendMode>(blendMode);
+    cmd.layout_id = LayoutId::Batch;
+    cmd.texture_count = 1;
+    cmd.texture_ids[0] = textureId;
+    cmd.entity = INVALID_ENTITY;
+    cmd.type = RenderType::ExternalMesh;
+    cmd.layer = 0;
 
     draw_list_.push(cmd);
 }

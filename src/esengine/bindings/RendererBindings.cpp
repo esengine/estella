@@ -279,10 +279,17 @@ void renderer_submitTriangles(
     uintptr_t indicesPtr, i32 indexCount,
     u32 textureId, i32 blendMode,
     uintptr_t transformPtr) {
-    (void)verticesPtr; (void)vertexCount;
-    (void)indicesPtr; (void)indexCount;
-    (void)textureId; (void)blendMode;
-    (void)transformPtr;
+    if (!g_renderFrame) return;
+
+    const f32* vertices = reinterpret_cast<const f32*>(verticesPtr);
+    const u16* indices = reinterpret_cast<const u16*>(indicesPtr);
+    const f32* transform = transformPtr ? reinterpret_cast<const f32*>(transformPtr) : nullptr;
+
+    g_renderFrame->submitExternalTriangles(
+        vertices, vertexCount,
+        indices, indexCount,
+        textureId, blendMode,
+        transform);
 }
 
 void renderer_setStage(i32 stage) {
