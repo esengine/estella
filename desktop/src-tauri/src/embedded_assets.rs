@@ -42,6 +42,10 @@ pub const SDK_SHARED_MATERIAL_JS: &[u8] = include_bytes!("../../public/sdk/esm/s
 pub const SDK_SHARED_MATERIAL_JS_MAP: &[u8] = include_bytes!("../../public/sdk/esm/shared/material.js.map");
 pub const SDK_SHARED_SPINEMODULELOADER_JS: &[u8] = include_bytes!("../../public/sdk/esm/shared/SpineModuleLoader.js");
 pub const SDK_SHARED_SPINEMODULELOADER_JS_MAP: &[u8] = include_bytes!("../../public/sdk/esm/shared/SpineModuleLoader.js.map");
+pub const SDK_SHARED_WASM_DTS: &[u8] = include_bytes!("../../public/sdk/esm/shared/wasm.d.ts");
+pub const SDK_SHARED_APP_DTS: &[u8] = include_bytes!("../../public/sdk/esm/shared/app.d.ts");
+pub const SDK_PHYSICS_DTS: &[u8] = include_bytes!("../../public/sdk/esm/physics/index.d.ts");
+pub const SDK_SPINE_DTS: &[u8] = include_bytes!("../../public/sdk/esm/spine/index.d.ts");
 pub const SDK_WECHAT_JS: &[u8] = include_bytes!("../../public/sdk/cjs/esengine.wechat.js");
 
 // =============================================================================
