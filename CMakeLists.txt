@@ -55,7 +55,6 @@ set(ESENGINE_SOURCES
     src/esengine/renderer/plugins/TextPlugin.cpp
     src/esengine/renderer/plugins/ShapePlugin.cpp
     src/esengine/renderer/plugins/ParticlePlugin.cpp
-    src/esengine/renderer/plugins/ExternalMeshPlugin.cpp
     src/esengine/text/BitmapFont.cpp
     src/esengine/platform/input/Input.cpp
     src/esengine/platform/PathResolver.cpp
@@ -131,7 +130,6 @@ set(ESENGINE_HEADERS
     src/esengine/renderer/plugins/ShapePlugin.hpp
     src/esengine/renderer/plugins/SpinePlugin.hpp
     src/esengine/renderer/plugins/ParticlePlugin.hpp
-    src/esengine/renderer/plugins/ExternalMeshPlugin.hpp
     src/esengine/platform/Platform.hpp
     src/esengine/platform/FileSystem.hpp
     src/esengine/platform/input/Input.hpp

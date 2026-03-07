@@ -156,17 +156,6 @@ void TransientBufferPool::setupLayoutVAO(LayoutId layout) {
             glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, STRIDE, reinterpret_cast<void*>(12));
             break;
         }
-        case LayoutId::ExtMesh: {
-            // ExtMesh: vec2 pos + vec2 uv + vec4 color = 32B (8 floats)
-            constexpr u32 STRIDE = 32;
-            glEnableVertexAttribArray(0);
-            glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, STRIDE, reinterpret_cast<void*>(0));
-            glEnableVertexAttribArray(1);
-            glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, STRIDE, reinterpret_cast<void*>(8));
-            glEnableVertexAttribArray(2);
-            glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, STRIDE, reinterpret_cast<void*>(16));
-            break;
-        }
         case LayoutId::Shape: {
             // ShapeVertex: vec2 pos + vec2 uv + vec4 color + vec4 shapeInfo = 48B
             constexpr u32 STRIDE = 48;

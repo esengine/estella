@@ -37,7 +37,6 @@
 #include "../renderer/plugins/TextPlugin.hpp"
 #include "../renderer/plugins/ShapePlugin.hpp"
 #include "../renderer/plugins/ParticlePlugin.hpp"
-#include "../renderer/plugins/ExternalMeshPlugin.hpp"
 #ifdef ES_ENABLE_SPINE
 #include "../renderer/plugins/SpinePlugin.hpp"
 #endif
@@ -236,8 +235,6 @@ static void initSubsystems() {
         particlePlugin->setParticleSystem(ctx().particleSystem());
         renderFrame->addPlugin(std::move(particlePlugin));
     }
-    renderFrame->addPlugin(std::make_unique<ExternalMeshPlugin>());
-
     renderFrame->init(1280, 720);
     ctx().setRenderFrame(std::move(renderFrame));
 

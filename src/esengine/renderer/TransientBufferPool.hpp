@@ -9,7 +9,6 @@ namespace esengine {
 
 enum class LayoutId : u8 {
     Batch    = 0,
-    ExtMesh  = 1,
     Shape    = 2,
     MatSprite = 3,
 };
