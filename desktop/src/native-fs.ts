@@ -437,11 +437,7 @@ export const nativeFS: NativeFS = {
 
 export const nativeShell: NativeShell = {
     async openFile(path: string): Promise<void> {
-        await invoke('execute_command', {
-            cmd: 'open',
-            args: [path],
-            cwd: '/',
-        });
+        await shellOpen(path);
     },
 
     async openUrl(url: string): Promise<void> {
@@ -449,11 +445,20 @@ export const nativeShell: NativeShell = {
     },
 
     async openInEditor(projectPath: string, filePath: string): Promise<void> {
-        await invoke('execute_command', {
-            cmd: 'open',
-            args: ['-a', 'Visual Studio Code', projectPath, filePath],
-            cwd: projectPath,
-        });
+        const isMac = navigator.platform.startsWith('Mac');
+        if (isMac) {
+            await invoke('execute_command', {
+                cmd: 'open',
+                args: ['-a', 'Visual Studio Code', projectPath, filePath],
+                cwd: projectPath,
+            });
+        } else {
+            await invoke('execute_command', {
+                cmd: 'cmd',
+                args: ['/c', 'code', projectPath, filePath],
+                cwd: projectPath,
+            });
+        }
     },
 
     async execute(
