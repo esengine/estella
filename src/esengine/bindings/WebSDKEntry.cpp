@@ -684,6 +684,14 @@ f32 getUIRectComputedHeight(ecs::Registry& registry, u32 entity) {
     return rect->computed_size_.y;
 }
 
+void setUIRectSize(ecs::Registry& registry, u32 entity, f32 w, f32 h) {
+    auto* rect = registry.tryGet<ecs::UIRect>(static_cast<Entity>(entity));
+    if (!rect) return;
+    rect->size.x = w;
+    rect->size.y = h;
+    ecs::uiTreeMarkDirty(static_cast<Entity>(entity));
+}
+
 void transform_update(ecs::Registry& registry) {
     if (ctx().transformSystem()) {
         ctx().transformSystem()->update(registry, 0.0f);
@@ -707,6 +715,7 @@ EMSCRIPTEN_BINDINGS(esengine_ui_systems) {
     emscripten::function("uiTree_markStructureDirty", &esengine::uiTree_markStructureDirty);
     emscripten::function("uiTree_markDirty", &esengine::uiTree_markDirty);
     emscripten::function("uiTree_markAllDirty", &esengine::uiTree_markAllDirty);
+    emscripten::function("setUIRectSize", &esengine::setUIRectSize);
     emscripten::function("transform_update", &esengine::transform_update);
 }
 

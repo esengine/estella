@@ -7,7 +7,7 @@ import { TextRenderer } from './TextRenderer';
 import { UIRect, type UIRectData } from './UIRect';
 import { UIRenderer, UIVisualType } from './UIRenderer';
 import type { UIRendererData } from './UIRenderer';
-import { getEffectiveWidth, getEffectiveHeight } from './uiHelpers';
+import { getEffectiveWidth, getEffectiveHeight, setUIRectSizeNative } from './uiHelpers';
 import { createSnapshotUtils, type Snapshot } from './uiSnapshot';
 
 interface TextSource {
@@ -81,7 +81,6 @@ export class TextPlugin implements Plugin {
                 }
 
                 const entities = world.getEntitiesWithComponents([Text]);
-
                 for (const entity of entities) {
                     const text = world.get(entity, Text) as TextData;
                     const uiRect = world.has(entity, UIRect)
@@ -105,7 +104,6 @@ export class TextPlugin implements Plugin {
                         },
                     } : null;
                     const result = renderer.renderForEntity(entity, text, effectiveRect);
-
                     const r = world.get(entity, UIRenderer) as UIRendererData;
                     r.texture = result.textureHandle;
                     r.visualType = UIVisualType.Image;
@@ -115,8 +113,7 @@ export class TextPlugin implements Plugin {
                     world.insert(entity, UIRenderer, r);
 
                     if (uiRect) {
-                        uiRect.size = { x: result.width, y: result.height };
-                        world.insert(entity, UIRect, uiRect);
+                        setUIRectSizeNative(entity, result.width, result.height);
                     }
 
                     snapshots.set(entity, textSnapshot.take(source));

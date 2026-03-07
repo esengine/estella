@@ -263,6 +263,7 @@ export interface ESEngineModule {
     uiFlexLayout_update(registry: CppRegistry): void;
     getUIRectComputedWidth(registry: CppRegistry, entity: number): number;
     getUIRectComputedHeight(registry: CppRegistry, entity: number): number;
+    setUIRectSize(registry: CppRegistry, entity: number, w: number, h: number): void;
     uiTree_markStructureDirty(): void;
     uiTree_markDirty(entity: number): void;
     uiTree_markAllDirty(): void;

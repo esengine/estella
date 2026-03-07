@@ -56,9 +56,7 @@ void UIElementPlugin::collect(
         position.y += dy;
 
         glm::vec3 halfExtents = glm::vec3(w * scale.x, h * scale.y, 0.0f) * 0.5f;
-        if (!frustum.intersectsAABB(position, halfExtents)) {
-            continue;
-        }
+        if (!frustum.intersectsAABB(position, halfExtents)) continue;
 
         f32 angle = 2.0f * std::atan2(rotation.z, rotation.w);
         i32 layer = UI_BASE_LAYER + renderer.uiOrder;
@@ -115,6 +113,7 @@ void UIElementPlugin::collect(
                 blend, shaderId, clips);
         }
     }
+
 }
 
 void UIElementPlugin::emitQuad(

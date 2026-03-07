@@ -17,20 +17,31 @@ void StateTracker::init() {
 }
 
 void StateTracker::reset() {
+    glEnable(GL_BLEND);
+    glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
     blend_mode_ = BlendMode::Normal;
     blend_enabled_ = true;
 
+    glDisable(GL_SCISSOR_TEST);
     scissor_enabled_ = false;
     scissor_x_ = 0;
     scissor_y_ = 0;
     scissor_w_ = 0;
     scissor_h_ = 0;
 
+    glDisable(GL_STENCIL_TEST);
+    glStencilMask(0xFF);
     stencil_state_ = StencilState::Off;
     stencil_ref_ = 0;
 
+    glDisable(GL_DEPTH_TEST);
+    glDepthMask(GL_TRUE);
     depth_test_ = false;
     depth_write_ = true;
+
+    glDisable(GL_CULL_FACE);
+    cull_enabled_ = false;
+    cull_front_ = false;
 
     current_program_ = 0;
     bound_textures_.fill(0);
@@ -39,9 +50,6 @@ void StateTracker::reset() {
     vp_y_ = -1;
     vp_w_ = 0;
     vp_h_ = 0;
-
-    cull_enabled_ = false;
-    cull_front_ = false;
 }
 
 void StateTracker::setBlendEnabled(bool enabled) {
