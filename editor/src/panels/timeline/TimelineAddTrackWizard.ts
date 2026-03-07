@@ -1,7 +1,8 @@
 import type { EditorStore } from '../../store/EditorStore';
 import type { TimelineTrackData } from './TimelineKeyframeArea';
 import type { TrackType } from './TimelineState';
-import { getComponentSchema } from '../../schemas/ComponentSchemas';
+import { getComponentSchema, inferPropertyType } from '../../schemas/ComponentSchemas';
+import { getComponentDefaults } from 'esengine';
 import { icons } from '../../utils/icons';
 
 interface EntityNode {
@@ -193,11 +194,7 @@ export class TimelineAddTrackWizard {
 
         const components = this.selectedEntity_!.componentTypes
             .filter(t => !SKIP_COMPONENTS.has(t))
-            .filter(t => {
-                const schema = getComponentSchema(t);
-                if (!schema) return false;
-                return schema.properties.some(p => ANIMATABLE_TYPES.has(p.type));
-            });
+            .filter(t => this.getAnimatableProperties(t).length > 0);
 
         if (components.length === 0) {
             const empty = document.createElement('div');
@@ -366,16 +363,36 @@ export class TimelineAddTrackWizard {
 
     private getAnimatableProperties(componentType: string): AnimatableProperty[] {
         const schema = getComponentSchema(componentType);
-        if (!schema) return [];
+        if (schema) {
+            const fromSchema = schema.properties
+                .filter(p => ANIMATABLE_TYPES.has(p.type))
+                .map(p => ({
+                    name: p.name,
+                    type: p.type,
+                    channels: (CHANNEL_SUFFIXES[p.type] ?? ['']).map(s =>
+                        s ? `${p.name}${s}` : p.name
+                    ),
+                }));
+            if (fromSchema.length > 0) return fromSchema;
+        }
 
-        return schema.properties
-            .filter(p => ANIMATABLE_TYPES.has(p.type))
-            .map(p => ({
-                name: p.name,
-                type: p.type,
-                channels: (CHANNEL_SUFFIXES[p.type] ?? ['']).map(s =>
-                    s ? `${p.name}${s}` : p.name
-                ),
-            }));
+        const defaults = getComponentDefaults(componentType);
+        if (!defaults) return [];
+
+        return Object.entries(defaults)
+            .filter(([_, value]) => {
+                const type = inferPropertyType(value);
+                return ANIMATABLE_TYPES.has(type);
+            })
+            .map(([key, value]) => {
+                const type = inferPropertyType(value);
+                return {
+                    name: key,
+                    type,
+                    channels: (CHANNEL_SUFFIXES[type] ?? ['']).map(s =>
+                        s ? `${key}${s}` : key
+                    ),
+                };
+            });
     }
 }

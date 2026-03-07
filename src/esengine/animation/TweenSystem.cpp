@@ -1,10 +1,7 @@
 #include "TweenSystem.hpp"
 #include "EasingFunctions.hpp"
-#include "../ecs/components/Transform.hpp"
-#include "../ecs/components/Sprite.hpp"
-#include "../ecs/components/Camera.hpp"
+#include "AnimPropertyApply.hpp"
 
-#include <glm/glm.hpp>
 #include <algorithm>
 
 namespace esengine::animation {
@@ -117,85 +114,31 @@ void TweenSystem::resumeTween(ecs::Registry& registry, Entity tweenEntity) {
     }
 }
 
+constexpr AnimTargetField TWEEN_TO_ANIM_FIELD[] = {
+    AnimTargetField::PositionX,       // TransformPositionX
+    AnimTargetField::PositionY,       // TransformPositionY
+    AnimTargetField::PositionZ,       // TransformPositionZ
+    AnimTargetField::ScaleX,          // TransformScaleX
+    AnimTargetField::ScaleY,          // TransformScaleY
+    AnimTargetField::RotationZ,       // TransformRotationZ
+    AnimTargetField::ColorR,          // SpriteColorR
+    AnimTargetField::ColorG,          // SpriteColorG
+    AnimTargetField::ColorB,          // SpriteColorB
+    AnimTargetField::ColorA,          // SpriteColorA
+    AnimTargetField::SpriteSizeX,     // SpriteSizeX
+    AnimTargetField::SpriteSizeY,     // SpriteSizeY
+    AnimTargetField::CameraOrthoSize, // CameraOrthoSize
+};
+
 void TweenSystem::applyValue(ecs::Registry& registry, const TweenData& tween, f32 value) {
     Entity target = tween.target_entity;
     if (!registry.valid(target)) {
         return;
     }
 
-    switch (tween.target_property) {
-        case TweenTarget::TransformPositionX:
-            if (auto* t = registry.tryGet<ecs::Transform>(target)) {
-                t->position.x = value;
-            }
-            break;
-        case TweenTarget::TransformPositionY:
-            if (auto* t = registry.tryGet<ecs::Transform>(target)) {
-                t->position.y = value;
-            }
-            break;
-        case TweenTarget::TransformPositionZ:
-            if (auto* t = registry.tryGet<ecs::Transform>(target)) {
-                t->position.z = value;
-            }
-            break;
-        case TweenTarget::TransformScaleX:
-            if (auto* t = registry.tryGet<ecs::Transform>(target)) {
-                t->scale.x = value;
-            }
-            break;
-        case TweenTarget::TransformScaleY:
-            if (auto* t = registry.tryGet<ecs::Transform>(target)) {
-                t->scale.y = value;
-            }
-            break;
-        case TweenTarget::TransformRotationZ: {
-            if (auto* t = registry.tryGet<ecs::Transform>(target)) {
-                f32 halfAngle = value * 0.5f;
-                t->rotation.w = std::cos(halfAngle);
-                t->rotation.x = 0.0f;
-                t->rotation.y = 0.0f;
-                t->rotation.z = std::sin(halfAngle);
-            }
-            break;
-        }
-        case TweenTarget::SpriteColorR:
-            if (auto* s = registry.tryGet<ecs::Sprite>(target)) {
-                s->color.r = value;
-            }
-            break;
-        case TweenTarget::SpriteColorG:
-            if (auto* s = registry.tryGet<ecs::Sprite>(target)) {
-                s->color.g = value;
-            }
-            break;
-        case TweenTarget::SpriteColorB:
-            if (auto* s = registry.tryGet<ecs::Sprite>(target)) {
-                s->color.b = value;
-            }
-            break;
-        case TweenTarget::SpriteColorA:
-            if (auto* s = registry.tryGet<ecs::Sprite>(target)) {
-                s->color.a = value;
-            }
-            break;
-        case TweenTarget::SpriteSizeX:
-            if (auto* s = registry.tryGet<ecs::Sprite>(target)) {
-                s->size.x = value;
-            }
-            break;
-        case TweenTarget::SpriteSizeY:
-            if (auto* s = registry.tryGet<ecs::Sprite>(target)) {
-                s->size.y = value;
-            }
-            break;
-        case TweenTarget::CameraOrthoSize:
-            if (auto* c = registry.tryGet<ecs::Camera>(target)) {
-                c->orthoSize = value;
-            }
-            break;
-        default:
-            break;
+    auto idx = static_cast<u8>(tween.target_property);
+    if (idx < static_cast<u8>(TweenTarget::COUNT)) {
+        applyAnimatedValue(registry, target, TWEEN_TO_ANIM_FIELD[idx], value);
     }
 }
 

@@ -59,6 +59,7 @@ set(ESENGINE_SOURCES
     src/esengine/platform/input/Input.cpp
     src/esengine/platform/PathResolver.cpp
     src/esengine/animation/TweenSystem.cpp
+    src/esengine/animation/TimelineSystem.cpp
     src/esengine/particle/Particle.cpp
     src/esengine/particle/ParticleSystem.cpp
     src/esengine/tilemap/TilemapSystem.cpp
@@ -141,6 +142,8 @@ set(ESENGINE_HEADERS
     src/esengine/animation/TweenData.hpp
     src/esengine/animation/EasingFunctions.hpp
     src/esengine/animation/TweenSystem.hpp
+    src/esengine/animation/TimelineData.hpp
+    src/esengine/animation/TimelineSystem.hpp
     src/esengine/tilemap/TilemapSystem.hpp
     src/esengine/tilemap/TiledMapLoader.hpp
 )
@@ -268,6 +271,7 @@ if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
         src/esengine/bindings/GeometryBindings.cpp
         src/esengine/bindings/PostProcessBindings.cpp
         src/esengine/bindings/TilemapBindings.cpp
+        src/esengine/bindings/TimelineBindings.cpp
         ${GENERATED_WEB_BINDINGS})
     target_link_libraries(esengine_sdk PRIVATE esengine)
     es_apply_sdk_settings(esengine_sdk)

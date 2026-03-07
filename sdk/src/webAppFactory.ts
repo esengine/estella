@@ -34,7 +34,7 @@ export { AnimationPlugin, animationPlugin } from './animation';
 export { AudioPlugin, audioPlugin } from './audio';
 export { ParticlePlugin, particlePlugin } from './particle';
 export { PostProcessPlugin, postProcessPlugin } from './postprocess';
-export { TimelinePlugin, timelinePlugin, registerTimelineAsset, parseTimelineAsset, clearTimelineInstances } from './timeline';
+export { TimelinePlugin, timelinePlugin, registerTimelineAsset, parseTimelineAsset, clearTimelineHandles } from './timeline';
 
 const defaultPlugins = [...uiPlugins, animationPlugin, audioPlugin, particlePlugin, tilemapPlugin, postProcessPlugin, timelinePlugin];
 

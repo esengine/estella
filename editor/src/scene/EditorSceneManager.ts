@@ -374,6 +374,18 @@ export class EditorSceneManager {
         }
     }
 
+    patchUIRectOffset(entityId: number, minX: number, minY: number, maxX: number, maxY: number): void {
+        const entity = this.entityMap_.get(entityId);
+        if (entity === undefined) return;
+        this.module_.uiRect_patchOffset(this.registry, entity, minX, minY, maxX, maxY);
+    }
+
+    patchTransformPosition(entityId: number, x: number, y: number, z: number): void {
+        const entity = this.entityMap_.get(entityId);
+        if (entity === undefined) return;
+        this.module_.transform_patchPosition(this.registry, entity, x, y, z);
+    }
+
     reparentEntity(entityId: number, newParentId: number | null): void {
         const entity = this.entityMap_.get(entityId);
         if (entity === undefined) return;

@@ -12,6 +12,7 @@ export interface GizmoContext {
     getWorldTransform(entityId: number): TransformValue;
     getEntityBounds(entityData: EntityData): { width: number; height: number; offsetX?: number; offsetY?: number };
     requestRender(): void;
+    setGizmoActive(active: boolean): void;
 }
 
 export interface GizmoDescriptor {

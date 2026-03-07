@@ -268,6 +268,10 @@ export interface ESEngineModule {
     uiTree_markDirty(entity: number): void;
     uiTree_markAllDirty(): void;
     transform_update(registry: CppRegistry): void;
+    uiRect_clearAnimOverrides(registry: CppRegistry): void;
+    uiRect_setAnimOverride(registry: CppRegistry, entity: number, flags: number): void;
+    uiRect_patchOffset(registry: CppRegistry, entity: number, minX: number, minY: number, maxX: number, maxY: number): void;
+    transform_patchPosition(registry: CppRegistry, entity: number, x: number, y: number, z: number): void;
 
     // Animation (Tween) API
     _anim_createTween(registry: CppRegistry, entity: number, targetProp: number,
@@ -283,6 +287,52 @@ export interface ESEngineModule {
     _anim_setSequenceNext(registry: CppRegistry, tweenEntity: number, nextEntity: number): void;
     _anim_updateTweens(registry: CppRegistry, deltaTime: number): void;
     _anim_getTweenState(registry: CppRegistry, tweenEntity: number): number;
+
+    // Timeline API
+    _tl_create(duration: number, wrapMode: number): number;
+    _tl_destroy(handle: number): void;
+    _tl_addPropertyTrack(handle: number, childPathPtr: number, childPathLen: number,
+                          component: number, fieldsPtr: number, channelCount: number,
+                          keyframeDataPtr: number, keyframeCountsPtr: number): void;
+    _tl_addCustomPropertyTrack(handle: number, childPathPtr: number, childPathLen: number,
+                                componentNamePtr: number, componentNameLen: number,
+                                fieldPathsPtr: number, fieldPathLensPtr: number,
+                                channelCount: number,
+                                keyframeDataPtr: number, keyframeCountsPtr: number): void;
+    _tl_addSpineTrack(handle: number, childPathPtr: number, childPathLen: number,
+                       clipsDataPtr: number, clipAnimPtrs: number,
+                       clipAnimLens: number, clipCount: number, blendIn: number): void;
+    _tl_addAudioTrack(handle: number, childPathPtr: number, childPathLen: number,
+                       eventsFloatPtr: number, clipPtrs: number,
+                       clipLens: number, eventCount: number): void;
+    _tl_addActivationTrack(handle: number, childPathPtr: number, childPathLen: number,
+                            rangesPtr: number, rangeCount: number): void;
+    _tl_addSpriteAnimTrack(handle: number, childPathPtr: number, childPathLen: number,
+                            clipPathPtr: number, clipPathLen: number, startTime: number): void;
+    _tl_play(handle: number): void;
+    _tl_pause(handle: number): void;
+    _tl_stop(handle: number): void;
+    _tl_setTime(handle: number, time: number): void;
+    _tl_setSpeed(handle: number, speed: number): void;
+    _tl_getTime(handle: number): number;
+    _tl_isPlaying(handle: number): number;
+    _tl_advance(registry: CppRegistry, handle: number, rootEntity: number,
+                 deltaTime: number, speed: number): void;
+    _tl_evaluateAt(handle: number, time: number, outPtr: number, maxChannels: number): number;
+    _tl_getEventCount(): number;
+    _tl_getEventType(index: number): number;
+    _tl_getEventEntity(index: number): number;
+    _tl_getEventIntParam(index: number): number;
+    _tl_getEventFloatParam(index: number): number;
+    _tl_getEventString(index: number): number;
+    _tl_getEventStringLen(index: number): number;
+    _tl_getCustomPropertyCount(): number;
+    _tl_getCustomPropertyEntity(index: number): number;
+    _tl_getCustomPropertyTrackIndex(index: number): number;
+    _tl_getCustomPropertyChannelIndex(index: number): number;
+    _tl_getCustomPropertyValue(index: number): number;
+    _tl_clearResults(): void;
+    _tl_setTrackTarget(handle: number, isEventTrack: number, trackIndex: number, entity: number): void;
 
     // Pointer-based component access
     getTransformPtr(registry: CppRegistry, entity: number): number;

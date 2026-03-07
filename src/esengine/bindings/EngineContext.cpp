@@ -20,6 +20,8 @@
 #include "../resource/ResourceManager.hpp"
 #include "../ecs/TransformSystem.hpp"
 #include "../animation/TweenSystem.hpp"
+#include "../animation/TimelineSystem.hpp"
+#include "../particle/ParticleSystem.hpp"
 #ifdef ES_ENABLE_SPINE
 #include "../spine/SpineResourceManager.hpp"
 #include "../spine/SpineSystem.hpp"
@@ -32,6 +34,22 @@ EngineContext& EngineContext::instance() {
     static EngineContext ctx;
     return ctx;
 }
+
+void EngineContext::setRenderContext(Unique<RenderContext> ctx) { renderContext_ = std::move(ctx); }
+void EngineContext::setRenderFrame(Unique<RenderFrame> frame) { renderFrame_ = std::move(frame); }
+void EngineContext::setImmediateDraw(Unique<ImmediateDraw> draw) { immediateDraw_ = std::move(draw); }
+void EngineContext::setGeometryManager(Unique<GeometryManager> mgr) { geometryManager_ = std::move(mgr); }
+void EngineContext::setPostProcessPipeline(Unique<PostProcessPipeline> pipeline) { postProcessPipeline_ = std::move(pipeline); }
+void EngineContext::setResourceManager(Unique<resource::ResourceManager> mgr) { resourceManager_ = std::move(mgr); }
+void EngineContext::setTransformSystem(Unique<ecs::TransformSystem> sys) { transformSystem_ = std::move(sys); }
+void EngineContext::setTweenSystem(Unique<animation::TweenSystem> sys) { tweenSystem_ = std::move(sys); }
+void EngineContext::setTimelineSystem(Unique<animation::TimelineSystem> sys) { timelineSystem_ = std::move(sys); }
+void EngineContext::setParticleSystem(Unique<particle::ParticleSystem> sys) { particleSystem_ = std::move(sys); }
+
+#ifdef ES_ENABLE_SPINE
+void EngineContext::setSpineResourceManager(Unique<spine::SpineResourceManager> mgr) { spineResourceManager_ = std::move(mgr); }
+void EngineContext::setSpineSystem(Unique<spine::SpineSystem> sys) { spineSystem_ = std::move(sys); }
+#endif
 
 void EngineContext::shutdown() {
     if (!initialized_) return;

@@ -16,41 +16,25 @@ export {
 } from './TimelineTypes';
 
 export {
-    hermiteInterpolate,
-    evaluateChannel,
-    evaluatePropertyTrack,
-    evaluateSpineTrack,
-    evaluateSpriteAnimTrack,
-    evaluateAudioTrack,
-    evaluateActivationTrack,
-    type SpineTrackAction,
-    type SpriteAnimTrackAction,
-    type AudioTrackAction,
-} from './TimelineEvaluator';
-
-export {
     parseTimelineAsset,
     extractTimelineAssetPaths,
     type TimelineAssetPaths,
 } from './TimelineLoader';
 
 export {
-    TimelineInstance,
-    advanceTimeline,
-    applyWrapMode,
-    type PropertyTrackResult,
-    type SpineTrackState,
-    type SpriteAnimTrackState,
-    type AudioTrackState,
-    type ActivationTrackState,
-} from './TimelineSystem';
+    uploadTimelineToWasm,
+    AnimTargetField,
+    type UploadResult,
+    type UploadedTrackInfo,
+} from './TimelineUploader';
 
 export {
     TimelineControl,
-    getTimelineInstance,
-    setTimelineInstance,
-    removeTimelineInstance,
-    clearTimelineInstances,
+    setTimelineHandle,
+    getTimelineHandle,
+    removeTimelineHandle,
+    clearTimelineHandles,
+    setTimelineModule,
 } from './TimelineControl';
 
 export {
@@ -61,8 +45,3 @@ export {
     registerTimelineAsset,
     getTimelineAsset,
 } from './TimelinePlugin';
-
-export {
-    setNestedProperty,
-    getNestedProperty,
-} from './propertyUtils';

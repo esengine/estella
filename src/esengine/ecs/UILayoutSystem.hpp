@@ -97,8 +97,18 @@ inline void writePosition(
     auto* transform = registry.tryGet<Transform>(node.entity);
     if (!transform) return;
 
-    transform->position.x = originX;
-    transform->position.y = originY;
+    auto* rect = registry.tryGet<UIRect>(node.entity);
+    if (rect && rect->anim_override_) {
+        if (!(rect->anim_override_ & UIRect::ANIM_POS_X)) {
+            transform->position.x = originX;
+        }
+        if (!(rect->anim_override_ & UIRect::ANIM_POS_Y)) {
+            transform->position.y = originY;
+        }
+    } else {
+        transform->position.x = originX;
+        transform->position.y = originY;
+    }
 }
 
 inline void layoutNodeAnchor(
@@ -334,8 +344,17 @@ inline void resolveFlexChildren(
 
         auto* transform = registry.tryGet<Transform>(item.entity);
         if (transform) {
-            transform->position.x = localX;
-            transform->position.y = localY;
+            if (childRect.anim_override_) {
+                if (!(childRect.anim_override_ & UIRect::ANIM_POS_X)) {
+                    transform->position.x = localX;
+                }
+                if (!(childRect.anim_override_ & UIRect::ANIM_POS_Y)) {
+                    transform->position.y = localY;
+                }
+            } else {
+                transform->position.x = localX;
+                transform->position.y = localY;
+            }
         }
 
         childRect.computed_size_.x = finalW;
@@ -437,8 +456,18 @@ inline void resolveLayoutGroupChildren(
 
         auto* transform = registry.tryGet<Transform>(child.entity);
         if (transform) {
-            transform->position.x = localX;
-            transform->position.y = localY;
+            auto& cr = registry.get<UIRect>(child.entity);
+            if (cr.anim_override_) {
+                if (!(cr.anim_override_ & UIRect::ANIM_POS_X)) {
+                    transform->position.x = localX;
+                }
+                if (!(cr.anim_override_ & UIRect::ANIM_POS_Y)) {
+                    transform->position.y = localY;
+                }
+            } else {
+                transform->position.x = localX;
+                transform->position.y = localY;
+            }
         }
 
         tree.nodes_[child.tree_index].flags &= ~LAYOUT_DIRTY;

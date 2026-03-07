@@ -1,57 +1,65 @@
 import type { Entity } from '../types';
-import type { World } from '../world';
-import { TimelineInstance } from './TimelineSystem';
 
-const instances_ = new Map<Entity, TimelineInstance>();
+const handles_ = new Map<Entity, number>();
+let module_: any = null;
 
-export function getTimelineInstance(entity: Entity): TimelineInstance | undefined {
-    return instances_.get(entity);
+export function setTimelineModule(mod: any): void {
+    module_ = mod;
 }
 
-export function setTimelineInstance(entity: Entity, instance: TimelineInstance): void {
-    instances_.set(entity, instance);
+export function setTimelineHandle(entity: Entity, handle: number): void {
+    handles_.set(entity, handle);
 }
 
-export function removeTimelineInstance(entity: Entity): void {
-    instances_.delete(entity);
+export function getTimelineHandle(entity: Entity): number | undefined {
+    return handles_.get(entity);
 }
 
-export function getAllTimelineInstances(): Map<Entity, TimelineInstance> {
-    return instances_;
+export function removeTimelineHandle(entity: Entity): void {
+    const handle = handles_.get(entity);
+    if (handle && module_) {
+        module_._tl_destroy(handle);
+    }
+    handles_.delete(entity);
 }
 
-export function clearTimelineInstances(): void {
-    instances_.clear();
+export function clearTimelineHandles(): void {
+    if (module_) {
+        for (const handle of handles_.values()) {
+            module_._tl_destroy(handle);
+        }
+    }
+    handles_.clear();
 }
 
 export const TimelineControl = {
     play(entity: Entity): void {
-        const inst = instances_.get(entity);
-        if (inst) inst.play();
+        const handle = handles_.get(entity);
+        if (handle && module_) module_._tl_play(handle);
     },
 
     pause(entity: Entity): void {
-        const inst = instances_.get(entity);
-        if (inst) inst.pause();
+        const handle = handles_.get(entity);
+        if (handle && module_) module_._tl_pause(handle);
     },
 
     stop(entity: Entity): void {
-        const inst = instances_.get(entity);
-        if (inst) inst.stop();
+        const handle = handles_.get(entity);
+        if (handle && module_) module_._tl_stop(handle);
     },
 
     setTime(entity: Entity, time: number): void {
-        const inst = instances_.get(entity);
-        if (inst) inst.setTime(time);
+        const handle = handles_.get(entity);
+        if (handle && module_) module_._tl_setTime(handle, time);
     },
 
     isPlaying(entity: Entity): boolean {
-        const inst = instances_.get(entity);
-        return inst?.playing ?? false;
+        const handle = handles_.get(entity);
+        return handle && module_ ? module_._tl_isPlaying(handle) !== 0 : false;
     },
 
     getCurrentTime(entity: Entity): number {
-        const inst = instances_.get(entity);
-        return inst?.currentTime ?? 0;
+        const handle = handles_.get(entity);
+        return handle && module_ ? module_._tl_getTime(handle) : 0;
     },
 };

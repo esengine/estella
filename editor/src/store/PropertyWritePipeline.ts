@@ -1,5 +1,6 @@
 import type { EntityData } from '../types/SceneTypes';
 import type { PropertyChangeEvent } from './EditorStore';
+import type { BuiltinPropertySync } from '../sync/BuiltinPropertySync';
 
 export interface WriteRequest {
     entity: number;
@@ -30,6 +31,7 @@ export class PropertyWritePipeline {
     private transformHooks_ = new Map<HookKey, TransformHook[]>();
     private syncHooks_ = new Map<HookKey, SyncHook[]>();
     private defaultSyncHook_: SyncHook | null = null;
+    private builtinSync_: BuiltinPropertySync | null = null;
     private host_: PipelineHost;
 
     constructor(host: PipelineHost) {
@@ -72,6 +74,10 @@ export class PropertyWritePipeline {
         };
     }
 
+    setBuiltinSync(sync: BuiltinPropertySync | null): void {
+        this.builtinSync_ = sync;
+    }
+
     setDefaultSyncHook(hook: SyncHook): () => void {
         const prev = this.defaultSyncHook_;
         this.defaultSyncHook_ = hook;
@@ -100,6 +106,8 @@ export class PropertyWritePipeline {
                 for (const hook of hooks) hook(event, entityData, this);
             }
         }
+
+        if (this.builtinSync_?.trySync(event, entityData)) return;
 
         let handled = false;
         for (const key of [specificKey, wildcardKey]) {

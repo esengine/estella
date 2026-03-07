@@ -16,6 +16,7 @@
 #include <glm/glm.hpp>
 #include "../core/Types.hpp"
 #include "../animation/TweenSystem.hpp"
+#include "../animation/TimelineSystem.hpp"
 #include "../particle/ParticleSystem.hpp"
 
 namespace esengine {
@@ -67,6 +68,7 @@ public:
     resource::ResourceManager* resourceManager() { return resourceManager_.get(); }
     ecs::TransformSystem* transformSystem() { return transformSystem_.get(); }
     animation::TweenSystem* tweenSystem() { return tweenSystem_.get(); }
+    animation::TimelineSystem* timelineSystem() { return timelineSystem_.get(); }
     particle::ParticleSystem* particleSystem() { return particleSystem_.get(); }
 
 #ifdef ES_ENABLE_SPINE
@@ -103,19 +105,20 @@ public:
     void setCurrentViewProjection(const glm::mat4& vp) { currentViewProjection_ = vp; }
 
     void setInitialized(bool initialized) { initialized_ = initialized; }
-    void setRenderContext(Unique<RenderContext> ctx) { renderContext_ = std::move(ctx); }
-    void setRenderFrame(Unique<RenderFrame> frame) { renderFrame_ = std::move(frame); }
-    void setImmediateDraw(Unique<ImmediateDraw> draw) { immediateDraw_ = std::move(draw); }
-    void setGeometryManager(Unique<GeometryManager> mgr) { geometryManager_ = std::move(mgr); }
-    void setPostProcessPipeline(Unique<PostProcessPipeline> pipeline) { postProcessPipeline_ = std::move(pipeline); }
-    void setResourceManager(Unique<resource::ResourceManager> mgr) { resourceManager_ = std::move(mgr); }
-    void setTransformSystem(Unique<ecs::TransformSystem> sys) { transformSystem_ = std::move(sys); }
-    void setTweenSystem(Unique<animation::TweenSystem> sys) { tweenSystem_ = std::move(sys); }
-    void setParticleSystem(Unique<particle::ParticleSystem> sys) { particleSystem_ = std::move(sys); }
+    void setRenderContext(Unique<RenderContext> ctx);
+    void setRenderFrame(Unique<RenderFrame> frame);
+    void setImmediateDraw(Unique<ImmediateDraw> draw);
+    void setGeometryManager(Unique<GeometryManager> mgr);
+    void setPostProcessPipeline(Unique<PostProcessPipeline> pipeline);
+    void setResourceManager(Unique<resource::ResourceManager> mgr);
+    void setTransformSystem(Unique<ecs::TransformSystem> sys);
+    void setTweenSystem(Unique<animation::TweenSystem> sys);
+    void setTimelineSystem(Unique<animation::TimelineSystem> sys);
+    void setParticleSystem(Unique<particle::ParticleSystem> sys);
 
 #ifdef ES_ENABLE_SPINE
-    void setSpineResourceManager(Unique<spine::SpineResourceManager> mgr) { spineResourceManager_ = std::move(mgr); }
-    void setSpineSystem(Unique<spine::SpineSystem> sys) { spineSystem_ = std::move(sys); }
+    void setSpineResourceManager(Unique<spine::SpineResourceManager> mgr);
+    void setSpineSystem(Unique<spine::SpineSystem> sys);
 #endif
 
 private:
@@ -130,6 +133,7 @@ private:
     Unique<resource::ResourceManager> resourceManager_;
     Unique<ecs::TransformSystem> transformSystem_;
     Unique<animation::TweenSystem> tweenSystem_;
+    Unique<animation::TimelineSystem> timelineSystem_;
     Unique<particle::ParticleSystem> particleSystem_;
 
 #ifdef ES_ENABLE_SPINE

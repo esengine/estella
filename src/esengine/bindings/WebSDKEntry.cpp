@@ -202,6 +202,7 @@ static void initSubsystems() {
 
     ctx().setTransformSystem(makeUnique<ecs::TransformSystem>());
     ctx().setTweenSystem(makeUnique<animation::TweenSystem>());
+    ctx().setTimelineSystem(makeUnique<animation::TimelineSystem>());
     ctx().setParticleSystem(makeUnique<particle::ParticleSystem>());
 
 #ifdef ES_ENABLE_SPINE
@@ -701,6 +702,34 @@ void transform_update(ecs::Registry& registry) {
     }
 }
 
+void uiRect_clearAnimOverrides(ecs::Registry& registry) {
+    for (auto entity : registry.view<ecs::UIRect>()) {
+        registry.get<ecs::UIRect>(entity).anim_override_ = 0;
+    }
+}
+
+void uiRect_setAnimOverride(ecs::Registry& registry, u32 entity, u8 flags) {
+    auto* rect = registry.tryGet<ecs::UIRect>(static_cast<Entity>(entity));
+    if (rect) {
+        rect->anim_override_ |= flags;
+    }
+}
+
+void uiRect_patchOffset(ecs::Registry& registry, u32 entity,
+                        f32 minX, f32 minY, f32 maxX, f32 maxY) {
+    auto* rect = registry.tryGet<ecs::UIRect>(static_cast<Entity>(entity));
+    if (!rect) return;
+    rect->offsetMin = {minX, minY};
+    rect->offsetMax = {maxX, maxY};
+}
+
+void transform_patchPosition(ecs::Registry& registry, u32 entity,
+                             f32 x, f32 y, f32 z) {
+    auto* transform = registry.tryGet<ecs::Transform>(static_cast<Entity>(entity));
+    if (!transform) return;
+    transform->position = {x, y, z};
+}
+
 }  // namespace esengine
 
 EMSCRIPTEN_BINDINGS(esengine_ui_systems) {
@@ -717,6 +746,10 @@ EMSCRIPTEN_BINDINGS(esengine_ui_systems) {
     emscripten::function("uiTree_markAllDirty", &esengine::uiTree_markAllDirty);
     emscripten::function("setUIRectSize", &esengine::setUIRectSize);
     emscripten::function("transform_update", &esengine::transform_update);
+    emscripten::function("uiRect_clearAnimOverrides", &esengine::uiRect_clearAnimOverrides);
+    emscripten::function("uiRect_setAnimOverride", &esengine::uiRect_setAnimOverride);
+    emscripten::function("uiRect_patchOffset", &esengine::uiRect_patchOffset);
+    emscripten::function("transform_patchPosition", &esengine::transform_patchPosition);
 }
 
 // =============================================================================

@@ -86,6 +86,8 @@ interface MoveGizmoDragState {
     originalValue: { x: number; y: number; z: number };
     startWorldX: number;
     startWorldY: number;
+    originalOffsetMin?: { x: number; y: number };
+    originalOffsetMax?: { x: number; y: number };
 }
 
 export function createMoveGizmo(): GizmoDescriptor {
@@ -174,17 +176,26 @@ export function createMoveGizmo(): GizmoDescriptor {
         },
 
         onDragStart(worldX, worldY, hitData, gctx) {
+            gctx.setGizmoActive(true);
             dragAxis = hitData as DragAxis;
             const entityData = gctx.store.getSelectedEntityData();
             const transform = entityData?.components.find(c => c.type === 'Transform');
             if (transform) {
                 const value = transform.data.position as { x: number; y: number; z: number };
-                dragState = {
+                const state: MoveGizmoDragState = {
                     startValue: { ...value },
                     originalValue: { ...value },
                     startWorldX: worldX,
                     startWorldY: worldY,
                 };
+                const uiRect = entityData?.components.find(c => c.type === 'UIRect');
+                if (uiRect) {
+                    const oMin = uiRect.data.offsetMin as { x: number; y: number };
+                    const oMax = uiRect.data.offsetMax as { x: number; y: number };
+                    state.originalOffsetMin = { ...oMin };
+                    state.originalOffsetMax = { ...oMax };
+                }
+                dragState = state;
             }
         },
 
@@ -215,6 +226,7 @@ export function createMoveGizmo(): GizmoDescriptor {
         },
 
         onDragEnd(_worldX, _worldY, _hitData, gctx) {
+            gctx.setGizmoActive(false);
             const entity = gctx.store.selectedEntity;
             if (entity === null || !dragState) { dragState = null; return; }
 
@@ -223,10 +235,22 @@ export function createMoveGizmo(): GizmoDescriptor {
             if (transform) {
                 const currentPos = transform.data.position;
                 if (currentPos && !valuesEqual(dragState.originalValue, currentPos)) {
-                    gctx.store.updateProperty(
-                        entity, 'Transform', 'position',
-                        { ...dragState.originalValue }, deepClone(currentPos),
-                    );
+                    if (dragState.originalOffsetMin && dragState.originalOffsetMax) {
+                        const uiRect = entityData?.components.find(c => c.type === 'UIRect');
+                        if (uiRect) {
+                            const curMin = uiRect.data.offsetMin as { x: number; y: number };
+                            const curMax = uiRect.data.offsetMax as { x: number; y: number };
+                            gctx.store.updateBatchProperties(entity, [
+                                { componentType: 'UIRect', property: 'offsetMin', oldValue: { ...dragState.originalOffsetMin }, newValue: { ...curMin } },
+                                { componentType: 'UIRect', property: 'offsetMax', oldValue: { ...dragState.originalOffsetMax }, newValue: { ...curMax } },
+                            ], 'Move UIRect');
+                        }
+                    } else {
+                        gctx.store.updateProperty(
+                            entity, 'Transform', 'position',
+                            { ...dragState.originalValue }, deepClone(currentPos),
+                        );
+                    }
                 }
             }
             dragState = null;
@@ -332,6 +356,7 @@ export function createRotateGizmo(): GizmoDescriptor {
         },
 
         onDragStart(worldX, worldY, _hitData, gctx) {
+            gctx.setGizmoActive(true);
             const entityData = gctx.store.getSelectedEntityData();
             const transform = entityData?.components.find(c => c.type === 'Transform');
             if (transform) {
@@ -371,6 +396,7 @@ export function createRotateGizmo(): GizmoDescriptor {
         },
 
         onDragEnd(_worldX, _worldY, _hitData, gctx) {
+            gctx.setGizmoActive(false);
             const entity = gctx.store.selectedEntity;
             if (entity === null || !dragState) { dragState = null; return; }
 
@@ -485,6 +511,7 @@ export function createScaleGizmo(): GizmoDescriptor {
         },
 
         onDragStart(worldX, worldY, hitData, gctx) {
+            gctx.setGizmoActive(true);
             dragAxis = hitData as DragAxis;
             const entityData = gctx.store.getSelectedEntityData();
             const transform = entityData?.components.find(c => c.type === 'Transform');
@@ -520,6 +547,7 @@ export function createScaleGizmo(): GizmoDescriptor {
         },
 
         onDragEnd(_worldX, _worldY, _hitData, gctx) {
+            gctx.setGizmoActive(false);
             const entity = gctx.store.selectedEntity;
             if (entity === null || !dragState) { dragState = null; return; }
 
@@ -560,6 +588,8 @@ interface RectGizmoDragState {
     startSize: { x: number; y: number };
     originalPos: { x: number; y: number; z: number };
     originalSize: { x: number; y: number };
+    originalOffsetMin?: { x: number; y: number };
+    originalOffsetMax?: { x: number; y: number };
 }
 
 function getRectHandleCursor(handle: RectHandle): string {
@@ -681,6 +711,7 @@ export function createRectGizmo(): GizmoDescriptor {
         },
 
         onDragStart(worldX, worldY, hitData, gctx) {
+            gctx.setGizmoActive(true);
             activeHandle = hitData as RectHandle;
             const entityData = gctx.store.getSelectedEntityData();
             if (!entityData) return;
@@ -698,7 +729,7 @@ export function createRectGizmo(): GizmoDescriptor {
                 size = { x: bounds.width, y: bounds.height };
             }
 
-            dragState = {
+            const state: RectGizmoDragState = {
                 startWorldX: worldX,
                 startWorldY: worldY,
                 startPos: { x: pos.x, y: pos.y },
@@ -706,6 +737,14 @@ export function createRectGizmo(): GizmoDescriptor {
                 originalPos: { ...pos },
                 originalSize: { x: size.x, y: size.y },
             };
+            const uiRect = entityData.components.find(c => c.type === 'UIRect');
+            if (uiRect) {
+                const oMin = uiRect.data.offsetMin as { x: number; y: number };
+                const oMax = uiRect.data.offsetMax as { x: number; y: number };
+                state.originalOffsetMin = { ...oMin };
+                state.originalOffsetMax = { ...oMax };
+            }
+            dragState = state;
         },
 
         onDrag(worldX, worldY, _hitData, gctx) {
@@ -754,33 +793,48 @@ export function createRectGizmo(): GizmoDescriptor {
         },
 
         onDragEnd(_worldX, _worldY, _hitData, gctx) {
+            gctx.setGizmoActive(false);
             const entity = gctx.store.selectedEntity;
             if (entity === null || !dragState) { dragState = null; return; }
 
             const entityData = gctx.store.getSelectedEntityData();
             if (!entityData) { dragState = null; return; }
 
+            const changes: { componentType: string; property: string; oldValue: unknown; newValue: unknown }[] = [];
+
             const sizeType = getSizeProvider(entityData);
             if (sizeType) {
                 const comp = entityData.components.find(c => c.type === sizeType)!;
                 const currentSize = comp.data.size as { x: number; y: number };
                 if (currentSize && !valuesEqual(dragState.originalSize, currentSize)) {
-                    gctx.store.updateProperty(
-                        entity, sizeType, 'size',
-                        { ...dragState.originalSize }, { ...currentSize },
-                    );
+                    changes.push({ componentType: sizeType, property: 'size', oldValue: { ...dragState.originalSize }, newValue: { ...currentSize } });
                 }
             }
 
-            const transform = entityData.components.find(c => c.type === 'Transform');
-            if (transform) {
-                const currentPos = transform.data.position as { x: number; y: number; z: number };
-                if (currentPos && !valuesEqual(dragState.originalPos, currentPos)) {
-                    gctx.store.updateProperty(
-                        entity, 'Transform', 'position',
-                        { ...dragState.originalPos }, { ...currentPos },
-                    );
+            if (dragState.originalOffsetMin && dragState.originalOffsetMax) {
+                const uiRect = entityData.components.find(c => c.type === 'UIRect');
+                if (uiRect) {
+                    const curMin = uiRect.data.offsetMin as { x: number; y: number };
+                    const curMax = uiRect.data.offsetMax as { x: number; y: number };
+                    if (!valuesEqual(dragState.originalOffsetMin, curMin)) {
+                        changes.push({ componentType: 'UIRect', property: 'offsetMin', oldValue: { ...dragState.originalOffsetMin }, newValue: { ...curMin } });
+                    }
+                    if (!valuesEqual(dragState.originalOffsetMax, curMax)) {
+                        changes.push({ componentType: 'UIRect', property: 'offsetMax', oldValue: { ...dragState.originalOffsetMax }, newValue: { ...curMax } });
+                    }
                 }
+            } else {
+                const transform = entityData.components.find(c => c.type === 'Transform');
+                if (transform) {
+                    const currentPos = transform.data.position as { x: number; y: number; z: number };
+                    if (currentPos && !valuesEqual(dragState.originalPos, currentPos)) {
+                        changes.push({ componentType: 'Transform', property: 'position', oldValue: { ...dragState.originalPos }, newValue: { ...currentPos } });
+                    }
+                }
+            }
+
+            if (changes.length > 0) {
+                gctx.store.updateBatchProperties(entity, changes, 'Resize rect');
             }
 
             dragState = null;

@@ -32,7 +32,7 @@ import {
     sceneManagerPlugin,
     postProcessPlugin,
     timelinePlugin,
-    clearTimelineInstances,
+    clearTimelineHandles,
 } from 'esengine';
 import { PhysicsPlugin, type PhysicsPluginConfig } from 'esengine/physics';
 import type { SpineModuleController } from 'esengine/spine';
@@ -328,7 +328,8 @@ export class SharedRenderContext {
             }
         }
 
-        clearTimelineInstances();
+        clearTimelineHandles();
+        timelinePlugin.clearHandles();
         this.playMode_ = true;
         this.paused_ = false;
         this.lastFrameTime_ = performance.now();

@@ -2,21 +2,15 @@ import type { App, Plugin } from '../app';
 import { defineSystem, Schedule } from '../system';
 import { Res } from '../resource';
 import { Time, type TimeData } from '../resource';
-import { defineComponent, Children, Name, getComponent, Transform } from '../component';
-import { UIRect } from '../ui/UIRect';
+import { defineComponent, getComponent, SpineAnimation } from '../component';
 import { isEditor, isPlayMode } from '../env';
-import { TrackType, WrapMode, type TimelineAsset } from './TimelineTypes';
+import { WrapMode, type TimelineAsset } from './TimelineTypes';
 import { parseTimelineAsset } from './TimelineLoader';
-import { TimelineInstance, advanceTimeline } from './TimelineSystem';
-import {
-    getAllTimelineInstances,
-    getTimelineInstance,
-    setTimelineInstance,
-    removeTimelineInstance,
-    clearTimelineInstances,
-} from './TimelineControl';
-import { setNestedProperty } from './propertyUtils';
-import { redirectPositionToUIRect } from './uiRectRedirect';
+import { uploadTimelineToWasm, type UploadResult } from './TimelineUploader';
+import { SpriteAnimator } from '../animation/SpriteAnimator';
+import { Audio } from '../audio';
+import type { ESEngineModule } from '../wasm';
+import type { Entity } from '../types';
 
 export interface TimelinePlayerData {
     timeline: string;
@@ -42,85 +36,60 @@ export function getTimelineAsset(path: string): TimelineAsset | undefined {
     return loadedAssets_.get(path);
 }
 
-function resolveChildEntity(world: any, rootEntity: any, childPath: string): any {
+const WRAP_MODE_MAP: Record<string, number> = {
+    once: WrapMode.Once,
+    loop: WrapMode.Loop,
+    pingPong: WrapMode.PingPong,
+};
+
+function setNestedProperty(obj: Record<string, any>, path: string, value: number): boolean {
+    const parts = path.split('.');
+    let target = obj;
+    for (let i = 0; i < parts.length - 1; i++) {
+        target = target[parts[i]];
+        if (target == null || typeof target !== 'object') return false;
+    }
+    const lastKey = parts[parts.length - 1];
+    if (!(lastKey in target)) return false;
+    target[lastKey] = value;
+    return true;
+}
+
+function resolveChildEntity(world: any, rootEntity: Entity, childPath: string): Entity | null {
     if (!childPath) return rootEntity;
 
-    const parts = childPath.split('/');
-    let current = rootEntity;
-    for (const part of parts) {
+    const Children = getComponent('Children');
+    const Name = getComponent('Name');
+    if (!Children || !Name) return null;
+
+    let current: Entity = rootEntity;
+    const segments = childPath.split('/');
+
+    for (const segment of segments) {
         const childrenData = world.tryGet(current, Children);
-        const childEntities = childrenData?.entities ? Array.from(childrenData.entities as Iterable<any>) : [];
-        if (childEntities.length === 0) return null;
-        let found = false;
-        for (const child of childEntities) {
-            const nameData = world.tryGet(child, Name);
-            if (nameData?.value === part) {
-                current = child;
-                found = true;
+        if (!childrenData) return null;
+
+        const childEntities: Entity[] = childrenData.entities || [];
+        let found: Entity | null = null;
+        for (const childId of childEntities) {
+            const nameData = world.tryGet(childId, Name);
+            if (nameData && nameData.value === segment) {
+                found = childId;
                 break;
             }
         }
-        if (!found) return null;
+        if (found === null) return null;
+        current = found;
     }
+
     return current;
 }
 
-function applyPropertyTrackResults(world: any, rootEntity: any, instance: TimelineInstance): void {
-    const results = instance.evaluatePropertyTracks();
-    for (const result of results) {
-        const targetEntity = resolveChildEntity(world, rootEntity, result.childPath);
-        if (targetEntity == null) continue;
-
-        const componentDef = getComponent(result.component);
-        if (!componentDef) continue;
-        if (!world.has(targetEntity, componentDef)) continue;
-
-        if (result.component === 'Transform' && world.has(targetEntity, UIRect)) {
-            const posValues = new Map<string, number>();
-            const nonPosValues = new Map<string, number>();
-            for (const [propPath, value] of result.values) {
-                if (propPath.startsWith('position.')) {
-                    posValues.set(propPath, value);
-                } else {
-                    nonPosValues.set(propPath, value);
-                }
-            }
-
-            if (posValues.size > 0) {
-                redirectPositionToUIRect(world, targetEntity, posValues);
-            }
-
-            if (nonPosValues.size > 0) {
-                const data = world.get(targetEntity, componentDef);
-                let modified = false;
-                for (const [propPath, value] of nonPosValues) {
-                    if (setNestedProperty(data, propPath, value)) {
-                        modified = true;
-                    }
-                }
-                if (modified) {
-                    world.set(targetEntity, componentDef, data);
-                }
-            }
-            continue;
-        }
-
-        const data = world.get(targetEntity, componentDef);
-        let modified = false;
-        for (const [propPath, value] of result.values) {
-            if (setNestedProperty(data, propPath, value)) {
-                modified = true;
-            }
-        }
-
-        if (modified) {
-            world.set(targetEntity, componentDef, data);
-        }
-    }
-}
 
 export class TimelinePlugin implements Plugin {
     name = 'TimelinePlugin';
+
+    private handles_ = new Map<number, UploadResult>();
 
     build(app: App): void {
         const world = app.world;
@@ -130,47 +99,199 @@ export class TimelinePlugin implements Plugin {
             (time: TimeData) => {
                 if (isEditor() && !isPlayMode()) return;
 
+                const module = world.getWasmModule() as ESEngineModule;
+                if (!module) return;
+
+                const registry = world.getCppRegistry() as any;
+                module.uiRect_clearAnimOverrides(registry);
+
                 const entities = world.getEntitiesWithComponents([TimelinePlayer]);
                 for (const entity of entities) {
                     const playerData = world.get(entity, TimelinePlayer) as TimelinePlayerData;
                     if (!playerData.timeline) continue;
 
-                    let instance = getTimelineInstance(entity);
-
-                    if (!instance) {
+                    let uploadResult = this.handles_.get(entity);
+                    if (!uploadResult) {
                         const asset = loadedAssets_.get(playerData.timeline);
                         if (!asset) continue;
-                        instance = new TimelineInstance(asset);
-                        setTimelineInstance(entity, instance);
+                        uploadResult = uploadTimelineToWasm(module, asset);
+                        if (!uploadResult.handle) continue;
+                        this.resolveTrackTargets(world, module, uploadResult, entity);
+                        this.handles_.set(entity, uploadResult);
                     }
 
-                    instance.speed = playerData.speed;
-                    if (playerData.playing && !instance.playing) {
-                        if (instance.currentTime === 0) {
-                            instance.play();
+                    const handle = uploadResult.handle;
+
+                    if (playerData.playing && !module._tl_isPlaying(handle)) {
+                        const currentTime = module._tl_getTime(handle);
+                        if (currentTime === 0) {
+                            module._tl_play(handle);
                         } else {
-                            instance.playing = true;
+                            module._tl_play(handle);
+                            module._tl_setTime(handle, currentTime);
                         }
-                    } else if (!playerData.playing && instance.playing) {
-                        instance.pause();
+                    } else if (!playerData.playing && module._tl_isPlaying(handle)) {
+                        module._tl_pause(handle);
                     }
 
-                    advanceTimeline(instance, time.delta);
-                    applyPropertyTrackResults(world, entity, instance);
+                    module._tl_advance(
+                        world.getCppRegistry() as any,
+                        handle,
+                        entity,
+                        time.delta,
+                        playerData.speed,
+                    );
 
-                    if (!instance.playing && playerData.playing) {
+                    this.processEvents(world, module);
+                    this.processCustomProperties(world, module, uploadResult);
+                    module._tl_clearResults();
+
+                    if (!module._tl_isPlaying(handle) && playerData.playing) {
                         playerData.playing = false;
                         world.insert(entity, TimelinePlayer, playerData);
                     }
                 }
             },
-            { name: 'TimelineSystem' }
+            { name: 'TimelineSystem' },
         ));
     }
 
+    clearHandles(): void {
+        this.handles_.clear();
+    }
+
     cleanup(): void {
-        clearTimelineInstances();
+        this.handles_.clear();
         loadedAssets_.clear();
+    }
+
+    private resolveTrackTargets(
+        world: any, module: ESEngineModule,
+        uploadResult: UploadResult, rootEntity: Entity,
+    ): void {
+        let propertyIndex = 0;
+        let eventIndex = 0;
+
+        for (const track of uploadResult.tracks) {
+            if (!track.childPath) {
+                if (track.type === 'property') propertyIndex++;
+                else eventIndex++;
+                continue;
+            }
+
+            const resolved = resolveChildEntity(world, rootEntity, track.childPath);
+            if (resolved !== null) {
+                const isEvent = track.type !== 'property';
+                const index = isEvent ? eventIndex : propertyIndex;
+                module._tl_setTrackTarget(uploadResult.handle, isEvent ? 1 : 0, index, resolved as number);
+            }
+
+            if (track.type === 'property') propertyIndex++;
+            else eventIndex++;
+        }
+    }
+
+    private decodeEventString(module: ESEngineModule, index: number): string {
+        const ptr = module._tl_getEventString(index);
+        const len = module._tl_getEventStringLen(index);
+        if (!ptr || len <= 0) return '';
+        const bytes = new Uint8Array((module as any).HEAPU8.buffer, ptr, len);
+        return new TextDecoder().decode(bytes);
+    }
+
+    private processEvents(world: any, module: ESEngineModule): void {
+        const count = module._tl_getEventCount();
+        for (let i = 0; i < count; i++) {
+            const type = module._tl_getEventType(i);
+            const entity = module._tl_getEventEntity(i);
+
+            switch (type) {
+                case 0: { // SpinePlay
+                    const animName = this.decodeEventString(module, i);
+                    const loop = module._tl_getEventIntParam(i) !== 0;
+                    if (world.has(entity, SpineAnimation)) {
+                        const current = world.get(entity, SpineAnimation);
+                        current.animation = animName;
+                        current.playing = true;
+                        current.loop = loop;
+                        world.set(entity, SpineAnimation, current);
+                    }
+                    break;
+                }
+                case 1: { // SpineStop
+                    if (world.has(entity, SpineAnimation)) {
+                        const current = world.get(entity, SpineAnimation);
+                        current.playing = false;
+                        world.set(entity, SpineAnimation, current);
+                    }
+                    break;
+                }
+                case 2: { // SpriteAnimPlay
+                    const clipName = this.decodeEventString(module, i);
+                    if (world.has(entity, SpriteAnimator)) {
+                        const current = world.get(entity, SpriteAnimator);
+                        world.insert(entity, SpriteAnimator, {
+                            ...current,
+                            clip: clipName,
+                            playing: true,
+                        });
+                    }
+                    break;
+                }
+                case 3: { // AudioPlay
+                    const clipPath = this.decodeEventString(module, i);
+                    const volume = module._tl_getEventFloatParam(i);
+                    if (clipPath) {
+                        Audio.playSFX(clipPath, { volume });
+                    }
+                    break;
+                }
+                case 4: { // ActivationSet
+                    const active = module._tl_getEventIntParam(i) !== 0;
+                    if (world.has(entity, SpineAnimation)) {
+                        const current = world.get(entity, SpineAnimation);
+                        current.enabled = active;
+                        world.set(entity, SpineAnimation, current);
+                    }
+                    if (world.has(entity, SpriteAnimator)) {
+                        const current = world.get(entity, SpriteAnimator);
+                        world.insert(entity, SpriteAnimator, { ...current, enabled: active });
+                    }
+                    const Sprite = getComponent('Sprite');
+                    if (Sprite && world.has(entity, Sprite)) {
+                        const current = world.get(entity, Sprite);
+                        world.set(entity, Sprite, { ...current, enabled: active });
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
+    private processCustomProperties(
+        world: any, module: ESEngineModule, uploadResult: UploadResult,
+    ): void {
+        const count = module._tl_getCustomPropertyCount();
+        if (count === 0) return;
+
+        for (let i = 0; i < count; i++) {
+            const entity = module._tl_getCustomPropertyEntity(i);
+            const trackIndex = module._tl_getCustomPropertyTrackIndex(i);
+            const channelIndex = module._tl_getCustomPropertyChannelIndex(i);
+            const value = module._tl_getCustomPropertyValue(i);
+
+            const trackInfo = uploadResult.tracks.filter(t => t.type === 'property')[trackIndex];
+            if (!trackInfo?.component || !trackInfo.channelProperties) continue;
+
+            const componentDef = getComponent(trackInfo.component);
+            if (!componentDef || !world.has(entity, componentDef)) continue;
+
+            const data = world.get(entity, componentDef);
+            const propPath = trackInfo.channelProperties[channelIndex];
+            if (propPath && setNestedProperty(data, propPath, value)) {
+                world.set(entity, componentDef, data);
+            }
+        }
     }
 }
 

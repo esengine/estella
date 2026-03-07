@@ -9,6 +9,8 @@ import { TimelineKeyframeArea, type TimelineAssetData, type TimelineTrackData } 
 import { TimelineCurveEditor } from './TimelineCurveEditor';
 import { AddKeyframeCommand, ReorderTrackCommand, RenameTrackCommand } from './TimelineCommands';
 import { getEditorContext } from '../../context/EditorContext';
+import { getSharedRenderContext } from '../../renderer';
+import { getComponent as getComponentDef } from 'esengine';
 import { getProjectService, getSceneService } from '../../services';
 import { getAssetDatabase as getAssetLibrary, isUUID } from '../../asset';
 import { DisposableStore } from '../../utils/Disposable';
@@ -182,6 +184,9 @@ export class TimelinePanel implements PanelInstance {
         const entityId = this.resolveChildEntity(track.childPath ?? '');
         if (entityId === null) return 0;
 
+        const runtimeValue = this.readRuntimeValue(entityId as number, track.component ?? '', channel.property);
+        if (runtimeValue !== null) return runtimeValue;
+
         const entityData = this.store_.getEntityData(entityId as number);
         if (!entityData) return 0;
 
@@ -189,6 +194,23 @@ export class TimelinePanel implements PanelInstance {
         if (!comp) return 0;
 
         return this.extractValue(comp.data, channel.property);
+    }
+
+    private readRuntimeValue(entity: number, component: string, property: string): number | null {
+        const ctx = getSharedRenderContext();
+        const app = ctx.app_;
+        if (!app) return null;
+
+        const compDef = getComponentDef(component);
+        if (!compDef || !compDef._builtin) return null;
+
+        try {
+            const data = app.world.get(entity as any, compDef);
+            if (!data) return null;
+            return this.extractValue(data as Record<string, unknown>, property);
+        } catch {
+            return null;
+        }
     }
 
     private resolveChildEntity(childPath: string): number | null {
@@ -370,8 +392,42 @@ export class TimelinePanel implements PanelInstance {
             }
         }
 
+        this.setAnimOverridesForScrub();
+
         this.isScrubPreview_ = false;
         this.store_.invalidateAllTransforms();
+    }
+
+    private setAnimOverridesForScrub(): void {
+        if (!this.assetData_ || this.boundEntityId_ === null) return;
+
+        const ctx = getSharedRenderContext();
+        const module = ctx.module_ as any;
+        const app = ctx.app_;
+        if (!module || !app) return;
+        const registry = app.world.getCppRegistry();
+        if (!registry) return;
+
+        for (const track of this.assetData_.tracks) {
+            if (track.type !== 'property' || !track.component || !track.channels) continue;
+            if (track.component !== 'Transform') continue;
+
+            const entityId = this.resolveChildEntity(track.childPath ?? '');
+            if (entityId === null) continue;
+
+            const entityData = this.store_.getEntityData(entityId as number);
+            if (!entityData) continue;
+            if (!entityData.components.some(c => c.type === 'UIRect')) continue;
+
+            let flags = 0;
+            for (const channel of track.channels) {
+                if (channel.property === 'position.x') flags |= 1;
+                if (channel.property === 'position.y') flags |= 2;
+            }
+            if (flags) {
+                module.uiRect_setAnimOverride(registry, entityId as number, flags);
+            }
+        }
     }
 
     private evaluateChannelAtTime(

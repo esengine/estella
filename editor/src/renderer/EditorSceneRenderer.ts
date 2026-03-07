@@ -20,6 +20,7 @@ import { getAssetEventBus } from '../events/AssetEventBus';
 import { getDependencyGraph } from '../asset/AssetDependencyGraph';
 import type { TransformValue } from '../math/Transform';
 import type { SharedRenderContext } from './SharedRenderContext';
+import { BuiltinPropertySync } from '../sync/BuiltinPropertySync';
 
 export class EditorSceneRenderer {
     private context_: SharedRenderContext;
@@ -30,6 +31,7 @@ export class EditorSceneRenderer {
     private rafId_: number | null = null;
     private renderCallback_: (() => void) | null = null;
     private lastElapsed_ = 0;
+    private gizmoActive_ = false;
 
     constructor(context: SharedRenderContext) {
         this.context_ = context;
@@ -63,6 +65,7 @@ export class EditorSceneRenderer {
 
     setRenderCallback(callback: (() => void) | null): void {
         this.renderCallback_ = callback;
+        this.builtinSync_?.setRenderCallback(callback);
     }
 
     private setupSyncService(): void {
@@ -126,42 +129,16 @@ export class EditorSceneRenderer {
         });
     }
 
-    private static readonly TRANSFORM_DIRECT_PROPS_ = new Set([
-        'position', 'rotation', 'scale',
-    ]);
+    private builtinSync_: BuiltinPropertySync | null = null;
 
     private registerPipelineSyncHooks_(store: EditorStore): void {
         const pipeline = store.pipeline_;
 
+        this.builtinSync_ = new BuiltinPropertySync(this.sceneManager_!, store);
+        this.builtinSync_.setRenderCallback(this.renderCallback_);
+        pipeline.setBuiltinSync(this.builtinSync_);
+
         this.unsubscribes_.push(
-            pipeline.registerSyncHook('Transform', '*', (event, entityData) => {
-                if (!this.sceneManager_?.hasEntity(event.entity)) return;
-
-                if (EditorSceneRenderer.TRANSFORM_DIRECT_PROPS_.has(event.propertyName)) {
-                    if (event.propertyName === 'position'
-                        && entityData.components.some(c => c.type === 'UIRect')) {
-                        this.scheduleEntityUpdate(event.entity);
-                    } else {
-                        const transform = entityData.components.find(c => c.type === 'Transform');
-                        if (transform) {
-                            this.sceneManager_!.updateTransform(event.entity, transform.data);
-                        }
-                    }
-                    this.renderCallback_?.();
-                    return true;
-                }
-            }),
-
-            pipeline.registerSyncHook('UIRect', '*', (event) => {
-                if (!this.sceneManager_?.hasEntity(event.entity)) return;
-                this.scheduleDescendantUpdates(event.entity);
-            }),
-
-            pipeline.registerSyncHook('Canvas', '*', (event) => {
-                if (!this.sceneManager_?.hasEntity(event.entity)) return;
-                this.scheduleDescendantUpdates(event.entity);
-            }),
-
             pipeline.registerSyncHook('PostProcessVolume', '*', (event) => {
                 if (!this.sceneManager_?.hasEntity(event.entity)) return;
                 this.syncPostProcessVolumeForEntity(event.entity);
@@ -172,15 +149,6 @@ export class EditorSceneRenderer {
                 this.scheduleEntityUpdate(event.entity);
             }),
         );
-    }
-
-    private scheduleDescendantUpdates(entityId: number): void {
-        const entityData = this.store_!.getEntityData(entityId);
-        if (!entityData) return;
-        for (const childId of entityData.children) {
-            this.scheduleEntityUpdate(childId);
-            this.scheduleDescendantUpdates(childId);
-        }
     }
 
     private scheduleEntityUpdate(entityId: number): void {
@@ -339,6 +307,30 @@ export class EditorSceneRenderer {
         return this.getComputedLayoutSize(entityId);
     }
 
+    setGizmoActive(active: boolean): void {
+        this.gizmoActive_ = active;
+    }
+
+    syncDerivedTransforms(): void {
+        if (this.gizmoActive_) return;
+        const store = this.store_;
+        if (!store || !this.sceneManager_) return;
+        const registry = this.sceneManager_.registry;
+        for (const entity of store.scene.entities) {
+            if (!entity.components.some(c => c.type === 'UIRect')) continue;
+            const transform = entity.components.find(c => c.type === 'Transform');
+            if (!transform) continue;
+            const runtimeEntity = this.sceneManager_.getEntityMap().get(entity.id);
+            if (runtimeEntity === undefined || !registry.hasTransform(runtimeEntity)) continue;
+            const wt = registry.getTransform(runtimeEntity);
+            const pos = transform.data.position as { x: number; y: number; z: number };
+            if (pos.x !== wt.position.x || pos.y !== wt.position.y) {
+                pos.x = wt.position.x;
+                pos.y = wt.position.y;
+            }
+        }
+    }
+
     render(width: number, height: number): void {
         if (!this.pipeline_ || !this.sceneManager_ || !this.context_.initialized) return;
         if (width <= 0 || height <= 0) return;
@@ -383,6 +375,7 @@ export class EditorSceneRenderer {
                 }
 
                 this.context_.tickApp();
+                this.syncDerivedTransforms();
             }
 
             const gameRenderer = this.context_.gameViewRenderer;

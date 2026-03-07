@@ -514,6 +514,7 @@ export class SceneViewPanel {
             getWorldTransform: (entityId) => this.store_.getWorldTransform(entityId),
             getEntityBounds: (entityData) => this.getEntityBoundsWithSpine(entityData),
             requestRender: () => this.requestRender(),
+            setGizmoActive: (active) => this.sceneRenderer_?.setGizmoActive(active),
         };
     }
 
