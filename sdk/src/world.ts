@@ -668,15 +668,16 @@ export class World {
             }
         }
 
-        if (isNew) {
+        let set = this.builtinEntitySets_.get(component._cppName);
+        if (!set) {
+            set = new Set();
+            this.builtinEntitySets_.set(component._cppName, set);
+        }
+        const tracked = set.has(entity);
+        if (isNew || !tracked) {
+            if (!tracked) set.add(entity);
             this.worldVersion_++;
             this.recordAddedTick_(component, entity);
-            let set = this.builtinEntitySets_.get(component._cppName);
-            if (!set) {
-                set = new Set();
-                this.builtinEntitySets_.set(component._cppName, set);
-            }
-            set.add(entity);
         }
         this.recordChangedTick_(component, entity);
         return merged;
