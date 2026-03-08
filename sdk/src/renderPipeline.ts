@@ -84,12 +84,12 @@ export class RenderPipeline {
         viewport: Viewport,
         elapsed: number,
     ): void {
+        const skipFlags = this.spineRenderer_ ? SubmitSkipFlags.Spine : SubmitSkipFlags.None;
+        Renderer.submitAll(registry, skipFlags, viewport.x, viewport.y, viewport.w, viewport.h);
+
         if (this.tilemapRenderer_) {
             this.tilemapRenderer_();
         }
-
-        const skipFlags = this.spineRenderer_ ? SubmitSkipFlags.Spine : SubmitSkipFlags.None;
-        Renderer.submitAll(registry, skipFlags, viewport.x, viewport.y, viewport.w, viewport.h);
 
         if (this.spineRenderer_) {
             this.spineRenderer_(registry, elapsed);
