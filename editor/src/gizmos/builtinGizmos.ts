@@ -203,25 +203,42 @@ export function createMoveGizmo(): GizmoDescriptor {
             const entity = gctx.store.selectedEntity;
             if (entity === null || !dragState) return;
 
-            const dx = worldX - dragState.startWorldX;
-            const dy = worldY - dragState.startWorldY;
+            let dx = worldX - dragState.startWorldX;
+            let dy = worldY - dragState.startWorldY;
 
-            let newX = dragState.startValue.x;
-            let newY = dragState.startValue.y;
-
-            if (dragAxis === 'x' || dragAxis === 'xy') newX += dx;
-            if (dragAxis === 'y' || dragAxis === 'xy') newY += dy;
+            if (dragAxis === 'x') dy = 0;
+            if (dragAxis === 'y') dx = 0;
 
             const snapActive = event && (event.ctrlKey || event.metaKey);
-            if (snapActive) {
-                const gridSize = getSettingsValue<number>('scene.gridSize') ?? 50;
-                newX = Math.round(newX / gridSize) * gridSize;
-                newY = Math.round(newY / gridSize) * gridSize;
-            }
 
-            gctx.store.updatePropertyDirect(entity, 'Transform', 'position', {
-                x: newX, y: newY, z: dragState.startValue.z,
-            });
+            if (dragState.originalOffsetMin && dragState.originalOffsetMax) {
+                let newMinX = dragState.originalOffsetMin.x + dx;
+                let newMinY = dragState.originalOffsetMin.y + dy;
+                let newMaxX = dragState.originalOffsetMax.x + dx;
+                let newMaxY = dragState.originalOffsetMax.y + dy;
+                if (snapActive) {
+                    const gridSize = getSettingsValue<number>('scene.gridSize') ?? 50;
+                    const snapDx = Math.round((dragState.originalOffsetMin.x + dx) / gridSize) * gridSize - dragState.originalOffsetMin.x;
+                    const snapDy = Math.round((dragState.originalOffsetMin.y + dy) / gridSize) * gridSize - dragState.originalOffsetMin.y;
+                    newMinX = dragState.originalOffsetMin.x + snapDx;
+                    newMinY = dragState.originalOffsetMin.y + snapDy;
+                    newMaxX = dragState.originalOffsetMax.x + snapDx;
+                    newMaxY = dragState.originalOffsetMax.y + snapDy;
+                }
+                gctx.store.updatePropertyDirect(entity, 'UIRect', 'offsetMin', { x: newMinX, y: newMinY });
+                gctx.store.updatePropertyDirect(entity, 'UIRect', 'offsetMax', { x: newMaxX, y: newMaxY });
+            } else {
+                let newX = dragState.startValue.x + dx;
+                let newY = dragState.startValue.y + dy;
+                if (snapActive) {
+                    const gridSize = getSettingsValue<number>('scene.gridSize') ?? 50;
+                    newX = Math.round(newX / gridSize) * gridSize;
+                    newY = Math.round(newY / gridSize) * gridSize;
+                }
+                gctx.store.updatePropertyDirect(entity, 'Transform', 'position', {
+                    x: newX, y: newY, z: dragState.startValue.z,
+                });
+            }
             gctx.requestRender();
         },
 
@@ -231,21 +248,23 @@ export function createMoveGizmo(): GizmoDescriptor {
             if (entity === null || !dragState) { dragState = null; return; }
 
             const entityData = gctx.store.getSelectedEntityData();
-            const transform = entityData?.components.find(c => c.type === 'Transform');
-            if (transform) {
-                const currentPos = transform.data.position;
-                if (currentPos && !valuesEqual(dragState.originalValue, currentPos)) {
-                    if (dragState.originalOffsetMin && dragState.originalOffsetMax) {
-                        const uiRect = entityData?.components.find(c => c.type === 'UIRect');
-                        if (uiRect) {
-                            const curMin = uiRect.data.offsetMin as { x: number; y: number };
-                            const curMax = uiRect.data.offsetMax as { x: number; y: number };
-                            gctx.store.updateBatchProperties(entity, [
-                                { componentType: 'UIRect', property: 'offsetMin', oldValue: { ...dragState.originalOffsetMin }, newValue: { ...curMin } },
-                                { componentType: 'UIRect', property: 'offsetMax', oldValue: { ...dragState.originalOffsetMax }, newValue: { ...curMax } },
-                            ], 'Move UIRect');
-                        }
-                    } else {
+            if (dragState.originalOffsetMin && dragState.originalOffsetMax) {
+                const uiRect = entityData?.components.find(c => c.type === 'UIRect');
+                if (uiRect) {
+                    const curMin = uiRect.data.offsetMin as { x: number; y: number };
+                    const curMax = uiRect.data.offsetMax as { x: number; y: number };
+                    if (!valuesEqual(dragState.originalOffsetMin, curMin) || !valuesEqual(dragState.originalOffsetMax, curMax)) {
+                        gctx.store.updateBatchProperties(entity, [
+                            { componentType: 'UIRect', property: 'offsetMin', oldValue: { ...dragState.originalOffsetMin }, newValue: { ...curMin } },
+                            { componentType: 'UIRect', property: 'offsetMax', oldValue: { ...dragState.originalOffsetMax }, newValue: { ...curMax } },
+                        ], 'Move UIRect');
+                    }
+                }
+            } else {
+                const transform = entityData?.components.find(c => c.type === 'Transform');
+                if (transform) {
+                    const currentPos = transform.data.position;
+                    if (currentPos && !valuesEqual(dragState.originalValue, currentPos)) {
                         gctx.store.updateProperty(
                             entity, 'Transform', 'position',
                             { ...dragState.originalValue }, deepClone(currentPos),

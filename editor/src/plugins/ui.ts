@@ -254,6 +254,13 @@ const DragStateSchema: ComponentSchema = {
     properties: [],
 };
 
+const UIRendererSchema: ComponentSchema = {
+    name: 'UIRenderer',
+    category: 'ui',
+    hidden: true,
+    properties: [],
+};
+
 const UI_SCHEMAS: ComponentSchema[] = [
     UIRectSchema, UIMaskSchema, InteractableSchema, UIInteractionSchema,
     ButtonSchema, TextInputSchema, ImageSchema,
@@ -262,6 +269,7 @@ const UI_SCHEMAS: ComponentSchema[] = [
     SafeAreaSchema, ListViewSchema, DropdownSchema,
     FlexContainerSchema, FlexItemSchema, LayoutGroupSchema,
     DragStateSchema,
+    UIRendererSchema,
 ];
 
 export const uiPlugin: EditorPlugin = {

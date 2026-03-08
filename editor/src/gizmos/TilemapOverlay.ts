@@ -61,10 +61,6 @@ export class TilemapOverlay {
 
         ctx.save();
 
-        for (const layer of cached.layers) {
-            this.drawLayer_(ctx, cached, layer, ox, oy);
-        }
-
         if (cached.layers.length > 0) {
             const firstLayer = cached.layers[0];
             this.drawGrid_(ctx, firstLayer.width, firstLayer.height,
