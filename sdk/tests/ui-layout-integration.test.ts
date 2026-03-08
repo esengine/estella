@@ -65,7 +65,7 @@ describe.skipIf(!HAS_WASM)('UI Layout via App.tick() (WASM integration)', () => 
         cam.valid = true;
     }
 
-    it('should call uiLayout_update via tick without error', () => {
+    it('should call uiLayout_update via tick without error', async () => {
         const { app, registry } = createEditorApp();
         const world = app.world;
 
@@ -87,12 +87,12 @@ describe.skipIf(!HAS_WASM)('UI Layout via App.tick() (WASM integration)', () => 
 
         setCanvasRect(app, -400, -300, 400, 300);
 
-        expect(() => app.tick(1 / 60)).not.toThrow();
+        await expect(async () => await app.tick(1 / 60)).not.toThrow();
 
         disposeApp(app, registry);
     });
 
-    it('should compute layout for child UIRect entities', () => {
+    it('should compute layout for child UIRect entities', async () => {
         const { app, registry } = createEditorApp();
         const world = app.world;
 
@@ -140,7 +140,7 @@ describe.skipIf(!HAS_WASM)('UI Layout via App.tick() (WASM integration)', () => 
 
         setCanvasRect(app, -400, -300, 400, 300);
 
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         const computedW = module.getUIRectComputedWidth(registry, child);
         const computedH = module.getUIRectComputedHeight(registry, child);
@@ -150,7 +150,7 @@ describe.skipIf(!HAS_WASM)('UI Layout via App.tick() (WASM integration)', () => 
         disposeApp(app, registry);
     });
 
-    it('should update render order after tick', () => {
+    it('should update render order after tick', async () => {
         const { app, registry } = createEditorApp();
         const world = app.world;
 
@@ -194,7 +194,7 @@ describe.skipIf(!HAS_WASM)('UI Layout via App.tick() (WASM integration)', () => 
 
         setCanvasRect(app, -400, -300, 400, 300);
 
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         const rootSprite = registry.getSprite(root);
         const childSprite = registry.getSprite(child);
@@ -203,7 +203,7 @@ describe.skipIf(!HAS_WASM)('UI Layout via App.tick() (WASM integration)', () => 
         disposeApp(app, registry);
     });
 
-    it('should handle fill anchors for slider-like entities', () => {
+    it('should handle fill anchors for slider-like entities', async () => {
         const { app, registry } = createEditorApp();
         const world = app.world;
 
@@ -260,7 +260,7 @@ describe.skipIf(!HAS_WASM)('UI Layout via App.tick() (WASM integration)', () => 
 
         setCanvasRect(app, -400, -300, 400, 300);
 
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         const fillW = module.getUIRectComputedWidth(registry, fill);
         const fillH = module.getUIRectComputedHeight(registry, fill);
@@ -273,7 +273,7 @@ describe.skipIf(!HAS_WASM)('UI Layout via App.tick() (WASM integration)', () => 
         disposeApp(app, registry);
     });
 
-    it('should handle multiple tick calls without error', () => {
+    it('should handle multiple tick calls without error', async () => {
         const { app, registry } = createEditorApp();
         const world = app.world;
 
@@ -293,13 +293,13 @@ describe.skipIf(!HAS_WASM)('UI Layout via App.tick() (WASM integration)', () => 
         setCanvasRect(app, -400, -300, 400, 300);
 
         for (let i = 0; i < 60; i++) {
-            expect(() => app.tick(1 / 60)).not.toThrow();
+            await expect(async () => await app.tick(1 / 60)).not.toThrow();
         }
 
         disposeApp(app, registry);
     });
 
-    it('should skip layout when UICameraInfo.valid is false', () => {
+    it('should skip layout when UICameraInfo.valid is false', async () => {
         const { app, registry } = createEditorApp();
         const world = app.world;
 
@@ -319,7 +319,7 @@ describe.skipIf(!HAS_WASM)('UI Layout via App.tick() (WASM integration)', () => 
         const cam = app.getResource(UICameraInfo);
         cam.valid = false;
 
-        expect(() => app.tick(1 / 60)).not.toThrow();
+        await expect(async () => await app.tick(1 / 60)).not.toThrow();
 
         const w = module.getUIRectComputedWidth(registry, root);
         expect(w).toBe(0);
@@ -327,7 +327,7 @@ describe.skipIf(!HAS_WASM)('UI Layout via App.tick() (WASM integration)', () => 
         disposeApp(app, registry);
     });
 
-    it('Canvas without UIRect: layout should not overwrite Transform positions', () => {
+    it('Canvas without UIRect: layout should not overwrite Transform positions', async () => {
         const { app, registry } = createEditorApp();
         const world = app.world;
 
@@ -359,7 +359,7 @@ describe.skipIf(!HAS_WASM)('UI Layout via App.tick() (WASM integration)', () => 
         });
 
         setCanvasRect(app, -400, -300, 400, 300);
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         const t = registry.getTransform(child);
         expect(t.position.x).toBeCloseTo(50, 1);

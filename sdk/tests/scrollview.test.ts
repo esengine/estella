@@ -124,7 +124,7 @@ describe.skipIf(!HAS_WASM)('ScrollView (WASM)', () => {
         return { root, scrollEntity, contentEntity };
     }
 
-    it('scrollY clamps between 0 and maxScrollY when elastic=false', () => {
+    it('scrollY clamps between 0 and maxScrollY when elastic=false', async () => {
         const { app, registry } = createApp();
         const { scrollEntity } = createScrollView(app, 600);
         const world = app.world;
@@ -133,14 +133,14 @@ describe.skipIf(!HAS_WASM)('ScrollView (WASM)', () => {
         sv0.elastic = false;
         world.insert(scrollEntity, ScrollView, sv0);
 
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         const sv = world.get(scrollEntity, ScrollView) as ScrollViewData;
         expect(sv.scrollY).toBe(0);
 
         sv.scrollY = 500;
         world.insert(scrollEntity, ScrollView, sv);
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         const svAfter = world.get(scrollEntity, ScrollView) as ScrollViewData;
         expect(svAfter.scrollY).toBeLessThanOrEqual(400);
@@ -149,7 +149,7 @@ describe.skipIf(!HAS_WASM)('ScrollView (WASM)', () => {
         disposeApp(app, registry);
     });
 
-    it('contentHeight=0 prevents scrolling when elastic=false', () => {
+    it('contentHeight=0 prevents scrolling when elastic=false', async () => {
         const { app, registry } = createApp();
         const { scrollEntity } = createScrollView(app, 0);
         const world = app.world;
@@ -158,12 +158,12 @@ describe.skipIf(!HAS_WASM)('ScrollView (WASM)', () => {
         sv0.elastic = false;
         world.insert(scrollEntity, ScrollView, sv0);
 
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         const sv = world.get(scrollEntity, ScrollView) as ScrollViewData;
         sv.scrollY = 100;
         world.insert(scrollEntity, ScrollView, sv);
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         const svAfter = world.get(scrollEntity, ScrollView) as ScrollViewData;
         expect(svAfter.scrollY).toBe(0);
@@ -171,17 +171,17 @@ describe.skipIf(!HAS_WASM)('ScrollView (WASM)', () => {
         disposeApp(app, registry);
     });
 
-    it('content entity position updates with scrollY', () => {
+    it('content entity position updates with scrollY', async () => {
         const { app, registry } = createApp();
         const { scrollEntity, contentEntity } = createScrollView(app, 600);
         const world = app.world;
 
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         const sv = world.get(scrollEntity, ScrollView) as ScrollViewData;
         sv.scrollY = 200;
         world.insert(scrollEntity, ScrollView, sv);
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         const contentTransform = world.get(contentEntity, Transform) as TransformData;
         expect(contentTransform.position.y).toBe(200);
@@ -189,13 +189,13 @@ describe.skipIf(!HAS_WASM)('ScrollView (WASM)', () => {
         disposeApp(app, registry);
     });
 
-    it('wheel scroll down (positive deltaY) should increase scrollY', () => {
+    it('wheel scroll down (positive deltaY) should increase scrollY', async () => {
         const { app, registry } = createApp();
         const { scrollEntity } = createScrollView(app, 600);
         const world = app.world;
 
         // Tick once to init layout
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         // Manually set UIInteraction.hovered and inject scroll delta
         // to test scroll direction without full hit test
@@ -206,7 +206,7 @@ describe.skipIf(!HAS_WASM)('ScrollView (WASM)', () => {
         // Simulate wheel scroll down: browser gives positive deltaY
         inputState.scrollDeltaY = 120;
 
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         const sv = world.get(scrollEntity, ScrollView) as ScrollViewData;
         // Scrolling down → scrollY should increase (content moves up, revealing below)
@@ -215,12 +215,12 @@ describe.skipIf(!HAS_WASM)('ScrollView (WASM)', () => {
         disposeApp(app, registry);
     });
 
-    it('rubber-band limits over-scroll during wheel input', () => {
+    it('rubber-band limits over-scroll during wheel input', async () => {
         const { app, registry } = createApp();
         const { scrollEntity } = createScrollView(app, 600);
         const world = app.world;
 
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         world.insert(scrollEntity, Interactable, { enabled: true, blockRaycast: true, raycastTarget: true });
         world.insert(scrollEntity, UIInteraction, { hovered: true, pressed: false, justPressed: false, justReleased: false });
@@ -230,7 +230,7 @@ describe.skipIf(!HAS_WASM)('ScrollView (WASM)', () => {
         // Scroll far past top (negative) with many wheel events
         for (let i = 0; i < 100; i++) {
             inputState.scrollDeltaY = -120;
-            app.tick(1 / 60);
+            await app.tick(1 / 60);
         }
 
         const sv1 = world.get(scrollEntity, ScrollView) as ScrollViewData;
@@ -241,12 +241,12 @@ describe.skipIf(!HAS_WASM)('ScrollView (WASM)', () => {
         disposeApp(app, registry);
     });
 
-    it('elastic bounces back during continuous small wheel deltas (momentum scroll)', () => {
+    it('elastic bounces back during continuous small wheel deltas (momentum scroll)', async () => {
         const { app, registry } = createApp();
         const { scrollEntity } = createScrollView(app, 600);
         const world = app.world;
 
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         world.insert(scrollEntity, Interactable, { enabled: true, blockRaycast: true, raycastTarget: true });
         world.insert(scrollEntity, UIInteraction, { hovered: true, pressed: false, justPressed: false, justReleased: false });
@@ -255,7 +255,7 @@ describe.skipIf(!HAS_WASM)('ScrollView (WASM)', () => {
 
         // Initial strong scroll past top
         inputState.scrollDeltaY = -200;
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         const sv1 = world.get(scrollEntity, ScrollView) as ScrollViewData;
         expect(sv1.scrollY).toBeLessThan(0);
@@ -263,7 +263,7 @@ describe.skipIf(!HAS_WASM)('ScrollView (WASM)', () => {
         // Simulate OS momentum: decaying small scroll deltas (never exactly 0)
         for (let i = 0; i < 60; i++) {
             inputState.scrollDeltaY = -1;
-            app.tick(1 / 60);
+            await app.tick(1 / 60);
         }
 
         const svFinal = world.get(scrollEntity, ScrollView) as ScrollViewData;
@@ -273,19 +273,19 @@ describe.skipIf(!HAS_WASM)('ScrollView (WASM)', () => {
         disposeApp(app, registry);
     });
 
-    it('elastic bounces back even while hover remains active (no more wheel events)', () => {
+    it('elastic bounces back even while hover remains active (no more wheel events)', async () => {
         const { app, registry } = createApp();
         const { scrollEntity } = createScrollView(app, 600);
         const world = app.world;
 
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         world.insert(scrollEntity, Interactable, { enabled: true, blockRaycast: true, raycastTarget: true });
         world.insert(scrollEntity, UIInteraction, { hovered: true, pressed: false, justPressed: false, justReleased: false });
 
         const inputState = app.getResource(Input);
         inputState.scrollDeltaY = -120;
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         const sv1 = world.get(scrollEntity, ScrollView) as ScrollViewData;
         expect(sv1.scrollY).toBeLessThan(0);
@@ -293,7 +293,7 @@ describe.skipIf(!HAS_WASM)('ScrollView (WASM)', () => {
         // Stop scrolling but keep hovered=true (cursor still over ScrollView)
         inputState.scrollDeltaY = 0;
         for (let i = 0; i < 60; i++) {
-            app.tick(1 / 60);
+            await app.tick(1 / 60);
         }
         const svFinal = world.get(scrollEntity, ScrollView) as ScrollViewData;
         expect(Math.abs(svFinal.scrollY)).toBeLessThan(1);
@@ -301,12 +301,12 @@ describe.skipIf(!HAS_WASM)('ScrollView (WASM)', () => {
         disposeApp(app, registry);
     });
 
-    it('elastic: over-scroll past top should NOT instantly clamp, then spring back', () => {
+    it('elastic: over-scroll past top should NOT instantly clamp, then spring back', async () => {
         const { app, registry } = createApp();
         const { scrollEntity } = createScrollView(app, 600);
         const world = app.world;
 
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         // Set scrollY to negative (over-scrolled past top)
         const sv = world.get(scrollEntity, ScrollView) as ScrollViewData;
@@ -315,14 +315,14 @@ describe.skipIf(!HAS_WASM)('ScrollView (WASM)', () => {
 
         // After one tick, elastic spring should NOT hard-clamp to 0
         // It should be between -50 and 0 (partially pulled back)
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
         const sv1 = world.get(scrollEntity, ScrollView) as ScrollViewData;
         expect(sv1.scrollY).toBeGreaterThan(-50);
         expect(sv1.scrollY).toBeLessThan(0); // NOT instantly clamped to 0
 
         // After many ticks, should converge close to 0
         for (let i = 0; i < 120; i++) {
-            app.tick(1 / 60);
+            await app.tick(1 / 60);
         }
         const svFinal = world.get(scrollEntity, ScrollView) as ScrollViewData;
         expect(Math.abs(svFinal.scrollY)).toBeLessThan(1);
@@ -330,12 +330,12 @@ describe.skipIf(!HAS_WASM)('ScrollView (WASM)', () => {
         disposeApp(app, registry);
     });
 
-    it('wheel scroll UP past top should bounce back to 0', () => {
+    it('wheel scroll UP past top should bounce back to 0', async () => {
         const { app, registry } = createApp();
         const { scrollEntity } = createScrollView(app, 600);
         const world = app.world;
 
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         world.insert(scrollEntity, Interactable, { enabled: true, blockRaycast: true, raycastTarget: true });
         world.insert(scrollEntity, UIInteraction, { hovered: true, pressed: false, justPressed: false, justReleased: false });
@@ -343,7 +343,7 @@ describe.skipIf(!HAS_WASM)('ScrollView (WASM)', () => {
         const inputState = app.getResource(Input);
         inputState.scrollDeltaY = -120;
 
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         const sv1 = world.get(scrollEntity, ScrollView) as ScrollViewData;
         expect(sv1.scrollY).toBeLessThan(0);
@@ -352,7 +352,7 @@ describe.skipIf(!HAS_WASM)('ScrollView (WASM)', () => {
 
         for (let i = 0; i < 120; i++) {
             world.insert(scrollEntity, UIInteraction, { hovered: false, pressed: false, justPressed: false, justReleased: false });
-            app.tick(1 / 60);
+            await app.tick(1 / 60);
         }
         const svFinal = world.get(scrollEntity, ScrollView) as ScrollViewData;
         expect(Math.abs(svFinal.scrollY)).toBeLessThan(1);
@@ -360,12 +360,12 @@ describe.skipIf(!HAS_WASM)('ScrollView (WASM)', () => {
         disposeApp(app, registry);
     });
 
-    it('wheel scroll DOWN past bottom should bounce back to maxScrollY', () => {
+    it('wheel scroll DOWN past bottom should bounce back to maxScrollY', async () => {
         const { app, registry } = createApp();
         const { scrollEntity } = createScrollView(app, 600);
         const world = app.world;
 
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         world.insert(scrollEntity, Interactable, { enabled: true, blockRaycast: true, raycastTarget: true });
         world.insert(scrollEntity, UIInteraction, { hovered: true, pressed: false, justPressed: false, justReleased: false });
@@ -373,7 +373,7 @@ describe.skipIf(!HAS_WASM)('ScrollView (WASM)', () => {
         const inputState = app.getResource(Input);
         for (let i = 0; i < 50; i++) {
             inputState.scrollDeltaY = 120;
-            app.tick(1 / 60);
+            await app.tick(1 / 60);
         }
 
         const svMid = world.get(scrollEntity, ScrollView) as ScrollViewData;
@@ -382,7 +382,7 @@ describe.skipIf(!HAS_WASM)('ScrollView (WASM)', () => {
         inputState.scrollDeltaY = 0;
         for (let i = 0; i < 120; i++) {
             world.insert(scrollEntity, UIInteraction, { hovered: false, pressed: false, justPressed: false, justReleased: false });
-            app.tick(1 / 60);
+            await app.tick(1 / 60);
         }
         const svFinal = world.get(scrollEntity, ScrollView) as ScrollViewData;
         expect(Math.abs(svFinal.scrollY - 400)).toBeLessThan(1);
@@ -390,25 +390,25 @@ describe.skipIf(!HAS_WASM)('ScrollView (WASM)', () => {
         disposeApp(app, registry);
     });
 
-    it('elastic: over-scroll past bottom should NOT instantly clamp, then spring back', () => {
+    it('elastic: over-scroll past bottom should NOT instantly clamp, then spring back', async () => {
         const { app, registry } = createApp();
         const { scrollEntity } = createScrollView(app, 600);
         const world = app.world;
 
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         // maxScrollY = 600 - 200 = 400; set past max
         const sv = world.get(scrollEntity, ScrollView) as ScrollViewData;
         sv.scrollY = 450;
         world.insert(scrollEntity, ScrollView, sv);
 
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
         const sv1 = world.get(scrollEntity, ScrollView) as ScrollViewData;
         expect(sv1.scrollY).toBeLessThan(450);
         expect(sv1.scrollY).toBeGreaterThan(400); // NOT instantly clamped to 400
 
         for (let i = 0; i < 120; i++) {
-            app.tick(1 / 60);
+            await app.tick(1 / 60);
         }
         const svFinal = world.get(scrollEntity, ScrollView) as ScrollViewData;
         expect(Math.abs(svFinal.scrollY - 400)).toBeLessThan(1);
@@ -416,7 +416,7 @@ describe.skipIf(!HAS_WASM)('ScrollView (WASM)', () => {
         disposeApp(app, registry);
     });
 
-    it('scroll offset should add to UIRect base position, not replace it', () => {
+    it('scroll offset should add to UIRect base position, not replace it', async () => {
         const { app, registry } = createApp();
         const world = app.world;
 
@@ -460,7 +460,7 @@ describe.skipIf(!HAS_WASM)('ScrollView (WASM)', () => {
         });
 
         // Tick WITHOUT ScrollView to get the UIRect-computed base position
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
         const baseTransform = world.get(contentEntity, Transform) as TransformData;
         const baseY = baseTransform.position.y;
         const baseX = baseTransform.position.x;
@@ -478,7 +478,7 @@ describe.skipIf(!HAS_WASM)('ScrollView (WASM)', () => {
             decelerationRate: 0.135,
         });
 
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
         const afterScrollView = world.get(contentEntity, Transform) as TransformData;
         // With scrollY=0, content should remain at its UIRect base position
         expect(afterScrollView.position.y).toBeCloseTo(baseY, 0);
@@ -488,19 +488,19 @@ describe.skipIf(!HAS_WASM)('ScrollView (WASM)', () => {
         const sv = world.get(scrollEntity, ScrollView) as ScrollViewData;
         sv.scrollY = 100;
         world.insert(scrollEntity, ScrollView, sv);
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
         const scrolledTransform = world.get(contentEntity, Transform) as TransformData;
         expect(scrolledTransform.position.y).toBeCloseTo(baseY + 100, 0);
 
         disposeApp(app, registry);
     });
 
-    it('sustained large scroll deltas should not push content entirely out of viewport', () => {
+    it('sustained large scroll deltas should not push content entirely out of viewport', async () => {
         const { app, registry } = createApp();
         const { scrollEntity } = createScrollView(app, 600);
         const world = app.world;
 
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         world.insert(scrollEntity, Interactable, { enabled: true, blockRaycast: true, raycastTarget: true });
         world.insert(scrollEntity, UIInteraction, { hovered: true, pressed: false, justPressed: false, justReleased: false });
@@ -511,7 +511,7 @@ describe.skipIf(!HAS_WASM)('ScrollView (WASM)', () => {
         // maxScrollY = 600 - 200 = 400; viewH = 200
         for (let i = 0; i < 10; i++) {
             inputState.scrollDeltaY = 3000;
-            app.tick(1 / 60);
+            await app.tick(1 / 60);
         }
 
         const sv = world.get(scrollEntity, ScrollView) as ScrollViewData;
@@ -523,7 +523,7 @@ describe.skipIf(!HAS_WASM)('ScrollView (WASM)', () => {
         disposeApp(app, registry);
     });
 
-    it('content position should not accumulate across frames (no UIRect on content)', () => {
+    it('content position should not accumulate across frames (no UIRect on content)', async () => {
         const { app, registry } = createApp();
         const world = app.world;
 
@@ -581,13 +581,13 @@ describe.skipIf(!HAS_WASM)('ScrollView (WASM)', () => {
         world.insert(scrollEntity, ScrollView, sv0);
 
         // Tick 3 times with constant scrollY — position should stay the same
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
         const pos1 = (world.get(contentEntity, Transform) as TransformData).position.y;
 
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
         const pos2 = (world.get(contentEntity, Transform) as TransformData).position.y;
 
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
         const pos3 = (world.get(contentEntity, Transform) as TransformData).position.y;
 
         // All 3 frames should produce the same position (no accumulation)
@@ -597,7 +597,7 @@ describe.skipIf(!HAS_WASM)('ScrollView (WASM)', () => {
         disposeApp(app, registry);
     });
 
-    it('auto contentHeight from children when contentHeight=0', () => {
+    it('auto contentHeight from children when contentHeight=0', async () => {
         const { app, registry } = createApp();
         const world = app.world;
 
@@ -636,7 +636,7 @@ describe.skipIf(!HAS_WASM)('ScrollView (WASM)', () => {
         });
 
         // Tick once so layout is established before adding children
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         // Add 5 child items WITHOUT UIRect (using Sprite for size), manually positioned
         // Children of contentEntity: no UIRect means C++ layout won't override position
@@ -674,7 +674,7 @@ describe.skipIf(!HAS_WASM)('ScrollView (WASM)', () => {
         const sv = world.get(scrollEntity, ScrollView) as ScrollViewData;
         sv.scrollY = 9999;
         world.insert(scrollEntity, ScrollView, sv);
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         const svAfter = world.get(scrollEntity, ScrollView) as ScrollViewData;
         // Children span from y=50 (top of first) to y=-450 (bottom of last, pivot center)
@@ -685,12 +685,12 @@ describe.skipIf(!HAS_WASM)('ScrollView (WASM)', () => {
         disposeApp(app, registry);
     });
 
-    it('drag should produce 1:1 movement between mouse delta and content displacement', () => {
+    it('drag should produce 1:1 movement between mouse delta and content displacement', async () => {
         const { app, registry } = createApp();
         const { scrollEntity, contentEntity } = createScrollView(app, 600);
         const world = app.world;
 
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         const inputState = app.getResource(Input);
         world.insert(scrollEntity, Interactable, { enabled: true, blockRaycast: true, raycastTarget: true });
@@ -706,7 +706,7 @@ describe.skipIf(!HAS_WASM)('ScrollView (WASM)', () => {
         world.insert(scrollEntity, UIInteraction, {
             hovered: true, pressed: true, justPressed: true, justReleased: false,
         });
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         const posAfterPress = (world.get(contentEntity, Transform) as TransformData).position.y;
         console.log('=== Drag tracking ===');
@@ -719,7 +719,7 @@ describe.skipIf(!HAS_WASM)('ScrollView (WASM)', () => {
         world.insert(scrollEntity, UIInteraction, {
             hovered: true, pressed: true, justPressed: false, justReleased: false,
         });
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         const posAfterDrag50 = (world.get(contentEntity, Transform) as TransformData).position.y;
         const svDrag50 = world.get(scrollEntity, ScrollView) as ScrollViewData;
@@ -733,7 +733,7 @@ describe.skipIf(!HAS_WASM)('ScrollView (WASM)', () => {
         world.insert(scrollEntity, UIInteraction, {
             hovered: true, pressed: true, justPressed: false, justReleased: false,
         });
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         const posAfterDrag80 = (world.get(contentEntity, Transform) as TransformData).position.y;
         const svDrag80 = world.get(scrollEntity, ScrollView) as ScrollViewData;
@@ -745,7 +745,7 @@ describe.skipIf(!HAS_WASM)('ScrollView (WASM)', () => {
         world.insert(scrollEntity, UIInteraction, {
             hovered: true, pressed: true, justPressed: false, justReleased: false,
         });
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         const posAfterStop = (world.get(contentEntity, Transform) as TransformData).position.y;
         console.log(`After stop: contentY=${posAfterStop}, drift=${posAfterStop - posAfterDrag80}`);
@@ -757,7 +757,7 @@ describe.skipIf(!HAS_WASM)('ScrollView (WASM)', () => {
         world.insert(scrollEntity, UIInteraction, {
             hovered: true, pressed: false, justPressed: false, justReleased: true,
         });
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         // Frame 6-7: After release with velocity=0, content should stay
         inputState.mouseButtonsReleased.clear();
@@ -765,7 +765,7 @@ describe.skipIf(!HAS_WASM)('ScrollView (WASM)', () => {
             world.insert(scrollEntity, UIInteraction, {
                 hovered: false, pressed: false, justPressed: false, justReleased: false,
             });
-            app.tick(1 / 60);
+            await app.tick(1 / 60);
         }
 
         const posAfterRelease = (world.get(contentEntity, Transform) as TransformData).position.y;
@@ -775,12 +775,12 @@ describe.skipIf(!HAS_WASM)('ScrollView (WASM)', () => {
         disposeApp(app, registry);
     });
 
-    it('inertia after fast swipe should not exceed a few viewports of travel', () => {
+    it('inertia after fast swipe should not exceed a few viewports of travel', async () => {
         const { app, registry } = createApp();
         const { scrollEntity } = createScrollView(app, 5000);
         const world = app.world;
 
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         world.insert(scrollEntity, Interactable, { enabled: true, blockRaycast: true, raycastTarget: true });
 
@@ -793,7 +793,7 @@ describe.skipIf(!HAS_WASM)('ScrollView (WASM)', () => {
         inputState.mouseButtons.add(0);
         inputState.mouseButtonsPressed.add(0);
         world.insert(scrollEntity, UIInteraction, { hovered: true, pressed: true, justPressed: true, justReleased: false });
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         // Frames 2-6: fast upward drag, worldMouseY increases by 100/frame
         // worldMouseY = i*100 → mouseY = 300 - i*100
@@ -801,14 +801,14 @@ describe.skipIf(!HAS_WASM)('ScrollView (WASM)', () => {
         for (let i = 1; i <= 5; i++) {
             inputState.mouseY = 300 - i * 100;
             world.insert(scrollEntity, UIInteraction, { hovered: true, pressed: true, justPressed: false, justReleased: false });
-            app.tick(1 / 60);
+            await app.tick(1 / 60);
         }
 
         // Release
         inputState.mouseButtons.delete(0);
         inputState.mouseButtonsReleased.add(0);
         world.insert(scrollEntity, UIInteraction, { hovered: true, pressed: false, justPressed: false, justReleased: true });
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         const svAtRelease = world.get(scrollEntity, ScrollView) as ScrollViewData;
         const scrollAtRelease = svAtRelease.scrollY;
@@ -817,7 +817,7 @@ describe.skipIf(!HAS_WASM)('ScrollView (WASM)', () => {
         inputState.mouseButtonsReleased.clear();
         for (let i = 0; i < 120; i++) {
             world.insert(scrollEntity, UIInteraction, { hovered: false, pressed: false, justPressed: false, justReleased: false });
-            app.tick(1 / 60);
+            await app.tick(1 / 60);
         }
 
         const svAfter = world.get(scrollEntity, ScrollView) as ScrollViewData;

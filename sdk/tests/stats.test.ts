@@ -178,14 +178,14 @@ describe('App stats API', () => {
         expect(app.getSystemTimings()).toBeNull();
     });
 
-    it('should return timings map after enableStats + tick', () => {
+    it('should return timings map after enableStats + tick', async () => {
         const app = App.new();
         app.enableStats();
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
         expect(app.getSystemTimings()).toBeInstanceOf(Map);
     });
 
-    it('should record named system timings after enableStats', () => {
+    it('should record named system timings after enableStats', async () => {
         const app = App.new();
         app.enableStats();
 
@@ -193,7 +193,7 @@ describe('App stats API', () => {
             [], () => {}, { name: 'MySystem' }
         ));
 
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         const timings = app.getSystemTimings()!;
         expect(timings.has('MySystem')).toBe(true);
@@ -226,16 +226,16 @@ describe('App stats API', () => {
 
     // === Review fix: Medium #4 — enableStats after first tick ===
 
-    it('should work when enableStats is called after first tick', () => {
+    it('should work when enableStats is called after first tick', async () => {
         const app = App.new();
         app.addSystemToSchedule(Schedule.Update, defineSystem(
             [], () => {}, { name: 'LateSystem' }
         ));
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
         expect(app.getSystemTimings()).toBeNull();
 
         app.enableStats();
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         const timings = app.getSystemTimings();
         expect(timings).toBeInstanceOf(Map);
@@ -356,10 +356,10 @@ describe('StatsPlugin', () => {
         expect(app.hasResource(Stats)).toBe(true);
     });
 
-    it('should enable system timings on the app', () => {
+    it('should enable system timings on the app', async () => {
         const app = App.new();
         app.addPlugin(new StatsPlugin());
-        app.tick(1 / 60);
+await app.tick(1 / 60);
         expect(app.getSystemTimings()).not.toBeNull();
     });
 
@@ -369,95 +369,95 @@ describe('StatsPlugin', () => {
 
     // === Review fix: Critical #3 — singleton reuse ===
 
-    it('should reset state when build is called on a new app', () => {
+    it('should reset state when build is called on a new app', async () => {
         const plugin = new StatsPlugin({ overlay: false });
 
         const app1 = App.new();
         app1.addPlugin(plugin);
-        for (let i = 0; i < 30; i++) app1.tick(1 / 30);
+        for (let i = 0; i < 30; i++) await app1.tick(1 / 30);
         expect(app1.getResource(Stats).fps).toBeCloseTo(30, 0);
 
         plugin.cleanup();
 
         const app2 = App.new();
         app2.addPlugin(plugin);
-        for (let i = 0; i < 10; i++) app2.tick(1 / 60);
+        for (let i = 0; i < 10; i++) await app2.tick(1 / 60);
         const fps = app2.getResource(Stats).fps;
         expect(fps).toBeCloseTo(60, 0);
     });
 
     describe('fps & frameTimeMs', () => {
-        it('should compute fps from delta', () => {
+        it('should compute fps from delta', async () => {
             const app = App.new();
             app.addPlugin(new StatsPlugin());
-            for (let i = 0; i < 10; i++) app.tick(1 / 60);
+            for (let i = 0; i < 10; i++) await app.tick(1 / 60);
 
             const stats = app.getResource(Stats);
             expect(stats.fps).toBeCloseTo(60, 0);
         });
 
-        it('should compute frameTimeMs from delta', () => {
+        it('should compute frameTimeMs from delta', async () => {
             const app = App.new();
             app.addPlugin(new StatsPlugin());
-            for (let i = 0; i < 5; i++) app.tick(1 / 60);
+            for (let i = 0; i < 5; i++) await app.tick(1 / 60);
 
             const stats = app.getResource(Stats);
             expect(stats.frameTimeMs).toBeCloseTo(16.67, 0);
         });
 
-        it('should track changing frame rate', () => {
+        it('should track changing frame rate', async () => {
             const app = App.new();
             app.addPlugin(new StatsPlugin());
 
-            for (let i = 0; i < 60; i++) app.tick(1 / 30);
+            for (let i = 0; i < 60; i++) await app.tick(1 / 30);
             expect(app.getResource(Stats).fps).toBeCloseTo(30, 0);
 
-            for (let i = 0; i < 60; i++) app.tick(1 / 120);
+            for (let i = 0; i < 60; i++) await app.tick(1 / 120);
             expect(app.getResource(Stats).fps).toBeCloseTo(120, 0);
         });
     });
 
     describe('entityCount', () => {
-        it('should reflect current entity count', () => {
+        it('should reflect current entity count', async () => {
             const app = App.new();
             app.addPlugin(new StatsPlugin());
 
             app.world.spawn();
             app.world.spawn();
             app.world.spawn();
-            app.tick(1 / 60);
+await app.tick(1 / 60);
             expect(app.getResource(Stats).entityCount).toBe(3);
         });
 
-        it('should update after spawn/despawn between ticks', () => {
+        it('should update after spawn/despawn between ticks', async () => {
             const app = App.new();
             app.addPlugin(new StatsPlugin());
 
             const e1 = app.world.spawn();
             app.world.spawn();
-            app.tick(1 / 60);
+await app.tick(1 / 60);
             expect(app.getResource(Stats).entityCount).toBe(2);
 
             app.world.despawn(e1);
-            app.tick(1 / 60);
+await app.tick(1 / 60);
             expect(app.getResource(Stats).entityCount).toBe(1);
 
             app.world.spawn();
             app.world.spawn();
-            app.tick(1 / 60);
+await app.tick(1 / 60);
             expect(app.getResource(Stats).entityCount).toBe(3);
         });
 
-        it('should be 0 with no entities', () => {
+        it('should be 0 with no entities', async () => {
             const app = App.new();
             app.addPlugin(new StatsPlugin());
-            app.tick(1 / 60);
+await app.tick(1 / 60);
             expect(app.getResource(Stats).entityCount).toBe(0);
         });
     });
 
     describe('systemTimings', () => {
-        it('should contain named user systems', () => {
+        it('should contain named user systems', async () => {
             const app = App.new();
             app.addPlugin(new StatsPlugin());
 
@@ -468,17 +468,17 @@ describe('StatsPlugin', () => {
                 [], () => {}, { name: 'AnimationSystem' }
             ));
 
-            app.tick(1 / 60);
+await app.tick(1 / 60);
 
             const timings = app.getResource(Stats).systemTimings;
             expect(timings.has('PhysicsSystem')).toBe(true);
             expect(timings.has('AnimationSystem')).toBe(true);
         });
 
-        it('should not include StatsCollect own timing on first tick', () => {
+        it('should not include StatsCollect own timing on first tick', async () => {
             const app = App.new();
             app.addPlugin(new StatsPlugin());
-            app.tick(1 / 60);
+await app.tick(1 / 60);
 
             const timings = app.getResource(Stats).systemTimings;
             expect(timings.has('StatsCollect')).toBe(false);
@@ -486,18 +486,18 @@ describe('StatsPlugin', () => {
 
         // === Review fix: Medium #8 — second tick leaks previous StatsCollect timing ===
 
-        it('should not include StatsCollect timing on subsequent ticks either', () => {
+        it('should not include StatsCollect timing on subsequent ticks either', async () => {
             const app = App.new();
             app.addPlugin(new StatsPlugin());
-            app.tick(1 / 60);
-            app.tick(1 / 60);
-            app.tick(1 / 60);
+await app.tick(1 / 60);
+await app.tick(1 / 60);
+await app.tick(1 / 60);
 
             const timings = app.getResource(Stats).systemTimings;
             expect(timings.has('StatsCollect')).toBe(false);
         });
 
-        it('should record numeric timing values', () => {
+        it('should record numeric timing values', async () => {
             const app = App.new();
             app.addPlugin(new StatsPlugin());
 
@@ -506,21 +506,21 @@ describe('StatsPlugin', () => {
                 { name: 'WorkSystem' }
             ));
 
-            app.tick(1 / 60);
+await app.tick(1 / 60);
 
             const ms = app.getResource(Stats).systemTimings.get('WorkSystem');
             expect(typeof ms).toBe('number');
             expect(ms).toBeGreaterThanOrEqual(0);
         });
 
-        it('should be a fresh Map copy (not shared reference)', () => {
+        it('should be a fresh Map copy (not shared reference)', async () => {
             const app = App.new();
             app.addPlugin(new StatsPlugin());
-            app.tick(1 / 60);
+await app.tick(1 / 60);
 
             const stats = app.getResource(Stats);
             const ref1 = stats.systemTimings;
-            app.tick(1 / 60);
+await app.tick(1 / 60);
             const ref2 = stats.systemTimings;
 
             expect(ref1).not.toBe(ref2);
@@ -528,7 +528,7 @@ describe('StatsPlugin', () => {
     });
 
     describe('render stats from Renderer.getStats()', () => {
-        it('should copy all render stats fields', () => {
+        it('should copy all render stats fields', async () => {
             const mockStats: rendererModule.RenderStats = {
                 drawCalls: 42, triangles: 8400, sprites: 100,
                 text: 12, spine: 3, meshes: 5, culled: 7,
@@ -537,7 +537,7 @@ describe('StatsPlugin', () => {
 
             const app = App.new();
             app.addPlugin(new StatsPlugin());
-            app.tick(1 / 60);
+await app.tick(1 / 60);
 
             const stats = app.getResource(Stats);
             expect(stats.drawCalls).toBe(42);
@@ -549,7 +549,7 @@ describe('StatsPlugin', () => {
             expect(stats.culled).toBe(7);
         });
 
-        it('should update render stats each tick', () => {
+        it('should update render stats each tick', async () => {
             const tick1: rendererModule.RenderStats = {
                 drawCalls: 10, triangles: 2000, sprites: 50,
                 text: 5, spine: 1, meshes: 2, culled: 3,
@@ -564,14 +564,14 @@ describe('StatsPlugin', () => {
 
             const app = App.new();
             app.addPlugin(new StatsPlugin());
-            app.tick(1 / 60);
+await app.tick(1 / 60);
 
             let stats = app.getResource(Stats);
             expect(stats.drawCalls).toBe(10);
             expect(stats.sprites).toBe(50);
 
             spy.mockReturnValue(tick2);
-            app.tick(1 / 60);
+await app.tick(1 / 60);
 
             stats = app.getResource(Stats);
             expect(stats.drawCalls).toBe(20);
@@ -583,10 +583,10 @@ describe('StatsPlugin', () => {
             expect(stats.culled).toBe(6);
         });
 
-        it('should default to zeros when no WASM module', () => {
+        it('should default to zeros when no WASM module', async () => {
             const app = App.new();
             app.addPlugin(new StatsPlugin());
-            app.tick(1 / 60);
+await app.tick(1 / 60);
 
             const stats = app.getResource(Stats);
             expect(stats.drawCalls).toBe(0);
@@ -600,39 +600,39 @@ describe('StatsPlugin', () => {
     });
 
     describe('StatsPluginOptions', () => {
-        it('should accept overlay: false without creating DOM', () => {
+        it('should accept overlay: false without creating DOM', async () => {
             const plugin = new StatsPlugin({ overlay: false });
             const app = App.new();
             app.addPlugin(plugin);
-            app.tick(1 / 60);
+await app.tick(1 / 60);
 
             const stats = app.getResource(Stats);
             expect(stats.fps).toBeGreaterThan(0);
         });
 
-        it('should accept custom position', () => {
+        it('should accept custom position', async () => {
             const plugin = new StatsPlugin({ overlay: false, position: 'top-right' });
             const app = App.new();
             app.addPlugin(plugin);
-            app.tick(1 / 60);
+await app.tick(1 / 60);
             expect(app.hasResource(Stats)).toBe(true);
         });
     });
 
     describe('cleanup', () => {
-        it('should be callable without error', () => {
+        it('should be callable without error', async () => {
             const plugin = new StatsPlugin({ overlay: false });
             const app = App.new();
             app.addPlugin(plugin);
-            app.tick(1 / 60);
+await app.tick(1 / 60);
             expect(() => plugin.cleanup()).not.toThrow();
         });
 
-        it('should be safe to call cleanup multiple times', () => {
+        it('should be safe to call cleanup multiple times', async () => {
             const plugin = new StatsPlugin({ overlay: false });
             const app = App.new();
             app.addPlugin(plugin);
-            app.tick(1 / 60);
+await app.tick(1 / 60);
             plugin.cleanup();
             expect(() => plugin.cleanup()).not.toThrow();
         });
@@ -1114,21 +1114,21 @@ describe('App phase timings', () => {
         expect(app.getPhaseTimings()).toBeNull();
     });
 
-    it('should return a Map after enableStats + tick', () => {
+    it('should return a Map after enableStats + tick', async () => {
         const app = App.new();
         app.enableStats();
-        app.tick(1 / 60);
+await app.tick(1 / 60);
         const pt = app.getPhaseTimings();
         expect(pt).toBeInstanceOf(Map);
     });
 
-    it('should contain schedule phase names after tick', () => {
+    it('should contain schedule phase names after tick', async () => {
         const app = App.new();
         app.enableStats();
         app.addSystemToSchedule(Schedule.Update, defineSystem(
             [], () => {}, { name: 'Dummy' }
         ));
-        app.tick(1 / 60);
+await app.tick(1 / 60);
         const pt = app.getPhaseTimings()!;
         expect(pt.has('First')).toBe(true);
         expect(pt.has('PreUpdate')).toBe(true);
@@ -1137,10 +1137,10 @@ describe('App phase timings', () => {
         expect(pt.has('Last')).toBe(true);
     });
 
-    it('should have numeric values for each phase', () => {
+    it('should have numeric values for each phase', async () => {
         const app = App.new();
         app.enableStats();
-        app.tick(1 / 60);
+await app.tick(1 / 60);
         const pt = app.getPhaseTimings()!;
         for (const [, v] of pt) {
             expect(typeof v).toBe('number');
@@ -1148,13 +1148,13 @@ describe('App phase timings', () => {
         }
     });
 
-    it('should work when enableStats called after first tick', () => {
+    it('should work when enableStats called after first tick', async () => {
         const app = App.new();
-        app.tick(1 / 60);
+await app.tick(1 / 60);
         expect(app.getPhaseTimings()).toBeNull();
 
         app.enableStats();
-        app.tick(1 / 60);
+await app.tick(1 / 60);
         expect(app.getPhaseTimings()).toBeInstanceOf(Map);
     });
 });
@@ -1170,13 +1170,13 @@ describe('FrameStats phaseTimings', () => {
         expect(stats.phaseTimings.size).toBe(0);
     });
 
-    it('should be populated by StatsPlugin', () => {
+    it('should be populated by StatsPlugin', async () => {
         const app = App.new();
         app.addPlugin(new StatsPlugin({ overlay: false }));
         app.addSystemToSchedule(Schedule.Update, defineSystem(
             [], () => {}, { name: 'TestSys' }
         ));
-        app.tick(1 / 60);
+await app.tick(1 / 60);
         const stats = app.getResource(Stats);
         expect(stats.phaseTimings).toBeInstanceOf(Map);
         expect(stats.phaseTimings.size).toBeGreaterThan(0);

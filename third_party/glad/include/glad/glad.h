@@ -109,6 +109,10 @@ typedef ptrdiff_t GLintptr;
 #define GL_CULL_FACE                      0x0B44
 #define GL_DEPTH_TEST                     0x0B71
 #define GL_STENCIL_TEST                   0x0B90
+#define GL_KEEP                           0x1E00
+#define GL_REPLACE                        0x1E01
+#define GL_ALWAYS                         0x0207
+#define GL_EQUAL                          0x0202
 #define GL_BLEND                          0x0BE2
 #define GL_SCISSOR_TEST                   0x0C11
 
@@ -340,6 +344,11 @@ typedef void (APIENTRYP PFNGLUNIFORMMATRIX2FVPROC)(GLint location, GLsizei count
 typedef void (APIENTRYP PFNGLUNIFORMMATRIX3FVPROC)(GLint location, GLsizei count, GLboolean transpose, const GLfloat* value);
 typedef void (APIENTRYP PFNGLUNIFORMMATRIX4FVPROC)(GLint location, GLsizei count, GLboolean transpose, const GLfloat* value);
 
+/* Stencil functions */
+typedef void (APIENTRYP PFNGLSTENCILFUNCPROC)(GLenum func, GLint ref, GLuint mask);
+typedef void (APIENTRYP PFNGLSTENCILOPPROC)(GLenum fail, GLenum zfail, GLenum zpass);
+typedef void (APIENTRYP PFNGLSTENCILMASKPROC)(GLuint mask);
+
 /* Framebuffer functions */
 typedef void (APIENTRYP PFNGLGENFRAMEBUFFERSPROC)(GLsizei n, GLuint* framebuffers);
 typedef void (APIENTRYP PFNGLDELETEFRAMEBUFFERSPROC)(GLsizei n, const GLuint* framebuffers);
@@ -442,6 +451,11 @@ GLAPI PFNGLUNIFORMMATRIX2FVPROC glad_glUniformMatrix2fv;
 GLAPI PFNGLUNIFORMMATRIX3FVPROC glad_glUniformMatrix3fv;
 GLAPI PFNGLUNIFORMMATRIX4FVPROC glad_glUniformMatrix4fv;
 
+/* Stencil */
+GLAPI PFNGLSTENCILFUNCPROC glad_glStencilFunc;
+GLAPI PFNGLSTENCILOPPROC glad_glStencilOp;
+GLAPI PFNGLSTENCILMASKPROC glad_glStencilMask;
+
 /* Framebuffer */
 GLAPI PFNGLGENFRAMEBUFFERSPROC glad_glGenFramebuffers;
 GLAPI PFNGLDELETEFRAMEBUFFERSPROC glad_glDeleteFramebuffers;
@@ -538,6 +552,10 @@ GLAPI PFNGLBLITFRAMEBUFFERPROC glad_glBlitFramebuffer;
 #define glUniformMatrix2fv glad_glUniformMatrix2fv
 #define glUniformMatrix3fv glad_glUniformMatrix3fv
 #define glUniformMatrix4fv glad_glUniformMatrix4fv
+
+#define glStencilFunc glad_glStencilFunc
+#define glStencilOp glad_glStencilOp
+#define glStencilMask glad_glStencilMask
 
 #define glGenFramebuffers glad_glGenFramebuffers
 #define glDeleteFramebuffers glad_glDeleteFramebuffers

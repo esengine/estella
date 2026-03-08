@@ -45,8 +45,10 @@ describe.skipIf(!HAS_WASM)('Dropdown Interaction (WASM integration)', () => {
         const registry = new module.Registry() as unknown as CppRegistry;
         app.connectCpp(registry, module);
 
+        const vp = new Float32Array(16);
+        vp[0] = 2 / 800; vp[5] = 2 / 600; vp[10] = -1; vp[15] = 1;
         app.insertResource(UICameraInfo, {
-            viewProjection: new Float32Array(16),
+            viewProjection: vp,
             vpX: 0, vpY: 0, vpW: 800, vpH: 600,
             screenW: 800, screenH: 600,
             worldLeft: -400, worldBottom: -300, worldRight: 400, worldTop: 300,
@@ -164,13 +166,13 @@ describe.skipIf(!HAS_WASM)('Dropdown Interaction (WASM integration)', () => {
         return { root, ddEntity, listEntity, labelEntity };
     }
 
-    it('should propagate justPressed through C++ UIInteraction component', () => {
+    it('should propagate justPressed through C++ UIInteraction component', async () => {
         const { app, registry } = createApp();
         const { ddEntity } = createDropdownHierarchy(app);
         const world = app.world;
 
         // First tick to let layout compute positions
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         // The ddEntity should now have UIInteraction from the hit test system (getOrEmplace)
         // Verify UIInteraction round-trip: read from C++, modify, write back
@@ -195,13 +197,13 @@ describe.skipIf(!HAS_WASM)('Dropdown Interaction (WASM integration)', () => {
         disposeApp(app, registry);
     });
 
-    it('should detect click on dropdown via C++ hit test and open it', () => {
+    it('should detect click on dropdown via C++ hit test and open it', async () => {
         const { app, registry } = createApp();
         const { ddEntity, listEntity } = createDropdownHierarchy(app);
         const world = app.world;
 
         // Initial tick to compute layout
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         // Verify dropdown is closed
         let dd = world.get(ddEntity, Dropdown) as DropdownData;
@@ -216,14 +218,18 @@ describe.skipIf(!HAS_WASM)('Dropdown Interaction (WASM integration)', () => {
         // The hit test should detect the dropdown entity
         expect(hitEntity).toBe(ddEntity);
 
-        // Now simulate a full click by setting UIInteraction with plain object
-        // (bypassing the UIInteractionPlugin's Emscripten wrapper issue)
-        world.insert(ddEntity, UIInteraction, {
-            hovered: true, pressed: true,
-            justPressed: true, justReleased: false,
-        });
+        // Simulate a mouse click through the Input resource so UIInteractionPlugin
+        // naturally sets justPressed on the hit entity
+        const input = app.getResource(Input) as InputState;
+        input.mouseX = 400;
+        input.mouseY = 300;
+        input.mouseButtons.add(0);
+        input.mouseButtonsPressed.add(0);
 
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
+
+        // Clear mouse state after the press frame
+        input.mouseButtonsPressed.clear();
 
         dd = world.get(ddEntity, Dropdown) as DropdownData;
         expect(dd.isOpen).toBe(true);
@@ -231,12 +237,12 @@ describe.skipIf(!HAS_WASM)('Dropdown Interaction (WASM integration)', () => {
         disposeApp(app, registry);
     });
 
-    it('should correctly round-trip UIInteraction through Emscripten wrapper', () => {
+    it('should correctly round-trip UIInteraction through Emscripten wrapper', async () => {
         const { app, registry } = createApp();
         const { ddEntity } = createDropdownHierarchy(app);
         const world = app.world;
 
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         // Set known values via plain object
         world.insert(ddEntity, UIInteraction, {
@@ -316,7 +322,7 @@ describe.skipIf(!HAS_WASM)('Dropdown Interaction (WASM integration)', () => {
         disposeApp(app, registry);
     });
 
-    it('should fix white label text to black after initialization', () => {
+    it('should fix white label text to black after initialization', async () => {
         const { app, registry } = createApp();
         const { labelEntity } = createDropdownHierarchy(app);
         const world = app.world;
@@ -328,7 +334,7 @@ describe.skipIf(!HAS_WASM)('Dropdown Interaction (WASM integration)', () => {
         expect(text.color.b).toBe(1);
 
         // After tick, syncLabel should fix to black
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         text = world.get(labelEntity, Text) as TextData;
         const isWhite = text.color.r === 1 && text.color.g === 1 && text.color.b === 1;

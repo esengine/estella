@@ -43,8 +43,10 @@ describe.skipIf(!HAS_WASM)('Dropdown list child text visibility (WASM)', () => {
         const registry = new module.Registry() as unknown as CppRegistry;
         app.connectCpp(registry, module);
 
+        const vp = new Float32Array(16);
+        vp[0] = 2 / 800; vp[5] = 2 / 600; vp[10] = -1; vp[15] = 1;
         app.insertResource(UICameraInfo, {
-            viewProjection: new Float32Array(16),
+            viewProjection: vp,
             vpX: 0, vpY: 0, vpW: 800, vpH: 600,
             screenW: 800, screenH: 600,
             worldLeft: -400, worldBottom: -300, worldRight: 400, worldTop: 300,
@@ -189,7 +191,7 @@ describe.skipIf(!HAS_WASM)('Dropdown list child text visibility (WASM)', () => {
         return { root, ddEntity, listEntity, labelEntity, userTextEntity };
     }
 
-    it('list entity scale should be normalized from (0,0,0) to (1,1,1) on init', () => {
+    it('list entity scale should be normalized from (0,0,0) to (1,1,1) on init', async () => {
         const { app, registry } = createApp();
         const { ddEntity, listEntity, userTextEntity } = buildDropdownWithUserText(app);
         const world = app.world;
@@ -200,7 +202,7 @@ describe.skipIf(!HAS_WASM)('Dropdown list child text visibility (WASM)', () => {
         expect(beforeTick.scale.y).toBe(0);
 
         // First tick initializes the dropdown (closed state)
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         // DropdownPlugin should normalize list scale to (1,1,1) so children are visible
         const listTransform = world.get(listEntity, Transform) as TransformData;
@@ -219,12 +221,12 @@ describe.skipIf(!HAS_WASM)('Dropdown list child text visibility (WASM)', () => {
         disposeApp(app, registry);
     });
 
-    it('user text entity should have non-zero sprite size after layout', () => {
+    it('user text entity should have non-zero sprite size after layout', async () => {
         const { app, registry } = createApp();
         const { userTextEntity } = buildDropdownWithUserText(app);
         const world = app.world;
 
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         const sprite = world.get(userTextEntity, Sprite) as SpriteData;
         expect(sprite.size.x).toBeGreaterThan(0);
@@ -233,12 +235,12 @@ describe.skipIf(!HAS_WASM)('Dropdown list child text visibility (WASM)', () => {
         disposeApp(app, registry);
     });
 
-    it('user text entity should get layer from UIRenderOrderSystem', () => {
+    it('user text entity should get layer from UIRenderOrderSystem', async () => {
         const { app, registry } = createApp();
         const { ddEntity, listEntity, userTextEntity } = buildDropdownWithUserText(app);
         const world = app.world;
 
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         const ddSprite = world.get(ddEntity, Sprite) as SpriteData;
         const listSprite = world.get(listEntity, Sprite) as SpriteData;
@@ -252,20 +254,22 @@ describe.skipIf(!HAS_WASM)('Dropdown list child text visibility (WASM)', () => {
         disposeApp(app, registry);
     });
 
-    it('user text entity survives dropdown open/close cycle', () => {
+    it('user text entity survives dropdown open/close cycle', async () => {
         const { app, registry } = createApp();
         const { ddEntity, listEntity, userTextEntity } = buildDropdownWithUserText(app);
         const world = app.world;
 
         // Initialize
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
-        // Simulate click to open dropdown
-        world.insert(ddEntity, UIInteraction, {
-            hovered: true, pressed: true,
-            justPressed: true, justReleased: false,
-        });
-        app.tick(1 / 60);
+        // Simulate click to open dropdown via Input resource
+        const input = app.getResource(Input) as InputState;
+        input.mouseX = 400;
+        input.mouseY = 300;
+        input.mouseButtons.add(0);
+        input.mouseButtonsPressed.add(0);
+        await app.tick(1 / 60);
+        input.mouseButtonsPressed.clear();
 
         // Verify dropdown is open and text entity still exists
         const dd = world.get(ddEntity, Dropdown) as any;
@@ -276,12 +280,10 @@ describe.skipIf(!HAS_WASM)('Dropdown list child text visibility (WASM)', () => {
         const openSprite = world.get(userTextEntity, Sprite) as SpriteData;
         expect(openSprite.enabled).toBe(true);
 
-        // Close dropdown
-        world.insert(ddEntity, UIInteraction, {
-            hovered: true, pressed: true,
-            justPressed: true, justReleased: false,
-        });
-        app.tick(1 / 60);
+        // Close dropdown via another click
+        input.mouseButtonsPressed.add(0);
+        await app.tick(1 / 60);
+        input.mouseButtonsPressed.clear();
 
         // After close, user text entity must still exist and be enabled
         expect(world.valid(userTextEntity)).toBe(true);

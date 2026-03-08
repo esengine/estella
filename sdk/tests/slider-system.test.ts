@@ -79,7 +79,7 @@ describe.skipIf(!HAS_WASM)('SliderPlugin system integration', () => {
         };
     }
 
-    it('SliderPlugin should produce left-aligned fill (value=0.5)', () => {
+    it('SliderPlugin should produce left-aligned fill (value=0.5)', async () => {
         const { app, registry } = createFullApp();
         const world = app.world;
 
@@ -133,7 +133,7 @@ describe.skipIf(!HAS_WASM)('SliderPlugin system integration', () => {
         });
 
         for (let i = 0; i < 3; i++) {
-            app.tick(1 / 60);
+            await app.tick(1 / 60);
         }
 
         // Run TransformSystem to compute worldPositions (normally done by renderer)
@@ -180,7 +180,7 @@ describe.skipIf(!HAS_WASM)('SliderPlugin system integration', () => {
         (registry as any).delete();
     });
 
-    it('full pipeline: UILayout → SliderPlugin → UILayoutLate → TransformSystem', () => {
+    it('full pipeline: UILayout → SliderPlugin → UILayoutLate → TransformSystem', async () => {
         const { app, registry } = createFullApp();
         const world = app.world;
 
@@ -235,7 +235,7 @@ describe.skipIf(!HAS_WASM)('SliderPlugin system integration', () => {
                 wholeNumbers: false,
             });
 
-            app.tick(1 / 60);
+            await app.tick(1 / 60);
             module.transform_update(registry);
 
             const fillT = world.get(fill, Transform) as TransformData;

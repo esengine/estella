@@ -4,7 +4,7 @@
  * Simulates how the editor renders a Slider:
  *   1. Create root Canvas → Slider background → Fill + Handle as children
  *   2. Call applyDirectionalFill / computeHandleAnchors to set anchors
- *   3. Run app.tick() to compute layout
+ *   3. Run await app.tick() to compute layout
  *   4. Verify computed width/height and world positions
  *
  * Requires pre-built WASM at desktop/public/wasm/esengine.wasm.
@@ -217,14 +217,14 @@ describe.skipIf(!HAS_WASM)('Slider Layout (WASM integration)', () => {
     });
 
     describe('fill layout after applyDirectionalFill + tick', () => {
-        it('should compute fill width = 50% of slider background', () => {
+        it('should compute fill width = 50% of slider background', async () => {
             const { app, registry } = createEditorApp();
             const { root, sliderBg, fill, handle } = createSliderHierarchy(app);
 
             applyDirectionalFill(app.world, fill, FillDirection.LeftToRight, 0.5);
 
             setCanvasRect(app, -400, -300, 400, 300);
-            app.tick(1 / 60);
+            await app.tick(1 / 60);
 
             const bgW = module.getUIRectComputedWidth(registry, sliderBg);
             const bgH = module.getUIRectComputedHeight(registry, sliderBg);
@@ -239,14 +239,14 @@ describe.skipIf(!HAS_WASM)('Slider Layout (WASM integration)', () => {
             disposeApp(app, registry);
         });
 
-        it('should compute fill width = 0 at value 0', () => {
+        it('should compute fill width = 0 at value 0', async () => {
             const { app, registry } = createEditorApp();
             const { fill } = createSliderHierarchy(app);
 
             applyDirectionalFill(app.world, fill, FillDirection.LeftToRight, 0);
 
             setCanvasRect(app, -400, -300, 400, 300);
-            app.tick(1 / 60);
+            await app.tick(1 / 60);
 
             const fillW = module.getUIRectComputedWidth(registry, fill);
             expect(fillW).toBeCloseTo(0, 0);
@@ -254,14 +254,14 @@ describe.skipIf(!HAS_WASM)('Slider Layout (WASM integration)', () => {
             disposeApp(app, registry);
         });
 
-        it('should compute fill width = 100% at value 1', () => {
+        it('should compute fill width = 100% at value 1', async () => {
             const { app, registry } = createEditorApp();
             const { sliderBg, fill } = createSliderHierarchy(app);
 
             applyDirectionalFill(app.world, fill, FillDirection.LeftToRight, 1);
 
             setCanvasRect(app, -400, -300, 400, 300);
-            app.tick(1 / 60);
+            await app.tick(1 / 60);
 
             const bgW = module.getUIRectComputedWidth(registry, sliderBg);
             const fillW = module.getUIRectComputedWidth(registry, fill);
@@ -270,14 +270,14 @@ describe.skipIf(!HAS_WASM)('Slider Layout (WASM integration)', () => {
             disposeApp(app, registry);
         });
 
-        it('should compute fill width = 25% at value 0.25', () => {
+        it('should compute fill width = 25% at value 0.25', async () => {
             const { app, registry } = createEditorApp();
             const { fill } = createSliderHierarchy(app);
 
             applyDirectionalFill(app.world, fill, FillDirection.LeftToRight, 0.25);
 
             setCanvasRect(app, -400, -300, 400, 300);
-            app.tick(1 / 60);
+            await app.tick(1 / 60);
 
             const fillW = module.getUIRectComputedWidth(registry, fill);
             expect(fillW).toBeCloseTo(50, 0);
@@ -285,15 +285,15 @@ describe.skipIf(!HAS_WASM)('Slider Layout (WASM integration)', () => {
             disposeApp(app, registry);
         });
 
-        it('should position fill at left side, not centered (LeftToRight 50%)', () => {
+        it('should position fill at left side, not centered (LeftToRight 50%)', async () => {
             const { app, registry } = createEditorApp();
             const { sliderBg, fill } = createSliderHierarchy(app);
 
             applyDirectionalFill(app.world, fill, FillDirection.LeftToRight, 0.5);
 
             setCanvasRect(app, -400, -300, 400, 300);
-            app.tick(1 / 60);
-            app.tick(1 / 60);
+            await app.tick(1 / 60);
+            await app.tick(1 / 60);
 
             const fillTransform = registry.getTransform(fill);
             const bgTransform = registry.getTransform(sliderBg);
@@ -315,7 +315,7 @@ describe.skipIf(!HAS_WASM)('Slider Layout (WASM integration)', () => {
     });
 
     describe('DEBUG: full pipeline sprite bounds', () => {
-        it('should verify sprite left/right edges for LeftToRight fill', () => {
+        it('should verify sprite left/right edges for LeftToRight fill', async () => {
             const { app, registry } = createEditorApp();
             const { root, sliderBg, fill } = createSliderHierarchy(app);
 
@@ -324,7 +324,7 @@ describe.skipIf(!HAS_WASM)('Slider Layout (WASM integration)', () => {
             const values = [0, 0.25, 0.5, 0.75, 1.0];
             for (const value of values) {
                 applyDirectionalFill(app.world, fill, FillDirection.LeftToRight, value);
-                app.tick(1 / 60);
+                await app.tick(1 / 60);
 
                 const fillT = registry.getTransform(fill);
                 const bgT = registry.getTransform(sliderBg);
@@ -405,7 +405,7 @@ describe.skipIf(!HAS_WASM)('Slider Layout (WASM integration)', () => {
             disposeApp(app, registry);
         });
 
-        it('should test with SliderPlugin running (full runtime simulation)', () => {
+        it('should test with SliderPlugin running (full runtime simulation)', async () => {
             const app = App.new();
             const registry = new module.Registry() as unknown as CppRegistry;
             app.connectCpp(registry, module);
@@ -480,8 +480,8 @@ describe.skipIf(!HAS_WASM)('Slider Layout (WASM integration)', () => {
 
             // Set camera and tick
             setCanvasRect(app, -400, -300, 400, 300);
-            app.tick(1 / 60);
-            app.tick(1 / 60);
+            await app.tick(1 / 60);
+            await app.tick(1 / 60);
 
             const fillT = registry.getTransform(fill);
             const bgT = registry.getTransform(sliderBg);
@@ -509,7 +509,7 @@ describe.skipIf(!HAS_WASM)('Slider Layout (WASM integration)', () => {
             disposeApp(app, registry);
         });
 
-        it('should verify worldPosition via TransformSystem', () => {
+        it('should verify worldPosition via TransformSystem', async () => {
             const app = App.new();
             const registry = new module.Registry() as unknown as CppRegistry;
             app.connectCpp(registry, module);
@@ -580,8 +580,8 @@ describe.skipIf(!HAS_WASM)('Slider Layout (WASM integration)', () => {
             });
 
             setCanvasRect(app, -400, -300, 400, 300);
-            app.tick(1 / 60);
-            app.tick(1 / 60);
+            await app.tick(1 / 60);
+            await app.tick(1 / 60);
 
             // Now run TransformSystem to compute worldPosition
             module.transform_update(registry);
@@ -617,7 +617,7 @@ describe.skipIf(!HAS_WASM)('Slider Layout (WASM integration)', () => {
     });
 
     describe('handle layout after anchor update + tick', () => {
-        it('should position handle sprite at 50%', () => {
+        it('should position handle sprite at 50%', async () => {
             const { app, registry } = createEditorApp();
             const { sliderBg, handle } = createSliderHierarchy(app);
 
@@ -632,7 +632,7 @@ describe.skipIf(!HAS_WASM)('Slider Layout (WASM integration)', () => {
             });
 
             setCanvasRect(app, -400, -300, 400, 300);
-            app.tick(1 / 60);
+            await app.tick(1 / 60);
 
             const handleW = module.getUIRectComputedWidth(registry, handle);
             const handleH = module.getUIRectComputedHeight(registry, handle);
@@ -644,12 +644,12 @@ describe.skipIf(!HAS_WASM)('Slider Layout (WASM integration)', () => {
     });
 
     describe('render order in slider hierarchy', () => {
-        it('should order: background < fill < handle', () => {
+        it('should order: background < fill < handle', async () => {
             const { app, registry } = createEditorApp();
             const { sliderBg, fill, handle } = createSliderHierarchy(app);
 
             setCanvasRect(app, -400, -300, 400, 300);
-            app.tick(1 / 60);
+            await app.tick(1 / 60);
 
             const bgLayer = registry.getSprite(sliderBg).layer;
             const fillLayer = registry.getSprite(fill).layer;
@@ -663,22 +663,22 @@ describe.skipIf(!HAS_WASM)('Slider Layout (WASM integration)', () => {
     });
 
     describe('dynamic fill changes across ticks', () => {
-        it('should update fill width when value changes', () => {
+        it('should update fill width when value changes', async () => {
             const { app, registry } = createEditorApp();
             const { fill } = createSliderHierarchy(app);
 
             setCanvasRect(app, -400, -300, 400, 300);
 
             applyDirectionalFill(app.world, fill, FillDirection.LeftToRight, 0.3);
-            app.tick(1 / 60);
+            await app.tick(1 / 60);
             expect(module.getUIRectComputedWidth(registry, fill)).toBeCloseTo(60, 0);
 
             applyDirectionalFill(app.world, fill, FillDirection.LeftToRight, 0.7);
-            app.tick(1 / 60);
+            await app.tick(1 / 60);
             expect(module.getUIRectComputedWidth(registry, fill)).toBeCloseTo(140, 0);
 
             applyDirectionalFill(app.world, fill, FillDirection.LeftToRight, 0);
-            app.tick(1 / 60);
+            await app.tick(1 / 60);
             expect(module.getUIRectComputedWidth(registry, fill)).toBeCloseTo(0, 0);
 
             disposeApp(app, registry);
@@ -686,7 +686,7 @@ describe.skipIf(!HAS_WASM)('Slider Layout (WASM integration)', () => {
     });
 
     describe('two sliders side by side', () => {
-        it('should compute independent layouts for two sliders', () => {
+        it('should compute independent layouts for two sliders', async () => {
             const { app, registry } = createEditorApp();
             const world = app.world;
 
@@ -750,7 +750,7 @@ describe.skipIf(!HAS_WASM)('Slider Layout (WASM integration)', () => {
             world.insert(fill2, Sprite, makeSprite(240, 20));
 
             setCanvasRect(app, -400, -300, 400, 300);
-            app.tick(1 / 60);
+            await app.tick(1 / 60);
 
             // Slider 1: bg = 200w, fill = 30% = 60w
             expect(module.getUIRectComputedWidth(registry, slider1Bg)).toBeCloseTo(200, 0);
@@ -777,14 +777,14 @@ describe.skipIf(!HAS_WASM)('Slider Layout (WASM integration)', () => {
     });
 
     describe('fill sprite size sync via layout system', () => {
-        it('should update fill Sprite.size to match computed UIRect size', () => {
+        it('should update fill Sprite.size to match computed UIRect size', async () => {
             const { app, registry } = createEditorApp();
             const { fill } = createSliderHierarchy(app);
 
             applyDirectionalFill(app.world, fill, FillDirection.LeftToRight, 0.5);
 
             setCanvasRect(app, -400, -300, 400, 300);
-            app.tick(1 / 60);
+            await app.tick(1 / 60);
 
             const sprite = registry.getSprite(fill);
             const computedW = module.getUIRectComputedWidth(registry, fill);
@@ -797,7 +797,7 @@ describe.skipIf(!HAS_WASM)('Slider Layout (WASM integration)', () => {
     });
 
     describe('editor-like slider creation flow', () => {
-        it('should reproduce exact editor slider hierarchy and verify fill visibility', () => {
+        it('should reproduce exact editor slider hierarchy and verify fill visibility', async () => {
             const { app, registry } = createEditorApp();
             const world = app.world;
 
@@ -864,7 +864,7 @@ describe.skipIf(!HAS_WASM)('Slider Layout (WASM integration)', () => {
 
             // Step 2: render() calls tick() which runs C++ layout
             setCanvasRect(app, -400, -300, 400, 300);
-            app.tick(1 / 60);
+            await app.tick(1 / 60);
 
             // Verify slider bg got correct size (fixed-size centered)
             const sliderW = module.getUIRectComputedWidth(registry, slider);
@@ -899,7 +899,7 @@ describe.skipIf(!HAS_WASM)('Slider Layout (WASM integration)', () => {
             disposeApp(app, registry);
         });
 
-        it('should handle two sliders at different positions', () => {
+        it('should handle two sliders at different positions', async () => {
             const { app, registry } = createEditorApp();
             const world = app.world;
 
@@ -963,7 +963,7 @@ describe.skipIf(!HAS_WASM)('Slider Layout (WASM integration)', () => {
             applyDirectionalFill(world, slider2.fill, FillDirection.LeftToRight, 0.7);
 
             setCanvasRect(app, -400, -300, 400, 300);
-            app.tick(1 / 60);
+            await app.tick(1 / 60);
 
             // Slider 1: fill = 30% of 200 = 60
             const fill1W = module.getUIRectComputedWidth(registry, slider1.fill);

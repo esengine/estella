@@ -106,6 +106,11 @@ PFNGLUNIFORMMATRIX2FVPROC glad_glUniformMatrix2fv = NULL;
 PFNGLUNIFORMMATRIX3FVPROC glad_glUniformMatrix3fv = NULL;
 PFNGLUNIFORMMATRIX4FVPROC glad_glUniformMatrix4fv = NULL;
 
+/* Stencil */
+PFNGLSTENCILFUNCPROC glad_glStencilFunc = NULL;
+PFNGLSTENCILOPPROC glad_glStencilOp = NULL;
+PFNGLSTENCILMASKPROC glad_glStencilMask = NULL;
+
 /* Framebuffer */
 PFNGLGENFRAMEBUFFERSPROC glad_glGenFramebuffers = NULL;
 PFNGLDELETEFRAMEBUFFERSPROC glad_glDeleteFramebuffers = NULL;
@@ -216,6 +221,11 @@ int gladLoadGLLoader(GLADloadproc load) {
     glad_glUniformMatrix2fv = (PFNGLUNIFORMMATRIX2FVPROC)load("glUniformMatrix2fv");
     glad_glUniformMatrix3fv = (PFNGLUNIFORMMATRIX3FVPROC)load("glUniformMatrix3fv");
     glad_glUniformMatrix4fv = (PFNGLUNIFORMMATRIX4FVPROC)load("glUniformMatrix4fv");
+
+    /* Stencil */
+    glad_glStencilFunc = (PFNGLSTENCILFUNCPROC)load("glStencilFunc");
+    glad_glStencilOp = (PFNGLSTENCILOPPROC)load("glStencilOp");
+    glad_glStencilMask = (PFNGLSTENCILMASKPROC)load("glStencilMask");
 
     /* Framebuffer */
     glad_glGenFramebuffers = (PFNGLGENFRAMEBUFFERSPROC)load("glGenFramebuffers");

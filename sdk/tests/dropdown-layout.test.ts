@@ -47,10 +47,12 @@ describe.skipIf(!HAS_WASM)('Dropdown Layout (WASM integration)', () => {
         const registry = new module.Registry() as unknown as CppRegistry;
         app.connectCpp(registry, module);
 
+        const vp = new Float32Array(16);
+        vp[0] = 2 / 800; vp[5] = 2 / 600; vp[10] = -1; vp[15] = 1;
         app.insertResource(UICameraInfo, {
-            viewProjection: new Float32Array(16),
-            vpX: 0, vpY: 0, vpW: 0, vpH: 0,
-            screenW: 0, screenH: 0,
+            viewProjection: vp,
+            vpX: 0, vpY: 0, vpW: 800, vpH: 600,
+            screenW: 800, screenH: 600,
             worldLeft: -400, worldBottom: -300, worldRight: 400, worldTop: 300,
             worldMouseX: 0, worldMouseY: 0,
             valid: true,
@@ -163,26 +165,24 @@ describe.skipIf(!HAS_WASM)('Dropdown Layout (WASM integration)', () => {
         return { root, ddEntity, listEntity, labelEntity };
     }
 
-    it('should create option entities with distinct Y positions after opening', () => {
+    it('should create option entities with distinct Y positions after opening', async () => {
         const { app, registry } = createDropdownApp();
         const { ddEntity, listEntity } = createDropdownHierarchy(app);
 
         // Initial tick to set up layout
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
-        // Simulate click on dropdown to open it:
-        // Force isOpen via component update and tick
+        // Open dropdown by setting isOpen directly and simulating click via Input
         const world = app.world;
-        const dd = world.get(ddEntity, Dropdown) as any;
-        dd.isOpen = false;
+        const input = app.getResource(Input) as InputState;
+        input.mouseX = 400;
+        input.mouseY = 300;
+        input.mouseButtons.add(0);
+        input.mouseButtonsPressed.add(0);
 
-        // Simulate UIInteraction justPressed on the dropdown
-        world.insert(ddEntity, UIInteraction, {
-            hovered: true, pressed: true,
-            justPressed: true, justReleased: false,
-        });
+        await app.tick(1 / 60);
 
-        app.tick(1 / 60);
+        input.mouseButtonsPressed.clear();
 
         // After tick, the dropdown should be open and options should exist
         const ddData = world.get(ddEntity, Dropdown) as any;
@@ -207,7 +207,7 @@ describe.skipIf(!HAS_WASM)('Dropdown Layout (WASM integration)', () => {
         expect(optionEntities.length).toBe(3);
 
         // Run another tick so layout computes positions
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         // Each option should have a DISTINCT Y position
         const yPositions = optionEntities.map(e => {
@@ -231,20 +231,22 @@ describe.skipIf(!HAS_WASM)('Dropdown Layout (WASM integration)', () => {
         disposeApp(app, registry);
     });
 
-    it('should have option sprites with non-zero size after layout', () => {
+    it('should have option sprites with non-zero size after layout', async () => {
         const { app, registry } = createDropdownApp();
         const { ddEntity, listEntity } = createDropdownHierarchy(app);
 
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         const world = app.world;
-        world.insert(ddEntity, UIInteraction, {
-            hovered: true, pressed: true,
-            justPressed: true, justReleased: false,
-        });
+        const input = app.getResource(Input) as InputState;
+        input.mouseX = 400;
+        input.mouseY = 300;
+        input.mouseButtons.add(0);
+        input.mouseButtonsPressed.add(0);
+        await app.tick(1 / 60);
+        input.mouseButtonsPressed.clear();
 
-        app.tick(1 / 60);
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         const allEntities = world.getAllEntities();
         const optionEntities: number[] = [];
@@ -268,7 +270,7 @@ describe.skipIf(!HAS_WASM)('Dropdown Layout (WASM integration)', () => {
         disposeApp(app, registry);
     });
 
-    it('should hide list entity on initialization when dropdown is closed', () => {
+    it('should hide list entity on initialization when dropdown is closed', async () => {
         const { app, registry } = createDropdownApp();
         const { listEntity } = createDropdownHierarchy(app);
         const world = app.world;
@@ -282,7 +284,7 @@ describe.skipIf(!HAS_WASM)('Dropdown Layout (WASM integration)', () => {
         });
         world.insert(listEntity, Interactable, { enabled: true, blockRaycast: true, raycastTarget: true });
 
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         const sprite = registry.getSprite(listEntity);
         expect(sprite.enabled).toBe(false);
@@ -293,12 +295,12 @@ describe.skipIf(!HAS_WASM)('Dropdown Layout (WASM integration)', () => {
         disposeApp(app, registry);
     });
 
-    it('should set label text color to non-white after sync', () => {
+    it('should set label text color to non-white after sync', async () => {
         const { app, registry } = createDropdownApp();
         const { labelEntity } = createDropdownHierarchy(app);
         const world = app.world;
 
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         const text = world.get(labelEntity, Text) as TextData;
         const isWhite = text.color.r === 1 && text.color.g === 1 && text.color.b === 1;
@@ -308,7 +310,7 @@ describe.skipIf(!HAS_WASM)('Dropdown Layout (WASM integration)', () => {
         disposeApp(app, registry);
     });
 
-    it('should preserve label placeholder text when selectedIndex is -1', () => {
+    it('should preserve label placeholder text when selectedIndex is -1', async () => {
         const { app, registry } = createDropdownApp();
         const { ddEntity, labelEntity } = createDropdownHierarchy(app);
         const world = app.world;
@@ -327,7 +329,7 @@ describe.skipIf(!HAS_WASM)('Dropdown Layout (WASM integration)', () => {
         dd.selectedIndex = -1;
         world.insert(ddEntity, Dropdown, dd);
 
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         const text = world.get(labelEntity, Text) as TextData;
         expect(text.content).toBe('Select...');
@@ -335,7 +337,7 @@ describe.skipIf(!HAS_WASM)('Dropdown Layout (WASM integration)', () => {
         disposeApp(app, registry);
     });
 
-    it('should fix white label text even when selectedIndex is -1', () => {
+    it('should fix white label text even when selectedIndex is -1', async () => {
         const { app, registry } = createDropdownApp();
         const { ddEntity, labelEntity } = createDropdownHierarchy(app);
         const world = app.world;
@@ -354,7 +356,7 @@ describe.skipIf(!HAS_WASM)('Dropdown Layout (WASM integration)', () => {
         dd.selectedIndex = -1;
         world.insert(ddEntity, Dropdown, dd);
 
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         const text = world.get(labelEntity, Text) as TextData;
         // White text should be fixed to black even without valid selection
@@ -366,24 +368,25 @@ describe.skipIf(!HAS_WASM)('Dropdown Layout (WASM integration)', () => {
         disposeApp(app, registry);
     });
 
-    it('should open dropdown and show list entity on click', () => {
+    it('should open dropdown and show list entity on click', async () => {
         const { app, registry } = createDropdownApp();
         const { ddEntity, listEntity } = createDropdownHierarchy(app);
         const world = app.world;
 
-        app.tick(1 / 60);
+        await app.tick(1 / 60);
 
         // Verify list is hidden initially
         let sprite = registry.getSprite(listEntity);
         expect(sprite.enabled).toBe(false);
 
-        // Simulate click
-        world.insert(ddEntity, UIInteraction, {
-            hovered: true, pressed: true,
-            justPressed: true, justReleased: false,
-        });
-
-        app.tick(1 / 60);
+        // Simulate click via Input resource
+        const input = app.getResource(Input) as InputState;
+        input.mouseX = 400;
+        input.mouseY = 300;
+        input.mouseButtons.add(0);
+        input.mouseButtonsPressed.add(0);
+        await app.tick(1 / 60);
+        input.mouseButtonsPressed.clear();
 
         const dd = world.get(ddEntity, Dropdown) as any;
         expect(dd.isOpen).toBe(true);

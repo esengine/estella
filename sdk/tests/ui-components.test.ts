@@ -367,7 +367,7 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
     });
 
     describe('UI layout with deep hierarchy', () => {
-        it('should compute layout for 3-level nested UIRect', () => {
+        it('should compute layout for 3-level nested UIRect', async () => {
             const { app, registry } = createEditorApp();
             const world = app.world;
 
@@ -402,7 +402,7 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
             world.insert(leaf, Sprite, makeSprite());
 
             setCanvasRect(app, -400, -300, 400, 300);
-            app.tick(1 / 60);
+            await app.tick(1 / 60);
 
             const rootW = module.getUIRectComputedWidth(registry, root);
             const rootH = module.getUIRectComputedHeight(registry, root);
@@ -422,7 +422,7 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
             disposeApp(app, registry);
         });
 
-        it('should compute fixed-size centered child correctly', () => {
+        it('should compute fixed-size centered child correctly', async () => {
             const { app, registry } = createEditorApp();
             const world = app.world;
 
@@ -438,7 +438,7 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
             world.insert(child, Sprite, makeSprite());
 
             setCanvasRect(app, -400, -300, 400, 300);
-            app.tick(1 / 60);
+            await app.tick(1 / 60);
 
             const w = module.getUIRectComputedWidth(registry, child);
             const h = module.getUIRectComputedHeight(registry, child);
@@ -450,7 +450,7 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
     });
 
     describe('render order with multiple roots', () => {
-        it('should assign render order across sibling entities', () => {
+        it('should assign render order across sibling entities', async () => {
             const { app, registry } = createEditorApp();
             const world = app.world;
 
@@ -471,7 +471,7 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
             }
 
             setCanvasRect(app, -400, -300, 400, 300);
-            app.tick(1 / 60);
+            await app.tick(1 / 60);
 
             const rootLayer = registry.getSprite(root).layer;
             for (const child of children) {
@@ -482,7 +482,7 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
             disposeApp(app, registry);
         });
 
-        it('should maintain correct order: parent < child < grandchild', () => {
+        it('should maintain correct order: parent < child < grandchild', async () => {
             const { app, registry } = createEditorApp();
             const world = app.world;
 
@@ -505,7 +505,7 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
             world.insert(leaf, Sprite, makeSprite());
 
             setCanvasRect(app, -400, -300, 400, 300);
-            app.tick(1 / 60);
+            await app.tick(1 / 60);
 
             const rootLayer = registry.getSprite(root).layer;
             const midLayer = registry.getSprite(mid).layer;
@@ -519,7 +519,7 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
     });
 
     describe('anchor-based layout variations', () => {
-        it('should compute left-anchored child (25% width)', () => {
+        it('should compute left-anchored child (25% width)', async () => {
             const { app, registry } = createEditorApp();
             const world = app.world;
 
@@ -542,7 +542,7 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
             world.insert(child, Sprite, makeSprite());
 
             setCanvasRect(app, -400, -300, 400, 300);
-            app.tick(1 / 60);
+            await app.tick(1 / 60);
 
             const w = module.getUIRectComputedWidth(registry, child);
             const h = module.getUIRectComputedHeight(registry, child);
@@ -552,7 +552,7 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
             disposeApp(app, registry);
         });
 
-        it('should compute bottom-anchored child (50% height)', () => {
+        it('should compute bottom-anchored child (50% height)', async () => {
             const { app, registry } = createEditorApp();
             const world = app.world;
 
@@ -575,7 +575,7 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
             world.insert(child, Sprite, makeSprite());
 
             setCanvasRect(app, -400, -300, 400, 300);
-            app.tick(1 / 60);
+            await app.tick(1 / 60);
 
             const w = module.getUIRectComputedWidth(registry, child);
             const h = module.getUIRectComputedHeight(registry, child);
@@ -585,7 +585,7 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
             disposeApp(app, registry);
         });
 
-        it('should compute offset from edges', () => {
+        it('should compute offset from edges', async () => {
             const { app, registry } = createEditorApp();
             const world = app.world;
 
@@ -608,7 +608,7 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
             world.insert(child, Sprite, makeSprite());
 
             setCanvasRect(app, -400, -300, 400, 300);
-            app.tick(1 / 60);
+            await app.tick(1 / 60);
 
             const w = module.getUIRectComputedWidth(registry, child);
             const h = module.getUIRectComputedHeight(registry, child);
@@ -620,7 +620,7 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
     });
 
     describe('dynamic layout changes', () => {
-        it('should update layout when anchors change between ticks', () => {
+        it('should update layout when anchors change between ticks', async () => {
             const { app, registry } = createEditorApp();
             const world = app.world;
 
@@ -643,7 +643,7 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
             world.insert(child, Sprite, makeSprite());
 
             setCanvasRect(app, -400, -300, 400, 300);
-            app.tick(1 / 60);
+            await app.tick(1 / 60);
 
             expect(module.getUIRectComputedWidth(registry, child)).toBeCloseTo(400, 0);
 
@@ -651,14 +651,14 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
             rect.anchorMax.x = 1;
             registry.addUIRect(child, rect);
 
-            app.tick(1 / 60);
+            await app.tick(1 / 60);
 
             expect(module.getUIRectComputedWidth(registry, child)).toBeCloseTo(800, 0);
 
             disposeApp(app, registry);
         });
 
-        it('should handle adding new child between ticks', () => {
+        it('should handle adding new child between ticks', async () => {
             const { app, registry } = createEditorApp();
             const world = app.world;
 
@@ -668,7 +668,7 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
             world.insert(root, Transform, makeTransform());
 
             setCanvasRect(app, -400, -300, 400, 300);
-            app.tick(1 / 60);
+            await app.tick(1 / 60);
 
             const child = world.spawn();
             world.setParent(child, root);
@@ -676,7 +676,7 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
             world.insert(child, Transform, makeTransform());
             world.insert(child, Sprite, makeSprite());
 
-            app.tick(1 / 60);
+            await app.tick(1 / 60);
 
             const w = module.getUIRectComputedWidth(registry, child);
             const h = module.getUIRectComputedHeight(registry, child);
@@ -686,7 +686,7 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
             disposeApp(app, registry);
         });
 
-        it('should handle changing canvas rect between ticks', () => {
+        it('should handle changing canvas rect between ticks', async () => {
             const { app, registry } = createEditorApp();
             const world = app.world;
 
@@ -697,13 +697,13 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
             world.insert(root, Sprite, makeSprite());
 
             setCanvasRect(app, -400, -300, 400, 300);
-            app.tick(1 / 60);
+            await app.tick(1 / 60);
 
             expect(module.getUIRectComputedWidth(registry, root)).toBeCloseTo(800, 0);
             expect(module.getUIRectComputedHeight(registry, root)).toBeCloseTo(600, 0);
 
             setCanvasRect(app, -500, -400, 500, 400);
-            app.tick(1 / 60);
+            await app.tick(1 / 60);
 
             expect(module.getUIRectComputedWidth(registry, root)).toBeCloseTo(1000, 0);
             expect(module.getUIRectComputedHeight(registry, root)).toBeCloseTo(800, 0);
