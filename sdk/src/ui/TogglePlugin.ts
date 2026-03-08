@@ -2,7 +2,7 @@ import type { App, Plugin } from '../app';
 import { registerComponent } from '../component';
 import { defineSystem, Schedule } from '../system';
 import { Res } from '../resource';
-import type { Entity } from '../types';
+import type { Entity, Color } from '../types';
 import { Interactable } from './Interactable';
 import type { InteractableData } from './Interactable';
 import { UIInteraction } from './UIInteraction';
@@ -12,8 +12,26 @@ import type { ToggleData } from './Toggle';
 import { ToggleGroup } from './ToggleGroup';
 import type { ToggleGroupData } from './ToggleGroup';
 import { UIEvents, UIEventQueue } from './UIEvents';
+import { UIRenderer } from './UIRenderer';
+import type { UIRendererData } from './UIRenderer';
 import { isEditor, isPlayMode } from '../env';
-import { applyColorTransition, applyDefaultTint, ensureComponent, setEntityColor, setEntityEnabled, withChildEntity } from './uiHelpers';
+import { applyColorTransition, applyDefaultTint, ensureComponent, withChildEntity } from './uiHelpers';
+
+function setRendererColor(world: import('../world').World, entity: Entity, color: Color): void {
+    if (!world.has(entity, UIRenderer)) return;
+    const r = world.get(entity, UIRenderer) as UIRendererData;
+    if (r.color.r === color.r && r.color.g === color.g && r.color.b === color.b && r.color.a === color.a) return;
+    r.color = color;
+    world.insert(entity, UIRenderer, r);
+}
+
+function setRendererEnabled(world: import('../world').World, entity: Entity, enabled: boolean): void {
+    if (!world.has(entity, UIRenderer)) return;
+    const r = world.get(entity, UIRenderer) as UIRendererData;
+    if (r.enabled === enabled) return;
+    r.enabled = enabled;
+    world.insert(entity, UIRenderer, r);
+}
 
 export class TogglePlugin implements Plugin {
     build(app: App): void {
@@ -94,26 +112,26 @@ export class TogglePlugin implements Plugin {
                             events.emit(entity, 'change');
                         }
 
+                        let color: Color;
                         if (toggle.transition) {
-                            const color = applyColorTransition(
+                            color = applyColorTransition(
                                 toggle.transition,
                                 interactable.enabled,
                                 interaction.pressed,
                                 interaction.hovered,
                             );
-                            setEntityColor(world, entity, color);
                         } else {
                             const baseColor = toggle.isOn ? toggle.onColor : toggle.offColor;
-                            const tinted = applyDefaultTint(baseColor, interactable.enabled, interaction.pressed, interaction.hovered);
-                            setEntityColor(world, entity, tinted);
+                            color = applyDefaultTint(baseColor, interactable.enabled, interaction.pressed, interaction.hovered);
                         }
+                        setRendererColor(world, entity, color);
                     }
                 }
 
                 for (const entity of toggleEntities) {
                     const toggle = world.get(entity, Toggle) as ToggleData;
                     withChildEntity(world, toggle.graphicEntity, (graphic) => {
-                        setEntityEnabled(world, graphic, toggle.isOn);
+                        setRendererEnabled(world, graphic, toggle.isOn);
                     });
                 }
             },
