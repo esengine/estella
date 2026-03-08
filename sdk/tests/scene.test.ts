@@ -128,6 +128,8 @@ describe('Scene', () => {
     // =========================================================================
 
     describe('Component Entity Reference Fields Registry', () => {
+        registerComponentEntityFields('Slider', ['fillEntity', 'handleEntity']);
+
         it('should return entity fields for registered types', () => {
             const fields = getComponentEntityFields('Slider');
             expect(fields).toEqual(['fillEntity', 'handleEntity']);

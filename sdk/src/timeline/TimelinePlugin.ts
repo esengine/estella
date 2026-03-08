@@ -42,7 +42,7 @@ const WRAP_MODE_MAP: Record<string, number> = {
     pingPong: WrapMode.PingPong,
 };
 
-function setNestedProperty(obj: Record<string, any>, path: string, value: number): boolean {
+export function setNestedProperty(obj: Record<string, any>, path: string, value: number): boolean {
     const parts = path.split('.');
     let target = obj;
     for (let i = 0; i < parts.length - 1; i++) {
