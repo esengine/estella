@@ -97,6 +97,39 @@ export function wrapSpineModule(raw: SpineWasmModule): SpineWrappedAPI {
 
 export type SpineModuleFactory = (config?: Record<string, unknown>) => Promise<SpineWasmModule>;
 
+export interface SpineWasmProvider {
+    loadJs(version: string): Promise<string>;
+    loadWasm(version: string): Promise<ArrayBuffer>;
+}
+
+type SpineVersion = '3.8' | '4.1' | '4.2';
+
+export function createSpineFactories(provider: SpineWasmProvider): Map<SpineVersion, SpineModuleFactory> {
+    const versions: SpineVersion[] = ['3.8', '4.1', '4.2'];
+    const factories = new Map<SpineVersion, SpineModuleFactory>();
+
+    for (const version of versions) {
+        factories.set(version, async () => {
+            const [jsSource, wasmBytes] = await Promise.all([
+                provider.loadJs(version),
+                provider.loadWasm(version),
+            ]);
+            const moduleFactory = new Function(`${jsSource}; return ESSpineModule;`)() as
+                (opts: Record<string, unknown>) => Promise<SpineWasmModule>;
+            return moduleFactory({
+                instantiateWasm(imports: WebAssembly.Imports, cb: Function) {
+                    WebAssembly.instantiate(wasmBytes, imports).then(
+                        r => cb(r.instance, r.module),
+                    );
+                    return {};
+                },
+            });
+        });
+    }
+
+    return factories;
+}
+
 export async function loadSpineModule(
     wasmUrl: string,
     factory?: SpineModuleFactory
