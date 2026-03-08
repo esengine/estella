@@ -1,0 +1,141 @@
+---
+title: Timeline
+description: Timeline animation system in ESEngine
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The **Timeline** system drives multi-track animations that coordinate property changes, Spine playback, sprite animations, audio events, and entity activation over time. Timelines are created in the editor's Timeline panel and played back at runtime via the `TimelinePlayer` component and `TimelineControl` API.
+
+<Aside type="note">
+  The timeline plugin is included by default — no manual setup is needed.
+</Aside>
+
+## Editor Workflow
+
+1. Select an entity in the Hierarchy
+2. Open the **Timeline** panel
+3. Click **+** to add tracks (Property, Spine, Sprite Animation, Audio, Activation)
+4. Add keyframes by clicking on the timeline ruler
+5. The timeline is saved as a `.estl` asset file
+
+### Track Types
+
+| Type | Description |
+|------|-------------|
+| Property | Animate any numeric component property (position, scale, color, etc.) with keyframe interpolation |
+| Spine | Trigger Spine animation clips on a SpineAnimation component |
+| Sprite Animation | Play sprite animation clips |
+| Audio | Trigger audio events at specific times |
+| Activation | Enable/disable entities over time ranges |
+
+## TimelinePlayer Component
+
+Add `TimelinePlayer` to an entity to play a timeline asset at runtime. Configure it in the editor Inspector or from code.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `timeline` | string | `''` | Path to the `.estl` timeline asset |
+| `playing` | boolean | `false` | Whether the timeline is currently playing |
+| `speed` | number | `1.0` | Playback speed multiplier |
+| `wrapMode` | string | `'once'` | `'once'`, `'loop'`, or `'pingPong'` |
+
+### WrapMode
+
+| Value | Description |
+|-------|-------------|
+| `once` | Play once and stop at the end |
+| `loop` | Restart from the beginning when finished |
+| `pingPong` | Alternate between forward and reverse playback |
+
+## TimelineControl API
+
+Use `TimelineControl` to control timeline playback from systems:
+
+```typescript
+import { defineSystem, addSystem, Query, TimelinePlayer, TimelineControl } from 'esengine';
+import { Res, Input } from 'esengine';
+
+addSystem(defineSystem(
+    [Res(Input), Query(TimelinePlayer)],
+    (input, query) => {
+        for (const [entity] of query) {
+            if (input.isKeyPressed('Space')) {
+                TimelineControl.play(entity);
+            }
+            if (input.isKeyPressed('KeyP')) {
+                TimelineControl.pause(entity);
+            }
+        }
+    }
+));
+```
+
+### Methods
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `TimelineControl.play(entity)` | void | Start or resume playback |
+| `TimelineControl.pause(entity)` | void | Pause playback |
+| `TimelineControl.stop(entity)` | void | Stop and reset to the beginning |
+| `TimelineControl.setTime(entity, time)` | void | Seek to a specific time (seconds) |
+| `TimelineControl.isPlaying(entity)` | boolean | Check if timeline is playing |
+| `TimelineControl.getCurrentTime(entity)` | number | Get current playback time (seconds) |
+
+## Registering Timeline Assets
+
+When loading timelines outside the editor (e.g., in a custom asset pipeline), use the registration API:
+
+```typescript
+import { registerTimelineAsset, getTimelineAsset, parseTimelineAsset } from 'esengine';
+
+// Parse raw timeline data
+const asset = parseTimelineAsset(jsonData);
+
+// Register for runtime lookup
+registerTimelineAsset('timelines/intro.estl', asset);
+
+// Retrieve later
+const tl = getTimelineAsset('timelines/intro.estl');
+```
+
+## Example: Intro Sequence
+
+```typescript
+import {
+    defineSystem, addStartupSystem, addSystem,
+    Query, Mut, TimelinePlayer, TimelineControl, Res, Input
+} from 'esengine';
+
+// Play the intro timeline on startup
+addStartupSystem(defineSystem(
+    [Query(Mut(TimelinePlayer))],
+    (query) => {
+        for (const [entity, player] of query) {
+            if (player.timeline === 'timelines/intro.estl') {
+                TimelineControl.play(entity);
+            }
+        }
+    }
+));
+
+// Allow skipping with any key
+addSystem(defineSystem(
+    [Res(Input), Query(TimelinePlayer)],
+    (input, query) => {
+        if (input.isKeyPressed('Space')) {
+            for (const [entity, player] of query) {
+                if (TimelineControl.isPlaying(entity)) {
+                    TimelineControl.stop(entity);
+                }
+            }
+        }
+    }
+));
+```
+
+## Next Steps
+
+- [Tween Animation](/microes/guides/tween/) — code-driven property animation
+- [Spine Animation](/microes/guides/spine/) — skeletal animation
+- [Sprite Animation](/microes/guides/sprite-animation/) — frame-by-frame sprite animation

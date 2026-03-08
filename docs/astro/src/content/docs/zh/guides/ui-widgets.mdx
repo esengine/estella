@@ -281,6 +281,23 @@ addSystem(defineSystem(
 | `scrollY` | number | `0` | 滚动位置 |
 | `overscan` | number | `2` | 视口上下额外渲染的项目数 |
 
+### 自定义项目渲染器
+
+使用 `setListViewRenderer()` 定义每个列表项的填充方式。回调接收项目索引和要配置的实体：
+
+```typescript
+import { setListViewRenderer, Text, Sprite } from 'esengine';
+
+setListViewRenderer(listEntity, (index, itemEntity) => {
+    world.set(itemEntity, Text, { content: `Item ${index}`, fontSize: 16 });
+});
+```
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `index` | number | 列表项的 0 基索引 |
+| `entity` | Entity | 该列表项的实体——用组件填充它 |
+
 ## TextInput
 
 可编辑文本输入框，支持光标、选择和占位符。

@@ -316,6 +316,28 @@ addSystem(defineSystem(
 ));
 ```
 
+## Async Systems
+
+`defineSystem` accepts async functions. This is useful for startup systems that need to load assets, or systems that call async APIs:
+
+```typescript
+import { defineSystem, addStartupSystem, Res, Prefabs } from 'esengine';
+
+addStartupSystem(defineSystem(
+    [Res(Prefabs)],
+    async (prefabs) => {
+        const { root } = await prefabs.instantiate('prefabs/Enemy.esprefab');
+        console.log('Spawned enemy:', root);
+    }
+));
+```
+
+Async systems work in all schedule phases. No special declaration is needed — just pass an `async` function and the engine handles the rest. Commands are automatically flushed after the async function completes.
+
+<Aside type="caution">
+  Async systems that take a long time will delay subsequent systems in the same schedule phase. Keep async work short or move heavy loading to `Startup`.
+</Aside>
+
 ## Error Handling
 
 Each system runs inside its own try/catch boundary. If a system throws an error, it is caught and logged to the console without crashing the entire game loop. Other systems continue to execute normally.

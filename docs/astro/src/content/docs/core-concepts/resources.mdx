@@ -103,7 +103,23 @@ defineSystem([Res(UIEvents)], (events) => {
 });
 ```
 
-See [UI Interaction](/microes/guides/ui-interaction/) for the full list of event types.
+You can also subscribe to events with callbacks using `.on()`:
+
+```typescript
+defineSystem([Res(UIEvents)], (events) => {
+    // Subscribe to a specific entity's events
+    const unsub = events.on(buttonEntity, 'click', (e) => {
+        console.log('Button clicked!');
+    });
+
+    // Subscribe to all events of a type
+    events.on('change', (e) => {
+        console.log('Value changed on:', e.entity);
+    });
+});
+```
+
+See [UI Interaction](/microes/guides/ui-interaction/) for the full list of event types and the callback API.
 
 ## Custom Resources
 

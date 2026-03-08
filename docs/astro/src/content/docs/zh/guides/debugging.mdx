@@ -153,6 +153,69 @@ logger.removeHandler(customHandler);
 
 这些控件直接调用上述 `setPaused()`、`stepFrame()` 和 `setPlaySpeed()` API。
 
+## 帧调试器
+
+帧调试器可以捕获单帧并检查每个 draw call——适用于诊断批处理问题、异常的 flush 原因和渲染顺序问题。
+
+### 编辑器面板
+
+在编辑器中打开 **Frame Debugger** 面板（支持浮动窗口）。点击 **Capture** 冻结当前帧。面板会显示每个 draw call 的类型、纹理、材质、三角形数量、flush 原因和 stencil/scissor 状态。点击某个 draw call 可以回放渲染到该步骤，查看中间结果。
+
+### SDK API
+
+也可以通过代码捕获和分析帧数据：
+
+```typescript
+import { Renderer, FlushReason, RenderType } from 'esengine';
+
+// 触发捕获（下一帧生效）
+Renderer.captureNextFrame();
+
+// 帧渲染完成后获取捕获数据
+const capture = Renderer.getCapturedData();
+if (capture) {
+    for (const dc of capture.drawCalls) {
+        console.log(
+            `#${dc.index} ${RenderType[dc.type]} | ` +
+            `${dc.triangleCount} tris | ` +
+            `flush: ${FlushReason[dc.flushReason]}`
+        );
+    }
+}
+
+// 回放到特定 draw call 进行视觉检查
+Renderer.replayToDrawCall(3);
+const snapshot = Renderer.getSnapshotImageData();
+```
+
+### FlushReason
+
+渲染器开始新 draw call 的原因：
+
+| 原因 | 说明 |
+|------|------|
+| `BatchFull` | 顶点缓冲区已满 |
+| `TextureSlotsFull` | 所有纹理槽位已被占用 |
+| `ScissorChange` | 裁剪区域变化（UIMask） |
+| `StencilChange` | 模板测试状态变化 |
+| `MaterialChange` | 材质/着色器不同 |
+| `BlendModeChange` | 混合模式变化 |
+| `StageEnd` | 渲染阶段边界 |
+| `TypeChange` | 渲染类型切换（sprite → text） |
+| `FrameEnd` | 帧末尾刷新 |
+
+### RenderType
+
+| 类型 | 说明 |
+|------|------|
+| `Sprite` | 精灵渲染 |
+| `Text` | 位图文本 |
+| `Spine` | Spine 骨骼 |
+| `Particle` | 粒子发射器 |
+| `Shape` | 形状渲染器 |
+| `UIElement` | UI 元素 |
+| `Mesh` | 自定义网格 |
+
 ## WASM 调试
 
 引擎核心以 WebAssembly 运行。WASM 调试需要引擎的 debug 构建。

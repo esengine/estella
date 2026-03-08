@@ -1,0 +1,129 @@
+---
+title: v0.9.0
+description: ESEngine v0.9.0 更新日志
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip">
+v0.9.0 带来了时间轴动画系统、异步系统支持、声明式 UI 构建器、Spine 多版本架构、帧调试器，以及查询迭代和渲染管线的重大性能优化。
+</Aside>
+
+## 时间轴系统
+
+全新的多轨道动画系统，用于协调属性动画、Spine 播放、精灵动画、音频事件和实体激活。
+
+- **`TimelinePlayer` 组件** — 挂载到任意实体，设置 `.estl` 时间轴资源，通过 `playing`、`speed`、`wrapMode`（`once`、`loop`、`pingPong`）控制播放
+- **`TimelineControl` API** — `play()`、`pause()`、`stop()`、`setTime()`、`isPlaying()`、`getCurrentTime()` 运行时控制
+- **5 种轨道类型** — Property（关键帧插值）、Spine（动画片段）、Sprite Animation、Audio（定时事件）、Activation（启用/禁用实体）
+- **编辑器 Timeline 面板** — 可视化轨道编辑器，支持关键帧编辑、右键菜单和水平滚动
+
+详见[时间轴指南](/microes/zh/guides/timeline/)。
+
+## 异步系统
+
+`defineSystem` 现在支持 `async` 函数。系统可以 `await` Promise，Commands 会在异步函数完成后自动刷新。所有调度阶段均可使用。
+
+```typescript
+addStartupSystem(defineSystem(
+    [Res(Prefabs)],
+    async (prefabs) => {
+        const { root } = await prefabs.instantiate('prefabs/Enemy.esprefab');
+    }
+));
+```
+
+详见[系统](/microes/zh/core-concepts/systems/#异步系统)。
+
+## UI 构建器
+
+声明式 API，用于从代码创建 UI 层级。工厂方法（`UI.button()`、`UI.slider()`、`UI.toggle()` 等）一次调用即可创建完整配置的控件实体。树构建器（`UI.build()`）从类 JSON 定义创建嵌套层级。
+
+- **主题化** — 所有控件从 `UITheme` 资源获取默认值；内置 `DARK_THEME`
+- **事件回调** — 控件选项支持 `onClick`、`onChange`、`onSubmit`
+- **实体引用** — 通过 `ref` 回调捕获创建的实体
+
+详见 [UI 构建器指南](/microes/zh/guides/ui-builder/)。
+
+## UIEvents 回调 API
+
+除了通过 `events.query()` 轮询事件外，现在可以使用回调订阅：
+
+- `events.on(entity, type, handler)` — 实体级订阅
+- `events.on(type, handler)` — 全局订阅
+- 均返回 `Unsubscribe` 函数
+
+新增 `makeInteractable(world, entity)` 工具函数，简化添加 `Interactable` 组件。
+
+## Spine 多版本架构
+
+Spine 现在同时支持 **3.8**、**4.1** 和 **4.2** 版本，自动检测版本。引擎透明地选择最佳后端（C++ native 或 WASM fallback）。
+
+- 导出 `SpineVersion` 类型供高级场景使用
+- `SpineManager` 提供运行时查询：`getEntityVersion()`、`getAnimations()`、`getSkins()`、`getBounds()`
+- Spine 和 Tilemap 渲染迁移到 C++ 渲染器插件，移除了 JS 端的 `ExternalMeshPlugin`
+
+## 帧调试器
+
+全新的调试工具，逐 draw call 检查渲染管线。
+
+- **编辑器面板** — 捕获帧、浏览 draw call、回放到任意步骤、支持独立窗口查看
+- **SDK API** — `Renderer.captureNextFrame()`、`Renderer.getCapturedData()`、`Renderer.replayToDrawCall()`、`Renderer.getSnapshotImageData()`
+- **诊断信息** — `FlushReason`（批次中断原因）、`RenderType`（sprite/text/spine/particle）、每个 draw call 的详细元数据
+
+详见[调试](/microes/zh/guides/debugging/#帧调试器)。
+
+## 渲染器 v2
+
+渲染管线统一和优化：
+
+- **`Renderer.submitAll()`** — 单次调用替代 6 个独立提交方法（sprites、text、spine、particles、shapes、UI）
+- **`SubmitSkipFlags`** — 可选跳过 Spine 或 Particle 提交
+- **顶点格式压缩** — `UByte4N` 打包颜色属性减少顶点大小
+- **RenderFrame** 与 `BatchRenderer2D` 解耦，架构更清晰
+- **Mask 处理**迁移至 C++ 以提升性能
+
+## 性能优化
+
+ECS 查询迭代和组件访问的显著改进：
+
+- **查询迭代** — 通过手动迭代器、预分配结果对象和 switch-based `forEach` 分发提速 40–70%
+- **组件读写** — 基于指针的访问绕过 embind 编组，覆盖 Transform、Sprite、Camera、Velocity、UIRect 及物理组件
+- **`world.has()` / `tryGet()`** — JS 端实体集合跟踪消除 WASM 往返调用
+- **物理同步** — body 位置同步提速 37 倍
+- **变更检测** — 消除查询缓存未命中时的数组拷贝
+- **系统运行器** — 缓存 `QueryInstance` 消除每次运行的分配
+
+## 编辑器改进
+
+### 架构重构
+
+- **面向服务架构** — Editor 上帝对象拆分为服务，使用 IoC 容器（`EditorContainer`）
+- **EditorPlugin 系统** — 去中心化注册替代集中式 switch 分发
+- **DisposableStore** — 修复面板间的事件监听器泄漏
+- **PropertyWritePipeline** — 统一属性变更处理替代逐组件 switch
+
+### UI 与交互
+
+- **重设计主题** — HSL 色彩系统配合设计令牌实现一致风格
+- **多窗口支持** — 浮动面板支持跨窗口命令复制
+- **扩展面板** — 管理编辑器扩展，支持独立窗口
+- **Timeline 面板** — 轨道编辑支持右键菜单和水平滚动
+
+## Bug 修复
+
+### 渲染
+- 修复渲染器 v2 重构后的 UI 图层排序和文本渲染问题
+- 修复 tilemap 闪烁（确保 transforms 在 tile 提交前更新）
+- 恢复统计收集和外部三角形提交
+
+### 编辑器
+- 修复 UIRect 实体在 gizmo 拖拽结束时的位置跳动
+- 修复 timeline 水平滚动和帧调试器实时模式下的点击
+- 修复 PostProcessVolume 检查器注册键不匹配
+- 修复跨平台 `openFile` 和 `openInEditor` 命令
+
+### SDK
+- 修复 C++ 直接添加组件时 JS 端内置实体追踪不同步
+- 导出共享 `.d.ts` 文件到用户项目以支持 IntelliSense
+- 简化 UI 下拉定位并添加颜色相等性守卫

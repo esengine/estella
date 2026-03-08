@@ -73,6 +73,7 @@ export default defineConfig({
                 { label: 'Sprite Animation', translations: { 'zh-CN': '精灵动画' }, slug: 'guides/sprite-animation' },
                 { label: 'Tween Animation', translations: { 'zh-CN': '补间动画' }, slug: 'guides/tween' },
                 { label: 'Spine Animation', translations: { 'zh-CN': 'Spine 动画' }, slug: 'guides/spine' },
+                { label: 'Timeline', translations: { 'zh-CN': '时间轴' }, slug: 'guides/timeline' },
                 { label: 'Bitmap Text', translations: { 'zh-CN': '位图文本' }, slug: 'guides/bitmap-text' },
                 { label: 'Custom Draw', translations: { 'zh-CN': '自定义绘制' }, slug: 'guides/custom-draw' },
                 { label: 'Post-Processing', translations: { 'zh-CN': '后处理效果' }, slug: 'guides/post-processing' },
@@ -93,6 +94,7 @@ export default defineConfig({
                 { label: 'Interaction', translations: { 'zh-CN': '交互' }, slug: 'guides/ui-interaction' },
                 { label: 'Widgets', translations: { 'zh-CN': '控件' }, slug: 'guides/ui-widgets' },
                 { label: 'Masking & SafeArea', translations: { 'zh-CN': '遮罩与安全区' }, slug: 'guides/ui-masking' },
+                { label: 'UI Builder', translations: { 'zh-CN': 'UI 构建器' }, slug: 'guides/ui-builder' },
               ],
             },
             {
@@ -149,6 +151,7 @@ export default defineConfig({
           label: 'Changelog',
           translations: { 'zh-CN': '更新日志' },
           items: [
+            { label: 'v0.9.0', slug: 'changelog-v090' },
             { label: 'v0.8.3', slug: 'changelog-v083' },
             { label: 'v0.8.2', slug: 'changelog-v082' },
             { label: 'v0.8.1', slug: 'changelog-v081' },

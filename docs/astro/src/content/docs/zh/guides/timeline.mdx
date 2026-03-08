@@ -1,0 +1,141 @@
+---
+title: 时间轴
+description: ESEngine 中的时间轴动画系统
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+**时间轴**系统驱动多轨道动画，可以在时间线上协调属性变化、Spine 播放、精灵动画、音频事件和实体激活。时间轴在编辑器的 Timeline 面板中创建，运行时通过 `TimelinePlayer` 组件和 `TimelineControl` API 播放。
+
+<Aside type="note">
+  时间轴插件默认包含，无需手动设置。
+</Aside>
+
+## 编辑器工作流
+
+1. 在 Hierarchy 中选择一个实体
+2. 打开 **Timeline** 面板
+3. 点击 **+** 添加轨道（Property、Spine、Sprite Animation、Audio、Activation）
+4. 在时间轴标尺上点击添加关键帧
+5. 时间轴保存为 `.estl` 资源文件
+
+### 轨道类型
+
+| 类型 | 说明 |
+|------|------|
+| Property | 通过关键帧插值动画化任意数值组件属性（位置、缩放、颜色等） |
+| Spine | 在 SpineAnimation 组件上触发 Spine 动画片段 |
+| Sprite Animation | 播放精灵动画片段 |
+| Audio | 在特定时间触发音频事件 |
+| Activation | 在时间范围内启用/禁用实体 |
+
+## TimelinePlayer 组件
+
+将 `TimelinePlayer` 添加到实体上即可在运行时播放时间轴资源。可在编辑器 Inspector 中配置或通过代码设置。
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `timeline` | string | `''` | `.estl` 时间轴资源路径 |
+| `playing` | boolean | `false` | 是否正在播放 |
+| `speed` | number | `1.0` | 播放速度倍率 |
+| `wrapMode` | string | `'once'` | `'once'`、`'loop'` 或 `'pingPong'` |
+
+### WrapMode
+
+| 值 | 说明 |
+|----|------|
+| `once` | 播放一次后停止 |
+| `loop` | 播放完毕后从头开始 |
+| `pingPong` | 正向和反向交替播放 |
+
+## TimelineControl API
+
+在系统中使用 `TimelineControl` 控制时间轴播放：
+
+```typescript
+import { defineSystem, addSystem, Query, TimelinePlayer, TimelineControl } from 'esengine';
+import { Res, Input } from 'esengine';
+
+addSystem(defineSystem(
+    [Res(Input), Query(TimelinePlayer)],
+    (input, query) => {
+        for (const [entity] of query) {
+            if (input.isKeyPressed('Space')) {
+                TimelineControl.play(entity);
+            }
+            if (input.isKeyPressed('KeyP')) {
+                TimelineControl.pause(entity);
+            }
+        }
+    }
+));
+```
+
+### 方法
+
+| 方法 | 返回值 | 说明 |
+|------|--------|------|
+| `TimelineControl.play(entity)` | void | 开始或恢复播放 |
+| `TimelineControl.pause(entity)` | void | 暂停播放 |
+| `TimelineControl.stop(entity)` | void | 停止并重置到开头 |
+| `TimelineControl.setTime(entity, time)` | void | 跳转到指定时间（秒） |
+| `TimelineControl.isPlaying(entity)` | boolean | 检查是否正在播放 |
+| `TimelineControl.getCurrentTime(entity)` | number | 获取当前播放时间（秒） |
+
+## 注册时间轴资源
+
+在编辑器外加载时间轴（如自定义资源管线中）时，使用注册 API：
+
+```typescript
+import { registerTimelineAsset, getTimelineAsset, parseTimelineAsset } from 'esengine';
+
+// 解析原始时间轴数据
+const asset = parseTimelineAsset(jsonData);
+
+// 注册供运行时查找
+registerTimelineAsset('timelines/intro.estl', asset);
+
+// 之后获取
+const tl = getTimelineAsset('timelines/intro.estl');
+```
+
+## 示例：开场序列
+
+```typescript
+import {
+    defineSystem, addStartupSystem, addSystem,
+    Query, Mut, TimelinePlayer, TimelineControl, Res, Input
+} from 'esengine';
+
+// 启动时播放开场时间轴
+addStartupSystem(defineSystem(
+    [Query(Mut(TimelinePlayer))],
+    (query) => {
+        for (const [entity, player] of query) {
+            if (player.timeline === 'timelines/intro.estl') {
+                TimelineControl.play(entity);
+            }
+        }
+    }
+));
+
+// 按任意键跳过
+addSystem(defineSystem(
+    [Res(Input), Query(TimelinePlayer)],
+    (input, query) => {
+        if (input.isKeyPressed('Space')) {
+            for (const [entity, player] of query) {
+                if (TimelineControl.isPlaying(entity)) {
+                    TimelineControl.stop(entity);
+                }
+            }
+        }
+    }
+));
+```
+
+## 下一步
+
+- [Tween 动画](/microes/zh/guides/tween/) — 代码驱动的属性动画
+- [Spine 动画](/microes/zh/guides/spine/) — 骨骼动画
+- [精灵动画](/microes/zh/guides/sprite-animation/) — 逐帧精灵动画

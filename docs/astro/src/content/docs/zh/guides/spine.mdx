@@ -138,6 +138,40 @@ addSystem(defineSystem(
 ));
 ```
 
+## 多版本架构
+
+ESEngine 同时支持 Spine **3.8**、**4.1** 和 **4.2** 版本。引擎会自动从骨骼数据中检测 Spine 版本并选择对应的运行时后端。
+
+```typescript
+import type { SpineVersion } from 'esengine';
+// SpineVersion = '3.8' | '4.1' | '4.2'
+```
+
+### 工作原理
+
+- 加载 Spine 资源时，引擎从骨骼文件头中检测版本
+- 自动选择匹配的后端：C++ native（优先）或 WASM fallback
+- 无需修改代码——同一个 `SpineAnimation` 组件适用于所有版本
+
+### SpineManager 运行时 API
+
+对于高级用例，`SpineManager` 提供运行时查询能力：
+
+```typescript
+import { SpineManager } from 'esengine';
+
+// 从原始数据检测版本（加载前）
+const version = SpineManager.detectVersion(skelBinaryData);
+const versionJson = SpineManager.detectVersionJson(skelJsonString);
+
+// 查询已加载实体
+const manager = app.getResource(SpineManager);
+const ver = manager.getEntityVersion(entity);       // '3.8' | '4.1' | '4.2'
+const anims = manager.getAnimations(entity);         // ['idle', 'run', 'jump']
+const skins = manager.getSkins(entity);              // ['default', 'warrior']
+const bounds = manager.getBounds(entity);            // { x, y, width, height }
+```
+
 ## 多纹理批处理
 
 使用多个图集页的 Spine 骨骼会被渲染器自动批处理。无需额外配置 — C++ 后端透明地处理多纹理情况，即使是复杂的多图集角色也能保持较低的 draw call。

@@ -138,6 +138,40 @@ addSystem(defineSystem(
 ));
 ```
 
+## Multi-Version Architecture
+
+ESEngine supports Spine versions **3.8**, **4.1**, and **4.2** simultaneously. The engine automatically detects the Spine version from the skeleton data and selects the appropriate runtime backend.
+
+```typescript
+import type { SpineVersion } from 'esengine';
+// SpineVersion = '3.8' | '4.1' | '4.2'
+```
+
+### How It Works
+
+- When a Spine asset is loaded, the engine detects the version from the skeleton file header
+- A matching backend is selected automatically: C++ native (preferred) or WASM fallback
+- No code changes are needed — the same `SpineAnimation` component works with all versions
+
+### SpineManager Runtime API
+
+For advanced use cases, the `SpineManager` provides runtime introspection:
+
+```typescript
+import { SpineManager } from 'esengine';
+
+// Detect version from raw data (before loading)
+const version = SpineManager.detectVersion(skelBinaryData);
+const versionJson = SpineManager.detectVersionJson(skelJsonString);
+
+// Query a loaded entity
+const manager = app.getResource(SpineManager);
+const ver = manager.getEntityVersion(entity);       // '3.8' | '4.1' | '4.2'
+const anims = manager.getAnimations(entity);         // ['idle', 'run', 'jump']
+const skins = manager.getSkins(entity);              // ['default', 'warrior']
+const bounds = manager.getBounds(entity);            // { x, y, width, height }
+```
+
 ## Multi-Texture Batching
 
 Spine skeletons that use multiple atlas pages are automatically batched by the renderer. No additional configuration is needed — the C++ backend handles multi-texture setups transparently, keeping draw calls low even with complex multi-atlas characters.

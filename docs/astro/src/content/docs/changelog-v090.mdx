@@ -1,0 +1,129 @@
+---
+title: v0.9.0
+description: ESEngine v0.9.0 release notes
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip">
+v0.9.0 brings a Timeline animation system, async system support, a declarative UI builder, Spine multi-version architecture, a Frame Debugger, and major performance optimizations to query iteration and the rendering pipeline.
+</Aside>
+
+## Timeline System
+
+A new multi-track animation system for coordinating property animations, Spine playback, sprite animations, audio events, and entity activation over time.
+
+- **`TimelinePlayer` component** — attach to any entity, set a `.estl` timeline asset and control playback with `playing`, `speed`, and `wrapMode` (`once`, `loop`, `pingPong`)
+- **`TimelineControl` API** — `play()`, `pause()`, `stop()`, `setTime()`, `isPlaying()`, `getCurrentTime()` for runtime control
+- **5 track types** — Property (keyframe interpolation), Spine (animation clips), Sprite Animation, Audio (timed events), Activation (enable/disable entities)
+- **Editor Timeline panel** — visual track editor with keyframe editing, right-click context menu, and horizontal scroll
+
+See the [Timeline guide](/microes/guides/timeline/) for the full API.
+
+## Async Systems
+
+`defineSystem` now accepts `async` functions. Systems can `await` promises, and Commands are automatically flushed after the async function completes. Works in all schedule phases.
+
+```typescript
+addStartupSystem(defineSystem(
+    [Res(Prefabs)],
+    async (prefabs) => {
+        const { root } = await prefabs.instantiate('prefabs/Enemy.esprefab');
+    }
+));
+```
+
+See [Systems](/microes/core-concepts/systems/#async-systems) for details.
+
+## UI Builder
+
+A declarative API for creating UI hierarchies from code. Factory methods (`UI.button()`, `UI.slider()`, `UI.toggle()`, etc.) spawn fully configured widget entities in one call. A tree builder (`UI.build()`) creates nested hierarchies from JSON-like definitions.
+
+- **Theming** — all widgets pull defaults from `UITheme` resource; `DARK_THEME` built-in
+- **Event callbacks** — `onClick`, `onChange`, `onSubmit` on widget options
+- **Entity refs** — capture created entities via `ref` callback on any node
+
+See the [UI Builder guide](/microes/guides/ui-builder/) for the full API.
+
+## UIEvents Callback API
+
+In addition to polling events with `events.query()`, you can now subscribe with callbacks:
+
+- `events.on(entity, type, handler)` — entity-scoped subscription
+- `events.on(type, handler)` — global subscription
+- Both return an `Unsubscribe` function
+
+A new `makeInteractable(world, entity)` helper simplifies adding the `Interactable` component with sensible defaults.
+
+## Spine Multi-Version Architecture
+
+Spine now supports versions **3.8**, **4.1**, and **4.2** simultaneously with automatic version detection. The engine selects the best backend (C++ native or WASM fallback) transparently.
+
+- `SpineVersion` type exported for advanced introspection
+- `SpineManager` provides runtime queries: `getEntityVersion()`, `getAnimations()`, `getSkins()`, `getBounds()`
+- Spine and Tilemap rendering migrated to C++ renderer plugins, removing the JS-side `ExternalMeshPlugin`
+
+## Frame Debugger
+
+A new debugging tool for inspecting the render pipeline draw-by-draw.
+
+- **Editor panel** — capture a frame, browse draw calls, replay to any point, inspect in a detached window
+- **SDK API** — `Renderer.captureNextFrame()`, `Renderer.getCapturedData()`, `Renderer.replayToDrawCall()`, `Renderer.getSnapshotImageData()`
+- **Diagnostics** — `FlushReason` (why batches break), `RenderType` (sprite/text/spine/particle), per-draw-call metadata
+
+See [Debugging](/microes/guides/debugging/#frame-debugger) for usage.
+
+## Renderer v2
+
+The rendering pipeline has been unified and optimized:
+
+- **`Renderer.submitAll()`** — single call replaces 6 per-type submit methods (sprites, text, spine, particles, shapes, UI)
+- **`SubmitSkipFlags`** — selectively skip Spine or Particle submission
+- **Vertex format compression** — `UByte4N` packed color attribute reduces vertex size
+- **RenderFrame decoupled** from `BatchRenderer2D` for cleaner architecture
+- **Mask processing** moved to C++ for better performance
+
+## Performance Optimizations
+
+Significant improvements to ECS query iteration and component access:
+
+- **Query iteration** — 40–70% faster via manual iterator, pre-allocated result objects, and switch-based `forEach` dispatch
+- **Component reads/writes** — pointer-based access bypassing embind marshalling for Transform, Sprite, Camera, Velocity, UIRect, physics components
+- **`world.has()` / `tryGet()`** — JS-side entity set tracking eliminates WASM round-trips
+- **Physics sync** — 37× faster body position synchronization
+- **Change detection** — eliminated query cache miss array copies
+- **System runner** — cached `QueryInstance` eliminates per-run allocations
+
+## Editor Improvements
+
+### Architecture Overhaul
+
+- **Service-oriented architecture** — Editor god object decomposed into services with IoC container (`EditorContainer`)
+- **EditorPlugin system** — decentralized registration replacing centralized switch dispatch
+- **DisposableStore** — fixes event listener leaks across panels
+- **PropertyWritePipeline** — unified property change handling replacing per-component switch
+
+### UI & UX
+
+- **Redesigned theme** — HSL color system with design tokens for consistent styling
+- **Multi-window support** — floating panels with command replication across windows
+- **Extensions panel** — manage editor extensions with detachable window support
+- **Timeline panel** — track editing with right-click context menu and horizontal scroll
+
+## Bug Fixes
+
+### Rendering
+- Fixed UI layer ordering and text rendering issues after renderer v2 refactor
+- Fixed tilemap flickering by ensuring transforms update before tile submission
+- Restored stats collection and external triangle submission
+
+### Editor
+- Fixed UIRect entity position jump on gizmo drag end
+- Fixed timeline horizontal scroll and frame debugger click in live mode
+- Fixed PostProcessVolume inspector registration key mismatch
+- Fixed cross-platform `openFile` and `openInEditor` commands
+
+### SDK
+- Fixed JS builtin entity tracking when C++ adds components directly
+- Exported shared `.d.ts` files to user projects for IntelliSense
+- Simplified UI dropdown positioning and added color equality guards

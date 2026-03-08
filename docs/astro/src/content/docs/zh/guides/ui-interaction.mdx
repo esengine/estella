@@ -90,6 +90,52 @@ if (events.hasEvent(buttonEntity, 'click')) {
 const all = events.drain();
 ```
 
+### 回调订阅
+
+除了每帧轮询事件，还可以使用 `.on()` 通过回调方式订阅事件。适合在启动系统中进行一次性设置：
+
+```typescript
+import { defineSystem, addStartupSystem, Res, GetWorld } from 'esengine';
+import { UIEvents, makeInteractable } from 'esengine';
+
+addStartupSystem(defineSystem(
+    [Res(UIEvents), GetWorld()],
+    (events, world) => {
+        const button = findEntityByName(world, 'StartButton');
+
+        // 实体级：仅当该实体触发事件时回调
+        const unsub = events.on(button, 'click', (e) => {
+            console.log('开始按钮被点击！');
+        });
+
+        // 全局：任何实体触发该类型事件时回调
+        events.on('change', (e) => {
+            console.log('值变更：', e.entity);
+        });
+
+        // 调用 unsub() 移除监听器
+    }
+));
+```
+
+| 重载形式 | 说明 |
+|----------|------|
+| `events.on(entity, type, handler)` | 订阅特定实体的事件，返回 `Unsubscribe` 函数 |
+| `events.on(type, handler)` | 全局订阅某类型的所有事件，返回 `Unsubscribe` 函数 |
+
+### makeInteractable
+
+确保实体拥有 `Interactable` 组件的工具函数，使用合理的默认值：
+
+```typescript
+import { makeInteractable } from 'esengine';
+
+makeInteractable(world, entity);
+// 等价于添加 Interactable { enabled: true, blockRaycast: true, raycastTarget: true }
+```
+
+在代码中创建交互实体时使用此函数，避免手动导入和插入 `Interactable` 组件。
+
 ### 事件冒泡
 
 `press`、`release` 和 `click` 事件沿实体层级向上冒泡。如果父级的 `Interactable` 设置了 `blockRaycast: true`，冒泡在此停止。`hover_enter` 和 `hover_exit` **不会**冒泡。

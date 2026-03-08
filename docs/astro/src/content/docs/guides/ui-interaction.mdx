@@ -90,6 +90,52 @@ if (events.hasEvent(buttonEntity, 'click')) {
 const all = events.drain();
 ```
 
+### Callback Subscriptions
+
+Instead of polling events each frame, you can subscribe to events with callbacks using `.on()`. This is ideal for one-off setup in startup systems:
+
+```typescript
+import { defineSystem, addStartupSystem, Res, GetWorld } from 'esengine';
+import { UIEvents, makeInteractable } from 'esengine';
+
+addStartupSystem(defineSystem(
+    [Res(UIEvents), GetWorld()],
+    (events, world) => {
+        const button = findEntityByName(world, 'StartButton');
+
+        // Entity-scoped: only fires for this entity
+        const unsub = events.on(button, 'click', (e) => {
+            console.log('Start button clicked!');
+        });
+
+        // Global: fires for any entity with this event type
+        events.on('change', (e) => {
+            console.log('Value changed on:', e.entity);
+        });
+
+        // Call unsub() to remove the listener
+    }
+));
+```
+
+| Overload | Description |
+|----------|-------------|
+| `events.on(entity, type, handler)` | Subscribe to events on a specific entity. Returns `Unsubscribe` function |
+| `events.on(type, handler)` | Subscribe to all events of a type globally. Returns `Unsubscribe` function |
+
+### makeInteractable
+
+Helper function to ensure an entity has the `Interactable` component with sensible defaults:
+
+```typescript
+import { makeInteractable } from 'esengine';
+
+makeInteractable(world, entity);
+// Equivalent to adding Interactable with { enabled: true, blockRaycast: true, raycastTarget: true }
+```
+
+Use this when creating interactive entities from code — it avoids manually importing and inserting the `Interactable` component.
+
 ### Event Bubbling
 
 `press`, `release`, and `click` events bubble up the entity hierarchy. If a parent has `Interactable` with `blockRaycast: true`, bubbling stops there. `hover_enter` and `hover_exit` do **not** bubble.

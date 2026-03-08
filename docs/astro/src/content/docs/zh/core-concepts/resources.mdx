@@ -103,7 +103,23 @@ defineSystem([Res(UIEvents)], (events) => {
 });
 ```
 
-详见 [UI 交互](/microes/zh/guides/ui-interaction/)了解完整的事件类型列表。
+也可以使用 `.on()` 回调方式订阅事件：
+
+```typescript
+defineSystem([Res(UIEvents)], (events) => {
+    // 订阅特定实体的事件
+    const unsub = events.on(buttonEntity, 'click', (e) => {
+        console.log('Button clicked!');
+    });
+
+    // 订阅某类型的所有事件
+    events.on('change', (e) => {
+        console.log('Value changed on:', e.entity);
+    });
+});
+```
+
+详见 [UI 交互](/microes/zh/guides/ui-interaction/)了解完整的事件类型列表和回调 API。
 
 ## 自定义资源
 

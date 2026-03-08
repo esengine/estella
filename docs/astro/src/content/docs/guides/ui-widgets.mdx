@@ -281,6 +281,23 @@ Virtual scrolling for large lists — only visible items are rendered.
 | `scrollY` | number | `0` | Scroll position |
 | `overscan` | number | `2` | Extra items above/below viewport |
 
+### Custom Item Renderer
+
+Use `setListViewRenderer()` to define how each list item is populated. The callback receives the item index and the entity to configure:
+
+```typescript
+import { setListViewRenderer, Text, Sprite } from 'esengine';
+
+setListViewRenderer(listEntity, (index, itemEntity) => {
+    world.set(itemEntity, Text, { content: `Item ${index}`, fontSize: 16 });
+});
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `index` | number | 0-based index of the list item |
+| `entity` | Entity | The spawned entity for this item — populate it with components |
+
 ## TextInput
 
 Editable text field with cursor, selection, and placeholder.

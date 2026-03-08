@@ -153,6 +153,69 @@ The editor's Game View panel provides a graphical playback control toolbar:
 
 These controls call the `setPaused()`, `stepFrame()`, and `setPlaySpeed()` APIs described above.
 
+## Frame Debugger
+
+The Frame Debugger lets you capture a single frame and inspect every draw call — useful for diagnosing batching issues, unexpected flush reasons, and render order problems.
+
+### Editor Panel
+
+In the editor, open the **Frame Debugger** panel (available as a detachable window). Click **Capture** to freeze the current frame. The panel displays each draw call with its type, texture, material, triangle count, flush reason, and stencil/scissor state. Click a draw call to replay rendering up to that point and see the intermediate result.
+
+### SDK API
+
+You can also capture and analyze frames programmatically:
+
+```typescript
+import { Renderer, FlushReason, RenderType } from 'esengine';
+
+// Trigger capture (takes effect next frame)
+Renderer.captureNextFrame();
+
+// After the frame renders, retrieve the captured data
+const capture = Renderer.getCapturedData();
+if (capture) {
+    for (const dc of capture.drawCalls) {
+        console.log(
+            `#${dc.index} ${RenderType[dc.type]} | ` +
+            `${dc.triangleCount} tris | ` +
+            `flush: ${FlushReason[dc.flushReason]}`
+        );
+    }
+}
+
+// Replay to a specific draw call for visual inspection
+Renderer.replayToDrawCall(3);
+const snapshot = Renderer.getSnapshotImageData();
+```
+
+### FlushReason
+
+Why the renderer started a new draw call:
+
+| Reason | Description |
+|--------|-------------|
+| `BatchFull` | Vertex buffer capacity reached |
+| `TextureSlotsFull` | All texture slots occupied |
+| `ScissorChange` | Scissor rect changed (UIMask) |
+| `StencilChange` | Stencil state changed |
+| `MaterialChange` | Different material/shader |
+| `BlendModeChange` | Blend mode changed |
+| `StageEnd` | Render stage boundary |
+| `TypeChange` | Different render type (sprite → text) |
+| `FrameEnd` | End of frame flush |
+
+### RenderType
+
+| Type | Description |
+|------|-------------|
+| `Sprite` | Sprite rendering |
+| `Text` | Bitmap text |
+| `Spine` | Spine skeleton |
+| `Particle` | Particle emitter |
+| `Shape` | Shape renderer |
+| `UIElement` | UI element |
+| `Mesh` | Custom mesh |
+
 ## WASM Debugging
 
 The engine core runs as WebAssembly. WASM debugging requires a debug build of the engine.
