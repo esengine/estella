@@ -16,6 +16,8 @@ import {
     instantiatePrefabRecursive,
     syncPrefabInstances,
 } from '../prefab';
+import { flattenPrefab, type FlattenContext, type PrefabData } from 'esengine';
+import { getPrefabDependencyTracker } from '../prefab';
 import { getGlobalPathResolver, getAssetDatabase, isUUID } from '../asset';
 import { showConfirmDialog } from '../ui/dialog';
 import type { DirtyFlag, EntityLifecycleEvent } from './EditorStore';
@@ -110,6 +112,8 @@ export class PrefabEditService {
         if (rootId !== -1) {
             this.host_.selectEntity(rootId as Entity);
         }
+
+        getPrefabDependencyTracker().scanPrefabDependencies(prefabPath).catch(() => {});
 
         return rootId as Entity;
     }
@@ -259,7 +263,9 @@ export class PrefabEditService {
             if (uuid) prefabPath = uuid;
         }
         this.prefabEditingPath_ = prefabPath;
-        const scene = prefabToSceneData(prefab);
+        const scene = prefab.basePrefab
+            ? await this.flattenVariantToScene(prefab)
+            : prefabToSceneData(prefab);
         this.host_.loadScene(scene, null);
 
         return true;
@@ -312,6 +318,43 @@ export class PrefabEditService {
                 if (!retry) return false;
             }
         }
+    }
+
+    private async flattenVariantToScene(variant: PrefabData): Promise<SceneData> {
+        const prefabCache = new Map<string, PrefabData>();
+
+        const loadAndCache = async (path: string): Promise<PrefabData | null> => {
+            if (prefabCache.has(path)) return prefabCache.get(path)!;
+            const loaded = await loadPrefabFromPath(path);
+            if (loaded) prefabCache.set(path, loaded);
+            return loaded;
+        };
+
+        if (variant.basePrefab) {
+            await loadAndCache(variant.basePrefab);
+        }
+
+        let nextId = 1;
+        const ctx: FlattenContext = {
+            allocateId: () => nextId++,
+            loadPrefab: (p: string) => prefabCache.get(p) ?? null,
+            visited: new Set<string>(),
+        };
+
+        const { entities: processed } = flattenPrefab(variant, variant.overrides ?? [], ctx);
+
+        return {
+            version: '2.0',
+            name: variant.name,
+            entities: processed.map(e => ({
+                id: e.id,
+                name: e.name,
+                parent: e.parent,
+                children: e.children,
+                components: e.components,
+                visible: e.visible,
+            })),
+        };
     }
 
     private collectEntityTree(rootId: number): EntityData[] {

@@ -5,6 +5,7 @@
 
 import type { EntityData, ComponentData, SceneData } from '../types/SceneTypes';
 import type { PrefabData, PrefabEntityData } from '../types/PrefabTypes';
+import { cloneComponents } from 'esengine';
 import { getEditorContext } from '../context/EditorContext';
 import type { NativeFS } from '../types/NativeFS';
 import { getGlobalPathResolver, getAssetDatabase, isUUID, getComponentRefFields } from '../asset';
@@ -113,7 +114,7 @@ export function entityTreeToPrefab(
             name: entity.name,
             parent: sceneId === rootEntityId ? null : parentPrefabId,
             children: childPrefabIds,
-            components: deepCloneComponents(entity.components),
+            components: cloneComponents(entity.components),
             visible: entity.visible,
         };
 
@@ -148,7 +149,7 @@ export function prefabToSceneData(prefab: PrefabData): SceneData {
         name: pe.name,
         parent: pe.parent,
         children: [...pe.children],
-        components: deepCloneComponents(pe.components),
+        components: cloneComponents(pe.components),
         visible: pe.visible,
     }));
 
@@ -159,19 +160,23 @@ export function prefabToSceneData(prefab: PrefabData): SceneData {
     };
 }
 
+export function createVariantPrefab(name: string, basePrefabPath: string): PrefabData {
+    return {
+        version: '1.0',
+        name,
+        rootEntityId: 0,
+        entities: [],
+        basePrefab: basePrefabPath,
+        overrides: [],
+    };
+}
+
 export function sceneDataToPrefab(scene: SceneData): PrefabData {
     const roots = scene.entities.filter(e => e.parent === null);
     const rootId = roots.length > 0 ? roots[0].id : (scene.entities[0]?.id ?? 1);
 
     const { prefab } = entityTreeToPrefab(scene.name, rootId, scene.entities);
     return prefab;
-}
-
-function deepCloneComponents(components: ComponentData[]): ComponentData[] {
-    return components.map(c => ({
-        type: c.type,
-        data: JSON.parse(JSON.stringify(c.data)),
-    }));
 }
 
 // =============================================================================

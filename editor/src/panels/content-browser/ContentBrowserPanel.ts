@@ -13,6 +13,7 @@ import {
     importDroppedFiles, saveDroppedEntityAsPrefab,
 } from './AssetContextMenu';
 import { DisposableStore } from '../../utils/Disposable';
+import { getPrefabDependencyTracker } from '../../prefab';
 import { getNavigationService } from '../../services';
 
 export class ContentBrowserPanel implements ContentBrowserState {
@@ -257,7 +258,13 @@ export class ContentBrowserPanel implements ContentBrowserState {
         try {
             const unwatchFn = await fs.watchDirectory(
                 projectDir,
-                () => { this.refresh(); },
+                (event) => {
+                    this.refresh();
+                    const prefabPaths = event.paths.filter(p => p.endsWith('.esprefab'));
+                    if (prefabPaths.length > 0) {
+                        getPrefabDependencyTracker().onPrefabFileChanged(prefabPaths);
+                    }
+                },
                 { recursive: true }
             );
             this.disposables_.add(unwatchFn);

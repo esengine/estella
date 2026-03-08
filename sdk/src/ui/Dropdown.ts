@@ -15,4 +15,4 @@ export const Dropdown = defineComponent<DropdownData>('Dropdown', {
     isOpen: false,
     listEntity: 0 as Entity,
     labelEntity: 0 as Entity,
-});
+}, { entityFields: ['listEntity', 'labelEntity'] });

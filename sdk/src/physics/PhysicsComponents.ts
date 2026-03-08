@@ -218,7 +218,7 @@ export const RevoluteJoint = defineComponent<RevoluteJointData>('RevoluteJoint',
     upperAngle: 0,
     collideConnected: false,
     enabled: true,
-});
+}, { entityFields: ['connectedEntity'] });
 
 // =============================================================================
 // Body Type Enum (matches C++ BodyType)

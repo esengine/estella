@@ -124,6 +124,24 @@ function renderPrefabInfoBar(
         getNavigationService().navigateToAsset(resolvedPath);
     });
 
+    if (prefab.basePrefab) {
+        const baseResolved = isUUID(prefab.basePrefab)
+            ? (getAssetLibrary().getPath(prefab.basePrefab) ?? prefab.basePrefab)
+            : prefab.basePrefab;
+        const baseDisplay = baseResolved.split('/').pop()?.replace('.esprefab', '') ?? baseResolved;
+        const variantLabel = document.createElement('span');
+        variantLabel.className = 'es-prefab-variant-label';
+        variantLabel.textContent = `Variant of: ${baseDisplay}`;
+        variantLabel.title = baseResolved;
+        variantLabel.style.cursor = 'pointer';
+        variantLabel.style.opacity = '0.7';
+        variantLabel.style.fontSize = '11px';
+        variantLabel.addEventListener('click', () => {
+            getNavigationService().navigateToAsset(baseResolved);
+        });
+        bar.appendChild(variantLabel);
+    }
+
     if (prefab.isRoot) {
         const overridden = hasAnyOverrides(store.scene, prefab.instanceId);
 

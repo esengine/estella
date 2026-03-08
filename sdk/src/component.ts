@@ -5,6 +5,7 @@
 
 import { Entity, Vec2, Vec3, Color, Quat, INVALID_TEXTURE, INVALID_FONT } from './types';
 import { DEFAULT_DESIGN_WIDTH, DEFAULT_DESIGN_HEIGHT, DEFAULT_PIXELS_PER_UNIT, DEFAULT_SPRITE_SIZE } from './defaults';
+import { registerComponentEntityFields } from './componentEntityFields';
 import type {
     RigidBodyData, BoxColliderData, CircleColliderData, CapsuleColliderData,
 } from './physics/PhysicsComponents';
@@ -90,7 +91,8 @@ export function getComponentRegistry(): Map<string, ComponentDef<any>> {
 
 export function defineComponent<T extends object>(
     name: string,
-    defaults: T
+    defaults: T,
+    metadata?: ComponentMetadata,
 ): ComponentDef<T> {
     const existing = componentRegistry.get(name) ?? getComponentRegistry().get(name);
     if (existing) return existing as ComponentDef<T>;
@@ -99,6 +101,9 @@ export function defineComponent<T extends object>(
     getComponentRegistry().set(name, def);
     componentRegistry.set(name, def);
     registerToEditor(name, defaults as Record<string, unknown>, false);
+    if (metadata?.entityFields) {
+        registerComponentEntityFields(name, metadata.entityFields);
+    }
     return def;
 }
 
@@ -193,7 +198,11 @@ function detectColorKeys(defaults: unknown): readonly string[] {
     return keys;
 }
 
-export function defineBuiltin<T>(name: string, defaults: T): BuiltinComponentDef<T> {
+export interface ComponentMetadata {
+    entityFields?: string[];
+}
+
+export function defineBuiltin<T>(name: string, defaults: T, metadata?: ComponentMetadata): BuiltinComponentDef<T> {
     const def: BuiltinComponentDef<T> = {
         _id: Symbol(`Builtin_${name}`),
         _name: name,
@@ -203,6 +212,9 @@ export function defineBuiltin<T>(name: string, defaults: T): BuiltinComponentDef
         _colorKeys: detectColorKeys(defaults),
     };
     componentRegistry.set(name, def);
+    if (metadata?.entityFields) {
+        registerComponentEntityFields(name, metadata.entityFields);
+    }
     return def;
 }
 

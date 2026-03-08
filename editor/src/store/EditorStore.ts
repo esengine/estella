@@ -9,6 +9,7 @@ import { SceneOperations } from './SceneOperations';
 import { PrefabEditService } from './PrefabEditService';
 import { PropertyWritePipeline } from './PropertyWritePipeline';
 import { registerBuiltinTransformHooks } from './propertyHooks';
+import { getPrefabDependencyTracker } from '../prefab';
 
 // =============================================================================
 // Types
@@ -243,6 +244,14 @@ export class EditorStore {
 
         this.rebuildEntityMap();
         this.worldTransforms_.setScene(scene);
+
+        const tracker = getPrefabDependencyTracker();
+        tracker.setScene(scene, () => {
+            this.rebuildEntityMap();
+            this.state_.isDirty = true;
+            this.notify('scene');
+        });
+
         this.notifySceneSync();
         this.notify('scene');
     }
