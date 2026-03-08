@@ -48,12 +48,36 @@ public:
         f32 tile_width = 0;
         f32 tile_height = 0;
         std::vector<u16> tiles;
+
+        u32 texture_handle = 0;
+        u32 tileset_columns = 1;
+        f32 uv_tile_width = 0;
+        f32 uv_tile_height = 0;
+        i32 sort_layer = 0;
+        f32 depth = 0;
+        glm::vec4 tint{1.0f, 1.0f, 1.0f, 1.0f};
+        f32 opacity = 1.0f;
+        glm::vec2 parallax_factor{1.0f, 1.0f};
+        bool visible = true;
+        Entity origin_entity = INVALID_ENTITY;
     };
 
     const LayerData* getLayerData(Entity entity) const;
+    LayerData* getLayerDataMut(Entity entity);
+
+    void setRenderProps(Entity entity, u32 textureHandle, u32 tilesetColumns,
+                        f32 uvTileW, f32 uvTileH,
+                        i32 sortLayer, f32 depth,
+                        f32 parallaxX, f32 parallaxY);
+    void setTint(Entity entity, f32 r, f32 g, f32 b, f32 a, f32 opacity);
+    void setVisible(Entity entity, bool visible);
+    void setOriginEntity(Entity layerKey, Entity originEntity);
+
+    using LayerMap = std::unordered_map<Entity, LayerData>;
+    const LayerMap& allLayers() const { return layers_; }
 
 private:
-    std::unordered_map<Entity, LayerData> layers_;
+    LayerMap layers_;
 };
 
 }  // namespace tilemap

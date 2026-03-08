@@ -109,4 +109,44 @@ void TilemapSystem::setTiles(Entity entity, const u16* tiles, u32 count) {
     std::memcpy(layer.tiles.data(), tiles, copyCount * sizeof(u16));
 }
 
+TilemapSystem::LayerData* TilemapSystem::getLayerDataMut(Entity entity) {
+    auto it = layers_.find(entity);
+    if (it == layers_.end()) return nullptr;
+    return &it->second;
+}
+
+void TilemapSystem::setRenderProps(Entity entity, u32 textureHandle, u32 tilesetColumns,
+                                    f32 uvTileW, f32 uvTileH,
+                                    i32 sortLayer, f32 depth,
+                                    f32 parallaxX, f32 parallaxY) {
+    auto* layer = getLayerDataMut(entity);
+    if (!layer) return;
+    layer->texture_handle = textureHandle;
+    layer->tileset_columns = tilesetColumns;
+    layer->uv_tile_width = uvTileW;
+    layer->uv_tile_height = uvTileH;
+    layer->sort_layer = sortLayer;
+    layer->depth = depth;
+    layer->parallax_factor = {parallaxX, parallaxY};
+}
+
+void TilemapSystem::setTint(Entity entity, f32 r, f32 g, f32 b, f32 a, f32 opacity) {
+    auto* layer = getLayerDataMut(entity);
+    if (!layer) return;
+    layer->tint = {r, g, b, a};
+    layer->opacity = opacity;
+}
+
+void TilemapSystem::setVisible(Entity entity, bool visible) {
+    auto* layer = getLayerDataMut(entity);
+    if (!layer) return;
+    layer->visible = visible;
+}
+
+void TilemapSystem::setOriginEntity(Entity layerKey, Entity originEntity) {
+    auto* layer = getLayerDataMut(layerKey);
+    if (!layer) return;
+    layer->origin_entity = originEntity;
+}
+
 }  // namespace esengine::tilemap

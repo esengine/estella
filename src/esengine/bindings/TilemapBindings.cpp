@@ -20,6 +20,10 @@
 namespace esengine {
 
 static tilemap::TilemapSystem s_tilemapSystem;
+
+tilemap::TilemapSystem& getTilemapSystem() {
+    return s_tilemapSystem;
+}
 static tilemap::TiledMapLoader s_tiledLoader;
 
 static EngineContext& ctx() { return EngineContext::instance(); }
@@ -135,6 +139,28 @@ void tilemap_submitLayer(u32 entity, u32 textureId,
             );
         }
     }
+}
+
+void tilemap_setRenderProps(u32 entity, u32 textureHandle, u32 tilesetColumns,
+                            f32 uvTileW, f32 uvTileH,
+                            i32 sortLayer, f32 depth,
+                            f32 parallaxX, f32 parallaxY) {
+    s_tilemapSystem.setRenderProps(static_cast<Entity>(entity),
+        textureHandle, tilesetColumns, uvTileW, uvTileH,
+        sortLayer, depth, parallaxX, parallaxY);
+}
+
+void tilemap_setTint(u32 entity, f32 r, f32 g, f32 b, f32 a, f32 opacity) {
+    s_tilemapSystem.setTint(static_cast<Entity>(entity), r, g, b, a, opacity);
+}
+
+void tilemap_setVisible(u32 entity, bool visible) {
+    s_tilemapSystem.setVisible(static_cast<Entity>(entity), visible);
+}
+
+void tilemap_setOriginEntity(u32 layerKey, u32 originEntity) {
+    s_tilemapSystem.setOriginEntity(static_cast<Entity>(layerKey),
+                                    static_cast<Entity>(originEntity));
 }
 
 // --- Tiled map loader bindings ---
@@ -397,6 +423,10 @@ EMSCRIPTEN_BINDINGS(esengine_tilemap) {
     emscripten::function("tilemap_setTiles", &esengine::tilemap_setTiles);
     emscripten::function("tilemap_hasLayer", &esengine::tilemap_hasLayer);
     emscripten::function("tilemap_submitLayer", &esengine::tilemap_submitLayer);
+    emscripten::function("tilemap_setRenderProps", &esengine::tilemap_setRenderProps);
+    emscripten::function("tilemap_setTint", &esengine::tilemap_setTint);
+    emscripten::function("tilemap_setVisible", &esengine::tilemap_setVisible);
+    emscripten::function("tilemap_setOriginEntity", &esengine::tilemap_setOriginEntity);
 
     emscripten::function("tiled_loadMap", &esengine::tiled_loadMap);
     emscripten::function("tiled_freeMap", &esengine::tiled_freeMap);
