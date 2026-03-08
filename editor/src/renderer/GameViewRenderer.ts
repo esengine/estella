@@ -236,7 +236,7 @@ export class GameViewRenderer {
 
         try {
             Renderer.resize(renderW, renderH);
-
+            Renderer.beginFrame();
             if (pipeline) {
                 pipeline.renderCamera({
                     registry,

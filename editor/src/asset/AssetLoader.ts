@@ -4,7 +4,6 @@
  */
 
 import { type ESEngineModule, getAssetTypeEntry } from 'esengine';
-import type { SpineModuleController } from 'esengine/spine';
 import type { AssetPathResolver } from './AssetPathResolver';
 import { getEditorContext } from '../context/EditorContext';
 import type { NativeFS } from '../types/NativeFS';
@@ -19,6 +18,12 @@ interface DecodedImage {
 export interface LoadResult {
     success: boolean;
     error?: string;
+}
+
+export interface SpineRawLoadResult extends LoadResult {
+    skelData?: Uint8Array | string;
+    atlasText?: string;
+    textures?: Map<string, { glId: number; w: number; h: number }>;
 }
 
 interface SpineLoadState {
@@ -153,38 +158,33 @@ export class AssetLoader {
         return { success: true };
     }
 
-    async loadSpineToModule(
-        controller: SpineModuleController,
-        skeletonPath: string,
-        atlasPath: string
-    ): Promise<{ success: boolean; skeletonHandle?: number; error?: string }> {
+    async loadSpineWithRawData(skeletonPath: string, atlasPath: string): Promise<SpineRawLoadResult> {
         const fs = this.getNativeFS();
         if (!fs) {
             return { success: false, error: 'Native filesystem not available' };
         }
 
         const atlasAbsPath = this.pathResolver_.toAbsolutePath(atlasPath);
-        const atlasContent = await fs.readFile(atlasAbsPath);
-        if (!atlasContent) {
+        const atlasText = await fs.readFile(atlasAbsPath);
+        if (!atlasText) {
             return { success: false, error: `Failed to read atlas: ${atlasAbsPath}` };
         }
 
         const atlasDir = atlasPath.substring(0, atlasPath.lastIndexOf('/'));
-        const textureNames = parseAtlasTextures(atlasContent);
-        const textureResults: { path: string; handle: number; width: number; height: number }[] = [];
+        const textureNames = parseAtlasTextures(atlasText);
+        const textures = new Map<string, { glId: number; w: number; h: number }>();
 
         for (const texName of textureNames) {
             const texPath = atlasDir ? `${atlasDir}/${texName}` : texName;
             const result = await this.loadTexture(texPath);
             if (result.success && result.handle !== undefined) {
-                textureResults.push({
-                    path: texPath,
-                    handle: result.handle,
-                    width: result.width!,
-                    height: result.height!,
+                const rm = this.module_.getResourceManager();
+                const glId = rm.getTextureGLId(result.handle);
+                textures.set(texName, {
+                    glId,
+                    w: result.width ?? 0,
+                    h: result.height ?? 0,
                 });
-            } else {
-                console.error(`[AssetLoader] Failed to load Spine texture: ${texPath} - ${result.error}`);
             }
         }
 
@@ -198,29 +198,7 @@ export class AssetLoader {
             return { success: false, error: `Failed to read skeleton: ${skelAbsPath}` };
         }
 
-        const skeletonHandle = controller.loadSkeleton(
-            skelData instanceof Uint8Array ? skelData : skelData as string,
-            atlasContent, isBinary);
-        if (skeletonHandle < 0) {
-            let detail = '';
-            try { detail = controller.getLastError(); } catch { /* not available before WASM rebuild */ }
-            return { success: false, error: `Failed to load skeleton in spine module: ${skeletonPath}${detail ? ' (' + detail + ')' : ''}` };
-        }
-
-        const rm = this.module_.getResourceManager();
-        const pageCount = controller.getAtlasPageCount(skeletonHandle);
-        for (let i = 0; i < pageCount; i++) {
-            const pageName = controller.getAtlasPageTextureName(skeletonHandle, i);
-            const tex = textureResults.find(t => t.path.endsWith(pageName));
-            if (tex) {
-                const glTexId = rm.getTextureGLId(tex.handle);
-                controller.setAtlasPageTexture(skeletonHandle, i, glTexId, tex.width, tex.height);
-            } else {
-                console.warn(`[AssetLoader] Atlas page ${i} texture not found: "${pageName}". Available: ${textureResults.map(t => t.path).join(', ')}`);
-            }
-        }
-
-        return { success: true, skeletonHandle };
+        return { success: true, skelData, atlasText, textures };
     }
 
     isTextureLoaded(path: string): boolean {

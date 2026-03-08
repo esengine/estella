@@ -7,7 +7,7 @@ import type { ESEngineModule } from 'esengine';
 import type { TextureInfo, SliceBorder, SpineLoadResult, MaterialHandle, ShaderHandle, MaterialAssetData } from 'esengine';
 import { Material, getAssetTypeEntry } from 'esengine';
 import { EditorTextureManager } from '../renderer/EditorTextureManager';
-import { AssetLoader } from './AssetLoader';
+import { AssetLoader, type SpineRawLoadResult } from './AssetLoader';
 import type { AssetPathResolver } from './AssetPathResolver';
 import { parseShaderProperties, getShaderDefaultProperties } from '../shader/ShaderPropertyParser';
 import { getAssetEventBus } from '../events/AssetEventBus';
@@ -189,6 +189,10 @@ export class EditorAssetServer {
             return true;
         }
         return false;
+    }
+
+    async loadSpineWithRawData(skeletonPath: string, atlasPath: string): Promise<SpineRawLoadResult> {
+        return this.assetLoader_.loadSpineWithRawData(skeletonPath, atlasPath);
     }
 
     isSpineLoaded(skeletonPath: string, atlasPath: string): boolean {

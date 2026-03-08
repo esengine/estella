@@ -140,7 +140,7 @@ export function createSpineAnimationEditor(
     container: HTMLElement,
     ctx: PropertyEditorContext
 ): PropertyEditorInstance {
-    const { value, onChange, getComponentValue } = ctx;
+    const { value, onChange, getComponentValue, getCurrentValue } = ctx;
 
     const wrapper = document.createElement('div');
     wrapper.className = 'es-spine-animation-editor';
@@ -154,6 +154,8 @@ export function createSpineAnimationEditor(
     refreshBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"></path></svg>`;
 
     let currentAnimations: string[] = [];
+
+    const liveValue = () => String(getCurrentValue?.() ?? value ?? '');
 
     const updateOptions = (animations: string[], currentValue: string) => {
         select.innerHTML = '';
@@ -180,7 +182,7 @@ export function createSpineAnimationEditor(
         const skeletonRef = getComponentValue?.('skeletonPath') as string;
         const skeletonPath = skeletonRef ? resolveToPath(skeletonRef) : '';
         if (!skeletonPath) {
-            updateOptions([], String(value ?? ''));
+            updateOptions([], liveValue());
             return;
         }
 
@@ -189,9 +191,9 @@ export function createSpineAnimationEditor(
         const data = await loadSpineSkeletonData(skeletonPath, atlasPath);
         if (data) {
             const animations = getAnimationNames(data);
-            updateOptions(animations, String(value ?? ''));
+            updateOptions(animations, liveValue());
         } else {
-            updateOptions([], String(value ?? ''));
+            updateOptions([], liveValue());
         }
     };
 
@@ -236,7 +238,7 @@ export function createSpineSkinEditor(
     container: HTMLElement,
     ctx: PropertyEditorContext
 ): PropertyEditorInstance {
-    const { value, onChange, getComponentValue } = ctx;
+    const { value, onChange, getComponentValue, getCurrentValue } = ctx;
 
     const wrapper = document.createElement('div');
     wrapper.className = 'es-spine-skin-editor';
@@ -250,6 +252,8 @@ export function createSpineSkinEditor(
     refreshBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"></path></svg>`;
 
     let currentSkins: string[] = [];
+
+    const liveValue = () => String(getCurrentValue?.() ?? value ?? 'default');
 
     const updateOptions = (skins: string[], currentValue: string) => {
         select.innerHTML = '';
@@ -278,7 +282,7 @@ export function createSpineSkinEditor(
         const skeletonRef = getComponentValue?.('skeletonPath') as string;
         const skeletonPath = skeletonRef ? resolveToPath(skeletonRef) : '';
         if (!skeletonPath) {
-            updateOptions(['default'], String(value ?? 'default'));
+            updateOptions(['default'], liveValue());
             return;
         }
 
@@ -287,9 +291,9 @@ export function createSpineSkinEditor(
         const data = await loadSpineSkeletonData(skeletonPath, atlasPath);
         if (data) {
             const skins = getSkinNames(data);
-            updateOptions(skins.length > 0 ? skins : ['default'], String(value ?? 'default'));
+            updateOptions(skins.length > 0 ? skins : ['default'], liveValue());
         } else {
-            updateOptions(['default'], String(value ?? 'default'));
+            updateOptions(['default'], liveValue());
         }
     };
 

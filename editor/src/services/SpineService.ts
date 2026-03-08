@@ -1,15 +1,12 @@
-import type { SpineWasmModule } from 'esengine/spine';
-import { SpineModuleController, wrapSpineModule } from 'esengine/spine';
 import type { EditorStore } from '../store/EditorStore';
 
 export interface SpinePanelDelegate {
-    setSpineController(ctrl: SpineModuleController | null): void;
+    setSpineController(ctrl: unknown): void;
     getSpineSkeletonInfo(entityId: number): { animations: string[]; skins: string[] } | null;
     onSpineInstanceReady(listener: (entityId: number) => void): () => void;
 }
 
 export class SpineService {
-    private spineModule_: unknown = null;
     private spineVersion_: string = 'none';
     private spineVersionChangeHandler_: ((version: string) => void) | null = null;
     private store_: EditorStore;
@@ -21,22 +18,11 @@ export class SpineService {
 
     registerSpinePanel(delegate: SpinePanelDelegate): () => void {
         this.delegate_ = delegate;
-        if (this.spineModule_) {
-            const raw = this.spineModule_ as SpineWasmModule;
-            const controller = new SpineModuleController(raw, wrapSpineModule(raw));
-            delegate.setSpineController(controller);
-        }
         return () => { this.delegate_ = null; };
     }
 
-    setSpineModule(module: unknown, version: string): void {
-        this.spineModule_ = module;
+    setSpineModule(_module: unknown, version: string): void {
         this.spineVersion_ = version;
-        if (this.delegate_ && module) {
-            const raw = module as SpineWasmModule;
-            const controller = new SpineModuleController(raw, wrapSpineModule(raw));
-            this.delegate_.setSpineController(controller);
-        }
         this.store_.notifyChange();
     }
 
@@ -46,10 +32,6 @@ export class SpineService {
 
     notifyVersionChange(version: string): void {
         this.spineVersionChangeHandler_?.(version);
-    }
-
-    get spineModule(): unknown {
-        return this.spineModule_;
     }
 
     get spineVersion(): string {
