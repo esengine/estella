@@ -218,4 +218,32 @@ bool SpineSystem::getSkeletonBounds(Entity entity, f32& outX, f32& outY,
     return true;
 }
 
+std::vector<std::string> SpineSystem::getAnimationNames(Entity entity) const {
+    std::vector<std::string> result;
+    auto it = instances_.find(entity);
+    if (it == instances_.end() || !it->second.skeleton) return result;
+
+    auto* data = it->second.skeleton->getData();
+    auto& animations = data->getAnimations();
+    result.reserve(animations.size());
+    for (size_t i = 0; i < animations.size(); ++i) {
+        result.emplace_back(animations[i]->getName().buffer());
+    }
+    return result;
+}
+
+std::vector<std::string> SpineSystem::getSkinNames(Entity entity) const {
+    std::vector<std::string> result;
+    auto it = instances_.find(entity);
+    if (it == instances_.end() || !it->second.skeleton) return result;
+
+    auto* data = it->second.skeleton->getData();
+    auto& skins = data->getSkins();
+    result.reserve(skins.size());
+    for (size_t i = 0; i < skins.size(); ++i) {
+        result.emplace_back(skins[i]->getName().buffer());
+    }
+    return result;
+}
+
 }  // namespace esengine::spine

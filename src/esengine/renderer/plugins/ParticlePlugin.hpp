@@ -11,6 +11,8 @@ public:
     void init(RenderFrameContext& ctx) override;
     void shutdown() override {}
 
+    u32 skipFlag() const override { return 2; }
+
     void setParticleSystem(particle::ParticleSystem* system) { particle_system_ = system; }
 
     void collect(

@@ -34,6 +34,8 @@ public:
     virtual void init(RenderFrameContext& ctx) { (void)ctx; }
     virtual void shutdown() {}
 
+    virtual u32 skipFlag() const { return 0; }
+
     virtual void collect(
         ecs::Registry& registry,
         const Frustum& frustum,

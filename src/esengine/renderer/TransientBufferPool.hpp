@@ -36,6 +36,7 @@ public:
 
     void bindLayout(LayoutId layout);
 
+    u8* vertexData() { return vertex_staging_.data(); }
     u32 vertexBytesUsed() const { return vertex_write_pos_; }
     u32 indicesUsed() const { return index_write_pos_; }
     u32 vboId() const { return vbo_; }

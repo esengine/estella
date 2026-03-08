@@ -73,6 +73,90 @@ SpineBounds getSpineBounds(ecs::Registry& registry, Entity entity) {
     }
     return bounds;
 }
+
+void spine_update(ecs::Registry& registry, f32 dt) {
+    if (!g_spineSystem) return;
+    g_spineSystem->update(registry, dt);
+}
+
+bool spine_play(Entity entity, const std::string& animation, bool loop, i32 track) {
+    if (!g_spineSystem) return false;
+    return g_spineSystem->playAnimation(entity, animation, loop, track);
+}
+
+bool spine_addAnimation(Entity entity, const std::string& animation, bool loop, f32 delay, i32 track) {
+    if (!g_spineSystem) return false;
+    return g_spineSystem->addAnimation(entity, animation, loop, delay, track);
+}
+
+bool spine_setSkin(Entity entity, const std::string& skinName) {
+    if (!g_spineSystem) return false;
+    return g_spineSystem->setSkin(entity, skinName);
+}
+
+emscripten::val spine_getBonePosition(Entity entity, const std::string& boneName) {
+    if (!g_spineSystem) return emscripten::val::null();
+    f32 x = 0, y = 0;
+    if (!g_spineSystem->getBonePosition(entity, boneName, x, y)) {
+        return emscripten::val::null();
+    }
+    auto result = emscripten::val::object();
+    result.set("x", x);
+    result.set("y", y);
+    return result;
+}
+
+bool spine_hasInstance(Entity entity) {
+    if (!g_spineSystem) return false;
+    return g_spineSystem->getInstance(entity) != nullptr;
+}
+
+void spine_reloadAssets(ecs::Registry& registry) {
+    if (!g_spineSystem) return;
+    g_spineSystem->reloadAssets(registry);
+}
+
+emscripten::val spine_getAnimations(Entity entity) {
+    auto result = emscripten::val::array();
+    if (!g_spineSystem) return result;
+    auto names = g_spineSystem->getAnimationNames(entity);
+    for (size_t i = 0; i < names.size(); ++i) {
+        result.call<void>("push", names[i]);
+    }
+    return result;
+}
+
+emscripten::val spine_getSkins(Entity entity) {
+    auto result = emscripten::val::array();
+    if (!g_spineSystem) return result;
+    auto names = g_spineSystem->getSkinNames(entity);
+    for (size_t i = 0; i < names.size(); ++i) {
+        result.call<void>("push", names[i]);
+    }
+    return result;
+}
+
+void renderer_submitSpineBatch(
+    uintptr_t verticesPtr, i32 vertexCount,
+    uintptr_t indicesPtr, i32 indexCount,
+    u32 textureId, i32 blendMode,
+    uintptr_t transformPtr,
+    Entity entity, i32 layer, f32 depth
+) {
+    if (!g_initialized || !g_renderFrame) return;
+    auto* vertices = reinterpret_cast<const f32*>(verticesPtr);
+    auto* indices = reinterpret_cast<const u16*>(indicesPtr);
+    auto* transform = reinterpret_cast<const f32*>(transformPtr);
+    g_renderFrame->submitSpineBatch(
+        vertices, vertexCount, indices, indexCount,
+        textureId, blendMode, transform, entity, layer, depth);
+}
+
+void spine_setNeedsReload(ecs::Registry& registry, Entity entity, bool value) {
+    if (!registry.has<ecs::SpineAnimation>(entity)) return;
+    auto& comp = registry.get<ecs::SpineAnimation>(entity);
+    comp.needsReload = value;
+}
 #endif
 
 void renderFrame(ecs::Registry& registry, i32 viewportWidth, i32 viewportHeight) {
@@ -182,10 +266,12 @@ void renderer_resize(u32 width, u32 height) {
     g_renderFrame->resize(width, height);
 }
 
+void renderer_beginFrame() {
+    ctx().setTransformsUpdated(false);
+}
+
 void renderer_begin(uintptr_t matrixPtr, u32 targetHandle) {
     if (!g_renderFrame) return;
-
-    ctx().setTransformsUpdated(false);
 
     const f32* matrixData = reinterpret_cast<const f32*>(matrixPtr);
     glm::mat4 viewProjection = glm::make_mat4(matrixData);
@@ -238,12 +324,16 @@ void renderer_submitParticles(ecs::Registry& registry) {
     (void)registry;
 }
 
+void renderer_updateTransforms(ecs::Registry& registry) {
+    ensureTransformsUpdated(registry);
+}
+
 void renderer_submitAll(ecs::Registry& registry, u32 skipFlags, i32 vpX, i32 vpY, i32 vpW, i32 vpH) {
     if (!g_renderFrame) return;
     ensureTransformsUpdated(registry);
     g_renderFrame->processMasks(registry, vpX, vpY, vpW, vpH);
 
-    g_renderFrame->collectAll(registry);
+    g_renderFrame->collectAll(registry, skipFlags);
 }
 
 void particle_update(ecs::Registry& registry, f32 dt) {
@@ -272,24 +362,6 @@ void particle_reset(ecs::Registry& registry, Entity entity) {
 u32 particle_getAliveCount(Entity entity) {
     if (!g_particleSystem) return 0;
     return g_particleSystem->aliveCount(entity);
-}
-
-void renderer_submitTriangles(
-    uintptr_t verticesPtr, i32 vertexCount,
-    uintptr_t indicesPtr, i32 indexCount,
-    u32 textureId, i32 blendMode,
-    uintptr_t transformPtr) {
-    if (!g_renderFrame) return;
-
-    const f32* vertices = reinterpret_cast<const f32*>(verticesPtr);
-    const u16* indices = reinterpret_cast<const u16*>(indicesPtr);
-    const f32* transform = transformPtr ? reinterpret_cast<const f32*>(transformPtr) : nullptr;
-
-    g_renderFrame->submitExternalTriangles(
-        vertices, vertexCount,
-        indices, indexCount,
-        textureId, blendMode,
-        transform);
 }
 
 void renderer_setStage(i32 stage) {

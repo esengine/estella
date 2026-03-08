@@ -17,9 +17,10 @@
     #include <glad/glad.h>
 #endif
 
+#include <glm/gtc/type_ptr.hpp>
+
 #include <algorithm>
 #include <cmath>
-#include <glm/gtc/type_ptr.hpp>
 #include <unordered_set>
 
 namespace esengine {
@@ -627,55 +628,53 @@ void RenderFrame::submitTileQuad(
     draw_list_.push(cmd);
 }
 
-void RenderFrame::submitExternalTriangles(
+void RenderFrame::submitSpineBatch(
     const f32* vertices, i32 vertexCount,
     const u16* indices, i32 indexCount,
     u32 textureId, i32 blendMode,
-    const f32* transform16
+    const f32* transform16,
+    Entity entity, i32 layer, f32 depth
 ) {
     if (vertexCount <= 0 || indexCount <= 0) return;
 
-    glm::mat4 model(1.0f);
-    if (transform16) {
-        model = glm::make_mat4(transform16);
-    }
-
-    constexpr i32 FLOATS_PER_VERT = 8;
-    std::vector<TileVertex> batchVerts(vertexCount);
-    for (i32 i = 0; i < vertexCount; ++i) {
-        const f32* v = vertices + i * FLOATS_PER_VERT;
-        glm::vec4 pos = model * glm::vec4(v[0], v[1], 0.0f, 1.0f);
-        batchVerts[i].position = glm::vec2(pos.x, pos.y);
-        batchVerts[i].color = packColor(glm::vec4(v[2], v[3], v[4], v[5]));
-        batchVerts[i].texCoord = glm::vec2(v[6], v[7]);
-    }
+    constexpr i32 FLOATS_PER_VERTEX = 8;
+    glm::mat4 model = glm::make_mat4(transform16);
+    BlendMode blend = static_cast<BlendMode>(std::clamp(blendMode, 0, 5));
 
     u32 vBytes = static_cast<u32>(vertexCount) * sizeof(TileVertex);
-    u32 vOff = pool_.appendVertices(batchVerts.data(), vBytes);
-    u32 baseVertex = vOff / sizeof(TileVertex);
+    u32 vOff = pool_.allocVertices(vBytes);
+    auto* dst = reinterpret_cast<TileVertex*>(pool_.vertexData() + vOff);
 
-    std::vector<u16> remapped(indexCount);
-    for (i32 i = 0; i < indexCount; ++i) {
-        remapped[i] = static_cast<u16>(baseVertex + indices[i]);
+    for (i32 i = 0; i < vertexCount; ++i) {
+        const f32* v = vertices + i * FLOATS_PER_VERTEX;
+        glm::vec4 worldPos = model * glm::vec4(v[0], v[1], 0.0f, 1.0f);
+        u32 pc = packColor(glm::vec4(v[4], v[5], v[6], v[7]));
+        dst[i] = { {worldPos.x, worldPos.y}, pc, {v[2], v[3]} };
     }
-    u32 iOff = pool_.appendIndices(remapped.data(), static_cast<u32>(indexCount));
+
+    u32 baseVertex = vOff / sizeof(TileVertex);
+    std::vector<u16> offsetIndices(indexCount);
+    for (i32 i = 0; i < indexCount; ++i) {
+        offsetIndices[i] = static_cast<u16>(baseVertex + indices[i]);
+    }
+    u32 iOff = pool_.appendIndices(offsetIndices.data(), static_cast<u32>(indexCount));
 
     DrawCommand cmd{};
     cmd.sort_key = DrawCommand::buildSortKey(
-        current_stage_, 0, batch_shader_id_,
-        static_cast<BlendMode>(blendMode), 0, textureId, 0.0f);
+        current_stage_, layer, batch_shader_id_, blend, 0, textureId, depth);
     cmd.index_offset = iOff;
     cmd.index_count = static_cast<u32>(indexCount);
     cmd.vertex_byte_offset = vOff;
     cmd.shader_id = batch_shader_id_;
-    cmd.blend_mode = static_cast<BlendMode>(blendMode);
+    cmd.blend_mode = blend;
     cmd.layout_id = LayoutId::Batch;
     cmd.texture_count = 1;
     cmd.texture_ids[0] = textureId;
-    cmd.entity = INVALID_ENTITY;
-    cmd.type = RenderType::ExternalMesh;
-    cmd.layer = 0;
+    cmd.entity = entity;
+    cmd.type = RenderType::Spine;
+    cmd.layer = layer;
 
+    clip_state_.applyTo(entity, cmd);
     draw_list_.push(cmd);
 }
 
@@ -703,7 +702,7 @@ void RenderFrame::buildClipState() {
     }
 }
 
-void RenderFrame::collectAll(ecs::Registry& registry) {
+void RenderFrame::collectAll(ecs::Registry& registry, u32 skipFlags) {
     buildClipState();
 
     RenderFrameContext ctx{
@@ -716,6 +715,7 @@ void RenderFrame::collectAll(ecs::Registry& registry) {
     };
 
     for (auto& plugin : plugins_) {
+        if (skipFlags != 0 && (skipFlags & plugin->skipFlag()) != 0) continue;
         plugin->collect(registry, frustum_, clip_state_, pool_, draw_list_, ctx);
     }
 }

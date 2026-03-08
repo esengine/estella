@@ -25,6 +25,16 @@ struct SpineBounds {
 };
 
 SpineBounds getSpineBounds(ecs::Registry& registry, Entity entity);
+
+void spine_update(ecs::Registry& registry, f32 dt);
+bool spine_play(Entity entity, const std::string& animation, bool loop, i32 track);
+bool spine_addAnimation(Entity entity, const std::string& animation, bool loop, f32 delay, i32 track);
+bool spine_setSkin(Entity entity, const std::string& skinName);
+emscripten::val spine_getBonePosition(Entity entity, const std::string& boneName);
+bool spine_hasInstance(Entity entity);
+void spine_reloadAssets(ecs::Registry& registry);
+emscripten::val spine_getAnimations(Entity entity);
+emscripten::val spine_getSkins(Entity entity);
 #endif
 
 void renderFrame(ecs::Registry& registry, i32 viewportWidth, i32 viewportHeight);
@@ -33,6 +43,7 @@ void renderFrameWithMatrix(ecs::Registry& registry, i32 viewportWidth, i32 viewp
 
 void renderer_init(u32 width, u32 height);
 void renderer_resize(u32 width, u32 height);
+void renderer_beginFrame();
 void renderer_begin(uintptr_t matrixPtr, u32 targetHandle);
 void renderer_flush();
 void renderer_end();
@@ -42,13 +53,17 @@ void renderer_submitBitmapText(ecs::Registry& registry);
 void renderer_submitShapes(ecs::Registry& registry);
 #ifdef ES_ENABLE_SPINE
 void renderer_submitSpine(ecs::Registry& registry);
-#endif
-void renderer_submitTriangles(
+void renderer_submitSpineBatch(
     uintptr_t verticesPtr, i32 vertexCount,
     uintptr_t indicesPtr, i32 indexCount,
     u32 textureId, i32 blendMode,
-    uintptr_t transformPtr);
+    uintptr_t transformPtr,
+    Entity entity, i32 layer, f32 depth
+);
+void spine_setNeedsReload(ecs::Registry& registry, Entity entity, bool value);
+#endif
 void renderer_submitParticles(ecs::Registry& registry);
+void renderer_updateTransforms(ecs::Registry& registry);
 void renderer_submitAll(ecs::Registry& registry, u32 skipFlags, i32 vpX, i32 vpY, i32 vpW, i32 vpH);
 void particle_update(ecs::Registry& registry, f32 dt);
 void particle_play(ecs::Registry& registry, Entity entity);

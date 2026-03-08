@@ -166,6 +166,9 @@ public:
     bool getSkeletonBounds(Entity entity, f32& outX, f32& outY,
                            f32& outWidth, f32& outHeight) const;
 
+    std::vector<std::string> getAnimationNames(Entity entity) const;
+    std::vector<std::string> getSkinNames(Entity entity) const;
+
 private:
     void loadSkeletonForEntity(Entity entity, ecs::SpineAnimation& comp);
     void updateAnimation(Entity entity, ecs::SpineAnimation& comp, f32 deltaTime);

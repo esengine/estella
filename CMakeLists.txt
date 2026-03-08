@@ -54,6 +54,7 @@ set(ESENGINE_SOURCES
     src/esengine/renderer/plugins/UIElementPlugin.cpp
     src/esengine/renderer/plugins/TextPlugin.cpp
     src/esengine/renderer/plugins/ShapePlugin.cpp
+    src/esengine/renderer/plugins/TilemapRenderPlugin.cpp
     src/esengine/renderer/plugins/ParticlePlugin.cpp
     src/esengine/text/BitmapFont.cpp
     src/esengine/platform/input/Input.cpp
@@ -71,7 +72,6 @@ if(ES_ENABLE_SPINE)
         src/esengine/spine/SpineExtension.cpp
         src/esengine/spine/SpineResourceManager.cpp
         src/esengine/spine/SpineSystem.cpp
-        src/esengine/spine/SpineRenderer.cpp
         src/esengine/renderer/plugins/SpinePlugin.cpp
     )
 endif()
@@ -129,6 +129,7 @@ set(ESENGINE_HEADERS
     src/esengine/renderer/plugins/UIElementPlugin.hpp
     src/esengine/renderer/plugins/TextPlugin.hpp
     src/esengine/renderer/plugins/ShapePlugin.hpp
+    src/esengine/renderer/plugins/TilemapRenderPlugin.hpp
     src/esengine/renderer/plugins/SpinePlugin.hpp
     src/esengine/renderer/plugins/ParticlePlugin.hpp
     src/esengine/platform/Platform.hpp
@@ -153,7 +154,6 @@ if(ES_ENABLE_SPINE)
         src/esengine/spine/SpineExtension.hpp
         src/esengine/spine/SpineResourceManager.hpp
         src/esengine/spine/SpineSystem.hpp
-        src/esengine/spine/SpineRenderer.hpp
     )
 endif()
 

@@ -113,7 +113,6 @@ void TransientBufferPool::upload() {
         vbo_capacity_ = vertex_write_pos_;
         glBufferData(GL_ARRAY_BUFFER, vbo_capacity_, vertex_staging_.data(), GL_DYNAMIC_DRAW);
     } else {
-        glBufferData(GL_ARRAY_BUFFER, vbo_capacity_, nullptr, GL_DYNAMIC_DRAW);
         glBufferSubData(GL_ARRAY_BUFFER, 0, vertex_write_pos_, vertex_staging_.data());
     }
 
@@ -125,7 +124,6 @@ void TransientBufferPool::upload() {
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, ebo_capacity_ * sizeof(u16),
                      index_staging_.data(), GL_DYNAMIC_DRAW);
     } else {
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, eboCapBytes, nullptr, GL_DYNAMIC_DRAW);
         glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, eboBytes, index_staging_.data());
     }
 }

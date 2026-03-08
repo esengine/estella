@@ -85,11 +85,12 @@ public:
         Entity entity, i32 layer, f32 depth
     );
 
-    void submitExternalTriangles(
+    void submitSpineBatch(
         const f32* vertices, i32 vertexCount,
         const u16* indices, i32 indexCount,
         u32 textureId, i32 blendMode,
-        const f32* transform16
+        const f32* transform16,
+        Entity entity, i32 layer, f32 depth
     );
 
     void setStage(RenderStage stage) { current_stage_ = stage; }
@@ -108,7 +109,7 @@ public:
     u32 getSnapshotHeight() const { return height_; }
 
     void addPlugin(std::unique_ptr<RenderTypePlugin> plugin);
-    void collectAll(ecs::Registry& registry);
+    void collectAll(ecs::Registry& registry, u32 skipFlags = 0);
 
     static constexpr u32 STAGE_COUNT = 4;
 

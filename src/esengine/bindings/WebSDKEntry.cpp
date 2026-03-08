@@ -37,6 +37,8 @@
 #include "../renderer/plugins/TextPlugin.hpp"
 #include "../renderer/plugins/ShapePlugin.hpp"
 #include "../renderer/plugins/ParticlePlugin.hpp"
+#include "../renderer/plugins/TilemapRenderPlugin.hpp"
+#include "../tilemap/TilemapSystem.hpp"
 #ifdef ES_ENABLE_SPINE
 #include "../renderer/plugins/SpinePlugin.hpp"
 #endif
@@ -62,6 +64,8 @@
 static_assert(sizeof(void*) == 4, "EM_JS pointer passing assumes wasm32 (4-byte pointers)");
 
 namespace esengine {
+
+tilemap::TilemapSystem& getTilemapSystem();
 
 static EngineContext& ctx() { return EngineContext::instance(); }
 
@@ -224,6 +228,11 @@ static void initSubsystems() {
     renderFrame->addPlugin(std::make_unique<UIElementPlugin>());
     renderFrame->addPlugin(std::make_unique<TextPlugin>());
     renderFrame->addPlugin(std::make_unique<ShapePlugin>());
+    {
+        auto tilemapPlugin = std::make_unique<TilemapRenderPlugin>();
+        tilemapPlugin->setTilemapSystem(&getTilemapSystem());
+        renderFrame->addPlugin(std::move(tilemapPlugin));
+    }
 #ifdef ES_ENABLE_SPINE
     {
         auto spinePlugin = std::make_unique<SpinePlugin>();
@@ -497,6 +506,18 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
         .field("valid", &esengine::SpineBounds::valid);
 
     emscripten::function("getSpineBounds", &esengine::getSpineBounds);
+
+    emscripten::function("spine_update", &esengine::spine_update);
+    emscripten::function("spine_play", &esengine::spine_play);
+    emscripten::function("spine_addAnimation", &esengine::spine_addAnimation);
+    emscripten::function("spine_setSkin", &esengine::spine_setSkin);
+    emscripten::function("spine_getBonePosition", &esengine::spine_getBonePosition);
+    emscripten::function("spine_hasInstance", &esengine::spine_hasInstance);
+    emscripten::function("spine_reloadAssets", &esengine::spine_reloadAssets);
+    emscripten::function("spine_getAnimations", &esengine::spine_getAnimations);
+    emscripten::function("spine_getSkins", &esengine::spine_getSkins);
+    emscripten::function("renderer_submitSpineBatch", &esengine::renderer_submitSpineBatch);
+    emscripten::function("spine_setNeedsReload", &esengine::spine_setNeedsReload);
 #endif
 
     emscripten::function("invalidateMaterialCache", &esengine::invalidateMaterialCache);
@@ -556,6 +577,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
 
     emscripten::function("renderer_init", &esengine::renderer_init);
     emscripten::function("renderer_resize", &esengine::renderer_resize);
+    emscripten::function("renderer_beginFrame", &esengine::renderer_beginFrame);
     emscripten::function("renderer_begin", &esengine::renderer_begin);
     emscripten::function("renderer_flush", &esengine::renderer_flush);
     emscripten::function("renderer_end", &esengine::renderer_end);
@@ -566,8 +588,8 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
 #ifdef ES_ENABLE_SPINE
     emscripten::function("renderer_submitSpine", &esengine::renderer_submitSpine);
 #endif
-    emscripten::function("renderer_submitTriangles", &esengine::renderer_submitTriangles);
     emscripten::function("renderer_submitParticles", &esengine::renderer_submitParticles);
+    emscripten::function("renderer_updateTransforms", &esengine::renderer_updateTransforms);
     emscripten::function("renderer_submitAll", &esengine::renderer_submitAll);
     emscripten::function("particle_update", &esengine::particle_update);
     emscripten::function("particle_play", &esengine::particle_play);
