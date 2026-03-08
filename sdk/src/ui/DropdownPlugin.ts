@@ -192,15 +192,12 @@ export class DropdownPlugin implements Plugin {
             destroyOptions(state);
 
             let ddWidth = 0;
-            let ddHeight = 0;
             if (world.has(entity, UIRect)) {
                 const ddRect = world.get(entity, UIRect) as UIRectData;
                 ddWidth = getEffectiveWidth(ddRect, entity) || ddRect.size.x;
-                ddHeight = getEffectiveHeight(ddRect, entity) || ddRect.size.y;
             } else if (world.has(entity, Sprite)) {
                 const ddSprite = world.get(entity, Sprite) as SpriteData;
                 ddWidth = ddSprite.size.x;
-                ddHeight = ddSprite.size.y;
             }
             state.ddWidth = ddWidth;
             const totalHeight = dropdown.options.length * DROPDOWN_ITEM_HEIGHT;
@@ -211,12 +208,7 @@ export class DropdownPlugin implements Plugin {
                 offsetMin: { x: 0, y: 0 },
                 offsetMax: { x: 0, y: 0 },
                 size: { x: ddWidth, y: totalHeight },
-                pivot: { x: 0.5, y: 0.5 },
-            });
-            world.insert(listEntity, Transform, {
-                position: { x: 0, y: -(ddHeight + totalHeight) / 2, z: 0 },
-                rotation: { w: 1, x: 0, y: 0, z: 0 },
-                scale: { x: 1, y: 1, z: 1 },
+                pivot: { x: 0.5, y: 1 },
             });
             world.insert(listEntity, UIRenderer, {
                 visualType: UIVisualType.SolidColor,
@@ -231,7 +223,6 @@ export class DropdownPlugin implements Plugin {
 
             for (let i = 0; i < dropdown.options.length; i++) {
                 const optEntity = world.spawn();
-                const optY = totalHeight / 2 - (i + 0.5) * DROPDOWN_ITEM_HEIGHT;
                 world.insert(optEntity, Name, { value: `Option_${i}` });
                 world.insert(optEntity, UIRect, {
                     anchorMin: { x: 0, y: 1 },
@@ -239,10 +230,10 @@ export class DropdownPlugin implements Plugin {
                     offsetMin: { x: 0, y: -i * DROPDOWN_ITEM_HEIGHT },
                     offsetMax: { x: 0, y: 0 },
                     size: { x: ddWidth, y: DROPDOWN_ITEM_HEIGHT },
-                    pivot: { x: 0.5, y: 0.5 },
+                    pivot: { x: 0.5, y: 1 },
                 });
                 world.insert(optEntity, Transform, {
-                    position: { x: 0, y: optY, z: 0 },
+                    position: { x: 0, y: 0, z: 0 },
                     rotation: { w: 1, x: 0, y: 0, z: 0 },
                     scale: { x: 1, y: 1, z: 1 },
                 });

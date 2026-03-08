@@ -1,5 +1,7 @@
 import { Sprite, Parent, Transform } from '../component';
 import type { ParentData, SpriteData, TransformData, AnyComponentDef } from '../component';
+import { Image } from './Image';
+import type { ImageData } from './Image';
 import type { Entity, Color } from '../types';
 import type { World } from '../world';
 import { UIRect } from './UIRect';
@@ -380,27 +382,51 @@ export function withChildEntity(
     }
 }
 
+function colorEquals(a: Color, b: Color): boolean {
+    return a.r === b.r && a.g === b.g && a.b === b.b && a.a === b.a;
+}
+
 export function setEntityColor(world: World, entity: Entity, color: Color): void {
-    if (world.has(entity, UIRenderer)) {
-        const r = world.get(entity, UIRenderer) as UIRendererData;
-        r.color = color;
-        world.insert(entity, UIRenderer, r);
+    if (world.has(entity, Image)) {
+        const img = world.get(entity, Image) as ImageData;
+        if (!colorEquals(img.color, color)) {
+            img.color = color;
+            world.insert(entity, Image, img);
+        }
     } else if (world.has(entity, Sprite)) {
         const s = world.get(entity, Sprite) as SpriteData;
-        s.color = color;
-        world.insert(entity, Sprite, s);
+        if (!colorEquals(s.color, color)) {
+            s.color = color;
+            world.insert(entity, Sprite, s);
+        }
+    } else if (world.has(entity, UIRenderer)) {
+        const r = world.get(entity, UIRenderer) as UIRendererData;
+        if (!colorEquals(r.color, color)) {
+            r.color = color;
+            world.insert(entity, UIRenderer, r);
+        }
     }
 }
 
 export function setEntityEnabled(world: World, entity: Entity, enabled: boolean): void {
-    if (world.has(entity, UIRenderer)) {
-        const r = world.get(entity, UIRenderer) as UIRendererData;
-        r.enabled = enabled;
-        world.insert(entity, UIRenderer, r);
+    if (world.has(entity, Image)) {
+        const img = world.get(entity, Image) as ImageData;
+        if (img.enabled !== enabled) {
+            img.enabled = enabled;
+            world.insert(entity, Image, img);
+        }
     } else if (world.has(entity, Sprite)) {
         const s = world.get(entity, Sprite) as SpriteData;
-        s.enabled = enabled;
-        world.insert(entity, Sprite, s);
+        if (s.enabled !== enabled) {
+            s.enabled = enabled;
+            world.insert(entity, Sprite, s);
+        }
+    } else if (world.has(entity, UIRenderer)) {
+        const r = world.get(entity, UIRenderer) as UIRendererData;
+        if (r.enabled !== enabled) {
+            r.enabled = enabled;
+            world.insert(entity, UIRenderer, r);
+        }
     }
 }
 
