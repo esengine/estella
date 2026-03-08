@@ -26,9 +26,9 @@ function createRendererMockModule() {
         renderer_flush: vi.fn(),
         renderer_end: vi.fn(),
 
-        renderer_submitSprites: vi.fn(),
-        renderer_submitBitmapText: vi.fn(),
-        renderer_submitSpine: vi.fn(),
+        renderer_beginFrame: vi.fn(),
+        renderer_updateTransforms: vi.fn(),
+        renderer_submitAll: vi.fn(),
 
         renderer_createTarget: vi.fn(() => 42),
         renderer_releaseTarget: vi.fn(),
@@ -132,19 +132,19 @@ describe('Renderer API', () => {
             expect(result).toEqual({ width: 0, height: 0 });
         });
 
-        it('should no-op submitSprites when uninitialized', () => {
-            Renderer.submitSprites({ _cpp: 1 as any });
-            expect(mock.renderer_submitSprites).not.toHaveBeenCalled();
+        it('should no-op beginFrame when uninitialized', () => {
+            Renderer.beginFrame();
+            expect(mock.renderer_beginFrame).not.toHaveBeenCalled();
         });
 
-        it('should no-op submitBitmapText when uninitialized', () => {
-            Renderer.submitBitmapText({ _cpp: 1 as any });
-            expect(mock.renderer_submitBitmapText).not.toHaveBeenCalled();
+        it('should no-op updateTransforms when uninitialized', () => {
+            Renderer.updateTransforms({ _cpp: 1 as any });
+            expect(mock.renderer_updateTransforms).not.toHaveBeenCalled();
         });
 
-        it('should no-op submitSpine when uninitialized', () => {
-            Renderer.submitSpine({ _cpp: 1 as any });
-            expect(mock.renderer_submitSpine).not.toHaveBeenCalled();
+        it('should no-op submitAll when uninitialized', () => {
+            Renderer.submitAll({ _cpp: 1 as any }, 0, 0, 0, 800, 600);
+            expect(mock.renderer_submitAll).not.toHaveBeenCalled();
         });
     });
 
@@ -223,38 +223,37 @@ describe('Renderer API', () => {
     });
 
     // =========================================================================
-    // Renderer.submitSprites
+    // Renderer.beginFrame
     // =========================================================================
 
-    describe('Renderer.submitSprites', () => {
-        it('should call renderer_submitSprites with registry._cpp', () => {
+    describe('Renderer.beginFrame', () => {
+        it('should call renderer_beginFrame', () => {
+            Renderer.beginFrame();
+            expect(mock.renderer_beginFrame).toHaveBeenCalledOnce();
+        });
+    });
+
+    // =========================================================================
+    // Renderer.updateTransforms
+    // =========================================================================
+
+    describe('Renderer.updateTransforms', () => {
+        it('should call renderer_updateTransforms with registry._cpp', () => {
             const registry = { _cpp: 99 as any };
-            Renderer.submitSprites(registry);
-            expect(mock.renderer_submitSprites).toHaveBeenCalledWith(99);
+            Renderer.updateTransforms(registry);
+            expect(mock.renderer_updateTransforms).toHaveBeenCalledWith(99);
         });
     });
 
     // =========================================================================
-    // Renderer.submitBitmapText
+    // Renderer.submitAll
     // =========================================================================
 
-    describe('Renderer.submitBitmapText', () => {
-        it('should call renderer_submitBitmapText with registry._cpp', () => {
-            const registry = { _cpp: 77 as any };
-            Renderer.submitBitmapText(registry);
-            expect(mock.renderer_submitBitmapText).toHaveBeenCalledWith(77);
-        });
-    });
-
-    // =========================================================================
-    // Renderer.submitSpine
-    // =========================================================================
-
-    describe('Renderer.submitSpine', () => {
-        it('should call renderer_submitSpine with registry._cpp', () => {
+    describe('Renderer.submitAll', () => {
+        it('should call renderer_submitAll with registry and viewport', () => {
             const registry = { _cpp: 55 as any };
-            Renderer.submitSpine(registry);
-            expect(mock.renderer_submitSpine).toHaveBeenCalledWith(55);
+            Renderer.submitAll(registry, 0, 10, 20, 800, 600);
+            expect(mock.renderer_submitAll).toHaveBeenCalledWith(55, 0, 10, 20, 800, 600);
         });
     });
 
