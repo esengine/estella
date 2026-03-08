@@ -108,6 +108,13 @@ vi.mock('../container/EditorContainer', () => ({
     setEditorContainer: vi.fn(),
 }));
 
+vi.mock('../services/ScriptInjector', () => ({
+    ScriptInjector: vi.fn().mockImplementation(() => ({
+        inject: vi.fn(),
+        dispose: vi.fn(),
+    })),
+}));
+
 vi.mock('../asset', () => ({
     getAssetDatabase: vi.fn(() => ({
         getAllEntries: vi.fn(() => mockDbEntries[Symbol.iterator]()),
@@ -116,13 +123,16 @@ vi.mock('../asset', () => ({
 }));
 
 import { getPlayModeService, PlayModeService } from '../services/PlayModeService';
-import { PLAY_MODE_SERVICE } from '../container/tokens';
+import { PLAY_MODE_SERVICE, SCRIPT_SERVICE } from '../container/tokens';
 
 describe('PlayModeService — SceneManager integration', () => {
     let service: ReturnType<typeof getPlayModeService>;
 
     beforeEach(() => {
         vi.clearAllMocks();
+        mockContainer.provide(SCRIPT_SERVICE, 'default', {
+            getCompiledScripts: vi.fn(() => null),
+        });
         mockContainer.provide(PLAY_MODE_SERVICE, 'default', new PlayModeService());
         service = getPlayModeService();
     });

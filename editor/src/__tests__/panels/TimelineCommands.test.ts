@@ -58,7 +58,7 @@ describe('TimelineCommands', () => {
 
             const kfs = (data.tracks[0] as any).channels[0].keyframes;
             expect(kfs).toHaveLength(4);
-            expect(kfs[1]).toEqual({ time: 0.5, value: 0.5 });
+            expect(kfs[1]).toEqual({ time: 0.5, value: 0.5, inTangent: 0, outTangent: 0 });
         });
 
         it('should insert keyframe in sorted time order', () => {

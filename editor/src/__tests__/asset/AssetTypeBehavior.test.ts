@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { EditorContainer, setEditorContainer } from '../../container/EditorContainer';
 import {
     resetAssetTypeRegistry,
     registerBuiltinAssetTypes,
@@ -6,6 +7,8 @@ import {
     getDroppableTypes,
     getInspectorRenderer,
 } from '../../asset/AssetTypeRegistry';
+
+setEditorContainer(new EditorContainer());
 
 describe('AssetTypeRegistry behavior dispatch', () => {
     beforeEach(() => {

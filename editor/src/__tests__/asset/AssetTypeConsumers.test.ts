@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { EditorContainer, setEditorContainer } from '../../container/EditorContainer';
 import {
     resetAssetTypeRegistry,
     registerBuiltinAssetTypes,
@@ -6,6 +7,8 @@ import {
     getAssetTypeDisplayName,
     getDisplayType,
 } from '../../asset/AssetTypeRegistry';
+
+setEditorContainer(new EditorContainer());
 import { getAssetIcon, getAssetType } from '../../panels/content-browser/ContentBrowserTypes';
 
 describe('ContentBrowserTypes delegates to Registry', () => {

@@ -1,4 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+vi.mock('../../services', () => ({
+    getOutputService: vi.fn(() => ({
+        registerOutputHandler: vi.fn(() => () => {}),
+    })),
+}));
+
 import { OutputPanel } from '../../panels/OutputPanel';
 
 describe('OutputPanel', () => {

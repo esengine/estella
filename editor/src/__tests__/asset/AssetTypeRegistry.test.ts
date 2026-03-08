@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { EditorContainer, setEditorContainer } from '../../container/EditorContainer';
 import {
     registerAssetType,
     getAssetTypeDescriptor,
@@ -12,6 +13,8 @@ import {
     registerBuiltinAssetTypes,
     type AssetTypeDescriptor,
 } from '../../asset/AssetTypeRegistry';
+
+setEditorContainer(new EditorContainer());
 
 describe('AssetTypeRegistry', () => {
     beforeEach(() => {
